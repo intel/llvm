@@ -56,7 +56,7 @@ std::string getArchName(StringRef Arch) {
 }
 
 static bool runLipo(StringRef SDKPath, SmallVectorImpl<StringRef> &Args) {
-  auto Path = sys::findProgramByName("lipo", makeArrayRef(SDKPath));
+  auto Path = sys::findProgramByName("lipo", ArrayRef(SDKPath));
   if (!Path)
     Path = sys::findProgramByName("lipo");
 
@@ -66,7 +66,8 @@ static bool runLipo(StringRef SDKPath, SmallVectorImpl<StringRef> &Args) {
   }
 
   std::string ErrMsg;
-  int result = sys::ExecuteAndWait(*Path, Args, None, {}, 0, 0, &ErrMsg);
+  int result =
+      sys::ExecuteAndWait(*Path, Args, std::nullopt, {}, 0, 0, &ErrMsg);
   if (result) {
     WithColor::error() << "lipo: " << ErrMsg << "\n";
     return false;

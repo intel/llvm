@@ -48,7 +48,6 @@ recognizes:
 * `intel_gpu_aml`
 * `intel_gpu_cml`
 * `intel_gpu_icllp`
-* `intel_gpu_ehl`
 * `intel_gpu_tgllp`
 * `intel_gpu_rkl`
 * `intel_gpu_adl_s`
@@ -70,28 +69,22 @@ recognizes:
 * `intel_gpu_9_6_0` (alias for `intel_gpu_aml`)
 * `intel_gpu_9_7_0` (alias for `intel_gpu_cml`)
 * `intel_gpu_11_0_0` (alias for `intel_gpu_icllp`)
-* `intel_gpu_11_2_0` (alias for `intel_gpu_ehl`)
 * `intel_gpu_12_0_0` (alias for `intel_gpu_tgllp`)
 * `intel_gpu_12_10_0` (alias for `intel_gpu_dg1`)
-* `nvidia_gpu_sm20`
-* `nvidia_gpu_sm30`
-* `nvidia_gpu_sm32`
-* `nvidia_gpu_sm35`
-* `nvidia_gpu_sm37`
-* `nvidia_gpu_sm50`
-* `nvidia_gpu_sm52`
-* `nvidia_gpu_sm53`
-* `nvidia_gpu_sm60`
-* `nvidia_gpu_sm61`
-* `nvidia_gpu_sm62`
-* `nvidia_gpu_sm70`
-* `nvidia_gpu_sm72`
-* `nvidia_gpu_sm75`
-* `nvidia_gpu_sm80`
-* `nvidia_gpu_sm86`
-* `nvidia_gpu_sm87`
-* `nvidia_gpu_sm89`
-* `nvidia_gpu_sm90`
+* `nvidia_gpu_sm_50`
+* `nvidia_gpu_sm_52`
+* `nvidia_gpu_sm_53`
+* `nvidia_gpu_sm_60`
+* `nvidia_gpu_sm_61`
+* `nvidia_gpu_sm_62`
+* `nvidia_gpu_sm_70`
+* `nvidia_gpu_sm_72`
+* `nvidia_gpu_sm_75`
+* `nvidia_gpu_sm_80`
+* `nvidia_gpu_sm_86`
+* `nvidia_gpu_sm_87`
+* `nvidia_gpu_sm_89`
+* `nvidia_gpu_sm_90`
 * `amd_gpu_gfx700`
 * `amd_gpu_gfx701`
 * `amd_gpu_gfx702`
@@ -113,6 +106,7 @@ recognizes:
 * `amd_gpu_gfx1030`
 * `amd_gpu_gfx1031`
 * `amd_gpu_gfx1032`
+* `amd_gpu_gfx1034`
 
 The above listed device names may not be mixed with the existing target name
 `spir64_gen` on the same command line.  In addition, the user must not pass the
@@ -148,7 +142,6 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_INTEL_GPU_AML__`
 * `__SYCL_TARGET_INTEL_GPU_CML__`
 * `__SYCL_TARGET_INTEL_GPU_ICLLP__`
-* `__SYCL_TARGET_INTEL_GPU_EHL__`
 * `__SYCL_TARGET_INTEL_GPU_TGLLP__`
 * `__SYCL_TARGET_INTEL_GPU_RKL__`
 * `__SYCL_TARGET_INTEL_GPU_ADL_S__`
@@ -160,11 +153,6 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_INTEL_GPU_ACM_G11__`
 * `__SYCL_TARGET_INTEL_GPU_ACM_G12__`
 * `__SYCL_TARGET_INTEL_GPU_PVC__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM20__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM30__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM32__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM35__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM37__`
 * `__SYCL_TARGET_NVIDIA_GPU_SM50__`
 * `__SYCL_TARGET_NVIDIA_GPU_SM52__`
 * `__SYCL_TARGET_NVIDIA_GPU_SM53__`
@@ -200,6 +188,7 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_AMD_GPU_GFX1030__`
 * `__SYCL_TARGET_AMD_GPU_GFX1031__`
 * `__SYCL_TARGET_AMD_GPU_GFX1032__`
+* `__SYCL_TARGET_AMD_GPU_GFX1034__`
 
 If the user invokes the compiler driver with `-fsycl-targets=spir64_x86_64`,
 the compiler driver must predefine the following C++ macro name:

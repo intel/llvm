@@ -36,11 +36,9 @@ class host_accessor;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 template <typename SYCLObjT> class weak_object;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 namespace detail {
 
@@ -124,6 +122,8 @@ protected:
   void addOrReplaceAccessorProperties(const property_list &PropertyList);
 
   size_t getSize() const;
+
+  void handleRelease() const;
 
   std::shared_ptr<detail::buffer_impl> impl;
 };
@@ -253,7 +253,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            bufferRange.size() * sizeof(T),
+            hostData, bufferRange.size() * sizeof(T),
             detail::getNextPowerOfTwo(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
@@ -466,7 +466,7 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() = default;
+  ~buffer() { buffer_plain::handleRelease(); }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 
@@ -504,10 +504,16 @@ public:
   }
 
   template <access::mode mode>
-  accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access(
-      const detail::code_location CodeLoc = detail::code_location::current()) {
+  __SYCL2020_DEPRECATED("get_access for host_accessor is deprecated, please "
+                        "use get_host_access instead")
+  accessor<
+      T, dimensions, mode, access::target::host_buffer,
+      access::placeholder::false_t,
+      ext::oneapi::
+          accessor_property_list<>> get_access(const detail::code_location
+                                                   CodeLoc =
+                                                       detail::code_location::
+                                                           current()) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(*this, {}, CodeLoc);
@@ -531,11 +537,18 @@ public:
   }
 
   template <access::mode mode>
-  accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access(
-      range<dimensions> accessRange, id<dimensions> accessOffset = {},
-      const detail::code_location CodeLoc = detail::code_location::current()) {
+  __SYCL2020_DEPRECATED("get_access for host_accessor is deprecated, please "
+                        "use get_host_access instead")
+  accessor<
+      T, dimensions, mode, access::target::host_buffer,
+      access::placeholder::false_t,
+      ext::oneapi::
+          accessor_property_list<>> get_access(range<dimensions> accessRange,
+                                               id<dimensions> accessOffset = {},
+                                               const detail::code_location
+                                                   CodeLoc =
+                                                       detail::code_location::
+                                                           current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
       throw sycl::invalid_object_error(
           "Requested accessor would exceed the bounds of the buffer",
@@ -546,8 +559,6 @@ public:
                     ext::oneapi::accessor_property_list<>>(
         *this, accessRange, accessOffset, {}, CodeLoc);
   }
-
-#if __cplusplus >= 201703L
 
   template <typename... Ts> auto get_access(Ts... args) {
     return accessor{*this, args...};
@@ -566,8 +577,6 @@ public:
   auto get_host_access(handler &commandGroupHandler, Ts... args) {
     return host_accessor{*this, commandGroupHandler, args...};
   }
-
-#endif
 
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination finalData = nullptr) {

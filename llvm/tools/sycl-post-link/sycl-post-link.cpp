@@ -13,8 +13,6 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "CompileTimePropertiesPass.h"
-#include "DeviceGlobals.h"
 #include "ModuleSplitter.h"
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLDeviceRequirements.h"
@@ -37,6 +35,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/LowerKernelProps.h"
@@ -238,7 +237,7 @@ void writeToFile(const std::string &Filename, const std::string &Content) {
 // Optional.
 // Otherwise, it returns an Optional containing a list of reached
 // SPIR kernel function's names.
-Optional<std::vector<StringRef>>
+std::optional<std::vector<StringRef>>
 traverseCGToFindSPIRKernels(const Function *StartingFunction) {
   std::queue<const Function *> FunctionsToVisit;
   std::unordered_set<const Function *> VisitedFunctions;
@@ -437,6 +436,17 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
       ProgramMetadata.insert({MetadataNames.back(), KernelReqdWorkGroupSize});
     }
+
+    // Add global_id_mapping information with mapping between device-global
+    // unique identifiers and the variable's name in the IR.
+    for (auto &GV : M.globals()) {
+      if (!isDeviceGlobalVariable(GV))
+        continue;
+
+      StringRef GlobalID = getGlobalVariableUniqueId(GV);
+      MetadataNames.push_back(GlobalID.str() + "@global_id_mapping");
+      ProgramMetadata.insert({MetadataNames.back(), GV.getName()});
+    }
   }
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
@@ -522,7 +532,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
     // Force-inline all functions marked 'alwaysinline' by the LowerESIMD pass.
     MPM.addPass(AlwaysInlinerPass{});
     FunctionPassManager FPM;
-    FPM.addPass(SROAPass{});
+    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
   if (!MD.getModule().getContext().supportsTypedPointers()) {
@@ -534,12 +544,12 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
   MainFPM.addPass(ESIMDLowerLoadStorePass{});
 
   if (!OptLevelO0) {
-    MainFPM.addPass(SROAPass{});
+    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MainFPM.addPass(EarlyCSEPass(true));
     MainFPM.addPass(InstCombinePass{});
     MainFPM.addPass(DCEPass{});
     // TODO: maybe remove some passes below that don't affect code quality
-    MainFPM.addPass(SROAPass{});
+    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MainFPM.addPass(EarlyCSEPass(true));
     MainFPM.addPass(InstCombinePass{});
     MainFPM.addPass(DCEPass{});
@@ -835,11 +845,6 @@ processInputModule(std::unique_ptr<Module> M) {
       DUMP_ENTRY_POINTS(MDesc2.entries(), MDesc2.Name.c_str(), 3);
       Modified |= processSpecConstants(MDesc2);
 
-      // TODO: detach compile-time properties from device globals.
-      if (DeviceGlobals.getNumOccurrences() > 0) {
-        Modified |=
-            runModulePass<CompileTimePropertiesPass>(MDesc2.getModule());
-      }
       if (!MDesc2.isSYCL() && LowerEsimd) {
         assert(MDesc2.isESIMD() && "NYI");
         // ESIMD lowering also detects large-GRF kernels, so it must happen

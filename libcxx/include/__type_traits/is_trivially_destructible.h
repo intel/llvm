@@ -11,6 +11,7 @@
 
 #include <__config>
 #include <__type_traits/integral_constant.h>
+#include <__type_traits/is_destructible.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -34,7 +35,7 @@ template <class _Tp> struct _LIBCPP_TEMPLATE_VIS is_trivially_destructible
 
 #endif // __has_builtin(__is_trivially_destructible)
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template <class _Tp>
 inline constexpr bool is_trivially_destructible_v = is_trivially_destructible<_Tp>::value;
 #endif

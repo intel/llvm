@@ -52,10 +52,6 @@ on:
         type: string
         required: false
         default: 'intel'
-      max_parallel:
-        type: number
-        required: false
-        default: 4
       cts_matrix:
         type: string
         required: false
@@ -158,24 +154,17 @@ jobs:
 
     - name: Pack toolchain
       run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
-    - name: Pack LIT
-      run: tar -cJf lit.tar.xz -C $GITHUB_WORKSPACE/src/llvm/utils/lit .
     - name: Upload toolchain
       uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: llvm_sycl.tar.xz
-    - name: Upload LIT
-      uses: actions/upload-artifact@v3
-      with:
-        name: sycl_lit_${{ inputs.build_artifact_suffix }}
-        path: lit.tar.xz
 
   aws-start:
     name: Start AWS
     needs: build
     if: ${{ inputs.lts_aws_matrix != '[]' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: aws
     steps:
       - name: Setup script
@@ -195,10 +184,11 @@ jobs:
 
   llvm_test_suite:
     needs: [build, aws-start]
-    if: ${{ !failure() && inputs.lts_matrix != '[]' }}
+    # Continue if build was successful. If aws-start is not successful all
+    # AWS tasks will fail, but all non-AWS tasks should continue.
+    if: ${{ always() && needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
-      max-parallel: ${{ inputs.max_parallel }}
       matrix:
         include: ${{ fromJSON(inputs.lts_matrix) }}
     name: ${{ matrix.name }}
@@ -237,18 +227,15 @@ jobs:
         test_ref: ${{ inputs.lts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ inputs.build_artifact_suffix }}
-        lit_archive: lit.tar.xz
         check_sycl_all: ${{ matrix.check_sycl_all }}
         results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
-  
+
   khronos_sycl_cts:
     needs: build
     if: ${{ inputs.cts_matrix != '' }}
     strategy:
       fail-fast: false
-      max-parallel: ${{ inputs.max_parallel }}
       matrix:
         include: ${{ fromJSON(inputs.cts_matrix) }}
     name: ${{ matrix.name }}
@@ -293,8 +280,10 @@ jobs:
   aws-stop:
     name: Stop AWS
     needs: [ aws-start, llvm_test_suite ]
+    # Always attempt to shutdown AWS instance, even if AWS start was not
+    # successful.
     if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: aws
     steps:
       - name: Setup script

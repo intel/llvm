@@ -37,7 +37,8 @@ module m
   type :: bad3
   end type
 
-  type :: m ! the name of a module can be used as a local identifier
+  !PORTABILITY: Name 'm' declared in a module should not have the same name as the module
+  type :: m
   end type m
 
   !ERROR: EXTERNAL attribute was already specified on 'a'
@@ -47,7 +48,7 @@ module m
   external :: a, b, c, d
   !ERROR: EXTERNAL attribute not allowed on 'm'
   external :: m
-  !ERROR: EXTERNAL attribute not allowed on 'foo'
+  !WARNING: EXTERNAL attribute was already specified on 'foo'
   external :: foo
   !ERROR: EXTERNAL attribute not allowed on 'bar'
   external :: bar

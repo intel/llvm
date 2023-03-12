@@ -31,6 +31,7 @@
 
 #include <cassert>
 #include <numeric>
+#include <optional>
 
 using namespace llvm;
 
@@ -53,8 +54,8 @@ class TFModelEvaluatorImpl {
 public:
   TFModelEvaluatorImpl(StringRef SavedModelPath,
                        const std::vector<TensorSpec> &InputSpecs,
-                       function_ref<TensorSpec(size_t)> GetOutputSpecs,
-                       size_t OutputSpecsSize, const char *Tags);
+                       const std::vector<TensorSpec> &OutputSpecs,
+                       const char *Tags);
 
   bool isValid() const { return IsValid; }
   size_t outputSize() const { return Output.size(); }
@@ -98,9 +99,8 @@ private:
 
 TFModelEvaluatorImpl::TFModelEvaluatorImpl(
     StringRef SavedModelPath, const std::vector<TensorSpec> &InputSpecs,
-    function_ref<TensorSpec(size_t)> GetOutputSpecs, size_t OutputSpecsSize,
-    const char *Tags = "serve")
-    : Input(InputSpecs.size()), Output(OutputSpecsSize) {
+    const std::vector<TensorSpec> &OutputSpecs, const char *Tags = "serve")
+    : Input(InputSpecs.size()), Output(OutputSpecs.size()) {
   // INFO and DEBUG messages could be numerous and not particularly interesting
   tflite::LoggerOptions::SetMinimumLogSeverity(tflite::TFLITE_LOG_WARNING);
   // FIXME: make ErrorReporter a member (may also need subclassing
@@ -171,8 +171,8 @@ TFModelEvaluatorImpl::TFModelEvaluatorImpl(
     return;
   }
 
-  for (size_t I = 0; I < OutputSpecsSize; ++I) {
-    auto OutputSpec = GetOutputSpecs(I);
+  for (size_t I = 0; I < OutputSpecs.size(); ++I) {
+    const auto &OutputSpec = OutputSpecs[I];
     Output[I] = Interpreter->output_tensor(
         OutputsMap[OutputSpec.name() + ":" +
                    std::to_string(OutputSpec.port())]);
@@ -181,23 +181,15 @@ TFModelEvaluatorImpl::TFModelEvaluatorImpl(
   }
 }
 
-TFModelEvaluator::TFModelEvaluator(
-    StringRef SavedModelPath, const std::vector<TensorSpec> &InputSpecs,
-    function_ref<TensorSpec(size_t)> GetOutputSpecs, size_t OutputSpecsSize,
-    const char *Tags)
-    : Impl(new TFModelEvaluatorImpl(SavedModelPath, InputSpecs, GetOutputSpecs,
-                                    OutputSpecsSize, Tags)) {
-  if (!Impl->isValid())
-    Impl.reset();
-}
-
 TFModelEvaluator::TFModelEvaluator(StringRef SavedModelPath,
                                    const std::vector<TensorSpec> &InputSpecs,
                                    const std::vector<TensorSpec> &OutputSpecs,
                                    const char *Tags)
-    : TFModelEvaluator(
-          SavedModelPath, InputSpecs, [&](size_t I) { return OutputSpecs[I]; },
-          OutputSpecs.size(), Tags) {}
+    : Impl(new TFModelEvaluatorImpl(SavedModelPath, InputSpecs, OutputSpecs,
+                                    Tags)) {
+  if (!Impl->isValid())
+    Impl.reset();
+}
 
 TFModelEvaluatorImpl::~TFModelEvaluatorImpl() {}
 
@@ -216,9 +208,9 @@ bool TFModelEvaluatorImpl::checkReportAndInvalidate(const TfLiteTensor *Tensor,
   return IsValid;
 }
 
-Optional<TFModelEvaluator::EvaluationResult> TFModelEvaluator::evaluate() {
+std::optional<TFModelEvaluator::EvaluationResult> TFModelEvaluator::evaluate() {
   if (!isValid())
-    return None;
+    return std::nullopt;
   return EvaluationResult(Impl->evaluate());
 }
 
@@ -254,4 +246,4 @@ TFModelEvaluator::EvaluationResult::getUntypedTensorValue(size_t Index) const {
 TFModelEvaluator::EvaluationResult::~EvaluationResult() {}
 TFModelEvaluator::~TFModelEvaluator() {}
 
-#endif // defined(LLVM_HAVE_TF_API)
+#endif // defined(LLVM_HAVE_TFLITE)

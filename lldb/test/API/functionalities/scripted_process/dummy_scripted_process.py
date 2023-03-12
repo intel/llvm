@@ -7,8 +7,8 @@ from lldb.plugins.scripted_process import ScriptedProcess
 from lldb.plugins.scripted_process import ScriptedThread
 
 class DummyScriptedProcess(ScriptedProcess):
-    def __init__(self, target: lldb.SBTarget, args : lldb.SBStructuredData):
-        super().__init__(target, args)
+    def __init__(self, exe_ctx: lldb.SBExecutionContext, args : lldb.SBStructuredData):
+        super().__init__(exe_ctx, args)
         self.threads[0] = DummyScriptedThread(self, None)
 
     def get_memory_region_containing_address(self, addr: int) -> lldb.SBMemoryRegionInfo:
@@ -21,10 +21,12 @@ class DummyScriptedProcess(ScriptedProcess):
         return {}
 
     def read_memory_at_address(self, addr: int, size: int, error: lldb.SBError) -> lldb.SBData:
+        debugger = self.target.GetDebugger()
+        index = debugger.GetIndexOfTarget(self.target)
         data = lldb.SBData().CreateDataFromCString(
                                     self.target.GetByteOrder(),
                                     self.target.GetCodeByteSize(),
-                                    "Hello, world!")
+                                    "Hello, target " + str(index))
 
         return data
 
@@ -42,6 +44,12 @@ class DummyScriptedProcess(ScriptedProcess):
 
     def get_scripted_thread_plugin(self):
         return DummyScriptedThread.__module__ + "." + DummyScriptedThread.__name__
+
+    def my_super_secret_method(self):
+        if hasattr(self, 'my_super_secret_member'):
+            return self.my_super_secret_member
+        else:
+            return None
 
 
 class DummyScriptedThread(ScriptedThread):

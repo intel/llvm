@@ -21,11 +21,12 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
+#include <optional>
 
 using namespace clang;
 using namespace clang::frontend;
@@ -35,10 +36,10 @@ namespace {
 struct DirectoryLookupInfo {
   IncludeDirGroup Group;
   DirectoryLookup Lookup;
-  Optional<unsigned> UserEntryIdx;
+  std::optional<unsigned> UserEntryIdx;
 
   DirectoryLookupInfo(IncludeDirGroup Group, DirectoryLookup Lookup,
-                      Optional<unsigned> UserEntryIdx)
+                      std::optional<unsigned> UserEntryIdx)
       : Group(Group), Lookup(Lookup), UserEntryIdx(UserEntryIdx) {}
 };
 
@@ -62,14 +63,14 @@ public:
   /// if used.
   /// Returns true if the path exists, false if it was ignored.
   bool AddPath(const Twine &Path, IncludeDirGroup Group, bool isFramework,
-               Optional<unsigned> UserEntryIdx = None);
+               std::optional<unsigned> UserEntryIdx = std::nullopt);
 
   /// Add the specified path to the specified group list, without performing any
   /// sysroot remapping.
   /// Returns true if the path exists, false if it was ignored.
   bool AddUnmappedPath(const Twine &Path, IncludeDirGroup Group,
                        bool isFramework,
-                       Optional<unsigned> UserEntryIdx = None);
+                       std::optional<unsigned> UserEntryIdx = std::nullopt);
 
   /// Add the specified prefix to the system header prefix list.
   void AddSystemHeaderPrefix(StringRef Prefix, bool IsSystemHeader) {
@@ -121,7 +122,7 @@ static bool CanPrefixSysroot(StringRef Path) {
 
 bool InitHeaderSearch::AddPath(const Twine &Path, IncludeDirGroup Group,
                                bool isFramework,
-                               Optional<unsigned> UserEntryIdx) {
+                               std::optional<unsigned> UserEntryIdx) {
   // Add the path with sysroot prepended, if desired and this is a system header
   // group.
   if (HasSysroot) {
@@ -138,7 +139,7 @@ bool InitHeaderSearch::AddPath(const Twine &Path, IncludeDirGroup Group,
 
 bool InitHeaderSearch::AddUnmappedPath(const Twine &Path, IncludeDirGroup Group,
                                        bool isFramework,
-                                       Optional<unsigned> UserEntryIdx) {
+                                       std::optional<unsigned> UserEntryIdx) {
   assert(!Path.isTriviallyEmpty() && "can't handle empty path here");
 
   FileManager &FM = Headers.getFileMgr();
@@ -231,12 +232,8 @@ void InitHeaderSearch::AddDefaultCIncludePaths(const llvm::Triple &triple,
   if (HSOpts.UseStandardSystemIncludes) {
     switch (os) {
     case llvm::Triple::CloudABI:
-    case llvm::Triple::NetBSD:
     case llvm::Triple::NaCl:
-    case llvm::Triple::PS4:
-    case llvm::Triple::PS5:
     case llvm::Triple::ELFIAMCU:
-    case llvm::Triple::Fuchsia:
       break;
     case llvm::Triple::Win32:
       if (triple.getEnvironment() != llvm::Triple::Cygnus)
@@ -339,33 +336,7 @@ void InitHeaderSearch::AddDefaultCIncludePaths(const llvm::Triple &triple,
   case llvm::Triple::RTEMS:
   case llvm::Triple::NaCl:
   case llvm::Triple::ELFIAMCU:
-  case llvm::Triple::Fuchsia:
     break;
-  case llvm::Triple::PS4:
-  case llvm::Triple::PS5: {
-    // <isysroot> gets prepended later in AddPath().
-    std::string BaseSDKPath;
-    if (!HasSysroot) {
-      const char *EnvVar = (os == llvm::Triple::PS4) ? "SCE_ORBIS_SDK_DIR"
-                                                     : "SCE_PROSPERO_SDK_DIR";
-      const char *envValue = getenv(EnvVar);
-      if (envValue)
-        BaseSDKPath = envValue;
-      else {
-        // HSOpts.ResourceDir variable contains the location of Clang's
-        // resource files.
-        // Assuming that Clang is configured for PS4 without
-        // --with-clang-resource-dir option, the location of Clang's resource
-        // files is <SDK_DIR>/host_tools/lib/clang
-        SmallString<128> P = StringRef(HSOpts.ResourceDir);
-        llvm::sys::path::append(P, "../../..");
-        BaseSDKPath = std::string(P.str());
-      }
-    }
-    AddPath(BaseSDKPath + "/target/include", System, false);
-    AddPath(BaseSDKPath + "/target/include_common", System, false);
-    break;
-  }
   default:
     AddPath("/usr/include", ExternCSystem, false);
     break;
@@ -412,9 +383,13 @@ bool InitHeaderSearch::ShouldAddDefaultIncludePaths(
   case llvm::Triple::AIX:
   case llvm::Triple::Emscripten:
   case llvm::Triple::FreeBSD:
+  case llvm::Triple::NetBSD:
+  case llvm::Triple::OpenBSD:
+  case llvm::Triple::PS4:
+  case llvm::Triple::PS5:
+  case llvm::Triple::Fuchsia:
   case llvm::Triple::Hurd:
   case llvm::Triple::Linux:
-  case llvm::Triple::OpenBSD:
   case llvm::Triple::Solaris:
   case llvm::Triple::WASI:
     return false;

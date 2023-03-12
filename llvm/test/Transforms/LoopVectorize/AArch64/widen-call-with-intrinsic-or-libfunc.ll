@@ -15,11 +15,11 @@ target triple = "arm64-apple-ios"
 ; CHECK-NEXT: <x1> vector loop: {
 ; CHECK-NEXT:   vector.body:
 ; CHECK-NEXT:     EMIT vp<%2> = CANONICAL-INDUCTION
-; CHECK-NEXT:     vp<%3>    = SCALAR-STEPS vp<%2>, ir<0>, ir<1>
+; CHECK-NEXT:     vp<%3>    = SCALAR-STEPS vp<%2>, ir<1>
 ; CHECK-NEXT:     CLONE ir<%gep.src> = getelementptr ir<%src>, vp<%3>
 ; CHECK-NEXT:     WIDEN ir<%l> = load ir<%gep.src>
 ; CHECK-NEXT:     WIDEN ir<%conv> = fpext ir<%l>
-; CHECK-NEXT:     WIDEN-CALL ir<%s> = call @llvm.sin.f64(ir<%conv>) (using library function)
+; CHECK-NEXT:     WIDEN-CALL ir<%s> = call @llvm.sin.f64(ir<%conv>) (using library function: __simd_sin_v2f64)
 ; CHECK-NEXT:     REPLICATE ir<%gep.dst> = getelementptr ir<%dst>, vp<%3>
 ; CHECK-NEXT:     REPLICATE store ir<%s>, ir<%gep.dst>
 ; CHECK-NEXT:     EMIT vp<%10> = VF * UF +(nuw)  vp<%2>
@@ -41,7 +41,7 @@ target triple = "arm64-apple-ios"
 ; CHECK-NEXT: <x1> vector loop: {
 ; CHECK-NEXT:   vector.body:
 ; CHECK-NEXT:     EMIT vp<%2> = CANONICAL-INDUCTION
-; CHECK-NEXT:     vp<%3>    = SCALAR-STEPS vp<%2>, ir<0>, ir<1>
+; CHECK-NEXT:     vp<%3>    = SCALAR-STEPS vp<%2>, ir<1>
 ; CHECK-NEXT:     CLONE ir<%gep.src> = getelementptr ir<%src>, vp<%3>
 ; CHECK-NEXT:     WIDEN ir<%l> = load ir<%gep.src>
 ; CHECK-NEXT:     WIDEN ir<%conv> = fpext ir<%l>

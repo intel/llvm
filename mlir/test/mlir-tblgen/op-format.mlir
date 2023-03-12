@@ -35,6 +35,11 @@ test.format_symbol_name_attr_op @name
 test.format_symbol_name_attr_op @opt_name
 test.format_opt_symbol_name_attr_op
 
+// CHECK: test.format_opt_symbol_ref_attr_op @foo
+// CHECK: test.format_opt_symbol_ref_attr_op {test.unit}
+test.format_opt_symbol_ref_attr_op @foo {test.unit}
+test.format_opt_symbol_ref_attr_op {test.unit}
+
 // CHECK: test.format_attr_dict_w_keyword attributes {attr = 10 : i64}
 test.format_attr_dict_w_keyword attributes {attr = 10 : i64}
 
@@ -397,6 +402,9 @@ func.func @foo() {
 ^bb2:
   return
 }
+
+// CHECK: test.format_custom_directive_spacing "a" "b"
+test.format_custom_directive_spacing "a" "b"
 
 // CHECK: test.format_literal_following_optional_group(5 : i32) : i32 {a}
 test.format_literal_following_optional_group(5 : i32) : i32 {a}

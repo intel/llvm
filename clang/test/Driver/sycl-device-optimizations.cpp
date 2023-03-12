@@ -13,6 +13,8 @@
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
 // CHECK-DEFAULT-NOT: "-fno-sycl-early-optimizations"
 // CHECK-DEFAULT-NOT: "-disable-llvm-passes"
+// CHECK-DEFAULT: "-fsycl-is-device"
+// CHECK-DEFAULT-SAME: "-O2"
 
 /// Check "-fno-sycl-early-optimizations" is passed to the front-end:
 // RUN:   %clang -### -fsycl -fno-sycl-early-optimizations %s 2>&1 \

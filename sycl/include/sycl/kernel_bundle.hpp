@@ -36,6 +36,8 @@ namespace detail {
 class kernel_id_impl;
 }
 
+template <typename KernelName> kernel_id get_kernel_id();
+
 /// Objects of the class identify kernel is some kernel_bundle related APIs
 ///
 /// \ingroup sycl_api
@@ -236,6 +238,19 @@ public:
     return kernel_bundle_plain::has_kernel(KernelID, Dev);
   }
 
+  /// \returns true only if the kernel bundle contains the kernel identified by
+  /// KernelName.
+  template <typename KernelName> bool has_kernel() const noexcept {
+    return has_kernel(get_kernel_id<KernelName>());
+  }
+
+  /// \returns true only if the kernel bundle contains the kernel identified by
+  /// KernelName and if that kernel is compatible with the device Dev.
+  template <typename KernelName>
+  bool has_kernel(const device &Dev) const noexcept {
+    return has_kernel(get_kernel_id<KernelName>(), Dev);
+  }
+
   /// \returns a vector of kernel_id's that contained in the kernel_bundle
   std::vector<kernel_id> get_kernel_ids() const {
     return kernel_bundle_plain::get_kernel_ids();
@@ -261,10 +276,14 @@ public:
     return detail::kernel_bundle_plain::get_kernel(KernelID);
   }
 
-  // This guard is needed because the libsycl.so can compiled with C++ <=14
-  // while the code requires C++17. This code is not supposed to be used by the
-  // libsycl.so so it should not be a problem.
-#if __cplusplus >= 201703L
+  /// \returns a kernel object which represents the kernel identified by
+  /// KernelName.
+  template <typename KernelName, bundle_state _State = State,
+            typename = detail::enable_if_t<_State == bundle_state::executable>>
+  kernel get_kernel() const {
+    return detail::kernel_bundle_plain::get_kernel(get_kernel_id<KernelName>());
+  }
+
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
@@ -302,7 +321,6 @@ public:
 
     return *reinterpret_cast<SCType *>(RetValue.data());
   }
-#endif
 
   /// \returns an iterator to the first device image kernel_bundle contains
   device_image_iterator begin() const {
@@ -345,9 +363,8 @@ private:
     return ReturnValue;
   }
 };
-#if __cplusplus >= 201703L
-template <bundle_state State> kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
-#endif
+template <bundle_state State>
+kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
 
 /////////////////////////
 // get_kernel_id API
@@ -361,6 +378,8 @@ __SYCL_EXPORT kernel_id get_kernel_id_impl(std::string KernelName);
 
 /// \returns the kernel_id associated with the KernelName
 template <typename KernelName> kernel_id get_kernel_id() {
+  // FIXME: This must fail at link-time if KernelName not in any available
+  // translation units.
   using KI = sycl::detail::KernelInfo<KernelName>;
   return detail::get_kernel_id_impl(KI::getName());
 }

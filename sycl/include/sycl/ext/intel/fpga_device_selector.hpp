@@ -20,8 +20,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 class platform;
 
-namespace ext {
-namespace intel {
+namespace ext::intel {
 
 namespace detail {
 // Scores a device by platform name.
@@ -102,8 +101,7 @@ public:
   }
 };
 
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

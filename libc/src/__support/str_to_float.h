@@ -13,6 +13,7 @@
 #include "src/__support/FPUtil/FPBits.h"
 #include "src/__support/UInt128.h"
 #include "src/__support/builtin_wrappers.h"
+#include "src/__support/common.h"
 #include "src/__support/ctype_utils.h"
 #include "src/__support/detailed_powers_of_ten.h"
 #include "src/__support/high_precision_decimal.h"
@@ -22,7 +23,7 @@
 namespace __llvm_libc {
 namespace internal {
 
-template <class T> uint32_t inline leading_zeroes(T inputNumber) {
+template <class T> LIBC_INLINE uint32_t leading_zeroes(T inputNumber) {
   constexpr uint32_t BITS_IN_T = sizeof(T) * 8;
   if (inputNumber == 0) {
     return BITS_IN_T;
@@ -51,27 +52,32 @@ template <class T> uint32_t inline leading_zeroes(T inputNumber) {
   return BITS_IN_T - cur_guess;
 }
 
-template <> uint32_t inline leading_zeroes<uint32_t>(uint32_t inputNumber) {
+template <>
+LIBC_INLINE uint32_t leading_zeroes<uint32_t>(uint32_t inputNumber) {
   return safe_clz(inputNumber);
 }
 
-template <> uint32_t inline leading_zeroes<uint64_t>(uint64_t inputNumber) {
+template <>
+LIBC_INLINE uint32_t leading_zeroes<uint64_t>(uint64_t inputNumber) {
   return safe_clz(inputNumber);
 }
 
-static inline uint64_t low64(const UInt128 &num) {
+LIBC_INLINE uint64_t low64(const UInt128 &num) {
   return static_cast<uint64_t>(num & 0xffffffffffffffff);
 }
 
-static inline uint64_t high64(const UInt128 &num) {
+LIBC_INLINE uint64_t high64(const UInt128 &num) {
   return static_cast<uint64_t>(num >> 64);
 }
 
-template <class T> inline void set_implicit_bit(fputil::FPBits<T> &) { return; }
+template <class T> LIBC_INLINE void set_implicit_bit(fputil::FPBits<T> &) {
+  return;
+}
 
 #if defined(SPECIAL_X86_LONG_DOUBLE)
 template <>
-inline void set_implicit_bit<long double>(fputil::FPBits<long double> &result) {
+LIBC_INLINE void
+set_implicit_bit<long double>(fputil::FPBits<long double> &result) {
   result.set_implicit_bit(result.get_unbiased_exponent() != 0);
 }
 #endif
@@ -85,7 +91,7 @@ inline void set_implicit_bit<long double>(fputil::FPBits<long double> &result) {
 // (https://github.com/golang/go/blob/release-branch.go1.16/src/strconv/eisel_lemire.go#L25)
 // for some optimizations as well as handling 32 bit floats.
 template <class T>
-static inline bool
+LIBC_INLINE bool
 eisel_lemire(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp10,
              typename fputil::FPBits<T>::UIntType *outputMantissa,
              uint32_t *outputExp2) {
@@ -185,7 +191,7 @@ eisel_lemire(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp10,
 
 #if !defined(LONG_DOUBLE_IS_DOUBLE)
 template <>
-inline bool eisel_lemire<long double>(
+LIBC_INLINE bool eisel_lemire<long double>(
     typename fputil::FPBits<long double>::UIntType mantissa, int32_t exp10,
     typename fputil::FPBits<long double>::UIntType *outputMantissa,
     uint32_t *outputExp2) {
@@ -306,7 +312,7 @@ constexpr int32_t NUM_POWERS_OF_TWO =
 // on the Simple Decimal Conversion algorithm by Nigel Tao, described at this
 // link: https://nigeltao.github.io/blog/2020/parse-number-f64-simple.html
 template <class T>
-static inline void
+LIBC_INLINE void
 simple_decimal_conversion(const char *__restrict numStart,
                           typename fputil::FPBits<T>::UIntType *outputMantissa,
                           uint32_t *outputExp2) {
@@ -504,7 +510,7 @@ public:
 // exponents, but handles them quickly. This is an implementation of Clinger's
 // Fast Path, as described above.
 template <class T>
-static inline bool
+LIBC_INLINE bool
 clinger_fast_path(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp10,
                   typename fputil::FPBits<T>::UIntType *outputMantissa,
                   uint32_t *outputExp2) {
@@ -587,7 +593,7 @@ template <> constexpr int32_t get_lower_bound<double>() {
 // accuracy. The resulting mantissa and exponent are placed in outputMantissa
 // and outputExp2.
 template <class T>
-static inline void
+LIBC_INLINE void
 decimal_exp_to_float(typename fputil::FPBits<T>::UIntType mantissa,
                      int32_t exp10, const char *__restrict numStart,
                      bool truncated,
@@ -610,15 +616,15 @@ decimal_exp_to_float(typename fputil::FPBits<T>::UIntType mantissa,
     return;
   }
 
-#ifndef LLVM_LIBC_DISABLE_CLINGER_FAST_PATH
+#ifndef LIBC_COPT_STRTOFLOAT_DISABLE_CLINGER_FAST_PATH
   if (!truncated) {
     if (clinger_fast_path<T>(mantissa, exp10, outputMantissa, outputExp2)) {
       return;
     }
   }
-#endif // LLVM_LIBC_DISABLE_CLINGER_FAST_PATH
+#endif // LIBC_COPT_STRTOFLOAT_DISABLE_CLINGER_FAST_PATH
 
-#ifndef LLVM_LIBC_DISABLE_EISEL_LEMIRE
+#ifndef LIBC_COPT_STRTOFLOAT_DISABLE_EISEL_LEMIRE
   // Try Eisel-Lemire
   if (eisel_lemire<T>(mantissa, exp10, outputMantissa, outputExp2)) {
     if (!truncated) {
@@ -635,11 +641,13 @@ decimal_exp_to_float(typename fputil::FPBits<T>::UIntType mantissa,
       }
     }
   }
-#endif // LLVM_LIBC_DISABLE_EISEL_LEMIRE
+#endif // LIBC_COPT_STRTOFLOAT_DISABLE_EISEL_LEMIRE
 
-#ifndef LLVM_LIBC_DISABLE_SIMPLE_DECIMAL_CONVERSION
+#ifndef LIBC_COPT_STRTOFLOAT_DISABLE_SIMPLE_DECIMAL_CONVERSION
   simple_decimal_conversion<T>(numStart, outputMantissa, outputExp2);
-#endif // LLVM_LIBC_DISABLE_SIMPLE_DECIMAL_CONVERSION
+#else
+#warning "Simple decimal conversion is disabled, result may not be correct."
+#endif // LIBC_COPT_STRTOFLOAT_DISABLE_SIMPLE_DECIMAL_CONVERSION
 
   return;
 }
@@ -649,7 +657,7 @@ decimal_exp_to_float(typename fputil::FPBits<T>::UIntType mantissa,
 // form, this is mostly just shifting and rounding. This is used for hexadecimal
 // numbers since a base 16 exponent multiplied by 4 is the base 2 exponent.
 template <class T>
-static inline void
+LIBC_INLINE void
 binary_exp_to_float(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp2,
                     bool truncated,
                     typename fputil::FPBits<T>::UIntType *outputMantissa,
@@ -736,8 +744,8 @@ binary_exp_to_float(typename fputil::FPBits<T>::UIntType mantissa, int32_t exp2,
 
 // checks if the next 4 characters of the string pointer are the start of a
 // hexadecimal floating point number. Does not advance the string pointer.
-static inline bool is_float_hex_start(const char *__restrict src,
-                                      const char decimalPoint) {
+LIBC_INLINE bool is_float_hex_start(const char *__restrict src,
+                                    const char decimalPoint) {
   if (!(*src == '0' && (*(src + 1) | 32) == 'x')) {
     return false;
   }
@@ -755,7 +763,7 @@ static inline bool is_float_hex_start(const char *__restrict src,
 // If the return value is false, then it is assumed that there is no number
 // here.
 template <class T>
-static inline bool
+LIBC_INLINE bool
 decimal_string_to_float(const char *__restrict src, const char DECIMAL_POINT,
                         char **__restrict strEnd,
                         typename fputil::FPBits<T>::UIntType *outputMantissa,
@@ -817,7 +825,10 @@ decimal_string_to_float(const char *__restrict src, const char DECIMAL_POINT,
     if (*(src + 1) == '+' || *(src + 1) == '-' || isdigit(*(src + 1))) {
       ++src;
       char *temp_str_end;
-      int32_t add_to_exponent = strtointeger<int32_t>(src, &temp_str_end, 10);
+      auto result = strtointeger<int32_t>(src, 10);
+      // TODO: If error, return with error.
+      temp_str_end = const_cast<char *>(src + result.parsed_len);
+      int32_t add_to_exponent = result.value;
       if (add_to_exponent > 100000)
         add_to_exponent = 100000;
       else if (add_to_exponent < -100000)
@@ -846,7 +857,7 @@ decimal_string_to_float(const char *__restrict src, const char DECIMAL_POINT,
 // If the return value is false, then it is assumed that there is no number
 // here.
 template <class T>
-static inline bool hexadecimal_string_to_float(
+LIBC_INLINE bool hexadecimal_string_to_float(
     const char *__restrict src, const char DECIMAL_POINT,
     char **__restrict strEnd,
     typename fputil::FPBits<T>::UIntType *outputMantissa,
@@ -911,7 +922,10 @@ static inline bool hexadecimal_string_to_float(
     if (*(src + 1) == '+' || *(src + 1) == '-' || isdigit(*(src + 1))) {
       ++src;
       char *temp_str_end;
-      int32_t add_to_exponent = strtointeger<int32_t>(src, &temp_str_end, 10);
+      auto result = strtointeger<int32_t>(src, 10);
+      // TODO: If error, return error.
+      temp_str_end = const_cast<char *>(src + result.parsed_len);
+      int32_t add_to_exponent = result.value;
       if (add_to_exponent > 100000)
         add_to_exponent = 100000;
       else if (add_to_exponent < -100000)
@@ -934,8 +948,8 @@ static inline bool hexadecimal_string_to_float(
 // Takes a pointer to a string and a pointer to a string pointer. This function
 // is used as the backend for all of the string to float functions.
 template <class T>
-static inline T strtofloatingpoint(const char *__restrict src,
-                                   char **__restrict strEnd) {
+LIBC_INLINE T strtofloatingpoint(const char *__restrict src,
+                                 char **__restrict strEnd) {
   using BitsType = typename fputil::FPBits<T>::UIntType;
   fputil::FPBits<T> result = fputil::FPBits<T>();
   const char *original_src = src;
@@ -1001,8 +1015,11 @@ static inline T strtofloatingpoint(const char *__restrict src,
             // more than is required by the specification, which says for the
             // input type "NAN(n-char-sequence)" that "the meaning of
             // the n-char sequence is implementation-defined."
-            nan_mantissa = static_cast<BitsType>(
-                strtointeger<uint64_t>(left_paren + 1, &temp_src, 0));
+
+            auto result = strtointeger<uint64_t>(left_paren + 1, 0);
+            // TODO: If error, return error
+            temp_src = const_cast<char *>(left_paren + 1 + result.parsed_len);
+            nan_mantissa = result.value;
             if (*temp_src != ')')
               nan_mantissa = 0;
           }

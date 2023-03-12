@@ -10,6 +10,7 @@
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/TokenKinds.h"
 #include "llvm/Support/FormatVariadic.h"
+#include <optional>
 #include <variant>
 
 namespace clang {
@@ -45,8 +46,9 @@ private:
 
   // Parses tokens starting at Tok into Tree.
   // If we reach an End or Else directive that ends Tree, returns it.
-  // If TopLevel is true, then we do not expect End and always return None.
-  llvm::Optional<DirectiveTree::Directive> parse(DirectiveTree *Tree,
+  // If TopLevel is true, then we do not expect End and always return
+  // std::nullopt.
+  std::optional<DirectiveTree::Directive> parse(DirectiveTree *Tree,
                                                 bool TopLevel) {
     auto StartsDirective =
         [&, AllowDirectiveAt((const Token *)nullptr)]() mutable {
@@ -92,7 +94,7 @@ private:
         Tree->Chunks.push_back(std::move(Directive));
       }
     }
-    return None;
+    return std::nullopt;
   }
 
   // Parse the rest of a conditional section, after seeing the If directive.
@@ -283,8 +285,8 @@ public:
 
 private:
   // Return true if the directive starts an always-taken conditional branch,
-  // false if the branch is never taken, and None otherwise.
-  llvm::Optional<bool> isTakenWhenReached(const DirectiveTree::Directive &Dir) {
+  // false if the branch is never taken, and std::nullopt otherwise.
+  std::optional<bool> isTakenWhenReached(const DirectiveTree::Directive &Dir) {
     switch (Dir.Kind) {
     case clang::tok::pp_if:
     case clang::tok::pp_elif:
@@ -292,7 +294,7 @@ private:
     case clang::tok::pp_else:
       return true;
     default: // #ifdef etc
-      return llvm::None;
+      return std::nullopt;
     }
 
     const auto &Tokens = Code.tokens(Dir.Tokens);
@@ -301,11 +303,11 @@ private:
     const Token &Value = Name.nextNC();
     // Does the condition consist of exactly one token?
     if (&Value >= Tokens.end() || &Value.nextNC() < Tokens.end())
-      return llvm::None;
-    return llvm::StringSwitch<llvm::Optional<bool>>(Value.text())
+      return std::nullopt;
+    return llvm::StringSwitch<std::optional<bool>>(Value.text())
         .Cases("true", "1", true)
         .Cases("false", "0", false)
-        .Default(llvm::None);
+        .Default(std::nullopt);
   }
 
   const TokenStream &Code;

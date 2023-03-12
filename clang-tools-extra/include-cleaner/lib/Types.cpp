@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang-include-cleaner/Types.h"
+#include "TypesInternal.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/FileEntry.h"
 #include "llvm/ADT/StringExtras.h"
@@ -39,14 +40,14 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Header &H) {
 }
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Include &I) {
-  return OS << I.Line << ": " << I.Spelled << " => "
+  return OS << I.Line << ": " << I.quote() << " => "
             << (I.Resolved ? I.Resolved->getName() : "<missing>");
 }
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const SymbolReference &R) {
   // We can't decode the Location without SourceManager. Its raw representation
   // isn't completely useless (and distinguishes SymbolReference from Symbol).
-  return OS << R.Target << "@0x"
+  return OS << R.RT << " reference to " << R.Target << "@0x"
             << llvm::utohexstr(
                    R.RefLocation.getRawEncoding(), /*LowerCase=*/false,
                    /*Width=*/CHAR_BIT * sizeof(SourceLocation::UIntTy));
@@ -64,4 +65,75 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, RefType T) {
   llvm_unreachable("Unexpected RefType");
 }
 
+std::string Include::quote() const {
+  return (llvm::StringRef(Angled ? "<" : "\"") + Spelled +
+          (Angled ? ">" : "\""))
+      .str();
+}
+
+void Includes::add(const Include &I) {
+  unsigned Index = All.size();
+  All.push_back(I);
+  auto BySpellingIt = BySpelling.try_emplace(I.Spelled).first;
+  All.back().Spelled = BySpellingIt->first(); // Now we own the backing string.
+
+  BySpellingIt->second.push_back(Index);
+  if (I.Resolved)
+    ByFile[I.Resolved].push_back(Index);
+  ByLine[I.Line] = Index;
+}
+
+const Include *Includes::atLine(unsigned OneBasedIndex) const {
+  auto It = ByLine.find(OneBasedIndex);
+  return (It == ByLine.end()) ? nullptr : &All[It->second];
+}
+
+llvm::SmallVector<const Include *> Includes::match(Header H) const {
+  llvm::SmallVector<const Include *> Result;
+  switch (H.kind()) {
+  case Header::Physical:
+    for (unsigned I : ByFile.lookup(H.physical()))
+      Result.push_back(&All[I]);
+    break;
+  case Header::Standard:
+    for (unsigned I : BySpelling.lookup(H.standard().name().trim("<>")))
+      Result.push_back(&All[I]);
+    break;
+  case Header::Verbatim:
+    for (unsigned I : BySpelling.lookup(H.verbatim().trim("\"<>")))
+      Result.push_back(&All[I]);
+    break;
+  }
+  return Result;
+}
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const SymbolLocation &S) {
+  switch (S.kind()) {
+  case SymbolLocation::Physical:
+    // We can't decode the Location without SourceManager. Its raw
+    // representation isn't completely useless (and distinguishes
+    // SymbolReference from Symbol).
+    return OS << "@0x"
+              << llvm::utohexstr(
+                     S.physical().getRawEncoding(), /*LowerCase=*/false,
+                     /*Width=*/CHAR_BIT * sizeof(SourceLocation::UIntTy));
+  case SymbolLocation::Standard:
+    return OS << S.standard().scope() << S.standard().name();
+  }
+  llvm_unreachable("Unhandled Symbol kind");
+}
+
+bool Header::operator<(const Header &RHS) const {
+  if (kind() != RHS.kind())
+    return kind() < RHS.kind();
+  switch (kind()) {
+  case Header::Physical:
+    return physical()->getName() < RHS.physical()->getName();
+  case Header::Standard:
+    return standard().name() < RHS.standard().name();
+  case Header::Verbatim:
+    return verbatim() < RHS.verbatim();
+  }
+  llvm_unreachable("unhandled Header kind");
+}
 } // namespace clang::include_cleaner

@@ -53,7 +53,7 @@ private:
   MapVector<MachineInstr *, SDWAOperandsVector> PotentialMatches;
   SmallVector<MachineInstr *, 8> ConvertedInstructions;
 
-  Optional<int64_t> foldToImm(const MachineOperand &Op) const;
+  std::optional<int64_t> foldToImm(const MachineOperand &Op) const;
 
 public:
   static char ID;
@@ -490,7 +490,8 @@ bool SDWADstPreserveOperand::convertToSDWA(MachineInstr &MI,
   return SDWADstOperand::convertToSDWA(MI, TII);
 }
 
-Optional<int64_t> SIPeepholeSDWA::foldToImm(const MachineOperand &Op) const {
+std::optional<int64_t>
+SIPeepholeSDWA::foldToImm(const MachineOperand &Op) const {
   if (Op.isImm()) {
     return Op.getImm();
   }
@@ -504,17 +505,17 @@ Optional<int64_t> SIPeepholeSDWA::foldToImm(const MachineOperand &Op) const {
 
       const MachineInstr *DefInst = Def.getParent();
       if (!TII->isFoldableCopy(*DefInst))
-        return None;
+        return std::nullopt;
 
       const MachineOperand &Copied = DefInst->getOperand(1);
       if (!Copied.isImm())
-        return None;
+        return std::nullopt;
 
       return Copied.getImm();
     }
   }
 
-  return None;
+  return std::nullopt;
 }
 
 std::unique_ptr<SDWAOperand>
@@ -697,21 +698,21 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
     auto CheckOROperandsForSDWA =
       [&](const MachineOperand *Op1, const MachineOperand *Op2) -> CheckRetType {
         if (!Op1 || !Op1->isReg() || !Op2 || !Op2->isReg())
-          return CheckRetType(None);
+          return CheckRetType(std::nullopt);
 
         MachineOperand *Op1Def = findSingleRegDef(Op1, MRI);
         if (!Op1Def)
-          return CheckRetType(None);
+          return CheckRetType(std::nullopt);
 
         MachineInstr *Op1Inst = Op1Def->getParent();
         if (!TII->isSDWA(*Op1Inst))
-          return CheckRetType(None);
+          return CheckRetType(std::nullopt);
 
         MachineOperand *Op2Def = findSingleRegDef(Op2, MRI);
         if (!Op2Def)
-          return CheckRetType(None);
+          return CheckRetType(std::nullopt);
 
-        return CheckRetType(std::make_pair(Op1Def, Op2Def));
+        return CheckRetType(std::pair(Op1Def, Op2Def));
       };
 
     MachineOperand *OrSDWA = TII->getNamedOperand(MI, AMDGPU::OpName::src0);
@@ -1157,9 +1158,9 @@ void SIPeepholeSDWA::legalizeScalarOperands(MachineInstr &MI,
     if (!Op.isImm() && !(Op.isReg() && !TRI->isVGPR(*MRI, Op.getReg())))
       continue;
 
-    unsigned I = MI.getOperandNo(&Op);
-    if (Desc.OpInfo[I].RegClass == -1 ||
-        !TRI->isVSSuperClass(TRI->getRegClass(Desc.OpInfo[I].RegClass)))
+    unsigned I = Op.getOperandNo();
+    if (Desc.operands()[I].RegClass == -1 ||
+        !TRI->isVSSuperClass(TRI->getRegClass(Desc.operands()[I].RegClass)))
       continue;
 
     if (ST.hasSDWAScalar() && ConstantBusCount == 0 && Op.isReg() &&

@@ -81,6 +81,17 @@ approved by an Intel representative.
   - A new approval is needed if the PR was updated (e.g. during code review).
 - Once the PR is approved and all checks have passed, the pull request is
 ready for merge.
+- Sometimes unrelated fails can be observed in the PR. It's author
+responsibility to find/guess the reason of these fails and post a comment in
+the PR with:
+  - possible reason of fails, ideally with a link to the PR, which caused fails
+  - link to other PR(s), which expected to fix fails
+  - person who is currently looking into fails
+  - link to existing open issue
+  - if author cannot identify any of these, the minimal action expected is to
+    open a new [issue](/../../issues)
+  - list of unrelated tests failing in pre-commit CI. This would enable easy
+    access to them via github search functionality.
 
 ### Merge
 
@@ -89,7 +100,8 @@ and merge] and using PR description as the commit message, replacing all
 individual comments made per commit. Authors of the change must ensure PR
 description is up to date at the merge stage, as sometimes comments addressed
 during code reviews can invalidate original PR description. Feel free to ping
-@intel/llvm-gatekeepers if your PR is green and can be merged.
+@intel/llvm-gatekeepers if your PR is green and can be merged. Note that
+gatekeepers will require explanation for any failures observed.
 
 Pulldown from LLVM upstream is done through merge commits to preserve hashes of
 the original commits pulled from the LLVM community repository.

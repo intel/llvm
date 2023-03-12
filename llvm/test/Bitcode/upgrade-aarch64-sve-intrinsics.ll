@@ -1,7 +1,7 @@
-; RUN: llvm-as %s -o - | llvm-dis - | FileCheck %s
+; RUN: llvm-as %s -o - | llvm-dis -opaque-pointers - | FileCheck %s
 
 define <vscale x 32 x i8> @ld2.nxv32i8(<vscale x 16 x i1> %Pg, i8 *%base_ptr) {
-; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld2.sret.nxv16i8(<vscale x 16 x i1> %Pg, i8* %base_ptr)
+; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld2.sret.nxv16i8(<vscale x 16 x i1> %Pg, ptr %base_ptr)
 ; CHECK-NEXT:  %2 = extractvalue { <vscale x 16 x i8>, <vscale x 16 x i8> } %1, 0
 ; CHECK-NEXT:  %3 = call <vscale x 32 x i8> @llvm.vector.insert.nxv32i8.nxv16i8(<vscale x 32 x i8> poison, <vscale x 16 x i8> %2, i64 0)
 ; CHECK-NEXT:  %4 = extractvalue { <vscale x 16 x i8>, <vscale x 16 x i8> } %1, 1
@@ -12,7 +12,7 @@ ret <vscale x 32 x i8> %res
 }
 
 define <vscale x 48 x i8> @ld3.nxv48i8(<vscale x 16 x i1> %Pg, i8 *%base_ptr) {
-; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld3.sret.nxv16i8(<vscale x 16 x i1> %Pg, i8* %base_ptr)
+; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld3.sret.nxv16i8(<vscale x 16 x i1> %Pg, ptr %base_ptr)
 ; CHECK-NEXT:  %2 = extractvalue { <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8> } %1, 0
 ; CHECK-NEXT:  %3 = call <vscale x 48 x i8> @llvm.vector.insert.nxv48i8.nxv16i8(<vscale x 48 x i8> poison, <vscale x 16 x i8> %2, i64 0)
 ; CHECK-NEXT:  %4 = extractvalue { <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8> } %1, 1
@@ -25,7 +25,7 @@ ret <vscale x 48 x i8> %res
 }
 
 define <vscale x 64 x i8> @ld4.nxv64i8_lower_bound(<vscale x 16 x i1> %Pg, i8 *%base_ptr) {
-; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld4.sret.nxv16i8(<vscale x 16 x i1> %Pg, i8* %base_ptr)
+; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld4.sret.nxv16i8(<vscale x 16 x i1> %Pg, ptr %base_ptr)
 ; CHECK-NEXT:  %2 = extractvalue { <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8> } %1, 0
 ; CHECK-NEXT:  %3 = call <vscale x 64 x i8> @llvm.vector.insert.nxv64i8.nxv16i8(<vscale x 64 x i8> poison, <vscale x 16 x i8> %2, i64 0)
 ; CHECK-NEXT:  %4 = extractvalue { <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8>, <vscale x 16 x i8> } %1, 1
@@ -44,7 +44,7 @@ ret <vscale x 64 x i8> %res
 ; ldN intrinsic name without any element type
 define <vscale x 32 x i8> @ld2.nxv32i8_no_eltty(<vscale x 16 x i1> %Pg, i8 *%base_ptr) {
 ; CHECK-LABEL:  @ld2.nxv32i8_no_eltty
-; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld2.sret.nxv16i8(<vscale x 16 x i1> %Pg, i8* %base_ptr)
+; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld2.sret.nxv16i8(<vscale x 16 x i1> %Pg, ptr %base_ptr)
 ; CHECK-NEXT:  %2 = extractvalue { <vscale x 16 x i8>, <vscale x 16 x i8> } %1, 0
 ; CHECK-NEXT:  %3 = call <vscale x 32 x i8> @llvm.vector.insert.nxv32i8.nxv16i8(<vscale x 32 x i8> poison, <vscale x 16 x i8> %2, i64 0)
 ; CHECK-NEXT:  %4 = extractvalue { <vscale x 16 x i8>, <vscale x 16 x i8> } %1, 1
@@ -57,7 +57,7 @@ ret <vscale x 32 x i8> %res
 ; ldN instrinsic name with only output type
 define <vscale x 32 x i8> @ld2.nxv32i8_no_predty_pty(<vscale x 16 x i1> %Pg, i8 *%base_ptr) {
 ; CHECK-LABEL:  @ld2.nxv32i8_no_predty_pty
-; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld2.sret.nxv16i8(<vscale x 16 x i1> %Pg, i8* %base_ptr)
+; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld2.sret.nxv16i8(<vscale x 16 x i1> %Pg, ptr %base_ptr)
 ; CHECK-NEXT:  %2 = extractvalue { <vscale x 16 x i8>, <vscale x 16 x i8> } %1, 0
 ; CHECK-NEXT:  %3 = call <vscale x 32 x i8> @llvm.vector.insert.nxv32i8.nxv16i8(<vscale x 32 x i8> poison, <vscale x 16 x i8> %2, i64 0)
 ; CHECK-NEXT:  %4 = extractvalue { <vscale x 16 x i8>, <vscale x 16 x i8> } %1, 1
@@ -160,6 +160,33 @@ define <vscale x 4 x i32> @get_tuple2_nxv8i32_elt1(<vscale x 8 x i32> %tuple) {
   ret <vscale x 4 x i32> %ext
 }
 
+; bfdot
+define <vscale x 4 x float> @bfdot_lane(<vscale x 4 x float> %a, <vscale x 8 x bfloat> %b, <vscale x 8 x bfloat> %c) nounwind {
+; CHECK-LABEL: @bfdot_lane
+; CHECK:       %out = call <vscale x 4 x float> @llvm.aarch64.sve.bfdot.lane.v2(<vscale x 4 x float> %a, <vscale x 8 x bfloat> %b, <vscale x 8 x bfloat> %c, i32 0)
+; CHECK-NEXT:  ret <vscale x 4 x float> %out
+  %out = call <vscale x 4 x float> @llvm.aarch64.sve.bfdot.lane(<vscale x 4 x float> %a, <vscale x 8 x bfloat> %b, <vscale x 8 x bfloat> %c, i64 0)
+  ret <vscale x 4 x float> %out
+}
+
+; bfmlalb
+define <vscale x 4 x float> @bfmlalb_lane(<vscale x 4 x float> %a, <vscale x 8 x bfloat> %b, <vscale x 8 x bfloat> %c) nounwind {
+; CHECK-LABEL: @bfmlalb_lane
+; CHECK:       %out = call <vscale x 4 x float> @llvm.aarch64.sve.bfmlalb.lane.v2(<vscale x 4 x float> %a, <vscale x 8 x bfloat> %b, <vscale x 8 x bfloat> %c, i32 0)
+; CHECK-NEXT:  ret <vscale x 4 x float> %out
+  %out = call <vscale x 4 x float> @llvm.aarch64.sve.bfmlalb.lane(<vscale x 4 x float> %a, <vscale x 8 x bfloat> %b, <vscale x 8 x bfloat> %c, i64 0)
+  ret <vscale x 4 x float> %out
+}
+
+; bfmlalt
+define <vscale x 4 x float> @bfmlalt_lane(<vscale x 4 x float> %a, <vscale x 8 x bfloat> %b, <vscale x 8 x bfloat> %c) nounwind {
+; CHECK-LABEL: @bfmlalt_lane
+; CHECK:       %out = call <vscale x 4 x float> @llvm.aarch64.sve.bfmlalt.lane.v2(<vscale x 4 x float> %a, <vscale x 8 x bfloat> %b, <vscale x 8 x bfloat> %c, i32 0)
+; CHECK-NEXT:  ret <vscale x 4 x float> %out
+  %out = call <vscale x 4 x float> @llvm.aarch64.sve.bfmlalt.lane(<vscale x 4 x float> %a, <vscale x 8 x bfloat> %b, <vscale x 8 x bfloat> %c, i64 0)
+  ret <vscale x 4 x float> %out
+}
+
 declare  <vscale x 32 x i8> @llvm.aarch64.sve.tuple.create2.nxv32i8.nxv16i8(<vscale x 16 x i8>, <vscale x 16 x i8>)
 declare  <vscale x 32 x i8> @llvm.aarch64.sve.tuple.create2.nxv32i8(<vscale x 16 x i8>, <vscale x 16 x i8>)
 declare  <vscale x 32 x i8> @llvm.aarch64.sve.tuple.create2(<vscale x 16 x i8>, <vscale x 16 x i8>)
@@ -168,3 +195,6 @@ declare <vscale x 64 x i8> @llvm.aarch64.sve.tuple.create4.nxv64i8.nxv16i8(<vsca
 declare <vscale x 16 x i8> @llvm.aarch64.sve.tuple.create1.nxv16i8.nxv16i8(<vscale x 16 x i8>)
 declare <vscale x 8 x i32> @llvm.aarch64.sve.tuple.set.nxv8i32.nxv4i32(<vscale x 8 x i32>, i32, <vscale x 4 x i32>)
 declare <vscale x 4 x i32> @llvm.aarch64.sve.tuple.get.nxv8i32(<vscale x 8 x i32>, i32)
+declare <vscale x 4 x float> @llvm.aarch64.sve.bfdot.lane(<vscale x 4 x float>, <vscale x 8 x bfloat>, <vscale x 8 x bfloat>, i64)
+declare <vscale x 4 x float> @llvm.aarch64.sve.bfmlalb.lane(<vscale x 4 x float>, <vscale x 8 x bfloat>, <vscale x 8 x bfloat>, i64)
+declare <vscale x 4 x float> @llvm.aarch64.sve.bfmlalt.lane(<vscale x 4 x float>, <vscale x 8 x bfloat>, <vscale x 8 x bfloat>, i64)

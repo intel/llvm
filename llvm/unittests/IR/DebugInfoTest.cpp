@@ -84,7 +84,7 @@ TEST(DINodeTest, splitFlags) {
   {                                                                            \
     SmallVector<DINode::DIFlags, 8> V;                                         \
     EXPECT_EQ(REMAINDER, DINode::splitFlags(FLAGS, V));                        \
-    EXPECT_TRUE(makeArrayRef(V).equals(VECTOR));                               \
+    EXPECT_TRUE(ArrayRef(V).equals(VECTOR));                                   \
   }
   CHECK_SPLIT(DINode::FlagPublic, {DINode::FlagPublic}, DINode::FlagZero);
   CHECK_SPLIT(DINode::FlagProtected, {DINode::FlagProtected}, DINode::FlagZero);
@@ -188,6 +188,24 @@ TEST(MetadataTest, DeleteInstUsedByDbgValue) {
   I.eraseFromParent();
   EXPECT_EQ(DVIs[0]->getNumVariableLocationOps(), 1u);
   EXPECT_TRUE(isa<UndefValue>(DVIs[0]->getValue(0)));
+}
+
+TEST(DIBuiler, CreateFile) {
+  LLVMContext Ctx;
+  std::unique_ptr<Module> M(new Module("MyModule", Ctx));
+  DIBuilder DIB(*M);
+
+  DIFile *F = DIB.createFile("main.c", "/");
+  EXPECT_EQ(std::nullopt, F->getSource());
+
+  std::optional<DIFile::ChecksumInfo<StringRef>> Checksum;
+  std::optional<StringRef> Source;
+  F = DIB.createFile("main.c", "/", Checksum, Source);
+  EXPECT_EQ(Source, F->getSource());
+
+  Source = "";
+  F = DIB.createFile("main.c", "/", Checksum, Source);
+  EXPECT_EQ(Source, F->getSource());
 }
 
 TEST(DIBuilder, CreateFortranArrayTypeWithAttributes) {

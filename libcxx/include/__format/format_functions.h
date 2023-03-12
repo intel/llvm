@@ -38,7 +38,9 @@
 #include <__format/formatter_string.h>
 #include <__format/parser_std_format_spec.h>
 #include <__iterator/back_insert_iterator.h>
+#include <__iterator/concepts.h>
 #include <__iterator/incrementable_traits.h>
+#include <__iterator/readable_traits.h> // iter_value_t
 #include <__variant/monostate.h>
 #include <array>
 #include <string>
@@ -54,7 +56,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 // TODO FMT Evaluate which templates should be external templates. This
 // improves the efficiency of the header. However since the header is still
@@ -101,7 +103,7 @@ public:
   // Before calling __parse the proper handler needs to be set with __enable.
   // The default handler isn't a core constant expression.
   _LIBCPP_HIDE_FROM_ABI constexpr __compile_time_handle()
-      : __parse_([](basic_format_parse_context<_CharT>&) { __throw_format_error("Not a handle"); }) {}
+      : __parse_([](basic_format_parse_context<_CharT>&) { std::__throw_format_error("Not a handle"); }) {}
 
 private:
   void (*__parse_)(basic_format_parse_context<_CharT>&);
@@ -128,13 +130,13 @@ public:
 
   _LIBCPP_HIDE_FROM_ABI constexpr __arg_t arg(size_t __id) const {
     if (__id >= __size_)
-      __throw_format_error("Argument index out of bounds");
+      std::__throw_format_error("Argument index out of bounds");
     return __args_[__id];
   }
 
   _LIBCPP_HIDE_FROM_ABI constexpr const __compile_time_handle<_CharT>& __handle(size_t __id) const {
     if (__id >= __size_)
-      __throw_format_error("Argument index out of bounds");
+      std::__throw_format_error("Argument index out of bounds");
     return __handles_[__id];
   }
 
@@ -159,7 +161,7 @@ constexpr void __compile_time_validate_integral(__arg_t __type) {
     return;
 
   default:
-    __throw_format_error("Argument isn't an integral type");
+    std::__throw_format_error("Argument isn't an integral type");
   }
 }
 
@@ -191,7 +193,7 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __compile_time_visit_format_arg(basic_forma
                                                                      __arg_t __type) {
   switch (__type) {
   case __arg_t::__none:
-    __throw_format_error("Invalid argument");
+    std::__throw_format_error("Invalid argument");
   case __arg_t::__boolean:
     return __format::__compile_time_validate_argument<_CharT, bool>(__parse_ctx, __ctx);
   case __arg_t::__char_type:
@@ -204,7 +206,7 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __compile_time_visit_format_arg(basic_forma
 #      ifndef _LIBCPP_HAS_NO_INT128
     return __format::__compile_time_validate_argument<_CharT, __int128_t>(__parse_ctx, __ctx);
 #      else
-    __throw_format_error("Invalid argument");
+    std::__throw_format_error("Invalid argument");
 #      endif
     return;
   case __arg_t::__unsigned:
@@ -215,7 +217,7 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __compile_time_visit_format_arg(basic_forma
 #      ifndef _LIBCPP_HAS_NO_INT128
     return __format::__compile_time_validate_argument<_CharT, __uint128_t>(__parse_ctx, __ctx);
 #      else
-    __throw_format_error("Invalid argument");
+    std::__throw_format_error("Invalid argument");
 #      endif
     return;
   case __arg_t::__float:
@@ -231,43 +233,45 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __compile_time_visit_format_arg(basic_forma
   case __arg_t::__ptr:
     return __format::__compile_time_validate_argument<_CharT, const void*>(__parse_ctx, __ctx);
   case __arg_t::__handle:
-    __throw_format_error("Handle should use __compile_time_validate_handle_argument");
+    std::__throw_format_error("Handle should use __compile_time_validate_handle_argument");
   }
-  __throw_format_error("Invalid argument");
+  std::__throw_format_error("Invalid argument");
 }
 
-template <class _CharT, class _ParseCtx, class _Ctx>
-_LIBCPP_HIDE_FROM_ABI constexpr const _CharT*
-__handle_replacement_field(const _CharT* __begin, const _CharT* __end,
+template <contiguous_iterator _Iterator, class _ParseCtx, class _Ctx>
+_LIBCPP_HIDE_FROM_ABI constexpr _Iterator
+__handle_replacement_field(_Iterator __begin, _Iterator __end,
                            _ParseCtx& __parse_ctx, _Ctx& __ctx) {
+  using _CharT = iter_value_t<_Iterator>;
   __format::__parse_number_result __r = __format::__parse_arg_id(__begin, __end, __parse_ctx);
 
-  bool __parse = *__r.__ptr == _CharT(':');
-  switch (*__r.__ptr) {
+  bool __parse = *__r.__last == _CharT(':');
+  switch (*__r.__last) {
   case _CharT(':'):
     // The arg-id has a format-specifier, advance the input to the format-spec.
-    __parse_ctx.advance_to(__r.__ptr + 1);
+    __parse_ctx.advance_to(__r.__last + 1);
     break;
   case _CharT('}'):
     // The arg-id has no format-specifier.
-    __parse_ctx.advance_to(__r.__ptr);
+    __parse_ctx.advance_to(__r.__last);
     break;
   default:
-    __throw_format_error(
-        "The replacement field arg-id should terminate at a ':' or '}'");
+    std::__throw_format_error("The replacement field arg-id should terminate at a ':' or '}'");
   }
 
   if constexpr (same_as<_Ctx, __compile_time_basic_format_context<_CharT>>) {
     __arg_t __type = __ctx.arg(__r.__value);
-    if (__type == __arg_t::__handle)
+    if (__type == __arg_t::__none)
+      std::__throw_format_error("Argument index out of bounds");
+    else if (__type == __arg_t::__handle)
       __ctx.__handle(__r.__value).__parse(__parse_ctx);
-    else
-        __format::__compile_time_visit_format_arg(__parse_ctx, __ctx, __type);
+    else if (__parse)
+      __format::__compile_time_visit_format_arg(__parse_ctx, __ctx, __type);
   } else
     _VSTD::__visit_format_arg(
         [&](auto __arg) {
           if constexpr (same_as<decltype(__arg), monostate>)
-            __throw_format_error("Argument index out of bounds");
+            std::__throw_format_error("Argument index out of bounds");
           else if constexpr (same_as<decltype(__arg), typename basic_format_arg<_Ctx>::handle>)
             __arg.format(__parse_ctx, __ctx);
           else {
@@ -281,7 +285,7 @@ __handle_replacement_field(const _CharT* __begin, const _CharT* __end,
 
   __begin = __parse_ctx.begin();
   if (__begin == __end || *__begin != _CharT('}'))
-    __throw_format_error("The replacement field misses a terminating '}'");
+    std::__throw_format_error("The replacement field misses a terminating '}'");
 
   return ++__begin;
 }
@@ -292,20 +296,20 @@ __vformat_to(_ParseCtx&& __parse_ctx, _Ctx&& __ctx) {
   using _CharT = typename _ParseCtx::char_type;
   static_assert(same_as<typename _Ctx::char_type, _CharT>);
 
-  const _CharT* __begin = __parse_ctx.begin();
-  const _CharT* __end = __parse_ctx.end();
+  auto __begin = __parse_ctx.begin();
+  auto __end = __parse_ctx.end();
   typename _Ctx::iterator __out_it = __ctx.out();
   while (__begin != __end) {
     switch (*__begin) {
     case _CharT('{'):
       ++__begin;
       if (__begin == __end)
-        __throw_format_error("The format string terminates at a '{'");
+        std::__throw_format_error("The format string terminates at a '{'");
 
       if (*__begin != _CharT('{')) [[likely]] {
         __ctx.advance_to(_VSTD::move(__out_it));
         __begin =
-            __handle_replacement_field(__begin, __end, __parse_ctx, __ctx);
+            __format::__handle_replacement_field(__begin, __end, __parse_ctx, __ctx);
         __out_it = __ctx.out();
 
         // The output is written and __begin points to the next character. So
@@ -318,8 +322,7 @@ __vformat_to(_ParseCtx&& __parse_ctx, _Ctx&& __ctx) {
     case _CharT('}'):
       ++__begin;
       if (__begin == __end || *__begin != _CharT('}'))
-        __throw_format_error(
-            "The format string contains an invalid escape sequence");
+        std::__throw_format_error("The format string contains an invalid escape sequence");
 
       break;
     }
@@ -654,7 +657,7 @@ formatted_size(locale __loc, wformat_string<_Args...> __fmt, _Args&&... __args) 
 #endif // _LIBCPP_HAS_NO_LOCALIZATION
 
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

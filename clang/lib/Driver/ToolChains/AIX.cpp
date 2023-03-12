@@ -226,7 +226,8 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     auto ExpCommand = std::make_unique<Command>(
         JA, *this, ResponseFileSupport::None(), CreateExportListExec,
         CreateExportCmdArgs, Inputs, Output);
-    ExpCommand->setRedirectFiles({None, std::string(ExportList), None});
+    ExpCommand->setRedirectFiles(
+        {std::nullopt, std::string(ExportList), std::nullopt});
     C.addCommand(std::move(ExpCommand));
     CmdArgs.push_back(Args.MakeArgString(llvm::Twine("-bE:") + ExportList));
   }
@@ -242,6 +243,25 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
     AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
 
+    // Add OpenMP runtime if -fopenmp is specified.
+    if (Args.hasFlag(options::OPT_fopenmp, options::OPT_fopenmp_EQ,
+                     options::OPT_fno_openmp, false)) {
+      switch (ToolChain.getDriver().getOpenMPRuntime(Args)) {
+      case Driver::OMPRT_OMP:
+        CmdArgs.push_back("-lomp");
+        break;
+      case Driver::OMPRT_IOMP5:
+        CmdArgs.push_back("-liomp5");
+        break;
+      case Driver::OMPRT_GOMP:
+        CmdArgs.push_back("-lgomp");
+        break;
+      case Driver::OMPRT_Unknown:
+        // Already diagnosed.
+        break;
+      }
+    }
+
     // Support POSIX threads if "-pthreads" or "-pthread" is present.
     if (Args.hasArg(options::OPT_pthreads, options::OPT_pthread))
       CmdArgs.push_back("-lpthreads");
@@ -250,6 +270,13 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-lm");
 
     CmdArgs.push_back("-lc");
+
+    if (Args.hasArg(options::OPT_p, options::OPT_pg)) {
+      CmdArgs.push_back(Args.MakeArgString((llvm::Twine("-L") + D.SysRoot) +
+                                           "/lib/profiled"));
+      CmdArgs.push_back(Args.MakeArgString((llvm::Twine("-L") + D.SysRoot) +
+                                           "/usr/lib/profiled"));
+    }
   }
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
@@ -260,6 +287,10 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 /// AIX - AIX tool chain which can call as(1) and ld(1) directly.
 AIX::AIX(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     : ToolChain(D, Triple, Args) {
+  getProgramPaths().push_back(getDriver().getInstalledDir());
+  if (getDriver().getInstalledDir() != getDriver().Dir)
+    getProgramPaths().push_back(getDriver().Dir);
+
   ParseInlineAsmUsingAsmParser = Args.hasFlag(
       options::OPT_fintegrated_as, options::OPT_fno_integrated_as, true);
   getLibraryPaths().push_back(getDriver().SysRoot + "/usr/lib");

@@ -236,8 +236,6 @@ public:
                      bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
-    // TODO: Add a check that all kernel ids are compatible with at least one
-    // device in Devs
     common_ctor_checks(State);
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(

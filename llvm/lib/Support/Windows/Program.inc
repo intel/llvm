@@ -127,7 +127,7 @@ bool MakeErrMsg(std::string *ErrMsg, const std::string &prefix) {
   return R != 0;
 }
 
-static HANDLE RedirectIO(Optional<StringRef> Path, int fd,
+static HANDLE RedirectIO(std::optional<StringRef> Path, int fd,
                          std::string *ErrMsg) {
   HANDLE h;
   if (!Path) {
@@ -172,8 +172,8 @@ static HANDLE RedirectIO(Optional<StringRef> Path, int fd,
 } // namespace llvm
 
 static bool Execute(ProcessInfo &PI, StringRef Program,
-                    ArrayRef<StringRef> Args, Optional<ArrayRef<StringRef>> Env,
-                    ArrayRef<Optional<StringRef>> Redirects,
+                    ArrayRef<StringRef> Args, std::optional<ArrayRef<StringRef>> Env,
+                    ArrayRef<std::optional<StringRef>> Redirects,
                     unsigned MemoryLimit, std::string *ErrMsg,
                     BitVector *AffinityMask) {
   if (!sys::fs::can_execute(Program)) {
@@ -408,24 +408,22 @@ ErrorOr<std::wstring> sys::flattenWindowsCommandLine(ArrayRef<StringRef> Args) {
   return std::wstring(CommandUtf16.begin(), CommandUtf16.end());
 }
 
-ProcessInfo sys::Wait(const ProcessInfo &PI, unsigned SecondsToWait,
-                      bool WaitUntilChildTerminates, std::string *ErrMsg,
-                      Optional<ProcessStatistics> *ProcStat) {
+ProcessInfo sys::Wait(const ProcessInfo &PI,
+                      std::optional<unsigned> SecondsToWait,
+                      std::string *ErrMsg,
+                      std::optional<ProcessStatistics> *ProcStat,
+                      bool Polling) {
   assert(PI.Pid && "invalid pid to wait on, process not started?");
   assert((PI.Process && PI.Process != INVALID_HANDLE_VALUE) &&
          "invalid process handle to wait on, process not started?");
-  DWORD milliSecondsToWait = 0;
-  if (WaitUntilChildTerminates)
-    milliSecondsToWait = INFINITE;
-  else if (SecondsToWait > 0)
-    milliSecondsToWait = SecondsToWait * 1000;
+  DWORD milliSecondsToWait = SecondsToWait ? *SecondsToWait * 1000 : INFINITE;
 
   ProcessInfo WaitResult = PI;
   if (ProcStat)
     ProcStat->reset();
   DWORD WaitStatus = WaitForSingleObject(PI.Process, milliSecondsToWait);
   if (WaitStatus == WAIT_TIMEOUT) {
-    if (SecondsToWait) {
+    if (!Polling && *SecondsToWait > 0) {
       if (!TerminateProcess(PI.Process, 1)) {
         if (ErrMsg)
           MakeErrMsg(ErrMsg, "Failed to terminate timed-out program");

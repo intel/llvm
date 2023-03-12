@@ -10,14 +10,13 @@
 
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/detail/boost/mp11.hpp>
 
 #include <tuple>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 // Forward declaration
 template <typename PropertyT, typename... Ts> struct property_value;
@@ -108,93 +107,20 @@ template <typename RHS> struct SelectNonVoid<void, RHS> {
   using type = RHS;
 };
 
-// Merges two tuples by recursively extracting the type with the minimum
-// PropertyID in the two tuples and prepending it to the merging of the
-// remaining elements.
-template <typename T1, typename T2> struct Merge {};
-template <typename... LTs> struct Merge<std::tuple<LTs...>, std::tuple<>> {
-  using type = std::tuple<LTs...>;
+// Sort types accoring to their PropertyID.
+struct SortByPropertyId {
+  template <typename T1, typename T2>
+  using fn = sycl::detail::boost::mp11::mp_bool<(PropertyID<T1>::value <
+                                                 PropertyID<T2>::value)>;
 };
-template <typename... RTs> struct Merge<std::tuple<>, std::tuple<RTs...>> {
-  using type = std::tuple<RTs...>;
-};
-template <typename... LTs, typename... RTs>
-struct Merge<std::tuple<LTs...>, std::tuple<RTs...>> {
-  using l_head = GetFirstType<LTs...>;
-  using r_head = GetFirstType<RTs...>;
-  static constexpr bool left_has_min =
-      PropertyID<l_head>::value < PropertyID<r_head>::value;
-  using l_split = HeadSplit<std::tuple<LTs...>, left_has_min>;
-  using r_split = HeadSplit<std::tuple<RTs...>, !left_has_min>;
-  using min = typename SelectNonVoid<typename l_split::htype,
-                                     typename r_split::htype>::type;
-  using merge_tails =
-      typename Merge<typename l_split::ttype, typename r_split::ttype>::type;
-  using type = typename PrependTuple<min, merge_tails>::type;
-};
-
-// Creates pairs of tuples with a single element from a tuple with N elements.
-// Resulting tuple will have ceil(N/2) elements.
-template <typename...> struct CreateTuplePairs {
-  using type = typename std::tuple<>;
-};
-template <typename T> struct CreateTuplePairs<T> {
-  using type = typename std::tuple<std::pair<std::tuple<T>, std::tuple<>>>;
-};
-template <typename L, typename R, typename... Rest>
-struct CreateTuplePairs<L, R, Rest...> {
-  using type =
-      typename PrependTuple<std::pair<std::tuple<L>, std::tuple<R>>,
-                            typename CreateTuplePairs<Rest...>::type>::type;
-};
-
-// Merges pairs of tuples and creates new pairs of the merged pairs. Let N be
-// the number of pairs in the supplied tuple, then the resulting tuple will
-// contain ceil(N/2) pairs of tuples.
-template <typename T> struct MergePairs {
-  using type = std::tuple<>;
-};
-template <typename... LTs, typename... RTs, typename... Rest>
-struct MergePairs<
-    std::tuple<std::pair<std::tuple<LTs...>, std::tuple<RTs...>>, Rest...>> {
-  using merged = typename Merge<std::tuple<LTs...>, std::tuple<RTs...>>::type;
-  using type = std::tuple<std::pair<merged, std::tuple<>>>;
-};
-template <typename... LLTs, typename... LRTs, typename... RLTs,
-          typename... RRTs, typename... Rest>
-struct MergePairs<
-    std::tuple<std::pair<std::tuple<LLTs...>, std::tuple<LRTs...>>,
-               std::pair<std::tuple<RLTs...>, std::tuple<RRTs...>>, Rest...>> {
-  using lmerged =
-      typename Merge<std::tuple<LLTs...>, std::tuple<LRTs...>>::type;
-  using rmerged =
-      typename Merge<std::tuple<RLTs...>, std::tuple<RRTs...>>::type;
-  using type = typename PrependTuple<
-      std::pair<lmerged, rmerged>,
-      typename MergePairs<std::tuple<Rest...>>::type>::type;
-};
-
-// Recursively merges all pairs of tuples until only a single pair of tuples
-// is left, where the right element of the pair is an empty tuple.
-template <typename T> struct MergeAll {};
-template <typename... Ts> struct MergeAll<std::tuple<Ts...>> {
-  using type = std::tuple<Ts...>;
-};
-template <typename... Ts>
-struct MergeAll<std::tuple<std::pair<std::tuple<Ts...>, std::tuple<>>>> {
-  using type = std::tuple<Ts...>;
-};
-template <typename T, typename... Ts> struct MergeAll<std::tuple<T, Ts...>> {
-  using reduced = typename MergePairs<std::tuple<T, Ts...>>::type;
-  using type = typename MergeAll<reduced>::type;
-};
-
-// Performs merge-sort on types with PropertyID.
 template <typename... Ts> struct Sorted {
   static_assert(detail::AllPropertyValues<std::tuple<Ts...>>::value,
                 "Unrecognized property in property list.");
-  using split = typename CreateTuplePairs<Ts...>::type;
-  using type = typename MergeAll<split>::type;
+  using properties = sycl::detail::boost::mp11::mp_list<Ts...>;
+  using sortedProperties =
+      sycl::detail::boost::mp11::mp_sort_q<properties, SortByPropertyId>;
+  using type =
+      sycl::detail::boost::mp11::mp_rename<sortedProperties, std::tuple>;
 };
 
 // Checks if the types in a tuple are sorted w.r.t. their PropertyID.
@@ -381,8 +307,6 @@ template <size_t... Sizes>
 struct SizeListToStr : SizeListToStrHelper<SizeList<Sizes...>, CharList<>> {};
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -15,20 +15,18 @@
 // 1 - Initial extension version. Base features are supported.
 #define SYCL_EXT_ONEAPI_UNIFORM 1
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_VER_NAMESPACE
 
 #include <type_traits>
 
 // Forward declarations of types not allowed to be wrapped in uniform:
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 struct sub_group;
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 template <int, bool> class item;
 template <int> class id;
@@ -43,9 +41,7 @@ using ext::oneapi::sub_group;
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 namespace detail {
 
 template <class T, template <int> class Tmpl>
@@ -115,8 +111,6 @@ private:
   T Val;
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

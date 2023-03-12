@@ -17,6 +17,7 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/WindowsError.h"
 #include <malloc.h>
+#include <optional>
 
 // The Windows.h header must be after LLVM and standard headers.
 #include "llvm/Support/Windows/WindowsSupport.h"
@@ -116,11 +117,11 @@ void Process::PreventCoreFiles() {
 
 /// Returns the environment variable \arg Name's value as a string encoded in
 /// UTF-8. \arg Name is assumed to be in UTF-8 encoding.
-Optional<std::string> Process::GetEnv(StringRef Name) {
+std::optional<std::string> Process::GetEnv(StringRef Name) {
   // Convert the argument to UTF-16 to pass it to _wgetenv().
   SmallVector<wchar_t, 128> NameUTF16;
   if (windows::UTF8ToUTF16(Name, NameUTF16))
-    return None;
+    return std::nullopt;
 
   // Environment variable can be encoded in non-UTF8 encoding, and there's no
   // way to know what the encoding is. The only reliable way to look up
@@ -132,7 +133,7 @@ Optional<std::string> Process::GetEnv(StringRef Name) {
     SetLastError(NO_ERROR);
     Size = GetEnvironmentVariableW(NameUTF16.data(), Buf.data(), Buf.size());
     if (Size == 0 && GetLastError() == ERROR_ENVVAR_NOT_FOUND)
-      return None;
+      return std::nullopt;
 
     // Try again with larger buffer.
   } while (Size > Buf.size());
@@ -141,7 +142,7 @@ Optional<std::string> Process::GetEnv(StringRef Name) {
   // Convert the result from UTF-16 to UTF-8.
   SmallVector<char, MAX_PATH> Res;
   if (windows::UTF16ToUTF8(Buf.data(), Size, Res))
-    return None;
+    return std::nullopt;
   return std::string(Res.data());
 }
 
@@ -476,25 +477,48 @@ unsigned Process::GetRandomNumber() {
 typedef NTSTATUS(WINAPI *RtlGetVersionPtr)(PRTL_OSVERSIONINFOW);
 #define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
 
-llvm::VersionTuple llvm::GetWindowsOSVersion() {
-  HMODULE hMod = ::GetModuleHandleW(L"ntdll.dll");
-  if (hMod) {
+static RTL_OSVERSIONINFOEXW GetWindowsVer() {
+  auto getVer = []() -> RTL_OSVERSIONINFOEXW {
+    HMODULE hMod = ::GetModuleHandleW(L"ntdll.dll");
+    assert(hMod);
+
     auto getVer = (RtlGetVersionPtr)::GetProcAddress(hMod, "RtlGetVersion");
-    if (getVer) {
-      RTL_OSVERSIONINFOEXW info{};
-      info.dwOSVersionInfoSize = sizeof(info);
-      if (getVer((PRTL_OSVERSIONINFOW)&info) == STATUS_SUCCESS) {
-        return llvm::VersionTuple(info.dwMajorVersion, info.dwMinorVersion, 0,
-                                  info.dwBuildNumber);
-      }
-    }
-  }
-  return llvm::VersionTuple(0, 0, 0, 0);
+    assert(getVer);
+
+    RTL_OSVERSIONINFOEXW info{};
+    info.dwOSVersionInfoSize = sizeof(info);
+    NTSTATUS r = getVer((PRTL_OSVERSIONINFOW)&info);
+    (void)r;
+    assert(r == STATUS_SUCCESS);
+
+    return info;
+  };
+  static RTL_OSVERSIONINFOEXW info = getVer();
+  return info;
+}
+
+llvm::VersionTuple llvm::GetWindowsOSVersion() {
+  RTL_OSVERSIONINFOEXW info = GetWindowsVer();
+  return llvm::VersionTuple(info.dwMajorVersion, info.dwMinorVersion, 0,
+                            info.dwBuildNumber);
 }
 
 bool llvm::RunningWindows8OrGreater() {
   // Windows 8 is version 6.2, service pack 0.
   return GetWindowsOSVersion() >= llvm::VersionTuple(6, 2, 0, 0);
+}
+
+bool llvm::RunningWindows11OrGreater() {
+  RTL_OSVERSIONINFOEXW info = GetWindowsVer();
+  auto ver = llvm::VersionTuple(info.dwMajorVersion, info.dwMinorVersion, 0,
+                                info.dwBuildNumber);
+
+  // Windows Server 2022
+  if (info.wProductType == VER_NT_SERVER)
+    return ver >= llvm::VersionTuple(10, 0, 0, 20348);
+
+  // Windows 11
+  return ver >= llvm::VersionTuple(10, 0, 0, 22000);
 }
 
 [[noreturn]] void Process::ExitNoCleanup(int RetCode) {

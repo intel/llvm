@@ -66,13 +66,13 @@ def shfl_uimm : Operand<XLenVT>, ImmLeaf<XLenVT, [{
 
 def BCLRXForm : SDNodeXForm<imm, [{
   // Find the lowest 0.
-  return CurDAG->getTargetConstant(countTrailingOnes(N->getZExtValue()),
+  return CurDAG->getTargetConstant(llvm::countr_one(N->getZExtValue()),
                                    SDLoc(N), N->getValueType(0));
 }]>;
 
 def SingleBitSetMaskToIndex : SDNodeXForm<imm, [{
   // Find the lowest 1.
-  return CurDAG->getTargetConstant(countTrailingZeros(N->getZExtValue()),
+  return CurDAG->getTargetConstant(llvm::countr_zero(N->getZExtValue()),
                                    SDLoc(N), N->getValueType(0));
 }]>;
 
@@ -99,12 +99,12 @@ def BSETINVTwoBitsMask : PatLeaf<(imm), [{
   if (isInt<12>(N->getSExtValue()))
     return false;
   // The immediate must have exactly two bits set.
-  return countPopulation(N->getZExtValue()) == 2;
+  return llvm::popcount(N->getZExtValue()) == 2;
 }]>;
 
 def BSETINVTwoBitsMaskHigh : SDNodeXForm<imm, [{
   uint64_t I = N->getZExtValue();
-  return CurDAG->getTargetConstant(63 - countLeadingZeros(I), SDLoc(N),
+  return CurDAG->getTargetConstant(llvm::Log2_64(I), SDLoc(N),
                                    N->getValueType(0));
 }]>;
 
@@ -134,11 +134,11 @@ def BCLRITwoBitsMask : PatLeaf<(imm), [{
   if (isInt<12>(N->getSExtValue()))
     return false;
   // The immediate must have exactly two bits clear.
-  return countPopulation(N->getZExtValue()) == Subtarget->getXLen() - 2;
+  return (unsigned)llvm::popcount(N->getZExtValue()) == Subtarget->getXLen() - 2;
 }]>;
 
 def BCLRITwoBitsMaskLow : SDNodeXForm<imm, [{
-  return CurDAG->getTargetConstant(countTrailingZeros(~N->getZExtValue()),
+  return CurDAG->getTargetConstant(llvm::countr_zero(~N->getZExtValue()),
                                    SDLoc(N), N->getValueType(0));
 }]>;
 
@@ -146,7 +146,7 @@ def BCLRITwoBitsMaskHigh : SDNodeXForm<imm, [{
   uint64_t I = N->getSExtValue();
   if (!Subtarget->is64Bit())
     I |= 0xffffffffull << 32;
-  return CurDAG->getTargetConstant(63 - countLeadingZeros(~I), SDLoc(N),
+  return CurDAG->getTargetConstant(llvm::Log2_64(~I), SDLoc(N),
                                    N->getValueType(0));
 }]>;
 
@@ -170,44 +170,38 @@ def BCLRIANDIMaskLow : SDNodeXForm<imm, [{
 
 def C3LeftShift : PatLeaf<(imm), [{
   uint64_t C = N->getZExtValue();
-  return C > 3 && ((C % 3) == 0) && isPowerOf2_64(C / 3);
+  return C > 3 && (C >> llvm::countr_zero(C)) == 3;
 }]>;
 
 def C5LeftShift : PatLeaf<(imm), [{
   uint64_t C = N->getZExtValue();
-  return C > 5 && ((C % 5) == 0) && isPowerOf2_64(C / 5);
+  return C > 5 && (C >> llvm::countr_zero(C)) == 5;
 }]>;
 
 def C9LeftShift : PatLeaf<(imm), [{
   uint64_t C = N->getZExtValue();
-  return C > 9 && ((C % 9) == 0) && isPowerOf2_64(C / 9);
+  return C > 5 && (C >> llvm::countr_zero(C)) == 9;
 }]>;
 
 // Constant of the form (3 << C) where C is less than 32.
 def C3LeftShiftUW : PatLeaf<(imm), [{
   uint64_t C = N->getZExtValue();
-  if (C <= 3 || (C % 3) != 0)
-    return false;
-  C /= 3;
-  return isPowerOf2_64(C) && C < (1ULL << 32);
+  unsigned Shift = llvm::countr_zero(C);
+  return 1 <= Shift && Shift < 32 && (C >> Shift) == 3;
 }]>;
 
 // Constant of the form (5 << C) where C is less than 32.
 def C5LeftShiftUW : PatLeaf<(imm), [{
   uint64_t C = N->getZExtValue();
-  if (C <= 5 || (C % 5) != 0)
-    return false;
-  C /= 5;
-  return isPowerOf2_64(C) && C < (1ULL << 32);
+  unsigned Shift = llvm::countr_zero(C);
+  return 1 <= Shift && Shift < 32 && (C >> Shift) == 5;
 }]>;
 
 // Constant of the form (9 << C) where C is less than 32.
 def C9LeftShiftUW : PatLeaf<(imm), [{
   uint64_t C = N->getZExtValue();
-  if (C <= 9 || (C % 9) != 0)
-    return false;
-  C /= 9;
-  return isPowerOf2_64(C) && C < (1ULL << 32);
+  unsigned Shift = llvm::countr_zero(C);
+  return 1 <= Shift && Shift < 32 && (C >> Shift) == 9;
 }]>;
 
 def CSImm12MulBy4 : PatLeaf<(imm), [{
@@ -248,7 +242,7 @@ def Shifted32OnesMask : PatLeaf<(imm), [{
   if (!isShiftedMask_64(Imm))
     return false;
 
-  unsigned TrailingZeros = countTrailingZeros(Imm);
+  unsigned TrailingZeros = llvm::countr_zero(Imm);
   return TrailingZeros > 0 && TrailingZeros < 32 &&
          Imm == UINT64_C(0xFFFFFFFF) << TrailingZeros;
 }], TrailingZeros>;
@@ -289,20 +283,6 @@ class RVBShiftW_ri<bits<7> imm11_5, bits<3> funct3, RISCVOpcode opcode,
     : RVInstIShiftW<imm11_5, funct3, opcode, (outs GPR:$rd),
                     (ins GPR:$rs1, uimm5:$shamt), opcodestr,
                     "$rd, $rs1, $shamt">;
-
-// Using RVInstIShiftW since it allocates 5 bits instead of 6 to shamt.
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class RVBShfl_ri<bits<7> imm11_5, bits<3> funct3, RISCVOpcode opcode,
-                 string opcodestr>
-    : RVInstIShiftW<imm11_5, funct3, opcode, (outs GPR:$rd),
-                    (ins GPR:$rs1, shfl_uimm:$shamt), opcodestr,
-                    "$rd, $rs1, $shamt">;
-
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class RVBTernaryR<bits<2> funct2, bits<3> funct3, RISCVOpcode opcode,
-                  string opcodestr, string argstr>
-    : RVInstR4<funct2, funct3, opcode, (outs GPR:$rd),
-               (ins GPR:$rs1, GPR:$rs2, GPR:$rs3), opcodestr, argstr>;
 
 //===----------------------------------------------------------------------===//
 // Instructions
@@ -349,7 +329,7 @@ def RORI  : RVBShift_ri<0b01100, 0b101, OPC_OP_IMM, "rori">,
             Sched<[WriteRotateImm, ReadRotateImm]>;
 } // Predicates = [HasStdExtZbbOrZbkb]
 
-let Predicates = [HasStdExtZbbOrZbkb, IsRV64] in {
+let Predicates = [HasStdExtZbbOrZbkb, IsRV64], IsSignExtendingOpW = 1 in {
 def ROLW  : ALUW_rr<0b0110000, 0b001, "rolw">,
             Sched<[WriteRotateReg32, ReadRotateReg32, ReadRotateReg32]>;
 def RORW  : ALUW_rr<0b0110000, 0b101, "rorw">,
@@ -366,6 +346,7 @@ def BSET : ALU_rr<0b0010100, 0b001, "bset">,
            Sched<[WriteSingleBit, ReadSingleBit, ReadSingleBit]>;
 def BINV : ALU_rr<0b0110100, 0b001, "binv">,
            Sched<[WriteSingleBit, ReadSingleBit, ReadSingleBit]>;
+let IsSignExtendingOpW = 1 in
 def BEXT : ALU_rr<0b0100100, 0b101, "bext">,
            Sched<[WriteSingleBit, ReadSingleBit, ReadSingleBit]>;
 
@@ -375,6 +356,7 @@ def BSETI : RVBShift_ri<0b00101, 0b001, OPC_OP_IMM, "bseti">,
             Sched<[WriteSingleBitImm, ReadSingleBitImm]>;
 def BINVI : RVBShift_ri<0b01101, 0b001, OPC_OP_IMM, "binvi">,
             Sched<[WriteSingleBitImm, ReadSingleBitImm]>;
+let IsSignExtendingOpW = 1 in
 def BEXTI : RVBShift_ri<0b01001, 0b101, OPC_OP_IMM, "bexti">,
             Sched<[WriteSingleBitImm, ReadSingleBitImm]>;
 } // Predicates = [HasStdExtZbs]
@@ -389,7 +371,7 @@ def XPERM8 : ALU_rr<0b0010100, 0b100, "xperm8">,
              Sched<[WriteXPERM, ReadXPERM, ReadXPERM]>;
 } // Predicates = [HasStdExtZbkx]
 
-let Predicates = [HasStdExtZbb] in {
+let Predicates = [HasStdExtZbb], IsSignExtendingOpW = 1 in {
 def CLZ  : RVBUnary<0b0110000, 0b00000, 0b001, OPC_OP_IMM, "clz">,
            Sched<[WriteCLZ, ReadCLZ]>;
 def CTZ  : RVBUnary<0b0110000, 0b00001, 0b001, OPC_OP_IMM, "ctz">,
@@ -398,7 +380,7 @@ def CPOP : RVBUnary<0b0110000, 0b00010, 0b001, OPC_OP_IMM, "cpop">,
            Sched<[WriteCPOP, ReadCPOP]>;
 } // Predicates = [HasStdExtZbb]
 
-let Predicates = [HasStdExtZbb, IsRV64] in {
+let Predicates = [HasStdExtZbb, IsRV64], IsSignExtendingOpW = 1 in {
 def CLZW   : RVBUnary<0b0110000, 0b00000, 0b001, OPC_OP_IMM_32, "clzw">,
              Sched<[WriteCLZ32, ReadCLZ32]>;
 def CTZW   : RVBUnary<0b0110000, 0b00001, 0b001, OPC_OP_IMM_32, "ctzw">,
@@ -407,7 +389,7 @@ def CPOPW  : RVBUnary<0b0110000, 0b00010, 0b001, OPC_OP_IMM_32, "cpopw">,
              Sched<[WriteCPOP32, ReadCPOP32]>;
 } // Predicates = [HasStdExtZbb, IsRV64]
 
-let Predicates = [HasStdExtZbb] in {
+let Predicates = [HasStdExtZbb], IsSignExtendingOpW = 1 in {
 def SEXT_B : RVBUnary<0b0110000, 0b00100, 0b001, OPC_OP_IMM, "sext.b">,
              Sched<[WriteIALU, ReadIALU]>;
 def SEXT_H : RVBUnary<0b0110000, 0b00101, 0b001, OPC_OP_IMM, "sext.h">,
@@ -440,11 +422,12 @@ def MAXU : ALU_rr<0b0000101, 0b111, "maxu", /*Commutable*/1>,
 let Predicates = [HasStdExtZbkb] in {
 def PACK  : ALU_rr<0b0000100, 0b100, "pack">,
             Sched<[WritePACK, ReadPACK, ReadPACK]>;
+let IsSignExtendingOpW = 1 in
 def PACKH : ALU_rr<0b0000100, 0b111, "packh">,
             Sched<[WritePACK, ReadPACK, ReadPACK]>;
 } // Predicates = [HasStdExtZbkb]
 
-let Predicates = [HasStdExtZbkb, IsRV64] in
+let Predicates = [HasStdExtZbkb, IsRV64], IsSignExtendingOpW = 1 in
 def PACKW  : ALUW_rr<0b0000100, 0b100, "packw">,
              Sched<[WritePACK32, ReadPACK32, ReadPACK32]>;
 
@@ -453,7 +436,7 @@ def ZEXT_H_RV32 : RVBUnary<0b0000100, 0b00000, 0b100, OPC_OP, "zext.h">,
                   Sched<[WriteIALU, ReadIALU]>;
 } // Predicates = [HasStdExtZbb, IsRV32]
 
-let Predicates = [HasStdExtZbb, IsRV64] in {
+let Predicates = [HasStdExtZbb, IsRV64], IsSignExtendingOpW = 1 in {
 def ZEXT_H_RV64 : RVBUnary<0b0000100, 0b00000, 0b100, OPC_OP_32, "zext.h">,
                   Sched<[WriteIALU, ReadIALU]>;
 } // Predicates = [HasStdExtZbb, IsRV64]

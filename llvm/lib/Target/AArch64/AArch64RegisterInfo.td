@@ -720,6 +720,21 @@ def XSeqPairClassOperand :
     RegisterOperand<XSeqPairsClass, "printGPRSeqPairsClassOperand<64>"> {
   let ParserMatchClass = XSeqPairsAsmOperandClass;
 }
+// Reuse the parsing and register numbers from XSeqPairs, but encoding is different.
+def MrrsMssrPairClassOperand :
+    RegisterOperand<XSeqPairsClass, "printGPRSeqPairsClassOperand<64>"> {
+  let ParserMatchClass = XSeqPairsAsmOperandClass;
+}
+def SyspXzrPairOperandMatcherClass : AsmOperandClass {
+  let Name = "SyspXzrPair";
+  let RenderMethod = "addSyspXzrPairOperand";
+  let ParserMethod = "tryParseSyspXzrPair";
+}
+def SyspXzrPairOperand :
+    RegisterOperand<GPR64, "printSyspXzrPair"> { // needed to allow alias with XZR operand
+  let ParserMatchClass = SyspXzrPairOperandMatcherClass;
+}
+
 
 
 //===----- END: v8.1a atomic CASP register operands -----------------------===//
@@ -926,11 +941,13 @@ class PNRRegOp<string Suffix, AsmOperandClass C, int EltSize, RegisterClass RC>
   let PrintMethod = "printPredicateAsCounter<" # EltSize # ">";
 }
 
+def PNRAsmOpAny: PNRAsmOperand<"PNPredicateAny", "PPR", 0>;
 def PNRAsmOp8  : PNRAsmOperand<"PNPredicateB", "PPR", 8>;
 def PNRAsmOp16 : PNRAsmOperand<"PNPredicateH", "PPR", 16>;
 def PNRAsmOp32 : PNRAsmOperand<"PNPredicateS", "PPR", 32>;
 def PNRAsmOp64 : PNRAsmOperand<"PNPredicateD", "PPR", 64>;
 
+def PNRAny : PNRRegOp<"", PNRAsmOpAny, 0,  PPR>;
 def PNR8   : PNRRegOp<"b", PNRAsmOp8,  8,  PPR>;
 def PNR16  : PNRRegOp<"h", PNRAsmOp16, 16, PPR>;
 def PNR32  : PNRRegOp<"s", PNRAsmOp32, 32, PPR>;

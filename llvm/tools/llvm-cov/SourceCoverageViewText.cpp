@@ -12,7 +12,6 @@
 
 #include "SourceCoverageViewText.h"
 #include "CoverageReport.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
@@ -128,7 +127,7 @@ void SourceCoverageViewText::renderLine(raw_ostream &OS, LineRef L,
     else if (Col == ExpansionCol)
       Highlight = raw_ostream::CYAN;
     else
-      Highlight = None;
+      Highlight = std::nullopt;
   }
 
   // Show the rest of the line.

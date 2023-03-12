@@ -405,8 +405,8 @@ public:
   /// Sort call targets in descending order of call frequency.
   static const SortedCallTargetSet SortCallTargets(const CallTargetMap &Targets) {
     SortedCallTargetSet SortedTargets;
-    for (const auto &I : Targets) {
-      SortedTargets.emplace(I.first(), I.second);
+    for (const auto &[Target, Frequency] : Targets) {
+      SortedTargets.emplace(Target, Frequency);
     }
     return SortedTargets;
   }
@@ -415,8 +415,8 @@ public:
   static const CallTargetMap adjustCallTargets(const CallTargetMap &Targets,
                                                float DistributionFactor) {
     CallTargetMap AdjustedTargets;
-    for (const auto &I : Targets) {
-      AdjustedTargets[I.first()] = I.second * DistributionFactor;
+    for (const auto &[Target, Frequency] : Targets) {
+      AdjustedTargets[Target] = Frequency * DistributionFactor;
     }
     return AdjustedTargets;
   }
@@ -426,6 +426,14 @@ public:
   sampleprof_error merge(const SampleRecord &Other, uint64_t Weight = 1);
   void print(raw_ostream &OS, unsigned Indent) const;
   void dump() const;
+
+  bool operator==(const SampleRecord &Other) const {
+    return NumSamples == Other.NumSamples && CallTargets == Other.CallTargets;
+  }
+
+  bool operator!=(const SampleRecord &Other) const {
+    return !(*this == Other);
+  }
 
 private:
   uint64_t NumSamples = 0;
@@ -648,7 +656,7 @@ public:
       return State < That.State;
 
     if (!hasContext()) {
-      return (Name.compare(That.Name)) == -1;
+      return Name < That.Name;
     }
 
     uint64_t I = 0;
@@ -657,7 +665,7 @@ public:
       auto &Context2 = That.FullContext[I];
       auto V = Context1.FuncName.compare(Context2.FuncName);
       if (V)
-        return V == -1;
+        return V < 0;
       if (Context1.Location != Context2.Location)
         return Context1.Location < Context2.Location;
       I++;
@@ -926,12 +934,16 @@ public:
     return CallsiteSamples;
   }
 
-  /// Return the maximum of sample counts in a function body including functions
-  /// inlined in it.
-  uint64_t getMaxCountInside() const {
+  /// Return the maximum of sample counts in a function body. When SkipCallSite
+  /// is false, which is the default, the return count includes samples in the
+  /// inlined functions. When SkipCallSite is true, the return count only
+  /// considers the body samples.
+  uint64_t getMaxCountInside(bool SkipCallSite = false) const {
     uint64_t MaxCount = 0;
     for (const auto &L : getBodySamples())
       MaxCount = std::max(MaxCount, L.second.getSamples());
+    if (SkipCallSite)
+      return MaxCount;
     for (const auto &C : getCallsiteSamples())
       for (const FunctionSamplesMap::value_type &F : C.second)
         MaxCount = std::max(MaxCount, F.second.getMaxCountInside());
@@ -1144,6 +1156,21 @@ public:
   // Find all the names in the current FunctionSamples including names in
   // all the inline instances and names of call targets.
   void findAllNames(DenseSet<StringRef> &NameSet) const;
+
+  bool operator==(const FunctionSamples &Other) const {
+    return (GUIDToFuncNameMap == Other.GUIDToFuncNameMap ||
+            (GUIDToFuncNameMap && Other.GUIDToFuncNameMap &&
+             *GUIDToFuncNameMap == *Other.GUIDToFuncNameMap)) &&
+           FunctionHash == Other.FunctionHash && Context == Other.Context &&
+           TotalSamples == Other.TotalSamples &&
+           TotalHeadSamples == Other.TotalHeadSamples &&
+           BodySamples == Other.BodySamples &&
+           CallsiteSamples == Other.CallsiteSamples;
+  }
+
+  bool operator!=(const FunctionSamples &Other) const {
+    return !(*this == Other);
+  }
 
 private:
   /// CFG hash value for the function.

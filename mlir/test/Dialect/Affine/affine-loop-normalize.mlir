@@ -1,4 +1,5 @@
 // RUN: mlir-opt %s -affine-loop-normalize -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -affine-loop-normalize='promote-single-iter=1' -split-input-file | FileCheck %s --check-prefix=PROMOTE-SINGLE-ITER
 
 // Normalize steps to 1 and lower bounds to 0.
 
@@ -39,8 +40,9 @@ func.func @relative_bounds(%arg: index) {
 // Check that single iteration loop is removed and its body is promoted to the
 // parent block.
 
-// CHECK-LABEL: func @single_iteration_loop
-func.func @single_iteration_loop(%in: memref<1xf32>, %out: memref<1xf32>) {
+// CHECK-LABEL: func @promote_single_iter_loop
+// PROMOTE-SINGLE-ITER-LABEL: func @promote_single_iter_loop
+func.func @promote_single_iter_loop(%in: memref<1xf32>, %out: memref<1xf32>) {
   affine.for %i = 0 to 1 {
     %1 = affine.load %in[%i] : memref<1xf32>
     affine.store %1, %out[%i] : memref<1xf32>
@@ -48,10 +50,10 @@ func.func @single_iteration_loop(%in: memref<1xf32>, %out: memref<1xf32>) {
   return
 }
 
-// CHECK-NOT:  affine.for
-// CHECK:      affine.load
-// CHECK-NEXT: affine.store
-// CHECK-NEXT: return
+// PROMOTE-SINGLE-ITER-NEXT: arith.constant
+// PROMOTE-SINGLE-ITER-NEXT: affine.load
+// PROMOTE-SINGLE-ITER-NEXT: affine.store
+// PROMOTE-SINGLE-ITER-NEXT: return
 
 // -----
 
@@ -168,8 +170,8 @@ func.func @loop_with_multiple_upper_bounds(%arg0: memref<?x?xf32>, %arg1 : index
 // CHECK-NEXT:                %{{.*}} = affine.load %[[ARG0]][%[[IIIV]], %[[KKIV]]] : memref<1024x1024xf32>
 // CHECK-NEXT:                %{{.*}} = affine.load %[[ARG1]][%[[KKIV]], %[[JJIV]]] : memref<1024x1024xf32>
 // CHECK-NEXT:                %{{.*}} = affine.load %[[ARG2]][%[[IIIV]], %[[JJIV]]] : memref<1024x1024xf32>
-// CHECK-NEXT:                %{{.*}} = arith.mulf 
-// CHECK-NEXT:                %{{.*}} = arith.addf 
+// CHECK-NEXT:                %{{.*}} = arith.mulf
+// CHECK-NEXT:                %{{.*}} = arith.addf
 // CHECK-NEXT:                affine.store %{{.*}}, %[[ARG2]]{{.*}} : memref<1024x1024xf32>
 // CHECK-NEXT:              }
 // CHECK-NEXT:            }
@@ -208,6 +210,85 @@ func.func @tiled_matmul(%0: memref<1024x1024xf32>, %1: memref<1024x1024xf32>, %2
         }
       }
     }
+  }
+  return
+}
+
+// -----
+
+// CHECK-LABEL: func @constant_lower_bound
+func.func @constant_lower_bound() {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  scf.for %j = %c0 to %c1 step %c1 {
+    // CHECK: affine.for %[[ARG0:.*]] =
+    affine.for %i = %c0 to %c1 {
+      // CHECK-NEXT: %{{.*}} = affine.apply #map{{.*}}(%[[ARG0]])
+    }
+  }
+  return
+}
+
+// -----
+
+// CHECK-DAG: [[$UB_MAP:#map[0-9]*]] = affine_map<()[s0] -> (s0 ceildiv 4)>
+// CHECK-DAG: [[$IV_MAP:#map[0-9]*]] = affine_map<(d0) -> (d0 * 4)>
+
+// CHECK-LABEL: func @upper_bound_by_symbol
+func.func @upper_bound_by_symbol(%arg0: index, %arg1: index) {
+  // CHECK: affine.for %[[ARG0:.*]] = 0 to [[$UB_MAP]]()[%arg{{.*}}] {
+  affine.for %i = 0 to affine_map<()[s0, s1] -> (s0)>()[%arg0, %arg1] step 4 {
+    // CHECK-NEXT: %[[IV:.*]] = affine.apply [[$IV_MAP]](%[[ARG0]])
+    // CHECK-NEXT: "test.foo"(%[[IV]]) : (index) -> ()
+    "test.foo"(%i) : (index) -> ()
+  }
+  return
+}
+
+// -----
+
+// CHECK-DAG: [[$UB_MAP:#map[0-9]*]] = affine_map<()[s0] -> ((-s0 + 10) ceildiv 4)>
+// CHECK-DAG: [[$IV_MAP:#map[0-9]*]] = affine_map<(d0)[s0] -> (d0 * 4 + s0)>
+
+// CHECK-LABEL: func @lower_bound_by_symbol
+func.func @lower_bound_by_symbol(%arg0: index, %arg1: index) {
+  // CHECK: affine.for %[[ARG0:.*]] = 0 to [[$UB_MAP]]()[%arg{{.*}}] {
+  affine.for %i = affine_map<()[s0, s1] -> (s0)>()[%arg0, %arg1] to 10 step 4 {
+    // CHECK-NEXT: %[[IV:.*]] = affine.apply [[$IV_MAP]](%[[ARG0]])[%arg{{.*}}]
+    // CHECK-NEXT: "test.foo"(%[[IV]]) : (index) -> ()
+    "test.foo"(%i) : (index) -> ()
+  }
+  return
+}
+
+// -----
+
+// CHECK-DAG: [[$UB_MAP:#map[0-9]*]] = affine_map<()[s0] -> (s0 ceildiv 4)>
+// CHECK-DAG: [[$IV_MAP:#map[0-9]*]] = affine_map<(d0) -> (d0 * 4)>
+
+// CHECK-LABEL: func @upper_bound_by_dim
+func.func @upper_bound_by_dim(%arg0: index, %arg1: index) {
+  // CHECK: affine.for %[[ARG0:.*]] = 0 to [[$UB_MAP]]()[%arg{{.*}}] {
+  affine.for %i = 0 to affine_map<(d0, d1) -> (d0)>(%arg0, %arg1) step 4 {
+    // CHECK-NEXT: %[[IV:.*]] = affine.apply [[$IV_MAP]](%[[ARG0]])
+    // CHECK-NEXT: "test.foo"(%[[IV]]) : (index) -> ()
+    "test.foo"(%i) : (index) -> ()
+  }
+  return
+}
+
+// -----
+
+// CHECK-DAG: [[$UB_MAP:#map[0-9]*]] = affine_map<()[s0] -> ((-s0 + 10) ceildiv 4)>
+// CHECK-DAG: [[$IV_MAP:#map[0-9]*]] = affine_map<(d0)[s0] -> (d0 * 4 + s0)>
+
+// CHECK-LABEL: func @upper_bound_by_dim
+func.func @upper_bound_by_dim(%arg0: index, %arg1: index) {
+  // CHECK: affine.for %[[ARG0:.*]] = 0 to [[$UB_MAP]]()[%arg{{.*}}] {
+  affine.for %i = affine_map<(d0, d1) -> (d0)>(%arg0, %arg1) to 10 step 4 {
+    // CHECK-NEXT: %[[IV:.*]] = affine.apply [[$IV_MAP]](%[[ARG0]])[%arg{{.*}}]
+    // CHECK-NEXT: "test.foo"(%[[IV]]) : (index) -> ()
+    "test.foo"(%i) : (index) -> ()
   }
   return
 }

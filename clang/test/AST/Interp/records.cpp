@@ -131,6 +131,12 @@ constexpr C RVOAndParams(const C *c) {
   return C();
 }
 constexpr C RVOAndParamsResult = RVOAndParams(&c);
+
+/// Parameter and return value have different types.
+constexpr C RVOAndParams(int a) {
+  return C();
+}
+constexpr C RVOAndParamsResult2 = RVOAndParams(12);
 #endif
 
 class Bar { // expected-note {{definition of 'Bar' is not complete}} \
@@ -168,10 +174,11 @@ namespace thisPointer {
     constexpr int get12() { return 12; }
   };
 
-  constexpr int foo() { // ref-error {{never produces a constant expression}}
+  constexpr int foo() { // ref-error {{never produces a constant expression}} \
+                        // expected-error {{never produces a constant expression}}
     S *s = nullptr;
     return s->get12(); // ref-note 2{{member call on dereferenced null pointer}} \
-                       // expected-note {{member call on dereferenced null pointer}}
+                       // expected-note 2{{member call on dereferenced null pointer}}
 
   }
   static_assert(foo() == 12, ""); // ref-error {{not an integral constant expression}} \
@@ -228,6 +235,10 @@ struct S {
     this->a; // expected-warning {{expression result unused}} \
              // ref-warning {{expression result unused}}
     get5();
+#if __cplusplus >= 201703L
+    // FIXME: Enable once we support MaterializeConstantExpr properly.
+    getInts();
+#endif
   }
 
   constexpr int m() const {
@@ -285,13 +296,14 @@ namespace DeriveFailures {
                                               // ref-note 2{{non-constexpr constructor 'Base' cannot be used in a constant expression}}
   };
 
-  // FIXME: This is currently not being diagnosed with the new constant interpreter.
   constexpr Derived D(12); // ref-error {{must be initialized by a constant expression}} \
                            // ref-note {{in call to 'Derived(12)'}} \
                            // ref-note {{declared here}} \
                            // expected-error {{must be initialized by a constant expression}}
   static_assert(D.Val == 0, ""); // ref-error {{not an integral constant expression}} \
-                                 // ref-note {{initializer of 'D' is not a constant expression}}
+                                 // ref-note {{initializer of 'D' is not a constant expression}} \
+                                 // expected-error {{not an integral constant expression}} \
+                                 // expected-note {{read of object outside its lifetime}}
 
   struct AnotherBase {
     int Val;

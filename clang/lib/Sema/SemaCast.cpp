@@ -452,6 +452,7 @@ static bool tryDiagnoseOverloadedCast(Sema &S, CastType CT,
 
   case InitializationSequence::FK_ConstructorOverloadFailed:
   case InitializationSequence::FK_UserConversionOverloadFailed:
+  case InitializationSequence::FK_ParenthesizedListInitFailed:
     break;
   }
 
@@ -2582,8 +2583,15 @@ static TryCastResult TryAddressSpaceCast(Sema &Self, ExprResult &SrcExpr,
   auto SrcPointeeType = SrcPtrType->getPointeeType();
   auto DestPointeeType = DestPtrType->getPointeeType();
   if (!DestPointeeType.isAddressSpaceOverlapping(SrcPointeeType)) {
-    msg = diag::err_bad_cxx_cast_addr_space_mismatch;
-    return TC_Failed;
+    // for CUDA SYCL compilation
+    if (!(Self.getLangOpts().CUDA && Self.getLangOpts().SYCLIsDevice &&
+          ((LangAS::Default == SrcPointeeType.getAddressSpace() &&
+            isTargetAddressSpace(DestPointeeType.getAddressSpace())) ||
+           (LangAS::Default == DestPointeeType.getAddressSpace() &&
+            isTargetAddressSpace(SrcPointeeType.getAddressSpace()))))) {
+      msg = diag::err_bad_cxx_cast_addr_space_mismatch;
+      return TC_Failed;
+    }
   }
   if (Self.getLangOpts().SYCLIsDevice) {
     Qualifiers SrcQ = SrcPointeeType.getQualifiers();

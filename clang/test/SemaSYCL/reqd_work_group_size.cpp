@@ -114,7 +114,8 @@ void instantiate() {
 [[sycl::reqd_work_group_size(1, 1, 8)]] void // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 f8(){};
 
-[[sycl::reqd_work_group_size(32, 32, 1)]] [[sycl::reqd_work_group_size(32, 32)]] void f9() {} // OK
+[[sycl::reqd_work_group_size(32, 32, 1)]]            // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(32, 32)]] void f9() {}  // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 
 // Test that template redeclarations also get diagnosed properly.
 template <int X, int Y, int Z>

@@ -20,8 +20,7 @@ namespace detail {
 class Builder;
 } // namespace detail
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__AMDGCN__) &&                    \
     (__AMDGCN_WAVEFRONT_SIZE == 64)
@@ -250,7 +249,8 @@ struct sub_group_mask {
   }
 
 private:
-  sub_group_mask(BitsType rhs, size_t bn) : Bits(rhs), bits_num(bn) {
+  sub_group_mask(BitsType rhs, size_t bn)
+      : Bits(rhs & valuable_bits(bn)), bits_num(bn) {
     assert(bits_num <= max_bits);
   }
   inline BitsType valuable_bits(size_t bn) const {
@@ -287,7 +287,6 @@ group_ballot(Group g, bool predicate) {
 
 #undef BITS_TYPE
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

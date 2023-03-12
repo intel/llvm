@@ -17,6 +17,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
+#include <optional>
 
 using namespace clang;
 using namespace clang::CodeGen;
@@ -39,7 +40,7 @@ MDNode *LoopInfo::createPipeliningMetadata(const LoopAttributes &Attrs,
                                            bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.PipelineDisabled)
     Enabled = false;
   else if (Attrs.PipelineInitiationInterval != 0)
@@ -84,11 +85,11 @@ LoopInfo::createPartialUnrollMetadata(const LoopAttributes &Attrs,
                                       bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollEnable == LoopAttributes::Full)
-    Enabled = None;
+    Enabled = std::nullopt;
   else if (Attrs.UnrollEnable != LoopAttributes::Unspecified ||
            Attrs.UnrollCount != 0)
     Enabled = true;
@@ -146,7 +147,7 @@ LoopInfo::createUnrollAndJamMetadata(const LoopAttributes &Attrs,
                                      bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollAndJamEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollAndJamEnable == LoopAttributes::Enable ||
@@ -214,7 +215,7 @@ LoopInfo::createLoopVectorizeMetadata(const LoopAttributes &Attrs,
                                       bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.VectorizeEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.VectorizeEnable != LoopAttributes::Unspecified ||
@@ -332,7 +333,7 @@ LoopInfo::createLoopDistributeMetadata(const LoopAttributes &Attrs,
                                        bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.DistributeEnable == LoopAttributes::Disable)
     Enabled = false;
   if (Attrs.DistributeEnable == LoopAttributes::Enable)
@@ -382,7 +383,7 @@ MDNode *LoopInfo::createFullUnrollMetadata(const LoopAttributes &Attrs,
                                            bool &HasUserTransforms) {
   LLVMContext &Ctx = Header->getContext();
 
-  Optional<bool> Enabled;
+  std::optional<bool> Enabled;
   if (Attrs.UnrollEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollEnable == LoopAttributes::Full)
@@ -702,7 +703,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLNofusionEnable == false && !EndLoc && !Attrs.MustProgress)
     return;
 
-  TempLoopID = MDNode::getTemporary(Header->getContext(), None);
+  TempLoopID = MDNode::getTemporary(Header->getContext(), std::nullopt);
 }
 
 void LoopInfo::finish() {
@@ -1027,41 +1028,41 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // n - 'llvm.loop.intel.max_reinvocation_delay.count, i32 n' metadata will be
   // emitted
   for (const auto *A : Attrs) {
-    if (const auto *IntelFPGAIVDep = dyn_cast<SYCLIntelFPGAIVDepAttr>(A))
-      addSYCLIVDepInfo(Header->getContext(), IntelFPGAIVDep->getSafelenValue(),
-                       IntelFPGAIVDep->getArrayDecl());
+    if (const auto *SYCLIntelIVDep = dyn_cast<SYCLIntelIVDepAttr>(A))
+      addSYCLIVDepInfo(Header->getContext(), SYCLIntelIVDep->getSafelenValue(),
+                       SYCLIntelIVDep->getArrayDecl());
 
-    if (const auto *IntelFPGAII =
-            dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(IntelFPGAII->getIntervalExpr());
+    if (const auto *SYCLIntelII =
+            dyn_cast<SYCLIntelInitiationIntervalAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(SYCLIntelII->getIntervalExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLIInterval(ArgVal.getSExtValue());
     }
 
-    if (const auto *IntelFPGAMaxConcurrency =
-            dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(A)) {
+    if (const auto *SYCLIntelMaxConcurrency =
+            dyn_cast<SYCLIntelMaxConcurrencyAttr>(A)) {
       const auto *CE =
-          cast<ConstantExpr>(IntelFPGAMaxConcurrency->getNThreadsExpr());
+          cast<ConstantExpr>(SYCLIntelMaxConcurrency->getNThreadsExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
     }
 
-    if (const auto *IntelFPGALoopCountAvg =
-            dyn_cast<SYCLIntelFPGALoopCountAttr>(A)) {
+    if (const auto *SYCLIntelLoopCountAvg =
+            dyn_cast<SYCLIntelLoopCountAttr>(A)) {
       const auto *CE =
-          cast<ConstantExpr>(IntelFPGALoopCountAvg->getNTripCount());
+          cast<ConstantExpr>(SYCLIntelLoopCountAvg->getNTripCount());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       const char *Var =
-          IntelFPGALoopCountAvg->isMax()   ? "llvm.loop.intel.loopcount_max"
-          : IntelFPGALoopCountAvg->isMin() ? "llvm.loop.intel.loopcount_min"
-          : IntelFPGALoopCountAvg->isAvg() ? "llvm.loop.intel.loopcount_avg"
+          SYCLIntelLoopCountAvg->isMax()   ? "llvm.loop.intel.loopcount_max"
+          : SYCLIntelLoopCountAvg->isMin() ? "llvm.loop.intel.loopcount_min"
+          : SYCLIntelLoopCountAvg->isAvg() ? "llvm.loop.intel.loopcount_avg"
                                            : "llvm.loop.intel.loopcount";
       setSYCLIntelFPGAVariantCount(Var, ArgVal.getSExtValue());
     }
 
-    if (const auto *IntelFPGALoopCoalesce =
-            dyn_cast<SYCLIntelFPGALoopCoalesceAttr>(A)) {
-      if (const auto *LCE = IntelFPGALoopCoalesce->getNExpr()) {
+    if (const auto *SYCLIntelLoopCoalesce =
+            dyn_cast<SYCLIntelLoopCoalesceAttr>(A)) {
+      if (const auto *LCE = SYCLIntelLoopCoalesce->getNExpr()) {
         const auto *CE = cast<ConstantExpr>(LCE);
         llvm::APSInt ArgVal = CE->getResultAsAPSInt();
         setSYCLLoopCoalesceNLevels(ArgVal.getSExtValue());
@@ -1070,31 +1071,31 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       }
     }
 
-    if (isa<SYCLIntelFPGADisableLoopPipeliningAttr>(A))
+    if (isa<SYCLIntelDisableLoopPipeliningAttr>(A))
       setSYCLLoopPipeliningDisable();
 
-    if (const auto *IntelFPGAMaxInterleaving =
-            dyn_cast<SYCLIntelFPGAMaxInterleavingAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(IntelFPGAMaxInterleaving->getNExpr());
+    if (const auto *SYCLIntelMaxInterleaving =
+            dyn_cast<SYCLIntelMaxInterleavingAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(SYCLIntelMaxInterleaving->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxInterleavingNInvocations(ArgVal.getSExtValue());
     }
 
-    if (const auto *IntelFPGASpeculatedIterations =
-            dyn_cast<SYCLIntelFPGASpeculatedIterationsAttr>(A)) {
+    if (const auto *SYCLIntelSpeculatedIterations =
+            dyn_cast<SYCLIntelSpeculatedIterationsAttr>(A)) {
       const auto *CE =
-          cast<ConstantExpr>(IntelFPGASpeculatedIterations->getNExpr());
+          cast<ConstantExpr>(SYCLIntelSpeculatedIterations->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLSpeculatedIterationsNIterations(ArgVal.getSExtValue());
     }
 
-    if (isa<SYCLIntelFPGANofusionAttr>(A))
+    if (isa<SYCLIntelNofusionAttr>(A))
       setSYCLNofusionEnable();
 
-    if (const auto *IntelFPGAMaxReinvocationDelay =
-            dyn_cast<SYCLIntelFPGAMaxReinvocationDelayAttr>(A)) {
+    if (const auto *SYCLIntelMaxReinvocationDelay =
+            dyn_cast<SYCLIntelMaxReinvocationDelayAttr>(A)) {
       const auto *CE = cast<ConstantExpr>(
-          IntelFPGAMaxReinvocationDelay->getNExpr());
+          SYCLIntelMaxReinvocationDelay->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxReinvocationDelayNCycles(ArgVal.getSExtValue());
     }

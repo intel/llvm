@@ -13,8 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
-namespace usm {
+namespace detail::usm {
 
 __SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Bytes,
                                  const context &Ctxt, const device &Dev,
@@ -28,7 +27,6 @@ __SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Bytes,
 __SYCL_EXPORT void free(void *Ptr, const context &Ctxt,
                         const code_location &CL);
 
-} // namespace usm
-} // namespace detail
+} // namespace detail::usm
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

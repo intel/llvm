@@ -373,7 +373,7 @@ template <TypeCategory CATEGORY> struct SomeKind {
   static constexpr TypeCategory category{CATEGORY};
   constexpr bool operator==(const SomeKind &) const { return true; }
   static std::string AsFortran() {
-    return "Some"s + common::EnumToString(category);
+    return "Some"s + std::string{common::EnumToString(category)};
   }
 };
 
@@ -464,6 +464,8 @@ int SelectedCharKind(const std::string &, int defaultKind);
 // intrinsic OPERATOR(==) or .EQV.
 std::optional<DynamicType> ComparisonType(
     const DynamicType &, const DynamicType &);
+
+bool IsInteroperableIntrinsicType(const DynamicType &);
 
 // For generating "[extern] template class", &c. boilerplate
 #define EXPAND_FOR_EACH_INTEGER_KIND(M, P, S) \

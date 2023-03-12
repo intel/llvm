@@ -291,7 +291,7 @@ void MachOReader::readExportInfo(Object &O) const {
   O.Exports.Trie = Trie;
 }
 
-void MachOReader::readLinkData(Object &O, Optional<size_t> LCIndex,
+void MachOReader::readLinkData(Object &O, std::optional<size_t> LCIndex,
                                LinkData &LD) const {
   if (!LCIndex)
     return;
@@ -333,7 +333,7 @@ void MachOReader::readIndirectSymbolTable(Object &O) const {
   for (uint32_t i = 0; i < DySymTab.nindirectsyms; ++i) {
     uint32_t Index = MachOObj.getIndirectSymbolTableEntry(DySymTab, i);
     if ((Index & AbsOrLocalMask) != 0)
-      O.IndirectSymTable.Symbols.emplace_back(Index, None);
+      O.IndirectSymTable.Symbols.emplace_back(Index, std::nullopt);
     else
       O.IndirectSymTable.Symbols.emplace_back(
           Index, O.SymTable.getSymbolByIndex(Index));

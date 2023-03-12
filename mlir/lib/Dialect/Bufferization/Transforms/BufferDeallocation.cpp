@@ -259,7 +259,7 @@ private:
     // Initialize the set of values that require a dedicated memory free
     // operation since their operands cannot be safely deallocated in a post
     // dominator.
-    SmallPtrSet<Value, 8> valuesToFree;
+    SetVector<Value> valuesToFree;
     llvm::SmallDenseSet<std::tuple<Value, Block *>> visitedValues;
     SmallVector<std::tuple<Value, Block *>, 8> toProcess;
 
@@ -371,7 +371,8 @@ private:
     // parent operation. In this case, we have to introduce an additional clone
     // for buffer that is passed to the argument.
     SmallVector<RegionSuccessor, 2> successorRegions;
-    regionInterface.getSuccessorRegions(/*index=*/llvm::None, successorRegions);
+    regionInterface.getSuccessorRegions(/*index=*/std::nullopt,
+                                        successorRegions);
     auto *it =
         llvm::find_if(successorRegions, [&](RegionSuccessor &successorRegion) {
           return successorRegion.getSuccessor() == argRegion;
@@ -627,13 +628,24 @@ private:
 struct DefaultAllocationInterface
     : public bufferization::AllocationOpInterface::ExternalModel<
           DefaultAllocationInterface, memref::AllocOp> {
-  static Optional<Operation *> buildDealloc(OpBuilder &builder, Value alloc) {
+  static std::optional<Operation *> buildDealloc(OpBuilder &builder,
+                                                 Value alloc) {
     return builder.create<memref::DeallocOp>(alloc.getLoc(), alloc)
         .getOperation();
   }
-  static Optional<Value> buildClone(OpBuilder &builder, Value alloc) {
+  static std::optional<Value> buildClone(OpBuilder &builder, Value alloc) {
     return builder.create<bufferization::CloneOp>(alloc.getLoc(), alloc)
         .getResult();
+  }
+};
+
+struct DefaultReallocationInterface
+    : public bufferization::AllocationOpInterface::ExternalModel<
+          DefaultAllocationInterface, memref::ReallocOp> {
+  static std::optional<Operation *> buildDealloc(OpBuilder &builder,
+                                                 Value realloc) {
+    return builder.create<memref::DeallocOp>(realloc.getLoc(), realloc)
+        .getOperation();
   }
 };
 
@@ -701,6 +713,7 @@ void bufferization::registerAllocationOpInterfaceExternalModels(
     DialectRegistry &registry) {
   registry.addExtension(+[](MLIRContext *ctx, memref::MemRefDialect *dialect) {
     memref::AllocOp::attachInterface<DefaultAllocationInterface>(*ctx);
+    memref::ReallocOp::attachInterface<DefaultReallocationInterface>(*ctx);
   });
 }
 

@@ -30,7 +30,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace __format {
 /// The type stored in @ref basic_format_arg.
@@ -161,7 +161,7 @@ public:
             using _Dp = remove_cvref_t<_Tp>;
             using _Formatter = typename _Context::template formatter_type<_Dp>;
             constexpr bool __const_formattable =
-                requires { _Formatter().format(declval<const _Dp&>(), declval<_Context&>()); };
+                requires { _Formatter().format(std::declval<const _Dp&>(), std::declval<_Context&>()); };
             using _Qp = conditional_t<__const_formattable, const _Dp, _Dp>;
 
             static_assert(__const_formattable || !is_const_v<remove_reference_t<_Tp>>, "Mandated by [format.arg]/18");
@@ -295,7 +295,7 @@ visit_format_arg(_Visitor&& __vis, basic_format_arg<_Context> __arg) {
   }
 }
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

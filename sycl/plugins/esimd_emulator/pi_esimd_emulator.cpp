@@ -663,7 +663,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case PI_DEVICE_INFO_QUEUE_PROPERTIES:
-    return ReturnValue(pi_queue_properties{PI_QUEUE_ON_DEVICE});
+    return ReturnValue(pi_queue_properties{PI_QUEUE_FLAG_ON_DEVICE});
   case PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     struct {
       size_t Arr[3];
@@ -785,8 +785,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint32{0});
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
     return ReturnValue(size_t{1});
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES:
+    return ReturnValue(pi_int32{1});
+  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
+    return ReturnValue(pi_uint32{1}); // Minimum required by SYCL 2020 spec
 
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
 
@@ -923,11 +926,25 @@ bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
   return true;
 }
 
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
+  assert(Properties);
+  // Expect flags mask to be passed first.
+  assert(Properties[0] == PI_QUEUE_FLAGS);
+  if (Properties[0] != PI_QUEUE_FLAGS)
+    return PI_ERROR_INVALID_VALUE;
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  assert(Properties[2] == 0);
+  if (Properties[2] != 0)
+    return PI_ERROR_INVALID_VALUE;
+  return piQueueCreate(Context, Device, Flags, Queue);
+}
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   ARG_UNUSED(Device);
 
-  if (Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+  if (Properties & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
     // TODO : Support Out-of-order Queue
     *Queue = nullptr;
     return PI_ERROR_INVALID_QUEUE_PROPERTIES;
@@ -1381,8 +1398,40 @@ pi_result piKernelRelease(pi_kernel) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventCreate(pi_context, pi_event *) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piEventGetInfo(pi_event, pi_event_info, size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
+                         size_t ParamValueSize, void *ParamValue,
+                         size_t *ParamValueSizeRet) {
+  if (ParamName != PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    DIE_NO_IMPLEMENTATION;
+  }
+
+  auto CheckAndFillStatus = [&](const cm_support::CM_STATUS &State) {
+    pi_int32 Result = PI_EVENT_RUNNING;
+    if (State == cm_support::CM_STATUS_FINISHED)
+      Result = PI_EVENT_COMPLETE;
+    if (ParamValue) {
+      if (ParamValueSize < sizeof(Result))
+        return PI_ERROR_INVALID_VALUE;
+      *static_cast<pi_int32 *>(ParamValue) = Result;
+    }
+    if (ParamValueSizeRet) {
+      *ParamValueSizeRet = sizeof(Result);
+    }
+    return PI_SUCCESS;
+  };
+  // Dummy event is already completed ones done by CM.
+  if (Event->IsDummyEvent)
+    return CheckAndFillStatus(cm_support::CM_STATUS_FINISHED);
+
+  if (Event->CmEventPtr == nullptr)
+    return PI_ERROR_INVALID_EVENT;
+
+  cm_support::CM_STATUS Status;
+  int32_t Result = Event->CmEventPtr->GetStatus(Status);
+  if (Result != cm_support::CM_SUCCESS)
+    return PI_ERROR_COMMAND_EXECUTION_FAILURE;
+
+  return CheckAndFillStatus(Status);
 }
 
 pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
@@ -1931,6 +1980,23 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextUSMEnqueueFill2D(pi_queue, void *, size_t, size_t, const void *,
+                                size_t, size_t, pi_uint32, const pi_event *,
+                                pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t, size_t,
+                                  pi_uint32, const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
+                                  const void *, size_t, size_t, size_t,
+                                  pi_uint32, const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
                                   size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
@@ -1964,11 +2030,29 @@ pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextEnqueueDeviceGlobalVariableWrite(pi_queue, pi_program,
+                                                const char *, pi_bool, size_t,
+                                                size_t, const void *, pi_uint32,
+                                                const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueDeviceGlobalVariableRead(pi_queue, pi_program,
+                                               const char *, pi_bool, size_t,
+                                               size_t, void *, pi_uint32,
+                                               const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
   *OpaqueDataReturn = reinterpret_cast<void *>(PiESimdDeviceAccess);
   return PI_SUCCESS;
 }
 
+// Windows: dynamically loaded plugins might have been unloaded already
+// when this is called. Sycl RT holds onto the PI plugin so it can be
+// called safely. But this is not transitive. If the PI plugin in turn
+// dynamically loaded a different DLL, that may have been unloaded. 
 pi_result piTearDown(void *) {
   delete reinterpret_cast<sycl::detail::ESIMDEmuPluginOpaqueData *>(
       PiESimdDeviceAccess->data);
@@ -1984,6 +2068,12 @@ pi_result piTearDown(void *) {
   return PI_SUCCESS;
 }
 
+pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
+                                  uint64_t *hostTime) {
+  PiTrace(
+      "Warning : Querying device clock not supported under PI_ESIMD_EMULATOR");
+  return PI_SUCCESS;
+}
 const char SupportedVersion[] = _PI_ESIMD_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -2016,5 +2106,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   return PI_SUCCESS;
 }
+
+#ifdef _WIN32
+#define __SYCL_PLUGIN_DLL_NAME "pi_esimd_emulator.dll"
+#include "../common_win_pi_trace/common_win_pi_trace.hpp"
+#undef __SYCL_PLUGIN_DLL_NAME
+#endif
 
 } // extern C

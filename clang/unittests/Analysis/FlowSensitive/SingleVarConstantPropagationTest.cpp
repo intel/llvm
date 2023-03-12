@@ -23,18 +23,17 @@
 #include "clang/Analysis/FlowSensitive/DataflowAnalysis.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Analysis/FlowSensitive/DataflowLattice.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Testing/ADT/StringMapEntry.h"
-#include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -61,9 +60,11 @@ struct ConstantPropagationLattice {
     }
   };
   // `None` is "bottom".
-  llvm::Optional<VarValue> Data;
+  std::optional<VarValue> Data;
 
-  static constexpr ConstantPropagationLattice bottom() { return {llvm::None}; }
+  static constexpr ConstantPropagationLattice bottom() {
+    return {std::nullopt};
+  }
   static constexpr ConstantPropagationLattice top() {
     return {VarValue{nullptr, 0}};
   }
@@ -123,9 +124,9 @@ public:
     return ConstantPropagationLattice::bottom();
   }
 
-  void transfer(const CFGElement *E, ConstantPropagationLattice &Element,
+  void transfer(const CFGElement &E, ConstantPropagationLattice &Element,
                 Environment &Env) {
-    auto CS = E->getAs<CFGStmt>();
+    auto CS = E.getAs<CFGStmt>();
     if (!CS)
       return;
     auto S = CS->getStmt();

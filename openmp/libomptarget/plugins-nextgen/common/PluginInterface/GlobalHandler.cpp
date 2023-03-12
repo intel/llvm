@@ -13,6 +13,7 @@
 #include "GlobalHandler.h"
 #include "ELFSymbols.h"
 #include "PluginInterface.h"
+#include "Utilities.h"
 
 #include <cstring>
 
@@ -44,6 +45,21 @@ GenericGlobalHandlerTy::getOrCreateELFObjectFile(const GenericDeviceTy &Device,
   assert(Result.first != ELFObjectFiles.end() && "Map insertion failed");
 
   return &Result.first->second;
+}
+
+Error GenericGlobalHandlerTy::getGlobalMetadataFromELF(
+    const DeviceImageTy &Image, const ELF64LE::Sym &Symbol,
+    const ELF64LE::Shdr &Section, GlobalTy &ImageGlobal) {
+
+  // The global's address is computed as the image begin + the ELF section
+  // offset + the ELF symbol value.
+  ImageGlobal.setPtr(
+      advanceVoidPtr(Image.getStart(), Section.sh_offset + Symbol.st_value));
+
+  // Set the global's size.
+  ImageGlobal.setSize(Symbol.st_size);
+
+  return Plugin::success();
 }
 
 Error GenericGlobalHandlerTy::moveGlobalBetweenDeviceAndHost(
@@ -111,19 +127,14 @@ Error GenericGlobalHandlerTy::getGlobalMetadataFromImage(
                          ImageGlobal.getName().data());
 
   // Get the section to which the symbol belongs.
-  auto SymSecOrErr = ELFObj->getELFFile().getSection((*SymOrErr)->st_shndx);
-  if (!SymSecOrErr)
+  auto SecOrErr = ELFObj->getELFFile().getSection((*SymOrErr)->st_shndx);
+  if (!SecOrErr)
     return Plugin::error("Failed to get ELF section from global '%s': %s",
                          ImageGlobal.getName().data(),
-                         toString(SymOrErr.takeError()).data());
+                         toString(SecOrErr.takeError()).data());
 
-  // Save the global symbol's address and size. The address of the global is the
-  // image base address + the section offset + the symbol value.
-  ImageGlobal.setPtr((char *)Image.getStart() + (*SymSecOrErr)->sh_offset +
-                     (*SymOrErr)->st_value);
-  ImageGlobal.setSize((*SymOrErr)->st_size);
-
-  return Plugin::success();
+  // Setup the global symbol's address and size.
+  return getGlobalMetadataFromELF(Image, **SymOrErr, **SecOrErr, ImageGlobal);
 }
 
 Error GenericGlobalHandlerTy::readGlobalFromImage(GenericDeviceTy &Device,

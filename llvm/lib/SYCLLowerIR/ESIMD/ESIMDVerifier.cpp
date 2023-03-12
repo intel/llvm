@@ -19,11 +19,13 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
 
 using namespace llvm;
+using namespace llvm::esimd;
 namespace id = itanium_demangle;
 
 #define DEBUG_TYPE "esimd-verifier"
@@ -52,7 +54,8 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::ext::oneapi::sub_group::.+",
     "^sycl::_V1::ext::oneapi::experimental::spec_constant<.+>::.+",
     "^sycl::_V1::ext::oneapi::experimental::this_sub_group",
-    "^sycl::_V1::ext::oneapi::experimental::bfloat16::.+"};
+    "^sycl::_V1::ext::oneapi::bfloat16::.+",
+    "^sycl::_V1::ext::oneapi::experimental::if_architecture_is"};
 
 static const char *LegalSYCLFunctionsInStatelessMode[] = {
     "^sycl::_V1::multi_ptr<.+>::get",
@@ -64,43 +67,14 @@ static const char *LegalSYCLFunctionsInStatelessMode[] = {
 
 namespace {
 
-// Simplest possible implementation of an allocator for the Itanium demangler
-class SimpleAllocator {
-protected:
-  SmallVector<void *, 128> Ptrs;
-
-public:
-  void reset() {
-    for (void *Ptr : Ptrs) {
-      // Destructors are not called, but that is OK for the
-      // itanium_demangle::Node subclasses
-      std::free(Ptr);
-    }
-    Ptrs.resize(0);
-  }
-
-  template <typename T, typename... Args> T *makeNode(Args &&...args) {
-    void *Ptr = std::calloc(1, sizeof(T));
-    Ptrs.push_back(Ptr);
-    return new (Ptr) T(std::forward<Args>(args)...);
-  }
-
-  void *allocateNodeArray(size_t sz) {
-    void *Ptr = std::calloc(sz, sizeof(id::Node *));
-    Ptrs.push_back(Ptr);
-    return Ptr;
-  }
-
-  ~SimpleAllocator() { reset(); }
-};
-
 class ESIMDVerifierImpl {
   const Module &M;
-  bool ForceStatelessMem;
+  bool MayNeedForceStatelessMemModeAPI;
 
 public:
-  ESIMDVerifierImpl(const Module &M, bool ForceStatelessMem)
-      : M(M), ForceStatelessMem(ForceStatelessMem) {}
+  ESIMDVerifierImpl(const Module &M, bool MayNeedForceStatelessMemModeAPI)
+      : M(M), MayNeedForceStatelessMemModeAPI(MayNeedForceStatelessMemModeAPI) {
+  }
 
   void verify() {
     SmallPtrSet<const Function *, 8u> Visited;
@@ -144,6 +118,14 @@ public:
           if (!NameNode) // Can it be null?
             continue;
 
+          // Skip local names, which are functions whose type
+          // is not exposed outside of the current function,
+          // such as lambdas or local classes. Note we will
+          // still analyze functions called by these constructs,
+          // assuming they are marked as ESIMD functions.
+          if (NameNode->getKind() == id::Node::KLocalName)
+            continue;
+
           id::OutputBuffer NameBuf;
           NameNode->print(NameBuf);
           StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
@@ -163,7 +145,13 @@ public:
             return LegalNameRE.match(Name);
           };
           if (any_of(LegalSYCLFunctions, checkLegalFunc) ||
-              (ForceStatelessMem &&
+              // TODO: Methods listed in LegalSYCLFunctionsInStatelessMode are
+              // indeed required to support ESIMD APIs accepting accessors in
+              // stateless-only mode. This unintentionally opens that API for
+              // unintended usage in user's programs. Can those APIs be
+              // allowed for ESIMD implementation only and not for general
+              // usage?
+              (MayNeedForceStatelessMemModeAPI &&
                any_of(LegalSYCLFunctionsInStatelessMode, checkLegalFunc)))
             continue;
 
@@ -181,7 +169,7 @@ public:
 } // end anonymous namespace
 
 PreservedAnalyses ESIMDVerifierPass::run(Module &M, ModuleAnalysisManager &AM) {
-  ESIMDVerifierImpl(M, ForceStatelessMem).verify();
+  ESIMDVerifierImpl(M, MayNeedForceStatelessMemModeAPI).verify();
   return PreservedAnalyses::all();
 }
 
@@ -189,9 +177,11 @@ namespace {
 
 struct ESIMDVerifier : public ModulePass {
   static char ID;
-  bool ForceStatelessMem;
+  bool MayNeedForceStatelessMemModeAPI;
 
-  ESIMDVerifier() : ModulePass(ID) {
+  ESIMDVerifier(bool MayNeedForceStatelessMemModeAPI = true)
+      : ModulePass(ID),
+        MayNeedForceStatelessMemModeAPI(MayNeedForceStatelessMemModeAPI) {
     initializeESIMDVerifierPass(*PassRegistry::getPassRegistry());
   }
 
@@ -200,7 +190,7 @@ struct ESIMDVerifier : public ModulePass {
   }
 
   bool runOnModule(Module &M) override {
-    ESIMDVerifierImpl(M, ForceStatelessMem).verify();
+    ESIMDVerifierImpl(M, MayNeedForceStatelessMemModeAPI).verify();
     return false;
   }
 };
@@ -214,4 +204,7 @@ INITIALIZE_PASS_BEGIN(ESIMDVerifier, DEBUG_TYPE, "ESIMD-specific IR verifier",
 INITIALIZE_PASS_END(ESIMDVerifier, DEBUG_TYPE, "ESIMD-specific IR verifier",
                     false, false)
 
-ModulePass *llvm::createESIMDVerifierPass() { return new ESIMDVerifier(); }
+ModulePass *
+llvm::createESIMDVerifierPass(bool MayNeedForceStatelessMemModeAPI) {
+  return new ESIMDVerifier(MayNeedForceStatelessMemModeAPI);
+}

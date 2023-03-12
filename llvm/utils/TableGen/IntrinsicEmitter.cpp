@@ -14,14 +14,28 @@
 #include "CodeGenTarget.h"
 #include "SequenceToOffsetTable.h"
 #include "TableGenBackends.h"
-#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MachineValueType.h"
+#include "llvm/Support/ModRef.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/StringToOffsetTable.h"
 #include "llvm/TableGen/TableGenBackend.h"
 #include <algorithm>
+#include <cassert>
+#include <map>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 using namespace llvm;
 
 cl::OptionCategory GenIntrinsicCat("Options for -gen-intrinsic-enums");
@@ -602,8 +616,8 @@ void IntrinsicEmitter::EmitGenerator(const CodeGenIntrinsicTable &Ints,
 }
 
 namespace {
-Optional<bool> compareFnAttributes(const CodeGenIntrinsic *L,
-                                   const CodeGenIntrinsic *R) {
+std::optional<bool> compareFnAttributes(const CodeGenIntrinsic *L,
+                                        const CodeGenIntrinsic *R) {
   // Sort throwing intrinsics after non-throwing intrinsics.
   if (L->canThrow != R->canThrow)
     return R->canThrow;
@@ -646,7 +660,7 @@ Optional<bool> compareFnAttributes(const CodeGenIntrinsic *L,
   uint32_t RK = R->ME.toIntValue();
   if (LK != RK) return (LK > RK);
 
-  return None;
+  return std::nullopt;
 }
 
 struct FnAttributeComparator {
@@ -657,7 +671,7 @@ struct FnAttributeComparator {
 
 struct AttributeComparator {
   bool operator()(const CodeGenIntrinsic *L, const CodeGenIntrinsic *R) const {
-    if (Optional<bool> Res = compareFnAttributes(L, R))
+    if (std::optional<bool> Res = compareFnAttributes(L, R))
       return *Res;
 
     // Order by argument attributes.
@@ -861,7 +875,7 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
 
   OS << "    }\n";
   OS << "  }\n";
-  OS << "  return AttributeList::get(C, makeArrayRef(AS, NumAttrs));\n";
+  OS << "  return AttributeList::get(C, ArrayRef(AS, NumAttrs));\n";
   OS << "}\n";
   OS << "#endif // GET_INTRINSIC_ATTRIBUTES\n\n";
 }

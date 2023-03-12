@@ -90,7 +90,7 @@ _LIBCPP_BEGIN_NAMESPACE_LFTS
 #  define _LIBCPP_DEPRECATED_BOYER_MOORE_HORSPOOL_SEARCHER _LIBCPP_DEPRECATED_("std::experimental::boyer_moore_horspool_searcher will be removed in LLVM 17. Use std::boyer_moore_horspool_searcher instead")
 #endif
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
 // default searcher
 template<class _ForwardIterator, class _BinaryPredicate = equal_to<>>
 class _LIBCPP_DEPRECATED_DEFAULT_SEARCHER _LIBCPP_TEMPLATE_VIS default_searcher {
@@ -205,8 +205,8 @@ public:
                 _Hash __hf = _Hash(), _BinaryPredicate __pred = _BinaryPredicate())
             : __first_(__f), __last_(__l), __pred_(__pred),
               __pattern_length_(_VSTD::distance(__first_, __last_)),
-              __skip_{make_shared<skip_table_type>(__pattern_length_, -1, __hf, __pred_)},
-              __suffix_{make_shared<vector<difference_type>>(__pattern_length_ + 1)}
+              __skip_{std::make_shared<skip_table_type>(__pattern_length_, -1, __hf, __pred_)},
+              __suffix_{std::make_shared<vector<difference_type>>(__pattern_length_ + 1)}
         {
     //  build the skip table
         for ( difference_type __i = 0; __f != __l; ++__f, (void) ++__i )
@@ -223,12 +223,12 @@ public:
                                         typename iterator_traits<_RandomAccessIterator2>::value_type>::value,
                       "Corpus and Pattern iterators must point to the same type");
 
-        if (__f      == __l )    return make_pair(__l, __l); // empty corpus
-        if (__first_ == __last_) return make_pair(__f, __f); // empty pattern
+        if (__f      == __l )    return std::make_pair(__l, __l); // empty corpus
+        if (__first_ == __last_) return std::make_pair(__f, __f); // empty pattern
 
     //  If the pattern is larger than the corpus, we can't find it!
         if ( __pattern_length_ > _VSTD::distance(__f, __l))
-            return make_pair(__l, __l);
+            return std::make_pair(__l, __l);
 
     //  Do the search
         return this->__search(__f, __l);
@@ -260,7 +260,7 @@ private:
                 __j--;
             //  We matched - we're done!
                 if ( __j == 0 )
-                    return make_pair(__cur, __cur + __pattern_length_);
+                    return std::make_pair(__cur, __cur + __pattern_length_);
                 }
 
         //  Since we didn't match, figure out how far to skip forward
@@ -272,7 +272,7 @@ private:
                 __cur += __suffix[ __j ];
         }
 
-        return make_pair(__l, __l);     // We didn't find anything
+        return std::make_pair(__l, __l);     // We didn't find anything
     }
 
 
@@ -373,12 +373,12 @@ public:
                                         typename std::iterator_traits<_RandomAccessIterator2>::value_type>::value,
                       "Corpus and Pattern iterators must point to the same type");
 
-        if (__f      == __l )    return make_pair(__l, __l); // empty corpus
-        if (__first_ == __last_) return make_pair(__f, __f); // empty pattern
+        if (__f      == __l )    return std::make_pair(__l, __l); // empty corpus
+        if (__first_ == __last_) return std::make_pair(__f, __f); // empty pattern
 
     //  If the pattern is larger than the corpus, we can't find it!
         if ( __pattern_length_ > _VSTD::distance(__f, __l))
-            return make_pair(__l, __l);
+            return std::make_pair(__l, __l);
 
     //  Do the search
         return this->__search(__f, __l);
@@ -407,12 +407,12 @@ private:
                 __j--;
             //  We matched - we're done!
                 if ( __j == 0 )
-                    return make_pair(__cur, __cur + __pattern_length_);
+                    return std::make_pair(__cur, __cur + __pattern_length_);
             }
             __cur += __skip[__cur[__pattern_length_-1]];
         }
 
-        return make_pair(__l, __l);
+        return std::make_pair(__l, __l);
     }
 };
 
@@ -427,7 +427,7 @@ make_boyer_moore_horspool_searcher( _RandomAccessIterator __f, _RandomAccessIter
     return boyer_moore_horspool_searcher<_RandomAccessIterator, _Hash, _BinaryPredicate>(__f, __l, __hf, __p);
 }
 
-#endif // _LIBCPP_STD_VER > 11
+#endif // _LIBCPP_STD_VER >= 14
 
 _LIBCPP_END_NAMESPACE_LFTS
 

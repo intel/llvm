@@ -15,8 +15,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-namespace property {
-namespace buffer {
+namespace property::buffer {
 class use_host_ptr : public detail::DataLessProperty<detail::BufferUseHostPtr> {
 };
 
@@ -63,20 +62,13 @@ private:
   uint64_t MLocation;
 };
 } // namespace detail
-} // namespace buffer
-} // namespace property
+} // namespace property::buffer
 
-namespace ext {
-namespace oneapi {
-namespace property {
-namespace buffer {
+namespace ext::oneapi::property::buffer {
 
 class use_pinned_host_memory : public sycl::detail::DataLessProperty<
                                    sycl::detail::BufferUsePinnedHostMemory> {};
-} // namespace buffer
-} // namespace property
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::property::buffer
 
 // Forward declaration
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>

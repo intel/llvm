@@ -16,9 +16,11 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/usm/usm_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
@@ -93,6 +95,26 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
+  // to a command without being bound to a command group, an exception should
+  // be thrown. There should be as many requirements as unique accessors,
+  // otherwise some of the accessors are unbound, and thus we throw.
+  {
+    // A counter is not good enough since we can have the same accessor several
+    // times as arg
+    std::unordered_set<void *> accessors;
+    for (const auto &arg : MArgs) {
+      if (arg.MType != detail::kernel_param_kind_t::kind_accessor)
+        continue;
+
+      accessors.insert(arg.MPtr);
+    }
+    if (accessors.size() > MRequirements.size())
+      throw sycl::exception(make_error_code(errc::kernel_argument),
+                            "placeholder accessor must be bound by calling "
+                            "handler::require() before it can be used.");
+  }
+
   const auto &type = getType();
   if (type == detail::CG::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
@@ -146,11 +168,12 @@ event handler::finalize() {
       }
     }
 
-    if (MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
+    if (!MQueue->is_in_fusion_mode() &&
+        MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
       // if user does not add a new dependency to the dependency graph, i.e.
-      // the graph is not changed, then this faster path is used to submit
-      // kernel bypassing scheduler and avoiding CommandGroup, Command objects
-      // creation.
+      // the graph is not changed, and the queue is not in fusion mode, then
+      // this faster path is used to submit kernel bypassing scheduler and
+      // avoiding CommandGroup, Command objects creation.
 
       std::vector<RT::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
@@ -202,6 +225,8 @@ event handler::finalize() {
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
         OutEvent = &NewEvent->getHandleRef();
+
+        NewEvent->setSubmissionTime();
 
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
@@ -281,6 +306,27 @@ event handler::finalize() {
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
+  case detail::CG::Copy2DUSM:
+    CommandGroup.reset(new detail::CGCopy2DUSM(
+        MSrcPtr, MDstPtr, MImpl->MSrcPitch, MImpl->MDstPitch, MImpl->MWidth,
+        MImpl->MHeight, std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::Fill2DUSM:
+    CommandGroup.reset(new detail::CGFill2DUSM(
+        std::move(MPattern), MDstPtr, MImpl->MDstPitch, MImpl->MWidth,
+        MImpl->MHeight, std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::Memset2DUSM:
+    CommandGroup.reset(new detail::CGMemset2DUSM(
+        MPattern[0], MDstPtr, MImpl->MDstPitch, MImpl->MWidth, MImpl->MHeight,
+        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCodeLoc));
+    break;
   case detail::CG::CodeplayHostTask:
     CommandGroup.reset(new detail::CGHostTask(
         std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
@@ -295,6 +341,22 @@ event handler::finalize() {
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
+  case detail::CG::CopyToDeviceGlobal: {
+    CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
+        MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
+        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MOSModuleHandle, MCodeLoc));
+    break;
+  }
+  case detail::CG::CopyFromDeviceGlobal: {
+    CommandGroup.reset(new detail::CGCopyFromDeviceGlobal(
+        MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
+        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MOSModuleHandle, MCodeLoc));
+    break;
+  }
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
@@ -478,6 +540,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       break;
     }
     case access::target::host_image:
+    case access::target::host_task:
     case access::target::host_buffer: {
       throw sycl::invalid_parameter_error("Unsupported accessor target case.",
                                           PI_ERROR_INVALID_OPERATION);
@@ -657,6 +720,43 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   setType(detail::CG::AdviseUSM);
 }
 
+void handler::ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch,
+                                       const void *Src, size_t SrcPitch,
+                                       size_t Width, size_t Height) {
+  // Checks done in callers.
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = Dest;
+  MImpl->MSrcPitch = SrcPitch;
+  MImpl->MDstPitch = DestPitch;
+  MImpl->MWidth = Width;
+  MImpl->MHeight = Height;
+  setType(detail::CG::Copy2DUSM);
+}
+
+void handler::ext_oneapi_fill2d_impl(void *Dest, size_t DestPitch,
+                                     const void *Value, size_t ValueSize,
+                                     size_t Width, size_t Height) {
+  // Checks done in callers.
+  MDstPtr = Dest;
+  MPattern.resize(ValueSize);
+  std::memcpy(MPattern.data(), Value, ValueSize);
+  MImpl->MDstPitch = DestPitch;
+  MImpl->MWidth = Width;
+  MImpl->MHeight = Height;
+  setType(detail::CG::Fill2DUSM);
+}
+
+void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
+                                       size_t Width, size_t Height) {
+  // Checks done in callers.
+  MDstPtr = Dest;
+  MPattern.push_back(static_cast<char>(Value));
+  MImpl->MDstPitch = DestPitch;
+  MImpl->MWidth = Width;
+  MImpl->MHeight = Height;
+  setType(detail::CG::Memset2DUSM);
+}
+
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
 
@@ -700,6 +800,86 @@ void handler::depends_on(const std::vector<event> &Events) {
     }
     MEvents.push_back(EventImpl);
   }
+}
+
+static bool
+checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
+                     detail::RT::PiContextInfo InfoQuery) {
+  auto &Plugin = ContextImpl->getPlugin();
+  pi_bool SupportsOp = false;
+  Plugin.call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
+                                                   InfoQuery, sizeof(pi_bool),
+                                                   &SupportsOp, nullptr);
+  return SupportsOp;
+}
+
+bool handler::supportsUSMMemcpy2D() {
+  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
+       {MImpl->MSubmissionPrimaryQueue, MImpl->MSubmissionSecondaryQueue}) {
+    if (QueueImpl &&
+        !checkContextSupports(QueueImpl->getContextImplPtr(),
+                              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT))
+      return false;
+  }
+  return true;
+}
+
+bool handler::supportsUSMFill2D() {
+  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
+       {MImpl->MSubmissionPrimaryQueue, MImpl->MSubmissionSecondaryQueue}) {
+    if (QueueImpl &&
+        !checkContextSupports(QueueImpl->getContextImplPtr(),
+                              PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT))
+      return false;
+  }
+  return true;
+}
+
+bool handler::supportsUSMMemset2D() {
+  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
+       {MImpl->MSubmissionPrimaryQueue, MImpl->MSubmissionSecondaryQueue}) {
+    if (QueueImpl &&
+        !checkContextSupports(QueueImpl->getContextImplPtr(),
+                              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT))
+      return false;
+  }
+  return true;
+}
+
+id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
+  device Dev = MQueue->get_device();
+  id<2> ItemLimit = Dev.get_info<info::device::max_work_item_sizes<2>>() *
+                    Dev.get_info<info::device::max_compute_units>();
+  return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
+}
+
+void handler::memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
+                                   bool IsDeviceImageScoped, size_t NumBytes,
+                                   size_t Offset) {
+  throwIfActionIsCreated();
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = const_cast<void *>(DeviceGlobalPtr);
+  MImpl->MIsDeviceImageScoped = IsDeviceImageScoped;
+  MLength = NumBytes;
+  MImpl->MOffset = Offset;
+  setType(detail::CG::CopyToDeviceGlobal);
+}
+
+void handler::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                                     bool IsDeviceImageScoped, size_t NumBytes,
+                                     size_t Offset) {
+  throwIfActionIsCreated();
+  MSrcPtr = const_cast<void *>(DeviceGlobalPtr);
+  MDstPtr = Dest;
+  MImpl->MIsDeviceImageScoped = IsDeviceImageScoped;
+  MLength = NumBytes;
+  MImpl->MOffset = Offset;
+  setType(detail::CG::CopyFromDeviceGlobal);
+}
+
+const std::shared_ptr<detail::context_impl> &
+handler::getContextImplPtr() const {
+  return MQueue->getContextImplPtr();
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

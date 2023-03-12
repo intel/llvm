@@ -77,8 +77,10 @@ void *operator new(size_t N, const NamedBufferAlloc &Alloc) {
   SmallString<256> NameBuf;
   StringRef NameRef = Alloc.Name.toStringRef(NameBuf);
 
-  char *Mem = static_cast<char *>(operator new(N + NameRef.size() + 1));
-  CopyStringRef(Mem + N, NameRef);
+  char *Mem = static_cast<char *>(operator new(N + sizeof(size_t) +
+                                               NameRef.size() + 1));
+  *reinterpret_cast<size_t *>(Mem + N) = NameRef.size();
+  CopyStringRef(Mem + N + sizeof(size_t), NameRef);
   return Mem;
 }
 
@@ -98,7 +100,8 @@ public:
 
   StringRef getBufferIdentifier() const override {
     // The name is stored after the class itself.
-    return StringRef(reinterpret_cast<const char *>(this + 1));
+    return StringRef(reinterpret_cast<const char *>(this + 1) + sizeof(size_t),
+                     *reinterpret_cast<const size_t *>(this + 1));
   }
 
   MemoryBuffer::BufferKind getBufferKind() const override {
@@ -111,7 +114,7 @@ template <typename MB>
 static ErrorOr<std::unique_ptr<MB>>
 getFileAux(const Twine &Filename, uint64_t MapSize, uint64_t Offset,
            bool IsText, bool RequiresNullTerminator, bool IsVolatile,
-           Optional<Align> Alignment);
+           std::optional<Align> Alignment);
 
 std::unique_ptr<MemoryBuffer>
 MemoryBuffer::getMemBuffer(StringRef InputData, StringRef BufferName,
@@ -147,7 +150,7 @@ MemoryBuffer::getMemBufferCopy(StringRef InputData, const Twine &BufferName) {
 ErrorOr<std::unique_ptr<MemoryBuffer>>
 MemoryBuffer::getFileOrSTDIN(const Twine &Filename, bool IsText,
                              bool RequiresNullTerminator,
-                             Optional<Align> Alignment) {
+                             std::optional<Align> Alignment) {
   SmallString<256> NameBuf;
   StringRef NameRef = Filename.toStringRef(NameBuf);
 
@@ -160,7 +163,7 @@ MemoryBuffer::getFileOrSTDIN(const Twine &Filename, bool IsText,
 ErrorOr<std::unique_ptr<MemoryBuffer>>
 MemoryBuffer::getFileSlice(const Twine &FilePath, uint64_t MapSize,
                            uint64_t Offset, bool IsVolatile,
-                           Optional<Align> Alignment) {
+                           std::optional<Align> Alignment) {
   return getFileAux<MemoryBuffer>(FilePath, MapSize, Offset, /*IsText=*/false,
                                   /*RequiresNullTerminator=*/false, IsVolatile,
                                   Alignment);
@@ -221,7 +224,8 @@ public:
 
   StringRef getBufferIdentifier() const override {
     // The name is stored after the class itself.
-    return StringRef(reinterpret_cast<const char *>(this + 1));
+    return StringRef(reinterpret_cast<const char *>(this + 1) + sizeof(size_t),
+                     *reinterpret_cast<const size_t *>(this + 1));
   }
 
   MemoryBuffer::BufferKind getBufferKind() const override {
@@ -243,7 +247,7 @@ getMemoryBufferForStream(sys::fs::file_t FD, const Twine &BufferName) {
 ErrorOr<std::unique_ptr<MemoryBuffer>>
 MemoryBuffer::getFile(const Twine &Filename, bool IsText,
                       bool RequiresNullTerminator, bool IsVolatile,
-                      Optional<Align> Alignment) {
+                      std::optional<Align> Alignment) {
   return getFileAux<MemoryBuffer>(Filename, /*MapSize=*/-1, /*Offset=*/0,
                                   IsText, RequiresNullTerminator, IsVolatile,
                                   Alignment);
@@ -253,13 +257,13 @@ template <typename MB>
 static ErrorOr<std::unique_ptr<MB>>
 getOpenFileImpl(sys::fs::file_t FD, const Twine &Filename, uint64_t FileSize,
                 uint64_t MapSize, int64_t Offset, bool RequiresNullTerminator,
-                bool IsVolatile, Optional<Align> Alignment);
+                bool IsVolatile, std::optional<Align> Alignment);
 
 template <typename MB>
 static ErrorOr<std::unique_ptr<MB>>
 getFileAux(const Twine &Filename, uint64_t MapSize, uint64_t Offset,
            bool IsText, bool RequiresNullTerminator, bool IsVolatile,
-           Optional<Align> Alignment) {
+           std::optional<Align> Alignment) {
   Expected<sys::fs::file_t> FDOrErr = sys::fs::openNativeFileForRead(
       Filename, IsText ? sys::fs::OF_TextWithCRLF : sys::fs::OF_None);
   if (!FDOrErr)
@@ -273,7 +277,7 @@ getFileAux(const Twine &Filename, uint64_t MapSize, uint64_t Offset,
 
 ErrorOr<std::unique_ptr<WritableMemoryBuffer>>
 WritableMemoryBuffer::getFile(const Twine &Filename, bool IsVolatile,
-                              Optional<Align> Alignment) {
+                              std::optional<Align> Alignment) {
   return getFileAux<WritableMemoryBuffer>(
       Filename, /*MapSize=*/-1, /*Offset=*/0, /*IsText=*/false,
       /*RequiresNullTerminator=*/false, IsVolatile, Alignment);
@@ -282,7 +286,7 @@ WritableMemoryBuffer::getFile(const Twine &Filename, bool IsVolatile,
 ErrorOr<std::unique_ptr<WritableMemoryBuffer>>
 WritableMemoryBuffer::getFileSlice(const Twine &Filename, uint64_t MapSize,
                                    uint64_t Offset, bool IsVolatile,
-                                   Optional<Align> Alignment) {
+                                   std::optional<Align> Alignment) {
   return getFileAux<WritableMemoryBuffer>(
       Filename, MapSize, Offset, /*IsText=*/false,
       /*RequiresNullTerminator=*/false, IsVolatile, Alignment);
@@ -291,7 +295,7 @@ WritableMemoryBuffer::getFileSlice(const Twine &Filename, uint64_t MapSize,
 std::unique_ptr<WritableMemoryBuffer>
 WritableMemoryBuffer::getNewUninitMemBuffer(size_t Size,
                                             const Twine &BufferName,
-                                            Optional<Align> Alignment) {
+                                            std::optional<Align> Alignment) {
   using MemBuffer = MemoryBufferMem<WritableMemoryBuffer>;
 
   // Use 16-byte alignment if no alignment is specified.
@@ -301,7 +305,8 @@ WritableMemoryBuffer::getNewUninitMemBuffer(size_t Size,
   // that MemoryBuffer and data are aligned so PointerIntPair works with them.
   SmallString<256> NameBuf;
   StringRef NameRef = BufferName.toStringRef(NameBuf);
-  size_t StringLen = sizeof(MemBuffer) + NameRef.size() + 1;
+
+  size_t StringLen = sizeof(MemBuffer) + sizeof(size_t) + NameRef.size() + 1;
   size_t RealLen = StringLen + Size + 1 + BufAlign.value();
   if (RealLen <= Size) // Check for rollover.
     return nullptr;
@@ -310,7 +315,8 @@ WritableMemoryBuffer::getNewUninitMemBuffer(size_t Size,
     return nullptr;
 
   // The name is stored after the class itself.
-  CopyStringRef(Mem + sizeof(MemBuffer), NameRef);
+  *reinterpret_cast<size_t *>(Mem + sizeof(MemBuffer)) = NameRef.size();
+  CopyStringRef(Mem + sizeof(MemBuffer) + sizeof(size_t), NameRef);
 
   // The buffer begins after the name and must be aligned.
   char *Buf = (char *)alignAddr(Mem + StringLen, BufAlign);
@@ -441,7 +447,7 @@ template <typename MB>
 static ErrorOr<std::unique_ptr<MB>>
 getOpenFileImpl(sys::fs::file_t FD, const Twine &Filename, uint64_t FileSize,
                 uint64_t MapSize, int64_t Offset, bool RequiresNullTerminator,
-                bool IsVolatile, Optional<Align> Alignment) {
+                bool IsVolatile, std::optional<Align> Alignment) {
   static int PageSize = sys::Process::getPageSizeEstimate();
 
   // Default is to map the full file.
@@ -512,16 +518,15 @@ getOpenFileImpl(sys::fs::file_t FD, const Twine &Filename, uint64_t FileSize,
 ErrorOr<std::unique_ptr<MemoryBuffer>>
 MemoryBuffer::getOpenFile(sys::fs::file_t FD, const Twine &Filename,
                           uint64_t FileSize, bool RequiresNullTerminator,
-                          bool IsVolatile, Optional<Align> Alignment) {
+                          bool IsVolatile, std::optional<Align> Alignment) {
   return getOpenFileImpl<MemoryBuffer>(FD, Filename, FileSize, FileSize, 0,
                                        RequiresNullTerminator, IsVolatile,
                                        Alignment);
 }
 
-ErrorOr<std::unique_ptr<MemoryBuffer>>
-MemoryBuffer::getOpenFileSlice(sys::fs::file_t FD, const Twine &Filename,
-                               uint64_t MapSize, int64_t Offset,
-                               bool IsVolatile, Optional<Align> Alignment) {
+ErrorOr<std::unique_ptr<MemoryBuffer>> MemoryBuffer::getOpenFileSlice(
+    sys::fs::file_t FD, const Twine &Filename, uint64_t MapSize, int64_t Offset,
+    bool IsVolatile, std::optional<Align> Alignment) {
   assert(MapSize != uint64_t(-1));
   return getOpenFileImpl<MemoryBuffer>(FD, Filename, -1, MapSize, Offset, false,
                                        IsVolatile, Alignment);

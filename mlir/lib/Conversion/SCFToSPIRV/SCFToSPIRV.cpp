@@ -17,6 +17,7 @@
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/Support/FormatVariadic.h"
 
 using namespace mlir;
 
@@ -286,6 +287,10 @@ IfOpConversion::matchAndRewrite(scf::IfOp ifOp, OpAdaptor adaptor,
   SmallVector<Type, 8> returnTypes;
   for (auto result : ifOp.getResults()) {
     auto convertedType = typeConverter.convertType(result.getType());
+    if (!convertedType)
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("failed to convert type '{0}'", result.getType()));
+
     returnTypes.push_back(convertedType);
   }
   replaceSCFOutputValue(ifOp, selectionOp, rewriter, scfToSPIRVContext,
@@ -412,7 +417,7 @@ WhileOpConversion::matchAndRewrite(scf::WhileOp whileOp, OpAdaptor adaptor,
 
   rewriter.setInsertionPointToEnd(&beforeBlock);
   rewriter.replaceOpWithNewOp<spirv::BranchConditionalOp>(
-      cond, conditionVal, &afterBlock, condArgs, &mergeBlock, llvm::None);
+      cond, conditionVal, &afterBlock, condArgs, &mergeBlock, std::nullopt);
 
   // Convert the scf.yield op to a branch back to the header block.
   rewriter.setInsertionPointToEnd(&afterBlock);

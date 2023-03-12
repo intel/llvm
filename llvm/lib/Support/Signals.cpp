@@ -192,8 +192,8 @@ static bool printSymbolizedStackTrace(StringRef Argv0, void **StackTrace,
     }
   }
 
-  Optional<StringRef> Redirects[] = {InputFile.str(), OutputFile.str(),
-                                     StringRef("")};
+  std::optional<StringRef> Redirects[] = {InputFile.str(), OutputFile.str(),
+                                          StringRef("")};
   StringRef Args[] = {"llvm-symbolizer", "--functions=linkage", "--inlining",
 #ifdef _WIN32
                       // Pass --relative-address on Windows so that we don't
@@ -203,7 +203,7 @@ static bool printSymbolizedStackTrace(StringRef Argv0, void **StackTrace,
 #endif
                       "--demangle"};
   int RunResult =
-      sys::ExecuteAndWait(LLVMSymbolizerPath, Args, None, Redirects);
+      sys::ExecuteAndWait(LLVMSymbolizerPath, Args, std::nullopt, Redirects);
   if (RunResult != 0)
     return false;
 

@@ -13,8 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
+namespace ext::intel {
 
 // Returns a registered copy of the input
 // This function is intended for FPGA users to instruct the compiler to insert
@@ -43,8 +42,7 @@ fpga_reg(_T t) {
 #endif
 }
 
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -164,6 +164,14 @@ should be at a path something like:
 You can feed that file into the LLVM_PROFDATA_FILE option when you build your
 optimized compiler.
 
+It may be necessary to build additional targets before running perf training, such as
+builtins and runtime libraries. You can use the :code:`CLANG_PERF_TRAINING_DEPS` CMake
+variable for that purpose:
+
+.. code-block:: cmake
+
+  set(CLANG_PERF_TRAINING_DEPS builtins runtimes CACHE STRING "")
+
 The PGO cache has a slightly different stage naming scheme than other
 multi-stage builds. It generates three stages: stage1, stage2-instrumented, and
 stage2. Both of the stage2 builds are built using the stage1 compiler.
@@ -216,7 +224,7 @@ Then, build the BOLT-optimized binary by running the following ninja command:
 
 .. code-block:: console
 
-  $ ninja clang++-bolt
+  $ ninja clang-bolt
 
 If you're seeing errors in the build process, try building with a recent
 version of Clang/LLVM by setting the CMAKE_C_COMPILER and
@@ -235,12 +243,11 @@ configuration command:
       -DBOOTSTRAP_BOOTSTRAP_LLVM_ENABLE_LLD=ON \
       -DPGO_INSTRUMENT_LTO=Thin
 
-Then, to build the final optimized binary, build the stage2-clang++-bolt
-target:
+Then, to build the final optimized binary, build the stage2-clang-bolt target:
 
 .. code-block:: console
 
-  $ ninja stage2-clang++-bolt
+  $ ninja stage2-clang-bolt
 
 3-Stage Non-Determinism
 =======================

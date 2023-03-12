@@ -21,6 +21,7 @@
 #include "llvm/Support/Allocator.h"
 #include <forward_list>
 #include <map>
+#include <optional>
 
 namespace llvm {
 class CanonicalLoopInfo;
@@ -82,49 +83,59 @@ class OpenMPIRBuilderConfig {
 public:
   /// Flag for specifying if the compilation is done for embedded device code
   /// or host code.
-  Optional<bool> IsEmbedded;
+  std::optional<bool> IsEmbedded;
 
   /// Flag for specifying if the compilation is done for an offloading target,
   /// like GPU.
-  Optional<bool> IsTargetCodegen;
+  std::optional<bool> IsTargetCodegen;
 
   /// Flag for specifying weather a requires unified_shared_memory
   /// directive is present or not.
-  Optional<bool> HasRequiresUnifiedSharedMemory;
+  std::optional<bool> HasRequiresUnifiedSharedMemory;
+
+  // Flag for specifying if offloading is mandatory.
+  std::optional<bool> OpenMPOffloadMandatory;
 
   /// First separator used between the initial two parts of a name.
-  Optional<StringRef> FirstSeparator;
+  std::optional<StringRef> FirstSeparator;
   /// Separator used between all of the rest consecutive parts of s name
-  Optional<StringRef> Separator;
+  std::optional<StringRef> Separator;
 
   OpenMPIRBuilderConfig() {}
   OpenMPIRBuilderConfig(bool IsEmbedded, bool IsTargetCodegen,
-                        bool HasRequiresUnifiedSharedMemory)
+                        bool HasRequiresUnifiedSharedMemory,
+                        bool OpenMPOffloadMandatory)
       : IsEmbedded(IsEmbedded), IsTargetCodegen(IsTargetCodegen),
-        HasRequiresUnifiedSharedMemory(HasRequiresUnifiedSharedMemory) {}
+        HasRequiresUnifiedSharedMemory(HasRequiresUnifiedSharedMemory),
+        OpenMPOffloadMandatory(OpenMPOffloadMandatory) {}
 
   // Getters functions that assert if the required values are not present.
   bool isEmbedded() const {
     assert(IsEmbedded.has_value() && "IsEmbedded is not set");
-    return IsEmbedded.value();
+    return *IsEmbedded;
   }
 
   bool isTargetCodegen() const {
     assert(IsTargetCodegen.has_value() && "IsTargetCodegen is not set");
-    return IsTargetCodegen.value();
+    return *IsTargetCodegen;
   }
 
   bool hasRequiresUnifiedSharedMemory() const {
     assert(HasRequiresUnifiedSharedMemory.has_value() &&
            "HasUnifiedSharedMemory is not set");
-    return HasRequiresUnifiedSharedMemory.value();
+    return *HasRequiresUnifiedSharedMemory;
   }
 
+  bool openMPOffloadMandatory() const {
+    assert(OpenMPOffloadMandatory.has_value() &&
+           "OpenMPOffloadMandatory is not set");
+    return *OpenMPOffloadMandatory;
+  }
   // Returns the FirstSeparator if set, otherwise use the default
   // separator depending on isTargetCodegen
   StringRef firstSeparator() const {
     if (FirstSeparator.has_value())
-      return FirstSeparator.value();
+      return *FirstSeparator;
     if (isTargetCodegen())
       return "_";
     return ".";
@@ -134,7 +145,7 @@ public:
   // separator depending on isTargetCodegen
   StringRef separator() const {
     if (Separator.has_value())
-      return Separator.value();
+      return *Separator;
     if (isTargetCodegen())
       return "$";
     return ".";
@@ -491,6 +502,13 @@ public:
                                    ArrayRef<CanonicalLoopInfo *> Loops,
                                    InsertPointTy ComputeIP);
 
+  /// Get the default alignment value for given target
+  ///
+  /// \param TargetTriple   Target triple
+  /// \param Features       StringMap which describes extra CPU features
+  static unsigned getOpenMPDefaultSimdAlign(const Triple &TargetTriple,
+                                            const StringMap<bool> &Features);
+
 private:
   /// Modifies the canonical loop to be a statically-scheduled workshare loop.
   ///
@@ -765,7 +783,7 @@ public:
                            InsertPointTy AllocaIP, BodyGenCallbackTy BodyGenCB,
                            bool Tied = true, Value *Final = nullptr,
                            Value *IfCondition = nullptr,
-                           ArrayRef<DependData *> Dependencies = {});
+                           SmallVector<DependData> Dependencies = {});
 
   /// Generator for the taskgroup construct
   ///
@@ -977,12 +995,10 @@ public:
   /// \param NumThreads Number of threads via the 'thread_limit' clause.
   /// \param HostPtr Pointer to the host-side pointer of the target kernel.
   /// \param KernelArgs Array of arguments to the kernel.
-  /// \param NoWaitArgs Optional array of arguments to the nowait kernel.
   InsertPointTy emitTargetKernel(const LocationDescription &Loc, Value *&Return,
                                  Value *Ident, Value *DeviceID, Value *NumTeams,
                                  Value *NumThreads, Value *HostPtr,
-                                 ArrayRef<Value *> KernelArgs,
-                                 ArrayRef<Value *> NoWaitArgs = {});
+                                 ArrayRef<Value *> KernelArgs);
 
   /// Generate a barrier runtime call.
   ///
@@ -1077,7 +1093,7 @@ public:
   /// <critical_section_name> + ".var" for "omp critical" directives; 2)
   /// <mangled_name_for_global_var> + ".cache." for cache for threadprivate
   /// variables.
-  StringMap<AssertingVH<Constant>, BumpPtrAllocator> InternalVars;
+  StringMap<Constant*, BumpPtrAllocator> InternalVars;
 
   /// Create the global variable holding the offload mappings information.
   GlobalVariable *createOffloadMaptypes(SmallVectorImpl<uint64_t> &Mappings,
@@ -1447,19 +1463,92 @@ public:
   ///
   /// \param Loc The insert and source location description.
   /// \param IsSPMD Flag to indicate if the kernel is an SPMD kernel or not.
-  /// \param RequiresFullRuntime Indicate if a full device runtime is necessary.
-  InsertPointTy createTargetInit(const LocationDescription &Loc, bool IsSPMD,
-                                 bool RequiresFullRuntime);
+  InsertPointTy createTargetInit(const LocationDescription &Loc, bool IsSPMD);
 
   /// Create a runtime call for kmpc_target_deinit
   ///
   /// \param Loc The insert and source location description.
   /// \param IsSPMD Flag to indicate if the kernel is an SPMD kernel or not.
-  /// \param RequiresFullRuntime Indicate if a full device runtime is necessary.
-  void createTargetDeinit(const LocationDescription &Loc, bool IsSPMD,
-                          bool RequiresFullRuntime);
+  void createTargetDeinit(const LocationDescription &Loc, bool IsSPMD);
 
   ///}
+
+private:
+  // Sets the function attributes expected for the outlined function
+  void setOutlinedTargetRegionFunctionAttributes(Function *OutlinedFn,
+                                                 int32_t NumTeams,
+                                                 int32_t NumThreads);
+
+  // Creates the function ID/Address for the given outlined function.
+  // In the case of an embedded device function the address of the function is
+  // used, in the case of a non-offload function a constant is created.
+  Constant *createOutlinedFunctionID(Function *OutlinedFn,
+                                     StringRef EntryFnIDName);
+
+  // Creates the region entry address for the outlined function
+  Constant *createTargetRegionEntryAddr(Function *OutlinedFunction,
+                                        StringRef EntryFnName);
+
+public:
+  /// Functions used to generate a function with the given name.
+  using FunctionGenCallback = std::function<Function *(StringRef FunctionName)>;
+
+  /// Create a unique name for the entry function using the source location
+  /// information of the current target region. The name will be something like:
+  ///
+  /// __omp_offloading_DD_FFFF_PP_lBB[_CC]
+  ///
+  /// where DD_FFFF is an ID unique to the file (device and file IDs), PP is the
+  /// mangled name of the function that encloses the target region and BB is the
+  /// line number of the target region. CC is a count added when more than one
+  /// region is located at the same location.
+  ///
+  /// If this target outline function is not an offload entry, we don't need to
+  /// register it. This may happen if it is guarded by an if clause that is
+  /// false at compile time, or no target archs have been specified.
+  ///
+  /// The created target region ID is used by the runtime library to identify
+  /// the current target region, so it only has to be unique and not
+  /// necessarily point to anything. It could be the pointer to the outlined
+  /// function that implements the target region, but we aren't using that so
+  /// that the compiler doesn't need to keep that, and could therefore inline
+  /// the host function if proven worthwhile during optimization. In the other
+  /// hand, if emitting code for the device, the ID has to be the function
+  /// address so that it can retrieved from the offloading entry and launched
+  /// by the runtime library. We also mark the outlined function to have
+  /// external linkage in case we are emitting code for the device, because
+  /// these functions will be entry points to the device.
+  ///
+  /// \param InfoManager The info manager keeping track of the offload entries
+  /// \param EntryInfo The entry information about the function
+  /// \param GenerateFunctionCallback The callback function to generate the code
+  /// \param NumTeams Number default teams
+  /// \param NumThreads Number default threads
+  /// \param OutlinedFunction Pointer to the outlined function
+  /// \param EntryFnIDName Name of the ID o be created
+  void emitTargetRegionFunction(OffloadEntriesInfoManager &InfoManager,
+                                TargetRegionEntryInfo &EntryInfo,
+                                FunctionGenCallback &GenerateFunctionCallback,
+                                int32_t NumTeams, int32_t NumThreads,
+                                bool IsOffloadEntry, Function *&OutlinedFn,
+                                Constant *&OutlinedFnID);
+
+  /// Registers the given function and sets up the attribtues of the function
+  /// Returns the FunctionID.
+  ///
+  /// \param InfoManager The info manager keeping track of the offload entries
+  /// \param EntryInfo The entry information about the function
+  /// \param OutlinedFunction Pointer to the outlined function
+  /// \param EntryFnName Name of the outlined function
+  /// \param EntryFnIDName Name of the ID o be created
+  /// \param NumTeams Number default teams
+  /// \param NumThreads Number default threads
+  Constant *registerTargetRegionFunction(OffloadEntriesInfoManager &InfoManager,
+                                         TargetRegionEntryInfo &EntryInfo,
+                                         Function *OutlinedFunction,
+                                         StringRef EntryFnName,
+                                         StringRef EntryFnIDName,
+                                         int32_t NumTeams, int32_t NumThreads);
 
   /// Declarations for LLVM-IR types (simple, array, function and structure) are
   /// generated below. Their names are defined and used in OpenMPKinds.def. Here

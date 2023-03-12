@@ -14,11 +14,12 @@
 #include "clang/Driver/ToolChain.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/AArch64TargetParser.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SpecialCaseList.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/AArch64TargetParser.h"
+#include "llvm/TargetParser/RISCVTargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
 #include <memory>
 
@@ -104,6 +105,7 @@ enum CoverageFeature {
 enum BinaryMetadataFeature {
   BinaryMetadataCovered = 1 << 0,
   BinaryMetadataAtomics = 1 << 1,
+  BinaryMetadataUAR = 1 << 2,
 };
 
 /// Parse a -fsanitize= or -fno-sanitize= argument's values, diagnosing any
@@ -544,7 +546,8 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   if ((Kinds & SanitizerKind::ShadowCallStack) &&
       ((TC.getTriple().isAArch64() &&
         !llvm::AArch64::isX18ReservedByDefault(TC.getTriple())) ||
-       TC.getTriple().isRISCV()) &&
+       (TC.getTriple().isRISCV() &&
+        !llvm::RISCV::isX18ReservedByDefault(TC.getTriple()))) &&
       !Args.hasArg(options::OPT_ffixed_x18) && DiagnoseErrors) {
     D.Diag(diag::err_drv_argument_only_allowed_with)
         << lastArgumentForMask(D, Args, Kinds & SanitizerKind::ShadowCallStack)
@@ -649,14 +652,9 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   if (AllAddedKinds & SanitizerKind::Memory) {
     if (Arg *A =
             Args.getLastArg(options::OPT_fsanitize_memory_track_origins_EQ,
-                            options::OPT_fsanitize_memory_track_origins,
                             options::OPT_fno_sanitize_memory_track_origins)) {
-      if (A->getOption().matches(options::OPT_fsanitize_memory_track_origins)) {
-        MsanTrackOrigins = 2;
-      } else if (A->getOption().matches(
-                     options::OPT_fno_sanitize_memory_track_origins)) {
-        MsanTrackOrigins = 0;
-      } else {
+      if (!A->getOption().matches(
+              options::OPT_fno_sanitize_memory_track_origins)) {
         StringRef S = A->getValue();
         if (S.getAsInteger(0, MsanTrackOrigins) || MsanTrackOrigins < 0 ||
             MsanTrackOrigins > 2) {
@@ -715,6 +713,9 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
     CfiICallGeneralizePointers =
         Args.hasArg(options::OPT_fsanitize_cfi_icall_generalize_pointers);
 
+    CfiICallNormalizeIntegers =
+        Args.hasArg(options::OPT_fsanitize_cfi_icall_normalize_integers);
+
     if (CfiCrossDso && CfiICallGeneralizePointers && DiagnoseErrors)
       D.Diag(diag::err_drv_argument_not_allowed_with)
           << "-fsanitize-cfi-cross-dso"
@@ -725,8 +726,11 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
                      options::OPT_fno_sanitize_cfi_canonical_jump_tables, true);
   }
 
-  if (AllAddedKinds & SanitizerKind::KCFI && DiagnoseErrors) {
-    if (AllAddedKinds & SanitizerKind::CFI)
+  if (AllAddedKinds & SanitizerKind::KCFI) {
+    CfiICallNormalizeIntegers =
+        Args.hasArg(options::OPT_fsanitize_cfi_icall_normalize_integers);
+
+    if (AllAddedKinds & SanitizerKind::CFI && DiagnoseErrors)
       D.Diag(diag::err_drv_argument_not_allowed_with)
           << "-fsanitize=kcfi"
           << lastArgumentForMask(D, Args, SanitizerKind::CFI);
@@ -861,6 +865,16 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       BinaryMetadataFeatures &=
           ~parseBinaryMetadataFeatures(D, Arg, DiagnoseErrors);
     }
+  }
+
+  // Parse -fsanitize-metadata-ignorelist option if enabled.
+  if (BinaryMetadataFeatures) {
+    parseSpecialCaseListArg(
+        D, Args, BinaryMetadataIgnorelistFiles,
+        options::OPT_fexperimental_sanitize_metadata_ignorelist_EQ,
+        OptSpecifier(), // Cannot clear ignore list, only append.
+        clang::diag::err_drv_malformed_sanitizer_metadata_ignorelist,
+        DiagnoseErrors);
   }
 
   SharedRuntime =
@@ -1133,12 +1147,16 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   // flags. Does not depend on any other sanitizers.
   const std::pair<int, std::string> BinaryMetadataFlags[] = {
       std::make_pair(BinaryMetadataCovered, "covered"),
-      std::make_pair(BinaryMetadataAtomics, "atomics")};
+      std::make_pair(BinaryMetadataAtomics, "atomics"),
+      std::make_pair(BinaryMetadataUAR, "uar")};
   for (const auto &F : BinaryMetadataFlags) {
     if (BinaryMetadataFeatures & F.first)
       CmdArgs.push_back(
           Args.MakeArgString("-fexperimental-sanitize-metadata=" + F.second));
   }
+  addSpecialCaseListOpt(Args, CmdArgs,
+                        "-fexperimental-sanitize-metadata-ignorelist=",
+                        BinaryMetadataIgnorelistFiles);
 
   if (TC.getTriple().isOSWindows() && needsUbsanRt()) {
     // Instruct the code generator to embed linker directives in the object file
@@ -1217,6 +1235,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
   if (CfiICallGeneralizePointers)
     CmdArgs.push_back("-fsanitize-cfi-icall-generalize-pointers");
+
+  if (CfiICallNormalizeIntegers)
+    CmdArgs.push_back("-fsanitize-cfi-icall-experimental-normalize-integers");
 
   if (CfiCanonicalJumpTables)
     CmdArgs.push_back("-fsanitize-cfi-canonical-jump-tables");
@@ -1399,6 +1420,7 @@ int parseBinaryMetadataFeatures(const Driver &D, const llvm::opt::Arg *A,
     int F = llvm::StringSwitch<int>(Value)
                 .Case("covered", BinaryMetadataCovered)
                 .Case("atomics", BinaryMetadataAtomics)
+                .Case("uar", BinaryMetadataUAR)
                 .Case("all", ~0)
                 .Default(0);
     if (F == 0 && DiagnoseErrors)

@@ -22,7 +22,6 @@
 #ifndef LLVM_ANALYSIS_OBJCARCANALYSISUTILS_H
 #define LLVM_ANALYSIS_OBJCARCANALYSISUTILS_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/ObjCARCInstKind.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constants.h"
@@ -241,9 +240,9 @@ class ARCMDKindCache {
 public:
   void init(Module *Mod) {
     M = Mod;
-    ImpreciseReleaseMDKind = llvm::None;
-    CopyOnEscapeMDKind = llvm::None;
-    NoObjCARCExceptionsMDKind = llvm::None;
+    ImpreciseReleaseMDKind = std::nullopt;
+    CopyOnEscapeMDKind = std::nullopt;
+    NoObjCARCExceptionsMDKind = std::nullopt;
   }
 
   unsigned get(ARCMDKindID ID) {

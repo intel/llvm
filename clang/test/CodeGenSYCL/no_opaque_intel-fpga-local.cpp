@@ -256,7 +256,7 @@ void field_addrspace_cast() {
   // CHECK-DEVICE: define internal {{.*}} @_ZZ20field_addrspace_castvEN5stateC2Ev
   // CHECK-DEVICE: %[[MEM:[a-zA-Z0-9]+]] = getelementptr inbounds %{{.*}}, %struct.state addrspace(4)* %{{.*}}, i32 0, i32 0
   // CHECK-DEVICE: %[[BITCAST:[0-9]+]] = bitcast [8 x i32] addrspace(4)* %[[MEM]] to i8 addrspace(4)*
-  // CHECK-DEVICE: %[[ANN:[0-9]+]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* %[[BITCAST]], {{.*}}, {{.*}})
+  // CHECK-DEVICE: %[[ANN:[0-9]+]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %[[BITCAST]], {{.*}}, {{.*}})
   // CHECK-DEVICE: %{{[0-9]+}} = bitcast i8 addrspace(4)* %[[ANN]] to [8 x i32] addrspace(4)
   state_var.mem[0] = 42;
 }

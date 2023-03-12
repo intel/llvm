@@ -12,7 +12,6 @@
 
 #include "CoverageReport.h"
 #include "SourceCoverageViewHTML.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
@@ -560,7 +559,7 @@ void SourceCoverageViewHTML::renderLine(raw_ostream &OS, LineRef L,
     else if (CurSeg->Col == ExpansionCol)
       Color = "cyan";
     else
-      Color = None;
+      Color = std::nullopt;
 
     if (Color)
       Snippets[I + 1] = Highlight(Snippets[I + 1], CurSeg->Col,

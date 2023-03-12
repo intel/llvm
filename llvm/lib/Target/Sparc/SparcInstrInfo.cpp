@@ -136,6 +136,21 @@ static SPCC::CondCodes GetOppositeBranchCondition(SPCC::CondCodes CC)
       // only be used in inline assembler, so this code should
       // not be reached in a normal compilation pass.
       llvm_unreachable("Meaningless inversion of co-processor cond code");
+
+  case SPCC::REG_BEGIN:
+      llvm_unreachable("Use of reserved cond code");
+  case SPCC::REG_Z:
+      return SPCC::REG_NZ;
+  case SPCC::REG_LEZ:
+      return SPCC::REG_GZ;
+  case SPCC::REG_LZ:
+      return SPCC::REG_GEZ;
+  case SPCC::REG_NZ:
+      return SPCC::REG_Z;
+  case SPCC::REG_GZ:
+      return SPCC::REG_LEZ;
+  case SPCC::REG_GEZ:
+      return SPCC::REG_LZ;
   }
   llvm_unreachable("Invalid cond code");
 }
@@ -414,11 +429,12 @@ void SparcInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     MovMI->addRegisterKilled(SrcReg, TRI);
 }
 
-void SparcInstrInfo::
-storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-                    Register SrcReg, bool isKill, int FI,
-                    const TargetRegisterClass *RC,
-                    const TargetRegisterInfo *TRI) const {
+void SparcInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
+                                         MachineBasicBlock::iterator I,
+                                         Register SrcReg, bool isKill, int FI,
+                                         const TargetRegisterClass *RC,
+                                         const TargetRegisterInfo *TRI,
+                                         Register VReg) const {
   DebugLoc DL;
   if (I != MBB.end()) DL = I->getDebugLoc();
 
@@ -453,11 +469,12 @@ storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
     llvm_unreachable("Can't store this register to stack slot");
 }
 
-void SparcInstrInfo::
-loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-                     Register DestReg, int FI,
-                     const TargetRegisterClass *RC,
-                     const TargetRegisterInfo *TRI) const {
+void SparcInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                          MachineBasicBlock::iterator I,
+                                          Register DestReg, int FI,
+                                          const TargetRegisterClass *RC,
+                                          const TargetRegisterInfo *TRI,
+                                          Register VReg) const {
   DebugLoc DL;
   if (I != MBB.end()) DL = I->getDebugLoc();
 

@@ -1437,6 +1437,8 @@ floating point semantic models: precise (the default), strict, and fast.
 
    * ``-fno-honor-nans``
 
+   * ``-fapprox-func``
+
    * ``-fno-math-errno``
 
    * ``-ffinite-math-only``
@@ -1449,6 +1451,8 @@ floating point semantic models: precise (the default), strict, and fast.
 
    * ``-fno-trapping-math``
 
+   * ``-fno-rounding-math``
+
    * ``-ffp-contract=fast``
 
    Note: ``-ffast-math`` causes ``crtfastmath.o`` to be linked with code. See
@@ -1457,7 +1461,7 @@ floating point semantic models: precise (the default), strict, and fast.
 .. option:: -fno-fast-math
 
    Disable fast-math mode.  This options disables unsafe floating-point
-   optimizations by preventing the compiler from making any tranformations that
+   optimizations by preventing the compiler from making any transformations that
    could affect the results.
 
    This option implies:
@@ -1466,7 +1470,7 @@ floating point semantic models: precise (the default), strict, and fast.
 
    * ``-fhonor-nans``
 
-   * ``-fmath-errno``
+   * ``-fno-approx-func``
 
    * ``-fno-finite-math-only``
 
@@ -1476,14 +1480,15 @@ floating point semantic models: precise (the default), strict, and fast.
 
    * ``-fsigned-zeros``
 
-   * ``-fno-trapping-math``
-
    * ``-ffp-contract=on``
 
-   * ``-fdenormal-fp-math=ieee``
+   Also, this option resets following options to their target-dependent defaults.
+
+   * ``-f[no-]math-errno``
+   * ``-fdenormal-fp-math=<value>``
 
    There is ambiguity about how ``-ffp-contract``, ``-ffast-math``,
-   and ``-fno-fast-math`` behave in combination. To keep the value of
+   and ``-fno-fast-math`` behave when combined. To keep the value of
    ``-ffp-contract`` consistent, we define this set of rules:
 
    * ``-ffast-math`` sets ``ffp-contract`` to ``fast``.
@@ -1516,7 +1521,8 @@ floating point semantic models: precise (the default), strict, and fast.
    * ``preserve-sign`` - the sign of a flushed-to-zero number is preserved in the sign of 0
    * ``positive-zero`` - denormals are flushed to positive zero
 
-   Defaults to ``ieee``.
+   The default value depends on the target. For most targets, defaults to
+   ``ieee``.
 
 .. option:: -f[no-]strict-float-cast-overflow
 
@@ -1525,6 +1531,7 @@ floating point semantic models: precise (the default), strict, and fast.
    By default, Clang will not guarantee any particular result in that case.
    With the 'no-strict' option, Clang will saturate towards the smallest and
    largest representable integer values instead. NaNs will be converted to zero.
+   Defaults to ``-fstrict-float-cast-overflow``.
 
 .. option:: -f[no-]math-errno
 
@@ -1572,10 +1579,18 @@ floating point semantic models: precise (the default), strict, and fast.
 
 .. option:: -f[no-]honor-infinities
 
+   Allow floating-point optimizations that assume arguments and results are
+   not +-Inf.
+   Defaults to ``-fhonor-infinities``.
+
    If both ``-fno-honor-infinities`` and ``-fno-honor-nans`` are used,
    has the same effect as specifying ``-ffinite-math-only``.
 
 .. option:: -f[no-]honor-nans
+
+   Allow floating-point optimizations that assume arguments and results are
+   not NaNs.
+   Defaults to ``-fhonor-nans``.
 
    If both ``-fno-honor-infinities`` and ``-fno-honor-nans`` are used,
    has the same effect as specifying ``-ffinite-math-only``.
@@ -1592,7 +1607,7 @@ floating point semantic models: precise (the default), strict, and fast.
 .. option:: -f[no-]signed-zeros
 
    Allow optimizations that ignore the sign of floating point zeros.
-   Defaults to ``-fno-signed-zeros``.
+   Defaults to ``-fsigned-zeros``.
 
 .. option:: -f[no-]associative-math
 
@@ -1608,23 +1623,47 @@ floating point semantic models: precise (the default), strict, and fast.
 
 .. option:: -f[no-]unsafe-math-optimizations
 
-   Allow unsafe floating-point optimizations. Also implies:
+   Allow unsafe floating-point optimizations.
+   ``-funsafe-math-optimizations`` also implies:
 
+   * ``-fapprox-func``
    * ``-fassociative-math``
    * ``-freciprocal-math``
-   * ``-fno-signed-zeroes``
-   * ``-fno-trapping-math``.
+   * ``-fno-signed-zeros``
+   * ``-fno-trapping-math``
+   * ``-ffp-contract=fast``
+
+   ``-fno-unsafe-math-optimizations`` implies:
+
+   * ``-fno-approx-func``
+   * ``-fno-associative-math``
+   * ``-fno-reciprocal-math``
+   * ``-fsigned-zeros``
+   * ``-ftrapping-math``
+   * ``-ffp-contract=on``
+   * ``-fdenormal-fp-math=ieee``
+
+   There is ambiguity about how ``-ffp-contract``,
+   ``-funsafe-math-optimizations``, and ``-fno-unsafe-math-optimizations``
+   behave when combined. Explanation in :option:`-fno-fast-math` also applies
+   to these options.
 
    Defaults to ``-fno-unsafe-math-optimizations``.
 
 .. option:: -f[no-]finite-math-only
 
    Allow floating-point optimizations that assume arguments and results are
-   not NaNs or +-Inf.  This defines the ``__FINITE_MATH_ONLY__`` preprocessor macro.
-   Also implies:
+   not NaNs or +-Inf. ``-ffinite-math-only`` defines the
+   ``__FINITE_MATH_ONLY__`` preprocessor macro.
+   ``-ffinite-math-only`` implies:
 
    * ``-fno-honor-infinities``
    * ``-fno-honor-nans``
+
+   ``-ffno-inite-math-only`` implies:
+
+   * ``-fhonor-infinities``
+   * ``-fhonor-nans``
 
    Defaults to ``-fno-finite-math-only``.
 
@@ -1685,7 +1724,7 @@ floating point semantic models: precise (the default), strict, and fast.
    * ``double`` The compiler uses ``double`` as the floating-point evaluation method for all float expressions of type that is narrower than ``double``.
    * ``extended`` The compiler uses ``long double`` as the floating-point evaluation method for all float expressions of type that is narrower than ``long double``.
 
-.. option:: -f[no-]protect-parens:
+.. option:: -f[no-]protect-parens
 
    This option pertains to floating-point types, complex types with
    floating-point components, and vectors of these types. Some arithmetic
@@ -1699,12 +1738,54 @@ floating point semantic models: precise (the default), strict, and fast.
    additions in any order regardless of the parentheses. When enabled, this
    option forces the optimizer to honor the order of operations with respect
    to parentheses in all circumstances.
+   Defaults to ``-fno-protect-parens``.
 
    Note that floating-point contraction (option `-ffp-contract=`) is disabled
    when `-fprotect-parens` is enabled.  Also note that in safe floating-point
    modes, such as `-ffp-model=precise` or `-ffp-model=strict`, this option
    has no effect because the optimizer is prohibited from making unsafe
    transformations.
+
+.. option:: -fexcess-precision:
+
+   The C and C++ standards allow floating-point expressions to be computed as if
+   intermediate results had more precision (and/or a wider range) than the type
+   of the expression strictly allows.  This is called excess precision
+   arithmetic.
+   Excess precision arithmetic can improve the accuracy of results (although not
+   always), and it can make computation significantly faster if the target lacks
+   direct hardware support for arithmetic in a particular type.  However, it can
+   also undermine strict floating-point reproducibility.
+
+   Under the standards, assignments and explicit casts force the operand to be
+   converted to its formal type, discarding any excess precision.  Because data
+   can only flow between statements via an assignment, this means that the use
+   of excess precision arithmetic is a reliable local property of a single
+   statement, and results do not change based on optimization.  However, when
+   excess precision arithmetic is in use, Clang does not guarantee strict
+   reproducibility, and future compiler releases may recognize more
+   opportunities to use excess precision arithmetic, e.g. with floating-point
+   builtins.
+
+   Clang does not use excess precision arithmetic for most types or on most
+   targets. For example, even on pre-SSE X86 targets where ``float`` and
+   ``double`` computations must be performed in the 80-bit X87 format, Clang
+   rounds all intermediate results correctly for their type.  Clang currently
+   uses excess precision arithmetic by default only for the following types and
+   targets:
+
+   * ``_Float16`` on X86 targets without ``AVX512-FP16``.
+
+   The ``-fexcess-precision=<value>`` option can be used to control the use of
+   excess precision arithmetic.  Valid values are:
+
+   * ``standard`` - The default.  Allow the use of excess precision arithmetic
+     under the constraints of the C and C++ standards. Has no effect except on
+     the types and targets listed above.
+   * ``fast`` - Accepted for GCC compatibility, but currently treated as an
+     alias for ``standard``.
+   * ``16`` - Forces ``_Float16`` operations to be emitted without using excess
+     precision arithmetic.
 
 .. _crtfastmath.o:
 
@@ -1910,6 +1991,14 @@ are listed below.
    Generalize pointers in return and argument types in function type signatures
    checked by Control Flow Integrity indirect call checking. See
    :doc:`ControlFlowIntegrity` for more details.
+
+.. option:: -fsanitize-cfi-icall-experimental-normalize-integers
+
+   Normalize integers in return and argument types in function type signatures
+   checked by Control Flow Integrity indirect call checking. See
+   :doc:`ControlFlowIntegrity` for more details.
+
+   This option is currently experimental.
 
 .. option:: -fstrict-vtable-pointers
 
@@ -3224,8 +3313,8 @@ to the target, for example:
 
    .. code-block:: console
 
-     $ clang -target nvptx64-unknown-unknown test.cl
-     $ clang -target amdgcn-amd-amdhsa -mcpu=gfx900 test.cl
+     $ clang --target=nvptx64-unknown-unknown test.cl
+     $ clang --target=amdgcn-amd-amdhsa -mcpu=gfx900 test.cl
 
 Compiling to bitcode can be done as follows:
 
@@ -3309,13 +3398,13 @@ Some extra options are available to support special OpenCL features.
 
    .. code-block:: console
 
-     $ clang -c -target spirv64 -cl-ext=-cl_khr_fp64 test.cl
+     $ clang -c --target=spirv64 -cl-ext=-cl_khr_fp64 test.cl
 
    Enabling all extensions except double support in R600 AMD GPU can be done using:
 
    .. code-block:: console
 
-     $ clang -target r600 -cl-ext=-all,+cl_khr_fp16 test.cl
+     $ clang --target=r600 -cl-ext=-all,+cl_khr_fp16 test.cl
 
    Note that some generic targets e.g. SPIR/SPIR-V enable all extensions/features in
    clang by default.
@@ -3336,13 +3425,13 @@ There is a set of concrete HW architectures that OpenCL can be compiled for.
 
    .. code-block:: console
 
-     $ clang -target amdgcn-amd-amdhsa -mcpu=gfx900 test.cl
+     $ clang --target=amdgcn-amd-amdhsa -mcpu=gfx900 test.cl
 
 - For Nvidia architectures:
 
    .. code-block:: console
 
-     $ clang -target nvptx64-unknown-unknown test.cl
+     $ clang --target=nvptx64-unknown-unknown test.cl
 
 
 Generic Targets
@@ -3352,8 +3441,8 @@ Generic Targets
 
    .. code-block:: console
 
-    $ clang -target spirv32 -c test.cl
-    $ clang -target spirv64 -c test.cl
+    $ clang --target=spirv32 -c test.cl
+    $ clang --target=spirv64 -c test.cl
 
   More details can be found in :ref:`the SPIR-V support section <spir-v>`.
 
@@ -3364,8 +3453,8 @@ Generic Targets
 
    .. code-block:: console
 
-    $ clang -target spir test.cl -emit-llvm -c
-    $ clang -target spir64 test.cl -emit-llvm -c
+    $ clang --target=spir test.cl -emit-llvm -c
+    $ clang --target=spir64 test.cl -emit-llvm -c
 
   Clang will generate SPIR v1.2 compatible IR for OpenCL versions up to 2.0 and
   SPIR v2.0 for OpenCL v2.0 or C++ for OpenCL.
@@ -3597,7 +3686,7 @@ Example of use:
    .. code-block:: console
 
      clang -cl-std=clc++1.0 test.clcpp
-     clang -cl-std=clc++ -c -target spirv64 test.cl
+     clang -cl-std=clc++ -c --target=spirv64 test.cl
 
 
 By default, files with ``.clcpp`` extension are compiled with the C++ for
@@ -3845,8 +3934,8 @@ Example usage for OpenCL kernel compilation:
 
    .. code-block:: console
 
-     $ clang -target spirv32 -c test.cl
-     $ clang -target spirv64 -c test.cl
+     $ clang --target=spirv32 -c test.cl
+     $ clang --target=spirv64 -c test.cl
 
 Both invocations of Clang will result in the generation of a SPIR-V binary file
 `test.o` for 32 bit and 64 bit respectively. This file can be imported
@@ -3863,7 +3952,7 @@ the command line.
 
    .. code-block:: console
 
-     $ clang -target spirv32 -fintegrated-objemitter -c test.cl
+     $ clang --target=spirv32 -fintegrated-objemitter -c test.cl
 
 Note that only very basic functionality is supported at this point and therefore
 it is not suitable for arbitrary use cases. This feature is only enabled when clang
@@ -3878,7 +3967,7 @@ installation instructions
 
    .. code-block:: console
 
-     $ clang -target spirv64 test1.cl test2.cl
+     $ clang --target=spirv64 test1.cl test2.cl
 
 More information about the SPIR-V target settings and supported versions of SPIR-V
 format can be found in `the SPIR-V target guide

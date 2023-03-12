@@ -40,6 +40,7 @@
 #include "SymbolFileDWARF.h"
 
 #include <memory>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -351,7 +352,8 @@ void SymbolFileDWARFDebugMap::InitOSO() {
           // "i"
           if (sibling_idx == UINT32_MAX) {
             m_objfile_sp->GetModule()->ReportError(
-                "N_SO in symbol with UID %u has invalid sibling in debug map, "
+                "N_SO in symbol with UID {0} has invalid sibling in debug "
+                "map, "
                 "please file a bug and attach the binary listed in this error",
                 so_symbol->GetID());
           } else {
@@ -367,22 +369,25 @@ void SymbolFileDWARFDebugMap::InitOSO() {
         } else {
           if (oso_symbol == nullptr)
             m_objfile_sp->GetModule()->ReportError(
-                "N_OSO symbol[%u] can't be found, please file a bug and attach "
+                "N_OSO symbol[{0}] can't be found, please file a bug and "
+                "attach "
                 "the binary listed in this error",
                 oso_idx);
           else if (so_symbol == nullptr)
             m_objfile_sp->GetModule()->ReportError(
-                "N_SO not found for N_OSO symbol[%u], please file a bug and "
+                "N_SO not found for N_OSO symbol[{0}], please file a bug and "
                 "attach the binary listed in this error",
                 oso_idx);
           else if (so_symbol->GetType() != eSymbolTypeSourceFile)
             m_objfile_sp->GetModule()->ReportError(
-                "N_SO has incorrect symbol type (%u) for N_OSO symbol[%u], "
+                "N_SO has incorrect symbol type ({0}) for N_OSO "
+                "symbol[{1}], "
                 "please file a bug and attach the binary listed in this error",
                 so_symbol->GetType(), oso_idx);
           else if (oso_symbol->GetType() != eSymbolTypeSourceFile)
             m_objfile_sp->GetModule()->ReportError(
-                "N_OSO has incorrect symbol type (%u) for N_OSO symbol[%u], "
+                "N_OSO has incorrect symbol type ({0}) for N_OSO "
+                "symbol[{1}], "
                 "please file a bug and attach the binary listed in this error",
                 oso_symbol->GetType(), oso_idx);
         }
@@ -429,8 +434,8 @@ Module *SymbolFileDWARFDebugMap::GetModuleByCompUnitInfo(
               "will not be loaded", oso_file.GetPath().c_str(),
               (uint32_t)llvm::sys::toTimeT(oso_mod_time),
               (uint32_t)llvm::sys::toTimeT(comp_unit_info->oso_mod_time));
-          obj_file->GetModule()->ReportError("%s",
-              comp_unit_info->oso_load_error.AsCString());
+          obj_file->GetModule()->ReportError(
+              "{0}", comp_unit_info->oso_load_error.AsCString());
           return nullptr;
         }
 
@@ -777,14 +782,14 @@ Type *SymbolFileDWARFDebugMap::ResolveTypeUID(lldb::user_id_t type_uid) {
   return nullptr;
 }
 
-llvm::Optional<SymbolFile::ArrayInfo>
+std::optional<SymbolFile::ArrayInfo>
 SymbolFileDWARFDebugMap::GetDynamicArrayInfoForUID(
     lldb::user_id_t type_uid, const lldb_private::ExecutionContext *exe_ctx) {
   const uint64_t oso_idx = GetOSOIndexFromUserID(type_uid);
   SymbolFileDWARF *oso_dwarf = GetSymbolFileByOSOIndex(oso_idx);
   if (oso_dwarf)
     return oso_dwarf->GetDynamicArrayInfoForUID(type_uid, exe_ctx);
-  return llvm::None;
+  return std::nullopt;
 }
 
 bool SymbolFileDWARFDebugMap::CompleteType(CompilerType &compiler_type) {
@@ -1125,10 +1130,10 @@ SymbolFileDWARFDebugMap::ParseCallEdgesInFunction(UserID func_id) {
 }
 
 TypeSP SymbolFileDWARFDebugMap::FindDefinitionTypeForDWARFDeclContext(
-    const DWARFDeclContext &die_decl_ctx) {
+    const DWARFDIE &die) {
   TypeSP type_sp;
   ForEachSymbolFile([&](SymbolFileDWARF *oso_dwarf) -> bool {
-    type_sp = oso_dwarf->FindDefinitionTypeForDWARFDeclContext(die_decl_ctx);
+    type_sp = oso_dwarf->FindDefinitionTypeForDWARFDeclContext(die);
     return ((bool)type_sp);
   });
   return type_sp;

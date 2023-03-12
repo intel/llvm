@@ -50,6 +50,8 @@ enum class HighlightingKind {
   Primitive,
   Macro,
   Modifier,
+  Operator,
+  Bracket,
 
   // This one is different from the other kinds as it's a line style
   // rather than a token style.
@@ -74,6 +76,7 @@ enum class HighlightingModifier {
   UsedAsMutableReference,
   UsedAsMutablePointer,
   ConstructorOrDestructor,
+  UserDefined,
 
   FunctionScope,
   ClassScope,

@@ -155,7 +155,7 @@ public:
         continue;
       }
 
-      TheTable[I] = MapEntryTy::Create(
+      TheTable[I] = MapEntryTy::create(
           static_cast<MapEntryTy *>(Bucket)->getKey(), getAllocator(),
           static_cast<MapEntryTy *>(Bucket)->getValue());
       HashTable[I] = RHSHashTable[I];
@@ -231,10 +231,18 @@ public:
   /// lookup - Return the entry for the specified key, or a default
   /// constructed value if no such entry exists.
   ValueTy lookup(StringRef Key) const {
-    const_iterator it = find(Key);
-    if (it != end())
-      return it->second;
+    const_iterator Iter = find(Key);
+    if (Iter != end())
+      return Iter->second;
     return ValueTy();
+  }
+
+  /// at - Return the entry for the specified key, or abort if no such
+  /// entry exists.
+  const ValueTy &at(StringRef Val) const {
+    auto Iter = this->find(std::move(Val));
+    assert(Iter != this->end() && "StringMap::at failed due to a missing key");
+    return Iter->second;
   }
 
   /// Lookup the ValueTy for the \p Key, or create a default constructed value
@@ -336,7 +344,7 @@ public:
     if (Bucket == getTombstoneVal())
       --NumTombstones;
     Bucket =
-        MapEntryTy::Create(Key, getAllocator(), std::forward<ArgsTy>(Args)...);
+        MapEntryTy::create(Key, getAllocator(), std::forward<ArgsTy>(Args)...);
     ++NumItems;
     assert(NumItems + NumTombstones <= NumBuckets);
 

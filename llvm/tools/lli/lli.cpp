@@ -15,7 +15,6 @@
 #include "ExecutionUtils.h"
 #include "ForwardingMemoryManager.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/CodeGen/LinkAllCodegenComponents.h"
@@ -68,6 +67,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include <cerrno>
 #include <optional>
@@ -174,7 +174,7 @@ namespace {
   cl::opt<char> OptLevel("O",
                          cl::desc("Optimization level. [-O0, -O1, -O2, or -O3] "
                                   "(default = '-O2')"),
-                         cl::Prefix, cl::init(' '));
+                         cl::Prefix, cl::init('2'));
 
   cl::opt<std::string>
   TargetTriple("mtriple", cl::desc("Override target triple for module"));
@@ -408,17 +408,10 @@ static void addCygMingExtraModule(ExecutionEngine &EE, LLVMContext &Context,
 }
 
 CodeGenOpt::Level getOptLevel() {
-  switch (OptLevel) {
-  default:
-    WithColor::error(errs(), "lli") << "invalid optimization level.\n";
-    exit(1);
-  case '0': return CodeGenOpt::None;
-  case '1': return CodeGenOpt::Less;
-  case ' ':
-  case '2': return CodeGenOpt::Default;
-  case '3': return CodeGenOpt::Aggressive;
-  }
-  llvm_unreachable("Unrecognized opt level.");
+  if (auto Level = CodeGenOpt::parseLevel(OptLevel))
+    return *Level;
+  WithColor::error(errs(), "lli") << "invalid optimization level.\n";
+  exit(1);
 }
 
 [[noreturn]] static void reportError(SMDiagnostic Err, const char *ProgName) {
@@ -490,9 +483,9 @@ int main(int argc, char **argv, char * const *envp) {
   builder.setMCPU(codegen::getCPUStr());
   builder.setMAttrs(codegen::getFeatureList());
   if (auto RM = codegen::getExplicitRelocModel())
-    builder.setRelocationModel(RM.value());
+    builder.setRelocationModel(*RM);
   if (auto CM = codegen::getExplicitCodeModel())
-    builder.setCodeModel(CM.value());
+    builder.setCodeModel(*CM);
   builder.setErrorStr(&ErrorMsg);
   builder.setEngineKind(ForceInterpreter
                         ? EngineKind::Interpreter
@@ -670,10 +663,6 @@ int main(int argc, char **argv, char * const *envp) {
 #endif
   }
 
-  std::unique_ptr<orc::ExecutorProcessControl> EPC =
-      RemoteMCJIT ? ExitOnErr(launchRemote())
-                  : ExitOnErr(orc::SelfExecutorProcessControl::Create());
-
   if (!RemoteMCJIT) {
     // If the program doesn't explicitly call exit, we will need the Exit
     // function later on to make an explicit call, so get the function now.
@@ -719,6 +708,7 @@ int main(int argc, char **argv, char * const *envp) {
     abort();
   } else {
     // else == "if (RemoteMCJIT)"
+    std::unique_ptr<orc::ExecutorProcessControl> EPC = ExitOnErr(launchRemote());
 
     // Remote target MCJIT doesn't (yet) support static constructors. No reason
     // it couldn't. This is a limitation of the LLI implementation, not the
@@ -846,7 +836,7 @@ int runOrcJIT(const char *ProgName) {
   // Get TargetTriple and DataLayout from the main module if they're explicitly
   // set.
   std::optional<Triple> TT;
-  Optional<DataLayout> DL;
+  std::optional<DataLayout> DL;
   MainModule.withModuleDo([&](Module &M) {
       if (!M.getTargetTriple().empty())
         TT = Triple(M.getTargetTriple());

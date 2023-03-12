@@ -45,6 +45,17 @@ def FalseLanesNone  : FalseLanesEnum<0>;
 def FalseLanesZero  : FalseLanesEnum<1>;
 def FalseLanesUndef : FalseLanesEnum<2>;
 
+class SMEMatrixTypeEnum<bits<3> val> {
+  bits<3> Value = val;
+}
+def SMEMatrixNone  : SMEMatrixTypeEnum<0>;
+def SMEMatrixTileB : SMEMatrixTypeEnum<1>;
+def SMEMatrixTileH : SMEMatrixTypeEnum<2>;
+def SMEMatrixTileS : SMEMatrixTypeEnum<3>;
+def SMEMatrixTileD : SMEMatrixTypeEnum<4>;
+def SMEMatrixTileQ : SMEMatrixTypeEnum<5>;
+def SMEMatrixArray : SMEMatrixTypeEnum<6>;
+
 // AArch64 Instruction Format
 class AArch64Inst<Format f, string cstr> : Instruction {
   field bits<32> Inst; // Instruction encoding.
@@ -65,16 +76,18 @@ class AArch64Inst<Format f, string cstr> : Instruction {
   bit isPTestLike = 0;
   FalseLanesEnum FalseLanes = FalseLanesNone;
   DestructiveInstTypeEnum DestructiveInstType = NotDestructive;
+  SMEMatrixTypeEnum SMEMatrixType = SMEMatrixNone;
   ElementSizeEnum ElementSize = ElementSizeNone;
 
-  let TSFlags{10}  = isPTestLike;
-  let TSFlags{9}   = isWhile;
-  let TSFlags{8-7} = FalseLanes.Value;
-  let TSFlags{6-3} = DestructiveInstType.Value;
-  let TSFlags{2-0} = ElementSize.Value;
+  let TSFlags{13-11} = SMEMatrixType.Value;
+  let TSFlags{10}    = isPTestLike;
+  let TSFlags{9}     = isWhile;
+  let TSFlags{8-7}   = FalseLanes.Value;
+  let TSFlags{6-3}   = DestructiveInstType.Value;
+  let TSFlags{2-0}   = ElementSize.Value;
 
-  let Pattern     = [];
-  let Constraints = cstr;
+  let Pattern       = [];
+  let Constraints   = cstr;
 }
 
 class InstSubst<string Asm, dag Result, bit EmitPriority = 0>
@@ -1730,6 +1743,11 @@ def SystemPStateFieldWithImm0_15Operand : AsmOperandClass {
 def pstatefield4_op : Operand<i32> {
   let ParserMatchClass = SystemPStateFieldWithImm0_15Operand;
   let PrintMethod = "printSystemPStateField";
+  let MCOperandPredicate = [{
+    if (!MCOp.isImm())
+      return false;
+    return AArch64SVCR::lookupPStateImm0_15ByEncoding(MCOp.getImm()) != nullptr;
+  }];
 }
 
 // Instructions to modify PSTATE, no input reg
@@ -1752,10 +1770,10 @@ class MSRpstateImm0_15
   let Inst{11-8} = imm;
   let Inst{7-5} = pstatefield{2-0};
 
-  let DecoderMethod = "DecodeSystemPStateInstruction";
+  let DecoderMethod = "DecodeSystemPStateImm0_15Instruction";
   // MSRpstateI aliases with MSRI. When the MSRpstateI decoder method returns
   // Fail the decoder should attempt to decode the instruction as MSRI.
-  let hasCompleteDecoder = 0;
+  let hasCompleteDecoder = false;
 }
 
 def SystemPStateFieldWithImm0_1Operand : AsmOperandClass {
@@ -1765,6 +1783,11 @@ def SystemPStateFieldWithImm0_1Operand : AsmOperandClass {
 def pstatefield1_op : Operand<i32> {
   let ParserMatchClass = SystemPStateFieldWithImm0_1Operand;
   let PrintMethod = "printSystemPStateField";
+  let MCOperandPredicate = [{
+    if (!MCOp.isImm())
+      return false;
+    return AArch64SVCR::lookupPStateImm0_1ByEncoding(MCOp.getImm()) != nullptr;
+  }];
 }
 
 class MSRpstateImm0_1
@@ -1772,17 +1795,18 @@ class MSRpstateImm0_1
                  "\t$pstatefield, $imm">,
     Sched<[WriteSys]> {
 
-  bits<6> pstatefield;
+  bits<9> pstatefield;
   bit imm;
   let Inst{18-16} = pstatefield{5-3};
-  let Inst{11-9} = 0b000;
+  let Inst{11-9} = pstatefield{8-6};
   let Inst{8} = imm;
   let Inst{7-5} = pstatefield{2-0};
 
-  let DecoderMethod = "DecodeSystemPStateInstruction";
+  let DecoderMethod = "DecodeSystemPStateImm0_1Instruction";
   // MSRpstateI aliases with MSRI. When the MSRpstateI decoder method returns
   // Fail the decoder should attempt to decode the instruction as MSRI.
-  let hasCompleteDecoder = 0;
+  let hasCompleteDecoder = false;
+  let DecoderNamespace = "Fallback";
 }
 
 // SYS and SYSL generic system instructions.
@@ -7265,12 +7289,15 @@ multiclass SIMDFPCmpTwoScalar<bit U, bit S, bits<5> opc, string asm,
 }
 
 multiclass SIMDTwoScalarD<bit U, bits<5> opc, string asm,
-                          SDPatternOperator OpNode = null_frag> {
+                          SDPatternOperator OpNode = null_frag,
+                          list<Predicate> preds = []> {
   def v1i64       : BaseSIMDTwoScalar<U, 0b11, 0b00, opc, FPR64, FPR64, asm,
     [(set (v1i64 FPR64:$Rd), (OpNode (v1i64 FPR64:$Rn)))]>;
 
+  let Predicates = preds in {
   def : Pat<(i64 (OpNode (i64 FPR64:$Rn))),
             (!cast<Instruction>(NAME # "v1i64") FPR64:$Rn)>;
+  }
 }
 
 let mayRaiseFPException = 1, Uses = [FPCR] in
@@ -11694,6 +11721,10 @@ multiclass MOPSMemorySetTaggingInsns<bits<2> opcode, string asm> {
   def TN : MOPSMemorySetTagging<opcode, 1, 1, asm # "tn">;
 }
 
+//----------------------------------------------------------------------------
+// 2022 Armv8.9/Armv9.4 Extensions
+//----------------------------------------------------------------------------
+
 //---
 // 2022 Architecture Extensions: General Data Processing (FEAT_CSSC)
 //---
@@ -11757,10 +11788,6 @@ multiclass ComparisonOp<bit isUnsigned, bit isMin, string asm,
                                 !cond(isUnsigned : uimm8_64b,
                                       !not(isUnsigned) : simm8_64b), asm, OpNode>;
 }
-
-//----------------------------------------------------------------------------
-// 2022 Armv8.9/Armv9.4 Extensions
-//----------------------------------------------------------------------------
 
 //---
 // RCPC instructions (FEAT_LRCPC3)
@@ -11841,6 +11868,247 @@ def TRCIT : RtSystemI<0b0, (outs), (ins GPR64:$Rt), "trcit", "\t$Rt"> {
   let Inst{11-8}  = 0b0010;
   let Inst{7-5}   = 0b111;
 }
+
+// * RCWCAS family
+// * RCW<OP> family
+
+//--------------------------------------------------------------------
+// Read-Check-Write Compare And Swap family (RCWCAS[S|P|PS]?[A|L|AL]?)
+
+// Instruction encoding:
+//
+//          31 30|29  24|23|22|21|20 16|15|14 13|12 11 10|9 5|4 0
+// RCWCAS    0  0|011001| A| R| 1|   Rs| 0| 0  0| 0  1  0| Rn| Rt
+// RCWSCAS   0  1|011001| A| R| 1|   Rs| 0| 0  0| 0  1  0| Rn| Rt
+// RCWCASP   0  0|011001| A| R| 1|   Rs| 0| 0  0| 0  1  1| Rn| Rt
+// RCWSCASP  0  1|011001| A| R| 1|   Rs| 0| 0  0| 0  1  1| Rn| Rt
+
+// Instruction syntax:
+//
+// RCW[S]CAS{<order>}   <Xs>,           <Xt>,          [<Xn|SP>]
+// RCW[S]CASP{<order>}  <Xs>, <X(s+1)>, <Xt>, <X(t+1)> [<Xn|SP>]
+
+class BaseRCWCASEncoding<dag oops, dag iops, string asm>
+      : I<oops, iops, asm, "\t$Rs, $Rt, [$Rn]", "$out = $Rs", []>,
+        Sched<[]> {
+  bit Acq;
+  bit Rel;
+  bit SC;
+  bit Pair;
+  bits<5> Rs;
+  bits<5> Rn;
+  bits<5> Rt;
+  let Inst{31} = 0b0;
+  let Inst{30} = SC;
+  let Inst{29-24} = 0b011001;
+  let Inst{23} = Acq;
+  let Inst{22} = Rel;
+  let Inst{21} = 0b1;
+  let Inst{20-16} = Rs;
+  let Inst{15-13} = 0b000;
+  let Inst{12-11} = 0b01;
+  let Inst{10} = Pair;
+  let Inst{9-5} = Rn;
+  let Inst{4-0} = Rt;
+  let mayLoad = 1;
+  let mayStore = 1;
+  let hasSideEffects = 1;
+  let Defs = [NZCV];
+}
+
+multiclass BaseRCWCAS<dag oops, dag iops, string prefix> {
+  let Acq = 0b0, Rel = 0b0 in
+    def "" : BaseRCWCASEncoding<oops, iops, prefix # "">;
+  let Acq = 0b1, Rel = 0b0 in
+    def A  : BaseRCWCASEncoding<oops, iops, prefix # "a">;
+  let Acq = 0b0, Rel = 0b1 in
+    def L  : BaseRCWCASEncoding<oops, iops, prefix # "l">;
+  let Acq = 0b1, Rel = 0b1 in
+    def AL : BaseRCWCASEncoding<oops, iops, prefix # "al">;
+}
+
+multiclass ReadCheckWriteCompareAndSwap {
+  let SC = 0b0, Pair = 0b0, Predicates = [HasTHE] in
+    defm CAS  : BaseRCWCAS<(outs GPR64:$out),
+                           (ins GPR64:$Rs, GPR64:$Rt, GPR64sp:$Rn), "rcwcas" >;
+  let SC = 0b1, Pair = 0b0, Predicates = [HasTHE] in
+    defm SCAS : BaseRCWCAS<(outs GPR64:$out),
+                           (ins GPR64:$Rs, GPR64:$Rt, GPR64sp:$Rn), "rcwscas">;
+  let SC = 0b0, Pair = 0b1, Predicates = [HasTHE, HasD128] in
+    defm CASP : BaseRCWCAS<(outs XSeqPairClassOperand:$out),
+                           (ins XSeqPairClassOperand:$Rs,
+                                XSeqPairClassOperand:$Rt, GPR64sp:$Rn),
+                           "rcwcasp">;
+  let SC = 0b1, Pair = 0b1, Predicates = [HasTHE, HasD128] in
+    defm SCASP: BaseRCWCAS<(outs XSeqPairClassOperand:$out),
+                           (ins XSeqPairClassOperand:$Rs,
+                                XSeqPairClassOperand:$Rt, GPR64sp:$Rn),
+                           "rcwscasp">;
+}
+
+//------------------------------------------------------------------
+// Read-Check-Write <OP> family (RCW[CLR|SET|SWP][S|P|PS]?[A|L|AL]?)
+
+// Instruction encoding:
+//
+//          31 30|29  24|23|22|21|20 16|15|14 12|11 10|9 5|4 0
+// RCWCLR    0  0|111000| A| R| 1|   Rs| 1|  001| 0  0| Rn| Rt
+// RCWSCLR   0  1|111000| A| R| 1|   Rs| 1|  001| 0  0| Rn| Rt
+// RCWSET    0  0|111000| A| R| 1|   Rs| 1|  011| 0  0| Rn| Rt
+// RCWSSET   0  1|111000| A| R| 1|   Rs| 1|  011| 0  0| Rn| Rt
+// RCWSWP    0  0|111000| A| R| 1|   Rs| 1|  010| 0  0| Rn| Rt
+// RCWSSWP   0  1|111000| A| R| 1|   Rs| 1|  010| 0  0| Rn| Rt
+
+//          31 30|29  24|23|22|21|20 16|15|14 12|11 10|9 5|4 0
+// RCWCLRP   0  0|011001| A| R| 1|  Rt2| 1|  001| 0  0| Rn| Rt
+// RCWSCLRP  0  1|011001| A| R| 1|  Rt2| 1|  001| 0  0| Rn| Rt
+// RCWSETP   0  0|011001| A| R| 1|  Rt2| 1|  011| 0  0| Rn| Rt
+// RCWSSETP  0  1|011001| A| R| 1|  Rt2| 1|  011| 0  0| Rn| Rt
+// RCWSWPP   0  0|011001| A| R| 1|  Rt2| 1|  010| 0  0| Rn| Rt
+// RCWSSWPP  0  1|011001| A| R| 1|  Rt2| 1|  010| 0  0| Rn| Rt
+
+// Instruction syntax:
+//
+// RCW[S]<OP>{<order>}   <Xs>,  <Xt>, [<Xn|SP>]
+// RCW[S]<OP>P{<order>}  <Xt1>, <Xt2>, [<Xn|SP>]
+
+class BaseRCWOPEncoding<string asm>
+      : I<(outs GPR64:$Rt),(ins GPR64:$Rs, GPR64sp:$Rn), asm,
+          "\t$Rs, $Rt, [$Rn]", "", []>,
+        Sched<[]> {
+  bit Acq;
+  bit Rel;
+  bit SC;
+  bits<3> opc;
+  bits<5> Rs;
+  bits<5> Rn;
+  bits<5> Rt;
+  let Inst{31} = 0b0;
+  let Inst{30} = SC;
+  let Inst{29-24} = 0b111000;
+  let Inst{23} = Acq;
+  let Inst{22} = Rel;
+  let Inst{21} = 0b1;
+  let Inst{20-16} = Rs;
+  let Inst{15} = 0b1;
+  let Inst{14-12} = opc;
+  let Inst{11-10} = 0b00;
+  let Inst{9-5} = Rn;
+  let Inst{4-0} = Rt;
+  let mayLoad = 1;
+  let mayStore = 1;
+  let hasSideEffects = 1;
+  let Defs = [NZCV];
+  let Predicates = [HasTHE];
+}
+
+class BaseRCWOPPEncoding<string asm>
+      : I<(outs GPR64common:$Rt_wb, GPR64common:$Rt2_wb),
+          (ins GPR64common:$Rt, GPR64common:$Rt2, GPR64sp:$Rn), asm,
+          "\t$Rt, $Rt2, [$Rn]", "$Rt = $Rt_wb, $Rt2 = $Rt2_wb", []>,
+        Sched<[]> {
+  bit Acq;
+  bit Rel;
+  bit SC;
+  bits<3> opc;
+  bits<5> Rt2;
+  bits<5> Rn;
+  bits<5> Rt;
+  let Inst{31} = 0b0;
+  let Inst{30} = SC;
+  let Inst{29-24} = 0b011001;
+  let Inst{23} = Acq;
+  let Inst{22} = Rel;
+  let Inst{21} = 0b1;
+  let Inst{20-16} = Rt2;
+  let Inst{15} = 0b1;
+  let Inst{14-12} = opc;
+  let Inst{11-10} = 0b00;
+  let Inst{9-5} = Rn;
+  let Inst{4-0} = Rt;
+  let mayLoad = 1;
+  let mayStore = 1;
+  let hasSideEffects = 1;
+  let Defs = [NZCV];
+  let Predicates = [HasTHE, HasD128];
+}
+
+multiclass BaseRCWOP<string prefix> {
+  let Acq = 0b0, Rel = 0b0 in def "" : BaseRCWOPEncoding<prefix # "">;
+  let Acq = 0b1, Rel = 0b0 in def A  : BaseRCWOPEncoding<prefix # "a">;
+  let Acq = 0b0, Rel = 0b1 in def L  : BaseRCWOPEncoding<prefix # "l">;
+  let Acq = 0b1, Rel = 0b1 in def AL : BaseRCWOPEncoding<prefix # "al">;
+
+  let Acq = 0b0, Rel = 0b0 in def P   : BaseRCWOPPEncoding<prefix # "p">;
+  let Acq = 0b1, Rel = 0b0 in def PA  : BaseRCWOPPEncoding<prefix # "pa">;
+  let Acq = 0b0, Rel = 0b1 in def PL  : BaseRCWOPPEncoding<prefix # "pl">;
+  let Acq = 0b1, Rel = 0b1 in def PAL : BaseRCWOPPEncoding<prefix # "pal">;
+}
+
+multiclass ReadCheckWriteOperation<bits<3> opc, string op> {
+  let SC = 0b0, opc = opc in defm ""  : BaseRCWOP<"rcw" # ""  # op>;
+  let SC = 0b1, opc = opc in defm S   : BaseRCWOP<"rcw" # "s" # op >;
+}
+
+//---
+// 128-bit atomic instructions (FEAT_LSE128)
+//---
+
+let mayLoad = 1, mayStore = 1, hasSideEffects = 0 in
+class LSE128Base<bits<3> op0, bits<2> AR, bit o3, string asm>
+: I<(outs GPR64common:$Rt_wb, GPR64common:$Rt2_wb),
+    (ins GPR64common:$Rt, GPR64common:$Rt2, GPR64sp:$Rn),
+    asm, "\t$Rt, $Rt2, [$Rn]",
+    "$Rt = $Rt_wb, $Rt2 = $Rt2_wb", []>,
+  Sched<[]> {
+  bits<5> Rt;
+  bits<5> Rt2;
+  bits<5> Rn;
+  let Inst{31-24} = 0b00011001;
+  let Inst{23-22} = AR;
+  let Inst{21} = 0b1;
+  let Inst{20-16} = Rt2;
+  let Inst{15} = o3;
+  let Inst{14-12} = op0;
+  let Inst{11-10} = 0b00;
+  let Inst{9-5} = Rn;
+  let Inst{4-0} = Rt;
+}
+
+//---
+// 128-bit System Instructions (FEAT_SYSINSTR128)
+//---
+
+// Instruction encoding:
+//
+//          31          19|18 16|15 12|11 8|7 5|4 0
+// SYSP      1101010101001|  op1|   Cn|  Cm|op2| Rt
+
+// Instruction syntax:
+//
+// SYSP #<op1>, <Cn>, <Cm>, #<op2>{, <Xt>, <Xt+1>}
+
+class RtSystemI128<bit L, dag oops, dag iops, string asm, string operands, list<dag> pattern = []> :
+  RtSystemI<L, oops, iops, asm, operands, pattern> {
+  let Inst{22}    = 0b1; // override BaseSystemI
+}
+
+class BaseSYSPEncoding<bit L, string asm, string operands, dag outputs, dag inputs>
+  : RtSystemI128<L, outputs, inputs, asm, operands> {
+  bits<3> op1;
+  bits<4> Cn;
+  bits<4> Cm;
+  bits<3> op2;
+  let Inst{20-19} = 0b01;
+  let Inst{18-16} = op1;
+  let Inst{15-12} = Cn;
+  let Inst{11-8}  = Cm;
+  let Inst{7-5}   = op2;
+}
+class SystemPXtI<bit L, string asm> :
+  BaseSYSPEncoding<L, asm, "\t$op1, $Cn, $Cm, $op2, $Rt", (outs),
+  (ins imm0_7:$op1, sys_cr_op:$Cn, sys_cr_op:$Cm, imm0_7:$op2, XSeqPairClassOperand:$Rt)>;
+
 
 //----------------------------------------------------------------------------
 // Allow the size specifier tokens to be upper case, not just lower.

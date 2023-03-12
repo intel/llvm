@@ -2,7 +2,7 @@
 ; RUN: llc < %s -march=amdgcn -mcpu=verde -verify-machineinstrs | FileCheck --check-prefix=SI %s
 ; RUN: llc < %s -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs | FileCheck --check-prefix=FLAT %s
 
-define amdgpu_kernel void @break_inserted_outside_of_loop(i32 addrspace(1)* %out, i32 %a) {
+define amdgpu_kernel void @break_inserted_outside_of_loop(ptr addrspace(1) %out, i32 %a) {
 ; SI-LABEL: break_inserted_outside_of_loop:
 ; SI:       ; %bb.0: ; %main_body
 ; SI-NEXT:    s_load_dword s2, s[0:1], 0xb
@@ -59,7 +59,7 @@ main_body:
   br label %ENDIF
 
 ENDLOOP:
-  store i32 0, i32 addrspace(1)* %out
+  store i32 0, ptr addrspace(1) %out
   ret void
 
 ENDIF:
@@ -139,7 +139,7 @@ exit:
   ret void
 }
 
-define amdgpu_kernel void @switch_unreachable(i32 addrspace(1)* %g, i8 addrspace(3)* %l, i32 %x) nounwind {
+define amdgpu_kernel void @switch_unreachable(ptr addrspace(1) %g, ptr addrspace(3) %l, i32 %x) nounwind {
 ; SI-LABEL: switch_unreachable:
 ; SI:       ; %bb.0: ; %centry
 ;
@@ -187,8 +187,6 @@ define amdgpu_kernel void @loop_land_info_assert(i32 %c0, i32 %c1, i32 %c2, i32 
 ; SI-NEXT:    s_branch .LBB3_3
 ; SI-NEXT:  .LBB3_1: ; in Loop: Header=BB3_3 Depth=1
 ; SI-NEXT:    s_mov_b64 s[8:9], 0
-; SI-NEXT:    s_mov_b64 s[12:13], -1
-; SI-NEXT:    s_mov_b64 s[14:15], -1
 ; SI-NEXT:  .LBB3_2: ; %Flow
 ; SI-NEXT:    ; in Loop: Header=BB3_3 Depth=1
 ; SI-NEXT:    s_and_b64 vcc, exec, s[14:15]
@@ -206,7 +204,6 @@ define amdgpu_kernel void @loop_land_info_assert(i32 %c0, i32 %c1, i32 %c2, i32 
 ; SI-NEXT:    s_cbranch_vccz .LBB3_1
 ; SI-NEXT:  ; %bb.5: ; %if.end
 ; SI-NEXT:    ; in Loop: Header=BB3_3 Depth=1
-; SI-NEXT:    s_mov_b64 s[14:15], -1
 ; SI-NEXT:    s_mov_b64 vcc, s[6:7]
 ; SI-NEXT:    s_cbranch_vccz .LBB3_7
 ; SI-NEXT:  ; %bb.6: ; %if.else
@@ -263,8 +260,6 @@ define amdgpu_kernel void @loop_land_info_assert(i32 %c0, i32 %c1, i32 %c2, i32 
 ; FLAT-NEXT:    s_branch .LBB3_3
 ; FLAT-NEXT:  .LBB3_1: ; in Loop: Header=BB3_3 Depth=1
 ; FLAT-NEXT:    s_mov_b64 s[8:9], 0
-; FLAT-NEXT:    s_mov_b64 s[12:13], -1
-; FLAT-NEXT:    s_mov_b64 s[14:15], -1
 ; FLAT-NEXT:  .LBB3_2: ; %Flow
 ; FLAT-NEXT:    ; in Loop: Header=BB3_3 Depth=1
 ; FLAT-NEXT:    s_and_b64 vcc, exec, s[14:15]
@@ -282,7 +277,6 @@ define amdgpu_kernel void @loop_land_info_assert(i32 %c0, i32 %c1, i32 %c2, i32 
 ; FLAT-NEXT:    s_cbranch_vccz .LBB3_1
 ; FLAT-NEXT:  ; %bb.5: ; %if.end
 ; FLAT-NEXT:    ; in Loop: Header=BB3_3 Depth=1
-; FLAT-NEXT:    s_mov_b64 s[14:15], -1
 ; FLAT-NEXT:    s_mov_b64 vcc, s[6:7]
 ; FLAT-NEXT:    s_cbranch_vccz .LBB3_7
 ; FLAT-NEXT:  ; %bb.6: ; %if.else
@@ -320,7 +314,7 @@ entry:
   br label %while.cond.outer
 
 while.cond.outer:
-  %tmp = load float, float addrspace(1)* undef
+  %tmp = load float, ptr addrspace(1) undef
   br label %while.cond
 
 while.cond:
@@ -337,7 +331,7 @@ if.end:
   br i1 %cmp2, label %if.else, label %while.cond.outer
 
 if.else:
-  store volatile i32 3, i32 addrspace(1)* undef, align 4
+  store volatile i32 3, ptr addrspace(1) undef, align 4
   br label %while.cond
 
 for.cond:

@@ -402,6 +402,7 @@ namespace clang {
     void VisitLinkageSpecDecl(LinkageSpecDecl *D);
     void VisitExportDecl(ExportDecl *D);
     void VisitFileScopeAsmDecl(FileScopeAsmDecl *AD);
+    void VisitTopLevelStmtDecl(TopLevelStmtDecl *D);
     void VisitImportDecl(ImportDecl *D);
     void VisitAccessSpecDecl(AccessSpecDecl *D);
     void VisitFriendDecl(FriendDecl *D);
@@ -828,6 +829,7 @@ ASTDeclReader::VisitRecordDeclImpl(RecordDecl *RD) {
 
 void ASTDeclReader::VisitRecordDecl(RecordDecl *RD) {
   VisitRecordDeclImpl(RD);
+  RD->setODRHash(Record.readInt());
 
   // Maintain the invariant of a redeclaration chain containing only
   // a single definition.
@@ -848,6 +850,8 @@ void ASTDeclReader::VisitRecordDecl(RecordDecl *RD) {
       Reader.MergedDeclContexts.insert(std::make_pair(RD, OldDef));
       RD->demoteThisDefinitionToDeclaration();
       Reader.mergeDefinitionVisibility(OldDef, RD);
+      if (OldDef->getODRHash() != RD->getODRHash())
+        Reader.PendingRecordOdrMergeFailures[OldDef].push_back(RD);
     } else {
       OldDef = RD;
     }
@@ -1048,6 +1052,7 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
   FD->setTrivialForCall(Record.readInt());
   FD->setDefaulted(Record.readInt());
   FD->setExplicitlyDefaulted(Record.readInt());
+  FD->setIneligibleOrNotSelected(Record.readInt());
   FD->setHasImplicitReturnZero(Record.readInt());
   FD->setConstexprKind(static_cast<ConstexprSpecKind>(Record.readInt()));
   FD->setUsesSEHTry(Record.readInt());
@@ -1202,6 +1207,8 @@ void ASTDeclReader::ReadObjCDefinitionData(
 
   Data.EndLoc = readSourceLocation();
   Data.HasDesignatedInitializers = Record.readInt();
+  Data.ODRHash = Record.readInt();
+  Data.HasODRHash = true;
 
   // Read the directly referenced protocols and their SourceLocations.
   unsigned NumProtocols = Record.readInt();
@@ -1229,13 +1236,16 @@ void ASTDeclReader::ReadObjCDefinitionData(
 void ASTDeclReader::MergeDefinitionData(ObjCInterfaceDecl *D,
          struct ObjCInterfaceDecl::DefinitionData &&NewDD) {
   struct ObjCInterfaceDecl::DefinitionData &DD = D->data();
-  if (DD.Definition != NewDD.Definition) {
-    Reader.MergedDeclContexts.insert(
-        std::make_pair(NewDD.Definition, DD.Definition));
-    Reader.mergeDefinitionVisibility(DD.Definition, NewDD.Definition);
-  }
+  if (DD.Definition == NewDD.Definition)
+    return;
 
-  // FIXME: odr checking?
+  Reader.MergedDeclContexts.insert(
+      std::make_pair(NewDD.Definition, DD.Definition));
+  Reader.mergeDefinitionVisibility(DD.Definition, NewDD.Definition);
+
+  if (D->getODRHash() != NewDD.ODRHash)
+    Reader.PendingObjCInterfaceOdrMergeFailures[DD.Definition].push_back(
+        {NewDD.Definition, &NewDD});
 }
 
 void ASTDeclReader::VisitObjCInterfaceDecl(ObjCInterfaceDecl *ID) {
@@ -1678,6 +1688,11 @@ void ASTDeclReader::VisitFileScopeAsmDecl(FileScopeAsmDecl *AD) {
   AD->setRParenLoc(readSourceLocation());
 }
 
+void ASTDeclReader::VisitTopLevelStmtDecl(TopLevelStmtDecl *D) {
+  VisitDecl(D);
+  D->Statement = Record.readStmt();
+}
+
 void ASTDeclReader::VisitBlockDecl(BlockDecl *BD) {
   VisitDecl(BD);
   BD->setBody(cast_or_null<CompoundStmt>(Record.readStmt()));
@@ -1920,9 +1935,12 @@ void ASTDeclReader::ReadCXXDefinitionData(
     Lambda.ManglingNumber = Record.readInt();
     D->setDeviceLambdaManglingNumber(Record.readInt());
     Lambda.ContextDecl = readDeclID();
-    Lambda.Captures = (Capture *)Reader.getContext().Allocate(
-        sizeof(Capture) * Lambda.NumCaptures);
-    Capture *ToCapture = Lambda.Captures;
+    Capture *ToCapture = nullptr;
+    if (Lambda.NumCaptures) {
+      ToCapture = (Capture *)Reader.getContext().Allocate(sizeof(Capture) *
+                                                          Lambda.NumCaptures);
+      Lambda.AddCaptureList(Reader.getContext(), ToCapture);
+    }
     Lambda.MethodTyInfo = readTypeSourceInfo();
     for (unsigned I = 0, N = Lambda.NumCaptures; I != N; ++I) {
       SourceLocation Loc = readSourceLocation();
@@ -2006,8 +2024,26 @@ void ASTDeclReader::MergeDefinitionData(
   // lazily load it.
 
   if (DD.IsLambda) {
-    // FIXME: ODR-checking for merging lambdas (this happens, for instance,
-    // when they occur within the body of a function template specialization).
+    auto &Lambda1 = static_cast<CXXRecordDecl::LambdaDefinitionData &>(DD);
+    auto &Lambda2 = static_cast<CXXRecordDecl::LambdaDefinitionData &>(MergeDD);
+    DetectedOdrViolation |= Lambda1.DependencyKind != Lambda2.DependencyKind;
+    DetectedOdrViolation |= Lambda1.IsGenericLambda != Lambda2.IsGenericLambda;
+    DetectedOdrViolation |= Lambda1.CaptureDefault != Lambda2.CaptureDefault;
+    DetectedOdrViolation |= Lambda1.NumCaptures != Lambda2.NumCaptures;
+    DetectedOdrViolation |=
+        Lambda1.NumExplicitCaptures != Lambda2.NumExplicitCaptures;
+    DetectedOdrViolation |=
+        Lambda1.HasKnownInternalLinkage != Lambda2.HasKnownInternalLinkage;
+    DetectedOdrViolation |= Lambda1.ManglingNumber != Lambda2.ManglingNumber;
+
+    if (Lambda1.NumCaptures && Lambda1.NumCaptures == Lambda2.NumCaptures) {
+      for (unsigned I = 0, N = Lambda1.NumCaptures; I != N; ++I) {
+        LambdaCapture &Cap1 = Lambda1.Captures.front()[I];
+        LambdaCapture &Cap2 = Lambda2.Captures.front()[I];
+        DetectedOdrViolation |= Cap1.getCaptureKind() != Cap2.getCaptureKind();
+      }
+      Lambda1.AddCaptureList(Reader.getContext(), Lambda2.Captures.front());
+    }
   }
 
   if (D->getODRHash() != MergeDD.ODRHash) {
@@ -2244,7 +2280,7 @@ void ASTDeclReader::VisitImplicitConceptSpecializationDecl(
   VisitDecl(D);
   llvm::SmallVector<TemplateArgument, 4> Args;
   for (unsigned I = 0; I < D->NumTemplateArgs; ++I)
-    Args.push_back(Record.readTemplateArgument(/*Canonicalize=*/false));
+    Args.push_back(Record.readTemplateArgument(/*Canonicalize=*/true));
   D->setTemplateArguments(Args);
 }
 
@@ -3022,8 +3058,8 @@ static bool isConsumerInterestedIn(ASTContext &Ctx, Decl *D, bool HasBody) {
       return false;
   }
 
-  if (isa<FileScopeAsmDecl, ObjCProtocolDecl, ObjCImplDecl, ImportDecl,
-          PragmaCommentDecl, PragmaDetectMismatchDecl>(D))
+  if (isa<FileScopeAsmDecl, TopLevelStmtDecl, ObjCProtocolDecl, ObjCImplDecl,
+          ImportDecl, PragmaCommentDecl, PragmaDetectMismatchDecl>(D))
     return true;
   if (isa<OMPThreadPrivateDecl, OMPDeclareReductionDecl, OMPDeclareMapperDecl,
           OMPAllocateDecl, OMPRequiresDecl>(D))
@@ -3829,6 +3865,9 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
   case DECL_FILE_SCOPE_ASM:
     D = FileScopeAsmDecl::CreateDeserialized(Context, ID);
     break;
+  case DECL_TOP_LEVEL_STMT_DECL:
+    D = TopLevelStmtDecl::CreateDeserialized(Context, ID);
+    break;
   case DECL_BLOCK:
     D = BlockDecl::CreateDeserialized(Context, ID);
     break;
@@ -3966,8 +4005,7 @@ void ASTReader::PassInterestingDeclsToConsumer() {
 
   // Guard variable to avoid recursively redoing the process of passing
   // decls to consumer.
-  SaveAndRestore<bool> GuardPassingDeclsToConsumer(PassingDeclsToConsumer,
-                                                   true);
+  SaveAndRestore GuardPassingDeclsToConsumer(PassingDeclsToConsumer, true);
 
   // Ensure that we've loaded all potentially-interesting declarations
   // that need to be eagerly loaded.

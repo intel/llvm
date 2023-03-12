@@ -1,5 +1,5 @@
-; RUN: opt %s -verify -experimental-assignment-tracking   \
-; RUN: | opt -verify -S -experimental-assignment-tracking \
+; RUN: opt %s -passes=verify   \
+; RUN: | opt -passes=verify -S \
 ; RUN: | FileCheck %s
 
 ;; Roundtrip test (text -> bitcode -> text) for DIAssignID metadata and
@@ -51,13 +51,13 @@ entry:
 ;; There are currently no plans to support DIArgLists for the address component.
 ; CHECK-LABEL: @fun5
 ; CHECK: %local = alloca i32, align 4, !DIAssignID ![[ID5:[0-9]+]]
-; CHECK-NEXT: llvm.dbg.assign(metadata i32 %v, metadata ![[VAR5:[0-9]+]], metadata !DIExpression(), metadata ![[ID5]], metadata i32* %local, metadata !DIExpression()), !dbg ![[DBG5:[0-9]+]]
-; CHECK-NEXT: llvm.dbg.assign(metadata !DIArgList(i32 %v, i32 1), metadata ![[VAR5]], metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_minus, DW_OP_stack_value), metadata ![[ID5]], metadata i32* %local, metadata !DIExpression()), !dbg ![[DBG5]]
+; CHECK-NEXT: llvm.dbg.assign(metadata i32 %v, metadata ![[VAR5:[0-9]+]], metadata !DIExpression(), metadata ![[ID5]], metadata ptr %local, metadata !DIExpression()), !dbg ![[DBG5:[0-9]+]]
+; CHECK-NEXT: llvm.dbg.assign(metadata !DIArgList(i32 %v, i32 1), metadata ![[VAR5]], metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_minus, DW_OP_stack_value), metadata ![[ID5]], metadata ptr %local, metadata !DIExpression()), !dbg ![[DBG5]]
 define dso_local void @fun5(i32 %v) !dbg !27 {
 entry:
   %local = alloca i32, align 4, !DIAssignID !30
-  call void @llvm.dbg.assign(metadata i32 %v, metadata !28, metadata !DIExpression(), metadata !30, metadata i32* %local, metadata !DIExpression()), !dbg !29
-  call void @llvm.dbg.assign(metadata !DIArgList(i32 %v, i32 1), metadata !28, metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_minus, DW_OP_stack_value), metadata !30, metadata i32* %local, metadata !DIExpression()), !dbg !29
+  call void @llvm.dbg.assign(metadata i32 %v, metadata !28, metadata !DIExpression(), metadata !30, metadata ptr %local, metadata !DIExpression()), !dbg !29
+  call void @llvm.dbg.assign(metadata !DIArgList(i32 %v, i32 1), metadata !28, metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_minus, DW_OP_stack_value), metadata !30, metadata ptr %local, metadata !DIExpression()), !dbg !29
   ret void
 }
 
@@ -78,7 +78,7 @@ entry:
 declare void @llvm.dbg.assign(metadata, metadata, metadata, metadata, metadata, metadata)
 
 !llvm.dbg.cu = !{!0}
-!llvm.module.flags = !{!3, !4, !5}
+!llvm.module.flags = !{!3, !4, !5, !1000}
 !llvm.ident = !{!6}
 
 !0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 14.0.0", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, splitDebugInlining: false, nameTableKind: None)
@@ -113,3 +113,4 @@ declare void @llvm.dbg.assign(metadata, metadata, metadata, metadata, metadata, 
 !30 = distinct !DIAssignID()
 !31 = !DISubroutineType(types: !32)
 !32 = !{null, !11}
+!1000 = !{i32 7, !"debug-info-assignment-tracking", i1 true}

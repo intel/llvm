@@ -44,7 +44,7 @@ public:
          JITDylib &PlatformJD, const char *OrcRuntimePath,
          LoadDynamicLibrary LoadDynLibrary, bool StaticVCRuntime = false,
          const char *VCRuntimePath = nullptr,
-         Optional<SymbolAliasMap> RuntimeAliases = None);
+         std::optional<SymbolAliasMap> RuntimeAliases = std::nullopt);
 
   ExecutionSession &getExecutionSession() const { return ES; }
   ObjectLinkingLayer &getObjectLinkingLayer() const { return ObjLinkingLayer; }
@@ -66,10 +66,6 @@ public:
   /// Returns the array of standard runtime utility aliases for COFF.
   static ArrayRef<std::pair<const char *, const char *>>
   standardRuntimeUtilityAliases();
-
-  static bool isInitializerSection(StringRef Name) {
-    return Name.startswith(".CRT");
-  }
 
   static StringRef getSEHFrameSectionName() { return ".pdata"; }
 
@@ -104,11 +100,11 @@ private:
       return Error::success();
     }
 
-    Error notifyRemovingResources(ResourceKey K) override {
+    Error notifyRemovingResources(JITDylib &JD, ResourceKey K) override {
       return Error::success();
     }
 
-    void notifyTransferringResources(ResourceKey DstKey,
+    void notifyTransferringResources(JITDylib &JD, ResourceKey DstKey,
                                      ResourceKey SrcKey) override {}
 
   private:

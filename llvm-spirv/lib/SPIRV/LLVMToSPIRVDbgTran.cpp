@@ -531,7 +531,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgPointerType(const DIDerivedType *PT) {
   SPIRVEntry *Base = transDbgEntry(PT->getBaseType());
   Ops[BaseTypeIdx] = Base->getId();
   Ops[StorageClassIdx] = ~0U; // all ones denote no address space
-  Optional<unsigned> AS = PT->getDWARFAddressSpace();
+  std::optional<unsigned> AS = PT->getDWARFAddressSpace();
   if (AS.has_value()) {
     SPIRAddressSpace SPIRAS = static_cast<SPIRAddressSpace>(AS.value());
     Ops[StorageClassIdx] = SPIRSPIRVAddrSpaceMap::map(SPIRAS);

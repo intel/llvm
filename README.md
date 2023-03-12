@@ -1,10 +1,10 @@
-# Intel Project for LLVM\* technology
-
 This is the Intel staging area for llvm.org contributions and the home for
 Intel LLVM-based projects:
 
 - [oneAPI DPC++ compiler](#oneapi-dpc-compiler)
 - [Late-outline OpenMP and OpenMP Offload](#late-outline-openmp-and-openmp-offload)
+
+For general contribution process see [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ## oneAPI DPC++ compiler
 

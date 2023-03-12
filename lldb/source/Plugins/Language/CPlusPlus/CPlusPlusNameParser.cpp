@@ -12,18 +12,17 @@
 #include "clang/Basic/TokenKinds.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Threading.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
-using llvm::Optional;
-using llvm::None;
 using ParsedFunction = lldb_private::CPlusPlusNameParser::ParsedFunction;
 using ParsedName = lldb_private::CPlusPlusNameParser::ParsedName;
 namespace tok = clang::tok;
 
-Optional<ParsedFunction> CPlusPlusNameParser::ParseAsFunctionDefinition() {
+std::optional<ParsedFunction> CPlusPlusNameParser::ParseAsFunctionDefinition() {
   m_next_token_index = 0;
-  Optional<ParsedFunction> result(None);
+  std::optional<ParsedFunction> result(std::nullopt);
 
   // Try to parse the name as function without a return type specified e.g.
   // main(int, char*[])
@@ -44,20 +43,20 @@ Optional<ParsedFunction> CPlusPlusNameParser::ParseAsFunctionDefinition() {
   // e.g. int main(int, char*[])
   result = ParseFunctionImpl(true);
   if (HasMoreTokens())
-    return None;
+    return std::nullopt;
   return result;
 }
 
-Optional<ParsedName> CPlusPlusNameParser::ParseAsFullName() {
+std::optional<ParsedName> CPlusPlusNameParser::ParseAsFullName() {
   m_next_token_index = 0;
-  Optional<ParsedNameRanges> name_ranges = ParseFullNameImpl();
+  std::optional<ParsedNameRanges> name_ranges = ParseFullNameImpl();
   if (!name_ranges)
-    return None;
+    return std::nullopt;
   if (HasMoreTokens())
-    return None;
+    return std::nullopt;
   ParsedName result;
-  result.basename = GetTextForRange(name_ranges.value().basename_range);
-  result.context = GetTextForRange(name_ranges.value().context_range);
+  result.basename = GetTextForRange(name_ranges->basename_range);
+  result.context = GetTextForRange(name_ranges->context_range);
   return result;
 }
 
@@ -102,7 +101,7 @@ clang::Token &CPlusPlusNameParser::Peek() {
   return m_tokens[m_next_token_index];
 }
 
-Optional<ParsedFunction>
+std::optional<ParsedFunction>
 CPlusPlusNameParser::ParseFunctionImpl(bool expect_return_type) {
   Bookmark start_position = SetBookmark();
 
@@ -111,7 +110,7 @@ CPlusPlusNameParser::ParseFunctionImpl(bool expect_return_type) {
     size_t return_start = GetCurrentPosition();
     // Consume return type if it's expected.
     if (!ConsumeToken(tok::kw_auto) && !ConsumeTypename())
-      return None;
+      return std::nullopt;
 
     size_t return_end = GetCurrentPosition();
     result.return_type = GetTextForRange(Range(return_start, return_end));
@@ -119,27 +118,27 @@ CPlusPlusNameParser::ParseFunctionImpl(bool expect_return_type) {
 
   auto maybe_name = ParseFullNameImpl();
   if (!maybe_name) {
-    return None;
+    return std::nullopt;
   }
 
   size_t argument_start = GetCurrentPosition();
   if (!ConsumeArguments()) {
-    return None;
+    return std::nullopt;
   }
 
   size_t qualifiers_start = GetCurrentPosition();
   SkipFunctionQualifiers();
   size_t end_position = GetCurrentPosition();
 
-  result.name.basename = GetTextForRange(maybe_name.value().basename_range);
-  result.name.context = GetTextForRange(maybe_name.value().context_range);
+  result.name.basename = GetTextForRange(maybe_name->basename_range);
+  result.name.context = GetTextForRange(maybe_name->context_range);
   result.arguments = GetTextForRange(Range(argument_start, qualifiers_start));
   result.qualifiers = GetTextForRange(Range(qualifiers_start, end_position));
   start_position.Remove();
   return result;
 }
 
-Optional<ParsedFunction>
+std::optional<ParsedFunction>
 CPlusPlusNameParser::ParseFuncPtr(bool expect_return_type) {
   // This function parses a function definition
   // that returns a pointer type.
@@ -155,7 +154,7 @@ CPlusPlusNameParser::ParseFuncPtr(bool expect_return_type) {
   if (expect_return_type) {
     // Consume return type.
     if (!ConsumeTypename())
-      return None;
+      return std::nullopt;
   }
 
   // Step 2:
@@ -165,9 +164,9 @@ CPlusPlusNameParser::ParseFuncPtr(bool expect_return_type) {
   // Leaves us with:
   //   (*func(long))(int))(float)
   if (!ConsumeToken(tok::l_paren))
-    return None;
+    return std::nullopt;
   if (!ConsumePtrsAndRefs())
-    return None;
+    return std::nullopt;
 
   // Step 3:
   //
@@ -214,7 +213,7 @@ CPlusPlusNameParser::ParseFuncPtr(bool expect_return_type) {
         return maybe_inner_function_ptr_name;
       }
 
-  return None;
+  return std::nullopt;
 }
 
 bool CPlusPlusNameParser::ConsumeArguments() {
@@ -569,7 +568,7 @@ bool CPlusPlusNameParser::ConsumeTypename() {
   return true;
 }
 
-Optional<CPlusPlusNameParser::ParsedNameRanges>
+std::optional<CPlusPlusNameParser::ParsedNameRanges>
 CPlusPlusNameParser::ParseFullNameImpl() {
   // Name parsing state machine.
   enum class State {
@@ -583,7 +582,7 @@ CPlusPlusNameParser::ParseFullNameImpl() {
   Bookmark start_position = SetBookmark();
   State state = State::Beginning;
   bool continue_parsing = true;
-  Optional<size_t> last_coloncolon_position;
+  std::optional<size_t> last_coloncolon_position;
 
   while (continue_parsing && HasMoreTokens()) {
     const auto &token = Peek();
@@ -710,10 +709,10 @@ CPlusPlusNameParser::ParseFullNameImpl() {
       state == State::AfterTemplate) {
     ParsedNameRanges result;
     if (last_coloncolon_position) {
-      result.context_range = Range(start_position.GetSavedPosition(),
-                                   last_coloncolon_position.value());
+      result.context_range =
+          Range(start_position.GetSavedPosition(), *last_coloncolon_position);
       result.basename_range =
-          Range(last_coloncolon_position.value() + 1, GetCurrentPosition());
+          Range(*last_coloncolon_position + 1, GetCurrentPosition());
     } else {
       result.basename_range =
           Range(start_position.GetSavedPosition(), GetCurrentPosition());
@@ -721,7 +720,7 @@ CPlusPlusNameParser::ParseFullNameImpl() {
     start_position.Remove();
     return result;
   } else {
-    return None;
+    return std::nullopt;
   }
 }
 

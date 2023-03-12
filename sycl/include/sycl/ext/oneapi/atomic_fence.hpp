@@ -18,8 +18,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 namespace detail {
 using namespace sycl::detail;
 }
@@ -37,8 +36,7 @@ static inline void atomic_fence(memory_order order, memory_scope scope) {
 #endif
 }
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

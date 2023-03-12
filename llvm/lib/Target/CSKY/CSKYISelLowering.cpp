@@ -153,8 +153,7 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
   setMaxAtomicSizeInBitsSupported(0);
 
   setStackPointerRegisterToSaveRestore(CSKY::R14);
-  const Align FunctionAlignment(2);
-  setMinFunctionAlignment(FunctionAlignment);
+  setMinFunctionAlignment(Align(2));
   setSchedulingPreference(Sched::Source);
 }
 
@@ -364,7 +363,7 @@ SDValue CSKYTargetLowering::LowerFormalArguments(
     const unsigned XLenInBytes = 4;
     const MVT XLenVT = MVT::i32;
 
-    ArrayRef<MCPhysReg> ArgRegs = makeArrayRef(GPRArgRegs);
+    ArrayRef<MCPhysReg> ArgRegs = ArrayRef(GPRArgRegs);
     unsigned Idx = CCInfo.getFirstUnallocated(ArgRegs);
     const TargetRegisterClass *RC = &CSKY::GPRRegClass;
     MachineFrameInfo &MFI = MF.getFrameInfo();

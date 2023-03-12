@@ -1,15 +1,30 @@
 // DEFINE: %{option} = enable-runtime-library=true
-// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
-// DEFINE: mlir-cpu-runner \
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = mlir-cpu-runner \
 // DEFINE:  -e entry -entry-point-result=void  \
-// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils,%mlir_runner_utils | \
 // DEFINE: FileCheck %s
 //
-// RUN: %{command}
+// RUN: %{compile} | %{run}
 //
 // Do the same run, but now with direct IR generation.
 // REDEFINE: %{option} = enable-runtime-library=false
-// RUN: %{command}
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation and vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
+// RUN: %{compile} | %{run}
+
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = %lli \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext --dlopen=%mlir_runner_utils | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
 #DCSR = #sparse_tensor.encoding<{dimLevelType = ["compressed", "compressed"]}>
 
@@ -42,6 +57,8 @@
 }
 
 module {
+  func.func private @printMemrefF64(%ptr : tensor<*xf64>)
+
   // Scales a sparse matrix into a new sparse matrix.
   func.func @matrix_scale(%arga: tensor<?x?xf64, #DCSR>) -> tensor<?x?xf64, #DCSR> {
     %s = arith.constant 2.0 : f64
@@ -110,11 +127,9 @@ module {
 
   // Dump a sparse matrix.
   func.func @dump(%arg0: tensor<?x?xf64, #DCSR>) {
-    %d0 = arith.constant 0.0 : f64
-    %c0 = arith.constant 0 : index
     %dm = sparse_tensor.convert %arg0 : tensor<?x?xf64, #DCSR> to tensor<?x?xf64>
-    %1 = vector.transfer_read %dm[%c0, %c0], %d0: tensor<?x?xf64>, vector<4x8xf64>
-    vector.print %1 : vector<4x8xf64>
+    %u = tensor.cast %dm : tensor<?x?xf64> to tensor<*xf64>
+    call @printMemrefF64(%u) : (tensor<*xf64>) -> ()
     return
   }
 
@@ -150,12 +165,30 @@ module {
     //
     // Verify the results.
     //
-    // CHECK:      ( ( 1, 2, 0, 0, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0, 0, 0, 3 ), ( 0, 0, 4, 0, 5, 0, 0, 6 ), ( 7, 0, 8, 9, 0, 0, 0, 0 ) )
-    // CHECK-NEXT: ( ( 6, 0, 0, 0, 0, 0, 0, 5 ), ( 4, 0, 0, 0, 0, 0, 3, 0 ), ( 0, 2, 0, 0, 0, 0, 0, 1 ), ( 0, 0, 0, 0, 0, 0, 0, 0 ) )
-    // CHECK-NEXT: ( ( 2, 4, 0, 0, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0, 0, 0, 6 ), ( 0, 0, 8, 0, 10, 0, 0, 12 ), ( 14, 0, 16, 18, 0, 0, 0, 0 ) )
-    // CHECK-NEXT: ( ( 2, 4, 0, 0, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0, 0, 0, 6 ), ( 0, 0, 8, 0, 10, 0, 0, 12 ), ( 14, 0, 16, 18, 0, 0, 0, 0 ) )
-    // CHECK-NEXT: ( ( 8, 4, 0, 0, 0, 0, 0, 5 ), ( 4, 0, 0, 0, 0, 0, 3, 6 ), ( 0, 2, 8, 0, 10, 0, 0, 13 ), ( 14, 0, 16, 18, 0, 0, 0, 0 ) )
-    // CHECK-NEXT: ( ( 12, 0, 0, 0, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0, 0, 0, 12 ), ( 0, 0, 0, 0, 0, 0, 0, 0 ) )
+    // CHECK:      {{\[}}[1,   2,   0,   0,   0,   0,   0,   0],
+    // CHECK-NEXT: [0,   0,   0,   0,   0,   0,   0,   3],
+    // CHECK-NEXT: [0,   0,   4,   0,   5,   0,   0,   6],
+    // CHECK-NEXT: [7,   0,   8,   9,   0,   0,   0,   0]]
+    // CHECK:      {{\[}}[6,   0,   0,   0,   0,   0,   0,   5],
+    // CHECK-NEXT: [4,   0,   0,   0,   0,   0,   3,   0],
+    // CHECK-NEXT: [0,   2,   0,   0,   0,   0,   0,   1],
+    // CHECK-NEXT: [0,   0,   0,   0,   0,   0,   0,   0]]
+    // CHECK:      {{\[}}[2,   4,   0,   0,   0,   0,   0,   0],
+    // CHECK-NEXT: [0,   0,   0,   0,   0,   0,   0,   6],
+    // CHECK-NEXT: [0,   0,   8,   0,   10,   0,   0,   12],
+    // CHECK-NEXT: [14,   0,   16,   18,   0,   0,   0,   0]]
+    // CHECK:      {{\[}}[2,   4,   0,   0,   0,   0,   0,   0],
+    // CHECK-NEXT: [0,   0,   0,   0,   0,   0,   0,   6],
+    // CHECK-NEXT: [0,   0,   8,   0,   10,   0,   0,   12],
+    // CHECK-NEXT: [14,   0,   16,   18,   0,   0,   0,   0]]
+    // CHECK:      {{\[}}[8,   4,   0,   0,   0,   0,   0,   5],
+    // CHECK-NEXT: [4,   0,   0,   0,   0,   0,   3,   6],
+    // CHECK-NEXT: [0,   2,   8,   0,   10,   0,   0,   13],
+    // CHECK-NEXT: [14,   0,   16,   18,   0,   0,   0,   0]]
+    // CHECK:      {{\[}}[12,   0,   0,   0,   0,   0,   0,   0],
+    // CHECK-NEXT: [0,   0,   0,   0,   0,   0,   0,   0],
+    // CHECK-NEXT: [0,   0,   0,   0,   0,   0,   0,   12],
+    // CHECK-NEXT: [0,   0,   0,   0,   0,   0,   0,   0]]
     //
     call @dump(%sm1) : (tensor<?x?xf64, #DCSR>) -> ()
     call @dump(%sm2) : (tensor<?x?xf64, #DCSR>) -> ()

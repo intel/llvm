@@ -1,5 +1,5 @@
-// RUN: %clangxx -DSYCL2020_CONFORMANT_APIS -fsycl  %s
-// RUN: %clangxx -sycl-std=121 -fsycl %s
+// RUN: %clangxx -DSYCL2020_CONFORMANT_APIS -fsycl -fsyntax-only %s
+// RUN: %clangxx -sycl-std=121 -fsycl -fsyntax-only %s
 
 #include <CL/sycl.hpp>
 

@@ -187,9 +187,9 @@ bool AMDGPUUnifyDivergentExitNodes::runOnFunction(Function &F) {
     DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
 
   auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>().getPostDomTree();
-
-  // If there's only one exit, we don't need to do anything.
-  if (PDT.root_size() <= 1)
+  if (PDT.root_size() == 0 ||
+      (PDT.root_size() == 1 &&
+       !isa<BranchInst>(PDT.getRoot()->getTerminator())))
     return false;
 
   LegacyDivergenceAnalysis &DA = getAnalysis<LegacyDivergenceAnalysis>();
@@ -206,17 +206,22 @@ bool AMDGPUUnifyDivergentExitNodes::runOnFunction(Function &F) {
   bool Changed = false;
   std::vector<DominatorTree::UpdateType> Updates;
 
+  // TODO: For now we unify all exit blocks, even though they are uniformly
+  // reachable, if there are any exits not uniformly reached. This is to
+  // workaround the limitation of structurizer, which can not handle multiple
+  // function exits. After structurizer is able to handle multiple function
+  // exits, we should only unify UnreachableBlocks that are not uniformly
+  // reachable.
+  bool HasDivergentExitBlock = llvm::any_of(
+      PDT.roots(), [&](auto BB) { return !isUniformlyReached(DA, *BB); });
+
   for (BasicBlock *BB : PDT.roots()) {
     if (isa<ReturnInst>(BB->getTerminator())) {
-      if (!isUniformlyReached(DA, *BB))
+      if (HasDivergentExitBlock)
         ReturningBlocks.push_back(BB);
     } else if (isa<UnreachableInst>(BB->getTerminator())) {
-      // TODO: For now we unify UnreachableBlocks even though they are uniformly
-      // reachable. This is to workaround the limitation of structurizer, which
-      // can not handle multiple function exits. After structurizer is able to
-      // handle multiple function exits, we should only unify UnreachableBlocks
-      // that are not uniformly reachable.
-      UnreachableBlocks.push_back(BB);
+      if (HasDivergentExitBlock)
+        UnreachableBlocks.push_back(BB);
     } else if (BranchInst *BI = dyn_cast<BranchInst>(BB->getTerminator())) {
 
       ConstantInt *BoolTrue = ConstantInt::getTrue(F.getContext());

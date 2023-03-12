@@ -7,17 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/string/strdup.h"
+#include "src/string/allocating_string_utils.h"
 #include "src/string/memory_utils/memcpy_implementations.h"
-#include "src/string/string_utils.h"
 
 #include "src/__support/common.h"
 
+#include <errno.h>
 #include <stdlib.h>
 
 namespace __llvm_libc {
 
 LLVM_LIBC_FUNCTION(char *, strdup, (const char *src)) {
-  return internal::strdup(src);
+  auto dup = internal::strdup(src);
+  if (dup)
+    return *dup;
+  if (src != nullptr)
+    errno = ENOMEM;
+  return nullptr;
 }
 
 } // namespace __llvm_libc

@@ -84,7 +84,7 @@ static CmpInst *getInnerLoopGuardCmp(const Loop &InnerLoop) {
 static bool checkSafeInstruction(const Instruction &I,
                                  const CmpInst *InnerLoopGuardCmp,
                                  const CmpInst *OuterLoopLatchCmp,
-                                 Optional<Loop::LoopBounds> OuterLoopLB) {
+                                 std::optional<Loop::LoopBounds> OuterLoopLB) {
 
   bool IsAllowed =
       isSafeToSpeculativelyExecute(&I) || isa<PHINode>(I) || isa<BranchInst>(I);
@@ -128,7 +128,7 @@ LoopNest::LoopNestEnum LoopNest::analyzeLoopNestForPerfectNest(
 
   // Bail out if we cannot retrieve the outer loop bounds.
   auto OuterLoopLB = OuterLoop.getBounds(SE);
-  if (OuterLoopLB == None) {
+  if (OuterLoopLB == std::nullopt) {
     LLVM_DEBUG(dbgs() << "Cannot compute loop bounds of OuterLoop: "
                       << OuterLoop << "\n";);
     return OuterLoopLowerBoundUnknown;

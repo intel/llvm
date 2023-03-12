@@ -120,7 +120,7 @@ template <class T> struct DataRegion {
   }
 
   const T *First;
-  Optional<uint64_t> Size = None;
+  std::optional<uint64_t> Size;
   const uint8_t *BufEnd = nullptr;
 };
 
@@ -202,10 +202,10 @@ public:
   Expected<std::vector<VerNeed>> getVersionDependencies(
       const Elf_Shdr &Sec,
       WarningHandler WarnHandler = &defaultWarningHandler) const;
-  Expected<StringRef>
-  getSymbolVersionByIndex(uint32_t SymbolVersionIndex, bool &IsDefault,
-                          SmallVector<Optional<VersionEntry>, 0> &VersionMap,
-                          Optional<bool> IsSymHidden) const;
+  Expected<StringRef> getSymbolVersionByIndex(
+      uint32_t SymbolVersionIndex, bool &IsDefault,
+      SmallVector<std::optional<VersionEntry>, 0> &VersionMap,
+      std::optional<bool> IsSymHidden) const;
 
   Expected<StringRef>
   getStringTable(const Elf_Shdr &Section,
@@ -233,7 +233,7 @@ public:
   Expected<const Elf_Sym *> getRelocationSymbol(const Elf_Rel &Rel,
                                                 const Elf_Shdr *SymTab) const;
 
-  Expected<SmallVector<Optional<VersionEntry>, 0>>
+  Expected<SmallVector<std::optional<VersionEntry>, 0>>
   loadVersionMap(const Elf_Shdr *VerNeedSec, const Elf_Shdr *VerDefSec) const;
 
   static Expected<ELFFile> create(StringRef Object);
@@ -259,7 +259,7 @@ public:
 
   Expected<Elf_Sym_Range> symbols(const Elf_Shdr *Sec) const {
     if (!Sec)
-      return makeArrayRef<Elf_Sym>(nullptr, nullptr);
+      return ArrayRef<Elf_Sym>(nullptr, nullptr);
     return getSectionContentsAsArray<Elf_Sym>(*Sec);
   }
 
@@ -296,7 +296,7 @@ public:
                          ", e_phentsize = " + Twine(getHeader().e_phentsize));
 
     auto *Begin = reinterpret_cast<const Elf_Phdr *>(base() + PhOff);
-    return makeArrayRef(Begin, Begin + getHeader().e_phnum);
+    return ArrayRef(Begin, Begin + getHeader().e_phnum);
   }
 
   /// Get an iterator over notes in a program header.
@@ -516,7 +516,7 @@ ELFFile<ELFT>::getSectionContentsAsArray(const Elf_Shdr &Sec) const {
     return createError("unaligned data");
 
   const T *Start = reinterpret_cast<const T *>(base() + Offset);
-  return makeArrayRef(Start, Size / sizeof(T));
+  return ArrayRef(Start, Size / sizeof(T));
 }
 
 template <class ELFT>
@@ -536,7 +536,7 @@ ELFFile<ELFT>::getSegmentContents(const Elf_Phdr &Phdr) const {
                        ") + p_filesz (0x" + Twine::utohexstr(Size) +
                        ") that is greater than the file size (0x" +
                        Twine::utohexstr(Buf.size()) + ")");
-  return makeArrayRef(base() + Offset, Size);
+  return ArrayRef(base() + Offset, Size);
 }
 
 template <class ELFT>
@@ -587,10 +587,10 @@ uint32_t ELFFile<ELFT>::getRelativeRelocationType() const {
 }
 
 template <class ELFT>
-Expected<SmallVector<Optional<VersionEntry>, 0>>
+Expected<SmallVector<std::optional<VersionEntry>, 0>>
 ELFFile<ELFT>::loadVersionMap(const Elf_Shdr *VerNeedSec,
                               const Elf_Shdr *VerDefSec) const {
-  SmallVector<Optional<VersionEntry>, 0> VersionMap;
+  SmallVector<std::optional<VersionEntry>, 0> VersionMap;
 
   // The first two version indexes are reserved.
   // Index 0 is VER_NDX_LOCAL, index 1 is VER_NDX_GLOBAL.
@@ -722,8 +722,8 @@ Expected<uint64_t> ELFFile<ELFT>::getDynSymtabSize() const {
   Expected<Elf_Dyn_Range> DynTable = dynamicEntries();
   if (!DynTable)
     return DynTable.takeError();
-  llvm::Optional<uint64_t> ElfHash;
-  llvm::Optional<uint64_t> ElfGnuHash;
+  std::optional<uint64_t> ElfHash;
+  std::optional<uint64_t> ElfGnuHash;
   for (const Elf_Dyn &Entry : *DynTable) {
     switch (Entry.d_tag) {
     case ELF::DT_HASH:
@@ -798,7 +798,7 @@ Expected<typename ELFT::ShdrRange> ELFFile<ELFT>::sections() const {
   const uintX_t SectionTableOffset = getHeader().e_shoff;
   if (SectionTableOffset == 0) {
     if (!FakeSections.empty())
-      return makeArrayRef(FakeSections.data(), FakeSections.size());
+      return ArrayRef(FakeSections.data(), FakeSections.size());
     return ArrayRef<Elf_Shdr>();
   }
 
@@ -842,7 +842,7 @@ Expected<typename ELFT::ShdrRange> ELFFile<ELFT>::sections() const {
   // Section table goes past end of file!
   if (SectionTableOffset + SectionTableSize > FileSize)
     return createError("section table goes past the end of file");
-  return makeArrayRef(First, NumSections);
+  return ArrayRef(First, NumSections);
 }
 
 template <class ELFT>
@@ -876,8 +876,8 @@ Expected<const T *> ELFFile<ELFT>::getEntry(const Elf_Shdr &Section,
 template <typename ELFT>
 Expected<StringRef> ELFFile<ELFT>::getSymbolVersionByIndex(
     uint32_t SymbolVersionIndex, bool &IsDefault,
-    SmallVector<Optional<VersionEntry>, 0> &VersionMap,
-    Optional<bool> IsSymHidden) const {
+    SmallVector<std::optional<VersionEntry>, 0> &VersionMap,
+    std::optional<bool> IsSymHidden) const {
   size_t VersionIndex = SymbolVersionIndex & llvm::ELF::VERSYM_VERSION;
 
   // Special markers for unversioned symbols.

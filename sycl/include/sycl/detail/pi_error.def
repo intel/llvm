@@ -101,11 +101,11 @@ _PI_ERRC(PI_ERROR_VA_API_MEDIA_SURFACE_NOT_ACQUIRED_INTEL, -1101)
 // PI specific error codes
 // PI_ERROR_PLUGIN_SPECIFIC_ERROR indicates that an backend spcific error or
 // warning has been emitted by the plugin.
-_PI_ERRC_WITH_MSG(PI_ERROR_PLUGIN_SPECIFIC_ERROR, -996, "Function exists but address is not available")
+_PI_ERRC_WITH_MSG(PI_ERROR_PLUGIN_SPECIFIC_ERROR, -996, "The plugin has emitted a backend specific error")
 // PI_ERROR_COMMAND_EXECUTION_FAILURE indicates an error occurred during command
 // enqueue or execution.
-_PI_ERRC_WITH_MSG(PI_ERROR_COMMAND_EXECUTION_FAILURE, -997, "The plugin has emitted a backend specific error")
+_PI_ERRC_WITH_MSG(PI_ERROR_COMMAND_EXECUTION_FAILURE, -997, "Command failed to enqueue/execute")
 // PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback method
 // determines the function exists but its address cannot be found.
-_PI_ERRC_WITH_MSG(PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE, -998, "Command failed to enqueue/execute")
+_PI_ERRC_WITH_MSG(PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE, -998, "Function exists but address is not available")
 _PI_ERRC_WITH_MSG(PI_ERROR_UNKNOWN, -999, "Unknown PI error")

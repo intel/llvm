@@ -17,6 +17,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodegenUtils.h"
+#include "LoopEmitter.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -50,6 +51,16 @@ static bool isIntValue(Value val, int64_t idx) {
   return false;
 }
 
+/// Helper test for invariant value (defined outside given block).
+static bool isInvariantValue(Value val, Block *block) {
+  return val.getDefiningOp() && val.getDefiningOp()->getBlock() != block;
+}
+
+/// Helper test for invariant argument (defined outside given block).
+static bool isInvariantArg(BlockArgument arg, Block *block) {
+  return arg.getOwner() != block;
+}
+
 /// Constructs vector type for element type.
 static VectorType vectorType(VL vl, Type etp) {
   unsigned numScalableDims = vl.enableVLAVectorization;
@@ -58,7 +69,7 @@ static VectorType vectorType(VL vl, Type etp) {
 
 /// Constructs vector type from pointer.
 static VectorType vectorType(VL vl, Value ptr) {
-  return vectorType(vl, ptr.getType().cast<MemRefType>().getElementType());
+  return vectorType(vl, getMemRefType(ptr).getElementType());
 }
 
 /// Constructs vector iteration mask.
@@ -216,7 +227,8 @@ static Value genVectorReducInit(PatternRewriter &rewriter, Location loc,
 /// The first call (!codegen) does the analysis. Then, on success, the second
 /// call (codegen) yields the proper vector form in the output parameter
 /// vector 'idxs'. This mechanism ensures that analysis and rewriting code
-/// stay in sync.
+/// stay in sync. Note that the analyis part is simple because the sparse
+/// compiler only generates relatively simple subscript expressions.
 ///
 /// See https://llvm.org/docs/GetElementPtr.html for some background on
 /// the complications described below.
@@ -233,17 +245,38 @@ static Value genVectorReducInit(PatternRewriter &rewriter, Location loc,
 static bool vectorizeSubscripts(PatternRewriter &rewriter, scf::ForOp forOp,
                                 VL vl, ValueRange subs, bool codegen,
                                 Value vmask, SmallVectorImpl<Value> &idxs) {
+  unsigned d = 0;
+  unsigned dim = subs.size();
+  Block *block = &forOp.getRegion().front();
   for (auto sub : subs) {
-    // Invariant indices simply pass through.
-    if (sub.dyn_cast<BlockArgument>() ||
-        sub.getDefiningOp()->getBlock() != &forOp.getRegion().front()) {
+    bool innermost = ++d == dim;
+    // Invariant subscripts in outer dimensions simply pass through.
+    // Note that we rely on LICM to hoist loads where all subscripts
+    // are invariant in the innermost loop.
+    // Example:
+    //   a[inv][i] for inv
+    if (isInvariantValue(sub, block)) {
+      if (innermost)
+        return false;
+      if (codegen)
+        idxs.push_back(sub);
+      continue; // success so far
+    }
+    // Invariant block arguments (including outer loop indices) in outer
+    // dimensions simply pass through. Direct loop indices in the
+    // innermost loop simply pass through as well.
+    // Example:
+    //   a[i][j] for both i and j
+    if (auto arg = sub.dyn_cast<BlockArgument>()) {
+      if (isInvariantArg(arg, block) == innermost)
+        return false;
       if (codegen)
         idxs.push_back(sub);
       continue; // success so far
     }
     // Look under the hood of casting.
     auto cast = sub;
-    while (1) {
+    while (true) {
       if (auto icast = cast.getDefiningOp<arith::IndexCastOp>())
         cast = icast->getOperand(0);
       else if (auto ecast = cast.getDefiningOp<arith::ExtUIOp>())
@@ -262,7 +295,11 @@ static bool vectorizeSubscripts(PatternRewriter &rewriter, scf::ForOp forOp,
     // values, there is no good way to state that the indices are unsigned,
     // which creates the potential of incorrect address calculations in the
     // unlikely case we need such extremely large offsets.
+    // Example:
+    //    a[ ind[i] ]
     if (auto load = cast.getDefiningOp<memref::LoadOp>()) {
+      if (!innermost)
+        return false;
       if (codegen) {
         SmallVector<Value> idxs2(load.getIndices()); // no need to analyze
         Location loc = forOp.getLoc();
@@ -281,6 +318,23 @@ static bool vectorizeSubscripts(PatternRewriter &rewriter, scf::ForOp forOp,
       }
       continue; // success so far
     }
+    // Address calculation 'i = add inv, idx' (after LICM).
+    // Example:
+    //    a[base + i]
+    if (auto load = cast.getDefiningOp<arith::AddIOp>()) {
+      Value inv = load.getOperand(0);
+      Value idx = load.getOperand(1);
+      if (isInvariantValue(inv, block)) {
+        if (auto arg = idx.dyn_cast<BlockArgument>()) {
+          if (isInvariantArg(arg, block) || !innermost)
+            return false;
+          if (codegen)
+            idxs.push_back(
+                rewriter.create<arith::AddIOp>(forOp.getLoc(), inv, idx));
+          continue; // success so far
+        }
+      }
+    }
     return false;
   }
   return true;
@@ -290,6 +344,15 @@ static bool vectorizeSubscripts(PatternRewriter &rewriter, scf::ForOp forOp,
   if (isa<xxx>(def)) {                                                         \
     if (codegen)                                                               \
       vexp = rewriter.create<xxx>(loc, vx);                                    \
+    return true;                                                               \
+  }
+
+#define TYPEDUNAOP(xxx)                                                        \
+  if (auto x = dyn_cast<xxx>(def)) {                                           \
+    if (codegen) {                                                             \
+      VectorType vtp = vectorType(vl, x.getType());                            \
+      vexp = rewriter.create<xxx>(loc, vtp, vx);                               \
+    }                                                                          \
     return true;                                                               \
   }
 
@@ -303,27 +366,60 @@ static bool vectorizeSubscripts(PatternRewriter &rewriter, scf::ForOp forOp,
 /// This method is called twice to analyze and rewrite the given expression.
 /// The first call (!codegen) does the analysis. Then, on success, the second
 /// call (codegen) yields the proper vector form in the output parameter 'vexp'.
-/// This mechanism ensures that analysis and rewriting code stay in sync.
+/// This mechanism ensures that analysis and rewriting code stay in sync. Note
+/// that the analyis part is simple because the sparse compiler only generates
+/// relatively simple expressions inside the for-loops.
 static bool vectorizeExpr(PatternRewriter &rewriter, scf::ForOp forOp, VL vl,
                           Value exp, bool codegen, Value vmask, Value &vexp) {
-  // A block argument in invariant.
-  if (auto arg = exp.dyn_cast<BlockArgument>()) {
-    if (codegen)
-      vexp = genVectorInvariantValue(rewriter, vl, exp);
-    return true;
-  }
-  // Something defined outside the loop-body is invariant as well.
-  Operation *def = exp.getDefiningOp();
-  if (def->getBlock() != &forOp.getRegion().front()) {
-    if (codegen)
-      vexp = genVectorInvariantValue(rewriter, vl, exp);
-    return true;
-  }
-  // Inside loop-body unary and binary operations. Note that it would be
-  // nicer if we could somehow test and build the operations in a more
-  // concise manner than just listing them all (although this way we know
-  // for certain that they can vectorize).
   Location loc = forOp.getLoc();
+  // Reject unsupported types.
+  if (!VectorType::isValidElementType(exp.getType()))
+    return false;
+  // A block argument is invariant/reduction/index.
+  if (auto arg = exp.dyn_cast<BlockArgument>()) {
+    if (arg == forOp.getInductionVar()) {
+      // We encountered a single, innermost index inside the computation,
+      // such as a[i] = i, which must convert to [i, i+1, ...].
+      if (codegen) {
+        VectorType vtp = vectorType(vl, arg.getType());
+        Value veci = rewriter.create<vector::BroadcastOp>(loc, vtp, arg);
+        Value incr;
+        if (vl.enableVLAVectorization) {
+          Type stepvty = vectorType(vl, rewriter.getI64Type());
+          Value stepv = rewriter.create<LLVM::StepVectorOp>(loc, stepvty);
+          incr = rewriter.create<arith::IndexCastOp>(loc, vtp, stepv);
+        } else {
+          SmallVector<APInt> integers;
+          for (unsigned i = 0, l = vl.vectorLength; i < l; i++)
+            integers.push_back(APInt(/*width=*/64, i));
+          auto values = DenseElementsAttr::get(vtp, integers);
+          incr = rewriter.create<arith::ConstantOp>(loc, vtp, values);
+        }
+        vexp = rewriter.create<arith::AddIOp>(loc, veci, incr);
+      }
+      return true;
+    }
+    // An invariant or reduction. In both cases, we treat this as an
+    // invariant value, and rely on later replacing and folding to
+    // construct a proper reduction chain for the latter case.
+    if (codegen)
+      vexp = genVectorInvariantValue(rewriter, vl, exp);
+    return true;
+  }
+  // Something defined outside the loop-body is invariant.
+  Operation *def = exp.getDefiningOp();
+  Block *block = &forOp.getRegion().front();
+  if (def->getBlock() != block) {
+    if (codegen)
+      vexp = genVectorInvariantValue(rewriter, vl, exp);
+    return true;
+  }
+  // Proper load operations. These are either values involved in the
+  // actual computation, such as a[i] = b[i] becomes a[lo:hi] = b[lo:hi],
+  // or index values inside the computation that are now fetched from
+  // the sparse storage index arrays, such as a[i] = i becomes
+  // a[lo:hi] = ind[lo:hi], where 'lo' denotes the current index
+  // and 'hi = lo + vl - 1'.
   if (auto load = dyn_cast<memref::LoadOp>(def)) {
     auto subs = load.getIndices();
     SmallVector<Value> idxs;
@@ -332,7 +428,16 @@ static bool vectorizeExpr(PatternRewriter &rewriter, scf::ForOp forOp, VL vl,
         vexp = genVectorLoad(rewriter, loc, vl, load.getMemRef(), idxs, vmask);
       return true;
     }
-  } else if (def->getNumOperands() == 1) {
+    return false;
+  }
+  // Inside loop-body unary and binary operations. Note that it would be
+  // nicer if we could somehow test and build the operations in a more
+  // concise manner than just listing them all (although this way we know
+  // for certain that they can vectorize).
+  //
+  // TODO: avoid visiting CSEs multiple times
+  //
+  if (def->getNumOperands() == 1) {
     Value vx;
     if (vectorizeExpr(rewriter, forOp, vl, def->getOperand(0), codegen, vmask,
                       vx)) {
@@ -346,6 +451,18 @@ static bool vectorizeExpr(PatternRewriter &rewriter, scf::ForOp forOp, VL vl,
       UNAOP(math::SinOp)
       UNAOP(math::TanhOp)
       UNAOP(arith::NegFOp)
+      TYPEDUNAOP(arith::TruncFOp)
+      TYPEDUNAOP(arith::ExtFOp)
+      TYPEDUNAOP(arith::FPToSIOp)
+      TYPEDUNAOP(arith::FPToUIOp)
+      TYPEDUNAOP(arith::SIToFPOp)
+      TYPEDUNAOP(arith::UIToFPOp)
+      TYPEDUNAOP(arith::ExtSIOp)
+      TYPEDUNAOP(arith::ExtUIOp)
+      TYPEDUNAOP(arith::IndexCastOp)
+      TYPEDUNAOP(arith::TruncIOp)
+      TYPEDUNAOP(arith::BitcastOp)
+      // TODO: complex?
     }
   } else if (def->getNumOperands() == 2) {
     Value vx, vy;
@@ -353,6 +470,17 @@ static bool vectorizeExpr(PatternRewriter &rewriter, scf::ForOp forOp, VL vl,
                       vx) &&
         vectorizeExpr(rewriter, forOp, vl, def->getOperand(1), codegen, vmask,
                       vy)) {
+      // We only accept shift-by-invariant (where the same shift factor applies
+      // to all packed elements). In the vector dialect, this is still
+      // represented with an expanded vector at the right-hand-side, however,
+      // so that we do not have to special case the code generation.
+      if (isa<arith::ShLIOp>(def) || isa<arith::ShRUIOp>(def) ||
+          isa<arith::ShRSIOp>(def)) {
+        Value shiftFactor = def->getOperand(1);
+        if (!isInvariantValue(shiftFactor, block))
+          return false;
+      }
+      // Generate code.
       BINOP(arith::MulFOp)
       BINOP(arith::MulIOp)
       BINOP(arith::DivFOp)
@@ -365,12 +493,17 @@ static bool vectorizeExpr(PatternRewriter &rewriter, scf::ForOp forOp, VL vl,
       BINOP(arith::AndIOp)
       BINOP(arith::OrIOp)
       BINOP(arith::XOrIOp)
+      BINOP(arith::ShLIOp)
+      BINOP(arith::ShRUIOp)
+      BINOP(arith::ShRSIOp)
+      // TODO: complex?
     }
   }
   return false;
 }
 
 #undef UNAOP
+#undef TYPEDUNAOP
 #undef BINOP
 
 /// This method is called twice to analyze and rewrite the given for-loop.
@@ -409,9 +542,8 @@ static bool vectorizeStmt(PatternRewriter &rewriter, scf::ForOp forOp, VL vl,
       forOpNew = rewriter.create<scf::ForOp>(
           loc, forOp.getLowerBound(), forOp.getUpperBound(), step, vinit);
       forOpNew->setAttr(
-          SparseTensorLoopEmitter::getLoopEmitterLoopAttrName(),
-          forOp->getAttr(
-              SparseTensorLoopEmitter::getLoopEmitterLoopAttrName()));
+          LoopEmitter::getLoopEmitterLoopAttrName(),
+          forOp->getAttr(LoopEmitter::getLoopEmitterLoopAttrName()));
       rewriter.setInsertionPointToStart(forOpNew.getBody());
     } else {
       forOp.setStep(step);
@@ -478,8 +610,8 @@ public:
 
   ForOpRewriter(MLIRContext *context, unsigned vectorLength,
                 bool enableVLAVectorization, bool enableSIMDIndex32)
-      : OpRewritePattern(context),
-        vl{vectorLength, enableVLAVectorization, enableSIMDIndex32} {}
+      : OpRewritePattern(context), vl{vectorLength, enableVLAVectorization,
+                                      enableSIMDIndex32} {}
 
   LogicalResult matchAndRewrite(scf::ForOp op,
                                 PatternRewriter &rewriter) const override {
@@ -487,7 +619,7 @@ public:
     // sparse compiler, which means no data dependence analysis is required,
     // and its loop-body is very restricted in form.
     if (!op.getRegion().hasOneBlock() || !isIntValue(op.getStep(), 1) ||
-        !op->hasAttr(SparseTensorLoopEmitter::getLoopEmitterLoopAttrName()))
+        !op->hasAttr(LoopEmitter::getLoopEmitterLoopAttrName()))
       return failure();
     // Analyze (!codegen) and rewrite (codegen) loop-body.
     if (vectorizeStmt(rewriter, op, vl, /*codegen=*/false) &&
@@ -515,8 +647,7 @@ public:
     Value inp = op.getSource();
     if (auto redOp = inp.getDefiningOp<vector::ReductionOp>()) {
       if (auto forOp = redOp.getVector().getDefiningOp<scf::ForOp>()) {
-        if (forOp->hasAttr(
-                SparseTensorLoopEmitter::getLoopEmitterLoopAttrName())) {
+        if (forOp->hasAttr(LoopEmitter::getLoopEmitterLoopAttrName())) {
           rewriter.replaceOp(op, redOp.getVector());
           return success();
         }
@@ -537,6 +668,7 @@ void mlir::populateSparseVectorizationPatterns(RewritePatternSet &patterns,
                                                unsigned vectorLength,
                                                bool enableVLAVectorization,
                                                bool enableSIMDIndex32) {
+  assert(vectorLength > 0);
   patterns.add<ForOpRewriter>(patterns.getContext(), vectorLength,
                               enableVLAVectorization, enableSIMDIndex32);
   patterns.add<ReducChainRewriter<vector::InsertElementOp>,

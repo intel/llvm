@@ -57,7 +57,7 @@ def main():
     run_list = []
     for l in ti.run_lines:
       if '|' not in l:
-        common.warn('Skipping unparseable RUN line: ' + l)
+        common.warn('Skipping unparsable RUN line: ' + l)
         continue
 
       commands = [cmd.strip() for cmd in l.split('|')]
@@ -98,10 +98,7 @@ def main():
       llc_cmd_args = llc_cmd_args.replace('< %s', '').replace('%s', '').strip()
       if ti.path.endswith('.mir'):
         llc_cmd_args += ' -x mir'
-      check_prefixes = [item for m in common.CHECK_PREFIX_RE.finditer(filecheck_cmd)
-                               for item in m.group(1).split(',')]
-      if not check_prefixes:
-        check_prefixes = ['CHECK']
+      check_prefixes = common.get_check_prefixes(filecheck_cmd)
 
       # FIXME: We should use multiple check prefixes to common check lines. For
       # now, we just ignore all but the last.

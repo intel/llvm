@@ -3,6 +3,8 @@
 // RUN: %clang_cc1 -ffreestanding -Wno-error=implicit-function-declaration -triple aarch64-none-eabi -target-feature +neon -target-feature +crc -target-feature +crypto -O0 -disable-O0-optnone -S -emit-llvm -o - %s | opt -S -passes=mem2reg | FileCheck %s -check-prefixes=ARM,AArch64
 // RUN: %clang_cc1 -ffreestanding -triple aarch64-none-eabi -target-feature +v8.3a -target-feature +crc -O0 -disable-O0-optnone -S -emit-llvm -o - %s | opt -S -passes=mem2reg | FileCheck %s -check-prefixes=ARM,AArch64,AArch6483
 // RUN: %clang_cc1 -ffreestanding -triple aarch64-none-eabi -target-feature +v8.5a -target-feature +crc -target-feature +rand -O0 -disable-O0-optnone -S -emit-llvm -o - %s | opt -S -passes=mem2reg | FileCheck %s -check-prefixes=ARM,AArch64,AArch6483,AArch6485
+// RUN: %clang_cc1 -ffreestanding -triple aarch64-none-eabi -target-feature +v9.4a -target-feature +crc -target-feature +rand -target-feature +d128 -O0 -disable-O0-optnone -S -emit-llvm -o - %s | opt -S -passes=mem2reg | FileCheck %s -check-prefixes=ARM,AArch64,AArch6483,AArch6485,AArch6494D128
+
 
 #include <arm_acle.h>
 
@@ -166,10 +168,15 @@ void test_swp(uint32_t x, volatile void *p) {
 
 /* 8.6 Memory prefetch intrinsics */
 /* 8.6.1 Data prefetch */
-// ARM-LABEL: @test_pld(
-// ARM-NEXT:  entry:
-// ARM-NEXT:    call void @llvm.prefetch.p0(ptr null, i32 0, i32 3, i32 1)
-// ARM-NEXT:    ret void
+// AArch32-LABEL: @test_pld(
+// AArch32-NEXT:  entry:
+// AArch32-NEXT:    call void @llvm.prefetch.p0(ptr null, i32 0, i32 3, i32 1)
+// AArch32-NEXT:    ret void
+//
+// AArch64-LABEL: @test_pld(
+// AArch64-NEXT:  entry:
+// AArch64-NEXT:    call void @llvm.aarch64.prefetch(ptr null, i32 0, i32 0, i32 0, i32 1)
+// AArch64-NEXT:    ret void
 //
 void test_pld() {
   __pld(0);
@@ -182,7 +189,7 @@ void test_pld() {
 //
 // AArch64-LABEL: @test_pldx(
 // AArch64-NEXT:  entry:
-// AArch64-NEXT:    call void @llvm.prefetch.p0(ptr null, i32 1, i32 1, i32 1)
+// AArch64-NEXT:    call void @llvm.aarch64.prefetch(ptr null, i32 1, i32 2, i32 0, i32 1)
 // AArch64-NEXT:    ret void
 //
 void test_pldx() {
@@ -190,10 +197,15 @@ void test_pldx() {
 }
 
 /* 8.6.2 Instruction prefetch */
-// ARM-LABEL: @test_pli(
-// ARM-NEXT:  entry:
-// ARM-NEXT:    call void @llvm.prefetch.p0(ptr null, i32 0, i32 3, i32 0)
-// ARM-NEXT:    ret void
+// AArch32-LABEL: @test_pli(
+// AArch32-NEXT:  entry:
+// AArch32-NEXT:    call void @llvm.prefetch.p0(ptr null, i32 0, i32 3, i32 0)
+// AArch32-NEXT:    ret void
+//
+// AArch64-LABEL: @test_pli(
+// AArch64-NEXT:  entry:
+// AArch64-NEXT:    call void @llvm.aarch64.prefetch(ptr null, i32 0, i32 0, i32 0, i32 0)
+// AArch64-NEXT:    ret void
 //
 void test_pli() {
   __pli(0);
@@ -206,7 +218,7 @@ void test_pli() {
 //
 // AArch64-LABEL: @test_plix(
 // AArch64-NEXT:  entry:
-// AArch64-NEXT:    call void @llvm.prefetch.p0(ptr null, i32 0, i32 1, i32 0)
+// AArch64-NEXT:    call void @llvm.aarch64.prefetch(ptr null, i32 0, i32 2, i32 0, i32 0)
 // AArch64-NEXT:    ret void
 //
 void test_plix() {
@@ -1479,6 +1491,17 @@ uint64_t test_rsr64() {
 #endif
 }
 
+#ifdef __ARM_FEATURE_SYSREG128
+// AArch6494D128-LABEL: @test_rsr128(
+// AArch6494D128-NEXT:  entry:
+// AArch6494D128-NEXT:    [[TMP0:%.*]] = call i128 @llvm.read_volatile_register.i128(metadata [[META8]])
+// AArch6494D128-NEXT:    ret i128 [[TMP0]]
+//
+__uint128_t test_rsr128() {
+  return __arm_rsr128("1:2:3:4:5");
+}
+#endif
+
 // AArch32-LABEL: @test_rsrp(
 // AArch32-NEXT:  entry:
 // AArch32-NEXT:    [[TMP0:%.*]] = call i32 @llvm.read_volatile_register.i32(metadata [[META11:![0-9]+]])
@@ -1531,6 +1554,18 @@ void test_wsr64(uint64_t v) {
   __arm_wsr64("1:2:3:4:5", v);
 #endif
 }
+
+#ifdef __ARM_FEATURE_SYSREG128
+// AArch6494D128-LABEL: @test_wsr128(
+// AArch6494D128-NEXT:  entry:
+// AArch6494D128-NEXT:    call void @llvm.write_register.i128(metadata [[META8]], i128 [[V:%.*]])
+// AArch6494D128-NEXT:    ret void
+//
+void test_wsr128(__uint128_t v) {
+  __arm_wsr128("1:2:3:4:5", v);
+
+}
+#endif
 
 // AArch32-LABEL: @test_wsrp(
 // AArch32-NEXT:  entry:

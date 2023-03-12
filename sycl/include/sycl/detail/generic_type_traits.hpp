@@ -41,6 +41,8 @@ template <typename T> using is_halfn = is_contained<T, gtl::vector_half_list>;
 
 template <typename T> using is_genfloath = is_contained<T, gtl::half_list>;
 
+template <typename T> using is_half = is_contained<T, gtl::scalar_half_list>;
+
 template <typename T>
 using is_svgenfloath = is_contained<T, gtl::scalar_vector_half_list>;
 
@@ -54,6 +56,13 @@ using is_vgenfloat = is_contained<T, gtl::vector_floating_list>;
 
 template <typename T>
 using is_svgenfloat = is_contained<T, gtl::scalar_vector_floating_list>;
+
+template <typename T> using marray_element_type = typename T::value_type;
+
+template <typename T>
+using is_mgenfloat = bool_constant<
+    std::is_same<T, sycl::marray<marray_element_type<T>, T::size()>>::value &&
+    is_svgenfloat<marray_element_type<T>>::value>;
 
 template <typename T>
 using is_gengeofloat = is_contained<T, gtl::geo_float_list>;
@@ -127,17 +136,6 @@ template <typename T>
 using is_intn = is_contained<T, gtl::vector_signed_int_list>;
 
 template <typename T> using is_genint = is_contained<T, gtl::signed_int_list>;
-
-template <typename T>
-using is_ulongn = is_contained<T, gtl::vector_unsigned_long_list>;
-
-template <typename T>
-using is_ugenlong = is_contained<T, gtl::unsigned_long_list>;
-
-template <typename T>
-using is_longn = is_contained<T, gtl::vector_signed_long_list>;
-
-template <typename T> using is_genlong = is_contained<T, gtl::signed_long_list>;
 
 template <typename T>
 using is_ulonglongn = is_contained<T, gtl::vector_unsigned_longlong_list>;
@@ -301,7 +299,8 @@ struct convert_data_type_impl<T, B, enable_if_t<is_vgentype<T>::value, T>> {
 template <typename T, typename B>
 using convert_data_type = convert_data_type_impl<T, B, T>;
 
-// Try to get pointer_t (legacy) or pointer, otherwise T
+// TryToGetPointerT<T>::type is T::pointer_t (legacy) or T::pointer if those
+// exist, otherwise T.
 template <typename T> class TryToGetPointerT {
   static T check(...);
   template <typename A> static typename A::pointer_t check(const A &);
@@ -313,7 +312,8 @@ public:
       std::is_pointer<T>::value || !std::is_same<T, type>::value;
 };
 
-// Try to get element_type or value_type, otherwise T
+// TryToGetElementType<T>::type is T::element_type or T::value_type if those
+// exist, otherwise T.
 template <typename T> class TryToGetElementType {
   static T check(...);
   template <typename A> static typename A::element_type check(const A &);
@@ -324,7 +324,7 @@ public:
   static constexpr bool value = !std::is_same<T, type>::value;
 };
 
-// Try to get vector_t, otherwise T
+// TryToGetVectorT<T>::type is T::vector_t if that exists, otherwise T.
 template <typename T> class TryToGetVectorT {
   static T check(...);
   template <typename A> static typename A::vector_t check(const A &);
@@ -431,18 +431,18 @@ using select_apply_cl_scalar_t =
 // Shortcuts for selecting scalar int/unsigned int/fp type.
 template <typename T>
 using select_cl_scalar_integral_signed_t =
-    select_apply_cl_scalar_t<T, sycl::cl_char, sycl::cl_short, sycl::cl_int,
-                             sycl::cl_long>;
+    select_apply_cl_scalar_t<T, sycl::opencl::cl_char, sycl::opencl::cl_short,
+                             sycl::opencl::cl_int, sycl::opencl::cl_long>;
 
 template <typename T>
 using select_cl_scalar_integral_unsigned_t =
-    select_apply_cl_scalar_t<T, sycl::cl_uchar, sycl::cl_ushort, sycl::cl_uint,
-                             sycl::cl_ulong>;
+    select_apply_cl_scalar_t<T, sycl::opencl::cl_uchar, sycl::opencl::cl_ushort,
+                             sycl::opencl::cl_uint, sycl::opencl::cl_ulong>;
 
 template <typename T>
 using select_cl_scalar_float_t =
-    select_apply_cl_scalar_t<T, std::false_type, sycl::cl_half, sycl::cl_float,
-                             sycl::cl_double>;
+    select_apply_cl_scalar_t<T, std::false_type, sycl::opencl::cl_half,
+                             sycl::opencl::cl_float, sycl::opencl::cl_double>;
 
 template <typename T>
 using select_cl_scalar_integral_t =
@@ -514,7 +514,7 @@ template <typename T> struct TypeHelper {
   using RetType = T;
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <> struct TypeHelper<std::byte> {
   using RetType = std::uint8_t;
 };
@@ -545,14 +545,14 @@ using SelectMatchingOpenCLType_t =
 
 // Converts T to OpenCL friendly
 //
+template <typename T /* MatchingOpencCLTypeT */>
+using ConvertToOpenCLTypeImpl_t =
+    conditional_t<TryToGetVectorT<T>::value, typename TryToGetVectorT<T>::type,
+                  conditional_t<TryToGetPointerT<T>::value,
+                                typename TryToGetPointerVecT<T>::type, T>>;
 template <typename T>
-using ConvertToOpenCLType_t = conditional_t<
-    TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::value,
-    typename TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::type,
-    conditional_t<
-        TryToGetPointerT<SelectMatchingOpenCLType_t<T>>::value,
-        typename TryToGetPointerVecT<SelectMatchingOpenCLType_t<T>>::type,
-        SelectMatchingOpenCLType_t<T>>>;
+using ConvertToOpenCLType_t =
+    ConvertToOpenCLTypeImpl_t<SelectMatchingOpenCLType_t<T>>;
 
 // convertDataToType() function converts data from FROM type to TO type using
 // 'as' method for vector type and copy otherwise.

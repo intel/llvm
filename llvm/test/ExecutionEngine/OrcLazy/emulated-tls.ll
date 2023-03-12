@@ -1,3 +1,6 @@
+; LoongArch does not support emulated tls.
+; UNSUPPORTED: target=loongarch{{.*}}
+
 ; RUN: not lli -no-process-syms -emulated-tls -jit-kind=orc-lazy %s 2>&1 \
 ; RUN:   | FileCheck %s
 ;
@@ -16,8 +19,8 @@
 
 @x = thread_local global i32 42, align 4
 
-define i32 @main(i32 %argc, i8** %argv) {
+define i32 @main(i32 %argc, ptr %argv) {
 entry:
-  %0 = load i32, i32* @x, align 4
+  %0 = load i32, ptr @x, align 4
   ret i32 %0
 }

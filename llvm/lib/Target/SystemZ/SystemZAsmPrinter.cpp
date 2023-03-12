@@ -530,11 +530,6 @@ void SystemZAsmPrinter::emitInstruction(const MachineInstr *MI) {
         .addImm(15).addReg(SystemZ::R0D);
     break;
 
-  // Emit nothing here but a comment if we can.
-  case SystemZ::MemBarrier:
-    OutStreamer->emitRawComment("MEMBARRIER");
-    return;
-
   // We want to emit "j .+2" for traps, jumping to the relative immediate field
   // of the jump instruction, which is an illegal instruction. We cannot emit a
   // "." symbol, so create and emit a temp label before the instruction and use
@@ -759,6 +754,17 @@ void SystemZAsmPrinter::LowerPATCHPOINT(const MachineInstr &MI,
                             getSubtargetInfo());
 }
 
+// The *alignment* of 128-bit vector types is different between the software
+// and hardware vector ABIs. If the there is an externally visible use of a
+// vector type in the module it should be annotated with an attribute.
+void SystemZAsmPrinter::emitAttributes(Module &M) {
+  if (M.getModuleFlag("s390x-visible-vector-ABI")) {
+    bool HasVectorFeature =
+      TM.getMCSubtargetInfo()->hasFeature(SystemZ::FeatureVector);
+    OutStreamer->emitGNUAttribute(8, HasVectorFeature ? 2 : 1);
+  }
+}
+
 // Convert a SystemZ-specific constant pool modifier into the associated
 // MCSymbolRefExpr variant kind.
 static MCSymbolRefExpr::VariantKind
@@ -857,6 +863,10 @@ bool SystemZAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
                MCOperand::createImm(MI->getOperand(OpNo + 1).getImm()),
                MI->getOperand(OpNo + 2).getReg(), OS);
   return false;
+}
+
+void SystemZAsmPrinter::emitEndOfAsmFile(Module &M) {
+  emitAttributes(M);
 }
 
 void SystemZAsmPrinter::emitFunctionBodyEnd() {

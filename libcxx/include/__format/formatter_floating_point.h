@@ -43,7 +43,7 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace __formatter {
 
@@ -498,7 +498,7 @@ _LIBCPP_HIDE_FROM_ABI _OutIt __format_locale_specific_form(
     const __float_result& __result,
     _VSTD::locale __loc,
     __format_spec::__parsed_specifications<_CharT> __specs) {
-  const auto& __np = use_facet<numpunct<_CharT>>(__loc);
+  const auto& __np = std::use_facet<numpunct<_CharT>>(__loc);
   string __grouping = __np.grouping();
   char* __first = __result.__integral;
   // When no radix point or exponent are present __last will be __result.__last.
@@ -748,7 +748,7 @@ template <__fmt_char_type _CharT>
 struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<long double, _CharT>
     : public __formatter_floating_point<_CharT> {};
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

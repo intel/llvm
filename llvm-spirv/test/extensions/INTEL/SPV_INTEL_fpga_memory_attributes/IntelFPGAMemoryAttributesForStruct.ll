@@ -181,16 +181,16 @@
 ; LLVM IR compilation command:
 ; clang -cc1 -triple spir -disable-llvm-passes -fsycl-is-device -emit-llvm intel-fpga-local-var.cpp
 
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_attributes -o %t.spv
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_fpga_memory_attributes -o %t.spv
 ; RUN: llvm-spirv %t.spv --spirv-ext=+SPV_INTEL_fpga_memory_attributes -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: llvm-spirv -spirv-text -r %t.spt -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; TODO: add a bunch of different tests for --spirv-ext option
 
@@ -624,7 +624,7 @@ entry:
   call spir_func void @_ZZ20field_addrspace_castvEN5stateC1Ev(%struct.state* %state_var)
   ; CHECK-LLVM: %[[GEP:.*]] = getelementptr inbounds %struct.state, %struct.state* %state_var, i32 0, i32 0
   ; CHECK-LLVM: %[[CAST:.*]] = bitcast [8 x i32]* %[[GEP:.*]] to i8*
-  ; CHECK-LLVM: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8(i8* %[[CAST]]{{.*}}[[STR_NMB_ASC]]
+  ; CHECK-LLVM: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8.p0i8(i8* %[[CAST]]{{.*}}[[STR_NMB_ASC]]
   %mem = getelementptr inbounds %struct.state, %struct.state* %state_var, i32 0, i32 0
   %1 = bitcast [8 x i32]* %mem to i8*
   %2 = call i8* @llvm.ptr.annotation.p0i8(i8* %1, i8* getelementptr inbounds ([43 x i8], [43 x i8]* @.str.19, i32 0, i32 0), i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.1, i32 0, i32 0), i32 120, i8* null)

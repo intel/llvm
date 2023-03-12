@@ -252,7 +252,7 @@ bool PointerAssignmentChecker::Check(const evaluate::Designator<T> &d) {
               " derived type when target is unlimited polymorphic"_err_en_US;
       }
     } else {
-      if (!lhsType_->type().IsTkCompatibleWith(rhsType->type())) {
+      if (!lhsType_->type().IsTkLenCompatibleWith(rhsType->type())) {
         msg = MessageFormattedText{
             "Target type %s is not compatible with pointer type %s"_err_en_US,
             rhsType->type().AsFortran(), lhsType_->type().AsFortran()};
@@ -307,6 +307,10 @@ bool PointerAssignmentChecker::Check(const evaluate::ProcedureDesignator &d) {
             symbol->name());
         return false;
       }
+    } else if (symbol->has<ProcBindingDetails>()) {
+      evaluate::SayWithDeclaration(context_.messages(), *symbol,
+          "Procedure binding '%s' used as target of a pointer assignment"_port_en_US,
+          symbol->name());
     }
   }
   if (auto chars{Procedure::Characterize(d, context_)}) {

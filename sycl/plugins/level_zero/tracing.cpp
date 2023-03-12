@@ -6,11 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "xpti/xpti_data_types.h"
-#include <exception>
-#include <level_zero/layers/zel_tracing_api.h>
-#include <level_zero/ze_api.h>
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include <xpti/xpti_data_types.h>
 #include <xpti/xpti_trace_framework.h>
+#endif
+
+#include <exception>
+#include <layers/zel_tracing_api.h>
+#include <ze_api.h>
 
 #include <sycl/detail/iostream_proxy.hpp>
 

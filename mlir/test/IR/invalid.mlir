@@ -369,7 +369,7 @@ func.func @dialect_type_empty_namespace(!<"">) -> () { // expected-error {{inval
 
 // -----
 
-func.func @dialect_type_missing_greater(!foo<) -> () { // expected-error {{unbalanced ')' character in pretty dialect name}}
+func.func @dialect_type_missing_greater(!foo<) -> () { // expected-error {{unbalanced '<' character in pretty dialect name}}
   return
 
 // -----
@@ -414,7 +414,7 @@ func.func @invalid_nested_dominance() {
 
 // -----
 
-// expected-error @+1 {{unbalanced ']' character in pretty dialect name}}
+// expected-error @+1 {{unbalanced '<' character in pretty dialect name}}
 func.func @invalid_unknown_type_dialect_name() -> !invalid.dialect<!x@#]!@#>
 
 // -----
@@ -582,7 +582,7 @@ func.func @invalid_region_dominance() {
 
 // -----
 
-// expected-error @+1 {{unbalanced ')' character in pretty dialect name}}
+// expected-error @+1 {{unbalanced '<' character in pretty dialect name}}
 func.func @bad_arrow(%arg : !unreg.ptr<(i32)->)
 
 // -----
@@ -651,7 +651,7 @@ func.func @invalid_region_dominance_with_dominance_free_regions() {
 // expected at the end of foo, not on the return line.
 func.func @error_at_end_of_line() {
   // expected-error@+1 {{expected ':' followed by operation type}}
-  %0 = "foo"() 
+  %0 = "foo"()
   return
 }
 
@@ -660,7 +660,7 @@ func.func @error_at_end_of_line() {
 // This makes sure we emit an error at the end of the correct line, the : is
 // expected at the end of foo, not on the return line.
 func.func @error_at_end_of_line() {
-  %0 = "foo"() 
+  %0 = "foo"()
   // expected-error@-1 {{expected ':' followed by operation type}}
 
   // This is a comment and so is the thing above.

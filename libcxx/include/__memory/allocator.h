@@ -13,11 +13,14 @@
 #include <__config>
 #include <__memory/allocate_at_least.h>
 #include <__memory/allocator_traits.h>
+#include <__type_traits/is_constant_evaluated.h>
+#include <__type_traits/is_same.h>
+#include <__type_traits/is_void.h>
+#include <__type_traits/is_volatile.h>
 #include <__utility/forward.h>
 #include <cstddef>
 #include <new>
 #include <stdexcept>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -113,7 +116,7 @@ public:
         }
     }
 
-#if _LIBCPP_STD_VER > 20
+#if _LIBCPP_STD_VER >= 23
     [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr
     allocation_result<_Tp*> allocate_at_least(size_t __n) {
         return {allocate(__n), __n};
@@ -202,7 +205,7 @@ public:
         }
     }
 
-#if _LIBCPP_STD_VER > 20
+#if _LIBCPP_STD_VER >= 23
     [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr
     allocation_result<const _Tp*> allocate_at_least(size_t __n) {
         return {allocate(__n), __n};

@@ -83,19 +83,12 @@ def FalsePredicate : Predicate<"false">;
 
 // Add a predicate to the list if does not already exist to deduplicate it.
 class PredConcat<list<Predicate> lst, Predicate pred> {
-  list<Predicate> ret =
-      !listconcat([pred], !filter(item, lst, !ne(item, pred)));
+  list<Predicate> ret = !listconcat(lst, !listremove([pred], lst));
 }
 
-// Add a Register to the list if does not already exist
-class RegAppend<list<Register> lst, Register reg> {
-  list<Register> ret =
-      !listconcat([reg], !filter(item, lst, !ne(item, reg)));
-}
 // Get the union of two Register lists
 class RegListUnion<list<Register> lstA, list<Register> lstB> {
-  list<Register> ret =
-      !foldl(lstA, lstB, temp, item, RegAppend<temp, item>.ret);
+  list<Register> ret = !listconcat(lstA, !listremove(lstB, lstA));
 }
 
 class PredicateControl {
@@ -111,7 +104,10 @@ class PredicateControl {
 }
 
 class AMDGPUPat<dag pattern, dag result> : Pat<pattern, result>,
-      PredicateControl;
+      PredicateControl, GISelFlags;
+
+let GIIgnoreCopies = 1 in
+class AMDGPUPatIgnoreCopies<dag pattern, dag result> : AMDGPUPat<pattern, result>;
 
 let RecomputePerFunction = 1 in {
 def FP16Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
@@ -151,10 +147,6 @@ def u16imm : Operand<i16> {
 def s16imm : Operand<i16> {
   let PrintMethod = "printU16ImmOperand";
   let ParserMatchClass = s16ImmTarget;
-}
-
-def u8imm : Operand<i8> {
-  let PrintMethod = "printU8ImmOperand";
 }
 
 } // End OperandType = "OPERAND_IMMEDIATE"
@@ -645,6 +637,8 @@ defm atomic_load_umax : binary_atomic_op_all_as<atomic_load_umax>;
 defm atomic_load_umin : binary_atomic_op_all_as<atomic_load_umin>;
 defm atomic_load_xor : binary_atomic_op_all_as<atomic_load_xor>;
 defm atomic_load_fadd : binary_atomic_op_all_as<atomic_load_fadd, 0>;
+defm atomic_load_uinc_wrap : binary_atomic_op_all_as<atomic_load_uinc_wrap>;
+defm atomic_load_udec_wrap : binary_atomic_op_all_as<atomic_load_udec_wrap>;
 let MemoryVT = v2f16 in
 defm atomic_load_fadd_v2f16 : binary_atomic_op_all_as<atomic_load_fadd, 0>;
 defm AMDGPUatomic_cmp_swap : binary_atomic_op_all_as<AMDGPUatomic_cmp_swap>;
@@ -805,6 +799,25 @@ def fminnum_like : PatFrags<(ops node:$src0, node:$src1),
 
 // Instructions which select to the same v_max_f*
 def fmaxnum_like : PatFrags<(ops node:$src0, node:$src1),
+  [(fmaxnum_ieee node:$src0, node:$src1),
+   (fmaxnum node:$src0, node:$src1)]
+>;
+
+class NeverNaNPats<dag ops, list<dag> frags> : PatFrags<ops, frags> {
+  let PredicateCode = [{
+    return CurDAG->isKnownNeverNaN(SDValue(N,0));
+  }];
+  let GISelPredicateCode = [{
+    return isKnownNeverNaN(MI.getOperand(0).getReg(), MRI);
+  }];
+}
+
+def fminnum_like_nnan : NeverNaNPats<(ops node:$src0, node:$src1),
+  [(fminnum_ieee node:$src0, node:$src1),
+   (fminnum node:$src0, node:$src1)]
+>;
+
+def fmaxnum_like_nnan : NeverNaNPats<(ops node:$src0, node:$src1),
   [(fmaxnum_ieee node:$src0, node:$src1),
    (fmaxnum node:$src0, node:$src1)]
 >;

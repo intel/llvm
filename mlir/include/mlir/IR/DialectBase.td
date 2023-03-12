@@ -13,14 +13,40 @@
 #ifndef DIALECTBASE_TD
 #define DIALECTBASE_TD
 
+// Helper for marking deprecated classes or defs in TableGen. To mark a def as
+// deprecated, mix in the `Deprecate` class with a reason.
+// Usage of a deprecated def within TableGen will cause a warning with the
+// given message.
+class Deprecated<string reason> {
+  string odsDeprecated = reason;
+}
+
+// Helper for marking entities in ODS generated C++ as deprecated.
+// Usage of such an entity from C++ code will cause a warning being emitted by
+// the C++ compiler with the given message.
+//
+// Note: Support has to be implemented by the code generator of a given
+// entity.
+class CppDeprecated<string reason> {
+  string odsCppDeprecated = reason;
+}
+
 //===----------------------------------------------------------------------===//
 // Dialect definitions
 //===----------------------------------------------------------------------===//
 
-// "Enum" values for emitAccessorPrefix of Dialect.
-defvar kEmitAccessorPrefix_Raw = 0;      // Don't emit any getter/setter prefix.
-defvar kEmitAccessorPrefix_Prefixed = 1; // Only emit with getter/setter prefix.
-defvar kEmitAccessorPrefix_Both = 2;     // Emit without and with prefix.
+class EmitFolderBase;
+// Generate 'fold' method with 'ArrayRef<Attribute>' parameter.
+// New code should prefer using 'kEmitFoldAdaptorFolder' and
+// consider 'kEmitRawAttributesFolder' deprecated and to be
+// removed in the future.
+def kEmitRawAttributesFolder : EmitFolderBase, Deprecated<
+  "'useFoldAPI' of 'kEmitRawAttributesFolder' (default) has been deprecated "
+  # "and is pending removal. Please switch to 'kEmitFoldAdaptorFolder'. See "
+  # "https://discourse.llvm.org/t/psa-new-improved-fold-method-signature-has-landed-please-update-your-downstream-projects/67618"
+> {}
+// Generate 'fold' method with 'FoldAdaptor' parameter.
+def kEmitFoldAdaptorFolder : EmitFolderBase {}
 
 class Dialect {
   // The name of the dialect.
@@ -88,19 +114,11 @@ class Dialect {
   // If this dialect overrides the hook for canonicalization patterns.
   bit hasCanonicalizer = 0;
 
-  // Whether to emit raw/with no prefix or format changes, or emit with
-  // accessor with prefix only and UpperCamel suffix or to emit accessors with
-  // both.
-  //
-  // If emitting with prefix is specified then the attribute/operand's
-  // name is converted to UpperCamel from snake_case (which would result in
-  // leaving UpperCamel unchanged while also converting lowerCamel to
-  // UpperCamel) and prefixed with `get` or `set` depending on if it is a getter
-  // or setter.
-  int emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
-
   // If this dialect can be extended at runtime with new operations or types.
   bit isExtensible = 0;
+
+  // Fold API to use for operations in this dialect.
+  EmitFolderBase useFoldAPI = kEmitFoldAdaptorFolder;
 }
 
 #endif // DIALECTBASE_TD

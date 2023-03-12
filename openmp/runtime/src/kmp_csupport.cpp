@@ -332,6 +332,37 @@ void __kmpc_fork_call(ident_t *loc, kmp_int32 argc, kmpc_micro microtask, ...) {
 
 /*!
 @ingroup PARALLEL
+@param loc  source location information
+@param microtask  pointer to callback routine consisting of outlined parallel
+construct
+@param cond  condition for running in parallel
+@param args  struct of pointers to shared variables that aren't global
+
+Perform a fork only if the condition is true.
+*/
+void __kmpc_fork_call_if(ident_t *loc, kmp_int32 argc, kmpc_micro microtask,
+                         kmp_int32 cond, void *args) {
+  int gtid = __kmp_entry_gtid();
+  int zero = 0;
+  if (cond) {
+    if (args)
+      __kmpc_fork_call(loc, argc, microtask, args);
+    else
+      __kmpc_fork_call(loc, argc, microtask);
+  } else {
+    __kmpc_serialized_parallel(loc, gtid);
+
+    if (args)
+      microtask(&gtid, &zero, args);
+    else
+      microtask(&gtid, &zero);
+
+    __kmpc_end_serialized_parallel(loc, gtid);
+  }
+}
+
+/*!
+@ingroup PARALLEL
 @param loc source location information
 @param global_tid global thread number
 @param num_teams number of teams requested for the teams construct
@@ -4422,7 +4453,7 @@ void __kmpc_error(ident_t *loc, int severity, const char *message) {
   if (loc && loc->psource) {
     kmp_str_loc_t str_loc = __kmp_str_loc_init(loc->psource, false);
     src_loc =
-        __kmp_str_format("%s:%s:%s", str_loc.file, str_loc.line, str_loc.col);
+        __kmp_str_format("%s:%d:%d", str_loc.file, str_loc.line, str_loc.col);
     __kmp_str_loc_free(&str_loc);
   } else {
     src_loc = __kmp_str_format("unknown");

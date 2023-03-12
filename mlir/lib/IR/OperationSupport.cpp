@@ -18,6 +18,7 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/Support/SHA1.h"
 #include <numeric>
+#include <optional>
 
 using namespace mlir;
 
@@ -41,8 +42,8 @@ NamedAttrList::NamedAttrList(const_iterator inStart, const_iterator inEnd) {
 
 ArrayRef<NamedAttribute> NamedAttrList::getAttrs() const { return attrs; }
 
-Optional<NamedAttribute> NamedAttrList::findDuplicate() const {
-  Optional<NamedAttribute> duplicate =
+std::optional<NamedAttribute> NamedAttrList::findDuplicate() const {
+  std::optional<NamedAttribute> duplicate =
       DictionaryAttr::findDuplicate(attrs, isSorted());
   // DictionaryAttr::findDuplicate will sort the list, so reset the sorted
   // state.
@@ -89,14 +90,14 @@ Attribute NamedAttrList::get(StringAttr name) const {
   return it.second ? it.first->getValue() : Attribute();
 }
 
-/// Return the specified named attribute if present, None otherwise.
-Optional<NamedAttribute> NamedAttrList::getNamed(StringRef name) const {
+/// Return the specified named attribute if present, std::nullopt otherwise.
+std::optional<NamedAttribute> NamedAttrList::getNamed(StringRef name) const {
   auto it = findAttr(*this, name);
-  return it.second ? *it.first : Optional<NamedAttribute>();
+  return it.second ? *it.first : std::optional<NamedAttribute>();
 }
-Optional<NamedAttribute> NamedAttrList::getNamed(StringAttr name) const {
+std::optional<NamedAttribute> NamedAttrList::getNamed(StringAttr name) const {
   auto it = findAttr(*this, name);
-  return it.second ? *it.first : Optional<NamedAttribute>();
+  return it.second ? *it.first : std::optional<NamedAttribute>();
 }
 
 /// If the an attribute exists with the specified name, change it to the new
@@ -422,7 +423,7 @@ MutableOperandRange::MutableOperandRange(Operation *owner)
 /// Slice this range into a sub range, with the additional operand segment.
 MutableOperandRange
 MutableOperandRange::slice(unsigned subStart, unsigned subLen,
-                           Optional<OperandSegment> segment) const {
+                           std::optional<OperandSegment> segment) const {
   assert((subStart + subLen) <= length && "invalid sub-range");
   MutableOperandRange subSlice(owner, start + subStart, subLen,
                                operandSegments);
@@ -651,8 +652,8 @@ llvm::hash_code OperationEquivalence::computeHash(
 
 static bool
 isRegionEquivalentTo(Region *lhs, Region *rhs,
-                     function_ref<LogicalResult(Value, Value)> mapOperands,
-                     function_ref<LogicalResult(Value, Value)> mapResults,
+                     function_ref<LogicalResult(Value, Value)> checkEquivalent,
+                     function_ref<void(Value, Value)> markEquivalent,
                      OperationEquivalence::Flags flags) {
   DenseMap<Block *, Block *> blocksMap;
   auto blocksEquivalent = [&](Block &lBlock, Block &rBlock) {
@@ -674,15 +675,15 @@ isRegionEquivalentTo(Region *lhs, Region *rhs,
       if (!(flags & OperationEquivalence::IgnoreLocations) &&
           curArg.getLoc() != otherArg.getLoc())
         return false;
-      // Check if this value was already mapped to another value.
-      if (failed(mapOperands(curArg, otherArg)))
-        return false;
+      // Corresponding bbArgs are equivalent.
+      if (markEquivalent)
+        markEquivalent(curArg, otherArg);
     }
 
     auto opsEquivalent = [&](Operation &lOp, Operation &rOp) {
       // Check for op equality (recursively).
-      if (!OperationEquivalence::isEquivalentTo(&lOp, &rOp, mapOperands,
-                                                mapResults, flags))
+      if (!OperationEquivalence::isEquivalentTo(&lOp, &rOp, checkEquivalent,
+                                                markEquivalent, flags))
         return false;
       // Check successor mapping.
       for (auto successorsPair :
@@ -702,12 +703,12 @@ isRegionEquivalentTo(Region *lhs, Region *rhs,
 
 bool OperationEquivalence::isEquivalentTo(
     Operation *lhs, Operation *rhs,
-    function_ref<LogicalResult(Value, Value)> mapOperands,
-    function_ref<LogicalResult(Value, Value)> mapResults, Flags flags) {
+    function_ref<LogicalResult(Value, Value)> checkEquivalent,
+    function_ref<void(Value, Value)> markEquivalent, Flags flags) {
   if (lhs == rhs)
     return true;
 
-  // Compare the operation properties.
+  // 1. Compare the operation properties.
   if (lhs->getName() != rhs->getName() ||
       lhs->getAttrDictionary() != rhs->getAttrDictionary() ||
       lhs->getNumRegions() != rhs->getNumRegions() ||
@@ -718,6 +719,7 @@ bool OperationEquivalence::isEquivalentTo(
   if (!(flags & IgnoreLocations) && lhs->getLoc() != rhs->getLoc())
     return false;
 
+  // 2. Compare operands.
   ValueRange lhsOperands = lhs->getOperands(), rhsOperands = rhs->getOperands();
   SmallVector<Value> lhsOperandStorage, rhsOperandStorage;
   if (lhs->hasTrait<mlir::OpTrait::IsCommutative>()) {
@@ -751,30 +753,56 @@ bool OperationEquivalence::isEquivalentTo(
     rhsOperandStorage = sortValues(rhsOperands);
     rhsOperands = rhsOperandStorage;
   }
-  auto checkValueRangeMapping =
-      [](ValueRange lhs, ValueRange rhs,
-         function_ref<LogicalResult(Value, Value)> mapValues) {
-        for (auto operandPair : llvm::zip(lhs, rhs)) {
-          Value curArg = std::get<0>(operandPair);
-          Value otherArg = std::get<1>(operandPair);
-          if (curArg.getType() != otherArg.getType())
-            return false;
-          if (failed(mapValues(curArg, otherArg)))
-            return false;
-        }
-        return true;
-      };
-  // Check mapping of operands and results.
-  if (!checkValueRangeMapping(lhsOperands, rhsOperands, mapOperands))
-    return false;
-  if (!checkValueRangeMapping(lhs->getResults(), rhs->getResults(), mapResults))
-    return false;
+
+  for (auto operandPair : llvm::zip(lhsOperands, rhsOperands)) {
+    Value curArg = std::get<0>(operandPair);
+    Value otherArg = std::get<1>(operandPair);
+    if (curArg == otherArg)
+      continue;
+    if (curArg.getType() != otherArg.getType())
+      return false;
+    if (failed(checkEquivalent(curArg, otherArg)))
+      return false;
+  }
+
+  // 3. Compare result types and mark results as equivalent.
+  for (auto resultPair : llvm::zip(lhs->getResults(), rhs->getResults())) {
+    Value curArg = std::get<0>(resultPair);
+    Value otherArg = std::get<1>(resultPair);
+    if (curArg.getType() != otherArg.getType())
+      return false;
+    if (markEquivalent)
+      markEquivalent(curArg, otherArg);
+  }
+
+  // 4. Compare regions.
   for (auto regionPair : llvm::zip(lhs->getRegions(), rhs->getRegions()))
     if (!isRegionEquivalentTo(&std::get<0>(regionPair),
-                              &std::get<1>(regionPair), mapOperands, mapResults,
-                              flags))
+                              &std::get<1>(regionPair), checkEquivalent,
+                              markEquivalent, flags))
       return false;
+
   return true;
+}
+
+bool OperationEquivalence::isEquivalentTo(Operation *lhs, Operation *rhs,
+                                          Flags flags) {
+  // Equivalent values in lhs and rhs.
+  DenseMap<Value, Value> equivalentValues;
+  auto checkEquivalent = [&](Value lhsValue, Value rhsValue) -> LogicalResult {
+    return success(lhsValue == rhsValue ||
+                   equivalentValues.lookup(lhsValue) == rhsValue);
+  };
+  auto markEquivalent = [&](Value lhsResult, Value rhsResult) {
+    auto insertion = equivalentValues.insert({lhsResult, rhsResult});
+    // Make sure that the value was not already marked equivalent to some other
+    // value.
+    (void)insertion;
+    assert(insertion.first->second == rhsResult &&
+           "inconsistent OperationEquivalence state");
+  };
+  return OperationEquivalence::isEquivalentTo(lhs, rhs, checkEquivalent,
+                                              markEquivalent, flags);
 }
 
 //===----------------------------------------------------------------------===//

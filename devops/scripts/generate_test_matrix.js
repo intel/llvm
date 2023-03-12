@@ -17,6 +17,8 @@ module.exports = ({core, process}) => {
               driverOld["linux"]["igc"]["version"] ||
           driverNew["linux"]["cm"]["version"] !==
               driverOld["linux"]["cm"]["version"] ||
+          driverNew["linux"]["level_zero"]["version"] !==
+              driverOld["linux"]["level_zero"]["version"] ||
           driverNew["linux"]["tbb"]["version"] !==
               driverOld["linux"]["tbb"]["version"] ||
           driverNew["linux"]["oclcpu"]["version"] !==
@@ -37,6 +39,7 @@ module.exports = ({core, process}) => {
                   driverNew["linux"]["compute_runtime"]["github_tag"],
               "igc_tag" : driverNew["linux"]["igc"]["github_tag"],
               "cm_tag" : driverNew["linux"]["cm"]["github_tag"],
+              "level_zero_tag" : driverNew["linux"]["level_zero"]["github_tag"],
               "tbb_tag" : driverNew["linux"]["tbb"]["github_tag"],
               "cpu_tag" : driverNew["linux"]["oclcpu"]["github_tag"],
               "fpgaemu_tag" : driverNew["linux"]["fpgaemu"]["github_tag"],
@@ -82,6 +85,7 @@ module.exports = ({core, process}) => {
                   driverNew["linux"]["compute_runtime"]["github_tag"],
               "igc_tag" : driverNew["linux"]["igc"]["github_tag"],
               "cm_tag" : driverNew["linux"]["cm"]["github_tag"],
+              "level_zero_tag" : driverNew["linux"]["level_zero"]["github_tag"],
               "tbb_tag" : driverNew["linux"]["tbb"]["github_tag"],
               "cpu_tag" : driverNew["linux"]["oclcpu"]["github_tag"],
               "fpgaemu_tag" : driverNew["linux"]["fpgaemu"]["github_tag"],

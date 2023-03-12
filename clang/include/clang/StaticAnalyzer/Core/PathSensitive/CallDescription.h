@@ -17,8 +17,8 @@
 
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/Compiler.h"
+#include <optional>
 #include <vector>
 
 namespace clang {
@@ -42,9 +42,9 @@ enum CallDescriptionFlags : unsigned {
 /// arguments and the name of the function.
 class CallDescription {
   friend class CallEvent;
-  using MaybeCount = Optional<unsigned>;
+  using MaybeCount = std::optional<unsigned>;
 
-  mutable Optional<const IdentifierInfo *> II;
+  mutable std::optional<const IdentifierInfo *> II;
   // The list of the qualified names used to identify the specified CallEvent,
   // e.g. "{a, b}" represent the qualified names, like "a::b".
   std::vector<std::string> QualifiedName;
@@ -63,15 +63,14 @@ public:
   /// @param RequiredArgs The number of arguments that is expected to match a
   /// call. Omit this parameter to match every occurrence of call with a given
   /// name regardless the number of arguments.
-  CallDescription(CallDescriptionFlags Flags,
-                  ArrayRef<const char *> QualifiedName,
-                  MaybeCount RequiredArgs = None,
-                  MaybeCount RequiredParams = None);
+  CallDescription(CallDescriptionFlags Flags, ArrayRef<StringRef> QualifiedName,
+                  MaybeCount RequiredArgs = std::nullopt,
+                  MaybeCount RequiredParams = std::nullopt);
 
   /// Construct a CallDescription with default flags.
-  CallDescription(ArrayRef<const char *> QualifiedName,
-                  MaybeCount RequiredArgs = None,
-                  MaybeCount RequiredParams = None);
+  CallDescription(ArrayRef<StringRef> QualifiedName,
+                  MaybeCount RequiredArgs = std::nullopt,
+                  MaybeCount RequiredParams = std::nullopt);
 
   CallDescription(std::nullptr_t) = delete;
 

@@ -26,13 +26,9 @@
 using namespace llvm;
 using namespace bolt;
 
-namespace {
-
-const char *dynoStatsOptName(const bolt::DynoStats::Category C) {
-  if (C == bolt::DynoStats::FIRST_DYNO_STAT)
-    return "none";
-  else if (C == bolt::DynoStats::LAST_DYNO_STAT)
-    return "all";
+static const char *dynoStatsOptName(const bolt::DynoStats::Category C) {
+  assert(C > bolt::DynoStats::FIRST_DYNO_STAT &&
+         C < DynoStats::LAST_DYNO_STAT && "Unexpected dyno stat category.");
 
   static std::string OptNames[bolt::DynoStats::LAST_DYNO_STAT + 1];
 
@@ -41,17 +37,6 @@ const char *dynoStatsOptName(const bolt::DynoStats::Category C) {
   std::replace(OptNames[C].begin(), OptNames[C].end(), ' ', '-');
 
   return OptNames[C].c_str();
-}
-
-const char *dynoStatsOptDesc(const bolt::DynoStats::Category C) {
-  if (C == bolt::DynoStats::FIRST_DYNO_STAT)
-    return "unsorted";
-  else if (C == bolt::DynoStats::LAST_DYNO_STAT)
-    return "sorted by all stats";
-
-  return bolt::DynoStats::Description(C);
-}
-
 }
 
 namespace opts {
@@ -123,21 +108,18 @@ static cl::opt<unsigned>
                   cl::init(0), cl::cat(BoltOptCategory));
 
 static cl::list<bolt::DynoStats::Category>
-PrintSortedBy("print-sorted-by",
-  cl::CommaSeparated,
-  cl::desc("print functions sorted by order of dyno stats"),
-  cl::value_desc("key1,key2,key3,..."),
-  cl::values(
-#define D(name, ...)                                        \
-    clEnumValN(bolt::DynoStats::name,                     \
-               dynoStatsOptName(bolt::DynoStats::name),   \
-               dynoStatsOptDesc(bolt::DynoStats::name)),
-    DYNO_STATS
+    PrintSortedBy("print-sorted-by", cl::CommaSeparated,
+                  cl::desc("print functions sorted by order of dyno stats"),
+                  cl::value_desc("key1,key2,key3,..."),
+                  cl::values(
+#define D(name, description, ...)                                              \
+  clEnumValN(bolt::DynoStats::name, dynoStatsOptName(bolt::DynoStats::name),   \
+             description),
+                      REAL_DYNO_STATS
 #undef D
-    clEnumValN(0xffff, ".", ".")
-    ),
-  cl::ZeroOrMore,
-  cl::cat(BoltOptCategory));
+                          clEnumValN(bolt::DynoStats::LAST_DYNO_STAT, "all",
+                                     "sorted by all names")),
+                  cl::ZeroOrMore, cl::cat(BoltOptCategory));
 
 static cl::opt<bool>
     PrintUnknown("print-unknown",
@@ -644,8 +626,6 @@ void LowerAnnotations::runOnFunctions(BinaryContext &BC) {
     BC.MIB->setOffset(*Item.first, Item.second);
 }
 
-namespace {
-
 // This peephole fixes jump instructions that jump to another basic
 // block with a single jump instruction, e.g.
 //
@@ -659,7 +639,7 @@ namespace {
 // B0: ...
 //     jmp  B2   (or jcc B2)
 //
-uint64_t fixDoubleJumps(BinaryFunction &Function, bool MarkInvalid) {
+static uint64_t fixDoubleJumps(BinaryFunction &Function, bool MarkInvalid) {
   uint64_t NumDoubleJumps = 0;
 
   MCContext *Ctx = Function.getBinaryContext().Ctx.get();
@@ -757,7 +737,6 @@ uint64_t fixDoubleJumps(BinaryFunction &Function, bool MarkInvalid) {
 
   return NumDoubleJumps;
 }
-} // namespace
 
 bool SimplifyConditionalTailCalls::shouldRewriteBranch(
     const BinaryBasicBlock *PredBB, const MCInst &CondBranch,
@@ -1167,7 +1146,7 @@ bool SimplifyRODataLoads::simplifyRODataLoads(BinaryFunction &BF) {
       // memory operand. We are only interested in read-only sections.
       ErrorOr<BinarySection &> DataSection =
           BC.getSectionForAddress(TargetAddress);
-      if (!DataSection || !DataSection->isReadOnly())
+      if (!DataSection || DataSection->isWritable())
         continue;
 
       if (BC.getRelocationAt(TargetAddress) ||
@@ -1451,9 +1430,7 @@ void PrintProgramStats::runOnFunctions(BinaryContext &BC) {
     }
   }
 
-  if (!opts::PrintSortedBy.empty() &&
-      !llvm::is_contained(opts::PrintSortedBy, DynoStats::FIRST_DYNO_STAT)) {
-
+  if (!opts::PrintSortedBy.empty()) {
     std::vector<BinaryFunction *> Functions;
     std::map<const BinaryFunction *, DynoStats> Stats;
 

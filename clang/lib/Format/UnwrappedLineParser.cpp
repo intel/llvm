@@ -14,6 +14,7 @@
 
 #include "UnwrappedLineParser.h"
 #include "FormatToken.h"
+#include "FormatTokenSource.h"
 #include "TokenAnnotator.h"
 #include "clang/Basic/TokenKinds.h"
 #include "llvm/ADT/STLExtras.h"
@@ -27,34 +28,6 @@
 
 namespace clang {
 namespace format {
-
-class FormatTokenSource {
-public:
-  virtual ~FormatTokenSource() {}
-
-  // Returns the next token in the token stream.
-  virtual FormatToken *getNextToken() = 0;
-
-  // Returns the token preceding the token returned by the last call to
-  // getNextToken() in the token stream, or nullptr if no such token exists.
-  virtual FormatToken *getPreviousToken() = 0;
-
-  // Returns the token that would be returned by the next call to
-  // getNextToken().
-  virtual FormatToken *peekNextToken() = 0;
-
-  // Returns whether we are at the end of the file.
-  // This can be different from whether getNextToken() returned an eof token
-  // when the FormatTokenSource is a view on a part of the token stream.
-  virtual bool isEOF() = 0;
-
-  // Gets the current position in the token stream, to be used by setPosition().
-  virtual unsigned getPosition() = 0;
-
-  // Resets the token stream to the state it was in when getPosition() returned
-  // Position, and return the token at that position in the stream.
-  virtual FormatToken *setPosition(unsigned Position) = 0;
-};
 
 namespace {
 
@@ -110,97 +83,6 @@ public:
 private:
   UnwrappedLine &Line;
   llvm::BitVector &Stack;
-};
-
-static bool isLineComment(const FormatToken &FormatTok) {
-  return FormatTok.is(tok::comment) && !FormatTok.TokenText.startswith("/*");
-}
-
-// Checks if \p FormatTok is a line comment that continues the line comment
-// \p Previous. The original column of \p MinColumnToken is used to determine
-// whether \p FormatTok is indented enough to the right to continue \p Previous.
-static bool continuesLineComment(const FormatToken &FormatTok,
-                                 const FormatToken *Previous,
-                                 const FormatToken *MinColumnToken) {
-  if (!Previous || !MinColumnToken)
-    return false;
-  unsigned MinContinueColumn =
-      MinColumnToken->OriginalColumn + (isLineComment(*MinColumnToken) ? 0 : 1);
-  return isLineComment(FormatTok) && FormatTok.NewlinesBefore == 1 &&
-         isLineComment(*Previous) &&
-         FormatTok.OriginalColumn >= MinContinueColumn;
-}
-
-class ScopedMacroState : public FormatTokenSource {
-public:
-  ScopedMacroState(UnwrappedLine &Line, FormatTokenSource *&TokenSource,
-                   FormatToken *&ResetToken)
-      : Line(Line), TokenSource(TokenSource), ResetToken(ResetToken),
-        PreviousLineLevel(Line.Level), PreviousTokenSource(TokenSource),
-        Token(nullptr), PreviousToken(nullptr) {
-    FakeEOF.Tok.startToken();
-    FakeEOF.Tok.setKind(tok::eof);
-    TokenSource = this;
-    Line.Level = 0;
-    Line.InPPDirective = true;
-    // InMacroBody gets set after the `#define x` part.
-  }
-
-  ~ScopedMacroState() override {
-    TokenSource = PreviousTokenSource;
-    ResetToken = Token;
-    Line.InPPDirective = false;
-    Line.InMacroBody = false;
-    Line.Level = PreviousLineLevel;
-  }
-
-  FormatToken *getNextToken() override {
-    // The \c UnwrappedLineParser guards against this by never calling
-    // \c getNextToken() after it has encountered the first eof token.
-    assert(!eof());
-    PreviousToken = Token;
-    Token = PreviousTokenSource->getNextToken();
-    if (eof())
-      return &FakeEOF;
-    return Token;
-  }
-
-  FormatToken *getPreviousToken() override {
-    return PreviousTokenSource->getPreviousToken();
-  }
-
-  FormatToken *peekNextToken() override {
-    if (eof())
-      return &FakeEOF;
-    return PreviousTokenSource->peekNextToken();
-  }
-
-  bool isEOF() override { return PreviousTokenSource->isEOF(); }
-
-  unsigned getPosition() override { return PreviousTokenSource->getPosition(); }
-
-  FormatToken *setPosition(unsigned Position) override {
-    PreviousToken = nullptr;
-    Token = PreviousTokenSource->setPosition(Position);
-    return Token;
-  }
-
-private:
-  bool eof() {
-    return Token && Token->HasUnescapedNewline &&
-           !continuesLineComment(*Token, PreviousToken,
-                                 /*MinColumnToken=*/PreviousToken);
-  }
-
-  FormatToken FakeEOF;
-  UnwrappedLine &Line;
-  FormatTokenSource *&TokenSource;
-  FormatToken *&ResetToken;
-  unsigned PreviousLineLevel;
-  FormatTokenSource *PreviousTokenSource;
-
-  FormatToken *Token;
-  FormatToken *PreviousToken;
 };
 
 } // end anonymous namespace
@@ -260,72 +142,6 @@ private:
   unsigned &LineLevel;
   unsigned OldLineLevel;
 };
-
-namespace {
-
-class IndexedTokenSource : public FormatTokenSource {
-public:
-  IndexedTokenSource(ArrayRef<FormatToken *> Tokens)
-      : Tokens(Tokens), Position(-1) {}
-
-  FormatToken *getNextToken() override {
-    if (Position >= 0 && isEOF()) {
-      LLVM_DEBUG({
-        llvm::dbgs() << "Next ";
-        dbgToken(Position);
-      });
-      return Tokens[Position];
-    }
-    ++Position;
-    LLVM_DEBUG({
-      llvm::dbgs() << "Next ";
-      dbgToken(Position);
-    });
-    return Tokens[Position];
-  }
-
-  FormatToken *getPreviousToken() override {
-    return Position > 0 ? Tokens[Position - 1] : nullptr;
-  }
-
-  FormatToken *peekNextToken() override {
-    int Next = Position + 1;
-    LLVM_DEBUG({
-      llvm::dbgs() << "Peeking ";
-      dbgToken(Next);
-    });
-    return Tokens[Next];
-  }
-
-  bool isEOF() override { return Tokens[Position]->is(tok::eof); }
-
-  unsigned getPosition() override {
-    LLVM_DEBUG(llvm::dbgs() << "Getting Position: " << Position << "\n");
-    assert(Position >= 0);
-    return Position;
-  }
-
-  FormatToken *setPosition(unsigned P) override {
-    LLVM_DEBUG(llvm::dbgs() << "Setting Position: " << P << "\n");
-    Position = P;
-    return Tokens[Position];
-  }
-
-  void reset() { Position = -1; }
-
-private:
-  void dbgToken(int Position, llvm::StringRef Indent = "") {
-    FormatToken *Tok = Tokens[Position];
-    llvm::dbgs() << Indent << "[" << Position
-                 << "] Token: " << Tok->Tok.getName() << " / " << Tok->TokenText
-                 << ", Macro: " << !!Tok->MacroCtx << "\n";
-  }
-
-  ArrayRef<FormatToken *> Tokens;
-  int Position;
-};
-
-} // end anonymous namespace
 
 UnwrappedLineParser::UnwrappedLineParser(const FormatStyle &Style,
                                          const AdditionalKeywords &Keywords,
@@ -590,8 +406,9 @@ bool UnwrappedLineParser::parseLevel(const FormatToken *OpeningBrace,
       [[fallthrough]];
     }
     case tok::kw_case:
-      if (Style.isVerilog() ||
+      if (Style.isProto() || Style.isVerilog() ||
           (Style.isJavaScript() && Line->MustBeDeclaration)) {
+        // Proto: there are no switch/case statements
         // Verilog: Case labels don't have this word. We handle case
         // labels including default in TokenAnnotator.
         // JavaScript: A 'case: string' style field declaration.
@@ -834,6 +651,11 @@ bool UnwrappedLineParser::mightFitOnOneLine(
       Length -= ColumnLimit;
     }
     Length -= OpeningBrace->TokenText.size() + 1;
+  }
+
+  if (const auto *FirstToken = Line.First; FirstToken->is(tok::r_brace)) {
+    assert(!OpeningBrace || OpeningBrace->is(TT_ControlStatementLBrace));
+    Length -= FirstToken->TokenText.size() + 1;
   }
 
   Index = 0;
@@ -1429,7 +1251,15 @@ static bool isC78ParameterDecl(const FormatToken *Tok, const FormatToken *Next,
   return Tok->Previous && Tok->Previous->isOneOf(tok::l_paren, tok::comma);
 }
 
-void UnwrappedLineParser::parseModuleImport() {
+bool UnwrappedLineParser::parseModuleImport() {
+  assert(FormatTok->is(Keywords.kw_import) && "'import' expected");
+
+  if (auto Token = Tokens->peekNextToken(/*SkipComment=*/true);
+      !Token->Tok.getIdentifierInfo() &&
+      !Token->isOneOf(tok::colon, tok::less, tok::string_literal)) {
+    return false;
+  }
+
   nextToken();
   while (!eof()) {
     if (FormatTok->is(tok::colon)) {
@@ -1456,6 +1286,7 @@ void UnwrappedLineParser::parseModuleImport() {
   }
 
   addUnwrappedLine();
+  return true;
 }
 
 // readTokenWithJavaScriptASI reads the next token and terminates the current
@@ -1615,7 +1446,11 @@ void UnwrappedLineParser::parseStructuralElement(
     // e.g. "default void f() {}" in a Java interface.
     break;
   case tok::kw_case:
-    // In Verilog switch is called case.
+    // Proto: there are no switch/case statements.
+    if (Style.isProto()) {
+      nextToken();
+      return;
+    }
     if (Style.isVerilog()) {
       parseBlock();
       addUnwrappedLine();
@@ -1672,14 +1507,12 @@ void UnwrappedLineParser::parseStructuralElement(
     }
     if (Style.isCpp()) {
       nextToken();
-      if (FormatTok->is(Keywords.kw_import)) {
-        parseModuleImport();
-        return;
-      }
       if (FormatTok->is(tok::kw_namespace)) {
         parseNamespace();
         return;
       }
+      if (FormatTok->is(Keywords.kw_import) && parseModuleImport())
+        return;
     }
     break;
   case tok::kw_inline:
@@ -1716,10 +1549,8 @@ void UnwrappedLineParser::parseStructuralElement(
         addUnwrappedLine();
         return;
       }
-      if (Style.isCpp()) {
-        parseModuleImport();
+      if (Style.isCpp() && parseModuleImport())
         return;
-      }
     }
     if (Style.isCpp() &&
         FormatTok->isOneOf(Keywords.kw_signals, Keywords.kw_qsignals,
@@ -1813,9 +1644,6 @@ void UnwrappedLineParser::parseStructuralElement(
         break;
       }
       break;
-    case tok::kw_concept:
-      parseConcept();
-      return;
     case tok::kw_requires: {
       if (Style.isCpp()) {
         bool ParsedClause = parseRequires();
@@ -1891,7 +1719,9 @@ void UnwrappedLineParser::parseStructuralElement(
       // declaration.
       if (!IsTopLevel || !Style.isCpp() || !Previous || eof())
         break;
-      if (isC78ParameterDecl(FormatTok, Tokens->peekNextToken(), Previous)) {
+      if (isC78ParameterDecl(FormatTok,
+                             Tokens->peekNextToken(/*SkipComment=*/true),
+                             Previous)) {
         addUnwrappedLine();
         return;
       }
@@ -2098,6 +1928,11 @@ void UnwrappedLineParser::parseStructuralElement(
       parseNew();
       break;
     case tok::kw_case:
+      // Proto: there are no switch/case statements.
+      if (Style.isProto()) {
+        nextToken();
+        return;
+      }
       // In Verilog switch is called case.
       if (Style.isVerilog()) {
         parseBlock();
@@ -2356,7 +2191,7 @@ bool UnwrappedLineParser::tryToParseLambdaIntroducer() {
   if (FormatTok->is(tok::l_square))
     return false;
   if (FormatTok->is(tok::r_square)) {
-    const FormatToken *Next = Tokens->peekNextToken();
+    const FormatToken *Next = Tokens->peekNextToken(/*SkipComment=*/true);
     if (Next->is(tok::greater))
       return false;
   }
@@ -2729,6 +2564,14 @@ bool UnwrappedLineParser::handleCppAttributes() {
   return false;
 }
 
+/// Returns whether \c Tok begins a block.
+bool UnwrappedLineParser::isBlockBegin(const FormatToken &Tok) const {
+  // FIXME: rename the function or make
+  // Tok.isOneOf(tok::l_brace, TT_MacroBlockBegin) work.
+  return Style.isVerilog() ? Keywords.isVerilogBegin(Tok)
+                           : Tok.is(tok::l_brace);
+}
+
 FormatToken *UnwrappedLineParser::parseIfThenElse(IfStmtKind *IfKind,
                                                   bool KeepBraces) {
   assert(FormatTok->is(tok::kw_if) && "'if' expected");
@@ -2754,7 +2597,7 @@ FormatToken *UnwrappedLineParser::parseIfThenElse(IfStmtKind *IfKind,
   FormatToken *IfLeftBrace = nullptr;
   IfStmtKind IfBlockKind = IfStmtKind::NotIf;
 
-  if (Keywords.isBlockBegin(*FormatTok, Style)) {
+  if (isBlockBegin(*FormatTok)) {
     FormatTok->setFinalizedType(TT_ControlStatementLBrace);
     IfLeftBrace = FormatTok;
     CompoundStatementIndenter Indenter(this, Style, Line->Level);
@@ -2787,7 +2630,7 @@ FormatToken *UnwrappedLineParser::parseIfThenElse(IfStmtKind *IfKind,
     }
     nextToken();
     handleAttributes();
-    if (Keywords.isBlockBegin(*FormatTok, Style)) {
+    if (isBlockBegin(*FormatTok)) {
       const bool FollowedByIf = Tokens->peekNextToken()->is(tok::kw_if);
       FormatTok->setFinalizedType(TT_ElseLBrace);
       ElseLeftBrace = FormatTok;
@@ -3059,7 +2902,7 @@ void UnwrappedLineParser::parseNew() {
 void UnwrappedLineParser::parseLoopBody(bool KeepBraces, bool WrapRightBrace) {
   keepAncestorBraces();
 
-  if (Keywords.isBlockBegin(*FormatTok, Style)) {
+  if (isBlockBegin(*FormatTok)) {
     if (!KeepBraces)
       FormatTok->setFinalizedType(TT_ControlStatementLBrace);
     FormatToken *LeftBrace = FormatTok;
@@ -3264,26 +3107,6 @@ void UnwrappedLineParser::parseAccessSpecifier() {
   }
 }
 
-/// \brief Parses a concept definition.
-/// \pre The current token has to be the concept keyword.
-///
-/// Returns if either the concept has been completely parsed, or if it detects
-/// that the concept definition is incorrect.
-void UnwrappedLineParser::parseConcept() {
-  assert(FormatTok->is(tok::kw_concept) && "'concept' expected");
-  nextToken();
-  if (!FormatTok->is(tok::identifier))
-    return;
-  nextToken();
-  if (!FormatTok->is(tok::equal))
-    return;
-  nextToken();
-  parseConstraintExpression();
-  if (FormatTok->is(tok::semi))
-    nextToken();
-  addUnwrappedLine();
-}
-
 /// \brief Parses a requires, decides if it is a clause or an expression.
 /// \pre The current token has to be the requires keyword.
 /// \returns true if it parsed a clause.
@@ -3450,6 +3273,8 @@ void UnwrappedLineParser::parseRequiresClause(FormatToken *RequiresToken) {
                                       ? TT_RequiresClauseInARequiresExpression
                                       : TT_RequiresClause);
 
+  // NOTE: parseConstraintExpression is only ever called from this function.
+  // It could be inlined into here.
   parseConstraintExpression();
 
   if (!InRequiresExpression)
@@ -3483,9 +3308,8 @@ void UnwrappedLineParser::parseRequiresExpression(FormatToken *RequiresToken) {
 
 /// \brief Parses a constraint expression.
 ///
-/// This is either the definition of a concept, or the body of a requires
-/// clause. It returns, when the parsing is complete, or the expression is
-/// incorrect.
+/// This is the body of a requires clause. It returns, when the parsing is
+/// complete, or the expression is incorrect.
 void UnwrappedLineParser::parseConstraintExpression() {
   // The special handling for lambdas is needed since tryToParseLambda() eats a
   // token and if a requires expression is the last part of a requires clause
@@ -3552,7 +3376,6 @@ void UnwrappedLineParser::parseConstraintExpression() {
     case tok::minus:
     case tok::star:
     case tok::slash:
-    case tok::kw_decltype:
       LambdaNextTimeAllowed = true;
       // Just eat them.
       nextToken();

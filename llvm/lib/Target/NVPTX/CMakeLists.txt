@@ -11,6 +11,7 @@ tablegen(LLVM NVPTXGenSubtargetInfo.inc -gen-subtarget)
 add_public_tablegen_target(NVPTXCommonTableGen)
 
 set(NVPTXCodeGen_sources
+  NVPTXAliasAnalysis.cpp
   NVPTXAllocaHoisting.cpp
   NVPTXAtomicLower.cpp
   NVPTXAsmPrinter.cpp
@@ -54,6 +55,7 @@ add_llvm_target(NVPTXCodeGen
   SelectionDAG
   Support
   Target
+  TargetParser
   TransformUtils
   Vectorize
   Passes

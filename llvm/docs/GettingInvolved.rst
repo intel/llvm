@@ -292,7 +292,7 @@ don't find anyone present, chances are they happen to be off that day.
     - English, German, Spanish, French
   * - Anastasia Stulova
     - Clang internals for C/C++ language extensions and dialects, OpenCL, GPU, SPIR-V, how to contribute, women in compilers. 
-    - Monthly, 2nd Thursday of the month at 17:00 BST - London time (9:00am PT except for 2 weeks in spring), 1 hour slot.
+    - Monthly, 1st Tuesday of the month at 17:00 BST - London time (9:00am PT except for 2 weeks in spring), 30 mins slot.
     - `GoogleMeet <https://meet.google.com/kdy-fdbv-nuk>`__
     - English, Russian, German (not fluently)
   * - Alexey Bader
@@ -323,6 +323,11 @@ don't find anyone present, chances are they happen to be off that day.
     - Monthly, 1st Monday of the month at 11:00am Europe/Berlin, for 30 minutes.
     - `Igalia Jitsi <https://meetings.igalia.com/PauloMatosLLVMOfficeHour>`__
     - English, Portuguese, German
+  * - Phoebe Wang (she/her)
+    - X86 backend, General questions to X86, women in compilers.
+    - Monthly, 3rd Wednesday of the month at 8:30am Beijing time, for 30 minutes.
+    - `MS Teams <https://teams.microsoft.com/l/meetup-join/19%3ameeting_NWQ0MjU0NjYtZjUyMi00YTU3LThmM2EtY2Y2YTE4NGM3NmFi%40thread.v2/0?context=%7b%22Tid%22%3a%2246c98d88-e344-4ed4-8496-4ed7712e255d%22%2c%22Oid%22%3a%227b309d9c-a9bb-44c8-a940-ab97eef42d4d%22%7d>`__
+    - English, Chinese
 
 
 Guidance for office hours hosts

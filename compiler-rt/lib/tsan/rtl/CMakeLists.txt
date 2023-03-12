@@ -211,6 +211,10 @@ else()
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../go
 	COMMENT "Checking TSan Go runtime..."
 	VERBATIM)
+    elseif(arch MATCHES "loongarch64")
+      add_asm_sources(TSAN_ASM_SOURCES
+        tsan_rtl_loongarch64.S
+        )
     elseif(arch MATCHES "mips64|mips64le")
       add_asm_sources(TSAN_ASM_SOURCES
         tsan_rtl_mips64.S
@@ -267,6 +271,7 @@ else()
               $<TARGET_OBJECTS:RTUbsan.${arch}>
       ADDITIONAL_HEADERS ${TSAN_HEADERS}
       CFLAGS ${TSAN_RTL_DYNAMIC_CFLAGS}
+      DEFS SANITIZER_SHARED
       LINK_LIBS ${TSAN_DYNAMIC_LINK_LIBS}
       LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS}
       PARENT_TARGET tsan)

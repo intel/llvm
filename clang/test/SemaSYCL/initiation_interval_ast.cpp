@@ -7,7 +7,7 @@ sycl::queue deviceQueue;
 
 // CHECK: FunctionDecl {{.*}} func1 'void ()'
 // CHECK-NEXT: CompoundStmt
-// CHECK-NEXT: SYCLIntelFPGAInitiationIntervalAttr {{.*}} initiation_interval
+// CHECK-NEXT: SYCLIntelInitiationIntervalAttr {{.*}} initiation_interval
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 4
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 4
@@ -17,12 +17,12 @@ sycl::queue deviceQueue;
 // CHECK: FunctionTemplateDecl {{.*}} func2
 // CHECK: FunctionDecl {{.*}} func2 'void ()'
 // CHECK-NEXT: CompoundStmt
-// CHECK-NEXT: SYCLIntelFPGAInitiationIntervalAttr {{.*}} initiation_interval
+// CHECK-NEXT: SYCLIntelInitiationIntervalAttr {{.*}} initiation_interval
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func2 'void ()'
 // CHECK-NEXT: TemplateArgument integral 6
 // CHECK-NEXT: CompoundStmt
-// CHECK-NEXT: SYCLIntelFPGAInitiationIntervalAttr {{.*}} initiation_interval
+// CHECK-NEXT: SYCLIntelInitiationIntervalAttr {{.*}} initiation_interval
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 6
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr
@@ -33,7 +33,7 @@ template <int N>
 
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
 // CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
-// CHECK: SYCLIntelFPGAInitiationIntervalAttr {{.*}} initiation_interval
+// CHECK: SYCLIntelInitiationIntervalAttr {{.*}} initiation_interval
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
 // CHECK-NEXT: value: Int 10
 // CHECK-NEXT: IntegerLiteral{{.*}}10{{$}}
@@ -58,12 +58,12 @@ public:
 int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     // CHECK-LABEL: FunctionDecl {{.*}}kernel_name_1
-    // CHECK-NOT: SYCLIntelFPGAInitiationIntervalAttr
+    // CHECK-NOT: SYCLIntelInitiationIntervalAttr
     KernelFunctor f1;
     h.single_task<class kernel_name_1>(f1);
 
     // CHECK-LABEL: FunctionDecl {{.*}}kernel_name_2
-    // CHECK: SYCLIntelFPGAInitiationIntervalAttr {{.*}} initiation_interval
+    // CHECK: SYCLIntelInitiationIntervalAttr {{.*}} initiation_interval
     // CHECK-NEXT: ConstantExpr{{.*}}'int'
     // CHECK-NEXT: value: Int 3
     // CHECK-NEXT: SubstNonTypeTemplateParmExpr
@@ -73,7 +73,7 @@ int main() {
     h.single_task<class kernel_name_2>(f2);
     
     // CHECK-LABEL: FunctionDecl {{.*}}kernel_name_3
-    // CHECK: SYCLIntelFPGAInitiationIntervalAttr {{.*}} initiation_interval
+    // CHECK: SYCLIntelInitiationIntervalAttr {{.*}} initiation_interval
     // CHECK-NEXT: ConstantExpr{{.*}}'int'
     // CHECK-NEXT: value: Int 4
     // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 4
@@ -83,7 +83,7 @@ int main() {
     // Ignore duplicate attribute.
     h.single_task<class kernel_name_4>(
     // CHECK-LABEL: FunctionDecl {{.*}}kernel_name_4
-    // CHECK: SYCLIntelFPGAInitiationIntervalAttr {{.*}} initiation_interval
+    // CHECK: SYCLIntelInitiationIntervalAttr {{.*}} initiation_interval
     // CHECK-NEXT: ConstantExpr {{.*}} 'int'
     // CHECK-NEXT: value: Int 6
     // CHECK-NEXT: IntegerLiteral{{.*}}6{{$}}

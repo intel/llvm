@@ -22,6 +22,7 @@
 #include "llvm/ADT/ScopedHashTable.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::pdll;
@@ -282,7 +283,8 @@ void CodeGen::genImpl(const ast::PatternDecl *decl) {
   // here.
   pdl::PatternOp pattern = builder.create<pdl::PatternOp>(
       genLoc(decl->getLoc()), decl->getBenefit(),
-      name ? Optional<StringRef>(name->getName()) : Optional<StringRef>());
+      name ? std::optional<StringRef>(name->getName())
+           : std::optional<StringRef>());
 
   OpBuilder::InsertionGuard savedInsertPoint(builder);
   builder.setInsertionPointToStart(pattern.getBody());
@@ -346,8 +348,8 @@ Value CodeGen::genNonInitializerVar(const ast::VariableDecl *varDecl,
     Value results = builder.create<pdl::TypesOp>(
         loc, pdl::RangeType::get(builder.getType<pdl::TypeType>()),
         /*types=*/ArrayAttr());
-    return builder.create<pdl::OperationOp>(loc, opType.getName(), operands,
-                                            llvm::None, ValueRange(), results);
+    return builder.create<pdl::OperationOp>(
+        loc, opType.getName(), operands, std::nullopt, ValueRange(), results);
   }
 
   if (ast::RangeType rangeTy = type.dyn_cast<ast::RangeType>()) {
@@ -495,7 +497,7 @@ Value CodeGen::genExprImpl(const ast::MemberAccessExpr *expr) {
 
 Value CodeGen::genExprImpl(const ast::OperationExpr *expr) {
   Location loc = genLoc(expr->getLoc());
-  Optional<StringRef> opName = expr->getName();
+  std::optional<StringRef> opName = expr->getName();
 
   // Operands.
   SmallVector<Value> operands;

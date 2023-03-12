@@ -34,12 +34,10 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class platform_impl;
 }
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
@@ -70,7 +68,6 @@ public:
                         "use SYCL 2020 device selectors instead.")
   explicit platform(const device_selector &DeviceSelector);
 
-#if __cplusplus >= 201703L
   /// Constructs a SYCL platform instance using the platform of the device
   /// identified by the device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
@@ -80,7 +77,6 @@ public:
                 detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit platform(const DeviceSelector &deviceSelector)
       : platform(detail::select_device(deviceSelector)) {}
-#endif
 
   platform(const platform &rhs) = default;
 

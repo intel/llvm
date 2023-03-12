@@ -29,7 +29,6 @@
 #include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
 #include "clang/Format/Format.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
@@ -44,6 +43,7 @@
 #include <cstdlib>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -210,7 +210,7 @@ opt<CodeCompleteOptions::CodeCompletionRankingModel> RankingModel{
     cat(Features),
     desc("Model to use to rank code-completion items"),
     values(clEnumValN(CodeCompleteOptions::Heuristics, "heuristics",
-                      "Use hueristics to rank code completion items"),
+                      "Use heuristics to rank code completion items"),
            clEnumValN(CodeCompleteOptions::DecisionForest, "decision_forest",
                       "Use Decision Forest model to rank completion items")),
     init(CodeCompleteOptions().RankingModel),
@@ -262,6 +262,14 @@ opt<CodeCompleteOptions::IncludeInsertion> HeaderInsertion{
         clEnumValN(
             CodeCompleteOptions::NeverInsert, "never",
             "Never insert #include directives as part of code completion")),
+};
+
+opt<bool> ImportInsertions{
+    "import-insertions",
+    cat(Features),
+    desc("If header insertion is enabled, add #import directives when "
+         "accepting code completions or fixing includes in Objective-C code"),
+    init(CodeCompleteOptions().ImportInsertions),
 };
 
 opt<bool> IncludeCleanerStdlib{
@@ -638,9 +646,9 @@ private:
 
 public:
   FlagsConfigProvider() {
-    llvm::Optional<Config::CDBSearchSpec> CDBSearch;
-    llvm::Optional<Config::ExternalIndexSpec> IndexSpec;
-    llvm::Optional<Config::BackgroundPolicy> BGPolicy;
+    std::optional<Config::CDBSearchSpec> CDBSearch;
+    std::optional<Config::ExternalIndexSpec> IndexSpec;
+    std::optional<Config::BackgroundPolicy> BGPolicy;
 
     // If --compile-commands-dir arg was invoked, check value and override
     // default path.
@@ -783,7 +791,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     clang::format::DefaultFallbackStyle = FallbackStyle.c_str();
 
   // Validate command line arguments.
-  llvm::Optional<llvm::raw_fd_ostream> InputMirrorStream;
+  std::optional<llvm::raw_fd_ostream> InputMirrorStream;
   if (!InputMirrorFile.empty()) {
     std::error_code EC;
     InputMirrorStream.emplace(InputMirrorFile, /*ref*/ EC,
@@ -797,10 +805,17 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     }
   }
 
+#if !CLANGD_DECISION_FOREST
+  if (RankingModel == clangd::CodeCompleteOptions::DecisionForest) {
+    llvm::errs() << "Clangd was compiled without decision forest support.\n";
+    return 1;
+  }
+#endif
+
   // Setup tracing facilities if CLANGD_TRACE is set. In practice enabling a
   // trace flag in your editor's config is annoying, launching with
   // `CLANGD_TRACE=trace.json vim` is easier.
-  llvm::Optional<llvm::raw_fd_ostream> TracerStream;
+  std::optional<llvm::raw_fd_ostream> TracerStream;
   std::unique_ptr<trace::EventTracer> Tracer;
   const char *JSONTraceFile = getenv("CLANGD_TRACE");
   const char *MetricsCSVFile = getenv("CLANGD_METRICS");
@@ -820,7 +835,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     }
   }
 
-  llvm::Optional<trace::Session> TracingSession;
+  std::optional<trace::Session> TracingSession;
   if (Tracer)
     TracingSession.emplace(*Tracer);
 
@@ -906,6 +921,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     Opts.CodeComplete.BundleOverloads = CompletionStyle != Detailed;
   Opts.CodeComplete.ShowOrigins = ShowOrigins;
   Opts.CodeComplete.InsertIncludes = HeaderInsertion;
+  Opts.CodeComplete.ImportInsertions = ImportInsertions;
   if (!HeaderInsertionDecorators) {
     Opts.CodeComplete.IncludeIndicator.Insert.clear();
     Opts.CodeComplete.IncludeIndicator.NoInsert.clear();
@@ -953,6 +969,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
   Opts.UseDirtyHeaders = UseDirtyHeaders;
   Opts.PreambleParseForwardingFunctions = PreambleParseForwardingFunctions;
+  Opts.ImportInsertions = ImportInsertions;
   Opts.QueryDriverGlobs = std::move(QueryDriverGlobs);
   Opts.TweakFilter = [&](const Tweak &T) {
     if (T.hidden() && !HiddenFeatures)

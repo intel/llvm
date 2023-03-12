@@ -21,6 +21,7 @@
 #include "clang/Format/Format.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Debug.h"
+#include <optional>
 
 #define DEBUG_TYPE "format-indenter"
 
@@ -146,13 +147,13 @@ static bool opensProtoMessageField(const FormatToken &LessTok,
            (LessTok.Previous && LessTok.Previous->is(tok::equal))));
 }
 
-// Returns the delimiter of a raw string literal, or None if TokenText is not
-// the text of a raw string literal. The delimiter could be the empty string.
-// For example, the delimiter of R"deli(cont)deli" is deli.
-static llvm::Optional<StringRef> getRawStringDelimiter(StringRef TokenText) {
+// Returns the delimiter of a raw string literal, or std::nullopt if TokenText
+// is not the text of a raw string literal. The delimiter could be the empty
+// string.  For example, the delimiter of R"deli(cont)deli" is deli.
+static std::optional<StringRef> getRawStringDelimiter(StringRef TokenText) {
   if (TokenText.size() < 5 // The smallest raw string possible is 'R"()"'.
       || !TokenText.startswith("R\"") || !TokenText.endswith("\"")) {
-    return None;
+    return std::nullopt;
   }
 
   // A raw string starts with 'R"<delimiter>(' and delimiter is ascii and has
@@ -160,15 +161,15 @@ static llvm::Optional<StringRef> getRawStringDelimiter(StringRef TokenText) {
   // 19 bytes.
   size_t LParenPos = TokenText.substr(0, 19).find_first_of('(');
   if (LParenPos == StringRef::npos)
-    return None;
+    return std::nullopt;
   StringRef Delimiter = TokenText.substr(2, LParenPos - 2);
 
   // Check that the string ends in ')Delimiter"'.
   size_t RParenPos = TokenText.size() - Delimiter.size() - 2;
   if (TokenText[RParenPos] != ')')
-    return None;
+    return std::nullopt;
   if (!TokenText.substr(RParenPos + 1).startswith(Delimiter))
-    return None;
+    return std::nullopt;
   return Delimiter;
 }
 
@@ -186,7 +187,7 @@ getCanonicalRawStringDelimiter(const FormatStyle &Style,
 RawStringFormatStyleManager::RawStringFormatStyleManager(
     const FormatStyle &CodeStyle) {
   for (const auto &RawStringFormat : CodeStyle.RawStringFormats) {
-    llvm::Optional<FormatStyle> LanguageStyle =
+    std::optional<FormatStyle> LanguageStyle =
         CodeStyle.GetLanguageStyle(RawStringFormat.Language);
     if (!LanguageStyle) {
       FormatStyle PredefinedStyle;
@@ -205,20 +206,20 @@ RawStringFormatStyleManager::RawStringFormatStyleManager(
   }
 }
 
-llvm::Optional<FormatStyle>
+std::optional<FormatStyle>
 RawStringFormatStyleManager::getDelimiterStyle(StringRef Delimiter) const {
   auto It = DelimiterStyle.find(Delimiter);
   if (It == DelimiterStyle.end())
-    return None;
+    return std::nullopt;
   return It->second;
 }
 
-llvm::Optional<FormatStyle>
+std::optional<FormatStyle>
 RawStringFormatStyleManager::getEnclosingFunctionStyle(
     StringRef EnclosingFunction) const {
   auto It = EnclosingFunctionStyle.find(EnclosingFunction);
   if (It == EnclosingFunctionStyle.end())
-    return None;
+    return std::nullopt;
   return It->second;
 }
 
@@ -565,6 +566,7 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
 
   // If the return type spans multiple lines, wrap before the function name.
   if (((Current.is(TT_FunctionDeclarationName) &&
+        !State.Line->ReturnTypeWrapped &&
         // Don't break before a C# function when no break after return type.
         (!Style.isCSharp() ||
          Style.AlwaysBreakAfterReturnType != FormatStyle::RTBS_None) &&
@@ -720,8 +722,9 @@ void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
        (Previous.is(tok::l_brace) && Previous.isNot(BK_Block) &&
         Style.Cpp11BracedListStyle)) &&
       State.Column > getNewLineColumn(State) &&
-      (!Previous.Previous || !Previous.Previous->isOneOf(
-                                 tok::kw_for, tok::kw_while, tok::kw_switch)) &&
+      (!Previous.Previous ||
+       !Previous.Previous->isOneOf(TT_CastRParen, tok::kw_for, tok::kw_while,
+                                   tok::kw_switch)) &&
       // Don't do this for simple (no expressions) one-argument function calls
       // as that feels like needlessly wasting whitespace, e.g.:
       //
@@ -1050,13 +1053,16 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
     bool PreviousIsBreakingCtorInitializerColon =
         PreviousNonComment && PreviousNonComment->is(TT_CtorInitializerColon) &&
         Style.BreakConstructorInitializers == FormatStyle::BCIS_AfterColon;
+    bool AllowAllConstructorInitializersOnNextLine =
+        Style.PackConstructorInitializers == FormatStyle::PCIS_NextLine ||
+        Style.PackConstructorInitializers == FormatStyle::PCIS_NextLineOnly;
     if (!(Previous.isOneOf(tok::l_paren, tok::l_brace, TT_BinaryOperator) ||
           PreviousIsBreakingCtorInitializerColon) ||
         (!Style.AllowAllParametersOfDeclarationOnNextLine &&
          State.Line->MustBeDeclaration) ||
         (!Style.AllowAllArgumentsOnNextLine &&
          !State.Line->MustBeDeclaration) ||
-        (Style.PackConstructorInitializers != FormatStyle::PCIS_NextLine &&
+        (!AllowAllConstructorInitializersOnNextLine &&
          PreviousIsBreakingCtorInitializerColon) ||
         Previous.is(TT_DictLiteral)) {
       CurrentState.BreakBeforeParameter = true;
@@ -1066,7 +1072,7 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
     // and we allow all arguments on the next line, we should not break
     // before the next parameter.
     if (PreviousIsBreakingCtorInitializerColon &&
-        Style.PackConstructorInitializers == FormatStyle::PCIS_NextLine) {
+        AllowAllConstructorInitializersOnNextLine) {
       CurrentState.BreakBeforeParameter = false;
     }
   }
@@ -1398,7 +1404,8 @@ unsigned ContinuationIndenter::moveStateToNextToken(LineState &State,
     if (Style.PackConstructorInitializers > FormatStyle::PCIS_BinPack) {
       CurrentState.AvoidBinPacking = true;
       CurrentState.BreakBeforeParameter =
-          Style.PackConstructorInitializers != FormatStyle::PCIS_NextLine;
+          Style.PackConstructorInitializers != FormatStyle::PCIS_NextLine &&
+          Style.PackConstructorInitializers != FormatStyle::PCIS_NextLineOnly;
     } else {
       CurrentState.BreakBeforeParameter = false;
     }
@@ -1535,6 +1542,12 @@ void ContinuationIndenter::moveStatePastFakeLParens(LineState &State,
       NewParenState.Indent = std::max(
           std::max(State.Column, NewParenState.Indent), CurrentState.LastSpace);
     }
+
+    // Special case for generic selection expressions, its comma-separated
+    // expressions are not aligned to the opening paren like regular calls, but
+    // rather continuation-indented relative to the _Generic keyword.
+    if (Previous && Previous->endsSequence(tok::l_paren, tok::kw__Generic))
+      NewParenState.Indent = CurrentState.LastSpace;
 
     if (Previous &&
         (Previous->getPrecedence() == prec::Assignment ||
@@ -1682,8 +1695,12 @@ void ContinuationIndenter::moveStatePastScopeOpener(LineState &State,
         (State.Line->Type != LT_ObjCDecl && Style.BinPackParameters) ||
         (State.Line->Type == LT_ObjCDecl && ObjCBinPackProtocolList);
 
+    bool GenericSelection =
+        Current.getPreviousNonComment() &&
+        Current.getPreviousNonComment()->is(tok::kw__Generic);
+
     AvoidBinPacking =
-        (CurrentState.IsCSharpGenericTypeConstraint) ||
+        (CurrentState.IsCSharpGenericTypeConstraint) || GenericSelection ||
         (Style.isJavaScript() && EndsInComma) ||
         (State.Line->MustBeDeclaration && !BinPackDeclaration) ||
         (!State.Line->MustBeDeclaration && !Style.BinPackArguments) ||
@@ -2067,21 +2084,21 @@ static StringRef getEnclosingFunctionName(const FormatToken &Current) {
   return Tok->TokenText;
 }
 
-llvm::Optional<FormatStyle>
+std::optional<FormatStyle>
 ContinuationIndenter::getRawStringStyle(const FormatToken &Current,
                                         const LineState &State) {
   if (!Current.isStringLiteral())
-    return None;
+    return std::nullopt;
   auto Delimiter = getRawStringDelimiter(Current.TokenText);
   if (!Delimiter)
-    return None;
+    return std::nullopt;
   auto RawStringStyle = RawStringFormats.getDelimiterStyle(*Delimiter);
   if (!RawStringStyle && Delimiter->empty()) {
     RawStringStyle = RawStringFormats.getEnclosingFunctionStyle(
         getEnclosingFunctionName(Current));
   }
   if (!RawStringStyle)
-    return None;
+    return std::nullopt;
   RawStringStyle->ColumnLimit = getColumnLimit(State);
   return RawStringStyle;
 }

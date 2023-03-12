@@ -12,14 +12,23 @@
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
-#include "llvm/IR/Module.h"
-#include "llvm/Pass.h"
-
 #define DEBUG_TYPE "LowerESIMDKernelAttrs"
 
 using namespace llvm;
 
 namespace llvm {
+
+// Filter function for graph traversal when propagating ESIMD attribute.
+// While traversing the call graph, non-call use of the traversed function is
+// not added to the graph. The reason is that it is impossible to gurantee
+// correct inference of use of that function, in particular to determine if that
+// function is used as an argument for invoke_simd. As a result, any use of
+// function pointers requires explicit marking of the functions as
+// ESIMD_FUNCTION if needed.
+bool filterInvokeSimdUse(const Instruction *I, const Function *F) {
+  return false;
+}
+
 PreservedAnalyses
 SYCLFixupESIMDKernelWrapperMDPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool Modified = false;
@@ -37,7 +46,7 @@ SYCLFixupESIMDKernelWrapperMDPass::run(Module &M, ModuleAnalysisManager &MAM) {
               Modified = true;
             }
           },
-          false);
+          false, filterInvokeSimdUse);
     }
   }
   return Modified ? PreservedAnalyses::none() : PreservedAnalyses::all();

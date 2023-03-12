@@ -437,9 +437,9 @@ void fullyComposeAffineMapAndOperands(AffineMap *map,
 #include "mlir/Dialect/Affine/IR/AffineOps.h.inc"
 
 namespace mlir {
-/// Returns true if the provided value is the induction variable of a
+/// Returns true if the provided value is the induction variable of an
 /// AffineForOp.
-bool isForInductionVar(Value val);
+bool isAffineForInductionVar(Value val);
 
 /// Returns the loop parent of an induction variable. If the provided value is
 /// not an induction variable, then return nullptr.
@@ -449,6 +449,11 @@ AffineForOp getForInductionVarOwner(Value val);
 /// in the output argument `ivs`.
 void extractForInductionVars(ArrayRef<AffineForOp> forInsts,
                              SmallVectorImpl<Value> *ivs);
+
+/// Extracts the induction variables from a list of either AffineForOp or
+/// AffineParallelOp and places them in the output argument `ivs`.
+void extractInductionVars(ArrayRef<Operation *> affineOps,
+                          SmallVectorImpl<Value> &ivs);
 
 /// Builds a perfect nest of affine.for loops, i.e., each loop except the
 /// innermost one contains only another loop and a terminator. The loops iterate

@@ -18,6 +18,7 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
+#include <optional>
 
 namespace mlir {
 class ArrayAttr;
@@ -44,19 +45,20 @@ SmallVector<int64_t> computeElementwiseMul(ArrayRef<int64_t> v1,
 /// Compute and return the multi-dimensional integral ratio of `subShape` to
 /// the trailing dimensions of `shape`. This represents how many times
 /// `subShape` fits within `shape`.
-/// If integral division is not possible, return None.
+/// If integral division is not possible, return std::nullopt.
 /// The trailing `subShape.size()` entries of both shapes are assumed (and
 /// enforced) to only contain noonnegative values.
 ///
 /// Examples:
 ///   - shapeRatio({3, 5, 8}, {2, 5, 2}) returns {3, 2, 1}.
-///   - shapeRatio({3, 8}, {2, 5, 2}) returns None (subshape has higher rank).
+///   - shapeRatio({3, 8}, {2, 5, 2}) returns std::nullopt (subshape has higher
+///     rank).
 ///   - shapeRatio({42, 2, 10, 32}, {2, 5, 2}) returns {42, 1, 2, 16} which is
 ///     derived as {42(leading shape dim), 2/2, 10/5, 32/2}.
-///   - shapeRatio({42, 2, 11, 32}, {2, 5, 2}) returns None  which is
+///   - shapeRatio({42, 2, 11, 32}, {2, 5, 2}) returns std::nullopt  which is
 ///     derived as {42(leading shape dim), 2/2, 11/5(not divisible), 32/2}.
-Optional<SmallVector<int64_t>> computeShapeRatio(ArrayRef<int64_t> shape,
-                                                 ArrayRef<int64_t> subShape);
+std::optional<SmallVector<int64_t>>
+computeShapeRatio(ArrayRef<int64_t> shape, ArrayRef<int64_t> subShape);
 
 /// Return the number of elements of basis (i.e. the max linear index).
 /// Return `0` if `basis` is empty.
@@ -74,6 +76,12 @@ void applyPermutationToVector(SmallVector<T, N> &inVec,
     auxVec[en.index()] = inVec[en.value()];
   inVec = auxVec;
 }
+
+/// Helper method to apply to inverse a permutation.
+SmallVector<int64_t> invertPermutationVector(ArrayRef<int64_t> permutation);
+
+/// Method to check if an interchange vector is a permutation.
+bool isPermutationVector(ArrayRef<int64_t> interchange);
 
 /// Helper that returns a subset of `arrayAttr` as a vector of int64_t.
 SmallVector<int64_t> getI64SubArray(ArrayAttr arrayAttr, unsigned dropFront = 0,

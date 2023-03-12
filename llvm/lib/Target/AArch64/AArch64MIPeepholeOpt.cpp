@@ -40,7 +40,6 @@
 #include "AArch64ExpandImm.h"
 #include "AArch64InstrInfo.h"
 #include "MCTargetDesc/AArch64AddressingModes.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 
@@ -65,7 +64,7 @@ struct AArch64MIPeepholeOpt : public MachineFunctionPass {
   using OpcodePair = std::pair<unsigned, unsigned>;
   template <typename T>
   using SplitAndOpcFunc =
-      std::function<Optional<OpcodePair>(T, unsigned, T &, T &)>;
+      std::function<std::optional<OpcodePair>(T, unsigned, T &, T &)>;
   using BuildMIFunc =
       std::function<void(MachineInstr &, OpcodePair, unsigned, unsigned,
                          Register, Register, Register)>;
@@ -137,7 +136,7 @@ static bool splitBitmaskImm(T Imm, unsigned RegSize, T &Imm1Enc, T &Imm2Enc) {
   // consecutive ones. We can split it in to two bitmask immediate like
   // 0b00000000001111111111110000000000 and 0b11111111111000000000011111111111.
   // If we do AND with these two bitmask immediate, we can see original one.
-  unsigned LowestBitSet = countTrailingZeros(UImm);
+  unsigned LowestBitSet = llvm::countr_zero(UImm);
   unsigned HighestBitSet = Log2_64(UImm);
 
   // Create a mask which is filled with one from the position of lowest bit set
@@ -173,10 +172,11 @@ bool AArch64MIPeepholeOpt::visitAND(
 
   return splitTwoPartImm<T>(
       MI,
-      [Opc](T Imm, unsigned RegSize, T &Imm0, T &Imm1) -> Optional<OpcodePair> {
+      [Opc](T Imm, unsigned RegSize, T &Imm0,
+            T &Imm1) -> std::optional<OpcodePair> {
         if (splitBitmaskImm(Imm, RegSize, Imm0, Imm1))
           return std::make_pair(Opc, Opc);
-        return None;
+        return std::nullopt;
       },
       [&TII = TII](MachineInstr &MI, OpcodePair Opcode, unsigned Imm0,
                    unsigned Imm1, Register SrcReg, Register NewTmpReg,
@@ -323,26 +323,33 @@ bool AArch64MIPeepholeOpt::visitADDSUB(
     unsigned PosOpc, unsigned NegOpc, MachineInstr &MI) {
   // Try below transformation.
   //
-  // MOVi32imm + ADDWrr ==> ADDWri + ADDWri
-  // MOVi64imm + ADDXrr ==> ADDXri + ADDXri
+  // ADDWrr X, MOVi32imm ==> ADDWri + ADDWri
+  // ADDXrr X, MOVi64imm ==> ADDXri + ADDXri
   //
-  // MOVi32imm + SUBWrr ==> SUBWri + SUBWri
-  // MOVi64imm + SUBXrr ==> SUBXri + SUBXri
+  // SUBWrr X, MOVi32imm ==> SUBWri + SUBWri
+  // SUBXrr X, MOVi64imm ==> SUBXri + SUBXri
   //
   // The mov pseudo instruction could be expanded to multiple mov instructions
   // later. Let's try to split the constant operand of mov instruction into two
   // legal add/sub immediates. It makes only two ADD/SUB instructions intead of
   // multiple `mov` + `and/sub` instructions.
 
+  // We can sometimes have ADDWrr WZR, MULi32imm that have not been constant
+  // folded. Make sure that we don't generate invalid instructions that use XZR
+  // in those cases.
+  if (MI.getOperand(1).getReg() == AArch64::XZR ||
+      MI.getOperand(1).getReg() == AArch64::WZR)
+    return false;
+
   return splitTwoPartImm<T>(
       MI,
       [PosOpc, NegOpc](T Imm, unsigned RegSize, T &Imm0,
-                       T &Imm1) -> Optional<OpcodePair> {
+                       T &Imm1) -> std::optional<OpcodePair> {
         if (splitAddSubImm(Imm, RegSize, Imm0, Imm1))
           return std::make_pair(PosOpc, PosOpc);
         if (splitAddSubImm(-Imm, RegSize, Imm0, Imm1))
           return std::make_pair(NegOpc, NegOpc);
-        return None;
+        return std::nullopt;
       },
       [&TII = TII](MachineInstr &MI, OpcodePair Opcode, unsigned Imm0,
                    unsigned Imm1, Register SrcReg, Register NewTmpReg,
@@ -365,23 +372,29 @@ bool AArch64MIPeepholeOpt::visitADDSSUBS(
     OpcodePair PosOpcs, OpcodePair NegOpcs, MachineInstr &MI) {
   // Try the same transformation as ADDSUB but with additional requirement
   // that the condition code usages are only for Equal and Not Equal
+
+  if (MI.getOperand(1).getReg() == AArch64::XZR ||
+      MI.getOperand(1).getReg() == AArch64::WZR)
+    return false;
+
   return splitTwoPartImm<T>(
       MI,
-      [PosOpcs, NegOpcs, &MI, &TRI = TRI, &MRI = MRI](
-          T Imm, unsigned RegSize, T &Imm0, T &Imm1) -> Optional<OpcodePair> {
+      [PosOpcs, NegOpcs, &MI, &TRI = TRI,
+       &MRI = MRI](T Imm, unsigned RegSize, T &Imm0,
+                   T &Imm1) -> std::optional<OpcodePair> {
         OpcodePair OP;
         if (splitAddSubImm(Imm, RegSize, Imm0, Imm1))
           OP = PosOpcs;
         else if (splitAddSubImm(-Imm, RegSize, Imm0, Imm1))
           OP = NegOpcs;
         else
-          return None;
+          return std::nullopt;
         // Check conditional uses last since it is expensive for scanning
         // proceeding instructions
         MachineInstr &SrcMI = *MRI->getUniqueVRegDef(MI.getOperand(1).getReg());
-        Optional<UsedNZCV> NZCVUsed = examineCFlagsUse(SrcMI, MI, *TRI);
+        std::optional<UsedNZCV> NZCVUsed = examineCFlagsUse(SrcMI, MI, *TRI);
         if (!NZCVUsed || NZCVUsed->C || NZCVUsed->V)
-          return None;
+          return std::nullopt;
         return OP;
       },
       [&TII = TII](MachineInstr &MI, OpcodePair Opcode, unsigned Imm0,

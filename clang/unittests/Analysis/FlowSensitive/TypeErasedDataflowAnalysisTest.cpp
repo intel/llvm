@@ -22,7 +22,6 @@
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "clang/Analysis/FlowSensitive/WatchedLiteralsSolver.h"
 #include "clang/Tooling/Tooling.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringMap.h"
@@ -34,6 +33,7 @@
 #include "gtest/gtest.h"
 #include <cassert>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -54,7 +54,7 @@ using ::testing::UnorderedElementsAre;
 
 template <typename AnalysisT>
 llvm::Expected<std::vector<
-    llvm::Optional<DataflowAnalysisState<typename AnalysisT::Lattice>>>>
+    std::optional<DataflowAnalysisState<typename AnalysisT::Lattice>>>>
 runAnalysis(llvm::StringRef Code, AnalysisT (*MakeAnalysis)(ASTContext &)) {
   std::unique_ptr<ASTUnit> AST =
       tooling::buildASTFromCodeWithArgs(Code, {"-std=c++11"});
@@ -68,7 +68,7 @@ runAnalysis(llvm::StringRef Code, AnalysisT (*MakeAnalysis)(ASTContext &)) {
   assert(Body != nullptr);
 
   auto CFCtx = llvm::cantFail(
-      ControlFlowContext::build(nullptr, Body, &AST->getASTContext()));
+      ControlFlowContext::build(nullptr, *Body, AST->getASTContext()));
 
   AnalysisT Analysis = MakeAnalysis(AST->getASTContext());
   DataflowAnalysisContext DACtx(std::make_unique<WatchedLiteralsSolver>());
@@ -112,7 +112,7 @@ public:
 
   static NonConvergingLattice initialElement() { return {0}; }
 
-  void transfer(const CFGElement *, NonConvergingLattice &E, Environment &) {
+  void transfer(const CFGElement &, NonConvergingLattice &E, Environment &) {
     ++E.State;
   }
 };
@@ -127,6 +127,37 @@ TEST(DataflowAnalysisTest, NonConvergingAnalysis) {
       Code, [](ASTContext &C) { return NonConvergingAnalysis(C); });
   EXPECT_EQ(llvm::toString(Res.takeError()),
             "maximum number of iterations reached");
+}
+
+// Regression test for joins of bool-typed lvalue expressions. The first loop
+// results in two passes through the code that follows. Each pass results in a
+// different `ReferenceValue` for the pointee of `v`. Then, the second loop
+// causes a join at the loop head where the two environments map expresssion
+// `*v` to different `ReferenceValue`s.
+//
+// An earlier version crashed for this condition (for boolean-typed lvalues), so
+// this test only verifies that the analysis runs successfully, without
+// examining any details of the results.
+TEST(DataflowAnalysisTest, JoinBoolLValues) {
+  std::string Code = R"(
+    void target() {
+      for (int x = 1; x; x = 0)
+        (void)x;
+      bool *v;
+      if (*v)
+        for (int x = 1; x; x = 0)
+          (void)x;
+    }
+  )";
+  ASSERT_THAT_ERROR(
+      runAnalysis<NoopAnalysis>(Code,
+                                [](ASTContext &C) {
+                                  auto EnableBuiltIns = DataflowAnalysisOptions{
+                                      DataflowAnalysisContext::Options{}};
+                                  return NoopAnalysis(C, EnableBuiltIns);
+                                })
+          .takeError(),
+      llvm::Succeeded());
 }
 
 struct FunctionCallLattice {
@@ -163,8 +194,8 @@ public:
 
   static FunctionCallLattice initialElement() { return {}; }
 
-  void transfer(const CFGElement *Elt, FunctionCallLattice &E, Environment &) {
-    auto CS = Elt->getAs<CFGStmt>();
+  void transfer(const CFGElement &Elt, FunctionCallLattice &E, Environment &) {
+    auto CS = Elt.getAs<CFGStmt>();
     if (!CS)
       return;
     const auto *S = CS->getStmt();
@@ -319,8 +350,8 @@ public:
 
   static NoopLattice initialElement() { return {}; }
 
-  void transfer(const CFGElement *Elt, NoopLattice &, Environment &Env) {
-    auto CS = Elt->getAs<CFGStmt>();
+  void transfer(const CFGElement &Elt, NoopLattice &, Environment &Env) {
+    auto CS = Elt.getAs<CFGStmt>();
     if (!CS)
       return;
     const auto *S = CS->getStmt();
@@ -477,8 +508,8 @@ public:
 
   static NoopLattice initialElement() { return {}; }
 
-  void transfer(const CFGElement *Elt, NoopLattice &, Environment &Env) {
-    auto CS = Elt->getAs<CFGStmt>();
+  void transfer(const CFGElement &Elt, NoopLattice &, Environment &Env) {
+    auto CS = Elt.getAs<CFGStmt>();
     if (!CS)
       return;
     const Stmt *S = CS->getStmt();
@@ -1171,8 +1202,8 @@ public:
 
   static NoopLattice initialElement() { return {}; }
 
-  void transfer(const CFGElement *Elt, NoopLattice &, Environment &Env) {
-    auto CS = Elt->getAs<CFGStmt>();
+  void transfer(const CFGElement &Elt, NoopLattice &, Environment &Env) {
+    auto CS = Elt.getAs<CFGStmt>();
     if (!CS)
       return;
     const Stmt *S = CS->getStmt();

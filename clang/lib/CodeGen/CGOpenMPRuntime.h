@@ -121,6 +121,7 @@ struct OMPTaskDataTy final {
   bool Nogroup = false;
   bool IsReductionWithTaskMod = false;
   bool IsWorksharingReduction = false;
+  bool HasNowaitClause = false;
 };
 
 /// Class intended to support codegen of all kind of the reduction clauses.
@@ -328,9 +329,10 @@ protected:
 
   /// Emits object of ident_t type with info for source location.
   /// \param Flags Flags for OpenMP location.
+  /// \param EmitLoc emit source location with debug-info is off.
   ///
   llvm::Value *emitUpdateLocation(CodeGenFunction &CGF, SourceLocation Loc,
-                                  unsigned Flags = 0);
+                                  unsigned Flags = 0, bool EmitLoc = false);
 
   /// Emit the number of teams for a target directive.  Inspect the num_teams
   /// clause associated with a teams construct combined or closely nested
@@ -376,7 +378,7 @@ protected:
   /// Emits \p Callee function call with arguments \p Args with location \p Loc.
   void emitCall(CodeGenFunction &CGF, SourceLocation Loc,
                 llvm::FunctionCallee Callee,
-                ArrayRef<llvm::Value *> Args = llvm::None) const;
+                ArrayRef<llvm::Value *> Args = std::nullopt) const;
 
   /// Emits address of the word in a memory where current thread id is
   /// stored.
@@ -820,6 +822,11 @@ public:
 
   /// Emits code for a taskyield directive.
   virtual void emitTaskyieldCall(CodeGenFunction &CGF, SourceLocation Loc);
+
+  /// Emit __kmpc_error call for error directive
+  /// extern void __kmpc_error(ident_t *loc, int severity, const char *message);
+  virtual void emitErrorCall(CodeGenFunction &CGF, SourceLocation Loc, Expr *ME,
+                             bool IsFatal);
 
   /// Emit a taskgroup region.
   /// \param TaskgroupOpGen Generator for the statement associated with the
@@ -1516,7 +1523,7 @@ public:
   virtual void
   emitOutlinedFunctionCall(CodeGenFunction &CGF, SourceLocation Loc,
                            llvm::FunctionCallee OutlinedFn,
-                           ArrayRef<llvm::Value *> Args = llvm::None) const;
+                           ArrayRef<llvm::Value *> Args = std::nullopt) const;
 
   /// Emits OpenMP-specific function prolog.
   /// Required for device constructs.

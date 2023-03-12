@@ -4,7 +4,7 @@
 ; RUN: llc -march=amdgcn -mcpu=gfx940 -verify-machineinstrs < %s | FileCheck -check-prefix=GFX940 %s
 ; RUN: llc -march=amdgcn -mcpu=gfx1100 -verify-machineinstrs < %s | FileCheck -check-prefix=GFX1100 %s
 
-define float @syncscope_system(float* %addr, float %val) #0 {
+define float @syncscope_system(ptr %addr, float %val) #0 {
 ; GFX908-LABEL: syncscope_system:
 ; GFX908:       ; %bb.0:
 ; GFX908-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -56,25 +56,11 @@ define float @syncscope_system(float* %addr, float %val) #0 {
 ; GFX940-LABEL: syncscope_system:
 ; GFX940:       ; %bb.0:
 ; GFX940-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX940-NEXT:    flat_load_dword v3, v[0:1]
-; GFX940-NEXT:    s_mov_b64 s[0:1], 0
-; GFX940-NEXT:  .LBB0_1: ; %atomicrmw.start
-; GFX940-NEXT:    ; =>This Inner Loop Header: Depth=1
-; GFX940-NEXT:    s_waitcnt vmcnt(0) lgkmcnt(0)
-; GFX940-NEXT:    v_mov_b32_e32 v5, v3
-; GFX940-NEXT:    v_add_f32_e32 v4, v5, v2
 ; GFX940-NEXT:    buffer_wbl2 sc0 sc1
 ; GFX940-NEXT:    s_waitcnt vmcnt(0) lgkmcnt(0)
-; GFX940-NEXT:    flat_atomic_cmpswap v3, v[0:1], v[4:5] sc0 sc1
+; GFX940-NEXT:    flat_atomic_add_f32 v0, v[0:1], v2 sc0 sc1
 ; GFX940-NEXT:    s_waitcnt vmcnt(0) lgkmcnt(0)
 ; GFX940-NEXT:    buffer_inv sc0 sc1
-; GFX940-NEXT:    v_cmp_eq_u32_e32 vcc, v3, v5
-; GFX940-NEXT:    s_or_b64 s[0:1], vcc, s[0:1]
-; GFX940-NEXT:    s_andn2_b64 exec, exec, s[0:1]
-; GFX940-NEXT:    s_cbranch_execnz .LBB0_1
-; GFX940-NEXT:  ; %bb.2: ; %atomicrmw.end
-; GFX940-NEXT:    s_or_b64 exec, exec, s[0:1]
-; GFX940-NEXT:    v_mov_b32_e32 v0, v3
 ; GFX940-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX1100-LABEL: syncscope_system:
@@ -104,11 +90,11 @@ define float @syncscope_system(float* %addr, float %val) #0 {
 ; GFX1100-NEXT:    s_or_b32 exec_lo, exec_lo, s0
 ; GFX1100-NEXT:    v_mov_b32_e32 v0, v3
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
-  %res = atomicrmw fadd float* %addr, float %val seq_cst
+  %res = atomicrmw fadd ptr %addr, float %val seq_cst
   ret float %res
 }
 
-define float @syncscope_workgroup_rtn(float* %addr, float %val) #0 {
+define float @syncscope_workgroup_rtn(ptr %addr, float %val) #0 {
 ; GFX908-LABEL: syncscope_workgroup_rtn:
 ; GFX908:       ; %bb.0:
 ; GFX908-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -132,19 +118,17 @@ define float @syncscope_workgroup_rtn(float* %addr, float %val) #0 {
 ; GFX908-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX90A-LABEL: syncscope_workgroup_rtn:
-; GFX90A:       ; %bb.0: ; %atomicrmw.check.shared
+; GFX90A:       ; %bb.0:
 ; GFX90A-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX90A-NEXT:    s_getreg_b32 s4, hwreg(HW_REG_SH_MEM_BASES, 16, 16)
-; GFX90A-NEXT:    s_lshl_b32 s4, s4, 16
-; GFX90A-NEXT:    v_cmp_ne_u32_e32 vcc, s4, v1
+; GFX90A-NEXT:    s_mov_b64 s[4:5], src_shared_base
+; GFX90A-NEXT:    v_cmp_ne_u32_e32 vcc, s5, v1
 ; GFX90A-NEXT:    ; implicit-def: $vgpr3
 ; GFX90A-NEXT:    s_and_saveexec_b64 s[4:5], vcc
 ; GFX90A-NEXT:    s_xor_b64 s[4:5], exec, s[4:5]
 ; GFX90A-NEXT:    s_cbranch_execz .LBB1_6
 ; GFX90A-NEXT:  ; %bb.1: ; %atomicrmw.check.private
-; GFX90A-NEXT:    s_getreg_b32 s6, hwreg(HW_REG_SH_MEM_BASES, 0, 16)
-; GFX90A-NEXT:    s_lshl_b32 s6, s6, 16
-; GFX90A-NEXT:    v_cmp_ne_u32_e32 vcc, s6, v1
+; GFX90A-NEXT:    s_mov_b64 s[6:7], src_private_base
+; GFX90A-NEXT:    v_cmp_ne_u32_e32 vcc, s7, v1
 ; GFX90A-NEXT:    ; implicit-def: $vgpr3
 ; GFX90A-NEXT:    s_and_saveexec_b64 s[6:7], vcc
 ; GFX90A-NEXT:    s_xor_b64 s[6:7], exec, s[6:7]
@@ -198,17 +182,16 @@ define float @syncscope_workgroup_rtn(float* %addr, float %val) #0 {
 ; GFX1100-NEXT:    s_waitcnt vmcnt(0) lgkmcnt(0)
 ; GFX1100-NEXT:    buffer_gl0_inv
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
-  %res = atomicrmw fadd float* %addr, float %val syncscope("workgroup") seq_cst
+  %res = atomicrmw fadd ptr %addr, float %val syncscope("workgroup") seq_cst
   ret float %res
 }
 
-define void @syncscope_workgroup_nortn(float* %addr, float %val) #0 {
+define void @syncscope_workgroup_nortn(ptr %addr, float %val) #0 {
 ; GFX908-LABEL: syncscope_workgroup_nortn:
 ; GFX908:       ; %bb.0: ; %atomicrmw.check.shared
 ; GFX908-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX908-NEXT:    s_getreg_b32 s4, hwreg(HW_REG_SH_MEM_BASES, 16, 16)
-; GFX908-NEXT:    s_lshl_b32 s4, s4, 16
-; GFX908-NEXT:    v_cmp_ne_u32_e32 vcc, s4, v1
+; GFX908-NEXT:    s_mov_b64 s[4:5], src_shared_base
+; GFX908-NEXT:    v_cmp_ne_u32_e32 vcc, s5, v1
 ; GFX908-NEXT:    s_and_saveexec_b64 s[4:5], vcc
 ; GFX908-NEXT:    s_xor_b64 s[4:5], exec, s[4:5]
 ; GFX908-NEXT:    s_cbranch_execnz .LBB2_3
@@ -220,9 +203,8 @@ define void @syncscope_workgroup_nortn(float* %addr, float %val) #0 {
 ; GFX908-NEXT:    s_waitcnt vmcnt(0)
 ; GFX908-NEXT:    s_setpc_b64 s[30:31]
 ; GFX908-NEXT:  .LBB2_3: ; %atomicrmw.check.private
-; GFX908-NEXT:    s_getreg_b32 s6, hwreg(HW_REG_SH_MEM_BASES, 0, 16)
-; GFX908-NEXT:    s_lshl_b32 s6, s6, 16
-; GFX908-NEXT:    v_cmp_ne_u32_e32 vcc, s6, v1
+; GFX908-NEXT:    s_mov_b64 s[6:7], src_private_base
+; GFX908-NEXT:    v_cmp_ne_u32_e32 vcc, s7, v1
 ; GFX908-NEXT:    s_and_saveexec_b64 s[6:7], vcc
 ; GFX908-NEXT:    s_xor_b64 s[6:7], exec, s[6:7]
 ; GFX908-NEXT:    s_cbranch_execz .LBB2_5
@@ -260,9 +242,8 @@ define void @syncscope_workgroup_nortn(float* %addr, float %val) #0 {
 ; GFX90A-LABEL: syncscope_workgroup_nortn:
 ; GFX90A:       ; %bb.0: ; %atomicrmw.check.shared
 ; GFX90A-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX90A-NEXT:    s_getreg_b32 s4, hwreg(HW_REG_SH_MEM_BASES, 16, 16)
-; GFX90A-NEXT:    s_lshl_b32 s4, s4, 16
-; GFX90A-NEXT:    v_cmp_ne_u32_e32 vcc, s4, v1
+; GFX90A-NEXT:    s_mov_b64 s[4:5], src_shared_base
+; GFX90A-NEXT:    v_cmp_ne_u32_e32 vcc, s5, v1
 ; GFX90A-NEXT:    s_and_saveexec_b64 s[4:5], vcc
 ; GFX90A-NEXT:    s_xor_b64 s[4:5], exec, s[4:5]
 ; GFX90A-NEXT:    s_cbranch_execnz .LBB2_3
@@ -274,9 +255,8 @@ define void @syncscope_workgroup_nortn(float* %addr, float %val) #0 {
 ; GFX90A-NEXT:    s_waitcnt vmcnt(0)
 ; GFX90A-NEXT:    s_setpc_b64 s[30:31]
 ; GFX90A-NEXT:  .LBB2_3: ; %atomicrmw.check.private
-; GFX90A-NEXT:    s_getreg_b32 s6, hwreg(HW_REG_SH_MEM_BASES, 0, 16)
-; GFX90A-NEXT:    s_lshl_b32 s6, s6, 16
-; GFX90A-NEXT:    v_cmp_ne_u32_e32 vcc, s6, v1
+; GFX90A-NEXT:    s_mov_b64 s[6:7], src_private_base
+; GFX90A-NEXT:    v_cmp_ne_u32_e32 vcc, s7, v1
 ; GFX90A-NEXT:    s_and_saveexec_b64 s[6:7], vcc
 ; GFX90A-NEXT:    s_xor_b64 s[6:7], exec, s[6:7]
 ; GFX90A-NEXT:    s_cbranch_execz .LBB2_5
@@ -327,11 +307,11 @@ define void @syncscope_workgroup_nortn(float* %addr, float %val) #0 {
 ; GFX1100-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX1100-NEXT:    buffer_gl0_inv
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
-  %res = atomicrmw fadd float* %addr, float %val syncscope("workgroup") seq_cst
+  %res = atomicrmw fadd ptr %addr, float %val syncscope("workgroup") seq_cst
   ret void
 }
 
-define float @no_unsafe(float* %addr, float %val) {
+define float @no_unsafe(ptr %addr, float %val) {
 ; GFX908-LABEL: no_unsafe:
 ; GFX908:       ; %bb.0:
 ; GFX908-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -379,23 +359,8 @@ define float @no_unsafe(float* %addr, float %val) {
 ; GFX940-LABEL: no_unsafe:
 ; GFX940:       ; %bb.0:
 ; GFX940-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX940-NEXT:    flat_load_dword v3, v[0:1]
-; GFX940-NEXT:    s_mov_b64 s[0:1], 0
-; GFX940-NEXT:  .LBB3_1: ; %atomicrmw.start
-; GFX940-NEXT:    ; =>This Inner Loop Header: Depth=1
+; GFX940-NEXT:    flat_atomic_add_f32 v0, v[0:1], v2 sc0
 ; GFX940-NEXT:    s_waitcnt vmcnt(0) lgkmcnt(0)
-; GFX940-NEXT:    v_mov_b32_e32 v5, v3
-; GFX940-NEXT:    v_add_f32_e32 v4, v5, v2
-; GFX940-NEXT:    s_waitcnt lgkmcnt(0)
-; GFX940-NEXT:    flat_atomic_cmpswap v3, v[0:1], v[4:5] sc0
-; GFX940-NEXT:    s_waitcnt vmcnt(0) lgkmcnt(0)
-; GFX940-NEXT:    v_cmp_eq_u32_e32 vcc, v3, v5
-; GFX940-NEXT:    s_or_b64 s[0:1], vcc, s[0:1]
-; GFX940-NEXT:    s_andn2_b64 exec, exec, s[0:1]
-; GFX940-NEXT:    s_cbranch_execnz .LBB3_1
-; GFX940-NEXT:  ; %bb.2: ; %atomicrmw.end
-; GFX940-NEXT:    s_or_b64 exec, exec, s[0:1]
-; GFX940-NEXT:    v_mov_b32_e32 v0, v3
 ; GFX940-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX1100-LABEL: no_unsafe:
@@ -424,7 +389,7 @@ define float @no_unsafe(float* %addr, float %val) {
 ; GFX1100-NEXT:    s_or_b32 exec_lo, exec_lo, s0
 ; GFX1100-NEXT:    v_mov_b32_e32 v0, v3
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
-  %res = atomicrmw fadd float* %addr, float %val syncscope("workgroup") seq_cst
+  %res = atomicrmw fadd ptr %addr, float %val syncscope("workgroup") seq_cst
   ret float %res
 }
 

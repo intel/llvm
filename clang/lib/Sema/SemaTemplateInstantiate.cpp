@@ -15,10 +15,12 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/ASTMutationListener.h"
+#include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprConcepts.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
+#include "clang/AST/Type.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Stack.h"
@@ -26,12 +28,15 @@
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaConcept.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateDeduction.h"
 #include "clang/Sema/TemplateInstCallback.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TimeProfiler.h"
+#include <optional>
 
 using namespace clang;
 using namespace sema;
@@ -122,7 +127,7 @@ Response
 HandleDefaultTempArgIntoTempTempParam(const TemplateTemplateParmDecl *TTP,
                                       MultiLevelTemplateArgumentList &Result) {
   for (unsigned I = 0, N = TTP->getDepth() + 1; I != N; ++I)
-    Result.addOuterTemplateArguments(None);
+    Result.addOuterTemplateArguments(std::nullopt);
   return Response::Done();
 }
 
@@ -523,8 +528,8 @@ Sema::InstantiatingTemplate::InstantiatingTemplate(
     : InstantiatingTemplate(
           SemaRef, CodeSynthesisContext::RequirementInstantiation,
           PointOfInstantiation, InstantiationRange, /*Entity=*/nullptr,
-          /*Template=*/nullptr, /*TemplateArgs=*/None, &DeductionInfo) {}
-
+          /*Template=*/nullptr, /*TemplateArgs=*/std::nullopt, &DeductionInfo) {
+}
 
 Sema::InstantiatingTemplate::InstantiatingTemplate(
     Sema &SemaRef, SourceLocation PointOfInstantiation,
@@ -533,7 +538,7 @@ Sema::InstantiatingTemplate::InstantiatingTemplate(
     : InstantiatingTemplate(
           SemaRef, CodeSynthesisContext::NestedRequirementConstraintsCheck,
           PointOfInstantiation, InstantiationRange, /*Entity=*/nullptr,
-          /*Template=*/nullptr, /*TemplateArgs=*/None) {}
+          /*Template=*/nullptr, /*TemplateArgs=*/std::nullopt) {}
 
 Sema::InstantiatingTemplate::InstantiatingTemplate(
     Sema &SemaRef, SourceLocation PointOfInstantiation, const RequiresExpr *RE,
@@ -541,7 +546,8 @@ Sema::InstantiatingTemplate::InstantiatingTemplate(
     : InstantiatingTemplate(
           SemaRef, CodeSynthesisContext::RequirementParameterInstantiation,
           PointOfInstantiation, InstantiationRange, /*Entity=*/nullptr,
-          /*Template=*/nullptr, /*TemplateArgs=*/None, &DeductionInfo) {}
+          /*Template=*/nullptr, /*TemplateArgs=*/std::nullopt, &DeductionInfo) {
+}
 
 Sema::InstantiatingTemplate::InstantiatingTemplate(
     Sema &SemaRef, SourceLocation PointOfInstantiation,
@@ -949,8 +955,7 @@ void Sema::PrintInstantiationStack() {
       Diags.Report(Active->PointOfInstantiation,
                    diag::note_building_builtin_dump_struct_call)
           << convertCallArgsToString(
-                 *this,
-                 llvm::makeArrayRef(Active->CallArgs, Active->NumCallArgs));
+                 *this, llvm::ArrayRef(Active->CallArgs, Active->NumCallArgs));
       break;
 
     case CodeSynthesisContext::Memoization:
@@ -1007,9 +1012,9 @@ void Sema::PrintInstantiationStack() {
   }
 }
 
-Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
+std::optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
   if (InNonInstantiationSFINAEContext)
-    return Optional<TemplateDeductionInfo *>(nullptr);
+    return std::optional<TemplateDeductionInfo *>(nullptr);
 
   for (SmallVectorImpl<CodeSynthesisContext>::const_reverse_iterator
          Active = CodeSynthesisContexts.rbegin(),
@@ -1031,7 +1036,7 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
     case CodeSynthesisContext::ConstraintNormalization:
     case CodeSynthesisContext::NestedRequirementConstraintsCheck:
       // This is a template instantiation, so there is no SFINAE.
-      return None;
+      return std::nullopt;
 
     case CodeSynthesisContext::DefaultTemplateArgumentInstantiation:
     case CodeSynthesisContext::PriorTemplateArgumentSubstitution:
@@ -1061,7 +1066,7 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
     case CodeSynthesisContext::BuildingBuiltinDumpStructCall:
       // This happens in a context unrelated to template instantiation, so
       // there is no SFINAE.
-      return None;
+      return std::nullopt;
 
     case CodeSynthesisContext::ExceptionSpecEvaluation:
       // FIXME: This should not be treated as a SFINAE context, because
@@ -1076,10 +1081,10 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
     // The inner context was transparent for SFINAE. If it occurred within a
     // non-instantiation SFINAE context, then SFINAE applies.
     if (Active->SavedInNonInstantiationSFINAEContext)
-      return Optional<TemplateDeductionInfo *>(nullptr);
+      return std::optional<TemplateDeductionInfo *>(nullptr);
   }
 
-  return None;
+  return std::nullopt;
 }
 
 //===----------------------------------------------------------------------===/
@@ -1132,10 +1137,10 @@ namespace {
       return TemplateArgs.getNewDepth(Depth);
     }
 
-    Optional<unsigned> getPackIndex(TemplateArgument Pack) {
+    std::optional<unsigned> getPackIndex(TemplateArgument Pack) {
       int Index = getSema().ArgumentPackSubstitutionIndex;
       if (Index == -1)
-        return None;
+        return std::nullopt;
       return Pack.pack_size() - 1 - Index;
     }
 
@@ -1143,7 +1148,7 @@ namespace {
                                  SourceRange PatternRange,
                                  ArrayRef<UnexpandedParameterPack> Unexpanded,
                                  bool &ShouldExpand, bool &RetainExpansion,
-                                 Optional<unsigned> &NumExpansions) {
+                                 std::optional<unsigned> &NumExpansions) {
       return getSema().CheckParameterPacksForExpansion(EllipsisLoc,
                                                        PatternRange, Unexpanded,
                                                        TemplateArgs,
@@ -1226,7 +1231,7 @@ namespace {
 
       // We recreated a local declaration, but not by instantiating it. There
       // may be pending dependent diagnostics to produce.
-      if (auto *DC = dyn_cast<DeclContext>(Old))
+      if (auto *DC = dyn_cast<DeclContext>(Old); DC && DC->isDependentContext())
         SemaRef.PerformDependentDiagnostics(DC, TemplateArgs);
     }
 
@@ -1266,29 +1271,29 @@ namespace {
                           bool AllowInjectedClassName = false);
 
     const LoopHintAttr *TransformLoopHintAttr(const LoopHintAttr *LH);
-    const SYCLIntelFPGAIVDepAttr *
-    TransformSYCLIntelFPGAIVDepAttr(const SYCLIntelFPGAIVDepAttr *IV);
-    const SYCLIntelFPGAInitiationIntervalAttr *
-    TransformSYCLIntelFPGAInitiationIntervalAttr(
-        const SYCLIntelFPGAInitiationIntervalAttr *II);
-    const SYCLIntelFPGAMaxConcurrencyAttr *
-    TransformSYCLIntelFPGAMaxConcurrencyAttr(
-        const SYCLIntelFPGAMaxConcurrencyAttr *MC);
+    const SYCLIntelIVDepAttr *
+    TransformSYCLIntelIVDepAttr(const SYCLIntelIVDepAttr *IV);
+    const SYCLIntelInitiationIntervalAttr *
+    TransformSYCLIntelInitiationIntervalAttr(
+        const SYCLIntelInitiationIntervalAttr *II);
+    const SYCLIntelMaxConcurrencyAttr *
+    TransformSYCLIntelMaxConcurrencyAttr(
+        const SYCLIntelMaxConcurrencyAttr *MC);
     const LoopUnrollHintAttr *
     TransformLoopUnrollHintAttr(const LoopUnrollHintAttr *LU);
-    const SYCLIntelFPGALoopCoalesceAttr *TransformSYCLIntelFPGALoopCoalesceAttr(
-        const SYCLIntelFPGALoopCoalesceAttr *LC);
-    const SYCLIntelFPGAMaxInterleavingAttr *
-    TransformSYCLIntelFPGAMaxInterleavingAttr(
-        const SYCLIntelFPGAMaxInterleavingAttr *MI);
-    const SYCLIntelFPGASpeculatedIterationsAttr *
-    TransformSYCLIntelFPGASpeculatedIterationsAttr(
-        const SYCLIntelFPGASpeculatedIterationsAttr *SI);
-    const SYCLIntelFPGALoopCountAttr *
-    TransformSYCLIntelFPGALoopCountAttr(const SYCLIntelFPGALoopCountAttr *SI);
-    const SYCLIntelFPGAMaxReinvocationDelayAttr *
-    TransformSYCLIntelFPGAMaxReinvocationDelayAttr(
-        const SYCLIntelFPGAMaxReinvocationDelayAttr *MRD);
+    const SYCLIntelLoopCoalesceAttr *TransformSYCLIntelLoopCoalesceAttr(
+        const SYCLIntelLoopCoalesceAttr *LC);
+    const SYCLIntelMaxInterleavingAttr *
+    TransformSYCLIntelMaxInterleavingAttr(
+        const SYCLIntelMaxInterleavingAttr *MI);
+    const SYCLIntelSpeculatedIterationsAttr *
+    TransformSYCLIntelSpeculatedIterationsAttr(
+        const SYCLIntelSpeculatedIterationsAttr *SI);
+    const SYCLIntelLoopCountAttr *
+    TransformSYCLIntelLoopCountAttr(const SYCLIntelLoopCountAttr *SI);
+    const SYCLIntelMaxReinvocationDelayAttr *
+    TransformSYCLIntelMaxReinvocationDelayAttr(
+        const SYCLIntelMaxReinvocationDelayAttr *MRD);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1325,10 +1330,10 @@ namespace {
                                         Qualifiers ThisTypeQuals,
                                         Fn TransformExceptionSpec);
 
-    ParmVarDecl *TransformFunctionTypeParam(ParmVarDecl *OldParm,
-                                            int indexAdjustment,
-                                            Optional<unsigned> NumExpansions,
-                                            bool ExpectParameterPack);
+    ParmVarDecl *
+    TransformFunctionTypeParam(ParmVarDecl *OldParm, int indexAdjustment,
+                               std::optional<unsigned> NumExpansions,
+                               bool ExpectParameterPack);
 
     using inherited::TransformTemplateTypeParmType;
     /// Transforms a template type parameter type by performing
@@ -1339,7 +1344,7 @@ namespace {
 
     QualType BuildSubstTemplateTypeParmType(
         TypeLocBuilder &TLB, bool SuppressObjCLifetime, bool Final,
-        Decl *AssociatedDecl, unsigned Index, Optional<unsigned> PackIndex,
+        Decl *AssociatedDecl, unsigned Index, std::optional<unsigned> PackIndex,
         TemplateArgument Arg, SourceLocation NameLoc);
 
     /// Transforms an already-substituted template type parameter pack
@@ -1382,7 +1387,22 @@ namespace {
 
     ExprResult TransformRequiresExpr(RequiresExpr *E) {
       LocalInstantiationScope Scope(SemaRef, /*CombineWithOuterScope=*/true);
-      return inherited::TransformRequiresExpr(E);
+      ExprResult TransReq = inherited::TransformRequiresExpr(E);
+      if (TransReq.isInvalid())
+        return TransReq;
+      assert(TransReq.get() != E &&
+             "Do not change value of isSatisfied for the existing expression. "
+             "Create a new expression instead.");
+      if (E->getBody()->isDependentContext()) {
+        Sema::SFINAETrap Trap(SemaRef);
+        // We recreate the RequiresExpr body, but not by instantiating it.
+        // Produce pending diagnostics for dependent access check.
+        SemaRef.PerformDependentDiagnostics(E->getBody(), TemplateArgs);
+        // FIXME: Store SFINAE diagnostics in RequiresExpr for diagnosis.
+        if (Trap.hasErrorOccurred())
+          TransReq.getAs<RequiresExpr>()->setSatisfied(false);
+      }
+      return TransReq;
     }
 
     bool TransformRequiresExprRequirements(
@@ -1440,9 +1460,11 @@ namespace {
         Sema::ExtParameterInfoBuilder &PInfos);
 
   private:
-    ExprResult transformNonTypeTemplateParmRef(
-        Decl *AssociatedDecl, const NonTypeTemplateParmDecl *parm,
-        SourceLocation loc, TemplateArgument arg, Optional<unsigned> PackIndex);
+    ExprResult
+    transformNonTypeTemplateParmRef(Decl *AssociatedDecl,
+                                    const NonTypeTemplateParmDecl *parm,
+                                    SourceLocation loc, TemplateArgument arg,
+                                    std::optional<unsigned> PackIndex);
   };
 }
 
@@ -1634,7 +1656,7 @@ TemplateName TemplateInstantiator::TransformTemplateName(
 
       auto [AssociatedDecl, Final] =
           TemplateArgs.getAssociatedDecl(TTP->getDepth());
-      Optional<unsigned> PackIndex;
+      std::optional<unsigned> PackIndex;
       if (TTP->isParameterPack()) {
         assert(Arg.getKind() == TemplateArgument::Pack &&
                "Missing argument pack");
@@ -1720,7 +1742,7 @@ TemplateInstantiator::TransformTemplateParmRefExpr(DeclRefExpr *E,
   }
 
   auto [AssociatedDecl, _] = TemplateArgs.getAssociatedDecl(NTTP->getDepth());
-  Optional<unsigned> PackIndex;
+  std::optional<unsigned> PackIndex;
   if (NTTP->isParameterPack()) {
     assert(Arg.getKind() == TemplateArgument::Pack &&
            "Missing argument pack");
@@ -1768,9 +1790,9 @@ TemplateInstantiator::TransformLoopHintAttr(const LoopHintAttr *LH) {
                                       LH->getState(), TransformedExpr, *LH);
 }
 
-const SYCLIntelFPGAIVDepAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAIVDepAttr(
-    const SYCLIntelFPGAIVDepAttr *IVDep) {
+const SYCLIntelIVDepAttr *
+TemplateInstantiator::TransformSYCLIntelIVDepAttr(
+    const SYCLIntelIVDepAttr *IVDep) {
 
   Expr *Expr1 = IVDep->getSafelenExpr()
                     ? getDerived().TransformExpr(IVDep->getSafelenExpr()).get()
@@ -1779,54 +1801,54 @@ TemplateInstantiator::TransformSYCLIntelFPGAIVDepAttr(
                     ? getDerived().TransformExpr(IVDep->getArrayExpr()).get()
                     : nullptr;
 
-  return getSema().BuildSYCLIntelFPGAIVDepAttr(*IVDep, Expr1, Expr2);
+  return getSema().BuildSYCLIntelIVDepAttr(*IVDep, Expr1, Expr2);
 }
 
-const SYCLIntelFPGAInitiationIntervalAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAInitiationIntervalAttr(
-    const SYCLIntelFPGAInitiationIntervalAttr *II) {
+const SYCLIntelInitiationIntervalAttr *
+TemplateInstantiator::TransformSYCLIntelInitiationIntervalAttr(
+    const SYCLIntelInitiationIntervalAttr *II) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(II->getIntervalExpr()).get();
-  return getSema().BuildSYCLIntelFPGAInitiationIntervalAttr(*II,
+  return getSema().BuildSYCLIntelInitiationIntervalAttr(*II,
                                                             TransformedExpr);
 }
 
-const SYCLIntelFPGAMaxConcurrencyAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAMaxConcurrencyAttr(
-    const SYCLIntelFPGAMaxConcurrencyAttr *MC) {
+const SYCLIntelMaxConcurrencyAttr *
+TemplateInstantiator::TransformSYCLIntelMaxConcurrencyAttr(
+    const SYCLIntelMaxConcurrencyAttr *MC) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(MC->getNThreadsExpr()).get();
-  return getSema().BuildSYCLIntelFPGAMaxConcurrencyAttr(*MC, TransformedExpr);
+  return getSema().BuildSYCLIntelMaxConcurrencyAttr(*MC, TransformedExpr);
 }
 
-const SYCLIntelFPGALoopCoalesceAttr *
-TemplateInstantiator::TransformSYCLIntelFPGALoopCoalesceAttr(
-    const SYCLIntelFPGALoopCoalesceAttr *LC) {
+const SYCLIntelLoopCoalesceAttr *
+TemplateInstantiator::TransformSYCLIntelLoopCoalesceAttr(
+    const SYCLIntelLoopCoalesceAttr *LC) {
   Expr *TransformedExpr = getDerived().TransformExpr(LC->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopCoalesceAttr(*LC, TransformedExpr);
+  return getSema().BuildSYCLIntelLoopCoalesceAttr(*LC, TransformedExpr);
 }
 
-const SYCLIntelFPGAMaxInterleavingAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAMaxInterleavingAttr(
-    const SYCLIntelFPGAMaxInterleavingAttr *MI) {
+const SYCLIntelMaxInterleavingAttr *
+TemplateInstantiator::TransformSYCLIntelMaxInterleavingAttr(
+    const SYCLIntelMaxInterleavingAttr *MI) {
   Expr *TransformedExpr = getDerived().TransformExpr(MI->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGAMaxInterleavingAttr(*MI, TransformedExpr);
+  return getSema().BuildSYCLIntelMaxInterleavingAttr(*MI, TransformedExpr);
 }
 
-const SYCLIntelFPGASpeculatedIterationsAttr *
-TemplateInstantiator::TransformSYCLIntelFPGASpeculatedIterationsAttr(
-    const SYCLIntelFPGASpeculatedIterationsAttr *SI) {
+const SYCLIntelSpeculatedIterationsAttr *
+TemplateInstantiator::TransformSYCLIntelSpeculatedIterationsAttr(
+    const SYCLIntelSpeculatedIterationsAttr *SI) {
   Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGASpeculatedIterationsAttr(*SI,
+  return getSema().BuildSYCLIntelSpeculatedIterationsAttr(*SI,
                                                               TransformedExpr);
 }
 
-const SYCLIntelFPGALoopCountAttr *
-TemplateInstantiator::TransformSYCLIntelFPGALoopCountAttr(
-    const SYCLIntelFPGALoopCountAttr *LCA) {
+const SYCLIntelLoopCountAttr *
+TemplateInstantiator::TransformSYCLIntelLoopCountAttr(
+    const SYCLIntelLoopCountAttr *LCA) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(LCA->getNTripCount()).get();
-  return getSema().BuildSYCLIntelFPGALoopCountAttr(*LCA, TransformedExpr);
+  return getSema().BuildSYCLIntelLoopCountAttr(*LCA, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
@@ -1836,17 +1858,18 @@ const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
   return getSema().BuildLoopUnrollHintAttr(*LU, TransformedExpr);
 }
 
-const SYCLIntelFPGAMaxReinvocationDelayAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAMaxReinvocationDelayAttr(
-    const SYCLIntelFPGAMaxReinvocationDelayAttr *MRD) {
+const SYCLIntelMaxReinvocationDelayAttr *
+TemplateInstantiator::TransformSYCLIntelMaxReinvocationDelayAttr(
+    const SYCLIntelMaxReinvocationDelayAttr *MRD) {
   Expr *TransformedExpr = getDerived().TransformExpr(MRD->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGAMaxReinvocationDelayAttr(*MRD,
+  return getSema().BuildSYCLIntelMaxReinvocationDelayAttr(*MRD,
                                                               TransformedExpr);
 }
 
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
     Decl *AssociatedDecl, const NonTypeTemplateParmDecl *parm,
-    SourceLocation loc, TemplateArgument arg, Optional<unsigned> PackIndex) {
+    SourceLocation loc, TemplateArgument arg,
+    std::optional<unsigned> PackIndex) {
   ExprResult result;
 
   // Determine the substituted parameter type. We can usually infer this from
@@ -2077,9 +2100,9 @@ ExprResult TemplateInstantiator::TransformCXXDefaultArgExpr(
   assert(!cast<FunctionDecl>(E->getParam()->getDeclContext())->
              getDescribedFunctionTemplate() &&
          "Default arg expressions are never formed in dependent cases.");
-  return SemaRef.BuildCXXDefaultArgExpr(E->getUsedLocation(),
-                           cast<FunctionDecl>(E->getParam()->getDeclContext()),
-                                        E->getParam());
+  return SemaRef.BuildCXXDefaultArgExpr(
+      E->getUsedLocation(), cast<FunctionDecl>(E->getParam()->getDeclContext()),
+      E->getParam());
 }
 
 template<typename Fn>
@@ -2094,11 +2117,9 @@ QualType TemplateInstantiator::TransformFunctionProtoType(TypeLocBuilder &TLB,
       TLB, TL, ThisContext, ThisTypeQuals, TransformExceptionSpec);
 }
 
-ParmVarDecl *
-TemplateInstantiator::TransformFunctionTypeParam(ParmVarDecl *OldParm,
-                                                 int indexAdjustment,
-                                               Optional<unsigned> NumExpansions,
-                                                 bool ExpectParameterPack) {
+ParmVarDecl *TemplateInstantiator::TransformFunctionTypeParam(
+    ParmVarDecl *OldParm, int indexAdjustment,
+    std::optional<unsigned> NumExpansions, bool ExpectParameterPack) {
   auto NewParm = SemaRef.SubstParmVarDecl(
       OldParm, TemplateArgs, indexAdjustment, NumExpansions,
       ExpectParameterPack, EvaluateConstraints);
@@ -2109,7 +2130,7 @@ TemplateInstantiator::TransformFunctionTypeParam(ParmVarDecl *OldParm,
 
 QualType TemplateInstantiator::BuildSubstTemplateTypeParmType(
     TypeLocBuilder &TLB, bool SuppressObjCLifetime, bool Final,
-    Decl *AssociatedDecl, unsigned Index, Optional<unsigned> PackIndex,
+    Decl *AssociatedDecl, unsigned Index, std::optional<unsigned> PackIndex,
     TemplateArgument Arg, SourceLocation NameLoc) {
   QualType Replacement = Arg.getAsType();
 
@@ -2178,7 +2199,7 @@ TemplateInstantiator::TransformTemplateTypeParmType(TypeLocBuilder &TLB,
 
     auto [AssociatedDecl, Final] =
         TemplateArgs.getAssociatedDecl(T->getDepth());
-    Optional<unsigned> PackIndex;
+    std::optional<unsigned> PackIndex;
     if (T->isParameterPack()) {
       assert(Arg.getKind() == TemplateArgument::Pack &&
              "Missing argument pack");
@@ -2364,7 +2385,7 @@ TemplateInstantiator::TransformExprRequirement(concepts::ExprRequirement *Req) {
       TransExpr = TransExprRes.get();
   }
 
-  llvm::Optional<concepts::ExprRequirement::ReturnTypeRequirement> TransRetReq;
+  std::optional<concepts::ExprRequirement::ReturnTypeRequirement> TransRetReq;
   const auto &RetReq = Req->getReturnTypeRequirement();
   if (RetReq.isEmpty())
     TransRetReq.emplace();
@@ -2404,10 +2425,10 @@ TemplateInstantiator::TransformNestedRequirement(
     concepts::NestedRequirement *Req) {
   if (!Req->isDependent() && !AlwaysRebuild())
     return Req;
-  if (Req->isSubstitutionFailure()) {
+  if (Req->hasInvalidConstraint()) {
     if (AlwaysRebuild())
-      return RebuildNestedRequirement(
-          Req->getSubstitutionDiagnostic());
+      return RebuildNestedRequirement(Req->getInvalidConstraintEntity(),
+                                      Req->getConstraintSatisfaction());
     return Req;
   }
   Sema::InstantiatingTemplate ReqInst(SemaRef,
@@ -2427,36 +2448,30 @@ TemplateInstantiator::TransformNestedRequirement(
         Req->getConstraintExpr()->getSourceRange());
     if (ConstrInst.isInvalid())
       return nullptr;
-    TransConstraint = TransformExpr(Req->getConstraintExpr());
-    if (!TransConstraint.isInvalid()) {
-      bool CheckSucceeded =
-          SemaRef.CheckConstraintExpression(TransConstraint.get());
-      (void)CheckSucceeded;
-      assert((CheckSucceeded || Trap.hasErrorOccurred()) &&
-                                   "CheckConstraintExpression failed, but "
-                                   "did not produce a SFINAE error");
-    }
-    // Use version of CheckConstraintSatisfaction that does no substitutions.
-    if (!TransConstraint.isInvalid() &&
-        !TransConstraint.get()->isInstantiationDependent() &&
-        !Trap.hasErrorOccurred()) {
-      bool CheckFailed = SemaRef.CheckConstraintSatisfaction(
-          TransConstraint.get(), Satisfaction);
-      (void)CheckFailed;
-      assert((!CheckFailed || Trap.hasErrorOccurred()) &&
-                                 "CheckConstraintSatisfaction failed, "
-                                 "but did not produce a SFINAE error");
-    }
-    if (TransConstraint.isInvalid() || Trap.hasErrorOccurred())
-      return RebuildNestedRequirement(createSubstDiag(SemaRef, Info,
-          [&] (llvm::raw_ostream& OS) {
-              Req->getConstraintExpr()->printPretty(OS, nullptr,
-                                                    SemaRef.getPrintingPolicy());
-          }));
+    llvm::SmallVector<Expr *> Result;
+    if (!SemaRef.CheckConstraintSatisfaction(
+            nullptr, {Req->getConstraintExpr()}, Result, TemplateArgs,
+            Req->getConstraintExpr()->getSourceRange(), Satisfaction) &&
+        !Result.empty())
+      TransConstraint = Result[0];
+    assert(!Trap.hasErrorOccurred() && "Substitution failures must be handled "
+                                       "by CheckConstraintSatisfaction.");
   }
-  if (TransConstraint.get()->isInstantiationDependent())
+  if (TransConstraint.isUsable() &&
+      TransConstraint.get()->isInstantiationDependent())
     return new (SemaRef.Context)
         concepts::NestedRequirement(TransConstraint.get());
+  if (TransConstraint.isInvalid() || !TransConstraint.get() ||
+      Satisfaction.HasSubstitutionFailure()) {
+    SmallString<128> Entity;
+    llvm::raw_svector_ostream OS(Entity);
+    Req->getConstraintExpr()->printPretty(OS, nullptr,
+                                          SemaRef.getPrintingPolicy());
+    char *EntityBuf = new (SemaRef.Context) char[Entity.size()];
+    std::copy(Entity.begin(), Entity.end(), EntityBuf);
+    return new (SemaRef.Context) concepts::NestedRequirement(
+        SemaRef.Context, StringRef(EntityBuf, Entity.size()), Satisfaction);
+  }
   return new (SemaRef.Context) concepts::NestedRequirement(
       SemaRef.Context, TransConstraint.get(), Satisfaction);
 }
@@ -2774,11 +2789,10 @@ bool Sema::SubstTypeConstraint(
           : SourceLocation());
 }
 
-ParmVarDecl *
-Sema::SubstParmVarDecl(ParmVarDecl *OldParm,
-                       const MultiLevelTemplateArgumentList &TemplateArgs,
-                       int indexAdjustment, Optional<unsigned> NumExpansions,
-                       bool ExpectParameterPack, bool EvaluateConstraint) {
+ParmVarDecl *Sema::SubstParmVarDecl(
+    ParmVarDecl *OldParm, const MultiLevelTemplateArgumentList &TemplateArgs,
+    int indexAdjustment, std::optional<unsigned> NumExpansions,
+    bool ExpectParameterPack, bool EvaluateConstraint) {
   TypeSourceInfo *OldDI = OldParm->getTypeSourceInfo();
   TypeSourceInfo *NewDI = nullptr;
 
@@ -3028,7 +3042,7 @@ Sema::SubstBaseSpecifiers(CXXRecordDecl *Instantiation,
                                       Unexpanded);
       bool ShouldExpand = false;
       bool RetainExpansion = false;
-      Optional<unsigned> NumExpansions;
+      std::optional<unsigned> NumExpansions;
       if (CheckParameterPacksForExpansion(Base.getEllipsisLoc(),
                                           Base.getSourceRange(),
                                           Unexpanded,
@@ -3506,6 +3520,8 @@ bool Sema::InstantiateInClassInitializer(
   ContextRAII SavedContext(*this, Instantiation->getParent());
   EnterExpressionEvaluationContext EvalContext(
       *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
+  ExprEvalContexts.back().DelayedDefaultInitializationContext = {
+      PointOfInstantiation, Instantiation, CurContext};
 
   LocalInstantiationScope Scope(*this, true);
 

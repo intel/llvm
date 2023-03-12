@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// test libc++'s implementation of align_val_t, and the relevant new/delete && !hwasan
+// test libc++'s implementation of align_val_t, and the relevant new/delete
 // overloads in all dialects when -faligned-allocation is present.
 
 // The dylibs shipped before macosx10.13 do not contain the aligned allocation
@@ -41,6 +41,11 @@
 #include <cassert>
 
 #include "test_macros.h"
+
+TEST_DIAGNOSTIC_PUSH
+TEST_CLANG_DIAGNOSTIC_IGNORED("-Wprivate-header")
+#include <__memory/aligned_alloc.h>
+TEST_DIAGNOSTIC_POP
 
 struct alloc_stats {
   alloc_stats() { reset(); }

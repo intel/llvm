@@ -60,7 +60,7 @@ class MinVersionBase<string name, EnumAttr scheme, I32EnumAttrCase min>
     : Availability {
   let interfaceName = name;
 
-  let queryFnRetType = "llvm::Optional<" # scheme.returnType # ">";
+  let queryFnRetType = "std::optional<" # scheme.returnType # ">";
   let queryFnName = "getMinVersion";
 
   let mergeAction = "{ "
@@ -68,7 +68,7 @@ class MinVersionBase<string name, EnumAttr scheme, I32EnumAttrCase min>
       "$overall = static_cast<" # scheme.returnType # ">("
                   "std::max(*$overall, $instance)); "
     "} else { $overall = $instance; }}";
-  let initializer = "::llvm::None";
+  let initializer = "::std::nullopt";
   let instanceType = scheme.cppNamespace # "::" # scheme.enum.className;
 
   let instance = scheme.cppNamespace # "::" # scheme.enum.className # "::" #
@@ -79,7 +79,7 @@ class MaxVersionBase<string name, EnumAttr scheme, I32EnumAttrCase max>
     : Availability {
   let interfaceName = name;
 
-  let queryFnRetType = "llvm::Optional<" # scheme.returnType # ">";
+  let queryFnRetType = "std::optional<" # scheme.returnType # ">";
   let queryFnName = "getMaxVersion";
 
   let mergeAction = "{ "
@@ -87,7 +87,7 @@ class MaxVersionBase<string name, EnumAttr scheme, I32EnumAttrCase max>
       "$overall = static_cast<" # scheme.returnType # ">("
                   "std::min(*$overall, $instance)); "
     "} else { $overall = $instance; }}";
-  let initializer = "::llvm::None";
+  let initializer = "::std::nullopt";
   let instanceType = scheme.cppNamespace # "::" # scheme.enum.className;
 
   let instance = scheme.cppNamespace # "::" # scheme.enum.className # "::" #

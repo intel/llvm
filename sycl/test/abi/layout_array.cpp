@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
-// RUN: %clangxx -fsycl -fsycl-device-only -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
+// RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s -o %t.out | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-device-only -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s -o %t.out | FileCheck %s
 // REQUIRES: linux
 // UNSUPPORTED: libcxx
 
@@ -31,7 +31,7 @@ SYCL_EXTERNAL void range(sycl::range<2>) {}
 
 SYCL_EXTERNAL void item(sycl::item<2>) {}
 
-// CHECK: 0 | class sycl::item<2, true>
+// CHECK: 0 | class sycl::item<2>
 // CHECK-NEXT: 0 |   struct sycl::detail::ItemBase<2, true> MImpl
 // CHECK-NEXT: 0 |     class sycl::range<2> MExtent
 // CHECK-NEXT: 0 |       class sycl::detail::array<2> (base)
@@ -50,7 +50,7 @@ SYCL_EXTERNAL void item(sycl::item<2>) {}
 SYCL_EXTERNAL void nd_item(sycl::nd_item<2>) {}
 
 // CHECK: 0 | class sycl::nd_item<2>
-// CHECK-NEXT: 0 |   class sycl::item<2, true> globalItem
+// CHECK-NEXT: 0 |   class sycl::item<2> globalItem
 // CHECK-NEXT: 0 |     struct sycl::detail::ItemBase<2, true> MImpl
 // CHECK-NEXT: 0 |       class sycl::range<2> MExtent
 // CHECK-NEXT: 0 |         class sycl::detail::array<2> (base)

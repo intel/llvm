@@ -12,11 +12,13 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclGroup.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/Inclusions/HeaderAnalysis.h"
+#include "clang/Tooling/Inclusions/StandardLibrary.h"
 
 namespace clang::include_cleaner {
 namespace {
@@ -35,9 +37,9 @@ public:
   void InclusionDirective(SourceLocation Hash, const Token &IncludeTok,
                           StringRef SpelledFilename, bool IsAngled,
                           CharSourceRange FilenameRange,
-                          llvm::Optional<FileEntryRef> File,
-                          StringRef SearchPath, StringRef RelativePath,
-                          const Module *, SrcMgr::CharacteristicKind) override {
+                          OptionalFileEntryRef File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *,
+                          SrcMgr::CharacteristicKind) override {
     if (!Active)
       return;
 
@@ -46,6 +48,7 @@ public:
     I.Resolved = File ? &File->getFileEntry() : nullptr;
     I.Line = SM.getSpellingLineNumber(Hash);
     I.Spelled = SpelledFilename;
+    I.Angled = IsAngled;
     Recorded.Includes.add(I);
   }
 
@@ -99,6 +102,8 @@ public:
       recordMacroRef(MacroNameTok, *MI, RefType::Ambiguous);
   }
 
+  using PPCallbacks::Elifdef;
+  using PPCallbacks::Elifndef;
   void Elifdef(SourceLocation Loc, const Token &MacroNameTok,
                const MacroDefinition &MD) override {
     if (!Active)
@@ -106,7 +111,6 @@ public:
     if (const auto *MI = MD.getMacroInfo())
       recordMacroRef(MacroNameTok, *MI, RefType::Ambiguous);
   }
-
   void Elifndef(SourceLocation Loc, const Token &MacroNameTok,
                 const MacroDefinition &MD) override {
     if (!Active)
@@ -178,21 +182,27 @@ public:
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           llvm::StringRef FileName, bool IsAngled,
                           CharSourceRange /*FilenameRange*/,
-                          Optional<FileEntryRef> File,
+                          OptionalFileEntryRef File,
                           llvm::StringRef /*SearchPath*/,
                           llvm::StringRef /*RelativePath*/,
                           const clang::Module * /*Imported*/,
                           SrcMgr::CharacteristicKind FileKind) override {
     FileID HashFID = SM.getFileID(HashLoc);
     int HashLine = SM.getLineNumber(HashFID, SM.getFileOffset(HashLoc));
-    checkForExport(HashFID, HashLine, File ? &File->getFileEntry() : nullptr);
-
-    if (InMainFile && LastPragmaKeepInMainFileLine == HashLine)
-      Out->ShouldKeep.insert(HashLine);
+    std::optional<Header> IncludedHeader;
+    if (IsAngled)
+      if (auto StandardHeader =
+              tooling::stdlib::Header::named("<" + FileName.str() + ">")) {
+        IncludedHeader = *StandardHeader;
+      }
+    if (!IncludedHeader && File)
+      IncludedHeader = &File->getFileEntry();
+    checkForExport(HashFID, HashLine, std::move(IncludedHeader));
+    checkForKeep(HashLine);
   }
 
   void checkForExport(FileID IncludingFile, int HashLine,
-                      const FileEntry *IncludedHeader) {
+                      std::optional<Header> IncludedHeader) {
     if (ExportStack.empty())
       return;
     auto &Top = ExportStack.back();
@@ -201,15 +211,38 @@ public:
     // Make sure current include is covered by the export pragma.
     if ((Top.Block && HashLine > Top.SeenAtLine) ||
         Top.SeenAtLine == HashLine) {
-      if (IncludedHeader)
-        Out->IWYUExportBy[IncludedHeader->getUniqueID()].push_back(
-            Top.FullPath);
+      if (IncludedHeader) {
+        switch (IncludedHeader->kind()) {
+        case Header::Physical:
+          Out->IWYUExportBy[IncludedHeader->physical()->getUniqueID()]
+              .push_back(Top.Path);
+          break;
+        case Header::Standard:
+          Out->StdIWYUExportBy[IncludedHeader->standard()].push_back(Top.Path);
+          break;
+        case Header::Verbatim:
+          assert(false && "unexpected Verbatim header");
+          break;
+        }
+      }
       // main-file #include with export pragma should never be removed.
       if (Top.SeenAtFile == SM.getMainFileID())
         Out->ShouldKeep.insert(HashLine);
     }
     if (!Top.Block) // Pop immediately for single-line export pragma.
       ExportStack.pop_back();
+  }
+
+  void checkForKeep(int HashLine) {
+    if (!InMainFile || KeepStack.empty())
+      return;
+    KeepPragma &Top = KeepStack.back();
+    // Check if the current include is covered by a keep pragma.
+    if ((Top.Block && HashLine > Top.SeenAtLine) || Top.SeenAtLine == HashLine)
+      Out->ShouldKeep.insert(HashLine);
+
+    if (!Top.Block)
+      KeepStack.pop_back(); // Pop immediately for single-line keep pragma.
   }
 
   bool HandleComment(Preprocessor &PP, SourceRange Range) override {
@@ -238,14 +271,13 @@ public:
                                        SM.getFileOffset(Range.getBegin()));
     // Record export pragma.
     if (Pragma->startswith("export")) {
-      ExportStack.push_back(
-          {CommentLine, CommentFID,
-           save(SM.getFileEntryForID(CommentFID)->tryGetRealPathName()),
-           false});
+      ExportStack.push_back({CommentLine, CommentFID,
+                             save(SM.getFileEntryForID(CommentFID)->getName()),
+                             false});
     } else if (Pragma->startswith("begin_exports")) {
-      ExportStack.push_back(
-          {CommentLine, CommentFID,
-           save(SM.getFileEntryForID(CommentFID)->tryGetRealPathName()), true});
+      ExportStack.push_back({CommentLine, CommentFID,
+                             save(SM.getFileEntryForID(CommentFID)->getName()),
+                             true});
     } else if (Pragma->startswith("end_exports")) {
       // FIXME: be robust on unmatching cases. We should only pop the stack if
       // the begin_exports and end_exports is in the same file.
@@ -256,23 +288,14 @@ public:
     }
 
     if (InMainFile) {
-      if (!Pragma->startswith("keep"))
-        return false;
-      // Given:
-      //
-      // #include "foo.h"
-      // #include "bar.h" // IWYU pragma: keep
-      //
-      // The order in which the callbacks will be triggered:
-      //
-      // 1. InclusionDirective("foo.h")
-      // 2. handleCommentInMainFile("// IWYU pragma: keep")
-      // 3. InclusionDirective("bar.h")
-      //
-      // This code stores the last location of "IWYU pragma: keep" comment in
-      // the main file, so that when next InclusionDirective is called, it will
-      // know that the next inclusion is behind the IWYU pragma.
-      LastPragmaKeepInMainFileLine = CommentLine;
+      if (Pragma->startswith("keep")) {
+        KeepStack.push_back({CommentLine, false});
+      } else if (Pragma->starts_with("begin_keep")) {
+        KeepStack.push_back({CommentLine, true});
+      } else if (Pragma->starts_with("end_keep") && !KeepStack.empty()) {
+        assert(KeepStack.back().Block);
+        KeepStack.pop_back();
+      }
     }
     return false;
   }
@@ -287,21 +310,30 @@ private:
   llvm::BumpPtrAllocator Arena;
   /// Intern table for strings. Contents are on the arena.
   llvm::StringSaver UniqueStrings;
-  // Track the last line "IWYU pragma: keep" was seen in the main file, 1-based.
-  int LastPragmaKeepInMainFileLine = -1;
+
   struct ExportPragma {
     // The line number where we saw the begin_exports or export pragma.
     int SeenAtLine = 0; // 1-based line number.
     // The file where we saw the pragma.
     FileID SeenAtFile;
-    // FullPath of the file SeenAtFile.
-    StringRef FullPath;
+    // Name (per FileEntry::getName()) of the file SeenAtFile.
+    StringRef Path;
     // true if it is a block begin/end_exports pragma; false if it is a
     // single-line export pragma.
     bool Block = false;
   };
   // A stack for tracking all open begin_exports or single-line export.
   std::vector<ExportPragma> ExportStack;
+
+  struct KeepPragma {
+    // The line number where we saw the begin_keep or keep pragma.
+    int SeenAtLine = 0; // 1-based line number.
+    // true if it is a block begin/end_keep pragma; false if it is a
+    // single-line keep pragma.
+    bool Block = false;
+  };
+  // A stack for tracking all open begin_keep pragmas or single-line keeps.
+  std::vector<KeepPragma> KeepStack;
 };
 
 void PragmaIncludes::record(const CompilerInstance &CI) {
@@ -317,19 +349,32 @@ llvm::StringRef PragmaIncludes::getPublic(const FileEntry *F) const {
   return It->getSecond();
 }
 
+static llvm::SmallVector<const FileEntry *>
+toFileEntries(llvm::ArrayRef<StringRef> FileNames, FileManager& FM) {
+    llvm::SmallVector<const FileEntry *> Results;
+
+  for (auto FName : FileNames) {
+    // FIMXE: log the failing cases?
+    if (auto FE = expectedToOptional(FM.getFileRef(FName)))
+      Results.push_back(*FE);
+  }
+  return Results;
+}
 llvm::SmallVector<const FileEntry *>
 PragmaIncludes::getExporters(const FileEntry *File, FileManager &FM) const {
   auto It = IWYUExportBy.find(File->getUniqueID());
   if (It == IWYUExportBy.end())
     return {};
 
-  llvm::SmallVector<const FileEntry *> Results;
-  for (auto Export : It->getSecond()) {
-    // FIMXE: log the failing cases?
-    if (auto FE = expectedToOptional(FM.getFileRef(Export)))
-      Results.push_back(*FE);
-  }
-  return Results;
+  return toFileEntries(It->getSecond(), FM);
+}
+llvm::SmallVector<const FileEntry *>
+PragmaIncludes::getExporters(tooling::stdlib::Header StdHeader,
+                             FileManager &FM) const {
+  auto It = StdIWYUExportBy.find(StdHeader);
+  if (It == StdIWYUExportBy.end())
+    return {};
+  return toFileEntries(It->getSecond(), FM);
 }
 
 bool PragmaIncludes::isSelfContained(const FileEntry *FE) const {
@@ -339,6 +384,14 @@ bool PragmaIncludes::isSelfContained(const FileEntry *FE) const {
 bool PragmaIncludes::isPrivate(const FileEntry *FE) const {
   return IWYUPublic.find(FE->getUniqueID()) != IWYUPublic.end();
 }
+
+namespace {
+template <typename T> bool isImplicitTemplateSpecialization(const Decl *D) {
+  if (const auto *TD = dyn_cast<T>(D))
+    return TD->getTemplateSpecializationKind() == TSK_ImplicitInstantiation;
+  return false;
+}
+} // namespace
 
 std::unique_ptr<ASTConsumer> RecordedAST::record() {
   class Recorder : public ASTConsumer {
@@ -352,7 +405,11 @@ std::unique_ptr<ASTConsumer> RecordedAST::record() {
       for (Decl *D : DG) {
         if (!SM.isWrittenInMainFile(SM.getExpansionLoc(D->getLocation())))
           continue;
-        // FIXME: Filter out certain Obj-C and template-related decls.
+        if (isImplicitTemplateSpecialization<FunctionDecl>(D) ||
+            isImplicitTemplateSpecialization<CXXRecordDecl>(D) ||
+            isImplicitTemplateSpecialization<VarDecl>(D))
+          continue;
+        // FIXME: Filter out certain Obj-C as well.
         Out->Roots.push_back(D);
       }
       return ASTConsumer::HandleTopLevelDecl(DG);
@@ -360,44 +417,6 @@ std::unique_ptr<ASTConsumer> RecordedAST::record() {
   };
 
   return std::make_unique<Recorder>(this);
-}
-
-void RecordedPP::RecordedIncludes::add(const Include &I) {
-  unsigned Index = All.size();
-  All.push_back(I);
-  auto BySpellingIt = BySpelling.try_emplace(I.Spelled).first;
-  All.back().Spelled = BySpellingIt->first(); // Now we own the backing string.
-
-  BySpellingIt->second.push_back(Index);
-  if (I.Resolved)
-    ByFile[I.Resolved].push_back(Index);
-  ByLine[I.Line] = Index;
-}
-
-const Include *
-RecordedPP::RecordedIncludes::atLine(unsigned OneBasedIndex) const {
-  auto It = ByLine.find(OneBasedIndex);
-  return (It == ByLine.end()) ? nullptr : &All[It->second];
-}
-
-llvm::SmallVector<const Include *>
-RecordedPP::RecordedIncludes::match(Header H) const {
-  llvm::SmallVector<const Include *> Result;
-  switch (H.kind()) {
-  case Header::Physical:
-    for (unsigned I : ByFile.lookup(H.physical()))
-      Result.push_back(&All[I]);
-    break;
-  case Header::Standard:
-    for (unsigned I : BySpelling.lookup(H.standard().name().trim("<>")))
-      Result.push_back(&All[I]);
-    break;
-  case Header::Verbatim:
-    for (unsigned I : BySpelling.lookup(H.verbatim().trim("\"<>")))
-      Result.push_back(&All[I]);
-    break;
-  }
-  return Result;
 }
 
 std::unique_ptr<PPCallbacks> RecordedPP::record(const Preprocessor &PP) {

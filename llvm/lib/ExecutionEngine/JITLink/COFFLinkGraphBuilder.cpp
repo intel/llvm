@@ -287,7 +287,7 @@ Error COFFLinkGraphBuilder::handleDirectiveSection(StringRef Str) {
       break;
     }
     case COFF_OPT_incl: {
-      auto DataCopy = G->allocateString(S);
+      auto DataCopy = G->allocateContent(S);
       StringRef StrCopy(DataCopy.data(), DataCopy.size());
       ExternalSymbols[StrCopy] = &G->addExternalSymbol(StrCopy, 0, false);
       ExternalSymbols[StrCopy]->setLive(true);
@@ -613,7 +613,7 @@ COFFLinkGraphBuilder::exportCOMDATSymbol(COFFSymbolIndex SymIndex,
   setGraphSymbol(Symbol.getSectionNumber(), PendingComdatExport->SymbolIndex,
                  *GSym);
   DefinedSymbols[SymbolName] = GSym;
-  PendingComdatExport = None;
+  PendingComdatExport = std::nullopt;
   return GSym;
 }
 

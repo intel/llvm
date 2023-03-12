@@ -850,7 +850,7 @@ namespace rdar12931988 {
 
   void foo(A::X<int> &ax, B::X<int> bx) {
     // CHECK-ELIDE-NOTREE: no viable overloaded '='
-    // CHECK-ELIDE-NOTREE: no known conversion from 'B::X<int>' to 'const rdar12931988::A::X<int>'
+    // CHECK-ELIDE-NOTREE: no known conversion from 'B::X<int>' to 'const X<int>'
     ax = bx;
   }
 
@@ -1415,8 +1415,8 @@ B<> b3 = B<const A<>>();
 B<const A<>> b4 = B<>();
 // CHECK-ELIDE-NOTREE: error: no viable conversion from 'A<(default) 0>' to 'A<1>'
 // CHECK-ELIDE-NOTREE: error: no viable conversion from 'A<1>' to 'A<(default) 0>'
-// CHECK-ELIDE-NOTREE: error: no viable conversion from 'B<int>' to 'B<(default) ZeroArgs::A<0>>'
-// CHECK-ELIDE-NOTREE: error: no viable conversion from 'B<(default) ZeroArgs::A<0>>' to 'B<int>'
+// CHECK-ELIDE-NOTREE: error: no viable conversion from 'B<int>' to 'B<(default) ZeroArgs::A<>>'
+// CHECK-ELIDE-NOTREE: error: no viable conversion from 'B<(default) ZeroArgs::A<>>' to 'B<int>'
 // CHECK-ELIDE-NOTREE: error: no viable conversion from 'B<const A<...>>' to 'B<A<...>>'
 // CHECK-ELIDE-NOTREE: error: no viable conversion from 'B<A<...>>' to 'B<const A<...>>'
 }

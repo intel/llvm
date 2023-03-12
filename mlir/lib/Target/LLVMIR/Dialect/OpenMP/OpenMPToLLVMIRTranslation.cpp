@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
@@ -27,7 +27,7 @@ using namespace mlir;
 
 namespace {
 static llvm::omp::ScheduleKind
-convertToScheduleKind(Optional<omp::ClauseScheduleKind> schedKind) {
+convertToScheduleKind(std::optional<omp::ClauseScheduleKind> schedKind) {
   if (!schedKind.has_value())
     return llvm::omp::OMP_SCHEDULE_Default;
   switch (schedKind.value()) {
@@ -398,7 +398,7 @@ static omp::ReductionDeclareOp findReductionDecl(omp::WsLoopOp container,
 static void
 collectReductionDecls(omp::WsLoopOp loop,
                       SmallVectorImpl<omp::ReductionDeclareOp> &reductions) {
-  Optional<ArrayAttr> attr = loop.getReductions();
+  std::optional<ArrayAttr> attr = loop.getReductions();
   if (!attr)
     return;
 
@@ -693,11 +693,37 @@ convertOmpTaskOp(omp::TaskOp taskOp, llvm::IRBuilderBase &builder,
     convertOmpOpRegions(taskOp.getRegion(), "omp.task.region", builder,
                         moduleTranslation, bodyGenStatus);
   };
+
+  SmallVector<llvm::OpenMPIRBuilder::DependData> dds;
+  if (!taskOp.getDependVars().empty() && taskOp.getDepends()) {
+    for (auto dep :
+         llvm::zip(taskOp.getDependVars(), taskOp.getDepends()->getValue())) {
+      llvm::omp::RTLDependenceKindTy type;
+      switch (
+          std::get<1>(dep).cast<mlir::omp::ClauseTaskDependAttr>().getValue()) {
+      case mlir::omp::ClauseTaskDepend::taskdependin:
+        type = llvm::omp::RTLDependenceKindTy::DepIn;
+        break;
+      // The OpenMP runtime requires that the codegen for 'depend' clause for
+      // 'out' dependency kind must be the same as codegen for 'depend' clause
+      // with 'inout' dependency.
+      case mlir::omp::ClauseTaskDepend::taskdependout:
+      case mlir::omp::ClauseTaskDepend::taskdependinout:
+        type = llvm::omp::RTLDependenceKindTy::DepInOut;
+        break;
+      };
+      llvm::Value *depVal = moduleTranslation.lookupValue(std::get<0>(dep));
+      llvm::OpenMPIRBuilder::DependData dd(type, depVal->getType(), depVal);
+      dds.emplace_back(dd);
+    }
+  }
+
   llvm::OpenMPIRBuilder::InsertPointTy allocaIP =
       findAllocaInsertPoint(builder, moduleTranslation);
   llvm::OpenMPIRBuilder::LocationDescription ompLoc(builder);
   builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createTask(
-      ompLoc, allocaIP, bodyCB, !taskOp.getUntied()));
+      ompLoc, allocaIP, bodyCB, !taskOp.getUntied(), /*Final*/ nullptr,
+      /*IfCondition*/ nullptr, dds));
   return bodyGenStatus;
 }
 
@@ -759,10 +785,8 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
     llvm::IRBuilderBase::InsertPointGuard guard(builder);
     builder.restoreIP(allocaIP);
     for (unsigned i = 0; i < numReductions; ++i) {
-      auto reductionType =
-          loop.getReductionVars()[i].getType().cast<LLVM::LLVMPointerType>();
       llvm::Value *var = builder.CreateAlloca(
-          moduleTranslation.convertType(reductionType.getElementType()));
+          moduleTranslation.convertType(reductionDecls[i].getType()));
       privateReductionVariables.push_back(var);
       reductionVariableMap.try_emplace(loop.getReductionVars()[i], var);
     }
@@ -855,7 +879,8 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
 
   // TODO: Handle doacross loops when the ordered clause has a parameter.
   bool isOrdered = loop.getOrderedVal().has_value();
-  Optional<omp::ScheduleModifier> scheduleModifier = loop.getScheduleModifier();
+  std::optional<omp::ScheduleModifier> scheduleModifier =
+      loop.getScheduleModifier();
   bool isSimd = loop.getSimdModifier();
 
   ompBuilder->applyWorkshareLoop(
@@ -892,14 +917,11 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
     llvm::OpenMPIRBuilder::AtomicReductionGenTy atomicGen = nullptr;
     if (owningAtomicReductionGens[i])
       atomicGen = owningAtomicReductionGens[i];
-    auto reductionType =
-        loop.getReductionVars()[i].getType().cast<LLVM::LLVMPointerType>();
     llvm::Value *variable =
         moduleTranslation.lookupValue(loop.getReductionVars()[i]);
     reductionInfos.push_back(
-        {moduleTranslation.convertType(reductionType.getElementType()),
-         variable, privateReductionVariables[i], owningReductionGens[i],
-         atomicGen});
+        {moduleTranslation.convertType(reductionDecls[i].getType()), variable,
+         privateReductionVariables[i], owningReductionGens[i], atomicGen});
   }
 
   // The call to createReductions below expects the block to have a
@@ -989,11 +1011,11 @@ convertOmpSimdLoop(Operation &opInst, llvm::IRBuilderBase &builder,
       ompBuilder->collapseLoops(ompLoc.DL, loopInfos, {});
 
   llvm::ConstantInt *simdlen = nullptr;
-  if (llvm::Optional<uint64_t> simdlenVar = loop.getSimdlen())
+  if (std::optional<uint64_t> simdlenVar = loop.getSimdlen())
     simdlen = builder.getInt64(simdlenVar.value());
 
   llvm::ConstantInt *safelen = nullptr;
-  if (llvm::Optional<uint64_t> safelenVar = loop.getSafelen())
+  if (std::optional<uint64_t> safelenVar = loop.getSafelen())
     safelen = builder.getInt64(safelenVar.value());
 
   llvm::MapVector<llvm::Value *, llvm::Value *> alignedVars;
@@ -1009,7 +1031,7 @@ convertOmpSimdLoop(Operation &opInst, llvm::IRBuilderBase &builder,
 
 /// Convert an Atomic Ordering attribute to llvm::AtomicOrdering.
 llvm::AtomicOrdering
-convertAtomicOrdering(Optional<omp::ClauseMemoryOrderKind> ao) {
+convertAtomicOrdering(std::optional<omp::ClauseMemoryOrderKind> ao) {
   if (!ao)
     return llvm::AtomicOrdering::Monotonic; // Default Memory Ordering
 
@@ -1040,15 +1062,13 @@ convertOmpAtomicRead(Operation &opInst, llvm::IRBuilderBase &builder,
 
   llvm::AtomicOrdering AO = convertAtomicOrdering(readOp.getMemoryOrderVal());
   llvm::Value *x = moduleTranslation.lookupValue(readOp.getX());
-  Type xTy =
-      readOp.getX().getType().cast<omp::PointerLikeType>().getElementType();
   llvm::Value *v = moduleTranslation.lookupValue(readOp.getV());
-  Type vTy =
-      readOp.getV().getType().cast<omp::PointerLikeType>().getElementType();
-  llvm::OpenMPIRBuilder::AtomicOpValue V = {
-      v, moduleTranslation.convertType(vTy), false, false};
-  llvm::OpenMPIRBuilder::AtomicOpValue X = {
-      x, moduleTranslation.convertType(xTy), false, false};
+
+  llvm::Type *elementType =
+      moduleTranslation.convertType(readOp.getElementType());
+
+  llvm::OpenMPIRBuilder::AtomicOpValue V = {v, elementType, false, false};
+  llvm::OpenMPIRBuilder::AtomicOpValue X = {x, elementType, false, false};
   builder.restoreIP(ompBuilder->createAtomicRead(ompLoc, X, V, AO));
   return success();
 }
@@ -1119,10 +1139,8 @@ convertOmpAtomicUpdate(omp::AtomicUpdateOp &opInst,
                                        : innerUpdateOp.getOperand(0));
   llvm::Value *llvmExpr = moduleTranslation.lookupValue(mlirExpr);
   llvm::Value *llvmX = moduleTranslation.lookupValue(opInst.getX());
-  LLVM::LLVMPointerType mlirXType =
-      opInst.getX().getType().cast<LLVM::LLVMPointerType>();
-  llvm::Type *llvmXElementType =
-      moduleTranslation.convertType(mlirXType.getElementType());
+  llvm::Type *llvmXElementType = moduleTranslation.convertType(
+      opInst.getRegion().getArgument(0).getType());
   llvm::OpenMPIRBuilder::AtomicOpValue llvmAtomicX = {llvmX, llvmXElementType,
                                                       /*isSigned=*/false,
                                                       /*isVolatile=*/false};
@@ -1207,12 +1225,8 @@ convertOmpAtomicCapture(omp::AtomicCaptureOp atomicCaptureOp,
       moduleTranslation.lookupValue(atomicCaptureOp.getAtomicReadOp().getX());
   llvm::Value *llvmV =
       moduleTranslation.lookupValue(atomicCaptureOp.getAtomicReadOp().getV());
-  auto mlirXType = atomicCaptureOp.getAtomicReadOp()
-                       .getX()
-                       .getType()
-                       .cast<LLVM::LLVMPointerType>();
-  llvm::Type *llvmXElementType =
-      moduleTranslation.convertType(mlirXType.getElementType());
+  llvm::Type *llvmXElementType = moduleTranslation.convertType(
+      atomicCaptureOp.getAtomicReadOp().getElementType());
   llvm::OpenMPIRBuilder::AtomicOpValue llvmAtomicX = {llvmX, llvmXElementType,
                                                       /*isSigned=*/false,
                                                       /*isVolatile=*/false};
@@ -1325,7 +1339,7 @@ convertOmpThreadprivate(Operation &opInst, llvm::IRBuilderBase &builder,
   llvm::TypeSize typeSize =
       builder.GetInsertBlock()->getModule()->getDataLayout().getTypeStoreSize(
           type);
-  llvm::ConstantInt *size = builder.getInt64(typeSize.getFixedSize());
+  llvm::ConstantInt *size = builder.getInt64(typeSize.getFixedValue());
   llvm::StringRef suffix = llvm::StringRef(".cache", 6);
   std::string cacheName = (Twine(global.getSymName()).concat(suffix)).str();
   // Emit runtime function and bitcast its type (i8*) to real data type.

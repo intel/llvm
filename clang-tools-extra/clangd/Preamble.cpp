@@ -11,6 +11,7 @@
 #include "Config.h"
 #include "Headers.h"
 #include "SourceCode.h"
+#include "clang-include-cleaner/Record.h"
 #include "support/Logger.h"
 #include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
@@ -32,7 +33,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
@@ -59,7 +59,7 @@ bool compileCommandsAreEqual(const tooling::CompileCommand &LHS,
                              const tooling::CompileCommand &RHS) {
   // We don't check for Output, it should not matter to clangd.
   return LHS.Directory == RHS.Directory && LHS.Filename == RHS.Filename &&
-         llvm::makeArrayRef(LHS.CommandLine).equals(RHS.CommandLine);
+         llvm::ArrayRef(LHS.CommandLine).equals(RHS.CommandLine);
 }
 
 class CppFilePreambleCallbacks : public PreambleCallbacks {
@@ -78,6 +78,9 @@ public:
 
   std::vector<PragmaMark> takeMarks() { return std::move(Marks); }
 
+  include_cleaner::PragmaIncludes takePragmaIncludes() {
+    return std::move(Pragmas);
+  }
   CanonicalIncludes takeCanonicalIncludes() { return std::move(CanonIncludes); }
 
   bool isMainFileIncludeGuarded() const { return IsMainFileIncludeGuarded; }
@@ -119,6 +122,9 @@ public:
     LangOpts = &CI.getLangOpts();
     SourceMgr = &CI.getSourceManager();
     Includes.collect(CI);
+    if (Config::current().Diagnostics.UnusedIncludes ==
+        Config::UnusedIncludesPolicy::Experiment)
+      Pragmas.record(CI);
     if (BeforeExecuteCallback)
       BeforeExecuteCallback(CI);
   }
@@ -188,6 +194,7 @@ private:
   PreambleParsedCallback ParsedCallback;
   IncludeStructure Includes;
   CanonicalIncludes CanonIncludes;
+  include_cleaner::PragmaIncludes Pragmas;
   MainFileMacros Macros;
   std::vector<PragmaMark> Marks;
   bool IsMainFileIncludeGuarded = false;
@@ -332,7 +339,7 @@ scanPreamble(llvm::StringRef Contents, const tooling::CompileCommand &Cmd) {
       std::move(CI), nullptr, std::move(PreambleContents),
       // Provide an empty FS to prevent preprocessor from performing IO. This
       // also implies missing resolved paths for includes.
-      FS.view(llvm::None), IgnoreDiags);
+      FS.view(std::nullopt), IgnoreDiags);
   if (Clang->getFrontendOpts().Inputs.empty())
     return error("compiler instance had no inputs");
   // We are only interested in main file includes.
@@ -561,6 +568,7 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
     Result->CompileCommand = Inputs.CompileCommand;
     Result->Diags = std::move(Diags);
     Result->Includes = CapturedInfo.takeIncludes();
+    Result->Pragmas = CapturedInfo.takePragmaIncludes();
     Result->Macros = CapturedInfo.takeMacros();
     Result->Marks = CapturedInfo.takeMarks();
     Result->CanonIncludes = CapturedInfo.takeCanonicalIncludes();
@@ -571,6 +579,12 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
 
   elog("Could not build a preamble for file {0} version {1}: {2}", FileName,
        Inputs.Version, BuiltPreamble.getError().message());
+  for (const Diag &D : PreambleDiagnostics.take()) {
+    if (D.Severity < DiagnosticsEngine::Error)
+      continue;
+    // Not an ideal way to show errors, but better than nothing!
+    elog("  error: {0}", D.Message);
+  }
   return nullptr;
 }
 
@@ -657,10 +671,10 @@ PreamblePatch PreamblePatch::create(llvm::StringRef FileName,
     // We are only interested in newly added includes, record the ones in
     // Baseline for exclusion.
     llvm::DenseMap<std::pair<tok::PPKeywordKind, llvm::StringRef>,
-                   /*Resolved=*/llvm::StringRef>
+                   const Inclusion *>
         ExistingIncludes;
     for (const auto &Inc : Baseline.Includes.MainFileIncludes)
-      ExistingIncludes[{Inc.Directive, Inc.Written}] = Inc.Resolved;
+      ExistingIncludes[{Inc.Directive, Inc.Written}] = &Inc;
     // There might be includes coming from disabled regions, record these for
     // exclusion too. note that we don't have resolved paths for those.
     for (const auto &Inc : BaselineScan->Includes)
@@ -671,8 +685,16 @@ PreamblePatch PreamblePatch::create(llvm::StringRef FileName,
       // Include already present in the baseline preamble. Set resolved path and
       // put into preamble includes.
       if (It != ExistingIncludes.end()) {
-        Inc.Resolved = It->second.str();
-        PP.PreambleIncludes.push_back(Inc);
+        if (It->second) {
+          // If this header is included in an active region of the baseline
+          // preamble, preserve it.
+          auto &PatchedInc = PP.PreambleIncludes.emplace_back();
+          // Copy everything from existing include, apart from the location,
+          // when it's coming from baseline preamble.
+          PatchedInc = *It->second;
+          PatchedInc.HashLine = Inc.HashLine;
+          PatchedInc.HashOffset = Inc.HashOffset;
+        }
         continue;
       }
       // Include is new in the modified preamble. Inject it into the patch and
@@ -682,6 +704,11 @@ PreamblePatch PreamblePatch::create(llvm::StringRef FileName,
       Patch << llvm::formatv(
           "#{0} {1}\n", spellingForIncDirective(Inc.Directive), Inc.Written);
     }
+  } else {
+    // Make sure we have the full set of includes available even when we're not
+    // patching. As these are used by features we provide afterwards like hover,
+    // go-to-def or include-cleaner when preamble is stale.
+    PP.PreambleIncludes = Baseline.Includes.MainFileIncludes;
   }
 
   if (DirectivesChanged) {

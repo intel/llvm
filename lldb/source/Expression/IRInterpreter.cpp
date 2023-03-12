@@ -408,7 +408,7 @@ public:
     lldb_private::Status alloc_error;
 
     return Malloc(m_target_data.getTypeAllocSize(type),
-                  m_target_data.getPrefTypeAlignment(type));
+                  m_target_data.getPrefTypeAlign(type).value());
   }
 
   std::string PrintData(lldb::addr_t addr, llvm::Type *type) {
@@ -531,6 +531,7 @@ bool IRInterpreter::CanInterpret(llvm::Module &module, llvm::Function &function,
         return false;
       }
       saw_function_with_body = true;
+      LLDB_LOGF(log, "Saw function with body: %s", f.getName().str().c_str());
     }
   }
 

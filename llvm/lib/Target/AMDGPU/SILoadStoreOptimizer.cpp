@@ -263,7 +263,7 @@ private:
                            int32_t NewOffset) const;
   Register computeBase(MachineInstr &MI, const MemAddress &Addr) const;
   MachineOperand createRegOrImm(int32_t Val, MachineInstr &MI) const;
-  Optional<int32_t> extractConstOffset(const MachineOperand &Op) const;
+  std::optional<int32_t> extractConstOffset(const MachineOperand &Op) const;
   void processBaseWithConstOffset(const MachineOperand &Base, MemAddress &Addr) const;
   /// Promotes constant offset to the immediate by adjusting the base. It
   /// tries to use a base from the nearby instructions that allows it to have
@@ -323,7 +323,7 @@ static unsigned getOpcodeWidth(const MachineInstr &MI, const SIInstrInfo &TII) {
   if (TII.isMIMG(MI)) {
     uint64_t DMaskImm =
         TII.getNamedOperand(MI, AMDGPU::OpName::dmask)->getImm();
-    return countPopulation(DMaskImm);
+    return llvm::popcount(DMaskImm);
   }
   if (TII.isMTBUF(Opc)) {
     return AMDGPU::getMTBUFElements(Opc);
@@ -887,7 +887,7 @@ bool SILoadStoreOptimizer::dmasksCanBeCombined(const CombineInfo &CI,
   unsigned MaxMask = std::max(CI.DMask, Paired.DMask);
   unsigned MinMask = std::min(CI.DMask, Paired.DMask);
 
-  unsigned AllowedBitsForMin = llvm::countTrailingZeros(MaxMask);
+  unsigned AllowedBitsForMin = llvm::countr_zero(MaxMask);
   if ((1u << AllowedBitsForMin) <= MinMask)
     return false;
 
@@ -926,7 +926,7 @@ static unsigned getBufferFormatWithCompCount(unsigned OldFormat,
 // - if Lo == 0, return 0 (even though the "- 1" below underflows
 // - if Lo > Hi, return 0 (as if the range wrapped around)
 static uint32_t mostAlignedValueInRange(uint32_t Lo, uint32_t Hi) {
-  return Hi & maskLeadingOnes<uint32_t>(countLeadingZeros((Lo - 1) ^ Hi) + 1);
+  return Hi & maskLeadingOnes<uint32_t>(llvm::countl_zero((Lo - 1) ^ Hi) + 1);
 }
 
 bool SILoadStoreOptimizer::offsetsCanBeCombined(CombineInfo &CI,
@@ -1784,7 +1784,7 @@ unsigned SILoadStoreOptimizer::getNewOpcode(const CombineInfo &CI,
       return AMDGPU::FLAT_STORE_DWORDX4;
     }
   case MIMG:
-    assert((countPopulation(CI.DMask | Paired.DMask) == Width) &&
+    assert(((unsigned)llvm::popcount(CI.DMask | Paired.DMask) == Width) &&
            "No overlaps");
     return AMDGPU::getMaskedMIMGOp(CI.I->getOpcode(), Width);
   }
@@ -1793,8 +1793,9 @@ unsigned SILoadStoreOptimizer::getNewOpcode(const CombineInfo &CI,
 std::pair<unsigned, unsigned>
 SILoadStoreOptimizer::getSubRegIdxs(const CombineInfo &CI,
                                     const CombineInfo &Paired) {
-  assert((CI.InstClass != MIMG || (countPopulation(CI.DMask | Paired.DMask) ==
-                                   CI.Width + Paired.Width)) &&
+  assert((CI.InstClass != MIMG ||
+          ((unsigned)llvm::popcount(CI.DMask | Paired.DMask) ==
+           CI.Width + Paired.Width)) &&
          "No overlaps");
 
   unsigned Idx0;
@@ -1819,7 +1820,7 @@ SILoadStoreOptimizer::getSubRegIdxs(const CombineInfo &CI,
     Idx1 = Idxs[CI.Width][Paired.Width - 1];
   }
 
-  return std::make_pair(Idx0, Idx1);
+  return std::pair(Idx0, Idx1);
 }
 
 const TargetRegisterClass *
@@ -1983,18 +1984,18 @@ void SILoadStoreOptimizer::updateBaseAndOffset(MachineInstr &MI,
   TII->getNamedOperand(MI, AMDGPU::OpName::offset)->setImm(NewOffset);
 }
 
-Optional<int32_t>
+std::optional<int32_t>
 SILoadStoreOptimizer::extractConstOffset(const MachineOperand &Op) const {
   if (Op.isImm())
     return Op.getImm();
 
   if (!Op.isReg())
-    return None;
+    return std::nullopt;
 
   MachineInstr *Def = MRI->getUniqueVRegDef(Op.getReg());
   if (!Def || Def->getOpcode() != AMDGPU::S_MOV_B32 ||
       !Def->getOperand(1).isImm())
-    return None;
+    return std::nullopt;
 
   return Def->getOperand(1).getImm();
 }
@@ -2166,7 +2167,7 @@ bool SILoadStoreOptimizer::promoteConstantOffsetToImm(
         MAddrNext.Base.HiSubReg != MAddr.Base.HiSubReg)
       continue;
 
-    InstsWCommonBase.push_back(std::make_pair(&MINext, MAddrNext.Offset));
+    InstsWCommonBase.push_back(std::pair(&MINext, MAddrNext.Offset));
 
     int64_t Dist = MAddr.Offset - MAddrNext.Offset;
     TargetLoweringBase::AddrMode AM;
@@ -2316,7 +2317,7 @@ SILoadStoreOptimizer::collectMergeableInsts(
     ++I;
   }
 
-  return std::make_pair(BlockI, Modified);
+  return std::pair(BlockI, Modified);
 }
 
 // Scan through looking for adjacent LDS operations with constant offsets from

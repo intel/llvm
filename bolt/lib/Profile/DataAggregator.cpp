@@ -30,6 +30,7 @@
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 #include <map>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 
@@ -144,7 +145,7 @@ void DataAggregator::deleteTempFiles() {
 }
 
 void DataAggregator::findPerfExecutable() {
-  Optional<std::string> PerfExecutable =
+  std::optional<std::string> PerfExecutable =
       sys::Process::FindInEnvPath("PATH", "perf");
   if (!PerfExecutable) {
     outs() << "PERF2BOLT: No perf executable found!\n";
@@ -198,10 +199,10 @@ void DataAggregator::abort() {
   std::string Error;
 
   // Kill subprocesses in case they are not finished
-  sys::Wait(TaskEventsPPI.PI, 1, false, &Error);
-  sys::Wait(MMapEventsPPI.PI, 1, false, &Error);
-  sys::Wait(MainEventsPPI.PI, 1, false, &Error);
-  sys::Wait(MemEventsPPI.PI, 1, false, &Error);
+  sys::Wait(TaskEventsPPI.PI, 1, &Error);
+  sys::Wait(MMapEventsPPI.PI, 1, &Error);
+  sys::Wait(MainEventsPPI.PI, 1, &Error);
+  sys::Wait(MemEventsPPI.PI, 1, &Error);
 
   deleteTempFiles();
 
@@ -246,8 +247,8 @@ void DataAggregator::launchPerfProcess(StringRef Name, PerfProcessInfo &PPI,
   }
   TempFiles.push_back(PPI.StderrPath.data());
 
-  Optional<StringRef> Redirects[] = {
-      llvm::None,                        // Stdin
+  std::optional<StringRef> Redirects[] = {
+      std::nullopt,                      // Stdin
       StringRef(PPI.StdoutPath.data()),  // Stdout
       StringRef(PPI.StderrPath.data())}; // Stderr
 
@@ -261,9 +262,9 @@ void DataAggregator::launchPerfProcess(StringRef Name, PerfProcessInfo &PPI,
 
   if (Wait)
     PPI.PI.ReturnCode = sys::ExecuteAndWait(PerfPath.data(), Argv,
-                                            /*envp*/ llvm::None, Redirects);
+                                            /*envp*/ std::nullopt, Redirects);
   else
-    PPI.PI = sys::ExecuteNoWait(PerfPath.data(), Argv, /*envp*/ llvm::None,
+    PPI.PI = sys::ExecuteNoWait(PerfPath.data(), Argv, /*envp*/ std::nullopt,
                                 Redirects);
 
   free(WritableArgsString);
@@ -298,7 +299,7 @@ void DataAggregator::processFileBuildID(StringRef FileBuildID) {
   FileBuf = std::move(*MB);
   ParsingBuf = FileBuf->getBuffer();
 
-  Optional<StringRef> FileName = getFileNameForBuildID(FileBuildID);
+  std::optional<StringRef> FileName = getFileNameForBuildID(FileBuildID);
   if (!FileName) {
     if (hasAllBuildIDs()) {
       errs() << "PERF2BOLT-ERROR: failed to match build-id from perf output. "
@@ -326,15 +327,22 @@ bool DataAggregator::checkPerfDataMagic(StringRef FileName) {
     return true;
 
   Expected<sys::fs::file_t> FD = sys::fs::openNativeFileForRead(FileName);
-  if (!FD)
+  if (!FD) {
+    consumeError(FD.takeError());
     return false;
+  }
 
   char Buf[7] = {0, 0, 0, 0, 0, 0, 0};
 
   auto Close = make_scope_exit([&] { sys::fs::closeFile(*FD); });
   Expected<size_t> BytesRead = sys::fs::readNativeFileSlice(
-      *FD, makeMutableArrayRef(Buf, sizeof(Buf)), 0);
-  if (!BytesRead || *BytesRead != 7)
+      *FD, MutableArrayRef(Buf, sizeof(Buf)), 0);
+  if (!BytesRead) {
+    consumeError(BytesRead.takeError());
+    return false;
+  }
+
+  if (*BytesRead != 7)
     return false;
 
   if (strncmp(Buf, "PERFILE", 7) == 0)
@@ -467,7 +475,7 @@ Error DataAggregator::preprocessProfile(BinaryContext &BC) {
     return Error::success();
   }
 
-  if (Optional<StringRef> FileBuildID = BC.getFileBuildID()) {
+  if (std::optional<StringRef> FileBuildID = BC.getFileBuildID()) {
     outs() << "BOLT-INFO: binary build-id is:     " << *FileBuildID << "\n";
     processFileBuildID(*FileBuildID);
   } else {
@@ -479,7 +487,7 @@ Error DataAggregator::preprocessProfile(BinaryContext &BC) {
     std::string Error;
     outs() << "PERF2BOLT: waiting for perf " << Name
            << " collection to finish...\n";
-    sys::ProcessInfo PI = sys::Wait(Process.PI, 0, true, &Error);
+    sys::ProcessInfo PI = sys::Wait(Process.PI, std::nullopt, &Error);
 
     if (!Error.empty()) {
       errs() << "PERF-ERROR: " << PerfPath << ": " << Error << "\n";
@@ -564,7 +572,7 @@ Error DataAggregator::preprocessProfile(BinaryContext &BC) {
 
   // Special handling for memory events
   std::string Error;
-  sys::ProcessInfo PI = sys::Wait(MemEventsPPI.PI, 0, true, &Error);
+  sys::ProcessInfo PI = sys::Wait(MemEventsPPI.PI, std::nullopt, &Error);
   if (PI.ReturnCode != 0) {
     ErrorOr<std::unique_ptr<MemoryBuffer>> MB =
         MemoryBuffer::getFileOrSTDIN(MemEventsPPI.StderrPath.data());
@@ -636,13 +644,12 @@ void DataAggregator::processProfile(BinaryContext &BC) {
   processMemEvents();
 
   // Mark all functions with registered events as having a valid profile.
+  const auto Flags = opts::BasicAggregation ? BinaryFunction::PF_SAMPLE
+                                            : BinaryFunction::PF_LBR;
   for (auto &BFI : BC.getBinaryFunctions()) {
     BinaryFunction &BF = BFI.second;
-    if (getBranchData(BF)) {
-      const auto Flags = opts::BasicAggregation ? BinaryFunction::PF_SAMPLE
-                                                : BinaryFunction::PF_LBR;
+    if (getBranchData(BF) || getFuncSampleData(BF.getNames()))
       BF.markProfiled(Flags);
-    }
   }
 
   // Release intermediate storage.
@@ -719,17 +726,14 @@ bool DataAggregator::doIntraBranch(BinaryFunction &Func, uint64_t From,
 
   From -= Func.getAddress();
   To -= Func.getAddress();
-  LLVM_DEBUG(dbgs() << "BOLT-DEBUG: bumpBranchCount: " << Func.getPrintName()
-                    << " @ " << Twine::utohexstr(From) << " -> "
-                    << Func.getPrintName() << " @ " << Twine::utohexstr(To)
-                    << '\n');
+  LLVM_DEBUG(dbgs() << "BOLT-DEBUG: bumpBranchCount: "
+                    << formatv("{0} @ {1:x} -> {0} @ {2:x}\n", Func, From, To));
   if (BAT) {
     From = BAT->translate(Func.getAddress(), From, /*IsBranchSrc=*/true);
     To = BAT->translate(Func.getAddress(), To, /*IsBranchSrc=*/false);
-    LLVM_DEBUG(dbgs() << "BOLT-DEBUG: BAT translation on bumpBranchCount: "
-                      << Func.getPrintName() << " @ " << Twine::utohexstr(From)
-                      << " -> " << Func.getPrintName() << " @ "
-                      << Twine::utohexstr(To) << '\n');
+    LLVM_DEBUG(
+        dbgs() << "BOLT-DEBUG: BAT translation on bumpBranchCount: "
+               << formatv("{0} @ {1:x} -> {0} @ {2:x}\n", Func, From, To));
   }
 
   AggrData->bumpBranchCount(From, To, Count, Mispreds);
@@ -823,7 +827,7 @@ bool DataAggregator::doTrace(const LBREntry &First, const LBREntry &Second,
     return false;
   }
 
-  Optional<BoltAddressTranslation::FallthroughListTy> FTs =
+  std::optional<BoltAddressTranslation::FallthroughListTy> FTs =
       BAT ? BAT->getFallthroughsInTrace(FromFunc->getAddress(), First.To,
                                         Second.From)
           : getFallthroughsInTrace(*FromFunc, First, Second, Count);
@@ -935,7 +939,7 @@ bool DataAggregator::recordTrace(
   return true;
 }
 
-Optional<SmallVector<std::pair<uint64_t, uint64_t>, 16>>
+std::optional<SmallVector<std::pair<uint64_t, uint64_t>, 16>>
 DataAggregator::getFallthroughsInTrace(BinaryFunction &BF,
                                        const LBREntry &FirstLBR,
                                        const LBREntry &SecondLBR,
@@ -943,7 +947,7 @@ DataAggregator::getFallthroughsInTrace(BinaryFunction &BF,
   SmallVector<std::pair<uint64_t, uint64_t>, 16> Res;
 
   if (!recordTrace(BF, FirstLBR, SecondLBR, Count, &Res))
-    return None;
+    return std::nullopt;
 
   return Res;
 }
@@ -1704,8 +1708,7 @@ void DataAggregator::processMemEvents() {
     BinaryFunction *Func = getBinaryFunctionContainingAddress(PC);
     if (!Func) {
       LLVM_DEBUG(if (PC != 0) {
-        dbgs() << "Skipped mem event: 0x" << Twine::utohexstr(PC) << " => 0x"
-               << Twine::utohexstr(Addr) << "\n";
+        dbgs() << formatv("Skipped mem event: {0:x} => {1:x}\n", PC, Addr);
       });
       continue;
     }
@@ -1815,18 +1818,18 @@ void DataAggregator::processPreAggregated() {
   outs() << "\n";
 }
 
-Optional<int32_t> DataAggregator::parseCommExecEvent() {
+std::optional<int32_t> DataAggregator::parseCommExecEvent() {
   size_t LineEnd = ParsingBuf.find_first_of("\n");
   if (LineEnd == StringRef::npos) {
     reportError("expected rest of line");
     Diag << "Found: " << ParsingBuf << "\n";
-    return None;
+    return std::nullopt;
   }
   StringRef Line = ParsingBuf.substr(0, LineEnd);
 
   size_t Pos = Line.find("PERF_RECORD_COMM exec");
   if (Pos == StringRef::npos)
-    return None;
+    return std::nullopt;
   Line = Line.drop_front(Pos);
 
   // Line:
@@ -1836,26 +1839,26 @@ Optional<int32_t> DataAggregator::parseCommExecEvent() {
   if (PIDStr.getAsInteger(10, PID)) {
     reportError("expected PID");
     Diag << "Found: " << PIDStr << "in '" << Line << "'\n";
-    return None;
+    return std::nullopt;
   }
 
   return PID;
 }
 
 namespace {
-Optional<uint64_t> parsePerfTime(const StringRef TimeStr) {
+std::optional<uint64_t> parsePerfTime(const StringRef TimeStr) {
   const StringRef SecTimeStr = TimeStr.split('.').first;
   const StringRef USecTimeStr = TimeStr.split('.').second;
   uint64_t SecTime;
   uint64_t USecTime;
   if (SecTimeStr.getAsInteger(10, SecTime) ||
       USecTimeStr.getAsInteger(10, USecTime))
-    return None;
+    return std::nullopt;
   return SecTime * 1000000ULL + USecTime;
 }
 }
 
-Optional<DataAggregator::ForkInfo> DataAggregator::parseForkEvent() {
+std::optional<DataAggregator::ForkInfo> DataAggregator::parseForkEvent() {
   while (checkAndConsumeFS()) {
   }
 
@@ -1863,21 +1866,21 @@ Optional<DataAggregator::ForkInfo> DataAggregator::parseForkEvent() {
   if (LineEnd == StringRef::npos) {
     reportError("expected rest of line");
     Diag << "Found: " << ParsingBuf << "\n";
-    return None;
+    return std::nullopt;
   }
   StringRef Line = ParsingBuf.substr(0, LineEnd);
 
   size_t Pos = Line.find("PERF_RECORD_FORK");
   if (Pos == StringRef::npos) {
     consumeRestOfLine();
-    return None;
+    return std::nullopt;
   }
 
   ForkInfo FI;
 
   const StringRef TimeStr =
       Line.substr(0, Pos).rsplit(':').first.rsplit(FieldSeparator).second;
-  if (Optional<uint64_t> TimeRes = parsePerfTime(TimeStr)) {
+  if (std::optional<uint64_t> TimeRes = parsePerfTime(TimeStr)) {
     FI.Time = *TimeRes;
   }
 
@@ -1889,14 +1892,14 @@ Optional<DataAggregator::ForkInfo> DataAggregator::parseForkEvent() {
   if (ChildPIDStr.getAsInteger(10, FI.ChildPID)) {
     reportError("expected PID");
     Diag << "Found: " << ChildPIDStr << "in '" << Line << "'\n";
-    return None;
+    return std::nullopt;
   }
 
   const StringRef ParentPIDStr = Line.rsplit('(').second.split(':').first;
   if (ParentPIDStr.getAsInteger(10, FI.ParentPID)) {
     reportError("expected PID");
     Diag << "Found: " << ParentPIDStr << "in '" << Line << "'\n";
-    return None;
+    return std::nullopt;
   }
 
   consumeRestOfLine();
@@ -1930,7 +1933,7 @@ DataAggregator::parseMMapEvent() {
 
   const StringRef TimeStr =
       Line.substr(0, Pos).rsplit(':').first.rsplit(FieldSeparator).second;
-  if (Optional<uint64_t> TimeRes = parsePerfTime(TimeStr))
+  if (std::optional<uint64_t> TimeRes = parsePerfTime(TimeStr))
     ParsedInfo.Time = *TimeRes;
 
   Line = Line.drop_front(Pos);
@@ -2049,7 +2052,7 @@ std::error_code DataAggregator::parseMMapEvents() {
 
     // Set base address for shared objects.
     if (!BC->HasFixedLoadAddress) {
-      Optional<uint64_t> BaseAddress =
+      std::optional<uint64_t> BaseAddress =
           BC->getBaseAddressForMapping(MMapInfo.MMapAddress, MMapInfo.Offset);
       if (!BaseAddress) {
         errs() << "PERF2BOLT-WARNING: unable to find base address of the "
@@ -2095,7 +2098,7 @@ std::error_code DataAggregator::parseTaskEvents() {
                      TimerGroupDesc, opts::TimeAggregator);
 
   while (hasData()) {
-    if (Optional<int32_t> CommInfo = parseCommExecEvent()) {
+    if (std::optional<int32_t> CommInfo = parseCommExecEvent()) {
       // Remove forked child that ran execve
       auto MMapInfoIter = BinaryMMapInfo.find(*CommInfo);
       if (MMapInfoIter != BinaryMMapInfo.end() && MMapInfoIter->second.Forked)
@@ -2104,7 +2107,7 @@ std::error_code DataAggregator::parseTaskEvents() {
       continue;
     }
 
-    Optional<ForkInfo> ForkInfo = parseForkEvent();
+    std::optional<ForkInfo> ForkInfo = parseForkEvent();
     if (!ForkInfo)
       continue;
 
@@ -2131,33 +2134,33 @@ std::error_code DataAggregator::parseTaskEvents() {
          << BinaryMMapInfo.size() << " PID(s)\n";
 
   LLVM_DEBUG({
-    for (std::pair<const uint64_t, MMapInfo> &MMI : BinaryMMapInfo)
-      outs() << "  " << MMI.second.PID << (MMI.second.Forked ? " (forked)" : "")
-             << ": (0x" << Twine::utohexstr(MMI.second.MMapAddress) << ": 0x"
-             << Twine::utohexstr(MMI.second.Size) << ")\n";
+    for (const MMapInfo &MMI : llvm::make_second_range(BinaryMMapInfo))
+      outs() << formatv("  {0}{1}: ({2:x}: {3:x})\n", MMI.PID,
+                        (MMI.Forked ? " (forked)" : ""), MMI.MMapAddress,
+                        MMI.Size);
   });
 
   return std::error_code();
 }
 
-Optional<std::pair<StringRef, StringRef>>
+std::optional<std::pair<StringRef, StringRef>>
 DataAggregator::parseNameBuildIDPair() {
   while (checkAndConsumeFS()) {
   }
 
   ErrorOr<StringRef> BuildIDStr = parseString(FieldSeparator, true);
   if (std::error_code EC = BuildIDStr.getError())
-    return None;
+    return std::nullopt;
 
   // If one of the strings is missing, don't issue a parsing error, but still
   // do not return a value.
   consumeAllRemainingFS();
   if (checkNewLine())
-    return None;
+    return std::nullopt;
 
   ErrorOr<StringRef> NameStr = parseString(FieldSeparator, true);
   if (std::error_code EC = NameStr.getError())
-    return None;
+    return std::nullopt;
 
   consumeRestOfLine();
   return std::make_pair(NameStr.get(), BuildIDStr.get());
@@ -2182,13 +2185,14 @@ bool DataAggregator::hasAllBuildIDs() {
   return !HasInvalidEntries;
 }
 
-Optional<StringRef>
+std::optional<StringRef>
 DataAggregator::getFileNameForBuildID(StringRef FileBuildID) {
   const StringRef SavedParsingBuf = ParsingBuf;
 
   StringRef FileName;
   while (hasData()) {
-    Optional<std::pair<StringRef, StringRef>> IDPair = parseNameBuildIDPair();
+    std::optional<std::pair<StringRef, StringRef>> IDPair =
+        parseNameBuildIDPair();
     if (!IDPair) {
       consumeRestOfLine();
       continue;
@@ -2205,7 +2209,7 @@ DataAggregator::getFileNameForBuildID(StringRef FileBuildID) {
   if (!FileName.empty())
     return FileName;
 
-  return None;
+  return std::nullopt;
 }
 
 std::error_code

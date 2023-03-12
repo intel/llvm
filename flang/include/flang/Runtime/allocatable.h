@@ -44,9 +44,10 @@ int RTNAME(AllocatableCheckAllocated)(Descriptor &,
     int sourceLine = 0);
 
 // For MOLD= allocation; sets bounds, cobounds, and length type
-// parameters from another descriptor.  The destination descriptor must
+// parameters from another descriptor. The destination descriptor must
 // be initialized and deallocated.
-void RTNAME(AllocatableApplyMold)(Descriptor &, const Descriptor &mold);
+void RTNAME(AllocatableApplyMold)(
+    Descriptor &, const Descriptor &mold, int rank = 0);
 
 // Explicitly sets the bounds and length type parameters of an initialized
 // deallocated allocatable.
@@ -93,7 +94,7 @@ int RTNAME(AllocatableAllocateSource)(Descriptor &, const Descriptor &source,
 // but note the order of first two arguments is reversed for consistency
 // with the other APIs for allocatables.)  The destination descriptor
 // must be initialized.
-int RTNAME(MoveAlloc)(Descriptor &to, const Descriptor &from,
+std::int32_t RTNAME(MoveAlloc)(Descriptor &to, Descriptor &from,
     bool hasStat = false, const Descriptor *errMsg = nullptr,
     const char *sourceFile = nullptr, int sourceLine = 0);
 
@@ -101,6 +102,13 @@ int RTNAME(MoveAlloc)(Descriptor &to, const Descriptor &from,
 // The allocatable is left in an initialized state suitable for reallocation
 // with the same bounds, cobounds, and length type parameters.
 int RTNAME(AllocatableDeallocate)(Descriptor &, bool hasStat = false,
+    const Descriptor *errMsg = nullptr, const char *sourceFile = nullptr,
+    int sourceLine = 0);
+
+// Same as AllocatableDeallocate but also set the dynamic type as the declared
+// type as mentioned in 7.3.2.3 note 7.
+int RTNAME(AllocatableDeallocatePolymorphic)(Descriptor &,
+    const typeInfo::DerivedType *, bool hasStat = false,
     const Descriptor *errMsg = nullptr, const char *sourceFile = nullptr,
     int sourceLine = 0);
 

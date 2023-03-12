@@ -22,14 +22,16 @@
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
-class FunctionPass;
-class VETargetMachine;
 class AsmPrinter;
+class FunctionPass;
 class MCInst;
 class MachineInstr;
+class PassRegistry;
+class VETargetMachine;
 
 FunctionPass *createVEISelDag(VETargetMachine &TM);
 FunctionPass *createLVLGenPass();
+void initializeVEDAGToDAGISelPass(PassRegistry &);
 
 void LowerVEMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
                                  AsmPrinter &AP);
@@ -449,8 +451,8 @@ inline static uint64_t val2MImm(uint64_t Val) {
   if (Val == 0)
     return 0; // (0)1
   if (Val & (UINT64_C(1) << 63))
-    return countLeadingOnes(Val);       // (m)1
-  return countLeadingZeros(Val) | 0x40; // (m)0
+    return llvm::countl_one(Val);       // (m)1
+  return llvm::countl_zero(Val) | 0x40; // (m)0
 }
 
 /// mimm2Val - Convert a target MImm immediate to an integer immediate value.

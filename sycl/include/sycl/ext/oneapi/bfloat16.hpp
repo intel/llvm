@@ -15,15 +15,14 @@
 #include <cmath>
 #endif
 
-extern "C" SYCL_EXTERNAL uint16_t
+extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
-extern "C" SYCL_EXTERNAL float
+extern "C" __DPCPP_SYCL_EXTERNAL float
 __devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 class bfloat16;
 
@@ -51,7 +50,7 @@ private:
   static detail::Bfloat16StorageT from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-#if (__CUDA_ARCH__ >= 800)
+#if (__SYCL_CUDA_ARCH__ >= 800)
     return __nvvm_f2bf16_rn(a);
 #else
     // TODO find a better way to check for NaN
@@ -127,7 +126,7 @@ public:
   friend bfloat16 operator-(bfloat16 &lhs) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-#if (__CUDA_ARCH__ >= 800)
+#if (__SYCL_CUDA_ARCH__ >= 800)
     return detail::bitsToBfloat16(__nvvm_neg_bf16(lhs.value));
 #else
     return -to_float(lhs.value);
@@ -226,8 +225,7 @@ inline bfloat16 bitsToBfloat16(const Bfloat16StorageT Value) {
 
 } // namespace detail
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

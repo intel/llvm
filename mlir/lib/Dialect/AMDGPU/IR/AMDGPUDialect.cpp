@@ -13,6 +13,7 @@
 #include "mlir/Dialect/AMDGPU/AMDGPUDialect.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
@@ -24,6 +25,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 #include <limits>
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::amdgpu;
@@ -47,7 +49,16 @@ void AMDGPUDialect::initialize() {
 template <typename T>
 static LogicalResult verifyRawBufferOp(T &op) {
   MemRefType bufferType = op.getMemref().getType().template cast<MemRefType>();
-  if (bufferType.getMemorySpaceAsInt() != 0)
+  Attribute memorySpace = bufferType.getMemorySpace();
+  bool isGlobal = false;
+  if (!memorySpace)
+    isGlobal = true;
+  else if (auto intMemorySpace = memorySpace.dyn_cast<IntegerAttr>())
+    isGlobal = intMemorySpace.getInt() == 0 || intMemorySpace.getInt() == 1;
+  else if (auto gpuMemorySpace = memorySpace.dyn_cast<gpu::AddressSpaceAttr>())
+    isGlobal = gpuMemorySpace.getValue() == gpu::AddressSpace::Global;
+
+  if (!isGlobal)
     return op.emitOpError(
         "Buffer ops must operate on a memref in global memory");
   if (!bufferType.hasRank())
@@ -67,13 +78,13 @@ LogicalResult RawBufferAtomicFaddOp::verify() {
   return verifyRawBufferOp(*this);
 }
 
-static Optional<uint32_t> getConstantUint32(Value v) {
+static std::optional<uint32_t> getConstantUint32(Value v) {
   APInt cst;
   if (!v.getType().isInteger(32))
-    return None;
+    return std::nullopt;
   if (matchPattern(v, m_ConstantInt(&cst)))
     return cst.getZExtValue();
-  return None;
+  return std::nullopt;
 }
 
 template <typename OpType>
@@ -89,7 +100,7 @@ static bool staticallyOutOfBounds(OpType op) {
     return false;
   int64_t result = offset + op.getIndexOffset().value_or(0);
   if (op.getSgprOffset()) {
-    Optional<uint32_t> sgprOffset = getConstantUint32(op.getSgprOffset());
+    std::optional<uint32_t> sgprOffset = getConstantUint32(op.getSgprOffset());
     if (!sgprOffset)
       return false;
     result += *sgprOffset;
@@ -100,10 +111,10 @@ static bool staticallyOutOfBounds(OpType op) {
   for (auto pair : llvm::zip(strides, op.getIndices())) {
     int64_t stride = std::get<0>(pair);
     Value idx = std::get<1>(pair);
-    Optional<uint32_t> idxVal = getConstantUint32(idx);
+    std::optional<uint32_t> idxVal = getConstantUint32(idx);
     if (!idxVal)
       return false;
-    indexVal += stride * idxVal.value();
+    indexVal += stride * *idxVal;
   }
   result += indexVal;
   if (result > std::numeric_limits<uint32_t>::max())
@@ -178,6 +189,24 @@ LogicalResult MFMAOp::verify() {
     destElem = destVector.getElementType();
   }
 
+  Type sourceBType = getSourceB().getType();
+  if (sourceElem.isFloat8E5M2FNUZ() || sourceElem.isFloat8E4M3FNUZ()) {
+    int64_t sourceBLen = 1;
+    Type sourceBElem = sourceBType;
+    if (auto sourceBVector = sourceBType.dyn_cast<VectorType>()) {
+      sourceBLen = sourceBVector.getNumElements();
+      sourceBElem = sourceBVector.getElementType();
+    }
+    if (!sourceBElem.isFloat8E5M2FNUZ() && !sourceBElem.isFloat8E4M3FNUZ())
+      return emitOpError("expected both source operands to have f8 elements");
+    if (sourceLen != sourceBLen)
+      return emitOpError(
+          "expected both f8 source vectors to have the same length");
+  } else {
+    if (sourceType != sourceBType)
+      return emitOpError(
+          "expected both non-f8 source operand types to match exactly");
+  }
   // Normalize the wider integer types the compiler expects to i8
   if (sourceElem.isInteger(32)) {
     sourceLen *= 4;

@@ -158,11 +158,26 @@ struct APFloatBase {
     // 8-bit floating point number following IEEE-754 conventions with bit
     // layout S1E5M2 as described in https://arxiv.org/abs/2209.05433.
     S_Float8E5M2,
+    // 8-bit floating point number mostly following IEEE-754 conventions
+    // and bit layout S1E5M2 described in https://arxiv.org/abs/2206.02915,
+    // with expanded range and with no infinity or signed zero.
+    // NaN is represnted as negative zero. (FN -> Finite, UZ -> unsigned zero).
+    // This format's exponent bias is 16, instead of the 15 (2 ** (5 - 1) - 1)
+    //  that IEEE precedent would imply.
+    S_Float8E5M2FNUZ,
     // 8-bit floating point number mostly following IEEE-754 conventions with
     // bit layout S1E4M3 as described in https://arxiv.org/abs/2209.05433.
     // Unlike IEEE-754 types, there are no infinity values, and NaN is
     // represented with the exponent and mantissa bits set to all 1s.
     S_Float8E4M3FN,
+    // 8-bit floating point number mostly following IEEE-754 conventions
+    // and bit layout S1E4M3 described in https://arxiv.org/abs/2206.02915,
+    // with expanded range and with no infinity or signed zero.
+    // NaN is represnted as negative zero. (FN -> Finite, UZ -> unsigned zero).
+    // This format's exponent bias is 8, instead of the 7 (2 ** (4 - 1) - 1)
+    // that IEEE precedent would imply.
+    S_Float8E4M3FNUZ,
+
     S_x87DoubleExtended,
     S_MaxSemantics = S_x87DoubleExtended,
   };
@@ -177,7 +192,9 @@ struct APFloatBase {
   static const fltSemantics &IEEEquad() LLVM_READNONE;
   static const fltSemantics &PPCDoubleDouble() LLVM_READNONE;
   static const fltSemantics &Float8E5M2() LLVM_READNONE;
+  static const fltSemantics &Float8E5M2FNUZ() LLVM_READNONE;
   static const fltSemantics &Float8E4M3FN() LLVM_READNONE;
+  static const fltSemantics &Float8E4M3FNUZ() LLVM_READNONE;
   static const fltSemantics &x87DoubleExtended() LLVM_READNONE;
 
   /// A Pseudo fltsemantic used to construct APFloats that cannot conflict with
@@ -246,6 +263,7 @@ struct APFloatBase {
   static ExponentType semanticsMinExponent(const fltSemantics &);
   static ExponentType semanticsMaxExponent(const fltSemantics &);
   static unsigned int semanticsSizeInBits(const fltSemantics &);
+  static unsigned int semanticsIntSizeInBits(const fltSemantics&, bool);
 
   /// Returns the size of the floating point number (in bits) in the given
   /// semantics.
@@ -393,6 +411,10 @@ public:
   /// magnitude in the current semantics.
   bool isSmallest() const;
 
+  /// Returns true if this is the smallest (by magnitude) normalized finite
+  /// number in the given semantics.
+  bool isSmallestNormalized() const;
+
   /// Returns true if and only if the number has the largest possible finite
   /// magnitude in the current semantics.
   bool isLargest() const;
@@ -517,6 +539,7 @@ private:
   bool isSignificandAllOnesExceptLSB() const;
   /// Return true if the significand excluding the integral bit is all zeros.
   bool isSignificandAllZeros() const;
+  bool isSignificandAllZerosExceptMSB() const;
 
   /// @}
 
@@ -564,7 +587,9 @@ private:
   APInt convertF80LongDoubleAPFloatToAPInt() const;
   APInt convertPPCDoubleDoubleAPFloatToAPInt() const;
   APInt convertFloat8E5M2APFloatToAPInt() const;
+  APInt convertFloat8E5M2FNUZAPFloatToAPInt() const;
   APInt convertFloat8E4M3FNAPFloatToAPInt() const;
+  APInt convertFloat8E4M3FNUZAPFloatToAPInt() const;
   void initFromAPInt(const fltSemantics *Sem, const APInt &api);
   void initFromHalfAPInt(const APInt &api);
   void initFromBFloatAPInt(const APInt &api);
@@ -574,7 +599,9 @@ private:
   void initFromF80LongDoubleAPInt(const APInt &api);
   void initFromPPCDoubleDoubleAPInt(const APInt &api);
   void initFromFloat8E5M2APInt(const APInt &api);
+  void initFromFloat8E5M2FNUZAPInt(const APInt &api);
   void initFromFloat8E4M3FNAPInt(const APInt &api);
+  void initFromFloat8E4M3FNUZAPInt(const APInt &api);
 
   void assign(const IEEEFloat &);
   void copySignificand(const IEEEFloat &);
@@ -694,6 +721,7 @@ public:
 
   bool isDenormal() const;
   bool isSmallest() const;
+  bool isSmallestNormalized() const;
   bool isLargest() const;
   bool isInteger() const;
 
@@ -851,13 +879,6 @@ class APFloat : public APFloatBase {
 
   void makeSmallestNormalized(bool Neg) {
     APFLOAT_DISPATCH_ON_SEMANTICS(makeSmallestNormalized(Neg));
-  }
-
-  // FIXME: This is due to clang 3.3 (or older version) always checks for the
-  // default constructor in an array aggregate initialization, even if no
-  // elements in the array is default initialized.
-  APFloat() : U(IEEEdouble()) {
-    llvm_unreachable("This is a workaround for old clang.");
   }
 
   explicit APFloat(IEEEFloat F, const fltSemantics &S) : U(std::move(F), S) {}
@@ -1115,6 +1136,14 @@ public:
     return Value;
   }
 
+  /// Assuming this is an IEEE-754 NaN value, quiet its signaling bit.
+  /// This preserves the sign and payload bits.
+  APFloat makeQuiet() const {
+    APFloat Result(*this);
+    Result.getIEEE().makeQuiet();
+    return Result;
+  }
+
   opStatus convert(const fltSemantics &ToSemantics, roundingMode RM,
                    bool *losesInfo);
   opStatus convertToInteger(MutableArrayRef<integerPart> Input,
@@ -1240,10 +1269,16 @@ public:
   bool isFiniteNonZero() const { return isFinite() && !isZero(); }
   bool isPosZero() const { return isZero() && !isNegative(); }
   bool isNegZero() const { return isZero() && isNegative(); }
+  bool isPosInfinity() const { return isInfinity() && !isNegative(); }
+  bool isNegInfinity() const { return isInfinity() && isNegative(); }
   bool isSmallest() const { APFLOAT_DISPATCH_ON_SEMANTICS(isSmallest()); }
   bool isLargest() const { APFLOAT_DISPATCH_ON_SEMANTICS(isLargest()); }
   bool isInteger() const { APFLOAT_DISPATCH_ON_SEMANTICS(isInteger()); }
   bool isIEEE() const { return usesLayout<IEEEFloat>(getSemantics()); }
+
+  bool isSmallestNormalized() const {
+    APFLOAT_DISPATCH_ON_SEMANTICS(isSmallestNormalized());
+  }
 
   APFloat &operator=(const APFloat &RHS) = default;
   APFloat &operator=(APFloat &&RHS) = default;

@@ -917,7 +917,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 // TODO: Coarray intrinsic functions
 //  IMAGE_INDEX, COSHAPE
 // TODO: Non-standard intrinsic functions
-//  LSHIFT, RSHIFT, SHIFT,
+//  SHIFT,
 //  COMPL, EQV, NEQV, INT8, JINT, JNINT, KNINT,
 //  QCMPLX, QEXT, QFLOAT, QREAL, DNUM,
 //  INUM, JNUM, KNUM, QNUM, RNUM, RAN, RANF, ILEN,
@@ -934,7 +934,9 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 static const std::pair<const char *, const char *> genericAlias[]{
     {"and", "iand"},
     {"imag", "aimag"},
+    {"lshift", "shiftl"},
     {"or", "ior"},
+    {"rshift", "shifta"},
     {"xor", "ieor"},
     {"__builtin_ieee_selected_real_kind", "selected_real_kind"},
 };
@@ -1622,7 +1624,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   const ActualArgument *operandArg{nullptr};
   const IntrinsicDummyArgument *kindDummyArg{nullptr};
   const ActualArgument *kindArg{nullptr};
-  bool hasDimArg{false};
+  std::optional<int> dimArg;
   for (std::size_t j{0}; j < dummies; ++j) {
     const IntrinsicDummyArgument &d{dummy[std::min(j, dummyArgPatterns - 1)]};
     if (d.typePattern.kindCode == KindCode::kindArg) {
@@ -1653,7 +1655,8 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       } else {
         continue;
       }
-    } else if (d.optionality == Optionality::missing) {
+    }
+    if (d.optionality == Optionality::missing) {
       messages.Say(arg->sourceLocation(), "unexpected '%s=' argument"_err_en_US,
           d.keyword);
       return std::nullopt;
@@ -1762,7 +1765,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       break;
     case KindCode::dimArg:
       CHECK(type->category() == TypeCategory::Integer);
-      hasDimArg = true;
+      dimArg = j;
       argOk = true;
       break;
     case KindCode::same:
@@ -1852,7 +1855,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   int elementalRank{0};
   for (std::size_t j{0}; j < dummies; ++j) {
     const IntrinsicDummyArgument &d{dummy[std::min(j, dummyArgPatterns - 1)]};
-    if (const ActualArgument * arg{actualForDummy[j]}) {
+    if (const ActualArgument *arg{actualForDummy[j]}) {
       bool isAssumedRank{IsAssumedRank(*arg)};
       if (isAssumedRank && d.rank != Rank::anyOrAssumedRank) {
         messages.Say(arg->sourceLocation(),
@@ -1932,7 +1935,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         argOk = rank == knownArg->Rank();
         break;
       case Rank::anyOrAssumedRank:
-        if (!hasDimArg && rank > 0 && !isAssumedRank &&
+        if (!dimArg && rank > 0 && !isAssumedRank &&
             (std::strcmp(name, "shape") == 0 ||
                 std::strcmp(name, "size") == 0 ||
                 std::strcmp(name, "ubound") == 0)) {
@@ -2139,6 +2142,49 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     CHECK(result.kindCode == KindCode::none);
   }
 
+  // Emit warnings when the syntactic presence of a DIM= argument determines
+  // the semantics of the call but the associated actual argument may not be
+  // present at execution time.
+  if (dimArg) {
+    std::optional<int> arrayRank;
+    if (arrayArg) {
+      arrayRank = arrayArg->Rank();
+      if (auto dimVal{ToInt64(actualForDummy[*dimArg])}) {
+        if (*dimVal < 1) {
+          messages.Say(
+              "The value of DIM= (%jd) may not be less than 1"_err_en_US,
+              static_cast<std::intmax_t>(*dimVal));
+        } else if (*dimVal > *arrayRank) {
+          messages.Say(
+              "The value of DIM= (%jd) may not be greater than %d"_err_en_US,
+              static_cast<std::intmax_t>(*dimVal), *arrayRank);
+        }
+      }
+    }
+    switch (rank) {
+    case Rank::dimReduced:
+    case Rank::dimRemovedOrScalar:
+    case Rank::locReduced:
+    case Rank::scalarIfDim:
+      if (dummy[*dimArg].optionality == Optionality::required) {
+        if (const Symbol *whole{
+                UnwrapWholeSymbolOrComponentDataRef(actualForDummy[*dimArg])}) {
+          if (IsOptional(*whole) || IsAllocatableOrPointer(*whole)) {
+            if (rank == Rank::scalarIfDim || arrayRank.value_or(-1) == 1) {
+              messages.Say(
+                  "The actual argument for DIM= is optional, pointer, or allocatable, and it is assumed to be present and equal to 1 at execution time"_port_en_US);
+            } else {
+              messages.Say(
+                  "The actual argument for DIM= is optional, pointer, or allocatable, and may not be absent during execution; parenthesize to silence this warning"_warn_en_US);
+            }
+          }
+        }
+      }
+      break;
+    default:;
+    }
+  }
+
   // At this point, the call is acceptable.
   // Determine the rank of the function result.
   int resultRank{0};
@@ -2161,11 +2207,11 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     break;
   case Rank::dimReduced:
     CHECK(arrayArg);
-    resultRank = hasDimArg ? arrayArg->Rank() - 1 : 0;
+    resultRank = dimArg ? arrayArg->Rank() - 1 : 0;
     break;
   case Rank::locReduced:
     CHECK(arrayArg);
-    resultRank = hasDimArg ? arrayArg->Rank() - 1 : 1;
+    resultRank = dimArg ? arrayArg->Rank() - 1 : 1;
     break;
   case Rank::rankPlus1:
     CHECK(knownArg);
@@ -2176,7 +2222,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     resultRank = *shapeArgSize;
     break;
   case Rank::scalarIfDim:
-    resultRank = hasDimArg ? 0 : 1;
+    resultRank = dimArg ? 0 : 1;
     break;
   case Rank::elementalOrBOZ:
   case Rank::shape:
@@ -2195,7 +2241,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   // Rearrange the actual arguments into dummy argument order.
   ActualArguments rearranged(dummies);
   for (std::size_t j{0}; j < dummies; ++j) {
-    if (ActualArgument * arg{actualForDummy[j]}) {
+    if (ActualArgument *arg{actualForDummy[j]}) {
       rearranged[j] = std::move(*arg);
     }
   }
@@ -2570,6 +2616,20 @@ IntrinsicProcTable::Implementation::HandleC_F_Pointer(
       } else if (!arguments[2] && fptrRank > 0) {
         context.messages().Say(
             "SHAPE= argument to C_F_POINTER() must appear when FPTR= is an array"_err_en_US);
+      } else if (arguments[2]) {
+        if (const auto *argExpr{arguments[2].value().UnwrapExpr()}) {
+          if (argExpr->Rank() > 1) {
+            context.messages().Say(arguments[2]->sourceLocation(),
+                "SHAPE= argument to C_F_POINTER() must be a rank-one array."_err_en_US);
+          } else if (argExpr->Rank() == 1) {
+            if (auto constShape{GetConstantShape(context, *argExpr)}) {
+              if (constShape->At(ConstantSubscripts{1}).ToInt64() != fptrRank) {
+                context.messages().Say(arguments[2]->sourceLocation(),
+                    "SHAPE= argument to C_F_POINTER() must have size equal to the rank of FPTR="_err_en_US);
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -2594,124 +2654,6 @@ IntrinsicProcTable::Implementation::HandleC_F_Pointer(
   } else {
     return std::nullopt;
   }
-}
-
-static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
-  bool ok{true};
-  if (const auto &pointerArg{call.arguments[0]}) {
-    if (const auto *pointerExpr{pointerArg->UnwrapExpr()}) {
-      if (const Symbol * pointerSymbol{GetLastSymbol(*pointerExpr)}) {
-        if (!pointerSymbol->attrs().test(semantics::Attr::POINTER)) {
-          AttachDeclaration(context.messages().Say(pointerArg->sourceLocation(),
-                                "POINTER= argument of ASSOCIATED() must be a "
-                                "POINTER"_err_en_US),
-              *pointerSymbol);
-        } else {
-          if (const auto &targetArg{call.arguments[1]}) {
-            if (const auto *targetExpr{targetArg->UnwrapExpr()}) {
-              std::optional<characteristics::Procedure> pointerProc, targetProc;
-              const auto *targetProcDesignator{
-                  UnwrapExpr<ProcedureDesignator>(*targetExpr)};
-              const Symbol *targetSymbol{GetLastSymbol(*targetExpr)};
-              bool isCall{false};
-              std::string targetName;
-              if (const auto *targetProcRef{// target is a function call
-                      std::get_if<ProcedureRef>(&targetExpr->u)}) {
-                if (auto targetRefedChars{
-                        characteristics::Procedure::Characterize(
-                            *targetProcRef, context)}) {
-                  targetProc = *targetRefedChars;
-                  targetName = targetProcRef->proc().GetName() + "()";
-                  isCall = true;
-                }
-              } else if (targetProcDesignator) {
-                targetProc = characteristics::Procedure::Characterize(
-                    *targetProcDesignator, context);
-                targetName = targetProcDesignator->GetName();
-              } else if (targetSymbol) {
-                // proc that's not a call
-                if (IsProcedure(*targetSymbol)) {
-                  targetProc = characteristics::Procedure::Characterize(
-                      *targetSymbol, context);
-                }
-                targetName = targetSymbol->name().ToString();
-              }
-              if (IsProcedure(*pointerSymbol)) {
-                pointerProc = characteristics::Procedure::Characterize(
-                    *pointerSymbol, context);
-              }
-              if (pointerProc) {
-                if (targetProc) {
-                  // procedure pointer and procedure target
-                  std::string whyNot;
-                  const SpecificIntrinsic *specificIntrinsic{nullptr};
-                  if (targetProcDesignator) {
-                    specificIntrinsic =
-                        targetProcDesignator->GetSpecificIntrinsic();
-                  }
-                  if (std::optional<parser::MessageFixedText> msg{
-                          CheckProcCompatibility(isCall, pointerProc,
-                              &*targetProc, specificIntrinsic, whyNot)}) {
-                    msg->set_severity(parser::Severity::Warning);
-                    AttachDeclaration(
-                        context.messages().Say(std::move(*msg),
-                            "pointer '" + pointerSymbol->name().ToString() +
-                                "'",
-                            targetName, whyNot),
-                        *pointerSymbol);
-                  }
-                } else if (!IsNullProcedurePointer(*targetExpr)) {
-                  // procedure pointer and object target
-                  AttachDeclaration(
-                      context.messages().Say(
-                          "POINTER= argument '%s' is a procedure "
-                          "pointer but the TARGET= argument '%s' is not a "
-                          "procedure or procedure pointer"_err_en_US,
-                          pointerSymbol->name(), targetName),
-                      *pointerSymbol);
-                }
-              } else if (targetProc) {
-                // object pointer and procedure target
-                AttachDeclaration(
-                    context.messages().Say(
-                        "POINTER= argument '%s' is an object pointer "
-                        "but the TARGET= argument '%s' is a "
-                        "procedure designator"_err_en_US,
-                        pointerSymbol->name(), targetName),
-                    *pointerSymbol);
-              } else if (targetSymbol) {
-                // object pointer and target
-                SymbolVector symbols{GetSymbolVector(*targetExpr)};
-                CHECK(!symbols.empty());
-                if (!GetLastTarget(symbols)) {
-                  parser::Message *msg{context.messages().Say(
-                      targetArg->sourceLocation(),
-                      "TARGET= argument '%s' must have either the POINTER or the TARGET attribute"_err_en_US,
-                      targetExpr->AsFortran())};
-                  for (SymbolRef ref : symbols) {
-                    msg = AttachDeclaration(msg, *ref);
-                  }
-                }
-                if (const auto pointerType{pointerArg->GetType()}) {
-                  if (const auto targetType{targetArg->GetType()}) {
-                    ok = pointerType->IsTkCompatibleWith(*targetType);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  } else {
-    // No arguments to ASSOCIATED()
-    ok = false;
-  }
-  if (!ok) {
-    context.messages().Say(
-        "Arguments of ASSOCIATED() must be a POINTER and an optional valid target"_err_en_US);
-  }
-  return ok;
 }
 
 static bool CheckForNonPositiveValues(FoldingContext &context,
@@ -2810,6 +2752,8 @@ static bool CheckAtomicDefineAndRef(FoldingContext &context,
 }
 
 // Applies any semantic checks peculiar to an intrinsic.
+// TODO: Move the rest of these checks to Semantics/check-call.cpp, which is
+// where ASSOCIATED() and TRANSFER() are now validated.
 static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
   bool ok{true};
   const std::string &name{call.specificIntrinsic.name};
@@ -2826,7 +2770,7 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
           "Argument of ALLOCATED() must be an ALLOCATABLE object or component"_err_en_US);
     }
   } else if (name == "associated") {
-    return CheckAssociated(call, context);
+    // Now handled in Semantics/check-call.cpp
   } else if (name == "atomic_and" || name == "atomic_or" ||
       name == "atomic_xor") {
     return CheckForCoindexedObject(context, call.arguments[2], name, "stat");
@@ -2853,24 +2797,6 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
     if (const auto &arg{call.arguments[0]}) {
       ok = CheckForNonPositiveValues(context, *arg, name, "image");
     }
-  } else if (name == "ishftc") {
-    if (const auto &sizeArg{call.arguments[2]}) {
-      ok = CheckForNonPositiveValues(context, *sizeArg, name, "size");
-      if (ok) {
-        if (auto sizeVal{ToInt64(sizeArg->UnwrapExpr())}) {
-          if (const auto &shiftArg{call.arguments[1]}) {
-            if (auto shiftVal{ToInt64(shiftArg->UnwrapExpr())}) {
-              if (std::abs(*shiftVal) > *sizeVal) {
-                ok = false;
-                context.messages().Say(shiftArg->sourceLocation(),
-                    "The absolute value of the 'shift=' argument for intrinsic '%s' must be less than or equal to the 'size=' argument"_err_en_US,
-                    name);
-              }
-            }
-          }
-        }
-      }
-    }
   } else if (name == "lcobound") {
     return CheckDimAgainstCorank(call, context);
   } else if (name == "loc") {
@@ -2889,7 +2815,7 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
     ok &= CheckForCoindexedObject(context, call.arguments[3], name, "errmsg");
     if (call.arguments[0] && call.arguments[1]) {
       for (int j{0}; j < 2; ++j) {
-        if (const Symbol * last{GetLastSymbol(call.arguments[j])};
+        if (const Symbol *last{GetLastSymbol(call.arguments[j])};
             last && !IsAllocatable(last->GetUltimate())) {
           context.messages().Say(call.arguments[j]->sourceLocation(),
               "Argument #%d to MOVE_ALLOC must be allocatable"_err_en_US,
@@ -2909,7 +2835,7 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
     const auto &arg{call.arguments[0]};
     if (arg) {
       if (const auto *expr{arg->UnwrapExpr()}) {
-        if (const Symbol * symbol{UnwrapWholeSymbolDataRef(*expr)}) {
+        if (const Symbol *symbol{UnwrapWholeSymbolDataRef(*expr)}) {
           ok = symbol->attrs().test(semantics::Attr::OPTIONAL);
         }
       }

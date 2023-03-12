@@ -1,9 +1,8 @@
-// RUN: %clangxx -fsycl -c %s
+// RUN: %clangxx -fsycl -fsyntax-only %s
 //
-// Purpose of this test is to check that [accessor|host_accessor]::iterator and
-// ::const_iterator are aliased to the correct type.
-// FIXME: extend this test to also check ::reverse_iterator and
-// ::const_reverse_iterator
+// Purpose of this test is to check that [accessor|host_accessor]::iterator,
+// ::const_iterator, ::reverse_iterator and ::const_reverse_iterator are aliased
+// to the correct type.
 #include <sycl/sycl.hpp>
 
 #include <type_traits>
@@ -21,6 +20,16 @@ void check_accessor() {
       std::is_same_v<sycl::detail::accessor_iterator<
                          const typename AccessorT::value_type, Dimensions>,
                      typename AccessorT::const_iterator>);
+
+  static_assert(
+      std::is_same_v<std::reverse_iterator<sycl::detail::accessor_iterator<
+                         typename AccessorT::value_type, Dimensions>>,
+                     typename AccessorT::reverse_iterator>);
+
+  static_assert(
+      std::is_same_v<std::reverse_iterator<sycl::detail::accessor_iterator<
+                         const typename AccessorT::value_type, Dimensions>>,
+                     typename AccessorT::const_reverse_iterator>);
 }
 
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
@@ -34,6 +43,16 @@ void check_host_accessor() {
       std::is_same_v<sycl::detail::accessor_iterator<
                          const typename AccessorT::value_type, Dimensions>,
                      typename AccessorT::const_iterator>);
+
+  static_assert(
+      std::is_same_v<std::reverse_iterator<sycl::detail::accessor_iterator<
+                         typename AccessorT::value_type, Dimensions>>,
+                     typename AccessorT::reverse_iterator>);
+
+  static_assert(
+      std::is_same_v<std::reverse_iterator<sycl::detail::accessor_iterator<
+                         const typename AccessorT::value_type, Dimensions>>,
+                     typename AccessorT::const_reverse_iterator>);
 }
 
 struct user_defined_t {

@@ -73,30 +73,76 @@ func.func @index_scalar_srem(%lhs: index, %rhs: index) {
 }
 
 // Check integer add-with-carry conversions.
-// CHECK-LABEL: @int32_scalar_addui_carry
+// CHECK-LABEL: @int32_scalar_addui_extended
 // CHECK-SAME: (%[[LHS:.+]]: i32, %[[RHS:.+]]: i32)
-func.func @int32_scalar_addui_carry(%lhs: i32, %rhs: i32) -> (i32, i1) {
+func.func @int32_scalar_addui_extended(%lhs: i32, %rhs: i32) -> (i32, i1) {
   // CHECK-NEXT: %[[IAC:.+]] = spirv.IAddCarry %[[LHS]], %[[RHS]] : !spirv.struct<(i32, i32)>
   // CHECK-DAG:  %[[SUM:.+]] = spirv.CompositeExtract %[[IAC]][0 : i32] : !spirv.struct<(i32, i32)>
   // CHECK-DAG:  %[[C0:.+]]  = spirv.CompositeExtract %[[IAC]][1 : i32] : !spirv.struct<(i32, i32)>
   // CHECK-DAG:  %[[ONE:.+]] = spirv.Constant 1 : i32
   // CHECK-NEXT: %[[C1:.+]]  = spirv.IEqual %[[C0]], %[[ONE]] : i32
   // CHECK-NEXT: return %[[SUM]], %[[C1]] : i32, i1
-  %sum, %carry = arith.addui_carry %lhs, %rhs: i32, i1
-  return %sum, %carry : i32, i1
+  %sum, %overflow = arith.addui_extended %lhs, %rhs: i32, i1
+  return %sum, %overflow : i32, i1
 }
 
-// CHECK-LABEL: @int32_vector_addui_carry
+// CHECK-LABEL: @int32_vector_addui_extended
 // CHECK-SAME: (%[[LHS:.+]]: vector<4xi32>, %[[RHS:.+]]: vector<4xi32>)
-func.func @int32_vector_addui_carry(%lhs: vector<4xi32>, %rhs: vector<4xi32>) -> (vector<4xi32>, vector<4xi1>) {
+func.func @int32_vector_addui_extended(%lhs: vector<4xi32>, %rhs: vector<4xi32>) -> (vector<4xi32>, vector<4xi1>) {
   // CHECK-NEXT: %[[IAC:.+]] = spirv.IAddCarry %[[LHS]], %[[RHS]] : !spirv.struct<(vector<4xi32>, vector<4xi32>)>
   // CHECK-DAG:  %[[SUM:.+]] = spirv.CompositeExtract %[[IAC]][0 : i32] : !spirv.struct<(vector<4xi32>, vector<4xi32>)>
   // CHECK-DAG:  %[[C0:.+]]  = spirv.CompositeExtract %[[IAC]][1 : i32] : !spirv.struct<(vector<4xi32>, vector<4xi32>)>
   // CHECK-DAG:  %[[ONE:.+]] = spirv.Constant dense<1> : vector<4xi32>
   // CHECK-NEXT: %[[C1:.+]]  = spirv.IEqual %[[C0]], %[[ONE]] : vector<4xi32>
   // CHECK-NEXT: return %[[SUM]], %[[C1]] : vector<4xi32>, vector<4xi1>
-  %sum, %carry = arith.addui_carry %lhs, %rhs: vector<4xi32>, vector<4xi1>
-  return %sum, %carry : vector<4xi32>, vector<4xi1>
+  %sum, %overflow = arith.addui_extended %lhs, %rhs: vector<4xi32>, vector<4xi1>
+  return %sum, %overflow : vector<4xi32>, vector<4xi1>
+}
+
+// Check extended signed integer multiplication conversions.
+// CHECK-LABEL: @int32_scalar_mulsi_extended
+// CHECK-SAME: (%[[LHS:.+]]: i32, %[[RHS:.+]]: i32)
+func.func @int32_scalar_mulsi_extended(%lhs: i32, %rhs: i32) -> (i32, i32) {
+  // CHECK-NEXT: %[[MUL:.+]]   = spirv.SMulExtended %[[LHS]], %[[RHS]] : !spirv.struct<(i32, i32)>
+  // CHECK-DAG:  %[[LOW:.+]]   = spirv.CompositeExtract %[[MUL]][0 : i32] : !spirv.struct<(i32, i32)>
+  // CHECK-DAG:  %[[HIGH:.+]]  = spirv.CompositeExtract %[[MUL]][1 : i32] : !spirv.struct<(i32, i32)>
+  // CHECK-NEXT: return %[[LOW]], %[[HIGH]] : i32, i32
+  %low, %high = arith.mulsi_extended %lhs, %rhs: i32
+  return %low, %high : i32, i32
+}
+
+// CHECK-LABEL: @int32_vector_mulsi_extended
+// CHECK-SAME: (%[[LHS:.+]]: vector<4xi32>, %[[RHS:.+]]: vector<4xi32>)
+func.func @int32_vector_mulsi_extended(%lhs: vector<4xi32>, %rhs: vector<4xi32>) -> (vector<4xi32>, vector<4xi32>) {
+  // CHECK-NEXT: %[[MUL:.+]]   = spirv.SMulExtended %[[LHS]], %[[RHS]] : !spirv.struct<(vector<4xi32>, vector<4xi32>)>
+  // CHECK-DAG:  %[[LOW:.+]]   = spirv.CompositeExtract %[[MUL]][0 : i32] : !spirv.struct<(vector<4xi32>, vector<4xi32>)>
+  // CHECK-DAG:  %[[HIGH:.+]]  = spirv.CompositeExtract %[[MUL]][1 : i32] : !spirv.struct<(vector<4xi32>, vector<4xi32>)>
+  // CHECK-NEXT: return %[[LOW]], %[[HIGH]] : vector<4xi32>, vector<4xi32>
+  %low, %high = arith.mulsi_extended %lhs, %rhs: vector<4xi32>
+  return %low, %high : vector<4xi32>, vector<4xi32>
+}
+
+// Check extended unsigned integer multiplication conversions.
+// CHECK-LABEL: @int32_scalar_mului_extended
+// CHECK-SAME: (%[[LHS:.+]]: i32, %[[RHS:.+]]: i32)
+func.func @int32_scalar_mului_extended(%lhs: i32, %rhs: i32) -> (i32, i32) {
+  // CHECK-NEXT: %[[MUL:.+]]   = spirv.UMulExtended %[[LHS]], %[[RHS]] : !spirv.struct<(i32, i32)>
+  // CHECK-DAG:  %[[LOW:.+]]   = spirv.CompositeExtract %[[MUL]][0 : i32] : !spirv.struct<(i32, i32)>
+  // CHECK-DAG:  %[[HIGH:.+]]  = spirv.CompositeExtract %[[MUL]][1 : i32] : !spirv.struct<(i32, i32)>
+  // CHECK-NEXT: return %[[LOW]], %[[HIGH]] : i32, i32
+  %low, %high = arith.mului_extended %lhs, %rhs: i32
+  return %low, %high : i32, i32
+}
+
+// CHECK-LABEL: @int32_vector_mului_extended
+// CHECK-SAME: (%[[LHS:.+]]: vector<4xi32>, %[[RHS:.+]]: vector<4xi32>)
+func.func @int32_vector_mului_extended(%lhs: vector<4xi32>, %rhs: vector<4xi32>) -> (vector<4xi32>, vector<4xi32>) {
+  // CHECK-NEXT: %[[MUL:.+]]   = spirv.UMulExtended %[[LHS]], %[[RHS]] : !spirv.struct<(vector<4xi32>, vector<4xi32>)>
+  // CHECK-DAG:  %[[LOW:.+]]   = spirv.CompositeExtract %[[MUL]][0 : i32] : !spirv.struct<(vector<4xi32>, vector<4xi32>)>
+  // CHECK-DAG:  %[[HIGH:.+]]  = spirv.CompositeExtract %[[MUL]][1 : i32] : !spirv.struct<(vector<4xi32>, vector<4xi32>)>
+  // CHECK-NEXT: return %[[LOW]], %[[HIGH]] : vector<4xi32>, vector<4xi32>
+  %low, %high = arith.mului_extended %lhs, %rhs: vector<4xi32>
+  return %low, %high : vector<4xi32>, vector<4xi32>
 }
 
 // Check float unary operation conversions.
@@ -855,6 +901,20 @@ func.func @trunc_to_veci1(%arg0: vector<4xi32>) -> vector<4xi1> {
   // CHECK: spirv.Select %[[IS_ONE]], %[[TRUE]], %[[FALSE]] : vector<4xi1>, vector<4xi1>
   %0 = arith.trunci %arg0 : vector<4xi32> to vector<4xi1>
   return %0 : vector<4xi1>
+}
+
+// CHECK-LABEL: @fptoui1
+func.func @fptoui1(%arg0 : f32) -> i32 {
+  // CHECK: spirv.ConvertFToU %{{.*}} : f32 to i32
+  %0 = arith.fptoui %arg0 : f32 to i32
+  return %0 : i32
+}
+
+// CHECK-LABEL: @fptoui2
+func.func @fptoui2(%arg0 : f16) -> i16 {
+  // CHECK: spirv.ConvertFToU %{{.*}} : f16 to i16
+  %0 = arith.fptoui %arg0 : f16 to i16
+  return %0 : i16
 }
 
 // CHECK-LABEL: @fptosi1

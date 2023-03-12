@@ -563,28 +563,23 @@ instance of a device global variable in a `pi_program`.  This functionality is
 exposed as two new PI interfaces:
 
 ```
-pi_result piextEnqueueDeviceVariableRead(pi_queue Queue, pi_program Program,
-                                         const char *Name, pi_bool BlockingRead,
-                                         size_t Count, size_t Offset, void *Dst,
-                                         pi_uint32 NumEventsInWaitList,
-                                         const pi_event *EventsWaitList,
-                                         pi_event *Event);
+pi_result piextEnqueueDeviceGlobalVariableRead(
+    pi_queue Queue, pi_program Program, const char *Name, pi_bool BlockingRead,
+    size_t Count, size_t Offset, void *Dst, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *Event);
 
-pi_result piextEnqueueDeviceVariableWrite(pi_queue Queue, pi_program Program,
-                                          const char *Name,
-                                          pi_bool BlockingWrite, size_t Count,
-                                          size_t Offset, const void *Src,
-                                          pi_uint32 NumEventsInWaitList,
-                                          const pi_event *EventsWaitList,
-                                          pi_event *Event);
+pi_result piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue Queue, pi_program Program, const char *Name, pi_bool BlockingWrite,
+    size_t Count, size_t Offset, const void *Src, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *Event);
 ```
 
-The `piextEnqueueDeviceVariableRead` function reads `Count` bytes at byte-offset
-`Offset` from a device global variable in `Program` identified by the name
-`Name`. The read data is stored in `Dst`. Likewise, the
-`piextEnqueueDeviceVariableWrite` function reads `Count` bytes from `Dst` and
-stores them at byte-offset `Offset` in the device global variable in `Program`
-identified by the name `Name`.
+The `piextEnqueueDeviceGlobalVariableRead` function reads `Count` bytes at
+byte-offset `Offset` from a device global variable in `Program` identified by
+the name `Name`. The read data is stored in `Dst`. Likewise, the
+`piextEnqueueDeviceGlobalVariableWrite` function reads `Count` bytes from `Dst`
+and stores them at byte-offset `Offset` in the device global variable in
+`Program` identified by the name `Name`.
 
 Both functions will enqueue the associated memory command on `Queue` where it
 will first wait for `NumEventsInWaitList` events in `EventsWaitList` to finish.

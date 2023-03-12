@@ -17,8 +17,7 @@
 #ifndef LLVM_ADT_STLEXTRAS_H
 #define LLVM_ADT_STLEXTRAS_H
 
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/identity.h"
@@ -525,6 +524,8 @@ protected:
       BaseT::operator++();
   }
 
+  filter_iterator_base() = default;
+
   // Construct the iterator. The begin iterator needs to know where the end
   // is, so that it can properly stop when it gets there. The end iterator only
   // needs the predicate to support bidirectional iteration.
@@ -560,6 +561,8 @@ template <typename WrappedIteratorT, typename PredicateT,
 class filter_iterator_impl
     : public filter_iterator_base<WrappedIteratorT, PredicateT, IterTag> {
 public:
+  filter_iterator_impl() = default;
+
   filter_iterator_impl(WrappedIteratorT Begin, WrappedIteratorT End,
                        PredicateT Pred)
       : filter_iterator_impl::filter_iterator_base(Begin, End, Pred) {}
@@ -580,6 +583,8 @@ class filter_iterator_impl<WrappedIteratorT, PredicateT,
 
 public:
   using BaseT::operator--;
+
+  filter_iterator_impl() = default;
 
   filter_iterator_impl(WrappedIteratorT Begin, WrappedIteratorT End,
                        PredicateT Pred)
@@ -720,11 +725,14 @@ make_early_inc_range(RangeT &&Range) {
                     EarlyIncIteratorT(std::end(std::forward<RangeT>(Range))));
 }
 
-// forward declarations required by zip_shortest/zip_first/zip_longest
+// Forward declarations required by zip_shortest/zip_equal/zip_first/zip_longest
 template <typename R, typename UnaryPredicate>
 bool all_of(R &&range, UnaryPredicate P);
+
 template <typename R, typename UnaryPredicate>
 bool any_of(R &&range, UnaryPredicate P);
+
+template <typename T> bool all_equal(std::initializer_list<T> Values);
 
 namespace detail {
 
@@ -778,9 +786,8 @@ protected:
   template <size_t... Ns>
   bool test_all_equals(const zip_common &other,
             std::index_sequence<Ns...>) const {
-    return all_of(std::initializer_list<bool>{std::get<Ns>(this->iterators) ==
-                                              std::get<Ns>(other.iterators)...},
-                  identity<bool>{});
+    return ((std::get<Ns>(this->iterators) == std::get<Ns>(other.iterators)) &&
+            ...);
   }
 
 public:
@@ -824,9 +831,8 @@ class zip_shortest : public zip_common<zip_shortest<Iters...>, Iters...> {
   template <size_t... Ns>
   bool test(const zip_shortest<Iters...> &other,
             std::index_sequence<Ns...>) const {
-    return all_of(llvm::ArrayRef<bool>({std::get<Ns>(this->iterators) !=
-                                        std::get<Ns>(other.iterators)...}),
-                  identity<bool>{});
+    return ((std::get<Ns>(this->iterators) != std::get<Ns>(other.iterators)) &&
+            ...);
   }
 
 public:
@@ -870,19 +876,41 @@ public:
 
 } // end namespace detail
 
-/// zip iterator for two or more iteratable types.
+/// zip iterator for two or more iteratable types. Iteration continues until the
+/// end of the *shortest* iteratee is reached.
 template <typename T, typename U, typename... Args>
 detail::zippy<detail::zip_shortest, T, U, Args...> zip(T &&t, U &&u,
-                                                       Args &&... args) {
+                                                       Args &&...args) {
   return detail::zippy<detail::zip_shortest, T, U, Args...>(
       std::forward<T>(t), std::forward<U>(u), std::forward<Args>(args)...);
 }
 
+/// zip iterator that assumes that all iteratees have the same length.
+/// In builds with assertions on, this assumption is checked before the
+/// iteration starts.
+template <typename T, typename U, typename... Args>
+detail::zippy<detail::zip_first, T, U, Args...> zip_equal(T &&t, U &&u,
+                                                          Args &&...args) {
+  assert(all_equal({std::distance(adl_begin(t), adl_end(t)),
+                    std::distance(adl_begin(u), adl_end(u)),
+                    std::distance(adl_begin(args), adl_end(args))...}) &&
+         "Iteratees do not have equal length");
+  return detail::zippy<detail::zip_first, T, U, Args...>(
+      std::forward<T>(t), std::forward<U>(u), std::forward<Args>(args)...);
+}
+
 /// zip iterator that, for the sake of efficiency, assumes the first iteratee to
-/// be the shortest.
+/// be the shortest. Iteration continues until the end of the first iteratee is
+/// reached. In builds with assertions on, we check that the assumption about
+/// the first iteratee being the shortest holds.
 template <typename T, typename U, typename... Args>
 detail::zippy<detail::zip_first, T, U, Args...> zip_first(T &&t, U &&u,
-                                                          Args &&... args) {
+                                                          Args &&...args) {
+  assert(std::distance(adl_begin(t), adl_end(t)) <=
+             std::min({std::distance(adl_begin(u), adl_end(u)),
+                       std::distance(adl_begin(args), adl_end(args))...}) &&
+         "First iteratee is not the shortest");
+
   return detail::zippy<detail::zip_first, T, U, Args...>(
       std::forward<T>(t), std::forward<U>(u), std::forward<Args>(args)...);
 }
@@ -896,15 +924,15 @@ Iter next_or_end(const Iter &I, const Iter &End) {
 }
 
 template <typename Iter>
-auto deref_or_none(const Iter &I, const Iter &End) -> llvm::Optional<
+auto deref_or_none(const Iter &I, const Iter &End) -> std::optional<
     std::remove_const_t<std::remove_reference_t<decltype(*I)>>> {
   if (I == End)
-    return None;
+    return std::nullopt;
   return *I;
 }
 
 template <typename Iter> struct ZipLongestItemType {
-  using type = llvm::Optional<std::remove_const_t<
+  using type = std::optional<std::remove_const_t<
       std::remove_reference_t<decltype(*std::declval<Iter>())>>>;
 };
 
@@ -934,10 +962,8 @@ private:
   template <size_t... Ns>
   bool test(const zip_longest_iterator<Iters...> &other,
             std::index_sequence<Ns...>) const {
-    return llvm::any_of(
-        std::initializer_list<bool>{std::get<Ns>(this->iterators) !=
-                                    std::get<Ns>(other.iterators)...},
-        identity<bool>{});
+    return ((std::get<Ns>(this->iterators) != std::get<Ns>(other.iterators)) ||
+            ...);
   }
 
   template <size_t... Ns> value_type deref(std::index_sequence<Ns...>) const {
@@ -1005,7 +1031,7 @@ public:
 } // namespace detail
 
 /// Iterate over two or more iterators at the same time. Iteration continues
-/// until all iterators reach the end. The llvm::Optional only contains a value
+/// until all iterators reach the end. The std::optional only contains a value
 /// if the iterator has not reached the end.
 template <typename T, typename U, typename... Args>
 detail::zip_longest_range<T, U, Args...> zip_longest(T &&t, U &&u,

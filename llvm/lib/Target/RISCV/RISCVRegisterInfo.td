@@ -16,37 +16,33 @@ class RISCVReg<bits<5> Enc, string n, list<string> alt = []> : Register<n> {
   let AltNames = alt;
 }
 
+class RISCVRegWithSubRegs<bits<5> Enc, string n, list<Register> subregs,
+                          list<string> alt = []>
+      : RegisterWithSubRegs<n, subregs> {
+  let HWEncoding{4-0} = Enc;
+  let AltNames = alt;
+}
+
 class RISCVReg16<bits<5> Enc, string n, list<string> alt = []> : Register<n> {
   let HWEncoding{4-0} = Enc;
   let AltNames = alt;
 }
 
 def sub_16 : SubRegIndex<16>;
-class RISCVReg32<RISCVReg16 subreg> : Register<""> {
-  let HWEncoding{4-0} = subreg.HWEncoding{4-0};
-  let SubRegs = [subreg];
+class RISCVReg32<RISCVReg16 subreg>
+  : RISCVRegWithSubRegs<subreg.HWEncoding{4-0}, subreg.AsmName, [subreg],
+                        subreg.AltNames> {
   let SubRegIndices = [sub_16];
-  let AsmName = subreg.AsmName;
-  let AltNames = subreg.AltNames;
 }
 
 // Because RISCVReg64 register have AsmName and AltNames that alias with their
 // 16/32-bit sub-register, RISCVAsmParser will need to coerce a register number
 // from a RISCVReg16/RISCVReg32 to the equivalent RISCVReg64 when appropriate.
 def sub_32 : SubRegIndex<32>;
-class RISCVReg64<RISCVReg32 subreg> : Register<""> {
-  let HWEncoding{4-0} = subreg.HWEncoding{4-0};
-  let SubRegs = [subreg];
+class RISCVReg64<RISCVReg32 subreg>
+  : RISCVRegWithSubRegs<subreg.HWEncoding{4-0}, subreg.AsmName, [subreg],
+                        subreg.AltNames> {
   let SubRegIndices = [sub_32];
-  let AsmName = subreg.AsmName;
-  let AltNames = subreg.AltNames;
-}
-
-class RISCVRegWithSubRegs<bits<5> Enc, string n, list<Register> subregs,
-                          list<string> alt = []>
-      : RegisterWithSubRegs<n, subregs> {
-  let HWEncoding{4-0} = Enc;
-  let AltNames = alt;
 }
 
 def ABIRegAltName : RegAltNameIndex;
@@ -490,54 +486,47 @@ class VReg<list<ValueType> regTypes, dag regList, int Vlmul>
   int Size = !mul(Vlmul, 64);
 }
 
-def VR : VReg<[vint8m1_t, vint16m1_t, vint32m1_t, vint64m1_t,
-               vfloat16m1_t, vfloat32m1_t, vfloat64m1_t,
-               vint8mf2_t, vint8mf4_t, vint8mf8_t,
-               vint16mf2_t, vint16mf4_t, vint32mf2_t,
-               vfloat16mf4_t, vfloat16mf2_t, vfloat32mf2_t,
-               vbool64_t, vbool32_t, vbool16_t, vbool8_t, vbool4_t,
-               vbool2_t, vbool1_t],
-           (add (sequence "V%u", 8, 31),
-                (sequence "V%u", 0, 7)), 1>;
-
-def VRNoV0 : VReg<[vint8m1_t, vint16m1_t, vint32m1_t, vint64m1_t,
-                   vfloat16m1_t, vfloat32m1_t, vfloat64m1_t,
-                   vint8mf2_t, vint8mf4_t, vint8mf8_t,
-                   vint16mf2_t, vint16mf4_t, vint32mf2_t,
-                   vfloat16mf4_t, vfloat16mf2_t, vfloat32mf2_t,
-                   vbool64_t, vbool32_t, vbool16_t, vbool8_t, vbool4_t,
-                   vbool2_t, vbool1_t],
-               (add (sequence "V%u", 8, 31),
-                    (sequence "V%u", 1, 7)), 1>;
-
-def VRM2 : VReg<[vint8m2_t, vint16m2_t, vint32m2_t, vint64m2_t,
-                 vfloat16m2_t, vfloat32m2_t, vfloat64m2_t],
-             (add (sequence "V%uM2", 8, 31, 2),
-                  (sequence "V%uM2", 0, 7, 2)), 2>;
-
-def VRM2NoV0 : VReg<[vint8m2_t, vint16m2_t, vint32m2_t, vint64m2_t,
-                     vfloat16m2_t, vfloat32m2_t, vfloat64m2_t],
-             (add (sequence "V%uM2", 8, 31, 2),
-                  (sequence "V%uM2", 2, 7, 2)), 2>;
-
-def VRM4 : VReg<[vint8m4_t, vint16m4_t, vint32m4_t, vint64m4_t,
-                 vfloat16m4_t, vfloat32m4_t, vfloat64m4_t],
-             (add V8M4, V12M4, V16M4, V20M4, V24M4, V28M4, V0M4, V4M4), 4>;
-
-def VRM4NoV0 : VReg<[vint8m4_t, vint16m4_t, vint32m4_t, vint64m4_t,
-                     vfloat16m4_t, vfloat32m4_t, vfloat64m4_t],
-             (add V8M4, V12M4, V16M4, V20M4, V24M4, V28M4, V4M4), 4>;
-
-def VRM8 : VReg<[vint8m8_t, vint16m8_t, vint32m8_t, vint64m8_t,
-                 vfloat16m8_t, vfloat32m8_t, vfloat64m8_t],
-             (add V8M8, V16M8, V24M8, V0M8), 8>;
-
-def VRM8NoV0 : VReg<[vint8m8_t, vint16m8_t, vint32m8_t, vint64m8_t,
-                     vfloat16m8_t, vfloat32m8_t, vfloat64m8_t],
-             (add V8M8, V16M8, V24M8), 8>;
-
 defvar VMaskVTs = [vbool1_t, vbool2_t, vbool4_t, vbool8_t, vbool16_t,
                    vbool32_t, vbool64_t];
+
+defvar VM1VTs = [vint8m1_t, vint16m1_t, vint32m1_t, vint64m1_t,
+                 vfloat16m1_t, vfloat32m1_t, vfloat64m1_t,
+                 vint8mf2_t, vint8mf4_t, vint8mf8_t,
+                 vint16mf2_t, vint16mf4_t, vint32mf2_t,
+                 vfloat16mf4_t, vfloat16mf2_t, vfloat32mf2_t];
+
+defvar VM2VTs = [vint8m2_t, vint16m2_t, vint32m2_t, vint64m2_t,
+                 vfloat16m2_t, vfloat32m2_t, vfloat64m2_t];
+
+defvar VM4VTs = [vint8m4_t, vint16m4_t, vint32m4_t, vint64m4_t,
+                 vfloat16m4_t, vfloat32m4_t, vfloat64m4_t];
+
+defvar VM8VTs = [vint8m8_t, vint16m8_t, vint32m8_t, vint64m8_t,
+                 vfloat16m8_t, vfloat32m8_t, vfloat64m8_t];
+
+def VR : VReg<!listconcat(VM1VTs, VMaskVTs),
+              (add (sequence "V%u", 8, 31),
+                   (sequence "V%u", 0, 7)), 1>;
+
+def VRNoV0 : VReg<!listconcat(VM1VTs, VMaskVTs),
+                  (add (sequence "V%u", 8, 31),
+                       (sequence "V%u", 1, 7)), 1>;
+
+def VRM2 : VReg<VM2VTs, (add (sequence "V%uM2", 8, 31, 2),
+                             (sequence "V%uM2", 0, 7, 2)), 2>;
+
+def VRM2NoV0 : VReg<VM2VTs, (add (sequence "V%uM2", 8, 31, 2),
+                                 (sequence "V%uM2", 2, 7, 2)), 2>;
+
+def VRM4 : VReg<VM4VTs,
+             (add V8M4, V12M4, V16M4, V20M4, V24M4, V28M4, V0M4, V4M4), 4>;
+
+def VRM4NoV0 : VReg<VM4VTs,
+             (add V8M4, V12M4, V16M4, V20M4, V24M4, V28M4, V4M4), 4>;
+
+def VRM8 : VReg<VM8VTs, (add V8M8, V16M8, V24M8, V0M8), 8>;
+
+def VRM8NoV0 : VReg<VM8VTs, (add V8M8, V16M8, V24M8), 8>;
 
 def VMV0 : RegisterClass<"RISCV", VMaskVTs, 64, (add V0)> {
   let Size = 64;
@@ -550,14 +539,15 @@ def GPRF64  : RegisterClass<"RISCV", [f64], 64, (add GPR)>;
 } // RegInfos = XLenRI
 
 let RegAltNameIndices = [ABIRegAltName] in {
-  foreach Index = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22,
-                   24, 26, 28, 30] in {
+  foreach I = 0-15 in {
+    defvar Index = !shl(I, 1);
     defvar Reg = !cast<Register>("X"#Index);
+    defvar RegP1 = !cast<Register>("X"#!add(Index,1));
     def X#Index#_PD : RISCVRegWithSubRegs<Index, Reg.AsmName,
-                                          [!cast<Register>("X"#Index),
-                                           !cast<Register>("X"#!add(Index, 1))],
-                                           Reg.AltNames> {
+                                          [Reg, RegP1],
+                                          Reg.AltNames> {
       let SubRegIndices = [sub_32, sub_32_hi];
+      let CoveredBySubRegs = 1;
     }
   }
 }

@@ -1,4 +1,4 @@
-* @pvchupin
+* @bader
 
 # Front-end compiler
 clang/ @intel/dpcpp-cfe-reviewers
@@ -50,6 +50,18 @@ xptifw/ @intel/llvm-reviewers-runtime
 # DPC++ tools
 llvm/ @intel/dpcpp-tools-reviewers
 
+# OpenCL CPU RT
+opencl-cpu/ @intel/ocl-cpu-rt-write
+
+# SPMD transform passes on CPU
+llvm/lib/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
+
+# SPMD transform passes header files
+llvm/include/llvm/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
+
+# SPMD transform passes LIT test
+llvm/test/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
+
 # Clang offload tools
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 
@@ -61,10 +73,10 @@ sycl/doc/extensions/experimental/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-review
 llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
 
 # invoke_simd
-sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp @rolandschulz @kbobrovs
-sycl/include/std/experimental/simd.hpp @rolandschulz @kbobrovs
-llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp @kbobrovs @v-klochkov @rolandschulz
-llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @kbobrovs @v-klochkov @rolandschulz
+sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp @intel/dpcpp-esimd-reviewers @rolandschulz
+sycl/include/std/experimental/simd.hpp @intel/dpcpp-esimd-reviewers @rolandschulz
+llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp @intel/dpcpp-esimd-reviewers
+llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @intel/dpcpp-esimd-reviewers
 
 # DevOps configs
 .github/workflows/ @intel/dpcpp-devops-reviewers
@@ -73,3 +85,11 @@ devops/ @intel/dpcpp-devops-reviewers
 
 # Kernel fusion JIT compiler
 sycl-fusion/ @victor-eds @Naghasan @sommerlukas
+sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @victor-eds @Naghasan @sommerlukas
+sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @victor-eds @Naghasan @sommerlukas
+sycl/include/sycl/ext/codeplay/experimental/fusion_wrapper.hpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/fusion/ @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_compiler.hpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_compiler.cpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_device_binaries.hpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_device_binaries.cpp @victor-eds @Naghasan @sommerlukas

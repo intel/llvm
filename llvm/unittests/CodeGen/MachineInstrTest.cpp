@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -26,6 +25,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/TargetParser/Triple.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -54,9 +54,9 @@ TEST(IsIdenticalToTest, DifferentDefs) {
   MCOperandInfo OpInfo[] = {
       {0, 0, MCOI::OPERAND_REGISTER, 0},
       {0, 1 << MCOI::OptionalDef, MCOI::OPERAND_REGISTER, 0}};
-  MCInstrDesc MCID = {
-      0, NumOps,  NumDefs, 0,     0, 1ULL << MCID::HasOptionalDef,
-      0, nullptr, nullptr, OpInfo};
+  MCInstrDesc MCID = {0, NumOps,  NumDefs, 0,
+                      0, 0,       0,       1ULL << MCID::HasOptionalDef,
+                      0, nullptr, OpInfo};
 
   // Create two MIs with different virtual reg defs and the same uses.
   unsigned VirtualDef1 = -42; // The value doesn't matter, but the sign does.
@@ -125,9 +125,9 @@ TEST(MachineInstrExpressionTraitTest, IsEqualAgreesWithGetHashValue) {
   MCOperandInfo OpInfo[] = {
       {0, 0, MCOI::OPERAND_REGISTER, 0},
       {0, 1 << MCOI::OptionalDef, MCOI::OPERAND_REGISTER, 0}};
-  MCInstrDesc MCID = {
-      0, NumOps,  NumDefs, 0,     0, 1ULL << MCID::HasOptionalDef,
-      0, nullptr, nullptr, OpInfo};
+  MCInstrDesc MCID = {0, NumOps,  NumDefs, 0,
+                      0, 0,       0,       1ULL << MCID::HasOptionalDef,
+                      0, nullptr, OpInfo};
 
   // Define a series of instructions with different kinds of operands and make
   // sure that the hash function is consistent with isEqual for various
@@ -201,7 +201,7 @@ TEST(MachineInstrPrintingTest, DebugLocPrinting) {
   auto MF = createMachineFunction(Ctx, Mod);
 
   MCOperandInfo OpInfo{0, 0, MCOI::OPERAND_REGISTER, 0};
-  MCInstrDesc MCID = {0, 1, 1, 0, 0, 0, 0, nullptr, nullptr, &OpInfo};
+  MCInstrDesc MCID = {0, 1, 1, 0, 0, 0, 0, 0, 0, nullptr, &OpInfo};
 
   DIFile *DIF = DIFile::getDistinct(Ctx, "filename", "");
   DISubprogram *DIS = DISubprogram::getDistinct(
@@ -228,7 +228,7 @@ TEST(MachineInstrSpan, DistanceBegin) {
   auto MF = createMachineFunction(Ctx, Mod);
   auto MBB = MF->CreateMachineBasicBlock();
 
-  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, nullptr};
 
   auto MII = MBB->begin();
   MachineInstrSpan MIS(MII, MBB);
@@ -245,7 +245,7 @@ TEST(MachineInstrSpan, DistanceEnd) {
   auto MF = createMachineFunction(Ctx, Mod);
   auto MBB = MF->CreateMachineBasicBlock();
 
-  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, nullptr};
 
   auto MII = MBB->end();
   MachineInstrSpan MIS(MII, MBB);
@@ -260,7 +260,7 @@ TEST(MachineInstrExtraInfo, AddExtraInfo) {
   LLVMContext Ctx;
   Module Mod("Module", Ctx);
   auto MF = createMachineFunction(Ctx, Mod);
-  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, nullptr};
 
   auto MI = MF->CreateMachineInstr(MCID, DebugLoc());
   auto MAI = MCAsmInfo();
@@ -271,8 +271,8 @@ TEST(MachineInstrExtraInfo, AddExtraInfo) {
   MMOs.push_back(MMO);
   MCSymbol *Sym1 = MC->createTempSymbol("pre_label", false);
   MCSymbol *Sym2 = MC->createTempSymbol("post_label", false);
-  MDNode *HAM = MDNode::getDistinct(Ctx, None);
-  MDNode *PCS = MDNode::getDistinct(Ctx, None);
+  MDNode *HAM = MDNode::getDistinct(Ctx, std::nullopt);
+  MDNode *PCS = MDNode::getDistinct(Ctx, std::nullopt);
 
   ASSERT_TRUE(MI->memoperands_empty());
   ASSERT_FALSE(MI->getPreInstrSymbol());
@@ -320,7 +320,7 @@ TEST(MachineInstrExtraInfo, ChangeExtraInfo) {
   LLVMContext Ctx;
   Module Mod("Module", Ctx);
   auto MF = createMachineFunction(Ctx, Mod);
-  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, nullptr};
 
   auto MI = MF->CreateMachineInstr(MCID, DebugLoc());
   auto MAI = MCAsmInfo();
@@ -331,8 +331,8 @@ TEST(MachineInstrExtraInfo, ChangeExtraInfo) {
   MMOs.push_back(MMO);
   MCSymbol *Sym1 = MC->createTempSymbol("pre_label", false);
   MCSymbol *Sym2 = MC->createTempSymbol("post_label", false);
-  MDNode *HAM = MDNode::getDistinct(Ctx, None);
-  MDNode *PCS = MDNode::getDistinct(Ctx, None);
+  MDNode *HAM = MDNode::getDistinct(Ctx, std::nullopt);
+  MDNode *PCS = MDNode::getDistinct(Ctx, std::nullopt);
 
   MI->setMemRefs(*MF, MMOs);
   MI->setPreInstrSymbol(*MF, Sym1);
@@ -361,7 +361,7 @@ TEST(MachineInstrExtraInfo, RemoveExtraInfo) {
   LLVMContext Ctx;
   Module Mod("Module", Ctx);
   auto MF = createMachineFunction(Ctx, Mod);
-  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, nullptr};
 
   auto MI = MF->CreateMachineInstr(MCID, DebugLoc());
   auto MAI = MCAsmInfo();
@@ -373,8 +373,8 @@ TEST(MachineInstrExtraInfo, RemoveExtraInfo) {
   MMOs.push_back(MMO);
   MCSymbol *Sym1 = MC->createTempSymbol("pre_label", false);
   MCSymbol *Sym2 = MC->createTempSymbol("post_label", false);
-  MDNode *HAM = MDNode::getDistinct(Ctx, None);
-  MDNode *PCS = MDNode::getDistinct(Ctx, None);
+  MDNode *HAM = MDNode::getDistinct(Ctx, std::nullopt);
+  MDNode *PCS = MDNode::getDistinct(Ctx, std::nullopt);
 
   MI->setMemRefs(*MF, MMOs);
   MI->setPreInstrSymbol(*MF, Sym1);
@@ -428,9 +428,11 @@ TEST(MachineInstrDebugValue, AddDebugValueOperand) {
         TargetOpcode::DBG_INSTR_REF, TargetOpcode::DBG_PHI,
         TargetOpcode::DBG_LABEL}) {
     const MCInstrDesc MCID = {
-        Opcode, 0,       0,
-        0,      0,       (1ULL << MCID::Pseudo) | (1ULL << MCID::Variadic),
-        0,      nullptr, nullptr,
+        Opcode, 0,
+        0,      0,
+        0,      0,
+        0,      (1ULL << MCID::Pseudo) | (1ULL << MCID::Variadic),
+        0,      nullptr,
         nullptr};
 
     auto *MI = MF->CreateMachineInstr(MCID, DebugLoc());
@@ -451,8 +453,8 @@ MATCHER_P(HasMIMetadata, MIMD, "") {
 
 TEST(MachineInstrBuilder, BuildMI) {
   LLVMContext Ctx;
-  MDNode *PCS = MDNode::getDistinct(Ctx, None);
-  MDNode *DI = MDNode::getDistinct(Ctx, None);
+  MDNode *PCS = MDNode::getDistinct(Ctx, std::nullopt);
+  MDNode *DI = MDNode::getDistinct(Ctx, std::nullopt);
   DebugLoc DL(DI);
   MIMetadata MIMD(DL, PCS);
   EXPECT_EQ(MIMD.getDL(), DL);
@@ -461,7 +463,7 @@ TEST(MachineInstrBuilder, BuildMI) {
   Module Mod("Module", Ctx);
   auto MF = createMachineFunction(Ctx, Mod);
   auto MBB = MF->CreateMachineBasicBlock();
-  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, nullptr, nullptr, nullptr};
+  MCInstrDesc MCID = {0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, nullptr};
   EXPECT_THAT(BuildMI(*MF, MIMD, MCID), HasMIMetadata(MIMD));
   EXPECT_THAT(BuildMI(*MF, MIMD, MCID), HasMIMetadata(MIMD));
   EXPECT_THAT(BuildMI(*MBB, MBB->end(), MIMD, MCID), HasMIMetadata(MIMD));

@@ -14,8 +14,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -127,7 +125,7 @@ public:
 
   Value *createHvxIntrinsic(IRBuilderBase &Builder, Intrinsic::ID IntID,
                             Type *RetTy, ArrayRef<Value *> Args,
-                            ArrayRef<Type *> ArgTys = None) const;
+                            ArrayRef<Type *> ArgTys = std::nullopt) const;
   SmallVector<Value *> splitVectorElements(IRBuilderBase &Builder, Value *Vec,
                                            unsigned ToWidth) const;
   Value *joinVectorElements(IRBuilderBase &Builder, ArrayRef<Value *> Values,
@@ -359,6 +357,7 @@ private:
     SValue X, Y;
     // If present, add 1 << RoundAt before shift:
     std::optional<unsigned> RoundAt;
+    VectorType *ResTy;
   };
 
   auto getNumSignificantBits(Value *V, Instruction *In) const
@@ -401,10 +400,10 @@ private:
   static const char *SgnNames[] = {"Positive", "Signed", "Unsigned"};
   OS << Instruction::getOpcodeName(Op.Opcode) << '.' << Op.Frac;
   if (Op.RoundAt.has_value()) {
-    if (Op.Frac != 0 && Op.RoundAt.value() == Op.Frac - 1) {
+    if (Op.Frac != 0 && *Op.RoundAt == Op.Frac - 1) {
       OS << ":rnd";
     } else {
-      OS << " + 1<<" << Op.RoundAt.value();
+      OS << " + 1<<" << *Op.RoundAt;
     }
   }
   OS << "\n  X:(" << SgnNames[Op.X.Sgn] << ") " << *Op.X.Val << "\n"
@@ -1247,7 +1246,7 @@ auto HvxIdioms::canonSgn(SValue X, SValue Y) const
 
 // Match
 //   (X * Y) [>> N], or
-//   ((X * Y) + (1 << N-1)) >> N
+//   ((X * Y) + (1 << M)) >> N
 auto HvxIdioms::matchFxpMul(Instruction &In) const -> std::optional<FxpOp> {
   using namespace PatternMatch;
   auto *Ty = In.getType();
@@ -1280,11 +1279,11 @@ auto HvxIdioms::matchFxpMul(Instruction &In) const -> std::optional<FxpOp> {
   // Check if there is rounding added.
   const APInt *C = nullptr;
   if (Value * T; Op.Frac > 0 && match(Exp, m_Add(m_Value(T), m_APInt(C)))) {
-    unsigned CV = C->getZExtValue();
-    if (CV != 0 && !isPowerOf2_32(CV))
+    uint64_t CV = C->getZExtValue();
+    if (CV != 0 && !isPowerOf2_64(CV))
       return std::nullopt;
     if (CV != 0)
-      Op.RoundAt = Log2_32(CV);
+      Op.RoundAt = Log2_64(CV);
     Exp = T;
   }
 
@@ -1294,6 +1293,7 @@ auto HvxIdioms::matchFxpMul(Instruction &In) const -> std::optional<FxpOp> {
     // FIXME: The information below is recomputed.
     Op.X.Sgn = getNumSignificantBits(Op.X.Val, &In).second;
     Op.Y.Sgn = getNumSignificantBits(Op.Y.Val, &In).second;
+    Op.ResTy = cast<VectorType>(Ty);
     return Op;
   }
 
@@ -1372,6 +1372,7 @@ auto HvxIdioms::processFxpMul(Instruction &In, const FxpOp &Op) const
 
   SmallVector<Value *> Results;
   FxpOp ChopOp = Op;
+  ChopOp.ResTy = VectorType::get(Op.ResTy->getElementType(), ChopLen, false);
 
   for (unsigned V = 0; V != VecLen / ChopLen; ++V) {
     ChopOp.X.Val = HVC.subvector(Builder, X, V * ChopLen, ChopLen);
@@ -1381,7 +1382,7 @@ auto HvxIdioms::processFxpMul(Instruction &In, const FxpOp &Op) const
       break;
   }
 
-  if (Results.back() == nullptr)
+  if (Results.empty() || Results.back() == nullptr)
     return nullptr;
 
   Value *Cat = HVC.concat(Builder, Results);
@@ -1483,7 +1484,7 @@ auto HvxIdioms::processFxpMulChopped(IRBuilderBase &Builder, Instruction &In,
   if (SkipWords != 0)
     WordP.resize(WordP.size() - SkipWords);
 
-  return HVC.joinVectorElements(Builder, WordP, InpTy);
+  return HVC.joinVectorElements(Builder, WordP, Op.ResTy);
 }
 
 auto HvxIdioms::createMulQ15(IRBuilderBase &Builder, SValue X, SValue Y,
@@ -2261,6 +2262,8 @@ auto HexagonVectorCombine::joinVectorElements(IRBuilderBase &Builder,
 
   unsigned NeedInputs = ToWidth / Width;
   if (Inputs.size() != NeedInputs) {
+    // Having too many inputs is ok: drop the high bits (usual wrap-around).
+    // If there are too few, fill them with the sign bit.
     Value *Last = Inputs.back();
     Value *Sign =
         Builder.CreateAShr(Last, getConstSplat(Last->getType(), Width - 1));
@@ -2321,6 +2324,8 @@ auto HexagonVectorCombine::calculatePointerDifference(Value *Ptr0,
   auto *Gep0 = cast<GetElementPtrInst>(Ptr0);
   auto *Gep1 = cast<GetElementPtrInst>(Ptr1);
   if (Gep0->getPointerOperand() != Gep1->getPointerOperand())
+    return std::nullopt;
+  if (Gep0->getSourceElementType() != Gep1->getSourceElementType())
     return std::nullopt;
 
   Builder B(Gep0->getParent());
@@ -2389,7 +2394,8 @@ auto HexagonVectorCombine::isSafeToMoveBeforeInBB(const Instruction &In,
                                                   BasicBlock::const_iterator To,
                                                   const T &IgnoreInsts) const
     -> bool {
-  auto getLocOrNone = [this](const Instruction &I) -> Optional<MemoryLocation> {
+  auto getLocOrNone =
+      [this](const Instruction &I) -> std::optional<MemoryLocation> {
     if (const auto *II = dyn_cast<IntrinsicInst>(&I)) {
       switch (II->getIntrinsicID()) {
       case Intrinsic::masked_load:

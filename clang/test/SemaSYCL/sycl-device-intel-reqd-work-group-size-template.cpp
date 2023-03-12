@@ -40,7 +40,7 @@ int main() {
 // CHECK: ClassTemplateDecl {{.*}} {{.*}} KernelFunctor
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 16
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
@@ -68,7 +68,7 @@ int check() {
 
 // CHECK: FunctionTemplateDecl {{.*}} {{.*}} func3
 // CHECK: FunctionDecl {{.*}} {{.*}} used func3 'void ()'
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 8
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
@@ -88,7 +88,7 @@ int check() {
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
 [[sycl::reqd_work_group_size(4, 4, 4)]] [[sycl::reqd_work_group_size(4, 4, 4)]] void func4() {}
 // CHECK: FunctionDecl {{.*}} {{.*}} func4 'void ()'
-// CHECK:       ReqdWorkGroupSizeAttr
+// CHECK:       SYCLReqdWorkGroupSizeAttr
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
@@ -98,4 +98,4 @@ int check() {
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-// CHECK-NOT:   ReqdWorkGroupSizeAttr
+// CHECK-NOT:   SYCLReqdWorkGroupSizeAttr

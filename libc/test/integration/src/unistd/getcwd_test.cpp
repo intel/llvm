@@ -10,9 +10,10 @@
 #include "src/stdlib/getenv.h"
 #include "src/unistd/getcwd.h"
 
-#include "utils/IntegrationTest/test.h"
+#include "test/IntegrationTest/test.h"
 
 #include <errno.h>
+#include <stdlib.h> // For malloc and free
 
 using __llvm_libc::cpp::string_view;
 

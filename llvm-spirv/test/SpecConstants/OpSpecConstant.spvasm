@@ -3,17 +3,17 @@
 
 ; RUN: llvm-spirv -spec-const-info %t.spv | FileCheck %s --check-prefix=CHECK-INFO
 ; CHECK-INFO: Number of scalar specialization constants in the module = 11
-; CHECK-INFO: Spec const id = 101, size in bytes = 1
-; CHECK-INFO: Spec const id = 102, size in bytes = 2
-; CHECK-INFO: Spec const id = 103, size in bytes = 4
-; CHECK-INFO: Spec const id = 104, size in bytes = 8
-; CHECK-INFO: Spec const id = 105, size in bytes = 1
-; CHECK-INFO: Spec const id = 106, size in bytes = 1
-; CHECK-INFO: Spec const id = 107, size in bytes = 1
-; CHECK-INFO: Spec const id = 108, size in bytes = 2
-; CHECK-INFO: Spec const id = 109, size in bytes = 4
-; CHECK-INFO: Spec const id = 110, size in bytes = 8
-; CHECK-INFO: Spec const id = 111, size in bytes = 8
+; CHECK-INFO: Spec const id = 101, size in bytes = 1, type = i8
+; CHECK-INFO: Spec const id = 102, size in bytes = 2, type = i16
+; CHECK-INFO: Spec const id = 103, size in bytes = 4, type = i32
+; CHECK-INFO: Spec const id = 104, size in bytes = 8, type = i64
+; CHECK-INFO: Spec const id = 105, size in bytes = 1, type = i8
+; CHECK-INFO: Spec const id = 106, size in bytes = 1, type = i1
+; CHECK-INFO: Spec const id = 107, size in bytes = 1, type = i1
+; CHECK-INFO: Spec const id = 108, size in bytes = 2, type = f16
+; CHECK-INFO: Spec const id = 109, size in bytes = 4, type = f32
+; CHECK-INFO: Spec const id = 110, size in bytes = 8, type = f64
+; CHECK-INFO: Spec const id = 111, size in bytes = 8, type = f64
 
 ; Negative tests for the command line option.
 ; RUN: not llvm-spirv -r -emit-opaque-pointers %t.spv -spec-const "1234" 2>&1 | FileCheck %s --check-prefix=CHECK-FORMAT
@@ -46,6 +46,9 @@
 ; RUN: llvm-spirv -r -emit-opaque-pointers -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-DEFAULT
 ; RUN: llvm-spirv -r -emit-opaque-pointers -spec-const "101:i8:42 102:i16:22 103:i32:33 104:i64:44 105:i8:0 106:i1:0 107:i1:1 108:f16:5.5 109:f32:6.6 110:f64:7.7 111:f64:8.8 101:i8:11" -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-SPEC
 
+; RUN: llvm-spirv -r -emit-opaque-pointers -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-DEFAULT
+; RUN: llvm-spirv -r -emit-opaque-pointers -spec-const "108:f16:0x1234 109:f32:0x12345678 110:f64:0x12345678ABCDEF00" -o - %t.spv | llvm-dis | FileCheck %s --check-prefix=CHECK-HEX
+
 ; CHECK-DEFAULT: @bt = addrspace(2) constant i1 true, align 1
 ; CHECK-DEFAULT: @bf = addrspace(2) constant i1 false, align 1
 ; CHECK-DEFAULT: @c = addrspace(2) constant i8 97, align 1
@@ -67,6 +70,11 @@
 ; CHECK-SPEC: @f = addrspace(2) constant float 0x401A666660000000, align 4
 ; CHECK-SPEC: @d = addrspace(2) constant double 7.700000e+00, align 8
 ; CHECK-SPEC: @ss = addrspace(1) global %struct.S { i8 0, double 8.800000e+00 }, align 8
+
+; CHECK-HEX: @h = addrspace(2) constant half 0xH1234, align 2
+; Float literals are represented as doubles, so 0x12345678 becomes the value below.
+; CHECK-HEX: @f = addrspace(2) constant float 0x3A468ACF00000000, align 4
+; CHECK-HEX: @d = addrspace(2) constant double 0x12345678ABCDEF00, align 8
 
 ; SPIR-V
 ; Version: 1.0

@@ -135,6 +135,11 @@ public:
 
   bool hasThisPointer() const { return HasThisPointer; }
 
+  // Checks if the funtion already has a body attached.
+  bool hasBody() const { return HasBody; }
+
+  unsigned getBuiltinID() const { return F->getBuiltinID(); }
+
   unsigned getNumParams() const { return ParamTypes.size(); }
 
 private:
@@ -152,6 +157,7 @@ private:
     SrcMap = std::move(NewSrcMap);
     Scopes = std::move(NewScopes);
     IsValid = true;
+    HasBody = true;
   }
 
   void setIsFullyCompiled(bool FC) { IsFullyCompiled = FC; }
@@ -192,6 +198,8 @@ private:
   /// the return value is constructed in the caller's stack frame.
   /// This is done for functions that return non-primive values.
   bool HasRVO = false;
+  /// If we've already compiled the function's body.
+  bool HasBody = false;
 
 public:
   /// Dumps the disassembled bytecode to \c llvm::errs().

@@ -17,9 +17,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 namespace detail {
 // Trait for checking that all size_t values are non-zero.
 template <size_t... Xs> struct AllNonZero {
@@ -183,9 +181,7 @@ struct HasKernelPropertiesGetMethod<
 };
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

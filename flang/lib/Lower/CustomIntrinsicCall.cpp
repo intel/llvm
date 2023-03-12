@@ -14,8 +14,10 @@
 #include "flang/Evaluate/expression.h"
 #include "flang/Evaluate/fold.h"
 #include "flang/Evaluate/tools.h"
-#include "flang/Lower/IntrinsicCall.h"
+#include "flang/Lower/StatementContext.h"
+#include "flang/Optimizer/Builder/IntrinsicCall.h"
 #include "flang/Optimizer/Builder/Todo.h"
+#include <optional>
 
 /// Is this a call to MIN or MAX intrinsic with arguments that may be absent at
 /// runtime? This is a special case because MIN and MAX can have any number of
@@ -62,10 +64,32 @@ bool Fortran::lower::intrinsicRequiresCustomOptionalHandling(
          isIshftcWithDynamicallyOptionalArg(name, procRef, fldCtx);
 }
 
+/// Generate the FIR+MLIR operations for the generic intrinsic \p name
+/// with arguments \p args and the expected result type \p resultType.
+/// Returned fir::ExtendedValue is the returned Fortran intrinsic value.
+fir::ExtendedValue
+Fortran::lower::genIntrinsicCall(fir::FirOpBuilder &builder, mlir::Location loc,
+                                 llvm::StringRef name,
+                                 std::optional<mlir::Type> resultType,
+                                 llvm::ArrayRef<fir::ExtendedValue> args,
+                                 Fortran::lower::StatementContext &stmtCtx) {
+  auto [result, mustBeFreed] =
+      fir::genIntrinsicCall(builder, loc, name, resultType, args);
+  if (mustBeFreed) {
+    mlir::Value addr = fir::getBase(result);
+    if (auto *box = result.getBoxOf<fir::BoxValue>())
+      addr =
+          builder.create<fir::BoxAddrOp>(loc, box->getMemTy(), box->getAddr());
+    fir::FirOpBuilder *bldr = &builder;
+    stmtCtx.attachCleanup([=]() { bldr->create<fir::FreeMemOp>(loc, addr); });
+  }
+  return result;
+}
+
 static void prepareMinOrMaxArguments(
     const Fortran::evaluate::ProcedureRef &procRef,
     const Fortran::evaluate::SpecificIntrinsic &intrinsic,
-    llvm::Optional<mlir::Type> retTy,
+    std::optional<mlir::Type> retTy,
     const Fortran::lower::OperandPrepare &prepareOptionalArgument,
     const Fortran::lower::OperandPrepare &prepareOtherArgument,
     Fortran::lower::AbstractConverter &converter) {
@@ -95,7 +119,7 @@ static void prepareMinOrMaxArguments(
 
 static fir::ExtendedValue
 lowerMinOrMax(fir::FirOpBuilder &builder, mlir::Location loc,
-              llvm::StringRef name, llvm::Optional<mlir::Type> retTy,
+              llvm::StringRef name, std::optional<mlir::Type> retTy,
               const Fortran::lower::OperandPresent &isPresentCheck,
               const Fortran::lower::OperandGetter &getOperand,
               std::size_t numOperands,
@@ -107,11 +131,11 @@ lowerMinOrMax(fir::FirOpBuilder &builder, mlir::Location loc,
   llvm::SmallVector<fir::ExtendedValue> args;
   args.push_back(getOperand(0));
   args.push_back(getOperand(1));
-  mlir::Value extremum = fir::getBase(Fortran::lower::genIntrinsicCall(
-      builder, loc, name, resultType, args, stmtCtx));
+  mlir::Value extremum = fir::getBase(
+      genIntrinsicCall(builder, loc, name, resultType, args, stmtCtx));
 
   for (std::size_t opIndex = 2; opIndex < numOperands; ++opIndex) {
-    if (llvm::Optional<mlir::Value> isPresentRuntimeCheck =
+    if (std::optional<mlir::Value> isPresentRuntimeCheck =
             isPresentCheck(opIndex)) {
       // Argument is dynamically optional.
       extremum =
@@ -122,9 +146,8 @@ lowerMinOrMax(fir::FirOpBuilder &builder, mlir::Location loc,
                 llvm::SmallVector<fir::ExtendedValue> args;
                 args.emplace_back(extremum);
                 args.emplace_back(getOperand(opIndex));
-                fir::ExtendedValue newExtremum =
-                    Fortran::lower::genIntrinsicCall(builder, loc, name,
-                                                     resultType, args, stmtCtx);
+                fir::ExtendedValue newExtremum = genIntrinsicCall(
+                    builder, loc, name, resultType, args, stmtCtx);
                 builder.create<fir::ResultOp>(loc, fir::getBase(newExtremum));
               })
               .genElse([&]() { builder.create<fir::ResultOp>(loc, extremum); })
@@ -134,8 +157,8 @@ lowerMinOrMax(fir::FirOpBuilder &builder, mlir::Location loc,
       llvm::SmallVector<fir::ExtendedValue> args;
       args.emplace_back(extremum);
       args.emplace_back(getOperand(opIndex));
-      extremum = fir::getBase(Fortran::lower::genIntrinsicCall(
-          builder, loc, name, resultType, args, stmtCtx));
+      extremum = fir::getBase(
+          genIntrinsicCall(builder, loc, name, resultType, args, stmtCtx));
     }
   }
   return extremum;
@@ -144,7 +167,7 @@ lowerMinOrMax(fir::FirOpBuilder &builder, mlir::Location loc,
 static void prepareIshftcArguments(
     const Fortran::evaluate::ProcedureRef &procRef,
     const Fortran::evaluate::SpecificIntrinsic &intrinsic,
-    llvm::Optional<mlir::Type> retTy,
+    std::optional<mlir::Type> retTy,
     const Fortran::lower::OperandPrepare &prepareOptionalArgument,
     const Fortran::lower::OperandPrepare &prepareOtherArgument,
     Fortran::lower::AbstractConverter &converter) {
@@ -166,7 +189,7 @@ static void prepareIshftcArguments(
 
 static fir::ExtendedValue
 lowerIshftc(fir::FirOpBuilder &builder, mlir::Location loc,
-            llvm::StringRef name, llvm::Optional<mlir::Type> retTy,
+            llvm::StringRef name, std::optional<mlir::Type> retTy,
             const Fortran::lower::OperandPresent &isPresentCheck,
             const Fortran::lower::OperandGetter &getOperand,
             std::size_t numOperands,
@@ -175,12 +198,14 @@ lowerIshftc(fir::FirOpBuilder &builder, mlir::Location loc,
          isPresentCheck(2) &&
          "only ISHFTC SIZE arg is expected to be dynamically optional here");
   assert(retTy && "ISFHTC must have a return type");
-  mlir::Type resultType = retTy.value();
+  mlir::Type resultType = *retTy;
   llvm::SmallVector<fir::ExtendedValue> args;
   args.push_back(getOperand(0));
   args.push_back(getOperand(1));
+  auto iPC = isPresentCheck(2);
+  assert(iPC.has_value());
   args.push_back(builder
-                     .genIfOp(loc, {resultType}, isPresentCheck(2).value(),
+                     .genIfOp(loc, {resultType}, *iPC,
                               /*withElseRegion=*/true)
                      .genThen([&]() {
                        fir::ExtendedValue sizeExv = getOperand(2);
@@ -195,14 +220,13 @@ lowerIshftc(fir::FirOpBuilder &builder, mlir::Location loc,
                        builder.create<fir::ResultOp>(loc, bitSize);
                      })
                      .getResults()[0]);
-  return Fortran::lower::genIntrinsicCall(builder, loc, name, resultType, args,
-                                          stmtCtx);
+  return genIntrinsicCall(builder, loc, name, resultType, args, stmtCtx);
 }
 
 void Fortran::lower::prepareCustomIntrinsicArgument(
     const Fortran::evaluate::ProcedureRef &procRef,
     const Fortran::evaluate::SpecificIntrinsic &intrinsic,
-    llvm::Optional<mlir::Type> retTy,
+    std::optional<mlir::Type> retTy,
     const OperandPrepare &prepareOptionalArgument,
     const OperandPrepare &prepareOtherArgument, AbstractConverter &converter) {
   llvm::StringRef name = intrinsic.name;
@@ -218,7 +242,7 @@ void Fortran::lower::prepareCustomIntrinsicArgument(
 
 fir::ExtendedValue Fortran::lower::lowerCustomIntrinsic(
     fir::FirOpBuilder &builder, mlir::Location loc, llvm::StringRef name,
-    llvm::Optional<mlir::Type> retTy, const OperandPresent &isPresentCheck,
+    std::optional<mlir::Type> retTy, const OperandPresent &isPresentCheck,
     const OperandGetter &getOperand, std::size_t numOperands,
     Fortran::lower::StatementContext &stmtCtx) {
   if (name == "min" || name == "max")

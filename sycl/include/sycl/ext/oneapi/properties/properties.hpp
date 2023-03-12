@@ -19,9 +19,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 namespace detail {
 
@@ -224,9 +222,7 @@ using merged_properties_t =
     typename merged_properties<LHSPropertiesT, RHSPropertiesT>::type;
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 
 // If property_list is not trivially copyable, allow properties to propagate
 // is_device_copyable
@@ -236,12 +232,5 @@ struct is_device_copyable<
     std::enable_if_t<!std::is_trivially_copyable<
         ext::oneapi::experimental::properties<PropertiesT>>::value>>
     : is_device_copyable<PropertiesT> {};
-template <typename PropertiesT>
-struct is_device_copyable<
-    const ext::oneapi::experimental::properties<PropertiesT>,
-    std::enable_if_t<!std::is_trivially_copyable<
-        const ext::oneapi::experimental::properties<PropertiesT>>::value>>
-    : is_device_copyable<PropertiesT> {};
-
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

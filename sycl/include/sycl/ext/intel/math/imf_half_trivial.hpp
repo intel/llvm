@@ -13,9 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace math {
+namespace ext::intel::math {
 sycl::half hadd(sycl::half x, sycl::half y) { return x + y; }
 
 sycl::half hadd_sat(sycl::half x, sycl::half y) {
@@ -312,8 +310,6 @@ sycl::half2 hfma2_relu(sycl::half2 x, sycl::half2 y, sycl::half2 z) {
 sycl::half habs(sycl::half x) { return sycl::fabs(x); }
 
 sycl::half2 habs2(sycl::half2 x) { return sycl::fabs(x); }
-} // namespace math
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::math
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

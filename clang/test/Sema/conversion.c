@@ -288,7 +288,7 @@ void test13(long double v) {
   takes_int(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
   takes_long(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
   takes_longlong(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
-  takes_float(v);    // expected-warning {{implicit conversion loses floating-point precision}}
+  takes_float(v); // expected-warning {{implicit conversion loses floating-point precision}}
   takes_double(v); // expected-warning {{implicit conversion loses floating-point precision}}
   takes_longdouble(v);
 }
@@ -429,6 +429,7 @@ void test27(ushort16 constants) {
     ushort16 crCbScale = pairedConstants.s4; // expected-warning {{implicit conversion loses integer precision: 'uint32_t' (aka 'unsigned int') to 'ushort16'}}
     ushort16 brBias = pairedConstants.s6; // expected-warning {{implicit conversion loses integer precision: 'uint32_t' (aka 'unsigned int') to 'ushort16'}}
 }
+
 
 float double2float_test1(double a) {
     return a; // expected-warning {{implicit conversion loses floating-point precision: 'double' to 'float'}}

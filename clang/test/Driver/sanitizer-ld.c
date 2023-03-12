@@ -25,6 +25,14 @@
 //
 // CHECK-ASAN-NO-LINK-RUNTIME-LINUX-NOT: libclang_rt.asan-x86_64
 
+// RUN: %clang -fsanitize=address -fno-sanitize-link-runtime -### %s 2>&1 \
+// RUN:     --target=arm64e-apple-macosx -fuse-ld=ld \
+// RUN:     -resource-dir=%S/Inputs/resource_dir \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-ASAN-NO-LINK-RUNTIME-DARWIN %s
+//
+// CHECK-ASAN-NO-LINK-RUNTIME-DARWIN-NOT: libclang_rt.asan
+
 // RUN: %clang -fsanitize=address -### %s 2>&1 \
 // RUN:     --target=x86_64-unknown-linux -fuse-ld=ld \
 // RUN:     -resource-dir=%S/Inputs/resource_dir \
@@ -288,6 +296,14 @@
 //
 // CHECK-TSAN-NO-LINK-RUNTIME-LINUX-NOT: libclang_rt.tsan
 
+// RUN: %clang -fsanitize=thread -fno-sanitize-link-runtime -### %s 2>&1 \
+// RUN:     --target=arm64e-apple-ios -fuse-ld=ld \
+// RUN:     -resource-dir=%S/Inputs/resource_dir \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-TSAN-NO-LINK-RUNTIME-DARWIN %s
+//
+// CHECK-TSAN-NO-LINK-RUNTIME-DARWIN-NOT: libclang_rt.tsan
+
 // RUN: %clangxx -### %s 2>&1 \
 // RUN:     --target=x86_64-unknown-linux -fuse-ld=ld -stdlib=platform -lstdc++ \
 // RUN:     -fsanitize=memory \
@@ -352,6 +368,22 @@
 // RUN:   | FileCheck --check-prefix=CHECK-UBSAN-NO-LINK-RUNTIME-LINUX %s
 //
 // CHECK-UBSAN-NO-LINK-RUNTIME-LINUX-NOT: libclang_rt.undefined
+
+// RUN: %clang -fsanitize=undefined -fno-sanitize-link-runtime -### %s 2>&1 \
+// RUN:     --target=x86_64-apple-darwin -fuse-ld=ld \
+// RUN:     -resource-dir=%S/Inputs/resource_dir \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-UBSAN-NO-LINK-RUNTIME-DARWIN %s
+//
+// CHECK-UBSAN-NO-LINK-RUNTIME-DARWIN-NOT: libclang_rt.ubsan
+
+// RUN: %clang -fsanitize=fuzzer -fno-sanitize-link-runtime -### %s 2>&1 \
+// RUN:     --target=arm64e-apple-watchos -fuse-ld=ld \
+// RUN:     -resource-dir=%S/Inputs/resource_dir \
+// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
+// RUN:   | FileCheck --check-prefix=CHECK-FUZZER-NO-LINK-RUNTIME-DARWIN %s
+//
+// CHECK-FUZZER-NO-LINK-RUNTIME-DARWIN-NOT: libclang_rt.fuzzer
 
 // RUN: %clang -fsanitize=undefined -### %s 2>&1 \
 // RUN:     --target=i386-unknown-linux -fuse-ld=ld \
@@ -423,8 +455,7 @@
 // RUN:     --target=x86_64-apple-darwin -fuse-ld=ld -static-libsan \
 // RUN:     --sysroot=%S/Inputs/basic_linux_tree \
 // RUN:   | FileCheck --check-prefix=CHECK-UBSAN-STATIC-DARWIN %s
-// CHECK-UBSAN-STATIC-DARWIN: "{{.*}}ld{{(.exe)?}}"
-// CHECK-UBSAN-STATIC-DARWIN: "{{.*}}libclang_rt.ubsan_osx.a"
+// CHECK-UBSAN-STATIC-DARWIN: {{.*}}error: static UndefinedBehaviorSanitizer runtime is not supported on darwin
 
 // RUN: %clang -fsanitize=address,undefined -### %s 2>&1 \
 // RUN:     --target=i386-unknown-linux -fuse-ld=ld \
@@ -701,6 +732,11 @@
 // CHECK-SHADOWCALLSTACK-LINUX-RISCV64: '-fsanitize=shadow-call-stack' only allowed with '-ffixed-x18'
 
 // RUN: %clang -fsanitize=shadow-call-stack -### %s 2>&1 \
+// RUN:     --target=riscv64-unknown-fuchsia -fuse-ld=ld \
+// RUN:   | FileCheck --check-prefix=CHECK-SHADOWCALLSTACK-FUCHSIA-RISCV64 %s
+// CHECK-SHADOWCALLSTACK-FUCHSIA-RISCV64-NOT: error:
+
+// RUN: %clang -fsanitize=shadow-call-stack -### %s 2>&1 \
 // RUN:     --target=aarch64-unknown-linux -fuse-ld=ld -ffixed-x18 \
 // RUN:   | FileCheck --check-prefix=CHECK-SHADOWCALLSTACK-LINUX-AARCH64-X18 %s
 // RUN: %clang -fsanitize=shadow-call-stack -### %s 2>&1 \
@@ -852,22 +888,11 @@
 // RUN:   | FileCheck --check-prefix=CHECK-SCUDO-LINUX %s
 // CHECK-SCUDO-LINUX: "{{.*}}ld{{(.exe)?}}"
 // CHECK-SCUDO-LINUX: "-pie"
-// CHECK-SCUDO-LINUX: "--whole-archive" "{{.*}}libclang_rt.scudo-i386.a" "--no-whole-archive"
+// CHECK-SCUDO-LINUX: "--whole-archive" "{{.*}}libclang_rt.scudo_standalone-i386.a" "--no-whole-archive"
 // CHECK-SCUDO-LINUX-NOT: "-lstdc++"
 // CHECK-SCUDO-LINUX: "-lpthread"
 // CHECK-SCUDO-LINUX: "-ldl"
 // CHECK-SCUDO-LINUX: "-lresolv"
-
-// RUN: %clang -fsanitize=scudo -fsanitize-minimal-runtime -### %s 2>&1 \
-// RUN:     --target=i386-unknown-linux -fuse-ld=ld \
-// RUN:     -resource-dir=%S/Inputs/resource_dir \
-// RUN:     --sysroot=%S/Inputs/basic_linux_tree \
-// RUN:   | FileCheck --check-prefix=CHECK-SCUDO-MINIMAL-LINUX %s
-// CHECK-SCUDO-MINIMAL-LINUX: "{{.*}}ld{{(.exe)?}}"
-// CHECK-SCUDO-MINIMAL-LINUX: "-pie"
-// CHECK-SCUDO-MINIMAL-LINUX: "--whole-archive" "{{.*}}libclang_rt.scudo_minimal-i386.a" "--no-whole-archive"
-// CHECK-SCUDO-MINIMAL-LINUX: "-lpthread"
-// CHECK-SCUDO-MINIMAL-LINUX: "-lresolv"
 
 // RUN: %clang -### %s -o %t.so -shared 2>&1 \
 // RUN:     --target=i386-unknown-linux -fuse-ld=ld -fsanitize=scudo -shared-libsan \
@@ -877,8 +902,8 @@
 //
 // CHECK-SCUDO-SHARED-LINUX: "{{(.*[^-.0-9A-Z_a-z])?}}ld{{(.exe)?}}"
 // CHECK-SCUDO-SHARED-LINUX-NOT: "-lc"
-// CHECK-SCUDO-SHARED-LINUX-NOT: libclang_rt.scudo-i386.a"
-// CHECK-SCUDO-SHARED-LINUX: libclang_rt.scudo-i386.so"
+// CHECK-SCUDO-SHARED-LINUX-NOT: libclang_rt.scudo_standalone-i386.a"
+// CHECK-SCUDO-SHARED-LINUX: libclang_rt.scudo_standalone-i386.so"
 // CHECK-SCUDO-SHARED-LINUX-NOT: "-lpthread"
 // CHECK-SCUDO-SHARED-LINUX-NOT: "-lrt"
 // CHECK-SCUDO-SHARED-LINUX-NOT: "-ldl"
@@ -896,7 +921,7 @@
 // CHECK-SCUDO-ANDROID: "-pie"
 // CHECK-SCUDO-ANDROID-NOT: "-lpthread"
 // CHECK-SCUDO-ANDROID-NOT: "-lresolv"
-// CHECK-SCUDO-ANDROID: libclang_rt.scudo-arm-android.so"
+// CHECK-SCUDO-ANDROID: libclang_rt.scudo_standalone-arm-android.so"
 // CHECK-SCUDO-ANDROID-NOT: "-lpthread"
 // CHECK-SCUDO-ANDROID-NOT: "-lresolv"
 
@@ -907,7 +932,7 @@
 // RUN:   | FileCheck --check-prefix=CHECK-SCUDO-ANDROID-STATIC %s
 // CHECK-SCUDO-ANDROID-STATIC: "{{(.*[^.0-9A-Z_a-z])?}}ld.lld{{(.exe)?}}"
 // CHECK-SCUDO-ANDROID-STATIC: "-pie"
-// CHECK-SCUDO-ANDROID-STATIC: "--whole-archive" "{{.*}}libclang_rt.scudo-arm-android.a" "--no-whole-archive"
+// CHECK-SCUDO-ANDROID-STATIC: "--whole-archive" "{{.*}}libclang_rt.scudo_standalone-arm-android.a" "--no-whole-archive"
 // CHECK-SCUDO-ANDROID-STATIC-NOT: "-lstdc++"
 // CHECK-SCUDO-ANDROID-STATIC-NOT: "-lpthread"
 // CHECK-SCUDO-ANDROID-STATIC-NOT: "-lrt"

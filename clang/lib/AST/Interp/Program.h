@@ -76,23 +76,25 @@ public:
   }
 
   /// Finds a global's index.
-  llvm::Optional<unsigned> getGlobal(const ValueDecl *VD);
+  std::optional<unsigned> getGlobal(const ValueDecl *VD);
 
   /// Returns or creates a global an creates an index to it.
-  llvm::Optional<unsigned> getOrCreateGlobal(const ValueDecl *VD);
+  std::optional<unsigned> getOrCreateGlobal(const ValueDecl *VD,
+                                            const Expr *Init = nullptr);
 
   /// Returns or creates a dummy value for parameters.
-  llvm::Optional<unsigned> getOrCreateDummy(const ParmVarDecl *PD);
+  std::optional<unsigned> getOrCreateDummy(const ParmVarDecl *PD);
 
   /// Creates a global and returns its index.
-  llvm::Optional<unsigned> createGlobal(const ValueDecl *VD, const Expr *E);
+  std::optional<unsigned> createGlobal(const ValueDecl *VD, const Expr *E);
 
   /// Creates a global from a lifetime-extended temporary.
-  llvm::Optional<unsigned> createGlobal(const Expr *E);
+  std::optional<unsigned> createGlobal(const Expr *E);
 
   /// Creates a new function from a code range.
   template <typename... Ts>
   Function *createFunction(const FunctionDecl *Def, Ts &&... Args) {
+    Def = Def->getCanonicalDecl();
     auto *Func = new Function(*this, Def, std::forward<Ts>(Args)...);
     Funcs.insert({Def, std::unique_ptr<Function>(Func)});
     return Func;
@@ -113,14 +115,15 @@ public:
 
   /// Creates a descriptor for a primitive type.
   Descriptor *createDescriptor(const DeclTy &D, PrimType Type,
-                               bool IsConst = false,
-                               bool IsTemporary = false,
+                               Descriptor::MetadataSize MDSize = std::nullopt,
+                               bool IsConst = false, bool IsTemporary = false,
                                bool IsMutable = false) {
-    return allocateDescriptor(D, Type, IsConst, IsTemporary, IsMutable);
+    return allocateDescriptor(D, Type, MDSize, IsConst, IsTemporary, IsMutable);
   }
 
   /// Creates a descriptor for a composite type.
   Descriptor *createDescriptor(const DeclTy &D, const Type *Ty,
+                               Descriptor::MetadataSize MDSize = std::nullopt,
                                bool IsConst = false, bool IsTemporary = false,
                                bool IsMutable = false,
                                const Expr *Init = nullptr);
@@ -136,18 +139,18 @@ public:
   };
 
   /// Returns the current declaration ID.
-  llvm::Optional<unsigned> getCurrentDecl() const {
+  std::optional<unsigned> getCurrentDecl() const {
     if (CurrentDeclaration == NoDeclaration)
-      return llvm::Optional<unsigned>{};
+      return std::optional<unsigned>{};
     return LastDeclaration;
   }
 
 private:
   friend class DeclScope;
 
-  llvm::Optional<unsigned> createGlobal(const DeclTy &D, QualType Ty,
-                                        bool IsStatic, bool IsExtern,
-                                        const Expr *Init = nullptr);
+  std::optional<unsigned> createGlobal(const DeclTy &D, QualType Ty,
+                                       bool IsStatic, bool IsExtern,
+                                       const Expr *Init = nullptr);
 
   /// Reference to the VM context.
   Context &Ctx;

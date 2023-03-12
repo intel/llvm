@@ -17,6 +17,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 #include <numeric>
+#include <optional>
 
 using namespace mlir;
 
@@ -40,7 +41,7 @@ public:
   }
 
 private:
-  Optional<int64_t> constantFoldImpl(AffineExpr expr) {
+  std::optional<int64_t> constantFoldImpl(AffineExpr expr) {
     switch (expr.getKind()) {
     case AffineExprKind::Add:
       return constantFoldBinExpr(
@@ -63,25 +64,25 @@ private:
       if (auto attr = operandConsts[expr.cast<AffineDimExpr>().getPosition()]
                           .dyn_cast_or_null<IntegerAttr>())
         return attr.getInt();
-      return llvm::None;
+      return std::nullopt;
     case AffineExprKind::SymbolId:
       if (auto attr = operandConsts[numDims +
                                     expr.cast<AffineSymbolExpr>().getPosition()]
                           .dyn_cast_or_null<IntegerAttr>())
         return attr.getInt();
-      return llvm::None;
+      return std::nullopt;
     }
     llvm_unreachable("Unknown AffineExpr");
   }
 
   // TODO: Change these to operate on APInts too.
-  Optional<int64_t> constantFoldBinExpr(AffineExpr expr,
-                                        int64_t (*op)(int64_t, int64_t)) {
+  std::optional<int64_t> constantFoldBinExpr(AffineExpr expr,
+                                             int64_t (*op)(int64_t, int64_t)) {
     auto binOpExpr = expr.cast<AffineBinaryOpExpr>();
     if (auto lhs = constantFoldImpl(binOpExpr.getLHS()))
       if (auto rhs = constantFoldImpl(binOpExpr.getRHS()))
         return op(*lhs, *rhs);
-    return llvm::None;
+    return std::nullopt;
   }
 
   // The number of dimension operands in AffineMap containing this expression.
@@ -276,6 +277,18 @@ bool AffineMap::isIdentity() const {
   return true;
 }
 
+bool AffineMap::isSymbolIdentity() const {
+  if (getNumSymbols() != getNumResults())
+    return false;
+  ArrayRef<AffineExpr> results = getResults();
+  for (unsigned i = 0, numSymbols = getNumSymbols(); i < numSymbols; ++i) {
+    auto expr = results[i].dyn_cast<AffineDimExpr>();
+    if (!expr || expr.getPosition() != i)
+      return false;
+  }
+  return true;
+}
+
 bool AffineMap::isEmpty() const {
   return getNumDims() == 0 && getNumSymbols() == 0 && getNumResults() == 0;
 }
@@ -328,12 +341,16 @@ unsigned AffineMap::getDimPosition(unsigned idx) const {
   return getResult(idx).cast<AffineDimExpr>().getPosition();
 }
 
-unsigned AffineMap::getPermutedPosition(unsigned input) const {
-  assert(isPermutation() && "invalid permutation request");
-  for (unsigned i = 0, numResults = getNumResults(); i < numResults; i++)
-    if (getDimPosition(i) == input)
+std::optional<unsigned> AffineMap::getResultPosition(AffineExpr input) const {
+  if (!input.isa<AffineDimExpr>())
+    return std::nullopt;
+
+  for (unsigned i = 0, numResults = getNumResults(); i < numResults; i++) {
+    if (getResult(i) == input)
       return i;
-  llvm_unreachable("incorrect permutation request");
+  }
+
+  return std::nullopt;
 }
 
 /// Folds the results of the application of an affine map on the provided

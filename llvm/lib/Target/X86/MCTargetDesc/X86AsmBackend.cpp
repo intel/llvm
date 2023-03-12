@@ -168,7 +168,7 @@ public:
     return X86::NumTargetFixupKinds;
   }
 
-  Optional<MCFixupKind> getFixupKind(StringRef Name) const override;
+  std::optional<MCFixupKind> getFixupKind(StringRef Name) const override;
 
   const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
 
@@ -587,7 +587,7 @@ void X86AsmBackend::emitInstructionEnd(MCObjectStreamer &OS, const MCInst &Inst)
   Sec->ensureMinAlignment(AlignBoundary);
 }
 
-Optional<MCFixupKind> X86AsmBackend::getFixupKind(StringRef Name) const {
+std::optional<MCFixupKind> X86AsmBackend::getFixupKind(StringRef Name) const {
   if (STI.getTargetTriple().isOSBinFormatELF()) {
     unsigned Type;
     if (STI.getTargetTriple().getArch() == Triple::x86_64) {
@@ -613,7 +613,7 @@ Optional<MCFixupKind> X86AsmBackend::getFixupKind(StringRef Name) const {
                  .Default(-1u);
     }
     if (Type == -1u)
-      return None;
+      return std::nullopt;
     return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
   }
   return MCAsmBackend::getFixupKind(Name);
@@ -754,7 +754,7 @@ bool X86AsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
 void X86AsmBackend::relaxInstruction(MCInst &Inst,
                                      const MCSubtargetInfo &STI) const {
   // The only relaxations X86 does is from a 1byte pcrel to a 4byte pcrel.
-  bool Is16BitMode = STI.getFeatureBits()[X86::Is16Bit];
+  bool Is16BitMode = STI.hasFeature(X86::Is16Bit);
   unsigned RelaxedOp = getRelaxedOpcode(Inst, Is16BitMode);
 
   if (RelaxedOp == Inst.getOpcode()) {
@@ -773,7 +773,7 @@ void X86AsmBackend::relaxInstruction(MCInst &Inst,
 static bool isFullyRelaxed(const MCRelaxableFragment &RF) {
   auto &Inst = RF.getInst();
   auto &STI = *RF.getSubtargetInfo();
-  bool Is16BitMode = STI.getFeatureBits()[X86::Is16Bit];
+  bool Is16BitMode = STI.hasFeature(X86::Is16Bit);
   return getRelaxedOpcode(Inst, Is16BitMode) == Inst.getOpcode();
 }
 
@@ -1001,11 +1001,11 @@ unsigned X86AsmBackend::getMaximumNopSize(const MCSubtargetInfo &STI) const {
     return 4;
   if (!STI.hasFeature(X86::FeatureNOPL) && !STI.hasFeature(X86::Is64Bit))
     return 1;
-  if (STI.getFeatureBits()[X86::TuningFast7ByteNOP])
+  if (STI.hasFeature(X86::TuningFast7ByteNOP))
     return 7;
-  if (STI.getFeatureBits()[X86::TuningFast15ByteNOP])
+  if (STI.hasFeature(X86::TuningFast15ByteNOP))
     return 15;
-  if (STI.getFeatureBits()[X86::TuningFast11ByteNOP])
+  if (STI.hasFeature(X86::TuningFast11ByteNOP))
     return 11;
   // FIXME: handle 32-bit mode
   // 15-bytes is the longest single NOP instruction, but 10-bytes is
@@ -1054,7 +1054,7 @@ bool X86AsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
   };
 
   const char(*Nops)[11] =
-      STI->getFeatureBits()[X86::Is16Bit] ? Nops16Bit : Nops32Bit;
+      STI->hasFeature(X86::Is16Bit) ? Nops16Bit : Nops32Bit;
 
   uint64_t MaxNopLength = (uint64_t)getMaximumNopSize(*STI);
 
@@ -1145,8 +1145,8 @@ public:
     , Is64Bit(is64Bit) {
   }
 
-  Optional<MCFixupKind> getFixupKind(StringRef Name) const override {
-    return StringSwitch<Optional<MCFixupKind>>(Name)
+  std::optional<MCFixupKind> getFixupKind(StringRef Name) const override {
+    return StringSwitch<std::optional<MCFixupKind>>(Name)
         .Case("dir32", FK_Data_4)
         .Case("secrel32", FK_SecRel_4)
         .Case("secidx", FK_SecRel_2)

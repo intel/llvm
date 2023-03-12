@@ -16,7 +16,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Bitfields.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/IR/DebugLoc.h"
@@ -128,6 +127,11 @@ public:
   /// Insert an unlinked instruction into a basic block immediately after the
   /// specified instruction.
   void insertAfter(Instruction *InsertPos);
+
+  /// Inserts an unlinked instruction into \p ParentBB at position \p It and
+  /// returns the iterator of the inserted instruction.
+  SymbolTableList<Instruction>::iterator
+  insertInto(BasicBlock *ParentBB, SymbolTableList<Instruction>::iterator It);
 
   /// Unlink this instruction from its current basic block and insert it into
   /// the basic block that MovePos lives in, right before MovePos.
@@ -320,10 +324,10 @@ public:
   /// this API if the Instruction being modified is a call.
   void dropUnknownNonDebugMetadata(ArrayRef<unsigned> KnownIDs);
   void dropUnknownNonDebugMetadata() {
-    return dropUnknownNonDebugMetadata(None);
+    return dropUnknownNonDebugMetadata(std::nullopt);
   }
   void dropUnknownNonDebugMetadata(unsigned ID1) {
-    return dropUnknownNonDebugMetadata(makeArrayRef(ID1));
+    return dropUnknownNonDebugMetadata(ArrayRef(ID1));
   }
   void dropUnknownNonDebugMetadata(unsigned ID1, unsigned ID2) {
     unsigned IDs[] = {ID1, ID2};
@@ -378,6 +382,23 @@ public:
   /// Drops flags that may cause this instruction to evaluate to poison despite
   /// having non-poison inputs.
   void dropPoisonGeneratingFlags();
+
+  /// Return true if this instruction has poison-generating metadata.
+  bool hasPoisonGeneratingMetadata() const LLVM_READONLY;
+
+  /// Drops metadata that may generate poison.
+  void dropPoisonGeneratingMetadata();
+
+  /// Return true if this instruction has poison-generating flags or metadata.
+  bool hasPoisonGeneratingFlagsOrMetadata() const {
+    return hasPoisonGeneratingFlags() || hasPoisonGeneratingMetadata();
+  }
+
+  /// Drops flags and metadata that may generate poison.
+  void dropPoisonGeneratingFlagsAndMetadata() {
+    dropPoisonGeneratingFlags();
+    dropPoisonGeneratingMetadata();
+  }
 
   /// This function drops non-debug unknown metadata (through
   /// dropUnknownNonDebugMetadata). For calls, it also drops parameter and 

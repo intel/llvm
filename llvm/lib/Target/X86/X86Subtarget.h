@@ -17,9 +17,9 @@
 #include "X86ISelLowering.h"
 #include "X86InstrInfo.h"
 #include "X86SelectionDAGInfo.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/CallingConv.h"
+#include "llvm/TargetParser/Triple.h"
 #include <climits>
 #include <memory>
 
@@ -255,11 +255,20 @@ public:
     return hasAVX512() && (canExtendTo512DQ() || RequiredVectorWidth > 256);
   }
 
+  bool useLight256BitInstructions() const {
+    return getPreferVectorWidth() >= 256 || AllowLight256Bit;
+  }
+
   bool useBWIRegs() const {
     return hasBWI() && useAVX512Regs();
   }
 
   bool isXRaySupported() const override { return is64Bit(); }
+
+  /// Use clflush if we have SSE2 or we're on x86-64 (even if we asked for
+  /// no-sse2). There isn't any reason to disable it if the target processor
+  /// supports it.
+  bool hasCLFLUSH() const { return hasSSE2() || is64Bit(); }
 
   /// Use mfence if we have SSE2 or we're on x86-64 (even if we asked for
   /// no-sse2). There isn't any reason to disable it if the target processor

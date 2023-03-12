@@ -219,7 +219,8 @@ bool isSYCLHalfType(llvm::Type *Ty) {
     if (!ST->hasName())
       return false;
     StringRef Name = ST->getName();
-    Name.consume_front("class.");
+    if (!Name.consume_front("class."))
+      return false;
     if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::half")) {
@@ -234,7 +235,8 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
     if (!ST->hasName())
       return false;
     StringRef Name = ST->getName();
-    Name.consume_front("class.");
+    if (!Name.consume_front("class."))
+      return false;
     if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::bfloat16")) {
@@ -472,8 +474,11 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
     size_t DemangledNameLenStart = NameSpaceStart + 11;
     size_t Start = Name.find_first_not_of("0123456789", DemangledNameLenStart);
     size_t Len = 0;
-    Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
-        .getAsInteger(10, Len);
+    if (Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
+            .getAsInteger(10, Len)) {
+      SPIRVDBG(errs() << "Error in extracting integer value");
+      return false;
+    }
     DemangledName = Name.substr(Start, Len);
   } else {
     size_t Start = Name.find_first_not_of("0123456789", 2);
@@ -1383,8 +1388,10 @@ Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
   auto GEP = cast<GEPOperator>(V);
   assert(GEP->getNumOperands() == 3 && "must be a GEP from an array");
   assert(GEP->getSourceElementType()->getArrayNumElements() == Size);
-  assert(dyn_cast<ConstantInt>(GEP->getOperand(1))->getZExtValue() == 0);
-  assert(dyn_cast<ConstantInt>(GEP->getOperand(2))->getZExtValue() == 0);
+  [[maybe_unused]] auto *OP1 = cast<ConstantInt>(GEP->getOperand(1));
+  [[maybe_unused]] auto *OP2 = cast<ConstantInt>(GEP->getOperand(2));
+  assert(OP1->getZExtValue() == 0);
+  assert(OP2->getZExtValue() == 0);
   return new LoadInst(GEP->getSourceElementType(), GEP->getOperand(0), "", Pos);
 }
 
@@ -2405,8 +2412,5 @@ MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V) {
   std::string Str = SPIRVMap<T, std::string>::map(static_cast<T>(Const));
   return MetadataAsValue::get(C, MDString::get(C, Str));
 }
-template MetadataAsValue *
-map2MDString<internal::InternalJointMatrixLayout>(LLVMContext &, SPIRVValue *);
-template MetadataAsValue *map2MDString<spv::Scope>(LLVMContext &, SPIRVValue *);
 
 } // namespace SPIRV

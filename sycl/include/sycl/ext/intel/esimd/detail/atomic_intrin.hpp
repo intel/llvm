@@ -39,8 +39,8 @@ template <typename Ty> inline Ty atomic_store(Ty *ptr, Ty val) {
   // TODO: Windows will be supported soon
   __ESIMD_UNSUPPORTED_ON_HOST;
 #else
-  Ty ret = atomic_load<Ty>((CmpxchgTy<Ty> *)ptr);
-  __atomic_store_n((CmpxchgTy<Ty> *)ptr, val, __ATOMIC_SEQ_CST);
+  Ty ret = atomic_load<Ty>(ptr);
+  __atomic_store_n(ptr, val, __ATOMIC_SEQ_CST);
   return ret;
 #endif
 }

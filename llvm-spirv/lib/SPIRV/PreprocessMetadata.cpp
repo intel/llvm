@@ -46,10 +46,10 @@
 #include "VectorComputeUtil.h"
 #include "libSPIRV/SPIRVDebug.h"
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -247,7 +247,7 @@ void PreprocessMetadataBase::visit(Module *M) {
           InterfaceMode = 1;
         EM.addOp()
             .add(&Kernel)
-            .add(spv::internal::ExecutionModeStreamingInterfaceINTEL)
+            .add(spv::ExecutionModeStreamingInterfaceINTEL)
             .add(InterfaceMode)
             .done();
       }

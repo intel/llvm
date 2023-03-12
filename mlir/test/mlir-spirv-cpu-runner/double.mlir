@@ -1,4 +1,4 @@
-// RUN: mlir-spirv-cpu-runner %s -e main --entry-point-result=void --shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext,%mlir_lib_dir/libmlir_test_spirv_cpu_runner_c_wrappers%shlibext
+// RUN: mlir-spirv-cpu-runner %s -e main --entry-point-result=void --shared-libs=%mlir_runner_utils,%mlir_test_spirv_cpu_runner_c_wrappers
 
 // CHECK: [8,  8,  8,  8,  8,  8]
 module attributes {
@@ -11,7 +11,7 @@ module attributes {
 } {
   gpu.module @kernels {
     gpu.func @double(%arg0 : memref<6xi32>, %arg1 : memref<6xi32>)
-      kernel attributes { spirv.entry_point_abi = #spirv.entry_point_abi<local_size = dense<[1, 1, 1]>: vector<3xi32>>} {
+      kernel attributes { spirv.entry_point_abi = #spirv.entry_point_abi<workgroup_size = [1, 1, 1]>} {
       %factor = arith.constant 2 : i32
 
       %i0 = arith.constant 0 : index

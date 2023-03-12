@@ -14,9 +14,9 @@
 #ifndef MLIR_DIALECT_LLVMIR_LLVMTYPES_H_
 #define MLIR_DIALECT_LLVMIR_LLVMTYPES_H_
 
-#include "mlir/IR/SubElementInterfaces.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/DataLayoutInterfaces.h"
+#include <optional>
 
 namespace llvm {
 class ElementCount;
@@ -103,7 +103,6 @@ DEFINE_TRIVIAL_LLVM_TYPE(LLVMMetadataType);
 class LLVMStructType
     : public Type::TypeBase<LLVMStructType, Type, detail::LLVMStructTypeStorage,
                             DataLayoutTypeInterface::Trait,
-                            SubElementTypeInterface::Trait,
                             TypeTrait::IsMutable> {
 public:
   /// Inherit base constructors.
@@ -181,6 +180,7 @@ public:
                               StringRef, bool);
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               ArrayRef<Type> types, bool);
+  using Base::verify;
 
   /// Hooks for DataLayoutTypeInterface. Should not be called directly. Obtain a
   /// DataLayout instance and query it instead.
@@ -198,11 +198,6 @@ public:
 
   LogicalResult verifyEntries(DataLayoutEntryListRef entries,
                               Location loc) const;
-
-  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
-                                function_ref<void(Type)> walkTypesFn) const;
-  Type replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                   ArrayRef<Type> replTypes) const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -218,7 +213,7 @@ void printType(Type type, AsmPrinter &printer);
 } // namespace detail
 
 /// Parse any MLIR type or a concise syntax for LLVM types.
-ParseResult parsePrettyLLVMType(AsmParser &p, FailureOr<Type> &type);
+ParseResult parsePrettyLLVMType(AsmParser &p, Type &type);
 /// Print any MLIR type or a concise syntax for LLVM types.
 void printPrettyLLVMType(AsmPrinter &p, Type type);
 
@@ -282,10 +277,11 @@ enum class PtrDLEntryPos { Size = 0, Abi = 1, Preferred = 2, Index = 3 };
 
 /// Returns the value that corresponds to named position `pos` from the
 /// data layout entry `attr` assuming it's a dense integer elements attribute.
-/// Returns `None` if `pos` is not present in the entry.
+/// Returns `std::nullopt` if `pos` is not present in the entry.
 /// Currently only `PtrDLEntryPos::Index` is optional, and all other positions
 /// may be assumed to be present.
-Optional<unsigned> extractPointerSpecValue(Attribute attr, PtrDLEntryPos pos);
+std::optional<unsigned> extractPointerSpecValue(Attribute attr,
+                                                PtrDLEntryPos pos);
 
 } // namespace LLVM
 } // namespace mlir

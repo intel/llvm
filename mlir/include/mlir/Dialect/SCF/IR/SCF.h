@@ -18,6 +18,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/RegionKindInterface.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Interfaces/ParallelCombiningOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -51,9 +52,9 @@ ForOp getForInductionVarOwner(Value val);
 /// value is not an induction variable, then return nullptr.
 ParallelOp getParallelForInductionVarOwner(Value val);
 
-/// Returns the ForeachThreadOp parent of an thread index variable.
+/// Returns the ForallOp parent of an thread index variable.
 /// If the provided value is not a thread index variable, then return nullptr.
-ForeachThreadOp getForeachThreadOpThreadIndexOwner(Value val);
+ForallOp getForallOpThreadIndexOwner(Value val);
 
 /// Return true if ops a and b (or their ancestors) are in mutually exclusive
 /// regions/blocks of an IfOp.
@@ -61,11 +62,11 @@ ForeachThreadOp getForeachThreadOpThreadIndexOwner(Value val);
 bool insideMutuallyExclusiveBranches(Operation *a, Operation *b);
 
 /// An owning vector of values, handy to return from functions.
-using ValueVector = std::vector<Value>;
-using LoopVector = std::vector<scf::ForOp>;
+using ValueVector = SmallVector<Value>;
+using LoopVector = SmallVector<scf::ForOp>;
 struct LoopNest {
-  ResultRange getResults() { return loops.front().getResults(); }
   LoopVector loops;
+  ValueVector results;
 };
 
 /// Creates a perfect nest of "for" loops, i.e. all loops but the innermost

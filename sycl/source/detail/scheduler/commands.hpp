@@ -27,6 +27,10 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+bool CurrentCodeLocationValid();
+#endif
+
 class queue_impl;
 class event_impl;
 class context_impl;
@@ -104,7 +108,8 @@ public:
     UNMAP_MEM_OBJ,
     UPDATE_REQUIREMENT,
     EMPTY_TASK,
-    HOST_TASK
+    HOST_TASK,
+    FUSION
   };
 
   Command(CommandType Type, QueueImplPtr Queue);
@@ -142,8 +147,20 @@ public:
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
 
+  // Shows that command could not be enqueued, now it may be true for empty task
+  // only
   bool isEnqueueBlocked() const {
-    return MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
+    return MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
+  }
+  // Shows that command could be enqueued, but is blocking enqueue of all
+  // commands depending on it. Regular usage - host task.
+  bool isBlocking() const { return isHostTask() && !MEvent->isCompleted(); }
+
+  void addBlockedUserUnique(const EventImplPtr &NewUser) {
+    if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
+        MBlockedUsers.end())
+      return;
+    MBlockedUsers.push_back(NewUser);
   }
 
   const QueueImplPtr &getQueue() const { return MQueue; }
@@ -205,10 +222,18 @@ public:
   /// Returns true iff this command can be freed by post enqueue cleanup.
   virtual bool supportsPostEnqueueCleanup() const;
 
+  /// Returns true iff this command is ready to be submitted for cleanup.
+  virtual bool readyForCleanup() const;
+
   /// Collect PI events from EventImpls and filter out some of them in case of
   /// in order queue
   std::vector<RT::PiEvent>
   getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
+  /// Collect PI events from EventImpls and filter out some of them in case of
+  /// in order queue. Does blocking enqueue if event is expected to produce pi
+  /// event but has empty native handle.
+  std::vector<RT::PiEvent>
+  getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
 
@@ -261,6 +286,10 @@ public:
     return MPreparedDepsEvents;
   }
 
+  // XPTI instrumentation. Copy code location details to the internal struct.
+  // Memory is allocated in this method and released in destructor.
+  void copySubmissionCodeLocation();
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -287,7 +316,7 @@ public:
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
 
-  // All member variable defined here  are needed for the SYCL instrumentation
+  // All member variables defined here are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
   // to ensure we have the same object layout when the macro in the library and
   // SYCL app are not the same.
@@ -313,6 +342,14 @@ public:
   bool MFirstInstance = false;
   /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
+  /// Represents code location of command submission to SYCL API, assigned with
+  /// the valid value only if command execution is async (host task) or delayed
+  /// (blocked by host task).
+  code_location MSubmissionCodeLocation;
+  /// Introduces string to handle memory management since code_location struct
+  /// works with raw char arrays.
+  std::string MSubmissionFileName;
+  std::string MSubmissionFunctionName;
 
   // This flag allows to control whether host event should be set complete
   // after successfull enqueue of command. Event is considered as host event if
@@ -322,9 +359,18 @@ public:
   // synchronous. The only asynchronous operation currently is host-task.
   bool MShouldCompleteEventIfPossible = true;
 
-  /// Indicates that the node will be freed by cleanup after enqueue. Such nodes
-  /// should be ignored by other cleanup mechanisms.
-  bool MPostEnqueueCleanup = false;
+  /// Indicates that the node will be freed by graph cleanup. Such nodes should
+  /// be ignored by other cleanup mechanisms (e.g. during memory object
+  /// removal).
+  bool MMarkedForCleanup = false;
+
+  /// Contains list of commands that depends on the host command explicitly (by
+  /// depends_on). Not involved in the cleanup process since it is one-way link
+  /// and does not hold resources.
+  /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
+  /// intersect with command enqueue.
+  std::vector<EventImplPtr> MBlockedUsers;
+  std::mutex MBlockedUsersMutex;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to
@@ -361,6 +407,7 @@ public:
   void emitInstrumentationData() override;
   bool producesPiEvent() const final;
   bool supportsPostEnqueueCleanup() const final;
+  bool readyForCleanup() const final;
 
 private:
   pi_int32 enqueueImp() final;
@@ -388,6 +435,8 @@ public:
   bool producesPiEvent() const final;
 
   bool supportsPostEnqueueCleanup() const final;
+
+  bool readyForCleanup() const final;
 
   void *MMemAllocation = nullptr;
 
@@ -544,16 +593,16 @@ pi_int32 enqueueImpKernel(
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
 
+class KernelFusionCommand;
+
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.
 class ExecCGCommand : public Command {
 public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
-  std::vector<StreamImplPtr> getStreams() const;
   std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
-  void clearStreams();
   void clearAuxiliaryResources();
 
   void printDot(std::ostream &Stream) const final;
@@ -567,9 +616,16 @@ public:
   // the cleanup process.
   EmptyCommand *MEmptyCmd = nullptr;
 
+  // MFusionCommand is employed to mark a CG command as part of a kernel fusion
+  // and allows to refer back to the corresponding KernelFusionCommand if
+  // necessary.
+  KernelFusionCommand *MFusionCmd = nullptr;
+
   bool producesPiEvent() const final;
 
   bool supportsPostEnqueueCleanup() const final;
+
+  bool readyForCleanup() const final;
 
 private:
   pi_int32 enqueueImp() final;
@@ -596,6 +652,43 @@ private:
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
   void **MDstPtr = nullptr;
+};
+
+/// The KernelFusionCommand is placed in the execution graph together with the
+/// individual kernels of the fusion list to control kernel fusion.
+class KernelFusionCommand : public Command {
+public:
+  enum class FusionStatus { ACTIVE, CANCELLED, COMPLETE, DELETED };
+
+  explicit KernelFusionCommand(QueueImplPtr Queue);
+
+  void printDot(std::ostream &Stream) const final;
+  void emitInstrumentationData() final;
+  bool producesPiEvent() const final;
+
+  std::vector<Command *> &auxiliaryCommands();
+
+  void addToFusionList(ExecCGCommand *Kernel);
+
+  std::vector<ExecCGCommand *> &getFusionList();
+
+  ///
+  /// Set the status of this fusion command to \p Status. This function should
+  /// only be called under the protection of the scheduler write-lock.
+  void setFusionStatus(FusionStatus Status);
+
+  bool isActive() const { return MStatus == FusionStatus::ACTIVE; }
+
+  bool readyForDeletion() const { return MStatus == FusionStatus::DELETED; }
+
+private:
+  pi_int32 enqueueImp() final;
+
+  std::vector<ExecCGCommand *> MFusionList;
+
+  std::vector<Command *> MAuxiliaryCommands;
+
+  FusionStatus MStatus;
 };
 
 } // namespace detail

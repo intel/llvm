@@ -16,7 +16,6 @@
 #define LLVM_CODEGEN_GLOBALISEL_INSTRUCTIONSELECTOR_H
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -27,6 +26,7 @@
 #include <cstdint>
 #include <functional>
 #include <initializer_list>
+#include <optional>
 #include <vector>
 
 namespace llvm {
@@ -103,11 +103,13 @@ enum {
   /// - JumpTable... - (UpperBound - LowerBound) (at least 2) jump targets
   GIM_SwitchType,
 
-  /// Record the specified instruction
+  /// Record the specified instruction.
+  /// The IgnoreCopies variant ignores COPY instructions.
   /// - NewInsnID - Instruction ID to define
   /// - InsnID - Instruction ID
   /// - OpIdx - Operand index
   GIM_RecordInsn,
+  GIM_RecordInsnIgnoreCopies,
 
   /// Check the feature bits
   /// - Expected features
@@ -262,11 +264,14 @@ enum {
   GIM_CheckIsSafeToFold,
 
   /// Check the specified operands are identical.
+  /// The IgnoreCopies variant looks through COPY instructions before
+  /// comparing the operands.
   /// - InsnID - Instruction ID
   /// - OpIdx - Operand index
   /// - OtherInsnID - Other instruction ID
   /// - OtherOpIdx - Other operand index
   GIM_CheckIsSameOperand,
+  GIM_CheckIsSameOperandIgnoreCopies,
 
   /// Predicates with 'let PredicateCodeUsesOperands = 1' need to examine some
   /// named operands that will be recorded in RecordedOperands. Names of these
@@ -364,7 +369,8 @@ enum {
   /// reading from a specific operand.
   /// - InsnID - Instruction ID to modify
   /// - OldInsnID - Instruction ID to get the matched operand from
-  /// - OpIdx - Operand index in OldInsnID the render function should read from..
+  /// - OpIdx - Operand index in OldInsnID the render function should read
+  /// from..
   /// - RendererFnID - Custom renderer function to call
   GIR_CustomOperandRenderer,
 
@@ -468,7 +474,7 @@ public:
 
 protected:
   using ComplexRendererFns =
-      Optional<SmallVector<std::function<void(MachineInstrBuilder &)>, 4>>;
+      std::optional<SmallVector<std::function<void(MachineInstrBuilder &)>, 4>>;
   using RecordedMIVector = SmallVector<MachineInstr *, 4>;
   using NewMIVector = SmallVector<MachineInstrBuilder, 4>;
 

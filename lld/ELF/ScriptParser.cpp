@@ -900,7 +900,8 @@ OutputDesc *ScriptParser::readOverlaySectionDescription() {
 }
 
 OutputDesc *ScriptParser::readOutputSectionDescription(StringRef outSec) {
-  OutputDesc *cmd = script->createOutputSection(outSec, getCurrentLocation());
+  OutputDesc *cmd =
+      script->createOutputSection(unquote(outSec), getCurrentLocation());
   OutputSection *osec = &cmd->osec;
   // Maybe relro. Will reset to false if DATA_SEGMENT_RELRO_END is absent.
   osec->relro = seenDataAlign && !seenRelroEnd;
@@ -1041,19 +1042,19 @@ SymbolAssignment *ScriptParser::readAssignment(StringRef tok) {
   const StringRef op = peek();
   if (op.startswith("=")) {
     // Support = followed by an expression without whitespace.
-    SaveAndRestore<bool> saved(inExpr, true);
+    SaveAndRestore saved(inExpr, true);
     cmd = readSymbolAssignment(tok);
   } else if ((op.size() == 2 && op[1] == '=' && strchr("*/+-&|", op[0])) ||
              op == "<<=" || op == ">>=") {
     cmd = readSymbolAssignment(tok);
   } else if (tok == "PROVIDE") {
-    SaveAndRestore<bool> saved(inExpr, true);
+    SaveAndRestore saved(inExpr, true);
     cmd = readProvideHidden(true, false);
   } else if (tok == "HIDDEN") {
-    SaveAndRestore<bool> saved(inExpr, true);
+    SaveAndRestore saved(inExpr, true);
     cmd = readProvideHidden(false, true);
   } else if (tok == "PROVIDE_HIDDEN") {
-    SaveAndRestore<bool> saved(inExpr, true);
+    SaveAndRestore saved(inExpr, true);
     cmd = readProvideHidden(true, true);
   }
 
@@ -1287,7 +1288,7 @@ static std::optional<uint64_t> parseFlag(StringRef tok) {
       .Case(CASE_ENT(SHF_COMPRESSED))
       .Case(CASE_ENT(SHF_EXCLUDE))
       .Case(CASE_ENT(SHF_ARM_PURECODE))
-      .Default(None);
+      .Default(std::nullopt);
 #undef CASE_ENT
 }
 
@@ -1408,7 +1409,7 @@ Expr ScriptParser::readPrimary() {
     OutputSection *osec = &script->getOrCreateOutputSection(name)->osec;
     return [=] {
       checkIfExists(*osec, location);
-      return osec->alignment;
+      return osec->addralign;
     };
   }
   if (tok == "ASSERT")

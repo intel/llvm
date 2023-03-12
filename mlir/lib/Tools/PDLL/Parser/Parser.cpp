@@ -32,6 +32,7 @@
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Parser.h"
 #include <string>
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::pdll;
@@ -130,7 +131,7 @@ private:
 
   /// Lookup ODS information for the given operation, returns nullptr if no
   /// information is found.
-  const ods::Operation *lookupODSOperation(Optional<StringRef> opName) {
+  const ods::Operation *lookupODSOperation(std::optional<StringRef> opName) {
     return opName ? ctx.getODSContext().lookupOperation(*opName) : nullptr;
   }
 
@@ -185,13 +186,13 @@ private:
 
   /// This structure contains the set of pattern metadata that may be parsed.
   struct ParsedPatternMetadata {
-    Optional<uint16_t> benefit;
+    std::optional<uint16_t> benefit;
     bool hasBoundedRecursion = false;
   };
 
   FailureOr<ast::Decl *> parseTopLevelDecl();
   FailureOr<ast::NamedAttributeDecl *>
-  parseNamedAttributeDecl(Optional<StringRef> parentOpName);
+  parseNamedAttributeDecl(std::optional<StringRef> parentOpName);
 
   /// Parse an argument variable as part of the signature of a
   /// UserConstraintDecl or UserRewriteDecl.
@@ -298,7 +299,7 @@ private:
   /// that will be constrained by this constraint. `allowInlineTypeConstraints`
   /// allows the use of inline Type constraints, e.g. `Value<valueType: Type>`.
   FailureOr<ast::ConstraintRef>
-  parseConstraint(Optional<SMRange> &typeConstraint,
+  parseConstraint(std::optional<SMRange> &typeConstraint,
                   ArrayRef<ast::ConstraintRef> existingConstraints,
                   bool allowInlineTypeConstraints);
 
@@ -423,17 +424,18 @@ private:
                       MutableArrayRef<ast::NamedAttributeDecl *> attributes,
                       SmallVectorImpl<ast::Expr *> &results);
   LogicalResult
-  validateOperationOperands(SMRange loc, Optional<StringRef> name,
+  validateOperationOperands(SMRange loc, std::optional<StringRef> name,
                             const ods::Operation *odsOp,
                             SmallVectorImpl<ast::Expr *> &operands);
-  LogicalResult validateOperationResults(SMRange loc, Optional<StringRef> name,
+  LogicalResult validateOperationResults(SMRange loc,
+                                         std::optional<StringRef> name,
                                          const ods::Operation *odsOp,
                                          SmallVectorImpl<ast::Expr *> &results);
   void checkOperationResultTypeInferrence(SMRange loc, StringRef name,
                                           const ods::Operation *odsOp);
   LogicalResult validateOperationOperandsOrResults(
-      StringRef groupName, SMRange loc, Optional<SMRange> odsOpLoc,
-      Optional<StringRef> name, SmallVectorImpl<ast::Expr *> &values,
+      StringRef groupName, SMRange loc, std::optional<SMRange> odsOpLoc,
+      std::optional<StringRef> name, SmallVectorImpl<ast::Expr *> &values,
       ArrayRef<ods::OperandOrResult> odsValues, ast::Type singleTy,
       ast::RangeType rangeTy);
   FailureOr<ast::TupleExpr *> createTupleExpr(SMRange loc,
@@ -460,7 +462,7 @@ private:
   /// results.
 
   LogicalResult codeCompleteMemberAccess(ast::Expr *parentExpr);
-  LogicalResult codeCompleteAttributeName(Optional<StringRef> opName);
+  LogicalResult codeCompleteAttributeName(std::optional<StringRef> opName);
   LogicalResult codeCompleteConstraintName(ast::Type inferredType,
                                            bool allowInlineTypeConstraints);
   LogicalResult codeCompleteDialectName();
@@ -469,9 +471,9 @@ private:
   LogicalResult codeCompleteIncludeFilename(StringRef curPath);
 
   void codeCompleteCallSignature(ast::Node *parent, unsigned currentNumArgs);
-  void codeCompleteOperationOperandsSignature(Optional<StringRef> opName,
+  void codeCompleteOperationOperandsSignature(std::optional<StringRef> opName,
                                               unsigned currentNumOperands);
-  void codeCompleteOperationResultsSignature(Optional<StringRef> opName,
+  void codeCompleteOperationResultsSignature(std::optional<StringRef> opName,
                                              unsigned currentNumResults);
 
   //===--------------------------------------------------------------------===//
@@ -981,7 +983,8 @@ ast::Decl *Parser::createODSNativePDLLConstraintDecl(
   // Build the native constraint.
   auto *constraintDecl = ast::UserConstraintDecl::createNative(
       ctx, ast::Name::create(ctx, name, loc), paramVar,
-      /*results=*/llvm::None, codeBlock, ast::TupleType::get(ctx), nativeType);
+      /*results=*/std::nullopt, codeBlock, ast::TupleType::get(ctx),
+      nativeType);
   constraintDecl->setDocComment(ctx, docString);
   curDeclScope->add(constraintDecl);
   return constraintDecl;
@@ -1046,7 +1049,7 @@ FailureOr<ast::Decl *> Parser::parseTopLevelDecl() {
 }
 
 FailureOr<ast::NamedAttributeDecl *>
-Parser::parseNamedAttributeDecl(Optional<StringRef> parentOpName) {
+Parser::parseNamedAttributeDecl(std::optional<StringRef> parentOpName) {
   // Check for name code completion.
   if (curToken.is(Token::code_complete))
     return codeCompleteAttributeName(parentOpName);
@@ -1293,7 +1296,7 @@ FailureOr<T *> Parser::parseUserConstraintOrRewriteDecl(
     StringRef anonymousNamePrefix, bool isInline) {
   SMRange loc = curToken.getLoc();
   consumeToken();
-  llvm::SaveAndRestore<ParserContext> saveCtx(parserContext, declContext);
+  llvm::SaveAndRestore saveCtx(parserContext, declContext);
 
   // Parse the name of the decl.
   const ast::Name *name = nullptr;
@@ -1342,7 +1345,7 @@ FailureOr<T *> Parser::parseUserNativeConstraintOrRewriteDecl(
     ArrayRef<ast::VariableDecl *> results, ast::Type resultType) {
   // If followed by a string, the native code body has also been specified.
   std::string codeStrStorage;
-  Optional<StringRef> optCodeStr;
+  std::optional<StringRef> optCodeStr;
   if (curToken.isString()) {
     codeStrStorage = curToken.getStringValue();
     optCodeStr = codeStrStorage;
@@ -1466,8 +1469,7 @@ FailureOr<ast::CompoundStmt *> Parser::parsePatternLambdaBody() {
 FailureOr<ast::Decl *> Parser::parsePatternDecl() {
   SMRange loc = curToken.getLoc();
   consumeToken(Token::kw_Pattern);
-  llvm::SaveAndRestore<ParserContext> saveCtx(parserContext,
-                                              ParserContext::PatternMatch);
+  llvm::SaveAndRestore saveCtx(parserContext, ParserContext::PatternMatch);
 
   // Check for an optional identifier for the pattern name.
   const ast::Name *name = nullptr;
@@ -1527,8 +1529,8 @@ FailureOr<ast::Decl *> Parser::parsePatternDecl() {
 
 LogicalResult
 Parser::parsePatternDeclMetadata(ParsedPatternMetadata &metadata) {
-  Optional<SMRange> benefitLoc;
-  Optional<SMRange> hasBoundedRecursionLoc;
+  std::optional<SMRange> benefitLoc;
+  std::optional<SMRange> hasBoundedRecursionLoc;
 
   do {
     // Handle metadata code completion.
@@ -1640,7 +1642,7 @@ Parser::defineVariableDecl(StringRef name, SMRange nameLoc, ast::Type type,
 
 LogicalResult Parser::parseVariableDeclConstraintList(
     SmallVectorImpl<ast::ConstraintRef> &constraints) {
-  Optional<SMRange> typeConstraint;
+  std::optional<SMRange> typeConstraint;
   auto parseSingleConstraint = [&] {
     FailureOr<ast::ConstraintRef> constraint = parseConstraint(
         typeConstraint, constraints, /*allowInlineTypeConstraints=*/true);
@@ -1662,7 +1664,7 @@ LogicalResult Parser::parseVariableDeclConstraintList(
 }
 
 FailureOr<ast::ConstraintRef>
-Parser::parseConstraint(Optional<SMRange> &typeConstraint,
+Parser::parseConstraint(std::optional<SMRange> &typeConstraint,
                         ArrayRef<ast::ConstraintRef> existingConstraints,
                         bool allowInlineTypeConstraints) {
   auto parseTypeConstraint = [&](ast::Expr *&typeExpr) -> LogicalResult {
@@ -1782,8 +1784,8 @@ Parser::parseConstraint(Optional<SMRange> &typeConstraint,
 }
 
 FailureOr<ast::ConstraintRef> Parser::parseArgOrResultConstraint() {
-  Optional<SMRange> typeConstraint;
-  return parseConstraint(typeConstraint, /*existingConstraints=*/llvm::None,
+  std::optional<SMRange> typeConstraint;
+  return parseConstraint(typeConstraint, /*existingConstraints=*/std::nullopt,
                          /*allowInlineTypeConstraints=*/false);
 }
 
@@ -2028,7 +2030,7 @@ Parser::parseOperationExpr(OpResultTypeContext inputResultTypeContext) {
       parseWrappedOperationName(allowEmptyName);
   if (failed(opNameDecl))
     return failure();
-  Optional<StringRef> opName = (*opNameDecl)->getName();
+  std::optional<StringRef> opName = (*opNameDecl)->getName();
 
   // Functor used to create an implicit range variable, used for implicit "all"
   // operand or results variables.
@@ -2377,8 +2379,7 @@ FailureOr<ast::ReplaceStmt *> Parser::parseReplaceStmt() {
     return failure();
 
   // The replacement portion of this statement is within a rewrite context.
-  llvm::SaveAndRestore<ParserContext> saveCtx(parserContext,
-                                              ParserContext::Rewrite);
+  llvm::SaveAndRestore saveCtx(parserContext, ParserContext::Rewrite);
 
   // Parse the replacement values.
   SmallVector<ast::Expr *> replValues;
@@ -2445,8 +2446,7 @@ FailureOr<ast::RewriteStmt *> Parser::parseRewriteStmt() {
     return emitError("expected `{` to start rewrite body");
 
   // The rewrite body of this statement is within a rewrite context.
-  llvm::SaveAndRestore<ParserContext> saveCtx(parserContext,
-                                              ParserContext::Rewrite);
+  llvm::SaveAndRestore saveCtx(parserContext, ParserContext::Rewrite);
 
   FailureOr<ast::CompoundStmt *> rewriteBody = parseCompoundStmt();
   if (failed(rewriteBody))
@@ -2814,7 +2814,7 @@ FailureOr<ast::OperationExpr *> Parser::createOperationExpr(
     SmallVectorImpl<ast::Expr *> &operands,
     MutableArrayRef<ast::NamedAttributeDecl *> attributes,
     SmallVectorImpl<ast::Expr *> &results) {
-  Optional<StringRef> opNameRef = name->getName();
+  std::optional<StringRef> opNameRef = name->getName();
   const ods::Operation *odsOp = lookupODSOperation(opNameRef);
 
   // Verify the inputs operands.
@@ -2854,22 +2854,22 @@ FailureOr<ast::OperationExpr *> Parser::createOperationExpr(
 }
 
 LogicalResult
-Parser::validateOperationOperands(SMRange loc, Optional<StringRef> name,
+Parser::validateOperationOperands(SMRange loc, std::optional<StringRef> name,
                                   const ods::Operation *odsOp,
                                   SmallVectorImpl<ast::Expr *> &operands) {
   return validateOperationOperandsOrResults(
-      "operand", loc, odsOp ? odsOp->getLoc() : Optional<SMRange>(), name,
-      operands, odsOp ? odsOp->getOperands() : llvm::None, valueTy,
+      "operand", loc, odsOp ? odsOp->getLoc() : std::optional<SMRange>(), name,
+      operands, odsOp ? odsOp->getOperands() : std::nullopt, valueTy,
       valueRangeTy);
 }
 
 LogicalResult
-Parser::validateOperationResults(SMRange loc, Optional<StringRef> name,
+Parser::validateOperationResults(SMRange loc, std::optional<StringRef> name,
                                  const ods::Operation *odsOp,
                                  SmallVectorImpl<ast::Expr *> &results) {
   return validateOperationOperandsOrResults(
-      "result", loc, odsOp ? odsOp->getLoc() : Optional<SMRange>(), name,
-      results, odsOp ? odsOp->getResults() : llvm::None, typeTy, typeRangeTy);
+      "result", loc, odsOp ? odsOp->getLoc() : std::optional<SMRange>(), name,
+      results, odsOp ? odsOp->getResults() : std::nullopt, typeTy, typeRangeTy);
 }
 
 void Parser::checkOperationResultTypeInferrence(SMRange loc, StringRef opName,
@@ -2915,8 +2915,8 @@ void Parser::checkOperationResultTypeInferrence(SMRange loc, StringRef opName,
 }
 
 LogicalResult Parser::validateOperationOperandsOrResults(
-    StringRef groupName, SMRange loc, Optional<SMRange> odsOpLoc,
-    Optional<StringRef> name, SmallVectorImpl<ast::Expr *> &values,
+    StringRef groupName, SMRange loc, std::optional<SMRange> odsOpLoc,
+    std::optional<StringRef> name, SmallVectorImpl<ast::Expr *> &values,
     ArrayRef<ods::OperandOrResult> odsValues, ast::Type singleTy,
     ast::RangeType rangeTy) {
   // All operation types accept a single range parameter.
@@ -2968,8 +2968,8 @@ LogicalResult Parser::validateOperationOperandsOrResults(
       // Otherwise, create dummy values for each of the entries so that we
       // adhere to the ODS signature.
       for (unsigned i = 0, e = odsValues.size(); i < e; ++i) {
-        values.push_back(
-            ast::RangeExpr::create(ctx, loc, /*elements=*/llvm::None, rangeTy));
+        values.push_back(ast::RangeExpr::create(
+            ctx, loc, /*elements=*/std::nullopt, rangeTy));
       }
       return success();
     }
@@ -3112,7 +3112,8 @@ LogicalResult Parser::codeCompleteMemberAccess(ast::Expr *parentExpr) {
   return failure();
 }
 
-LogicalResult Parser::codeCompleteAttributeName(Optional<StringRef> opName) {
+LogicalResult
+Parser::codeCompleteAttributeName(std::optional<StringRef> opName) {
   if (opName)
     codeCompleteContext->codeCompleteOperationAttributeName(*opName);
   return failure();
@@ -3156,13 +3157,13 @@ void Parser::codeCompleteCallSignature(ast::Node *parent,
 }
 
 void Parser::codeCompleteOperationOperandsSignature(
-    Optional<StringRef> opName, unsigned currentNumOperands) {
+    std::optional<StringRef> opName, unsigned currentNumOperands) {
   codeCompleteContext->codeCompleteOperationOperandsSignature(
       opName, currentNumOperands);
 }
 
-void Parser::codeCompleteOperationResultsSignature(Optional<StringRef> opName,
-                                                   unsigned currentNumResults) {
+void Parser::codeCompleteOperationResultsSignature(
+    std::optional<StringRef> opName, unsigned currentNumResults) {
   codeCompleteContext->codeCompleteOperationResultsSignature(opName,
                                                              currentNumResults);
 }

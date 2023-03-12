@@ -46,7 +46,7 @@ public:
 private:
   void runOnOperation() override;
 
-  llvm::Optional<TosaProfileEnum> profileType;
+  std::optional<TosaProfileEnum> profileType;
 };
 
 void TosaValidation::runOnOperation() {
@@ -56,6 +56,9 @@ void TosaValidation::runOnOperation() {
     for (Value operand : op->getOperands()) {
       if ((profileType == TosaProfileEnum::BaseInference) &&
           getElementTypeOrSelf(operand).isa<FloatType>()) {
+        return signalPassFailure();
+      }
+      if (getElementTypeOrSelf(operand).isF64()) {
         return signalPassFailure();
       }
     }

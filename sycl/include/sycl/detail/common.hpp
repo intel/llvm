@@ -119,6 +119,58 @@ private:
 #define _CODELOCFW(a)
 #endif
 
+/// @brief Data type that manages the code_location information in TLS
+/// @details As new SYCL features are added, they all enable the propagation of
+/// the code location information where the SYCL API was called by the
+/// application layer. In order to facilitate this, the tls_code_loc_t object
+/// assists in managing the data in TLS :
+///   (1) Populate the information when you at the top level function in the
+///   call chain. This is usually the end-user entry point function into SYCL.
+///   (2) Remove the information when the object goes out of scope in the top
+///   level function.
+///
+/// Usage:-
+///   void bar() {
+///     tls_code_loc_t p;
+///     // Print the source information of where foo() was called in main()
+///     std::cout << p.query().fileName() << ":" << p.query().lineNumber() <<
+///     std::endl;
+///   }
+///   // Will work for arbitrary call chain lengths.
+///   void bar1() {bar();}
+///
+///   // Foo() is equivalent to a SYCL end user entry point such as
+///   // queue.memcpy() or queue.copy()
+///   void foo(const code_location &loc) {
+///     tls_code_loc_t tp(loc);
+///     bar1();
+///   }
+///
+///   void main() {
+///     foo(const code_location &loc = code_location::current());
+///   }
+class __SYCL_EXPORT tls_code_loc_t {
+public:
+  /// @brief Consructor that checks to see if a TLS entry already exists
+  /// @details If a previous populated TLS entry exists, this constructor will
+  /// capture the informationa and allow you to query the information later.
+  tls_code_loc_t();
+  /// @brief Iniitializes TLS with CodeLoc if a TLS entry not present
+  /// @param CodeLoc The code location information to set up the TLS slot with.
+  tls_code_loc_t(const detail::code_location &CodeLoc);
+  /// If the code location is set up by this instance, reset it.
+  ~tls_code_loc_t();
+  /// @brief  Query the information in the TLS slot
+  /// @return The code location information saved in the TLS slot. If not TLS
+  /// entry has been set up, a default coe location is returned.
+  const detail::code_location &query();
+
+private:
+  // The flag that is used to determine if the object is in a local scope or in
+  // the top level scope.
+  bool MLocalScope = true;
+};
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
@@ -219,6 +271,14 @@ static inline std::string codeToString(pi_int32 code) {
 // SYCL 2020 exceptions
 #define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
   __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
+#endif
+
+// Helper for enabling empty-base optimizations on MSVC.
+// TODO: Remove this when MSVC has this optimization enabled by default.
+#ifdef _MSC_VER
+#define __SYCL_EBO __declspec(empty_bases)
+#else
+#define __SYCL_EBO
 #endif
 
 namespace sycl {
@@ -404,6 +464,58 @@ static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
   for (int I = CopyDims; I < NewDim; ++I)
     NewObj[I] = DefaultValue;
   return NewObj;
+}
+
+// Helper function for concatenating two std::array.
+template <typename T, std::size_t... Is1, std::size_t... Is2>
+constexpr std::array<T, sizeof...(Is1) + sizeof...(Is2)>
+ConcatArrays(const std::array<T, sizeof...(Is1)> &A1,
+             const std::array<T, sizeof...(Is2)> &A2,
+             std::index_sequence<Is1...>, std::index_sequence<Is2...>) {
+  return {A1[Is1]..., A2[Is2]...};
+}
+template <typename T, std::size_t N1, std::size_t N2>
+constexpr std::array<T, N1 + N2> ConcatArrays(const std::array<T, N1> &A1,
+                                              const std::array<T, N2> &A2) {
+  return ConcatArrays(A1, A2, std::make_index_sequence<N1>(),
+                      std::make_index_sequence<N2>());
+}
+
+// Utility for creating an std::array from the results of flattening the
+// arguments using a flattening functor.
+template <typename DataT, template <typename, typename> typename FlattenF,
+          typename... ArgTN>
+struct ArrayCreator;
+template <typename DataT, template <typename, typename> typename FlattenF,
+          typename ArgT, typename... ArgTN>
+struct ArrayCreator<DataT, FlattenF, ArgT, ArgTN...> {
+  static constexpr auto Create(const ArgT &Arg, const ArgTN &...Args) {
+    auto ImmArray = FlattenF<DataT, ArgT>()(Arg);
+    // Due to a bug in MSVC narrowing size_t to a bool in an if constexpr causes
+    // warnings. To avoid this we add the comparison to 0.
+    if constexpr (sizeof...(Args) > 0)
+      return ConcatArrays(
+          ImmArray, ArrayCreator<DataT, FlattenF, ArgTN...>::Create(Args...));
+    else
+      return ImmArray;
+  }
+};
+template <typename DataT, template <typename, typename> typename FlattenF>
+struct ArrayCreator<DataT, FlattenF> {
+  static constexpr auto Create() { return std::array<DataT, 0>{}; }
+};
+
+// Helper function for creating an arbitrary sized array with the same value
+// repeating.
+template <typename T, size_t... Is>
+static constexpr std::array<T, sizeof...(Is)>
+RepeatValueHelper(const T &Arg, std::index_sequence<Is...>) {
+  auto ReturnArg = [&](size_t) { return Arg; };
+  return {ReturnArg(Is)...};
+}
+template <size_t N, typename T>
+static constexpr std::array<T, N> RepeatValue(const T &Arg) {
+  return RepeatValueHelper(Arg, std::make_index_sequence<N>());
 }
 
 } // namespace detail

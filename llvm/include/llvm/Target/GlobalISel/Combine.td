@@ -205,6 +205,12 @@ def ptr_add_immed_chain : GICombineRule<
          [{ return Helper.matchPtrAddImmedChain(*${d}, ${matchinfo}); }]),
   (apply [{ Helper.applyPtrAddImmedChain(*${d}, ${matchinfo}); }])>;
 
+def shifts_too_big : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_SHL, G_ASHR, G_LSHR):$root,
+         [{ return Helper.matchShiftsTooBig(*${root}); }]),
+  (apply [{ Helper.replaceInstWithUndef(*${root}); }])>;
+
 // Fold shift (shift base x), y -> shift base, (x+y), if shifts are same
 def shift_immed_matchdata : GIDefMatchData<"RegisterImmPair">;
 def shift_immed_chain : GICombineRule<
@@ -343,6 +349,24 @@ def select_to_logical : GICombineRule<
   (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])
 >;
 
+// Fold (C op x) -> (x op C)
+// TODO: handle more isCommutable opcodes
+// TODO: handle compares (currently not marked as isCommutable)
+def commute_constant_to_rhs : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_ADD, G_MUL, G_AND, G_OR, G_XOR):$root, [{
+    return getIConstantVRegVal(${root}->getOperand(1).getReg(), MRI).has_value();
+  }]),
+  (apply [{
+    Observer.changingInstr(*${root});
+    Register LHSReg = ${root}->getOperand(1).getReg();
+    Register RHSReg = ${root}->getOperand(2).getReg();
+    ${root}->getOperand(1).setReg(RHSReg);
+    ${root}->getOperand(2).setReg(LHSReg);
+    Observer.changedInstr(*${root});
+  }])
+>;
+
 // Fold x op 0 -> x
 def right_identity_zero: GICombineRule<
   (defs root:$root),
@@ -437,7 +461,7 @@ def simplify_add_to_sub: GICombineRule <
 >;
 
 // Fold fp_op(cst) to the constant result of the floating point operation.
-def constant_fp_op_matchinfo: GIDefMatchData<"Optional<APFloat>">;
+def constant_fp_op_matchinfo: GIDefMatchData<"std::optional<APFloat>">;
 def constant_fp_op: GICombineRule <
   (defs root:$root, constant_fp_op_matchinfo:$info),
   (match (wip_match_opcode G_FNEG, G_FABS, G_FPTRUNC, G_FSQRT, G_FLOG2):$root,
@@ -642,13 +666,15 @@ def trunc_ext_fold: GICombineRule <
   (apply [{ Helper.applyCombineTruncOfExt(*${root}, ${matchinfo}); }])
 >;
 
-// Fold trunc (shl x, K) -> shl (trunc x), K => K < VT.getScalarSizeInBits().
-def trunc_shl_matchinfo : GIDefMatchData<"std::pair<Register, Register>">;
-def trunc_shl: GICombineRule <
-  (defs root:$root, trunc_shl_matchinfo:$matchinfo),
+// Under certain conditions, transform:
+//  trunc (shl x, K)     -> shl (trunc x), K//
+//  trunc ([al]shr x, K) -> (trunc ([al]shr (trunc x), K))
+def trunc_shift_matchinfo : GIDefMatchData<"std::pair<MachineInstr*, LLT>">;
+def trunc_shift: GICombineRule <
+  (defs root:$root, trunc_shift_matchinfo:$matchinfo),
   (match (wip_match_opcode G_TRUNC):$root,
-         [{ return Helper.matchCombineTruncOfShl(*${root}, ${matchinfo}); }]),
-  (apply [{ Helper.applyCombineTruncOfShl(*${root}, ${matchinfo}); }])
+         [{ return Helper.matchCombineTruncOfShift(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyCombineTruncOfShift(*${root}, ${matchinfo}); }])
 >;
 
 // Transform (mul x, -1) -> (sub 0, x)
@@ -1069,14 +1095,14 @@ def fma_combines : GICombineGroup<[combine_fadd_fmul_to_fmad_or_fma,
 def all_combines : GICombineGroup<[trivial_combines, insert_vec_elt_combines,
     extract_vec_elt_combines, combines_for_extload,
     combine_indexed_load_store, undef_combines, identity_combines, phi_combines,
-    simplify_add_to_sub, hoist_logic_op_with_same_opcode_hands,
+    simplify_add_to_sub, hoist_logic_op_with_same_opcode_hands, shifts_too_big,
     reassocs, ptr_add_immed_chain,
     shl_ashr_to_sext_inreg, sext_inreg_of_load,
     width_reduction_combines, select_combines,
     known_bits_simplifications, ext_ext_fold,
     not_cmp_fold, opt_brcond_by_inverting_cond,
     unmerge_merge, unmerge_cst, unmerge_dead_to_trunc,
-    unmerge_zext_to_zext, merge_unmerge, trunc_ext_fold, trunc_shl,
+    unmerge_zext_to_zext, merge_unmerge, trunc_ext_fold, trunc_shift,
     const_combines, xor_of_and_with_same_reg, ptr_add_with_zero,
     shift_immed_chain, shift_of_shifted_logic_chain, load_or_combine,
     truncstore_merge, div_rem_to_divrem, funnel_shift_combines,
@@ -1084,7 +1110,7 @@ def all_combines : GICombineGroup<[trivial_combines, insert_vec_elt_combines,
     intdiv_combines, mulh_combines, redundant_neg_operands,
     and_or_disjoint_mask, fma_combines, fold_binop_into_select,
     sub_add_reg, select_to_minmax, redundant_binop_in_equality,
-    fsub_to_fneg]>;
+    fsub_to_fneg, commute_constant_to_rhs]>;
 
 // A combine group used to for prelegalizer combiners at -O0. The combines in
 // this group have been selected based on experiments to balance code size and

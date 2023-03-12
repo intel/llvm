@@ -17,10 +17,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace esimd {
-namespace detail {
+namespace ext::intel::esimd::detail {
 
 // Checks that given type is a SYCL accessor type. Sets its static field
 // \c value accordingly. Also, if the check is succesful, sets \c mode and
@@ -82,10 +79,7 @@ template <typename T, accessor_mode_cap_val_t Capability,
 using EnableIfAccessor = sycl::detail::enable_if_t<
     detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value, RetT>;
 
-} // namespace detail
-} // namespace esimd
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::esimd::detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

@@ -71,7 +71,6 @@ def main():
     if not re.match(r'^%s(-\d+)?(\.exe)?$' % (initial_args.tool), tool_basename):
       common.error('Unexpected tool name: ' + tool_basename)
       sys.exit(1)
-  tool_basename = initial_args.tool
 
   for ti in common.itertests(initial_args.tests, parser,
                              script_name='utils/' + script_name):
@@ -81,10 +80,12 @@ def main():
     else:
       common.SCRUB_TRAILING_WHITESPACE_TEST_RE = common.SCRUB_TRAILING_WHITESPACE_RE
 
+    tool_basename = ti.args.tool
+
     prefix_list = []
     for l in ti.run_lines:
       if '|' not in l:
-        common.warn('Skipping unparseable RUN line: ' + l)
+        common.warn('Skipping unparsable RUN line: ' + l)
         continue
 
       commands = [cmd.strip() for cmd in l.split('|')]
@@ -105,12 +106,7 @@ def main():
 
       tool_cmd_args = tool_cmd[len(tool_basename):].strip()
       tool_cmd_args = tool_cmd_args.replace('< %s', '').replace('%s', '').strip()
-
-      check_prefixes = [item for m in
-                        common.CHECK_PREFIX_RE.finditer(filecheck_cmd)
-                        for item in m.group(1).split(',')]
-      if not check_prefixes:
-        check_prefixes = ['CHECK']
+      check_prefixes = common.get_check_prefixes(filecheck_cmd)
 
       # FIXME: We should use multiple check prefixes to common check lines. For
       # now, we just ignore all but the last.

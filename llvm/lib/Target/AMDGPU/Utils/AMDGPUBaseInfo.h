@@ -10,8 +10,10 @@
 #define LLVM_LIB_TARGET_AMDGPU_UTILS_AMDGPUBASEINFO_H
 
 #include "SIDefines.h"
-#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/IR/CallingConv.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/Alignment.h"
 #include <array>
 #include <functional>
@@ -32,6 +34,7 @@ class MCRegisterInfo;
 class MCSubtargetInfo;
 class StringRef;
 class Triple;
+class raw_ostream;
 
 namespace amdhsa {
 struct kernel_descriptor_t;
@@ -41,8 +44,15 @@ namespace AMDGPU {
 
 struct IsaVersion;
 
+enum {
+  AMDHSA_COV2 = 2,
+  AMDHSA_COV3 = 3,
+  AMDHSA_COV4 = 4,
+  AMDHSA_COV5 = 5
+};
+
 /// \returns HSA OS ABI Version identification.
-Optional<uint8_t> getHsaAbiVersion(const MCSubtargetInfo *STI);
+std::optional<uint8_t> getHsaAbiVersion(const MCSubtargetInfo *STI);
 /// \returns True if HSA OS ABI Version identification is 2,
 /// false otherwise.
 bool isHsaAbiVersion2(const MCSubtargetInfo *STI);
@@ -60,13 +70,19 @@ bool isHsaAbiVersion5(const MCSubtargetInfo *STI);
 bool isHsaAbiVersion3AndAbove(const MCSubtargetInfo *STI);
 
 /// \returns The offset of the multigrid_sync_arg argument from implicitarg_ptr
-unsigned getMultigridSyncArgImplicitArgPosition();
+unsigned getMultigridSyncArgImplicitArgPosition(unsigned COV);
 
 /// \returns The offset of the hostcall pointer argument from implicitarg_ptr
-unsigned getHostcallImplicitArgPosition();
+unsigned getHostcallImplicitArgPosition(unsigned COV);
+
+unsigned getDefaultQueueImplicitArgPosition(unsigned COV);
+unsigned getCompletionActionImplicitArgPosition(unsigned COV);
 
 /// \returns Code object version.
 unsigned getAmdhsaCodeObjectVersion();
+
+/// \returns Code object version.
+unsigned getCodeObjectVersion(const Module &M);
 
 struct GcnBufferFormatInfo {
   unsigned Format;
@@ -112,6 +128,7 @@ private:
   const MCSubtargetInfo &STI;
   TargetIDSetting XnackSetting;
   TargetIDSetting SramEccSetting;
+  unsigned CodeObjectVersion;
 
 public:
   explicit AMDGPUTargetID(const MCSubtargetInfo &STI);
@@ -139,6 +156,10 @@ public:
   /// "Unsupported", "Any", "Off", and "On".
   TargetIDSetting getXnackSetting() const {
     return XnackSetting;
+  }
+
+  void setCodeObjectVersion(unsigned COV) {
+    CodeObjectVersion = COV;
   }
 
   /// Sets xnack setting to \p NewXnackSetting.
@@ -187,6 +208,10 @@ unsigned getWavefrontSize(const MCSubtargetInfo *STI);
 
 /// \returns Local memory size in bytes for given subtarget \p STI.
 unsigned getLocalMemorySize(const MCSubtargetInfo *STI);
+
+/// \returns Maximum addressable local memory size in bytes for given subtarget
+/// \p STI.
+unsigned getAddressableLocalMemorySize(const MCSubtargetInfo *STI);
 
 /// \returns Number of execution units per compute unit for given subtarget \p
 /// STI.
@@ -262,15 +287,17 @@ unsigned getNumSGPRBlocks(const MCSubtargetInfo *STI, unsigned NumSGPRs);
 ///
 /// For subtargets which support it, \p EnableWavefrontSize32 should match
 /// the ENABLE_WAVEFRONT_SIZE32 kernel descriptor field.
-unsigned getVGPRAllocGranule(const MCSubtargetInfo *STI,
-                             Optional<bool> EnableWavefrontSize32 = None);
+unsigned
+getVGPRAllocGranule(const MCSubtargetInfo *STI,
+                    std::optional<bool> EnableWavefrontSize32 = std::nullopt);
 
 /// \returns VGPR encoding granularity for given subtarget \p STI.
 ///
 /// For subtargets which support it, \p EnableWavefrontSize32 should match
 /// the ENABLE_WAVEFRONT_SIZE32 kernel descriptor field.
-unsigned getVGPREncodingGranule(const MCSubtargetInfo *STI,
-                                Optional<bool> EnableWavefrontSize32 = None);
+unsigned getVGPREncodingGranule(
+    const MCSubtargetInfo *STI,
+    std::optional<bool> EnableWavefrontSize32 = std::nullopt);
 
 /// \returns Total number of VGPRs for given subtarget \p STI.
 unsigned getTotalNumVGPRs(const MCSubtargetInfo *STI);
@@ -286,13 +313,19 @@ unsigned getMinNumVGPRs(const MCSubtargetInfo *STI, unsigned WavesPerEU);
 /// execution unit requirement for given subtarget \p STI.
 unsigned getMaxNumVGPRs(const MCSubtargetInfo *STI, unsigned WavesPerEU);
 
+/// \returns Number of waves reachable for a given \p NumVGPRs usage for given
+/// subtarget \p STI.
+unsigned getNumWavesPerEUWithNumVGPRs(const MCSubtargetInfo *STI,
+                                      unsigned NumVGPRs);
+
 /// \returns Number of VGPR blocks needed for given subtarget \p STI when
 /// \p NumVGPRs are used.
 ///
 /// For subtargets which support it, \p EnableWavefrontSize32 should match the
 /// ENABLE_WAVEFRONT_SIZE32 kernel descriptor field.
-unsigned getNumVGPRBlocks(const MCSubtargetInfo *STI, unsigned NumSGPRs,
-                          Optional<bool> EnableWavefrontSize32 = None);
+unsigned
+getNumVGPRBlocks(const MCSubtargetInfo *STI, unsigned NumSGPRs,
+                 std::optional<bool> EnableWavefrontSize32 = std::nullopt);
 
 } // end namespace IsaInfo
 
@@ -509,6 +542,12 @@ int getVOPDFull(unsigned OpX, unsigned OpY);
 LLVM_READONLY
 bool isVOPD(unsigned Opc);
 
+LLVM_READNONE
+bool isMAC(unsigned Opc);
+
+LLVM_READNONE
+bool isPermlane16(unsigned Opc);
+
 namespace VOPD {
 
 enum Component : unsigned {
@@ -533,7 +572,7 @@ constexpr unsigned COMPONENTS_NUM = 2;
 class ComponentProps {
 private:
   unsigned SrcOperandsNum = 0;
-  Optional<unsigned> MandatoryLiteralIdx;
+  std::optional<unsigned> MandatoryLiteralIdx;
   bool HasSrc2Acc = false;
 
 public:
@@ -725,7 +764,7 @@ public:
 
   // Check VOPD operands constraints.
   // Return the index of an invalid component operand, if any.
-  Optional<unsigned> getInvalidCompOperandIndex(
+  std::optional<unsigned> getInvalidCompOperandIndex(
       std::function<unsigned(unsigned, unsigned)> GetRegIdx) const;
 
 private:
@@ -1077,7 +1116,7 @@ inline bool isKernel(CallingConv::ID CC) {
 bool hasXNACK(const MCSubtargetInfo &STI);
 bool hasSRAMECC(const MCSubtargetInfo &STI);
 bool hasMIMG_R128(const MCSubtargetInfo &STI);
-bool hasGFX10A16(const MCSubtargetInfo &STI);
+bool hasA16(const MCSubtargetInfo &STI);
 bool hasG16(const MCSubtargetInfo &STI);
 bool hasPackedD16(const MCSubtargetInfo &STI);
 
@@ -1118,8 +1157,15 @@ unsigned getMCReg(unsigned Reg, const MCSubtargetInfo &STI);
 LLVM_READNONE
 unsigned mc2PseudoReg(unsigned Reg);
 
-/// Can this operand also contain immediate values?
+LLVM_READNONE
+bool isInlineValue(unsigned Reg);
+
+/// Is this an AMDGPU specific source operand? These include registers,
+/// inline constants, literals and mandatory literals (KImm).
 bool isSISrcOperand(const MCInstrDesc &Desc, unsigned OpNo);
+
+/// Is this a KImm operand?
+bool isKImmOperand(const MCInstrDesc &Desc, unsigned OpNo);
 
 /// Is this floating-point operand?
 bool isSISrcFPOperand(const MCInstrDesc &Desc, unsigned OpNo);
@@ -1184,7 +1230,7 @@ inline unsigned getOperandSize(const MCOperandInfo &OpInfo) {
 
 LLVM_READNONE
 inline unsigned getOperandSize(const MCInstrDesc &Desc, unsigned OpNo) {
-  return getOperandSize(Desc.OpInfo[OpNo]);
+  return getOperandSize(Desc.operands()[OpNo]);
 }
 
 /// Is this literal inlinable, and not one of the values intended for floating
@@ -1215,6 +1261,8 @@ bool isFoldableLiteralV216(int32_t Literal, bool HasInv2Pi);
 
 bool isArgPassedInSGPR(const Argument *Arg);
 
+bool isArgPassedInSGPR(const CallBase *CB, unsigned ArgNo);
+
 LLVM_READONLY
 bool isLegalSMRDEncodedUnsignedOffset(const MCSubtargetInfo &ST,
                                       int64_t EncodedOffset);
@@ -1229,23 +1277,24 @@ bool isLegalSMRDEncodedSignedOffset(const MCSubtargetInfo &ST,
 uint64_t convertSMRDOffsetUnits(const MCSubtargetInfo &ST, uint64_t ByteOffset);
 
 /// \returns The encoding that will be used for \p ByteOffset in the
-/// SMRD offset field, or None if it won't fit. On GFX9 and GFX10
+/// SMRD offset field, or std::nullopt if it won't fit. On GFX9 and GFX10
 /// S_LOAD instructions have a signed offset, on other subtargets it is
 /// unsigned. S_BUFFER has an unsigned offset for all subtargets.
-Optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,
-                                       int64_t ByteOffset, bool IsBuffer);
+std::optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,
+                                            int64_t ByteOffset, bool IsBuffer);
 
 /// \return The encoding that can be used for a 32-bit literal offset in an SMRD
 /// instruction. This is only useful on CI.s
-Optional<int64_t> getSMRDEncodedLiteralOffset32(const MCSubtargetInfo &ST,
-                                                int64_t ByteOffset);
+std::optional<int64_t> getSMRDEncodedLiteralOffset32(const MCSubtargetInfo &ST,
+                                                     int64_t ByteOffset);
 
 /// For FLAT segment the offset must be positive;
 /// MSB is ignored and forced to zero.
 ///
-/// \return The number of bits available for the offset field in flat
-/// instructions.
-unsigned getNumFlatOffsetBits(const MCSubtargetInfo &ST, bool Signed);
+/// \return The number of bits available for the signed offset field in flat
+/// instructions. Note that some forms of the instruction disallow negative
+/// offsets.
+unsigned getNumFlatOffsetBits(const MCSubtargetInfo &ST);
 
 /// \returns true if this offset is small enough to fit in the SMRD
 /// offset field.  \p ByteOffset should be the offset in bytes and
@@ -1264,6 +1313,9 @@ inline bool isLegal64BitDPPControl(unsigned DC) {
 /// \returns true if the intrinsic is divergent
 bool isIntrinsicSourceOfDivergence(unsigned IntrID);
 
+/// \returns true if the intrinsic is uniform
+bool isIntrinsicAlwaysUniform(unsigned IntrID);
+
 // Track defaults for fields in the MODE register.
 struct SIModeRegisterDefaults {
   /// Floating point opcodes that support exception flag gathering quiet and
@@ -1278,21 +1330,17 @@ struct SIModeRegisterDefaults {
 
   /// If this is set, neither input or output denormals are flushed for most f32
   /// instructions.
-  bool FP32InputDenormals : 1;
-  bool FP32OutputDenormals : 1;
+  DenormalMode FP32Denormals;
 
   /// If this is set, neither input or output denormals are flushed for both f64
   /// and f16/v2f16 instructions.
-  bool FP64FP16InputDenormals : 1;
-  bool FP64FP16OutputDenormals : 1;
+  DenormalMode FP64FP16Denormals;
 
   SIModeRegisterDefaults() :
     IEEE(true),
     DX10Clamp(true),
-    FP32InputDenormals(true),
-    FP32OutputDenormals(true),
-    FP64FP16InputDenormals(true),
-    FP64FP16OutputDenormals(true) {}
+    FP32Denormals(DenormalMode::getIEEE()),
+    FP64FP16Denormals(DenormalMode::getIEEE()) {}
 
   SIModeRegisterDefaults(const Function &F);
 
@@ -1304,42 +1352,40 @@ struct SIModeRegisterDefaults {
 
   bool operator ==(const SIModeRegisterDefaults Other) const {
     return IEEE == Other.IEEE && DX10Clamp == Other.DX10Clamp &&
-           FP32InputDenormals == Other.FP32InputDenormals &&
-           FP32OutputDenormals == Other.FP32OutputDenormals &&
-           FP64FP16InputDenormals == Other.FP64FP16InputDenormals &&
-           FP64FP16OutputDenormals == Other.FP64FP16OutputDenormals;
+           FP32Denormals == Other.FP32Denormals &&
+           FP64FP16Denormals == Other.FP64FP16Denormals;
   }
 
   bool allFP32Denormals() const {
-    return FP32InputDenormals && FP32OutputDenormals;
+    return FP32Denormals == DenormalMode::getIEEE();
   }
 
   bool allFP64FP16Denormals() const {
-    return FP64FP16InputDenormals && FP64FP16OutputDenormals;
+    return FP64FP16Denormals == DenormalMode::getIEEE();
   }
 
   /// Get the encoding value for the FP_DENORM bits of the mode register for the
   /// FP32 denormal mode.
   uint32_t fpDenormModeSPValue() const {
-    if (FP32InputDenormals && FP32OutputDenormals)
-      return FP_DENORM_FLUSH_NONE;
-    if (FP32InputDenormals)
+    if (FP32Denormals == DenormalMode::getPreserveSign())
+      return FP_DENORM_FLUSH_IN_FLUSH_OUT;
+    if (FP32Denormals.Output == DenormalMode::PreserveSign)
       return FP_DENORM_FLUSH_OUT;
-    if (FP32OutputDenormals)
+    if (FP32Denormals.Input == DenormalMode::PreserveSign)
       return FP_DENORM_FLUSH_IN;
-    return FP_DENORM_FLUSH_IN_FLUSH_OUT;
+    return FP_DENORM_FLUSH_NONE;
   }
 
   /// Get the encoding value for the FP_DENORM bits of the mode register for the
   /// FP64/FP16 denormal mode.
   uint32_t fpDenormModeDPValue() const {
-    if (FP64FP16InputDenormals && FP64FP16OutputDenormals)
-      return FP_DENORM_FLUSH_NONE;
-    if (FP64FP16InputDenormals)
+    if (FP64FP16Denormals == DenormalMode::getPreserveSign())
+      return FP_DENORM_FLUSH_IN_FLUSH_OUT;
+    if (FP64FP16Denormals.Output == DenormalMode::PreserveSign)
       return FP_DENORM_FLUSH_OUT;
-    if (FP64FP16OutputDenormals)
+    if (FP64FP16Denormals.Input == DenormalMode::PreserveSign)
       return FP_DENORM_FLUSH_IN;
-    return FP_DENORM_FLUSH_IN_FLUSH_OUT;
+    return FP_DENORM_FLUSH_NONE;
   }
 
   /// Returns true if a flag is compatible if it's enabled in the callee, but
@@ -1357,10 +1403,20 @@ struct SIModeRegisterDefaults {
       return false;
 
     // Allow inlining denormals enabled into denormals flushed functions.
-    return oneWayCompatible(FP64FP16InputDenormals, CalleeMode.FP64FP16InputDenormals) &&
-           oneWayCompatible(FP64FP16OutputDenormals, CalleeMode.FP64FP16OutputDenormals) &&
-           oneWayCompatible(FP32InputDenormals, CalleeMode.FP32InputDenormals) &&
-           oneWayCompatible(FP32OutputDenormals, CalleeMode.FP32OutputDenormals);
+    return oneWayCompatible(FP64FP16Denormals.Input !=
+                                DenormalMode::PreserveSign,
+                            CalleeMode.FP64FP16Denormals.Input !=
+                                DenormalMode::PreserveSign) &&
+           oneWayCompatible(FP64FP16Denormals.Output !=
+                                DenormalMode::PreserveSign,
+                            CalleeMode.FP64FP16Denormals.Output !=
+                                DenormalMode::PreserveSign) &&
+           oneWayCompatible(FP32Denormals.Input != DenormalMode::PreserveSign,
+                            CalleeMode.FP32Denormals.Input !=
+                                DenormalMode::PreserveSign) &&
+           oneWayCompatible(FP32Denormals.Output != DenormalMode::PreserveSign,
+                            CalleeMode.FP32Denormals.Output !=
+                                DenormalMode::PreserveSign);
   }
 };
 

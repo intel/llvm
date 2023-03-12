@@ -1,4 +1,4 @@
-//==--------- FusionHelper.h - helpers to insert fused kernel stub ---------==//
+//==--------- FusionHelper.h - Helpers to insert fused kernel stub ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,6 +9,8 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_FUSION_FUSIONHELPER_H
 #define SYCL_FUSION_JIT_COMPILER_FUSION_FUSIONHELPER_H
 
+#include "Kernel.h"
+#include "NDRangesHelper.h"
 #include "Parameter.h"
 #include "llvm/IR/Module.h"
 #include <llvm/ADT/ArrayRef.h>
@@ -25,12 +27,27 @@ public:
   /// Representation of a fused kernel named FusedName and fusing
   /// all the kernels listed in FusedKernels.
   struct FusedFunction {
+    FusedFunction(const std::string &FusedName,
+                  const std::vector<std::string> &FusedKernels,
+                  const jit_compiler::ParamIdentList &ParameterIdentities,
+                  llvm::ArrayRef<jit_compiler::ParameterInternalization>
+                      ParameterInternalization,
+                  llvm::ArrayRef<jit_compiler::JITConstant> Constants,
+                  llvm::ArrayRef<jit_compiler::NDRange> NDRanges)
+        : FusedName{FusedName}, FusedKernels{FusedKernels},
+          ParameterIdentities{ParameterIdentities},
+          ParameterInternalization{ParameterInternalization},
+          Constants{Constants}, NDRanges{NDRanges},
+          FusedNDRange{jit_compiler::combineNDRanges(NDRanges)} {}
+
     std::string FusedName;
     std::vector<std::string> FusedKernels;
     jit_compiler::ParamIdentList ParameterIdentities;
     llvm::ArrayRef<jit_compiler::ParameterInternalization>
         ParameterInternalization;
     llvm::ArrayRef<jit_compiler::JITConstant> Constants;
+    llvm::ArrayRef<jit_compiler::NDRange> NDRanges;
+    jit_compiler::NDRange FusedNDRange;
   };
 
   ///

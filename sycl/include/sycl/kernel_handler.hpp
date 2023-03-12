@@ -21,7 +21,6 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 /// \ingroup sycl_api
 class __SYCL_TYPE(kernel_handler) kernel_handler {
 public:
-#if __cplusplus >= 201703L
   template <auto &S>
   __SYCL_ALWAYS_INLINE typename std::remove_reference_t<decltype(S)>::value_type
   get_specialization_constant() {
@@ -35,7 +34,6 @@ public:
         PI_ERROR_INVALID_OPERATION);
 #endif // __SYCL_DEVICE_ONLY__
   }
-#endif // __cplusplus >= 201703L
 
 private:
   void __init_specialization_constants_buffer(
@@ -44,7 +42,6 @@ private:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if __cplusplus >= 201703L
   template <
       auto &S,
       typename T = typename std::remove_reference_t<decltype(S)>::value_type,
@@ -63,7 +60,6 @@ private:
     return __sycl_getComposite2020SpecConstantValue<T>(
         SymbolicID, &S, MSpecializationConstantsBuffer);
   }
-#endif // __cplusplus >= 201703L
 #endif // __SYCL_DEVICE_ONLY__
 
   char *MSpecializationConstantsBuffer = nullptr;

@@ -19,6 +19,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Path.h"
 #include <cstring>
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -35,7 +36,7 @@ public:
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           llvm::StringRef FileName, bool IsAngled,
                           CharSourceRange /*FilenameRange*/,
-                          Optional<FileEntryRef> File,
+                          OptionalFileEntryRef File,
                           llvm::StringRef /*SearchPath*/,
                           llvm::StringRef /*RelativePath*/,
                           const clang::Module * /*Imported*/,
@@ -211,7 +212,7 @@ llvm::Expected<HeaderFile> toHeaderFile(llvm::StringRef Header,
   return HeaderFile{std::move(*Resolved), /*Verbatim=*/false};
 }
 
-llvm::SmallVector<llvm::StringRef, 1> getRankedIncludes(const Symbol &Sym) {
+llvm::SmallVector<SymbolInclude, 1> getRankedIncludes(const Symbol &Sym) {
   auto Includes = Sym.IncludeHeaders;
   // Sort in descending order by reference count and header length.
   llvm::sort(Includes, [](const Symbol::IncludeHeaderWithReferences &LHS,
@@ -220,9 +221,9 @@ llvm::SmallVector<llvm::StringRef, 1> getRankedIncludes(const Symbol &Sym) {
       return LHS.IncludeHeader.size() < RHS.IncludeHeader.size();
     return LHS.References > RHS.References;
   });
-  llvm::SmallVector<llvm::StringRef, 1> Headers;
+  llvm::SmallVector<SymbolInclude, 1> Headers;
   for (const auto &Include : Includes)
-    Headers.push_back(Include.IncludeHeader);
+    Headers.push_back({Include.IncludeHeader, Include.supportedDirectives()});
   return Headers;
 }
 
@@ -234,7 +235,7 @@ void IncludeStructure::collect(const CompilerInstance &CI) {
   CI.getPreprocessor().addPPCallbacks(std::move(Collector));
 }
 
-llvm::Optional<IncludeStructure::HeaderID>
+std::optional<IncludeStructure::HeaderID>
 IncludeStructure::getID(const FileEntry *Entry) const {
   // HeaderID of the main file is always 0;
   if (Entry == MainFileEntry) {
@@ -242,7 +243,7 @@ IncludeStructure::getID(const FileEntry *Entry) const {
   }
   auto It = UIDToIndex.find(Entry->getUniqueID());
   if (It == UIDToIndex.end())
-    return llvm::None;
+    return std::nullopt;
   return It->second;
 }
 
@@ -314,7 +315,7 @@ bool IncludeInserter::shouldInsertInclude(
   return !Included(DeclaringHeader) && !Included(InsertedHeader.File);
 }
 
-llvm::Optional<std::string>
+std::optional<std::string>
 IncludeInserter::calculateIncludePath(const HeaderFile &InsertedHeader,
                                       llvm::StringRef IncludingFile) const {
   assert(InsertedHeader.valid());
@@ -336,7 +337,7 @@ IncludeInserter::calculateIncludePath(const HeaderFile &InsertedHeader,
   }
   // FIXME: should we allow (some limited number of) "../header.h"?
   if (llvm::sys::path::is_absolute(Suggested))
-    return None;
+    return std::nullopt;
   if (IsSystem)
     Suggested = "<" + Suggested + ">";
   else
@@ -344,11 +345,13 @@ IncludeInserter::calculateIncludePath(const HeaderFile &InsertedHeader,
   return Suggested;
 }
 
-llvm::Optional<TextEdit>
-IncludeInserter::insert(llvm::StringRef VerbatimHeader) const {
-  llvm::Optional<TextEdit> Edit;
-  if (auto Insertion = Inserter.insert(VerbatimHeader.trim("\"<>"),
-                                       VerbatimHeader.startswith("<")))
+std::optional<TextEdit>
+IncludeInserter::insert(llvm::StringRef VerbatimHeader,
+                        tooling::IncludeDirective Directive) const {
+  std::optional<TextEdit> Edit;
+  if (auto Insertion =
+          Inserter.insert(VerbatimHeader.trim("\"<>"),
+                          VerbatimHeader.startswith("<"), Directive))
     Edit = replacementToEdit(Code, *Insertion);
   return Edit;
 }

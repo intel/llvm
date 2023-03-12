@@ -15,12 +15,13 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/Log.h"
+#include <optional>
 
 using namespace lldb_private;
 
-llvm::Optional<DIERef> DWARFBaseDIE::GetDIERef() const {
+std::optional<DIERef> DWARFBaseDIE::GetDIERef() const {
   if (!IsValid())
-    return llvm::None;
+    return std::nullopt;
 
   return DIERef(m_cu->GetSymbolFileDWARF().GetDwoNum(), m_cu->GetDebugSection(),
                 m_die->GetOffset());
@@ -53,11 +54,11 @@ uint64_t DWARFBaseDIE::GetAttributeValueAsUnsigned(const dw_attr_t attr,
     return fail_value;
 }
 
-llvm::Optional<uint64_t>
+std::optional<uint64_t>
 DWARFBaseDIE::GetAttributeValueAsOptionalUnsigned(const dw_attr_t attr) const {
   if (IsValid())
     return m_die->GetAttributeValueAsOptionalUnsigned(GetCU(), attr);
-  return llvm::None;
+  return std::nullopt;
 }
 
 uint64_t DWARFBaseDIE::GetAttributeValueAsAddress(const dw_attr_t attr,

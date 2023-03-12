@@ -17,9 +17,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace experimental {
+namespace ext::intel::experimental {
 
 using byte = unsigned char;
 
@@ -33,6 +31,10 @@ public:
 
   device_arch(int Val) : Val(Val) {}
 
+  // TODO1: the list must be extended with a bunch of new GPUs available.
+  // TODO2: the list of supported GPUs grows rapidly.
+  // The API must allow user to define the target GPU option even if it is
+  // not listed in this enumerator below.
   enum gpu {
     gpu_any = 1,
     gpu_gen9 = 2,
@@ -42,7 +44,9 @@ public:
     gpu_cfl = gpu_gen9_5,
     gpu_gen11 = 4,
     gpu_icl = gpu_gen11,
-    gpu_gen12 = 5
+    gpu_gen12 = 5,
+    gpu_tgl = gpu_gen12,
+    gpu_tgllp = gpu_gen12
   };
 
   enum cpu {
@@ -216,8 +220,6 @@ online_compiler<source_language::cm>::compile(const std::string &src) {
   return compile(src, std::vector<std::string>{});
 }
 
-} // namespace experimental
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

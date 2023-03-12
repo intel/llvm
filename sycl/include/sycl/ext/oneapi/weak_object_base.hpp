@@ -12,9 +12,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace detail {
+namespace ext::oneapi::detail {
 template <typename SYCLObjT> class weak_object_base;
 
 // Helper function for getting the underlying weak_ptr from a weak_object.
@@ -59,8 +57,6 @@ protected:
   friend decltype(weak_object_base<Obj>::MObjWeakPtr)
   detail::getSyclWeakObjImpl(const weak_object_base<Obj> &WeakObj);
 };
-} // namespace detail
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

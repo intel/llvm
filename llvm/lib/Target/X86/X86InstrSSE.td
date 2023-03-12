@@ -577,19 +577,36 @@ let Predicates = [HasAVX, NoVLX] in {
 
   def : Pat<(alignedloadv8f16 addr:$src),
             (VMOVAPSrm addr:$src)>;
+  def : Pat<(alignedloadv8bf16 addr:$src),
+            (VMOVAPSrm addr:$src)>;
   def : Pat<(loadv8f16 addr:$src),
+            (VMOVUPSrm addr:$src)>;
+  def : Pat<(loadv8bf16 addr:$src),
             (VMOVUPSrm addr:$src)>;
   def : Pat<(alignedstore (v8f16 VR128:$src), addr:$dst),
             (VMOVAPSmr addr:$dst, VR128:$src)>;
+  def : Pat<(alignedstore (v8bf16 VR128:$src), addr:$dst),
+            (VMOVAPSmr addr:$dst, VR128:$src)>;
   def : Pat<(store (v8f16 VR128:$src), addr:$dst),
             (VMOVUPSmr addr:$dst, VR128:$src)>;
+  def : Pat<(store (v8bf16 VR128:$src), addr:$dst),
+            (VMOVUPSmr addr:$dst, VR128:$src)>;
+
   def : Pat<(alignedloadv16f16 addr:$src),
+            (VMOVAPSYrm addr:$src)>;
+  def : Pat<(alignedloadv16bf16 addr:$src),
             (VMOVAPSYrm addr:$src)>;
   def : Pat<(loadv16f16 addr:$src),
             (VMOVUPSYrm addr:$src)>;
+  def : Pat<(loadv16bf16 addr:$src),
+            (VMOVUPSYrm addr:$src)>;
   def : Pat<(alignedstore (v16f16 VR256:$src), addr:$dst),
             (VMOVAPSYmr addr:$dst, VR256:$src)>;
+  def : Pat<(alignedstore (v16bf16 VR256:$src), addr:$dst),
+            (VMOVAPSYmr addr:$dst, VR256:$src)>;
   def : Pat<(store (v16f16 VR256:$src), addr:$dst),
+            (VMOVUPSYmr addr:$dst, VR256:$src)>;
+  def : Pat<(store (v16bf16 VR256:$src), addr:$dst),
             (VMOVUPSYmr addr:$dst, VR256:$src)>;
 }
 
@@ -3215,7 +3232,7 @@ let SchedRW = [WriteLoad] in {
 // Flush cache
 def CLFLUSH : I<0xAE, MRM7m, (outs), (ins i8mem:$src),
                "clflush\t$src", [(int_x86_sse2_clflush addr:$src)]>,
-               PS, Requires<[HasSSE2]>;
+               PS, Requires<[HasCLFLUSH]>;
 }
 
 let SchedRW = [WriteNop] in {
@@ -3243,20 +3260,20 @@ def : Pat<(X86MFence), (MFENCE)>;
 // SSE 1 & 2 - Load/Store XCSR register
 //===----------------------------------------------------------------------===//
 
-let mayLoad=1, hasSideEffects=1 in
+let mayLoad=1, hasSideEffects=1, Defs=[MXCSR] in
 def VLDMXCSR : VPSI<0xAE, MRM2m, (outs), (ins i32mem:$src),
                "ldmxcsr\t$src", [(int_x86_sse_ldmxcsr addr:$src)]>,
                VEX, Sched<[WriteLDMXCSR]>, VEX_WIG;
-let mayStore=1, hasSideEffects=1 in
+let mayStore=1, hasSideEffects=1, Uses=[MXCSR] in
 def VSTMXCSR : VPSI<0xAE, MRM3m, (outs), (ins i32mem:$dst),
                "stmxcsr\t$dst", [(int_x86_sse_stmxcsr addr:$dst)]>,
                VEX, Sched<[WriteSTMXCSR]>, VEX_WIG;
 
-let mayLoad=1, hasSideEffects=1 in
+let mayLoad=1, hasSideEffects=1, Defs=[MXCSR] in
 def LDMXCSR : I<0xAE, MRM2m, (outs), (ins i32mem:$src),
               "ldmxcsr\t$src", [(int_x86_sse_ldmxcsr addr:$src)]>,
               PS, Sched<[WriteLDMXCSR]>;
-let mayStore=1, hasSideEffects=1 in
+let mayStore=1, hasSideEffects=1, Uses=[MXCSR] in
 def STMXCSR : I<0xAE, MRM3m, (outs), (ins i32mem:$dst),
               "stmxcsr\t$dst", [(int_x86_sse_stmxcsr addr:$dst)]>,
               PS, Sched<[WriteSTMXCSR]>;

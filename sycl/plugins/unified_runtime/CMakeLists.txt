@@ -1,34 +1,48 @@
 # PI Unified Runtime plugin library
 #
+if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
+  include(FetchContent)
 
-include(FetchContent)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 6fb8e2620f1474428a539ef46d6dd47043c7d59b)
 
-set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-set(UNIFIED_RUNTIME_TAG fd711c920acc4434cb52ff18b078c082d9d7f44d)
+  message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
+  FetchContent_Declare(unified-runtime
+    GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
+    GIT_TAG           ${UNIFIED_RUNTIME_TAG}
+  )
 
-message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
-FetchContent_Declare(unified-runtime
-  GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
-  GIT_TAG           ${UNIFIED_RUNTIME_TAG}
-)
+  # Disable some compilation options to avoid errors while building the UR.
+  # And remember origin flags before doing that.
+  set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
+  if (UNIX)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-truncation")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-suggest-override")
+  endif()
 
-FetchContent_MakeAvailable(unified-runtime)
-FetchContent_GetProperties(unified-runtime)
+  FetchContent_GetProperties(unified-runtime)
+  FetchContent_MakeAvailable(unified-runtime)
 
-set(UNIFIED_RUNTIME_SOURCE_DIR
-  ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
-set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+  # Restore original flags
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
+  add_library(${PROJECT_NAME}::ur_loader ALIAS loader)
 
-#include_directories("${LEVEL_ZERO_INCLUDE_DIR}")
-include_directories("${UNIFIED_RUNTIME_INCLUDE_DIR}")
+  set(UNIFIED_RUNTIME_LIBRARY ${PROJECT_NAME}::ur_loader)
+
+  set(UNIFIED_RUNTIME_SOURCE_DIR
+    ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
+  set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+endif()
 
 add_library (UnifiedRuntime-Headers INTERFACE)
 target_include_directories(UnifiedRuntime-Headers
-  INTERFACE "${UNIFIED_RUNTIME_INCLUDE_DIR}"
+  INTERFACE
+    "${UNIFIED_RUNTIME_INCLUDE_DIR}"
 )
-
-list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS unified-runtime)
 
 find_package(Threads REQUIRED)
 
@@ -37,42 +51,32 @@ find_package(Threads REQUIRED)
 # So what we really build is the Unified Runtime with Level Zero Adapter
 # together.
 #
-# TODO: begin
-#       Unified Runtime today is not a plugin yet. It's experimental static
-#       library that's linked into level_zero plugin. As soon as it's ready to
-#       become a plugin code below should be replaced with the following:
-#add_sycl_plugin(unified_runtime
-#  SOURCES
-#    "${sycl_inc_dir}/sycl/detail/pi.h"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/pi2ur.cpp"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/pi2ur.hpp"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/ur.hpp"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.hpp"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.cpp"
-#   LIBRARIES
-#    Threads::Threads
-#    UnifiedRuntime-Headers
-#    LevelZeroLoader-Headers
-#)
-
-add_library(unified_runtime STATIC
-  "${sycl_inc_dir}/sycl/detail/pi.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/ur.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.cpp"
+add_sycl_plugin(unified_runtime
+  SOURCES
+    # These are short-term shared with Unified Runtime
+    # The two plugins define a few things differrently so must
+    # be built separately. This difference is spelled in
+    # their "ur_bindings.hpp" files.
+    #
+    "ur_bindings.hpp"
+    "pi2ur.hpp"
+    "pi2ur.cpp"
+    "ur/ur.hpp"
+    "ur/ur.cpp"
+    "ur/adapters/level_zero/ur_level_zero.hpp"
+    "ur/adapters/level_zero/ur_level_zero.cpp"
+    "ur/usm_allocator.hpp"
+    "ur/usm_allocator.cpp"
+    # These below belong to Unified Runtime PI Plugin only
+    "pi_unified_runtime.hpp"
+    "pi_unified_runtime.cpp"
+    LIBRARIES
+    Threads::Threads
+    UnifiedRuntime-Headers
+    LevelZeroLoader-Headers
+    LevelZeroLoader
 )
 
-target_include_directories(unified_runtime INTERFACE
-  "${UNIFIED_RUNTIME_INCLUDE_DIR}"
-  "${CMAKE_CURRENT_SOURCE_DIR}"
-)
-
-target_link_libraries(unified_runtime PRIVATE
-  UnifiedRuntime-Headers
-  LevelZeroLoader-Headers
-)
-
-# TODO: end
-
-add_dependencies(unified_runtime ze-api)
-
+if (TARGET ${PROJECT_NAME}::ur_loader)
+  set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
+endif()

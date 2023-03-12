@@ -9,8 +9,8 @@
 #ifndef AFFINE_TRANSFORM_OPS
 #define AFFINE_TRANSFORM_OPS
 
+include "mlir/Dialect/PDL/IR/PDLTypes.td"
 include "mlir/Dialect/Transform/IR/TransformDialect.td"
-include "mlir/Dialect/Transform/IR/TransformEffects.td"
 include "mlir/Dialect/Transform/IR/TransformInterfaces.td"
 include "mlir/Dialect/Transform/IR/TransformTypes.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -18,60 +18,48 @@ include "mlir/IR/OpBase.td"
 
 def Transform_AffineForOp : Transform_ConcreteOpType<"affine.for">;
 
-def AffineGetParentForOp : Op<Transform_Dialect, "affine.get_parent_for", [
-  NavigationTransformOpTrait, MemoryEffectsOpInterface,
-  DeclareOpInterfaceMethods<TransformOpInterface>]> {
-  let summary =
-      "Gets a handle to the parent 'affine.for' loop of the given operation";
+def SimplifyBoundedAffineOpsOp
+    : Op<Transform_Dialect, "affine.simplify_bounded_affine_ops",
+         [DeclareOpInterfaceMethods<TransformOpInterface>,
+          DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
   let description = [{
-    Produces a handle to the n-th (default 1) parent `affine.for` loop for each
-    Payload IR operation associated with the operand. Fails if such a loop
-    cannot be found. The list of operations associated with the handle contains
-    parent operations in the same order as the list associated with the operand,
-    except for operations that are parents to more than one input which are only
-    present once.
-  }];
+    Simplify the targeted affine.min / affine.max ops given the supplied
+    lower and upper bounds for values that may be used as target op operands.
 
-  let arguments =
-    (ins TransformTypeInterface:$target,
-         DefaultValuedAttr<ConfinedAttr<I64Attr, [IntPositive]>,
-                           "1">:$num_loops);
-  let results = (outs TransformTypeInterface:$parent);
+    Example:
+    ```
+    %0 = transform.structured.match ops{["affine.min", "affine.max"]} in %arg1
+    %1 = transform.structured.match ops{["gpu.lane_id"]} in %arg1
+    transform.affine.simplify_bounded_affine_ops %0 with [%1] within [0] and [32]
 
-  let assemblyFormat =
-      "$target attr-dict `:` functional-type(operands, results)";
-}
+    // Multiple bounds can be specified.
+    transform.affine.simplify_bounded_affine_ops %0 with [%1, %2] within [0, 5] and [32, 50]
+    ```
 
-
-def AffineLoopUnrollOp : Op<Transform_Dialect, "affine.unroll", [
-  FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
-  TransformOpInterface, TransformEachOpTrait]> {
-  let summary = "Unrolls the given loop with the given unroll factor";
-  let description = [{
-    Unrolls each loop associated with the given handle to have up to the given
-    number of loop body copies per iteration. If the unroll factor is larger
-    than the loop trip count, the latter is used as the unroll factor instead.
+    Bounded op handles (`%1` and `%2) must be mapped to ops that have a single
+    result of index type. The sets of target ops and bounded ops must not
+    overlap.
 
     #### Return modes
 
-    This operation ignores non-affine::For ops and drops them in the return.
-    If all the operations referred to by the `target` PDLOperation unroll
-    properly, the transform succeeds. Otherwise the transform silently fails.
+    Target ops must be affine.min or affine.max ops. This transform consumes the
+    target handle and does not produce any handle. It reads the bounded op
+    handles.
 
-    Does not return handles as the operation may result in the loop being
-    removed after a full unrolling.
+    TODO: Support affine.apply targets.
+    TODO: Allow mixed PDL_Operation/int64_t for lower_bounds and upper_bounds.
   }];
 
-  let arguments = (ins Transform_AffineForOp:$target,
-                       ConfinedAttr<I64Attr, [IntPositive]>:$factor);
+  let arguments = (ins PDL_Operation:$target,
+                       Variadic<PDL_Operation>:$bounded_values,
+                       DenseI64ArrayAttr:$lower_bounds,
+                       DenseI64ArrayAttr:$upper_bounds);
+  let results = (outs);
+  let hasVerifier = 1;
 
-  let assemblyFormat = "$target attr-dict `:` type($target)";
-
-  let extraClassDeclaration = [{
-    ::mlir::DiagnosedSilenceableFailure applyToOne(
-        ::mlir::AffineForOp target,
-        ::llvm::SmallVector<::mlir::Operation *> & results,
-        ::mlir::transform::TransformState & state);
+  let assemblyFormat = [{
+      $target `with` `[` $bounded_values `]`
+          `within` $lower_bounds `and` $upper_bounds attr-dict
   }];
 }
 

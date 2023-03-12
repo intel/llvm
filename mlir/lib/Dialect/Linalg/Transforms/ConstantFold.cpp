@@ -17,6 +17,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -39,8 +40,8 @@ template <typename ConcreteType>
 class FoldConstantBase : public OpRewritePattern<GenericOp> {
 public:
   struct APIntOrFloat {
-    Optional<APInt> apInt;
-    Optional<APFloat> apFloat;
+    std::optional<APInt> apInt;
+    std::optional<APFloat> apFloat;
   };
   struct APIntOrFloatArray {
     SmallVector<APInt> apInts;
@@ -55,7 +56,8 @@ public:
 
   LogicalResult matchAndRewrite(GenericOp genericOp,
                                 PatternRewriter &rewriter) const override {
-    if (genericOp.hasBufferSemantics())
+    // Mixed and buffer sematics aren't supported.
+    if (!genericOp.hasTensorSemantics())
       return failure();
 
     // Only support ops generating one output for now.
@@ -290,8 +292,8 @@ struct FoldConstantTranspose : public FoldConstantBase<FoldConstantTranspose> {
     // No computation; just return the orginal value.
     return [](const APIntOrFloatArray &inputs) {
       if (inputs.apFloats.empty())
-        return APIntOrFloat{inputs.apInts.front(), llvm::None};
-      return APIntOrFloat{llvm::None, inputs.apFloats.front()};
+        return APIntOrFloat{inputs.apInts.front(), std::nullopt};
+      return APIntOrFloat{std::nullopt, inputs.apFloats.front()};
     };
   }
 

@@ -368,7 +368,7 @@ class OptionalArrayRefParameter<string arrayOf, string desc = ""> :
     OptionalParameter<"::llvm::ArrayRef<" # arrayOf # ">", desc> {
   let allocator = [{$_dst = $_allocator.copyInto($_self);}];
   let cppStorageType = "::llvm::SmallVector<" # arrayOf # ">";
-  let comparator = "::llvm::makeArrayRef($_lhs) == ::llvm::makeArrayRef($_rhs)";
+  let comparator = cppType # "($_lhs) == " # cppType # "($_rhs)";
 }
 
 // For classes which require allocation and have their own allocateInto method.
@@ -431,6 +431,7 @@ class ArrayOfAttr<Dialect dialect, string attrName, string attrMnemonic,
     auto &front() const { return getValue().front(); }
     auto &back() const { return getValue().back(); }
     auto &operator[](size_t index) { return getValue()[index]; }
+    operator }] # returnType # [{() const { return getValue(); }
   }];
 }
 

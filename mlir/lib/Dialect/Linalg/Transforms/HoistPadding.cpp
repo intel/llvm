@@ -151,7 +151,7 @@ computeTransposedType(RankedTensorType rankedTensorType,
                       ArrayRef<int64_t> transposeVector) {
   if (transposeVector.empty())
     return rankedTensorType;
-  if (!isPermutation(transposeVector) ||
+  if (!isPermutationVector(transposeVector) ||
       transposeVector.size() != static_cast<size_t>(rankedTensorType.getRank()))
     return failure();
 
@@ -447,7 +447,7 @@ FailureOr<Value> mlir::linalg::hoistPaddingOnTensors(
   SmallVector<Value> clonedLoopIvs, leadingPackedTensorIndexings;
   clonedLoopIvs.reserve(nPackedLoops);
   leadingPackedTensorIndexings.reserve(nPackedLoops);
-  BlockAndValueMapping bvm;
+  IRMapping bvm;
   // Stack step 1. iteratively clone loops and push `packedTensor`.
   for (Operation *op : analysis.backwardSlice) {
     // Specifically sit out in the extract_slice(packedTensor) case: this is the

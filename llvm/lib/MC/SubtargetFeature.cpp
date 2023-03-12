@@ -14,11 +14,11 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -40,6 +40,11 @@ void SubtargetFeatures::AddFeature(StringRef String, bool Enable) {
     // Convert to lowercase, prepend flag if we don't already have a flag.
     Features.push_back(hasFlag(String) ? String.lower()
                                        : (Enable ? "+" : "-") + String.lower());
+}
+
+void SubtargetFeatures::addFeaturesVector(
+    const ArrayRef<std::string> OtherFeatures) {
+  Features.insert(Features.cend(), OtherFeatures.begin(), OtherFeatures.end());
 }
 
 SubtargetFeatures::SubtargetFeatures(StringRef Initial) {

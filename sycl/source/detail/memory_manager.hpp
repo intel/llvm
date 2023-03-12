@@ -146,6 +146,33 @@ public:
                          pi_mem_advice Advice,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent *OutEvent);
+
+  static void copy_2d_usm(const void *SrcMem, size_t SrcPitch,
+                          QueueImplPtr Queue, void *DstMem, size_t DstPitch,
+                          size_t Width, size_t Height,
+                          std::vector<RT::PiEvent> DepEvents,
+                          RT::PiEvent *OutEvent);
+
+  static void fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
+                          size_t Width, size_t Height,
+                          const std::vector<char> &Pattern,
+                          std::vector<RT::PiEvent> DepEvents,
+                          RT::PiEvent *OutEvent);
+
+  static void memset_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
+                            size_t Width, size_t Height, char Value,
+                            std::vector<RT::PiEvent> DepEvents,
+                            RT::PiEvent *OutEvent);
+
+  static void copy_to_device_global(
+      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
+      size_t NumBytes, size_t Offset, const void *SrcMem, OSModuleHandle M,
+      const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent);
+
+  static void copy_from_device_global(
+      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
+      size_t NumBytes, size_t Offset, void *DstMem, OSModuleHandle M,
+      const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent);
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

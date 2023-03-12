@@ -551,7 +551,7 @@ TEST_P(MaybeSparseInstrProfTest, annotate_vp_data) {
   // Annotate with 4 records.
   InstrProfValueData VD0Sorted[] = {{1000, 6}, {2000, 5}, {3000, 4}, {4000, 3},
                               {5000, 2}, {6000, 1}};
-  annotateValueSite(*M, *Inst, makeArrayRef(VD0Sorted).slice(2), 10,
+  annotateValueSite(*M, *Inst, ArrayRef(VD0Sorted).slice(2), 10,
                     IPVK_IndirectCallTarget, 5);
   Res = getValueProfDataFromInst(*Inst, IPVK_IndirectCallTarget, 5,
                                       ValueData, N, T);
@@ -1253,14 +1253,14 @@ TEST(ProfileReaderTest, ReadsLargeFiles) {
 
   auto RawProfile = WritableMemoryBuffer::getNewUninitMemBuffer(LargeSize);
   if (!RawProfile)
-    return;
+    GTEST_SKIP();
   auto RawProfileReaderOrErr = InstrProfReader::create(std::move(RawProfile));
   ASSERT_TRUE(InstrProfError::take(RawProfileReaderOrErr.takeError()) ==
               instrprof_error::unrecognized_format);
 
   auto IndexedProfile = WritableMemoryBuffer::getNewUninitMemBuffer(LargeSize);
   if (!IndexedProfile)
-    return;
+    GTEST_SKIP();
   auto IndexedReaderOrErr =
       IndexedInstrProfReader::create(std::move(IndexedProfile), nullptr);
   ASSERT_TRUE(InstrProfError::take(IndexedReaderOrErr.takeError()) ==

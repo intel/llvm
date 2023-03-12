@@ -17,12 +17,13 @@ namespace access {
 
 enum class target {
   global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2014,
-  constant_buffer = 2015,
+  constant_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2015,
   local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
   image = 2017,
-  host_buffer = 2018,
+  host_buffer __SYCL2020_DEPRECATED("use 'host_accessor' instead") = 2018,
   host_image = 2019,
   image_array = 2020,
+  host_task = 2021,
   device = global_buffer,
 };
 
@@ -69,30 +70,17 @@ template <access_mode mode, target trgt> struct mode_target_tag_t {
   explicit mode_target_tag_t() = default;
 };
 
-#if __cplusplus >= 201703L
-
 inline constexpr mode_tag_t<access_mode::read> read_only{};
 inline constexpr mode_tag_t<access_mode::read_write> read_write{};
 inline constexpr mode_tag_t<access_mode::write> write_only{};
 inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer>
     read_constant{};
-
-#else
-
-namespace {
-
-constexpr const auto &read_only =
-    sycl::detail::InlineVariableHelper<mode_tag_t<access_mode::read>>::value;
-constexpr const auto &read_write = sycl::detail::InlineVariableHelper<
-    mode_tag_t<access_mode::read_write>>::value;
-constexpr const auto &write_only =
-    sycl::detail::InlineVariableHelper<mode_tag_t<access_mode::write>>::value;
-constexpr const auto &read_constant = sycl::detail::InlineVariableHelper<
-    mode_target_tag_t<access_mode::read, target::constant_buffer>>::value;
-
-} // namespace
-
-#endif
+inline constexpr mode_target_tag_t<access_mode::read, target::host_task>
+    read_only_host_task;
+inline constexpr mode_target_tag_t<access_mode::read_write, target::host_task>
+    read_write_host_task;
+inline constexpr mode_target_tag_t<access_mode::write, target::host_task>
+    write_only_host_task;
 
 namespace detail {
 
@@ -356,6 +344,17 @@ template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
       return reinterpret_cast<ToT>(from);
 #endif // defined(__NVPTX__) || defined(__AMDGCN__)
   } else
+#ifdef __ENABLE_USM_ADDR_SPACE__
+      if constexpr (FromAS == access::address_space::global_space &&
+                    (ToAS ==
+                         access::address_space::ext_intel_global_device_space ||
+                     ToAS ==
+                         access::address_space::ext_intel_global_host_space)) {
+    // Casting from global address space to the global device and host address
+    // spaces is allowed.
+    return (ToT)from;
+  } else
+#endif // __ENABLE_USM_ADDR_SPACE__
 #endif // __SYCL_DEVICE_ONLY__
   {
     return reinterpret_cast<ToT>(from);

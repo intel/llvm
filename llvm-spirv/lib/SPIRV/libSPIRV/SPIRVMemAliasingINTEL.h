@@ -71,7 +71,7 @@ public:
     return getVec(CapabilityMemoryAccessAliasingINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_memory_access_aliasing;
   }
 

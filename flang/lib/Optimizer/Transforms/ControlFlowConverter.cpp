@@ -397,7 +397,7 @@ public:
 
     for (unsigned idx : orderedTypeGuards) {
       auto *dest = selectType.getSuccessor(idx);
-      llvm::Optional<mlir::ValueRange> destOps =
+      std::optional<mlir::ValueRange> destOps =
           selectType.getSuccessorOperands(operands, idx);
       if (typeGuards[idx].dyn_cast<mlir::UnitAttr>())
         rewriter.replaceOpWithNewOp<mlir::cf::BranchOp>(selectType, dest);
@@ -464,25 +464,30 @@ public:
       return fir::complexBitsToTypeCode(
           kindMap.getRealBitsize(cmplxTy.getFKind()));
     }
-    return 0; // TODO more types.
+    if (auto charTy = ty.dyn_cast<fir::CharacterType>())
+      return fir::characterBitsToTypeCode(
+          kindMap.getCharacterBitsize(charTy.getFKind()));
+    return 0;
   }
 
-  mlir::LogicalResult
-  genTypeLadderStep(mlir::Location loc, mlir::Value selector,
-                    mlir::Attribute attr, mlir::Block *dest,
-                    llvm::Optional<mlir::ValueRange> destOps,
-                    mlir::ModuleOp mod, mlir::PatternRewriter &rewriter,
-                    fir::KindMapping &kindMap) const {
+  mlir::LogicalResult genTypeLadderStep(mlir::Location loc,
+                                        mlir::Value selector,
+                                        mlir::Attribute attr, mlir::Block *dest,
+                                        std::optional<mlir::ValueRange> destOps,
+                                        mlir::ModuleOp mod,
+                                        mlir::PatternRewriter &rewriter,
+                                        fir::KindMapping &kindMap) const {
     mlir::Value cmp;
     // TYPE IS type guard comparison are all done inlined.
     if (auto a = attr.dyn_cast<fir::ExactTypeAttr>()) {
-      if (fir::isa_trivial(a.getType())) {
+      if (fir::isa_trivial(a.getType()) ||
+          a.getType().isa<fir::CharacterType>()) {
         // For type guard statement with Intrinsic type spec the type code of
         // the descriptor is compared.
         int code = getTypeCode(a.getType(), kindMap);
         if (code == 0)
           return mlir::emitError(loc)
-                 << "type code not done for " << a.getType();
+                 << "type code unavailable for " << a.getType();
         mlir::Value typeCode = rewriter.create<mlir::arith::ConstantOp>(
             loc, rewriter.getI8IntegerAttr(code));
         mlir::Value selectorTypeCode = rewriter.create<fir::BoxTypeCodeOp>(
@@ -543,7 +548,7 @@ public:
     rewriter.setInsertionPointToEnd(thisBlock);
     if (destOps.has_value())
       rewriter.create<mlir::cf::CondBranchOp>(loc, cmp, dest, destOps.value(),
-                                              newBlock, llvm::None);
+                                              newBlock, std::nullopt);
     else
       rewriter.create<mlir::cf::CondBranchOp>(loc, cmp, dest, newBlock);
     rewriter.setInsertionPointToEnd(newBlock);

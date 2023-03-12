@@ -334,9 +334,9 @@ void OmpStructureChecker::CheckHintClause(
           hintClause{
               std::get_if<Fortran::parser::OmpClause::Hint>(&ompClause->u)}) {
         std::optional<std::int64_t> hintValue = GetIntValue(hintClause->v);
-        if (hintValue && hintValue.value() >= 0) {
-          if((hintValue.value() & 0xC) == 0xC /*`omp_sync_hint_nonspeculative` and `omp_lock_hint_speculative`*/ 
-                  || (hintValue.value() & 0x3) == 0x3 /*`omp_sync_hint_uncontended` and omp_sync_hint_contended*/ )
+        if (hintValue && *hintValue >= 0) {
+          if((*hintValue & 0xC) == 0xC /*`omp_sync_hint_nonspeculative` and `omp_lock_hint_speculative`*/ 
+                  || (*hintValue & 0x3) == 0x3 /*`omp_sync_hint_uncontended` and omp_sync_hint_contended*/ )
             context_.Say(clause.source,
                 "Hint clause value "
                 "is not a valid OpenMP synchronization value"_err_en_US);
@@ -1885,6 +1885,7 @@ CHECK_REQ_SCALAR_INT_CLAUSE(Grainsize, OMPC_grainsize)
 CHECK_REQ_SCALAR_INT_CLAUSE(NumTasks, OMPC_num_tasks)
 CHECK_REQ_SCALAR_INT_CLAUSE(NumTeams, OMPC_num_teams)
 CHECK_REQ_SCALAR_INT_CLAUSE(NumThreads, OMPC_num_threads)
+CHECK_REQ_SCALAR_INT_CLAUSE(OmpxDynCgroupMem, OMPC_ompx_dyn_cgroup_mem)
 CHECK_REQ_SCALAR_INT_CLAUSE(Priority, OMPC_priority)
 CHECK_REQ_SCALAR_INT_CLAUSE(ThreadLimit, OMPC_thread_limit)
 
@@ -2633,24 +2634,28 @@ void OmpStructureChecker::CheckPrivateSymbolsInOuterCxt(
 bool OmpStructureChecker::CheckTargetBlockOnlyTeams(
     const parser::Block &block) {
   bool nestedTeams{false};
-  auto it{block.begin()};
 
-  if (const auto *ompConstruct{parser::Unwrap<parser::OpenMPConstruct>(*it)}) {
-    if (const auto *ompBlockConstruct{
-            std::get_if<parser::OpenMPBlockConstruct>(&ompConstruct->u)}) {
-      const auto &beginBlockDir{
-          std::get<parser::OmpBeginBlockDirective>(ompBlockConstruct->t)};
-      const auto &beginDir{
-          std::get<parser::OmpBlockDirective>(beginBlockDir.t)};
-      if (beginDir.v == llvm::omp::Directive::OMPD_teams) {
-        nestedTeams = true;
+  if (!block.empty()) {
+    auto it{block.begin()};
+    if (const auto *ompConstruct{
+            parser::Unwrap<parser::OpenMPConstruct>(*it)}) {
+      if (const auto *ompBlockConstruct{
+              std::get_if<parser::OpenMPBlockConstruct>(&ompConstruct->u)}) {
+        const auto &beginBlockDir{
+            std::get<parser::OmpBeginBlockDirective>(ompBlockConstruct->t)};
+        const auto &beginDir{
+            std::get<parser::OmpBlockDirective>(beginBlockDir.t)};
+        if (beginDir.v == llvm::omp::Directive::OMPD_teams) {
+          nestedTeams = true;
+        }
       }
+    }
+
+    if (nestedTeams && ++it == block.end()) {
+      return true;
     }
   }
 
-  if (nestedTeams && ++it == block.end()) {
-    return true;
-  }
   return false;
 }
 

@@ -26,6 +26,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 #define DEBUG_TYPE "affine-analysis"
 
@@ -50,8 +51,8 @@ static Value getSupportedReduction(AffineForOp forOp, unsigned pos,
     return nullptr;
 
   Operation *combinerOp = combinerOps.back();
-  Optional<arith::AtomicRMWKind> maybeKind =
-      TypeSwitch<Operation *, Optional<arith::AtomicRMWKind>>(combinerOp)
+  std::optional<arith::AtomicRMWKind> maybeKind =
+      TypeSwitch<Operation *, std::optional<arith::AtomicRMWKind>>(combinerOp)
           .Case([](arith::AddFOp) { return arith::AtomicRMWKind::addf; })
           .Case([](arith::MulFOp) { return arith::AtomicRMWKind::mulf; })
           .Case([](arith::AddIOp) { return arith::AtomicRMWKind::addi; })
@@ -64,10 +65,10 @@ static Value getSupportedReduction(AffineForOp forOp, unsigned pos,
           .Case([](arith::MaxSIOp) { return arith::AtomicRMWKind::maxs; })
           .Case([](arith::MinUIOp) { return arith::AtomicRMWKind::minu; })
           .Case([](arith::MaxUIOp) { return arith::AtomicRMWKind::maxu; })
-          .Default([](Operation *) -> Optional<arith::AtomicRMWKind> {
+          .Default([](Operation *) -> std::optional<arith::AtomicRMWKind> {
             // TODO: AtomicRMW supports other kinds of reductions this is
             // currently not detecting, add those when the need arises.
-            return llvm::None;
+            return std::nullopt;
           });
   if (!maybeKind)
     return nullptr;
@@ -240,27 +241,36 @@ void mlir::getReachableAffineApplyOps(
 LogicalResult mlir::getIndexSet(MutableArrayRef<Operation *> ops,
                                 FlatAffineValueConstraints *domain) {
   SmallVector<Value, 4> indices;
-  SmallVector<AffineForOp, 8> forOps;
+  SmallVector<Operation *, 8> loopOps;
+  size_t numDims = 0;
   for (Operation *op : ops) {
-    if (!isa<AffineForOp, AffineIfOp>(op)) {
-      // TODO: Support affine.parallel ops.
-      LLVM_DEBUG(llvm::dbgs() << "getIndexSet only handles affine.for/if ops");
+    if (!isa<AffineForOp, AffineIfOp, AffineParallelOp>(op)) {
+      LLVM_DEBUG(llvm::dbgs() << "getIndexSet only handles affine.for/if/"
+                                 "parallel ops");
       return failure();
     }
-    if (AffineForOp forOp = dyn_cast<AffineForOp>(op))
-      forOps.push_back(forOp);
+    if (AffineForOp forOp = dyn_cast<AffineForOp>(op)) {
+      loopOps.push_back(forOp);
+      // An AffineForOp retains only 1 induction variable.
+      numDims += 1;
+    } else if (AffineParallelOp parallelOp = dyn_cast<AffineParallelOp>(op)) {
+      loopOps.push_back(parallelOp);
+      numDims += parallelOp.getNumDims();
+    }
   }
-  extractForInductionVars(forOps, &indices);
-  // Reset while associated Values in 'indices' to the domain.
-  domain->reset(forOps.size(), /*numSymbols=*/0, /*numLocals=*/0, indices);
+  extractInductionVars(loopOps, indices);
+  // Reset while associating Values in 'indices' to the domain.
+  domain->reset(numDims, /*numSymbols=*/0, /*numLocals=*/0, indices);
   for (Operation *op : ops) {
     // Add constraints from forOp's bounds.
     if (AffineForOp forOp = dyn_cast<AffineForOp>(op)) {
       if (failed(domain->addAffineForOpDomain(forOp)))
         return failure();
-    } else if (AffineIfOp ifOp = dyn_cast<AffineIfOp>(op)) {
+    } else if (auto ifOp = dyn_cast<AffineIfOp>(op)) {
       domain->addAffineIfOpDomain(ifOp);
-    }
+    } else if (auto parallelOp = dyn_cast<AffineParallelOp>(op))
+      if (failed(domain->addAffineParallelOpDomain(parallelOp)))
+        return failure();
   }
   return success();
 }
@@ -277,6 +287,14 @@ static LogicalResult getOpIndexSet(Operation *op,
   return getIndexSet(ops, indexSet);
 }
 
+/// Returns true if `val` is an induction of an affine.parallel op.
+static bool isAffineParallelInductionVar(Value val) {
+  auto ivArg = val.dyn_cast<BlockArgument>();
+  if (!ivArg)
+    return false;
+  return isa<AffineParallelOp>(ivArg.getOwner()->getParentOp());
+}
+
 // Returns the number of outer loop common to 'src/dstDomain'.
 // Loops common to 'src/dst' domains are added to 'commonLoops' if non-null.
 static unsigned
@@ -288,8 +306,10 @@ getNumCommonLoops(const FlatAffineValueConstraints &srcDomain,
       std::min(srcDomain.getNumDimVars(), dstDomain.getNumDimVars());
   unsigned numCommonLoops = 0;
   for (unsigned i = 0; i < minNumLoops; ++i) {
-    if (!isForInductionVar(srcDomain.getValue(i)) ||
-        !isForInductionVar(dstDomain.getValue(i)) ||
+    if ((!isAffineForInductionVar(srcDomain.getValue(i)) &&
+         !isAffineParallelInductionVar(srcDomain.getValue(i))) ||
+        (!isAffineForInductionVar(dstDomain.getValue(i)) &&
+         !isAffineParallelInductionVar(dstDomain.getValue(i))) ||
         srcDomain.getValue(i) != dstDomain.getValue(i))
       break;
     if (commonLoops != nullptr)

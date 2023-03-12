@@ -39,6 +39,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <optional>
 #include <utility>
 
 namespace clang {
@@ -129,11 +130,9 @@ public:
 
   unsigned size() const { return NumParams; }
 
-  ArrayRef<NamedDecl*> asArray() {
-    return llvm::makeArrayRef(begin(), end());
-  }
+  ArrayRef<NamedDecl *> asArray() { return llvm::ArrayRef(begin(), end()); }
   ArrayRef<const NamedDecl*> asArray() const {
-    return llvm::makeArrayRef(begin(), size());
+    return llvm::ArrayRef(begin(), size());
   }
 
   NamedDecl* getParam(unsigned Idx) {
@@ -289,7 +288,7 @@ public:
 
   /// Produce this as an array ref.
   ArrayRef<TemplateArgument> asArray() const {
-    return llvm::makeArrayRef(data(), size());
+    return llvm::ArrayRef(data(), size());
   }
 
   /// Retrieve the number of template arguments in this
@@ -741,7 +740,7 @@ public:
   unsigned getNumTemplateArgs() const { return NumArgs; }
 
   llvm::ArrayRef<TemplateArgumentLoc> arguments() const {
-    return llvm::makeArrayRef(getTemplateArgs(), getNumTemplateArgs());
+    return llvm::ArrayRef(getTemplateArgs(), getNumTemplateArgs());
   }
 
   /// Returns the nth template argument.
@@ -1238,21 +1237,19 @@ class TemplateTypeParmDecl final : public TypeDecl,
 
   TemplateTypeParmDecl(DeclContext *DC, SourceLocation KeyLoc,
                        SourceLocation IdLoc, IdentifierInfo *Id, bool Typename,
-                       bool HasTypeConstraint, Optional<unsigned> NumExpanded)
+                       bool HasTypeConstraint,
+                       std::optional<unsigned> NumExpanded)
       : TypeDecl(TemplateTypeParm, DC, IdLoc, Id, KeyLoc), Typename(Typename),
         HasTypeConstraint(HasTypeConstraint), TypeConstraintInitialized(false),
         ExpandedParameterPack(NumExpanded),
         NumExpanded(NumExpanded.value_or(0)) {}
 
 public:
-  static TemplateTypeParmDecl *Create(const ASTContext &C, DeclContext *DC,
-                                      SourceLocation KeyLoc,
-                                      SourceLocation NameLoc,
-                                      unsigned D, unsigned P,
-                                      IdentifierInfo *Id, bool Typename,
-                                      bool ParameterPack,
-                                      bool HasTypeConstraint = false,
-                                      Optional<unsigned> NumExpanded = None);
+  static TemplateTypeParmDecl *
+  Create(const ASTContext &C, DeclContext *DC, SourceLocation KeyLoc,
+         SourceLocation NameLoc, unsigned D, unsigned P, IdentifierInfo *Id,
+         bool Typename, bool ParameterPack, bool HasTypeConstraint = false,
+         std::optional<unsigned> NumExpanded = std::nullopt);
   static TemplateTypeParmDecl *CreateDeserialized(const ASTContext &C,
                                                   unsigned ID);
   static TemplateTypeParmDecl *CreateDeserialized(const ASTContext &C,
@@ -2929,6 +2926,14 @@ public:
     return ExplicitInfo ? ExplicitInfo->TemplateKeywordLoc : SourceLocation();
   }
 
+  SourceRange getSourceRange() const override LLVM_READONLY {
+    if (isExplicitSpecialization()) {
+      if (const ASTTemplateArgumentListInfo *Info = getTemplateArgsInfo())
+        return SourceRange(getOuterLocStart(), Info->getRAngleLoc());
+    }
+    return VarDecl::getSourceRange();
+  }
+
   void Profile(llvm::FoldingSetNodeID &ID) const {
     Profile(ID, TemplateArgs->asArray(), getASTContext());
   }
@@ -3084,6 +3089,14 @@ public:
     assert(First->InstantiatedFromMember.getPointer() &&
            "Only member templates can be member template specializations");
     return First->InstantiatedFromMember.setInt(true);
+  }
+
+  SourceRange getSourceRange() const override LLVM_READONLY {
+    if (isExplicitSpecialization()) {
+      if (const ASTTemplateArgumentListInfo *Info = getTemplateArgsAsWritten())
+        return SourceRange(getOuterLocStart(), Info->getRAngleLoc());
+    }
+    return VarDecl::getSourceRange();
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) const {
@@ -3437,7 +3450,7 @@ inline TemplateDecl *getAsTypeTemplateDecl(Decl *D) {
 ///
 /// In \c A<int,int>::B, \c NTs and \c TTs have expanded pack size 2, and \c Us
 /// is not a pack expansion, so returns an empty Optional.
-inline Optional<unsigned> getExpandedPackSize(const NamedDecl *Param) {
+inline std::optional<unsigned> getExpandedPackSize(const NamedDecl *Param) {
   if (const auto *TTP = dyn_cast<TemplateTypeParmDecl>(Param)) {
     if (TTP->isExpandedParameterPack())
       return TTP->getNumExpansionParameters();
@@ -3453,7 +3466,7 @@ inline Optional<unsigned> getExpandedPackSize(const NamedDecl *Param) {
       return TTP->getNumExpansionTemplateParameters();
   }
 
-  return None;
+  return std::nullopt;
 }
 
 /// Internal helper used by Subst* nodes to retrieve the parameter list

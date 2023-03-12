@@ -930,6 +930,21 @@ enum {
 #include "ELFRelocs/LoongArch.def"
 };
 
+// Xtensa specific e_flags
+enum : unsigned {
+  // Four-bit Xtensa machine type mask.
+  EF_XTENSA_MACH = 0x0000000f,
+  // Various CPU types.
+  EF_XTENSA_MACH_NONE = 0x00000000, // A base Xtensa implementation
+  EF_XTENSA_XT_INSN = 0x00000100,
+  EF_XTENSA_XT_LIT = 0x00000200,
+};
+
+// ELF Relocation types for Xtensa
+enum {
+#include "ELFRelocs/Xtensa.def"
+};
+
 #undef ELF_RELOC
 
 // Section header.
@@ -1035,6 +1050,10 @@ enum : unsigned {
   SHT_ARM_ATTRIBUTES = 0x70000003U,
   SHT_ARM_DEBUGOVERLAY = 0x70000004U,
   SHT_ARM_OVERLAYSECTION = 0x70000005U,
+  // Special aarch64-specific sections for MTE support, as described in:
+  // https://github.com/ARM-software/abi-aa/blob/main/memtagabielf64/memtagabielf64.rst#7section-types
+  SHT_AARCH64_MEMTAG_GLOBALS_STATIC = 0x70000007U,
+  SHT_AARCH64_MEMTAG_GLOBALS_DYNAMIC = 0x70000008U,
   SHT_HEX_ORDERED = 0x70000000,   // Link editor is to sort the entries in
                                   // this section based on their sizes
   SHT_X86_64_UNWIND = 0x70000001, // Unwind information

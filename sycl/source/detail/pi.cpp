@@ -38,10 +38,6 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
-#define STR(x) #x
-#define SYCL_VERSION_STR                                                       \
-  "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
-
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -54,11 +50,6 @@ xpti_td *GSYCLGraphEvent = nullptr;
 xpti_td *GPICallEvent = nullptr;
 /// Event to be used by PI layer calls with arguments
 xpti_td *GPIArgCallEvent = nullptr;
-/// Constants being used as placeholder until one is able to reliably get the
-/// version of the SYCL runtime
-constexpr uint32_t GMajVer = __LIBSYCL_MAJOR_VERSION;
-constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
-constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <sycl::backend BE> void *getPluginOpaqueData(void *OpaqueDataParam) {
@@ -289,6 +280,8 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                           "conjunction with SYCL_DEVICE_FILTER");
   } else if (!FilterList && !OdsTargetList) {
     PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+    PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
+                             backend::ext_oneapi_unified_runtime);
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                              backend::ext_oneapi_level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
@@ -336,6 +329,10 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     if (list.backendCompatible(backend::opencl)) {
       PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
     }
+    if (list.backendCompatible(backend::ext_oneapi_unified_runtime)) {
+      PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
+                               backend::ext_oneapi_unified_runtime);
+    }
     if (list.backendCompatible(backend::ext_oneapi_level_zero)) {
       PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                                backend::ext_oneapi_level_zero);
@@ -358,12 +355,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
 // Load the Plugin by calling the OS dependent library loading call.
 // Return the handle to the Library.
 void *loadPlugin(const std::string &PluginPath) {
-  return loadOsLibrary(PluginPath);
+  return loadOsPluginLibrary(PluginPath);
 }
 
 // Unload the given plugin by calling teh OS-specific library unloading call.
 // \param Library OS-specific library handle created when loading.
-int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
+int unloadPlugin(void *Library) { return unloadOsPluginLibrary(Library); }
 
 // Binds all the PI Interface APIs to Plugin Library Function Addresses.
 // TODO: Remove the 'OclPtr' extension to PI_API.

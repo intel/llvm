@@ -242,14 +242,23 @@ struct get_device_info_impl<std::vector<info::fp_config>,
   }
 };
 
-// Specialization for queue_profiling, OpenCL returns a bitfield
+// Specialization for queue_profiling. In addition to pi_queue level profiling,
+// piGetDeviceAndHostTimer support is needed for command_submit query support.
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
-  static bool get(RT::PiDevice dev, const plugin &Plugin) {
-    cl_command_queue_properties result;
+  static bool get(RT::PiDevice Dev, const plugin &Plugin) {
+    pi_queue_properties Properties;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
-        dev, PiInfoCode<info::device::queue_profiling>::value, sizeof(result),
-        &result, nullptr);
-    return (result & CL_QUEUE_PROFILING_ENABLE);
+        Dev, PiInfoCode<info::device::queue_profiling>::value,
+        sizeof(Properties), &Properties, nullptr);
+    if (!(Properties & PI_QUEUE_FLAG_PROFILING_ENABLE))
+      return false;
+    RT::PiResult Result =
+        Plugin.call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
+            Dev, nullptr, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION)
+      return false;
+    Plugin.checkPiResult(Result);
+    return true;
   }
 };
 
@@ -358,6 +367,7 @@ static bool is_sycl_partition_property(info::partition_property PP) {
   case info::partition_property::partition_equally:
   case info::partition_property::partition_by_counts:
   case info::partition_property::partition_by_affinity_domain:
+  case info::partition_property::ext_intel_partition_by_cslice:
     return true;
   }
   return false;
@@ -1588,6 +1598,14 @@ inline uint32_t
 get_device_info_host<ext::intel::info::device::memory_bus_width>() {
   throw runtime_error(
       "Obtaining the device memory bus width is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline int32_t
+get_device_info_host<ext::intel::info::device::max_compute_queue_indices>() {
+  throw runtime_error(
+      "Obtaining max compute queue indices is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
 

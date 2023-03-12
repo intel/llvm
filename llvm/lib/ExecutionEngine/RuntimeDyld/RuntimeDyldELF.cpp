@@ -15,12 +15,12 @@
 #include "Targets/RuntimeDyldELFMips.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -1282,6 +1282,7 @@ RuntimeDyldELF::processRelocationRef(
     }
     case SymbolRef::ST_Data:
     case SymbolRef::ST_Function:
+    case SymbolRef::ST_Other:
     case SymbolRef::ST_Unknown: {
       Value.SymbolName = TargetName.data();
       Value.Addend = Addend;
@@ -1730,10 +1731,8 @@ RuntimeDyldELF::processRelocationRef(
       LLVM_DEBUG(dbgs() << " Create a new stub function\n");
 
       uintptr_t BaseAddress = uintptr_t(Section.getAddress());
-      uintptr_t StubAlignment = getStubAlignment();
       StubAddress =
-          (BaseAddress + Section.getStubOffset() + StubAlignment - 1) &
-          -StubAlignment;
+          alignTo(BaseAddress + Section.getStubOffset(), getStubAlignment());
       unsigned StubOffset = StubAddress - BaseAddress;
 
       Stubs[Value] = StubOffset;
@@ -1784,10 +1783,8 @@ RuntimeDyldELF::processRelocationRef(
           LLVM_DEBUG(dbgs() << " Create a new stub function\n");
 
           uintptr_t BaseAddress = uintptr_t(Section->getAddress());
-          uintptr_t StubAlignment = getStubAlignment();
-          StubAddress =
-              (BaseAddress + Section->getStubOffset() + StubAlignment - 1) &
-              -StubAlignment;
+          StubAddress = alignTo(BaseAddress + Section->getStubOffset(),
+                                getStubAlignment());
           unsigned StubOffset = StubAddress - BaseAddress;
           Stubs[Value] = StubOffset;
           createStubFunction((uint8_t *)StubAddress);

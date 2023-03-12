@@ -36,7 +36,7 @@ class TypeRange : public llvm::detail::indexed_accessor_range_base<
                       Type, Type, Type> {
 public:
   using RangeBaseT::RangeBaseT;
-  TypeRange(ArrayRef<Type> types = llvm::None);
+  TypeRange(ArrayRef<Type> types = std::nullopt);
   explicit TypeRange(OperandRange values);
   explicit TypeRange(ResultRange values);
   explicit TypeRange(ValueRange values);
@@ -166,13 +166,13 @@ inline bool operator==(ArrayRef<Type> lhs, const ValueTypeRange<RangeT> &rhs) {
 }
 
 //===----------------------------------------------------------------------===//
-// SubElementInterfaces
+// SubElements
 //===----------------------------------------------------------------------===//
 
 /// Enable TypeRange to be introspected for sub-elements.
 template <>
 struct AttrTypeSubElementHandler<TypeRange> {
-  static void walk(TypeRange param, AttrTypeSubElementWalker &walker) {
+  static void walk(TypeRange param, AttrTypeImmediateSubElementWalker &walker) {
     walker.walkRange(param);
   }
   static TypeRange replace(TypeRange param,

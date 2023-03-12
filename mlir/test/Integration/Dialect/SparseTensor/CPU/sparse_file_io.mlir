@@ -1,17 +1,32 @@
 // DEFINE: %{option} = enable-runtime-library=true
-// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
-// DEFINE: TENSOR0="%mlir_src_dir/test/Integration/data/wide.mtx" \
-// DEFINE: TENSOR1="" \
-// DEFINE: mlir-cpu-runner \
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/wide.mtx" TENSOR1="" \
+// DEFINE:   mlir-cpu-runner \
 // DEFINE:  -e entry -entry-point-result=void  \
-// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils | \
 // DEFINE: FileCheck %s
 //
-// RUN: %{command}
+// RUN: %{compile} | %{run}
 //
 // Do the same run, but now with direct IR generation.
 // REDEFINE: %{option} = enable-runtime-library=false
-// RUN: %{command}
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation and vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
+// RUN: %{compile} | %{run}
+
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/wide.mtx" TENSOR1="" \
+// REDEFINE:   %lli \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
 
 !Filename = !llvm.ptr<i8>
 !TensorReader = !llvm.ptr<i8>
@@ -26,7 +41,7 @@ module {
   func.func private @getSparseTensorReaderRank(!TensorReader) -> (index)
   func.func private @getSparseTensorReaderNNZ(!TensorReader) -> (index)
   func.func private @getSparseTensorReaderIsSymmetric(!TensorReader) -> (i1)
-  func.func private @getSparseTensorReaderDimSizes(!TensorReader,
+  func.func private @copySparseTensorReaderDimSizes(!TensorReader,
     memref<?xindex>) -> () attributes { llvm.emit_c_interface }
   func.func private @getSparseTensorReaderNextF32(!TensorReader,
     memref<?xindex>, memref<f32>) -> () attributes { llvm.emit_c_interface }
@@ -98,7 +113,7 @@ module {
       : (!TensorReader) -> i1
     vector.print %symmetric : i1
     %dimSizes = memref.alloc(%rank) : memref<?xindex>
-    func.call @getSparseTensorReaderDimSizes(%tensor, %dimSizes)
+    func.call @copySparseTensorReaderDimSizes(%tensor, %dimSizes)
       : (!TensorReader, memref<?xindex>) -> ()
     call @dumpi(%dimSizes) : (memref<?xindex>) -> ()
     %x0s, %x1s, %vs = call @readTensorFile(%tensor)
@@ -132,7 +147,7 @@ module {
     %rank = call @getSparseTensorReaderRank(%tensor0) : (!TensorReader) -> index
     %nnz = call @getSparseTensorReaderNNZ(%tensor0) : (!TensorReader) -> index
     %dimSizes = memref.alloc(%rank) : memref<?xindex>
-    func.call @getSparseTensorReaderDimSizes(%tensor0,%dimSizes)
+    func.call @copySparseTensorReaderDimSizes(%tensor0, %dimSizes)
       : (!TensorReader, memref<?xindex>) -> ()
     call @outSparseTensorWriterMetaData(%tensor1, %rank, %nnz, %dimSizes)
       : (!TensorWriter, index, index, memref<?xindex>) -> ()

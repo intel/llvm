@@ -3,7 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 # LLVM libc project.
-load(":libc_build_rules.bzl", "libc_function", "libc_math_function")
+load(
+    ":libc_build_rules.bzl",
+    "libc_function",
+    "libc_math_function",
+    "libc_support_library",
+)
 load(":platforms.bzl", "PLATFORM_CPU_ARM64", "PLATFORM_CPU_X86_64")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
@@ -55,84 +60,142 @@ cc_library(
 
 ############################## Support libraries #############################
 
-cc_library(
-    name = "__support_common",
-    hdrs = [
-        "src/__support/architectures.h",
-        "src/__support/common.h",
-        "src/__support/endian.h",
-        "src/__support/sanitizer.h",
+libc_support_library(
+    name = "__support_macros_properties_architectures",
+    hdrs = ["src/__support/macros/properties/architectures.h"],
+    deps = [":libc_root"],
+)
+
+libc_support_library(
+    name = "__support_macros_properties_compiler",
+    hdrs = ["src/__support/macros/properties/compiler.h"],
+    deps = [":libc_root"],
+)
+
+libc_support_library(
+    name = "__support_macros_properties_cpu_features",
+    hdrs = ["src/__support/macros/properties/cpu_features.h"],
+    deps = [":libc_root"],
+)
+
+libc_support_library(
+    name = "__support_macros_config",
+    hdrs = ["src/__support/macros/config.h"],
+    deps = [":libc_root"],
+)
+
+libc_support_library(
+    name = "__support_macros_attributes",
+    hdrs = ["src/__support/macros/attributes.h"],
+    deps = [":libc_root"],
+)
+
+libc_support_library(
+    name = "__support_macros_optimization",
+    hdrs = ["src/__support/macros/optimization.h"],
+    deps = [
+        ":__support_macros_config",
+        ":__support_macros_properties_compiler",
+        ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
+    name = "__support_macros_sanitizer",
+    hdrs = ["src/__support/macros/sanitizer.h"],
+    deps = [
+        ":__support_macros_config",
+        ":libc_root",
+    ],
+)
+
+libc_support_library(
+    name = "__support_common",
+    hdrs = [
+        "src/__support/common.h",
+        "src/__support/endian.h",
+    ],
+    deps = [
+        ":__support_macros_attributes",
+        ":__support_macros_properties_architectures",
+        ":libc_root",
+    ],
+)
+
+libc_support_library(
     name = "__support_cpp_array",
     hdrs = ["src/__support/CPP/array.h"],
     deps = [":libc_root"],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_cpp_bit",
     hdrs = ["src/__support/CPP/bit.h"],
-    deps = [":libc_root"],
+    deps = [
+        ":__support_macros_config",
+        ":libc_root",
+    ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_cpp_bitset",
     hdrs = ["src/__support/CPP/bitset.h"],
     deps = [":libc_root"],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_cpp_cstddef",
     hdrs = ["src/__support/CPP/cstddef.h"],
     deps = [
-        "__support_cpp_type_traits",
+        ":__support_cpp_type_traits",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_cpp_functional",
     hdrs = ["src/__support/CPP/functional.h"],
     deps = [":libc_root"],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_cpp_limits",
     hdrs = ["src/__support/CPP/limits.h"],
     deps = [":libc_root"],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_cpp_optional",
     hdrs = ["src/__support/CPP/optional.h"],
     deps = [":libc_root"],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_cpp_span",
     hdrs = ["src/__support/CPP/span.h"],
     deps = [
-        "__support_cpp_array",
-        "__support_cpp_type_traits",
+        ":__support_cpp_array",
+        ":__support_cpp_type_traits",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_cpp_string_view",
     hdrs = ["src/__support/CPP/string_view.h"],
-    deps = [":libc_root"],
+    deps = [
+        ":__support_common",
+        ":libc_root",
+    ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_cpp_type_traits",
     hdrs = ["src/__support/CPP/type_traits.h"],
     deps = [":libc_root"],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_cpp_utility",
     hdrs = ["src/__support/CPP/utility.h"],
     deps = [
@@ -141,13 +204,7 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "__support_cpp_vector",
-    hdrs = ["src/__support/CPP/vector.h"],
-    deps = [":libc_root"],
-)
-
-cc_library(
+libc_support_library(
     name = "__support_cpp_atomic",
     hdrs = ["src/__support/CPP/atomic.h"],
     deps = [
@@ -156,43 +213,46 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_number_pair",
     hdrs = ["src/__support/number_pair.h"],
     deps = [
-        "__support_cpp_type_traits",
-        "__support_named_pair",
+        ":__support_cpp_type_traits",
+        ":__support_named_pair",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_integer_utils",
     hdrs = ["src/__support/integer_utils.h"],
     deps = [
-        "__support_builtin_wrappers",
-        "__support_cpp_type_traits",
-        "__support_number_pair",
+        ":__support_builtin_wrappers",
+        ":__support_common",
+        ":__support_cpp_type_traits",
+        ":__support_number_pair",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_uint",
     hdrs = ["src/__support/UInt.h"],
     deps = [
-        "__support_builtin_wrappers",
-        "__support_cpp_array",
-        "__support_cpp_limits",
-        "__support_cpp_optional",
-        "__support_cpp_type_traits",
-        "__support_integer_utils",
-        "__support_number_pair",
+        ":__support_builtin_wrappers",
+        ":__support_cpp_array",
+        ":__support_cpp_limits",
+        ":__support_cpp_optional",
+        ":__support_cpp_type_traits",
+        ":__support_integer_utils",
+        ":__support_macros_attributes",
+        ":__support_macros_optimization",
+        ":__support_number_pair",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_uint128",
     hdrs = ["src/__support/UInt128.h"],
     deps = [
@@ -201,56 +261,88 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
+    name = "__support_str_to_num_result",
+    hdrs = ["src/__support/str_to_num_result.h"],
+    deps = [
+        ":libc_root",
+    ],
+)
+
+libc_support_library(
     name = "__support_integer_operations",
     hdrs = ["src/__support/integer_operations.h"],
     deps = [":__support_cpp_type_traits"],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_ctype_utils",
     hdrs = ["src/__support/ctype_utils.h"],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_str_to_integer",
     hdrs = ["src/__support/str_to_integer.h"],
     deps = [
+        ":__support_common",
         ":__support_cpp_limits",
         ":__support_ctype_utils",
+        ":__support_str_to_num_result",
     ],
 )
 
-cc_library(
+libc_support_library(
+    name = "__support_str_to_float",
+    hdrs = [
+        "src/__support/detailed_powers_of_ten.h",
+        "src/__support/high_precision_decimal.h",
+        "src/__support/str_to_float.h",
+    ],
+    deps = [
+        ":__support_builtin_wrappers",
+        ":__support_common",
+        ":__support_cpp_limits",
+        ":__support_ctype_utils",
+        ":__support_fputil_fp_bits",
+        ":__support_str_to_integer",
+        ":__support_uint128",
+    ],
+)
+
+libc_support_library(
     name = "__support_fputil_basic_operations",
     hdrs = ["src/__support/FPUtil/BasicOperations.h"],
     deps = [
+        ":__support_common",
         ":__support_cpp_type_traits",
         ":__support_fputil_fp_bits",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_named_pair",
     hdrs = ["src/__support/named_pair.h"],
     deps = [":libc_root"],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_builtin_wrappers",
     hdrs = ["src/__support/builtin_wrappers.h"],
     deps = [
         ":__support_cpp_type_traits",
+        ":__support_macros_attributes",
+        ":__support_macros_config",
         ":__support_named_pair",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_division_and_remainder_operations",
     hdrs = ["src/__support/FPUtil/DivisionAndRemainderOperations.h"],
     deps = [
+        ":__support_common",
         ":__support_cpp_type_traits",
         ":__support_fputil_fp_bits",
         ":__support_fputil_manipulation_functions",
@@ -259,7 +351,7 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_except_value_utils",
     hdrs = ["src/__support/FPUtil/except_value_utils.h"],
     deps = [
@@ -270,21 +362,24 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_fenv_impl",
     hdrs = ["src/__support/FPUtil/FEnvImpl.h"],
     textual_hdrs = [
         "src/__support/FPUtil/x86_64/FEnvImpl.h",
         "src/__support/FPUtil/aarch64/FEnvImpl.h",
+        "src/__support/FPUtil/aarch64/fenv_darwin_impl.h",
     ],
     deps = [
-        ":__support_common",
         ":__support_fputil_fp_bits",
+        ":__support_macros_attributes",
+        ":__support_macros_properties_architectures",
+        ":__support_macros_sanitizer",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_float_properties",
     hdrs = ["src/__support/FPUtil/FloatProperties.h"],
     deps = [
@@ -294,7 +389,7 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_fp_bits",
     hdrs = ["src/__support/FPUtil/FPBits.h"],
     textual_hdrs = ["src/__support/FPUtil/x86_64/LongDoubleBits.h"],
@@ -310,11 +405,12 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_hypot",
     hdrs = ["src/__support/FPUtil/Hypot.h"],
     deps = [
         ":__support_builtin_wrappers",
+        ":__support_common",
         ":__support_cpp_bit",
         ":__support_cpp_type_traits",
         ":__support_fputil_basic_operations",
@@ -325,7 +421,7 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_manipulation_functions",
     hdrs = ["src/__support/FPUtil/ManipulationFunctions.h"],
     textual_hdrs = ["src/__support/FPUtil/x86_64/NextAfterLongDouble.h"],
@@ -337,15 +433,17 @@ cc_library(
         ":__support_fputil_nearest_integer_operations",
         ":__support_fputil_normal_float",
         ":__support_fputil_platform_defs",
+        ":__support_macros_optimization",
         ":__support_uint128",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_nearest_integer_operations",
     hdrs = ["src/__support/FPUtil/NearestIntegerOperations.h"],
     deps = [
+        ":__support_common",
         ":__support_cpp_type_traits",
         ":__support_fputil_fenv_impl",
         ":__support_fputil_fp_bits",
@@ -353,17 +451,18 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_normal_float",
     hdrs = ["src/__support/FPUtil/NormalFloat.h"],
     deps = [
+        ":__support_common",
         ":__support_cpp_type_traits",
         ":__support_fputil_fp_bits",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_platform_defs",
     hdrs = ["src/__support/FPUtil/PlatformDefs.h"],
     deps = [
@@ -388,7 +487,7 @@ sqrt_hdrs = selects.with_or({
     ],
 })
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_sqrt",
     hdrs = sqrt_hdrs,
     deps = [
@@ -414,7 +513,7 @@ fma_platform_hdrs = [
     "src/__support/FPUtil/aarch64/FMA.h",
 ]
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_fma",
     hdrs = fma_common_hdrs,
     # These are conditionally included and will #error out if the platform
@@ -422,18 +521,19 @@ cc_library(
     textual_hdrs = fma_platform_hdrs,
     deps = [
         ":__support_builtin_wrappers",
-        ":__support_common",
         ":__support_cpp_bit",
         ":__support_cpp_type_traits",
         ":__support_fputil_fenv_impl",
         ":__support_fputil_float_properties",
         ":__support_fputil_fp_bits",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
         ":__support_uint128",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_multiply_add",
     hdrs = [
         "src/__support/FPUtil/multiply_add.h",
@@ -444,12 +544,13 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_polyeval",
     hdrs = [
         "src/__support/FPUtil/PolyEval.h",
     ],
     deps = [
+        ":__support_common",
         ":__support_fputil_multiply_add",
     ],
 )
@@ -463,7 +564,7 @@ nearest_integer_platform_hdrs = [
     "src/__support/FPUtil/aarch64/nearest_integer.h",
 ]
 
-cc_library(
+libc_support_library(
     name = "__support_fputil_nearest_integer",
     hdrs = nearest_integer_common_hdrs,
     # These are conditionally included and will #error out if the platform
@@ -472,11 +573,14 @@ cc_library(
     textual_hdrs = nearest_integer_platform_hdrs,
     deps = [
         ":__support_common",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_architectures",
+        ":__support_macros_properties_cpu_features",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "__support_osutil",
     hdrs = ["src/__support/OSUtil/syscall.h"],
     textual_hdrs = [
@@ -634,7 +738,7 @@ libc_function(
 
 ################################ math targets ################################
 
-cc_library(
+libc_support_library(
     name = "math_utils",
     srcs = ["src/math/generic/math_utils.cpp"],
     hdrs = ["src/math/generic/math_utils.h"],
@@ -646,7 +750,7 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "common_constants",
     srcs = ["src/math/generic/common_constants.cpp"],
     hdrs = ["src/math/generic/common_constants.h"],
@@ -655,13 +759,14 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "range_reduction",
     hdrs = [
         "src/math/generic/range_reduction.h",
         "src/math/generic/range_reduction_fma.h",
     ],
     deps = [
+        ":__support_common",
         ":__support_fputil_fma",
         ":__support_fputil_fp_bits",
         ":__support_fputil_multiply_add",
@@ -670,11 +775,10 @@ cc_library(
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "sincosf_utils",
     hdrs = ["src/math/generic/sincosf_utils.h"],
     deps = [
-        ":__support_common",
         ":__support_fputil_fp_bits",
         ":__support_fputil_polyeval",
         ":libc_root",
@@ -682,14 +786,256 @@ cc_library(
     ],
 )
 
+libc_support_library(
+    name = "explogxf",
+    srcs = ["src/math/generic/explogxf.cpp"],
+    hdrs = ["src/math/generic/explogxf.h"],
+    deps = [
+        ":__support_common",
+        ":__support_fputil_fenv_impl",
+        ":__support_fputil_fma",
+        ":__support_fputil_fp_bits",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":common_constants",
+        ":libc_root",
+        ":math_utils",
+    ],
+)
+
+libc_support_library(
+    name = "inv_trigf_utils",
+    srcs = ["src/math/generic/inv_trigf_utils.cpp"],
+    hdrs = ["src/math/generic/inv_trigf_utils.h"],
+    deps = [
+        ":__support_common",
+        ":__support_fputil_fenv_impl",
+        ":__support_fputil_fma",
+        ":__support_fputil_fp_bits",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":libc_root",
+        ":math_utils",
+    ],
+)
+
 libc_math_function(
     name = "expm1f",
     additional_deps = [
         ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
         ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
+        ":common_constants",
+    ],
+)
+
+libc_math_function(
+    name = "expf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":common_constants",
+    ],
+)
+
+libc_math_function(
+    name = "exp10f",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":common_constants",
+        ":explogxf",
+    ],
+)
+
+libc_math_function(
+    name = "exp2f",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":explogxf",
+    ],
+)
+
+libc_math_function(
+    name = "logf",
+    additional_deps = [
+        ":__support_fputil_fma",
         ":__support_fputil_multiply_add",
         ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
         ":common_constants",
+    ],
+)
+
+libc_math_function(
+    name = "log2f",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":common_constants",
+    ],
+)
+
+libc_math_function(
+    name = "log10f",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
+        ":common_constants",
+    ],
+)
+
+libc_math_function(
+    name = "log1pf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
+        ":common_constants",
+    ],
+)
+
+libc_math_function(
+    name = "sinhf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":common_constants",
+        ":explogxf",
+    ],
+)
+
+libc_math_function(
+    name = "coshf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":common_constants",
+        ":explogxf",
+    ],
+)
+
+libc_math_function(
+    name = "tanhf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
+        ":common_constants",
+        ":explogxf",
+    ],
+)
+
+libc_math_function(
+    name = "asinhf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_fputil_sqrt",
+        ":__support_macros_optimization",
+        ":common_constants",
+        ":explogxf",
+    ],
+)
+
+libc_math_function(
+    name = "acoshf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_fputil_sqrt",
+        ":__support_macros_optimization",
+        ":common_constants",
+        ":explogxf",
+    ],
+)
+
+libc_math_function(
+    name = "atanhf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":common_constants",
+        ":explogxf",
+    ],
+)
+
+libc_math_function(
+    name = "asinf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_fputil_sqrt",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
+        ":inv_trigf_utils",
+    ],
+)
+
+libc_math_function(
+    name = "acosf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_fputil_sqrt",
+        ":__support_macros_optimization",
+        ":inv_trigf_utils",
+    ],
+)
+
+libc_math_function(
+    name = "atanf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":inv_trigf_utils",
+        ":math_utils",
     ],
 )
 
@@ -844,6 +1190,8 @@ libc_math_function(
     additional_deps = [
         ":__support_fputil_fma",
         ":__support_fputil_multiply_add",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
         ":sincosf_utils",
     ],
 )
@@ -853,6 +1201,8 @@ libc_math_function(
     additional_deps = [
         ":__support_fputil_fma",
         ":__support_fputil_multiply_add",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
         ":sincosf_utils",
     ],
 )
@@ -863,6 +1213,22 @@ libc_math_function(
         ":__support_fputil_fma",
         ":__support_fputil_multiply_add",
         ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
+        ":range_reduction",
+        ":sincosf_utils",
+    ],
+)
+
+libc_math_function(
+    name = "tanf",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_nearest_integer",
+        ":__support_fputil_polyeval",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_cpu_features",
         ":range_reduction",
         ":sincosf_utils",
     ],
@@ -976,6 +1342,16 @@ libc_function(
 )
 
 libc_function(
+    name = "atof",
+    srcs = ["src/stdlib/atof.cpp"],
+    hdrs = ["src/stdlib/atof.h"],
+    deps = [
+        ":__support_common",
+        ":__support_str_to_float",
+    ],
+)
+
+libc_function(
     name = "bsearch",
     srcs = ["src/stdlib/bsearch.cpp"],
     hdrs = ["src/stdlib/bsearch.h"],
@@ -1033,6 +1409,36 @@ libc_function(
     ],
 )
 
+libc_function(
+    name = "strtof",
+    srcs = ["src/stdlib/strtof.cpp"],
+    hdrs = ["src/stdlib/strtof.h"],
+    deps = [
+        ":__support_common",
+        ":__support_str_to_float",
+    ],
+)
+
+libc_function(
+    name = "strtod",
+    srcs = ["src/stdlib/strtod.cpp"],
+    hdrs = ["src/stdlib/strtod.h"],
+    deps = [
+        ":__support_common",
+        ":__support_str_to_float",
+    ],
+)
+
+libc_function(
+    name = "strtold",
+    srcs = ["src/stdlib/strtold.cpp"],
+    hdrs = ["src/stdlib/strtold.h"],
+    deps = [
+        ":__support_common",
+        ":__support_str_to_float",
+    ],
+)
+
 ############################### string targets ###############################
 
 no_sanitize_features = [
@@ -1042,7 +1448,7 @@ no_sanitize_features = [
     "-ubsan",
 ]
 
-cc_library(
+libc_support_library(
     name = "string_memory_utils",
     hdrs = [
         "src/string/memory_utils/op_aarch64.h",
@@ -1056,8 +1462,12 @@ cc_library(
         "src/string/memory_utils/bzero_implementations.h",
         "src/string/memory_utils/memcmp_implementations.h",
         "src/string/memory_utils/memcpy_implementations.h",
+        "src/string/memory_utils/aarch64/memcpy_implementations.h",
+        "src/string/memory_utils/x86_64/memcpy_implementations.h",
         "src/string/memory_utils/memmove_implementations.h",
         "src/string/memory_utils/memset_implementations.h",
+        "src/string/memory_utils/strcmp_implementations.h",
+        "src/string/memory_utils/strstr_implementations.h",
     ],
     deps = [
         ":__support_common",
@@ -1065,16 +1475,22 @@ cc_library(
         ":__support_cpp_bit",
         ":__support_cpp_cstddef",
         ":__support_cpp_type_traits",
+        ":__support_macros_attributes",
+        ":__support_macros_config",
+        ":__support_macros_optimization",
+        ":__support_macros_properties_architectures",
+        ":__support_macros_properties_cpu_features",
         ":libc_root",
     ],
 )
 
-cc_library(
+libc_support_library(
     name = "string_utils",
     hdrs = ["src/string/string_utils.h"],
     deps = [
         ":__support_common",
         ":__support_cpp_bitset",
+        ":__support_macros_optimization",
         ":libc_root",
         ":string_memory_utils",
     ],
@@ -1096,6 +1512,7 @@ libc_function(
     hdrs = ["src/string/memcpy.h"],
     copts = ["-mllvm --tail-merge-threshold=0"],
     features = no_sanitize_features,
+    weak = True,
     deps = [
         ":__support_common",
         ":string_memory_utils",
@@ -1107,6 +1524,7 @@ libc_function(
     srcs = ["src/string/memset.cpp"],
     hdrs = ["src/string/memset.h"],
     features = no_sanitize_features,
+    weak = True,
     deps = [
         ":__support_common",
         ":string_memory_utils",
@@ -1117,6 +1535,18 @@ libc_function(
     name = "memmove",
     srcs = ["src/string/memmove.cpp"],
     hdrs = ["src/string/memmove.h"],
+    features = no_sanitize_features,
+    weak = True,
+    deps = [
+        ":__support_common",
+        ":string_memory_utils",
+    ],
+)
+
+libc_function(
+    name = "bcopy",
+    srcs = ["src/string/bcopy.cpp"],
+    hdrs = ["src/string/bcopy.h"],
     features = no_sanitize_features,
     deps = [
         ":__support_common",
@@ -1129,6 +1559,7 @@ libc_function(
     srcs = ["src/string/memcmp.cpp"],
     hdrs = ["src/string/memcmp.h"],
     features = no_sanitize_features,
+    weak = True,
     deps = [
         ":__support_common",
         ":__support_integer_operations",
@@ -1141,6 +1572,7 @@ libc_function(
     srcs = ["src/string/bcmp.cpp"],
     hdrs = ["src/string/bcmp.h"],
     features = no_sanitize_features,
+    weak = True,
     deps = [
         ":__support_common",
         ":string_memory_utils",
@@ -1152,6 +1584,7 @@ libc_function(
     srcs = ["src/string/bzero.cpp"],
     hdrs = ["src/string/bzero.h"],
     features = no_sanitize_features,
+    weak = True,
     deps = [
         ":__support_common",
         ":string_memory_utils",
@@ -1221,6 +1654,7 @@ libc_function(
     hdrs = ["src/string/strcmp.h"],
     deps = [
         ":__support_common",
+        ":string_memory_utils",
         ":string_utils",
     ],
 )
@@ -1251,6 +1685,7 @@ libc_function(
     hdrs = ["src/string/strstr.h"],
     deps = [
         ":__support_common",
+        ":string_memory_utils",
         ":string_utils",
     ],
 )

@@ -35,7 +35,7 @@
 #include "llvm/CodeGen/MachinePostDominators.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/DebugCounter.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "si-insert-waitcnts"
@@ -1177,6 +1177,11 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(MachineInstr &MI,
         MachineOperand &Op = MI.getOperand(I);
         if (!Op.isReg())
           continue;
+
+        // If the instruction does not read tied source, skip the operand.
+        if (Op.isTied() && Op.isUse() && TII->doesNotReadTiedSource(MI))
+          continue;
+
         RegInterval Interval =
             ScoreBrackets.getRegInterval(&MI, TII, MRI, TRI, I);
 
@@ -1528,6 +1533,13 @@ bool WaitcntBrackets::merge(const WaitcntBrackets &Other) {
   return StrictDom;
 }
 
+static bool isWaitInstr(MachineInstr &Inst) {
+  return Inst.getOpcode() == AMDGPU::S_WAITCNT ||
+         (Inst.getOpcode() == AMDGPU::S_WAITCNT_VSCNT &&
+          Inst.getOperand(0).isReg() &&
+          Inst.getOperand(0).getReg() == AMDGPU::SGPR_NULL);
+}
+
 // Generate s_waitcnt instructions where needed.
 bool SIInsertWaitcnts::insertWaitcntInBlock(MachineFunction &MF,
                                             MachineBasicBlock &Block,
@@ -1563,10 +1575,7 @@ bool SIInsertWaitcnts::insertWaitcntInBlock(MachineFunction &MF,
 
     // Track pre-existing waitcnts that were added in earlier iterations or by
     // the memory legalizer.
-    if (Inst.getOpcode() == AMDGPU::S_WAITCNT ||
-        (Inst.getOpcode() == AMDGPU::S_WAITCNT_VSCNT &&
-         Inst.getOperand(0).isReg() &&
-         Inst.getOperand(0).getReg() == AMDGPU::SGPR_NULL)) {
+    if (isWaitInstr(Inst)) {
       if (!OldWaitcntInstr)
         OldWaitcntInstr = &Inst;
       ++Iter;
@@ -1617,7 +1626,7 @@ bool SIInsertWaitcnts::insertWaitcntInBlock(MachineFunction &MF,
         // there cannot be a vector store to the same memory location.
         if (!Memop->isInvariant()) {
           const Value *Ptr = Memop->getValue();
-          SLoadAddresses.insert(std::make_pair(Ptr, Inst.getParent()));
+          SLoadAddresses.insert(std::pair(Ptr, Inst.getParent()));
         }
       }
       if (ST->hasReadVCCZBug()) {

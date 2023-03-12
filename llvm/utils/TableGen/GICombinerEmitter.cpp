@@ -15,6 +15,9 @@
 #include "GlobalISel/CodeExpander.h"
 #include "GlobalISel/CodeExpansions.h"
 #include "GlobalISel/GIMatchDag.h"
+#include "GlobalISel/GIMatchDagEdge.h"
+#include "GlobalISel/GIMatchDagInstr.h"
+#include "GlobalISel/GIMatchDagOperands.h"
 #include "GlobalISel/GIMatchDagPredicate.h"
 #include "GlobalISel/GIMatchTree.h"
 #include "llvm/ADT/SmallSet.h"
@@ -636,7 +639,7 @@ void GICombinerEmitter::emitNameMatcher(raw_ostream &OS) const {
         std::make_pair(std::string(EnumeratedRule.getName()), Code));
   }
 
-  OS << "static Optional<uint64_t> getRuleIdxForIdentifier(StringRef "
+  OS << "static std::optional<uint64_t> getRuleIdxForIdentifier(StringRef "
         "RuleIdentifier) {\n"
      << "  uint64_t I;\n"
      << "  // getAtInteger(...) returns false on success\n"
@@ -647,7 +650,7 @@ void GICombinerEmitter::emitNameMatcher(raw_ostream &OS) const {
   StringMatcher Matcher("RuleIdentifier", Cases, OS);
   Matcher.Emit();
   OS << "#endif // ifndef NDEBUG\n\n"
-     << "  return None;\n"
+     << "  return std::nullopt;\n"
      << "}\n";
 }
 
@@ -950,7 +953,7 @@ void GICombinerEmitter::run(raw_ostream &OS) {
 
   emitNameMatcher(OS);
 
-  OS << "static Optional<std::pair<uint64_t, uint64_t>> "
+  OS << "static std::optional<std::pair<uint64_t, uint64_t>> "
         "getRuleRangeForIdentifier(StringRef RuleIdentifier) {\n"
      << "  std::pair<StringRef, StringRef> RangePair = "
         "RuleIdentifier.split('-');\n"
@@ -960,7 +963,7 @@ void GICombinerEmitter::run(raw_ostream &OS) {
      << "    const auto Last = "
         "getRuleIdxForIdentifier(RangePair.second);\n"
      << "    if (!First || !Last)\n"
-     << "      return None;\n"
+     << "      return std::nullopt;\n"
      << "    if (First >= Last)\n"
      << "      report_fatal_error(\"Beginning of range should be before "
         "end of range\");\n"
@@ -971,7 +974,7 @@ void GICombinerEmitter::run(raw_ostream &OS) {
      << "  }\n"
      << "  const auto I = getRuleIdxForIdentifier(RangePair.first);\n"
      << "  if (!I)\n"
-     << "    return None;\n"
+     << "    return std::nullopt;\n"
      << "  return {{*I, *I + 1}};\n"
      << "}\n\n";
 

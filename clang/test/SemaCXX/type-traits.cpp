@@ -533,12 +533,14 @@ void is_aggregate()
   constexpr bool TrueAfterCpp14 = __cplusplus > 201402L;
 
   __is_aggregate(AnIncompleteType); // expected-error {{incomplete type}}
-  __is_aggregate(AnIncompleteType[]); // expected-error {{incomplete type}}
-  __is_aggregate(AnIncompleteType[1]); // expected-error {{incomplete type}}
-  __is_aggregate(AnIncompleteTypeAr); // expected-error {{incomplete type}}
-  __is_aggregate(AnIncompleteTypeArNB); // expected-error {{incomplete type}}
-  __is_aggregate(AnIncompleteTypeArMB); // expected-error {{incomplete type}}
   __is_aggregate(IncompleteUnion); // expected-error {{incomplete type}}
+
+  // Valid since LWG3823
+  static_assert(__is_aggregate(AnIncompleteType[]), "");
+  static_assert(__is_aggregate(AnIncompleteType[1]), "");
+  static_assert(__is_aggregate(AnIncompleteTypeAr), "");
+  static_assert(__is_aggregate(AnIncompleteTypeArNB), "");
+  static_assert(__is_aggregate(AnIncompleteTypeArMB), "");
 
   static_assert(!__is_aggregate(NonPOD), "");
   static_assert(__is_aggregate(NonPODAr), "");
@@ -3052,6 +3054,36 @@ static_assert(__is_trivially_relocatable(TrivialAbiNontrivialMoveCtor), "");
 static_assert(__is_trivially_relocatable(TrivialAbiNontrivialMoveCtor[]), "");
 
 } // namespace is_trivially_relocatable
+
+namespace can_pass_in_regs {
+
+struct A { };
+
+struct B {
+  ~B();
+};
+
+struct C; // expected-note {{forward declaration}}
+
+union D {
+  int x;
+};
+
+static_assert(__can_pass_in_regs(A), "");
+static_assert(__can_pass_in_regs(A), "");
+static_assert(!__can_pass_in_regs(B), "");
+static_assert(__can_pass_in_regs(D), "");
+
+void test_errors() {
+  (void)__can_pass_in_regs(const A); // expected-error {{not an unqualified class type}}
+  (void)__can_pass_in_regs(A&); // expected-error {{not an unqualified class type}}
+  (void)__can_pass_in_regs(A&&); // expected-error {{not an unqualified class type}}
+  (void)__can_pass_in_regs(const A&); // expected-error {{not an unqualified class type}}
+  (void)__can_pass_in_regs(C); // expected-error {{incomplete type}}
+  (void)__can_pass_in_regs(int); // expected-error {{not an unqualified class type}}
+  (void)__can_pass_in_regs(int&); // expected-error {{not an unqualified class type}}
+}
+}
 
 struct S {};
 template <class T> using remove_const_t = __remove_const(T);

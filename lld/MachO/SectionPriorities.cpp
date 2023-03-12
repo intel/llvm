@@ -252,11 +252,11 @@ DenseMap<const InputSection *, size_t> CallGraphSort::run() {
 std::optional<size_t>
 macho::PriorityBuilder::getSymbolPriority(const Defined *sym) {
   if (sym->isAbsolute())
-    return None;
+    return std::nullopt;
 
   auto it = priorities.find(sym->getName());
   if (it == priorities.end())
-    return None;
+    return std::nullopt;
   const SymbolPriorityEntry &entry = it->second;
   const InputFile *f = sym->isec->getFile();
   if (!f)
@@ -371,7 +371,7 @@ macho::PriorityBuilder::buildInputSectionPriorities() {
     if (!symbolPriority)
       return;
     size_t &priority = sectionPriorities[sym->isec];
-    priority = std::max(priority, symbolPriority.value());
+    priority = std::max(priority, *symbolPriority);
   };
 
   // TODO: Make sure this handles weak symbols correctly.

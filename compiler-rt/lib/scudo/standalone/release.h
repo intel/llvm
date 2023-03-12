@@ -12,6 +12,7 @@
 #include "common.h"
 #include "list.h"
 #include "mutex.h"
+#include "thread_annotations.h"
 
 namespace scudo {
 
@@ -72,11 +73,16 @@ public:
       Mutex.unlock();
     else
       unmap(reinterpret_cast<void *>(Buffer),
-            roundUpTo(BufferSize, getPageSizeCached()));
+            roundUp(BufferSize, getPageSizeCached()));
     Buffer = nullptr;
   }
 
-  void reset(uptr NumberOfRegion, uptr CountersPerRegion, uptr MaxValue) {
+  // Lock of `StaticBuffer` is acquired conditionally and there's no easy way to
+  // specify the thread-safety attribute properly in current code structure.
+  // Besides, it's the only place we may want to check thread safety. Therefore,
+  // it's fine to bypass the thread-safety analysis now.
+  void reset(uptr NumberOfRegion, uptr CountersPerRegion,
+             uptr MaxValue) NO_THREAD_SAFETY_ANALYSIS {
     DCHECK_GT(NumberOfRegion, 0);
     DCHECK_GT(CountersPerRegion, 0);
     DCHECK_GT(MaxValue, 0);
@@ -88,7 +94,7 @@ public:
     // Rounding counter storage size up to the power of two allows for using
     // bit shifts calculating particular counter's Index and offset.
     const uptr CounterSizeBits =
-        roundUpToPowerOfTwo(getMostSignificantSetBitIndex(MaxValue) + 1);
+        roundUpPowerOfTwo(getMostSignificantSetBitIndex(MaxValue) + 1);
     DCHECK_LE(CounterSizeBits, MaxCounterBits);
     CounterSizeBitsLog = getLog2(CounterSizeBits);
     CounterMask = ~(static_cast<uptr>(0)) >> (MaxCounterBits - CounterSizeBits);
@@ -99,7 +105,7 @@ public:
     BitOffsetMask = PackingRatio - 1;
 
     SizePerRegion =
-        roundUpTo(NumCounters, static_cast<uptr>(1U) << PackingRatioLog) >>
+        roundUp(NumCounters, static_cast<uptr>(1U) << PackingRatioLog) >>
         PackingRatioLog;
     BufferSize = SizePerRegion * sizeof(*Buffer) * Regions;
     if (BufferSize <= (StaticBufferCount * sizeof(Buffer[0])) &&
@@ -107,9 +113,15 @@ public:
       Buffer = &StaticBuffer[0];
       memset(Buffer, 0, BufferSize);
     } else {
+      // When using a heap-based buffer, precommit the pages backing the
+      // Vmar by passing |MAP_PRECOMMIT| flag. This allows an optimization
+      // where page fault exceptions are skipped as the allocated memory
+      // is accessed.
+      const uptr MmapFlags =
+          MAP_ALLOWNOMEM | (SCUDO_FUCHSIA ? MAP_PRECOMMIT : 0);
       Buffer = reinterpret_cast<uptr *>(
-          map(nullptr, roundUpTo(BufferSize, getPageSizeCached()),
-              "scudo:counters", MAP_ALLOWNOMEM, &MapData));
+          map(nullptr, roundUp(BufferSize, getPageSizeCached()),
+              "scudo:counters", MmapFlags, &MapData));
     }
   }
 
@@ -175,7 +187,7 @@ private:
   [[no_unique_address]] MapPlatformData MapData = {};
 
   static HybridMutex Mutex;
-  static uptr StaticBuffer[StaticBufferCount];
+  static uptr StaticBuffer[StaticBufferCount] GUARDED_BY(Mutex);
 };
 
 template <class ReleaseRecorderT> class FreePagesRangeTracker {
@@ -254,7 +266,7 @@ struct PageReleaseContext {
       }
     }
 
-    PagesCount = roundUpTo(RegionSize, PageSize) / PageSize;
+    PagesCount = roundUp(RegionSize, PageSize) / PageSize;
     PageSizeLog = getLog2(PageSize);
     RoundedRegionSize = PagesCount << PageSizeLog;
     RoundedSize = NumberOfRegions * RoundedRegionSize;

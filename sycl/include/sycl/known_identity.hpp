@@ -63,6 +63,11 @@ using IsLogicalOR =
     bool_constant<std::is_same<BinaryOperation, sycl::logical_or<T>>::value ||
                   std::is_same<BinaryOperation, sycl::logical_or<void>>::value>;
 
+template <typename T>
+using isComplex =
+    bool_constant<std::is_same<T, std::complex<float>>::value ||
+                  std::is_same<T, std::complex<double>>::value>;
+
 // Identity = 0
 template <typename T, class BinaryOperation>
 using IsZeroIdentityOp =
@@ -70,7 +75,10 @@ using IsZeroIdentityOp =
                    (IsPlus<T, BinaryOperation>::value ||
                     IsBitOR<T, BinaryOperation>::value ||
                     IsBitXOR<T, BinaryOperation>::value)) ||
-                  (is_genfloat<T>::value && IsPlus<T, BinaryOperation>::value)>;
+                  (is_genfloat<T>::value &&
+                    IsPlus<T, BinaryOperation>::value) ||
+                  (isComplex<T>::value &&
+                    IsPlus<T, BinaryOperation>::value)>;
 
 // Identity = 1
 template <typename T, class BinaryOperation>
@@ -129,7 +137,7 @@ struct known_identity_impl<
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(0);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -178,7 +186,7 @@ struct known_identity_impl<
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(1);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -218,7 +226,7 @@ struct known_identity_impl<
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(-1LL);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -249,7 +257,7 @@ struct known_identity_impl<BinaryOperation, AccumulatorT,
           : (std::numeric_limits<AccumulatorT>::max)());
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -287,7 +295,7 @@ struct known_identity_impl<BinaryOperation, AccumulatorT,
           : std::numeric_limits<AccumulatorT>::lowest());
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -324,7 +332,7 @@ struct known_identity_impl<
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(false);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -352,7 +360,7 @@ struct known_identity_impl<
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(true);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename BinaryOperation, int NumElements>
 struct known_identity_impl<
     BinaryOperation, vec<std::byte, NumElements>,
@@ -381,7 +389,7 @@ struct has_known_identity
                                       std::decay_t<AccumulatorT>> {};
 
 template <typename BinaryOperation, typename AccumulatorT>
-__SYCL_INLINE_CONSTEXPR bool has_known_identity_v =
+inline constexpr bool has_known_identity_v =
     sycl::has_known_identity<BinaryOperation, AccumulatorT>::value;
 
 // ---- known_identity
@@ -391,7 +399,7 @@ struct known_identity
                                   std::decay_t<AccumulatorT>> {};
 
 template <typename BinaryOperation, typename AccumulatorT>
-__SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
+inline constexpr AccumulatorT known_identity_v =
     sycl::known_identity<BinaryOperation, AccumulatorT>::value;
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

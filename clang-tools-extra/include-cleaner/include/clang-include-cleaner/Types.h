@@ -24,7 +24,12 @@
 
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Tooling/Inclusions/StandardLibrary.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringMap.h"
 #include <memory>
+#include <utility>
 #include <vector>
 
 namespace llvm {
@@ -67,7 +72,11 @@ private:
   // Order must match Kind enum!
   std::variant<const Decl *, struct Macro> Storage;
 
-  Symbol(decltype(Storage) Sentinel) : Storage(std::move(Sentinel)) {}
+  // Disambiguation tag to make sure we can call the right constructor from
+  // DenseMapInfo methods.
+  struct SentinelTag {};
+  Symbol(SentinelTag, decltype(Storage) Sentinel)
+      : Storage(std::move(Sentinel)) {}
   friend llvm::DenseMapInfo<Symbol>;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Symbol &);
@@ -113,6 +122,7 @@ struct Header {
 
   Kind kind() const { return static_cast<Kind>(Storage.index()); }
   bool operator==(const Header &RHS) const { return Storage == RHS.Storage; }
+  bool operator<(const Header &RHS) const;
 
   const FileEntry *physical() const { return std::get<Physical>(Storage); }
   tooling::stdlib::Header standard() const {
@@ -123,6 +133,13 @@ struct Header {
 private:
   // Order must match Kind enum!
   std::variant<const FileEntry *, tooling::stdlib::Header, StringRef> Storage;
+
+  // Disambiguation tag to make sure we can call the right constructor from
+  // DenseMapInfo methods.
+  struct SentinelTag {};
+  Header(SentinelTag, decltype(Storage) Sentinel)
+      : Storage(std::move(Sentinel)) {}
+  friend llvm::DenseMapInfo<Header>;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Header &);
 
@@ -133,8 +150,37 @@ struct Include {
                                        // nullptr if the header was not found
   SourceLocation HashLocation;         // of hash in #include <vector>
   unsigned Line = 0;                   // 1-based line number for #include
+  bool Angled = false;                 // True if spelled with <angle> quotes.
+  std::string quote() const;           // e.g. <vector>
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Include &);
+
+/// A container for all includes present in a file.
+/// Supports efficiently hit-testing Headers against Includes.
+class Includes {
+public:
+  void add(const Include &);
+
+  /// All #includes seen, in the order they appear.
+  llvm::ArrayRef<Include> all() const { return All; }
+
+  /// Determine #includes that match a header (that provides a used symbol).
+  ///
+  /// Matching is based on the type of Header specified:
+  ///  - for a physical file like /path/to/foo.h, we check Resolved
+  ///  - for a logical file like <vector>, we check Spelled
+  llvm::SmallVector<const Include *> match(Header H) const;
+
+  /// Finds the include written on the specified line.
+  const Include *atLine(unsigned OneBasedIndex) const;
+
+private:
+  std::vector<Include> All;
+  // Lookup structures for match(), values are index into All.
+  llvm::StringMap<llvm::SmallVector<unsigned>> BySpelling;
+  llvm::DenseMap<const FileEntry *, llvm::SmallVector<unsigned>> ByFile;
+  llvm::DenseMap<unsigned, unsigned> ByLine;
+};
 
 } // namespace include_cleaner
 } // namespace clang
@@ -145,8 +191,12 @@ template <> struct DenseMapInfo<clang::include_cleaner::Symbol> {
   using Outer = clang::include_cleaner::Symbol;
   using Base = DenseMapInfo<decltype(Outer::Storage)>;
 
-  static inline Outer getEmptyKey() { return {Base::getEmptyKey()}; }
-  static inline Outer getTombstoneKey() { return {Base::getTombstoneKey()}; }
+  static inline Outer getEmptyKey() {
+    return {Outer::SentinelTag{}, Base::getEmptyKey()};
+  }
+  static inline Outer getTombstoneKey() {
+    return {Outer::SentinelTag{}, Base::getTombstoneKey()};
+  }
   static unsigned getHashValue(const Outer &Val) {
     return Base::getHashValue(Val.Storage);
   }
@@ -167,6 +217,23 @@ template <> struct DenseMapInfo<clang::include_cleaner::Macro> {
   }
   static bool isEqual(const Outer &LHS, const Outer &RHS) {
     return Base::isEqual(LHS.Definition, RHS.Definition);
+  }
+};
+template <> struct DenseMapInfo<clang::include_cleaner::Header> {
+  using Outer = clang::include_cleaner::Header;
+  using Base = DenseMapInfo<decltype(Outer::Storage)>;
+
+  static inline Outer getEmptyKey() {
+    return {Outer::SentinelTag{}, Base::getEmptyKey()};
+  }
+  static inline Outer getTombstoneKey() {
+    return {Outer::SentinelTag{}, Base::getTombstoneKey()};
+  }
+  static unsigned getHashValue(const Outer &Val) {
+    return Base::getHashValue(Val.Storage);
+  }
+  static bool isEqual(const Outer &LHS, const Outer &RHS) {
+    return Base::isEqual(LHS.Storage, RHS.Storage);
   }
 };
 } // namespace llvm

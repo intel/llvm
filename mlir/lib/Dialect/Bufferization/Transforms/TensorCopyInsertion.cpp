@@ -97,7 +97,8 @@ resolveUsesInRepetitiveRegions(Operation *op,
 }
 
 LogicalResult mlir::bufferization::insertTensorCopies(
-    Operation *op, const OneShotBufferizationOptions &options) {
+    Operation *op, const OneShotBufferizationOptions &options,
+    BufferizationStatistics *statistics) {
   // Preprocessing: Resolve currently unsupported bufferization cases.
   resolveUsesInRepetitiveRegions(op, options);
 
@@ -106,10 +107,10 @@ LogicalResult mlir::bufferization::insertTensorCopies(
   // analysis depending on whether function boundary bufferization is enabled or
   // not.
   if (options.bufferizeFunctionBoundaries) {
-    if (failed(analyzeModuleOp(cast<ModuleOp>(op), state)))
+    if (failed(analyzeModuleOp(cast<ModuleOp>(op), state, statistics)))
       return failure();
   } else {
-    if (failed(analyzeOp(op, state)))
+    if (failed(analyzeOp(op, state, statistics)))
       return failure();
   }
 
@@ -160,46 +161,4 @@ mlir::bufferization::insertTensorCopies(Operation *op,
   });
 
   return failure(result.wasInterrupted());
-}
-
-namespace {
-struct TensorCopyInsertionPass
-    : public bufferization::impl::TensorCopyInsertionBase<
-          TensorCopyInsertionPass> {
-  TensorCopyInsertionPass() : options(llvm::None) {}
-  TensorCopyInsertionPass(const OneShotBufferizationOptions &options)
-      : options(options) {}
-
-  void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<bufferization::BufferizationDialect>();
-  }
-
-  void runOnOperation() override {
-    if (options) {
-      if (failed(insertTensorCopies(getOperation(), *options)))
-        signalPassFailure();
-    } else {
-      OneShotBufferizationOptions options;
-      options.allowReturnAllocs = allowReturnAllocs;
-      options.bufferizeFunctionBoundaries = bufferizeFunctionBoundaries;
-      options.createDeallocs = createDeallocs;
-      if (mustInferMemorySpace)
-        options.defaultMemorySpace = None;
-      if (failed(insertTensorCopies(getOperation(), options)))
-        signalPassFailure();
-    }
-  }
-
-private:
-  Optional<OneShotBufferizationOptions> options;
-};
-} // namespace
-
-std::unique_ptr<Pass> mlir::bufferization::createTensorCopyInsertionPass() {
-  return std::make_unique<TensorCopyInsertionPass>();
-}
-
-std::unique_ptr<Pass> mlir::bufferization::createTensorCopyInsertionPass(
-    const OneShotBufferizationOptions &options) {
-  return std::make_unique<TensorCopyInsertionPass>(options);
 }

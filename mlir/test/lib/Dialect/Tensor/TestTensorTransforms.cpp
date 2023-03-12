@@ -65,14 +65,51 @@ struct TestTensorTransforms
                      "with loop nest"),
       llvm::cl::init(false)};
 
+  Option<bool> testReassociativeReshapeFolding{
+      *this, "test-reassociative-reshape-folding",
+      llvm::cl::desc("Test folding of expand_shape/collapse_shape"),
+      llvm::cl::init(false)};
+
+  Option<bool> testEmptyOpFolding{
+      *this, "test-empty-op-folding",
+      llvm::cl::desc("Test folding of tensor.empty"), llvm::cl::init(false)};
+
+  Option<bool> testFoldIntoPackAndUnpack{
+      *this, "test-fold-into-pack-and-unpack",
+      llvm::cl::desc("Test folding ops into tensor.pack and tensor.unpack"),
+      llvm::cl::init(false)};
+
   Option<bool> useForeach{
       *this, "use-foreach",
       llvm::cl::desc(
-          "Use the scf.foreach_thread operation when generating loop nests for "
+          "Use the scf.forall operation when generating loop nests for "
           "the extract_slice of collapse_shape pattern"),
+      llvm::cl::init(false)};
+
+  Option<bool> testSimplifyPackPatterns{
+      *this, "test-simplify-pack-patterns",
+      llvm::cl::desc("Test patterns to simplify tensor.pack"),
       llvm::cl::init(false)};
 };
 } // namespace
+
+static void applyReassociativeReshapeFoldingPatterns(Operation *rootOp) {
+  RewritePatternSet patterns(rootOp->getContext());
+  tensor::populateReassociativeReshapeFoldingPatterns(patterns);
+  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+}
+
+static void applyEmptyOpFoldingPatterns(Operation *rootOp) {
+  RewritePatternSet patterns(rootOp->getContext());
+  tensor::populateFoldTensorEmptyPatterns(patterns);
+  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+}
+
+static void applyFoldIntoPackAndUnpackPatterns(Operation *rootOp) {
+  RewritePatternSet patterns(rootOp->getContext());
+  tensor::populateFoldIntoPackAndUnpackPatterns(patterns);
+  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+}
 
 static void applySplitPaddingPatterns(Operation *rootOp) {
   RewritePatternSet patterns(rootOp->getContext());
@@ -99,6 +136,12 @@ static void applyFoldConstantExtractSlicePatterns(Operation *rootOp) {
 static void applyFoldConsecutiveInsertExtractSlicePatterns(Operation *rootOp) {
   RewritePatternSet patterns(rootOp->getContext());
   tensor::populateMergeConsecutiveInsertExtractSlicePatterns(patterns);
+  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+}
+
+static void applySimplifyPackPatterns(Operation *rootOp) {
+  RewritePatternSet patterns(rootOp->getContext());
+  tensor::populateSimplifyTensorPack(patterns);
   (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
 }
 
@@ -179,12 +222,6 @@ struct RewriteExtractSliceFromCollapseShapeUsingScfFor
     SmallVector<Value> lbs(numTiledDims, zero);
     SmallVector<Value> steps(numTiledDims, one);
 
-    // Below, we pass out the result of the loop body builder lambda via the
-    // `insertResult` variable. In certain cases, no loops will be created, but
-    // the body builder will still execute. In this case, the results will not
-    // be passed to the LoopNest object.
-    // TODO: remove this workaround if `scf::buildLoopNest` behavior is updated.
-    Value insertResult = nullptr;
     scf::LoopNest nest = scf::buildLoopNest(
         rewriter, loc, lbs, helper.getIterationSpaceSizes(), steps, dest,
         [&](OpBuilder &nestedBuilder, Location loc, ValueRange outputIvs,
@@ -193,15 +230,10 @@ struct RewriteExtractSliceFromCollapseShapeUsingScfFor
               helper.emitLoopNestBody(nestedBuilder, loc, outputIvs);
 
           // Insert the slice into the destination.
-          insertResult = nestedBuilder.create<tensor::InsertSliceOp>(
-              loc, tile, iterArgs[0], insertParams);
-          return {insertResult};
+          return {nestedBuilder.create<tensor::InsertSliceOp>(
+              loc, tile, iterArgs[0], insertParams)};
         });
-
-    if (!nest.loops.empty())
-      rewriter.replaceOp(op, nest.getResults());
-    else
-      rewriter.replaceOp(op, insertResult);
+    rewriter.replaceOp(op, nest.results);
 
     return success();
   }
@@ -215,9 +247,10 @@ struct RewriteExtractSliceFromCollapseShapeUsingScfForeach
                                 tensor::ExtractSliceFromCollapseHelper &helper,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    auto foreachOp = rewriter.create<scf::ForeachThreadOp>(
-        loc, /*outputs=*/dest, /*numThreads=*/helper.getIterationSpaceSizes(),
-        /*mapping=*/ArrayRef<Attribute>{},
+    auto forallOp = rewriter.create<scf::ForallOp>(
+        loc, /*numThreads=*/getAsOpFoldResult(helper.getIterationSpaceSizes()),
+        /*outputs=*/dest,
+        /*mapping=*/std::nullopt,
         [&](OpBuilder &nestedBuilder, Location loc, ValueRange regionArgs) {
           unsigned numThreadIdRegionArgs =
               helper.getIterationSpaceSizes().size();
@@ -230,12 +263,12 @@ struct RewriteExtractSliceFromCollapseShapeUsingScfForeach
           auto [tile, insertParams] =
               helper.emitLoopNestBody(nestedBuilder, loc, outputIvs);
           // Insert the slice into the destination.
-          auto term = nestedBuilder.create<scf::PerformConcurrentlyOp>(loc);
+          auto term = nestedBuilder.create<scf::InParallelOp>(loc);
           nestedBuilder.setInsertionPointToStart(term.getBody());
           nestedBuilder.create<tensor::ParallelInsertSliceOp>(
               loc, tile, outputArgs[0], insertParams);
         });
-    rewriter.replaceOp(op, foreachOp->getResult(0));
+    rewriter.replaceOp(op, forallOp->getResult(0));
     return success();
   }
 };
@@ -256,12 +289,20 @@ applyRewriteExtractFromCollapseShapePatterns(Operation *rootOp,
 
 void TestTensorTransforms::runOnOperation() {
   Operation *rootOp = getOperation();
+  if (testSimplifyPackPatterns)
+    applySimplifyPackPatterns(rootOp);
   if (testSplitPaddingPatterns)
     applySplitPaddingPatterns(rootOp);
   if (testFoldConstantExtractSlice)
     applyFoldConstantExtractSlicePatterns(rootOp);
   if (testFoldConsecutiveInsertExtractSlice)
     applyFoldConsecutiveInsertExtractSlicePatterns(rootOp);
+  if (testReassociativeReshapeFolding)
+    applyReassociativeReshapeFoldingPatterns(rootOp);
+  if (testEmptyOpFolding)
+    applyEmptyOpFoldingPatterns(rootOp);
+  if (testFoldIntoPackAndUnpack)
+    applyFoldIntoPackAndUnpackPatterns(rootOp);
   if (testRewriteExtractSliceWithTiledCollapseShape) {
     if (failed(
             applyRewriteExtractFromCollapseShapePatterns(rootOp, useForeach)))

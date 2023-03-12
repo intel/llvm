@@ -21,7 +21,6 @@ include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpAsmInterface.td"
-include "mlir/IR/SubElementInterfaces.td"
 
 // All of the attributes will extend this class.
 class Test_Attr<string name, list<Trait> traits = []>
@@ -120,9 +119,7 @@ def TestI64ElementsAttr : Test_Attr<"TestI64Elements", [
   let hasCustomAssemblyFormat = 1;
 }
 
-def TestSubElementsAccessAttr : Test_Attr<"TestSubElementsAccess", [
-    SubElementAttrInterface
-  ]> {
+def TestSubElementsAccessAttr : Test_Attr<"TestSubElementsAccess"> {
   let mnemonic = "sub_elements_access";
 
   let parameters = (ins
@@ -202,13 +199,13 @@ def TestAttrWithFormat : Test_Attr<"TestAttrWithFormat"> {
 }
 
 def TestAttrWithOptionalSigned : Test_Attr<"TestAttrWithOptionalSigned"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<int64_t>">:$value);
+  let parameters = (ins OptionalParameter<"std::optional<int64_t>">:$value);
   let assemblyFormat = "`<` $value `>`";
   let mnemonic = "attr_with_optional_signed";
 }
 
 def TestAttrWithOptionalUnsigned : Test_Attr<"TestAttrWithOptionalUnsigned"> {
-  let parameters = (ins OptionalParameter<"mlir::Optional<uint64_t>">:$value);
+  let parameters = (ins OptionalParameter<"std::optional<uint64_t>">:$value);
   let assemblyFormat = "`<` $value `>`";
   let mnemonic = "attr_with_optional_unsigned";
 }
@@ -310,9 +307,9 @@ def TestArrayOfEnums : ArrayOfAttr<Test_Dialect, "ArrayOfEnums",
 
 // Test custom directive as optional group anchor.
 def TestCustomAnchor : Test_Attr<"TestCustomAnchor"> {
-  let parameters = (ins "int":$a, OptionalParameter<"mlir::Optional<int>">:$b);
+  let parameters = (ins "int":$a, OptionalParameter<"std::optional<int>">:$b);
   let mnemonic = "custom_anchor";
-  let assemblyFormat = "`<` $a (`>`) : (`,` ` ` custom<TrueFalse>($b)^ `>`)?";
+  let assemblyFormat = "`<` $a (`>`) : (`,` custom<TrueFalse>($b)^ `>`)?";
 }
 
 def Test_IteratorTypeEnum

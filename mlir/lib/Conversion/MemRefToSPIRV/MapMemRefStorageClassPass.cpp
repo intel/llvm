@@ -56,7 +56,7 @@ using namespace mlir;
   MAP_FN(spirv::StorageClass::Input, 9)                                        \
   MAP_FN(spirv::StorageClass::Output, 10)
 
-Optional<spirv::StorageClass>
+std::optional<spirv::StorageClass>
 spirv::mapMemorySpaceToVulkanStorageClass(Attribute memorySpaceAttr) {
   // Handle null memory space attribute specially.
   if (!memorySpaceAttr)
@@ -66,7 +66,7 @@ spirv::mapMemorySpaceToVulkanStorageClass(Attribute memorySpaceAttr) {
   // Downstream callers should plug in more specialized ones.
   auto intAttr = memorySpaceAttr.dyn_cast<IntegerAttr>();
   if (!intAttr)
-    return llvm::None;
+    return std::nullopt;
   unsigned memorySpace = intAttr.getInt();
 
 #define STORAGE_SPACE_MAP_FN(storage, space)                                   \
@@ -78,12 +78,12 @@ spirv::mapMemorySpaceToVulkanStorageClass(Attribute memorySpaceAttr) {
   default:
     break;
   }
-  return llvm::None;
+  return std::nullopt;
 
 #undef STORAGE_SPACE_MAP_FN
 }
 
-Optional<unsigned>
+std::optional<unsigned>
 spirv::mapVulkanStorageClassToMemorySpace(spirv::StorageClass storageClass) {
 #define STORAGE_SPACE_MAP_FN(storage, space)                                   \
   case storage:                                                                \
@@ -94,7 +94,7 @@ spirv::mapVulkanStorageClassToMemorySpace(spirv::StorageClass storageClass) {
   default:
     break;
   }
-  return llvm::None;
+  return std::nullopt;
 
 #undef STORAGE_SPACE_MAP_FN
 }
@@ -110,7 +110,7 @@ spirv::mapVulkanStorageClassToMemorySpace(spirv::StorageClass storageClass) {
   MAP_FN(spirv::StorageClass::Function, 6)                                     \
   MAP_FN(spirv::StorageClass::Image, 7)
 
-Optional<spirv::StorageClass>
+std::optional<spirv::StorageClass>
 spirv::mapMemorySpaceToOpenCLStorageClass(Attribute memorySpaceAttr) {
   // Handle null memory space attribute specially.
   if (!memorySpaceAttr)
@@ -120,7 +120,7 @@ spirv::mapMemorySpaceToOpenCLStorageClass(Attribute memorySpaceAttr) {
   // Downstream callers should plug in more specialized ones.
   auto intAttr = memorySpaceAttr.dyn_cast<IntegerAttr>();
   if (!intAttr)
-    return llvm::None;
+    return std::nullopt;
   unsigned memorySpace = intAttr.getInt();
 
 #define STORAGE_SPACE_MAP_FN(storage, space)                                   \
@@ -132,12 +132,12 @@ spirv::mapMemorySpaceToOpenCLStorageClass(Attribute memorySpaceAttr) {
   default:
     break;
   }
-  return llvm::None;
+  return std::nullopt;
 
 #undef STORAGE_SPACE_MAP_FN
 }
 
-Optional<unsigned>
+std::optional<unsigned>
 spirv::mapOpenCLStorageClassToMemorySpace(spirv::StorageClass storageClass) {
 #define STORAGE_SPACE_MAP_FN(storage, space)                                   \
   case storage:                                                                \
@@ -148,7 +148,7 @@ spirv::mapOpenCLStorageClassToMemorySpace(spirv::StorageClass storageClass) {
   default:
     break;
   }
-  return llvm::None;
+  return std::nullopt;
 
 #undef STORAGE_SPACE_MAP_FN
 }
@@ -165,14 +165,14 @@ spirv::MemorySpaceToStorageClassConverter::MemorySpaceToStorageClassConverter(
   // Pass through for all other types.
   addConversion([](Type type) { return type; });
 
-  addConversion([this](BaseMemRefType memRefType) -> Optional<Type> {
-    Optional<spirv::StorageClass> storage =
+  addConversion([this](BaseMemRefType memRefType) -> std::optional<Type> {
+    std::optional<spirv::StorageClass> storage =
         this->memorySpaceMap(memRefType.getMemorySpace());
     if (!storage) {
       LLVM_DEBUG(llvm::dbgs()
                  << "cannot convert " << memRefType
                  << " due to being unable to find memory space in map\n");
-      return llvm::None;
+      return std::nullopt;
     }
 
     auto storageAttr =
@@ -222,7 +222,9 @@ static bool isLegalAttr(Attribute attr) {
 static bool isLegalOp(Operation *op) {
   if (auto funcOp = dyn_cast<FunctionOpInterface>(op)) {
     return llvm::all_of(funcOp.getArgumentTypes(), isLegalType) &&
-           llvm::all_of(funcOp.getResultTypes(), isLegalType);
+           llvm::all_of(funcOp.getResultTypes(), isLegalType) &&
+           llvm::all_of(funcOp.getFunctionBody().getArgumentTypes(),
+                        isLegalType);
   }
 
   auto attrs = llvm::map_range(op->getAttrs(), [](const NamedAttribute &attr) {

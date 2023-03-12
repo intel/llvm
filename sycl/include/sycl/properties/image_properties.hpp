@@ -14,8 +14,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace property {
-namespace image {
+namespace property::image {
 class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
 };
 
@@ -39,8 +38,7 @@ public:
 private:
   sycl::context MCtx;
 };
-} // namespace image
-} // namespace property
+} // namespace property::image
 
 // Forward declaration
 template <int Dimensions, typename AllocatorT> class image;

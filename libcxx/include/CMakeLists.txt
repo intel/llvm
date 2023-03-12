@@ -9,6 +9,7 @@ set(files
   __algorithm/copy.h
   __algorithm/copy_backward.h
   __algorithm/copy_if.h
+  __algorithm/copy_move_common.h
   __algorithm/copy_n.h
   __algorithm/count.h
   __algorithm/count_if.h
@@ -43,6 +44,7 @@ set(files
   __algorithm/iter_swap.h
   __algorithm/iterator_operations.h
   __algorithm/lexicographical_compare.h
+  __algorithm/lexicographical_compare_three_way.h
   __algorithm/lower_bound.h
   __algorithm/make_heap.h
   __algorithm/make_projected.h
@@ -182,6 +184,7 @@ set(files
   __algorithm/stable_partition.h
   __algorithm/stable_sort.h
   __algorithm/swap_ranges.h
+  __algorithm/three_way_comp_ref_type.h
   __algorithm/transform.h
   __algorithm/uniform_random_bit_generator_adaptor.h
   __algorithm/unique.h
@@ -190,11 +193,35 @@ set(files
   __algorithm/unwrap_range.h
   __algorithm/upper_bound.h
   __assert
+  __atomic/aliases.h
+  __atomic/atomic.h
+  __atomic/atomic_base.h
+  __atomic/atomic_flag.h
+  __atomic/atomic_init.h
+  __atomic/atomic_lock_free.h
+  __atomic/atomic_sync.h
+  __atomic/check_memory_order.h
+  __atomic/contention_t.h
+  __atomic/cxx_atomic_impl.h
+  __atomic/fence.h
+  __atomic/is_always_lock_free.h
+  __atomic/kill_dependency.h
+  __atomic/memory_order.h
   __availability
   __bit/bit_cast.h
+  __bit/bit_ceil.h
+  __bit/bit_floor.h
+  __bit/bit_log2.h
+  __bit/bit_width.h
+  __bit/blsr.h
   __bit/byteswap.h
+  __bit/countl.h
+  __bit/countr.h
+  __bit/endian.h
+  __bit/has_single_bit.h
+  __bit/popcount.h
+  __bit/rotate.h
   __bit_reference
-  __bits
   __bsd_locale_defaults.h
   __bsd_locale_fallbacks.h
   __charconv/chars_format.h
@@ -203,6 +230,7 @@ set(files
   __charconv/to_chars_base_10.h
   __charconv/to_chars_result.h
   __chrono/calendar.h
+  __chrono/concepts.h
   __chrono/convert_to_timespec.h
   __chrono/convert_to_tm.h
   __chrono/day.h
@@ -269,6 +297,10 @@ set(files
   __debug
   __debug_utils/randomize_range.h
   __errc
+  __expected/bad_expected_access.h
+  __expected/expected.h
+  __expected/unexpect.h
+  __expected/unexpected.h
   __filesystem/copy_options.h
   __filesystem/directory_entry.h
   __filesystem/directory_iterator.h
@@ -287,6 +319,7 @@ set(files
   __filesystem/u8path.h
   __format/buffer.h
   __format/concepts.h
+  __format/container_adaptor.h
   __format/enable_insertable.h
   __format/escaped_output_table.h
   __format/extended_grapheme_cluster_table.h
@@ -309,7 +342,10 @@ set(files
   __format/formatter_output.h
   __format/formatter_pointer.h
   __format/formatter_string.h
+  __format/formatter_tuple.h
   __format/parser_std_format_spec.h
+  __format/range_default_formatter.h
+  __format/range_formatter.h
   __format/unicode.h
   __functional/binary_function.h
   __functional/binary_negate.h
@@ -347,6 +383,7 @@ set(files
   __fwd/span.h
   __fwd/string.h
   __fwd/string_view.h
+  __fwd/subrange.h
   __fwd/tuple.h
   __hash_table
   __ios/fpos.h
@@ -372,6 +409,7 @@ set(files
   __iterator/iter_swap.h
   __iterator/iterator.h
   __iterator/iterator_traits.h
+  __iterator/iterator_with_data.h
   __iterator/mergeable.h
   __iterator/move_iterator.h
   __iterator/move_sentinel.h
@@ -384,6 +422,7 @@ set(files
   __iterator/readable_traits.h
   __iterator/reverse_access.h
   __iterator/reverse_iterator.h
+  __iterator/segmented_iterator.h
   __iterator/size.h
   __iterator/sortable.h
   __iterator/unreachable_sentinel.h
@@ -392,6 +431,7 @@ set(files
   __mbstate_t.h
   __memory/addressof.h
   __memory/align.h
+  __memory/aligned_alloc.h
   __memory/allocate_at_least.h
   __memory/allocation_guard.h
   __memory/allocator.h
@@ -478,6 +518,7 @@ set(files
   __random/weibull_distribution.h
   __ranges/access.h
   __ranges/all.h
+  __ranges/as_rvalue_view.h
   __ranges/common_view.h
   __ranges/concepts.h
   __ranges/copyable_box.h
@@ -486,6 +527,7 @@ set(files
   __ranges/data.h
   __ranges/drop_view.h
   __ranges/drop_while_view.h
+  __ranges/elements_view.h
   __ranges/empty.h
   __ranges/empty_view.h
   __ranges/enable_borrowed_range.h
@@ -504,6 +546,7 @@ set(files
   __ranges/reverse_view.h
   __ranges/single_view.h
   __ranges/size.h
+  __ranges/split_view.h
   __ranges/subrange.h
   __ranges/take_view.h
   __ranges/take_while_view.h
@@ -535,14 +578,16 @@ set(files
   __thread/timed_backoff_policy.h
   __threading_support
   __tree
-  __tuple/apply_cv.h
-  __tuple/make_tuple_types.h
-  __tuple/sfinae_helpers.h
-  __tuple/tuple_element.h
-  __tuple/tuple_indices.h
-  __tuple/tuple_like.h
-  __tuple/tuple_size.h
-  __tuple/tuple_types.h
+  __tuple_dir/apply_cv.h
+  __tuple_dir/make_tuple_types.h
+  __tuple_dir/pair_like.h
+  __tuple_dir/sfinae_helpers.h
+  __tuple_dir/tuple_element.h
+  __tuple_dir/tuple_indices.h
+  __tuple_dir/tuple_like.h
+  __tuple_dir/tuple_like_ext.h
+  __tuple_dir/tuple_size.h
+  __tuple_dir/tuple_types.h
   __type_traits/add_const.h
   __type_traits/add_cv.h
   __type_traits/add_lvalue_reference.h
@@ -571,6 +616,7 @@ set(files
   __type_traits/is_abstract.h
   __type_traits/is_aggregate.h
   __type_traits/is_allocator.h
+  __type_traits/is_always_bitcastable.h
   __type_traits/is_arithmetic.h
   __type_traits/is_array.h
   __type_traits/is_assignable.h
@@ -626,6 +672,7 @@ set(files
   __type_traits/is_scoped_enum.h
   __type_traits/is_signed.h
   __type_traits/is_signed_integer.h
+  __type_traits/is_specialization.h
   __type_traits/is_standard_layout.h
   __type_traits/is_swappable.h
   __type_traits/is_trivial.h
@@ -666,6 +713,7 @@ set(files
   __type_traits/remove_reference.h
   __type_traits/remove_volatile.h
   __type_traits/result_of.h
+  __type_traits/strip_signature.h
   __type_traits/type_identity.h
   __type_traits/type_list.h
   __type_traits/underlying_type.h
@@ -676,6 +724,7 @@ set(files
   __utility/cmp.h
   __utility/convert_to_integral.h
   __utility/declval.h
+  __utility/exception_guard.h
   __utility/exchange.h
   __utility/forward.h
   __utility/forward_like.h
@@ -688,7 +737,6 @@ set(files
   __utility/rel_ops.h
   __utility/swap.h
   __utility/to_underlying.h
-  __utility/transaction.h
   __utility/unreachable.h
   __variant/monostate.h
   __verbose_abort
@@ -738,10 +786,10 @@ set(files
   errno.h
   exception
   execution
+  expected
   experimental/__config
   experimental/__memory
   experimental/algorithm
-  experimental/coroutine
   experimental/deque
   experimental/forward_list
   experimental/functional
@@ -805,6 +853,7 @@ set(files
   set
   setjmp.h
   shared_mutex
+  source_location
   span
   sstream
   stack
@@ -878,10 +927,15 @@ if (LIBCXX_INSTALL_HEADERS)
     )
   endforeach()
 
-  # Install the generated __config_site and the generated modulemap file.
+  # Install the generated __config_site file to the per-target include dir.
   install(FILES "${LIBCXX_GENERATED_INCLUDE_TARGET_DIR}/__config_site"
-                "${LIBCXX_GENERATED_INCLUDE_DIR}/module.modulemap"
     DESTINATION "${LIBCXX_INSTALL_INCLUDE_TARGET_DIR}"
+    PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
+    COMPONENT cxx-headers)
+
+  # Install the generated modulemap file to the generic include dir.
+  install(FILES "${LIBCXX_GENERATED_INCLUDE_DIR}/module.modulemap"
+    DESTINATION "${LIBCXX_INSTALL_INCLUDE_DIR}"
     PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
     COMPONENT cxx-headers)
 

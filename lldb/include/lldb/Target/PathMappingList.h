@@ -13,6 +13,7 @@
 #include "lldb/Utility/Status.h"
 #include "llvm/Support/JSON.h"
 #include <map>
+#include <optional>
 #include <vector>
 
 namespace lldb_private {
@@ -81,16 +82,16 @@ public:
   /// \param[in] only_if_exists
   ///     If \b true, besides matching \p path with the remapping rules, this
   ///     tries to check with the filesystem that the remapped file exists. If
-  ///     no valid file is found, \b None is returned. This might be expensive,
-  ///     specially on a network.
+  ///     no valid file is found, \b std::nullopt is returned. This might be
+  ///     expensive, specially on a network.
   ///
   ///     If \b false, then the existence of the returned remapping is not
   ///     checked.
   ///
   /// \return
   ///     The remapped filespec that may or may not exist on disk.
-  llvm::Optional<FileSpec> RemapPath(llvm::StringRef path,
-                                     bool only_if_exists = false) const;
+  std::optional<FileSpec> RemapPath(llvm::StringRef path,
+                                    bool only_if_exists = false) const;
   bool RemapPath(const char *, std::string &) const = delete;
 
   /// Perform reverse source path remap for input \a file.
@@ -104,11 +105,11 @@ public:
   ///     The reversed mapped new path.
   ///
   /// \return
-  ///     llvm::None if no remapping happens, otherwise, the matching source map
-  ///     entry's ""to_new_pathto"" part (which is the prefix of \a file) is
+  ///     std::nullopt if no remapping happens, otherwise, the matching source
+  ///     map entry's ""to_new_pathto"" part (which is the prefix of \a file) is
   ///     returned.
-  llvm::Optional<llvm::StringRef> ReverseRemapPath(const FileSpec &file,
-                                                   FileSpec &fixed) const;
+  std::optional<llvm::StringRef> ReverseRemapPath(const FileSpec &file,
+                                                  FileSpec &fixed) const;
 
   /// Finds a source file given a file spec using the path remappings.
   ///
@@ -123,7 +124,7 @@ public:
   ///
   /// \return
   ///     The newly remapped filespec that is guaranteed to exist.
-  llvm::Optional<FileSpec> FindFile(const FileSpec &orig_spec) const;
+  std::optional<FileSpec> FindFile(const FileSpec &orig_spec) const;
 
   uint32_t FindIndexForPath(llvm::StringRef path) const;
 

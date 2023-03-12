@@ -27,7 +27,7 @@ public:
     // Set the insertion point in the function entry block.
     mlir::ModuleOp mod = builder.create<mlir::ModuleOp>(loc);
     mlir::func::FuncOp func = mlir::func::FuncOp::create(
-        loc, "func1", builder.getFunctionType(llvm::None, llvm::None));
+        loc, "func1", builder.getFunctionType(std::nullopt, std::nullopt));
     auto *entryBlock = func.addEntryBlock();
     mod.push_back(mod);
     builder.setInsertionPointToStart(entryBlock);
@@ -37,7 +37,8 @@ public:
 
   mlir::Value createDeclare(fir::ExtendedValue exv) {
     return hlfir::genDeclare(getLoc(), *firBuilder, exv,
-        "x" + std::to_string(varCounter++), fir::FortranVariableFlagsAttr{});
+        "x" + std::to_string(varCounter++), fir::FortranVariableFlagsAttr{})
+        .getBase();
   }
 
   mlir::Value createConstant(std::int64_t cst) {
