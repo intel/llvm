@@ -523,7 +523,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
 
   let arguments = (ins
     Arg<SYCLMemref, "The SYCL object being created", [MemWrite]>:$Dst,
-    Arg<Variadic<AnyType>, "The constructor arguments", [MemRead]>:$Args,
+    Variadic<AnyType>:$Args,
     FlatSymbolRefAttr:$TypeName,
     FlatSymbolRefAttr:$MangledFunctionName
   );
