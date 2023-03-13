@@ -1079,17 +1079,24 @@ using __sycl_reduction_kernel =
     std::conditional_t<std::is_same<KernelName, auto_name>::value, auto_name,
                        MainOrAux<KernelName, Strategy, Ts...>>;
 
+// Enum for specifying work size guarantees in tree-reduction.
+enum class WorkSizeGuarantees { None, Equal, LessOrEqual };
+
 // Implementations.
 
 template <reduction::strategy> struct NDRangeReduction;
 
 template <>
 struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename KernelType, typename Reduction>
+  template <typename KernelName, WorkSizeGuarantees, int Dims,
+            typename PropertiesT, typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+                  nd_range<Dims> NDRange, size_t, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    static_assert(Reduction::has_identity,
+                  "Identityless reductions are not supported by the "
+                  "local_atomic_and_atomic_cross_wg strategy.");
+
     std::ignore = Queue;
     using Name = __sycl_reduction_kernel<
         reduction::MainKrn, KernelName,
@@ -1132,10 +1139,10 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
 template <>
 struct NDRangeReduction<
     reduction::strategy::group_reduce_and_last_wg_detection> {
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename KernelType, typename Reduction>
+  template <typename KernelName, WorkSizeGuarantees, int Dims,
+            typename PropertiesT, typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+                  nd_range<Dims> NDRange, size_t, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     static_assert(Reduction::has_identity,
                   "Identityless reductions are not supported by the "
@@ -1276,13 +1283,10 @@ void doTreeReductionHelper(size_t WorkSize, size_t LID, FuncTy Func) {
   }
 }
 
-// Enum for specifying work size guarantees in tree-reduction.
-enum class WorkSizeGuarantees { None, Equal, LessOrEqual };
-
 template <WorkSizeGuarantees WSGuarantee, int Dim, typename LocalRedsTy,
           typename BinOpTy, typename AccessFuncTy>
 void doTreeReduction(size_t WorkSize, nd_item<Dim> NDIt, LocalRedsTy &LocalReds,
-                     BinOpTy &BOp, AccessFuncTy AccessFunc) {
+                     const BinOpTy &BOp, AccessFuncTy AccessFunc) {
   size_t LID = NDIt.get_local_linear_id();
   size_t AdjustedWorkSize;
   if constexpr (WSGuarantee == WorkSizeGuarantees::LessOrEqual ||
@@ -1329,15 +1333,19 @@ void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
 }
 
 template <> struct NDRangeReduction<reduction::strategy::range_basic> {
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename KernelType, typename Reduction>
+  template <typename KernelName, WorkSizeGuarantees WSG, int Dims,
+            typename PropertiesT, typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
-                  Reduction &Redu, KernelType &KernelFunc) {
+                  nd_range<Dims> NDRange, size_t ActiveItemsPerWG,
+                  PropertiesT &Properties, Reduction &Redu,
+                  KernelType &KernelFunc) {
     std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
     size_t NWorkGroups = NDRange.get_group_range().size();
+
+    assert((WSG != WorkSizeGuarantees::Equal || ActiveItemsPerWG == WGSize) &&
+           "Work size guarantee violation.");
 
     bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
     auto PartialSums =
@@ -1362,13 +1370,34 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
           typename Reduction::reducer_type(IdentityContainer, BOp);
       KernelFunc(NDId, Reducer);
 
+      size_t GrID = NDId.get_group_linear_id();
+      size_t NWorkGroups = NDId.get_group_range().size();
+
+      size_t RemainingWorkSize = [&]() {
+        if constexpr (WSG == WorkSizeGuarantees::Equal) {
+          // We are guaranteed exactly one element for each work item, so we
+          // can assume that ActiveItemsPerWG is the same as the workgroup
+          // size.
+          return WGSize;
+        } else {
+          // Otherwise we either have the number of active items, except the
+          // last group may have less.
+          if (GrID == NWorkGroups - 1) {
+            size_t TotalWork = NDId.get_global_range().size();
+            return sycl::min(TotalWork - ActiveItemsPerWG * GrID, WGSize);
+          } else {
+            return ActiveItemsPerWG;
+          }
+        }
+      }();
+
       // If there are multiple values, reduce each separately
       // This prevents local memory from scaling with elements
       size_t LID = NDId.get_local_linear_id();
       for (int E = 0; E < NElements; ++E) {
 
-        doTreeReduction<WorkSizeGuarantees::Equal>(
-            WGSize, NDId, LocalReds, BOp,
+        doTreeReduction<WSG>(
+            RemainingWorkSize, NDId, LocalReds, BOp,
             [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
         if (LID == 0) {
@@ -1417,11 +1446,15 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
 
 template <>
 struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename KernelType, typename Reduction>
+  template <typename KernelName, WorkSizeGuarantees, int Dims,
+            typename PropertiesT, typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+                  nd_range<Dims> NDRange, size_t, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    static_assert(Reduction::has_identity,
+                  "Identityless reductions are not supported by the "
+                  "group_reduce_and_atomic_cross_wg strategy.");
+
     std::ignore = Queue;
     using Name = __sycl_reduction_kernel<
         reduction::MainKrn, KernelName,
@@ -1449,11 +1482,12 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
 template <>
 struct NDRangeReduction<
     reduction::strategy::local_mem_tree_and_atomic_cross_wg> {
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename KernelType, typename Reduction>
+  template <typename KernelName, WorkSizeGuarantees WSG, int Dims,
+            typename PropertiesT, typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
-                  Reduction &Redu, KernelType &KernelFunc) {
+                  nd_range<Dims> NDRange, size_t ActiveItemsPerWG,
+                  PropertiesT &Properties, Reduction &Redu,
+                  KernelType &KernelFunc) {
     std::ignore = Queue;
     using Name = __sycl_reduction_kernel<
         reduction::MainKrn, KernelName,
@@ -1461,6 +1495,9 @@ struct NDRangeReduction<
     Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
       size_t NElements = Reduction::num_elements;
       size_t WGSize = NDRange.get_local_range().size();
+
+      assert((WSG != WorkSizeGuarantees::Equal || ActiveItemsPerWG == WGSize) &&
+             "Work size guarantee violation.");
 
       // Use local memory to reduce elements in work-groups into zero-th
       // element.
@@ -1473,14 +1510,34 @@ struct NDRangeReduction<
 
         size_t WGSize = NDIt.get_local_range().size();
         size_t LID = NDIt.get_local_linear_id();
+        size_t GrID = NDIt.get_group_linear_id();
+        size_t NWorkGroups = NDIt.get_group_range().size();
+
+        size_t RemainingWorkSize = [&]() {
+          if constexpr (WSG == WorkSizeGuarantees::Equal) {
+            // We are guaranteed exactly one element for each work item, so we
+            // can assume that ActiveItemsPerWG is the same as the workgroup
+            // size.
+            return WGSize;
+          } else {
+            // Otherwise we either have the number of active items, except the
+            // last group may have less.
+            if (GrID == NWorkGroups - 1) {
+              size_t TotalWork = NDIt.get_global_range().size();
+              return sycl::min(TotalWork - ActiveItemsPerWG * GrID, WGSize);
+            } else {
+              return ActiveItemsPerWG;
+            }
+          }
+        }();
 
         // If there are multiple values, reduce each separately
         // This prevents local memory from scaling with elements
         for (int E = 0; E < NElements; ++E) {
 
           typename Reduction::binary_operation BOp;
-          doTreeReduction<WorkSizeGuarantees::Equal>(
-              WGSize, NDIt, LocalReds, BOp,
+          doTreeReduction<WSG>(
+              RemainingWorkSize, NDIt, LocalReds, BOp,
               [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
           if (LID == 0)
@@ -1503,11 +1560,15 @@ struct NDRangeReduction<
 template <>
 struct NDRangeReduction<
     reduction::strategy::group_reduce_and_multiple_kernels> {
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename KernelType, typename Reduction>
+  template <typename KernelName, WorkSizeGuarantees, int Dims,
+            typename PropertiesT, typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
+                  nd_range<Dims> NDRange, size_t, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    static_assert(Reduction::has_identity,
+                  "Identityless reductions are not supported by the "
+                  "group_reduce_and_multiple_kernels strategy.");
+
     // Before running the kernels, check that device has enough local memory
     // to hold local arrays that may be required for the reduction algorithm.
     // TODO: If the work-group-size is limited by the local memory, then
@@ -1637,11 +1698,12 @@ struct NDRangeReduction<
 };
 
 template <> struct NDRangeReduction<reduction::strategy::basic> {
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename KernelType, typename Reduction>
+  template <typename KernelName, WorkSizeGuarantees WSG, int Dims,
+            typename PropertiesT, typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
-                  Reduction &Redu, KernelType &KernelFunc) {
+                  nd_range<Dims> NDRange, size_t ActiveItemsPerWG,
+                  PropertiesT &Properties, Reduction &Redu,
+                  KernelType &KernelFunc) {
     constexpr bool HFR = Reduction::has_fast_reduce;
     size_t OneElemSize = HFR ? 0 : sizeof(typename Reduction::result_type);
     // TODO: currently the maximal work group size is determined for the given
@@ -1659,6 +1721,9 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
     size_t WGSize = NDRange.get_local_range().size();
     size_t NWorkGroups = NDRange.get_group_range().size();
     auto Out = Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
+
+    assert((WSG != WorkSizeGuarantees::Equal || ActiveItemsPerWG == WGSize) &&
+           "Work size guarantee violation.");
 
     bool IsUpdateOfUserVar =
         !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
@@ -1680,18 +1745,37 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
       size_t WGSize = NDIt.get_local_range().size();
       size_t LID = NDIt.get_local_linear_id();
+      size_t GrID = NDIt.get_group_linear_id();
+      size_t NWorkGroups = NDIt.get_group_range().size();
+
+      size_t RemainingWorkSize = [&]() {
+        if constexpr (WSG == WorkSizeGuarantees::Equal) {
+          // We are guaranteed exactly one element for each work item, so we
+          // can assume that ActiveItemsPerWG is the same as the workgroup
+          // size.
+          return WGSize;
+        } else {
+          // Otherwise we either have the number of active items, except the
+          // last group may have less.
+          if (GrID == NWorkGroups - 1) {
+            size_t TotalWork = NDIt.get_global_range().size();
+            return sycl::min(TotalWork - ActiveItemsPerWG * GrID, WGSize);
+          } else {
+            return ActiveItemsPerWG;
+          }
+        }
+      }();
 
       // If there are multiple values, reduce each separately
       // This prevents local memory from scaling with elements
       for (int E = 0; E < NElements; ++E) {
 
-        doTreeReduction<WorkSizeGuarantees::Equal>(
-            WGSize, NDIt, LocalReds, BOp,
+        doTreeReduction<WSG>(
+            RemainingWorkSize, NDIt, LocalReds, BOp,
             [&](size_t) { return getReducerAccess(Reducer).getElement(E); });
 
         // Compute the partial sum/reduction for the work-group.
         if (LID == 0) {
-          size_t GrID = NDIt.get_group_linear_id();
           typename Reduction::result_type PSum = LocalReds[0];
           if (IsUpdateOfUserVar)
             PSum = BOp(Out[0], PSum);
@@ -2282,11 +2366,11 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 }
 
 template <> struct NDRangeReduction<reduction::strategy::multi> {
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename... RestT>
+  template <typename KernelName, WorkSizeGuarantees, int Dims,
+            typename PropertiesT, typename... RestT>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
-                  RestT... Rest) {
+                  nd_range<Dims> NDRange, size_t ActiveItemsPerWG,
+                  PropertiesT &Properties, RestT... Rest) {
     std::tuple<RestT...> ArgsTuple(Rest...);
     constexpr size_t NumArgs = sizeof...(RestT);
     auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
@@ -2326,14 +2410,15 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
   using Impl = NDRangeReduction<Strategy>;
   using Strat = reduction::strategy;
 
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename KernelType, typename Reduction>
+  template <typename KernelName, WorkSizeGuarantees WSG, int Dims,
+            typename PropertiesT, typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
-                  Reduction &Redu, KernelType &KernelFunc) {
+                  nd_range<Dims> NDRange, size_t ActiveItemsPerWG,
+                  PropertiesT &Properties, Reduction &Redu,
+                  KernelType &KernelFunc) {
     auto Delegate = [&](auto Impl) {
-      Impl.template run<KernelName>(CGH, Queue, NDRange, Properties, Redu,
-                                    KernelFunc);
+      Impl.template run<KernelName, WSG>(CGH, Queue, NDRange, ActiveItemsPerWG,
+                                         Properties, Redu, KernelFunc);
     };
 
     if constexpr (Reduction::has_float64_atomics) {
@@ -2359,22 +2444,35 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
 
     assert(false && "Must be unreachable!");
   }
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename... RestT>
+  template <typename KernelName, WorkSizeGuarantees WSG, int Dims,
+            typename PropertiesT, typename... RestT>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
-                  RestT... Rest) {
-    return Impl<Strat::multi>::run<KernelName>(CGH, Queue, NDRange, Properties,
-                                               Rest...);
+                  nd_range<Dims> NDRange, size_t ActiveItemsPerWG,
+                  PropertiesT &Properties, RestT... Rest) {
+    return Impl<Strat::multi>::run<KernelName, WSG>(
+        CGH, Queue, NDRange, ActiveItemsPerWG, Properties, Rest...);
   }
 };
+
+template <typename KernelName, reduction::strategy Strategy,
+          WorkSizeGuarantees WSG, int Dims, typename PropertiesT,
+          typename... RestT>
+void reduction_parallel_for_impl(handler &CGH,
+                                 std::shared_ptr<detail::queue_impl> &Queue,
+                                 nd_range<Dims> NDRange,
+                                 size_t ActiveItemsPerWG,
+                                 PropertiesT Properties, RestT... Rest) {
+  NDRangeReduction<Strategy>::template run<KernelName, WSG>(
+      CGH, Queue, NDRange, ActiveItemsPerWG, Properties, Rest...);
+}
 
 template <typename KernelName, reduction::strategy Strategy, int Dims,
           typename PropertiesT, typename... RestT>
 void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
                             PropertiesT Properties, RestT... Rest) {
-  NDRangeReduction<Strategy>::template run<KernelName>(CGH, CGH.MQueue, NDRange,
-                                                       Properties, Rest...);
+  reduction_parallel_for_impl<KernelName, Strategy, WorkSizeGuarantees::Equal>(
+      CGH, CGH.MQueue, NDRange, NDRange.get_local_range().size(), Properties,
+      Rest...);
 }
 
 __SYCL_EXPORT uint32_t
@@ -2398,7 +2496,8 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
     if constexpr (sizeof...(RestT) == 2) {
       using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
       constexpr bool IsTreeReduction =
-          !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
+          !(Reduction::has_fast_reduce && Reduction::has_identity) &&
+          !Reduction::has_fast_atomics;
       return IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
     } else {
       return reduGetMemPerWorkItem(ReduTuple, ReduIndices);
@@ -2428,6 +2527,7 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
 
   size_t PerGroup = Range.size() / NWorkGroups;
+  size_t ActiveItemsPerWG = std::min(PerGroup, WGSize);
   // Iterate through the index space by assigning contiguous chunks to each
   // work-group, then iterating through each chunk using a stride equal to the
   // work-group's local range, which gives much better performance than using
@@ -2484,13 +2584,17 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
         return reduction::strategy::range_basic;
     }();
 
-    reduction_parallel_for<KernelName, StrategyToUse>(CGH, NDRange, Properties,
-                                                      Redu, UpdatedKernelFunc);
+    reduction_parallel_for_impl<KernelName, StrategyToUse,
+                                WorkSizeGuarantees::LessOrEqual>(
+        CGH, CGH.MQueue, NDRange, ActiveItemsPerWG, Properties, Redu,
+        UpdatedKernelFunc);
   } else {
     return std::apply(
         [&](auto &...Reds) {
-          return reduction_parallel_for<KernelName, Strategy>(
-              CGH, NDRange, Properties, Reds..., UpdatedKernelFunc);
+          return reduction_parallel_for_impl<KernelName, Strategy,
+                                             WorkSizeGuarantees::LessOrEqual>(
+              CGH, CGH.MQueue, NDRange, ActiveItemsPerWG, Properties, Reds...,
+              UpdatedKernelFunc);
         },
         ReduTuple);
   }
