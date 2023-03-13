@@ -157,6 +157,7 @@ struct {
   device Device;
   ext::oneapi::level_zero::ownership Ownership{
       ext::oneapi::level_zero::ownership::transfer};
+  property_list Properties{};
 }
 ```
 
