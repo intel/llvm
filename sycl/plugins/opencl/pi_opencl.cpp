@@ -299,19 +299,19 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     if (ret_err != CL_SUCCESS)
       return static_cast<pi_result>(ret_err);
 
-    pi_device_atomic_capabilities devCapabilities = 0;
+    cl_device_atomic_capabilities devCapabilities = 0;
     if (devVer >= OCLV::V3_0) {
-      ret_err = clGetDeviceInfo(deviceID, PI_DEVICE_ATOMIC_FENCE_CAPABILITIES,
-                                sizeof(pi_device_atomic_capabilities),
+      ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+                                sizeof(cl_device_atomic_capabilities),
                                 &devCapabilities, nullptr);
       if (ret_err != CL_SUCCESS)
         return static_cast<pi_result>(ret_err);
-      assert(devCapabilities && PI_DEVICE_ATOMIC_ORDER_RELAXED &&
+      assert((devCapabilities & CL_DEVICE_ATOMIC_ORDER_RELAXED) &&
              "Violates minimum mandated guarantee");
-      assert(devCapabilities && PI_DEVICE_ATOMIC_ORDER_ACQ_REL &&
+      assert((devCapabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) &&
              "Violates minimum mandated guarantee");
 
-      if (devCapabilities && PI_DEVICE_ATOMIC_ORDER_SEQ_CST) {
+      if (devCapabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
         result |= PI_MEMORY_ORDER_SEQ_CST;
       }
 
@@ -343,24 +343,24 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     if (ret_err != CL_SUCCESS)
       return static_cast<pi_result>(ret_err);
 
-    pi_device_atomic_capabilities devCapabilities = 0;
+    cl_device_atomic_capabilities devCapabilities = 0;
     if (devVer >= OCLV::V3_0) {
-      ret_err = clGetDeviceInfo(deviceID, PI_DEVICE_ATOMIC_FENCE_CAPABILITIES,
-                                sizeof(pi_device_atomic_capabilities),
+      ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+                                sizeof(cl_device_atomic_capabilities),
                                 &devCapabilities, nullptr);
       if (ret_err != CL_SUCCESS)
         return static_cast<pi_result>(ret_err);
-      assert(devCapabilities && PI_DEVICE_ATOMIC_SCOPE_WORK_GROUP &&
+      assert((devCapabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
              "Violates minimum mandated guarantee");
 
       // Because scopes are hierarchical, wider scopes support all narrower
       // scopes. SUB_GROUP and WORK_ITEM was already included in the
       // initialization, since WORK_GROUP is mandated minimum capality.
-      if (devCapabilities && PI_DEVICE_ATOMIC_SCOPE_DEVICE) {
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
         result |= PI_MEMORY_SCOPE_DEVICE;
       }
 
-      if (devCapabilities && PI_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
         result |= PI_MEMORY_SCOPE_SYSTEM;
       }
 
@@ -375,7 +375,14 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         result |= PI_MEMORY_SCOPE_DEVICE | PI_MEMORY_SCOPE_SYSTEM;
       }
     }
-    std::memcpy(paramValue, &result, sizeof(result));
+    if (paramValue) {
+      if (paramValueSize < sizeof(cl_device_atomic_capabilities))
+        return PI_ERROR_INVALID_VALUE;
+
+      std::memcpy(paramValue, &result, sizeof(result));
+      if (paramValueSizeRet)
+        *paramValueSizeRet = sizeof(result);
+    }
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
