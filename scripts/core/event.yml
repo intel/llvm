@@ -51,8 +51,8 @@ etors:
       version: "9999.0" # See #50
     - name: MEM_UNMAP
       desc: Event created by $xEnqueueMemUnmap
-    - name: USM_MEMSET
-      desc: Event created by $xEnqueueUSMMemset
+    - name: USM_FILL
+      desc: Event created by $xEnqueueUSMFill
     - name: USM_MEMCPY
       desc: Event created by $xEnqueueUSMMemcpy
     - name: USM_PREFETCH
@@ -61,8 +61,6 @@ etors:
       desc: Event created by $xEnqueueUSMMemAdvise
     - name: USM_FILL_2D
       desc: Event created by $xEnqueueUSMFill2D
-    - name: USM_MEMSET_2D
-      desc: Event created by $xEnqueueUSMMemset2D
     - name: USM_MEMCPY_2D
       desc: Event created by $xEnqueueUSMMemcpy2D
     - name: DEVICE_GLOBAL_VARIABLE_WRITE

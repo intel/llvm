@@ -98,8 +98,6 @@ etors:
       desc: "[bool] to indicate if the $xEnqueueUSMMemcpy2D entrypoint is supported."
     - name: USM_FILL2D_SUPPORT
       desc: "[bool] to indicate if the $xEnqueueUSMFill2D entrypoint is supported."
-    - name: USM_MEMSET2D_SUPPORT
-      desc: "[bool] to indicate if the $xEnqueueUSMMemset2D entrypoint is supported."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Releases the context handle reference indicating end of its usage"

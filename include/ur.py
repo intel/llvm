@@ -579,8 +579,6 @@ class ur_context_info_v(IntEnum):
                                                     ## supported.
     USM_FILL2D_SUPPORT = 4                          ## [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
                                                     ## supported.
-    USM_MEMSET2D_SUPPORT = 5                        ## [bool] to indicate if the ::urEnqueueUSMMemset2D entrypoint is
-                                                    ## supported.
 
 class ur_context_info_t(c_int):
     def __str__(self):
@@ -1158,15 +1156,14 @@ class ur_command_v(IntEnum):
     MEM_IMAGE_COPY = 12                             ## Event created by ::urEnqueueMemImageCopy
     MEM_BUFFER_MAP = 14                             ## Event created by ::urEnqueueMemBufferMap
     MEM_UNMAP = 16                                  ## Event created by ::urEnqueueMemUnmap
-    USM_MEMSET = 17                                 ## Event created by ::urEnqueueUSMMemset
+    USM_FILL = 17                                   ## Event created by ::urEnqueueUSMFill
     USM_MEMCPY = 18                                 ## Event created by ::urEnqueueUSMMemcpy
     USM_PREFETCH = 19                               ## Event created by ::urEnqueueUSMPrefetch
     USM_MEM_ADVISE = 20                             ## Event created by ::urEnqueueUSMMemAdvise
     USM_FILL_2D = 21                                ## Event created by ::urEnqueueUSMFill2D
-    USM_MEMSET_2D = 22                              ## Event created by ::urEnqueueUSMMemset2D
-    USM_MEMCPY_2D = 23                              ## Event created by ::urEnqueueUSMMemcpy2D
-    DEVICE_GLOBAL_VARIABLE_WRITE = 24               ## Event created by ::urEnqueueDeviceGlobalVariableWrite
-    DEVICE_GLOBAL_VARIABLE_READ = 25                ## Event created by ::urEnqueueDeviceGlobalVariableRead
+    USM_MEMCPY_2D = 22                              ## Event created by ::urEnqueueUSMMemcpy2D
+    DEVICE_GLOBAL_VARIABLE_WRITE = 23               ## Event created by ::urEnqueueDeviceGlobalVariableWrite
+    DEVICE_GLOBAL_VARIABLE_READ = 24                ## Event created by ::urEnqueueDeviceGlobalVariableRead
 
 class ur_command_t(c_int):
     def __str__(self):
