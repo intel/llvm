@@ -205,7 +205,7 @@ set(API_JSON_FILE ${PROJECT_BINARY_DIR}/unified_runtime.json)
 # Generate source from the specification
 add_custom_target(generate-code USES_TERMINAL
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/scripts
-    COMMAND ${Python3_EXECUTABLE} run.py --api-json ${API_JSON_FILE} --ver ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+    COMMAND ${Python3_EXECUTABLE} run.py --api-json ${API_JSON_FILE}
     COMMAND ${Python3_EXECUTABLE} json2src.py --api-json ${API_JSON_FILE} ${PROJECT_SOURCE_DIR}
 )
 
