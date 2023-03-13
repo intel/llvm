@@ -17,10 +17,6 @@
 #include "tracing/ur_tracing_layer.hpp"
 #endif
 
-namespace logger {
-Logger logger = create_logger("loader");
-}
-
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////
 context_t *context;
@@ -34,6 +30,10 @@ context_t::~context_t() {}
 //////////////////////////////////////////////////////////////////////////
 __urdlllocal ur_result_t context_t::Init(ur_device_init_flags_t device_flags) {
     ur_result_t result;
+    const char *logger_name = "loader";
+    logger::init(logger_name);
+    logger::info("Logger {} initialized successfully!", logger_name);
+
     result = loader::context->init();
 
     if (UR_RESULT_SUCCESS == result) {
