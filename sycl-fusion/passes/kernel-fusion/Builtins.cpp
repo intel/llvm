@@ -457,17 +457,20 @@ getOrCreateGetGlobalLinearIDFunction(Module *M, const NDRange &FusedNDRange) {
     case 1:
       // gid = id0
       return GetID(0);
-    case 2:
+    case 2: {
       // gid = id1 + (id0 * r1)
+      auto *ID1 = GetID(1);
       return Builder.CreateAdd(
-          GetID(1), Builder.CreateMul(GetID(0), Builder.getInt64(GetGS(1))));
-    case 3:
-      // gid = id2 + (id1 * r2) + (id0 * r1 * r2)
-      return Builder.CreateAdd(
-          GetID(2), Builder.CreateAdd(
-                        Builder.CreateMul(GetID(1), Builder.getInt64(GetGS(2))),
-                        Builder.CreateMul(
-                            GetID(0), Builder.getInt64(GetGS(1) * GetGS(2)))));
+          ID1, Builder.CreateMul(GetID(0), Builder.getInt64(GetGS(1))));
+    }
+    case 3: {
+      // gid = (id0 * r1 * r2) + (id1 * r2) + id2
+      auto *C0 =
+          Builder.CreateMul(GetID(0), Builder.getInt64(GetGS(1) * GetGS(2)));
+      auto *C1 = Builder.CreateAdd(
+          Builder.CreateMul(GetID(1), Builder.getInt64(GetGS(2))), C0);
+      return Builder.CreateAdd(GetID(2), C1);
+    }
     default:
       llvm_unreachable("Invalid number of dimensions");
     }
