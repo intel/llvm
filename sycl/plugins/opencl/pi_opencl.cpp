@@ -298,24 +298,24 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     if (ret_err != CL_SUCCESS)
       return static_cast<pi_result>(ret_err);
 
-    pi_device_atomic_capabilities devCapabilities = 0;
+    cl_device_atomic_capabilities devCapabilities = 0;
     if (devVer >= OCLV::V3_0) {
-      ret_err = clGetDeviceInfo(deviceID, PI_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
-                                sizeof(pi_device_atomic_capabilities),
+      ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+                                sizeof(cl_device_atomic_capabilities),
                                 &devCapabilities, nullptr);
       if (ret_err != CL_SUCCESS)
         return static_cast<pi_result>(ret_err);
-      assert(devCapabilities && PI_DEVICE_ATOMIC_SCOPE_WORK_GROUP &&
+      assert((devCapabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
              "Violates minimum mandated guarantee");
 
       // Because scopes are hierarchical, wider scopes support all narrower
       // scopes. SUB_GROUP and WORK_ITEM were already included in the
       // initialization, since WORK_GROUP is mandated minimum capality.
-      if (devCapabilities && PI_DEVICE_ATOMIC_SCOPE_DEVICE) {
+      if (devCapabilities && CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
         result |= PI_MEMORY_SCOPE_DEVICE;
       }
 
-      if (devCapabilities && PI_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+      if (devCapabilities && CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
         result |= PI_MEMORY_SCOPE_SYSTEM;
       }
 
@@ -330,7 +330,14 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         result |= PI_MEMORY_SCOPE_DEVICE | PI_MEMORY_SCOPE_SYSTEM;
       }
     }
-    std::memcpy(paramValue, &result, sizeof(result));
+    if (paramValue) {
+      if (paramValueSize < sizeof(cl_device_atomic_capabilities))
+        return PI_ERROR_INVALID_VALUE;
+
+      std::memcpy(paramValue, &result, sizeof(result));
+      if (paramValueSizeRet)
+        *paramValueSizeRet = sizeof(result);
+    }
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
@@ -1835,7 +1842,7 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result piTearDown(void *PluginParameter) {
