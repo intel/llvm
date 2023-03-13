@@ -1061,6 +1061,9 @@ __CLC_BF16_SCAL_VEC(uint32_t)
 #undef __CLC_BF16_SCAL_VEC
 #undef __CLC_BF16
 
+extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
+extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
+
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>

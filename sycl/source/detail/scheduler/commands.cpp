@@ -935,9 +935,9 @@ void Command::copySubmissionCodeLocation() {
   detail::tls_code_loc_t Tls;
   auto TData = Tls.query();
   if (TData.fileName())
-    MSubmissionFileName = {TData.fileName()};
+    MSubmissionFileName = TData.fileName();
   if (TData.functionName())
-    MSubmissionFunctionName = {TData.functionName()};
+    MSubmissionFunctionName = TData.functionName();
   if (MSubmissionFileName.size() || MSubmissionFunctionName.size())
     MSubmissionCodeLocation = {
         MSubmissionFileName.c_str(), MSubmissionFunctionName.c_str(),
