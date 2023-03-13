@@ -22,7 +22,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
@@ -518,10 +518,18 @@ public:
          {"lsc.load.slm",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
            t8(6), t8(7), c8(0), a(1), c32(0)}}},
+        {"lsc_load_merge_slm",
+         {"lsc.load.merge.slm",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), c32(0), a(2)}}},
         {"lsc_load_bti",
          {"lsc.load.bti",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
            t8(6), t8(7), c8(0), a(1), aSI(2)}}},
+        {"lsc_load_merge_bti",
+         {"lsc.load.merge.bti",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), aSI(2), a(2)}}},
         {"lsc_load_stateless",
          {"lsc.load.stateless",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
@@ -1574,7 +1582,7 @@ void generateKernelMetadata(Module &M) {
 // TODO: can we make the Module argument `const`?
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
   SmallPtrSet<Type *, 4> GenXVolatileTypeSet;
-  for (auto &G : M.getGlobalList()) {
+  for (auto &G : M.globals()) {
     if (!G.hasAttribute("genx_volatile"))
       continue;
     auto GTy = dyn_cast<StructType>(G.getValueType());

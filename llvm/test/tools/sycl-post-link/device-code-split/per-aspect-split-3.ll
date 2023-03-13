@@ -1,7 +1,7 @@
 ; This test is intended to check that per-aspect device code split works as
 ; expected with SYCL_EXTERNAL functions
 
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
+; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table --check-prefix CHECK-TABLE
 ;
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix CHECK-M0-SYMS \
