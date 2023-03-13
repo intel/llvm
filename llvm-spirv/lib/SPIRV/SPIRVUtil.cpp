@@ -887,7 +887,7 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       LLVM_DEBUG(dbgs() << "Failed to recover type of argument " << *ArgTy
                         << " of function " << F->getName() << "\n");
       DemangledSuccessfully = false;
-    } else if (!DemangledTy)
+    } else if (ArgTy->isTargetExtTy() || !DemangledTy)
       DemangledTy = ArgTy;
     *ArgIter++ = DemangledTy;
   }
@@ -1337,6 +1337,25 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
       Name = Tmp = std::string("struct_") + OS.str();
     }
     return SPIR::RefParamType(new SPIR::UserDefinedType(Name.str()));
+  }
+  if (auto *TargetTy = dyn_cast<TargetExtType>(Ty)) {
+    std::string FullName;
+    {
+      raw_string_ostream OS(FullName);
+      StringRef Name = TargetTy->getName();
+      if (Name.consume_front(kSPIRVTypeName::PrefixAndDelim)) {
+        OS << "__spirv_" << Name;
+      } else {
+        OS << Name;
+      }
+      if (!TargetTy->int_params().empty())
+        OS << "_";
+      for (Type *InnerTy : TargetTy->type_params())
+        OS << "_" << convertTypeToPostfix(InnerTy);
+      for (unsigned Param : TargetTy->int_params())
+        OS << "_" << Param;
+    }
+    return SPIR::RefParamType(new SPIR::UserDefinedType(FullName));
   }
 
   if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
