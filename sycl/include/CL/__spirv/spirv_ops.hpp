@@ -946,11 +946,11 @@ __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
 // convergent Following precedent set for GroupNonUniformBallot above
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT uint32_t
 __spirv_GroupNonUniformBallotBitCount(__spv::Scope::Flag, int,
-                                      __ocl_vec_t<uint32_t, 4>);
+                                      __ocl_vec_t<uint32_t, 4>) noexcept;
 
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT int
     __spirv_GroupNonUniformBallotFindLSB(__spv::Scope::Flag,
-                                         __ocl_vec_t<uint32_t, 4>);
+                                         __ocl_vec_t<uint32_t, 4>) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierInitialize(int64_t *state, int32_t expected_count) noexcept;
