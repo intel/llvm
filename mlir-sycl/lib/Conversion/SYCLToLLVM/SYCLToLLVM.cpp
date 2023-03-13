@@ -223,6 +223,9 @@ static constexpr bool is_empty_v{is_empty<Args...>::value};
 ///
 /// Derived classes must implement getIndices().
 class GetMemberPatternBase {
+public:
+  virtual ~GetMemberPatternBase() = default;
+
 protected:
   constexpr GetMemberPatternBase() = default;
 
@@ -422,6 +425,8 @@ protected:
                          Value thisArg, int32_t index) const = 0;
 
 public:
+  virtual ~GetRangeSizePattern() = default;
+
   LogicalResult match(Op) const override { return success(); }
 
   void rewrite(Op op, OpAdaptor adaptor,
@@ -456,6 +461,8 @@ protected:
                          Value thisArg, int32_t index) const = 0;
 
 public:
+  virtual ~GetLinearIDPattern() = default;
+
   LogicalResult match(Op) const override { return success(); }
 
   void rewrite(Op op, OpAdaptor adaptor,
