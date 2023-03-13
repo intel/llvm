@@ -6,12 +6,7 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include <algorithm>
-#include <climits>
-#include <string.h>
-
 #include "ur_level_zero_common.hpp"
-#include <ur_bindings.hpp>
 
 std::unordered_map<ze_result_t, ur_result_t> Ze2UrErrorMapping = {
     {ZE_RESULT_SUCCESS, UR_RESULT_SUCCESS},

@@ -43,10 +43,6 @@ struct ur_queue_handle_t_ : public _ur_queue_handle_t {
   using _ur_queue_handle_t::_ur_queue_handle_t;
 };
 
-struct ur_native_handle_t_ : public _ur_native_handle_t {
-  using _ur_native_handle_t::_ur_native_handle_t;
-};
-
 struct ur_sampler_handle_t_ : public _ur_sampler_handle_t {
   using _ur_sampler_handle_t::_ur_sampler_handle_t;
 };

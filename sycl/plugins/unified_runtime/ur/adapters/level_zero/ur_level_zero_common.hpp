@@ -7,14 +7,6 @@
 //===-----------------------------------------------------------------===//
 #pragma once
 
-#include <cassert>
-#include <list>
-#include <map>
-#include <stdarg.h>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 #include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
 #include <ur_api.h>
@@ -26,7 +18,6 @@
 #include "ur_level_zero_event.hpp"
 #include "ur_level_zero_mem.hpp"
 #include "ur_level_zero_module.hpp"
-#include "ur_level_zero_native.hpp"
 #include "ur_level_zero_platform.hpp"
 #include "ur_level_zero_program.hpp"
 #include "ur_level_zero_queue.hpp"

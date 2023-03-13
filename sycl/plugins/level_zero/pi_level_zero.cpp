@@ -26,7 +26,6 @@
 
 #include <zet_api.h>
 
-#include "../unified_runtime/ur/adapters/level_zero/ur_level_zero_common.hpp"
 #include "ur/usm_allocator_config.hpp"
 #include "ur_bindings.hpp"
 
