@@ -5,6 +5,7 @@
 
 """
 import argparse
+import re
 import util
 import parse_specs
 import generate_code
@@ -71,13 +72,28 @@ def revision():
     print("Version is %s" % tag)
     count = 0
     if len(items) > 1 and items[1].isdigit():
-       count = int(items[1])
+        count = int(items[1])
 
-    # Bump count if any local files are dirty.  
+    # Bump count if any local files are dirty.
     # Keeps the count the same after doing a commit (assuming all dirty files are committed)
     if 'dirty' in items[-1]:
         count += 1
     return '%s.%s'%(tag, count)
+
+
+"""
+    helper for getting the default version from the project() command in the
+    root CMakeLists.txt file
+"""
+def get_version_from_cmakelists():
+    cmakelists_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '..', 'CMakeLists.txt'))
+    with open(cmakelists_path, 'r') as cmakelists_file:
+        for line in cmakelists_file.readlines():
+            line = line.strip()
+            if line.startswith('project('):
+                return re.findall(r'\d+\.\d+', line)[0]
+    raise Exception(f'unable to read project version from {cmakelists_path}')
 
 
 """
@@ -98,10 +114,13 @@ def main():
     add_argument(parser, "pdf", "generation of PDF file.")
     add_argument(parser, "rst", "generation of reStructuredText files.", True)
     parser.add_argument("--update_spec", type=str, help="root of integrated spec directory to update")
-    parser.add_argument("--ver", type=str, default="0.5", required=False, help="specification version to generate.")
+    parser.add_argument("--ver", type=str, default=get_version_from_cmakelists(),
+                        required=False, help="specification version to generate.")
     parser.add_argument("--api-json", type=str, default="unified_runtime.json", required=False, help="json output file for the spec")
     args = vars(parser.parse_args())
     args['rev'] = revision()
+
+    print('Version', args['ver'])
 
     start = time.time()
 
