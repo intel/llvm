@@ -257,6 +257,7 @@ template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
   add(SPIRVDebug::InlinedAt, "DebugInlinedAt");
   add(SPIRVDebug::ImportedEntity, "DebugImportedEntity");
   add(SPIRVDebug::ModuleINTEL, "DebugModuleINTEL");
+  add(SPIRVDebug::Module, "DebugModule");
   add(SPIRVDebug::Expression, "DebugExpression");
   add(SPIRVDebug::Operation, "DebugOperation");
 }

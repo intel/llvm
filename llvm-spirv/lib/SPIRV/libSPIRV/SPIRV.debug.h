@@ -53,6 +53,7 @@ enum Instruction {
   ModuleINTEL                   = 36,
   InstCount                     = 37,
   TypeSubrange                  = 110,
+  Module                        = 200,
   TypeArrayDynamic              = 202,
   TypeString                    = 203
 };

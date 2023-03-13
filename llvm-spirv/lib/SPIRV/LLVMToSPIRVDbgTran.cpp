@@ -360,7 +360,8 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryImpl(const MDNode *MDN) {
       return transDbgImportedEntry(cast<DIImportedEntity>(DIEntry));
 
     case dwarf::DW_TAG_module: {
-      if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_debug_module))
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_debug_module) ||
+          BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
         return transDbgModule(cast<DIModule>(DIEntry));
       return getDebugInfoNone();
     }
@@ -1257,15 +1258,33 @@ LLVMToSPIRVDbgTran::transDbgImportedEntry(const DIImportedEntity *IE) {
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgModule(const DIModule *Module) {
   using namespace SPIRVDebug::Operand::ModuleINTEL;
   SPIRVWordVec Ops(OperandCount);
+  // The difference in translation of NonSemantic Debug Info and
+  // SPV_INTEL_debug_module extension is that extension allows Line and IsDecl
+  // operands to be Literals, when the non-OpenCL Debug Info allows only IDs to
+  // the constant values.
+  bool IsNonSemanticDI =
+      (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100);
   Ops[NameIdx] = BM->getString(Module->getName().str())->getId();
   Ops[SourceIdx] = getSource(Module->getFile())->getId();
-  Ops[LineIdx] = Module->getLineNo();
+  if (IsNonSemanticDI) {
+    ConstantInt *Line = getUInt(M, Module->getLineNo());
+    Ops[LineIdx] = SPIRVWriter->transValue(Line, nullptr)->getId();
+  } else {
+    Ops[LineIdx] = Module->getLineNo();
+  }
   Ops[ParentIdx] = getScope(Module->getScope())->getId();
   Ops[ConfigMacrosIdx] =
       BM->getString(Module->getConfigurationMacros().str())->getId();
   Ops[IncludePathIdx] = BM->getString(Module->getIncludePath().str())->getId();
   Ops[ApiNotesIdx] = BM->getString(Module->getAPINotesFile().str())->getId();
-  Ops[IsDeclIdx] = Module->getIsDecl();
+  if (IsNonSemanticDI) {
+    ConstantInt *IsDecl = getUInt(M, Module->getIsDecl());
+    Ops[IsDeclIdx] = SPIRVWriter->transValue(IsDecl, nullptr)->getId();
+  } else {
+    Ops[IsDeclIdx] = Module->getIsDecl();
+  }
+  if (IsNonSemanticDI)
+    return BM->addDebugInfo(SPIRVDebug::Module, getVoidTy(), Ops);
   BM->addExtension(ExtensionID::SPV_INTEL_debug_module);
   BM->addCapability(spv::CapabilityDebugInfoModuleINTEL);
   return BM->addDebugInfo(SPIRVDebug::ModuleINTEL, getVoidTy(), Ops);
