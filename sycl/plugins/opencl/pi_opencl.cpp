@@ -72,8 +72,8 @@ CONSTFIX char clEnqueueWriteGlobalVariableName[] =
 CONSTFIX char clEnqueueReadGlobalVariableName[] =
     "clEnqueueReadGlobalVariableINTEL";
 // Names of host pipe functions queried from OpenCL
-CONSTFIX char clEnqueueReadHostPipeName[] = "clEnqueueReadHostPipeIntelFPGA";
-CONSTFIX char clEnqueueWriteHostPipeName[] = "clEnqueueWriteHostPipeIntelFPGA";
+CONSTFIX char clEnqueueReadHostPipeName[] = "clEnqueueReadHostPipeINTEL";
+CONSTFIX char clEnqueueWriteHostPipeName[] = "clEnqueueWriteHostPipeINTEL";
 
 #undef CONSTFIX
 
@@ -1730,12 +1730,10 @@ pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
   if (CLErr != CL_SUCCESS) {
     return cast<pi_result>(CLErr);
   }
-
   clEnqueueWriteHostPipeIntelFPGA_fn FuncPtr = nullptr;
   pi_result RetVal = getExtFuncFromContext<clEnqueueWriteHostPipeName,
                                            clEnqueueWriteHostPipeIntelFPGA_fn>(
       cast<pi_context>(CLContext), &FuncPtr);
-
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(
         cast<cl_command_queue>(queue), cast<cl_program>(program), pipe_symbol,

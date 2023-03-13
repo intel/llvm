@@ -56,25 +56,15 @@
 // }
 
 // using namespace sycl;
-// using pipe_prop = decltype(ext::oneapi::experimental::properties(
-//     ext::intel::experimental::min_capacity<5>));
+// using default_pipe_properties = decltype(sycl::ext::oneapi::experimental::properties(sycl::ext::intel::experimental::uses_valid<true>));
 
-// template <unsigned ID> struct pipe_id {
-//     static constexpr unsigned id = ID;
-// };
-
-// class test_data_type {
-// public:
-//   int num;
-// };
-
-// using test_host_pipe =
-//     ext::intel::experimental::pipe<pipe_id<0>, test_data_type, pipe_prop>;
+// class PipeID;
+// using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10, default_pipe_properties>;
 
 // pi_event READ = reinterpret_cast<pi_event>(0);
 // pi_event WRITE = reinterpret_cast<pi_event>(1);
-// static constexpr test_data_type PipeReadVal = {8};
-// static test_data_type PipeWriteVal = {0};
+// static constexpr int PipeReadVal = 8;
+// static int PipeWriteVal = 0;
 // pi_result redefinedEnqueueReadHostPipe(pi_queue, pi_program, const char *,
 //                                        pi_bool, void *ptr, size_t, pi_uint32,
 //                                        const pi_event *, pi_event *event) {
@@ -85,8 +75,7 @@
 // pi_result redefinedEnqueueWriteHostPipe(pi_queue, pi_program, const char *,
 //                                         pi_bool, void *ptr, size_t, pi_uint32,
 //                                         const pi_event *, pi_event *event) {
-//   test_data_type tmp = {9};
-//   PipeWriteVal = tmp;
+//   PipeWriteVal = 9;
 //   *event = WRITE;
 //   return PI_SUCCESS;
 // }
@@ -123,7 +112,7 @@
 // TEST_F(PipeTest, Basic) {
 
 //   // Fake registration of host pipes
-//   sycl::detail::host_pipe_map::add(test_host_pipe::get_host_ptr(),
+//   sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(),
 //                                    "test_host_pipe_unique_id");
 
 //   // Device registration
@@ -132,35 +121,32 @@
 //   static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 //   std::clog << "Zibai started the get_host_ptr\n";
-//   const void *HostPipePtr = test_host_pipe::get_host_ptr();
+//   const void *HostPipePtr = Pipe::get_host_ptr();
 //   std::clog << "Zibai started the hostPipeEntry\n";
 //   detail::HostPipeMapEntry *hostPipeEntry =
 //       detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr);
 //   const std::string pipe_name = hostPipeEntry->MUniqueId;
 //   std::clog << "Zibai what is the pipe_name " << pipe_name
 //             << "\n"; // this part is fine
-//   test_data_type host_pipe_read_data = {};
+//   int host_pipe_read_data;
 //   void *data_ptr = &host_pipe_read_data;
 //   std::clog << "Zibai started the q submit for read\n";
 //   event e = q.submit([&](handler &CGH) {
-//     CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(test_data_type), false,
+//     CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(int), false,
 //                              true /* read */);
-//     // CGH.single_task<TestKernel<>>([&]() {});
 //   });
 
 //   std::clog << "Zibai started the wait for read\n";
 //   e.wait();
 //   std::clog << "Zibai started the assert\n";
-//   // auto host_pipe_read_data = test_host_pipe::read(q);
-//   assert(host_pipe_read_data.num == PipeReadVal.num);
-//   test_data_type tmp = {9};
+//   assert(host_pipe_read_data == PipeReadVal);
+//   int tmp = {9};
 //   data_ptr = &tmp;
 //   std::clog << "Zibai started the q submit for write\n";
 //   event e_write = q.submit([&](handler &CGH) {
-//     CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(test_data_type), false,
+//     CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(int), false,
 //                              false /* write */);
 //   });
 //   e_write.wait();
-//   // test_host_pipe::write(q, tmp);
-//   assert(PipeWriteVal.num == 9);
+//   assert(PipeWriteVal == 9);
 // }
