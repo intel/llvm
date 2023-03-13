@@ -583,7 +583,7 @@ jit_compiler::Remapper::remapBuiltins(Function *F, const NDRange &SrcNDRange,
       auto *OldF = Call->getCalledFunction();
       auto ErrOrNewF = remapBuiltins(OldF, SrcNDRange, FusedNDRange);
       if (auto Err = ErrOrNewF.takeError()) {
-        return Err;
+        return std::move(Err);
       }
       // Override called function.
       auto *NewF = *ErrOrNewF;
