@@ -613,9 +613,8 @@ int main(void) {
   passed &= test_int_types<8, ImplIntAdd>(q, cfg);
   passed &= test_int_types<8, ImplIntSub>(q, cfg);
 
-  // TODO: this crashes vc-intrinsics
-  // passed &= test<int, 8, ImplSMax>(q, cfg);
-  // passed &= test<int, 8, ImplSMin>(q, cfg);
+  passed &= test<int, 8, ImplSMax>(q, cfg);
+  passed &= test<int, 8, ImplSMin>(q, cfg);
 
   passed &= test<uint32_t, 8, ImplUMax>(q, cfg);
   passed &= test<uint32_t, 8, ImplUMin>(q, cfg);
