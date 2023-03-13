@@ -3260,8 +3260,8 @@ urEnqueueKernelLaunch(
                                               ///< events that must be complete before the kernel execution.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
                                               ///< event.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular kernel execution instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< kernel execution instance.
 ) {
     auto pfnKernelLaunch = ur_lib::context->urDdiTable.Enqueue.pfnKernelLaunch;
     if (nullptr == pfnKernelLaunch) {
@@ -3308,8 +3308,8 @@ urEnqueueEventsWait(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
                                               ///< previously enqueued commands
                                               ///< must be complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnEventsWait = ur_lib::context->urDdiTable.Enqueue.pfnEventsWait;
     if (nullptr == pfnEventsWait) {
@@ -3358,8 +3358,8 @@ urEnqueueEventsWaitWithBarrier(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
                                               ///< previously enqueued commands
                                               ///< must be complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnEventsWaitWithBarrier = ur_lib::context->urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
     if (nullptr == pfnEventsWaitWithBarrier) {
@@ -3413,8 +3413,8 @@ urEnqueueMemBufferRead(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemBufferRead = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferRead;
     if (nullptr == pfnMemBufferRead) {
@@ -3468,8 +3468,8 @@ urEnqueueMemBufferWrite(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemBufferWrite = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferWrite;
     if (nullptr == pfnMemBufferWrite) {
@@ -3540,8 +3540,8 @@ urEnqueueMemBufferReadRect(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemBufferReadRect = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferReadRect;
     if (nullptr == pfnMemBufferReadRect) {
@@ -3613,8 +3613,8 @@ urEnqueueMemBufferWriteRect(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemBufferWriteRect = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferWriteRect;
     if (nullptr == pfnMemBufferWriteRect) {
@@ -3664,8 +3664,8 @@ urEnqueueMemBufferCopy(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemBufferCopy = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferCopy;
     if (nullptr == pfnMemBufferCopy) {
@@ -3727,8 +3727,8 @@ urEnqueueMemBufferCopyRect(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemBufferCopyRect = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferCopyRect;
     if (nullptr == pfnMemBufferCopyRect) {
@@ -3779,8 +3779,8 @@ urEnqueueMemBufferFill(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemBufferFill = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferFill;
     if (nullptr == pfnMemBufferFill) {
@@ -3836,8 +3836,8 @@ urEnqueueMemImageRead(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemImageRead = ur_lib::context->urDdiTable.Enqueue.pfnMemImageRead;
     if (nullptr == pfnMemImageRead) {
@@ -3893,8 +3893,8 @@ urEnqueueMemImageWrite(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemImageWrite = ur_lib::context->urDdiTable.Enqueue.pfnMemImageWrite;
     if (nullptr == pfnMemImageWrite) {
@@ -3944,8 +3944,8 @@ urEnqueueMemImageCopy(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemImageCopy = ur_lib::context->urDdiTable.Enqueue.pfnMemImageCopy;
     if (nullptr == pfnMemImageCopy) {
@@ -4005,9 +4005,9 @@ urEnqueueMemBufferMap(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent,               ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
-    void **ppRetMap                           ///< [in,out] return mapped pointer.  TODO: move it before
+    ur_event_handle_t *phEvent,               ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
+    void **ppRetMap                           ///< [out] return mapped pointer.  TODO: move it before
                                               ///< numEventsInWaitList?
 ) {
     auto pfnMemBufferMap = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferMap;
@@ -4054,8 +4054,8 @@ urEnqueueMemUnmap(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnMemUnmap = ur_lib::context->urDdiTable.Enqueue.pfnMemUnmap;
     if (nullptr == pfnMemUnmap) {
@@ -4106,8 +4106,8 @@ urEnqueueUSMFill(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnUSMFill = ur_lib::context->urDdiTable.Enqueue.pfnUSMFill;
     if (nullptr == pfnUSMFill) {
@@ -4153,8 +4153,8 @@ urEnqueueUSMMemcpy(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnUSMMemcpy = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemcpy;
     if (nullptr == pfnUSMMemcpy) {
@@ -4200,8 +4200,8 @@ urEnqueueUSMPrefetch(
                                               ///< events that must be complete before this command can be executed.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular command instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< command instance.
 ) {
     auto pfnUSMPrefetch = ur_lib::context->urDdiTable.Enqueue.pfnUSMPrefetch;
     if (nullptr == pfnUSMPrefetch) {
@@ -4238,8 +4238,8 @@ urEnqueueUSMMemAdvise(
     const void *pMem,          ///< [in] pointer to the USM memory object
     size_t size,               ///< [in] size in bytes to be advised
     ur_mem_advice_t advice,    ///< [in] USM memory advice
-    ur_event_handle_t *phEvent ///< [in,out][optional] return an event object that identifies this
-                               ///< particular command instance.
+    ur_event_handle_t *phEvent ///< [out][optional] return an event object that identifies this particular
+                               ///< command instance.
 ) {
     auto pfnUSMMemAdvise = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemAdvise;
     if (nullptr == pfnUSMMemAdvise) {
@@ -4295,8 +4295,8 @@ urEnqueueUSMFill2D(
                                               ///< events that must be complete before the kernel execution.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
                                               ///< event.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular kernel execution instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< kernel execution instance.
 ) {
     auto pfnUSMFill2D = ur_lib::context->urDdiTable.Enqueue.pfnUSMFill2D;
     if (nullptr == pfnUSMFill2D) {
@@ -4349,8 +4349,8 @@ urEnqueueUSMMemcpy2D(
                                               ///< events that must be complete before the kernel execution.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
                                               ///< event.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular kernel execution instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< kernel execution instance.
 ) {
     auto pfnUSMMemcpy2D = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemcpy2D;
     if (nullptr == pfnUSMMemcpy2D) {
@@ -4392,8 +4392,8 @@ urEnqueueDeviceGlobalVariableWrite(
                                               ///< events that must be complete before the kernel execution.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
                                               ///< event.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular kernel execution instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< kernel execution instance.
 ) {
     auto pfnDeviceGlobalVariableWrite = ur_lib::context->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
     if (nullptr == pfnDeviceGlobalVariableWrite) {
@@ -4435,8 +4435,8 @@ urEnqueueDeviceGlobalVariableRead(
                                               ///< events that must be complete before the kernel execution.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
                                               ///< event.
-    ur_event_handle_t *phEvent                ///< [in,out][optional] return an event object that identifies this
-                                              ///< particular kernel execution instance.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< kernel execution instance.
 ) {
     auto pfnDeviceGlobalVariableRead = ur_lib::context->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
     if (nullptr == pfnDeviceGlobalVariableRead) {
