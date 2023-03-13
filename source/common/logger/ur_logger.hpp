@@ -11,31 +11,41 @@
 #include "ur_util.hpp"
 
 namespace logger {
-extern Logger logger;
+
+Logger create_logger(std::string logger_name);
+
+inline Logger &get_logger(std::string name = "common") {
+    static Logger logger = create_logger(name);
+    return logger;
+}
+
+inline void init(std::string name) {
+    get_logger(name);
+}
 
 template <typename... Args>
 inline void debug(const char *format, Args &&...args) {
-    logger.log(logger::Level::DEBUG, format, std::forward<Args>(args)...);
+    get_logger().log(logger::Level::DEBUG, format, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void info(const char *format, Args &&...args) {
-    logger.log(logger::Level::INFO, format, std::forward<Args>(args)...);
+    get_logger().log(logger::Level::INFO, format, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void warning(const char *format, Args &&...args) {
-    logger.log(logger::Level::WARN, format, std::forward<Args>(args)...);
+    get_logger().log(logger::Level::WARN, format, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void error(const char *format, Args &&...args) {
-    logger.log(logger::Level::ERR, format, std::forward<Args>(args)...);
+    get_logger().log(logger::Level::ERR, format, std::forward<Args>(args)...);
 }
 
-inline void setLevel(logger::Level level) { logger.setLevel(level); }
+inline void setLevel(logger::Level level) { get_logger().setLevel(level); }
 
-inline void setFlushLevel(logger::Level level) { logger.setFlushLevel(level); }
+inline void setFlushLevel(logger::Level level) { get_logger().setFlushLevel(level); }
 
 /// @brief Create an instance of the logger with parameters obtained from the respective
 ///        environment variable or with default configuration if the env var is empty,
@@ -56,7 +66,7 @@ inline void setFlushLevel(logger::Level level) { logger.setFlushLevel(level); }
 ///             - flush level: error, meaning that only error messages are guaranteed
 ///                            to be printed immediately as they occur
 ///             - output: stderr
-inline auto create_logger(std::string logger_name) {
+inline Logger create_logger(std::string logger_name) {
     std::transform(logger_name.begin(), logger_name.end(), logger_name.begin(),
                    ::toupper);
     std::stringstream env_var_name;
@@ -70,7 +80,7 @@ inline auto create_logger(std::string logger_name) {
     env_var_name << "UR_LOG_" << logger_name;
     auto map = getenv_to_map(env_var_name.str().c_str());
     if (!map.has_value()) {
-        return Logger(std::make_unique<logger::StderrSink>());
+        return Logger(std::make_unique<logger::StderrSink>(logger_name));
     }
 
     try {
@@ -92,11 +102,11 @@ inline auto create_logger(std::string logger_name) {
             values = kv->second;
         }
 
-        sink = values.size() == 2 ? sink_from_str(values[0], values[1])
-                                  : sink_from_str(values[0]);
+        sink = values.size() == 2 ? sink_from_str(logger_name, values[0], values[1])
+                                  : sink_from_str(logger_name, values[0]);
     } catch (const std::invalid_argument &e) {
         std::cerr << "Error when creating a logger instance from environment variable" << e.what();
-        return Logger(std::make_unique<logger::StderrSink>());
+        return Logger(std::make_unique<logger::StderrSink>(logger_name));
     }
     sink->setFlushLevel(flush_level);
 
