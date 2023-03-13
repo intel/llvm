@@ -10,9 +10,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// Temporarily disable while the failure is being investigated.
-// UNSUPPORTED: windows
-
 #include "esimd_test_utils.hpp"
 
 #include <iostream>
