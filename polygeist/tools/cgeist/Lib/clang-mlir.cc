@@ -2615,7 +2615,6 @@ MLIRASTConsumer::getMLIRFunction(const std::string &MangledName,
 }
 
 #include "clang/Frontend/FrontendAction.h"
-#include "llvm/Support/Host.h"
 
 class MLIRAction : public clang::ASTFrontendAction {
 public:
