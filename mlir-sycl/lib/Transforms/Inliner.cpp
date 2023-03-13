@@ -701,14 +701,6 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
     DidSomething = true;
     ++NumInlinedCalls;
 
-    // Move all AllocaOp to the beginning of the caller function.
-    Operation *nextOp = ResolvedCall.Call->getNextNode();
-    Operation *firstOp = &getFunction(*ResolvedCall.SrcNode).front().front();
-    while (auto alloca = dyn_cast<memref::AllocaOp>(nextOp)) {
-      nextOp = alloca->getNextNode();
-      alloca->moveBefore(firstOp);
-    }
-
     // Merge the new uses into the source node.
     UseList.dropCallUses(ResolvedCall.SrcNode, ResolvedCall.Call.getOperation(),
                          Inliner.getCG());

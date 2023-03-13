@@ -828,12 +828,48 @@ forwardPassthroughAttributes(Location loc, std::optional<ArrayAttr> attributes,
   return success();
 }
 
+// This function moves all AllocaOp (and its operands) to the beginning of the
+// function.
+static bool moveAllocaToTop(LLVMFuncOp func) {
+  if (func.getBody().empty())
+    return false;
+
+  llvm::SetVector<Operation *> ops;
+  func.walk([&ops](LLVM::AllocaOp allocaOp) {
+    std::function<void(Operation *)> collectOpAndOperands = [&](Operation *op) {
+      assert(op && "Expecting valid op");
+      for (Value val : op->getOperands())
+        if (auto *operand = val.getDefiningOp())
+          collectOpAndOperands(operand);
+      ops.insert(op);
+    };
+    collectOpAndOperands(allocaOp);
+  });
+
+  Operation *prevOp = nullptr;
+  for (Operation *op : ops) {
+    if (!prevOp)
+      op->moveBefore(&func.front().front());
+    else
+      op->moveAfter(prevOp);
+    prevOp = op;
+  }
+
+  return !ops.empty();
+}
+
 LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
   // Clear the block, branch value mappings, they are only relevant within one
   // function.
   blockMapping.clear();
   valueMapping.clear();
   branchMapping.clear();
+
+  // SPIR-V requires all OpVariable instructions in a function must be in the
+  // first block in the function. Proper fix should be done in the LLVM to
+  // SPIR-V translator.
+  moveAllocaToTop(func);
+
   llvm::Function *llvmFunc = lookupFunction(func.getName());
 
   // Translate the debug information for this function.
