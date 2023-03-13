@@ -569,7 +569,7 @@ urContextGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_CONTEXT_INFO_USM_MEMSET2D_SUPPORT < ContextInfoType) {
+        if (UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < ContextInfoType) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
