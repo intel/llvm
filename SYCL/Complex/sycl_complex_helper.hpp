@@ -34,6 +34,7 @@ template <> const char *get_typename<float>() { return "float"; }
 template <> const char *get_typename<sycl::half>() { return "sycl::half"; }
 
 // Helper to test each complex specilization
+// Overload for cplx_test_cases
 template <template <typename> typename action, typename... argsT>
 bool test_valid_types(sycl::queue &Q, argsT... args) {
   bool test_passes = true;
@@ -51,6 +52,27 @@ bool test_valid_types(sycl::queue &Q, argsT... args) {
   if (Q.get_device().has(sycl::aspect::fp16)) {
     action<sycl::half> test;
     test_passes &= test(Q, args...);
+  }
+
+  return test_passes;
+}
+
+// Overload for deci_test_cases
+template <template <typename, typename> typename action, typename... argsT>
+bool test_valid_types(sycl::queue &Q, argsT... args) {
+  bool test_passes = true;
+
+  if (Q.get_device().has(sycl::aspect::fp64)) {
+    test_passes &= action<double, bool>{}(Q, args...);
+    test_passes &= action<double, char>{}(Q, args...);
+    test_passes &= action<double, int>{}(Q, args...);
+    test_passes &= action<double, double>{}(Q, args...);
+  }
+
+  { test_passes &= action<float, float>{}(Q, args...); }
+
+  if (Q.get_device().has(sycl::aspect::fp16)) {
+    test_passes &= action<sycl::half, sycl::half>{}(Q, args...);
   }
 
   return test_passes;

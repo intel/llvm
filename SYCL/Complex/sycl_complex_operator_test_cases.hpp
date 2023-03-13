@@ -13,6 +13,9 @@ template <typename T> class test_sub_assign;
 template <typename T> class test_mul_assign;
 template <typename T> class test_div_assign;
 
+template <typename T> class test_unary_plus;
+template <typename T> class test_unary_minus;
+
 // Stores test cases for each math function used in sycl_complex_math_test.cpp
 // Values are stored in the highest precision type, in this case that is double
 
@@ -74,3 +77,10 @@ const char *test_cases<test_mul_assign>::test_name =
 // test_div_assign
 template <>
 const char *test_cases<test_div_assign>::test_name = "division assign test";
+
+// test_unary_plus
+template <> const char *test_cases<test_unary_plus>::test_name = "unary + test";
+
+// test_unary_minus
+template <>
+const char *test_cases<test_unary_minus>::test_name = "unary - test";

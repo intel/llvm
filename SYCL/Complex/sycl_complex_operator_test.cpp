@@ -89,6 +89,41 @@ test_op_assign(test_div_assign, /=);
 
 #undef test_op_assign
 
+// Macro for testing unary operators
+
+#define test_op_unary(name, op)                                                \
+  template <typename T> struct name {                                          \
+    bool operator()(sycl::queue &Q, T init_re1, T init_im1, T init_re2,        \
+                    T init_im2) {                                              \
+      bool pass = true;                                                        \
+                                                                               \
+      auto std_in = init_std_complex(init_re1, init_im1);                      \
+      experimental::complex<T> cplx_input{init_re1, init_im1};                 \
+                                                                               \
+      std::complex<T> std_out{};                                               \
+      auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);    \
+                                                                               \
+      std_out = op std_in;                                                     \
+                                                                               \
+      Q.single_task([=]() { cplx_out[0] = op cplx_input; }).wait();            \
+                                                                               \
+      pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);         \
+                                                                               \
+      cplx_out[0] = op cplx_input;                                             \
+                                                                               \
+      pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);        \
+                                                                               \
+      sycl::free(cplx_out, Q);                                                 \
+                                                                               \
+      return pass;                                                             \
+    }                                                                          \
+  };
+
+test_op_unary(test_unary_plus, +);
+test_op_unary(test_unary_minus, -);
+
+#undef test_op_unary
+
 int main() {
   sycl::queue Q;
 
@@ -131,6 +166,17 @@ int main() {
 
   {
     test_cases<test_div_assign> test;
+    test_passes &= test(Q);
+  }
+
+  /* Test unary operators */
+
+  {
+    test_cases<test_unary_plus> test;
+    test_passes &= test(Q);
+  }
+  {
+    test_cases<test_unary_minus> test;
     test_passes &= test(Q);
   }
 
