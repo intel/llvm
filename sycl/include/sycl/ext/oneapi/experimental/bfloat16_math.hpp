@@ -232,20 +232,50 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   return res;
 }
 
-template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> ceil(T x) {
-  return sycl::ext::oneapi::bfloat16{sycl::ceil(float{x})};
-}
-
-template <size_t N>
-sycl::marray<bfloat16, N> ceil(sycl::marray<bfloat16, N> x) {
-  sycl::marray<bfloat16, N> res;
-  for (size_t i = 0; i < N; i++) {
-    res[i] = ceil(x[i]);
+#define BFLOAT16_MATH_FP32_WRAPPERS(op)                                        \
+  template <typename T>                                                        \
+  std::enable_if_t<std::is_same<T, bfloat16>::value, T> op(T x) {              \
+    return sycl::ext::oneapi::bfloat16{sycl::op(float{x})};                    \
   }
-  return res;
-}
 
+#define BFLOAT16_MATH_FP32_WRAPPERS_VEC(op)                                    \
+  template <size_t N>                                                          \
+  sycl::marray<bfloat16, N> op(sycl::marray<bfloat16, N> x) {                  \
+    sycl::marray<bfloat16, N> res;                                             \
+    for (size_t i = 0; i < N; i++) {                                           \
+      res[i] = op(x[i]);                                                       \
+    }                                                                          \
+    return res;                                                                \
+  }
+
+BFLOAT16_MATH_FP32_WRAPPERS(ceil)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(ceil)
+BFLOAT16_MATH_FP32_WRAPPERS(cos)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(cos)
+BFLOAT16_MATH_FP32_WRAPPERS(exp)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(exp)
+BFLOAT16_MATH_FP32_WRAPPERS(exp10)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(exp10)
+BFLOAT16_MATH_FP32_WRAPPERS(exp2)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(exp2)
+BFLOAT16_MATH_FP32_WRAPPERS(floor)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(floor)
+BFLOAT16_MATH_FP32_WRAPPERS(log)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(log)
+BFLOAT16_MATH_FP32_WRAPPERS(log2)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(log2)
+BFLOAT16_MATH_FP32_WRAPPERS(log10)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(log10)
+BFLOAT16_MATH_FP32_WRAPPERS(rint)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(rint)
+BFLOAT16_MATH_FP32_WRAPPERS(rsqrt)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(rsqrt)
+BFLOAT16_MATH_FP32_WRAPPERS(sin)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(sin)
+BFLOAT16_MATH_FP32_WRAPPERS(sqrt)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(sqrt)
+BFLOAT16_MATH_FP32_WRAPPERS(trunc)
+BFLOAT16_MATH_FP32_WRAPPERS_VEC(trunc)
 } // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
