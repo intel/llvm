@@ -546,31 +546,13 @@ Value MLIRScanner::castToMemSpace(Value Val, unsigned MemSpace) {
         if (ValType.getMemorySpaceAsInt() == MemSpace)
           return Val;
 
-        if (GenerateSYCLAddrSpaceCast)
-          return Builder.create<sycl::SYCLAddrSpaceCastOp>(
-              Loc,
-              MemRefType::get(ValType.getShape(), ValType.getElementType(),
-                              ValType.getLayout(),
-                              mlirclang::wrapIntegerMemorySpace(
-                                  MemSpace, ValType.getContext())),
-              Val);
-
-        // TODO: Use memref.memory_space_cast by default.
-        Value NewVal = Builder.create<polygeist::Memref2PointerOp>(
-            Loc,
-            LLVM::LLVMPointerType::get(ValType.getElementType(),
-                                       ValType.getMemorySpaceAsInt()),
-            Val);
-        NewVal = Builder.create<LLVM::AddrSpaceCastOp>(
-            Loc, LLVM::LLVMPointerType::get(ValType.getElementType(), MemSpace),
-            NewVal);
-        return Builder.create<polygeist::Pointer2MemrefOp>(
+        return Builder.create<memref::MemorySpaceCastOp>(
             Loc,
             MemRefType::get(ValType.getShape(), ValType.getElementType(),
-                            MemRefLayoutAttrInterface(),
+                            ValType.getLayout(),
                             mlirclang::wrapIntegerMemorySpace(
                                 MemSpace, ValType.getContext())),
-            NewVal);
+            Val);
       })
       .Case<LLVM::LLVMPointerType>([&](LLVM::LLVMPointerType ValType) -> Value {
         if (ValType.getAddressSpace() == MemSpace)

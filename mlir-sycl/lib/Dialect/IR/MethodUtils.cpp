@@ -33,7 +33,7 @@ static Operation *trackCasts(Value Val) {
     return nullptr;
 
   return TypeSwitch<Operation *, Operation *>(DefiningOp)
-      .Case<mlir::sycl::SYCLCastOp, mlir::sycl::SYCLAddrSpaceCastOp>(
+      .Case<mlir::sycl::SYCLCastOp, memref::MemorySpaceCastOp>(
           [](Operation *Op) {
             if (auto *Res = trackCasts(Op->getOperand(0)))
               return Res;
