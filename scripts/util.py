@@ -143,16 +143,6 @@ def yamlRead(path):
         return None
 
 """
-    write to yml file
-"""
-def yamlWrite(path, data):
-    try:
-        with open(path, 'w') as fout:
-            yaml.dump(data, fout, default_flow_style=False)
-    except:
-        print("error: unable to write %s"%path)
-
-"""
     generates file using template, args
 """
 makoFileList = []
@@ -195,5 +185,9 @@ def writelines(fout, lines):
     except:
         print("Could not write %s"%fout)
         return None
+
+def to_snake_case(str):
+    f = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', str)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', f).upper()
 
 # END OF FILE

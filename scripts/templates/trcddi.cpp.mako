@@ -41,11 +41,11 @@ namespace tracing_layer
             return ${X}_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
         ${th.make_pfncb_param_type(n, tags, obj)} params = { &${",&".join(th.make_param_lines(n, tags, obj, format=["name"]))} };
-        uint64_t instance = context.notify_begin(${loop.index}, "${th.make_func_name(n, tags, obj)}", &params);
+        uint64_t instance = context.notify_begin(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params);
 
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 
-        context.notify_end(${loop.index}, "${th.make_func_name(n, tags, obj)}", &params, &result, instance);
+        context.notify_end(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params, &result, instance);
 
         return result;
     }
