@@ -379,19 +379,29 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
   return EntryPointGroups;
 }
 
-// Represents a call graph between functions in a module. Nodes are functions,
-// edges are "calls" relation.
-class CallGraph {
+// Represents an "extended" call graph of a module. The main difference with a
+// regular call graph is that this graph represents not only calls, but also
+// other types of function uses. For example, if function FA contains a
+// CallInst which has function FB in its arguments (not calls FB, but passes it
+// as an argument), then this graph will have "FA" -> "FB" edge.
+//
+// The main purpose of such extended graph is to be able to track indirectly
+// called functions to correctly group them together during device code split.
+//
+// The following cases are treated as dependencies between functions:
+// 1.
+//
+// TODO: We should expand this to also track global variable uses.
+class DependencyGraph {
 public:
   using FunctionSet = SmallPtrSet<const Function *, 16>;
 
 private:
-  std::unordered_map<const Function *, FunctionSet> Graph;
+  DenseMap<const Function *, FunctionSet> Graph;
   SmallPtrSet<const Function *, 1> EmptySet;
-  FunctionSet AddrTakenFunctions;
 
 public:
-  CallGraph(const Module &M) {
+  DependencyGraph(const Module &M) {
     for (const auto &F : M) {
       for (const Value *U : F.users()) {
         if (const auto *I = dyn_cast<CallInst>(U)) {
