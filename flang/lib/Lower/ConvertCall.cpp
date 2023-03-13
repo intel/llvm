@@ -409,12 +409,13 @@ fir::ExtendedValue Fortran::lower::genCallOpAndResult(
 
   if (allocatedResult) {
     // 7.5.6.3 point 5. Derived-type finalization for nonpointer function.
-    // Check if the derived-type is finalizable if it is a monorphic
+    // Check if the derived-type is finalizable if it is a monomorphic
     // derived-type.
     // For polymorphic and unlimited polymorphic enities call the runtime
     // in any cases.
     std::optional<Fortran::evaluate::DynamicType> retTy =
         caller.getCallDescription().proc().GetType();
+    bool cleanupWithDestroy = false;
     if (!fir::isPointerType(funcType.getResults()[0]) && retTy &&
         (retTy->category() == Fortran::common::TypeCategory::Derived ||
          retTy->IsPolymorphic() || retTy->IsUnlimitedPolymorphic())) {
@@ -424,6 +425,7 @@ fir::ExtendedValue Fortran::lower::genCallOpAndResult(
           fir::runtime::genDerivedTypeDestroy(*bldr, loc,
                                               fir::getBase(*allocatedResult));
         });
+        cleanupWithDestroy = true;
       } else {
         const Fortran::semantics::DerivedTypeSpec &typeSpec =
             retTy->GetDerivedTypeSpec();
@@ -433,12 +435,13 @@ fir::ExtendedValue Fortran::lower::genCallOpAndResult(
             mlir::Value box = bldr->createBox(loc, *allocatedResult);
             fir::runtime::genDerivedTypeDestroy(*bldr, loc, box);
           });
+          cleanupWithDestroy = true;
         }
       }
     }
     allocatedResult->match(
         [&](const fir::MutableBoxValue &box) {
-          if (box.isAllocatable()) {
+          if (box.isAllocatable() && !cleanupWithDestroy) {
             // 9.7.3.2 point 4. Finalize allocatables.
             fir::FirOpBuilder *bldr = &converter.getFirOpBuilder();
             stmtCtx.attachCleanup([bldr, loc, box]() {
@@ -764,7 +767,7 @@ struct ConditionallyPreparedDummy {
       if (type == i1Type)
         elseResultValues.push_back(builder.createBool(loc, false));
       else
-        elseResultValues.push_back(builder.create<fir::AbsentOp>(loc, type));
+        elseResultValues.push_back(builder.genAbsentOp(loc, type));
     }
     builder.create<fir::ResultOp>(loc, elseResultValues);
   }
@@ -1047,7 +1050,7 @@ genUserCall(PreparedActualArguments &loweredActuals,
     mlir::Type argTy = callSiteType.getInput(arg.firArgument);
     if (!preparedActual) {
       // Optional dummy argument for which there is no actual argument.
-      caller.placeInput(arg, builder.create<fir::AbsentOp>(loc, argTy));
+      caller.placeInput(arg, builder.genAbsentOp(loc, argTy));
       continue;
     }
     const auto *expr = arg.entity->UnwrapExpr();
