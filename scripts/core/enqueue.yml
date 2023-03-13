@@ -49,7 +49,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular kernel execution instance.
+            [out][optional] return an event object that identifies this particular kernel execution instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_KERNEL
@@ -90,7 +90,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -129,7 +129,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -180,7 +180,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -233,7 +233,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -302,7 +302,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -378,7 +378,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance. 
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -436,7 +436,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance. 
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -500,7 +500,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -559,7 +559,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -618,7 +618,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance. 
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -675,7 +675,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -724,7 +724,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance. 
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -776,7 +776,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance. 
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -850,10 +850,10 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
     - type: void**
       name: ppRetMap
-      desc: "[in,out] return mapped pointer.  TODO: move it before numEventsInWaitList?"
+      desc: "[out] return mapped pointer.  TODO: move it before numEventsInWaitList?"
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -918,7 +918,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -958,7 +958,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1002,7 +1002,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1053,7 +1053,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1097,7 +1097,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1133,7 +1133,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1182,7 +1182,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular kernel execution instance.
+            [out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
   - $X_RESULT_ERROR_INVALID_SIZE:
       - "`pitch == 0`"
@@ -1244,7 +1244,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular kernel execution instance.
+            [out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
   - $X_RESULT_ERROR_INVALID_SIZE:
       - "`srcPitch == 0`"
@@ -1301,7 +1301,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular kernel execution instance.
+            [out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
@@ -1346,7 +1346,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out][optional] return an event object that identifies this particular kernel execution instance.
+            [out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
