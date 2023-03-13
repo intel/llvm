@@ -392,8 +392,8 @@ std::optional<StringRef> CGDebugInfo::getSource(const SourceManager &SM,
 FileID ComputeValidFileID(SourceManager &SM, StringRef FileName) {
   FileID MainFileID = SM.getMainFileID();
   // Find the filename FileName and load it.
-  llvm::Expected<FileEntryRef>  ExpectedFileRef =
-    SM.getFileManager().getFileRef(FileName);
+  llvm::Expected<FileEntryRef> ExpectedFileRef =
+      SM.getFileManager().getFileRef(FileName);
   if (ExpectedFileRef) {
     MainFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
                                       SrcMgr::CharacteristicKind::C_User);
@@ -407,18 +407,25 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
   FileID FID;
 
   if (Loc.isInvalid()) {
-    // The DIFile used by the CU is distinct from the main source file. Call
-    // createFile() below for canonicalization if the source file was specified
-    // with an absolute path.
-    FileName = TheCU->getFile()->getFilename();
+    if (CGM.getCodeGenOpts().SYCLUseMainFileName &&
+        CGM.getLangOpts().MacroPrefixMap.size() > 0) {
+      // When fmacro-prefix-map is used, the original source file
+      // file name is indicated by FullMainFileName instead of the CU.
+      auto &CGO = CGM.getCodeGenOpts();
+      FileName = CGO.FullMainFileName;
+      FID = ComputeValidFileID(SM, CGO.FullMainFileName);
+    } else {
+      // The DIFile used by the CU is distinct from the main source file. Call
+      // createFile() below for canonicalization if the source file was
+      // specified with an absolute path.
+      FileName = TheCU->getFile()->getFilename();
+    }
   } else {
     PresumedLoc PLoc = SM.getPresumedLoc(Loc);
     FileName = PLoc.getFilename();
 
     if (FileName.empty()) {
       FileName = TheCU->getFile()->getFilename();
-    } else {
-      FileName = PLoc.getFilename();
     }
     FID = PLoc.getFileID();
   }
@@ -654,11 +661,18 @@ void CGDebugInfo::CreateCompileUnit() {
   // file. Its directory part specifies what becomes the
   // DW_AT_comp_dir (the compilation directory), even if the source
   // file was specified with an absolute path.
+  // Unless an integration footer is involved, and the directory part is
+  // specified by the FileEntryRef provided by the FileID of the main source
+  // file.
   if (CSKind)
     CSInfo.emplace(*CSKind, Checksum);
-  llvm::DIFile *CUFile = DBuilder.createFile(
-      remapDIPath(MainFileName), remapDIPath(getCurrentDirname()), CSInfo,
-      getSource(SM, SM.getMainFileID()));
+
+  if (!CGM.getCodeGenOpts().SYCLUseMainFileName)
+    MainFileDir = getCurrentDirname();
+
+  llvm::DIFile *CUFile =
+      DBuilder.createFile(remapDIPath(MainFileName), remapDIPath(MainFileDir),
+                          CSInfo, getSource(SM, SM.getMainFileID()));
 
   StringRef Sysroot, SDK;
   if (CGM.getCodeGenOpts().getDebuggerTuning() == llvm::DebuggerKind::LLDB) {
