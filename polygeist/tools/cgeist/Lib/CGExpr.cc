@@ -2906,3 +2906,12 @@ ValueCategory MLIRScanner::VisitReal(UnaryOperator *E, QualType PromotionType) {
     return EmitPromotedScalarExpr(Op, PromotionType);
   return Visit(Op);
 }
+
+ValueCategory MLIRScanner::VisitSizeOfPackExpr(SizeOfPackExpr *E) {
+  const auto Loc = getMLIRLocation(E->getExprLoc());
+  const auto Val = E->getPackLength();
+  const auto Ty =
+      Glob.getTypes().getMLIRType(E->getType()).cast<mlir::IntegerType>();
+  return ValueCategory{Builder.create<arith::ConstantIntOp>(Loc, Val, Ty),
+                       /*isReference*/ false};
+}
