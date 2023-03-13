@@ -180,10 +180,10 @@ def do_configure(args):
 
     # Add additional CMake options if provided
     if args.cmake_opt:
-        cmake_cmd += args.cmake_opt
+      cmake_cmd += args.cmake_opt
     
     if args.add_security_flags:
-        cmake_cmd.extend(["-DEXTRA_SECURITY_FLAGS={}".format(args.add_security_flags)])
+      cmake_cmd.extend(["-DEXTRA_SECURITY_FLAGS={}".format(args.add_security_flags)])
 
     # Add path to root CMakeLists.txt
     cmake_cmd.append(llvm_dir)
