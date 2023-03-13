@@ -693,9 +693,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint64_t GlobalMemSize = 0;
-    for (const auto &ZeDeviceMemoryExtProperty :
-         Device->ZeDeviceMemoryProperties->second) {
-      GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
+    if (Device->ZeDeviceProperties->flags &
+        ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) {
+      for (const auto &ZeDeviceMemoryProperty :
+           Device->ZeDeviceMemoryProperties->first) {
+        GlobalMemSize += ZeDeviceMemoryProperty.totalSize;
+      }
+    } else {
+      for (const auto &ZeDeviceMemoryExtProperty :
+           Device->ZeDeviceMemoryProperties->second) {
+        GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
+      }
     }
     return ReturnValue(uint64_t{GlobalMemSize});
   }
