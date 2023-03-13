@@ -1275,7 +1275,7 @@ if(LLVM_USE_RELATIVE_PATHS_IN_FILES)
 endif()
 
 # Add to the end since we need some definitions to be set (LLVM_ON_LINUX)
-include(AddSecurityOptSet)
+include(AddSecurityFlags)
 
 set(LLVM_THIRD_PARTY_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/../third-party CACHE STRING
     "Directory containing third party software used by LLVM (e.g. googletest)")

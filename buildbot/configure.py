@@ -182,8 +182,8 @@ def do_configure(args):
     if args.cmake_opt:
         cmake_cmd += args.cmake_opt
     
-    if args.add_opt_set:
-        cmake_cmd.extend(["-DEXTRA_SECURITY_OPTSET={}".format(args.add_opt_set)])
+    if args.add_security_flags:
+        cmake_cmd.extend(["-DEXTRA_SECURITY_FLAGS={}".format(args.add_security_flags)])
 
     # Add path to root CMakeLists.txt
     cmake_cmd.append(llvm_dir)
@@ -250,7 +250,7 @@ def main():
     parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
     parser.add_argument("--enable-plugin", action='append', help="Enable SYCL plugin")
     parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
-    parser.add_argument("--add_opt_set", type=str, choices=['none', 'default', 'sanitize'], default=None, help="Enables recommended extra options for compile & link. Two values are supported: 'default' and 'sanitize'. 'Sanitize' option is an extension of 'default' set.")
+    parser.add_argument("--add_security_flags", type=str, choices=['none', 'default', 'sanitize'], default=None, help="Enables security flags for compile & link. Two values are supported: 'default' and 'sanitize'. 'Sanitize' option is an extension of 'default' set.")
     args = parser.parse_args()
 
     print("args:{}".format(args))
