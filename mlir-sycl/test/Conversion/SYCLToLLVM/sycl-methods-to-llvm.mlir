@@ -118,6 +118,25 @@ func.func @test(%id: memref<?x!sycl_id_3_>, %idx: i32) -> i64 {
 // -----
 
 //===-------------------------------------------------------------------------------------------------===//
+// sycl.id.get with scalar result type and no argument
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[ID1:.*]]>) -> i64 {
+// CHECK:           %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, 0] : (!llvm.ptr<[[ID1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:      llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:    }
+func.func @test(%id: memref<?x!sycl_id_1_>) -> i64 {
+  %0 = sycl.id.get %id[] { ArgumentTypes = [memref<?x!sycl_id_1_>], FunctionName = @"operator unsigned long", MangledFunctionName = @"operator unsigned long", TypeName = @"id" }  : (memref<?x!sycl_id_1_>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
 // sycl.id.get with reference result type
 //===-------------------------------------------------------------------------------------------------===//
 
@@ -226,7 +245,7 @@ func.func @test_3(%acc: memref<?x!sycl_accessor_3_i32_rw_gb>, %idx: i64) -> !syc
 
 // CHECK-LABEL:   llvm.func @test_1(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[ACCESSOR1]]>,
-// CHECK-SAME:                      %[[VAL_1:.*]]: !llvm.ptr<[[ID1:.*]]>) -> !llvm.ptr<i32, 1> {
+// CHECK-SAME:                      %[[VAL_1:.*]]: !llvm.ptr<[[ID1]]>) -> !llvm.ptr<i32, 1> {
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(0 : i64) : i64
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ACCESSOR1]]>) -> !llvm.ptr<i64>
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i64>
@@ -409,6 +428,24 @@ func.func @test(%item: memref<?x!sycl_item_1_>) -> !sycl_id_1_ {
 // CHECK-NEXT:     }
 func.func @test(%item: memref<?x!sycl_item_1_>, %i: i32) -> i64 {
   %0 = sycl.item.get_id(%item, %i) { ArgumentTypes = [memref<?x!sycl_item_1_>, i32], FunctionName = @"get_id", MangledFunctionName = @"get_id", TypeName = @"item" }  : (memref<?x!sycl_item_1_>, i32) -> i64
+  return %0 : i64
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, false], (!sycl_item_base_1_)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[ITEM1]]>) -> i64 {
+// CHECK:            %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ITEM1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:       %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:       llvm.return %[[VAL_3]] : i64
+// CHECK-NEXT:     }
+func.func @test(%item: memref<?x!sycl_item_1_>) -> i64 {
+  %0 = sycl.item.get_id(%item) { ArgumentTypes = [memref<?x!sycl_item_1_>], FunctionName = @"operator unsigned long", MangledFunctionName = @"operator unsigned long", TypeName = @"item" }  : (memref<?x!sycl_item_1_>) -> i64
   return %0 : i64
 }
 

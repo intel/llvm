@@ -411,6 +411,33 @@ public:
                       operands[0], operands[1]));
   }
 };
+
+/// Pattern replacing an operation with a single argument with an instance of
+/// the same operation with an additional 0 i32 constant argument.
+template <typename Op>
+class AddZeroArgPattern : public ConvertOpToLLVMPattern<Op> {
+public:
+  using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
+  using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(Op op) const final {
+    return success(op.getNumOperands() == 1 && isa<IntegerType>(op.getType()));
+  }
+
+  void rewrite(Op op, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const final {
+    constexpr unsigned indexWidth{32};
+    const auto loc = op.getLoc();
+    const auto resultType = op.getType();
+    // Add argument 0.
+    const ValueRange operands{
+        op->getOperand(0),
+        rewriter.create<arith::ConstantIntOp>(loc, 0, indexWidth)};
+    const auto attributes = op->getAttrs();
+    rewriter.replaceOpWithNewOp<Op>(op, resultType, operands, attributes);
+  }
+};
+
 /// Base pattern for operations calculating the size of a range.
 ///
 /// The result is the accumulation (mul) of all of each dimension of the input
@@ -1336,7 +1363,7 @@ public:
   using LoadMemberDimPattern<SYCLIDGetOp, IDGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLIDGetOp op) const final {
-    return success(op.getType().isa<IntegerType>());
+    return success(op.getNumOperands() > 1 && op.getType().isa<IntegerType>());
   }
 };
 
@@ -1373,7 +1400,8 @@ public:
                              IDGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLItemGetIDOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(op.getNumOperands() > 1 &&
+                   op.getRes().getType().isa<IntegerType>());
   }
 };
 
@@ -2043,7 +2071,8 @@ void mlir::populateSYCLToLLVMConversionPatterns(
   patterns.add<CastPattern>(typeConverter);
   patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns
-      .add<AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
+      .add<AddZeroArgPattern<SYCLIDGetOp>, AddZeroArgPattern<SYCLItemGetIDOp>,
+           AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
            GroupGetGroupIDPattern, GroupGetGroupLinearRangePattern,
            GroupGetGroupRangeDimPattern, GroupGetLocalIDPattern,
            GroupGetLocalLinearRangePattern, GroupGetLocalRangeDimPattern,
