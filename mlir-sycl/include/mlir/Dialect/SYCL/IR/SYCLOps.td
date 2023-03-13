@@ -18,6 +18,7 @@ include "mlir/IR/AttrTypeBase.td"
 
 include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
+include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
@@ -521,7 +522,8 @@ def ConstructorArgs : AnyTypeOf<[Builtin_Vector,
                                  SYCLMemref,
                                  SYCL_RangeType,
                                  VectorEltTy,
-                                 VectorSplatArg
+                                 VectorSplatArg,
+				 LLVM_PointerTo<LLVM_AnyStruct>
                                ]>;
 def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   let summary = "Generic constructor operation";
