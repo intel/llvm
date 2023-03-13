@@ -311,11 +311,11 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       // Because scopes are hierarchical, wider scopes support all narrower
       // scopes. SUB_GROUP and WORK_ITEM were already included in the
       // initialization, since WORK_GROUP is mandated minimum capality.
-      if (devCapabilities && CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
         result |= PI_MEMORY_SCOPE_DEVICE;
       }
 
-      if (devCapabilities && CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
         result |= PI_MEMORY_SCOPE_SYSTEM;
       }
 
