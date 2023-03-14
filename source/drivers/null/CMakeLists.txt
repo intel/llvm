@@ -1,7 +1,7 @@
 # Copyright (C) 2022 Intel Corporation
 # SPDX-License-Identifier: MIT
 
-set(TARGET_NAME ur_null)
+set(TARGET_NAME ur_adapter_null)
 
 add_library(${TARGET_NAME}
     SHARED

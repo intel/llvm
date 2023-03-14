@@ -18,7 +18,7 @@ function(add_python_test name)
     endif()
     # this is for importing the include/ur.py module in other python files
     set_property(TEST ${TEST_NAME} APPEND PROPERTY
-       ENVIRONMENT "PYTHONPATH=${PROJECT_SOURCE_DIR}" "UR_ADAPTERS_FORCE_LOAD=$<TARGET_FILE:ur_null>")
+       ENVIRONMENT "PYTHONPATH=${PROJECT_SOURCE_DIR}" "UR_ADAPTERS_FORCE_LOAD=$<TARGET_FILE:ur_adapter_null>")
 endfunction()
 
 add_python_test(basic)
