@@ -251,7 +251,7 @@ public:
       bool IsPipeSupported =
           Dev.has_extension("cl_intel_program_scope_host_pipe");
       if (!IsPipeSupported) {
-        return &_dataT();
+        return _dataT();
       }
       _dataT data;
       void *data_ptr = &data;
