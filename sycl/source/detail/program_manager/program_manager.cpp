@@ -1257,6 +1257,12 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       if (KSIdIt != KSIdMap.end()) {
         auto &Imgs = m_DeviceImages[KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
+        // If the images differ in target format, the dumping is necessary.
+        if (DumpImages &&
+            !std::all_of(Imgs->begin(), Imgs->end(), [&](auto &I) {
+              return I->getFormat() == Img->getFormat();
+            }))
+          dumpImage(*Img, KSIdIt->second);
 
         cacheKernelUsesAssertInfo(M, *Img);
 
