@@ -347,19 +347,19 @@ inline static bool isValidRoundingMode(unsigned Mode) {
 //
 
 namespace RISCVLoadFPImm {
-int getLoadFPImm(uint8_t Sign, uint8_t Exp, uint8_t Mantissa);
+int getLoadFPImm(bool Sign, uint8_t Exp, uint8_t Mantissa);
 float getFPImm(unsigned Imm);
 
 /// getLoadFP32Imm - Return a 5-bit binary encoding of the 32-bit
 /// floating-point immediate value. If the value cannot be represented as a
 /// 5-bit binary encoding, then return -1.
 static inline int getLoadFP32Imm(const APInt &Imm) {
-  if (Imm.extractBitsAsZExtValue(20, 0) != 0)
+  if (Imm.extractBitsAsZExtValue(21, 0) != 0)
     return -1;
 
-  uint8_t Sign = Imm.extractBitsAsZExtValue(1, 31);
+  bool Sign = Imm.extractBitsAsZExtValue(1, 31);
   uint8_t Exp = Imm.extractBitsAsZExtValue(8, 23);
-  uint8_t Mantissa = Imm.extractBitsAsZExtValue(3, 20);
+  uint8_t Mantissa = Imm.extractBitsAsZExtValue(2, 21);
   return getLoadFPImm(Sign, Exp, Mantissa);
 }
 
@@ -371,11 +371,11 @@ static inline int getLoadFP32Imm(const APFloat &FPImm) {
 /// floating-point immediate value. If the value cannot be represented as a
 /// 5-bit binary encoding, then return -1.
 static inline int getLoadFP64Imm(const APInt &Imm) {
-  if (Imm.extractBitsAsZExtValue(49, 0) != 0)
+  if (Imm.extractBitsAsZExtValue(50, 0) != 0)
     return -1;
 
-  uint8_t Sign = Imm.extractBitsAsZExtValue(1, 63);
-  uint8_t Mantissa = Imm.extractBitsAsZExtValue(3, 49);
+  bool Sign = Imm.extractBitsAsZExtValue(1, 63);
+  uint8_t Mantissa = Imm.extractBitsAsZExtValue(2, 50);
   uint8_t Exp;
   if (Imm.extractBitsAsZExtValue(11, 52) == 1)
     Exp = 0b00000001;
@@ -395,11 +395,11 @@ static inline int getLoadFP64Imm(const APFloat &FPImm) {
 /// floating-point immediate value. If the value cannot be represented as a
 /// 5-bit binary encoding, then return -1.
 static inline int getLoadFP16Imm(const APInt &Imm) {
-  if (Imm.extractBitsAsZExtValue(7, 0) != 0)
+  if (Imm.extractBitsAsZExtValue(8, 0) != 0)
     return -1;
 
-  uint8_t Sign = Imm.extractBitsAsZExtValue(1, 15);
-  uint8_t Mantissa = Imm.extractBitsAsZExtValue(3, 7);
+  bool Sign = Imm.extractBitsAsZExtValue(1, 15);
+  uint8_t Mantissa = Imm.extractBitsAsZExtValue(2, 8);
   uint8_t Exp;
   if (Imm.extractBitsAsZExtValue(5, 10) == 1)
     Exp = 0b00000001;
