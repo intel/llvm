@@ -147,8 +147,7 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
   const auto loc = op->getLoc();
   const auto targetIndexTy = rewriter.getIntegerType(64);
   const auto getIndexTy = rewriter.getIntegerType(32);
-  const auto underlyingArrTy =
-      MemRefType::get(dimensions, targetIndexTy, {}, genericAddressSpace);
+  const auto underlyingArrTy = MemRefType::get(dimensions, targetIndexTy);
   // Allocate
   const auto resTy = op->getResultTypes()[0];
   const Value res =
@@ -156,8 +155,8 @@ void convertToFullObject(ConversionPatternRewriter &rewriter, StringRef opName,
   // Load
   const auto zero =
       static_cast<Value>(rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  const auto argumentTypes = rewriter.getTypeArrayAttr(
-      {MemRefType::get(1, resTy, {}, genericAddressSpace), getIndexTy});
+  const auto argumentTypes =
+      rewriter.getTypeArrayAttr({MemRefType::get(1, resTy), getIndexTy});
   const auto functionName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
   // Initialize
   for (int64_t i = 0; i < dimensions; ++i) {

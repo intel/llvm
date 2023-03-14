@@ -153,7 +153,7 @@ void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
   const auto loc = op->getLoc();
   const auto getIndexTy = rewriter.getIntegerType(32);
   const auto targetIndexType = rewriter.getI64Type();
-  const auto dimMtTy = MemRefType::get(dimensions, targetIndexType, {}, 4);
+  const auto dimMtTy = MemRefType::get(dimensions, targetIndexType);
   // Allocate
   const auto resTy = op->getResultTypes()[0];
   const Value res =
@@ -161,7 +161,7 @@ void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
   // Load
   const Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
   const auto argumentTypes =
-      rewriter.getTypeArrayAttr({MemRefType::get(1, resTy, {}, 4), getIndexTy});
+      rewriter.getTypeArrayAttr({MemRefType::get(1, resTy), getIndexTy});
   const auto functionName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
   // Initialize
   for (int64_t i = 0; i < dimensions; ++i) {
