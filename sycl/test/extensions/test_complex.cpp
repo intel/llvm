@@ -34,7 +34,7 @@ TEST_MATH_OP_TYPE(add, +)
 TEST_MATH_OP_TYPE(sub, -)
 TEST_MATH_OP_TYPE(mul, *)
 TEST_MATH_OP_TYPE(div, /)
-#undef TEST_MATH_FUNC_TYPE
+#undef TEST_MATH_OP_TYPE
 
 // Check operations return correct types
 void check_math_operator_types() {
@@ -100,7 +100,6 @@ template <typename T> struct test_pow_types {
 
 // Check functions return correct types
 void check_math_function_types() {
-
   test_valid_types<test_abs_types>();
   test_valid_types<test_acos_types>();
   test_valid_types<test_asin_types>();
