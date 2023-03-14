@@ -101,7 +101,7 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
 inline __SYCL_ALWAYS_INLINE
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-__SYCL2020_DEPRECATED("get_wi_data() is deprecated for CUDA backend.")
+__SYCL2020_DEPRECATED("get_wi_data() is deprecated for CUDA backend. Please use joint_matrix_apply() instead.")
 #else
     __attribute__((unavailable(
         "get_wi_data can't be used on intel device, please use "
