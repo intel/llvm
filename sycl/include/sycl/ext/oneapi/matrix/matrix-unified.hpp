@@ -98,18 +98,19 @@ public:
 
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
-inline __SYCL_ALWAYS_INLINE decltype(auto)
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-__SYCL2020_DEPRECATED("get_wi_data() is deprecated for CUDA backend. Please "
-                      "use joint_matrix_apply() instead.")
+__SYCL2020_DEPRECATED("get_wi_data() is deprecated for CUDA backend. Please use joint_matrix_apply() instead.")
 #else
     __attribute__((unavailable(
         "get_wi_data can't be used on intel device, please use "
         "sycl::ext::intel::experimental::matrix::get_wi_data instead!")))
 #endif
 #endif
-    get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
+inline __SYCL_ALWAYS_INLINE
+    decltype(auto)
+        get_wi_data(Group sg,
+                    joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   return wi_data(jm);
