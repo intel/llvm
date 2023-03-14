@@ -300,27 +300,27 @@ func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   // CHECK-DAG:      %alloca = memref.alloca() : memref<1x!sycl_id_1_>
   // CHECK-DAG:      %alloca_0 = memref.alloca() : memref<1x!sycl_id_1_>  
   // CHECK:          affine.if #set1() {
-  // CHECK-NEXT:       %3 = affine.load %alloca[0] : memref<1x!sycl_id_1_>
-  // CHECK-NEXT:       affine.store %3, %alloca_0[0] : memref<1x!sycl_id_1_>
-  // CHECK-NEXT:       %4 = sycl.accessor.subscript %arg0[%alloca_0] {{.*}} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
+  // CHECK-NEXT:       %0 = affine.load %alloca[0] : memref<1x!sycl_id_1_>
+  // CHECK-NEXT:       affine.store %0, %alloca_0[0] : memref<1x!sycl_id_1_>
+  // CHECK-NEXT:       %1 = sycl.accessor.subscript %arg0[%alloca_0] {{.*}} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
   // CHECK-NEXT:       affine.for %arg1 = 0 to 10 {
-  // CHECK-NEXT:         %5 = affine.load %4[0] : memref<?xf32, 4>
-  // CHECK-NEXT:         %6 = arith.addf %5, {{.*}} : f32
-  // CHECK-NEXT:         affine.store %6, %4[0] : memref<?xf32, 4>
+  // CHECK-NEXT:         %2 = affine.load %1[0] : memref<?xf32, 4>
+  // CHECK-NEXT:         %3 = arith.addf %2, {{.*}} : f32
+  // CHECK-NEXT:         affine.store %3, %1[0] : memref<?xf32, 4>
   // CHECK-NEXT:       }
   // CHECK-NEXT:     }    
 
   // CHECK-RELAXED-ALIASING:         func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   // CHECK-RELAXED-ALIASING-DAG:      %alloca = memref.alloca() : memref<1x!sycl_id_1_>
   // CHECK-RELAXED-ALIASING-DAG:      %alloca_0 = memref.alloca() : memref<1x!sycl_id_1_>  
-  // CHECK-RELAXED-ALIASING:          sycl.constructor @id(%2, %c64_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
+  // CHECK-RELAXED-ALIASING:          sycl.constructor @id(%memspacecast, %c64_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
   // CHECK-RELAXED-ALIASING-NEXT:     affine.for %arg1 = 0 to 10 {
-  // CHECK-RELAXED-ALIASING-NEXT:      %3 = affine.load %alloca[0] : memref<1x!sycl_id_1_>
-  // CHECK-RELAXED-ALIASING-NEXT:    affine.store %3, %alloca_0[0] : memref<1x!sycl_id_1_>
-  // CHECK-RELAXED-ALIASING-NEXT:      %4 = sycl.accessor.subscript %arg0[%alloca_0] {ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIfLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi1EvEERfNS0_2idILi1EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
-  // CHECK-RELAXED-ALIASING-NEXT:      %5 = affine.load %4[0] : memref<?xf32, 4>
-  // CHECK-RELAXED-ALIASING-NEXT:      %6 = arith.addf %5, %cst : f32
-  // CHECK-RELAXED-ALIASING-NEXT:      affine.store %6, %4[0] : memref<?xf32, 4>
+  // CHECK-RELAXED-ALIASING-NEXT:      %0 = affine.load %alloca[0] : memref<1x!sycl_id_1_>
+  // CHECK-RELAXED-ALIASING-NEXT:      affine.store %0, %alloca_0[0] : memref<1x!sycl_id_1_>
+  // CHECK-RELAXED-ALIASING-NEXT:      %1 = sycl.accessor.subscript %arg0[%alloca_0] {ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIfLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi1EvEERfNS0_2idILi1EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
+  // CHECK-RELAXED-ALIASING-NEXT:      %2 = affine.load %1[0] : memref<?xf32, 4>
+  // CHECK-RELAXED-ALIASING-NEXT:      %3 = arith.addf %2, %cst : f32
+  // CHECK-RELAXED-ALIASING-NEXT:      affine.store %3, %1[0] : memref<?xf32, 4>
   // CHECK-RELAXED-ALIASING-NEXT:    }
 
   %alloca = memref.alloca() : memref<1x!sycl_id_1>  
@@ -328,18 +328,17 @@ func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   %c64_i64 = arith.constant 64 : i64
   %cst = arith.constant 1.000000e+01 : f32
 
-  %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_1>) -> !llvm.ptr<!sycl_id_1>
-  %1 = llvm.addrspacecast %0 : !llvm.ptr<!sycl_id_1> to !llvm.ptr<!sycl_id_1, 4>
-  %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<!sycl_id_1, 4>) -> memref<?x!sycl_id_1, 4>
-  sycl.constructor @id(%2, %c64_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1, 4>, i64)
+  %0 = memref.cast %alloca : memref<1x!sycl_id_1> to memref<?x!sycl_id_1>
+  %1 = memref.memory_space_cast %0 : memref<?x!sycl_id_1> to memref<?x!sycl_id_1, 4>
+  sycl.constructor @id(%1, %c64_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1, 4>, i64)
 
   affine.for %arg1 = 0 to 10 {    
-    %3 = affine.load %alloca[0] : memref<1x!sycl_id_1>
-    affine.store %3, %alloca_0[0] : memref<1x!sycl_id_1>
-    %4 = sycl.accessor.subscript %arg0[%alloca_0] {ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIfLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi1EvEERfNS0_2idILi1EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1>) -> memref<?xf32, 4>
-    %5 = affine.load %4[0] : memref<?xf32, 4>
-    %6 = arith.addf %5, %cst : f32
-    affine.store %6, %4[0] : memref<?xf32, 4>
+    %2 = affine.load %alloca[0] : memref<1x!sycl_id_1>
+    affine.store %2, %alloca_0[0] : memref<1x!sycl_id_1>
+    %3 = sycl.accessor.subscript %arg0[%alloca_0] {ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIfLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi1EvEERfNS0_2idILi1EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1>) -> memref<?xf32, 4>
+    %4 = affine.load %3[0] : memref<?xf32, 4>
+    %5 = arith.addf %4, %cst : f32
+    affine.store %5, %3[0] : memref<?xf32, 4>
   }
   return
 }
