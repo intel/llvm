@@ -2339,10 +2339,6 @@ pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
-  if (hostPipeEntry->mDeviceImage == NULL){
-    std::clog << "Zibai debug enqueueReadWriteHostPipe is called, warning hostPipeEntry->mDeviceImage is NULL \n";
-  }
-
   RT::PiProgram Program = ProgramManager::getInstance().createPIProgram(
       *(hostPipeEntry->mDeviceImage), Queue->get_context(),
       Queue->get_device());

@@ -1177,7 +1177,6 @@ bool ProgramManager::kernelUsesAssert(OSModuleHandle M,
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
-  std::clog << "Zibai debug program_manager->addImages is called 1 \n ";
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     OSModuleHandle M = OSUtil::getOSModuleHandle(RawImg);
@@ -1315,10 +1314,8 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       // ... and initialize associated host_pipe information
       {
         std::lock_guard HostPipesGuard(m_HostPipesMutex);
-        std::clog << "Zibai debug program_manager->adding hostpipe info is called 2 \n ";
         auto HostPipes = Img->getHostPipes();
         for (const pi_device_binary_property &HostPipe : HostPipes) {
-          std::clog << "Zibai debug program_manager->adding hostpipe info is called, any hostpipe exist? \n ";
           ByteArray HostPipeInfo = DeviceBinaryProperty(HostPipe).asByteArray();
 
           // The supplied host_pipe info property is expected to contain:

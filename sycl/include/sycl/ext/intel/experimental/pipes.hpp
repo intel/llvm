@@ -91,12 +91,10 @@ public:
   static _dataT read(queue & q, bool &success_code, 
                      memory_order order = memory_order::seq_cst)
   {
-     std::cout << "Zibai pipes.hpp non-blocking read is being called \n";
      const device Dev = q.get_device();
       bool IsPipeSupported =
           Dev.has_extension("cl_intel_program_scope_host_pipe");
       if (!IsPipeSupported) {
-        std::cout << "Zibai pipes.hpp read is being called not supported 2\n";
         return _dataT();
       }
       _dataT data;
@@ -108,8 +106,7 @@ public:
         CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), false,
                                 true /* read */);
       });
-      e.wait(); // Zibai double check, I think wait() is still needed even it's non-blocking?
-      // Note: below code is making assumption that the negative open event value (failing) will be propagated to SYCL runtime, and not return complete if fail
+      e.wait(); 
       if (e.get_info<sycl::info::event::command_execution_status>() == sycl::info::event_command_status::complete) {  
          success_code = true;
          return *(_dataT *)data_ptr;
@@ -126,7 +123,6 @@ public:
   bool IsPipeSupported =
       Dev.has_extension("cl_intel_program_scope_host_pipe");
   if (!IsPipeSupported) {
-    std::cout << "Zibai pipes.hpp write is being called not supported\n";
     return;
   }
 
@@ -138,19 +134,7 @@ public:
     CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT), false,
                              false /* write */);
   });
-  e.wait(); // Zibai double check, I think wait() is still needed even it's non-blocking?
-  // Note: below code is making assumption that the negative open event value (failing) will be propagated to SYCL runtime, and not return complete if fail
-  // If it always return complete, need to figure out how to propagate the error back.
-  // https://intel.github.io/llvm-docs/doxygen/namespacesycl_1_1__V1_1_1info.html#a614308c11885e0d8171d1ce5480bcbb0ad9a22d7a8178d5b42a8750123cbfe5b1
-  // event_command_status::ext_oneapi_unknown = -1, hopefully this -1 is returned.
-  // In pi.h, PI_EVENT_COMPLETE is 0
-  //   typedef enum {
-  //   PI_EVENT_COMPLETE = 0x0,
-  //   PI_EVENT_RUNNING = 0x1,
-  //   PI_EVENT_SUBMITTED = 0x2,
-  //   PI_EVENT_QUEUED = 0x3
-  // } _pi_event_status;
-  // Question: why pi_event status has no failure?
+  e.wait();
   if (e.get_info<sycl::info::event::command_execution_status>() == sycl::info::event_command_status::complete) {  
       success_code = true;
   }else{

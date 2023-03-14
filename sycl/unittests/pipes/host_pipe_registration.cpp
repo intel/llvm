@@ -96,7 +96,6 @@ public:
 
 protected:
   void SetUp() override {
-    std::clog << "Zibai started the setup()\n";
     preparePiMock(Mock);
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::context Ctx{Dev};
@@ -119,43 +118,28 @@ TEST_F(PipeTest, Basic) {
                                    "test_host_pipe_unique_id");
 
   // Device registration
-  std::clog << "Zibai started the Device registration\n";
   static sycl::unittest::PiImage Img = generateDefaultImage();
   static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
-  std::clog << "Zibai started the get_host_ptr\n";
   const void *HostPipePtr = Pipe::get_host_ptr();
-  std::clog << "Zibai started the hostPipeEntry\n";
   detail::HostPipeMapEntry *hostPipeEntry =
       detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr);
 
-  if (hostPipeEntry->mDeviceImage == NULL){
-    std::clog << "Zibai debug: hostPipeEntry->mDeviceImage is NULL \n";
-  }
   pi_device_binary_struct pi_device_binary = Img.convertToNativeType();
   hostPipeEntry->initialize((detail::RTDeviceBinaryImage *)&pi_device_binary);
   
-  if (hostPipeEntry->mDeviceImage != NULL){
-    std::clog << "Zibai debug: hostPipeEntry->mDeviceImage is not NULL anymore \n";
-  }
-
   const std::string pipe_name = hostPipeEntry->MUniqueId;
-  std::clog << "Zibai what is the pipe_name " << pipe_name
-            << "\n"; // this part is fine
+
   int host_pipe_read_data;
   void *data_ptr = &host_pipe_read_data;
-  std::clog << "Zibai started the q submit for read\n";
   event e = q.submit([=](handler &CGH) {
     CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(int), true,
                              true /* read */);
   });
-  std::clog << "Zibai started the wait for read\n";
   e.wait();
-  std::clog << "Zibai started the assert\n";
   assert(host_pipe_read_data == PipeReadVal);
   int tmp = {9};
   data_ptr = &tmp;
-  std::clog << "Zibai started the q submit for write\n";
   event e_write = q.submit([=](handler &CGH) {
     CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(int), true,
                              false /* write */);
