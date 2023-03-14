@@ -4,12 +4,6 @@
 #include "clang/Basic/IdentifierTable.h"
 using namespace clang;
 
-<<<<<<< HEAD
-int clang::hasAttribute(AttributeCommonInfo::Syntax Syntax, const IdentifierInfo *Scope,
-                        const IdentifierInfo *Attr, const TargetInfo &Target,
-                        const LangOptions &LangOpts) {
-  StringRef ScopeName = Scope ? Scope->getName() : "";
-=======
 static int hasAttributeImpl(AttributeCommonInfo::Syntax Syntax, StringRef Name,
                             StringRef ScopeName, const TargetInfo &Target,
                             const LangOptions &LangOpts) {
@@ -19,10 +13,10 @@ static int hasAttributeImpl(AttributeCommonInfo::Syntax Syntax, StringRef Name,
   return 0;
 }
 
-int clang::hasAttribute(AttributeCommonInfo::Syntax Syntax,
-                        const IdentifierInfo *Scope, const IdentifierInfo *Attr,
-                        const TargetInfo &Target, const LangOptions &LangOpts) {
->>>>>>> 8629343a8b6c26f15f02de2fdd8db440eba71937
+int clang::hasAttribute(AttributeCommonInfo::Syntax Syntax, const IdentifierInfo *Scope,
+                        const IdentifierInfo *Attr, const TargetInfo &Target,
+                        const LangOptions &LangOpts) {
+  StringRef ScopeName = Scope ? Scope->getName() : "";
   StringRef Name = Attr->getName();
   // Normalize the attribute name, __foo__ becomes foo.
   // FIXME: Normalization does not work correctly for attributes in
