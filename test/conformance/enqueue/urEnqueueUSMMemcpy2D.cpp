@@ -9,11 +9,10 @@ struct urEnqueueUSMMemcpy2DTestWithParam
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::urQueueTestWithParam<uur::TestParameters2D>::SetUp());
-        const auto device_usm =
-            uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
-        ASSERT_TRUE(device_usm.has_value());
-        if (!device_usm.value()) {
-            GTEST_SKIP() << "Device USM not supported.";
+        bool device_usm = false;
+        ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
+        if (!device_usm) {
+            GTEST_SKIP() << "Device USM is not supported";
         }
 
         const auto [inPitch, inWidth, inHeight] = getParam();
@@ -102,10 +101,10 @@ TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessNonBlocking) {
                                         &memcpy_event));
     ASSERT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &memcpy_event));
-    const auto eventStatus = uur::GetEventInfo<ur_event_status_t>(
-        memcpy_event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS);
-    ASSERT_TRUE(eventStatus.has_value());
-    ASSERT_EQ(eventStatus.value(), UR_EVENT_STATUS_COMPLETE);
+    ur_event_status_t event_status;
+    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(memcpy_event,
+                                                        UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
+    ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
 
     ASSERT_NO_FATAL_FAILURE(verifyMemcpySucceeded());
 }
