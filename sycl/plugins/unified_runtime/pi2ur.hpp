@@ -229,6 +229,15 @@ inline pi_result ur2piInfoValue(ur_device_info_t ParamName,
         };
     return Value.convertArray(Map);
   }
+  else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
+    static std::unordered_map<ur_device_local_mem_type_t,
+                              pi_device_local_mem_type>
+        Map = {
+          {UR_DEVICE_LOCAL_MEM_TYPE_LOCAL, PI_DEVICE_LOCAL_MEM_TYPE_LOCAL},
+          {UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL, PI_DEVICE_LOCAL_MEM_TYPE_GLOBAL},
+    };
+    return Value.convert(Map);
+  }
 
   if (ParamValueSizePI && ParamValueSizePI != *ParamValueSizeUR) {
     fprintf(stderr, "UR InfoType=%d PI=%d but UR=%d\n", ParamName,
