@@ -647,8 +647,8 @@ inline pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags,
   ur_mem_flags_t urFlags{};
   pi2urMemFlags(flags, &urFlags);
 
-  auto hRet_Mem = reinterpret_cast<ur_mem_handle_t *>(ret_mem);
-  HANDLE_ERRORS(urMemBufferCreate(hContext, urFlags, size, host_ptr, hRet_Mem));
+  auto phRetMem = reinterpret_cast<ur_mem_handle_t *>(ret_mem);
+  HANDLE_ERRORS(urMemBufferCreate(hContext, urFlags, size, host_ptr, phRetMem));
 
   return PI_SUCCESS;
 }

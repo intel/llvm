@@ -1471,7 +1471,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
     // or not. Either way, the state of the program is compromised and likely
     // unrecoverable.
     sycl::detail::ur::die(
-        "Unrecoverable program state reached in cuda_piMemRelease");
+        "Unrecoverable program state reached in urMemRelease");
   }
 
   return UR_RESULT_SUCCESS;
@@ -1693,13 +1693,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   assert((pBufferCreateInfo != nullptr) && "UR_RESULT_ERROR_INVALID_VALUE");
   assert(phMem != nullptr);
 
-  const auto bufferRegion =
-      *reinterpret_cast<ur_buffer_region_t *>(pBufferCreateInfo);
-  assert((bufferRegion.size != 0u) && "UR_RESULT_ERROR_INVALID_BUFFER_SIZE");
+  assert((pBufferCreateInfo.size != 0u) && "UR_RESULT_ERROR_INVALID_BUFFER_SIZE");
 
-  assert((bufferRegion.origin <= (bufferRegion.origin + bufferRegion.size)) &&
+  assert((pBufferCreateInfo.origin <= (pBufferCreateInfo.origin + pBufferCreateInfo.size)) &&
          "Overflow");
-  assert(((bufferRegion.origin + bufferRegion.size) <=
+  assert(((pBufferCreateInfo.origin + pBufferCreateInfo.size) <=
           hBuffer->mem_.buffer_mem_.get_size()) &&
          "UR_RESULT_ERROR_INVALID_BUFFER_SIZE");
   // Retained indirectly due to retaining parent buffer below.
@@ -1711,18 +1709,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   assert(hBuffer->mem_.buffer_mem_.ptr_ !=
          ur_mem_handle_t_::mem_::buffer_mem_::native_type{0});
   ur_mem_handle_t_::mem_::buffer_mem_::native_type ptr =
-      hBuffer->mem_.buffer_mem_.ptr_ + bufferRegion.origin;
+      hBuffer->mem_.buffer_mem_.ptr_ + pBufferCreateInfo.origin;
 
   void *hostPtr = nullptr;
   if (hBuffer->mem_.buffer_mem_.hostPtr_) {
     hostPtr = static_cast<char *>(hBuffer->mem_.buffer_mem_.hostPtr_) +
-              bufferRegion.origin;
+              pBufferCreateInfo.origin;
   }
 
   std::unique_ptr<ur_mem_handle_t_> retMemObj{nullptr};
   try {
     retMemObj = std::unique_ptr<ur_mem_handle_t_>{new ur_mem_handle_t_{
-        context, hBuffer, allocMode, ptr, hostPtr, bufferRegion.size}};
+        context, hBuffer, allocMode, ptr, hostPtr, pBufferCreateInfo.size}};
   } catch (ur_result_t err) {
     *phMem = nullptr;
     return err;
