@@ -438,6 +438,7 @@ struct type {
         ext::oneapi::level_zero::ownership::transfer};
   };
 ```
+where the Range should be ordered (width), (width, height), or (width, height, depth) for 1D, 2D and 3D images respectively, with those values matching the dimensions used in the `ze_image_desc` that was used to create the `ze_image_handle_t` initially. 
 
 Example Usage
 ``` C++
