@@ -257,6 +257,11 @@ template <int NumElements> struct half_vec {
       vector_alignment<StorageT, NumElements>::value) StorageT s[NumElements];
 
   __SYCL_CONSTEXPR_HALF half_vec() : s{0.0f} { initialize_data(); }
+  template <typename... Ts,
+            typename = std::enable_if_t<(sizeof...(Ts) == NumElements) &&
+                                        (std::is_same_v<half, Ts> && ...)>>
+  __SYCL_CONSTEXPR_HALF half_vec(const Ts &...hs) : s{hs...} {}
+
   constexpr void initialize_data() {
     for (size_t i = 0; i < NumElements; ++i) {
       s[i] = StorageT(0.0f);
