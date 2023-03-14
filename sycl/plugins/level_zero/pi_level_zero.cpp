@@ -571,7 +571,7 @@ pi_result _pi_context::initialize() {
   // Prefer to use copy engine for initialization copies,
   // if available and allowed (main copy engine with index 0).
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  const auto &Range = getRangeOfAllowedCopyEngines((zer_device_handle_t)Device);
+  const auto &Range = getRangeOfAllowedCopyEngines((ur_device_handle_t)Device);
   ZeCommandQueueDesc.ordinal =
       Device->QueueGroup[_pi_device::queue_group_info_t::Compute].ZeOrdinal;
   if (Range.first >= 0 &&
@@ -911,7 +911,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
 
   // Copy group initialization.
   pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
-  const auto &Range = getRangeOfAllowedCopyEngines((zer_device_handle_t)Device);
+  const auto &Range = getRangeOfAllowedCopyEngines((ur_device_handle_t)Device);
   if (Range.first < 0 || Range.second < 0) {
     // We are asked not to use copy engines, just do nothing.
     // Leave CopyQueueGroup.ZeQueues empty, and it won't be used.
@@ -3832,9 +3832,16 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   if (ZeResult != ZE_RESULT_SUCCESS) {
     // We adjust pi_program below to avoid attempting to release zeModule when
     // RT calls piProgramRelease().
-    ZeModule = nullptr;
     Program->State = _pi_program::Invalid;
     Result = mapError(ZeResult);
+    if (Program->ZeBuildLog) {
+      ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
+      Program->ZeBuildLog = nullptr;
+    }
+    if (ZeModule) {
+      ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+      ZeModule = nullptr;
+    }
   } else {
     // The call to zeModuleCreate does not report an error if there are
     // unresolved symbols because it thinks these could be resolved later via a
@@ -3847,6 +3854,10 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
       Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
                    ? PI_ERROR_BUILD_PROGRAM_FAILURE
                    : mapError(ZeResult);
+      if (ZeModule) {
+        ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+        ZeModule = nullptr;
+      }
     }
   }
 
@@ -5553,7 +5564,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       if (Queue->Device->ImmCommandListUsed) {
         // If immediate command lists are being used, each will act as their own
         // queue, so we must insert a barrier into each.
-        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+        for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
           if (ImmCmdList != Queue->CommandListMap.end())
             CmdLists.push_back(ImmCmdList);
       } else {
@@ -7856,7 +7867,7 @@ pi_result piextEnqueueDeviceGlobalVariableWrite(
           (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Write device global variable is out of range.",
-                    ZER_RESULT_INVALID_VALUE);
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
 
@@ -7901,7 +7912,7 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
           (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Read from device global variable is out of range.",
-                    ZER_RESULT_INVALID_VALUE);
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
 
@@ -7991,6 +8002,10 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 }
 
 // SYCL RT calls this api to notify the end of plugin lifetime.
+// Windows: dynamically loaded plugins might have been unloaded already
+// when this is called. Sycl RT holds onto the PI plugin so it can be
+// called safely. But this is not transitive. If the PI plugin in turn
+// dynamically loaded a different DLL, that may have been unloaded.
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.
 pi_result piTearDown(void *PluginParameter) {
@@ -8374,4 +8389,10 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   }
   return PI_SUCCESS;
 }
+
+#ifdef _WIN32
+#define __SYCL_PLUGIN_DLL_NAME "pi_level_zero.dll"
+#include "../common_win_pi_trace/common_win_pi_trace.hpp"
+#undef __SYCL_PLUGIN_DLL_NAME
+#endif
 } // extern "C"

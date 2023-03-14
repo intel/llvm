@@ -285,11 +285,85 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_ERROR_INVALID_VALUE;
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    // Guaranteed to return at least relaxed memory order
-    cl_int result = 1;
-    // TODO: Check for support for the rest of the capabilities
-    std::memcpy(paramValue, &result, sizeof(cl_int));
-    return PI_SUCCESS;
+    // This query is missing beore OpenCL 3.0
+    // Check version and handle appropriately
+    OCLV::OpenCLVersion devVer;
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS) {
+      return cast<pi_result>(ret_err);
+    }
+
+    if (devVer < OCLV::V2_0) {
+      // For OpenCL 1.2, return the minimum required values
+      if (paramValue && paramValueSize < sizeof(cl_int))
+        return static_cast<pi_result>(CL_INVALID_VALUE);
+      if (paramValueSizeRet)
+        *paramValueSizeRet = sizeof(cl_int);
+
+      if (paramValue) {
+        cl_int capabilities = PI_MEMORY_ORDER_RELAXED;
+        std::memcpy(paramValue, &capabilities, sizeof(cl_int));
+      }
+      return static_cast<pi_result>(CL_SUCCESS);
+    } else if (devVer < OCLV::V3_0) {
+      // For OpenCL 2.x, return all capabilities
+      // (https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#_memory_consistency_model)
+      if (paramValue && paramValueSize < sizeof(cl_int))
+        return static_cast<pi_result>(CL_INVALID_VALUE);
+      if (paramValueSizeRet)
+        *paramValueSizeRet = sizeof(cl_int);
+
+      if (paramValue) {
+        cl_int capabilities = PI_MEMORY_ORDER_RELAXED |
+                              PI_MEMORY_ORDER_ACQUIRE |
+                              PI_MEMORY_ORDER_RELEASE |
+                              PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_SEQ_CST;
+        std::memcpy(paramValue, &capabilities, sizeof(cl_int));
+      }
+      return static_cast<pi_result>(CL_SUCCESS);
+    }
+#ifdef CL_VERSION_3_0
+    if (devVer >= OCLV::V3_0) {
+      // For OpenCL >=3.0, the query should be implemented
+      cl_int capabilities = CL_DEVICE_ATOMIC_ORDER_RELAXED;
+      cl_int ret_err = clGetDeviceInfo(
+          cast<cl_device_id>(device), cast<cl_device_info>(paramName),
+          paramValueSize, &result, paramValueSizeRet);
+      if (ret_err != CL_SUCCESS)
+        return cast<pi_result>(ret_err);
+
+      if (paramValue && paramValueSize < sizeof(cl_int))
+        return static_cast<pi_result>(CL_INVALID_VALUE);
+      if (paramValueSizeRet)
+        *paramValueSizeRet = sizeof(cl_int);
+
+      if (paramValue) {
+        // Mask operation to only consider atomic_memory_order* capabilities
+        cl_int mask = CL_DEVICE_ATOMIC_ORDER_RELAXED |
+                      CL_DEVICE_ATOMIC_ORDER_ACQ_REL |
+                      CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
+        capabilities &= mask;
+
+        // Convert from OCL bitfield to SYCL PI bitfield
+        // OCL could return (masked) 00000111 for all capabilities
+        // PI would want that to be ...11111 for all capabilities as well as
+        // ACQUIRE and RELEASE So need to bitshift and fill in result
+        if (capabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
+          capabilities &= ~CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
+          capabilities |= PI_MEMORY_ORDER_SEQ_CST;
+        }
+        if (capabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) {
+          capabilities &= ~CL_DEVICE_ATOMIC_ORDER_ACQ_REL;
+          capabilities |= (PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_ACQUIRE |
+                           PI_MEMORY_ORDER_RELEASE);
+        }
+
+        std::memcpy(paramValue, &capabilities, sizeof(cl_int));
+      }
+    }
+#endif
+    return static_cast<pi_result>(CL_SUCCESS);
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
@@ -351,7 +425,46 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(pi_int32));
     return PI_SUCCESS;
   }
+  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
+    // Corresponding OpenCL query is only available starting with OpenCL 2.1 and
+    // we have to emulate it on older OpenCL runtimes.
+    OCLV::OpenCLVersion version;
+    cl_int err = getDeviceVersion(cast<cl_device_id>(device), version);
+    if (err != CL_SUCCESS)
+      return static_cast<pi_result>(err);
 
+    if (version >= OCLV::V2_1) {
+      err = clGetDeviceInfo(cast<cl_device_id>(device),
+                            cast<cl_device_info>(paramName), paramValueSize,
+                            paramValue, paramValueSizeRet);
+      if (err != CL_SUCCESS)
+        return static_cast<pi_result>(err);
+
+      if (paramValue && *static_cast<cl_uint *>(paramValue) == 0u) {
+        // OpenCL returns 0 if sub-groups are not supported, but SYCL 2020 spec
+        // says that minimum possible value is 1.
+        cl_uint value = 1u;
+        std::memcpy(paramValue, &value, sizeof(cl_uint));
+      }
+
+      return static_cast<pi_result>(err);
+    }
+
+    // Otherwise, we can't query anything, because even cl_khr_subgroups does
+    // not provide similar query. Therefore, simply return minimum possible
+    // value 1 here.
+    if (paramValue && paramValueSize < sizeof(cl_uint))
+      return static_cast<pi_result>(CL_INVALID_VALUE);
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(cl_uint);
+
+    if (paramValue) {
+      cl_uint value = 1u;
+      std::memcpy(paramValue, &value, sizeof(cl_uint));
+    }
+
+    return static_cast<pi_result>(CL_SUCCESS);
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -853,13 +966,6 @@ pi_result piContextGetInfo(pi_context context, pi_context_info paramName,
     // 2D USM memops are not supported.
     cl_bool result = false;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
-    return PI_SUCCESS;
-  }
-  case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    // Guaranteed to return at least relaxed memory order
-    cl_int result = 1;
-    // TODO: Check for support for the rest of the capabilities
-    std::memcpy(paramValue, &result, sizeof(cl_int));
     return PI_SUCCESS;
   }
   default:
@@ -1758,6 +1864,10 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 }
 
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
+// Windows: dynamically loaded plugins might have been unloaded already
+// when this is called. Sycl RT holds onto the PI plugin so it can be
+// called safely. But this is not transitive. If the PI plugin in turn
+// dynamically loaded a different DLL, that may have been unloaded. 
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result piTearDown(void *PluginParameter) {
@@ -1953,5 +2063,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   return PI_SUCCESS;
 }
+
+#ifdef _WIN32
+#define __SYCL_PLUGIN_DLL_NAME "pi_opencl.dll"
+#include "../common_win_pi_trace/common_win_pi_trace.hpp"
+#undef __SYCL_PLUGIN_DLL_NAME
+#endif
 
 } // end extern 'C'

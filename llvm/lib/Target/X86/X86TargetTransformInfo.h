@@ -92,6 +92,7 @@ class X86TTIImpl : public BasicTTIImplBase<X86TTIImpl> {
       // Perf-tuning flags.
       X86::TuningFastGather,
       X86::TuningSlowUAMem32,
+      X86::TuningAllowLight256Bit,
 
       // Based on whether user set the -mprefer-vector-width command line.
       X86::TuningPrefer128Bit,
@@ -147,11 +148,13 @@ public:
                                      TTI::TargetCostKind CostKind,
                                      const Instruction *I = nullptr);
   using BaseT::getVectorInstrCost;
-  InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index,
-                                     Value *Op0, Value *Op1);
+  InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
+                                     TTI::TargetCostKind CostKind,
+                                     unsigned Index, Value *Op0, Value *Op1);
   InstructionCost getScalarizationOverhead(VectorType *Ty,
                                            const APInt &DemandedElts,
-                                           bool Insert, bool Extract);
+                                           bool Insert, bool Extract,
+                                           TTI::TargetCostKind CostKind);
   InstructionCost getReplicationShuffleCost(Type *EltTy, int ReplicationFactor,
                                             int VF,
                                             const APInt &DemandedDstElts,
