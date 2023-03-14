@@ -1,0 +1,116 @@
+= sycl_ext_oneapi_malloc_shared_context
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+This extension adds new USM allocation methods for `shared` allocations. These new
+methods provide a way to allocate memory without specifying an initial `device`.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_MALLOC_SHARED_CONTEXT` to one of the values defined in 
+the table below.  Applications can test for the existence of this macro to 
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+
+=== API Additions
+
+This extension adds the following new member function to SYCL in the 
+`sycl::ext::oneapi` namespace.
+
+```
+namespace sycl {
+  namespace ext {
+    namespace oneapi {
+      void* malloc_shared(size_t numBytes, 
+                          const context& syclContext,
+                          const property_list& propList = {});
+      void* aligned_alloc_shared(size_t alignment, size_t numBytes,
+                                 const context& syclContext,
+                                 const property_list& propList = {});
+
+      template <typename T>
+      T* malloc_shared<T>(size_t count, 
+                          const context& syclContext,
+                          const property_list& propList = {});
+
+      template <typename T>
+      T* aligned_alloc_shared(size_t alignment, size_t count,
+                              const context& syclContext,
+                              const property_list& propList = {});
+    } // namespace oneapi
+  } // namespace ext
+} // namespace sycl 
+
+```
+
+This APIs perform the same functions as defined in 
+https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_shared_allocation_functions[Section 4.8.3.4: Shared allocation functions]. The resulting shared allocations are accessible to every device
+contained in the context. Multiple devices may concurrently access this memory
+only if every device in the context supports the aspect 
+`usm_atomic_shared_allocations`.
+
+
