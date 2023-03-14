@@ -15,9 +15,9 @@ using namespace sycl;
 
 template <typename T1, typename T2> class USMKName;
 
-template <typename Name, typename T, class BinaryOperation>
-int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
-         usm::alloc AllocType) {
+template <typename Name, typename T, class BinaryOperation, bool HasIdentity>
+int test(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
+         size_t WGSize, size_t NWItems, usm::alloc AllocType) {
   nd_range<1> NDRange(range<1>{NWItems}, range<1>{WGSize});
   printTestLabel<T, BinaryOperation>(NDRange);
 
@@ -42,13 +42,23 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
   BinaryOperation BOp;
 
   buffer<T, 1> InBuf(NWItems);
-  initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
+  initInputData(InBuf, CorrectOut, BOp, NWItems);
   CorrectOut = BOp(CorrectOut, Init);
 
   // Compute.
   Q.submit([&](handler &CGH) {
+     // Helper for creating the reductions depending on the existance of an
+     // identity.
+     auto CreateReduction = [&]() {
+       if constexpr (HasIdentity) {
+         return reduction(ReduVarPtr, Identity.get(), BOp);
+       } else {
+         return reduction(ReduVarPtr, BOp);
+       }
+     };
+
      auto In = InBuf.template get_access<access::mode::read>(CGH);
-     auto Redu = reduction(ReduVarPtr, Identity, BOp);
+     auto Redu = CreateReduction();
      CGH.parallel_for<USMKName<Name, class Test>>(
          NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
            Sum.combine(In[NDIt.get_global_linear_id()]);
@@ -81,11 +91,21 @@ int NumErrors = 0;
 template <typename Name, typename T, class BinaryOperation>
 void testUSM(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems) {
   NumErrors += test<USMKName<Name, class Shared>, T, BinaryOperation>(
-      Q, Identity, Init, WGSize, NWItems, usm::alloc::shared);
+      Q, OptionalIdentity(Identity), Init, WGSize, NWItems, usm::alloc::shared);
   NumErrors += test<USMKName<Name, class Host>, T, BinaryOperation>(
-      Q, Identity, Init, WGSize, NWItems, usm::alloc::host);
+      Q, OptionalIdentity(Identity), Init, WGSize, NWItems, usm::alloc::host);
   NumErrors += test<USMKName<Name, class Device>, T, BinaryOperation>(
-      Q, Identity, Init, WGSize, NWItems, usm::alloc::device);
+      Q, OptionalIdentity(Identity), Init, WGSize, NWItems, usm::alloc::device);
+}
+
+template <typename Name, typename T, class BinaryOperation>
+void testUSM(queue &Q, T Init, size_t WGSize, size_t NWItems) {
+  NumErrors += test<USMKName<Name, class Shared>, T, BinaryOperation>(
+      Q, OptionalIdentity<T>(), Init, WGSize, NWItems, usm::alloc::shared);
+  NumErrors += test<USMKName<Name, class Host>, T, BinaryOperation>(
+      Q, OptionalIdentity<T>(), Init, WGSize, NWItems, usm::alloc::host);
+  NumErrors += test<USMKName<Name, class Device>, T, BinaryOperation>(
+      Q, OptionalIdentity<T>(), Init, WGSize, NWItems, usm::alloc::device);
 }
 
 int main() {
@@ -109,6 +129,9 @@ int main() {
   testUSM<class Generic1, int, std::multiplies<>>(Q, 1, 5, 7, 7);
   testUSM<class Generic2, CustomVec<short>, CustomVecPlus<short>>(
       Q, CustomVec<short>(0), CustomVec<short>(77), 8, 8 * 3);
+  testUSM<class Generic3, CustomVec<short>, CustomVecPlus<short>>(
+      Q, CustomVec<short>(77), 8, 8 * 3);
+  testUSM<class Generic4, int, PlusWithoutIdentity<int>>(Q, 77, 8, 8 * 3);
 
   printFinalStatus(NumErrors);
   return NumErrors;

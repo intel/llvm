@@ -10,6 +10,13 @@
 
 using namespace sycl;
 
+int NumErrors = 0;
+
+template <typename Name, typename T, typename... ArgTys>
+void tests(ArgTys &&...Args) {
+  NumErrors += test<Name, T>(std::forward<ArgTys>(Args)...);
+}
+
 int main() {
   queue Q;
   printDeviceInfo(Q);
@@ -18,34 +25,33 @@ int main() {
 
   auto LambdaSum = [](auto x, auto y) { return (x + y); };
 
-  int NumErrors = 0;
+  tests<class A1, int>(Q, 0, 99, LambdaSum, range<1>{7});
+  tests<class A2, int>(Q, 0, 99, LambdaSum, range<1>{7}, init_to_identity());
+  tests<class A3, int>(Q, 99, LambdaSum, range<1>{7});
 
-  NumErrors += test<class A1, int>(Q, 0, 99, LambdaSum, range<1>{7});
-  NumErrors +=
-      test<class A2, int>(Q, 0, 99, LambdaSum, range<1>{7}, init_to_identity());
+  tests<class A4, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1});
+  tests<class A5, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1},
+                       init_to_identity());
+  tests<class A6, int>(Q, 99, LambdaSum, range<1>{MaxWGSize + 1});
 
-  NumErrors +=
-      test<class A3, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1});
-  NumErrors += test<class A4, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1},
-                                   init_to_identity());
+  tests<class B1, int>(Q, 0, 99, LambdaSum, range<2>{3, 4});
+  tests<class B2, int>(Q, 0, 99, LambdaSum, range<2>{3, 4}, init_to_identity());
+  tests<class B3, int>(Q, 99, LambdaSum, range<2>{3, 4});
 
-  NumErrors += test<class B1, int>(Q, 0, 99, LambdaSum, range<2>{3, 4});
-  NumErrors += test<class B2, int>(Q, 0, 99, LambdaSum, range<2>{3, 4},
-                                   init_to_identity());
+  tests<class B4, int>(Q, 0, 99, LambdaSum, range<2>{3, MaxWGSize + 1});
+  tests<class B5, int>(Q, 0, 99, LambdaSum, range<2>{3, MaxWGSize + 1},
+                       init_to_identity());
+  tests<class B6, int>(Q, 99, LambdaSum, range<2>{3, MaxWGSize + 1});
 
-  NumErrors +=
-      test<class B3, int>(Q, 0, 99, LambdaSum, range<2>{3, MaxWGSize + 1});
-  NumErrors += test<class B4, int>(
-      Q, 0, 99, LambdaSum, range<2>{3, MaxWGSize + 1}, init_to_identity());
+  tests<class C1, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4});
+  tests<class C2, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4},
+                       init_to_identity());
+  tests<class C3, int>(Q, 99, LambdaSum, range<3>{2, 3, 4});
 
-  NumErrors += test<class C1, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4});
-  NumErrors += test<class C2, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4},
-                                   init_to_identity());
-
-  NumErrors +=
-      test<class C3, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, MaxWGSize + 1});
-  NumErrors += test<class C4, int>(
-      Q, 0, 99, LambdaSum, range<3>{2, 3, MaxWGSize + 1}, init_to_identity());
+  tests<class C4, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, MaxWGSize + 1});
+  tests<class C5, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, MaxWGSize + 1},
+                       init_to_identity());
+  tests<class C6, int>(Q, 99, LambdaSum, range<3>{2, 3, MaxWGSize + 1});
 
   printFinalStatus(NumErrors);
   return NumErrors;

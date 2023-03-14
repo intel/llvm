@@ -43,7 +43,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems,
   BinaryOperation BOp;
 
   buffer<T, 1> InBuf(NWItems);
-  initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
+  initInputData(InBuf, CorrectOut, BOp, NWItems);
 
   // Compute.
   Q.submit([&](handler &CGH) {

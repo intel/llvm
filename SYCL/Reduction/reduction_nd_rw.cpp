@@ -22,6 +22,13 @@ void tests(queue &Q, T Identity, T Init, BinaryOperation BOp, size_t WGSize,
   NumErrors += test<Name>(Q, Identity, Init, BOp, NDRange);
 }
 
+template <typename Name, typename T, class BinaryOperation>
+void tests(queue &Q, T Init, BinaryOperation BOp, size_t WGSize,
+           size_t NWItems) {
+  nd_range<1> NDRange(range<1>{NWItems}, range<1>{WGSize});
+  NumErrors += test<Name>(Q, Init, BOp, NDRange);
+}
+
 int main() {
   queue Q;
   printDeviceInfo(Q);
@@ -52,6 +59,17 @@ int main() {
   // Check with CUSTOM type.
   using CV = CustomVec<long long>;
   tests<class D1, CV>(Q, CV(0), CV(-199), CustomVecPlus<long long>{}, 8, 256);
+  tests<class D2, CV>(Q, CV(-199), CustomVecPlus<long long>{}, 8, 256);
+
+  // Check non power-of-two work-group sizes without identity.
+  tests<class E1, int>(Q, 99, PlusWithoutIdentity<int>{}, 1, 7);
+  tests<class E2, int>(Q, -99, PlusWithoutIdentity<int>{}, 49, 49 * 5);
+
+  // Try some power-of-two work-group sizes without identity.
+  tests<class F1, int>(Q, 99, PlusWithoutIdentity<int>{}, 2, 32);
+  tests<class F2, int>(Q, 199, PlusWithoutIdentity<int>{}, 32, 32);
+  tests<class F3, int>(Q, 299, PlusWithoutIdentity<int>{}, 128, 256);
+  tests<class F4, int>(Q, 399, PlusWithoutIdentity<int>{}, 256, 256);
 
   printFinalStatus(NumErrors);
   return NumErrors;

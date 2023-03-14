@@ -50,7 +50,7 @@ int test(queue &Q, T Identity) {
   // Initialize.
   BinaryOperation BOp;
   T CorrectOut;
-  initInputData(InBuf, CorrectOut, Identity, BOp, NWorkItems);
+  initInputData(InBuf, CorrectOut, BOp, NWorkItems);
 
   // Compute.
   Q.submit([&](handler &CGH) {

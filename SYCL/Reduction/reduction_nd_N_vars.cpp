@@ -48,7 +48,7 @@ struct Red {
   }
 
   void init() {
-    initInputData(InBuf, CorrectOut, IdentityVal, BOp, NWorkItems);
+    initInputData(InBuf, CorrectOut, BOp, NWorkItems);
     if (!PropList.template has_property<
             property::reduction::initialize_to_identity>())
       CorrectOut = BOp(CorrectOut, InitVal);

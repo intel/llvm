@@ -1,4 +1,5 @@
 #include <iostream>
+#include <optional>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -6,10 +7,10 @@ using namespace sycl;
 /// Initializes the buffer<1> \p 'InBuf' buffer with pseudo-random values,
 /// computes the write the reduction value \p 'ExpectedOut'.
 template <typename T, class BinaryOperation>
-void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, T Identity,
-                   BinaryOperation BOp, range<1> Range) {
-  ExpectedOut = Identity;
+void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, BinaryOperation BOp,
+                   range<1> Range) {
   size_t N = Range.size();
+  assert(N != 0);
   auto In = InBuf.template get_access<access::mode::write>();
   for (int I = 0; I < N; ++I) {
     if (std::is_same_v<BinaryOperation, std::multiplies<T>> ||
@@ -26,16 +27,16 @@ void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, T Identity,
       In[I] = I;
     else
       In[I] = ((I + 1) % 5) + 1.1;
-    ExpectedOut = BOp(ExpectedOut, In[I]);
+    ExpectedOut = I == 0 ? In[I] : BOp(ExpectedOut, In[I]);
   }
 };
 
 /// Initializes the buffer<2> \p 'InBuf' buffer with pseudo-random values,
 /// computes the write the reduction value \p 'ExpectedOut'.
 template <typename T, class BinaryOperation>
-void initInputData(buffer<T, 2> &InBuf, T &ExpectedOut, T Identity,
-                   BinaryOperation BOp, range<2> Range) {
-  ExpectedOut = Identity;
+void initInputData(buffer<T, 2> &InBuf, T &ExpectedOut, BinaryOperation BOp,
+                   range<2> Range) {
+  assert(Range.size() != 0);
   auto In = InBuf.template get_access<access::mode::write>();
   for (int J = 0; J < Range[0]; ++J) {
     for (int I = 0; I < Range[1]; ++I) {
@@ -53,7 +54,7 @@ void initInputData(buffer<T, 2> &InBuf, T &ExpectedOut, T Identity,
         In[J][I] = I + J;
       else
         In[J][I] = ((I + 1 + J) % 5) + 1.1;
-      ExpectedOut = BOp(ExpectedOut, In[J][I]);
+      ExpectedOut = (I == 0 && J == 0) ? In[J][I] : BOp(ExpectedOut, In[J][I]);
     }
   }
 };
@@ -61,9 +62,9 @@ void initInputData(buffer<T, 2> &InBuf, T &ExpectedOut, T Identity,
 /// Initializes the buffer<3> \p 'InBuf' buffer with pseudo-random values,
 /// computes the write the reduction value \p 'ExpectedOut'.
 template <typename T, class BinaryOperation>
-void initInputData(buffer<T, 3> &InBuf, T &ExpectedOut, T Identity,
-                   BinaryOperation BOp, range<3> Range) {
-  ExpectedOut = Identity;
+void initInputData(buffer<T, 3> &InBuf, T &ExpectedOut, BinaryOperation BOp,
+                   range<3> Range) {
+  assert(Range.size() != 0);
   auto In = InBuf.template get_access<access::mode::write>();
   for (int K = 0; K < Range[0]; ++K) {
     for (int J = 0; J < Range[1]; ++J) {
@@ -82,7 +83,9 @@ void initInputData(buffer<T, 3> &InBuf, T &ExpectedOut, T Identity,
           In[K][J][I] = I + J + K;
         else
           In[K][J][I] = ((I + 1 + J + K * 3) % 5) + 1.1;
-        ExpectedOut = BOp(ExpectedOut, In[K][J][I]);
+        ExpectedOut = (I == 0 && J == 0 && K == 0)
+                          ? In[K][J][I]
+                          : BOp(ExpectedOut, In[K][J][I]);
       }
     }
   }
@@ -134,6 +137,10 @@ template <class T> struct CustomVecPlus {
   }
 };
 
+template <class T> struct PlusWithoutIdentity {
+  T operator()(const T &A, const T &B) const { return A + B; }
+};
+
 template <typename T> T getMinimumFPValue() {
   return std::numeric_limits<T>::has_infinity
              ? static_cast<T>(-std::numeric_limits<T>::infinity())
@@ -145,6 +152,17 @@ template <typename T> T getMaximumFPValue() {
              ? std::numeric_limits<T>::infinity()
              : (std::numeric_limits<T>::max)();
 }
+
+template <typename T, bool HasIdentity = false> struct OptionalIdentity {
+  OptionalIdentity() {}
+  OptionalIdentity(T IdentityVal) : MValue{IdentityVal} {}
+
+  T get() const { return *MValue; }
+
+private:
+  std::optional<T> MValue;
+};
+template <typename T> OptionalIdentity(T) -> OptionalIdentity<T, true>;
 
 void printDeviceInfo(queue &Q, bool ToCERR = false) {
   static int IsErrDeviceInfoPrinted = 0;
@@ -263,11 +281,12 @@ auto init_to_identity() {
   return property_list{property::reduction::initialize_to_identity{}};
 }
 
-template <typename Name, typename T, class BinaryOperation,
+template <typename Name, typename T, bool HasIdentity, class BinaryOperation,
           template <int> typename RangeTy, int Dims,
           typename PropListTy = property_list>
-int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
-         const RangeTy<Dims> &Range, PropListTy PropList = {}) {
+int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
+              BinaryOperation BOp, const RangeTy<Dims> &Range,
+              PropListTy PropList = {}) {
   constexpr bool IsRange = std::is_same_v<range<Dims>, RangeTy<Dims>>;
   constexpr bool IsNDRange = std::is_same_v<nd_range<Dims>, RangeTy<Dims>>;
   static_assert(IsRange || IsNDRange);
@@ -308,7 +327,7 @@ int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
 
   // Initialize.
   T CorrectOut;
-  initInputData(InBuf, CorrectOut, Identity, BOp, GlobalRange);
+  initInputData(InBuf, CorrectOut, BOp, GlobalRange);
   if (!PropList.template has_property<
           property::reduction::initialize_to_identity>()) {
     CorrectOut = BOp(CorrectOut, Init);
@@ -320,8 +339,18 @@ int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
 
   // Compute.
   Q.submit([&](handler &CGH) {
+    // Helper for creating the reductions depending on the existance of an
+    // identity.
+    auto CreateReduction = [&]() {
+      if constexpr (HasIdentity) {
+        return reduction(OutBuf, CGH, Identity.get(), BOp, PropList);
+      } else {
+        return reduction(OutBuf, CGH, BOp, PropList);
+      }
+    };
+
     auto In = InBuf.template get_access<access::mode::read>(CGH);
-    auto Redu = reduction(OutBuf, CGH, Identity, BOp, PropList);
+    auto Redu = CreateReduction();
     if constexpr (IsRange)
       CGH.parallel_for<Name>(
           Range, Redu, [=](id<Dims> Id, auto &Sum) { Sum.combine(In[Id]); });
@@ -337,11 +366,28 @@ int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
   return checkResults(Q, BOp, Range, ComputedOut, CorrectOut);
 }
 
-template <typename Name, typename T, class BinaryOperation, int Dims,
+template <typename Name, typename T, class BinaryOperation,
+          template <int> typename RangeTy, int Dims,
           typename PropListTy = property_list>
-int testUSM(queue &Q, T Identity, T Init, BinaryOperation BOp,
-            const range<Dims> &Range, usm::alloc AllocType,
-            PropListTy PropList = {}) {
+int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
+         const RangeTy<Dims> &Range, PropListTy PropList = {}) {
+  return testInner<Name>(Q, OptionalIdentity(Identity), Init, BOp, Range,
+                         PropList);
+}
+
+template <typename Name, typename T, class BinaryOperation,
+          template <int> typename RangeTy, int Dims,
+          typename PropListTy = property_list>
+int test(queue &Q, T Init, BinaryOperation BOp, const RangeTy<Dims> &Range,
+         PropListTy PropList = {}) {
+  return testInner<Name>(Q, OptionalIdentity<T>(), Init, BOp, Range, PropList);
+}
+
+template <typename Name, typename T, bool HasIdentity, class BinaryOperation,
+          int Dims, typename PropListTy = property_list>
+int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
+                 BinaryOperation BOp, const range<Dims> &Range,
+                 usm::alloc AllocType, PropListTy PropList = {}) {
   printTestLabel<T, BinaryOperation>(Range);
 
   auto Dev = Q.get_device();
@@ -390,7 +436,7 @@ int testUSM(queue &Q, T Identity, T Init, BinaryOperation BOp,
   // Initialize.
   T CorrectOut;
   buffer<T, Dims> InBuf(Range);
-  initInputData(InBuf, CorrectOut, Identity, BOp, Range);
+  initInputData(InBuf, CorrectOut, BOp, Range);
   if (!PropList.template has_property<
           property::reduction::initialize_to_identity>()) {
     CorrectOut = BOp(CorrectOut, Init);
@@ -398,8 +444,18 @@ int testUSM(queue &Q, T Identity, T Init, BinaryOperation BOp,
 
   // Compute.
   Q.submit([&](handler &CGH) {
+     // Helper for creating the reductions depending on the existance of an
+     // identity.
+     auto CreateReduction = [&]() {
+       if constexpr (HasIdentity) {
+         return reduction(ReduVarPtr, Identity.get(), BOp, PropList);
+       } else {
+         return reduction(ReduVarPtr, BOp, PropList);
+       }
+     };
+
      auto In = InBuf.template get_access<access::mode::read>(CGH);
-     auto Redu = reduction(ReduVarPtr, Identity, BOp, PropList);
+     auto Redu = CreateReduction();
      CGH.parallel_for<TName<Name, class Test>>(
          Range, Redu, [=](id<Dims> Id, auto &Sum) { Sum.combine(In[Id]); });
    }).wait();
@@ -423,4 +479,21 @@ int testUSM(queue &Q, T Identity, T Init, BinaryOperation BOp,
   int Error = checkResults(Q, BOp, Range, ComputedOut, CorrectOut, AllocStr);
   free(ReduVarPtr, Q.get_context());
   return Error;
+}
+
+template <typename Name, typename T, class BinaryOperation, int Dims,
+          typename PropListTy = property_list>
+int testUSM(queue &Q, T Identity, T Init, BinaryOperation BOp,
+            const range<Dims> &Range, usm::alloc AllocType,
+            PropListTy PropList = {}) {
+  return testUSMInner<Name>(Q, OptionalIdentity(Identity), Init, BOp, Range,
+                            AllocType, PropList);
+}
+
+template <typename Name, typename T, class BinaryOperation, int Dims,
+          typename PropListTy = property_list>
+int testUSM(queue &Q, T Init, BinaryOperation BOp, const range<Dims> &Range,
+            usm::alloc AllocType, PropListTy PropList = {}) {
+  return testUSMInner<Name>(Q, OptionalIdentity<T>(), Init, BOp, Range,
+                            AllocType, PropList);
 }

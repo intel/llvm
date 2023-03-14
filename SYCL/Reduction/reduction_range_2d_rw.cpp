@@ -15,9 +15,9 @@ using namespace sycl;
 
 int NumErrors = 0;
 
-template <typename Name, typename T, class BinaryOperation>
-void tests(queue &Q, T Identity, T Init, BinaryOperation BOp, range<2> Range) {
-  NumErrors += test<Name>(Q, Identity, Init, BOp, Range);
+template <typename Name, typename T, typename... ArgTys>
+void tests(ArgTys &&...Args) {
+  NumErrors += test<Name, T>(std::forward<ArgTys>(Args)...);
 }
 
 int main() {
@@ -46,8 +46,24 @@ int main() {
                        ext::oneapi::maximum<>{}, range<2>{3, 3});
   tests<class B8, float>(Q, 1, 99, std::multiplies<>{}, range<2>{3, 3});
 
-  tests<class C1>(Q, CustomVec<long long>(0), CustomVec<long long>(99),
-                  CustomVecPlus<long long>{}, range<2>{33, MaxWGSize});
+  tests<class C1, CustomVec<long long>>(Q, 0, 99, CustomVecPlus<long long>{},
+                                        range<2>{33, MaxWGSize});
+  tests<class C2, CustomVec<long long>>(Q, 99, CustomVecPlus<long long>{},
+                                        range<2>{33, MaxWGSize});
+
+  tests<class D1, int>(Q, 99, PlusWithoutIdentity<int>{}, range<2>{1, 1});
+  tests<class D2, int>(Q, 99, PlusWithoutIdentity<int>{}, range<2>{2, 2});
+  tests<class D3, int>(Q, 99, PlusWithoutIdentity<int>{}, range<2>{2, 3});
+  tests<class D4, int>(Q, 99, PlusWithoutIdentity<int>{},
+                       range<2>{MaxWGSize, 1});
+  tests<class D5, int64_t>(Q, 99, PlusWithoutIdentity<int64_t>{},
+                           range<2>{1, MaxWGSize});
+  tests<class D6, int64_t>(Q, 99, PlusWithoutIdentity<int64_t>{},
+                           range<2>{2, MaxWGSize * 2});
+  tests<class D7, int64_t>(Q, 99, PlusWithoutIdentity<int64_t>{},
+                           range<2>{MaxWGSize * 3, 7});
+  tests<class D8, int64_t>(Q, 99, PlusWithoutIdentity<int64_t>{},
+                           range<2>{3, MaxWGSize * 3});
 
   printFinalStatus(NumErrors);
   return NumErrors;

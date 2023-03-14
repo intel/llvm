@@ -3,7 +3,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// This performs basic checks such as reduction creation, getIdentity() method,
+// This performs basic checks such as reduction creation, identity methods,
 // and the combine() method of the aux class 'reducer'.
 // Note: This test relies on non-standard implementation details.
 
@@ -27,8 +27,9 @@ void test_reducer(Reduction &Redu, T A, T B) {
   T ExpectedValue = BOp(A, B);
   assert(ExpectedValue == detail::ReducerAccess{Reducer}.getElement(0) &&
          "Wrong result of binary operation.");
-  assert(toBool(Reducer.identity() == Redu.getIdentity()) &&
-         "Failed identity() check().");
+  assert(
+      toBool(Reducer.identity() == Redu.getIdentityContainer().getIdentity()) &&
+      "Failed identity() check().");
 }
 
 template <typename T, typename Reduction, typename BinaryOperation>
@@ -41,8 +42,9 @@ void test_reducer(Reduction &Redu, T Identity, BinaryOperation BOp, T A, T B) {
   assert(
       toBool(ExpectedValue == detail::ReducerAccess{Reducer}.getElement(0)) &&
       "Wrong result of binary operation.");
-  assert(toBool(Reducer.identity() == Redu.getIdentity()) &&
-         "Failed identity() check().");
+  assert(
+      toBool(Reducer.identity() == Redu.getIdentityContainer().getIdentity()) &&
+      "Failed identity() check().");
 }
 
 template <typename... Ts> class KernelNameGroup;
@@ -65,8 +67,8 @@ void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
     auto Redu = sycl::reduction(ReduBuf, CGH, BOp);
     auto ReduUSM = sycl::reduction(ReduUSMPtr, BOp);
 
-    assert(toBool(Redu.getIdentity() == Identity) &&
-           toBool(ReduUSM.getIdentity() == Identity) &&
+    assert(toBool(Redu.getIdentityContainer().getIdentity() == Identity) &&
+           toBool(ReduUSM.getIdentityContainer().getIdentity() == Identity) &&
            toBool(known_identity<BinaryOperation, T>::value == Identity) &&
            "Failed getIdentity() check().");
     test_reducer(Redu, A, B);
@@ -96,8 +98,8 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
         ReduDWAcc(ReduBuf, CGH);
     auto Redu = sycl::reduction(ReduBuf, CGH, Identity, BOp);
     auto ReduUSM = sycl::reduction(ReduUSMPtr, Identity, BOp);
-    assert(toBool(Redu.getIdentity() == Identity) &&
-           toBool(ReduUSM.getIdentity() == Identity) &&
+    assert(toBool(Redu.getIdentityContainer().getIdentity() == Identity) &&
+           toBool(ReduUSM.getIdentityContainer().getIdentity() == Identity) &&
            "Failed getIdentity() check().");
     test_reducer(Redu, Identity, BOp, A, B);
     test_reducer(ReduUSM, Identity, BOp, A, B);

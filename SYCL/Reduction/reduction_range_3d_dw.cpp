@@ -16,9 +16,9 @@ using namespace sycl;
 
 int NumErrors = 0;
 
-template <typename Name, typename T, class BinaryOperation>
-void tests(queue &Q, T Identity, T Init, BinaryOperation BOp, range<3> Range) {
-  NumErrors += test<Name>(Q, Identity, Init, BOp, Range, init_to_identity());
+template <typename Name, typename T, typename... ArgTys>
+void tests(ArgTys &&...Args) {
+  NumErrors += test<Name, T>(std::forward<ArgTys>(Args)..., init_to_identity());
 }
 
 int main() {
@@ -59,8 +59,8 @@ int main() {
                        ext::oneapi::maximum<>{}, range<3>{3, MaxWGSize, 3});
   tests<class B8, float>(Q, 1, 99, std::multiplies<>{}, range<3>{3, 3, 5});
 
-  tests<class C1>(Q, CustomVec<long long>(0), CustomVec<long long>(99),
-                  CustomVecPlus<long long>{}, range<3>{2, 33, MaxWGSize});
+  tests<class C1, CustomVec<long long>>(Q, 0, 99, CustomVecPlus<long long>{},
+                                        range<3>{2, 33, MaxWGSize});
 
   printFinalStatus(NumErrors);
   return NumErrors;
