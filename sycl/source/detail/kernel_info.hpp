@@ -71,8 +71,21 @@ typename std::enable_if<!IsSubGroupInfo<Param>::value>::type
 get_kernel_device_specific_info_helper(RT::PiKernel Kernel, RT::PiDevice Device,
                                        const plugin &Plugin, void *Result,
                                        size_t Size) {
-  Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-      Kernel, Device, PiInfoCode<Param>::value, Size, Result, nullptr);
+  try {
+    Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+        Kernel, Device, PiInfoCode<Param>::value, Size, Result, nullptr);
+  } catch (sycl::exception &e) {
+    // clGetKernelWorkGroupInfo returns CL_INVALID_VALUE if param_name is
+    // CL_KERNEL_GLOBAL_WORK_SIZE and device is not a custom device and kernel
+    // is not a built-in kernel. According to SYCL2020 an exception with the
+    // errc::invalid error code should be thrown.
+    if (e.get_cl_code() == PI_ERROR_INVALID_VALUE)
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "info::kernel_device_specific::global_work_size descriptor may only "
+          "be used if the device type is device_type::custom or if the kernel "
+          "is a built-in kernel.");
+  }
 }
 
 template <typename Param>
