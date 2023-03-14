@@ -20,7 +20,7 @@ set(OCL_LOADER_REPO
 
 # Repo tags/hashes
 
-set(OCL_HEADERS_TAG 35c1b8458b9118c68ddde2b0961509583ba4c1d8) #TODO: Change it back once the official header is in.
+set(OCL_HEADERS_TAG d57c0d85426703e3edd366a018a6e7385d534eb3) #TODO: Change it back once the official header is in.
 set(OCL_LOADER_TAG 9a3e962f16f5097d2054233ad8b6dad51b6f41b7)
 
 # OpenCL Headers

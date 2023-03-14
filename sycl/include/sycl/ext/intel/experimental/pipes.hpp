@@ -256,6 +256,8 @@ public:
     write(Data, Success, oneapi::experimental::properties{});
   }
 
+  static const void *get_host_ptr() { return &m_Storage; }
+
   // Blocking pipes
 
   // Host API

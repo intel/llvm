@@ -2339,6 +2339,10 @@ pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
+  if (hostPipeEntry->mDeviceImage == NULL){
+    std::clog << "Zibai debug enqueueReadWriteHostPipe is called, warning hostPipeEntry->mDeviceImage is NULL \n";
+  }
+
   RT::PiProgram Program = ProgramManager::getInstance().createPIProgram(
       *(hostPipeEntry->mDeviceImage), Queue->get_context(),
       Queue->get_device());
@@ -2361,7 +2365,6 @@ pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
             RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
             OutEvent);
   }
-  std::cout << "Zibai debug enqueueReadWriteHostPipe, ptr address is " << ptr << "\n";
   return Error;
 }
 
@@ -2785,7 +2788,6 @@ pi_int32 ExecCGCommand::enqueueImp() {
     if (!Event) {
       Event = &MEvent->getHandleRef();
     }
-    std::cout << "ReadWriteHostPipe hostPtr address is " << hostPtr << "\n";
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
                                     typeSize, RawEvents, Event, read);
   }
