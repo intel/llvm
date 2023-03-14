@@ -1,12 +1,23 @@
-// RUN: polygeist-opt -licm -raise-scf-to-affine -detect-reduction --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt -licm -raise-scf-to-affine -detect-reduction %s | FileCheck %s
 
 // CHECK-LABEL: func.func private @matrix_multiply_reduction
-// CHECK: [[C:%.*]] = sycl.accessor.subscript
-// CHECK: [[INIT:%.*]] = affine.load [[C]][0]
-// CHECK: [[RES:%.*]] = affine.for{{.*}}iter_args([[RED:%.*]] = [[INIT]])
-// CHECK: [[ADD:%.*]] = arith.addf [[RED]], {{.*}}
-// CHECK: affine.yield [[ADD]]
-// CHECK: affine.store [[RES]], [[C]][0]
+// CHECK: [[ALLOCA:%.*]] = memref.alloca()
+// CHECK: [[CAST:%.*]] = memref.cast [[ALLOCA]]
+// CHECK: [[ALLOCA1:%.*]] = memref.alloca()
+// CHECK: [[CAST1:%.*]] = memref.cast [[ALLOCA1]]
+// CHECK: [[MSC:%.*]] = memref.memory_space_cast [[CAST1]]
+// CHECK: scf.if
+// CHECK:   sycl.constructor @id([[MSC]], {{.*}}) 
+// CHECK:   [[LOAD:%.*]] = affine.load [[ALLOCA1]][0] : memref<1x!sycl_id_1_>
+// CHECK:   affine.store [[LOAD]], [[ALLOCA]][0] : memref<1x!sycl_id_1_>
+// CHECK:   [[C:%.*]] = sycl.accessor.subscript {{.*}}[[[CAST]]]
+// CHECK:   [[INIT:%.*]] = affine.load [[C]][0]
+// CHECK:   [[RES:%.*]] = affine.for{{.*}}iter_args([[RED:%.*]] = [[INIT]])
+// CHECK-NOT: polygeist.subindex
+// CHECK-NOT: memref.memory_space_cast
+// CHECK:     [[ADD:%.*]] = arith.addf [[RED]], {{.*}}
+// CHECK:     affine.yield [[ADD]]
+// CHECK:   affine.store [[RES]], [[C]][0]
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
