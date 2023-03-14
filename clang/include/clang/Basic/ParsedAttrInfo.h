@@ -20,6 +20,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Registry.h"
 #include <climits>
+#include <list>
 
 namespace clang {
 
@@ -93,6 +94,13 @@ protected:
 public:
   virtual ~ParsedAttrInfo() = default;
 
+  /// Check if this attribute has specified spelling.
+  bool hasSpelling(AttributeCommonInfo::Syntax Syntax, StringRef Name) const {
+    return llvm::any_of(Spellings, [&](const Spelling &S) {
+      return (S.Syntax == Syntax && S.NormalizedFullName == Name);
+    });
+  }
+
   /// Check if this attribute appertains to D, and issue a diagnostic if not.
   virtual bool diagAppertainsToDecl(Sema &S, const ParsedAttr &Attr,
                                     const Decl *D) const {
@@ -142,6 +150,8 @@ public:
 };
 
 typedef llvm::Registry<ParsedAttrInfo> ParsedAttrInfoRegistry;
+
+const std::list<std::unique_ptr<ParsedAttrInfo>> &getAttributePluginInstances();
 
 } // namespace clang
 
