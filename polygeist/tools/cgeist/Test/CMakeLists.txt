@@ -9,13 +9,14 @@ configure_lit_site_cfg(
 )
 
 list(APPEND MLIR_CLANG_TEST_DEPS
+  cgeist
+  clang
+  FileCheck count not
   llvm-config 
   llvm-dis
-  FileCheck count not
-  cgeist
-  split-file
-  clang
+  mlir-translate
   opt
+  split-file
   sycl-toolchain
   )
 
