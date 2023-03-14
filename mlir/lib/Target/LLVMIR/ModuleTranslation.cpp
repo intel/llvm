@@ -830,9 +830,9 @@ forwardPassthroughAttributes(Location loc, std::optional<ArrayAttr> attributes,
 
 // This function moves all AllocaOp (and its operands) to the beginning of the
 // function.
-static bool moveAllocaToTop(LLVMFuncOp func) {
+static void moveAllocaToTop(LLVMFuncOp func) {
   if (func.getBody().empty())
-    return false;
+    return;
 
   llvm::SetVector<Operation *> ops;
   func.walk([&ops](LLVM::AllocaOp allocaOp) {
@@ -854,8 +854,6 @@ static bool moveAllocaToTop(LLVMFuncOp func) {
       op->moveAfter(prevOp);
     prevOp = op;
   }
-
-  return !ops.empty();
 }
 
 LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
