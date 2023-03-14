@@ -63,7 +63,9 @@ public:
 #if defined(__NVPTX__)
     return jm.cuda_impl.wi_marray.size();
 #else
-    throw runtime_error("get_wi_data is available using: ext::intel::experimental::matrix::get_wi_data.", PI_ERROR_INVALID_DEVICE);
+    throw runtime_error("get_wi_data is available using: "
+                        "ext::intel::experimental::matrix::get_wi_data.",
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   };
 
@@ -71,7 +73,9 @@ public:
 #if defined(__NVPTX__)
     return (jm.cuda_impl.wi_marray[i]);
 #else
-    throw runtime_error("get_wi_data is available using: ext::intel::experimental::matrix::get_wi_data.", PI_ERROR_INVALID_DEVICE);
+    throw runtime_error("get_wi_data is available using: "
+                        "ext::intel::experimental::matrix::get_wi_data.",
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   };
 };
@@ -98,11 +102,13 @@ inline __SYCL_ALWAYS_INLINE
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
 #else
-__attribute__((unavailable("get_wi_data can't be used on intel device, please use sycl::ext::intel::experimental::matrix::get_wi_data instead!")))
+    __attribute__((unavailable(
+        "get_wi_data can't be used on intel device, please use "
+        "sycl::ext::intel::experimental::matrix::get_wi_data instead!")))
 #endif
 #endif
-decltype(auto)
-get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
+    decltype(auto)
+    get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   return wi_data(jm);
