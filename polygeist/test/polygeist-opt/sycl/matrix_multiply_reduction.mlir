@@ -1,10 +1,10 @@
 // RUN: polygeist-opt -licm -raise-scf-to-affine -detect-reduction %s | FileCheck %s
 
 // CHECK-LABEL: func.func private @matrix_multiply_reduction
-// CHECK: [[ALLOCA:%.*]] = memref.alloca()
-// CHECK: [[CAST:%.*]] = memref.cast [[ALLOCA]]
-// CHECK: [[ALLOCA1:%.*]] = memref.alloca()
-// CHECK: [[CAST1:%.*]] = memref.cast [[ALLOCA1]]
+// CHECK-DAG: [[ALLOCA:%.*]] = memref.alloca()
+// CHECK-DAG: [[CAST:%.*]] = memref.cast [[ALLOCA]]
+// CHECK-DAG: [[ALLOCA1:%.*]] = memref.alloca()
+// CHECK-DAG: [[CAST1:%.*]] = memref.cast [[ALLOCA1]]
 // CHECK: [[MSC:%.*]] = memref.memory_space_cast [[CAST1]]
 // CHECK: scf.if
 // CHECK:   sycl.constructor @id([[MSC]], {{.*}}) 
