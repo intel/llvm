@@ -211,15 +211,9 @@ std::string KernelsEnvironment::getSupportedILPostfix(uint32_t device_index) {
     }
 
     auto device = instance->GetDevices()[device_index];
-    size_t size;
-    if (urDeviceGetInfo(device, UR_DEVICE_INFO_IL_VERSION, 0, nullptr, &size)) {
-        error = "failed getting device IL version";
-        return {};
-    }
-    std::string IL_version(size, '\0');
-    if (urDeviceGetInfo(device, UR_DEVICE_INFO_IL_VERSION, size, &IL_version[0],
-                        nullptr)) {
-        error = "failed getting device IL version";
+    std::string IL_version;
+    if (uur::GetDeviceILVersion(device, IL_version)) {
+        error = "failed to get device IL version";
         return {};
     }
 
@@ -256,8 +250,7 @@ std::string KernelsEnvironment::getKernelSourcePath(const std::string &kernel_na
 
     uint32_t address_bits;
     auto device = instance->GetDevices()[device_index];
-    if (urDeviceGetInfo(device, UR_DEVICE_INFO_ADDRESS_BITS, sizeof(uint32_t),
-                        &address_bits, nullptr)) {
+    if (uur::GetDeviceAddressBits(device, address_bits)) {
         error = "failed getting device address bits supported";
         return {};
     }

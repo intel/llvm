@@ -45,30 +45,10 @@ GetDevices(ur_platform_handle_t platform) {
 inline bool
 hasDevicePartitionSupport(ur_device_handle_t device,
                           const ur_device_partition_property_t property) {
-    size_t size = 0;
-    auto result = urDeviceGetInfo(device, UR_DEVICE_INFO_PARTITION_PROPERTIES,
-                                  0, nullptr, &size);
-    if (result != UR_RESULT_SUCCESS) {
-        return false;
-    }
-    if (size == 0) {
-        return false;
-    }
-    std::vector<ur_device_partition_property_t> properties(
-        size / sizeof(ur_device_partition_property_t));
-    result = urDeviceGetInfo(device, UR_DEVICE_INFO_PARTITION_PROPERTIES, size,
-                             properties.data(), nullptr);
-    if (result != UR_RESULT_SUCCESS) {
-        return false;
-    }
-
-    for (auto prop : properties) {
-        if (prop == property) {
-            return true;
-        }
-    }
-
-    return false;
+    std::vector<ur_device_partition_property_t> properties;
+    uur::GetDevicePartitionProperties(device, properties);
+    return std::find(properties.begin(), properties.end(), property) !=
+           properties.end();
 }
 
 struct urAllDevicesTest : urPlatformTest {
@@ -337,10 +317,9 @@ struct urMemBufferQueueTest : urQueueTest {
 struct urUSMDeviceAllocTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
-        const auto device_usm = GetDeviceInfo<bool>(this->device,
-                                                    UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
-        ASSERT_TRUE(device_usm.has_value());
-        if (!device_usm.value()) {
+        bool device_usm = false;
+        ASSERT_SUCCESS(GetDeviceUSMDeviceSupport(device, device_usm));
+        if (!device_usm) {
             GTEST_SKIP() << "Device USM in not supported";
         }
         ASSERT_SUCCESS(
@@ -372,15 +351,13 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
-        const auto device_sum = GetDeviceInfo<bool>(this->device,
-                                                    UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
-        ASSERT_TRUE(device_sum.has_value());
-        if (!device_sum.value()) {
+        bool device_usm = false;
+        ASSERT_SUCCESS(GetDeviceUSMDeviceSupport(this->device, device_usm));
+        if (!device_usm) {
             GTEST_SKIP() << "Device USM in not supported";
         }
-        ASSERT_SUCCESS(
-            urUSMDeviceAlloc(this->context, this->device, nullptr, nullptr,
-                             allocation_size, 0, &ptr));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(this->context, this->device, nullptr,
+                                        nullptr, allocation_size, 0, &ptr));
         ur_event_handle_t event = nullptr;
 
         uint8_t fillPattern = 0;

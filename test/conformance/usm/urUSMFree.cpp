@@ -7,10 +7,9 @@ using urUSMFreeTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMFreeTest);
 
 TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
-    const auto deviceUSMSupport =
-        uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_DEVICE_SUPPORT);
-    ASSERT_TRUE(deviceUSMSupport.has_value());
-    if (!deviceUSMSupport.value()) {
+    bool deviceUSMSupport = false;
+    ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, deviceUSMSupport));
+    if (!deviceUSMSupport) {
         GTEST_SKIP() << "Device USM not supported.";
     }
 
@@ -33,10 +32,9 @@ TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
     ASSERT_SUCCESS(urUSMFree(context, ptr));
 }
 TEST_P(urUSMFreeTest, SuccessHostAlloc) {
-    const auto hostUSMSupport =
-        uur::GetDeviceInfo<bool>(device, UR_DEVICE_INFO_USM_HOST_SUPPORT);
-    ASSERT_TRUE(hostUSMSupport.has_value());
-    if (!hostUSMSupport.value()) {
+    bool hostUSMSupport = false;
+    ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, hostUSMSupport));
+    if (!hostUSMSupport) {
         GTEST_SKIP() << "Host USM not supported.";
     }
 
@@ -58,14 +56,13 @@ TEST_P(urUSMFreeTest, SuccessHostAlloc) {
 }
 
 TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
-    auto sharedUSMCross = uur::GetDeviceInfo<bool>(
-        device, UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT);
-    auto sharedUSMSingle = uur::GetDeviceInfo<bool>(
-        device, UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT);
+    bool shared_usm_cross = false;
+    bool shared_usm_single = false;
 
-    ASSERT_TRUE(sharedUSMCross.has_value() && sharedUSMSingle.has_value());
+    ASSERT_SUCCESS(uur::GetDeviceUSMCrossSharedSupport(device, shared_usm_cross));
+    ASSERT_SUCCESS(uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_single));
 
-    if (!(sharedUSMCross.value() || !sharedUSMCross.value())) {
+    if (!(shared_usm_cross || shared_usm_single)) {
         GTEST_SKIP() << "Shared USM is not supported by the device.";
     }
 

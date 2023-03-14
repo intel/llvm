@@ -7,15 +7,15 @@ using urEventRetainTest = uur::event::urEventTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventRetainTest);
 
 TEST_P(urEventRetainTest, Success) {
-    const auto prevRefCount = uur::GetObjectReferenceCount(event);
-    ASSERT_TRUE(prevRefCount.has_value());
+    uint32_t prevRefCount = 0;
+    ASSERT_SUCCESS(uur::GetObjectReferenceCount(event, prevRefCount));
 
     ASSERT_SUCCESS(urEventRetain(event));
 
-    const auto refCount = uur::GetObjectReferenceCount(event);
-    ASSERT_TRUE(refCount.has_value());
+    uint32_t refCount = 0;
+    ASSERT_SUCCESS(uur::GetObjectReferenceCount(event, refCount));
 
-    ASSERT_LT(prevRefCount.value(), refCount.value());
+    ASSERT_LT(prevRefCount, refCount);
 
     ASSERT_SUCCESS(urEventRelease(event));
 }

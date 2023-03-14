@@ -4,9 +4,8 @@
 
 using urDevicePartitionTest = uur::urAllDevicesTest;
 
-void getNumberComputeUnits(ur_device_handle_t_ *device, uint32_t &n_compute_units) {
-
-    ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_MAX_COMPUTE_UNITS, sizeof(n_compute_units), &n_compute_units, nullptr));
+void getNumberComputeUnits(ur_device_handle_t device, uint32_t &n_compute_units) {
+    ASSERT_SUCCESS(uur::GetDeviceMaxComputeUnits(device, n_compute_units));
     ASSERT_NE(n_compute_units, 0);
 }
 
