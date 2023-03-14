@@ -107,7 +107,7 @@ namespace tracing_layer
     %for tbl in th.get_pfntables(specs, meta, n, tags):
         if( ${X}_RESULT_SUCCESS == result )
         {
-            result = tracing_layer::${tbl['export']['name']}( ${X}_API_VERSION_0_9, &dditable->${tbl['name']} );
+            result = tracing_layer::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &dditable->${tbl['name']} );
         }
 
     %endfor
