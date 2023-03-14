@@ -1717,7 +1717,6 @@ __urdlllocal ur_result_t UR_APICALL
 urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex,          ///< [in] argument index in range [0, num args - 1]
-    size_t argSize,             ///< [in] size of argument type
     const void *pArgValue       ///< [in][optional] SVM pointer to memory location holding the argument
                                 ///< value. If null then argument value is considered null.
 ) {
@@ -1727,10 +1726,10 @@ urKernelSetArgPointer(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_kernel_set_arg_pointer_params_t params = {&hKernel, &argIndex, &argSize, &pArgValue};
+    ur_kernel_set_arg_pointer_params_t params = {&hKernel, &argIndex, &pArgValue};
     uint64_t instance = context.notify_begin(UR_FUNCTION_KERNEL_SET_ARG_POINTER, "urKernelSetArgPointer", &params);
 
-    ur_result_t result = pfnSetArgPointer(hKernel, argIndex, argSize, pArgValue);
+    ur_result_t result = pfnSetArgPointer(hKernel, argIndex, pArgValue);
 
     context.notify_end(UR_FUNCTION_KERNEL_SET_ARG_POINTER, "urKernelSetArgPointer", &params, &result, instance);
 
