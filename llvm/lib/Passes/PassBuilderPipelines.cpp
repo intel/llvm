@@ -1141,7 +1141,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
     FPM.addPass(LoopLoadEliminationPass());
   }
   // Cleanup after the loop optimization passes.
-  FPM.addPass(InstCombinePass(InstCombineOptions().setUseLoopInfo(true)));
+  FPM.addPass(InstCombinePass());
 
   if (Level.getSpeedupLevel() > 1 && ExtraVectorizerPasses) {
     ExtraVectorPassManager ExtraPasses;
@@ -1153,8 +1153,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
     // dead (or speculatable) control flows or more combining opportunities.
     ExtraPasses.addPass(EarlyCSEPass());
     ExtraPasses.addPass(CorrelatedValuePropagationPass());
-    ExtraPasses.addPass(
-        InstCombinePass(InstCombineOptions().setUseLoopInfo(true)));
+    ExtraPasses.addPass(InstCombinePass());
     LoopPassManager LPM;
     LPM.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
                          /*AllowSpeculation=*/true));
@@ -1228,7 +1227,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
     // or SimplifyCFG passes scheduled after us, that would cleanup
     // the CFG mess this may created if allowed to modify CFG, so forbid that.
     FPM.addPass(SROAPass(SROAOptions::PreserveCFG));
-    FPM.addPass(InstCombinePass(InstCombineOptions().setUseLoopInfo(true)));
+    FPM.addPass(InstCombinePass());
     FPM.addPass(
         RequireAnalysisPass<OptimizationRemarkEmitterAnalysis, Function>());
     FPM.addPass(createFunctionToLoopPassAdaptor(
@@ -1242,7 +1241,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   FPM.addPass(AlignmentFromAssumptionsPass());
 
   if (IsFullLTO)
-    FPM.addPass(InstCombinePass(InstCombineOptions().setUseLoopInfo(true)));
+    FPM.addPass(InstCombinePass());
 }
 
 ModulePassManager
