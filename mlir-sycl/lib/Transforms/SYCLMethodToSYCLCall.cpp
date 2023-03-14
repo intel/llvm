@@ -63,16 +63,7 @@ static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
   }
 
   if (ThisType.getMemorySpaceAsInt() != TargetMemSpace) {
-    Original = Rewriter.create<polygeist::Memref2PointerOp>(
-        Loc,
-        LLVM::LLVMPointerType::get(ThisType.getElementType(),
-                                   ThisType.getMemorySpaceAsInt()),
-        Original);
-    Original = Rewriter.create<LLVM::AddrSpaceCastOp>(
-        Loc,
-        LLVM::LLVMPointerType::get(ThisType.getElementType(), TargetMemSpace),
-        Original);
-    Original = Rewriter.create<polygeist::Pointer2MemrefOp>(
+    Original = Rewriter.create<memref::MemorySpaceCastOp>(
         Loc,
         MemRefType::get(TargetShape, ThisType.getElementType(),
                         ThisType.getLayout().getAffineMap(), TargetMemSpace),

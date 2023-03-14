@@ -160,8 +160,7 @@ used to perform the necessary transformations beforehand:
 2. Store the value there;
 3. If the argument type is a `memref` and the shapes differ, introduce a
    `memref.cast` operation;
-4. If the memory spaces differ, use a `polygeist.memref2pointer`,
-   `llvm.addrspacecast` and `polygeist.pointer2memref` operation chain to cast
+4. If the memory spaces differ, use a `memref.memory_space_cast` to cast
    to the required one;
 5. If needed, cast to the base type using `sycl.cast` (or other operation we
    might have in the future).
@@ -188,11 +187,9 @@ Would be lowered to:
 ```MLIR
 %1 = memref.alloca() : memref<1x!sycl_nd_item_1_>
 memref.store %nd, %1[0] : memref<1x!sycl_nd_item_1_>
-%2 = polygeist.memref2pointer(%1) : (memref<1x!sycl_nd_item_1_>) -> !llvm.ptr<!sycl_nd_item_1_>
-%3 = llvm.addrspacecast %2 : !llvm.ptr<!sycl_nd_item_1_> to !llvm.ptr<!sycl_nd_item_1_, 4>
-%4 = polygeist.pointer2memref(%3) : (!llvm.ptr<!sycl_nd_item_1_, 4>) -> memref<1x!sycl_nd_item_1_, 4>
-%5 = sycl.cast(%4) : (memref<1x!sycl_nd_item_1_, 4>) -> !llvm.ptr<struct<...>, 4>
-%6 = sycl.call(%5, %idx) {FunctionName = @get_global_id, MangledFunctionName = <MFN>, TypeName = @nd_item} : (!llvm.ptr<struct<...>, 4>, i32) -> i64
+%2 = memref.memory_space_cast %1 : memref<1x!sycl_nd_item_1_> to memref<1x!sycl_nd_item_1_, 4>
+%3 = sycl.cast(%2) : (memref<1x!sycl_nd_item_1_, 4>) -> !llvm.ptr<struct<...>, 4>
+%4 = sycl.call(%3, %idx) {FunctionName = @get_global_id, MangledFunctionName = <MFN>, TypeName = @nd_item} : (!llvm.ptr<struct<...>, 4>, i32) -> i64
 ```
 
 Being `<MFN>` the name of the function to call, retrieved by calling
