@@ -907,6 +907,7 @@ public:
   template <typename KernelName, typename FuncTy,
             bool HasIdentity = has_identity>
   std::enable_if_t<!HasIdentity> withInitializedMem(handler &CGH, FuncTy Func) {
+    std::ignore = CGH;
     assert(!initializeToIdentity() &&
            "Initialize to identity not allowed for identity-less reductions.");
     Func(MRedOut);
