@@ -438,7 +438,8 @@ struct type {
         ext::oneapi::level_zero::ownership::transfer};
   };
 ```
-where the Range should be ordered (width), (width, height), or (width, height, depth) for 1D, 2D and 3D images respectively, with those values matching the dimensions used in the `ze_image_desc` that was used to create the `ze_image_handle_t` initially. 
+where the Range should be ordered (width), (width, height), or (width, height, depth) for 1D, 2D and 3D images respectively, 
+with those values matching the dimensions used in the `ze_image_desc` that was used to create the `ze_image_handle_t` initially. 
 
 Example Usage
 ``` C++
@@ -447,7 +448,7 @@ sycl::backend_input_t<BE, sycl::image<2>> ImageInteropInput{ ZeHImage, ChanOrder
 auto Image_2D  = sycl::make_image<BE, 2>(ImageInteropInput, Context);
 ```
 
- The input SYCL context <code>Context</code> must be associated with a single device, matching the device used at the prior allocation.
+ The input SYCL context <code>Context</code> must be associated with a single device, matching the device used to create the Level Zero image handle.
 The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero image must have been created on the same context.
 The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to free the input Level-Zero memory allocation. 
 Synchronization rules with this API are described in Section 4.5</td>
