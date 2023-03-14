@@ -426,15 +426,12 @@ public:
 
   void rewrite(Op op, OpAdaptor adaptor,
                ConversionPatternRewriter &rewriter) const final {
-    constexpr unsigned indexWidth{32};
-    const auto loc = op.getLoc();
-    const auto resultType = op.getType();
-    // Add argument 0.
-    const ValueRange operands{
-        op->getOperand(0),
-        rewriter.create<arith::ConstantIntOp>(loc, 0, indexWidth)};
-    const auto attributes = op->getAttrs();
-    rewriter.replaceOpWithNewOp<Op>(op, resultType, operands, attributes);
+    rewriter.updateRootInPlace(op, [op, &rewriter] {
+      constexpr unsigned indexWidth{32};
+      const Value zero =
+          rewriter.create<arith::ConstantIntOp>(op->getLoc(), 0, indexWidth);
+      op->insertOperands(1, zero);
+    });
   }
 };
 
