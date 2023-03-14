@@ -20,7 +20,7 @@ function(add_validation_test name)
     set_property(TEST ${name} PROPERTY ENVIRONMENT
         "UR_ENABLE_VALIDATION_LAYER=1"
         "UR_ENABLE_PARAMETER_VALIDATION=1"
-        "UR_ADAPTERS_FORCE_LOAD=$<TARGET_FILE:ur_null>")
+        "UR_ADAPTERS_FORCE_LOAD=$<TARGET_FILE:ur_adapter_null>")
 endfunction()
 
 add_validation_test(parameters parameters.cpp)

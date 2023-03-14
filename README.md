@@ -112,3 +112,11 @@ To run automated code formatting build with option `UR_FORMAT_CPP_STYLE` and the
 ~~~~
 $ make cppformat
 ~~~~
+
+### Adapter naming convention
+
+To maintain consistency and clarity in naming adapter libraries, it is recommended
+to use the following naming convention:
+
+* On Linux platforms, use `libur_adapter_[name].so`.
+* On Windows platforms, use `ur_adapter_[name].dll`.

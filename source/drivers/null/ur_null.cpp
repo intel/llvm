@@ -44,7 +44,7 @@ context_t::context_t() {
 
         switch (PlatformInfoType) {
         case UR_PLATFORM_INFO_NAME: {
-            const char null_platform_name[] = "UR_NULL_PLATFORM";
+            const char null_platform_name[] = "UR_PLATFORM_NULL";
             if (pSizeRet) {
                 *pSizeRet = sizeof(null_platform_name);
             }
