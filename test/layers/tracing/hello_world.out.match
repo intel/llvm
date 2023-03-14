@@ -7,7 +7,7 @@ function_with_args_begin(3) - urPlatformGet(unimplemented);
 function_with_args_end(3) - urPlatformGet(...) -> ur_result_t(0);
 function_with_args_begin(4) - urPlatformGetApiVersion(unimplemented);
 function_with_args_end(4) - urPlatformGetApiVersion(...) -> ur_result_t(0);
-API version: 0.9
+API version: 0.6
 function_with_args_begin(5) - urDeviceGet(unimplemented);
 function_with_args_end(5) - urDeviceGet(...) -> ur_result_t(0);
 function_with_args_begin(6) - urDeviceGet(unimplemented);

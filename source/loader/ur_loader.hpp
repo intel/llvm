@@ -30,7 +30,7 @@ using platform_vector_t = std::vector<platform_t>;
 ///////////////////////////////////////////////////////////////////////////////
 class context_t {
   public:
-    ur_api_version_t version = UR_API_VERSION_0_9;
+    ur_api_version_t version = UR_API_VERSION_0_6;
 
     platform_vector_t platforms;
 

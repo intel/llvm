@@ -4891,63 +4891,63 @@ ur_result_t context_t::init(ur_dditable_t *dditable) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetGlobalProcAddrTable(UR_API_VERSION_0_9,
-                                                            &dditable->Global);
+        result = validation_layer::urGetGlobalProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Global);
     }
 
     if (UR_RESULT_SUCCESS == result) {
         result = validation_layer::urGetContextProcAddrTable(
-            UR_API_VERSION_0_9, &dditable->Context);
+            UR_API_VERSION_CURRENT, &dditable->Context);
     }
 
     if (UR_RESULT_SUCCESS == result) {
         result = validation_layer::urGetEnqueueProcAddrTable(
-            UR_API_VERSION_0_9, &dditable->Enqueue);
+            UR_API_VERSION_CURRENT, &dditable->Enqueue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetEventProcAddrTable(UR_API_VERSION_0_9,
-                                                           &dditable->Event);
+        result = validation_layer::urGetEventProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Event);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetKernelProcAddrTable(UR_API_VERSION_0_9,
-                                                            &dditable->Kernel);
+        result = validation_layer::urGetKernelProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Kernel);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetMemProcAddrTable(UR_API_VERSION_0_9,
+        result = validation_layer::urGetMemProcAddrTable(UR_API_VERSION_CURRENT,
                                                          &dditable->Mem);
     }
 
     if (UR_RESULT_SUCCESS == result) {
         result = validation_layer::urGetPlatformProcAddrTable(
-            UR_API_VERSION_0_9, &dditable->Platform);
+            UR_API_VERSION_CURRENT, &dditable->Platform);
     }
 
     if (UR_RESULT_SUCCESS == result) {
         result = validation_layer::urGetProgramProcAddrTable(
-            UR_API_VERSION_0_9, &dditable->Program);
+            UR_API_VERSION_CURRENT, &dditable->Program);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetQueueProcAddrTable(UR_API_VERSION_0_9,
-                                                           &dditable->Queue);
+        result = validation_layer::urGetQueueProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Queue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
         result = validation_layer::urGetSamplerProcAddrTable(
-            UR_API_VERSION_0_9, &dditable->Sampler);
+            UR_API_VERSION_CURRENT, &dditable->Sampler);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetUSMProcAddrTable(UR_API_VERSION_0_9,
+        result = validation_layer::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT,
                                                          &dditable->USM);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetDeviceProcAddrTable(UR_API_VERSION_0_9,
-                                                            &dditable->Device);
+        result = validation_layer::urGetDeviceProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Device);
     }
 
     return result;

@@ -16,7 +16,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal proxy_layer_context_t {
   public:
-    ur_api_version_t version = UR_API_VERSION_0_9;
+    ur_api_version_t version = UR_API_VERSION_0_6;
 
     virtual bool isEnabled() = 0;
     virtual ur_result_t init(ur_dditable_t *dditable) = 0;
