@@ -20,6 +20,8 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
+#include "ur_level_zero_common.hpp"
+
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
 template <class T> ze_structure_type_t getZeStructureType();
@@ -79,46 +81,6 @@ public:
   ze_result_t doCall(ze_result_t ZeResult, const char *ZeName,
                      const char *ZeArgs, bool TraceError = true);
 };
-
-// Map Level Zero runtime error code to UR error code.
-static ur_result_t ze2urResult(ze_result_t ZeResult) {
-  static std::unordered_map<ze_result_t, ur_result_t> ErrorMapping = {
-      {ZE_RESULT_SUCCESS, UR_RESULT_SUCCESS},
-      {ZE_RESULT_ERROR_DEVICE_LOST, UR_RESULT_ERROR_DEVICE_LOST},
-      {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS,
-       UR_RESULT_ERROR_INVALID_OPERATION},
-      {ZE_RESULT_ERROR_NOT_AVAILABLE, UR_RESULT_ERROR_INVALID_OPERATION},
-      {ZE_RESULT_ERROR_UNINITIALIZED, UR_RESULT_ERROR_INVALID_PLATFORM},
-      {ZE_RESULT_ERROR_INVALID_ARGUMENT, UR_RESULT_ERROR_INVALID_ARGUMENT},
-      {ZE_RESULT_ERROR_INVALID_NULL_POINTER, UR_RESULT_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_INVALID_SIZE, UR_RESULT_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_SIZE, UR_RESULT_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT, UR_RESULT_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT,
-       UR_RESULT_ERROR_INVALID_EVENT},
-      {ZE_RESULT_ERROR_INVALID_ENUMERATION, UR_RESULT_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION, UR_RESULT_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT, UR_RESULT_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY, UR_RESULT_ERROR_INVALID_BINARY},
-      {ZE_RESULT_ERROR_INVALID_KERNEL_NAME,
-       UR_RESULT_ERROR_INVALID_KERNEL_NAME},
-      {ZE_RESULT_ERROR_INVALID_FUNCTION_NAME,
-       UR_RESULT_ERROR_INVALID_FUNCTION_NAME},
-      {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, UR_RESULT_ERROR_INVALID_OPERATION},
-      {ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
-       UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE},
-      {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE,
-       UR_RESULT_ERROR_MODULE_BUILD_FAILURE},
-      {ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY,
-       UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY},
-      {ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY, UR_RESULT_ERROR_OUT_OF_HOST_MEMORY}};
-
-  auto It = ErrorMapping.find(ZeResult);
-  if (It == ErrorMapping.end()) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
-  return It->second;
-}
 
 // Controls Level Zero calls tracing.
 enum DebugLevel {
