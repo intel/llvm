@@ -2806,7 +2806,7 @@ private:
   // Make reduction friends to store buffers and arrays created for it
   // in handler from reduction methods.
   template <typename T, class BinaryOperation, int Dims, size_t Extent,
-            typename RedOutVar>
+            bool ExplicitIdentity, typename RedOutVar>
   friend class detail::reduction_impl_algo;
 
   friend inline void detail::reduction::finalizeHandler(handler &CGH);
