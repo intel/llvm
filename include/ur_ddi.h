@@ -469,7 +469,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgLocal_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgPointer_t)(
     ur_kernel_handle_t,
     uint32_t,
-    size_t,
     const void *);
 
 ///////////////////////////////////////////////////////////////////////////////
