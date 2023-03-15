@@ -276,6 +276,14 @@ public:
     return detail::kernel_bundle_plain::get_kernel(KernelID);
   }
 
+  /// \returns a kernel object which represents the kernel identified by
+  /// KernelName.
+  template <typename KernelName, bundle_state _State = State,
+            typename = detail::enable_if_t<_State == bundle_state::executable>>
+  kernel get_kernel() const {
+    return detail::kernel_bundle_plain::get_kernel(get_kernel_id<KernelName>());
+  }
+
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
@@ -307,8 +315,7 @@ public:
     using SCType =
         typename std::remove_reference_t<decltype(SpecName)>::value_type;
 
-    std::array<char *, sizeof(SCType)> RetValue;
-
+    std::array<char, sizeof(SCType)> RetValue;
     get_specialization_constant_impl(SpecSymName, RetValue.data());
 
     return *reinterpret_cast<SCType *>(RetValue.data());

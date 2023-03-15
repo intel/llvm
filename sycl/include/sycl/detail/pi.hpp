@@ -62,6 +62,8 @@ enum TraceLevel {
 bool trace(TraceLevel level);
 
 #ifdef __SYCL_RT_OS_WINDOWS
+// these same constants are used by win_proxy_loader.dll
+// if a plugin is added here, add it there as well.
 #ifdef _MSC_VER
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
@@ -150,11 +152,11 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
 
 // Function to load the shared library
 // Implementation is OS dependent.
-void *loadOsLibrary(const std::string &Library);
+void *loadOsPluginLibrary(const std::string &Library);
 
 // Function to unload the shared library
 // Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
-int unloadOsLibrary(void *Library);
+int unloadOsPluginLibrary(void *Library);
 
 // OS agnostic function to unload the shared library
 int unloadPlugin(void *Library);

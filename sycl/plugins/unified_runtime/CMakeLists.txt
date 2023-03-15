@@ -1,10 +1,10 @@
 # PI Unified Runtime plugin library
 #
-if (NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
+if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG fd711c920acc4434cb52ff18b078c082d9d7f44d)
+  set(UNIFIED_RUNTIME_TAG 6fb8e2620f1474428a539ef46d6dd47043c7d59b)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -12,8 +12,26 @@ if (NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
     GIT_TAG           ${UNIFIED_RUNTIME_TAG}
   )
 
-  FetchContent_MakeAvailable(unified-runtime)
+  # Disable some compilation options to avoid errors while building the UR.
+  # And remember origin flags before doing that.
+  set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
+  if (UNIX)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-truncation")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-suggest-override")
+  endif()
+
   FetchContent_GetProperties(unified-runtime)
+  FetchContent_MakeAvailable(unified-runtime)
+
+  # Restore original flags
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
+
+  add_library(${PROJECT_NAME}::ur_loader ALIAS loader)
+
+  set(UNIFIED_RUNTIME_LIBRARY ${PROJECT_NAME}::ur_loader)
 
   set(UNIFIED_RUNTIME_SOURCE_DIR
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
@@ -46,7 +64,27 @@ add_sycl_plugin(unified_runtime
     "ur/ur.hpp"
     "ur/ur.cpp"
     "ur/adapters/level_zero/ur_level_zero.hpp"
+    "ur/adapters/level_zero/ur_level_zero_common.hpp"
+    "ur/adapters/level_zero/ur_level_zero_context.hpp"
+    "ur/adapters/level_zero/ur_level_zero_device.hpp"
+    "ur/adapters/level_zero/ur_level_zero_event.hpp"
+    "ur/adapters/level_zero/ur_level_zero_mem.hpp"
+    "ur/adapters/level_zero/ur_level_zero_module.hpp"
+    "ur/adapters/level_zero/ur_level_zero_platform.hpp"
+    "ur/adapters/level_zero/ur_level_zero_program.hpp"
+    "ur/adapters/level_zero/ur_level_zero_queue.hpp"
+    "ur/adapters/level_zero/ur_level_zero_sampler.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
+    "ur/adapters/level_zero/ur_level_zero_common.cpp"
+    "ur/adapters/level_zero/ur_level_zero_context.cpp"
+    "ur/adapters/level_zero/ur_level_zero_device.cpp"
+    "ur/adapters/level_zero/ur_level_zero_event.cpp"
+    "ur/adapters/level_zero/ur_level_zero_mem.cpp"
+    "ur/adapters/level_zero/ur_level_zero_module.cpp"
+    "ur/adapters/level_zero/ur_level_zero_platform.cpp"
+    "ur/adapters/level_zero/ur_level_zero_program.cpp"
+    "ur/adapters/level_zero/ur_level_zero_queue.cpp"
+    "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
     "ur/usm_allocator.hpp"
     "ur/usm_allocator.cpp"
     # These below belong to Unified Runtime PI Plugin only
@@ -58,3 +96,7 @@ add_sycl_plugin(unified_runtime
     LevelZeroLoader-Headers
     LevelZeroLoader
 )
+
+if (TARGET ${PROJECT_NAME}::ur_loader)
+  set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
+endif()

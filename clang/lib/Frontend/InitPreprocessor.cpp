@@ -1297,7 +1297,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // SYCL device compiler which doesn't produce host binary.
   if (LangOpts.SYCLIsDevice) {
     Builder.defineMacro("__SYCL_DEVICE_ONLY__");
-    Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
+    if (LangOpts.GPURelocatableDeviceCode)
+      Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
     const llvm::Triple &DeviceTriple = TI.getTriple();
     const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();

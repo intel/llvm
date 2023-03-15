@@ -172,7 +172,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
     }
 
     if (!Idx->isValueDependent()) {
-      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      std::optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
       if (IdxVal) {
         RecordDecl *RD = SourceTy->getAsRecordDecl();
         assert(RD && "Record type but no record decl?");
@@ -275,7 +275,7 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
     }
 
     if (!Idx->isValueDependent()) {
-      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      std::optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
       if (IdxVal) {
         CXXRecordDecl *RD = SourceTy->getAsCXXRecordDecl();
         assert(RD && "Record type but no record decl?");
@@ -662,7 +662,7 @@ public:
   }
 
   bool TraverseIfStmt(IfStmt *S) {
-    if (llvm::Optional<Stmt *> ActiveStmt =
+    if (std::optional<Stmt *> ActiveStmt =
             S->getNondiscardedCase(SemaRef.Context)) {
       if (*ActiveStmt)
         return TraverseStmt(*ActiveStmt);
@@ -5392,9 +5392,12 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // Note that isLocalVarDeclorParm excludes thread-local and static-local
   // intentionally, as there is no way to 'spell' one of those in the
   // specialization. We just don't generate the specialization for those, and
-  // let an error happen during host compilation.
-  if (!VD->hasGlobalStorage() || VD->isLocalVarDeclOrParm())
+  // let an error happen during host compilation. To avoid multiple entries for
+  // redeclarations, variables with external storage are omitted.
+  if (VD->hasLocalStorage() || VD->isLocalVarDeclOrParm() ||
+      VD->hasExternalStorage())
     return;
+
   // Step 3: Add to collection.
   GlobalVars.push_back(VD);
 }

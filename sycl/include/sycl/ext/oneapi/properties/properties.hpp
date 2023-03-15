@@ -232,12 +232,5 @@ struct is_device_copyable<
     std::enable_if_t<!std::is_trivially_copyable<
         ext::oneapi::experimental::properties<PropertiesT>>::value>>
     : is_device_copyable<PropertiesT> {};
-template <typename PropertiesT>
-struct is_device_copyable<
-    const ext::oneapi::experimental::properties<PropertiesT>,
-    std::enable_if_t<!std::is_trivially_copyable<
-        const ext::oneapi::experimental::properties<PropertiesT>>::value>>
-    : is_device_copyable<PropertiesT> {};
-
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

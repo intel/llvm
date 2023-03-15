@@ -12,13 +12,6 @@ inputs:
     description: 'Name of SYCL toolchain archive file'
     required: false
     default: 'llvm_sycl.tar.xz'
-  lit_artifact:
-    description: 'Name of the artifact, that contains LIT tool'
-    required: true
-  lit_archive:
-    description: 'Name of LIT archive file'
-    required: false
-    default: 'lit.tar.xz'
   results_name_suffix:
     description: 'Name suffix of the results artifact'
     required: true
@@ -55,24 +48,14 @@ runs:
       mkdir toolchain
       tar -xf ${{ inputs.sycl_archive }} -C toolchain
       rm -f ${{ inputs.sycl_archive }}
-  - name: Download LIT
-    uses: actions/download-artifact@v3
-    with:
-      name: ${{ inputs.lit_artifact }}
-  - name: Extract LIT
-    shell: bash
-    run: |
-      mkdir lit
-      ls -la
-      tar -xf ${{ inputs.lit_archive }} -C lit
-      rm -f ${{ inputs.lit_archive }}
   - name: Configure
     shell: bash
     run: |
       echo "::group::CMake configuration"
-      mkdir build
       export PATH=$PWD/toolchain/bin/:$PATH
-      cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
+      # TODO: Rename check_sycl_all input
+      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ inputs.cmake_args }}
+      cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ inputs.cmake_args }}
       echo "::endgroup::"
   - name: Run testing
     shell: bash
@@ -102,8 +85,10 @@ runs:
       echo $LD_LIBRARY_PATH
       SYCL_PI_TRACE=-1 sycl-ls
       echo "::endgroup::"
-      cd build
-      ninja check-sycl-all
+      echo "::group::SYCL In-Tree End-to-End tests"
+      ninja -C build-e2e check-sycl-e2e
+      echo "::endgroup::"
+      ninja -C build check-sycl-all
   - name: Upload test results
     uses: actions/upload-artifact@v1
     if: always()
@@ -115,6 +100,6 @@ runs:
     if: always()
     run: |
       rm -rf toolchain
-      rm -rf lit
       rm -rf build
+      rm -rf build-e2e
       rm -rf llvm_test_suite

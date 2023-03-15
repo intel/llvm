@@ -37,6 +37,9 @@ sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 # Level Zero plugin
 sycl/plugins/level_zero/ @intel/dpcpp-l0-pi-reviewers
 
+# Unified Runtime plugin
+sycl/plugins/unified_runtime/ @intel/dpcpp-l0-pi-reviewers
+
 # ESIMD CPU emulator plug-in
 sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 
@@ -53,14 +56,14 @@ llvm/ @intel/dpcpp-tools-reviewers
 # OpenCL CPU RT
 opencl-cpu/ @intel/ocl-cpu-rt-write
 
-# SYCL transform passes
-llvm/lib/Transforms/SYCLTransforms/ @intel/ocl-cpu-rt-write
+# SPMD transform passes on CPU
+llvm/lib/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
 
-# SYCL transform passes header files
-llvm/include/llvm/Transforms/SYCLTransforms/ @intel/ocl-cpu-rt-write
+# SPMD transform passes header files
+llvm/include/llvm/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
 
-# SYCL transform passes LIT test
-llvm/test/Transforms/SYCLTransforms/ @intel/ocl-cpu-rt-write
+# SPMD transform passes LIT test
+llvm/test/Transforms/SPMDTransforms/ @intel/ocl-cpu-rt-write
 
 # Clang offload tools
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
@@ -85,3 +88,11 @@ devops/ @intel/dpcpp-devops-reviewers
 
 # Kernel fusion JIT compiler
 sycl-fusion/ @victor-eds @Naghasan @sommerlukas
+sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @victor-eds @Naghasan @sommerlukas
+sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @victor-eds @Naghasan @sommerlukas
+sycl/include/sycl/ext/codeplay/experimental/fusion_wrapper.hpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/fusion/ @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_compiler.hpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_compiler.cpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_device_binaries.hpp @victor-eds @Naghasan @sommerlukas
+sycl/source/detail/jit_device_binaries.cpp @victor-eds @Naghasan @sommerlukas
