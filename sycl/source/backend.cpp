@@ -106,7 +106,7 @@ queue make_queue_impl2(pi_native_handle NativeHandle, const context &Context,
   RT::PiQueueProperties Properties[] = {
       PI_QUEUE_FLAGS,
       queue_impl::createPiQueueProperties(PropList, QueueOrder::OOO), 0, 0, 0};
-  
+
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle2>(
