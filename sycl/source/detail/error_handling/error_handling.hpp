@@ -29,6 +29,11 @@ void handleErrorOrWarning(pi_result, const device_impl &, pi_kernel,
                           const NDRDescT &);
 } // namespace enqueue_kernel_launch
 
+namespace kernel_get_group_info {
+/// Analyzes error code of piKernelGetGroupInfo.
+void handleErrorOrWarning(pi_result, pi_kernel_group_info);
+} // namespace kernel_get_group_info
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
