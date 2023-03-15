@@ -130,6 +130,8 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
                            << ResultType
                      : VerifyElemType(ElemType);
         })
+        .Case<sycl::AtomicType>(
+            [&](auto Ty) { return VerifyElemType(Ty.getDataType()); })
         .Default([this](auto Ty) {
           return emitOpError("Expecting memref/pointer return type. Got ")
                  << Ty;

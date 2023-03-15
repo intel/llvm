@@ -344,6 +344,40 @@ func.func @test_struct(%acc: memref<?x!sycl_accessor_1_struct_rw_gb>, %idx: memr
 
 // -----
 
+
+//===----------------------------------------------------------------------===//
+// sycl.accessor.subscript with id offset and atomic return type
+//===----------------------------------------------------------------------===//
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+!sycl_accessor_1_i32_ato_gb = !sycl.accessor<[1, i32, atomic, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 3>)>)>
+!sycl_atomic_i32_1_ = !sycl.atomic<[i32, 1], (memref<?xi32, 1>)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[ACCESSOR1:.*]]>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: !llvm.ptr<[[ID1:.*]]>) -> !llvm.struct<[[ATOM1:.*]], (ptr<i32, 1>)> {
+// CHECK:           %[[VAL_2:.*]] = llvm.mlir.undef : !llvm.struct<[[ATOM1]], (ptr<i32, 1>)>
+// CHECK:           %[[VAL_3:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK:           %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 0] : (!llvm.ptr<[[ACCESSOR1]]>) -> !llvm.ptr<i64>
+// CHECK:           %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr<i64>
+// CHECK:           %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0, 0, 0] : (!llvm.ptr<[[ID1]]>) -> !llvm.ptr<i64>
+// CHECK:           %[[VAL_7:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr<i64>
+// CHECK:           %[[VAL_8:.*]] = llvm.mul %[[VAL_3]], %[[VAL_5]]  : i64
+// CHECK:           %[[VAL_9:.*]] = llvm.add %[[VAL_8]], %[[VAL_7]]  : i64
+// CHECK:           %[[VAL_10:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0] : (!llvm.ptr<[[ACCESSOR1]]>) -> !llvm.ptr<ptr<i32, 1>>
+// CHECK:           %[[VAL_11:.*]] = llvm.load %[[VAL_10]] : !llvm.ptr<ptr<i32, 1>>
+// CHECK:           %[[VAL_12:.*]] = llvm.getelementptr inbounds %[[VAL_11]]{{\[}}%[[VAL_9]]] : (!llvm.ptr<i32, 1>, i64) -> !llvm.ptr<i32, 1>
+// CHECK:           %[[VAL_13:.*]] = llvm.insertvalue %[[VAL_12]], %[[VAL_2]][0] : !llvm.struct<[[ATOM1]], (ptr<i32, 1>)>
+// CHECK:           llvm.return %[[VAL_13]] : !llvm.struct<[[ATOM1]], (ptr<i32, 1>)>
+func.func @test(%acc: memref<?x!sycl_accessor_1_i32_ato_gb>, %idx: memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_1_ {
+  %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_ato_gb>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_1_i32_ato_gb>, memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_1_
+  return %0 : !sycl_atomic_i32_1_
+}
+
+// -----
+
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
