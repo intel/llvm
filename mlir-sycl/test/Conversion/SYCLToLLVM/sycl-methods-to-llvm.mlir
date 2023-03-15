@@ -357,8 +357,8 @@ func.func @test_struct(%acc: memref<?x!sycl_accessor_1_struct_rw_gb>, %idx: memr
 
 // CHECK-LABEL:   llvm.func @test(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[ACCESSOR1:.*]]>,
-// CHECK-SAME:                    %[[VAL_1:.*]]: !llvm.ptr<[[ID1:.*]]>) -> !llvm.struct<[[ATOM1:.*]], (ptr<i32, 1>)> {
-// CHECK:           %[[VAL_2:.*]] = llvm.mlir.undef : !llvm.struct<[[ATOM1]], (ptr<i32, 1>)>
+// CHECK-SAME:                    %[[VAL_1:.*]]: !llvm.ptr<[[ID1:.*]]>) -> !llvm.[[ATOM1:.*]] {
+// CHECK:           %[[VAL_2:.*]] = llvm.mlir.undef : !llvm.[[ATOM1]]
 // CHECK:           %[[VAL_3:.*]] = llvm.mlir.constant(0 : i64) : i64
 // CHECK:           %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 2, 0, 0, 0] : (!llvm.ptr<[[ACCESSOR1]]>) -> !llvm.ptr<i64>
 // CHECK:           %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr<i64>
@@ -369,8 +369,8 @@ func.func @test_struct(%acc: memref<?x!sycl_accessor_1_struct_rw_gb>, %idx: memr
 // CHECK:           %[[VAL_10:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1, 0] : (!llvm.ptr<[[ACCESSOR1]]>) -> !llvm.ptr<ptr<i32, 1>>
 // CHECK:           %[[VAL_11:.*]] = llvm.load %[[VAL_10]] : !llvm.ptr<ptr<i32, 1>>
 // CHECK:           %[[VAL_12:.*]] = llvm.getelementptr inbounds %[[VAL_11]]{{\[}}%[[VAL_9]]] : (!llvm.ptr<i32, 1>, i64) -> !llvm.ptr<i32, 1>
-// CHECK:           %[[VAL_13:.*]] = llvm.insertvalue %[[VAL_12]], %[[VAL_2]][0] : !llvm.struct<[[ATOM1]], (ptr<i32, 1>)>
-// CHECK:           llvm.return %[[VAL_13]] : !llvm.struct<[[ATOM1]], (ptr<i32, 1>)>
+// CHECK:           %[[VAL_13:.*]] = llvm.insertvalue %[[VAL_12]], %[[VAL_2]][0] : !llvm.[[ATOM1]]
+// CHECK:           llvm.return %[[VAL_13]] : !llvm.[[ATOM1]]
 func.func @test(%acc: memref<?x!sycl_accessor_1_i32_ato_gb>, %idx: memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_1_ {
   %0 = sycl.accessor.subscript %acc[%idx] { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_ato_gb>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_1_i32_ato_gb>, memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_1_
   return %0 : !sycl_atomic_i32_1_
