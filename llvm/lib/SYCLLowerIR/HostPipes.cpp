@@ -22,10 +22,11 @@ using namespace llvm;
 
 namespace {
 
+constexpr StringRef SYCL_HOST_PIPE_ATTR = "sycl-host-pipe";
 constexpr StringRef SYCL_HOST_PIPE_SIZE_ATTR = "sycl-host-pipe-size";
 constexpr StringRef SYCL_UNIQUE_ID_ATTR = "sycl-unique-id";
 
-/// Returns the size (in bytes) of the underlying type \c T of the host
+/// Returns the size (in bytes) of the type \c T of the host
 /// pipe variable.
 ///
 /// The function gets this value from the LLVM IR attribute \c
@@ -35,11 +36,11 @@ constexpr StringRef SYCL_UNIQUE_ID_ATTR = "sycl-unique-id";
 ///
 /// @returns the size (int bytes) of the underlying type \c T of the
 /// host pipe variable represented in the LLVM IR by  @GV.
-uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
+uint32_t getHostPipeTypeSize(const GlobalVariable &GV) {
   assert(GV.hasAttribute(SYCL_HOST_PIPE_SIZE_ATTR) &&
-         "The device global variable must have the 'sycl-host-pipe-size' "
+         "The host pipe variable must have the 'sycl-host-pipe-size' "
          "attribute that must contain a number representing the size of the "
-         "underlying type T of the device global variable");
+         "underlying type T of the host pipe variable");
   return getAttributeAsInteger<uint32_t>(GV, SYCL_HOST_PIPE_SIZE_ATTR);
 }
 
@@ -47,35 +48,33 @@ uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
 
 namespace llvm {
 
-/// Return \c true if the variable @GV is a device global variable.
+/// Return \c true if the variable @GV is a host pipe variable.
 ///
 /// The function checks whether the variable has the LLVM IR attribute \c
-/// sycl-host-pipe-size.
+/// sycl-host-pipe.
 /// @param GV [in] A variable to test.
 ///
-/// @return \c true if the variable is a device global variable, \c false
+/// @return \c true if the variable is a host pipe variable, \c false
 /// otherwise.
 bool isHostPipeVariable(const GlobalVariable &GV) {
-  return GV.hasAttribute(SYCL_HOST_PIPE_SIZE_ATTR);
+  return GV.hasAttribute(SYCL_HOST_PIPE_ATTR);
 }
 
-#if 0
-/// Returns the unique id for the device global variable.
+/// Returns the unique id for the host pipe variable.
 ///
 /// The function gets this value from the LLVM IR attribute \c
 /// sycl-unique-id.
 ///
 /// @param GV [in] Device Global variable.
 ///
-/// @returns the unique id of the device global variable represented
+/// @returns the unique id of the host pipe variable represented
 /// in the LLVM IR by \c GV.
-StringRef getGlobalVariableUniqueId(const GlobalVariable &GV) {
+StringRef getHostPipeVariableUniqueId(const GlobalVariable &GV) {
   assert(GV.hasAttribute(SYCL_UNIQUE_ID_ATTR) &&
-         "a 'sycl-unique-id' string must be associated with every device "
-         "global variable");
+         "a 'sycl-unique-id' string must be associated with every host "
+         "pipe variable");
   return GV.getAttribute(SYCL_UNIQUE_ID_ATTR).getValueAsString();
 }
-#endif
 
 HostPipePropertyMapTy collectHostPipeProperties(const Module &M) {
   HostPipePropertyMapTy HPM;
@@ -89,7 +88,7 @@ HostPipePropertyMapTy collectHostPipeProperties(const Module &M) {
     if (!isHostPipeVariable(GV))
       continue;
 
-    HPM[getGlobalVariableUniqueId(GV)] = {getUnderlyingTypeSize(GV)};
+    HPM[getHostPipeVariableUniqueId(GV)] = {getHostPipeTypeSize(GV)};
   }
 
   return HPM;
