@@ -9,12 +9,12 @@
 #include <cstring>
 #include <sycl/sycl.hpp>
 
+#include <detail/device_binary_image.hpp>
+#include <detail/host_pipe_map_entry.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
-#include <detail/host_pipe_map_entry.hpp>
 #include <sycl/detail/host_pipe_map.hpp>
-#include <detail/device_binary_image.hpp>
 
 template <size_t KernelSize = 1> class TestKernel;
 
@@ -38,24 +38,26 @@ template <size_t KernelSize> struct KernelInfo<TestKernel<KernelSize>> {
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
-
 using namespace sycl;
-using default_pipe_properties = decltype(sycl::ext::oneapi::experimental::properties(sycl::ext::intel::experimental::uses_valid<true>));
+using default_pipe_properties =
+    decltype(sycl::ext::oneapi::experimental::properties(
+        sycl::ext::intel::experimental::uses_valid<true>));
 
 class PipeID;
-using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10, default_pipe_properties>;
+using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10,
+                                                  default_pipe_properties>;
 
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;
 
-  sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(), "test_host_pipe_unique_id");
+  sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(),
+                                   "test_host_pipe_unique_id");
 
   PiPropertySet PropSet;
   PiProperty HostPipeInfo =
       makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int));
   PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES,
                  PiArray<PiProperty>{std::move(HostPipeInfo)});
-
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
@@ -128,7 +130,7 @@ TEST_F(PipeTest, Basic) {
   detail::HostPipeMapEntry *hostPipeEntry =
       detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr);
   const std::string pipe_name = hostPipeEntry->MUniqueId;
-  
+
   // Testing read
   int host_pipe_read_data;
   void *data_ptr = &host_pipe_read_data;
@@ -141,7 +143,7 @@ TEST_F(PipeTest, Basic) {
 
   // Testing write
   int tmp = 9;
-  void * data_ptr2 = &tmp;
+  void *data_ptr2 = &tmp;
   event e_write = q.submit([=](handler &CGH) {
     CGH.read_write_host_pipe(pipe_name, data_ptr2, sizeof(int), true,
                              false /* write */);

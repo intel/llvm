@@ -72,13 +72,17 @@ int main() {
           value);
   static_assert(
       sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::protocol_avalon_streaming)>::value);
+          decltype(sycl::ext::intel::experimental::protocol_avalon_streaming)>::
+          value);
   static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(sycl::ext::intel::experimental::protocol_avalon_streaming_uses_ready)>::value);
+                decltype(sycl::ext::intel::experimental::
+                             protocol_avalon_streaming_uses_ready)>::value);
+  static_assert(
+      sycl::ext::oneapi::experimental::is_property_value<
+          decltype(sycl::ext::intel::experimental::protocol_avalon_mm)>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(sycl::ext::intel::experimental::protocol_avalon_mm)>::value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(sycl::ext::intel::experimental::protocol_avalon_mm_uses_ready)>::value);
+                decltype(sycl::ext::intel::experimental::
+                             protocol_avalon_mm_uses_ready)>::value);
 
   // Checks that fully specialized properties are the same as the templated
   // variants.
@@ -97,18 +101,23 @@ int main() {
       std::is_same_v<
           decltype(sycl::ext::intel::experimental::protocol_avalon_streaming),
           decltype(sycl::ext::intel::experimental::protocol<TestProtocol>)>);
-  static_assert(std::is_same_v<
-                decltype(sycl::ext::intel::experimental::protocol_avalon_streaming_uses_ready),
-                decltype(sycl::ext::intel::experimental::protocol<
-                         sycl::ext::intel::experimental::protocol_name::AVALON_STREAMING_USES_READY>)>);
-  static_assert(std::is_same_v<
-                decltype(sycl::ext::intel::experimental::protocol_avalon_mm),
-                decltype(sycl::ext::intel::experimental::protocol<
-                         sycl::ext::intel::experimental::protocol_name::AVALON_MM>)>);
-  static_assert(std::is_same_v<
-                decltype(sycl::ext::intel::experimental::protocol_avalon_mm_uses_ready),
-                decltype(sycl::ext::intel::experimental::protocol<
-                         sycl::ext::intel::experimental::protocol_name::AVALON_MM_USES_READY>)>);
+  static_assert(
+      std::is_same_v<decltype(sycl::ext::intel::experimental::
+                                  protocol_avalon_streaming_uses_ready),
+                     decltype(sycl::ext::intel::experimental::protocol<
+                              sycl::ext::intel::experimental::protocol_name::
+                                  AVALON_STREAMING_USES_READY>)>);
+  static_assert(
+      std::is_same_v<
+          decltype(sycl::ext::intel::experimental::protocol_avalon_mm),
+          decltype(sycl::ext::intel::experimental::protocol<
+                   sycl::ext::intel::experimental::protocol_name::AVALON_MM>)>);
+  static_assert(
+      std::is_same_v<decltype(sycl::ext::intel::experimental::
+                                  protocol_avalon_mm_uses_ready),
+                     decltype(sycl::ext::intel::experimental::protocol<
+                              sycl::ext::intel::experimental::protocol_name::
+                                  AVALON_MM_USES_READY>)>);
 
   // Check that property lists will accept the new properties.
   using P = decltype(sycl::ext::oneapi::experimental::properties(

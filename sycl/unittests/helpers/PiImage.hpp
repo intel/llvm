@@ -497,7 +497,6 @@ inline PiProperty makeHostPipeInfo(const std::string &Name,
   return Prop;
 }
 
-
 /// Utility function to add aspects to property set.
 inline PiProperty makeAspectsProp(const std::vector<sycl::aspect> &Aspects) {
   const size_t BYTES_FOR_SIZE = 8;
