@@ -7752,7 +7752,8 @@ typedef void(UR_APICALL *ur_pfnUSMDeviceAllocCb_t)(
 typedef struct ur_usm_shared_alloc_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_usm_desc_t **ppUSMDesc;
+    const ur_usm_desc_t **ppUSMDeviceDesc;
+    const ur_usm_desc_t **ppUSMHostDesc;
     ur_usm_pool_handle_t *ppool;
     size_t *psize;
     void ***pppMem;
