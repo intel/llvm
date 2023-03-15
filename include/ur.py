@@ -796,7 +796,7 @@ class ur_sampler_addressing_mode_t(c_int):
 
 ###############################################################################
 ## @brief USM memory property flags
-class ur_usm_mem_flags_v(IntEnum):
+class ur_usm_flags_v(IntEnum):
     BIAS_CACHED = UR_BIT(0)                         ## Allocation should be cached
     BIAS_UNCACHED = UR_BIT(1)                       ## Allocation should not be cached
     WRITE_COMBINED = UR_BIT(2)                      ## Memory should be allocated write-combined (WC)
@@ -805,7 +805,7 @@ class ur_usm_mem_flags_v(IntEnum):
     DEVICE_READ_ONLY = UR_BIT(5)                    ## Memory is only possibly modified from the host, but read-only in all
                                                     ## device code
 
-class ur_usm_mem_flags_t(c_int):
+class ur_usm_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
@@ -876,7 +876,7 @@ class ur_usm_desc_t(Structure):
     _fields_ = [
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
-        ("flags", ur_usm_mem_flags_t),                                  ## [in] memory allocation flags
+        ("flags", ur_usm_flags_t),                                      ## [in] Memory allocation flags
         ("hints", ur_mem_advice_t)                                      ## [in] Memory advice hints
     ]
 
