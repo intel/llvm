@@ -14,11 +14,6 @@
 
 #include <cuda.h>
 
-// struct _ur_platform_handle_t;
-// using ur_platform_handle_t = _ur_platform_handle_t *;
-// struct _ur_device_handle_t;
-// using ur_device_handle_t = _ur_device_handle_t *;
-
 struct ur_platform_handle_t_ : public _ur_platform {
   std::vector<std::unique_ptr<ur_device_handle_t_>> devices_;
 };
@@ -92,9 +87,7 @@ struct ur_context_handle_t_ : _pi_object {
     urDeviceRetain(deviceId_);
   };
 
-  ~ur_context_handle_t_() {
-    urDeviceRelease(deviceId_);
-  }
+  ~ur_context_handle_t_() { urDeviceRelease(deviceId_); }
 
   void invoke_extended_deleters() {
     std::lock_guard<std::mutex> guard(mutex_);
@@ -123,13 +116,3 @@ private:
   std::mutex mutex_;
   std::vector<deleter_data> extended_deleters_;
 };
-
-
-// Make the Unified Runtime handles definition complete.
-// This is used in various "create" API where new handles are allocated.
-// struct _zer_platform_handle_t : public _ur_platform_handle_t {
-//   using _ur_platform_handle_t::_ur_platform_handle_t;
-// };
-// struct _zer_device_handle_t : public _ur_device_handle_t {
-//   using _ur_device_handle_t::_ur_device_handle_t;
-// };
