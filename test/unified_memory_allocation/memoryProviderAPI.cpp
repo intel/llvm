@@ -16,7 +16,8 @@ TEST_F(test, memoryProviderTrace) {
     auto trace = [](const char *name) { calls[name]++; };
 
     auto nullProvider = uma_test::wrapProviderUnique(nullProviderCreate());
-    auto tracingProvider = uma_test::wrapProviderUnique(traceProviderCreate(nullProvider.get(), trace));
+    auto tracingProvider = uma_test::wrapProviderUnique(
+        traceProviderCreate(nullProvider.get(), trace));
 
     size_t call_count = 0;
 
@@ -36,18 +37,19 @@ TEST_F(test, memoryProviderTrace) {
     ASSERT_EQ(calls.size(), ++call_count);
 }
 
-//////////////////////////// Negative test cases ////////////////////////////////
+//////////////////////////// Negative test cases
+///////////////////////////////////
 
-struct providerInitializeTest : uma_test::test, ::testing::WithParamInterface<uma_result_t> {};
+struct providerInitializeTest : uma_test::test,
+                                ::testing::WithParamInterface<uma_result_t> {};
 
-INSTANTIATE_TEST_SUITE_P(providerInitializeTest,
-                         providerInitializeTest,
-                         ::testing::Values(
-                             UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY,
-                             UMA_RESULT_ERROR_POOL_SPECIFIC,
-                             UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC,
-                             UMA_RESULT_ERROR_INVALID_ARGUMENT,
-                             UMA_RESULT_ERROR_UNKNOWN));
+INSTANTIATE_TEST_SUITE_P(
+    providerInitializeTest, providerInitializeTest,
+    ::testing::Values(UMA_RESULT_ERROR_OUT_OF_HOST_MEMORY,
+                      UMA_RESULT_ERROR_POOL_SPECIFIC,
+                      UMA_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC,
+                      UMA_RESULT_ERROR_INVALID_ARGUMENT,
+                      UMA_RESULT_ERROR_UNKNOWN));
 
 TEST_P(providerInitializeTest, errorPropagation) {
     struct provider : public uma_test::provider_base {

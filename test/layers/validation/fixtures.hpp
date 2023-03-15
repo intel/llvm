@@ -28,7 +28,8 @@ struct valPlatformsTest : urTest {
         ASSERT_EQ(urPlatformGet(0, nullptr, &count), UR_RESULT_SUCCESS);
         ASSERT_NE(count, 0);
         platforms.resize(count);
-        ASSERT_EQ(urPlatformGet(count, platforms.data(), nullptr), UR_RESULT_SUCCESS);
+        ASSERT_EQ(urPlatformGet(count, platforms.data(), nullptr),
+                  UR_RESULT_SUCCESS);
     }
 
     std::vector<ur_platform_handle_t> platforms;

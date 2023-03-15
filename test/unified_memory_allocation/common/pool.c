@@ -14,9 +14,7 @@ static enum uma_result_t nullInitialize(void *params, void **pool) {
     return UMA_RESULT_SUCCESS;
 }
 
-static void nullFinalize(void *pool) {
-    (void)pool;
-}
+static void nullFinalize(void *pool) { (void)pool; }
 
 static void *nullMalloc(void *pool, size_t size) {
     (void)pool;
@@ -63,21 +61,20 @@ enum uma_result_t nullGetLastResult(void *pool, const char **ppMsg) {
 }
 
 uma_memory_pool_handle_t nullPoolCreate(void) {
-    struct uma_memory_pool_ops_t ops = {
-        .version = UMA_VERSION_CURRENT,
-        .initialize = nullInitialize,
-        .finalize = nullFinalize,
-        .malloc = nullMalloc,
-        .realloc = nullRealloc,
-        .calloc = nullCalloc,
-        .aligned_malloc = nullAlignedMalloc,
-        .malloc_usable_size = nullMallocUsableSize,
-        .free = nullFree,
-        .get_last_result = nullGetLastResult};
+    struct uma_memory_pool_ops_t ops = {.version = UMA_VERSION_CURRENT,
+                                        .initialize = nullInitialize,
+                                        .finalize = nullFinalize,
+                                        .malloc = nullMalloc,
+                                        .realloc = nullRealloc,
+                                        .calloc = nullCalloc,
+                                        .aligned_malloc = nullAlignedMalloc,
+                                        .malloc_usable_size =
+                                            nullMallocUsableSize,
+                                        .free = nullFree,
+                                        .get_last_result = nullGetLastResult};
 
     uma_memory_pool_handle_t hPool;
-    enum uma_result_t ret = umaPoolCreate(&ops, NULL,
-                                          &hPool);
+    enum uma_result_t ret = umaPoolCreate(&ops, NULL, &hPool);
 
     (void)ret; /* silence unused variable warning */
     assert(ret == UMA_RESULT_SUCCESS);
@@ -90,16 +87,15 @@ struct traceParams {
 };
 
 static enum uma_result_t traceInitialize(void *params, void **pool) {
-    struct traceParams *tracePool = (struct traceParams *)malloc(sizeof(struct traceParams));
+    struct traceParams *tracePool =
+        (struct traceParams *)malloc(sizeof(struct traceParams));
     *tracePool = *((struct traceParams *)params);
     *pool = tracePool;
 
     return UMA_RESULT_SUCCESS;
 }
 
-static void traceFinalize(void *pool) {
-    free(pool);
-}
+static void traceFinalize(void *pool) { free(pool); }
 
 static void *traceMalloc(void *pool, size_t size) {
     struct traceParams *tracePool = (struct traceParams *)pool;
@@ -150,26 +146,25 @@ enum uma_result_t traceGetLastResult(void *pool, const char **ppMsg) {
     return umaPoolGetLastResult(tracePool->hUpstreamPool, ppMsg);
 }
 
-uma_memory_pool_handle_t tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool, void (*trace)(const char *)) {
-    struct uma_memory_pool_ops_t ops = {
-        .version = UMA_VERSION_CURRENT,
-        .initialize = traceInitialize,
-        .finalize = traceFinalize,
-        .malloc = traceMalloc,
-        .realloc = traceRealloc,
-        .calloc = traceCalloc,
-        .aligned_malloc = traceAlignedMalloc,
-        .malloc_usable_size = traceMallocUsableSize,
-        .free = traceFree,
-        .get_last_result = traceGetLastResult};
+uma_memory_pool_handle_t tracePoolCreate(uma_memory_pool_handle_t hUpstreamPool,
+                                         void (*trace)(const char *)) {
+    struct uma_memory_pool_ops_t ops = {.version = UMA_VERSION_CURRENT,
+                                        .initialize = traceInitialize,
+                                        .finalize = traceFinalize,
+                                        .malloc = traceMalloc,
+                                        .realloc = traceRealloc,
+                                        .calloc = traceCalloc,
+                                        .aligned_malloc = traceAlignedMalloc,
+                                        .malloc_usable_size =
+                                            traceMallocUsableSize,
+                                        .free = traceFree,
+                                        .get_last_result = traceGetLastResult};
 
-    struct traceParams params = {
-        .hUpstreamPool = hUpstreamPool,
-        .trace = trace};
+    struct traceParams params = {.hUpstreamPool = hUpstreamPool,
+                                 .trace = trace};
 
     uma_memory_pool_handle_t hPool;
-    enum uma_result_t ret = umaPoolCreate(&ops, &params,
-                                          &hPool);
+    enum uma_result_t ret = umaPoolCreate(&ops, &params, &hPool);
 
     (void)ret; /* silence unused variable warning */
     assert(ret == UMA_RESULT_SUCCESS);

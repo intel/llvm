@@ -4,7 +4,8 @@
 
 using urMemGetInfoTest = uur::urMemBufferTestWithParam<ur_mem_info_t>;
 
-UUR_TEST_SUITE_P(urMemGetInfoTest, ::testing::Values(UR_MEM_INFO_SIZE, UR_MEM_INFO_CONTEXT),
+UUR_TEST_SUITE_P(urMemGetInfoTest,
+                 ::testing::Values(UR_MEM_INFO_SIZE, UR_MEM_INFO_CONTEXT),
                  uur::deviceTestWithParamPrinter<ur_mem_info_t>);
 
 TEST_P(urMemGetInfoTest, Success) {

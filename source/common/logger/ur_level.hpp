@@ -9,11 +9,7 @@
 
 namespace logger {
 
-enum class Level { DEBUG,
-                   INFO,
-                   WARN,
-                   ERR,
-                   QUIET };
+enum class Level { DEBUG, INFO, WARN, ERR, QUIET };
 
 inline constexpr auto level_to_str(Level level) {
     switch (level) {

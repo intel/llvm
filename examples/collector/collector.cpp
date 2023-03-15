@@ -25,14 +25,17 @@
 #include "ur_api.h"
 #include "xpti/xpti_trace_framework.h"
 
-constexpr uint16_t TRACE_FN_BEGIN = static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_begin);
-constexpr uint16_t TRACE_FN_END = static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_end);
+constexpr uint16_t TRACE_FN_BEGIN =
+    static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_begin);
+constexpr uint16_t TRACE_FN_END =
+    static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_end);
 constexpr std::string_view UR_STREAM_NAME = "ur";
 
 /**
  * @brief Formats the function parameters and arguments for urInit
  */
-std::ostream &operator<<(std::ostream &os, const struct ur_init_params_t *params) {
+std::ostream &operator<<(std::ostream &os,
+                         const struct ur_init_params_t *params) {
     os << ".device_flags = ";
     if (*params->pdevice_flags & UR_DEVICE_INIT_FLAG_GPU) {
         os << "UR_DEVICE_INIT_FLAG_GPU";
@@ -48,14 +51,15 @@ std::ostream &operator<<(std::ostream &os, const struct ur_init_params_t *params
  * This example only implements a handler for one function, `urInit`, but it's
  * trivial to expand it to support more.
  */
-static std::unordered_map<std::string_view,
-                          std::function<void(const xpti::function_with_args_t *, std::ostream &)>>
-    handlers =
-        {
-            {"urInit", [](const xpti::function_with_args_t *fn_args, std::ostream &os) {
-                 auto params = static_cast<const struct ur_init_params_t *>(fn_args->args_data);
-                 os << params;
-             }}};
+static std::unordered_map<
+    std::string_view,
+    std::function<void(const xpti::function_with_args_t *, std::ostream &)>>
+    handlers = {{"urInit", [](const xpti::function_with_args_t *fn_args,
+                              std::ostream &os) {
+                     auto params = static_cast<const struct ur_init_params_t *>(
+                         fn_args->args_data);
+                     os << params;
+                 }}};
 
 /**
  * @brief Tracing callback invoked by the dispatcher on every event.
@@ -74,7 +78,8 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
     auto *args = static_cast<const xpti::function_with_args_t *>(user_data);
     std::ostringstream out;
     if (trace_type == TRACE_FN_BEGIN) {
-        out << "function_with_args_begin(" << instance << ") - " << args->function_name << "(";
+        out << "function_with_args_begin(" << instance << ") - "
+            << args->function_name << "(";
         auto it = handlers.find(args->function_name);
         if (it == handlers.end()) {
             out << "unimplemented";
@@ -84,7 +89,9 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
         out << ");";
     } else if (trace_type == TRACE_FN_END) {
         auto result = static_cast<const ur_result_t *>(args->ret_data);
-        out << "function_with_args_end(" << instance << ") - " << args->function_name << "(...) -> ur_result_t(" << *result << ");";
+        out << "function_with_args_end(" << instance << ") - "
+            << args->function_name << "(...) -> ur_result_t(" << *result
+            << ");";
     } else {
         out << "unsupported trace type";
     }
@@ -105,12 +112,18 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                                      const char *version_str,
                                      const char *stream_name) {
     if (!stream_name || std::string_view(stream_name) != UR_STREAM_NAME) {
-        std::cout << "Invalid stream name: " << stream_name << ". Expected " << UR_STREAM_NAME << ". Aborting." << std::endl;
+        std::cout << "Invalid stream name: " << stream_name << ". Expected "
+                  << UR_STREAM_NAME << ". Aborting." << std::endl;
         return;
     }
 
-    if (UR_MAKE_VERSION(major_version, minor_version) != UR_API_VERSION_CURRENT) {
-        std::cout << "Invalid stream version: " << major_version << "." << minor_version << ". Expected " << UR_MAJOR_VERSION(UR_API_VERSION_CURRENT) << "." << UR_MINOR_VERSION(UR_API_VERSION_CURRENT) << ". Aborting." << std::endl;
+    if (UR_MAKE_VERSION(major_version, minor_version) !=
+        UR_API_VERSION_CURRENT) {
+        std::cout << "Invalid stream version: " << major_version << "."
+                  << minor_version << ". Expected "
+                  << UR_MAJOR_VERSION(UR_API_VERSION_CURRENT) << "."
+                  << UR_MINOR_VERSION(UR_API_VERSION_CURRENT) << ". Aborting."
+                  << std::endl;
         return;
     }
 
@@ -130,6 +143,5 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
  *
  * Can be used to cleanup state or resources.
  */
-XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
-    /* noop */
+XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) { /* noop */
 }

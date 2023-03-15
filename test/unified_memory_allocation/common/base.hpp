@@ -13,12 +13,8 @@
 
 namespace uma_test {
 struct test : ::testing::Test {
-    void SetUp() {
-        ::testing::Test::SetUp();
-    }
-    void TearDown() override {
-        ::testing::Test::TearDown();
-    }
+    void SetUp() { ::testing::Test::SetUp(); }
+    void TearDown() override { ::testing::Test::TearDown(); }
 };
 } // namespace uma_test
 

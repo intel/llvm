@@ -9,8 +9,10 @@ struct urUSMSharedAllocTest : uur::urQueueTest {
         bool shared_usm_cross = false;
         bool shared_usm_single = false;
 
-        ASSERT_SUCCESS(uur::GetDeviceUSMCrossSharedSupport(device, shared_usm_cross));
-        ASSERT_SUCCESS(uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_single));
+        ASSERT_SUCCESS(
+            uur::GetDeviceUSMCrossSharedSupport(device, shared_usm_cross));
+        ASSERT_SUCCESS(
+            uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_single));
 
         if (!(shared_usm_cross || shared_usm_single)) {
             GTEST_SKIP() << "Shared USM is not supported by the device.";
@@ -22,15 +24,13 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMSharedAllocTest);
 TEST_P(urUSMSharedAllocTest, Success) {
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
-    ASSERT_SUCCESS(
-        urUSMSharedAlloc(context, device, nullptr, nullptr, allocation_size, 0,
-                         &ptr));
+    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
+                                    allocation_size, 0, &ptr));
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
-    ASSERT_SUCCESS(
-        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
-                         0, nullptr, &event));
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+                                    allocation_size, 0, nullptr, &event));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
     ASSERT_SUCCESS(urUSMFree(context, ptr));
@@ -59,15 +59,14 @@ TEST_P(urUSMSharedAllocTest, InvalidNullPtrMem) {
 
 TEST_P(urUSMSharedAllocTest, InvalidUSMSize) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_USM_SIZE,
-                     urUSMSharedAlloc(context, device, nullptr, nullptr, 13, 0,
-                                      &ptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_USM_SIZE,
+        urUSMSharedAlloc(context, device, nullptr, nullptr, 13, 0, &ptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidValueAlignPowerOfTwo) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_VALUE,
-        urUSMSharedAlloc(context, device, nullptr, nullptr, sizeof(int), 1,
-                         &ptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+                     urUSMSharedAlloc(context, device, nullptr, nullptr,
+                                      sizeof(int), 1, &ptr));
 }

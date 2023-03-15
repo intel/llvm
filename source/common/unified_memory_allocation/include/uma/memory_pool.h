@@ -24,7 +24,8 @@ typedef struct uma_memory_pool_t *uma_memory_pool_handle_t;
 /// \param params pointer to pool-specific parameters
 /// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure
 ///
-enum uma_result_t umaPoolCreate(struct uma_memory_pool_ops_t *ops, void *params, uma_memory_pool_handle_t *hPool);
+enum uma_result_t umaPoolCreate(struct uma_memory_pool_ops_t *ops, void *params,
+                                uma_memory_pool_handle_t *hPool);
 
 ///
 /// \brief Destroys memory pool
@@ -48,7 +49,8 @@ void *umaPoolMalloc(uma_memory_pool_handle_t hPool, size_t size);
 /// \param alignment alignment of the allocation
 /// \return Pointer to the allocated memory
 ///
-void *umaPoolAlignedMalloc(uma_memory_pool_handle_t hPool, size_t size, size_t alignment);
+void *umaPoolAlignedMalloc(uma_memory_pool_handle_t hPool, size_t size,
+                           size_t alignment);
 
 ///
 /// \brief Allocates memory of the specified hPool for an array of num elements
@@ -106,7 +108,8 @@ void umaPoolFree(uma_memory_pool_handle_t hPool, void *ptr);
 /// \return UMA_RESULT_SUCCESS if the result being
 ///         reported is to be considered a warning. Any other result code
 ///         returned indicates that the adapter specific result is an error.
-enum uma_result_t umaPoolGetLastResult(uma_memory_pool_handle_t hPool, const char **ppMessage);
+enum uma_result_t umaPoolGetLastResult(uma_memory_pool_handle_t hPool,
+                                       const char **ppMessage);
 
 #ifdef __cplusplus
 }

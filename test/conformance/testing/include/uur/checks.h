@@ -10,9 +10,9 @@
 
 inline std::ostream &operator<<(std::ostream &out, const ur_result_t &result) {
     switch (result) {
-#define CASE(VALUE)    \
-    case VALUE:        \
-        out << #VALUE; \
+#define CASE(VALUE)                                                            \
+    case VALUE:                                                                \
+        out << #VALUE;                                                         \
         break;
 
         CASE(UR_RESULT_SUCCESS)
@@ -111,7 +111,7 @@ inline std::ostream &operator<<(std::ostream &out, const Result &result) {
 } // namespace uur
 
 #ifndef ASSERT_EQ_RESULT
-#define ASSERT_EQ_RESULT(EXPECTED, ACTUAL) \
+#define ASSERT_EQ_RESULT(EXPECTED, ACTUAL)                                     \
     ASSERT_EQ(uur::Result(EXPECTED), uur::Result(ACTUAL))
 #endif
 #ifndef ASSERT_SUCCESS
@@ -119,7 +119,7 @@ inline std::ostream &operator<<(std::ostream &out, const Result &result) {
 #endif
 
 #ifndef EXPECT_EQ_RESULT
-#define EXPECT_EQ_RESULT(EXPECTED, ACTUAL) \
+#define EXPECT_EQ_RESULT(EXPECTED, ACTUAL)                                     \
     EXPECT_EQ(uur::Result(EXPECTED), uur::Result(ACTUAL))
 #endif
 #ifndef EXPECT_SUCCESS
@@ -130,9 +130,9 @@ inline std::ostream &operator<<(std::ostream &out,
                                 const ur_device_info_t &info_type) {
     switch (info_type) {
 
-#define CASE(VALUE)    \
-    case VALUE:        \
-        out << #VALUE; \
+#define CASE(VALUE)                                                            \
+    case VALUE:                                                                \
+        out << #VALUE;                                                         \
         break;
 
         CASE(UR_DEVICE_INFO_TYPE)
@@ -245,9 +245,9 @@ inline std::ostream &operator<<(std::ostream &out,
                                 const ur_platform_info_t &info) {
 
     switch (info) {
-#define CASE(VALUE)    \
-    case VALUE:        \
-        out << #VALUE; \
+#define CASE(VALUE)                                                            \
+    case VALUE:                                                                \
+        out << #VALUE;                                                         \
         break;
         CASE(UR_PLATFORM_INFO_NAME)
         CASE(UR_PLATFORM_INFO_VENDOR_NAME)
@@ -267,9 +267,9 @@ inline std::ostream &operator<<(std::ostream &out,
                                 const ur_context_info_t &info) {
 
     switch (info) {
-#define CASE(VALUE)    \
-    case VALUE:        \
-        out << #VALUE; \
+#define CASE(VALUE)                                                            \
+    case VALUE:                                                                \
+        out << #VALUE;                                                         \
         break;
 
         CASE(UR_CONTEXT_INFO_NUM_DEVICES);
@@ -289,9 +289,9 @@ inline std::ostream &operator<<(std::ostream &out,
 inline std::ostream &operator<<(std::ostream &out,
                                 const ur_queue_info_t &info) {
     switch (info) {
-#define CASE(VALUE)    \
-    case VALUE:        \
-        out << #VALUE; \
+#define CASE(VALUE)                                                            \
+    case VALUE:                                                                \
+        out << #VALUE;                                                         \
         break;
 
         CASE(UR_QUEUE_INFO_CONTEXT)
@@ -312,9 +312,9 @@ inline std::ostream &operator<<(std::ostream &out,
 inline std::ostream &operator<<(std::ostream &out, const ur_mem_info_t &info) {
     switch (info) {
 
-#define CASE(name)    \
-    case name:        \
-        out << #name; \
+#define CASE(name)                                                             \
+    case name:                                                                 \
+        out << #name;                                                          \
         break;
 
         CASE(UR_MEM_INFO_SIZE)
@@ -330,9 +330,9 @@ inline std::ostream &operator<<(std::ostream &out, const ur_mem_info_t &info) {
 
 inline std::ostream &operator<<(std::ostream &out, const ur_mem_flag_t &flag) {
     switch (flag) {
-#define CASE(name)    \
-    case name:        \
-        out << #name; \
+#define CASE(name)                                                             \
+    case name:                                                                 \
+        out << #name;                                                          \
         break;
 
         CASE(UR_MEM_FLAG_READ_WRITE);
@@ -354,9 +354,9 @@ inline std::ostream &operator<<(std::ostream &out, const ur_mem_flag_t &flag) {
 inline std::ostream &operator<<(std::ostream &out,
                                 const ur_usm_alloc_info_t &info) {
     switch (info) {
-#define CASE(name)    \
-    case name:        \
-        out << #name; \
+#define CASE(name)                                                             \
+    case name:                                                                 \
+        out << #name;                                                          \
         break;
 
         CASE(UR_USM_ALLOC_INFO_TYPE);
@@ -376,9 +376,9 @@ inline std::ostream &operator<<(std::ostream &out,
 inline std::ostream &operator<<(std::ostream &out,
                                 const ur_event_info_t &info) {
     switch (info) {
-#define CASE(name)    \
-    case name:        \
-        out << #name; \
+#define CASE(name)                                                             \
+    case name:                                                                 \
+        out << #name;                                                          \
         break;
 
         CASE(UR_EVENT_INFO_COMMAND_QUEUE);
@@ -399,9 +399,9 @@ inline std::ostream &operator<<(std::ostream &out,
 inline std::ostream &operator<<(std::ostream &out,
                                 const ur_profiling_info_t &info) {
     switch (info) {
-#define CASE(name)    \
-    case name:        \
-        out << #name; \
+#define CASE(name)                                                             \
+    case name:                                                                 \
+        out << #name;                                                          \
         break;
 
         CASE(UR_PROFILING_INFO_COMMAND_QUEUED);

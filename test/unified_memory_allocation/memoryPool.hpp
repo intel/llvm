@@ -9,7 +9,10 @@
 #ifndef UMA_TEST_MEMORY_POOL_OPS_HPP
 #define UMA_TEST_MEMORY_POOL_OPS_HPP
 
-struct umaPoolTest : uma_test::test, ::testing::WithParamInterface<std::function<std::pair<uma_result_t, uma::pool_unique_handle_t>()>> {
+struct umaPoolTest
+    : uma_test::test,
+      ::testing::WithParamInterface<
+          std::function<std::pair<uma_result_t, uma::pool_unique_handle_t>()>> {
     umaPoolTest() : pool(nullptr, nullptr) {}
     void SetUp() {
         test::SetUp();
@@ -18,9 +21,7 @@ struct umaPoolTest : uma_test::test, ::testing::WithParamInterface<std::function
         EXPECT_NE(pool, nullptr);
         this->pool = std::move(pool);
     }
-    void TearDown() override {
-        test::TearDown();
-    }
+    void TearDown() override { test::TearDown(); }
     uma::pool_unique_handle_t pool;
 };
 
