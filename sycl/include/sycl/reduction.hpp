@@ -2119,7 +2119,6 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
                      std::tuple<Reductions...> &ReduTuple,
                      std::index_sequence<Is...> ReduIndices) {
   size_t WGSize = Range.get_local_range().size();
-  size_t NWorkItems = Range.get_group_range().size();
 
   // Ignore active items to avoid warnings when uncaptured.
   std::ignore = ActiveItemsPerWG;
