@@ -201,10 +201,14 @@ class ur_result_t(c_int):
 class ur_structure_type_v(IntEnum):
     CONTEXT_PROPERTIES = 0                          ## ::ur_context_properties_t
     IMAGE_DESC = 1                                  ## ::ur_image_desc_t
-    PROGRAM_PROPERTIES = 2                          ## ::ur_program_properties_t
-    USM_DESC = 3                                    ## ::ur_usm_desc_t
-    USM_POOL_DESC = 4                               ## ::ur_usm_pool_desc_t
-    USM_POOL_LIMITS_DESC = 5                        ## ::ur_usm_pool_limits_desc_t
+    BUFFER_PROPERTIES = 2                           ## ::ur_buffer_properties_t
+    BUFFER_REGION = 3                               ## ::ur_buffer_region_t
+    BUFFER_CHANNEL_PROPERTIES = 4                   ## ::ur_buffer_channel_properties_t
+    BUFFER_ALLOC_LOCATION_PROPERTIES = 5            ## ::ur_buffer_alloc_location_properties_t
+    PROGRAM_PROPERTIES = 6                          ## ::ur_program_properties_t
+    USM_DESC = 7                                    ## ::ur_usm_desc_t
+    USM_POOL_DESC = 8                               ## ::ur_usm_pool_desc_t
+    USM_POOL_LIMITS_DESC = 9                        ## ::ur_usm_pool_limits_desc_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -726,9 +730,58 @@ class ur_image_desc_t(Structure):
     ]
 
 ###############################################################################
+## @brief Buffer creation properties
+class ur_buffer_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_BUFFER_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("pHost", c_void_p)                                             ## [in][optional] pointer to the buffer data
+    ]
+
+###############################################################################
+## @brief Buffer memory channel creation properties
+## 
+## @details
+##     - Specify these properties in ::urMemBufferCreate via
+##       ::ur_buffer_properties_t as part of a `pNext` chain.
+## 
+## @remarks
+##   _Analogues_
+##     - cl_intel_mem_channel_property
+class ur_buffer_channel_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("channel", c_ulong)                                            ## [in] Identifies the channel/region to which the buffer should be mapped.
+    ]
+
+###############################################################################
+## @brief Buffer allocation location creation properties
+## 
+## @details
+##     - Specify these properties in ::urMemBufferCreate via
+##       ::ur_buffer_properties_t as part of a `pNext` chain.
+## 
+## @remarks
+##   _Analogues_
+##     - cl_intel_mem_alloc_buffer_location
+class ur_buffer_alloc_location_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("location", c_ulong)                                           ## [in] Identifies the ID of global memory partition to which the memory
+                                                                        ## should be allocated.
+    ]
+
+###############################################################################
 ## @brief Buffer region type, used to describe a sub buffer
 class ur_buffer_region_t(Structure):
     _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_BUFFER_REGION
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
         ("origin", c_size_t),                                           ## [in] buffer origin offset
         ("size", c_size_t)                                              ## [in] size of the buffer region
     ]
@@ -1869,9 +1922,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urMemBufferCreate
 if __use_win_types:
-    _urMemBufferCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_mem_flags_t, c_size_t, c_void_p, POINTER(ur_mem_handle_t) )
+    _urMemBufferCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_mem_flags_t, c_size_t, POINTER(ur_buffer_properties_t), POINTER(ur_mem_handle_t) )
 else:
-    _urMemBufferCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_mem_flags_t, c_size_t, c_void_p, POINTER(ur_mem_handle_t) )
+    _urMemBufferCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_mem_flags_t, c_size_t, POINTER(ur_buffer_properties_t), POINTER(ur_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urMemRetain

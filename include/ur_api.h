@@ -223,12 +223,16 @@ typedef enum ur_result_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines structure types
 typedef enum ur_structure_type_t {
-    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 0,   ///< ::ur_context_properties_t
-    UR_STRUCTURE_TYPE_IMAGE_DESC = 1,           ///< ::ur_image_desc_t
-    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 2,   ///< ::ur_program_properties_t
-    UR_STRUCTURE_TYPE_USM_DESC = 3,             ///< ::ur_usm_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_DESC = 4,        ///< ::ur_usm_pool_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 5, ///< ::ur_usm_pool_limits_desc_t
+    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 0,               ///< ::ur_context_properties_t
+    UR_STRUCTURE_TYPE_IMAGE_DESC = 1,                       ///< ::ur_image_desc_t
+    UR_STRUCTURE_TYPE_BUFFER_PROPERTIES = 2,                ///< ::ur_buffer_properties_t
+    UR_STRUCTURE_TYPE_BUFFER_REGION = 3,                    ///< ::ur_buffer_region_t
+    UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES = 4,        ///< ::ur_buffer_channel_properties_t
+    UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES = 5, ///< ::ur_buffer_alloc_location_properties_t
+    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 6,               ///< ::ur_program_properties_t
+    UR_STRUCTURE_TYPE_USM_DESC = 7,                         ///< ::ur_usm_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_DESC = 8,                    ///< ::ur_usm_pool_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 9,             ///< ::ur_usm_pool_limits_desc_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1507,7 +1511,58 @@ urMemImageCreate(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Buffer creation properties
+typedef struct ur_buffer_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_BUFFER_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    void *pHost;               ///< [in][optional] pointer to the buffer data
+
+} ur_buffer_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Buffer memory channel creation properties
+///
+/// @details
+///     - Specify these properties in ::urMemBufferCreate via
+///       ::ur_buffer_properties_t as part of a `pNext` chain.
+///
+/// @remarks
+///   _Analogues_
+///     - cl_intel_mem_channel_property
+typedef struct ur_buffer_channel_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    uint32_t channel;          ///< [in] Identifies the channel/region to which the buffer should be mapped.
+
+} ur_buffer_channel_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Buffer allocation location creation properties
+///
+/// @details
+///     - Specify these properties in ::urMemBufferCreate via
+///       ::ur_buffer_properties_t as part of a `pNext` chain.
+///
+/// @remarks
+///   _Analogues_
+///     - cl_intel_mem_alloc_buffer_location
+typedef struct ur_buffer_alloc_location_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    uint32_t location;         ///< [in] Identifies the ID of global memory partition to which the memory
+                               ///< should be allocated.
+
+} ur_buffer_alloc_location_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a memory buffer
+///
+/// @details
+///     - See also ::ur_buffer_channel_properties_t.
+///     - See also ::ur_buffer_alloc_location_properties_t.
 ///
 /// @remarks
 ///   _Analogues_
@@ -1527,17 +1582,18 @@ urMemImageCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_BUFFER_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
-///         + `pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
-///         + `pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`
+///         + `pProperties == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
+///         + `pProperties->pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
+///         + `pProperties->pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemBufferCreate(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_mem_flags_t flags,         ///< [in] allocation and usage information flags
-    size_t size,                  ///< [in] size in bytes of the memory object to be allocated
-    void *pHost,                  ///< [in][optional] pointer to the buffer data
-    ur_mem_handle_t *phBuffer     ///< [out] pointer to handle of the memory buffer created
+    ur_context_handle_t hContext,              ///< [in] handle of the context object
+    ur_mem_flags_t flags,                      ///< [in] allocation and usage information flags
+    size_t size,                               ///< [in] size in bytes of the memory object to be allocated
+    const ur_buffer_properties_t *pProperties, ///< [in][optional] pointer to buffer creation properties
+    ur_mem_handle_t *phBuffer                  ///< [out] pointer to handle of the memory buffer created
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1590,8 +1646,10 @@ urMemRelease(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Buffer region type, used to describe a sub buffer
 typedef struct ur_buffer_region_t {
-    size_t origin; ///< [in] buffer origin offset
-    size_t size;   ///< [in] size of the buffer region
+    ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_BUFFER_REGION
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+    size_t origin;             ///< [in] buffer origin offset
+    size_t size;               ///< [in] size of the buffer region
 
 } ur_buffer_region_t;
 
@@ -1622,7 +1680,7 @@ typedef enum ur_buffer_create_type_t {
 ///         + `0x3f < flags`
 ///         + `::UR_BUFFER_CREATE_TYPE_REGION < bufferCreateType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pBufferCreateInfo`
+///         + `NULL == pRegion`
 ///         + `NULL == phMem`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE
@@ -1636,7 +1694,7 @@ urMemBufferPartition(
     ur_mem_handle_t hBuffer,                  ///< [in] handle of the buffer object to allocate from
     ur_mem_flags_t flags,                     ///< [in] allocation and usage information flags
     ur_buffer_create_type_t bufferCreateType, ///< [in] buffer creation type
-    ur_buffer_region_t *pBufferCreateInfo,    ///< [in] pointer to buffer create region information
+    const ur_buffer_region_t *pRegion,        ///< [in] pointer to buffer create region information
     ur_mem_handle_t *phMem                    ///< [out] pointer to the handle of sub buffer created
 );
 
@@ -6453,7 +6511,7 @@ typedef struct ur_mem_buffer_create_params_t {
     ur_context_handle_t *phContext;
     ur_mem_flags_t *pflags;
     size_t *psize;
-    void **ppHost;
+    const ur_buffer_properties_t **ppProperties;
     ur_mem_handle_t **pphBuffer;
 } ur_mem_buffer_create_params_t;
 
@@ -6517,7 +6575,7 @@ typedef struct ur_mem_buffer_partition_params_t {
     ur_mem_handle_t *phBuffer;
     ur_mem_flags_t *pflags;
     ur_buffer_create_type_t *pbufferCreateType;
-    ur_buffer_region_t **ppBufferCreateInfo;
+    const ur_buffer_region_t **ppRegion;
     ur_mem_handle_t **pphMem;
 } ur_mem_buffer_partition_params_t;
 

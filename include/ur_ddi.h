@@ -628,7 +628,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnMemBufferCreate_t)(
     ur_context_handle_t,
     ur_mem_flags_t,
     size_t,
-    void *,
+    const ur_buffer_properties_t *,
     ur_mem_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -647,7 +647,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnMemBufferPartition_t)(
     ur_mem_handle_t,
     ur_mem_flags_t,
     ur_buffer_create_type_t,
-    ur_buffer_region_t *,
+    const ur_buffer_region_t *,
     ur_mem_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

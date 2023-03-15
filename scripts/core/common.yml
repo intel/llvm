@@ -266,6 +266,14 @@ etors:
       desc: $x_context_properties_t
     - name: IMAGE_DESC
       desc: $x_image_desc_t
+    - name: BUFFER_PROPERTIES
+      desc: $x_buffer_properties_t
+    - name: BUFFER_REGION
+      desc: $x_buffer_region_t
+    - name: BUFFER_CHANNEL_PROPERTIES
+      desc: $x_buffer_channel_properties_t
+    - name: BUFFER_ALLOC_LOCATION_PROPERTIES
+      desc: $x_buffer_alloc_location_properties_t
     - name: PROGRAM_PROPERTIES
       desc: $x_program_properties_t
     - name: USM_DESC

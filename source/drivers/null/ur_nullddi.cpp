@@ -612,7 +612,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_mem_flags_t flags, ///< [in] allocation and usage information flags
     size_t size, ///< [in] size in bytes of the memory object to be allocated
-    void *pHost, ///< [in][optional] pointer to the buffer data
+    const ur_buffer_properties_t
+        *pProperties, ///< [in][optional] pointer to buffer creation properties
     ur_mem_handle_t
         *phBuffer ///< [out] pointer to handle of the memory buffer created
 ) {
@@ -621,7 +622,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnBufferCreate = d_context.urDdiTable.Mem.pfnBufferCreate;
     if (nullptr != pfnBufferCreate) {
-        result = pfnBufferCreate(hContext, flags, size, pHost, phBuffer);
+        result = pfnBufferCreate(hContext, flags, size, pProperties, phBuffer);
     } else {
         // generic implementation
         *phBuffer = reinterpret_cast<ur_mem_handle_t>(d_context.get());
@@ -673,8 +674,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
         hBuffer,          ///< [in] handle of the buffer object to allocate from
     ur_mem_flags_t flags, ///< [in] allocation and usage information flags
     ur_buffer_create_type_t bufferCreateType, ///< [in] buffer creation type
-    ur_buffer_region_t *
-        pBufferCreateInfo, ///< [in] pointer to buffer create region information
+    const ur_buffer_region_t
+        *pRegion, ///< [in] pointer to buffer create region information
     ur_mem_handle_t
         *phMem ///< [out] pointer to the handle of sub buffer created
 ) {
@@ -683,8 +684,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnBufferPartition = d_context.urDdiTable.Mem.pfnBufferPartition;
     if (nullptr != pfnBufferPartition) {
-        result = pfnBufferPartition(hBuffer, flags, bufferCreateType,
-                                    pBufferCreateInfo, phMem);
+        result = pfnBufferPartition(hBuffer, flags, bufferCreateType, pRegion,
+                                    phMem);
     } else {
         // generic implementation
         *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
