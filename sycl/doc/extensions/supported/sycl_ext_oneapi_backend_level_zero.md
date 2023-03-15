@@ -111,16 +111,17 @@ struct {
 }
 ```
 </td>
-</tr><tr>
+</tr>
+<tr>
 <td rowspan="3">queue</td>
-<td rowspan="3">
+<td rowspan="2">
 
 ``` C++
-std::variant<ze_command_queue_handle_t,
-             ze_command_list_handle_t>
+ze_command_queue_handle_t
 ```
+</td>
 
-</td><td>
+<td>
 
 ``` C++
 struct {
@@ -130,9 +131,10 @@ struct {
 }
 ```
 
-Deprecated as of version 3 of this specification.[^1]
+Prior to version 3 of this specification.
 </td>
-</tr><tr>
+</tr>
+<tr>
 <td>
 
 ``` C++
@@ -144,9 +146,16 @@ struct {
 }
 ```
 
-Supported since version 3 of this specification.[^1]
+Starting in version 3 of this specification.
 </td>
-</tr><tr>
+</tr>
+<td rowspan="1">
+
+``` C++
+std::variant<ze_command_queue_handle_t,
+             ze_command_list_handle_t>
+```
+</td>
 <td>
 
 ``` C++
@@ -161,9 +170,11 @@ struct {
 }
 ```
 
-Supported since version 4 of this specification.[^1]
+Starting in version 4 of this specification.
 </td>
-</tr><tr>
+</tr>
+
+<tr>
 <td>event</td>
 <td><pre>ze_event_handle_t</pre></td>
 <td>
@@ -234,8 +245,6 @@ struct {
 </tr>
 </table>
 
-[^1]: The SYCL implementation is responsible for distinguishing between the variants of <code>backend_input_t<backend::ext_oneapi_level_zero, queue></code>.
-
 ### 4.2 Obtaining of native Level-Zero handles from SYCL objects
                 
 The ```sycl::get_native<backend::ext_oneapi_level_zero>``` free-function is how a raw native Level-Zero handle can be obtained
@@ -248,25 +257,7 @@ auto get_native(const SyclObjectT &Obj)
 It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```,
 ```kernel_bundle```, and ```kernel``` classes. 
 
-NOTE: ```get_native(queue)``` is affected by the implementation of SYCL queues.
-The Level-Zero plugin may default to using either Level-Zero immediate
-command lists or command queues. The plugin may also be explicitly configured
-to use immediate command lists by setting the environment variable
-SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS to a value greater than 0.
-When code compiled with previous compiler releases is run using
-the runtime from this release, ```get_native``` behavior is affected
-by the implementation of SYCL queues.
-If SYCL queues are using command queues the return value is a
-command queue and the program will work as before.
-If SYCL queues are now implemented using immediate command lists then the
-call to ```get_native``` will result in a runtime error that says the queue
-is invalid because a command queue handle cannot be retrieved from that queue.
-If code is recompiled with this release, then existing uses
-of ```get_native``` will result in a compilation error because
-the return type of ```get_native``` for SYCL ```queue``` is now an
-std::variant which has two alternative types, L0
-```ze_command_list_handle_t``` and ```ze_command_queue_handle_t```.
-The user must modify the source code to adapt to the new return type.
+NOTE: The ```get_native(queue)``` function returns either ```ze_command_queue_handle_t``` or ```ze_command_list_handle_t```, depending on whether the SYCL queue uses a Level Zero immediate command list. This depends on whether the environment variable ```SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS``` is set and on whether the queue was created with ```make_queue()```.
 
 The ```sycl::get_native<backend::ext_oneapi_level_zero>```
 free-function is not supported for SYCL ```buffer``` class. The native backend object associated with the
@@ -343,6 +334,9 @@ make_queue<backend::ext_oneapi_level_zero>(
 <td>Constructs a SYCL queue instance from a Level-Zero <code>ze_command_queue_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The <code>Device</code> input structure member specifies the device to create the <code>queue</code> against and must be in <code>Context</code>. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.
 
 If the deprecated variant of <code>backend_input_t<backend::ext_oneapi_level_zero, queue></code> is passed to <code>make_queue</code> the queue is attached to the first device in <code>Context</code>.
+
+Starting in version 4 of this specification, ```make_queue()``` can be called by passing either a Level Zero ```ze_command_queue_handle_t``` or a Level Zero ```ze_command_list_handle_t```. Queues created from a Level Zero immediate command list (```ze_command_list_handle_t```) generally perform better than queues created from a standard Level Zero ```ze_command_queue_handle_t```. See the Level Zero documentation of these native handles for more details. Also starting in version 4 the ```make_queue()``` function accepts a ```Properties``` member variable. This can contain any of the SYCL properties that are accepted by the SYCL queue constructor, except
+the ```compute_index``` property which is built into the command queue or command list.
 </td>
 </tr><tr>
 <td>
@@ -511,3 +505,4 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 |8|2022-01-06|Artur Gainullin|Introduced make_buffer() API
 |9|2022-05-12|Steffen Larsen|Added device member to queue input type
 |10|2022-08-18|Sergey Maslov|Moved free_memory device info query to be sycl_ext_intel_device_info extension
+|10|2023-03-14|Rajiv Deodhar|Added support for Level Zero immediate command lists

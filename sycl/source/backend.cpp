@@ -102,18 +102,11 @@ queue make_queue_impl2(pi_native_handle NativeHandle, const context &Context,
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
-  // Create properties
-  // TODO: queue properties other than in_order and profiling.
-  RT::PiQueueProperties CreationFlags =
-      PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-  if (PropList.has_property<property::queue::in_order>()) {
-    CreationFlags &= !PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-  }
-  if (PropList.has_property<property::queue::enable_profiling>()) {
-    CreationFlags |= PI_QUEUE_FLAG_PROFILING_ENABLE;
-  }
-  RT::PiQueueProperties Properties[] = {PI_QUEUE_FLAGS, CreationFlags, 0};
-
+  // Create PI properties from SYCL properties.
+  RT::PiQueueProperties Properties[] = {
+      PI_QUEUE_FLAGS,
+      queue_impl::createPiQueueProperties(PropList, QueueOrder::OOO), 0, 0, 0};
+  
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle2>(
@@ -121,7 +114,7 @@ queue make_queue_impl2(pi_native_handle NativeHandle, const context &Context,
       !KeepOwnership, Properties, &PiQueue);
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(
-      std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));
+      std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler, PropList));
 }
 
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
