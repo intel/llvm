@@ -221,8 +221,6 @@ __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD(fmin)
   return res;
 }
 
-#undef __SYCL_MATH_FUNCTION_2_GENINT_K_OVERLOAD_IMPL
-
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>
@@ -233,8 +231,6 @@ inline __SYCL_ALWAYS_INLINE
   }
   return res;
 }
-
-#undef __SYCL_MATH_FUNCTION_2_INT_K_OVERLOAD_IMPL
 
 #define __SYCL_MATH_FUNCTION_2_GENINT_Y_OVERLOAD_IMPL(NAME)                    \
   marray<T, N> res;                                                            \
