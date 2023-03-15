@@ -163,5 +163,5 @@ int main() {
       sycl::ext::intel::experimental::first_symbol_in_high_order_bits_off);
   static_assert(
       P::get_property<sycl::ext::intel::experimental::protocol_key>() ==
-      sycl::ext::intel::experimental::protocol_avalon);
+      sycl::ext::intel::experimental::protocol_avalon_streaming);
 }
