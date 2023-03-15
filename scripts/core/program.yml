@@ -229,6 +229,8 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_PROGRAM:
       - "If one of the programs in `phPrograms` isn't a valid program object."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`count == 0`"
     - $X_RESULT_ERROR_PROGRAM_LINK_FAILURE:
       - "If an error occurred while linking `phPrograms`."
 --- #--------------------------------------------------------------------------
@@ -466,7 +468,7 @@ params:
       name: pSpecConstants
       desc: "[in][range(0, count)] array of specialization constant value descriptions"
 returns:
-    - $X_RESULT_ERROR_INVALID_VALUE:
+    - $X_RESULT_ERROR_INVALID_SIZE:
         - "`count == 0`"
 --- #--------------------------------------------------------------------------
 type: function
