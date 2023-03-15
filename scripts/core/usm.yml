@@ -251,9 +251,12 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_usm_desc_t*
-      name: pUSMDesc
-      desc: "[in][optional] USM memory allocation descriptor"
+    - type: const $x_usm_desc_t*
+      name: pUSMDeviceDesc
+      desc: "[in][optional] Pointer to device USM memory allocation descriptor"
+    - type: const $x_usm_desc_t*
+      name: pUSMHostDesc
+      desc: "[in][optional] Pointer to host USM memory allocation descriptor."
     - type: $x_usm_pool_handle_t
       name: pool
       desc: "[in][optional] Pointer to a pool created using urUSMPoolCreate"

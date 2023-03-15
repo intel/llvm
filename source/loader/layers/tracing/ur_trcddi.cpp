@@ -1212,8 +1212,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
 __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_usm_desc_t
-        *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
+    const ur_usm_desc_t *
+        pUSMDeviceDesc, ///< [in][optional] Pointer to device USM memory allocation descriptor
+    const ur_usm_desc_t *
+        pUSMHostDesc, ///< [in][optional] Pointer to host USM memory allocation descriptor.
     ur_usm_pool_handle_t
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
