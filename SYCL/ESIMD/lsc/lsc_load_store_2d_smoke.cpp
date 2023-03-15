@@ -62,7 +62,9 @@ int main() {
                 payload(input, (SurfaceWidth * sizeof(int)) - 1,
                         SurfaceHeight - 1, (SurfacePitch * sizeof(int)) - 1, x,
                         y);
-
+            lsc_prefetch_2d<int, BlockWidth, BlockHeight, NumBlocks, false,
+                            false, cache_hint::cached, cache_hint::cached>(
+                payload);
             auto data = lsc_load_2d(payload);
 
             payload.set_data_pointer(block_store);

@@ -71,9 +71,13 @@ int main() {
 
       config_2d_mem_access<float, BlockWidth, BlockHeight, NumBlocks> payload(
           A, width, height, pitch, 0, 0);
+      lsc_prefetch_2d<float, BlockWidth, BlockHeight, NumBlocks, false, false,
+                      cache_hint::cached, cache_hint::cached>(payload);
       auto data_a = lsc_load_2d(payload);
 
       payload.set_data_pointer(B);
+      lsc_prefetch_2d<float, BlockWidth, BlockHeight, NumBlocks, false, false,
+                      cache_hint::cached, cache_hint::cached>(payload);
       auto data_b = lsc_load_2d(payload);
 
       auto data_c = data_a + data_b;
