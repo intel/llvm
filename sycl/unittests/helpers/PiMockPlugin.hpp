@@ -1138,9 +1138,6 @@ inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
   }
   return PI_SUCCESS;
 }
-///
-// Host Pipes
-///
 
 inline pi_result mock_piextEnqueueReadHostPipe(
     pi_queue queue, pi_program program, const char *pipe_symbol,
