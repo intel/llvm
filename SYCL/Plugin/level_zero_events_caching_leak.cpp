@@ -1,7 +1,4 @@
 // REQUIRES: gpu, level_zero
-// TODO: There is a known issue that ZE_DEBUG=4 produces flaky output on
-// Windows.
-// UNSUPPORTED: windows
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
 // RUN: env ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out

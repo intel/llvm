@@ -1,6 +1,4 @@
 // REQUIRES: level_zero
-// TODO: ZE_DEBUG=4 produces no output on Windows. Enable when fixed.
-// UNSUPPORTED: windows
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 

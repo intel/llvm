@@ -1,6 +1,4 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// TODO: ZE_DEBUG=4 produces no output on Windows. Enable when fixed.
-// UNSUPPORTED: windows
 
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
