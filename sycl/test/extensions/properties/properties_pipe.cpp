@@ -8,7 +8,7 @@
 using namespace sycl::ext;
 
 constexpr sycl::ext::intel::experimental::protocol_name TestProtocol =
-    sycl::ext::intel::experimental::protocol_name::AVALON;
+    sycl::ext::intel::experimental::protocol_name::AVALON_STREAMING;
 
 int main() {
   // Check that is_property_key is correctly specialized.
@@ -20,8 +20,6 @@ int main() {
                 sycl::ext::intel::experimental::bits_per_symbol_key>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_key<
                 sycl::ext::intel::experimental::uses_valid_key>::value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_key<
-                sycl::ext::intel::experimental::uses_ready_key>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_key<
                 sycl::ext::intel::experimental::in_csr_key>::value);
   static_assert(
@@ -51,17 +49,6 @@ int main() {
   static_assert(
       sycl::ext::oneapi::experimental::is_property_value<
           decltype(sycl::ext::intel::experimental::uses_valid_off)>::value);
-
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::uses_ready<true>)>::value);
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::uses_ready_on)>::value);
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::uses_ready_off)>::value);
-
   static_assert(sycl::ext::oneapi::experimental::is_property_value<
                 decltype(sycl::ext::intel::experimental::in_csr<true>)>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_value<
@@ -85,18 +72,19 @@ int main() {
           value);
   static_assert(
       sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::protocol_avalon)>::value);
+          decltype(sycl::ext::intel::experimental::protocol_avalon_streaming)>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(sycl::ext::intel::experimental::protocol_axi)>::value);
+                decltype(sycl::ext::intel::experimental::protocol_avalon_streaming_uses_ready)>::value);
+  static_assert(sycl::ext::oneapi::experimental::is_property_value<
+                decltype(sycl::ext::intel::experimental::protocol_avalon_mm)>::value);
+  static_assert(sycl::ext::oneapi::experimental::is_property_value<
+                decltype(sycl::ext::intel::experimental::protocol_avalon_mm_uses_ready)>::value);
 
   // Checks that fully specialized properties are the same as the templated
   // variants.
   static_assert(std::is_same_v<
                 decltype(sycl::ext::intel::experimental::uses_valid_on),
                 decltype(sycl::ext::intel::experimental::uses_valid<true>)>);
-  static_assert(std::is_same_v<
-                decltype(sycl::ext::intel::experimental::uses_ready_off),
-                decltype(sycl::ext::intel::experimental::uses_ready<false>)>);
   static_assert(
       std::is_same_v<decltype(sycl::ext::intel::experimental::in_csr_on),
                      decltype(sycl::ext::intel::experimental::in_csr<true>)>);
@@ -107,12 +95,20 @@ int main() {
                                   first_symbol_in_high_order_bits<true>)>);
   static_assert(
       std::is_same_v<
-          decltype(sycl::ext::intel::experimental::protocol_avalon),
+          decltype(sycl::ext::intel::experimental::protocol_avalon_streaming),
           decltype(sycl::ext::intel::experimental::protocol<TestProtocol>)>);
   static_assert(std::is_same_v<
-                decltype(sycl::ext::intel::experimental::protocol_axi),
+                decltype(sycl::ext::intel::experimental::protocol_avalon_streaming_uses_ready),
                 decltype(sycl::ext::intel::experimental::protocol<
-                         sycl::ext::intel::experimental::protocol_name::AXI>)>);
+                         sycl::ext::intel::experimental::protocol_name::AVALON_STREAMING_USES_READY>)>);
+  static_assert(std::is_same_v<
+                decltype(sycl::ext::intel::experimental::protocol_avalon_mm),
+                decltype(sycl::ext::intel::experimental::protocol<
+                         sycl::ext::intel::experimental::protocol_name::AVALON_MM>)>);
+  static_assert(std::is_same_v<
+                decltype(sycl::ext::intel::experimental::protocol_avalon_mm_uses_ready),
+                decltype(sycl::ext::intel::experimental::protocol<
+                         sycl::ext::intel::experimental::protocol_name::AVALON_MM_USES_READY>)>);
 
   // Check that property lists will accept the new properties.
   using P = decltype(sycl::ext::oneapi::experimental::properties(
@@ -120,10 +116,9 @@ int main() {
       sycl::ext::intel::experimental::ready_latency<1>,
       sycl::ext::intel::experimental::bits_per_symbol<2>,
       sycl::ext::intel::experimental::uses_valid<true>,
-      sycl::ext::intel::experimental::uses_ready<false>,
       sycl::ext::intel::experimental::in_csr<true>,
       sycl::ext::intel::experimental::first_symbol_in_high_order_bits_off,
-      sycl::ext::intel::experimental::protocol_avalon));
+      sycl::ext::intel::experimental::protocol_avalon_streaming));
   static_assert(sycl::ext::oneapi::experimental::is_property_list_v<P>);
   static_assert(
       P::has_property<sycl::ext::intel::experimental::min_capacity_key>());
@@ -133,8 +128,6 @@ int main() {
       P::has_property<sycl::ext::intel::experimental::bits_per_symbol_key>());
   static_assert(
       P::has_property<sycl::ext::intel::experimental::uses_valid_key>());
-  static_assert(
-      P::has_property<sycl::ext::intel::experimental::uses_ready_key>());
   static_assert(P::has_property<sycl::ext::intel::experimental::in_csr_key>());
   static_assert(P::has_property<sycl::ext::intel::experimental::
                                     first_symbol_in_high_order_bits_key>());
@@ -153,9 +146,6 @@ int main() {
   static_assert(
       P::get_property<sycl::ext::intel::experimental::uses_valid_key>() ==
       sycl::ext::intel::experimental::uses_valid<true>);
-  static_assert(
-      P::get_property<sycl::ext::intel::experimental::uses_ready_key>() ==
-      sycl::ext::intel::experimental::uses_ready<false>);
   static_assert(P::get_property<sycl::ext::intel::experimental::in_csr_key>() ==
                 sycl::ext::intel::experimental::in_csr<true>);
   static_assert(
