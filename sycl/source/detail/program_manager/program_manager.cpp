@@ -1664,13 +1664,12 @@ std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
       FoundEntries.push_back(DeviceGlobalEntry->second.get());
   }
   return FoundEntries;
-  
 }
 
 void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
                                             const char *UniqueId) {
   std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-  
+
   auto ExistingHostPipe = m_HostPipes.find(UniqueId);
   if (ExistingHostPipe != m_HostPipes.end()) {
     ExistingHostPipe->second->initialize(HostPipePtr);

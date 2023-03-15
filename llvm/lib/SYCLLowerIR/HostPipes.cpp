@@ -8,9 +8,9 @@
 // See comments in the header.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
+#include "llvm/SYCLLowerIR/DeviceGlobals.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -89,7 +89,7 @@ HostPipePropertyMapTy collectHostPipeProperties(const Module &M) {
     if (!isHostPipeVariable(GV))
       continue;
 
-    HPM[getGlobalVariableUniqueId(GV)] = { getUnderlyingTypeSize(GV) };
+    HPM[getGlobalVariableUniqueId(GV)] = {getUnderlyingTypeSize(GV)};
   }
 
   return HPM;

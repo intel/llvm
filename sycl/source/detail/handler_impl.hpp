@@ -86,7 +86,7 @@ public:
   bool MIsDeviceImageScoped = false;
 
   // Program scope pipe information.
-  
+
   // Pipe name that uniquely identifies a pipe.
   std::string HostPipeName;
   // Pipe host pointer, the address of its constexpr __pipe member.

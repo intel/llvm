@@ -9,13 +9,13 @@
 #pragma once
 
 #include "fpga_utils.hpp"
-#include <sycl/ext/intel/experimental/pipe_properties.hpp>
-#include <sycl/context.hpp>
-#include <sycl/device.hpp>
-#include <sycl/queue.hpp>
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
+#include <sycl/context.hpp>
+#include <sycl/device.hpp>
+#include <sycl/ext/intel/experimental/pipe_properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/queue.hpp>
 #include <sycl/stl.hpp>
 #include <type_traits>
 
@@ -51,31 +51,29 @@ struct ValueOrDefault<
 } // namespace detail
 
 // A helper templateless base class to get the host_pipe name.
-class pipe_base{
+class pipe_base {
 
-  protected:
-        
-    pipe_base();
-    ~pipe_base();
+protected:
+  pipe_base();
+  ~pipe_base();
 
-    static std::string get_pipe_name(const void *HostPipePtr);
-
+  static std::string get_pipe_name(const void *HostPipePtr);
 };
 
 template <class _name, class _dataT, int32_t _min_capacity = 0,
           class _propertiesT = decltype(oneapi::experimental::properties{}),
           class = void>
-class pipe : public pipe_base{
+class pipe : public pipe_base {
 public:
-  struct 
+  struct
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_global_variable(
-    "sycl-host-pipe", "sycl-host-pipe-size", nullptr, sizeof(_dataT))]]
-  [[__sycl_detail__::sycl_type(host_pipe)]]
+      [[__sycl_detail__::add_ir_attributes_global_variable(
+          "sycl-host-pipe", "sycl-host-pipe-size", nullptr,
+          sizeof(_dataT))]] [[__sycl_detail__::sycl_type(host_pipe)]]
 #endif // __SYCL_DEVICE_ONLY___
-  ConstantPipeStorageExp 
+      ConstantPipeStorageExp
 #ifdef __SYCL_DEVICE_ONLY__
-  : ConstantPipeStorage
+      : ConstantPipeStorage
 #endif // __SYCL_DEVICE_ONLY___
   {
     int32_t _ReadyLatency;
@@ -88,59 +86,59 @@ public:
   // Non-blocking pipes
 
   // Host API
-  static _dataT read(queue & q, bool &success_code, 
-                     memory_order order = memory_order::seq_cst)
-  {
-     const device Dev = q.get_device();
-      bool IsPipeSupported =
-          Dev.has_extension("cl_intel_program_scope_host_pipe");
-      if (!IsPipeSupported) {
-        return _dataT();
-      }
-      _dataT data;
-      void *data_ptr = &data;
-      const void *HostPipePtr = &m_Storage;
-      const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
+  static _dataT read(queue &q, bool &success_code,
+                     memory_order order = memory_order::seq_cst) {
+    const device Dev = q.get_device();
+    bool IsPipeSupported =
+        Dev.has_extension("cl_intel_program_scope_host_pipe");
+    if (!IsPipeSupported) {
+      return _dataT();
+    }
+    _dataT data;
+    void *data_ptr = &data;
+    const void *HostPipePtr = &m_Storage;
+    const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
 
-      event e = q.submit([=](handler &CGH) {
-        CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), false,
-                                true /* read */);
-      });
-      e.wait(); 
-      if (e.get_info<sycl::info::event::command_execution_status>() == sycl::info::event_command_status::complete) {  
-         success_code = true;
-         return *(_dataT *)data_ptr;
-      }else{
-        success_code = false;
-        return _dataT();
-      }
-  }
-
-  static void write(queue & q, const _dataT &data, bool &success_code, 
-                    memory_order order = memory_order::seq_cst)
-  {
-  const device Dev = q.get_device();
-  bool IsPipeSupported =
-      Dev.has_extension("cl_intel_program_scope_host_pipe");
-  if (!IsPipeSupported) {
-    return;
-  }
-
-  const void *HostPipePtr = &m_Storage;
-  const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
-  const void *data_ptr = &data;
-
-  event e = q.submit([=](handler &CGH) {
-    CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT), false,
-                             false /* write */);
-  });
-  e.wait();
-  if (e.get_info<sycl::info::event::command_execution_status>() == sycl::info::event_command_status::complete) {  
+    event e = q.submit([=](handler &CGH) {
+      CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), false,
+                               true /* read */);
+    });
+    e.wait();
+    if (e.get_info<sycl::info::event::command_execution_status>() ==
+        sycl::info::event_command_status::complete) {
       success_code = true;
-  }else{
-    success_code = false;
+      return *(_dataT *)data_ptr;
+    } else {
+      success_code = false;
+      return _dataT();
+    }
   }
-}
+
+  static void write(queue &q, const _dataT &data, bool &success_code,
+                    memory_order order = memory_order::seq_cst) {
+    const device Dev = q.get_device();
+    bool IsPipeSupported =
+        Dev.has_extension("cl_intel_program_scope_host_pipe");
+    if (!IsPipeSupported) {
+      return;
+    }
+
+    const void *HostPipePtr = &m_Storage;
+    const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
+    const void *data_ptr = &data;
+
+    event e = q.submit([=](handler &CGH) {
+      CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT),
+                               false, false /* write */);
+    });
+    e.wait();
+    if (e.get_info<sycl::info::event::command_execution_status>() ==
+        sycl::info::event_command_status::complete) {
+      success_code = true;
+    } else {
+      success_code = false;
+    }
+  }
 
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
@@ -245,29 +243,27 @@ public:
   // Blocking pipes
 
   // Host API
-  static _dataT read(queue & q, memory_order order = memory_order::seq_cst)
-  {
-      const device Dev = q.get_device();
-      bool IsPipeSupported =
-          Dev.has_extension("cl_intel_program_scope_host_pipe");
-      if (!IsPipeSupported) {
-        return _dataT();
-      }
-      _dataT data;
-      void *data_ptr = &data;
-      const void *HostPipePtr = &m_Storage;
-      const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
-      event e = q.submit([=](handler &CGH) {
-        CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), true,
-                                true /*blocking read */);
-      });
-      e.wait();
-      return *(_dataT *)data_ptr;
+  static _dataT read(queue &q, memory_order order = memory_order::seq_cst) {
+    const device Dev = q.get_device();
+    bool IsPipeSupported =
+        Dev.has_extension("cl_intel_program_scope_host_pipe");
+    if (!IsPipeSupported) {
+      return _dataT();
+    }
+    _dataT data;
+    void *data_ptr = &data;
+    const void *HostPipePtr = &m_Storage;
+    const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
+    event e = q.submit([=](handler &CGH) {
+      CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), true,
+                               true /*blocking read */);
+    });
+    e.wait();
+    return *(_dataT *)data_ptr;
   }
 
-  static void write(queue & q, const _dataT &data,
-                    memory_order order = memory_order::seq_cst)
-  {
+  static void write(queue &q, const _dataT &data,
+                    memory_order order = memory_order::seq_cst) {
     const device Dev = q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
@@ -278,12 +274,12 @@ public:
     const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
     const void *data_ptr = &data;
     event e = q.submit([=](handler &CGH) {
-      CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT), true,
-                              false /*blocking write */);
+      CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT),
+                               true, false /*blocking write */);
     });
     e.wait();
-}
-  
+  }
+
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
@@ -382,21 +378,33 @@ private:
   static constexpr int32_t m_Alignment = alignof(_dataT);
   static constexpr int32_t m_Capacity = _min_capacity;
 
-  static constexpr int32_t m_ready_latency = detail::ValueOrDefault<_propertiesT, ready_latency_key>::template get<int32_t>(0);
-  static constexpr int32_t m_bits_per_symbol = detail::ValueOrDefault<_propertiesT, bits_per_symbol_key>::template get<int32_t>(0);
-  static constexpr bool m_uses_valid = detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(true);
-  static constexpr bool m_first_symbol_in_high_order_bits = detail::ValueOrDefault<_propertiesT, first_symbol_in_high_order_bits_key>::template get<int32_t>(0);
-  static constexpr protocol_name m_protocol = detail::ValueOrDefault<_propertiesT, protocol_key>::template get<protocol_name>(protocol_name::AVALON_STREAMING);
+  static constexpr int32_t m_ready_latency =
+      detail::ValueOrDefault<_propertiesT,
+                             ready_latency_key>::template get<int32_t>(0);
+  static constexpr int32_t m_bits_per_symbol =
+      detail::ValueOrDefault<_propertiesT,
+                             bits_per_symbol_key>::template get<int32_t>(0);
+  static constexpr bool m_uses_valid =
+      detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(
+          true);
+  static constexpr bool m_first_symbol_in_high_order_bits =
+      detail::ValueOrDefault<
+          _propertiesT,
+          first_symbol_in_high_order_bits_key>::template get<int32_t>(0);
+  static constexpr protocol_name m_protocol =
+      detail::ValueOrDefault<_propertiesT, protocol_key>::template get<
+          protocol_name>(protocol_name::AVALON_STREAMING);
 
 public:
-  static constexpr struct ConstantPipeStorageExp m_Storage = { 
+  static constexpr struct ConstantPipeStorageExp m_Storage = {
 #ifdef __SYCL_DEVICE_ONLY__
-                                                          { m_Size, m_Alignment, m_Capacity }, 
+      {m_Size, m_Alignment, m_Capacity},
 #endif // __SYCL_DEVICE_ONLY___
-                                                           m_ready_latency,
-                                                           m_bits_per_symbol, m_uses_valid,
-                                                           m_first_symbol_in_high_order_bits,
-                                                           m_protocol };
+      m_ready_latency,
+      m_bits_per_symbol,
+      m_uses_valid,
+      m_first_symbol_in_high_order_bits,
+      m_protocol};
 
 #ifdef __SYCL_DEVICE_ONLY__
 private:

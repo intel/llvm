@@ -58,11 +58,12 @@ struct first_symbol_in_high_order_bits_key {
                                            std::bool_constant<HighOrder>>;
 };
 
-enum class protocol_name : std::uint16_t { 
+enum class protocol_name : std::uint16_t {
   AVALON_STREAMING = 0,
   AVALON_STREAMING_USES_READY = 1,
   AVALON_MM = 2,
-  AVALON_MM_USES_READY = 3 };
+  AVALON_MM_USES_READY = 3
+};
 
 struct protocol_key {
   template <protocol_name Protocol>
@@ -98,10 +99,15 @@ inline constexpr first_symbol_in_high_order_bits_key::value_t<false>
 
 template <protocol_name Protocol>
 inline constexpr protocol_key::value_t<Protocol> protocol;
-inline constexpr protocol_key::value_t<protocol_name::AVALON_STREAMING> protocol_avalon_streaming;
-inline constexpr protocol_key::value_t<protocol_name::AVALON_STREAMING_USES_READY> protocol_avalon_streaming_uses_ready;
-inline constexpr protocol_key::value_t<protocol_name::AVALON_MM> protocol_avalon_mm;
-inline constexpr protocol_key::value_t<protocol_name::AVALON_MM_USES_READY> protocol_avalon_mm_uses_ready;
+inline constexpr protocol_key::value_t<protocol_name::AVALON_STREAMING>
+    protocol_avalon_streaming;
+inline constexpr protocol_key::value_t<
+    protocol_name::AVALON_STREAMING_USES_READY>
+    protocol_avalon_streaming_uses_ready;
+inline constexpr protocol_key::value_t<protocol_name::AVALON_MM>
+    protocol_avalon_mm;
+inline constexpr protocol_key::value_t<protocol_name::AVALON_MM_USES_READY>
+    protocol_avalon_mm_uses_ready;
 
 } // namespace experimental
 } // namespace intel

@@ -359,10 +359,10 @@ event handler::finalize() {
   }
   case detail::CG::ReadWriteHostPipe: {
     CommandGroup.reset(new detail::CGReadWriteHostPipe(
-        MImpl->HostPipeName, MImpl->HostPipeBlocking, MImpl->HostPipePtr, MImpl->HostPipeTypeSize,
-        MImpl->HostPipeRead, std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), MCodeLoc));
+        MImpl->HostPipeName, MImpl->HostPipeBlocking, MImpl->HostPipePtr,
+        MImpl->HostPipeTypeSize, MImpl->HostPipeRead, std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
   }
   case detail::CG::None:

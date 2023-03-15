@@ -491,7 +491,6 @@ public:
   size_t getWidth() const { return MWidth; }
   size_t getHeight() const { return MHeight; }
   char getValue() const { return MValue; }
-
 };
 
 /// "ReadWriteHostPipe" command group class.

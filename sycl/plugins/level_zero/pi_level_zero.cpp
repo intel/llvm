@@ -7933,7 +7933,6 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
       PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ, Queue, Dst, BlockingRead,
       Count, pi_cast<char *>(GlobalVarPtr) + Offset, NumEventsInWaitList,
       EventsWaitList, Event, PreferCopyEngine);
-
 }
 /// API for Read from host pipe.
 ///

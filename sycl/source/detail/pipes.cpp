@@ -16,9 +16,11 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-__SYCL_EXPORT std::string pipe_base::get_pipe_name(const void *HostPipePtr){
-     return sycl::_V1::detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr)->MUniqueId;
-    }
+__SYCL_EXPORT std::string pipe_base::get_pipe_name(const void *HostPipePtr) {
+  return sycl::_V1::detail::ProgramManager::getInstance()
+      .getHostPipeEntry(HostPipePtr)
+      ->MUniqueId;
+}
 
 } // namespace experimental
 } // namespace intel

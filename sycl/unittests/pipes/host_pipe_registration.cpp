@@ -9,12 +9,12 @@
 #include <cstring>
 #include <sycl/sycl.hpp>
 
+#include <detail/device_binary_image.hpp>
+#include <detail/host_pipe_map_entry.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
-#include <detail/host_pipe_map_entry.hpp>
 #include <sycl/detail/host_pipe_map.hpp>
-#include <detail/device_binary_image.hpp>
 
 template <size_t KernelSize = 1> class TestKernel;
 
@@ -59,10 +59,13 @@ static sycl::unittest::PiImage generateDefaultImage() {
 }
 
 using namespace sycl;
-using default_pipe_properties = decltype(sycl::ext::oneapi::experimental::properties(sycl::ext::intel::experimental::uses_valid<true>));
+using default_pipe_properties =
+    decltype(sycl::ext::oneapi::experimental::properties(
+        sycl::ext::intel::experimental::uses_valid<true>));
 
 class PipeID;
-using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10, default_pipe_properties>;
+using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10,
+                                                  default_pipe_properties>;
 
 pi_event READ = reinterpret_cast<pi_event>(0);
 pi_event WRITE = reinterpret_cast<pi_event>(1);
@@ -127,7 +130,7 @@ TEST_F(PipeTest, Basic) {
 
   pi_device_binary_struct pi_device_binary = Img.convertToNativeType();
   hostPipeEntry->initialize((detail::RTDeviceBinaryImage *)&pi_device_binary);
-  
+
   const std::string pipe_name = hostPipeEntry->MUniqueId;
 
   int host_pipe_read_data;
