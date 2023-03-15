@@ -2390,6 +2390,8 @@ pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// \param[in] context The PI context of the memory allocation.
 /// \param[in] ownNativeHandle Indicates if we own the native memory handle or
 /// it came from interop that asked to not transfer the ownership to SYCL RT.
+/// \param[in] ImageFormat The format of the image.
+/// \param[in] ImageDesc The description information for the image.
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD

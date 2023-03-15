@@ -2437,17 +2437,18 @@ pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// TODO: Implement this.
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
-/// \param[in] nativeHandle The native handle to create PI mem object from.
-/// \param[in] context The PI context of the memory allocation.
-/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
-/// it came from interop that asked to not transfer the ownership to SYCL RT.
-/// \param[out] mem Set to the PI mem object created from native handle.
+/// \param[in] pi_native_handle The native handle to create PI mem object from.
+/// \param[in] pi_context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Boolean indicates if we own the native memory
+/// handle or it came from interop that asked to not transfer the ownership to
+/// SYCL RT. \param[in] pi_image_format The format of the image. \param[in]
+/// pi_image_desc The description information for the image. \param[out] pi_mem
+/// Set to the PI mem object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextImgCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
-    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
-    pi_mem *Img) {
+pi_result cuda_piextImgCreateWithNativeHandle(pi_native_handle, pi_context,
+                                              bool, const pi_image_format *,
+                                              const pi_image_desc *, pi_mem *) {
   sycl::detail::pi::die(
       "Creation of PI mem from native image handle not implemented");
   return {};
