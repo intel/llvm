@@ -358,27 +358,29 @@ void handleErrorOrWarning(pi_result Error, const device_impl &DeviceImpl,
         "Native API failed. Native API returns: " + codeToString(Error), Error);
   }
 }
+
 } // namespace detail::enqueue_kernel_launch
 
 namespace detail::kernel_get_group_info {
-  void handleErrorOrWarning(pi_result Error, pi_kernel_group_info Descriptor) {
-    assert(Error != PI_SUCCESS && "Success is expected to be handled on caller side");
-    switch (Error) {
-    case PI_ERROR_INVALID_VALUE:
-      if (Descriptor == CL_KERNEL_GLOBAL_WORK_SIZE)
-        throw sycl::exception(
+void handleErrorOrWarning(pi_result Error, pi_kernel_group_info Descriptor) {
+  assert(Error != PI_SUCCESS &&
+         "Success is expected to be handled on caller side");
+  switch (Error) {
+  case PI_ERROR_INVALID_VALUE:
+    if (Descriptor == CL_KERNEL_GLOBAL_WORK_SIZE)
+      throw sycl::exception(
           sycl::make_error_code(errc::invalid),
           "info::kernel_device_specific::global_work_size descriptor may only "
           "be used if the device type is device_type::custom or if the kernel "
           "is a built-in kernel.");
-      break;
-    // TODO: Handle other error codes
-    default:
-      throw runtime_error(
-          "Native API failed. Native API returns: " + codeToString(Error), Error);
-    }
+    break;
+  // TODO: Handle other error codes
+  default:
+    throw runtime_error(
+        "Native API failed. Native API returns: " + codeToString(Error), Error);
   }
-} // namespace kernel_get_group_info
+}
+} // namespace detail::kernel_get_group_info
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
