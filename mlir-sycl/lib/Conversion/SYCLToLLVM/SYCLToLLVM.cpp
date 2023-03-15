@@ -259,16 +259,23 @@ protected:
       // Add additional index if provided.
       indices.emplace_back(std::forward<Args>(args)...);
     }
-    const auto addressSpace =
+    const auto origAddressSpace =
         ptr.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+
+    const auto addressSpace = targetAddressSpace.value_or(origAddressSpace);
+
+    if (origAddressSpace != addressSpace) {
+      ptr = builder.create<LLVM::AddrSpaceCastOp>(
+          loc,
+          LLVM::LLVMPointerType::get(
+              ptr.getType().cast<LLVM::LLVMPointerType>().getElementType(),
+              addressSpace),
+          ptr);
+    }
+
     const auto ptrTy = LLVM::LLVMPointerType::get(ty, addressSpace);
-    const Value gep = builder.create<LLVM::GEPOp>(loc, ptrTy, ptr, indices,
-                                                  /*inbounds*/ true);
-    return !targetAddressSpace || *targetAddressSpace == addressSpace
-               ? gep
-               : builder.create<LLVM::AddrSpaceCastOp>(
-                     loc, LLVM::LLVMPointerType::get(ty, *targetAddressSpace),
-                     gep);
+    return builder.create<LLVM::GEPOp>(loc, ptrTy, ptr, indices,
+                                       /*inbounds*/ true);
   }
 
   /// Returns a value of type \p ty being a member of the struct pointed by \p

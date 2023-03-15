@@ -9,8 +9,8 @@
 // CHECK-LABEL:   llvm.func @test(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[RANGE3:.*]]>,
 // CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> !llvm.ptr<i64, 4> {
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[RANGE3]]>, i32) -> !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.addrspacecast %[[VAL_2]] : !llvm.ptr<i64> to !llvm.ptr<i64, 4>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.addrspacecast %[[VAL_0]] : !llvm.ptr<[[RANGE3]]> to !llvm.ptr<[[RANGE3]], 4>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[RANGE3]], 4>, i32) -> !llvm.ptr<i64, 4>
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr<i64, 4>
 // CHECK-NEXT:    }
 func.func @test(%range: memref<?x!sycl_range_3_>, %idx: i32) -> memref<?xi64, 4> {
@@ -29,8 +29,8 @@ func.func @test(%range: memref<?x!sycl_range_3_>, %idx: i32) -> memref<?xi64, 4>
 // CHECK-LABEL:   llvm.func @test(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[ID3:.*]]>,
 // CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> !llvm.ptr<i64, 4> {
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[ID3]]>, i32) -> !llvm.ptr<i64>
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.addrspacecast %[[VAL_2]] : !llvm.ptr<i64> to !llvm.ptr<i64, 4>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.addrspacecast %[[VAL_0]] : !llvm.ptr<[[ID3]]> to !llvm.ptr<[[ID3]], 4>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0, 0, %[[VAL_1]]] : (!llvm.ptr<[[ID3]], 4>, i32) -> !llvm.ptr<i64, 4>
 // CHECK-NEXT:      llvm.return %[[VAL_3]] : !llvm.ptr<i64, 4>
 // CHECK-NEXT:    }
 func.func @test(%id: memref<?x!sycl_id_3_>, %idx: i32) -> memref<?xi64, 4> {
