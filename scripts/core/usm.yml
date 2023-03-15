@@ -13,7 +13,7 @@ ordinal: "4"
 type: enum
 desc: "USM memory property flags"
 class: $xUSM
-name: $x_usm_mem_flags_t
+name: $x_usm_flags_t
 etors:
     - name: BIAS_CACHED
       value: "$X_BIT(0)"
@@ -106,9 +106,9 @@ class: $xUSM
 name: $x_usm_desc_t
 base: $x_base_desc_t
 members:
-    - type: $x_usm_mem_flags_t
+    - type: $x_usm_flags_t
       name:  flags
-      desc: "[in] memory allocation flags"
+      desc: "[in] Memory allocation flags"
     - type: $x_mem_advice_t
       name: hints
       desc: "[in] Memory advice hints"
