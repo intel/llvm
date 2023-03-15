@@ -10,7 +10,7 @@ function(get_program_version_major_minor name ret)
     execute_process(COMMAND ${name} --version
         OUTPUT_VARIABLE cmd_ret
         ERROR_QUIET)
-    STRING(REGEX MATCH "([0-9]+)\.([0-9]+)" VERSION ${cmd_ret})
+    STRING(REGEX MATCH "([0-9]+)\.([0-9]+)" VERSION "${cmd_ret}")
     SET(${ret} ${VERSION} PARENT_SCOPE)
 endfunction()
 
