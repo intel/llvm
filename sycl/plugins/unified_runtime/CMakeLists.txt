@@ -23,6 +23,9 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-suggest-override")
   endif()
 
+  # No need to build tests from unified-runtime
+  set(UR_BUILD_TESTS "0" CACHE STRING "0")
+
   FetchContent_GetProperties(unified-runtime)
   FetchContent_MakeAvailable(unified-runtime)
 
