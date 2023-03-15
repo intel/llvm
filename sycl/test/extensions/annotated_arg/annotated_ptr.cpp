@@ -121,6 +121,46 @@ void TestVectorAddWithAnnotatedMMHosts() {
     --arg31;
   }
 
+  // operator overload
+  auto l = new int(5);
+  auto r = new int(7);
+  auto arg40 = annotated_ptr(l);
+  auto arg41 = annotated_ptr(r);
+  *arg40 += 1;
+  *arg40 -= 1;
+  *arg40 *= 1;
+  *arg40 /= 1;
+  *arg40 &= 1;
+  *arg40 |= 1;
+  *arg40 ^= 1;
+  *arg40 %= 1;
+  *arg40 <<= 1;
+  *arg40 >>= 1;
+  (*arg40)++;
+  ++(*arg40);
+  (*arg41)--;
+  --(*arg41);
+  auto res1 = (*arg40 + *arg41) + (*arg40 - *arg41) - (*arg40 * *arg41) +
+              (*arg40 / *arg41) + (*arg40 % 5) - (*arg40 ^ 0x3);
+  auto res2 = (*arg40 << 1) + (*arg41 >> 1) + (*arg40 | *arg41) +
+              (*arg40 & *arg41) + (-*arg40) + (~*arg41);
+  bool res3 = ((*arg40 + *arg41 + 5) == 1) && (*arg40 != 1);
+  bool res4 = (*arg40 || *arg41) && true;
+  auto res5 = (*arg40 < 5) & (*arg40 > 5) & (*arg40 > 5) & (*arg40 >= 4) &
+              (*arg40 <= 4);
+
+  struct myStruct {
+    int a[10];
+    bool memberFunction() { return 1; }
+    int operator[](int k) { return a[k]; }
+  };
+  auto mySt = new myStruct;
+  auto arg42 = annotated_ptr(mySt);
+  auto res10 = arg42->a[0] + arg42->a[1];
+  // auto res11 = (*arg42)[5];             // ERR
+  auto res11 = arg42->operator[](5);
+  auto res12 = arg42->memberFunction();
+
   // has/get property
   static_assert(annotated_ptr_t1::has_property<awidth_key>(), "has_property 1");
   static_assert(annotated_ptr_t1::get_property<awidth_key>() == awidth<32>,

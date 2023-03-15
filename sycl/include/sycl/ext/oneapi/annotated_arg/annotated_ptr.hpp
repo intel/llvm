@@ -23,12 +23,6 @@ namespace oneapi {
 namespace experimental {
 
 namespace {
-#define PROPAGATE_OP(op)                                                       \
-  annotated_ref operator op(const T &rhs) {                                    \
-    (*m_Ptr) op rhs;                                                           \
-    return *this;                                                              \
-  }
-
 template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
@@ -39,6 +33,7 @@ class annotated_ref {
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
+  using this_t = annotated_ref<T, property_list_t>;
 
 private:
   T *m_Ptr
@@ -55,21 +50,107 @@ public:
 
   operator T() const { return *m_Ptr; }
 
-  annotated_ref &operator=(const T &Obj) {
+  this_t &operator=(const T &Obj) {
     *m_Ptr = Obj;
     return *this;
   }
 
-  annotated_ref &operator=(const annotated_ref &) = default;
+  template <typename... OtherProps>
+  this_t &
+  operator=(const annotated_ref<T, detail::properties_t<OtherProps...>> &Obj) {
+    *m_Ptr = *Obj.m_Ptr;
+    return *this;
+  }
 
-  PROPAGATE_OP(+=)
-  PROPAGATE_OP(-=)
-  PROPAGATE_OP(*=)
-  PROPAGATE_OP(/=)
-  PROPAGATE_OP(%=)
-  PROPAGATE_OP(^=)
-  PROPAGATE_OP(&=)
-  PROPAGATE_OP(|=)
+  this_t &operator++() {
+    ++(*m_Ptr);
+    return *this;
+  }
+
+  this_t &operator++(int) {
+    (*m_Ptr)++;
+    return *this;
+  }
+
+  this_t &operator--() {
+    --(*m_Ptr);
+    return *this;
+  }
+
+  this_t &operator--(int) {
+    (*m_Ptr)--;
+    return *this;
+  }
+
+  T *operator->() const { return m_Ptr; }
+
+#define PROPAGATE_BINARY_OP(op)                                                \
+  template <typename Other> T operator op(const Other &rhs) {                  \
+    return (*m_Ptr)op rhs;                                                     \
+  }                                                                            \
+  template <typename... OtherProps>                                            \
+  T operator op(                                                               \
+      const annotated_ref<T, detail::properties_t<OtherProps...>> &rhs) {      \
+    return (*m_Ptr)op(*rhs.m_Ptr);                                             \
+  }
+
+#define PROPAGATE_ASSIGN_OP(op)                                                \
+  template <typename Other> this_t &operator op(const Other &rhs) {            \
+    (*m_Ptr) op rhs;                                                           \
+    return *this;                                                              \
+  }                                                                            \
+  template <typename... OtherProps>                                            \
+  this_t &operator op(                                                         \
+      const annotated_ref<T, detail::properties_t<OtherProps...>> &rhs) {      \
+    (*m_Ptr) op(*rhs.m_Ptr);                                                   \
+    return *this;                                                              \
+  }
+
+#define PROPAGATE_UNARY_OP(op)                                                 \
+  T operator op() { return op(*m_Ptr); }
+
+#define PROPAGATE_LOGICAL_OP(op)                                               \
+  template <typename Other> inline bool operator op(const Other &rhs) const {  \
+    return (*m_Ptr)op rhs;                                                     \
+  }                                                                            \
+  template <typename... OtherProps>                                            \
+  inline bool operator op(                                                     \
+      const annotated_ref<T, detail::properties_t<OtherProps...>> &rhs)        \
+      const {                                                                  \
+    return (*m_Ptr)op(*rhs.m_Ptr);                                             \
+  }
+
+  /* Note. Operator || && do not implement short-circut evaluation */
+  PROPAGATE_BINARY_OP(+)
+  PROPAGATE_BINARY_OP(-)
+  PROPAGATE_BINARY_OP(*)
+  PROPAGATE_BINARY_OP(/)
+  PROPAGATE_BINARY_OP(%)
+  PROPAGATE_BINARY_OP(^)
+  PROPAGATE_BINARY_OP(<<)
+  PROPAGATE_BINARY_OP(>>)
+  PROPAGATE_BINARY_OP(|)
+  PROPAGATE_BINARY_OP(&)
+  PROPAGATE_UNARY_OP(~)
+  PROPAGATE_UNARY_OP(-)
+  PROPAGATE_ASSIGN_OP(+=)
+  PROPAGATE_ASSIGN_OP(-=)
+  PROPAGATE_ASSIGN_OP(*=)
+  PROPAGATE_ASSIGN_OP(/=)
+  PROPAGATE_ASSIGN_OP(%=)
+  PROPAGATE_ASSIGN_OP(^=)
+  PROPAGATE_ASSIGN_OP(&=)
+  PROPAGATE_ASSIGN_OP(|=)
+  PROPAGATE_ASSIGN_OP(<<=)
+  PROPAGATE_ASSIGN_OP(>>=)
+  PROPAGATE_LOGICAL_OP(||)
+  PROPAGATE_LOGICAL_OP(&&)
+  PROPAGATE_LOGICAL_OP(<)
+  PROPAGATE_LOGICAL_OP(>)
+  PROPAGATE_LOGICAL_OP(==)
+  PROPAGATE_LOGICAL_OP(!=)
+  PROPAGATE_LOGICAL_OP(<=)
+  PROPAGATE_LOGICAL_OP(>=)
 };
 
 #undef PROPAGATE_OP
@@ -233,6 +314,8 @@ public:
     m_Ptr -= 1;
     return tmp;
   }
+
+  reference operator->() const { return reference(m_Ptr); }
 
   template <typename PropertyT> static constexpr bool has_property() {
     return property_list_t::template has_property<PropertyT>();
