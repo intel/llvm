@@ -121,7 +121,7 @@ struct AccessorGetPtr : public OffsetTag {
 
 /// Get the MemRange field from an accessor.
 struct AccessorGetMemRange : public OffsetTag {
-  static constexpr std::array<int32_t, 2> indices{0, 1};
+  static constexpr std::array<int32_t, 2> indices{0, 2};
 };
 
 /// Get the global range from an nd_range.
