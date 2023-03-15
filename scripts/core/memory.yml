@@ -224,9 +224,9 @@ params:
       name: pHost
       desc: "[in][optional] pointer to the buffer data"
     - type: $x_mem_handle_t*
-      name: phMem      
+      name: phMem
       desc: "[out] pointer to handle of image object created"
-returns:      
+returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
@@ -238,10 +238,58 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "Buffer creation properties"
+class: $xMem
+name: $x_buffer_properties_t
+base: $x_base_properties_t
+members:
+    - type: void*
+      name: pHost
+      desc: >
+          [in][optional] pointer to the buffer data
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Buffer memory channel creation properties"
+details:
+    - Specify these properties in $xMemBufferCreate via $x_buffer_properties_t
+      as part of a `pNext` chain.
+analogue:
+    - "cl_intel_mem_channel_property"
+class: $xMem
+name: $x_buffer_channel_properties_t
+base: $x_base_properties_t
+members:
+    - type: uint32_t
+      name: channel
+      desc: >
+          [in] Identifies the channel/region to which the buffer should be
+          mapped.
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Buffer allocation location creation properties"
+details:
+    - Specify these properties in $xMemBufferCreate via $x_buffer_properties_t
+      as part of a `pNext` chain.
+analogue:
+    - "cl_intel_mem_alloc_buffer_location"
+class: $xMem
+name: $x_buffer_alloc_location_properties_t
+base: $x_base_properties_t
+members:
+    - type: uint32_t
+      name: location
+      desc: >
+          [in] Identifies the ID of global memory partition to which the memory
+          should be allocated.
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Create a memory buffer"
 class: $xMem
 name: BufferCreate
+details:
+    - See also $x_buffer_channel_properties_t.
+    - See also $x_buffer_alloc_location_properties_t.
 ordinal: "0"
 analogue:
     - "**clCreateBuffer**"
@@ -255,19 +303,20 @@ params:
     - type: "size_t"
       name: size
       desc: "[in] size in bytes of the memory object to be allocated"
-    - type: "void*"
-      name: pHost
-      desc: "[in][optional] pointer to the buffer data"
+    - type: const $x_buffer_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to buffer creation properties"
     - type: $x_mem_handle_t*
-      name: phBuffer     
+      name: phBuffer
       desc: "[out] pointer to handle of the memory buffer created"
-returns:      
+returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_BUFFER_SIZE
     - $X_RESULT_ERROR_INVALID_HOST_PTR:
-      - "`pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
-      - "`pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`"
+      - "`pProperties == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
+      - "`pProperties->pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
+      - "`pProperties->pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -310,6 +359,7 @@ type: struct
 desc: "Buffer region type, used to describe a sub buffer"
 class: $xMem
 name: $x_buffer_region_t
+base: $x_base_desc_t
 members:
     - type: size_t
       name: origin
@@ -344,13 +394,13 @@ params:
     - type: $x_buffer_create_type_t
       name: bufferCreateType
       desc: "[in] buffer creation type"
-    - type: "$x_buffer_region_t*"
-      name: pBufferCreateInfo
+    - type: const $x_buffer_region_t*
+      name: pRegion
       desc: "[in] pointer to buffer create region information"
     - type: $x_mem_handle_t*
-      name: phMem      
+      name: phMem
       desc: "[out] pointer to the handle of sub buffer created"
-returns:      
+returns:
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -427,7 +477,7 @@ params:
       name: pMemInfo
       desc: |
             [out][optional] array of bytes holding the info.
-            If propSize is less than the real number of bytes needed to return 
+            If propSize is less than the real number of bytes needed to return
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pMemInfo is not used.
     - type: "size_t*"
       name: pPropSizeRet
