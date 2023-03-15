@@ -11227,6 +11227,8 @@ static llvm::Type *getSPIRVImageType(llvm::LLVMContext &Ctx, StringRef BaseType,
 llvm::Type *CommonSPIRTargetCodeGenInfo::getOpenCLType(CodeGenModule &CGM,
                                                        const Type *Ty) const {
   llvm::LLVMContext &Ctx = CGM.getLLVMContext();
+  if (Ctx.supportsTypedPointers())
+    return nullptr;
   if (auto *PipeTy = dyn_cast<PipeType>(Ty))
     return llvm::TargetExtType::get(Ctx, "spirv.Pipe", {},
                                     {!PipeTy->isReadOnly()});
