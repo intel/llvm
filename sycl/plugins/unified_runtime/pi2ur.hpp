@@ -228,15 +228,16 @@ inline pi_result ur2piInfoValue(ur_device_info_t ParamName,
              PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE},
         };
     return Value.convertArray(Map);
-  }
-  else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
+  } else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
     static std::unordered_map<ur_device_local_mem_type_t,
                               pi_device_local_mem_type>
         Map = {
-          {UR_DEVICE_LOCAL_MEM_TYPE_LOCAL, PI_DEVICE_LOCAL_MEM_TYPE_LOCAL},
-          {UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL, PI_DEVICE_LOCAL_MEM_TYPE_GLOBAL},
-    };
+            {UR_DEVICE_LOCAL_MEM_TYPE_LOCAL, PI_DEVICE_LOCAL_MEM_TYPE_LOCAL},
+            {UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL, PI_DEVICE_LOCAL_MEM_TYPE_GLOBAL},
+        };
     return Value.convert(Map);
+  } else {
+    // TODO: what else needs a UR-PI translation?
   }
 
   if (ParamValueSizePI && ParamValueSizePI != *ParamValueSizeUR) {
@@ -554,8 +555,8 @@ inline pi_result piDevicePartition(
 
   auto hDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto phSubDevices = reinterpret_cast<ur_device_handle_t *>(SubDevices);
-  HANDLE_ERRORS(urDevicePartition(hDevice, UrProperties, NumEntries, phSubDevices,
-                                  NumSubDevices));
+  HANDLE_ERRORS(urDevicePartition(hDevice, UrProperties, NumEntries,
+                                  phSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }
 } // namespace pi2ur
