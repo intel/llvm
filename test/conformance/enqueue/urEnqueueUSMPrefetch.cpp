@@ -12,16 +12,15 @@ UUR_TEST_SUITE_P(urEnqueueUSMPrefetchWithParamTest,
 
 TEST_P(urEnqueueUSMPrefetchWithParamTest, Success) {
     ur_event_handle_t prefetch_event = nullptr;
-    ASSERT_SUCCESS(urEnqueueUSMPrefetch(queue, ptr, allocation_size,
-                                        getParam(), 0, nullptr,
-                                        &prefetch_event));
+    ASSERT_SUCCESS(urEnqueueUSMPrefetch(queue, ptr, allocation_size, getParam(),
+                                        0, nullptr, &prefetch_event));
 
     ASSERT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &prefetch_event));
 
     ur_event_status_t event_status;
-    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(prefetch_event,
-                                                        UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
+    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(
+        prefetch_event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
     ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
     ASSERT_SUCCESS(urEventRelease(prefetch_event));
 }
@@ -38,32 +37,29 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, CheckWaitEvent) {
     size_t big_allocation = 65536;
     uint8_t fill_pattern = 0;
     void *fill_ptr = nullptr;
-    ASSERT_SUCCESS(
-        urUSMDeviceAlloc(context, device, nullptr, nullptr,
-                         big_allocation, 0, &fill_ptr));
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                    big_allocation, 0, &fill_ptr));
 
     ur_event_handle_t fill_event;
-    ASSERT_SUCCESS(
-        urEnqueueUSMFill(fill_queue, fill_ptr, 1, &fill_pattern, big_allocation,
-                         0, nullptr, &fill_event));
+    ASSERT_SUCCESS(urEnqueueUSMFill(fill_queue, fill_ptr, 1, &fill_pattern,
+                                    big_allocation, 0, nullptr, &fill_event));
 
     ur_event_handle_t prefetch_event = nullptr;
-    ASSERT_SUCCESS(urEnqueueUSMPrefetch(queue, ptr, allocation_size,
-                                        getParam(), 1, &fill_event,
-                                        &prefetch_event));
+    ASSERT_SUCCESS(urEnqueueUSMPrefetch(queue, ptr, allocation_size, getParam(),
+                                        1, &fill_event, &prefetch_event));
 
     ASSERT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urQueueFlush(fill_queue));
     ASSERT_SUCCESS(urEventWait(1, &prefetch_event));
 
     ur_event_status_t memset_status;
-    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(fill_event,
-                                                        UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, memset_status));
+    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(
+        fill_event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, memset_status));
     ASSERT_EQ(memset_status, UR_EVENT_STATUS_COMPLETE);
 
     ur_event_status_t event_status;
-    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(prefetch_event,
-                                                        UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
+    ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(
+        prefetch_event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
     ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
 
     ASSERT_SUCCESS(urEventRelease(prefetch_event));
@@ -80,48 +76,42 @@ TEST_P(urEnqueueUSMPrefetchTest, InvalidNullHandleQueue) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urEnqueueUSMPrefetch(nullptr, ptr, allocation_size,
                                           UR_USM_MIGRATION_FLAG_DEFAULT, 0,
-                                          nullptr,
-                                          nullptr));
+                                          nullptr, nullptr));
 }
 
 TEST_P(urEnqueueUSMPrefetchTest, InvalidNullPointerMem) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urEnqueueUSMPrefetch(queue, nullptr, allocation_size,
                                           UR_USM_MIGRATION_FLAG_DEFAULT, 0,
-                                          nullptr,
-                                          nullptr));
+                                          nullptr, nullptr));
 }
 
 TEST_P(urEnqueueUSMPrefetchTest, InvalidEnumeration) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urEnqueueUSMPrefetch(queue, ptr, allocation_size,
                                           UR_USM_MIGRATION_FLAG_FORCE_UINT32, 0,
-                                          nullptr,
-                                          nullptr));
+                                          nullptr, nullptr));
 }
 
 TEST_P(urEnqueueUSMPrefetchTest, InvalidSizeZero) {
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_SIZE,
-        urEnqueueUSMPrefetch(queue, ptr, 0, UR_USM_MIGRATION_FLAG_DEFAULT, 0,
-                             nullptr,
-                             nullptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                     urEnqueueUSMPrefetch(queue, ptr, 0,
+                                          UR_USM_MIGRATION_FLAG_DEFAULT, 0,
+                                          nullptr, nullptr));
 }
 
 TEST_P(urEnqueueUSMPrefetchTest, InvalidSizeTooLarge) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueUSMPrefetch(queue, ptr, allocation_size * 2,
                                           UR_USM_MIGRATION_FLAG_DEFAULT, 0,
-                                          nullptr,
-                                          nullptr));
+                                          nullptr, nullptr));
 }
 
 TEST_P(urEnqueueUSMPrefetchTest, InvalidEventWaitList) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                      urEnqueueUSMPrefetch(queue, ptr, allocation_size,
                                           UR_USM_MIGRATION_FLAG_DEFAULT, 1,
-                                          nullptr,
-                                          nullptr));
+                                          nullptr, nullptr));
 
     ur_event_handle_t validEvent;
     ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
@@ -129,6 +119,5 @@ TEST_P(urEnqueueUSMPrefetchTest, InvalidEventWaitList) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                      urEnqueueUSMPrefetch(queue, ptr, allocation_size,
                                           UR_USM_MIGRATION_FLAG_DEFAULT, 0,
-                                          &validEvent,
-                                          nullptr));
+                                          &validEvent, nullptr));
 }

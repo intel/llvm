@@ -19,9 +19,7 @@ inline Logger &get_logger(std::string name = "common") {
     return logger;
 }
 
-inline void init(std::string name) {
-    get_logger(name);
-}
+inline void init(std::string name) { get_logger(name); }
 
 template <typename... Args>
 inline void debug(const char *format, Args &&...args) {
@@ -45,7 +43,9 @@ inline void error(const char *format, Args &&...args) {
 
 inline void setLevel(logger::Level level) { get_logger().setLevel(level); }
 
-inline void setFlushLevel(logger::Level level) { get_logger().setFlushLevel(level); }
+inline void setFlushLevel(logger::Level level) {
+    get_logger().setFlushLevel(level);
+}
 
 /// @brief Create an instance of the logger with parameters obtained from the respective
 ///        environment variable or with default configuration if the env var is empty,
@@ -102,10 +102,13 @@ inline Logger create_logger(std::string logger_name) {
             values = kv->second;
         }
 
-        sink = values.size() == 2 ? sink_from_str(logger_name, values[0], values[1])
-                                  : sink_from_str(logger_name, values[0]);
+        sink = values.size() == 2
+                   ? sink_from_str(logger_name, values[0], values[1])
+                   : sink_from_str(logger_name, values[0]);
     } catch (const std::invalid_argument &e) {
-        std::cerr << "Error when creating a logger instance from environment variable" << e.what();
+        std::cerr
+            << "Error when creating a logger instance from environment variable"
+            << e.what();
         return Logger(std::make_unique<logger::StderrSink>(logger_name));
     }
     sink->setFlushLevel(flush_level);

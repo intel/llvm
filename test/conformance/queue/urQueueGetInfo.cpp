@@ -19,7 +19,8 @@ TEST_P(urQueueGetInfoTestWithInfoParam, Success) {
     ASSERT_SUCCESS(urQueueGetInfo(queue, info_type, 0, nullptr, &size));
     ASSERT_NE(size, 0);
     std::vector<uint8_t> data(size);
-    ASSERT_SUCCESS(urQueueGetInfo(queue, info_type, size, data.data(), nullptr));
+    ASSERT_SUCCESS(
+        urQueueGetInfo(queue, info_type, size, data.data(), nullptr));
 }
 
 using urQueueGetInfoTest = uur::urQueueTest;

@@ -28,26 +28,30 @@ context_t::context_t() {
     call_stream_id = xptiRegisterStream(CALL_STREAM_NAME);
     std::ostringstream streamv;
     streamv << STREAM_VER_MAJOR << "." << STREAM_VER_MINOR;
-    xptiInitialize(CALL_STREAM_NAME, STREAM_VER_MAJOR, STREAM_VER_MINOR, streamv.str().data());
+    xptiInitialize(CALL_STREAM_NAME, STREAM_VER_MAJOR, STREAM_VER_MINOR,
+                   streamv.str().data());
 }
 
-bool context_t::isEnabled() {
-    return xptiTraceEnabled();
-}
+bool context_t::isEnabled() { return xptiTraceEnabled(); }
 
-void context_t::notify(uint16_t trace_type, uint32_t id, const char *name, void *args, ur_result_t *resultp, uint64_t instance) {
+void context_t::notify(uint16_t trace_type, uint32_t id, const char *name,
+                       void *args, ur_result_t *resultp, uint64_t instance) {
     xpti::function_with_args_t payload{id, name, args, resultp, nullptr};
-    xptiNotifySubscribers(call_stream_id, trace_type, nullptr, nullptr, instance, &payload);
+    xptiNotifySubscribers(call_stream_id, trace_type, nullptr, nullptr,
+                          instance, &payload);
 }
 
 uint64_t context_t::notify_begin(uint32_t id, const char *name, void *args) {
     uint64_t instance = xptiGetUniqueId();
-    notify((uint16_t)xpti::trace_point_type_t::function_with_args_begin, id, name, args, nullptr, instance);
+    notify((uint16_t)xpti::trace_point_type_t::function_with_args_begin, id,
+           name, args, nullptr, instance);
     return instance;
 }
 
-void context_t::notify_end(uint32_t id, const char *name, void *args, ur_result_t *resultp, uint64_t instance) {
-    notify((uint16_t)xpti::trace_point_type_t::function_with_args_end, id, name, args, resultp, instance);
+void context_t::notify_end(uint32_t id, const char *name, void *args,
+                           ur_result_t *resultp, uint64_t instance) {
+    notify((uint16_t)xpti::trace_point_type_t::function_with_args_end, id, name,
+           args, resultp, instance);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

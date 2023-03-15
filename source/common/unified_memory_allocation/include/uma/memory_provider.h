@@ -24,7 +24,9 @@ typedef struct uma_memory_provider_t *uma_memory_provider_handle_t;
 /// \param params pointer to provider-specific parameters
 /// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure
 ///
-enum uma_result_t umaMemoryProviderCreate(struct uma_memory_provider_ops_t *ops, void *params, uma_memory_provider_handle_t *hProvider);
+enum uma_result_t
+umaMemoryProviderCreate(struct uma_memory_provider_ops_t *ops, void *params,
+                        uma_memory_provider_handle_t *hProvider);
 
 ///
 /// \brief Destroys memory provider
@@ -42,7 +44,9 @@ void umaMemoryProviderDestroy(uma_memory_provider_handle_t hProvider);
 /// \param ptr returns pointer to the allocated memory
 /// \return UMA_RESULT_SUCCESS on success or appropriate error code on failure
 ///
-enum uma_result_t umaMemoryProviderAlloc(uma_memory_provider_handle_t hProvider, size_t size, size_t alignment, void **ptr);
+enum uma_result_t umaMemoryProviderAlloc(uma_memory_provider_handle_t hProvider,
+                                         size_t size, size_t alignment,
+                                         void **ptr);
 
 ///
 /// \brief Frees the memory space pointed by ptr from the memory provider
@@ -50,7 +54,8 @@ enum uma_result_t umaMemoryProviderAlloc(uma_memory_provider_handle_t hProvider,
 /// \param ptr pointer to the allocated memory
 /// \param size size of the allocation
 ///
-enum uma_result_t umaMemoryProviderFree(uma_memory_provider_handle_t hProvider, void *ptr, size_t size);
+enum uma_result_t umaMemoryProviderFree(uma_memory_provider_handle_t hProvider,
+                                        void *ptr, size_t size);
 
 ///
 /// \brief Retrieve string representation of the underlying provider specific
@@ -73,7 +78,9 @@ enum uma_result_t umaMemoryProviderFree(uma_memory_provider_handle_t hProvider, 
 /// \return UMA_RESULT_SUCCESS if the result being reported is to be considered
 ///         a warning. Any other result code returned indicates that the
 ///         adapter specific result is an error.
-enum uma_result_t umaMemoryProviderGetLastResult(uma_memory_provider_handle_t hProvider, const char **ppMessage);
+enum uma_result_t
+umaMemoryProviderGetLastResult(uma_memory_provider_handle_t hProvider,
+                               const char **ppMessage);
 
 #ifdef __cplusplus
 }

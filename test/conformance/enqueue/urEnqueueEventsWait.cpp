@@ -5,10 +5,14 @@
 struct urEnqueueEventsWaitTest : uur::urMultiQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTest::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size, nullptr, &src_buffer));
-        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size, nullptr, &dst_buffer));
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
+                                         nullptr, &src_buffer));
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size,
+                                         nullptr, &dst_buffer));
         input.assign(count, 42);
-        ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, src_buffer, true, 0, size, input.data(), 0, nullptr, nullptr));
+        ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, src_buffer, true, 0,
+                                               size, input.data(), 0, nullptr,
+                                               nullptr));
     }
 
     void TearDown() override {
@@ -33,22 +37,27 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueEventsWaitTest);
 TEST_P(urEnqueueEventsWaitTest, Success) {
     ur_event_handle_t event1 = nullptr;
     ur_event_handle_t waitEvent = nullptr;
-    ASSERT_SUCCESS(urEnqueueMemBufferCopy(queue1, src_buffer, dst_buffer, 0, 0, size, 0, nullptr, &event1));
+    ASSERT_SUCCESS(urEnqueueMemBufferCopy(queue1, src_buffer, dst_buffer, 0, 0,
+                                          size, 0, nullptr, &event1));
     ASSERT_SUCCESS(urEnqueueEventsWait(queue2, 1, &event1, &waitEvent));
     ASSERT_SUCCESS(urQueueFlush(queue1));
     ASSERT_SUCCESS(urQueueFlush(queue2));
     ASSERT_SUCCESS(urEventWait(1, &waitEvent));
 
     std::vector<uint32_t> output(count, 1);
-    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue1, dst_buffer, true, 0, size, output.data(), 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue1, dst_buffer, true, 0, size,
+                                          output.data(), 0, nullptr, nullptr));
     ASSERT_EQ(input, output);
 
     ur_event_handle_t event2 = nullptr;
     input.assign(count, 420);
-    ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue2, src_buffer, true, 0, size, input.data(), 0, nullptr, &event2));
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue2, src_buffer, true, 0, size,
+                                           input.data(), 0, nullptr, &event2));
     ASSERT_SUCCESS(urEventWait(1, &event2));
-    ASSERT_SUCCESS(urEnqueueMemBufferCopy(queue2, src_buffer, dst_buffer, 0, 0, size, 0, nullptr, nullptr));
-    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue2, dst_buffer, true, 0, size, output.data(), 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueMemBufferCopy(queue2, src_buffer, dst_buffer, 0, 0,
+                                          size, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue2, dst_buffer, true, 0, size,
+                                          output.data(), 0, nullptr, nullptr));
     ASSERT_EQ(input, output);
     EXPECT_SUCCESS(urEventRelease(event1));
     EXPECT_SUCCESS(urEventRelease(waitEvent));

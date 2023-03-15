@@ -67,12 +67,14 @@ struct KernelsEnvironment : DevicesEnvironment {
     virtual void SetUp() override;
     virtual void TearDown() override;
 
-    KernelSource LoadSource(const std::string &kernel_name, uint32_t device_index);
+    KernelSource LoadSource(const std::string &kernel_name,
+                            uint32_t device_index);
 
     static KernelsEnvironment *instance;
 
   private:
-    KernelOptions parseKernelOptions(int argc, char **argv, std::string kernels_default_dir);
+    KernelOptions parseKernelOptions(int argc, char **argv,
+                                     std::string kernels_default_dir);
     std::string getKernelDirectory() { return kernel_options.kernel_directory; }
     std::string getKernelSourcePath(const std::string &kernel_name,
                                     uint32_t device_index);

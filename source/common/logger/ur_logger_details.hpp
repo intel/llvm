@@ -43,13 +43,11 @@ class Logger {
         this->sink->setFlushLevel(level);
     }
 
-    template <typename... Args>
-    void debug(const char *format, Args &&...args) {
+    template <typename... Args> void debug(const char *format, Args &&...args) {
         log(logger::Level::DEBUG, format, std::forward<Args>(args)...);
     }
 
-    template <typename... Args>
-    void info(const char *format, Args &&...args) {
+    template <typename... Args> void info(const char *format, Args &&...args) {
         log(logger::Level::INFO, format, std::forward<Args>(args)...);
     }
 
@@ -58,8 +56,7 @@ class Logger {
         log(logger::Level::WARN, format, std::forward<Args>(args)...);
     }
 
-    template <typename... Args>
-    void error(const char *format, Args &&...args) {
+    template <typename... Args> void error(const char *format, Args &&...args) {
         log(logger::Level::ERR, format, std::forward<Args>(args)...);
     }
 

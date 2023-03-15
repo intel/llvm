@@ -10,4 +10,7 @@ TEST_P(urMemReleaseTest, Success) {
     ASSERT_SUCCESS(urMemRelease(buffer));
 }
 
-TEST_P(urMemReleaseTest, InvalidNullHandleMem) { ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE, urMemRelease(nullptr)); }
+TEST_P(urMemReleaseTest, InvalidNullHandleMem) {
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     urMemRelease(nullptr));
+}

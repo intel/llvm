@@ -15,16 +15,14 @@ TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
 
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
-    ASSERT_SUCCESS(
-        urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size, 0,
-                         &ptr));
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                    allocation_size, 0, &ptr));
 
     ur_event_handle_t event = nullptr;
 
     uint8_t pattern = 0;
-    ASSERT_SUCCESS(
-        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
-                         0, nullptr, &event));
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+                                    allocation_size, 0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
@@ -45,9 +43,8 @@ TEST_P(urUSMFreeTest, SuccessHostAlloc) {
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
-    ASSERT_SUCCESS(
-        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
-                         0, nullptr, &event));
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+                                    allocation_size, 0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
@@ -59,8 +56,10 @@ TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
     bool shared_usm_cross = false;
     bool shared_usm_single = false;
 
-    ASSERT_SUCCESS(uur::GetDeviceUSMCrossSharedSupport(device, shared_usm_cross));
-    ASSERT_SUCCESS(uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_single));
+    ASSERT_SUCCESS(
+        uur::GetDeviceUSMCrossSharedSupport(device, shared_usm_cross));
+    ASSERT_SUCCESS(
+        uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_single));
 
     if (!(shared_usm_cross || shared_usm_single)) {
         GTEST_SKIP() << "Shared USM is not supported by the device.";
@@ -68,15 +67,13 @@ TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
 
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
-    ASSERT_SUCCESS(
-        urUSMSharedAlloc(context, device, nullptr, nullptr, allocation_size, 0,
-                         &ptr));
+    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
+                                    allocation_size, 0, &ptr));
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
-    ASSERT_SUCCESS(
-        urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern, allocation_size,
-                         0, nullptr, &event));
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+                                    allocation_size, 0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
     ASSERT_SUCCESS(urEventWait(1, &event));
 
