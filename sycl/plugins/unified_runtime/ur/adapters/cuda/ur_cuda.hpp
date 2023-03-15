@@ -14,11 +14,6 @@
 
 #include <cuda.h>
 
-// struct _ur_platform_handle_t;
-// using ur_platform_handle_t = _ur_platform_handle_t *;
-// struct _ur_device_handle_t;
-// using ur_device_handle_t = _ur_device_handle_t *;
-
 struct ur_platform_handle_t_ : public _ur_platform {
   std::vector<std::unique_ptr<ur_device_handle_t_>> devices_;
 };
@@ -71,13 +66,3 @@ public:
 
   int get_max_work_group_size() const noexcept { return max_work_group_size; };
 };
-
-
-// Make the Unified Runtime handles definition complete.
-// This is used in various "create" API where new handles are allocated.
-// struct _zer_platform_handle_t : public _ur_platform_handle_t {
-//   using _ur_platform_handle_t::_ur_platform_handle_t;
-// };
-// struct _zer_device_handle_t : public _ur_device_handle_t {
-//   using _ur_device_handle_t::_ur_device_handle_t;
-// };

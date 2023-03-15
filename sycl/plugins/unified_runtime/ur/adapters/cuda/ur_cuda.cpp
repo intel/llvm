@@ -42,7 +42,7 @@ void assertion(bool Condition, const char *Message = nullptr) {
     die(Message);
 }
 
-} // namespace pi
+} // namespace ur
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
@@ -56,7 +56,6 @@ std::string getCudaVersionString() {
          << driver_version % 1000 / 10;
   return stream.str();
 }
-
 
 ur_result_t map_error(CUresult result) {
   switch (result) {
@@ -79,15 +78,15 @@ ur_result_t map_error(CUresult result) {
   }
 }
 
-/// Converts CUDA error into PI error codes, and outputs error information
+/// Converts CUDA error into UR error codes, and outputs error information
 /// to stderr.
 /// If PI_CUDA_ABORT env variable is defined, it aborts directly instead of
 /// throwing the error. This is intended for debugging purposes.
-/// \return PI_SUCCESS if \param result was CUDA_SUCCESS.
-/// \throw pi_error exception (integer) if input was not success.
+/// \return UR_RESULT_SUCCESS if \param result was CUDA_SUCCESS.
+/// \throw ur_result_t exception (integer) if input was not success.
 ///
 ur_result_t check_error(CUresult result, const char *function, int line,
-                      const char *file) {
+                        const char *file) {
   if (result == CUDA_SUCCESS || result == CUDA_ERROR_DEINITIALIZED) {
     return UR_RESULT_SUCCESS;
   }
@@ -98,7 +97,7 @@ ur_result_t check_error(CUresult result, const char *function, int line,
     cuGetErrorName(result, &errorName);
     cuGetErrorString(result, &errorString);
     std::stringstream ss;
-    ss << "\nPI CUDA ERROR:"
+    ss << "\nUR CUDA ERROR:"
        << "\n\tValue:           " << result
        << "\n\tName:            " << errorName
        << "\n\tDescription:     " << errorString
@@ -116,7 +115,7 @@ ur_result_t check_error(CUresult result, const char *function, int line,
 }
 
 /// \cond NODOXY
-#define PI_CHECK_ERROR(result) check_error(result, __func__, __LINE__, __FILE__)
+#define UR_CHECK_ERROR(result) check_error(result, __func__, __LINE__, __FILE__)
 
 int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
   int value;
@@ -124,7 +123,6 @@ int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
       cuDeviceGetAttribute(&value, attribute, device->get()) == CUDA_SUCCESS);
   return value;
 }
-
 
 class ScopedContext {
 public:
@@ -136,12 +134,12 @@ private:
   void set_context(CUcontext desired) {
     CUcontext original = nullptr;
 
-    PI_CHECK_ERROR(cuCtxGetCurrent(&original));
+    UR_CHECK_ERROR(cuCtxGetCurrent(&original));
 
     // Make sure the desired context is active on the current thread, setting
     // it if necessary
     if (original != desired) {
-      PI_CHECK_ERROR(cuCtxSetCurrent(desired));
+      UR_CHECK_ERROR(cuCtxSetCurrent(desired));
     }
   }
 };
@@ -162,7 +160,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
 
   ScopedContext active(device->get_context());
 
-  switch ((uint32_t) infoType) {
+  switch ((uint32_t)infoType) {
   case UR_DEVICE_INFO_TYPE: {
     return ReturnValue(UR_DEVICE_TYPE_GPU);
   }
@@ -326,9 +324,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
   // TODO(UR): implement the two queries below when the UR commit is updated
   // to the newest version
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    uint64_t capabilities =
-        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
+    uint64_t capabilities = PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+                            PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return ReturnValue(capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
@@ -338,14 +335,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CUDA_SUCCESS);
     uint64_t capabilities =
-        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP
-        |
-                           PI_MEMORY_SCOPE_WORK_GROUP |
-                           PI_MEMORY_SCOPE_DEVICE | PI_MEMORY_SCOPE_SYSTEM
-                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP
-                     |
-                           PI_MEMORY_SCOPE_WORK_GROUP |
-                           PI_MEMORY_SCOPE_DEVICE;
+        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
+                           PI_MEMORY_SCOPE_SYSTEM
+                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
     return ReturnValue(capabilities);
   }
   case UR_DEVICE_INFO_BFLOAT16: {
@@ -671,19 +665,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
   }
   case UR_DEVICE_INFO_AVAILABLE: {
     return ReturnValue(uint32_t{true});
-
   }
   case UR_EXT_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
     return ReturnValue(uint32_t{true});
-
   }
   case UR_DEVICE_INFO_COMPILER_AVAILABLE: {
     return ReturnValue(uint32_t{true});
-
   }
   case UR_DEVICE_INFO_LINKER_AVAILABLE: {
     return ReturnValue(uint32_t{true});
-
   }
   case UR_DEVICE_INFO_EXECUTION_CAPABILITIES: {
     auto capability = ur_device_exec_capability_flags_t{
@@ -905,23 +895,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
     }
     return ReturnValue(value);
   }
-    // TODO(UR): Implement the below queries once the latest version of UR is
-    // used 
-    case UR_EXT_DEVICE_INFO_CUDA_ASYNC_BARRIER: {
-      int value =
-          getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR)
-          >= 8;
-      return ReturnValue(value);
-    }
-    case UR_EXT_DEVICE_INFO_BACKEND_VERSION: {
-      int major =
-          getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
-      int minor =
-          getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
-      std::string result = std::to_string(major) + "." +
-      std::to_string(minor);
-      return ReturnValue(result.c_str());
-    }
+  // TODO(UR): Implement the below queries once the latest version of UR is
+  // used
+  case UR_EXT_DEVICE_INFO_CUDA_ASYNC_BARRIER: {
+    int value =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >= 8;
+    return ReturnValue(value);
+  }
+  case UR_EXT_DEVICE_INFO_BACKEND_VERSION: {
+    int major =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR);
+    int minor =
+        getAttribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
+    std::string result = std::to_string(major) + "." + std::to_string(minor);
+    return ReturnValue(result.c_str());
+  }
 
   case UR_EXT_DEVICE_INFO_FREE_MEMORY: {
     size_t FreeMemory = 0;
@@ -1038,7 +1026,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t device,
   sycl::detail::ur::die("Device info request not implemented");
   return {};
 
-
   return UR_RESULT_SUCCESS;
 }
 
@@ -1093,7 +1080,7 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
             return;
           }
           int numDevices = 0;
-          err = PI_CHECK_ERROR(cuDeviceGetCount(&numDevices));
+          err = UR_CHECK_ERROR(cuDeviceGetCount(&numDevices));
           if (numDevices == 0) {
             numPlatforms = 0;
             return;
@@ -1105,16 +1092,16 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
 
             for (int i = 0; i < numDevices; ++i) {
               CUdevice device;
-              err = PI_CHECK_ERROR(cuDeviceGet(&device, i));
+              err = UR_CHECK_ERROR(cuDeviceGet(&device, i));
               CUcontext context;
-              err = PI_CHECK_ERROR(cuDevicePrimaryCtxRetain(&context, device));
+              err = UR_CHECK_ERROR(cuDevicePrimaryCtxRetain(&context, device));
 
               ScopedContext active(context);
               CUevent evBase;
-              err = PI_CHECK_ERROR(cuEventCreate(&evBase, CU_EVENT_DEFAULT));
+              err = UR_CHECK_ERROR(cuEventCreate(&evBase, CU_EVENT_DEFAULT));
 
               // Use default stream to record base event counter
-              err = PI_CHECK_ERROR(cuEventRecord(evBase, 0));
+              err = UR_CHECK_ERROR(cuEventRecord(evBase, 0));
 
               platformIds[i].devices_.emplace_back(new ur_device_handle_t_{
                   device, context, evBase, &platformIds[i]});
@@ -1176,8 +1163,7 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
 
 /// \return PI_SUCCESS if the function is executed successfully
 /// CUDA devices are always root devices so retain always returns success.
-UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceRetain(ur_device_handle_t device) {
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t device) {
   return UR_RESULT_SUCCESS;
 }
 
@@ -1233,7 +1219,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 uint64_t ur_device_handle_t_::get_elapsed_time(CUevent ev) const {
   float miliSeconds = 0.0f;
 
-  PI_CHECK_ERROR(cuEventElapsedTime(&miliSeconds, evBase_, ev));
+  UR_CHECK_ERROR(cuEventElapsedTime(&miliSeconds, evBase_, ev));
 
   return static_cast<uint64_t>(miliSeconds * 1.0e6);
 }
