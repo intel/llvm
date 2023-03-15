@@ -1124,8 +1124,11 @@ public:
   using AccessorSubscriptIDIndexPattern::AccessorSubscriptIDIndexPattern;
 
   LogicalResult match(SYCLAccessorSubscriptOp op) const final {
-    return success(AccessorSubscriptPattern::hasIDOffsetType(op) &&
-                   op.getType().isa<MemRefType>());
+    return success(
+        AccessorSubscriptPattern::hasIDOffsetType(op) &&
+        getDimensions(op.getAcc().getType().getElementType()) ==
+            getDimensions(
+                op.getIndex().getType().cast<MemRefType>().getElementType()));
   }
 
   void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
