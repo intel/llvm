@@ -12,6 +12,8 @@
 
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
 
+#include <optional>
+
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/GPUToSPIRV/GPUToSPIRV.h"
@@ -89,6 +91,18 @@ static Optional<Type> getI8Struct(StringRef name,
                                    /*isPacked=*/false)))
       return std::nullopt;
   return convertedTy;
+}
+
+static unsigned memoryTargetModeToAddressSpace(MemoryTargetMode mtm) {
+  switch (mtm) {
+  case MemoryTargetMode::ConstantBuffer:
+  case MemoryTargetMode::GlobalBuffer:
+    return 1;
+  case MemoryTargetMode::Local:
+    return 3;
+  default:
+    llvm_unreachable("Invalid MemoryTargetMode for an accessor");
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -229,13 +243,14 @@ public:
 protected:
   constexpr GetMemberPatternBase() = default;
 
-  /// Returns a reference of type \p ty to a member of the struct pointed by \p
-  /// ptr.
+  /// Returns a reference to type \p ty to a member of the struct pointed by \p
+  /// ptr in address space \p targetAddressSpace.
   template <typename... Args,
             typename = std::enable_if_t<
                 std::is_constructible_v<LLVM::GEPArg, Args...> ||
                 is_empty_v<Args...>>>
   Value getRef(OpBuilder &builder, Location loc, Type ty, Value ptr,
+               std::optional<unsigned> targetAddressSpace,
                Args &&...args) const {
     SmallVector<LLVM::GEPArg> indices{0};
     const auto staticIndices = getIndices();
@@ -244,12 +259,27 @@ protected:
       // Add additional index if provided.
       indices.emplace_back(std::forward<Args>(args)...);
     }
-    return builder.create<LLVM::GEPOp>(loc, ty, ptr, indices,
+    const auto origAddressSpace =
+        ptr.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+
+    const auto addressSpace = targetAddressSpace.value_or(origAddressSpace);
+
+    if (origAddressSpace != addressSpace) {
+      ptr = builder.create<LLVM::AddrSpaceCastOp>(
+          loc,
+          LLVM::LLVMPointerType::get(
+              ptr.getType().cast<LLVM::LLVMPointerType>().getElementType(),
+              addressSpace),
+          ptr);
+    }
+
+    const auto ptrTy = LLVM::LLVMPointerType::get(ty, addressSpace);
+    return builder.create<LLVM::GEPOp>(loc, ptrTy, ptr, indices,
                                        /*inbounds*/ true);
   }
 
-  /// Returns a value of the type pointed by \p ty to a member of the struct
-  /// pointed by \p ptr.
+  /// Returns a value of type \p ty being a member of the struct pointed by \p
+  /// ptr.
   ///
   /// Effectively calls getRef() and loads the value.
   template <typename... Args,
@@ -258,8 +288,8 @@ protected:
                 is_empty_v<Args...>>>
   Value loadValue(OpBuilder &builder, Location loc, Type ty, Value ptr,
                   Args &&...args) const {
-    const auto gep =
-        getRef<Args...>(builder, loc, ty, ptr, std::forward<Args>(args)...);
+    const auto gep = getRef<Args...>(builder, loc, ty, ptr, std::nullopt,
+                                     std::forward<Args>(args)...);
     return builder.create<LLVM::LoadOp>(loc, gep);
   }
 
@@ -319,9 +349,11 @@ public:
   void rewrite(Op op, OpAdaptor adaptor,
                ConversionPatternRewriter &rewriter) const final {
     const auto operands = adaptor.getOperands();
-    rewriter.replaceOp(op, getRef(rewriter, op.getLoc(),
-                                  getTypeConverter()->convertType(op.getType()),
-                                  operands[0]));
+    const auto ptrTy = getTypeConverter()
+                           ->convertType(op.getType())
+                           .template cast<LLVM::LLVMPointerType>();
+    rewriter.replaceOp(op, getRef(rewriter, op.getLoc(), ptrTy.getElementType(),
+                                  ptrTy.getAddressSpace(), operands[0]));
   }
 };
 
@@ -344,9 +376,12 @@ public:
   void rewrite(Op op, OpAdaptor adaptor,
                ConversionPatternRewriter &rewriter) const final {
     const auto operands = adaptor.getOperands();
-    rewriter.replaceOp(op, getRef(rewriter, op.getLoc(),
-                                  getTypeConverter()->convertType(op.getType()),
-                                  operands[0], operands[1]));
+    const auto ptrTy = getTypeConverter()
+                           ->convertType(op.getType())
+                           .template cast<LLVM::LLVMPointerType>();
+    rewriter.replaceOp(op, getRef(rewriter, op.getLoc(), ptrTy.getElementType(),
+                                  operands[0], ptrTy.getAddressSpace(),
+                                  operands[1]));
   }
 };
 
@@ -368,16 +403,10 @@ public:
   void rewrite(Op op, OpAdaptor adaptor,
                ConversionPatternRewriter &rewriter) const final {
     const auto operands = adaptor.getOperands();
-    const auto addressSpace = operands[0]
-                                  .getType()
-                                  .template cast<LLVM::LLVMPointerType>()
-                                  .getAddressSpace();
-    rewriter.replaceOp(
-        op, loadValue(rewriter, op.getLoc(),
-                      LLVM::LLVMPointerType::get(
-                          getTypeConverter()->convertType(op.getType()),
-                          addressSpace),
-                      operands[0]));
+    rewriter.replaceOp(op,
+                       loadValue(rewriter, op.getLoc(),
+                                 getTypeConverter()->convertType(op.getType()),
+                                 operands[0]));
   }
 };
 
@@ -399,16 +428,10 @@ public:
   void rewrite(Op op, OpAdaptor adaptor,
                ConversionPatternRewriter &rewriter) const final {
     const auto operands = adaptor.getOperands();
-    const auto addressSpace = operands[0]
-                                  .getType()
-                                  .template cast<LLVM::LLVMPointerType>()
-                                  .getAddressSpace();
-    rewriter.replaceOp(
-        op, loadValue(rewriter, op.getLoc(),
-                      LLVM::LLVMPointerType::get(
-                          getTypeConverter()->convertType(op.getType()),
-                          addressSpace),
-                      operands[0], operands[1]));
+    rewriter.replaceOp(op,
+                       loadValue(rewriter, op.getLoc(),
+                                 getTypeConverter()->convertType(op.getType()),
+                                 operands[0], operands[1]));
   }
 };
 
@@ -441,6 +464,9 @@ public:
 /// range.
 template <typename Op>
 class GetRangeSizePattern : public ConvertOpToLLVMPattern<Op> {
+private:
+  using ConvertOpToLLVMPattern<Op>::getTypeConverter;
+
 protected:
   using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
   using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
@@ -456,17 +482,14 @@ public:
   void rewrite(Op op, OpAdaptor adaptor,
                ConversionPatternRewriter &rewriter) const final {
     const auto thisArg = adaptor.getOperands()[0];
-    const auto ptrTy = LLVM::LLVMPointerType::get(
-        op.getType(), thisArg.getType()
-                          .template cast<LLVM::LLVMPointerType>()
-                          .getAddressSpace());
+    const auto elTy = getTypeConverter()->convertType(op.getType());
     const auto loc = op.getLoc();
     const auto dimension = getDimensions(op.getOperand().getType());
     assert(1 <= dimension && dimension < 4 && "Invalid number of dimensions");
     Value newValue =
         rewriter.create<arith::ConstantIntOp>(loc, 1, op.getType());
     for (unsigned i = 0; i < dimension; ++i) {
-      const auto size = getRange(rewriter, loc, ptrTy, thisArg, i);
+      const auto size = getRange(rewriter, loc, elTy, thisArg, i);
       newValue = rewriter.create<arith::MulIOp>(loc, newValue, size);
     }
     rewriter.replaceOp(op, newValue);
@@ -475,6 +498,9 @@ public:
 
 template <typename Op>
 class GetLinearIDPattern : public ConvertOpToLLVMPattern<Op> {
+private:
+  using ConvertOpToLLVMPattern<Op>::getTypeConverter;
+
 protected:
   using typename ConvertOpToLLVMPattern<Op>::OpAdaptor;
   using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
@@ -492,39 +518,36 @@ public:
   void rewrite(Op op, OpAdaptor adaptor,
                ConversionPatternRewriter &rewriter) const final {
     const auto thisArg = adaptor.getOperands()[0];
-    const auto ptrTy = LLVM::LLVMPointerType::get(
-        op.getType(), thisArg.getType()
-                          .template cast<LLVM::LLVMPointerType>()
-                          .getAddressSpace());
+    const auto elTy = getTypeConverter()->convertType(op.getType());
     const auto loc = op.getLoc();
     const auto dimension = getDimensions(op.getOperand().getType());
     Value newValue;
     switch (dimension) {
     case 1:
       // get_id(0)
-      newValue = getID(rewriter, loc, ptrTy, thisArg, 0);
+      newValue = getID(rewriter, loc, elTy, thisArg, 0);
       break;
     case 2: {
       // get_id(0) * get_range(1) + get_id(1)
-      const auto id0 = getID(rewriter, loc, ptrTy, thisArg, 0);
-      const auto r1 = getRange(rewriter, loc, ptrTy, thisArg, 1);
+      const auto id0 = getID(rewriter, loc, elTy, thisArg, 0);
+      const auto r1 = getRange(rewriter, loc, elTy, thisArg, 1);
       const Value prod = rewriter.create<arith::MulIOp>(loc, id0, r1);
-      const auto id1 = getID(rewriter, loc, ptrTy, thisArg, 1);
+      const auto id1 = getID(rewriter, loc, elTy, thisArg, 1);
       newValue = rewriter.create<arith::AddIOp>(loc, prod, id1);
       break;
     }
     case 3: {
       // get_id(0) * get_range(1) * get_range(2) + get_id(1) * get_range(2) +
       // get_id(2)
-      const auto id0 = getID(rewriter, loc, ptrTy, thisArg, 0);
-      const auto r1 = getRange(rewriter, loc, ptrTy, thisArg, 1);
+      const auto id0 = getID(rewriter, loc, elTy, thisArg, 0);
+      const auto r1 = getRange(rewriter, loc, elTy, thisArg, 1);
       const Value prod0 = rewriter.create<arith::MulIOp>(loc, id0, r1);
-      const auto r2 = getRange(rewriter, loc, ptrTy, thisArg, 2);
+      const auto r2 = getRange(rewriter, loc, elTy, thisArg, 2);
       const Value prod1 = rewriter.create<arith::MulIOp>(loc, prod0, r2);
-      const auto id1 = getID(rewriter, loc, ptrTy, thisArg, 1);
+      const auto id1 = getID(rewriter, loc, elTy, thisArg, 1);
       const Value prod2 = rewriter.create<arith::MulIOp>(loc, id1, r2);
       const Value add = rewriter.create<arith::AddIOp>(loc, prod1, prod2);
-      const auto id2 = getID(rewriter, loc, ptrTy, thisArg, 2);
+      const auto id2 = getID(rewriter, loc, elTy, thisArg, 2);
       newValue = rewriter.create<arith::AddIOp>(loc, add, id2);
       break;
     }
@@ -557,17 +580,16 @@ public:
 
     const auto loc = op.getLoc();
     const auto elTy = getTypeConverter()->convertType(op.getType());
-    const auto ptrTy = LLVM::LLVMPointerType::get(elTy);
     const Value arraySize = rewriter.create<arith::ConstantIntOp>(loc, 1, 32);
-    const Value alloca =
-        rewriter.create<LLVM::AllocaOp>(loc, ptrTy, elTy, arraySize);
+    const Value alloca = rewriter.create<LLVM::AllocaOp>(
+        loc, LLVM::LLVMPointerType::get(elTy), elTy, arraySize);
     const auto structMemberTy = rewriter.getI64Type();
     const auto dimTy = rewriter.getIndexType();
-    const auto innerPtrTy = LLVM::LLVMPointerType::get(structMemberTy);
     for (unsigned i = 0,
                   dimensions = getDimensions(op->getOperand(0).getType());
          i < dimensions; ++i) {
-      const auto ref = getRef(rewriter, loc, innerPtrTy, alloca, i);
+      const auto ref =
+          getRef(rewriter, loc, structMemberTy, alloca, std::nullopt, i);
       const Value dim =
           rewriter.create<arith::ConstantIntOp>(loc, i, dimGetTyWidth);
       const Value val = rewriter.create<arith::IndexCastUIOp>(
@@ -1069,12 +1091,23 @@ public:
     return op.getIndex().getType().isa<MemRefType>();
   }
 
-  Value getRef(OpBuilder &builder, Location loc, Type ptrTy, Value acc,
-               Value index) const {
-    const auto ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
-        builder, loc, LLVM::LLVMPointerType::get(ptrTy), acc);
-    return builder.create<LLVM::GEPOp>(loc, ptrTy, ptr, index,
-                                       /*inbounds*/ true);
+  Value getRef(OpBuilder &builder, Location loc, SYCLAccessorSubscriptOp orig,
+               LLVM::LLVMPointerType ptrTy, Value acc, Value index) const {
+    const auto addressSpace =
+        memoryTargetModeToAddressSpace(orig.getAcc()
+                                           .getType()
+                                           .getElementType()
+                                           .cast<AccessorType>()
+                                           .getTargetMode());
+    const auto gepPtrTy =
+        LLVM::LLVMPointerType::get(ptrTy.getElementType(), addressSpace);
+    const auto ptr = GetMemberPattern<AccessorGetPtr>::loadValue(builder, loc,
+                                                                 gepPtrTy, acc);
+    const Value gep = builder.create<LLVM::GEPOp>(loc, gepPtrTy, ptr, index,
+                                                  /*inbounds*/ true);
+    return ptrTy == gepPtrTy
+               ? gep
+               : builder.create<LLVM::AddrSpaceCastOp>(loc, ptrTy, gep);
   }
 };
 
@@ -1098,19 +1131,14 @@ public:
   Value getLinearIndex(OpBuilder &builder, Location loc, AccessorType accTy,
                        OpAdaptor opAdaptor) const {
     const auto id = opAdaptor.getIndex();
-    const auto mem = opAdaptor.getAcc();
+    const auto acc = opAdaptor.getAcc();
     // int64_t Res{0};
-    Value res = builder.create<arith::ConstantIntOp>(loc, 0, 64);
-    const auto memRangePtrTy = LLVM::LLVMPointerType::get(
-        builder.getI64Type(),
-        mem.getType().cast<LLVM::LLVMPointerType>().getAddressSpace());
-    const auto idPtrTy = LLVM::LLVMPointerType::get(
-        builder.getI64Type(),
-        id.getType().cast<LLVM::LLVMPointerType>().getAddressSpace());
+    const auto resTy = builder.getI64Type();
+    Value res = builder.create<arith::ConstantIntOp>(loc, 0, resTy);
     for (unsigned i = 0, dim = accTy.getDimension(); i < dim; ++i) {
       // Res = Res * Mem[I] + Id[I]
-      const auto memI = getMemRange(builder, loc, memRangePtrTy, mem, i);
-      const auto idI = getID(builder, loc, idPtrTy, id, i);
+      const auto memI = getMemRange(builder, loc, resTy, acc, i);
+      const auto idI = getID(builder, loc, resTy, id, i);
       res = builder.create<arith::AddIOp>(
           loc, builder.create<arith::MulIOp>(loc, res, memI), idI);
     }
@@ -1134,10 +1162,12 @@ public:
   void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
                ConversionPatternRewriter &rewriter) const final {
     const auto loc = op.getLoc();
-    const auto ptrTy = getTypeConverter()->convertType(op.getType());
+    const auto ptrTy = getTypeConverter()
+                           ->convertType(op.getType())
+                           .cast<LLVM::LLVMPointerType>();
     rewriter.replaceOp(
         op, AccessorSubscriptPattern::getRef(
-                rewriter, loc, ptrTy, opAdaptor.getAcc(),
+                rewriter, loc, op, ptrTy, opAdaptor.getAcc(),
                 getLinearIndex(
                     rewriter, loc,
                     op.getAcc().getType().getElementType().cast<AccessorType>(),
@@ -1158,12 +1188,12 @@ public:
 
   void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
                ConversionPatternRewriter &rewriter) const final {
-    const auto loc = op.getLoc();
-    const auto ptrTy = getTypeConverter()->convertType(op.getType());
-    const Value ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
-        rewriter, loc, LLVM::LLVMPointerType::get(ptrTy), opAdaptor.getAcc());
-    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
-        op, ptrTy, ptr, opAdaptor.getIndex(), /*inbounds*/ true);
+    const auto ptrTy = getTypeConverter()
+                           ->convertType(op.getType())
+                           .cast<LLVM::LLVMPointerType>();
+    rewriter.replaceOp(op, AccessorSubscriptPattern::getRef(
+                               rewriter, op.getLoc(), op, ptrTy,
+                               opAdaptor.getAcc(), opAdaptor.getIndex()));
   }
 };
 
@@ -1220,13 +1250,15 @@ public:
     const auto loc = op.getLoc();
     const auto atomicTy = op.getType().cast<AtomicType>();
     auto *typeConverter = getTypeConverter();
-    const auto ptrTy = typeConverter->convertType(
-        MemRefType::get(ShapedType::kDynamic, atomicTy.getDataType(), {},
-                        static_cast<unsigned>(atomicTy.getAddrSpace())));
+    const auto ptrTy = typeConverter
+                           ->convertType(MemRefType::get(
+                               ShapedType::kDynamic, atomicTy.getDataType(), {},
+                               static_cast<unsigned>(atomicTy.getAddrSpace())))
+                           .cast<LLVM::LLVMPointerType>();
     const Value undef = rewriter.create<LLVM::UndefOp>(
         loc, typeConverter->convertType(atomicTy));
     const auto ptr = AccessorSubscriptPattern::getRef(
-        rewriter, loc, ptrTy, opAdaptor.getAcc(),
+        rewriter, loc, op, ptrTy, opAdaptor.getAcc(),
         getLinearIndex(
             rewriter, loc,
             op.getAcc().getType().getElementType().cast<AccessorType>(),
@@ -1269,9 +1301,9 @@ class RangeSizePattern : public GetRangeSizePattern<SYCLRangeSizeOp>,
 public:
   using GetRangeSizePattern<SYCLRangeSizeOp>::GetRangeSizePattern;
 
-  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getRange(OpBuilder &builder, Location loc, Type ty, Value thisArg,
                  int32_t index) const final {
-    return loadValue(builder, loc, ptrTy, thisArg, index);
+    return loadValue(builder, loc, ty, thisArg, index);
   }
 };
 
@@ -1335,17 +1367,17 @@ public:
         LLVM::LLVMPointerType::get(getTypeConverter()->convertType(rangeTy)),
         rewriter.create<arith::ConstantIntOp>(loc, 1, 64),
         /*alignment*/ 0);
-    const auto ptrTy = LLVM::LLVMPointerType::get(rewriter.getI64Type());
+    const auto i64Ty = rewriter.getI64Type();
     for (int32_t i = 0, dim = rangeTy.getDimension(); i < dim; ++i) {
       const auto lhs =
           GetMemberPattern<NDRangeGetGlobalRange, RangeGetDim>::loadValue(
-              rewriter, loc, ptrTy, nd, i);
+              rewriter, loc, i64Ty, nd, i);
       const auto rhs =
           GetMemberPattern<NDRangeGetLocalRange, RangeGetDim>::loadValue(
-              rewriter, loc, ptrTy, nd, i);
+              rewriter, loc, i64Ty, nd, i);
       const Value val = rewriter.create<arith::DivUIOp>(loc, lhs, rhs);
-      const auto ptr = GetMemberPattern<RangeGetDim>::getRef(rewriter, loc,
-                                                             ptrTy, alloca, i);
+      const auto ptr = GetMemberPattern<RangeGetDim>::getRef(
+          rewriter, loc, i64Ty, alloca, std::nullopt, i);
       rewriter.create<LLVM::StoreOp>(loc, val, ptr);
     }
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
@@ -1442,10 +1474,10 @@ class ItemGetLinearIDPattern
       public GetMemberPattern<ItemGetID, IDGetDim>,
       public GetMemberPattern<ItemGetRange, RangeGetDim> {
 protected:
-  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getRange(OpBuilder &builder, Location loc, Type ty, Value thisArg,
                  int32_t index) const final {
     return GetMemberPattern<ItemGetRange, RangeGetDim>::loadValue(
-        builder, loc, ptrTy, thisArg, index);
+        builder, loc, ty, thisArg, index);
   }
 
 public:
@@ -1465,9 +1497,9 @@ public:
                         .getWithOffset());
   }
 
-  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getID(OpBuilder &builder, Location loc, Type ty, Value thisArg,
               int32_t index) const final {
-    return GetMemberPattern<ItemGetID, IDGetDim>::loadValue(builder, loc, ptrTy,
+    return GetMemberPattern<ItemGetID, IDGetDim>::loadValue(builder, loc, ty,
                                                             thisArg, index);
   }
 };
@@ -1477,12 +1509,12 @@ class ItemOffsetGetLinearIDPattern
     : public ItemGetLinearIDPattern,
       public GetMemberPattern<ItemGetOffset, IDGetDim> {
 protected:
-  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getID(OpBuilder &builder, Location loc, Type ty, Value thisArg,
               int32_t index) const final {
     const auto id = GetMemberPattern<ItemGetID, IDGetDim>::loadValue(
-        builder, loc, ptrTy, thisArg, index);
+        builder, loc, ty, thisArg, index);
     const auto offset = GetMemberPattern<ItemGetOffset, IDGetDim>::loadValue(
-        builder, loc, ptrTy, thisArg, index);
+        builder, loc, ty, thisArg, index);
     return builder.create<arith::SubIOp>(loc, id, offset);
   }
 
@@ -1538,17 +1570,17 @@ class NDItemGetGlobalLinearIDPattern
       public GetMemberPattern<NDItemGlobalItem, ItemGetID, IDGetDim>,
       public GetMemberPattern<NDItemGlobalItem, ItemGetRange, RangeGetDim> {
 protected:
-  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getRange(OpBuilder &builder, Location loc, Type ty, Value thisArg,
                  int32_t index) const final {
     return GetMemberPattern<NDItemGlobalItem, ItemGetRange,
-                            RangeGetDim>::loadValue(builder, loc, ptrTy,
-                                                    thisArg, index);
+                            RangeGetDim>::loadValue(builder, loc, ty, thisArg,
+                                                    index);
   }
 
-  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getID(OpBuilder &builder, Location loc, Type ty, Value thisArg,
               int32_t index) const final {
     return GetMemberPattern<NDItemGlobalItem, ItemGetID, IDGetDim>::loadValue(
-        builder, loc, ptrTy, thisArg, index);
+        builder, loc, ty, thisArg, index);
   }
 
 public:
@@ -1595,17 +1627,17 @@ class NDItemGetLocalLinearIDPattern
       public GetMemberPattern<NDItemLocalItem, ItemGetID, IDGetDim>,
       public GetMemberPattern<NDItemLocalItem, ItemGetRange, RangeGetDim> {
 protected:
-  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getRange(OpBuilder &builder, Location loc, Type ty, Value thisArg,
                  int32_t index) const final {
     return GetMemberPattern<NDItemLocalItem, ItemGetRange,
-                            RangeGetDim>::loadValue(builder, loc, ptrTy,
-                                                    thisArg, index);
+                            RangeGetDim>::loadValue(builder, loc, ty, thisArg,
+                                                    index);
   }
 
-  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getID(OpBuilder &builder, Location loc, Type ty, Value thisArg,
               int32_t index) const final {
     return GetMemberPattern<NDItemLocalItem, ItemGetID, IDGetDim>::loadValue(
-        builder, loc, ptrTy, thisArg, index);
+        builder, loc, ty, thisArg, index);
   }
 
 public:
@@ -1728,29 +1760,27 @@ public:
         loc, LLVM::LLVMPointerType::get(ndrTy), ndrTy,
         rewriter.create<arith::ConstantIntOp>(loc, 1, 32));
 
-    const auto rangePtrTy = LLVM::LLVMPointerType::get(
-        ndrTy.cast<LLVM::LLVMStructType>().getBody()[0]);
-    const auto idPtrTy = LLVM::LLVMPointerType::get(
-        ndrTy.cast<LLVM::LLVMStructType>().getBody()[2]);
+    const auto rangeTy = ndrTy.cast<LLVM::LLVMStructType>().getBody()[0];
+    const auto idTy = ndrTy.cast<LLVM::LLVMStructType>().getBody()[2];
 
     rewriter.create<LLVM::StoreOp>(
         loc,
         GetMemberPattern<NDItemGlobalItem, ItemGetRange>::loadValue(
-            rewriter, loc, rangePtrTy, ndItem),
-        GetMemberPattern<NDRangeGetGlobalRange>::getRef(rewriter, loc,
-                                                        rangePtrTy, alloca));
+            rewriter, loc, rangeTy, ndItem),
+        GetMemberPattern<NDRangeGetGlobalRange>::getRef(rewriter, loc, rangeTy,
+                                                        alloca, std::nullopt));
     rewriter.create<LLVM::StoreOp>(
         loc,
         GetMemberPattern<NDItemLocalItem, ItemGetRange>::loadValue(
-            rewriter, loc, rangePtrTy, ndItem),
-        GetMemberPattern<NDRangeGetLocalRange>::getRef(rewriter, loc,
-                                                       rangePtrTy, alloca));
+            rewriter, loc, rangeTy, ndItem),
+        GetMemberPattern<NDRangeGetLocalRange>::getRef(rewriter, loc, rangeTy,
+                                                       alloca, std::nullopt));
     rewriter.create<LLVM::StoreOp>(
         loc,
         GetMemberPattern<NDItemGlobalItem, ItemGetOffset>::loadValue(
-            rewriter, loc, idPtrTy, ndItem),
-        GetMemberPattern<NDRangeGetOffset>::getRef(rewriter, loc, idPtrTy,
-                                                   alloca));
+            rewriter, loc, idTy, ndItem),
+        GetMemberPattern<NDRangeGetOffset>::getRef(rewriter, loc, idTy, alloca,
+                                                   std::nullopt));
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
     return success();
   }
@@ -1892,16 +1922,16 @@ class GroupGetGroupLinearIDPattern
       public GetMemberPattern<GroupGetID, IDGetDim>,
       public GetMemberPattern<GroupGetGroupRange, IDGetDim> {
 protected:
-  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getID(OpBuilder &builder, Location loc, Type ty, Value thisArg,
               int32_t index) const final {
-    return GetMemberPattern<GroupGetID, IDGetDim>::loadValue(
-        builder, loc, ptrTy, thisArg, index);
+    return GetMemberPattern<GroupGetID, IDGetDim>::loadValue(builder, loc, ty,
+                                                             thisArg, index);
   }
 
-  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getRange(OpBuilder &builder, Location loc, Type ty, Value thisArg,
                  int32_t index) const final {
     return GetMemberPattern<GroupGetGroupRange, IDGetDim>::loadValue(
-        builder, loc, ptrTy, thisArg, index);
+        builder, loc, ty, thisArg, index);
   }
 
 public:
@@ -1916,19 +1946,18 @@ public:
 class GroupGetLocalLinearIDPattern
     : public GetLinearIDPattern<SYCLGroupGetLocalLinearIDOp>,
       public GetMemberPattern<GroupGetGroupRange, RangeGetDim> {
-  Value getID(OpBuilder &builder, Location loc, Type ptrTy, Value,
+  Value getID(OpBuilder &builder, Location loc, Type ty, Value,
               int32_t offset) const final {
     const Value dim = builder.create<arith::ConstantIntOp>(loc, offset, 32);
     const Value val =
         builder.create<SYCLLocalIDOp>(loc, builder.getIndexType(), dim);
-    return builder.create<arith::IndexCastUIOp>(
-        loc, ptrTy.cast<LLVM::LLVMPointerType>().getElementType(), val);
+    return builder.create<arith::IndexCastUIOp>(loc, ty, val);
   }
 
-  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getRange(OpBuilder &builder, Location loc, Type ty, Value thisArg,
                  int32_t offset) const final {
     return GetMemberPattern<GroupGetGroupRange, RangeGetDim>::loadValue(
-        builder, loc, ptrTy, thisArg, offset);
+        builder, loc, ty, thisArg, offset);
   }
 
 public:
@@ -1949,10 +1978,10 @@ public:
       SYCLGroupGetGroupLinearRangeOp>::GetRangeSizePattern;
 
 protected:
-  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getRange(OpBuilder &builder, Location loc, Type ty, Value thisArg,
                  int32_t index) const final {
     return GetMemberPattern<GroupGetGroupRange, RangeGetDim>::loadValue(
-        builder, loc, ptrTy, thisArg, index);
+        builder, loc, ty, thisArg, index);
   }
 };
 
@@ -1970,10 +1999,10 @@ public:
       SYCLGroupGetLocalLinearRangeOp>::GetRangeSizePattern;
 
 protected:
-  Value getRange(OpBuilder &builder, Location loc, Type ptrTy, Value thisArg,
+  Value getRange(OpBuilder &builder, Location loc, Type ty, Value thisArg,
                  int32_t index) const final {
     return GetMemberPattern<GroupGetLocalRange, RangeGetDim>::loadValue(
-        builder, loc, ptrTy, thisArg, index);
+        builder, loc, ty, thisArg, index);
   }
 };
 
