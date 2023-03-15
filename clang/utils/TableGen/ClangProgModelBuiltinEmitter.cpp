@@ -378,7 +378,7 @@ void BuiltinNameEmitter::ExtractEnumTypes(std::vector<Record *> &Types,
   raw_string_ostream SS(Output);
 
   for (const auto *T : Types) {
-    if (TypesSeen.find(T->getValueAsString("Name")) == TypesSeen.end()) {
+    if (!TypesSeen.contains(T->getValueAsString("Name"))) {
       SS << "  TID_" + T->getValueAsString("Name") << ",\n";
       // Save the type names in the same order as their enum value. Note that
       // the Record can be a VectorType or something else, only the name is
@@ -535,7 +535,7 @@ void BuiltinNameEmitter::GetOverloads() {
   std::vector<Record *> Builtins = Records.getAllDerivedDefinitions("Builtin");
   for (const auto *B : Builtins) {
     StringRef BName = B->getValueAsString("Name");
-    if (FctOverloadMap.find(BName) == FctOverloadMap.end()) {
+    if (!FctOverloadMap.contains(BName)) {
       FctOverloadMap.insert(std::make_pair(
           BName, std::vector<std::pair<const Record *, unsigned>>{}));
     }
@@ -948,10 +948,10 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
 
   for (const auto *T : Types) {
     // Check this is not an image type
-    if (ImageTypesMap.find(T->getValueAsString("Name")) != ImageTypesMap.end())
+    if (ImageTypesMap.contains(T->getValueAsString("Name")))
       continue;
     // Check we have not seen this Type
-    if (TypesSeen.find(T->getValueAsString("Name")) != TypesSeen.end())
+    if (TypesSeen.contains(T->getValueAsString("Name")))
       continue;
     TypesSeen.insert(std::make_pair(T->getValueAsString("Name"), true));
 
@@ -1142,7 +1142,7 @@ void OpenCLBuiltinFileEmitterBase::expandTypesInSignature(
         // the full type name to the extension.
         StringRef Ext =
             Type->getValueAsDef("Extension")->getValueAsString("ExtName");
-        if (!Ext.empty() && TypeExtMap.find(FullType) == TypeExtMap.end()) {
+        if (!Ext.empty() && !TypeExtMap.contains(FullType)) {
           TypeExtMap.insert({FullType, Ext});
         }
       }

@@ -352,6 +352,13 @@ fir::FirOpBuilder::convertWithSemantics(mlir::Location loc, mlir::Type toTy,
             "element types expected to match"));
     return create<fir::BoxAddrOp>(loc, toTy, val);
   }
+  if (fir::isa_ref_type(fromTy) && toTy.isa<fir::BoxProcType>()) {
+    // Call is expecting a boxed procedure, not a reference to other data type.
+    // Convert the reference to a procedure and embox it.
+    mlir::Type procTy = toTy.cast<fir::BoxProcType>().getEleTy();
+    mlir::Value proc = createConvert(loc, procTy, val);
+    return create<fir::EmboxProcOp>(loc, toTy, proc);
+  }
 
   if ((fir::isPolymorphicType(fromTy) &&
        (fir::isAllocatableType(fromTy) || fir::isPointerType(fromTy)) &&
@@ -509,6 +516,9 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
         << itemAddr.getType();
     llvm_unreachable("not a memory reference type");
   }
+  if (itemAddr.getType().isa<fir::ReferenceType>() &&
+      elementType.isa<fir::BaseBoxType>())
+    return create<fir::LoadOp>(loc, fir::getBase(exv));
   mlir::Type boxTy = fir::BoxType::get(elementType);
   mlir::Value tdesc;
   if (isPolymorphic) {
