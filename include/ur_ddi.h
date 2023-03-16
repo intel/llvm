@@ -1200,7 +1200,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetQueueProcAddrTable_t)(
 /// @brief Function-pointer for urUSMHostAlloc
 typedef ur_result_t(UR_APICALL *ur_pfnUSMHostAlloc_t)(
     ur_context_handle_t,
-    ur_usm_desc_t *,
+    const ur_usm_desc_t *,
     ur_usm_pool_handle_t,
     size_t,
     void **);
@@ -1210,7 +1210,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMHostAlloc_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnUSMDeviceAlloc_t)(
     ur_context_handle_t,
     ur_device_handle_t,
-    ur_usm_desc_t *,
+    const ur_usm_desc_t *,
     ur_usm_pool_handle_t,
     size_t,
     void **);
@@ -1220,7 +1220,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMDeviceAlloc_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnUSMSharedAlloc_t)(
     ur_context_handle_t,
     ur_device_handle_t,
-    const ur_usm_desc_t *,
     const ur_usm_desc_t *,
     ur_usm_pool_handle_t,
     size_t,

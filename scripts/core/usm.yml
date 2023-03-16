@@ -20,18 +20,30 @@ etors:
       desc: "Allocation should be cached"
     - name: BIAS_UNCACHED
       value: "$X_BIT(1)"
-      desc: "Allocation should not be cached"
-    - name: WRITE_COMBINED
-      value: "$X_BIT(2)"
-      desc: "Memory should be allocated write-combined (WC)"
-    - name: INITIAL_PLACEMENT_DEVICE
-      value: "$X_BIT(3)"
-      desc: "Optimize shared allocation for first access on the device"
-    - name: INITIAL_PLACEMENT_HOST
-      value: "$X_BIT(4)"
+      desc: "Allocation should not be cached"  
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "USM host memory property flags"
+class: $xUSM
+name: $x_usm_host_mem_flags_t
+etors:
+    - name: INITIAL_PLACEMENT
+      value: "$X_BIT(0)"
       desc: "Optimize shared allocation for first access on the host"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "USM device memory property flags"
+class: $xUSM
+name: $x_usm_device_mem_flags_t
+etors:
+    - name: WRITE_COMBINED
+      value: "$X_BIT(0)"
+      desc: "Memory should be allocated write-combined (WC)"
+    - name: INITIAL_PLACEMENT
+      value: "$X_BIT(1)"
+      desc: "Optimize shared allocation for first access on the device"
     - name: DEVICE_READ_ONLY
-      value: "$X_BIT(5)"
+      value: "$X_BIT(2)"
       desc: "Memory is only possibly modified from the host, but read-only in all device code"
 --- #--------------------------------------------------------------------------
 type: enum
@@ -103,14 +115,14 @@ class: $xUSM
 name: "$x_usm_pool_handle_t"
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "USM allocation descriptor type"
+desc: "USM allocation descriptor type."
 class: $xUSM
 name: $x_usm_desc_t
 base: $x_base_desc_t
 members:
     - type: $x_usm_flags_t
-      name:  flags
-      desc: "[in] Memory allocation flags"
+      name: flags
+      desc: "[in] memory allocation flags."
     - type: $x_mem_advice_t
       name: hints
       desc: "[in] Memory advice hints"
@@ -120,6 +132,27 @@ members:
             [in] alignment of the USM memory object
             Must be zero or a power of 2.
             Must be equal to or smaller than the size of the largest data type supported by `hDevice`.
+      desc: "[in] memory advice hints."
+--- #--------------------------------------------------------------------------
+type: struct 
+desc: "USM host allocation descriptor type."
+class: $xUSM
+name: $x_usm_host_desc_t
+base: $x_base_desc_t
+members:
+    - type: $x_usm_host_mem_flags_t
+      name: flags
+      desc: "[in] host memory allocation flags"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "USM device allocation descriptor type."
+class: $xUSM
+name: $x_usm_device_desc_t
+base: $x_base_desc_t
+members:
+    - type: $x_usm_device_mem_flags_t
+      name: flags
+      desc: "[in] device memory allocation flags."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "USM pool descriptor type"
@@ -165,7 +198,7 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
-    - type: $x_usm_desc_t*
+    - type: const $x_usm_desc_t*
       name: pUSMDesc
       desc: "[in][optional] USM memory allocation descriptor"
     - type: $x_usm_pool_handle_t
@@ -208,7 +241,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_usm_desc_t*
+    - type: const $x_usm_desc_t*
       name: pUSMDesc
       desc: "[in][optional] USM memory allocation descriptor"
     - type: $x_usm_pool_handle_t
@@ -252,11 +285,8 @@ params:
       name: hDevice
       desc: "[in] handle of the device object"
     - type: const $x_usm_desc_t*
-      name: pUSMDeviceDesc
-      desc: "[in][optional] Pointer to device USM memory allocation descriptor"
-    - type: const $x_usm_desc_t*
-      name: pUSMHostDesc
-      desc: "[in][optional] Pointer to host USM memory allocation descriptor."
+      name: pUSMDesc
+      desc: "[in][optional] Pointer to USM memory allocation descriptor."
     - type: $x_usm_pool_handle_t
       name: pool
       desc: "[in][optional] Pointer to a pool created using urUSMPoolCreate"
