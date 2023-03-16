@@ -567,7 +567,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     while (AIt != AEnd) {
       auto Aspect = static_cast<aspect>(*AIt);
       // Strict check for fp64 is disabled temporarily to avoid confusion.
-      if (Aspect != aspect::fp64 && !Dev->has(Aspect))
+      if (!Dev->has(Aspect))
         throw sycl::exception(errc::kernel_not_supported,
                               "Required aspect " + getAspectNameStr(Aspect) +
                                   " is not supported on the device");
@@ -2309,7 +2309,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
     while (!Aspects.empty()) {
       aspect Aspect = Aspects.consume<aspect>();
       // Strict check for fp64 is disabled temporarily to avoid confusion.
-      if (Aspect != aspect::fp64 && !Dev.has(Aspect))
+      if (!Dev.has(Aspect))
         return false;
     }
   }
