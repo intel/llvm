@@ -144,6 +144,11 @@ bool setEnvVar(const char *name, const char *value);
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
 
+struct _ur_platform_handle_t;
+using ur_platform_handle_t = _ur_platform_handle_t *;
+struct _ur_device_handle_t;
+using ur_device_handle_t = _ur_device_handle_t *;
+
 struct _ur_platform_handle_t : public _ur_platform {
   _ur_platform_handle_t(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
   // Performs initialization of a newly constructed PI platform.
@@ -164,9 +169,147 @@ struct _ur_platform_handle_t : public _ur_platform {
   // Flags to tell whether various Level Zero platform extensions are available.
   bool ZeDriverGlobalOffsetExtensionFound{false};
   bool ZeDriverModuleProgramExtensionFound{false};
+
+  // Cache UR devices for reuse
+  std::vector<std::unique_ptr<_zer_device_handle_t>> PiDevicesCache;
+  pi_shared_mutex PiDevicesCacheMutex;
+  bool DeviceCachePopulated = false;
+
+  // Check the device cache and load it if necessary.
+  zer_result_t populateDeviceCacheIfNeeded();
+
+  // Return the PI device from cache that represents given native device.
+  // If not found, then nullptr is returned.
+  zer_device_handle_t getDeviceFromNativeHandle(ze_device_handle_t);
 };
 
-using ur_platform_handle_t = _ur_platform_handle_t *;
+struct _ur_device_handle_t : _pi_object {
+  _ur_device_handle_t(ze_device_handle_t Device, zer_platform_handle_t Plt,
+                      zer_device_handle_t ParentDevice = nullptr)
+      : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
+        ImmCommandListsPreferred{false}, ZeDeviceProperties{},
+        ZeDeviceComputeProperties{} {
+    // NOTE: one must additionally call initialize() to complete
+    // UR device creation.
+  }
+
+  // The helper structure that keeps info about a command queue groups of the
+  // device. It is not changed after it is initialized.
+  struct queue_group_info_t {
+    enum type {
+      MainCopy,
+      LinkCopy,
+      Compute,
+      Size // must be last
+    };
+
+    // Keep the ordinal of the commands group as returned by
+    // zeDeviceGetCommandQueueGroupProperties. A value of "-1" means that
+    // there is no such queue group available in the Level Zero runtime.
+    int32_t ZeOrdinal{-1};
+
+    // Keep the index of the specific queue in this queue group where
+    // all the command enqueues of the corresponding type should go to.
+    // The value of "-1" means that no hard binding is defined and
+    // implementation can choose specific queue index on its own.
+    int32_t ZeIndex{-1};
+
+    // Keeps the queue group properties.
+    ZeStruct<ze_command_queue_group_properties_t> ZeProperties;
+  };
+
+  std::vector<queue_group_info_t> QueueGroup =
+      std::vector<queue_group_info_t>(queue_group_info_t::Size);
+
+  // This returns "true" if a main copy engine is available for use.
+  bool hasMainCopyEngine() const {
+    return QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal >= 0;
+  }
+
+  // This returns "true" if a link copy engine is available for use.
+  bool hasLinkCopyEngine() const {
+    return QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal >= 0;
+  }
+
+  // This returns "true" if a main or link copy engine is available for use.
+  bool hasCopyEngine() const {
+    return hasMainCopyEngine() || hasLinkCopyEngine();
+  }
+
+  // Initialize the entire UR device.
+  // Optional param `SubSubDeviceOrdinal` `SubSubDeviceIndex` are the compute
+  // command queue ordinal and index respectively, used to initialize
+  // sub-sub-devices.
+  zer_result_t initialize(int SubSubDeviceOrdinal = -1,
+                          int SubSubDeviceIndex = -1);
+
+  // Level Zero device handle.
+  // This field is only set at _ur_device_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // _ur_device_handle_t.
+  const ze_device_handle_t ZeDevice;
+
+  // Keep the subdevices that are partitioned from this ur_device_handle_t for
+  // reuse The order of sub-devices in this vector is repeated from the
+  // ze_device_handle_t array that are returned from zeDeviceGetSubDevices()
+  // call, which will always return sub-devices in the fixed same order.
+  std::vector<zer_device_handle_t> SubDevices;
+
+  // PI platform to which this device belongs.
+  // This field is only set at _ur_device_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // _ur_device_handle_t.
+  zer_platform_handle_t Platform;
+
+  // Root-device of a sub-device, null if this is not a sub-device.
+  // This field is only set at _ur_device_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // _ur_device_handle_t.
+  const zer_device_handle_t RootDevice;
+
+  // Whether to use immediate commandlists for queues on this device.
+  // For some devices (e.g. PVC) immediate commandlists are preferred.
+  bool ImmCommandListsPreferred;
+
+  enum ImmCmdlistMode {
+    // Immediate commandlists are not used.
+    NotUsed,
+    // One set of compute and copy immediate commandlists per queue.
+    PerQueue,
+    // One set of compute and copy immediate commandlists per host thread that
+    // accesses the queue.
+    PerThreadPerQueue
+  };
+  // Return whether to use immediate commandlists for this device.
+  ImmCmdlistMode useImmediateCommandLists();
+
+  bool isSubDevice() { return RootDevice != nullptr; }
+
+  // Is this a Data Center GPU Max series (aka PVC).
+  bool isPVC() { return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0; }
+
+  // Does this device represent a single compute slice?
+  bool isCCS() const {
+    return QueueGroup[_ur_device_handle_t::queue_group_info_t::Compute]
+               .ZeIndex >= 0;
+  }
+
+  // Cache of the immutable device properties.
+  ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
+  ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;
+  ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
+  ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
+  ZeCache<std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
+                    std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>>
+      ZeDeviceMemoryProperties;
+  ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
+      ZeDeviceMemoryAccessProperties;
+  ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
+};
+
+// TODO: make it into a zer_device_handle_t class member
+const std::pair<int, int>
+getRangeOfAllowedCopyEngines(const zer_device_handle_t &Device);
 
 class ZeUSMImportExtension {
   // Pointers to functions that import/release host memory into USM

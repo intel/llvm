@@ -14,6 +14,7 @@ set( LLVM_LINK_COMPONENTS
   ScalarOpts
   Support
   SYCLLowerIR
+  TargetParser
   TransformUtils
   Vectorize
   )

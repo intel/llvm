@@ -28,8 +28,13 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
 
-STATISTIC(NumDeadStore,    "Number of dead stores eliminated");
+STATISTIC(NumDeadStore, "Number of dead stores eliminated");
 STATISTIC(NumGlobalCopies, "Number of allocas copied from constant global");
+
+static cl::opt<unsigned> MaxCopiedFromConstantUsers(
+    "instcombine-max-copied-from-constant-users", cl::init(128),
+    cl::desc("Maximum users to visit in copy from constant transform"),
+    cl::Hidden);
 
 /// isOnlyCopiedFromConstantMemory - Recursively walk the uses of a (derived)
 /// pointer to an alloca.  Ignore any reads of the pointer, return false if we
@@ -46,10 +51,18 @@ isOnlyCopiedFromConstantMemory(AAResults *AA, AllocaInst *V,
   // ahead and replace the value with the memory location, this lets the caller
   // quickly eliminate the markers.
 
-  SmallVector<PointerIntPair<Value *, 1, bool>, 35> ValuesToInspect;
-  ValuesToInspect.emplace_back(V, false);
-  while (!ValuesToInspect.empty()) {
-    const auto [Value, IsOffset] = ValuesToInspect.pop_back_val();
+  using ValueAndIsOffset = PointerIntPair<Value *, 1, bool>;
+  SmallVector<ValueAndIsOffset, 32> Worklist;
+  SmallPtrSet<ValueAndIsOffset, 32> Visited;
+  Worklist.emplace_back(V, false);
+  while (!Worklist.empty()) {
+    ValueAndIsOffset Elem = Worklist.pop_back_val();
+    if (!Visited.insert(Elem).second)
+      continue;
+    if (Visited.size() > MaxCopiedFromConstantUsers)
+      return false;
+
+    const auto [Value, IsOffset] = Elem;
     for (auto &U : Value->uses()) {
       auto *I = cast<Instruction>(U.getUser());
 
@@ -59,15 +72,22 @@ isOnlyCopiedFromConstantMemory(AAResults *AA, AllocaInst *V,
         continue;
       }
 
+      if (isa<PHINode>(I)) {
+        // We set IsOffset=true, to forbid the memcpy from occurring after the
+        // phi: If one of the phi operands is not based on the alloca, we
+        // would incorrectly omit a write.
+        Worklist.emplace_back(I, true);
+        continue;
+      }
       if (isa<BitCastInst>(I) || isa<AddrSpaceCastInst>(I)) {
         // If uses of the bitcast are ok, we are ok.
-        ValuesToInspect.emplace_back(I, IsOffset);
+        Worklist.emplace_back(I, IsOffset);
         continue;
       }
       if (auto *GEP = dyn_cast<GetElementPtrInst>(I)) {
         // If the GEP has all zero indices, it doesn't offset the pointer. If it
         // doesn't, it does.
-        ValuesToInspect.emplace_back(I, IsOffset || !GEP->hasAllZeroIndices());
+        Worklist.emplace_back(I, IsOffset || !GEP->hasAllZeroIndices());
         continue;
       }
 
@@ -245,9 +265,11 @@ public:
   void replacePointer(Instruction &I, Value *V);
 
 private:
+  bool collectUsersRecursive(Instruction &I);
   void replace(Instruction *I);
   Value *getReplacement(Value *I);
 
+  SmallPtrSet<Instruction *, 32> ValuesToRevisit;
   SmallSetVector<Instruction *, 4> Worklist;
   MapVector<Value *, Value *> WorkMap;
   InstCombinerImpl &IC;
@@ -255,15 +277,47 @@ private:
 } // end anonymous namespace
 
 bool PointerReplacer::collectUsers(Instruction &I) {
+  if (!collectUsersRecursive(I))
+    return false;
+
+  // Ensure that all outstanding (indirect) users of I
+  // are inserted into the Worklist. Return false
+  // otherwise.
+  for (auto *Inst : ValuesToRevisit)
+    if (!Worklist.contains(Inst))
+      return false;
+  return true;
+}
+
+bool PointerReplacer::collectUsersRecursive(Instruction &I) {
   for (auto *U : I.users()) {
     auto *Inst = cast<Instruction>(&*U);
     if (auto *Load = dyn_cast<LoadInst>(Inst)) {
       if (Load->isVolatile())
         return false;
       Worklist.insert(Load);
-    } else if (isa<GetElementPtrInst>(Inst) || isa<BitCastInst>(Inst)) {
+    } else if (auto *PHI = dyn_cast<PHINode>(Inst)) {
+      // All incoming values must be instructions for replacability
+      if (any_of(PHI->incoming_values(),
+                 [](Value *V) { return !isa<Instruction>(V); }))
+        return false;
+
+      // If at least one incoming value of the PHI is not in Worklist,
+      // store the PHI for revisiting and skip this iteration of the
+      // loop.
+      if (any_of(PHI->incoming_values(), [this](Value *V) {
+            return !Worklist.contains(cast<Instruction>(V));
+          })) {
+        ValuesToRevisit.insert(Inst);
+        continue;
+      }
+
+      Worklist.insert(PHI);
+      if (!collectUsersRecursive(*PHI))
+        return false;
+    } else if (isa<GetElementPtrInst, BitCastInst>(Inst)) {
       Worklist.insert(Inst);
-      if (!collectUsers(*Inst))
+      if (!collectUsersRecursive(*Inst))
         return false;
     } else if (auto *MI = dyn_cast<MemTransferInst>(Inst)) {
       if (MI->isVolatile())
@@ -298,6 +352,14 @@ void PointerReplacer::replace(Instruction *I) {
     IC.InsertNewInstWith(NewI, *LT);
     IC.replaceInstUsesWith(*LT, NewI);
     WorkMap[LT] = NewI;
+  } else if (auto *PHI = dyn_cast<PHINode>(I)) {
+    Type *NewTy = getReplacement(PHI->getIncomingValue(0))->getType();
+    auto *NewPHI = PHINode::Create(NewTy, PHI->getNumIncomingValues(),
+                                   PHI->getName(), PHI);
+    for (unsigned int I = 0; I < PHI->getNumIncomingValues(); ++I)
+      NewPHI->addIncoming(getReplacement(PHI->getIncomingValue(I)),
+                          PHI->getIncomingBlock(I));
+    WorkMap[PHI] = NewPHI;
   } else if (auto *GEP = dyn_cast<GetElementPtrInst>(I)) {
     auto *V = getReplacement(GEP->getPointerOperand());
     assert(V && "Operand not replaced");
@@ -364,7 +426,7 @@ Instruction *InstCombinerImpl::visitAllocaInst(AllocaInst &AI) {
     // Move all alloca's of zero byte objects to the entry block and merge them
     // together.  Note that we only do this for alloca's, because malloc should
     // allocate and return a unique pointer, even for a zero byte allocation.
-    if (DL.getTypeAllocSize(AI.getAllocatedType()).getKnownMinSize() == 0) {
+    if (DL.getTypeAllocSize(AI.getAllocatedType()).getKnownMinValue() == 0) {
       // For a zero sized alloca there is no point in doing an array allocation.
       // This is helpful if the array size is a complicated expression not used
       // elsewhere.
@@ -382,7 +444,7 @@ Instruction *InstCombinerImpl::visitAllocaInst(AllocaInst &AI) {
         AllocaInst *EntryAI = dyn_cast<AllocaInst>(FirstInst);
         if (!EntryAI || !EntryAI->getAllocatedType()->isSized() ||
             DL.getTypeAllocSize(EntryAI->getAllocatedType())
-                    .getKnownMinSize() != 0) {
+                    .getKnownMinValue() != 0) {
           AI.moveBefore(FirstInst);
           return &AI;
         }
@@ -666,7 +728,7 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
         Zero,
         ConstantInt::get(IdxType, i),
       };
-      auto *Ptr = IC.Builder.CreateInBoundsGEP(ST, Addr, makeArrayRef(Indices),
+      auto *Ptr = IC.Builder.CreateInBoundsGEP(ST, Addr, ArrayRef(Indices),
                                                Name + ".elt");
       auto *L = IC.Builder.CreateAlignedLoad(
           ST->getElementType(i), Ptr,
@@ -712,7 +774,7 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
         Zero,
         ConstantInt::get(IdxType, i),
       };
-      auto *Ptr = IC.Builder.CreateInBoundsGEP(AT, Addr, makeArrayRef(Indices),
+      auto *Ptr = IC.Builder.CreateInBoundsGEP(AT, Addr, ArrayRef(Indices),
                                                Name + ".elt");
       auto *L = IC.Builder.CreateAlignedLoad(AT->getElementType(), Ptr,
                                              commonAlignment(Align, Offset),
@@ -780,7 +842,7 @@ static bool isObjectSizeLessThanOrEq(Value *V, uint64_t MaxSize,
         return false;
       // Make sure that, even if the multiplication below would wrap as an
       // uint64_t, we still do the right thing.
-      if ((CS->getValue().zext(128) * APInt(128, TS.getFixedSize()))
+      if ((CS->getValue().zext(128) * APInt(128, TS.getFixedValue()))
               .ugt(MaxSize))
         return false;
       continue;
@@ -858,7 +920,7 @@ static bool canReplaceGEPIdxWithZero(InstCombinerImpl &IC,
   if (!AllocTy || !AllocTy->isSized())
     return false;
   const DataLayout &DL = IC.getDataLayout();
-  uint64_t TyAllocSize = DL.getTypeAllocSize(AllocTy).getFixedSize();
+  uint64_t TyAllocSize = DL.getTypeAllocSize(AllocTy).getFixedValue();
 
   // If there are more indices after the one we might replace with a zero, make
   // sure they're all non-negative. If any of them are negative, the overall
@@ -1192,8 +1254,8 @@ static bool unpackStoreToAggregate(InstCombinerImpl &IC, StoreInst &SI) {
         Zero,
         ConstantInt::get(IdxType, i),
       };
-      auto *Ptr = IC.Builder.CreateInBoundsGEP(ST, Addr, makeArrayRef(Indices),
-                                               AddrName);
+      auto *Ptr =
+          IC.Builder.CreateInBoundsGEP(ST, Addr, ArrayRef(Indices), AddrName);
       auto *Val = IC.Builder.CreateExtractValue(V, i, EltName);
       auto EltAlign = commonAlignment(Align, SL->getElementOffset(i));
       llvm::Instruction *NS = IC.Builder.CreateAlignedStore(Val, Ptr, EltAlign);
@@ -1238,8 +1300,8 @@ static bool unpackStoreToAggregate(InstCombinerImpl &IC, StoreInst &SI) {
         Zero,
         ConstantInt::get(IdxType, i),
       };
-      auto *Ptr = IC.Builder.CreateInBoundsGEP(AT, Addr, makeArrayRef(Indices),
-                                               AddrName);
+      auto *Ptr =
+          IC.Builder.CreateInBoundsGEP(AT, Addr, ArrayRef(Indices), AddrName);
       auto *Val = IC.Builder.CreateExtractValue(V, i, EltName);
       auto EltAlign = commonAlignment(Align, Offset);
       Instruction *NS = IC.Builder.CreateAlignedStore(Val, Ptr, EltAlign);

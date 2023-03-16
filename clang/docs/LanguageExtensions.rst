@@ -639,8 +639,11 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
                                              rounding halfway cases to even (that is, to the nearest value
                                              that is an even integer), regardless of the current rounding
                                              direction.
- T__builtin_elementwise_trunc(T x)           return the integral value nearest to but no larger in            floating point types
+ T __builtin_elementwise_trunc(T x)          return the integral value nearest to but no larger in            floating point types
                                              magnitude than x
+ T __builtin_elementwise_canonicalize(T x)   return the platform specific canonical encoding                  floating point types
+                                             of a floating-point number
+ T __builtin_elementwise_copysign(T x, T y)  return the magnitude of x with the sign of y.                    floating point types
  T __builtin_elementwise_max(T x, T y)       return x or y, whichever is larger                               integer and floating point types
  T __builtin_elementwise_min(T x, T y)       return x or y, whichever is smaller                              integer and floating point types
  T __builtin_elementwise_add_sat(T x, T y)   return the sum of x and y, clamped to the range of               integer types
@@ -2356,6 +2359,50 @@ during execution, the behavior is undefined. The argument itself is never
 evaluated, so any side effects of the expression will be discarded.
 
 Query for this feature with ``__has_builtin(__builtin_assume)``.
+
+``__builtin_offsetof``
+----------------------
+
+``__builtin_offsetof`` is used to implement the ``offsetof`` macro, which
+calculates the offset (in bytes) to a given member of the given type.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    __builtin_offsetof(type-name, member-designator)
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  struct S {
+    char c;
+    int i;
+    struct T {
+      float f[2];
+    } t;
+  };
+
+  const int offset_to_i = __builtin_offsetof(struct S, i);
+  const int ext1 = __builtin_offsetof(struct U { int i; }, i); // C extension
+  const int ext2 = __builtin_offsetof(struct S, t.f[1]); // C & C++ extension
+
+**Description**:
+
+This builtin is usable in an integer constant expression which returns a value
+of type ``size_t``. The value returned is the offset in bytes to the subobject
+designated by the member-designator from the beginning of an object of type
+``type-name``. Clang extends the required standard functionality in a few ways:
+
+* In C language modes, the first argument may be the definition of a new type.
+  Any type declared this way is scoped to the nearest scope containing the call
+  to the builtin.
+* The second argument may be a member-designator designated by a series of
+  member access expressions using the dot (``.``) operator or array subscript
+  expressions.
+
+Query for this feature with ``__has_builtin(__builtin_offsetof)``.
 
 ``__builtin_call_with_static_chain``
 ------------------------------------
@@ -4224,7 +4271,7 @@ these values is same as for `constrained floating point intrinsics <http://llvm.
     #pragma clang fp exceptions(strict)
     z = x + y;
     if (fetestexcept(FE_OVERFLOW))
-	  ...
+      ...
   }
 
 A ``#pragma clang fp`` pragma may contain any number of options:

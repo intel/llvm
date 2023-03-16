@@ -154,7 +154,7 @@ private:
   DebugInfoFinder DIF;
   SPIRVType *VoidT;
   SPIRVEntry *DebugInfoNone;
-  SPIRVExtInst *SPIRVCU;
+  SPIRVExtInst *SPIRVCU = nullptr;
   std::vector<const DbgVariableIntrinsic *> DbgDeclareIntrinsics;
   std::vector<const DbgVariableIntrinsic *> DbgValueIntrinsics;
 }; // class LLVMToSPIRVDbgTran

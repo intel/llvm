@@ -37,7 +37,7 @@
 ; NOENABLESPLITFLAG-DAG: typeidCompatibleVTable: (name: "_ZTS1D", summary: ((offset: 16, [[D]])))
 
 ; Index based WPD
-; RUN: llvm-lto2 run %t3.o %t4.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run -lto-opaque-pointers %t3.o %t4.o -save-temps -pass-remarks=. \
 ; RUN:   -opaque-pointers \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -wholeprogramdevirt-print-index-based \
@@ -72,7 +72,7 @@
 ; NM-INDEX2-DAG: t _ZN1C1fEi
 
 ; Index based WPD, distributed backends
-; RUN: llvm-lto2 run %t3.o %t4.o -save-temps \
+; RUN: llvm-lto2 run -lto-opaque-pointers %t3.o %t4.o -save-temps \
 ; RUN:   -opaque-pointers \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -thinlto-distributed-indexes -wholeprogramdevirt-print-index-based \
@@ -97,7 +97,7 @@
 ; PRINT-DAG: Devirtualized call to {{.*}} (_ZN1D1mEi)
 
 ; New PM
-; RUN: llvm-lto2 run %t1.o %t2.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run -lto-opaque-pointers %t1.o %t2.o -save-temps -pass-remarks=. \
 ; RUN:   -opaque-pointers \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t5 \

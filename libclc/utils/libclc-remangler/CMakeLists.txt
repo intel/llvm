@@ -6,6 +6,7 @@ set(LLVM_LINK_COMPONENTS
   Demangle
   Support
   TransformUtils
+  IRReader
   )
 
 add_clang_tool(libclc-remangler LibclcRemangler.cpp)

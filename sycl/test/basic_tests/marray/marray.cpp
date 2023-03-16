@@ -12,6 +12,53 @@
 #include <sycl/sycl.hpp>
 using namespace sycl;
 
+#define CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, MARRAY_SIZE)               \
+  static_assert(std::is_same_v<sycl::marray<ELEM_TYPE, MARRAY_SIZE>,           \
+                               sycl::ALIAS_MTYPE##MARRAY_SIZE>);
+
+#define CHECK_ALIAS(ALIAS_MTYPE, ELEM_TYPE)                                    \
+  CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 2)                               \
+  CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 3)                               \
+  CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 4)                               \
+  CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 8)                               \
+  CHECK_ALIAS_BY_SIZE(ALIAS_MTYPE, ELEM_TYPE, 16)
+
+struct NotDefaultConstructible {
+  NotDefaultConstructible() = delete;
+  constexpr NotDefaultConstructible(int){};
+};
+
+template <typename DataT> void CheckConstexprVariadicCtors() {
+  constexpr DataT default_val{1};
+
+  constexpr sycl::marray<DataT, 5> marray_with_5_elements(
+      default_val, default_val, default_val, default_val, default_val);
+  constexpr sycl::marray<DataT, 3> marray_with_3_elements(
+      default_val, default_val, default_val);
+
+  constexpr sycl::marray<DataT, 6> m1(marray_with_5_elements, default_val);
+  constexpr sycl::marray<DataT, 6> m2(default_val, marray_with_5_elements);
+  constexpr sycl::marray<DataT, 7> m3(default_val, marray_with_5_elements,
+                                      default_val);
+  constexpr sycl::marray<DataT, 8> m4(marray_with_5_elements,
+                                      marray_with_3_elements);
+  constexpr sycl::marray<DataT, 9> m5(default_val, marray_with_5_elements,
+                                      marray_with_3_elements);
+  constexpr sycl::marray<DataT, 9> m6(marray_with_5_elements, default_val,
+                                      marray_with_3_elements);
+  constexpr sycl::marray<DataT, 9> m7(marray_with_5_elements,
+                                      marray_with_3_elements, default_val);
+  constexpr sycl::marray<DataT, 10> m8(default_val, marray_with_5_elements,
+                                       default_val, marray_with_3_elements);
+  constexpr sycl::marray<DataT, 10> m9(default_val, marray_with_5_elements,
+                                       marray_with_3_elements, default_val);
+  constexpr sycl::marray<DataT, 10> m10(marray_with_5_elements, default_val,
+                                        marray_with_3_elements, default_val);
+  constexpr sycl::marray<DataT, 11> m11(default_val, marray_with_5_elements,
+                                        default_val, marray_with_3_elements,
+                                        default_val);
+}
+
 int main() {
   // Constructing vector from a scalar
   sycl::marray<int, 1> marray_from_one_elem(1);
@@ -24,18 +71,22 @@ int main() {
   assert(static_cast<float>(b_marray[2]) == static_cast<float>(0.5));
   assert(static_cast<float>(b_marray[3]) == static_cast<float>(0.5));
 
-  // Check that [u]long[n] type aliases match marray<[unsigned] long, n> types.
-  assert((std::is_same<sycl::marray<long, 2>, sycl::mlong2>::value));
-  assert((std::is_same<sycl::marray<long, 3>, sycl::mlong3>::value));
-  assert((std::is_same<sycl::marray<long, 4>, sycl::mlong4>::value));
-  assert((std::is_same<sycl::marray<long, 8>, sycl::mlong8>::value));
-  assert((std::is_same<sycl::marray<long, 16>, sycl::mlong16>::value));
-  assert((std::is_same<sycl::marray<unsigned long, 2>, sycl::mulong2>::value));
-  assert((std::is_same<sycl::marray<unsigned long, 3>, sycl::mulong3>::value));
-  assert((std::is_same<sycl::marray<unsigned long, 4>, sycl::mulong4>::value));
-  assert((std::is_same<sycl::marray<unsigned long, 8>, sycl::mulong8>::value));
-  assert(
-      (std::is_same<sycl::marray<unsigned long, 16>, sycl::mulong16>::value));
+  // Check alias types.
+  CHECK_ALIAS(mbool, bool)
+  CHECK_ALIAS(mchar, std::int8_t)
+  CHECK_ALIAS(mschar, std::int8_t)
+  CHECK_ALIAS(muchar, std::uint8_t)
+  CHECK_ALIAS(mshort, std::int16_t)
+  CHECK_ALIAS(mushort, std::uint16_t)
+  CHECK_ALIAS(mint, std::int32_t)
+  CHECK_ALIAS(muint, std::uint32_t)
+  CHECK_ALIAS(mlong, std::int64_t)
+  CHECK_ALIAS(mulong, std::uint64_t)
+  CHECK_ALIAS(mlonglong, std::int64_t)
+  CHECK_ALIAS(mulonglong, std::uint64_t)
+  CHECK_ALIAS(mhalf, sycl::half)
+  CHECK_ALIAS(mfloat, float)
+  CHECK_ALIAS(mdouble, double)
 
   mint3 t000;
   mint3 t222{2};
@@ -99,6 +150,21 @@ int main() {
   constexpr sycl::marray<double, 5> mb(ma);
   constexpr sycl::marray<double, 5> mc = ma;
 
+  // check variadic ctor
+  CheckConstexprVariadicCtors<bool>();
+  CheckConstexprVariadicCtors<std::int8_t>();
+  CheckConstexprVariadicCtors<std::uint8_t>();
+  CheckConstexprVariadicCtors<std::int16_t>();
+  CheckConstexprVariadicCtors<std::uint16_t>();
+  CheckConstexprVariadicCtors<std::int32_t>();
+  CheckConstexprVariadicCtors<std::uint32_t>();
+  CheckConstexprVariadicCtors<std::int64_t>();
+  CheckConstexprVariadicCtors<std::uint64_t>();
+  CheckConstexprVariadicCtors<sycl::half>();
+  CheckConstexprVariadicCtors<float>();
+  CheckConstexprVariadicCtors<double>();
+  CheckConstexprVariadicCtors<NotDefaultConstructible>();
+
   // check trivially copyability
   struct Copyable {
     int a;
@@ -117,8 +183,6 @@ int main() {
                 "sycl::marray<std::tuple<>, 5> is not device copyable type");
   static_assert(!sycl::is_device_copyable<sycl::marray<std::string, 5>>::value,
                 "sycl::marray<std::string, 5> is device copyable type");
-
-  return 0;
 
   return 0;
 }

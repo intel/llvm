@@ -313,7 +313,8 @@ void TargetLowering::AdjustInstrPostInstrSelection(MachineInstr &MI,
 // SelectionDAGISel code
 //===----------------------------------------------------------------------===//
 
-SelectionDAGISel::SelectionDAGISel(TargetMachine &tm, CodeGenOpt::Level OL)
+SelectionDAGISel::SelectionDAGISel(char &ID, TargetMachine &tm,
+                                   CodeGenOpt::Level OL)
     : MachineFunctionPass(ID), TM(tm), FuncInfo(new FunctionLoweringInfo()),
       SwiftError(new SwiftErrorValueTracking()),
       CurDAG(new SelectionDAG(tm, OL)),
@@ -503,7 +504,7 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
       To = J->second;
     }
     // Make sure the new register has a sufficiently constrained register class.
-    if (Register::isVirtualRegister(From) && Register::isVirtualRegister(To))
+    if (From.isVirtual() && To.isVirtual())
       MRI.constrainRegClass(To, MRI.getRegClass(From));
     // Replace it.
 
@@ -550,10 +551,10 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
     MachineInstr *MI = FuncInfo->ArgDbgValues[e - i - 1];
     assert(MI->getOpcode() != TargetOpcode::DBG_VALUE_LIST &&
            "Function parameters should not be described by DBG_VALUE_LIST.");
-    bool hasFI = MI->getOperand(0).isFI();
+    bool hasFI = MI->getDebugOperand(0).isFI();
     Register Reg =
-        hasFI ? TRI.getFrameRegister(*MF) : MI->getOperand(0).getReg();
-    if (Register::isPhysicalRegister(Reg))
+        hasFI ? TRI.getFrameRegister(*MF) : MI->getDebugOperand(0).getReg();
+    if (Reg.isPhysical())
       EntryMBB->insert(EntryMBB->begin(), MI);
     else {
       MachineInstr *Def = RegInfo->getVRegDef(Reg);
@@ -582,7 +583,7 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
       DebugLoc DL = MI->getDebugLoc();
       bool IsIndirect = MI->isIndirectDebugValue();
       if (IsIndirect)
-        assert(MI->getOperand(1).getImm() == 0 &&
+        assert(MI->getDebugOffset().getImm() == 0 &&
                "DBG_VALUE with nonzero offset");
       assert(cast<DILocalVariable>(Variable)->isValidLocationForIntrinsic(DL) &&
              "Expected inlined-at fields to agree");
@@ -1351,7 +1352,7 @@ static void processDbgDeclares(FunctionLoweringInfo &FuncInfo) {
         if (!Address) {
           LLVM_DEBUG(dbgs() << "processDbgDeclares skipping " << *DI
                             << " (bad address)\n");
-          return;
+          continue;
         }
         processDbgDeclare(FuncInfo, Address, DI->getExpression(),
                           DI->getVariable(), DI->getDebugLoc());
@@ -2244,6 +2245,11 @@ void SelectionDAGISel::Select_ARITH_FENCE(SDNode *N) {
                        N->getOperand(0));
 }
 
+void SelectionDAGISel::Select_MEMBARRIER(SDNode *N) {
+  CurDAG->SelectNodeTo(N, TargetOpcode::MEMBARRIER, N->getValueType(0),
+                       N->getOperand(0));
+}
+
 void SelectionDAGISel::pushStackMapLiveVariable(SmallVectorImpl<SDValue> &Ops,
                                                 SDValue OpVal, SDLoc DL) {
   SDNode *OpNode = OpVal.getNode();
@@ -2338,7 +2344,7 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
   Ops.push_back(RegMask);
   Ops.push_back(Chain);
   if (Glue.has_value())
-    Ops.push_back(Glue.value());
+    Ops.push_back(*Glue);
 
   SDVTList NodeTys = N->getVTList();
   CurDAG->SelectNodeTo(N, TargetOpcode::PATCHPOINT, NodeTys, Ops);
@@ -2897,6 +2903,9 @@ void SelectionDAGISel::SelectCodeCommon(SDNode *NodeToMatch,
     return;
   case ISD::ARITH_FENCE:
     Select_ARITH_FENCE(NodeToMatch);
+    return;
+  case ISD::MEMBARRIER:
+    Select_MEMBARRIER(NodeToMatch);
     return;
   case ISD::STACKMAP:
     Select_STACKMAP(NodeToMatch);
@@ -3815,5 +3824,3 @@ void SelectionDAGISel::CannotYetSelect(SDNode *N) {
   }
   report_fatal_error(Twine(Msg.str()));
 }
-
-char SelectionDAGISel::ID = 0;

@@ -93,13 +93,7 @@ struct InlineEvent {
   int64_t Reward = 0;
 };
 
-/// Collect data we may use for training a model, and write it as a textual
-/// Tensorflow SequenceExample
-/// (https://www.tensorflow.org/api_docs/python/tf/train/SequenceExample)
-/// protobuf (https://developers.google.com/protocol-buffers).
-/// Because this is a protobuf, we cannot just stream the events as they come.
-/// Internally, TrainingLogger stores data in column-major format, because that
-/// lines up with how TF SequenceExample represents it.
+/// Collect data we may use for training a model.
 class TrainingLogger final {
 public:
   TrainingLogger(StringRef LogFileName, const ModelUnderTrainingRunner *MUTR);
@@ -169,7 +163,7 @@ public:
   std::unique_ptr<MLInlineAdvice>
   getAdviceFromModel(CallBase &CB, OptimizationRemarkEmitter &ORE) override;
 
-  Optional<size_t> getNativeSizeEstimate(const Function &F) const;
+  std::optional<size_t> getNativeSizeEstimate(const Function &F) const;
 
 private:
   bool isLogging() const { return !!Logger; }
@@ -179,8 +173,8 @@ private:
   const bool IsDoingInference;
   std::unique_ptr<TrainingLogger> Logger;
 
-  const Optional<int32_t> InitialNativeSize;
-  Optional<int32_t> CurrentNativeSize;
+  const std::optional<int32_t> InitialNativeSize;
+  std::optional<int32_t> CurrentNativeSize;
 };
 
 /// A variant of MLInlineAdvice that tracks all non-trivial inlining
@@ -190,8 +184,8 @@ public:
   LoggingMLInlineAdvice(DevelopmentModeMLInlineAdvisor *Advisor, CallBase &CB,
                         OptimizationRemarkEmitter &ORE, bool Recommendation,
                         TrainingLogger &Logger,
-                        Optional<size_t> CallerSizeEstimateBefore,
-                        Optional<size_t> CalleeSizeEstimateBefore,
+                        std::optional<size_t> CallerSizeEstimateBefore,
+                        std::optional<size_t> CalleeSizeEstimateBefore,
                         bool DefaultDecision, bool Mandatory = false)
       : MLInlineAdvice(Advisor, CB, ORE, Recommendation), Logger(Logger),
         CallerSizeEstimateBefore(CallerSizeEstimateBefore),
@@ -257,8 +251,8 @@ private:
 
   static const int64_t NoReward = 0;
   TrainingLogger &Logger;
-  const Optional<size_t> CallerSizeEstimateBefore;
-  const Optional<size_t> CalleeSizeEstimateBefore;
+  const std::optional<size_t> CallerSizeEstimateBefore;
+  const std::optional<size_t> CalleeSizeEstimateBefore;
   const int64_t DefaultDecision;
   const int64_t Mandatory;
 };
@@ -353,7 +347,7 @@ DevelopmentModeMLInlineAdvisor::~DevelopmentModeMLInlineAdvisor() {
     Logger->print();
 }
 
-Optional<size_t>
+std::optional<size_t>
 DevelopmentModeMLInlineAdvisor::getNativeSizeEstimate(const Function &F) const {
   if (!InlineSizeEstimatorAnalysis::isEvaluatorRequested())
     return std::nullopt;

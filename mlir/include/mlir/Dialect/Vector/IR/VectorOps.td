@@ -30,6 +30,7 @@ def Vector_Dialect : Dialect {
   let useDefaultAttributePrinterParser = 1;
   let hasConstantMaterializer = 1;
   let dependentDialects = ["arith::ArithDialect"];
+  let useFoldAPI = kEmitFoldAdaptorFolder;
 }
 
 // Base class for Vector dialect ops.
@@ -339,6 +340,7 @@ def Vector_MultiDimReductionOp :
      PredOpTrait<"source operand and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>,
      DeclareOpInterfaceMethods<InferTypeOpInterface>,
+     DeclareOpInterfaceMethods<MaskableOpInterface>,
      DeclareOpInterfaceMethods<VectorUnrollOpInterface,
                                ["getShapeForUnroll"]>]>,
     Arguments<(ins Vector_CombiningKindAttr:$kind,
@@ -450,13 +452,13 @@ def Vector_BroadcastOp :
     /// source tensor and thus correspond to "dim-1" broadcasting.
     llvm::SetVector<int64_t> computeBroadcastedUnitDims();
 
-    /// Broadcast `value` to a vector of `dstShape`, knowing that exactly the 
+    /// Broadcast `value` to a vector of `dstShape`, knowing that exactly the
     /// `broadcastedDims` dimensions in the dstShape are broadcasted.
-    /// This requires (and asserts) that the broadcast is free of dim-1 
+    /// This requires (and asserts) that the broadcast is free of dim-1
     /// broadcasting.
     /// Since vector.broadcast only allows expanding leading dimensions, an extra
     /// vector.transpose may be inserted to make the broadcast possible.
-    /// `value`, `dstShape` and `broadcastedDims` must be properly specified or 
+    /// `value`, `dstShape` and `broadcastedDims` must be properly specified or
     /// the helper will assert. This means:
     ///   1. `dstShape` must not be empty.
     ///   2. `broadcastedDims` must be confined to [0 .. rank(value.getVectorType)]
@@ -575,8 +577,6 @@ def Vector_ExtractElementOp :
   let builders = [
     // 0-D builder.
     OpBuilder<(ins "Value":$source)>,
-    // 1-D + position builder.
-    OpBuilder<(ins "Value":$source, "Value":$position)>,
   ];
   let extraClassDeclaration = [{
     VectorType getVectorType() {
@@ -630,10 +630,10 @@ def Vector_FMAOp :
        Pure, AllTypesMatch<["lhs", "rhs", "acc", "result"]>,
        DeclareOpInterfaceMethods<VectorUnrollOpInterface, ["getShapeForUnroll"]>
      ] # ElementwiseMappable.traits>,
-    Arguments<(ins AnyVectorOfAnyRank:$lhs,
-                   AnyVectorOfAnyRank:$rhs,
-                   AnyVectorOfAnyRank:$acc)>,
-    Results<(outs AnyVectorOfAnyRank:$result)> {
+    Arguments<(ins VectorOfAnyRankOf<[AnyFloat]>:$lhs,
+                   VectorOfAnyRankOf<[AnyFloat]>:$rhs,
+                   VectorOfAnyRankOf<[AnyFloat]>:$acc)>,
+    Results<(outs VectorOfAnyRankOf<[AnyFloat]>:$result)> {
   let summary = "vector fused multiply-add";
   let description = [{
     Multiply-add expressions operate on n-D vectors and compute a fused
@@ -1179,6 +1179,8 @@ def Vector_ExtractStridedSliceOp :
   let assemblyFormat = "$vector attr-dict `:` type($vector) `to` type(results)";
 }
 
+// TODO: Tighten semantics so that masks and inbounds can't be used
+// simultaneously within the same transfer op.
 def Vector_TransferReadOp :
   Vector_Op<"transfer_read", [
       DeclareOpInterfaceMethods<VectorTransferOpInterface>,
@@ -1328,6 +1330,18 @@ def Vector_TransferReadOp :
                memref<?x?x?xf32>, vector<32x256xf32>
     }}}
 
+    // or equivalently (rewrite with vector.transpose)
+    %f0 = arith.constant 0.0f : f32
+    for %i0 = 0 to %0 {
+      affine.for %i1 = 0 to %1 step 256 {
+        affine.for %i2 = 0 to %2 step 32 {
+          %v0 = vector.transfer_read %A[%i0, %i1, %i2], (%f0)
+               {permutation_map: (d0, d1, d2) -> (d1, d2)} :
+               memref<?x?x?xf32>, vector<256x32xf32>
+          %v = vector.transpose %v0, [1, 0] :
+              vector<256x32xf32> to vector<32x256f32>
+    }}}
+
     // Read the slice `%A[%i0, %i1]` (i.e. the element `%A[%i0, %i1]`) into
     // vector<128xf32>. The underlying implementation will require a 1-D vector
     // broadcast:
@@ -1368,19 +1382,19 @@ def Vector_TransferReadOp :
                    "Value":$source,
                    "ValueRange":$indices,
                    "AffineMap":$permutationMap,
-                   CArg<"Optional<ArrayRef<bool>>", "::std::nullopt">:$inBounds)>,
+                   CArg<"std::optional<ArrayRef<bool>>", "::std::nullopt">:$inBounds)>,
     /// 3. Builder that sets permutation map to 'getMinorIdentityMap'.
     OpBuilder<(ins "VectorType":$vectorType,
                    "Value":$source,
                    "ValueRange":$indices,
                    "Value":$padding,
-                   CArg<"Optional<ArrayRef<bool>>", "::std::nullopt">:$inBounds)>,
+                   CArg<"std::optional<ArrayRef<bool>>", "::std::nullopt">:$inBounds)>,
     /// 4. Builder that sets padding to zero and permutation map to
     /// 'getMinorIdentityMap'.
     OpBuilder<(ins "VectorType":$vectorType,
                    "Value":$source,
                    "ValueRange":$indices,
-                   CArg<"Optional<ArrayRef<bool>>", "::std::nullopt">:$inBounds)>,
+                   CArg<"std::optional<ArrayRef<bool>>", "::std::nullopt">:$inBounds)>,
   ];
 
   let extraClassDeclaration = [{
@@ -1394,6 +1408,8 @@ def Vector_TransferReadOp :
   let hasVerifier = 1;
 }
 
+// TODO: Tighten semantics so that masks and inbounds can't be used
+// simultaneously within the same transfer op.
 def Vector_TransferWriteOp :
   Vector_Op<"transfer_write", [
       DeclareOpInterfaceMethods<VectorTransferOpInterface>,
@@ -1481,6 +1497,19 @@ def Vector_TransferWriteOp :
               vector<16x32x64xf32>, memref<?x?x?x?xf32>
     }}}}
 
+    // or equivalently (rewrite with vector.transpose)
+    for %i0 = 0 to %0 {
+      affine.for %i1 = 0 to %1 step 32 {
+        affine.for %i2 = 0 to %2 step 64 {
+          affine.for %i3 = 0 to %3 step 16 {
+            %val = `ssa-value` : vector<16x32x64xf32>
+            %valt = vector.transpose %val, [1, 2, 0] :
+                  vector<16x32x64xf32> -> vector<32x64x16xf32>
+            vector.transfer_write %valt, %A[%i0, %i1, %i2, %i3]
+              {permutation_map: (d0, d1, d2, d3) -> (d1, d2, d3)} :
+              vector<32x64x16xf32>, memref<?x?x?x?xf32>
+    }}}}
+
     // write to a memref with vector element type.
     vector.transfer_write %4, %arg1[%c3, %c3]
       {permutation_map = (d0, d1)->(d0, d1)}
@@ -1517,13 +1546,13 @@ def Vector_TransferWriteOp :
                    "Value":$dest,
                    "ValueRange":$indices,
                    "AffineMap":$permutationMap,
-                   CArg<"Optional<ArrayRef<bool>>", "::std::nullopt">:$inBounds)>,
+                   CArg<"std::optional<ArrayRef<bool>>", "::std::nullopt">:$inBounds)>,
     /// 4. Builder with type inference that sets an empty mask and sets permutation
     /// map to 'getMinorIdentityMap'.
     OpBuilder<(ins "Value":$vector,
                    "Value":$dest,
                    "ValueRange":$indices,
-                   CArg<"Optional<ArrayRef<bool>>", "::std::nullopt">:$inBounds)>,
+                   CArg<"std::optional<ArrayRef<bool>>", "::std::nullopt">:$inBounds)>,
   ];
 
   let extraClassDeclaration = [{
@@ -2284,10 +2313,13 @@ def Vector_MaskOp : Vector_Op<"mask", [
     The `vector.mask` is a `MaskingOpInterface` operation that predicates the
     execution of another operation. It takes an `i1` vector mask and an
     optional passthru vector as arguments.
-    A `vector.yield`-terminated region encloses the operation to be masked.
-    Values used within the region are captured from above. Only one *maskable*
-    operation can be masked with a `vector.mask` operation at a time. An
-    operation is *maskable* if it implements the `MaskableOpInterface`.
+
+    A implicitly `vector.yield`-terminated region encloses the operation to be
+    masked. Values used within the region are captured from above. Only one
+    *maskable* operation can be masked with a `vector.mask` operation at a time.
+    An operation is *maskable* if it implements the `MaskableOpInterface`. The
+    terminator yields all results of the maskable operation to the result of
+    this operation.
 
     The vector mask argument holds a bit for each vector lane and determines
     which vector lanes should execute the maskable operation and which ones
@@ -2318,26 +2350,27 @@ def Vector_MaskOp : Vector_Op<"mask", [
     ```
       vector.mask %mask { vector.transfer_write %val, %t0[%idx] : vector<16xf32>, memref<?xf32> } : vector<16xi1>
     ```
+
+    ```
+      vector.mask %mask { vector.transfer_write %val, %t0[%idx] : vector<16xf32>, tensor<?xf32> } : vector<16xi1> -> tensor<?xf32>
+    ```
   }];
 
   // TODO: Support multiple results and passthru values.
   let arguments = (ins VectorOf<[I1]>:$mask,
                    Optional<AnyType>:$passthru);
-  let results = (outs Optional<AnyType>:$results);
+  let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$maskRegion);
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<(ins "Value":$mask,
-                   CArg<"function_ref<void(OpBuilder &, Location)>",
-                        "buildTerminatedBody">:$maskRegion)>,
-    OpBuilder<(ins "Type":$resultType, "Value":$mask,
-                   CArg<"function_ref<void(OpBuilder &, Location)>",
-                        "buildTerminatedBody">:$maskRegion)>,
-    OpBuilder<(ins "Type":$resultType, "Value":$mask,
-                   "Value":$passthru,
-                   CArg<"function_ref<void(OpBuilder &, Location)>",
-                        "buildTerminatedBody">:$maskRegion)>
+    OpBuilder<(ins "Value":$mask, "Operation *":$maskableOp,
+                   CArg<"function_ref<void(OpBuilder &, Operation *)>">:$maskRegion)>,
+    OpBuilder<(ins "TypeRange":$resultTypes, "Value":$mask, "Operation *":$maskableOp,
+                   CArg<"function_ref<void(OpBuilder &, Operation *)>">:$maskRegion)>,
+    OpBuilder<(ins "TypeRange":$resultTypes, "Value":$mask, "Value":$passthru,
+                   "Operation *":$maskableOp,
+                   CArg<"function_ref<void(OpBuilder &, Operation *)>">:$maskRegion)>
   ];
 
   let extraClassDeclaration = [{

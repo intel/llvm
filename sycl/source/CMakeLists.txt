@@ -26,6 +26,23 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 
+  # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
+  # so, we link LLVMSupport lib to matching sycl version only.
+  if (SYCL_ENABLE_STACK_PRINTING)
+    if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
+      (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
+        add_dependencies(${LIB_NAME} LLVMSupport)
+        target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
+        target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
+    endif()
+  endif()
+
+  # TODO: Enabled for MSVC
+  if (NOT MSVC AND SYCL_LIB_WITH_DEBUG_SYMBOLS)
+    separate_arguments(CMAKE_CXX_FLAGS_DEBUG_SEPARATED UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
+    target_compile_options(${LIB_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
+  endif()
+
   if (SYCL_ENABLE_COVERAGE)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
@@ -55,22 +72,25 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
 
-  if (MSVC)
+  if (WIN32) 
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
+  endif()
+
+  if (MSVC)
     # Install stripped PDB
     add_stripped_pdb(${LIB_NAME})
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
-    if (NOT APPLE)
+    if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
       target_link_libraries(
           ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
       set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
     endif()
     if (SYCL_ENABLE_XPTI_TRACING)
-      target_link_libraries(${LIB_NAME} PRIVATE dl)
+      target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
   endif()
 
@@ -90,8 +110,10 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if(SYCL_ENABLE_KERNEL_FUSION)
     target_link_libraries(${LIB_NAME} PRIVATE sycl-fusion)
     target_link_libraries(${LIB_OBJ_NAME} PRIVATE sycl-fusion)
-    set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
-      sycl-fusion)
+    if (BUILD_SHARED_LIBS)
+     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
+       sycl-fusion)
+    endif (BUILD_SHARED_LIBS)
   endif(SYCL_ENABLE_KERNEL_FUSION)
 
   find_package(Threads REQUIRED)

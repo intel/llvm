@@ -1,5 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <sycl/sycl.hpp>
 

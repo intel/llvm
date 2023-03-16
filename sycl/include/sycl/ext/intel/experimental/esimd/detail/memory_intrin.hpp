@@ -869,14 +869,18 @@ __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the load addresses.
+/// @param old_values is the vector of values copied to the result when the
+/// corresponding element in \p pred is unset.
 /// @return is a vector of type T and N * to_int<VS>()
 template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_vector_size VS,
           __ESIMD_EDNS::lsc_data_order _Transposed, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
-__esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                           __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
+__esimd_lsc_load_merge_stateless(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> old_values)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
@@ -886,7 +890,8 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
   static_assert(ImmOffset == 0);
   static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
 
-  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output =
+      old_values;
 
   for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
     if (pred[AddrIdx] == 0) {
@@ -911,6 +916,42 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     }
   }
   return Output;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+/// USM pointer gather.
+/// Supported platforms: DG2, PVC
+///
+/// Collects elements located at specified address and returns them
+/// as a single \ref simd object.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param addrs is the load addresses.
+/// @return is a vector of type T and N * to_int<VS>()
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
+__esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                           __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> OldValues = 0;
+  return __esimd_lsc_load_merge_stateless<Ty, L1H, L3H, AddressScale, ImmOffset,
+                                          DS, VS, _Transposed, N>(pred, addrs,
+                                                                  OldValues);
 }
 #endif // __SYCL_DEVICE_ONLY__
 

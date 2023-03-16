@@ -88,6 +88,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       Core
       Passes
       Support
+      TargetParser
       TransformUtils
       ${LLVM_TEST_COMPONENTS}
   )

@@ -1,7 +1,7 @@
 ;; Test an alias pointing to a GEP.
 ; RUN: opt -opaque-pointers -module-summary %s -o %t1.bc
 ; RUN: cp %t1.bc %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -r=%t1.bc,"??_7bad_array_new_length@stdext@@6B@",pl -r=%t1.bc,"??_Gbad_array_new_length@stdext@@UEAAPEAXI@Z",pl \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t1.bc %t2.bc -r=%t1.bc,"??_7bad_array_new_length@stdext@@6B@",pl -r=%t1.bc,"??_Gbad_array_new_length@stdext@@UEAAPEAXI@Z",pl \
 ; RUN:   -r=%t1.bc,"?_Throw_bad_array_new_length@std@@YAXXZ",pl \
 ; RUN:   -r=%t2.bc,"??_7bad_array_new_length@stdext@@6B@", -r=%t2.bc,"??_Gbad_array_new_length@stdext@@UEAAPEAXI@Z", \
 ; RUN:   -r=%t2.bc,"?_Throw_bad_array_new_length@std@@YAXXZ", -o %t3 --save-temps

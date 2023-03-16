@@ -108,7 +108,7 @@ static unsigned bigEndianByteAt(const unsigned ByteWidth, const unsigned I) {
 /// 1            1                2
 /// 2            2                1
 /// 3            3                0
-static Optional<bool>
+static std::optional<bool>
 isBigEndian(const SmallDenseMap<int64_t, int64_t, 8> &MemOffset2Idx,
             int64_t LowestIdx) {
   // Need at least two byte positions to decide on endianness.
@@ -389,7 +389,7 @@ void CombinerHelper::applyCombineShuffleVector(MachineInstr &MI,
   if (Ops.size() == 1)
     Builder.buildCopy(NewDstReg, Ops[0]);
   else
-    Builder.buildMerge(NewDstReg, Ops);
+    Builder.buildMergeLikeInstr(NewDstReg, Ops);
 
   MI.eraseFromParent();
   replaceRegWith(MRI, DstReg, NewDstReg);
@@ -1285,9 +1285,9 @@ bool CombinerHelper::tryCombineMemCpyFamily(MachineInstr &MI, unsigned MaxLen) {
          LegalizerHelper::LegalizeResult::Legalized;
 }
 
-static Optional<APFloat> constantFoldFpUnary(unsigned Opcode, LLT DstTy,
-                                             const Register Op,
-                                             const MachineRegisterInfo &MRI) {
+static std::optional<APFloat>
+constantFoldFpUnary(unsigned Opcode, LLT DstTy, const Register Op,
+                    const MachineRegisterInfo &MRI) {
   const ConstantFP *MaybeCst = getConstantFPVRegVal(Op, MRI);
   if (!MaybeCst)
     return std::nullopt;
@@ -1327,8 +1327,8 @@ static Optional<APFloat> constantFoldFpUnary(unsigned Opcode, LLT DstTy,
   return V;
 }
 
-bool CombinerHelper::matchCombineConstantFoldFpUnary(MachineInstr &MI,
-                                                     Optional<APFloat> &Cst) {
+bool CombinerHelper::matchCombineConstantFoldFpUnary(
+    MachineInstr &MI, std::optional<APFloat> &Cst) {
   Register DstReg = MI.getOperand(0).getReg();
   Register SrcReg = MI.getOperand(1).getReg();
   LLT DstTy = MRI.getType(DstReg);
@@ -1336,8 +1336,8 @@ bool CombinerHelper::matchCombineConstantFoldFpUnary(MachineInstr &MI,
   return Cst.has_value();
 }
 
-void CombinerHelper::applyCombineConstantFoldFpUnary(MachineInstr &MI,
-                                                     Optional<APFloat> &Cst) {
+void CombinerHelper::applyCombineConstantFoldFpUnary(
+    MachineInstr &MI, std::optional<APFloat> &Cst) {
   assert(Cst && "Optional is unexpectedly empty!");
   Builder.setInstrAndDebugLoc(MI);
   MachineFunction &MF = Builder.getMF();
@@ -1731,7 +1731,7 @@ bool CombinerHelper::matchCombineUnmergeMergeToPlainValues(
   auto &Unmerge = cast<GUnmerge>(MI);
   Register SrcReg = peekThroughBitcast(Unmerge.getSourceReg(), MRI);
 
-  auto *SrcInstr = getOpcodeDef<GMergeLikeOp>(SrcReg, MRI);
+  auto *SrcInstr = getOpcodeDef<GMergeLikeInstr>(SrcReg, MRI);
   if (!SrcInstr)
     return false;
 
@@ -1972,7 +1972,7 @@ void CombinerHelper::applyCombineShiftToUnmerge(MachineInstr &MI,
     }
 
     auto Zero = Builder.buildConstant(HalfTy, 0);
-    Builder.buildMerge(DstReg, { Narrowed, Zero });
+    Builder.buildMergeLikeInstr(DstReg, {Narrowed, Zero});
   } else if (MI.getOpcode() == TargetOpcode::G_SHL) {
     Register Narrowed = Unmerge.getReg(0);
     //  dst = G_SHL s64:x, C for C >= 32
@@ -1985,7 +1985,7 @@ void CombinerHelper::applyCombineShiftToUnmerge(MachineInstr &MI,
     }
 
     auto Zero = Builder.buildConstant(HalfTy, 0);
-    Builder.buildMerge(DstReg, { Zero, Narrowed });
+    Builder.buildMergeLikeInstr(DstReg, {Zero, Narrowed});
   } else {
     assert(MI.getOpcode() == TargetOpcode::G_ASHR);
     auto Hi = Builder.buildAShr(
@@ -1995,13 +1995,13 @@ void CombinerHelper::applyCombineShiftToUnmerge(MachineInstr &MI,
     if (ShiftVal == HalfSize) {
       // (G_ASHR i64:x, 32) ->
       //   G_MERGE_VALUES hi_32(x), (G_ASHR hi_32(x), 31)
-      Builder.buildMerge(DstReg, { Unmerge.getReg(1), Hi });
+      Builder.buildMergeLikeInstr(DstReg, {Unmerge.getReg(1), Hi});
     } else if (ShiftVal == Size - 1) {
       // Don't need a second shift.
       // (G_ASHR i64:x, 63) ->
       //   %narrowed = (G_ASHR hi_32(x), 31)
       //   G_MERGE_VALUES %narrowed, %narrowed
-      Builder.buildMerge(DstReg, { Hi, Hi });
+      Builder.buildMergeLikeInstr(DstReg, {Hi, Hi});
     } else {
       auto Lo = Builder.buildAShr(
         HalfTy, Unmerge.getReg(1),
@@ -2009,7 +2009,7 @@ void CombinerHelper::applyCombineShiftToUnmerge(MachineInstr &MI,
 
       // (G_ASHR i64:x, C) ->, for C >= 32
       //   G_MERGE_VALUES (G_ASHR hi_32(x), C - 32), (G_ASHR hi_32(x), 31)
-      Builder.buildMerge(DstReg, { Lo, Hi });
+      Builder.buildMergeLikeInstr(DstReg, {Lo, Hi});
     }
   }
 
@@ -3262,14 +3262,12 @@ bool CombinerHelper::applyFoldBinOpIntoSelect(MachineInstr &MI,
   }
 
   Builder.buildSelect(Dst, SelectCond, FoldTrue, FoldFalse, MI.getFlags());
-  Observer.erasingInstr(*Select);
-  Select->eraseFromParent();
   MI.eraseFromParent();
 
   return true;
 }
 
-Optional<SmallVector<Register, 8>>
+std::optional<SmallVector<Register, 8>>
 CombinerHelper::findCandidatesForLoadOrCombine(const MachineInstr *Root) const {
   assert(Root->getOpcode() == TargetOpcode::G_OR && "Expected G_OR only!");
   // We want to detect if Root is part of a tree which represents a bunch
@@ -3367,7 +3365,7 @@ matchLoadAndBytePosition(Register Reg, unsigned MemSizeInBits,
   return std::make_pair(Load, Shift / MemSizeInBits);
 }
 
-Optional<std::tuple<GZExtLoad *, int64_t, GZExtLoad *>>
+std::optional<std::tuple<GZExtLoad *, int64_t, GZExtLoad *>>
 CombinerHelper::findLoadOffsetsForLoadOrCombine(
     SmallDenseMap<int64_t, int64_t, 8> &MemOffset2Idx,
     const SmallVector<Register, 8> &RegsToVisit, const unsigned MemSizeInBits) {
@@ -3559,7 +3557,7 @@ bool CombinerHelper::matchLoadOrCombine(
   // pattern. If it does, then we can represent it using a load + possibly a
   // BSWAP.
   bool IsBigEndianTarget = MF.getDataLayout().isBigEndian();
-  Optional<bool> IsBigEndian = isBigEndian(MemOffset2Idx, LowestIdx);
+  std::optional<bool> IsBigEndian = isBigEndian(MemOffset2Idx, LowestIdx);
   if (!IsBigEndian)
     return false;
   bool NeedsBSwap = IsBigEndianTarget != *IsBigEndian;
@@ -4216,7 +4214,7 @@ bool CombinerHelper::matchICmpToTrueFalseKnownBits(MachineInstr &MI,
   auto Pred = static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
   auto KnownLHS = KB->getKnownBits(MI.getOperand(2).getReg());
   auto KnownRHS = KB->getKnownBits(MI.getOperand(3).getReg());
-  Optional<bool> KnownVal;
+  std::optional<bool> KnownVal;
   switch (Pred) {
   default:
     llvm_unreachable("Unexpected G_ICMP predicate?");
@@ -4612,7 +4610,7 @@ bool CombinerHelper::matchReassocConstantInnerLHS(GPtrAdd &MI,
   // G_PTR_ADD (G_PTR_ADD X, C), Y) -> (G_PTR_ADD (G_PTR_ADD(X, Y), C)
   // if and only if (G_PTR_ADD X, C) has one use.
   Register LHSBase;
-  Optional<ValueAndVReg> LHSCstOff;
+  std::optional<ValueAndVReg> LHSCstOff;
   if (!mi_match(MI.getBaseReg(), MRI,
                 m_OneNonDBGUse(m_GPtrAdd(m_Reg(LHSBase), m_GCst(LHSCstOff)))))
     return false;
@@ -4950,34 +4948,33 @@ MachineInstr *CombinerHelper::buildUDivUsingMul(MachineInstr &MI) {
   auto BuildUDIVPattern = [&](const Constant *C) {
     auto *CI = cast<ConstantInt>(C);
     const APInt &Divisor = CI->getValue();
-    UnsignedDivisionByConstantInfo magics =
-        UnsignedDivisionByConstantInfo::get(Divisor);
+
+    bool SelNPQ = false;
+    APInt Magic(Divisor.getBitWidth(), 0);
     unsigned PreShift = 0, PostShift = 0;
 
-    // If the divisor is even, we can avoid using the expensive fixup by
-    // shifting the divided value upfront.
-    if (magics.IsAdd && !Divisor[0]) {
-      PreShift = Divisor.countTrailingZeros();
-      // Get magic number for the shifted divisor.
-      magics =
-          UnsignedDivisionByConstantInfo::get(Divisor.lshr(PreShift), PreShift);
-      assert(!magics.IsAdd && "Should use cheap fixup now");
-    }
+    // Magic algorithm doesn't work for division by 1. We need to emit a select
+    // at the end.
+    // TODO: Use undef values for divisor of 1.
+    if (!Divisor.isOneValue()) {
+      UnsignedDivisionByConstantInfo magics =
+          UnsignedDivisionByConstantInfo::get(Divisor);
 
-    unsigned SelNPQ;
-    if (!magics.IsAdd || Divisor.isOneValue()) {
-      assert(magics.ShiftAmount < Divisor.getBitWidth() &&
+      Magic = std::move(magics.Magic);
+
+      assert(magics.PreShift < Divisor.getBitWidth() &&
              "We shouldn't generate an undefined shift!");
-      PostShift = magics.ShiftAmount;
-      SelNPQ = false;
-    } else {
-      PostShift = magics.ShiftAmount - 1;
-      SelNPQ = true;
+      assert(magics.PostShift < Divisor.getBitWidth() &&
+             "We shouldn't generate an undefined shift!");
+      assert((!magics.IsAdd || magics.PreShift == 0) && "Unexpected pre-shift");
+      PreShift = magics.PreShift;
+      PostShift = magics.PostShift;
+      SelNPQ = magics.IsAdd;
     }
 
     PreShifts.push_back(
         MIB.buildConstant(ScalarShiftAmtTy, PreShift).getReg(0));
-    MagicFactors.push_back(MIB.buildConstant(ScalarTy, magics.Magic).getReg(0));
+    MagicFactors.push_back(MIB.buildConstant(ScalarTy, Magic).getReg(0));
     NPQFactors.push_back(
         MIB.buildConstant(ScalarTy,
                           SelNPQ ? APInt::getOneBitSet(EltBits, EltBits - 1)
@@ -5983,7 +5980,7 @@ bool CombinerHelper::matchBuildVectorIdentityFold(MachineInstr &MI,
     return MRI.getType(MatchInfo) == DstVecTy;
   }
 
-  Optional<ValueAndVReg> ShiftAmount;
+  std::optional<ValueAndVReg> ShiftAmount;
   const auto LoPattern = m_GBitcast(m_Reg(Lo));
   const auto HiPattern = m_GLShr(m_GBitcast(m_Reg(Hi)), m_GCst(ShiftAmount));
   if (mi_match(
@@ -6014,7 +6011,7 @@ bool CombinerHelper::matchTruncLshrBuildVectorFold(MachineInstr &MI,
                                                    Register &MatchInfo) {
   // Replace (G_TRUNC (G_LSHR (G_BITCAST (G_BUILD_VECTOR x, y)), K)) with
   //    y if K == size of vector element type
-  Optional<ValueAndVReg> ShiftAmt;
+  std::optional<ValueAndVReg> ShiftAmt;
   if (!mi_match(MI.getOperand(1).getReg(), MRI,
                 m_GLShr(m_GBitcast(m_GBuildVector(m_Reg(), m_Reg(MatchInfo))),
                         m_GCst(ShiftAmt))))

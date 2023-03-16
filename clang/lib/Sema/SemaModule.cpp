@@ -15,6 +15,7 @@
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/SemaInternal.h"
+#include <optional>
 
 using namespace clang;
 using namespace sema;
@@ -320,7 +321,7 @@ Sema::ActOnModuleDecl(SourceLocation StartLoc, SourceLocation ModuleLoc,
       Diag(Path[0].second, diag::err_module_redefinition) << ModuleName;
       if (M->DefinitionLoc.isValid())
         Diag(M->DefinitionLoc, diag::note_prev_module_definition);
-      else if (Optional<FileEntryRef> FE = M->getASTFile())
+      else if (OptionalFileEntryRef FE = M->getASTFile())
         Diag(M->DefinitionLoc, diag::note_prev_module_definition_from_ast_file)
             << FE->getName();
       Mod = M;
@@ -826,7 +827,7 @@ enum class UnnamedDeclKind {
 };
 }
 
-static llvm::Optional<UnnamedDeclKind> getUnnamedDeclKind(Decl *D) {
+static std::optional<UnnamedDeclKind> getUnnamedDeclKind(Decl *D) {
   if (isa<EmptyDecl>(D))
     return UnnamedDeclKind::Empty;
   if (isa<StaticAssertDecl>(D))

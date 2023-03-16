@@ -46,8 +46,16 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
 endif()
 
 add_library (LevelZeroLoader INTERFACE)
+# The MSVC linker does not like / at the start of a path, so to work around this
+# we split it into a link library and a library path, where the path is allowed
+# to have leading /.
+get_filename_component(LEVEL_ZERO_LIBRARY_SRC "${LEVEL_ZERO_LIBRARY}" DIRECTORY)
+get_filename_component(LEVEL_ZERO_LIB_NAME "${LEVEL_ZERO_LIBRARY}" NAME)
+target_link_directories(LevelZeroLoader
+  INTERFACE "${LEVEL_ZERO_LIBRARY_SRC}"
+)
 target_link_libraries(LevelZeroLoader
-  INTERFACE "${LEVEL_ZERO_LIBRARY}"
+  INTERFACE "${LEVEL_ZERO_LIB_NAME}"
 )
 
 add_library (LevelZeroLoader-Headers INTERFACE)
@@ -90,6 +98,8 @@ add_sycl_plugin(level_zero
     "../unified_runtime/ur/ur.cpp"
     "../unified_runtime/ur/usm_allocator.cpp"
     "../unified_runtime/ur/usm_allocator.hpp"
+    "../unified_runtime/ur/usm_allocator_config.cpp"
+    "../unified_runtime/ur/usm_allocator_config.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.cpp"
     # Following are the PI Level-Zero Plugin only codes.
@@ -118,7 +128,6 @@ if (TARGET ze_loader)
       ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
-          NAMELINK_SKIP
   )
   file(GLOB LEVEL_ZERO_API_HEADERS "${LEVEL_ZERO_INCLUDE_DIR}/*.h")
   install(FILES ${LEVEL_ZERO_API_HEADERS}

@@ -19,6 +19,7 @@ add_clang_subdirectory(clang-offload-extract)
 if(HAVE_CLANG_REPL_SUPPORT)
   add_clang_subdirectory(clang-repl)
 endif()
+add_clang_subdirectory(clang-stat-cache)
 
 add_clang_subdirectory(c-index-test)
 
@@ -54,3 +55,4 @@ add_llvm_external_project(clang-tools-extra extra)
 add_clang_subdirectory(libclang)
 
 add_clang_subdirectory(amdgpu-arch)
+add_clang_subdirectory(nvptx-arch)

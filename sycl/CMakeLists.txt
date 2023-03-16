@@ -6,9 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
-option(SYCL_DISABLE_STL_ASSERTIONS "Disable assertions in STL containers" OFF)
+option(SYCL_DISABLE_STL_ASSERTIONS "Disable assertions in STL containers" ON)
 option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" OFF)
+option(SYCL_ENABLE_STACK_PRINTING "Enables stack printing on crashes of SYCL applications" OFF)
+option(SYCL_LIB_WITH_DEBUG_SYMBOLS "Builds SYCL runtime libraries with debug symbols" OFF)
 
 if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
@@ -71,8 +73,6 @@ if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
   # never throw C++ exceptions.
-  set(LLVM_REQUIRES_EH ON)
-  set(LLVM_REQUIRES_RTTI ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 
   # Add PDB debug information
@@ -327,6 +327,10 @@ if (SYCL_ENABLE_XPTI_TRACING)
   if (MSVC)
     add_dependencies( sycl-toolchain xptid)
   endif()
+endif()
+
+if (SYCL_ENABLE_STACK_PRINTING)
+  add_dependencies(sycl-toolchain llvm-symbolizer)
 endif()
 
 option(SYCL_INCLUDE_TESTS

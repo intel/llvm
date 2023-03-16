@@ -173,6 +173,10 @@ public:
 
   ProgramImplPtr getProgramImpl() const { return MProgramImpl; }
 
+  std::mutex &getNoncacheableEnqueueMutex() {
+    return MNoncacheableEnqueueMutex;
+  }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;
@@ -181,6 +185,7 @@ private:
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
+  std::mutex MNoncacheableEnqueueMutex;
 };
 
 template <typename Param>

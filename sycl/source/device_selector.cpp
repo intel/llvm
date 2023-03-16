@@ -143,9 +143,16 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable) {
 __SYCL_EXPORT device
 select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
               const context &SyclContext) {
-  std::vector<device> devices = SyclContext.get_devices();
+  device SelectedDevice = select_device(DeviceSelectorInvocable);
 
-  return select_device(DeviceSelectorInvocable, devices);
+  // Throw exception if selected device is not in context.
+  std::vector<device> Devices = SyclContext.get_devices();
+  if (std::find(Devices.begin(), Devices.end(), SelectedDevice) ==
+      Devices.end())
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Selected device is not in the given context.");
+
+  return SelectedDevice;
 }
 
 } // namespace detail

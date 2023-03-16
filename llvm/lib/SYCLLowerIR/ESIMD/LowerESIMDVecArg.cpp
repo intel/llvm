@@ -172,7 +172,7 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
   // insert bitcasts in new function only if its a definition
   for (auto &B : BitCasts) {
     if (!F.isDeclaration())
-      NF->begin()->getInstList().push_front(B);
+      B->insertBefore(NF->begin()->getFirstNonPHI());
     else
       delete B;
   }
@@ -207,7 +207,7 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
     OldNewInst.push_back(std::make_pair(Call, NewCallInst));
   }
 
-  for (auto InstPair : OldNewInst) {
+  for (auto &InstPair : OldNewInst) {
     auto OldInst = InstPair.first;
     auto NewInst = InstPair.second;
     ReplaceInstWithInst(OldInst, NewInst);

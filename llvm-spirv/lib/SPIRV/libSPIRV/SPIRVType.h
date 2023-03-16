@@ -777,7 +777,7 @@ public:
 protected:
   _SPIRV_DEF_ENCDEC1(Id)
   void validate() const override { SPIRVEntry::validate(); }
-  SPIRVId Opn;
+  SPIRVId Opn = SPIRVID_INVALID;
 };
 
 template <Op TheOpCode>
@@ -1009,7 +1009,7 @@ public:
 protected:
   _SPIRV_DEF_ENCDEC1(Id)
   void validate() const override { SPIRVEntry::validate(); }
-  SPIRVId Opn;
+  SPIRVId Opn = SPIRVID_INVALID;
 };
 
 template <Op TheOpCode>

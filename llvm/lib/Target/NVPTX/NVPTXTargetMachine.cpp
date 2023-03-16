@@ -15,6 +15,7 @@
 #include "NVPTXAllocaHoisting.h"
 #include "NVPTXAtomicLower.h"
 #include "NVPTXLowerAggrCopies.h"
+#include "NVPTXMachineFunctionInfo.h"
 #include "NVPTXTargetObjectFile.h"
 #include "NVPTXTargetTransformInfo.h"
 #include "TargetInfo/NVPTXTargetInfo.h"
@@ -72,16 +73,16 @@ static cl::opt<bool>
 
 namespace llvm {
 
-void initializeNVVMIntrRangePass(PassRegistry&);
-void initializeNVVMReflectPass(PassRegistry&);
 void initializeGenericToNVVMPass(PassRegistry&);
 void initializeNVPTXAllocaHoistingPass(PassRegistry &);
-void initializeNVPTXAtomicLowerPass(PassRegistry &);
 void initializeNVPTXAssignValidGlobalNamesPass(PassRegistry&);
+void initializeNVPTXAtomicLowerPass(PassRegistry &);
 void initializeNVPTXLowerAggrCopiesPass(PassRegistry &);
-void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXLowerAllocaPass(PassRegistry &);
+void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXProxyRegErasurePass(PassRegistry &);
+void initializeNVVMIntrRangePass(PassRegistry &);
+void initializeNVVMReflectPass(PassRegistry &);
 
 void initializeGlobalOffsetLegacyPass(PassRegistry &);
 void initializeLocalAccessorToSharedMemoryLegacyPass(PassRegistry &);
@@ -93,9 +94,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   RegisterTargetMachine<NVPTXTargetMachine32> X(getTheNVPTXTarget32());
   RegisterTargetMachine<NVPTXTargetMachine64> Y(getTheNVPTXTarget64());
 
+  PassRegistry &PR = *PassRegistry::getPassRegistry();
   // FIXME: This pass is really intended to be invoked during IR optimization,
   // but it's very NVPTX-specific.
-  PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeNVVMReflectPass(PR);
   initializeNVVMIntrRangePass(PR);
   initializeGenericToNVVMPass(PR);
@@ -106,6 +107,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXLowerAllocaPass(PR);
   initializeNVPTXLowerAggrCopiesPass(PR);
   initializeNVPTXProxyRegErasurePass(PR);
+  initializeNVPTXDAGToDAGISelPass(PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
   initializeGlobalOffsetLegacyPass(PR);
@@ -138,7 +140,8 @@ NVPTXTargetMachine::NVPTXTargetMachine(const Target &T, const Triple &TT,
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
       is64bit(is64bit), UseShortPointers(UseShortPointersOpt),
       TLOF(std::make_unique<NVPTXTargetObjectFile>()),
-      Subtarget(TT, std::string(CPU), std::string(FS), *this) {
+      Subtarget(TT, std::string(CPU), std::string(FS), *this),
+      StrPool(StrAlloc) {
   if (TT.getOS() == Triple::NVCL)
     drvInterface = NVPTX::NVCL;
   else
@@ -215,6 +218,13 @@ private:
 
 TargetPassConfig *NVPTXTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new NVPTXPassConfig(*this, PM);
+}
+
+MachineFunctionInfo *NVPTXTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return NVPTXMachineFunctionInfo::create<NVPTXMachineFunctionInfo>(Allocator,
+                                                                    F, STI);
 }
 
 void NVPTXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {

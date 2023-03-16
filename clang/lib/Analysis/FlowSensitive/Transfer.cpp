@@ -128,9 +128,8 @@ static Value *maybeUnpackLValueExpr(const Expr &E, Environment &Env) {
 
 class TransferVisitor : public ConstStmtVisitor<TransferVisitor> {
 public:
-  TransferVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env,
-                  TransferOptions Options)
-      : StmtToEnv(StmtToEnv), Env(Env), Options(Options) {}
+  TransferVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env)
+      : StmtToEnv(StmtToEnv), Env(Env) {}
 
   void VisitBinaryOperator(const BinaryOperator *S) {
     const Expr *LHS = S->getLHS();
@@ -283,7 +282,7 @@ public:
         } else if (auto *VD = B->getHoldingVar()) {
           // Holding vars are used to back the BindingDecls of tuple-like
           // types. The holding var declarations appear *after* this statement,
-          // so we have to create a location or them here to share with `B`. We
+          // so we have to create a location for them here to share with `B`. We
           // don't visit the binding, because we know it will be a DeclRefExpr
           // to `VD`.
           auto &VDLoc = Env.createStorageLocation(*VD);
@@ -429,6 +428,9 @@ public:
   }
 
   void VisitReturnStmt(const ReturnStmt *S) {
+    if (!Env.getAnalysisOptions().ContextSensitiveOpts)
+      return;
+
     auto *Ret = S->getRetValue();
     if (Ret == nullptr)
       return;
@@ -443,6 +445,10 @@ public:
 
     auto *Loc = Env.getReturnStorageLocation();
     assert(Loc != nullptr);
+    // FIXME: Support reference-type returns.
+    if (Loc->getType()->isReferenceType())
+      return;
+
     // FIXME: Model NRVO.
     Env.setValue(*Loc, *Val);
   }
@@ -453,6 +459,10 @@ public:
 
     // FIXME: Consider assigning pointer values to function member expressions.
     if (Member->isFunctionOrFunctionTemplate())
+      return;
+
+    // FIXME: if/when we add support for modeling enums, use that support here.
+    if (isa<EnumConstantDecl>(Member))
       return;
 
     if (auto *D = dyn_cast<VarDecl>(Member)) {
@@ -478,10 +488,6 @@ public:
     auto *BaseLoc = cast_or_null<AggregateStorageLocation>(
         Env.getStorageLocation(*S->getBase(), SkipPast::ReferenceThenPointer));
     if (BaseLoc == nullptr)
-      return;
-
-    // FIXME: Add support for union types.
-    if (BaseLoc->getType()->isUnionType())
       return;
 
     auto &MemberLoc = BaseLoc->getChild(*Member);
@@ -757,6 +763,7 @@ private:
   // `F` of `S`. The type `E` must be either `CallExpr` or `CXXConstructExpr`.
   template <typename E>
   void transferInlineCall(const E *S, const FunctionDecl *F) {
+    const auto &Options = Env.getAnalysisOptions();
     if (!(Options.ContextSensitiveOpts &&
           Env.canDescend(Options.ContextSensitiveOpts->Depth, F)))
       return;
@@ -801,12 +808,10 @@ private:
 
   const StmtToEnvMap &StmtToEnv;
   Environment &Env;
-  TransferOptions Options;
 };
 
-void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env,
-              TransferOptions Options) {
-  TransferVisitor(StmtToEnv, Env, Options).Visit(&S);
+void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env) {
+  TransferVisitor(StmtToEnv, Env).Visit(&S);
 }
 
 } // namespace dataflow

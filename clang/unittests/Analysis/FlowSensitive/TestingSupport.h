@@ -15,6 +15,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -29,7 +30,9 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowAnalysis.h"
+#include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
+#include "clang/Analysis/FlowSensitive/MatchSwitch.h"
 #include "clang/Analysis/FlowSensitive/WatchedLiteralsSolver.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Serialization/PCHContainerOperations.h"
@@ -41,7 +44,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 
 namespace clang {
 namespace dataflow {
@@ -97,7 +100,7 @@ struct AnalysisOutputs {
   const Environment &InitEnv;
   // Stores the state of a CFG block if it has been evaluated by the analysis.
   // The indices correspond to the block IDs.
-  llvm::ArrayRef<llvm::Optional<TypeErasedDataflowAnalysisState>> BlockStates;
+  llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>> BlockStates;
 };
 
 /// Arguments for building the dataflow analysis.
@@ -116,10 +119,11 @@ template <typename AnalysisT> struct AnalysisInputs {
     SetupTest = std::move(Arg);
     return std::move(*this);
   }
-  AnalysisInputs<AnalysisT> &&
-  withPostVisitCFG(std::function<void(ASTContext &, const CFGElement &,
-                                      const TypeErasedDataflowAnalysisState &)>
-                       Arg) && {
+  AnalysisInputs<AnalysisT> &&withPostVisitCFG(
+      std::function<void(
+          ASTContext &, const CFGElement &,
+          const TransferStateForDiagnostics<typename AnalysisT::Lattice> &)>
+          Arg) && {
     PostVisitCFG = std::move(Arg);
     return std::move(*this);
   }
@@ -130,6 +134,11 @@ template <typename AnalysisT> struct AnalysisInputs {
   AnalysisInputs<AnalysisT> &&
   withASTBuildVirtualMappedFiles(tooling::FileContentMappings Arg) && {
     ASTBuildVirtualMappedFiles = std::move(Arg);
+    return std::move(*this);
+  }
+  AnalysisInputs<AnalysisT> &&
+  withBuiltinOptions(DataflowAnalysisContext::Options Options) && {
+    BuiltinOptions = std::move(Options);
     return std::move(*this);
   }
 
@@ -148,14 +157,17 @@ template <typename AnalysisT> struct AnalysisInputs {
   std::function<llvm::Error(AnalysisOutputs &)> SetupTest = nullptr;
   /// Optional. If provided, this function is applied on each CFG element after
   /// the analysis has been run.
-  std::function<void(ASTContext &, const CFGElement &,
-                     const TypeErasedDataflowAnalysisState &)>
+  std::function<void(
+      ASTContext &, const CFGElement &,
+      const TransferStateForDiagnostics<typename AnalysisT::Lattice> &)>
       PostVisitCFG = nullptr;
 
   /// Optional. Options for building the AST context.
   ArrayRef<std::string> ASTBuildArgs = {};
   /// Optional. Options for building the AST context.
   tooling::FileContentMappings ASTBuildVirtualMappedFiles = {};
+  /// Configuration options for the built-in model.
+  DataflowAnalysisContext::Options BuiltinOptions;
 };
 
 /// Returns assertions based on annotations that are present after statements in
@@ -219,18 +231,23 @@ checkDataflow(AnalysisInputs<AnalysisT> AI,
   auto &CFCtx = *MaybeCFCtx;
 
   // Initialize states for running dataflow analysis.
-  DataflowAnalysisContext DACtx(std::make_unique<WatchedLiteralsSolver>());
+  DataflowAnalysisContext DACtx(std::make_unique<WatchedLiteralsSolver>(),
+                                {/*Opts=*/AI.BuiltinOptions});
   Environment InitEnv(DACtx, *Target);
   auto Analysis = AI.MakeAnalysis(Context, InitEnv);
   std::function<void(const CFGElement &,
                      const TypeErasedDataflowAnalysisState &)>
       PostVisitCFGClosure = nullptr;
   if (AI.PostVisitCFG) {
-    PostVisitCFGClosure =
-        [&AI, &Context](const CFGElement &Element,
-                        const TypeErasedDataflowAnalysisState &State) {
-          AI.PostVisitCFG(Context, Element, State);
-        };
+    PostVisitCFGClosure = [&AI, &Context](
+                              const CFGElement &Element,
+                              const TypeErasedDataflowAnalysisState &State) {
+      AI.PostVisitCFG(Context, Element,
+                      TransferStateForDiagnostics<typename AnalysisT::Lattice>(
+                          llvm::any_cast<const typename AnalysisT::Lattice &>(
+                              State.Lattice.Value),
+                          State.Env));
+    };
   }
 
   // Additional test setup.
@@ -243,7 +260,7 @@ checkDataflow(AnalysisInputs<AnalysisT> AI,
 
   // If successful, the dataflow analysis returns a mapping from block IDs to
   // the post-analysis states for the CFG blocks that have been evaluated.
-  llvm::Expected<std::vector<llvm::Optional<TypeErasedDataflowAnalysisState>>>
+  llvm::Expected<std::vector<std::optional<TypeErasedDataflowAnalysisState>>>
       MaybeBlockStates = runTypeErasedDataflowAnalysis(CFCtx, Analysis, InitEnv,
                                                        PostVisitCFGClosure);
   if (!MaybeBlockStates)
@@ -326,28 +343,28 @@ checkDataflow(AnalysisInputs<AnalysisT> AI,
   // Save the states computed for program points immediately following annotated
   // statements. The saved states are keyed by the content of the annotation.
   llvm::StringMap<StateT> AnnotationStates;
-  auto PostVisitCFG = [&StmtToAnnotations, &AnnotationStates,
-                       PrevPostVisitCFG = std::move(AI.PostVisitCFG)](
-                          ASTContext &Ctx, const CFGElement &Elt,
-                          const TypeErasedDataflowAnalysisState &State) {
-    if (PrevPostVisitCFG) {
-      PrevPostVisitCFG(Ctx, Elt, State);
-    }
-    // FIXME: Extend retrieval of state for non statement constructs.
-    auto Stmt = Elt.getAs<CFGStmt>();
-    if (!Stmt)
-      return;
-    auto It = StmtToAnnotations.find(Stmt->getStmt());
-    if (It == StmtToAnnotations.end())
-      return;
-    auto *Lattice =
-        llvm::any_cast<typename AnalysisT::Lattice>(&State.Lattice.Value);
-    auto [_, InsertSuccess] =
-        AnnotationStates.insert({It->second, StateT{*Lattice, State.Env}});
-    (void)_;
-    (void)InsertSuccess;
-    assert(InsertSuccess);
-  };
+  auto PostVisitCFG =
+      [&StmtToAnnotations, &AnnotationStates,
+       PrevPostVisitCFG = std::move(AI.PostVisitCFG)](
+          ASTContext &Ctx, const CFGElement &Elt,
+          const TransferStateForDiagnostics<typename AnalysisT::Lattice>
+              &State) {
+        if (PrevPostVisitCFG) {
+          PrevPostVisitCFG(Ctx, Elt, State);
+        }
+        // FIXME: Extend retrieval of state for non statement constructs.
+        auto Stmt = Elt.getAs<CFGStmt>();
+        if (!Stmt)
+          return;
+        auto It = StmtToAnnotations.find(Stmt->getStmt());
+        if (It == StmtToAnnotations.end())
+          return;
+        auto [_, InsertSuccess] = AnnotationStates.insert(
+            {It->second, StateT{State.Lattice, State.Env}});
+        (void)_;
+        (void)InsertSuccess;
+        assert(InsertSuccess);
+      };
   return checkDataflow<AnalysisT>(
       std::move(AI)
           .withSetupTest(std::move(SetupTest))

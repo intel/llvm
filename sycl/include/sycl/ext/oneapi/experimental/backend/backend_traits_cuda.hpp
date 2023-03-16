@@ -114,7 +114,7 @@ template <> struct BackendReturn<backend::ext_oneapi_cuda, platform> {
 template <> struct InteropFeatureSupportMap<backend::ext_oneapi_cuda> {
   static constexpr bool MakePlatform = false;
   static constexpr bool MakeDevice = true;
-  static constexpr bool MakeContext = true;
+  static constexpr bool MakeContext = false;
   static constexpr bool MakeQueue = true;
   static constexpr bool MakeEvent = true;
   static constexpr bool MakeBuffer = false;

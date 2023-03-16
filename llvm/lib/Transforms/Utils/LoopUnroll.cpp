@@ -17,7 +17,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
@@ -509,7 +508,8 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
 
   // When a FSDiscriminator is enabled, we don't need to add the multiply
   // factors to the discriminators.
-  if (Header->getParent()->isDebugInfoForProfiling() && !EnableFSDiscriminator)
+  if (Header->getParent()->shouldEmitDebugInfoForProfiling() &&
+      !EnableFSDiscriminator)
     for (BasicBlock *BB : L->getBlocks())
       for (Instruction &I : *BB)
         if (!isa<DbgInfoIntrinsic>(&I))
@@ -540,7 +540,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
     for (LoopBlocksDFS::RPOIterator BB = BlockBegin; BB != BlockEnd; ++BB) {
       ValueToValueMapTy VMap;
       BasicBlock *New = CloneBasicBlock(*BB, VMap, "." + Twine(It));
-      Header->getParent()->getBasicBlockList().insert(BlockInsertPt, New);
+      Header->getParent()->insert(BlockInsertPt, New);
 
       assert((*BB != Header || LI->getLoopFor(*BB) == L) &&
              "Header should not be in a sub-loop");
@@ -756,8 +756,13 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   }
 
   // When completely unrolling, the last latch becomes unreachable.
-  if (!LatchIsExiting && CompletelyUnroll)
-    changeToUnreachable(Latches.back()->getTerminator(), PreserveLCSSA, &DTU);
+  if (!LatchIsExiting && CompletelyUnroll) {
+    // There is no need to update the DT here, because there must be a unique
+    // latch. Hence if the latch is not exiting it must directly branch back to
+    // the original loop header and does not dominate any nodes.
+    assert(LatchBlock->getSingleSuccessor() && "Loop with multiple latches?");
+    changeToUnreachable(Latches.back()->getTerminator(), PreserveLCSSA);
+  }
 
   // Merge adjacent basic blocks, if possible.
   for (BasicBlock *Latch : Latches) {

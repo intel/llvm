@@ -55,7 +55,7 @@ struct latency_key {
   using value_t = property_value<latency_key, std::integral_constant<int, K>>;
 };
 
-enum class read_write_mode_enum : std::uint16_t { read_write, read, write };
+enum class read_write_mode_enum : std::uint16_t { read, write, read_write };
 
 struct read_write_mode_key {
   template <read_write_mode_enum Mode>

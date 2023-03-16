@@ -1000,6 +1000,8 @@ pi_result hip_piContextGetInfo(pi_context context, pi_context_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            true);
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     // 2D USM operations currently not supported.
@@ -1854,8 +1856,13 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    pi_int32{1});
   }
 
-  // TODO: Implement.
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    pi_memory_order_capabilities capabilities = PI_MEMORY_ORDER_RELAXED |
+                                                PI_MEMORY_ORDER_ACQUIRE |
+                                                PI_MEMORY_ORDER_RELEASE;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   capabilities);
+  }
   // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   case PI_DEVICE_INFO_DEVICE_ID:
@@ -5122,13 +5129,57 @@ pi_result hip_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
   return {};
 }
 
-// TODO: Implement this. Remember to return true for
-//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT when it is implemented.
-pi_result hip_piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
-                                      const void *, size_t, size_t, size_t,
-                                      pi_uint32, const pi_event *, pi_event *) {
-  sycl::detail::pi::die("piextUSMEnqueueMemcpy2D not implemented");
-  return {};
+/// 2D Memcpy API
+///
+/// \param queue is the queue to submit to
+/// \param blocking is whether this operation should block the host
+/// \param dst_ptr is the location the data will be copied
+/// \param dst_pitch is the total width of the destination memory including
+/// padding
+/// \param src_ptr is the data to be copied
+/// \param dst_pitch is the total width of the source memory including padding
+/// \param width is width in bytes of each row to be copied
+/// \param height is height the columns to be copied
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+pi_result hip_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
+                                      void *dst_ptr, size_t dst_pitch,
+                                      const void *src_ptr, size_t src_pitch,
+                                      size_t width, size_t height,
+                                      pi_uint32 num_events_in_wait_list,
+                                      const pi_event *event_wait_list,
+                                      pi_event *event) {
+  assert(queue != nullptr);
+
+  pi_result result = PI_SUCCESS;
+
+  try {
+    ScopedContext active(queue->get_context());
+    hipStream_t hipStream = queue->get_next_transfer_stream();
+    result = enqueueEventsWait(queue, hipStream, num_events_in_wait_list,
+                               event_wait_list);
+    if (event) {
+      (*event) = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT,
+                                        queue, hipStream);
+      (*event)->start();
+    }
+
+    result = PI_CHECK_ERROR(hipMemcpy2DAsync(dst_ptr, dst_pitch, src_ptr,
+                                             src_pitch, width, height,
+                                             hipMemcpyDefault, hipStream));
+
+    if (event) {
+      (*event)->record();
+    }
+    if (blocking) {
+      result = PI_CHECK_ERROR(hipStreamSynchronize(hipStream));
+    }
+  } catch (pi_result err) {
+    result = err;
+  }
+
+  return result;
 }
 
 /// API to query information about USM allocated pointers

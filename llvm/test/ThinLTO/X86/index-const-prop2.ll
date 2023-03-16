@@ -4,7 +4,7 @@
 ;     folding it during optimziation phase.
 ; RUN: opt -module-summary -opaque-pointers %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/index-const-prop.ll -o %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -save-temps \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t1.bc %t2.bc -save-temps \
 ; RUN:  -r=%t2.bc,foo,pl \
 ; RUN:  -r=%t2.bc,bar,pl \
 ; RUN:  -r=%t2.bc,baz,pl \
@@ -21,7 +21,7 @@
 ; RUN: llvm-dis %t3.1.5.precodegen.bc -o - | FileCheck %s --check-prefix=CODEGEN
 
 ; Now check that we won't internalize global (gBar) if it's externally referenced
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -save-temps \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t1.bc %t2.bc -save-temps \
 ; RUN:  -r=%t2.bc,foo,pl \
 ; RUN:  -r=%t2.bc,bar,pl \
 ; RUN:  -r=%t2.bc,baz,pl \
@@ -38,7 +38,7 @@
 
 ; Run again but with main2 exported instead of main to check that write only
 ; variables are optimized out.
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -save-temps \
+; RUN: llvm-lto2 run -lto-opaque-pointers -opaque-pointers %t1.bc %t2.bc -save-temps \
 ; RUN:  -r=%t2.bc,foo,pl \
 ; RUN:  -r=%t2.bc,bar,pl \
 ; RUN:  -r=%t2.bc,baz,pl \

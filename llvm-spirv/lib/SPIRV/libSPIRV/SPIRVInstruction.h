@@ -1050,7 +1050,7 @@ public:
 
   SPIRVLoopMerge()
       : SPIRVInstruction(OC), MergeBlock(SPIRVID_MAX),
-        LoopControl(SPIRVWORD_MAX) {
+        ContinueTarget(SPIRVID_MAX), LoopControl(SPIRVWORD_MAX) {
     setHasNoId();
     setHasNoType();
   }
@@ -2214,8 +2214,8 @@ protected:
     SPIRVInstruction::validate();
   }
   SPIRVId ExecScope;
-  SPIRVId MemScope;
-  SPIRVId MemSema;
+  SPIRVId MemScope = SPIRVID_INVALID;
+  SPIRVId MemSema = SPIRVID_INVALID;
 };
 
 template <Op OC> class SPIRVLifetime : public SPIRVInstruction {

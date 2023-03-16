@@ -166,12 +166,13 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1031 -DMAC_STR=GFX1031
 // RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1032 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1032 -DMAC_STR=GFX1032
+// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1034 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1034 -DMAC_STR=GFX1034
 // MACRO_AMD: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
 // DEVICE_AMD: clang-offload-wrapper{{.*}} "-compile-opts=--offload-arch=[[DEV_STR]]{{.*}}"
 // MACRO_AMD: clang{{.*}} "-fsycl-is-host"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
-
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
 // RUN: %clangxx -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64

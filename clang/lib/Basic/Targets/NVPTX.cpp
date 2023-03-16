@@ -20,7 +20,7 @@
 using namespace clang;
 using namespace clang::targets;
 
-const Builtin::Info NVPTXTargetInfo::BuiltinInfo[] = {
+static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
   {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
 #define LIBBUILTIN(ID, TYPE, ATTRS, HEADER)                                    \
@@ -155,7 +155,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
 }
 
 ArrayRef<const char *> NVPTXTargetInfo::getGCCRegNames() const {
-  return llvm::makeArrayRef(GCCRegNames);
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 bool NVPTXTargetInfo::hasFeature(StringRef Feature) const {
@@ -265,6 +265,6 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
 }
 
 ArrayRef<Builtin::Info> NVPTXTargetInfo::getTargetBuiltins() const {
-  return llvm::makeArrayRef(BuiltinInfo, clang::NVPTX::LastTSBuiltin -
-                                             Builtin::FirstTSBuiltin);
+  return llvm::ArrayRef(BuiltinInfo,
+                        clang::NVPTX::LastTSBuiltin - Builtin::FirstTSBuiltin);
 }

@@ -203,7 +203,7 @@ SPIRVLowerBitCastToNonStandardTypePass::run(Function &F,
     // Some vector-valued instructions were replaced with undef values, so if
     // that's what we got, it's still a dead instruction.
     if (VH.pointsToAliveValue() && !isa<UndefValue>(VH)) {
-      auto *VT = dyn_cast<VectorType>(VH->getType());
+      auto *VT = cast<VectorType>(VH->getType());
       report_fatal_error(Twine("Unsupported vector type with ") +
                              Twine(VT->getElementCount().getFixedValue()) +
                              Twine(" elements"),

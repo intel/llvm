@@ -1805,6 +1805,13 @@ example:
     with equivalent code based on the semantics of the built-in function, unless
     the call site uses the ``builtin`` attribute. This is valid at call sites
     and on function declarations and definitions.
+``nocallback``
+    This attribute indicates that the function is only allowed to jump back into
+    caller's module by a return or an exception, and is not allowed to jump back
+    by invoking a callback function, a direct, possibly transitive, external
+    function call, use of ``longjmp``, or other means. It is a compiler hint that
+    is used at module level to improve dataflow analysis, dropped during linking,
+    and has no effect on functions defined in the current module.
 ``noduplicate``
     This attribute indicates that calls to the function cannot be
     duplicated. A call to a ``noduplicate`` function may be moved
@@ -2232,14 +2239,9 @@ example:
     unbounded. If the optional max value is omitted then max is set to the
     value of min. If the attribute is not present, no assumptions are made
     about the range of vscale.
-``"min-legal-vector-width"="<size>"``
-    This attribute indicates the minimum legal vector width required by the
-    calling convension. It is the maximum width of vector arguments and
-    returnings in the function and functions called by this function. Because
-    all the vectors are supposed to be legal type for compatibility.
-    Backends are free to ignore the attribute if they don't need to support
-    different maximum legal vector types or such information can be inferred by
-    other attributes.
+``"nooutline"``
+    This attribute indicates that outlining passes should not modify the
+    function.
 
 Call Site Attributes
 ----------------------
@@ -2512,12 +2514,19 @@ Assume Operand Bundles
 ^^^^^^^^^^^^^^^^^^^^^^
 
 Operand bundles on an :ref:`llvm.assume <int_assume>` allows representing
-assumptions that a :ref:`parameter attribute <paramattrs>` or a
+assumptions, such as that a :ref:`parameter attribute <paramattrs>` or a
 :ref:`function attribute <fnattrs>` holds for a certain value at a certain
 location. Operand bundles enable assumptions that are either hard or impossible
 to represent as a boolean argument of an :ref:`llvm.assume <int_assume>`.
 
 An assume operand bundle has the form:
+
+::
+
+      "<tag>"([ <arguments>] ])
+
+In the case of function or parameter attributes, the operand bundle has the
+restricted form:
 
 ::
 
@@ -2563,6 +2572,17 @@ the behavior is undefined, unless one of the following exceptions applies:
 * ``"align"`` operand bundles may specify a non-power-of-two alignment
   (including a zero alignment). If this is the case, then the pointer value
   must be a null pointer, otherwise the behavior is undefined.
+
+In addition to allowing operand bundles encoding function and parameter
+attributes, an assume operand bundle my also encode a ``separate_storage``
+operand bundle. This has the form:
+
+.. code-block:: llvm
+
+    separate_storage(<val1>, <val2>)``
+
+This indicates that no pointer :ref:`based <pointeraliasing>` on one of its
+arguments can alias any pointer based on the other.
 
 Even if the assumed property can be encoded as a boolean value, like
 ``nonnull``, using operand bundles to express the property can still have
@@ -3612,6 +3632,53 @@ Prior to LLVM 15, pointer types also specified a pointee type, such as
 ``i8*``, ``[4 x i32]*`` or ``i32 (i32*)*``. In LLVM 15, such "typed
 pointers" are still supported under non-default options. See the
 `opaque pointers document <OpaquePointers.html>`__ for more information.
+
+.. _t_target_type:
+
+Target Extension Type
+"""""""""""""""""""""
+
+:Overview:
+
+Target extension types represent types that must be preserved through
+optimization, but are otherwise generally opaque to the compiler. They may be
+used as function parameters or arguments, and in :ref:`phi <i_phi>` or
+:ref:`select <i_select>` instructions. Some types may be also used in
+:ref:`alloca <i_alloca>` instructions or as global values, and correspondingly
+it is legal to use :ref:`load <i_load>` and :ref:`store <i_store>` instructions
+on them. Full semantics for these types are defined by the target.
+
+The only constants that target extension types may have are ``zeroinitializer``,
+``undef``, and ``poison``. Other possible values for target extension types may
+arise from target-specific intrinsics and functions.
+
+These types cannot be converted to other types. As such, it is not legal to use
+them in :ref:`bitcast <i_bitcast>` instructions (as a source or target type),
+nor is it legal to use them in :ref:`ptrtoint <i_ptrtoint>` or
+:ref:`inttoptr <i_inttoptr>` instructions. Similarly, they are not legal to use
+in an :ref:`icmp <i_icmp>` instruction.
+
+Target extension types have a name and optional type or integer parameters. The
+meanings of name and parameters are defined by the target. When being defined in
+LLVM IR, all of the type parameters must precede all of the integer parameters.
+
+Specific target extension types are registered with LLVM as having specific
+properties. These properties can be used to restrict the type from appearing in
+certain contexts, such as being the type of a global variable or having a
+``zeroinitializer`` constant be valid. A complete list of type properties may be
+found in the documentation for ``llvm::TargetExtType::Property`` (`doxygen
+<https://llvm.org/doxygen/classllvm_1_1TargetExtType.html>`_).
+
+:Syntax:
+
+.. code-block:: llvm
+
+      target("label")
+      target("label", void)
+      target("label", void, i32)
+      target("label", 0, 1, 2)
+      target("label", void, i32, 0, 1, 2)
+
 
 .. _t_vector:
 
@@ -5339,9 +5406,10 @@ and ``g2`` using the ``!dbg`` identifier:
 Unlike instructions, global objects (functions and global variables) may have
 multiple metadata attachments with the same identifier.
 
-A transformation is required to drop any metadata attachment that it does not
-know or know it can't preserve. Currently there is an exception for metadata
-attachment to globals for ``!func_sanitize``, ``!type`` and ``!absolute_symbol`` which can't be
+A transformation is required to drop any metadata attachment that it
+does not know or know it can't preserve. Currently there is an
+exception for metadata attachment to globals for ``!func_sanitize``,
+``!type``, ``!absolute_symbol`` and ``!associated`` which can't be
 unconditionally dropped unless the global is itself deleted.
 
 Metadata attached to a module using named metadata may not be dropped, with
@@ -5930,6 +5998,21 @@ valid debug intrinsic.
     !4 = !DIExpression(DW_OP_constu, 2, DW_OP_swap, DW_OP_xderef)
     !5 = !DIExpression(DW_OP_constu, 42, DW_OP_stack_value)
 
+DIAssignID
+""""""""""""
+
+``DIAssignID`` nodes have no operands and are always distinct. They are used to
+link together `@llvm.dbg.assign` intrinsics (:ref:`debug
+intrinsics<dbg_intrinsics>`) and instructions that store in IR. See `Debug Info
+Assignment Tracking <AssignmentTracking.html>`_ for more info.
+
+.. code-block:: llvm
+
+    store i32 %a, ptr %a.addr, align 4, !DIAssignID !2
+    llvm.dbg.assign(metadata %a, metadata !1, metadata !DIExpression(), !2, metadata %a.addr, metadata !DIExpression()), !dbg !3
+
+    !2 = distinct !DIAssignID()
+
 DIArgList
 """"""""""""
 
@@ -6308,10 +6391,10 @@ representing the maximum relative error, for example:
 ``range`` metadata may be attached only to ``load``, ``call`` and ``invoke`` of
 integer types. It expresses the possible ranges the loaded value or the value
 returned by the called function at this call site is in. If the loaded or
-returned value is not in the specified range, the behavior is undefined. The
-ranges are represented with a flattened list of integers. The loaded value or
-the value returned is known to be in the union of the ranges defined by each
-consecutive pair. Each pair has the following properties:
+returned value is not in the specified range, a poison value is returned
+instead. The ranges are represented with a flattened list of integers. The
+loaded value or the value returned is known to be in the union of the ranges
+defined by each consecutive pair. Each pair has the following properties:
 
 -  The type must match the type loaded by the instruction.
 -  The pair ``a,b`` represents the range ``[a,b)``.
@@ -10115,9 +10198,9 @@ The optional ``!nonnull`` metadata must reference a single
 metadata name ``<empty_node>`` corresponding to a metadata node with no
 entries. The existence of the ``!nonnull`` metadata on the
 instruction tells the optimizer that the value loaded is known to
-never be null. If the value is null at runtime, the behavior is undefined.
-This is analogous to the ``nonnull`` attribute on parameters and return
-values. This metadata can only be applied to loads of a pointer type.
+never be null. If the value is null at runtime, a poison value is returned
+instead.  This is analogous to the ``nonnull`` attribute on parameters and
+return values. This metadata can only be applied to loads of a pointer type.
 
 The optional ``!dereferenceable`` metadata must reference a single metadata
 name ``<deref_bytes_node>`` corresponding to a metadata node with one ``i64``
@@ -10137,13 +10220,16 @@ optimizer that the value loaded is known to be aligned to a boundary specified
 by the integer value in the metadata node. The alignment must be a power of 2.
 This is analogous to the ''align'' attribute on parameters and return values.
 This metadata can only be applied to loads of a pointer type. If the returned
-value is not appropriately aligned at runtime, the behavior is undefined.
+value is not appropriately aligned at runtime, a poison value is returned
+instead.
 
 The optional ``!noundef`` metadata must reference a single metadata name
 ``<empty_node>`` corresponding to a node with no entries. The existence of
 ``!noundef`` metadata on the instruction tells the optimizer that the value
 loaded is known to be :ref:`well defined <welldefinedvalues>`.
-If the value isn't well defined, the behavior is undefined.
+If the value isn't well defined, the behavior is undefined. If the ``!noundef``
+metadata is combined with poison-generating metadata like ``!nonnull``,
+violation of that metadata constraint will also result in undefined behavior.
 
 Semantics:
 """"""""""
@@ -13639,6 +13725,7 @@ functions. These intrinsics allow source-language front-ends to pass
 information about the alignment of the pointer arguments to the code
 generator, providing opportunity for more efficient code generation.
 
+.. _int_abs:
 
 '``llvm.abs.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -15287,6 +15374,8 @@ concept to additional even-byte lengths (6 bytes, 8 bytes and more,
 respectively). The vector intrinsics, such as ``llvm.bswap.v4i32``,
 operate on a per-element basis and the element order is not affected.
 
+.. _int_ctpop:
+
 '``llvm.ctpop.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -15324,6 +15413,8 @@ Semantics:
 
 The '``llvm.ctpop``' intrinsic counts the 1's in a variable, or within
 each element of a vector.
+
+.. _int_ctlz:
 
 '``llvm.ctlz.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -15368,6 +15459,8 @@ zeros in a variable, or within each element of the vector. If
 ``src == 0`` then the result is the size in bits of the type of ``src``
 if ``is_zero_poison == 0`` and ``poison`` otherwise. For example,
 ``llvm.ctlz(i32 2) = 30``.
+
+.. _int_cttz:
 
 '``llvm.cttz.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -18938,6 +19031,56 @@ Examples:
       %t = xor <4 x i32> %a, %b
       %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
 
+.. _int_vp_abs:
+
+'``llvm.vp.abs.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.abs.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>, i1 <is_int_min_poison>)
+      declare <vscale x 4 x i32>  @llvm.vp.abs.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>, i1 <is_int_min_poison>)
+      declare <256 x i64>  @llvm.vp.abs.v256i64 (<256 x i64> <op>, <256 x i1> <mask>, i32 <vector_length>, i1 <is_int_min_poison>)
+
+Overview:
+"""""""""
+
+Predicated abs of a vector of integers.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of integer type. The
+second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation. The fourth argument must be a constant and is a flag to indicate
+whether the result value of the '``llvm.vp.abs``' intrinsic is a
+:ref:`poison value <poisonvalues>` if the argument is statically or dynamically
+an ``INT_MIN`` value.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.abs``' intrinsic performs abs (:ref:`abs <int_abs>`) of the first operand on each
+enabled lane.  The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.abs.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl, i1 false)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.abs.v4i32(<4 x i32> %a, i1 false)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
 
 .. _int_vp_smax:
 
@@ -22162,6 +22305,147 @@ Examples:
       %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
 
 
+.. _int_vp_ctpop:
+
+'``llvm.vp.ctpop.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.ctpop.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.ctpop.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.ctpop.v256i64 (<256 x i64> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated ctpop of a vector of integers.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of integer type. The
+second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.ctpop``' intrinsic performs ctpop (:ref:`ctpop <int_ctpop>`) of the first operand on each
+enabled lane.  The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.ctpop.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.ctpop.v4i32(<4 x i32> %a)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
+.. _int_vp_ctlz:
+
+'``llvm.vp.ctlz.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.ctlz.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>, i1 <is_zero_poison>)
+      declare <vscale x 4 x i32>  @llvm.vp.ctlz.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>, i1 <is_zero_poison>)
+      declare <256 x i64>  @llvm.vp.ctlz.v256i64 (<256 x i64> <op>, <256 x i1> <mask>, i32 <vector_length>, i1 <is_zero_poison>)
+
+Overview:
+"""""""""
+
+Predicated ctlz of a vector of integers.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of integer type. The
+second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.ctlz``' intrinsic performs ctlz (:ref:`ctlz <int_ctlz>`) of the first operand on each
+enabled lane.  The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.ctlz.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl, i1 false)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.ctlz.v4i32(<4 x i32> %a, i1 false)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
+.. _int_vp_cttz:
+
+'``llvm.vp.cttz.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.cttz.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>, i1 <is_zero_poison>)
+      declare <vscale x 4 x i32>  @llvm.vp.cttz.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>, i1 <is_zero_poison>)
+      declare <256 x i64>  @llvm.vp.cttz.v256i64 (<256 x i64> <op>, <256 x i1> <mask>, i32 <vector_length>, i1 <is_zero_poison>)
+
+Overview:
+"""""""""
+
+Predicated cttz of a vector of integers.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of integer type. The
+second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.cttz``' intrinsic performs cttz (:ref:`cttz <int_cttz>`) of the first operand on each
+enabled lane.  The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.cttz.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl, i1 false)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.cttz.v4i32(<4 x i32> %a, i1 false)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
 .. _int_vp_fshl:
 
 '``llvm.vp.fshl.*``' Intrinsics
@@ -22806,6 +23090,1189 @@ Semantics:
 Returns another pointer that aliases its argument but which has no associated
 ``invariant.group`` metadata.
 It does not read any memory and can be speculated.
+
+.. _fpbuiltin:
+
+Floating-Point Builtin Intrinsics
+-------------------------------------
+
+These intrinsics are used to represent common floating-point operations with
+the explicit expectation that the semantics of the operation may be modified
+by call-site attributes that are specific to these intrinsics. Although many
+of these operations correspond directly to functions defined by the standard
+C math library, these intrinsics are intended to allow replacement of the
+intrinsic with implementation outside the standard library, such as vector
+implementations of the operation or alternate implementations to satisfy
+different accuracy requirements.
+
+The following call-site attributes are currently recognized as being associated
+with the floating-point builtin intrinsics:
+
+``"fpbuiltin-max-error"="<ulp>"``
+    This attribute specifies the required accuracy for the operation in ULPs.
+    The accuracy value must be a non-negative floating-point number. A value
+    of 0.5 or less indicates that the result is required to be correctly
+    rounded according to IEEE-754 rules. The default rounding mode
+    (round-to-nearest) may be assumed.
+
+    If this attribute is absent, basic operations (fadd, fsub, fmul, fdiv,
+    frem, and sqrt) are assumed to provide correctly rounded result. The
+    accuracy of other operations is target-dependent, corresponding to the
+    accuracy of the target-default implementation of the operation (usually
+    the implementation provided by the standard math library). If this
+    attribute is present, the intrinsic may only be replaced with
+    implementations which are known to provide at least the accuracy described.
+    An implementation which is more accurate than required by this attribute
+    may be used.
+
+The semantics of the fpbuiltin intrinsics may be further constrained by defining
+new callsite attributes beginning with "fpbuiltin-". All such string attribute
+identifiers are considered reserved for use with fpbuiltin intrinsics.
+
+No transformation should be performed on any fpbuiltin intrinsic if the
+intrinsic has any callsite attributes begining with "fpbuiltin-" that the code
+performing the transformation does not recognize.
+
+Unless otherwise specified using callsite attributes, the fpbuiltin intrinsics
+do not set ``errno`` and are not guaranteed to maintain correct
+floating-point exception state.
+
+All fpbuiltin intrinsics are overloaded intrinsics which may operate on any
+scalar or vector floating-point type. Not all targets support all types.
+
+'``llvm.fpbuiltin.fadd``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.fadd(<type> <op1>, <type> <op2>)
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuiltin.fadd``' intrinsic returns the sum of its two operands.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.fadd``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point sum of the two value operands and has
+the same type as the operands. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to be correctly rounded.
+
+
+'``llvm.fpbuiltin.fsub``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.fsub(<type> <op1>, <type> <op2>)
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuiltin.fsub``' intrinsic returns the difference of its two
+operands.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.fsub``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point difference of the two value operands
+and has the same type as the operands. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to be correctly
+rounded.
+
+
+'``llvm.fpbuiltin.fmul``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.fmul(<type> <op1>, <type> <op2>)
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuiltin.fmul``' intrinsic returns the product of its two operands.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.fmul``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point product of the two value operands and
+has the same type as the operands. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to be correctly rounded.
+
+
+'``llvm.fpbuiltin.fdiv``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.fdiv(<type> <op1>, <type> <op2>)
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuiltin.fdiv``' intrinsic returns the quotient of its two
+operands.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.fdiv``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point quotient of the two value operands and
+has the same type as the operands. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to be correctly rounded.
+
+
+'``llvm.fpbuiltin.frem``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.frem(<type> <op1>, <type> <op2>)
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuiltin.frem``' intrinsic returns the remainder from the division
+of its two operands.
+
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.frem``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point remainder from the division of the two
+value operands and has the same type as the operands.  The remainder has the
+same sign as the dividend. Unless modified by the "fpbuiltin-max-error" callsite
+attribute, the result is assumed to be correctly rounded.
+
+
+'``llvm.fpbuilt.sin``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.sin(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.sin``' intrinsics return the sine of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.sin``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point sine of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the sine operation for the input type.
+
+
+'``llvm.fpbuilt.cos``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.cos(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.cos``' intrinsics return the cosine of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.cos``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point cosine of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the cosine operation for the input type.
+
+
+'``llvm.fpbuilt.tan``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.tan(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.tan``' intrinsics return the tangent of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.tan``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point tangent of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the tangent operation for the input type.
+
+
+'``llvm.fpbuilt.sinh^``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.sinh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.sinh``' intrinsics return the hyperbolic sine of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.sinh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point hyperbolic sine of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the hyperbolic sine
+operation for the input type.
+
+
+'``llvm.fpbuilt.cosh``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.cosh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.cosh``' intrinsics return the hyperbolic cosine of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.cosh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point hyperbolic cosine of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the hyperbolic cosine
+operation for the input type.
+
+
+'``llvm.fpbuilt.tanh``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.tanh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.tanh``' intrinsics return the hyperbolic tangent of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.tanh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point hyperbolic tangent of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the hyperbolic tangent
+operation for the input type.
+
+
+'``llvm.fpbuilt.asin``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.asin(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.asin``' intrinsics return the principal value of the
+arc sine of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.asin``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the principal value of the floating-point arc sine of
+the operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the arc sine operation
+for the input type.
+
+
+'``llvm.fpbuilt.acos``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.acos(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.acos``' intrinsics return the principal value of the
+arc cosine of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.acos``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the principal value of the floating-point arc cosine
+of the operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the arc cosine operation
+for the input type.
+
+
+'``llvm.fpbuilt.atan``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.atan(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.atan``' intrinsics return the principal value of the
+arc tangent of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.atan``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the principal value of the floating-point arc tangent
+of the operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the arc tangent operation
+for the input type.
+
+
+'``llvm.fpbuilt.atan2``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.atan2(<type> <op1>, <type> <op2>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.atan2``' intrinsics return the principal value of the
+arc tangent of op1/op2, expressed in radians.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.atan2``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the principal value of the floating-point arc tangent
+of the quotient of the operands, expressed in radians, and has the same type
+as the operands. Unless modified by the "fpbuiltin-max-error" callsite
+attribute, the result is assumed to have the accuracy of the target-default
+implementation of the atan2 operation for the input type.
+
+
+'``llvm.fpbuilt.asinh^``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.asinh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.asinh``' intrinsics return the area hyperbolic sine of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.asinh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point area hyperbolic sine of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the area hyperbolic sine
+operation for the input type.
+
+
+'``llvm.fpbuilt.acosh``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.acosh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.acosh``' intrinsics return the area hyperbolic cosine of
+the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.acosh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point area hyperbolic cosine of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the area hyperbolic cosine
+operation for the input type.
+
+
+'``llvm.fpbuilt.atanh``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.atanh(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.tanh``' intrinsics return the area hyperbolic tangent of
+the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.atanh``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point area hyperbolic tangent of the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the area hyperbolic
+tangent operation for the input type.
+
+
+'``llvm.fpbuilt.exp``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.exp(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.exp``' intrinsics return the base-e exponential function
+of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.exp``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point base-e exponential function of the
+operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the exp operation for
+the input type.
+
+
+'``llvm.fpbuilt.exp2``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.exp2(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.exp2``' intrinsics return the base-2 exponential function
+of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.exp2``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point base-2 exponential function of the
+operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the exp2 operation for
+the input type.
+
+
+'``llvm.fpbuilt.exp10``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.exp10(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.exp10``' intrinsics return the base-10 exponential function
+of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.exp10``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point base-10 exponential function of the
+operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the exp10 operation
+for the input type.
+
+
+'``llvm.fpbuilt.expm1``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.expm1(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.expm1``' intrinsics return e raised to the power of the
+operand minus one.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.expm1``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point value of e raised to the power the
+operand minus one and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the expm1 operation
+for the input type.
+
+
+'``llvm.fpbuilt.log``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.log(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.log``' intrinsics return the natural logarithm of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.log``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point natural logarithm of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the log operation for the input type.
+
+
+'``llvm.fpbuilt.log2``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.log2(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.log2``' intrinsics return the base-2 logarithm of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.log2``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point base-2 logarithm of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the log2 operation for the input type.
+
+
+'``llvm.fpbuilt.log10``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.log10(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.log10``' intrinsics return the base-10 logarithm of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.log10``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point base-10 logarithm of the operand and
+has the same type as the operand. Unless modified by the "fpbuiltin-max-error"
+callsite attribute, the result is assumed to have the accuracy of the
+target-default implementation of the log10 operation for the input type.
+
+
+'``llvm.fpbuilt.log1p``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.log(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.log``' intrinsics return the natural logarithm of
+one plus the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.log1p``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point natural logarithm of one plus
+the operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the log1p operation
+for the input type.
+
+
+'``llvm.fpbuilt.hypot``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.hypot(<type> <op1>, <type> <op2>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.hypot``' intrinsics return the hypotenuse of a
+right triangle whose legs are op1 and op2.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.hypot``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point hypotenuse of a right triangle
+whose legs are the operands and has the same type as the operands. Unless
+modified by the "fpbuiltin-max-error" callsite attribute, the result is
+assumed to have the accuracy of the target-default implementation of the
+hypot operation for the input type.
+
+
+'``llvm.fpbuilt.pow``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.pow(<type> <op1>, <type> <op2>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.pow``' intrinsics return the value of op1 raised
+to the power of op2.
+
+Arguments:
+""""""""""
+
+The arguments to the '``llvm.fpbuiltin.pow``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. Both arguments must have identical types.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point value of the first operand raised
+to the power of the second operand and has the same type as the operands.
+Unless modified by the "fpbuiltin-max-error" callsite attribute, the result is
+assumed to have the accuracy of the target-default implementation of the pow
+operation for the input type.
+
+
+'``llvm.fpbuilt.ldexp``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.ldexp(<type> <op1>, <type> <op2>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.ldexp``' intrinsics return the value of op1 multiplied by
+by two raised to the power of op2.
+
+Arguments:
+""""""""""
+
+The first argument to the '``llvm.fpbuiltin.ldexp``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. The second argument must be a 32-bit integer value
+or a :ref:`vector <t_vector>` of 32-bit integers with the same number of
+elements as the first operand.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point value of the first operand multiplied
+by two raised to the power of the second operand and has the same type as the
+operands. Unless modified by the "fpbuiltin-max-error" callsite attribute,
+the result is assumed to have the accuracy of the target-default implementation
+of the ldexp operation for the input type.
+
+
+'``llvm.fpbuilt.sqrt``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.sqrt(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.sqrt``' intrinsics return the square root of the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.sqrt``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point square root the operand and
+has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to be
+correctly rounded.
+
+
+'``llvm.fpbuilt.rsqrt``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.rsqrt(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.sqrt``' intrinsics return the inverse square root of the
+operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.rsqrt``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point inverse square root the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the rsqrt operation
+for the input type.
+
+
+'``llvm.fpbuilt.erf``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.erf(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.erf``' intrinsics return the error function value for
+the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.erf``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point error function value for the operand
+and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the erf operation for
+the input type.
+
+
+'``llvm.fpbuilt.erfc``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.erfc(<type> <op>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.erfc``' intrinsics return the error function value for
+the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.fpbuiltin.erfc``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values.
+
+Semantics:
+""""""""""
+
+The value produced is the floating-point complementary error function value
+for the operand and has the same type as the operand. Unless modified by the
+"fpbuiltin-max-error" callsite attribute, the result is assumed to have
+the accuracy of the target-default implementation of the erf operation for
+the input type.
+
+
+'``llvm.fpbuilt.sincos``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <type> @llvm.fpbuiltin.sincos(<type> <op1>, ptr <sin>, ptr <cos>)
+
+
+Overview:
+"""""""""
+
+The '``llvm.fpbuilt.sincos``' intrinsics compute the sine and cosine of the
+first operand and returns the results via the pointers passed as the second
+and third operands.
+
+Arguments:
+""""""""""
+
+The first argument to the '``llvm.fpbuiltin.sincos``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>` of
+floating-point values. The second and third arguments must be dereferenceable
+pointers to memory which can hold a value of the first operand's type.
+
+Semantics:
+""""""""""
+
+The values produced are the floating-point sine and cosine of the first
+operand and are stored using the same type as the first operand. Unless
+modified by the "fpbuiltin-max-error" callsite attribute, the result is
+assumed to have the accuracy of the target-default implementation of
+the sincos operation for the input type.
 
 
 
@@ -24531,25 +25998,25 @@ These functions read or write floating point environment, such as rounding
 mode or state of floating point exceptions. Altering the floating point
 environment requires special care. See :ref:`Floating Point Environment <floatenv>`.
 
-'``llvm.flt.rounds``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.get.rounding``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.flt.rounds()
+      declare i32 @llvm.get.rounding()
 
 Overview:
 """""""""
 
-The '``llvm.flt.rounds``' intrinsic reads the current rounding mode.
+The '``llvm.get.rounding``' intrinsic reads the current rounding mode.
 
 Semantics:
 """"""""""
 
-The '``llvm.flt.rounds``' intrinsic returns the current rounding mode.
+The '``llvm.get.rounding``' intrinsic returns the current rounding mode.
 Encoding of the returned values is same as the result of ``FLT_ROUNDS``,
 specified by C standard:
 
@@ -24563,7 +26030,6 @@ specified by C standard:
 
 Other values may be used to represent additional rounding modes, supported by a
 target. These values are target-specific.
-
 
 '``llvm.set.rounding``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -24584,7 +26050,7 @@ Arguments:
 """"""""""
 
 The argument is the required rounding mode. Encoding of rounding mode is
-the same as used by '``llvm.flt.rounds``'.
+the same as used by '``llvm.get.rounding``'.
 
 Semantics:
 """"""""""

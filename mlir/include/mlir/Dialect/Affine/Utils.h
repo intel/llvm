@@ -15,6 +15,7 @@
 
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include <optional>
 
 namespace mlir {
 
@@ -300,10 +301,10 @@ Value expandAffineExpr(OpBuilder &builder, Location loc, AffineExpr expr,
 
 /// Create a sequence of operations that implement the `affineMap` applied to
 /// the given `operands` (as it it were an AffineApplyOp).
-Optional<SmallVector<Value, 8>> expandAffineMap(OpBuilder &builder,
-                                                Location loc,
-                                                AffineMap affineMap,
-                                                ValueRange operands);
+std::optional<SmallVector<Value, 8>> expandAffineMap(OpBuilder &builder,
+                                                     Location loc,
+                                                     AffineMap affineMap,
+                                                     ValueRange operands);
 
 /// Holds the result of (div a, b)  and (mod a, b).
 struct DivModValue {
@@ -358,6 +359,10 @@ struct AffineBuilder {
   }
   OpFoldResult mul(AffineValueExpr lhs, AffineValueExpr rhs) {
     return makeComposedFoldedAffineApply(b, loc, {lhs.e * rhs.e}, {lhs, rhs});
+  }
+  OpFoldResult floor(AffineValueExpr lhs, AffineValueExpr rhs) {
+    return makeComposedFoldedAffineApply(b, loc, {lhs.e.floorDiv(rhs.e)},
+                                         {lhs, rhs});
   }
   OpFoldResult ceil(AffineValueExpr lhs, AffineValueExpr rhs) {
     return makeComposedFoldedAffineApply(b, loc, {lhs.e.ceilDiv(rhs.e)},

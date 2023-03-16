@@ -23,6 +23,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/TableGen/Parser.h"
 #include "llvm/TableGen/Record.h"
+#include <optional>
 
 using namespace mlir;
 
@@ -54,7 +55,7 @@ static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr, SMLoc loc,
 }
 
 /// Convert the given TableGen diagnostic to the LSP form.
-static Optional<lsp::Diagnostic>
+static std::optional<lsp::Diagnostic>
 getLspDiagnoticFromDiag(const llvm::SMDiagnostic &diag,
                         const lsp::URIForFile &uri) {
   auto *sourceMgr = const_cast<llvm::SourceMgr *>(diag.getSourceMgr());
@@ -354,8 +355,8 @@ public:
   // Hover
   //===--------------------------------------------------------------------===//
 
-  Optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
-                                 const lsp::Position &hoverPos);
+  std::optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
+                                      const lsp::Position &hoverPos);
   lsp::Hover buildHoverForRecord(const llvm::Record *record,
                                  const SMRange &hoverRange);
   lsp::Hover buildHoverForTemplateArg(const llvm::Record *record,
@@ -518,7 +519,7 @@ void TableGenTextFile::getDocumentLinks(const lsp::URIForFile &uri,
 // TableGenTextFile: Hover
 //===----------------------------------------------------------------------===//
 
-Optional<lsp::Hover>
+std::optional<lsp::Hover>
 TableGenTextFile::findHover(const lsp::URIForFile &uri,
                             const lsp::Position &hoverPos) {
   // Check for a reference to an include.
@@ -582,7 +583,7 @@ lsp::Hover TableGenTextFile::buildHoverForRecord(const llvm::Record *record,
     printAndFormatField("description");
 
     // Check for documentation in the source file.
-    if (Optional<std::string> doc =
+    if (std::optional<std::string> doc =
             lsp::extractSourceDocComment(sourceMgr, record->getLoc().front())) {
       hoverOS << "\n" << *doc << "\n";
     }
@@ -617,7 +618,7 @@ lsp::Hover TableGenTextFile::buildHoverForField(const llvm::Record *record,
     hoverOS << "`\n***\n";
 
     // Check for documentation in the source file.
-    if (Optional<std::string> doc =
+    if (std::optional<std::string> doc =
             lsp::extractSourceDocComment(sourceMgr, value->getLoc())) {
       hoverOS << "\n" << *doc << "\n";
       hoverOS << "\n***\n";
@@ -627,7 +628,7 @@ lsp::Hover TableGenTextFile::buildHoverForField(const llvm::Record *record,
     // documentation.
     auto [baseRecord, baseValue] = getBaseValue(record, value);
     if (baseValue) {
-      if (Optional<std::string> doc =
+      if (std::optional<std::string> doc =
               lsp::extractSourceDocComment(sourceMgr, baseValue->getLoc())) {
         hoverOS << "\n *From `" << baseRecord->getName() << "`*:\n\n"
                 << *doc << "\n";
@@ -690,7 +691,8 @@ void lsp::TableGenServer::updateDocument(
     impl->files.erase(it);
 }
 
-Optional<int64_t> lsp::TableGenServer::removeDocument(const URIForFile &uri) {
+std::optional<int64_t>
+lsp::TableGenServer::removeDocument(const URIForFile &uri) {
   auto it = impl->files.find(uri.file());
   if (it == impl->files.end())
     return std::nullopt;
@@ -723,8 +725,9 @@ void lsp::TableGenServer::getDocumentLinks(
     return fileIt->second->getDocumentLinks(uri, documentLinks);
 }
 
-Optional<lsp::Hover> lsp::TableGenServer::findHover(const URIForFile &uri,
-                                                    const Position &hoverPos) {
+std::optional<lsp::Hover>
+lsp::TableGenServer::findHover(const URIForFile &uri,
+                               const Position &hoverPos) {
   auto fileIt = impl->files.find(uri.file());
   if (fileIt != impl->files.end())
     return fileIt->second->findHover(uri, hoverPos);

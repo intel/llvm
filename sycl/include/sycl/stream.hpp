@@ -757,8 +757,16 @@ public:
   stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH,
          const property_list &PropList);
 
+  size_t size() const noexcept;
+
+  size_t get_work_item_buffer_size() const;
+
+  __SYCL2020_DEPRECATED(
+      "get_size() is deprecated since SYCL 2020. Please use size() instead.")
   size_t get_size() const;
 
+  __SYCL2020_DEPRECATED("get_max_statement_size() is deprecated since SYCL "
+                        "2020. Please use get_work_item_buffer_size() instead.")
   size_t get_max_statement_size() const;
 
   size_t get_precision() const { return Precision; }

@@ -32,7 +32,6 @@ private:
   CudaVersion Version = CudaVersion::UNKNOWN;
   std::string InstallPath;
   std::string BinPath;
-  std::string LibPath;
   std::string LibDevicePath;
   std::string IncludePath;
   llvm::StringMap<std::string> LibDeviceMap;
@@ -70,8 +69,6 @@ public:
   StringRef getBinPath() const { return BinPath; }
   /// Get the detected Cuda Include path.
   StringRef getIncludePath() const { return IncludePath; }
-  /// Get the detected Cuda library path.
-  StringRef getLibPath() const { return LibPath; }
   /// Get the detected Cuda device library path.
   StringRef getLibDevicePath() const { return LibDevicePath; }
   /// Get libdevice file for given architecture
@@ -86,29 +83,29 @@ namespace NVPTX {
 
 // Run ptxas, the NVPTX assembler.
 class LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
- public:
-   Assembler(const ToolChain &TC) : Tool("NVPTX::Assembler", "ptxas", TC) {}
+public:
+  Assembler(const ToolChain &TC) : Tool("NVPTX::Assembler", "ptxas", TC) {}
 
-   bool hasIntegratedCPP() const override { return false; }
+  bool hasIntegratedCPP() const override { return false; }
 
-   void ConstructJob(Compilation &C, const JobAction &JA,
-                     const InputInfo &Output, const InputInfoList &Inputs,
-                     const llvm::opt::ArgList &TCArgs,
-                     const char *LinkingOutput) const override;
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
 };
 
 // Runs fatbinary, which combines GPU object files ("cubin" files) and/or PTX
 // assembly into a single output file.
 class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
- public:
-   Linker(const ToolChain &TC) : Tool("NVPTX::Linker", "fatbinary", TC) {}
+public:
+  Linker(const ToolChain &TC) : Tool("NVPTX::Linker", "fatbinary", TC) {}
 
-   bool hasIntegratedCPP() const override { return false; }
+  bool hasIntegratedCPP() const override { return false; }
 
-   void ConstructJob(Compilation &C, const JobAction &JA,
-                     const InputInfo &Output, const InputInfoList &Inputs,
-                     const llvm::opt::ArgList &TCArgs,
-                     const char *LinkingOutput) const override;
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
 };
 
 class LLVM_LIBRARY_VISIBILITY OpenMPLinker : public Tool {
@@ -161,9 +158,10 @@ public:
   llvm::opt::DerivedArgList *
   TranslateArgs(const llvm::opt::DerivedArgList &Args, StringRef BoundArch,
                 Action::OffloadKind DeviceOffloadKind) const override;
-  void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
-                             llvm::opt::ArgStringList &CC1Args,
-                             Action::OffloadKind DeviceOffloadKind) const override;
+  void
+  addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
+                        llvm::opt::ArgStringList &CC1Args,
+                        Action::OffloadKind DeviceOffloadKind) const override;
 
   llvm::DenormalMode getDefaultDenormalModeForType(
       const llvm::opt::ArgList &DriverArgs, const JobAction &JA,
@@ -215,9 +213,14 @@ public:
   const ToolChain &HostTC;
   CudaInstallationDetector CudaInstallation;
 
+  /// Uses nvptx-arch tool to get arch of the system GPU. Will return error
+  /// if unable to find one.
+  virtual Expected<SmallVector<std::string>>
+  getSystemGPUArchs(const llvm::opt::ArgList &Args) const override;
+
 protected:
-  Tool *buildAssembler() const override;  // ptxas
-  Tool *buildLinker() const override;     // fatbinary (ok, not really a linker)
+  Tool *buildAssembler() const override; // ptxas
+  Tool *buildLinker() const override;    // fatbinary (ok, not really a linker)
 
 private:
   const Action::OffloadKind OK;

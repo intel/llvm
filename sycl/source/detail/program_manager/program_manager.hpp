@@ -46,8 +46,8 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 
-bool doesDevSupportImgAspects(const device &Dev,
-                              const RTDeviceBinaryImage &BinImages);
+bool doesDevSupportDeviceRequirements(const device &Dev,
+                                      const RTDeviceBinaryImage &BinImages);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.

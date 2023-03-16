@@ -1,4 +1,4 @@
-; RUN: llvm-as < %s | llvm-spirv -spirv-text --spirv-ext=+SPV_INTEL_function_pointers,+SPV_INTEL_masked_gather_scatter | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-as -opaque-pointers=0 < %s | llvm-spirv -opaque-pointers=0 -spirv-text --spirv-ext=+SPV_INTEL_function_pointers,+SPV_INTEL_masked_gather_scatter | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-SPIRV-DAG: 6 Name [[F1:[0-9+]]] "_Z2f1u2CMvb32_j"
 ; CHECK-SPIRV-DAG: 6 Name [[F2:[0-9+]]] "_Z2f2u2CMvb32_j"

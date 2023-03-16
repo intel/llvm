@@ -23,6 +23,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
 #include <cassert>
+#include <optional>
 
 using namespace clang;
 using namespace llvm;
@@ -313,7 +314,7 @@ OMPClause::child_range OMPNumTasksClause::used_children() {
 OMPClause::child_range OMPFinalClause::used_children() {
   if (Stmt **C = getAddrOfExprAsWritten(getPreInitStmt()))
     return child_range(C, C + 1);
-  return child_range(&Condition, &Condition + 1);
+  return children();
 }
 
 OMPClause::child_range OMPPriorityClause::used_children() {
@@ -325,13 +326,13 @@ OMPClause::child_range OMPPriorityClause::used_children() {
 OMPClause::child_range OMPNovariantsClause::used_children() {
   if (Stmt **C = getAddrOfExprAsWritten(getPreInitStmt()))
     return child_range(C, C + 1);
-  return child_range(&Condition, &Condition + 1);
+  return children();
 }
 
 OMPClause::child_range OMPNocontextClause::used_children() {
   if (Stmt **C = getAddrOfExprAsWritten(getPreInitStmt()))
     return child_range(C, C + 1);
-  return child_range(&Condition, &Condition + 1);
+  return children();
 }
 
 OMPOrderedClause *OMPOrderedClause::Create(const ASTContext &C, Expr *Num,
@@ -367,7 +368,7 @@ void OMPOrderedClause::setLoopNumIterations(unsigned NumLoop,
 }
 
 ArrayRef<Expr *> OMPOrderedClause::getLoopNumIterations() const {
-  return llvm::makeArrayRef(getTrailingObjects<Expr *>(), NumberOfLoops);
+  return llvm::ArrayRef(getTrailingObjects<Expr *>(), NumberOfLoops);
 }
 
 void OMPOrderedClause::setLoopCounter(unsigned NumLoop, Expr *Counter) {
@@ -2454,7 +2455,7 @@ void OMPTraitInfo::getAsVariantMatchInfo(ASTContext &ASTCtx,
                    TraitProperty::user_condition_unknown &&
                "Ill-formed user condition, expected unknown trait property!");
 
-        if (Optional<APSInt> CondVal =
+        if (std::optional<APSInt> CondVal =
                 Selector.ScoreOrCondition->getIntegerConstantExpr(ASTCtx))
           VMI.addTrait(CondVal->isZero() ? TraitProperty::user_condition_false
                                          : TraitProperty::user_condition_true,
@@ -2464,7 +2465,7 @@ void OMPTraitInfo::getAsVariantMatchInfo(ASTContext &ASTCtx,
         continue;
       }
 
-      Optional<llvm::APSInt> Score;
+      std::optional<llvm::APSInt> Score;
       llvm::APInt *ScorePtr = nullptr;
       if (Selector.ScoreOrCondition) {
         if ((Score = Selector.ScoreOrCondition->getIntegerConstantExpr(ASTCtx)))

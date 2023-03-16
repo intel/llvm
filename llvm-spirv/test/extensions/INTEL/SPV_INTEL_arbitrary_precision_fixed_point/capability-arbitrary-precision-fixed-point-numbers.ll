@@ -92,11 +92,11 @@
 ;   return 0;
 ; }
 
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_arbitrary_precision_integers,+SPV_INTEL_arbitrary_precision_fixed_point -o %t.spv
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_arbitrary_precision_integers,+SPV_INTEL_arbitrary_precision_fixed_point -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
-; RUN: not llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_arbitrary_precision_integers -spirv-text -o - 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+; RUN: not llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_arbitrary_precision_integers -spirv-text -o - 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 ; CHECK-ERROR: InvalidInstruction: Can't translate llvm instruction:
 ; CHECK-ERROR: Fixed point instructions can't be translated correctly without enabled SPV_INTEL_arbitrary_precision_fixed_point extension!
 

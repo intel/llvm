@@ -2386,8 +2386,9 @@ public:
   __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
   void barrier(const std::vector<event> &WaitList);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on this handler's
+  /// device.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -2397,8 +2398,9 @@ public:
   /// \param Count is a number of bytes to copy.
   void memcpy(void *Dest, const void *Src, size_t Count);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on this handler's
+  /// device.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.

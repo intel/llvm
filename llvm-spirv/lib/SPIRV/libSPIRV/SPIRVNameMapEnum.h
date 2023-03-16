@@ -179,6 +179,19 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationMediaBlockIOINTEL, "MediaBlockIOINTEL");
   add(DecorationAliasScopeINTEL, "AliasScopeINTEL");
   add(DecorationNoAliasINTEL, "NoAliasINTEL");
+  add(DecorationConduitKernelArgumentINTEL, "ConduitKernelArgumentINTEL");
+  add(DecorationRegisterMapKernelArgumentINTEL,
+      "RegisterMapKernelArgumentINTEL");
+  add(DecorationMMHostInterfaceAddressWidthINTEL,
+      "MMHostInterfaceAddressWidthINTEL");
+  add(DecorationMMHostInterfaceDataWidthINTEL, "MMHostInterfaceDataWidthINTEL");
+  add(DecorationMMHostInterfaceLatencyINTEL, "MMHostInterfaceLatencyINTEL");
+  add(DecorationMMHostInterfaceReadWriteModeINTEL,
+      "MMHostInterfaceReadWriteModeINTEL");
+  add(DecorationMMHostInterfaceMaxBurstINTEL, "MMHostInterfaceMaxBurstINTEL");
+  add(DecorationMMHostInterfaceWaitRequestINTEL,
+      "MMHostInterfaceWaitRequestINTEL");
+  add(DecorationStableKernelArgumentINTEL, "StableKernelArgumentINTEL");
   add(DecorationMathOpDSPModeINTEL, "MathOpDSPModeINTEL");
   add(DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
   add(DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
@@ -599,6 +612,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
   add(CapabilitySplitBarrierINTEL, "SplitBarrierINTEL");
   add(CapabilityGroupUniformArithmeticKHR, "GroupUniformArithmeticKHR");
+  add(CapabilityFPGAArgumentInterfacesINTEL, "FPGAArgumentInterfacesINTEL");
   add(CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
   add(CapabilityFPGAInvocationPipeliningAttributesINTEL,
       "FPGAInvocationPipeliningAttributesINTEL");

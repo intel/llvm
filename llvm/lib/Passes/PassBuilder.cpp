@@ -71,6 +71,8 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
+#include "llvm/Analysis/UniformityAnalysis.h"
+#include "llvm/CodeGen/TypePromotion.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/PassManager.h"
@@ -78,6 +80,7 @@
 #include "llvm/IR/SafepointIRVerifier.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
+#include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
@@ -244,6 +247,7 @@
 #include "llvm/Transforms/Utils/LoopSimplify.h"
 #include "llvm/Transforms/Utils/LoopVersioning.h"
 #include "llvm/Transforms/Utils/LowerGlobalDtors.h"
+#include "llvm/Transforms/Utils/LowerIFunc.h"
 #include "llvm/Transforms/Utils/LowerInvoke.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
@@ -839,6 +843,23 @@ Expected<GVNOptions> parseGVNOptions(StringRef Params) {
           formatv("invalid GVN pass parameter '{0}' ", ParamName).str(),
           inconvertibleErrorCode());
     }
+  }
+  return Result;
+}
+
+Expected<IPSCCPOptions> parseIPSCCPOptions(StringRef Params) {
+  IPSCCPOptions Result;
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+
+    bool Enable = !ParamName.consume_front("no-");
+    if (ParamName == "func-spec")
+      Result.setFuncSpec(Enable);
+    else
+      return make_error<StringError>(
+          formatv("invalid IPSCCP pass parameter '{0}' ", ParamName).str(),
+          inconvertibleErrorCode());
   }
   return Result;
 }

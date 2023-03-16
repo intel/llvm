@@ -117,8 +117,8 @@ LogicalResult PatternApplicatorExtension::findAllMatches(
 // AlternativesOp
 //===----------------------------------------------------------------------===//
 
-OperandRange
-transform::AlternativesOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+OperandRange transform::AlternativesOp::getSuccessorEntryOperands(
+    std::optional<unsigned> index) {
   if (index && getOperation()->getNumOperands() == 1)
     return getOperation()->getOperands();
   return OperandRange(getOperation()->operand_end(),
@@ -126,7 +126,7 @@ transform::AlternativesOp::getSuccessorEntryOperands(Optional<unsigned> index) {
 }
 
 void transform::AlternativesOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   for (Region &alternative : llvm::drop_begin(
            getAlternatives(), index.has_value() ? *index + 1 : 0)) {
@@ -257,12 +257,11 @@ LogicalResult transform::AlternativesOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// ForeachOp
+// CastOp
 //===----------------------------------------------------------------------===//
 
 DiagnosedSilenceableFailure
-transform::CastOp::applyToOne(Operation *target,
-                              SmallVectorImpl<Operation *> &results,
+transform::CastOp::applyToOne(Operation *target, ApplyToEachResultList &results,
                               transform::TransformState &state) {
   results.push_back(target);
   return DiagnosedSilenceableFailure::success();
@@ -281,7 +280,8 @@ bool transform::CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   return llvm::all_of(
       std::initializer_list<Type>{inputs.front(), outputs.front()},
       [](Type ty) {
-        return ty.isa<pdl::OperationType, transform::TransformTypeInterface>();
+        return ty
+            .isa<pdl::OperationType, transform::TransformHandleTypeInterface>();
       });
 }
 
@@ -338,7 +338,7 @@ void transform::ForeachOp::getEffects(
 }
 
 void transform::ForeachOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   Region *bodyRegion = &getBody();
   if (!index) {
@@ -353,7 +353,7 @@ void transform::ForeachOp::getSuccessorRegions(
 }
 
 OperandRange
-transform::ForeachOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+transform::ForeachOp::getSuccessorEntryOperands(std::optional<unsigned> index) {
   // The iteration variable op handle is mapped to a subset (one op to be
   // precise) of the payload ops of the ForeachOp operand.
   assert(index && *index == 0 && "unexpected region index");
@@ -370,9 +370,9 @@ LogicalResult transform::ForeachOp::verify() {
     return emitOpError() << "expects the same number of results as the "
                             "terminator has operands";
   for (Value v : yieldOp.getOperands())
-    if (!v.getType().isa<TransformTypeInterface>())
-      return yieldOp->emitOpError(
-          "expects operands to have types implementing TransformTypeInterface");
+    if (!v.getType().isa<TransformHandleTypeInterface>())
+      return yieldOp->emitOpError("expects operands to have types implementing "
+                                  "TransformHandleTypeInterface");
   return success();
 }
 
@@ -396,6 +396,31 @@ DiagnosedSilenceableFailure transform::GetClosestIsolatedParentOp::apply(
     parents.insert(parent);
   }
   results.set(getResult().cast<OpResult>(), parents.getArrayRef());
+  return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
+// GetConsumersOfResult
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::GetConsumersOfResult::apply(transform::TransformResults &results,
+                                       transform::TransformState &state) {
+  int64_t resultNumber = getResultNumber();
+  ArrayRef<Operation *> payloadOps = state.getPayloadOps(getTarget());
+  if (payloadOps.empty()) {
+    results.set(getResult().cast<OpResult>(), {});
+    return DiagnosedSilenceableFailure::success();
+  }
+  if (payloadOps.size() != 1)
+    return emitDefiniteFailure()
+           << "handle must be mapped to exactly one payload op";
+
+  Operation *target = payloadOps.front();
+  if (target->getNumResults() <= resultNumber)
+    return emitDefiniteFailure() << "result number overflow";
+  results.set(getResult().cast<OpResult>(),
+              llvm::to_vector(target->getResult(resultNumber).getUsers()));
   return DiagnosedSilenceableFailure::success();
 }
 
@@ -449,6 +474,11 @@ transform::MergeHandlesOp::apply(transform::TransformResults &results,
   return DiagnosedSilenceableFailure::success();
 }
 
+bool transform::MergeHandlesOp::allowsRepeatedHandleOperands() {
+  // Handles may be the same if deduplicating is enabled.
+  return getDeduplicate();
+}
+
 void transform::MergeHandlesOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   consumesHandle(getHandles(), effects);
@@ -458,7 +488,7 @@ void transform::MergeHandlesOp::getEffects(
   // manipulation.
 }
 
-OpFoldResult transform::MergeHandlesOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult transform::MergeHandlesOp::fold(FoldAdaptor adaptor) {
   if (getDeduplicate() || getHandles().size() != 1)
     return {};
 
@@ -737,8 +767,8 @@ void transform::SequenceOp::getEffects(
   }
 }
 
-OperandRange
-transform::SequenceOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+OperandRange transform::SequenceOp::getSuccessorEntryOperands(
+    std::optional<unsigned> index) {
   assert(index && *index == 0 && "unexpected region index");
   if (getOperation()->getNumOperands() == 1)
     return getOperation()->getOperands();
@@ -747,7 +777,7 @@ transform::SequenceOp::getSuccessorEntryOperands(Optional<unsigned> index) {
 }
 
 void transform::SequenceOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   if (!index) {
     Region *bodyRegion = &getBody();

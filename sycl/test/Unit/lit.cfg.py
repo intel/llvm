@@ -50,6 +50,9 @@ for symbolizer in ['ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH']:
     if symbolizer in os.environ:
         config.environment[symbolizer] = os.environ[symbolizer]
 
+llvm_symbolizer = os.path.join(config.llvm_tools_dir, 'llvm-symbolizer')
+config.environment['LLVM_SYMBOLIZER_PATH'] = llvm_symbolizer
+
 def find_shlibpath_var():
     if platform.system() in ['Linux', 'FreeBSD', 'NetBSD', 'SunOS']:
         yield 'LD_LIBRARY_PATH'

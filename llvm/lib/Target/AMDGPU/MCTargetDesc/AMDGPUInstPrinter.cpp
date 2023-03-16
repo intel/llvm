@@ -30,7 +30,7 @@ static cl::opt<bool> Keep16BitSuffixes(
   cl::init(false),
   cl::ReallyHidden);
 
-void AMDGPUInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
+void AMDGPUInstPrinter::printRegName(raw_ostream &OS, MCRegister Reg) const {
   // FIXME: The current implementation of
   // AsmParser::parseRegisterOrRegisterNumber in MC implies we either emit this
   // as an integer or we provide a name which represents a physical register.
@@ -43,7 +43,7 @@ void AMDGPUInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
   // would extend MC to support parsing DWARF register names so we could do
   // something like `.cfi_undefined dwarf_wave32_v0`. For now we just live with
   // non-pretty DWARF register names in assembly text.
-  OS << RegNo;
+  OS << Reg.id();
 }
 
 void AMDGPUInstPrinter::printInst(const MCInst *MI, uint64_t Address,
@@ -265,8 +265,8 @@ void AMDGPUInstPrinter::printR128A16(const MCInst *MI, unsigned OpNo,
     printNamedBit(MI, OpNo, O, "r128");
 }
 
-void AMDGPUInstPrinter::printGFX10A16(const MCInst *MI, unsigned OpNo,
-                                  const MCSubtargetInfo &STI, raw_ostream &O) {
+void AMDGPUInstPrinter::printA16(const MCInst *MI, unsigned OpNo,
+                                 const MCSubtargetInfo &STI, raw_ostream &O) {
   printNamedBit(MI, OpNo, O, "a16");
 }
 
@@ -1026,9 +1026,9 @@ void AMDGPUInstPrinter::printBankMask(const MCInst *MI, unsigned OpNo,
   printU4ImmOperand(MI, OpNo, STI, O);
 }
 
-void AMDGPUInstPrinter::printBoundCtrl(const MCInst *MI, unsigned OpNo,
-                                       const MCSubtargetInfo &STI,
-                                       raw_ostream &O) {
+void AMDGPUInstPrinter::printDppBoundCtrl(const MCInst *MI, unsigned OpNo,
+                                          const MCSubtargetInfo &STI,
+                                          raw_ostream &O) {
   unsigned Imm = MI->getOperand(OpNo).getImm();
   if (Imm) {
     O << " bound_ctrl:1";

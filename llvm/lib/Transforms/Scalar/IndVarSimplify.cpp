@@ -195,7 +195,7 @@ static bool ConvertToSInt(const APFloat &APF, int64_t &IntVal) {
   bool isExact = false;
   // See if we can convert this to an int64_t
   uint64_t UIntVal;
-  if (APF.convertToInteger(makeMutableArrayRef(UIntVal), 64, true,
+  if (APF.convertToInteger(MutableArrayRef(UIntVal), 64, true,
                            APFloat::rmTowardZero, &isExact) != APFloat::opOK ||
       !isExact)
     return false;
@@ -788,7 +788,9 @@ static bool mustExecuteUBIfPoisonOnPathTo(Instruction *Root,
 
     // If we can't analyze propagation through this instruction, just skip it
     // and transitive users.  Safe as false is a conservative result.
-    if (!propagatesPoison(cast<Operator>(I)) && I != Root)
+    if (I != Root && !any_of(I->operands(), [&KnownPoison](const Use &U) {
+          return KnownPoison.contains(U) && propagatesPoison(U);
+        }))
       continue;
 
     if (KnownPoison.insert(I).second)
@@ -1369,31 +1371,24 @@ createInvariantCond(const Loop *L, BasicBlock *ExitingBB,
                             BI->getCondition()->getName());
 }
 
-static bool optimizeLoopExitWithUnknownExitCount(
-    const Loop *L, BranchInst *BI, BasicBlock *ExitingBB, const SCEV *MaxIter,
-    bool SkipLastIter, ScalarEvolution *SE, SCEVExpander &Rewriter,
-    SmallVectorImpl<WeakTrackingVH> &DeadInsts) {
-  ICmpInst::Predicate Pred;
-  Value *LHS, *RHS;
-  BasicBlock *TrueSucc, *FalseSucc;
-  if (!match(BI, m_Br(m_ICmp(Pred, m_Value(LHS), m_Value(RHS)),
-                      m_BasicBlock(TrueSucc), m_BasicBlock(FalseSucc))))
-    return false;
-
-  assert((L->contains(TrueSucc) != L->contains(FalseSucc)) &&
-         "Not a loop exit!");
+static std::optional<Value *>
+createReplacement(ICmpInst *ICmp, const Loop *L, BasicBlock *ExitingBB,
+                  const SCEV *MaxIter, bool Inverted, bool SkipLastIter,
+                  ScalarEvolution *SE, SCEVExpander &Rewriter) {
+  ICmpInst::Predicate Pred = ICmp->getPredicate();
+  Value *LHS = ICmp->getOperand(0);
+  Value *RHS = ICmp->getOperand(1);
 
   // 'LHS pred RHS' should now mean that we stay in loop.
-  if (L->contains(FalseSucc))
+  auto *BI = cast<BranchInst>(ExitingBB->getTerminator());
+  if (Inverted)
     Pred = CmpInst::getInversePredicate(Pred);
 
   const SCEV *LHSS = SE->getSCEVAtScope(LHS, L);
   const SCEV *RHSS = SE->getSCEVAtScope(RHS, L);
   // Can we prove it to be trivially true or false?
-  if (auto EV = SE->evaluatePredicateAt(Pred, LHSS, RHSS, BI)) {
-    foldExit(L, ExitingBB, /*IsTaken*/ !*EV, DeadInsts);
-    return true;
-  }
+  if (auto EV = SE->evaluatePredicateAt(Pred, LHSS, RHSS, BI))
+    return createFoldedExitCond(L, ExitingBB, /*IsTaken*/ !*EV);
 
   auto *ARTy = LHSS->getType();
   auto *MaxIterTy = MaxIter->getType();
@@ -1416,17 +1411,78 @@ static bool optimizeLoopExitWithUnknownExitCount(
   auto LIP = SE->getLoopInvariantExitCondDuringFirstIterations(Pred, LHSS, RHSS,
                                                                L, BI, MaxIter);
   if (!LIP)
-    return false;
+    return std::nullopt;
 
   // Can we prove it to be trivially true?
   if (SE->isKnownPredicateAt(LIP->Pred, LIP->LHS, LIP->RHS, BI))
-    foldExit(L, ExitingBB, /*IsTaken*/ false, DeadInsts);
-  else {
-    auto *NewCond = createInvariantCond(L, ExitingBB, *LIP, Rewriter);
-    replaceExitCond(BI, NewCond, DeadInsts);
-  }
+    return createFoldedExitCond(L, ExitingBB, /*IsTaken*/ false);
+  else
+    return createInvariantCond(L, ExitingBB, *LIP, Rewriter);
+}
 
-  return true;
+static bool optimizeLoopExitWithUnknownExitCount(
+    const Loop *L, BranchInst *BI, BasicBlock *ExitingBB, const SCEV *MaxIter,
+    bool SkipLastIter, ScalarEvolution *SE, SCEVExpander &Rewriter,
+    SmallVectorImpl<WeakTrackingVH> &DeadInsts) {
+  assert(
+      (L->contains(BI->getSuccessor(0)) != L->contains(BI->getSuccessor(1))) &&
+      "Not a loop exit!");
+
+  // For branch that stays in loop by TRUE condition, go through AND. For branch
+  // that stays in loop by FALSE condition, go through OR. Both gives the
+  // similar logic: "stay in loop iff all conditions are true(false)".
+  bool Inverted = L->contains(BI->getSuccessor(1));
+  SmallVector<ICmpInst *, 4> LeafConditions;
+  SmallVector<Value *, 4> Worklist;
+  SmallPtrSet<Value *, 4> Visited;
+  Value *OldCond = BI->getCondition();
+  Visited.insert(OldCond);
+  Worklist.push_back(OldCond);
+
+  auto GoThrough = [&](Value *V) {
+    Value *LHS = nullptr, *RHS = nullptr;
+    if (Inverted) {
+      if (!match(V, m_LogicalOr(m_Value(LHS), m_Value(RHS))))
+        return false;
+    } else {
+      if (!match(V, m_LogicalAnd(m_Value(LHS), m_Value(RHS))))
+        return false;
+    }
+    if (Visited.insert(LHS).second)
+      Worklist.push_back(LHS);
+    if (Visited.insert(RHS).second)
+      Worklist.push_back(RHS);
+    return true;
+  };
+
+  do {
+    Value *Curr = Worklist.pop_back_val();
+    // Go through AND/OR conditions. Collect leaf ICMPs. We only care about
+    // those with one use, to avoid instruction duplication.
+    if (Curr->hasOneUse())
+      if (!GoThrough(Curr))
+        if (auto *ICmp = dyn_cast<ICmpInst>(Curr))
+          LeafConditions.push_back(ICmp);
+  } while (!Worklist.empty());
+
+  bool Changed = false;
+  for (auto *OldCond : LeafConditions)
+    if (auto Replaced =
+            createReplacement(OldCond, L, ExitingBB, MaxIter, Inverted,
+                              SkipLastIter, SE, Rewriter)) {
+      Changed = true;
+      auto *NewCond = *Replaced;
+      if (auto *NCI = dyn_cast<Instruction>(NewCond)) {
+        NCI->setName(OldCond->getName() + ".first_iter");
+        NCI->moveBefore(cast<Instruction>(OldCond));
+      }
+      LLVM_DEBUG(dbgs() << "Unknown exit count: Replacing " << *OldCond
+                        << " with " << *NewCond << "\n");
+      assert(OldCond->hasOneUse() && "Must be!");
+      OldCond->replaceAllUsesWith(NewCond);
+      DeadInsts.push_back(OldCond);
+    }
+  return Changed;
 }
 
 bool IndVarSimplify::canonicalizeExitCondition(Loop *L) {

@@ -65,6 +65,13 @@ GlobalOffsetAccessorT stream_impl::accessGlobalOffset(handler &CGH) {
   return ReinterpretedBuf.get_access<sycl::access::mode::atomic>(
       CGH, range<1>(2), id<1>(0));
 }
+
+size_t stream_impl::size() const noexcept { return BufferSize_; }
+
+size_t stream_impl::get_work_item_buffer_size() const {
+  return MaxStatementSize_;
+}
+
 size_t stream_impl::get_size() const { return BufferSize_; }
 
 size_t stream_impl::get_max_statement_size() const { return MaxStatementSize_; }

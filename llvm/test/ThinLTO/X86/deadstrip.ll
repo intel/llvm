@@ -11,7 +11,7 @@
 ; RUN: llvm-lto -opaque-pointers -exported-symbol=_main -thinlto-action=run -stats %t1.bc %t2.bc 2>&1 | FileCheck %s --check-prefix=STATS
 ; RUN: llvm-nm %t1.bc.thinlto.o | FileCheck %s --check-prefix=CHECK-NM
 
-; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.out -save-temps -stats \
+; RUN: llvm-lto2 run -lto-opaque-pointers %t1.bc %t2.bc -o %t.out -save-temps -stats \
 ; RUN:   -opaque-pointers \
 ; RUN:   -r %t1.bc,_main,plx \
 ; RUN:   -r %t1.bc,_bar,pl \
@@ -109,7 +109,7 @@
 ; In that case there are uses of @dead_func in the regular LTO partition
 ; and it shouldn't be internalized.
 ; RUN: opt %p/Inputs/deadstrip.ll -o %t3.bc
-; RUN: llvm-lto2 run %t1.bc %t3.bc -o %t4.out -save-temps \
+; RUN: llvm-lto2 run -lto-opaque-pointers %t1.bc %t3.bc -o %t4.out -save-temps \
 ; RUN:   -opaque-pointers \
 ; RUN:   -r %t1.bc,_main,plx \
 ; RUN:   -r %t1.bc,_bar,pl \
