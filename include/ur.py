@@ -207,9 +207,11 @@ class ur_structure_type_v(IntEnum):
     BUFFER_ALLOC_LOCATION_PROPERTIES = 5            ## ::ur_buffer_alloc_location_properties_t
     PROGRAM_PROPERTIES = 6                          ## ::ur_program_properties_t
     USM_DESC = 7                                    ## ::ur_usm_desc_t
-    USM_POOL_DESC = 8                               ## ::ur_usm_pool_desc_t
-    USM_POOL_LIMITS_DESC = 9                        ## ::ur_usm_pool_limits_desc_t
-    DEVICE_BINARY = 10                              ## ::ur_device_binary_t
+    USM_HOST_DESC = 8                               ## ::ur_usm_host_desc_t
+    USM_DEVICE_DESC = 9                             ## ::ur_usm_device_desc_t
+    USM_POOL_DESC = 10                              ## ::ur_usm_pool_desc_t
+    USM_POOL_LIMITS_DESC = 11                       ## ::ur_usm_pool_limits_desc_t
+    DEVICE_BINARY = 12                              ## ::ur_device_binary_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -913,13 +915,31 @@ class ur_sampler_addressing_mode_t(c_int):
 class ur_usm_flags_v(IntEnum):
     BIAS_CACHED = UR_BIT(0)                         ## Allocation should be cached
     BIAS_UNCACHED = UR_BIT(1)                       ## Allocation should not be cached
-    WRITE_COMBINED = UR_BIT(2)                      ## Memory should be allocated write-combined (WC)
-    INITIAL_PLACEMENT_DEVICE = UR_BIT(3)            ## Optimize shared allocation for first access on the device
-    INITIAL_PLACEMENT_HOST = UR_BIT(4)              ## Optimize shared allocation for first access on the host
-    DEVICE_READ_ONLY = UR_BIT(5)                    ## Memory is only possibly modified from the host, but read-only in all
-                                                    ## device code
 
 class ur_usm_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief USM host memory property flags
+class ur_usm_host_mem_flags_v(IntEnum):
+    INITIAL_PLACEMENT = UR_BIT(0)                   ## Optimize shared allocation for first access on the host
+
+class ur_usm_host_mem_flags_t(c_int):
+    def __str__(self):
+        return hex(self.value)
+
+
+###############################################################################
+## @brief USM device memory property flags
+class ur_usm_device_mem_flags_v(IntEnum):
+    WRITE_COMBINED = UR_BIT(0)                      ## Memory should be allocated write-combined (WC)
+    INITIAL_PLACEMENT = UR_BIT(1)                   ## Optimize shared allocation for first access on the device
+    DEVICE_READ_ONLY = UR_BIT(2)                    ## Memory is only possibly modified from the host, but read-only in all
+                                                    ## device code
+
+class ur_usm_device_mem_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
@@ -986,17 +1006,33 @@ class ur_usm_pool_handle_t(c_void_p):
     pass
 
 ###############################################################################
-## @brief USM allocation descriptor type
+## @brief USM allocation descriptor type.
 class ur_usm_desc_t(Structure):
     _fields_ = [
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
-        ("flags", ur_usm_flags_t),                                      ## [in] Memory allocation flags
+        ("flags", ur_usm_flags_t),                                      ## [in] memory allocation flags.
         ("hints", ur_mem_advice_t),                                     ## [in] Memory advice hints
-        ("align", c_ulong)                                              ## [in] alignment of the USM memory object
-                                                                        ## Must be zero or a power of 2.
-                                                                        ## Must be equal to or smaller than the size of the largest data type
-                                                                        ## supported by `hDevice`.
+        ("align", c_ulong)                                              ## [in] memory advice hints.
+    ]
+
+###############################################################################
+## @brief USM host allocation descriptor type.
+class ur_usm_host_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_HOST_DESC
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("flags", ur_usm_host_mem_flags_t)                              ## [in] host memory allocation flags
+    ]
+
+###############################################################################
+## @brief USM device allocation descriptor type.
+class ur_usm_device_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_USM_DEVICE_DESC
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("flags", ur_usm_device_mem_flags_t)                            ## [in] device memory allocation flags.
     ]
 
 ###############################################################################
