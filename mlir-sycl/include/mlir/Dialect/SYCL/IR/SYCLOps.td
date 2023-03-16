@@ -84,7 +84,7 @@ class SYCL_Op<string mnemonic, list<Trait> traits = []>
 
 class SYCLMethodOpInterfaceImpl<
     string mnemonic, string type, list<string> methodNames, list<Trait> traits = []>
-        : SYCL_Op<mnemonic, !listconcat(traits, [SYCLMethodOpInterface, CallOpInterface])> {
+        : SYCL_Op<mnemonic, !listconcat(traits, [SYCLMethodOpInterface])> {
   string baseType = type;
   list<string> memberFunctionNames = methodNames;
   int arrSize = !size(memberFunctionNames);
