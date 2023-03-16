@@ -158,9 +158,9 @@ The following property can be passed to three different APIs, namely:
 * The `accessor` constructor, giving a more granular control
 * The `buffer` constructor, in which case all the `accessors` derived from 
 this buffer will inherit this property (unless overridden).
-* The `property_list` parameter of 
-`command_graph<graph_state::modifiable>::add_malloc_device()` to apply the 
-property to an USM pointer.
+* The `property_list` parameter of `sycl::malloc_device()`,
+`sycl::aligned_alloc_device()`, `sycl::malloc_shared()`, or
+`sycl::aligned_alloc_shared()` to apply the property to an USM pointer.
 
 ```c++ 
 sycl::ext::oneapi::experimental::property::promote_local 
@@ -195,9 +195,9 @@ The following property can be passed to three different APIs, namely:
 * The `accessor` constructor, giving a more granular control
 * The `buffer` constructor, in which case all the `accessors` derived from 
 this buffer will inherit this property (unless overridden).
-* The `property_list` parameter of 
-`command_graph<graph_state::modifiable>::add_malloc_device()` to apply the 
-property to an USM pointer.
+* The `property_list` parameter of `sycl::malloc_device()`,
+`sycl::aligned_alloc_device()`, `sycl::malloc_shared()`, or
+`sycl::aligned_alloc_shared()` to apply the property to an USM pointer.
 
 ```c++ 
 sycl::ext::oneapi::experimental::property::promote_private 
@@ -552,40 +552,36 @@ int main() {
 
   int *dIn1, dIn2, dIn3, dTmp, dOut;
 
-  auto node_in1 = graph.add_malloc_device(dIn1, numBytes);
-  auto node_in2 = graph.add_malloc_device(dIn2, numBytes);
-  auto node_in3 = graph.add_malloc_device(dIn3, numBytes);
-  auto node_out = graph.add_malloc_device(dOut, numBytes);
+  dIn1 = malloc_device<int>(q, dataSize);
+  dIn2 = malloc_device<int>(q, dataSize);
+  dIn3 = malloc_device<int>(q, dataSize);
+  dOut = malloc_device<int>(q, dataSize);
 
   // Specify internalization for an USM pointer
-  auto node_tmp = graph.add_malloc_device(
-      dTmp, numBytes,
+  dTmp = malloc_device<int>(q, dataSize,
       {sycl::ext::oneapi::experimental::property::promote_private});
 
   // This explicit memory operation is compatible with fusion, as it can be
   // linearized before any device kernel in the graph.
   auto copy_in1 =
-      graph.add([&](handler &cgh) { cgh.memcpy(dIn1, in1, numBytes); },
-                {sycl_ext::property::node::depends_on(node_in1)});
+      graph.add([&](handler &cgh) { cgh.memcpy(dIn1, in1, numBytes); });
 
   // This explicit memory operation is compatible with fusion, as it can be
   // linearized before any device kernel in the graph.
   auto copy_in2 =
-      graph.add([&](handler &cgh) { cgh.memcpy(dIn2, in2, numBytes); },
-                {sycl_ext::property::node::depends_on(node_in2)});
+      graph.add([&](handler &cgh) { cgh.memcpy(dIn2, in2, numBytes); });
 
   auto kernel1 = graph.add(
       [&](handler &cgh) {
         cgh.parallel_for<class KernelOne>(
             dataSize, [=](id<1> i) { tmp[i] = in1[i] + in2[i]; });
       },
-      {sycl_ext::property::node::depends_on(copy_in1, copy_in2, node_tmp)});
+      {sycl_ext::property::node::depends_on(copy_in1, copy_in2)});
 
   // This explicit memory operation is compatible with fusion, as it can be
   // linearized before any device kernel in the graph.
   auto copy_in3 =
-      graph.add([&](handler &cgh) { cgh.memcpy(dIn3, in3, numBytes); },
-                {sycl_ext::property::node::depends_on(node_in3)});
+      graph.add([&](handler &cgh) { cgh.memcpy(dIn3, in3, numBytes); });
 
   auto kernel2 = graph.add(
       [&](handler &cgh) {
@@ -600,12 +596,6 @@ int main() {
       graph.add([&](handler &cgh) { cgh.memcpy(out, dOut, numBytes); },
                 {sycl_ext::property::node::depends_on(kernel2)});
 
-  graph.add_free(dIn1, {sycl_ext::property::node::depends_on(copy_out)});
-  graph.add_free(dIn2, {sycl_ext::property::node::depends_on(copy_out)});
-  graph.add_free(dIn3, {sycl_ext::property::node::depends_on(copy_out)});
-  graph.add_free(dTmp, {sycl_ext::property::node::depends_on(copy_out)});
-  graph.add_free(dOut, {sycl_ext::property::node::depends_on(copy_out)});
-
   // Trigger fusion during finalization.
   auto exec = graph.finalize(q.get_context(),
                              {sycl::ext::oneapi::experimental::property::
@@ -613,6 +603,12 @@ int main() {
 
   // use queue shortcut for graph submission
   q.ext_oneapi_graph(exec).wait();
+
+  free(dIn1, q);
+  free(dIn2, q);
+  free(dIn3, q);
+  free(dOut, q);
+  free(dTmp, q);
 
   return 0;
 }
@@ -633,4 +629,5 @@ Ewan Crawford, Codeplay +
 |========================================
 |Rev|Date|Authors|Changes
 |1|2023-02-16|Lukas Sommer|*Initial draft*
+|2|2023-03-16|Lukas Sommer|*Remove reference to outdated `add_malloc_device` API*
 |========================================
