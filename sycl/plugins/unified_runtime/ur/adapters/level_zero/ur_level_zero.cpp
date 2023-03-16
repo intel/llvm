@@ -697,7 +697,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     // so fallback into reading totalSize if physicalSize
     // is not available.
     for (const auto &ZeDeviceMemoryExtProperty :
-          Device->ZeDeviceMemoryProperties->second) {
+         Device->ZeDeviceMemoryProperties->second) {
       GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
     }
     if (GlobalMemSize == 0) {
