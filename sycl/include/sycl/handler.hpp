@@ -359,7 +359,7 @@ private:
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.
   template <typename KernelName, typename KernelType>
-  void throwOnLocalAccessorMisuse() {
+  void throwOnLocalAccessorMisuse() const {
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using KI = sycl::detail::KernelInfo<NameT>;
