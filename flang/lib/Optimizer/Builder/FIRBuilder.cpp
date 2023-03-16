@@ -516,14 +516,17 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
         << itemAddr.getType();
     llvm_unreachable("not a memory reference type");
   }
-  if (itemAddr.getType().isa<fir::ReferenceType>() &&
-      elementType.isa<fir::BaseBoxType>())
-    return create<fir::LoadOp>(loc, fir::getBase(exv));
-  mlir::Type boxTy = fir::BoxType::get(elementType);
+  mlir::Type boxTy;
   mlir::Value tdesc;
-  if (isPolymorphic) {
-    elementType = fir::updateTypeForUnlimitedPolymorphic(elementType);
-    boxTy = fir::ClassType::get(elementType);
+  // Avoid to wrap a box/class with box/class.
+  if (elementType.isa<fir::BaseBoxType>()) {
+    boxTy = elementType;
+  } else {
+    boxTy = fir::BoxType::get(elementType);
+    if (isPolymorphic) {
+      elementType = fir::updateTypeForUnlimitedPolymorphic(elementType);
+      boxTy = fir::ClassType::get(elementType);
+    }
   }
 
   return exv.match(

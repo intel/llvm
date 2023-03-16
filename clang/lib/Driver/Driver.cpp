@@ -5404,7 +5404,7 @@ class OffloadingActionBuilder final {
 
         const toolchains::CudaToolChain *CudaTC =
             static_cast<const toolchains::CudaToolChain *>(TC);
-        for (auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
+        for (const auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
           const char *BoundArch =
               SYCLTargetInfoList[LinkInputEnum.index()].BoundArch;
           std::string LibDeviceFile =
@@ -5428,7 +5428,7 @@ class OffloadingActionBuilder final {
       // to produce a final binary.
       // They will be bundled per TC before being sent to the Offload Wrapper.
       llvm::MapVector<const ToolChain *, ActionList> LinkedInputs;
-      for (auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
+      for (const auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
         auto &LI = LinkInputEnum.value();
         const ToolChain *TC = SYCLTargetInfoList[LinkInputEnum.index()].TC;
         const char *BoundArch =

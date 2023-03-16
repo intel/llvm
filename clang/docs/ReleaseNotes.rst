@@ -225,6 +225,8 @@ Bug Fixes to C++ Support
 - Fix an issue about ``decltype`` in the members of class templates derived from
   templates with related parameters.
   (`#58674 <https://github.com/llvm/llvm-project/issues/58674>`_)
+- Fix incorrect deletion of the default constructor of unions in some
+  cases. (`#48416 <https://github.com/llvm/llvm-project/issues/48416>`_)
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -304,6 +306,7 @@ Floating Point Support in Clang
 - Add ``__builtin_elementwise_log2`` builtin for floating point types only.
 - Add ``__builtin_elementwise_exp`` builtin for floating point types only.
 - Add ``__builtin_elementwise_exp2`` builtin for floating point types only.
+- Add ``__builtin_set_flt_rounds`` builtin for X86, x86_64, Arm and AArch64 only.
 
 AST Matchers
 ------------
@@ -329,8 +332,8 @@ libclang
   was marked with the explicit identifier.
 
 - Introduced the new ``CXIndex`` constructor function
-  ``clang_createIndexWithOptions``, which allows overriding precompiled preamble
-  storage path.
+  ``clang_createIndexWithOptions``, which allows storing precompiled preambles
+  in memory or overriding the precompiled preamble storage path.
 
 - Deprecated two functions ``clang_CXIndex_setGlobalOptions`` and
   ``clang_CXIndex_setInvocationEmissionPathOption`` in favor of the new
