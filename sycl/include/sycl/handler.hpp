@@ -354,6 +354,7 @@ private:
                                 PI_ERROR_INVALID_OPERATION);
   }
 
+  constexpr static int AccessTargetMask = 0x7ff;
   /// According to section 4.7.6.11. of the SYCL specification, a local accessor
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.
@@ -368,7 +369,7 @@ private:
     for (unsigned I = 0; I < KI::getNumParams(); ++I) {
       const detail::kernel_param_kind_t &Kind = KernelArgs[I].kind;
       const access::target AccTarget =
-          static_cast<access::target>(KernelArgs[I].info & 0x7ff);
+          static_cast<access::target>(KernelArgs[I].info & AccessTargetMask);
       if ((Kind == detail::kernel_param_kind_t::kind_accessor) &&
           (AccTarget == target::local))
         throw sycl::exception(
