@@ -326,6 +326,10 @@ static int canonicalize(mlir::MLIRContext &Ctx,
     if (ScalarReplacement)
       addFunctionPass(createAffineScalarReplacementPass);
   }
+
+  // ETTORE
+  PM.addPass(polygeist::createArgumentPromotionPass());
+
   if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Canonicalization failed. Module: ***\n";
     Module->dump();

@@ -16,6 +16,40 @@ def AffineCFG : Pass<"affine-cfg"> {
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
 
+def AffineReduction : Pass<"detect-reduction"> {
+  let summary = "Detect reductions in affine.for";
+  let constructor = "mlir::polygeist::detectReductionPass()";
+  let statistics = [
+    Statistic<"numReductions", "num-reductions", "Number of reductions detected">
+  ];
+}
+
+def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
+  let summary = "Promote kernel arguments";
+  let description = [{
+    Peel struct members from the argument pack passed to a SYCL kernel. 
+    For example given:
+
+      gpu.func @kernel_parallel_for(%arg0: i32) {
+        func.call @parallel_for(%0, ...) : (memref<?x!llvm.struct<(i32, !sycl.accessor...)
+        gpu.return
+      }
+
+    The pass "peels off" the i32 struct member:
+
+      gpu.func @kernel_parallel_for(%arg0: i32) {
+        %int_arg = <first struct member>
+        %new_memref = <memref to struct with first member removed>
+        func.call @parallel_for(%int_arg, %new_memref, ...) : (i32, memref<?x!llvm.struct<(!sycl.accessor...)
+        gpu.return
+      }    
+  }];
+  let constructor = "mlir::polygeist::createArgumentPromotionPass()";
+  let statistics = [
+    Statistic<"numStructMemberPeeled", "num-struct-member-peeled", "Number of struct member peeled">
+  ];
+}
+
 def Mem2Reg : Pass<"mem2reg"> {
   let summary = "Represent allocated values in SSA form.";
   let constructor = "mlir::polygeist::createMem2RegPass()";
@@ -27,15 +61,6 @@ def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let dependentDialects =
       ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
   let constructor = "mlir::polygeist::createParallelLowerPass()";
-}
-
-def AffineReduction : Pass<"detect-reduction"> {
-  let summary = "Detect reductions in affine.for";
-  let constructor = "mlir::polygeist::detectReductionPass()";
-  let statistics = [
-    Statistic<"numReductions", "num-reductions", "Number of reductions detected">
-  ];
-
 }
 
 def SCFCPUify : Pass<"cpuify"> {

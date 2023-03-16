@@ -1,6 +1,7 @@
 add_mlir_dialect_library(MLIRPolygeistTransforms
   AffineCFG.cpp
   AffineReduction.cpp
+  ArgumentPromotion.cpp  
   BareMemRefToLLVM.cpp
   BarrierRemovalContinuation.cpp  
   CanonicalizeFor.cpp
