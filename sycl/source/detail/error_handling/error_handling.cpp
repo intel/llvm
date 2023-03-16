@@ -376,8 +376,8 @@ void handleErrorOrWarning(pi_result Error, pi_kernel_group_info Descriptor) {
     break;
   // TODO: Handle other error codes
   default:
-    throw runtime_error(
-        "Native API failed. Native API returns: " + codeToString(Error), Error);
+    Plugin.checkPiResult(Error);
+    break;
   }
 }
 } // namespace detail::kernel_get_group_info
