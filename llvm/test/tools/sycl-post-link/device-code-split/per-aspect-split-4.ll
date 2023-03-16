@@ -1,13 +1,13 @@
 ; This test is intended to check that we do not perform per-aspect split if
 ; it was disabled through one or another sycl-post-link option
 
-; RUN: sycl-post-link -symbols -S %s -o %t.table
+; RUN: sycl-post-link -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table --check-prefix CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix CHECK-IR
 ;
 ; -lower-esimd is needed so sycl-post-link does not complain about no actions
 ; specified
-; RUN: sycl-post-link -lower-esimd -ir-output-only -S %s -o %t.ll
+; RUN: sycl-post-link -lower-esimd -ir-output-only -S < %s -o %t.ll
 ; RUN: FileCheck %s -input-file=%t.ll --check-prefix CHECK-IR
 
 ; We expect to see only one module generated:

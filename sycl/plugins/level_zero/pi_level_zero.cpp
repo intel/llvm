@@ -98,6 +98,16 @@ static const bool IndirectAccessTrackingEnabled = [] {
          nullptr;
 }();
 
+// Due to a bug with 2D memory copy to and from non-USM pointers, this option is
+// disabled by default.
+static const bool UseMemcpy2DOperations = [] {
+  const char *UseMemcpy2DOperationsFlag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_NATIVE_USM_MEMCPY2D");
+  if (!UseMemcpy2DOperationsFlag)
+    return false;
+  return std::stoi(UseMemcpy2DOperationsFlag) > 0;
+}();
+
 static usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
 
 // Map from L0 to PI result.
@@ -2292,8 +2302,9 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Context->RefCount.load()});
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    // 2D USM memcpy is supported.
-    return ReturnValue(pi_bool{true});
+    // 2D USM memcpy is supported unless disabled through
+    // SYCL_PI_LEVEL_ZERO_USE_NATIVE_USM_MEMCPY2D.
+    return ReturnValue(pi_bool{UseMemcpy2DOperations});
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     // 2D USM fill and memset is not supported.
@@ -5734,17 +5745,28 @@ pi_result _pi_queue::synchronize() {
     return PI_SUCCESS;
   };
 
-  for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID})
-    for (auto &QueueGroup : QueueMap) {
-      if (Device->ImmCommandListUsed) {
-        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
-          syncImmCmdList(this, ImmCmdList);
-      } else {
-        for (auto &ZeQueue : QueueGroup.second.ZeQueues)
-          if (ZeQueue)
-            ZE_CALL(zeHostSynchronize, (ZeQueue));
+  // Do nothing if the queue is empty
+  if (!LastCommandEvent)
+    return PI_SUCCESS;
+
+  // For in-order queue just wait for the last command.
+  if (isInOrderQueue()) {
+    ZE_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+  } else {
+    // Otherwise sync all L0 queues/immediate command-lists.
+    for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
+      for (auto &QueueGroup : QueueMap) {
+        if (Device->ImmCommandListUsed) {
+          for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+            syncImmCmdList(this, ImmCmdList);
+        } else {
+          for (auto &ZeQueue : QueueGroup.second.ZeQueues)
+            if (ZeQueue)
+              ZE_CALL(zeHostSynchronize, (ZeQueue));
+        }
       }
     }
+  }
   LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
