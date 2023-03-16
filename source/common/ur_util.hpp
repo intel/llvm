@@ -57,7 +57,11 @@ inline int ur_getpid(void) { return static_cast<int>(getpid()); }
 #define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
 #else
 #define HMODULE void *
+#if defined(__APPLE__)
+#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME "." VERSION ".dylib"
+#else
 #define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME ".so." VERSION
+#endif
 #endif
 
 inline std::string create_library_path(const char *name, const char *path) {

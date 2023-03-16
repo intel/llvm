@@ -14,6 +14,10 @@ include(CTest)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(helpers)
 
+if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+  set(CMAKE_FIND_FRAMEWORK NEVER)
+endif()
+
 find_package(Python3 COMPONENTS Interpreter)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -52,7 +56,7 @@ endif()
 if(NOT MSVC)
     add_compile_options(-fPIC -Wall -Wpedantic
         $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
-        $<$<CXX_COMPILER_ID:Clang>:-fcolor-diagnostics>)
+        $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>)
     if(UR_DEVELOPER_MODE)
         add_compile_options(-Werror -fno-omit-frame-pointer)
     endif()
