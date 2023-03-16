@@ -19,7 +19,17 @@ template <int TestCastNum, typename T> bool tests() {
   passed &= test<TestCastNum, T, 1, 4, 1, 32, true>();
   passed &= test<TestCastNum + 1, T, 2, 2, 1, 16, true>();
   passed &= test<TestCastNum + 2, T, 4, 4, 1, 4, true>();
-
+  passed &= test<TestCastNum + 3, T, 4, 4, 1, 128, true,
+                 lsc_data_size::default_size, cache_hint::none,
+                 cache_hint::none, __ESIMD_NS::overaligned_tag<8>>();
+  passed &= test<TestCastNum + 4, T, 4, 4, 1, 256, true,
+                 lsc_data_size::default_size, cache_hint::none,
+                 cache_hint::none, __ESIMD_NS::overaligned_tag<8>>();
+  if constexpr (sizeof(T) == 1) {
+    passed &= test<TestCastNum + 5, T, 4, 4, 1, 512, true,
+                   lsc_data_size::default_size, cache_hint::none,
+                   cache_hint::none, __ESIMD_NS::overaligned_tag<8>>();
+  }
   return passed;
 }
 
@@ -28,7 +38,7 @@ int main(void) {
   bool passed = true;
 
   passed &= tests<0, uint8_t>();
-  passed &= tests<3, uint16_t>();
+  passed &= tests<6, uint16_t>();
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;

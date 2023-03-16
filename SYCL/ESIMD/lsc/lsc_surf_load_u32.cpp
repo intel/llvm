@@ -32,6 +32,12 @@ template <int TestCastNum, typename T> bool tests() {
   passed &= test<TestCastNum + 8, T, 1, 4, 1, 32, true>();
   passed &= test<TestCastNum + 9, T, 2, 2, 1, 16, true>();
   passed &= test<TestCastNum + 10, T, 4, 4, 1, 4, true>();
+
+  // test large number of elements
+  passed &= test<TestCastNum + 11, T, 2, 1, 1, 128, true,
+                 lsc_data_size::default_size, cache_hint::none,
+                 cache_hint::none, false, __ESIMD_NS::overaligned_tag<8>>(1);
+
   return passed;
 }
 
@@ -40,8 +46,8 @@ int main(void) {
   bool passed = true;
 
   passed &= tests<0, uint32_t>();
-  passed &= tests<11, float>();
-  passed &= tests<22, sycl::ext::intel::experimental::esimd::tfloat32>();
+  passed &= tests<12, float>();
+  passed &= tests<24, sycl::ext::intel::experimental::esimd::tfloat32>();
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;

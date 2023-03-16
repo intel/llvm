@@ -26,7 +26,8 @@ typedef uint32_t Toffset;
 template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
           uint16_t VL, uint16_t VS, bool transpose,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Flags = __ESIMD_NS::overaligned_tag<4>>
 bool test(uint32_t pmask = 0xffffffff) {
   static_assert((VL == 1) || !transpose, "Transpose must have exec size 1");
   if constexpr (DS == lsc_data_size::u8u32 || DS == lsc_data_size::u16u32) {
@@ -68,7 +69,9 @@ bool test(uint32_t pmask = 0xffffffff) {
   sycl::range<1> LocalRange{Threads};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
-  T *out = static_cast<T *>(sycl::malloc_shared(Size * sizeof(T), dev, ctx));
+  T *out = static_cast<T *>(sycl::aligned_alloc_shared(
+      Flags::template alignment<__ESIMD_DNS::__raw_t<T>>, Size * sizeof(T), dev,
+      ctx));
   for (int i = 0; i < Size; i++)
     out[i] = old_val;
 
@@ -82,7 +85,12 @@ bool test(uint32_t pmask = 0xffffffff) {
 
             if constexpr (transpose) {
               simd<T, VS> vals(new_val + elem_off, 1);
-              lsc_block_store<T, VS, DS, L1H, L3H>(out + elem_off, vals);
+              if constexpr (sizeof(T) < 8) {
+                lsc_block_store<T, VS, DS, L1H, L3H>(out + elem_off, vals,
+                                                     Flags{});
+              } else {
+                lsc_block_store<T, VS, DS, L1H, L3H>(out + elem_off, vals);
+              }
             } else {
               simd<Toffset, VL> offset(byte_off, VS * sizeof(T));
               simd_mask<VL> pred;

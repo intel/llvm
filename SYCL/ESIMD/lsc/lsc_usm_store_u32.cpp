@@ -12,7 +12,7 @@
 
 #include "Inputs/lsc_usm_store.hpp"
 
-constexpr uint32_t seed = 288;
+constexpr uint32_t seed = 299;
 template <int TestCastNum, typename T> bool tests() {
   bool passed = true;
   // non transpose
@@ -31,6 +31,11 @@ template <int TestCastNum, typename T> bool tests() {
   passed &= test<TestCastNum + 9, T, 2, 2, 1, 16, true>();
   passed &= test<TestCastNum + 10, T, 4, 4, 1, 4, true>();
 
+  // large number of elements
+  passed &= test<TestCastNum + 11, T, 4, 4, 1, 128, true,
+                 lsc_data_size::default_size, cache_hint::none,
+                 cache_hint::none, __ESIMD_NS::overaligned_tag<8>>();
+
   return passed;
 }
 
@@ -39,7 +44,7 @@ int main(void) {
   bool passed = true;
 
   passed &= tests<0, uint32_t>();
-  passed &= tests<11, float>();
+  passed &= tests<12, float>();
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;

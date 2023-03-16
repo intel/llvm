@@ -20,7 +20,8 @@ using namespace sycl::ext::intel::experimental::esimd;
 template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
           uint16_t VL, uint16_t VS, bool transpose,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Flags = __ESIMD_NS::overaligned_tag<4>>
 bool test(uint32_t pmask = 0xffffffff) {
   static_assert((VL == 1) || !transpose, "Transpose must have exec size 1");
   if constexpr (DS == lsc_data_size::u8u32 || DS == lsc_data_size::u16u32) {
@@ -60,8 +61,12 @@ bool test(uint32_t pmask = 0xffffffff) {
   // threads in each group
   sycl::range<1> LocalRange{Threads};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+  using aligned_allocator =
+      sycl::usm_allocator<T, sycl::usm::alloc::host,
+                          Flags::template alignment<__ESIMD_DNS::__raw_t<T>>>;
+  aligned_allocator Allocator(q);
 
-  std::vector<T> out(Size, old_val);
+  std::vector<T, aligned_allocator> out(Size, old_val, Allocator);
 
   try {
     buffer<T, 1> bufo(out.data(), out.size());
@@ -76,7 +81,12 @@ bool test(uint32_t pmask = 0xffffffff) {
 
             if constexpr (transpose) {
               simd<T, VS> vals(new_val + elem_off, 1);
-              lsc_block_store<T, VS, DS, L1H, L3H>(acco, byte_off, vals);
+              if constexpr (sizeof(T) < 8) {
+                lsc_block_store<T, VS, DS, L1H, L3H>(acco, byte_off, vals,
+                                                     Flags{});
+              } else {
+                lsc_block_store<T, VS, DS, L1H, L3H>(acco, byte_off, vals);
+              }
             } else {
               simd<uint32_t, VL> offset(byte_off, VS * sizeof(T));
               simd_mask<VL> pred;

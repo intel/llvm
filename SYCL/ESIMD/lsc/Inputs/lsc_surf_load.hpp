@@ -17,11 +17,11 @@ using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
-template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
-          uint16_t VL, uint16_t VS, bool transpose,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          bool use_prefetch = false>
+template <
+    int case_num, typename T, uint32_t Groups, uint32_t Threads, uint16_t VL,
+    uint16_t VS, bool transpose, lsc_data_size DS = lsc_data_size::default_size,
+    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+    bool use_prefetch = false, typename Flags = __ESIMD_NS::overaligned_tag<4>>
 bool test(uint32_t pmask = 0xffffffff) {
   static_assert((VL == 1) || !transpose, "Transpose must have exec size 1");
   if constexpr (DS == lsc_data_size::u8u32 || DS == lsc_data_size::u16u32) {
@@ -61,8 +61,13 @@ bool test(uint32_t pmask = 0xffffffff) {
   sycl::range<1> LocalRange{Threads};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
-  std::vector<T> out(Size, old_val);
-  std::vector<T> in(Size);
+  using aligned_allocator =
+      sycl::usm_allocator<T, sycl::usm::alloc::host,
+                          Flags::template alignment<__ESIMD_DNS::__raw_t<T>>>;
+  aligned_allocator Allocator(q);
+
+  std::vector<T, aligned_allocator> out(Size, old_val, Allocator);
+  std::vector<T, aligned_allocator> in(Size, Allocator);
   for (int i = 0; i < Size; i++)
     in[i] = get_rand<T>();
 
@@ -83,12 +88,25 @@ bool test(uint32_t pmask = 0xffffffff) {
               simd<T, VS> vals;
               if constexpr (use_prefetch) {
                 lsc_prefetch<T, VS, DS, L1H, L3H>(acci, byte_off);
-                vals = lsc_block_load<T, VS, DS>(acci, byte_off);
+                if constexpr (sizeof(T) < 8) {
+                  vals = lsc_block_load<T, VS, DS, L1H, L3H>(acci, byte_off,
+                                                             Flags{});
+                } else {
+                  vals = lsc_block_load<T, VS, DS, L1H, L3H>(acci, byte_off);
+                }
               } else {
-                vals = lsc_block_load<T, VS, DS, L1H, L3H>(acci, byte_off);
+                if constexpr (sizeof(T) < 8) {
+                  vals = lsc_block_load<T, VS, DS, L1H, L3H>(acci, byte_off,
+                                                             Flags{});
+                } else {
+                  vals = lsc_block_load<T, VS, DS, L1H, L3H>(acci, byte_off);
+                }
               }
-              lsc_block_store<T, VS, lsc_data_size::default_size>(
-                  acco, byte_off, vals);
+              if constexpr (sizeof(T) < 8) {
+                lsc_block_store<T, VS, DS>(acco, byte_off, vals, Flags{});
+              } else {
+                lsc_block_store<T, VS, DS>(acco, byte_off, vals);
+              }
             } else {
               simd<uint32_t, VL> offset(byte_off, VS * sizeof(T));
               simd_mask<VL> pred;
