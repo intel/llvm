@@ -227,7 +227,7 @@ Table {counter: tableNumber}. Explicit Graph Definition.
 | Node
 | In the explicit graph building API nodes are created by the user invoking
 methods on a modifiable graph. Each node represent either a command-group
-function, empty operation, or device memory allocation/free.
+function or an empty operation.
 
 | Edge
 | In the explicit graph building API edges are primarily defined by the user
@@ -341,9 +341,6 @@ public:
   template<typename T>
   node add(T cgf, const property_list& propList = {});
 
-  node add_malloc_device(void*& data, size_t numBytes, const property_list& propList = {});
-  node add_free(void* data, const property_list& propList = {});
-
   void make_edge(node src, node dest);
 };
 
@@ -381,8 +378,8 @@ public:
 
 :crs: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
 
-Node is a class that encapsulates tasks like SYCL kernel functions, device
-memory allocations/frees, or host tasks for deferred execution. A graph has to
+Node is a class that encapsulates tasks like SYCL kernel functions, memory
+operations, or host tasks for deferred execution. A graph has to
 be created first, the structure of a graph is defined second by adding nodes and
 edges.
 
@@ -627,73 +624,6 @@ Exceptions:
 * Throws synchronously with error code `invalid` if the graph contains a cycle.
   A cycle may be introduced to the graph via a call to `make_edge()` that
   creates a forward dependency.
-
-|===
-
-Memory that is allocated by the following functions is owned by the specific
-graph. When freed inside the graph, the memory is only accessible before the
-`free` node is executed and after the `malloc` node is executed.
-
-Table {counter: tableNumber}. Member functions of the `command_graph` class (memory operations).
-[cols="2a,a"]
-|===
-|Member function|Description
-
-|
-[source,c++]
-----
-using namespace ext::oneapi::experimental;
-node add_malloc_device(void*& data, size_t numBytes, const property_list& propList = {});
-----
-|Adding a node that encapsulates a memory allocation operation.
-
-Preconditions:
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
-
-Parameters:
-
-* `data` - Return parameter set to the address of memory allocated.
-
-* `numBytes` - Size in bytes to allocate.
-
-* `propList` - Zero or more properties can be provided to the constructed node
-  via an instance of `property_list`.
-
-Returns: The memory allocation node which has been added to the graph
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if a queue is recording
-  commands to the graph.
-
-|
-[source,c++]
-----
-using namespace ext::oneapi::experimental;
-node add_free(void* data, const property_list& propList = {});
-----
-|Adding a node that encapsulates a memory free operation.
-
-Preconditions:
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::modifiable`.
-
-Parameters:
-
-* `data` - Address of memory to free.
-
-* `propList` - Zero or more properties can be provided to the constructed node
-  via an instance of `property_list`.
-
-Returns: The memory freeing node which has been added to the graph.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if a queue is recording
-  commands to the graph.
 
 |===
 
@@ -1120,11 +1050,11 @@ by replacing the whole node with the new callable.
 === Command Group Function Evaluation
 
 Host code within a command group function object is evaluated when the command
-group is added to a graph. This is either before the return of the call to 
+group is added to a graph. This is either before the return of the call to
 `command_graph::add()` when using the explicit API or before the return of the call to
 `queue::submit()` when submitting a command group to a queue that is recording to a graph.
 This behaviour is in keeping with the existing {cg-scope}[command group] behaviour but may have
-implications for command group functions containing arbitrary host code. This could 
+implications for command group functions containing arbitrary host code. This could
 affect the behaviour of captured code due to the delayed execution of commands.
 
 This does not apply to code within a {host-task}[host task] which is
@@ -1140,6 +1070,44 @@ cgh.host_task([=](){
 });
 });
 ----
+
+=== Memory Allocation Nodes
+
+There is no provided interface for users to define a USM allocation/free
+operation belonging to the scope of the graph. It would be error prone and
+non-performant to allocate or free memory as a node executed during graph
+submission. Instead, such a memory allocation API needs to provide a way to
+return a pointer which won't be valid until the allocation is made on graph
+finalization, as allocating at finalization is the only way to benefit from
+the known graph scope for optimal memory allocation, and even optimize to
+eliminate some allocations entirely.
+
+Such a deferred allocation strategy presents challenges however, and as a result
+we recommend instead that prior to graph construction users perform core SYCL
+USM allocations to be used in the graph submission. Before to coming to this
+recommendation we considered the following explicit graph building interfaces
+for adding a memory allocation owned by the graph:
+
+1. Allocation function returning a reference to the raw pointer, i.e. `void*&`,
+   which will be instantiated on graph finalization with the location of the
+   allocated USM memory.
+
+2. Allocation function returning a handle to the allocation. Applications use
+   the handle in node command-group functions to access memory when allocated.
+
+3. Allocation function returning a pointer to a virtual allocation, only backed
+   with an actual allocation when graph is finalized or submitted.
+
+Design 1) has the drawback of forcing users to keep the user pointer variable
+alive so that the reference is valid, which is unintuitive and is likely to
+result in bugs.
+
+Design 2) introduces a handle object which has the advantages of being a less
+error prone way to provide the pointer to the deferred allocation. However, it
+requires kernel changes and introduces an overhead above the raw pointers that
+are the advantage of USM.
+
+Design 3) needs specific backend support for deferred allocation.
 
 == Examples
 
@@ -1173,25 +1141,18 @@ int main() {
 
   sycl_ext::command_graph g;
 
-  float *x , *y, *z;
-
   float *dotp = sycl::malloc_shared<float>(1, q);
+  float *x = sycl::malloc_device<float>(n, q);
+  float *y = sycl::malloc_device<float>(n, q);
+  float *z = sycl::malloc_device<float>(n, q);
 
   // Add commands to the graph to create the following topology.
   //
-  //  x  y  z
-  //   \ | /
   //     i
   //    / \
   //   a   b
-  //    \ / \
-  //     c  fy
-  //     |
-  //     fx
-
-  auto node_x = g.add_malloc_device(x, n * sizeof(float));
-  auto node_y = g.add_malloc_device(y, n * sizeof(float));
-  auto node_z = g.add_malloc_device(z, n * sizeof(float));
+  //    \ /
+  //     c
 
   /* init data on the device */
   auto node_i = g.add([&](sycl::handler& h) {
@@ -1201,7 +1162,7 @@ int main() {
       y[i] = 2.0f;
       z[i] = 3.0f;
     });
-  }, { sycl_ext::property::node::depends_on(node_x, node_y, node_z)});
+  });
 
   auto node_a = g.add([&](sycl::handler& h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
@@ -1228,16 +1189,15 @@ int main() {
       },
       { sycl_ext::property::node::depends_on(node_a, node_b)});
 
-  auto node_fx = g.add_free(x, {sycl_ext::property::node::depends_on(node_c)});
-  auto node_fy = g.add_free(y, {sycl_ext::property::node::depends_on(node_b)});
-
   auto exec = g.finalize(q.get_context());
 
   // use queue shortcut for graph submission
   q.ext_oneapi_graph(exec).wait();
 
   // memory can be freed inside or outside the graph
-  sycl::free(z, q.get_context());
+  sycl::free(x, q);
+  sycl::free(y, q);
+  sycl::free(z, q);
   sycl::free(dotp, q);
 
   return 0;
@@ -1338,14 +1298,15 @@ Allow an executable graph to contain nodes targeting different devices.
 
 **Outcome:** Under consideration
 
-=== Record & Replay: Mark Internal Memory
+=== Memory Allocation API
 
-When a graph is created by recording a queue there is no way to tag memory
-objects internal to the graph, which would enable optimizations on the internal
-memory. Do we need an interface record & replay can use to identify buffers and
-USM allocations not used outside of the graph?
+We would like to provide an API that allows graph scope memory to be
+allocated and used in nodes, such that optimizations can be done on
+the allocation. No mechanism is currently provided, but see the
+section on <<memory-allocation-nodes, Memory Allocation Nodes>> for
+some designs being considered.
 
-**Outcome:** Unresolved
+**Outcome:** Designs under consideration
 
 === Executable Graph Update
 
