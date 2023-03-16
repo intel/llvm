@@ -899,7 +899,11 @@ Events returned from queue submissions when a queue is in the recording state
 may only be used as parameters to `handler::depends_on()` or as dependent
 events for queue shortcuts like `queue::parallel_for()` for submissions which
 are being recorded to the same modifiable `command_graph`. These events have
-status `info::event_command_status::complete`.
+status `info::event_command_status::complete`. The event status of an event
+returned from an executable graph submission will have
+`info::event_command_status::running` once any command group node starts
+executing on a device, and status `info::event_command_status::complete`
+once all the nodes have finished execution.
 
 Waiting on an event returned from a queue submission recorded to a graph
 will throw synchronously with error code `invalid`.
@@ -926,7 +930,18 @@ ways:
 2. `property::queue::enable_profiling` - This property has no effect on graph
    recording. When set on the queue a graph is submitted to however, it allows
    profiling information to be obtained from the event returned by a graph
-   submission.
+   submission. As it is not defined how a submitted graph will be split up for
+   scheduling at runtime, the `uint64_t` timestamp reported from a profiling
+   query on a graph execution event has the following semantics, which may be
+   pessimistic about execution time on device.
+
+   * `info::event_profiling::command_submit` - Timestamp when the graph is
+      submitted to the queue.
+   * `info::event_profiling::command_start` - Timestamp when the first
+      command-group node begins running.
+   * `info::event_profiling::command_end` - Timestamp when the last
+      command-group node completes execution.
+
 
 For any other queue property that is defined by an extension, it is the
 responsibility of the extension to define the relationship between that queue
