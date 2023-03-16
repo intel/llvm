@@ -308,9 +308,14 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       assert((devCapabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
              "Violates minimum mandated guarantee");
 
+      // According to OCL 3.0 spec:
       // Because scopes are hierarchical, wider scopes support all narrower
-      // scopes. SUB_GROUP and WORK_ITEM were already included in the
-      // initialization, since WORK_GROUP is mandated minimum capality.
+      // scopes. OCL 3.0 spec also mentions that WORK_ITEM is an exception
+      // for this rule (wider support all narrower), but this is defined
+      // differently for SYCL. In short, SUB_GROUP and WORK_ITEM were already
+      // included in the initialization, since WORK_GROUP is mandated minimum
+      // capality, and wider scopes support narrower scopes.
+      // (https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES)
       if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
         result |= PI_MEMORY_SCOPE_DEVICE;
       }
@@ -335,9 +340,9 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         return PI_ERROR_INVALID_VALUE;
 
       std::memcpy(paramValue, &result, sizeof(result));
-      if (paramValueSizeRet)
-        *paramValueSizeRet = sizeof(result);
     }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
