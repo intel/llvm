@@ -228,7 +228,7 @@ void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
 
         VecT load = __spirv_SubgroupBlockReadINTEL<VecT>(
             reinterpret_cast<PtrT>(in_ptr));
-        out = sycl::bit_cast<vec<remove_decoration_t<value_type>, N>>(load);
+        auto tmp = sycl::bit_cast<vec<remove_decoration_t<value_type>, N>>(load);
         // SPIR-V builtin assumes striped layout.
         if constexpr (blocked) {
           // clang-format off
@@ -245,14 +245,19 @@ void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
           //               v[0](1)  v[0](4) v[0](7) v[1](2) v[1](5) v[2](0) v[2](3) v[2](6)
           //               v[0](2)  v[0](5) v[1](0) v[1](3) v[1](6) v[2](1) v[2](4) v[2](7)
           // clang-format on
-          vec<OutputT, N> shuffled;
+          vec<OutputT, N> shuffled = {0, 0};
           auto lid = g.get_local_id();
-          int sg_size = g.get_local_range().size();
+          // TODO: max?
+          int sg_size = g.get_max_local_range().size();
           sycl::detail::dim_loop<N>([&](size_t i) {
-            shuffled[i] = select_from_group(g, out[(lid * N + i) / sg_size],
+            shuffled[i] = select_from_group(g, tmp[(lid * N + i) / sg_size],
                                             (lid * N + i) % sg_size);
+            // shuffled[i + 1] =
+            //     (tmp[(lid * N + i) / sg_size]) * 1000 + (lid * N + i) % sg_size;
           });
           out = shuffled;
+        } else {
+          out = tmp;
         }
         return;
       } else if constexpr (AS == access::address_space::generic_space) {

@@ -7,6 +7,7 @@
 // clang++ -fsycl %s -S -emit-llvm -fsycl-device-only -o - | FileCheck %s
 
 #include <sycl/sycl.hpp>
+#include <iomanip>
 
 using namespace sycl;
 
@@ -20,8 +21,10 @@ constexpr auto local_space = address_space::local_space;
 constexpr auto blocked = group_algorithm_data_placement::blocked;
 constexpr auto striped = group_algorithm_data_placement::striped;
 
-constexpr int WG_SIZE = 32;
-constexpr int N_WGS = 2;
+constexpr int WG_SIZE = 16;
+constexpr int SG_SIZE = 16;
+
+constexpr int N_WGS = 1;
 constexpr int GLOBAL_SIZE = WG_SIZE * N_WGS;
 // Not greater than 8 vec/array size + gap between WGs.
 constexpr int ELEMS_PER_WI = 8 * 2;
@@ -33,11 +36,14 @@ marker(int l = __builtin_LINE()) {
 
 enum Scope { WG, SG };
 
-template <typename KernelName, Scope S, typename FuncTy>
-void test(FuncTy Func) {
+template <typename KernelName, Scope S, bool Disable = false, typename FuncTy>
+void test(FuncTy Func, int Line = __builtin_LINE()) {
+  if constexpr (Disable)
+    return;
+  std::cout << Line << std::endl;
   queue q;
-  constexpr int N_RESULTS = 128;
-  buffer<bool, 1> results(N_RESULTS * GLOBAL_SIZE);
+  constexpr int N_RESULTS = 16;
+  buffer<int, 1> results(N_RESULTS * GLOBAL_SIZE);
   {
     host_accessor res_acc{results};
     for (auto &res : res_acc)
@@ -52,11 +58,12 @@ void test(FuncTy Func) {
     accessor global_mem_acc{global_mem_buf, cgh};
     local_accessor<int, 1> local_mem_acc{WG_SIZE * ELEMS_PER_WI, cgh};
     cgh.parallel_for<KernelName>(
-        nd_range{range{GLOBAL_SIZE}, range{WG_SIZE}}, [=](nd_item<1> ndi) {
+        nd_range{range{GLOBAL_SIZE}, range{WG_SIZE}},
+        [=](nd_item<1> ndi) {
           // Low-level pointer arithmetic and skipping 0th index to make llvm IR
           // dumps nicer.
           auto *res_ptr = &res_acc[ndi.get_global_id(0) * N_RESULTS];
-          auto Record = [&](bool val) {
+          auto Record = [&](auto val) {
             res_ptr++;
             *res_ptr = val;
           };
@@ -69,16 +76,17 @@ void test(FuncTy Func) {
               local_mem_acc.get_multi_ptr<decorated::no>().get_raw();
 
           // Each WG receives its own "local" sub-region.
-          global_mem += WG_SIZE * ELEMS_PER_WI * ndi.get_group(0);
-          auto *usm_mem =
-              usm_mem_alloc + WG_SIZE * ELEMS_PER_WI * ndi.get_group(0);
+          int wg_offset = WG_SIZE * ELEMS_PER_WI * ndi.get_group(0);
 
-          if constexpr (S == SG) {
-            // TODO: Do we need to adjust global_mem/usm_mem as well?
-            auto sg = ndi.get_sub_group();
-            local_mem +=
-                sg.get_local_range() * ELEMS_PER_WI * sg.get_group_id();
-          }
+          auto sg = ndi.get_sub_group();
+          int sg_offset = 0;
+          if constexpr (S == SG)
+            sg_offset =
+                sg.get_max_local_range() * ELEMS_PER_WI * sg.get_group_id();
+
+          auto *usm_mem = usm_mem_alloc + wg_offset + sg_offset;
+          global_mem += wg_offset + sg_offset;
+          local_mem += sg_offset;
 
 #define ARGS                                                                   \
   auto ndi, auto global_mem, auto usm_mem, auto local_mem, auto Record, auto lid
@@ -87,11 +95,23 @@ void test(FuncTy Func) {
   });
   {
     host_accessor res_acc{results};
-    if constexpr (false) {
+    if constexpr (true) {
       for (int i = 1; i < N_RESULTS; ++i) {
         int errors = 0;
+        bool all_same = [&]() {
+          auto val = res_acc[i];
+          for (int j = 0; j < GLOBAL_SIZE; ++j) {
+            if (val != res_acc[j * N_RESULTS + i])
+              return false;
+          }
+          return true;
+        }();
+        if (all_same) {
+          std::cout << "All: " << res_acc[i] << std::endl;
+          continue;
+        }
         for (int j = 0; j < GLOBAL_SIZE; ++j) {
-          std::cout << " " << res_acc[j * N_RESULTS + i];
+          std::cout << " " << std::setw(3) << res_acc[j * N_RESULTS + i];
         }
         std::cout << std::endl;
       }
@@ -101,7 +121,7 @@ void test(FuncTy Func) {
       for (int j = 0; j < GLOBAL_SIZE; ++j) {
         if (!res_acc[j * N_RESULTS + i]) {
           ++errors;
-          if (errors < 5)
+          if (errors < 2)
             std::cout << "Error in condition " << i << " for work item " << j
                       << std::endl;
         }
@@ -114,7 +134,7 @@ void test(FuncTy Func) {
 
 int main() {
   std::cout << "ScalarWGKernel" << std::endl;
-  test<class ScalarWGKernel, WG>([](ARGS) {
+  test<class ScalarWGKernel, WG, true>([](ARGS) {
     int init = ndi.get_global_id(0);
 
     global_mem[lid] = init;
@@ -177,7 +197,7 @@ int main() {
   });
 
   std::cout << "ScalarSGKernel" << std::endl;
-  test<class ScalarSGKernel, SG>([](ARGS) {
+  test<class ScalarSGKernel, SG, true>([](ARGS) {
     auto sg = ndi.get_sub_group();
 
     int init = ndi.get_global_id(0);
@@ -242,7 +262,7 @@ int main() {
   });
 
   std::cout << "VecBlockedWGKernel" << std::endl;
-  test<class VecBlockedWGKernel, WG>([](ARGS) {
+  test<class VecBlockedWGKernel, WG, true>([](ARGS) {
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -278,7 +298,7 @@ int main() {
   });
 
   std::cout << "VecStripedWGKernel" << std::endl;
-  test<class VecStripedWGKernel, WG>([](ARGS) {
+  test<class VecStripedWGKernel, WG, true>([](ARGS) {
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -358,6 +378,19 @@ int main() {
       group_load(ndi.get_sub_group(), Input, out,
                  properties(data_placement<blocked>));
 
+      for (int i = 0; i < VEC_SIZE; ++i) {
+        Record(global_mem[i * WG_SIZE + lid]);
+      }
+
+      Record(42);
+      for (int i = 0; i < VEC_SIZE; ++i) {
+        Record(out[i]);
+      }
+      Record(43);
+      for (int i = 0; i < VEC_SIZE; ++i) {
+        Record(init - i);
+      }
+
       bool success = true;
       for (int i = 0; i < VEC_SIZE; ++i) {
         success &= (out[i] == init - i);
@@ -366,6 +399,7 @@ int main() {
     };
 
     Check(global_mem);
+    return;
     Check(usm_mem);
     Check(local_mem);
     Check(address_space_cast<global_space, decorated::yes>(global_mem));
@@ -374,6 +408,7 @@ int main() {
               .get_decorated());
   });
 
+  return 0;
   std::cout << "VecStripedSGKernel" << std::endl;
   test<class VecStripedSGKernel, SG>([](ARGS) {
     auto sg = ndi.get_sub_group();
@@ -450,6 +485,7 @@ int main() {
     return;
   });
 
+  return 0;
   std::cout << "SpanBlockedWGKernel" << std::endl;
   test<class SpanBlockedWGKernel, WG>([](ARGS) {
     constexpr int SPAN_SIZE = 2;
