@@ -98,18 +98,6 @@ class SYCLMethodOpInterfaceImpl<
 
     Operation::operand_iterator arg_operand_begin() { return (*this)->operand_begin(); }
     Operation::operand_iterator arg_operand_end() { return (*this)->operand_end(); }
-
-    /// Return the callee of the generic SYCL call operation, this is required by
-    /// the call interface.
-    CallInterfaceCallable getCallableForCallee() {
-      return (*this)->getAttrOfType<FlatSymbolRefAttr>(getMangledFunctionNameAttrName());
-    }
-
-    /// Get the argument operands to the called function, this is required by the
-    /// call interface.
-    Operation::operand_range getArgOperands() {
-      return {arg_operand_begin(), arg_operand_end()};
-    }
   }];
 
   let extraClassDefinition = [{
