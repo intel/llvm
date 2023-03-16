@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -inliner="mode=alwaysinline remove-dead-callees=false" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=ALWAYS-INLINE %s
+// RUN: sycl-mlir-opt -split-input-file -inliner="mode=alwaysinline remove-dead-callees=false" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=ALWAYS-INLINE,CHECK-ALL %s
 // RUN: sycl-mlir-opt -split-input-file -inliner="mode=simple remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=INLINE,CHECK-ALL %s
 // RUN: sycl-mlir-opt -split-input-file -inliner="mode=aggressive remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=AGGRESSIVE,CHECK-ALL %s
 
@@ -175,12 +175,20 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // CHECK-ALL-LABEL:   func.func @main(
 // CHECK-ALL-SAME:                      %[[VAL_0:.*]]: memref<?x!sycl_id_1_>) -> (i32, i64) {
 
+// ALWAYS-INLINE:           %[[VAL_1:.*]] = arith.constant 1 : i32
+// ALWAYS-INLINE:           %[[VAL_2:.*]] = sycl.call @inline_hint_callee_() {MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32
+// ALWAYS-INLINE:           call @foo(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_id_1_>, i32) -> ()
+// ALWAYS-INLINE:           %[[VAL_3:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] {ArgumentTypes = [memref<?x!sycl_id_1_, 4>, i32], FunctionName = @get, MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> i64
+// ALWAYS-INLINE:           return %[[VAL_2]], %[[VAL_3]] : i32, i64
+// ALWAYS-INLINE:         }
+
 // INLINE-DAG:       %[[VAL_1:.*]] = arith.constant 1 : i32
 // INLINE-DAG:       %[[VAL_2:.*]] = arith.constant 1 : i32
 // INLINE-DAG:       %[[VAL_3:.*]] = arith.constant 2 : i32
 // INLINE:           %[[VAL_4:.*]] = sycl.call @main_() {MangledFunctionName = @main, TypeName = @A} : () -> i32
 // INLINE:           %[[VAL_5:.*]] = arith.addi %[[VAL_3]], %[[VAL_4]] : i32
 // INLINE:           %[[VAL_6:.*]] = arith.addi %[[VAL_2]], %[[VAL_5]] : i32
+// INLINE:           call @foo(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_id_1_>, i32) -> ()
 // INLINE:           %[[VAL_7:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] {ArgumentTypes = [memref<?x!sycl_id_1_, 4>, i32], FunctionName = @get, MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> i64
 // INLINE:           return %[[VAL_6]], %[[VAL_7]] : i32, i64
 // INLINE:         }
@@ -198,6 +206,7 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // AGGRESSIVE:           %[[VAL_4:.*]] = sycl.call @main_() {MangledFunctionName = @main, TypeName = @A} : () -> i32
 // AGGRESSIVE:           %[[VAL_5:.*]] = arith.addi %[[VAL_3]], %[[VAL_4]] : i32
 // AGGRESSIVE:           %[[VAL_6:.*]] = arith.addi %[[VAL_2]], %[[VAL_5]] : i32
+// AGGRESSIVE:           call @foo(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_id_1_>, i32) -> ()
 // AGGRESSIVE:           %[[VAL_7:.*]] = memref.memory_space_cast %[[VAL_0]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
 // AGGRESSIVE:           %[[VAL_8:.*]] = arith.constant 2 : i64
 // AGGRESSIVE:           return %[[VAL_6]], %[[VAL_8]] : i32, i64
@@ -225,9 +234,17 @@ func.func private @get(%id: memref<?x!sycl_id_1_, 4>, %i: i32) -> i64 {
   return %c2_i64 : i64
 }
 
+func.func private @foo(%id: memref<?x!sycl_id_1_>, %i: i32)
+
+func.func private @id(%id: memref<?x!sycl_id_1_>, %i: i32) attributes {passthrough = ["alwaysinline"]} {
+  func.call @foo(%id, %i) : (memref<?x!sycl_id_1_>, i32) -> ()
+  return
+}
+
 func.func @main(%id: memref<?x!sycl_id_1_>) -> (i32, i64) {
   %c1_i32 = arith.constant 1 : i32
   %res1 = sycl.call @inline_hint_callee_() {MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32    
+  sycl.constructor @id(%id, %c1_i32) {MangledFunctionName = @id} : (memref<?x!sycl_id_1_>, i32)
   %res2 = sycl.id.get %id[%c1_i32] {ArgumentTypes = [memref<?x!sycl_id_1_, 4>, i32], FunctionName = @get, MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> i64
   return %res1, %res2 : i32, i64
 }
