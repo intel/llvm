@@ -16,7 +16,7 @@ NOTE: By necessity, this specification exposes some details about the way SYCL i
 |1|Initial extension version.
 |2|Added support for the make_buffer() API.
 |3|Added device member to backend_input_t<backend::ext_oneapi_level_zero, queue>.
-|4|Changed backend_input_t<backend::ext_oneapi_level_zero, queue> and backend_return_t<backend::ext_oneapi_level_zero, queue>.
+|4|Change the definition of backend_input_t and backend_return_t for the queue object, which changes the API for make_queue and get_native (when applied to queue).
 
 NOTE: This extension is following SYCL 2020 backend specification. Prior API for interoperability with Level-Zero is marked
       as deprecated and will be removed in the next release.
@@ -119,6 +119,8 @@ struct {
 ``` C++
 ze_command_queue_handle_t
 ```
+
+Prior to version 4 of this specification.
 </td>
 
 <td>
@@ -155,6 +157,8 @@ Starting in version 3 of this specification.
 std::variant<ze_command_queue_handle_t,
              ze_command_list_handle_t>
 ```
+
+Starting in version 4 of this specification.
 </td>
 <td>
 
@@ -257,7 +261,7 @@ auto get_native(const SyclObjectT &Obj)
 It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```,
 ```kernel_bundle```, and ```kernel``` classes. 
 
-NOTE: The ```get_native(queue)``` function returns either ```ze_command_queue_handle_t``` or ```ze_command_list_handle_t```, depending on whether the SYCL queue uses a Level Zero immediate command list. This depends on whether the environment variable ```SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS``` is set and on whether the queue was created with ```make_queue()```.
+The ```get_native(queue)``` function returns either ```ze_command_queue_handle_t``` or ```ze_command_list_handle_t```, depending on whether the SYCL queue uses a Level Zero immediate command list. This depends on whether the environment variable ```SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS``` is set and on whether the queue was created with ```make_queue()```.
 
 The ```sycl::get_native<backend::ext_oneapi_level_zero>```
 free-function is not supported for SYCL ```buffer``` class. The native backend object associated with the
