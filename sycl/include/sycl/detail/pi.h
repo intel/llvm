@@ -188,7 +188,7 @@ typedef enum : pi_uint64 {
   PI_DEVICE_TYPE_CPU = (1 << 1),   ///< A PI device that is the host processor.
   PI_DEVICE_TYPE_GPU = (1 << 2),   ///< A PI device that is a GPU.
   PI_DEVICE_TYPE_ACC = (1 << 3),   ///< A PI device that is a
-  ///< dedicated accelerator.
+                                   ///< dedicated accelerator.
   PI_DEVICE_TYPE_CUSTOM = (1 << 4) ///< A PI device that is a custom device.
 } _pi_device_type;
 
@@ -615,13 +615,13 @@ using pi_queue_properties = pi_bitfield;
 constexpr pi_queue_properties PI_QUEUE_FLAGS = -1;
 constexpr pi_queue_properties PI_QUEUE_COMPUTE_INDEX = -2;
 // clang-format off
-    constexpr pi_queue_properties PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
-    constexpr pi_queue_properties PI_QUEUE_FLAG_PROFILING_ENABLE = (1 << 1);
-    constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE = (1 << 2);
-    constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE_DEFAULT = (1 << 3);
-    constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS = (1 << 4);
-    constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
-    constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
+constexpr pi_queue_properties PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
+constexpr pi_queue_properties PI_QUEUE_FLAG_PROFILING_ENABLE = (1 << 1);
+constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE = (1 << 2);
+constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE_DEFAULT = (1 << 3);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS = (1 << 4);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
 // clang-format on
 
 using pi_result = _pi_result;
