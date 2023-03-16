@@ -57,7 +57,7 @@ protected:
   pipe_base();
   ~pipe_base();
 
-  static std::string get_pipe_name(const void *HostPipePtr);
+  __SYCL_EXPORT static std::string get_pipe_name(const void *HostPipePtr);
 };
 
 template <class _name, class _dataT, int32_t _min_capacity = 0,
