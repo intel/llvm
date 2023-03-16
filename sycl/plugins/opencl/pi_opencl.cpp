@@ -1703,9 +1703,9 @@ pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
     return cast<pi_result>(CLErr);
   }
 
-  clEnqueueReadHostPipeIntelFPGA_fn FuncPtr = nullptr;
+  clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
   pi_result RetVal = getExtFuncFromContext<clEnqueueReadHostPipeName,
-                                           clEnqueueReadHostPipeIntelFPGA_fn>(
+                                           clEnqueueReadHostPipeINTEL_fn>(
       cast<pi_context>(CLContext), &FuncPtr);
 
   if (FuncPtr) {
@@ -1714,6 +1714,7 @@ pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
         blocking, ptr, size, num_events_in_waitlist,
         cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
   }
+
   return RetVal;
 }
 
@@ -1730,16 +1731,19 @@ pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
   if (CLErr != CL_SUCCESS) {
     return cast<pi_result>(CLErr);
   }
-  clEnqueueWriteHostPipeIntelFPGA_fn FuncPtr = nullptr;
+
+  clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
   pi_result RetVal = getExtFuncFromContext<clEnqueueWriteHostPipeName,
-                                           clEnqueueWriteHostPipeIntelFPGA_fn>(
+                                           clEnqueueWriteHostPipeINTEL_fn>(
       cast<pi_context>(CLContext), &FuncPtr);
+
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(
         cast<cl_command_queue>(queue), cast<cl_program>(program), pipe_symbol,
         blocking, ptr, size, num_events_in_waitlist,
         cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
   }
+
   return RetVal;
 }
 
