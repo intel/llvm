@@ -693,21 +693,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint64_t GlobalMemSize = 0;
-    // If target device is an integrated GPU, then
-    // use totalSize, as those devices technically
-    // do not have device memory and they use the
-    // same as host, so physicalSize is 0.
-    // For discrete devices, use physicalSize.
-    if (Device->ZeDeviceProperties->flags &
-        ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) {
+    // Support to read physicalSize depends on kernel,
+    // so fallback into reading totalSize if physicalSize
+    // is not available.
+    for (const auto &ZeDeviceMemoryExtProperty :
+          Device->ZeDeviceMemoryProperties->second) {
+      GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
+    }
+    if (GlobalMemSize == 0) {
       for (const auto &ZeDeviceMemoryProperty :
            Device->ZeDeviceMemoryProperties->first) {
         GlobalMemSize += ZeDeviceMemoryProperty.totalSize;
-      }
-    } else {
-      for (const auto &ZeDeviceMemoryExtProperty :
-           Device->ZeDeviceMemoryProperties->second) {
-        GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
       }
     }
     return ReturnValue(uint64_t{GlobalMemSize});
