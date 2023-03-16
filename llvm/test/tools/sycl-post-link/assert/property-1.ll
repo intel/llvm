@@ -2,16 +2,26 @@
 ; property - it should include only kernels that call assertions in their call
 ; graph.
 
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=PRESENCE-CHECK
-; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=ABSENCE-CHECK
+; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.prop --implicit-check-not TheKernel2
+;
+; RUN: sycl-post-link -split=source -symbols -S < %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.prop --implicit-check-not TheKernel2
+;
+; RUN: sycl-post-link -symbols -S < %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.prop --implicit-check-not TheKernel2
+;
+; RUN: sycl-post-link -split=kernel -symbols -S < %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes=CHECK-K1
+; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes=CHECK-K2
+; RUN: FileCheck %s -input-file=%t_2.prop --check-prefixes=CHECK-K3
 
 ; SYCL source:
 ; void foo() {
 ;   assert(0);
 ; }
 ; void bar() {
-;   assert(1);
+;
 ; }
 ; void baz() {
 ;   foo();
@@ -34,6 +44,17 @@
 ;   Q.wait();
 ;   return 0;
 ; }
+;
+; CHECK: [SYCL/assert used]
+; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel=1|1
+; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3=1|1
+;
+; CHECK-K1: [SYCL/assert used]
+; CHECK-K1: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3=1|1
+; CHECK-K2-NOT: [SYCL/assert used]
+; CHECK-K3: [SYCL/assert used]
+; CHECK-K3: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel=1|1
+
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64_x86_64-unknown-unknown"
@@ -49,8 +70,6 @@ target triple = "spir64_x86_64-unknown-unknown"
 @__spirv_BuiltInLocalInvocationId = external dso_local addrspace(1) constant <3 x i64>, align 32
 @_ZL10assert_fmt = internal addrspace(2) constant [85 x i8] c"%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] Assertion `%s` failed.\0A\00", align 1
 
-; PRESENCE-CHECK: [SYCL/assert used]
-
 ; Function Attrs: convergent norecurse nounwind mustprogress
 define dso_local spir_func void @_Z3foov() {
 entry:
@@ -58,7 +77,6 @@ entry:
   ret void
 }
 
-; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel"() #0 {
 entry:
@@ -72,7 +90,6 @@ entry:
   ret void
 }
 
-; ABSENCE-CHECK-NOT: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel2
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel2"() #1 {
 entry:
@@ -95,7 +112,6 @@ entry:
   ret void
 }
 
-; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3"() #0 {
 entry:

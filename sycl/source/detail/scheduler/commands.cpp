@@ -54,6 +54,15 @@ namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global graph for the application
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
+
+bool CurrentCodeLocationValid() {
+  detail::tls_code_loc_t Tls;
+  auto CodeLoc = Tls.query();
+  auto FileName = CodeLoc.fileName();
+  auto FunctionName = CodeLoc.functionName();
+  return (FileName && FileName[0] != '\0') ||
+         (FunctionName && FunctionName[0] != '\0');
+}
 #endif
 
 #ifdef __SYCL_ENABLE_GNU_DEMANGLING
@@ -338,15 +347,27 @@ public:
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Host task is executed async and in a separate thread that do not allow to
+    // use code location data stored in TLS. So we keep submission code location
+    // as Command field and put it here to TLS so that thrown exception could
+    // query and report it.
+    std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
+    if (xptiTraceEnabled() && !CurrentCodeLocationValid()) {
+      AsyncCodeLocationPtr.reset(
+          new detail::tls_code_loc_t(MThisCmd->MSubmissionCodeLocation));
+    }
+#endif
+
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
       std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
           std::string("Couldn't wait for host-task's dependencies"),
           WaitResult));
       HostTask.MQueue->reportAsyncException(EPtr);
-
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
+      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
       return;
     }
 
@@ -361,12 +382,43 @@ public:
       } else
         HostTask.MHostTask->call();
     } catch (...) {
-      HostTask.MQueue->reportAsyncException(std::current_exception());
+      auto CurrentException = std::current_exception();
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+      // sycl::exception emit tracing of message with code location if
+      // available. For other types of exception we need to explicitly trigger
+      // tracing by calling TraceEventXPTI.
+      if (xptiTraceEnabled()) {
+        try {
+          rethrow_exception(CurrentException);
+        } catch (const sycl::exception &) {
+          // it is already traced, nothing to care about
+        } catch (const std::exception &StdException) {
+          GlobalHandler::instance().TraceEventXPTI(StdException.what());
+        } catch (...) {
+          GlobalHandler::instance().TraceEventXPTI(
+              "Host task lambda thrown non standard exception");
+        }
+      }
+#endif
+      HostTask.MQueue->reportAsyncException(CurrentException);
     }
 
     HostTask.MHostTask.reset();
 
-    Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Host Task is done, clear its submittion location to not interfere with
+    // following dependent kernels submission.
+    AsyncCodeLocationPtr.reset();
+#endif
+
+    try {
+      // If we enqueue blocked users - pi level could throw exception that
+      // should be treated as async now.
+      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+    } catch (...) {
+      auto CurrentException = std::current_exception();
+      HostTask.MQueue->reportAsyncException(CurrentException);
+    }
   }
 };
 
@@ -734,6 +786,16 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // If command is enqueued from host task thread - it will not have valid
+  // submission code location set. So we set it manually to properly trace
+  // failures if pi level report any.
+  std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
+  if (xptiTraceEnabled() && !CurrentCodeLocationValid()) {
+    AsyncCodeLocationPtr.reset(
+        new detail::tls_code_loc_t(MSubmissionCodeLocation));
+  }
+#endif
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
@@ -863,6 +925,24 @@ const char *Command::getBlockReason() const {
   }
 
   return "Unknown block reason";
+}
+
+void Command::copySubmissionCodeLocation() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+
+  detail::tls_code_loc_t Tls;
+  auto TData = Tls.query();
+  if (TData.fileName())
+    MSubmissionFileName = TData.fileName();
+  if (TData.functionName())
+    MSubmissionFunctionName = TData.functionName();
+  if (MSubmissionFileName.size() || MSubmissionFunctionName.size())
+    MSubmissionCodeLocation = {
+        MSubmissionFileName.c_str(), MSubmissionFunctionName.c_str(),
+        (int)TData.lineNumber(), (int)TData.columnNumber()};
+#endif
 }
 
 AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
@@ -2601,6 +2681,10 @@ pi_int32 ExecCGCommand::enqueueImp() {
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
     }
+
+    // Host task is executed asynchronously so we should record where it was
+    // submitted to report exception origin properly.
+    copySubmissionCodeLocation();
 
     MQueue->getThreadPool().submit<DispatchHostTask>(
         DispatchHostTask(this, std::move(ReqToMem)));

@@ -97,6 +97,16 @@ static const bool IndirectAccessTrackingEnabled = [] {
          nullptr;
 }();
 
+// Due to a bug with 2D memory copy to and from non-USM pointers, this option is
+// disabled by default.
+static const bool UseMemcpy2DOperations = [] {
+  const char *UseMemcpy2DOperationsFlag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_NATIVE_USM_MEMCPY2D");
+  if (!UseMemcpy2DOperationsFlag)
+    return false;
+  return std::stoi(UseMemcpy2DOperationsFlag) > 0;
+}();
+
 static usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
 
 // Map from L0 to PI result.
@@ -570,7 +580,7 @@ pi_result _pi_context::initialize() {
   // Prefer to use copy engine for initialization copies,
   // if available and allowed (main copy engine with index 0).
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  const auto &Range = getRangeOfAllowedCopyEngines((zer_device_handle_t)Device);
+  const auto &Range = getRangeOfAllowedCopyEngines((ur_device_handle_t)Device);
   ZeCommandQueueDesc.ordinal =
       Device->QueueGroup[_pi_device::queue_group_info_t::Compute].ZeOrdinal;
   if (Range.first >= 0 &&
@@ -910,7 +920,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
 
   // Copy group initialization.
   pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
-  const auto &Range = getRangeOfAllowedCopyEngines((zer_device_handle_t)Device);
+  const auto &Range = getRangeOfAllowedCopyEngines((ur_device_handle_t)Device);
   if (Range.first < 0 || Range.second < 0) {
     // We are asked not to use copy engines, just do nothing.
     // Leave CopyQueueGroup.ZeQueues empty, and it won't be used.
@@ -2291,8 +2301,9 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Context->RefCount.load()});
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    // 2D USM memcpy is supported.
-    return ReturnValue(pi_bool{true});
+    // 2D USM memcpy is supported unless disabled through
+    // SYCL_PI_LEVEL_ZERO_USE_NATIVE_USM_MEMCPY2D.
+    return ReturnValue(pi_bool{UseMemcpy2DOperations});
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     // 2D USM fill and memset is not supported.
@@ -5559,7 +5570,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       if (Queue->Device->ImmCommandListUsed) {
         // If immediate command lists are being used, each will act as their own
         // queue, so we must insert a barrier into each.
-        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+        for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
           if (ImmCmdList != Queue->CommandListMap.end())
             CmdLists.push_back(ImmCmdList);
       } else {
@@ -5726,17 +5737,28 @@ pi_result _pi_queue::synchronize() {
     return PI_SUCCESS;
   };
 
-  for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID})
-    for (auto &QueueGroup : QueueMap) {
-      if (Device->ImmCommandListUsed) {
-        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
-          syncImmCmdList(this, ImmCmdList);
-      } else {
-        for (auto &ZeQueue : QueueGroup.second.ZeQueues)
-          if (ZeQueue)
-            ZE_CALL(zeHostSynchronize, (ZeQueue));
+  // Do nothing if the queue is empty
+  if (!LastCommandEvent)
+    return PI_SUCCESS;
+
+  // For in-order queue just wait for the last command.
+  if (isInOrderQueue()) {
+    ZE_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+  } else {
+    // Otherwise sync all L0 queues/immediate command-lists.
+    for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
+      for (auto &QueueGroup : QueueMap) {
+        if (Device->ImmCommandListUsed) {
+          for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+            syncImmCmdList(this, ImmCmdList);
+        } else {
+          for (auto &ZeQueue : QueueGroup.second.ZeQueues)
+            if (ZeQueue)
+              ZE_CALL(zeHostSynchronize, (ZeQueue));
+        }
       }
     }
+  }
   LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
@@ -7862,7 +7884,7 @@ pi_result piextEnqueueDeviceGlobalVariableWrite(
           (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Write device global variable is out of range.",
-                    ZER_RESULT_INVALID_VALUE);
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
 
@@ -7907,7 +7929,7 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
           (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Read from device global variable is out of range.",
-                    ZER_RESULT_INVALID_VALUE);
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
 
@@ -8000,7 +8022,7 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.
 pi_result piTearDown(void *PluginParameter) {

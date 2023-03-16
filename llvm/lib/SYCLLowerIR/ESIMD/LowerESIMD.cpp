@@ -832,10 +832,10 @@ static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
       Suff = ".xor";
       break;
     case 0xb:
-      Suff = ".minsint";
+      Suff = ".imin";
       break;
     case 0xc:
-      Suff = ".maxsint";
+      Suff = ".imax";
       break;
     case 0x10:
       Suff = ".fmax";

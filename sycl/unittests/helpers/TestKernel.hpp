@@ -26,6 +26,12 @@ template <size_t KernelSize> struct KernelInfo<TestKernel<KernelSize>> {
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() { return KernelSize; }
+  static constexpr const char *getFileName() { return "TestKernel.hpp"; }
+  static constexpr const char *getFunctionName() {
+    return "TestKernelFunctionName";
+  }
+  static constexpr unsigned getLineNumber() { return 13; }
+  static constexpr unsigned getColumnNumber() { return 8; }
 };
 
 } // namespace detail

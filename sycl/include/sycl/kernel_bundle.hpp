@@ -316,7 +316,7 @@ public:
     if (!is_specialization_constant_set(SpecSymName))
       return Res;
 
-    std::array<char *, sizeof(SCType)> RetValue;
+    std::array<char, sizeof(SCType)> RetValue;
     get_specialization_constant_impl(SpecSymName, RetValue.data());
     std::memcpy(&Res, RetValue.data(), sizeof(SCType));
 
