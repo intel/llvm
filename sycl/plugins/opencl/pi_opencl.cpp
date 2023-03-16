@@ -1876,6 +1876,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
   _PI_CL(piextQueueCreate, piextQueueCreate)
+  _PI_CL(piextQueueCreate2, piextQueueCreate)
   _PI_CL(piQueueGetInfo, piQueueGetInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)
