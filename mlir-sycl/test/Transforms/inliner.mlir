@@ -172,6 +172,8 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 
 // COM: Ensure functions in a SCC are fully inlined (requires multiple inlining iterations). 
 // INLINE-LABEL: func.func @callee() -> i32 {
+// INLINE-DAG:     %c0 = arith.constant 0 : index
+// INLINE-DAG:     %c0_i64 = arith.constant 0 : i64
 // INLINE-DAG:     %c1_i32 = arith.constant 1 : i32
 // INLINE-DAG:     %c2_i32 = arith.constant 2 : i32
 // INLINE-DAG:     %c1_i32_0 = arith.constant 1 : i32
@@ -181,11 +183,15 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // INLINE-NEXT:    %2 = arith.addi %c1_i32_0, %1 : i32
 // INLINE-NEXT:    %3 = arith.addi %c1_i32, %c2_i32 : i32
 // INLINE-NEXT:    %4 = arith.addi %2, %3 : i32
+// INLINE-NEXT:    %5 = sycl.id.get %arg0[%c1_i32] {ArgumentTypes = [memref<?x!sycl_id_1_>, i32], FunctionName = @"operator[]", MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> memref<?xi64>
+// INLINE-NEXT:    memref.store %c0_i64, %5[%c0] : memref<?xi64>
 // INLINE-NEXT:    return %4 : i32
 // INLINE-NEXT:  }
 
 // INLINE-NOT: func.func private @inline_hint_callee
 // INLINE-NOT: func.func private @private_callee
+
+!sycl_id_1_ = !sycl.id<[1], (memref<1xi64>)>
 
 func.func private @inline_hint_callee() -> i32 attributes {passthrough = ["inlinehint"]} {
   %c_i32 = arith.constant 1 : i32
@@ -201,11 +207,24 @@ func.func private @private_callee() -> i32 {
   return %res2 : i32
 }
 
-func.func @callee() -> i32 {
+memref.global "private" @dummy : memref<1xi64> = dense<0>
+
+func.func @get(%id: memref<?x!sycl_id_1_>, %i: i32) -> memref<?xi64> attributes {passthrough = ["alwaysinline"]} {
+  // Dummy function
+  %global = memref.get_global @dummy : memref<1xi64>
+  %cast = memref.cast %global : memref<1xi64> to memref<?xi64>
+  return %cast : memref<?xi64>
+}
+
+func.func @callee(%id: memref<?x!sycl_id_1_>) -> i32 {
+  %c0 = arith.constant 0 : index
+  %c0_i64 = arith.constant 0 : i64
   %c1 = arith.constant 1 : i32
   %c2 = arith.constant 2 : i32
   %res1 = sycl.call @inline_hint_callee_() {MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32    
   %add1 = arith.addi %c1, %c2 : i32
-  %add2 = arith.addi %res1, %add1 : i32  
+  %add2 = arith.addi %res1, %add1 : i32
+  %ref = sycl.id.get %id[%c1] {ArgumentTypes = [memref<?x!sycl_id_1_>, i32], FunctionName = @"operator[]", MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> memref<?xi64>
+  memref.store %c0_i64, %ref[%c0] : memref<?xi64>
   return %add2 : i32
 }
