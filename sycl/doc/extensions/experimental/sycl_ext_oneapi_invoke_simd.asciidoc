@@ -210,8 +210,10 @@ In order to invoke the SIMD function, `invoke_simd` converts each argument
 in the `args` parameter pack according to the following rules:
 
 - Arguments of type `bool` are converted to type
-  `sycl::ext::oneapi::experimental::simd_mask<bool, N>`, where `N` is the sub-group size of
-  the calling kernel.  Element `i` of the SIMD type represents the value from
+  `sycl::ext::oneapi::experimental::simd_mask<T, N>`, where `N` is the sub-group size of
+  the calling kernel, and `T` is a user-specified type supported by
+  `sycl::ext::oneapi::experimental::simd_mask`.
+  Element `i` of the SIMD type represents the value from
   the work-item with sub-group local ID `i`.
 
 - All other arithmetic arguments of type `T` are converted to type
@@ -241,7 +243,7 @@ cannot deduce the type of `Callable`.
 The return value of an `invoke_simd` function is subject to the same mapping
 rules in reverse:
 
-- Return values of type `sycl::ext::oneapi::experimental::simd_mask<bool, N>` are converted
+- Return values of type `sycl::ext::oneapi::experimental::simd_mask<T, N>` are converted
   to `bool`, and the value in element `i` of the SIMD type is returned to the
   work-item with sub-group local ID `i`.
 
@@ -282,14 +284,14 @@ by this specification. Otherwise, the implementation must issue a proper diagnos
 
 The following algorithm to determine the sub-group size may be employed:
 - If any of the actual SPMD arguments is non-uniform, the specification requires
-that the corresponding SIMD argument must have `simd<T, N>` or `simd_mask<bool, N>`
+that the corresponding SIMD argument must have `simd<T, N>` or `simd_mask<T, N>`
 type, and `N` must be equal to the the sub-group size. The implementation may
 iterate through the supported sub-group sizes at compile time and check whether the
 function object is invocable with given sub-group size. There must be
 exactly one such sub-group size and it must match `N` or the user program is not
 well-formed.
 - Otherwise, if the return type of the SIMD target function is `simd<T, N>` or
-`simd_mask<bool, N>`, then the sub-group size is `N`.
+`simd_mask<T, N>`, then the sub-group size is `N`.
 - Otherwise (all arguments and the return type are uniform) the SIMD target is
 fully uniform and it can be invoked with any sub-group size.
 
@@ -312,7 +314,7 @@ sycl::ext::oneapi::experimental::simd<float, 8> scale(sycl::ext::oneapi::experim
   return x * n;
 }
 
-sycl::ext::oneapi::experimental::simd<float, 8> masked_scale(sycl::ext::oneapi::experimental::simd<float, 8> x, float n, sycl::ext::oneapi::experimental::simd_mask<bool, 8> mask)
+sycl::ext::oneapi::experimental::simd<float, 8> masked_scale(sycl::ext::oneapi::experimental::simd<float, 8> x, float n, sycl::ext::oneapi::experimental::simd_mask<float, 8> mask)
 {
   std::experimental::where(mask, x) *= n;
   return x;
@@ -330,7 +332,7 @@ q.parallel_for(..., sycl::nd_item<1> it) [[sycl::reqd_sub_group_size(8)]]
 
   // invoke SIMD function with a mask parameter
   // x values from each work-item be a simd<float, 8>
-  // mask values from each work-item are combined into a simd_mask<bool, 8>
+  // mask values from each work-item are combined into a simd_mask<float, 8>
   bool mask = (it.get_local_id(0) % 2);
   float z = sycl::ext::oneapi::experimental::invoke_simd(sg, masked_scale, x, sycl::ext::oneapi::experimental::uniform(n), mask);
 });
