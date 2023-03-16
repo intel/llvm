@@ -485,7 +485,7 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
       auto CastAccess = [](unsigned Val) {
         return static_cast<SPIRVAccessQualifierKind>(Val);
       };
-      switch (Opcode) {
+      switch (static_cast<size_t>(Opcode)) {
       case OpTypePipe: {
         auto *PipeT = BM->addPipeType();
         PipeT->setPipeAcessQualifier(CastAccess(TargetTy->getIntParameter(0)));
@@ -513,6 +513,18 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
         return mapType(T, BM->addQueueType());
       case OpTypeDeviceEvent:
         return mapType(T, BM->addDeviceEventType());
+      case internal::OpTypeJointMatrixINTEL: {
+        // The expected representation is:
+        // target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%,
+        //        %layout%, %scope%, %use%,
+        //        (optional) %element_type_interpretation%)
+        auto *ElemTy = transType(TargetTy->getTypeParameter(0));
+        ArrayRef<unsigned> Ops = TargetTy->int_params();
+        std::vector<SPIRVValue *> Args;
+        for (const auto &Op : Ops)
+          Args.emplace_back(transConstant(getUInt32(M, Op)));
+        return mapType(T, BM->addJointMatrixINTELType(ElemTy, Args));
+      }
       default:
         return mapType(T, BM->addOpaqueGenericType(Opcode));
       }
