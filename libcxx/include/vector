@@ -267,6 +267,13 @@ template <class T, class Allocator, class Predicate>
 typename vector<T, Allocator>::size_type
 erase_if(vector<T, Allocator>& c, Predicate pred);    // C++20
 
+
+template<class T>
+ inline constexpr bool is-vector-bool-reference = see below;        // exposition only, since C++23
+
+template<class T, class charT> requires is-vector-bool-reference<T> // Since C++23
+ struct formatter<T, charT>;
+
 }  // std
 
 */
@@ -281,9 +288,11 @@ erase_if(vector<T, Allocator>& c, Predicate pred);    // C++20
 #include <__algorithm/unwrap_iter.h>
 #include <__assert> // all public C++ headers provide the assertion handler
 #include <__bit_reference>
+#include <__concepts/same_as.h>
 #include <__config>
 #include <__debug>
 #include <__format/enable_insertable.h>
+#include <__format/formatter.h>
 #include <__functional/hash.h>
 #include <__functional/unary_function.h>
 #include <__iterator/advance.h>
@@ -299,10 +308,10 @@ erase_if(vector<T, Allocator>& c, Predicate pred);    // C++20
 #include <__split_buffer>
 #include <__type_traits/is_allocator.h>
 #include <__type_traits/noexcept_move_assign_container.h>
+#include <__utility/exception_guard.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
 #include <__utility/swap.h>
-#include <__utility/transaction.h>
 #include <climits>
 #include <cstdlib>
 #include <cstring>
@@ -380,7 +389,7 @@ public:
         std::__debug_db_insert_c(this);
     }
     _LIBCPP_CONSTEXPR_SINCE_CXX20 _LIBCPP_HIDE_FROM_ABI explicit vector(size_type __n);
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     _LIBCPP_CONSTEXPR_SINCE_CXX20 _LIBCPP_HIDE_FROM_ABI explicit vector(size_type __n, const allocator_type& __a);
 #endif
     _LIBCPP_CONSTEXPR_SINCE_CXX20 _LIBCPP_HIDE_FROM_ABI vector(size_type __n, const value_type& __x);
@@ -465,7 +474,7 @@ public:
 
     _LIBCPP_CONSTEXPR_SINCE_CXX20 _LIBCPP_HIDE_FROM_ABI
     vector(vector&& __x)
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
         noexcept;
 #else
         _NOEXCEPT_(is_nothrow_move_constructible<allocator_type>::value);
@@ -585,7 +594,7 @@ public:
 
     template <class... _Args>
     _LIBCPP_CONSTEXPR_SINCE_CXX20 _LIBCPP_HIDE_FROM_ABI
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
         reference emplace_back(_Args&&... __args);
 #else
         void      emplace_back(_Args&&... __args);
@@ -1064,7 +1073,7 @@ template <class _Tp, class _Allocator>
 _LIBCPP_CONSTEXPR_SINCE_CXX20
 vector<_Tp, _Allocator>::vector(size_type __n)
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     if (__n > 0)
     {
@@ -1074,13 +1083,13 @@ vector<_Tp, _Allocator>::vector(size_type __n)
     __guard.__complete();
 }
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
 template <class _Tp, class _Allocator>
 _LIBCPP_CONSTEXPR_SINCE_CXX20
 vector<_Tp, _Allocator>::vector(size_type __n, const allocator_type& __a)
     : __end_cap_(nullptr, __a)
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     if (__n > 0)
     {
@@ -1095,7 +1104,7 @@ template <class _Tp, class _Allocator>
 _LIBCPP_CONSTEXPR_SINCE_CXX20
 vector<_Tp, _Allocator>::vector(size_type __n, const value_type& __x)
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     if (__n > 0)
     {
@@ -1112,7 +1121,7 @@ template <class _InputIterator, __enable_if_t<__is_exactly_cpp17_input_iterator<
 _LIBCPP_CONSTEXPR_SINCE_CXX20
 vector<_Tp, _Allocator>::vector(_InputIterator __first, _InputIterator __last)
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     for (; __first != __last; ++__first)
         emplace_back(*__first);
@@ -1127,7 +1136,7 @@ _LIBCPP_CONSTEXPR_SINCE_CXX20
 vector<_Tp, _Allocator>::vector(_InputIterator __first, _InputIterator __last, const allocator_type& __a)
     : __end_cap_(nullptr, __a)
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     for (; __first != __last; ++__first)
         emplace_back(*__first);
@@ -1141,7 +1150,7 @@ template <class _ForwardIterator, __enable_if_t<__is_cpp17_forward_iterator<_For
 _LIBCPP_CONSTEXPR_SINCE_CXX20
 vector<_Tp, _Allocator>::vector(_ForwardIterator __first, _ForwardIterator __last)
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     size_type __n = static_cast<size_type>(std::distance(__first, __last));
     if (__n > 0)
@@ -1160,7 +1169,7 @@ _LIBCPP_CONSTEXPR_SINCE_CXX20
 vector<_Tp, _Allocator>::vector(_ForwardIterator __first, _ForwardIterator __last, const allocator_type& __a)
     : __end_cap_(nullptr, __a)
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     size_type __n = static_cast<size_type>(std::distance(__first, __last));
     if (__n > 0)
@@ -1176,7 +1185,7 @@ _LIBCPP_CONSTEXPR_SINCE_CXX20
 vector<_Tp, _Allocator>::vector(const vector& __x)
     : __end_cap_(nullptr, __alloc_traits::select_on_container_copy_construction(__x.__alloc()))
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     size_type __n = __x.size();
     if (__n > 0)
@@ -1192,7 +1201,7 @@ _LIBCPP_CONSTEXPR_SINCE_CXX20
 vector<_Tp, _Allocator>::vector(const vector& __x, const __type_identity_t<allocator_type>& __a)
     : __end_cap_(nullptr, __a)
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     size_type __n = __x.size();
     if (__n > 0)
@@ -1207,7 +1216,7 @@ template <class _Tp, class _Allocator>
 _LIBCPP_CONSTEXPR_SINCE_CXX20
 inline _LIBCPP_HIDE_FROM_ABI
 vector<_Tp, _Allocator>::vector(vector&& __x)
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
         noexcept
 #else
         _NOEXCEPT_(is_nothrow_move_constructible<allocator_type>::value)
@@ -1240,7 +1249,7 @@ vector<_Tp, _Allocator>::vector(vector&& __x, const __type_identity_t<allocator_
     else
     {
         typedef move_iterator<iterator> _Ip;
-        auto __guard = std::__make_transaction(__destroy_vector(*this));
+        auto __guard = std::__make_exception_guard(__destroy_vector(*this));
         assign(_Ip(__x.begin()), _Ip(__x.end()));
         __guard.__complete();
     }
@@ -1253,7 +1262,7 @@ _LIBCPP_CONSTEXPR_SINCE_CXX20
 inline _LIBCPP_HIDE_FROM_ABI
 vector<_Tp, _Allocator>::vector(initializer_list<value_type> __il)
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     if (__il.size() > 0)
     {
@@ -1269,7 +1278,7 @@ inline _LIBCPP_HIDE_FROM_ABI
 vector<_Tp, _Allocator>::vector(initializer_list<value_type> __il, const allocator_type& __a)
     : __end_cap_(nullptr, __a)
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     std::__debug_db_insert_c(this);
     if (__il.size() > 0)
     {
@@ -1503,19 +1512,19 @@ vector<_Tp, _Allocator>::shrink_to_fit() _NOEXCEPT
 {
     if (capacity() > size())
     {
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
         try
         {
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
             allocator_type& __a = this->__alloc();
             __split_buffer<value_type, allocator_type&> __v(size(), size(), __a);
             __swap_out_circular_buffer(__v);
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
         }
         catch (...)
         {
         }
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
     }
 }
 
@@ -1579,7 +1588,7 @@ template <class _Tp, class _Allocator>
 template <class... _Args>
 _LIBCPP_CONSTEXPR_SINCE_CXX20
 inline
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 typename vector<_Tp, _Allocator>::reference
 #else
 void
@@ -1592,7 +1601,7 @@ vector<_Tp, _Allocator>::emplace_back(_Args&&... __args)
     }
     else
         __emplace_back_slow_path(std::forward<_Args>(__args)...);
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
     return this->back();
 #endif
 }
@@ -1822,24 +1831,24 @@ vector<_Tp, _Allocator>::insert(const_iterator __position, _InputIterator __firs
     __split_buffer<value_type, allocator_type&> __v(__a);
     if (__first != __last)
     {
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
         try
         {
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
             __v.__construct_at_end(__first, __last);
             difference_type __old_size = __old_last - this->__begin_;
             difference_type __old_p = __p - this->__begin_;
             reserve(__recommend(size() + __v.size()));
             __p = this->__begin_ + __old_p;
             __old_last = this->__begin_ + __old_size;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
         }
         catch (...)
         {
             erase(__make_iter(__old_last), end());
             throw;
         }
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
     }
     __p = std::rotate(__p, __old_last, this->__end_);
     insert(__make_iter(__p), std::make_move_iterator(__v.begin()),
@@ -2114,7 +2123,7 @@ public:
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 ~vector() { __destroy_vector(*this)(); }
 
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 explicit vector(size_type __n);
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 explicit vector(size_type __n, const allocator_type& __a);
 #endif
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 vector(size_type __n, const value_type& __v);
@@ -2148,7 +2157,7 @@ public:
 
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
     vector(vector&& __v)
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
         noexcept;
 #else
         _NOEXCEPT_(is_nothrow_move_constructible<allocator_type>::value);
@@ -2245,16 +2254,16 @@ public:
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 const_reference back()  const {return __make_ref(__size_ - 1);}
 
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 void push_back(const value_type& __x);
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     template <class... _Args>
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 reference emplace_back(_Args&&... __args)
 #else
     _LIBCPP_HIDE_FROM_ABI void      emplace_back(_Args&&... __args)
 #endif
     {
         push_back ( value_type ( std::forward<_Args>(__args)... ));
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
         return this->back();
 #endif
     }
@@ -2262,7 +2271,7 @@ public:
 
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 void pop_back() {--__size_;}
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     template <class... _Args>
    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 iterator emplace(const_iterator __position, _Args&&... __args)
         { return insert ( __position, value_type ( std::forward<_Args>(__args)... )); }
@@ -2541,7 +2550,7 @@ vector<bool, _Allocator>::vector(size_type __n)
     }
 }
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
 template <class _Allocator>
 _LIBCPP_CONSTEXPR_SINCE_CXX20
 vector<bool, _Allocator>::vector(size_type __n, const allocator_type& __a)
@@ -2594,13 +2603,13 @@ vector<bool, _Allocator>::vector(_InputIterator __first, _InputIterator __last,
       __size_(0),
       __cap_alloc_(0, __default_init_tag())
 {
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     try
     {
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
         for (; __first != __last; ++__first)
             push_back(*__first);
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     }
     catch (...)
     {
@@ -2609,7 +2618,7 @@ vector<bool, _Allocator>::vector(_InputIterator __first, _InputIterator __last,
         std::__debug_db_invalidate_all(this);
         throw;
     }
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
 }
 
 template <class _Allocator>
@@ -2621,13 +2630,13 @@ vector<bool, _Allocator>::vector(_InputIterator __first, _InputIterator __last, 
       __size_(0),
       __cap_alloc_(0, static_cast<__storage_allocator>(__a))
 {
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     try
     {
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
         for (; __first != __last; ++__first)
             push_back(*__first);
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     }
     catch (...)
     {
@@ -2636,7 +2645,7 @@ vector<bool, _Allocator>::vector(_InputIterator __first, _InputIterator __last, 
         std::__debug_db_invalidate_all(this);
         throw;
     }
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
 }
 
 template <class _Allocator>
@@ -2648,7 +2657,7 @@ vector<bool, _Allocator>::vector(_ForwardIterator __first, _ForwardIterator __la
       __size_(0),
       __cap_alloc_(0, __default_init_tag())
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     size_type __n = static_cast<size_type>(std::distance(__first, __last));
     if (__n > 0)
     {
@@ -2667,7 +2676,7 @@ vector<bool, _Allocator>::vector(_ForwardIterator __first, _ForwardIterator __la
       __size_(0),
       __cap_alloc_(0, static_cast<__storage_allocator>(__a))
 {
-    auto __guard = std::__make_transaction(__destroy_vector(*this));
+    auto __guard = std::__make_exception_guard(__destroy_vector(*this));
     size_type __n = static_cast<size_type>(std::distance(__first, __last));
     if (__n > 0)
     {
@@ -2763,7 +2772,7 @@ vector<bool, _Allocator>::operator=(const vector& __v)
 
 template <class _Allocator>
 inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 vector<bool, _Allocator>::vector(vector&& __v)
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
     _NOEXCEPT
 #else
     _NOEXCEPT_(is_nothrow_move_constructible<allocator_type>::value)
@@ -2914,17 +2923,17 @@ vector<bool, _Allocator>::shrink_to_fit() _NOEXCEPT
 {
     if (__external_cap_to_internal(size()) > __cap())
     {
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
         try
         {
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
             vector(*this, allocator_type(__alloc())).swap(*this);
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
         }
         catch (...)
         {
         }
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
     }
 }
 
@@ -3025,24 +3034,24 @@ vector<bool, _Allocator>::insert(const_iterator __position, _InputIterator __fir
     vector __v(get_allocator());
     if (__first != __last)
     {
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
         try
         {
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
             __v.assign(__first, __last);
             difference_type __old_size = static_cast<difference_type>(__old_end - begin());
             difference_type __old_p = __p - begin();
             reserve(__recommend(size() + __v.size()));
             __p = begin() + __old_p;
             __old_end = begin() + __old_size;
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
         }
         catch (...)
         {
             erase(__old_end, end());
             throw;
         }
-#endif // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_NO_EXCEPTIONS
     }
     __p = std::rotate(__p, __old_end, end());
     insert(__p, __v.begin(), __v.end());
@@ -3284,7 +3293,7 @@ swap(vector<_Tp, _Allocator>& __x, vector<_Tp, _Allocator>& __y)
     __x.swap(__y);
 }
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 template <class _Tp, class _Allocator, class _Up>
 _LIBCPP_CONSTEXPR_SINCE_CXX20
 inline _LIBCPP_HIDE_FROM_ABI typename vector<_Tp, _Allocator>::size_type
@@ -3310,11 +3319,32 @@ template <>
 inline constexpr bool __format::__enable_insertable<vector<wchar_t>> = true;
 #endif
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
+
+#if _LIBCPP_STD_VER >= 23
+template <class _Tp, class CharT>
+// Since is-vector-bool-reference is only used once it's inlined here.
+  requires same_as<typename _Tp::__container, vector<bool, typename _Tp::__container::allocator_type>>
+struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<_Tp, CharT> {
+private:
+  formatter<bool, CharT> __underlying_;
+
+public:
+  template <class _ParseContext>
+  _LIBCPP_HIDE_FROM_ABI constexpr typename _ParseContext::iterator parse(_ParseContext& __ctx) {
+        return __underlying_.parse(__ctx);
+  }
+
+  template <class _FormatContext>
+  _LIBCPP_HIDE_FROM_ABI typename _FormatContext::iterator format(const _Tp& __ref, _FormatContext& __ctx) const {
+        return __underlying_.format(__ref, __ctx);
+  }
+};
+#endif // _LIBCPP_STD_VER >= 23
 
 _LIBCPP_END_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 _LIBCPP_BEGIN_NAMESPACE_STD
 namespace pmr {
 template <class _ValueT>

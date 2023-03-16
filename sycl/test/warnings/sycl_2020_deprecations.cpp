@@ -388,5 +388,13 @@ int main() {
     });
   });
 
+  Queue.submit([&](sycl::handler &CGH) {
+    sycl::stream Stream(1024, 80, CGH);
+    // expected-warning@+1{{'get_size' is deprecated: get_size() is deprecated since SYCL 2020. Please use size() instead.}}
+    size_t StreamSize = Stream.get_size();
+    // expected-warning@+1{{'get_max_statement_size' is deprecated: get_max_statement_size() is deprecated since SYCL 2020. Please use get_work_item_buffer_size() instead.}}
+    size_t StreamMaxStatementSize = Stream.get_max_statement_size();
+  });
+
   return 0;
 }

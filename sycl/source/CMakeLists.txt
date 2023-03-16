@@ -3,7 +3,6 @@
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
-
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -25,6 +24,23 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+
+  # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
+  # so, we link LLVMSupport lib to matching sycl version only.
+  if (SYCL_ENABLE_STACK_PRINTING)
+    if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
+      (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
+        add_dependencies(${LIB_NAME} LLVMSupport)
+        target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
+        target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
+    endif()
+  endif()
+
+  # TODO: Enabled for MSVC
+  if (NOT MSVC AND SYCL_LIB_WITH_DEBUG_SYMBOLS)
+    separate_arguments(CMAKE_CXX_FLAGS_DEBUG_SEPARATED UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
+    target_compile_options(${LIB_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
+  endif()
 
   if (SYCL_ENABLE_COVERAGE)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
@@ -51,6 +67,16 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if (SYCL_ENABLE_XPTI_TRACING)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE XPTI_ENABLE_INSTRUMENTATION XPTI_STATIC_LIBRARY)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
+  endif()
+
+  # win_proxy_loader
+  if (WIN32)
+    include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/win_proxy_loader)
+    if(WIN_DUPE)
+      target_link_libraries(${LIB_NAME} PUBLIC win_proxy_loaderd)
+    else()
+      target_link_libraries(${LIB_NAME} PUBLIC win_proxy_loader)
+    endif()
   endif()
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
@@ -215,11 +241,13 @@ if (MSVC)
     string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
   endforeach()
 
+  set(WIN_DUPE "1")
   if (SYCL_ENABLE_XPTI_TRACING)
     add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   else()
     add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   endif()
+  unset(WIN_DUPE)
   add_library(sycld ALIAS sycl${SYCL_MAJOR_VERSION}d)
 
   set(SYCL_EXTRA_OPTS "/MD")

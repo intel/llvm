@@ -162,6 +162,7 @@
 ??$get_info@Usingle_fp_config@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4fp_config@info@_V1@sycl@@V?$allocator@W4fp_config@info@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Usub_group_independent_forward_progress@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Usub_group_sizes@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
+??$get_info@Usupports_fusion@device@info@experimental@codeplay@ext@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_device_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_host_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uusm_restricted_shared_allocations@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
@@ -816,6 +817,8 @@
 ?convertChannelType@detail@_V1@sycl@@YA?AW4image_channel_type@23@W4_pi_image_channel_type@@@Z
 ?copy@MemoryManager@detail@_V1@sycl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@IV?$range@$02@34@3V?$id@$02@34@I12I334IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
 ?copy_2d_usm@MemoryManager@detail@_V1@sycl@@SAXPEBX_KV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@PEAX111V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
+?copy_from_device_global@MemoryManager@detail@_V1@sycl@@SAXPEBX_NV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K3PEAX_JAEBV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
+?copy_to_device_global@MemoryManager@detail@_V1@sycl@@SAXPEBX_NV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K30_JAEBV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?copy_usm@MemoryManager@detail@_V1@sycl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KPEAXV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?cpu_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?default_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
@@ -885,6 +888,7 @@
 ?getChannelOrder@image_plain@detail@_V1@sycl@@IEBA?AW4image_channel_order@34@XZ
 ?getChannelType@image_impl@detail@_V1@sycl@@QEBA?AW4image_channel_type@34@XZ
 ?getChannelType@image_plain@detail@_V1@sycl@@IEBA?AW4image_channel_type@34@XZ
+?getContextImplPtr@handler@_V1@sycl@@AEBAAEBV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@XZ
 ?getCurrentDSODir@OSUtil@detail@_V1@sycl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ?getDeviceFromHandler@detail@_V1@sycl@@YA?AVdevice@23@AEAVhandler@23@@Z
 ?getDevices@image_impl@detail@_V1@sycl@@AEAA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@V?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@6@@Z
@@ -1012,6 +1016,8 @@
 ?get_stream_mode@stream@_V1@sycl@@QEBA?AW4stream_manipulator@23@XZ
 ?get_wait_list@event@_V1@sycl@@QEAA?AV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@XZ
 ?get_width@stream@_V1@sycl@@QEBA_KXZ
+?get_work_item_buffer_size@stream_impl@detail@_V1@sycl@@QEBA_KXZ
+?get_work_item_buffer_size@stream@_V1@sycl@@QEBA_KXZ
 ?gpu_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?handleHostData@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBV?$function@$$A6AXPEAX@Z@std@@_K_N@Z
 ?handleHostData@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBV?$shared_ptr@X@std@@_K_N@Z
@@ -1109,6 +1115,10 @@
 ?memcpy@queue@_V1@sycl@@QEAA?AVevent@23@PEAXPEBX_K@Z
 ?memcpy@queue@_V1@sycl@@QEAA?AVevent@23@PEAXPEBX_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?memcpy@queue@_V1@sycl@@QEAA?AVevent@23@PEAXPEBX_KV423@@Z
+?memcpyFromDeviceGlobal@handler@_V1@sycl@@AEAAXPEAXPEBX_N_K3@Z
+?memcpyFromDeviceGlobal@queue@_V1@sycl@@AEAA?AVevent@23@PEAXPEBX_N_K3AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
+?memcpyToDeviceGlobal@handler@_V1@sycl@@AEAAXPEBX0_N_K2@Z
+?memcpyToDeviceGlobal@queue@_V1@sycl@@AEAA?AVevent@23@PEAXPEBX_N_K3AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?memset@handler@_V1@sycl@@QEAAXPEAXH_K@Z
 ?memset@queue@_V1@sycl@@QEAA?AVevent@23@PEAXH_K@Z
 ?memset@queue@_V1@sycl@@QEAA?AVevent@23@PEAXH_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
@@ -1175,6 +1185,8 @@
 ?size@SYCLMemObjT@detail@_V1@sycl@@QEBA_KXZ
 ?size@exception_list@_V1@sycl@@QEBA_KXZ
 ?size@image_impl@detail@_V1@sycl@@QEBA_KXZ
+?size@stream_impl@detail@_V1@sycl@@QEBA_KXZ
+?size@stream@_V1@sycl@@QEBA_KXZ
 ?split_string@detail@_V1@sycl@@YA?AV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@5@D@Z
 ?start@HostProfilingInfo@detail@_V1@sycl@@QEAAXXZ
 ?start_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAAXXZ

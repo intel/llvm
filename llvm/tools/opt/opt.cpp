@@ -13,7 +13,6 @@
 
 #include "BreakpointPrinter.h"
 #include "NewPMDriver.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/LoopPass.h"
@@ -43,7 +42,6 @@
 #include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/SourceMgr.h"
@@ -52,6 +50,8 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Debugify.h"
@@ -370,7 +370,6 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "verify-safepoint-ir",
       "atomic-expand",
       "expandvp",
-      "hardware-loops",
       "mve-tail-predication",
       "interleaved-access",
       "global-merge",
@@ -395,7 +394,9 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "expand-large-div-rem",
       "structurizecfg",
       "fix-irreducible",
-      "expand-large-fp-convert"
+      "expand-large-fp-convert",
+      "fpbuiltin-fn-selection",
+      "callbrprepare"
   };
   for (const auto &P : PassNamePrefix)
     if (Pass.startswith(P))
@@ -447,6 +448,7 @@ int main(int argc, char **argv) {
   initializeExpandMemCmpPassPass(Registry);
   initializeScalarizeMaskedMemIntrinLegacyPassPass(Registry);
   initializeSelectOptimizePass(Registry);
+  initializeCallBrPreparePass(Registry);
   initializeCodeGenPreparePass(Registry);
   initializeAtomicExpandPass(Registry);
   initializeRewriteSymbolsLegacyPassPass(Registry);
@@ -464,7 +466,6 @@ int main(int argc, char **argv) {
   initializeExpandVectorPredicationPass(Registry);
   initializeWasmEHPreparePass(Registry);
   initializeWriteBitcodePassPass(Registry);
-  initializeHardwareLoopsPass(Registry);
   initializeReplaceWithVeclibLegacyPass(Registry);
   initializeJMCInstrumenterPass(Registry);
   initializeSYCLLowerWGScopeLegacyPassPass(Registry);
@@ -476,6 +477,7 @@ int main(int argc, char **argv) {
   initializeESIMDVerifierPass(Registry);
   initializeSYCLLowerWGLocalMemoryLegacyPass(Registry);
   initializeSYCLMutatePrintfAddrspaceLegacyPassPass(Registry);
+  initializeFPBuiltinFnSelectionLegacyPassPass(Registry);
 
   SmallVector<PassPlugin, 1> PluginList;
   PassPlugins.setCallback([&](const std::string &PluginPath) {

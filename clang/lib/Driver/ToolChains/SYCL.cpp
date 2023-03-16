@@ -9,8 +9,8 @@
 #include "CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -270,8 +270,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     // TODO: temporary workaround for a problem with warnings reported by
     // llvm-link when driver links LLVM modules with empty modules
     CmdArgs.push_back("--suppress-warnings");
-    C.addCommand(std::make_unique<Command>(
-        JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, std::nullopt));
+    C.addCommand(std::make_unique<Command>(JA, *this,
+                                           ResponseFileSupport::AtFileUTF8(),
+                                           Exec, CmdArgs, std::nullopt));
   };
 
   // Add an intermediate output file.
@@ -312,8 +313,9 @@ void SYCL::Linker::constructLlcCommand(Compilation &C, const JobAction &JA,
   SmallString<128> LlcPath(C.getDriver().Dir);
   llvm::sys::path::append(LlcPath, "llc");
   const char *Llc = C.getArgs().MakeArgString(LlcPath);
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF8(), Llc, LlcArgs, std::nullopt));
+  C.addCommand(std::make_unique<Command>(JA, *this,
+                                         ResponseFileSupport::AtFileUTF8(), Llc,
+                                         LlcArgs, std::nullopt));
 }
 
 // For SYCL the inputs of the linker job are SPIR-V binaries and output is
@@ -552,10 +554,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     const char *FolderName = Args.MakeArgString(FN);
     ReportOptArg += FolderName;
   } else {
-    // Output directory is based off of the first object name as captured
-    // above.
-    if (!CreatedReportName.empty())
-      ReportOptArg += CreatedReportName;
+    // Default output directory should match default output executable name
+    ReportOptArg += "a.prj";
   }
   if (!ReportOptArg.empty())
     CmdArgs.push_back(C.getArgs().MakeArgString(
@@ -646,7 +646,6 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
                .Cases("intel_gpu_aml", "intel_gpu_9_6_0", "aml")
                .Cases("intel_gpu_cml", "intel_gpu_9_7_0", "cml")
                .Cases("intel_gpu_icllp", "intel_gpu_11_0_0", "icllp")
-               .Cases("intel_gpu_ehl", "intel_gpu_11_2_0", "ehl")
                .Cases("intel_gpu_tgllp", "intel_gpu_12_0_0", "tgllp")
                .Case("intel_gpu_rkl", "rkl")
                .Case("intel_gpu_adl_s", "adl_s")
@@ -693,6 +692,7 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
                .Case("amd_gpu_gfx1030", "gfx1030")
                .Case("amd_gpu_gfx1031", "gfx1031")
                .Case("amd_gpu_gfx1032", "gfx1032")
+               .Case("amd_gpu_gfx1034", "gfx1034")
                .Default("");
   return Device;
 }
@@ -710,7 +710,6 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("aml", "INTEL_GPU_AML")
                       .Case("cml", "INTEL_GPU_CML")
                       .Case("icllp", "INTEL_GPU_ICLLP")
-                      .Case("ehl", "INTEL_GPU_EHL")
                       .Case("tgllp", "INTEL_GPU_TGLLP")
                       .Case("rkl", "INTEL_GPU_RKL")
                       .Case("adl_s", "INTEL_GPU_ADL_S")
@@ -757,6 +756,7 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("gfx1030", "AMD_GPU_GFX1030")
                       .Case("gfx1031", "AMD_GPU_GFX1031")
                       .Case("gfx1032", "AMD_GPU_GFX1032")
+                      .Case("gfx1034", "AMD_GPU_GFX1034")
                       .Default("");
   if (!Ext.empty()) {
     Macro = "__SYCL_TARGET_";
@@ -899,17 +899,14 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     OptNoTriple = A->getOption().matches(Opt);
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
-      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple())
+      StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
+          GenDevice.empty())
         // Provided triple does not match current tool chain.
         continue;
-      if (getTriple().isSPIR() &&
-          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-        if (Device.empty() && StringRef(A->getValue()).startswith("intel_gpu"))
-          continue;
-        if (!Device.empty() &&
-            getDriver().MakeSYCLDeviceTriple(A->getValue()) == getTriple())
-          continue;
-      }
+      if (Device != GenDevice && getTriple().isSPIR() &&
+          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+        continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
       // passed in -X<Opt>

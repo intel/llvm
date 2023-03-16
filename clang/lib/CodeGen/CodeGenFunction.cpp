@@ -363,17 +363,18 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   bool HasOnlyLifetimeMarkers =
       HasCleanups && EHStack.containsOnlyLifetimeMarkers(PrologueCleanupDepth);
   bool EmitRetDbgLoc = !HasCleanups || HasOnlyLifetimeMarkers;
+
+  std::optional<ApplyDebugLocation> OAL;
   if (HasCleanups) {
     // Make sure the line table doesn't jump back into the body for
     // the ret after it's been at EndLoc.
-    std::optional<ApplyDebugLocation> AL;
     if (CGDebugInfo *DI = getDebugInfo()) {
       if (OnlySimpleReturnStmts)
         DI->EmitLocation(Builder, EndLoc);
       else
         // We may not have a valid end location. Try to apply it anyway, and
         // fall back to an artificial location if needed.
-        AL = ApplyDebugLocation::CreateDefaultArtificial(*this, EndLoc);
+        OAL = ApplyDebugLocation::CreateDefaultArtificial(*this, EndLoc);
     }
 
     PopCleanupBlocks(PrologueCleanupDepth);
@@ -626,9 +627,9 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const SYCLWorkGroupSizeHintAttr *A =
           FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
-    llvm::Optional<llvm::APSInt> XDimVal = A->getXDimVal();
-    llvm::Optional<llvm::APSInt> YDimVal = A->getYDimVal();
-    llvm::Optional<llvm::APSInt> ZDimVal = A->getZDimVal();
+    std::optional<llvm::APSInt> XDimVal = A->getXDimVal();
+    std::optional<llvm::APSInt> YDimVal = A->getYDimVal();
+    std::optional<llvm::APSInt> ZDimVal = A->getZDimVal();
     llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
 
     // On SYCL target the dimensions are reversed if present.
@@ -656,9 +657,9 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const SYCLReqdWorkGroupSizeAttr *A =
           FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-    llvm::Optional<llvm::APSInt> XDimVal = A->getXDimVal();
-    llvm::Optional<llvm::APSInt> YDimVal = A->getYDimVal();
-    llvm::Optional<llvm::APSInt> ZDimVal = A->getZDimVal();
+    std::optional<llvm::APSInt> XDimVal = A->getXDimVal();
+    std::optional<llvm::APSInt> YDimVal = A->getYDimVal();
+    std::optional<llvm::APSInt> ZDimVal = A->getZDimVal();
     llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
 
     // On SYCL target the dimensions are reversed if present.
@@ -684,7 +685,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   // kernel-or-device when that spelling, fall-back to old behavior.
   if (ReqSubGroup && (IsKernelOrDevice || !ReqSubGroup->isSYCL2020Spelling())) {
     const auto *CE = cast<ConstantExpr>(ReqSubGroup->getValue());
-    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("intel_reqd_sub_group_size",
@@ -732,7 +733,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getValue());
-    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getZExtValue()))};
     Fn->setMetadata("num_simd_work_items",
@@ -741,7 +742,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getValue());
-    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("scheduler_target_fmax_mhz",
@@ -750,7 +751,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getValue());
-    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("max_global_work_dim",
@@ -773,7 +774,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getValue());
-    Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     if (ArgVal->getBoolValue())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
@@ -1104,7 +1105,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (getLangOpts().SYCLIsDevice && D) {
     if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
       const auto *CE = cast<ConstantExpr>(A->getValue());
-      Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+      std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
       llvm::Metadata *AttrMDArgs[] = {
           llvm::ConstantAsMetadata::get(
               Builder.getInt32(ArgVal->getZExtValue())),
@@ -1345,8 +1346,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     auto AI = CurFn->arg_begin();
     if (CurFnInfo->getReturnInfo().isSRetAfterThis())
       ++AI;
-    ReturnValue = Address(&*AI, ConvertType(RetTy),
-                          CurFnInfo->getReturnInfo().getIndirectAlign());
+    ReturnValue =
+        Address(&*AI, ConvertType(RetTy),
+                CurFnInfo->getReturnInfo().getIndirectAlign(), KnownNonNull);
     if (!CurFnInfo->getReturnInfo().getIndirectByVal()) {
       ReturnValuePointer =
           CreateDefaultAlignTempAlloca(Int8PtrTy, "result.ptr");
@@ -1366,8 +1368,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         cast<llvm::GetElementPtrInst>(Addr)->getResultElementType();
     ReturnValuePointer = Address(Addr, Ty, getPointerAlign());
     Addr = Builder.CreateAlignedLoad(Ty, Addr, getPointerAlign(), "agg.result");
-    ReturnValue =
-        Address(Addr, ConvertType(RetTy), CGM.getNaturalTypeAlignment(RetTy));
+    ReturnValue = Address(Addr, ConvertType(RetTy),
+                          CGM.getNaturalTypeAlignment(RetTy), KnownNonNull);
   } else {
     ReturnValue = CreateIRTemp(RetTy, "retval");
 
@@ -2789,18 +2791,20 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
   llvm::PointerType *IntrinTy =
       llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
 
-  llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
-                                       {IntrinTy, CGM.ConstGlobalsPtrTy});
-
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
   // don't perform bitcasts if value is integer
   if (Addr.getElementType()->isIntegerTy()) {
+    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
+                                         {VTy, CGM.ConstGlobalsPtrTy});
 
     for (const auto *I : D->specific_attrs<AnnotateAttr>())
       V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation(), I);
 
     return Address(V, Addr.getElementType(), Addr.getAlignment());
   }
+
+  llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
+                                       {IntrinTy, CGM.ConstGlobalsPtrTy});
 
   for (const auto *I : D->specific_attrs<AnnotateAttr>()) {
     V = Builder.CreateBitCast(V, IntrinTy);

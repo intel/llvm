@@ -130,7 +130,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuild) {
 
   //   Prg.build_with_source("");
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
 }
@@ -142,7 +142,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramSourceNegativeBuildWithOpts) {
 
   //   Prg.build_with_source("", "-g");
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
 }
@@ -156,7 +156,7 @@ TEST_F(KernelAndProgramCacheTest,
   //   Prg.compile_with_source("");
   //   Prg.link();
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
 }
@@ -171,7 +171,7 @@ TEST_F(KernelAndProgramCacheTest,
   //   Prg.compile_with_source("");
   //   Prg.link();
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for source programs";
 }
@@ -186,7 +186,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleInputState) {
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {KernelID1});
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
   EXPECT_EQ(Cache.size(), 0U)
@@ -203,7 +203,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleObjectState) {
       sycl::get_kernel_bundle<sycl::bundle_state::object>(Ctx, {KernelID1});
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
   EXPECT_EQ(Cache.size(), 0U)
@@ -223,7 +223,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleExecutableState) {
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {KernelID2});
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
   EXPECT_EQ(Cache.size(), 1U)
@@ -253,7 +253,7 @@ TEST_F(KernelAndProgramCacheTest, SpecConstantCacheNegative) {
       << "Wrong specialization constant";
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
   EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache";
@@ -276,7 +276,7 @@ TEST_F(KernelAndProgramCacheTest, KernelBundleJoin) {
   sycl::kernel_bundle KernelBundle3 = sycl::join(KernelBundles);
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
 
   EXPECT_EQ(Cache.size(), 1U)
@@ -303,7 +303,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildPositiveBuildOpts) {
   //   Prg5.build_with_kernel_type<CacheTestKernel2>("-a");
 
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 3U) << "Expect non-empty cache for programs";
 }
@@ -316,7 +316,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeCompileOpts) {
   //   Prg.compile_with_kernel_type<CacheTestKernel>("-g");
   //   Prg.link();
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for programs";
 }
@@ -329,7 +329,7 @@ TEST_F(KernelAndProgramCacheTest, DISABLED_ProgramBuildNegativeLinkOpts) {
   //   Prg.compile_with_kernel_type<CacheTestKernel>();
   //   Prg.link("-g");
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  detail::KernelProgramCache::ProgramCacheT &Cache =
+  detail::KernelProgramCache::ProgramCache &Cache =
       CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for programs";
 }

@@ -16,6 +16,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/usm/usm_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
@@ -93,6 +94,26 @@ event handler::finalize() {
   if (MIsFinalized)
     return MLastEvent;
   MIsFinalized = true;
+
+  // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
+  // to a command without being bound to a command group, an exception should
+  // be thrown. There should be as many requirements as unique accessors,
+  // otherwise some of the accessors are unbound, and thus we throw.
+  {
+    // A counter is not good enough since we can have the same accessor several
+    // times as arg
+    std::unordered_set<void *> accessors;
+    for (const auto &arg : MArgs) {
+      if (arg.MType != detail::kernel_param_kind_t::kind_accessor)
+        continue;
+
+      accessors.insert(arg.MPtr);
+    }
+    if (accessors.size() > MRequirements.size())
+      throw sycl::exception(make_error_code(errc::kernel_argument),
+                            "placeholder accessor must be bound by calling "
+                            "handler::require() before it can be used.");
+  }
 
   const auto &type = getType();
   if (type == detail::CG::Kernel) {
@@ -320,6 +341,22 @@ event handler::finalize() {
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
+  case detail::CG::CopyToDeviceGlobal: {
+    CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
+        MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
+        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MOSModuleHandle, MCodeLoc));
+    break;
+  }
+  case detail::CG::CopyFromDeviceGlobal: {
+    CommandGroup.reset(new detail::CGCopyFromDeviceGlobal(
+        MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
+        std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MOSModuleHandle, MCodeLoc));
+    break;
+  }
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
@@ -503,6 +540,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       break;
     }
     case access::target::host_image:
+    case access::target::host_task:
     case access::target::host_buffer: {
       throw sycl::invalid_parameter_error("Unsupported accessor target case.",
                                           PI_ERROR_INVALID_OPERATION);
@@ -813,6 +851,35 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   id<2> ItemLimit = Dev.get_info<info::device::max_work_item_sizes<2>>() *
                     Dev.get_info<info::device::max_compute_units>();
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
+}
+
+void handler::memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
+                                   bool IsDeviceImageScoped, size_t NumBytes,
+                                   size_t Offset) {
+  throwIfActionIsCreated();
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = const_cast<void *>(DeviceGlobalPtr);
+  MImpl->MIsDeviceImageScoped = IsDeviceImageScoped;
+  MLength = NumBytes;
+  MImpl->MOffset = Offset;
+  setType(detail::CG::CopyToDeviceGlobal);
+}
+
+void handler::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                                     bool IsDeviceImageScoped, size_t NumBytes,
+                                     size_t Offset) {
+  throwIfActionIsCreated();
+  MSrcPtr = const_cast<void *>(DeviceGlobalPtr);
+  MDstPtr = Dest;
+  MImpl->MIsDeviceImageScoped = IsDeviceImageScoped;
+  MLength = NumBytes;
+  MImpl->MOffset = Offset;
+  setType(detail::CG::CopyFromDeviceGlobal);
+}
+
+const std::shared_ptr<detail::context_impl> &
+handler::getContextImplPtr() const {
+  return MQueue->getContextImplPtr();
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

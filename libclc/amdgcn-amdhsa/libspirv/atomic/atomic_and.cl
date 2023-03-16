@@ -17,4 +17,6 @@ AMDGPU_ATOMIC(_Z17__spirv_AtomicAnd, unsigned long, m, __hip_atomic_fetch_and)
 
 #undef AMDGPU_ATOMIC
 #undef AMDGPU_ATOMIC_IMPL
+#undef AMDGPU_ARCH_GEQ
+#undef AMDGPU_ARCH_BETWEEN
 #undef GET_ATOMIC_SCOPE_AND_ORDER

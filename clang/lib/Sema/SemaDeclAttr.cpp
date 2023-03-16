@@ -3355,7 +3355,7 @@ void Sema::AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *XDim, Expr *YDim, Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
   // or the original expression converted to a constant expression.
-  auto CheckAndConvertArg = [&](Expr *E) -> Optional<Expr *> {
+  auto CheckAndConvertArg = [&](Expr *E) -> std::optional<Expr *> {
     // We can only check if the expression is not value dependent.
     if (E && !E->isValueDependent()) {
       llvm::APSInt ArgVal;
@@ -3377,9 +3377,9 @@ void Sema::AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
 
   // Check all three argument values, and if any are bad, bail out. This will
   // convert the given expressions into constant expressions when possible.
-  Optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
-  Optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
-  Optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
+  std::optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
+  std::optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
+  std::optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
   if (!XDimConvert || !YDimConvert || !ZDimConvert)
     return;
   XDim = XDimConvert.value();
@@ -3762,7 +3762,7 @@ void Sema::AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *XDim, Expr *YDim, Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
   // or the original expression converted to a constant expression.
-  auto CheckAndConvertArg = [&](Expr *E) -> Optional<Expr *> {
+  auto CheckAndConvertArg = [&](Expr *E) -> std::optional<Expr *> {
     // Check if the expression is not value dependent.
     if (E && !E->isValueDependent()) {
       llvm::APSInt ArgVal;
@@ -3783,9 +3783,9 @@ void Sema::AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
 
   // Check all three argument values, and if any are bad, bail out. This will
   // convert the given expressions into constant expressions when possible.
-  Optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
-  Optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
-  Optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
+  std::optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
+  std::optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
+  std::optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
   if (!XDimConvert || !YDimConvert || !ZDimConvert)
     return;
   XDim = XDimConvert.value();
@@ -10820,7 +10820,7 @@ void Sema::AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
   SYCLDeviceHasAttr TmpAttr(Context, CI, Exprs, Size);
   SmallVector<Expr *, 5> Aspects;
   for (auto *E : TmpAttr.aspects())
-    if (!isDeviceAspectType(E->getType()))
+    if (!isa<PackExpansionExpr>(E) && !isDeviceAspectType(E->getType()))
       Diag(E->getExprLoc(), diag::err_sycl_invalid_aspect_argument) << CI;
 
   if (const auto *ExistingAttr = D->getAttr<SYCLDeviceHasAttr>()) {
@@ -11117,6 +11117,11 @@ static void handleHandleAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.checkStringLiteralArgumentAttr(AL, 0, Argument))
     return;
   D->addAttr(Attr::Create(S.Context, Argument, AL));
+}
+
+template<typename Attr>
+static void handleUnsafeBufferUsage(Sema &S, Decl *D, const ParsedAttr &AL) {
+  D->addAttr(Attr::Create(S.Context, AL));
 }
 
 static void handleCFGuardAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -12121,6 +12126,10 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
 
   case ParsedAttr::AT_ReleaseHandle:
     handleHandleAttr<ReleaseHandleAttr>(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_UnsafeBufferUsage:
+    handleUnsafeBufferUsage<UnsafeBufferUsageAttr>(S, D, AL);
     break;
 
   case ParsedAttr::AT_UseHandle:

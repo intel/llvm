@@ -10,6 +10,7 @@
 
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -28,6 +29,7 @@ constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 constexpr StringRef SYCL_PIPELINED_ATTR = "sycl-pipelined";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
+constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented
 // in the SPV_INTEL_global_variable_decorations design document:
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
@@ -244,6 +246,40 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
   return std::nullopt;
 }
 
+SmallVector<std::pair<std::optional<StringRef>, std::optional<StringRef>>, 8>
+parseSYCLPropertiesString(Module &M, IntrinsicInst *IntrInst) {
+  SmallVector<std::pair<std::optional<StringRef>, std::optional<StringRef>>, 8>
+      result;
+
+  if (const auto *Cast =
+          dyn_cast<BitCastOperator>(IntrInst->getArgOperand(4))) {
+    if (const auto *AnnotValsGV =
+            dyn_cast<GlobalVariable>(Cast->getOperand(0))) {
+      if (const auto *AnnotValsAggr =
+              dyn_cast<ConstantAggregate>(AnnotValsGV->getInitializer())) {
+        assert(
+            (AnnotValsAggr->getNumOperands() & 1) == 0 &&
+            "sycl-properties annotation must have an even number of annotation "
+            "values.");
+
+        // Iterate over the pairs of property meta-names and meta-values.
+        for (size_t I = 0; I < AnnotValsAggr->getNumOperands(); I += 2) {
+          std::optional<StringRef> PropMetaName =
+              getGlobalVariableString(AnnotValsAggr->getOperand(I));
+          std::optional<StringRef> PropMetaValue =
+              getGlobalVariableString(AnnotValsAggr->getOperand(I + 1));
+
+          assert(PropMetaName &&
+                 "Unexpected format for property name in annotation.");
+
+          result.push_back(std::make_pair(PropMetaName, PropMetaValue));
+        }
+      }
+    }
+  }
+  return result;
+}
+
 } // anonymous namespace
 
 PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
@@ -251,6 +287,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   LLVMContext &Ctx = M.getContext();
   unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
   bool CompileTimePropertiesMet = false;
+  unsigned MDParamKindID = Ctx.getMDKindID(SPIRV_PARAM_DECOR_MD_KIND);
 
   // Let's process all the globals
   for (auto &GV : M.globals()) {
@@ -280,6 +317,13 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                               HostAccessDecorValue, VarName));
     }
 
+    if (sycl::utils::isHostPipeVariable(GV)) {
+      auto VarName = getGlobalVariableUniqueId(GV);
+      MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
+                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE, 
+                                              VarName));
+    }
+
     // Add the generated metadata to the variable
     if (!MDOps.empty()) {
       GV.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
@@ -292,6 +336,28 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     // Only consider kernels.
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
+
+    {
+      SmallVector<Metadata *, 8> MDOps;
+      MDOps.reserve(F.arg_size());
+      bool FoundKernelProperties = false;
+      for (unsigned I = 0; I < F.arg_size(); I++) {
+        SmallVector<Metadata *, 8> MDArgOps;
+        for (auto &Attribute : F.getAttributes().getParamAttrs(I)) {
+          if (MDNode *SPIRVMetadata =
+                  attributeToDecorateMetadata(Ctx, Attribute))
+            MDArgOps.push_back(SPIRVMetadata);
+        }
+        if (!MDArgOps.empty())
+          FoundKernelProperties = true;
+        MDOps.push_back(MDNode::get(Ctx, MDArgOps));
+      }
+      // Add the generated metadata to the kernel function.
+      if (FoundKernelProperties) {
+        F.addMetadata(MDParamKindID, *MDNode::get(Ctx, MDOps));
+        CompileTimePropertiesMet = true;
+      }
+    }
 
     SmallVector<Metadata *, 8> MDOps;
     SmallVector<std::pair<std::string, MDNode *>, 8> NamedMDOps;
@@ -364,6 +430,69 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                   : PreservedAnalyses::all();
 }
 
+void CompileTimePropertiesPass::parseAlignmentAndApply(
+    Module &M, IntrinsicInst *IntrInst) {
+  // Get the global variable with the annotation string.
+  const GlobalVariable *AnnotStrArgGV = nullptr;
+  const Value *IntrAnnotStringArg = IntrInst->getArgOperand(1);
+  if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
+    if (auto *C = dyn_cast<Constant>(GEP->getOperand(0)))
+      AnnotStrArgGV = dyn_cast<GlobalVariable>(C);
+  if (!AnnotStrArgGV)
+    return;
+
+  std::optional<StringRef> AnnotStr = getGlobalVariableString(AnnotStrArgGV);
+  if (!AnnotStr)
+    return;
+
+  // parse properties string to decoration-value pairs
+  auto Properties = parseSYCLPropertiesString(M, IntrInst);
+
+  SmallVector<Value *, 8> UserList;
+  SmallVector<Instruction *, 4> InstList;
+  // check if used by a load or store instructions
+  for (auto Val : IntrInst->users()) {
+    // if castInst, push successors
+    if (auto CInst = dyn_cast<CastInst>(Val)) {
+      for (auto Successor : CInst->users())
+        UserList.push_back(Successor);
+    } else {
+      UserList.push_back(Val);
+    }
+  }
+
+  for (auto &Value : UserList) {
+    if (isa<LoadInst>(Value) || isa<StoreInst>(Value))
+      InstList.push_back(cast<Instruction>(Value));
+  }
+
+  for (auto &Property : Properties) {
+    auto DecorStr = Property.first->str();
+    auto DecorValue = Property.second;
+    uint32_t AttrVal;
+
+    if (DecorStr == "sycl-alignment") {
+      assert(DecorValue && "sycl-alignment attribute is missing");
+
+      bool DecorValueIntConvFailed = DecorValue->getAsInteger(0, AttrVal);
+
+      std::ignore = DecorValueIntConvFailed;
+      assert(!DecorValueIntConvFailed &&
+             "sycl-alignment attribute is not an integer");
+      assert(llvm::isPowerOf2_64(AttrVal) &&
+             "sycl-alignment attribute is not a power of 2");
+
+      // apply alignment attributes to load/store
+      for (auto Inst : InstList) {
+        if (auto LInst = dyn_cast<LoadInst>(Inst))
+          LInst->setAlignment(Align(AttrVal));
+        else if (auto SInst = dyn_cast<StoreInst>(Inst))
+          SInst->setAlignment(Align(AttrVal));
+      }
+    }
+  }
+}
+
 // Returns true if the transformation changed IntrInst.
 bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     Module &M, IntrinsicInst *IntrInst,
@@ -388,45 +517,26 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   if (!AnnotStr || AnnotStr->str() != "sycl-properties")
     return false;
 
+  // check alignment annotation and apply it to load/store
+  parseAlignmentAndApply(M, IntrInst);
+
   // Read the annotation values and create the new annotation string.
   std::string NewAnnotString = "";
-  if (const auto *Cast =
-          dyn_cast<BitCastOperator>(IntrInst->getArgOperand(4))) {
-    if (const auto *AnnotValsGV =
-            dyn_cast<GlobalVariable>(Cast->getOperand(0))) {
-      if (const auto *AnnotValsAggr =
-              dyn_cast<ConstantAggregate>(AnnotValsGV->getInitializer())) {
-        assert(
-            (AnnotValsAggr->getNumOperands() & 1) == 0 &&
-            "sycl-properties annotation must have an even number of annotation "
-            "values.");
+  auto Properties = parseSYCLPropertiesString(M, IntrInst);
+  for (auto &Property : Properties) {
+    auto DecorIt = SpirvDecorMap.find(*Property.first);
+    if (DecorIt == SpirvDecorMap.end())
+      continue;
+    uint32_t DecorCode = DecorIt->second.Code;
 
-        // Iterate over the pairs of property meta-names and meta-values.
-        for (size_t I = 0; I < AnnotValsAggr->getNumOperands(); I += 2) {
-          std::optional<StringRef> PropMetaName =
-              getGlobalVariableString(AnnotValsAggr->getOperand(I));
-          std::optional<StringRef> PropMetaValue =
-              getGlobalVariableString(AnnotValsAggr->getOperand(I + 1));
-
-          assert(PropMetaName &&
-                 "Unexpected format for property name in annotation.");
-
-          auto DecorIt = SpirvDecorMap.find(*PropMetaName);
-          if (DecorIt == SpirvDecorMap.end())
-            continue;
-          uint32_t DecorCode = DecorIt->second.Code;
-
-          // Expected format is '{X}' or '{X:Y}' where X is decoration ID and
-          // Y is the value if present. It encloses Y in " to ensure that
-          // string values are handled correctly. Note that " around values are
-          // always valid, even if the decoration parameters are not strings.
-          NewAnnotString += "{" + std::to_string(DecorCode);
-          if (PropMetaValue)
-            NewAnnotString += ":\"" + PropMetaValue->str() + "\"";
-          NewAnnotString += "}";
-        }
-      }
-    }
+    // Expected format is '{X}' or '{X:Y}' where X is decoration ID and
+    // Y is the value if present. It encloses Y in " to ensure that
+    // string values are handled correctly. Note that " around values are
+    // always valid, even if the decoration parameters are not strings.
+    NewAnnotString += "{" + std::to_string(DecorCode);
+    if (Property.second)
+      NewAnnotString += ":\"" + Property.second->str() + "\"";
+    NewAnnotString += "}";
   }
 
   // If the new annotation string is empty there is no reason to keep it, so
@@ -463,7 +573,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // The values are not in the annotation string, so we can remove the original
   // annotation value.
   PointerType *Arg4PtrTy =
-      dyn_cast<PointerType>(IntrInst->getArgOperand(4)->getType());
+      cast<PointerType>(IntrInst->getArgOperand(4)->getType());
   IntrInst->setArgOperand(4, ConstantPointerNull::get(Arg4PtrTy));
   return true;
 }

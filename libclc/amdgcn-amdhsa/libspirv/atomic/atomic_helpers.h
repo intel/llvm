@@ -9,6 +9,10 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
+#define AMDGPU_ARCH_GEQ(LOWER) __oclc_ISA_version >= LOWER
+#define AMDGPU_ARCH_BETWEEN(LOWER, UPPER)                                      \
+  __oclc_ISA_version >= LOWER &&__oclc_ISA_version < UPPER
+
 #define GET_ATOMIC_SCOPE_AND_ORDER(IN_SCOPE, OUT_SCOPE, IN_SEMANTICS,          \
                                    OUT_ORDER)                                  \
   {                                                                            \
@@ -52,20 +56,18 @@
     }                                                                          \
   }
 
-#define AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, AS, AS_MANGLED,                                                     \
+#define AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, AS, AS_MANGLED,                                              \
                            SUB1, BUILTIN)                                                                              \
-  _CLC_DEF TYPE                                                                                                               \
+  _CLC_DEF TYPE                                                                                                        \
       FUNC_NAME##P##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile AS TYPE *p, enum Scope scope,                                                                              \
-          enum MemorySemanticsMask semantics, TYPE val) {                                                                     \
-    int atomic_scope = 0, memory_order = 0;                                                                                   \
-    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                                  \
-    TYPE ret = BUILTIN(p, val, memory_order, atomic_scope);                                                                   \
-    return *(TYPE *)&ret;                                                                                                     \
+          volatile AS TYPE *p, enum Scope scope,                                                                       \
+          enum MemorySemanticsMask semantics, TYPE val) {                                                              \
+    int atomic_scope = 0, memory_order = 0;                                                                            \
+    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                           \
+    return BUILTIN(p, val, memory_order, atomic_scope);                                                                \
   }
 
 #define AMDGPU_ATOMIC(FUNC_NAME, TYPE, TYPE_MANGLED, BUILTIN)                  \
   AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, global, U3AS1, 1, BUILTIN) \
   AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, local, U3AS3, 1, BUILTIN)  \
   AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, , , 0, BUILTIN)
-
