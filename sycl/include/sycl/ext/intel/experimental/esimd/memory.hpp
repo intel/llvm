@@ -583,6 +583,7 @@ lsc_gather(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  pred = 0; // INTENTIONAL ERROR TO CHECK SYCLOS-CI WORK ON PVC!!!
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
