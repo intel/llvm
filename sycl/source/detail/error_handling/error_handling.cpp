@@ -362,7 +362,8 @@ void handleErrorOrWarning(pi_result Error, const device_impl &DeviceImpl,
 } // namespace detail::enqueue_kernel_launch
 
 namespace detail::kernel_get_group_info {
-void handleErrorOrWarning(pi_result Error, pi_kernel_group_info Descriptor) {
+void handleErrorOrWarning(pi_result Error, pi_kernel_group_info Descriptor,
+                          const plugin &Plugin) {
   assert(Error != PI_SUCCESS &&
          "Success is expected to be handled on caller side");
   switch (Error) {

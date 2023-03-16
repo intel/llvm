@@ -75,8 +75,8 @@ get_kernel_device_specific_info_helper(RT::PiKernel Kernel, RT::PiDevice Device,
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piKernelGetGroupInfo>(
       Kernel, Device, PiInfoCode<Param>::value, Size, Result, nullptr);
   if (Error != PI_SUCCESS)
-    kernel_get_group_info::handleErrorOrWarning(Error,
-                                                PiInfoCode<Param>::value);
+    kernel_get_group_info::handleErrorOrWarning(Error, PiInfoCode<Param>::value,
+                                                Plugin);
 }
 
 template <typename Param>
