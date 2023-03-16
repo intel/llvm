@@ -33,6 +33,7 @@
 #include "../GPUCommon/GPUOpsLowering.h"
 #include "../GPUCommon/IndexIntrinsicsOpLowering.h"
 #include "../GPUCommon/OpToFuncCallLowering.h"
+#include <optional>
 
 namespace mlir {
 #define GEN_PASS_DEF_CONVERTGPUOPSTONVVMOPS
@@ -57,6 +58,60 @@ static NVVM::ShflKind convertShflKind(gpu::ShuffleMode mode) {
   }
   llvm_unreachable("unknown shuffle mode");
 }
+
+static std::optional<NVVM::ReduxKind>
+convertReduxKind(gpu::AllReduceOperation mode) {
+  switch (mode) {
+  case gpu::AllReduceOperation::ADD:
+    return NVVM::ReduxKind::ADD;
+  case gpu::AllReduceOperation::AND:
+    return NVVM::ReduxKind::AND;
+  case gpu::AllReduceOperation::MAX:
+    return NVVM::ReduxKind::MAX;
+  case gpu::AllReduceOperation::MIN:
+    return NVVM::ReduxKind::MIN;
+  case gpu::AllReduceOperation::OR:
+    return NVVM::ReduxKind::OR;
+  case gpu::AllReduceOperation::XOR:
+    return NVVM::ReduxKind::XOR;
+  case gpu::AllReduceOperation::MUL:
+    return std::nullopt;
+  }
+  return std::nullopt;
+}
+
+/// This pass lowers gpu.subgroup_reduce op into to the nvvm.redux op. The op
+/// must be run by the entire subgroup, otherwise it is undefined behaviour.
+struct GPUSubgroupReduceOpLowering
+    : public ConvertOpToLLVMPattern<gpu::SubgroupReduceOp> {
+  using ConvertOpToLLVMPattern<gpu::SubgroupReduceOp>::ConvertOpToLLVMPattern;
+  LogicalResult
+
+  matchAndRewrite(gpu::SubgroupReduceOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!op.getUniform())
+      return rewriter.notifyMatchFailure(
+          op, "cannot be lowered to redux as the op must be run "
+              "uniformly (entire subgroup).");
+    if (!op.getValue().getType().isInteger(32))
+      return rewriter.notifyMatchFailure(op, "unsupported data type");
+
+    std::optional<NVVM::ReduxKind> mode = convertReduxKind(op.getOp());
+    if (!mode.has_value())
+      return rewriter.notifyMatchFailure(
+          op, "unsupported reduction mode for redux");
+
+    Location loc = op->getLoc();
+    auto int32Type = IntegerType::get(rewriter.getContext(), 32);
+    Value offset = rewriter.create<LLVM::ConstantOp>(loc, int32Type, -1);
+
+    auto reduxOp = rewriter.create<NVVM::ReduxOp>(loc, int32Type, op.getValue(),
+                                                  mode.value(), offset);
+
+    rewriter.replaceOp(op, reduxOp->getResult(0));
+    return success();
+  }
+};
 
 struct GPUShuffleOpLowering : public ConvertOpToLLVMPattern<gpu::ShuffleOp> {
   using ConvertOpToLLVMPattern<gpu::ShuffleOp>::ConvertOpToLLVMPattern;
@@ -155,8 +210,9 @@ struct GPULaneIdOpToNVVM : ConvertOpToLLVMPattern<gpu::LaneIdOp> {
 struct LowerGpuOpsToNVVMOpsPass
     : public impl::ConvertGpuOpsToNVVMOpsBase<LowerGpuOpsToNVVMOpsPass> {
   LowerGpuOpsToNVVMOpsPass() = default;
-  LowerGpuOpsToNVVMOpsPass(unsigned indexBitwidth) {
+  LowerGpuOpsToNVVMOpsPass(unsigned indexBitwidth, bool hasRedux = false) {
     this->indexBitwidth = indexBitwidth;
+    this->hasRedux = hasRedux;
   }
 
   void runOnOperation() override {
@@ -185,38 +241,26 @@ struct LowerGpuOpsToNVVMOpsPass
         return signalPassFailure();
     }
 
-    // MemRef conversion for GPU to NVVM lowering.
-    {
-      RewritePatternSet patterns(m.getContext());
-      TypeConverter typeConverter;
-      typeConverter.addConversion([](Type t) { return t; });
-      // NVVM uses alloca in the default address space to represent private
-      // memory allocations, so drop private annotations. NVVM uses address
-      // space 3 for shared memory. NVVM uses the default address space to
-      // represent global memory.
-      gpu::populateMemorySpaceAttributeTypeConversions(
-          typeConverter, [](gpu::AddressSpace space) -> unsigned {
-            switch (space) {
-            case gpu::AddressSpace::Global:
-              return static_cast<unsigned>(
-                  NVVM::NVVMMemorySpace::kGlobalMemorySpace);
-            case gpu::AddressSpace::Workgroup:
-              return static_cast<unsigned>(
-                  NVVM::NVVMMemorySpace::kSharedMemorySpace);
-            case gpu::AddressSpace::Private:
-              return 0;
-            }
-            llvm_unreachable("unknown address space enum value");
-            return 0;
-          });
-      gpu::populateMemorySpaceLoweringPatterns(typeConverter, patterns);
-      ConversionTarget target(getContext());
-      gpu::populateLowerMemorySpaceOpLegality(target);
-      if (failed(applyFullConversion(m, target, std::move(patterns))))
-        return signalPassFailure();
-    }
-
     LLVMTypeConverter converter(m.getContext(), options);
+    // NVVM uses alloca in the default address space to represent private
+    // memory allocations, so drop private annotations. NVVM uses address
+    // space 3 for shared memory. NVVM uses the default address space to
+    // represent global memory.
+    populateGpuMemorySpaceAttributeConversions(
+        converter, [](gpu::AddressSpace space) -> unsigned {
+          switch (space) {
+          case gpu::AddressSpace::Global:
+            return static_cast<unsigned>(
+                NVVM::NVVMMemorySpace::kGlobalMemorySpace);
+          case gpu::AddressSpace::Workgroup:
+            return static_cast<unsigned>(
+                NVVM::NVVMMemorySpace::kSharedMemorySpace);
+          case gpu::AddressSpace::Private:
+            return 0;
+          }
+          llvm_unreachable("unknown address space enum value");
+          return 0;
+        });
     // Lowering for MMAMatrixType.
     converter.addConversion([&](gpu::MMAMatrixType type) -> Type {
       return convertMMAToLLVMType(type);
@@ -226,9 +270,11 @@ struct LowerGpuOpsToNVVMOpsPass
     arith::populateArithToLLVMConversionPatterns(converter, llvmPatterns);
     cf::populateControlFlowToLLVMConversionPatterns(converter, llvmPatterns);
     populateFuncToLLVMConversionPatterns(converter, llvmPatterns);
-    populateMemRefToLLVMConversionPatterns(converter, llvmPatterns);
+    populateFinalizeMemRefToLLVMConversionPatterns(converter, llvmPatterns);
     populateGpuToNVVMConversionPatterns(converter, llvmPatterns);
     populateGpuWMMAToNVVMConversionPatterns(converter, llvmPatterns);
+    if (this->hasRedux)
+      populateGpuSubgroupReduceOpLoweringPattern(converter, llvmPatterns);
     LLVMConversionTarget target(getContext());
     configureGpuToNVVMConversionLegality(target);
     if (failed(applyPartialConversion(m, target, std::move(llvmPatterns))))
@@ -257,6 +303,11 @@ static void populateOpPatterns(LLVMTypeConverter &converter,
                                StringRef f64Func) {
   patterns.add<ScalarizeVectorOpLowering<OpTy>>(converter);
   patterns.add<OpToFuncCallLowering<OpTy>>(converter, f32Func, f64Func);
+}
+
+void mlir::populateGpuSubgroupReduceOpLoweringPattern(
+    LLVMTypeConverter &converter, RewritePatternSet &patterns) {
+  patterns.add<GPUSubgroupReduceOpLowering>(converter);
 }
 
 void mlir::populateGpuToNVVMConversionPatterns(LLVMTypeConverter &converter,
@@ -323,6 +374,6 @@ void mlir::populateGpuToNVVMConversionPatterns(LLVMTypeConverter &converter,
 }
 
 std::unique_ptr<OperationPass<gpu::GPUModuleOp>>
-mlir::createLowerGpuOpsToNVVMOpsPass(unsigned indexBitwidth) {
-  return std::make_unique<LowerGpuOpsToNVVMOpsPass>(indexBitwidth);
+mlir::createLowerGpuOpsToNVVMOpsPass(unsigned indexBitwidth, bool hasRedux) {
+  return std::make_unique<LowerGpuOpsToNVVMOpsPass>(indexBitwidth, hasRedux);
 }

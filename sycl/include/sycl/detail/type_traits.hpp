@@ -12,6 +12,7 @@
 #include <sycl/detail/generic_type_lists.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/type_list.hpp>
+#include <sycl/detail/vector_traits.hpp>
 
 #include <array>
 #include <tuple>
@@ -85,7 +86,6 @@ template <typename T, typename R>
 using copy_cv_qualifiers_t = typename copy_cv_qualifiers<T, R>::type;
 
 template <int V> using int_constant = std::integral_constant<int, V>;
-
 // vector_size
 // scalars are interpreted as a vector of 1 length.
 template <typename T> struct vector_size_impl : int_constant<1> {};
@@ -93,16 +93,6 @@ template <typename T, int N>
 struct vector_size_impl<vec<T, N>> : int_constant<N> {};
 template <typename T>
 struct vector_size : vector_size_impl<remove_cv_t<remove_reference_t<T>>> {};
-
-// 4.10.2.6 Memory layout and alignment
-template <typename T, int N>
-struct vector_alignment_impl
-    : conditional_t<N == 3, int_constant<sizeof(T) * 4>,
-                    int_constant<sizeof(T) * N>> {};
-
-template <typename T, int N>
-struct vector_alignment
-    : vector_alignment_impl<remove_cv_t<remove_reference_t<T>>, N> {};
 
 // vector_element
 template <typename T> struct vector_element_impl;
