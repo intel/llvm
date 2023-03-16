@@ -2053,7 +2053,6 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   constexpr uint8_t execSize = 0x0;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
-  constexpr uint8_t numSrc1 = 0x0;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
   return raw_send_load(oldDst, payload.get_raw_data(), exDesc, desc, execSize,
                        sfid, numSrc0, numDst);
@@ -2092,17 +2091,13 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   constexpr uint32_t base_desc = 0x2000403;
   constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
   constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
-  __ESIMD_NS::simd<T, N> oldDst;
   constexpr uint32_t exDesc = 0x0;
   constexpr uint32_t desc =
       base_desc | cache_mask | transformMask | transposeMask;
   constexpr uint8_t execSize = 0x0;
   constexpr uint8_t sfid = 0xF;
-  constexpr uint8_t numSrc0 = 0x1;
-  constexpr uint8_t numSrc1 = 0x0;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  raw_sends_store(oldDst, payload.get_raw_data(), exDesc, desc, execSize, sfid,
-                  numSrc0, numDst);
+  raw_send_store(payload.get_raw_data(), exDesc, desc, execSize, sfid, numDst);
 }
 
 /// A variation of \c 2D stateless block store \c with parameters passed as
@@ -2141,7 +2136,6 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = (N * sizeof(T)) / 64;
-  constexpr uint8_t numDst = 0x0;
   raw_sends_store(payload.get_raw_data(), Data, exDesc, desc, execSize, sfid,
                   numSrc0, numSrc1);
 }
