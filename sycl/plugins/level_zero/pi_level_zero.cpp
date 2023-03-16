@@ -2298,11 +2298,13 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     // 2D USM fill and memset is not supported.
     return ReturnValue(pi_bool{false});
-  case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-    return ReturnValue(
-        pi_uint32{PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-                  PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
-                  PI_MEMORY_ORDER_SEQ_CST});
+  case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    pi_memory_order_capabilities capabilities =
+      PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+      PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
+      PI_MEMORY_ORDER_SEQ_CST;
+    return ReturnValue(capabilities);
+  }
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     // TODO: implement other parameters
