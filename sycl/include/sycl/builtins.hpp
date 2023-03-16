@@ -902,43 +902,33 @@ detail::enable_if_t<detail::is_svgenfloat<T>::value, T> sign(T x) __NOEXC {
 
 // TODO: can be optimized in the way math functions are optimized (usage of
 // vec<T, 2>)
-#define __SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(NAME, ARGTYPE, ARGVAL,     \
-                                                    ITEM)                      \
+#define __SYCL_MARRAY_COMMON_FUNCTION_OVERLOAD_IMPL(NAME, ...)                 \
+  T res;                                                                       \
+  for (int i = 0; i < T::size(); i++) {                                        \
+    res[i] = NAME(__VA_ARGS__);                                                \
+  }                                                                            \
+  return res;
+
+#define __SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(NAME, ARG, ...)            \
   template <typename T,                                                        \
             typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
-  sycl::marray<detail::marray_element_type<T>, T::size()> NAME(ARGTYPE ARGVAL) \
-      __NOEXC {                                                                \
-    sycl::marray<detail::marray_element_type<T>, T::size()> res;               \
-    for (int i = 0; i < ARGVAL.size(); i++) {                                  \
-      res[i] = NAME(ITEM);                                                     \
-    }                                                                          \
-    return res;                                                                \
+  T NAME(ARG) __NOEXC {                                                        \
+    __SYCL_MARRAY_COMMON_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)             \
   }
 
-#define __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(NAME, ARG1, ARG2, ITEM1,  \
-                                                     ITEM2)                    \
+#define __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(NAME, ARG1, ARG2, ...)    \
   template <typename T,                                                        \
             typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
-  sycl::marray<detail::marray_element_type<T>, T::size()> NAME(ARG1, ARG2)     \
-      __NOEXC {                                                                \
-    sycl::marray<detail::marray_element_type<T>, T::size()> res;               \
-    for (int i = 0; i < x.size(); i++) {                                       \
-      res[i] = NAME(ITEM1, ITEM2);                                             \
-    }                                                                          \
-    return res;                                                                \
+  T NAME(ARG1, ARG2) __NOEXC {                                                 \
+    __SYCL_MARRAY_COMMON_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)             \
   }
 
 #define __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(NAME, ARG1, ARG2, ARG3,   \
-                                                     ITEM1, ITEM2, ITEM3)      \
+                                                     ...)                      \
   template <typename T,                                                        \
             typename = std::enable_if_t<detail::is_mgenfloat<T>::value>>       \
-  sycl::marray<detail::marray_element_type<T>, T::size()> NAME(ARG1, ARG2,     \
-                                                               ARG3) __NOEXC { \
-    sycl::marray<detail::marray_element_type<T>, T::size()> res;               \
-    for (int i = 0; i < x.size(); i++) {                                       \
-      res[i] = NAME(ITEM1, ITEM2, ITEM3);                                      \
-    }                                                                          \
-    return res;                                                                \
+  T NAME(ARG1, ARG2, ARG3) __NOEXC {                                           \
+    __SYCL_MARRAY_COMMON_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)             \
   }
 
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(clamp, T x, T minval, T maxval,
@@ -946,7 +936,7 @@ __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(clamp, T x, T minval, T maxval,
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(
     clamp, T x, detail::marray_element_type<T> minval,
     detail::marray_element_type<T> maxval, x[i], minval, maxval)
-__SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(degrees, T, radians, radians[i])
+__SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(degrees, T radians, radians[i])
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(max, T x, T y, x[i], y[i])
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(max, T x,
                                              detail::marray_element_type<T> y,
@@ -960,7 +950,7 @@ __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(mix, T x, T y, T a, x[i], y[i],
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(mix, T x, T y,
                                              detail::marray_element_type<T> a,
                                              x[i], y[i], a)
-__SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(radians, T, degrees, degrees[i])
+__SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(radians, T degrees, degrees[i])
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(step, T edge, T x, edge[i], x[i])
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(
     step, detail::marray_element_type<T> edge, T x, edge, x[i])
@@ -969,7 +959,7 @@ __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(smoothstep, T edge0, T edge1, T x,
 __SYCL_MARRAY_COMMON_FUNCTION_TEROP_OVERLOAD(
     smoothstep, detail::marray_element_type<T> edge0,
     detail::marray_element_type<T> edge1, T x, edge0, edge1, x[i])
-__SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(sign, T, x, x[i])
+__SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(sign, T x, x[i])
 
 /* --------------- 4.13.4 Integer functions. --------------------------------*/
 // ugeninteger abs (geninteger x)
