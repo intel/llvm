@@ -467,17 +467,3 @@ SYCL 2020 specification states that this only applies to inter-device transfers.
 //--
 //*RESOLUTION*: Not resolved.
 //--
-
-== Revision History
-
-[cols="5,15,15,70"]
-[grid="rows"]
-[options="header"]
-|========================================
-|Rev|Date|Author|Changes
-|1|2021-03-30|John Pennycook|*Initial public working draft*
-|2|2021-03-31|John Pennycook|*Rename extension and add feature test macro*
-|3|2021-04-23|John Pennycook|*Split uniform wrapper into separate extension*
-|4|2022-01-20|John Pennycook|*Clarify interaction with SYCL_EXTERNAL*
-|5|2022-08-15|Konst Bobrovskii|*Clarify sub-group size calculation*
-|========================================
