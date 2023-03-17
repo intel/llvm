@@ -219,9 +219,16 @@ Intrinsic::ID getIntrinsicForCallSite(const CallBase &CB,
 
 /// Returns a pair of values, which if passed to llvm.is.fpclass, returns the
 /// same result as an fcmp with the given operands.
+///
+/// If \p LookThroughSrc is true, consider the input value when computing the
+/// mask.
+///
+/// If \p LookThroughSrc is false, ignore the source value (i.e. the first pair
+/// element will always be LHS.
 std::pair<Value *, FPClassTest> fcmpToClassTest(CmpInst::Predicate Pred,
-                                                const Function &F,
-                                                Value *LHS, Value *RHS);
+                                                const Function &F, Value *LHS,
+                                                Value *RHS,
+                                                bool LookThroughSrc = true);
 
 struct KnownFPClass {
   /// Floating-point classes the value could be one of.
@@ -653,6 +660,10 @@ OverflowResult computeOverflowForSignedSub(const Value *LHS, const Value *RHS,
 /// not overflowing, \p WO being an <op>.with.overflow intrinsic.
 bool isOverflowIntrinsicNoWrap(const WithOverflowInst *WO,
                                const DominatorTree &DT);
+
+/// Determine the possible constant range of vscale with the given bit width,
+/// based on the vscale_range function attribute.
+ConstantRange getVScaleRange(const Function *F, unsigned BitWidth);
 
 /// Determine the possible constant range of an integer or vector of integer
 /// value. This is intended as a cheap, non-recursive check.
