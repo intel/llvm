@@ -1688,6 +1688,8 @@ ur_result_t UR_APICALL urProgramCompile(
 ///         + `NULL == phProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If one of the programs in `phPrograms` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `count == 0`
 ///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
 ///         + If an error occurred while linking `phPrograms`.
 ur_result_t UR_APICALL urProgramLink(
@@ -1885,7 +1887,7 @@ ur_result_t UR_APICALL urProgramGetBuildInfo(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSpecConstants`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `count == 0`
 ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     ur_program_handle_t hProgram, ///< [in] handle of the Program object
@@ -2325,7 +2327,7 @@ ur_result_t UR_APICALL urKernelSetArgMemObj(
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSpecConstants`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `count == 0`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is false
