@@ -9,5 +9,6 @@ add_sycl_unittest(SYCL2020Tests OBJECT
   IsCompatible.cpp
   DeviceGetInfoAspects.cpp
   DeviceAspectTraits.cpp
+  AtomicMemoryOrderCapabilities.cpp
 )
 
