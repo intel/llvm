@@ -23,7 +23,7 @@ __urdlllocal ur_result_t UR_APICALL urInit(
     }
 
     if (context.enableParameterValidation) {
-        if (0x1 < device_flags) {
+        if (0x1f < device_flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }

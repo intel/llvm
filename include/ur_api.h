@@ -285,7 +285,11 @@ typedef struct ur_rect_region_t {
 /// @brief Supported device initialization flags
 typedef uint32_t ur_device_init_flags_t;
 typedef enum ur_device_init_flag_t {
-    UR_DEVICE_INIT_FLAG_GPU = UR_BIT(0), ///< initialize GPU device drivers
+    UR_DEVICE_INIT_FLAG_GPU = UR_BIT(0),  ///< initialize GPU device drivers.
+    UR_DEVICE_INIT_FLAG_CPU = UR_BIT(1),  ///< initialize CPU device drivers.
+    UR_DEVICE_INIT_FLAG_FPGA = UR_BIT(2), ///< initialize FPGA device drivers.
+    UR_DEVICE_INIT_FLAG_MCA = UR_BIT(3),  ///< initialize MCA device drivers.
+    UR_DEVICE_INIT_FLAG_VPU = UR_BIT(4),  ///< initialize VPU device drivers.
     /// @cond
     UR_DEVICE_INIT_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -314,7 +318,7 @@ typedef enum ur_device_init_flag_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x1 < device_flags`
+///         + `0x1f < device_flags`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urInit(
