@@ -34,10 +34,33 @@ marker(int l = __builtin_LINE()) {
   std::ignore = l;
 }
 
+void capture_marker() {
+  queue q;
+  q.single_task<class MarkerKernel>([]() {
+     // CHECK-LABEL: define weak_odr dso_local spir_kernel {{.*}}MarkerKernel
+     // Alternatively, we can use FileCheck's -D<..> option and avoid this
+     // kernel alltogether, but that would be clumsy.
+     marker();
+     // CHECK: [[MARKER:call spir_func void @_Z6markeri\(i32 noundef]] [[# @LINE - 1]]
+   }).wait();
+}
+
 enum Scope { WG, SG };
 
-template <typename KernelName, Scope S, typename FuncTy>
-void test(FuncTy Func) {
+template <class TestTy>
+struct Kernel;
+
+template <typename TestTy>
+void test(TestTy TestObj) {
+  std::string Name{typeid(TestTy).name()};
+  // GCC/clang give mangled name which has the format <NameLength>Name. Strip
+  // the leading number.
+  Name.erase(Name.begin(),
+             std::find_if(Name.begin(), Name.end(),
+                          [](unsigned char ch) { return !std::isdigit(ch); }));
+
+  std::cout << Name << std::endl;
+
   queue q;
   constexpr int N_RESULTS = 16;
   buffer<int, 1> results(N_RESULTS * GLOBAL_SIZE);
@@ -54,7 +77,7 @@ void test(FuncTy Func) {
     accessor res_acc{results, cgh};
     accessor global_mem_acc{global_mem_buf, cgh};
     local_accessor<int, 1> local_mem_acc{WG_SIZE * ELEMS_PER_WI, cgh};
-    cgh.parallel_for<KernelName>(
+    cgh.parallel_for<Kernel<TestTy>>(
         nd_range{range{GLOBAL_SIZE}, range{WG_SIZE}}, [=](nd_item<1> ndi) {
           // Low-level pointer arithmetic and skipping 0th index to make llvm IR
           // dumps nicer.
@@ -76,7 +99,7 @@ void test(FuncTy Func) {
 
           auto sg = ndi.get_sub_group();
           int sg_offset = 0;
-          if constexpr (S == SG)
+          if constexpr (TestTy::Scope == SG)
             sg_offset =
                 sg.get_max_local_range() * ELEMS_PER_WI * sg.get_group_id();
 
@@ -84,9 +107,14 @@ void test(FuncTy Func) {
           global_mem += wg_offset + sg_offset;
           local_mem += sg_offset;
 
-#define ARGS                                                                   \
-  auto ndi, auto global_mem, auto usm_mem, auto local_mem, auto Record, auto lid
-          Func(ndi, global_mem, usm_mem, local_mem, Record, ndi.get_local_id());
+#define KERNEL_OP                                                              \
+  \
+  template <typename RecordTy>                                                 \
+  void operator()(nd_item<1> ndi, int *global_mem, int *usm_mem,               \
+                  int *local_mem, RecordTy Record, id<1> lid) const
+
+          TestObj(ndi, global_mem, usm_mem, local_mem, Record,
+                  ndi.get_local_id());
         });
   });
   {
@@ -128,19 +156,9 @@ void test(FuncTy Func) {
   free(usm_mem_alloc, q);
 }
 
-int main() {
-  std::cout << "ScalarWGKernel" << std::endl;
-  {
-    queue q;
-    q.single_task<class MarkerKernel>([]() {
-      // CHECK-LABEL: define weak_odr dso_local spir_kernel {{.*}}MarkerKernel
-      // Alternatively, we can use FileCheck's -D<..> option and avoid this
-      // kernel alltogether, but that would be clumsy.
-      marker();
-      // CHECK: [[MARKER:call spir_func void @_Z6markeri\(i32 noundef]] [[# @LINE - 1]]
-    }).wait();
-  }
-  test<class ScalarWGKernel, WG>([](ARGS) {
+struct ScalarWGTest {
+  static constexpr Scope Scope = WG;
+  KERNEL_OP {
     int init = ndi.get_global_id(0);
 
     global_mem[lid] = init;
@@ -154,7 +172,7 @@ int main() {
       Record(out == init);
     };
 
-    // CHECK-LABEL: define weak_odr dso_local spir_kernel {{.*}}ScalarWGKernel
+    // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}ScalarWGTest
     Check(global_mem); // Dynamic address space dispatch.
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
@@ -200,10 +218,12 @@ int main() {
     // CHECK-NOT: SubgroupBlockRead
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
-  });
+  }
+};
 
-  std::cout << "ScalarSGKernel" << std::endl;
-  test<class ScalarSGKernel, SG>([](ARGS) {
+struct ScalarSGTest {
+  static constexpr Scope Scope = SG;
+  KERNEL_OP {
     auto sg = ndi.get_sub_group();
 
     int init = ndi.get_global_id(0);
@@ -219,7 +239,7 @@ int main() {
       Record(out == init);
     };
 
-    // CHECK-LABEL: define weak_odr dso_local spir_kernel {{.*}}ScalarSGKernel
+    // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}ScalarSGTest
     Check(global_mem); // Dynamic address space dispatch.
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
@@ -265,10 +285,12 @@ int main() {
     // CHECK-NOT: SubgroupBlockRead
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
-  });
+  }
+};
 
-  std::cout << "VecBlockedWGKernel" << std::endl;
-  test<class VecBlockedWGKernel, WG>([](ARGS) {
+struct VecBlockedWGTest {
+  static constexpr Scope Scope = SG;
+  KERNEL_OP {
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -301,10 +323,11 @@ int main() {
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
-  });
-
-  std::cout << "VecStripedWGKernel" << std::endl;
-  test<class VecStripedWGKernel, WG>([](ARGS) {
+  }
+};
+struct VecStripedWGTest {
+  static constexpr Scope Scope = WG;
+  KERNEL_OP {
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -364,10 +387,11 @@ int main() {
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
-  });
-
-  std::cout << "VecBlockedSGKernel" << std::endl;
-  test<class VecBlockedSGKernel, SG>([](ARGS) {
+  }
+};
+struct VecBlockedSGTest {
+  static constexpr Scope Scope = SG;
+  KERNEL_OP {
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -392,18 +416,17 @@ int main() {
     };
 
     Check(global_mem);
-    return;
     Check(usm_mem);
     Check(local_mem);
     Check(address_space_cast<global_space, decorated::yes>(global_mem));
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
-  });
-
-  return 0;
-  std::cout << "VecStripedSGKernel" << std::endl;
-  test<class VecStripedSGKernel, SG>([](ARGS) {
+  }
+};
+struct VecStripedSGTest {
+  static constexpr Scope Scope = SG;
+  KERNEL_OP {
     auto sg = ndi.get_sub_group();
 
     constexpr int VEC_SIZE = 2;
@@ -460,7 +483,7 @@ int main() {
       Record(success);
     };
 
-    // CHECK-LABEL: define weak_odr dso_local spir_kernel {{.*}}VecStripedSGKernel
+    // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}VecStripedSGTest
 
     Check(global_mem);
     // CHECK: [[MARKER]] [[# @LINE - 1]]
@@ -478,11 +501,11 @@ int main() {
               .get_decorated());
     // CHECK: [[MARKER]] [[# @LINE - 2]]
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
-    return;
-  });
-
-  std::cout << "SpanBlockedWGKernel" << std::endl;
-  test<class SpanBlockedWGKernel, WG>([](ARGS) {
+  }
+};
+struct SpanBlockedWGTest {
+  static constexpr Scope Scope = WG;
+  KERNEL_OP {
     constexpr int SPAN_SIZE = 2;
 
     int init = ndi.get_global_id(0) + SPAN_SIZE * 2;
@@ -517,10 +540,11 @@ int main() {
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
-  });
-
-  std::cout << "SpanStripedWGKernel" << std::endl;
-  test<class SpanStripedWGKernel, WG>([](ARGS) {
+  }
+};
+struct SpanStripedWGTest {
+  static constexpr Scope Scope = WG;
+  KERNEL_OP {
     constexpr int SPAN_SIZE = 2;
 
     int init = ndi.get_global_id(0) + SPAN_SIZE * 2;
@@ -582,7 +606,35 @@ int main() {
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
-  });
+  }
+};
+
+struct SpanBlockedSGTest {
+  static constexpr Scope Scope = SG;
+  KERNEL_OP {
+  }
+};
+struct SpanStripedSGTest {
+  static constexpr Scope Scope = SG;
+  KERNEL_OP {
+  }
+};
+
+int main() {
+  capture_marker();
+
+  test(ScalarWGTest{});
+  test(ScalarSGTest{});
+
+  test(VecBlockedWGTest{});
+  test(VecStripedWGTest{});
+  test(VecBlockedSGTest{});
+  test(VecStripedSGTest{});
+
+  test(SpanBlockedWGTest{});
+  test(SpanStripedWGTest{});
+  test(SpanBlockedSGTest{});
+  test(SpanStripedSGTest{});
 
   return 0;
 }
