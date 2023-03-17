@@ -253,7 +253,11 @@ class ur_rect_region_t(Structure):
 ###############################################################################
 ## @brief Supported device initialization flags
 class ur_device_init_flags_v(IntEnum):
-    GPU = UR_BIT(0)                                 ## initialize GPU device drivers
+    GPU = UR_BIT(0)                                 ## initialize GPU device drivers.
+    CPU = UR_BIT(1)                                 ## initialize CPU device drivers.
+    FPGA = UR_BIT(2)                                ## initialize FPGA device drivers.
+    MCA = UR_BIT(3)                                 ## initialize MCA device drivers.
+    VPU = UR_BIT(4)                                 ## initialize VPU device drivers.
 
 class ur_device_init_flags_t(c_int):
     def __str__(self):
