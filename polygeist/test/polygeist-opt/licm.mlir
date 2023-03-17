@@ -391,7 +391,7 @@ func.func @affine_parallel_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: ind
   // CHECK-NEXT:     memref.store %cst, %alloca[] : memref<f32>
   // CHECK-NEXT:     affine.if #set(%arg1, %arg2, %arg5, %arg3, %arg4, %arg6) {
   // CHECK-NEXT:       %0 = memref.load %alloca[] : memref<f32>
-  // CHECK-NEXT:       affine.parallel (%arg7, %arg8) = (max(%arg1, %arg2), %arg5) to (min(%arg3, %arg4), %arg6) {
+  // CHECK-NEXT:       affine.parallel (%arg7, %arg8) = (max(%arg1, %arg2), %arg5) to (min(%arg3, %arg4), %arg6) step (32, 32) {
   // CHECK-NEXT:         func.call @use(%0) : (f32) -> ()
   // CHECK-NEXT:       }
   // CHECK-NEXT:     }
@@ -399,7 +399,7 @@ func.func @affine_parallel_hoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: ind
   %cst = arith.constant 0.000000e+00 : f32
   %a = memref.alloca() : memref<f32>
   memref.store %cst, %a[] : memref<f32>
-  affine.parallel (%arg7, %arg8) = (max(%arg1, %arg2), %arg5) to (min(%arg3, %arg4), %arg6) {
+  affine.parallel (%arg7, %arg8) = (max(%arg1, %arg2), %arg5) to (min(%arg3, %arg4), %arg6) step (32, 32) {
     %v = memref.load %a[] : memref<f32>
     func.call @use(%v) : (f32) -> ()
   }
