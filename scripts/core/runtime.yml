@@ -16,7 +16,15 @@ class: $x
 name: $x_device_init_flags_t
 etors:
     - name: GPU
-      desc: "initialize GPU device drivers"
+      desc: "initialize GPU device drivers."
+    - name: CPU
+      desc: "initialize CPU device drivers."
+    - name: FPGA
+      desc: "initialize FPGA device drivers."
+    - name: MCA
+      desc: "initialize MCA device drivers."
+    - name: VPU
+      desc: "initialize VPU device drivers."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Initialize the $OneApi driver(s)"
