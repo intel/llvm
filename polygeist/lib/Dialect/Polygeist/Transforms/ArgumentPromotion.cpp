@@ -11,17 +11,17 @@
 //
 //  gpu.func @kernel_parallel_for(%arg0: i32) {
 //    func.call @parallel_for(%0, ...) :
-//        (memref<?x!llvm.struct<(i32, !sycl.accessor...)
+//        (memref<?x!llvm.struct<(i32, !sycl.accessor), ...)
 //    gpu.return
 //  }
 //
-// The pass "peels off" the i32 struct member:
+// The pass modifies the call (and the callee):
 //
 //  gpu.func @kernel_parallel_for(%arg0: i32) {
-//    %int_arg = <first struct member>
-//    %new_memref = <memref to struct with first member removed>
-//    func.call @parallel_for(%int_arg, %new_memref, ...) :
-//        (i32, memref<?x!llvm.struct<(!sycl.accessor...)
+//    %int_arg = <memref to first struct member>
+//    %acc_arg = <memref to second struct member>
+//    func.call @parallel_for(%int_arg, %acc_arg, ...) :
+//        (memref<?xi32>, memref<?x!llvm.struct<(!sycl.accessor...)
 //    gpu.return
 //  }
 
@@ -30,13 +30,13 @@
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include "mlir/Analysis/CallGraph.h"
-#include "mlir/Conversion/LLVMCommon/StructBuilder.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/CallInterfaces.h"
 #include "llvm/Support/Debug.h"
@@ -68,11 +68,16 @@ public:
   static bool isPrivateCallable(Operation *op);
   static bool isRecursiveCall(CallOpInterface callOp);
   static bool isValidMemRefType(Type type);
+  static Region *getCallableRegion(CallOpInterface callOp);
 
-  /// Identify call operands that can (and should) be peeled and and peel them.
-  /// Note: this function populates a map between the original operand and the
-  /// peeled values.
-  void peelMembers();
+  // Peel members and fixup the call site and the callee.
+  void transform();
+
+private:
+  /// Identify call operands that should be peeled and peel them, returns the
+  /// number of struct members peeled. Note: this function populates a map
+  /// between the original operand and the peeled values.
+  unsigned peelMembers();
 
   /// Modify the call by replacing the original operands with their
   /// corresponding peeled members.
@@ -82,11 +87,19 @@ public:
   /// corresponding peeled members.
   void modifyCallee();
 
-private:
-  static Region *getCallableRegion(CallOpInterface callOp);
+  /// Replace the argument at position \p pos in the region \p callableRgn with
+  /// \p newArgs. The reference parameter \p newArgAttrs is filled with the new
+  /// argument attributes.
+  void replaceArgumentWith(unsigned pos, Region &callableRgn,
+                           const SmallVector<Value> &newArgs,
+                           SmallVector<Attribute> &newArgAttrs) const;
+
+  /// Replace uses of the argument \p origArg in the region \p callableRgn with
+  /// the arguments starting at position \pos in the callable region.
+  void replaceUsesOfArgument(Value origArg, unsigned pos,
+                             Region &callableRgn) const;
 
   mutable CallOpInterface callOp;
-
   std::map<unsigned, SmallVector<Value>> operandToMembersPeeled;
 };
 
@@ -141,31 +154,53 @@ bool Candidate::isValidMemRefType(Type type) {
   return true;
 }
 
-void Candidate::peelMembers() {
+Region *Candidate::getCallableRegion(CallOpInterface callOp) {
+  if (auto callable = dyn_cast<CallableOpInterface>(callOp.resolveCallable()))
+    return callable.getCallableRegion();
+  return nullptr;
+}
+
+void Candidate::transform() {
+  // Identify arguments that can be peeled and and peel them.
+  unsigned numMembersPeeled = peelMembers();
+  if (!numMembersPeeled)
+    return;
+
+  modifyCall();
+  modifyCallee();
+}
+
+unsigned Candidate::peelMembers() {
   OpBuilder builder(callOp);
+
+  unsigned numMembersPeeled = 0;
   for (unsigned pos = 0; pos < callOp->getNumOperands(); ++pos) {
     Value op = callOp->getOperand(pos);
     if (!isValidMemRefType(op.getType()))
       continue;
 
-    llvm::dbgs() << "operandToPeel: " << op << "\n";
-    Location loc = op.getLoc();
-    auto opType = cast<MemRefType>(op.getType());
-    auto structType = cast<LLVM::LLVMStructType>(opType.getElementType());
+    auto memRefType = cast<MemRefType>(op.getType());
+    auto structType = cast<LLVM::LLVMStructType>(memRefType.getElementType());
 
+    unsigned numMembers = structType.getBody().size();
     SmallVector<Value> membersPeeled;
-    for (unsigned idx = 0; idx < structType.getBody().size(); ++idx) {
+    membersPeeled.reserve(numMembers);
+    for (unsigned idx = 0; idx < numMembers; ++idx) {
       auto memberType = structType.getBody()[idx];
-      auto mt0 = MemRefType::get(opType.getShape(), memberType,
-                                 opType.getLayout(), opType.getMemorySpace());
+      auto mt =
+          MemRefType::get(memRefType.getShape(), memberType,
+                          memRefType.getLayout(), memRefType.getMemorySpace());
       auto subIndexOp = builder.create<polygeist::SubIndexOp>(
-          loc, mt0, op, builder.create<arith::ConstantIndexOp>(loc, idx));
-      llvm::dbgs() << "subIndexOp: " << subIndexOp << "\n";
+          op.getLoc(), mt, op,
+          builder.create<arith::ConstantIndexOp>(op.getLoc(), idx));
       membersPeeled.push_back(subIndexOp);
+      ++numMembersPeeled;
     }
 
     operandToMembersPeeled.insert({pos, membersPeeled});
   }
+
+  return numMembersPeeled;
 }
 
 void Candidate::modifyCall() {
@@ -181,37 +216,81 @@ void Candidate::modifyCall() {
   }
 
   callOp->setOperands(newCallOperands);
+  llvm::dbgs() << "callOp: " << callOp << "\n";
 }
 
 void Candidate::modifyCallee() {
-  Region *callableRgn = getCallableRegion(callOp);
-  auto callableOp = cast<CallableOpInterface>(callOp.resolveCallable());
-  llvm::dbgs() << "callableOp: " << callableOp << "\n";
-  OperandRange funcOperands = callableOp->getLoc()
+  assert(callOp.resolveCallable() && "Could not find callee definition");
+  auto callable = cast<CallableOpInterface>(callOp.resolveCallable());
+  auto funcOp = cast<func::FuncOp>(callable.getCallableRegion()->getParentOp());
+  Region &callableRgn = funcOp.getFunctionBody();
+  ArrayAttr origArgAttrs = funcOp.getAllArgAttrs();
+  SmallVector<Attribute> newArgAttrs;
 
-                                  for (auto funcOp : funcOperands) llvm::dbgs()
-                              << "funcOp: " << funcOp << "\n";
-
-  SmallVector<Value, 8> newCalleeOperands;
-  for (unsigned pos = 0; pos < callableOp->getNumOperands(); ++pos) {
-    if (operandToMembersPeeled.find(pos) == operandToMembersPeeled.end()) {
-      newCalleeOperands.push_back(callableOp->getOperand(pos));
+  // Replace the old arguments with the new ones.
+  unsigned pos = 0;
+  const unsigned orinNumArgs = callableRgn.getNumArguments();
+  for (unsigned origPos = 0; origPos < orinNumArgs; ++origPos) {
+    if (operandToMembersPeeled.find(origPos) == operandToMembersPeeled.end()) {
+      newArgAttrs.push_back(origArgAttrs[origPos]);
       continue;
     }
 
-    for (Value peeledMember : operandToMembersPeeled[pos]) {
-      // OpOperand newOperand();
-      // newCalleeOperands.push_back(newOperand);
-    }
+    // Replace the argument at 'pos' with the new arguments we peeled.
+    const SmallVector<Value> &newArgs = operandToMembersPeeled[origPos];
+    replaceArgumentWith(pos, callableRgn, newArgs, newArgAttrs);
+
+    // Delete the original argument.
+    llvm::dbgs() << "at line: " << __LINE__ << "\n";
+    pos += newArgs.size();
+    callableRgn.eraseArgument(pos);
   }
 
-  // callableRgn->eraseOperand(0);
+  auto newFuncType =
+      FunctionType::get(funcOp.getContext(), callableRgn.getArgumentTypes(),
+                        funcOp.getResultTypes());
+  llvm::dbgs() << "at line: " << __LINE__ << "\n";
+
+  funcOp.setFunctionType(newFuncType);
+  funcOp.setAllArgAttrs(newArgAttrs);
 }
 
-Region *Candidate::getCallableRegion(CallOpInterface callOp) {
-  if (auto callable = dyn_cast<CallableOpInterface>(callOp.resolveCallable()))
-    return callable.getCallableRegion();
-  return nullptr;
+void Candidate::replaceArgumentWith(unsigned pos, Region &callableRgn,
+                                    const SmallVector<Value> &newArgs,
+                                    SmallVector<Attribute> &newArgAttrs) const {
+  assert(!newArgs.empty() && "Expecting a non-empty vector");
+
+  Value origArg = callableRgn.getArgument(pos);
+
+  for (unsigned offset = 0; offset < newArgs.size(); ++offset) {
+    callableRgn.insertArgument(pos + offset, newArgs[offset].getType(),
+                               callableRgn.getLoc());
+    // TODO: add attribute NoAlias on the new argument.
+    newArgAttrs.push_back(Attribute());
+  }
+
+  // Replace uses of the original argument with the new arguments injected.
+  replaceUsesOfArgument(origArg, pos, callableRgn);
+}
+
+void Candidate::replaceUsesOfArgument(Value origArg, unsigned pos,
+                                      Region &callableRgn) const {
+  for (OpOperand &use : origArg.getUses()) {
+    assert(isa<polygeist::SubIndexOp>(use.getOwner()) &&
+           "Expecting a subindex operation");
+
+    // The use must be a polygeist::SubIndexOp operation with a constant
+    // index, remove it and rewrite its users.
+    auto subIndexOp = cast<polygeist::SubIndexOp>(use.getOwner());
+    TypedValue<IndexType> index = subIndexOp.getIndex();
+    auto indexOp = index.getDefiningOp<arith::ConstantIndexOp>();
+    assert(indexOp && "Must have a constant index");
+
+    int64_t offset = indexOp.value();
+    BlockArgument newArg = callableRgn.getArgument(pos + offset);
+    subIndexOp.replaceAllUsesWith(newArg);
+    subIndexOp.erase();
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -227,13 +306,10 @@ void ArgumentPromotionPass::runOnOperation() {
   SmallVector<Candidate> candidates;
   collectCandidates(module, candidates);
   if (candidates.empty())
-    return signalPassFailure();
+    return;
 
-  for (Candidate &cand : candidates) {
-    cand.peelMembers();
-    cand.modifyCall();
-    cand.modifyCallee();
-  }
+  for (Candidate &cand : candidates)
+    cand.transform();
 }
 
 void ArgumentPromotionPass::collectCandidates(
@@ -245,15 +321,19 @@ void ArgumentPromotionPass::collectCandidates(
           Candidate::isRecursiveCall(callOp))
         return WalkResult::advance();
 
+      llvm::dbgs() << "at line: " << __LINE__ << "\n";
+
       // The first operand of the call must not be used by any other
       // operation.
       OperandRange callOperands = callOp.getArgOperands();
       if (callOperands.empty() || !callOperands.front().hasOneUse())
         return WalkResult::advance();
+      llvm::dbgs() << "at line: " << __LINE__ << "\n";
 
       // The first operand must be a memref with a struct element type.
       if (!Candidate::isValidMemRefType(callOperands.front().getType()))
         return WalkResult::advance();
+      llvm::dbgs() << "at line: " << __LINE__ << "\n";
 
       // The callee must be defined and private.
       if (!Candidate::isPrivateCallable(callOp.resolveCallable()))
@@ -264,7 +344,7 @@ void ArgumentPromotionPass::collectCandidates(
       //      if (CallGraphNode *calleeCGN = CG.lookupNode(
       //            cast<CallableOpInterface>(callableOp).getCallableRegion()))
 
-      llvm::dbgs() << "Candidate: " << callOp << "\n";
+      llvm::dbgs() << "Candidate: " << callOp << "\n\n";
       candidateCalls.push_back(callOp);
       return WalkResult::advance();
     });
