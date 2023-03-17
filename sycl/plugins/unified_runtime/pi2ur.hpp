@@ -171,10 +171,10 @@ inline pi_result pi2urMemFlags(pi_mem_flags piFlags, ur_mem_flags_t *urFlags) {
       {PI_MEM_FLAGS_HOST_PTR_ALLOC, UR_MEM_FLAG_ALLOC_HOST_POINTER},
   };
 
-  size_t piSize = sizeof(piFlags);
-  size_t urSize = sizeof(urFlags);
+  size_t piSize = sizeof(pi_mem_flags);
+  size_t urSize = sizeof(ur_mem_flags_t);
 
-  ConvertHelper Value(sizeof(piFlags), urFlags, &urSize);
+  ConvertHelper Value(piSize, urFlags, &urSize);
   return Value.convertBitSet(MemFlagsMap);
 }
 
@@ -714,8 +714,6 @@ inline pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                                   const pi_image_desc *image_desc,
                                   void *host_ptr, pi_mem *ret_mem) {
   auto hContext = reinterpret_cast<ur_context_handle_t>(context);
-  auto hImageFormat = const_cast<ur_image_format_t *>(
-      reinterpret_cast<const ur_image_format_t *>(image_format));
   auto hImageDesc = const_cast<ur_image_desc_t *>(
       reinterpret_cast<const ur_image_desc_t *>(image_desc));
   auto hMem = reinterpret_cast<ur_mem_handle_t *>(ret_mem);
@@ -723,7 +721,61 @@ inline pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
   ur_mem_flags_t urFlags{};
   pi2urMemFlags(flags, &urFlags);
 
-  HANDLE_ERRORS(urMemImageCreate(hContext, urFlags, hImageFormat, hImageDesc,
+  static std::unordered_map<pi_image_channel_order, ur_image_channel_order_t> ImageChannelOrderMap = {
+    {PI_IMAGE_CHANNEL_ORDER_A, UR_IMAGE_CHANNEL_ORDER_A},
+    {PI_IMAGE_CHANNEL_ORDER_R, UR_IMAGE_CHANNEL_ORDER_R},
+    {PI_IMAGE_CHANNEL_ORDER_RG, UR_IMAGE_CHANNEL_ORDER_RG},
+    {PI_IMAGE_CHANNEL_ORDER_RA, UR_IMAGE_CHANNEL_ORDER_RA},
+    {PI_IMAGE_CHANNEL_ORDER_RGB, UR_IMAGE_CHANNEL_ORDER_RGB},
+    {PI_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_ORDER_RGBA},
+    {PI_IMAGE_CHANNEL_ORDER_BGRA, UR_IMAGE_CHANNEL_ORDER_BGRA},
+    {PI_IMAGE_CHANNEL_ORDER_ARGB, UR_IMAGE_CHANNEL_ORDER_ARGB},
+    //{PI_IMAGE_CHANNEL_ORDER_ABGR, UR_IMAGE_CHANNEL_ORDER_ABGR}, TODO(ur): add this line in when new UR tag is created to include https://github.com/oneapi-src/unified-runtime/pull/365
+    {PI_IMAGE_CHANNEL_ORDER_INTENSITY, UR_IMAGE_CHANNEL_ORDER_INTENSITY},
+    {PI_IMAGE_CHANNEL_ORDER_LUMINANCE, UR_IMAGE_CHANNEL_ORDER_LUMINANCE},
+    {PI_IMAGE_CHANNEL_ORDER_Rx, UR_IMAGE_CHANNEL_ORDER_RX},
+    {PI_IMAGE_CHANNEL_ORDER_RGx, UR_IMAGE_CHANNEL_ORDER_RGX},
+    {PI_IMAGE_CHANNEL_ORDER_RGBx, UR_IMAGE_CHANNEL_ORDER_RGBX},
+    {PI_IMAGE_CHANNEL_ORDER_sRGBA, UR_IMAGE_CHANNEL_ORDER_SRGBA},
+  };
+
+  size_t piImageChannelOrderSize = sizeof(pi_image_channel_order);
+  size_t urImageChannelOrderSize = sizeof(ur_image_channel_order_t);
+
+  ur_image_channel_order_t urImageChannelOrder;
+
+  ConvertHelper ImageChannelOrderValue(piImageChannelOrderSize, &urImageChannelOrder, &urImageChannelOrderSize);
+  ImageChannelOrderValue.convert(ImageChannelOrderMap);
+
+  static std::unordered_map<pi_image_channel_type, ur_image_channel_type_t> ImageChannelTypeMap = {
+    {PI_IMAGE_CHANNEL_TYPE_SNORM_INT8, UR_IMAGE_CHANNEL_TYPE_SNORM_INT8},
+    {PI_IMAGE_CHANNEL_TYPE_SNORM_INT16, UR_IMAGE_CHANNEL_TYPE_SNORM_INT16},
+    {PI_IMAGE_CHANNEL_TYPE_UNORM_INT8, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
+    {PI_IMAGE_CHANNEL_TYPE_UNORM_INT16, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16},
+    {PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565, UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565},
+    {PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555, UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555},
+    {PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010, UR_IMAGE_CHANNEL_TYPE_INT_101010},
+    {PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8},
+    {PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16},
+    {PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32},
+    {PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8},
+    {PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16},
+    {PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32},
+    {PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT, UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT},
+    {PI_IMAGE_CHANNEL_TYPE_FLOAT, UR_IMAGE_CHANNEL_TYPE_FLOAT},
+  };
+
+  size_t piImageChannelTypeSize = sizeof(pi_image_channel_type);
+  size_t urImageChannelTypeSize = sizeof(ur_image_channel_type_t);
+
+  ur_image_channel_type_t urImageChannelType;
+
+  ConvertHelper ImageChannelTypeValue(piImageChannelTypeSize, &urImageChannelType, &urImageChannelTypeSize);
+  ImageChannelTypeValue.convert(ImageChannelTypeMap);
+
+  ur_image_format_t urImageFormat { urImageChannelOrder, urImageChannelType };
+
+  HANDLE_ERRORS(urMemImageCreate(hContext, urFlags, &urImageFormat, hImageDesc,
                                  host_ptr, hMem));
 
   return PI_SUCCESS;
