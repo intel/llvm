@@ -27,6 +27,9 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/IRMapping.h"
 
+// TODO: We're adding canonicalization patterns for operations outside this
+// dialect in this file. This is not working fine.
+
 using namespace mlir;
 using namespace polygeist;
 using namespace mlir::arith;

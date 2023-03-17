@@ -4,10 +4,14 @@ set(LIBS
         ${dialect_libs}
         ${conversion_libs}
         MLIROptLib
-		MLIRPolygeist
-		MLIRPolygeistTransforms
+        MLIRPolygeist
+        MLIRPolygeistTransforms
         MLIRSYCLDialect
-        )
+        MLIRSYCLToGPU
+        MLIRSYCLToLLVM
+        MLIRSYCLToSPIRV
+        MLIRSYCLTransforms
+)
 add_llvm_executable(polygeist-opt polygeist-opt.cpp)
 
 install(TARGETS polygeist-opt
