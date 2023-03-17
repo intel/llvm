@@ -182,9 +182,8 @@ __SYCL_MATH_FUNCTION_2_OVERLOAD(remainder)
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<__FAST_MATH_SGENFLOAT(T), marray<T, N>>
-    powr(marray<T, N> x, marray<T, N> y) __NOEXC {
-  __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(powr)
-}
+    powr(marray<T, N> x,
+         marray<T, N> y) __NOEXC{__SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(powr)}
 
 #undef __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL
 
@@ -211,10 +210,10 @@ __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD(fmin)
 
 #undef __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD
 
-template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>
-    ldexp(marray<T, N> x, marray<int, N> k) __NOEXC {
+        template <typename T, size_t N>
+        inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>> ldexp(
+        marray<T, N> x, marray<int, N> k) __NOEXC {
   marray<T, N> res;
   for (size_t i = 0; i < N; i++) {
     res[i] = __sycl_std::__invoke_ldexp<T>(x[i], k[i]);
@@ -273,9 +272,8 @@ inline __SYCL_ALWAYS_INLINE
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>
-    rootn(marray<T, N> x, int y) __NOEXC {
-  __SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL(rootn)
-}
+    rootn(marray<T, N> x,
+          int y) __NOEXC{__SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL(rootn)}
 
 #undef __SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL
 
