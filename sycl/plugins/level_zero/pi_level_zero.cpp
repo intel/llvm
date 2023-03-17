@@ -2311,9 +2311,9 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
     return ReturnValue(pi_bool{false});
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     pi_memory_order_capabilities capabilities =
-      PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-      PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
-      PI_MEMORY_ORDER_SEQ_CST;
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
+        PI_MEMORY_ORDER_SEQ_CST;
     return ReturnValue(capabilities);
   }
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
