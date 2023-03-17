@@ -311,6 +311,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       assert((devCapabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) &&
              "Violates minimum mandated guarantee");
 
+      // We already initialized to minimum mandated capabilities. Just
+      // check stronger orders.
       if (devCapabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
         result |= PI_MEMORY_ORDER_SEQ_CST;
       }
@@ -326,12 +328,22 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         result |= PI_MEMORY_ORDER_SEQ_CST;
       }
     }
-    std::memcpy(paramValue, &result, sizeof(result));
+    if (paramValue) {
+      if (paramValueSize < sizeof(cl_device_atomic_capabilities))
+        return PI_ERROR_INVALID_VALUE;
+
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
     // Initialize result to minimum mandated capabilities according to
     // SYCL2020 4.6.3.2.
+    // Because scopes are hierarchical, wider scopes support all narrower
+    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
     pi_memory_scope_capabilities result = PI_MEMORY_SCOPE_WORK_ITEM |
                                           PI_MEMORY_SCOPE_SUB_GROUP |
                                           PI_MEMORY_SCOPE_WORK_GROUP;
@@ -354,8 +366,10 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
              "Violates minimum mandated guarantee");
 
       // Because scopes are hierarchical, wider scopes support all narrower
-      // scopes. SUB_GROUP and WORK_ITEM was already included in the
-      // initialization, since WORK_GROUP is mandated minimum capality.
+      // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+      // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+      // We already initialized to these minimum mandated capabilities. Just
+      // check wider scopes.
       if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
         result |= PI_MEMORY_SCOPE_DEVICE;
       }
@@ -380,9 +394,9 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         return PI_ERROR_INVALID_VALUE;
 
       std::memcpy(paramValue, &result, sizeof(result));
-      if (paramValueSizeRet)
-        *paramValueSizeRet = sizeof(result);
     }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_ATOMIC_64: {
