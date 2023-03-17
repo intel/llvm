@@ -55,30 +55,51 @@ warn you if this happens.
 
 == Overview
 
-Images in SYCL 1.2.1 were designed to work with OpenCL.
-SYCL 2020 tried to make them work with other backends as well
-by splitting the image type into sampled and unsampled images.
+Images in SYCL 1.2.1 were designed to work with OpenCL. SYCL 2020 tried to make 
+them more versatile by splitting the image type into sampled and unsampled 
+images. This enabled SYCL 2020 images to work better with other backends.
 However, SYCL 2020 images still didn't quite meet user expectations.
 There was feedback about various use cases where the current model falls short
 (see examples at the end of this document for some of the use cases).
 
-The main issue is requesting access to each individual image.
-There are many use cases where there's a large number of images,
-potentially a number that's not known at compile time,
-which is very difficult or even impossible to do with the current model.
+One of the key issues is requesting access to arbitrary images through handles, 
+and not accessors. Accessing images through handles instead of accessors grants 
+much more flexibility to the user, at the expense of automatic data dependency 
+tracking. Bypassing accessors allows users to implement programs where the 
+number of images is not known at compile-time, such as a texture atlas where one 
+image holds references to other images. This kind of feature is impossible to 
+implement with the accessor model outlined in the core specification.
 
-That's why we propose in this document a new extension for SYCL 2020 images.
-Per the proposal, users would be able to separate memory allocation for the 
-image from the actual image creation.
-An image is represented  by an opaque handle that can be passed directly into 
-a kernel without requesting access.
-In many ways this model resembles more the USM model when accessing data on 
-the device, but it's specialized for dealing with images.
+These shortcomings are why we propose a new extension for SYCL 2020 images.
+Per our proposal, users would be able to separate memory allocation for the 
+image from the actual image creation. Images will be represented by opaque 
+handle types that can be passed directly into a kernel without requesting 
+access. In many ways, this model more closely resembles the USM model when 
+accessing data on the device, but it's specialized for dealing with images.
 
 The proposed model does not replace SYCL 2020 images,
 it is instead meant as building blocks for implementing SYCL 2020 images on 
 top of it.
 
+In addition to bindless images, this document also proposes an interoperability 
+extension providing functionality to allow users to import external memory and 
+semaphore objects from other APIs, such as Vulkan or DirectX. 
+
+Importing memory allows it to be shared between APIs without the need to 
+duplicate allocations and perform multiple copies between host and device to 
+ensure that said memory is kept uniform across those APIs at all times.
+
+Importing semaphores will also allow SYCL to schedule command groups and queue 
+operations that depend on completion of GPU commands submitted by external APIs.
+
+[NOTE]
+====
+The interoperability outlined in this document concerns only the importing of 
+external API objects into the SYCL runtime. We do not expose exportation of SYCL 
+objects to external APIs. Interoperability capabilities vary between APIs. For 
+example, CUDA allows the import of external memory and semaphores, but does not 
+allow export of its own resources.
+====
 
 == Specification
 
@@ -94,111 +115,406 @@ implementation supports.
 
 [frame="none",options="header"]
 |======================
-|Value |Description
-|202302 |Initial version of this extension
+|Rev |Description
+|1 |Initial draft of the proposal
+|2 |Second revision of the proposal
+|3 |Third revision of the proposal
 |======================
+
+See the revision history at the bottom of this document for features added in 
+each revision.
+
+=== Querying bindless image support
+
+We provide the following device queries to retrieve information on whether a 
+SYCL implementation provides support for various bindless image features.
+
+The device information descriptors for these queries are:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Return type |Description
+|`info::device::ext_bindless_image_support` |`bool` | 
+Returns `true` if the device supports creation of bindless images backed by  
+the `image_mem` and `image_mem_handle` APIs.
+|`info::device::ext_bindless_image_1D_USM_support` |`bool` | 
+Returns `true` if the device supports creation of 1D bindless images backed by 
+USM.
+|`info::device::ext_bindless_image_2D_USM_support` |`bool` | 
+Returns `true` if the device supports creation of 2D bindless images backed by 
+USM.
+|`info::device::ext_bindless_image_3D_USM_support` |`bool` | 
+Returns `true` if the device supports creation of 3D bindless images backed by 
+USM.
+|======================
+
+[NOTE]
+====
+Not all SYCL backends may provide support for bindless images constructed from USM 
+memory with all dimensions (1D, 2D, 3D). As an example, CUDA does not have 
+native support for 3D image resources constructed from USM.
+====
 
 === Image descriptor
 
 ```cpp
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
+
+enum class image_channel_order : unsigned int {
+  a = 0,
+  r = 1,
+  rx = 2,
+  rg = 3,
+  rgx = 4,
+  ra = 5,
+  rgb = 6,
+  rgbx = 7,
+  rgba = 8,
+  argb = 9,
+  bgra = 10,
+  intensity = 11,
+  luminance = 12,
+  abgr = 13,
+};
+
+enum class image_channel_type : unsigned int {
+  snorm_int8 = 0,
+  snorm_int16 = 1,
+  unorm_int8 = 2,
+  unorm_int16 = 3,
+  unorm_short_565 = 4,
+  unorm_short_555 = 5,
+  unorm_int_101010 = 6,
+  signed_int8 = 7,
+  signed_int16 = 8,
+  signed_int32 = 9,
+  unsigned_int8 = 10,
+  unsigned_int16 = 11,
+  unsigned_int32 = 12,
+  fp16 = 13,
+  fp32 = 14,
+};
+
+enum class image_type : unsigned int {
+  standard = 0,
+  mipmap = 1,
+  interop = 2,
+};
 
 struct image_descriptor {
-  unsigned int width;
-  unsigned int height;
-  unsigned int depth;
+  size_t width;
+  size_t height;
+  size_t depth;
   image_channel_type channel_type;
   image_channel_order channel_order;
-  unsigned int row_pitch;
+  image_type type;
+  unsigned int num_levels;
+
+  image_descriptor(sycl::range<1> dims, sycl::image_channel_order channel_order,
+                   sycl::image_channel_type channel_type, 
+                   image_type type = image_type::standard, 
+                   unsigned int num_levels = 1);
+
+  image_descriptor(sycl::range<2> dims, sycl::image_channel_order channel_order,
+                   sycl::image_channel_type channel_type, 
+                   image_type type = image_type::standard, 
+                   unsigned int num_levels = 1);
+
+  image_descriptor(sycl::range<3> dims, sycl::image_channel_order channel_order,
+                   sycl::image_channel_type channel_type, 
+                   image_type type = image_type::standard, 
+                   unsigned int num_levels = 1);
 };
 
 }
 ```
 
-The image descriptor represents the image dimensions, channel type, channel 
-order, and row pitch.
+The image descriptor represents the image dimensions, channel type, and channel 
+order. A `type` member is also present to allow for implementation of mipmapped 
+and interop images.
+
+The `image_descriptor` shall be default constructible and follow by-value 
+semantics.
+
+[NOTE]
+====
+Additional future `image_type`s _may_ include "layered" and/or "cubemap".
+====
 
 Note that `image_channel_type` and `image_channel_order` existed in SYCL 1.2.1,
 but were removed in SYCL 2020 in favor of a single, unified enum class.
 We propose separating them again to enable better flexibility
 and to avoid combinatorial complexity.
 
+For the `standard` image type, the value of `num_levels` must be `1`.
+
+Only mipmap image types support more than one level.
+
+The `type` member will inform the implementation of the type of image to 
+create, allocate, or free.
+
+
 === Allocating image memory
 
+The process of creating an image is two-fold:
+allocate an image's memory, then create an image handle from the allocation.
+Allocation of image memory can be achieved in two ways. 
+
+==== Allocating non-USM image memory 
+
 ```cpp
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
-image_mem_handle allocate_image(const context& syclContext, 
-                                image_descriptor desc);
+struct image_mem_handle {
+  using raw_handle_type = /* implementation defined */;
+  raw_handle_type raw_handle;
+}
 
-void free_image(const context& syclContext, void *memory_handle);
+class image_mem {
 
+  image_mem();
+  image_mem(const image_mem &) = delete; // no copy-construct
+
+  image_mem(image_mem &&rhs) noexcept; // move-constructor is allowed
+  image_mem(const sycl::context &syclContext, const image_descriptor &desc);
+
+  ~image_mem();
+
+  image_mem &operator=(image_mem &&); // move-assignment is allowed
+  image_mem &operator=(image_mem &) = delete; // no copy-assignment
+
+  image_mem_handle get_handle() const;
+  image_descriptor get_descriptor() const;
+  sycl::context get_context() const;
+
+  sycl::range<3> get_range() const;
+  sycl::image_channel_type get_image_channel_type() const;
+  sycl::image_channel_type get_image_channel_order() const;
+  unsigned int get_image_num_channels() const;
+  image_type get_type() const;
+
+  image_mem_handle get_mip_level() const;
+};
+
+image_mem_handle alloc_image_mem(const context& syclContext, 
+                                 const image_descriptor &desc);
+void free_image_mem(const context& syclContext, 
+                    image_mem_handle memHandle
+                    image_type imgType);
 }
 ```
 
-The process of creating an image is two-fold:
-allocate an image, then create an image handle from the allocation.
+The first method of allocating device memory for images is through 
+`alloc_image_mem`. This takes an `image_descriptor` and `sycl::context` to 
+allocate device memory, appropriately sized based on the `image_descriptor`.
 
-The first step is to allocate memory for an image.
-`allocate_image` can be used for this,
-as it allocates memory based on the requirements outlined by the image 
-descriptor. The function returns a handle to the newly allocated memory.
-Note that the image is an opaque type, so the handle cannot be dereferenced on 
-the host. The layout of the allocated memory is backend-specific, and may be an 
-optimized layout, e.g. tile swizzle patterns.
+Memory allocated in this way requires the user to free that memory after all 
+operations using the memory are completed and no more operations operating on 
+the memory will be scheduled. This is done using `free_image_mem`. An 
+`image_type` should be passed to `free_image_mem` to inform the implementation 
+of the type of memory to be freed.
 
-After we're done with the image, we need to cleanup the memory using 
-`free_image`.
+The `image_mem` class is a RAII class wrapper that performs allocation and 
+deallocation of device memory.
 
-_In the DPC++ CUDA backend, these will allocate/deallocate a `CUarray` type._
+The default constructor does not allocate any memory on the device and the 
+resulting `image_mem` object is in an uninitialized state.
 
-An alternative is to allocate memory using device USM allocations.
-In addition to the existing USM allocation functions, a new USM pitched 
-allocation function is proposed.
+The constructor `image_mem(const sycl::context &, const image_descriptor &)` 
+is a wrapper for `alloc_image_mem` functionality. 
+
+The destructor is a wrapper for `free_image_mem` functionality. 
+
+`image_mem` also provides some functions to get various properties of the 
+image memory allocation such as the range, channel type, channel order, number 
+of channels, number of levels, and image type.
+
+In the case where a mipmap has been allocated, `get_mip_level` can be used to 
+return an `image_mem_handle` to a specific level of the mipmap. This can then 
+be used to copy data to that specific level or create an image handle based on 
+that level.
+
+Note that the handle type `image_mem_handle::raw_handle_type` is an opaque type, 
+and the handle cannot be dereferenced on the host. The layout of the memory is 
+backend-specific, and may be an optimized layout, e.g. tile swizzle patterns.
+
+`image_mem` shall not be copy-constructible, copy-assignable, or 
+device-copyable.
+`image_mem` shall be default-constructible, move-constructible, as well as 
+provide a move-assignment operator.
+
+`image_mem_handle` shall be default-constructible and copy-constructible.
+`image_mem_handle` shall not be device-copyable.
+
+If the construction or destruction of the `image_mem` class fails, a 
+`sycl::exception` with error code `sycl::errc::memory_allocation` will be 
+thrown.
+
+Similarly, if `alloc_image_mem` or `free_image_mem` fail, a `sycl::exception` 
+with error code `sycl::errc::memory_allocation` will be thrown.
+
+[NOTE]
+====
+In the DPC++ CUDA backend, `image_mem` will allocate/deallocate a 
+`CUarray` type (or `CUmipmappedArray` in the case of mipmap images).
+====
+
+===== Getting image information from `image_mem_handle`
+
+Extension functions are provided to retrieve information about images allocated 
+using the `image_mem_alloc` function. These are similar to the member functions 
+provided by `image_mem`. However, since the `image_mem_handle` is a minimal 
+struct representing just the opaque handle the underlying memory object, there 
+is some information that we cannot retrieve from it, namely the `image_type`,
+`image_channel_order`, the `sycl::context` the memory was allocated in, and the 
+`image_descriptor` used to allocate the memory.
 
 ```cpp
 namespace sycl::ext::oneapi {
 
-void *pitched_alloc_device(size_t* ret_pitch, size_t width_in_bytes, 
-                           size_t height unsigned int element_size_bytes, 
-                           const queue &queue);
+sycl::range<3> get_image_range(const sycl::context &syclContext,
+                               const image_mem_handle mem_handle);
+
+sycl::image_channel_type
+get_image_channel_type(const sycl::context &syclContext,
+                       const image_mem_handle mem_handle);
+
+unsigned int get_image_num_channels(const sycl::context &syclContext,
+                                    const image_mem_handle mem_handle);
+}
+```
+
+For `get_image_range` where the underlying image memory was allocated with one 
+or two dimensions, the returned `sycl::range<3>` will contain zero values for 
+the dimensions unused by the underlying image memory object.
+
+==== Allocating USM image memory 
+
+The second way to allocate image memory is to use USM allocations. SYCL already 
+provides a number of USM allocation functions. This proposal would add another,
+pitched memory allocation, through `pitched_alloc_device`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+void *pitched_alloc_device(size_t *ret_pitch, const image_descriptor &desc, 
+                           const sycl::queue &queue);
+void *pitched_alloc_device(size_t *ret_pitch, const image_descriptor &desc, 
+                           const sycl::device &dev, const sycl::context &ctxt);
+
+void *pitched_alloc_device(size_t *ret_pitch, size_t width_in_bytes, 
+                           size_t height, unsigned int element_size_bytes, 
+                           const sycl::queue &queue);
+void *pitched_alloc_device(size_t *ret_pitch, size_t width_in_bytes, 
+                           size_t height, unsigned int element_size_bytes, 
+                           const sycl::device &dev, const sycl::context &ctxt);
 
 }
 ```
 
 This function will allocate a memory region aimed to be used for 
-two-dimensional images.
-It places appropriate padding at the end of image rows and returns the pitch 
-value used.
+two-dimensional images. It allocates memory that is guaranteed to adhere to the 
+device's alignment requirements for 2D USM images.
 
-For one-dimensional images, existing USM allocation functions are sufficient.
+If the user does not wish to use `pitched_alloc_device` to allocate USM 2D 
+images, but prefers to use another USM allocation function instead, then that 
+allocation must adhere to some alignment restrictions. These restrictions are 
+device specific, and queries for them can be found in the "Pitch alignment 
+restrictions and queries" section below.
 
-Three-dimensional images do not support USM.
+If the allocation of pitched memory fails, `pitched_alloc_device` will throw a 
+`sycl::exception` with error code `sycl::errc::memory_allocation`.
 
-The next step, creating the image, is the same regardless of how the memory 
-was allocated.
+=== Pitch alignment restrictions and queries
+
+For the purposes of this document, the pitch of an image memory allocation is 
+the distance in bytes between the first elements of adjacent rows of the image.
+Some devices may require two-dimensional images to be allocated with specific 
+alignments for their width and pitch. The `pitched_alloc_device` API intends to 
+make allocation of USM memory adhering to these restrictions easy, returning an 
+appropriate pitch value to the user. However, if a user wishes to use another 
+USM allocation function, they must be aware of these restrictions, and query 
+the device to ensure the allocations they wish to use adhere to those 
+restrictions.
+
+This proposal provides a number of additional device queries that enable the 
+user to allocate appropriate USM memory for two-dimensional images. 
+
+The device information descriptors for these queries are:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Return type |Description
+|`info::device::ext_oneapi_texture_pitch_align` |`uint32_t` | 
+Returns the required alignment of the pitch between two rows of an image in 
+bytes.
+|`info::device::ext_oneapi_max_texture_linear_width` |`size_t` | 
+Returns the maximum linear width allowed for images allocated using USM.
+|`info::device::ext_oneapi_max_texture_linear_height` |`size_t` | 
+Returns the maximum linear height allowed for images allocated using USM.
+|`info::device::ext_oneapi_max_texture_linear_pitch` |`size_t` | 
+Returns the maximum linear pitch allowed for images allocated using USM.
+|======================
 
 === Obtaining a handle to the image
 
+The next step is to create the image, and obtain the handle.
+
 ```cpp
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
-using unsampled_image_handle = /* Implementation defined */;
-using sampled_image_handle = /* Implementation defined */;
+/// Opaque unsampled image handle type.
+struct unsampled_image_handle {
+  using raw_image_handle_type = /* Implementation defined */;
 
-unsampled_image_handle create_image(const context &syclContext,
-                                    image_mem_handle mem_handle);
-sampled_image_handle create_image(const context &syclContext,
-                                  image_mem_handle mem_handle,
-                                  sampler &sampler);
+  raw_image_handle_type get_image_handle() const;
+  raw_image_handle_type image_handle;
+};
 
-unsampled_image_handle create_image(const context &syclContext, void *usm_ptr);
-sampled_image_handle create_image(const context &syclContext, void *usm_ptr,
-                                  sampler &sampler);
+/// Opaque sampled image handle type.
+struct sampled_image_handle {
+  using raw_image_handle_type = /* Implementation defined */;
+  using raw_sampler_handle_type = /* Implementation defined */
 
-void destroy_image_handle(const context& syclContext,
+  raw_image_handle_type image_handle;
+  raw_sampler_handle_type sampler_handle;
+
+  raw_image_handle_type get_image_handle() const;
+  raw_sampler_handle_type get_sampler_handle() const;
+};
+
+// Creating an unsampled image from an `image_mem_handle`
+unsampled_image_handle create_image(const sycl::context &syclContext,
+                                    image_mem_handle memHandle,
+                                    const image_descriptor &desc);
+
+// Creating a sampled image from an `image_mem_handle`
+sampled_image_handle create_image(const sycl::context &syclContext,
+                                  image_mem_handle memHandle,
+                                  const image_descriptor &desc,
+                                  const sampler &sampler);
+
+// Creating an unsampled image from an `image_mem` object
+unsampled_image_handle create_image(const sycl::context &syclContext,
+                                    const image_mem &memHandle,
+                                    const image_descriptor &desc);
+
+// Creating a sampled image from an `image_mem` object
+sampled_image_handle create_image(const sycl::context &syclContext,
+                                  const image_mem &memHandle,
+                                  const image_descriptor &desc,
+                                  const sampler &sampler);
+
+// Creating a sampled image from a USM allocation and pitch
+sampled_image_handle create_image(const sycl::context &syclContext, 
+                                  const void *usmPtr, size_t pitch,
+                                  const image_descriptor &desc,
+                                  const sampler &sampler);
+
+// Destroying an image handle
+void destroy_image_handle(const sycl::context& syclContext,
                           sampled_image_handle& imageHandle);
-void destroy_image_handle(const context& syclContext,
+void destroy_image_handle(const sycl::context& syclContext,
                           unsampled_image_handle& imageHandle);
 
 }
@@ -210,276 +526,1218 @@ These objects are opaque types that represent an image object.
 They can be captured by value into a SYCL kernel, or they can be passed in a 
 buffer as a dynamic array of images (see examples below).
 
-We can either provide a sampler or not when creating the image.
+We can either provide a `sampler` or not when creating the image. Doing 
+so will create a `sampled_image_handle`, where otherwise an 
+`unsampled_image_handle` would be returned. A `sampled_image_handle` should 
+contain a raw sampler handle that will be used when sampling an image.
 
-_In the DPC++ CUDA backend a sampled image will correspond to a CUDA texture.
-An unsampled image will usually correspond to a CUDA surface, unless the memory 
-the texture is created from USM, then it will correspond to a CUDA texture._
+Whether an `image_descriptor` or `void *` USM allocation was passed to 
+`create_image`, it must have been allocated in the same context as the one 
+passed to `create_image`.
+
+If we choose to create a 2D image from a USM allocation by passing a `void *`, 
+we must also pass the pitch of the memory allocation. If the memory was 
+allocated using `pitched_alloc_device`, the pitch passed must be the one which 
+was returned by `pitched_alloc_device`. If the user did not use 
+`pitched_alloc_device` to allocate this memory, then that memory must still 
+adhere to device specific alignment restrictions. These restrictions and their 
+queries are outlined in the section "Pitch alignment restrictions and queries" 
+below.
+
+The pitch is ignored for 1D images.
+
+If the creation of an image fails, `create_image` will throw a `sycl::exception` 
+with error code `sycl::errc::runtime`.
+
+The `unsampled_image_handle` and `sampled_image_handle` types shall be 
+default-constructible, copy-constructible, and device-copyable.
+
+[NOTE]
+====
+In the DPC++ CUDA backend a sampled image will correspond to a CUDA texture, 
+whereas an unsampled image will correspond to a CUDA surface.
+====
 
 After we're done with the image, we need to destroy the handle using 
-`destroy_image_handle`.
+`destroy_image_handle`. Destroying an image handle does not deallocate the 
+underlying image memory. The user is responsible for deallocation, either 
+through `free_image_mem`, or destroying the `image_mem` object, if one was used.
 
 === Explicit copies
 
 ```cpp
 namespace sycl {
+
+class handler {
+public:
+  // Host to Device using `image_mem_handle`
+  void ext_oneapi_copy(void *Src,
+                       ext::oneapi::experimental::image_mem_handle Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc);
+
+  // Host to Device using `image_mem`
+  void ext_oneapi_copy(void *Src, 
+                       ext::oneapi::experimental::image_mem &Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc);
+
+  // Device to host using `image_mem_handle`
+  void ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                       void *Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc);
+
+  // Device to host using `image_mem`
+  void ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, 
+                       void *Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc);
+
+  // Host to device OR device to host using USM device memory
+  void ext_oneapi_copy(void *Src, 
+                       void *Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       size_t Pitch);
+};
+
 class queue {
 public:
-  event ext_image_memcpy(ext::oneapi::image_mem_handle Dest, void *Src,
-                         const ext::oneapi::image_descriptor &Desc);
-  event ext_image_memcpy(ext::oneapi::image_mem_handle Dest, void *Src,
-                         const ext::oneapi::image_descriptor &Desc,
-                         event DepEvent);
-  event ext_image_memcpy(ext::oneapi::image_mem_handle Dest, void *Src,
-                         const ext::oneapi::image_descriptor &Desc,
-                         const std::vector<event> &DepEvents);
+  // Host to Device using `image_mem`
+  event ext_oneapi_copy(void *Src, 
+                        ext::oneapi::experimental::image_mem &Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc);
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem &Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        event DepEvent);
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem &Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        const std::vector<event> &DepEvents);
 
-  event ext_image_memcpy(void *Dest, ext::oneapi::image_mem_handle Src,
-                         const ext::oneapi::image_descriptor &Desc);
-  event ext_image_memcpy(void *Dest, ext::oneapi::image_mem_handle Src,
-                         const ext::oneapi::image_descriptor &Desc,
-                         event DepEvent);
-  event ext_image_memcpy(void *Dest, ext::oneapi::image_mem_handle Src,
-                         const ext::oneapi::image_descriptor &Desc,
-                         const std::vector<event> &DepEvents);
+  // Host to Device using `image_mem_handle`
+  event ext_oneapi_copy(void *Src, 
+                        ext::oneapi::experimental::image_mem_handle Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc);
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem_handle Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        event DepEvent);
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem_handle Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        const std::vector<event> &DepEvents);
 
-  event ext_image_memcpy(void *Dest, void *Src, 
-                         const ext::oneapi::image_descriptor &Desc);
-  event ext_image_memcpy(void *Dest, void *Src,
-                         const ext::oneapi::image_descriptor &Desc,
-                         event DepEvent);
-  event ext_image_memcpy(void *Dest, void *Src,
-                         const ext::oneapi::image_descriptor &Desc,
-                         const std::vector<event> &DepEvents);
+  // Device to host using `image_mem`
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, 
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc);
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        event DepEvent);
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        const std::vector<event> &DepEvents);
+
+  // Device to host using `image_mem_handle`
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src, 
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc);
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        event DepEvent);
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        const std::vector<event> &DepEvents);
+
+  // Host to device OR device to host using USM device memory
+  event ext_oneapi_copy(void *Src, void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        size_t DevicePitch);
+  event ext_oneapi_copy(void *Src, void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        size_t DevicePitch, 
+                        event DepEvent);
+  event ext_oneapi_copy(void *Src, void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        size_t DevicePitch, 
+                        const std::vector<event> &DepEvents);
+
 };
 }
 ```
 
-An `ext_image_memcpy` function is proposed as a method of the queue, to 
-copy image memory. It can be used to copy image memory from host to device, or 
-device to host. The image descriptor is used to determine the dimensions of 
-the image, and the image row pitch, when copying the data.
+To enable the copying of images an `ext_oneapi_copy` function is proposed as a 
+method of the queue and handler. It can be used to copy image memory, whether 
+allocated through USM or the `image_mem` API, from host to 
+device, or device to host. The image descriptor passed to the `ext_oneapi_copy` 
+API is used to determine the dimensions and size in memory of the image to copy.
 
-For images allocated using USM, existing SYCL functionality can used to 
-copy their memory, but we also provide `ext_image_copy` functions that take 
-USM pointers.
+For images allocated using USM, existing SYCL functionality can be used to 
+copy their memory, but we also provide `ext_oneapi_copy` functions that take 
+USM pointers. If the image memory was allocated using `pitched_alloc_device`, 
+then the `DevicePitch` parameter must match that which was returned from 
+`pitched_alloc_device`. If the user opted to use another allocation function
+then the `DevicePitch` parameter should be set to the width of the memory 
+allocation in bytes, and adhere to the alignment restrictions outlined in the 
+"Pitch alignment restrictions and queries" section.
+
+When using `ext_oneapi_copy`, the user must ensure that the memory regions 
+accessed through `Dest` and `Src` have the same capacity. `ext_oneapi_copy` only 
+supports copying images of the same dimensions. Whether copying image memory to 
+the device through a USM `Dest` pointer, or an `image_mem`, the host 
+memory is always assumed to be tightly packed. Similarly, the host memory is 
+assumed to be packed when copying from device to host.
+
+For the forms that take `image_mem`, the handle must have been allocated 
+with the same context used to create the `queue`.
+
+For the forms that take a USM pointer, the image memory must have been allocated 
+with the same context used to create the `queue` and the USM memory must be 
+accessible on the queue's device.
+
+If copying of an image fails, `ext_oneapi_copy` will throw a `sycl::exception` 
+with error code `sycl::errc::runtime`.
 
 === Reading and writing inside the kernel
 
 ```cpp
-namespace sycl::ext::oneapi {
-
-DataT read_image(const unsampled_image_handle &imageHandle,
-                 const CoordT &coords);
-DataT read_image(const sampled_image_handle &imageHandle, 
-                 const CoordT &coords);
+namespace sycl::ext::oneapi::experimental {
 
 template <typename DataT, typename CoordT>
-void write_image(const unsampled_image_handle &imageHandle,
-                 const CoordT &Coords, const DataT &Color);
+DataT read_image(const unsampled_image_handle &ImageHandle,
+                 const CoordT &Coords);
+template <typename DataT, typename CoordT>
+DataT read_image(const sampled_image_handle &ImageHandle, 
+                 const CoordT &Coords);
 
+template <typename DataT, typename CoordT>
+void write_image(unsampled_image_handle &ImageHandle,
+                 const CoordT &Coords, const DataT &Color);
 }
 ```
 
-Inside a kernel it's possible to read an image using `read_image` via the image 
-handle, which returns a value of the user specified type `DataT`.
-Similarly, it's possible to write to an image via a handle using `write_image`.
+Inside a kernel, it's possible to read an image via `read_image`, passing 
+the image handle. For the form that takes `unsampled_image_handle`, image data 
+will be fetched exactly as is in device memory. For the form that takes a 
+`sampled_image_handle`, the image will be sampled according to the 
+`sampler` that was passed to the image upon construction, and is included 
+in the `sampled_image_handle` as `sampled_image_handle::raw_sampler_handle`. 
+The returned data will be of type `DataT`, which is specified by the user, and 
+should map to the type that the image was created with (a combination of 
+`image_channel_type` and `image_channel_order`). An example of a type resulting 
+from these two is shown below.
 
-`write_image` is not available for sampled images, or images created from USM 
-memory.
+For reads or writes, `DataT` must correspond to the type specified in the 
+`image_descriptor` when the image was created. For multi-channel types, the 
+resultant `DataT` should be a `sycl::vec` type. E.g., for a channel order of 
+`image_channel_order::rg` and channel type of `image_channel_type::fp16`, the 
+resultant `DataT` should be `sycl::vec<sycl::half, 2>`.
 
-`DataT` must correspond to the type specified in the `image_descriptor`
-when the image was created.
+It's possible to write to an image via `write_image` passing the 
+handle of the image to be written to, along with the coordinates to write to and 
+the data.
 
-The coordinates are specified as an `int` for 1D images, `int2` for 2D images,
-and `int4` for 3D images (not `int3`).
+Sampled images cannot be written to using `write_image`.
 
-Note that all images must be used in either read-only or write-only fashion 
+For unsampled images, coordinates are specified by `int`, `sycl::vec<int, 2>`, 
+and `sycl::vec<int, 4>` for 1D, 2D, and 3D images respectively.
+
+Sampled image reads take `float`, `sycl::vec<float, 2>`, and 
+`sycl::vec<float, 4>` coordinate types for 1D, 2D, and 3D images respectively. 
+
+In the case of 3D reads or writes, the fourth element in the coordinate vector 
+is ignored.
+
+Note that coordinates for 3D images take a vector of size 4, not 3.
+
+Note also that all images must be used in either read-only or write-only fashion 
 within a single kernel invocation; read/write images are not supported.
 
-_Sampling will likely require passing a sampler handle to the `read_image` 
-function. The current proposal does not require this, as CUDA can tie samplers 
-and textures at time of creation._
+== Mipmapped images
 
-=== Getting image information from non-USM image memory
+So far, we have described how to create and operate on standard bindless images.
+Another type of image we propose support for is a mipmapped image. Mipmapped 
+images are an image type with multiple levels. Each consecutive dimension of a 
+mipmapped image level is smaller than the previous level. The dimensions of a 
+succeeding mip level is half that of the preceding level. As an example, a 
+two-dimensional mipmapped image where the top-most level (`level==0`) image has 
+a `width==16` and `height==16`, the succeeding level (`level==1`) in the mipmap 
+will have sizes `width==8` and `height==8`. This pattern continues until either 
+the final level has sizes of `width==1` and `height==1`, or the user-specified 
+maximum mip level has been reached.
 
-Extension functions are provided to retrieve information about images allocated 
-using the `image_allocate` function.
+=== Querying mipmap support
+
+We provide the following device queries to retrieve information on whether a 
+SYCL implementation provides support for various mipmap features.
+
+The device information descriptors for these queries are:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Return type |Description
+|`info::device::ext_oneapi_mipmap_support` |`bool` |
+Return `true`` if the device supports allocating mipmap resources.
+|`info::device::ext_oneapi_anisotropic_support` |`bool` |
+Return `true`` if the device supports sampling mipmap images with anisotropic 
+filtering
+|`info::device::ext_oneapi_max_anisotropy` |`float` |
+Return the maximum anisotropic ratio supported by the device
+|`info::device::ext_oneapi_mipmap_level_reference` |`bool` |
+Return `true` if the device supports using images created from individual 
+mipmap levels
+|======================
+
+=== Allocation of mipmapped images
+
+Mipmaps are allocated in a similar manner to standard images, however, mipmaps 
+do not support USM backed memory.
+
+Mipmap memory is allocated through `alloc_image_mem`. The user should populate 
+the `image_descriptor` with the image type of `image_type::mipmap`, and provide 
+the number of mipmaps levels they wish to allocate. The value of `num_levels` 
+must be greater than `1`.
+
+Mipmap memory allocated this way requires the user to free that memory after all 
+operations using the memory are completed and no more operations operating on 
+the memory will be scheduled. This is done using `free_image_mem`, passing `image_type::mipmap`. Importantly, individual levels of a mipmap must not be 
+freed before calling `free_image_mem`.
+
+The `image_mem` class acts as a RAII class wrapper that performs allocation and 
+deallocation of mipmap device memory. The constructor and destructor act as a 
+wrapper for the functions `alloc_image_mem` and `free_image_mem` respectively.
+
+When the underlying memory of `image_mem` is a mipmap, `get_mip_level` can be 
+used to return an `image_mem_handle` to a specific level of the mipmap. This can 
+then be used to copy data to that specific level or create an image based on 
+that level. 
+
+=== Obtaining a handle to a mipmap image
+
+A handle to a mipmap image is acquired in the same way as a 
+`sampled_image_handle`. Mipmaps can only be sampled image types. We can create a 
+`sampled_image_handle` to the allocated mipmap through the `create_image` 
+functions which take a sampler.
+
+Below we describe an extension to the existing SYCL `sampler` object which 
+allows for the sampling of mipmaps with support for level of detail(LOD) and 
+anisotropic filtering. To sample a mipmap correctly, the extended attributes of 
+this sampler must be defined.
+
+Attempting to create an `unsampled_image_handle` to a mipmap will result in a 
+`sycl::exception` with error code `sycl::errc::runtime` being thrown. 
+
+=== Extended sampler object
+
+To represent the different sampling capabilities that mipmaps provide as opposed 
+to standard sampled images, we propose to extend the core SYCL `sampler` 
+class.
+
+We propose to add a `mipmap_filtering_mode` enum, mipmap filtering properties' 
+values, getter functions, and a new constructor to the SYCL `sampler` 
+class.
+
+```c++
+namespace sycl {
+
+enum class mipmap_filtering_mode : /* unspecified */ {
+  nearest,
+  linear,
+};
+
+class sampler {
+public:
+
+  sampler(coordinate_normalization_mode normalizationMode,
+          addressing_mode addressingMode, filtering_mode filteringMode,
+          mipmap_filtering_mode mipmapFilteringMode, float minMipmapLevelClamp,
+          float maxMipmapLevelClamp, float maxAnisotropy,
+          const property_list &propList = {});
+
+
+  mipmap_filtering_mode get_mipmap_filtering_mode() const;
+  float get_min_mipmap_level_clamp() const;
+  float get_max_mipmap_level_clamp() const;
+  float get_max_anisotropy() const;
+};
+}
+```
+
+`mipmapFilteringMode` dictates the method in which sampling between mipmap 
+levels is performed.
+
+`minMipmapLevelClamp` defines the minimum mipmap level from which we can sample, 
+with the minimum value being 0.
+
+`maxMipmapLevelClamp` defines the maximum mipmap level from which we can sample.
+This cannot value cannot be higher than the number of allocated levels.
+
+`maxAnisotropy` dictates the anisotropic ratio used when samplling the mipmap 
+with anisotropic filtering.
+
+=== Copying mipmap image data
+
+We provide two ways in which image data can be copied to mipmap levels. 
+
+The first method is to retrieve the handle to an individual mipmap level using 
+`get_mip_level`, provided by `image_mem`, and copy via the previously described 
+copy functions
+
+The user must retrieve the `image_mem_handle` themselves for 
+the particular level and provide an `image_descriptor` which describes that 
+level. For instance, copying to the second mipmap level must take a descriptor 
+whose width, height, depth, are all half of the first mipmap level. Providing an 
+incorrect descriptor can lead to undefined behaviour or throw a 
+`sycl::exception` with error code `sycl::errc::runtime`.
+
+The second method is to use one of the provided `ext_oneapi_copy` functions on 
+the queue or handler, which take a `Level` parameter specifying which level the 
+user wishes to copy from device to host, or from host to device.
+
+For this method, the user only needs to provide an additional `Level` 
+parameter to the `ext_oneapi_copy` function. The descriptor passed to 
+`ext_oneapi_copy` would be used to calculate the appropriate mipmap level 
+dimensions.
+
+```c++
+namespace sycl {
+
+class handler {
+public:
+  // Host to Device using `image_mem_handle` and a mipmap level
+  void ext_oneapi_copy(void *Src,
+                       ext::oneapi::experimental::image_mem_handle Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       unsigned int Level);
+  
+  // Host to Device using `image_mem` and a mipmap level
+  void ext_oneapi_copy(void *Src, 
+                       ext::oneapi::experimental::image_mem &Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       unsigned int Level);
+
+  // Device to host using `image_mem_handle` and a mipmap level
+  void ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                       void *Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       unsigned int Level);
+
+  // Device to host using `image_mem` and a mipmap level
+  void ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src,
+                       void *Dest,
+                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       unsigned int Level);
+
+
+};
+
+class queue {
+  // Host to Device using `image_mem` and a mipmap level
+  event ext_oneapi_copy(void *Src, 
+                        ext::oneapi::experimental::image_mem &Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level);
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem &Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level, 
+                        event DepEvent);
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem &Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level, 
+                        const std::vector<event> &DepEvents);
+
+  // Host to Device using `image_mem_handle`
+  event ext_oneapi_copy(void *Src, 
+                        ext::oneapi::experimental::image_mem_handle Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level);
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem_handle Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level, 
+                        event DepEvent);
+  event ext_oneapi_copy(void *Src,
+                        ext::oneapi::experimental::image_mem_handle Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level, 
+                        const std::vector<event> &DepEvents);
+
+  // Device to host using `image_mem` and a mipmap level
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src, 
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level);
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level, 
+                        event DepEvent);
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem &Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level,
+                        const std::vector<event> &DepEvents);
+
+  // Device to host using `image_mem_handle` and a mipmap level
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src, 
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level);
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level, 
+                        event DepEvent);
+  event ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                        void *Dest,
+                        const ext::oneapi::experimental::image_descriptor &Desc,
+                        unsigned int Level,
+                        const std::vector<event> &DepEvents);
+};
+}
+```
+
+=== Reading a mipmap
+
+Inside the kernel, it's possible to read a mipmap via `read_image`, passing the 
+`sampled_image_handle`, the coordinates, and either the level or anisotropic 
+gradient values.
+
+The method of sampling a mipmap is different based on which `read_image` 
+function is used, and the sampler attributes passed upon creation of the 
+mipmap.
+
+```c++
+// Nearest/linear filtering between mip levels
+template <typename DataT, typename CoordT>
+DataT read_image(const sample_image_handle &ImageHandle,
+                 const CoordT &Coords,
+                 const float Level);
+
+// Anisotropic filtering
+template <typename DataT, typename CoordT>
+DataT read_image(const sampled_image_handle &ImageHandle,
+                 const CoordT &Coords,
+                 const CoordT &Dx, const CoordT &Dy);
+```
+
+== Interoperability
+
+=== Querying interoperability support
+
+We provide the following device queries to retrieve information on whether a 
+SYCL implementation provides support for various interoperability features.
+
+The device information descriptors for these queries are:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Return type |Description
+|`info::device::ext_oneapi_interop_memory_import_support` |`bool` |
+Return true if the device supports importing external memory resources.
+|`info::device::ext_oneapi_interop_memory_export_support` |`bool` |
+Return true if the device supports exporting internal memory resources.
+|`info::device::ext_oneapi_interop_semaphore_import_support` |`bool` | 
+Return true if the device supports importing external semaphore resources.
+|`info::device::ext_oneapi_interop_semaphore_export_support` |`bool` | 
+Return true if the device supports exporting internal event resources.
+|======================
+
+
+[NOTE]
+====
+Not all SYCL backends may provide support for importing or exporting native 
+memory or semaphore objects. CUDA for example only supports importation of 
+external memory and semaphores, but provides no support for their exportation.
+====
+
+=== Importing external memory objects
+
+In order to import a memory object, an external API must provide an appropriate 
+handle to that memory. The exact structure and type of this handle can depend on 
+the external API, and the operating system the application is running on.
+
+In order to facilitate a number of different external memory handle types, we 
+propose the following structures.
+
+[NOTE]
+====
+We only show two examples of external memory handle types here, but the 
+`external_mem_descriptor` struct could be templated by any number of handle 
+types, provided that the SYCL implementation provides support for them.
+====
 
 ```cpp
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
-sycl::range<3> get_image_range(const sycl::context &syclContext,
-                               const image_mem_handle mem_handle);
+// POSIX file descriptor memory handle type
+struct external_mem_fd {
+  int file_descriptor;
+};
 
-unsigned int get_image_flags(const sycl::context &syclContext,
-                             const image_mem_handle mem_handle);
+// Windows NT memory handle type
+struct external_mem_win32 {
+  void *handle;
+  const void *name;
+};
 
-sycl::image_channel_type
-get_image_channel_type(const sycl::context &syclContext,
-                       const image_mem_handle mem_handle);
-
-unsigned int get_image_num_channels(const sycl::context &syclContext,
-                                    const image_mem_handle mem_handle);
+// Descriptor templated on specific external memory handle type
+template <typename external_mem_handle_type>
+struct external_mem_handle_type {
+  external_mem_handle_type external_handle;
+  size_t size_in_bytes;
+};
 
 }
 ```
 
-_These functions provide the same information that CUDA's 
-`cuArray3DGetDescriptor` provides._
+The user should create an `external_mem_descriptor` templated on the appropriate 
+handle type for their purposes, e.g. `external_mem_fd` to describe a POSIX file 
+descriptor resource on Linux systems, or an `external_mem_win32` for Windows NT 
+resource handles.
+
+Once the user populates the `external_mem_descriptor` with the appropriate 
+`external_mem_handle_type` values, and the size of the external memory in bytes,
+they can then import that memory into SYCL through `import_external_memory`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+struct interop_mem_handle {
+  using raw_handle_type = /* Implementation defined */;
+  raw_handle_type raw_handle;
+};
+
+template <typename external_mem_handle_type>
+interop_mem_handle import_external_memory(
+    const sycl::context &syclContext,
+    external_mem_descriptor<external_mem_handle_type> externalMemDescriptor);
+
+
+image_mem_handle map_external_memory_array(
+    const sycl::context &syclContext, 
+    interop_mem_handle interopMemHandle,
+    const image_descriptor &imageDescriptor);
+
+void *map_external_memory_buffer(
+    const sycl::context &syclContext, 
+    interop_mem_handle interopMemHandle);
+
+}
+```
+
+The resulting `interop_mem_handle` can then be mapped to two different memory 
+types, a buffer, or an array.
+
+If mapped to a buffer, the resulting `void*` can
+be used in USM like fashion. It can be passed as an argument to a kernel and 
+therein manipulated.
+
+If mapped to an array, the resulting type is an `image_mem_handle`, which can be
+used to construct images in the same way as memory allocated through 
+`alloc_image_mem`. The `ext_oneapi_copy` operations also work with imported 
+memory mapped to `image_mem_handle` types.
+
+When calling `create_image` with an `image_mem_handle` mapped from an external 
+memory object, the user must ensure that the image descriptor they pass to 
+`create_image` has members that match or map to those of the external API. 
+A mismatch between any of the `width`, `height`, `depth`, `image_channel_type`,
+or `image_channel_order` members will result in undefined behavior. The 
+`image_type` member must be set to `image_type::interop`.
+
+Once a user has finished operating on imported memory, they must ensure that 
+they destroy the imported memory handle through `destroy_external_memory`. 
+
+`destroy_external_memory` can only accept `interop_mem_handles` that were 
+created through `import_external_memory`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+void
+destroy_external_memory(const sycl::context &syclContext,
+                        interop_mem_handle interopMem);
+
+}
+```
+
+Destroying or freeing any imported memory through `image_mem_free` or 
+`sycl::free` will result in undefined behavior.
+
+=== Importing external semaphores
+
+In addition to proposing importation of external memory resources, we also 
+propose importation of synchronization primitives. Just like the sharing of 
+memory between APIs described above, any external APIs must provide a valid a 
+handle to a valid semaphore resource they wish to share, and just as external 
+memory resources handles can take different forms of structure and type 
+depending on the API and operating system, so do external semaphore resource 
+handles.
+
+In order to facilitate a number of different external semaphore handle types, we 
+propose the following structures.
+
+[NOTE]
+====
+We only show two examples of external semaphore resource handle types here, but 
+the `external_semaphore_descriptor` struct could be templated by any number of 
+handle types, provided that the SYCL implementation provides support for them.
+====
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+// POSIX file descriptor semaphore handle
+struct external_semaphore_fd {
+  int file_descriptor;
+};
+
+// Windows NT semaphore handle
+struct external_semaphore_win32 {
+  void *handle;
+  const void *name;
+};
+
+// Descriptor templated on specific external semaphore handle type
+template <typename external_semaphore_handle_type>
+struct external_semaphore_descriptor {
+  external_semaphore_handle_type external_handle;
+};
+
+}
+```
+
+The user should create an `external_semaphore_descriptor` templated on the 
+appropriate handle type for their purposes, e.g. `external_semaphore_fd` to 
+describe a POSIX file descriptor resource on Linux systems, or an 
+`external_mem_win32` for Windows NT resource handles.
+
+Once the user populates the `external_semaphore_descriptor` with the appropriate 
+`external_semaphore_handle_type` values, they can then import that semaphore 
+into SYCL through `import_external_semaphore`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+struct interop_semaphore_handle {
+  using raw_handle_type = /* Implementation defined */;
+  raw_handle_type raw_handle;
+};
+
+template <typename external_semaphore_handle_type>
+interop_semaphore_handle import_external_semaphore(
+    const sycl::context &syclContext,
+    external_semaphore_descriptor<external_semaphore_handle_type>
+        externalSemaphoreDescriptor);
+
+}
+```
+
+The resulting `interop_semaphore_handle` can then be used in a SYCL command 
+group, to either wait until the semaphore is in the signaled state, or set the 
+semaphore to a signaled state.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+sycl::event
+wait_external_semaphore(const sycl::queue &syclQueue,
+                        interop_semaphore_handle semaphoreHandle);
+
+sycl::event
+signal_external_semaphore(const sycl::queue &syclQueue,
+                          interop_semaphore_handle semaphoreHandle);
+
+}
+```
+
+`wait_external_semaphore` and `signal_external_semaphore` are non-blocking, 
+asynchronous operations.
+
+Any operations submitted to the queue after a `wait_external_semaphore` call 
+will not begin until the imported semaphore is in a signaled state.
+
+When `signal_external_semaphore` is called, the external semaphore will be set 
+to the signaled state after all commands submitted to the queue prior to the 
+`signal_external_semaphore` call complete.
+
+The user must ensure to destroy all external semaphore objects once they are no 
+longer required through `destroy_external_semaphore`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+void
+destroy_external_semaphore(const sycl::context &syclContext,
+                           interop_semaphore_handle semaphoreHandle);
+
+}
+```
+
+In addition to the extension functions described above, we also propose to 
+extend the SYCL queue and handler classes with semaphore waiting and signalling 
+operations.
+
+```cpp
+namespace sycl {
+
+class handler {
+public:
+  void ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle);
+
+  void ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle);
+};
+
+class queue {
+public:
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle);
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      event DepEvent);
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      const std::vector<event> &DepEvents);
+
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle);
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      event DepEvent);
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::interop_semaphore_handle
+          interop_semaphore_handle,
+      const std::vector<event> &DepEvents);
+};
+}
+```
 
 == Examples
 
 === 1D image read/write
 
 ```cpp
-queue q;
-auto ctxt = q.get_context();
+// Set up device, queue, and context
+sycl::device dev;
+sycl::queue q(dev);
+sycl::context ctxt = q.get_context();
 
-constexpr size_t N = 512;
-std::vector<float4> dataIn(N);
-float exp = 512;
-for (int i = 0; i < N; i++) {
-  dataIn[i] = float4(i, i, i, i);
+// Initialize input data
+constexpr size_t width = 512;
+std::vector<float> dataIn(width);
+std::vector<float> dataOut(width);
+for (int i = 0; i < width; i++) {
+  dataIn[i] = static_cast<float>(i);
 }
 
 // Image descriptor - can use the same for both images
-ext::oneapi::image_descriptor desc({N, 0, 0}, image_channel_order::rgba,
-                                   image_channel_type::fp32);
+sycl::ext::oneapi::experimental::image_descriptor desc(
+    sycl::range{width}, sycl::image_channel_order::r,
+    sycl::image_channel_type::fp32);
 
-// Extension: returns the device pointer to the allocated memory
-auto imgMemoryIn = ext::oneapi::allocate_image(ctxt, desc);
-auto imgMemoryOut = ext::oneapi::allocate_image(ctxt, desc);
+try {
+  // Extension: returns the device pointer to the allocated memory
+  sycl::ext::oneapi::experimental::image_mem imgMemoryIn(ctxt, desc);
+  sycl::ext::oneapi::experimental::image_mem imgMemoryOut(ctxt, desc);
 
-// Extension: create the image and return the handle
-ext::oneapi::image_handle imgIn = 
-    ext::oneapi::create_image(ctxt, imgMemoryIn, desc);
-ext::oneapi::image_handle imgOut = 
-    ext::oneapi::create_image(ctxt, imgMemoryOut, desc);
+  // Extension: create the image and return the handle
+  sycl::ext::oneapi::experimental::unsampled_image_handle imgIn =
+      sycl::ext::oneapi::experimental::create_image(ctxt, imgMemoryIn, desc);
+  sycl::ext::oneapi::experimental::unsampled_image_handle imgOut =
+      sycl::ext::oneapi::experimental::create_image(ctxt, imgMemoryOut, desc);
 
-// Extension: copy over data to device
-q.ext_image_copy(imgMemoryIn, dataIn.data(), desc);
+  // Extension: copy over data to device
+  q.ext_oneapi_copy(dataIn.data(), imgMemoryIn, desc);
 
-// Wait for copy operation to finish
-q.wait();
+  // Bindless images require manual synchronization
+  // Wait for copy operation to finish
+  q.wait_and_throw();
 
-q.submit([&](handler &cgh) {
-  // No need to request access, handles captured by value
+  q.submit([&](sycl::handler &cgh) {
+    // No need to request access, handles captured by value
 
-  cgh.parallel_for(N, [=](id<1> id) {
-    // Extension: read image data from handle
-    float4 px1 =
-        ext::oneapi::read_image<float4>(imgIn, int(id[0]));
+    cgh.parallel_for(width, [=](sycl::id<1> id) {
+      // Extension: read image data from handle
+      float pixel = sycl::ext::oneapi::experimental::read_image<float>(
+          imgIn, int(id[0]));
 
-    // Extension: write to image data using handle
-    sycl::ext::oneapi::write_image<float4>(imgOut, int(id[0]), px1);
+      // Extension: write to image data using handle
+      sycl::ext::oneapi::experimental::write_image(imgOut, int(id[0]), pixel);
+    });
   });
-});
 
-// Using image handles requires manual synchronization
-q.wait_and_throw();
+  // Using image handles requires manual synchronization
+  q.wait_and_throw();
 
-// Cleanup
-ext::oneapi::destroy_image_handle(ctxt, imgIn);
-ext::oneapi::destroy_image_handle(ctxt, imgOut);
-ext::oneapi::free_image(ctxt, imgMemoryIn);
-ext::oneapi::free_image(ctxt, imgMemoryOut);
+  // Copy data written to imgOut to host
+  q.ext_oneapi_copy(imgMemoryOut, dataOut.data(), desc);
+
+  // Cleanup
+  sycl::ext::oneapi::experimental::destroy_image_handle(ctxt, imgIn);
+  sycl::ext::oneapi::experimental::destroy_image_handle(ctxt, imgOut);
+} catch (sycl::exception e) {
+  std::cerr << "SYCL exception caught: " << e.what();
+  exit(-1);
+}
+
+// Validate that `dataIn` correctly transferred to `dataOut`
+bool validated = (dataIn == dataOut);
 ```
 
 === Reading from a dynamically sized array of 2D images
 
 
 ```cpp
-device dev;
-queue q(dev);
-auto ctxt = q.get_context();
+// Set up device, queue, and context
+sycl::device dev;
+sycl::queue q(dev);
+sycl::context ctxt = q.get_context();
 
 // declare image data
 size_t numImages = 5;
-size_t width = 7;
-size_t height = 3;
+size_t width = 8;
+size_t height = 8;
 size_t N = width * height;
-std::vector<float> out(N);
-std::vector<float> expected(N);
-std::vector<float4> dataIn(N);
+std::vector<float> dataIn(N);
+std::vector<float> dataOut(N);
+std::vector<float> dataExpected(N);
 for (int i = 0; i < width; i++) {
   for (int j = 0; j < height; j++) {
-    expected[j + (height * i)] = (j + (height * i)) * numImages;
-    dataIn[j + (height * i)] = {j + (height * i), 0, 0, 0};
+    int index = j + (height * i);
+    dataIn[index] = index;
+    dataExpected[index] = index * numImages;
   }
 }
 
 // Image descriptor - can use the same for all images
-sycl::ext::oneapi::image_descriptor desc(
-  {width, height}, image_channel_order::rgba, image_channel_type::fp32);
+sycl::ext::oneapi::experimental::image_descriptor desc(
+    {width, height}, sycl::image_channel_order::r,
+    sycl::image_channel_type::fp32);
 
-// Allocate each image and save the handles
-std::vector<sycl::ext::oneapi::image_mem_handle> imgAllocations;
-for (int i = 0; i < numImages; i++) {
-  // Extension: returns the handle to the allocated memory
-  auto img_mem = sycl::ext::oneapi::allocate_image(ctxt, desc);
-  if (img_mem == nullptr) {
-    std::cout << "Error allocating image!" << std::endl;
-    return 1;
+try {
+
+  // Allocate each image and save the handles
+  std::vector<sycl::ext::oneapi::experimental::image_mem> imgAllocations;
+  for (int i = 0; i < numImages; i++) {
+    // Extension: move-construct device allocated memory
+    imgAllocations.emplace_back(
+        sycl::ext::oneapi::experimental::image_mem{ctxt, desc});
   }
-  imgAllocations.push_back(img_mem);
+
+  // Copy over data to device for each image
+  for (int i = 0; i < numImages; i++) {
+    // Extension: copy over data to device
+    q.ext_oneapi_copy(dataIn.data(), imgAllocations[i], desc);
+  }
+
+  // Wait for copy operations to finish
+  q.wait_and_throw();
+
+  // Create the images and return the handles
+  std::vector<sycl::ext::oneapi::experimental::unsampled_image_handle>
+      imgHandles;
+  for (int i = 0; i < numImages; i++) {
+    // Extension: create the image and return the handle
+    sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle =
+        sycl::ext::oneapi::experimental::create_image(ctxt, imgAllocations[i],
+                                                      desc);
+    imgHandles.push_back(imgHandle);
+  }
+
+  sycl::buffer outBuf{dataOut.data(), sycl::range{height, width}};
+  sycl::buffer imgHandlesBuf{imgHandles.data(), sycl::range{numImages}};
+  q.submit([&](sycl::handler &cgh) {
+    sycl::accessor outAcc{outBuf, cgh, sycl::write_only};
+    sycl::accessor imgHandleAcc{imgHandlesBuf, cgh, sycl::read_only};
+
+    cgh.parallel_for(
+        sycl::nd_range<2>{{width, height}, {width, height}},
+        [=](sycl::nd_item<2> it) {
+          size_t dim0 = it.get_local_id(0);
+          size_t dim1 = it.get_local_id(1);
+
+          // Sum each image by reading via its handle
+          float sum = 0;
+          for (int i = 0; i < numImages; i++) {
+            // Extension: read image data from handle
+            sum += (sycl::ext::oneapi::experimental::read_image<float>(
+                imgHandleAcc[i], sycl::vec<int, 2>(dim0, dim1)));
+          }
+          outAcc[sycl::id{dim1, dim0}] = sum;
+        });
+  });
+
+  // Using image handles requires manual synchronization
+  q.wait_and_throw();
+
+  // Cleanup
+  for (int i = 0; i < numImages; i++) {
+    sycl::ext::oneapi::experimental::destroy_image_handle(ctxt,
+                                                          imgHandles[i]);
+  }
+} catch (sycl::exception e) {
+  std::cerr << "SYCL exception caught: " << e.what();
+  exit(-1);
 }
 
-// Copy over data to device for each image
-for (int i = 0; i < numImages; i++) {
-  // Extension: copy over data to device
-  q.ext_image_copy(imgAllocations[i], dataIn.data(), desc);
+// Validate that `dataOut` is correct
+bool validated = (dataOut == dataExpected);
+```
+
+=== Reading a 1D mipmap with anisotropic filtering and levels
+```cpp
+// Set up device, queue, and context
+sycl::device dev;
+sycl::queue q(dev);
+sycl::context ctxt = q.get_context();
+
+// declare image data
+constexpr size_t N = 16;
+constexpr size_t width = N;
+unsigned int num_levels = 2;
+std::vector<float> out(N);
+std::vector<float> expected(N);
+std::vector<float4> dataIn1(N);
+std::vector<float4> dataIn2(N / 2);
+int j = 0;
+for (int i = 0; i < N; i++) {
+  expected[i] = i + (j + 10);
+  if (i % 2)
+    j++;
+  dataIn1[i] = float4(i, i, i, i);
+  if (i < (N / 2))
+    dataIn2[i] = float4(i + 10, i + 10, i + 10, i + 10);
 }
 
-// Wait for copy operations to finish
-q.wait();
+try {
 
-// Create the images and return the handles
-std::vector<sycl::ext::oneapi::unsampled_image_handle> imgHandles;
-for (int i = 0; i < numImages; i++) {
-  // Extension: create the image and return the handle
-  sycl::ext::oneapi::unsampled_image_handle imgHandle =
-      sycl::ext::oneapi::create_image(ctxt, imgAllocations[i], desc);
-  imgHandles.push_back(imgHandle);
+  // Image descriptor -- number of levels
+  sycl::ext::oneapi::experimental::image_descriptor desc(
+      {width}, image_channel_order::rgba, image_channel_type::fp32,
+      sycl::ext::oneapi::experimental::image_type::Mipmap, num_levels);
+
+  // Allocate the mipmap
+  sycl::ext::oneapi::experimental::image_mem mip_mem(ctxt, desc);
+
+  // Retrieve level 0
+  sycl::ext::oneapi::experimental::image_mem_handle img_mem1 =
+      sycl::ext::oneapi::experimental::get_mip_level(ctxt, mip_mem, 0);
+
+  // Copy over data to level 0
+  q.ext_oneapi_copy(dataIn1.data(), img_mem1, desc);
+
+  // Copy over data to level 1
+  // Copy function handles sizing
+  unsigned int level = 1;
+  q.ext_oneapi_copy(dataIn2.data(), mip_mem, desc, level);
+  q.wait_and_throw();
+
+  // Extended sampler object to take in mipmap attributes
+  sampler samp(coordinate_normalization_mode::normalized,
+                addressing_mode::mirrored_repeat, filtering_mode::nearest,
+                mipmap_filtering_mode::nearest, 0.0f, (float)num_levels, 8.0f);
+
+  // Create a sampled image handle to represent the mipmap
+  sycl::ext::oneapi::experimental::sampled_image_handle mipHandle =
+      sycl::ext::oneapi::experimental::create_image(ctxt, mip_mem, samp,
+                                                    desc);
+  q.wait_and_throw();
+
+  buffer<float, 1> buf((float *)out.data(), N);
+  q.submit([&](handler &cgh) {
+    auto outAcc = buf.get_access<access_mode::write>(cgh, N);
+
+    cgh.parallel_for<image_addition>(N, [=](id<1> id) {
+      float sum = 0;
+      float x = float(id[0] + 0.5) / (float)N;
+      // Read mipmap level 0 with anisotropic filtering
+      // and level 1 with level filtering
+      float4 px1 = sycl::ext::oneapi::experimental::read_image<float4>(
+          mipHandle, x, 0.0f, 0.0f);
+      float4 px2 = sycl::ext::oneapi::experimental::read_image<float4>(
+          mipHandle, x, 1.0f);
+
+      sum = px1[0] + px2[0];
+      outAcc[id] = sum;
+    });
+  });
+
+  q.wait_and_throw();
+
+  // Cleanup
+  sycl::ext::oneapi::experimental::destroy_image_handle(ctxt, mipHandle);
+
+} catch (sycl::exception e) {
+  std::cerr << "SYCL exception caught! : " << e.what() << "\n";
+  exit(-1);
+} catch (...) {
+  std::cerr << "Unknown exception caught!\n";
+  exit(-1);
 }
 
-// Cuda stores data in column-major fashion
-// SYCL deals with indexing in row-major fashion
-// Reverse output buffer dimensions and access to convert
-// the cuda column-major data back to row-major
-buffer<float, 2> buf((float *)out.data(), range<2>{height, width});
-buffer<sycl::ext::oneapi::unsampled_image_handle, 1> imgHandlesBuf(
-    imgHandles.data(), range<1>{numImages});
-q.submit([&](handler &cgh) {
-  auto outAcc =
-      buf.get_access<access_mode::write>(cgh, range<2>{height, width});
+// Validate that `out` is correct
+bool validated = (dataOut == dataExpected);
+```
 
-  auto imgHandleAcc =
-      imgHandlesBuf.get_access<access_mode::read>(cgh, range<1>{numImages});
+=== Using imported memory and semaphore objects
 
-  cgh.parallel_for<image_addition>(
-      nd_range<2>{{width, height}, {width, height}}, [=](nd_item<2> it) {
-        size_t dim0 = it.get_local_id(0);
-        size_t dim1 = it.get_local_id(1);
+```c++
+// Set up device, queue, and context
+sycl::device dev;
+sycl::queue q(dev);
+auto ctxt = q.get_context();
 
-        // Sum each image by reading their handle
-        float sum = 0;
-        for (int i = 0; i < numImages; i++) {
-          // Extension: read image data from handle
-          sum += (sycl::ext::oneapi::read_image<float4>(
-              imgHandleAcc[i], int2(dim0, dim1)))[0];
-        }
-        outAcc[id<2>{dim1, dim0}] = sum;
-      });
-});
+size_t width = /* passed from external API */;
+size_t height = /* passed from external API */;
 
-// Using image handles requires manual synchronization
-q.wait_and_throw();
+sycl::image_channel_order channel_order = /* mapped from external API */
+    /* we assume sycl::image_channel_order::rgba */;
 
-// Cleanup
-for (int i = 0; i < numImages; i++) {
-  sycl::ext::oneapi::destroy_image_handle(ctxt, imgHandles[i]);
-  sycl::ext::oneapi::free_image(ctxt, imgAllocations[i]);
+sycl::image_channel_type channel_type = /* mapped from external API */
+    /* we assume sycl::image_channel_type::unsigned_int32 */;;
+
+// Image descriptor - mapped to external API image layout
+//                    with `image_type::interop`
+sycl::ext::oneapi::experimental::image_descriptor desc(
+    {width, height}, channel_order, channel_type,
+    sycl::ext::oneapi::experimental::image_type::interop);
+
+size_t img_size_in_bytes = width * height * sizeof(sycl::vec<uint, 4>);
+
+int external_input_image_file_descriptor = /* passed from external API */
+int external_output_image_file_descriptor = /* passed from external API */
+
+// Extension: populate external memory descriptors
+sycl::ext::oneapi::experimental::external_mem_descriptor<
+    sycl::ext::oneapi::experimental::external_mem_fd>
+    input_ext_mem_desc{external_input_image_file_descriptor, 
+                       img_size_in_bytes};
+
+sycl::ext::oneapi::experimental::external_mem_descriptor<
+    sycl::ext::oneapi::experimental::external_mem_fd>
+    output_ext_mem_desc{external_output_image_file_descriptor,
+                        img_size_in_bytes};
+
+// An external API semaphore will signal this semaphore before our SYCL commands
+// can begin execution
+int wait_semaphore_file_descriptor = /* passed from external API */;
+
+// An external API will wait on this semaphore to be signalled by us before it 
+// can execute some commands
+int done_semaphore_file_descriptor = /* passed from external API */;
+
+// Extension: populate external semaphore descriptor.
+//            We assume POSIX file descriptor resource types
+sycl::ext::oneapi::experimental::external_semaphore_descriptor<
+    sycl::ext::oneapi::experimental::external_semaphore_fd>
+    wait_external_semaphore_desc{wait_semaphore_file_descriptor};
+
+sycl::ext::oneapi::experimental::external_semaphore_descriptor<
+    sycl::ext::oneapi::experimental::external_semaphore_fd>
+    done_external_semaphore_desc{done_semaphore_file_descriptor};
+
+try {
+  // Extension: import external semaphores
+  sycl::ext::oneapi::experimental::interop_semaphore_handle
+      wait_interop_semaphore_handle =
+          sycl::ext::oneapi::experimental::import_external_semaphore(
+              ctxt, wait_external_semaphore_desc);
+
+  sycl::ext::oneapi::experimental::interop_semaphore_handle
+      done_interop_semaphore_handle =
+          sycl::ext::oneapi::experimental::import_external_semaphore(
+              ctxt, done_external_semaphore_desc);
+
+  // Extension: import external memory from descriptors
+  sycl::ext::oneapi::experimental::interop_mem_handle
+      input_interop_mem_handle =
+          sycl::ext::oneapi::experimental::import_external_memory(
+              ctxt, input_ext_mem_desc);
+
+  sycl::ext::oneapi::experimental::interop_mem_handle
+      output_interop_mem_handle =
+          sycl::ext::oneapi::experimental::import_external_memory(
+              ctxt, output_ext_mem_desc);
+
+  // Extension: map imported external memory to image memory
+  sycl::ext::oneapi::experimental::image_mem_handle input_mapped_mem_handle =
+      sycl::ext::oneapi::experimental::map_external_memory_array(
+          ctxt, input_interop_mem_handle, desc);
+  sycl::ext::oneapi::experimental::image_mem_handle output_mapped_mem_handle =
+      sycl::ext::oneapi::experimental::map_external_memory_array(
+          ctxt, output_interop_mem_handle, desc);
+
+  // Extension: create images from mapped memory and return the handles
+  sycl::ext::oneapi::experimental::unsampled_image_handle img_input =
+      sycl::ext::oneapi::experimental::create_image(
+          ctxt, input_mapped_mem_handle, desc);
+  sycl::ext::oneapi::experimental::unsampled_image_handle img_output =
+      sycl::ext::oneapi::experimental::create_image(
+          ctxt, output_mapped_mem_handle, desc);
+
+  // Extension: wait for imported semaphore
+  q.ext_oneapi_wait_external_semaphore(wait_interop_semaphore_handle)
+
+  // Submit our kernel that depends on imported "wait_semaphore_file_descriptor"
+  q.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for<>(
+        sycl::nd_range<2>{{width, height}, {32, 32}},
+        [=](sycl::nd_item<2> it) {
+          size_t dim0 = it.get_global_id(0);
+          size_t dim1 = it.get_global_id(1);
+
+          // Extension: read image data from handle to imported image
+          sycl::uint4 pixel =
+              sycl::ext::oneapi::experimental::read_image<sycl::uint4>(
+                  img_input, sycl::int2(dim0, dim1));
+
+          // Modify the data before writing back
+          pixel *= 10;
+
+          // Extension: write image data using handle to imported image
+          sycl::ext::oneapi::experimental::write_image(
+              img_output, sycl::int2(dim0, dim1), pixel);
+        });
+  });
+
+  // Extension: signal imported semaphore
+  q.ext_oneapi_signal_external_semaphore(done_interop_semaphore_handle)
+
+  // The external API can now use the semaphore it exported to 
+  // "done_semaphore_file_descriptor" to schedule its own command submissions
+
+  q.wait_and_throw();  
+
+  // Extension: destroy all external resources
+  sycl::ext::oneapi::experimental::destroy_external_memory(
+      ctxt, input_interop_mem_handle);
+  sycl::ext::oneapi::experimental::destroy_external_memory(
+      ctxt, output_interop_mem_handle);
+  sycl::ext::oneapi::experimental::destroy_external_semaphore(
+      ctxt, wait_interop_semaphore_handle);
+  sycl::ext::oneapi::experimental::destroy_external_semaphore(
+      ctxt, done_interop_semaphore_handle);
+  sycl::ext::oneapi::experimental::destroy_image_handle(ctxt, img_input);
+  sycl::ext::oneapi::experimental::destroy_image_handle(ctxt, img_output);
+} catch (sycl::exception e) {
+  std::cerr << "SYCL exception caught! : " << e.what() << "\n";
+  exit(-1);
+} catch (...) {
+  std::cerr << "Unknown exception caught!\n";
+  exit(-1);
 }
 ```
 
@@ -501,16 +1759,15 @@ synchronize operations.
 
 === Limitations when using USM as image memory
 
-When USM is used as the image memory, these are the general limitations:
-
-* Not possible to write images, just read.
-
-Then there are dimension specific limitations:
+There are dimension specific limitations:
 
 * 1D - Linear interpolation not possible in the CUDA backend.
-  A workaround is to allocate 2D pitched memory with a height of 1.
-* 2D - Only works with `pitched_alloc_device`.
-* 3D - No support at the moment.
+       A workaround is to allocate 2D pitched memory with a height of 1.
+* 2D - There are some alignment restrictions. See the "Pitch alignment 
+       restrictions and queries" section, or use `pitched_alloc_device` to 
+       allocate 2D USM image memory.
+* 3D - No support at the moment. Possible support in non CUDA backends in the 
+       future. A query is present to check 3D USM capabilities
 
 === Not supported yet
 
@@ -518,7 +1775,6 @@ These features still need to be handled:
 
 * Level Zero and SPIR-V support
 * Mipmapping
-* Interop with various backends
 * etc.
 
 == Revision History
@@ -537,5 +1793,34 @@ These features still need to be handled:
 
                  - Added image memory information getters to reflect 
                    `cuArray3DGetDescriptor` functionality
-|======================
+|3 |2023-03-30 | - Some text clarifications.
 
+                 - Unsampled images can no longer be created from USM.
+                 
+                 - Added SYCL 1.2.1 `image_channel_order` and 
+                   `image_channel_type` structs.
+
+                 - Added `image_type` to enable construction of layered, 
+                   mipmap, and cubemap images in the future.
+
+                 - Added device information descriptors for querying pitched 
+                   allocation size and alignment requirement.
+
+                 - Added `ext_oneapi_copy` methods for the `sycl::handler`.
+
+                 - `ext_oneapi_copy` functions now take the `Src` as the first 
+                   parameter.
+
+                 - Created `image_mem` as a RAII style class.
+                
+                 - Renamed `allocate_image` to `alloc_image_mem`
+                 
+                 - `pitched_alloc_device` can now take an `image_descriptor`.
+
+                 - Added interoperability features
+
+                 - Added support to query bindless image and interoperability 
+                   capabilities
+
+                 - Added mipmap support
+|======================
