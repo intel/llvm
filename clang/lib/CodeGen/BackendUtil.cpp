@@ -1004,8 +1004,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     if (CodeGenOpts.DisableSYCLEarlyOpts) {
       MPM =
           PB.buildO0DefaultPipeline(OptimizationLevel::O0, IsLTO || IsThinLTO);
-    } else if (CodeGenOpts.OptimizationLevel == 0) {
-      MPM = PB.buildO0DefaultPipeline(Level, IsLTO || IsThinLTO);
     } else if (IsThinLTO) {
       MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
     } else if (IsLTO) {
