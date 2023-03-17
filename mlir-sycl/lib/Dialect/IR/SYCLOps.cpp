@@ -161,6 +161,23 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
       });
 }
 
+void SYCLConstructorOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  // NOTE: This definition assumes only the first (`this`) argument is written
+  // to. This is true for constructors run in the device, but not necessarily
+  // true for constructors run in host code.
+  auto *defaultResource = SideEffects::DefaultResource::get();
+  // The `this` argument will always be written to
+  effects.emplace_back(MemoryEffects::Write::get(), getDst(), defaultResource);
+  // The rest of the arguments will be scalar or read from
+  for (auto value : getArgs()) {
+    if (isa<MemRefType, LLVM::LLVMPointerType>(value.getType())) {
+      effects.emplace_back(MemoryEffects::Read::get(), value, defaultResource);
+    }
+  }
+}
+
 #include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.cpp.inc"
 
 #define GET_OP_CLASSES
