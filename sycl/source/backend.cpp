@@ -105,7 +105,11 @@ queue make_queue_impl2(pi_native_handle NativeHandle, const context &Context,
   // Create PI properties from SYCL properties.
   RT::PiQueueProperties Properties[] = {
       PI_QUEUE_FLAGS,
-      queue_impl::createPiQueueProperties(PropList, QueueOrder::OOO), 0, 0, 0};
+      queue_impl::createPiQueueProperties(
+          PropList, PropList.has_property<property::queue::in_order>()
+                        ? QueueOrder::Ordered
+                        : QueueOrder::OOO),
+      0, 0, 0};
 
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
@@ -131,12 +135,12 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
   }
 }
 
-__SYCL_EXPORT queue make_queue_standard_or_immediate(
-    std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
-        NativeHandle,
-    const context &Context, const device *Device, bool KeepOwnership,
-    const property_list &PropList, const async_handler &Handler,
-    backend Backend) {
+__SYCL_EXPORT queue
+make_queue2(std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+                NativeHandle,
+            const context &Context, const device *Device, bool KeepOwnership,
+            const property_list &PropList, const async_handler &Handler,
+            backend Backend) {
   bool IsImmCmdList =
       std::holds_alternative<ze_command_list_handle_t>(NativeHandle);
   pi_native_handle Handle =

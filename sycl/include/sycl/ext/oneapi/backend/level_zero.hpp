@@ -31,11 +31,11 @@ __SYCL_EXPORT queue make_queue(const context &Context,
 __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
-__SYCL_EXPORT queue make_queue_standard_or_immediate(
-    const context &Context, const device &Device,
-    std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
-        InteropHandle,
-    bool keep_ownership, const property_list &Properties);
+__SYCL_EXPORT queue
+make_queue2(const context &Context, const device &Device,
+            std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+                InteropHandle,
+            bool keep_ownership, const property_list &Properties);
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
@@ -125,7 +125,7 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
     const context &TargetContext, const async_handler Handler) {
   (void)Handler;
   const device Device = device{BackendObject.Device};
-  return ext::oneapi::level_zero::make_queue_standard_or_immediate(
+  return ext::oneapi::level_zero::make_queue2(
       TargetContext, Device, BackendObject.NativeHandle,
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
       BackendObject.Properties);

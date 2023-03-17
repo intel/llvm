@@ -2930,11 +2930,7 @@ pi_result piextQueueCreateWithNativeHandle2(
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  zePrint("piextQueueCreateWithNativeHandle(NativeHandle=%p, Context=%p, "
-          "Device=%p, UseImmCmdList=%d, OwnNativeHandle=%d, Queue=%p\n",
-          NativeHandle, Context, Device, UseImmCmdList, OwnNativeHandle, Queue);
   if (UseImmCmdList) {
-    zePrint("piextQueueCreateWithNativeHandle using immediate commandlists\n");
     std::vector<ze_command_queue_handle_t> ComputeQueues{nullptr};
     std::vector<ze_command_queue_handle_t> CopyQueues;
 
@@ -2943,7 +2939,6 @@ pi_result piextQueueCreateWithNativeHandle2(
     auto &InitialGroup = (*Queue)->ComputeQueueGroupsByTID.begin()->second;
     InitialGroup.setImmCmdList(pi_cast<ze_command_list_handle_t>(NativeHandle));
   } else {
-    zePrint("piextQueueCreateWithNativeHandle using standard commandlists\n");
     auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
     // Assume this is the "0" index queue in the compute command-group.
     std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
