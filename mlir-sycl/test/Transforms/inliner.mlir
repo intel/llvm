@@ -1,6 +1,6 @@
 // RUN: sycl-mlir-opt -split-input-file -inliner="mode=alwaysinline remove-dead-callees=false" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=ALWAYS-INLINE %s
-// RUN: sycl-mlir-opt -split-input-file -inliner="mode=simple remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=INLINE --check-prefix=CHECK-ALL %s
-// RUN: sycl-mlir-opt -split-input-file -inliner="mode=aggressive remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=AGGRESSIVE --check-prefix=CHECK-ALL %s
+// RUN: sycl-mlir-opt -split-input-file -inliner="mode=simple remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=INLINE,CHECK-ALL %s
+// RUN: sycl-mlir-opt -split-input-file -inliner="mode=aggressive remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=AGGRESSIVE,CHECK-ALL %s
 
 // COM: Ensure a func.func can be inlined in a func.func caller iff the callee is 'alwaysinline'.
 // COM: Ensure a gpu.func cannot be inlined in a func.func caller (even if it has the 'alwaysinline' attribute).
