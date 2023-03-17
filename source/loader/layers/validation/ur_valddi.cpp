@@ -367,13 +367,14 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
 __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
     ur_device_handle_t
         hDevice, ///< [in] handle of the device to select binary for.
-    const uint8_t **ppBinaries, ///< [in] the array of binaries to select from.
+    const ur_device_binary_t
+        *pBinaries,       ///< [in] the array of binaries to select from.
     uint32_t NumBinaries, ///< [in] the number of binaries passed in ppBinaries.
                           ///< Must greater than or equal to zero otherwise
                           ///< ::UR_RESULT_ERROR_INVALID_VALUE is returned.
     uint32_t *
         pSelectedBinary ///< [out] the index of the selected binary in the input array of binaries.
-    ///< If a suitable binary was not found the function returns ${X}_INVALID_BINARY.
+    ///< If a suitable binary was not found the function returns ::UR_RESULT_ERROR_INVALID_BINARY.
 ) {
     auto pfnSelectBinary = context.urDdiTable.Device.pfnSelectBinary;
 
@@ -386,16 +387,20 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == ppBinaries) {
+        if (NULL == pBinaries) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
         if (NULL == pSelectedBinary) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (NumBinaries == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
     }
 
-    return pfnSelectBinary(hDevice, ppBinaries, NumBinaries, pSelectedBinary);
+    return pfnSelectBinary(hDevice, pBinaries, NumBinaries, pSelectedBinary);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
