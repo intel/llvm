@@ -32,6 +32,7 @@ def InlinePass : Pass<"inliner"> {
     Option<"MaxIterationCount", "max-num-iters", "unsigned", /*default=*/"3",
            "Maximum number of inlining iterations for each SCC">,
   ];
+  let dependentDialects = ["memref::MemRefDialect"];
 
   let statistics = [
     Statistic<"NumInlinedCalls", "num-inlined-calls", "Number of inlined calls">
@@ -44,8 +45,7 @@ def SYCLMethodToSYCLCall : Pass<"sycl-method-to-sycl-call", "ModuleOp"> {
     Replace SYCLMethodOpInterface instances by SYCLCallOps.
   }];
   let constructor = "mlir::sycl::createSYCLMethodToSYCLCallPass()";
-  let dependentDialects =
-    ["memref::MemRefDialect", "LLVM::LLVMDialect", "polygeist::PolygeistDialect"];
+  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 #endif // MLIR_DIALECT_SYCL_TRANSFORMS_PASSES
