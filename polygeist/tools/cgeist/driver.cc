@@ -327,9 +327,6 @@ static int canonicalize(mlir::MLIRContext &Ctx,
       addFunctionPass(createAffineScalarReplacementPass);
   }
 
-  // ETTORE
-  PM.addPass(polygeist::createArgumentPromotionPass());
-
   if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Canonicalization failed. Module: ***\n";
     Module->dump();
@@ -364,6 +361,8 @@ static int optimize(mlir::MLIRContext &Ctx,
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
   if (OptLevel != llvm::OptimizationLevel::O0) {
+    PM.addPass(polygeist::createArgumentPromotionPass());
+    
     if (DetectReduction)
       OptPM.addPass(polygeist::detectReductionPass());
 
