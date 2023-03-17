@@ -125,7 +125,7 @@ sycl::ext::oneapi::experimental::property::command_graph::perform_fusion
 ```
 
 The property is not prescriptive. Implementations are free to not perform fusion
-if it is not possible (see below section <<_limitations>>), fusion is not
+if it is not possible (see below section <<limitations, Limitations>>), fusion is not
 supported by the implementation, or the implementation decides not to perform
 fusion for other reasons. It is not an error if an implementation does not
 perform fusion even though the property is passed. 
@@ -155,7 +155,7 @@ property is also part of the `property_list` of the same invocation of
 
 The following property can be passed to three different APIs, namely:
 
-* The `accessor` constructor, giving a more granular control
+* The `accessor` constructor, giving a more granular control.
 * The `buffer` constructor, in which case all the `accessors` derived from 
 this buffer will inherit this property (unless overridden).
 * The `property_list` parameter of `sycl::malloc_device()`,
@@ -192,7 +192,7 @@ implementation-specified mechanism, but are not required to do so.
 
 The following property can be passed to three different APIs, namely:
 
-* The `accessor` constructor, giving a more granular control
+* The `accessor` constructor, giving a more granular control.
 * The `buffer` constructor, in which case all the `accessors` derived from 
 this buffer will inherit this property (unless overridden).
 * The `property_list` parameter of `sycl::malloc_device()`,
