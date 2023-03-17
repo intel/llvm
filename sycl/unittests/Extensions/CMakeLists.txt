@@ -8,5 +8,6 @@ add_sycl_unittest(ExtensionsTests OBJECT
   USMMemcpy2D.cpp
   DeviceGlobal.cpp
   OneAPISubGroupMask.cpp
+  USMP2P.cpp
 )
 

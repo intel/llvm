@@ -5551,9 +5551,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piTearDown, hip_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
   // Peer to Peer
-  _PI_CL(piextEnablePeer, hip_piextEnablePeer)
-  _PI_CL(piextDisablePeer, hip_piextDisablePeer)
-  _PI_CL(piextCanAccessPeer, hip_piextCanAccessPeer)
+  _PI_CL(piextEnablePeerAccess, hip_piextEnablePeerAccess)
+  _PI_CL(piextDisablePeerAccess, hip_piextDisablePeerAccess)
+  _PI_CL(piextPeerAccessGetInfo, hip_piextPeerAccessGetInfo)
 
 #undef _PI_CL
 
