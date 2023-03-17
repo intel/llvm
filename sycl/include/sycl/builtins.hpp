@@ -206,14 +206,16 @@ inline __SYCL_ALWAYS_INLINE
   }
 
 __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD(fmax)
+    // clang-format off
 __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD(fmin)
 
 #undef __SYCL_MATH_FUNCTION_2_SGENFLOAT_Y_OVERLOAD
 
-        template <typename T, size_t N>
-        inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>> ldexp(
-        marray<T, N> x, marray<int, N> k) __NOEXC {
+template <typename T, size_t N>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<detail::is_sgenfloat<T>::value, marray<T, N>>
+    ldexp(marray<T, N> x, marray<int, N> k) __NOEXC {
+  // clang-format on
   marray<T, N> res;
   for (size_t i = 0; i < N; i++) {
     res[i] = __sycl_std::__invoke_ldexp<T>(x[i], k[i]);
