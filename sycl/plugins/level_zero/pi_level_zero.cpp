@@ -3387,12 +3387,12 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_SUCCESS;
 }
 
-pi_result piextImgCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                         pi_context Context,
-                                         bool OwnNativeHandle,
-                                         const pi_image_format *ImageFormat,
-                                         const pi_image_desc *ImageDesc,
-                                         pi_mem *RetImage) {
+pi_result piextMemImgCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                            pi_context Context,
+                                            bool OwnNativeHandle,
+                                            const pi_image_format *ImageFormat,
+                                            const pi_image_desc *ImageDesc,
+                                            pi_mem *RetImage) {
 
   PI_ASSERT(RetImage, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);

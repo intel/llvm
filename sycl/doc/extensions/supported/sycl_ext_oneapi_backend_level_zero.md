@@ -420,7 +420,7 @@ The additional <code>AvailableEvent</code> argument must be a valid SYCL event. 
 make_image(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           image<Dimensions, AllocatorT>> &,
-    const context &Context, event AvailableEvent = {})
+    const context &Context)
 ```
 </td>
 <td>This API is available starting with revision 4 of this specification.
@@ -440,20 +440,38 @@ struct type {
 ```
 where the Range should be ordered (width), (width, height), or (width, height, depth) for 1D, 2D and 3D images respectively, 
 with those values matching the dimensions used in the `ze_image_desc` that was used to create the `ze_image_handle_t` initially. 
+Note that the range term ordering (width first, depth last) is true for SYCL 1.2.1 images that are supported here. But future classes like
+sampled_image and unsampled_image might have a different ordering.
 
 Example Usage
 ``` C++
 sycl::backend_input_t<BE, sycl::image<2>> ImageInteropInput{ ZeHImage, ChanOrder, ChanType, ImgRange_2D, sycl::ext::oneapi::level_zero::ownership::transfer };      
     
-auto Image_2D  = sycl::make_image<BE, 2>(ImageInteropInput, Context);
+sycl::image<2> Image_2D  = sycl::make_image<BE, 2>(ImageInteropInput, Context);
 ```
 
  The input SYCL context <code>Context</code> must be associated with a single device, matching the device used to create the Level Zero image handle.
-The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero image must have been created on the same context.
-The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to free the input Level-Zero memory allocation. 
-Synchronization rules with this API are described in Section 4.5</td>
+The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero image must have been created on the same context. The created SYCL image can only be accessed from kernels that are submitted to a queue using this same context.
+The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the SYCL runtime is going to free the input Level-Zero memory allocation, meaning the memory will be freed when the ~image destructor fires.  If the behavior is "keep", then the memory will not be freed by the ~image destructor, and it is the responsibility of the caller to free the memory appropriately. 
+</td>
+</tr>
 
+<tr>
+<td>
 
+``` C++
+make_image(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          image<Dimensions, AllocatorT>> &,
+    const context &Context, event AvailableEvent)
+```
+</td>
+<td>This API is available starting with revision 4 of this specification.
+
+Construct a SYCL image instance from a pointer to a Level Zero memory allocation. Please refer to <code>make_image</code>
+description above for semantics and restrictions.
+The additional <code>AvailableEvent</code> argument must be a valid SYCL event. The instance of the SYCL image class template being constructed must wait for the SYCL event parameter to signal that the memory native handle is ready to be used.
+</td>
 </tr>
 </table>
 

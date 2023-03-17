@@ -1297,9 +1297,9 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_context, bool,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextImgCreateWithNativeHandle(pi_native_handle, pi_context, bool,
-                                         const pi_image_format *,
-                                         const pi_image_desc *, pi_mem *) {
+pi_result piextMemImgCreateWithNativeHandle(pi_native_handle, pi_context, bool,
+                                            const pi_image_format *,
+                                            const pi_image_desc *, pi_mem *) {
   DIE_NO_IMPLEMENTATION;
 }
 

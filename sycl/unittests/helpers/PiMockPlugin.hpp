@@ -476,7 +476,7 @@ mock_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piextImgCreateWithNativeHandle(
+inline pi_result mock_piextMemImgCreateWithNativeHandle(
     pi_native_handle NativeHandle, pi_context Context, bool OwnNativeHandle,
     const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
     pi_mem *RetImage) {

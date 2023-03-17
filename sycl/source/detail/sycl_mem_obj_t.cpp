@@ -104,7 +104,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
   Desc.num_samples = 0;
   Desc.buffer = nullptr;
 
-  Plugin.call<detail::PiApiKind::piextImgCreateWithNativeHandle>(
+  Plugin.call<detail::PiApiKind::piextMemImgCreateWithNativeHandle>(
       MemObject, MInteropContext->getHandleRef(), OwnNativeHandle, &Format,
       &Desc, &MInteropMemObject);
 

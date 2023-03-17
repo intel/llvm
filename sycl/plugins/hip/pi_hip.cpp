@@ -2395,12 +2395,10 @@ pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
-pi_result hip_piextImgCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                             pi_context context,
-                                             bool ownNativeHandle,
-                                             const pi_image_format *ImageFormat,
-                                             const pi_image_desc *ImageDesc,
-                                             pi_mem *mem) {
+pi_result hip_piextMemImgCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *mem) {
   (void)nativeHandle;
   (void)context;
   (void)ownNativeHandle;
