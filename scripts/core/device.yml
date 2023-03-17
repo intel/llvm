@@ -11,6 +11,73 @@ type: header
 desc: "Intel $OneApi Unified Runtime APIs for Device"
 ordinal: "2"
 --- #--------------------------------------------------------------------------
+type: macro
+desc: |
+      Target identification strings for $x_device_binary_t.pDeviceTargetSpec 
+      A device type represented by a particular target triple requires specific 
+      binary images. We need to map the image type onto the device target triple
+name: "$X_DEVICE_BINARY_TARGET_UNKNOWN"
+value: "\"<unknown>\""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: |
+     SPIR-V 32-bit image <-> "spir", 32-bit OpenCL device
+name: "$X_DEVICE_BINARY_TARGET_SPIRV32"
+value: "\"spir\""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: |
+      SPIR-V 64-bit image <-> "spir64", 64-bit OpenCL device
+name: "$X_DEVICE_BINARY_TARGET_SPIRV64"
+value: "\"spir64\""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: |
+      Device-specific binary images produced from SPIR-V 64-bit <-> various 
+      "spir64_*" triples for specific 64-bit OpenCL CPU devices
+name: "$X_DEVICE_BINARY_TARGET_SPIRV64_X86_64"
+value: "\"spir64_x86_64\""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Generic GPU device (64-bit OpenCL)"
+name: "$X_DEVICE_BINARY_TARGET_SPIRV64_GEN"
+value: "\"spir64_gen\""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "64-bit OpenCL FPGA device"
+name: "$X_DEVICE_BINARY_TARGET_SPIRV64_FPGA"
+value: "\"spir64_fpga\""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: |
+      PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
+name: "$X_DEVICE_BINARY_TARGET_NVPTX64"
+value: "\"nvptx64\""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "AMD GCN"
+name: "$X_DEVICE_BINARY_TARGET_AMDGCN"
+value: "\"amdgcn\""
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Device Binary Type"
+name: $x_device_binary_t
+base: $x_base_desc_t
+members:
+    - type: const char*
+      name: pDeviceTargetSpec
+      desc: |
+            [in] null-terminated string representation of the device's target architecture.
+            For example: 
+            + $X_DEVICE_BINARY_TARGET_UNKNOWN
+            + $X_DEVICE_BINARY_TARGET_SPIRV32
+            + $X_DEVICE_BINARY_TARGET_SPIRV64
+            + $X_DEVICE_BINARY_TARGET_SPIRV64_X86_64
+            + $X_DEVICE_BINARY_TARGET_SPIRV64_GEN
+            + $X_DEVICE_BINARY_TARGET_SPIRV64_FPGA
+            + $X_DEVICE_BINARY_TARGET_NVPTX64
+            + $X_DEVICE_BINARY_TARGET_AMDGCN
+--- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported device types"
 class: $xDevice
@@ -440,8 +507,8 @@ params:
       name: hDevice
       desc: |
             [in] handle of the device to select binary for.
-    - type: "const uint8_t**"
-      name: ppBinaries
+    - type: "const $x_device_binary_t*"
+      name: pBinaries
       desc: |
             [in] the array of binaries to select from.
     - type: "uint32_t"
@@ -453,9 +520,10 @@ params:
       name: pSelectedBinary
       desc: |
             [out] the index of the selected binary in the input array of binaries.
-            If a suitable binary was not found the function returns ${X}_INVALID_BINARY.
+            If a suitable binary was not found the function returns $X_RESULT_ERROR_INVALID_BINARY.
 returns:
-    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`NumBinaries == 0`"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "FP capabilities"
