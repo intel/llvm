@@ -1385,20 +1385,21 @@ typedef enum ur_mem_info_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image channel order info: number of channels and the channel layout
 typedef enum ur_image_channel_order_t {
-    UR_IMAGE_CHANNEL_ORDER_A = 0,         ///< channel order A
-    UR_IMAGE_CHANNEL_ORDER_R = 1,         ///< channel order R
-    UR_IMAGE_CHANNEL_ORDER_RG = 2,        ///< channel order RG
-    UR_IMAGE_CHANNEL_ORDER_RA = 3,        ///< channel order RA
-    UR_IMAGE_CHANNEL_ORDER_RGB = 4,       ///< channel order RGB
-    UR_IMAGE_CHANNEL_ORDER_RGBA = 5,      ///< channel order RGBA
-    UR_IMAGE_CHANNEL_ORDER_BGRA = 6,      ///< channel order BGRA
-    UR_IMAGE_CHANNEL_ORDER_ARGB = 7,      ///< channel order ARGB
-    UR_IMAGE_CHANNEL_ORDER_INTENSITY = 8, ///< channel order intensity
-    UR_IMAGE_CHANNEL_ORDER_LUMINANCE = 9, ///< channel order luminance
-    UR_IMAGE_CHANNEL_ORDER_RX = 10,       ///< channel order Rx
-    UR_IMAGE_CHANNEL_ORDER_RGX = 11,      ///< channel order RGx
-    UR_IMAGE_CHANNEL_ORDER_RGBX = 12,     ///< channel order RGBx
-    UR_IMAGE_CHANNEL_ORDER_SRGBA = 13,    ///< channel order sRGBA
+    UR_IMAGE_CHANNEL_ORDER_A = 0,          ///< channel order A
+    UR_IMAGE_CHANNEL_ORDER_R = 1,          ///< channel order R
+    UR_IMAGE_CHANNEL_ORDER_RG = 2,         ///< channel order RG
+    UR_IMAGE_CHANNEL_ORDER_RA = 3,         ///< channel order RA
+    UR_IMAGE_CHANNEL_ORDER_RGB = 4,        ///< channel order RGB
+    UR_IMAGE_CHANNEL_ORDER_RGBA = 5,       ///< channel order RGBA
+    UR_IMAGE_CHANNEL_ORDER_BGRA = 6,       ///< channel order BGRA
+    UR_IMAGE_CHANNEL_ORDER_ARGB = 7,       ///< channel order ARGB
+    UR_IMAGE_CHANNEL_ORDER_ABGR = 8,       ///< channel order ABGR
+    UR_IMAGE_CHANNEL_ORDER_INTENSITY = 9,  ///< channel order intensity
+    UR_IMAGE_CHANNEL_ORDER_LUMINANCE = 10, ///< channel order luminance
+    UR_IMAGE_CHANNEL_ORDER_RX = 11,        ///< channel order Rx
+    UR_IMAGE_CHANNEL_ORDER_RGX = 12,       ///< channel order RGx
+    UR_IMAGE_CHANNEL_ORDER_RGBX = 13,      ///< channel order RGBx
+    UR_IMAGE_CHANNEL_ORDER_SRGBA = 14,     ///< channel order sRGBA
     /// @cond
     UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32 = 0x7fffffff
     /// @endcond
