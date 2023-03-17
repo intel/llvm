@@ -199,7 +199,9 @@ LogicalResult ConstantOp::verify() {
   return success();
 }
 
-OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) { return getValueAttr(); }
+OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) {
+  return getValueAttr();
+}
 
 void ConstantOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
@@ -308,11 +310,8 @@ FuncOp FuncOp::clone(IRMapping &mapper) {
     SmallVector<Type, 4> newInputs;
     newInputs.reserve(oldNumArgs);
     for (unsigned i = 0; i != oldNumArgs; ++i)
-      if (!mapper.contains(getArgument(i))) {
-        llvm::errs() << "ETTORE: mapping arg " << i << ": " << getArgument(i)
-                     << "\n";
+      if (!mapper.contains(getArgument(i)))
         newInputs.push_back(oldType.getInput(i));
-      }
 
     /// If any of the arguments were dropped, update the type and drop any
     /// necessary argument attributes.
