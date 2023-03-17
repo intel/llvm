@@ -174,11 +174,12 @@ struct SubIndexOpLowering : public BaseSubIndexOpLowering {
 
     // Handle the general (non-SYCL) case first.
     if (convViewElemType ==
-        prev.getType().cast<LLVM::LLVMPointerType>().getElementType()) {
+        transformed.getSource().getType().cast<MemRefType>().getElementType()) {
       auto memRefDesc = createMemRefDescriptor(
           loc, viewMemRefType, targetMemRef.allocatedPtr(rewriter, loc),
-          rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs), sizes,
-          strides, rewriter);
+          rewriter.create<LLVM::GEPOp>(loc, prev.getType(), convViewElemType,
+                                       prev, idxs),
+          sizes, strides, rewriter);
 
       rewriter.replaceOp(subViewOp, {memRefDesc});
       return success();
@@ -187,6 +188,7 @@ struct SubIndexOpLowering : public BaseSubIndexOpLowering {
            "Expecting struct type");
 
     // SYCL case
+    // TODO(Lukas): Opaque pointer handling for SYCL case
     assert(sourceMemRefType.getRank() == viewMemRefType.getRank() &&
            "Expecting the input and output MemRef ranks to be the same");
 
@@ -200,8 +202,9 @@ struct SubIndexOpLowering : public BaseSubIndexOpLowering {
     // polygeist.subindex operation should be a memref of the element type of
     // the struct.
     auto elemPtrTy = LLVM::LLVMPointerType::get(
-        convViewElemType, viewMemRefType.getMemorySpaceAsInt());
-    auto gep = rewriter.create<LLVM::GEPOp>(loc, elemPtrTy, prev, indices);
+        convViewElemType.getContext(), viewMemRefType.getMemorySpaceAsInt());
+    auto gep = rewriter.create<LLVM::GEPOp>(loc, elemPtrTy, convViewElemType,
+                                            prev, indices);
     auto memRefDesc = createMemRefDescriptor(loc, viewMemRefType, gep, gep,
                                              sizes, strides, rewriter);
     LLVM_DEBUG(llvm::dbgs() << "SubIndexOpLowering: gep: " << *gep << "\n");
@@ -256,15 +259,16 @@ struct SubIndexBarePtrOpLowering : public BaseSubIndexOpLowering {
     Type resType = getTypeConverter()->convertType(subViewOp.getType());
 
     // Handle the general (non-SYCL) case first.
-    if (convViewElemType ==
-        target.getType().cast<LLVM::LLVMPointerType>().getElementType()) {
-      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(subViewOp, resType, target, idx);
+    if (convViewElemType == convSourceElemType) {
+      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(subViewOp, resType,
+                                               convViewElemType, target, idx);
       return success();
     }
     assert(convSourceElemType.isa<LLVM::LLVMStructType>() &&
            "Expecting struct type");
 
     // SYCL case
+    // TODO(Lukas): Opaque pointer handling for SYCL case
     assert(sourceMemRefType.getRank() == viewMemRefType.getRank() &&
            "Expecting the input and output MemRef ranks to be the same");
 
@@ -278,8 +282,8 @@ struct SubIndexBarePtrOpLowering : public BaseSubIndexOpLowering {
     // polygeist.subindex operation should be a memref of the element type of
     // the struct.
 
-    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(subViewOp, resType, target,
-                                             indices);
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(subViewOp, resType,
+                                             convViewElemType, target, indices);
 
     return success();
   }
@@ -303,12 +307,14 @@ struct Memref2PointerOpLowering
     Value baseOffset = targetMemRef.offset(rewriter, loc);
     Value ptr = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {baseOffset};
-    ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), ptr, idxs);
+    ptr = rewriter.create<LLVM::GEPOp>(
+        loc, ptr.getType(),
+        transformed.getSource().getType().cast<MemRefType>().getElementType(),
+        ptr, idxs);
     assert(ptr.getType().cast<LLVM::LLVMPointerType>().getAddressSpace() ==
                op.getType().getAddressSpace() &&
            "Expecting Memref2PointerOp source and result types to have the "
            "same address space");
-    ptr = rewriter.create<LLVM::BitcastOp>(loc, op.getType(), ptr);
 
     rewriter.replaceOp(op, {ptr});
     return success();
@@ -335,8 +341,7 @@ struct Pointer2MemrefOpLowering
                op.getType().cast<MemRefType>().getMemorySpaceAsInt() &&
            "Expecting Pointer2MemrefOp source and result types to have the "
            "same address space");
-    auto ptr = rewriter.create<LLVM::BitcastOp>(
-        op.getLoc(), descr.getElementPtrType(), adaptor.getSource());
+    auto ptr = adaptor.getSource();
 
     // Extract all strides and offsets and verify they are static.
     int64_t offset;
@@ -396,6 +401,7 @@ struct BareMemref2PointerOpLowering
       return failure();
 
     const auto target = transformed.getSource();
+    // TODO(Lukas): Can we eliminate this bitcast?
     rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, op.getType(), target);
 
     return success();
@@ -416,6 +422,7 @@ struct BarePointer2MemrefOpLowering
     const auto convertedType = getTypeConverter()->convertType(op.getType());
     if (!convertedType)
       return failure();
+    // TODO(Lukas): CAn we eliminate this bitcast?
     rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, convertedType,
                                                  adaptor.getSource());
     return success();
@@ -579,14 +586,11 @@ static LLVM::LLVMFuncOp addMocCUDAFunction(ModuleOp module, Type streamTy) {
   }
 
   auto voidTy = LLVM::LLVMVoidType::get(ctx);
-  auto i8Ptr = LLVM::LLVMPointerType::get(IntegerType::get(ctx, 8));
+  auto i8Ptr = LLVM::LLVMPointerType::get(ctx);
 
   auto resumeOp = moduleBuilder.create<LLVM::LLVMFuncOp>(
       fname, LLVM::LLVMFunctionType::get(
-                 voidTy, {i8Ptr,
-                          LLVM::LLVMPointerType::get(
-                              LLVM::LLVMFunctionType::get(voidTy, {i8Ptr})),
-                          streamTy}));
+                 voidTy, {i8Ptr, LLVM::LLVMPointerType::get(ctx), streamTy}));
   resumeOp.setPrivate();
 
   return resumeOp;
@@ -604,7 +608,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
     Location loc = execute.getLoc();
 
     auto voidTy = LLVM::LLVMVoidType::get(ctx);
-    Type voidPtr = LLVM::LLVMPointerType::get(IntegerType::get(ctx, 8));
+    Type voidPtr = LLVM::LLVMPointerType::get(ctx);
 
     // Make sure that all constants will be inside the outlined async function
     // to reduce the number of function arguments.
@@ -668,11 +672,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
       } else if (functionInputs.size() == 1 &&
                  converter->convertType(functionInputs[0].getType())
                      .isa<LLVM::LLVMPointerType>()) {
-        valueMapping.map(
-            functionInputs[0],
-            rewriter.create<LLVM::BitcastOp>(
-                execute.getLoc(),
-                converter->convertType(functionInputs[0].getType()), arg));
+        valueMapping.map(functionInputs[0], arg);
       } else if (functionInputs.size() == 1 &&
                  converter->convertType(functionInputs[0].getType())
                      .isa<IntegerType>()) {
@@ -685,20 +685,18 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
         SmallVector<Type> types;
         for (auto v : functionInputs)
           types.push_back(converter->convertType(v.getType()));
-        auto ST = LLVM::LLVMStructType::getLiteral(ctx, types);
-        auto alloc = rewriter.create<LLVM::BitcastOp>(
-            execute.getLoc(), LLVM::LLVMPointerType::get(ST), arg);
+
         for (auto idx : llvm::enumerate(functionInputs)) {
 
           mlir::Value idxs[] = {
               rewriter.create<arith::ConstantIntOp>(loc, 0, 32),
               rewriter.create<arith::ConstantIntOp>(loc, idx.index(), 32),
           };
+          auto nextTy = types[idx.index()];
           Value next = rewriter.create<LLVM::GEPOp>(
-              loc, LLVM::LLVMPointerType::get(idx.value().getType()), alloc,
-              idxs);
+              loc, LLVM::LLVMPointerType::get(ctx), nextTy, arg, idxs);
           valueMapping.map(idx.value(),
-                           rewriter.create<LLVM::LoadOp>(loc, next));
+                           rewriter.create<LLVM::LoadOp>(loc, nextTy, next));
         }
         auto freef = getFreeFn(*getTypeConverter(), module);
         Value args[] = {arg};
@@ -729,8 +727,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
       } else if (crossing.size() == 1 &&
                  converter->convertType(crossing[0].getType())
                      .isa<LLVM::LLVMPointerType>()) {
-        vals.push_back(rewriter.create<LLVM::BitcastOp>(execute.getLoc(),
-                                                        voidPtr, crossing[0]));
+        vals.push_back(crossing[0]);
       } else if (crossing.size() == 1 &&
                  converter->convertType(crossing[0].getType())
                      .isa<IntegerType>()) {
@@ -748,10 +745,8 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
             loc, rewriter.getI64Type(),
             rewriter.create<polygeist::TypeSizeOp>(loc, rewriter.getIndexType(),
                                                    ST))};
-        mlir::Value alloc = rewriter.create<LLVM::BitcastOp>(
-            loc, LLVM::LLVMPointerType::get(ST),
-            rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args)
-                .getResult());
+        mlir::Value alloc =
+            rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args).getResult();
         rewriter.setInsertionPoint(execute);
         for (auto idx : llvm::enumerate(crossing)) {
 
@@ -759,13 +754,12 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
               rewriter.create<arith::ConstantIntOp>(loc, 0, 32),
               rewriter.create<arith::ConstantIntOp>(loc, idx.index(), 32),
           };
-          Value next = rewriter.create<LLVM::GEPOp>(
-              loc, LLVM::LLVMPointerType::get(idx.value().getType()), alloc,
-              idxs);
+          Value next =
+              rewriter.create<LLVM::GEPOp>(loc, LLVM::LLVMPointerType::get(ctx),
+                                           idx.value().getType(), alloc, idxs);
           rewriter.create<LLVM::StoreOp>(loc, idx.value(), next);
         }
-        vals.push_back(
-            rewriter.create<LLVM::BitcastOp>(execute.getLoc(), voidPtr, alloc));
+        vals.push_back(alloc);
       }
       vals.push_back(
           rewriter.create<LLVM::AddressOfOp>(execute.getLoc(), func));
@@ -922,6 +916,7 @@ struct ConvertPolygeistToLLVMPass
     LowerToLLVMOptions options(&getContext(),
                                dataLayoutAnalysis.getAtOrAbove(m));
     options.useBarePtrCallConv = true;
+    options.useOpaquePointers = true;
     if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
       options.overrideIndexBitwidth(indexBitwidth);
 
@@ -931,7 +926,6 @@ struct ConvertPolygeistToLLVMPass
 
       LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
       RewritePatternSet patterns(&getContext());
-
       // Keep these at the top; these should be run before the rest of
       // function conversion patterns.
       populateReturnOpTypeConversionPattern(patterns, converter);

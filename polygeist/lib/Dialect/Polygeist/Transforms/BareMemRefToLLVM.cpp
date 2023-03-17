@@ -34,43 +34,30 @@ struct GetGlobalMemrefOpLowering
     if (!canBeLoweredToBarePtr(memrefTy))
       return failure();
 
-    const auto arrayTy =
-        convertGlobalMemrefTypeToLLVM(memrefTy, *typeConverter);
-    if (!arrayTy)
-      return failure();
-    const auto addressOf =
-        static_cast<Value>(rewriter.create<LLVM::AddressOfOp>(
-            getGlobalOp.getLoc(),
-            LLVM::LLVMPointerType::get(arrayTy, memrefTy.getMemorySpaceAsInt()),
-            adaptor.getName()));
-
-    // Get the address of the first element in the array by creating a GEP with
-    // the address of the GV as the base, and (rank + 1) number of 0 indices.
-    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
-        getGlobalOp, typeConverter->convertType(memrefTy), addressOf,
-        SmallVector<LLVM::GEPArg>(memrefTy.getRank() + 1, 0),
-        /* inbounds */ true);
-
-    return success();
-  }
-
-private:
-  /// Returns the LLVM type of the global variable given the memref type `type`.
-  static Type convertGlobalMemrefTypeToLLVM(MemRefType type,
-                                            TypeConverter &typeConverter) {
     // LLVM type for a global memref will be a multi-dimension array. For
     // declarations or uninitialized global memrefs, we can potentially flatten
     // this to a 1D array. However, for memref.global's with an initial value,
     // we do not intend to flatten the ElementsAttribute when going from std ->
     // LLVM dialect, so the LLVM type needs to me a multi-dimension array.
-    const auto convElemTy = typeConverter.convertType(type.getElementType());
-    if (!convElemTy)
-      return {};
-    // Shape has the outermost dim at index 0, so need to walk it backwards
-    const auto shape = type.getShape();
-    return std::accumulate(
-        shape.rbegin(), shape.rend(), convElemTy,
-        [](auto ty, auto dim) { return LLVM::LLVMArrayType::get(ty, dim); });
+    const auto convElemType =
+        typeConverter->convertType(memrefTy.getElementType());
+    if (!convElemType)
+      return failure();
+    const auto addressOf =
+        static_cast<Value>(rewriter.create<LLVM::AddressOfOp>(
+            getGlobalOp.getLoc(),
+            LLVM::LLVMPointerType::get(memrefTy.getContext(),
+                                       memrefTy.getMemorySpaceAsInt()),
+            adaptor.getName()));
+
+    // Get the address of the first element in the array by creating a GEP with
+    // the address of the GV as the base, and (rank + 1) number of 0 indices.
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        getGlobalOp, typeConverter->convertType(memrefTy), convElemType,
+        addressOf, SmallVector<LLVM::GEPArg>(memrefTy.getRank() + 1, 0),
+        /* inbounds */ true);
+
+    return success();
   }
 };
 
@@ -108,17 +95,19 @@ struct AllocaMemrefOpLowering
     const auto ptrType = typeConverter->convertType(allocaOp.getType());
     if (!ptrType)
       return failure();
+    const auto convElemType =
+        typeConverter->convertType(memrefType.getElementType());
     const auto loc = allocaOp.getLoc();
     auto nullPtr = rewriter.create<LLVM::NullOp>(loc, ptrType);
     auto gepPtr = rewriter.create<LLVM::GEPOp>(
-        loc, ptrType, nullPtr,
-        createIndexConstant(rewriter, loc,
-                            allocaOp.getType().getNumElements()));
+        loc, ptrType, convElemType, nullPtr,
+        createIndexConstant(rewriter, loc, memrefType.getNumElements()));
     auto sizeBytes =
         rewriter.create<LLVM::PtrToIntOp>(loc, getIndexType(), gepPtr);
 
     rewriter.replaceOpWithNewOp<LLVM::AllocaOp>(
-        allocaOp, ptrType, sizeBytes, allocaOp.getAlignment().value_or(0));
+        allocaOp, ptrType, convElemType, sizeBytes,
+        allocaOp.getAlignment().value_or(0));
     return success();
   }
 };
@@ -166,10 +155,10 @@ struct AllocMemrefOpLowering : public ConvertOpToLLVMPattern<memref::AllocOp> {
     const auto allocFuncOp =
         getAllocFn(*getTypeConverter(), module, getIndexType());
 
-    const auto results =
-        rewriter.create<LLVM::CallOp>(loc, allocFuncOp, sizeBytes).getResults();
     auto alignedPtr = static_cast<Value>(
-        rewriter.create<LLVM::BitcastOp>(loc, elementPtrType, results));
+        rewriter.create<LLVM::CallOp>(loc, allocFuncOp, sizeBytes)
+            .getResults()
+            .front());
     if (alignment) {
       // Compute the aligned pointer.
       const auto allocatedInt = static_cast<Value>(
@@ -198,12 +187,8 @@ struct DeallocOpLowering : public ConvertOpToLLVMPattern<memref::DeallocOp> {
     // Insert the `free` declaration if it is not already present.
     const auto freeFunc =
         getFreeFn(*getTypeConverter(), deallocOp->getParentOfType<ModuleOp>());
-    const auto casted =
-        rewriter
-            .create<LLVM::BitcastOp>(deallocOp.getLoc(), getVoidPtrType(),
-                                     adaptor.getMemref())
-            .getRes();
-    rewriter.replaceOpWithNewOp<LLVM::CallOp>(deallocOp, freeFunc, casted);
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(deallocOp, freeFunc,
+                                              adaptor.getMemref());
     return success();
   }
 };
@@ -275,9 +260,11 @@ struct MemAccessLowering : public ConvertToLLVMPattern {
     const auto elementPtrType = getTypeConverter()->convertType(type);
     if (!elementPtrType)
       return {};
-    return index
-               ? rewriter.create<LLVM::GEPOp>(loc, elementPtrType, base, index)
-               : base;
+    const auto convElemType =
+        getTypeConverter()->convertType(type.getElementType());
+    return index ? rewriter.create<LLVM::GEPOp>(loc, elementPtrType,
+                                                convElemType, base, index)
+                 : base;
   }
 };
 
@@ -300,7 +287,8 @@ struct LoadMemRefOpLowering : public MemAccessLowering {
         adaptor.getIndices(), rewriter);
     if (!DataPtr)
       return failure();
-    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, DataPtr);
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(
+        op, typeConverter->convertType(loadOp.getType()), DataPtr);
     return success();
   }
 };
@@ -345,9 +333,7 @@ void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
   converter.addConversion([&](MemRefType type) -> Optional<Type> {
     if (!canBeLoweredToBarePtr(type))
       return std::nullopt;
-    const auto elemType = converter.convertType(type.getElementType());
-    if (!elemType)
-      return Type{};
-    return LLVM::LLVMPointerType::get(elemType, type.getMemorySpaceAsInt());
+    return LLVM::LLVMPointerType::get(type.getContext(),
+                                      type.getMemorySpaceAsInt());
   });
 }
