@@ -130,6 +130,16 @@ void test(FuncTy Func) {
 
 int main() {
   std::cout << "ScalarWGKernel" << std::endl;
+  {
+    queue q;
+    q.single_task<class MarkerKernel>([]() {
+      // CHECK-LABEL: define weak_odr dso_local spir_kernel {{.*}}MarkerKernel
+      // Alternatively, we can use FileCheck's -D<..> option and avoid this
+      // kernel alltogether, but that would be clumsy.
+      marker();
+      // CHECK: [[MARKER:call spir_func void @_Z6markeri\(i32 noundef]] [[# @LINE - 1]]
+    }).wait();
+  }
   test<class ScalarWGKernel, WG>([](ARGS) {
     int init = ndi.get_global_id(0);
 
@@ -144,52 +154,52 @@ int main() {
       Record(out == init);
     };
 
-    // CHECK: define weak_odr dso_local spir_kernel {{.*}}ScalarWGKernel
+    // CHECK-LABEL: define weak_odr dso_local spir_kernel {{.*}}ScalarWGKernel
     Check(global_mem); // Dynamic address space dispatch.
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(usm_mem); // Dynamic address space dispatch.
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(local_mem);
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK-NOT: br
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::no>(global_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK-NOT: br
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
     // CHECK-NOT: br
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<local_space, decorated::yes>(local_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK-NOT: SubgroupBlockRead
 
     Check(address_space_cast<local_space, decorated::no>(local_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK-NOT: SubgroupBlockRead
 
     Check(address_space_cast<local_space, decorated::yes>(local_mem)
               .get_decorated());
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
     // CHECK-NOT: SubgroupBlockRead
 
-    marker(); // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE ]]
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   });
 
   std::cout << "ScalarSGKernel" << std::endl;
@@ -209,52 +219,52 @@ int main() {
       Record(out == init);
     };
 
-    // CHECK: define weak_odr dso_local spir_kernel {{.*}}ScalarSGKernel
+    // CHECK-LABEL: define weak_odr dso_local spir_kernel {{.*}}ScalarSGKernel
     Check(global_mem); // Dynamic address space dispatch.
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(usm_mem); // Dynamic address space dispatch.
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(local_mem);
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK-NOT: br
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::no>(global_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK-NOT: br
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
     // CHECK-NOT: br
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<local_space, decorated::yes>(local_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK-NOT: SubgroupBlockRead
 
     Check(address_space_cast<local_space, decorated::no>(local_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK-NOT: SubgroupBlockRead
 
     Check(address_space_cast<local_space, decorated::yes>(local_mem)
               .get_decorated());
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
     // CHECK-NOT: SubgroupBlockRead
 
-    marker(); // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE ]]
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   });
 
   std::cout << "VecBlockedWGKernel" << std::endl;
@@ -450,24 +460,24 @@ int main() {
       Record(success);
     };
 
-    // CHECK: define weak_odr dso_local spir_kernel {{.*}}VecStripedSGKernel
+    // CHECK-LABEL: define weak_odr dso_local spir_kernel {{.*}}VecStripedSGKernel
 
     Check(global_mem);
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     Check(usm_mem);
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
 
-    // Check(local_mem); // FIXME: Why does it fail?
-    // check: call {{.*}}marker
+    Check(local_mem); // FIXME: Why does it fail?
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     Check(address_space_cast<global_space, decorated::no>(global_mem));
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
-    // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 2]]
-    marker(); // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE ]]
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
     return;
   });
 
