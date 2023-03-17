@@ -190,7 +190,7 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 
 // AGGRESSIVE-NOT: func.func private @inline_hint_callee
 // AGGRESSIVE-NOT: func.func private @private_callee
-// AGGRESSIVE-NOT: func.func prive @get
+// AGGRESSIVE-NOT: func.func private @get
 
 // AGGRESSIVE-DAG:       %[[VAL_1:.*]] = arith.constant 1 : i32
 // AGGRESSIVE-DAG:       %[[VAL_2:.*]] = arith.constant 1 : i32
