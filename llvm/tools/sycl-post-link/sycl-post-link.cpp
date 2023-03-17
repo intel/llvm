@@ -74,7 +74,7 @@ namespace {
 #ifdef NDEBUG
 #define DUMP_ENTRY_POINTS(...)
 #else
-constexpr int DebugPostLink = 0;
+constexpr int DebugPostLink = 1;
 
 #define DUMP_ENTRY_POINTS(...)                                                 \
   if (DebugPostLink > 0) {                                                     \
@@ -816,6 +816,8 @@ processInputModule(std::unique_ptr<Module> M) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
+    llvm::outs() << "ESIMD splitter input: \n";
+    MDesc.getModule().dump();
 
     // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
     // undergo different set of LLVMIR passes. After this they are linked back
@@ -842,7 +844,9 @@ processInputModule(std::unique_ptr<Module> M) {
 
     while (ESIMDSplitter->hasMoreSplits()) {
       module_split::ModuleDesc MDesc2 = ESIMDSplitter->nextSplit();
+      llvm::outs() << "ESIMD splitter result:\n";
       DUMP_ENTRY_POINTS(MDesc2.entries(), MDesc2.Name.c_str(), 3);
+      MDesc2.getModule().dump();
       Modified |= processSpecConstants(MDesc2);
 
       if (!MDesc2.isSYCL() && LowerEsimd) {
@@ -860,6 +864,10 @@ processInputModule(std::unique_ptr<Module> M) {
              (MMs[1].isESIMD() && MMs[0].isSYCL()));
       int ESIMDInd = MMs[0].isESIMD() ? 0 : 1;
       int SYCLInd = MMs[0].isESIMD() ? 1 : 0;
+      llvm::outs() << "ESIMD split produced ESIMD module:\n";
+      MMs[ESIMDInd].getModule().dump();
+      llvm::outs() << "ESIMD split produced SYCL module:\n";
+      MMs[SYCLInd].getModule().dump();
       // ... but before that, make sure no link conflicts will occur.
       MMs[ESIMDInd].renameDuplicatesOf(MMs[SYCLInd].getModule(), ".esimd");
       module_split::ModuleDesc M2 = link(std::move(MMs[0]), std::move(MMs[1]));

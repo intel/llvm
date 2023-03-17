@@ -36,142 +36,6 @@ using namespace llvm;
 using namespace llvm::module_split;
 
 namespace {
-// U is a user of F. This function tries to determine which other function U
-// belongs to in order to record that they should be bundled together with F.
-// If U is a global variable, then we trace its users recursively.
-void traceUser(User *U, Function *F, DenseMap<Function *, EntryPointSet> &Cache) {
-  if (isa<Instruction>(U)) {
-    // Simple case: F is used by an instruction U.
-    // We simply look up which Function FB instruction U belongs to and record
-    // that.
-
-    if (auto *CI = dyn_cast<CallInst>(U)) {
-      // CallInst is an exception here: we don't want to record direct calls,
-      // because it may lead to too many functions grouped together in some
-      // cases.
-      if (!CI->isIndirectCall() && CI->getCalledFunction() == F)
-        return;
-    }
-
-    auto *I = cast<Instruction>(U);
-    auto *FB = I->getFunction();
-    Cache[FB].insert(F);
-
-    return;
-  }
-
-  if (isa<Constant>(U)) {
-    for (auto *UU : U->users())
-      traceUser(UU, F, Cache);
-
-    return;
-  }
-
-  llvm_unreachable("Unhandled type of function user");
-}
-
-void propagateThroughCallGraph(
-    DenseMap<Function *, EntryPointSet> &CallGraph,
-    DenseMap<Function *, EntryPointSet> &Cache) {
-  SmallVector<std::pair<Function *, Function *>, 32> Pairs;
-
-  SmallPtrSet<Function *, 32> Visited;
-
-  for (auto &It : CallGraph) {
-    Function *F = It.first;
-
-    if (!Visited.insert(F).second)
-      continue;
-
-    SmallVector<Function *, 16> WorkList;
-    WorkList.push_back(F);
-
-    while (!WorkList.empty()) {
-      Function *To = WorkList.back();
-      WorkList.pop_back();
-
-      if (!CallGraph.count(To))
-        continue;
-
-      for (auto *From : CallGraph[To]) {
-        if (Visited.insert(From).second) {
-          WorkList.push_back(From);
-        }
-        Pairs.emplace_back(From, To);
-      }
-    }
-  }
-
-  for (auto &P : Pairs) {
-    Cache[P.second].insert(Cache[P.first].begin(), Cache[P.first].end());
-  }
-}
-
-// This function analyses a Module passed to it and returns a map
-// Function -> set<Function>, which indicates which functions has to be grouped
-// together, because they potentially call one another through indirect calls.
-//
-// There are several checks done to perform this analysis:
-//
-// 1. if a function A is used within a function B in any way other than a direct
-//    call, then they has to be bundled together. Examples of uses are: stores,
-//    phi nodes, bitcasts, etc. We specifically ignore direct calls, because
-//    they will be anyway handled later during regular call graph analysis.
-// 2. if a function A is used by a global variable GV, then function A has to
-//    bundled together with any other function which uses that global variable
-//    GV.
-//    TODO: implement this check
-// 3. if a function A performs an indirect call of a function with signature S,
-//    then all other functions with the same signature S has to be bundled
-//    together with function A.
-//
-// The algorithm is the following: we analyze each function and perform checks
-// above; once we know which other functions they may be using, we go through a
-// module call graph and propagate information in a bottom-up manner to ensure
-// that we have full knowledge about functions which should be bundled with each
-// entry point.
-DenseMap<Function *, EntryPointSet> getIndirectCallsMap(Module &M) {
-  DenseMap<Function *, EntryPointSet> Result;
-
-  // Group functions by their signature to use that later in check (3)
-  DenseMap<FunctionType *, EntryPointSet> FT2F;
-  for (auto &F : M.functions()) {
-    FT2F[F.getFunctionType()].insert(&F);
-  }
-
-  DenseMap<Function *, EntryPointSet> CallGraph;
-
-  for (auto &FA : M.functions()) {
-    // checks (1) and (2)
-    for (auto *U : FA.users())
-      traceUser(U, &FA, Result);
-
-    // check (3)
-    for (auto &I : instructions(FA)) {
-      if (!isa<CallInst>(&I))
-        continue;
-      auto *CI = cast<CallInst>(&I);
-      if (!CI->isIndirectCall()) {
-        // Direct calls are handled during code split
-        CallGraph[&FA].insert(CI->getCalledFunction());
-        continue;
-      }
-
-      // if indirect call is encountered, we say that all functions with the
-      // same signature must be bundled together with FA
-      FunctionType *Signature = CI->getFunctionType();
-      auto &Funcs = FT2F[Signature];
-      Result[&FA].insert(Funcs.begin(), Funcs.end());
-    }
-  }
-
-  // Now we need to propagate information upwards to entry points using a
-  // call graph
-  propagateThroughCallGraph(CallGraph, Result);
-
-  return Result;
-}
-
 // Identifying name for global scope
 constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
@@ -272,16 +136,20 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
   EntryPointGroupVec EntryPointGroups{};
   std::map<StringRef, EntryPointSet> EntryPointMap;
 
-  // Only process module entry points:
+  // We take every function, even if it is not an entry point, because entry
+  // points filtering should have happened at previous split level
   for (Function &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
-        !MD.isEntryPointCandidate(F))
+    llvm::outs() << "ESIMD splitter, looking at " << F.getName() << "\n";
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
       continue;
-
-    if (isESIMDFunction(F))
+    if (isESIMDFunction(F)) {
+      llvm::outs() << "ESIMD splitter: adding " << F.getName() << " as ESIMD function\n";
       EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
-    else
+    }
+    else {
+      llvm::outs() << "ESIMD splitter: adding " << F.getName() << " as regular function\n";
       EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
+    }
   }
 
   if (!EntryPointMap.empty()) {
@@ -321,8 +189,6 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
   MapVector<StringRef, EntryPointSet> EntryPointMap;
   Module &M = MD.getModule();
 
-  auto ICM = getIndirectCallsMap(M);
-
   // Only process module entry points:
   for (Function &F : M.functions()) {
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
@@ -331,11 +197,7 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
 
     switch (EntryScope) {
     case Scope_PerKernel: {
-      auto &It = EntryPointMap[F.getName()];
-      It.insert(&F);
-      if (ICM.count(&F)) {
-        It.insert(ICM[&F].begin(), ICM[&F].end());
-      }
+      EntryPointMap[F.getName()].insert(&F);
     } break;
 
     case Scope_PerModule: {
@@ -349,11 +211,7 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
 
       Attribute Id = F.getFnAttribute(llvm::sycl::utils::ATTR_SYCL_MODULE_ID);
       StringRef Val = Id.getValueAsString();
-      auto &It = EntryPointMap[Val];
-      It.insert(&F);
-      if (ICM.count(&F)) {
-        It.insert(ICM[&F].begin(), ICM[&F].end());
-      }
+      EntryPointMap[Val].insert(&F);
       break;
     }
 
@@ -382,72 +240,100 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
 // Represents an "extended" call graph of a module. The main difference with a
 // regular call graph is that this graph represents not only calls, but also
 // other types of function uses. For example, if function FA contains a
-// CallInst which has function FB in its arguments (not calls FB, but passes it
-// as an argument), then this graph will have "FA" -> "FB" edge.
+// StoreInst which has function FB in its arguments, then this graph will have
+// "FA" -> "FB" edge.
 //
 // The main purpose of such extended graph is to be able to track indirectly
 // called functions to correctly group them together during device code split.
 //
 // The following cases are treated as dependencies between functions:
-// 1.
+// 1. function A is used within a function B in any way (store, bitcast, phi
+//    node, call, etc.): "A" -> "B" edge will be added to the graph;
+// 2. function A is used by a global variable G and that global variable is used
+//    by function B (in any way). "A" -> "B" edge will be added to the graph;
+// 3. function A performs an indirect call of a function with signature S and
+//    there is a function B with signature S. "A" -> "B" edge will be added to
+//    the graph;
 //
 // TODO: We should expand this to also track global variable uses.
 class DependencyGraph {
 public:
   using FunctionSet = SmallPtrSet<const Function *, 16>;
 
-private:
-  DenseMap<const Function *, FunctionSet> Graph;
-  SmallPtrSet<const Function *, 1> EmptySet;
-
-public:
   DependencyGraph(const Module &M) {
+    llvm::outs() << "Building dependency graph\n";
+    // Group functions by their signature to implement check (3)
+    DenseMap<const FunctionType *, FunctionSet> FuncTypeToFuncMap;
     for (const auto &F : M) {
-      for (const Value *U : F.users()) {
-        if (const auto *I = dyn_cast<CallInst>(U)) {
-          if (I->getCalledFunction() == &F) {
-            const Function *F1 = I->getFunction();
-            Graph[F1].insert(&F);
-          }
-        }
-      }
-      if (F.hasAddressTaken()) {
-        AddrTakenFunctions.insert(&F);
+      FuncTypeToFuncMap[F.getFunctionType()].insert(&F);
+    }
+
+    for (const auto &F : M) {
+      // check (1) and (2)
+      for (const Value *U : F.users())
+        addUserToGraphRecursively(cast<const User>(U), &F);
+
+      // check (3)
+      for (const auto &I : instructions(F)) {
+        if (!isa<CallInst>(&I))
+          continue;
+
+        const auto *CI = cast<CallInst>(&I);
+        // Direct calls were handled in previous checks
+        if (!CI->isIndirectCall())
+          continue;
+
+        const FunctionType *Signature = CI->getFunctionType();
+        const auto &PotentialCallees = FuncTypeToFuncMap[Signature];
+        Graph[&F].insert(PotentialCallees.begin(), PotentialCallees.end());
       }
     }
   }
 
   iterator_range<FunctionSet::const_iterator>
-  successors(const Function *F) const {
+  dependencies(const Function *F) const {
     auto It = Graph.find(F);
     return (It == Graph.end())
                ? make_range(EmptySet.begin(), EmptySet.end())
                : make_range(It->second.begin(), It->second.end());
   }
 
-  iterator_range<FunctionSet::const_iterator> addrTakenFunctions() const {
-    return make_range(AddrTakenFunctions.begin(), AddrTakenFunctions.end());
+private:
+
+  void addUserToGraphRecursively(const User *Root, const Function *F) {
+    SmallVector<const User *, 8> WorkList;
+    WorkList.push_back(Root);
+    llvm::outs() << "Handling users of function " << F->getName() << "\n";
+
+    while (!WorkList.empty()) {
+      const User *U = WorkList.pop_back_val();
+      llvm::outs() << "User: \n";
+      U->dump();
+      if (const auto *I = dyn_cast<const Instruction>(U)) {
+        const auto *UFunc = I->getFunction();
+        Graph[UFunc].insert(F);
+        llvm::outs() << "Adding " << UFunc->getName() << " -> " << F->getName() << " graph edge\n";
+      } else if (isa<const Constant>(U)) {
+        // This could be a global variable or some constant expression (like
+        // bitcast or gep). We trace users of this constant further to reach
+        // functions they came from to build dependency graph.
+        for (const auto *UU : U->users())
+          WorkList.push_back(UU);
+      } else {
+        llvm_unreachable("Unhandled type of function user");
+      }
+    }
   }
+
+  DenseMap<const Function *, FunctionSet> Graph;
+  SmallPtrSet<const Function *, 1> EmptySet;
 };
 
 void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
                                const EntryPointGroup &ModuleEntryPoints,
-                               const CallGraph &Deps) {
+                               const DependencyGraph &Deps) {
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
-  // It is conservatively assumed that any address-taken function can be invoked
-  // or otherwise used by any function in any module split from the initial one.
-  // So such functions along with the call graphs they start are always
-  // extracted (and duplicated in each split module). They are not treated as
-  // entry points, as SYCL runtime requires that intersection of entry point
-  // sets of different device binaries (for the same target) must be empty.
-  // TODO: try to determine which split modules really use address-taken
-  // functions and only duplicate the functions in such modules. Note that usage
-  // may include e.g. function address comparison w/o actual invocation.
-  for (const auto *F : Deps.addrTakenFunctions()) {
-    if (!isKernel(*F) && (isESIMDFunction(*F) == ModuleEntryPoints.isEsimd()))
-      GVs.insert(F);
-  }
 
   // GVs has SetVector type. This type inserts a value only if it is not yet
   // present there. So, recursion is not expected here.
@@ -455,7 +341,7 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
   while (Idx < GVs.size()) {
     const auto *F = cast<Function>(GVs[Idx++]);
 
-    for (const Function *F1 : Deps.successors(F)) {
+    for (const Function *F1 : Deps.dependencies(F)) {
       if (!F1->isDeclaration())
         GVs.insert(F1);
     }
@@ -500,7 +386,7 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
 // points that are specified in ModuleEntryPoints vector.
 ModuleDesc extractCallGraph(const ModuleDesc &MD,
                             EntryPointGroup &&ModuleEntryPoints,
-                            const CallGraph &CG) {
+                            const DependencyGraph &CG) {
   SetVector<const GlobalValue *> GVs;
   collectFunctionsToExtract(GVs, ModuleEntryPoints, CG);
   collectGlobalVarsToExtract(GVs, MD.getModule());
@@ -524,14 +410,16 @@ class ModuleSplitter : public ModuleSplitterBase {
 public:
   ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
       : ModuleSplitterBase(std::move(MD), std::move(GroupVec)),
-        CG(Input.getModule()) {}
+        CG(Input.getModule()) {
+          llvm::outs() << "Moduleplitter constructor\n";
+        }
 
   ModuleDesc nextSplit() override {
     return extractCallGraph(Input, nextGroup(), CG);
   }
 
 private:
-  CallGraph CG;
+  DependencyGraph CG;
 };
 
 } // namespace
@@ -980,9 +868,7 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
     }
 
     auto Key = UsedOptionalFeatures(&F);
-    auto &It = PropertiesToFunctionsMap[std::move(Key)];
-
-    It.insert(&F);
+    PropertiesToFunctionsMap[std::move(Key)].insert(&F);
   }
 
   if (PropertiesToFunctionsMap.empty()) {
