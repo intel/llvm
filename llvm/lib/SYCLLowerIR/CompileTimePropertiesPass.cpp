@@ -19,6 +19,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
@@ -206,6 +207,19 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
         Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
     SmallVector<Metadata *, 1> MD{MDVal};
     return std::pair<std::string, MDNode *>("intel_reqd_sub_group_size",
+                                            MDNode::get(Ctx, MD));
+  }
+
+  // The sycl-single-task attribute currently only has an effect when targeting
+  // SPIR FPGAs, in which case it will generate a "max_global_work_dim" MD node
+  // with a 0 value, similar to applying [[intel::max_global_work_dim(0)]] to
+  // a SYCL single_target kernel.
+  if (AttrKindStr == "sycl-single-task" &&
+      Triple(M.getTargetTriple()).getSubArch() == Triple::SPIRSubArch_fpga) {
+    IntegerType *Ty = Type::getInt32Ty(Ctx);
+    Metadata *MDVal = ConstantAsMetadata::get(Constant::getNullValue(Ty));
+    SmallVector<Metadata *, 1> MD{MDVal};
+    return std::pair<std::string, MDNode *>("max_global_work_dim",
                                             MDNode::get(Ctx, MD));
   }
 
