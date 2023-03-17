@@ -6,8 +6,8 @@
 // clang++ -fsycl %s &&  ./a.out && \
 // clang++ -fsycl %s -S -emit-llvm -fsycl-device-only -o - | FileCheck %s
 
-#include <sycl/sycl.hpp>
 #include <iomanip>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -21,8 +21,8 @@ constexpr auto local_space = address_space::local_space;
 constexpr auto blocked = group_algorithm_data_placement::blocked;
 constexpr auto striped = group_algorithm_data_placement::striped;
 
-constexpr int WG_SIZE = 16;
-constexpr int SG_SIZE = 16;
+constexpr int SG_SIZE = 32;
+constexpr int WG_SIZE = SG_SIZE / 2;
 
 constexpr int N_WGS = 1;
 constexpr int GLOBAL_SIZE = WG_SIZE * N_WGS;
@@ -36,11 +36,8 @@ marker(int l = __builtin_LINE()) {
 
 enum Scope { WG, SG };
 
-template <typename KernelName, Scope S, bool Disable = false, typename FuncTy>
-void test(FuncTy Func, int Line = __builtin_LINE()) {
-  if constexpr (Disable)
-    return;
-  std::cout << Line << std::endl;
+template <typename KernelName, Scope S, typename FuncTy>
+void test(FuncTy Func) {
   queue q;
   constexpr int N_RESULTS = 16;
   buffer<int, 1> results(N_RESULTS * GLOBAL_SIZE);
@@ -58,8 +55,7 @@ void test(FuncTy Func, int Line = __builtin_LINE()) {
     accessor global_mem_acc{global_mem_buf, cgh};
     local_accessor<int, 1> local_mem_acc{WG_SIZE * ELEMS_PER_WI, cgh};
     cgh.parallel_for<KernelName>(
-        nd_range{range{GLOBAL_SIZE}, range{WG_SIZE}},
-        [=](nd_item<1> ndi) {
+        nd_range{range{GLOBAL_SIZE}, range{WG_SIZE}}, [=](nd_item<1> ndi) {
           // Low-level pointer arithmetic and skipping 0th index to make llvm IR
           // dumps nicer.
           auto *res_ptr = &res_acc[ndi.get_global_id(0) * N_RESULTS];
@@ -95,7 +91,7 @@ void test(FuncTy Func, int Line = __builtin_LINE()) {
   });
   {
     host_accessor res_acc{results};
-    if constexpr (true) {
+    if constexpr (false) {
       for (int i = 1; i < N_RESULTS; ++i) {
         int errors = 0;
         bool all_same = [&]() {
@@ -134,7 +130,7 @@ void test(FuncTy Func, int Line = __builtin_LINE()) {
 
 int main() {
   std::cout << "ScalarWGKernel" << std::endl;
-  test<class ScalarWGKernel, WG, true>([](ARGS) {
+  test<class ScalarWGKernel, WG>([](ARGS) {
     int init = ndi.get_global_id(0);
 
     global_mem[lid] = init;
@@ -197,7 +193,7 @@ int main() {
   });
 
   std::cout << "ScalarSGKernel" << std::endl;
-  test<class ScalarSGKernel, SG, true>([](ARGS) {
+  test<class ScalarSGKernel, SG>([](ARGS) {
     auto sg = ndi.get_sub_group();
 
     int init = ndi.get_global_id(0);
@@ -262,7 +258,7 @@ int main() {
   });
 
   std::cout << "VecBlockedWGKernel" << std::endl;
-  test<class VecBlockedWGKernel, WG, true>([](ARGS) {
+  test<class VecBlockedWGKernel, WG>([](ARGS) {
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -298,7 +294,7 @@ int main() {
   });
 
   std::cout << "VecStripedWGKernel" << std::endl;
-  test<class VecStripedWGKernel, WG, true>([](ARGS) {
+  test<class VecStripedWGKernel, WG>([](ARGS) {
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -378,19 +374,6 @@ int main() {
       group_load(ndi.get_sub_group(), Input, out,
                  properties(data_placement<blocked>));
 
-      for (int i = 0; i < VEC_SIZE; ++i) {
-        Record(global_mem[i * WG_SIZE + lid]);
-      }
-
-      Record(42);
-      for (int i = 0; i < VEC_SIZE; ++i) {
-        Record(out[i]);
-      }
-      Record(43);
-      for (int i = 0; i < VEC_SIZE; ++i) {
-        Record(init - i);
-      }
-
       bool success = true;
       for (int i = 0; i < VEC_SIZE; ++i) {
         success &= (out[i] == init - i);
@@ -449,7 +432,8 @@ int main() {
     // val = group_start + idx / VEC_SIZE - idx % VEC_SIZE
     // clang-format on
 
-    auto Check = [&](auto Input, int l = __builtin_LINE()) {
+    auto Check = [&](auto Input, int l = __builtin_LINE())
+        __attribute__((always_inline)) {
       marker(l);
       vec<int, VEC_SIZE> out;
       group_load(sg, Input, out, properties(data_placement<striped>));
@@ -465,6 +449,8 @@ int main() {
       });
       Record(success);
     };
+
+    // CHECK: define weak_odr dso_local spir_kernel {{.*}}VecStripedSGKernel
 
     Check(global_mem);
     // CHECK: call spir_func void @_Z6markeri(i32 noundef [[# @LINE - 1]]
@@ -485,7 +471,6 @@ int main() {
     return;
   });
 
-  return 0;
   std::cout << "SpanBlockedWGKernel" << std::endl;
   test<class SpanBlockedWGKernel, WG>([](ARGS) {
     constexpr int SPAN_SIZE = 2;

@@ -216,12 +216,17 @@ void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
   } else {
     // Pointer.
     if constexpr (std::is_same_v<Group, sub_group>) {
+      if (!is_aligned)
+        // Not properly aligned.
+        return generic();
+
+      // Imagine WG_SIZE == 16, SG_SIZE = 32. In this case HW block loads
+      // would operate in SIMD32 mode and won't do what we need.
+      if (g.get_max_local_range() != g.get_local_range())
+        return generic();
+
       constexpr auto AS = sycl::detail::deduce_AS<input_iter_no_cv>::value;
       if constexpr (AS == access::address_space::global_space) {
-        if (!is_aligned)
-          // Not properly aligned.
-          return generic();
-
         using BlockT = sycl::detail::sub_group::SelectBlockT<value_type>;
         using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
         using PtrT = sycl::detail::DecoratedType<BlockT, AS>::type *;
@@ -244,27 +249,28 @@ void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
           //               v[0](0)  v[0](3) v[0](6) v[1](1) v[1](4) v[1](7) v[2](2) v[2](5)
           //               v[0](1)  v[0](4) v[0](7) v[1](2) v[1](5) v[2](0) v[2](3) v[2](6)
           //               v[0](2)  v[0](5) v[1](0) v[1](3) v[1](6) v[2](1) v[2](4) v[2](7)
+          //
           // clang-format on
+
           vec<OutputT, N> shuffled = {0, 0};
           auto lid = g.get_local_id();
-          // TODO: max?
           int sg_size = g.get_max_local_range().size();
           sycl::detail::dim_loop<N>([&](size_t i) {
-            shuffled[i] = select_from_group(g, tmp[(lid * N + i) / sg_size],
-                                            (lid * N + i) % sg_size);
-            // shuffled[i + 1] =
-            //     (tmp[(lid * N + i) / sg_size]) * 1000 + (lid * N + i) % sg_size;
+            // IMPORTANT: Note that the index for the v[y] depends on the
+            // *CURRENT* WI, so the access into the vector must be done *after*
+            // the shuffle.
+            shuffled[i] = select_from_group(
+                g, tmp, (lid * N + i) % sg_size)[(lid * N + i) / sg_size];
           });
           out = shuffled;
         } else {
+          // TODO: Having the "auto tmp" replaced with an assignment onto "out"
+          // and the updating it just for the blocked case results in wrong
+          // results. No idea why yet.
           out = tmp;
         }
         return;
       } else if constexpr (AS == access::address_space::generic_space) {
-        if (!is_aligned)
-          // Not properly aligned.
-          return generic();
-
         if (auto global_ptr = __SYCL_GenericCastToPtrExplicit_ToGlobal<
                 remove_decoration_t<value_type>>(in_ptr))
           return group_load(g, global_ptr, out, properties);
@@ -274,16 +280,19 @@ void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
         return generic();
       }
     } else {
-        return generic();
+      return generic();
       // TODO: Use get_child_group from sycl_ext_oneapi_root_group extension
       // once it is implemented instead of this free function.
       auto ndi =
           sycl::ext::oneapi::experimental::this_nd_item<Group::dimensions>();
       auto sg = ndi.get_sub_group();
-      // TODO: Do we have guarantees that all SGs are of the same size? Should
-      // get_max_local_range be used instead?
+      std::ignore = sg;
+      // TODO: Some SGs in a WG might be of different size. It seems only the
+      // last one can be non-full, but I'm not sure if that's guaranteed.
+      // TODO: Do we have a guarantee that get_local_linear_id moves in the same
+      // pattern across WIs in WG/SG?
       return group_load(sg,
-                        in_ptr + sg.get_group_id() * sg.get_local_range() * N,
+                        in_ptr + sg.get_group_id() * sg.get_max_local_range() * N,
                         out, properties);
     }
   }
