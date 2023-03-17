@@ -314,6 +314,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       // Because scopes are hierarchical, wider scopes support all narrower
       // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
       // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+      // We already initialized to these minimum mandated capabilities. Just
+      // check wider scopes.
       if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
         result |= PI_MEMORY_SCOPE_DEVICE;
       }
