@@ -532,6 +532,7 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
       isRecorded_{false}, isStarted_{false},
       streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
       evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
+
   assert(type != PI_COMMAND_TYPE_USER);
 
   bool profilingEnabled = queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE;
