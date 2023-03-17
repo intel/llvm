@@ -1609,6 +1609,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
         if (NULL == phProgram) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (count == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
     }
 
     return pfnLink(hContext, count, phPrograms, pOptions, phProgram);
@@ -1798,7 +1802,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
         }
 
         if (count == 0) {
-            return UR_RESULT_ERROR_INVALID_VALUE;
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -2229,7 +2233,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
         }
 
         if (count == 0) {
-            return UR_RESULT_ERROR_INVALID_VALUE;
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 

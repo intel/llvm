@@ -362,7 +362,7 @@ params:
       name: pSpecConstants
       desc: "[in] array of specialization constant value descriptions"
 returns:
-    - $X_RESULT_ERROR_INVALID_VALUE:
+    - $X_RESULT_ERROR_INVALID_SIZE:
         - "`count == 0`"
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If $X_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is false"
