@@ -29,17 +29,14 @@
 
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
-#include "mlir/Analysis/CallGraph.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Polygeist/IR/Ops.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
-#include "mlir/Dialect/SYCL/Transforms/Passes.h"
-#include "mlir/IR/IRMapping.h"
-#include "mlir/IR/SymbolTable.h"
-#include "mlir/Interfaces/CallInterfaces.h"
 #include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "arg-promotion"
+#define REPORT_DEBUG_TYPE DEBUG_TYPE "-report"
 
 namespace mlir {
 namespace polygeist {
@@ -48,8 +45,6 @@ namespace polygeist {
 } // namespace polygeist
 } // namespace mlir
 
-#define DEBUG_TYPE "arg-promotion"
-
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
@@ -57,6 +52,7 @@ using namespace mlir;
 //===----------------------------------------------------------------------===//
 
 namespace {
+
 /// Represent a candidate for the argument promotion transformation.
 class Candidate {
 public:
@@ -65,12 +61,18 @@ public:
     assert(!isRecursiveCall(callOp) && "Callee must not be recursive");
   }
 
+  /// Returns true if the operation \p op is a callable operation with private
+  /// visibility and a defined callable region, and false otherwise.
   static bool isPrivateCallable(Operation *op);
-  static bool isRecursiveCall(CallOpInterface callOp);
-  static bool isValidMemRefType(Type type);
-  static Region *getCallableRegion(CallOpInterface callOp);
 
-  // Peel members and fixup the call site and the callee.
+  /// Returns true if the call \p callOp is recursive, and false otherwise.
+  static bool isRecursiveCall(CallOpInterface callOp);
+
+  /// Returns true if \p type is a pointer to a struct (memref<? x struct<>>),
+  /// and false otherwise.
+  static bool isValidMemRefType(Type type);
+
+  /// Perform the transformation.
   void transform();
 
 private:
@@ -99,20 +101,26 @@ private:
   void replaceUsesOfArgument(Value origArg, unsigned pos,
                              Region &callableRgn) const;
 
-  mutable CallOpInterface callOp;
+  /// The candidate call site.
+  CallOpInterface callOp;
+
+  /// Map between the position of the original call operand and its
+  /// corresponding peeled arguments.
   std::map<unsigned, SmallVector<Value>> operandToMembersPeeled;
 };
 
 class ArgumentPromotionPass
     : public polygeist::impl::ArgumentPromotionBase<ArgumentPromotionPass> {
 public:
+  using ArgumentPromotionBase<ArgumentPromotionPass>::ArgumentPromotionBase;
+
   void runOnOperation() override;
 
 private:
   /// Populate \p candidates with call operations to transform.
-  void collectCandidates(ModuleOp module,
-                         SmallVectorImpl<Candidate> &candidates);
+  void collectCandidates(SmallVectorImpl<Candidate> &candidates);
 };
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -134,9 +142,12 @@ bool Candidate::isPrivateCallable(Operation *op) {
 }
 
 bool Candidate::isRecursiveCall(CallOpInterface callOp) {
-  Region *callableRegion = getCallableRegion(callOp);
-  return callableRegion &&
-         callableRegion->isAncestor(callOp->getParentRegion());
+  if (auto callable = dyn_cast<CallableOpInterface>(callOp.resolveCallable())) {
+    Region *callableRegion = callable.getCallableRegion();
+    return callableRegion &&
+           callableRegion->isAncestor(callOp->getParentRegion());
+  }
+  return false;
 }
 
 bool Candidate::isValidMemRefType(Type type) {
@@ -154,14 +165,9 @@ bool Candidate::isValidMemRefType(Type type) {
   return true;
 }
 
-Region *Candidate::getCallableRegion(CallOpInterface callOp) {
-  if (auto callable = dyn_cast<CallableOpInterface>(callOp.resolveCallable()))
-    return callable.getCallableRegion();
-  return nullptr;
-}
-
 void Candidate::transform() {
-  // Identify arguments that can be peeled and and peel them.
+  LLVM_DEBUG(llvm::dbgs() << "\nProcessing candidate:\n" << callOp << "\n");
+
   unsigned numMembersPeeled = peelMembers();
   if (!numMembersPeeled)
     return;
@@ -185,6 +191,8 @@ unsigned Candidate::peelMembers() {
     unsigned numMembers = structType.getBody().size();
     SmallVector<Value> membersPeeled;
     membersPeeled.reserve(numMembers);
+
+    // Generate code to peel the struct members.
     for (unsigned idx = 0; idx < numMembers; ++idx) {
       auto memberType = structType.getBody()[idx];
       auto mt =
@@ -195,17 +203,29 @@ unsigned Candidate::peelMembers() {
           builder.create<arith::ConstantIndexOp>(op.getLoc(), idx));
       membersPeeled.push_back(subIndexOp);
       ++numMembersPeeled;
+
+      LLVM_DEBUG(
+          { llvm::dbgs().indent(2) << "- generated: " << subIndexOp << "\n"; });
     }
 
     operandToMembersPeeled.insert({pos, membersPeeled});
   }
 
+  LLVM_DEBUG(llvm::dbgs() << "Peeled " << numMembersPeeled << " members.\n\n");
   return numMembersPeeled;
 }
 
 void Candidate::modifyCall() {
-  SmallVector<Value, 8> newCallOperands;
-  for (unsigned pos = 0; pos < callOp->getNumOperands(); ++pos) {
+  const unsigned numCallOperands = callOp->getNumOperands();
+  const unsigned numKeys = operandToMembersPeeled.size();
+  unsigned numMembersPeeled = 0;
+  for (const auto &entry : operandToMembersPeeled)
+    numMembersPeeled += entry.second.size();
+
+  SmallVector<Value> newCallOperands;
+  newCallOperands.reserve(numCallOperands - numKeys + numMembersPeeled);
+
+  for (unsigned pos = 0; pos < numCallOperands; ++pos) {
     if (operandToMembersPeeled.find(pos) == operandToMembersPeeled.end()) {
       newCallOperands.push_back(callOp->getOperand(pos));
       continue;
@@ -214,13 +234,14 @@ void Candidate::modifyCall() {
     for (Value peeledMember : operandToMembersPeeled[pos])
       newCallOperands.push_back(peeledMember);
   }
+  assert(newCallOperands.size() > numCallOperands);
 
   callOp->setOperands(newCallOperands);
-  llvm::dbgs() << "callOp: " << callOp << "\n";
+  LLVM_DEBUG(llvm::dbgs() << "New call:\n" << callOp << "\n\n");
 }
 
 void Candidate::modifyCallee() {
-  assert(callOp.resolveCallable() && "Could not find callee definition");
+
   auto callable = cast<CallableOpInterface>(callOp.resolveCallable());
   auto funcOp = cast<func::FuncOp>(callable.getCallableRegion()->getParentOp());
   Region &callableRgn = funcOp.getFunctionBody();
@@ -232,7 +253,7 @@ void Candidate::modifyCallee() {
   const unsigned orinNumArgs = callableRgn.getNumArguments();
   for (unsigned origPos = 0; origPos < orinNumArgs; ++origPos) {
     if (operandToMembersPeeled.find(origPos) == operandToMembersPeeled.end()) {
-      newArgAttrs.push_back(origArgAttrs[origPos]);
+      newArgAttrs.push_back(origArgAttrs ? origArgAttrs[origPos] : Attribute());
       continue;
     }
 
@@ -241,7 +262,6 @@ void Candidate::modifyCallee() {
     replaceArgumentWith(pos, callableRgn, newArgs, newArgAttrs);
 
     // Delete the original argument.
-    llvm::dbgs() << "at line: " << __LINE__ << "\n";
     pos += newArgs.size();
     callableRgn.eraseArgument(pos);
   }
@@ -249,10 +269,11 @@ void Candidate::modifyCallee() {
   auto newFuncType =
       FunctionType::get(funcOp.getContext(), callableRgn.getArgumentTypes(),
                         funcOp.getResultTypes());
-  llvm::dbgs() << "at line: " << __LINE__ << "\n";
 
   funcOp.setFunctionType(newFuncType);
   funcOp.setAllArgAttrs(newArgAttrs);
+
+  LLVM_DEBUG(llvm::dbgs() << "New Callee:\n" << funcOp << "\n\n");
 }
 
 void Candidate::replaceArgumentWith(unsigned pos, Region &callableRgn,
@@ -298,53 +319,61 @@ void Candidate::replaceUsesOfArgument(Value origArg, unsigned pos,
 //===----------------------------------------------------------------------===//
 
 void ArgumentPromotionPass::runOnOperation() {
-  ModuleOp module = getOperation();
-  //  CallGraph &CG = getAnalysis<CallGraph>();
-
-  llvm::dbgs() << "Entering ArgumentPromotionPass::runOnOperation()\n";
-
   SmallVector<Candidate> candidates;
-  collectCandidates(module, candidates);
-  if (candidates.empty())
-    return;
+  collectCandidates(candidates);
 
   for (Candidate &cand : candidates)
     cand.transform();
 }
 
 void ArgumentPromotionPass::collectCandidates(
-    ModuleOp module, SmallVectorImpl<Candidate> &candidateCalls) {
+    SmallVectorImpl<Candidate> &candidateCalls) {
+  ModuleOp module = getOperation();
+  SymbolTableCollection symTable;
+  SymbolUserMap userMap(symTable, module);
+
+  // Collect candidate call operations in GPU kernels.
   module->walk([&](gpu::GPUFuncOp gpuFuncOp) {
+    LLVM_DEBUG({
+      llvm::dbgs()
+          << "Analyzing: "
+          << cast<SymbolOpInterface>(gpuFuncOp.getOperation()).getNameAttr()
+          << "\n";
+    });
+
     gpuFuncOp->walk([&](CallOpInterface callOp) {
       // We are only interested in non-recursive tail calls.
       if (!callOp->getBlock()->hasNoSuccessors() ||
           Candidate::isRecursiveCall(callOp))
         return WalkResult::advance();
 
-      llvm::dbgs() << "at line: " << __LINE__ << "\n";
-
       // The first operand of the call must not be used by any other
       // operation.
       OperandRange callOperands = callOp.getArgOperands();
       if (callOperands.empty() || !callOperands.front().hasOneUse())
         return WalkResult::advance();
-      llvm::dbgs() << "at line: " << __LINE__ << "\n";
 
       // The first operand must be a memref with a struct element type.
       if (!Candidate::isValidMemRefType(callOperands.front().getType()))
         return WalkResult::advance();
-      llvm::dbgs() << "at line: " << __LINE__ << "\n";
 
       // The callee must be defined and private.
       if (!Candidate::isPrivateCallable(callOp.resolveCallable()))
         return WalkResult::advance();
 
-      // TODO: ensure the call graph has one call edge to the callee (this
-      // call).
-      //      if (CallGraphNode *calleeCGN = CG.lookupNode(
-      //            cast<CallableOpInterface>(callableOp).getCallableRegion()))
+      // The callee must have a single call site.
+      if (userMap.getUsers(callOp.resolveCallable()).size() != 1) {
+        LLVM_DEBUG({
+          llvm::dbgs() << "Not a candidate: " << callOp << "\n";
+          llvm::dbgs().indent(2)
+              << "callee has "
+              << userMap.getUsers(callOp.resolveCallable()).size()
+              << " call sites\n";
+        });
+        return WalkResult::advance();
+      }
 
-      llvm::dbgs() << "Candidate: " << callOp << "\n\n";
+      LLVM_DEBUG(llvm::dbgs() << "Found candidate: " << callOp << "\n\n");
       candidateCalls.push_back(callOp);
       return WalkResult::advance();
     });
