@@ -119,3 +119,6 @@ piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc
 piextUSMSharedAlloc
+piextEnablePeerAccess
+piextDisablePeerAccess
+piextPeerAccessGetInfo
