@@ -379,6 +379,7 @@ func.func @affine_for_nohoist1(%arg0: memref<?xi32>) {
 // -----
 
 // COM: Test LICM on affine.parallel loops.
+// CHECK: #set = affine_set<(d0, d1, d2, d3, d4, d5) : (d3 - d0 - 1 >= 0, d3 - d1 - 1 >= 0, d4 - d0 - 1 >= 0, d4 - d1 - 1 >= 0, d5 - d2 - 1 >= 0)>
 module {
 func.func private @use(f32) 
 

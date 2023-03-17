@@ -218,7 +218,7 @@ public:
 
 private:
   Value createGuardExpr() const final;
-  virtual Operation::operand_range getInitVals() const final {
+  Operation::operand_range getInitVals() const final {
     return loop.getInitArgs();
   }
 
@@ -232,7 +232,7 @@ public:
 
 private:
   Value createGuardExpr() const final;
-  virtual Operation::operand_range getInitVals() const final {
+  Operation::operand_range getInitVals() const final {
     return loop.getInitVals();
   }
 
@@ -246,7 +246,10 @@ public:
 
 private:
   RegionBranchOpInterface createGuard() const final;
-  virtual IntegerSet createGuardExpr() const = 0;
+  IntegerSet createGuardExpr() const;
+  virtual void getConstraints(SmallVectorImpl<AffineExpr> &,
+                              ArrayRef<AffineExpr>,
+                              ArrayRef<AffineExpr>) const = 0;
   virtual OperandRange getLowerBoundsOperands() const = 0;
   virtual OperandRange getUpperBoundsOperands() const = 0;
   virtual AffineMap getLowerBoundsMap() const = 0;
@@ -261,22 +264,19 @@ public:
       : AffineLoopGuardBuilder(loop), loop(loop) {}
 
 private:
-  IntegerSet createGuardExpr() const final;
-  virtual mlir::Operation::operand_range getInitVals() const final {
+  void getConstraints(SmallVectorImpl<AffineExpr> &, ArrayRef<AffineExpr>,
+                      ArrayRef<AffineExpr>) const final;
+  mlir::Operation::operand_range getInitVals() const final {
     return loop.getIterOperands();
   }
-  virtual OperandRange getLowerBoundsOperands() const final {
+  OperandRange getLowerBoundsOperands() const final {
     return loop.getLowerBoundOperands();
   }
-  virtual OperandRange getUpperBoundsOperands() const final {
+  OperandRange getUpperBoundsOperands() const final {
     return loop.getUpperBoundOperands();
   }
-  virtual AffineMap getLowerBoundsMap() const final {
-    return loop.getLowerBoundMap();
-  }
-  virtual AffineMap getUpperBoundsMap() const final {
-    return loop.getUpperBoundMap();
-  }
+  AffineMap getLowerBoundsMap() const final { return loop.getLowerBoundMap(); }
+  AffineMap getUpperBoundsMap() const final { return loop.getUpperBoundMap(); }
 
   mutable AffineForOp loop;
 };
@@ -287,22 +287,19 @@ public:
       : AffineLoopGuardBuilder(loop), loop(loop) {}
 
 private:
-  IntegerSet createGuardExpr() const final;
-  virtual mlir::Operation::operand_range getInitVals() const final {
+  void getConstraints(SmallVectorImpl<AffineExpr> &, ArrayRef<AffineExpr>,
+                      ArrayRef<AffineExpr>) const final;
+  mlir::Operation::operand_range getInitVals() const final {
     return loop.getMapOperands();
   }
-  virtual OperandRange getLowerBoundsOperands() const final {
+  OperandRange getLowerBoundsOperands() const final {
     return loop.getLowerBoundsOperands();
   }
-  virtual OperandRange getUpperBoundsOperands() const final {
+  OperandRange getUpperBoundsOperands() const final {
     return loop.getUpperBoundsOperands();
   }
-  virtual AffineMap getLowerBoundsMap() const final {
-    return loop.getLowerBoundsMap();
-  }
-  virtual AffineMap getUpperBoundsMap() const final {
-    return loop.getUpperBoundsMap();
-  }
+  AffineMap getLowerBoundsMap() const final { return loop.getLowerBoundsMap(); }
+  AffineMap getUpperBoundsMap() const final { return loop.getUpperBoundsMap(); }
 
   mutable AffineParallelOp loop;
 };
@@ -596,83 +593,65 @@ RegionBranchOpInterface AffineLoopGuardBuilder::createGuard() const {
   return ifOp;
 }
 
-//===----------------------------------------------------------------------===//
-// AffineForLoopGuardBuilder
-//===----------------------------------------------------------------------===//
+IntegerSet AffineLoopGuardBuilder::createGuardExpr() const {
+  const AffineMap lbMap = getLowerBoundsMap(), ubMap = getUpperBoundsMap();
 
-IntegerSet AffineForGuardBuilder::createGuardExpr() const {
+  SmallVector<AffineExpr, 4> dims;
+  for (unsigned idx = 0; idx < ubMap.getNumDims(); ++idx)
+    dims.push_back(
+        getAffineDimExpr(idx + lbMap.getNumDims(), loop.getContext()));
+
+  SmallVector<AffineExpr, 4> symbols;
+  for (unsigned idx = 0; idx < ubMap.getNumSymbols(); ++idx)
+    symbols.push_back(
+        getAffineSymbolExpr(idx + lbMap.getNumSymbols(), loop.getContext()));
+
   SmallVector<AffineExpr, 2> exprs;
-  SmallVector<bool, 2> eqflags;
-
-  const AffineMap lbMap = loop.getLowerBoundMap(),
-                  ubMap = loop.getUpperBoundMap();
-
-  for (AffineExpr ub : ubMap.getResults()) {
-    SmallVector<AffineExpr, 4> symbols;
-    for (unsigned idx = 0; idx < ubMap.getNumSymbols(); ++idx)
-      symbols.push_back(
-          getAffineSymbolExpr(idx + lbMap.getNumSymbols(), loop.getContext()));
-
-    SmallVector<AffineExpr, 4> dims;
-    for (unsigned idx = 0; idx < ubMap.getNumDims(); ++idx)
-      dims.push_back(
-          getAffineDimExpr(idx + lbMap.getNumDims(), loop.getContext()));
-
-    ub = ub.replaceDimsAndSymbols(dims, symbols);
-
-    for (AffineExpr lb : lbMap.getResults()) {
-      // Bound is whether this expr >= 0, which since we want ub > lb,
-      // we rewrite as follows.
-      exprs.push_back(ub - lb - 1);
-      eqflags.push_back(false);
-    }
-  }
+  getConstraints(exprs, dims, symbols);
+  SmallVector<bool, 2> eqflags(exprs.size(), false);
 
   return IntegerSet::get(
       /*dim*/ lbMap.getNumDims() + ubMap.getNumDims(),
       /*symbols*/ lbMap.getNumSymbols() + ubMap.getNumSymbols(), exprs,
       eqflags);
+}
+
+//===----------------------------------------------------------------------===//
+// AffineForLoopGuardBuilder
+//===----------------------------------------------------------------------===//
+
+void AffineForGuardBuilder::getConstraints(SmallVectorImpl<AffineExpr> &exprs,
+                                           ArrayRef<AffineExpr> dims,
+                                           ArrayRef<AffineExpr> symbols) const {
+  for (AffineExpr ub : loop.getUpperBoundMap().getResults()) {
+    ub = ub.replaceDimsAndSymbols(dims, symbols);
+    for (AffineExpr lb : loop.getLowerBoundMap().getResults()) {
+      // Bound is whether this expr >= 0, which since we want ub > lb, we
+      // rewrite as follows.
+      exprs.push_back(ub - lb - 1);
+    }
+  }
 }
 
 //===----------------------------------------------------------------------===//
 // AffineParallelLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-IntegerSet AffineParallelGuardBuilder::createGuardExpr() const {
-  SmallVector<AffineExpr, 2> exprs;
-  SmallVector<bool, 2> eqflags;
-
-  const AffineMap lbMap = loop.getLowerBoundsMap(),
-                  ubMap = loop.getUpperBoundsMap();
-
-  for (auto step : llvm::enumerate(loop.getSteps())) {
+void AffineParallelGuardBuilder::getConstraints(
+    SmallVectorImpl<AffineExpr> &exprs, ArrayRef<AffineExpr> dims,
+    ArrayRef<AffineExpr> symbols) const {
+  for (auto step : llvm::enumerate(loop.getSteps()))
     for (AffineExpr ub : loop.getUpperBoundMap(step.index()).getResults()) {
-      SmallVector<AffineExpr, 4> symbols;
-      for (unsigned idx = 0; idx < ubMap.getNumSymbols(); ++idx)
-        symbols.push_back(getAffineSymbolExpr(idx + lbMap.getNumSymbols(),
-                                              loop.getContext()));
-
-      SmallVector<AffineExpr, 4> dims;
-      for (unsigned idx = 0; idx < ubMap.getNumDims(); ++idx)
-        dims.push_back(
-            getAffineDimExpr(idx + lbMap.getNumDims(), loop.getContext()));
-
       ub = ub.replaceDimsAndSymbols(dims, symbols);
-
       for (AffineExpr lb : loop.getLowerBoundMap(step.index()).getResults()) {
         // Bound is whether this expr >= 0, which since we want ub > lb, we
         // rewrite as follows.
-        exprs.push_back(ub - lb - step.value());
-        eqflags.push_back(false);
+        exprs.push_back(ub - lb - 1);
       }
     }
-  }
-
-  return IntegerSet::get(
-      /*dim*/ lbMap.getNumDims() + ubMap.getNumDims(),
-      /*symbols*/ lbMap.getNumSymbols() + ubMap.getNumSymbols(), exprs,
-      eqflags);
 }
+
+//===----------------------------------------------------------------------===//
 
 /// Determine whether any operation in the \p loop has a conflict with the
 /// given operation \p op that prevents hoisting the operation out of the
