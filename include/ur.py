@@ -652,12 +652,13 @@ class ur_image_channel_order_v(IntEnum):
     RGBA = 5                                        ## channel order RGBA
     BGRA = 6                                        ## channel order BGRA
     ARGB = 7                                        ## channel order ARGB
-    INTENSITY = 8                                   ## channel order intensity
-    LUMINANCE = 9                                   ## channel order luminance
-    RX = 10                                         ## channel order Rx
-    RGX = 11                                        ## channel order RGx
-    RGBX = 12                                       ## channel order RGBx
-    SRGBA = 13                                      ## channel order sRGBA
+    ABGR = 8                                        ## channel order ABGR
+    INTENSITY = 9                                   ## channel order intensity
+    LUMINANCE = 10                                  ## channel order luminance
+    RX = 11                                         ## channel order Rx
+    RGX = 12                                        ## channel order RGx
+    RGBX = 13                                       ## channel order RGBx
+    SRGBA = 14                                      ## channel order sRGBA
 
 class ur_image_channel_order_t(c_int):
     def __str__(self):

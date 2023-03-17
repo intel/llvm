@@ -85,6 +85,8 @@ etors:
       desc: "channel order BGRA"
     - name: ARGB
       desc: "channel order ARGB"
+    - name: ABGR
+      desc: "channel order ABGR"
     - name: INTENSITY
       desc: "channel order intensity"
     - name: LUMINANCE
