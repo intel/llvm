@@ -11,7 +11,6 @@
 #include <detail/config.hpp>
 #include <helpers/PiMock.hpp>
 
-
 #include <gtest/gtest.h>
 
 TEST(USMP2PTest, USMP2PTest) {
