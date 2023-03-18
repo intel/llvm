@@ -54,6 +54,14 @@
 #define __SYCL_USE_FALLBACK_ASSERT 0
 #endif
 
+// The pi_native_handle2 type has been added as a temporary measure so that the
+// existing pi_native_handle can co-exist with it. At the next ABI redefinition
+// the "2" version will be removed and only pi_native_handle will remain.
+typedef struct _ze_command_queue_handle_t* ze_command_queue_handle_t;
+typedef struct _ze_command_list_handle_t* ze_command_list_handle_t;
+using pi_native_handle2 =
+std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>;
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
@@ -1896,6 +1904,11 @@ public:
 
 private:
   pi_native_handle getNative() const;
+
+  // The make_queue2 and getNative2 functions are added as a temporary measure
+  // so that the existing make_queue and getNative functions can co-exist with
+  // them. At the next ABI redefinition the "2" versions will be removed and
+  // only make_queue and getNative will remain.
   pi_native_handle2 getNative2() const;
 
   std::shared_ptr<detail::queue_impl> impl;

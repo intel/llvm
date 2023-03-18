@@ -131,11 +131,6 @@ using pi_bool = pi_uint32;
 using pi_bitfield = pi_uint64;
 using pi_native_handle = uintptr_t;
 
-typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
-typedef struct _ze_command_list_handle_t *ze_command_list_handle_t;
-using pi_native_handle2 =
-    std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>;
-
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
 // for PI <-> OpenCL ways. The PI <-> to other BE translation is almost

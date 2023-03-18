@@ -217,6 +217,11 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
                                const device *TargetDevice, bool KeepOwnership,
                                const async_handler &Handler, backend Backend);
+
+// The make_queue2 and getNative2 functions are added as a temporary measure so
+// that the existing make_queue and getNative functions can co-exist with them.
+// At the next ABI redefinition the "2" versions will be removed and only
+// make_queue and getNative will remain.
 __SYCL_EXPORT queue
 make_queue2(std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
                 NativeHandle,

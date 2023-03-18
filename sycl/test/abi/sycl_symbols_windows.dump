@@ -908,7 +908,6 @@
 ?getMemoryObject@AccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getMemoryRange@AccessorBaseHost@detail@_V1@sycl@@QEAAAEAV?$range@$02@34@XZ
 ?getMemoryRange@AccessorBaseHost@detail@_V1@sycl@@QEBAAEBV?$range@$02@34@XZ
-?getNative2@queue@_V1@sycl@@AEBA?AV?$variant@PEAU_ze_command_queue_handle_t@@PEAU_ze_command_list_handle_t@@@std@@XZ
 ?getNative@context@_V1@sycl@@AEBA_KXZ
 ?getNative@device@_V1@sycl@@AEBA_KXZ
 ?getNative@device_image_plain@detail@_V1@sycl@@QEBA_KXZ
@@ -1089,8 +1088,6 @@
 ?make_queue@level_zero@oneapi@ext@_V1@sycl@@YA?AVqueue@45@AEBVcontext@45@AEBVdevice@45@_K_N@Z
 ?make_queue@level_zero@oneapi@ext@_V1@sycl@@YA?AVqueue@45@AEBVcontext@45@_K_N@Z
 ?make_queue@opencl@_V1@sycl@@YA?AVqueue@23@AEBVcontext@23@_K@Z
-?make_queue_standard_or_immediate@detail@_V1@sycl@@YA?AVqueue@23@V?$variant@PEAU_ze_command_queue_handle_t@@PEAU_ze_command_list_handle_t@@@std@@AEBVcontext@23@PEBVdevice@23@_NAEBV?$function@$$A6AXVexception_list@_V1@sycl@@@Z@6@W4backend@23@@Z
-?make_queue_standard_or_immediate@level_zero@oneapi@ext@_V1@sycl@@YA?AVqueue@45@AEBVcontext@45@AEBVdevice@45@V?$variant@PEAU_ze_command_queue_handle_t@@PEAU_ze_command_list_handle_t@@@std@@_N@Z
 ?malloc@_V1@sycl@@YAPEAX_KAEBVdevice@12@AEBVcontext@12@W4alloc@usm@12@AEBUcode_location@detail@12@@Z
 ?malloc@_V1@sycl@@YAPEAX_KAEBVdevice@12@AEBVcontext@12@W4alloc@usm@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?malloc@_V1@sycl@@YAPEAX_KAEBVqueue@12@W4alloc@usm@12@AEBUcode_location@detail@12@@Z
