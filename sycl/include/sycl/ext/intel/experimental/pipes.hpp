@@ -383,7 +383,7 @@ private:
                              ready_latency_key>::template get<int32_t>(0);
   static constexpr int32_t m_bits_per_symbol =
       detail::ValueOrDefault<_propertiesT,
-                             bits_per_symbol_key>::template get<int32_t>(0);
+                             bits_per_symbol_key>::template get<int32_t>(1);
   static constexpr bool m_uses_valid =
       detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(
           true);
@@ -393,7 +393,7 @@ private:
           first_symbol_in_high_order_bits_key>::template get<int32_t>(0);
   static constexpr protocol_name m_protocol =
       detail::ValueOrDefault<_propertiesT, protocol_key>::template get<
-          protocol_name>(protocol_name::AVALON_STREAMING);
+          protocol_name>(protocol_name::AVALON_STREAMING_USES_READY);
 
 public:
   static constexpr struct ConstantPipeStorageExp m_Storage = {
