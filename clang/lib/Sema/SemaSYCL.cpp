@@ -2839,7 +2839,10 @@ public:
     return true;
   }
 
-  CXXMethodDecl *GetCallOperator() {
+  CXXMethodDecl *getCallOperator() {
+    if (CallOperator)
+      return CallOperator;
+
     if (KernelObj->isLambda()) {
       CallOperator = KernelObj->getLambdaCallOperator();
       return CallOperator;
@@ -2853,7 +2856,7 @@ static bool isESIMDKernelType(KernelCallOperatorVisitor KernelCallOperator,
                               const CXXRecordDecl *KernelObjType,
                               FunctionDecl *KernelCallerFunc, Sema &SemaRef) {
   const CXXMethodDecl *OpParens = nullptr;
-  OpParens = KernelCallOperator.GetCallOperator();
+  OpParens = KernelCallOperator.getCallOperator();
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
 }
 
@@ -2947,12 +2950,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     KernelCallOperatorVisitor KernelCallOperator(KernelCallerFunc, KernelObj);
 
     CXXMethodDecl *WGLambdaFn = nullptr;
-    if (KernelObj->isLambda()) {
-      WGLambdaFn = KernelObj->getLambdaCallOperator();
-    } else {
-      KernelCallOperator.TraverseDecl(KernelCallerFunc);
-      WGLambdaFn = KernelCallOperator.GetCallOperator();
-    }
+    WGLambdaFn = KernelCallOperator.getCallOperator();
 
     assert(WGLambdaFn && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
@@ -4115,7 +4113,7 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj,
   // Get the operator() function of the wrapper.
   KernelCallOperatorVisitor KernelCallOperator(KernelCallerFunc, KernelObj);
   KernelCallOperator.TraverseDecl(KernelCallerFunc);
-  CXXMethodDecl *OpParens = KernelCallOperator.GetCallOperator();
+  CXXMethodDecl *OpParens = KernelCallOperator.getCallOperator();
   assert(OpParens && "invalid kernel object");
 
   typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
