@@ -43,7 +43,7 @@ __ESIMD_API void split_barrier(split_barrier_action flag) {
 /// @addtogroup sycl_esimd_raw_send
 /// @{
 
-/// Raw sends load.  "s" suffix designates "split" variant - i.e. two sources.
+/// Raw sends.  "s" suffix designates "split" variant - i.e. two sources.
 ///
 /// @param msgDst is the old value of the destination operand.
 /// @param msgSrc0 is the first source operand of send message.
@@ -69,12 +69,12 @@ __ESIMD_API void split_barrier(split_barrier_action flag) {
 /// @return the vector value read from memory.
 template <typename T1, int n1, typename T2, int n2, typename T3, int n3,
           int N = 16>
-__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
-    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-    __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
-    uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
-    uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
-    __ESIMD_NS::simd_mask<N> mask = 1) {
+__ESIMD_API __ESIMD_NS::simd<T1, n1>
+raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+          __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
+          uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
+          uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
+          __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -88,7 +88,20 @@ __ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
       msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
 }
 
-/// Raw send load.
+template <typename T1, int n1, typename T2, int n2, typename T3, int n3,
+          int N = 16>
+__SYCL_DEPRECATED("raw_sends_load is deprecated. Use raw_sends")
+__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
+    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+    __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
+    uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
+    uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
+    __ESIMD_NS::simd_mask<N> mask = 1) {
+  return raw_sends(msgDst, msgSrc0, msgSrc1, exDesc, msgDesc, execSize, sfid,
+                   numSrc0, numSrc1, numDst, isEOT, isSendc);
+}
+
+/// Raw send.
 ///
 /// @param msgDst is the old value of the destination operand.
 /// @param msgSrc0 is the first source operand of send message.
@@ -111,10 +124,10 @@ __ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
 /// @return the vector value read from memory.
 template <typename T1, int n1, typename T2, int n2, int N = 16>
 __ESIMD_API __ESIMD_NS::simd<T1, n1>
-raw_send_load(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-              uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
-              uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0,
-              uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
+raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+         uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+         uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0,
+         uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -126,7 +139,18 @@ raw_send_load(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
       msgSrc0.data(), msgDst.data());
 }
 
-/// Raw sends store. "s" suffix designates "split" variant - i.e. two sources.
+template <typename T1, int n1, typename T2, int n2, int N = 16>
+__SYCL_DEPRECATED("raw_send_load is deprecated. Use raw_send")
+__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_send_load(
+    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+    uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+    uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
+    __ESIMD_NS::simd_mask<N> mask = 1) {
+  return raw_send(msgDst, msgSrc0, exDesc, msgDesc, execSize, sfid, numSrc0,
+                  numDst, isEOT, isSendc, mask);
+}
+
+/// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
 ///
 /// @param msgSrc0 is the first source operand of send message.
 /// @param msgSrc1 is the second source operand of send message.
@@ -148,11 +172,10 @@ raw_send_load(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 /// to on).
 template <typename T1, int n1, typename T2, int n2, int N = 16>
 __ESIMD_API void
-raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
-                __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
-                uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
-                uint8_t numSrc0, uint8_t numSrc1, uint8_t isEOT = 0,
-                uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
+raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
+          uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+          uint8_t numSrc0, uint8_t numSrc1, uint8_t isEOT = 0,
+          uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -164,7 +187,20 @@ raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
       msgSrc0.data(), msgSrc1.data());
 }
 
-/// Raw send store. Generates a \c send or \c sendc instruction for the message
+template <typename T1, int n1, typename T2, int n2, int N = 16>
+__SYCL_DEPRECATED("raw_sends_store is deprecated. Use raw_sends")
+__ESIMD_API
+    void raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
+                         __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
+                         uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+                         uint8_t numSrc0, uint8_t numSrc1, uint8_t isEOT = 0,
+                         uint8_t isSendc = 0,
+                         __ESIMD_NS::simd_mask<N> mask = 1) {
+  raw_sends(msgSrc0, msgSrc1, exDesc, msgDesc, execSize, sfid, numSrc0, numSrc1,
+            isEOT, isSendc, mask);
+}
+
+/// Raw send. Generates a \c send or \c sendc instruction for the message
 /// gateway.
 ///
 /// @param msgSrc0 is the first source operand of send message.
@@ -183,11 +219,10 @@ raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
 /// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
 template <typename T1, int n1, int N = 16>
-__ESIMD_API void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
-                                uint32_t exDesc, uint32_t msgDesc,
-                                uint8_t execSize, uint8_t sfid, uint8_t numSrc0,
-                                uint8_t isEOT = 0, uint8_t isSendc = 0,
-                                __ESIMD_NS::simd_mask<N> mask = 1) {
+__ESIMD_API void
+raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
+         uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t isEOT = 0,
+         uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
 
@@ -195,6 +230,17 @@ __ESIMD_API void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
   __esimd_raw_send2_noresult<T1, n1, N>(modifier, execSize, mask.data(),
                                         numSrc0, sfid, exDesc, msgDesc,
                                         msgSrc0.data());
+}
+
+template <typename T1, int n1, int N = 16>
+__SYCL_DEPRECATED("raw_send_store is deprecated. Use raw_send")
+__ESIMD_API
+    void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
+                        uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+                        uint8_t numSrc0, uint8_t isEOT = 0, uint8_t isSendc = 0,
+                        __ESIMD_NS::simd_mask<N> mask = 1) {
+  raw_send(msgSrc0, exDesc, msgDesc, execSize, sfid, numSrc0, isEOT, isSendc,
+           mask);
 }
 
 /// @} sycl_esimd_raw_send
@@ -2394,8 +2440,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  return raw_send_load(oldDst, payload.get_raw_data(), exDesc, desc, execSize,
-                       sfid, numSrc0, numDst);
+  return raw_send(oldDst, payload.get_raw_data(), exDesc, desc, execSize, sfid,
+                  numSrc0, numDst);
 }
 
 /// A variation of \c 2D stateless block prefetch \c with parameters passed as
@@ -2437,7 +2483,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   constexpr uint8_t execSize = 0x0;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  raw_send_store(payload.get_raw_data(), exDesc, desc, execSize, sfid, numDst);
+  raw_send(payload.get_raw_data(), exDesc, desc, execSize, sfid, numDst);
 }
 
 /// A variation of \c 2D stateless block store \c with parameters passed as
@@ -2476,8 +2522,8 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = (N * sizeof(T)) / 64;
-  raw_sends_store(payload.get_raw_data(), Data, exDesc, desc, execSize, sfid,
-                  numSrc0, numSrc1);
+  raw_sends(payload.get_raw_data(), Data, exDesc, desc, execSize, sfid, numSrc0,
+            numSrc1);
 }
 
 /// SLM atomic.
