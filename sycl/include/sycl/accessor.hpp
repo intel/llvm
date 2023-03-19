@@ -2086,7 +2086,12 @@ public:
             typename = detail::enable_if_t<
                 (AccessTarget_ == access::target::host_buffer) ||
                 (AccessTarget_ == access::target::host_task)>>
-  std::add_pointer_t<value_type> get_pointer() const noexcept {
+#if SYCL_LANGUAGE_VERSION >= 202001
+  std::add_pointer_t<value_type> get_pointer() const noexcept
+#else
+  DataT *get_pointer() const
+#endif
+  {
     return getPointerAdjusted();
   }
 
@@ -2686,11 +2691,6 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
 
   // Use base classes constructors
   using local_acc::local_acc;
-
-public:
-  local_ptr<DataT> get_pointer() const {
-    return local_ptr<DataT>(local_acc::getQualifiedPtr());
-  }
 
 #ifdef __SYCL_DEVICE_ONLY__
 

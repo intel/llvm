@@ -783,7 +783,7 @@ public:
   // Only if Space == local_space || generic_space
   template <int dimensions>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space
   template <
