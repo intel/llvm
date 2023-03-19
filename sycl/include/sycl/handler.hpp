@@ -1157,7 +1157,9 @@ private:
   template <typename KernelName, typename KernelType, typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_function(
+      "sycl-single-task",
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
   __SYCL_KERNEL_ATTR__ void
@@ -1174,7 +1176,9 @@ private:
   template <typename KernelName, typename KernelType, typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_function(
+      "sycl-single-task",
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
   __SYCL_KERNEL_ATTR__ void
@@ -2806,7 +2810,7 @@ private:
   // Make reduction friends to store buffers and arrays created for it
   // in handler from reduction methods.
   template <typename T, class BinaryOperation, int Dims, size_t Extent,
-            typename RedOutVar>
+            bool ExplicitIdentity, typename RedOutVar>
   friend class detail::reduction_impl_algo;
 
   friend inline void detail::reduction::finalizeHandler(handler &CGH);
