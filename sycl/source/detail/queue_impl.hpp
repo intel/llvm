@@ -28,7 +28,6 @@
 #include <sycl/properties/context_properties.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/queue.hpp>
 #include <sycl/stl.hpp>
 
 #include <utility>
