@@ -1009,9 +1009,6 @@ public:
 
   static constexpr access::address_space address_space = Space;
 
-  using decorated_type =
-      typename detail::DecoratedType<const void, Space>::type;
-
   // Constructors
   multi_ptr() : m_Pointer(nullptr) {}
   multi_ptr(const multi_ptr &) = default;
@@ -1095,7 +1092,7 @@ public:
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : m_Pointer(detail::cast_AS<pointer_t *>(Accessor.get_pointer())) {}
 
   // Only if Space == constant_space
   template <
@@ -1153,9 +1150,6 @@ public:
       typename detail::LegacyPointerTypes<const void, Space>::pointer_t;
 
   static constexpr access::address_space address_space = Space;
-
-  using decorated_type =
-      typename detail::DecoratedType<const void, Space>::type;
 
   // Constructors
   multi_ptr() : m_Pointer(nullptr) {}
