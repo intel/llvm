@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass currently attempts to peel struct members from the argument pack
-// passed to a SYCL kernel. For example given:
+// This pass attempts to peel struct members from the argument pack passed to
+// the function called from a SYCL kernel. For example given:
 //
 //  gpu.func @kernel_parallel_for(%arg0: i32) {
 //    func.call @parallel_for(%0, ...) :
@@ -15,7 +15,7 @@
 //    gpu.return
 //  }
 //
-// The pass modifies the call (and the callee):
+// The pass modifies the call site (and the callee):
 //
 //  gpu.func @kernel_parallel_for(%arg0: i32) {
 //    %int_arg = <memref to first struct member>
@@ -97,7 +97,7 @@ private:
                            SmallVector<Attribute> &newArgAttrs) const;
 
   /// Replace uses of the argument \p origArg in the region \p callableRgn with
-  /// the arguments starting at position \pos in the callable region.
+  /// the arguments starting at position \p pos in the callable region.
   void replaceUsesOfArgument(Value origArg, unsigned pos,
                              Region &callableRgn) const;
 
@@ -241,7 +241,6 @@ void Candidate::modifyCall() {
 }
 
 void Candidate::modifyCallee() {
-
   auto callable = cast<CallableOpInterface>(callOp.resolveCallable());
   auto funcOp = cast<func::FuncOp>(callable.getCallableRegion()->getParentOp());
   Region &callableRgn = funcOp.getFunctionBody();
@@ -342,24 +341,23 @@ void ArgumentPromotionPass::collectCandidates(
     });
 
     gpuFuncOp->walk([&](CallOpInterface callOp) {
+      // Skip functions with no arguments.
+      OperandRange callOperands = callOp.getArgOperands();
+      if (callOperands.empty())
+        return;
+
       // We are only interested in non-recursive tail calls.
       if (!callOp->getBlock()->hasNoSuccessors() ||
           Candidate::isRecursiveCall(callOp))
-        return WalkResult::advance();
-
-      // The first operand of the call must not be used by any other
-      // operation.
-      OperandRange callOperands = callOp.getArgOperands();
-      if (callOperands.empty() || !callOperands.front().hasOneUse())
-        return WalkResult::advance();
+        return;
 
       // The first operand must be a memref with a struct element type.
       if (!Candidate::isValidMemRefType(callOperands.front().getType()))
-        return WalkResult::advance();
+        return;
 
       // The callee must be defined and private.
       if (!Candidate::isPrivateCallable(callOp.resolveCallable()))
-        return WalkResult::advance();
+        return;
 
       // The callee must have a single call site.
       if (userMap.getUsers(callOp.resolveCallable()).size() != 1) {
@@ -370,12 +368,19 @@ void ArgumentPromotionPass::collectCandidates(
               << userMap.getUsers(callOp.resolveCallable()).size()
               << " call sites\n";
         });
-        return WalkResult::advance();
       }
+
+      // In the callee, the members of the struct must be accessed via polygeist
+      // subIndex operations.
+      auto callable = cast<CallableOpInterface>(callOp.resolveCallable());
+      Value firstArg = callable.getCallableRegion()->getArgument(0);
+      if (llvm::any_of(firstArg.getUses(), [](OpOperand &use) {
+            return !isa<polygeist::SubIndexOp>(use.getOwner());
+          }))
+        return;
 
       LLVM_DEBUG(llvm::dbgs() << "Found candidate: " << callOp << "\n\n");
       candidateCalls.push_back(callOp);
-      return WalkResult::advance();
     });
   });
 }

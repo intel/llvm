@@ -25,9 +25,9 @@ def AffineReduction : Pass<"detect-reduction"> {
 }
 
 def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
-  let summary = "Promote kernel arguments";
+  let summary = "Promote function arguments";
   let description = [{
-    Peel struct members from the argument pack passed to a SYCL kernel. 
+    Peel struct members from the arguments passed to the function called by a SYCL kernel. 
     For example given:
 
       gpu.func @kernel_parallel_for(%arg0: i32) {
@@ -40,7 +40,7 @@ def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
       gpu.func @kernel_parallel_for(%arg0: i32) {
         %int_arg = <first struct member>
         %new_memref = <memref to struct with first member removed>
-        func.call @parallel_for(%int_arg, %new_memref, ...) : (i32, memref<?x!llvm.struct<(!sycl.accessor...)
+        func.call @parallel_for(%int_arg, %new_memref, ...) : (memref<?xi32>, memref<?x!llvm.struct<(!sycl.accessor...)
         gpu.return
       }    
   }];
