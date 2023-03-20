@@ -157,9 +157,8 @@ bool Candidate::isValidMemRefType(Type type) {
       !ShapedType::isDynamic(mt.getShape()[0]) || !mt.getLayout().isIdentity())
     return false;
 
-  // The element type must be a struct with at least 2 members.
-  auto structType = dyn_cast<LLVM::LLVMStructType>(mt.getElementType());
-  if (!structType || structType.getBody().size() < 2)
+  // The element type must be a struct.
+  if (!dyn_cast<LLVM::LLVMStructType>(mt.getElementType()))
     return false;
 
   return true;
