@@ -12,14 +12,12 @@
 
 int check = 0;
 
-pi_result redefinedDevicesGet(pi_platform platform,
-                                   pi_device_type device_type,
-                                   pi_uint32 num_entries, pi_device *devices,
-                                   pi_uint32 *num_devices) {
+pi_result redefinedDevicesGet(pi_platform platform, pi_device_type device_type,
+                              pi_uint32 num_entries, pi_device *devices,
+                              pi_uint32 *num_devices) {
   if (num_devices)
     *num_devices = 2;
-  if (devices && num_entries > 0)
-  {
+  if (devices && num_entries > 0) {
     devices[0] = reinterpret_cast<pi_device>(1);
     devices[1] = reinterpret_cast<pi_device>(2);
   }
@@ -60,8 +58,7 @@ TEST(USMP2PTest, USMP2PTest) {
 
   sycl::unittest::PiMock Mock;
 
-  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(
-      redefinedDevicesGet);
+  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
   Mock.redefine<sycl::detail::PiApiKind::piextEnablePeerAccess>(
       redefinedEnablePeerAccess);
   Mock.redefine<sycl::detail::PiApiKind::piextDisablePeerAccess>(
