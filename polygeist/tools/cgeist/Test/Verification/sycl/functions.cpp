@@ -40,6 +40,18 @@
 
 template <typename T> SYCL_EXTERNAL void keep(T);
 
+// CHECK-MLIR-LABEL: func.func @_Z13accessor_sizeN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
+// CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_gb, llvm.noundef})
+// CHECK-MLIR: %{{.*}} = sycl.accessor.size(%arg0) {ArgumentTypes = [memref<?x!sycl_accessor_2_i32_rw_gb, 4>], FunctionName = @size, MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE4sizeEv, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_rw_gb>) -> i64
+
+// CHECK-LLVM-LABEL: define spir_func void @_Z13accessor_sizeN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
+// CHECK-LLVM:           %"class.sycl::_V1::accessor.2"* noundef byval(%"class.sycl::_V1::accessor.2") align 8 %0) #[[FUNCATTRS:[0-9]+]] {
+// CHECK-LLVM:  %{{.*}} = call spir_func i64 @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE4sizeEv(%"class.sycl::_V1::accessor.2" addrspace(4)* %{{.*}})
+
+SYCL_EXTERNAL void accessor_size(sycl::accessor<sycl::cl_int, 2> acc) {
+  keep(acc.size());
+}
+
 // CHECK-MLIR-LABEL: func.func @_Z29accessor_subscript_operator_0N4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEENS0_2idILi2EEE(
 // CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_gb, llvm.noundef}, 
 // CHECK_MLIR_SAME:      %{{.*}}: memref<?x!sycl_id_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_2_, llvm.noundef})

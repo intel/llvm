@@ -133,6 +133,11 @@ struct AccessorGetPtr : public OffsetTag {
   static constexpr std::array<int32_t, 2> indices{1, 0};
 };
 
+/// Get the MAccessRange field from an accessor.
+struct AccessorGetMAccessRange : public OffsetTag {
+  static constexpr std::array<int32_t, 2> indices{0, 1};
+};
+
 /// Get the MemRange field from an accessor.
 struct AccessorGetMemRange : public OffsetTag {
   static constexpr std::array<int32_t, 2> indices{0, 2};
@@ -1053,6 +1058,24 @@ private:
     });
 
     return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// AccessorSizePattern - Convert `sycl.accessor.size` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class AccessorSizePattern
+    : public GetRangeSizePattern<SYCLAccessorSizeOp>,
+      public GetMemberPattern<AccessorGetMAccessRange, RangeGetDim> {
+public:
+  using GetRangeSizePattern<SYCLAccessorSizeOp>::GetRangeSizePattern;
+
+protected:
+  Value getRange(OpBuilder &builder, Location loc, Type ty, Value thisArg,
+                 int32_t index) const final {
+    return GetMemberPattern<AccessorGetMAccessRange, RangeGetDim>::loadValue(
+        builder, loc, ty, thisArg, index);
   }
 };
 
@@ -2100,13 +2123,13 @@ void mlir::populateSYCLToLLVMConversionPatterns(
   patterns.add<CastPattern>(typeConverter);
   patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns
-      .add<AddZeroArgPattern<SYCLIDGetOp>, AddZeroArgPattern<SYCLItemGetIDOp>,
-           AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
-           GroupGetGroupIDPattern, GroupGetGroupLinearRangePattern,
-           GroupGetGroupRangeDimPattern, GroupGetLocalIDPattern,
-           GroupGetLocalLinearRangePattern, GroupGetLocalRangeDimPattern,
-           IDGetPattern, IDGetRefPattern, ItemGetIDDimPattern,
-           ItemGetRangeDimPattern, ItemGetRangePattern,
+      .add<AccessorSizePattern, AddZeroArgPattern<SYCLIDGetOp>,
+           AddZeroArgPattern<SYCLItemGetIDOp>, AtomicSubscriptIDOffset,
+           BarePtrAddrSpaceCastPattern, GroupGetGroupIDPattern,
+           GroupGetGroupLinearRangePattern, GroupGetGroupRangeDimPattern,
+           GroupGetLocalIDPattern, GroupGetLocalLinearRangePattern,
+           GroupGetLocalRangeDimPattern, IDGetPattern, IDGetRefPattern,
+           ItemGetIDDimPattern, ItemGetRangeDimPattern, ItemGetRangePattern,
            NDItemGetGlobalIDDimPattern, NDItemGetGlobalIDPattern,
            NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
            NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,
