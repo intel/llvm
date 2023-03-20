@@ -67,7 +67,7 @@ static Optional<NamedAttribute> getPassThroughAttrs(CallOpInterface Call) {
 }
 
 static bool hasAttribute(ArrayAttr Attrs, StringRef Name) {
-  return std::any_of(Attrs.begin(), Attrs.end(), [Name](Attribute Attr) {
+  return llvm::any_of(Attrs, [Name](Attribute Attr) {
     auto strAttr = dyn_cast<StringAttr>(Attr);
     return strAttr && strAttr == Name;
   });
