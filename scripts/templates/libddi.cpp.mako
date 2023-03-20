@@ -33,7 +33,7 @@ namespace ${x}_lib
     %for tbl in th.get_pfntables(specs, meta, n, tags):
         if( ${X}_RESULT_SUCCESS == result )
         {
-            result = ${tbl['export']['name']}( ${X}_API_VERSION_0_9, &${n}DdiTable.${tbl['name']} );
+            result = ${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &${n}DdiTable.${tbl['name']} );
         }
 
     %endfor

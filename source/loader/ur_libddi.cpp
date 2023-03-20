@@ -19,59 +19,61 @@ __urdlllocal ur_result_t context_t::urInit() {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetGlobalProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Global);
+        result = urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
+                                          &urDdiTable.Global);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
+                                           &urDdiTable.Context);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = urGetEnqueueProcAddrTable(UR_API_VERSION_CURRENT,
+                                           &urDdiTable.Enqueue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
         result =
-            urGetContextProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Context);
+            urGetEventProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Event);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetEnqueueProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Enqueue);
+        result = urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
+                                          &urDdiTable.Kernel);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = urGetEventProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Event);
+        result = urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Mem);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetKernelProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Kernel);
-    }
-
-    if (UR_RESULT_SUCCESS == result) {
-        result = urGetMemProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Mem);
-    }
-
-    if (UR_RESULT_SUCCESS == result) {
-        result = urGetPlatformProcAddrTable(UR_API_VERSION_0_9,
+        result = urGetPlatformProcAddrTable(UR_API_VERSION_CURRENT,
                                             &urDdiTable.Platform);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetProgramProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Program);
-    }
-
-    if (UR_RESULT_SUCCESS == result) {
-        result = urGetQueueProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Queue);
+        result = urGetProgramProcAddrTable(UR_API_VERSION_CURRENT,
+                                           &urDdiTable.Program);
     }
 
     if (UR_RESULT_SUCCESS == result) {
         result =
-            urGetSamplerProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Sampler);
+            urGetQueueProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Queue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = urGetUSMProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.USM);
+        result = urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT,
+                                           &urDdiTable.Sampler);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result =
-            urGetDeviceProcAddrTable(UR_API_VERSION_0_9, &urDdiTable.Device);
+        result = urGetUSMProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.USM);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
+                                          &urDdiTable.Device);
     }
 
     return result;

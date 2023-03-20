@@ -102,9 +102,9 @@ name: $x_api_version_t
 details:
     - "API versions contain major and minor attributes, use $X_MAJOR_VERSION and $X_MINOR_VERSION"
 etors:
-    - name: "0_9"
-      value: "$X_MAKE_VERSION( 0, 9 )"
-      desc: "version 0.9"
+    - name: "0_6"
+      value: "$X_MAKE_VERSION( 0, 6 )"
+      desc: "version 0.6"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Returns the API version supported by the specified platform"

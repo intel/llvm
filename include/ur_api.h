@@ -435,8 +435,8 @@ urPlatformGetInfo(
 ///     - API versions contain major and minor attributes, use
 ///       ::UR_MAJOR_VERSION and ::UR_MINOR_VERSION
 typedef enum ur_api_version_t {
-    UR_API_VERSION_0_9 = UR_MAKE_VERSION(0, 9),     ///< version 0.9
-    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 9), ///< latest known version
+    UR_API_VERSION_0_6 = UR_MAKE_VERSION(0, 6),     ///< version 0.6
+    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 6), ///< latest known version
     /// @cond
     UR_API_VERSION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
