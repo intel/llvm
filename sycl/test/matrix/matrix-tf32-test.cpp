@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl -O2 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-device-only -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -O2 -S -emit-llvm -o - %s | FileCheck %s
+
 #include <iostream>
 #include <sycl/sycl.hpp>
 
@@ -78,11 +79,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  accB.get_pointer() + (k) * (N) + sg_starty / SG_SZ * TN, N);
              // If no rounding to tf32 function is called, joint_matrix_mad
              // function will work on truncated floats.
-             auto wi_data_a =
-                 sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-             for (int i = 0; i < wi_data_a.length(); i++) {
-               wi_data_a[i] = round_to_tf32(wi_data_a[i]);
-             }
+             joint_matrix_apply(sg, sub_a,
+                                [=](float x) { x = round_to_tf32(x); });
              auto wi_data_b =
                  sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
              for (int i = 0; i < wi_data_b.length(); i++) {
@@ -92,6 +90,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            }
            auto wi_slice_a =
                sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
+           joint_matrix_apply(sg, sub_a, [=](float x) { x *= 2; });
            for (int i = 0; i < wi_slice_a.length(); i++) {
              float elem = wi_slice_a[i];
              wi_slice_a[i] *= 2;
