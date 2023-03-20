@@ -29,6 +29,7 @@ constexpr int N_WGS = 3;
 constexpr int GLOBAL_SIZE = WG_SIZE * N_WGS;
 // Not greater than 8 vec/array size + gap between WGs.
 constexpr int ELEMS_PER_WI = 8 * 2;
+constexpr int N_RESULTS = 16;
 
 __attribute__((noinline)) __attribute__((optnone)) void
 marker(int l = __builtin_LINE()) {
@@ -71,14 +72,14 @@ template <typename TestTy> void test(TestTy TestObj) {
   queue q;
   constexpr int N_RESULTS = 16;
   buffer<int, 1> results(N_RESULTS * GLOBAL_SIZE);
-  {
-    host_accessor res_acc{results};
-    for (auto &res : res_acc)
-      res = true;
-  }
+  for (auto &elem : host_accessor{results})
+    elem = -1;
 
   buffer<int, 1> global_mem_buf(GLOBAL_SIZE * ELEMS_PER_WI);
+
   auto *usm_mem_alloc = malloc_device<int>(GLOBAL_SIZE * ELEMS_PER_WI, q);
+  auto Deleter = [=](auto *Ptr) { free(Ptr, q); };
+  std::unique_ptr<int, decltype(Deleter)> smart_ptr(usm_mem_alloc, Deleter);
 
   q.submit([&](handler &cgh) {
     accessor res_acc{results, cgh};
@@ -121,29 +122,29 @@ template <typename TestTy> void test(TestTy TestObj) {
     host_accessor res_acc{results};
     bool success =
         std::find(res_acc.begin(), res_acc.end(), 0) == res_acc.end();
-    if (!success) {
-      for (int i = 0; i < N_RESULTS; ++i) {
-        bool all_same = [&]() {
-          auto val = res_acc[i];
-          for (int j = 0; j < GLOBAL_SIZE; ++j) {
-            if (val != res_acc[j * N_RESULTS + i])
-              return false;
-          }
-          return true;
-        }();
-        if (all_same) {
-          std::cout << "All: " << res_acc[i] << std::endl;
-          continue;
-        }
+    if (success)
+      return;
+
+    for (int i = 0; i < N_RESULTS; ++i) {
+      bool all_same = [&]() {
+        auto val = res_acc[i];
         for (int j = 0; j < GLOBAL_SIZE; ++j) {
-          std::cout << " " << std::setw(3) << res_acc[j * N_RESULTS + i];
+          if (val != res_acc[j * N_RESULTS + i])
+            return false;
         }
-        std::cout << std::endl;
+        return true;
+      }();
+      if (all_same) {
+        std::cout << "All: " << res_acc[i] << std::endl;
+        continue;
       }
+      for (int j = 0; j < GLOBAL_SIZE; ++j) {
+        std::cout << " " << std::setw(3) << res_acc[j * N_RESULTS + i];
+      }
+      std::cout << std::endl;
     }
-    assert(success);
+    assert(false);
   }
-  free(usm_mem_alloc, q);
 }
 
 struct ScalarWGTest {
