@@ -67,8 +67,8 @@ static Optional<NamedAttribute> getPassThroughAttrs(CallOpInterface Call) {
 }
 
 static bool hasAttribute(ArrayAttr Attrs, StringRef Name) {
-  return llvm::any_of(Attrs, [Name](Attribute Attr) {
-    auto strAttr = Attr.dyn_cast<StringAttr>();
+  return std::any_of(Attrs.begin(), Attrs.end(), [Name](Attribute Attr) {
+    auto strAttr = dyn_cast<StringAttr>(Attr);
     return strAttr && strAttr == Name;
   });
 }
@@ -576,7 +576,7 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
     // Inline a function if it has an attribute suggesting that inlining is
     // desirable.
     if (PassThroughAttr)
-      ShouldInline = hasAttribute(PassThroughAttr->getValue().cast<ArrayAttr>(),
+      ShouldInline = hasAttribute(cast<ArrayAttr>(PassThroughAttr->getValue()),
                                   InlineHintAttrName);
 
     // Inline a function if inlining makes it dead.
@@ -585,8 +585,8 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
   case sycl::InlineMode::AlwaysInline:
     // Inline a function iff it has the 'alwaysinline' attribute.
     if (PassThroughAttr)
-      ShouldInline |= hasAttribute(
-          PassThroughAttr->getValue().cast<ArrayAttr>(), AlwaysInlineAttrName);
+      ShouldInline |= hasAttribute(cast<ArrayAttr>(PassThroughAttr->getValue()),
+                                   AlwaysInlineAttrName);
     break;
   }
 
@@ -765,7 +765,7 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
     // Always inline calls to "alwaysinline" functions.
     if (const auto PassThroughAttrs = getPassThroughAttrs(Call);
         PassThroughAttrs &&
-        hasAttribute(PassThroughAttrs->getValue().cast<ArrayAttr>(),
+        hasAttribute(cast<ArrayAttr>(PassThroughAttrs->getValue()),
                      AlwaysInlineAttrName))
       return true;
 
@@ -788,7 +788,7 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
   SrcNode.getCallableRegion()->walk([&](CallOpInterface Call) {
     CallInterfaceCallable Callable = Call.getCallableForCallee();
     if (SymbolRefAttr SymRef = dyn_cast<SymbolRefAttr>(Callable)) {
-      if (!SymRef.isa<FlatSymbolRefAttr>())
+      if (!isa<FlatSymbolRefAttr>(SymRef))
         return;
     }
 
