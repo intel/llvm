@@ -150,9 +150,9 @@ enum class layout {
   row_major,
   col_major,
   dynamic
-}; // namespace sycl::ext::oneapi::experimental::matrix
+};
 
-}
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
 ==== Group Memory Scope

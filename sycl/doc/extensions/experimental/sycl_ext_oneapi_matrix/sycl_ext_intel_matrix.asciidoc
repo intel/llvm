@@ -94,7 +94,7 @@ extension's APIs the implementation supports.
 |===
 
 
-=== Joint Matrix Intel-Specific Matrix Features
+=== Joint Matrix Intel-Specific Features
 
 ==== Layout
 This extension adds a new layout type named `ext_intel_packed` which
@@ -269,11 +269,26 @@ auto data = get_wi_data(sg, tA);
 // each WI calculates local sum of rows
 for (int i = 0; i < data.length(); ++i) {
   auto [row, col] = data[i].get_coord();
-  sum_of_local_rows[row] += data[i];
+  sum_local_rows[row] += data[i];
 }
 ```
 
-IMPORTANT: `get_coord` is not implemented yet.
+===== Extending `joint_matrix_apply` with the mapping coordinates
+For use cases in which the order of accessing the elements of
+`wi_data` is important, indexing and the mapping coordinates API
+provided above should be used. If access order is not important,
+`joint_matrix_apply` is extended to provide the `row` and `col`
+arguments as part of the function object.
+
+Consequently, the sum of rows example provided above can be written as
+follows:
+
+```c++
+joint_matrix_apply(sg, A, [=](T &val, size_t row, size_t  col) {
+   sum_local_rows[row] += val;
+});
+```
+
 
 ==== VNNI/Packed Layout
 The `ext_intel_packed` layout (aka VNNI) is a special layout for
