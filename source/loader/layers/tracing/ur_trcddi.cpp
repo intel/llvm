@@ -4423,62 +4423,62 @@ ur_result_t context_t::init(ur_dditable_t *dditable) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetGlobalProcAddrTable(UR_API_VERSION_0_9,
+        result = tracing_layer::urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
                                                          &dditable->Global);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetContextProcAddrTable(UR_API_VERSION_0_9,
-                                                          &dditable->Context);
+        result = tracing_layer::urGetContextProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Context);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetEnqueueProcAddrTable(UR_API_VERSION_0_9,
-                                                          &dditable->Enqueue);
+        result = tracing_layer::urGetEnqueueProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Enqueue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetEventProcAddrTable(UR_API_VERSION_0_9,
+        result = tracing_layer::urGetEventProcAddrTable(UR_API_VERSION_CURRENT,
                                                         &dditable->Event);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetKernelProcAddrTable(UR_API_VERSION_0_9,
+        result = tracing_layer::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
                                                          &dditable->Kernel);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetMemProcAddrTable(UR_API_VERSION_0_9,
+        result = tracing_layer::urGetMemProcAddrTable(UR_API_VERSION_CURRENT,
                                                       &dditable->Mem);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetPlatformProcAddrTable(UR_API_VERSION_0_9,
-                                                           &dditable->Platform);
+        result = tracing_layer::urGetPlatformProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Platform);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetProgramProcAddrTable(UR_API_VERSION_0_9,
-                                                          &dditable->Program);
+        result = tracing_layer::urGetProgramProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Program);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetQueueProcAddrTable(UR_API_VERSION_0_9,
+        result = tracing_layer::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT,
                                                         &dditable->Queue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetSamplerProcAddrTable(UR_API_VERSION_0_9,
-                                                          &dditable->Sampler);
+        result = tracing_layer::urGetSamplerProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Sampler);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetUSMProcAddrTable(UR_API_VERSION_0_9,
+        result = tracing_layer::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT,
                                                       &dditable->USM);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetDeviceProcAddrTable(UR_API_VERSION_0_9,
+        result = tracing_layer::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
                                                          &dditable->Device);
     }
 

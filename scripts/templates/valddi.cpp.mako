@@ -110,7 +110,7 @@ namespace validation_layer
         %for tbl in th.get_pfntables(specs, meta, n, tags):
         if ( ${X}_RESULT_SUCCESS == result )
         {
-            result = validation_layer::${tbl['export']['name']}( ${X}_API_VERSION_0_9, &dditable->${tbl['name']} );
+            result = validation_layer::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &dditable->${tbl['name']} );
         }
 
         %endfor

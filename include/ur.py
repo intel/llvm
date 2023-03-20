@@ -290,8 +290,8 @@ class ur_platform_info_t(c_int):
 ##     - API versions contain major and minor attributes, use
 ##       ::UR_MAJOR_VERSION and ::UR_MINOR_VERSION
 class ur_api_version_v(IntEnum):
-    _0_9 = UR_MAKE_VERSION( 0, 9 )                  ## version 0.9
-    CURRENT = UR_MAKE_VERSION( 0, 9 )               ## latest known version
+    _0_6 = UR_MAKE_VERSION( 0, 6 )                  ## version 0.6
+    CURRENT = UR_MAKE_VERSION( 0, 6 )               ## latest known version
 
 class ur_api_version_t(c_int):
     def __str__(self):
