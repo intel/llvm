@@ -66,7 +66,7 @@ not rely on APIs defined in this specification.*
 
 == Introduction
 
-Through the use of command groups SYCL is already able to create a dependency
+With command groups SYCL is already able to create a dependency
 graph (in the form of a directed acyclic graph) of kernel execution at runtime,
 as a command group object defines a set of requisites (edges) which must be
 satisfied for kernels (nodes) to be executed. However, because command-group
@@ -130,7 +130,7 @@ To allow for prototype implementations of this extension to be developed
 quickly for evaluation the scope of this proposal was limited to a subset
 of these requirements. In particular, the serialization functionality (8),
 backend interoperability (9), and a profiling/debugging interface (3) were
-omitted. As these are not easy to abstract over a number of backends without
+omitted. As these are not easy to abstract over several backends without
 significant investigation. It is also hoped these features can be exposed as
 additive changes to the API, and thus introduced in future versions of the
 extension.
@@ -226,7 +226,7 @@ Table {counter: tableNumber}. Explicit Graph Definition.
 
 | Node
 | In the explicit graph building API nodes are created by the user invoking
-methods on a modifiable graph. Each node represent either a command-group
+methods on a modifiable graph. Each node represents either a command-group
 function or an empty operation.
 
 | Edge
@@ -256,7 +256,7 @@ Table {counter: tableNumber}. Recorded Graph Definition.
 | Nodes in a queue recorded graph represent each of the command group
 submissions of the program. Each submission encompasses either one or both of
 a.) some data movement, b.) a single asynchronous kernel launch. Nodes cannot
-define forward edges, only backwards. This is, kernels can only create
+define forward edges, only backwards. That is, kernels can only create
 dependencies on command-groups that have already been submitted. This means that
 transparently a node can depend on a previously recorded graph (sub-graph),
 which works by creating edges to the individual nodes in the old graph. Explicit
@@ -379,7 +379,7 @@ public:
 :crs: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
 
 Node is a class that encapsulates tasks like SYCL kernel functions, memory
-operations, or host tasks for deferred execution. A graph has to
+operations, or host tasks for deferred execution. A graph must
 be created first, the structure of a graph is defined second by adding nodes and
 edges.
 
@@ -419,13 +419,13 @@ This extension adds a new `command_graph` object which follows the
 
 A `command_graph` represents a directed acyclic graph of nodes, where each node
 represents a single command or a sub-graph. The execution of a graph completes
-when all of its nodes have completed.
+when all its nodes have completed.
 
 A `command_graph` is built up by either recording queue submissions or
 explicitly adding nodes, then once the user is happy that the graph is complete,
 the graph instance is finalized into an executable variant which can have no
 more nodes added to it. Finalization may be a computationally expensive
-operation as the runtime is able to perform optimizations based on the graph
+operation as the runtime can perform optimizations based on the graph
 structure. After finalization the graph can be submitted for execution on a
 queue one or more times with reduced overhead.
 
@@ -440,7 +440,7 @@ An instance of a `command_graph` object can be in one of two states:
 A `command_graph` object is constructed in the _recording_ state and is made
 _executable_ by the user invoking `command_graph::finalize()` to create a
 new executable instance of the graph. An executable graph cannot be converted
-to a modifiable graph. After finalizing a graph in the modifiable state it is
+to a modifiable graph. After finalizing a graph in the modifiable state, it is
 valid for a user to add additional nodes and finalize again to create subsequent
 executable graphs. The state of a `command_graph` object is made explicit by
 templating on state to make the class strongly typed, with the default template
@@ -945,14 +945,14 @@ Parameters:
 
 The new functions in this extension are thread-safe, the same as member
 functions of classes in the base SYCL specification. If user code does
-not perform synchronisation between two threads accessing the same queue,
+not perform synchronization between two threads accessing the same queue,
 there is no strong ordering between events on that queue, and the kernel
 submissions, recording and finalization will happen in an undefined order.
 
-In particular, when one thread ends recording on a queue while another
+When one thread ends recording on a queue while another
 thread is submitting work, which kernels will be part of the subsequent
 graph is undefined. If user code enforces a total order on the queue
-events, then the behaviour is well-defined, and will match the observable
+events, then the behavior is well-defined, and will match the observable
 total order.
 
 The returned value from the `info::queue::state` should be considered
@@ -966,7 +966,7 @@ In addition to the destruction semantics provided by the SYCL
 destroyed recording is ended on any queues that are recording to that
 graph, equivalent to `this->end_recording()`.
 
-As a result users don't need to manually wrap queue recording code in a
+As a result, users don't need to manually wrap queue recording code in a
 `try` / `catch` block to reset the state of recording queues on an exception
 back to the executing state. Instead, an uncaught exception destroying the
 modifiable graph will perform this action, useful in RAII pattern usage.
@@ -992,13 +992,13 @@ no queue state is changed. This design is because the queues are already in
 the state the user desires, so if the function threw an exception in this case,
 the application would likely swallow it and then proceed.
 
-While a queue is in the recording state, methods peformed on that queue which
+While a queue is in the recording state, methods performed on that queue which
 are not command submissions behave as normal except for waits. Waiting on a
 queue in the recording state is an error and will throw a synchronous
 exception. Other methods are ignored by the graph system as opposed to
 throwing in recording mode. As any query about the state of the queue may
 be immediately stale, any code which relies on queue waits should take care
-to ensure waits are not performed on queues in recording mode. For example by
+to ensure waits are not performed on queues in recording mode. For example, by
 using separate queues for graph recording and normal queue operations.
 
 === Storage Lifetimes
@@ -1014,12 +1014,12 @@ Because of the extension of storage lifetimes, users should avoid the use of the
 buffer copy-back on destruction mechanism. If used in code intended to be
 executed as part of a graph, it may not perform as expected.
 
-=== Buffer Limtations for Record & Replay API
+=== Buffer Limitations for Record & Replay API
 
-Because of the delayed execution of a recorded graph it is not possible to support
-captured code which relies on the copy-back on destruction behaviour of buffers.
-Typically applications would rely on this behaviour to do work on the host which
-cannot inherently be captured inside a command graph. Thus when recording to a graph
+Because of the delayed execution of a recorded graph, it is not possible to support
+captured code which relies on the copy-back on destruction behavior of buffers.
+Typically, applications would rely on this behavior to do work on the host which
+cannot inherently be captured inside a command graph. Thus, when recording to a graph
 it is an error to submit a command which has an accessor on a buffer which would
 cause a write-back to happen. Using an incompatible buffer in this case will result
 in a synchronous error being thrown with error code `invalid`.
