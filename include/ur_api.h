@@ -2114,20 +2114,20 @@ urSamplerCreateWithNativeHandle(
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory property flags
-typedef uint32_t ur_usm_mem_flags_t;
-typedef enum ur_usm_mem_flag_t {
-    UR_USM_MEM_FLAG_BIAS_CACHED = UR_BIT(0),              ///< Allocation should be cached
-    UR_USM_MEM_FLAG_BIAS_UNCACHED = UR_BIT(1),            ///< Allocation should not be cached
-    UR_USM_MEM_FLAG_WRITE_COMBINED = UR_BIT(2),           ///< Memory should be allocated write-combined (WC)
-    UR_USM_MEM_FLAG_INITIAL_PLACEMENT_DEVICE = UR_BIT(3), ///< Optimize shared allocation for first access on the device
-    UR_USM_MEM_FLAG_INITIAL_PLACEMENT_HOST = UR_BIT(4),   ///< Optimize shared allocation for first access on the host
-    UR_USM_MEM_FLAG_DEVICE_READ_ONLY = UR_BIT(5),         ///< Memory is only possibly modified from the host, but read-only in all
-                                                          ///< device code
+typedef uint32_t ur_usm_flags_t;
+typedef enum ur_usm_flag_t {
+    UR_USM_FLAG_BIAS_CACHED = UR_BIT(0),              ///< Allocation should be cached
+    UR_USM_FLAG_BIAS_UNCACHED = UR_BIT(1),            ///< Allocation should not be cached
+    UR_USM_FLAG_WRITE_COMBINED = UR_BIT(2),           ///< Memory should be allocated write-combined (WC)
+    UR_USM_FLAG_INITIAL_PLACEMENT_DEVICE = UR_BIT(3), ///< Optimize shared allocation for first access on the device
+    UR_USM_FLAG_INITIAL_PLACEMENT_HOST = UR_BIT(4),   ///< Optimize shared allocation for first access on the host
+    UR_USM_FLAG_DEVICE_READ_ONLY = UR_BIT(5),         ///< Memory is only possibly modified from the host, but read-only in all
+                                                      ///< device code
     /// @cond
-    UR_USM_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
+    UR_USM_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
-} ur_usm_mem_flag_t;
+} ur_usm_flag_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory property flags
@@ -2194,7 +2194,7 @@ typedef struct ur_usm_pool_handle_t_ *ur_usm_pool_handle_t;
 typedef struct ur_usm_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
-    ur_usm_mem_flags_t flags;  ///< [in] memory allocation flags
+    ur_usm_flags_t flags;      ///< [in] Memory allocation flags
     ur_mem_advice_t hints;     ///< [in] Memory advice hints
 
 } ur_usm_desc_t;
