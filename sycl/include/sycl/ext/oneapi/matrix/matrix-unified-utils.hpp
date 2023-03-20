@@ -18,6 +18,12 @@ enum class use { a, b, accumulator };
 
 enum class layout { row_major = 0, col_major = 1, dynamic = 3 };
 
+namespace precision {
+class tf32 {
+  tf32() = delete;
+};
+} // namespace precision
+
 } // namespace matrix
 } // namespace experimental
 } // namespace oneapi
