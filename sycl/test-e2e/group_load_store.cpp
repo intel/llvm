@@ -47,11 +47,9 @@ void capture_marker() {
 
 enum Scope { WG, SG };
 
-template <class TestTy>
-struct Kernel;
+template <class TestTy> struct Kernel;
 
-template <typename TestTy>
-void test(TestTy TestObj) {
+template <typename TestTy> void test(TestTy TestObj) {
   std::string Name{typeid(TestTy).name()};
   // GCC/clang give mangled name which has the format <NameLength>Name. Strip
   // the leading number.
@@ -108,7 +106,6 @@ void test(TestTy TestObj) {
           local_mem += sg_offset;
 
 #define KERNEL_OP                                                              \
-                                                                               \
   template <typename RecordTy>                                                 \
   void operator()(nd_item<1> ndi, int *global_mem, int *usm_mem,               \
                   int *local_mem, RecordTy Record) const
@@ -165,7 +162,8 @@ struct ScalarWGTest {
     usm_mem[lid] = init;
     local_mem[lid] = init;
 
-    auto Check = [&](auto Input, int l = __builtin_LINE()) {
+    auto Check = [&](auto Input, int l = __builtin_LINE())
+        __attribute__((always_inline)) {
       marker(l);
       int out;
       group_load(ndi.get_group(), Input, out);
@@ -234,7 +232,8 @@ struct ScalarSGTest {
     usm_mem[lid] = init;
     local_mem[lid] = init;
 
-    auto Check = [&](auto Input, int l = __builtin_LINE()) {
+    auto Check = [&](auto Input, int l = __builtin_LINE())
+        __attribute__((always_inline)) {
       marker(l);
       int out;
       group_load(sg, Input, out);
@@ -307,7 +306,8 @@ struct VecBlockedWGTest {
 
     auto g = ndi.get_group();
 
-    auto Check = [&](auto Input, int l = __builtin_LINE()) {
+    auto Check = [&](auto Input, int l = __builtin_LINE())
+        __attribute__((always_inline)) {
       marker(l);
       vec<int, VEC_SIZE> out;
       group_load(g, Input, out, properties(data_placement<blocked>));
@@ -369,7 +369,8 @@ struct VecStripedWGTest {
 
     auto g = ndi.get_group();
 
-    auto Check = [&](auto Input, int l = __builtin_LINE()) {
+    auto Check = [&](auto Input, int l = __builtin_LINE())
+        __attribute__((always_inline)) {
       marker(l);
       vec<int, VEC_SIZE> out;
       group_load(g, Input, out, properties(data_placement<striped>));
@@ -408,7 +409,8 @@ struct VecBlockedSGTest {
       local_mem[idx] = init - i;
     }
 
-    auto Check = [&](auto Input, int l = __builtin_LINE()) {
+    auto Check = [&](auto Input, int l = __builtin_LINE())
+        __attribute__((always_inline)) {
       marker(l);
       vec<int, VEC_SIZE> out;
       group_load(sg, Input, out, properties(data_placement<blocked>));
@@ -527,7 +529,8 @@ struct SpanBlockedWGTest {
     // TODO: group_helper with scratchpad
     auto g = ndi.get_group();
 
-    auto Check = [&](auto Input, int l = __builtin_LINE()) {
+    auto Check = [&](auto Input, int l = __builtin_LINE())
+        __attribute__((always_inline)) {
       marker(l);
       int out_arr[SPAN_SIZE];
       sycl::span<int, SPAN_SIZE> out(out_arr);
@@ -591,7 +594,8 @@ struct SpanStripedWGTest {
     // TODO: group_helper with scratchpad
     auto g = ndi.get_group();
 
-    auto Check = [&](auto Input, int l = __builtin_LINE()) {
+    auto Check = [&](auto Input, int l = __builtin_LINE())
+        __attribute__((always_inline)) {
       marker(l);
       int out_arr[SPAN_SIZE];
       sycl::span<int, SPAN_SIZE> out(out_arr);
@@ -619,13 +623,11 @@ struct SpanStripedWGTest {
 
 struct SpanBlockedSGTest {
   static constexpr Scope Scope = SG;
-  KERNEL_OP {
-  }
+  KERNEL_OP {}
 };
 struct SpanStripedSGTest {
   static constexpr Scope Scope = SG;
-  KERNEL_OP {
-  }
+  KERNEL_OP {}
 };
 
 int main() {
