@@ -1,10 +1,10 @@
 add_mlir_library(MLIRSYCLTransforms
   Inliner.cpp
   SYCLMethodToSYCLCall.cpp
+  Utils.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Transforms
-  ${POLYGEIST_INCLUDE_DIR}
 
   DEPENDS
   MLIRSYCLTransformsIncGen
@@ -16,5 +16,4 @@ add_mlir_library(MLIRSYCLTransforms
   MLIRSYCLDialect
   MLIRFuncDialect
   MLIRGPUOps
-  MLIRPolygeist
   )

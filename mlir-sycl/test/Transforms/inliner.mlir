@@ -1,5 +1,6 @@
 // RUN: sycl-mlir-opt -split-input-file -inliner="mode=alwaysinline remove-dead-callees=false" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=ALWAYS-INLINE %s
-// RUN: sycl-mlir-opt -split-input-file -inliner="mode=simple remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=INLINE %s
+// RUN: sycl-mlir-opt -split-input-file -inliner="mode=simple remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=INLINE,CHECK-ALL %s
+// RUN: sycl-mlir-opt -split-input-file -inliner="mode=aggressive remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=AGGRESSIVE,CHECK-ALL %s
 
 // COM: Ensure a func.func can be inlined in a func.func caller iff the callee is 'alwaysinline'.
 // COM: Ensure a gpu.func cannot be inlined in a func.func caller (even if it has the 'alwaysinline' attribute).
@@ -170,22 +171,40 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 
 // -----
 
-// COM: Ensure functions in a SCC are fully inlined (requires multiple inlining iterations). 
-// INLINE-LABEL: func.func @callee() -> i32 {
-// INLINE-DAG:     %c1_i32 = arith.constant 1 : i32
-// INLINE-DAG:     %c2_i32 = arith.constant 2 : i32
-// INLINE-DAG:     %c1_i32_0 = arith.constant 1 : i32
-// INLINE-DAG:     %c2_i32_1 = arith.constant 2 : i32
-// INLINE-DAG:     %0 = sycl.call @callee_() {MangledFunctionName = @callee, TypeName = @A} : () -> i32
-// INLINE-NEXT:    %1 = arith.addi %c2_i32_1, %0 : i32
-// INLINE-NEXT:    %2 = arith.addi %c1_i32_0, %1 : i32
-// INLINE-NEXT:    %3 = arith.addi %c1_i32, %c2_i32 : i32
-// INLINE-NEXT:    %4 = arith.addi %2, %3 : i32
-// INLINE-NEXT:    return %4 : i32
-// INLINE-NEXT:  }
+// COM: Ensure functions in a SCC are fully inlined (requires multiple inlining iterations).
+// CHECK-ALL-LABEL:   func.func @main(
+// CHECK-ALL-SAME:                      %[[VAL_0:.*]]: memref<?x!sycl_id_1_>) -> (i32, i64) {
+
+// INLINE-DAG:       %[[VAL_1:.*]] = arith.constant 1 : i32
+// INLINE-DAG:       %[[VAL_2:.*]] = arith.constant 1 : i32
+// INLINE-DAG:       %[[VAL_3:.*]] = arith.constant 2 : i32
+// INLINE:           %[[VAL_4:.*]] = sycl.call @main_() {MangledFunctionName = @main, TypeName = @A} : () -> i32
+// INLINE:           %[[VAL_5:.*]] = arith.addi %[[VAL_3]], %[[VAL_4]] : i32
+// INLINE:           %[[VAL_6:.*]] = arith.addi %[[VAL_2]], %[[VAL_5]] : i32
+// INLINE:           %[[VAL_7:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] {ArgumentTypes = [memref<?x!sycl_id_1_, 4>, i32], FunctionName = @get, MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> i64
+// INLINE:           return %[[VAL_6]], %[[VAL_7]] : i32, i64
+// INLINE:         }
 
 // INLINE-NOT: func.func private @inline_hint_callee
 // INLINE-NOT: func.func private @private_callee
+
+// AGGRESSIVE-NOT: func.func private @inline_hint_callee
+// AGGRESSIVE-NOT: func.func private @private_callee
+// AGGRESSIVE-NOT: func.func private @get
+
+// AGGRESSIVE-DAG:       %[[VAL_1:.*]] = arith.constant 1 : i32
+// AGGRESSIVE-DAG:       %[[VAL_2:.*]] = arith.constant 1 : i32
+// AGGRESSIVE-DAG:       %[[VAL_3:.*]] = arith.constant 2 : i32
+// AGGRESSIVE:           %[[VAL_4:.*]] = sycl.call @main_() {MangledFunctionName = @main, TypeName = @A} : () -> i32
+// AGGRESSIVE:           %[[VAL_5:.*]] = arith.addi %[[VAL_3]], %[[VAL_4]] : i32
+// AGGRESSIVE:           %[[VAL_6:.*]] = arith.addi %[[VAL_2]], %[[VAL_5]] : i32
+// AGGRESSIVE:           %[[VAL_7:.*]] = memref.memory_space_cast %[[VAL_0]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
+// AGGRESSIVE:           %[[VAL_8:.*]] = arith.constant 2 : i64
+// AGGRESSIVE:           return %[[VAL_6]], %[[VAL_8]] : i32, i64
+// AGGRESSIVE:         }
+
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 
 func.func private @inline_hint_callee() -> i32 attributes {passthrough = ["inlinehint"]} {
   %c_i32 = arith.constant 1 : i32
@@ -196,16 +215,19 @@ func.func private @inline_hint_callee() -> i32 attributes {passthrough = ["inlin
 
 func.func private @private_callee() -> i32 {
   %c_i32 = arith.constant 2 : i32
-  %res1 = sycl.call @callee_() {MangledFunctionName = @callee, TypeName = @A} : () -> i32
+  %res1 = sycl.call @main_() {MangledFunctionName = @main, TypeName = @A} : () -> i32
   %res2 = arith.addi %c_i32, %res1 : i32
   return %res2 : i32
 }
 
-func.func @callee() -> i32 {
-  %c1 = arith.constant 1 : i32
-  %c2 = arith.constant 2 : i32
+func.func private @get(%id: memref<?x!sycl_id_1_, 4>, %i: i32) -> i64 {
+  %c2_i64 = arith.constant 2 : i64
+  return %c2_i64 : i64
+}
+
+func.func @main(%id: memref<?x!sycl_id_1_>) -> (i32, i64) {
+  %c1_i32 = arith.constant 1 : i32
   %res1 = sycl.call @inline_hint_callee_() {MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32    
-  %add1 = arith.addi %c1, %c2 : i32
-  %add2 = arith.addi %res1, %add1 : i32  
-  return %add2 : i32
+  %res2 = sycl.id.get %id[%c1_i32] {ArgumentTypes = [memref<?x!sycl_id_1_, 4>, i32], FunctionName = @get, MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> i64
+  return %res1, %res2 : i32, i64
 }

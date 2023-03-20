@@ -6,10 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/SYCL/Transforms/Passes.h"
+
+#include "Utils.h"
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
-#include "mlir/Dialect/SYCL/Transforms/Passes.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 #include "llvm/ADT/SCCIterator.h"
@@ -685,6 +689,14 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
 
     LLVM_DEBUG(llvm::dbgs() << "* Inlining call: " << I << ". "
                             << ResolvedCall.Call << "\n");
+
+    if (auto Method = dyn_cast<sycl::SYCLMethodOpInterface>(
+            ResolvedCall.Call.getOperation())) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "* Adapting argument of SYCLMethodOpInterface...");
+      OpBuilder Builder(Method);
+      Method->setOperands(sycl::adaptArgumentsForSYCLCall(Builder, Method));
+    }
 
     Region *TgtRegion = ResolvedCall.TgtNode->getCallableRegion();
     LogicalResult InlineRes =
