@@ -41,6 +41,7 @@ constexpr uint32_t SPIRV_PIPELINE_ENABLE_DECOR = 5919;
 enum class DecorValueTy {
   uint32,
   boolean,
+  string,
   none,
 };
 
@@ -74,6 +75,26 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
       Constant::getIntegerValue(Ty, APInt(32, OpCode))));
   MD.push_back(
       ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Value))));
+  return MDNode::get(Ctx, MD);
+}
+
+/// Builds a metadata node for a SPIR-V decoration (both decoration code
+/// is \c uint32_t integer and value is a string).
+///
+/// @param Ctx    [in] the LLVM Context.
+/// @param OpCode [in] the SPIR-V OpCode code.
+/// @param Value  [in] the SPIR-V decoration value.
+///
+/// @returns a pointer to the metadata node created for the required decoration
+/// and its value.
+MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
+                                StringRef Value) {
+  auto *Ty = Type::getInt32Ty(Ctx);
+  SmallVector<Metadata *, 2> MD;
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, OpCode))));
+  MD.push_back(
+      ConstantAsMetadata::get(ConstantDataArray::getString(Ctx, Value, true)));
   return MDNode::get(Ctx, MD);
 }
 
@@ -142,8 +163,10 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
                                    getAttributeAsInteger<uint32_t>(Attr));
   case DecorValueTy::boolean:
     return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
+  case DecorValueTy::string:
+    return buildSpirvDecorMetadata(Ctx, DecorCode, Attr.getValueAsString());
   default:
-    llvm_unreachable("Unhandled decorator type.");
+    break;
   }
 }
 
