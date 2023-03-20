@@ -8380,7 +8380,7 @@ pi_result piextEnablePeerAccess(pi_device command_device,
   std::ignore = command_device;
   std::ignore = peer_device;
 
-  die("piextEnablePeer not implemented");
+  die("piextEnablePeerAccess not implemented in L0");
   return {};
 }
 
@@ -8390,8 +8390,8 @@ pi_result piextDisablePeerAccess(pi_device command_device,
   std::ignore = command_device;
   std::ignore = peer_device;
 
-  die("piextDisablePeer not "
-      "implemented");
+  die("piextDisablePeerAccess not "
+      "implemented in L0");
   return {};
 }
 
@@ -8407,8 +8407,8 @@ pi_result piextPeerAccessGetInfo(pi_device command_device,
   std::ignore = param_value;
   std::ignore = param_value_size_ret;
 
-  die("piextCanAccessPeer not "
-      "implemented");
+  die("piextPeerAccessGetInfo not "
+      "implemented in L0");
   return {};
 }
 
