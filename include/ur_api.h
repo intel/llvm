@@ -2161,6 +2161,7 @@ typedef enum ur_usm_alloc_info_t {
     UR_USM_ALLOC_INFO_BASE_PTR = 1, ///< Memory allocation base pointer info
     UR_USM_ALLOC_INFO_SIZE = 2,     ///< Memory allocation size info
     UR_USM_ALLOC_INFO_DEVICE = 3,   ///< Memory allocation device info
+    UR_USM_ALLOC_INFO_POOL = 4,     ///< Memory allocation pool info
     /// @cond
     UR_USM_ALLOC_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2391,7 +2392,7 @@ urUSMFree(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_USM_ALLOC_INFO_DEVICE < propName`
+///         + `::UR_USM_ALLOC_INFO_POOL < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT

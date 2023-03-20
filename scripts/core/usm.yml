@@ -70,6 +70,8 @@ etors:
       desc: "Memory allocation size info"
     - name: DEVICE
       desc: "Memory allocation device info"
+    - name: POOL
+      desc: "Memory allocation pool info"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "USM memory advice"
