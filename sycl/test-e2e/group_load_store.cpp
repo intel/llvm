@@ -84,7 +84,8 @@ template <typename TestTy> void test(TestTy TestObj, size_t wg_size) {
     accessor global_mem_acc{global_mem_buf, cgh};
     local_accessor<int, 1> local_mem_acc{wg_size * ELEMS_PER_WI, cgh};
     cgh.parallel_for<Kernel<TestTy>>(
-        nd_range{range<1>{global_size}, range<1>{wg_size}}, [=](nd_item<1> ndi) {
+        nd_range{range<1>{global_size}, range<1>{wg_size}},
+        [=](nd_item<1> ndi) {
           auto *res_ptr = &res_acc[ndi.get_global_id(0) * N_RESULTS];
           auto Record = [&](auto val) { record(val, res_ptr); };
 
@@ -329,6 +330,7 @@ struct VecBlockedWGTest {
               .get_decorated());
   }
 };
+
 struct VecStripedWGTest {
   static constexpr Scope Scope = WG;
   KERNEL_OP {
@@ -396,6 +398,7 @@ struct VecStripedWGTest {
               .get_decorated());
   }
 };
+
 struct VecBlockedSGTest {
   static constexpr Scope Scope = SG;
   KERNEL_OP {
@@ -433,6 +436,7 @@ struct VecBlockedSGTest {
               .get_decorated());
   }
 };
+
 struct VecStripedSGTest {
   static constexpr Scope Scope = SG;
   KERNEL_OP {
@@ -519,6 +523,7 @@ struct VecStripedSGTest {
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
 };
+
 struct SpanBlockedWGTest {
   static constexpr Scope Scope = WG;
   KERNEL_OP {
@@ -560,6 +565,7 @@ struct SpanBlockedWGTest {
               .get_decorated());
   }
 };
+
 struct SpanStripedWGTest {
   static constexpr Scope Scope = WG;
   KERNEL_OP {
@@ -634,6 +640,7 @@ struct SpanBlockedSGTest {
   static constexpr Scope Scope = SG;
   KERNEL_OP {}
 };
+
 struct SpanStripedSGTest {
   static constexpr Scope Scope = SG;
   KERNEL_OP {}
