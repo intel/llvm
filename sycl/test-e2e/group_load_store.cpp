@@ -4,7 +4,8 @@
 
 // Running like this manually for the time being:
 // clang++ -fsycl %s &&  ./a.out && \
-// clang++ -fsycl %s -S -emit-llvm -fsycl-device-only -o - | FileCheck %s
+// clang++ -fsycl %s -S -emit-llvm -fsycl-device-only -mllvm
+// -inline-threshold=5000 -o - | FileCheck %s
 
 #include <iomanip>
 #include <sycl/sycl.hpp>
@@ -32,6 +33,14 @@ constexpr int ELEMS_PER_WI = 8 * 2;
 __attribute__((noinline)) __attribute__((optnone)) void
 marker(int l = __builtin_LINE()) {
   std::ignore = l;
+}
+
+template <typename T>
+__attribute__((noinline)) __attribute__((optnone)) void record(T val,
+                                                               int *&res_ptr) {
+  // Hide pointer arithmetic/type cast from the IR dumps for readability.
+  *res_ptr = val;
+  res_ptr++;
 }
 
 void capture_marker() {
@@ -77,13 +86,8 @@ template <typename TestTy> void test(TestTy TestObj) {
     local_accessor<int, 1> local_mem_acc{WG_SIZE * ELEMS_PER_WI, cgh};
     cgh.parallel_for<Kernel<TestTy>>(
         nd_range{range{GLOBAL_SIZE}, range{WG_SIZE}}, [=](nd_item<1> ndi) {
-          // Low-level pointer arithmetic and skipping 0th index to make llvm IR
-          // dumps nicer.
           auto *res_ptr = &res_acc[ndi.get_global_id(0) * N_RESULTS];
-          auto Record = [&](auto val) {
-            res_ptr++;
-            *res_ptr = val;
-          };
+          auto Record = [&](auto val) { record(val, res_ptr); };
 
           // TODO: Use accessor::get_pointer once it starts returing raw
           // pointer.
@@ -115,8 +119,8 @@ template <typename TestTy> void test(TestTy TestObj) {
   });
   {
     host_accessor res_acc{results};
-    if constexpr (false) {
-      for (int i = 1; i < N_RESULTS; ++i) {
+    if constexpr (true) {
+      for (int i = 0; i < N_RESULTS; ++i) {
         int errors = 0;
         bool all_same = [&]() {
           auto val = res_acc[i];
@@ -136,7 +140,7 @@ template <typename TestTy> void test(TestTy TestObj) {
         std::cout << std::endl;
       }
     }
-    for (int i = 1; i < N_RESULTS; ++i) {
+    for (int i = 0; i < N_RESULTS; ++i) {
       int errors = 0;
       for (int j = 0; j < GLOBAL_SIZE; ++j) {
         if (!res_acc[j * N_RESULTS + i]) {
@@ -313,9 +317,8 @@ struct VecBlockedWGTest {
       group_load(g, Input, out, properties(data_placement<blocked>));
 
       bool success = true;
-      for (int i = 0; i < VEC_SIZE; ++i) {
-        success &= (out[i] == init - i);
-      }
+      sycl::detail::dim_loop<VEC_SIZE>(
+          [&](size_t i) { success &= (out[i] == init - i); });
       Record(success);
     };
 
