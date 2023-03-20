@@ -25,6 +25,17 @@ namespace detail {
 template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> x, size_t start) {
   return {x[start], x[start + 1]};
 }
+template <class T, size_t N> vec<T, N> to_vec(marray<T, N> x) {
+  vec<T, N> vec;
+  std::memcpy(&vec, &x, sizeof(x));
+  return vec;
+}
+template <class T, int N> marray<T, N> to_marray(vec<T, N> x) {
+  marray<T, N> marray;
+  for (int i = 0; i < N; i++)
+    marray[i] = x[i];
+  return marray;
+}
 } // namespace detail
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1140,6 +1151,16 @@ detail::enable_if_t<detail::is_gencross<T>::value, T> cross(T p0,
   return __sycl_std::__invoke_cross<T>(p0, p1);
 }
 
+template <typename T>
+detail::enable_if_t<detail::is_gencrossmarray<T>::value, T>
+cross(T p0, T p1) __NOEXC {
+  vec<detail::marray_element_type<T>, T::size()> result_v;
+  result_v = __sycl_std::__invoke_cross<
+      vec<detail::marray_element_type<T>, T::size()>>(detail::to_vec(p0),
+                                                      detail::to_vec(p1));
+  return detail::to_marray(result_v);
+}
+
 // float dot (float p0, float p1)
 // double dot (double p0, double p1)
 // half dot (half p0, half p1)
@@ -1169,6 +1190,16 @@ detail::enable_if_t<detail::is_vgengeohalf<T>::value, half> dot(T p0,
   return __sycl_std::__invoke_Dot<half>(p0, p1);
 }
 
+// float dot (mfloatn p0,  mfloatn p1) (n = 2, 3, 4)
+// double dot (mdoublen p0,  mdoublen p1) (n = 2, 3, 4)
+template <typename T>
+detail::enable_if_t<detail::is_gengeomarray<T>::value,
+                    detail::marray_element_type<T>>
+dot(T p0, T p1) __NOEXC {
+  return __sycl_std::__invoke_Dot<detail::marray_element_type<T>>(
+      detail::to_vec(p0), detail::to_vec(p1));
+}
+
 // float distance (gengeofloat p0, gengeofloat p1)
 template <typename T,
           typename = detail::enable_if_t<detail::is_gengeofloat<T>::value, T>>
@@ -1188,6 +1219,16 @@ template <typename T,
           typename = detail::enable_if_t<detail::is_gengeohalf<T>::value, T>>
 half distance(T p0, T p1) __NOEXC {
   return __sycl_std::__invoke_distance<half>(p0, p1);
+}
+
+// float distance (mfloatn p0, mfloatn p1)
+// double distance (mfloatn p0, mfloatn p1)
+template <typename T,
+          typename = detail::enable_if_t<detail::is_gengeomarray<T>::value,
+                                         detail::marray_element_type<T>>>
+detail::marray_element_type<T> distance(T p0, T p1) __NOEXC {
+  return __sycl_std::__invoke_distance<detail::marray_element_type<T>>(
+      detail::to_vec(p0), detail::to_vec(p1));
 }
 
 // float length (gengeofloat p)
@@ -1211,6 +1252,15 @@ half length(T p) __NOEXC {
   return __sycl_std::__invoke_length<half>(p);
 }
 
+// float length (mfloatn p) (n = 2, 3, 4)
+// double length (mdoublen p) (n = 2, 3, 4)
+template <typename T,
+          typename = detail::enable_if_t<detail::is_gengeomarray<T>::value, T>>
+detail::marray_element_type<T> length(T p) __NOEXC {
+  return __sycl_std::__invoke_length<detail::marray_element_type<T>>(
+      detail::to_vec(p));
+}
+
 // gengeofloat normalize (gengeofloat p)
 template <typename T>
 detail::enable_if_t<detail::is_gengeofloat<T>::value, T>
@@ -1231,6 +1281,17 @@ detail::enable_if_t<detail::is_gengeohalf<T>::value, T> normalize(T p) __NOEXC {
   return __sycl_std::__invoke_normalize<T>(p);
 }
 
+// mfloatn normalize (mfloatn p) (n = 2, 3, 4)
+// mdoublen normalize (mdoublen p) (n = 2, 3, 4)
+template <typename T>
+detail::enable_if_t<detail::is_gengeomarray<T>::value, T>
+normalize(T p) __NOEXC {
+  vec<detail::marray_element_type<T>, T::size()> result_v;
+  result_v = __sycl_std::__invoke_normalize<
+      vec<detail::marray_element_type<T>, T::size()>>(detail::to_vec(p));
+  return detail::to_marray(result_v);
+}
+
 // float fast_distance (gengeofloat p0, gengeofloat p1)
 template <typename T,
           typename = detail::enable_if_t<detail::is_gengeofloat<T>::value, T>>
@@ -1243,6 +1304,14 @@ template <typename T,
           typename = detail::enable_if_t<detail::is_gengeodouble<T>::value, T>>
 double fast_distance(T p0, T p1) __NOEXC {
   return __sycl_std::__invoke_fast_distance<double>(p0, p1);
+}
+
+// float fast_distance (mfloatn p0,  mfloatn p1) (n = 2, 3, 4)
+template <typename T, typename = detail::enable_if_t<
+                          detail::is_gengeomarrayfloat<T>::value, T>>
+detail::marray_element_type<T> fast_distance(T p0, T p1) __NOEXC {
+  return __sycl_std::__invoke_fast_distance<float>(detail::to_vec(p0),
+                                                   detail::to_vec(p1));
 }
 
 // float fast_length (gengeofloat p)
@@ -1259,6 +1328,14 @@ double fast_length(T p) __NOEXC {
   return __sycl_std::__invoke_fast_length<double>(p);
 }
 
+// float fast_length (mfloatn p0,  mfloatn p1) (n = 2, 3, 4)
+template <typename T, typename = detail::enable_if_t<
+                          detail::is_gengeomarrayfloat<T>::value, T>>
+detail::marray_element_type<T> fast_length(T p) __NOEXC {
+  return __sycl_std::__invoke_fast_length<detail::marray_element_type<T>>(
+      detail::to_vec(p));
+}
+
 // gengeofloat fast_normalize (gengeofloat p)
 template <typename T>
 detail::enable_if_t<detail::is_gengeofloat<T>::value, T>
@@ -1271,6 +1348,16 @@ template <typename T>
 detail::enable_if_t<detail::is_gengeodouble<T>::value, T>
 fast_normalize(T p) __NOEXC {
   return __sycl_std::__invoke_fast_normalize<T>(p);
+}
+
+// mfloatn fast_normalize (mfloatn p) (n = 2, 3, 4)
+template <typename T>
+detail::enable_if_t<detail::is_gengeomarrayfloat<T>::value, T>
+fast_normalize(T p) __NOEXC {
+  vec<detail::marray_element_type<T>, T::size()> result_v;
+  result_v = __sycl_std::__invoke_fast_normalize<
+      vec<detail::marray_element_type<T>, T::size()>>(detail::to_vec(p));
+  return detail::to_marray(result_v);
 }
 
 /* SYCL 1.2.1 ---- 4.13.7 Relational functions. -----------------------------*/

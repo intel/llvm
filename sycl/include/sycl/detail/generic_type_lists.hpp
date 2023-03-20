@@ -108,6 +108,12 @@ using vector_geo_float_list =
 using vector_geo_double_list =
     type_list<vec<double, 1>, vec<double, 2>, vec<double, 3>, vec<double, 4>>;
 
+using marray_geo_float_list =
+    type_list<marray<float, 2>, marray<float, 3>, marray<float, 4>>;
+
+using marray_geo_double_list =
+    type_list<marray<double, 2>, marray<double, 3>, marray<double, 4>>;
+
 using geo_half_list = type_list<scalar_geo_half_list, vector_geo_half_list>;
 
 using geo_float_list = type_list<scalar_geo_float_list, vector_geo_float_list>;
@@ -121,6 +127,9 @@ using scalar_geo_list = type_list<scalar_geo_half_list, scalar_geo_float_list,
 using vector_geo_list = type_list<vector_geo_half_list, vector_geo_float_list,
                                   vector_geo_double_list>;
 
+using marray_geo_list =
+    type_list<marray_geo_float_list, marray_geo_double_list>;
+
 using geo_list = type_list<scalar_geo_list, vector_geo_list>;
 
 // cross floating point types
@@ -132,6 +141,9 @@ using cross_double_list = type_list<vec<double, 3>, vec<double, 4>>;
 
 using cross_floating_list =
     type_list<cross_float_list, cross_double_list, cross_half_list>;
+
+using cross_marray_list = type_list<marray<float, 3>, marray<float, 4>,
+                                    marray<double, 3>, marray<double, 4>>;
 
 using scalar_default_char_list = type_list<char>;
 
