@@ -119,9 +119,10 @@ template <typename TestTy> void test(TestTy TestObj) {
   });
   {
     host_accessor res_acc{results};
-    if constexpr (true) {
+    bool success =
+        std::find(res_acc.begin(), res_acc.end(), 0) == res_acc.end();
+    if (!success) {
       for (int i = 0; i < N_RESULTS; ++i) {
-        int errors = 0;
         bool all_same = [&]() {
           auto val = res_acc[i];
           for (int j = 0; j < GLOBAL_SIZE; ++j) {
@@ -140,18 +141,7 @@ template <typename TestTy> void test(TestTy TestObj) {
         std::cout << std::endl;
       }
     }
-    for (int i = 0; i < N_RESULTS; ++i) {
-      int errors = 0;
-      for (int j = 0; j < GLOBAL_SIZE; ++j) {
-        if (!res_acc[j * N_RESULTS + i]) {
-          ++errors;
-          if (errors < 2)
-            std::cout << "Error in condition " << i << " for work item " << j
-                      << std::endl;
-        }
-      }
-    }
-    assert(std::find(res_acc.begin(), res_acc.end(), false) == res_acc.end());
+    assert(success);
   }
   free(usm_mem_alloc, q);
 }
