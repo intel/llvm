@@ -7,15 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/sycl.hpp>
-
-#include <detail/config.hpp>
 #include <helpers/PiMock.hpp>
-
 #include <gtest/gtest.h>
 
 TEST(USMP2PTest, USMP2PTest) {
-  using namespace sycl::detail;
-  using namespace sycl::unittest;
 
   sycl::unittest::PiMock Mock1;
   sycl::platform Plt1 = Mock1.getPlatform();
