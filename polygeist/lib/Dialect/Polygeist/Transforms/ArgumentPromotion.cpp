@@ -119,6 +119,13 @@ public:
 private:
   /// Populate \p candidates with call operations to transform.
   void collectCandidates(SmallVectorImpl<Candidate> &candidates);
+
+  /// Return true if the call operation \p callOp is a candidate and false
+  /// otherwise.
+  bool isCandidate(CallOpInterface callOp);
+
+  /// Return true is the calee is a candidate and false otherwise.
+  bool isCandidate(CallableOpInterface callableOp);
 };
 
 } // namespace
@@ -340,48 +347,115 @@ void ArgumentPromotionPass::collectCandidates(
     });
 
     gpuFuncOp->walk([&](CallOpInterface callOp) {
-      // Skip functions with no arguments.
-      OperandRange callOperands = callOp.getArgOperands();
-      if (callOperands.empty())
-        return;
-
-      // We are only interested in non-recursive tail calls.
-      if (!callOp->getBlock()->hasNoSuccessors() ||
-          Candidate::isRecursiveCall(callOp))
-        return;
-
-      // The first operand must be a memref with a struct element type.
-      if (!Candidate::isValidMemRefType(callOperands.front().getType()))
-        return;
-
-      // The callee must be defined and private.
-      if (!Candidate::isPrivateCallable(callOp.resolveCallable()))
-        return;
-
-      // The callee must have a single call site.
-      if (userMap.getUsers(callOp.resolveCallable()).size() != 1) {
-        LLVM_DEBUG({
-          llvm::dbgs() << "Not a candidate: " << callOp << "\n";
-          llvm::dbgs().indent(2)
-              << "callee has "
-              << userMap.getUsers(callOp.resolveCallable()).size()
-              << " call sites\n";
-        });
-      }
-
-      // In the callee, the members of the struct must be accessed via polygeist
-      // subIndex operations.
-      auto callable = cast<CallableOpInterface>(callOp.resolveCallable());
-      Value firstArg = callable.getCallableRegion()->getArgument(0);
-      if (llvm::any_of(firstArg.getUses(), [](OpOperand &use) {
-            return !isa<polygeist::SubIndexOp>(use.getOwner());
-          }))
+      if (!isCandidate(callOp) ||
+          !isCandidate(cast<CallableOpInterface>(callOp.resolveCallable())))
         return;
 
       LLVM_DEBUG(llvm::dbgs() << "Found candidate: " << callOp << "\n\n");
       candidateCalls.push_back(callOp);
     });
   });
+}
+
+bool ArgumentPromotionPass::isCandidate(CallOpInterface callOp) {
+  // Only tail calls are candidates.
+  if (!callOp->getBlock()->hasNoSuccessors()) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "Not a candidate: " << callOp << "\n";
+      llvm::dbgs().indent(2) << "not a tail call\n";
+    });
+    return false;
+  }
+
+  // Calls with no arguments are not interesting.
+  OperandRange callOperands = callOp.getArgOperands();
+  if (callOperands.empty()) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "Not a candidate: " << callOp << "\n";
+      llvm::dbgs().indent(2) << "no arguments\n";
+    });
+    return false;
+  }
+
+  // Calls to recursive functions are not candidates.
+  if (Candidate::isRecursiveCall(callOp)) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "Not a candidate: " << callOp << "\n";
+      llvm::dbgs().indent(2) << "call is recursive\n";
+    });
+    return false;
+  }
+
+  // At least one operand must peelable (i.e. a memref with struct element).
+  if (llvm::all_of(callOperands, [](Value op) {
+        return !Candidate::isValidMemRefType(op.getType());
+      })) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "Not a candidate: " << callOp << "\n";
+      llvm::dbgs().indent(2) << "no peelable arguments\n";
+    });
+    return false;
+  }
+
+  // Peelable operands should not be used by any other instruction.
+  for (Value op : callOperands) {
+    if (!Candidate::isValidMemRefType(op.getType()))
+      continue;
+    auto users = op.getDefiningOp()->getUsers();
+    unsigned numUsers = std::distance(users.begin(), users.end());
+    if (numUsers != 1) {
+      LLVM_DEBUG({
+        llvm::dbgs() << "Not a candidate: " << callOp << "\n";
+        llvm::dbgs().indent(2) << "argument " << op << " is used by "
+                               << numUsers << " operations(s)\n";
+      });
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool ArgumentPromotionPass::isCandidate(CallableOpInterface callableOp) {
+  ModuleOp module = getOperation();
+  SymbolTableCollection symTable;
+  SymbolUserMap userMap(symTable, module);
+  StringRef calleeName =
+      cast<SymbolOpInterface>(callableOp.getOperation()).getName();
+
+  // The callee must be defined and private.
+  if (!Candidate::isPrivateCallable(callableOp)) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
+      llvm::dbgs().indent(2) << "callee not privately defined\n";
+    });
+    return false;
+  }
+
+  // The callee must have a single call site.
+  unsigned numUsers = userMap.getUsers(callableOp).size();
+  if (numUsers != 1) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
+      llvm::dbgs().indent(2) << "has " << numUsers << " call sites\n";
+    });
+    return false;
+  }
+
+  // In the callee, the members of the struct must be accessed via
+  // polygeist subIndex operations.
+  Value firstArg = callableOp.getCallableRegion()->getArgument(0);
+  if (llvm::any_of(firstArg.getUses(), [](OpOperand &use) {
+        return !isa<polygeist::SubIndexOp>(use.getOwner());
+      })) {
+    LLVM_DEBUG({
+      llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
+      llvm::dbgs().indent(2) << "missing polygeist subindex operations\n";
+    });
+    return false;
+  }
+
+  return true;
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createArgumentPromotionPass() {
