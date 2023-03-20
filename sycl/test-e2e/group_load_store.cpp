@@ -24,7 +24,7 @@ constexpr auto striped = group_algorithm_data_placement::striped;
 constexpr int SG_SIZE = 32;
 constexpr int WG_SIZE = SG_SIZE / 2;
 
-constexpr int N_WGS = 1;
+constexpr int N_WGS = 3;
 constexpr int GLOBAL_SIZE = WG_SIZE * N_WGS;
 // Not greater than 8 vec/array size + gap between WGs.
 constexpr int ELEMS_PER_WI = 8 * 2;
@@ -108,13 +108,12 @@ void test(TestTy TestObj) {
           local_mem += sg_offset;
 
 #define KERNEL_OP                                                              \
-  \
+                                                                               \
   template <typename RecordTy>                                                 \
   void operator()(nd_item<1> ndi, int *global_mem, int *usm_mem,               \
-                  int *local_mem, RecordTy Record, id<1> lid) const
+                  int *local_mem, RecordTy Record) const
 
-          TestObj(ndi, global_mem, usm_mem, local_mem, Record,
-                  ndi.get_local_id());
+          TestObj(ndi, global_mem, usm_mem, local_mem, Record);
         });
   });
   {
@@ -159,6 +158,7 @@ void test(TestTy TestObj) {
 struct ScalarWGTest {
   static constexpr Scope Scope = WG;
   KERNEL_OP {
+    auto lid = ndi.get_local_id(0);
     int init = ndi.get_global_id(0);
 
     global_mem[lid] = init;
@@ -225,9 +225,11 @@ struct ScalarSGTest {
   static constexpr Scope Scope = SG;
   KERNEL_OP {
     auto sg = ndi.get_sub_group();
+    auto lid = sg.get_local_id();
 
     int init = ndi.get_global_id(0);
 
+    lid = sg.get_local_id();
     global_mem[lid] = init;
     usm_mem[lid] = init;
     local_mem[lid] = init;
@@ -291,6 +293,7 @@ struct ScalarSGTest {
 struct VecBlockedWGTest {
   static constexpr Scope Scope = SG;
   KERNEL_OP {
+    auto lid = ndi.get_local_id(0);
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -328,6 +331,7 @@ struct VecBlockedWGTest {
 struct VecStripedWGTest {
   static constexpr Scope Scope = WG;
   KERNEL_OP {
+    auto lid = ndi.get_local_id(0);
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -392,6 +396,8 @@ struct VecStripedWGTest {
 struct VecBlockedSGTest {
   static constexpr Scope Scope = SG;
   KERNEL_OP {
+    auto sg = ndi.get_sub_group();
+    auto lid = sg.get_local_id();
     constexpr int VEC_SIZE = 2;
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
@@ -405,8 +411,7 @@ struct VecBlockedSGTest {
     auto Check = [&](auto Input, int l = __builtin_LINE()) {
       marker(l);
       vec<int, VEC_SIZE> out;
-      group_load(ndi.get_sub_group(), Input, out,
-                 properties(data_placement<blocked>));
+      group_load(sg, Input, out, properties(data_placement<blocked>));
 
       bool success = true;
       for (int i = 0; i < VEC_SIZE; ++i) {
@@ -428,6 +433,7 @@ struct VecStripedSGTest {
   static constexpr Scope Scope = SG;
   KERNEL_OP {
     auto sg = ndi.get_sub_group();
+    auto lid = sg.get_local_id();
 
     constexpr int VEC_SIZE = 2;
     int sg_size = sg.get_local_range().size();
@@ -506,6 +512,7 @@ struct VecStripedSGTest {
 struct SpanBlockedWGTest {
   static constexpr Scope Scope = WG;
   KERNEL_OP {
+    auto lid = ndi.get_local_id(0);
     constexpr int SPAN_SIZE = 2;
 
     int init = ndi.get_global_id(0) + SPAN_SIZE * 2;
@@ -545,6 +552,7 @@ struct SpanBlockedWGTest {
 struct SpanStripedWGTest {
   static constexpr Scope Scope = WG;
   KERNEL_OP {
+    auto lid = ndi.get_local_id(0);
     constexpr int SPAN_SIZE = 2;
 
     int init = ndi.get_global_id(0) + SPAN_SIZE * 2;
