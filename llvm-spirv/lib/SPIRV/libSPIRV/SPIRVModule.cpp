@@ -657,7 +657,7 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
     if ((EI->getExtSetKind() == SPIRVEIS_Debug ||
          EI->getExtSetKind() == SPIRVEIS_OpenCL_DebugInfo_100 ||
          EI->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
-         EI->getExtSetKind() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100) &&
+         EI->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) &&
         EI->getExtOp() != SPIRVDebug::Declare &&
         EI->getExtOp() != SPIRVDebug::Value &&
         EI->getExtOp() != SPIRVDebug::Scope &&

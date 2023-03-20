@@ -94,7 +94,7 @@ SPIRVExtInst *SPIRVToLLVMDbgTran::getDbgInst(const SPIRVId Id) {
         EI->getExtSetKind() == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100 ||
         EI->getExtSetKind() ==
             SPIRV::SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
-        EI->getExtSetKind() == SPIRV::SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
+        EI->getExtSetKind() == SPIRV::SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
       return EI;
   }
   return nullptr;
@@ -131,7 +131,7 @@ SPIRVToLLVMDbgTran::transCompileUnit(const SPIRVExtInst *DebugInst) {
   assert(Ops.size() == OperandCount && "Invalid number of operands");
   M->addModuleFlag(llvm::Module::Max, "Dwarf Version", Ops[DWARFVersionIdx]);
   unsigned SourceLang =
-      DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100
+      DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200
           ? convertSPIRVSourceLangToDWARFNonSemanticDbgInfo(Ops[LanguageIdx])
           : convertSPIRVSourceLangToDWARF(Ops[LanguageIdx]);
   auto Producer = findModuleProducer();
@@ -198,7 +198,7 @@ DIType *SPIRVToLLVMDbgTran::transTypePointer(const SPIRVExtInst *DebugInst) {
 
 DICompositeType *
 SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
-  if (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
+  if (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
     return transTypeArrayNonSemantic(DebugInst);
 
   return transTypeArrayOpenCL(DebugInst);
@@ -364,7 +364,7 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   if (!(SizeEntry->isExtInst(SPIRVEIS_Debug, SPIRVDebug::DebugInfoNone) ||
         SizeEntry->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100,
                              SPIRVDebug::DebugInfoNone) ||
-        SizeEntry->isExtInst(SPIRVEIS_NonSemantic_Kernel_DebugInfo_100,
+        SizeEntry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
                              SPIRVDebug::DebugInfoNone))) {
     Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   }
@@ -1001,7 +1001,7 @@ DINode *SPIRVToLLVMDbgTran::transModule(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= OperandCount && "Invalid number of operands");
   bool IsNonSemanticDI =
-      (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100);
+      (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200);
   DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
   auto GetInt = [&](SPIRVId Id) -> ConstantInt * {
     auto *V = BM->get<SPIRVValue>(Id);

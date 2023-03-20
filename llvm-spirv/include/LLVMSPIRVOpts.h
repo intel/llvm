@@ -84,7 +84,7 @@ enum class DebugInfoEIS : uint32_t {
   SPIRV_Debug,
   OpenCL_DebugInfo_100,
   NonSemantic_Shader_DebugInfo_100,
-  NonSemantic_Kernel_DebugInfo_100
+  NonSemantic_Shader_DebugInfo_200
 };
 
 /// \brief Helper class to manage SPIR-V translation

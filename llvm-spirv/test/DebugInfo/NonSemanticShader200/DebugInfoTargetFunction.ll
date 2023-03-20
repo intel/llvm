@@ -1,5 +1,5 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv -spirv-text %t.bc -o %t.spt --spirv-debug-info-version=nonsemantic-kernel-100
+; RUN: llvm-spirv -spirv-text %t.bc -o %t.spt --spirv-debug-info-version=nonsemantic-shader-200
 ; RUN: FileCheck < %t.spt %s -check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -to-binary %t.spt -o %t.spv
 
@@ -7,7 +7,7 @@
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s -check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV-DAG: ExtInstImport [[#EISId:]] "NonSemantic.Kernel.DebugInfo.100"
+; CHECK-SPIRV-DAG: ExtInstImport [[#EISId:]] "NonSemantic.Shader.DebugInfo.200"
 ; CHECK-SPIRV-DAG: String [[#Func:]] "foo_wrapper"
 ; CHECK-SPIRV-DAG: String [[#TargetFunc:]] "_Z3foov"
 

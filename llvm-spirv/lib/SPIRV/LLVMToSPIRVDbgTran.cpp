@@ -278,13 +278,13 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryImpl(const MDNode *MDN) {
       return transDbgArrayType(cast<DICompositeType>(DIEntry));
 
     case dwarf::DW_TAG_subrange_type:
-      if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
+      if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
         return transDbgSubrangeType(cast<DISubrange>(DIEntry));
       else
         return getDebugInfoNone();
 
     case dwarf::DW_TAG_string_type: {
-      if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
+      if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
         return transDbgStringType(cast<DIStringType>(DIEntry));
       return getDebugInfoNone();
     }
@@ -361,7 +361,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryImpl(const MDNode *MDN) {
 
     case dwarf::DW_TAG_module: {
       if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_debug_module) ||
-          BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100)
+          BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
         return transDbgModule(cast<DIModule>(DIEntry));
       return getDebugInfoNone();
     }
@@ -524,7 +524,7 @@ LLVMToSPIRVDbgTran::transDbgCompilationUnit(const DICompileUnit *CU) {
   auto DwarfLang =
       static_cast<llvm::dwarf::SourceLanguage>(CU->getSourceLanguage());
   Ops[LanguageIdx] =
-      BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100
+      BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200
           ? convertDWARFSourceLangToSPIRVNonSemanticDbgInfo(DwarfLang)
           : convertDWARFSourceLangToSPIRV(DwarfLang);
   BM->addModuleProcessed(SPIRVDebug::ProducerPrefix + CU->getProducer().str());
@@ -576,7 +576,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgQualifiedType(const DIDerivedType *QT) {
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgArrayType(const DICompositeType *AT) {
-  if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100) {
+  if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
     if (isFortranArrayDynamic(AT))
       return transDbgArrayTypeDynamic(AT);
     return transDbgArrayTypeNonSemantic(AT);
@@ -1083,7 +1083,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
       Ops.push_back(transDbgEntry(FuncDecl)->getId());
     else {
       Ops.push_back(getDebugInfoNoneId());
-      if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100) {
+      if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) {
         // Translate targetFuncName mostly for Fortran trampoline function if it
         // is the case
         StringRef TargetFunc = Func->getTargetFuncName();
@@ -1263,7 +1263,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgModule(const DIModule *Module) {
   // operands to be Literals, when the non-OpenCL Debug Info allows only IDs to
   // the constant values.
   bool IsNonSemanticDI =
-      (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100);
+      (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200);
   Ops[NameIdx] = BM->getString(Module->getName().str())->getId();
   Ops[SourceIdx] = getSource(Module->getFile())->getId();
   if (IsNonSemanticDI) {

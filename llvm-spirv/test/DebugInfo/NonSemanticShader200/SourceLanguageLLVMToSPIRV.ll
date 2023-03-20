@@ -2,19 +2,19 @@
 ; appropriate SourceLanguages in SPIRV when the extended debug info is enabled.
 
 ; RUN: sed -e 's/INPUT_LANGUAGE/DW_LANG_C99/' %s | llvm-as - -o %t.bc
-; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-kernel-100 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-C99
+; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-C99
 
 ; RUN: sed -e 's/INPUT_LANGUAGE/DW_LANG_OpenCL/' %s | llvm-as - -o %t.bc
-; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-kernel-100 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-OPENCLC
+; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-OPENCLC
 
 ; RUN: sed -e 's/INPUT_LANGUAGE/DW_LANG_C_plus_plus/' %s | llvm-as - -o %t.bc
-; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-kernel-100 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-CPP
+; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-CPP
 
 ; RUN: sed -e 's/INPUT_LANGUAGE/DW_LANG_C_plus_plus_14/' %s | llvm-as - -o %t.bc
-; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-kernel-100 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-CPP14
+; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-CPP14
 
 ; RUN: sed -e 's/INPUT_LANGUAGE/DW_LANG_C_plus_plus_17/' %s | llvm-as - -o %t.bc
-; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-kernel-100 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-CPP17
+; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-CPP17
 
 ; CHECK-C99: DebugCompileUnit [[#]] [[#]] [[#]] 109
 ; CHECK-OPENCLC: DebugCompileUnit [[#]] [[#]] [[#]] 3

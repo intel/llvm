@@ -1763,7 +1763,7 @@ public:
     assert((ExtSetKind == SPIRVEIS_OpenCL || ExtSetKind == SPIRVEIS_Debug ||
             ExtSetKind == SPIRVEIS_OpenCL_DebugInfo_100 ||
             ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
-            ExtSetKind == SPIRVEIS_NonSemantic_Kernel_DebugInfo_100) &&
+            ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_200) &&
            "not supported");
   }
   void encode(spv_ostream &O) const override {
@@ -1775,7 +1775,7 @@ public:
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
-    case SPIRVEIS_NonSemantic_Kernel_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       getEncoder(O) << ExtOpDebug;
       break;
     default:
@@ -1794,7 +1794,7 @@ public:
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
-    case SPIRVEIS_NonSemantic_Kernel_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       getDecoder(I) >> ExtOpDebug;
       break;
     default:
