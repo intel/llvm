@@ -245,35 +245,35 @@ struct ScalarSGTest {
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
     // CHECK: icmp eq {{.*}}, null
-    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func noundef i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(usm_mem); // Dynamic address space dispatch.
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
     // CHECK: icmp eq {{.*}}, null
-    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func noundef i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(local_mem);
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
     // CHECK: icmp eq {{.*}}, null
-    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func noundef i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem));
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK-NOT: icmp eq {{.*}}, null
-    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func noundef i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK-NOT: icmp eq {{.*}}, null
-    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func noundef i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
     // CHECK: [[MARKER]] [[# @LINE - 2]]
     // CHECK-NOT: icmp eq {{.*}}, null
-    // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func noundef i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<local_space, decorated::yes>(local_mem));
     // CHECK: [[MARKER]] [[# @LINE - 1]]
@@ -328,6 +328,21 @@ struct VecBlockedWGTest {
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::no>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem)
+              .get_decorated());
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
 };
 
@@ -396,6 +411,21 @@ struct VecStripedWGTest {
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::no>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem)
+              .get_decorated());
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
 };
 
@@ -434,6 +464,21 @@ struct VecBlockedSGTest {
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::no>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem)
+              .get_decorated());
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
 };
 
@@ -507,19 +552,51 @@ struct VecStripedSGTest {
 
     Check(global_mem);
     // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: icmp eq {{.*}}, null
+    // CHECK: call spir_func noundef <2 x i32> @_Z30__spirv_SubgroupBlockReadINTELIDv2_jET_PU3AS1Kj(i32 addrspace(1)* noundef
+
     Check(usm_mem);
     // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: icmp eq {{.*}}, null
+    // CHECK: call spir_func noundef <2 x i32> @_Z30__spirv_SubgroupBlockReadINTELIDv2_jET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(local_mem);
     // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: icmp eq {{.*}}, null
+    // CHECK: call spir_func noundef <2 x i32> @_Z30__spirv_SubgroupBlockReadINTELIDv2_jET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem));
     // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: icmp eq {{.*}}, null
+    // CHECK: call spir_func noundef <2 x i32> @_Z30__spirv_SubgroupBlockReadINTELIDv2_jET_PU3AS1Kj(i32 addrspace(1)* noundef
+
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: icmp eq {{.*}}, null
+    // CHECK: call spir_func noundef <2 x i32> @_Z30__spirv_SubgroupBlockReadINTELIDv2_jET_PU3AS1Kj(i32 addrspace(1)* noundef
+
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
     // CHECK: [[MARKER]] [[# @LINE - 2]]
+    // CHECK-NOT: icmp eq {{.*}}, null
+    // CHECK: call spir_func noundef <2 x i32> @_Z30__spirv_SubgroupBlockReadINTELIDv2_jET_PU3AS1Kj(i32 addrspace(1)* noundef
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::no>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem)
+              .get_decorated());
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
+    // CHECK-NOT: SubgroupBlockRead
+
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
 };
@@ -563,6 +640,21 @@ struct SpanBlockedWGTest {
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::no>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem)
+              .get_decorated());
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
 };
 
@@ -633,6 +725,21 @@ struct SpanStripedWGTest {
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::no>(local_mem));
+    // CHECK: [[MARKER]] [[# @LINE - 1]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    Check(address_space_cast<local_space, decorated::yes>(local_mem)
+              .get_decorated());
+    // CHECK: [[MARKER]] [[# @LINE - 2]]
+    // CHECK-NOT: SubgroupBlockRead
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
 };
 
