@@ -22,14 +22,8 @@ constexpr auto local_space = address_space::local_space;
 constexpr auto blocked = group_algorithm_data_placement::blocked;
 constexpr auto striped = group_algorithm_data_placement::striped;
 
-constexpr int SG_SIZE = 32;
-constexpr int WG_SIZE = SG_SIZE / 2;
-
+constexpr int SG_SIZE = 16;
 constexpr int N_WGS = 3;
-constexpr int GLOBAL_SIZE = WG_SIZE * N_WGS;
-// Not greater than 8 vec/array size + gap between WGs.
-constexpr int ELEMS_PER_WI = 8 * 2;
-constexpr int N_RESULTS = 16;
 
 __attribute__((noinline)) __attribute__((optnone)) void
 marker(int l = __builtin_LINE()) {
@@ -59,7 +53,8 @@ enum Scope { WG, SG };
 
 template <class TestTy> struct Kernel;
 
-template <typename TestTy> void test(TestTy TestObj) {
+template <typename TestTy> void test(TestTy TestObj, size_t wg_size) {
+  size_t global_size = wg_size * N_WGS;
   std::string Name{typeid(TestTy).name()};
   // GCC/clang give mangled name which has the format <NameLength>Name. Strip
   // the leading number.
@@ -71,22 +66,25 @@ template <typename TestTy> void test(TestTy TestObj) {
 
   queue q;
   constexpr int N_RESULTS = 16;
-  buffer<int, 1> results(N_RESULTS * GLOBAL_SIZE);
+  buffer<int, 1> results(N_RESULTS * global_size);
   for (auto &elem : host_accessor{results})
     elem = -1;
 
-  buffer<int, 1> global_mem_buf(GLOBAL_SIZE * ELEMS_PER_WI);
+  // Not greater than 8 vec/array size + gap between WGs.
+  constexpr int ELEMS_PER_WI = 8 * 2;
 
-  auto *usm_mem_alloc = malloc_device<int>(GLOBAL_SIZE * ELEMS_PER_WI, q);
+  buffer<int, 1> global_mem_buf(global_size * ELEMS_PER_WI);
+
+  auto *usm_mem_alloc = malloc_device<int>(global_size * ELEMS_PER_WI, q);
   auto Deleter = [=](auto *Ptr) { free(Ptr, q); };
   std::unique_ptr<int, decltype(Deleter)> smart_ptr(usm_mem_alloc, Deleter);
 
   q.submit([&](handler &cgh) {
     accessor res_acc{results, cgh};
     accessor global_mem_acc{global_mem_buf, cgh};
-    local_accessor<int, 1> local_mem_acc{WG_SIZE * ELEMS_PER_WI, cgh};
+    local_accessor<int, 1> local_mem_acc{wg_size * ELEMS_PER_WI, cgh};
     cgh.parallel_for<Kernel<TestTy>>(
-        nd_range{range{GLOBAL_SIZE}, range{WG_SIZE}}, [=](nd_item<1> ndi) {
+        nd_range{range<1>{global_size}, range<1>{wg_size}}, [=](nd_item<1> ndi) {
           auto *res_ptr = &res_acc[ndi.get_global_id(0) * N_RESULTS];
           auto Record = [&](auto val) { record(val, res_ptr); };
 
@@ -98,7 +96,7 @@ template <typename TestTy> void test(TestTy TestObj) {
               local_mem_acc.get_multi_ptr<decorated::no>().get_raw();
 
           // Each WG receives its own "local" sub-region.
-          int wg_offset = WG_SIZE * ELEMS_PER_WI * ndi.get_group(0);
+          int wg_offset = wg_size * ELEMS_PER_WI * ndi.get_group(0);
 
           auto sg = ndi.get_sub_group();
           int sg_offset = 0;
@@ -128,7 +126,7 @@ template <typename TestTy> void test(TestTy TestObj) {
     for (int i = 0; i < N_RESULTS; ++i) {
       bool all_same = [&]() {
         auto val = res_acc[i];
-        for (int j = 0; j < GLOBAL_SIZE; ++j) {
+        for (int j = 0; j < global_size; ++j) {
           if (val != res_acc[j * N_RESULTS + i])
             return false;
         }
@@ -138,7 +136,7 @@ template <typename TestTy> void test(TestTy TestObj) {
         std::cout << "All: " << res_acc[i] << std::endl;
         continue;
       }
-      for (int j = 0; j < GLOBAL_SIZE; ++j) {
+      for (int j = 0; j < global_size; ++j) {
         std::cout << " " << std::setw(3) << res_acc[j * N_RESULTS + i];
       }
       std::cout << std::endl;
@@ -325,9 +323,12 @@ struct VecBlockedWGTest {
 struct VecStripedWGTest {
   static constexpr Scope Scope = WG;
   KERNEL_OP {
+    auto g = ndi.get_group();
     auto lid = ndi.get_local_id(0);
+
     constexpr int VEC_SIZE = 2;
 
+    int wg_size = g.get_local_range().size();
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
 
     for (int i = 0; i < VEC_SIZE; ++i) {
@@ -361,8 +362,6 @@ struct VecStripedWGTest {
     // val = group_start + idx / VEC_SIZE - idx % VEC_SIZE
     // clang-format on
 
-    auto g = ndi.get_group();
-
     auto Check = [&](auto Input, int l = __builtin_LINE())
         __attribute__((always_inline)) {
       marker(l);
@@ -371,9 +370,9 @@ struct VecStripedWGTest {
 
       bool success = true;
       for (int i = 0; i < VEC_SIZE; ++i) {
-        int striped_idx = ndi.get_local_id(0) + i * WG_SIZE;
+        int striped_idx = ndi.get_local_id(0) + i * wg_size;
         success &=
-            (out[i] == ndi.get_group(0) * WG_SIZE + VEC_SIZE * 2 +
+            (out[i] == ndi.get_group(0) * wg_size + VEC_SIZE * 2 +
                            striped_idx / VEC_SIZE - striped_idx % VEC_SIZE);
       }
       Record(success);
@@ -428,11 +427,13 @@ struct VecBlockedSGTest {
 struct VecStripedSGTest {
   static constexpr Scope Scope = SG;
   KERNEL_OP {
+    auto g = ndi.get_group();
     auto sg = ndi.get_sub_group();
     auto lid = sg.get_local_id();
 
     constexpr int VEC_SIZE = 2;
     int sg_size = sg.get_local_range().size();
+    int wg_size = g.get_local_range().size();
 
     int init = ndi.get_global_id(0) + VEC_SIZE * 2;
 
@@ -478,7 +479,7 @@ struct VecStripedSGTest {
       sycl::detail::dim_loop<VEC_SIZE>([&](size_t i) {
         int striped_idx = sg.get_local_id() + i * sg_size;
         success &=
-            (out[i] == ndi.get_group(0) * WG_SIZE +
+            (out[i] == ndi.get_group(0) * wg_size +
                            sg.get_group_id() * sg_size + VEC_SIZE * 2 +
                            striped_idx / VEC_SIZE - striped_idx % VEC_SIZE);
       });
@@ -549,9 +550,13 @@ struct SpanBlockedWGTest {
 struct SpanStripedWGTest {
   static constexpr Scope Scope = WG;
   KERNEL_OP {
+    // TODO: group_helper with scratchpad
+    auto g = ndi.get_group();
     auto lid = ndi.get_local_id(0);
+
     constexpr int SPAN_SIZE = 2;
 
+    int wg_size = g.get_local_range().size();
     int init = ndi.get_global_id(0) + SPAN_SIZE * 2;
 
     for (int i = 0; i < SPAN_SIZE; ++i) {
@@ -585,9 +590,6 @@ struct SpanStripedWGTest {
     // val = group_start + idx / SPAN_SIZE - idx % SPAN_SIZE
     // clang-format on
 
-    // TODO: group_helper with scratchpad
-    auto g = ndi.get_group();
-
     auto Check = [&](auto Input, int l = __builtin_LINE())
         __attribute__((always_inline)) {
       marker(l);
@@ -597,9 +599,9 @@ struct SpanStripedWGTest {
 
       bool success = true;
       for (int i = 0; i < SPAN_SIZE; ++i) {
-        int striped_idx = ndi.get_local_id(0) + i * WG_SIZE;
+        int striped_idx = ndi.get_local_id(0) + i * wg_size;
         success &=
-            (out[i] == ndi.get_group(0) * WG_SIZE + SPAN_SIZE * 2 +
+            (out[i] == ndi.get_group(0) * wg_size + SPAN_SIZE * 2 +
                            striped_idx / SPAN_SIZE - striped_idx % SPAN_SIZE);
       }
       Record(success);
@@ -627,18 +629,23 @@ struct SpanStripedSGTest {
 int main() {
   capture_marker();
 
-  test(ScalarWGTest{});
-  test(ScalarSGTest{});
+  size_t wg_sizes[] = {SG_SIZE / 2, SG_SIZE, /* SG_SIZE * 3 / 2,  */SG_SIZE * 3};
 
-  test(VecBlockedWGTest{});
-  test(VecStripedWGTest{});
-  test(VecBlockedSGTest{});
-  test(VecStripedSGTest{});
+  for (auto wg_size : wg_sizes) {
+    std::cout << "WG_SIZE: " << wg_size << std::endl;
+    test(ScalarWGTest{}, wg_size);
+    test(ScalarSGTest{}, wg_size);
 
-  test(SpanBlockedWGTest{});
-  test(SpanStripedWGTest{});
-  test(SpanBlockedSGTest{});
-  test(SpanStripedSGTest{});
+    test(VecBlockedWGTest{}, wg_size);
+    test(VecStripedWGTest{}, wg_size);
+    test(VecBlockedSGTest{}, wg_size);
+    test(VecStripedSGTest{}, wg_size);
+
+    test(SpanBlockedWGTest{}, wg_size);
+    test(SpanStripedWGTest{}, wg_size);
+    test(SpanBlockedSGTest{}, wg_size);
+    test(SpanStripedSGTest{}, wg_size);
+  }
 
   return 0;
 }
