@@ -95,8 +95,12 @@ void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
       auto ndi =
           sycl::ext::oneapi::experimental::this_nd_item<Group::dimensions>();
       auto sg = ndi.get_sub_group();
-      // TODO: Do we have guarantees that all SGs are of the same size? Should
-      // get_max_local_range be used instead?
+
+      if (g.get_local_range().size() % sg.get_max_local_range().size() != 0)
+        // TODO: Mapping to sub_group is implementation-defined, no generic
+        // implementation is possible.
+        return generic();
+
       return group_load(sg, in_ptr + sg.get_group_id() * sg.get_local_range(),
                         out, properties);
     }
@@ -286,11 +290,12 @@ void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
       auto ndi =
           sycl::ext::oneapi::experimental::this_nd_item<Group::dimensions>();
       auto sg = ndi.get_sub_group();
-      std::ignore = sg;
-      // TODO: Some SGs in a WG might be of different size. It seems only the
-      // last one can be non-full, but I'm not sure if that's guaranteed.
-      // TODO: Do we have a guarantee that get_local_linear_id moves in the same
-      // pattern across WIs in WG/SG?
+
+      if (g.get_local_range().size() % sg.get_max_local_range().size() != 0)
+        // TODO: Mapping to sub_group is implementation-defined, no generic
+        // implementation is possible.
+        return generic();
+
       return group_load(sg,
                         in_ptr + sg.get_group_id() * sg.get_max_local_range() * N,
                         out, properties);

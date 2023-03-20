@@ -133,11 +133,14 @@ template <typename TestTy> void test(TestTy TestObj, size_t wg_size) {
         return true;
       }();
       if (all_same) {
-        std::cout << "All: " << res_acc[i] << std::endl;
+        if (res_acc[i] != -1) // Initial init value, nothing written.
+          std::cout << "All: " << res_acc[i] << std::endl;
         continue;
       }
       for (int j = 0; j < global_size; ++j) {
         std::cout << " " << std::setw(3) << res_acc[j * N_RESULTS + i];
+        if (j % 8 == 7)
+          std::cout << "  |";
       }
       std::cout << std::endl;
     }
@@ -167,32 +170,35 @@ struct ScalarWGTest {
     Check(global_mem); // Dynamic address space dispatch.
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(usm_mem); // Dynamic address space dispatch.
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(local_mem);
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem));
     // CHECK: [[MARKER]] [[# @LINE - 1]]
-    // CHECK-NOT: br
+    // CHECK-NOT: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     // CHECK: [[MARKER]] [[# @LINE - 1]]
-    // CHECK-NOT: br
+    // CHECK-NOT: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
     // CHECK: [[MARKER]] [[# @LINE - 2]]
-    // CHECK-NOT: br
+    // CHECK-NOT: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<local_space, decorated::yes>(local_mem));
@@ -237,32 +243,35 @@ struct ScalarSGTest {
     Check(global_mem); // Dynamic address space dispatch.
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(usm_mem); // Dynamic address space dispatch.
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(local_mem);
     // CHECK: [[MARKER]] [[# @LINE - 1]]
     // CHECK: call spir_func {{.*}} @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi
+    // CHECK: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem));
     // CHECK: [[MARKER]] [[# @LINE - 1]]
-    // CHECK-NOT: br
+    // CHECK-NOT: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::no>(global_mem));
     // CHECK: [[MARKER]] [[# @LINE - 1]]
-    // CHECK-NOT: br
+    // CHECK-NOT: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem)
               .get_decorated());
     // CHECK: [[MARKER]] [[# @LINE - 2]]
-    // CHECK-NOT: br
+    // CHECK-NOT: icmp eq {{.*}}, null
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     Check(address_space_cast<local_space, decorated::yes>(local_mem));
@@ -478,10 +487,14 @@ struct VecStripedSGTest {
       // Make IR dumps more readable by forcing unrolling.
       sycl::detail::dim_loop<VEC_SIZE>([&](size_t i) {
         int striped_idx = sg.get_local_id() + i * sg_size;
-        success &=
-            (out[i] == ndi.get_group(0) * wg_size +
-                           sg.get_group_id() * sg_size + VEC_SIZE * 2 +
-                           striped_idx / VEC_SIZE - striped_idx % VEC_SIZE);
+        auto expected = ndi.get_group(0) * wg_size +
+                        // get_max_local_range() assumes particular splitting of
+                        // WG into SG which is implementation-defined when WG
+                        // isn't divisible by the SIMD size.
+                        sg.get_group_id() * sg.get_max_local_range().size() +
+                        VEC_SIZE * 2 + striped_idx / VEC_SIZE -
+                        striped_idx % VEC_SIZE;
+        success &= (out[i] == expected);
       });
       Record(success);
     };
@@ -493,7 +506,7 @@ struct VecStripedSGTest {
     Check(usm_mem);
     // CHECK: [[MARKER]] [[# @LINE - 1]]
 
-    Check(local_mem); // FIXME: Why does it fail?
+    Check(local_mem);
     // CHECK: [[MARKER]] [[# @LINE - 1]]
 
     Check(address_space_cast<global_space, decorated::yes>(global_mem));
@@ -629,7 +642,7 @@ struct SpanStripedSGTest {
 int main() {
   capture_marker();
 
-  size_t wg_sizes[] = {SG_SIZE / 2, SG_SIZE, /* SG_SIZE * 3 / 2,  */SG_SIZE * 3};
+  size_t wg_sizes[] = {SG_SIZE / 2, SG_SIZE, SG_SIZE * 3 / 2, SG_SIZE * 3};
 
   for (auto wg_size : wg_sizes) {
     std::cout << "WG_SIZE: " << wg_size << std::endl;
