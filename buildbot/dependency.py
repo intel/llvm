@@ -58,7 +58,7 @@ def do_dependency(args):
 
     # Checkout fixed version to avoid unexpected issues coming from upstream
     # Specific version can be uplifted as soon as such need arise
-    checkout_cmd = ["git", "checkout", "8f9c175f7e55457662d7fa4e775a234a588f01cd"]  # TODO: Remove change once upstream header changed
+    checkout_cmd = ["git", "checkout", "5b25fed2d0556ad429f6f5a826e06b7f4a6aa646"]  # TODO: Remove change once upstream header changed
     subprocess.check_call(checkout_cmd, cwd=ocl_header_dir)
 
     # fetch and build OpenCL ICD loader
