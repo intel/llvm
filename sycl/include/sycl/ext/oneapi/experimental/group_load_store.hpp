@@ -23,6 +23,75 @@ constexpr bool is_spir = true;
 #else
 constexpr bool is_spir = false;
 #endif
+
+template <int required_align, int sg_offset_per_wi, typename GroupTy, typename IteratorT,
+          typename DelegateTy, typename GenericTy>
+bool try_dispatch(GroupTy group, IteratorT iter, DelegateTy delegate,
+                  GenericTy generic) {
+#ifdef __SYCL_DEVICE_ONLY__
+  using value_type = std::iterator_traits<IteratorT>::value_type;
+  using iter_no_cv = std::remove_cv_t<IteratorT>;
+  if constexpr (!detail::is_spir) {
+    generic();
+    return true;
+  } else if constexpr (detail::is_multi_ptr_v<IteratorT>) {
+    delegate(group, iter.get_decorated());
+    return true;
+  } else if constexpr (!std::is_pointer_v<iter_no_cv>) {
+    generic();
+    return true;
+  } else {
+    // Pointer.
+    if constexpr (alignof(value_type) < required_align) {
+      if ((reinterpret_cast<uintptr_t>(iter) % required_align) != 0) {
+        generic();
+        return true;
+      }
+    }
+
+    // TODO: support scratchpad.
+    if constexpr (std::is_same_v<GroupTy, sub_group>) {
+      constexpr auto AS = sycl::detail::deduce_AS<iter_no_cv>::value;
+      if constexpr (AS == access::address_space::global_space) {
+        // The only customization point - to be handled by the caller.
+        return false;
+      } else if constexpr (AS == access::address_space::generic_space) {
+        if (auto global_ptr = __SYCL_GenericCastToPtrExplicit_ToGlobal<
+                remove_decoration_t<value_type>>(iter))
+          delegate(group, global_ptr);
+        else
+          generic();
+        return true;
+      } else {
+        generic();
+        return true;
+      }
+    } else {
+      // TODO: Use get_child_group from sycl_ext_oneapi_root_group extension
+      // once it is implemented instead of this free function.
+      auto ndi =
+          sycl::ext::oneapi::experimental::this_nd_item<GroupTy::dimensions>();
+      auto sg = ndi.get_sub_group();
+
+      auto wg_size = group.get_local_range().size();
+      auto simd_width = sg.get_max_local_range().size();
+
+      if (wg_size % simd_width != 0) {
+        // TODO: Mapping to sub_group is implementation-defined, no generic
+        // implementation is possible.
+        generic();
+        return true;
+      } else {
+        delegate(sg, iter + sg.get_group_id() * sg.get_max_local_range() *
+                            sg_offset_per_wi);
+        return true;
+      }
+    }
+  }
+  // Unreachable. Intentionally no return/__builtin_unreachable to get a
+  // compile-time warning if not so.
+#endif
+}
 } // namespace detail
 // Load API scalar
 template <typename Group, typename InputIteratorT, typename OutputT,
@@ -44,30 +113,20 @@ void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
   constexpr bool supported_size =
       size == 1 || size == 2 || size == 4 || size == 8;
 
-  bool is_aligned = [&]() {
-    constexpr int reqd_read_align = 4; // bytes.
-    if constexpr (alignof(value_type) >= reqd_read_align)
-      return true;
-    else
-      return (reinterpret_cast<uintptr_t>(in_ptr) % reqd_read_align) != 0;
-  }();
-
-  // TODO: HIP?
-  if constexpr (!detail::is_spir || !supported_size) {
-    return generic();
-  } else if constexpr (detail::is_multi_ptr_v<InputIteratorT>) {
-    return group_load(g, in_ptr.get_decorated(), out, properties);
-  } else if constexpr (!std::is_pointer_v<input_iter_no_cv>) {
+  if constexpr (!supported_size) {
     return generic();
   } else {
-    // Pointer.
-    if constexpr (std::is_same_v<Group, sub_group>) {
+    if (detail::try_dispatch<4 /* read align in bytes */, 1 /* scalar */>(
+            g, in_ptr,
+            [&](auto g, auto unwrapped_ptr) {
+              group_load(g, unwrapped_ptr, out, properties);
+            },
+            generic))
+      return;
+
+    if constexpr (std::is_pointer_v<input_iter_no_cv>) {
       constexpr auto AS = sycl::detail::deduce_AS<input_iter_no_cv>::value;
       if constexpr (AS == access::address_space::global_space) {
-        if (!is_aligned)
-          // Not properly aligned.
-          return generic();
-
         using BlockT = sycl::detail::sub_group::SelectBlockT<value_type>;
         using PtrT = sycl::detail::DecoratedType<BlockT, AS>::type *;
 
@@ -75,35 +134,10 @@ void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
             reinterpret_cast<PtrT>(in_ptr));
         out = sycl::bit_cast<value_type>(load);
         return;
-
-      } else if constexpr (AS == access::address_space::generic_space) {
-        if (!is_aligned)
-          // Not properly aligned.
-          return generic();
-
-        if (auto global_ptr = __SYCL_GenericCastToPtrExplicit_ToGlobal<
-                remove_decoration_t<value_type>>(in_ptr))
-          return group_load(g, global_ptr, out, properties);
-
-        return generic();
-      } else {
-        return generic();
       }
-    } else {
-      // TODO: Use get_child_group from sycl_ext_oneapi_root_group extension
-      // once it is implemented instead of this free function.
-      auto ndi =
-          sycl::ext::oneapi::experimental::this_nd_item<Group::dimensions>();
-      auto sg = ndi.get_sub_group();
-
-      if (g.get_local_range().size() % sg.get_max_local_range().size() != 0)
-        // TODO: Mapping to sub_group is implementation-defined, no generic
-        // implementation is possible.
-        return generic();
-
-      return group_load(sg, in_ptr + sg.get_group_id() * sg.get_local_range(),
-                        out, properties);
     }
+
+    __builtin_unreachable();
   }
 #else
   throw sycl::exception(
