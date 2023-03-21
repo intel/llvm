@@ -23,8 +23,9 @@ module {
 }
 
 // CHECK-LABEL:   func.func @_Z17compute_tran_tempPfPS_iiiiiiii(
-// CHECK-SAME:                                                  %[[VAL_0:.*]]: memref<f32>,
-// CHECK-SAME:                                                  %[[VAL_1:.*]]: i32, %[[VAL_2:.*]]: i32, %[[VAL_3:.*]]: i32) -> i8 {
+// CHECK-SAME:          %[[VAL_0:.*]]: memref<f32>,
+// CHECK-SAME:          %[[VAL_1:.*]]: i32, %[[VAL_2:.*]]: i32,
+// CHECK-SAME:          %[[VAL_3:.*]]: i32) -> i8 {
 // CHECK:           %[[VAL_4:.*]] = arith.constant 0 : i8
 // CHECK:           %[[VAL_5:.*]] = arith.constant 0.000000e+00 : f32
 // CHECK:           %[[VAL_6:.*]] = arith.cmpi sge, %[[VAL_3]], %[[VAL_1]] : i32
