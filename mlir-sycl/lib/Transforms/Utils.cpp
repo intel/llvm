@@ -17,6 +17,7 @@
 #define SYCL_METHOD_TO_SYCL_CALL_DEBUG_TYPE "sycl-method-to-sycl-call"
 
 /// Custom definition to print messages coming from clients.
+#undef LLVM_DEBUG
 #define LLVM_DEBUG(X)                                                          \
   DEBUG_WITH_TYPE(INLINER_DEBUG_TYPE, X);                                      \
   DEBUG_WITH_TYPE(SYCL_METHOD_TO_SYCL_CALL_DEBUG_TYPE, X)
