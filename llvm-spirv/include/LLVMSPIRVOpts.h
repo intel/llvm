@@ -110,6 +110,10 @@ public:
     return I->second;
   }
 
+  void setAllowedToUseExtension(ExtensionID Extension, bool Allow = true) {
+    ExtStatusMap[Extension] = Allow;
+  }
+
   VersionNumber getMaxVersion() const { return MaxVersion; }
 
   bool isGenArgNameMDEnabled() const { return GenKernelArgNameMD; }

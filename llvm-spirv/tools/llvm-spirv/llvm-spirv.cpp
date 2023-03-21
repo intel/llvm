@@ -750,6 +750,12 @@ int main(int Ac, char **Av) {
       if (DebugEIS.getValue() ==
           SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
         Opts.setAllowExtraDIExpressionsEnabled(true);
+      if (DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200 ||
+          DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
+        Opts.setAllowedToUseExtension(
+            SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
     }
   }
 

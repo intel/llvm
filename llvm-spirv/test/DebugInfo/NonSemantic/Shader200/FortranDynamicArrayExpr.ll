@@ -17,9 +17,10 @@
 ; CHECK-SPIRV-DAG: String [[#BasicTName:]] "INTEGER*4"
 ; CHECK-SPIRV-DAG: TypeInt [[#Int32T:]] 32 0
 ; CHECK-SPIRV-DAG: Constant [[#Int32T]] [[#IntConst:]] 32
+; CHECK-SPIRV-DAG: Constant [[#Int32T]] [[#Flag:]] 4
 ; CHECK-SPIRV-DAG: TypeVoid [[#VoidT:]]
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgInfoNone:]] [[#Import]] DebugInfoNone
-; CHECK-SPIRV: ExtInst [[#VoidT]] [[#ArrayBasicT:]] [[#Import]] DebugTypeBasic [[#BasicTName]] [[#IntConst]] 4
+; CHECK-SPIRV: ExtInst [[#VoidT]] [[#ArrayBasicT:]] [[#Import]] DebugTypeBasic [[#BasicTName]] [[#IntConst]] [[#Flag]]
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprLocation:]] [[#Import]] DebugExpression [[#]] [[#]] {{$}}
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprAssociated:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] [[#]] {{$}}
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprLowerBound:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] {{$}}
