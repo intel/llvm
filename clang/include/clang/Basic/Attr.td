@@ -584,9 +584,6 @@ class Attr {
   // content. Eg) It parses 3 args, but semantically takes 4 args.  Opts out of
   // common attribute error checking.
   bit HasCustomParsing = 0;
-  // Set to true if the statement attribute is instantiation dependent and uses
-  // custom TreeTransform logic for template instantiation.
-  bit IsStmtDependent = 0;
   // Set to true if all of the attribute's arguments should be parsed in an
   // unevaluated context.
   bit ParseArgumentsAsUnevaluated = 0;
@@ -1890,7 +1887,6 @@ def LoopUnrollHint : StmtAttr {
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"UnrollHintExpr", /*opt*/1>];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
-  let IsStmtDependent = 1;
   let AdditionalMembers = [{
     std::string getDiagnosticName(const PrintingPolicy &Policy) const {
       std::string ValueName;
@@ -2362,7 +2358,6 @@ def SYCLIntelIVDep : StmtAttr {
     UnsignedArgument<"SafelenValue", /*opt*/1>
   ];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let IsStmtDependent = 1;
   let AdditionalMembers = [{
     bool isDependent() const {
       return (getSafelenExpr() &&
@@ -2406,7 +2401,6 @@ def SYCLIntelInitiationInterval : DeclOrStmtAttr {
                               "'for', 'while', 'do' statements, and functions">;
   let Args = [ExprArgument<"IntervalExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelInitiationIntervalAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
 }
@@ -2418,7 +2412,6 @@ def SYCLIntelMaxConcurrency : DeclOrStmtAttr {
                              "'for', 'while', 'do' statements, and functions">;
   let Args = [ExprArgument<"NThreadsExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelMaxConcurrencyAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
 }
@@ -2429,7 +2422,6 @@ def SYCLIntelLoopCoalesce : StmtAttr {
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr", /*opt*/1>];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelLoopCoalesceAttrDocs];
 }
 
@@ -2439,7 +2431,6 @@ def SYCLIntelDisableLoopPipelining : DeclOrStmtAttr {
                               ErrorDiag,
                               "'for', 'while', 'do' statements, and functions">;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelDisableLoopPipeliningAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
   let SimpleHandler = 1;
@@ -2464,7 +2455,6 @@ def SYCLIntelLoopCount : StmtAttr {
                    Accessor<"isCount", [CXX11<"intel", "loop_count">]>];
   let Args = [ExprArgument<"NTripCount">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelLoopCountAttrDocs];
 }
 
@@ -2477,7 +2467,6 @@ def SYCLIntelMaxInterleaving : StmtAttr {
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelMaxInterleavingAttrDocs];
 }
 def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
@@ -2489,7 +2478,6 @@ def SYCLIntelSpeculatedIterations : StmtAttr {
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelSpeculatedIterationsAttrDocs];
 }
 def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
@@ -2500,7 +2488,6 @@ def SYCLIntelNofusion : StmtAttr {
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelNofusionAttrDocs];
 }
 
@@ -2510,7 +2497,6 @@ def SYCLIntelMaxReinvocationDelay : StmtAttr {
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let IsStmtDependent = 1;
   let Documentation = [SYCLIntelMaxReinvocationDelayAttrDocs];
 }
 def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
