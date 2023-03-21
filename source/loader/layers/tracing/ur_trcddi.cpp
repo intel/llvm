@@ -1153,10 +1153,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align, ///< [in] alignment of the USM memory object
-                    ///< Must be zero or a power of 2.
-    ///< Must be equal to or smaller than the size of the largest data type
-    ///< supported by `hDevice`.
     void **ppMem ///< [out] pointer to USM host memory object
 ) {
     auto pfnHostAlloc = context.urDdiTable.USM.pfnHostAlloc;
@@ -1165,13 +1161,12 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_usm_host_alloc_params_t params = {&hContext, &pUSMDesc, &pool,
-                                         &size,     &align,    &ppMem};
+    ur_usm_host_alloc_params_t params = {&hContext, &pUSMDesc, &pool, &size,
+                                         &ppMem};
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_HOST_ALLOC,
                                              "urUSMHostAlloc", &params);
 
-    ur_result_t result =
-        pfnHostAlloc(hContext, pUSMDesc, pool, size, align, ppMem);
+    ur_result_t result = pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
 
     context.notify_end(UR_FUNCTION_USM_HOST_ALLOC, "urUSMHostAlloc", &params,
                        &result, instance);
@@ -1190,10 +1185,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align, ///< [in] alignment of the USM memory object
-                    ///< Must be zero or a power of 2.
-    ///< Must be equal to or smaller than the size of the largest data type
-    ///< supported by `hDevice`.
     void **ppMem ///< [out] pointer to USM device memory object
 ) {
     auto pfnDeviceAlloc = context.urDdiTable.USM.pfnDeviceAlloc;
@@ -1202,13 +1193,13 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_usm_device_alloc_params_t params = {
-        &hContext, &hDevice, &pUSMDesc, &pool, &size, &align, &ppMem};
+    ur_usm_device_alloc_params_t params = {&hContext, &hDevice, &pUSMDesc,
+                                           &pool,     &size,    &ppMem};
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_DEVICE_ALLOC,
                                              "urUSMDeviceAlloc", &params);
 
     ur_result_t result =
-        pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, align, ppMem);
+        pfnDeviceAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 
     context.notify_end(UR_FUNCTION_USM_DEVICE_ALLOC, "urUSMDeviceAlloc",
                        &params, &result, instance);
@@ -1227,10 +1218,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
         pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t align, ///< [in] alignment of the USM memory object.
-                    ///< Must be zero or a power of 2.
-    ///< Must be equal to or smaller than the size of the largest data type
-    ///< supported by `hDevice`.
     void **ppMem ///< [out] pointer to USM shared memory object
 ) {
     auto pfnSharedAlloc = context.urDdiTable.USM.pfnSharedAlloc;
@@ -1239,13 +1226,13 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_usm_shared_alloc_params_t params = {
-        &hContext, &hDevice, &pUSMDesc, &pool, &size, &align, &ppMem};
+    ur_usm_shared_alloc_params_t params = {&hContext, &hDevice, &pUSMDesc,
+                                           &pool,     &size,    &ppMem};
     uint64_t instance = context.notify_begin(UR_FUNCTION_USM_SHARED_ALLOC,
                                              "urUSMSharedAlloc", &params);
 
     ur_result_t result =
-        pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, align, ppMem);
+        pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 
     context.notify_end(UR_FUNCTION_USM_SHARED_ALLOC, "urUSMSharedAlloc",
                        &params, &result, instance);

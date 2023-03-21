@@ -40,7 +40,7 @@ struct urEnqueueUSMFillTestWithParam
         }
 
         ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, size, 0, &ptr));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, size, &ptr));
     }
 
     void TearDown() override {
@@ -129,7 +129,7 @@ struct urEnqueueUSMFillNegativeTest : uur::urQueueTest {
         }
 
         ASSERT_SUCCESS(
-            urUSMDeviceAlloc(context, device, nullptr, nullptr, size, 0, &ptr));
+            urUSMDeviceAlloc(context, device, nullptr, nullptr, size, &ptr));
     }
 
     void TearDown() override {

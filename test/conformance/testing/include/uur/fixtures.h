@@ -320,7 +320,7 @@ struct urUSMDeviceAllocTest : urQueueTest {
             GTEST_SKIP() << "Device USM in not supported";
         }
         ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
-                                        allocation_size, 0, &ptr));
+                                        allocation_size, &ptr));
         ur_event_handle_t event = nullptr;
 
         uint8_t fillPattern = 0;
@@ -353,7 +353,7 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
             GTEST_SKIP() << "Device USM in not supported";
         }
         ASSERT_SUCCESS(urUSMDeviceAlloc(this->context, this->device, nullptr,
-                                        nullptr, allocation_size, 0, &ptr));
+                                        nullptr, allocation_size, &ptr));
         ur_event_handle_t event = nullptr;
 
         uint8_t fillPattern = 0;
