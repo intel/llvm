@@ -677,8 +677,8 @@ def SYCLAccessorSizeOp
                                 ["size"]> {
   let summary = "Represent the accessor::size";
   let description = [{
-    This operation returns the number of elements in the region of a SYCL buffer
-    that the given SYCL accessor is accessing.
+    This operation returns the number of elements accessible by this SYCL
+    accessor.
   }];
 
   let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
