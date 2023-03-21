@@ -5144,7 +5144,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // At -O0, disable the inlining for debugging purposes.
     if (!Args.hasFlag(options::OPT_fsycl_force_inline_kernel_lambda,
                       options::OPT_fno_sycl_force_inline_kernel_lambda,
-                      !DisableSYCLForceInlineKernelLambda))
+                      !DisableSYCLForceInlineKernelLambda &&
+                          !IsFPGASYCLOffloadDevice))
       CmdArgs.push_back("-fno-sycl-force-inline-kernel-lambda");
 
     // Add -ffine-grained-bitfield-accesses option. This will be added
