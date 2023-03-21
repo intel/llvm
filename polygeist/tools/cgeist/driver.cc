@@ -370,7 +370,7 @@ static int optimize(mlir::MLIRContext &Ctx,
     if (RaiseToAffine)
       OptPM.addPass(mlir::createLowerAffinePass());
     if (OmitOptionalMangledFunctionName) {
-      // Needed as the inliner pass needs this attribute.
+      // Needed as the inliner pass needs the `MangledFunctionName` attribute.
       PM.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
     }
     PM.addPass(sycl::createInlinePass({sycl::InlineMode::Simple,
@@ -397,7 +397,8 @@ static int optimize(mlir::MLIRContext &Ctx,
     OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   } else {
     if (OmitOptionalMangledFunctionName) {
-      // Needed as the inliner pass needs this attribute.
+      // Needed as the inliner pass needs this the `MangledFunctionName`
+      // attribute.
       PM.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
     }
     // Always inline alwaysinline functions even at O0.
