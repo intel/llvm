@@ -1712,7 +1712,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     bundle_state State = bundle_state::input;
     int RequirementCounter = 0;
   };
-  std::map<RTDeviceBinaryImage *, DeviceBinaryImageInfo> ImageInfoMap;
+  std::unordered_map<RTDeviceBinaryImage *, DeviceBinaryImageInfo> ImageInfoMap;
 
   for (const sycl::device &Dev : Devs) {
     // Track the highest image state for each requested kernel.
@@ -1734,7 +1734,6 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       DeviceBinaryImageInfo &ImgInfo = InsertRes.first->second;
       if (InsertRes.second) {
         ImgInfo.State = getBinImageState(BinImage);
-        std::shared_ptr<std::vector<sycl::kernel_id>> ImageKernelIDs;
         // Collect kernel names for the image
         {
           std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
@@ -1777,6 +1776,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           }
           KernelImages.clear();
           KernelImages.push_back(BinImage);
+          KernelImagesState = ImgState;
           ++ImgRequirementCounter;
         } else if (KernelImagesState == ImgState) {
           KernelImages.push_back(BinImage);

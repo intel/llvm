@@ -24,6 +24,7 @@ class KernelA;
 class KernelB;
 class KernelC;
 class KernelD;
+class KernelE;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -38,6 +39,9 @@ template <> struct KernelInfo<KernelC> : public unittest::MockKernelInfoBase {
 };
 template <> struct KernelInfo<KernelD> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelD"; }
+};
+template <> struct KernelInfo<KernelE> : public unittest::MockKernelInfoBase {
+  static constexpr const char *getName() { return "KernelE"; }
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
@@ -77,6 +81,9 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 // Image 2: input, KernelC
 // Image 3: exe, KernelC
 // Image 4: input, KernelD
+// Image 5: input, KernelE
+// Image 6: exe, KernelE
+// Image 7: exe. KernelE
 sycl::unittest::PiImage Imgs[] = {
     generateDefaultImage({"KernelA", "KernelB"}, PI_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
@@ -87,7 +94,13 @@ sycl::unittest::PiImage Imgs[] = {
     generateDefaultImage({"KernelC"}, PI_DEVICE_BINARY_TYPE_NATIVE,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
     generateDefaultImage({"KernelD"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64)};
+                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelE"}, PI_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelE"}, PI_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({"KernelE"}, PI_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
 
 sycl::unittest::PiImageArray<std::size(Imgs)> ImgArray{Imgs};
 std::vector<unsigned char> UsedImageIndices;
@@ -164,7 +177,7 @@ TEST(KernelBundle, DeviceImageStateFiltering) {
 
     sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
-    verifyImageUse({0, 1, 3, 4});
+    verifyImageUse({0, 1, 3, 4, 6, 7});
   }
 
   sycl::kernel_id KernelAID = sycl::get_kernel_id<KernelA>();
