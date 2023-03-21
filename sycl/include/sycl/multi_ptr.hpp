@@ -1235,7 +1235,7 @@ public:
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<pointer_t *>(Accessor.get_pointer())) {}
+      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
 
   // Only if Space == constant_space
   template <
