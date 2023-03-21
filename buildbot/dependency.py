@@ -49,8 +49,8 @@ def do_dependency(args):
     # fetch OpenCL headers
     ocl_header_dir = os.path.join(args.obj_dir, "OpenCL-Headers")
     if not os.path.isdir(ocl_header_dir):
-        clone_cmd = ["git", "clone", "https://github.com/zibaiwan/OpenCL-Headers",
-                     "OpenCL-Headers", "-b", "host-pipe-final"] # TODO: Remove change once upstream header changed
+        clone_cmd = ["git", "clone", "https://github.com/KhronosGroup/OpenCL-Headers",
+                     "OpenCL-Headers", "-b", "main"]
         subprocess.check_call(clone_cmd, cwd=args.obj_dir)
     else:
         fetch_cmd = ["git", "pull", "--ff", "--ff-only", "origin"]
@@ -58,7 +58,7 @@ def do_dependency(args):
 
     # Checkout fixed version to avoid unexpected issues coming from upstream
     # Specific version can be uplifted as soon as such need arise
-    checkout_cmd = ["git", "checkout", "5b25fed2d0556ad429f6f5a826e06b7f4a6aa646"]  # TODO: Remove change once upstream header changed
+    checkout_cmd = ["git", "checkout", "9ddb236e6eb3cf844f9e2f81677e1045f9bf838e"]
     subprocess.check_call(checkout_cmd, cwd=ocl_header_dir)
 
     # fetch and build OpenCL ICD loader
