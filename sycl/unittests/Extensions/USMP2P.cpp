@@ -48,7 +48,7 @@ pi_result redefinedPeerAccessGetInfo(pi_device command_device,
 
   if (attr == PI_PEER_ACCESS_SUPPORTED) {
     check = 1;
-  } else if (attr == PI_PEER_ACCESS_SUPPORTED) {
+  } else if (attr == PI_PEER_ATOMICS_SUPPORTED) {
     check = 2;
   }
   return PI_SUCCESS;
