@@ -8,16 +8,21 @@
  *
  */
 #pragma once
+#include "logger/ur_logger.hpp"
 #include "ur_ddi.h"
 #include "ur_proxy_layer.hpp"
 #include "ur_util.hpp"
 
 namespace validation_layer {
+
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal context_t : public proxy_layer_context_t {
   public:
     bool enableValidation = false;
     bool enableParameterValidation = false;
+    bool enableLeakChecking = false;
+
+    logger::Logger logger;
 
     ur_dditable_t urDdiTable = {};
 
@@ -29,4 +34,5 @@ class __urdlllocal context_t : public proxy_layer_context_t {
 };
 
 extern context_t context;
+
 } // namespace validation_layer
