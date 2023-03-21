@@ -43,7 +43,8 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b = get_wi_data(sg, sub_b);
+           auto wi_slice_b =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] + 2;
            }
@@ -79,7 +80,8 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b = get_wi_data(sg, sub_b);
+           auto wi_slice_b =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] - 2;
            }
@@ -115,7 +117,8 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b = get_wi_data(sg, sub_b);
+           auto wi_slice_b =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] * 3;
            }
@@ -151,7 +154,8 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_b, 4);
 
-           auto wi_slice_b = get_wi_data(sg, sub_b);
+           auto wi_slice_b =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] / 2;
            }
@@ -187,7 +191,8 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b = get_wi_data(sg, sub_b);
+           auto wi_slice_b =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
            for (int i = 0; i < wi_slice_b.length(); i++) {
              if (wi_slice_b[i]) {
                if (wi_slice_b[i] > 2 || wi_slice_b[i] >= 2 ||

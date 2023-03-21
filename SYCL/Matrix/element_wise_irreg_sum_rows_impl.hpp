@@ -57,7 +57,8 @@ void matrix_sum_rows(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
            // (tK/4)
            int32_t sum_local_rows[M] = {0}; // 8 local rows, M total
            // sub_b has 32x8 elements, 32 elements per WI, 4 per WI per row
-           auto data = get_wi_data(sg, sub_b);
+           auto data =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
 
            // each WI calculates local sum of rows
            for (int row = 0; row < TK / 4; row++) { // there are 8 rows

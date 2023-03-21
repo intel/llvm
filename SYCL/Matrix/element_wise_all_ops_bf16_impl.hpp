@@ -50,7 +50,8 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, bfloat16(5.0));
 
-           auto wi_slice_a = get_wi_data(sg, sub_a);
+           auto wi_slice_a =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] + bfloat16(2);
            }
@@ -85,7 +86,8 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, bfloat16(5.0));
 
-           auto wi_slice_a = get_wi_data(sg, sub_a);
+           auto wi_slice_a =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] - bfloat16(2);
            }
@@ -118,7 +120,8 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
            joint_matrix_fill(sg, sub_a, bfloat16(5.0));
 
-           auto wi_slice_a = get_wi_data(sg, sub_a);
+           auto wi_slice_a =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] * bfloat16(3.0);
            }
@@ -152,7 +155,8 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, bfloat16(4.0));
 
-           auto wi_slice_a = get_wi_data(sg, sub_a);
+           auto wi_slice_a =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] / bfloat16(2.0);
            }
@@ -185,7 +189,8 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, bfloat16(5.0));
 
-           auto wi_slice_a = get_wi_data(sg, sub_a);
+           auto wi_slice_a =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              if (wi_slice_a[i]) {
                if (wi_slice_a[i] > bfloat16(2.0) ||
