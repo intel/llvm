@@ -675,9 +675,9 @@ def SYCLCallOp : SYCL_Op<"call", [CallOpInterface]> {
 def SYCLAccessorGetPointerOp
     : SYCLMethodOpInterfaceImpl<"accessor.get_pointer", "AccessorType",
                                 ["get_pointer"]> {
-  let summary = "Call to accessor::get_pointer";
+  let summary = "Represents the accessor get_pointer operation";
   let description = [{
-    This operation represents a call to the accessor::get_pointer function.
+    Returns a pointer to the start of this accessor's memory.
   }];
 
   let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
@@ -686,7 +686,7 @@ def SYCLAccessorGetPointerOp
                        OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
-  let results = (outs SYCL_MultiPtrType:$result);
+  let results = (outs AnyMemRef:$result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

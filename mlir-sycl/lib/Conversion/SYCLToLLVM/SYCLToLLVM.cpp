@@ -128,11 +128,6 @@ struct IDGetDim : public OffsetTag {
   static constexpr std::array<int32_t, 2> indices{0, 0};
 };
 
-/// Get the underlying multi_ptr from an accessor.
-struct AccessorGetMultiPtr : public OffsetTag {
-  static constexpr std::array<int32_t, 1> indices{1};
-};
-
 /// Get the underlying pointer from an accessor.
 struct AccessorGetPtr : public OffsetTag {
   static constexpr std::array<int32_t, 2> indices{1, 0};
@@ -1071,10 +1066,10 @@ private:
 //===----------------------------------------------------------------------===//
 
 class AccessorGetPointerPattern
-    : public LoadMemberPattern<SYCLAccessorGetPointerOp, AccessorGetMultiPtr> {
+    : public LoadMemberPattern<SYCLAccessorGetPointerOp, AccessorGetPtr> {
 public:
   using LoadMemberPattern<SYCLAccessorGetPointerOp,
-                          AccessorGetMultiPtr>::LoadMemberPattern;
+                          AccessorGetPtr>::LoadMemberPattern;
 };
 
 //===----------------------------------------------------------------------===//
