@@ -895,6 +895,8 @@ inline spv::SourceLanguage convertDWARFSourceLangToSPIRVNonSemanticDbgInfo(
     return spv::internal::SourceLanguageC99;
   case dwarf::SourceLanguage::DW_LANG_C11:
     return spv::internal::SourceLanguageC11;
+  case dwarf::SourceLanguage::DW_LANG_C17:
+    return spv::internal::SourceLanguageC17;
 
   case dwarf::SourceLanguage::DW_LANG_Python:
     return spv::internal::SourceLanguagePython;
@@ -905,12 +907,18 @@ inline spv::SourceLanguage convertDWARFSourceLangToSPIRVNonSemanticDbgInfo(
   case dwarf::SourceLanguage::DW_LANG_D:
     return spv::internal::SourceLanguageD;
 
+  case dwarf::SourceLanguage::DW_LANG_Fortran77:
+    return spv::internal::SourceLanguageFortran77;
+  case dwarf::SourceLanguage::DW_LANG_Fortran90:
+    return spv::internal::SourceLanguageFortran90;
   case dwarf::SourceLanguage::DW_LANG_Fortran95:
     return spv::internal::SourceLanguageFortran95;
   case dwarf::SourceLanguage::DW_LANG_Fortran03:
     return spv::internal::SourceLanguageFortran2003;
   case dwarf::SourceLanguage::DW_LANG_Fortran08:
     return spv::internal::SourceLanguageFortran2008;
+  case dwarf::SourceLanguage::DW_LANG_Fortran18:
+    return spv::internal::SourceLanguageFortran2018;
   default:
     return spv::SourceLanguage::SourceLanguageUnknown;
   }
@@ -945,6 +953,8 @@ convertSPIRVSourceLangToDWARFNonSemanticDbgInfo(unsigned SourceLang) {
     return dwarf::SourceLanguage::DW_LANG_C99;
   case spv::internal::SourceLanguageC11:
     return dwarf::SourceLanguage::DW_LANG_C11;
+  case spv::internal::SourceLanguageC17:
+    return dwarf::SourceLanguage::DW_LANG_C17;
 
   case spv::internal::SourceLanguagePython:
     return dwarf::SourceLanguage::DW_LANG_Python;
@@ -955,12 +965,18 @@ convertSPIRVSourceLangToDWARFNonSemanticDbgInfo(unsigned SourceLang) {
   case spv::internal::SourceLanguageD:
     return dwarf::SourceLanguage::DW_LANG_D;
 
+  case spv::internal::SourceLanguageFortran77:
+    return dwarf::SourceLanguage::DW_LANG_Fortran77;
+  case spv::internal::SourceLanguageFortran90:
+    return dwarf::SourceLanguage::DW_LANG_Fortran90;
   case spv::internal::SourceLanguageFortran95:
     return dwarf::SourceLanguage::DW_LANG_Fortran95;
   case spv::internal::SourceLanguageFortran2003:
     return dwarf::SourceLanguage::DW_LANG_Fortran03;
   case spv::internal::SourceLanguageFortran2008:
     return dwarf::SourceLanguage::DW_LANG_Fortran08;
+  case spv::internal::SourceLanguageFortran2018:
+    return dwarf::SourceLanguage::DW_LANG_Fortran18;
 
   case spv::SourceLanguage::SourceLanguageOpenCL_C:
   case spv::SourceLanguage::SourceLanguageESSL:

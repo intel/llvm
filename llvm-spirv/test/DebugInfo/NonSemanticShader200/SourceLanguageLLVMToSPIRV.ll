@@ -16,11 +16,11 @@
 ; RUN: sed -e 's/INPUT_LANGUAGE/DW_LANG_C_plus_plus_17/' %s | llvm-as - -o %t.bc
 ; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-CPP17
 
-; CHECK-C99: DebugCompileUnit [[#]] [[#]] [[#]] 109
+; CHECK-C99: DebugCompileUnit [[#]] [[#]] [[#]] 211
 ; CHECK-OPENCLC: DebugCompileUnit [[#]] [[#]] [[#]] 3
-; CHECK-CPP: DebugCompileUnit [[#]] [[#]] [[#]] 111
-; CHECK-CPP14: DebugCompileUnit [[#]] [[#]] [[#]] 114
-; CHECK-CPP17: DebugCompileUnit [[#]] [[#]] [[#]] 115
+; CHECK-CPP: DebugCompileUnit [[#]] [[#]] [[#]] 214
+; CHECK-CPP14: DebugCompileUnit [[#]] [[#]] [[#]] 217
+; CHECK-CPP17: DebugCompileUnit [[#]] [[#]] [[#]] 218
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-unknown"

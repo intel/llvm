@@ -30,22 +30,26 @@ namespace spv {
 namespace internal {
 
 enum InternalSourceLanguageNonSemanticDI {
-  ISourceLanguagePython = 101,
-  ISourceLanguageJulia = 102,
-  ISourceLanguageRust = 103,
-  ISourceLanguageD = 104,
-  ISourceLanguageFortran95 = 105,
-  ISourceLanguageFortran2003 = 106,
-  ISourceLanguageFortran2008 = 107,
-  ISourceLanguageC = 108,
-  ISourceLanguageC99 = 109,
-  ISourceLanguageC11 = 110,
-  ISourceLanguageCPP = 111,
-  ISourceLanguageCPP03 = 112,
-  ISourceLanguageCPP11 = 113,
-  ISourceLanguageCPP14 = 114,
-  ISourceLanguageCPP17 = 115,
-  ISourceLanguageCPP20 = 116,
+  ISourceLanguagePython = 200,
+  ISourceLanguageJulia = 201,
+  ISourceLanguageRust = 202,
+  ISourceLanguageD = 203,
+  ISourceLanguageFortran77 = 204,
+  ISourceLanguageFortran90 = 205,
+  ISourceLanguageFortran95 = 206,
+  ISourceLanguageFortran2003 = 207,
+  ISourceLanguageFortran2008 = 208,
+  ISourceLanguageFortran2018 = 209,
+  ISourceLanguageC = 210,
+  ISourceLanguageC99 = 211,
+  ISourceLanguageC11 = 212,
+  ISourceLanguageC17 = 213,
+  ISourceLanguageCPP = 214,
+  ISourceLanguageCPP03 = 215,
+  ISourceLanguageCPP11 = 216,
+  ISourceLanguageCPP14 = 217,
+  ISourceLanguageCPP17 = 218,
+  ISourceLanguageCPP20 = 219,
 };
 
 enum InternalLinkageType {
@@ -178,18 +182,26 @@ constexpr SourceLanguage SourceLanguageRust =
     static_cast<SourceLanguage>(ISourceLanguageRust);
 constexpr SourceLanguage SourceLanguageD =
     static_cast<SourceLanguage>(ISourceLanguageD);
+constexpr SourceLanguage SourceLanguageFortran77 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran77);
+constexpr SourceLanguage SourceLanguageFortran90 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran90);
 constexpr SourceLanguage SourceLanguageFortran95 =
     static_cast<SourceLanguage>(ISourceLanguageFortran95);
 constexpr SourceLanguage SourceLanguageFortran2003 =
     static_cast<SourceLanguage>(ISourceLanguageFortran2003);
 constexpr SourceLanguage SourceLanguageFortran2008 =
     static_cast<SourceLanguage>(ISourceLanguageFortran2008);
+constexpr SourceLanguage SourceLanguageFortran2018 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran2018);
 constexpr SourceLanguage SourceLanguageC =
     static_cast<SourceLanguage>(ISourceLanguageC);
 constexpr SourceLanguage SourceLanguageC99 =
     static_cast<SourceLanguage>(ISourceLanguageC99);
 constexpr SourceLanguage SourceLanguageC11 =
     static_cast<SourceLanguage>(ISourceLanguageC11);
+constexpr SourceLanguage SourceLanguageC17 =
+    static_cast<SourceLanguage>(ISourceLanguageC17);
 constexpr SourceLanguage SourceLanguageCPP =
     static_cast<SourceLanguage>(ISourceLanguageCPP);
 constexpr SourceLanguage SourceLanguageCPP03 =
