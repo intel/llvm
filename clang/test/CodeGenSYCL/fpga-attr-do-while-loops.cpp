@@ -1,4 +1,4 @@
-// RUN: %clang++ -fsycl-device-only -fintelfpga -S %s -o - | FileCheck %s
+// RUN: %clang -fsycl-device-only -fintelfpga -S %s -o - | FileCheck %s
 
 #include "Inputs/sycl.hpp"
 
