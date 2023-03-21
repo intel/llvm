@@ -23,7 +23,7 @@ else()
   set(LIBIGFXCMRT_EMU ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/lib/libigfxcmrt_emu${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
 
-set (DEFAULT_CM_EMU_PREBUILT_PACKAGE "https://github.com/intel/cm-cpu-emulation/releases/download/1.0.23/intel-cmemu-1.0.23.u20.04-release.x86_64.tar.xz")
+set (DEFAULT_CM_EMU_PREBUILT_PACKAGE "https://github.com/intel/cm-cpu-emulation/releases/download/1.0.31/intel-cmemu-1.0.31.u20.04-release.x86_64.tar.xz")
 set (DEFAULT_CM_EMU_SOURCE_URL "https://github.com/intel/cm-cpu-emulation.git")
 
 if ((DEFINED USE_DEFAULT_CM_EMU_SOURCE) OR (DEFINED USE_LOCAL_CM_EMU_SOURCE))
