@@ -7,6 +7,7 @@ from templates import helper as th
 
     x=tags['$x']
     X=x.upper()
+    create_retain_release_funcs=th.get_create_retain_release_functions(specs, n, tags)
 %>/*
  *
  * Copyright (C) 2023 Intel Corporation
@@ -16,18 +17,24 @@ from templates import helper as th
  * @file ${name}.cpp
  *
  */
+#include "${x}_leak_check.hpp"
 #include "${x}_validation_layer.hpp"
 
 namespace validation_layer
 {
     %for obj in th.extract_objs(specs, r"function"):
+    <%
+        func_name=th.make_func_name(n, tags, obj)
+        object_param=th.make_param_lines(n, tags, obj, format=["name"])[-1]
+        object_param_type=th.make_param_lines(n, tags, obj, format=["type"])[-1]
+    %>
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for ${th.make_func_name(n, tags, obj)}
     %if 'condition' in obj:
     #if ${th.subt(n, tags, obj['condition'])}
     %endif
     __${x}dlllocal ${x}_result_t ${X}_APICALL
-    ${th.make_func_name(n, tags, obj)}(
+    ${func_name}(
         %for line in th.make_param_lines(n, tags, obj):
         ${line}
         %endfor
@@ -49,7 +56,32 @@ namespace validation_layer
             %endfor
         }
 
-        return ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
+        ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
+
+        %if func_name in create_retain_release_funcs["create"]:
+        if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
+        {
+            refCountContext.createRefCount(*${object_param});
+        }
+        %elif func_name in create_retain_release_funcs["retain"]:
+        if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
+        {
+            refCountContext.incrementRefCount(${object_param});
+        }
+        %elif func_name in create_retain_release_funcs["release"]:
+        if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
+        {
+            refCountContext.decrementRefCount(${object_param});
+        }
+        %elif func_name == n + "TearDown":
+        if ( context.enableLeakChecking )
+        {
+            refCountContext.logInvalidReferences();
+            refCountContext.clear();
+        }
+        %endif
+
+        return result;
     }
     %if 'condition' in obj:
     #endif // ${th.subt(n, tags, obj['condition'])}

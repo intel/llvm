@@ -160,7 +160,7 @@ class type_traits:
             return False
         except:
             return False
-    
+
     @staticmethod
     def is_funcptr(name, meta):
         return name in meta['fptr_typedef']
@@ -1138,3 +1138,34 @@ def get_loader_epilogue(namespace, tags, obj, meta):
 
     return epilogue
 
+"""
+Public:
+    returns a dictionary with lists of create, retain and release functions
+"""
+def get_create_retain_release_functions(specs, namespace, tags):
+    funcs = []
+    for s in specs:
+        for obj in s['objects']:
+            if re.match(r"function", obj['type']):
+                funcs.append(make_func_name(namespace, tags, obj))
+
+    create_suffixes = r"(Create[A-Za-z]*){1}"
+    retain_suffixes = r"(Retain){1}"
+    release_suffixes = r"(Release){1}"
+
+    create_exp = namespace + r"([A-Za-z]+)" + create_suffixes
+    retain_exp = namespace + r"([A-Za-z]+)" + retain_suffixes
+    release_exp = namespace + r"([A-Za-z]+)" + release_suffixes
+
+    create_funcs, retain_funcs, release_funcs = (
+        list(filter(lambda f: re.match(create_exp, f), funcs)),
+        list(filter(lambda f: re.match(retain_exp, f), funcs)),
+        list(filter(lambda f: re.match(release_exp, f), funcs)),
+    )
+
+    create_funcs, retain_funcs = (
+        list(filter(lambda f: re.sub(create_suffixes, "Release", f) in release_funcs, create_funcs)),
+        list(filter(lambda f: re.sub(retain_suffixes, "Release", f) in release_funcs, retain_funcs)),
+    )
+
+    return {"create": create_funcs, "retain": retain_funcs, "release": release_funcs}
