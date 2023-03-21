@@ -45,7 +45,36 @@ gpu.module @device_func {
     func.return
   }  
 
-  // COM: Test that the argument of '@callee' is peeled.
+  // COM: This function is a candidate, check that it is transformed correctly.
+  func.func private @callee3(%arg0: memref<?x!llvm.struct<(i32)>>, %arg1: memref<?x!llvm.struct<(f32)>>) {
+    // CHECK-LABEL: func.func private @callee3
+    // CHECK-SAME:    (%arg0: memref<?xi32>, %arg1: memref<?xf32>) {
+    // CHECK-NOT:     {{.*}} = "polygeist.subindex"
+    // CHECK:         {{.*}} = affine.load %arg0[0] : memref<?xi32>
+    // CHECK-NEXT:    {{.*}} = affine.load %arg1[0] : memref<?xf32>
+    %c0 = arith.constant 0 : index
+    %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+    %1 = "polygeist.subindex"(%arg1, %c0) : (memref<?x!llvm.struct<(f32)>>, index) -> memref<?xf32>
+    %2 = affine.load %0[0] : memref<?xi32>
+    %3 = affine.load %1[0] : memref<?xf32>
+    func.return
+  }
+
+  // COM: The first argument in this function can be peeled but the second cannot.
+  func.func private @callee4(%arg0: memref<?x!llvm.struct<(i32)>>, %arg1: memref<?x!llvm.struct<(f32)>>) {
+    // CHECK-LABEL: func.func private @callee4
+    // CHECK-SAME:    (%arg0: memref<?xi32>, %arg1: memref<?x!llvm.struct<(f32)>>) {
+    // CHECK-NOT:     {{.*}} = "polygeist.subindex"
+    // CHECK:         {{.*}} = sycl.addrspacecast %arg1 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
+    // CHECK-NEXT:    {{.*}} = affine.load %arg0[0] : memref<?xi32>
+    %c0 = arith.constant 0 : index
+    %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+    %1 = sycl.addrspacecast %arg1 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
+    %2 = affine.load %0[0] : memref<?xi32>
+    func.return
+  }  
+
+  // COM: Test that a call with a single peelable argument is peeled correctly.
   // COM-NEXT: Ensure that the following call sites aren't considered as candidates:
   // COM-NEXT:   - calls to functions with no operands
   // COM-NEXT:   - calls to functions with operands that dont have the expected type 
@@ -83,12 +112,40 @@ gpu.module @device_func {
 
   // COM: Test that the a call to an externally defined function is not modified.
   gpu.func @test3() kernel {  
-    // CHECK-LABEL: gpu.func @test3() kernel    
+    // CHECK-LABEL: gpu.func @test3() kernel
     // CHECK:         func.call @extern({{.*}}) : (memref<?x!llvm.struct<(i32, i64)>>) -> ()
     %alloca_1 = memref.alloca() : memref<1x!llvm.struct<(i32, i64)>>
     %cast_1 = memref.cast %alloca_1 : memref<1x!llvm.struct<(i32, i64)>> to memref<?x!llvm.struct<(i32, i64)>>    
     func.call @extern(%cast_1) : (memref<?x!llvm.struct<(i32, i64)>>) -> ()
     gpu.return    
+  }
+
+  // COM: Test that multiple peelable arguments are peeled correctly.
+  gpu.func @test4() kernel {
+    // CHECK-LABEL: gpu.func @test4() kernel
+    // CHECK:         [[C0:%.*]] = arith.constant 0 : index
+    // CHECK-NEXT:    [[ARG0:%.*]] = "polygeist.subindex"({{.*}}, [[C0]]) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+    // CHECK-NEXT:    [[C0_1:%.*]] = arith.constant 0 : index
+    // CHECK-NEXT:    [[ARG1:%.*]] = "polygeist.subindex"({{.*}}, [[C0_1]]) : (memref<?x!llvm.struct<(f32)>>, index) -> memref<?xf32>
+    // CHECK-NEXT:    func.call @callee3([[ARG0]], [[ARG1]]) : (memref<?xi32>, memref<?xf32>) -> ()
+    // CHECK-NEXT:    gpu.return
+    %alloca_1 = memref.alloca() : memref<1x!llvm.struct<(i32)>>
+    %cast_1 = memref.cast %alloca_1 : memref<1x!llvm.struct<(i32)>> to memref<?x!llvm.struct<(i32)>>
+    %alloca_2 = memref.alloca() : memref<1x!llvm.struct<(f32)>>
+    %cast_2 = memref.cast %alloca_2 : memref<1x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>>
+    func.call @callee3(%cast_1, %cast_2) : (memref<?x!llvm.struct<(i32)>>, memref<?x!llvm.struct<(f32)>>) -> ()
+    gpu.return
+  }
+
+  // COM: Test that a peelable argument can be peeled when another argument with the expected type cannot be peeled.
+  gpu.func @test5() kernel {
+    // CHECK-LABEL: gpu.func @test5() kernel
+    %alloca_1 = memref.alloca() : memref<1x!llvm.struct<(i32)>>
+    %cast_1 = memref.cast %alloca_1 : memref<1x!llvm.struct<(i32)>> to memref<?x!llvm.struct<(i32)>>
+    %alloca_2 = memref.alloca() : memref<1x!llvm.struct<(f32)>>
+    %cast_2 = memref.cast %alloca_2 : memref<1x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>>
+    func.call @callee4(%cast_1, %cast_2) : (memref<?x!llvm.struct<(i32)>>, memref<?x!llvm.struct<(f32)>>) -> ()
+    gpu.return
   }
 }
 
