@@ -33,6 +33,13 @@ namespace sycl {
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
+// Constants
+//===----------------------------------------------------------------------===//
+
+static constexpr StringLiteral AlwaysInlineAttrName{"alwaysinline"};
+static constexpr StringLiteral InlineHintAttrName{"inlinehint"};
+
+//===----------------------------------------------------------------------===//
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
@@ -50,6 +57,20 @@ static FunctionOpInterface getCalledFunction(const CallOpInterface &Call) {
                                   .dyn_cast<SymbolRefAttr>())
     return SymbolTable::lookupNearestSymbolFrom(Call, SymAttr);
   return nullptr;
+}
+
+static Optional<NamedAttribute> getPassThroughAttrs(CallOpInterface Call) {
+  constexpr StringLiteral PassThroughAttrName{"passthrough"};
+  FunctionOpInterface Callee = getCalledFunction(Call);
+  NamedAttrList FnAttrs(Callee->getAttrDictionary());
+  return FnAttrs.getNamed(PassThroughAttrName);
+}
+
+static bool hasAttribute(ArrayAttr Attrs, StringRef Name) {
+  return llvm::any_of(Attrs, [Name](Attribute Attr) {
+    auto strAttr = dyn_cast<StringAttr>(Attr);
+    return strAttr && strAttr == Name;
+  });
 }
 
 namespace {
@@ -541,9 +562,8 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
     return false;
   }
 
-  FunctionOpInterface Callee = getCalledFunction(ResolvedCall.Call);
-  NamedAttrList FnAttrs(Callee->getAttrDictionary());
-  Optional<NamedAttribute> PassThroughAttr = FnAttrs.getNamed("passthrough");
+  Optional<NamedAttribute> PassThroughAttr =
+      getPassThroughAttrs(ResolvedCall.Call);
 
   // Decide whether to inline a callee based on simple heuristics.
   bool ShouldInline = false;
@@ -556,11 +576,8 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
     // Inline a function if it has an attribute suggesting that inlining is
     // desirable.
     if (PassThroughAttr)
-      ShouldInline = llvm::any_of(
-          PassThroughAttr->getValue().cast<ArrayAttr>(), [](Attribute Attr) {
-            return Attr.isa<StringAttr>() &&
-                   Attr.cast<StringAttr>() == "inlinehint";
-          });
+      ShouldInline = hasAttribute(cast<ArrayAttr>(PassThroughAttr->getValue()),
+                                  InlineHintAttrName);
 
     // Inline a function if inlining makes it dead.
     ShouldInline |= Uses.hasOneUseAndDiscardable(ResolvedCall.TgtNode);
@@ -568,11 +585,8 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
   case sycl::InlineMode::AlwaysInline:
     // Inline a function iff it has the 'alwaysinline' attribute.
     if (PassThroughAttr)
-      ShouldInline |= llvm::any_of(
-          PassThroughAttr->getValue().cast<ArrayAttr>(), [](Attribute Attr) {
-            return Attr.isa<StringAttr>() &&
-                   Attr.cast<StringAttr>() == "alwaysinline";
-          });
+      ShouldInline |= hasAttribute(cast<ArrayAttr>(PassThroughAttr->getValue()),
+                                   AlwaysInlineAttrName);
     break;
   }
 
@@ -744,38 +758,43 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
 void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
                              SymbolTableCollection &SymTable,
                              SmallVectorImpl<ResolvedCall> &Calls) const {
-  auto Collect = [this](const CallGraphNode *CGN, const Operation *Call) {
+  auto Collect = [this](const CallGraphNode *CGN, CallOpInterface Call) {
     if (CGN->isExternal())
       return false;
 
+    // Always inline calls to "alwaysinline" functions.
+    if (const auto PassThroughAttrs = getPassThroughAttrs(Call);
+        PassThroughAttrs &&
+        hasAttribute(cast<ArrayAttr>(PassThroughAttrs->getValue()),
+                     AlwaysInlineAttrName))
+      return true;
+
     // Select which call operations to collect based on heuristics.
+    const auto *Op = Call.getOperation();
     switch (Heuristic.InlineMode) {
     case sycl::InlineMode::Ludicrous:
       return true;
     case sycl::InlineMode::Aggressive:
       return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp,
-                 sycl::SYCLMethodOpInterface>(Call);
+                 sycl::SYCLMethodOpInterface>(Op);
     case sycl::InlineMode::Simple:
-      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp>(Call);
+      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp>(Op);
     case sycl::InlineMode::AlwaysInline:
-      return isa<sycl::SYCLCallOp>(Call);
+      return isa<sycl::SYCLCallOp>(Op);
     }
     llvm_unreachable("Invalid InlineMode");
   };
 
-  SrcNode.getCallableRegion()->walk([&](Operation *Op) {
-    if (auto Call = dyn_cast<CallOpInterface>(Op)) {
-      CallInterfaceCallable Callable = Call.getCallableForCallee();
-      if (SymbolRefAttr SymRef = dyn_cast<SymbolRefAttr>(Callable)) {
-        if (!SymRef.isa<FlatSymbolRefAttr>())
-          return WalkResult::advance();
-      }
-
-      CallGraphNode *TgtNode = CG.resolveCallable(Call, SymTable);
-      if (Collect(TgtNode, Op))
-        Calls.emplace_back(Call, &SrcNode, TgtNode);
+  SrcNode.getCallableRegion()->walk([&](CallOpInterface Call) {
+    CallInterfaceCallable Callable = Call.getCallableForCallee();
+    if (SymbolRefAttr SymRef = dyn_cast<SymbolRefAttr>(Callable)) {
+      if (!isa<FlatSymbolRefAttr>(SymRef))
+        return;
     }
-    return WalkResult::advance();
+
+    CallGraphNode *TgtNode = CG.resolveCallable(Call, SymTable);
+    if (Collect(TgtNode, Call))
+      Calls.emplace_back(Call, &SrcNode, TgtNode);
   });
 }
 
