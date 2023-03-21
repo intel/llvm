@@ -1,6 +1,7 @@
 // RUN: sycl-mlir-opt -split-input-file -inliner="mode=alwaysinline remove-dead-callees=false" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=ALWAYS-INLINE,CHECK-ALL %s
 // RUN: sycl-mlir-opt -split-input-file -inliner="mode=simple remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=INLINE,CHECK-ALL %s
 // RUN: sycl-mlir-opt -split-input-file -inliner="mode=aggressive remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=AGGRESSIVE,CHECK-ALL %s
+// RUN: sycl-mlir-opt -split-input-file -inliner="mode=aggressive remove-dead-callees=true inline-sycl-method-ops=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefixes=AGGRESSIVE-METHODOPS,CHECK-ALL %s
 
 // COM: Ensure a func.func can be inlined in a func.func caller iff the callee is 'alwaysinline'.
 // COM: Ensure a gpu.func cannot be inlined in a func.func caller (even if it has the 'alwaysinline' attribute).
@@ -171,6 +172,13 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 
 // -----
 
+// AGGRESSIVE-METHODOPS-NOT: func.func private @inline_hint_callee
+// AGGRESSIVE-METHODOPS-NOT: func.func private @private_callee
+// AGGRESSIVE-METHODOPS-NOT: func.func private @get
+
+// AGGRESSIVE-NOT: func.func private @inline_hint_callee
+// AGGRESSIVE-NOT: func.func private @private_callee
+
 // COM: Ensure functions in a SCC are fully inlined (requires multiple inlining iterations).
 // CHECK-ALL-LABEL:   func.func @main(
 // CHECK-ALL-SAME:                      %[[VAL_0:.*]]: memref<?x!sycl_id_1_>) -> (i32, i64) {
@@ -196,20 +204,27 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // INLINE-NOT: func.func private @inline_hint_callee
 // INLINE-NOT: func.func private @private_callee
 
-// AGGRESSIVE-NOT: func.func private @inline_hint_callee
-// AGGRESSIVE-NOT: func.func private @private_callee
-// AGGRESSIVE-NOT: func.func private @get
+// AGGRESSIVE-METHODOPS-DAG:       %[[VAL_1:.*]] = arith.constant 1 : i32
+// AGGRESSIVE-METHODOPS-DAG:       %[[VAL_2:.*]] = arith.constant 1 : i32
+// AGGRESSIVE-METHODOPS-DAG:       %[[VAL_3:.*]] = arith.constant 2 : i32
+// AGGRESSIVE-METHODOPS:           %[[VAL_4:.*]] = sycl.call @main_() {MangledFunctionName = @main, TypeName = @A} : () -> i32
+// AGGRESSIVE-METHODOPS:           %[[VAL_5:.*]] = arith.addi %[[VAL_3]], %[[VAL_4]] : i32
+// AGGRESSIVE-METHODOPS:           %[[VAL_6:.*]] = arith.addi %[[VAL_2]], %[[VAL_5]] : i32
+// AGGRESSIVE-METHODOPS:           call @foo(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_id_1_>, i32) -> ()
+// AGGRESSIVE-METHODOPS:           %[[VAL_7:.*]] = memref.memory_space_cast %[[VAL_0]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
+// AGGRESSIVE-METHODOPS:           %[[VAL_8:.*]] = arith.constant 2 : i64
+// AGGRESSIVE-METHODOPS:           return %[[VAL_6]], %[[VAL_8]] : i32, i64
+// AGGRESSIVE-METHODOPS:         }
 
-// AGGRESSIVE-DAG:       %[[VAL_1:.*]] = arith.constant 1 : i32
-// AGGRESSIVE-DAG:       %[[VAL_2:.*]] = arith.constant 1 : i32
-// AGGRESSIVE-DAG:       %[[VAL_3:.*]] = arith.constant 2 : i32
+// AGGRESSIVE:           %[[VAL_1:.*]] = arith.constant 1 : i32
+// AGGRESSIVE:           %[[VAL_2:.*]] = arith.constant 1 : i32
+// AGGRESSIVE:           %[[VAL_3:.*]] = arith.constant 2 : i32
 // AGGRESSIVE:           %[[VAL_4:.*]] = sycl.call @main_() {MangledFunctionName = @main, TypeName = @A} : () -> i32
 // AGGRESSIVE:           %[[VAL_5:.*]] = arith.addi %[[VAL_3]], %[[VAL_4]] : i32
 // AGGRESSIVE:           %[[VAL_6:.*]] = arith.addi %[[VAL_2]], %[[VAL_5]] : i32
 // AGGRESSIVE:           call @foo(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_id_1_>, i32) -> ()
-// AGGRESSIVE:           %[[VAL_7:.*]] = memref.memory_space_cast %[[VAL_0]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
-// AGGRESSIVE:           %[[VAL_8:.*]] = arith.constant 2 : i64
-// AGGRESSIVE:           return %[[VAL_6]], %[[VAL_8]] : i32, i64
+// AGGRESSIVE:           %[[VAL_7:.*]] = sycl.id.get %[[VAL_0]]{{\[}}%[[VAL_1]]] {ArgumentTypes = [memref<?x!sycl_id_1_, 4>, i32], FunctionName = @get, MangledFunctionName = @get, TypeName = @id} : (memref<?x!sycl_id_1_>, i32) -> i64
+// AGGRESSIVE:           return %[[VAL_6]], %[[VAL_7]] : i32, i64
 // AGGRESSIVE:         }
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>

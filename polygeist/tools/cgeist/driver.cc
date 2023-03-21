@@ -369,8 +369,13 @@ static int optimize(mlir::MLIRContext &Ctx,
     // operations to be inlined.
     if (RaiseToAffine)
       OptPM.addPass(mlir::createLowerAffinePass());
-    PM.addPass(sycl::createInlinePass(sycl::InlineMode::Simple,
-                                      /* RemoveDeadCallees */ true));
+    if (OmitOptionalMangledFunctionName) {
+      // Needed as the inliner pass needs this attribute.
+      PM.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
+    }
+    PM.addPass(sycl::createInlinePass({sycl::InlineMode::Simple,
+                                       /* RemoveDeadCallees */ true,
+                                       InlineSYCLMethodOps}));
 
     mlir::OpPassManager &OptPM2 = PM.nestAny();
     OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -390,6 +395,15 @@ static int optimize(mlir::MLIRContext &Ctx,
     else
       OptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  } else {
+    if (OmitOptionalMangledFunctionName) {
+      // Needed as the inliner pass needs this attribute.
+      PM.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
+    }
+    // Always inline alwaysinline functions even at O0.
+    PM.addPass(sycl::createInlinePass({sycl::InlineMode::AlwaysInline,
+                                       /* RemoveDeadCallees */ false,
+                                       InlineSYCLMethodOps}));
   }
 
   if (mlir::failed(PM.run(Module.get()))) {

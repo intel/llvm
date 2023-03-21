@@ -291,9 +291,9 @@ operator<<(llvm::raw_ostream &OS, const InlineHeuristic &Heuristic) {
 class Inliner : public InlinerInterface {
 public:
   Inliner(MLIRContext *Ctx, CallGraph &CG, SymbolTableCollection &SymTable,
-          const InlineHeuristic &Heuristic)
+          const InlineHeuristic &Heuristic, bool InlineSYCLMethodOps)
       : InlinerInterface(Ctx), CG(CG), SymbolTable(SymTable),
-        Heuristic(Heuristic) {}
+        Heuristic(Heuristic), InlineSYCLMethodOps(InlineSYCLMethodOps) {}
 
   ResolvedCall &getCall(unsigned Index) {
     assert(Index < Calls.size() && "Out of bound index");
@@ -360,6 +360,9 @@ private:
 
   /// The inline heuristic controlling when to inline a call edge.
   const InlineHeuristic &Heuristic;
+
+  /// Whether to inline SYCLMethodOp operations.
+  const bool InlineSYCLMethodOps;
 };
 
 class InlinePass : public sycl::impl::InlinePassBase<InlinePass> {
@@ -762,6 +765,10 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
     if (CGN->isExternal())
       return false;
 
+    const auto *Op = Call.getOperation();
+    if (!InlineSYCLMethodOps && isa<sycl::SYCLMethodOpInterface>(Op))
+      return false;
+
     // Always inline calls to "alwaysinline" functions.
     if (const auto PassThroughAttrs = getPassThroughAttrs(Call);
         PassThroughAttrs &&
@@ -770,7 +777,6 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
       return true;
 
     // Select which call operations to collect based on heuristics.
-    const auto *Op = Call.getOperation();
     switch (Heuristic.InlineMode) {
     case sycl::InlineMode::Ludicrous:
       return true;
@@ -811,7 +817,7 @@ void InlinePass::runOnOperation() {
   SymbolTableCollection SymTable;
   CGUseList UseList(getOperation(), CG, SymTable);
   InlineHeuristic Heuristic(InlineMode);
-  Inliner Inliner(Ctx, CG, SymTable, Heuristic);
+  Inliner Inliner(Ctx, CG, SymTable, Heuristic, InlineSYCLMethodOps);
 
   LLVM_DEBUG(llvm::dbgs() << "Inline Heuristic: " << Heuristic << "\n");
 
@@ -865,13 +871,9 @@ bool InlinePass::checkForSymbolTable(Operation &Op) {
 }
 
 std::unique_ptr<Pass> sycl::createInlinePass() {
-  const sycl::InlinePassOptions &Options = {InlineMode::Simple,
-                                            /* RemoveDeadCallees */ false};
-  return std::make_unique<InlinePass>(Options);
+  return createInlinePass(InlinePassOptions{});
 }
 
-std::unique_ptr<Pass> sycl::createInlinePass(enum InlineMode InlineMode,
-                                             bool RemoveDeadCallees) {
-  const sycl::InlinePassOptions &Options = {InlineMode, RemoveDeadCallees};
+std::unique_ptr<Pass> sycl::createInlinePass(const InlinePassOptions &Options) {
   return std::make_unique<InlinePass>(Options);
 }

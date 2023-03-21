@@ -222,6 +222,11 @@ static llvm::cl::opt<std::string> McpuOpt("mcpu", llvm::cl::init(""),
                                           llvm::cl::desc("Target CPU"),
                                           llvm::cl::cat(ToolOptions));
 
+static llvm::cl::opt<bool> InlineSYCLMethodOps(
+    "inline-sycl-method-ops", llvm::cl::init(false),
+    llvm::cl::desc("Whether to inline SYCLMethodOp operations"),
+    llvm::cl::cat(ToolOptions));
+
 llvm::cl::opt<bool> OmitOptionalMangledFunctionName(
     "no-mangled-function-name", llvm::cl::init(false),
     llvm::cl::desc("Whether to omit optional \"MangledFunctionName\" fields"));

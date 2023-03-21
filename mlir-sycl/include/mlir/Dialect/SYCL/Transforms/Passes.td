@@ -27,10 +27,13 @@ def InlinePass : Pass<"inliner"> {
           "\"simple\", \"Inline callees using simple heuristics\"), "
         "clEnumValN(mlir::sycl::InlineMode::Aggressive, "
           "\"aggressive\", \"Inline callees using aggressive heuristics\"))">,
-    Option<"RemoveDeadCallees", "remove-dead-callees", "bool", /*default=*/"true",
+    Option<"RemoveDeadCallees", "remove-dead-callees", "bool", /*default=*/"false",
            "Remove callees that become unreachable after inlining them">,
     Option<"MaxIterationCount", "max-num-iters", "unsigned", /*default=*/"3",
            "Maximum number of inlining iterations for each SCC">,
+    Option<"InlineSYCLMethodOps", "inline-sycl-method-ops",
+           "bool", /*default=*/"false",
+           "Whether to inline SYCLMethodOp operations">,
   ];
   let dependentDialects = ["memref::MemRefDialect"];
 
