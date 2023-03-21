@@ -23,12 +23,7 @@
 // CHECK-MLIR: %8 = sycl.call @declptr() {MangledFunctionName = @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v} : () -> memref<?x!sycl_item_1_, 4>
 // CHECK-MLIR: %9 = sycl.call @getElement(%8) {MangledFunctionName = @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE, TypeName = @Builder} : (memref<?x!sycl_item_1_, 4>) -> !sycl_item_1_
 // CHECK-MLIR: %memspacecast_5 = memref.memory_space_cast %cast_3 : memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>> to memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>
-// CHECK-MLIR: affine.store %9, %alloca[0] : memref<1x!sycl_item_1_>
-// CHECK-MLIR-NEXT: %c0_6 = arith.constant 0 : index
-// CHECK-MLIR-NEXT: %10 = "polygeist.subindex"(%memspacecast_5, %c0_6) : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>, index) -> memref<?x!sycl_range_1_, 4>
-// CHECK-MLIR-NEXT: %c1_7 = arith.constant 1 : index 
-// CHECK-MLIR-NEXT: %11 = "polygeist.subindex"(%memspacecast_5, %c1_7) : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>, index) -> memref<?x!llvm.struct<(memref<?xi32, 4>)>, 4> 
-// CHECK-MLIR: sycl.call @"operator()"(%10, %11, %cast) {MangledFunctionName = @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_, TypeName = @RoundedRangeKernel} : (memref<?x!sycl_range_1_, 4>, memref<?x!llvm.struct<(memref<?xi32, 4>)>, 4>, memref<?x!sycl_item_1_>) -> () 
+// CHECK-MLIR: sycl.call @"operator()"(%memspacecast_5, %cast) {MangledFunctionName = @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_, TypeName = @RoundedRangeKernel} : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>, 4>, memref<?x!sycl_item_1_>) -> ()
 // CHECK-MLIR: gpu.return
 
 // CHECK-LLVM-LABEL: define weak_odr spir_kernel void @_ZTSN4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EE
@@ -55,9 +50,7 @@
 // CHECK-LLVM-NEXT:  %17 = call spir_func %"class.sycl::_V1::item.1.true" @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE(%"class.sycl::_V1::item.1.true" addrspace(4)* %16)
 // CHECK-LLVM-NEXT:  %18 = addrspacecast { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } }* %6 to { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } } addrspace(4)*
 // CHECK-LLVM-NEXT:  store %"class.sycl::_V1::item.1.true" %17, %"class.sycl::_V1::item.1.true"* %3, align 8
-// CHECK-LLVM-NEXT:  %19 = getelementptr { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } }, { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } } addrspace(4)* %18, i32 0, i32 0
-// CHECK-LLVM-NEXT:  %20 = getelementptr { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } }, { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } } addrspace(4)* %18, i32 0, i32 1
-// CHECK-LLVM-NEXT:  call spir_func void @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_(%"class.sycl::_V1::range.1" addrspace(4)* %19, { i32 addrspace(4)* } addrspace(4)* %20, %"class.sycl::_V1::item.1.true"* %3) 
+// CHECK-LLVM-NEXT: call spir_func void @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_({ %"class.sycl::_V1::range.1", { i32 addrspace(4)* } } addrspace(4)* %18, %"class.sycl::_V1::item.1.true"* %3)
 // CHECK-LLVM-NEXT:  ret void
 
 int test(sycl::queue &q) {

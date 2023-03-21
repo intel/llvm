@@ -227,6 +227,7 @@ void Candidate::modifyCall() {
   unsigned numMembersPeeled = 0;
   for (const auto &entry : operandToMembersPeeled)
     numMembersPeeled += entry.second.size();
+  assert(numCallOperands - numKeys + numMembersPeeled > 0);
 
   SmallVector<Value> newCallOperands;
   newCallOperands.reserve(numCallOperands - numKeys + numMembersPeeled);
@@ -240,7 +241,7 @@ void Candidate::modifyCall() {
     for (Value peeledMember : operandToMembersPeeled[pos])
       newCallOperands.push_back(peeledMember);
   }
-  assert(newCallOperands.size() > numCallOperands);
+  assert(newCallOperands.size() >= numCallOperands);
 
   callOp->setOperands(newCallOperands);
   LLVM_DEBUG(llvm::dbgs() << "New call:\n" << callOp << "\n\n");
