@@ -143,11 +143,12 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
       continue;
     if (isESIMDFunction(F)) {
-      llvm::outs() << "ESIMD splitter: adding " << F.getName() << " as ESIMD function\n";
+      llvm::outs() << "ESIMD splitter: adding " << F.getName()
+                   << " as ESIMD function\n";
       EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
-    }
-    else {
-      llvm::outs() << "ESIMD splitter: adding " << F.getName() << " as regular function\n";
+    } else {
+      llvm::outs() << "ESIMD splitter: adding " << F.getName()
+                   << " as regular function\n";
       EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
     }
   }
@@ -263,7 +264,8 @@ public:
   DependencyGraph(const Module &M) {
     llvm::outs() << "Building dependency graph\n";
     // Group functions by their signature to implement check (3)
-    DenseMap<const FunctionType *, FunctionSet> FuncTypeToFuncMap;
+    DenseMap<const FunctionType *, DependencyGraph::FunctionSet>
+        FuncTypeToFuncMap;
     for (const auto &F : M) {
       FuncTypeToFuncMap[F.getFunctionType()].insert(&F);
     }
@@ -292,6 +294,7 @@ public:
 
   iterator_range<FunctionSet::const_iterator>
   dependencies(const Function *F) const {
+
     auto It = Graph.find(F);
     return (It == Graph.end())
                ? make_range(EmptySet.begin(), EmptySet.end())
@@ -299,8 +302,8 @@ public:
   }
 
 private:
-
   void addUserToGraphRecursively(const User *Root, const Function *F) {
+
     SmallVector<const User *, 8> WorkList;
     WorkList.push_back(Root);
     llvm::outs() << "Handling users of function " << F->getName() << "\n";
@@ -312,7 +315,8 @@ private:
       if (const auto *I = dyn_cast<const Instruction>(U)) {
         const auto *UFunc = I->getFunction();
         Graph[UFunc].insert(F);
-        llvm::outs() << "Adding " << UFunc->getName() << " -> " << F->getName() << " graph edge\n";
+        llvm::outs() << "Adding " << UFunc->getName() << " -> " << F->getName()
+                     << " graph edge\n";
       } else if (isa<const Constant>(U)) {
         // This could be a global variable or some constant expression (like
         // bitcast or gep). We trace users of this constant further to reach
@@ -331,7 +335,8 @@ private:
 
 void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
                                const EntryPointGroup &ModuleEntryPoints,
-                               const DependencyGraph &Deps) {
+                               const DependencyGraph &Deps,
+                 const std::function<bool(const Function *)> &Filter = nullptr) {
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
 
@@ -342,7 +347,10 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
     const auto *F = cast<Function>(GVs[Idx++]);
 
     for (const Function *F1 : Deps.dependencies(F)) {
-      if (!F1->isDeclaration())
+      if (F1->isDeclaration())
+        continue;
+
+      if (!Filter || Filter(F1))
         GVs.insert(F1);
     }
   }
@@ -386,9 +394,10 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
 // points that are specified in ModuleEntryPoints vector.
 ModuleDesc extractCallGraph(const ModuleDesc &MD,
                             EntryPointGroup &&ModuleEntryPoints,
-                            const DependencyGraph &CG) {
+                            const DependencyGraph &CG,
+                 const std::function<bool(const Function *)> &Filter = nullptr) {
   SetVector<const GlobalValue *> GVs;
-  collectFunctionsToExtract(GVs, ModuleEntryPoints, CG);
+  collectFunctionsToExtract(GVs, ModuleEntryPoints, CG, Filter);
   collectGlobalVarsToExtract(GVs, MD.getModule());
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
@@ -410,9 +419,7 @@ class ModuleSplitter : public ModuleSplitterBase {
 public:
   ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
       : ModuleSplitterBase(std::move(MD), std::move(GroupVec)),
-        CG(Input.getModule()) {
-          llvm::outs() << "Moduleplitter constructor\n";
-        }
+        CG(Input.getModule()) {}
 
   ModuleDesc nextSplit() override {
     return extractCallGraph(Input, nextGroup(), CG);
@@ -421,23 +428,9 @@ public:
 private:
   DependencyGraph CG;
 };
-
 } // namespace
-
 namespace llvm {
 namespace module_split {
-
-std::unique_ptr<ModuleSplitterBase>
-getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
-  EntryPointGroupVec Groups =
-      groupEntryPointsByKernelType(MD, EmitOnlyKernelsAsEntryPoints);
-  bool DoSplit = (Groups.size() > 1);
-
-  if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
-  else
-    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
-}
 
 std::unique_ptr<ModuleSplitterBase>
 getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
@@ -895,6 +888,35 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
     return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
   else
     return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+}
+
+SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
+                                        bool EmitOnlyKernelsAsEntryPoints) {
+
+  SmallVector<module_split::ModuleDesc, 2> Result;
+
+  EntryPointGroupVec EntryPointGroups =
+      groupEntryPointsByKernelType(MD, EmitOnlyKernelsAsEntryPoints);
+
+  DependencyGraph CG(MD.getModule());
+  for (auto &Group : EntryPointGroups) {
+    if (Group.isEsimd()) {
+      // For ESIMD module, we use full call graph
+      Result.emplace_back(
+          std::move(extractCallGraph(MD, std::move(Group), CG)));
+    } else {
+      // For non-ESIMD module we only use non-ESIMD functions. Additional filter
+      // is needed, because there could be references to ESIMD functions through
+      // invoke_simd. If that is the case, both modules are expected to be
+      // linked back together after ESIMD functions were processed.
+      Result.emplace_back(std::move(extractCallGraph(
+          MD, std::move(Group), CG, [=](const Function *F) -> bool {
+            return !isESIMDFunction(*F);
+          })));
+    }
+  }
+
+  return Result;
 }
 
 } // namespace module_split

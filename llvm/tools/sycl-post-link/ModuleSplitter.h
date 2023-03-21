@@ -13,6 +13,7 @@
 #pragma once
 
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/Error.h"
@@ -244,8 +245,8 @@ public:
   bool hasMoreSplits() const { return remainingSplits() > 0; }
 };
 
-std::unique_ptr<ModuleSplitterBase>
-getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
+SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
+                                        bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
 getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
