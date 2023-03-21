@@ -50,7 +50,7 @@
 // CHECK-LLVM-NEXT:  %17 = call spir_func %"class.sycl::_V1::item.1.true" @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE(%"class.sycl::_V1::item.1.true" addrspace(4)* %16)
 // CHECK-LLVM-NEXT:  %18 = addrspacecast { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } }* %6 to { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } } addrspace(4)*
 // CHECK-LLVM-NEXT:  store %"class.sycl::_V1::item.1.true" %17, %"class.sycl::_V1::item.1.true"* %3, align 8
-// CHECK-LLVM-NEXT: call spir_func void @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_({ %"class.sycl::_V1::range.1", { i32 addrspace(4)* } } addrspace(4)* %18, %"class.sycl::_V1::item.1.true"* %3)
+// CHECK-LLVM-NEXT:  call spir_func void @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_({ %"class.sycl::_V1::range.1", { i32 addrspace(4)* } } addrspace(4)* %18, %"class.sycl::_V1::item.1.true"* %3)
 // CHECK-LLVM-NEXT:  ret void
 
 int test(sycl::queue &q) {
