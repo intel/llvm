@@ -2151,11 +2151,15 @@ void reduAuxCGFuncImplArrayHelper(bool IsOneWG, nd_item<Dims> NDIt, size_t LID,
     // Add the initial value of user's variable to the final result.
     if (LID == 0) {
       size_t GrID = NDIt.get_group_linear_id();
-      Out[GrID * NElements + E] =
-          IsOneWG ? BOp(LocalReds[0], IsInitializeToIdentity
-                                          ? IdentityContainer.getIdentity()
-                                          : Out[E])
-                  : LocalReds[0];
+      if constexpr (Reduction::has_identity) {
+        Out[GrID * NElements + E] =
+            IsOneWG ? BOp(LocalReds[0], IsInitializeToIdentity
+                                            ? IdentityContainer.getIdentity()
+                                            : Out[E])
+                    : LocalReds[0];
+      } else {
+        Out[GrID * NElements + E] = LocalReds[0];
+      }
     }
 
     // Ensure item 0 is finished with LocalReds before next iteration
