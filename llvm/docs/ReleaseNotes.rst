@@ -84,6 +84,12 @@ Changes to the AArch64 Backend
 
 Changes to the AMDGPU Backend
 -----------------------------
+* More fine-grained synchronization around barriers for newer architectures
+  (gfx90a+, gfx10+). The AMDGPU backend now omits previously automatically
+  generated waitcnt instructions before barriers, allowing for more precise
+  control. Users must now use memory fences to implement fine-grained
+  synchronization strategies around barriers. Refer to `AMDGPU memory model
+  <AMDGPUUsage.html#memory-model>`__.
 
 Changes to the ARM Backend
 --------------------------
@@ -204,6 +210,9 @@ Changes to the Debug Info
 Changes to the LLVM tools
 ---------------------------------
 * llvm-lib now supports the /def option for generating a Windows import library from a definition file.
+
+* Made significant changes to JSON output format of `llvm-readobj`/`llvm-readelf`
+  to improve correctness and clarity.
 
 Changes to LLDB
 ---------------------------------

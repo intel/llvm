@@ -404,6 +404,7 @@ class MSBuiltin<string name> {
   string MSBuiltinName = name;
 }
 
+#ifndef TEST_INTRINSICS_SUPPRESS_DEFS
 
 //===--------------- Variable Argument Handling Intrinsics ----------------===//
 //
@@ -2068,7 +2069,7 @@ def int_memset_element_unordered_atomic
 
 //===------------------------ Reduction Intrinsics ------------------------===//
 //
-let IntrProperties = [IntrNoMem] in {
+let IntrProperties = [IntrNoMem, IntrSpeculatable] in {
 
   def int_vector_reduce_fadd : DefaultAttrsIntrinsic<[LLVMVectorElementType<0>],
                                          [LLVMVectorElementType<0>,
@@ -2305,3 +2306,5 @@ include "llvm/IR/IntrinsicsSPIRV.td"
 include "llvm/IR/IntrinsicsVE.td"
 include "llvm/IR/IntrinsicsDirectX.td"
 include "llvm/IR/IntrinsicsLoongArch.td"
+
+#endif // TEST_INTRINSICS_SUPPRESS_DEFS

@@ -226,6 +226,11 @@ struct IRInstructionData
   void
   setPHIPredecessors(DenseMap<BasicBlock *, unsigned> &BasicBlockToInteger);
 
+  /// Get the BasicBlock based operands for PHINodes and BranchInsts.
+  ///
+  /// \returns A list of relevant BasicBlocks.
+  ArrayRef<Value *> getBlockOperVals();
+
   /// Hashes \p Value based on its opcode, types, and operand types.
   /// Two IRInstructionData instances produce the same hash when they perform
   /// the same operation.
@@ -762,6 +767,24 @@ public:
   /// \returns true if the IRSimilarityCandidates operands are compatible.
   static bool compareCommutativeOperandMapping(OperandMapping A,
                                                OperandMapping B);
+
+  /// Compare the GVN of the assignment value in corresponding instructions in
+  /// IRSimilarityCandidates \p A and \p B and check that there exists a mapping
+  /// between the values and replaces the mapping with a one-to-one value if
+  /// needed.
+  ///
+  /// \param InstValA - The assignment GVN from the first IRSimilarityCandidate.
+  /// \param InstValB - The assignment GVN from the second
+  /// IRSimilarityCandidate.
+  /// \param [in,out] ValueNumberMappingA - A mapping of value numbers from 
+  /// candidate \p A to candidate \B.
+  /// \param [in,out] ValueNumberMappingB - A mapping of value numbers from 
+  /// candidate \p B to candidate \A.
+  /// \returns true if the IRSimilarityCandidates assignments are compatible.
+  static bool compareAssignmentMapping(
+      const unsigned InstValA, const unsigned &InstValB,
+      DenseMap<unsigned, DenseSet<unsigned>> &ValueNumberMappingA,
+      DenseMap<unsigned, DenseSet<unsigned>> &ValueNumberMappingB);
 
   /// Compare the relative locations in \p A and \p B and check that the
   /// distances match if both locations are contained in the region, and that

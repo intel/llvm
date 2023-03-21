@@ -5,6 +5,7 @@
 # Description:
 #   The MLIR "Multi-Level Intermediate Representation" Compiler Infrastructure
 
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load(":tblgen.bzl", "gentbl_cc_library", "td_library")
 load(":linalggen.bzl", "genlinalg")
 load(
@@ -3576,6 +3577,21 @@ cc_library(
 )
 
 cc_library(
+    name = "Observers",
+    srcs = glob([
+        "lib/Debug/Observers/*.cpp",
+        "lib/Debug/Observers/*.h",
+    ]),
+    hdrs = glob(["include/mlir/Debug/Observers/*.h"]),
+    includes = ["include"],
+    deps = [
+        ":Debug",
+        ":IR",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
     name = "BreakpointManagers",
     srcs = glob([
         "lib/Debug/BreakpointManagers/*.cpp",
@@ -4031,6 +4047,9 @@ cc_library(
             "lib/Dialect/GPU/Transforms/*.cpp",
             "lib/Dialect/GPU/Transforms/*.h",
         ],
+        exclude = [
+            "lib/Dialect/GPU/Transforms/SerializeToCubin.cpp",
+        ],
     ),
     hdrs = glob(["include/mlir/Dialect/GPU/Transforms/*.h"]),
     includes = ["include"],
@@ -4050,6 +4069,7 @@ cc_library(
         ":ROCDLToLLVMIRTranslation",
         ":SCFDialect",
         ":FuncDialect",
+        ":SerializeToCubin_stub",
         ":SideEffectInterfaces",
         ":Support",
         ":Transforms",
@@ -4060,13 +4080,65 @@ cc_library(
         "//llvm:Support",
         "//llvm:Target",
     ] + if_cuda_available([
-        # Dependencies for SerializeToCubin.cpp with
-        # -DMLIR_GPU_TO_CUBIN_PASS_ENABLE
         ":NVVMToLLVMIRTranslation",
         "//llvm:NVPTXCodeGen",
+    ]),
+)
+
+cc_library(
+    name = "SerializeToCubin",
+    srcs = [
+        "lib/Dialect/GPU/Transforms/SerializeToCubin.cpp",
+    ],
+    local_defines = if_cuda_available(["MLIR_GPU_TO_CUBIN_PASS_ENABLE"]),
+    deps = [
+        ":NVVMToLLVMIRTranslation",
+        ":ToLLVMIRTranslation",
+        ":GPUDialect",
+        ":GPUPassIncGen",
+        ":GPUTransforms",
+        ":Pass",
+        ":Support",
+        "//llvm:Support",
+    ] + if_cuda_available([
         "@cuda//:cuda_headers",
         "@cuda//:libcuda",
     ]),
+)
+
+write_file(
+    name = "SerializeToCubin_stub_cc",
+    out = "SerializeToCubin_stub.cc",
+    content = [
+        """
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
+
+// Provide a weak registration stub in case the real SerializeToCubin is not
+// linked in.
+
+#if defined(_MSC_VER)
+// This might not work correctly, but it avoids a compilation error because
+// MSVC does not support __attribute__((weak)).
+void mlir::registerGpuSerializeToCubinPass() {}
+#else
+__attribute__((weak)) void mlir::registerGpuSerializeToCubinPass() {}
+#endif
+""",
+    ],
+)
+
+cc_library(
+    name = "SerializeToCubin_stub",
+    srcs = [":SerializeToCubin_stub_cc"],
+    hdrs = glob(["include/mlir/Dialect/GPU/Transforms/*.h"]),
+    includes = ["include"],
+    deps = [
+        ":GPUDialect",
+        ":GPUPassIncGen",
+        ":Pass",
+        ":Support",
+        "//llvm:Support",
+    ],
 )
 
 td_library(
@@ -4111,9 +4183,12 @@ cc_library(
     ],
     includes = ["include"],
     deps = [
+        ":AffineDialect",
         ":ArithDialect",
         ":AsmParser",
         ":ControlFlowDialect",
+        ":DialectUtils",
+        ":FuncDialect",
         ":GPUDialect",
         ":GPUTransformOpsIncGen",
         ":GPUTransforms",
@@ -5182,6 +5257,7 @@ cc_library(
     hdrs = ["lib/Conversion/SPIRVCommon/Pattern.h"],
     includes = ["include"],
     deps = [
+        ":IR",
         ":SPIRVDialect",
         ":Transforms",
         "//llvm:Support",
@@ -6679,6 +6755,19 @@ cc_library(
 )
 
 cc_library(
+    name = "OpenMPCommon",
+    srcs = ["lib/Target/LLVMIR/Dialect/OpenMPCommon.cpp"],
+    hdrs = ["include/mlir/Target/LLVMIR/Dialect/OpenMPCommon.h"],
+    includes = ["include"],
+    deps = [
+        ":IR",
+        ":Support",
+        "//llvm:Core",
+        "//llvm:FrontendOpenMP",
+    ],
+)
+
+cc_library(
     name = "LLVMIRToLLVMTranslation",
     srcs = ["lib/Target/LLVMIR/Dialect/LLVMIR/LLVMIRToLLVMTranslation.cpp"],
     hdrs = ["include/mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMIRToLLVMTranslation.h"],
@@ -6704,6 +6793,7 @@ cc_library(
         ":LLVMDialect",
         ":OpenACCDialect",
         ":OpenACCToLLVM",
+        ":OpenMPCommon",
         ":Support",
         ":ToLLVMIRTranslation",
         "//llvm:Core",
@@ -6719,6 +6809,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":IR",
+        ":OpenMPCommon",
         ":OpenMPDialect",
         ":Support",
         ":ToLLVMIRTranslation",
@@ -6874,6 +6965,7 @@ cc_library(
         ":BytecodeWriter",
         ":Debug",
         ":IR",
+        ":Observers",
         ":Parser",
         ":Pass",
         ":Support",
@@ -7062,6 +7154,7 @@ cc_binary(
         ":Pass",
         ":QuantOps",
         ":SCFToGPU",
+        ":SerializeToCubin",
         ":Support",
         ":Transforms",
         "//llvm:AllTargetsCodeGens",

@@ -80,6 +80,9 @@ C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 - Support for out-of-line definitions of constrained templates has been improved.
   This partially fixes `#49620 <https://github.com/llvm/llvm-project/issues/49620>`_.
+- Lambda templates with a requires clause directly after the template parameters now parse
+  correctly if the requires clause consists of a variable with a dependent type.
+  (`#61278 <https://github.com/llvm/llvm-project/issues/61278>`_)
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -169,8 +172,8 @@ Improvements to Clang's diagnostics
 - Diagnostic notes and fix-its are now generated for ``ifunc``/``alias`` attributes
   which point to functions whose names are mangled.
 - Diagnostics relating to macros on the command line of a preprocessed assembly
-  file are now reported as coming from the file ``<command line>`` instead of
-  ``<built-in>``.
+  file or precompiled header are now reported as coming from the file
+  ``<command line>`` instead of ``<built-in>``.
 - Clang constexpr evaluator now provides a more concise diagnostic when calling
   function pointer that is known to be null.
 - Clang now avoids duplicate warnings on unreachable ``[[fallthrough]];`` statements
@@ -209,6 +212,9 @@ Bug Fixes in This Version
   function context.
   (`#37792 <https://github.com/llvm/llvm-project/issues/37792>`_) and
   (`#48405 <https://github.com/llvm/llvm-project/issues/48405>`_)
+- Fix crash when using ``[[clang::always_inline]]`` or ``[[clang::noinline]]``
+  statement attributes on a call to a template function in the body of a
+  template function.
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

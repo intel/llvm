@@ -3680,6 +3680,10 @@ bool AttributedType::isMSTypeSpec() const {
   llvm_unreachable("invalid attr kind");
 }
 
+bool AttributedType::isWebAssemblyFuncrefSpec() const {
+  return getAttrKind() == attr::WebAssemblyFuncref;
+}
+
 bool AttributedType::isCallingConv() const {
   // FIXME: Generate this with TableGen.
   switch (getAttrKind()) {
