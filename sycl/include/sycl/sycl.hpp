@@ -57,6 +57,7 @@
 #include <sycl/sub_group.hpp>
 #include <sycl/types.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
 #include <sycl/version.hpp>
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
@@ -64,12 +65,17 @@
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/usm_pointers.hpp>
 #include <sycl/ext/oneapi/annotated_arg/annotated_arg.hpp>
+#include <sycl/ext/oneapi/annotated_arg/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/annotated_arg/properties.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/ext/oneapi/experimental/cluster_group.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
+#include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
+#include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/group_algorithm.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>

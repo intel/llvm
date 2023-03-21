@@ -345,7 +345,46 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(pi_int32));
     return PI_SUCCESS;
   }
+  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
+    // Corresponding OpenCL query is only available starting with OpenCL 2.1 and
+    // we have to emulate it on older OpenCL runtimes.
+    OCLV::OpenCLVersion version;
+    cl_int err = getDeviceVersion(cast<cl_device_id>(device), version);
+    if (err != CL_SUCCESS)
+      return static_cast<pi_result>(err);
 
+    if (version >= OCLV::V2_1) {
+      err = clGetDeviceInfo(cast<cl_device_id>(device),
+                            cast<cl_device_info>(paramName), paramValueSize,
+                            paramValue, paramValueSizeRet);
+      if (err != CL_SUCCESS)
+        return static_cast<pi_result>(err);
+
+      if (paramValue && *static_cast<cl_uint *>(paramValue) == 0u) {
+        // OpenCL returns 0 if sub-groups are not supported, but SYCL 2020 spec
+        // says that minimum possible value is 1.
+        cl_uint value = 1u;
+        std::memcpy(paramValue, &value, sizeof(cl_uint));
+      }
+
+      return static_cast<pi_result>(err);
+    }
+
+    // Otherwise, we can't query anything, because even cl_khr_subgroups does
+    // not provide similar query. Therefore, simply return minimum possible
+    // value 1 here.
+    if (paramValue && paramValueSize < sizeof(cl_uint))
+      return static_cast<pi_result>(CL_INVALID_VALUE);
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(cl_uint);
+
+    if (paramValue) {
+      cl_uint value = 1u;
+      std::memcpy(paramValue, &value, sizeof(cl_uint));
+    }
+
+    return static_cast<pi_result>(CL_SUCCESS);
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -1745,6 +1784,10 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 }
 
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
+// Windows: dynamically loaded plugins might have been unloaded already
+// when this is called. Sycl RT holds onto the PI plugin so it can be
+// called safely. But this is not transitive. If the PI plugin in turn
+// dynamically loaded a different DLL, that may have been unloaded. 
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result piTearDown(void *PluginParameter) {
@@ -1940,5 +1983,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   return PI_SUCCESS;
 }
+
+#ifdef _WIN32
+#define __SYCL_PLUGIN_DLL_NAME "pi_opencl.dll"
+#include "../common_win_pi_trace/common_win_pi_trace.hpp"
+#undef __SYCL_PLUGIN_DLL_NAME
+#endif
 
 } // end extern 'C'
