@@ -369,8 +369,13 @@ static int optimize(mlir::MLIRContext &Ctx,
     // operations to be inlined.
     if (RaiseToAffine)
       OptPM.addPass(mlir::createLowerAffinePass());
-    PM.addPass(sycl::createInlinePass(sycl::InlineMode::Simple,
-                                      /* RemoveDeadCallees */ true));
+    if (OmitOptionalMangledFunctionName) {
+      // Needed as the inliner pass needs the `MangledFunctionName` attribute.
+      PM.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
+    }
+    PM.addPass(sycl::createInlinePass({sycl::InlineMode::Simple,
+                                       /* RemoveDeadCallees */ true,
+                                       InlineSYCLMethodOps}));
 
     mlir::OpPassManager &OptPM2 = PM.nestAny();
     OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
