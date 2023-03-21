@@ -397,17 +397,44 @@ bool ArgumentPromotionPass::isCandidate(CallOpInterface callOp) {
     return false;
   }
 
-  // Peelable operands should not be used by any other instruction.
-  for (Value op : callOperands) {
-    if (!Candidate::isValidMemRefType(op.getType()))
+  // Returns the iterator to \p op in its containing block.
+  auto getIter = [](Operation *op) {
+    Block *block = op->getBlock();
+    auto it = block->begin();
+    for (; it != block->end(); ++it) {
+      Operation *currOp = &*it;
+      if (currOp == op)
+        return it;
+    }
+    return block->end();
+  };
+
+  // Returns true if the block of \p startOp contains an instruction that has
+  // a side effects after \p startOp.
+  auto existsSideEffectsAfter = [&](Operation *startOp) {
+    Block *block = startOp->getBlock();
+    auto it = getIter(startOp);
+    assert(it != block->end());
+    WalkResult walk = block->walk(++it, block->end(), [](Operation *op) {
+      if (!isMemoryEffectFree(op))
+        return WalkResult::interrupt();
+      return WalkResult::advance();
+    });
+
+    return walk.wasInterrupted();
+  };
+
+  // Peelable operands should not be used by an instruction (after the call)
+  // that has a side effect.
+  for (Value callOperand : callOperands) {
+    if (!Candidate::isValidMemRefType(callOperand.getType()))
       continue;
-    auto users = op.getDefiningOp()->getUsers();
-    unsigned numUsers = std::distance(users.begin(), users.end());
-    if (numUsers != 1) {
+
+    if (existsSideEffectsAfter(callOp)) {
       LLVM_DEBUG({
         llvm::dbgs() << "Not a candidate: " << callOp << "\n";
-        llvm::dbgs().indent(2) << "argument " << op << " is used by "
-                               << numUsers << " operations(s)\n";
+        llvm::dbgs().indent(2)
+            << "found operation(s) with side effects after call\n";
       });
       return false;
     }
