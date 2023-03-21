@@ -3,9 +3,9 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-%struct.foo = type { i32 addrspace(4)*, i32 addrspace(4)*, i32 addrspace(4)*, i32 addrspace(4)*, i32 addrspace(4)*, i32 addrspace(4)*, i32 addrspace(4)* }
+%struct.__spirv_Something = type { i32, i32 }
 
-$_ZTSZ4mainEUlvE_ = comdat any
+$_ZTSZ4fooEUlvE_ = comdat any
 
 @.str = private unnamed_addr addrspace(1) constant [16 x i8] c"sycl-properties\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr addrspace(1) constant [19 x i8] c"inc/fpga_utils.hpp\00", section "llvm.metadata"
@@ -23,27 +23,29 @@ $_ZTSZ4mainEUlvE_ = comdat any
 ;CHECK: @[[NewAnnotStr2:.*]] = private unnamed_addr addrspace(1) constant [25 x i8] c"{6172:\221\22}{6173:\220,1,5\22}\00", section "llvm.metadata"
 
 ; Function Attrs: mustprogress norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlvE_() local_unnamed_addr #0 comdat !kernel_arg_buffer_location !7 !sycl_kernel_omit_args !7 {
+define weak_odr dso_local spir_kernel void @_ZTSZ4fooEUlvE_(%struct.__spirv_Something addrspace(1)* %0) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !7 !sycl_kernel_omit_args !7 {
 entry:
-  %x.i = alloca %struct.foo, align 8
-  %x.ascast.i = addrspacecast %struct.foo* %x.i to %struct.foo addrspace(4)*
-  %0 = bitcast %struct.foo* %x.i to i8*
-  %1 = addrspacecast i8* %0 to i8 addrspace(4)*
-  %2 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %1, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i64 0, i64 0), i8 addrspace(1)* getelementptr inbounds ([19 x i8], [19 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 5, i8 addrspace(1)* bitcast ({ [23 x i8] addrspace(1)*, [2 x i8] addrspace(1)* } addrspace(1)* @.args to i8 addrspace(1)*))
-; CHECK: %{{.*}} = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %1, i8 addrspace(1)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(1)* @[[NewAnnotStr1]], i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([19 x i8], [19 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 5, i8 addrspace(1)* null)
-  %3 = bitcast i8 addrspace(4)* %2 to i32 addrspace(4)*
-  %4 = load i32, i32 addrspace(4)* %3, align 8
-  %b.i = getelementptr inbounds %struct.foo, %struct.foo addrspace(4)* %x.ascast.i, i64 0, i32 1
-  %5 = bitcast i32 addrspace(4)* addrspace(4)* %b.i to i8 addrspace(4)*
-  %6 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %5, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i64 0, i64 0), i8 addrspace(1)* getelementptr inbounds ([19 x i8], [19 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 5, i8 addrspace(1)* bitcast ({ [23 x i8] addrspace(1)*, [2 x i8] addrspace(1)*, [24 x i8] addrspace(1)*, [6 x i8] addrspace(1)* } addrspace(1)* @.args.9 to i8 addrspace(1)*))
-; CHECK: %{{.*}} = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)* %5, i8 addrspace(1)* getelementptr inbounds ([25 x i8], [25 x i8] addrspace(1)* @[[NewAnnotStr2]], i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([19 x i8], [19 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 5, i8 addrspace(1)* null)
-  %7 = bitcast i8 addrspace(4)* %6 to i32 addrspace(4)*
-  %8 = load i32, i32 addrspace(4)* %7, align 8
+  %1 = alloca %struct.__spirv_Something addrspace(1)*, align 8
+  store %struct.__spirv_Something addrspace(1)* %0, %struct.__spirv_Something addrspace(1)** %1, align 8
+  %2 = load %struct.__spirv_Something addrspace(1)*, %struct.__spirv_Something addrspace(1)** %1, align 8
+  %3 = getelementptr inbounds %struct.__spirv_Something, %struct.__spirv_Something addrspace(1)* %2, i32 0, i32 0
+  %4 = bitcast i32 addrspace(1)* %3 to i8 addrspace(1)*
+  %5 = call i8 addrspace(1)* @llvm.ptr.annotation.p1i8.p1i8(i8 addrspace(1)* %4, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i64 0, i64 0), i8 addrspace(1)* getelementptr inbounds ([19 x i8], [19 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 5, i8 addrspace(1)* bitcast ({ [23 x i8] addrspace(1)*, [2 x i8] addrspace(1)* } addrspace(1)* @.args to i8 addrspace(1)*))
+; CHECK: %{{.*}} = call i8 addrspace(1)* @llvm.ptr.annotation.p1i8.p1i8(i8 addrspace(1)* %4, i8 addrspace(1)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(1)* @[[NewAnnotStr1]], i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([19 x i8], [19 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 5, i8 addrspace(1)* null)
+  %6 = bitcast i8 addrspace(1)* %5 to i32 addrspace(1)*
+  %7 = load i32, i32 addrspace(1)* %6, align 8
+  %8 = load %struct.__spirv_Something addrspace(1)*, %struct.__spirv_Something addrspace(1)** %1, align 8
+  %9 = getelementptr inbounds %struct.__spirv_Something, %struct.__spirv_Something addrspace(1)* %8, i32 0, i32 1
+  %10 = bitcast i32 addrspace(1)* %9 to i8 addrspace(1)*
+  %11 = call i8 addrspace(1)* @llvm.ptr.annotation.p1i8.p1i8(i8 addrspace(1)* %10, i8 addrspace(1)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(1)* @.str, i64 0, i64 0), i8 addrspace(1)* getelementptr inbounds ([19 x i8], [19 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 5, i8 addrspace(1)* bitcast ({ [23 x i8] addrspace(1)*, [2 x i8] addrspace(1)*, [24 x i8] addrspace(1)*, [6 x i8] addrspace(1)* } addrspace(1)* @.args.9 to i8 addrspace(1)*))
+; CHECK: %{{.*}} = call i8 addrspace(1)* @llvm.ptr.annotation.p1i8.p1i8(i8 addrspace(1)* %10, i8 addrspace(1)* getelementptr inbounds ([25 x i8], [25 x i8] addrspace(1)* @[[NewAnnotStr2]], i32 0, i32 0), i8 addrspace(1)* getelementptr inbounds ([19 x i8], [19 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 5, i8 addrspace(1)* null)
+  %12 = bitcast i8 addrspace(1)* %11 to i32 addrspace(1)*
+  %13 = load i32, i32 addrspace(1)* %12, align 8
   ret void
 }
 
 ; Function Attrs: inaccessiblememonly nofree nosync nounwind willreturn
-declare i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p1i8(i8 addrspace(4)*, i8 addrspace(1)*, i8 addrspace(1)*, i32, i8 addrspace(1)*) #1
+declare i8 addrspace(1)* @llvm.ptr.annotation.p1i8.p1i8(i8 addrspace(1)*, i8 addrspace(1)*, i8 addrspace(1)*, i32, i8 addrspace(1)*) #1
 
 attributes #0 = { mustprogress norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="sycl-properties-ptr-annotations.cpp" "uniform-work-group-size"="true" }
 attributes #1 = { inaccessiblememonly nofree nosync nounwind willreturn }
