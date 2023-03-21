@@ -16,10 +16,10 @@ struct urEnqueueUSMMemcpyTest : uur::urQueueTest {
 
         ASSERT_SUCCESS(
             urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size,
-                             0, reinterpret_cast<void **>(&device_src)));
+                             reinterpret_cast<void **>(&device_src)));
         ASSERT_SUCCESS(
             urUSMDeviceAlloc(context, device, nullptr, nullptr, allocation_size,
-                             0, reinterpret_cast<void **>(&device_dst)));
+                             reinterpret_cast<void **>(&device_dst)));
 
         ASSERT_SUCCESS(urEnqueueUSMFill(queue, device_src, sizeof(memset_value),
                                         &memset_value, allocation_size, 0,

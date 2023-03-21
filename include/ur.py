@@ -992,7 +992,11 @@ class ur_usm_desc_t(Structure):
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
         ("flags", ur_usm_flags_t),                                      ## [in] Memory allocation flags
-        ("hints", ur_mem_advice_t)                                      ## [in] Memory advice hints
+        ("hints", ur_mem_advice_t),                                     ## [in] Memory advice hints
+        ("align", c_ulong)                                              ## [in] alignment of the USM memory object
+                                                                        ## Must be zero or a power of 2.
+                                                                        ## Must be equal to or smaller than the size of the largest data type
+                                                                        ## supported by `hDevice`.
     ]
 
 ###############################################################################
@@ -2349,23 +2353,23 @@ class ur_queue_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urUSMHostAlloc
 if __use_win_types:
-    _urUSMHostAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMHostAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, POINTER(c_void_p) )
 else:
-    _urUSMHostAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMHostAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, POINTER(c_void_p) )
 
 ###############################################################################
 ## @brief Function-pointer for urUSMDeviceAlloc
 if __use_win_types:
-    _urUSMDeviceAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMDeviceAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, POINTER(c_void_p) )
 else:
-    _urUSMDeviceAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMDeviceAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, POINTER(c_void_p) )
 
 ###############################################################################
 ## @brief Function-pointer for urUSMSharedAlloc
 if __use_win_types:
-    _urUSMSharedAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMSharedAlloc_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, POINTER(c_void_p) )
 else:
-    _urUSMSharedAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, c_ulong, POINTER(c_void_p) )
+    _urUSMSharedAlloc_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_usm_desc_t), ur_usm_pool_handle_t, c_size_t, POINTER(c_void_p) )
 
 ###############################################################################
 ## @brief Function-pointer for urUSMFree

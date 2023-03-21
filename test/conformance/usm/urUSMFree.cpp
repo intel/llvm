@@ -16,7 +16,7 @@ TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
-                                    allocation_size, 0, &ptr));
+                                    allocation_size, &ptr));
 
     ur_event_handle_t event = nullptr;
 
@@ -39,7 +39,7 @@ TEST_P(urUSMFreeTest, SuccessHostAlloc) {
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(
-        urUSMHostAlloc(context, nullptr, nullptr, allocation_size, 0, &ptr));
+        urUSMHostAlloc(context, nullptr, nullptr, sizeof(int), &ptr));
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
@@ -68,7 +68,7 @@ TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
-                                    allocation_size, 0, &ptr));
+                                    allocation_size, &ptr));
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
