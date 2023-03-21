@@ -687,7 +687,7 @@ def SYCLAccessorSizeOp
                        OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
-  let results = (outs I64:$Res);
+  let results = (outs IndexType:$Res);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
