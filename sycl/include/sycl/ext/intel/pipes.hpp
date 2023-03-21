@@ -35,7 +35,7 @@ public:
     (void)_Success;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead..");
+        "Device-side API are not supported on a host device. Please use host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -52,7 +52,7 @@ public:
     (void)_Data;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead..");
+        "Device-side API are not supported on a host device. Please use host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -84,7 +84,7 @@ public:
     (void)_Data;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead..");
+        "Device-side API are not supported on a host device. Please use host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -137,7 +137,7 @@ public:
     (void)_Success;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead..");
+        "Device-side API are not supported on a host device. Please use host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -154,7 +154,7 @@ public:
 #else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead..");
+        "Device-side API are not supported on a host device. Please use host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -187,7 +187,7 @@ public:
     (void)_Success;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead..");
+        "Device-side API are not supported on a host device. Please use host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -203,7 +203,7 @@ public:
     (void)_Data;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead..");
+        "Device-side API are not supported on a host device. Please use host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
