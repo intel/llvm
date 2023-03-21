@@ -675,10 +675,10 @@ def SYCLCallOp : SYCL_Op<"call", [CallOpInterface]> {
 def SYCLAccessorSizeOp
     : SYCLMethodOpInterfaceImpl<"accessor.size", "AccessorType",
                                 ["size"]> {
-  let summary = "Represent the accessor::size";
+  let summary = "Represents the accessor size operation";
   let description = [{
-    This operation returns the number of elements accessible by this SYCL
-    accessor.
+    Returns the number of elements of the memory region this accessor may
+    access.
   }];
 
   let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
