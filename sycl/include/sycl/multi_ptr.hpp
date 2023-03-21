@@ -670,9 +670,6 @@ public:
 
   static constexpr access::address_space address_space = Space;
 
-  using decorated_type =
-      typename detail::DecoratedType<const void, Space>::type;
-
   // Constructors
   multi_ptr() : m_Pointer(nullptr) {}
   multi_ptr(const multi_ptr &rhs) = default;
