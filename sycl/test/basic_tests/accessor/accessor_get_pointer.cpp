@@ -9,9 +9,6 @@ using namespace sycl;
 constexpr static int size = 1;
 
 void test_get_multi_ptr(handler &cgh, buffer<int, size> &buffer) {
-  using accessor_t =
-      accessor<int, size, access::mode::read_write, access::target::host_task,
-               access::placeholder::false_t>;
   using target_local_accessor_t =
       accessor<int, size, access::mode::read_write, access::target::local>;
   using local_accessor_t = local_accessor<int, size>;
