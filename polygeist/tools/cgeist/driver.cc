@@ -362,7 +362,7 @@ static int optimize(mlir::MLIRContext &Ctx,
 
   if (OptLevel != llvm::OptimizationLevel::O0) {
     PM.addPass(polygeist::createArgumentPromotionPass());
-    
+
     if (DetectReduction)
       OptPM.addPass(polygeist::detectReductionPass());
 

@@ -57,13 +57,12 @@ namespace {
 class Candidate {
 public:
   Candidate(CallOpInterface callOp) : callOp(callOp) {
-    assert(isPrivateCallable(callOp) && "Callee must be a private definition");
     assert(!isRecursiveCall(callOp) && "Callee must not be recursive");
   }
 
-  /// Returns true if the operation \p op is a callable operation with private
-  /// visibility and a defined callable region, and false otherwise.
-  static bool isPrivateCallable(Operation *op);
+  /// Returns true if the callable operation \p callableOp has a callable region
+  /// and private visibility, and false otherwise.
+  static bool isPrivateCallable(CallableOpInterface callableOp);
 
   /// Returns true if the call \p callOp is recursive, and false otherwise.
   static bool isRecursiveCall(CallOpInterface callOp);
@@ -124,7 +123,7 @@ private:
   /// otherwise.
   bool isCandidate(CallOpInterface callOp);
 
-  /// Return true is the calee is a candidate and false otherwise.
+  /// Return true is the callee is a candidate and false otherwise.
   bool isCandidate(CallableOpInterface callableOp);
 };
 
@@ -134,18 +133,9 @@ private:
 // Candidate
 //===----------------------------------------------------------------------===//
 
-bool Candidate::isPrivateCallable(Operation *op) {
-  // The callable region must be defined.
-  if (auto callable = dyn_cast<CallableOpInterface>(op))
-    if (!callable.getCallableRegion())
-      return false;
-
-  // The callable symbol must have private visibility.
-  if (auto sym = dyn_cast<SymbolOpInterface>(op))
-    if (!sym.isPrivate())
-      return false;
-
-  return true;
+bool Candidate::isPrivateCallable(CallableOpInterface callableOp) {
+  auto sym = dyn_cast<SymbolOpInterface>(callableOp.getOperation());
+  return (sym && sym.isPrivate() && callableOp.getCallableRegion());
 }
 
 bool Candidate::isRecursiveCall(CallOpInterface callOp) {
