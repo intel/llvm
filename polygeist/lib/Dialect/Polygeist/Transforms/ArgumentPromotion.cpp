@@ -460,17 +460,24 @@ bool ArgumentPromotionPass::isCandidate(CallableOpInterface callableOp) {
     return false;
   }
 
-  // In the callee, the members of the struct must be accessed via
-  // polygeist subIndex operations.
-  Value firstArg = callableOp.getCallableRegion()->getArgument(0);
-  if (llvm::any_of(firstArg.getUses(), [](OpOperand &use) {
-        return !isa<polygeist::SubIndexOp>(use.getOwner());
-      })) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
-      llvm::dbgs().indent(2) << "missing polygeist subindex operations\n";
-    });
-    return false;
+  // In the callee, the members of the struct must be accessed via polygeist
+  // subIndex operations.
+  // FIXME: we ultimately want to maintain a list of peelable arguments.
+  // Currently all arguments that have the expected type must be used by
+  // `polygeist::SubIndexOp` operation or we bail out.
+  for (BlockArgument arg : callableOp.getCallableRegion()->getArguments()) {
+    if (!Candidate::isValidMemRefType(arg.getType()))
+      continue;
+
+    if (llvm::any_of(arg.getUses(), [](OpOperand &use) {
+          return !isa<polygeist::SubIndexOp>(use.getOwner());
+        })) {
+      LLVM_DEBUG({
+        llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
+        llvm::dbgs().indent(2) << "missing polygeist subindex operations\n";
+      });
+      return false;
+    }
   }
 
   return true;
