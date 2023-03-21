@@ -39,10 +39,10 @@ bool test(queue Q, uint32_t Groups, uint32_t Threads) {
   sycl::range<1> LocalRange{Threads};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
-  T *Out = static_cast<T *>(sycl::aligned_alloc_shared(
-      Flags::template alignment<__ESIMD_DNS::__raw_t<T>>, Size, Q));
-  T *In = static_cast<T *>(sycl::aligned_alloc_shared(
-      Flags::template alignment<__ESIMD_DNS::__raw_t<T>>, Size, Q));
+  T *Out = sycl::aligned_alloc_shared<T>(
+      Flags::template alignment<__ESIMD_DNS::__raw_t<T>>, Size, Q);
+  T *In = sycl::aligned_alloc_shared<T>(
+      Flags::template alignment<__ESIMD_DNS::__raw_t<T>>, Size, Q);
   for (int i = 0; i < Size; i++) {
     In[i] = get_rand<T>();
     Out[i] = 0;

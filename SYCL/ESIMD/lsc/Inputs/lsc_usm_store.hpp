@@ -69,9 +69,9 @@ bool test(uint32_t pmask = 0xffffffff) {
   sycl::range<1> LocalRange{Threads};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
-  T *out = static_cast<T *>(sycl::aligned_alloc_shared(
+  T *out = sycl::aligned_alloc_shared<T>(
       Flags::template alignment<__ESIMD_DNS::__raw_t<T>>, Size * sizeof(T), dev,
-      ctx));
+      ctx);
   for (int i = 0; i < Size; i++)
     out[i] = old_val;
 

@@ -62,7 +62,7 @@ bool test(uint32_t pmask = 0xffffffff) {
   sycl::range<1> LocalRange{Threads};
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
   using aligned_allocator =
-      sycl::usm_allocator<T, sycl::usm::alloc::host,
+      sycl::usm_allocator<T, sycl::usm::alloc::shared,
                           Flags::template alignment<__ESIMD_DNS::__raw_t<T>>>;
   aligned_allocator Allocator(q);
 
