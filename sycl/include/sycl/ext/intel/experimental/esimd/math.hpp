@@ -1742,11 +1742,7 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(
 ///
 /// Example: d = bfn<~bfn_x & ~bfn_y & ~bfn_z>(s0, s1, s2);
 
-enum class bfn_t : uint8_t {
-  x = 0xAA,
-  y = 0xCC,
-  z = 0xF0
-};
+enum class bfn_t : uint8_t { x = 0xAA, y = 0xCC, z = 0xF0 };
 
 /// The first argument of the boolean function.
 constexpr bfn_t bfn_x = bfn_t::x;
@@ -1784,12 +1780,12 @@ static constexpr bfn_t operator^(bfn_t x, bfn_t y) {
 
 template <bfn_t FuncControl, typename T, int N>
 __ESIMD_API std::enable_if_t<std::is_integral_v<T> &&
-(sizeof(T) == 2 || sizeof(T) == 4), __ESIMD_NS::simd<T, N>>
-bfn(__ESIMD_NS::simd<T, N> src0,
-            __ESIMD_NS::simd<T, N> src1,
-            __ESIMD_NS::simd<T, N> src2) {
+                                 (sizeof(T) == 2 || sizeof(T) == 4),
+                             __ESIMD_NS::simd<T, N>>
+bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
+    __ESIMD_NS::simd<T, N> src2) {
   return __esimd_bfn<static_cast<uint8_t>(FuncControl), T, N>(
-    src0.data(), src1.data(), src2.data());
+      src0.data(), src1.data(), src2.data());
 }
 
 /// Performs binary function computation with three scalar operands.
@@ -1800,15 +1796,17 @@ bfn(__ESIMD_NS::simd<T, N> src0,
 /// @param s1 Second boolean function argument.
 /// @param s2 Third boolean function argument.
 template <bfn_t FuncControl, typename T>
-ESIMD_NODEBUG ESIMD_INLINE
-std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
-std::is_integral_v<T> && (sizeof(T) == 2 || sizeof(T) == 4), T>
-bfn(T src0, T src1, T src2) {
+ESIMD_NODEBUG
+    ESIMD_INLINE std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
+                                      std::is_integral_v<T> &&
+                                      (sizeof(T) == 2 || sizeof(T) == 4),
+                                  T>
+    bfn(T src0, T src1, T src2) {
   __ESIMD_NS::simd<T, 1> Src0 = src0;
   __ESIMD_NS::simd<T, 1> Src1 = src1;
   __ESIMD_NS::simd<T, 1> Src2 = src2;
   __ESIMD_NS::simd<T, 1> Result =
-    esimd::bfn<FuncControl, T, 1>(Src0, Src1, Src2);
+      esimd::bfn<FuncControl, T, 1>(Src0, Src1, Src2);
   return Result[0];
 }
 
