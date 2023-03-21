@@ -851,7 +851,7 @@ public:
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
   multi_ptr(
       local_accessor<typename detail::remove_const_t<ET>, dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
 
   // Only if Space == constant_space and element type is const
   template <
