@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
+; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
 ; In precense of indirectly callable function auto mode is equal to no split,
 ; which means that separate LLVM IR file for device is not generated and we only
 ; need to check generated symbol table

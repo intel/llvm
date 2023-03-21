@@ -1,4 +1,4 @@
-//===-- SYCLOps.td - SYCL dialect operation definitions *- tablegen -*------===//
+//===-- SYCLOps.td - SYCL dialect operation definitions *- tablegen -*-----===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -99,14 +99,14 @@ class SYCLMethodOpInterfaceImpl<
     Operation::operand_iterator arg_operand_begin() { return (*this)->operand_begin(); }
     Operation::operand_iterator arg_operand_end() { return (*this)->operand_end(); }
 
-    /// Return the callee of the generic SYCL call operation, this is required by
-    /// the call interface.
+    /// Return the callee of the generic SYCL call operation, this is required
+    /// by the call interface.
     CallInterfaceCallable getCallableForCallee() {
       return (*this)->getAttrOfType<FlatSymbolRefAttr>(getMangledFunctionNameAttrName());
     }
 
-    /// Get the argument operands to the called function, this is required by the
-    /// call interface.
+    /// Get the argument operands to the called function, this is required by
+    /// the call interface.
     Operation::operand_range getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
     }
@@ -515,23 +515,16 @@ def SYCLSubGroupLocalIDOp : SYCL1DGridOp<"sub_group_local_id"> {
 // CONSTRUCTOR OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def ConstructorArgs : AnyTypeOf<[Builtin_Vector,
-                                 IndexType,
-                                 SYCL_IDType,
-                                 SYCLMemref,
-                                 SYCL_RangeType,
-                                 VectorEltTy,
-                                 VectorSplatArg
-                               ]>;
-def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
+def SYCLConstructorOp : SYCL_Op<"constructor",
+    [CallOpInterface, MemoryEffectsOpInterface]> {
   let summary = "Generic constructor operation";
   let description = [{
     This operation represent the call to the constructor of a SYCL type.
   }];
 
   let arguments = (ins
-    Arg<SYCLMemref, "The SYCL object being created", [MemWrite]>:$Dst,
-    Variadic<ConstructorArgs>:$Args,  
+    Arg<SYCLMemref, "The SYCL object being created">:$Dst,
+    Arg<Variadic<AnyType>, "The constructor arguments">:$Args,
     FlatSymbolRefAttr:$TypeName,
     FlatSymbolRefAttr:$MangledFunctionName
   );
@@ -552,6 +545,15 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
     operand_range getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
     }
+
+    /// Return the memory effects associated to each argument.
+    ///
+    /// The first argument, `this` will have `MemoryEffects::Write` memory
+    /// effect associated and the rest of argument will have
+    /// `MemoryEffects::Read` if they're a pointer/memref and no memory effect
+    /// otherwise.
+    void getEffects(::llvm::SmallVectorImpl<::mlir::SideEffects::EffectInstance<
+                        ::mlir::MemoryEffects::Effect>> &effects);
   }];      
 
   let assemblyFormat = [{

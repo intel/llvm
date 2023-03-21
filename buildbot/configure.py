@@ -149,12 +149,11 @@ def do_configure(args):
     if args.build_compiler_cpp:
         build_compiler_cpp = args.build_compiler_cpp
 
-    if args.export_compile_commands:        
+    if args.export_compile_commands:
         export_compile_commands = args.export_compile_commands
 
     if args.verbose:
         verbose = args.verbose
-        
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
@@ -193,7 +192,7 @@ def do_configure(args):
         "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins))),
         "-DCMAKE_C_COMPILER={}".format(build_compiler_c),
         "-DCMAKE_CXX_COMPILER={}".format(build_compiler_cpp),
-        "-DCMAKE_EXPORT_COMPILE_COMMANDS={}".format(export_compile_commands),                
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS={}".format(export_compile_commands),
         "-DCMAKE_VERBOSE_MAKEFILE={}".format(verbose),
         "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion)
     ]
@@ -209,6 +208,9 @@ def do_configure(args):
     # Add additional CMake options if provided
     if args.cmake_opt:
       cmake_cmd += args.cmake_opt
+    
+    if args.add_security_flags:
+      cmake_cmd.extend(["-DEXTRA_SECURITY_FLAGS={}".format(args.add_security_flags)])
 
     # Add path to root CMakeLists.txt
     cmake_cmd.append(llvm_dir)
@@ -276,10 +278,10 @@ def main():
     parser.add_argument("--enable-plugin", action='append', help="Enable SYCL plugin")
     parser.add_argument("--build-compiler-c", metavar="BUILD_COMPILER_C", help="C compiler to use to build the project")
     parser.add_argument("--build-compiler-cpp", metavar="BUILD_COMPILER_CPP", help="C++ compiler to use to build the project")
-    parser.add_argument("--export-compile-commands", default='OFF', help="Export cmake compilation commands")        
+    parser.add_argument("--export-compile-commands", default='OFF', help="Export cmake compilation commands")
     parser.add_argument("--verbose", default='OFF', help="Verbose build")
     parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
-
+    parser.add_argument("--add_security_flags", type=str, choices=['none', 'default', 'sanitize'], default=None, help="Enables security flags for compile & link. Two values are supported: 'default' and 'sanitize'. 'Sanitize' option is an extension of 'default' set.")
     args = parser.parse_args()
 
     print("args:{}".format(args))

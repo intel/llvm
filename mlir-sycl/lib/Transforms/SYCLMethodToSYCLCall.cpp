@@ -11,20 +11,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
-#include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "Utils.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "sycl-method-to-sycl-call"
@@ -37,72 +33,6 @@ namespace mlir {
 
 using namespace mlir;
 using namespace sycl;
-
-static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
-                                            mlir::Location Loc,
-                                            mlir::Value Original,
-                                            mlir::Type TargetType) {
-  if (Original.getType() == TargetType)
-    return Original;
-
-  const auto MT = TargetType.cast<MemRefType>();
-  const auto ThisType = Original.getType().cast<MemRefType>();
-  const llvm::ArrayRef<int64_t> TargetShape = MT.getShape();
-  const mlir::Type TargetElementType = MT.getElementType();
-  const unsigned TargetMemSpace = MT.getMemorySpaceAsInt();
-
-  assert(MT.getLayout() == ThisType.getLayout() && "Invalid layout mismatch");
-
-  if (TargetShape != ThisType.getShape()) {
-    Original = Rewriter.create<memref::CastOp>(
-        Loc,
-        MemRefType::get(TargetShape, ThisType.getElementType(),
-                        ThisType.getLayout(), ThisType.getMemorySpace()),
-        Original);
-    LLVM_DEBUG(llvm::dbgs() << "  MemRef cast needed: " << Original << "\n");
-  }
-
-  if (ThisType.getMemorySpaceAsInt() != TargetMemSpace) {
-    Original = Rewriter.create<polygeist::Memref2PointerOp>(
-        Loc,
-        LLVM::LLVMPointerType::get(ThisType.getElementType(),
-                                   ThisType.getMemorySpaceAsInt()),
-        Original);
-    Original = Rewriter.create<LLVM::AddrSpaceCastOp>(
-        Loc,
-        LLVM::LLVMPointerType::get(ThisType.getElementType(), TargetMemSpace),
-        Original);
-    Original = Rewriter.create<polygeist::Pointer2MemrefOp>(
-        Loc,
-        MemRefType::get(TargetShape, ThisType.getElementType(),
-                        ThisType.getLayout().getAffineMap(), TargetMemSpace),
-        Original);
-    LLVM_DEBUG(llvm::dbgs()
-               << "  Address space cast needed: " << Original << "\n");
-  }
-
-  if (ThisType.getElementType() != TargetElementType) {
-    Original = Rewriter.create<sycl::SYCLCastOp>(Loc, TargetType, Original);
-    LLVM_DEBUG(llvm::dbgs() << "  sycl.cast inserted: " << Original << "\n");
-  }
-
-  return Original;
-}
-
-static SmallVector<Value>
-adaptArgumentsForSYCLCall(OpBuilder &Builder, SYCLMethodOpInterface Method) {
-  SmallVector<Value> Transformed;
-  Transformed.reserve(Method->getNumOperands());
-  const auto Loc = Method.getLoc();
-  const auto TargetTypes = Method.getArgumentTypes();
-  std::transform(Method->operand_begin(), Method->operand_end(),
-                 TargetTypes.begin(), std::back_inserter(Transformed),
-                 [&](auto Val, auto Ty) {
-                   return adaptArgumentForSYCLCall(Builder, Loc, Val, Ty);
-                 });
-  assert(ValueRange{Transformed}.getTypes() == TargetTypes);
-  return Transformed;
-}
 
 static LogicalResult convertMethod(SYCLMethodOpInterface method,
                                    PatternRewriter &rewriter) {

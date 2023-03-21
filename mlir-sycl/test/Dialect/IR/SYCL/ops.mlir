@@ -11,6 +11,9 @@
 !sycl_range_2_ = !sycl.range<[2], (!sycl_array_2_)>
 !sycl_range_3_ = !sycl.range<[3], (!sycl_array_3_)>
 !sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+!sycl_accessor_1_i32_ato_gb = !sycl.accessor<[1, i32, atomic, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 3>)>)>
+!sycl_atomic_i32_1_ = !sycl.atomic<[i32, 1], (memref<?xi32, 1>)>
 
 // CHECK-LABEL: test_addrspacecast_to_generic
 func.func @test_addrspacecast_to_generic(%arg0: memref<?xi32>) -> memref<?xi32, 4> {
@@ -255,4 +258,16 @@ func.func @test_work_group_id_const() -> index {
   %c0_i32 = arith.constant 0 : i32
   %0 = sycl.work_group_id %c0_i32 : index
   return %0 : index
+}
+
+// CHECK-LABEL: test_accessor_subscript_atomic
+func.func @test_accessor_subscript_atomic(
+  %acc: memref<?x!sycl_accessor_1_i32_ato_gb>, 
+  %idx: memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_1_ {
+  %0 = sycl.accessor.subscript %acc[%idx] { 
+        ArgumentTypes = [memref<?x!sycl_accessor_1_i32_ato_gb>, 
+                          memref<?x!sycl_id_1_>], 
+        FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @"id" }  : (memref<?x!sycl_accessor_1_i32_ato_gb>, 
+                                memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_1_
+  return %0 : !sycl_atomic_i32_1_
 }
