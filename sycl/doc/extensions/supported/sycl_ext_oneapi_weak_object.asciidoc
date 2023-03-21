@@ -330,5 +330,5 @@ they are both empty `weak_object` instances.
 
 |===
 
-The `weak_object` class, the `ext_oneapi_owner_before` methods and the
-`owner_less` function object type can only be used on the host application.
+The `weak_object` class, the `ext_oneapi_owner_before` member functions and the
+`owner_less` function object type must not be used in device code.
