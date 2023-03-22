@@ -575,17 +575,101 @@ struct SpanStripedWGTest {
   }
 };
 
-#if 0
 struct SpanBlockedSGTest {
   static constexpr Scope Scope = SG;
-  KERNEL_OP {}
+  KERNEL_OP {
+    constexpr int SPAN_SIZE = 2;
+
+    for (int i = 0; i < SPAN_SIZE; ++i)
+      global_mem[sg_lid * SPAN_SIZE + i] = gid + SPAN_SIZE * 2 - i;
+
+    group_barrier(g);
+
+    // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}SpanBlockedSGTest
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    int out_arr[SPAN_SIZE];
+    sycl::span<int, SPAN_SIZE> out(out_arr);
+    group_load(sg, global_mem, out, properties(data_placement<blocked>));
+    // Not optimized yet.
+    // CHECK-NOT: SubgroupBlockRead
+
+    bool success = true;
+    for (int i = 0; i < SPAN_SIZE; ++i)
+      success &= (out[i] == gid + SPAN_SIZE * 2 - i);
+
+    Record(success);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+  }
 };
 
 struct SpanStripedSGTest {
   static constexpr Scope Scope = SG;
-  KERNEL_OP {}
+  KERNEL_OP {
+    // TODO: group_helper with scratchpad
+    constexpr int SPAN_SIZE = 2;
+    int sg_size = sg.get_local_range().size();
+
+    for (int i = 0; i < SPAN_SIZE; ++i)
+      global_mem[sg_lid * SPAN_SIZE + i] = gid + SPAN_SIZE * 2 - i;
+
+    // clang-format off
+    // For int2, g_size = 4
+    // ...
+    // |  8  7 |  9  8 | 10  9 | 11 10 | <= G2
+    // | 12 11 | 13 12 | 14 13 | 15 14 | <= G3
+    //
+    // blocked:
+    //   pairs as written.
+    // striped:
+    //   ( 8 10), ( 7  9), ( 9 11), ( 8 10)
+    //   (12 14), (11 13), (13 15), (12 14)
+
+    // For int3, g_size = 8
+    //    *                           *                            *
+    // |  6  5  4 |  7  6  5 |  8  7  6 |  9  8  7 | 10  9  8 | 11 10  9 | 12 11 10 | 13 12 11 |
+    // | 14 13 12 | 15 14 13 | 16 15 14 | 17 16 15 | 18 17 16 | 19 18 17 | 20 19 18 | 21 20 19 |
+    //
+    // striped:
+    //  ( 6  6 10) ( 5  9  9) ( 4 8 12) ( 7 7 11 ) ( 6 10 10) ( 5  9  13) ( 8 8 12 ) ( 7 11 11)
+    //
+    // idx = group_local_id + vec_idx * G_SIZE
+    // val = group_start + idx / SPAN_SIZE - idx % SPAN_SIZE
+    // clang-format on
+
+    group_barrier(g);
+
+    // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}SpanStripedSGTest
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    int out_arr[SPAN_SIZE];
+    sycl::span<int, SPAN_SIZE> out(out_arr);
+    group_load(sg, global_mem, out, properties(data_placement<striped>));
+    // Not optimized yet.
+    // CHECK-NOT: SubgroupBlockRead
+
+    bool success = true;
+    for (int i = 0; i < SPAN_SIZE; ++i) {
+      int striped_idx = sg_lid + i * sg_size;
+      auto expected = ndi.get_group(0) * wg_size +
+                      // get_max_local_range() assumes particular splitting of
+                      // WG into SG which is implementation-defined when WG
+                      // isn't divisible by the SIMD size.
+                      sg.get_group_id() * sg.get_max_local_range().size() +
+                      SPAN_SIZE * 2 + striped_idx / SPAN_SIZE -
+                      striped_idx % SPAN_SIZE;
+      success &=
+          (out[i] == expected);
+      // success &=
+      //     (out[i] == ndi.get_group(0) * wg_size + SPAN_SIZE * 2 +
+      //                    striped_idx / SPAN_SIZE - striped_idx % SPAN_SIZE);
+    }
+    Record(success);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+  }
 };
-#endif
 
 int main() {
   capture_marker();
@@ -606,8 +690,8 @@ int main() {
 
     test(SpanBlockedWGTest{}, wg_size);
     test(SpanStripedWGTest{}, wg_size);
-    // test(SpanBlockedSGTest{}, wg_size);
-    // test(SpanStripedSGTest{}, wg_size);
+    test(SpanBlockedSGTest{}, wg_size);
+    test(SpanStripedSGTest{}, wg_size);
   }
 
   return 0;
