@@ -669,6 +669,29 @@ def SYCLCallOp : SYCL_Op<"call", [CallOpInterface]> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// accessor.get_pointer OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLAccessorGetPointerOp
+    : SYCLMethodOpInterfaceImpl<"accessor.get_pointer", "AccessorType",
+                                ["get_pointer"]> {
+  let summary = "Represents the accessor get_pointer operation";
+  let description = [{
+    Returns a pointer to the start of this accessor's memory.
+  }];
+
+  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
+                       TypeArrayAttr:$ArgumentTypes,
+                       FlatSymbolRefAttr:$FunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let hasVerifier = 1;
+
+  let results = (outs AnyMemRef:$result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // accessor.size OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 

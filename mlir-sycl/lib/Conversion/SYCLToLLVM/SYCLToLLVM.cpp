@@ -133,6 +133,11 @@ struct AccessorGetPtr : public OffsetTag {
   static constexpr std::array<int32_t, 2> indices{1, 0};
 };
 
+/// Get the ID field from an accessor.
+struct AccessorGetID : public OffsetTag {
+  static constexpr std::array<int32_t, 2> indices{0, 0};
+};
+
 /// Get the MAccessRange field from an accessor.
 struct AccessorGetMAccessRange : public OffsetTag {
   static constexpr std::array<int32_t, 2> indices{0, 1};
@@ -1057,6 +1062,67 @@ private:
                    << *func << "\n";
     });
 
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// AccessorGetPointerPattern - Convert `sycl.accessor.get_pointer` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class AccessorGetPointerPattern
+    : public ConvertOpToLLVMPattern<SYCLAccessorGetPointerOp>,
+      public GetMemberPattern<AccessorGetPtr>,
+      public GetMemberPattern<AccessorGetID, IDGetDim>,
+      public GetMemberPattern<AccessorGetMemRange, RangeGetDim> {
+public:
+  using ConvertOpToLLVMPattern<
+      SYCLAccessorGetPointerOp>::ConvertOpToLLVMPattern;
+
+private:
+  template <typename... Args> Value getID(Args &&...args) const {
+    return GetMemberPattern<AccessorGetID, IDGetDim>::loadValue(
+        std::forward<Args>(args)...);
+  }
+  template <typename... Args> Value getMemRange(Args &&...args) const {
+    return GetMemberPattern<AccessorGetMemRange, RangeGetDim>::loadValue(
+        std::forward<Args>(args)...);
+  }
+
+  Value getTotalOffset(OpBuilder &builder, Location loc, AccessorType accTy,
+                       OpAdaptor opAdaptor) const {
+    const auto acc = opAdaptor.getAcc();
+    const auto resTy = builder.getI64Type();
+    Value res = builder.create<arith::ConstantIntOp>(loc, 0, resTy);
+    for (unsigned i = 0; i < accTy.getDimension(); ++i) {
+      // Res = Res * Mem[I] + Id[I]
+      const auto memI = getMemRange(builder, loc, resTy, acc, i);
+      const auto idI = getID(builder, loc, resTy, acc, i);
+      res = builder.create<arith::AddIOp>(
+          loc, builder.create<arith::MulIOp>(loc, res, memI), idI);
+    }
+    return res;
+  }
+
+public:
+  LogicalResult
+  matchAndRewrite(SYCLAccessorGetPointerOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    const auto loc = op.getLoc();
+    const Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, 64);
+    Value index = rewriter.create<arith::SubIOp>(
+        loc, zero,
+        getTotalOffset(
+            rewriter, loc,
+            op.getAcc().getType().getElementType().cast<AccessorType>(),
+            opAdaptor));
+    const auto ptrTy = getTypeConverter()
+                           ->convertType(op.getType())
+                           .cast<LLVM::LLVMPointerType>();
+    Value ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
+        rewriter, loc, ptrTy, opAdaptor.getAcc());
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(op, ptrTy, ptr, index,
+                                             /*inbounds*/ true);
     return success();
   }
 };
@@ -2123,13 +2189,14 @@ void mlir::populateSYCLToLLVMConversionPatterns(
   patterns.add<CastPattern>(typeConverter);
   patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns
-      .add<AccessorSizePattern, AddZeroArgPattern<SYCLIDGetOp>,
-           AddZeroArgPattern<SYCLItemGetIDOp>, AtomicSubscriptIDOffset,
-           BarePtrAddrSpaceCastPattern, GroupGetGroupIDPattern,
-           GroupGetGroupLinearRangePattern, GroupGetGroupRangeDimPattern,
-           GroupGetLocalIDPattern, GroupGetLocalLinearRangePattern,
-           GroupGetLocalRangeDimPattern, IDGetPattern, IDGetRefPattern,
-           ItemGetIDDimPattern, ItemGetRangeDimPattern, ItemGetRangePattern,
+      .add<AccessorGetPointerPattern, AccessorSizePattern,
+           AddZeroArgPattern<SYCLIDGetOp>, AddZeroArgPattern<SYCLItemGetIDOp>,
+           AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
+           GroupGetGroupIDPattern, GroupGetGroupLinearRangePattern,
+           GroupGetGroupRangeDimPattern, GroupGetLocalIDPattern,
+           GroupGetLocalLinearRangePattern, GroupGetLocalRangeDimPattern,
+           IDGetPattern, IDGetRefPattern, ItemGetIDDimPattern,
+           ItemGetRangeDimPattern, ItemGetRangePattern,
            NDItemGetGlobalIDDimPattern, NDItemGetGlobalIDPattern,
            NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
            NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,
