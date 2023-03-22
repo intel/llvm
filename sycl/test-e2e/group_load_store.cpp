@@ -333,6 +333,7 @@ struct VecBlockedWGTest {
 
     vec<int, VEC_SIZE> out;
     group_load(g, global_mem, out, properties(data_placement<blocked>));
+    // CHECK: call spir_func noundef <2 x i32> @_Z30__spirv_SubgroupBlockReadINTELIDv2_jET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     bool success = true;
     sycl::detail::dim_loop<VEC_SIZE>(
@@ -381,6 +382,10 @@ struct VecStripedWGTest {
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
     vec<int, VEC_SIZE> out;
     group_load(g, global_mem, out, properties(data_placement<striped>));
+    // Two block reads because the stride between vec elements of a single WI is
+    // wg_size, not sg_size.
+    // CHECK: call spir_func noundef i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
+    // CHECK: call spir_func noundef i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     bool success = true;
     for (int i = 0; i < VEC_SIZE; ++i) {
@@ -410,6 +415,7 @@ struct VecBlockedSGTest {
 
     vec<int, VEC_SIZE> out;
     group_load(sg, global_mem, out, properties(data_placement<blocked>));
+    // CHECK: call spir_func noundef <2 x i32> @_Z30__spirv_SubgroupBlockReadINTELIDv2_jET_PU3AS1Kj(i32 addrspace(1)* noundef
 
     bool success = true;
     for (int i = 0; i < VEC_SIZE; ++i)
@@ -491,7 +497,6 @@ struct SpanBlockedWGTest {
     for (int i = 0; i < SPAN_SIZE; ++i)
       global_mem[lid * SPAN_SIZE + i] = gid + SPAN_SIZE * 2 - i;
 
-
     group_barrier(g);
 
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}SpanBlockedWGTest
@@ -500,6 +505,8 @@ struct SpanBlockedWGTest {
     int out_arr[SPAN_SIZE];
     sycl::span<int, SPAN_SIZE> out(out_arr);
     group_load(g, global_mem, out, properties(data_placement<blocked>));
+    // Not optimized yet.
+    // CHECK-NOT: SubgroupBlockRead
 
     bool success = true;
     for (int i = 0; i < SPAN_SIZE; ++i)
@@ -552,6 +559,8 @@ struct SpanStripedWGTest {
     int out_arr[SPAN_SIZE];
     sycl::span<int, SPAN_SIZE> out(out_arr);
     group_load(g, global_mem, out, properties(data_placement<striped>));
+    // Not optimized yet.
+    // CHECK-NOT: SubgroupBlockRead
 
     bool success = true;
     for (int i = 0; i < SPAN_SIZE; ++i) {
