@@ -1730,26 +1730,10 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(
 /// @addtogroup sycl_esimd_logical
 /// @{
 
-/// Performs binary function computation with three vector operands.
-/// @tparam FuncControl boolean function control expressed with bfn_t
-/// enum values. Encodes all possible 256 functions with three boolean
-/// operands in an unsigned char.
-/// @tparam T type of the input vector element.
-/// @tparam N size of the input vector.
-/// @param s0 First boolean function argument.
-/// @param s1 Second boolean function argument.
-/// @param s2 Third boolean function argument.
-///
-/// Example: d = bfn<~bfn_x & ~bfn_y & ~bfn_z>(s0, s1, s2);
-
+/// This enum is used to encode all possible logical operations performed
+/// on 3 input operand. It is used as a template argument of bfn() function.
+/// Example: d = bfn<~bfn_t::x & ~bfn_t::y & ~bfn_t::z>(s0, s1, s2);
 enum class bfn_t : uint8_t { x = 0xAA, y = 0xCC, z = 0xF0 };
-
-/// The first argument of the boolean function.
-constexpr bfn_t bfn_x = bfn_t::x;
-/// The second argument of the boolean function.
-constexpr bfn_t bfn_y = bfn_t::y;
-/// The third argument of the boolean function.
-constexpr bfn_t bfn_z = bfn_t::z;
 
 static constexpr bfn_t operator~(bfn_t x) {
   uint8_t val = static_cast<uint8_t>(x);
@@ -1778,6 +1762,14 @@ static constexpr bfn_t operator^(bfn_t x, bfn_t y) {
   return static_cast<bfn_t>(res);
 }
 
+/// Performs binary function computation with three vector operands.
+/// @tparam FuncControl boolean function control expressed with bfn_t
+/// enum values.
+/// @tparam T type of the input vector element.
+/// @tparam N size of the input vector.
+/// @param s0 First boolean function argument.
+/// @param s1 Second boolean function argument.
+/// @param s2 Third boolean function argument.
 template <bfn_t FuncControl, typename T, int N>
 __ESIMD_API std::enable_if_t<std::is_integral_v<T> &&
                                  (sizeof(T) == 2 || sizeof(T) == 4),
@@ -1788,6 +1780,60 @@ bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
       src0.data(), src1.data(), src2.data());
 }
 
+template <bfn_t FuncControl, typename T, int N>
+ESIMD_NODEBUG
+    ESIMD_INLINE std::enable_if_t<std::is_integral_v<T> && (sizeof(T) == 8),
+                                  __ESIMD_NS::simd<T, N>>
+    bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
+        __ESIMD_NS::simd<T, N> src2) {
+  if constexpr (sizeof(T) == 8) {
+    __ESIMD_NS::simd<uint32_t, N * 2> Src0 =
+        src0.template bit_cast_view<uint32_t>();
+    __ESIMD_NS::simd<uint32_t, N * 2> Src1 =
+        src1.template bit_cast_view<uint32_t>();
+    __ESIMD_NS::simd<uint32_t, N * 2> Src2 =
+        src2.template bit_cast_view<uint32_t>();
+    __ESIMD_NS::simd<uint32_t, N * 2> Res =
+        esimd::bfn<FuncControl, uint32_t, N * 2>(Src0, Src1, Src2);
+    return Res.template bit_cast_view<T>();
+  }
+}
+
+template <bfn_t FuncControl, typename T, int N>
+ESIMD_NODEBUG ESIMD_INLINE
+    std::enable_if_t<std::is_integral_v<T> && (sizeof(T) == 1) && (N % 2 == 0),
+                     __ESIMD_NS::simd<T, N>>
+    bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
+        __ESIMD_NS::simd<T, N> src2) {
+  __ESIMD_NS::simd<uint16_t, N / 2> Src0 =
+      src0.template bit_cast_view<uint16_t>();
+  __ESIMD_NS::simd<uint16_t, N / 2> Src1 =
+      src1.template bit_cast_view<uint16_t>();
+  __ESIMD_NS::simd<uint16_t, N / 2> Src2 =
+      src2.template bit_cast_view<uint16_t>();
+  __ESIMD_NS::simd<uint16_t, N / 2> Res =
+      esimd::bfn<FuncControl, uint16_t, N / 2>(Src0, Src1, Src2);
+  return Res.template bit_cast_view<T>();
+}
+
+template <bfn_t FuncControl, typename T, int N>
+ESIMD_NODEBUG ESIMD_INLINE
+    std::enable_if_t<std::is_integral_v<T> && (sizeof(T) == 1) && (N % 2 != 0),
+                     __ESIMD_NS::simd<T, N>>
+    bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
+        __ESIMD_NS::simd<T, N> src2) {
+  __ESIMD_NS::simd<T, N + 1> Src0, Src1, Src2;
+  auto Src0_view = Src0.template select<N, 1>();
+  Src0_view = src0;
+  auto Src1_view = Src1.template select<N, 1>();
+  Src1_view = src1;
+  auto Src2_view = Src2.template select<N, 1>();
+  Src2_view = src2;
+  __ESIMD_NS::simd<T, N + 1> Res =
+      esimd::bfn<FuncControl, T, N + 1>(Src0, Src1, Src2);
+  return Res.template select<N, 1>();
+}
+
 /// Performs binary function computation with three scalar operands.
 /// @tparam FuncControl boolean function control expressed with bfn_t enum
 /// values.
@@ -1796,12 +1842,9 @@ bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
 /// @param s1 Second boolean function argument.
 /// @param s2 Third boolean function argument.
 template <bfn_t FuncControl, typename T>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
-                                      std::is_integral_v<T> &&
-                                      (sizeof(T) == 2 || sizeof(T) == 4),
-                                  T>
-    bfn(T src0, T src1, T src2) {
+ESIMD_NODEBUG ESIMD_INLINE std::enable_if_t<
+    __ESIMD_DNS::is_esimd_scalar<T>::value && std::is_integral_v<T>, T>
+bfn(T src0, T src1, T src2) {
   __ESIMD_NS::simd<T, 1> Src0 = src0;
   __ESIMD_NS::simd<T, 1> Src1 = src1;
   __ESIMD_NS::simd<T, 1> Src2 = src2;

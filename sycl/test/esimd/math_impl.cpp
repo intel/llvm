@@ -58,7 +58,8 @@ esimd_math_emu(simd<float, 16> x) {
 // which later translate into GenX intrinsics.
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<int, 16>
 esimd_bfn(simd<int, 16> x, simd<int, 16> y, simd<int, 16> z) {
-  simd<int, 16> v = experimental::esimd::bfn<~bfn_x & ~bfn_y & ~bfn_z>(x, y, z);
+  simd<int, 16> v =
+      experimental::esimd::bfn<~bfn_t::x & ~bfn_t::y & ~bfn_t::z>(x, y, z);
   //CHECK: call spir_func noundef <16 x i32> @_Z11__esimd_bfn
   return v;
 }
