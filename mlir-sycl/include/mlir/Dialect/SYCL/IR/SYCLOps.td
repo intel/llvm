@@ -686,6 +686,8 @@ def SYCLAccessorGetPointerOp
                        OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
+  let hasVerifier = 1;
+
   let results = (outs AnyMemRef:$result);
 }
 

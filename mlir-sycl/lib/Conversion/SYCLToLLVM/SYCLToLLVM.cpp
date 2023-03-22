@@ -1094,7 +1094,7 @@ private:
     const auto acc = opAdaptor.getAcc();
     const auto resTy = builder.getI64Type();
     Value res = builder.create<arith::ConstantIntOp>(loc, 0, resTy);
-    for (unsigned i = 0, dim = accTy.getDimension(); i < dim; ++i) {
+    for (unsigned i = 0; i < accTy.getDimension(); ++i) {
       // Res = Res * Mem[I] + Id[I]
       const auto memI = getMemRange(builder, loc, resTy, acc, i);
       const auto idI = getID(builder, loc, resTy, acc, i);

@@ -89,6 +89,21 @@ bool SYCLAddrSpaceCastOp::areCastCompatible(TypeRange inputs,
           (outputMS == genericAddressSpace));
 }
 
+LogicalResult SYCLAccessorGetPointerOp::verify() {
+  const auto accTy = getOperand()
+                         .getType()
+                         .cast<MemRefType>()
+                         .getElementType()
+                         .cast<AccessorType>();
+  const Type resTy = getResult().getType();
+  const Type resElemTy = resTy.cast<MemRefType>().getElementType();
+  return (resElemTy != accTy.getType())
+             ? emitOpError(
+                   "Expecting a reference to this accessor's value type (")
+                   << accTy.getType() << "). Got " << resTy
+             : success();
+}
+
 LogicalResult SYCLAccessorSubscriptOp::verify() {
   // Available only when: (Dimensions > 0)
   // reference operator[](id<Dimensions> index) const;
