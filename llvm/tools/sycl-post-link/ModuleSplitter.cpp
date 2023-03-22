@@ -193,7 +193,7 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
     switch (EntryScope) {
     case Scope_PerKernel:
       EntryPointMap[F.getName()].insert(&F);
-    break;
+      break;
 
     case Scope_PerModule: {
       if (!llvm::sycl::utils::isSYCLExternalFunction(&F))
