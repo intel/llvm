@@ -387,7 +387,7 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
   int32_t tmp_int = __nvvm_f2tf32_rna(a);
   return __nvvm_bitcast_i2f(tmp_int);
 #else
-  return __spirv_ConvertFToTF32INTEL(a);
+  return __spirv_RoundFToTF32INTEL(a);
 #endif // defined(__NVPTX__)
 #else
   uint32_t tmp_uint = reinterpret_cast<const uint32_t &>(a);

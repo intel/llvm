@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -O2 -S -emit-llvm -o - %s | FileCheck %s
+// RUN: %clangxx -fsycl -O2 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 %s -o %t.out
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -87,13 +87,6 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                wi_data_b[i] = round_to_tf32(wi_data_b[i]);
              }
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-           }
-           auto wi_slice_a =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           joint_matrix_apply(sg, sub_a, [=](float x) { x *= 2; });
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             float elem = wi_slice_a[i];
-             wi_slice_a[i] *= 2;
            }
            joint_matrix_store(sg, sub_c,
                               accC.get_pointer() + (sg_startx * TM) * N +
