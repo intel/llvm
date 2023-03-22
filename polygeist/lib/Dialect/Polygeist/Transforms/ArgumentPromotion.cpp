@@ -73,8 +73,15 @@ bool isValidMemRefType(Type type) {
   bool isMemRefWithExpectedShape =
       (mt && mt.hasRank() && (mt.getRank() == 1) &&
        ShapedType::isDynamic(mt.getShape()[0]) && mt.getLayout().isIdentity());
-  return (isMemRefWithExpectedShape &&
-          isa<LLVM::LLVMStructType>(mt.getElementType()));
+  if (!isMemRefWithExpectedShape)
+    return false;
+
+  auto structType = dyn_cast<LLVM::LLVMStructType>(mt.getElementType());
+  if (!structType || llvm::any_of(structType.getBody(), [](Type memType) {
+        return isa<LLVM::LLVMStructType>(memType);
+      }))
+    return false;
+  return true;
 }
 
 #if 0
