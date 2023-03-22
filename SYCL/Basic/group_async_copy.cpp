@@ -122,10 +122,10 @@ template <typename T> int test(size_t Stride) {
        size_t Offset = GrId * WorkGroupSize;
        if (Stride == 1) { // Check the version without stride arg.
          auto E = NDId.async_work_group_copy(
-             Local.get_pointer(), In.get_pointer() + Offset, NElemsToCopy);
+             local_ptr<T>(Local), In.get_pointer() + Offset, NElemsToCopy);
          E.wait();
        } else {
-         auto E = NDId.async_work_group_copy(Local.get_pointer(),
+         auto E = NDId.async_work_group_copy(local_ptr<T>(Local),
                                              In.get_pointer() + Offset,
                                              NElemsToCopy, Stride);
          E.wait();
@@ -133,11 +133,11 @@ template <typename T> int test(size_t Stride) {
 
        if (Stride == 1) { // Check the version without stride arg.
          auto E = Group.async_work_group_copy(
-             Out.get_pointer() + Offset, Local.get_pointer(), NElemsToCopy);
+             Out.get_pointer() + Offset, local_ptr<T>(Local), NElemsToCopy);
          Group.wait_for(E);
        } else {
          auto E = Group.async_work_group_copy(Out.get_pointer() + Offset,
-                                              Local.get_pointer(), NElemsToCopy,
+                                              local_ptr<T>(Local), NElemsToCopy,
                                               Stride);
          Group.wait_for(E);
        }
