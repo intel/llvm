@@ -106,6 +106,7 @@ TEST_F(QueueApiFailures, QueueSubmit) {
         },
         TestCodeLocation);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   Q.wait();
@@ -128,6 +129,7 @@ TEST_F(QueueApiFailures, QueueSingleTask) {
   try {
     Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   Q.wait();
@@ -159,6 +161,7 @@ TEST_F(QueueApiFailures, QueueMemset) {
   try {
     Q.memset(HostAlloc, 42, 1);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   Q.wait();
@@ -193,6 +196,7 @@ TEST_F(QueueApiFailures, QueueMemcpy) {
   try {
     Q.memcpy(HostAllocDst, HostAllocSrc, 1);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   Q.wait();
@@ -219,6 +223,7 @@ TEST_F(QueueApiFailures, QueueCopy) {
   try {
     Q.copy(HostAllocDst, HostAllocSrc, 1, TestCodeLocation);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   Q.wait();
@@ -253,6 +258,7 @@ TEST_F(QueueApiFailures, QueueFill) {
   try {
     Q.fill(HostAlloc, 42, 1);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   Q.wait();
@@ -262,7 +268,7 @@ TEST_F(QueueApiFailures, QueueFill) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
+  EXPECT_THAT(Message, HasSubstr("fill;sycl/queue.hpp"));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -286,6 +292,7 @@ TEST_F(QueueApiFailures, QueuePrefetch) {
   try {
     Q.prefetch(HostAlloc, 2);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   Q.wait();
@@ -295,7 +302,7 @@ TEST_F(QueueApiFailures, QueuePrefetch) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
+  EXPECT_THAT(Message, HasSubstr("prefetch;sycl/queue.hpp"));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -317,6 +324,7 @@ TEST_F(QueueApiFailures, QueueMemAdvise) {
   try {
     Q.mem_advise(HostAlloc, 1, 0 /*default*/);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   Q.wait();
@@ -341,6 +349,7 @@ TEST_F(QueueApiFailures, QueueParallelFor) {
   try {
     Q.parallel_for<TestKernel<KernelSize>>(globalWIs, [=](sycl::id<1> idx) {});
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   Q.wait();
@@ -373,6 +382,7 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
     EventToDepend =
         Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);
@@ -386,6 +396,7 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
         },
         ExtraTestCodeLocation);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);
@@ -412,6 +423,7 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
       EventToDepend =
           Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
     } catch (sycl::exception &e) {
+      std::ignore = e;
       ExceptionCaught = true;
     }
     EXPECT_FALSE(ExceptionCaught);
@@ -429,6 +441,7 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
           },
           ExtraTestCodeLocation);
     } catch (sycl::exception &e) {
+      std::ignore = e;
       ExceptionCaught = true;
     }
     EXPECT_FALSE(ExceptionCaught);
@@ -469,6 +482,7 @@ TEST_F(QueueApiFailures, QueueKernelAsync) {
         },
         TestCodeLocation);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);
@@ -480,6 +494,7 @@ TEST_F(QueueApiFailures, QueueKernelAsync) {
         },
         ExtraTestCodeLocation);
   } catch (sycl::exception &e) {
+    std::ignore = e;
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);

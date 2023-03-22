@@ -19,7 +19,6 @@ declare spir_func void @__itt_offload_wi_finish_wrapper() #3
 declare spir_func i64 @_Z25__spirv_BuiltInGlobalSizei(i32) #4
 declare spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32) #4
 declare spir_func i64 @_Z28__spirv_BuiltInWorkgroupSizei(i32) #4
-declare spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv() #4
 declare spir_func i64 @_Z32__spirv_BuiltInLocalInvocationIdi(i32) #4
 declare spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32) #4
 declare spir_func i64 @_Z28__spirv_BuiltInNumWorkgroupsi(i32) #4
@@ -27,14 +26,13 @@ declare spir_func i64 @_Z27__spirv_BuiltInGlobalOffseti(i32) #4
 
 define spir_func void @foo(i32 %x) {
 entry:
-  %0 = call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv() #4
-  %1 = call spir_func i64 @_Z25__spirv_BuiltInGlobalSizei(i32 %x) #4
-  %2 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 %x) #4
-  %3 = call spir_func i64 @_Z28__spirv_BuiltInWorkgroupSizei(i32 %x) #4
-  %4 = call spir_func i64 @_Z32__spirv_BuiltInLocalInvocationIdi(i32 %x) #4
-  %5 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 %x) #4
-  %6 = call spir_func i64 @_Z28__spirv_BuiltInNumWorkgroupsi(i32 %x) #4
-  %7 = call spir_func i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 %x) #4
+  %0 = call spir_func i64 @_Z25__spirv_BuiltInGlobalSizei(i32 %x) #4
+  %1 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 %x) #4
+  %2 = call spir_func i64 @_Z28__spirv_BuiltInWorkgroupSizei(i32 %x) #4
+  %3 = call spir_func i64 @_Z32__spirv_BuiltInLocalInvocationIdi(i32 %x) #4
+  %4 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 %x) #4
+  %5 = call spir_func i64 @_Z28__spirv_BuiltInNumWorkgroupsi(i32 %x) #4
+  %6 = call spir_func i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 %x) #4
   ret void
 }
 
@@ -63,14 +61,13 @@ entry:
 define spir_kernel void @KernelOne(i32 %x) #2 !kernel_arg_addr_space !6 !kernel_arg_access_qual !6 !kernel_arg_type !6 !kernel_arg_type_qual !6 !kernel_arg_base_type !6 !kernel_arg_name !6 !work_group_size_hint !11 {
 entry:
   call spir_func void @__itt_offload_wi_start_wrapper() #3
-  %0 = call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv() #4
-  %1 = call spir_func i64 @_Z25__spirv_BuiltInGlobalSizei(i32 %x) #4
-  %2 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 %x) #4
-  %3 = call spir_func i64 @_Z28__spirv_BuiltInWorkgroupSizei(i32 %x) #4
-  %4 = call spir_func i64 @_Z32__spirv_BuiltInLocalInvocationIdi(i32 %x) #4
-  %5 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 %x) #4
-  %6 = call spir_func i64 @_Z28__spirv_BuiltInNumWorkgroupsi(i32 %x) #4
-  %7 = call spir_func i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 %x) #4
+  %0 = call spir_func i64 @_Z25__spirv_BuiltInGlobalSizei(i32 %x) #4
+  %1 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 %x) #4
+  %2 = call spir_func i64 @_Z28__spirv_BuiltInWorkgroupSizei(i32 %x) #4
+  %3 = call spir_func i64 @_Z32__spirv_BuiltInLocalInvocationIdi(i32 %x) #4
+  %4 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 %x) #4
+  %5 = call spir_func i64 @_Z28__spirv_BuiltInNumWorkgroupsi(i32 %x) #4
+  %6 = call spir_func i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 %x) #4
   call spir_func void @foo(i32 %x)
   %y = call spir_func i32 @bar(i32 %x)
   call spir_func void @baz(i32 %y)
@@ -83,12 +80,11 @@ declare !sycl.kernel.fused !13 !sycl.kernel.nd-ranges !15 !sycl.kernel.nd-range 
 ; CHECK-LABEL: define spir_kernel void @fused_0(
 ; CHECK-SAME:                                   i32 %[[X0:.*]], i32 %[[X1:.*]], i32 %[[X2:.*]])
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    %[[GID:.*]] = call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
+; CHECK-NEXT:    %[[GID:.*]] = call spir_func i64 @__global_linear_id_3_48_1_1_2_1_1() #[[ATTRS:.*]]
 ; CHECK-NEXT:    %[[CMP:.*]] = icmp ult i64 %[[GID]], 42
 ; CHECK-NEXT:    br i1 %[[CMP]], label %[[CALL:.*]], label %[[EXIT:.*]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT:  [[CALL]]:
-; CHECK-NEXT:    call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
 ; CHECK-NEXT:    call spir_func i64 @__global_size_remapper_3_2_3_7_2_1_1_3_48_1_1_2_1_1(i32 %[[X0]]) #[[ATTRS:.*]]
 ; CHECK-NEXT:    call spir_func i64 @__group_id_remapper_3_2_3_7_2_1_1_3_48_1_1_2_1_1(i32 %[[X0]]) #[[ATTRS]]
 ; CHECK-NEXT:    call spir_func i64 @__local_size_remapper_3_2_3_7_2_1_1_3_48_1_1_2_1_1(i32 %[[X0]]) #[[ATTRS]]
@@ -103,12 +99,11 @@ declare !sycl.kernel.fused !13 !sycl.kernel.nd-ranges !15 !sycl.kernel.nd-range 
 ; CHECK-EMPTY:
 ; CHECK-NEXT:  [[EXIT]]:
 ; CHECK-NEXT:    call spir_func void @_Z22__spirv_ControlBarrierjjj
-; CHECK-NEXT:    %[[GID:.*]] = call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
+; CHECK-NEXT:    %[[GID:.*]] = call spir_func i64 @__global_linear_id_3_48_1_1_2_1_1() #[[ATTRS:.*]]
 ; CHECK-NEXT:    %[[CMP:.*]] = icmp ult i64 %[[GID]], 8
 ; CHECK-NEXT:    br i1 %[[CMP]], label %[[CALL:.*]], label %[[EXIT:.*]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT:  [[CALL]]:
-; CHECK-NEXT:    call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
 ; CHECK-NEXT:    call spir_func i64 @__global_size_remapper_2_2_4_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X1]]) #[[ATTRS]]
 ; CHECK-NEXT:    call spir_func i64 @__group_id_remapper_2_2_4_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X1]]) #[[ATTRS]]
 ; CHECK-NEXT:    call spir_func i64 @__local_size_remapper_2_2_4_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X1]]) #[[ATTRS]]
@@ -123,7 +118,6 @@ declare !sycl.kernel.fused !13 !sycl.kernel.nd-ranges !15 !sycl.kernel.nd-range 
 ; CHECK-EMPTY:
 ; CHECK-NEXT:  [[EXIT]]:
 ; CHECK-NEXT:    call spir_func void @_Z22__spirv_ControlBarrierjjj
-; CHECK-NEXT:    call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
 ; CHECK-NEXT:    call spir_func i64 @__global_size_remapper_1_48_1_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X2]]) #[[ATTRS]]
 ; CHECK-NEXT:    call spir_func i64 @__group_id_remapper_1_48_1_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X2]]) #[[ATTRS]]
 ; CHECK-NEXT:    call spir_func i64 @__local_size_remapper_1_48_1_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X2]]) #[[ATTRS]]
@@ -140,7 +134,6 @@ declare !sycl.kernel.fused !13 !sycl.kernel.nd-ranges !15 !sycl.kernel.nd-range 
 ; CHECK-LABEL: define spir_func void @foo.2(
 ; CHECK-SAME:                               i32 %[[X:.*]]) {
 ; CHECK-NEXT: entry:
-; CHECK-NEXT:   call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
 ; CHECK-NEXT:   call spir_func i64 @__global_size_remapper_3_2_3_7_2_1_1_3_48_1_1_2_1_1(i32 %[[X]]) #[[ATTRS]]
 ; CHECK-NEXT:   call spir_func i64 @__group_id_remapper_3_2_3_7_2_1_1_3_48_1_1_2_1_1(i32 %[[X]]) #[[ATTRS]]
 ; CHECK-NEXT:   call spir_func i64 @__local_size_remapper_3_2_3_7_2_1_1_3_48_1_1_2_1_1(i32 %[[X]]) #[[ATTRS]]
@@ -157,7 +150,6 @@ declare !sycl.kernel.fused !13 !sycl.kernel.nd-ranges !15 !sycl.kernel.nd-range 
 ; CHECK-LABEL: define spir_func void @foo.6(
 ; CHECK-SAME:                               i32 %[[X:.*]]) {
 ; CHECK-NEXT: entry:
-; CHECK-NEXT:   call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
 ; CHECK-NEXT:   call spir_func i64 @__global_size_remapper_2_2_4_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X]]) #[[ATTRS]]
 ; CHECK-NEXT:   call spir_func i64 @__group_id_remapper_2_2_4_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X]]) #[[ATTRS]]
 ; CHECK-NEXT:   call spir_func i64 @__local_size_remapper_2_2_4_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X]]) #[[ATTRS]]
@@ -173,12 +165,11 @@ declare !sycl.kernel.fused !31 !sycl.kernel.nd-ranges !25 !sycl.kernel.nd-range 
 ; CHECK-LABEL: define spir_kernel void @fused_1(
 ; CHECK-SAME:                                   i32 %[[X0:.*]], i32 %[[X1:.*]], i32 %[[X2:.*]])
 ; CHECK-NEXT:   entry:
-; CHECK-NEXT:     %[[GID:.*]] = call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
+; CHECK-NEXT:     %[[GID:.*]] = call spir_func i64 @__global_linear_id_3_48_1_1_2_1_1() #[[ATTRS:.*]]
 ; CHECK-NEXT:     %[[CMP:.*]] = icmp ult i64 %[[GID]], 20
 ; CHECK-NEXT:     br i1 %[[CMP]], label %[[CALL:.*]], label %[[EXIT:.*]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   [[CALL]]
-; CHECK-NEXT:     call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
 ; CHECK-NEXT:     call spir_func i64 @__global_size_remapper_1_20_1_1_10_1_1_3_48_1_1_2_1_1(i32 %[[X0]]) #[[ATTRS]]
 ; CHECK-NEXT:     call spir_func i64 @__group_id_remapper_1_20_1_1_10_1_1_3_48_1_1_2_1_1(i32 %[[X0]]) #[[ATTRS]]
 ; CHECK-NEXT:     call spir_func i64 @__local_size_remapper_1_20_1_1_10_1_1_3_48_1_1_2_1_1(i32 %[[X0]]) #[[ATTRS]]
@@ -193,12 +184,11 @@ declare !sycl.kernel.fused !31 !sycl.kernel.nd-ranges !25 !sycl.kernel.nd-range 
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   [[EXIT]]:
 ; CHECK-NEXT:     call spir_func void @_Z22__spirv_ControlBarrierjjj
-; CHECK-NEXT:     %[[GID:.*]] = call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
+; CHECK-NEXT:     %[[GID:.*]] = call spir_func i64 @__global_linear_id_3_48_1_1_2_1_1() #[[ATTRS:.*]]
 ; CHECK-NEXT:     %[[CMP:.*]] = icmp ult i64 %[[GID]], 10
 ; CHECK-NEXT:     br i1 %[[CMP]], label %[[CALL:.*]], label %[[EXIT:.*]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   [[CALL]]:
-; CHECK-NEXT:     call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
 ; CHECK-NEXT:     call spir_func i64 @__global_size_remapper_1_10_1_1_10_1_1_3_48_1_1_2_1_1(i32 %[[X1]]) #[[ATTRS]]
 ; CHECK-NEXT:     call spir_func i64 @__group_id_remapper_1_10_1_1_10_1_1_3_48_1_1_2_1_1(i32 %[[X1]]) #[[ATTRS]]
 ; CHECK-NEXT:     call spir_func i64 @__local_size_remapper_1_10_1_1_10_1_1_3_48_1_1_2_1_1(i32 %[[X1]]) #[[ATTRS]]
@@ -213,12 +203,11 @@ declare !sycl.kernel.fused !31 !sycl.kernel.nd-ranges !25 !sycl.kernel.nd-range 
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   [[EXIT]]:
 ; CHECK-NEXT:     call spir_func void @_Z22__spirv_ControlBarrierjjj
-; CHECK-NEXT:     %[[GID:.*]] = call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
+; CHECK-NEXT:     %[[GID:.*]] = call spir_func i64 @__global_linear_id_3_48_1_1_2_1_1() #[[ATTRS:.*]]
 ; CHECK-NEXT:     %[[CMP:.*]] = icmp ult i64 %[[GID]], 20
 ; CHECK-NEXT:     br i1 %[[CMP]], label %[[CALL:.*]], label %[[EXIT:.*]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   [[CALL]]:
-; CHECK-NEXT:     call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv()
 ; CHECK-NEXT:     call spir_func i64 @__global_size_remapper_1_20_1_1_10_1_1_3_48_1_1_2_1_1(i32 %[[X2]]) #[[ATTRS]]
 ; CHECK-NEXT:     call spir_func i64 @__group_id_remapper_1_20_1_1_10_1_1_3_48_1_1_2_1_1(i32 %[[X2]]) #[[ATTRS]]
 ; CHECK-NEXT:     call spir_func i64 @__local_size_remapper_1_20_1_1_10_1_1_3_48_1_1_2_1_1(i32 %[[X2]]) #[[ATTRS]]

@@ -7,7 +7,7 @@
 ; - Compiler adds 'isLargeGRF' property to the ESIMD device binary
 ;   images requesting "large GRF" 
 
-; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S %s -o %t.table
+; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_large_grf_1.ll --check-prefixes CHECK-ESIMD-LargeGRF-IR
 ; RUN: FileCheck %s -input-file=%t_esimd_large_grf_1.prop --check-prefixes CHECK-ESIMD-LargeGRF-PROP

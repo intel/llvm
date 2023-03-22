@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
+; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix=CHECK-SYM0
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix=CHECK-SYM1
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix=CHECK-IR0

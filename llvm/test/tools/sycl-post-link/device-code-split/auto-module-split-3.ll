@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
+; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
 ;
 ; In precense of indirect calls we start matching functions using their
 ; signatures, i.e. we have an indirect call to i32(i32) function within

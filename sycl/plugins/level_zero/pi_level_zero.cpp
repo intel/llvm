@@ -97,6 +97,16 @@ static const bool IndirectAccessTrackingEnabled = [] {
          nullptr;
 }();
 
+// Due to a bug with 2D memory copy to and from non-USM pointers, this option is
+// disabled by default.
+static const bool UseMemcpy2DOperations = [] {
+  const char *UseMemcpy2DOperationsFlag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_NATIVE_USM_MEMCPY2D");
+  if (!UseMemcpy2DOperationsFlag)
+    return false;
+  return std::stoi(UseMemcpy2DOperationsFlag) > 0;
+}();
+
 static usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
 
 // Map from L0 to PI result.
@@ -1818,7 +1828,7 @@ pi_result _pi_queue::executeOpenCommandList(bool IsCopy) {
 
 static const bool FilterEventWaitList = [] {
   const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST");
-  const bool RetVal = Ret ? std::stoi(Ret) : 1;
+  const bool RetVal = Ret ? std::stoi(Ret) : 0;
   return RetVal;
 }();
 
@@ -2291,8 +2301,9 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Context->RefCount.load()});
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    // 2D USM memcpy is supported.
-    return ReturnValue(pi_bool{true});
+    // 2D USM memcpy is supported unless disabled through
+    // SYCL_PI_LEVEL_ZERO_USE_NATIVE_USM_MEMCPY2D.
+    return ReturnValue(pi_bool{UseMemcpy2DOperations});
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     // 2D USM fill and memset is not supported.
@@ -5559,7 +5570,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       if (Queue->Device->ImmCommandListUsed) {
         // If immediate command lists are being used, each will act as their own
         // queue, so we must insert a barrier into each.
-        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+        for (auto &ImmCmdList : QueueGroup.second.ImmCmdLists)
           if (ImmCmdList != Queue->CommandListMap.end())
             CmdLists.push_back(ImmCmdList);
       } else {
@@ -5726,17 +5737,28 @@ pi_result _pi_queue::synchronize() {
     return PI_SUCCESS;
   };
 
-  for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID})
-    for (auto &QueueGroup : QueueMap) {
-      if (Device->ImmCommandListUsed) {
-        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
-          syncImmCmdList(this, ImmCmdList);
-      } else {
-        for (auto &ZeQueue : QueueGroup.second.ZeQueues)
-          if (ZeQueue)
-            ZE_CALL(zeHostSynchronize, (ZeQueue));
+  // Do nothing if the queue is empty
+  if (!LastCommandEvent)
+    return PI_SUCCESS;
+
+  // For in-order queue just wait for the last command.
+  if (isInOrderQueue()) {
+    ZE_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+  } else {
+    // Otherwise sync all L0 queues/immediate command-lists.
+    for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
+      for (auto &QueueGroup : QueueMap) {
+        if (Device->ImmCommandListUsed) {
+          for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+            syncImmCmdList(this, ImmCmdList);
+        } else {
+          for (auto &ZeQueue : QueueGroup.second.ZeQueues)
+            if (ZeQueue)
+              ZE_CALL(zeHostSynchronize, (ZeQueue));
+        }
       }
     }
+  }
   LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
@@ -8000,7 +8022,7 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.
 pi_result piTearDown(void *PluginParameter) {
