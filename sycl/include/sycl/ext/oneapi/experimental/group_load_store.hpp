@@ -236,6 +236,9 @@ void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
           if constexpr (std::is_same_v<decltype(dispatch_g), Group> || blocked) {
             group_load(dispatch_g, unwrapped_ptr, out, properties);
           } else {
+            // For striped layout the stride between elements in a vector is
+            // expressed in terms of WG's size, not SG. As such, each index has
+            // to be implemented using scalar SG block load.
             auto vec_elem_stride = g.get_local_linear_range();
             sycl::detail::dim_loop<N>([&](size_t i) {
               OutputT scalar;
