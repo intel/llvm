@@ -1,5 +1,5 @@
 // REQUIRES: windows
-// TODO: Re-enable the test when https://github.com/intel/llvm/issues/8717 fixed.
+// TODO: Re-enable the test when https://github.com/intel/llvm/issues/8717 fixed
 // XFAIL: windows
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s -I %sycl_include
 // expected-no-diagnostics
