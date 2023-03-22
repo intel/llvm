@@ -51,9 +51,10 @@ not rely on APIs defined in this specification.*
 [NOTE]
 ====
 There is a link:../proposed/sycl_ext_oneapi_graph_fusion.asciidoc[follow-up
-proposal] for fusion based on the SYCL graph API. That proposal continues some
-of the ideas presented in this proposal, but uses the more versatile SYCL graphs
-API to define the sequence of kernels to execute. 
+proposal] for fusion based on the https://github.com/intel/llvm/pull/5626[SYCL
+graph API]. That proposal continues some of the ideas presented in this
+proposal, but uses the more versatile SYCL graphs API to define the sequence of
+kernels to execute.
 
 Once accepted and implemented, the new proposal will supersede this proposal.
 ====

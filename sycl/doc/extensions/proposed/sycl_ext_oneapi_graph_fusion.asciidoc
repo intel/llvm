@@ -63,7 +63,7 @@ and expose additional optimization opportunities.
 
 One of those further optimizations enabled by the graphs proposal is _kernel
 fusion_. Fusing two or more kernels executing on the same device into a single
-kernel launch can further reduce runtime overhead and enable futher kernel
+kernel launch can further reduce runtime overhead and enable further kernel
 optimizations such as dataflow internalization discussed below.
 
 This proposal is a continuation of many of the ideas of the initial
