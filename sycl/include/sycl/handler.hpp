@@ -2535,8 +2535,8 @@ public:
 
     // Do the following:
     // 1. If both are host, use host_task to copy.
-    // 2. If either pointer is host or of the backend supports native memcpy2d,
-    //    use special command.
+    // 2. If either pointer is host or the backend supports native memcpy2d, use
+    //    special command.
     // 3. Otherwise, launch a kernel for copying.
     if (SrcIsHost && DestIsHost) {
       commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
