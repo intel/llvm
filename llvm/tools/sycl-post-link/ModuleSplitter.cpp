@@ -888,7 +888,8 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       groupEntryPointsByKernelType(MD, EmitOnlyKernelsAsEntryPoints);
 
   if (EntryPointGroups.size() == 1) {
-    Result.emplace_back(std::move(MD));
+    Result.emplace_back(std::move(MD.releaseModulePtr()),
+                        std::move(EntryPointGroups[0]), MD.Props);
     return Result;
   }
 

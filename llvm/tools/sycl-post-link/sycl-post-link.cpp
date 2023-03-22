@@ -724,7 +724,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc) {
   for (auto &MD: Result) {
     // FIXME: update Modified flag
     processSpecConstants(MD);
-    if (MD.isESIMD())
+    if (LowerEsimd && MD.isESIMD())
       lowerEsimdConstructs(MD);
   }
 
