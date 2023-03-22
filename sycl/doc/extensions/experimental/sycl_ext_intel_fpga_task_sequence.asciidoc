@@ -67,11 +67,15 @@ specification.*
 
 == Backend support status
 
+The APIs in this extension may be used only on a device that has
+`aspect::ext_intel_fpga_task_sequence`.  The application must check that the
+device has this aspect before submitting a kernel using any of the APIs in this
+extension.  If the application fails to do this, the implementation throws
+a synchronous exception with the `errc::kernel_not_supported` error code
+when the kernel is submitted to the queue.
+
 This extension is currently implemented in `icpx` only for FPGA devices and
 only when using either the Level Zero backend or the Intel FPGA OpenCL backend.
-Attempting to use this extension in kernels that run on other devices or
-backends may result in undefined behavior.  Be aware that the compiler is not
-able to issue a diagnostic to warn you if this happens.
 
 == Overview
 
@@ -204,10 +208,16 @@ public:
 +Callable+ `f` and by a list of properties `propertiesT`.
 The +Callable+ `f` defines the asynchronous task to be
 associated with the `task_sequence`, and requiring an auto reference ensures
-that each `f` be statically resolvable at compile time.  Static resolvability by
+that each `f` is statically resolvable at compile time.  Static resolvability by
 the compiler is desirable when compiling for spatial architectures as it can
 enable the generation of more efficient hardware. Furthermore, the partial
-specialization `typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...)`
+specialization:
+
+```c++
+template<typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...)>
+struct task_sequence_checker<f> : std::true_type {};
+```
+
 helps make it easier to write the class member functions (eg: `get`).
 
 The `task_sequence` interface consists of two member functions, `async` and
@@ -370,9 +380,13 @@ as long as the number of outstanding invocations are less than or equal to
 `invocation_capacity`. An outstanding invocation is a call to `async` whose
 corresponding result has not yet been retrieved by a call to `get`.
 
+A default value is chosen by the implementation.
+
 | response_capacity | Given a response capacity of `N`, the user is guaranteed
 that at least one outstanding `async` call will make progress as long as the
 number of outstanding invocations is less than or equal to `N`.
+
+A default value is chosen by the implementation.
 |===
 --
 
@@ -440,14 +454,7 @@ the set is empty, P will unblock.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|A|2021-06-11|Robert Ho|*Initial revision*
-|B|2021-10-25|Robert Ho|Added async_capacity and get_capacity properties. Added
-\__release_task_sequence intrinsic. Altered __create_task_sequence signature.
-Added this to all intrinsics.
-|C|2022-06-23|Robert Ho|Added compatibility statement with FPGA Kernel Interface
-Properties
-|D|2023-01-25|Abhishek Tiwari|Format corrections, add examples, add properties
-type traits.
+|A|2023-03-22|Robert Ho|*Initial revision*
 |========================================
 
 //************************************************************************
