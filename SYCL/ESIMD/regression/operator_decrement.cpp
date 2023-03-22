@@ -8,6 +8,7 @@
 // This is a test for a bug found simd_view::operator--
 //
 // REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out

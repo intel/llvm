@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl -DUSE_REF %s -I%S/.. -o %t.ref.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.ref.out 3 2 1

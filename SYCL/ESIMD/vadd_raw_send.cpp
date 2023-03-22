@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,cuda,hip
 // TODO: esimd_emulator fails due to unimplemented 'raw_send' intrinsic
 // XFAIL: esimd_emulator

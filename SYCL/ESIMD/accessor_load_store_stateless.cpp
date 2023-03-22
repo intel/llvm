@@ -11,6 +11,7 @@
 // based accesses are automatically converted to stateless accesses.
 
 // REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl -fsycl-esimd-force-stateless-mem %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out

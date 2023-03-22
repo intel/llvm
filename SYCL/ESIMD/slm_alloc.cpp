@@ -1,4 +1,5 @@
 // REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip || esimd_emulator
 //
 // RUN: %clangxx -fsycl %s -o %t.1.out

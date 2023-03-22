@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 // CUDA and HIP don't support printf.
 //

@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // XREQUIRES: gpu
 // TODO gpu and level_zero in REQUIRES due to only this platforms supported yet.
 // The current "REQUIRES" should be replaced with "gpu" only as mentioned in

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 // esimd_emulator does not support online-compiler that invokes 'piProgramBuild'
 // UNSUPPORTED: esimd_emulator

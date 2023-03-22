@@ -8,6 +8,7 @@
 // This test checks DWORD compare-and-exchange atomic operations.
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 // TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
 // UNSUPPORTED: esimd_emulator

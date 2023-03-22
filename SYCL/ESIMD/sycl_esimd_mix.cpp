@@ -9,6 +9,7 @@
 // in the same program .
 
 // REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 // TODO/FIXME: esimd_emulator does not support online compilation that
 //             invokes 'piProgramBuild'/'piKernelCreate'

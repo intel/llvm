@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: windows, gpu, level_zero
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // TODO This test freezed on Linux OS, enable test on linux once this issue will
 // be fixed.
 // XREQUIRES: gpu

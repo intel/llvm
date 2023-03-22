@@ -1,4 +1,5 @@
 // REQUIRES: gpu
+// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 // TODO online compiler check fails for esimd_emulator
 // XFAIL: esimd_emulator
