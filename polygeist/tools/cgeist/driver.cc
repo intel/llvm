@@ -370,7 +370,8 @@ static int optimize(mlir::MLIRContext &Ctx,
     if (RaiseToAffine)
       OptPM.addPass(mlir::createLowerAffinePass());
     if (OmitOptionalMangledFunctionName) {
-      // Needed as the inliner pass needs the `MangledFunctionName` attribute.
+      // Needed as the inliner pass needs the `MangledFunctionName` attribute to
+      // build the call graph.
       PM.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
     }
     PM.addPass(sycl::createInlinePass({sycl::InlineMode::Simple,
