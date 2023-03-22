@@ -139,16 +139,11 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
   // We take every function, even if it is not an entry point, because entry
   // points filtering should have happened at previous split level
   for (Function &F : M.functions()) {
-    llvm::outs() << "ESIMD splitter, looking at " << F.getName() << "\n";
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
       continue;
     if (isESIMDFunction(F)) {
-      llvm::outs() << "ESIMD splitter: adding " << F.getName()
-                   << " as ESIMD function\n";
       EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
     } else {
-      llvm::outs() << "ESIMD splitter: adding " << F.getName()
-                   << " as regular function\n";
       EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
     }
   }
@@ -262,7 +257,6 @@ public:
   using FunctionSet = SmallPtrSet<const Function *, 16>;
 
   DependencyGraph(const Module &M) {
-    llvm::outs() << "Building dependency graph\n";
     // Group functions by their signature to implement check (3)
     DenseMap<const FunctionType *, DependencyGraph::FunctionSet>
         FuncTypeToFuncMap;
@@ -306,17 +300,12 @@ private:
 
     SmallVector<const User *, 8> WorkList;
     WorkList.push_back(Root);
-    llvm::outs() << "Handling users of function " << F->getName() << "\n";
 
     while (!WorkList.empty()) {
       const User *U = WorkList.pop_back_val();
-      llvm::outs() << "User: \n";
-      U->dump();
       if (const auto *I = dyn_cast<const Instruction>(U)) {
         const auto *UFunc = I->getFunction();
         Graph[UFunc].insert(F);
-        llvm::outs() << "Adding " << UFunc->getName() << " -> " << F->getName()
-                     << " graph edge\n";
       } else if (isa<const Constant>(U)) {
         // This could be a global variable or some constant expression (like
         // bitcast or gep). We trace users of this constant further to reach
@@ -897,6 +886,11 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
 
   EntryPointGroupVec EntryPointGroups =
       groupEntryPointsByKernelType(MD, EmitOnlyKernelsAsEntryPoints);
+
+  if (EntryPointGroups.size() == 1) {
+    Result.emplace_back(std::move(MD));
+    return Result;
+  }
 
   DependencyGraph CG(MD.getModule());
   for (auto &Group : EntryPointGroups) {

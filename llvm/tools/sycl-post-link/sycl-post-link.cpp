@@ -74,7 +74,7 @@ namespace {
 #ifdef NDEBUG
 #define DUMP_ENTRY_POINTS(...)
 #else
-constexpr int DebugPostLink = 1;
+constexpr int DebugPostLink = 0;
 
 #define DUMP_ENTRY_POINTS(...)                                                 \
   if (DebugPostLink > 0) {                                                     \
