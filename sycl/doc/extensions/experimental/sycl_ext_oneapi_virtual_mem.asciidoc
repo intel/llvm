@@ -1,0 +1,330 @@
+= sycl_ext_oneapi_virtual_mem
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Backend support status
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_oneapi_virtual_mem`.  The application must check that the devices
+in the corresponding context have this aspect before using any of the APIs
+introduced in this extension.  If the application fails to do this, the
+implementation throws a synchronous exception with the
+`errc::feature_not_supported` error code.
+
+== Overview
+
+This extension adds the notion of "virtual memory ranges" to SYCL, introducing
+a way to map an address range onto multiple allocations of physical memory,
+allowing users to avoid expensive reallocations and potentially running out of
+device memory while relocating the corresponding memory.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_VIRTUAL_MEM` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Memory granularity
+
+Working with virtual address ranges and the underlying physical memory requires
+the user to align and adjust in accordance with a specified minimum granularity.
+In addition, devices can have a recommended granularity which may different from
+the minimum granularity and can be used instead of the minimum granularity.
+
+The interfaces for querying the these granularities are defined as:
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+size_t get_minimum_mem_granularity(size_t numBytes, const device &syclDevice, const context &syclContext);
+size_t get_minimum_mem_granularity(size_t numBytes, const queue &syclQueue);
+size_t get_minimum_mem_granularity(size_t numBytes, const physical_mem &syclPhysicalMem);
+
+size_t get_recommended_mem_granularity(size_t numBytes, const device &syclDevice, const context &syclContext);
+size_t get_recommended_mem_granularity(size_t numBytes, const queue &syclQueue);
+size_t get_recommended_mem_granularity(size_t numBytes, const physical_mem &syclPhysicalMem);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+[frame="topbot",options="header,footer"]
+|=====================
+|Function |Description
+
+|`size_t get_minimum_mem_granularity(size_t numBytes, const device &syclDevice, const context &syclContext)` |
+Returns the minimum granularity of physical and virtual memory allocations of
+byte size `numBytes`.
+
+If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
+an exception with `errc::feature_not_supported`.
+
+|`size_t get_minimum_mem_granularity(size_t numBytes, const queue &syclQueue)` |
+Same as `get_minimum_mem_granularity(numBytes, syclQueue.get_device(), syclQueue.get_context())`.
+
+|`size_t get_minimum_mem_granularity(size_t numBytes, const physical_mem &syclPhysicalMem)` |
+Same as `get_minimum_mem_granularity(numBytes, syclPhysicalMem.get_device(), syclPhysicalMem.get_context())`.
+
+|`size_t get_recommended_mem_granularity(size_t numBytes, const device &syclDevice, const context &syclContext)` |
+Returns the recommended granularity of physical and virtual memory allocations
+of byte size `numBytes`.
+
+If `syclDevice` does not have `aspect::ext_oneapi_virtual_mem` the call throws
+an exception with `errc::feature_not_supported`.
+
+|`size_t get_recommended_mem_granularity(size_t numBytes, const queue &syclQueue)` |
+Same as `get_recommended_mem_granularity(numBytes, syclQueue.get_device(), syclQueue.get_context())`.
+
+|`size_t get_recommended_mem_granularity(size_t numBytes, const physical_mem &syclPhysicalMem)` |
+Same as `get_recommended_mem_granularity(numBytes, syclPhysicalMem.get_device(), syclPhysicalMem.get_context())`.
+
+|=====================
+
+=== Reserving virtual address ranges
+
+Virtual address ranges are represented by a pointer and a number of bytes
+reserved for it. The pointer must be aligned in accordance with the minimum
+granularity, as queried through `get_minimum_mem_granularity`, and likewise the
+number of bytes must be a multiple of this granularity. It is the responsibility
+of the user to manage the constituents of any virtual address range they
+reserve.
+
+The interfaces for reserving, freeing, and manipulating the access mode of a
+virtual address range are defined as:
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+void *reserve_virtual_mem(const void *start, size_t numBytes, const context &syclContext);
+void *reserve_virtual_mem(size_t numBytes, const context &syclContext);
+
+void free_virtual_mem(const void* ptr, size_t numBytes, const context &syclContext);
+
+void set_access_mode(const void *ptr, size_t numBytes, access_mode mode, const context &syclContext);
+
+void set_inaccessible(const void *ptr, size_t numBytes, const context &syclContext);
+
+std::optional<access_mode> get_access_mode(const void *ptr, size_t numBytes, const context &syclContext);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+[frame="topbot",options="header,footer"]
+|=====================
+|Function |Description
+
+|`void *reserve_virtual_mem(const void *start, size_t numBytes, const context &syclContext)` |
+Reserves a virtual memory range in `syclContext` with `numBytes` bytes.
+
+`start` specifies the requested start of the new virtual memory range
+reservation. If the implementation is unable to reserve the virtual memory range
+at the specified address, the implementation will pick another suitable address.
+
+`start` must be aligned in accordance with the minimum granularity, as returned
+by a call to `get_minimum_mem_granularity`. Likewise, `numBytes` must be a
+multiple of the granularity. Attempting to call this function without meeting
+these requirements results in undefined behavior.
+
+If any of the devices in `syclContext` does not have
+`aspect::ext_oneapi_virtual_mem` the call throws an exception with
+`errc::feature_not_supported`.
+
+|`void *reserve_virtual_mem(size_t numBytes, const device &syclDevice, const context &syclContext)` |
+Same as `reserve_virtual_mem(nullptr, numBytes, syclDevice, syclContext)`.
+
+|`void free_virtual_mem(const void* ptr, size_t numBytes, const context &syclContext)` |
+Frees a virtual memory range specified by `ptr` and `numBytes`. `ptr` must be
+the same as returned by a call to `reserve_virtual_mem` and `numBytes` must be
+the same as the size of the range specified in the reservation call.
+
+|`void set_access_mode(const void *ptr, size_t numBytes, access_mode mode, const context &syclContext)` |
+Sets the access mode of a virtual memory range specified by `ptr` and
+`numBytes`. `mode` must either be `access_mode::read` or
+`access_mode::read_write`.
+
+Writing to any address in the virtual memory range with access mode set to
+`access_mode::read` results in undefined behavior.
+
+|`void set_inaccessible(const void *ptr, size_t numBytes, const context &syclContext)` |
+Sets a virtual memory range, specified by `ptr` and `numBytes`, as inaccessible.
+Accessing an address in an inaccessible virtual memory range results in
+undefined behavior.
+
+|`std::optional<access_mode> get_access_mode(const void *ptr, size_t numBytes, const context &syclContext)` |
+Returns the access mode of the virtual memory range specified by `ptr` and
+`numBytes`. If the virtual memory range is inaccessible `std::nullopt` is
+returned.
+
+|=====================
+
+
+=== Physical memory representation
+
+To represent the underlying physical device memory a virtual address is mapped,
+the `physical_mem` class is added. This new class is defined as:
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+class physical_mem {
+public:
+  physical_mem(const device &syclDevice, const context &syclContext, size_t numBytes);
+  physical_mem(const queue &syclQueue, size_t numBytes);
+
+  /* -- common interface members -- */
+
+  void map(const void *ptr, size_t numBytes, size_t offset) const;
+  void map(const void *ptr, size_t numBytes, size_t offset, access_mode mode) const;
+
+  context get_context() const;
+  device get_device() const;
+
+  size_t size() const noexcept;
+};
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+`physical_mem` has common reference semantics, as described in
+[section 4.5.2. Common reference semantics](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics).
+
+[frame="topbot",options="header,footer"]
+|============================
+|Member function |Description
+
+|`physical_mem(const device &syclDevice, const context &syclContext, size_t numBytes)` |
+Constructs a `physical_mem` instance using the `syclDevice` provided. This
+device must either be contained by syclContext or it must be a descendent device
+of some device that is contained by that context, otherwise this function throws
+a synchronous exception with the errc::invalid error code.
+
+This will allocate `numBytes` of physical memory on the device. `numBytes` must
+be a multiple of the minimum granularity, as returned by a call to
+`get_minimum_mem_granularity`
+
+|`physical_mem(const queue &syclQueue, size_t numBytes)` |
+Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context, numBytes)`.
+
+|`void map(const void *ptr, size_t numBytes, size_t offset)` |
+Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
+memory corresponding to the corresponding instance of `physical_mem`.
+
+The virtual memory range is inaccessible after this call and can be made
+accessible through a call to `set_access_mode`. Accessing an address in an
+inaccessible virtual memory range results in undefined behavior.
+
+|`void map(const void *ptr, size_t numBytes, size_t offset, access_mode mode)` |
+Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
+memory corresponding to the corresponding instance of `physical_mem`.
+
+After this call the virtual memory range is accessible on the corresponding
+device in the access mode specified by `mode`. `mode` must either be
+`access_mode::read` or `access_mode::read_write`.
+
+Writing to any address in the virtual memory range with access mode set to
+`access_mode::read` results in undefined behavior.
+
+|`context get_context() const` |
+Returns the SYCL context associated with the instance of `physical_mem`.
+
+|`device get_device() const` |
+Returns the SYCL device associated with the instance of `physical_mem`.
+
+|`size_t size() const` |
+Returns the size of the corresponding physical memory in bytes.
+
+|============================
+
+Virtual memory address ranges are mapped to the a `physical_mem` through the
+`map` member functions. However, to unmap the virtual memory range the user
+only needs to know the context associated with the `physical_mem` the address
+range was mapped to. As such, the corresponding `unmap` is a free function
+defined as:
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+void unmap(const void *ptr, size_t numBytes, const context &syclContext);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+[frame="topbot",options="header,footer"]
+|=====================
+|Function |Description
+
+|`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
+Unmaps the range specified by `ptr` and `numBytes`. The range must have been
+mapped through a call to `physical_mem::map()` prior to calling this. The range
+must not be a proper sub-range of a previously mapped range.
+
+After this call, the range will again be ready to be mapped through a call to
+`physical_mem::map()`.
+
+|=====================

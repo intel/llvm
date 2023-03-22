@@ -920,6 +920,28 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
   }
 }
 
+// Find a device ordinal of a device.
+static pi_result GetDeviceOrdinal(pi_device device, int &ordinal) {
+  // Get list of platforms
+  pi_uint32 num_platforms;
+  pi_result result = cuda_piPlatformsGet(0, nullptr, &num_platforms);
+  if (result != PI_SUCCESS)
+    return result;
+  assert(num_platforms);
+
+  std::vector<pi_platform> platforms{num_platforms};
+  result = cuda_piPlatformsGet(num_platforms, platforms.data(), nullptr);
+  if (result != PI_SUCCESS)
+    return result;
+
+  // Ordinal corresponds to the platform ID as each device has its own platform.
+  CUdevice native_device = device->get();
+  for (ordinal = 0; size_t(ordinal) < platforms.size(); ++ordinal)
+    if (platforms[ordinal]->devices_[0]->get() == native_device)
+      return PI_SUCCESS;
+  return PI_ERROR_INVALID_DEVICE;
+}
+
 pi_result cuda_piPlatformGetInfo(pi_platform platform,
                                  pi_platform_info param_name,
                                  size_t param_value_size, void *param_value,
@@ -2031,6 +2053,9 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    memory_bandwidth);
   }
+  case PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   pi_bool{true});
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
@@ -5608,6 +5633,229 @@ pi_result cuda_piextEnqueueWriteHostPipe(
   return {};
 }
 
+pi_result cuda_piextVirtualMemGranularityGetInfo(
+    pi_context context, pi_device device, size_t mem_size,
+    pi_virtual_mem_granularity_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret) {
+  // CUDA does not use the wanted memory size to determine granularity.
+  (void)mem_size;
+
+  assert(context != nullptr);
+  assert(device != nullptr);
+
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    switch (param_name) {
+    case PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM:
+    case PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED: {
+      CUmemAllocationGranularity_flags flags =
+          param_name == PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM
+              ? CU_MEM_ALLOC_GRANULARITY_MINIMUM
+              : CU_MEM_ALLOC_GRANULARITY_RECOMMENDED;
+      CUmemAllocationProp alloc_props;
+      alloc_props.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+      alloc_props.type = CU_MEM_ALLOCATION_TYPE_PINNED;
+      result = GetDeviceOrdinal(device, alloc_props.location.id);
+      if (result != PI_SUCCESS)
+        return result;
+
+      size_t granularity;
+      result = PI_CHECK_ERROR(
+          cuMemGetAllocationGranularity(&granularity, &alloc_props, flags));
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     granularity);
+    }
+    default:
+      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    }
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
+pi_result cuda_piextPhysicalMemCreate(pi_context context, pi_device device,
+                                      size_t mem_size,
+                                      pi_physical_mem *ret_physical_mem) {
+  assert(context != nullptr);
+  assert(device != nullptr);
+
+  pi_result result = PI_SUCCESS;
+  try {
+    CUmemAllocationProp alloc_props;
+    alloc_props.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+    alloc_props.type = CU_MEM_ALLOCATION_TYPE_PINNED;
+    result = GetDeviceOrdinal(device, alloc_props.location.id);
+    if (result != PI_SUCCESS)
+      return result;
+
+    CUmemGenericAllocationHandle res_handle;
+    PI_CHECK_ERROR(cuMemCreate(&res_handle, mem_size, &alloc_props, 0));
+    *ret_physical_mem = new _pi_physical_mem(res_handle);
+  } catch (pi_result error) {
+    result = error;
+  }
+
+  return result;
+}
+
+pi_result cuda_piextPhysicalMemRetain(pi_physical_mem physical_mem) {
+  assert(physical_mem != nullptr);
+  physical_mem->increment_reference_count();
+  return PI_SUCCESS;
+}
+
+pi_result cuda_piextPhysicalMemRelease(pi_context context,
+                                       pi_physical_mem physical_mem) {
+  assert(context != nullptr);
+  assert(physical_mem != nullptr);
+
+  if (physical_mem->decrement_reference_count() > 0)
+    return PI_SUCCESS;
+
+  try {
+    std::unique_ptr<_pi_physical_mem> physical_mem_up(physical_mem);
+
+    ScopedContext active(context);
+    PI_CHECK_ERROR(cuMemRelease(physical_mem->get()));
+    return PI_SUCCESS;
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_OUT_OF_RESOURCES;
+  }
+}
+
+pi_result cuda_piextVirtualMemReserve(pi_context context, const void *start,
+                                      size_t range_size, void **ret_ptr) {
+  assert(context != nullptr);
+  assert(ret_ptr != nullptr);
+
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    return PI_CHECK_ERROR(cuMemAddressReserve(
+        (CUdeviceptr *)ret_ptr, range_size, 0, (CUdeviceptr)start, 0));
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
+pi_result cuda_piextVirtualMemFree(pi_context context, const void *ptr,
+                                   size_t range_size) {
+  assert(context != nullptr);
+  assert(ptr != nullptr);
+
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    result = PI_CHECK_ERROR(cuMemAddressFree((CUdeviceptr)ptr, range_size));
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
+pi_result cuda_piextVirtualMemSetAccess(pi_context context, const void *ptr,
+                                        size_t range_size,
+                                        pi_virtual_access_flags flags) {
+  CUmemAccessDesc access_desc;
+  if (flags & PI_VIRTUAL_ACCESS_FLAG_RW)
+    access_desc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
+  else if (flags & PI_VIRTUAL_ACCESS_FLAG_READ_ONLY)
+    access_desc.flags = CU_MEM_ACCESS_FLAGS_PROT_READ;
+  access_desc.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+  // TODO: When contexts support multiple devices, we should create a descriptor
+  //       for each. We may also introduce a variant of this function with a
+  //       specific device.
+  pi_result result =
+      GetDeviceOrdinal(context->get_device(), access_desc.location.id);
+  if (result != PI_SUCCESS)
+    return result;
+
+  try {
+    ScopedContext active(context);
+    result = PI_CHECK_ERROR(
+        cuMemSetAccess((CUdeviceptr)ptr, range_size, &access_desc, 1));
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
+pi_result cuda_piextVirtualMemMap(pi_context context, const void *ptr,
+                                  size_t range_size,
+                                  pi_physical_mem physical_mem, size_t offset,
+                                  pi_virtual_access_flags flags) {
+  assert(context != nullptr);
+  assert(ptr != nullptr);
+  assert(physical_mem != nullptr);
+
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    result = PI_CHECK_ERROR(
+        cuMemMap((CUdeviceptr)ptr, range_size, offset, physical_mem->get(), 0));
+    if (flags)
+      result = cuda_piextVirtualMemSetAccess(context, ptr, range_size, flags);
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
+pi_result cuda_piextVirtualMemUnmap(pi_context context, const void *ptr,
+                                    size_t range_size) {
+  assert(context != nullptr);
+  assert(ptr != nullptr);
+
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    result = PI_CHECK_ERROR(cuMemUnmap((CUdeviceptr)ptr, range_size));
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
+pi_result cuda_piextVirtualMemAccessGetInfo(
+    pi_context context, const void *ptr, size_t range_size,
+    pi_virtual_mem_access_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret) {
+  std::ignore = range_size;
+
+  assert(context != nullptr);
+  assert(ptr != nullptr);
+
+  pi_result result = PI_SUCCESS;
+  try {
+    ScopedContext active(context);
+    switch (param_name) {
+    case PI_EXT_ONEAPI_VIRTUAL_MEM_ACCESS_INFO_ACCESS_MODE: {
+      CUmemLocation mem_loc;
+      mem_loc.type = CU_MEM_LOCATION_TYPE_DEVICE;
+      result = GetDeviceOrdinal(context->get_device(), mem_loc.id);
+      if (result != PI_SUCCESS)
+        return result;
+
+      unsigned long long access_flags;
+      result = PI_CHECK_ERROR(
+          cuMemGetAccess(&access_flags, &mem_loc, (CUdeviceptr)ptr));
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     access_flags);
+    }
+    default:
+      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    }
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
@@ -5793,6 +6041,18 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          cuda_piextEnqueueDeviceGlobalVariableWrite)
   _PI_CL(piextEnqueueDeviceGlobalVariableRead,
          cuda_piextEnqueueDeviceGlobalVariableRead)
+  // Virtual memory
+  _PI_CL(piextVirtualMemGranularityGetInfo,
+         cuda_piextVirtualMemGranularityGetInfo)
+  _PI_CL(piextPhysicalMemCreate, cuda_piextPhysicalMemCreate)
+  _PI_CL(piextPhysicalMemRetain, cuda_piextPhysicalMemRetain)
+  _PI_CL(piextPhysicalMemRelease, cuda_piextPhysicalMemRelease)
+  _PI_CL(piextVirtualMemReserve, cuda_piextVirtualMemReserve)
+  _PI_CL(piextVirtualMemFree, cuda_piextVirtualMemFree)
+  _PI_CL(piextVirtualMemMap, cuda_piextVirtualMemMap)
+  _PI_CL(piextVirtualMemUnmap, cuda_piextVirtualMemUnmap)
+  _PI_CL(piextVirtualMemSetAccess, cuda_piextVirtualMemSetAccess)
+  _PI_CL(piextVirtualMemAccessGetInfo, cuda_piextVirtualMemAccessGetInfo)
 
   // Host Pipe
   _PI_CL(piextEnqueueReadHostPipe, cuda_piextEnqueueReadHostPipe)

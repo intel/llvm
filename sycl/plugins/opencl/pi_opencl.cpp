@@ -619,6 +619,12 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
 
     return static_cast<pi_result>(CL_SUCCESS);
   }
+  case PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM: {
+    // Virtual memory is currently not supported in OpenCL.
+    cl_bool result = false;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -2038,6 +2044,201 @@ pi_result piextProgramSetSpecializationConstant(pi_program prog,
   return cast<pi_result>(Res);
 }
 
+/// API for getting information about the minimum and recommended granularity
+/// of physical and virtual memory.
+///
+/// \param context is the context to get the granularity from.
+/// \param device is the device to get the granularity from.
+/// \param mem_size is the potentially unadjusted size to get granularity for.
+/// \param param_name is the type of query to perform.
+/// \param param_value_size is the size of the result in bytes.
+/// \param param_value is the result.
+/// \param param_value_size_ret is how many bytes were written.
+pi_result piextVirtualMemGranularityGetInfo(
+    pi_context context, pi_device device, size_t mem_size,
+    pi_virtual_mem_granularity_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret) {
+  std::ignore = context;
+  std::ignore = device;
+  std::ignore = mem_size;
+  std::ignore = param_name;
+  std::ignore = param_value_size;
+  std::ignore = param_value;
+  std::ignore = param_value_size_ret;
+
+  // Virtual memory operations are currently not supported by PI OpenCL.
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// API for creating a physical memory handle that virtual memory can be mapped
+/// to.
+///
+/// \param context is the context within which the physical memory is allocated.
+/// \param device is the device the physical memory is on.
+/// \param mem_size is the size of physical memory to allocate. This must be a
+///        multiple of the minimum virtual memory granularity.
+/// \param ret_physical_mem is the handle for the resulting physical memory.
+pi_result piextPhysicalMemCreate(pi_context context, pi_device device,
+                                 size_t mem_size,
+                                 pi_physical_mem *ret_physical_mem) {
+  std::ignore = context;
+  std::ignore = device;
+  std::ignore = mem_size;
+  std::ignore = ret_physical_mem;
+
+  // Virtual memory operations are currently not supported by PI OpenCL.
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// API for releasing a physical memory handle.
+///
+/// \param context is the context within which the physical memory is allocated.
+/// \param physical_mem is the handle for the physical memory to free.
+pi_result piextPhysicalMemRelease(pi_context context,
+                                  pi_physical_mem physical_mem) {
+  std::ignore = context;
+  std::ignore = physical_mem;
+
+  // Virtual memory operations are currently not supported by PI OpenCL.
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// API for retaining a physical memory handle.
+///
+/// \param physical_mem is the handle for the physical memory to retain.
+pi_result piextPhysicalMemRetain(pi_physical_mem physical_mem) {
+  std::ignore = physical_mem;
+
+  // Virtual memory operations are currently not supported by PI OpenCL.
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// API for reserving a virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        reserved.
+/// \param start is a pointer to the start of the region to reserve. If nullptr
+///        the implementation selects a start address.
+/// \param range_size is the size of the virtual address range to reserve in
+///        bytes.
+/// \param ret_ptr is the pointer to the start of the resulting virtual memory
+///        range.
+pi_result piextVirtualMemReserve(pi_context context, const void *start,
+                                 size_t range_size, void **ret_ptr) {
+  std::ignore = context;
+  std::ignore = start;
+  std::ignore = range_size;
+  std::ignore = ret_ptr;
+
+  // Virtual memory operations are currently not supported by PI OpenCL.
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// API for freeing a virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        reserved.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range.
+pi_result piextVirtualMemFree(pi_context context, const void *ptr,
+                              size_t range_size) {
+  std::ignore = context;
+  std::ignore = ptr;
+  std::ignore = range_size;
+
+  // Virtual memory operations are currently not supported by PI OpenCL.
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// API for mapping a virtual memory range to a a physical memory allocation at
+/// a given offset.
+///
+/// \param context is the context within which both the virtual memory range is
+///        reserved and the physical memory is allocated.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range.
+/// \param physical_mem is the handle for the physical memory to map ptr to.
+/// \param offset is the offset into physical_mem in bytes to map ptr to.
+/// \param flags is the access flags to set for the mapping.
+pi_result piextVirtualMemMap(pi_context context, const void *ptr,
+                             size_t range_size, pi_physical_mem physical_mem,
+                             size_t offset, pi_virtual_access_flags flags) {
+  std::ignore = context;
+  std::ignore = ptr;
+  std::ignore = range_size;
+  std::ignore = physical_mem;
+  std::ignore = offset;
+  std::ignore = flags;
+
+  // Virtual memory operations are currently not supported by PI OpenCL.
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// API for unmapping a virtual memory range previously mapped in a context.
+/// After a call to this function, the virtual memory range is left in a state
+/// ready to be remapped.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+pi_result piextVirtualMemUnmap(pi_context context, const void *ptr,
+                               size_t range_size) {
+  std::ignore = context;
+  std::ignore = ptr;
+  std::ignore = range_size;
+
+  // Virtual memory operations are currently not supported by PI OpenCL.
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// API for setting the access mode of a mapped virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+/// \param flags is the access flags to set for the mapped virtual access range.
+pi_result piextVirtualMemSetAccess(pi_context context, const void *ptr,
+                                   size_t range_size,
+                                   pi_virtual_access_flags flags) {
+  std::ignore = context;
+  std::ignore = ptr;
+  std::ignore = range_size;
+  std::ignore = flags;
+
+  // Virtual memory operations are currently not supported by PI OpenCL.
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// API for getting info about a mapped virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+/// \param param_name is the type of query to perform.
+/// \param param_value_size is the size of the result in bytes.
+/// \param param_value is the result.
+/// \param param_value_size_ret is how many bytes were written.
+pi_result piextVirtualMemAccessGetInfo(pi_context context, const void *ptr,
+                                       size_t range_size,
+                                       pi_virtual_mem_access_info param_name,
+                                       size_t param_value_size,
+                                       void *param_value,
+                                       size_t *param_value_size_ret) {
+  std::ignore = context;
+  std::ignore = ptr;
+  std::ignore = range_size;
+  std::ignore = param_name;
+  std::ignore = param_value_size;
+  std::ignore = param_value;
+  std::ignore = param_value_size_ret;
+
+  // Virtual memory operations are currently not supported by PI OpenCL.
+  return PI_ERROR_INVALID_OPERATION;
+}
+
 /// Common API for getting the native handle of a PI object
 ///
 /// \param piObj is the pi object to get the native handle of
@@ -2277,6 +2478,17 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Host Pipe
   _PI_CL(piextEnqueueReadHostPipe, piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, piextEnqueueWriteHostPipe)
+  // Virtual memory
+  _PI_CL(piextVirtualMemGranularityGetInfo, piextVirtualMemGranularityGetInfo)
+  _PI_CL(piextPhysicalMemCreate, piextPhysicalMemCreate)
+  _PI_CL(piextPhysicalMemRetain, piextPhysicalMemRetain)
+  _PI_CL(piextPhysicalMemRelease, piextPhysicalMemRelease)
+  _PI_CL(piextVirtualMemReserve, piextVirtualMemReserve)
+  _PI_CL(piextVirtualMemFree, piextVirtualMemFree)
+  _PI_CL(piextVirtualMemMap, piextVirtualMemMap)
+  _PI_CL(piextVirtualMemUnmap, piextVirtualMemUnmap)
+  _PI_CL(piextVirtualMemSetAccess, piextVirtualMemSetAccess)
+  _PI_CL(piextVirtualMemAccessGetInfo, piextVirtualMemAccessGetInfo)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)

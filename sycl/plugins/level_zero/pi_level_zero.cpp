@@ -2147,6 +2147,12 @@ pi_result piDeviceRelease(pi_device Device) {
 pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                           size_t ParamValueSize, void *ParamValue,
                           size_t *ParamValueSizeRet) {
+  // TODO: This is a work-around for missing UR info query. Replace with propper
+  //       UR mapping when available.
+  if (ParamName == PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM) {
+    ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+    return ReturnValue(bool{true});
+  }
   return pi2ur::piDeviceGetInfo(Device, ParamName, ParamValueSize, ParamValue,
                                 ParamValueSizeRet);
 }
@@ -8083,6 +8089,253 @@ pi_result piextProgramSetSpecializationConstant(pi_program Prog,
   // SpecID.
   Prog->SpecConstants[SpecID] = SpecValue;
 
+  return PI_SUCCESS;
+}
+
+/// API for getting information about the minimum and recommended granularity
+/// of physical and virtual memory.
+///
+/// \param Context is the context to get the granularity from.
+/// \param Device is the device to get the granularity from.
+/// \param MemSize is the potentially unadjusted size to get granularity for.
+/// \param ParamName is the type of query to perform.
+/// \param ParamValueSize is the size of the result in bytes.
+/// \param ParamValue is the result.
+/// \param ParamValueSizeRet is how many bytes were written.
+pi_result piextVirtualMemGranularityGetInfo(
+    pi_context Context, pi_device Device, size_t MemSize,
+    pi_virtual_mem_granularity_info ParamName, size_t ParamValueSize,
+    void *ParamValue, size_t *ParamValueSizeRet) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  switch (ParamName) {
+  case PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM:
+  case PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED: {
+    // For L0 the minimum and recommended granularity is the same.
+    size_t PageSize;
+    ZE_CALL(zeVirtualMemQueryPageSize,
+            (Context->ZeContext, Device->ZeDevice, MemSize, &PageSize));
+    return ReturnValue(PageSize);
+  }
+  default:
+    urPrint("piextVirtualMemGranularityGetInfo: unsupported ParamName\n");
+    return PI_ERROR_INVALID_VALUE;
+  }
+  return PI_SUCCESS;
+}
+
+/// API for creating a physical memory handle that virtual memory can be mapped
+/// to.
+///
+/// \param Context is the context within which the physical memory is allocated.
+/// \param Device is the device the physical memory is on.
+/// \param MemSize is the size of physical memory to allocate. This must be a
+///        multiple of the minimum virtual memory granularity.
+/// \param RetPhysicalMem is the handle for the resulting physical memory.
+pi_result piextPhysicalMemCreate(pi_context Context, pi_device Device,
+                                 size_t MemSize,
+                                 pi_physical_mem *RetPhysicalMem) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+  PI_ASSERT(RetPhysicalMem, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(MemSize > 0, PI_ERROR_INVALID_VALUE);
+
+  ZeStruct<ze_physical_mem_desc_t> PhysicalMemDesc;
+  PhysicalMemDesc.flags = 0;
+  PhysicalMemDesc.size = MemSize;
+
+  ze_physical_mem_handle_t ZePhysicalMem;
+  ZE_CALL(zePhysicalMemCreate, (Context->ZeContext, Device->ZeDevice,
+                                &PhysicalMemDesc, &ZePhysicalMem));
+  try {
+    *RetPhysicalMem = new _pi_physical_mem(ZePhysicalMem);
+  } catch (const std::bad_alloc &) {
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return PI_SUCCESS;
+}
+
+/// API for retaining a physical memory handle.
+///
+/// \param PhysicalMem is the handle for the physical memory to retain.
+pi_result piextPhysicalMemRetain(pi_physical_mem PhysicalMem) {
+  PI_ASSERT(PhysicalMem, PI_ERROR_INVALID_VALUE);
+  PhysicalMem->RefCount.increment();
+  return PI_SUCCESS;
+}
+
+/// API for releasing a physical memory handle.
+///
+/// \param Context is the context within which the physical memory is allocated.
+/// \param PhysicalMem is the handle for the physical memory to free.
+pi_result piextPhysicalMemRelease(pi_context Context,
+                                  pi_physical_mem PhysicalMem) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(PhysicalMem, PI_ERROR_INVALID_VALUE);
+
+  if (!PhysicalMem->RefCount.decrementAndTest())
+    return PI_SUCCESS;
+
+  ZE_CALL(zePhysicalMemDestroy,
+          (Context->ZeContext, PhysicalMem->ZePhysicalMem));
+  delete PhysicalMem;
+
+  return PI_SUCCESS;
+}
+
+/// API for reserving a virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        reserved.
+/// \param Start is a pointer to the start of the region to reserve. If nullptr
+///        the implementation selects a start address.
+/// \param RangeSize is the size of the virtual address range to reserve in
+///        bytes.
+/// \param RetPtr is the pointer to the start of the resulting virtual memory
+///        range.
+pi_result piextVirtualMemReserve(pi_context Context, const void *Start,
+                                 size_t RangeSize, void **RetPtr) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(RangeSize, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(RetPtr, PI_ERROR_INVALID_VALUE);
+
+  ZE_CALL(zeVirtualMemReserve, (Context->ZeContext, Start, RangeSize, RetPtr));
+
+  return PI_SUCCESS;
+}
+
+/// API for freeing a virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        reserved.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range.
+pi_result piextVirtualMemFree(pi_context Context, const void *Ptr,
+                              size_t RangeSize) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Ptr, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(RangeSize, PI_ERROR_INVALID_VALUE);
+
+  ZE_CALL(zeVirtualMemFree, (Context->ZeContext, Ptr, RangeSize));
+
+  return PI_SUCCESS;
+}
+
+/// API for mapping a virtual memory range to a a physical memory allocation at
+/// a given offset.
+///
+/// \param Context is the context within which both the virtual memory range is
+///        reserved and the physical memory is allocated.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range.
+/// \param PhysicalMem is the handle for the physical memory to map Ptr to.
+/// \param Offset is the offset into PhysicalMem in bytes to map Ptr to.
+/// \param Flags is the access flags to set for the mapping.
+pi_result piextVirtualMemMap(pi_context Context, const void *Ptr,
+                             size_t RangeSize, pi_physical_mem PhysicalMem,
+                             size_t Offset, pi_virtual_access_flags Flags) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Ptr, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(RangeSize, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(PhysicalMem, PI_ERROR_INVALID_VALUE);
+
+  ze_memory_access_attribute_t AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_NONE;
+  if (Flags & PI_VIRTUAL_ACCESS_FLAG_RW)
+    AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READWRITE;
+  else if (Flags & PI_VIRTUAL_ACCESS_FLAG_READ_ONLY)
+    AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READONLY;
+
+  ZE_CALL(zeVirtualMemMap, (Context->ZeContext, Ptr, RangeSize,
+                            PhysicalMem->ZePhysicalMem, Offset, AccessAttr));
+
+  return PI_SUCCESS;
+}
+
+/// API for unmapping a virtual memory range previously mapped in a context.
+/// After a call to this function, the virtual memory range is left in a state
+/// ready to be remapped.
+///
+/// \param Context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range in bytes.
+pi_result piextVirtualMemUnmap(pi_context Context, const void *Ptr,
+                               size_t RangeSize) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Ptr, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(RangeSize, PI_ERROR_INVALID_VALUE);
+
+  ZE_CALL(zeVirtualMemUnmap, (Context->ZeContext, Ptr, RangeSize));
+
+  return PI_SUCCESS;
+}
+
+/// API for setting the access mode of a mapped virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range in bytes.
+/// \param Flags is the access flags to set for the mapped virtual access range.
+pi_result piextVirtualMemSetAccess(pi_context Context, const void *Ptr,
+                                   size_t RangeSize,
+                                   pi_virtual_access_flags Flags) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(Ptr, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(RangeSize, PI_ERROR_INVALID_VALUE);
+
+  ze_memory_access_attribute_t AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_NONE;
+  if (Flags & PI_VIRTUAL_ACCESS_FLAG_RW)
+    AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READWRITE;
+  else if (Flags & PI_VIRTUAL_ACCESS_FLAG_READ_ONLY)
+    AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READONLY;
+
+  ZE_CALL(zeVirtualMemSetAccessAttribute,
+          (Context->ZeContext, Ptr, RangeSize, AccessAttr));
+
+  return PI_SUCCESS;
+}
+
+/// API for getting info about a mapped virtual memory range.
+///
+/// \param Context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param Ptr is the pointer to the start of the virtual memory range.
+/// \param RangeSize is the size of the virtual address range in bytes.
+/// \param ParamName is the type of query to perform.
+/// \param ParamValueSize is the size of the result in bytes.
+/// \param ParamValue is the result.
+/// \param ParamValueSizeRet is how many bytes were written.
+pi_result piextVirtualMemAccessGetInfo(pi_context Context, const void *Ptr,
+                                       size_t RangeSize,
+                                       pi_virtual_mem_access_info ParamName,
+                                       size_t ParamValueSize, void *ParamValue,
+                                       size_t *ParamValueSizeRet) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+
+  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+  switch (ParamName) {
+  case PI_EXT_ONEAPI_VIRTUAL_MEM_ACCESS_INFO_ACCESS_MODE: {
+    size_t Size;
+    ze_memory_access_attribute_t Access;
+    ZE_CALL(zeVirtualMemGetAccessAttribute,
+            (Context->ZeContext, Ptr, RangeSize, &Access, &Size));
+    pi_virtual_access_flags RetFlags = 0;
+    if (Access & ZE_MEMORY_ACCESS_ATTRIBUTE_READWRITE)
+      RetFlags |= PI_VIRTUAL_ACCESS_FLAG_RW;
+    if (Access & ZE_MEMORY_ACCESS_ATTRIBUTE_READONLY)
+      RetFlags |= PI_VIRTUAL_ACCESS_FLAG_READ_ONLY;
+    return ReturnValue(Access);
+  }
+  default:
+    urPrint("piextVirtualMemAccessGetInfo: unsupported ParamName\n");
+    return PI_ERROR_INVALID_VALUE;
+  }
   return PI_SUCCESS;
 }
 

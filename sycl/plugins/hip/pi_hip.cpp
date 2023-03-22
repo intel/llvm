@@ -1931,6 +1931,9 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 #endif
     return PI_ERROR_INVALID_VALUE;
   }
+  case PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   pi_bool{false});
 
   // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_PCI_ADDRESS:
@@ -5427,6 +5430,125 @@ pi_result hip_piextEnqueueWriteHostPipe(
   return {};
 }
 
+pi_result hip_piextVirtualMemGranularityGetInfo(
+    pi_context context, pi_device device, size_t mem_size,
+    pi_virtual_mem_granularity_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret) {
+  std::ignore = context;
+  std::ignore = device;
+  std::ignore = mem_size;
+  std::ignore = param_name;
+  std::ignore = param_value_size;
+  std::ignore = param_value;
+  std::ignore = param_value_size_ret;
+
+  sycl::detail::pi::die(
+      "hip_piextVirtualMemGranularityGetInfo not implemented");
+  return {};
+}
+
+pi_result hip_piextPhysicalMemCreate(pi_context context, pi_device device,
+                                     size_t mem_size,
+                                     pi_physical_mem *ret_physical_mem) {
+  std::ignore = context;
+  std::ignore = device;
+  std::ignore = mem_size;
+  std::ignore = ret_physical_mem;
+
+  sycl::detail::pi::die("hip_piextPhysicalMemCreate not implemented");
+  return {};
+}
+
+pi_result hip_piextPhysicalMemRetain(pi_physical_mem physical_mem) {
+  std::ignore = physical_mem;
+
+  sycl::detail::pi::die("hip_piextPhysicalMemRetain not implemented");
+  return {};
+}
+
+pi_result hip_piextPhysicalMemRelease(pi_context context,
+                                      pi_physical_mem physical_mem) {
+  std::ignore = context;
+  std::ignore = physical_mem;
+
+  sycl::detail::pi::die("hip_piextPhysicalMemRelease not implemented");
+  return {};
+}
+
+pi_result hip_piextVirtualMemReserve(pi_context context, const void *start,
+                                     size_t range_size, void **ret_ptr) {
+  std::ignore = context;
+  std::ignore = start;
+  std::ignore = range_size;
+  std::ignore = ret_ptr;
+
+  sycl::detail::pi::die("hip_piextVirtualMemReserve not implemented");
+  return {};
+}
+
+pi_result hip_piextVirtualMemFree(pi_context context, const void *ptr,
+                                  size_t range_size) {
+  std::ignore = context;
+  std::ignore = ptr;
+  std::ignore = range_size;
+
+  sycl::detail::pi::die("hip_piextVirtualMemFree not implemented");
+  return {};
+}
+
+pi_result hip_piextVirtualMemMap(pi_context context, const void *ptr,
+                                 size_t range_size,
+                                 pi_physical_mem physical_mem, size_t offset,
+                                 pi_virtual_access_flags flags) {
+  std::ignore = context;
+  std::ignore = ptr;
+  std::ignore = range_size;
+  std::ignore = physical_mem;
+  std::ignore = offset;
+  std::ignore = flags;
+
+  sycl::detail::pi::die("hip_piextVirtualMemMap not implemented");
+  return {};
+}
+
+pi_result hip_piextVirtualMemUnmap(pi_context context, const void *ptr,
+                                   size_t range_size) {
+  std::ignore = context;
+  std::ignore = ptr;
+  std::ignore = range_size;
+
+  sycl::detail::pi::die("hip_piextVirtualMemUnmap not implemented");
+  return {};
+}
+
+pi_result hip_piextVirtualMemSetAccess(pi_context context, const void *ptr,
+                                       size_t range_size,
+                                       pi_virtual_access_flags flags) {
+  std::ignore = context;
+  std::ignore = ptr;
+  std::ignore = range_size;
+  std::ignore = flags;
+
+  sycl::detail::pi::die("hip_piextVirtualMemSetAccess not implemented");
+  return {};
+}
+
+pi_result hip_piextVirtualMemAccessGetInfo(
+    pi_context context, const void *ptr, size_t range_size,
+    pi_virtual_mem_access_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret) {
+  std::ignore = context;
+  std::ignore = ptr;
+  std::ignore = range_size;
+  std::ignore = param_name;
+  std::ignore = param_value_size;
+  std::ignore = param_value;
+  std::ignore = param_value_size_ret;
+
+  sycl::detail::pi::die("hip_piextVirtualMemAccessGetInfo not implemented");
+  return {};
+}
+
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
@@ -5612,6 +5734,18 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          hip_piextEnqueueDeviceGlobalVariableWrite)
   _PI_CL(piextEnqueueDeviceGlobalVariableRead,
          hip_piextEnqueueDeviceGlobalVariableRead)
+  // Virtual memory
+  _PI_CL(piextVirtualMemGranularityGetInfo,
+         hip_piextVirtualMemGranularityGetInfo)
+  _PI_CL(piextPhysicalMemCreate, hip_piextPhysicalMemCreate)
+  _PI_CL(piextPhysicalMemRetain, hip_piextPhysicalMemRetain)
+  _PI_CL(piextPhysicalMemRelease, hip_piextPhysicalMemRelease)
+  _PI_CL(piextVirtualMemReserve, hip_piextVirtualMemReserve)
+  _PI_CL(piextVirtualMemFree, hip_piextVirtualMemFree)
+  _PI_CL(piextVirtualMemMap, hip_piextVirtualMemMap)
+  _PI_CL(piextVirtualMemUnmap, hip_piextVirtualMemUnmap)
+  _PI_CL(piextVirtualMemSetAccess, hip_piextVirtualMemSetAccess)
+  _PI_CL(piextVirtualMemAccessGetInfo, hip_piextVirtualMemAccessGetInfo)
 
   // Host Pipe
   _PI_CL(piextEnqueueReadHostPipe, hip_piextEnqueueReadHostPipe)

@@ -50,3 +50,7 @@ struct ur_sampler_handle_t_ : public _ur_sampler_handle_t {
 struct ur_mem_handle_t_ : public _ur_mem_handle_t {
   using _ur_mem_handle_t::_ur_mem_handle_t;
 };
+
+struct ur_physical_mem_handle_t_ : public _ur_physical_mem_handle_t {
+  using _ur_physical_mem_handle_t::_ur_physical_mem_handle_t;
+};

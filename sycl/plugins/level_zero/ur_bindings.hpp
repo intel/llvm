@@ -47,3 +47,7 @@ struct ur_sampler_handle_t_ : public _pi_sampler {
 struct ur_mem_handle_t_ : public _pi_mem {
   using _pi_mem::_pi_mem;
 };
+
+struct ur_physical_mem_handle_t_ : public _pi_physical_mem {
+  using _pi_physical_mem::_pi_physical_mem;
+};

@@ -155,4 +155,16 @@ _PI_API(piGetDeviceAndHostTimer)
 _PI_API(piextEnqueueDeviceGlobalVariableWrite)
 _PI_API(piextEnqueueDeviceGlobalVariableRead)
 
+// Virtual memory
+_PI_API(piextVirtualMemGranularityGetInfo)
+_PI_API(piextPhysicalMemCreate)
+_PI_API(piextPhysicalMemRetain)
+_PI_API(piextPhysicalMemRelease)
+_PI_API(piextVirtualMemReserve)
+_PI_API(piextVirtualMemFree)
+_PI_API(piextVirtualMemMap)
+_PI_API(piextVirtualMemUnmap)
+_PI_API(piextVirtualMemSetAccess)
+_PI_API(piextVirtualMemAccessGetInfo)
+
 #undef _PI_API

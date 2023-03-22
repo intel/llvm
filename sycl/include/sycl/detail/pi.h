@@ -83,9 +83,13 @@
 // 12.25 Added PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES and
 // PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES for piDeviceGetInfo.
 // 12.26 Added piextEnqueueReadHostPipe and piextEnqueueWriteHostPipe functions.
+// 12.27 Added piextVirtualMem* functions, and piextPhysicalMem* functions,
+// PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM device info descriptor,
+// _pi_virtual_mem_granularity_info enum, _pi_virtual_mem_access_info enum and
+// pi_virtual_access_flags bit flags.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 26
+#define _PI_H_VERSION_MINOR 27
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -331,6 +335,7 @@ typedef enum {
   PI_EXT_CODEPLAY_DEVICE_INFO_SUPPORTS_FUSION = 0x20005,
   PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 0x20006,
   PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 0x20007,
+  PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM = 0x20008,
 } _pi_device_info;
 
 typedef enum {
@@ -544,6 +549,15 @@ typedef enum {
   PI_SAMPLER_FILTER_MODE_LINEAR = 0x1141,
 } _pi_sampler_filter_mode;
 
+typedef enum {
+  PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM = 0x30100,
+  PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED = 0x30101,
+} _pi_virtual_mem_granularity_info;
+
+typedef enum {
+  PI_EXT_ONEAPI_VIRTUAL_MEM_ACCESS_INFO_ACCESS_MODE = 0x30200,
+} _pi_virtual_mem_access_info;
+
 using pi_context_properties = intptr_t;
 
 using pi_device_exec_capabilities = pi_bitfield;
@@ -631,6 +645,10 @@ constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
 // clang-format on
 
+using pi_virtual_access_flags = pi_bitfield;
+constexpr pi_virtual_access_flags PI_VIRTUAL_ACCESS_FLAG_RW = (1 << 0);
+constexpr pi_virtual_access_flags PI_VIRTUAL_ACCESS_FLAG_READ_ONLY = (1 << 2);
+
 typedef enum {
   // No preference for SLM or data cache.
   PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT = 0x0,
@@ -670,6 +688,8 @@ using pi_program_binary_type = _pi_program_binary_type;
 using pi_kernel_info = _pi_kernel_info;
 using pi_profiling_info = _pi_profiling_info;
 using pi_kernel_cache_config = _pi_kernel_cache_config;
+using pi_virtual_mem_granularity_info = _pi_virtual_mem_granularity_info;
+using pi_virtual_mem_access_info = _pi_virtual_mem_access_info;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_partition_property = intptr_t;
@@ -964,6 +984,7 @@ struct _pi_program;
 struct _pi_kernel;
 struct _pi_event;
 struct _pi_sampler;
+struct _pi_physical_mem;
 
 using pi_platform = _pi_platform *;
 using pi_device = _pi_device *;
@@ -974,6 +995,7 @@ using pi_program = _pi_program *;
 using pi_kernel = _pi_kernel *;
 using pi_event = _pi_event *;
 using pi_sampler = _pi_sampler *;
+using pi_physical_mem = _pi_physical_mem *;
 
 typedef struct {
   pi_image_channel_order image_channel_order;
@@ -1946,6 +1968,124 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
     pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
     size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
+
+///
+/// Virtual memory
+///
+
+/// API for getting information about the minimum and recommended granularity
+/// of physical and virtual memory.
+///
+/// \param context is the context to get the granularity from.
+/// \param device is the device to get the granularity from.
+/// \param mem_size is the potentially unadjusted size to get granularity for.
+/// \param param_name is the type of query to perform.
+/// \param param_value_size is the size of the result in bytes.
+/// \param param_value is the result.
+/// \param param_value_size_ret is how many bytes were written.
+pi_result piextVirtualMemGranularityGetInfo(
+    pi_context context, pi_device device, size_t mem_size,
+    pi_virtual_mem_granularity_info param_name, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret);
+
+/// API for creating a physical memory handle that virtual memory can be mapped
+/// to.
+///
+/// \param context is the context within which the physical memory is allocated.
+/// \param device is the device the physical memory is on.
+/// \param mem_size is the size of physical memory to allocate. This must be a
+///        multiple of the minimum virtual memory granularity.
+/// \param ret_physical_mem is the handle for the resulting physical memory.
+pi_result piextPhysicalMemCreate(pi_context context, pi_device device,
+                                 size_t mem_size,
+                                 pi_physical_mem *ret_physical_mem);
+
+/// API for retaining a physical memory handle.
+///
+/// \param physical_mem is the handle for the physical memory to retain.
+pi_result piextPhysicalMemRetain(pi_physical_mem physical_mem);
+
+/// API for releasing a physical memory handle.
+///
+/// \param context is the context within which the physical memory is allocated.
+/// \param physical_mem is the handle for the physical memory to free.
+pi_result piextPhysicalMemRelease(pi_context context,
+                                  pi_physical_mem physical_mem);
+
+/// API for reserving a virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        reserved.
+/// \param start is a pointer to the start of the region to reserve. If nullptr
+///        the implementation selects a start address.
+/// \param range_size is the size of the virtual address range to reserve in
+///        bytes.
+/// \param ret_ptr is the pointer to the start of the resulting virtual memory
+///        range.
+pi_result piextVirtualMemReserve(pi_context context, const void *start,
+                                 size_t range_size, void **ret_ptr);
+
+/// API for freeing a virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        reserved.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range.
+pi_result piextVirtualMemFree(pi_context context, const void *ptr,
+                              size_t range_size);
+
+/// API for mapping a virtual memory range to a a physical memory allocation at
+/// a given offset.
+///
+/// \param context is the context within which both the virtual memory range is
+///        reserved and the physical memory is allocated.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range.
+/// \param physical_mem is the handle for the physical memory to map ptr to.
+/// \param offset is the offset into physical_mem in bytes to map ptr to.
+/// \param flags is the access flags to set for the mapping.
+pi_result piextVirtualMemMap(pi_context context, const void *ptr,
+                             size_t range_size, pi_physical_mem physical_mem,
+                             size_t offset, pi_virtual_access_flags flags);
+
+/// API for unmapping a virtual memory range previously mapped in a context.
+/// After a call to this function, the virtual memory range is left in a state
+/// ready to be remapped.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+pi_result piextVirtualMemUnmap(pi_context context, const void *ptr,
+                               size_t range_size);
+
+/// API for setting the access mode of a mapped virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+/// \param flags is the access flags to set for the mapped virtual access range.
+pi_result piextVirtualMemSetAccess(pi_context context, const void *ptr,
+                                   size_t range_size,
+                                   pi_virtual_access_flags flags);
+
+/// API for getting info about a mapped virtual memory range.
+///
+/// \param context is the context within which the virtual memory range is
+///        currently mapped.
+/// \param ptr is the pointer to the start of the virtual memory range.
+/// \param range_size is the size of the virtual address range in bytes.
+/// \param param_name is the type of query to perform.
+/// \param param_value_size is the size of the result in bytes.
+/// \param param_value is the result.
+/// \param param_value_size_ret is how many bytes were written.
+pi_result piextVirtualMemAccessGetInfo(pi_context context, const void *ptr,
+                                       size_t range_size,
+                                       pi_virtual_mem_access_info param_name,
+                                       size_t param_value_size,
+                                       void *param_value,
+                                       size_t *param_value_size_ret);
 
 ///
 /// Plugin

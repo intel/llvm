@@ -1355,4 +1355,12 @@ struct _pi_sampler : _pi_object {
   ze_sampler_handle_t ZeSampler;
 };
 
+struct _pi_physical_mem : _pi_object {
+  _pi_physical_mem(ze_physical_mem_handle_t ZePhysicalMem)
+      : ZePhysicalMem{ZePhysicalMem} {}
+
+  // Level Zero physical memory handle.
+  ze_physical_mem_handle_t ZePhysicalMem;
+};
+
 #endif // PI_LEVEL_ZERO_HPP

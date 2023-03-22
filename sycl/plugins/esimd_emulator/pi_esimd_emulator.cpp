@@ -789,6 +789,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_int32{1});
   case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
     return ReturnValue(pi_uint32{1}); // Minimum required by SYCL 2020 spec
+  case PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM:
+    return ReturnValue(pi_bool{false});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
@@ -2063,6 +2065,53 @@ pi_result piextEnqueueDeviceGlobalVariableRead(pi_queue, pi_program,
                                                const char *, pi_bool, size_t,
                                                size_t, void *, pi_uint32,
                                                const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextVirtualMemGranularityGetInfo(pi_context, pi_device, size_t,
+                                            pi_virtual_mem_granularity_info,
+                                            size_t, void *, size_t *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextPhysicalMemCreate(pi_context, pi_device, size_t,
+                                 pi_physical_mem *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextPhysicalMemRetain(pi_context, pi_physical_mem) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextPhysicalMemRelease(pi_context, pi_physical_mem) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextVirtualMemReserve(pi_context, const void *, size_t, void **) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextVirtualMemFree(pi_context, const void *, size_t) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextVirtualMemMap(pi_context, const void *, size_t, pi_physical_mem,
+                             size_t, pi_virtual_access_flags) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextVirtualMemUnmap(pi_context, const void *, size_t) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextVirtualMemSetAccess(pi_context, const void *, size_t,
+                                   pi_virtual_access_flags) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextVirtualMemAccessGetInfo(pi_context, const void *, size_t,
+                                       pi_virtual_mem_access_info, size_t,
+                                       void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }
 

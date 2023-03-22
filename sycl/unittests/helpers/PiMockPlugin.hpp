@@ -1110,6 +1110,62 @@ inline pi_result mock_piextEnqueueDeviceGlobalVariableRead(
   return PI_SUCCESS;
 }
 
+inline pi_result
+mock_piextVirtualMemGranularityGetInfo(pi_context, pi_device, size_t,
+                                       pi_virtual_mem_granularity_info, size_t,
+                                       void *, size_t *) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextPhysicalMemCreate(pi_context, pi_device, size_t,
+                            pi_physical_mem *ret_physical_mem) {
+  *ret_physical_mem = createDummyHandle<pi_physical_mem>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextPhysicalMemRetain(pi_physical_mem) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextPhysicalMemRelease(pi_context, pi_physical_mem) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemReserve(pi_context, const void *start,
+                                             size_t range_size,
+                                             void **ret_ptr) {
+  *ret_ptr =
+      start ? const_cast<void *>(start) : createDummyHandle<void *>(range_size);
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemFree(pi_context, const void *, size_t) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemMap(pi_context, const void *, size_t,
+                                         pi_physical_mem, size_t,
+                                         pi_virtual_access_flags) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemUnmap(pi_context, const void *, size_t) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemSetAccess(pi_context, const void *, size_t,
+                                               pi_virtual_access_flags) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextVirtualMemAccessGetInfo(pi_context, const void *,
+                                                   size_t,
+                                                   pi_virtual_mem_access_info,
+                                                   size_t, void *, size_t *) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
                                                void **opaque_data_return) {
   return PI_SUCCESS;
