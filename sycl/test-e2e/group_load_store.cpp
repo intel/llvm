@@ -389,7 +389,7 @@ struct VecStripedWGTest {
 
     bool success = true;
     for (int i = 0; i < VEC_SIZE; ++i) {
-      int striped_idx = ndi.get_local_id(0) + i * wg_size;
+      int striped_idx = lid + i * wg_size;
       auto expected = ndi.get_group(0) * wg_size + VEC_SIZE * 2 +
                       striped_idx / VEC_SIZE - striped_idx % VEC_SIZE;
       success &= (out[i] == expected);
@@ -564,7 +564,7 @@ struct SpanStripedWGTest {
 
     bool success = true;
     for (int i = 0; i < SPAN_SIZE; ++i) {
-      int striped_idx = ndi.get_local_id(0) + i * wg_size;
+      int striped_idx = lid + i * wg_size;
       success &=
           (out[i] == ndi.get_group(0) * wg_size + SPAN_SIZE * 2 +
                          striped_idx / SPAN_SIZE - striped_idx % SPAN_SIZE);
