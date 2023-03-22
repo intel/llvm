@@ -241,7 +241,7 @@ void group_store(Group g, const InputT &in, OutputIteratorT out_ptr,
       size == 1 || size == 2 || size == 4 || size == 8;
   constexpr bool unsupported = !supported_size;
 
-  detail::dispatch<4 /* read align in bytes */, 1 /* scalar */, unsupported>(
+  detail::dispatch<16 /* write align in bytes */, 1 /* scalar */, unsupported>(
       g, out_ptr, [&]() { out_ptr[g.get_local_linear_id()] = in; },
       [&](auto g, auto unwrapped_ptr) {
         group_store(g, in, unwrapped_ptr, properties);
