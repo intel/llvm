@@ -6,7 +6,7 @@
 ; __devicelib_assert_fail, then all kernels in the module are conservatively
 ; marked as using asserts.
 
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
+; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

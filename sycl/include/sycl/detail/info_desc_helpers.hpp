@@ -113,6 +113,7 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
       : std::true_type {                                                       \
     using return_type = Namespace::info::DescType::Desc::return_type;          \
   };
+#include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC

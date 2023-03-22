@@ -425,10 +425,9 @@ public:
         getSyclObjImpl(DeviceImage)
             ->set_specialization_constant_raw_value(SpecName, Value);
     else {
-      const auto *DataPtr = static_cast<const unsigned char *>(Value);
       std::vector<unsigned char> &Val = MSpecConstValues[std::string{SpecName}];
       Val.resize(Size);
-      Val.insert(Val.begin(), DataPtr, DataPtr + Size);
+      std::memcpy(Val.data(), Value, Size);
     }
   }
 

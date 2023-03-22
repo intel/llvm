@@ -481,7 +481,10 @@ public:
   /// \param Count is the number of times to fill Pattern into Ptr.
   /// \return an event representing fill operation.
   template <typename T> event fill(void *Ptr, const T &Pattern, size_t Count) {
-    return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); });
+    // TODO: to add code location as parameter when ABI break is permitted
+    const detail::code_location CodeLoc("sycl/queue.hpp", "fill", 0, 0);
+    return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); },
+                  CodeLoc);
   }
 
   /// Fills the specified memory with the specified pattern.
@@ -708,7 +711,9 @@ public:
   /// \param Count is a number of bytes to be prefetched.
   /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count) {
-    return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
+    // TODO: to add code location as parameter when ABI break is permitted
+    const detail::code_location CodeLoc("sycl/queue.hpp", "prefetch", 0, 0);
+    return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); }, CodeLoc);
   }
 
   /// Provides hints to the runtime library that data should be made available
