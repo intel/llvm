@@ -149,8 +149,6 @@ void test_ptr_dispatch(size_t wg_size) {
           usm_mem[lid] = init;
           local_mem[lid] = init;
 
-          group_barrier(ndi.get_group());
-
           auto Check = [&](auto Input, int l = __builtin_LINE())
               __attribute__((always_inline)) {
             marker(l);
@@ -285,8 +283,6 @@ struct ScalarWGTest {
   KERNEL_OP {
     global_mem[lid] = gid;
 
-    group_barrier(g);
-
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}ScalarWGTest
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
 
@@ -310,8 +306,6 @@ struct ScalarSGTest {
   static constexpr Scope Scope = SG;
   KERNEL_OP {
     global_mem[sg_lid] = gid;
-
-    group_barrier(g);
 
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}ScalarSGTest
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
@@ -339,8 +333,6 @@ struct VecBlockedWGTest {
 
     for (int i = 0; i < VEC_SIZE; ++i)
       global_mem[lid * VEC_SIZE + i] = gid + VEC_SIZE * 2 - i;
-
-    group_barrier(g);
 
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}VecBlockedWGTest
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
@@ -401,8 +393,6 @@ struct VecStripedWGTest {
     // val = group_start + idx / VEC_SIZE - idx % VEC_SIZE
     // clang-format on
 
-    group_barrier(g);
-
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}VecStripedWGTest
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
     vec<int, VEC_SIZE> out;
@@ -427,7 +417,6 @@ struct VecStripedWGTest {
     group_store(g, out, global_mem, properties(data_placement<striped>));
     // CHECK-NOT: BlockWrite
 
-    group_barrier(g);
     success = true;
     sycl::detail::dim_loop<VEC_SIZE>([&](size_t i) {
       success &= (global_mem[lid * VEC_SIZE + i] == gid + VEC_SIZE * 2 - i + 1);
@@ -445,8 +434,6 @@ struct VecBlockedSGTest {
 
     for (int i = 0; i < VEC_SIZE; ++i)
       global_mem[sg_lid * VEC_SIZE + i] = gid + VEC_SIZE * 2 - i;
-
-    group_barrier(g);
 
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}VecBlockedSGTest
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
@@ -498,8 +485,6 @@ struct VecStripedSGTest {
     // val = group_start + idx / VEC_SIZE - idx % VEC_SIZE
     // clang-format on
 
-    group_barrier(g);
-
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}VecStripedSGTest
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
 
@@ -534,8 +519,6 @@ struct SpanBlockedWGTest {
 
     for (int i = 0; i < SPAN_SIZE; ++i)
       global_mem[lid * SPAN_SIZE + i] = gid + SPAN_SIZE * 2 - i;
-
-    group_barrier(g);
 
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}SpanBlockedWGTest
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
@@ -589,8 +572,6 @@ struct SpanStripedWGTest {
     // val = group_start + idx / SPAN_SIZE - idx % SPAN_SIZE
     // clang-format on
 
-    group_barrier(g);
-
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}SpanStripedWGTest
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
 
@@ -620,8 +601,6 @@ struct SpanBlockedSGTest {
 
     for (int i = 0; i < SPAN_SIZE; ++i)
       global_mem[sg_lid * SPAN_SIZE + i] = gid + SPAN_SIZE * 2 - i;
-
-    group_barrier(g);
 
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}SpanBlockedSGTest
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
@@ -675,8 +654,6 @@ struct SpanStripedSGTest {
     // idx = group_local_id + vec_idx * G_SIZE
     // val = group_start + idx / SPAN_SIZE - idx % SPAN_SIZE
     // clang-format on
-
-    group_barrier(g);
 
     // CHECK-LABEL: define weak_odr dso_local spir_kernel void @{{.*}}Kernel{{.*}}SpanStripedSGTest
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]

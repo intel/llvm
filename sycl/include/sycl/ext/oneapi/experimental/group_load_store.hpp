@@ -135,17 +135,22 @@ void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
 #ifdef __SYCL_DEVICE_ONLY__
   using value_type = std::iterator_traits<IteratorT>::value_type;
   using iter_no_cv = std::remove_cv_t<IteratorT>;
+  auto generic_with_barrier = [&]() {
+    group_barrier(group);
+    generic();
+    group_barrier(group);
+  };
   if constexpr (!detail::is_spir || unsupported) {
-    return generic();
+    return generic_with_barrier();
   } else if constexpr (detail::is_multi_ptr_v<IteratorT>) {
     return delegate(group, iter.get_decorated());
   } else if constexpr (!std::is_pointer_v<iter_no_cv>) {
-    return generic();
+    return generic_with_barrier();
   } else {
     // Pointer.
     if constexpr (alignof(value_type) < required_align) {
       if ((reinterpret_cast<uintptr_t>(iter) % required_align) != 0) {
-        return generic();
+        return generic_with_barrier();
       }
     }
 
@@ -153,7 +158,7 @@ void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
     if constexpr (std::is_same_v<GroupTy, sub_group>) {
       if (group.get_local_range() != group.get_max_local_range())
         // Sub-group is not "full".
-        return generic();
+        return generic_with_barrier();
 
       constexpr auto AS = sycl::detail::deduce_AS<iter_no_cv>::value;
       if constexpr (AS == access::address_space::global_space) {
@@ -165,9 +170,9 @@ void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
                 remove_decoration_t<value_type>>(iter))
           return delegate(group, global_ptr);
         else
-          return generic();
+          return generic_with_barrier();
       } else {
-        return generic();
+        return generic_with_barrier();
       }
     } else {
       // TODO: Use get_child_group from
@@ -183,11 +188,14 @@ void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
       if (wg_size % simd_width != 0) {
         // TODO: Mapping to sub_group is implementation-defined,
         // no generic implementation is possible.
-        return generic();
+        return generic_with_barrier();
       } else {
-        return delegate(sg, iter + sg.get_group_id() *
+        group_barrier(group);
+        delegate(sg, iter + sg.get_group_id() *
                                        sg.get_max_local_range() *
                                        sg_offset_per_wi);
+        group_barrier(group);
+        return;
       }
     }
   }
@@ -362,7 +370,9 @@ void group_store(Group g, const sycl::vec<InputT, N> &in,
     });
   };
 
-  return generic();
+  group_barrier(g);
+  generic();
+  group_barrier(g);
 }
 
 // Load API sycl::span overload
@@ -383,7 +393,9 @@ void group_load(GroupHelper gh, InputIteratorT in_ptr,
     });
   };
 
-  return generic();
+  group_barrier(gh);
+  generic();
+  group_barrier(gh);
 }
 
 // Store API sycl::span overload
@@ -403,7 +415,9 @@ void group_store(GroupHelper gh,
     });
   };
 
-  return generic();
+  group_barrier(gh);
+  generic();
+  group_barrier(gh);
 }
 } // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
