@@ -260,29 +260,34 @@ parseSYCLPropertiesString(Module &M, IntrinsicInst *IntrInst) {
   SmallVector<std::pair<std::optional<StringRef>, std::optional<StringRef>>, 8>
       result;
 
-  if (const auto *Cast =
-          dyn_cast<BitCastOperator>(IntrInst->getArgOperand(4))) {
-    if (const auto *AnnotValsGV =
-            dyn_cast<GlobalVariable>(Cast->getOperand(0))) {
-      if (const auto *AnnotValsAggr =
-              dyn_cast<ConstantAggregate>(AnnotValsGV->getInitializer())) {
-        assert(
-            (AnnotValsAggr->getNumOperands() & 1) == 0 &&
-            "sycl-properties annotation must have an even number of annotation "
-            "values.");
+  auto AnnotValsIntrOpd = IntrInst->getArgOperand(4);
+  const GlobalVariable *AnnotValsGV = nullptr;
+  if (AnnotValsIntrOpd->getType()->isOpaquePointerTy())
+    AnnotValsGV = dyn_cast<GlobalVariable>(AnnotValsIntrOpd);
+  else {
+    if (const auto *Cast = dyn_cast<BitCastOperator>(AnnotValsIntrOpd)) {
+      AnnotValsGV = dyn_cast<GlobalVariable>(Cast->getOperand(0));
+    }
+  }
+  if (AnnotValsGV) {
+    if (const auto *AnnotValsAggr =
+            dyn_cast<ConstantAggregate>(AnnotValsGV->getInitializer())) {
+      assert(
+          (AnnotValsAggr->getNumOperands() & 1) == 0 &&
+          "sycl-properties annotation must have an even number of annotation "
+          "values.");
 
-        // Iterate over the pairs of property meta-names and meta-values.
-        for (size_t I = 0; I < AnnotValsAggr->getNumOperands(); I += 2) {
-          std::optional<StringRef> PropMetaName =
-              getGlobalVariableString(AnnotValsAggr->getOperand(I));
-          std::optional<StringRef> PropMetaValue =
-              getGlobalVariableString(AnnotValsAggr->getOperand(I + 1));
+      // Iterate over the pairs of property meta-names and meta-values.
+      for (size_t I = 0; I < AnnotValsAggr->getNumOperands(); I += 2) {
+        std::optional<StringRef> PropMetaName =
+            getGlobalVariableString(AnnotValsAggr->getOperand(I));
+        std::optional<StringRef> PropMetaValue =
+            getGlobalVariableString(AnnotValsAggr->getOperand(I + 1));
 
-          assert(PropMetaName &&
-                 "Unexpected format for property name in annotation.");
+        assert(PropMetaName &&
+               "Unexpected format for property name in annotation.");
 
-          result.push_back(std::make_pair(PropMetaName, PropMetaValue));
-        }
+        result.push_back(std::make_pair(PropMetaName, PropMetaValue));
       }
     }
   }
@@ -514,9 +519,14 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
   const Value *IntrAnnotStringArg = IntrInst->getArgOperand(1);
-  if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
-    if (auto *C = dyn_cast<Constant>(GEP->getOperand(0)))
+  if (IntrAnnotStringArg->getType()->isOpaquePointerTy()) {
+    if (auto *C = dyn_cast<Constant>(IntrAnnotStringArg))
       AnnotStrArgGV = dyn_cast<GlobalVariable>(C);
+  } else {
+    if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
+      if (auto *C = dyn_cast<Constant>(GEP->getOperand(0)))
+        AnnotStrArgGV = dyn_cast<GlobalVariable>(C);
+  }
   if (!AnnotStrArgGV)
     return false;
 
@@ -525,7 +535,6 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   std::optional<StringRef> AnnotStr = getGlobalVariableString(AnnotStrArgGV);
   if (!AnnotStr || AnnotStr->str() != "sycl-properties")
     return false;
-
   // check alignment annotation and apply it to load/store
   parseAlignmentAndApply(M, IntrInst);
 
