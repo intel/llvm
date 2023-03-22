@@ -399,6 +399,28 @@ constexpr access::mode deduceAccessMode() {
     return access::mode::read;
   }
 
+  if constexpr (std::is_same<
+                    MayBeTag1,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::host_task>>::value ||
+                std::is_same<
+                    MayBeTag2,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::host_task>>::value) {
+    return access::mode::read;
+  }
+
+  if constexpr (std::is_same<
+                    MayBeTag1,
+                    mode_target_tag_t<access::mode::write,
+                                      access::target::host_task>>::value ||
+                std::is_same<
+                    MayBeTag2,
+                    mode_target_tag_t<access::mode::write,
+                                      access::target::host_task>>::value) {
+    return access::mode::write;
+  }
+
   return access::mode::read_write;
 }
 
@@ -412,6 +434,28 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
                    mode_target_tag_t<access::mode::read,
                                      access::target::constant_buffer>>::value) {
     return access::target::constant_buffer;
+  }
+
+  if constexpr (
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::write,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::write,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::read_write,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::read_write,
+                                     access::target::host_task>>::value) {
+    return access::target::host_task;
   }
 
   return defaultTarget;
