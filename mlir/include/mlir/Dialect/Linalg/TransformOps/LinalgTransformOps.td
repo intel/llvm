@@ -83,8 +83,10 @@ def BufferizeToAllocationOp : Op<Transform_Dialect,
 //===----------------------------------------------------------------------===//
 
 def DecomposeOp : Op<Transform_Dialect, "structured.decompose",
-    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
-     TransformOpInterface, TransformEachOpTrait]> {
+    [FunctionalStyleTransformOpTrait, 
+     MemoryEffectsOpInterface,
+     TransformOpInterface, 
+     TransformEachOpTrait]> {
   let description = [{
     Decomposes named complex operations, such as higher-dimensional
     (depthwise) convolutions, into combinations of lower-dimensional equivalents
@@ -744,7 +746,6 @@ def PadOp : Op<Transform_Dialect, "structured.pad",
          DefaultValuedAttr<ArrayAttr, "{}">:$padding_values,
          DefaultValuedAttr<I64ArrayAttr, "{}">:$padding_dimensions,
          DefaultValuedAttr<I64ArrayAttr, "{}">:$pack_paddings,
-         DefaultValuedAttr<I64ArrayAttr, "{}">:$hoist_paddings,
          DefaultValuedAttr<
           TypedArrayAttrBase<I64ArrayAttr, "array of arrays of i64">,
           "{}">:$transpose_paddings);
@@ -762,8 +763,61 @@ def PadOp : Op<Transform_Dialect, "structured.pad",
 }
 
 //===----------------------------------------------------------------------===//
+// HoistPadOp
+//===----------------------------------------------------------------------===//
+
+def HoistPadOp : Op<Transform_Dialect, "structured.hoist_pad",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
+     TransformOpInterface, TransformEachOpTrait]> {
+  let description = [{
+    Hoist the tensor.pad target operation by at most the given number of loops.
+    Optionally apply the transpose attribute to the inner dimensions.
+
+    TODO: In the future, we should consider rewriting as a tensor.pack after 
+    hoisting since this abstraction is now available.
+    TODO: Maybe also return the linalg.generic transpose created at some point.
+
+    #### Return modes
+
+    This operation ignores non-tensor.pad ops and drops them in the result.
+    If any non-tensor.pad is passed, the transform emits a silenceable failure.
+
+    If all the operations referred to by the `target` handle padproperly, the
+    transform succeeds. Otherwise the transform silently fails.
+
+    The return handle points to only the subset of successfully hoisted 
+    tensor.pad operations, which can be empty.
+  }];
+
+  // Also allow any !pdl.operation for simpler composition. Non-tensor.pad ops
+  // will be dropped from the results.
+  let arguments =
+    (ins TransformHandleTypeInterface:$target,
+         I64Attr:$num_loops,
+         DefaultValuedAttr<DenseI64ArrayAttr, "{}">:$transpose);
+  let results = (outs TransformHandleTypeInterface:$transformed);
+
+  let assemblyFormat = [{
+    $target 
+    `by` $num_loops `loops` 
+    (`,` `transpose` `by` $transpose^)? 
+    attr-dict
+    `:` functional-type(operands, results)
+  }];
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::tensor::PadOp,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // PromoteOp
 //===----------------------------------------------------------------------===//
+
 
 def PromoteOp : Op<Transform_Dialect, "structured.promote",
     [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
@@ -791,6 +845,7 @@ def PromoteOp : Op<Transform_Dialect, "structured.promote",
                        DefaultValuedAttr<BoolArrayAttr, "{}">:$use_full_tile_buffers,
                        UnitAttr:$use_full_tiles_by_default,
                        UnitAttr:$use_alloca,
+                       OptionalAttr<DeviceMappingArrayAttr>:$mapping,
                        OptionalAttr<I64Attr>:$alignment);
   let results = (outs PDL_Operation:$transformed);
 
@@ -879,9 +934,10 @@ def ScalarizeOp : Op<Transform_Dialect, "structured.scalarize",
 
 def RewriteInDestinationPassingStyleOp : Op<
     Transform_Dialect, "structured.rewrite_in_destination_passing_style",
-    [MemoryEffectsOpInterface,
-     NavigationTransformOpTrait,
-     DeclareOpInterfaceMethods<TransformOpInterface>]> {
+    [FunctionalStyleTransformOpTrait, 
+     MemoryEffectsOpInterface,
+     TransformOpInterface, 
+     TransformEachOpTrait]> {
   let description = [{
     Rewrite a supported tensor operation that is not in destination-passing style
     into a form that is in destination-passing style.
@@ -909,6 +965,13 @@ def RewriteInDestinationPassingStyleOp : Op<
   let assemblyFormat = [{
     $target attr-dict
     `:` functional-type($target, results)
+  }];
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation *target,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
   }];
 }
 
@@ -1703,6 +1766,172 @@ def MaskedVectorizeOp : Op<Transform_Dialect, "structured.masked_vectorize",
         ::mlir::transform::TransformState &state);
 
     ::llvm::SmallVector<::mlir::OpFoldResult> getMixedVectorSizes();
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// HoistRedundantVectorTransfersOp
+//===----------------------------------------------------------------------===//
+
+def HoistRedundantVectorTransfersOp :
+  Op<Transform_Dialect, "structured.hoist_redundant_vector_transfers",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
+     TransformEachOpTrait, TransformOpInterface]> {
+  let description = [{
+    Hoist vector.transfer_read / vector.transfer_write pairs out of immediately
+    enclosing scf::ForOp iteratively, if the following conditions are true:
+       1. The 2 ops access the same memref with the same indices.
+       2. All operands are invariant under the enclosing scf::ForOp.
+       3. No uses of the memref either dominate the transfer_read or are
+       dominated by the transfer_write (i.e. no aliasing between the write and
+       the read across the loop)
+
+    WARNING: This hoisting does not model parallelism and is generally incorrect
+    when used on distributed loops with memref semantics!
+    TODO: obsolete and should be retired.
+
+    #### Return modes:
+
+    The operation always succeeds and returns a handle to the transformed
+    function op.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$transformed);
+
+  let assemblyFormat = "$target attr-dict `:` functional-type(operands, results) ";
+
+  let builders = [
+    OpBuilder<(ins "Value":$target)>,
+  ];
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::func::FuncOp target,
+         ::mlir::transform::ApplyToEachResultList &results,
+         ::mlir::transform::TransformState &state);
+   }];
+}
+
+//===----------------------------------------------------------------------===//
+// ConvertConv2DToImg2ColOp
+//===----------------------------------------------------------------------===//
+
+def ConvertConv2DToImg2ColOp : Op<Transform_Dialect,
+    "structured.convert_conv2d_to_img2col",
+    [FunctionalStyleTransformOpTrait,
+     MemoryEffectsOpInterface,
+     TransformOpInterface,
+     TransformEachOpTrait]> {
+  let description = [{
+    Convert linalg.conv_2d_xxx into linalg.generic (for img2col packing)
+    and linalg.matmul.
+
+    A convolution operation can be written as a matrix-matrix multiplication by
+    unfolding the cross-correlation between input and filter and explicitly copy
+    overlapped sliding window inputs.
+
+    Consider 2D input X with single channel input and output and 2x2 filter W:
+    ```
+    [x(0, 0)  , x(0, 1)  , ...,   x(0, n)  ]
+    [x(1, 0)  , x(1, 1)  , ...,   x(1, n)  ]
+    [.        ,  .       ,.   ,      .     ]            [w(0, 0), w(0, 1)]
+    [.        ,  .       , .  ,      .     ]    (conv)  [w(1, 0), w(1, 1)]
+    [.        ,  .       ,   .,      .     ]
+    [x(n-1, 0), x(n-1, 1), ..., x(n-1, n-1)]
+    ```
+
+    The packed input data (img2col) is a matrix with |rows| = output spatial
+    size, |columns| = filter spatial size. To compute the output Y(i, j) we need
+    to calculate the dot product between filter window at input X(x, y)) and the
+    filter which will look like the following where r.h.s is the img2col matrix
+    and l.h.s is the flattned filter:
+    ```
+    [x(0,0), x(0,1), x(1,0), x(1,1)]
+    [x(0,1), x(1,1), x(0,2), x(1,2)] (matmul) [w(0,0), w(0,1), w(1,0), w(1,1)]
+    [x(0,1), x(1,1), x(0,2), x(1,2)]
+    [   .  ,    .  ,    .  ,    .  ]
+    ```
+
+    In general for 2D case with (N, H, W, C) input and (Kh, Kw, C, D) filter
+    and output (N, Ho, Wo, D) the convolution is the following matrix-matrix
+    multiplication (Ho x Wo, Kh x Kw x C) * (Kh x Kw x C, D) for each input in
+    the N input. For the case where N > 1 its a batched matrxi-matrix
+    multplication.
+
+    Returns two handles:
+    - One on the operation that produces the img2col tensor.
+    - One on the final operation of the sequence that replaces the original
+      convolution.
+
+    #### Return modes:
+
+    Returns a definite failure if target is not isolated from above.
+    Returns a silenceable failure if the pattern application failed.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$img2col_tensor,
+                      TransformHandleTypeInterface:$transformed);
+
+  let assemblyFormat =
+    "$target attr-dict `:` functional-type($target, results)";
+
+  let builders = [
+    OpBuilder<(ins "Value":$target)>
+  ];
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::linalg::LinalgOp target,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// HoistRedundantTensorSubsetsOp
+//===----------------------------------------------------------------------===//
+
+def HoistRedundantTensorSubsetsOp :
+  Op<Transform_Dialect, "structured.hoist_redundant_tensor_subsets",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
+     TransformEachOpTrait, TransformOpInterface]> {
+  let description = [{
+    Hoists supported tensor subset extract/insert operation pairs out of 
+    immediately enclosing loop iteratively, if the following conditions
+    are true:
+       1. The 2 ops access the same tensor subset.
+       2. All operands are invariant under the enclosing loop.
+    
+    The supported subset extract/insert operation pairs currently comprise:
+       - tensor.extract_slice / tensor.insert_slice
+       - vector.transfer_read / vector.transfer_write on tensors
+    
+    Only scf.for loops are currently supported.
+
+    When applied to:
+       1. an scf.for loop, hoist out of this loop only.
+       2. a non-loop op, apply hoisting to all the contained loop ops.
+
+    #### Return modes:
+
+    The operation always succeeds and returns a handle to the transformed
+    function op.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$transformed);
+
+  let assemblyFormat = "$target attr-dict `:` functional-type(operands, results) ";
+
+  let builders = [
+    OpBuilder<(ins "Value":$target)>,
+  ];
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation *target,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
   }];
 }
 

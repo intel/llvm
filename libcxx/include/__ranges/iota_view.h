@@ -30,9 +30,12 @@
 #include <__ranges/copyable_box.h>
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/view_interface.h>
+#include <__type_traits/conditional.h>
+#include <__type_traits/is_nothrow_copy_constructible.h>
+#include <__type_traits/make_unsigned.h>
+#include <__type_traits/type_identity.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -45,7 +48,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 namespace ranges {
   template<class _Int>
   struct __get_wider_signed {
-    static auto __call() {
+    consteval static auto __call() {
            if constexpr (sizeof(_Int) < sizeof(short)) return type_identity<short>{};
       else if constexpr (sizeof(_Int) < sizeof(int))   return type_identity<int>{};
       else if constexpr (sizeof(_Int) < sizeof(long))  return type_identity<long>{};

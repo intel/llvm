@@ -21,14 +21,15 @@
 // REQUIRES: -faligned-allocation
 // ADDITIONAL_COMPILE_FLAGS: -faligned-allocation
 
-#include <new>
-#include <typeinfo>
-#include <string>
 #include <cassert>
+#include <new>
+#include <string>
+#include <type_traits>
+#include <typeinfo>
 
 #include "test_macros.h"
 
-static void test_allocations(size_t size, size_t alignment) {
+static void test_allocations(std::size_t size, size_t alignment) {
   {
     void* ptr = ::operator new(size, std::align_val_t(alignment));
     assert(ptr);

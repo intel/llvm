@@ -4422,10 +4422,8 @@ void ARMTargetLowering::VarArgStyleRegisters(CCState &CCInfo, SelectionDAG &DAG,
 bool ARMTargetLowering::splitValueIntoRegisterParts(
     SelectionDAG &DAG, const SDLoc &DL, SDValue Val, SDValue *Parts,
     unsigned NumParts, MVT PartVT, std::optional<CallingConv::ID> CC) const {
-  bool IsABIRegCopy = CC.has_value();
   EVT ValueVT = Val.getValueType();
-  if (IsABIRegCopy && (ValueVT == MVT::f16 || ValueVT == MVT::bf16) &&
-      PartVT == MVT::f32) {
+  if ((ValueVT == MVT::f16 || ValueVT == MVT::bf16) && PartVT == MVT::f32) {
     unsigned ValueBits = ValueVT.getSizeInBits();
     unsigned PartBits = PartVT.getSizeInBits();
     Val = DAG.getNode(ISD::BITCAST, DL, MVT::getIntegerVT(ValueBits), Val);
@@ -4440,9 +4438,7 @@ bool ARMTargetLowering::splitValueIntoRegisterParts(
 SDValue ARMTargetLowering::joinRegisterPartsIntoValue(
     SelectionDAG &DAG, const SDLoc &DL, const SDValue *Parts, unsigned NumParts,
     MVT PartVT, EVT ValueVT, std::optional<CallingConv::ID> CC) const {
-  bool IsABIRegCopy = CC.has_value();
-  if (IsABIRegCopy && (ValueVT == MVT::f16 || ValueVT == MVT::bf16) &&
-      PartVT == MVT::f32) {
+  if ((ValueVT == MVT::f16 || ValueVT == MVT::bf16) && PartVT == MVT::f32) {
     unsigned ValueBits = ValueVT.getSizeInBits();
     unsigned PartBits = PartVT.getSizeInBits();
     SDValue Val = Parts[0];
@@ -13838,7 +13834,7 @@ static SDValue PerformSHLSimplify(SDNode *N,
 
   // The immediates are encoded as an 8-bit value that can be rotated.
   auto LargeImm = [](const APInt &Imm) {
-    unsigned Zeros = Imm.countLeadingZeros() + Imm.countTrailingZeros();
+    unsigned Zeros = Imm.countl_zero() + Imm.countr_zero();
     return Imm.getBitWidth() - Zeros > 8;
   };
 
@@ -14687,7 +14683,7 @@ static SDValue ParseBFI(SDNode *N, APInt &ToMask, APInt &FromMask) {
 
   SDValue From = N->getOperand(1);
   ToMask = ~cast<ConstantSDNode>(N->getOperand(2))->getAPIntValue();
-  FromMask = APInt::getLowBitsSet(ToMask.getBitWidth(), ToMask.countPopulation());
+  FromMask = APInt::getLowBitsSet(ToMask.getBitWidth(), ToMask.popcount());
 
   // If the Base came from a SHR #C, we can deduce that it is really testing bit
   // #C in the base of the SHR.
@@ -14706,8 +14702,8 @@ static SDValue ParseBFI(SDNode *N, APInt &ToMask, APInt &FromMask) {
 //
 // Neither A nor B must be zero.
 static bool BitsProperlyConcatenate(const APInt &A, const APInt &B) {
-  unsigned LastActiveBitInA =  A.countTrailingZeros();
-  unsigned FirstActiveBitInB = B.getBitWidth() - B.countLeadingZeros() - 1;
+  unsigned LastActiveBitInA = A.countr_zero();
+  unsigned FirstActiveBitInB = B.getBitWidth() - B.countl_zero() - 1;
   return LastActiveBitInA - 1 == FirstActiveBitInB;
 }
 
@@ -14785,9 +14781,8 @@ static SDValue PerformBFICombine(SDNode *N, SelectionDAG &DAG) {
     SDLoc dl(N);
 
     if (NewFromMask[0] == 0)
-      From1 = DAG.getNode(
-          ISD::SRL, dl, VT, From1,
-          DAG.getConstant(NewFromMask.countTrailingZeros(), dl, VT));
+      From1 = DAG.getNode(ISD::SRL, dl, VT, From1,
+                          DAG.getConstant(NewFromMask.countr_zero(), dl, VT));
     return DAG.getNode(ARMISD::BFI, dl, VT, CombineBFI.getOperand(0), From1,
                        DAG.getConstant(~NewToMask, dl, VT));
   }
@@ -14801,7 +14796,7 @@ static SDValue PerformBFICombine(SDNode *N, SelectionDAG &DAG) {
     APInt ToMask2 = ~N0.getConstantOperandAPInt(2);
 
     if (!N0.hasOneUse() || (ToMask1 & ToMask2) != 0 ||
-        ToMask1.countLeadingZeros() < ToMask2.countLeadingZeros())
+        ToMask1.countl_zero() < ToMask2.countl_zero())
       return SDValue();
 
     EVT VT = N->getValueType(0);
@@ -15005,16 +15000,31 @@ static SDValue PerformVMOVhrCombine(SDNode *N,
   // FullFP16: half values are passed in S-registers, and we don't
   // need any of the bitcast and moves:
   //
-  //     t2: f32,ch = CopyFromReg t0, Register:f32 %0
+  //     t2: f32,ch1,gl1? = CopyFromReg ch, Register:f32 %0, gl?
   //   t5: i32 = bitcast t2
   // t18: f16 = ARMISD::VMOVhr t5
+  // =>
+  // tN: f16,ch2,gl2? = CopyFromReg ch, Register::f32 %0, gl?
   if (Op0->getOpcode() == ISD::BITCAST) {
     SDValue Copy = Op0->getOperand(0);
     if (Copy.getValueType() == MVT::f32 &&
         Copy->getOpcode() == ISD::CopyFromReg) {
-      SDValue Ops[] = {Copy->getOperand(0), Copy->getOperand(1)};
+      bool HasGlue = Copy->getNumOperands() == 3;
+      SDValue Ops[] = {Copy->getOperand(0), Copy->getOperand(1),
+                       HasGlue ? Copy->getOperand(2) : SDValue()};
+      EVT OutTys[] = {N->getValueType(0), MVT::Other, MVT::Glue};
       SDValue NewCopy =
-          DCI.DAG.getNode(ISD::CopyFromReg, SDLoc(N), N->getValueType(0), Ops);
+          DCI.DAG.getNode(ISD::CopyFromReg, SDLoc(N),
+                          DCI.DAG.getVTList(ArrayRef(OutTys, HasGlue ? 3 : 2)),
+                          ArrayRef(Ops, HasGlue ? 3 : 2));
+
+      // Update Users, Chains, and Potential Glue.
+      DCI.DAG.ReplaceAllUsesOfValueWith(SDValue(N, 0), NewCopy.getValue(0));
+      DCI.DAG.ReplaceAllUsesOfValueWith(Copy.getValue(1), NewCopy.getValue(1));
+      if (HasGlue)
+        DCI.DAG.ReplaceAllUsesOfValueWith(Copy.getValue(2),
+                                          NewCopy.getValue(2));
+
       return NewCopy;
     }
   }
@@ -17736,10 +17746,10 @@ static SDValue PerformMinMaxToSatCombine(SDValue Op, SelectionDAG &DAG,
   SDLoc DL(Op);
   if (MinC == ~MaxC)
     return DAG.getNode(ARMISD::SSAT, DL, VT, Input,
-                       DAG.getConstant(MinC.countTrailingOnes(), DL, VT));
+                       DAG.getConstant(MinC.countr_one(), DL, VT));
   if (MaxC == 0)
     return DAG.getNode(ARMISD::USAT, DL, VT, Input,
-                       DAG.getConstant(MinC.countTrailingOnes(), DL, VT));
+                       DAG.getConstant(MinC.countr_one(), DL, VT));
 
   return SDValue();
 }
@@ -17915,7 +17925,7 @@ SDValue ARMTargetLowering::PerformCMOVToBFICombine(SDNode *CMOV, SelectionDAG &D
   // Now, is it profitable to continue?
   APInt OrCI = OrC->getAPIntValue();
   unsigned Heuristic = Subtarget->isThumb() ? 3 : 2;
-  if (OrCI.countPopulation() > Heuristic)
+  if (OrCI.popcount() > Heuristic)
     return SDValue();
 
   // Lastly, can we determine that the bits defined by OrCI
@@ -20242,8 +20252,12 @@ RCPair ARMTargetLowering::getRegForInlineAsmConstraint(
     case 'w':
       if (VT == MVT::Other)
         break;
-      if (VT == MVT::f16 || VT == MVT::bf16)
-        return RCPair(0U, &ARM::HPRRegClass);
+      if (VT == MVT::f16)
+        return RCPair(0U, Subtarget->hasFullFP16() ? &ARM::HPRRegClass
+                                                   : &ARM::SPRRegClass);
+      if (VT == MVT::bf16)
+        return RCPair(0U, Subtarget->hasBF16() ? &ARM::HPRRegClass
+                                               : &ARM::SPRRegClass);
       if (VT == MVT::f32)
         return RCPair(0U, &ARM::SPRRegClass);
       if (VT.getSizeInBits() == 64)
@@ -20264,8 +20278,12 @@ RCPair ARMTargetLowering::getRegForInlineAsmConstraint(
     case 't':
       if (VT == MVT::Other)
         break;
-      if (VT == MVT::f16 || VT == MVT::bf16)
-        return RCPair(0U, &ARM::HPRRegClass);
+      if (VT == MVT::f16)
+        return RCPair(0U, Subtarget->hasFullFP16() ? &ARM::HPRRegClass
+                                                   : &ARM::SPRRegClass);
+      if (VT == MVT::bf16)
+        return RCPair(0U, Subtarget->hasBF16() ? &ARM::HPRRegClass
+                                               : &ARM::SPRRegClass);
       if (VT == MVT::f32 || VT == MVT::i32)
         return RCPair(0U, &ARM::SPRRegClass);
       if (VT.getSizeInBits() == 64)

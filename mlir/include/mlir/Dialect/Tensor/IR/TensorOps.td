@@ -30,7 +30,17 @@ class Tensor_OpWithOffsetSizesAndStrides<string mnemonic,
                                          list<Trait> traits = []>
     : Tensor_Op<mnemonic, traits> {
   code extraBaseClassDeclaration = [{
-    /// Returns the dynamic sizes for this subview operation if specified.
+    /// Return the type of the base tensor operand.
+    ::mlir::RankedTensorType getSourceType() { 
+      return getSource().getType().cast<RankedTensorType>();
+    }
+
+    /// Return the type of the result tensor.
+    ::mlir::RankedTensorType getResultType() { 
+      return getResult().getType().cast<RankedTensorType>();
+    }
+
+    /// Return the dynamic sizes for this subview operation if specified.
     ::mlir::Operation::operand_range getDynamicSizes() { return getSizes(); }
 
     /// Return the list of Range (i.e. offset, size, stride). Each
@@ -105,7 +115,7 @@ def Tensor_DimOp : Tensor_Op<"dim", [
     %c0 = arith.constant 0 : index
     %x = tensor.dim %A, %c0 : tensor<4x?xf32>
 
-    // Returns the dynamic dimension of %A.
+    // Return the dynamic dimension of %A.
     %c1 = arith.constant 1 : index
     %y = tensor.dim %A, %c1 : memref<4x?xf32>
 
@@ -361,14 +371,10 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
   ];
 
   let extraClassDeclaration = extraBaseClassDeclaration # [{
-    /// Returns the type of the base tensor operand.
-    RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
-    }
-
     /// The result of an extract_slice is always a tensor.
+    // TODO: deprecate
     RankedTensorType getType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return getResultType();
     }
 
     /// Compute the rank-reduction mask that can be applied to map the source
@@ -834,25 +840,21 @@ def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
   ];
 
   let extraClassDeclaration = extraBaseClassDeclaration # [{
-    /// Returns the type of the base tensor operand.
-    RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
-    }
-
     /// The result of a insert_slice is always a tensor.
+    // TODO: Deprecate this method.
     RankedTensorType getType() {
-      return getResult().getType().cast<RankedTensorType>();
+      return getResultType();
     }
 
     /// The `dest` type is the same as the result type.
     RankedTensorType getDestType() {
-      return getType();
+      return getResultType();
     }
 
     /// Return the expected rank of each of the`static_offsets`, `static_sizes`
     /// and `static_strides` attributes.
     std::array<unsigned, 3> getArrayAttrMaxRanks() {
-      unsigned rank = getType().getRank();
+      unsigned rank = getResultType().getRank();
       return {rank, rank, rank};
     }
 
@@ -1293,13 +1295,13 @@ def Tensor_PadOp : Tensor_Op<"pad", [
 
   let builders = [
     // Build a PadOp with mixed static and dynamic entries.
-    OpBuilder<(ins "Value":$source, "ArrayRef<int64_t>":$staticLow,
-      "ArrayRef<int64_t>":$staticHigh, "ValueRange":$low, "ValueRange":$high,
-      CArg<"bool", "false">:$nofold,
+    OpBuilder<(ins "Type":$resultType, "Value":$source,
+      "ArrayRef<int64_t>":$staticLow, "ArrayRef<int64_t>":$staticHigh,
+      "ValueRange":$low, "ValueRange":$high, CArg<"bool", "false">:$nofold,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a PadOp with all dynamic entries.
-    OpBuilder<(ins "Value":$source, "ValueRange":$low, "ValueRange":$high,
-      CArg<"bool", "false">:$nofold,
+    OpBuilder<(ins "Type":$resultType, "Value":$source, "ValueRange":$low,
+      "ValueRange":$high, CArg<"bool", "false">:$nofold,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a PadOp with mixed static and dynamic entries and custom
     // result type. If the type passed is nullptr, it is inferred.
@@ -1785,6 +1787,13 @@ def Tensor_PackOp : Tensor_RelayoutOp<"pack", [
     static ShapedType inferPackedType(ShapedType sourceType,
         ArrayRef<int64_t> innerTileSizes, ArrayRef<int64_t> innerDimsPos,
         ArrayRef<int64_t> outerDimsPerm = {});
+
+    // Returns true if we have enough static information to catch undefined
+    // behavior when the tile size does not divide perfectly the dimension of
+    // the input tensor.
+    static bool requirePaddingValue(ArrayRef<int64_t> inputShape,
+                                    ArrayRef<int64_t> innerDimsPos,
+                                    ArrayRef<OpFoldResult> innerTiles);
 
     static Value createDestinationTensor(OpBuilder &b, Location loc,
         Value source, ArrayRef<OpFoldResult> innerTileSizes,

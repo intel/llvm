@@ -327,7 +327,7 @@ define <4 x i8> @interleave_shuffles(<4 x i8> %x) {
 ; CHECK-NEXT:    vsetivli zero, 4, e8, mf4, ta, ma
 ; CHECK-NEXT:    vrgather.vi v9, v8, 0
 ; CHECK-NEXT:    vrgather.vi v10, v8, 1
-; CHECK-NEXT:    vsetivli zero, 4, e8, mf8, ta, ma
+; CHECK-NEXT:    vsetivli zero, 2, e8, mf8, ta, ma
 ; CHECK-NEXT:    vwaddu.vv v8, v9, v10
 ; CHECK-NEXT:    li a0, -1
 ; CHECK-NEXT:    vwmaccu.vx v8, a0, v10
@@ -635,7 +635,6 @@ define <4 x i16> @shuffle_shuffle_vslidedown(<16 x i16> %0) {
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    vsetivli zero, 16, e16, m2, ta, ma
 ; CHECK-NEXT:    vslidedown.vi v8, v8, 5
-; CHECK-NEXT:    # kill: def $v8 killed $v8 killed $v8m2
 ; CHECK-NEXT:    ret
 entry:
   %1 = shufflevector <16 x i16> %0, <16 x i16> poison, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7>

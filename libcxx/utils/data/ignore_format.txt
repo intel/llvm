@@ -212,8 +212,6 @@ libcxx/include/__algorithm/unwrap_range.h
 libcxx/include/__algorithm/upper_bound.h
 libcxx/include/any
 libcxx/include/array
-libcxx/include/atomic
-libcxx/include/__atomic/aliases.h
 libcxx/include/__atomic/atomic_base.h
 libcxx/include/__atomic/atomic_flag.h
 libcxx/include/__atomic/atomic.h
@@ -241,12 +239,6 @@ libcxx/include/bitset
 libcxx/include/__bsd_locale_defaults.h
 libcxx/include/__bsd_locale_fallbacks.h
 libcxx/include/cctype
-libcxx/include/charconv
-libcxx/include/__charconv/chars_format.h
-libcxx/include/__charconv/from_chars_result.h
-libcxx/include/__charconv/tables.h
-libcxx/include/__charconv/to_chars_base_10.h
-libcxx/include/__charconv/to_chars_result.h
 libcxx/include/chrono
 libcxx/include/__chrono/calendar.h
 libcxx/include/__chrono/convert_to_timespec.h
@@ -319,13 +311,10 @@ libcxx/include/__debug_utils/randomize_range.h
 libcxx/include/deque
 libcxx/include/__errc
 libcxx/include/errno.h
-libcxx/include/exception
 libcxx/include/execution
 libcxx/include/expected
 libcxx/include/__expected/expected.h
-libcxx/include/experimental/algorithm
 libcxx/include/experimental/__config
-libcxx/include/experimental/functional
 libcxx/include/experimental/iterator
 libcxx/include/experimental/map
 libcxx/include/experimental/__memory

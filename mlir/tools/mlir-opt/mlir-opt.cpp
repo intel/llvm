@@ -40,6 +40,7 @@ void registerSliceAnalysisTestPass();
 void registerSymbolTestPasses();
 void registerRegionTestPasses();
 void registerTestAffineDataCopyPass();
+void registerTestDecomposeAffineOpPass();
 void registerTestAffineLoopUnswitchingPass();
 void registerTestAllReduceLoweringPass();
 void registerTestFunc();
@@ -95,7 +96,6 @@ void registerTestLastModifiedPass();
 void registerTestLinalgDecomposeOps();
 void registerTestLinalgElementwiseFusion();
 void registerTestLinalgGreedyFusion();
-void registerTestLinalgHoisting();
 void registerTestLinalgTransforms();
 void registerTestLivenessPass();
 void registerTestLoopFusion();
@@ -125,6 +125,7 @@ void registerTestTransformDialectEraseSchedulePass();
 void registerTestTransformDialectInterpreterPass();
 void registerTestWrittenToPass();
 void registerTestVectorLowerings();
+void registerTestVectorReductionToSPIRVDotProd();
 void registerTestNvgpuLowerings();
 } // namespace test
 } // namespace mlir
@@ -148,6 +149,7 @@ void registerTestPasses() {
   registerSymbolTestPasses();
   registerRegionTestPasses();
   registerTestAffineDataCopyPass();
+  registerTestDecomposeAffineOpPass();
   registerTestAffineLoopUnswitchingPass();
   registerTestAllReduceLoweringPass();
   registerTestFunc();
@@ -205,7 +207,6 @@ void registerTestPasses() {
   mlir::test::registerTestLinalgDecomposeOps();
   mlir::test::registerTestLinalgElementwiseFusion();
   mlir::test::registerTestLinalgGreedyFusion();
-  mlir::test::registerTestLinalgHoisting();
   mlir::test::registerTestLinalgTransforms();
   mlir::test::registerTestLivenessPass();
   mlir::test::registerTestLoopFusion();
@@ -233,6 +234,7 @@ void registerTestPasses() {
   mlir::test::registerTestTransformDialectEraseSchedulePass();
   mlir::test::registerTestTransformDialectInterpreterPass();
   mlir::test::registerTestVectorLowerings();
+  mlir::test::registerTestVectorReductionToSPIRVDotProd();
   mlir::test::registerTestNvgpuLowerings();
   mlir::test::registerTestWrittenToPass();
 }

@@ -4,9 +4,11 @@ add_header_library(
     FEnvImpl.h
   DEPENDS
     libc.include.fenv
+    libc.include.math
     libc.src.__support.macros.attributes
     libc.src.__support.macros.properties.architectures
     libc.src.__support.macros.sanitizer
+    libc.src.errno.errno
 )
 
 add_header_library(
@@ -49,7 +51,6 @@ add_header_library(
     libc.src.__support.CPP.type_traits
     libc.src.__support.common
     libc.include.math
-    libc.include.errno
     libc.src.errno.errno
 )
 
@@ -77,7 +78,6 @@ add_header_library(
     libc.src.__support.common
     libc.src.__support.macros.optimization
     libc.include.math
-    libc.include.errno
     libc.src.errno.errno
 )
 

@@ -11,6 +11,7 @@ add_flang_library(FIRBuilder
   LowLevelIntrinsics.cpp
   MutableBox.cpp
   Runtime/Allocatable.cpp
+  Runtime/ArrayConstructor.cpp
   Runtime/Assign.cpp
   Runtime/Character.cpp
   Runtime/Command.cpp
@@ -26,12 +27,12 @@ add_flang_library(FIRBuilder
 
   DEPENDS
   FIRDialect
-  FIRSupport
   HLFIRDialect
   ${dialect_libs}
 
   LINK_LIBS
   FIRDialect
+  FIRDialectSupport
   FIRSupport
   HLFIRDialect
   ${dialect_libs}

@@ -687,8 +687,10 @@ bool SymbolCollector::handleMacroOccurrence(const IdentifierInfo *Name,
 
   const auto &SM = PP->getSourceManager();
   auto DefLoc = MI->getDefinitionLoc();
-  // Also avoid storing predefined macros like __DBL_MIN__.
+  // Also avoid storing macros that aren't defined in any file, i.e. predefined
+  // macros like __DBL_MIN__ and those defined on the command line.
   if (SM.isWrittenInBuiltinFile(DefLoc) ||
+      SM.isWrittenInCommandLineFile(DefLoc) ||
       Name->getName() == "__GCC_HAVE_DWARF2_CFI_ASM")
     return true;
 
@@ -756,7 +758,8 @@ bool SymbolCollector::handleMacroOccurrence(const IdentifierInfo *Name,
       *PP, *CompletionAllocator, *CompletionTUInfo);
   std::string Signature;
   std::string SnippetSuffix;
-  getSignature(*CCS, &Signature, &SnippetSuffix);
+  getSignature(*CCS, &Signature, &SnippetSuffix, SymbolCompletion.Kind,
+               SymbolCompletion.CursorKind);
   S.Signature = Signature;
   S.CompletionSnippetSuffix = SnippetSuffix;
 
@@ -933,7 +936,8 @@ const Symbol *SymbolCollector::addDeclaration(const NamedDecl &ND, SymbolID ID,
   S.Documentation = Documentation;
   std::string Signature;
   std::string SnippetSuffix;
-  getSignature(*CCS, &Signature, &SnippetSuffix);
+  getSignature(*CCS, &Signature, &SnippetSuffix, SymbolCompletion.Kind,
+               SymbolCompletion.CursorKind);
   S.Signature = Signature;
   S.CompletionSnippetSuffix = SnippetSuffix;
   std::string ReturnType = getReturnType(*CCS);

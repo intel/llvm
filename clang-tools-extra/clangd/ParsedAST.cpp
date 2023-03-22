@@ -605,16 +605,15 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   // Copy over the macros in the preamble region of the main file, and combine
   // with non-preamble macros below.
   MainFileMacros Macros;
-  if (Preamble)
-    Macros = Preamble->Macros;
+  std::vector<PragmaMark> Marks;
+  if (Preamble) {
+    Macros = Patch->mainFileMacros();
+    Marks = Patch->marks();
+  }
   Clang->getPreprocessor().addPPCallbacks(
       std::make_unique<CollectMainFileMacros>(Clang->getSourceManager(),
                                               Macros));
 
-  std::vector<PragmaMark> Marks;
-  // FIXME: We need to patch the marks for stale preambles.
-  if (Preamble)
-    Marks = Preamble->Marks;
   Clang->getPreprocessor().addPPCallbacks(
       collectPragmaMarksCallback(Clang->getSourceManager(), Marks));
 
@@ -675,8 +674,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
     Diags = CompilerInvocationDiags;
     // Add diagnostics from the preamble, if any.
     if (Preamble)
-      Diags->insert(Diags->end(), Preamble->Diags.begin(),
-                    Preamble->Diags.end());
+      llvm::append_range(*Diags, Patch->patchedDiags());
     // Finally, add diagnostics coming from the AST.
     {
       std::vector<Diag> D = ASTDiags.take(&*CTContext);
@@ -688,13 +686,9 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
                    std::move(Macros), std::move(Marks), std::move(ParsedDecls),
                    std::move(Diags), std::move(Includes),
                    std::move(CanonIncludes));
-  if (Result.Diags) {
-    auto UnusedHeadersDiags =
-        issueUnusedIncludesDiagnostics(Result, Inputs.Contents);
-    Result.Diags->insert(Result.Diags->end(),
-                         make_move_iterator(UnusedHeadersDiags.begin()),
-                         make_move_iterator(UnusedHeadersDiags.end()));
-  }
+  if (Result.Diags)
+    llvm::move(issueIncludeCleanerDiagnostics(Result, Inputs.Contents),
+               std::back_inserter(*Result.Diags));
   return std::move(Result);
 }
 

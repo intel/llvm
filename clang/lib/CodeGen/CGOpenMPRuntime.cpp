@@ -498,11 +498,6 @@ enum OpenMPOffloadingRequiresDirFlags : int64_t {
   LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/OMP_REQ_DYNAMIC_ALLOCATORS)
 };
 
-enum OpenMPOffloadingReservedDeviceIDs {
-  /// Device ID if the device was not defined, runtime should get it
-  /// from environment variables in the spec.
-  OMP_DEVICEID_UNDEF = -1,
-};
 } // anonymous namespace
 
 /// Describes ident structure that describes a source location.
@@ -7163,6 +7158,7 @@ private:
     // double d;
     // int i[100];
     // float *p;
+    // int **a = &i;
     //
     // struct S1 {
     //   int i;
@@ -7195,6 +7191,14 @@ private:
     // &p, &p[1], 24*sizeof(float), TARGET_PARAM | TO | FROM | PTR_AND_OBJ
     // in unified shared memory mode or for local pointers
     // p, &p[1], 24*sizeof(float), TARGET_PARAM | TO | FROM
+    //
+    // map((*a)[0:3])
+    // &(*a), &(*a), sizeof(pointer), TARGET_PARAM | TO | FROM
+    // &(*a), &(*a)[0], 3*sizeof(int), PTR_AND_OBJ | TO | FROM
+    //
+    // map(**a)
+    // &(*a), &(*a), sizeof(pointer), TARGET_PARAM | TO | FROM
+    // &(*a), &(**a), sizeof(int), PTR_AND_OBJ | TO | FROM
     //
     // map(s)
     // &s, &s, sizeof(S2), TARGET_PARAM | TO | FROM
@@ -7488,7 +7492,9 @@ private:
       bool IsMemberReference = isa<MemberExpr>(I->getAssociatedExpression()) &&
                                MapDecl &&
                                MapDecl->getType()->isLValueReferenceType();
-      bool IsNonDerefPointer = IsPointer && !UO && !BO && !IsNonContiguous;
+      bool IsNonDerefPointer = IsPointer &&
+                               !(UO && UO->getOpcode() != UO_Deref) && !BO &&
+                               !IsNonContiguous;
 
       if (OASE)
         ++DimSize;
@@ -8367,7 +8373,8 @@ private:
       // individual members mapped. Emit an extra combined entry.
       if (PartialStruct.Base.isValid()) {
         CurInfo.NonContigInfo.Dims.push_back(0);
-        emitCombinedEntry(CombinedInfo, CurInfo.Types, PartialStruct, VD);
+        emitCombinedEntry(CombinedInfo, CurInfo.Types, PartialStruct,
+                          /*IsMapThis*/ !VD, VD);
       }
 
       // We need to append the results of this capture to what we already
@@ -8433,7 +8440,7 @@ public:
   /// individual struct members.
   void emitCombinedEntry(MapCombinedInfoTy &CombinedInfo,
                          MapFlagsArrayTy &CurTypes,
-                         const StructRangeInfoTy &PartialStruct,
+                         const StructRangeInfoTy &PartialStruct, bool IsMapThis,
                          const ValueDecl *VD = nullptr,
                          bool NotTargetParams = true) const {
     if (CurTypes.size() == 1 &&
@@ -8455,7 +8462,7 @@ public:
     const CXXMethodDecl *MD =
         CGF.CurFuncDecl ? dyn_cast<CXXMethodDecl>(CGF.CurFuncDecl) : nullptr;
     const CXXRecordDecl *RD = MD ? MD->getParent() : nullptr;
-    bool HasBaseClass = RD ? RD->getNumBases() > 0 : false;
+    bool HasBaseClass = RD && IsMapThis ? RD->getNumBases() > 0 : false;
     // There should not be a mapper for a combined entry.
     if (HasBaseClass) {
       // OpenMP 5.2 148:21:
@@ -9940,6 +9947,9 @@ void CGOpenMPRuntime::emitTargetCall(
         DynCGroupMem,
     };
 
+    llvm::OpenMPIRBuilder::InsertPointTy AllocaIP(
+        CGF.AllocaInsertPt->getParent(), CGF.AllocaInsertPt->getIterator());
+
     // The target region is an outlined function launched by the runtime
     // via calls to __tgt_target_kernel().
     //
@@ -9954,7 +9964,7 @@ void CGOpenMPRuntime::emitTargetCall(
     // of teams and threads so no additional calls to the runtime are required.
     // Check the error code and execute the host version if required.
     CGF.Builder.restoreIP(OMPBuilder.emitTargetKernel(
-        CGF.Builder, Return, RTLoc, DeviceID, NumTeams, NumThreads,
+        CGF.Builder, AllocaIP, Return, RTLoc, DeviceID, NumTeams, NumThreads,
         OutlinedFnID, KernelArgs));
 
     llvm::BasicBlock *OffloadFailedBlock =
@@ -10040,8 +10050,8 @@ void CGOpenMPRuntime::emitTargetCall(
       if (PartialStruct.Base.isValid()) {
         CombinedInfo.append(PartialStruct.PreliminaryMapData);
         MEHandler.emitCombinedEntry(
-            CombinedInfo, CurInfo.Types, PartialStruct, nullptr,
-            !PartialStruct.PreliminaryMapData.BasePointers.empty());
+            CombinedInfo, CurInfo.Types, PartialStruct, CI->capturesThis(),
+            nullptr, !PartialStruct.PreliminaryMapData.BasePointers.empty());
       }
 
       // We need to append the results of this capture to what we already have.

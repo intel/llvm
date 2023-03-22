@@ -6,7 +6,7 @@ lldb_tablegen(TargetPropertiesEnum.inc -gen-lldb-property-enum-defs
   SOURCE TargetProperties.td
   TARGET LLDBTargetPropertiesEnumGen)
 
-add_lldb_library(lldbTarget
+add_lldb_library(lldbTarget NO_PLUGIN_DEPENDENCIES
   ABI.cpp
   AssertFrameRecognizer.cpp
   DynamicRegisterInfo.cpp
@@ -85,7 +85,6 @@ add_lldb_library(lldbTarget
     lldbInterpreter
     lldbSymbol
     lldbUtility
-    lldbPluginProcessUtility
 
   LINK_COMPONENTS
     Support

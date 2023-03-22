@@ -209,6 +209,41 @@ func.func @store_malformed_elem_type(%foo: !llvm.ptr, %bar: f32) {
 
 // -----
 
+func.func @store_syncscope(%val : f32, %ptr : !llvm.ptr) {
+  // expected-error@below {{expected syncscope to be null for non-atomic access}}
+  "llvm.store"(%val, %ptr) {syncscope = "singlethread"} : (f32, !llvm.ptr) -> ()
+}
+
+// -----
+
+func.func @store_unsupported_ordering(%val : f32, %ptr : !llvm.ptr) {
+  // expected-error@below {{unsupported ordering 'acquire'}}
+  llvm.store %val, %ptr atomic acquire {alignment = 4 : i64} : f32, !llvm.ptr
+}
+
+// -----
+
+func.func @store_unsupported_type(%val : f80, %ptr : !llvm.ptr) {
+  // expected-error@below {{unsupported type 'f80' for atomic access}}
+  llvm.store %val, %ptr atomic monotonic {alignment = 16 : i64} : f80, !llvm.ptr
+}
+
+// -----
+
+func.func @store_unsupported_type(%val : i1, %ptr : !llvm.ptr) {
+  // expected-error@below {{unsupported type 'i1' for atomic access}}
+  llvm.store %val, %ptr atomic monotonic {alignment = 16 : i64} : i1, !llvm.ptr
+}
+
+// -----
+
+func.func @store_unaligned_atomic(%val : f32, %ptr : !llvm.ptr) {
+  // expected-error@below {{expected alignment for atomic access}}
+  llvm.store %val, %ptr atomic monotonic : f32, !llvm.ptr
+}
+
+// -----
+
 func.func @invalid_call() {
   // expected-error@+1 {{'llvm.call' op must have either a `callee` attribute or at least an operand}}
   "llvm.call"() : () -> ()
@@ -903,9 +938,9 @@ module {
 // -----
 
 module {
-  llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
+  llvm.func @accessGroups(%arg0 : !llvm.ptr) {
       // expected-error@below {{expected '@func1' to specify a fully qualified reference}}
-      %0 = llvm.load %arg0 { "access_groups" = [@func1] } : !llvm.ptr<i32>
+      %0 = llvm.load %arg0 { "access_groups" = [@func1] } : !llvm.ptr -> i32
       llvm.return
   }
   llvm.func @func1() {
@@ -916,9 +951,9 @@ module {
 // -----
 
 module {
-  llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
+  llvm.func @accessGroups(%arg0 : i32, %arg1 : !llvm.ptr) {
       // expected-error@below {{expected '@accessGroups::@group1' to reference a metadata op}}
-      %0 = llvm.load %arg0 { "access_groups" = [@accessGroups::@group1] } : !llvm.ptr<i32>
+      llvm.store %arg0, %arg1 { "access_groups" = [@accessGroups::@group1] } : i32, !llvm.ptr
       llvm.return
   }
   llvm.metadata @metadata {
@@ -928,9 +963,9 @@ module {
 // -----
 
 module {
-  llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
+  llvm.func @accessGroups(%arg0 : !llvm.ptr, %arg1 : f32) {
       // expected-error@below {{expected '@metadata::@group1' to be a valid reference}}
-      %0 = llvm.load %arg0 { "access_groups" = [@metadata::@group1] } : !llvm.ptr<i32>
+      %0 = llvm.atomicrmw fadd %arg0, %arg1 monotonic { "access_groups" = [@metadata::@group1] } : !llvm.ptr, f32
       llvm.return
   }
   llvm.metadata @metadata {
@@ -940,9 +975,9 @@ module {
 // -----
 
 module {
-  llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
+  llvm.func @accessGroups(%arg0 : !llvm.ptr, %arg1 : i32, %arg2 : i32) {
       // expected-error@below {{expected '@metadata::@scope' to resolve to a llvm.access_group}}
-      %0 = llvm.load %arg0 { "access_groups" = [@metadata::@scope] } : !llvm.ptr<i32>
+      %0 = llvm.cmpxchg %arg0, %arg1, %arg2 acq_rel monotonic { "access_groups" = [@metadata::@scope] } : !llvm.ptr, i32
       llvm.return
   }
   llvm.metadata @metadata {
@@ -954,9 +989,9 @@ module {
 // -----
 
 module {
-  llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
+  llvm.func @aliasScope(%arg0 : !llvm.ptr, %arg1 : i32, %arg2 : i32) {
       // expected-error@below {{attribute 'alias_scopes' failed to satisfy constraint: symbol ref array attribute}}
-      %0 = llvm.load %arg0 { "alias_scopes" = "test" } : !llvm.ptr<i32>
+      %0 = llvm.cmpxchg %arg0, %arg1, %arg2 acq_rel monotonic { "alias_scopes" = "test" } : !llvm.ptr, i32
       llvm.return
   }
 }
@@ -964,9 +999,9 @@ module {
 // -----
 
 module {
-  llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
+  llvm.func @noAliasScopes(%arg0 : !llvm.ptr) {
       // expected-error@below {{attribute 'noalias_scopes' failed to satisfy constraint: symbol ref array attribute}}
-      %0 = llvm.load %arg0 { "noalias_scopes" = "test" } : !llvm.ptr<i32>
+      %0 = llvm.load %arg0 { "noalias_scopes" = "test" } : !llvm.ptr -> i32
       llvm.return
   }
 }
@@ -974,9 +1009,9 @@ module {
 // -----
 
 module {
-  llvm.func @aliasScope(%arg0 : !llvm.ptr<i32>) {
+  llvm.func @aliasScope(%arg0 : i32, %arg1 : !llvm.ptr) {
       // expected-error@below {{expected '@metadata::@group' to resolve to a llvm.alias_scope}}
-      %0 = llvm.load %arg0 { "alias_scopes" = [@metadata::@group] } : !llvm.ptr<i32>
+      llvm.store %arg0, %arg1 { "alias_scopes" = [@metadata::@group] } : i32, !llvm.ptr
       llvm.return
   }
   llvm.metadata @metadata {
@@ -987,9 +1022,9 @@ module {
 // -----
 
 module {
-  llvm.func @aliasScope(%arg0 : !llvm.ptr<i32>) {
+  llvm.func @aliasScope(%arg0 : !llvm.ptr, %arg1 : f32) {
       // expected-error@below {{expected '@metadata::@group' to resolve to a llvm.alias_scope}}
-      %0 = llvm.load %arg0 { "noalias_scopes" = [@metadata::@group] } : !llvm.ptr<i32>
+      %0 = llvm.atomicrmw fadd %arg0, %arg1 monotonic { "noalias_scopes" = [@metadata::@group] } : !llvm.ptr, f32
       llvm.return
   }
   llvm.metadata @metadata {
@@ -1245,7 +1280,7 @@ func.func @bitcast(%arg0: vector<2x3xf32>) {
 
 func.func @cp_async(%arg0: !llvm.ptr<i8, 3>, %arg1: !llvm.ptr<i8, 1>) {
   // expected-error @below {{expected byte size to be either 4, 8 or 16.}}
-  nvvm.cp.async.shared.global %arg0, %arg1, 32
+  nvvm.cp.async.shared.global %arg0, %arg1, 32 : !llvm.ptr<i8, 3>, !llvm.ptr<i8, 1>
   return
 }
 
@@ -1253,7 +1288,7 @@ func.func @cp_async(%arg0: !llvm.ptr<i8, 3>, %arg1: !llvm.ptr<i8, 1>) {
 
 func.func @cp_async(%arg0: !llvm.ptr<i8, 3>, %arg1: !llvm.ptr<i8, 1>) {
   // expected-error @below {{bypass l1 is only support for 16 bytes copy.}}
-  nvvm.cp.async.shared.global %arg0, %arg1, 8 {bypass_l1}
+  nvvm.cp.async.shared.global %arg0, %arg1, 8 {bypass_l1} : !llvm.ptr<i8, 3>, !llvm.ptr<i8, 1>
   return
 }
 

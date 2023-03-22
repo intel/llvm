@@ -66,6 +66,11 @@ static cl::opt<int> RVVVectorBitsMinOpt(
              "autovectorization with fixed width vectors."),
     cl::init(-1), cl::Hidden);
 
+static cl::opt<bool> EnableRISCVCopyPropagation(
+    "riscv-enable-copy-propagation",
+    cl::desc("Enable the copy propagation with RISCV copy instr"),
+    cl::init(true), cl::Hidden);
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeRISCVTarget() {
   RegisterTargetMachine<RISCVTargetMachine> X(getTheRISCV32Target());
   RegisterTargetMachine<RISCVTargetMachine> Y(getTheRISCV64Target());
@@ -81,6 +86,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeRISCVTarget() {
   initializeRISCVExpandPseudoPass(*PR);
   initializeRISCVInsertVSETVLIPass(*PR);
   initializeRISCVDAGToDAGISelPass(*PR);
+  initializeRISCVInitUndefPass(*PR);
 }
 
 static StringRef computeDataLayout(const Triple &TT) {
@@ -110,6 +116,9 @@ RISCVTargetMachine::RISCVTargetMachine(const Target &T, const Triple &TT,
   // RISC-V supports the MachineOutliner.
   setMachineOutliner(true);
   setSupportsDefaultOutlining(true);
+
+  if (TT.isOSFuchsia() && !TT.isArch64Bit())
+    report_fatal_error("Fuchsia is only supported for 64-bit");
 }
 
 const RISCVSubtarget *
@@ -260,6 +269,7 @@ public:
   void addMachineSSAOptimization() override;
   void addPreRegAlloc() override;
   void addPostRegAlloc() override;
+  void addOptimizedRegAlloc() override;
 };
 } // namespace
 
@@ -327,10 +337,19 @@ void RISCVPassConfig::addPreSched2() {}
 void RISCVPassConfig::addPreEmitPass() {
   addPass(&BranchRelaxationPassID);
   addPass(createRISCVMakeCompressibleOptPass());
+
+  // TODO: It would potentially be better to schedule copy propagation after
+  // expanding pseudos (in addPreEmitPass2). However, performing copy
+  // propagation after the machine outliner (which runs after addPreEmitPass)
+  // currently leads to incorrect code-gen, where copies to registers within
+  // outlined functions are removed erroneously.
+  if (TM->getOptLevel() >= CodeGenOpt::Default && EnableRISCVCopyPropagation)
+    addPass(createMachineCopyPropagationPass(true));
 }
 
 void RISCVPassConfig::addPreEmitPass2() {
   addPass(createRISCVExpandPseudoPass());
+
   // Schedule the expansion of AMOs at the last possible moment, avoiding the
   // possibility for other passes to break the requirements for forward
   // progress in the LR/SC block.
@@ -353,6 +372,13 @@ void RISCVPassConfig::addPreRegAlloc() {
   if (TM->getOptLevel() != CodeGenOpt::None)
     addPass(createRISCVMergeBaseOffsetOptPass());
   addPass(createRISCVInsertVSETVLIPass());
+}
+
+void RISCVPassConfig::addOptimizedRegAlloc() {
+  if (getOptimizeRegAlloc())
+    insertPass(&DetectDeadLanesID, &RISCVInitUndefID);
+
+  TargetPassConfig::addOptimizedRegAlloc();
 }
 
 void RISCVPassConfig::addPostRegAlloc() {

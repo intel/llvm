@@ -21,6 +21,7 @@
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/Support/Casting.h"
 #include <optional>
 
 using namespace mlir;
@@ -704,11 +705,6 @@ public:
     Value acc = adaptor.getAcc();
     Location loc = reductionOp.getLoc();
 
-    // Masked reductions are lowered separately.
-    auto maskableOp = cast<MaskableOpInterface>(reductionOp.getOperation());
-    if (maskableOp.isMasked())
-      return failure();
-
     if (eltType.isIntOrIndex()) {
       // Integer reductions: add/mul/min/max/and/or/xor.
       Value result;
@@ -823,13 +819,12 @@ public:
 
   LogicalResult
   matchAndRewrite(vector::MaskOp maskOp, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override final {
+                  ConversionPatternRewriter &rewriter) const final {
     // Match against the maskable operation kind.
-    Operation *maskableOp = maskOp.getMaskableOp();
-    if (!isa<MaskedOp>(maskableOp))
+    auto maskedOp = llvm::dyn_cast_or_null<MaskedOp>(maskOp.getMaskableOp());
+    if (!maskedOp)
       return failure();
-    return matchAndRewriteMaskableOp(
-        maskOp, cast<MaskedOp>(maskOp.getMaskableOp()), rewriter);
+    return matchAndRewriteMaskableOp(maskOp, maskedOp, rewriter);
   }
 
 protected:
@@ -846,7 +841,7 @@ public:
   using VectorMaskOpConversionBase<
       vector::ReductionOp>::VectorMaskOpConversionBase;
 
-  virtual LogicalResult matchAndRewriteMaskableOp(
+  LogicalResult matchAndRewriteMaskableOp(
       vector::MaskOp maskOp, MaskableOpInterface maskableOp,
       ConversionPatternRewriter &rewriter) const override {
     auto reductionOp = cast<ReductionOp>(maskableOp.getOperation());
@@ -1108,43 +1103,8 @@ public:
     if (vType.getRank() > 1)
       return failure();
 
-    // Masked fmas are lowered separately.
-    auto maskableOp = cast<MaskableOpInterface>(fmaOp.getOperation());
-    if (maskableOp.isMasked())
-      return failure();
-
     rewriter.replaceOpWithNewOp<LLVM::FMulAddOp>(
         fmaOp, adaptor.getLhs(), adaptor.getRhs(), adaptor.getAcc());
-    return success();
-  }
-};
-
-/// Conversion pattern that turns a masked vector.fma on a 1-D vector into their
-/// LLVM counterpart representation. Non side effecting VP intrinsics are not
-/// fully supported by some backends, including x86, and they don't support
-/// pass-through values either. For these reasons, we generate an unmasked
-/// fma followed by a select instrution to emulate the masking behavior.
-/// This pattern is peepholed by some backends with support for masked fma
-/// instructions. This pattern does not match vectors of n >= 2 rank.
-class MaskedFMAOp1DConversion
-    : public VectorMaskOpConversionBase<vector::FMAOp> {
-public:
-  using VectorMaskOpConversionBase<vector::FMAOp>::VectorMaskOpConversionBase;
-
-  MaskedFMAOp1DConversion(LLVMTypeConverter &converter, bool fullVPIntr)
-      : VectorMaskOpConversionBase<vector::FMAOp>(converter) {}
-
-  virtual LogicalResult matchAndRewriteMaskableOp(
-      vector::MaskOp maskOp, MaskableOpInterface maskableOp,
-      ConversionPatternRewriter &rewriter) const override {
-    auto fmaOp = cast<FMAOp>(maskableOp.getOperation());
-    Type llvmType = typeConverter->convertType(fmaOp.getVectorType());
-
-    Value fmulAddOp = rewriter.create<LLVM::FMulAddOp>(
-        fmaOp.getLoc(), llvmType, fmaOp.getLhs(), fmaOp.getRhs(),
-        fmaOp.getAcc());
-    rewriter.replaceOpWithNewOp<LLVM::SelectOp>(
-        maskOp, llvmType, maskOp.getMask(), fmulAddOp, fmaOp.getAcc());
     return success();
   }
 };
@@ -1313,11 +1273,6 @@ public:
                                 PatternRewriter &rewriter) const override {
     auto vType = op.getVectorType();
     if (vType.getRank() < 2)
-      return failure();
-
-    // Masked fmas are lowered separately.
-    auto maskableOp = cast<MaskableOpInterface>(op.getOperation());
-    if (maskableOp.isMasked())
       return failure();
 
     auto loc = op.getLoc();
@@ -1511,16 +1466,20 @@ public:
     PrintConversion conversion = PrintConversion::None;
     VectorType vectorType = printType.dyn_cast<VectorType>();
     Type eltType = vectorType ? vectorType.getElementType() : printType;
+    auto parent = printOp->getParentOfType<ModuleOp>();
     Operation *printer;
     if (eltType.isF32()) {
-      printer =
-          LLVM::lookupOrCreatePrintF32Fn(printOp->getParentOfType<ModuleOp>());
+      printer = LLVM::lookupOrCreatePrintF32Fn(parent);
     } else if (eltType.isF64()) {
-      printer =
-          LLVM::lookupOrCreatePrintF64Fn(printOp->getParentOfType<ModuleOp>());
+      printer = LLVM::lookupOrCreatePrintF64Fn(parent);
+    } else if (eltType.isF16()) {
+      conversion = PrintConversion::Bitcast16; // bits!
+      printer = LLVM::lookupOrCreatePrintF16Fn(parent);
+    } else if (eltType.isBF16()) {
+      conversion = PrintConversion::Bitcast16; // bits!
+      printer = LLVM::lookupOrCreatePrintBF16Fn(parent);
     } else if (eltType.isIndex()) {
-      printer =
-          LLVM::lookupOrCreatePrintU64Fn(printOp->getParentOfType<ModuleOp>());
+      printer = LLVM::lookupOrCreatePrintU64Fn(parent);
     } else if (auto intTy = eltType.dyn_cast<IntegerType>()) {
       // Integers need a zero or sign extension on the operand
       // (depending on the source type) as well as a signed or
@@ -1530,8 +1489,7 @@ public:
         if (width <= 64) {
           if (width < 64)
             conversion = PrintConversion::ZeroExt64;
-          printer = LLVM::lookupOrCreatePrintU64Fn(
-              printOp->getParentOfType<ModuleOp>());
+          printer = LLVM::lookupOrCreatePrintU64Fn(parent);
         } else {
           return failure();
         }
@@ -1544,8 +1502,7 @@ public:
             conversion = PrintConversion::ZeroExt64;
           else if (width < 64)
             conversion = PrintConversion::SignExt64;
-          printer = LLVM::lookupOrCreatePrintI64Fn(
-              printOp->getParentOfType<ModuleOp>());
+          printer = LLVM::lookupOrCreatePrintI64Fn(parent);
         } else {
           return failure();
         }
@@ -1560,8 +1517,7 @@ public:
     emitRanks(rewriter, printOp, adaptor.getSource(), type, printer, rank,
               conversion);
     emitCall(rewriter, printOp->getLoc(),
-             LLVM::lookupOrCreatePrintNewlineFn(
-                 printOp->getParentOfType<ModuleOp>()));
+             LLVM::lookupOrCreatePrintNewlineFn(parent));
     rewriter.eraseOp(printOp);
     return success();
   }
@@ -1571,7 +1527,8 @@ private:
     // clang-format off
     None,
     ZeroExt64,
-    SignExt64
+    SignExt64,
+    Bitcast16
     // clang-format on
   };
 
@@ -1591,6 +1548,10 @@ private:
         value = rewriter.create<arith::ExtSIOp>(
             loc, IntegerType::get(rewriter.getContext(), 64), value);
         break;
+      case PrintConversion::Bitcast16:
+        value = rewriter.create<LLVM::BitcastOp>(
+            loc, IntegerType::get(rewriter.getContext(), 16), value);
+        break;
       case PrintConversion::None:
         break;
       }
@@ -1598,10 +1559,9 @@ private:
       return;
     }
 
-    emitCall(rewriter, loc,
-             LLVM::lookupOrCreatePrintOpenFn(op->getParentOfType<ModuleOp>()));
-    Operation *printComma =
-        LLVM::lookupOrCreatePrintCommaFn(op->getParentOfType<ModuleOp>());
+    auto parent = op->getParentOfType<ModuleOp>();
+    emitCall(rewriter, loc, LLVM::lookupOrCreatePrintOpenFn(parent));
+    Operation *printComma = LLVM::lookupOrCreatePrintCommaFn(parent);
 
     if (rank <= 1) {
       auto reducedType = vectorType.getElementType();
@@ -1615,9 +1575,7 @@ private:
         if (d != dim - 1)
           emitCall(rewriter, loc, printComma);
       }
-      emitCall(
-          rewriter, loc,
-          LLVM::lookupOrCreatePrintCloseFn(op->getParentOfType<ModuleOp>()));
+      emitCall(rewriter, loc, LLVM::lookupOrCreatePrintCloseFn(parent));
       return;
     }
 
@@ -1632,8 +1590,7 @@ private:
       if (d != dim - 1)
         emitCall(rewriter, loc, printComma);
     }
-    emitCall(rewriter, loc,
-             LLVM::lookupOrCreatePrintCloseFn(op->getParentOfType<ModuleOp>()));
+    emitCall(rewriter, loc, LLVM::lookupOrCreatePrintCloseFn(parent));
   }
 
   // Helper to emit a call.
@@ -1748,10 +1705,9 @@ void mlir::populateVectorToLLVMConversionPatterns(
   patterns
       .add<VectorBitCastOpConversion, VectorShuffleOpConversion,
            VectorExtractElementOpConversion, VectorExtractOpConversion,
-           VectorFMAOp1DConversion, MaskedFMAOp1DConversion,
-           VectorInsertElementOpConversion, VectorInsertOpConversion,
-           VectorPrintOpConversion, VectorTypeCastOpConversion,
-           VectorScaleOpConversion,
+           VectorFMAOp1DConversion, VectorInsertElementOpConversion,
+           VectorInsertOpConversion, VectorPrintOpConversion,
+           VectorTypeCastOpConversion, VectorScaleOpConversion,
            VectorLoadStoreConversion<vector::LoadOp, vector::LoadOpAdaptor>,
            VectorLoadStoreConversion<vector::MaskedLoadOp,
                                      vector::MaskedLoadOpAdaptor>,

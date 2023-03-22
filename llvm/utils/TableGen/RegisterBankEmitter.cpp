@@ -327,10 +327,5 @@ void RegisterBankEmitter::run(raw_ostream &OS) {
   OS << "#endif // GET_TARGET_REGBANK_IMPL\n";
 }
 
-namespace llvm {
-
-void EmitRegisterBank(RecordKeeper &RK, raw_ostream &OS) {
-  RegisterBankEmitter(RK).run(OS);
-}
-
-} // end namespace llvm
+static TableGen::Emitter::OptClass<RegisterBankEmitter>
+    X("gen-register-bank", "Generate registers bank descriptions");

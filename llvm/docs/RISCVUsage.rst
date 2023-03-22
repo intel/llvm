@@ -57,6 +57,7 @@ on support follow.
      ``Svnapot``      Assembly Support
      ``Svpbmt``       Supported
      ``V``            Supported
+     ``Zawrs``        Assembly Support
      ``Zba``          Supported
      ``Zbb``          Supported
      ``Zbc``          Supported
@@ -139,9 +140,6 @@ LLVM supports (to various degrees) a number of experimental extensions.  All exp
 
 The primary goal of experimental support is to assist in the process of ratification by providing an existence proof of an implementation, and simplifying efforts to validate the value of a proposed extension against large code bases.  Experimental extensions are expected to either transition to ratified status, or be eventually removed.  The decision on whether to accept an experimental extension is currently done on an entirely case by case basis; if you want to propose one, attending the bi-weekly RISC-V sync-up call is strongly advised.
 
-``experimental-zawrs``
-  LLVM implements the `1.0-rc3 draft specification <https://github.com/riscv/riscv-zawrs/releases/download/V1.0-rc3/Zawrs.pdf>`_.  Note that have been backwards incompatible changes made between release candidates for the 1.0 draft.
-
 ``experimental-zca``
   LLVM implements the `1.0.1 draft specification <https://github.com/riscv/riscv-code-size-reduction/releases/tag/v1.0.1>`_.
 
@@ -188,8 +186,26 @@ The current vendor extensions supported are:
 ``XTHeadBs``
   LLVM implements `the THeadBs (single-bit operations) vendor-defined instructions specified in <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.2/xthead-2023-01-30-2.2.2.pdf>`_  by T-HEAD of Alibaba.  Instructions are prefixed with `th.` as described in the specification.
 
+``XTHeadCondMov``
+  LLVM implements `the THeadCondMov (conditional move) vendor-defined instructions specified in <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.2/xthead-2023-01-30-2.2.2.pdf>`_  by T-HEAD of Alibaba.  Instructions are prefixed with `th.` as described in the specification.
+
+``XTHeadCmo``
+  LLVM implements `the THeadCmo (cache management operations) vendor-defined instructions specified in <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.2/xthead-2023-01-30-2.2.2.pdf>`_  by T-HEAD of Alibaba.  Instructions are prefixed with `th.` as described in the specification.
+
+``XTHeadFMemIdx``
+  LLVM implements `the THeadFMemIdx (indexed memory operations for floating point) vendor-defined instructions specified in <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.2/xthead-2023-01-30-2.2.2.pdf>`_  by T-HEAD of Alibaba.  Instructions are prefixed with `th.` as described in the specification.
+
 ``XTheadMac``
   LLVM implements `the XTheadMac (multiply-accumulate instructions) vendor-defined instructions specified in <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.2/xthead-2023-01-30-2.2.2.pdf>`_  by T-HEAD of Alibaba.  Instructions are prefixed with `th.` as described in the specification.
+
+``XTHeadMemIdx``
+  LLVM implements `the THeadMemIdx (indexed memory operations) vendor-defined instructions specified in <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.2/xthead-2023-01-30-2.2.2.pdf>`_  by T-HEAD of Alibaba.  Instructions are prefixed with `th.` as described in the specification.
+
+``XTHeadMemPair``
+  LLVM implements `the THeadMemPair (two-GPR memory operations) vendor-defined instructions specified in <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.2/xthead-2023-01-30-2.2.2.pdf>`_  by T-HEAD of Alibaba.  Instructions are prefixed with `th.` as described in the specification.
+
+``XTHeadSync``
+  LLVM implements `the THeadSync (multi-core synchronization instructions) vendor-defined instructions specified in <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.2/xthead-2023-01-30-2.2.2.pdf>`_  by T-HEAD of Alibaba.  Instructions are prefixed with `th.` as described in the specification.
 
 ``XTHeadVdot``
   LLVM implements `version 1.0.0 of the THeadV-family custom instructions specification <https://github.com/T-head-Semi/thead-extension-spec/releases/download/2.2.0/xthead-2022-12-04-2.2.0.pdf>`_ by T-HEAD of Alibaba.  All instructions are prefixed with `th.` as described in the specification, and the riscv-toolchain-convention document linked above.

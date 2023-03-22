@@ -71,6 +71,10 @@ module std [system] {
     module stdint_h {
       header "stdint.h"
       export *
+      // FIXME: This module only exists on OS X and for some reason the
+      // wildcard above doesn't export it. Removing this breaks the tests
+      // for C compatibility headers in C++17 mode with modules enabled.
+      export Darwin.C.stdint
     }
     module stdio_h {
       // <stdio.h>'s __need_* macros require textual inclusion.
@@ -604,7 +608,10 @@ module std [system] {
       module unique                          { private header "__algorithm/unique.h" }
       module unique_copy                     { private header "__algorithm/unique_copy.h" }
       module unwrap_iter                     { private header "__algorithm/unwrap_iter.h" }
-      module unwrap_range                    { private header "__algorithm/unwrap_range.h" }
+      module unwrap_range {
+        private header "__algorithm/unwrap_range.h"
+        export utility.__utility.pair
+      }
       module upper_bound                     { private header "__algorithm/upper_bound.h" }
     }
   }
@@ -624,7 +631,10 @@ module std [system] {
     export *
 
     module __atomic {
-      module aliases             { private header "__atomic/aliases.h" }
+      module aliases             {
+        private header "__atomic/aliases.h"
+        export atomic
+      }
       module atomic              { private header "__atomic/atomic.h" }
       module atomic_base         { private header "__atomic/atomic_base.h" }
       module atomic_flag         { private header "__atomic/atomic_flag.h" }
@@ -677,11 +687,16 @@ module std [system] {
     export *
 
     module __charconv {
-      module chars_format      { private header "__charconv/chars_format.h" }
-      module from_chars_result { private header "__charconv/from_chars_result.h" }
-      module tables            { private header "__charconv/tables.h" }
-      module to_chars_base_10  { private header "__charconv/to_chars_base_10.h" }
-      module to_chars_result   { private header "__charconv/to_chars_result.h" }
+      module chars_format            { private header "__charconv/chars_format.h" }
+      module from_chars_integral     { private header "__charconv/from_chars_integral.h" }
+      module from_chars_result       { private header "__charconv/from_chars_result.h" }
+      module tables                  { private header "__charconv/tables.h" }
+      module to_chars                { private header "__charconv/to_chars.h" }
+      module to_chars_base_10        { private header "__charconv/to_chars_base_10.h" }
+      module to_chars_floating_point { private header "__charconv/to_chars_floating_point.h" }
+      module to_chars_integral       { private header "__charconv/to_chars_integral.h" }
+      module to_chars_result         { private header "__charconv/to_chars_result.h" }
+      module traits                  { private header "__charconv/traits.h" }
     }
 
   }
@@ -819,6 +834,14 @@ module std [system] {
   module exception {
     header "exception"
     export *
+
+    module __exception {
+      module exception        { private header "__exception/exception.h" }
+      module exception_ptr    { private header "__exception/exception_ptr.h" }
+      module nested_exception { private header "__exception/nested_exception.h" }
+      module operations       { private header "__exception/operations.h" }
+      module terminate        { private header "__exception/terminate.h" }
+    }
   }
   module execution {
     header "execution"
@@ -1380,6 +1403,7 @@ module std [system] {
     export string_view
     module __string {
       module char_traits           { private header "__string/char_traits.h" }
+      module constexpr_c_functions { private header "__string/constexpr_c_functions.h" }
       module extern_template_lists { private header "__string/extern_template_lists.h" }
       module string_fwd            { private header "__fwd/string.h" }
     }
@@ -1490,6 +1514,10 @@ module std [system] {
     module is_destructible                     { private header "__type_traits/is_destructible.h" }
     module is_empty                            { private header "__type_traits/is_empty.h" }
     module is_enum                             { private header "__type_traits/is_enum.h" }
+    module is_equality_comparable                       {
+      private header "__type_traits/is_equality_comparable.h"
+      export integral_constant
+    }
     module is_final                            { private header "__type_traits/is_final.h" }
     module is_floating_point                   { private header "__type_traits/is_floating_point.h" }
     module is_function                         { private header "__type_traits/is_function.h" }
@@ -1560,6 +1588,7 @@ module std [system] {
     module nat                                 { private header "__type_traits/nat.h" }
     module negation                            { private header "__type_traits/negation.h" }
     module noexcept_move_assign_container      { private header "__type_traits/noexcept_move_assign_container.h" }
+    module predicate_traits                    { private header "__type_traits/predicate_traits.h" }
     module promote                             { private header "__type_traits/promote.h" }
     module rank                                { private header "__type_traits/rank.h" }
     module remove_all_extents                  { private header "__type_traits/remove_all_extents.h" }
@@ -1607,7 +1636,10 @@ module std [system] {
 
     module __utility {
       module as_const            { private header "__utility/as_const.h" }
-      module auto_cast           { private header "__utility/auto_cast.h" }
+      module auto_cast           {
+        private header "__utility/auto_cast.h"
+        export type_traits.decay
+      }
       module cmp                 { private header "__utility/cmp.h" }
       module convert_to_integral { private header "__utility/convert_to_integral.h" }
       module declval             { private header "__utility/declval.h" }
@@ -1678,20 +1710,12 @@ module std [system] {
   module experimental {
     requires cplusplus11
 
-    module algorithm {
-      header "experimental/algorithm"
-      export *
-    }
     module deque {
       header "experimental/deque"
       export *
     }
     module forward_list {
       header "experimental/forward_list"
-      export *
-    }
-    module functional {
-      header "experimental/functional"
       export *
     }
     module iterator {

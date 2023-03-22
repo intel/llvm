@@ -18,7 +18,6 @@
 
 namespace llvm {
 struct RISCVExtensionInfo {
-  std::string ExtName;
   unsigned MajorVersion;
   unsigned MinorVersion;
 };
@@ -50,6 +49,12 @@ public:
   parseArchString(StringRef Arch, bool EnableExperimentalExtension,
                   bool ExperimentalExtensionVersionCheck = true,
                   bool IgnoreUnknown = false);
+
+  /// Parse RISCV ISA info from an arch string that is already in normalized
+  /// form (as defined in the psABI). Unlike parseArchString, this function
+  /// will not error for unrecognized extension names or extension versions.
+  static llvm::Expected<std::unique_ptr<RISCVISAInfo>>
+  parseNormalizedArchString(StringRef Arch);
 
   /// Parse RISCV ISA info from feature vector.
   static llvm::Expected<std::unique_ptr<RISCVISAInfo>>

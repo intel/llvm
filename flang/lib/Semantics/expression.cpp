@@ -596,23 +596,24 @@ int ExpressionAnalyzer::AnalyzeKindParam(
   if (!kindParam) {
     return defaultKind;
   }
-  return common::visit(
+  std::int64_t kind{common::visit(
       common::visitors{
-          [](std::uint64_t k) { return static_cast<int>(k); },
+          [](std::uint64_t k) { return static_cast<std::int64_t>(k); },
           [&](const parser::Scalar<
               parser::Integer<parser::Constant<parser::Name>>> &n) {
             if (MaybeExpr ie{Analyze(n)}) {
-              if (std::optional<std::int64_t> i64{ToInt64(*ie)}) {
-                int iv = *i64;
-                if (iv == *i64) {
-                  return iv;
-                }
-              }
+              return ToInt64(*ie).value_or(defaultKind);
             }
-            return defaultKind;
+            return static_cast<std::int64_t>(defaultKind);
           },
       },
-      kindParam->u);
+      kindParam->u)};
+  if (kind != static_cast<int>(kind)) {
+    Say("Unsupported type kind value (%jd)"_err_en_US,
+        static_cast<std::intmax_t>(kind));
+    kind = defaultKind;
+  }
+  return static_cast<int>(kind);
 }
 
 // Common handling of parser::IntLiteralConstant and SignedIntLiteralConstant
@@ -657,7 +658,7 @@ struct IntTypeVisitor {
   }
   ExpressionAnalyzer &analyzer;
   parser::CharBlock digits;
-  int kind;
+  std::int64_t kind;
   bool isDefaultKind;
   bool isNegated;
 };
@@ -2877,8 +2878,38 @@ std::optional<characteristics::Procedure> ExpressionAnalyzer::CheckCall(
     ActualArguments &arguments) {
   bool treatExternalAsImplicit{IsExternalCalledImplicitly(callSite, proc)};
   const Symbol *procSymbol{proc.GetSymbol()};
-  auto chars{characteristics::Procedure::Characterize(
-      proc, context_.foldingContext())};
+  std::optional<characteristics::Procedure> chars;
+  if (procSymbol && procSymbol->has<semantics::ProcEntityDetails>() &&
+      procSymbol->owner().IsGlobal()) {
+    // Unknown global external, implicit interface; assume
+    // characteristics from the actual arguments, and check
+    // for consistency with other references.
+    chars = characteristics::Procedure::FromActuals(
+        proc, arguments, context_.foldingContext());
+    if (chars && procSymbol) {
+      // Ensure calls over implicit interfaces are consistent
+      auto name{procSymbol->name()};
+      if (auto iter{implicitInterfaces_.find(name)};
+          iter != implicitInterfaces_.end()) {
+        std::string whyNot;
+        if (!chars->IsCompatibleWith(iter->second.second, &whyNot)) {
+          if (auto *msg{Say(callSite,
+                  "Reference to the procedure '%s' has an implicit interface that is distinct from another reference: %s"_warn_en_US,
+                  name, whyNot)}) {
+            msg->Attach(
+                iter->second.first, "previous reference to '%s'"_en_US, name);
+          }
+        }
+      } else {
+        implicitInterfaces_.insert(
+            std::make_pair(name, std::make_pair(callSite, *chars)));
+      }
+    }
+  }
+  if (!chars) {
+    chars = characteristics::Procedure::Characterize(
+        proc, context_.foldingContext());
+  }
   bool ok{true};
   if (chars) {
     if (treatExternalAsImplicit && !chars->CanBeCalledViaImplicitInterface()) {

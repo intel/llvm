@@ -32,6 +32,10 @@ CommandObjectDWIMPrint::CommandObjectDWIMPrint(CommandInterpreter &interpreter)
                        "Print a variable or expression.",
                        "dwim-print [<variable-name> | <expression>]",
                        eCommandProcessMustBePaused | eCommandTryTargetAPILock) {
+
+  CommandArgumentData var_name_arg(eArgTypeVarName, eArgRepeatPlain);
+  m_arguments.push_back({var_name_arg});
+
   m_option_group.Append(&m_format_options,
                         OptionGroupFormat::OPTION_GROUP_FORMAT |
                             OptionGroupFormat::OPTION_GROUP_GDB_FMT,
@@ -43,6 +47,13 @@ CommandObjectDWIMPrint::CommandObjectDWIMPrint(CommandInterpreter &interpreter)
 }
 
 Options *CommandObjectDWIMPrint::GetOptions() { return &m_option_group; }
+
+void CommandObjectDWIMPrint::HandleArgumentCompletion(
+    CompletionRequest &request, OptionElementVector &opt_element_vector) {
+  CommandCompletions::InvokeCommonCompletionCallbacks(
+      GetCommandInterpreter(), CommandCompletions::eVariablePathCompletion,
+      request, nullptr);
+}
 
 bool CommandObjectDWIMPrint::DoExecute(StringRef command,
                                        CommandReturnObject &result) {
@@ -59,6 +70,10 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
                                   m_cmd_name);
     return false;
   }
+
+  // If the user has not specified, default to disabling persistent results.
+  if (m_expr_options.suppress_persistent_result == eLazyBoolCalculate)
+    m_expr_options.suppress_persistent_result = eLazyBoolYes;
 
   auto verbosity = GetDebugger().GetDWIMPrintVerbosity();
 
@@ -77,8 +92,10 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
   if (StackFrame *frame = m_exe_ctx.GetFramePtr()) {
     auto valobj_sp = frame->FindVariable(ConstString(expr));
     if (valobj_sp && valobj_sp->GetError().Success()) {
-      if (!eval_options.GetSuppressPersistentResult())
-        valobj_sp = valobj_sp->Persist();
+      if (!eval_options.GetSuppressPersistentResult()) {
+        if (auto persisted_valobj = valobj_sp->Persist())
+          valobj_sp = persisted_valobj;
+      }
 
       if (verbosity == eDWIMPrintVerbosityFull) {
         StringRef flags;

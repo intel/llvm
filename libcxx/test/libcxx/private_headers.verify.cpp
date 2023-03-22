@@ -259,10 +259,15 @@ END-SCRIPT
 #include <__bit/rotate.h> // expected-error@*:* {{use of private header from outside its module: '__bit/rotate.h'}}
 #include <__bit_reference> // expected-error@*:* {{use of private header from outside its module: '__bit_reference'}}
 #include <__charconv/chars_format.h> // expected-error@*:* {{use of private header from outside its module: '__charconv/chars_format.h'}}
+#include <__charconv/from_chars_integral.h> // expected-error@*:* {{use of private header from outside its module: '__charconv/from_chars_integral.h'}}
 #include <__charconv/from_chars_result.h> // expected-error@*:* {{use of private header from outside its module: '__charconv/from_chars_result.h'}}
 #include <__charconv/tables.h> // expected-error@*:* {{use of private header from outside its module: '__charconv/tables.h'}}
+#include <__charconv/to_chars.h> // expected-error@*:* {{use of private header from outside its module: '__charconv/to_chars.h'}}
 #include <__charconv/to_chars_base_10.h> // expected-error@*:* {{use of private header from outside its module: '__charconv/to_chars_base_10.h'}}
+#include <__charconv/to_chars_floating_point.h> // expected-error@*:* {{use of private header from outside its module: '__charconv/to_chars_floating_point.h'}}
+#include <__charconv/to_chars_integral.h> // expected-error@*:* {{use of private header from outside its module: '__charconv/to_chars_integral.h'}}
 #include <__charconv/to_chars_result.h> // expected-error@*:* {{use of private header from outside its module: '__charconv/to_chars_result.h'}}
+#include <__charconv/traits.h> // expected-error@*:* {{use of private header from outside its module: '__charconv/traits.h'}}
 #include <__chrono/calendar.h> // expected-error@*:* {{use of private header from outside its module: '__chrono/calendar.h'}}
 #include <__chrono/concepts.h> // expected-error@*:* {{use of private header from outside its module: '__chrono/concepts.h'}}
 #include <__chrono/convert_to_timespec.h> // expected-error@*:* {{use of private header from outside its module: '__chrono/convert_to_timespec.h'}}
@@ -329,6 +334,11 @@ END-SCRIPT
 #include <__coroutine/trivial_awaitables.h> // expected-error@*:* {{use of private header from outside its module: '__coroutine/trivial_awaitables.h'}}
 #include <__debug_utils/randomize_range.h> // expected-error@*:* {{use of private header from outside its module: '__debug_utils/randomize_range.h'}}
 #include <__errc> // expected-error@*:* {{use of private header from outside its module: '__errc'}}
+#include <__exception/exception.h> // expected-error@*:* {{use of private header from outside its module: '__exception/exception.h'}}
+#include <__exception/exception_ptr.h> // expected-error@*:* {{use of private header from outside its module: '__exception/exception_ptr.h'}}
+#include <__exception/nested_exception.h> // expected-error@*:* {{use of private header from outside its module: '__exception/nested_exception.h'}}
+#include <__exception/operations.h> // expected-error@*:* {{use of private header from outside its module: '__exception/operations.h'}}
+#include <__exception/terminate.h> // expected-error@*:* {{use of private header from outside its module: '__exception/terminate.h'}}
 #include <__expected/bad_expected_access.h> // expected-error@*:* {{use of private header from outside its module: '__expected/bad_expected_access.h'}}
 #include <__expected/expected.h> // expected-error@*:* {{use of private header from outside its module: '__expected/expected.h'}}
 #include <__expected/unexpect.h> // expected-error@*:* {{use of private header from outside its module: '__expected/unexpect.h'}}
@@ -588,6 +598,7 @@ END-SCRIPT
 #include <__split_buffer> // expected-error@*:* {{use of private header from outside its module: '__split_buffer'}}
 #include <__std_stream> // expected-error@*:* {{use of private header from outside its module: '__std_stream'}}
 #include <__string/char_traits.h> // expected-error@*:* {{use of private header from outside its module: '__string/char_traits.h'}}
+#include <__string/constexpr_c_functions.h> // expected-error@*:* {{use of private header from outside its module: '__string/constexpr_c_functions.h'}}
 #include <__string/extern_template_lists.h> // expected-error@*:* {{use of private header from outside its module: '__string/extern_template_lists.h'}}
 #include <__thread/poll_with_backoff.h> // expected-error@*:* {{use of private header from outside its module: '__thread/poll_with_backoff.h'}}
 #include <__thread/timed_backoff_policy.h> // expected-error@*:* {{use of private header from outside its module: '__thread/timed_backoff_policy.h'}}
@@ -650,6 +661,7 @@ END-SCRIPT
 #include <__type_traits/is_destructible.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_destructible.h'}}
 #include <__type_traits/is_empty.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_empty.h'}}
 #include <__type_traits/is_enum.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_enum.h'}}
+#include <__type_traits/is_equality_comparable.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_equality_comparable.h'}}
 #include <__type_traits/is_final.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_final.h'}}
 #include <__type_traits/is_floating_point.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_floating_point.h'}}
 #include <__type_traits/is_function.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_function.h'}}
@@ -714,6 +726,7 @@ END-SCRIPT
 #include <__type_traits/nat.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/nat.h'}}
 #include <__type_traits/negation.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/negation.h'}}
 #include <__type_traits/noexcept_move_assign_container.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/noexcept_move_assign_container.h'}}
+#include <__type_traits/predicate_traits.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/predicate_traits.h'}}
 #include <__type_traits/promote.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/promote.h'}}
 #include <__type_traits/rank.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/rank.h'}}
 #include <__type_traits/remove_all_extents.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/remove_all_extents.h'}}

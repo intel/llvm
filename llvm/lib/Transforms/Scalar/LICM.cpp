@@ -68,6 +68,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/PatternMatch.h"
@@ -102,6 +103,8 @@ STATISTIC(NumMovedCalls, "Number of call insts hoisted or sunk");
 STATISTIC(NumPromotionCandidates, "Number of promotion candidates");
 STATISTIC(NumLoadPromoted, "Number of load-only promotions");
 STATISTIC(NumLoadStorePromoted, "Number of load and store promotions");
+STATISTIC(NumMinMaxHoisted,
+          "Number min/max expressions hoisted out of the loop");
 
 /// Memory promotion is enabled by default.
 static cl::opt<bool>
@@ -163,9 +166,15 @@ static bool isSafeToExecuteUnconditionally(
     AssumptionCache *AC, bool AllowSpeculation);
 static bool pointerInvalidatedByLoop(MemorySSA *MSSA, MemoryUse *MU,
                                      Loop *CurLoop, Instruction &I,
-                                     SinkAndHoistLICMFlags &Flags);
+                                     SinkAndHoistLICMFlags &Flags,
+                                     bool InvariantGroup);
 static bool pointerInvalidatedByBlock(BasicBlock &BB, MemorySSA &MSSA,
                                       MemoryUse &MU);
+/// Try to simplify things like (A < INV_1 AND icmp A < INV_2) into (A <
+/// min(INV_1, INV_2)), if INV_1 and INV_2 are both loop invariants and their
+/// minimun can be computed outside of loop, and X is not a loop-invariant.
+static bool hoistMinMax(Instruction &I, Loop &L, ICFLoopSafetyInfo &SafetyInfo,
+                        MemorySSAUpdater &MSSAU);
 static Instruction *cloneInstructionInExitBlock(
     Instruction &I, BasicBlock &ExitBlock, PHINode &PN, const LoopInfo *LI,
     const LoopSafetyInfo *SafetyInfo, MemorySSAUpdater &MSSAU);
@@ -280,9 +289,6 @@ PreservedAnalyses LICMPass::run(Loop &L, LoopAnalysisManager &AM,
     return PreservedAnalyses::all();
 
   auto PA = getLoopPassPreservedAnalyses();
-
-  PA.preserve<DominatorTreeAnalysis>();
-  PA.preserve<LoopAnalysis>();
   PA.preserve<MemorySSAAnalysis>();
 
   return PA;
@@ -293,9 +299,9 @@ void LICMPass::printPipeline(
   static_cast<PassInfoMixin<LICMPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
 
-  OS << "<";
+  OS << '<';
   OS << (Opts.AllowSpeculation ? "" : "no-") << "allowspeculation";
-  OS << ">";
+  OS << '>';
 }
 
 PreservedAnalyses LNICMPass::run(LoopNest &LN, LoopAnalysisManager &AM,
@@ -334,9 +340,9 @@ void LNICMPass::printPipeline(
   static_cast<PassInfoMixin<LNICMPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
 
-  OS << "<";
+  OS << '<';
   OS << (Opts.AllowSpeculation ? "" : "no-") << "allowspeculation";
-  OS << ">";
+  OS << '>';
 }
 
 char LegacyLICMPass::ID = 0;
@@ -983,6 +989,15 @@ bool llvm::hoistRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
         }
       }
 
+      // Optimize complex patterns, such as (x < INV1 && x < INV2), turning them
+      // into (x < min(INV1, INV2)), and hoisting the invariant part of this
+      // expression out of the loop.
+      if (hoistMinMax(I, *CurLoop, *SafetyInfo, MSSAU)) {
+        ++NumMinMaxHoisted;
+        Changed = true;
+        continue;
+      }
+
       // Remember possibly hoistable branches so we can actually hoist them
       // later if needed.
       if (BranchInst *BI = dyn_cast<BranchInst>(&I))
@@ -1176,8 +1191,12 @@ bool llvm::canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
     if (isLoadInvariantInLoop(LI, DT, CurLoop))
       return true;
 
+    auto MU = cast<MemoryUse>(MSSA->getMemoryAccess(LI));
+
+    bool InvariantGroup = LI->hasMetadata(LLVMContext::MD_invariant_group);
+
     bool Invalidated = pointerInvalidatedByLoop(
-        MSSA, cast<MemoryUse>(MSSA->getMemoryAccess(LI)), CurLoop, I, Flags);
+        MSSA, MU, CurLoop, I, Flags, InvariantGroup);
     // Check loop-invariant address because this may also be a sinkable load
     // whose address is not necessarily loop-invariant.
     if (ORE && Invalidated && CurLoop->isLoopInvariant(LI->getPointerOperand()))
@@ -1210,10 +1229,6 @@ bool llvm::canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
       // Assumes don't actually alias anything or throw
       return true;
 
-    if (match(CI, m_Intrinsic<Intrinsic::experimental_widenable_condition>()))
-      // Widenable conditions don't actually alias anything or throw
-      return true;
-
     // Handle simple cases by querying alias analysis.
     MemoryEffects Behavior = AA->getMemoryEffects(CI);
     if (Behavior.doesNotAccessMemory())
@@ -1228,7 +1243,7 @@ bool llvm::canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
           if (Op->getType()->isPointerTy() &&
               pointerInvalidatedByLoop(
                   MSSA, cast<MemoryUse>(MSSA->getMemoryAccess(CI)), CurLoop, I,
-                  Flags))
+                  Flags, /*InvariantGroup=*/false))
             return false;
         return true;
       }
@@ -2330,7 +2345,8 @@ collectPromotionCandidates(MemorySSA *MSSA, AliasAnalysis *AA, Loop *L) {
 
 static bool pointerInvalidatedByLoop(MemorySSA *MSSA, MemoryUse *MU,
                                      Loop *CurLoop, Instruction &I,
-                                     SinkAndHoistLICMFlags &Flags) {
+                                     SinkAndHoistLICMFlags &Flags,
+                                     bool InvariantGroup) {
   // For hoisting, use the walker to determine safety
   if (!Flags.getIsSink()) {
     MemoryAccess *Source;
@@ -2341,8 +2357,18 @@ static bool pointerInvalidatedByLoop(MemorySSA *MSSA, MemoryUse *MU,
       Source = MSSA->getSkipSelfWalker()->getClobberingMemoryAccess(MU);
       Flags.incrementClobberingCalls();
     }
+    // If hoisting an invariant group, we only need to check that there
+    // is no store to the loaded pointer between the start of the loop,
+    // and the load (since all values must be the same).
+
+    // This can be checked in two conditions:
+    // 1) if the memoryaccess is outside the loop
+    // 2) the earliest access is at the loop header,
+    // if the memory loaded is the phi node
+
     return !MSSA->isLiveOnEntryDef(Source) &&
-           CurLoop->contains(Source->getBlock());
+           CurLoop->contains(Source->getBlock()) &&
+           !(InvariantGroup && Source->getBlock() == CurLoop->getHeader() && isa<MemoryPhi>(Source));
   }
 
   // For sinking, we'd need to check all Defs below this use. The getClobbering
@@ -2381,6 +2407,84 @@ bool pointerInvalidatedByBlock(BasicBlock &BB, MemorySSA &MSSA, MemoryUse &MU) {
         if (MU.getBlock() != MD->getBlock() || !MSSA.locallyDominates(MD, &MU))
           return true;
   return false;
+}
+
+static bool hoistMinMax(Instruction &I, Loop &L, ICFLoopSafetyInfo &SafetyInfo,
+                        MemorySSAUpdater &MSSAU) {
+  bool Inverse = false;
+  bool IsLogical = false;
+  using namespace PatternMatch;
+  Value *Cond1, *Cond2;
+  if (match(&I, m_Or(m_Value(Cond1), m_Value(Cond2))))
+    Inverse = true;
+  else if (match(&I, m_LogicalOr(m_Value(Cond1), m_Value(Cond2)))) {
+    Inverse = true;
+    IsLogical = true;
+  } else if (match(&I, m_And(m_Value(Cond1), m_Value(Cond2)))) {
+    // Do nothing
+  } else if (match(&I, m_LogicalAnd(m_Value(Cond1), m_Value(Cond2))))
+    IsLogical = true;
+  else
+    return false;
+
+  auto MatchICmpAgainstInvariant = [&](Value *C, ICmpInst::Predicate &P,
+                                       Value *&LHS, Value *&RHS) {
+    if (!match(C, m_OneUse(m_ICmp(P, m_Value(LHS), m_Value(RHS)))))
+      return false;
+    if (!LHS->getType()->isIntegerTy())
+      return false;
+    if (!ICmpInst::isRelational(P))
+      return false;
+    if (L.isLoopInvariant(LHS)) {
+      std::swap(LHS, RHS);
+      P = ICmpInst::getSwappedPredicate(P);
+    }
+    if (L.isLoopInvariant(LHS) || !L.isLoopInvariant(RHS))
+      return false;
+    if (Inverse)
+      P = ICmpInst::getInversePredicate(P);
+    return true;
+  };
+  ICmpInst::Predicate P1, P2;
+  Value *LHS1, *LHS2, *RHS1, *RHS2;
+  if (!MatchICmpAgainstInvariant(Cond1, P1, LHS1, RHS1) ||
+      !MatchICmpAgainstInvariant(Cond2, P2, LHS2, RHS2))
+    return false;
+  if (P1 != P2 || LHS1 != LHS2)
+    return false;
+
+  // Everything is fine, we can do the transform.
+  bool UseMin = ICmpInst::isLT(P1) || ICmpInst::isLE(P1);
+  assert(
+      (UseMin || ICmpInst::isGT(P1) || ICmpInst::isGE(P1)) &&
+      "Relational predicate is either less (or equal) or greater (or equal)!");
+  Intrinsic::ID id = ICmpInst::isSigned(P1)
+                         ? (UseMin ? Intrinsic::smin : Intrinsic::smax)
+                         : (UseMin ? Intrinsic::umin : Intrinsic::umax);
+  auto *Preheader = L.getLoopPreheader();
+  assert(Preheader && "Loop is not in simplify form?");
+  IRBuilder<> Builder(Preheader->getTerminator());
+  // We are about to create a new guaranteed use for RHS2 which might not exist
+  // before (if it was a non-taken input of logical and/or instruction). If it
+  // was poison, we need to freeze it. Note that no new use for LHS and RHS1 are
+  // introduced, so they don't need this.
+  if (IsLogical)
+    RHS2 = Builder.CreateFreeze(RHS2, RHS2->getName() + ".fr");
+  Value *NewRHS = Builder.CreateBinaryIntrinsic(
+      id, RHS1, RHS2, nullptr, StringRef("invariant.") +
+                                   (ICmpInst::isSigned(P1) ? "s" : "u") +
+                                   (UseMin ? "min" : "max"));
+  Builder.SetInsertPoint(&I);
+  ICmpInst::Predicate P = P1;
+  if (Inverse)
+    P = ICmpInst::getInversePredicate(P);
+  Value *NewCond = Builder.CreateICmp(P, LHS1, NewRHS);
+  NewCond->takeName(&I);
+  I.replaceAllUsesWith(NewCond);
+  eraseInstruction(I, SafetyInfo, MSSAU);
+  eraseInstruction(*cast<Instruction>(Cond1), SafetyInfo, MSSAU);
+  eraseInstruction(*cast<Instruction>(Cond2), SafetyInfo, MSSAU);
+  return true;
 }
 
 /// Little predicate that returns true if the specified basic block is in

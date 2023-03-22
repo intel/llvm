@@ -114,8 +114,8 @@ private:
 
 } // end anonymous namespace
 
-static void PrintDefList(const std::vector<Record*> &Uses,
-                         unsigned Num, raw_ostream &OS) {
+static void PrintDefList(const std::vector<Record *> &Uses, unsigned Num,
+                         raw_ostream &OS) {
   OS << "static const MCPhysReg ImplicitList" << Num << "[] = { ";
   for (auto [Idx, U] : enumerate(Uses))
     OS << (Idx ? ", " : "") << getQualifiedName(U);
@@ -419,8 +419,7 @@ void InstrInfoEmitter::emitOperandTypeMappings(
     // Size the unsigned integer offset to save space.
     assert(OperandRecords.size() <= UINT32_MAX &&
            "Too many operands for offset table");
-    OS << ((OperandRecords.size() <= UINT16_MAX) ? "  const uint16_t"
-                                                 : "  const uint32_t");
+    OS << "  static const " << getMinimalTypeForRange(OperandRecords.size());
     OS << " Offsets[] = {\n";
     for (int I = 0, E = OperandOffsets.size(); I != E; ++I) {
       OS << "    /* " << getInstrName(I) << " */\n";
@@ -436,7 +435,8 @@ void InstrInfoEmitter::emitOperandTypeMappings(
     assert(EnumVal <= INT16_MAX &&
            "Too many operand types for operand types table");
     OS << "\n  using namespace OpTypes;\n";
-    OS << ((EnumVal <= INT8_MAX) ? "  const int8_t" : "  const int16_t");
+    OS << "  static";
+    OS << ((EnumVal <= INT8_MAX) ? " const int8_t" : " const int16_t");
     OS << " OpcodeOperandTypes[] = {\n    ";
     for (int I = 0, E = OperandRecords.size(), CurOffset = 0; I != E; ++I) {
       // We print each Opcode's operands in its own row.
@@ -1245,13 +1245,12 @@ void InstrInfoEmitter::emitEnums(raw_ostream &OS) {
   OS << "#endif // GET_INSTRINFO_SCHED_ENUM\n\n";
 }
 
-namespace llvm {
-
-void EmitInstrInfo(RecordKeeper &RK, raw_ostream &OS) {
+static void EmitInstrInfo(RecordKeeper &RK, raw_ostream &OS) {
   RK.startTimer("Analyze DAG patterns");
   InstrInfoEmitter(RK).run(OS);
   RK.startTimer("Emit map table");
   EmitMapTable(RK, OS);
 }
 
-} // end namespace llvm
+static TableGen::Emitter::Opt X("gen-instr-info", EmitInstrInfo,
+                                "Generate instruction descriptions");

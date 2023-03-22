@@ -8,10 +8,12 @@
 
 #include "RISCVTargetTransformInfo.h"
 #include "MCTargetDesc/RISCVMatInt.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/BasicTTIImpl.h"
 #include "llvm/CodeGen/CostTable.h"
 #include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/IR/Instructions.h"
 #include <cmath>
 #include <optional>
 using namespace llvm;
@@ -164,7 +166,7 @@ InstructionCost RISCVTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
     // Check immediate is the correct argument...
     if (Instruction::isCommutative(Opcode) || Idx == ImmArgIdx) {
       // ... and fits into the 12-bit immediate.
-      if (Imm.getMinSignedBits() <= 64 &&
+      if (Imm.getSignificantBits() <= 64 &&
           getTLI()->isLegalAddImmediate(Imm.getSExtValue())) {
         return TTI::TCC_Free;
       }
@@ -241,52 +243,56 @@ RISCVTTIImpl::getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
   llvm_unreachable("Unsupported register kind");
 }
 
-InstructionCost RISCVTTIImpl::getSpliceCost(VectorType *Tp, int Index) {
-  std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Tp);
-
-  unsigned Cost = 2; // vslidedown+vslideup.
-  // TODO: Multiplying by LT.first implies this legalizes into multiple copies
-  // of similar code, but I think we expand through memory.
-  return Cost * LT.first * getLMULCost(LT.second);
-}
-
 InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
                                              VectorType *Tp, ArrayRef<int> Mask,
                                              TTI::TargetCostKind CostKind,
                                              int Index, VectorType *SubTp,
                                              ArrayRef<const Value *> Args) {
-  if (isa<ScalableVectorType>(Tp)) {
-    std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Tp);
+  std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Tp);
+
+  // First, handle cases where having a fixed length vector enables us to
+  // give a more accurate cost than falling back to generic scalable codegen.
+  // TODO: Each of these cases hints at a modeling gap around scalable vectors.
+  if (isa<FixedVectorType>(Tp)) {
     switch (Kind) {
     default:
-      // Fallthrough to generic handling.
-      // TODO: Most of these cases will return getInvalid in generic code, and
-      // must be implemented here.
       break;
-    case TTI::SK_Broadcast: {
-      return LT.first * 1;
-    }
-    case TTI::SK_Splice:
-      return getSpliceCost(Tp, Index);
-    case TTI::SK_Reverse:
-      // Most of the cost here is producing the vrgather index register
-      // Example sequence:
-      //   csrr a0, vlenb
-      //   srli a0, a0, 3
-      //   addi a0, a0, -1
-      //   vsetvli a1, zero, e8, mf8, ta, mu (ignored)
-      //   vid.v v9
-      //   vrsub.vx v10, v9, a0
-      //   vrgather.vv v9, v8, v10
-      if (Tp->getElementType()->isIntegerTy(1))
-        // Mask operation additionally required extend and truncate
-        return LT.first * 9;
-      return LT.first * 6;
-    }
-  }
+    case TTI::SK_PermuteSingleSrc: {
+      if (Mask.size() >= 2 && LT.second.isFixedLengthVector()) {
+        MVT EltTp = LT.second.getVectorElementType();
+        // If the size of the element is < ELEN then shuffles of interleaves and
+        // deinterleaves of 2 vectors can be lowered into the following
+        // sequences
+        if (EltTp.getScalarSizeInBits() < ST->getELEN()) {
+          // Example sequence:
+          //   vsetivli     zero, 4, e8, mf4, ta, ma (ignored)
+          //   vwaddu.vv    v10, v8, v9
+          //   li       a0, -1                   (ignored)
+          //   vwmaccu.vx   v10, a0, v9
+          if (ShuffleVectorInst::isInterleaveMask(Mask, 2, Mask.size()))
+            return 2 * LT.first * getLMULCost(LT.second);
 
-  if (isa<FixedVectorType>(Tp) && Kind == TargetTransformInfo::SK_Broadcast) {
-    std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Tp);
+          if (Mask[0] == 0 || Mask[0] == 1) {
+            auto DeinterleaveMask = createStrideMask(Mask[0], 2, Mask.size());
+            // Example sequence:
+            //   vnsrl.wi   v10, v8, 0
+            if (equal(DeinterleaveMask, Mask))
+              return LT.first * getLMULCost(LT.second);
+          }
+        }
+      }
+    }
+    }
+  };
+
+  // Handle scalable vectors (and fixed vectors legalized to scalable vectors).
+  switch (Kind) {
+  default:
+    // Fallthrough to generic handling.
+    // TODO: Most of these cases will return getInvalid in generic code, and
+    // must be implemented here.
+    break;
+  case TTI::SK_Broadcast: {
     bool HasScalar = (Args.size() > 0) && (Operator::getOpcode(Args[0]) ==
                                            Instruction::InsertElement);
     if (LT.second.getScalarSizeInBits() == 1) {
@@ -322,7 +328,36 @@ InstructionCost RISCVTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
     // implementation-dependent.
     return LT.first * getLMULCost(LT.second);
   }
+  case TTI::SK_Splice:
+    // vslidedown+vslideup.
+    // TODO: Multiplying by LT.first implies this legalizes into multiple copies
+    // of similar code, but I think we expand through memory.
+    return 2 * LT.first * getLMULCost(LT.second);
+  case TTI::SK_Reverse: {
+    // TODO: Cases to improve here:
+    // * LMUL > 1
+    // * i64 on RV32
+    // * i1 vector
 
+    // Most of the cost here is producing the vrgather index register
+    // Example sequence:
+    //   csrr a0, vlenb
+    //   srli a0, a0, 3
+    //   addi a0, a0, -1
+    //   vsetvli a1, zero, e8, mf8, ta, mu (ignored)
+    //   vid.v v9
+    //   vrsub.vx v10, v9, a0
+    //   vrgather.vv v9, v8, v10
+    unsigned LenCost = 3;
+    if (LT.second.isFixedLengthVector())
+      // vrsub.vi has a 5 bit immediate field, otherwise an li suffices
+      LenCost = isInt<5>(LT.second.getVectorNumElements() - 1) ? 0 : 1;
+    if (Tp->getElementType()->isIntegerTy(1))
+      // Mask operation additionally required extend and truncate
+      return LT.first * (LenCost + 6);
+    return LT.first * (LenCost + 3);
+  }
+  }
   return BaseT::getShuffleCost(Kind, Tp, Mask, CostKind, Index, SubTp);
 }
 
@@ -336,6 +371,59 @@ RISCVTTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *Src, Align Alignment,
                                         CostKind);
 
   return getMemoryOpCost(Opcode, Src, Alignment, AddressSpace, CostKind);
+}
+
+InstructionCost RISCVTTIImpl::getInterleavedMemoryOpCost(
+    unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
+    Align Alignment, unsigned AddressSpace, TTI::TargetCostKind CostKind,
+    bool UseMaskForCond, bool UseMaskForGaps) {
+  auto *FVTy = cast<FixedVectorType>(VecTy);
+  InstructionCost MemCost =
+      getMemoryOpCost(Opcode, VecTy, Alignment, AddressSpace, CostKind);
+  unsigned VF = FVTy->getNumElements() / Factor;
+
+  // An interleaved load will look like this for Factor=3:
+  // %wide.vec = load <12 x i32>, ptr %3, align 4
+  // %strided.vec = shufflevector %wide.vec, poison, <4 x i32> <stride mask>
+  // %strided.vec1 = shufflevector %wide.vec, poison, <4 x i32> <stride mask>
+  // %strided.vec2 = shufflevector %wide.vec, poison, <4 x i32> <stride mask>
+  if (Opcode == Instruction::Load) {
+    InstructionCost Cost = MemCost;
+    for (unsigned Index : Indices) {
+      FixedVectorType *SubVecTy =
+          FixedVectorType::get(FVTy->getElementType(), VF);
+      auto Mask = createStrideMask(Index, Factor, VF);
+      InstructionCost ShuffleCost =
+          getShuffleCost(TTI::ShuffleKind::SK_PermuteSingleSrc, SubVecTy, Mask,
+                         CostKind, 0, nullptr, {});
+      Cost += ShuffleCost;
+    }
+    return Cost;
+  }
+
+  // TODO: Model for NF > 2
+  // We'll need to enhance getShuffleCost to model shuffles that are just
+  // inserts and extracts into subvectors, since they won't have the full cost
+  // of a vrgather.
+  // An interleaved store for 3 vectors of 4 lanes will look like
+  // %11 = shufflevector <4 x i32> %4, <4 x i32> %6, <8 x i32> <0...7>
+  // %12 = shufflevector <4 x i32> %9, <4 x i32> poison, <8 x i32> <0...3>
+  // %13 = shufflevector <8 x i32> %11, <8 x i32> %12, <12 x i32> <0...11>
+  // %interleaved.vec = shufflevector %13, poison, <12 x i32> <interleave mask>
+  // store <12 x i32> %interleaved.vec, ptr %10, align 4
+  if (Factor != 2)
+    return BaseT::getInterleavedMemoryOpCost(Opcode, VecTy, Factor, Indices,
+                                             Alignment, AddressSpace, CostKind,
+                                             UseMaskForCond, UseMaskForGaps);
+
+  assert(Opcode == Instruction::Store && "Opcode must be a store");
+  // For an interleaving store of 2 vectors, we perform one large interleaving
+  // shuffle that goes into the wide store
+  auto Mask = createInterleaveMask(VF, Factor);
+  InstructionCost ShuffleCost =
+      getShuffleCost(TTI::ShuffleKind::SK_PermuteSingleSrc, FVTy, Mask,
+                     CostKind, 0, nullptr, {});
+  return MemCost + ShuffleCost;
 }
 
 InstructionCost RISCVTTIImpl::getGatherScatterOpCost(
@@ -840,7 +928,9 @@ RISCVTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
   case Intrinsic::sadd_sat:
   case Intrinsic::ssub_sat:
   case Intrinsic::uadd_sat:
-  case Intrinsic::usub_sat: {
+  case Intrinsic::usub_sat:
+  case Intrinsic::fabs:
+  case Intrinsic::sqrt: {
     auto LT = getTypeLegalizationCost(RetTy);
     if (ST->hasVInstructions() && LT.second.isVector())
       return LT.first;
@@ -853,13 +943,6 @@ RISCVTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
       // vmax.vv v8, v8, v10
       return LT.first * 2;
     }
-    break;
-  }
-  case Intrinsic::fabs:
-  case Intrinsic::sqrt: {
-    auto LT = getTypeLegalizationCost(RetTy);
-    if (ST->hasVInstructions() && LT.second.isVector())
-      return LT.first;
     break;
   }
   // TODO: add more intrinsic
@@ -1016,6 +1099,10 @@ RISCVTTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
 
   // IR Reduction is composed by two vmv and one rvv reduction instruction.
   InstructionCost BaseCost = 2;
+
+  if (CostKind == TTI::TCK_CodeSize)
+    return (LT.first - 1) + BaseCost;
+
   unsigned VL = getEstimatedVLFor(Ty);
   return (LT.first - 1) + BaseCost + Log2_32_Ceil(VL);
 }
@@ -1045,6 +1132,10 @@ RISCVTTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
 
   // IR Reduction is composed by two vmv and one rvv reduction instruction.
   InstructionCost BaseCost = 2;
+
+  if (CostKind == TTI::TCK_CodeSize)
+    return (LT.first - 1) + BaseCost;
+
   unsigned VL = getEstimatedVLFor(Ty);
   if (TTI::requiresOrderedReduction(FMF))
     return (LT.first - 1) + BaseCost + VL;

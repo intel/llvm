@@ -42,8 +42,7 @@ using namespace llvm::object;
 using namespace llvm::sys;
 using namespace llvm::wasm;
 
-namespace lld {
-namespace wasm {
+namespace lld::wasm {
 Configuration *config;
 
 namespace {
@@ -385,6 +384,33 @@ static UnresolvedPolicy getUnresolvedSymbolPolicy(opt::InputArgList &args) {
   return errorOrWarn;
 }
 
+// Parse --build-id or --build-id=<style>. We handle "tree" as a
+// synonym for "sha1" because all our hash functions including
+// -build-id=sha1 are actually tree hashes for performance reasons.
+static std::pair<BuildIdKind, SmallVector<uint8_t, 0>>
+getBuildId(opt::InputArgList &args) {
+  auto *arg = args.getLastArg(OPT_build_id, OPT_build_id_eq);
+  if (!arg)
+    return {BuildIdKind::None, {}};
+
+  if (arg->getOption().getID() == OPT_build_id)
+    return {BuildIdKind::Fast, {}};
+
+  StringRef s = arg->getValue();
+  if (s == "fast")
+    return {BuildIdKind::Fast, {}};
+  if (s == "sha1" || s == "tree")
+    return {BuildIdKind::Sha1, {}};
+  if (s == "uuid")
+    return {BuildIdKind::Uuid, {}};
+  if (s.startswith("0x"))
+    return {BuildIdKind::Hexstring, parseHex(s.substr(2))};
+
+  if (s != "none")
+    error("unknown --build-id style: " + s);
+  return {BuildIdKind::None, {}};
+}
+
 // Initializes Config members by the command line options.
 static void readConfigs(opt::InputArgList &args) {
   config->bsymbolic = args.hasArg(OPT_Bsymbolic);
@@ -458,6 +484,7 @@ static void readConfigs(opt::InputArgList &args) {
       parseCachePruningPolicy(args.getLastArgValue(OPT_thinlto_cache_policy)),
       "--thinlto-cache-policy: invalid cache policy");
   config->unresolvedSymbols = getUnresolvedSymbolPolicy(args);
+  config->whyExtract = args.getLastArgValue(OPT_why_extract);
   errorHandler().verbose = args.hasArg(OPT_verbose);
   LLVM_DEBUG(errorHandler().verbose = true);
 
@@ -519,6 +546,8 @@ static void readConfigs(opt::InputArgList &args) {
 
   if (args.hasArg(OPT_print_map))
     config->mapFile = "-";
+
+  std::tie(config->buildId, config->buildIdVector) = getBuildId(args);
 }
 
 // Some Config members do not directly correspond to any particular
@@ -637,7 +666,7 @@ static const char *getReproduceOption(opt::InputArgList &args) {
 }
 
 // Force Sym to be entered in the output. Used for -u or equivalent.
-static Symbol *handleUndefined(StringRef name) {
+static Symbol *handleUndefined(StringRef name, const char *option) {
   Symbol *sym = symtab->find(name);
   if (!sym)
     return nullptr;
@@ -646,8 +675,11 @@ static Symbol *handleUndefined(StringRef name) {
   // eliminate it. Mark the symbol as "used" to prevent it.
   sym->isUsedInRegularObj = true;
 
-  if (auto *lazySym = dyn_cast<LazySymbol>(sym))
+  if (auto *lazySym = dyn_cast<LazySymbol>(sym)) {
     lazySym->fetch();
+    if (!config->whyExtract.empty())
+      config->whyExtractRecords.emplace_back(option, sym->getFile(), *sym);
+  }
 
   return sym;
 }
@@ -659,8 +691,31 @@ static void handleLibcall(StringRef name) {
 
   if (auto *lazySym = dyn_cast<LazySymbol>(sym)) {
     MemoryBufferRef mb = lazySym->getMemberBuffer();
-    if (isBitcode(mb))
+    if (isBitcode(mb)) {
+      if (!config->whyExtract.empty())
+        config->whyExtractRecords.emplace_back("<libcall>", sym->getFile(),
+                                               *sym);
       lazySym->fetch();
+    }
+  }
+}
+
+static void writeWhyExtract() {
+  if (config->whyExtract.empty())
+    return;
+
+  std::error_code ec;
+  raw_fd_ostream os(config->whyExtract, ec, sys::fs::OF_None);
+  if (ec) {
+    error("cannot open --why-extract= file " + config->whyExtract + ": " +
+          ec.message());
+    return;
+  }
+
+  os << "reference\textracted\tsymbol\n";
+  for (auto &entry : config->whyExtractRecords) {
+    os << std::get<0>(entry) << '\t' << toString(std::get<1>(entry)) << '\t'
+       << toString(std::get<2>(entry)) << '\n';
   }
 }
 
@@ -1041,16 +1096,16 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
 
   // Handle the `--undefined <sym>` options.
   for (auto *arg : args.filtered(OPT_undefined))
-    handleUndefined(arg->getValue());
+    handleUndefined(arg->getValue(), "<internal>");
 
   // Handle the `--export <sym>` options
   // This works like --undefined but also exports the symbol if its found
   for (auto &iter : config->exportedSymbols)
-    handleUndefined(iter.first());
+    handleUndefined(iter.first(), "--export");
 
   Symbol *entrySym = nullptr;
   if (!config->relocatable && !config->entry.empty()) {
-    entrySym = handleUndefined(config->entry);
+    entrySym = handleUndefined(config->entry, "--entry");
     if (entrySym && entrySym->isDefined())
       entrySym->forceExport = true;
     else
@@ -1067,7 +1122,8 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
       !WasmSym::callCtors->isUsedInRegularObj &&
       WasmSym::callCtors->getName() != config->entry &&
       !config->exportedSymbols.count(WasmSym::callCtors->getName())) {
-    if (Symbol *callDtors = handleUndefined("__wasm_call_dtors")) {
+    if (Symbol *callDtors =
+            handleUndefined("__wasm_call_dtors", "<internal>")) {
       if (auto *callDtorsFunc = dyn_cast<DefinedFunction>(callDtors)) {
         if (callDtorsFunc->signature &&
             (!callDtorsFunc->signature->Params.empty() ||
@@ -1101,6 +1157,8 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
       handleLibcall(s);
   if (errorCount())
     return;
+
+  writeWhyExtract();
 
   // Do link-time optimization if given files are LLVM bitcode files.
   // This compiles bitcode files into real object files.
@@ -1159,5 +1217,4 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   writeResult();
 }
 
-} // namespace wasm
-} // namespace lld
+} // namespace wasm::lld

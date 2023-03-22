@@ -561,7 +561,9 @@ public:
     assert(ConstructorDecl != nullptr);
 
     if (ConstructorDecl->isCopyOrMoveConstructor()) {
-      assert(S->getNumArgs() == 1);
+      // It is permissible for a copy/move constructor to have additional
+      // parameters as long as they have default arguments defined for them.
+      assert(S->getNumArgs() != 0);
 
       const Expr *Arg = S->getArg(0);
       assert(Arg != nullptr);
@@ -730,7 +732,15 @@ public:
     Env.setValue(Loc, *Val);
 
     if (Type->isStructureOrClassType()) {
-      for (auto It : llvm::zip(Type->getAsRecordDecl()->fields(), S->inits())) {
+      // Unnamed bitfields are only used for padding and are not appearing in
+      // `InitListExpr`'s inits. However, those fields do appear in RecordDecl's
+      // field list, and we thus need to remove them before mapping inits to
+      // fields to avoid mapping inits to the wrongs fields.
+      std::vector<FieldDecl *> Fields;
+      llvm::copy_if(
+          Type->getAsRecordDecl()->fields(), std::back_inserter(Fields),
+          [](const FieldDecl *Field) { return !Field->isUnnamedBitfield(); });
+      for (auto It : llvm::zip(Fields, S->inits())) {
         const FieldDecl *Field = std::get<0>(It);
         assert(Field != nullptr);
 

@@ -519,16 +519,13 @@ define i1 @uaddo6_xor_op_after_XOR(i32 %a, ptr %b.ptr) {
 define i1 @uaddo_i64_increment(i64 %x, ptr %p) {
 ; RV32-LABEL: uaddo_i64_increment:
 ; RV32:       # %bb.0:
-; RV32-NEXT:    mv a3, a0
-; RV32-NEXT:    addi a4, a0, 1
-; RV32-NEXT:    sltu a0, a4, a0
-; RV32-NEXT:    add a5, a1, a0
-; RV32-NEXT:    bgeu a4, a3, .LBB12_2
-; RV32-NEXT:  # %bb.1:
-; RV32-NEXT:    sltu a0, a5, a1
-; RV32-NEXT:  .LBB12_2:
-; RV32-NEXT:    sw a4, 0(a2)
-; RV32-NEXT:    sw a5, 4(a2)
+; RV32-NEXT:    addi a3, a0, 1
+; RV32-NEXT:    seqz a0, a3
+; RV32-NEXT:    add a1, a1, a0
+; RV32-NEXT:    or a0, a3, a1
+; RV32-NEXT:    seqz a0, a0
+; RV32-NEXT:    sw a3, 0(a2)
+; RV32-NEXT:    sw a1, 4(a2)
 ; RV32-NEXT:    ret
 ;
 ; RV64-LABEL: uaddo_i64_increment:
@@ -546,21 +543,17 @@ define i1 @uaddo_i64_increment(i64 %x, ptr %p) {
 define i1 @uaddo_i8_increment_noncanonical_1(i8 %x, ptr %p) {
 ; RV32-LABEL: uaddo_i8_increment_noncanonical_1:
 ; RV32:       # %bb.0:
-; RV32-NEXT:    andi a0, a0, 255
 ; RV32-NEXT:    addi a2, a0, 1
 ; RV32-NEXT:    andi a0, a2, 255
-; RV32-NEXT:    xor a0, a0, a2
-; RV32-NEXT:    snez a0, a0
+; RV32-NEXT:    seqz a0, a0
 ; RV32-NEXT:    sb a2, 0(a1)
 ; RV32-NEXT:    ret
 ;
 ; RV64-LABEL: uaddo_i8_increment_noncanonical_1:
 ; RV64:       # %bb.0:
-; RV64-NEXT:    andi a0, a0, 255
-; RV64-NEXT:    addi a2, a0, 1
+; RV64-NEXT:    addiw a2, a0, 1
 ; RV64-NEXT:    andi a0, a2, 255
-; RV64-NEXT:    xor a0, a0, a2
-; RV64-NEXT:    snez a0, a0
+; RV64-NEXT:    seqz a0, a0
 ; RV64-NEXT:    sb a2, 0(a1)
 ; RV64-NEXT:    ret
   %a = add i8 1, %x        ; commute
@@ -592,26 +585,20 @@ define i1 @uaddo_i32_increment_noncanonical_2(i32 %x, ptr %p) {
 define i1 @uaddo_i16_increment_noncanonical_3(i16 %x, ptr %p) {
 ; RV32-LABEL: uaddo_i16_increment_noncanonical_3:
 ; RV32:       # %bb.0:
-; RV32-NEXT:    lui a2, 16
-; RV32-NEXT:    addi a2, a2, -1
-; RV32-NEXT:    and a0, a0, a2
-; RV32-NEXT:    addi a3, a0, 1
-; RV32-NEXT:    and a2, a3, a2
-; RV32-NEXT:    xor a2, a2, a3
-; RV32-NEXT:    snez a0, a2
-; RV32-NEXT:    sh a3, 0(a1)
+; RV32-NEXT:    addi a2, a0, 1
+; RV32-NEXT:    slli a0, a2, 16
+; RV32-NEXT:    srli a0, a0, 16
+; RV32-NEXT:    seqz a0, a0
+; RV32-NEXT:    sh a2, 0(a1)
 ; RV32-NEXT:    ret
 ;
 ; RV64-LABEL: uaddo_i16_increment_noncanonical_3:
 ; RV64:       # %bb.0:
-; RV64-NEXT:    lui a2, 16
-; RV64-NEXT:    addiw a2, a2, -1
-; RV64-NEXT:    and a0, a0, a2
-; RV64-NEXT:    addi a3, a0, 1
-; RV64-NEXT:    and a2, a3, a2
-; RV64-NEXT:    xor a2, a2, a3
-; RV64-NEXT:    snez a0, a2
-; RV64-NEXT:    sh a3, 0(a1)
+; RV64-NEXT:    addiw a2, a0, 1
+; RV64-NEXT:    slli a0, a2, 48
+; RV64-NEXT:    srli a0, a0, 48
+; RV64-NEXT:    seqz a0, a0
+; RV64-NEXT:    sh a2, 0(a1)
 ; RV64-NEXT:    ret
   %a = add i16 1, %x        ; commute
   %ov = icmp eq i16 0, %a   ; commute
@@ -625,7 +612,7 @@ define i1 @uaddo_i64_increment_alt(i64 %x, ptr %p) {
 ; RV32-LABEL: uaddo_i64_increment_alt:
 ; RV32:       # %bb.0:
 ; RV32-NEXT:    addi a3, a0, 1
-; RV32-NEXT:    sltu a4, a3, a0
+; RV32-NEXT:    seqz a4, a3
 ; RV32-NEXT:    add a4, a1, a4
 ; RV32-NEXT:    sw a3, 0(a2)
 ; RV32-NEXT:    and a0, a0, a1
@@ -654,11 +641,11 @@ define i1 @uaddo_i64_increment_alt_dom(i64 %x, ptr %p) {
 ; RV32-NEXT:    and a3, a0, a1
 ; RV32-NEXT:    addi a3, a3, 1
 ; RV32-NEXT:    seqz a3, a3
-; RV32-NEXT:    addi a4, a0, 1
-; RV32-NEXT:    sltu a0, a4, a0
-; RV32-NEXT:    add a0, a1, a0
-; RV32-NEXT:    sw a4, 0(a2)
-; RV32-NEXT:    sw a0, 4(a2)
+; RV32-NEXT:    addi a0, a0, 1
+; RV32-NEXT:    seqz a4, a0
+; RV32-NEXT:    add a1, a1, a4
+; RV32-NEXT:    sw a0, 0(a2)
+; RV32-NEXT:    sw a1, 4(a2)
 ; RV32-NEXT:    mv a0, a3
 ; RV32-NEXT:    ret
 ;
@@ -736,7 +723,7 @@ define i1 @uaddo_i42_increment_illegal_type(i42 %x, ptr %p) {
 ; RV32-LABEL: uaddo_i42_increment_illegal_type:
 ; RV32:       # %bb.0:
 ; RV32-NEXT:    addi a3, a0, 1
-; RV32-NEXT:    sltu a0, a3, a0
+; RV32-NEXT:    seqz a0, a3
 ; RV32-NEXT:    add a0, a1, a0
 ; RV32-NEXT:    andi a1, a0, 1023
 ; RV32-NEXT:    or a0, a3, a1
@@ -1284,3 +1271,39 @@ exit:
   ret void
 }
 
+define i16 @overflow_not_used(i16 %a, i16 %b, ptr %res) {
+; RV32-LABEL: overflow_not_used:
+; RV32:       # %bb.0:
+; RV32-NEXT:    lui a3, 16
+; RV32-NEXT:    addi a3, a3, -1
+; RV32-NEXT:    and a4, a1, a3
+; RV32-NEXT:    add a0, a1, a0
+; RV32-NEXT:    and a3, a0, a3
+; RV32-NEXT:    bltu a3, a4, .LBB37_2
+; RV32-NEXT:  # %bb.1:
+; RV32-NEXT:    li a1, 42
+; RV32-NEXT:  .LBB37_2:
+; RV32-NEXT:    sh a0, 0(a2)
+; RV32-NEXT:    mv a0, a1
+; RV32-NEXT:    ret
+;
+; RV64-LABEL: overflow_not_used:
+; RV64:       # %bb.0:
+; RV64-NEXT:    lui a3, 16
+; RV64-NEXT:    addiw a3, a3, -1
+; RV64-NEXT:    and a4, a1, a3
+; RV64-NEXT:    add a0, a1, a0
+; RV64-NEXT:    and a3, a0, a3
+; RV64-NEXT:    bltu a3, a4, .LBB37_2
+; RV64-NEXT:  # %bb.1:
+; RV64-NEXT:    li a1, 42
+; RV64-NEXT:  .LBB37_2:
+; RV64-NEXT:    sh a0, 0(a2)
+; RV64-NEXT:    mv a0, a1
+; RV64-NEXT:    ret
+  %add = add i16 %b, %a
+  %cmp = icmp ult i16 %add, %b
+  %Q = select i1 %cmp, i16 %b, i16 42
+  store i16 %add, ptr %res
+  ret i16 %Q
+}

@@ -631,6 +631,7 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
 =========================================== ================================================================ =========================================
  T __builtin_elementwise_abs(T x)            return the absolute value of a number x; the absolute value of   signed integer and floating point types
                                              the most negative integer remains the most negative integer
+ T __builtin_elementwise_fma(T x, T y, T z)  fused multiply add, (x * y) +  z.                                              floating point types
  T __builtin_elementwise_ceil(T x)           return the smallest integral value greater than or equal to x    floating point types
  T __builtin_elementwise_sin(T x)            return the sine of x interpreted as an angle in radians          floating point types
  T __builtin_elementwise_cos(T x)            return the cosine of x interpreted as an angle in radians        floating point types
@@ -638,6 +639,8 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
  T __builtin_elementwise_log(T x)            return the natural logarithm of x                                floating point types
  T __builtin_elementwise_log2(T x)           return the base 2 logarithm of x                                 floating point types
  T __builtin_elementwise_log10(T x)          return the base 10 logarithm of x                                floating point types
+ T __builtin_elementwise_exp(T x)            returns the base-e exponential, e^x, of the specified value      floating point types
+ T __builtin_elementwise_exp2(T x)           returns the base-2 exponential, 2^x, of the specified value      floating point types
  T __builtin_elementwise_roundeven(T x)      round x to the nearest integer value in floating point format,   floating point types
                                              rounding halfway cases to even (that is, to the nearest value
                                              that is an even integer), regardless of the current rounding
@@ -3629,13 +3632,15 @@ Source location builtins
 
 Clang provides builtins to support C++ standard library implementation
 of ``std::source_location`` as specified in C++20.  With the exception
-of ``__builtin_COLUMN``, these builtins are also implemented by GCC.
+of ``__builtin_COLUMN`` and ``__builtin_FILE_NAME``,
+these builtins are also implemented by GCC.
 
 **Syntax**:
 
 .. code-block:: c
 
   const char *__builtin_FILE();
+  const char *__builtin_FILE_NAME(); // Clang only
   const char *__builtin_FUNCTION();
   unsigned    __builtin_LINE();
   unsigned    __builtin_COLUMN(); // Clang only
@@ -3666,11 +3671,11 @@ of ``__builtin_COLUMN``, these builtins are also implemented by GCC.
 
 **Description**:
 
-The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, and ``__builtin_FILE``
-return the values, at the "invocation point", for ``__LINE__``,
-``__FUNCTION__``, and ``__FILE__`` respectively. ``__builtin_COLUMN`` similarly
-returns the column, though there is no corresponding macro. These builtins are
-constant expressions.
+The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, ``__builtin_FILE`` and
+``__builtin_FILE_NAME`` return the values, at the "invocation point", for
+``__LINE__``, ``__FUNCTION__``, ``__FILE__`` and ``__FILE_NAME__`` respectively.
+``__builtin_COLUMN`` similarly returns the column,
+though there is no corresponding macro. These builtins are constant expressions.
 
 When the builtins appear as part of a default function argument the invocation
 point is the location of the caller. When the builtins appear as part of a
@@ -4686,7 +4691,7 @@ provide deprecation warnings for macro uses. For example:
    #define MIN(x, y) x < y ? x : y
    #pragma clang deprecated(MIN, "use std::min instead")
 
-   void min(int a, int b) {
+   int min(int a, int b) {
      return MIN(a, b); // warning: MIN is deprecated: use std::min instead
    }
 

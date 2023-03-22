@@ -296,16 +296,14 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
             "Actual argument associated with TYPE(*) %s may not have type-bound procedure '%s'"_err_en_US,
             dummyName, tbp->name());
       }
-      const auto &finals{
-          derived->typeSymbol().get<DerivedTypeDetails>().finals()};
+      auto finals{FinalsForDerivedTypeInstantiation(*derived)};
       if (!finals.empty()) { // 15.5.2.4(2)
+        SourceName name{finals.front()->name()};
         if (auto *msg{messages.Say(
                 "Actual argument associated with TYPE(*) %s may not have derived type '%s' with FINAL subroutine '%s'"_err_en_US,
-                dummyName, derived->typeSymbol().name(),
-                finals.begin()->first)}) {
-          msg->Attach(finals.begin()->first,
-              "FINAL subroutine '%s' in derived type '%s'"_en_US,
-              finals.begin()->first, derived->typeSymbol().name());
+                dummyName, derived->typeSymbol().name(), name)}) {
+          msg->Attach(name, "FINAL subroutine '%s' in derived type '%s'"_en_US,
+              name, derived->typeSymbol().name());
         }
       }
     }
@@ -441,7 +439,8 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
   // technically legal but worth emitting a warning
   // llvm-project issue #58973: constant actual argument passed in where dummy
   // argument is marked volatile
-  if (dummyIsVolatile && !IsVariable(actual)) {
+  bool actualIsVariable{evaluate::IsVariable(actual)};
+  if (dummyIsVolatile && !actualIsVariable) {
     messages.Say(
         "actual argument associated with VOLATILE %s is not a variable"_warn_en_US,
         dummyName);
@@ -599,6 +598,24 @@ static void CheckExplicitDataArg(const characteristics::DummyDataObject &dummy,
         "Actual argument associated with %s may not be null pointer %s"_err_en_US,
         dummyName, actual.AsFortran());
   }
+
+  // Warn about dubious actual argument association with a TARGET dummy argument
+  if (dummy.attrs.test(characteristics::DummyDataObject::Attr::Target)) {
+    bool actualIsTemp{!actualIsVariable || HasVectorSubscript(actual) ||
+        evaluate::ExtractCoarrayRef(actual)};
+    if (actualIsTemp) {
+      messages.Say(
+          "Any pointer associated with TARGET %s during this call will not be associated with the value of '%s' afterwards"_warn_en_US,
+          dummyName, actual.AsFortran());
+    } else {
+      auto actualSymbolVector{GetSymbolVector(actual)};
+      if (!evaluate::GetLastTarget(actualSymbolVector)) {
+        messages.Say(
+            "Any pointer associated with TARGET %s during this call must not be used afterwards, as '%s' is not a target"_warn_en_US,
+            dummyName, actual.AsFortran());
+      }
+    }
+  }
 }
 
 static void CheckProcedureArg(evaluate::ActualArgument &arg,
@@ -683,11 +700,12 @@ static void CheckProcedureArg(evaluate::ActualArgument &arg,
                   dummyName);
             } else if (interface.IsFunction()) {
               if (argInterface.IsFunction()) {
+                std::string whyNot;
                 if (!interface.functionResult->IsCompatibleWith(
-                        *argInterface.functionResult)) {
+                        *argInterface.functionResult, &whyNot)) {
                   messages.Say(
-                      "Actual argument function associated with procedure %s has incompatible result type"_err_en_US,
-                      dummyName);
+                      "Actual argument function associated with procedure %s is not compatible: %s"_err_en_US,
+                      dummyName, whyNot);
                 }
               } else if (argInterface.IsSubroutine()) {
                 messages.Say(

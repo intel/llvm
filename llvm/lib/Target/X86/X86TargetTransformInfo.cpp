@@ -199,11 +199,11 @@ unsigned X86TTIImpl::getLoadStoreVecRegBitWidth(unsigned) const {
       .getFixedValue();
 }
 
-unsigned X86TTIImpl::getMaxInterleaveFactor(unsigned VF) {
+unsigned X86TTIImpl::getMaxInterleaveFactor(ElementCount VF) {
   // If the loop will not be vectorized, don't interleave the loop.
   // Let regular unroll to unroll the loop, which saves the overflow
   // check and memory check cost.
-  if (VF == 1)
+  if (VF.isScalar())
     return 1;
 
   if (ST->isAtom())
@@ -4396,11 +4396,6 @@ InstructionCost X86TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
     return ShuffleCost + IntOrFpCost + RegisterFileMoveCost;
   }
 
-  // Add to the base cost if we know that the extracted element of a vector is
-  // destined to be moved to and used in the integer register file.
-  if (Opcode == Instruction::ExtractElement && ScalarType->isPointerTy())
-    RegisterFileMoveCost += 1;
-
   return BaseT::getVectorInstrCost(Opcode, Val, CostKind, Index, Op0, Op1) +
          RegisterFileMoveCost;
 }
@@ -4468,7 +4463,7 @@ X86TTIImpl::getScalarizationOverhead(VectorType *Ty, const APInt &DemandedElts,
         for (unsigned I = 0; I != NumLanesTotal; ++I) {
           APInt LaneEltMask = WidenedDemandedElts.extractBits(
               NumEltsPerLane, NumEltsPerLane * I);
-          if (LaneEltMask.isNullValue())
+          if (LaneEltMask.isZero())
             continue;
           // FIXME: we don't need to extract if all non-demanded elements
           //        are legalization-inserted padding.
@@ -4502,7 +4497,7 @@ X86TTIImpl::getScalarizationOverhead(VectorType *Ty, const APInt &DemandedElts,
       // series of UNPCK followed by CONCAT_VECTORS - all of these can be
       // considered cheap.
       if (Ty->isIntOrIntVectorTy())
-        Cost += DemandedElts.countPopulation();
+        Cost += DemandedElts.popcount();
 
       // Get the smaller of the legalized or original pow2-extended number of
       // vector elements, which represents the number of unpacks we'll end up
@@ -4549,7 +4544,7 @@ X86TTIImpl::getScalarizationOverhead(VectorType *Ty, const APInt &DemandedElts,
         for (unsigned I = 0; I != NumLanesTotal; ++I) {
           APInt LaneEltMask = WidenedDemandedElts.extractBits(
               NumEltsPerLane, I * NumEltsPerLane);
-          if (LaneEltMask.isNullValue())
+          if (LaneEltMask.isZero())
             continue;
           Cost += getShuffleCost(TTI::SK_ExtractSubvector, Ty, std::nullopt,
                                  CostKind, I * NumEltsPerLane, LaneTy);
@@ -4667,7 +4662,7 @@ X86TTIImpl::getReplicationShuffleCost(Type *EltTy, int ReplicationFactor,
   // then we won't need to do that shuffle, so adjust the cost accordingly.
   APInt DemandedDstVectors = APIntOps::ScaleBitMask(
       DemandedDstElts.zext(NumDstVectors * NumEltsPerDstVec), NumDstVectors);
-  unsigned NumDstVectorsDemanded = DemandedDstVectors.countPopulation();
+  unsigned NumDstVectorsDemanded = DemandedDstVectors.popcount();
 
   InstructionCost SingleShuffleCost = getShuffleCost(
       TTI::SK_PermuteSingleSrc, SingleDstVecTy, /*Mask=*/std::nullopt, CostKind,
@@ -4813,7 +4808,7 @@ InstructionCost X86TTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
         APInt DemandedElts =
             APInt::getBitsSet(CoalescedVecTy->getNumElements(),
                               CoalescedVecEltIdx, CoalescedVecEltIdx + 1);
-        assert(DemandedElts.countPopulation() == 1 && "Inserting single value");
+        assert(DemandedElts.popcount() == 1 && "Inserting single value");
         Cost += getScalarizationOverhead(CoalescedVecTy, DemandedElts, IsLoad,
                                          !IsLoad, CostKind);
       }
@@ -4897,6 +4892,23 @@ X86TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *SrcTy, Align Alignment,
 
   // AVX-512 masked load/store is cheaper
   return Cost + LT.first;
+}
+
+InstructionCost X86TTIImpl::getPointersChainCost(
+    ArrayRef<const Value *> Ptrs, const Value *Base,
+    const TTI::PointersChainInfo &Info, TTI::TargetCostKind CostKind) {
+  if (Info.isSameBase() && Info.isKnownStride()) {
+    // If all the pointers have known stride all the differences are translated
+    // into constants. X86 memory addressing allows encoding it into
+    // displacement. So we just need to take the base GEP cost.
+    if (const auto *BaseGEP = dyn_cast<GetElementPtrInst>(Base)) {
+      SmallVector<const Value *> Indices(BaseGEP->indices());
+      return getGEPCost(BaseGEP->getSourceElementType(),
+                        BaseGEP->getPointerOperand(), Indices, CostKind);
+    }
+    return TTI::TCC_Free;
+  }
+  return BaseT::getPointersChainCost(Ptrs, Base, Info, CostKind);
 }
 
 InstructionCost X86TTIImpl::getAddressComputationCost(Type *Ty,

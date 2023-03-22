@@ -302,6 +302,7 @@ func.func @to_select_same_val(%cond: i1) -> (index, index) {
 // CHECK:           [[V0:%.*]] = arith.select {{.*}}, [[C0]], [[C1]]
 // CHECK:           return [[V0]], [[C1]] : index, index
 
+// -----
 
 func.func @to_select_with_body(%cond: i1) -> index {
   %c0 = arith.constant 0 : index
@@ -323,6 +324,7 @@ func.func @to_select_with_body(%cond: i1) -> index {
 // CHECK:             "test.op"() : () -> ()
 // CHECK:           }
 // CHECK:           return [[V0]] : index
+
 // -----
 
 func.func @to_select2(%cond: i1) -> (index, index) {
@@ -362,6 +364,10 @@ func.func @for_yields_2(%lb : index, %ub : index, %step : index) -> i32 {
 // CHECK-LABEL:   func @for_yields_2
 //  CHECK-NEXT:     %[[R:.*]] = call @make_i32() : () -> i32
 //  CHECK-NEXT:     return %[[R]] : i32
+
+// -----
+
+func.func private @make_i32() -> i32
 
 func.func @for_yields_3(%lb : index, %ub : index, %step : index) -> (i32, i32, i32) {
   %a = call @make_i32() : () -> (i32)
@@ -523,6 +529,8 @@ func.func @merge_yielding_nested_if(%arg0: i1, %arg1: i1) -> (i32, f32, i32, i8)
   return %r#0, %r#1, %r#2, %r#3 : i32, f32, i32, i8
 }
 
+// -----
+
 // CHECK-LABEL: @merge_yielding_nested_if_nv1
 // CHECK-SAME: (%[[ARG0:.*]]: i1, %[[ARG1:.*]]: i1)
 func.func @merge_yielding_nested_if_nv1(%arg0: i1, %arg1: i1) {
@@ -547,6 +555,8 @@ func.func @merge_yielding_nested_if_nv1(%arg0: i1, %arg1: i1) {
   return
 }
 
+// -----
+
 // CHECK-LABEL: @merge_yielding_nested_if_nv2
 // CHECK-SAME: (%[[ARG0:.*]]: i1, %[[ARG1:.*]]: i1)
 func.func @merge_yielding_nested_if_nv2(%arg0: i1, %arg1: i1) -> i32 {
@@ -570,6 +580,8 @@ func.func @merge_yielding_nested_if_nv2(%arg0: i1, %arg1: i1) -> i32 {
   }
   return %r : i32
 }
+
+// -----
 
 // CHECK-LABEL: @merge_fail_yielding_nested_if
 // CHECK-SAME: (%[[ARG0:.*]]: i1, %[[ARG1:.*]]: i1)
@@ -850,13 +862,20 @@ func.func @fold_away_iter_and_result_with_no_use(%arg0 : i32,
 
 func.func private @do(%arg0: tensor<?x?xf32>) -> tensor<?x?xf32>
 
-// CHECK-LABEL: matmul_on_tensors
-//  CHECK-SAME:   %[[T0:[0-9a-z]*]]: tensor<32x1024xf32>
-//  CHECK-SAME:   %[[T1:[0-9a-z]*]]: tensor<1024x1024xf32>
-func.func @matmul_on_tensors(%t0: tensor<32x1024xf32>, %t1: tensor<1024x1024xf32>) -> tensor<1024x1024xf32> {
+func.func @matmul_on_tensors(%t0: tensor<32x1024xf32>) -> tensor<?x?xf32> {
   %c0 = arith.constant 0 : index
   %c32 = arith.constant 32 : index
   %c1024 = arith.constant 1024 : index
+  %0 = tensor.cast %t0 : tensor<32x1024xf32> to tensor<?x?xf32>
+  %1 = scf.for %i = %c0 to %c1024 step %c32 iter_args(%iter_t0 = %0) -> (tensor<?x?xf32>) {
+    %2 = func.call @do(%iter_t0) : (tensor<?x?xf32>) -> tensor<?x?xf32>
+    scf.yield %2 : tensor<?x?xf32>
+  } {some_attr}
+  return %1 : tensor<?x?xf32>
+}
+// CHECK-LABEL: matmul_on_tensors
+//  CHECK-SAME:   %[[T0:[0-9a-z]*]]: tensor<32x1024xf32>
+
 //   CHECK-NOT: tensor.cast
 //       CHECK: %[[FOR_RES:.*]] = scf.for {{.*}} iter_args(%[[ITER_T0:.*]] = %[[T0]]) -> (tensor<32x1024xf32>) {
 //       CHECK:   %[[CAST:.*]] = tensor.cast %[[ITER_T0]] : tensor<32x1024xf32> to tensor<?x?xf32>
@@ -864,18 +883,8 @@ func.func @matmul_on_tensors(%t0: tensor<32x1024xf32>, %t1: tensor<1024x1024xf32
 //       CHECK:   %[[UNCAST:.*]] = tensor.cast %[[DONE]] : tensor<?x?xf32> to tensor<32x1024xf32>
 //       CHECK:   scf.yield %[[UNCAST]] : tensor<32x1024xf32>
 //       CHECK: } {some_attr}
-  %0 = tensor.cast %t0 : tensor<32x1024xf32> to tensor<?x?xf32>
-  %1 = scf.for %i = %c0 to %c1024 step %c32 iter_args(%iter_t0 = %0) -> (tensor<?x?xf32>) {
-    %2 = func.call @do(%iter_t0) : (tensor<?x?xf32>) -> tensor<?x?xf32>
-    scf.yield %2 : tensor<?x?xf32>
-  } {some_attr}
-//   CHECK-NOT: tensor.cast
-//       CHECK: %[[RES:.*]] = tensor.insert_slice %[[FOR_RES]] into %[[T1]][0, 0] [32, 1024] [1, 1] : tensor<32x1024xf32> into tensor<1024x1024xf32>
-//       CHECK: return %[[RES]] : tensor<1024x1024xf32>
-  %2 = tensor.cast %1 : tensor<?x?xf32> to tensor<32x1024xf32>
-  %res = tensor.insert_slice %2 into %t1[0, 0] [32, 1024] [1, 1] : tensor<32x1024xf32> into tensor<1024x1024xf32>
-  return %res : tensor<1024x1024xf32>
-}
+//       CHECK: %[[RES:.*]] = tensor.cast
+//       CHECK: return %[[RES]] : tensor<?x?xf32>
 
 // -----
 
@@ -1128,6 +1137,8 @@ func.func @while_unused_result() -> i32 {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         return %[[res]] : i32
 
+// -----
+
 // CHECK-LABEL: @while_cmp_lhs
 func.func @while_cmp_lhs(%arg0 : i32) {
   %0 = scf.while () : () -> i32 {
@@ -1154,6 +1165,8 @@ func.func @while_cmp_lhs(%arg0 : i32) {
 // CHECK-NEXT:           "test.use"(%[[true]], %[[false]], %arg1) : (i1, i1, i32) -> ()
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
+
+// -----
 
 // CHECK-LABEL: @while_cmp_rhs
 func.func @while_cmp_rhs(%arg0 : i32) {
@@ -1213,6 +1226,7 @@ func.func @combineIfs(%arg0 : i1, %arg2: i64) -> (i32, i32) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %[[res]]#0, %[[res]]#1 : i32, i32
 
+// -----
 
 // CHECK-LABEL: @combineIfs2
 func.func @combineIfs2(%arg0 : i1, %arg2: i64) -> i32 {
@@ -1239,6 +1253,7 @@ func.func @combineIfs2(%arg0 : i1, %arg2: i64) -> i32 {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %[[res]] : i32
 
+// -----
 
 // CHECK-LABEL: @combineIfs3
 func.func @combineIfs3(%arg0 : i1, %arg2: i64) -> i32 {
@@ -1265,6 +1280,8 @@ func.func @combineIfs3(%arg0 : i1, %arg2: i64) -> i32 {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %[[res]] : i32
 
+// -----
+
 // CHECK-LABEL: @combineIfs4
 func.func @combineIfs4(%arg0 : i1, %arg2: i64) {
   scf.if %arg0 {
@@ -1282,6 +1299,8 @@ func.func @combineIfs4(%arg0 : i1, %arg2: i64) {
 // CHECK-NEXT:       "test.firstCodeTrue"() : () -> ()
 // CHECK-NEXT:       "test.secondCodeTrue"() : () -> ()
 // CHECK-NEXT:     }
+
+// -----
 
 // CHECK-LABEL: @combineIfsUsed
 // CHECK-SAME: %[[arg0:.+]]: i1
@@ -1313,6 +1332,8 @@ func.func @combineIfsUsed(%arg0 : i1, %arg2: i64) -> (i32, i32) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %[[res]]#0, %[[res]]#1 : i32, i32
 
+// -----
+
 // CHECK-LABEL: @combineIfsNot
 // CHECK-SAME: %[[arg0:.+]]: i1
 func.func @combineIfsNot(%arg0 : i1, %arg2: i64) {
@@ -1335,6 +1356,8 @@ func.func @combineIfsNot(%arg0 : i1, %arg2: i64) {
 // CHECK-NEXT:       "test.secondCodeTrue"() : () -> ()
 // CHECK-NEXT:     }
 
+// -----
+
 // CHECK-LABEL: @combineIfsNot2
 // CHECK-SAME: %[[arg0:.+]]: i1
 func.func @combineIfsNot2(%arg0 : i1, %arg2: i64) {
@@ -1356,6 +1379,7 @@ func.func @combineIfsNot2(%arg0 : i1, %arg2: i64) {
 // CHECK-NEXT:     } else {
 // CHECK-NEXT:       "test.firstCodeTrue"() : () -> ()
 // CHECK-NEXT:     }
+
 // -----
 
 // CHECK-LABEL: func @propagate_into_execute_region
@@ -1406,7 +1430,6 @@ func.func @execute_region_elim() {
 // CHECK-NEXT:       "test.bar"(%[[VAL]]) : (i64) -> ()
 // CHECK-NEXT:     }
 
-
 // -----
 
 // CHECK-LABEL: func @func_execute_region_elim
@@ -1441,7 +1464,6 @@ func.func @func_execute_region_elim() {
 // CHECK:   ^[[bb3]](%[[z:.+]]: i64):
 // CHECK:     "test.bar"(%[[z]])
 // CHECK:     return
-
 
 // -----
 
@@ -1522,3 +1544,110 @@ func.func @forall_fold_control_operands(
   return %result : tensor<?x10xf32>
 }
 // CHECK: forall (%{{.*}}, %{{.*}}) in (%{{.*}}, 10)
+
+// -----
+
+func.func @inline_forall_loop(%in: tensor<8x8xf32>) -> tensor<8x8xf32> {
+  %c8 = arith.constant 8 : index
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %cst = arith.constant 0.000000e+00 : f32
+  %0 = tensor.empty() : tensor<8x8xf32>
+  %1 = scf.forall (%i, %j) = (%c0, %c0) to (%c1, %c1)
+        step (%c8, %c8) shared_outs (%out_ = %0) -> (tensor<8x8xf32>) {
+    %slice = tensor.extract_slice %out_[%i, %j] [2, 3] [1, 1]
+      : tensor<8x8xf32> to tensor<2x3xf32>
+    %fill = linalg.fill ins(%cst : f32) outs(%slice : tensor<2x3xf32>)
+          -> tensor<2x3xf32>
+    scf.forall.in_parallel {
+      tensor.parallel_insert_slice %fill into %out_[%i, %j] [2, 3] [1, 1]
+        : tensor<2x3xf32> into tensor<8x8xf32>
+    }
+  }
+  return %1 : tensor<8x8xf32>
+}
+// CHECK-LABEL: @inline_forall_loop
+// CHECK-NOT:     scf.forall
+// CHECK:         %[[OUT:.*]] = tensor.empty
+
+// CHECK-NEXT:    %[[SLICE:.*]] = tensor.extract_slice %[[OUT]]
+// CHECK-SAME:      : tensor<8x8xf32> to tensor<2x3xf32>
+
+// CHECK-NEXT:    %[[FILL:.*]] = linalg.fill
+// CHECK-SAME:      outs(%[[SLICE]]
+
+// CHECK-NEXT:    tensor.insert_slice %[[FILL]]
+// CHECK-SAME:      : tensor<2x3xf32> into tensor<8x8xf32>
+
+// -----
+
+func.func @do_not_inline_distributed_forall_loop(
+    %in: tensor<8x8xf32>) -> tensor<8x8xf32> {
+  %cst = arith.constant 0.000000e+00 : f32
+  %0 = tensor.empty() : tensor<8x8xf32>
+  %1 = scf.forall (%i, %j) = (0, 0) to (1, 1) step (8, 8)
+      shared_outs (%out_ = %0) -> (tensor<8x8xf32>) {
+    %slice = tensor.extract_slice %out_[%i, %j] [2, 3] [1, 1]
+      : tensor<8x8xf32> to tensor<2x3xf32>
+    %fill = linalg.fill ins(%cst : f32) outs(%slice : tensor<2x3xf32>)
+          -> tensor<2x3xf32>
+    scf.forall.in_parallel {
+      tensor.parallel_insert_slice %fill into %out_[%i, %j] [2, 3] [1, 1]
+        : tensor<2x3xf32> into tensor<8x8xf32>
+    }
+  }{ mapping = [#gpu.thread<y>, #gpu.thread<x>] }
+  return %1 : tensor<8x8xf32>
+}
+// CHECK-LABEL: @do_not_inline_distributed_forall_loop
+// CHECK: scf.forall
+
+// -----
+
+func.func @collapse_one_dim_parallel(%in: tensor<8x8xf32>) -> tensor<8x8xf32> {
+  %c8 = arith.constant 8 : index
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c16 = arith.constant 16 : index
+  %cst = arith.constant 0.000000e+00 : f32
+  %0 = tensor.empty() : tensor<8x8xf32>
+  %1 = scf.forall (%i, %j) = (0, %c0) to (1, %c16)
+        step (8, %c8) shared_outs (%out_ = %0) -> (tensor<8x8xf32>) {
+    %fill = linalg.fill ins(%cst : f32) outs(%out_ : tensor<8x8xf32>)
+          -> tensor<8x8xf32>
+    scf.forall.in_parallel {
+      tensor.parallel_insert_slice %fill into %out_[%i, %j] [8, 8] [1, 1]
+        : tensor<8x8xf32> into tensor<8x8xf32>
+    }
+  }
+  return %1 : tensor<8x8xf32>
+}
+// CHECK-LABEL: @collapse_one_dim_parallel
+// CHECK:         scf.forall (%[[ARG:.*]]) = (0) to (16) step (8)
+// CHECK:           linalg.fill
+// CHECK:           tensor.parallel_insert_slice
+
+// -----
+
+func.func @remove_empty_forall(%in: tensor<8x8xf32>) -> tensor<8x8xf32> {
+  %c8 = arith.constant 8 : index
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c16 = arith.constant 16 : index
+  %cst = arith.constant 0.000000e+00 : f32
+  %0 = tensor.empty() : tensor<8x8xf32>
+  %1 = scf.forall (%i, %j) = (%c0, %c16) to (%c1, %c16)
+        step (%c8, %c8) shared_outs (%out_ = %0) -> (tensor<8x8xf32>) {
+    %fill = linalg.fill ins(%cst : f32) outs(%out_ : tensor<8x8xf32>)
+          -> tensor<8x8xf32>
+    scf.forall.in_parallel {
+      tensor.parallel_insert_slice %fill into %out_[%i, %j] [8, 8] [1, 1]
+        : tensor<8x8xf32> into tensor<8x8xf32>
+    }
+  }
+  return %1 : tensor<8x8xf32>
+}
+// CHECK-LABEL: @remove_empty_forall
+// CHECK-NOT:   scf.forall
+// CHECK:       %[[EMPTY:.*]] = tensor.empty
+// CHECK:       return %[[EMPTY]]
+

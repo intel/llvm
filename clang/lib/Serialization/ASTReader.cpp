@@ -654,6 +654,10 @@ static bool checkPreprocessorOptions(
   SmallVector<StringRef, 4> ExistingMacroNames;
   collectMacroDefinitions(ExistingPPOpts, ExistingMacros, &ExistingMacroNames);
 
+  // Use a line marker to enter the <command line> file, as the defines and
+  // undefines here will have come from the command line.
+  SuggestedPredefines += "# 1 \"<command line>\" 1\n";
+
   for (unsigned I = 0, N = ExistingMacroNames.size(); I != N; ++I) {
     // Dig out the macro definition in the existing preprocessor options.
     StringRef MacroName = ExistingMacroNames[I];
@@ -713,6 +717,10 @@ static bool checkPreprocessorOptions(
     }
     return true;
   }
+
+  // Leave the <command line> file and return to <built-in>.
+  SuggestedPredefines += "# 1 \"<built-in>\" 2\n";
+
   if (Validation == OptionValidateStrictMatches) {
     // If strict matches are requested, don't tolerate any extra defines in
     // the AST file that are missing on the command line.
@@ -1579,8 +1587,13 @@ bool ASTReader::ReadSLocEntry(int ID) {
     auto Buffer = ReadBuffer(SLocEntryCursor, Name);
     if (!Buffer)
       return true;
-    SourceMgr.createFileID(std::move(Buffer), FileCharacter, ID,
-                           BaseOffset + Offset, IncludeLoc);
+    FileID FID = SourceMgr.createFileID(std::move(Buffer), FileCharacter, ID,
+                                        BaseOffset + Offset, IncludeLoc);
+    if (Record[3]) {
+      auto &FileInfo =
+          const_cast<SrcMgr::FileInfo &>(SourceMgr.getSLocEntry(FID).getFile());
+      FileInfo.setHasLineDirectives();
+    }
     break;
   }
 
@@ -4134,7 +4147,7 @@ void ASTReader::makeModuleVisible(Module *Mod,
       auto HiddenNames = std::move(*Hidden);
       HiddenNamesMap.erase(Hidden);
       makeNamesVisible(HiddenNames.second, HiddenNames.first);
-      assert(HiddenNamesMap.find(Mod) == HiddenNamesMap.end() &&
+      assert(!HiddenNamesMap.contains(Mod) &&
              "making names visible added hidden names");
     }
 
@@ -5643,6 +5656,12 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
       CurrentModule->ModuleMapIsPrivate = ModuleMapIsPrivate;
       if (DeserializationListener)
         DeserializationListener->ModuleRead(GlobalID, CurrentModule);
+
+      // If we're loading a module before we initialize the sema, it implies
+      // we're performing eagerly loading.
+      if (!getSema() && CurrentModule->isModulePurview() &&
+          !getContext().getLangOpts().isCompilingModule())
+        Diag(clang::diag::warn_eagerly_load_for_standard_cplusplus_modules);
 
       SubmodulesLoaded[GlobalIndex] = CurrentModule;
 

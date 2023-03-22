@@ -18,9 +18,9 @@
 #include "flang/Lower/Bridge.h"
 #include "flang/Lower/PFTBuilder.h"
 #include "flang/Lower/Support/Verifier.h"
-#include "flang/Optimizer/Support/FIRContext.h"
+#include "flang/Optimizer/Dialect/Support/FIRContext.h"
+#include "flang/Optimizer/Dialect/Support/KindMapping.h"
 #include "flang/Optimizer/Support/InitFIR.h"
-#include "flang/Optimizer/Support/KindMapping.h"
 #include "flang/Optimizer/Support/Utils.h"
 #include "flang/Parser/dump-parse-tree.h"
 #include "flang/Parser/parsing.h"
@@ -143,7 +143,8 @@ bool CodeGenAction::beginSourceFileAction() {
     }
 
     mlirModule = std::make_unique<mlir::ModuleOp>(module.release());
-    setUpTargetMachine();
+    if (!setUpTargetMachine())
+      return false;
     const llvm::DataLayout &dl = tm->createDataLayout();
     setMLIRDataLayout(*mlirModule, dl);
     return true;
@@ -177,7 +178,15 @@ bool CodeGenAction::beginSourceFileAction() {
 
   // Fetch module from lb, so we can set
   mlirModule = std::make_unique<mlir::ModuleOp>(lb.getModule());
-  setUpTargetMachine();
+
+  if (ci.getInvocation().getFrontendOpts().features.IsEnabled(
+          Fortran::common::LanguageFeature::OpenMP)) {
+    mlir::omp::OpenMPDialect::setIsDevice(
+        *mlirModule, ci.getInvocation().getLangOpts().OpenMPIsDevice);
+  }
+
+  if (!setUpTargetMachine())
+    return false;
   const llvm::DataLayout &dl = tm->createDataLayout();
   setMLIRDataLayout(*mlirModule, dl);
 
@@ -545,7 +554,8 @@ void CodeGenAction::generateLLVMIR() {
   pm.enableVerifier(/*verifyPasses=*/true);
 
   // Create the pass pipeline
-  fir::createMLIRToLLVMPassPipeline(pm, level, opts.StackArrays);
+  fir::createMLIRToLLVMPassPipeline(pm, level, opts.StackArrays,
+                                    opts.Underscoring);
   mlir::applyPassManagerCLOptions(pm);
 
   // run the pass manager
@@ -560,6 +570,13 @@ void CodeGenAction::generateLLVMIR() {
   llvmModule = mlir::translateModuleToLLVMIR(
       *mlirModule, *llvmCtx, moduleName ? *moduleName : "FIRModule");
 
+  if (!llvmModule) {
+    unsigned diagID = ci.getDiagnostics().getCustomDiagID(
+        clang::DiagnosticsEngine::Error, "failed to create the LLVM module");
+    ci.getDiagnostics().Report(diagID);
+    return;
+  }
+
   // Set PIC/PIE level LLVM module flags.
   if (opts.PICLevel > 0) {
     llvmModule->setPICLevel(static_cast<llvm::PICLevel::Level>(opts.PICLevel));
@@ -568,15 +585,9 @@ void CodeGenAction::generateLLVMIR() {
           static_cast<llvm::PIELevel::Level>(opts.PICLevel));
   }
 
-  if (!llvmModule) {
-    unsigned diagID = ci.getDiagnostics().getCustomDiagID(
-        clang::DiagnosticsEngine::Error, "failed to create the LLVM module");
-    ci.getDiagnostics().Report(diagID);
-    return;
-  }
 }
 
-void CodeGenAction::setUpTargetMachine() {
+bool CodeGenAction::setUpTargetMachine() {
   CompilerInstance &ci = this->getInstance();
 
   const TargetOptions &targetOpts = ci.getInvocation().getTargetOpts();
@@ -586,7 +597,11 @@ void CodeGenAction::setUpTargetMachine() {
   std::string error;
   const llvm::Target *theTarget =
       llvm::TargetRegistry::lookupTarget(theTriple, error);
-  assert(theTarget && "Failed to create Target");
+  if (!theTarget) {
+    ci.getDiagnostics().Report(clang::diag::err_fe_unable_to_create_target)
+        << error;
+    return false;
+  }
 
   // Create `TargetMachine`
   const auto &CGOpts = ci.getInvocation().getCodeGenOpts();
@@ -602,6 +617,7 @@ void CodeGenAction::setUpTargetMachine() {
       /*Reloc::Model=*/CGOpts.getRelocationModel(),
       /*CodeModel::Model=*/std::nullopt, OptLevel));
   assert(tm && "Failed to create TargetMachine");
+  return true;
 }
 
 static std::unique_ptr<llvm::raw_pwrite_stream>
@@ -690,7 +706,7 @@ void CodeGenAction::runOptimizationPipeline(llvm::raw_pwrite_stream &os) {
   std::optional<llvm::PGOOptions> pgoOpt;
   llvm::StandardInstrumentations si(llvmModule->getContext(),
                                     opts.DebugPassManager);
-  si.registerCallbacks(pic, &fam);
+  si.registerCallbacks(pic, &mam);
   llvm::PassBuilder pb(tm.get(), pto, pgoOpt, &pic);
 
   // Attempt to load pass plugins and register their callbacks with PB.
@@ -717,8 +733,10 @@ void CodeGenAction::runOptimizationPipeline(llvm::raw_pwrite_stream &os) {
 
   // Create the pass manager.
   llvm::ModulePassManager mpm;
-  if (opts.OptimizationLevel == 0)
-    mpm = pb.buildO0DefaultPipeline(level, false);
+  if (opts.PrepareForFullLTO)
+    mpm = pb.buildLTOPreLinkDefaultPipeline(level);
+  else if (opts.PrepareForThinLTO)
+    mpm = pb.buildThinLTOPreLinkDefaultPipeline(level);
   else
     mpm = pb.buildPerModuleDefaultPipeline(level);
 
@@ -788,7 +806,8 @@ void CodeGenAction::executeAction() {
   // Set the triple based on the targetmachine (this comes compiler invocation
   // and the command-line target option if specified, or the default if not
   // given on the command-line).
-  setUpTargetMachine();
+  if (!setUpTargetMachine())
+    return;
   const std::string &theTriple = tm->getTargetTriple().str();
 
   if (llvmModule->getTargetTriple() != theTriple) {

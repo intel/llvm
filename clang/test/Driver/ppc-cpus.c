@@ -31,9 +31,14 @@
 
 // RUN: %clang -### -c --target=powerpc64 %s -mcpu=generic -mtune=pwr9 2>&1 | FileCheck %s --check-prefix=TUNE
 // TUNE: "-target-cpu" "ppc64" "-tune-cpu" "pwr9"
+// RUN: %clang -### -c --target=powerpc64le %s -mcpu=power9 -mtune=power10 2>&1 | FileCheck %s --check-prefix=TUNE-LONG
+// TUNE-LONG: "-target-cpu" "pwr9" "-tune-cpu" "pwr10"
 
 /// Test mcpu options that are equivalent to "generic"
 // RUN: %clang -### -c -target powerpc64 %s -mcpu=generic 2>&1 | FileCheck %s --check-prefix=GENERIC
 // RUN: %clang -### -c -target powerpc64 %s -mcpu=405     2>&1 | FileCheck %s --check-prefix=GENERIC
 //
 // GENERIC: "-target-cpu" "ppc64"
+
+// RUN: %clang -### -c --target=powerpc64 %s -march=generic 2>&1 | FileCheck --check-prefix=MARCH %s
+// MARCH: error: unsupported option '-march=' for target 'powerpc64'

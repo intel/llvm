@@ -413,17 +413,21 @@ void CommandInterpreter::Initialize() {
 
   alias_arguments_vector_sp = std::make_shared<OptionArgVector>();
 
-  cmd_obj_sp = GetCommandSPExact("expression");
+  cmd_obj_sp = GetCommandSPExact("dwim-print");
   if (cmd_obj_sp) {
     AddAlias("p", cmd_obj_sp, "--")->SetHelpLong("");
     AddAlias("print", cmd_obj_sp, "--")->SetHelpLong("");
-    AddAlias("call", cmd_obj_sp, "--")->SetHelpLong("");
     if (auto *po = AddAlias("po", cmd_obj_sp, "-O --")) {
       po->SetHelp("Evaluate an expression on the current thread.  Displays any "
                   "returned value with formatting "
                   "controlled by the type's author.");
       po->SetHelpLong("");
     }
+  }
+
+  cmd_obj_sp = GetCommandSPExact("expression");
+  if (cmd_obj_sp) {
+    AddAlias("call", cmd_obj_sp, "--")->SetHelpLong("");
     CommandAlias *parray_alias =
         AddAlias("parray", cmd_obj_sp, "--element-count %1 --");
     if (parray_alias) {
@@ -1870,8 +1874,8 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
 
 bool CommandInterpreter::HandleCommand(const char *command_line,
                                        LazyBool lazy_add_to_history,
-                                       CommandReturnObject &result) {
-
+                                       CommandReturnObject &result,
+                                       bool force_repeat_command) {
   std::string command_string(command_line);
   std::string original_command_string(command_line);
 
@@ -1882,8 +1886,8 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
   LLDB_LOGF(log, "Processing command: %s", command_line);
   LLDB_SCOPED_TIMERF("Processing command: %s.", command_line);
 
-  if (WasInterrupted()) {
-    result.AppendError("interrupted");
+  if (GetDebugger().InterruptRequested()) {
+    result.AppendError("... Interrupted");
     return false;
   }
 
@@ -2000,17 +2004,26 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
   // arguments.
 
   if (cmd_obj != nullptr) {
+    bool generate_repeat_command = add_to_history;
     // If we got here when empty_command was true, then this command is a
     // stored "repeat command" which we should give a chance to produce it's
     // repeat command, even though we don't add repeat commands to the history.
-    if (add_to_history || empty_command) {
+    generate_repeat_command |= empty_command;
+    // For `command regex`, the regex command (ex `bt`) is added to history, but
+    // the resolved command (ex `thread backtrace`) is _not_ added to history.
+    // However, the resolved command must be given the opportunity to provide a
+    // repeat command. `force_repeat_command` supports this case.
+    generate_repeat_command |= force_repeat_command;
+    if (generate_repeat_command) {
       Args command_args(command_string);
       std::optional<std::string> repeat_command =
           cmd_obj->GetRepeatCommand(command_args, 0);
-      if (repeat_command)
+      if (repeat_command) {
+        LLDB_LOGF(log, "Repeat command: %s", repeat_command->data());
         m_repeat_command.assign(*repeat_command);
-      else
+      } else {
         m_repeat_command.assign(original_command_string);
+      }
     }
 
     if (add_to_history)
@@ -2542,7 +2555,7 @@ void CommandInterpreter::HandleCommands(const StringList &commands,
     m_debugger.SetAsyncExecution(false);
   }
 
-  for (size_t idx = 0; idx < num_lines && !WasInterrupted(); idx++) {
+  for (size_t idx = 0; idx < num_lines; idx++) {
     const char *cmd = commands.GetStringAtIndex(idx);
     if (cmd[0] == '\0')
       continue;
@@ -3022,6 +3035,9 @@ bool CommandInterpreter::InterruptCommand() {
 }
 
 bool CommandInterpreter::WasInterrupted() const {
+  if (!m_debugger.IsIOHandlerThreadCurrentThread())
+    return false;
+
   bool was_interrupted =
       (m_command_state == CommandHandlingState::eInterrupted);
   lldbassert(!was_interrupted || m_iohandler_nesting_level > 0);
@@ -3035,7 +3051,8 @@ void CommandInterpreter::PrintCommandOutput(IOHandler &io_handler,
   lldb::StreamFileSP stream = is_stdout ? io_handler.GetOutputStreamFileSP()
                                         : io_handler.GetErrorStreamFileSP();
   // Split the output into lines and poll for interrupt requests
-  while (!str.empty() && !WasInterrupted()) {
+  bool had_output = !str.empty();
+  while (!str.empty()) {
     llvm::StringRef line;
     std::tie(line, str) = str.split('\n');
     {
@@ -3046,7 +3063,7 @@ void CommandInterpreter::PrintCommandOutput(IOHandler &io_handler,
   }
 
   std::lock_guard<std::recursive_mutex> guard(io_handler.GetOutputMutex());
-  if (!str.empty())
+  if (had_output && GetDebugger().InterruptRequested())
     stream->Printf("\n... Interrupted.\n");
   stream->Flush();
 }
@@ -3359,7 +3376,13 @@ CommandInterpreterRunResult CommandInterpreter::RunCommandInterpreter(
   if (options.GetSpawnThread()) {
     m_debugger.StartIOHandlerThread();
   } else {
+    // If the current thread is not managed by a host thread, we won't detect
+    // that this IS the CommandInterpreter IOHandler thread, so make it so:
+    HostThread new_io_handler_thread(Host::GetCurrentThread());
+    HostThread old_io_handler_thread 
+        = m_debugger.SetIOHandlerThread(new_io_handler_thread);
     m_debugger.RunIOHandlers();
+    m_debugger.SetIOHandlerThread(old_io_handler_thread);
 
     if (options.GetAutoHandleEvents())
       m_debugger.StopEventHandlerThread();

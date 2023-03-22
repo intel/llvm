@@ -82,12 +82,22 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
   if (clang::StringToCudaArch(TripleOrGPU.second) != clang::CudaArch::UNKNOWN) {
     auto KindTriple = TripleOrGPU.first.split('-');
     this->OffloadKind = KindTriple.first;
-    this->Triple = llvm::Triple(KindTriple.second);
+
+    // Enforce optional env field to standardize bundles
+    llvm::Triple t = llvm::Triple(KindTriple.second);
+    this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
+                                t.getOSName(), t.getEnvironmentName());
+
     this->TargetID = Target.substr(Target.find(TripleOrGPU.second));
   } else {
     auto KindTriple = TargetFeatures.first.split('-');
     this->OffloadKind = KindTriple.first;
-    this->Triple = llvm::Triple(KindTriple.second);
+
+    // Enforce optional env field to standardize bundles
+    llvm::Triple t = llvm::Triple(KindTriple.second);
+    this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
+                                t.getOSName(), t.getEnvironmentName());
+
     this->TargetID = "";
   }
 }
@@ -420,8 +430,7 @@ public:
       if (!Offset || Offset + Size > FC.size())
         return Error::success();
 
-      assert(BundlesInfo.find(Triple) == BundlesInfo.end() &&
-             "Triple is duplicated??");
+      assert(!BundlesInfo.contains(Triple) && "Triple is duplicated??");
       BundlesInfo[Triple] = BinaryBundleInfo(Size, Offset);
     }
     // Set the iterator to where we will start to read.
@@ -1727,8 +1736,7 @@ Error OffloadBundler::UnbundleArchive() {
 
           // For inserting <CompatibleTarget, list<CodeObject>> entry in
           // OutputArchivesMap.
-          if (OutputArchivesMap.find(CompatibleTarget) ==
-              OutputArchivesMap.end()) {
+          if (!OutputArchivesMap.contains(CompatibleTarget)) {
 
             std::vector<NewArchiveMember> ArchiveMembers;
             ArchiveMembers.push_back(NewArchiveMember(MemBufRef));

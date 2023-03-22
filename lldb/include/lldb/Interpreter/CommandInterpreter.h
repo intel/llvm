@@ -352,9 +352,10 @@ public:
                      CommandReturnObject &result);
 
   bool HandleCommand(const char *command_line, LazyBool add_to_history,
-                     CommandReturnObject &result);
+                     CommandReturnObject &result,
+                     bool force_repeat_command = false);
 
-  bool WasInterrupted() const;
+  bool InterruptCommand();
 
   /// Execute a list of commands in sequence.
   ///
@@ -639,6 +640,10 @@ public:
 protected:
   friend class Debugger;
 
+  // This checks just the RunCommandInterpreter interruption state.  It is only
+  // meant to be used in Debugger::InterruptRequested
+  bool WasInterrupted() const;
+
   // IOHandlerDelegate functions
   void IOHandlerInputComplete(IOHandler &io_handler,
                               std::string &line) override;
@@ -701,7 +706,6 @@ private:
 
   void StartHandlingCommand();
   void FinishHandlingCommand();
-  bool InterruptCommand();
 
   Debugger &m_debugger; // The debugger session that this interpreter is
                         // associated with

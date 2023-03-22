@@ -11,6 +11,7 @@
 
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -19,6 +20,7 @@
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Vector/Transforms/VectorDistribution.h"
 #include "mlir/Dialect/Vector/Transforms/VectorRewritePatterns.h"
@@ -195,6 +197,33 @@ struct TestVectorContractionLowering
     populateVectorContractLoweringPatterns(patterns, options);
     populateVectorMaskOpLoweringPatterns(patterns);
     populateVectorShapeCastLoweringPatterns(patterns);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+  }
+};
+
+struct TestVectorContractionPrepareForMMTLowering
+    : public PassWrapper<TestVectorContractionPrepareForMMTLowering,
+                         OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
+      TestVectorContractionPrepareForMMTLowering)
+
+  StringRef getArgument() const final {
+    return "test-vector-contraction-prepare-for-mmt-lowering";
+  }
+  StringRef getDescription() const final {
+    return "Test vector.contraction matmul canonicalization for MMT lowering.";
+  }
+  TestVectorContractionPrepareForMMTLowering() = default;
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry
+        .insert<AffineDialect, arith::ArithDialect, vector::VectorDialect>();
+  }
+
+  void runOnOperation() override {
+    MLIRContext *ctx = &getContext();
+    RewritePatternSet patterns(ctx);
+    vector::populateVectorContractCanonicalizeMatmulToMMT(patterns);
     (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
   }
 };
@@ -883,6 +912,29 @@ struct TestCreateVectorBroadcast
   }
 };
 
+struct TestVectorGatherLowering
+    : public PassWrapper<TestVectorGatherLowering,
+                         OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestVectorGatherLowering)
+
+  StringRef getArgument() const final { return "test-vector-gather-lowering"; }
+  StringRef getDescription() const final {
+    return "Test patterns that lower the gather op in the vector conditional "
+           "loads";
+  }
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<arith::ArithDialect, func::FuncDialect,
+                    memref::MemRefDialect, scf::SCFDialect,
+                    tensor::TensorDialect, vector::VectorDialect>();
+  }
+
+  void runOnOperation() override {
+    RewritePatternSet patterns(&getContext());
+    populateVectorGatherLoweringPatterns(patterns);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+  }
+};
+
 } // namespace
 
 namespace mlir {
@@ -891,6 +943,8 @@ void registerTestVectorLowerings() {
   PassRegistration<TestVectorToVectorLowering>();
 
   PassRegistration<TestVectorContractionLowering>();
+
+  PassRegistration<TestVectorContractionPrepareForMMTLowering>();
 
   PassRegistration<TestVectorTransposeLowering>();
 
@@ -923,6 +977,8 @@ void registerTestVectorLowerings() {
   PassRegistration<TestVectorExtractStridedSliceLowering>();
 
   PassRegistration<TestCreateVectorBroadcast>();
+
+  PassRegistration<TestVectorGatherLowering>();
 }
 } // namespace test
 } // namespace mlir

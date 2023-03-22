@@ -429,6 +429,21 @@ Instruction *InstCombinerImpl::foldSelectOpOp(SelectInst &SI, Instruction *TI,
                                !OtherOpF->getType()->isVectorTy()))
     return nullptr;
 
+  // If we are sinking div/rem after a select, we may need to freeze the
+  // condition because div/rem may induce immediate UB with a poison operand.
+  // For example, the following transform is not safe if Cond can ever be poison
+  // because we can replace poison with zero and then we have div-by-zero that
+  // didn't exist in the original code:
+  // Cond ? x/y : x/z --> x / (Cond ? y : z)
+  auto *BO = dyn_cast<BinaryOperator>(TI);
+  if (BO && BO->isIntDivRem() && !isGuaranteedNotToBePoison(Cond)) {
+    // A udiv/urem with a common divisor is safe because UB can only occur with
+    // div-by-zero, and that would be present in the original code.
+    if (BO->getOpcode() == Instruction::SDiv ||
+        BO->getOpcode() == Instruction::SRem || MatchIsOpZero)
+      Cond = Builder.CreateFreeze(Cond);
+  }
+
   // If we reach here, they do have operations in common.
   Value *NewSI = Builder.CreateSelect(Cond, OtherOpT, OtherOpF,
                                       SI.getName() + ".v", &SI);
@@ -930,6 +945,47 @@ static Value *canonicalizeSaturatedAdd(ICmpInst *Cmp, Value *TVal, Value *FVal,
     // ((X + Y) u< X) ? -1 : (X + Y) --> uadd.sat(X, Y)
     // ((X + Y) u< Y) ? -1 : (X + Y) --> uadd.sat(X, Y)
     return Builder.CreateBinaryIntrinsic(Intrinsic::uadd_sat, Cmp1, Y);
+  }
+
+  return nullptr;
+}
+
+/// Try to match patterns with select and subtract as absolute difference.
+static Value *foldAbsDiff(ICmpInst *Cmp, Value *TVal, Value *FVal,
+                          InstCombiner::BuilderTy &Builder) {
+  auto *TI = dyn_cast<Instruction>(TVal);
+  auto *FI = dyn_cast<Instruction>(FVal);
+  if (!TI || !FI)
+    return nullptr;
+
+  // Normalize predicate to gt/lt rather than ge/le.
+  ICmpInst::Predicate Pred = Cmp->getStrictPredicate();
+  Value *A = Cmp->getOperand(0);
+  Value *B = Cmp->getOperand(1);
+
+  // Normalize "A - B" as the true value of the select.
+  if (match(FI, m_Sub(m_Specific(A), m_Specific(B)))) {
+    std::swap(FI, TI);
+    Pred = ICmpInst::getSwappedPredicate(Pred);
+  }
+
+  // With any pair of no-wrap subtracts:
+  // (A > B) ? (A - B) : (B - A) --> abs(A - B)
+  if (Pred == CmpInst::ICMP_SGT &&
+      match(TI, m_Sub(m_Specific(A), m_Specific(B))) &&
+      match(FI, m_Sub(m_Specific(B), m_Specific(A))) &&
+      (TI->hasNoSignedWrap() || TI->hasNoUnsignedWrap()) &&
+      (FI->hasNoSignedWrap() || FI->hasNoUnsignedWrap())) {
+    // The remaining subtract is not "nuw" any more.
+    // If there's one use of the subtract (no other use than the use we are
+    // about to replace), then we know that the sub is "nsw" in this context
+    // even if it was only "nuw" before. If there's another use, then we can't
+    // add "nsw" to the existing instruction because it may not be safe in the
+    // other user's context.
+    TI->setHasNoUnsignedWrap(false);
+    if (!TI->hasNoSignedWrap())
+      TI->setHasNoSignedWrap(TI->hasOneUse());
+    return Builder.CreateBinaryIntrinsic(Intrinsic::abs, TI, Builder.getTrue());
   }
 
   return nullptr;
@@ -1672,7 +1728,7 @@ Instruction *InstCombinerImpl::foldSelectInstWithICmp(SelectInst &SI,
   ICmpInst::Predicate Pred = ICI->getPredicate();
   Value *CmpLHS = ICI->getOperand(0);
   Value *CmpRHS = ICI->getOperand(1);
-  if (CmpRHS != CmpLHS && isa<Constant>(CmpRHS)) {
+  if (CmpRHS != CmpLHS && isa<Constant>(CmpRHS) && !isa<Constant>(CmpLHS)) {
     if (CmpLHS == TrueVal && Pred == ICmpInst::ICMP_EQ) {
       // Transform (X == C) ? X : Y -> (X == C) ? C : Y
       SI.setOperand(1, CmpRHS);
@@ -1702,7 +1758,7 @@ Instruction *InstCombinerImpl::foldSelectInstWithICmp(SelectInst &SI,
 
   // FIXME: This code is nearly duplicated in InstSimplify. Using/refactoring
   // decomposeBitTestICmp() might help.
-  {
+  if (TrueVal->getType()->isIntOrIntVectorTy()) {
     unsigned BitWidth =
         DL.getTypeSizeInBits(TrueVal->getType()->getScalarType());
     APInt MinSignedValue = APInt::getSignedMinValue(BitWidth);
@@ -1773,6 +1829,9 @@ Instruction *InstCombinerImpl::foldSelectInstWithICmp(SelectInst &SI,
     return replaceInstUsesWith(SI, V);
 
   if (Value *V = canonicalizeSaturatedAdd(ICI, TrueVal, FalseVal, Builder))
+    return replaceInstUsesWith(SI, V);
+
+  if (Value *V = foldAbsDiff(ICI, TrueVal, FalseVal, Builder))
     return replaceInstUsesWith(SI, V);
 
   return Changed ? &SI : nullptr;
@@ -2984,6 +3043,14 @@ Instruction *InstCombinerImpl::foldSelectOfBools(SelectInst &SI) {
   if (match(CondVal, m_Select(m_Value(A), m_Value(B), m_Zero())) &&
       match(TrueVal, m_Specific(B)) && match(FalseVal, m_Zero()))
     return replaceOperand(SI, 0, A);
+  // select a, (select ~a, true, b), false -> select a, b, false
+  if (match(TrueVal, m_c_LogicalOr(m_Not(m_Specific(CondVal)), m_Value(B))) &&
+      match(FalseVal, m_Zero()))
+    return replaceOperand(SI, 1, B);
+  // select a, true, (select ~a, b, false) -> select a, true, b
+  if (match(FalseVal, m_c_LogicalAnd(m_Not(m_Specific(CondVal)), m_Value(B))) &&
+      match(TrueVal, m_One()))
+    return replaceOperand(SI, 2, B);
 
   // ~(A & B) & (A | B) --> A ^ B
   if (match(&SI, m_c_LogicalAnd(m_Not(m_LogicalAnd(m_Value(A), m_Value(B))),
@@ -3383,25 +3450,14 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
     }
   }
 
-  auto canMergeSelectThroughBinop = [](BinaryOperator *BO) {
-    // The select might be preventing a division by 0.
-    switch (BO->getOpcode()) {
-    default:
-      return true;
-    case Instruction::SRem:
-    case Instruction::URem:
-    case Instruction::SDiv:
-    case Instruction::UDiv:
-      return false;
-    }
-  };
-
   // Try to simplify a binop sandwiched between 2 selects with the same
-  // condition.
+  // condition. This is not valid for div/rem because the select might be
+  // preventing a division-by-zero.
+  // TODO: A div/rem restriction is conservative; use something like
+  //       isSafeToSpeculativelyExecute().
   // select(C, binop(select(C, X, Y), W), Z) -> select(C, binop(X, W), Z)
   BinaryOperator *TrueBO;
-  if (match(TrueVal, m_OneUse(m_BinOp(TrueBO))) &&
-      canMergeSelectThroughBinop(TrueBO)) {
+  if (match(TrueVal, m_OneUse(m_BinOp(TrueBO))) && !TrueBO->isIntDivRem()) {
     if (auto *TrueBOSI = dyn_cast<SelectInst>(TrueBO->getOperand(0))) {
       if (TrueBOSI->getCondition() == CondVal) {
         replaceOperand(*TrueBO, 0, TrueBOSI->getTrueValue());
@@ -3420,8 +3476,7 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
 
   // select(C, Z, binop(select(C, X, Y), W)) -> select(C, Z, binop(Y, W))
   BinaryOperator *FalseBO;
-  if (match(FalseVal, m_OneUse(m_BinOp(FalseBO))) &&
-      canMergeSelectThroughBinop(FalseBO)) {
+  if (match(FalseVal, m_OneUse(m_BinOp(FalseBO))) && !FalseBO->isIntDivRem()) {
     if (auto *FalseBOSI = dyn_cast<SelectInst>(FalseBO->getOperand(0))) {
       if (FalseBOSI->getCondition() == CondVal) {
         replaceOperand(*FalseBO, 0, FalseBOSI->getFalseValue());

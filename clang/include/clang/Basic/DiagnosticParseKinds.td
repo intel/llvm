@@ -162,6 +162,9 @@ def ext_c99_feature : Extension<
   "'%0' is a C99 extension">, InGroup<C99>;
 def ext_c11_feature : Extension<
   "'%0' is a C11 extension">, InGroup<C11>;
+def warn_c2x_compat_keyword : Warning<
+ "'%0' is incompatible with C standards before C2x">,
+ InGroup<CPre2xCompat>, DefaultIgnore;
 
 def err_c11_noreturn_misplaced : Error<
   "'_Noreturn' keyword must precede function declarator">;
@@ -371,9 +374,6 @@ def warn_cxx11_compat_decltype_auto_type_specifier : Warning<
 def ext_auto_type : Extension<
   "'__auto_type' is a GNU extension">,
   InGroup<GNUAutoType>;
-def warn_c2x_compat_typeof_type_specifier : Warning<
-  "'%select{typeof|typeof_unqual}0' is incompatible with C standards before "
-  "C2x">, InGroup<CPre2xCompat>, DefaultIgnore;
 def ext_for_range : ExtWarn<
   "range-based for loop is a C++11 extension">, InGroup<CXX11>;
 def warn_cxx98_compat_for_range : Warning<
@@ -704,9 +704,6 @@ def warn_cxx98_compat_nullptr : Warning<
   "'nullptr' is incompatible with C++98">, InGroup<CXX98Compat>, DefaultIgnore;
 def ext_c_nullptr : Extension<
   "'nullptr' is a C2x extension">, InGroup<C2x>;
-def warn_c17_compat_nullptr : Warning<
-  "'nullptr' is incompatible with C standards before C2x">,
-  InGroup<CPre2xCompat>, DefaultIgnore;
 
 def warn_wrong_clang_attr_namespace : Warning<
   "'__clang__' is a predefined macro name, not an attribute scope specifier; "
@@ -1052,7 +1049,7 @@ def err_lambda_template_parameter_list_empty : Error<
 // C++2b static lambdas
 def err_static_lambda: ExtWarn<
   "static lambdas are a C++2b extension">, InGroup<CXX2b>;
-def warn_cxx20_compat_static_lambda: ExtWarn<
+def warn_cxx20_compat_static_lambda : Warning<
   "static lambdas are incompatible with C++ standards before C++2b">,
   InGroup<CXXPre2bCompat>, DefaultIgnore;
 def err_static_mutable_lambda : Error<
@@ -1104,7 +1101,7 @@ def err_availability_query_repeated_star : Error<
 
 // External source symbol attribute
 def err_external_source_symbol_expected_keyword : Error<
-  "expected 'language', 'defined_in', or 'generated_declaration'">;
+  "expected 'language', 'defined_in', 'generated_declaration', or 'USR'">;
 def err_external_source_symbol_duplicate_clause : Error<
   "duplicate %0 clause in an 'external_source_symbol' attribute">;
 
@@ -1574,9 +1571,6 @@ def warn_ext_int_deprecated : Warning<
 def ext_bit_int : Extension<
   "'_BitInt' in %select{C17 and earlier|C++}0 is a Clang extension">,
   InGroup<DiagGroup<"bit-int-extension">>;
-def warn_c17_compat_bit_int : Warning<
-  "'_BitInt' is incompatible with C standards before C2x">,
-  InGroup<CPre2xCompat>, DefaultIgnore;
 } // end of Parse Issue category.
 
 let CategoryName = "Modules Issue" in {

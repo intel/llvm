@@ -154,6 +154,29 @@ void RISCVInstPrinter::printFRMArg(const MCInst *MI, unsigned OpNo,
   O << ", " << RISCVFPRndMode::roundingModeToString(FRMArg);
 }
 
+void RISCVInstPrinter::printFPImmOperand(const MCInst *MI, unsigned OpNo,
+                                         const MCSubtargetInfo &STI,
+                                         raw_ostream &O) {
+  unsigned Imm = MI->getOperand(OpNo).getImm();
+  if (Imm == 1) {
+    O << "min";
+  } else if (Imm == 30) {
+    O << "inf";
+  } else if (Imm == 31) {
+    O << "nan";
+  } else {
+    float FPVal = RISCVLoadFPImm::getFPImm(Imm);
+    // If the value is an integer, print a .0 fraction. Otherwise, use %g to
+    // which will not print trailing zeros and will use scientific notation
+    // if it is shorter than printing as a decimal. The smallest value requires
+    // 12 digits of precision including the decimal.
+    if (FPVal == (int)(FPVal))
+      O << format("%.1f", FPVal);
+    else
+      O << format("%.12g", FPVal);
+  }
+}
+
 void RISCVInstPrinter::printZeroOffsetMemOp(const MCInst *MI, unsigned OpNo,
                                             const MCSubtargetInfo &STI,
                                             raw_ostream &O) {

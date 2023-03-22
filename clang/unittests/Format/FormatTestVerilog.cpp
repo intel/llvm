@@ -250,6 +250,73 @@ TEST_F(FormatTestVerilog, Case) {
                "  end\n"
                "endcase",
                Style);
+  // Other colons should not be mistaken as case colons.
+  Style = getLLVMStyle(FormatStyle::LK_Verilog);
+  Style.BitFieldColonSpacing = FormatStyle::BFCS_None;
+  verifyFormat("case (x[1:0])\n"
+               "endcase",
+               Style);
+  verifyFormat("default:\n"
+               "  x[1:0] = x[1:0];",
+               Style);
+  Style.BitFieldColonSpacing = FormatStyle::BFCS_Both;
+  verifyFormat("case (x[1 : 0])\n"
+               "endcase",
+               Style);
+  verifyFormat("default:\n"
+               "  x[1 : 0] = x[1 : 0];",
+               Style);
+  Style = getLLVMStyle(FormatStyle::LK_Verilog);
+  Style.SpacesInContainerLiterals = true;
+  verifyFormat("case ('{x : x, default : 9})\n"
+               "endcase",
+               Style);
+  verifyFormat("x = '{x : x, default : 9};\n", Style);
+  verifyFormat("default:\n"
+               "  x = '{x : x, default : 9};\n",
+               Style);
+  Style.SpacesInContainerLiterals = false;
+  verifyFormat("case ('{x: x, default: 9})\n"
+               "endcase",
+               Style);
+  verifyFormat("x = '{x: x, default: 9};\n", Style);
+  verifyFormat("default:\n"
+               "  x = '{x: x, default: 9};\n",
+               Style);
+}
+
+TEST_F(FormatTestVerilog, Coverage) {
+  verifyFormat("covergroup x\n"
+               "    @@(begin x);\n"
+               "endgroup");
+}
+
+TEST_F(FormatTestVerilog, Declaration) {
+  verifyFormat("wire mynet;");
+  verifyFormat("wire mynet, mynet1;");
+  verifyFormat("wire mynet, //\n"
+               "     mynet1;");
+  verifyFormat("wire mynet = enable;");
+  verifyFormat("wire mynet = enable, mynet1;");
+  verifyFormat("wire mynet = enable, //\n"
+               "     mynet1;");
+  verifyFormat("wire mynet, mynet1 = enable;");
+  verifyFormat("wire mynet, //\n"
+               "     mynet1 = enable;");
+  verifyFormat("wire mynet = enable, mynet1 = enable;");
+  verifyFormat("wire mynet = enable, //\n"
+               "     mynet1 = enable;");
+  verifyFormat("wire (strong1, pull0) mynet;");
+  verifyFormat("wire (strong1, pull0) mynet, mynet1;");
+  verifyFormat("wire (strong1, pull0) mynet, //\n"
+               "                      mynet1;");
+  verifyFormat("wire (strong1, pull0) mynet = enable;");
+  verifyFormat("wire (strong1, pull0) mynet = enable, mynet1;");
+  verifyFormat("wire (strong1, pull0) mynet = enable, //\n"
+               "                      mynet1;");
+  verifyFormat("wire (strong1, pull0) mynet, mynet1 = enable;");
+  verifyFormat("wire (strong1, pull0) mynet, //\n"
+               "                      mynet1 = enable;");
 }
 
 TEST_F(FormatTestVerilog, Delay) {
@@ -273,6 +340,155 @@ TEST_F(FormatTestVerilog, Delay) {
   verifyFormat("#1 x = x;");
   EXPECT_EQ("#1 x = x;", format("#1\n"
                                 "x = x;"));
+}
+
+TEST_F(FormatTestVerilog, Headers) {
+  // Test headers with multiple ports.
+  verifyFormat("module mh1\n"
+               "    (input var int in1,\n"
+               "     input var shortreal in2,\n"
+               "     output tagged_st out);\n"
+               "endmodule");
+  // Ports should be grouped by types.
+  verifyFormat("module test\n"
+               "    (input [7 : 0] a,\n"
+               "     input signed [7 : 0] b, c, d);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    (input [7 : 0] a,\n"
+               "     (* x = x *) input signed [7 : 0] b, c, d);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    (input [7 : 0] a = 0,\n"
+               "     input signed [7 : 0] b = 0, c = 0, d = 0);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    #(parameter x)\n"
+               "    (input [7 : 0] a,\n"
+               "     input signed [7 : 0] b, c, d);\n"
+               "endmodule");
+  // When a line needs to be broken, ports of the same type should be aligned to
+  // the same column.
+  verifyFormat("module test\n"
+               "    (input signed [7 : 0] b, c, //\n"
+               "                          d);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    ((* x = x *) input signed [7 : 0] b, c, //\n"
+               "                                      d);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    (input signed [7 : 0] b = 0, c, //\n"
+               "                          d);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    (input signed [7 : 0] b, c = 0, //\n"
+               "                          d);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    (input signed [7 : 0] b, c, //\n"
+               "                          d = 0);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    (input wire logic signed [7 : 0][0 : 1] b, c, //\n"
+               "                                            d);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    (input signed [7 : 0] b, //\n"
+               "                          c, //\n"
+               "                          d);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    (input [7 : 0] a,\n"
+               "     input signed [7 : 0] b, //\n"
+               "                          c, //\n"
+               "                          d);\n"
+               "endmodule");
+  verifyFormat("module test\n"
+               "    (input signed [7 : 0] b, //\n"
+               "                          c, //\n"
+               "                          d,\n"
+               "     output signed [7 : 0] h);\n"
+               "endmodule");
+  // With a modport.
+  verifyFormat("module m\n"
+               "    (i2.master i);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2.master i, ii);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2.master i, //\n"
+               "               ii);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2.master i,\n"
+               "     input ii);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2::i2.master i);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2::i2.master i, ii);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2::i2.master i, //\n"
+               "                   ii);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2::i2.master i,\n"
+               "     input ii);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2::i2 i);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2::i2 i, ii);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2::i2 i, //\n"
+               "            ii);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (i2::i2 i,\n"
+               "     input ii);\n"
+               "endmodule");
+  // With a macro in the names.
+  verifyFormat("module m\n"
+               "    (input var `x a, b);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (input var `x a, //\n"
+               "                  b);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (input var x `a, b);\n"
+               "endmodule");
+  verifyFormat("module m\n"
+               "    (input var x `a, //\n"
+               "                 b);\n"
+               "endmodule");
+  // With a concatenation in the names.
+  auto Style = getLLVMStyle(FormatStyle::LK_Verilog);
+  Style.ColumnLimit = 40;
+  verifyFormat("`define X(x)                           \\\n"
+               "  module test                          \\\n"
+               "      (input var x``x a, b);",
+               Style);
+  verifyFormat("`define X(x)                           \\\n"
+               "  module test                          \\\n"
+               "      (input var x``x aaaaaaaaaaaaaaa, \\\n"
+               "                      b);",
+               Style);
+  verifyFormat("`define X(x)                           \\\n"
+               "  module test                          \\\n"
+               "      (input var x a``x, b);",
+               Style);
+  verifyFormat("`define X(x)                           \\\n"
+               "  module test                          \\\n"
+               "      (input var x aaaaaaaaaaaaaaa``x, \\\n"
+               "                   b);",
+               Style);
 }
 
 TEST_F(FormatTestVerilog, Hierarchy) {
@@ -631,6 +847,51 @@ TEST_F(FormatTestVerilog, Primitive) {
                "    (?\?) ? : ? : -;\n"
                "  endtable\n"
                "endprimitive");
+}
+
+TEST_F(FormatTestVerilog, StructuredProcedure) {
+  // Blocks should be indented correctly.
+  verifyFormat("initial begin\n"
+               "end");
+  verifyFormat("initial begin\n"
+               "  x <= x;\n"
+               "  x <= x;\n"
+               "end");
+  verifyFormat("initial\n"
+               "  x <= x;\n"
+               "x <= x;");
+  verifyFormat("always @(x) begin\n"
+               "end");
+  verifyFormat("always @(x) begin\n"
+               "  x <= x;\n"
+               "  x <= x;\n"
+               "end");
+  verifyFormat("always @(x)\n"
+               "  x <= x;\n"
+               "x <= x;");
+  // Various keywords.
+  verifyFormat("always @(x)\n"
+               "  x <= x;");
+  verifyFormat("always @(posedge x)\n"
+               "  x <= x;");
+  verifyFormat("always\n"
+               "  x <= x;");
+  verifyFormat("always @*\n"
+               "  x <= x;");
+  verifyFormat("always @(*)\n"
+               "  x <= x;");
+  verifyFormat("always_comb\n"
+               "  x <= x;");
+  verifyFormat("always_latch @(x)\n"
+               "  x <= x;");
+  verifyFormat("always_ff @(posedge x)\n"
+               "  x <= x;");
+  verifyFormat("initial\n"
+               "  x <= x;");
+  verifyFormat("final\n"
+               "  x <= x;");
+  verifyFormat("forever\n"
+               "  x <= x;");
 }
 } // namespace format
 } // end namespace clang

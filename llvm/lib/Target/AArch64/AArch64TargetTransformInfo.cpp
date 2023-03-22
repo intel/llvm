@@ -1619,9 +1619,17 @@ AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
   case Intrinsic::aarch64_sve_fadd:
   case Intrinsic::aarch64_sve_add:
     return instCombineSVEVectorAdd(IC, II);
+  case Intrinsic::aarch64_sve_fadd_u:
+    return instCombineSVEVectorFuseMulAddSub<Intrinsic::aarch64_sve_fmul_u,
+                                             Intrinsic::aarch64_sve_fmla_u>(
+        IC, II, true);
   case Intrinsic::aarch64_sve_fsub:
   case Intrinsic::aarch64_sve_sub:
     return instCombineSVEVectorSub(IC, II);
+  case Intrinsic::aarch64_sve_fsub_u:
+    return instCombineSVEVectorFuseMulAddSub<Intrinsic::aarch64_sve_fmul_u,
+                                             Intrinsic::aarch64_sve_fmls_u>(
+        IC, II, true);
   case Intrinsic::aarch64_sve_tbl:
     return instCombineSVETBL(IC, II);
   case Intrinsic::aarch64_sve_uunpkhi:
@@ -2673,7 +2681,7 @@ AArch64TTIImpl::getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) {
   return Cost;
 }
 
-unsigned AArch64TTIImpl::getMaxInterleaveFactor(unsigned VF) {
+unsigned AArch64TTIImpl::getMaxInterleaveFactor(ElementCount VF) {
   return ST->getMaxInterleaveFactor();
 }
 
@@ -3211,13 +3219,19 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
 
   Kind = improveShuffleKindFromMask(Kind, Mask);
 
-  // Check for broadcast loads.
-  if (Kind == TTI::SK_Broadcast) {
+  // Check for broadcast loads, which are supported by the LD1R instruction.
+  // In terms of code-size, the shuffle vector is free when a load + dup get
+  // folded into a LD1R. That's what we check and return here. For performance
+  // and reciprocal throughput, a LD1R is not completely free. In this case, we
+  // return the cost for the broadcast below (i.e. 1 for most/all types), so
+  // that we model the load + dup sequence slightly higher because LD1R is a
+  // high latency instruction.
+  if (CostKind == TTI::TCK_CodeSize && Kind == TTI::SK_Broadcast) {
     bool IsLoad = !Args.empty() && isa<LoadInst>(Args[0]);
     if (IsLoad && LT.second.isVector() &&
         isLegalBroadcastLoad(Tp->getElementType(),
                              LT.second.getVectorElementCount()))
-      return 0; // broadcast is handled by ld1r
+      return 0;
   }
 
   // If we have 4 elements for the shuffle and a Mask, get the cost straight
@@ -3239,6 +3253,8 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
         {TTI::SK_Broadcast, MVT::v2i32, 1},
         {TTI::SK_Broadcast, MVT::v4i32, 1},
         {TTI::SK_Broadcast, MVT::v2i64, 1},
+        {TTI::SK_Broadcast, MVT::v4f16, 1},
+        {TTI::SK_Broadcast, MVT::v8f16, 1},
         {TTI::SK_Broadcast, MVT::v2f32, 1},
         {TTI::SK_Broadcast, MVT::v4f32, 1},
         {TTI::SK_Broadcast, MVT::v2f64, 1},
@@ -3251,6 +3267,8 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
         {TTI::SK_Transpose, MVT::v2i32, 1},
         {TTI::SK_Transpose, MVT::v4i32, 1},
         {TTI::SK_Transpose, MVT::v2i64, 1},
+        {TTI::SK_Transpose, MVT::v4f16, 1},
+        {TTI::SK_Transpose, MVT::v8f16, 1},
         {TTI::SK_Transpose, MVT::v2f32, 1},
         {TTI::SK_Transpose, MVT::v4f32, 1},
         {TTI::SK_Transpose, MVT::v2f64, 1},

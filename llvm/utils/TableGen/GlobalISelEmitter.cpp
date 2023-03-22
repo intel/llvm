@@ -8,7 +8,7 @@
 //
 /// \file
 /// This tablegen backend emits code for use by the GlobalISel instruction
-/// selector. See include/llvm/CodeGen/TargetGlobalISel.td.
+/// selector. See include/llvm/Target/GlobalISel/Target.td.
 ///
 /// This file analyzes the patterns recognized by the SelectionDAGISel tablegen
 /// backend, filters out the ones that are unsupported, maps
@@ -3368,7 +3368,7 @@ unsigned RuleMatcher::getInsnVarID(InstructionMatcher &InsnMatcher) const {
 }
 
 void RuleMatcher::defineOperand(StringRef SymbolicName, OperandMatcher &OM) {
-  if (DefinedOperands.find(SymbolicName) == DefinedOperands.end()) {
+  if (!DefinedOperands.contains(SymbolicName)) {
     DefinedOperands[SymbolicName] = &OM;
     return;
   }
@@ -3382,7 +3382,7 @@ void RuleMatcher::defineOperand(StringRef SymbolicName, OperandMatcher &OM) {
 }
 
 void RuleMatcher::definePhysRegOperand(Record *Reg, OperandMatcher &OM) {
-  if (PhysRegOperands.find(Reg) == PhysRegOperands.end()) {
+  if (!PhysRegOperands.contains(Reg)) {
     PhysRegOperands[Reg] = &OM;
     return;
   }
@@ -6362,8 +6362,5 @@ unsigned OperandMatcher::getInsnVarID() const { return Insn.getInsnVarID(); }
 
 //===----------------------------------------------------------------------===//
 
-namespace llvm {
-void EmitGlobalISel(RecordKeeper &RK, raw_ostream &OS) {
-  GlobalISelEmitter(RK).run(OS);
-}
-} // End llvm namespace
+static TableGen::Emitter::OptClass<GlobalISelEmitter>
+    X("gen-global-isel", "Generate GlobalISel selector");

@@ -41,6 +41,8 @@
 ! HELP-NEXT:                        Specify where to find the compiled intrinsic modules
 ! HELP-NEXT: -flarge-sizes          Use INTEGER(KIND=8) for the result type in size-related intrinsics
 ! HELP-NEXT: -flogical-abbreviations Enable logical abbreviations
+! HELP-NEXT: -flto=<value> Set LTO mode
+! HELP-NEXT: -flto Enable LTO in 'full' mode
 ! HELP-NEXT: -fno-automatic         Implies the SAVE attribute for non-automatic local objects in subprograms unless RECURSIVE
 ! HELP-NEXT: -fno-color-diagnostics  Disable colors in diagnostics
 ! HELP-NEXT: -fno-integrated-as      Disable the integrated assembler
@@ -52,6 +54,7 @@
 ! HELP-NEXT: -freciprocal-math      Allow division operations to be reassociated
 ! HELP-NEXT: -fstack-arrays         Attempt to allocate array temporaries on the stack, no matter their size
 ! HELP-NEXT: -fsyntax-only          Run the preprocessor, parser and semantic analysis stages
+! HELP-NEXT: -funderscoring         Appends one trailing underscore to external names
 ! HELP-NEXT: -fxor-operator         Enable .XOR. as a synonym of .NEQV.
 ! HELP-NEXT: -help                  Display available options
 ! HELP-NEXT: -I <dir>               Add directory to the end of the list of include search paths
@@ -129,6 +132,8 @@
 ! HELP-FC1-NEXT:                        Specify where to find the compiled intrinsic modules
 ! HELP-FC1-NEXT: -flarge-sizes          Use INTEGER(KIND=8) for the result type in size-related intrinsics
 ! HELP-FC1-NEXT: -flogical-abbreviations Enable logical abbreviations
+! HELP-FC1-NEXT: -flto=<value>           Set LTO mode
+! HELP-FC1-NEXT: -flto                   Enable LTO in 'full' mode
 ! HELP-FC1-NEXT: -fno-analyzed-objects-for-unparse
 ! HELP-FC1-NEXT:                        Do not use the analyzed objects when unparsing
 ! HELP-FC1-NEXT: -fno-automatic         Implies the SAVE attribute for non-automatic local objects in subprograms unless RECURSIVE
@@ -137,11 +142,13 @@
 ! HELP-FC1-NEXT: -fno-signed-zeros      Allow optimizations that ignore the sign of floating point zeros
 ! HELP-FC1-NEXT: -fno-stack-arrays      Allocate array temporaries on the heap (default)
 ! HELP-FC1-NEXT: -fopenacc              Enable OpenACC
+! HELP-FC1-NEXT: -fopenmp-is-device     Generate code only for an OpenMP target device.
 ! HELP-FC1-NEXT: -fopenmp               Parse OpenMP pragmas and generate parallel code.
 ! HELP-FC1-NEXT: -fpass-plugin=<dsopath> Load pass plugin from a dynamic shared object file (only with new pass manager).
 ! HELP-FC1-NEXT: -freciprocal-math      Allow division operations to be reassociated
 ! HELP-FC1-NEXT: -fstack-arrays         Attempt to allocate array temporaries on the stack, no matter their size
 ! HELP-FC1-NEXT: -fsyntax-only          Run the preprocessor, parser and semantic analysis stages
+! HELP-FC1-NEXT: -funderscoring         Appends one trailing underscore to external names
 ! HELP-FC1-NEXT: -fxor-operator         Enable .XOR. as a synonym of .NEQV.
 ! HELP-FC1-NEXT: -help                  Display available options
 ! HELP-FC1-NEXT: -init-only             Only execute frontend initialization

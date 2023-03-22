@@ -892,7 +892,7 @@ sizeof...($TemplateParameter[[Elements]]);
 
         template $Bracket[[<]]typename $TemplateParameter_def[[T]]$Bracket[[>]]
         $TemplateParameter[[T]] $Variable_def[[x]] = {};
-        template <>
+        template $Bracket[[<]]$Bracket[[>]]
         int $Variable_def[[x]]$Bracket[[<]]int$Bracket[[>]] = (int)sizeof($Class[[Base]]);
       )cpp",
       // operator calls in template
@@ -977,7 +977,7 @@ $Bracket[[>]]$Bracket[[>]] $LocalVariable_def[[s6]];
         }
         template $Bracket[[<]]typename $TemplateParameter_def[[T]]$Bracket[[>]] constexpr int $Variable_def_readonly[[V]] = 42;
         constexpr int $Variable_def_readonly[[Y]] = $Variable_readonly[[V]]$Bracket[[<]]char$Bracket[[>]];
-        template <>
+        template $Bracket[[<]]$Bracket[[>]]
         constexpr int $Variable_def_readonly[[V]]$Bracket[[<]]int$Bracket[[>]] = 5;
         template $Bracket[[<]]typename $TemplateParameter_def[[T]]$Bracket[[>]]
         constexpr int $Variable_def_readonly[[V]]$Bracket[[<]]$TemplateParameter[[T]]*$Bracket[[>]] = 6;
@@ -1045,7 +1045,15 @@ $Bracket[[>]]$Bracket[[>]] $LocalVariable_def[[s6]];
           auto $LocalVariable_def[[s]] = $Operator[[new]] $Class[[Foo]]$Bracket[[<]]$TemplateParameter[[T]]$Bracket[[>]]();
           $Operator[[delete]] $LocalVariable[[s]];
         }
-      )cpp"};
+      )cpp",
+      // Recursive UsingValueDecl
+      R"cpp(
+        template $Bracket[[<]]int$Bracket[[>]] class $Class_def[[X]] {
+          template $Bracket[[<]]int$Bracket[[>]] class $Class_def[[Y]] {
+            using $Class[[Y]]$Bracket[[<]]0$Bracket[[>]]::$Unknown_dependentName[[xxx]];
+          };
+        };
+    )cpp"};
   for (const auto &TestCase : TestCases)
     // Mask off scope modifiers to keep the tests manageable.
     // They're tested separately.

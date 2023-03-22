@@ -4312,7 +4312,7 @@ void IEEEFloat::toString(SmallVectorImpl<char> &Str, unsigned FormatPrecision,
   }
 
   // Ignore trailing binary zeros.
-  int trailingZeros = significand.countTrailingZeros();
+  int trailingZeros = significand.countr_zero();
   exp += trailingZeros;
   significand.lshrInPlace(trailingZeros);
 
@@ -5359,6 +5359,19 @@ APFloat::APFloat(const fltSemantics &Semantics, StringRef S)
   auto StatusOrErr = convertFromString(S, rmNearestTiesToEven);
   assert(StatusOrErr && "Invalid floating point representation");
   consumeError(StatusOrErr.takeError());
+}
+
+FPClassTest APFloat::classify() const {
+  if (isZero())
+    return isNegative() ? fcNegZero : fcPosZero;
+  if (isNormal())
+    return isNegative() ? fcNegNormal : fcPosNormal;
+  if (isDenormal())
+    return isNegative() ? fcNegSubnormal : fcPosSubnormal;
+  if (isInfinity())
+    return isNegative() ? fcNegInf : fcPosInf;
+  assert(isNaN() && "Other class of FP constant");
+  return isSignaling() ? fcSNan : fcQNan;
 }
 
 APFloat::opStatus APFloat::convert(const fltSemantics &ToSemantics,

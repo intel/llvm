@@ -18,10 +18,6 @@ def p4 : PtrValueType<i64, 4>;
 def p5 : PtrValueType<i32, 5>;
 def p6 : PtrValueType<i32, 6>;
 
-class BoolToList<bit Value> {
-  list<int> ret = !if(Value, [1]<int>, []<int>);
-}
-
 //===------------------------------------------------------------===//
 // Subtarget Features (device properties)
 //===------------------------------------------------------------===//
@@ -494,6 +490,12 @@ def FeatureNSAEncoding : SubtargetFeature<"nsa-encoding",
   "Support NSA encoding for image instructions"
 >;
 
+def FeaturePartialNSAEncoding : SubtargetFeature<"partial-nsa-encoding",
+  "HasPartialNSAEncoding",
+  "true",
+  "Support partial NSA encoding for image instructions"
+>;
+
 def FeatureImageInsts : SubtargetFeature<"image-insts",
   "HasImageInsts",
   "true",
@@ -724,15 +726,6 @@ def FeatureGFX11FullVGPRs : SubtargetFeature<"gfx11-full-vgprs",
   "GFX11 with 50% more physical VGPRs and 50% larger allocation granule than GFX10"
 >;
 
-class SubtargetFeatureNSAMaxSize <int Value> : SubtargetFeature <
-  "nsa-max-size-"#Value,
-  "NSAMaxSize",
-  !cast<string>(Value),
-  "The maximum non-sequential address size in VGPRs."
->;
-
-def FeatureNSAMaxSize5 : SubtargetFeatureNSAMaxSize<5>;
-def FeatureNSAMaxSize13 : SubtargetFeatureNSAMaxSize<13>;
 
 def FeatureVOPD : SubtargetFeature<"vopd",
   "HasVOPDInsts",
@@ -1227,7 +1220,6 @@ def FeatureISAVersion10_1_0 : FeatureSet<
      FeatureLDSBankCount32,
      FeatureDLInsts,
      FeatureNSAEncoding,
-     FeatureNSAMaxSize5,
      FeatureWavefrontSize32,
      FeatureScalarStores,
      FeatureScalarAtomics,
@@ -1251,7 +1243,6 @@ def FeatureISAVersion10_1_1 : FeatureSet<
      FeatureDot7Insts,
      FeatureDot10Insts,
      FeatureNSAEncoding,
-     FeatureNSAMaxSize5,
      FeatureWavefrontSize32,
      FeatureScalarStores,
      FeatureScalarAtomics,
@@ -1275,7 +1266,6 @@ def FeatureISAVersion10_1_2 : FeatureSet<
      FeatureDot7Insts,
      FeatureDot10Insts,
      FeatureNSAEncoding,
-     FeatureNSAMaxSize5,
      FeatureWavefrontSize32,
      FeatureScalarStores,
      FeatureScalarAtomics,
@@ -1294,7 +1284,6 @@ def FeatureISAVersion10_1_3 : FeatureSet<
      FeatureLDSBankCount32,
      FeatureDLInsts,
      FeatureNSAEncoding,
-     FeatureNSAMaxSize5,
      FeatureWavefrontSize32,
      FeatureScalarStores,
      FeatureScalarAtomics,
@@ -1320,7 +1309,6 @@ def FeatureISAVersion10_3_0 : FeatureSet<
    FeatureDot7Insts,
    FeatureDot10Insts,
    FeatureNSAEncoding,
-   FeatureNSAMaxSize13,
    FeatureWavefrontSize32,
    FeatureShaderCyclesRegister,
    FeatureBackOffBarrier]>;
@@ -1335,7 +1323,7 @@ def FeatureISAVersion11_Common : FeatureSet<
    FeatureDot9Insts,
    FeatureDot10Insts,
    FeatureNSAEncoding,
-   FeatureNSAMaxSize5,
+   FeaturePartialNSAEncoding,
    FeatureWavefrontSize32,
    FeatureShaderCyclesRegister,
    FeatureArchitectedFlatScratch,
