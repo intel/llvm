@@ -59,15 +59,15 @@ def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let summary =
     "Lower NVVM/GPU dialects into a generic parallel for representation.";
   let dependentDialects =
-      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
+      ["memref::MemRefDialect", "polygeist::PolygeistDialect",
+       "LLVM::LLVMDialect", "scf::SCFDialect"];
   let constructor = "mlir::polygeist::createParallelLowerPass()";
 }
 
 def SCFCPUify : Pass<"cpuify"> {
   let summary = "remove scf.barrier";
   let constructor = "mlir::polygeist::createCPUifyPass()";
-  let dependentDialects =
-      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
+  let dependentDialects = ["memref::MemRefDialect", "LLVM::LLVMDialect"];
   let options = [
   Option<"method", "method", "std::string", /*default=*/"\"distribute\"", "Method of doing distribution">
   ];
@@ -76,8 +76,7 @@ def SCFCPUify : Pass<"cpuify"> {
 def InnerSerialization : Pass<"inner-serialize"> {
   let summary = "Serialize scf.parallel operations";
   let constructor = "mlir::polygeist::createInnerSerializationPass()";
-  let dependentDialects =
-      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
+  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 def LLVMLegalizeForSPIRV : Pass<"legalize-for-spirv"> {
@@ -89,7 +88,7 @@ def LLVMLegalizeForSPIRV : Pass<"legalize-for-spirv"> {
 def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
   let summary = "Remove scf.barrier using continuations";
   let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";
-  let dependentDialects = ["memref::MemRefDialect", "func::FuncDialect"];
+  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 def SCFRaiseToAffine : Pass<"raise-scf-to-affine"> {
@@ -119,11 +118,12 @@ def LICM : Pass<"licm"> {
 def OpenMPOptPass : Pass<"openmp-opt"> {
   let summary = "Optimize OpenMP";
   let constructor = "mlir::polygeist::createOpenMPOptPass()";
+  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 def LoopRestructure : Pass<"loop-restructure"> {
   let constructor = "mlir::polygeist::createLoopRestructurePass()";
-  let dependentDialects = ["::mlir::scf::SCFDialect"];
+  let dependentDialects = ["LLVM::LLVMDialect", "scf::SCFDialect"];
 }
 
 def RemoveTrivialUse : Pass<"trivialuse"> {

@@ -84,59 +84,11 @@ bool isValidMemRefType(Type type) {
   return true;
 }
 
-#if 0
-// Returns the iterator to \p op in its containing block.
-auto getIter(Operation *op) {
-  assert(op && "Expecting a valid pointer");
-  Block *block = op->getBlock();
-  auto it = block->begin();
-
-  for (; it != block->end(); ++it) {
-    Operation *currOp = &*it;
-    if (currOp == op)
-      return it;
-  }
-  return block->end();
-}
-#endif
-
 // Returns true if the block of \p startOp contains an instruction (after \p
 // startOp) that has a side effects on \p val.
 auto existsSideEffectAfter(Value val, Operation *startOp) {
   assert(startOp && "Expecting a valid pointer");
   Block *block = startOp->getBlock();
-
-#if 0
-  auto it = getIter(startOp);
-  assert(it != block->end());
-
-  // Conservatively assume operations with unknown side effects might write to
-  // any memory.
-  if (!isa<MemoryEffectOpInterface>(other) &&
-      !const_cast<Operation &>(other)
-           .hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
-    LLVM_DEBUG({
-      llvm::dbgs()
-          << "=> found conflict due to operation with unknown side effects:\n";
-      llvm::dbgs().indent(2) << other << "\n";
-    });
-    return true;
-  }
-
-  WalkResult walk = block->walk(++it, block->end(), [](Operation *op) {
-    if (isMemoryEffectFree(op))
-      WalkResult::advance();
-
-    // Operations with unknown side effects might write to any memory.
-    if (isa<MemoryEffectOpInterface>(op) &&
-        op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
-      WalkResult::interrupt();
-
-    if (auto MEI = dyn_cast<MemoryEffectOpInterface>(op)) {
-    }
-  });
-  return walk.wasInterrupted();
-#endif
 
   for (Operation &op : *block) {
     if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op))
@@ -209,15 +161,15 @@ private:
   /// corresponding peeled members.
   void modifyCallee();
 
-  /// Replace the argument at position \p pos in the region \p callableRgn
-  /// with \p newArgs. The reference parameter \p newArgAttrs is filled with
-  /// the new argument attributes.
+  /// Replace the argument at position \p pos in the region \p callableRgn with
+  /// \p newArgs. The reference parameter \p newArgAttrs is filled with the new
+  /// argument attributes.
   void replaceArgumentWith(unsigned pos, Region &callableRgn,
                            const SmallVector<Value> &newArgs,
                            SmallVector<Attribute> &newArgAttrs) const;
 
-  /// Replace uses of the argument \p origArg in the region \p callableRgn
-  /// with the arguments starting at position \p pos in the callable region.
+  /// Replace uses of the argument \p origArg in the region \p callableRgn with
+  /// the arguments starting at position \p pos in the callable region.
   void replaceUsesOfArgument(Value origArg, unsigned pos,
                              Region &callableRgn) const;
 
@@ -553,37 +505,6 @@ bool ArgumentPromotionPass::isCandidateOperand(unsigned pos,
   return true;
 }
 
-#if 0
-/// These checks should be performend only on candidate operands.
-bool todoCall() {
-  // At least one operand must have a peelable type (a memref<?xstruct<...>>).
-  if (llvm::all_of(callOperands,
-                   [](Value op) { return !isValidMemRefType(op.getType()); })) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Not a candidate: " << callOp << "\n";
-      llvm::dbgs().indent(2) << "no peelable arguments\n";
-    });
-    return false;
-  }
-
-  // Peelable operands should not be used by an instruction (after the call)
-  // that has a side effect.
-  for (Value callOperand : callOperands) {
-    if (!isValidMemRefType(callOperand.getType()))
-      continue;
-
-    if (existsSideEffectAfter(callOp)) {
-      LLVM_DEBUG({
-        llvm::dbgs() << "Not a candidate: " << callOp << "\n";
-        llvm::dbgs().indent(2)
-            << "found operation(s) with side effects after call\n";
-      });
-      return false;
-    }
-  }
-}
-#endif
-
 bool ArgumentPromotionPass::isCandidateCallable(
     CallableOpInterface callableOp) const {
   ModuleOp module = const_cast<ArgumentPromotionPass *>(this)->getOperation();
@@ -613,32 +534,6 @@ bool ArgumentPromotionPass::isCandidateCallable(
 
   return true;
 }
-
-#if 0
-// These checks should be performed only on peelable operands
-bool todoCallee() {
-
-  // In the callee, the members of the struct must be accessed via polygeist
-  // subIndex operations.
-  // FIXME: we ultimately want to maintain a list of peelable arguments.
-  // Currently all arguments that have the expected type must be used by
-  // `polygeist::SubIndexOp` operation or we bail out.
-  for (BlockArgument arg : callableOp.getCallableRegion()->getArguments()) {
-    if (!isValidMemRefType(arg.getType()))
-      continue;
-
-    if (llvm::any_of(arg.getUses(), [](OpOperand &use) {
-          return !isa<polygeist::SubIndexOp>(use.getOwner());
-        })) {
-      LLVM_DEBUG({
-        llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
-        llvm::dbgs().indent(2) << "missing polygeist subindex operations\n";
-      });
-      return false;
-    }
-  }
-}
-#endif
 
 std::unique_ptr<Pass> mlir::polygeist::createArgumentPromotionPass() {
   return std::make_unique<ArgumentPromotionPass>();

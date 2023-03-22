@@ -8,9 +8,7 @@
 
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/Dominance.h"
@@ -27,7 +25,6 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
-using namespace mlir::func;
 using namespace mlir::arith;
 using namespace polygeist;
 

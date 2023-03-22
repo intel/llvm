@@ -13,7 +13,7 @@ include "mlir/Pass/PassBase.td"
 
 def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp"> {
   let summary = "Convert Polygeist dialect to LLVM dialect";
-  let dependentDialects = ["LLVM::LLVMDialect"];
+  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect"];
   let options = [
     Option<"emitCWrappers", "emit-c-wrappers", "bool", /*default=*/"false",
            "Emit wrappers for C-compatible pointer-to-struct memref "

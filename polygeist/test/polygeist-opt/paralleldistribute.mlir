@@ -63,8 +63,11 @@ module {
 // CHECK-NEXT:         memref.store %c1_i8, %[[i1]][%arg1] : memref<2xi8>
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
-// CHECK-NEXT:       %alloca_1 = memref.alloca() : memref<i1>
+// FIXME: Next line only works if canonicalization patterns for `scf.while`
+//        defined in the `polygeist` dialect are applied. See comment in Ops.cpp.
+// COM-NEXT:         %alloca_1 = memref.alloca() : memref<i1>
 // CHECK-NEXT:       scf.while : () -> () {
+// CHECK-NEXT:         %alloca_1 = memref.alloca() : memref<i1>
 // CHECK-NEXT:         scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
 // CHECK-NEXT:           %2 = memref.load %[[i1]][%arg1] : memref<2xi8>
 // CHECK-NEXT:           %3 = arith.cmpi ne, %2, %c0_i8 : i8

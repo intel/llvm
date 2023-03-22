@@ -156,6 +156,30 @@ func.func @test(%id: memref<?x!sycl_id_3_>, %idx: i32) -> memref<?xi64> {
 // -----
 
 //===-------------------------------------------------------------------------------------------------===//
+// sycl.accessor.size
+//===-------------------------------------------------------------------------------------------------===//
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+!sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
+
+// CHECK-LABEL:   llvm.func @test(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[ACCESSOR1:.*]]>) -> i64 {
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %arg0[0, 0, 1, 0, 0, 0] : (!llvm.ptr<[[ACCESSOR1]]>) -> !llvm.ptr<i64>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<i64>
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mul %[[VAL_1]], %[[VAL_3]]  : i64
+// CHECK-NEXT:      llvm.return %[[VAL_4]] : i64
+// CHECK-NEXT:    }
+func.func @test(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -> i64 {
+  %0 = sycl.accessor.size(%acc) { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb>], FunctionName = @"size", MangledFunctionName = @"size", TypeName = @"accessor" }  : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> i64
+  return %0 : i64
+}
+
+// -----
+
+//===-------------------------------------------------------------------------------------------------===//
 // sycl.accessor.subscript with scalar offset and 1D accessor
 //===-------------------------------------------------------------------------------------------------===//
 
