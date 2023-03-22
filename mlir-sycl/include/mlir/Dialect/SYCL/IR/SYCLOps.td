@@ -669,6 +669,28 @@ def SYCLCallOp : SYCL_Op<"call", [CallOpInterface]> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// accessor.size OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLAccessorSizeOp
+    : SYCLMethodOpInterfaceImpl<"accessor.size", "AccessorType",
+                                ["size"]> {
+  let summary = "Represents the accessor size operation";
+  let description = [{
+    Returns the number of elements of the memory region this accessor may
+    access.
+  }];
+
+  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
+                       TypeArrayAttr:$ArgumentTypes,
+                       FlatSymbolRefAttr:$FunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs IndexType:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // accessor.subscript OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
