@@ -353,8 +353,9 @@ struct VecBlockedWGTest {
     // CHECK-NOT: BlockWrite
 
     success = true;
-    sycl::detail::dim_loop<VEC_SIZE>(
-        [&](size_t i) { success &= (out[i] == gid + VEC_SIZE * 2 - i + 1); });
+    sycl::detail::dim_loop<VEC_SIZE>([&](size_t i) {
+      success &= (global_mem[lid * VEC_SIZE + i] == gid + VEC_SIZE * 2 - i + 1);
+    });
     Record(success);
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
@@ -449,6 +450,18 @@ struct VecBlockedSGTest {
     Record(success);
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    ++out;
+    group_store(sg, out, global_mem, properties(data_placement<blocked>));
+    // CHECK-NOT: BlockWrite
+
+    success = true;
+    sycl::detail::dim_loop<VEC_SIZE>([&](size_t i) {
+      success &= (global_mem[sg_lid * VEC_SIZE + i] == gid + VEC_SIZE * 2 - i + 1);
+    });
+    Record(success);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
 };
 
@@ -536,6 +549,21 @@ struct SpanBlockedWGTest {
     Record(success);
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    for (auto &elem : out)
+      ++elem;
+
+    group_store(g, out, global_mem, properties(data_placement<blocked>));
+    // CHECK-NOT: BlockWrite
+
+    success = true;
+    sycl::detail::dim_loop<SPAN_SIZE>([&](size_t i) {
+      success &=
+          (global_mem[lid * SPAN_SIZE + i] == gid + SPAN_SIZE * 2 - i + 1);
+    });
+    Record(success);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
 };
 
@@ -591,6 +619,21 @@ struct SpanStripedWGTest {
     Record(success);
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    for (auto &elem : out)
+      ++elem;
+
+    group_store(g, out, global_mem, properties(data_placement<striped>));
+    // CHECK-NOT: BlockWrite
+
+    success = true;
+    sycl::detail::dim_loop<SPAN_SIZE>([&](size_t i) {
+      success &=
+          (global_mem[lid * SPAN_SIZE + i] == gid + SPAN_SIZE * 2 - i + 1);
+    });
+    Record(success);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
 };
 
@@ -615,6 +658,20 @@ struct SpanBlockedSGTest {
     for (int i = 0; i < SPAN_SIZE; ++i)
       success &= (out[i] == gid + SPAN_SIZE * 2 - i);
 
+    Record(success);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    for (auto &elem : out)
+      ++elem;
+
+    group_store(sg, out, global_mem, properties(data_placement<blocked>));
+    // CHECK-NOT: BlockWrite
+
+    success = true;
+    sycl::detail::dim_loop<SPAN_SIZE>([&](size_t i) {
+      success &= (global_mem[sg_lid * SPAN_SIZE + i] == gid + SPAN_SIZE * 2 - i + 1);
+    });
     Record(success);
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
@@ -674,12 +731,22 @@ struct SpanStripedSGTest {
                       sg.get_group_id() * sg.get_max_local_range().size() +
                       SPAN_SIZE * 2 + striped_idx / SPAN_SIZE -
                       striped_idx % SPAN_SIZE;
-      success &=
-          (out[i] == expected);
-      // success &=
-      //     (out[i] == ndi.get_group(0) * wg_size + SPAN_SIZE * 2 +
-      //                    striped_idx / SPAN_SIZE - striped_idx % SPAN_SIZE);
+      success &= (out[i] == expected);
     }
+    Record(success);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    for (auto &elem : out)
+      ++elem;
+
+    group_store(sg, out, global_mem, properties(data_placement<striped>));
+    // CHECK-NOT: BlockWrite
+
+    success = true;
+    sycl::detail::dim_loop<SPAN_SIZE>([&](size_t i) {
+      success &= (global_mem[sg_lid * SPAN_SIZE + i] == gid + SPAN_SIZE * 2 - i + 1);
+    });
     Record(success);
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]

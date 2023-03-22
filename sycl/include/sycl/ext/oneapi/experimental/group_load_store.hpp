@@ -399,8 +399,8 @@ void group_load(GroupHelper gh, InputIteratorT in_ptr,
 }
 
 // Store API sycl::span overload
-template <typename GroupHelper, typename InputT, int ElementsPerWorkItem,
-          typename OutputIteratorT,
+template <typename GroupHelper, typename InputT,
+          std::size_t ElementsPerWorkItem, typename OutputIteratorT,
           typename Properties = decltype(properties()),
           typename = std::enable_if_t<std::is_convertible_v<
               InputT, remove_decoration_t<typename std::iterator_traits<
