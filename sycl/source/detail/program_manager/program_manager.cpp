@@ -1258,7 +1258,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       if (KSIdIt != KSIdMap.end()) {
         auto &Imgs = m_DeviceImages[KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
-        // If the images differ in target format, the dumping is necessary.
         if (DumpImages)
           dumpImage(*Img, KSIdIt->second, ++SequenceID);
 
