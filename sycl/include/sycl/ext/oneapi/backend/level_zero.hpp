@@ -31,6 +31,11 @@ __SYCL_EXPORT queue make_queue(const context &Context,
 __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
+__SYCL_EXPORT queue
+make_queue2(const context &Context, const device &Device,
+            std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+                InteropHandle,
+            bool keep_ownership, const property_list &Properties);
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
@@ -83,7 +88,8 @@ T make(const context &Context,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
            Interop,
        ownership Ownership = ownership::transfer) {
-  return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop),
+  auto CommandQ = std::get_if<ze_command_queue_handle_t>(&Interop);
+  return make_queue(Context, reinterpret_cast<pi_native_handle>(CommandQ),
                     Ownership == ownership::keep);
 }
 
@@ -113,17 +119,16 @@ inline context make_context<backend::ext_oneapi_level_zero>(
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
-// Specialization of sycl::make_queue for Level-Zero backend.
 template <>
 inline queue make_queue<backend::ext_oneapi_level_zero>(
     const backend_input_t<backend::ext_oneapi_level_zero, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
   (void)Handler;
   const device Device = device{BackendObject.Device};
-  return ext::oneapi::level_zero::make_queue(
-      TargetContext, Device,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+  return ext::oneapi::level_zero::make_queue2(
+      TargetContext, Device, BackendObject.NativeHandle,
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+      BackendObject.Properties);
 }
 
 // Specialization of sycl::make_event for Level-Zero backend.

@@ -1200,7 +1200,8 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   // immediate commandlists are being used. For standard commandlists all are
   // used.
   if (!EnvVar) {
-    if (Device->ImmCommandListUsed)
+    bool Default;
+    if (Device->useImmediateCommandLists(Default))
       return std::pair<int, int>(-1, -1);   // No copy engines can be used.
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
@@ -1236,9 +1237,10 @@ bool CopyEngineRequested(const ur_device_handle_t &Device) {
 // The default is standard commandlists. Setting 1 or 2 specifies use of
 // immediate commandlists.
 
-// Get value of immediate commandlists env var setting or -1 if unset
+// Get value of immediate commandlists env var setting or -1 if unset.
+// Also return whether a default or explicit setting is being returned.
 _ur_device_handle_t::ImmCmdlistMode
-_ur_device_handle_t::useImmediateCommandLists() {
+_ur_device_handle_t::useImmediateCommandLists(bool &Default) {
   // If immediate commandlist setting is not explicitly set, then use the device
   // default.
   static const int ImmediateCommandlistsSetting = [] {
@@ -1249,9 +1251,11 @@ _ur_device_handle_t::useImmediateCommandLists() {
     return std::stoi(ImmediateCommandlistsSettingStr);
   }();
 
+  Default = true;
   if (ImmediateCommandlistsSetting == -1)
     // Change this to PerQueue as default after more testing.
     return NotUsed;
+  Default = false;
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
@@ -1424,7 +1428,8 @@ ur_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
                         (ZeDevice, &Count, &Properties));
       };
 
-  ImmCommandListUsed = this->useImmediateCommandLists();
+  bool Default;
+  ImmCommandListUsed = this->useImmediateCommandLists(Default);
 
   if (ImmCommandListUsed == ImmCmdlistMode::NotUsed) {
     ZeEventsScope = DeviceEventsSetting;

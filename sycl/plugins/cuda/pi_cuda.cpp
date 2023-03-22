@@ -5638,6 +5638,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
   _PI_CL(piextQueueCreate, cuda_piextQueueCreate)
+  _PI_CL(piextQueueCreate2, cuda_piextQueueCreate)
   _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
   _PI_CL(piQueueFinish, cuda_piQueueFinish)
   _PI_CL(piQueueFlush, cuda_piQueueFlush)

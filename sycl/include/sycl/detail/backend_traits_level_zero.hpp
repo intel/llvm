@@ -25,8 +25,10 @@
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/queue.hpp>
+#include <variant>
 
 typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
+typedef struct _ze_command_list_handle_t *ze_command_list_handle_t;
 typedef struct _ze_context_handle_t *ze_context_handle_t;
 typedef struct _ze_device_handle_t *ze_device_handle_t;
 typedef struct _ze_driver_handle_t *ze_driver_handle_t;
@@ -60,7 +62,8 @@ template <> struct interop<backend::ext_oneapi_level_zero, event> {
 };
 
 template <> struct interop<backend::ext_oneapi_level_zero, queue> {
-  using type = ze_command_queue_handle_t;
+  using type =
+      std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>;
 };
 
 template <> struct interop<backend::ext_oneapi_level_zero, platform> {
@@ -132,14 +135,17 @@ template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
     interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
     ext::oneapi::level_zero::ownership Ownership;
+    property_list Properties;
 
     device Device;
 
     type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
          device dev,
          ext::oneapi::level_zero::ownership ownership =
-             ext::oneapi::level_zero::ownership::transfer)
-        : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
+             ext::oneapi::level_zero::ownership::transfer,
+         property_list properties = {})
+        : NativeHandle(nativeHandle), Ownership(ownership),
+          Properties(properties), Device(dev) {}
   };
 };
 
@@ -160,7 +166,8 @@ struct BackendReturn<backend::ext_oneapi_level_zero,
 };
 
 template <> struct BackendReturn<backend::ext_oneapi_level_zero, queue> {
-  using type = ze_command_queue_handle_t;
+  using type =
+      std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>;
 };
 
 template <> struct BackendInput<backend::ext_oneapi_level_zero, platform> {

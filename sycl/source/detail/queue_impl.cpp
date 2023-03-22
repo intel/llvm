@@ -526,6 +526,20 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
+pi_native_handle2 queue_impl::getNative2() const {
+  const detail::plugin &Plugin = getPlugin();
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piQueueRetain>(MQueues[0]);
+  pi_native_handle Handle{};
+  bool IsImmCmdList;
+  Plugin.call<PiApiKind::piextQueueGetNativeHandle2>(MQueues[0], &Handle,
+                                                     &IsImmCmdList);
+  if (IsImmCmdList)
+    return pi_native_handle2{
+        reinterpret_cast<ze_command_list_handle_t>(Handle)};
+  return pi_native_handle2{reinterpret_cast<ze_command_queue_handle_t>(Handle)};
+}
+
 bool queue_impl::ext_oneapi_empty() const {
   // If we have in-order queue where events are not discarded then just check
   // the status of the last event.

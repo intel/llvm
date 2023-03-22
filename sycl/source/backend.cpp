@@ -95,6 +95,32 @@ queue make_queue_impl(pi_native_handle NativeHandle, const context &Context,
       std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));
 }
 
+queue make_queue_impl2(pi_native_handle NativeHandle, const context &Context,
+                       RT::PiDevice Device, bool KeepOwnership,
+                       const property_list &PropList, bool IsImmCmdList,
+                       const async_handler &Handler, backend Backend) {
+  const auto &Plugin = getPlugin(Backend);
+  const auto &ContextImpl = getSyclObjImpl(Context);
+
+  // Create PI properties from SYCL properties.
+  RT::PiQueueProperties Properties[] = {
+      PI_QUEUE_FLAGS,
+      queue_impl::createPiQueueProperties(
+          PropList, PropList.has_property<property::queue::in_order>()
+                        ? QueueOrder::Ordered
+                        : QueueOrder::OOO),
+      0, 0, 0};
+
+  // Create PI queue first.
+  pi::PiQueue PiQueue = nullptr;
+  Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle2>(
+      NativeHandle, ContextImpl->getHandleRef(), Device, IsImmCmdList,
+      !KeepOwnership, Properties, &PiQueue);
+  // Construct the SYCL queue from PI queue.
+  return detail::createSyclObjFromImpl<queue>(
+      std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler, PropList));
+}
+
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &Context, const device *Device,
                                bool KeepOwnership, const async_handler &Handler,
@@ -106,6 +132,31 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
   } else {
     return make_queue_impl(NativeHandle, Context, nullptr, KeepOwnership,
                            Handler, Backend);
+  }
+}
+
+__SYCL_EXPORT queue
+make_queue2(std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+                NativeHandle,
+            const context &Context, const device *Device, bool KeepOwnership,
+            const property_list &PropList, const async_handler &Handler,
+            backend Backend) {
+  bool IsImmCmdList =
+      std::holds_alternative<ze_command_list_handle_t>(NativeHandle);
+  pi_native_handle Handle =
+      IsImmCmdList
+          ? reinterpret_cast<pi_native_handle>(
+                *(std::get_if<ze_command_list_handle_t>(&NativeHandle)))
+          : reinterpret_cast<pi_native_handle>(
+                *(std::get_if<ze_command_queue_handle_t>(&NativeHandle)));
+  if (Device) {
+    const auto &DeviceImpl = getSyclObjImpl(*Device);
+    return make_queue_impl2(Handle, Context, DeviceImpl->getHandleRef(),
+                            KeepOwnership, PropList, IsImmCmdList, Handler,
+                            Backend);
+  } else {
+    return make_queue_impl2(Handle, Context, nullptr, KeepOwnership, PropList,
+                            IsImmCmdList, Handler, Backend);
   }
 }
 

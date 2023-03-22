@@ -61,7 +61,6 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 class device;
 class queue;
-
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
@@ -1897,6 +1896,12 @@ public:
 
 private:
   pi_native_handle getNative() const;
+
+  // The make_queue2 and getNative2 functions are added as a temporary measure
+  // so that the existing make_queue and getNative functions can co-exist with
+  // them. At the next ABI redefinition the "2" versions will be removed and
+  // only make_queue and getNative will remain.
+  pi_native_handle2 getNative2() const;
 
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}

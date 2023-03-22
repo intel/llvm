@@ -5410,6 +5410,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, hip_piQueueCreate)
   _PI_CL(piextQueueCreate, hip_piextQueueCreate)
+  _PI_CL(piextQueueCreate2, hip_piextQueueCreate)
   _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
   _PI_CL(piQueueFinish, hip_piQueueFinish)
   _PI_CL(piQueueFlush, hip_piQueueFlush)

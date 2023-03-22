@@ -127,8 +127,15 @@ auto get_native(const SyclObjectT &Obj)
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
                               PI_ERROR_INVALID_OPERATION);
   }
-  return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
-      Obj.getNative());
+  if constexpr (BackendName == backend::ext_oneapi_level_zero)
+    if constexpr (std::is_same<SyclObjectT, queue>::value)
+      return Obj.getNative2();
+    else
+      return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
+          Obj.getNative());
+  else
+    return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
+        Obj.getNative());
 }
 
 template <backend BackendName, bundle_state State>
@@ -210,6 +217,17 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
                                const device *TargetDevice, bool KeepOwnership,
                                const async_handler &Handler, backend Backend);
+
+// The make_queue2 and getNative2 functions are added as a temporary measure so
+// that the existing make_queue and getNative functions can co-exist with them.
+// At the next ABI redefinition the "2" versions will be removed and only
+// make_queue and getNative will remain.
+__SYCL_EXPORT queue
+make_queue2(std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
+                NativeHandle,
+            const context &TargetContext, const device *TargetDevice,
+            bool KeepOwnership, const property_list &PropList,
+            const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -269,8 +287,13 @@ typename std::enable_if<
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
-  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, nullptr, false, Handler, Backend);
+  if constexpr (Backend == backend::ext_oneapi_level_zero)
+    return sycl::detail::make_queue2(&BackendObject.NativeHandle, TargetContext,
+                                     nullptr, false, BackendObject.Properties,
+                                     Handler, Backend);
+  else
+    return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+                              TargetContext, nullptr, false, Handler, Backend);
 }
 
 template <backend Backend>
