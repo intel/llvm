@@ -396,7 +396,7 @@ A `task_sequence` may be declared with the following FPGA Kernel Interface
 properties:
 
  - `pipelined`
- - `use_stall_enable_clusters`
+ - `stall_enable_clusters`
 
 These are described in the link:../sycl_ext_oneapi_kernel_properties.asciidoc[
 sycl_ext_intel_fpga_kernel_interface_properties] document.

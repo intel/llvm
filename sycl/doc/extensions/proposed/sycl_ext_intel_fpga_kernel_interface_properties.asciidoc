@@ -96,10 +96,17 @@ enum class register_map_interface_options_enum {
   do_not_wait_for_done_write
 };
 
-struct use_stall_enable_clusters_key {
+struct stall_free_clusters_key {
+  template <int stall_free_clusters_option>
+  using value_t = sycl::ext::oneapi::properties::property_value<
+    stall_free_clusters_key,
+    std::integral_constant<size_t, stall_free_clusters_option>>;
+};
+
+struct stall_enable_clusters_key {
   template <int stall_enable_clusters_option>
   using value_t = sycl::ext::oneapi::properties::property_value<
-    use_stall_enable_clusters_key,
+    stall_enable_clusters_key,
     std::integral_constant<size_t, stall_enable_clusters_option>>;
 };
 
@@ -124,9 +131,13 @@ struct pipelined_key {
     std::integral_constant<size_t, pipeline_directive_or_initiation_interval>>;
 };
 
+template<int stall_free_clusters_option>
+inline constexpr stall_free_clusters_key::value_t<
+  stall_free_clusters_option> stall_free_clusters;
+
 template<int stall_enable_clusters_option>
-inline constexpr use_stall_enable_clusters_key::value_t<
-  stall_enable_clusters_option> use_stall_enable_clusters;
+inline constexpr stall_enable_clusters_key::value_t<
+  stall_enable_clusters_option> stall_enable_clusters;
 
 template <streaming_interface_options_enum option>
 inline constexpr streaming_interface_key::value_t<option> streaming_interface;
@@ -230,13 +241,31 @@ inline constexpr pipelined_key::value_t<
  If the property parameter (N) is not specified, the default value is `-1`.
  Valid values for `N` are values greater than or equal to `-1`.
 
-|`use_stall_enable_clusters`
+|`stall_free_clusters`
 |A signed integer value is accepted as property parameter.
 
-This parameter requests that statically-scheduled clusters should handle stalls
-using a stall-enable signal to freeze computation within the cluster.
+Implement statically-scheduled clusters using an exit FIFO to hold output data
+from the cluster when the cluster is stalled. If the kernel also has the
+`stall_enable_clusters` property a diagnostic error will be produced.
 
-The valid values are:
+The valid parameter values are:
+
+0 - Disable the use of stall enable clusters.
+
+1 - Direct the compiler to use stall enable clusters.
+
+-1 - Let the compiler decide which type of cluster to use.
+
+If the property parameter is not specified, the default value is `-1`.
+
+|`stall_enable_clusters`
+|A signed integer value is accepted as property parameter.
+
+Implement statically-scheduled clusters using an enable signal to freeze the
+cluster when the cluster is stalled. If the kernel also has the
+`stall_free_clusters` property a diagnostic error will be produced.
+
+The valid parameter values are:
 
 0 - Disable the use of stall enable clusters.
 
@@ -327,4 +356,5 @@ q.single_task(KernelFunctor{a, b, c}).wait();
 |Rev|Date|Author|Changes
 |1|2022-03-01|Abhishek Tiwari|*Initial public working draft*
 |2|2022-12-05|Abhishek Tiwari|*Make pipelined property parameter a signed int*
+|3|2023-03-22|Abhishek Tiwari|*Add stall-free and stall-enable properties*
 |========================================
