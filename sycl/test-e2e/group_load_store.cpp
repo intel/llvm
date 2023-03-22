@@ -65,7 +65,7 @@ template <typename TestTy> void test(TestTy TestObj, size_t wg_size) {
   std::cout << Name << std::endl;
 
   queue q;
-  constexpr int N_RESULTS = 16;
+  constexpr int N_RESULTS = 128;
   buffer<int, 1> results(N_RESULTS * global_size);
   for (auto &elem : host_accessor{results})
     elem = -1;
@@ -159,6 +159,8 @@ struct ScalarWGTest {
     usm_mem[lid] = init;
     local_mem[lid] = init;
 
+    group_barrier(ndi.get_group());
+
     auto Check = [&](auto Input, int l = __builtin_LINE())
         __attribute__((always_inline)) {
       marker(l);
@@ -231,6 +233,8 @@ struct ScalarSGTest {
     global_mem[lid] = init;
     usm_mem[lid] = init;
     local_mem[lid] = init;
+
+    group_barrier(ndi.get_group());
 
     auto Check = [&](auto Input, int l = __builtin_LINE())
         __attribute__((always_inline)) {
@@ -308,6 +312,8 @@ struct VecBlockedWGTest {
     }
 
     auto g = ndi.get_group();
+
+    group_barrier(ndi.get_group());
 
     auto Check = [&](auto Input, int l = __builtin_LINE())
         __attribute__((always_inline)) {
@@ -388,6 +394,8 @@ struct VecStripedWGTest {
     // val = group_start + idx / VEC_SIZE - idx % VEC_SIZE
     // clang-format on
 
+    group_barrier(ndi.get_group());
+
     auto Check = [&](auto Input, int l = __builtin_LINE())
         __attribute__((always_inline)) {
       marker(l);
@@ -397,9 +405,11 @@ struct VecStripedWGTest {
       bool success = true;
       for (int i = 0; i < VEC_SIZE; ++i) {
         int striped_idx = ndi.get_local_id(0) + i * wg_size;
-        success &=
-            (out[i] == ndi.get_group(0) * wg_size + VEC_SIZE * 2 +
-                           striped_idx / VEC_SIZE - striped_idx % VEC_SIZE);
+        auto expected = ndi.get_group(0) * wg_size + VEC_SIZE * 2 +
+                        striped_idx / VEC_SIZE - striped_idx % VEC_SIZE;
+        success &= (out[i] == expected);
+      Record(out[i]);
+      Record(expected);
       }
       Record(success);
     };
@@ -443,6 +453,8 @@ struct VecBlockedSGTest {
       usm_mem[idx] = init - i;
       local_mem[idx] = init - i;
     }
+
+    group_barrier(ndi.get_group());
 
     auto Check = [&](auto Input, int l = __builtin_LINE())
         __attribute__((always_inline)) {
@@ -525,6 +537,8 @@ struct VecStripedSGTest {
     // idx = group_local_id + vec_idx * G_SIZE
     // val = group_start + idx / VEC_SIZE - idx % VEC_SIZE
     // clang-format on
+
+    group_barrier(ndi.get_group());
 
     auto Check = [&](auto Input, int l = __builtin_LINE())
         __attribute__((always_inline)) {
@@ -619,6 +633,8 @@ struct SpanBlockedWGTest {
     // TODO: group_helper with scratchpad
     auto g = ndi.get_group();
 
+    group_barrier(ndi.get_group());
+
     auto Check = [&](auto Input, int l = __builtin_LINE())
         __attribute__((always_inline)) {
       marker(l);
@@ -700,6 +716,8 @@ struct SpanStripedWGTest {
     // idx = group_local_id + vec_idx * G_SIZE
     // val = group_start + idx / SPAN_SIZE - idx % SPAN_SIZE
     // clang-format on
+
+    group_barrier(ndi.get_group());
 
     auto Check = [&](auto Input, int l = __builtin_LINE())
         __attribute__((always_inline)) {
