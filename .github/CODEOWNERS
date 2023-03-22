@@ -37,6 +37,9 @@ sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 # Level Zero plugin
 sycl/plugins/level_zero/ @intel/dpcpp-l0-pi-reviewers
 
+# Unified Runtime plugin
+sycl/plugins/unified_runtime/ @intel/dpcpp-l0-pi-reviewers
+
 # ESIMD CPU emulator plug-in
 sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 

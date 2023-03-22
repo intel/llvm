@@ -1,7 +1,7 @@
-; RUN: sycl-post-link -spec-const=default %s -S -o %t.table
+; RUN: sycl-post-link -spec-const=default < %s -S -o %t.table
 ; RUN: FileCheck %s -check-prefixes=CHECK,CHECK-DEF < %t_0.ll
 ; RUN: FileCheck %s --check-prefixes=CHECK-PROPS,CHECK-PROPS-DEF < %t_0.prop
-; RUN: sycl-post-link -spec-const=rt %s -S -o %t.table
+; RUN: sycl-post-link -spec-const=rt < %s -S -o %t.table
 ; RUN: FileCheck %s -check-prefixes=CHECK,CHECK-RT < %t_0.ll
 ; RUN: FileCheck %s --check-prefixes=CHECK-PROPS < %t_0.prop
 

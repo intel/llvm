@@ -12,16 +12,24 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
     GIT_TAG           ${UNIFIED_RUNTIME_TAG}
   )
 
-  # Disable some compilation options to avoid errors while building the UR.
+  # Disable errors from warnings while building the UR.
   # And remember origin flags before doing that.
   set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
-  if (UNIX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-truncation")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-suggest-override")
+  if(WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
+    # FIXME: Unified runtime build fails with /DUNICODE
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
+    # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+    set(USE_Z7 ON)
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
   endif()
+
+  # No need to build tests from unified-runtime
+  set(UR_BUILD_TESTS "0" CACHE STRING "0")
 
   FetchContent_GetProperties(unified-runtime)
   FetchContent_MakeAvailable(unified-runtime)
@@ -64,7 +72,27 @@ add_sycl_plugin(unified_runtime
     "ur/ur.hpp"
     "ur/ur.cpp"
     "ur/adapters/level_zero/ur_level_zero.hpp"
+    "ur/adapters/level_zero/ur_level_zero_common.hpp"
+    "ur/adapters/level_zero/ur_level_zero_context.hpp"
+    "ur/adapters/level_zero/ur_level_zero_device.hpp"
+    "ur/adapters/level_zero/ur_level_zero_event.hpp"
+    "ur/adapters/level_zero/ur_level_zero_mem.hpp"
+    "ur/adapters/level_zero/ur_level_zero_module.hpp"
+    "ur/adapters/level_zero/ur_level_zero_platform.hpp"
+    "ur/adapters/level_zero/ur_level_zero_program.hpp"
+    "ur/adapters/level_zero/ur_level_zero_queue.hpp"
+    "ur/adapters/level_zero/ur_level_zero_sampler.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
+    "ur/adapters/level_zero/ur_level_zero_common.cpp"
+    "ur/adapters/level_zero/ur_level_zero_context.cpp"
+    "ur/adapters/level_zero/ur_level_zero_device.cpp"
+    "ur/adapters/level_zero/ur_level_zero_event.cpp"
+    "ur/adapters/level_zero/ur_level_zero_mem.cpp"
+    "ur/adapters/level_zero/ur_level_zero_module.cpp"
+    "ur/adapters/level_zero/ur_level_zero_platform.cpp"
+    "ur/adapters/level_zero/ur_level_zero_program.cpp"
+    "ur/adapters/level_zero/ur_level_zero_queue.cpp"
+    "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
     "ur/usm_allocator.hpp"
     "ur/usm_allocator.cpp"
     # These below belong to Unified Runtime PI Plugin only
