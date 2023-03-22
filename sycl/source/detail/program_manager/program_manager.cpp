@@ -1258,8 +1258,13 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       if (KSIdIt != KSIdMap.end()) {
         auto &Imgs = m_DeviceImages[KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
-        if (DumpImages)
-          dumpImage(*Img, KSIdIt->second, ++SequenceID);
+        if (DumpImages) {
+          const bool NeedsSequenceID =
+              std::any_of(Imgs->begin(), Imgs->end(), [&](auto &I) {
+                return I->getFormat() == Img->getFormat();
+              });
+          dumpImage(*Img, KSIdIt->second, NeedsSequenceID ? ++SequenceID : 0);
+        }
 
         cacheKernelUsesAssertInfo(M, *Img);
 
