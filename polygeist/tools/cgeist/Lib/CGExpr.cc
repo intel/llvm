@@ -1100,7 +1100,7 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
     return std::nullopt;
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "Inserting operation " << OptOpName
+  LLVM_DEBUG(llvm::dbgs() << "Attempting to insert operation " << OptOpName
                           << " to replace SYCL method call.\n");
 
   sycl::SYCLMethodOpInterface op = Builder.create(
