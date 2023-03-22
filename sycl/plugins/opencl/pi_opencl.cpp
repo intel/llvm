@@ -285,7 +285,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_ERROR_INVALID_VALUE;
-  case PI_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
     // Initialize result to minimum mandated capabilities according to
     // SYCL2020 4.6.3.2
     pi_memory_order_capabilities result =
@@ -338,7 +338,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       *paramValueSizeRet = sizeof(result);
     return PI_SUCCESS;
   }
-  case PI_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
     // Initialize result to minimum mandated capabilities according to
     // SYCL2020 4.6.3.2.
     // Because scopes are hierarchical, wider scopes support all narrower

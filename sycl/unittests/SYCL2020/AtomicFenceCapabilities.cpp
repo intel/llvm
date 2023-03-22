@@ -23,7 +23,7 @@ pi_result redefinedDeviceGetInfoAfter(pi_device device,
                                       size_t param_value_size,
                                       void *param_value,
                                       size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES) {
+  if (param_name == PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES) {
     deviceGetInfoCalled = true;
     if (param_value) {
       auto *Result =
@@ -32,7 +32,7 @@ pi_result redefinedDeviceGetInfoAfter(pi_device device,
                 PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
                 PI_MEMORY_ORDER_SEQ_CST;
     }
-  } else if (param_name == PI_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES) {
+  } else if (param_name == PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES) {
     deviceGetInfoCalled = true;
     if (param_value) {
       auto *Result =
