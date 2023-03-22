@@ -231,9 +231,11 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES = 5, ///< ::ur_buffer_alloc_location_properties_t
     UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 6,               ///< ::ur_program_properties_t
     UR_STRUCTURE_TYPE_USM_DESC = 7,                         ///< ::ur_usm_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_DESC = 8,                    ///< ::ur_usm_pool_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 9,             ///< ::ur_usm_pool_limits_desc_t
-    UR_STRUCTURE_TYPE_DEVICE_BINARY = 10,                   ///< ::ur_device_binary_t
+    UR_STRUCTURE_TYPE_USM_HOST_DESC = 8,                    ///< ::ur_usm_host_desc_t
+    UR_STRUCTURE_TYPE_USM_DEVICE_DESC = 9,                  ///< ::ur_usm_device_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_DESC = 10,                   ///< ::ur_usm_pool_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 11,            ///< ::ur_usm_pool_limits_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_BINARY = 12,                   ///< ::ur_device_binary_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2116,18 +2118,38 @@ urSamplerCreateWithNativeHandle(
 /// @brief USM memory property flags
 typedef uint32_t ur_usm_flags_t;
 typedef enum ur_usm_flag_t {
-    UR_USM_FLAG_BIAS_CACHED = UR_BIT(0),              ///< Allocation should be cached
-    UR_USM_FLAG_BIAS_UNCACHED = UR_BIT(1),            ///< Allocation should not be cached
-    UR_USM_FLAG_WRITE_COMBINED = UR_BIT(2),           ///< Memory should be allocated write-combined (WC)
-    UR_USM_FLAG_INITIAL_PLACEMENT_DEVICE = UR_BIT(3), ///< Optimize shared allocation for first access on the device
-    UR_USM_FLAG_INITIAL_PLACEMENT_HOST = UR_BIT(4),   ///< Optimize shared allocation for first access on the host
-    UR_USM_FLAG_DEVICE_READ_ONLY = UR_BIT(5),         ///< Memory is only possibly modified from the host, but read-only in all
-                                                      ///< device code
+    UR_USM_FLAG_BIAS_CACHED = UR_BIT(0),   ///< Allocation should be cached
+    UR_USM_FLAG_BIAS_UNCACHED = UR_BIT(1), ///< Allocation should not be cached
     /// @cond
     UR_USM_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
 } ur_usm_flag_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM host memory property flags
+typedef uint32_t ur_usm_host_mem_flags_t;
+typedef enum ur_usm_host_mem_flag_t {
+    UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT = UR_BIT(0), ///< Optimize shared allocation for first access on the host
+    /// @cond
+    UR_USM_HOST_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_usm_host_mem_flag_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM device memory property flags
+typedef uint32_t ur_usm_device_mem_flags_t;
+typedef enum ur_usm_device_mem_flag_t {
+    UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED = UR_BIT(0),    ///< Memory should be allocated write-combined (WC)
+    UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT = UR_BIT(1), ///< Optimize shared allocation for first access on the device
+    UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY = UR_BIT(2),  ///< Memory is only possibly modified from the host, but read-only in all
+                                                          ///< device code
+    /// @cond
+    UR_USM_DEVICE_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_usm_device_mem_flag_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory property flags
@@ -2191,18 +2213,34 @@ typedef enum ur_mem_advice_t {
 typedef struct ur_usm_pool_handle_t_ *ur_usm_pool_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief USM allocation descriptor type
+/// @brief USM allocation descriptor type.
 typedef struct ur_usm_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
-    ur_usm_flags_t flags;      ///< [in] Memory allocation flags
+    ur_usm_flags_t flags;      ///< [in] memory allocation flags.
     ur_mem_advice_t hints;     ///< [in] Memory advice hints
-    uint32_t align;            ///< [in] alignment of the USM memory object
-                               ///< Must be zero or a power of 2.
-                               ///< Must be equal to or smaller than the size of the largest data type
-                               ///< supported by `hDevice`.
+    uint32_t align;            ///< [in] memory advice hints.
 
 } ur_usm_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM host allocation descriptor type.
+typedef struct ur_usm_host_desc_t {
+    ur_structure_type_t stype;     ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_HOST_DESC
+    const void *pNext;             ///< [in][optional] pointer to extension-specific structure
+    ur_usm_host_mem_flags_t flags; ///< [in] host memory allocation flags
+
+} ur_usm_host_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM device allocation descriptor type.
+typedef struct ur_usm_device_desc_t {
+    ur_structure_type_t stype;       ///< [in] type of this structure, must be
+                                     ///< ::UR_STRUCTURE_TYPE_USM_DEVICE_DESC
+    const void *pNext;               ///< [in][optional] pointer to extension-specific structure
+    ur_usm_device_mem_flags_t flags; ///< [in] device memory allocation flags.
+
+} ur_usm_device_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM pool descriptor type
@@ -2260,11 +2298,11 @@ typedef struct ur_usm_pool_limits_desc_t {
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
-    ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
-    size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
-    void **ppMem                  ///< [out] pointer to USM host memory object
+    ur_context_handle_t hContext,  ///< [in] handle of the context object
+    const ur_usm_desc_t *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
+    ur_usm_pool_handle_t pool,     ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
+    size_t size,                   ///< [in] size in bytes of the USM memory object to be allocated
+    void **ppMem                   ///< [out] pointer to USM host memory object
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2302,12 +2340,12 @@ urUSMHostAlloc(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMDeviceAlloc(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
-    ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
-    size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
-    void **ppMem                  ///< [out] pointer to USM device memory object
+    ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_device_handle_t hDevice,    ///< [in] handle of the device object
+    const ur_usm_desc_t *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
+    ur_usm_pool_handle_t pool,     ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
+    size_t size,                   ///< [in] size in bytes of the USM memory object to be allocated
+    void **ppMem                   ///< [out] pointer to USM device memory object
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2345,12 +2383,12 @@ urUSMDeviceAlloc(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMSharedAlloc(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_usm_desc_t *pUSMDesc,      ///< [in][optional] USM memory allocation descriptor
-    ur_usm_pool_handle_t pool,    ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
-    size_t size,                  ///< [in] size in bytes of the USM memory object to be allocated
-    void **ppMem                  ///< [out] pointer to USM shared memory object
+    ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_device_handle_t hDevice,    ///< [in] handle of the device object
+    const ur_usm_desc_t *pUSMDesc, ///< [in][optional] Pointer to USM memory allocation descriptor.
+    ur_usm_pool_handle_t pool,     ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
+    size_t size,                   ///< [in] size in bytes of the USM memory object to be allocated
+    void **ppMem                   ///< [out] pointer to USM shared memory object
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7702,7 +7740,7 @@ typedef struct ur_queue_callbacks_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_usm_host_alloc_params_t {
     ur_context_handle_t *phContext;
-    ur_usm_desc_t **ppUSMDesc;
+    const ur_usm_desc_t **ppUSMDesc;
     ur_usm_pool_handle_t *ppool;
     size_t *psize;
     void ***pppMem;
@@ -7727,7 +7765,7 @@ typedef void(UR_APICALL *ur_pfnUSMHostAllocCb_t)(
 typedef struct ur_usm_device_alloc_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_usm_desc_t **ppUSMDesc;
+    const ur_usm_desc_t **ppUSMDesc;
     ur_usm_pool_handle_t *ppool;
     size_t *psize;
     void ***pppMem;
@@ -7752,7 +7790,7 @@ typedef void(UR_APICALL *ur_pfnUSMDeviceAllocCb_t)(
 typedef struct ur_usm_shared_alloc_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_usm_desc_t **ppUSMDesc;
+    const ur_usm_desc_t **ppUSMDesc;
     ur_usm_pool_handle_t *ppool;
     size_t *psize;
     void ***pppMem;
