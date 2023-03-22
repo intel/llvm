@@ -239,6 +239,8 @@ static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
     Ctx.getOrLoadDialect<mlir::spirv::SPIRVDialect>();
   }
 
+  // TODO: We should not be using these extensions. Make sure we do not generate
+  // invalid pointers/memrefs from codegen. Also present in polygeist-opt.cc.
   LLVM::LLVMPointerType::attachInterface<MemRefInsider>(Ctx);
   LLVM::LLVMStructType::attachInterface<MemRefInsider>(Ctx);
   MemRefType::attachInterface<PtrElementModel<MemRefType>>(Ctx);

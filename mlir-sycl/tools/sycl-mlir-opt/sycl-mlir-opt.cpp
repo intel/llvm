@@ -42,6 +42,5 @@ int main(int argc, char **argv) {
   sycl::registerConversionPasses();
 
   return mlir::asMainReturnCode(
-      mlir::MlirOptMain(argc, argv, "SYCL MLIR optimizer driver\n", registry,
-                        /*preloadDialectsInContext=*/false));
+      mlir::MlirOptMain(argc, argv, "SYCL MLIR optimizer driver\n", registry));
 }

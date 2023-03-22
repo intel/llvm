@@ -13,6 +13,7 @@
 
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Conversion/PolygeistPasses.h"
+#include "mlir/Conversion/SYCLPasses.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Async/IR/Async.h"
@@ -27,7 +28,10 @@
 #include "mlir/Dialect/Polygeist/IR/Polygeist.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
+#include "mlir/Dialect/SYCL/Transforms/Passes.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/InitAllPasses.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
@@ -46,37 +50,33 @@ struct PtrElementModel
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
 
-  // Register MLIR stuff
-  registry.insert<mlir::AffineDialect>();
-  registry.insert<mlir::LLVM::LLVMDialect>();
-  registry.insert<mlir::memref::MemRefDialect>();
-  registry.insert<mlir::async::AsyncDialect>();
-  registry.insert<mlir::func::FuncDialect>();
-  registry.insert<mlir::arith::ArithDialect>();
-  registry.insert<mlir::scf::SCFDialect>();
-  registry.insert<mlir::gpu::GPUDialect>();
-  registry.insert<mlir::NVVM::NVVMDialect>();
-  registry.insert<mlir::omp::OpenMPDialect>();
-  registry.insert<mlir::math::MathDialect>();
-  registry.insert<DLTIDialect>();
-
-  registry.insert<mlir::polygeist::PolygeistDialect>();
-  registry.insert<mlir::sycl::SYCLDialect>();
-
+  registerTransformsPasses();
+  registerConversionPasses();
+  registerAffinePasses();
+  registerAsyncPasses();
+  arith::registerArithPasses();
+  func::registerFuncPasses();
+  registerGPUPasses();
+  LLVM::registerLLVMPasses();
+  memref::registerMemRefPasses();
+  registerSCFPasses();
+  spirv::registerSPIRVPasses();
+  vector::registerVectorPasses();
   polygeist::registerPolygeistPasses();
   polygeist::registerConvertPolygeistToLLVM();
+  sycl::registerSYCLPasses();
+  sycl::registerConversionPasses();
 
-  // Register the standard passes we want.
-  mlir::registerCSEPass();
-  mlir::registerConvertAffineToStandardPass();
-  mlir::registerSCCPPass();
-  mlir::registerInlinerPass();
-  mlir::registerCanonicalizerPass();
-  mlir::registerSymbolDCEPass();
-  mlir::registerLoopInvariantCodeMotionPass();
-  mlir::registerConvertSCFToOpenMPPass();
-  mlir::registerAffinePasses();
+  // Register MLIR stuff
+  registry.insert<AffineDialect, func::FuncDialect, LLVM::LLVMDialect,
+                  memref::MemRefDialect, async::AsyncDialect, func::FuncDialect,
+                  arith::ArithDialect, scf::SCFDialect, gpu::GPUDialect,
+                  NVVM::NVVMDialect, omp::OpenMPDialect, math::MathDialect,
+                  DLTIDialect, polygeist::PolygeistDialect, sycl::SYCLDialect,
+                  vector::VectorDialect, spirv::SPIRVDialect>();
 
+  // TODO: We should not be using these extensions. Make sure we do not generate
+  // invalid pointers/memrefs from codegen. Also present in driver.cc.
   registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
     LLVM::LLVMPointerType::attachInterface<MemRefInsider>(*ctx);
   });
@@ -102,7 +102,6 @@ int main(int argc, char **argv) {
         *ctx);
   });
 
-  return mlir::failed(mlir::MlirOptMain(
-      argc, argv, "Polygeist modular optimizer driver", registry,
-      /*preloadDialectsInContext=*/true));
+  return asMainReturnCode(
+      MlirOptMain(argc, argv, "Polygeist modular optimizer driver", registry));
 }
