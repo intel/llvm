@@ -142,7 +142,8 @@ namespace host_half_impl {
 // The main host half class
 class __SYCL_EXPORT half {
 public:
-  half() = default;
+  constexpr half() = default;
+
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
@@ -211,7 +212,7 @@ public:
   friend class sycl::ext::intel::esimd::detail::WrapperElementTypeProxy;
 
 private:
-  uint16_t Buf;
+  uint16_t Buf = {};
 };
 
 } // namespace host_half_impl
@@ -282,7 +283,7 @@ class half {
 class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {
 #endif
 public:
-  half() = default;
+  constexpr half() = default;
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
@@ -558,7 +559,7 @@ public:
   friend class sycl::ext::intel::esimd::detail::WrapperElementTypeProxy;
 
 private:
-  StorageT Data;
+  StorageT Data = {};
 };
 } // namespace half_impl
 

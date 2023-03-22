@@ -116,6 +116,7 @@ template <> union databitset<s::cl_double> {
 template <> union databitset<s::cl_half> {
   static_assert(sizeof(s::cl_short) == sizeof(s::cl_half),
                 "size of cl_half is not equal to 16 bits(cl_short).");
+  databitset(): i(0) {}
   s::cl_half f;
   s::cl_short i;
 };
