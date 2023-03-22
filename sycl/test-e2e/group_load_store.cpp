@@ -291,9 +291,16 @@ struct ScalarWGTest {
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
 
     int out;
-    group_load(ndi.get_group(), global_mem, out);
+    group_load(g, global_mem, out);
     // CHECK: call spir_func {{.*}} @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
     Record(out == gid);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    ++out;
+    group_store(g, out, global_mem);
+    // CHECK: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIjEvPU3AS1jT_(i32 addrspace(1)* noundef {{.*}}, i32 noundef
+    Record(global_mem[lid] == gid + 1);
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
@@ -313,6 +320,13 @@ struct ScalarSGTest {
     group_load(sg, global_mem, out);
     // CHECK: call spir_func noundef i32 @_Z30__spirv_SubgroupBlockReadINTELIjET_PU3AS1Kj(i32 addrspace(1)* noundef
     Record(out == gid);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    ++out;
+    group_store(g, out, global_mem);
+    // CHECK: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIjEvPU3AS1jT_(i32 addrspace(1)* noundef {{.*}}, i32 noundef
+    Record(global_mem[lid] == gid + 1);
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
   }
@@ -338,6 +352,17 @@ struct VecBlockedWGTest {
     bool success = true;
     sycl::detail::dim_loop<VEC_SIZE>(
         [&](size_t i) { success &= (out[i] == gid + VEC_SIZE * 2 - i); });
+    Record(success);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    ++out;
+    group_store(g, out, global_mem, properties(data_placement<blocked>));
+    // CHECK-NOT: BlockWrite
+
+    success = true;
+    sycl::detail::dim_loop<VEC_SIZE>(
+        [&](size_t i) { success &= (out[i] == gid + VEC_SIZE * 2 - i + 1); });
     Record(success);
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
@@ -394,6 +419,19 @@ struct VecStripedWGTest {
                       striped_idx / VEC_SIZE - striped_idx % VEC_SIZE;
       success &= (out[i] == expected);
     }
+    Record(success);
+
+    marker(); // CHECK: [[MARKER]] [[# @LINE ]]
+
+    ++out;
+    group_store(g, out, global_mem, properties(data_placement<striped>));
+    // CHECK-NOT: BlockWrite
+
+    group_barrier(g);
+    success = true;
+    sycl::detail::dim_loop<VEC_SIZE>([&](size_t i) {
+      success &= (global_mem[lid * VEC_SIZE + i] == gid + VEC_SIZE * 2 - i + 1);
+    });
     Record(success);
 
     marker(); // CHECK: [[MARKER]] [[# @LINE ]]
