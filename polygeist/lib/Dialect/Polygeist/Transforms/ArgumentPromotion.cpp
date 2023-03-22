@@ -94,14 +94,15 @@ auto existsSideEffectAfter(Value val, Operation *startOp) {
     if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op))
       continue;
 
-    llvm::dbgs() << "op:" << op << "\n";
     // Operations with unknown side effects might write to any memory.
     if (isa<MemoryEffectOpInterface>(op) &&
         op.hasTrait<OpTrait::HasRecursiveMemoryEffects>())
       continue;
 
+    // Currently bail out if any subsequent operation has side effects.instruc
+    // TODO: check whether the operation alias with 'val'.
     if (auto MEI = dyn_cast<MemoryEffectOpInterface>(op))
-      return true; // TODO: check aliasing ...
+      return true;
   }
   return false;
 }
