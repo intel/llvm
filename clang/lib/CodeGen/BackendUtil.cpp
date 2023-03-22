@@ -911,7 +911,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
-            MPM.addPass(SYCLPropagateAspectsUsagePass());
+            MPM.addPass(
+                SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
           });
 
     // Add the InferAddressSpaces pass for all the SPIR[V] targets
@@ -1025,6 +1026,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(SYCLMutatePrintfAddrspacePass());
       if (LangOpts.EnableDAEInSpirKernels)
         MPM.addPass(DeadArgumentEliminationSYCLPass());
+
+      // Rerun aspect propagation without warning diagnostics.
+      MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{},
+                                                /*ValidateAspects=*/false));
 
       // Add SPIRITTAnnotations pass to the pass manager if
       // -fsycl-instrument-device-code option was passed. This option can be
