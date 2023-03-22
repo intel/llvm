@@ -1838,7 +1838,7 @@ pi_result _pi_queue::executeOpenCommandList(bool IsCopy) {
 
 static const bool FilterEventWaitList = [] {
   const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST");
-  const bool RetVal = Ret ? std::stoi(Ret) : 1;
+  const bool RetVal = Ret ? std::stoi(Ret) : 0;
   return RetVal;
 }();
 
