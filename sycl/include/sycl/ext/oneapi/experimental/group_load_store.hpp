@@ -24,15 +24,33 @@ constexpr bool is_spir = true;
 constexpr bool is_spir = false;
 #endif
 
-template <int required_align, int sg_offset_per_wi, typename GroupTy,
-          typename IteratorT, typename GenericTy, typename DelegateTy,
-          typename ImplTy>
+// A helper for group_load/store implementations outlining the common logic:
+//
+// - fallback to "generic" if block loads/stores aren't supported (non SPIRV
+//   device, needs polishing though).
+// - fallback to "generic" if not properly aligned.
+// - fallback to "generic" if iterator isn't a pointer/multi_ptr.
+// - fallback to "generic" if there are masked-out SIMD lanes (i.e.,
+//   sg.get_local_range() isn't equal to SIMD width).
+// - ensure multi_ptr is "delegated" as a plain annotated pointer.
+// - use dynamic address space cast for the pointers in generic space then
+//   either "delegate" or fallback to "generic".
+// - "delegate" WG to SG. This requires cooperation from the "delegate" callback
+//   function as the stride might be a multiple of WG size.
+// - finally, if the pointer is in the global address space and satisfies
+//   alignment conditions, use "impl" callback to perform optimized load/store.
+//
+// Note that the tests for the functionality assume existence of this helper to
+// avoid combinatorial explosion of scenarios to test.
+template <int required_align, int sg_offset_per_wi, bool unsupported = false,
+          typename GroupTy, typename IteratorT, typename GenericTy,
+          typename DelegateTy, typename ImplTy>
 void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
               DelegateTy delegate, ImplTy impl) {
 #ifdef __SYCL_DEVICE_ONLY__
   using value_type = std::iterator_traits<IteratorT>::value_type;
   using iter_no_cv = std::remove_cv_t<IteratorT>;
-  if constexpr (!detail::is_spir) {
+  if constexpr (!detail::is_spir || unsupported) {
     return generic();
   } else if constexpr (detail::is_multi_ptr_v<IteratorT>) {
     return delegate(group, iter.get_decorated());
@@ -54,7 +72,8 @@ void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
 
       constexpr auto AS = sycl::detail::deduce_AS<iter_no_cv>::value;
       if constexpr (AS == access::address_space::global_space) {
-        // The only customization point - to be handled by the caller.
+        // The only customization point - to be handled by the
+        // caller.
         return impl(iter);
       } else if constexpr (AS == access::address_space::generic_space) {
         if (auto global_ptr = __SYCL_GenericCastToPtrExplicit_ToGlobal<
@@ -66,8 +85,9 @@ void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
         return generic();
       }
     } else {
-      // TODO: Use get_child_group from sycl_ext_oneapi_root_group extension
-      // once it is implemented instead of this free function.
+      // TODO: Use get_child_group from
+      // sycl_ext_oneapi_root_group extension once it is
+      // implemented instead of this free function.
       auto ndi =
           sycl::ext::oneapi::experimental::this_nd_item<GroupTy::dimensions>();
       auto sg = ndi.get_sub_group();
@@ -76,8 +96,8 @@ void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
       auto simd_width = sg.get_max_local_range().size();
 
       if (wg_size % simd_width != 0) {
-        // TODO: Mapping to sub_group is implementation-defined, no generic
-        // implementation is possible.
+        // TODO: Mapping to sub_group is implementation-defined,
+        // no generic implementation is possible.
         return generic();
       } else {
         return delegate(sg, iter + sg.get_group_id() *
@@ -87,6 +107,26 @@ void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
     }
   }
   __builtin_unreachable();
+#endif
+}
+
+template <int N, typename ElemTy> auto block_read(ElemTy *ptr) {
+#ifdef __SYCL_DEVICE_ONLY__
+  using BlockT = sycl::detail::sub_group::SelectBlockT<ElemTy>;
+  using PtrT =
+      sycl::detail::DecoratedType<BlockT,
+                                  access::address_space::global_space>::type *;
+  using LoadT =
+      std::conditional_t<N == 1, BlockT,
+                         sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>>;
+  LoadT load = __spirv_SubgroupBlockReadINTEL<LoadT>(reinterpret_cast<PtrT>(ptr));
+
+  using UndecoratedT = remove_decoration_t<ElemTy>;
+  using RetT = std::conditional_t<N == 1, UndecoratedT, vec<UndecoratedT, N>>;
+
+  return sycl::bit_cast<RetT>(load);
+#else
+  std::ignore = ptr;
 #endif
 }
 } // namespace detail
@@ -100,36 +140,21 @@ template <typename Group, typename InputIteratorT, typename OutputT,
 void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
                 Properties properties = {}) {
 #ifdef __SYCL_DEVICE_ONLY__
-  // Default implementation.
-  auto generic = [&]() { out = in_ptr[g.get_local_linear_id()]; };
-
   using value_type = std::iterator_traits<InputIteratorT>::value_type;
 
   constexpr auto size = sizeof(value_type);
   constexpr bool supported_size =
       size == 1 || size == 2 || size == 4 || size == 8;
+  constexpr bool unsupported = !supported_size;
 
-  if constexpr (!supported_size) {
-    return generic();
-  } else {
-    detail::dispatch<4 /* read align in bytes */, 1 /* scalar */>(
-        g, in_ptr, generic,
-        [&](auto g, auto unwrapped_ptr) {
-          group_load(g, unwrapped_ptr, out, properties);
-        },
-        [&](auto *in_ptr) {
-          // Make sure in_ptr is "auto" so that the body isn't "compiled" when
-          // not instantiated due to "if constexpr".
-          using value_type = std::iterator_traits<decltype(in_ptr)>::value_type;
-          using BlockT = sycl::detail::sub_group::SelectBlockT<value_type>;
-          using PtrT = sycl::detail::DecoratedType<
-              BlockT, access::address_space::global_space>::type *;
-
-          BlockT load = __spirv_SubgroupBlockReadINTEL<BlockT>(
-              reinterpret_cast<PtrT>(in_ptr));
-          out = sycl::bit_cast<value_type>(load);
-        });
-  }
+  detail::dispatch<4 /* read align in bytes */, 1 /* scalar */, unsupported>(
+      g, in_ptr, [&]() { out = in_ptr[g.get_local_linear_id()]; },
+      [&](auto g, auto unwrapped_ptr) {
+        group_load(g, unwrapped_ptr, out, properties);
+      },
+      [&](auto *in_ptr) {
+        out = detail::block_read<1>(in_ptr);
+      });
 #else
   throw sycl::exception(
       std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
@@ -209,97 +234,78 @@ template <typename Group, typename InputIteratorT, typename OutputT, int N,
 void group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
                 Properties properties = {}) {
 #ifdef __SYCL_DEVICE_ONLY__
-  // TODO: Consider delegating to sycl::span version via sycl::bit_cast.
   constexpr bool blocked = detail::is_blocked(properties);
-  auto generic = [&]() {
-    sycl::detail::dim_loop<N>([&](size_t i) {
-      out[i] = in_ptr[detail::get_mem_idx<blocked, N>(g, i)];
-    });
-  };
 
   using value_type = std::iterator_traits<InputIteratorT>::value_type;
-  using input_iter_no_cv = std::remove_cv_t<InputIteratorT>;
-
   constexpr auto size = sizeof(value_type);
+
   constexpr bool supported_size =
       size == 1 || size == 2 || size == 4 || size == 8;
   constexpr bool unsupported_vec_size = (N == 3 || (N == 16 && size != 1));
-  if constexpr (!supported_size || unsupported_vec_size) {
-    // TODO: Implement "unsupported_vec_size" by multiple loads followed by
-    // shuffles?
-    return generic();
-  } else {
-    constexpr auto sg_offset_per_wi = blocked ? N : 1;
-    detail::dispatch<4 /* read align in bytes */, sg_offset_per_wi>(
-        g, in_ptr, generic,
-        [&](auto dispatch_g, auto unwrapped_ptr) {
-          if constexpr (std::is_same_v<decltype(dispatch_g), Group> || blocked) {
-            group_load(dispatch_g, unwrapped_ptr, out, properties);
-          } else {
-            // For striped layout the stride between elements in a vector is
-            // expressed in terms of WG's size, not SG. As such, each index has
-            // to be implemented using scalar SG block load.
-            auto vec_elem_stride = g.get_local_linear_range();
-            sycl::detail::dim_loop<N>([&](size_t i) {
-              OutputT scalar;
-              group_load(dispatch_g, unwrapped_ptr + vec_elem_stride * i,
-                         scalar, properties);
-              out[i] = scalar;
-            });
-          }
-        },
-        [&](auto *in_ptr) {
-          // out = 142;
-          // return;
-          // Make sure in_ptr is "auto" so that the body isn't "compiled" when
-          // not instantiated due to "if constexpr".
-          using value_type = std::iterator_traits<decltype(in_ptr)>::value_type;
-          using BlockT = sycl::detail::sub_group::SelectBlockT<value_type>;
-          using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
-          using PtrT = sycl::detail::DecoratedType<
-              BlockT, access::address_space::global_space>::type *;
+  constexpr bool unsupported = !supported_size || unsupported_vec_size;
 
-          VecT load = __spirv_SubgroupBlockReadINTEL<VecT>(
-              reinterpret_cast<PtrT>(in_ptr));
-          auto tmp =
-              sycl::bit_cast<vec<remove_decoration_t<value_type>, N>>(load);
-          // SPIR-V builtin assumes striped layout.
-          if constexpr (blocked) {
-            // clang-format off
-            // Data         |  0  1  2 |  3  4  5 |  6  7  8 |  9 10 11 | 12 13 14 | 15 16 17 | 18 19 20 | 21 22 23 |
-            //
-            // Was loaded as
-            // vec_idx\WI   |  0 |  1 |  2 |  3 |  4 |  5 |  6 |  7
-            //              |  8 |  9 | 10 | 11 | 12 | 13 | 14 | 15
-            //              | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23
-            //
-            // Need to shuffle as
-            //                  0        1       2       3      4       5       6       7
-            //               v[0](0)  v[0](3) v[0](6) v[1](1) v[1](4) v[1](7) v[2](2) v[2](5)
-            //               v[0](1)  v[0](4) v[0](7) v[1](2) v[1](5) v[2](0) v[2](3) v[2](6)
-            //               v[0](2)  v[0](5) v[1](0) v[1](3) v[1](6) v[2](1) v[2](4) v[2](7)
-            //
-            // clang-format on
+  constexpr auto sg_offset_per_wi = blocked ? N : 1;
 
-            vec<OutputT, N> shuffled = {0, 0};
-            auto lid = g.get_local_id();
-            int sg_size = g.get_max_local_range().size();
-            sycl::detail::dim_loop<N>([&](size_t i) {
-              // IMPORTANT: Note that the index for the v[y] depends on the
-              // *CURRENT* WI, so the access into the vector must be done
-              // *after* the shuffle.
-              shuffled[i] = select_from_group(
-                  g, tmp, (lid * N + i) % sg_size)[(lid * N + i) / sg_size];
-            });
-            out = shuffled;
-          } else {
-            // TODO: Having the "auto tmp" replaced with an assignment onto
-            // "out" and then updating it just for the blocked case results in
-            // wrong results. No idea why yet.
-            out = tmp;
-          }
+  detail::dispatch<4 /* read align in bytes */, sg_offset_per_wi, unsupported>(
+      g, in_ptr,
+      [&]() {
+        sycl::detail::dim_loop<N>([&](size_t i) {
+          out[i] = in_ptr[detail::get_mem_idx<blocked, N>(g, i)];
         });
-  }
+      },
+      [&](auto dispatch_g, auto unwrapped_ptr) {
+        if constexpr (std::is_same_v<decltype(dispatch_g), Group> || blocked) {
+          group_load(dispatch_g, unwrapped_ptr, out, properties);
+        } else {
+          // For striped layout the stride between elements in a vector is
+          // expressed in terms of WG's size, not SG. As such, each index has
+          // to be implemented using scalar SG block load.
+          auto vec_elem_stride = g.get_local_linear_range();
+          sycl::detail::dim_loop<N>([&](size_t i) {
+            OutputT scalar;
+            group_load(dispatch_g, unwrapped_ptr + vec_elem_stride * i, scalar,
+                       properties);
+            out[i] = scalar;
+          });
+        }
+      },
+      [&](auto *in_ptr) {
+        // Make sure in_ptr is "auto" so that the body isn't "compiled" when
+        // not instantiated due to "if constexpr".
+        auto tmp = detail::block_read<N>(in_ptr);
+        // SPIR-V builtin assumes striped layout.
+        if constexpr (blocked) {
+          // clang-format off
+          // Data         |  0  1  2 |  3  4  5 |  6  7  8 |  9 10 11 | 12 13 14 | 15 16 17 | 18 19 20 | 21 22 23 |
+          //
+          // Was loaded as
+          // vec_idx\WI   |  0 |  1 |  2 |  3 |  4 |  5 |  6 |  7
+          //              |  8 |  9 | 10 | 11 | 12 | 13 | 14 | 15
+          //              | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23
+          //
+          // Need to shuffle as
+          //                  0        1       2       3      4       5       6       7
+          //               v[0](0)  v[0](3) v[0](6) v[1](1) v[1](4) v[1](7) v[2](2) v[2](5)
+          //               v[0](1)  v[0](4) v[0](7) v[1](2) v[1](5) v[2](0) v[2](3) v[2](6)
+          //               v[0](2)  v[0](5) v[1](0) v[1](3) v[1](6) v[2](1) v[2](4) v[2](7)
+          //
+          // clang-format on
+
+          vec<OutputT, N> shuffled = {0, 0};
+          auto lid = g.get_local_id();
+          int sg_size = g.get_max_local_range().size();
+          sycl::detail::dim_loop<N>([&](size_t i) {
+            // IMPORTANT: Note that the index for the v[y] depends on the
+            // *CURRENT* WI, so the access into the vector must be done
+            // *after* the shuffle.
+            shuffled[i] = select_from_group(
+                g, tmp, (lid * N + i) % sg_size)[(lid * N + i) / sg_size];
+          });
+          out = shuffled; // implicit conversion here.
+        } else {
+          out = tmp; // implicit conversion here.
+        }
+      });
 #else
   throw sycl::exception(
       std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
