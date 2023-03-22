@@ -9,6 +9,7 @@
 #include "TypeUtils.h"
 #include "clang-mlir.h"
 #include "mlir/Dialect/SYCL/MethodUtils.h"
+#include "mlir/IR/Verifier.h"
 #include "utils.h"
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -1099,14 +1100,23 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
     return std::nullopt;
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "Inserting operation " << OptOpName
+  LLVM_DEBUG(llvm::dbgs() << "Attempting to insert operation " << OptOpName
                           << " to replace SYCL method call.\n");
 
-  return static_cast<sycl::SYCLMethodOpInterface>(Builder.create(
+  sycl::SYCLMethodOpInterface op = Builder.create(
       Loc, Builder.getStringAttr(*OptOpName), OperandsCpy,
       ReturnType ? mlir::TypeRange{*ReturnType} : mlir::TypeRange{},
       getSYCLMethodOpAttrs(Builder, Operands.getTypes(), TypeName, FunctionName,
-                           MangledFunctionName)));
+                           MangledFunctionName));
+  if (failed(mlir::verify(op))) {
+    LLVM_DEBUG(
+        llvm::dbgs()
+            << "Operation failed to verify. The operation will be erased.\n";
+        op.print(llvm::dbgs()));
+    op.erase();
+    return std::nullopt;
+  }
+  return op;
 }
 
 mlir::Operation *
