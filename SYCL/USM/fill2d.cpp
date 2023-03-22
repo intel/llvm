@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple  %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -17,8 +17,8 @@
 
 using namespace sycl;
 
-constexpr size_t RECT_WIDTH = 100;
-constexpr size_t RECT_HEIGHT = 41;
+constexpr size_t RECT_WIDTH = 50;
+constexpr size_t RECT_HEIGHT = 21;
 
 template <typename T, OperationPath PathKind>
 event doFill2D(queue &Q, void *Dest, size_t DestPitch, const T &Pattern,
@@ -53,7 +53,7 @@ event doFill2D(queue &Q, void *Dest, size_t DestPitch, const T &Pattern,
   }
 }
 
-template <typename T, usm::alloc AllocKind, OperationPath PathKind>
+template <typename T, Alloc AllocKind, OperationPath PathKind>
 int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
   int Failures = 0;
 
@@ -61,14 +61,15 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
   {
     constexpr size_t DST_ELEMS = RECT_WIDTH * RECT_HEIGHT;
 
-    T *USMMemDst = sycl::malloc<T>(DST_ELEMS, Q, AllocKind);
-    event DstMemsetEvent = Q.memset(USMMemDst, 0, DST_ELEMS * sizeof(T));
+    T *USMMemDst = allocate<T, AllocKind>(DST_ELEMS, Q);
+    event DstMemsetEvent =
+        memset<AllocKind>(Q, USMMemDst, 0, DST_ELEMS * sizeof(T));
     doFill2D<T, PathKind>(Q, USMMemDst, RECT_WIDTH, ExpectedVal1, RECT_WIDTH,
                           RECT_HEIGHT, {DstMemsetEvent})
         .wait();
     std::vector<T> Results;
     Results.resize(DST_ELEMS);
-    Q.copy(USMMemDst, Results.data(), DST_ELEMS).wait();
+    copy_to_host<AllocKind>(Q, USMMemDst, Results.data(), DST_ELEMS).wait();
 
     for (size_t I = 0; I < DST_ELEMS; ++I) {
       if (!checkResult<AllocKind, PathKind>(Results[I], ExpectedVal1, I,
@@ -78,15 +79,16 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
       }
     }
 
-    sycl::free(USMMemDst, Q);
+    free<AllocKind>(USMMemDst, Q);
   }
 
   // Test 2 - 2D fill vertically adjacent regions.
   {
     constexpr size_t DST_ELEMS = 2 * RECT_WIDTH * RECT_HEIGHT;
 
-    T *USMMemDst = sycl::malloc<T>(DST_ELEMS, Q, AllocKind);
-    event DstMemsetEvent = Q.memset(USMMemDst, 0, DST_ELEMS * sizeof(T));
+    T *USMMemDst = allocate<T, AllocKind>(DST_ELEMS, Q);
+    event DstMemsetEvent =
+        memset<AllocKind>(Q, USMMemDst, 0, DST_ELEMS * sizeof(T));
     event FirstFillEvent =
         doFill2D<T, PathKind>(Q, USMMemDst, RECT_WIDTH, ExpectedVal1,
                               RECT_WIDTH, RECT_HEIGHT, {DstMemsetEvent});
@@ -96,7 +98,7 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
         .wait();
     std::vector<T> Results;
     Results.resize(DST_ELEMS);
-    Q.copy(USMMemDst, Results.data(), DST_ELEMS).wait();
+    copy_to_host<AllocKind>(Q, USMMemDst, Results.data(), DST_ELEMS).wait();
 
     for (size_t I = 0; I < DST_ELEMS; ++I) {
       T ExpectedVal = I >= (DST_ELEMS / 2) ? ExpectedVal2 : ExpectedVal1;
@@ -107,15 +109,16 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
       }
     }
 
-    sycl::free(USMMemDst, Q);
+    free<AllocKind>(USMMemDst, Q);
   }
 
   // Test 3 - 2D fill horizontally adjacent regions.
   {
     constexpr size_t DST_ELEMS = 2 * RECT_WIDTH * RECT_HEIGHT;
 
-    T *USMMemDst = sycl::malloc<T>(DST_ELEMS, Q, AllocKind);
-    event DstMemsetEvent = Q.memset(USMMemDst, 0, DST_ELEMS * sizeof(T));
+    T *USMMemDst = allocate<T, AllocKind>(DST_ELEMS, Q);
+    event DstMemsetEvent =
+        memset<AllocKind>(Q, USMMemDst, 0, DST_ELEMS * sizeof(T));
     event FirstFillEvent =
         doFill2D<T, PathKind>(Q, USMMemDst, 2 * RECT_WIDTH, ExpectedVal1,
                               RECT_WIDTH, RECT_HEIGHT, {DstMemsetEvent});
@@ -125,7 +128,7 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
         .wait();
     std::vector<T> Results;
     Results.resize(DST_ELEMS);
-    Q.copy(USMMemDst, Results.data(), DST_ELEMS).wait();
+    copy_to_host<AllocKind>(Q, USMMemDst, Results.data(), DST_ELEMS).wait();
 
     for (size_t I = 0; I < DST_ELEMS; ++I) {
       T ExpectedVal = (I / RECT_WIDTH) % 2 ? ExpectedVal2 : ExpectedVal1;
@@ -136,15 +139,16 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
       }
     }
 
-    sycl::free(USMMemDst, Q);
+    free<AllocKind>(USMMemDst, Q);
   }
 
   // Test 4 - 2D fill 2x2 grid of rectangles.
   {
     constexpr size_t DST_ELEMS = 4 * RECT_WIDTH * RECT_HEIGHT;
 
-    T *USMMemDst = sycl::malloc<T>(DST_ELEMS, Q, AllocKind);
-    event DstMemsetEvent = Q.memset(USMMemDst, 0, DST_ELEMS * sizeof(T));
+    T *USMMemDst = allocate<T, AllocKind>(DST_ELEMS, Q);
+    event DstMemsetEvent =
+        memset<AllocKind>(Q, USMMemDst, 0, DST_ELEMS * sizeof(T));
     // Top left rectangle.
     event FirstFillEvent =
         doFill2D<T, PathKind>(Q, USMMemDst, 2 * RECT_WIDTH, ExpectedVal1,
@@ -165,7 +169,7 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
         .wait();
     std::vector<T> Results;
     Results.resize(DST_ELEMS);
-    Q.copy(USMMemDst, Results.data(), DST_ELEMS).wait();
+    copy_to_host<AllocKind>(Q, USMMemDst, Results.data(), DST_ELEMS).wait();
 
     for (size_t I = 0; I < DST_ELEMS; ++I) {
       T ExpectedVal = ((I / RECT_WIDTH) + (I / (DST_ELEMS / 2))) % 2
@@ -178,13 +182,13 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
       }
     }
 
-    sycl::free(USMMemDst, Q);
+    free<AllocKind>(USMMemDst, Q);
   }
 
   return Failures;
 }
 
-template <typename T, usm::alloc AllocKind>
+template <typename T, Alloc AllocKind>
 int testForAllPaths(queue &Q, T ExpectedVal1, T ExpectedVal2) {
   int Failures = 0;
   Failures += test<T, AllocKind, OperationPath::Expanded>(Q, ExpectedVal1,
@@ -200,7 +204,7 @@ int testForAllPaths(queue &Q, T ExpectedVal1, T ExpectedVal2) {
   return Failures;
 }
 
-template <usm::alloc AllocKind> int testForAllTypesAndPaths(queue &Q) {
+template <Alloc AllocKind> int testForAllTypesAndPaths(queue &Q) {
 
   bool SupportsHalf = Q.get_device().has(aspect::fp16);
   bool SupportsDouble = Q.get_device().has(aspect::fp64);
@@ -227,12 +231,13 @@ int main() {
   queue Q;
 
   int Failures = 0;
+  Failures += testForAllTypesAndPaths<Alloc::DirectHost>(Q);
   if (Q.get_device().has(aspect::usm_device_allocations))
-    Failures += testForAllTypesAndPaths<usm::alloc::device>(Q);
+    Failures += testForAllTypesAndPaths<Alloc::Device>(Q);
   if (Q.get_device().has(aspect::usm_host_allocations))
-    Failures += testForAllTypesAndPaths<usm::alloc::host>(Q);
+    Failures += testForAllTypesAndPaths<Alloc::Host>(Q);
   if (Q.get_device().has(aspect::usm_shared_allocations))
-    Failures += testForAllTypesAndPaths<usm::alloc::shared>(Q);
+    Failures += testForAllTypesAndPaths<Alloc::Shared>(Q);
 
   if (!Failures)
     std::cout << "Passed!" << std::endl;
