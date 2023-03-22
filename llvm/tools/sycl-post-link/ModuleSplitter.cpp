@@ -136,16 +136,15 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
   EntryPointGroupVec EntryPointGroups{};
   std::map<StringRef, EntryPointSet> EntryPointMap;
 
-  // We take every function, even if it is not an entry point, because entry
-  // points filtering should have happened at previous split level
+  // Only process module entry points:
   for (Function &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
+        !MD.isEntryPointCandidate(F))
       continue;
-    if (isESIMDFunction(F)) {
+    if (isESIMDFunction(F))
       EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
-    } else {
+    else
       EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
-    }
   }
 
   if (!EntryPointMap.empty()) {
@@ -192,9 +191,9 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
       continue;
 
     switch (EntryScope) {
-    case Scope_PerKernel: {
+    case Scope_PerKernel:
       EntryPointMap[F.getName()].insert(&F);
-    } break;
+    break;
 
     case Scope_PerModule: {
       if (!llvm::sycl::utils::isSYCLExternalFunction(&F))
@@ -322,10 +321,10 @@ private:
   SmallPtrSet<const Function *, 1> EmptySet;
 };
 
-void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
-                               const EntryPointGroup &ModuleEntryPoints,
-                               const DependencyGraph &Deps,
-                 const std::function<bool(const Function *)> &Filter = nullptr) {
+void collectFunctionsToExtract(
+    SetVector<const GlobalValue *> &GVs,
+    const EntryPointGroup &ModuleEntryPoints, const DependencyGraph &Deps,
+    const std::function<bool(const Function *)> &Filter = nullptr) {
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
 
@@ -381,10 +380,10 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
 
 // The function produces a copy of input LLVM IR module M with only those entry
 // points that are specified in ModuleEntryPoints vector.
-ModuleDesc extractCallGraph(const ModuleDesc &MD,
-                            EntryPointGroup &&ModuleEntryPoints,
-                            const DependencyGraph &CG,
-                 const std::function<bool(const Function *)> &Filter = nullptr) {
+ModuleDesc extractCallGraph(
+    const ModuleDesc &MD, EntryPointGroup &&ModuleEntryPoints,
+    const DependencyGraph &CG,
+    const std::function<bool(const Function *)> &Filter = nullptr) {
   SetVector<const GlobalValue *> GVs;
   collectFunctionsToExtract(GVs, ModuleEntryPoints, CG, Filter);
   collectGlobalVarsToExtract(GVs, MD.getModule());
@@ -905,9 +904,8 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       // invoke_simd. If that is the case, both modules are expected to be
       // linked back together after ESIMD functions were processed.
       Result.emplace_back(std::move(extractCallGraph(
-          MD, std::move(Group), CG, [=](const Function *F) -> bool {
-            return !isESIMDFunction(*F);
-          })));
+          MD, std::move(Group), CG,
+          [=](const Function *F) -> bool { return !isESIMDFunction(*F); })));
     }
   }
 

@@ -707,8 +707,8 @@ handleESIMD(module_split::ModuleDesc &&MDesc) {
   // unless -split-esimd option is specified. The graphs become disjoint
   // when linked back because functions shared between graphs are cloned and
   // renamed.
-  SmallVector<module_split::ModuleDesc, 2> Result =
-      module_split::splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+  SmallVector<module_split::ModuleDesc, 2> Result = module_split::splitByESIMD(
+      std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
 
   // FIXME: SplitByScope
   if (Result.size() > 1 && // SplitByScope &&
@@ -721,7 +721,7 @@ handleESIMD(module_split::ModuleDesc &&MDesc) {
             SplitEsimd.ValueStr + " must also be specified");
   }
 
-  for (auto &MD: Result) {
+  for (auto &MD : Result) {
     // FIXME: update Modified flag
     processSpecConstants(MD);
     if (LowerEsimd && MD.isESIMD())
@@ -872,7 +872,8 @@ processInputModule(std::unique_ptr<Module> M) {
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
     // FIXME: this step should be conditional depending on whether or not ESIMD
     // is actually used in a module
-    SmallVector<module_split::ModuleDesc, 2> MMs = handleESIMD(std::move(MDesc));
+    SmallVector<module_split::ModuleDesc, 2> MMs =
+        handleESIMD(std::move(MDesc));
 
     // FIXME: Modified |= SplitByESIMD;
 
