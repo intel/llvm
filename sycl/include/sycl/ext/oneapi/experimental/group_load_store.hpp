@@ -7,7 +7,51 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
+
+// TODO: Should that go into other place (shared between different extensions)?
+enum class group_algorithm_data_placement { blocked, striped };
+
+namespace property {
+struct data_placement_key {
+  template <group_algorithm_data_placement Placement>
+  using value_t =
+      property_value<data_placement_key,
+                     std::integral_constant<int, static_cast<int>(Placement)>>;
+};
+
+template <group_algorithm_data_placement Placement>
+inline constexpr data_placement_key::value_t<Placement> data_placement;
+} // namespace property
+
+template <>
+struct is_property_key<property::data_placement_key> : std::true_type {};
+
 namespace detail {
+template <> struct PropertyToKind<property::data_placement_key> {
+  static constexpr PropKind Kind = PropKind::DataPlacement;
+};
+template <>
+struct IsCompileTimeProperty<property::data_placement_key> : std::true_type {};
+
+template <typename Properties>
+constexpr bool is_blocked(Properties properties) {
+  if constexpr (properties
+                    .template has_property<property::data_placement_key>())
+    return properties.template get_property<property::data_placement_key>() ==
+           property::data_placement<group_algorithm_data_placement::blocked>;
+  else
+    return true;
+}
+
+template <bool IsBlocked, int VEC_OR_ARRAY_SIZE, typename GroupHelper>
+int get_mem_idx(GroupHelper gh, int vec_or_array_idx) {
+  if constexpr (IsBlocked)
+    return gh.get_local_linear_id() * VEC_OR_ARRAY_SIZE + vec_or_array_idx;
+  else
+    return gh.get_local_linear_id() +
+           gh.get_local_linear_range() * vec_or_array_idx;
+}
+
 template <typename T> struct is_multi_ptr_impl : public std::false_type {};
 
 template <typename T, access::address_space Space,
@@ -22,6 +66,47 @@ constexpr bool is_multi_ptr_v = is_multi_ptr_impl<std::remove_cv_t<T>>::value;
 constexpr bool is_spir = true;
 #else
 constexpr bool is_spir = false;
+#endif
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename ElemTy>
+auto cast_ptr_for_block_op(ElemTy *ptr) {
+  using BlockT = sycl::detail::sub_group::SelectBlockT<ElemTy>;
+  using PtrT =
+      sycl::detail::DecoratedType<BlockT,
+                                  access::address_space::global_space>::type *;
+  return reinterpret_cast<PtrT>(ptr);
+}
+
+template <int N, typename ElemTy> auto block_read(ElemTy *ptr) {
+  using UndecoratedT = remove_decoration_t<ElemTy>;
+  using BlockT = sycl::detail::sub_group::SelectBlockT<ElemTy>;
+  using LoadT =
+      // TODO: Can we use UndecoratedT instead of BlockT here?
+      std::conditional_t<N == 1, BlockT,
+                         sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>>;
+  LoadT load =
+      __spirv_SubgroupBlockReadINTEL<LoadT>(cast_ptr_for_block_op(ptr));
+
+  using RetT = std::conditional_t<N == 1, UndecoratedT, vec<UndecoratedT, N>>;
+
+  return sycl::bit_cast<RetT>(load);
+}
+
+template <typename ElemTy>
+void block_write(ElemTy *ptr, remove_decoration_t<ElemTy> val) {
+  using BlockT = sycl::detail::sub_group::SelectBlockT<ElemTy>;
+  __spirv_SubgroupBlockWriteINTEL(cast_ptr_for_block_op(ptr),
+                                  sycl::bit_cast<BlockT>(val));
+}
+
+template <typename ElemTy, int N>
+void block_write(ElemTy *ptr, vec<remove_decoration_t<ElemTy>, N> val) {
+  using BlockT = sycl::detail::sub_group::SelectBlockT<ElemTy>;
+  using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
+  __spirv_SubgroupBlockWriteINTEL(cast_ptr_for_block_op(ptr),
+                                  sycl::bit_cast<VecT>(val));
+}
 #endif
 
 // A helper for group_load/store implementations outlining the common logic:
@@ -109,27 +194,8 @@ void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
   __builtin_unreachable();
 #endif
 }
-
-template <int N, typename ElemTy> auto block_read(ElemTy *ptr) {
-#ifdef __SYCL_DEVICE_ONLY__
-  using BlockT = sycl::detail::sub_group::SelectBlockT<ElemTy>;
-  using PtrT =
-      sycl::detail::DecoratedType<BlockT,
-                                  access::address_space::global_space>::type *;
-  using LoadT =
-      std::conditional_t<N == 1, BlockT,
-                         sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>>;
-  LoadT load = __spirv_SubgroupBlockReadINTEL<LoadT>(reinterpret_cast<PtrT>(ptr));
-
-  using UndecoratedT = remove_decoration_t<ElemTy>;
-  using RetT = std::conditional_t<N == 1, UndecoratedT, vec<UndecoratedT, N>>;
-
-  return sycl::bit_cast<RetT>(load);
-#else
-  std::ignore = ptr;
-#endif
-}
 } // namespace detail
+
 // Load API scalar
 template <typename Group, typename InputIteratorT, typename OutputT,
           typename Properties = decltype(properties()),
@@ -152,9 +218,7 @@ void group_load(Group g, InputIteratorT in_ptr, OutputT &out,
       [&](auto g, auto unwrapped_ptr) {
         group_load(g, unwrapped_ptr, out, properties);
       },
-      [&](auto *in_ptr) {
-        out = detail::block_read<1>(in_ptr);
-      });
+      [&](auto *in_ptr) { out = detail::block_read<1>(in_ptr); });
 #else
   throw sycl::exception(
       std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
@@ -169,60 +233,29 @@ template <typename Group, typename InputT, typename OutputIteratorT,
               InputT, remove_decoration_t<typename std::iterator_traits<
                           OutputIteratorT>::value_type>>>>
 void group_store(Group g, const InputT &in, OutputIteratorT out_ptr,
-                 Properties = {}) {
+                 Properties properties = {}) {
 #ifdef __SYCL_DEVICE_ONLY__
-  auto generic = [&]() { out_ptr[g.get_local_linear_id()] = in; };
-  return generic();
+  using value_type = std::iterator_traits<OutputIteratorT>::value_type;
+  constexpr auto size = sizeof(value_type);
+  constexpr bool supported_size =
+      size == 1 || size == 2 || size == 4 || size == 8;
+  constexpr bool unsupported = !supported_size;
+
+  detail::dispatch<4 /* read align in bytes */, 1 /* scalar */, unsupported>(
+      g, out_ptr, [&]() { out_ptr[g.get_local_linear_id()] = in; },
+      [&](auto g, auto unwrapped_ptr) {
+        group_store(g, in, unwrapped_ptr, properties);
+      },
+      [&](auto *out_ptr) {
+        // FIXME: This is probably wrong as doesn't perform implicit conversion.
+        detail::block_write(out_ptr, in);
+      });
 #else
   throw sycl::exception(
       std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group loads/stoes are not supported on host.");
 #endif
 }
-
-// TODO: Should that go into other place (shared between different extensions)?
-enum class group_algorithm_data_placement { blocked, striped };
-
-namespace property {
-struct data_placement_key {
-  template <group_algorithm_data_placement Placement>
-  using value_t =
-      property_value<data_placement_key,
-                     std::integral_constant<int, static_cast<int>(Placement)>>;
-};
-
-template <group_algorithm_data_placement Placement>
-inline constexpr data_placement_key::value_t<Placement> data_placement;
-} // namespace property
-
-template <>
-struct is_property_key<property::data_placement_key> : std::true_type {};
-namespace detail {
-template <> struct PropertyToKind<property::data_placement_key> {
-  static constexpr PropKind Kind = PropKind::DataPlacement;
-};
-template <>
-struct IsCompileTimeProperty<property::data_placement_key> : std::true_type {};
-
-template <typename Properties>
-constexpr bool is_blocked(Properties properties) {
-  if constexpr (properties
-                    .template has_property<property::data_placement_key>())
-    return properties.template get_property<property::data_placement_key>() ==
-           property::data_placement<group_algorithm_data_placement::blocked>;
-  else
-    return true;
-}
-
-template <bool IsBlocked, int VEC_OR_ARRAY_SIZE, typename GroupHelper>
-int get_mem_idx(GroupHelper gh, int vec_or_array_idx) {
-  if constexpr (IsBlocked)
-    return gh.get_local_linear_id() * VEC_OR_ARRAY_SIZE + vec_or_array_idx;
-  else
-    return gh.get_local_linear_id() +
-           gh.get_local_linear_range() * vec_or_array_idx;
-}
-} // namespace detail
 
 // Load API sycl::vec overload
 template <typename Group, typename InputIteratorT, typename OutputT, int N,
