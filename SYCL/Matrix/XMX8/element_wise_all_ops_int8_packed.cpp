@@ -11,12 +11,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// This test stores the matrix B that is VNNIed (packed) in a row major fashion.
-// This is expected to fail on the GPU because the implementation does not
-// support automatic transformation YET, in this case: VNNI to row major in the
-// store.
-
-// XFAIL: gpu
+// This test stores the matrix B that is VNNIed (packed).
 
 #include <iostream>
 #include <random>

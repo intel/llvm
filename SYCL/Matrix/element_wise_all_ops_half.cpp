@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: matrix,gpu
 
 // Only runs on DPAS because AMX implementation does not support half data type
 // yet
