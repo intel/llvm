@@ -78,7 +78,7 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
   return MDNode::get(Ctx, MD);
 }
 
-/// Builds a metadata node for a SPIR-V decoration (both decoration code
+/// Builds a metadata node for a SPIR-V decoration (decoration code
 /// is \c uint32_t integer and value is a string).
 ///
 /// @param Ctx    [in] the LLVM Context.
@@ -535,6 +535,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   std::optional<StringRef> AnnotStr = getGlobalVariableString(AnnotStrArgGV);
   if (!AnnotStr || AnnotStr->str() != "sycl-properties")
     return false;
+
   // check alignment annotation and apply it to load/store
   parseAlignmentAndApply(M, IntrInst);
 
