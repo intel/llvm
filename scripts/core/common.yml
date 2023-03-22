@@ -278,6 +278,10 @@ etors:
       desc: $x_program_properties_t
     - name: USM_DESC
       desc: $x_usm_desc_t
+    - name: USM_HOST_DESC
+      desc: $x_usm_host_desc_t
+    - name: USM_DEVICE_DESC
+      desc: $x_usm_device_desc_t
     - name: USM_POOL_DESC
       desc: $x_usm_pool_desc_t
     - name: USM_POOL_LIMITS_DESC
