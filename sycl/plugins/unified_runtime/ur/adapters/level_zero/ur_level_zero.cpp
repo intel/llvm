@@ -11,7 +11,6 @@
 #include <string.h>
 
 #include "ur_level_zero.hpp"
-#include <sycl/detail/pi.h>
 #include <ur_bindings.hpp>
 
 // Define the static class field
@@ -1176,10 +1175,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    pi_memory_order_capabilities capabilities =
-        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
-        PI_MEMORY_ORDER_SEQ_CST;
+    ur_memory_order_capability_flags_t capabilities =
+      UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+      UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+      UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+      UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
+      UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
     return ReturnValue(capabilities);
   }
 
