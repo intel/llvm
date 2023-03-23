@@ -12,6 +12,6 @@ int main() {
   Q.submit([&](handler &Cgh) {
     auto Acc = Buf.get_access<access::mode::write>(Cgh);
     local_accessor<int, 3> LocAcc(Range, Cgh);
-    Cgh.parallel_for(Range, [=](item<3> it) { LocAcc[it] = Acc[it]; });
+    Cgh.parallel_for(Range, [=](item<3> It) { LocAcc[It] = Acc[It]; });
   });
 }
