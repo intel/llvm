@@ -7,7 +7,7 @@ using namespace sycl::ext::oneapi::experimental;
 
 using device_has_all =
     decltype(device_has<
-             // expected-warning@+1{{'host' is deprecated: use cpu instead}}
+             // expected-warning@+1{{'host' is deprecated: deprecated in SYCL 2020, 'host' device concept removed}}
              aspect::host, aspect::cpu, aspect::gpu, aspect::accelerator,
              aspect::custom, aspect::fp16, aspect::fp64, aspect::image,
              aspect::online_compiler, aspect::online_linker,
@@ -86,7 +86,7 @@ int main() {
   static_assert(std::is_same_v<decltype(sub_group_size<28>)::value_t,
                                std::integral_constant<uint32_t, 28>>);
 
-  // expected-warning@+1{{'host' is deprecated: use cpu instead}}
+  // expected-warning@+1{{'host' is deprecated: deprecated in SYCL 2020, 'host' device concept removed}}
   singleAspectDeviceHasChecks<aspect::host>();
   singleAspectDeviceHasChecks<aspect::cpu>();
   singleAspectDeviceHasChecks<aspect::gpu>();
@@ -132,7 +132,7 @@ int main() {
   static_assert(is_property_value<device_has_all>::value);
   static_assert(std::is_same_v<device_has_key, device_has_all::key_t>);
   static_assert(device_has_all::value.size() == 37);
-  // expected-warning@+1{{'host' is deprecated: use cpu instead}}
+  // expected-warning@+1{{'host' is deprecated: deprecated in SYCL 2020, 'host' device concept removed}}
   static_assert(device_has_all::value[0] == aspect::host);
   static_assert(device_has_all::value[1] == aspect::cpu);
   static_assert(device_has_all::value[2] == aspect::gpu);

@@ -61,77 +61,80 @@ template <>
 struct all_devices_have<aspect::usm_shared_allocations>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_15__> {};
 template <>
-struct all_devices_have<aspect::usm_system_allocations>
+struct all_devices_have<aspect::usm_restricted_shared_allocations>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_16__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_pci_address>
+struct all_devices_have<aspect::usm_system_allocations>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_17__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_gpu_eu_count>
+struct all_devices_have<aspect::ext_intel_pci_address>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_18__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_gpu_eu_simd_width>
+struct all_devices_have<aspect::ext_intel_gpu_eu_count>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_19__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_gpu_slices>
+struct all_devices_have<aspect::ext_intel_gpu_eu_simd_width>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_20__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_gpu_subslices_per_slice>
+struct all_devices_have<aspect::ext_intel_gpu_slices>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_21__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_gpu_eu_count_per_subslice>
+struct all_devices_have<aspect::ext_intel_gpu_subslices_per_slice>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_22__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_max_mem_bandwidth>
+struct all_devices_have<aspect::ext_intel_gpu_eu_count_per_subslice>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_23__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_mem_channel>
+struct all_devices_have<aspect::ext_intel_max_mem_bandwidth>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_24__> {};
 template <>
-struct all_devices_have<aspect::usm_atomic_host_allocations>
+struct all_devices_have<aspect::ext_intel_mem_channel>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_25__> {};
 template <>
-struct all_devices_have<aspect::usm_atomic_shared_allocations>
+struct all_devices_have<aspect::usm_atomic_host_allocations>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_26__> {};
 template <>
-struct all_devices_have<aspect::atomic64>
+struct all_devices_have<aspect::usm_atomic_shared_allocations>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_27__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_device_info_uuid>
+struct all_devices_have<aspect::atomic64>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_28__> {};
 template <>
-struct all_devices_have<aspect::ext_oneapi_srgb>
+struct all_devices_have<aspect::ext_intel_device_info_uuid>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_29__> {};
 template <>
-struct all_devices_have<aspect::ext_oneapi_native_assert>
+struct all_devices_have<aspect::ext_oneapi_srgb>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_30__> {};
 template <>
-struct all_devices_have<aspect::host_debuggable>
+struct all_devices_have<aspect::ext_oneapi_native_assert>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_31__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_gpu_hw_threads_per_eu>
+struct all_devices_have<aspect::host_debuggable>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_32__> {};
 template <>
-struct all_devices_have<aspect::ext_oneapi_cuda_async_barrier>
+struct all_devices_have<aspect::ext_intel_gpu_hw_threads_per_eu>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_33__> {};
 template <>
-struct all_devices_have<aspect::ext_oneapi_bfloat16_math_functions>
+struct all_devices_have<aspect::ext_oneapi_cuda_async_barrier>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_34__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_free_memory>
+struct all_devices_have<aspect::ext_oneapi_bfloat16_math_functions>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_35__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_device_id>
+struct all_devices_have<aspect::ext_intel_free_memory>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_36__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_memory_clock_rate>
+struct all_devices_have<aspect::ext_intel_device_id>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_37__> {};
 template <>
-struct all_devices_have<aspect::ext_intel_memory_bus_width>
+struct all_devices_have<aspect::ext_intel_memory_clock_rate>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_38__> {};
 template <>
-struct all_devices_have<aspect::emulated>
+struct all_devices_have<aspect::ext_intel_memory_bus_width>
     : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_39__> {};
+template <>
+struct all_devices_have<aspect::emulated>
+    : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_40__> {};
 
 #ifdef __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 // Special case where any_device_has is trivially true.
@@ -187,77 +190,80 @@ template <>
 struct any_device_has<aspect::usm_shared_allocations>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_15__> {};
 template <>
-struct any_device_has<aspect::usm_system_allocations>
+struct any_device_has<aspect::usm_restricted_shared_allocations>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_16__> {};
 template <>
-struct any_device_has<aspect::ext_intel_pci_address>
+struct any_device_has<aspect::usm_system_allocations>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_17__> {};
 template <>
-struct any_device_has<aspect::ext_intel_gpu_eu_count>
+struct any_device_has<aspect::ext_intel_pci_address>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_18__> {};
 template <>
-struct any_device_has<aspect::ext_intel_gpu_eu_simd_width>
+struct any_device_has<aspect::ext_intel_gpu_eu_count>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_19__> {};
 template <>
-struct any_device_has<aspect::ext_intel_gpu_slices>
+struct any_device_has<aspect::ext_intel_gpu_eu_simd_width>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_20__> {};
 template <>
-struct any_device_has<aspect::ext_intel_gpu_subslices_per_slice>
+struct any_device_has<aspect::ext_intel_gpu_slices>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_21__> {};
 template <>
-struct any_device_has<aspect::ext_intel_gpu_eu_count_per_subslice>
+struct any_device_has<aspect::ext_intel_gpu_subslices_per_slice>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_22__> {};
 template <>
-struct any_device_has<aspect::ext_intel_max_mem_bandwidth>
+struct any_device_has<aspect::ext_intel_gpu_eu_count_per_subslice>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_23__> {};
 template <>
-struct any_device_has<aspect::ext_intel_mem_channel>
+struct any_device_has<aspect::ext_intel_max_mem_bandwidth>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_24__> {};
 template <>
-struct any_device_has<aspect::usm_atomic_host_allocations>
+struct any_device_has<aspect::ext_intel_mem_channel>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_25__> {};
 template <>
-struct any_device_has<aspect::usm_atomic_shared_allocations>
+struct any_device_has<aspect::usm_atomic_host_allocations>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_26__> {};
 template <>
-struct any_device_has<aspect::atomic64>
+struct any_device_has<aspect::usm_atomic_shared_allocations>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_27__> {};
 template <>
-struct any_device_has<aspect::ext_intel_device_info_uuid>
+struct any_device_has<aspect::atomic64>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_28__> {};
 template <>
-struct any_device_has<aspect::ext_oneapi_srgb>
+struct any_device_has<aspect::ext_intel_device_info_uuid>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_29__> {};
 template <>
-struct any_device_has<aspect::ext_oneapi_native_assert>
+struct any_device_has<aspect::ext_oneapi_srgb>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_30__> {};
 template <>
-struct any_device_has<aspect::host_debuggable>
+struct any_device_has<aspect::ext_oneapi_native_assert>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_31__> {};
 template <>
-struct any_device_has<aspect::ext_intel_gpu_hw_threads_per_eu>
+struct any_device_has<aspect::host_debuggable>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_32__> {};
 template <>
-struct any_device_has<aspect::ext_oneapi_cuda_async_barrier>
+struct any_device_has<aspect::ext_intel_gpu_hw_threads_per_eu>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_33__> {};
 template <>
-struct any_device_has<aspect::ext_oneapi_bfloat16_math_functions>
+struct any_device_has<aspect::ext_oneapi_cuda_async_barrier>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_34__> {};
 template <>
-struct any_device_has<aspect::ext_intel_free_memory>
+struct any_device_has<aspect::ext_oneapi_bfloat16_math_functions>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_35__> {};
 template <>
-struct any_device_has<aspect::ext_intel_device_id>
+struct any_device_has<aspect::ext_intel_free_memory>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_36__> {};
 template <>
-struct any_device_has<aspect::ext_intel_memory_clock_rate>
+struct any_device_has<aspect::ext_intel_device_id>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_37__> {};
 template <>
-struct any_device_has<aspect::ext_intel_memory_bus_width>
+struct any_device_has<aspect::ext_intel_memory_clock_rate>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_38__> {};
 template <>
-struct any_device_has<aspect::emulated>
+struct any_device_has<aspect::ext_intel_memory_bus_width>
     : std::bool_constant<__SYCL_ANY_DEVICE_HAS_39__> {};
+template <>
+struct any_device_has<aspect::emulated>
+    : std::bool_constant<__SYCL_ANY_DEVICE_HAS_40__> {};
 #endif // __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 
 template <aspect Aspect>

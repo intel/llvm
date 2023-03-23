@@ -12,10 +12,9 @@ static constexpr auto device_has_all = device_has<
     aspect::fp64, aspect::image, aspect::online_compiler, aspect::online_linker,
     aspect::queue_profiling, aspect::usm_device_allocations,
     aspect::usm_system_allocations, aspect::ext_intel_pci_address,
-    // expected-warning@+1{{'host' is deprecated: use cpu instead}}
-    aspect::host, aspect::cpu, aspect::gpu,
-    aspect::accelerator, aspect::ext_intel_gpu_eu_count,
-    aspect::ext_intel_gpu_subslices_per_slice,
+    // expected-warning@+1{{'host' is deprecated: deprecated in SYCL 2020, 'host' device concept removed}}
+    aspect::host, aspect::cpu, aspect::gpu, aspect::accelerator,
+    aspect::ext_intel_gpu_eu_count, aspect::ext_intel_gpu_subslices_per_slice,
     aspect::ext_intel_gpu_eu_count_per_subslice,
     aspect::ext_intel_max_mem_bandwidth, aspect::ext_intel_mem_channel,
     aspect::usm_atomic_host_allocations, aspect::usm_atomic_shared_allocations,
