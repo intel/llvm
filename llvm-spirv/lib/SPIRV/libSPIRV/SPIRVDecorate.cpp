@@ -81,6 +81,16 @@ SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC, SPIRVWord WC,
   updateModuleVersion();
 }
 
+SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC, SPIRVWord WC,
+                                           Decoration TheDec,
+                                           SPIRVEntry *TheTarget, SPIRVWord V1,
+                                           SPIRVWord V2, SPIRVWord V3)
+    : SPIRVDecorateGeneric(OC, WC, TheDec, TheTarget, V1, V2) {
+  Literals.push_back(V3);
+  validate();
+  updateModuleVersion();
+}
+
 SPIRVDecorateGeneric::SPIRVDecorateGeneric(Op OC)
     : SPIRVAnnotationGeneric(OC), Dec(DecorationRelaxedPrecision),
       Owner(nullptr) {}

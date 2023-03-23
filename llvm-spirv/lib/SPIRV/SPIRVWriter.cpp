@@ -2958,10 +2958,11 @@ struct AnnotationDecorations {
   DecorationsInfoVec MemoryAttributesVec;
   DecorationsInfoVec MemoryAccessesVec;
   DecorationsInfoVec BufferLocationVec;
+  DecorationsInfoVec LatencyControlVec;
 
   bool empty() {
     return (MemoryAttributesVec.empty() && MemoryAccessesVec.empty() &&
-            BufferLocationVec.empty());
+            BufferLocationVec.empty() && LatencyControlVec.empty());
   }
 };
 
@@ -3095,8 +3096,8 @@ static bool tryParseAnnotationDecoValues(StringRef ValueStr,
           return false;
         // Skip the , delimiter and go directly to the start of next value.
         ValueStart = (++I) + 1;
+        continue;
       }
-      continue;
     }
     if (CurrentC == ',') {
       // Since we are not currently in a string literal, comma denotes a
@@ -3131,7 +3132,6 @@ static bool tryParseAnnotationDecoValues(StringRef ValueStr,
 AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
                                                StringRef AnnotatedCode) {
   AnnotationDecorations Decorates;
-
   // Annotation string decorations are separated into {word} OR
   // {word:value,value,...} blocks, where value is either a word (including
   // numbers) or a quotation mark enclosed string.
@@ -3155,6 +3155,8 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
       ExtensionID::SPV_INTEL_fpga_memory_attributes);
   const bool AllowFPGABufLoc =
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_buffer_location);
+  const bool AllowFPGALatencyControl =
+      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_latency_control);
 
   bool ValidDecorationFound = false;
   DecorationsInfoVec DecorationsVec;
@@ -3177,6 +3179,12 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
         if (AllowFPGABufLoc &&
             DecorationKind == DecorationBufferLocationINTEL) {
           Decorates.BufferLocationVec.emplace_back(
+              static_cast<Decoration>(DecorationKind), std::move(DecValues));
+        } else if (AllowFPGALatencyControl &&
+                   (DecorationKind == DecorationLatencyControlLabelINTEL ||
+                    DecorationKind ==
+                        DecorationLatencyControlConstraintINTEL)) {
+          Decorates.LatencyControlVec.emplace_back(
               static_cast<Decoration>(DecorationKind), std::move(DecValues));
         } else {
           DecorationsVec.emplace_back(static_cast<Decoration>(DecorationKind),
@@ -3270,12 +3278,12 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
 }
 
 std::vector<SPIRVWord>
-getBankBitsFromStrings(const std::vector<std::string> &BitsStrings) {
-  std::vector<SPIRVWord> Bits(BitsStrings.size());
-  for (size_t J = 0; J < BitsStrings.size(); ++J)
-    if (StringRef(BitsStrings[J]).getAsInteger(10, Bits[J]))
+getLiteralsFromStrings(const std::vector<std::string> &Strings) {
+  std::vector<SPIRVWord> Literals(Strings.size());
+  for (size_t J = 0; J < Strings.size(); ++J)
+    if (StringRef(Strings[J]).getAsInteger(10, Literals[J]))
       return {};
-  return Bits;
+  return Literals;
 }
 
 void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
@@ -3321,7 +3329,7 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
             I.second.size() > 0, SPIRVEC_InvalidLlvmModule,
             "BankBitsINTEL requires at least one argument.");
         E->addDecorate(new SPIRVDecorateBankBitsINTELAttr(
-            E, getBankBitsFromStrings(I.second)));
+            E, getLiteralsFromStrings(I.second)));
       }
     } break;
     case DecorationRegisterINTEL:
@@ -3382,7 +3390,32 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
         E->addDecorate(I.first, Result);
       }
     } break;
-
+    case DecorationLatencyControlLabelINTEL: {
+      if (M->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_fpga_latency_control)) {
+        M->getErrorLog().checkError(
+            I.second.size() == 1, SPIRVEC_InvalidLlvmModule,
+            "LatencyControlLabelINTEL requires exactly 1 extra operand");
+        SPIRVWord Label = 0;
+        StringRef(I.second[0]).getAsInteger(10, Label);
+        E->addDecorate(
+            new SPIRVDecorate(DecorationLatencyControlLabelINTEL, E, Label));
+      }
+      break;
+    }
+    case DecorationLatencyControlConstraintINTEL: {
+      if (M->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_fpga_latency_control)) {
+        M->getErrorLog().checkError(
+            I.second.size() == 3, SPIRVEC_InvalidLlvmModule,
+            "LatencyControlConstraintINTEL requires exactly 3 extra operands");
+        auto Literals = getLiteralsFromStrings(I.second);
+        E->addDecorate(
+            new SPIRVDecorate(DecorationLatencyControlConstraintINTEL, E,
+                              Literals[0], Literals[1], Literals[2]));
+      }
+      break;
+    }
     default:
       // Other decorations are either not supported by the translator or
       // handled in other places.
@@ -3431,7 +3464,7 @@ void addAnnotationDecorationsForStructMember(SPIRVEntry *E,
           I.second.size() > 0, SPIRVEC_InvalidLlvmModule,
           "BankBitsINTEL requires at least one argument.");
       E->addMemberDecorate(new SPIRVMemberDecorateBankBitsINTELAttr(
-          E, MemberNumber, getBankBitsFromStrings(I.second)));
+          E, MemberNumber, getLiteralsFromStrings(I.second)));
       break;
     case DecorationRegisterINTEL:
     case DecorationSinglepumpINTEL:
@@ -3648,7 +3681,7 @@ static bool allowsApproxFunction(IntrinsicInst *II) {
            cast<VectorType>(Ty)->getElementType()->isFloatTy()));
 }
 
-bool allowDecorateWithBufferLocationINTEL(IntrinsicInst *II) {
+bool allowDecorateWithBufferLocationOrLatencyControlINTEL(IntrinsicInst *II) {
   SmallVector<Value *, 8> UserList;
 
   for (auto *Inst : II->users()) {
@@ -4153,15 +4186,18 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         // because multiple accesses to the struct-held memory can require
         // different LSU parameters.
         addAnnotationDecorations(ResPtr, Decorations.MemoryAccessesVec);
-        if (allowDecorateWithBufferLocationINTEL(II))
+        if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
           addAnnotationDecorations(ResPtr, Decorations.BufferLocationVec);
+          addAnnotationDecorations(ResPtr, Decorations.LatencyControlVec);
+        }
       }
       II->replaceAllUsesWith(II->getOperand(0));
     } else {
       // Memory accesses to a standalone pointer variable
       auto *DecSubj = transValue(II->getArgOperand(0), BB);
       if (Decorations.MemoryAccessesVec.empty() &&
-          Decorations.BufferLocationVec.empty())
+          Decorations.BufferLocationVec.empty() &&
+          Decorations.LatencyControlVec.empty())
         DecSubj->addDecorate(new SPIRVDecorateUserSemanticAttr(
             DecSubj, AnnotationString.c_str()));
       else {
@@ -4170,8 +4206,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         // loaded from the original pointer variable, and not the value
         // accessed by the latter.
         addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
-        if (allowDecorateWithBufferLocationINTEL(II))
+        if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
           addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
+          addAnnotationDecorations(DecSubj, Decorations.LatencyControlVec);
+        }
       }
       II->replaceAllUsesWith(II->getOperand(0));
     }
