@@ -192,8 +192,6 @@ void matrix_sum_cols(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
                global_index = j;
                sum_local_cols[global_index] = reduce_over_group(
                    sg, sum_local_cols[global_index], sycl::plus<>());
-               // TODO: Do we need a reduce_over_grp? Adding it does not
-               // make any difference in result
                atomic_fetch_add(v[global_index], sum_local_cols[global_index]);
              }
            }
