@@ -282,8 +282,64 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // For details about Intel UUID extension, see
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
-  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-    return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    // This query is missing beore OpenCL 3.0
+    // Check version and handle appropriately
+    OCLV::OpenCLVersion devVer;
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS) {
+      return cast<pi_result>(ret_err);
+    }
+
+    // Minimum required capability to be returned
+    // For OpenCL 1.2, this is all that is required
+    pi_memory_order_capabilities capabilities = PI_MEMORY_ORDER_RELAXED;
+
+    if (devVer >= OCLV::V3_0) {
+      // For OpenCL >=3.0, the query should be implemented
+      cl_device_atomic_capabilities cl_capabilities = 0;
+      cl_int ret_err = clGetDeviceInfo(
+          deviceID, CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+          sizeof(cl_device_atomic_capabilities), &cl_capabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return cast<pi_result>(ret_err);
+
+      // Mask operation to only consider atomic_memory_order* capabilities
+      cl_int mask = CL_DEVICE_ATOMIC_ORDER_RELAXED |
+                    CL_DEVICE_ATOMIC_ORDER_ACQ_REL |
+                    CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
+      cl_capabilities &= mask;
+
+      // The memory order capabilities are hierarchical, if one is implied, all
+      // preceding capbilities are implied as well. Especially in the case of
+      // ACQ_REL.
+      if (cl_capabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
+        capabilities |= PI_MEMORY_ORDER_SEQ_CST;
+      }
+      if (cl_capabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) {
+        capabilities |= PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_ACQUIRE |
+                        PI_MEMORY_ORDER_RELEASE;
+      }
+    } else if (devVer >= OCLV::V2_0) {
+      // For OpenCL 2.x, return all capabilities
+      // (https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#_memory_consistency_model)
+      capabilities |= PI_MEMORY_ORDER_ACQUIRE | PI_MEMORY_ORDER_RELEASE |
+                      PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_SEQ_CST;
+    }
+
+    if (paramValue) {
+      if (paramValueSize < sizeof(pi_memory_order_capabilities))
+        return static_cast<pi_result>(CL_INVALID_VALUE);
+
+      std::memcpy(paramValue, &capabilities, sizeof(capabilities));
+    }
+
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(capabilities);
+
+    return static_cast<pi_result>(CL_SUCCESS);
+  }
   case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // Initialize result to minimum mandated capabilities according to
     // SYCL2020 4.6.3.2
