@@ -9,8 +9,16 @@
 ; marked as using asserts.
 
 ; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=PRESENCE-CHECK
-; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=ABSENCE-CHECK
+; RUN: FileCheck %s -input-file=%t_0.prop -check-prefixes=CHECK,CHECK0 \
+; RUN:     --implicit-check-not TU1
+; RUN: FileCheck %s -input-file=%t_1.prop -check-prefixes=CHECK,CHECK1 \
+; RUN:     --implicit-check-not TU0
+;
+; CHECK: [SYCL/assert used]
+; CHECK0: main_TU0_kernel0
+;
+; CHECK1-DAG: main_TU1_kernel0
+; CHECK1-DAG: main_TU1_kernel1
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
@@ -40,7 +48,7 @@ entry:
 }
 
 ; ABSENCE-CHECK-NOT: empty_kernel
-define dso_local spir_kernel void @empty_kernel() {
+define dso_local spir_kernel void @empty_kernel() #2 {
   %1 = ptrtoint void ()* @bar to i64
   ret void
 }
