@@ -1771,67 +1771,34 @@ static constexpr bfn_t operator^(bfn_t x, bfn_t y) {
 /// @param s1 Second boolean function argument.
 /// @param s2 Third boolean function argument.
 template <bfn_t FuncControl, typename T, int N>
-__ESIMD_API std::enable_if_t<std::is_integral_v<T> &&
-                                 (sizeof(T) == 2 || sizeof(T) == 4),
-                             __ESIMD_NS::simd<T, N>>
+__ESIMD_API std::enable_if_t<std::is_integral_v<T>, __ESIMD_NS::simd<T, N>>
 bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
     __ESIMD_NS::simd<T, N> src2) {
-  return __esimd_bfn<static_cast<uint8_t>(FuncControl), T, N>(
-      src0.data(), src1.data(), src2.data());
-}
-
-template <bfn_t FuncControl, typename T, int N>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<std::is_integral_v<T> && (sizeof(T) == 8),
-                                  __ESIMD_NS::simd<T, N>>
-    bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
-        __ESIMD_NS::simd<T, N> src2) {
-  if constexpr (sizeof(T) == 8) {
-    __ESIMD_NS::simd<uint32_t, N * 2> Src0 =
-        src0.template bit_cast_view<uint32_t>();
-    __ESIMD_NS::simd<uint32_t, N * 2> Src1 =
-        src1.template bit_cast_view<uint32_t>();
-    __ESIMD_NS::simd<uint32_t, N * 2> Src2 =
-        src2.template bit_cast_view<uint32_t>();
-    __ESIMD_NS::simd<uint32_t, N * 2> Res =
-        esimd::bfn<FuncControl, uint32_t, N * 2>(Src0, Src1, Src2);
-    return Res.template bit_cast_view<T>();
+  if constexpr (sizeof(T) == 2 || sizeof(T) == 4) {
+    constexpr uint8_t FC = static_cast<uint8_t>(FuncControl);
+    return __esimd_bfn<FC, T, N>(src0.data(), src1.data(), src2.data());
+  } else if constexpr (sizeof(T) == 8) {
+    auto Result = __ESIMD_ENS::bfn<FuncControl>(
+        src0.template bit_cast_view<int32_t>().read(),
+        src1.template bit_cast_view<int32_t>().read(),
+        src2.template bit_cast_view<int32_t>().read());
+    return Result.template bit_cast_view<T>();
+  } else if constexpr (N % 2 == 0) {
+    // Even number of 1-byte elements.
+    auto Result = __ESIMD_ENS::bfn<FuncControl>(
+        src0.template bit_cast_view<int16_t>().read(),
+        src1.template bit_cast_view<int16_t>().read(),
+        src2.template bit_cast_view<int16_t>().read());
+    return Result.template bit_cast_view<T>();
+  } else {
+    // Odd number of 1-byte elements.
+    __ESIMD_NS::simd<T, N + 1> Src0, Src1, Src2;
+    Src0.template select<N, 1>() = src0;
+    Src1.template select<N, 1>() = src1;
+    Src2.template select<N, 1>() = src2;
+    auto Result = __ESIMD_ENS::bfn<FuncControl>(Src0, Src1, Src2);
+    return Result.template select<N, 1>();
   }
-}
-
-template <bfn_t FuncControl, typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<std::is_integral_v<T> && (sizeof(T) == 1) && (N % 2 == 0),
-                     __ESIMD_NS::simd<T, N>>
-    bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
-        __ESIMD_NS::simd<T, N> src2) {
-  __ESIMD_NS::simd<uint16_t, N / 2> Src0 =
-      src0.template bit_cast_view<uint16_t>();
-  __ESIMD_NS::simd<uint16_t, N / 2> Src1 =
-      src1.template bit_cast_view<uint16_t>();
-  __ESIMD_NS::simd<uint16_t, N / 2> Src2 =
-      src2.template bit_cast_view<uint16_t>();
-  __ESIMD_NS::simd<uint16_t, N / 2> Res =
-      esimd::bfn<FuncControl, uint16_t, N / 2>(Src0, Src1, Src2);
-  return Res.template bit_cast_view<T>();
-}
-
-template <bfn_t FuncControl, typename T, int N>
-ESIMD_NODEBUG ESIMD_INLINE
-    std::enable_if_t<std::is_integral_v<T> && (sizeof(T) == 1) && (N % 2 != 0),
-                     __ESIMD_NS::simd<T, N>>
-    bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
-        __ESIMD_NS::simd<T, N> src2) {
-  __ESIMD_NS::simd<T, N + 1> Src0, Src1, Src2;
-  auto Src0_view = Src0.template select<N, 1>();
-  Src0_view = src0;
-  auto Src1_view = Src1.template select<N, 1>();
-  Src1_view = src1;
-  auto Src2_view = Src2.template select<N, 1>();
-  Src2_view = src2;
-  __ESIMD_NS::simd<T, N + 1> Res =
-      esimd::bfn<FuncControl, T, N + 1>(Src0, Src1, Src2);
-  return Res.template select<N, 1>();
 }
 
 /// Performs binary function computation with three scalar operands.
