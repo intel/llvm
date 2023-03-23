@@ -1173,6 +1173,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     // bfloat16 math functions are not yet supported on Intel GPUs.
     return ReturnValue(bool{false});
   }
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    ur_memory_scope_capability_flags_t result =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+
+    return ReturnValue(result);
+  }
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
     // There are no explicit restrictions in L0 programming guide, so assume all
     // are supported
@@ -1198,8 +1210,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(result);
   }
 
-  // TODO: Implement.
-  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     zePrint("Unsupported ParamName in piGetDeviceInfo\n");
     zePrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
