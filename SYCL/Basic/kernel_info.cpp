@@ -51,4 +51,12 @@ int main() {
   const size_t prefWGSizeMult = krn.get_info<
       info::kernel_device_specific::preferred_work_group_size_multiple>(dev);
   assert(prefWGSizeMult > 0);
+
+  try {
+    krn.get_info<sycl::info::kernel_device_specific::global_work_size>(dev);
+    assert(dev.get_info<sycl::info::device::device_type>() ==
+           sycl::info::device_type::custom);
+  } catch (sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid);
+  }
 }
