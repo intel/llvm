@@ -16,8 +16,6 @@ namespace {
 
 thread_local bool deviceGetInfoCalled;
 
-pi_platform PiPlatform = nullptr;
-
 pi_result redefinedDeviceGetInfoAfter(pi_device device,
                                       pi_device_info param_name,
                                       size_t param_value_size,
