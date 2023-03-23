@@ -6,7 +6,6 @@
  *
  */
 #include "ur_loader.hpp"
-#include "ur_adapter_registry.hpp"
 
 namespace loader {
 ///////////////////////////////////////////////////////////////////////////////
@@ -14,9 +13,7 @@ context_t *context;
 
 ///////////////////////////////////////////////////////////////////////////////
 ur_result_t context_t::init() {
-    AdapterRegistry ar;
-
-    for (const auto &name : ar.discoveredPlatforms) {
+    for (const auto &name : adapter_registry) {
         auto handle = LibLoader::loadAdapterLibrary(name.c_str());
         if (handle) {
             platforms.emplace_back(std::move(handle));

@@ -9,6 +9,7 @@
 #ifndef UR_LOADER_HPP
 #define UR_LOADER_HPP 1
 
+#include "ur_adapter_registry.hpp"
 #include "ur_ldrddi.hpp"
 #include "ur_lib_loader.hpp"
 
@@ -30,6 +31,7 @@ class context_t {
     ur_api_version_t version = UR_API_VERSION_0_9;
 
     platform_vector_t platforms;
+    AdapterRegistry adapter_registry;
 
     bool forceIntercept = false;
 

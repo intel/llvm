@@ -17,8 +17,6 @@ namespace loader {
 
 class AdapterRegistry {
   public:
-    std::vector<std::string> discoveredPlatforms;
-
     AdapterRegistry() {
         std::optional<std::string> altPlatforms;
 
@@ -29,24 +27,70 @@ class AdapterRegistry {
             logger::error(e.what());
         }
         if (!altPlatforms) {
-            discoverKnownPlatforms();
+            discoverKnownAdapters();
         }
 
         std::stringstream ss(*altPlatforms);
         while (ss.good()) {
             std::string substr;
             getline(ss, substr, ',');
-            discoveredPlatforms.emplace_back(substr);
+            discovered_adapters.emplace_back(substr);
         }
     }
 
+    struct Iterator {
+        using value_type = const std::string;
+        using pointer = value_type *;
+
+        Iterator(pointer ptr) noexcept : current_adapter(ptr) {}
+
+        Iterator &operator++() noexcept {
+            current_adapter++;
+            return *this;
+        }
+
+        Iterator operator++(int) {
+            Iterator tmp = *this;
+            ++(*this);
+            return tmp;
+        }
+
+        bool operator!=(const Iterator &other) const noexcept {
+            return this->current_adapter != other.current_adapter;
+        }
+
+        const value_type operator*() const { return *this->current_adapter; }
+
+      private:
+        pointer current_adapter;
+    };
+
+    const std::string &operator[](size_t i) const {
+        return discovered_adapters[i];
+    }
+
+    bool empty() const noexcept { return discovered_adapters.size() == 0; }
+
+    size_t size() const noexcept { return discovered_adapters.size(); }
+
+    const Iterator begin() const noexcept {
+        return Iterator(&(*discovered_adapters.cbegin()));
+    }
+
+    const Iterator end() const noexcept {
+        return Iterator(&(*discovered_adapters.cbegin()) +
+                        discovered_adapters.size());
+    }
+
   private:
+    std::vector<std::string> discovered_adapters;
+
     static constexpr std::array<const char *, 1> knownPlatformNames{
         MAKE_LIBRARY_NAME("ur_adapter_level_zero", "0")};
 
-    void discoverKnownPlatforms() {
+    void discoverKnownAdapters() {
         for (const auto &path : knownPlatformNames) {
-            discoveredPlatforms.emplace_back(path);
+            discovered_adapters.emplace_back(path);
         }
     }
 };
