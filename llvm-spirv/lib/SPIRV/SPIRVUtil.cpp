@@ -478,19 +478,22 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
     size_t DemangledNameLenStart = NameSpaceStart + 11;
     size_t Start = Name.find_first_not_of("0123456789", DemangledNameLenStart);
     size_t Len = 0;
-    if (Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
-            .getAsInteger(10, Len)) {
-      SPIRVDBG(errs() << "Error in extracting integer value");
-      return false;
+    if (!Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
+             .getAsInteger(10, Len)) {
+      DemangledName = Name.substr(Start, Len);
+      return true;
     }
-    DemangledName = Name.substr(Start, Len);
-  } else {
-    size_t Start = Name.find_first_not_of("0123456789", 2);
-    size_t Len = 0;
-    Name.substr(2, Start - 2).getAsInteger(10, Len);
-    DemangledName = Name.substr(Start, Len);
+    SPIRVDBG(errs() << "Error in extracting integer value");
+    return false;
   }
-  return DemangledName.size() != 0;
+  size_t Start = Name.find_first_not_of("0123456789", 2);
+  size_t Len = 0;
+  if (!Name.substr(2, Start - 2).getAsInteger(10, Len)) {
+    DemangledName = Name.substr(Start, Len);
+    return true;
+  }
+  SPIRVDBG(errs() << "Error in extracting integer value");
+  return false;
 }
 
 // Check if a mangled type Name is unsigned
