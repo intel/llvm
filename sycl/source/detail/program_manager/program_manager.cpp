@@ -1184,6 +1184,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     const _pi_offload_entry EntriesB = RawImg->EntriesBegin;
     const _pi_offload_entry EntriesE = RawImg->EntriesEnd;
     auto Img = make_unique_ptr<RTDeviceBinaryImage>(RawImg, M);
+    static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map
     const RTDeviceBinaryImage::PropertyRange &KPOIRange =
@@ -1257,6 +1258,13 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       if (KSIdIt != KSIdMap.end()) {
         auto &Imgs = m_DeviceImages[KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
+        if (DumpImages) {
+          const bool NeedsSequenceID =
+              std::any_of(Imgs->begin(), Imgs->end(), [&](auto &I) {
+                return I->getFormat() == Img->getFormat();
+              });
+          dumpImage(*Img, KSIdIt->second, NeedsSequenceID ? ++SequenceID : 0);
+        }
 
         cacheKernelUsesAssertInfo(M, *Img);
 
@@ -1379,12 +1387,14 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
                       PI_ERROR_INVALID_KERNEL_NAME);
 }
 
-void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
-                               KernelSetId KSId) const {
+void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
+                               uint32_t SequenceID) const {
   std::string Fname("sycl_");
   const pi_device_binary_struct &RawImg = Img.getRawData();
   Fname += RawImg.DeviceTargetSpec;
   Fname += std::to_string(KSId);
+  if (SequenceID)
+    Fname += '_' + std::to_string(SequenceID);
   std::string Ext;
 
   RT::PiDeviceBinaryType Format = Img.getFormat();

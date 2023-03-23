@@ -11,5 +11,6 @@ add_sycl_unittest(SYCL2020Tests OBJECT
   DeviceGetInfoAspects.cpp
   DeviceAspectTraits.cpp
   AtomicMemoryOrderCapabilities.cpp
+  AtomicMemoryScopeCapabilities.cpp
 )
 
