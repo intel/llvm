@@ -27,6 +27,8 @@
 ??$get_info@Uaddress_bits@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Uaspects@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uatomic64@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
+??$get_info@Uatomic_fence_order_capabilities@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4memory_order@_V1@sycl@@V?$allocator@W4memory_order@_V1@sycl@@@std@@@std@@XZ
+??$get_info@Uatomic_fence_scope_capabilities@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4memory_scope@_V1@sycl@@V?$allocator@W4memory_scope@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uatomic_memory_order_capabilities@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$vector@W4memory_order@_V1@sycl@@V?$allocator@W4memory_order@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uatomic_memory_order_capabilities@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4memory_order@_V1@sycl@@V?$allocator@W4memory_order@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uatomic_memory_scope_capabilities@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$vector@W4memory_scope@_V1@sycl@@V?$allocator@W4memory_scope@_V1@sycl@@@std@@@std@@XZ
