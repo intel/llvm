@@ -31,6 +31,9 @@ def InlinePass : Pass<"inliner"> {
            "Remove callees that become unreachable after inlining them">,
     Option<"MaxIterationCount", "max-num-iters", "unsigned", /*default=*/"3",
            "Maximum number of inlining iterations for each SCC">,
+    Option<"InlineSYCLMethodOps", "inline-sycl-method-ops",
+           "bool", /*default=*/"true",
+           "Whether to inline SYCLMethodOp operations">,
   ];
   let dependentDialects = ["memref::MemRefDialect"];
 
