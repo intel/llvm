@@ -47,28 +47,19 @@ namespace polygeist {
 
 using namespace mlir;
 
-namespace {
-
 //===----------------------------------------------------------------------===//
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
 /// Returns true if the callable operation \p callableOp has a callable region
 /// and private visibility, and false otherwise.
-bool isPrivateCallable(CallableOpInterface callableOp) {
+static bool isPrivateDefinition(CallableOpInterface callableOp) {
   auto sym = dyn_cast<SymbolOpInterface>(callableOp.getOperation());
   return (sym && sym.isPrivate() && callableOp.getCallableRegion());
 }
 
-/// Returns true if the call \p callOp is recursive, and false otherwise.
-bool isRecursiveCall(CallOpInterface callOp) {
-  auto callable = dyn_cast<CallableOpInterface>(callOp.resolveCallable());
-  return (callable && callable.getCallableRegion() &&
-          callable.getCallableRegion()->isAncestor(callOp->getParentRegion()));
-}
-
 /// Returns true if \p type is 'memref<?xstruct<>>', and false otherwise.
-bool isValidMemRefType(Type type) {
+static bool isValidMemRefType(Type type) {
   auto mt = dyn_cast<MemRefType>(type);
   bool isMemRefWithExpectedShape =
       (mt && mt.hasRank() && (mt.getRank() == 1) &&
@@ -86,7 +77,7 @@ bool isValidMemRefType(Type type) {
 
 // Returns true if the block of \p startOp contains an instruction (after \p
 // startOp) that has a side effects on \p val.
-auto existsSideEffectAfter(Value val, Operation *startOp) {
+static auto existsSideEffectAfter(Value val, Operation *startOp) {
   assert(startOp && "Expecting a valid pointer");
   Block *block = startOp->getBlock();
 
@@ -94,18 +85,14 @@ auto existsSideEffectAfter(Value val, Operation *startOp) {
     if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op))
       continue;
 
-    // Operations with unknown side effects might write to any memory.
-    if (isa<MemoryEffectOpInterface>(op) &&
-        op.hasTrait<OpTrait::HasRecursiveMemoryEffects>())
-      return true;
-
     // Currently bail out if any subsequent operation has side effects.
     // TODO: check whether the operation alias with 'val'.
-    if (auto MEI = dyn_cast<MemoryEffectOpInterface>(op))
-      return true;
+    return true;
   }
   return false;
 }
+
+namespace {
 
 /// Represents an operand that can be peeled.
 class CandidateOperand {
@@ -132,20 +119,16 @@ class Candidate {
 public:
   using CandidateOperands = SmallVector<CandidateOperand>;
 
-  Candidate(CallOpInterface callOp, CandidateOperands candidateOps)
-      : callOp(callOp), candidateOps(candidateOps) {
-    assert(!isRecursiveCall(callOp) && "Callee must not be recursive");
+  Candidate(CallOpInterface callOp, CandidateOperands &&candidates)
+      : callOp(callOp), candidateOps(std::move(candidates)) {
     assert(!candidateOps.empty() && "Expecting candidateOps to not be empty");
   }
 
   void transform();
 
-  CallableOpInterface getCallable() const {
-    return const_cast<CallOpInterface *>(&callOp)->resolveCallable();
-  }
-
-  StringRef getCalleeName() const {
-    return cast<SymbolOpInterface>(getCallable().getOperation()).getName();
+  StringRef getCalleeName() {
+    CallInterfaceCallable callableOp = callOp.getCallableForCallee();
+    return callableOp.get<SymbolRefAttr>().getLeafReference();
   }
 
 private:
@@ -159,7 +142,7 @@ private:
   void modifyCall();
 
   /// Modify the called function by replacing the original operands with their
-  /// corresponding peeled members.
+  /// corresponding peeled members.q
   void modifyCallee();
 
   /// Replace the argument at position \p pos in the region \p callableRgn with
@@ -195,14 +178,14 @@ public:
 
 private:
   /// Populate \p candidates with call operations to transform.
-  void collectCandidates(SmallVectorImpl<Candidate> &candidates) const;
+  void collectCandidates(SmallVectorImpl<Candidate> &candidates);
 
   /// Return true if the call operation \p callOp is a candidate, and false
   /// otherwise.
   bool isCandidateCall(CallOpInterface callOp) const;
 
   /// Return true is the callee is a candidate, and false otherwise.
-  bool isCandidateCallable(CallableOpInterface callableOp) const;
+  bool isCandidateCallable(CallableOpInterface callableOp);
 
   /// Return true if the call \p callOp operand at position \p pos is a
   /// candidate for peeling, and false otherwise.
@@ -233,8 +216,7 @@ void CandidateOperand::peel(CallOpInterface callOp,
         builder.create<arith::ConstantIndexOp>(val.getLoc(), idx));
     membersPeeled.push_back(subIndexOp);
 
-    LLVM_DEBUG(
-        { llvm::dbgs().indent(4) << "generated: " << subIndexOp << "\n"; });
+    LLVM_DEBUG(llvm::dbgs().indent(4) << "generated: " << subIndexOp << "\n");
   }
 }
 
@@ -260,9 +242,8 @@ void Candidate::transform() {
 
 void Candidate::peelOperands() {
   for (CandidateOperand candOp : candidateOps) {
-    LLVM_DEBUG({
-      llvm::dbgs().indent(2) << "peeling operand " << candOp.position() << "\n";
-    });
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "peeling operand " << candOp.position() << "\n");
     SmallVector<Value> peeledMembers;
     candOp.peel(callOp, peeledMembers);
     operandToMembersPeeled.insert({candOp.position(), peeledMembers});
@@ -389,17 +370,15 @@ void ArgumentPromotionPass::runOnOperation() {
 }
 
 void ArgumentPromotionPass::collectCandidates(
-    SmallVectorImpl<Candidate> &candidateCalls) const {
-  ModuleOp module = const_cast<ArgumentPromotionPass *>(this)->getOperation();
+    SmallVectorImpl<Candidate> &candidateCalls) {
+  ModuleOp module = getOperation();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
 
   // Collect candidate call operations in GPU kernels.
   module->walk([&](gpu::GPUFuncOp gpuFuncOp) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "\nAnalyzing function " << gpuFuncOp.getNameAttr()
-                   << ":\n";
-    });
+    LLVM_DEBUG(llvm::dbgs()
+               << "\nAnalyzing function " << gpuFuncOp.getNameAttr() << ":\n");
 
     gpuFuncOp->walk([&](CallOpInterface callOp) {
       // Perform some basic checks to filter out call operations that aren't
@@ -410,7 +389,7 @@ void ArgumentPromotionPass::collectCandidates(
 
       // Determine which operands can be peeled and collect them.
       LLVM_DEBUG(llvm::dbgs() << "Analyzing operand(s) of: " << callOp << "\n");
-      SmallVector<CandidateOperand> candidateOps;
+      Candidate::CandidateOperands candidateOps;
       for (unsigned pos = 0; pos < callOp->getNumOperands(); ++pos) {
         if (isCandidateOperand(pos, callOp))
           candidateOps.push_back({callOp->getOperand(pos), pos});
@@ -422,7 +401,7 @@ void ArgumentPromotionPass::collectCandidates(
       }
 
       LLVM_DEBUG(llvm::dbgs().indent(2) << "Found candidate\n");
-      candidateCalls.push_back({callOp, candidateOps});
+      candidateCalls.push_back({callOp, std::move(candidateOps)});
     });
   });
 }
@@ -443,15 +422,6 @@ bool ArgumentPromotionPass::isCandidateCall(CallOpInterface callOp) const {
     LLVM_DEBUG({
       llvm::dbgs() << "Not a candidate: " << callOp << "\n";
       llvm::dbgs().indent(2) << "no arguments\n";
-    });
-    return false;
-  }
-
-  // Calls to recursive functions are not candidates.
-  if (isRecursiveCall(callOp)) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Not a candidate: " << callOp << "\n";
-      llvm::dbgs().indent(2) << "call is recursive\n";
     });
     return false;
   }
@@ -501,15 +471,15 @@ bool ArgumentPromotionPass::isCandidateOperand(unsigned pos,
 }
 
 bool ArgumentPromotionPass::isCandidateCallable(
-    CallableOpInterface callableOp) const {
-  ModuleOp module = const_cast<ArgumentPromotionPass *>(this)->getOperation();
+    CallableOpInterface callableOp) {
+  ModuleOp module = getOperation();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
   [[maybe_unused]] StringRef calleeName =
       cast<SymbolOpInterface>(callableOp.getOperation()).getName();
 
   // The callee must be defined and private.
-  if (!isPrivateCallable(callableOp)) {
+  if (!isPrivateDefinition(callableOp)) {
     LLVM_DEBUG({
       llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
       llvm::dbgs().indent(2) << "callee not privately defined\n";
