@@ -89,21 +89,18 @@ public:
              std::size_t i)
       : M(Mat), idx(i) {}
 
-
-inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t>
-get_coord() {
+  inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t> get_coord() {
 #if defined(__SYCL_DEVICE_ONLY__)
-  __ocl_vec_t<uint32_t, 2> coord =
-      __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
-  const uint32_t row = coord[0];
-  const uint32_t col = coord[1];
-  return std::make_tuple(row, col);
+    __ocl_vec_t<uint32_t, 2> coord =
+        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
+    const uint32_t row = coord[0];
+    const uint32_t col = coord[1];
+    return std::make_tuple(row, col);
 #else
-  throw runtime_error(
-      "joint matrix is not supported on host device.",
-      PI_ERROR_INVALID_DEVICE);
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
-}
+  }
 
   operator T() {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -189,20 +186,18 @@ public:
              std::size_t i)
       : M(Mat), idx(i) {}
 
-  inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t>
-get_coord() {
+  inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t> get_coord() {
 #if defined(__SYCL_DEVICE_ONLY__)
-  __ocl_vec_t<uint32_t, 2> coord =
-      __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
-  const uint32_t row = coord[0];
-  const uint32_t col = coord[1];
-  return std::make_tuple(row, col);
+    __ocl_vec_t<uint32_t, 2> coord =
+        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
+    const uint32_t row = coord[0];
+    const uint32_t col = coord[1];
+    return std::make_tuple(row, col);
 #else
-  throw runtime_error(
-      "joint matrix is not supported on host device.",
-      PI_ERROR_INVALID_DEVICE);
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
-}
+  }
 
   operator sycl::ext::oneapi::bfloat16() {
 #ifdef __SYCL_DEVICE_ONLY__
