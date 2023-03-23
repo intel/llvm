@@ -22,7 +22,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
-      lts_config: "l0_gen9;win_l0_gen9"
+      lts_config: "l0_gen9;win_l0_gen12"
       cts_config: "cuda"
   linux_default:
     name: Linux Default
