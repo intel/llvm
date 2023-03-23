@@ -171,14 +171,8 @@ name: $x_usm_pool_limits_desc_t
 base: $x_base_desc_t
 members:
     - type: "size_t"
-      name:  maxPoolSize
-      desc: "[in] Maximum size of a memory pool"
-    - type: "size_t"
       name:  maxPoolableSize
       desc: "[in] Allocations up to this limit will be subject to pooling"
-    - type: "size_t"
-      name:  capacity
-      desc: "[in] When pooling, each bucket will hold a max of 4 unfreed slabs"
     - type: "size_t"
       name:  slabMinSize
       desc: "[in] Minimum allocation size that will be requested from the driver"
