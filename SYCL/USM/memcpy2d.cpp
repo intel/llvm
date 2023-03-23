@@ -240,10 +240,10 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
     T *USMMemSrc = allocate<T, SrcAllocKind>(SRC_ELEMS, Q);
     T *USMMemDst1 = allocate<T, DstAllocKind>(DST_ELEMS, Q);
     T *USMMemDst2 = allocate<T, DstAllocKind>(DST_ELEMS, Q);
-    event Src1FillEvent =
-        fill<SrcAllocKind>(Q, USMMemSrc, ExpectedVal1, DST_ELEMS);
-    event Src2FillEvent =
-        fill<SrcAllocKind>(Q, USMMemSrc + DST_ELEMS, ExpectedVal2, DST_ELEMS);
+    event SrcFillEvent =
+        fill_with<SrcAllocKind>(Q, USMMemSrc, SRC_ELEMS, [=](size_t I) {
+          return I < DST_ELEMS ? ExpectedVal1 : ExpectedVal2;
+        });
     event Dst1MemsetEvent =
         memset<DstAllocKind>(Q, USMMemDst1, 0, DST_ELEMS * sizeof(T));
     event Dst2MemsetEvent =
@@ -251,12 +251,11 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
     event FirstMemcpyEvent = doMemcpy2D<T, PathKind>(
         Q, USMMemDst1, RECT_WIDTH * sizeof(T), USMMemSrc,
         RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-        {Src1FillEvent, Src2FillEvent, Dst1MemsetEvent, Dst2MemsetEvent});
-    doMemcpy2D<T, PathKind>(Q, USMMemDst2, RECT_WIDTH * sizeof(T),
-                            USMMemSrc + DST_ELEMS, RECT_WIDTH * sizeof(T),
-                            RECT_WIDTH * sizeof(T), RECT_HEIGHT,
-                            {FirstMemcpyEvent, Src1FillEvent, Src2FillEvent,
-                             Dst1MemsetEvent, Dst2MemsetEvent})
+        {SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent});
+    doMemcpy2D<T, PathKind>(
+        Q, USMMemDst2, RECT_WIDTH * sizeof(T), USMMemSrc + DST_ELEMS,
+        RECT_WIDTH * sizeof(T), RECT_WIDTH * sizeof(T), RECT_HEIGHT,
+        {FirstMemcpyEvent, SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent})
         .wait();
     std::vector<T> Results;
     Results.resize(SRC_ELEMS);

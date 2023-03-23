@@ -237,22 +237,21 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
     T *USMMemSrc = allocate<T, SrcAllocKind>(SRC_ELEMS, Q);
     T *USMMemDst1 = allocate<T, DstAllocKind>(DST_ELEMS, Q);
     T *USMMemDst2 = allocate<T, DstAllocKind>(DST_ELEMS, Q);
-    event Src1FillEvent =
-        fill<SrcAllocKind>(Q, USMMemSrc, ExpectedVal1, DST_ELEMS);
-    event Src2FillEvent =
-        fill<SrcAllocKind>(Q, USMMemSrc + DST_ELEMS, ExpectedVal2, DST_ELEMS);
+    event SrcFillEvent =
+        fill_with<SrcAllocKind>(Q, USMMemSrc, SRC_ELEMS, [=](size_t I) {
+          return I < DST_ELEMS ? ExpectedVal1 : ExpectedVal2;
+        });
     event Dst1MemsetEvent =
         memset<DstAllocKind>(Q, USMMemDst1, 0, DST_ELEMS * sizeof(T));
     event Dst2MemsetEvent =
         memset<DstAllocKind>(Q, USMMemDst2, 0, DST_ELEMS * sizeof(T));
     event FirstCopyEvent = doCopy2D<T, PathKind>(
         Q, USMMemSrc, RECT_WIDTH, USMMemDst1, RECT_WIDTH, RECT_WIDTH,
-        RECT_HEIGHT,
-        {Src1FillEvent, Src2FillEvent, Dst1MemsetEvent, Dst2MemsetEvent});
-    doCopy2D<T, PathKind>(Q, USMMemSrc + DST_ELEMS, RECT_WIDTH, USMMemDst2,
-                          RECT_WIDTH, RECT_WIDTH, RECT_HEIGHT,
-                          {FirstCopyEvent, Src1FillEvent, Src2FillEvent,
-                           Dst1MemsetEvent, Dst2MemsetEvent})
+        RECT_HEIGHT, {SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent});
+    doCopy2D<T, PathKind>(
+        Q, USMMemSrc + DST_ELEMS, RECT_WIDTH, USMMemDst2, RECT_WIDTH,
+        RECT_WIDTH, RECT_HEIGHT,
+        {FirstCopyEvent, SrcFillEvent, Dst1MemsetEvent, Dst2MemsetEvent})
         .wait();
     std::vector<T> Results;
     Results.resize(SRC_ELEMS);
