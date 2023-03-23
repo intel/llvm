@@ -1777,7 +1777,9 @@ bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
   if constexpr (sizeof(T) == 2 || sizeof(T) == 4) {
     constexpr uint8_t FC = static_cast<uint8_t>(FuncControl);
     return __esimd_bfn<FC, T, N>(src0.data(), src1.data(), src2.data());
-  } else if constexpr (sizeof(T) == 8) {
+  } else if constexpr ((sizeof(T) == 8) || ((sizeof(T) == 1) && (N % 4 == 0))) {
+    // Bitcast 8-byte vector to 2xN vectors of 4-byte integer.
+    // Optimize 1-byte vectors via bitcasting to vector of 4-byte integers.
     auto Result = __ESIMD_ENS::bfn<FuncControl>(
         src0.template bit_cast_view<int32_t>().read(),
         src1.template bit_cast_view<int32_t>().read(),
