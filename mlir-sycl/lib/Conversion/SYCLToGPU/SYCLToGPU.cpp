@@ -31,8 +31,6 @@ using namespace mlir;
 using namespace mlir::sycl;
 
 namespace {
-constexpr unsigned genericAddressSpace{4};
-
 template <typename SYCLOpTy> struct gpu_counterpart_operation {};
 
 template <> struct gpu_counterpart_operation<SYCLWorkGroupIDOp> {
