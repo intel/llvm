@@ -342,15 +342,6 @@ get_coord(wi_element<T, NumRows, NumCols, Use, Layout, Group> &we) {
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-// To make host compilation possible, here the argument is not a wi_element
-// type, but just base data types e.g. float, int8 etc.
-template <typename T>
-inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t> get_coord(T &we) {
-  std::ignore = we;
-  throw runtime_error("joint matrix is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
-}
-
 // Begin wi_data definition
 
 template <typename Group, typename T,
