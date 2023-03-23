@@ -663,11 +663,20 @@ public:
          {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
         {"slm_init", {"slm.init", {a(0)}}},
         {"bf_cvt", {"bf.cvt", {a(0)}}},
-        {"tf32_cvt", {"tf32.cvt", {a(0)}}}};
+        {"tf32_cvt", {"tf32.cvt", {a(0)}}},
+        {"addc", {"addc", {l(0)}}},
+        {"subb", {"subb", {l(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
 };
+
+static bool isStructureReturningFunction(StringRef FunctionName) {
+  return llvm::StringSwitch<bool>(FunctionName)
+      .Case("addc", true)
+      .Case("subb", true)
+      .Default(false);
+}
 
 // The C++11 "magic static" idiom to lazily initialize the ESIMD intrinsic table
 static const IntrinTable &getIntrinTable() {
@@ -1013,6 +1022,10 @@ static void translateGetSurfaceIndex(CallInst &CI) {
 static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
   Type *NITy = NewI->getType();
   Type *OITy = OldI->getType();
+  llvm::errs() << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
+  NITy->dump();
+  OITy->dump();
+  llvm::errs() << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
   if (OITy != NITy) {
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
@@ -1409,6 +1422,8 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   SmallVector<Value *, 16> GenXArgs;
   createESIMDIntrinsicArgs(Desc, GenXArgs, CI, FE);
   Function *NewFDecl = nullptr;
+  bool IsStructureReturningFunction =
+      isStructureReturningFunction(Desc.GenXSpelling);
   if (Desc.GenXSpelling.rfind("test.src.", 0) == 0) {
     // Special case for testing purposes
     NewFDecl = createTestESIMDDeclaration(Desc, GenXArgs, CI);
@@ -1417,12 +1432,21 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
         GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling + Suffix);
 
     SmallVector<Type *, 16> GenXOverloadedTypes;
-    if (GenXIntrinsic::isOverloadedRet(ID))
-      GenXOverloadedTypes.push_back(CI.getType());
+    if (GenXIntrinsic::isOverloadedRet(ID)) {
+      if (IsStructureReturningFunction) {
+        // TODO implement more generic handling of returned structure
+        // current code assumes that returned code has 2 members of the
+        // same type as arguments.
+        GenXOverloadedTypes.push_back(GenXArgs[1]->getType());
+        GenXOverloadedTypes.push_back(GenXArgs[1]->getType());
+      } else {
+        GenXOverloadedTypes.push_back(CI.getType());
+      }
+    }
     for (unsigned i = 0; i < GenXArgs.size(); ++i)
-      if (GenXIntrinsic::isOverloadedArg(ID, i))
+      if (GenXIntrinsic::isOverloadedArg(ID, i)) {
         GenXOverloadedTypes.push_back(GenXArgs[i]->getType());
-
+      }
     NewFDecl = GenXIntrinsic::getGenXDeclaration(CI.getModule(), ID,
                                                  GenXOverloadedTypes);
   }
@@ -1432,15 +1456,41 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
       NewFDecl->getFnAttribute(llvm::Attribute::ReadNone).isValid();
   if (FixReadNone)
     NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
-  CallInst *NewCI = IntrinsicInst::Create(
-      NewFDecl, GenXArgs,
-      NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
-      &CI);
-  if (FixReadNone)
-    NewCI->setMemoryEffects(MemoryEffects::none());
-  NewCI->setDebugLoc(CI.getDebugLoc());
+  Instruction *NewInst = nullptr;
+  if (IsStructureReturningFunction) {
+    // GenXArgs[0]->dump();
+    // GenXArgs[0]->getType()->dump();
+    AddrSpaceCastInst *a = static_cast<AddrSpaceCastInst *>(GenXArgs[0]);
+    a->getPointerOperand()->dump();
+    llvm::errs() << isa<AddrSpaceCastInst>(GenXArgs[0]) << "\n";
 
-  Instruction *NewInst = addCastInstIfNeeded(&CI, NewCI);
+    GenXArgs.erase(GenXArgs.begin());
+    CallInst *NewCI = IntrinsicInst::Create(
+        NewFDecl, GenXArgs,
+        NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
+        &CI);
+    if (FixReadNone)
+      NewCI->setMemoryEffects(MemoryEffects::none());
+    NewCI->setDebugLoc(CI.getDebugLoc());
+
+    IRBuilder<> Builder(&CI);
+    //    NewFDecl->getType()->dump();
+    NewCI->getType()->dump();
+
+    NewInst = Builder.CreateStore(
+        Builder.CreateBitCast(NewCI, a->getPointerOperand()->getType()),
+        a->getPointerOperand());
+  } else {
+    CallInst *NewCI = IntrinsicInst::Create(
+        NewFDecl, GenXArgs,
+        NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
+        &CI);
+    if (FixReadNone)
+      NewCI->setMemoryEffects(MemoryEffects::none());
+    NewCI->setDebugLoc(CI.getDebugLoc());
+
+    NewInst = addCastInstIfNeeded(&CI, NewCI);
+  }
   CI.replaceAllUsesWith(NewInst);
   CI.eraseFromParent();
 }

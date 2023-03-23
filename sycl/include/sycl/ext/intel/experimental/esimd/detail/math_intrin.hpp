@@ -714,6 +714,22 @@ __esimd_dpasw_nosrc0(__ESIMD_DNS::vector_type_t<T1, N1> src1,
 }
 #endif // !__SYCL_DEVICE_ONLY__
 
+template <typename T, int N>
+__ESIMD_INTRIN std::pair<__ESIMD_DNS::vector_type_t<T, N>,
+                         __ESIMD_DNS::vector_type_t<T, N>>
+__esimd_addc(__ESIMD_DNS::vector_type_t<T, N> src0,
+             __ESIMD_DNS::vector_type_t<T, N> src1)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // !__SYCL_DEVICE_ONLY__
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+  std::pair<__ESIMD_DNS::vector_type_t<T, N>, __ESIMD_DNS::vector_type_t<T, N>>
+      ReturnValue;
+  return ReturnValue;
+}
+#endif // !__SYCL_DEVICE_ONLY__
+
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t
 
