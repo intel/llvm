@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -O2 -o %t.out
 // RUN: env SYCL_ENABLE_FUSION_CACHING=0 SYCL_RT_WARNING_LEVEL=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1\
 // RUN: %CPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_ENABLE_FUSION_CACHING=0 SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
