@@ -1022,10 +1022,6 @@ static void translateGetSurfaceIndex(CallInst &CI) {
 static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
   Type *NITy = NewI->getType();
   Type *OITy = OldI->getType();
-  llvm::errs() << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
-  NITy->dump();
-  OITy->dump();
-  llvm::errs() << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n";
   if (OITy != NITy) {
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
@@ -1458,11 +1454,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
     NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
   Instruction *NewInst = nullptr;
   if (IsStructureReturningFunction) {
-    // GenXArgs[0]->dump();
-    // GenXArgs[0]->getType()->dump();
     AddrSpaceCastInst *a = static_cast<AddrSpaceCastInst *>(GenXArgs[0]);
-    a->getPointerOperand()->dump();
-    llvm::errs() << isa<AddrSpaceCastInst>(GenXArgs[0]) << "\n";
 
     GenXArgs.erase(GenXArgs.begin());
     CallInst *NewCI = IntrinsicInst::Create(
@@ -1474,12 +1466,10 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
     NewCI->setDebugLoc(CI.getDebugLoc());
 
     IRBuilder<> Builder(&CI);
-    //    NewFDecl->getType()->dump();
-    NewCI->getType()->dump();
 
     NewInst = Builder.CreateStore(
-        Builder.CreateBitCast(NewCI, a->getPointerOperand()->getType()),
-        a->getPointerOperand());
+        NewCI, Builder.CreateBitCast(a->getPointerOperand(),
+                                     NewCI->getType()->getPointerTo()));
   } else {
     CallInst *NewCI = IntrinsicInst::Create(
         NewFDecl, GenXArgs,
