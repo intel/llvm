@@ -79,10 +79,17 @@ public:
   void drainThreadPool();
   void prepareSchedulerToRelease();
 
+  void InitXPTI();
+  void TraceEventXPTI(const char *Message);
+
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
 private:
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  void *GSYCLCallEvent = nullptr;
+#endif
+
   friend void shutdown();
   friend class ObjectUsageCounter;
   static GlobalHandler *&getInstancePtr();

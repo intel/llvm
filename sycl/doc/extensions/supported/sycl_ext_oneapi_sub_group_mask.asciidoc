@@ -8,6 +8,7 @@
 :toc: left
 :encoding: utf-8
 :lang: en
+:dpcpp: pass:[DPC++]
 
 :blank: pass:[ +]
 
@@ -16,61 +17,65 @@
 // docbook uses c++ and html5 uses cpp.
 :language: {basebackend@docbook:c++:cpp}
 
-== Introduction
-IMPORTANT: This specification is a draft.
-
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
-
-This document describes an extension which adds a `sub_group_mask` type.  Such a mask can be used to efficiently represent subsets of work-items in a sub-group for which a given Boolean condition holds.
 
 == Notice
 
-Copyright (c) 2021 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2021-2023 Intel Corporation.  All rights reserved.
 
-== Status
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
-Working Draft
-
-This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
-
-Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
-
-== Version
-
-Revision: 1
 
 == Contact
-John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 3.
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
 
-== Feature Test Macro
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+== Overview
+
+This document describes an extension which adds a `sub_group_mask` type. Such a
+mask can be used to efficiently represent subsets of work-items in a sub-group
+for which a given Boolean condition holds.
+
+Group mask functionality is currently limited to groups that are instances of
+the `sub_group` class, but this limitation may be lifted in a future version of
+the specification.
+
+
+== Specification
+
+=== Feature Test Macro
 
 This extension provides a feature-test macro as described in the core SYCL
-specification section 6.3.3 "Feature test macros".  Therefore, an
-implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_SUB_GROUP_MASK` to one of the values defined in the table
-below. Applications can test for the existence of this macro to determine if
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_SUB_GROUP_MASK` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's APIs the implementation supports.
+value to determine which of the extension's features the implementation
+supports.
 
 [%header,cols="1,5"]
 |===
 |Value |Description
 |1     |Initial extension version.  Base features are supported.
+|2     |`sub_group_mask` is user-constructible.
 |===
 
-== Overview
-
-A group mask is an integral type sized such that each work-item in the group is
-represented by a single bit. Such a mask can be used to efficiently represent
-subsets of work-items in a group for which a given Boolean condition holds.
-
-Group mask functionality is currently limited to groups that are instances of
-the `sub_group` class, but this limitation may be lifted in a future version of
-the specification.
 
 === Ballot
 
@@ -81,8 +86,10 @@ must be encountered by all work-items in the group in converged control flow.
 |===
 |Function|Description
 
-|`template <typename Group> Group::mask_type group_ballot(Group g, bool predicate = true)`
-|Return a `sub_group_mask` with one bit for each work-item in group _g_. A bit is set in this mask if and only if the corresponding work-item's _predicate_ is `true`.
+|`template <typename Group> sub_group_mask group_ballot(Group g, bool predicate = true)`
+|Return a `sub_group_mask` with one bit for each work-item in group _g_. A bit
+is set in this mask if and only if the corresponding work-item's _predicate_ is
+`true`. Available only when `std::is_same_v<std::decay_t<Group>, sub_group>` is true.
 |===
 
 === Group Masks
@@ -99,6 +106,43 @@ different work-items in the same group.  An instance of a group class (e.g.
 The mask is defined such that the least significant bit (LSB) corresponds to
 the work-item with id 0, and the most significant bit (MSB) corresponds to the
 work-item with the id `max_local_range()-1`.
+
+NOTE: Constructors and assignment operator below are only available starting in
+revision 2 of the specification.
+
+|===
+|Constructor|Description
+
+|`sub_group_mask()`
+|Constructs a group mask with all bits set to 0. Size of a group mask
+corresponds to max local range of the sub-group which work-item belongs to.
+
+|`sub_group_mask(unsigned long long val)`
+|Constructs a group mask with the first `N` bit positions to the
+corresponding bit values in _val_. `N` is a size of a group mask and it
+corresponds to max local range of the sub-group which work-item belongs to. If
+size of a group mask is bigger than the number of bits in the value
+representation of `unsigned long long`, the remaining positions are initialized
+to zero.
+
+|`template <typename T, std::size_t K> sub_group_mask(const sycl::marray<T, K>& &val)`
+|Constructs a group mask with the first `N` bit positions to the
+corresponding bit values in _val_. `T` must be a SYCL `marray` of integral
+types. `N` is a size of a group mask and it corresponds to max local range of
+the sub-group which work-item belongs to. If size of a group mask is bigger than
+number of bits in the value representation of `T`, the remaining positions are
+initialized to zero.
+
+|`sub_group_mask(const sub_group_mask &other) = default`
+|Constructs a group mask as a copy of _other_. Size of _other_ group mask must
+be the same as max local range of the sub-group which work-item belongs to or
+otherwise behavior is undefined.
+
+|`sub_group_mask& operator=(const sub_group_mask &other) = default`
+|Assigns this instance of `sub_group_mask` with a copy of _other_. Size of both
+group masks must be the same or otherwise behavior is undefined.
+|===
+
 
 |===
 |Member Function|Description
@@ -259,6 +303,15 @@ struct sub_group_mask {
 
   static constexpr size_t max_bits = /* implementation-defined */;
 
+#if SYCL_EXT_ONEAPI_SUB_GROUP_MASK >= 2
+  sub_group_mask();
+  sub_group_mask(unsigned long long val);
+  template<typename T, std::size_t K>
+  sub_group_mask(const sycl::marray<T, K>& val);
+  sub_group_mask(const sub_group_mask &other) = default;
+  sub_group_mask& operator=(const sub_group_mask &other) = default;
+#endif
+
   bool operator[](id<1> id) const;
   reference operator[](id<1> id);
   bool test(id<1> id) const;
@@ -318,23 +371,3 @@ None.
 //--
 //*RESOLUTION*: Not resolved.
 //--
-
-== Revision History
-
-[cols="5,15,15,70"]
-[grid="rows"]
-[options="header"]
-|========================================
-|Rev|Date|Author|Changes
-|1|2021-08-11|John Pennycook|*Initial public working draft*
-|2|2021-09-13|Vladimir Lazarev|*Update during implementation*
-|========================================
-
-//************************************************************************
-//Other formatting suggestions:
-//
-//* Use *bold* text for host APIs, or [source] syntax highlighting.
-//* Use +mono+ text for device APIs, or [source] syntax highlighting.
-//* Use +mono+ text for extension names, types, or enum values.
-//* Use _italics_ for parameters.
-//************************************************************************

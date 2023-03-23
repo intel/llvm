@@ -6,16 +6,17 @@
 //
 // ===--------------------------------------------------------------------=== //
 // This file implements the static query interface for the joint_matrix
-// experimental extension. Intel AMX, Intel XMX, and Nvidia Tensor Cores support
-// different logical sizes and types. The query interface is used to validate
-// user code and inform them about supported types, sizes, scopes, and layouts
-// by the current implementation. Note that this query interface is a
-// compile-time query, so there will be no runtime errors. The query interface
-// provides three functionalities: 1- At compile time, inform the user whether a
-// specific combination is valid or not. 2- Construct the matrices using a
-// default shape if user does not provide a combination 3- General query
-// interface for sizes, types, scopes. This is needed to void padding by the
-// user, for tuning, and efficient code generation if used by a library.
+// experimental extension. Intel(R) Advanced Matrix Extensions (Intel(R) AMX),
+// and Intel(R) Xe Matrix Extensions (Intel(R) XMX) support different logical
+// sizes and types. The query interface is used to validate user code and inform
+// them about supported types, sizes, scopes, and layouts by the current
+// implementation. Note that this query interface is a compile-time query, so
+// there will be no runtime errors. The query interface provides three
+// functionalities: 1- At compile time, inform the user whether a specific
+// combination is valid or not. 2- Construct the matrices using a default shape
+// if user does not provide a combination 3- General query interface for sizes,
+// types, scopes. This is needed to void padding by the user, for tuning, and
+// efficient code generation if used by a library.
 
 #pragma once
 

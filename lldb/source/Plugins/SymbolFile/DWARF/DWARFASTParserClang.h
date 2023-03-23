@@ -95,11 +95,6 @@ public:
   /// parameters from the DIE name and instead always adds template parameter
   /// children DIEs.
   ///
-  /// Currently this is only called in two places, when uniquing C++ classes and
-  /// when looking up the definition for a declaration (which is then cached).
-  /// If this is ever called more than twice per DIE, we need to start caching
-  /// the results to prevent unbounded growth of the created clang AST nodes.
-  ///
   /// \param die The struct/class DWARFDIE containing template parameters.
   /// \return A string, including surrounding '<>', of the template parameters.
   /// If the DIE's name already has '<>', returns an empty ConstString because
@@ -137,6 +132,17 @@ protected:
 
   clang::NamespaceDecl *ResolveNamespaceDIE(const DWARFDIE &die);
 
+  /// Returns the namespace decl that a DW_TAG_imported_declaration imports.
+  ///
+  /// \param[in] die The import declaration to resolve. If the DIE is not a
+  ///                DW_TAG_imported_declaration the behaviour is undefined.
+  ///
+  /// \returns The decl corresponding to the namespace that the specified
+  ///          'die' imports. If the imported entity is not a namespace
+  ///          or another import declaration, returns nullptr. If an error
+  ///          occurs, returns nullptr.
+  clang::NamespaceDecl *ResolveImportedDeclarationDIE(const DWARFDIE &die);
+
   bool ParseTemplateDIE(const DWARFDIE &die,
                         lldb_private::TypeSystemClang::TemplateParameterInfos
                             &template_param_infos);
@@ -145,10 +151,6 @@ protected:
       const DWARFDIE &parent_die,
       lldb_private::TypeSystemClang::TemplateParameterInfos
           &template_param_infos);
-
-  /// Get the template parameters of a die as a string if the die name does not
-  /// already contain them. This happens with -gsimple-template-names.
-  std::string GetTemplateParametersString(const DWARFDIE &die);
 
   std::string GetCPlusPlusQualifiedName(const DWARFDIE &die);
 

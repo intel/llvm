@@ -91,6 +91,10 @@ public:
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
+  RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
+                                      const context &Context,
+                                      const device &Device,
+                                      bool JITCompilationIsRequired = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context, const device &Device);
   /// Creates a PI program using either a cached device code binary if present
@@ -211,6 +215,10 @@ public:
   getDeviceGlobalEntries(const std::vector<std::string> &UniqueIds,
                          bool ExcludeDeviceImageScopeDecorated = false);
 
+  device_image_plain
+  getDeviceImageFromBinaryImage(RTDeviceBinaryImage *BinImage,
+                                const context &Ctx, const device &Dev);
+
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
   std::vector<device_image_plain> getSYCLDeviceImagesWithCompatibleState(
@@ -278,10 +286,6 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
-                                      const context &Context,
-                                      const device &Device,
-                                      bool JITCompilationIsRequired = false);
   using ProgramPtr = std::unique_ptr<remove_pointer_t<RT::PiProgram>,
                                      decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
