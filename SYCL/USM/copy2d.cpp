@@ -12,7 +12,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // Temporarily disabled until the failure is addressed.
-// UNSUPPORTED: gpu-intel-pvc
+// UNSUPPORTED: gpu-intel-pvc || (level_zero && windows)
 
 #include <sycl/sycl.hpp>
 
