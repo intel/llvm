@@ -496,91 +496,76 @@ imul(T &rmd, T0 src0, T1 src1) {
   return Res[0];
 }
 
-template <typename T, int N>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T>::value,
-                             __ESIMD_NS::simd<T, N>>
-addc(__ESIMD_NS::simd<T, N> &carry, __ESIMD_NS::simd<T, N> src0,
-     __ESIMD_NS::simd<T, N> src1) {
-  __ESIMD_NS::simd<T, N> ResultV;
-  __ESIMD_NS::simd<T, N> CarryV;
-  std::pair<__ESIMD_DNS::vector_type_t<T, N>, __ESIMD_DNS::vector_type_t<T, N>>
-      Result = __esimd_addc<T, N>(src0.data(), src1.data());
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  std::pair<__ESIMD_DNS::vector_type_t<uint32_t, N>,
+            __ESIMD_DNS::vector_type_t<uint32_t, N>>
+      Result = __esimd_addc<uint32_t, N>(src0.data(), src1.data());
 
   carry = Result.first;
   return Result.second;
 }
 
-template <typename T, int N>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T>::value,
-                             __ESIMD_NS::simd<T, N>>
-addc(__ESIMD_NS::simd<T, N> &carry, __ESIMD_NS::simd<T, N> src0, T src1) {
-  __ESIMD_NS::simd<T, N> Src1V = src1;
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
+     uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src1V = src1;
   return addc(carry, src0, Src1V);
 }
 
-template <typename T, int N>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T>::value,
-                             __ESIMD_NS::simd<T, N>>
-addc(__ESIMD_NS::simd<T, N> &carry, T src0, __ESIMD_NS::simd<T, N> src1) {
-  __ESIMD_NS::simd<T, N> Src0V = src0;
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, uint32_t src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src0V = src0;
   return addc(carry, Src0V, src1);
 }
 
-template <typename T>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T>::value, T>
-addc(T &carry, T src0, T src1) {
-  __ESIMD_NS::simd<T, 1> CarryV = carry;
-  __ESIMD_NS::simd<T, 1> Src0V = src0;
-  __ESIMD_NS::simd<T, 1> Src1V = src1;
-  __ESIMD_NS::simd<T, 1> Res = addc(CarryV, Src0V, Src1V);
+__ESIMD_API uint32_t addc(uint32_t &carry, uint32_t src0, uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, 1> CarryV = carry;
+  __ESIMD_NS::simd<uint32_t, 1> Src0V = src0;
+  __ESIMD_NS::simd<uint32_t, 1> Src1V = src1;
+  __ESIMD_NS::simd<uint32_t, 1> Res = addc(CarryV, Src0V, Src1V);
   carry = CarryV[0];
   return Res[0];
 }
 
-template <typename T, int N>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T>::value,
-                             __ESIMD_NS::simd<T, N>>
-subb(__ESIMD_NS::simd<T, N> &borrow, __ESIMD_NS::simd<T, N> src0,
-     __ESIMD_NS::simd<T, N> src1) {
-  using Comp64T = std::conditional_t<std::is_signed_v<T>, int64_t, uint64_t>;
-  __ESIMD_NS::simd<Comp64T, N> Result64 = src0;
-  Result64 -= src1;
-  Result64 -= borrow;
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  std::pair<__ESIMD_DNS::vector_type_t<uint32_t, N>,
+            __ESIMD_DNS::vector_type_t<uint32_t, N>>
+      Result = __esimd_subb<uint32_t, N>(src0.data(), src1.data());
 
-  // Split the 32-bit high and low parts to return them from this function.
-  auto Result32 = Result64.template bit_cast_view<T>();
-  if constexpr (N == 1) {
-    borrow = Result32[1];
-    return Result32[0];
-  } else {
-    borrow = Result32.template select<N, 2>(1);
-    return Result32.template select<N, 2>(0);
-  }
+  borrow = Result.first;
+  return Result.second;
 }
 
-template <typename T, int N>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T>::value,
-                             __ESIMD_NS::simd<T, N>>
-subb(__ESIMD_NS::simd<T, N> &borrow, __ESIMD_NS::simd<T, N> src0, T src1) {
-  __ESIMD_NS::simd<T, N> Src1V = src1;
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
+     uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src1V = src1;
   return subb(borrow, src0, Src1V);
 }
 
-template <typename T, int N>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T>::value,
-                             __ESIMD_NS::simd<T, N>>
-subb(__ESIMD_NS::simd<T, N> &borrow, T src0, __ESIMD_NS::simd<T, N> src1) {
-  __ESIMD_NS::simd<T, N> Src0V = src0;
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, uint32_t src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src0V = src0;
   return subb(borrow, Src0V, src1);
 }
 
-template <typename T>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_dword_type<T>::value, T>
-subb(T &borrow, T src0, T src1) {
-  __ESIMD_NS::simd<T, 1> BorrowV = borrow;
-  __ESIMD_NS::simd<T, 1> Src0V = src0;
-  __ESIMD_NS::simd<T, 1> Src1V = src1;
-  __ESIMD_NS::simd<T, 1> Res = subb(BorrowV, Src0V, Src1V);
+__ESIMD_API uint32_t subb(uint32_t &borrow, uint32_t src0, uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, 1> BorrowV = borrow;
+  __ESIMD_NS::simd<uint32_t, 1> Src0V = src0;
+  __ESIMD_NS::simd<uint32_t, 1> Src1V = src1;
+  __ESIMD_NS::simd<uint32_t, 1> Res = subb(BorrowV, Src0V, Src1V);
   borrow = BorrowV[0];
   return Res[0];
 }

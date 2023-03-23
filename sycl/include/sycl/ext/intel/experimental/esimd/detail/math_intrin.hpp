@@ -723,9 +723,34 @@ __esimd_addc(__ESIMD_DNS::vector_type_t<T, N> src0,
     ;
 #else  // !__SYCL_DEVICE_ONLY__
 {
-  __ESIMD_UNSUPPORTED_ON_HOST;
+  __ESIMD_NS::simd<uint64_t, N> Result64 = __ESIMD_NS::simd<T, N>(src0);
+  Result64 += __ESIMD_NS::simd<T, N>(src1);
+  auto Result32 = Result64.template bit_cast_view<T>();
+  __ESIMD_NS::simd<uint32_t, N> CarryV = Result32.template select<N, 2>(1);
+  __ESIMD_NS::simd<uint32_t, N> ResV = Result32.template select<N, 2>(0);
   std::pair<__ESIMD_DNS::vector_type_t<T, N>, __ESIMD_DNS::vector_type_t<T, N>>
-      ReturnValue;
+      ReturnValue = std::make_pair(CarryV.data(), ResV.data());
+  return ReturnValue;
+}
+#endif // !__SYCL_DEVICE_ONLY__
+
+template <typename T, int N>
+__ESIMD_INTRIN std::pair<__ESIMD_DNS::vector_type_t<T, N>,
+                         __ESIMD_DNS::vector_type_t<T, N>>
+__esimd_subb(__ESIMD_DNS::vector_type_t<T, N> src0,
+             __ESIMD_DNS::vector_type_t<T, N> src1)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // !__SYCL_DEVICE_ONLY__
+{
+  __ESIMD_NS::simd<uint64_t, N> Result64 = __ESIMD_NS::simd<T, N>(src0);
+  Result64 -= __ESIMD_NS::simd<T, N>(src1);
+  auto Result32 = Result64.template bit_cast_view<T>();
+  __ESIMD_NS::simd<uint32_t, N> BorrowV =
+      __ESIMD_NS::simd<T, N>(src0) < __ESIMD_NS::simd<T, N>(src1);
+  __ESIMD_NS::simd<uint32_t, N> ResV = Result32.template select<N, 2>(0);
+  std::pair<__ESIMD_DNS::vector_type_t<T, N>, __ESIMD_DNS::vector_type_t<T, N>>
+      ReturnValue = std::make_pair(BorrowV.data(), ResV.data());
   return ReturnValue;
 }
 #endif // !__SYCL_DEVICE_ONLY__
