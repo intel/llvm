@@ -16,8 +16,6 @@ namespace {
 
 thread_local bool deviceGetInfoCalled;
 
-pi_platform PiPlatform = nullptr;
-
 pi_result redefinedDeviceGetInfoAfter(pi_device device,
                                       pi_device_info param_name,
                                       size_t param_value_size,
@@ -48,10 +46,7 @@ pi_result redefinedDeviceGetInfoAfter(pi_device device,
 TEST(AtomicFenceCapabilitiesCheck, CheckAtomicFenceOrderCapabilities) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-
-  PiPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
-  context DefaultCtx = Plt.ext_oneapi_get_default_context();
-  device Dev = DefaultCtx.get_devices()[0];
+  device Dev = Plt.get_devices()[0];
 
   deviceGetInfoCalled = false;
 
@@ -83,10 +78,7 @@ TEST(AtomicFenceCapabilitiesCheck, CheckAtomicFenceOrderCapabilities) {
 TEST(AtomicFenceCapabilitiesCheck, CheckAtomicFenceScopeCapabilities) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-
-  PiPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
-  context DefaultCtx = Plt.ext_oneapi_get_default_context();
-  device Dev = DefaultCtx.get_devices()[0];
+  device Dev = Plt.get_devices()[0];
 
   deviceGetInfoCalled = false;
 
