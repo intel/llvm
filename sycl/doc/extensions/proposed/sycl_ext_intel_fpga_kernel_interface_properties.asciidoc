@@ -32,6 +32,7 @@ https://github.com/intel/llvm/issues
 
 == Contributors
 
+Jessica Davies, Intel +
 Joe Garvey, Intel +
 Abhishek Tiwari, Intel
 
@@ -54,8 +55,14 @@ rely on APIs defined in this specification.*
 == Overview
 
 This extension introduces kernel properties to specify how or when control and
-data signals can be passed into or out of an FPGA kernel. These properties are
-meaningless on non-FPGA devices and can be ignored on such devices.
+data signals can be passed into or out of an FPGA kernel.
+
+On FPGA targets, regions of the circuit called clusters may be statically
+scheduled. This extension also introduces kernel properties that specify how
+statically-scheduled clusters should be implemented for an FPGA target.
+
+These properties are meaningless on non-FPGA devices and can be ignored on such
+devices.
 
 == Specification
 
