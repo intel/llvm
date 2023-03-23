@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -24,22 +23,19 @@ inline constexpr gpu_cache_config_enum large_slm =
 inline constexpr gpu_cache_config_enum large_data =
     gpu_cache_config_enum::large_data;
 
-struct gpu_cache_config_key {
-  template <gpu_cache_config_enum option>
-  using value_t = ext::oneapi::experimental::property_value<
-      gpu_cache_config_key,
-      std::integral_constant<gpu_cache_config_enum, option>>;
+struct gpu_cache_config {
+  gpu_cache_config(gpu_cache_config_enum v) : value(v) {}
+  gpu_cache_config_enum value;
 };
 
-template <gpu_cache_config_enum option>
-inline constexpr gpu_cache_config_key::value_t<option> gpu_cache_config;
+using gpu_cache_config_key = gpu_cache_config;
 
-inline constexpr gpu_cache_config_key::value_t<gpu_cache_config_enum::large_slm>
-    gpu_cache_config_large_slm;
-
-inline constexpr gpu_cache_config_key::value_t<
-    gpu_cache_config_enum::large_data>
-    gpu_cache_config_large_data;
+inline bool operator==(const gpu_cache_config &lhs, const gpu_cache_config &rhs) {
+  return lhs.value == rhs.value;
+}
+inline bool operator!=(const gpu_cache_config &lhs, const gpu_cache_config &rhs) {
+  return !(lhs == rhs);
+}
 
 } // namespace ext::intel::experimental
 
@@ -56,19 +52,12 @@ struct is_property_key_of<
 
 namespace detail {
 template <> struct PropertyToKind<intel::experimental::gpu_cache_config_key> {
-  static constexpr PropKind Kind = GpuCacheConfig;
+  static constexpr PropKind Kind = PropKind::GpuCacheConfig;
 };
 
 template <>
-struct IsCompileTimeProperty<intel::experimental::gpu_cache_config_key>
+struct IsRuntimeProperty<intel::experimental::gpu_cache_config_key>
     : std::true_type {};
-
-template <intel::experimental::gpu_cache_config_enum Config>
-struct PropertyMetaInfo<
-    intel::experimental::gpu_cache_config_key::value_t<Config>> {
-  static constexpr const char *name = "sycl-gpu-cache-config";
-  static constexpr intel::experimental::gpu_cache_config_enum value = Config;
-};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
