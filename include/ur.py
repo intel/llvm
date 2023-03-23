@@ -984,20 +984,20 @@ class ur_usm_alloc_info_t(c_int):
 
 ###############################################################################
 ## @brief USM memory advice
-class ur_mem_advice_v(IntEnum):
+class ur_usm_advice_v(IntEnum):
     DEFAULT = 0                                     ## The USM memory advice is default
     SET_READ_MOSTLY = 1                             ## Hint that memory will be read from frequently and written to rarely
-    CLEAR_READ_MOSTLY = 2                           ## Removes the affect of ::::UR_MEM_ADVICE_SET_READ_MOSTLY
+    CLEAR_READ_MOSTLY = 2                           ## Removes the affect of ::::UR_USM_ADVICE_SET_READ_MOSTLY
     SET_PREFERRED_LOCATION = 3                      ## Hint that the preferred memory location is the specified device
-    CLEAR_PREFERRED_LOCATION = 4                    ## Removes the affect of ::::UR_MEM_ADVICE_SET_PREFERRED_LOCATION
+    CLEAR_PREFERRED_LOCATION = 4                    ## Removes the affect of ::::UR_USM_ADVICE_SET_PREFERRED_LOCATION
     SET_NON_ATOMIC_MOSTLY = 5                       ## Hints that memory will mostly be accessed non-atomically
-    CLEAR_NON_ATOMIC_MOSTLY = 6                     ## Removes the affect of ::::UR_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY
+    CLEAR_NON_ATOMIC_MOSTLY = 6                     ## Removes the affect of ::::UR_USM_ADVICE_SET_NON_ATOMIC_MOSTLY
     BIAS_CACHED = 7                                 ## Hints that memory should be cached
     BIAS_UNCACHED = 8                               ## Hints that memory should be not be cached
 
-class ur_mem_advice_t(c_int):
+class ur_usm_advice_t(c_int):
     def __str__(self):
-        return str(ur_mem_advice_v(self.value))
+        return str(ur_usm_advice_v(self.value))
 
 
 ###############################################################################
@@ -1012,7 +1012,7 @@ class ur_usm_desc_t(Structure):
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
         ("flags", ur_usm_flags_t),                                      ## [in] memory allocation flags.
-        ("hints", ur_mem_advice_t),                                     ## [in] Memory advice hints
+        ("hints", ur_usm_advice_t),                                     ## [in] Memory advice hints
         ("align", c_ulong)                                              ## [in] memory advice hints.
     ]
 
@@ -1314,7 +1314,7 @@ class ur_command_v(IntEnum):
     USM_FILL = 17                                   ## Event created by ::urEnqueueUSMFill
     USM_MEMCPY = 18                                 ## Event created by ::urEnqueueUSMMemcpy
     USM_PREFETCH = 19                               ## Event created by ::urEnqueueUSMPrefetch
-    USM_MEM_ADVISE = 20                             ## Event created by ::urEnqueueUSMMemAdvise
+    USM_ADVISE = 20                                 ## Event created by ::urEnqueueUSMAdvise
     USM_FILL_2D = 21                                ## Event created by ::urEnqueueUSMFill2D
     USM_MEMCPY_2D = 22                              ## Event created by ::urEnqueueUSMMemcpy2D
     DEVICE_GLOBAL_VARIABLE_WRITE = 23               ## Event created by ::urEnqueueDeviceGlobalVariableWrite
@@ -1431,7 +1431,7 @@ class ur_function_v(IntEnum):
     ENQUEUE_USM_FILL = 32                           ## Enumerator for ::urEnqueueUSMFill
     ENQUEUE_USM_MEMCPY = 33                         ## Enumerator for ::urEnqueueUSMMemcpy
     ENQUEUE_USM_PREFETCH = 34                       ## Enumerator for ::urEnqueueUSMPrefetch
-    ENQUEUE_USM_MEM_ADVISE = 35                     ## Enumerator for ::urEnqueueUSMMemAdvise
+    ENQUEUE_USM_ADVISE = 35                         ## Enumerator for ::urEnqueueUSMAdvise
     ENQUEUE_USM_FILL2_D = 36                        ## Enumerator for ::urEnqueueUSMFill2D
     ENQUEUE_USM_MEMCPY2_D = 37                      ## Enumerator for ::urEnqueueUSMMemcpy2D
     ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38       ## Enumerator for ::urEnqueueDeviceGlobalVariableWrite
@@ -2220,11 +2220,11 @@ else:
     _urEnqueueUSMPrefetch_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_usm_migration_flags_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urEnqueueUSMMemAdvise
+## @brief Function-pointer for urEnqueueUSMAdvise
 if __use_win_types:
-    _urEnqueueUSMMemAdvise_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_mem_advice_t, POINTER(ur_event_handle_t) )
+    _urEnqueueUSMAdvise_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_usm_advice_t, POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueUSMMemAdvise_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_mem_advice_t, POINTER(ur_event_handle_t) )
+    _urEnqueueUSMAdvise_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_usm_advice_t, POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMFill2D
@@ -2277,7 +2277,7 @@ class ur_enqueue_dditable_t(Structure):
         ("pfnUSMFill", c_void_p),                                       ## _urEnqueueUSMFill_t
         ("pfnUSMMemcpy", c_void_p),                                     ## _urEnqueueUSMMemcpy_t
         ("pfnUSMPrefetch", c_void_p),                                   ## _urEnqueueUSMPrefetch_t
-        ("pfnUSMMemAdvise", c_void_p),                                  ## _urEnqueueUSMMemAdvise_t
+        ("pfnUSMAdvise", c_void_p),                                     ## _urEnqueueUSMAdvise_t
         ("pfnUSMFill2D", c_void_p),                                     ## _urEnqueueUSMFill2D_t
         ("pfnUSMMemcpy2D", c_void_p),                                   ## _urEnqueueUSMMemcpy2D_t
         ("pfnDeviceGlobalVariableWrite", c_void_p),                     ## _urEnqueueDeviceGlobalVariableWrite_t
@@ -2713,7 +2713,7 @@ class UR_DDI:
         self.urEnqueueUSMFill = _urEnqueueUSMFill_t(self.__dditable.Enqueue.pfnUSMFill)
         self.urEnqueueUSMMemcpy = _urEnqueueUSMMemcpy_t(self.__dditable.Enqueue.pfnUSMMemcpy)
         self.urEnqueueUSMPrefetch = _urEnqueueUSMPrefetch_t(self.__dditable.Enqueue.pfnUSMPrefetch)
-        self.urEnqueueUSMMemAdvise = _urEnqueueUSMMemAdvise_t(self.__dditable.Enqueue.pfnUSMMemAdvise)
+        self.urEnqueueUSMAdvise = _urEnqueueUSMAdvise_t(self.__dditable.Enqueue.pfnUSMAdvise)
         self.urEnqueueUSMFill2D = _urEnqueueUSMFill2D_t(self.__dditable.Enqueue.pfnUSMFill2D)
         self.urEnqueueUSMMemcpy2D = _urEnqueueUSMMemcpy2D_t(self.__dditable.Enqueue.pfnUSMMemcpy2D)
         self.urEnqueueDeviceGlobalVariableWrite = _urEnqueueDeviceGlobalVariableWrite_t(self.__dditable.Enqueue.pfnDeviceGlobalVariableWrite)

@@ -4386,7 +4386,7 @@ ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_ADVICE_BIAS_UNCACHED < advice`
+///         + `::UR_USM_ADVICE_BIAS_UNCACHED < advice`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -4395,21 +4395,21 @@ ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
+ur_result_t UR_APICALL urEnqueueUSMAdvise(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     const void *pMem,         ///< [in] pointer to the USM memory object
     size_t size,              ///< [in] size in bytes to be advised
-    ur_mem_advice_t advice,   ///< [in] USM memory advice
+    ur_usm_advice_t advice,   ///< [in] USM memory advice
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnUSMMemAdvise = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemAdvise;
-    if (nullptr == pfnUSMMemAdvise) {
+    auto pfnUSMAdvise = ur_lib::context->urDdiTable.Enqueue.pfnUSMAdvise;
+    if (nullptr == pfnUSMAdvise) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnUSMMemAdvise(hQueue, pMem, size, advice, phEvent);
+    return pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
