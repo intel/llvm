@@ -95,7 +95,7 @@ extension's APIs the implementation supports.
 
 === New Aspect for Intel-Specific Matrix APIs
 This extension adds a new device aspect:
-
+```c++
 namespace sycl {
 
 enum class aspect : /*unspecified*/ {
@@ -103,7 +103,7 @@ enum class aspect : /*unspecified*/ {
 };
 
 } // namespace sycl
-
+```
 The `ext_intel_matrix` aspect indicates that the device is capable of
 using the extended joint matrix APIs that are defined in the sections
 that follow.
