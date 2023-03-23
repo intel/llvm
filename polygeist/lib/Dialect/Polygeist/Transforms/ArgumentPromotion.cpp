@@ -29,6 +29,7 @@
 
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
@@ -75,9 +76,10 @@ static bool isValidMemRefType(Type type) {
   return true;
 }
 
-// Returns true if the block of \p startOp contains an instruction (after \p
+// Returns true if the block of \p startOp contains an operation (after \p
 // startOp) that has a side effects on \p val.
-static auto existsSideEffectAfter(Value val, Operation *startOp) {
+static bool existsSideEffectAfter(Value val, Operation *startOp,
+                                  AliasAnalysis &aliasAnalysis) {
   assert(startOp && "Expecting a valid pointer");
   Block *block = startOp->getBlock();
 
@@ -85,9 +87,14 @@ static auto existsSideEffectAfter(Value val, Operation *startOp) {
     if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op))
       continue;
 
-    // Currently bail out if any subsequent operation has side effects.
-    // TODO: check whether the operation alias with 'val'.
-    return true;
+    // Check whether the operation uses an operand that alias with 'val'.
+    if (auto MEI = dyn_cast<MemoryEffectOpInterface>(op)) {
+      if (!llvm::all_of(op.getOperands(), [&](Value operand) {
+            AliasResult aliasRes = aliasAnalysis.alias(operand, val);
+            return aliasRes.isNo();
+          }))
+        return true;
+    }
   }
   return false;
 }
@@ -178,7 +185,8 @@ public:
 
 private:
   /// Populate \p candidates with call operations to transform.
-  void collectCandidates(SmallVectorImpl<Candidate> &candidates);
+  void collectCandidates(SmallVectorImpl<Candidate> &candidates,
+                         AliasAnalysis &aliasAnalysis);
 
   /// Return true if the call operation \p callOp is a candidate, and false
   /// otherwise.
@@ -189,7 +197,8 @@ private:
 
   /// Return true if the call \p callOp operand at position \p pos is a
   /// candidate for peeling, and false otherwise.
-  bool isCandidateOperand(unsigned pos, CallOpInterface callOp) const;
+  bool isCandidateOperand(unsigned pos, CallOpInterface callOp,
+                          AliasAnalysis &aliasAnalysis) const;
 };
 
 } // namespace
@@ -362,21 +371,23 @@ void Candidate::replaceUsesOfArgument(Value origArg, unsigned pos,
 //===----------------------------------------------------------------------===//
 
 void ArgumentPromotionPass::runOnOperation() {
-  SmallVector<Candidate> candidates;
-  collectCandidates(candidates);
+  AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
 
+  SmallVector<Candidate> candidates;
+  collectCandidates(candidates, aliasAnalysis);
   for (Candidate &cand : candidates)
     cand.transform();
 }
 
 void ArgumentPromotionPass::collectCandidates(
-    SmallVectorImpl<Candidate> &candidateCalls) {
+    SmallVectorImpl<Candidate> &candidateCalls, AliasAnalysis &aliasAnalysis) {
   ModuleOp module = getOperation();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
 
   // Collect candidate call operations in GPU kernels.
   module->walk([&](gpu::GPUFuncOp gpuFuncOp) {
+    assert(gpuFuncOp.isKernel() && "Expecting a kernel");
     LLVM_DEBUG(llvm::dbgs()
                << "\nAnalyzing function " << gpuFuncOp.getNameAttr() << ":\n");
 
@@ -391,7 +402,7 @@ void ArgumentPromotionPass::collectCandidates(
       LLVM_DEBUG(llvm::dbgs() << "Analyzing operand(s) of: " << callOp << "\n");
       Candidate::CandidateOperands candidateOps;
       for (unsigned pos = 0; pos < callOp->getNumOperands(); ++pos) {
-        if (isCandidateOperand(pos, callOp))
+        if (isCandidateOperand(pos, callOp, aliasAnalysis))
           candidateOps.push_back({callOp->getOperand(pos), pos});
       }
 
@@ -429,8 +440,8 @@ bool ArgumentPromotionPass::isCandidateCall(CallOpInterface callOp) const {
   return true;
 }
 
-bool ArgumentPromotionPass::isCandidateOperand(unsigned pos,
-                                               CallOpInterface callOp) const {
+bool ArgumentPromotionPass::isCandidateOperand(
+    unsigned pos, CallOpInterface callOp, AliasAnalysis &aliasAnalysis) const {
   assert(pos < callOp->getNumOperands() &&
          "pos must be smaller than the number of call number of operands");
 
@@ -444,7 +455,7 @@ bool ArgumentPromotionPass::isCandidateOperand(unsigned pos,
 
   // The operand must not be used by any instruction (after the call
   // operation) which may read or write it.
-  if (existsSideEffectAfter(operand, callOp->getNextNode())) {
+  if (existsSideEffectAfter(operand, callOp->getNextNode(), aliasAnalysis)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "Operand " << pos
                << " used after call by operation with side effects\n");

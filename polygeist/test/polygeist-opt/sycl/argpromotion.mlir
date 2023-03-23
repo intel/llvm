@@ -127,7 +127,7 @@ gpu.module @device_func {
     %alloca = memref.alloca() : memref<1x!llvm.struct<(i32, i64)>>
     %cast = memref.cast %alloca : memref<1x!llvm.struct<(i32, i64)>> to memref<?x!llvm.struct<(i32, i64)>>
     func.call @callee2(%cast) : (memref<?x!llvm.struct<(i32, i64)>>) -> ()
-    %i = arith.constant 0 : index    
+    %i = arith.constant 0 : index
     %0 = memref.load %cast[%i] : memref<?x!llvm.struct<(i32, i64)>>
     gpu.return
   }
@@ -159,7 +159,8 @@ gpu.module @device_func {
     gpu.return
   }
 
-  // COM: Test that a peelable argument can be peeled when another argument with the expected type cannot be peeled.
+  // COM:      Test that a peelable argument can be peeled when another argument with the expected type 
+  // COM-NEXT: cannot be peeled (because used in the callee by an invalid instruction).
   gpu.func @test5() kernel {
     // CHECK-LABEL: gpu.func @test5() kernel
     // CHECK:         [[C0:%.*]] = arith.constant 0 : index
@@ -201,5 +202,25 @@ gpu.module @device_func {
     func.call @callee7(%cast_1) : (memref<?x!llvm.struct<(struct<(i32)>)>>) -> ()
     gpu.return
   }
-}
 
+  // COM: Test that peelable arguments can be peeled if the end function (callee1) is called from more than one call site:
+  // COM-NEXT:  test9 -> callee1_wrapper -> callee1
+  // COM-NEXT:  test1 -> callee1
+  gpu.func @test9() kernel {
+    // CHECK-LABEL: gpu.func @test9() kernel
+    %alloca_1 = memref.alloca() : memref<3x!llvm.struct<(i32, i64)>>
+    %cast_1 = memref.cast %alloca_1 : memref<3x!llvm.struct<(i32, i64)>> to memref<?x!llvm.struct<(i32, i64)>>
+    %0 = func.call @callee1_wrapper(%cast_1) : (memref<?x!llvm.struct<(i32, i64)>>) -> (i64)
+    gpu.return
+  }
+
+  // COM: Ensure that the peelable argument is peeled if there is a non-aliased instruction after the call.
+  func.func private @callee1_wrapper(%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64 {
+    %alloca_1 = memref.alloca() : memref<1xi64>    
+    %0 = func.call @callee1(%arg0) : (memref<?x!llvm.struct<(i32, i64)>>) -> i64
+    %i = arith.constant 0 : index
+    %1 = memref.load %alloca_1[%i] : memref<1xi64>
+    %add = arith.addi %0, %1 : i64
+    func.return %add : i64
+  }
+}
