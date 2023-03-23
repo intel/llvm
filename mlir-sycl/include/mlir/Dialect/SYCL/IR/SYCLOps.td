@@ -380,7 +380,7 @@ def SYCLGetIDResult : AnyTypeOf<[I64, SYCL_IDType]>;
 def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
 def SYCLIndexSpaceGetIDResult : AnyTypeOf<[Index, SYCL_IDType]>;
 def SYCLIndexSpaceGetRangeResult : AnyTypeOf<[Index, SYCL_RangeType]>;
-def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>]>;
+def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>, I32, MemRefOf<[I32]>]>;
 def VectorEltTy : AnyTypeOf<[I1, I8, I16, I32, I64, F16, F32, F64]>;
 def VectorSplatArg : MemRefOf<[VectorEltTy]>;
 
