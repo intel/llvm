@@ -39,5 +39,5 @@ entry:
 !7 = distinct !DISubprogram(name: "func", scope: !8, file: !8, line: 1, scopeLine: 2, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !2)
 !8 = !DIFile(filename: "test.cl", directory: "/tmp", checksumkind: CSK_MD5, checksum: "18aa9ce738eaafc7b7b7181c19092815")
 
-; CHECK-OPENCLC: DebugCompileUnit {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 3
-; CHECK-CPP4OPENCL: DebugCompileUnit {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 6
+; CHECK-OPENCLC: DebugCompilationUnit {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 3
+; CHECK-CPP4OPENCL: DebugCompilationUnit {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 6

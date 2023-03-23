@@ -26,14 +26,14 @@ enum Instruction {
   TypeEnum                      = 9,
   TypeComposite                 = 10,
   TypeMember                    = 11,
-  Inheritance                   = 12,
+  TypeInheritance               = 12,
   TypePtrToMember               = 13,
   TypeTemplate                  = 14,
   TypeTemplateParameter         = 15,
   TypeTemplateParameterPack     = 16,
   TypeTemplateTemplateParameter = 17,
   GlobalVariable                = 18,
-  FunctionDecl                  = 19,
+  FunctionDeclaration           = 19,
   Function                      = 20,
   LexicalBlock                  = 21,
   LexicalBlockDiscriminator     = 22,
@@ -456,7 +456,7 @@ enum {
 };
 }
 
-namespace Template {
+namespace TypeTemplate {
 enum {
   TargetIdx         = 0,
   FirstParameterIdx = 1,
@@ -464,7 +464,7 @@ enum {
 };
 }
 
-namespace TemplateParameter {
+namespace TypeTemplateParameter {
 enum {
   NameIdx      = 0,
   TypeIdx      = 1,
@@ -476,7 +476,7 @@ enum {
 };
 }
 
-namespace TemplateTemplateParameter {
+namespace TypeTemplateTemplateParameter {
 enum {
   NameIdx         = 0,
   TemplateNameIdx = 1,
@@ -487,7 +487,7 @@ enum {
 };
 }
 
-namespace TemplateParameterPack {
+namespace TypeTemplateParameterPack {
 enum {
   NameIdx           = 0,
   SourceIdx         = 1,

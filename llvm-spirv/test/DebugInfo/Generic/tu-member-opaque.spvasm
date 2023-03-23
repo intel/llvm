@@ -52,7 +52,7 @@
 
 5 ExtInst 3 7 2 DebugInfoNone
 7 ExtInst 3 10 2 DebugSource 9 7
-9 ExtInst 3 11 2 DebugCompileUnit 65536 0 10 12
+9 ExtInst 3 11 2 DebugCompilationUnit 65536 0 10 12
 7 ExtInst 3 12 2 DebugTypeFunction 0 7
 7 ExtInst 3 16 2 DebugSource 15 7
 8 ExtInst 3 21 2 DebugTypeBasic 20 18 4

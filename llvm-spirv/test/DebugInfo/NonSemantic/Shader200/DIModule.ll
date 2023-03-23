@@ -34,7 +34,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV-DAG: Constant [[#TypeInt32]] [[#DWARF:]] 4
 
 ; CHECK-SPIRV: ExtInst [[#]] [[#Source:]] [[#]] DebugSource [[#FileName]]
-; CHECK-SPIRV: ExtInst [[#]] [[#Parent:]] [[#]] DebugCompileUnit [[#Version]] [[#DWARF]]
+; CHECK-SPIRV: ExtInst [[#]] [[#Parent:]] [[#]] DebugCompilationUnit [[#Version]] [[#DWARF]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#SourceEmpty:]] [[#]] DebugSource [[#EmptyStr]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#Module:]] [[#]] DebugModule [[#Name]] [[#SourceEmpty]] [[#Constant0]] [[#Parent]] [[#Defines]] [[#IncludePath]] [[#ApiNotes]] [[#Constant0]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugImportedEntity [[#]] [[#]] [[#]] [[#Source]] [[#Module]]
