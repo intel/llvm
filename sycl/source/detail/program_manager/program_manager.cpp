@@ -359,6 +359,15 @@ static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
   return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
 }
 
+static int getUint32PropAsInt(const RTDeviceBinaryImage &Img,
+                              const char *PropName) {
+  pi_device_binary_property Prop = Img.getProperty(PropName);
+  if (!Prop)
+    return -1;
+  return (int)(DeviceBinaryProperty(Prop).asUint32());
+}
+
+
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
                                           const std::vector<device> &Devs,
@@ -381,6 +390,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   // TODO: Remove isDoubleGRF check in next ABI break
   bool isLargeGRF = getUint32PropAsBool(Img, "isLargeGRF") ||
                     getUint32PropAsBool(Img, "isDoubleGRF");
+  int optLevel = getUint32PropAsInt(Img, "optLevel");
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   if (isEsimdImage) {
@@ -399,6 +409,22 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // break. The behavior is now controlled through the RegisterAllocMode
     // metadata.
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
+  }
+  // Add optimization flags
+  if (Plugin.getBackend() == backend::ext_oneapi_level_zero) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    switch (optLevel) {
+    case 0: CompileOpts += "-ze-opt-disable"; break;
+    case 1:
+    case 2: CompileOpts += "-ze-opt-level=1"; break;
+    case 3: CompileOpts += "-ze-opt-level=2"; break;
+    }
+  } else if (Plugin.getBackend() == backend::opencl) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    if (optLevel == 0)
+      CompileOpts += "-cl-opt-disable";
   }
   if ((Plugin.getBackend() == backend::ext_oneapi_level_zero ||
        Plugin.getBackend() == backend::opencl) &&
