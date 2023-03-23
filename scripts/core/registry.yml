@@ -109,8 +109,8 @@ etors:
 - name: ENQUEUE_USM_PREFETCH
   desc: Enumerator for $xEnqueueUSMPrefetch
   value: '34'
-- name: ENQUEUE_USM_MEM_ADVISE
-  desc: Enumerator for $xEnqueueUSMMemAdvise
+- name: ENQUEUE_USM_ADVISE
+  desc: Enumerator for $xEnqueueUSMAdvise
   value: '35'
 - name: ENQUEUE_USM_FILL2_D
   desc: Enumerator for $xEnqueueUSMFill2D

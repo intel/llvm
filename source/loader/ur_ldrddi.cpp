@@ -4246,12 +4246,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueUSMMemAdvise
-__urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
+/// @brief Intercept function for urEnqueueUSMAdvise
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     const void *pMem,         ///< [in] pointer to the USM memory object
     size_t size,              ///< [in] size in bytes to be advised
-    ur_mem_advice_t advice,   ///< [in] USM memory advice
+    ur_usm_advice_t advice,   ///< [in] USM memory advice
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
@@ -4260,8 +4260,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
 
     // extract platform's function pointer table
     auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
-    auto pfnUSMMemAdvise = dditable->ur.Enqueue.pfnUSMMemAdvise;
-    if (nullptr == pfnUSMMemAdvise) {
+    auto pfnUSMAdvise = dditable->ur.Enqueue.pfnUSMAdvise;
+    if (nullptr == pfnUSMAdvise) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -4269,7 +4269,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
     hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
     // forward to device-platform
-    result = pfnUSMMemAdvise(hQueue, pMem, size, advice, phEvent);
+    result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4795,7 +4795,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
             pDdiTable->pfnUSMFill = loader::urEnqueueUSMFill;
             pDdiTable->pfnUSMMemcpy = loader::urEnqueueUSMMemcpy;
             pDdiTable->pfnUSMPrefetch = loader::urEnqueueUSMPrefetch;
-            pDdiTable->pfnUSMMemAdvise = loader::urEnqueueUSMMemAdvise;
+            pDdiTable->pfnUSMAdvise = loader::urEnqueueUSMAdvise;
             pDdiTable->pfnUSMFill2D = loader::urEnqueueUSMFill2D;
             pDdiTable->pfnUSMMemcpy2D = loader::urEnqueueUSMMemcpy2D;
             pDdiTable->pfnDeviceGlobalVariableWrite =

@@ -2192,21 +2192,21 @@ typedef enum ur_usm_alloc_info_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory advice
-typedef enum ur_mem_advice_t {
-    UR_MEM_ADVICE_DEFAULT = 0,                  ///< The USM memory advice is default
-    UR_MEM_ADVICE_SET_READ_MOSTLY = 1,          ///< Hint that memory will be read from frequently and written to rarely
-    UR_MEM_ADVICE_CLEAR_READ_MOSTLY = 2,        ///< Removes the affect of ::::UR_MEM_ADVICE_SET_READ_MOSTLY
-    UR_MEM_ADVICE_SET_PREFERRED_LOCATION = 3,   ///< Hint that the preferred memory location is the specified device
-    UR_MEM_ADVICE_CLEAR_PREFERRED_LOCATION = 4, ///< Removes the affect of ::::UR_MEM_ADVICE_SET_PREFERRED_LOCATION
-    UR_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY = 5,    ///< Hints that memory will mostly be accessed non-atomically
-    UR_MEM_ADVICE_CLEAR_NON_ATOMIC_MOSTLY = 6,  ///< Removes the affect of ::::UR_MEM_ADVICE_SET_NON_ATOMIC_MOSTLY
-    UR_MEM_ADVICE_BIAS_CACHED = 7,              ///< Hints that memory should be cached
-    UR_MEM_ADVICE_BIAS_UNCACHED = 8,            ///< Hints that memory should be not be cached
+typedef enum ur_usm_advice_t {
+    UR_USM_ADVICE_DEFAULT = 0,                  ///< The USM memory advice is default
+    UR_USM_ADVICE_SET_READ_MOSTLY = 1,          ///< Hint that memory will be read from frequently and written to rarely
+    UR_USM_ADVICE_CLEAR_READ_MOSTLY = 2,        ///< Removes the affect of ::::UR_USM_ADVICE_SET_READ_MOSTLY
+    UR_USM_ADVICE_SET_PREFERRED_LOCATION = 3,   ///< Hint that the preferred memory location is the specified device
+    UR_USM_ADVICE_CLEAR_PREFERRED_LOCATION = 4, ///< Removes the affect of ::::UR_USM_ADVICE_SET_PREFERRED_LOCATION
+    UR_USM_ADVICE_SET_NON_ATOMIC_MOSTLY = 5,    ///< Hints that memory will mostly be accessed non-atomically
+    UR_USM_ADVICE_CLEAR_NON_ATOMIC_MOSTLY = 6,  ///< Removes the affect of ::::UR_USM_ADVICE_SET_NON_ATOMIC_MOSTLY
+    UR_USM_ADVICE_BIAS_CACHED = 7,              ///< Hints that memory should be cached
+    UR_USM_ADVICE_BIAS_UNCACHED = 8,            ///< Hints that memory should be not be cached
     /// @cond
-    UR_MEM_ADVICE_FORCE_UINT32 = 0x7fffffff
+    UR_USM_ADVICE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
-} ur_mem_advice_t;
+} ur_usm_advice_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of USM pool
@@ -2218,7 +2218,7 @@ typedef struct ur_usm_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
     ur_usm_flags_t flags;      ///< [in] memory allocation flags.
-    ur_mem_advice_t hints;     ///< [in] Memory advice hints
+    ur_usm_advice_t hints;     ///< [in] Memory advice hints
     uint32_t align;            ///< [in] memory advice hints.
 
 } ur_usm_desc_t;
@@ -3783,7 +3783,7 @@ typedef enum ur_command_t {
     UR_COMMAND_USM_FILL = 17,                     ///< Event created by ::urEnqueueUSMFill
     UR_COMMAND_USM_MEMCPY = 18,                   ///< Event created by ::urEnqueueUSMMemcpy
     UR_COMMAND_USM_PREFETCH = 19,                 ///< Event created by ::urEnqueueUSMPrefetch
-    UR_COMMAND_USM_MEM_ADVISE = 20,               ///< Event created by ::urEnqueueUSMMemAdvise
+    UR_COMMAND_USM_ADVISE = 20,                   ///< Event created by ::urEnqueueUSMAdvise
     UR_COMMAND_USM_FILL_2D = 21,                  ///< Event created by ::urEnqueueUSMFill2D
     UR_COMMAND_USM_MEMCPY_2D = 22,                ///< Event created by ::urEnqueueUSMMemcpy2D
     UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE = 23, ///< Event created by ::urEnqueueDeviceGlobalVariableWrite
@@ -4115,7 +4115,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_ENQUEUE_USM_FILL = 32,                     ///< Enumerator for ::urEnqueueUSMFill
     UR_FUNCTION_ENQUEUE_USM_MEMCPY = 33,                   ///< Enumerator for ::urEnqueueUSMMemcpy
     UR_FUNCTION_ENQUEUE_USM_PREFETCH = 34,                 ///< Enumerator for ::urEnqueueUSMPrefetch
-    UR_FUNCTION_ENQUEUE_USM_MEM_ADVISE = 35,               ///< Enumerator for ::urEnqueueUSMMemAdvise
+    UR_FUNCTION_ENQUEUE_USM_ADVISE = 35,                   ///< Enumerator for ::urEnqueueUSMAdvise
     UR_FUNCTION_ENQUEUE_USM_FILL2_D = 36,                  ///< Enumerator for ::urEnqueueUSMFill2D
     UR_FUNCTION_ENQUEUE_USM_MEMCPY2_D = 37,                ///< Enumerator for ::urEnqueueUSMMemcpy2D
     UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38, ///< Enumerator for ::urEnqueueDeviceGlobalVariableWrite
@@ -5117,7 +5117,7 @@ urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_ADVICE_BIAS_UNCACHED < advice`
+///         + `::UR_USM_ADVICE_BIAS_UNCACHED < advice`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -5127,11 +5127,11 @@ urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urEnqueueUSMMemAdvise(
+urEnqueueUSMAdvise(
     ur_queue_handle_t hQueue,  ///< [in] handle of the queue object
     const void *pMem,          ///< [in] pointer to the USM memory object
     size_t size,               ///< [in] size in bytes to be advised
-    ur_mem_advice_t advice,    ///< [in] USM memory advice
+    ur_usm_advice_t advice,    ///< [in] USM memory advice
     ur_event_handle_t *phEvent ///< [out][optional] return an event object that identifies this particular
                                ///< command instance.
 );
@@ -7314,25 +7314,25 @@ typedef void(UR_APICALL *ur_pfnEnqueueUSMPrefetchCb_t)(
     void **ppTracerInstanceUserData);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urEnqueueUSMMemAdvise
+/// @brief Callback function parameters for urEnqueueUSMAdvise
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_enqueue_usm_mem_advise_params_t {
+typedef struct ur_enqueue_usm_advise_params_t {
     ur_queue_handle_t *phQueue;
     const void **ppMem;
     size_t *psize;
-    ur_mem_advice_t *padvice;
+    ur_usm_advice_t *padvice;
     ur_event_handle_t **pphEvent;
-} ur_enqueue_usm_mem_advise_params_t;
+} ur_enqueue_usm_advise_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urEnqueueUSMMemAdvise
+/// @brief Callback function-pointer for urEnqueueUSMAdvise
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void(UR_APICALL *ur_pfnEnqueueUSMMemAdviseCb_t)(
-    ur_enqueue_usm_mem_advise_params_t *params,
+typedef void(UR_APICALL *ur_pfnEnqueueUSMAdviseCb_t)(
+    ur_enqueue_usm_advise_params_t *params,
     ur_result_t result,
     void *pTracerUserData,
     void **ppTracerInstanceUserData);
@@ -7475,7 +7475,7 @@ typedef struct ur_enqueue_callbacks_t {
     ur_pfnEnqueueUSMFillCb_t pfnUSMFillCb;
     ur_pfnEnqueueUSMMemcpyCb_t pfnUSMMemcpyCb;
     ur_pfnEnqueueUSMPrefetchCb_t pfnUSMPrefetchCb;
-    ur_pfnEnqueueUSMMemAdviseCb_t pfnUSMMemAdviseCb;
+    ur_pfnEnqueueUSMAdviseCb_t pfnUSMAdviseCb;
     ur_pfnEnqueueUSMFill2DCb_t pfnUSMFill2DCb;
     ur_pfnEnqueueUSMMemcpy2DCb_t pfnUSMMemcpy2DCb;
     ur_pfnEnqueueDeviceGlobalVariableWriteCb_t pfnDeviceGlobalVariableWriteCb;

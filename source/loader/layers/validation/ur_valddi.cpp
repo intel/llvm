@@ -4189,19 +4189,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueUSMMemAdvise
-__urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
+/// @brief Intercept function for urEnqueueUSMAdvise
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     const void *pMem,         ///< [in] pointer to the USM memory object
     size_t size,              ///< [in] size in bytes to be advised
-    ur_mem_advice_t advice,   ///< [in] USM memory advice
+    ur_usm_advice_t advice,   ///< [in] USM memory advice
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnUSMMemAdvise = context.urDdiTable.Enqueue.pfnUSMMemAdvise;
+    auto pfnUSMAdvise = context.urDdiTable.Enqueue.pfnUSMAdvise;
 
-    if (nullptr == pfnUSMMemAdvise) {
+    if (nullptr == pfnUSMAdvise) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
@@ -4214,7 +4214,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_MEM_ADVICE_BIAS_UNCACHED < advice) {
+        if (UR_USM_ADVICE_BIAS_UNCACHED < advice) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -4223,7 +4223,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
         }
     }
 
-    ur_result_t result = pfnUSMMemAdvise(hQueue, pMem, size, advice, phEvent);
+    ur_result_t result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
 
     return result;
 }
@@ -4705,8 +4705,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     dditable.pfnUSMPrefetch = pDdiTable->pfnUSMPrefetch;
     pDdiTable->pfnUSMPrefetch = validation_layer::urEnqueueUSMPrefetch;
 
-    dditable.pfnUSMMemAdvise = pDdiTable->pfnUSMMemAdvise;
-    pDdiTable->pfnUSMMemAdvise = validation_layer::urEnqueueUSMMemAdvise;
+    dditable.pfnUSMAdvise = pDdiTable->pfnUSMAdvise;
+    pDdiTable->pfnUSMAdvise = validation_layer::urEnqueueUSMAdvise;
 
     dditable.pfnUSMFill2D = pDdiTable->pfnUSMFill2D;
     pDdiTable->pfnUSMFill2D = validation_layer::urEnqueueUSMFill2D;

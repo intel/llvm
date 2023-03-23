@@ -49,7 +49,7 @@ TEST_P(urUSMSharedAllocTest, SuccessWithDescriptors) {
 
     ur_usm_desc_t usm_desc{UR_STRUCTURE_TYPE_USM_DESC, &usm_host_desc,
                            /* common usm flags */ 0,
-                           /* mem advice flags*/ UR_MEM_ADVICE_DEFAULT};
+                           /* mem advice flags*/ UR_USM_ADVICE_DEFAULT};
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(urUSMSharedAlloc(context, device, &usm_desc, nullptr,

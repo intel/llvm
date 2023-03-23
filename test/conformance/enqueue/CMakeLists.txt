@@ -21,7 +21,7 @@ add_conformance_test_with_devices_environment(enqueue
     urEnqueueMemUnmap.cpp
     urEnqueueUSMFill.cpp
     urEnqueueUSMFill2D.cpp
-    urEnqueueUSMMemAdvise.cpp
+    urEnqueueUSMAdvise.cpp
     urEnqueueUSMMemcpy.cpp
     urEnqueueUSMMemcpy2D.cpp
     urEnqueueUSMPrefetch.cpp
