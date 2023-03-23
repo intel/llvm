@@ -178,7 +178,7 @@ void matrix_sum_cols(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
            for (int i = 0; i < wiData.length(); ++i) {
              // get the index of the element in the submatrix
              auto dataItem = wiData[i];
-             auto [row, col] = dataItem.get_coord(); 
+             auto [row, col] = dataItem.get_coord();
 
              // Calculation of global index
              int sg_idx = (int)global_idy / SG_SZ;
