@@ -220,8 +220,9 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
 
 // The make_queue2 and getNative2 functions are added as a temporary measure so
 // that the existing make_queue and getNative functions can co-exist with them.
-// At the next ABI redefinition the "2" versions will be removed and only
-// make_queue and getNative will remain.
+// At the next ABI redefinition the current make_queue and getNative definitions
+// will be removed. "make_queue2" will be renamed "make_queue" and "getNative2"
+// will be renamed "getNative".
 __SYCL_EXPORT queue
 make_queue2(std::variant<ze_command_queue_handle_t, ze_command_list_handle_t>
                 NativeHandle,
