@@ -1440,9 +1440,9 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
       }
     }
     for (unsigned i = 0; i < GenXArgs.size(); ++i)
-      if (GenXIntrinsic::isOverloadedArg(ID, i)) {
+      if (GenXIntrinsic::isOverloadedArg(ID, i))
         GenXOverloadedTypes.push_back(GenXArgs[i]->getType());
-      }
+
     NewFDecl = GenXIntrinsic::getGenXDeclaration(CI.getModule(), ID,
                                                  GenXOverloadedTypes);
   }
