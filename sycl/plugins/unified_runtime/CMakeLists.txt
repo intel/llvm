@@ -107,7 +107,6 @@ add_sycl_library("ur_adapter_level_zero" SHARED
   INCLUDE_DIRS
   LIBRARIES
     UnifiedRuntime-Headers
-    #UnifiedRuntimeLoader
     LevelZeroLoader-Headers
     LevelZeroLoader
 )

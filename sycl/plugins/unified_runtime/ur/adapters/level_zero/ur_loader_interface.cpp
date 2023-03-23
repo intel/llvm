@@ -1,5 +1,4 @@
-//===--------- ur_loader_interface.cpp - Level Zero Adapter
-//-----------------===//
+//===--------- ur_loader_interface.cpp - Level Zero Adapter----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -165,10 +164,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
   return retVal;
 }
 
-/// @brief
-/// @param version
-/// @param pDdiTable
-/// @return
 UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
     ur_platform_dditable_t
