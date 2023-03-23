@@ -83,13 +83,6 @@ class wi_element {
                                                         NumCols, Layout> &M;
   std::size_t idx;
 
-  // template <typename T1, size_t NRows, size_t NCols,
-  //           sycl::ext::oneapi::experimental::matrix::use Use1,
-  //           sycl::ext::oneapi::experimental::matrix::layout Layout1,
-  //           typename Grp>
-  // friend std::tuple<uint32_t, uint32_t>
-  // get_coord(wi_element<T1, NRows, NCols, Use1, Layout1, Grp> &);
-
 public:
   wi_element(sycl::ext::oneapi::experimental::matrix::joint_matrix<
                  Group, T, Use, NumRows, NumCols, Layout> &Mat,
@@ -188,13 +181,6 @@ class wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use, Layout,
   sycl::ext::oneapi::experimental::matrix::joint_matrix<
       Group, sycl::ext::oneapi::bfloat16, Use, NumRows, NumCols, Layout> &M;
   std::size_t idx;
-
-  // template <typename T1, size_t NRows, size_t NCols,
-  //           sycl::ext::oneapi::experimental::matrix::use Use1,
-  //           sycl::ext::oneapi::experimental::matrix::layout Layout1,
-  //           typename Grp>
-  // friend std::tuple<uint32_t, uint32_t>
-  // get_coord(wi_element<T1, NRows, NCols, Use1, Layout1, Grp> &);
 
 public:
   wi_element(sycl::ext::oneapi::experimental::matrix::joint_matrix<
@@ -354,26 +340,6 @@ get_coord() {
 };
 
 // End wi_element definition
-
-// template <typename T, size_t NumRows, size_t NumCols,
-//           sycl::ext::oneapi::experimental::matrix::use Use,
-//           sycl::ext::oneapi::experimental::matrix::layout Layout,
-//           typename Group>
-// inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t>
-// get_coord(wi_element<T, NumRows, NumCols, Use, Layout, Group> &we) {
-// #if defined(__SYCL_DEVICE_ONLY__)
-//   __ocl_vec_t<uint32_t, 2> coord =
-//       __spirv_JointMatrixGetElementCoordINTEL(we.M.spvm, we.idx);
-//   const uint32_t row = coord[0];
-//   const uint32_t col = coord[1];
-//   return std::make_tuple(row, col);
-// #else
-//   std::ignore = we;
-//   throw runtime_error(
-//       "get_coord is only supported on Intel XMX and AMX devices.",
-//       PI_ERROR_INVALID_DEVICE);
-// #endif // __SYCL_DEVICE_ONLY__
-// }
 
 // Begin wi_data definition
 
