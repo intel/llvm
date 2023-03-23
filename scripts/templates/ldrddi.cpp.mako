@@ -9,13 +9,14 @@ from templates import helper as th
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2022 Intel Corporation
+ * Copyright (C) 2022-2023 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  *
  * @file ${name}.cpp
  *
  */
+#include "${x}_lib_loader.hpp"
 #include "${x}_loader.hpp"
 
 namespace loader
@@ -239,7 +240,7 @@ ${tbl['export']['name']}(
         if(platform.initStatus != ${X}_RESULT_SUCCESS)
             continue;
         auto getTable = reinterpret_cast<${tbl['pfn']}>(
-            GET_FUNCTION_PTR( platform.handle, "${tbl['export']['name']}") );
+            loader::LibLoader::getFunctionPtr(platform.handle.get(), "${tbl['export']['name']}"));
         if(!getTable) 
             continue; 
         auto getTableResult = getTable( version, &platform.dditable.${n}.${tbl['name']});

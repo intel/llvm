@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
+ * Copyright (C) 2022-2023 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  *
@@ -9,6 +9,8 @@
  */
 #ifndef UR_LOADER_LDRDDI_H
 #define UR_LOADER_LDRDDI_H 1
+
+#include "ur_object.hpp"
 
 namespace loader {
 ///////////////////////////////////////////////////////////////////////////////

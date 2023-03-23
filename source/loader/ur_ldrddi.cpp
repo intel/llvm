@@ -1,12 +1,13 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
+ * Copyright (C) 2022-2023 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  *
  * @file ur_ldrddi.cpp
  *
  */
+#include "ur_lib_loader.hpp"
 #include "ur_loader.hpp"
 
 namespace loader {
@@ -4603,7 +4604,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetGlobalProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetGlobalProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetGlobalProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -4672,7 +4674,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetContextProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetContextProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetContextProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -4747,7 +4750,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetEnqueueProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetEnqueueProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetEnqueueProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -4842,7 +4846,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetEventProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetEventProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetEventProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -4917,7 +4922,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetKernelProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetKernelProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetKernelProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -5000,7 +5006,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetMemProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetMemProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetMemProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -5076,7 +5083,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetPlatformProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetPlatformProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetPlatformProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -5149,7 +5157,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetProgramProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetProgramProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetProgramProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -5231,7 +5240,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetQueueProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetQueueProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetQueueProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -5306,7 +5316,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetSamplerProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetSamplerProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetSamplerProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -5379,7 +5390,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetUSMProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetUSMProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetUSMProcAddrTable"));
         if (!getTable) {
             continue;
         }
@@ -5452,7 +5464,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
             continue;
         }
         auto getTable = reinterpret_cast<ur_pfnGetDeviceProcAddrTable_t>(
-            GET_FUNCTION_PTR(platform.handle, "urGetDeviceProcAddrTable"));
+            loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                              "urGetDeviceProcAddrTable"));
         if (!getTable) {
             continue;
         }

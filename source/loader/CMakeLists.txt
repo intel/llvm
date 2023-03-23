@@ -95,7 +95,6 @@ if(WIN32)
     target_sources(loader
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/lib_init.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/windows/platform_discovery_win.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_win.cpp
     )
@@ -103,7 +102,6 @@ else()
     target_sources(loader
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/lib_init.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/linux/platform_discovery_lin.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/loader_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_lin.cpp
     )
