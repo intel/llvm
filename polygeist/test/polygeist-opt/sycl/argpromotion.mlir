@@ -36,7 +36,7 @@ gpu.module @device_func {
     return %5 : i64
   }    
 
-  // COM: This function is not a candidate because one call site uses the argument.
+  // COM: This function is not a candidate because one call site uses the argument after the call.
   func.func private @callee2(%arg0: memref<?x!llvm.struct<(i32, i64)>>) {  
     // CHECK-LABEL: func.func private @callee2
     // CHECK-SAME:    (%arg0: memref<?x!llvm.struct<(i32, i64)>>) {      

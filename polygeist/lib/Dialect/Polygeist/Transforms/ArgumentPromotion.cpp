@@ -97,9 +97,9 @@ auto existsSideEffectAfter(Value val, Operation *startOp) {
     // Operations with unknown side effects might write to any memory.
     if (isa<MemoryEffectOpInterface>(op) &&
         op.hasTrait<OpTrait::HasRecursiveMemoryEffects>())
-      continue;
+      return true;
 
-    // Currently bail out if any subsequent operation has side effects.instruc
+    // Currently bail out if any subsequent operation has side effects.
     // TODO: check whether the operation alias with 'val'.
     if (auto MEI = dyn_cast<MemoryEffectOpInterface>(op))
       return true;
@@ -110,21 +110,21 @@ auto existsSideEffectAfter(Value val, Operation *startOp) {
 /// Represents an operand that can be peeled.
 class CandidateOperand {
 public:
-  CandidateOperand(Value v, unsigned pos) : val(v), position(pos) {
+  CandidateOperand(Value v, unsigned pos) : val(v), pos(pos) {
     assert(isValidMemRefType(val.getType()) &&
            "Candidate operand does not have the expected type");
   }
 
   Value value() const { return val; };
-  unsigned pos() const { return position; };
+  unsigned position() const { return pos; };
 
   /// Peel the operand and populate \p membersPeeled with the members peeled.
   void peel(CallOpInterface callOp,
             SmallVectorImpl<Value> &membersPeeled) const;
 
 private:
-  Value val;         /// Operand value.
-  unsigned position; /// Operand position in the call operator.
+  Value val;    /// Operand value.
+  unsigned pos; /// Operand position in the call operator.
 };
 
 /// Represents a candidate for the argument promotion transformation.
@@ -261,11 +261,11 @@ void Candidate::transform() {
 void Candidate::peelOperands() {
   for (CandidateOperand candOp : candidateOps) {
     LLVM_DEBUG({
-      llvm::dbgs().indent(2) << "peeling operand " << candOp.pos() << "\n";
+      llvm::dbgs().indent(2) << "peeling operand " << candOp.position() << "\n";
     });
     SmallVector<Value> peeledMembers;
     candOp.peel(callOp, peeledMembers);
-    operandToMembersPeeled.insert({candOp.pos(), peeledMembers});
+    operandToMembersPeeled.insert({candOp.position(), peeledMembers});
   }
 }
 
@@ -409,8 +409,7 @@ void ArgumentPromotionPass::collectCandidates(
         return;
 
       // Determine which operands can be peeled and collect them.
-      LLVM_DEBUG(
-          { llvm::dbgs() << "Analyzing operand(s) of: " << callOp << "\n"; });
+      LLVM_DEBUG(llvm::dbgs() << "Analyzing operand(s) of: " << callOp << "\n");
       SmallVector<CandidateOperand> candidateOps;
       for (unsigned pos = 0; pos < callOp->getNumOperands(); ++pos) {
         if (isCandidateOperand(pos, callOp))
@@ -468,21 +467,17 @@ bool ArgumentPromotionPass::isCandidateOperand(unsigned pos,
   // The operand must have the expected type(memref<?xstruct<...>>).
   Value operand = callOp->getOperand(pos);
   if (!isValidMemRefType(operand.getType())) {
-    LLVM_DEBUG({
-      llvm::dbgs().indent(2)
-          << "Operand " << pos << " doesn't have expected type\n";
-    });
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Operand " << pos << " doesn't have expected type\n");
     return false;
   }
 
   // The operand must not be used by any instruction (after the call
   // operation) which may read or write it.
   if (existsSideEffectAfter(operand, callOp->getNextNode())) {
-    LLVM_DEBUG({
-      llvm::dbgs().indent(2)
-          << "Operand " << pos
-          << " used after call by operation with side effects\n";
-    });
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Operand " << pos
+               << " used after call by operation with side effects\n");
     return false;
   }
 
@@ -493,15 +488,14 @@ bool ArgumentPromotionPass::isCandidateOperand(unsigned pos,
   if (llvm::any_of(arg.getUses(), [](OpOperand &use) {
         return !isa<polygeist::SubIndexOp>(use.getOwner());
       })) {
-    LLVM_DEBUG({
-      llvm::dbgs().indent(2)
-          << "Operand " << pos << " used by illegal operation in callee\n";
-    });
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Operand " << pos
+               << " used by illegal operation in callee\n");
     return false;
   }
 
-  LLVM_DEBUG(
-      { llvm::dbgs().indent(2) << "Operand " << pos << " is a candidate\n"; });
+  LLVM_DEBUG(llvm::dbgs().indent(2)
+             << "Operand " << pos << " is a candidate\n");
 
   return true;
 }
