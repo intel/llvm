@@ -148,6 +148,9 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
   }
 #endif
 #else
+  std::ignore = sg;
+  std::ignore = jm;
+  std::ignore = lambda;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
