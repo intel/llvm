@@ -93,22 +93,34 @@ extension's APIs the implementation supports.
  feature-test macro always has this value.
 |===
 
+=== New Aspect for Intel-Specific Matrix APIs
+This extension adds a new device aspect:
 
-=== Joint Matrix Intel-Specific Features
+namespace sycl {
 
-==== Layout
+enum class aspect : /*unspecified*/ {
+  ext_intel_matrix
+};
+
+} // namespace sycl
+
+The `ext_intel_matrix` aspect indicates that the device is capable of
+using the extended joint matrix APIs that are defined in the sections
+that follow.
+
+=== New Layout Type
 This extension adds a new layout type named `ext_intel_packed` which
 an application can use to indicate that the matrix data is loaded or
 stored in VNNI "packed" format.
 
 ```c++
-namespace sycl::ext::intel::experimental::matrix {
+namespace sycl::ext::oneapi::experimental::matrix::layout {
 
 enum class layout {
   ext_intel_packed
 };
 
-} // namespace sycl::ext::intel::experimental::matrix
+} // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
 
@@ -126,7 +138,7 @@ due to extra scatter/gather operations. Hence, we expose the
 already been VNNIed. The packed or VNNI layout is introduced in the
 `VNNI layout` section below.
 
-==== Store Operation
+=== Additional Store Operations
 Besides store of matrix `accumulator`, the Intel implementation allows
 store on matrix `a` and `b` as well.
 
@@ -136,7 +148,7 @@ namespace sycl::ext::intel::experimental::matrix {
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, access::address_space Space,
           access::decorated IsDecorated>
-  void joint_matrix_store(Group g,
+void joint_matrix_store(Group g,
     joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride);
 
@@ -150,7 +162,7 @@ void joint_matrix_store(Group g,
 } // namespace sycl::ext::intel::experimental::matrix
 ```
 
-==== Element Indexing and Piece-Wise Operations
+=== Per-element Operations with Coordinates
 The function `joint_matrix_apply` in `sycl_ext_oneapi_matrix` provides
 a way for the application to apply the same operation on every element
 of the matrix. However, some algorithms require the application to
@@ -161,7 +173,7 @@ sum of all elements in a row for example). Quantization that is needed
 for conversion between low precision types like `int8_t` and `fp32`
 uses such piece-wise operations.
 
-===== Explicit conversion with mapping from SIMD to SPMD
+==== Explicit conversion with mapping from SIMD to SPMD
 The data elements in a `joint_matrix` are distributed or shared across
 the work-items in the Group in an implementation-defined way. There is
 no fixed allocation of matrix elements owned by a `joint_matrix`
@@ -253,7 +265,7 @@ for (int i = 0; i < wi_data_c.length(); i++)
   //is in the vector owned by a WI, not in the matrix C
 ```
 
-===== Work-item data to joint matrix mapping coordinates
+==== Work-item data to joint matrix mapping coordinates
 The `wi_data` and `wi_element` classes provide access to the matrix
 elements that are local to the calling work-item. However, the
 distribution of matrix elements to each work-item is
@@ -273,24 +285,50 @@ for (int i = 0; i < data.length(); ++i) {
 }
 ```
 
-===== Extending `joint_matrix_apply` with the mapping coordinates
-For use cases in which the order of accessing the elements of
-`wi_data` is important, indexing and the mapping coordinates API
-provided above should be used. If access order is not important,
-`joint_matrix_apply` is extended to provide the `row` and `col`
-arguments as part of the function object.
+==== Extending `joint_matrix_apply` with the mapping coordinates
+This extension adds a new form of the `joint_matrix_apply` function in
+the `sycl::ext::intel::matrix` namespace that allows the application
+to perform an operation on each element of the matrix. This function
+is similar to the form in `sycl_ext_oneapi_joint_matrix`, but it also
+provides the matrix coordinates of each element to the callback
+function:
+```c++
+namespace sycl::ext::intel::experimental::matrix {
 
-Consequently, the sum of rows example provided above can be written as
-follows:
+template<typename Group, typename T, use Use, size_t Rows, size_t
+         Cols, layout Layout, typename F>
+void joint_matrix_apply(Group g, joint_matrix<Group, T, Use, Rows,
+                        Cols, Layout>& C, F&& func);
+
+} // namespace sycl::ext::intel::experimental::matrix
+```
+The `func` callback is invoked with three parameters `(T& element,
+size_t row, size_t col)`, where `row` and `col` tell the coordinates
+of element in the joint matrix. To illustrate, the following example
+shows how you can use this API to sum the rows of a matrix:
 
 ```c++
 joint_matrix_apply(sg, A, [=](T &val, size_t row, size_t  col) {
    sum_local_rows[row] += val;
 });
 ```
+=== New Device Information Descriptor
+Besides the query we provide in
+link:../experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix],
+some device descriptors are Intel hardware specific. These are
+provided as part of `ext::intel::experimental::info::device::matrix`
+namespace:
 
+[frame="none",options="header"]
+|======================
+| Device descriptors | Return type| Description
+|`ext::intel::experimental::info::device::matrix::numtiles`| `int`
+|If the matrix hardware in the device has separate storage (register
+files or tiles) from the rest of the processing units (e.g. Intel
+AMX), returns the number of tiles. For other devices, returns 0.
+|======================
 
-==== VNNI/Packed Layout
+=== Packed Layout Format
 The `ext_intel_packed` layout (aka VNNI) is a special layout for
 matrix data that allows Intel AMX and Intel XMX devices to load
 matrices more efficiently (packing in 32 bits). This layout applies
@@ -307,7 +345,7 @@ elements for rows 0 - 3 have been stored this way, the process
 repeats, starting with the next four elements of column 0. The diagram
 below illustrates this layout for a 8 x 4 matrix.
 
-===== Example 1: 8-bit elements
+==== Example 1: 8-bit elements
 
       // Example of a 8 row x 4 column matrix using a 8-bit data
       // element, in row-major layout, rows are shown horizontally.
@@ -336,7 +374,7 @@ elements for rows 0 - 1 have been stored this way, the process
 repeats, starting with the next two elements of column 0. The diagram
 below illustrates this layout for a 4 x 4 matrix.
 
-===== Example 2: 16-bit elements
+==== Example 2: 16-bit elements
       // Example of a 4 row x 4 column matrix using a 16-bit data
       // element, in row-major layout.
       // Element a1 is contiguous in memory with element b1, etc.
@@ -376,7 +414,7 @@ q.submit([&](sycl::handler& cgh) {
     sub_group sg = item.get_sub_group();
     joint_matrix<sub_group, int8_t, use::a, tM, tK, layout::row_major> tA;
     joint_matrix<sub_group, int8_t, use::b, tK, tN,
-                ext::intel::experimental::matrix::layout::packed> tB;
+                 layout::ext_intel_packed> tB; 
     joint_matrix<sub_group, int32_t, use::accumulator, tM, tN> tC;
     joint_matrix_fill(sg, tC, 0);
     for (int k = 0; k < K; k += tK) {
@@ -393,23 +431,6 @@ q.submit([&](sycl::handler& cgh) {
 });
 q.wait();
 ```
-
-=== Intel-Specific Runtime Query
-Besides the query we provide in
-link:../experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix],
-some device descriptors are Intel hardware specific. These are
-provided as part of `ext::intel::experimental::info::device::matrix`
-namespace:
-
-[frame="none",options="header"]
-|======================
-| Device descriptors | Return type| Description
-|`ext::intel::experimental::info::device::matrix::numtiles`| `int`
-|If the matrix hardware in the device has separate storage (register
-files or tiles) from the rest of the processing units (e.g. Intel
-AMX), returns the number of tiles. For other devices, returns 0.
-|======================
-
 == Revision History
 
 [frame="none",options="header"]
