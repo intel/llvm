@@ -1731,7 +1731,8 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(
 /// @{
 
 /// This enum is used to encode all possible logical operations performed
-/// on 3 input operand. It is used as a template argument of bfn() function.
+/// on the 3 input operands. It is used as a template argument of the bfn()
+/// function.
 /// Example: d = bfn<~bfn_t::x & ~bfn_t::y & ~bfn_t::z>(s0, s1, s2);
 enum class bfn_t : uint8_t { x = 0xAA, y = 0xCC, z = 0xF0 };
 
