@@ -20,8 +20,8 @@ bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
   if (Inputs.size() != 1 || Outputs.size() != 1)
     return false;
 
-  const auto Input = Inputs.front().dyn_cast<MemRefType>();
-  const auto Output = Outputs.front().dyn_cast<MemRefType>();
+  const auto Input = dyn_cast<MemRefType>(Inputs.front());
+  const auto Output = dyn_cast<MemRefType>(Outputs.front());
   if (!Input || !Output)
     return false;
 
@@ -69,8 +69,8 @@ bool SYCLAddrSpaceCastOp::areCastCompatible(TypeRange inputs,
   if (inputs.size() != 1 || outputs.size() != 1)
     return false;
 
-  const auto input = inputs.front().dyn_cast<MemRefType>();
-  const auto output = outputs.front().dyn_cast<MemRefType>();
+  const auto input = dyn_cast<MemRefType>(inputs.front());
+  const auto output = dyn_cast<MemRefType>(outputs.front());
   if (!input || !output)
     return false;
 
@@ -133,7 +133,7 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
             [&](auto Ty) { return VerifyElemType(Ty.getElementType()); })
         .Case<LLVM::LLVMPointerType>([&](auto Ty) {
           const Type ElemType = Ty.getElementType();
-          return (!ElemType.isa<LLVM::LLVMStructType>())
+          return (!isa<LLVM::LLVMStructType>(ElemType))
                      ? emitOpError(
                            "Expecting pointer to struct return type. Got ")
                            << ResultType

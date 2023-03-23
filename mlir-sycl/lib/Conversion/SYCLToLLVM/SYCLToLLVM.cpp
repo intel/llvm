@@ -63,22 +63,22 @@ using namespace mlir::sycl;
 
 // Returns true if the given type is 'memref<?xSYCLType>', and false otherwise.
 template <typename SYCLType> static bool isMemRefOf(const Type &type) {
-  if (!type.isa<MemRefType>())
+  if (!isa<MemRefType>(type))
     return false;
 
-  MemRefType memRefTy = type.cast<MemRefType>();
+  MemRefType memRefTy = cast<MemRefType>(type);
   ArrayRef<int64_t> shape = memRefTy.getShape();
   if (shape.size() != 1 || shape[0] != -1)
     return false;
 
-  return memRefTy.getElementType().isa<SYCLType>();
+  return isa<SYCLType>(memRefTy.getElementType());
 }
 
 // Returns the element type of 'memref<?xSYCLType>'.
 template <typename SYCLType> static SYCLType getElementType(const Type &type) {
   assert(isMemRefOf<SYCLType>(type) && "Expecting memref<?xsycl::<type>>");
-  Type elemType = type.cast<MemRefType>().getElementType();
-  return elemType.cast<SYCLType>();
+  Type elemType = cast<MemRefType>(type).getElementType();
+  return cast<SYCLType>(elemType);
 }
 
 // Get LLVM struct type with i8 as the body with name \p name.
@@ -270,7 +270,7 @@ protected:
       indices.emplace_back(std::forward<Args>(args)...);
     }
     const auto origAddressSpace =
-        ptr.getType().cast<LLVM::LLVMPointerType>().getAddressSpace();
+        cast<LLVM::LLVMPointerType>(ptr.getType()).getAddressSpace();
 
     const auto addressSpace = targetAddressSpace.value_or(origAddressSpace);
 
@@ -278,7 +278,7 @@ protected:
       ptr = builder.create<LLVM::AddrSpaceCastOp>(
           loc,
           LLVM::LLVMPointerType::get(
-              ptr.getType().cast<LLVM::LLVMPointerType>().getElementType(),
+              cast<LLVM::LLVMPointerType>(ptr.getType()).getElementType(),
               addressSpace),
           ptr);
     }
@@ -696,9 +696,9 @@ static Optional<Type> convertArrayType(sycl::ArrayType type,
                                        LLVMTypeConverter &converter) {
   assert(type.getBody().size() == 1 &&
          "Expecting SYCL array body to have size 1");
-  assert(type.getBody()[0].isa<MemRefType>() &&
+  assert(isa<MemRefType>(type.getBody()[0]) &&
          "Expecting SYCL array body entry to be MemRefType");
-  assert(type.getBody()[0].cast<MemRefType>().getElementType() ==
+  assert(cast<MemRefType>(type.getBody()[0]).getElementType() ==
              converter.getIndexType() &&
          "Expecting SYCL array body entry element type to be the index type");
   auto structTy = LLVM::LLVMStructType::getIdentified(
@@ -936,14 +936,14 @@ private:
     LLVM_DEBUG(llvm::dbgs() << "CastPattern: Rewriting op: "; op.dump();
                llvm::dbgs() << "\n");
 
-    assert(op.getSource().getType().isa<MemRefType>() &&
+    assert(isa<MemRefType>(op.getSource().getType()) &&
            "The cast source type should be a memref type");
-    assert(op.getResult().getType().isa<MemRefType>() &&
+    assert(isa<MemRefType>(op.getResult().getType()) &&
            "The result source type should be a memref type");
 
     // Ensure the input and result types are legal.
-    auto srcType = op.getSource().getType().cast<MemRefType>();
-    auto resType = op.getResult().getType().cast<MemRefType>();
+    auto srcType = cast<MemRefType>(op.getSource().getType());
+    auto resType = cast<MemRefType>(op.getResult().getType());
 
     if (!isConvertibleAndHasIdentityMaps(srcType) ||
         !isConvertibleAndHasIdentityMaps(resType))
@@ -989,8 +989,8 @@ public:
   LogicalResult
   matchAndRewrite(SYCLCastOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    const auto srcType = op.getSource().getType().cast<MemRefType>();
-    const auto resType = op.getResult().getType().cast<MemRefType>();
+    const auto srcType = cast<MemRefType>(op.getSource().getType());
+    const auto resType = cast<MemRefType>(op.getResult().getType());
     const auto convSrcType = typeConverter->convertType(srcType);
     const auto convResType = typeConverter->convertType(resType);
 
@@ -1114,11 +1114,10 @@ public:
         loc, zero,
         getTotalOffset(
             rewriter, loc,
-            op.getAcc().getType().getElementType().cast<AccessorType>(),
+            cast<AccessorType>(op.getAcc().getType().getElementType()),
             opAdaptor));
-    const auto ptrTy = getTypeConverter()
-                           ->convertType(op.getType())
-                           .cast<LLVM::LLVMPointerType>();
+    const auto ptrTy = cast<LLVM::LLVMPointerType>(
+        getTypeConverter()->convertType(op.getType()));
     Value ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
         rewriter, loc, ptrTy, opAdaptor.getAcc());
     rewriter.replaceOpWithNewOp<LLVM::GEPOp>(op, ptrTy, ptr, index,
@@ -1159,35 +1158,26 @@ public:
 public:
   /// Whether the input accessor has atomic access mode.
   static bool hasAtomicAccessor(SYCLAccessorSubscriptOp op) {
-    return op.getAcc()
-               .getType()
-               .getElementType()
-               .cast<AccessorType>()
+    return cast<AccessorType>(op.getAcc().getType().getElementType())
                .getAccessMode() == MemoryAccessMode::Atomic;
   }
 
   /// Whether the input accessor is 1-dimensional.
   static bool has1DAccessor(SYCLAccessorSubscriptOp op) {
-    return op.getAcc()
-               .getType()
-               .getElementType()
-               .cast<AccessorType>()
+    return cast<AccessorType>(op.getAcc().getType().getElementType())
                .getDimension() == 1;
   }
 
   /// Whether the input offset is an id.
   static bool hasIDOffsetType(SYCLAccessorSubscriptOp op) {
-    return op.getIndex().getType().isa<MemRefType>();
+    return isa<MemRefType>(op.getIndex().getType());
   }
 
   Value getRef(OpBuilder &builder, Location loc, SYCLAccessorSubscriptOp orig,
                LLVM::LLVMPointerType ptrTy, Value acc, Value index) const {
-    const auto addressSpace =
-        memoryTargetModeToAddressSpace(orig.getAcc()
-                                           .getType()
-                                           .getElementType()
-                                           .cast<AccessorType>()
-                                           .getTargetMode());
+    const auto addressSpace = memoryTargetModeToAddressSpace(
+        cast<AccessorType>(orig.getAcc().getType().getElementType())
+            .getTargetMode());
     const auto gepPtrTy =
         LLVM::LLVMPointerType::get(ptrTy.getElementType(), addressSpace);
     const auto ptr = GetMemberPattern<AccessorGetPtr>::loadValue(builder, loc,
@@ -1245,21 +1235,20 @@ public:
         AccessorSubscriptPattern::hasIDOffsetType(op) &&
         getDimensions(op.getAcc().getType().getElementType()) ==
             getDimensions(
-                op.getIndex().getType().cast<MemRefType>().getElementType()));
+                cast<MemRefType>(op.getIndex().getType()).getElementType()));
   }
 
   void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
                ConversionPatternRewriter &rewriter) const final {
     const auto loc = op.getLoc();
-    const auto ptrTy = getTypeConverter()
-                           ->convertType(op.getType())
-                           .cast<LLVM::LLVMPointerType>();
+    const auto ptrTy = cast<LLVM::LLVMPointerType>(
+        getTypeConverter()->convertType(op.getType()));
     rewriter.replaceOp(
         op, AccessorSubscriptPattern::getRef(
                 rewriter, loc, op, ptrTy, opAdaptor.getAcc(),
                 getLinearIndex(
                     rewriter, loc,
-                    op.getAcc().getType().getElementType().cast<AccessorType>(),
+                    cast<AccessorType>(op.getAcc().getType().getElementType()),
                     opAdaptor)));
   }
 };
@@ -1277,9 +1266,8 @@ public:
 
   void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
                ConversionPatternRewriter &rewriter) const final {
-    const auto ptrTy = getTypeConverter()
-                           ->convertType(op.getType())
-                           .cast<LLVM::LLVMPointerType>();
+    const auto ptrTy = cast<LLVM::LLVMPointerType>(
+        getTypeConverter()->convertType(op.getType()));
     rewriter.replaceOp(op, AccessorSubscriptPattern::getRef(
                                rewriter, op.getLoc(), op, ptrTy,
                                opAdaptor.getAcc(), opAdaptor.getIndex()));
@@ -1337,20 +1325,18 @@ public:
   void rewrite(SYCLAccessorSubscriptOp op, OpAdaptor opAdaptor,
                ConversionPatternRewriter &rewriter) const final {
     const auto loc = op.getLoc();
-    const auto atomicTy = op.getType().cast<AtomicType>();
+    const auto atomicTy = cast<AtomicType>(op.getType());
     auto *typeConverter = getTypeConverter();
-    const auto ptrTy = typeConverter
-                           ->convertType(MemRefType::get(
-                               ShapedType::kDynamic, atomicTy.getDataType(), {},
-                               static_cast<unsigned>(atomicTy.getAddrSpace())))
-                           .cast<LLVM::LLVMPointerType>();
+    const auto ptrTy = cast<LLVM::LLVMPointerType>(typeConverter->convertType(
+        MemRefType::get(ShapedType::kDynamic, atomicTy.getDataType(), {},
+                        static_cast<unsigned>(atomicTy.getAddrSpace()))));
     const Value undef = rewriter.create<LLVM::UndefOp>(
         loc, typeConverter->convertType(atomicTy));
     const auto ptr = AccessorSubscriptPattern::getRef(
         rewriter, loc, op, ptrTy, opAdaptor.getAcc(),
         getLinearIndex(
             rewriter, loc,
-            op.getAcc().getType().getElementType().cast<AccessorType>(),
+            cast<AccessorType>(op.getAcc().getType().getElementType()),
             opAdaptor));
     rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(op, undef, ptr, 0);
   }
@@ -1366,7 +1352,7 @@ public:
   using LoadMemberDimPattern<SYCLRangeGetOp, RangeGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLRangeGetOp op) const final {
-    return success(op.getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getType()));
   }
 };
 
@@ -1377,7 +1363,7 @@ public:
                                  RangeGetDim>::GetRefToMemberDimPattern;
 
   LogicalResult match(SYCLRangeGetOp op) const final {
-    return success(op.getType().isa<MemRefType>());
+    return success(isa<MemRefType>(op.getType()));
   }
 };
 
@@ -1484,7 +1470,7 @@ public:
   using LoadMemberDimPattern<SYCLIDGetOp, IDGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLIDGetOp op) const final {
-    return success(op.getNumOperands() > 1 && op.getType().isa<IntegerType>());
+    return success(op.getNumOperands() > 1 && isa<IntegerType>(op.getType()));
   }
 };
 
@@ -1495,7 +1481,7 @@ public:
                                  IDGetDim>::GetRefToMemberDimPattern;
 
   LogicalResult match(SYCLIDGetOp op) const final {
-    return success(op.getType().isa<MemRefType>());
+    return success(isa<MemRefType>(op.getType()));
   }
 };
 
@@ -1509,7 +1495,7 @@ public:
   using LoadMemberPattern<SYCLItemGetIDOp, ItemGetID>::LoadMemberPattern;
 
   LogicalResult match(SYCLItemGetIDOp op) const final {
-    return success(op.getRes().getType().isa<IDType>());
+    return success(isa<IDType>(op.getRes().getType()));
   }
 };
 
@@ -1522,7 +1508,7 @@ public:
 
   LogicalResult match(SYCLItemGetIDOp op) const final {
     return success(op.getNumOperands() > 1 &&
-                   op.getRes().getType().isa<IntegerType>());
+                   isa<IntegerType>(op.getRes().getType()));
   }
 };
 
@@ -1537,7 +1523,7 @@ public:
   using LoadMemberPattern<SYCLItemGetRangeOp, ItemGetRange>::LoadMemberPattern;
 
   LogicalResult match(SYCLItemGetRangeOp op) const final {
-    return success(op.getRes().getType().isa<RangeType>());
+    return success(isa<RangeType>(op.getRes().getType()));
   }
 };
 
@@ -1550,7 +1536,7 @@ public:
                              RangeGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLItemGetRangeOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getRes().getType()));
   }
 };
 
@@ -1579,10 +1565,7 @@ public:
   using ItemGetLinearIDPattern::ItemGetLinearIDPattern;
 
   LogicalResult match(SYCLItemGetLinearIDOp op) const final {
-    return success(!op.getItem()
-                        .getType()
-                        .getElementType()
-                        .cast<ItemType>()
+    return success(!cast<ItemType>(op.getItem().getType().getElementType())
                         .getWithOffset());
   }
 
@@ -1611,10 +1594,7 @@ public:
   using ItemGetLinearIDPattern::ItemGetLinearIDPattern;
 
   LogicalResult match(SYCLItemGetLinearIDOp op) const final {
-    return success(op.getItem()
-                       .getType()
-                       .getElementType()
-                       .cast<ItemType>()
+    return success(cast<ItemType>(op.getItem().getType().getElementType())
                        .getWithOffset());
   }
 };
@@ -1632,7 +1612,7 @@ public:
                           ItemGetID>::LoadMemberPattern;
 
   LogicalResult match(SYCLNDItemGetGlobalIDOp op) const final {
-    return success(op.getRes().getType().isa<IDType>());
+    return success(isa<IDType>(op.getRes().getType()));
   }
 };
 
@@ -1645,7 +1625,7 @@ public:
                              ItemGetID, IDGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLNDItemGetGlobalIDOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getRes().getType()));
   }
 };
 
@@ -1689,7 +1669,7 @@ public:
                           ItemGetID>::LoadMemberPattern;
 
   LogicalResult match(SYCLNDItemGetLocalIDOp op) const final {
-    return success(op.getRes().getType().isa<IDType>());
+    return success(isa<IDType>(op.getRes().getType()));
   }
 };
 
@@ -1702,7 +1682,7 @@ public:
                              IDGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLNDItemGetLocalIDOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getRes().getType()));
   }
 };
 
@@ -1744,7 +1724,7 @@ public:
   using LoadMemberPattern<SYCLNDItemGetGroupOp, NDItemGroup>::LoadMemberPattern;
 
   LogicalResult match(SYCLNDItemGetGroupOp op) const final {
-    return success(op.getRes().getType().isa<GroupType>());
+    return success(isa<GroupType>(op.getRes().getType()));
   }
 };
 
@@ -1757,7 +1737,7 @@ public:
                              IDGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLNDItemGetGroupOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getRes().getType()));
   }
 };
 
@@ -1774,7 +1754,7 @@ public:
                           GroupGetGroupRange>::LoadMemberPattern;
 
   LogicalResult match(SYCLNDItemGetGroupRangeOp op) const final {
-    return success(op.getRes().getType().isa<RangeType>());
+    return success(isa<RangeType>(op.getRes().getType()));
   }
 };
 
@@ -1788,7 +1768,7 @@ public:
                              RangeGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLNDItemGetGroupRangeOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getRes().getType()));
   }
 };
 
@@ -1805,7 +1785,7 @@ public:
                           ItemGetRange>::LoadMemberPattern;
 
   LogicalResult match(SYCLNDItemGetLocalRangeOp op) const final {
-    return success(op.getRes().getType().isa<RangeType>());
+    return success(isa<RangeType>(op.getRes().getType()));
   }
 };
 
@@ -1818,7 +1798,7 @@ public:
                              ItemGetRange, RangeGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLNDItemGetLocalRangeOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getRes().getType()));
   }
 };
 
@@ -1849,8 +1829,8 @@ public:
         loc, LLVM::LLVMPointerType::get(ndrTy), ndrTy,
         rewriter.create<arith::ConstantIntOp>(loc, 1, 32));
 
-    const auto rangeTy = ndrTy.cast<LLVM::LLVMStructType>().getBody()[0];
-    const auto idTy = ndrTy.cast<LLVM::LLVMStructType>().getBody()[2];
+    const auto rangeTy = cast<LLVM::LLVMStructType>(ndrTy).getBody()[0];
+    const auto idTy = cast<LLVM::LLVMStructType>(ndrTy).getBody()[2];
 
     rewriter.create<LLVM::StoreOp>(
         loc,
@@ -1886,7 +1866,7 @@ public:
   using LoadMemberPattern<SYCLGroupGetGroupIDOp, GroupGetID>::LoadMemberPattern;
 
   LogicalResult match(SYCLGroupGetGroupIDOp op) const final {
-    return success(op.getRes().getType().isa<IDType>());
+    return success(isa<IDType>(op.getRes().getType()));
   }
 };
 
@@ -1898,7 +1878,7 @@ public:
                              IDGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLGroupGetGroupIDOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getRes().getType()));
   }
 };
 
@@ -1914,7 +1894,7 @@ public:
                           IDGetDim>::GridOpInitPattern;
 
   LogicalResult match(SYCLGroupGetLocalIDOp op) const final {
-    return success(op.getRes().getType().isa<IDType>());
+    return success(isa<IDType>(op.getRes().getType()));
   }
 };
 
@@ -1926,7 +1906,7 @@ public:
                              SYCLLocalIDOp>::GridOpInitDimPattern;
 
   LogicalResult match(SYCLGroupGetLocalIDOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getRes().getType()));
   }
 };
 
@@ -1942,7 +1922,7 @@ public:
                           GroupGetLocalRange>::LoadMemberPattern;
 
   LogicalResult match(SYCLGroupGetLocalRangeOp op) const final {
-    return success(op.getRes().getType().isa<RangeType>());
+    return success(isa<RangeType>(op.getRes().getType()));
   }
 };
 
@@ -1955,7 +1935,7 @@ public:
                              RangeGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLGroupGetLocalRangeOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getRes().getType()));
   }
 };
 
@@ -1971,7 +1951,7 @@ public:
                           GroupGetGroupRange>::LoadMemberPattern;
 
   LogicalResult match(SYCLGroupGetGroupRangeOp op) const final {
-    return success(op.getRes().getType().isa<RangeType>());
+    return success(isa<RangeType>(op.getRes().getType()));
   }
 };
 
@@ -1997,7 +1977,7 @@ public:
                              RangeGetDim>::LoadMemberDimPattern;
 
   LogicalResult match(SYCLGroupGetGroupRangeOp op) const final {
-    return success(op.getRes().getType().isa<IntegerType>());
+    return success(isa<IntegerType>(op.getRes().getType()));
   }
 };
 

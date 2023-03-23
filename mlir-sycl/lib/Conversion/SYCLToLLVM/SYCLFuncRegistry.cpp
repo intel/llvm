@@ -37,7 +37,7 @@ Value SYCLFuncDescriptor::call(FuncId funcId, ValueRange args,
                    << funcDesc.funcRef << "\n");
 
   SmallVector<Type, 4> funcOutputTys;
-  if (!funcDesc.outputTy.isa<LLVM::LLVMVoidType>())
+  if (!isa<LLVM::LLVMVoidType>(funcDesc.outputTy))
     funcOutputTys.emplace_back(funcDesc.outputTy);
 
   LLVMBuilder builder(b, loc);

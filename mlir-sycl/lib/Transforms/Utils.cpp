@@ -30,8 +30,8 @@ static Value adaptArgumentForSYCLCall(OpBuilder &rewriter, Location loc,
   if (original.getType() == targetType)
     return original;
 
-  const auto mt = targetType.cast<MemRefType>();
-  const auto thisType = original.getType().cast<MemRefType>();
+  const auto mt = cast<MemRefType>(targetType);
+  const auto thisType = cast<MemRefType>(original.getType());
   const llvm::ArrayRef<int64_t> targetShape = mt.getShape();
   const Type targetElementType = mt.getElementType();
   const unsigned targetMemSpace = mt.getMemorySpaceAsInt();
