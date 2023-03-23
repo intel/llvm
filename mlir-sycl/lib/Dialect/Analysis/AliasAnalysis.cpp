@@ -21,7 +21,7 @@ using namespace mlir;
 
 // Return true if the value \p val is a function argument, and false otherwise.
 static bool isFuncArg(Value val) {
-  auto blockArg = val.dyn_cast<BlockArgument>();
+  auto blockArg = dyn_cast<BlockArgument>(val);
   if (!blockArg)
     return false;
 
@@ -35,7 +35,7 @@ static bool isRestrict(Value val) {
   if (!isFuncArg(val))
     return false;
 
-  auto blockArg = val.cast<BlockArgument>();
+  auto blockArg = cast<BlockArgument>(val);
   auto func = cast<FunctionOpInterface>(blockArg.getOwner()->getParentOp());
   return !!func.getArgAttr(blockArg.getArgNumber(),
                            "local_alias_analysis.restrict");

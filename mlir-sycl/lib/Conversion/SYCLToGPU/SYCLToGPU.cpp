@@ -75,7 +75,7 @@ Value createGetOp(OpBuilder &builder, Location loc, Type underlyingArrTy,
                   Value res, Value index, ArrayAttr argumentTypes,
                   FlatSymbolRefAttr functionName) {
   return TypeSwitch<Type, Value>(
-             res.getType().cast<MemRefType>().getElementType())
+             cast<MemRefType>(res.getType()).getElementType())
       .Case<IDType, RangeType>([&](auto arg) {
         // `this` type
         using ArgTy = decltype(arg);

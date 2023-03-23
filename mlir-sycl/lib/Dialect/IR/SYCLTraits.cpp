@@ -115,7 +115,7 @@ mlir::LogicalResult mlir::sycl::verifySYCLGetIDTrait(Operation *OpPtr) {
   const bool IsSizeTCast = FuncName == "operator unsigned long";
   const bool IsSubscript = FuncName == "operator[]";
   const mlir::Type RetTy = Op->getResult(0).getType();
-  const bool IsRetScalar = RetTy.isa<mlir::sycl::IDType>();
+  const bool IsRetScalar = isa<mlir::sycl::IDType>(RetTy);
   // operator size_t cannot be checked the generic way.
   if (FuncName != "operator unsigned long") {
     const LogicalResult GenericVerification =
@@ -171,7 +171,7 @@ mlir::LogicalResult mlir::sycl::verifySYCLGetGroupTrait(Operation *Op) {
 static LogicalResult verifyIndexSpaceTrait(Operation *Op) {
   const auto Ty = Op->getResultTypes();
   assert(Ty.size() == 1 && "Expecting a single return value");
-  const auto IsIndex = Ty[0].isa<IndexType>();
+  const auto IsIndex = isa<IndexType>(Ty[0]);
   switch (Op->getNumOperands()) {
   case 0:
     return !IsIndex ? success()
