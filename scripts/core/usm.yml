@@ -174,7 +174,7 @@ members:
       name:  maxPoolableSize
       desc: "[in] Allocations up to this limit will be subject to pooling"
     - type: "size_t"
-      name:  slabMinSize
+      name:  minDriverAllocSize
       desc: "[in] Minimum allocation size that will be requested from the driver"
 --- #--------------------------------------------------------------------------
 type: function
