@@ -238,7 +238,7 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
     return sycl::ext::oneapi::bfloat16{sycl::op(float{x})};                    \
   }
 
-#define BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(op)                                    \
+#define BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(op)                                 \
   template <size_t N>                                                          \
   sycl::marray<bfloat16, N> op(sycl::marray<bfloat16, N> x) {                  \
     sycl::marray<bfloat16, N> res;                                             \
