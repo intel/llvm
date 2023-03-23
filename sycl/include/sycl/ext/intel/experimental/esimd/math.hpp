@@ -1775,19 +1775,21 @@ template <bfn_t FuncControl, typename T, int N>
 __ESIMD_API std::enable_if_t<std::is_integral_v<T>, __ESIMD_NS::simd<T, N>>
 bfn(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
     __ESIMD_NS::simd<T, N> src2) {
-  if constexpr (sizeof(T) == 2 || sizeof(T) == 4) {
-    constexpr uint8_t FC = static_cast<uint8_t>(FuncControl);
-    return __esimd_bfn<FC, T, N>(src0.data(), src1.data(), src2.data());
-  } else if constexpr ((sizeof(T) == 8) || ((sizeof(T) == 1) && (N % 4 == 0))) {
-    // Bitcast 8-byte vector to 2xN vectors of 4-byte integer.
-    // Optimize 1-byte vectors via bitcasting to vector of 4-byte integers.
+  if constexpr ((sizeof(T) == 8) || ((sizeof(T) == 1) && (N % 4 == 0)) ||
+                ((sizeof(T) == 2) && (N % 2 == 0))) {
+    // Bitcast Nx8-byte vectors to 2xN vectors of 4-byte integers.
+    // Bitcast Nx1-byte vectors to N/4 vectors of 4-byte integers.
+    // Bitcast Nx2-byte vectors to N/2 vectors of 4-byte integers.
     auto Result = __ESIMD_ENS::bfn<FuncControl>(
         src0.template bit_cast_view<int32_t>().read(),
         src1.template bit_cast_view<int32_t>().read(),
         src2.template bit_cast_view<int32_t>().read());
     return Result.template bit_cast_view<T>();
+  } else if constexpr (sizeof(T) == 2 || sizeof(T) == 4) {
+    constexpr uint8_t FC = static_cast<uint8_t>(FuncControl);
+    return __esimd_bfn<FC, T, N>(src0.data(), src1.data(), src2.data());
   } else if constexpr (N % 2 == 0) {
-    // Even number of 1-byte elements.
+    // Bitcast Nx1-byte vectors (N is even) to N/2 vectors of 4-byte integers.
     auto Result = __ESIMD_ENS::bfn<FuncControl>(
         src0.template bit_cast_view<int16_t>().read(),
         src1.template bit_cast_view<int16_t>().read(),
