@@ -39,10 +39,7 @@ pi_result redefinedDeviceGetInfoAfter(pi_device device,
 TEST(AtomicMemoryScopeCapabilitiesCheck, CheckAtomicMemoryScopeCapabilities) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-
-  PiPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
-  context DefaultCtx = Plt.ext_oneapi_get_default_context();
-  device Dev = DefaultCtx.get_devices()[0];
+  device Dev = Plt.get_devices()[0];
 
   deviceGetInfoCalled = false;
 
