@@ -485,6 +485,8 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
        (ur_device_info_t)UR_DEVICE_INFO_BFLOAT16},
       {PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
        (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES},
+      {PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+       (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES},
   };
 
   auto InfoType = InfoMapping.find(ParamName);
