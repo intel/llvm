@@ -25,22 +25,24 @@ void foo() {
 // Check alloca of the captured types
 // CHECK: %_arg_x.addr = alloca i32, align 4
 // CHECK: %_arg_f2.addr = alloca float, align 4
-// CHECK: %__SYCLKernel = alloca %class.anon, align 4
+// CHECK: %__wrapper_union = alloca %union.__wrapper_union, align 4
 
 // Copy the parameters into the alloca-ed addresses
 // CHECK: store i32 %_arg_x, ptr addrspace(4) %_arg_x.addr
 // CHECK: store float %_arg_f2, ptr addrspace(4) %_arg_f2.addr
 
 // Store the int and the float into the struct created
-// CHECK: %x = getelementptr inbounds %class.anon, ptr addrspace(4) %__SYCLKernel{{.*}}, i32 0, i32 0
-// CHECK: %0 = load i32, ptr addrspace(4) %_arg_x.addr
-// CHECK: store i32 %0, ptr addrspace(4) %x
-// CHECK: %f2 = getelementptr inbounds %class.anon, ptr addrspace(4) %__SYCLKernel{{.*}}, i32 0, i32 1
-// CHECK: %1 = load float, ptr addrspace(4) %_arg_f2.addr
-// CHECK: store float %1, ptr addrspace(4) %f2
+// CHECK: %[[X_VALUE:[A-Za-z0-9]*]] = load i32, ptr addrspace(4) %_arg_x.addr
+// CHECK: %x = getelementptr inbounds %class.anon, ptr addrspace(4) %__wrapper_union{{.*}}, i32 0, i32 0
+// CHECK: store i32 %[[X_VALUE]], ptr addrspace(4) %x
+// CHECK: %[[F2_VALUE:[A-Za-z0-9]*]] = load float, ptr addrspace(4) %_arg_f2.addr
+// CHECK: %f2 = getelementptr inbounds %class.anon, ptr addrspace(4) %__wrapper_union{{.*}}, i32 0, i32 1
+// CHECK: store float %[[F2_VALUE]], ptr addrspace(4) %f2
 
 // Call the lambda
-// CHECK: call spir_func void @{{.*}}foo{{.*}}(ptr addrspace(4) {{.*}} %__SYCLKernel{{.*}})
+// CHECK: store ptr addrspace(4) %__wrapper_union{{.*}}, ptr addrspace(4) %[[KERNEL_REF_ADDR:[A-Za-z0-9]*]]
+// CHECK: %[[KERNEL_REF:[A-Za-z0-9]*]] = load ptr addrspace(4), ptr addrspace(4) %[[KERNEL_REF_ADDR]]
+// CHECK: call spir_func void @{{.*}}foo{{.*}}(ptr addrspace(4) {{.*}} %[[KERNEL_REF]])
 // CHECK:   ret void
 
 // Check the lambda call

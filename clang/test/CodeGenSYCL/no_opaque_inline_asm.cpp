@@ -9,8 +9,8 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   // CHECK: %[[ARRAY_A]].ascast = addrspacecast [100 x i32]* %[[ARRAY_A]] to [100 x i32] addrspace(4)*
   // CHECK: %[[I]].ascast = addrspacecast i32* %[[I]] to i32 addrspace(4)*
   // CHECK: store i32 0, i32 addrspace(4)* %[[I]].ascast, align 4
-  // CHECK: %0 = load i32, i32 addrspace(4)* %[[I]].ascast, align 4
-  // CHECK: %[[IDXPROM:[0-9a-z]+]] = sext i32 %0 to i64
+  // CHECK: %[[I_VAL:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[I]].ascast, align 4
+  // CHECK: %[[IDXPROM:[0-9a-z]+]] = sext i32 %[[I_VAL]] to i64
   // CHECK: %[[IDX:.*]] = getelementptr inbounds [100 x i32], [100 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %[[IDXPROM]]
   int a[100], i = 0;
   // CHECK-NEXT: call void asm sideeffect

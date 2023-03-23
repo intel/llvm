@@ -27,7 +27,7 @@ int main() {
 // Check alloca for pointer argument
 // CHECK: [[MEM_ARG]].addr = alloca ptr addrspace(1)
 // Check lambda object alloca
-// CHECK: [[ANONALLOCA:%[a-zA-Z0-9_]+]] = alloca %class.anon
+// CHECK: [[ANONALLOCA:%[a-zA-Z0-9_]+]] = alloca %union.__wrapper_union
 // Check allocas for ranges
 // CHECK: [[ARANGEA:%agg.tmp.*]] = alloca %"struct.sycl::_V1::range"
 // CHECK: [[MRANGEA:%agg.tmp.*]] = alloca %"struct.sycl::_V1::range"

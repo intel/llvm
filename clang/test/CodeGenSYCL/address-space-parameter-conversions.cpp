@@ -1,4 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+
+// Set the cursor so that CEHCK-DAG don't pickup wrong matches
+// CHECK: define {{.*}} @_Z6usagesv
+
 void bar(int & Data) {}
 // CHECK-DAG: define {{.*}}spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](ptr addrspace(4) noundef align 4 dereferenceable(4) %
 void bar2(int & Data) {}

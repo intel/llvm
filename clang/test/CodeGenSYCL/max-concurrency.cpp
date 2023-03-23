@@ -23,14 +23,18 @@
 // CHECK: entry:
 // CHECK: [[F1:%.*]] = alloca [[CLASS_F1:%.*]], align 1
 // CHECK: [[F1_ASCAST:%.*]] = addrspacecast ptr [[F1]] to ptr addrspace(4)
-// CHECK: call spir_func void @_ZNK8Functor1clEv(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) [[F1_ASCAST]])
+// CHECK: store ptr addrspace(4) [[F1_ASCAST]], ptr addrspace(4) [[F1_STACK:%.*]], align 8
+// CHECK: [[K:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F1_STACK]], align 8
+// CHECK: call spir_func void @_ZNK8Functor1clEv(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) [[K]])
 // CHECK: ret void
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4() [[ATTR0]] {{.*}} !max_concurrency ![[NUM1:[0-9]+]]
 // CHECK: entry
 // CHECK: [[F3:%.*]] = alloca [[CLASS_F3:%.*]], align 1
 // CHECK: [[F3_ASCAST:%.*]] = addrspacecast ptr [[F3]] to ptr addrspace(4)
-// CHECK: call spir_func void @_ZNK8Functor3ILi4EEclEv(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) [[F3_ASCAST]])
+// CHECK: store ptr addrspace(4) [[F3_ASCAST]], ptr addrspace(4) [[F3_STACK:%.*]], align 8
+// CHECK: [[K:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[F3_STACK]], align 8
+// CHECK: call spir_func void @_ZNK8Functor3ILi4EEclEv(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) [[K]])
 // CHECK: ret void
 
 // CHECK: define linkonce_odr spir_func void @_ZNK8Functor3ILi4EEclEv
@@ -45,7 +49,9 @@
 // CHECK: entry:
 // CHECK: [[H1:%.*]] = alloca [[H:%.*]], align 1
 // CHECK: [[H2:%.*]] = addrspacecast ptr [[H1]] to ptr addrspace(4)
-// CHECK: call spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) [[H2]])
+// CHECK: store ptr addrspace(4) [[H2]], ptr addrspace(4) [[H_STACK:%.*]], align 8
+// CHECK: [[K:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[H_STACK]], align 8
+// CHECK: call spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) [[K]])
 // CHECK: ret void
 
 // CHECK: define {{.*}}spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv

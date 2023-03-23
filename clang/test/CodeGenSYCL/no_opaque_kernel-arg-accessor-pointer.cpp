@@ -137,16 +137,16 @@ int main() {
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessorDep
 // CHECK-SAME: float addrspace(1)* noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %"struct.sycl::_V1::range.5"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
-// CHECK-SAME: %"struct.sycl::_V1::range.5"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
-// CHECK-SAME: %"struct.sycl::_V1::id.6"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
+// CHECK-SAME: %"struct.sycl::_V1::range.9"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
+// CHECK-SAME: %"struct.sycl::_V1::range.9"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
+// CHECK-SAME: %"struct.sycl::_V1::id.10"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
 // CHECK-SAME: !kernel_arg_runtime_aligned ![[#RTALIGNED2]]
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessor
 // CHECK-SAME: float addrspace(3)* noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %"struct.sycl::_V1::range.5"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
-// CHECK-SAME: %"struct.sycl::_V1::range.5"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
-// CHECK-SAME: %"struct.sycl::_V1::id.6"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
+// CHECK-SAME: %"struct.sycl::_V1::range.9"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
+// CHECK-SAME: %"struct.sycl::_V1::range.9"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
+// CHECK-SAME: %"struct.sycl::_V1::id.10"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
 // CHECK-SAME: !kernel_arg_runtime_aligned ![[#RTALIGNED2]]
 
 // Check kernel_acc_raw_ptr parameters

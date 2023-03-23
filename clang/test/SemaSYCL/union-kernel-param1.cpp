@@ -39,11 +39,19 @@ int main() {
 // Check kernel_A inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'union union_acc_t':'union_acc_t' 'void (const union_acc_t &) noexcept'
-// CHECK: ImplicitCastExpr {{.*}} 'const union_acc_t'
-// CHECK: DeclRefExpr {{.*}} 'union union_acc_t':'union_acc_t' lvalue ParmVar {{.*}} '_arg_union_acc' 'union union_acc_t':'union_acc_t'
+// CHECK-NEXT: VarDecl {{.*}} __wrapper_union
+// CHECK:      CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .union_acc
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    DeclRefExpr {{.*}} '_arg_union_acc'
+// CHECK-NEXT:  IntegerLiteral {{.*}} 8
 
 // Check kernel_B parameters
 // CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (S<int>)'
@@ -52,8 +60,16 @@ int main() {
 // Check kernel_B inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'S<int>':'S<int>' 'void (const S<int> &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}}  'const S<int>'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>':'S<int>' lvalue ParmVar {{.*}} '_arg_s' 'S<int>':'S<int>'
+// CHECK-NEXT: VarDecl {{.*}} __wrapper_union
+// CHECK:      CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .s
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    DeclRefExpr {{.*}} '_arg_s'
+// CHECK-NEXT:  IntegerLiteral {{.*}} 12

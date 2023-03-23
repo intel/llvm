@@ -35,10 +35,13 @@ int main() {
 // Check declaration and initialization of kernel object local clone
 // NONATIVESUPPORT-NEXT: CompoundStmt
 // NONATIVESUPPORT-NEXT: DeclStmt
-// NONATIVESUPPORT-NEXT: VarDecl {{.*}} cinit
-// NONATIVESUPPORT-NEXT: InitListExpr
-// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
+// NONATIVESUPPORT-NEXT: VarDecl {{.*}}
+
+// NONATIVESUPPORT:      BinaryOperator {{.*}} '='
+// NONATIVESUPPORT-NEXT:  MemberExpr {{.*}} .a
+// NONATIVESUPPORT-NEXT:   MemberExpr {{.*}} '(lambda at
+// NONATIVESUPPORT-NEXT:    DeclRefExpr {{.*}} '__wrapper_union'
+// NONATIVESUPPORT-NEXT:  DeclRefExpr {{.*}} '_arg_a'
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NONATIVESUPPORT-NEXT: DeclStmt
@@ -52,16 +55,16 @@ int main() {
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'char *' <AddressSpaceConversion>
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} '__global char *' <LValueToRValue>
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '__global char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' '__global char *'
-// NONATIVESUPPORT-NEXT: CompoundStmt
+// NONATIVESUPPORT:      CompoundStmt
 // NONATIVESUPPORT-NEXT: CXXOperatorCallExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'void (*)(sycl::kernel_handler) const' <FunctionToPointerDecay>
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'void (sycl::kernel_handler) const' lvalue CXXMethod {{.*}} 'operator()' 'void (sycl::kernel_handler) const'
 // Kernel body with clones
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'const (lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})'
+// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}}) &'
 // NONATIVESUPPORT-NEXT: CXXConstructExpr {{.*}} 'sycl::kernel_handler':'sycl::kernel_handler' 'void (const kernel_handler &) noexcept'
-// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'const kernel_handler':'const sycl::kernel_handler' lvalue
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'kernel_handler':'sycl::kernel_handler' lvalue Var {{.*}} 'kh' 'kernel_handler':'sycl::kernel_handler'
+// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}}const sycl::kernel_handler' lvalue
+// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}}'sycl::kernel_handler' lvalue Var {{.*}} 'kh' {{.*}}'sycl::kernel_handler'
 
 // Check test_pfwg_kernel_handler parameters
 // NONATIVESUPPORT: FunctionDecl {{.*}}test_pfwg_kernel_handler{{.*}} 'void (int, __global char *)'
@@ -71,11 +74,14 @@ int main() {
 // Check declaration and initialization of kernel object local clone
 // NONATIVESUPPORT-NEXT: CompoundStmt
 // NONATIVESUPPORT-NEXT: DeclStmt
-// NONATIVESUPPORT-NEXT: VarDecl {{.*}} cinit
-// NONATIVESUPPORT-NEXT: InitListExpr
-// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
+// NONATIVESUPPORT-NEXT: VarDecl {{.*}}
 // NONATIVESUPPORT-NEXT: SYCLScopeAttr {{.*}} Implicit WorkGroup
+
+// NONATIVESUPPORT:      BinaryOperator {{.*}} '='
+// NONATIVESUPPORT-NEXT:  MemberExpr {{.*}} .a
+// NONATIVESUPPORT-NEXT:   MemberExpr {{.*}} '(lambda at
+// NONATIVESUPPORT-NEXT:    DeclRefExpr {{.*}} '__wrapper_union'
+// NONATIVESUPPORT-NEXT:  DeclRefExpr {{.*}} '_arg_a'
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NONATIVESUPPORT-NEXT: DeclStmt
@@ -89,14 +95,14 @@ int main() {
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'char *' <AddressSpaceConversion>
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} '__global char *' <LValueToRValue>
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '__global char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' '__global char *'
-// NONATIVESUPPORT-NEXT: CompoundStmt
+// NONATIVESUPPORT:      CompoundStmt
 // NONATIVESUPPORT-NEXT: CXXOperatorCallExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'void (*)(group<1>, kernel_handler) const' <FunctionToPointerDecay>
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'void (group<1>, kernel_handler) const' lvalue CXXMethod {{.*}} 'operator()' 'void (group<1>, kernel_handler) const'
 
 // Kernel body with clones
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'const (lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})'
+// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}}) &'
 // NONATIVESUPPORT-NEXT: CXXTemporaryObjectExpr {{.*}} 'group<1>':'sycl::group<>' 'void () noexcept' zeroing
 // NONATIVESUPPORT-NEXT: CXXConstructExpr {{.*}}'kernel_handler':'sycl::kernel_handler' 'void (const kernel_handler &) noexcept'
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}}'const sycl::kernel_handler' lvalue
@@ -112,10 +118,13 @@ int main() {
 // Check declaration and initialization of kernel object local clone
 // NATIVESUPPORT-NEXT: CompoundStmt
 // NATIVESUPPORT-NEXT: DeclStmt
-// NATIVESUPPORT-NEXT: VarDecl {{.*}} cinit
-// NATIVESUPPORT-NEXT: InitListExpr
-// NATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// NATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
+// NATIVESUPPORT-NEXT: VarDecl {{.*}}
+
+// NATIVESUPPORT:      BinaryOperator {{.*}} '='
+// NATIVESUPPORT-NEXT:  MemberExpr {{.*}} .a
+// NATIVESUPPORT-NEXT:   MemberExpr {{.*}} '(lambda at
+// NATIVESUPPORT-NEXT:    DeclRefExpr {{.*}} '__wrapper_union'
+// NATIVESUPPORT-NEXT:  DeclRefExpr {{.*}} '_arg_a'
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NATIVESUPPORT-NEXT: DeclStmt
@@ -127,7 +136,7 @@ int main() {
 
 // Kernel body with clones
 // NATIVESUPPORT: ImplicitCastExpr {{.*}} 'const (lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue
-// NATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})'
+// NATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}}) &'
 // NATIVESUPPORT-NEXT: CXXConstructExpr {{.*}} 'sycl::kernel_handler':'sycl::kernel_handler' 'void (const kernel_handler &) noexcept'
-// NATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'const kernel_handler':'const sycl::kernel_handler' lvalue
-// NATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'kernel_handler':'sycl::kernel_handler' lvalue Var {{.*}} 'kh' 'kernel_handler':'sycl::kernel_handler'
+// NATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}}'const sycl::kernel_handler' lvalue
+// NATIVESUPPORT-NEXT: DeclRefExpr {{.*}}'sycl::kernel_handler' lvalue Var {{.*}} 'kh' {{.*}}'sycl::kernel_handler'

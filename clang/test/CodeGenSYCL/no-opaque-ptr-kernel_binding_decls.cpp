@@ -25,22 +25,27 @@ void foo() {
 // Check alloca of the captured types
 // CHECK: %_arg_x.addr = alloca i32, align 4
 // CHECK: %_arg_f2.addr = alloca float, align 4
-// CHECK: %__SYCLKernel = alloca %class.anon, align 4
+// CHECK: [[FUNCTOR:%__wrapper_union]] = alloca %union.__wrapper_union, align 4
 
 // Copy the parameters into the alloca-ed addresses
 // CHECK: store i32 %_arg_x, i32 addrspace(4)* %_arg_x.addr
 // CHECK: store float %_arg_f2, float addrspace(4)* %_arg_f2.addr
 
 // Store the int and the float into the struct created
-// CHECK: %x = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %__SYCLKernel{{.*}}, i32 0, i32 0
-// CHECK: %0 = load i32, i32 addrspace(4)* %_arg_x.addr
-// CHECK: store i32 %0, i32 addrspace(4)* %x
-// CHECK: %f2 = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %__SYCLKernel{{.*}}, i32 0, i32 1
-// CHECK: %1 = load float, float addrspace(4)* %_arg_f2.addr
-// CHECK: store float %1, float addrspace(4)* %f2
+// CHECK: [[X_ARG:%[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %_arg_x.addr
+// CHECK: [[FUNCTOR_BC:%[0-9a-zA-Z_.]+]] = bitcast %union.__wrapper_union addrspace(4)* [[FUNCTOR]].ascast to %class.anon addrspace(4)*
+// CHECK: %x = getelementptr inbounds %class.anon, %class.anon addrspace(4)* [[FUNCTOR_BC]], i32 0, i32 0
+// CHECK: store i32 [[X_ARG]], i32 addrspace(4)* %x
+// CHECK: [[F2_ARG:%[0-9a-zA-Z_.]+]] = load float, float addrspace(4)* %_arg_f2.addr
+// CHECK: [[FUNCTOR_BC:%[0-9a-zA-Z_.]+]] = bitcast %union.__wrapper_union addrspace(4)* [[FUNCTOR]].ascast to %class.anon addrspace(4)*
+// CHECK: %f2 = getelementptr inbounds %class.anon, %class.anon addrspace(4)* [[FUNCTOR_BC]], i32 0, i32 1
+// CHECK: store float [[F2_ARG]], float addrspace(4)* %f2
 
 // Call the lambda
-// CHECK: call spir_func void @{{.*}}foo{{.*}}(%class.anon addrspace(4)* {{.*}} %__SYCLKernel{{.*}})
+// CHECK: [[FUNCTOR_BC:%[0-9a-zA-Z_.]+]] = bitcast %union.__wrapper_union addrspace(4)* [[FUNCTOR]].ascast to %class.anon addrspace(4)*
+// CHECK: store %class.anon addrspace(4)* [[FUNCTOR_BC]], %class.anon addrspace(4)* addrspace(4)* [[K_PTR:%[0-9a-zA-Z_.]+]]
+// CHECK: [[THIS:%[0-9a-zA-Z_.]+]] = load %class.anon addrspace(4)*, %class.anon addrspace(4)* addrspace(4)* [[K_PTR]]
+// CHECK: call spir_func void @{{.*}}foo{{.*}}(%class.anon addrspace(4)* {{.*}} [[THIS]])
 // CHECK:   ret void
 
 // Check the lambda call

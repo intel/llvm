@@ -29,7 +29,8 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void (__ocl_sampler_t)' lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::sampler':'sycl::sampler' lvalue
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}sampler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}sampler.cpp{{.*}})'
+// CHECK-NEXT:  MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__wrapper_union'
 //
 // Check the parameters of __init method
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__ocl_sampler_t':'sampler_t' <LValueToRValue>

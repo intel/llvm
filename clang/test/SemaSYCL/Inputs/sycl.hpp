@@ -1,6 +1,8 @@
 #ifndef SYCL_HPP
 #define SYCL_HPP
 
+void* operator new  (__SIZE_TYPE__ size, void* ptr) noexcept;
+void* operator new[](__SIZE_TYPE__ size, void* ptr) noexcept;
 #define __SYCL_TYPE(x) [[__sycl_detail__::sycl_type(x)]]
 
 // Shared code for SYCL tests

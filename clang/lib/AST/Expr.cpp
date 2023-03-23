@@ -270,7 +270,15 @@ bool Expr::isFlexibleArrayMemberLike(
           continue;
         }
         if (ConstantArrayTypeLoc CTL = TL.getAs<ConstantArrayTypeLoc>()) {
-          const Expr *SizeExpr = dyn_cast<IntegerLiteral>(CTL.getSizeExpr());
+          // FIXME: changed dyn_cast to dyn_cast_or_null
+          //    to work around the fact that CTL.getSizeExpr() isn't set
+          //    for a FieldDecl of a class generated from a lambda capture.
+          //    This is highlighted only by the way lambda expression used
+          //    as a SYCL kernel is being processed.
+          //    In normal situation the capture list is used.
+          //    No harm done, just a work around.
+          const Expr *SizeExpr =
+              dyn_cast_or_null<IntegerLiteral>(CTL.getSizeExpr());
           if (!SizeExpr || SizeExpr->getExprLoc().isMacroID())
             return false;
         }
