@@ -4233,10 +4233,13 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
     // TODO: To revisit after level_zero/issues/262 is resolved
     struct {
       size_t Arr[3];
-    } WorkSize = {{Device->ZeDeviceComputeProperties->maxGroupSizeX,
-                   Device->ZeDeviceComputeProperties->maxGroupSizeY,
-                   Device->ZeDeviceComputeProperties->maxGroupSizeZ}};
-    return ReturnValue(WorkSize);
+    } GlobalWorkSize = {{(Device->ZeDeviceComputeProperties->maxGroupSizeX *
+                          Device->ZeDeviceComputeProperties->maxGroupCountX),
+                         (Device->ZeDeviceComputeProperties->maxGroupSizeY *
+                          Device->ZeDeviceComputeProperties->maxGroupCountY),
+                         (Device->ZeDeviceComputeProperties->maxGroupSizeZ *
+                          Device->ZeDeviceComputeProperties->maxGroupCountZ)}};
+    return ReturnValue(GlobalWorkSize);
   }
   case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
     // As of right now, L0 is missing API to query kernel and device specific
