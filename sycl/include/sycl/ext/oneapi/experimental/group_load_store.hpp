@@ -191,6 +191,8 @@ void dispatch(GroupTy group, IteratorT iter, GenericTy generic,
         return generic_with_barrier();
       } else {
         group_barrier(group);
+        // TODO: verify that sizeof * sg.get_max_local_range() *
+        // sg_offset_per_wi is a multiple of required alignment.
         delegate(sg, iter + sg.get_group_id() *
                                        sg.get_max_local_range() *
                                        sg_offset_per_wi);
@@ -388,9 +390,8 @@ void group_load(GroupHelper gh, InputIteratorT in_ptr,
                 Properties properties = {}) {
   constexpr bool blocked = detail::is_blocked(properties);
   auto generic = [&]() {
-    sycl::detail::dim_loop<ElementsPerWorkItem>([&](size_t i) {
+    for (int i = 0; i < out.size(); ++i)
       out[i] = in_ptr[detail::get_mem_idx<blocked, ElementsPerWorkItem>(gh, i)];
-    });
   };
 
   group_barrier(gh);
@@ -410,9 +411,8 @@ void group_store(GroupHelper gh,
                  OutputIteratorT out_ptr, Properties properties = {}) {
   constexpr bool blocked = detail::is_blocked(properties);
   auto generic = [&]() {
-    sycl::detail::dim_loop<ElementsPerWorkItem>([&](size_t i) {
+    for (int i = 0; i < in.size(); ++i)
       out_ptr[detail::get_mem_idx<blocked, ElementsPerWorkItem>(gh, i)] = in[i];
-    });
   };
 
   group_barrier(gh);
