@@ -2827,7 +2827,7 @@ public:
                             const CXXRecordDecl *KernelObj)
       : KernelCallerFunc(KernelCallerFunc), KernelObj(KernelObj) {}
 
-  bool visitCallExpr(CallExpr *CE) {
+  bool VisitCallExpr(CallExpr *CE) {
     Decl *CalleeDecl = CE->getCalleeDecl();
     if (isa_and_nonnull<CXXMethodDecl>(CalleeDecl)) {
       CXXMethodDecl *MD = cast<CXXMethodDecl>(CalleeDecl);
@@ -3654,8 +3654,7 @@ public:
                              FunctionDecl *KernelFunc)
       : SyclKernelFieldHandler(S), Header(H),
         KernelCallOperator(KernelCallOperator) {
-    bool IsSIMDKernel =
-        isESIMDKernelType(KernelCallOperator);
+    bool IsSIMDKernel = isESIMDKernelType(KernelCallOperator);
     // The header needs to access the kernel object size.
     int64_t ObjSize = SemaRef.getASTContext()
                           .getTypeSizeInChars(KernelObj->getTypeForDecl())
@@ -4024,12 +4023,6 @@ public:
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
                                ArrayRef<const Expr *> Args) {
-  QualType KernelNameType =
-      calculateKernelNameType(getASTContext(), KernelFunc);
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
-      *this, Args[0]->getExprLoc(), KernelNameType,
-      IsSYCLUnnamedKernel(*this, KernelFunc));
-  KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
 
   // FIXME: In place until the library works around its 'host' invocation
   // issues.
@@ -4070,38 +4063,6 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
   // Do not visit invalid kernel object.
   if (KernelObj->isInvalidDecl())
     return;
-
-  bool IsSIMDKernel =
-      isESIMDKernelType(KernelCallOperator);
-
-  SyclKernelDecompMarker DecompMarker(*this);
-  SyclKernelFieldChecker FieldChecker(*this, IsSIMDKernel);
-  SyclKernelUnionChecker UnionChecker(*this);
-
-  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc(),
-                                            IsSIMDKernel);
-
-  KernelObjVisitor Visitor{*this};
-
-  DiagnosingSYCLKernel = true;
-
-  // Emit diagnostics for SYCL device kernels only
-  Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
-  Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
-                            DecompMarker);
-  // ArgSizeChecker needs to happen after DecompMarker has completed, since it
-  // cares about the decomp attributes. DecompMarker cannot run before the
-  // others, since it counts on the FieldChecker to make sure it is visiting
-  // valid arrays/etc. Thus, ArgSizeChecker has its own visitation.
-  if (FieldChecker.isValid() && UnionChecker.isValid()) {
-    Visitor.VisitRecordBases(KernelObj, ArgsSizeChecker);
-    Visitor.VisitRecordFields(KernelObj, ArgsSizeChecker);
-  }
-  DiagnosingSYCLKernel = false;
-  // Set the kernel function as invalid, if any of the checkers fail validation.
-  if (!FieldChecker.isValid() || !UnionChecker.isValid() ||
-      !KernelNameTypeVisitor.isValid())
-    KernelFunc->setInvalidDecl();
 }
 
 // For a wrapped parallel_for, copy attributes from original
@@ -4228,22 +4189,57 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       copySYCLKernelAttrs(KernelObj, KernelCallerFunc);
   }
 
-  bool IsSIMDKernel =
-      isESIMDKernelType(KernelCallOperator);
+  bool IsSIMDKernel = isESIMDKernelType(KernelCallOperator);
 
   SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(), IsSIMDKernel,
                                     KernelCallerFunc);
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc);
+  QualType KernelNameType =
+      calculateKernelNameType(getASTContext(), KernelCallerFunc);
+
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
+      *this, KernelObj->getLocation(), KernelNameType,
+      IsSYCLUnnamedKernel(*this, KernelCallerFunc));
+  KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
+
+  SyclKernelFieldChecker FieldChecker(*this, IsSIMDKernel);
+
+  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, KernelObj->getLocation(),
+                                            IsSIMDKernel);
+
+  SyclKernelDecompMarker DecompMarker(*this);
+  SyclKernelUnionChecker UnionChecker(*this);
+
+  KernelObjVisitor Visitor{*this};
+
+  DiagnosingSYCLKernel = true;
+
+  // Emit diagnostics for SYCL device kernels only
+  Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
+  Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
+                            DecompMarker);
+  // ArgSizeChecker needs to happen after DecompMarker has completed, since it
+  // cares about the decomp attributes. DecompMarker cannot run before the
+  // others, since it counts on the FieldChecker to make sure it is visiting
+  // valid arrays/etc. Thus, ArgSizeChecker has its own visitation.
+  if (FieldChecker.isValid() && UnionChecker.isValid()) {
+    Visitor.VisitRecordBases(KernelObj, ArgsSizeChecker);
+    Visitor.VisitRecordFields(KernelObj, ArgsSizeChecker);
+  }
+  DiagnosingSYCLKernel = false;
+  // Set the kernel function as invalid, if any of the checkers fail validation.
+  if (!FieldChecker.isValid() || !UnionChecker.isValid() ||
+      !KernelNameTypeVisitor.isValid())
+    KernelCallerFunc->setInvalidDecl();
+
   SyclKernelIntHeaderCreator int_header(
       KernelCallOperator, *this, getSyclIntegrationHeader(), KernelObj,
       calculateKernelNameType(Context, KernelCallerFunc), KernelCallerFunc);
 
   SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
   SyclOptReportCreator opt_report(*this, kernel_decl, KernelObj->getLocation());
-
-  KernelObjVisitor Visitor{*this};
 
   // Visit handlers to generate information for optimization record only if
   // optimization record is saved.

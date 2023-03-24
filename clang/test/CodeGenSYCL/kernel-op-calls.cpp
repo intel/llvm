@@ -17,6 +17,16 @@ public:
 
 };
 
+class ESIMDFunctor {
+public:
+ ESIMDFunctor(){}
+
+  [[intel::sycl_explicit_simd]] void operator()(sycl::id<2> id) const {}
+
+  [[sycl::work_group_size_hint(1, 2, 3)]][[intel::sycl_explicit_simd]] void operator()(sycl::id<1> id) const {}
+
+};
+
 // Check templated 'operator()()' call works.
 class kernels {
 public:  
@@ -39,6 +49,12 @@ int main() {
       kernels K;
       // CHECK: define dso_local spir_kernel void @_ZTS7kernels() #0 !srcloc !15 !kernel_arg_buffer_location !12 !work_group_size_hint !16 !sycl_fixed_targets !12 {
       cgh.parallel_for(sycl::range<1>(10), K);
+    });
+
+  Q.submit([&](sycl::handler& cgh) {
+      ESIMDFunctor EF;
+      // CHECK: define dso_local spir_kernel void @_ZTS12ESIMDFunctor() #0 !srcloc !17 !intel_reqd_sub_group_size !18 !work_group_size_hint !16 !kernel_arg_addr_space !12 !kernel_arg_access_qual !12 !kernel_arg_type !12 !kernel_arg_base_type !12 !kernel_arg_type_qual !12 !kernel_arg_accessor_ptr !12 !sycl_explicit_simd !12 !sycl_fixed_targets !12 {
+      cgh.parallel_for(sycl::range<1>(10), EF);
     });
 
   return 0;
