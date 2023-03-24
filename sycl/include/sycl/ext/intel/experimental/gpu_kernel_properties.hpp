@@ -30,10 +30,12 @@ struct gpu_cache_config {
 
 using gpu_cache_config_key = gpu_cache_config;
 
-inline bool operator==(const gpu_cache_config &lhs, const gpu_cache_config &rhs) {
+inline bool operator==(const gpu_cache_config &lhs,
+                       const gpu_cache_config &rhs) {
   return lhs.value == rhs.value;
 }
-inline bool operator!=(const gpu_cache_config &lhs, const gpu_cache_config &rhs) {
+inline bool operator!=(const gpu_cache_config &lhs,
+                       const gpu_cache_config &rhs) {
   return !(lhs == rhs);
 }
 

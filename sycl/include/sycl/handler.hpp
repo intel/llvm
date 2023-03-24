@@ -724,12 +724,11 @@ private:
         "Template type is not a property list.");
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::gpu_cache_config_key>()) {
-      auto Config = Props.template get_property<sycl::ext::intel::experimental::gpu_cache_config_key>();
-      if (Config == sycl::ext::intel::experimental::
-                                  large_slm) {
+      auto Config = Props.template get_property<
+          sycl::ext::intel::experimental::gpu_cache_config_key>();
+      if (Config == sycl::ext::intel::experimental::large_slm) {
         setKernelGpuCacheConfig(PI_GPU_CACHE_LARGE_SLM);
-      } else if (Config == sycl::ext::intel::experimental::
-                                         large_data) {
+      } else if (Config == sycl::ext::intel::experimental::large_data) {
         setKernelGpuCacheConfig(PI_GPU_CACHE_LARGE_DATA);
       }
     } else {
@@ -1112,7 +1111,8 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename PropertiesT =
                 ext::oneapi::experimental::detail::empty_properties_t>
-  void parallel_for_work_group_lambda_impl(range<Dims> NumWorkGroups, PropertiesT Props,
+  void parallel_for_work_group_lambda_impl(range<Dims> NumWorkGroups,
+                                           PropertiesT Props,
                                            _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
@@ -1150,7 +1150,8 @@ private:
             typename PropertiesT =
                 ext::oneapi::experimental::detail::empty_properties_t>
   void parallel_for_work_group_lambda_impl(range<Dims> NumWorkGroups,
-                                           range<Dims> WorkGroupSize, PropertiesT Props,
+                                           range<Dims> WorkGroupSize,
+                                           PropertiesT Props,
                                            _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
@@ -1356,9 +1357,11 @@ private:
                                                    PropertiesT>::type;
     using Unpacker = KernelPropertiesUnpacker<MergedPropertiesT>;
     // If there are properties provided by get method then process them.
-    if constexpr (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-      _KERNELFUNCPARAMTYPE>::value) {
-      processProperties(KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
+    if constexpr (ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          _KERNELFUNCPARAMTYPE>::value) {
+      processProperties(
+          KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
     }
     if constexpr (HasKernelHandlerArg) {
       kernel_handler KH;
@@ -1419,7 +1422,8 @@ private:
   template <typename KernelName, typename KernelType,
             typename PropertiesT =
                 ext::oneapi::experimental::detail::empty_properties_t>
-  void single_task_lambda_impl(PropertiesT Props, _KERNELFUNCPARAM(KernelFunc)) {
+  void single_task_lambda_impl(PropertiesT Props,
+                               _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1593,22 +1597,29 @@ public:
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(_KERNELFUNCPARAM(KernelFunc)) {
-    single_task_lambda_impl<KernelName>(ext::oneapi::experimental::detail::empty_properties_t{}, KernelFunc);
+    single_task_lambda_impl<KernelName>(
+        ext::oneapi::experimental::detail::empty_properties_t{}, KernelFunc);
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
   void parallel_for(range<1> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_lambda_impl<KernelName>(NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{}, std::move(KernelFunc));
+    parallel_for_lambda_impl<KernelName>(
+        NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
   void parallel_for(range<2> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_lambda_impl<KernelName>(NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{}, std::move(KernelFunc));
+    parallel_for_lambda_impl<KernelName>(
+        NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
   void parallel_for(range<3> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_lambda_impl<KernelName>(NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{}, std::move(KernelFunc));
+    parallel_for_lambda_impl<KernelName>(
+        NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::move(KernelFunc));
   }
 
   /// Defines and invokes a SYCL kernel on host device.
@@ -1688,7 +1699,9 @@ public:
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_work_group_lambda_impl<KernelName>(NumWorkGroups, ext::oneapi::experimental::detail::empty_properties_t{}, KernelFunc);
+    parallel_for_work_group_lambda_impl<KernelName>(
+        NumWorkGroups, ext::oneapi::experimental::detail::empty_properties_t{},
+        KernelFunc);
   }
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
@@ -1708,8 +1721,9 @@ public:
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
                                _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_work_group_lambda_impl<KernelName>(NumWorkGroups,
-                                                    WorkGroupSize, ext::oneapi::experimental::detail::empty_properties_t{}, KernelFunc);
+    parallel_for_work_group_lambda_impl<KernelName>(
+        NumWorkGroups, WorkGroupSize,
+        ext::oneapi::experimental::detail::empty_properties_t{}, KernelFunc);
   }
 
   /// Invokes a SYCL kernel.
@@ -2022,7 +2036,8 @@ public:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   single_task(PropertiesT Props, _KERNELFUNCPARAM(KernelFunc)) {
-    single_task_lambda_impl<KernelName, KernelType, PropertiesT>(Props, KernelFunc);
+    single_task_lambda_impl<KernelName, KernelType, PropertiesT>(Props,
+                                                                 KernelFunc);
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
@@ -2113,7 +2128,8 @@ public:
   void parallel_for_work_group(range<Dims> NumWorkGroups, PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
-                                        PropertiesT>(NumWorkGroups, Props, KernelFunc);
+                                        PropertiesT>(NumWorkGroups, Props,
+                                                     KernelFunc);
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
@@ -2122,8 +2138,8 @@ public:
                                range<Dims> WorkGroupSize, PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
-                                        PropertiesT>(NumWorkGroups,
-                                                     WorkGroupSize, Props, KernelFunc);
+                                        PropertiesT>(
+        NumWorkGroups, WorkGroupSize, Props, KernelFunc);
   }
 
   // Clean up KERNELFUNC macro.
