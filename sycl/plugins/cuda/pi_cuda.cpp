@@ -2921,7 +2921,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
     size_t global_work_size[3] = {0, 0, 0};
 
-    size_t max_block_dimX{0}, max_block_dimY{0}, max_block_dimZ{0};
+    int max_block_dimX{0}, max_block_dimY{0}, max_block_dimZ{0};
     sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&max_block_dimX,
                              CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
@@ -2935,7 +2935,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                              CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
                              device->get()) == CUDA_SUCCESS);
 
-    size_t max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
+    int max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
     sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&max_grid_dimX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
                              device->get()) == CUDA_SUCCESS);

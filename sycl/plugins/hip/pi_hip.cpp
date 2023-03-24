@@ -3536,67 +3536,98 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                    size_t param_value_size, void *param_value,
                                    size_t *param_value_size_ret) {
 
+  PI_ASSERT(kernel, PI_ERROR_INVALID_KERNEL);
+  PI_ASSERT(device, PI_ERROR_INVALID_DEVICE);
+
   // here we want to query about a kernel's hip blocks!
 
-  if (kernel != nullptr) {
+  switch (param_name) {
+  case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
+    size_t global_work_size[3] = {0, 0, 0};
 
-    switch (param_name) {
-    case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-      int max_threads = 0;
-      sycl::detail::pi::assertion(
-          hipFuncGetAttribute(&max_threads,
-                              HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                              kernel->get()) == hipSuccess);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     size_t(max_threads));
-    }
-    case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
-      // Returns the work-group size specified in the kernel source or IL.
-      // If the work-group size is not specified in the kernel source or IL,
-      // (0, 0, 0) is returned.
-      // https://www.khronos.org/registry/OpenCL/sdk/2.1/docs/man/xhtml/clGetKernelWorkGroupInfo.html
+    int max_block_dimX{0}, max_block_dimY{0}, max_block_dimZ{0};
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_block_dimX, hipDeviceAttributeMaxBlockDimX,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_block_dimY, hipDeviceAttributeMaxBlockDimY,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_block_dimZ, hipDeviceAttributeMaxBlockDimZ,
+                              device->get()) == hipSuccess);
 
-      // TODO: can we extract the work group size from the PTX?
-      size_t group_size[3] = {0, 0, 0};
-      return getInfoArray(3, param_value_size, param_value,
-                          param_value_size_ret, group_size);
-    }
-    case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
-      // OpenCL LOCAL == HIP SHARED
-      int bytes = 0;
-      sycl::detail::pi::assertion(
-          hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-                              kernel->get()) == hipSuccess);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     pi_uint64(bytes));
-    }
-    case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
-      // Work groups should be multiples of the warp size
-      int warpSize = 0;
-      sycl::detail::pi::assertion(
-          hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
-                                device->get()) == hipSuccess);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     static_cast<size_t>(warpSize));
-    }
-    case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
-      // OpenCL PRIVATE == HIP LOCAL
-      int bytes = 0;
-      sycl::detail::pi::assertion(
-          hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                              kernel->get()) == hipSuccess);
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     pi_uint64(bytes));
-    }
-    case PI_KERNEL_GROUP_INFO_NUM_REGS: {
-      sycl::detail::pi::die("PI_KERNEL_GROUP_INFO_NUM_REGS in "
-                            "piKernelGetGroupInfo not implemented\n");
-      return {};
-    }
+    int max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_grid_dimX, hipDeviceAttributeMaxGridDimX,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_grid_dimY, hipDeviceAttributeMaxGridDimY,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&max_grid_dimZ, hipDeviceAttributeMaxGridDimZ,
+                              device->get()) == hipSuccess);
 
-    default:
-      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-    }
+    global_work_size[0] = max_block_dimX * max_grid_dimX;
+    global_work_size[1] = max_block_dimY * max_grid_dimY;
+    global_work_size[2] = max_block_dimZ * max_grid_dimZ;
+    return getInfoArray(3, param_value_size, param_value, param_value_size_ret,
+                        global_work_size);
+  }
+  case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
+    int max_threads = 0;
+    sycl::detail::pi::assertion(
+        hipFuncGetAttribute(&max_threads,
+                            HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                            kernel->get()) == hipSuccess);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   size_t(max_threads));
+  }
+  case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
+    // Returns the work-group size specified in the kernel source or IL.
+    // If the work-group size is not specified in the kernel source or IL,
+    // (0, 0, 0) is returned.
+    // https://www.khronos.org/registry/OpenCL/sdk/2.1/docs/man/xhtml/clGetKernelWorkGroupInfo.html
+
+    // TODO: can we extract the work group size from the PTX?
+    size_t group_size[3] = {0, 0, 0};
+    return getInfoArray(3, param_value_size, param_value, param_value_size_ret,
+                        group_size);
+  }
+  case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
+    // OpenCL LOCAL == HIP SHARED
+    int bytes = 0;
+    sycl::detail::pi::assertion(
+        hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
+                            kernel->get()) == hipSuccess);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   pi_uint64(bytes));
+  }
+  case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+    // Work groups should be multiples of the warp size
+    int warpSize = 0;
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
+                              device->get()) == hipSuccess);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   static_cast<size_t>(warpSize));
+  }
+  case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
+    // OpenCL PRIVATE == HIP LOCAL
+    int bytes = 0;
+    sycl::detail::pi::assertion(
+        hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+                            kernel->get()) == hipSuccess);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   pi_uint64(bytes));
+  }
+  case PI_KERNEL_GROUP_INFO_NUM_REGS: {
+    sycl::detail::pi::die("PI_KERNEL_GROUP_INFO_NUM_REGS in "
+                          "piKernelGetGroupInfo not implemented\n");
+    return {};
+  }
+
+  default:
+    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
 
   return PI_ERROR_INVALID_KERNEL;
@@ -5348,7 +5379,7 @@ pi_result hip_piextEnqueueDeviceGlobalVariableRead(
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
 // called safely. But this is not transitive. If the PI plugin in turn
-// dynamically loaded a different DLL, that may have been unloaded. 
+// dynamically loaded a different DLL, that may have been unloaded.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result hip_piTearDown(void *PluginParameter) {
