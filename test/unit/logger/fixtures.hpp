@@ -59,6 +59,7 @@ class FileSinkDefaultLevel : public FileSink {
     }
 
     void TearDown() override {
+        FileSink::TearDown();
         ret = unsetenv("UR_LOG_TEST_ADAPTER");
         ASSERT_EQ(ret, 0);
     }
