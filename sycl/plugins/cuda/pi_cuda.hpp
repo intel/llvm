@@ -42,6 +42,11 @@
 #include <unordered_map>
 #include <vector>
 
+// Helper for one-liner validation
+#define PI_ASSERT(condition, error)                                            \
+  if (!(condition))                                                            \
+    return error;
+
 extern "C" {
 
 /// \cond IGNORE_BLOCK_IN_DOXYGEN
