@@ -1418,7 +1418,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   SmallVector<Value *, 16> GenXArgs;
   createESIMDIntrinsicArgs(Desc, GenXArgs, CI, FE);
   Function *NewFDecl = nullptr;
-  bool IsStructureReturningFunction =
+  bool DoesFunctionReturnStructure =
       isStructureReturningFunction(Desc.GenXSpelling);
   if (Desc.GenXSpelling.rfind("test.src.", 0) == 0) {
     // Special case for testing purposes
@@ -1429,7 +1429,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
 
     SmallVector<Type *, 16> GenXOverloadedTypes;
     if (GenXIntrinsic::isOverloadedRet(ID)) {
-      if (IsStructureReturningFunction) {
+      if (DoesFunctionReturnStructure) {
         // TODO implement more generic handling of returned structure
         // current code assumes that returned code has 2 members of the
         // same type as arguments.
@@ -1453,7 +1453,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   if (FixReadNone)
     NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
   Instruction *NewInst = nullptr;
-  if (IsStructureReturningFunction) {
+  if (DoesFunctionReturnStructure) {
     AddrSpaceCastInst *a = static_cast<AddrSpaceCastInst *>(GenXArgs[0]);
 
     GenXArgs.erase(GenXArgs.begin());
