@@ -293,7 +293,9 @@ public:
 
 private:
   void createIfOp() final { AffineLoopVersionBuilder::createIfOp(); }
-  void createThenBody() const final { AffineLoopVersionBuilder::createThenBody(); }
+  void createThenBody() const final {
+    AffineLoopVersionBuilder::createThenBody();
+  }
   void createElseBody() const final;
   IntegerSet createCondition(SmallVectorImpl<Value> &) const final;
   virtual void getConstraints(SmallVectorImpl<AffineExpr> &,
