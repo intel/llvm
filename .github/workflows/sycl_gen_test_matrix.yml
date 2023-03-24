@@ -35,16 +35,16 @@ on:
         default: ${{ github.sha }}
     outputs:
       lts_lx_matrix:
-        description: "Generated Linux LTS Matrix"
+        description: "Linux LTS"
         value: ${{ jobs.test_matrix.outputs.lts_lx_matrix }}
       lts_wn_matrix:
-        description: "Generated Windows LTS Matrix"
+        description: "Windows LTS"
         value: ${{ jobs.test_matrix.outputs.lts_wn_matrix }}
       cts_matrix:
-        description: "Generated SYCL CTS Matrix"
+        description: "SYCL CTS"
         value: ${{ jobs.test_matrix.outputs.cts_matrix }}
       lts_aws_matrix:
-        description: "Generated Linux AWS Matrix"
+        description: "Linux AWS"
         value: ${{ jobs.test_matrix.outputs.lts_aws_matrix }}
 jobs:
   test_matrix:

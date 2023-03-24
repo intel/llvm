@@ -14,10 +14,6 @@ on:
         type: string
         required: false
         default: "[]"
-      lts_aws_matrix:
-        type: string
-        required: false
-        default: "[]"
       lts_cmake_extra_args:
         type: string
         required: false
@@ -34,7 +30,6 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJSON(inputs.lts_matrix) }}
-    #runs-on: windows-latest
     # TODO use cached checkout
     steps:
     - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
@@ -73,20 +68,14 @@ jobs:
       shell: cmd
       # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build build --target deploy-sycl-toolchain
-        cmake --build build --target utils/FileCheck/install
         cmake --build build --target utils/count/install
         cmake --build build --target utils/not/install
         cmake --build build --target utils/lit/install
         cmake --build build --target utils/llvm-lit/install
-        cmake --build build --target install-clang-format
-        cmake --build build --target install-clang-tidy
         cmake --build build --target install-llvm-size
         cmake --build build --target install-llvm-cov
         cmake --build build --target install-llvm-profdata
         cmake --build build --target install-compiler-rt
-        #Copy FileCheck to intall/bin for use by E2E tests.
-        copy %GITHUB_WORKSPACE%\build\bin\FileCheck.exe %GITHUB_WORKSPACE%\install\bin\.
     - name: check-llvm
       shell: bash
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
@@ -113,12 +102,13 @@ jobs:
       run: |
         cmake --build build --target check-xptifw
     - name: Install
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: bash
       run: |
         cmake --build build --target deploy-sycl-toolchain
+        cmake --build build --target utils/FileCheck/install
+        # Copy FileCheck to install/bin for use by E2E tests.
+        copy %GITHUB_WORKSPACE%\build\bin\FileCheck.exe %GITHUB_WORKSPACE%\install\bin\.
     - name: Upload toolchain
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       uses: actions/upload-artifact@v3
       with:
         name: sycl_windows_default
@@ -126,7 +116,7 @@ jobs:
 
   llvm_test_suite:
     needs: build
-    if: ${{ !failure() && inputs.lts_matrix != '[]' }}
+    if: ${{ needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:
@@ -143,7 +133,6 @@ jobs:
         git config --system core.longpaths true
         git config --global core.autocrlf false
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     # TODO: use cached_checkout
     - uses: actions/checkout@v3
       with:
