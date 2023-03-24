@@ -23,9 +23,10 @@ int main() {
     Q.submit([&](sycl::handler &CGH) {
       sycl::local_accessor<size_t, 3> LocalMem(sycl::range<3>(1, 1, 1), CGH);
       auto Acc = Buf.get_access(CGH);
-      CGH.parallel_for(1, [=](sycl::item<1> It) {
-        LocalMem[It][It][It] = 42;
-        Acc[It] = LocalMem[It][It][It];
+      CGH.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1> It) {
+        LocalMem[It.get_local_id()][It.get_local_id()][It.get_local_id()] = 42;
+        Acc[It.get_local_id()] =
+            LocalMem[It.get_local_id()][It.get_local_id()][It.get_local_id()];
       });
     });
   }
