@@ -176,7 +176,7 @@ context_impl::get_info<info::context::atomic_memory_order_capabilities>()
     return CapabilityList;
 
   for (const sycl::device &Device : MDevices) {
-    std::vector<sycl::memory_order> NewCapabilityList(CapabilityList.size());
+    std::vector<sycl::memory_order> NewCapabilityList;
     std::vector<sycl::memory_order> DeviceCapabilities =
         Device.get_info<info::device::atomic_memory_order_capabilities>();
     std::set_intersection(
@@ -193,17 +193,26 @@ template <>
 std::vector<sycl::memory_scope>
 context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
     const {
+  std::vector<sycl::memory_scope> CapabilityList{
+      sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
+      sycl::memory_scope::work_group, sycl::memory_scope::device,
+      sycl::memory_scope::system};
   if (is_host())
-    return {sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
-            sycl::memory_scope::work_group, sycl::memory_scope::device,
-            sycl::memory_scope::system};
+    return CapabilityList;
 
-  pi_memory_scope_capabilities Result;
-  getPlugin().call<PiApiKind::piContextGetInfo>(
-      MContext,
-      PiInfoCode<info::context::atomic_memory_scope_capabilities>::value,
-      sizeof(Result), &Result, nullptr);
-  return readMemoryScopeBitfield(Result);
+  for (const sycl::device &Device : MDevices) {
+    std::vector<sycl::memory_scope> NewCapabilityList;
+    std::vector<sycl::memory_scope> DeviceCapabilities =
+        Device.get_info<info::device::atomic_memory_scope_capabilities>();
+    std::set_intersection(
+        CapabilityList.begin(), CapabilityList.end(),
+        DeviceCapabilities.begin(), DeviceCapabilities.end(),
+        std::inserter(NewCapabilityList, NewCapabilityList.begin()));
+    CapabilityList = NewCapabilityList;
+  }
+  CapabilityList.shrink_to_fit();
+
+  return CapabilityList;
 }
 
 RT::PiContext &context_impl::getHandleRef() { return MContext; }
