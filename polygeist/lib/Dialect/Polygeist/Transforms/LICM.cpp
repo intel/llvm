@@ -204,11 +204,11 @@ protected:
     assert(ifOp && "Expected valid ifOp");
     return cast<scf::IfOp>(ifOp);
   }
+  void createIfOp() override;
+  void createThenBody() const final;
 
 private:
   virtual Value createCondition() const = 0;
-  void createIfOp() final;
-  void createThenBody() const final;
   void createElseBody() const override;
 };
 
@@ -255,6 +255,7 @@ public:
   void guardLoop() final { versionLoop(); }
 
 private:
+  void createIfOp() final { SCFLoopVersionBuilder::createIfOp(); }
   void createElseBody() const final;
 };
 
