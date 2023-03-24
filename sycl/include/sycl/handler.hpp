@@ -1357,7 +1357,7 @@ private:
     using Unpacker = KernelPropertiesUnpacker<MergedPropertiesT>;
     // If there are properties provided by get method then process them.
     if constexpr (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-      KernelType>::value) {
+      _KERNELFUNCPARAMTYPE>::value) {
       processProperties(KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
     }
     if constexpr (HasKernelHandlerArg) {
