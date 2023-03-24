@@ -10,29 +10,29 @@
 ; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-M0-IR \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-M1-IR \
+; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-M1-IR \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-M2-IR \
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-M2-IR \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-M0-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M1-SYMS \
+; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-M1-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-M2-SYMS \
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M2-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
 
 ; RUN: sycl-post-link -split=source -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-M0-IR \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-M1-IR \
+; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-M1-IR \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-M2-IR \
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-M2-IR \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-M0-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M1-SYMS \
+; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-M1-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
-; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-M2-SYMS \
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M2-SYMS \
 ; RUN: --implicit-check-not kernel0 --implicit-check-not kernel1
 
 ; RUN: sycl-post-link -split=kernel -symbols -S < %s -o %t.table
