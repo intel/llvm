@@ -10,7 +10,7 @@ struct KernelFunctorWithOnlyWGSizeAttr {
 template <size_t... Is> struct KernelFunctorWithWGSizeWithAttr {
   // expected-warning@+1 {{kernel has both attribute 'reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
   void operator() [[sycl::reqd_work_group_size(32)]] () const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::work_group_size<Is...>};
   }
@@ -24,7 +24,7 @@ struct KernelFunctorWithOnlyWGSizeHintAttr {
 template <size_t... Is> struct KernelFunctorWithWGSizeHintWithAttr {
   // expected-warning@+1 {{kernel has both attribute 'work_group_size_hint' and kernel properties; conflicting properties are ignored}}
   void operator() [[sycl::work_group_size_hint(32)]] () const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::work_group_size_hint<Is...>};
   }
@@ -38,7 +38,7 @@ struct KernelFunctorWithOnlySGSizeAttr {
 template <uint32_t I> struct KernelFunctorWithSGSizeWithAttr {
   // expected-warning@+1 {{kernel has both attribute 'reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
   void operator() [[sycl::reqd_sub_group_size(32)]] () const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::sub_group_size<I>};
   }
@@ -52,7 +52,7 @@ struct KernelFunctorWithOnlyDeviceHasAttr {
 template <sycl::aspect Aspect> struct KernelFunctorWithDeviceHasWithAttr {
   // expected-warning@+1 {{kernel has both attribute 'device_has' and kernel properties; conflicting properties are ignored}}
   void operator() [[sycl::device_has(sycl::aspect::cpu)]] () const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::device_has<Aspect>};
   }
