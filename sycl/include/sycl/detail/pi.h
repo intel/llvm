@@ -626,11 +626,11 @@ constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
 
 typedef enum {
   // No preference for SLM or data cache.
-  PI_GPU_CACHE_DEFAULT,
+  PI_GPU_CACHE_DEFAULT = 0x0,
   // Large SLM size.
-  PI_GPU_CACHE_LARGE_SLM,
+  PI_GPU_CACHE_LARGE_SLM = 0x1,
   // Large General Data size.
-  PI_GPU_CACHE_LARGE_DATA
+  PI_GPU_CACHE_LARGE_DATA = 0x2
 } _pi_kernel_gpu_cache_config;
 
 using pi_result = _pi_result;
