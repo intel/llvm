@@ -206,9 +206,9 @@ protected:
   }
 
 private:
-  // virtual Value createCondition() const = 0;
-  void createIfOp() override;
-  void createThenBody() const override;
+  virtual Value createCondition() const = 0;
+  void createIfOp() final;
+  void createThenBody() const final;
   void createElseBody() const override;
 };
 
@@ -255,9 +255,6 @@ public:
   void guardLoop() final { versionLoop(); }
 
 private:
-  virtual Value createCondition() const = 0;
-  void createIfOp() final;
-  void createThenBody() const final;
   void createElseBody() const final;
 };
 
@@ -534,6 +531,7 @@ Optional<Operation *> OperationSideEffects::conflictsWithOperationInLoop(
 
 void LoopVersionBuilder::versionLoop() {
   llvm::errs() << "BEGIN versionLoop\n";
+  llvm::errs() << "Calling createIfOp\n";
   createIfOp();
   llvm::errs() << "Calling createThenBody\n";
   createThenBody();
@@ -558,7 +556,18 @@ void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
 // SCFLoopVersionBuilder
 //===----------------------------------------------------------------------===//
 
-void SCFLoopVersionBuilder::createIfOp() {}
+void SCFLoopVersionBuilder::createIfOp() {
+  llvm::errs() << "In createIfOp\n";
+  ifOp = builder.create<scf::IfOp>(
+      loop.getLoc(), createCondition(),
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop->getResults());
+      },
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop->getResults());
+      });
+  llvm::errs() << "Created " << ifOp << "\n";
+}
 
 void SCFLoopVersionBuilder::createThenBody() const {
   llvm::errs() << "In createThenBody\n";
@@ -631,26 +640,6 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
 // SCFLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-void SCFLoopGuardBuilder::createIfOp() {
-  ifOp = builder.create<scf::IfOp>(
-      loop.getLoc(), createCondition(),
-      [&](OpBuilder &b, Location loc) {
-        b.create<scf::YieldOp>(loc, loop->getResults());
-      },
-      [&](OpBuilder &b, Location loc) {
-        b.create<scf::YieldOp>(loc, getInitVals());
-      });
-  llvm::errs() << "Created " << ifOp << "\n";
-}
-void SCFLoopGuardBuilder::createThenBody() const {
-  llvm::errs() << "In SCFLoopGuardBuilder::createThenBody\n";
-  llvm::errs() << "ifOp " << ifOp << "\n";
-  llvm::errs() << "ThenBlock:\n";
-  getThenBlock(ifOp).dump();
-  llvm::errs() << "front\n";
-  getThenBlock(ifOp).front().dump();
-  loop->moveBefore(&getThenBlock(ifOp).front());
-}
 void SCFLoopGuardBuilder::createElseBody() const {}
 
 //===----------------------------------------------------------------------===//
