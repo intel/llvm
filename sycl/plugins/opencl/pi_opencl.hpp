@@ -18,12 +18,9 @@
 #define PI_OPENCL_HPP
 
 #include <climits>
-#include <map>
-#include <pi2ur.hpp>
 #include <regex>
 #include <string>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/pi.h>
+
 // This version should be incremented for any change made to this file or its
 // corresponding .cpp file.
 #define _PI_OPENCL_PLUGIN_VERSION 1

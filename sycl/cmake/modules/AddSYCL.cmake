@@ -24,6 +24,12 @@ function(add_sycl_library LIB_NAME TYPE)
     add_stripped_pdb(${LIB_NAME})
   endif()
 
+  # TODO: Enabled for MSVC
+  if (NOT MSVC AND SYCL_LIB_WITH_DEBUG_SYMBOLS)
+    separate_arguments(CMAKE_CXX_FLAGS_DEBUG_SEPARATED UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
+    target_compile_options(${LIB_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
+  endif()
+
   # TODO remove add_common_options
   add_common_options(${LIB_NAME})
 endfunction()

@@ -17,6 +17,7 @@
 #include "src/__support/FPUtil/PlatformDefs.h"
 #include "src/__support/UInt128.h"
 #include "src/__support/builtin_wrappers.h"
+#include "src/__support/common.h"
 
 namespace __llvm_libc {
 namespace fputil {
@@ -34,8 +35,8 @@ template <> struct SpecialLongDouble<long double> {
 #endif // SPECIAL_X86_LONG_DOUBLE
 
 template <typename T>
-static inline void normalize(int &exponent,
-                             typename FPBits<T>::UIntType &mantissa) {
+LIBC_INLINE void normalize(int &exponent,
+                           typename FPBits<T>::UIntType &mantissa) {
   const int shift = unsafe_clz(mantissa) -
                     (8 * sizeof(mantissa) - 1 - MantissaWidth<T>::VALUE);
   exponent -= shift;
@@ -44,12 +45,12 @@ static inline void normalize(int &exponent,
 
 #ifdef LONG_DOUBLE_IS_DOUBLE
 template <>
-inline void normalize<long double>(int &exponent, uint64_t &mantissa) {
+LIBC_INLINE void normalize<long double>(int &exponent, uint64_t &mantissa) {
   normalize<double>(exponent, mantissa);
 }
 #elif !defined(SPECIAL_X86_LONG_DOUBLE)
 template <>
-inline void normalize<long double>(int &exponent, UInt128 &mantissa) {
+LIBC_INLINE void normalize<long double>(int &exponent, UInt128 &mantissa) {
   const uint64_t hi_bits = static_cast<uint64_t>(mantissa >> 64);
   const int shift = hi_bits
                         ? (unsafe_clz(hi_bits) - 15)
@@ -64,7 +65,7 @@ inline void normalize<long double>(int &exponent, UInt128 &mantissa) {
 // Correctly rounded IEEE 754 SQRT for all rounding modes.
 // Shift-and-add algorithm.
 template <typename T>
-static inline cpp::enable_if_t<cpp::is_floating_point_v<T>, T> sqrt(T x) {
+LIBC_INLINE cpp::enable_if_t<cpp::is_floating_point_v<T>, T> sqrt(T x) {
 
   if constexpr (internal::SpecialLongDouble<T>::VALUE) {
     // Special 80-bit long double.

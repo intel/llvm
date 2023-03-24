@@ -23,6 +23,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
+#include <algorithm>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -136,7 +138,7 @@ context_impl::~context_impl() {
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRelease>(MContext);
+    getPlugin().call_nocheck<PiApiKind::piContextRelease>(MContext);
   }
 }
 
@@ -166,17 +168,26 @@ template <>
 std::vector<sycl::memory_order>
 context_impl::get_info<info::context::atomic_memory_order_capabilities>()
     const {
+  std::vector<sycl::memory_order> CapabilityList{
+      sycl::memory_order::relaxed, sycl::memory_order::acquire,
+      sycl::memory_order::release, sycl::memory_order::acq_rel,
+      sycl::memory_order::seq_cst};
   if (is_host())
-    return {sycl::memory_order::relaxed, sycl::memory_order::acquire,
-            sycl::memory_order::release, sycl::memory_order::acq_rel,
-            sycl::memory_order::seq_cst};
+    return CapabilityList;
 
-  pi_memory_order_capabilities Result;
-  getPlugin().call<PiApiKind::piContextGetInfo>(
-      MContext,
-      PiInfoCode<info::context::atomic_memory_order_capabilities>::value,
-      sizeof(Result), &Result, nullptr);
-  return readMemoryOrderBitfield(Result);
+  for (const sycl::device &Device : MDevices) {
+    std::vector<sycl::memory_order> NewCapabilityList(CapabilityList.size());
+    std::vector<sycl::memory_order> DeviceCapabilities =
+        Device.get_info<info::device::atomic_memory_order_capabilities>();
+    std::set_intersection(
+        CapabilityList.begin(), CapabilityList.end(),
+        DeviceCapabilities.begin(), DeviceCapabilities.end(),
+        std::inserter(NewCapabilityList, NewCapabilityList.begin()));
+    CapabilityList = NewCapabilityList;
+  }
+  CapabilityList.shrink_to_fit();
+
+  return CapabilityList;
 }
 template <>
 std::vector<sycl::memory_scope>
@@ -325,20 +336,21 @@ std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
     for (DeviceGlobalMapEntry *DeviceGlobalEntry : DeviceGlobalEntries) {
       // Get or allocate the USM memory associated with the device global.
       DeviceGlobalUSMMem &DeviceGlobalUSM =
-          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl,
-                                                          /*ZeroInit=*/true);
+          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl);
 
       // If the device global still has a zero-initialization event it should be
-      // added to the initialization events list.
-      std::optional<RT::PiEvent> ZIEvent =
-          DeviceGlobalUSM.getZeroInitEvent(Plugin);
-      if (ZIEvent.has_value())
-        InitEventsRef.push_back(*ZIEvent);
+      // added to the initialization events list. Since initialization events
+      // are cleaned up separately from cleaning up the device global USM memory
+      // this must retain the event.
+      {
+        if (OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Plugin))
+          InitEventsRef.push_back(ZIEvent.TransferOwnership());
+      }
 
       // Write the pointer to the device global and store the event in the
       // initialize events list.
       RT::PiEvent InitEvent;
-      void *USMPtr = DeviceGlobalUSM.getPtr();
+      void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Plugin.call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
           QueueImpl->getHandleRef(), NativePrg,
           DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
@@ -355,6 +367,38 @@ void context_impl::DeviceGlobalInitializer::ClearEvents(const plugin &Plugin) {
   for (const RT::PiEvent &Event : MDeviceGlobalInitEvents)
     Plugin.call<PiApiKind::piEventRelease>(Event);
   MDeviceGlobalInitEvents.clear();
+}
+
+std::optional<RT::PiProgram> context_impl::getProgramForDeviceGlobal(
+    const device &Device, DeviceGlobalMapEntry *DeviceGlobalEntry) {
+  KernelProgramCache::ProgramWithBuildStateT *BuildRes = nullptr;
+  {
+    auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
+    auto &KeyMap = LockedCache.get().KeyMap;
+    auto &Cache = LockedCache.get().Cache;
+    RT::PiDevice &DevHandle = getSyclObjImpl(Device)->getHandleRef();
+    for (std::uintptr_t ImageIDs : DeviceGlobalEntry->MImageIdentifiers) {
+      auto OuterKey = std::make_pair(ImageIDs, DevHandle);
+      size_t NProgs = KeyMap.count(OuterKey);
+      if (NProgs == 0)
+        continue;
+      // If the cache has multiple programs for the identifiers or if we have
+      // already found a program in the cache with the device_global, we cannot
+      // proceed.
+      if (NProgs > 1 || (BuildRes && NProgs == 1))
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "More than one image exists with the device_global.");
+      auto KeyMappingsIt = KeyMap.find(OuterKey);
+      assert(KeyMappingsIt != KeyMap.end());
+      auto CachedProgIt = Cache.find(KeyMappingsIt->second);
+      assert(CachedProgIt != Cache.end());
+      BuildRes = &CachedProgIt->second;
+    }
+  }
+  if (!BuildRes)
+    return std::nullopt;
+  return MKernelProgramCache.waitUntilBuilt<compile_program_error>(BuildRes);
 }
 
 } // namespace detail

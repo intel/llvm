@@ -8,8 +8,11 @@
 
 #include "SYCLKernelFusion.h"
 
+#include "Kernel.h"
+#include "NDRangesHelper.h"
 #include "debug/PassDebug.h"
 #include "internalization/Internalization.h"
+#include "kernel-fusion/Builtins.h"
 #include "kernel-info/SYCLKernelInfo.h"
 #include "syclcp/SYCLCP.h"
 
@@ -34,7 +37,61 @@ constexpr static StringLiteral KernelArgType{"kernel_arg_type"};
 constexpr static StringLiteral KernelArgBaseType{"kernel_arg_base_type"};
 constexpr static StringLiteral KernelArgTypeQual{"kernel_arg_type_qual"};
 
+constexpr StringLiteral SYCLKernelFusion::NDRangeMDKey;
+constexpr StringLiteral SYCLKernelFusion::NDRangesMDKey;
+
+struct InputKernel {
+  StringRef Name;
+  jit_compiler::NDRange ND;
+  InputKernel(StringRef Name, const jit_compiler::NDRange &ND)
+      : Name{Name}, ND{ND} {}
+};
+
+struct InputKernelFunction {
+  Function *F;
+  const jit_compiler::NDRange &ND;
+  InputKernelFunction(Function *F, const jit_compiler::NDRange &ND)
+      : F{F}, ND{ND} {}
+};
+
+template <typename T> struct GetIntFromMD {
+  T operator()(const Metadata *MD) const {
+    return cast<ConstantAsMetadata>(MD)
+        ->getValue()
+        ->getUniqueInteger()
+        .getZExtValue();
+  }
+
+  unsigned N;
+};
+
+static jit_compiler::Indices getIdxFromMD(const Metadata *MD) {
+  constexpr unsigned IndicesBitWidth{64};
+
+  jit_compiler::Indices Res;
+  const auto *NMD = cast<MDNode>(MD);
+  const GetIntFromMD<std::size_t> Trans{IndicesBitWidth};
+  std::transform(NMD->op_begin(), NMD->op_end(), Res.begin(),
+                 [&](const MDOperand &O) { return Trans(O.get()); });
+  return Res;
+}
+
+static jit_compiler::NDRange getNDFromMD(const Metadata *MD) {
+  const auto *NMD = cast<MDNode>(MD);
+  return {GetIntFromMD<int>{32}(NMD->getOperand(0)),
+          getIdxFromMD(NMD->getOperand(1)), getIdxFromMD(NMD->getOperand(2)),
+          getIdxFromMD(NMD->getOperand(3))};
+}
+
 static unsigned getUnsignedFromMD(Metadata *MD);
+
+static bool hasHeterogeneousNDRangesList(ArrayRef<InputKernelFunction> Fs) {
+  SmallVector<jit_compiler::NDRange> NDRanges;
+  NDRanges.reserve(Fs.size());
+  std::transform(Fs.begin(), Fs.end(), std::back_inserter(NDRanges),
+                 [](auto &F) { return F.ND; });
+  return jit_compiler::isHeterogeneousList(NDRanges);
+}
 
 static std::pair<unsigned, unsigned> getKeyFromMD(const MDNode *MD) {
   Metadata *Op0 = MD->getOperand(0).get();
@@ -90,6 +147,7 @@ PreservedAnalyses SYCLKernelFusion::run(Module &M, ModuleAnalysisManager &AM) {
   // Iterate over the functions in the module and locate all
   // stub functions identified by metadata.
   SmallPtrSet<Function *, 8> ToCleanUp;
+  Error DeferredErrs = Error::success();
   for (Function &F : M) {
     if (F.isDeclaration() // The stub should be a declaration and not defined.
         && F.hasMetadata(
@@ -98,7 +156,9 @@ PreservedAnalyses SYCLKernelFusion::run(Module &M, ModuleAnalysisManager &AM) {
       // attached to this stub function.
       // The newly created function will carry the name also specified
       // in the metadata.
-      fuseKernel(M, F, ModuleInfo, ToCleanUp);
+      if (auto Err = fuseKernel(M, F, ModuleInfo, ToCleanUp)) {
+        DeferredErrs = joinErrors(std::move(DeferredErrs), std::move(Err));
+      }
       // Rembember the stub for deletion, as it is not required anymore after
       // inserting the actual fused function.
       ToCleanUp.insert(&F);
@@ -108,6 +168,11 @@ PreservedAnalyses SYCLKernelFusion::run(Module &M, ModuleAnalysisManager &AM) {
   for (Function *SF : ToCleanUp) {
     SF->eraseFromParent();
   }
+
+  handleAllErrors(std::move(DeferredErrs), [](const StringError &EL) {
+    FUSION_DEBUG(dbgs() << EL.message() << "\n");
+  });
+
   // Inserting a new function and deleting the stub function is a major
   // modification to the module and we did not update any analyses,
   // so return none here.
@@ -115,49 +180,96 @@ PreservedAnalyses SYCLKernelFusion::run(Module &M, ModuleAnalysisManager &AM) {
                            : PreservedAnalyses::none();
 }
 
-struct FunctionCall {
-  FunctionCallee Callee;
-  SmallVector<Value *> Args;
+struct FusionInsertPoints {
+  /// The current insert block
+  BasicBlock *Entry;
+  /// Block for the barrier
+  BasicBlock *CallInsertion;
+  /// Next insert block
+  BasicBlock *Exit;
 };
 
-template <typename T> static void setBarrierMetadata(T *Ptr, LLVMContext &C) {
-  const auto FnAttrs =
-      AttributeSet::get(C, {Attribute::get(C, Attribute::AttrKind::Convergent),
-                            Attribute::get(C, Attribute::AttrKind::NoUnwind)});
-  Ptr->setAttributes(AttributeList::get(C, FnAttrs, {}, {}));
-  Ptr->setCallingConv(CallingConv::SPIR_FUNC);
+static bool needsGuard(const jit_compiler::NDRange &SrcNDRange,
+                       const jit_compiler::NDRange &FusedNDRange) {
+  return jit_compiler::NDRange::linearize(SrcNDRange.getGlobalSize()) !=
+         jit_compiler::NDRange::linearize(FusedNDRange.getGlobalSize());
 }
 
-static FunctionCall createBarrierCall(IRBuilderBase &Builder, Module &M,
-                                      int Flags) {
-  assert((Flags == 1 || Flags == 2 || Flags == 3) && "Invalid barrier flags");
+static FusionInsertPoints addGuard(IRBuilderBase &Builder,
+                                   const jit_compiler::NDRange &SrcNDRange,
+                                   const jit_compiler::NDRange &FusedNDRange,
+                                   bool IsLast) {
+  // Guard:
 
-  constexpr StringLiteral N{"_Z22__spirv_ControlBarrierjjj"};
+  // entry:
+  //   %g = call GetGlobalLinearIDName
+  //   %gicond = cmp ULT, %g, NumWorkItems
+  //   br %gicond, call, exit
+  //  call:
+  //   call Kernel
+  //  exit:
+  //   call BarrierName
+  //    ...
+  auto *Entry = Builder.GetInsertBlock();
+  if (!needsGuard(SrcNDRange, FusedNDRange)) {
+    return {Entry, Entry, Entry};
+  }
+  // Needs GI guard
+  auto &C = Builder.getContext();
+  auto *F = Builder.GetInsertBlock()->getParent();
 
-  Function *F = M.getFunction(N);
-  if (!F) {
-    constexpr auto Linkage = GlobalValue::LinkageTypes::ExternalLinkage;
+  auto *Exit = BasicBlock::Create(C, "", F);
+  auto *CallInsertion = BasicBlock::Create(C, "", F, Exit); // If
 
-    auto *Ty = FunctionType::get(
-        Builder.getVoidTy(),
-        {Builder.getInt32Ty(), Builder.getInt32Ty(), Builder.getInt32Ty()},
-        false /* isVarArg*/);
+  auto *GlobalLinearID = jit_compiler::getGlobalLinearID(Builder, FusedNDRange);
 
-    F = Function::Create(Ty, Linkage, N, M);
+  const auto GI = jit_compiler::NDRange::linearize(SrcNDRange.getGlobalSize());
+  auto *Cond = Builder.CreateICmpULT(GlobalLinearID, Builder.getInt64(GI));
 
-    setBarrierMetadata(F, Builder.getContext());
+  Builder.CreateCondBr(Cond, CallInsertion, Exit);
+  return {Entry, CallInsertion, Exit};
+}
+
+static Expected<CallInst *> createFusionCall(
+    IRBuilderBase &Builder, Function *F, ArrayRef<Value *> CallArgs,
+    const jit_compiler::NDRange &SrcNDRange,
+    const jit_compiler::NDRange &FusedNDRange, bool IsLast, int BarriersFlags,
+    jit_compiler::Remapper &Remapper, bool ShouldRemap) {
+  const auto IPs = addGuard(Builder, SrcNDRange, FusedNDRange, IsLast);
+
+  if (ShouldRemap) {
+    auto FOrErr = Remapper.remapBuiltins(F, SrcNDRange, FusedNDRange);
+    if (auto Err = FOrErr.takeError()) {
+      return std::move(Err);
+    }
+    F = *FOrErr;
   }
 
-  // See
-  // https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#Memory_Semantics_-id-
-  return {F,
-          {Builder.getInt32(/*Exec Scope : Workgroup = */ 2),
-           Builder.getInt32(/*Exec Scope : Workgroup = */ 2),
-           Builder.getInt32(0x10 | (Flags % 2 == 1 ? 0x100 : 0x0) |
-                            ((Flags >> 1 == 1 ? 0x200 : 0x0)))}};
+  // Insert call
+  Builder.SetInsertPoint(IPs.CallInsertion);
+  auto *Res = Builder.CreateCall(F, CallArgs);
+  {
+    // If we have introduced a guard, branch to barrier.
+    auto *BrTarget = IPs.Exit;
+    if (IPs.CallInsertion != BrTarget) {
+      Builder.CreateBr(BrTarget);
+    }
+  }
+
+  Builder.SetInsertPoint(IPs.Exit);
+
+  // Insert barrier if needed
+  if (!IsLast && BarriersFlags > 0) {
+    jit_compiler::barrierCall(Builder, BarriersFlags);
+  }
+
+  // Set insert point for future insertions
+  Builder.SetInsertPoint(IPs.Exit);
+
+  return Res;
 }
 
-void SYCLKernelFusion::fuseKernel(
+Error SYCLKernelFusion::fuseKernel(
     Module &M, Function &StubFunction, jit_compiler::SYCLModuleInfo *ModInfo,
     SmallPtrSetImpl<Function *> &ToCleanUp) const {
   // Retrieve the metadata from the stub function.
@@ -168,7 +280,11 @@ void SYCLKernelFusion::fuseKernel(
   // Fuction names may appear multiple times, resulting in
   // the corresponding function to be included multiple times. The functions
   // are included in the same order as given by the list.
+  // If not ND-ranges information is provided, all kernels are assumed
+  // to have the same ND-range.
   MDNode *MD = StubFunction.getMetadata(MetadataKind);
+  auto *NDRangesMD = StubFunction.getMetadata(NDRangesMDKey);
+  auto *NDRangeMD = StubFunction.getMetadata(NDRangeMDKey);
   assert(MD && MD->getNumOperands() == 2 &&
          "Metadata tuple should have two operands");
 
@@ -177,14 +293,21 @@ void SYCLKernelFusion::fuseKernel(
 
   // Second metadata operand should be the list of kernels to fuse.
   auto *KernelList = cast<MDNode>(MD->getOperand(1).get());
-  SmallVector<StringRef> FusedKernels;
-  for (const MDOperand &MDOp : KernelList->operands()) {
-    // Kernel should be given by its name as MDString
-    auto *FK = cast<MDString>(MDOp.get());
-    FusedKernels.push_back(FK->getString());
+  SmallVector<InputKernel> FusedKernels;
+  {
+    const auto NumKernels = KernelList->getNumOperands();
+    assert(NDRangeMD && NumKernels == NDRangesMD->getNumOperands() &&
+           "All fused kernels should have ND-ranges information available");
+    for (unsigned I = 0; I < NumKernels; ++I) {
+      auto *FK = cast<MDString>(KernelList->getOperand(I).get());
+      FusedKernels.emplace_back(FK->getString(),
+                                getNDFromMD(NDRangesMD->getOperand(I).get()));
+    }
   }
   // Function name for the fused kernel.
   StringRef FusedKernelName = KernelName->getString();
+  // ND-range for the fused kernel.
+  const auto NDRange = getNDFromMD(NDRangeMD);
 
   // The producer of the input to this pass may be able to determine that
   // the same value is used for multiple input functions in the fused kernel,
@@ -215,7 +338,7 @@ void SYCLKernelFusion::fuseKernel(
   // Locate all the functions that should be fused into this kernel in the
   // module. The module MUST contain definitions for all functions that should
   // be fused, otherwise this is an error.
-  SmallVector<Function *> InputFunctions;
+  SmallVector<InputKernelFunction> InputFunctions;
   SmallVector<Type *> FusedArguments;
   SmallVector<std::string> FusedArgNames;
   SmallVector<AttributeSet> FusedParamAttributes;
@@ -245,12 +368,13 @@ void SYCLKernelFusion::fuseKernel(
   SYCLKernelFusion::ParameterIdentity *ParamFront = ParamIdentities.begin();
   unsigned FuncIndex = 0;
   unsigned ArgIndex = 0;
-  for (StringRef &FN : FusedKernels) {
+  for (const auto &Fused : FusedKernels) {
+    const auto FN = Fused.Name;
     Function *FF = M.getFunction(FN);
     assert(
         FF && !FF->isDeclaration() &&
         "Input function definition for fusion must be present in the module");
-    InputFunctions.push_back(FF);
+    InputFunctions.emplace_back(FF, Fused.ND);
     // Collect argument types from the function to add them to the new
     // function's signature.
     // This also populates the parameter mapping from parameter of one of the
@@ -259,17 +383,28 @@ void SYCLKernelFusion::fuseKernel(
     unsigned ParamIndex = 0;
     SmallVector<bool, 8> UsedArgsMask;
     for (const auto &Arg : FF->args()) {
+      int IdenticalIdx = -1;
       if (!ParamIdentities.empty() && FuncIndex == ParamFront->LHS.KernelIdx &&
           ParamIndex == ParamFront->LHS.ParamIdx) {
-        // There is another parameter with identical value. Use the existing
-        // mapping of that other parameter and do not add this argument to the
-        // fused function. Because ParamIdentity is constructed such that LHS >
-        // RHS, the other parameter must already have been processed.
+        // Because ParamIdentity is constructed such that LHS > RHS, the other
+        // parameter must already have been processed.
         assert(ParamMapping.count(
             {ParamFront->RHS.KernelIdx, ParamFront->RHS.ParamIdx}));
         unsigned Idx =
             ParamMapping[{ParamFront->RHS.KernelIdx, ParamFront->RHS.ParamIdx}];
-        ParamMapping.insert({{FuncIndex, ParamIndex}, Idx});
+        // The SYCL runtime is unaware of the actual type of the parameter and
+        // simply compares size and raw bytes to determine identical parameters.
+        // In case the value is identical, but the underlying LLVM type is
+        // different, ignore the identical parameter.
+        if (FusedArguments[Idx] == Arg.getType()) {
+          IdenticalIdx = Idx;
+        }
+      }
+      if (IdenticalIdx >= 0) {
+        // There is another parameter with identical value. Use the existing
+        // mapping of that other parameter and do not add this argument to the
+        // fused function.
+        ParamMapping.insert({{FuncIndex, ParamIndex}, IdenticalIdx});
         ++ParamFront;
         UsedArgsMask.push_back(false);
       } else {
@@ -407,13 +542,14 @@ void SYCLKernelFusion::fuseKernel(
   // multiple times).
   FuncIndex = 0;
   {
-    const auto BarrierCall =
-        BarriersFlags != -1 ? std::optional<FunctionCall>{createBarrierCall(
-                                  Builder, M, BarriersFlags)}
-                            : std::optional<FunctionCall>{};
     const auto BarriersEnd = InputFunctions.size() - 1;
+    const auto IsHeterogeneousNDRangesList =
+        hasHeterogeneousNDRangesList(InputFunctions);
+    jit_compiler::Remapper Remapper;
 
-    for (Function *IF : InputFunctions) {
+    Error DeferredErrs = Error::success();
+    for (auto &KF : InputFunctions) {
+      auto *IF = KF.F;
       SmallVector<Value *> CallArgs;
       for (size_t I = 0; I < IF->arg_size(); ++I) {
         // Lookup actual parameter index in the mapping.
@@ -421,16 +557,26 @@ void SYCLKernelFusion::fuseKernel(
         unsigned ParamIdx = ParamMapping[{FuncIndex, I}];
         CallArgs.push_back(FusedFunction->getArg(ParamIdx));
       }
-      Calls.push_back(Builder.CreateCall(IF, CallArgs));
-      if (BarriersFlags != -1 && FuncIndex < BarriersEnd) {
-        auto *BarrierCallInst =
-            Builder.CreateCall(BarrierCall->Callee, BarrierCall->Args);
-        setBarrierMetadata(BarrierCallInst, Builder.getContext());
-      }
-      ++FuncIndex;
+      auto CallOrErr = createFusionCall(Builder, IF, CallArgs, KF.ND, NDRange,
+                                        FuncIndex == BarriersEnd, BarriersFlags,
+                                        Remapper, IsHeterogeneousNDRangesList);
       // Add to the set of original kernel functions that can be deleted after
       // fusion is complete.
       ToCleanUp.insert(IF);
+      ++FuncIndex;
+
+      if (auto Err = CallOrErr.takeError()) {
+        DeferredErrs = joinErrors(std::move(DeferredErrs), std::move(Err));
+        continue;
+      }
+      auto *Call = *CallOrErr;
+      Calls.push_back(Call);
+      ToCleanUp.insert(Call->getCalledFunction());
+    }
+    if (DeferredErrs) {
+      // If we found an error, clean and exit.
+      FusedFunction->eraseFromParent();
+      return DeferredErrs;
     }
   }
   // Create a void return at the end of the newly created kernel.
@@ -496,6 +642,7 @@ void SYCLKernelFusion::fuseKernel(
         &*FusedFunction->getEntryBlock().getFirstInsertionPt());
     WrapperCall->setCallingConv(CallingConv::SPIR_FUNC);
   }
+  return Error::success();
 }
 
 void SYCLKernelFusion::canonicalizeParameters(
