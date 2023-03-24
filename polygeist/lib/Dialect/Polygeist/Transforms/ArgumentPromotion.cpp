@@ -131,26 +131,32 @@ public:
     assert(!candidateOps.empty() && "Expecting candidateOps to not be empty");
   }
 
-  void transform();
+  CallOpInterface getCallOp() { return callOp; }
+  CallableOpInterface getCallableOp() { return callOp.resolveCallable(); }
+  CandidateOperands &getCandidateOperands() { return candidateOps; }
+
+  StringRef getParentFunctionName() {
+    return callOp->getParentOfType<FunctionOpInterface>().getName();
+  }
 
   StringRef getCalleeName() {
     CallInterfaceCallable callableOp = callOp.getCallableForCallee();
     return callableOp.get<SymbolRefAttr>().getLeafReference();
   }
 
-private:
-  /// Peel the call operands.
-  /// Note: this function populates a map between the original operands and the
-  /// peeled members.
-  void peelOperands();
-
   /// Modify the call by replacing the original operands with their
   /// corresponding peeled members.
   void modifyCall();
 
   /// Modify the called function by replacing the original operands with their
-  /// corresponding peeled members.q
+  /// corresponding peeled members.
   void modifyCallee();
+
+private:
+  /// Peel the call operands.
+  /// Note: this function populates a map between the original operands and the
+  /// peeled members.
+  void peelOperands();
 
   /// Replace the argument at position \p pos in the region \p callableRgn with
   /// \p newArgs. The reference parameter \p newArgAttrs is filled with the new
@@ -180,13 +186,15 @@ class ArgumentPromotionPass
     : public polygeist::impl::ArgumentPromotionBase<ArgumentPromotionPass> {
 public:
   using ArgumentPromotionBase<ArgumentPromotionPass>::ArgumentPromotionBase;
+  using Candidates = SmallVector<Candidate>;
 
   void runOnOperation() override;
 
 private:
   /// Populate \p candidates with call operations to transform.
-  void collectCandidates(SmallVectorImpl<Candidate> &candidates,
-                         AliasAnalysis &aliasAnalysis);
+  void
+  collectCandidates(std::map<CallableOpInterface, Candidates> &callableToCalls,
+                    AliasAnalysis &aliasAnalysis);
 
   /// Return true if the call operation \p callOp is a candidate, and false
   /// otherwise.
@@ -199,6 +207,12 @@ private:
   /// candidate for peeling, and false otherwise.
   bool isCandidateOperand(unsigned pos, CallOpInterface callOp,
                           AliasAnalysis &aliasAnalysis) const;
+
+  // Return true if all candidate operands in \p candidateOperandMap have the
+  // same position and false otherwise.
+  bool haveSameCandidateOperands(
+      const std::map<Operation *, Candidate::CandidateOperands>
+          &candidateOperandMap) const;
 };
 
 } // namespace
@@ -233,33 +247,9 @@ void CandidateOperand::peel(CallOpInterface callOp,
 // Candidate
 //===----------------------------------------------------------------------===//
 
-void Candidate::transform() {
-  LLVM_DEBUG({
-    StringRef funcName =
-        callOp->getParentOfType<FunctionOpInterface>().getName();
-    llvm::dbgs() << "\nProcessing candidates in function \"" << funcName
-                 << "\":\n";
-    llvm::dbgs().indent(2) << callOp << "\n";
-    llvm::dbgs().indent(2) << "candidate has " << candidateOps.size()
-                           << " peelable operand(s)\n";
-  });
-
-  peelOperands();
-  modifyCall();
-  modifyCallee();
-}
-
-void Candidate::peelOperands() {
-  for (CandidateOperand candOp : candidateOps) {
-    LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "peeling operand " << candOp.position() << "\n");
-    SmallVector<Value> peeledMembers;
-    candOp.peel(callOp, peeledMembers);
-    operandToMembersPeeled.insert({candOp.position(), peeledMembers});
-  }
-}
-
 void Candidate::modifyCall() {
+  peelOperands();
+
   const unsigned numCallOperands = callOp->getNumOperands();
   const unsigned numKeys = operandToMembersPeeled.size();
   unsigned numMembersPeeled = 0;
@@ -322,10 +312,17 @@ void Candidate::modifyCallee() {
   funcOp.setFunctionType(newFuncType);
   funcOp.setAllArgAttrs(newArgAttrs);
 
-  LLVM_DEBUG({
-    llvm::dbgs().indent(2) << "New Callee:\n";
-    llvm::dbgs() << funcOp << "\n";
-  });
+  LLVM_DEBUG(llvm::dbgs() << "\nNew Callee:\n" << funcOp << "\n";);
+}
+
+void Candidate::peelOperands() {
+  for (CandidateOperand candOp : candidateOps) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "peeling operand " << candOp.position() << "\n");
+    SmallVector<Value> peeledMembers;
+    candOp.peel(callOp, peeledMembers);
+    operandToMembersPeeled.insert({candOp.position(), peeledMembers});
+  }
 }
 
 void Candidate::replaceArgumentWith(unsigned pos, Region &callableRgn,
@@ -372,47 +369,101 @@ void Candidate::replaceUsesOfArgument(Value origArg, unsigned pos,
 
 void ArgumentPromotionPass::runOnOperation() {
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
+  std::map<CallableOpInterface, Candidates> callableToCalls;
+  collectCandidates(callableToCalls, aliasAnalysis);
 
-  SmallVector<Candidate> candidates;
-  collectCandidates(candidates, aliasAnalysis);
-  for (Candidate &cand : candidates)
-    cand.transform();
+  for (auto &entry : callableToCalls) {
+    CallableOpInterface callableOp = entry.first;
+    Candidates &candidates = entry.second;
+    assert(llvm::all_of(candidates,
+                        [&](Candidate &cand) {
+                          return cand.getCallableOp() == callableOp;
+                        }) &&
+           "Expecting candidates to have the same callable");
+
+    for (auto *it = candidates.begin(); it != candidates.end(); ++it) {
+      Candidate &cand = *it;
+      LLVM_DEBUG({
+        llvm::dbgs() << "\nProcessing candidate in function \""
+                     << cand.getParentFunctionName() << "\":\n";
+        llvm::dbgs().indent(2) << cand.getCallOp() << "\n";
+        llvm::dbgs().indent(2)
+            << "candidate has " << cand.getCandidateOperands().size()
+            << " peelable operand(s)\n";
+      });
+
+      cand.modifyCall();
+      if (it == candidates.begin())
+        candidates.front().modifyCallee();
+    }
+  }
 }
 
 void ArgumentPromotionPass::collectCandidates(
-    SmallVectorImpl<Candidate> &candidateCalls, AliasAnalysis &aliasAnalysis) {
+    std::map<CallableOpInterface, Candidates> &callableToCalls,
+    AliasAnalysis &aliasAnalysis) {
   ModuleOp module = getOperation();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
 
-  // Collect candidate call operations in GPU kernels.
+  // Search for candidate call operations in GPU kernels.
   module->walk([&](gpu::GPUFuncOp gpuFuncOp) {
     assert(gpuFuncOp.isKernel() && "Expecting a kernel");
-    LLVM_DEBUG(llvm::dbgs()
-               << "\nAnalyzing function " << gpuFuncOp.getNameAttr() << ":\n");
+    LLVM_DEBUG(llvm::dbgs() << "\nAnalyzing GPU kernel "
+                            << gpuFuncOp.getNameAttr() << ":\n");
 
     gpuFuncOp->walk([&](CallOpInterface callOp) {
-      // Perform some basic checks to filter out call operations that aren't
-      // candidates.
-      if (!isCandidateCall(callOp) ||
-          !isCandidateCallable(callOp.resolveCallable()))
+      CallableOpInterface callableOp = callOp.resolveCallable();
+      [[maybe_unused]] StringRef callableName =
+          cast<SymbolOpInterface>(callableOp.getOperation()).getName();
+      LLVM_DEBUG({
+        llvm::dbgs() << "Callable: " << callableName << "\n";
+        llvm::dbgs().indent(2) << "has " << userMap.getUsers(callableOp).size()
+                               << " call site(s)\n";
+      });
+
+      // Perform basic checks to ensure the callable is OK.
+      if (!isCandidateCallable(callableOp))
         return;
 
-      // Determine which operands can be peeled and collect them.
-      LLVM_DEBUG(llvm::dbgs() << "Analyzing operand(s) of: " << callOp << "\n");
-      Candidate::CandidateOperands candidateOps;
-      for (unsigned pos = 0; pos < callOp->getNumOperands(); ++pos) {
-        if (isCandidateOperand(pos, callOp, aliasAnalysis))
-          candidateOps.push_back({callOp->getOperand(pos), pos});
+      // Perform basic checks to ensure all calls to the callable are OK.
+      if (llvm::any_of(userMap.getUsers(callableOp),
+                       [this](CallOpInterface callOp) {
+                         return !isCandidateCall(callOp);
+                       }))
+        return;
+
+      // Collect candidate operands for each call site.
+      std::map<Operation *, Candidate::CandidateOperands> candidateOperandMap;
+      for (Operation *callOp : userMap.getUsers(callableOp)) {
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "analyzing operand(s) of: " << *callOp << "\n");
+        Candidate::CandidateOperands candidateOps;
+        for (unsigned pos = 0; pos < callOp->getNumOperands(); ++pos) {
+          if (isCandidateOperand(pos, callOp, aliasAnalysis))
+            candidateOps.push_back({callOp->getOperand(pos), pos});
+        }
+        if (!candidateOps.empty())
+          candidateOperandMap.insert({callOp, std::move(candidateOps)});
       }
 
-      if (candidateOps.empty()) {
-        LLVM_DEBUG(llvm::dbgs().indent(2) << "Not a candidate\n");
+      // Ensure all call sites have the same candidate operands.
+      if (!candidateOperandMap.empty() &&
+          !haveSameCandidateOperands(candidateOperandMap)) {
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "call sites have different candidate operands\n");
         return;
       }
 
-      LLVM_DEBUG(llvm::dbgs().indent(2) << "Found candidate\n");
-      candidateCalls.push_back({callOp, std::move(candidateOps)});
+      // Create the candidate.
+      for (const auto &entry : candidateOperandMap) {
+        CallOpInterface callOp = entry.first;
+        Candidate::CandidateOperands candidateOps = entry.second;
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "Found candidate: " << callOp << "\n");
+        callableToCalls[callableOp].push_back(
+            {callOp, std::move(candidateOps)});
+      }
     });
   });
 }
@@ -423,16 +474,6 @@ bool ArgumentPromotionPass::isCandidateCall(CallOpInterface callOp) const {
     LLVM_DEBUG({
       llvm::dbgs() << "Not a candidate: " << callOp << "\n";
       llvm::dbgs().indent(2) << "not a tail call\n";
-    });
-    return false;
-  }
-
-  // Calls with no arguments are not interesting.
-  OperandRange callOperands = callOp.getArgOperands();
-  if (callOperands.empty()) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Not a candidate: " << callOp << "\n";
-      llvm::dbgs().indent(2) << "no arguments\n";
     });
     return false;
   }
@@ -448,35 +489,35 @@ bool ArgumentPromotionPass::isCandidateOperand(
   // The operand must have the expected type(memref<?xstruct<...>>).
   Value operand = callOp->getOperand(pos);
   if (!isValidMemRefType(operand.getType())) {
-    LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "Operand " << pos << " doesn't have expected type\n");
+    LLVM_DEBUG(llvm::dbgs().indent(4)
+               << "operand " << pos << " doesn't have expected type\n");
     return false;
   }
 
   // The operand must not be used by any instruction (after the call
   // operation) which may read or write it.
   if (existsSideEffectAfter(operand, callOp->getNextNode(), aliasAnalysis)) {
-    LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "Operand " << pos
+    LLVM_DEBUG(llvm::dbgs().indent(4)
+               << "operand " << pos
                << " used after call by operation with side effects\n");
     return false;
   }
 
-  // The corresponding callee operand must only be used by polygeist
-  // subIndex operations.
+  // The corresponding callee operand must only be used by polygeist subIndex
+  // operations.
   CallableOpInterface callableOp = callOp.resolveCallable();
   BlockArgument arg = callableOp.getCallableRegion()->getArgument(pos);
   if (llvm::any_of(arg.getUses(), [](OpOperand &use) {
         return !isa<polygeist::SubIndexOp>(use.getOwner());
       })) {
-    LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "Operand " << pos
+    LLVM_DEBUG(llvm::dbgs().indent(4)
+               << "operand " << pos
                << " used by illegal operation in callee\n");
     return false;
   }
 
-  LLVM_DEBUG(llvm::dbgs().indent(2)
-             << "Operand " << pos << " is a candidate\n");
+  LLVM_DEBUG(llvm::dbgs().indent(4)
+             << "operand " << pos << " is a candidate\n");
 
   return true;
 }
@@ -486,26 +527,62 @@ bool ArgumentPromotionPass::isCandidateCallable(
   ModuleOp module = getOperation();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
-  [[maybe_unused]] StringRef calleeName =
+  [[maybe_unused]] StringRef callableName =
       cast<SymbolOpInterface>(callableOp.getOperation()).getName();
 
-  // The callee must be defined and private.
+  // The function must be defined and private.
   if (!isPrivateDefinition(callableOp)) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
-      llvm::dbgs().indent(2) << "callee not privately defined\n";
-    });
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "not a candidate: not privately defined\n");
     return false;
   }
 
-  // The callee must have a single call site.
-  unsigned numUsers = userMap.getUsers(callableOp).size();
-  if (numUsers != 1) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
-      llvm::dbgs().indent(2) << "has " << numUsers << " call sites\n";
-    });
+  // Functions with no arguments are not interesting.
+  if (callableOp.getCallableRegion()->args_empty()) {
+    LLVM_DEBUG(llvm::dbgs().indent(2) << "not a candidate: no arguments\n");
     return false;
+  }
+
+  // Ensure all the call sites for this function are either in a GPU kernel or
+  // in a function that is called directly by a GPU kernel.
+  for (Operation *call : userMap.getUsers(callableOp)) {
+    if (call->getParentOfType<gpu::GPUFuncOp>())
+      continue;
+
+    auto funcOp = call->getParentOfType<func::FuncOp>();
+    if (!funcOp || !llvm::all_of(userMap.getUsers(funcOp), [](Operation *call) {
+          return call->getParentOfType<gpu::GPUFuncOp>();
+        })) {
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "not a candidate: found call site that is neither in a GPU "
+                    "kernel nor in a function called by a GPU kernel\n");
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Ensure all call sites have the same candidate operands.
+bool ArgumentPromotionPass::haveSameCandidateOperands(
+    const std::map<Operation *, Candidate::CandidateOperands>
+        &candidateOperandMap) const {
+  assert(!candidateOperandMap.empty() && "Expecting a nonempty map");
+
+  auto it = candidateOperandMap.cbegin();
+  const Candidate::CandidateOperands &firstCandOps = it->second;
+  if (firstCandOps.empty())
+    return false;
+
+  ++it;
+  for (; it != candidateOperandMap.cend(); ++it) {
+    const Candidate::CandidateOperands candOps = it->second;
+    if (firstCandOps.size() != candOps.size())
+      return false;
+    for (unsigned opNum = 0; opNum < firstCandOps.size(); ++opNum) {
+      if (firstCandOps[opNum].position() != candOps[opNum].position())
+        return false;
+    }
   }
 
   return true;
