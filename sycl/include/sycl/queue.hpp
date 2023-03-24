@@ -1904,7 +1904,7 @@ public:
 
 private:
   pi_native_handle getNative() const;
-  pi_native_handle getNative2(bool& IsImmCmdList) const;
+  pi_native_handle getNative2(bool &IsImmCmdList) const;
 
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}

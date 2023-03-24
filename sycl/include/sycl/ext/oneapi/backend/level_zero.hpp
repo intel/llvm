@@ -143,7 +143,7 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
 // Specialization of sycl::get_native for Level-Zero backend.
 template <>
 inline auto get_native<backend::ext_oneapi_level_zero, queue>(const queue &Obj)
-    ->backend_return_t<backend::ext_oneapi_level_zero, queue> {
+    -> backend_return_t<backend::ext_oneapi_level_zero, queue> {
   bool IsImmCmdList;
   pi_native_handle Handle = Obj.getNative2(IsImmCmdList);
   if (IsImmCmdList) {
