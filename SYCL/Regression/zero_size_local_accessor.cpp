@@ -17,7 +17,7 @@ int main() {
   sycl::queue Q;
   Q.submit([&](sycl::handler &CGH) {
      sycl::local_accessor<uint8_t, 1> ZeroSizeLocalAcc(sycl::range<1>(0), CGH);
-     CGH.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
+     CGH.single_task([=]() {
        if (ZeroSizeLocalAcc.get_range()[0])
          ZeroSizeLocalAcc[0] = 1;
      });

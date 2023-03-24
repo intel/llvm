@@ -104,11 +104,11 @@ template <typename T, access::decorated IsDecorated> void testMultPtr() {
       local_accessor<T, 1> localAccessor(numOfItems, cgh);
 
       cgh.parallel_for<class testMultPtrKernel<
-          T, IsDecorated>>(nd_range<1>{10, 10}, [=](nd_item<1> wiID) {
+          T, IsDecorated>>(range<1>{10}, [=](id<1> wiID) {
         T private_data[10];
         for (size_t i = 0; i < 10; ++i)
           private_data[i] = 0;
-        localAccessor[wiID.get_local_id()] = 0;
+        localAccessor[wiID] = 0;
 
         auto ptr_1 =
             multi_ptr<T, access::address_space::global_space, IsDecorated>(
@@ -166,8 +166,8 @@ template <typename T, access::decorated IsDecorated> void testMultPtr() {
         global_ptr<void, IsDecorated> ptr_12 =
             global_ptr<void, IsDecorated>(ptr_11);
 
-        innerFunc<T, IsDecorated>(wiID.get_local_id().get(0), ptr_1, ptr_2,
-                                  ptr_3, ptr_4, ptr_5, local_ptr, priv_ptr);
+        innerFunc<T, IsDecorated>(wiID.get(0), ptr_1, ptr_2, ptr_3, ptr_4,
+                                  ptr_5, local_ptr, priv_ptr);
       });
     });
   }
@@ -201,8 +201,8 @@ void testMultPtrArrowOperator() {
                access::placeholder::false_t>
           accessorData_3(bufferData_3, cgh);
 
-      cgh.parallel_for<class testMultPtrArrowOperatorKernel<T, IsDecorated>>(
-          sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
+      cgh.single_task<class testMultPtrArrowOperatorKernel<T, IsDecorated>>(
+          [=]() {
             point<T> private_val = 0;
 
             auto ptr_1 =

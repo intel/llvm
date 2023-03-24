@@ -49,7 +49,6 @@ int main() {
   // CHECK:{{[0-9]+}}|Create buffer|[[BUFFERID:[0-9,a-f,x]+]]|0x0|{{i(nt)*}}|4|1|{5,0,0}|{{.*}}.cpp:[[# @LINE + 1]]:24
   sycl::buffer<int, 1> Buf(5);
   sycl::range<1> Range{Buf.size()};
-  sycl::nd_range<1> NDRange{Buf.size(), Buf.size()};
   short Val = Buf.size();
   auto PtrDevice = sycl::malloc_device<int>(7, Queue);
   auto PtrShared = sycl::malloc_shared<int>(8, Queue);
@@ -59,19 +58,22 @@ int main() {
         auto A1 = Buf.get_access<mode::read_write>(cgh);
         // CHECK: {{[0-9]+}}|Construct accessor|0x0|[[ACCID2:.*]]|2016|1026|{{.*}}.cpp:[[# @LINE + 1]]:38
         sycl::local_accessor<int, 1> A2(Range, cgh);
-        cgh.parallel_for<class FillBuffer>(NDRange, [=](sycl::id<1> WIid) {
-          // CHECK-OPT: arg0 : {1, {{[0-9,a-f,x]+}}, 2, 0}
-          int h = Val;
-          // CHECK-OPT: arg1 : {1, {{.*}}0, 20, 1}
-          A2[WIid[0]] = h;
-          // CHECK-OPT: arg2 : {0, [[ACCID1]], 4062, 2}
-          // CHECK-OPT: arg3 : {1, [[ACCID1]], 8, 3}
-          A1[WIid[0]] = A2[WIid[0]];
-          // CHECK-OPT: arg4 : {3, {{.*}}, 8, 4}
-          PtrDevice[WIid[0]] = WIid[0];
-          // CHECK-OPT: arg5 : {3, {{.*}}, 8, 5}
-          PtrShared[WIid[0]] = PtrDevice[WIid[0]];
-        });
+        // CHECK-OPT:Node create|{{.*}}FillBuffer{{.*}}|{{.*}}.cpp:[[# @LINE - 6 ]]:3|{5, 1, 1}, {0, 0, 0}, {0, 0, 0}, 6
+        // CHECK-NOOPT:Node create|{{.*}}FillBuffer{{.*}}|{{.*}}.cpp:[[# @LINE - 7 ]]:3|{5, 1, 1}, {0, 0, 0}, {0, 0, 0}, 12
+        cgh.parallel_for<class FillBuffer>(
+            Range, [=](sycl::id<1> WIid, sycl::kernel_handler kh) {
+              // CHECK-OPT: arg0 : {1, {{[0-9,a-f,x]+}}, 2, 0}
+              int h = Val;
+              // CHECK-OPT: arg1 : {1, {{.*}}0, 20, 1}
+              A2[WIid[0]] = h;
+              // CHECK-OPT: arg2 : {0, [[ACCID1]], 4062, 2}
+              // CHECK-OPT: arg3 : {1, [[ACCID1]], 8, 3}
+              A1[WIid[0]] = A2[WIid[0]];
+              // CHECK-OPT: arg4 : {3, {{.*}}, 8, 4}
+              PtrDevice[WIid[0]] = WIid[0];
+              // CHECK-OPT: arg5 : {3, {{.*}}, 8, 5}
+              PtrShared[WIid[0]] = PtrDevice[WIid[0]];
+            });
       })
       .wait();
 

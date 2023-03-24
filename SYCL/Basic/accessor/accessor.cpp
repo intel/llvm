@@ -107,8 +107,7 @@ template <typename T> void TestAccSizeFuncs(const std::vector<T> &vec) {
     q.submit([&](sycl::handler &cgh) {
       sycl::accessor accRes(bufRes, cgh);
       sycl::local_accessor<T, 1> locAcc(vec.size(), cgh);
-      cgh.parallel_for(sycl::nd_range<1>{1, 1},
-                       [=](sycl::nd_item<1>) { test(accRes, locAcc); });
+      cgh.single_task([=]() { test(accRes, locAcc); });
     });
     q.wait();
   }
@@ -121,7 +120,7 @@ template <typename GlobAcc, typename LocAcc>
 void testLocalAccItersImpl(sycl::handler &cgh, GlobAcc &globAcc, LocAcc &locAcc,
                            bool testConstIter) {
   if (testConstIter) {
-    cgh.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
+    cgh.single_task([=]() {
       size_t Idx = 0;
       for (auto &It : locAcc) {
         It = globAcc[Idx++];
@@ -134,7 +133,7 @@ void testLocalAccItersImpl(sycl::handler &cgh, GlobAcc &globAcc, LocAcc &locAcc,
         globAcc[Idx--] += *It;
     });
   } else {
-    cgh.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
+    cgh.single_task([=]() {
       size_t Idx = 0;
       for (auto It = locAcc.begin(); It != locAcc.end(); It++)
         *It = globAcc[Idx++] * 2;
@@ -992,11 +991,10 @@ int main() {
         sycl::accessor acc1(buf1, cgh);
         sycl::accessor acc2(buf2, cgh);
         acc1.swap(acc2);
-        cgh.parallel_for<class swap1>(sycl::nd_range<1>{1, 1},
-                                      [=](sycl::nd_item<1>) {
-                                        acc1[15] = 4;
-                                        acc2[7] = 4;
-                                      });
+        cgh.single_task([=]() {
+          acc1[15] = 4;
+          acc2[7] = 4;
+        });
       });
     }
     assert(vec1[7] == 4 && vec2[15] == 4);
@@ -1014,11 +1012,10 @@ int main() {
         sycl::accessor acc2(buf2, cgh);
         sycl::local_accessor<int, 1> locAcc1(8, cgh), locAcc2(16, cgh);
         locAcc1.swap(locAcc2);
-        cgh.parallel_for<class swap2>(sycl::nd_range<1>{1, 1},
-                                      [=](sycl::nd_item<1>) {
-                                        acc1[0] = locAcc1.size();
-                                        acc2[0] = locAcc2.size();
-                                      });
+        cgh.single_task([=]() {
+          acc1[0] = locAcc1.size();
+          acc2[0] = locAcc2.size();
+        });
       });
     }
     assert(size1 == 16 && size2 == 8);
@@ -1085,53 +1082,18 @@ int main() {
     // Explicit block to prompt copy-back to Data
     {
       sycl::buffer<int, 1> DataBuffer(&Data, sycl::range<1>(1));
+
       Queue.submit([&](sycl::handler &CGH) {
         sycl::accessor<int, 0> Acc(DataBuffer, CGH);
         sycl::local_accessor<int, 0> LocalAcc(CGH);
-        CGH.parallel_for<class copyblock>(sycl::nd_range<1>{1, 1},
-                                          [=](sycl::nd_item<1>) {
-                                            LocalAcc = 64;
-                                            Acc = LocalAcc;
-                                          });
+        CGH.single_task<class local_acc_0_dim_assignment>([=]() {
+          LocalAcc = 64;
+          Acc = LocalAcc;
+        });
       });
     }
 
     assert(Data == 64);
-  }
-
-  // Throws exception on local_accessors used in single_task
-  {
-    constexpr static int size = 1;
-    sycl::queue Queue;
-
-    try {
-      Queue.submit([&](sycl::handler &cgh) {
-        auto local_acc = sycl::local_accessor<int, 1>({size}, cgh);
-        cgh.single_task<class local_acc_exception>([=]() { (void)local_acc; });
-      });
-      assert(0 && "local accessor must not be used in single task.");
-    } catch (sycl::exception e) {
-      std::cout << "SYCL exception caught: " << e.what() << std::endl;
-    }
-  }
-
-  // Throws exception on local_accessors used in parallel_for taking a range
-  // parameter.
-  {
-    constexpr static int size = 1;
-    sycl::queue Queue;
-
-    try {
-      Queue.submit([&](sycl::handler &cgh) {
-        auto local_acc = sycl::local_accessor<int, 1>({size}, cgh);
-        cgh.parallel_for<class parallel_for_exception>(
-            sycl::range<1>{size}, [=](sycl::id<1> ID) { (void)local_acc; });
-      });
-      assert(0 &&
-             "local accessor must not be used in parallel for with range.");
-    } catch (sycl::exception e) {
-      std::cout << "SYCL exception caught: " << e.what() << std::endl;
-    }
   }
 
   std::cout << "Test passed" << std::endl;
