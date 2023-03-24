@@ -145,7 +145,7 @@ using PiMemImageInfo = ::pi_image_info;
 using PiMemObjectType = ::pi_mem_type;
 using PiMemImageChannelOrder = ::pi_image_channel_order;
 using PiMemImageChannelType = ::pi_image_channel_type;
-using PiKernelGpuCacheConfig = ::pi_kernel_gpu_cache_config;
+using PiKernelCacheConfig = ::pi_kernel_cache_config;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,

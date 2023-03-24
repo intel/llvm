@@ -28,7 +28,7 @@ public:
                      /*Events*/ {}, /*Args*/ {}, /*KernelName*/ "",
                      detail::OSUtil::ExeModuleHandle, /*Streams*/ {},
                      /*AuxilaryResources*/ {}, detail::CG::RunOnHostIntel,
-                     /*KernelGpuCacheConfig*/ {}) {}
+                     /*KernelCacheConfig*/ {}) {}
   ~MockCGExecKernel() override { CGDeleted = true; }
 };
 

@@ -592,7 +592,7 @@ pi_int32 enqueueImpKernel(
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    RT::PiKernelGpuCacheConfig KernelGpuCacheConfig);
+    RT::PiKernelCacheConfig KernelCacheConfig);
 
 class KernelFusionCommand;
 

@@ -7963,16 +7963,16 @@ pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
     ZE_CALL(zeKernelSetIndirectAccess, (Kernel->ZeKernel, IndirectFlags));
-  } else if (ParamName == PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_CONFIG) {
+  } else if (ParamName == PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG) {
     ze_cache_config_flag_t ZeCacheConfig;
-    switch (*(static_cast<const pi_kernel_gpu_cache_config *>(ParamValue))) {
-    case PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_LARGE_SLM:
+    switch (*(static_cast<const pi_kernel_cache_config *>(ParamValue))) {
+    case PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM:
       ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
       break;
-    case PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_LARGE_DATA:
+    case PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA:
       ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
       break;
-    case PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_DEFAULT:
+    case PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT:
       ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
       break;
     default:

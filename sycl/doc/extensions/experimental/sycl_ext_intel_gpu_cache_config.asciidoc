@@ -1,4 +1,4 @@
-= sycl_ext_intel_gpu_cache_config
+= sycl_ext_intel_cache_config
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -56,7 +56,7 @@ rely on APIs defined in this specification.*
 
 There are devices where the same hardware resources are used for shared local
 memory (SLM) and data cache. Developers may want more data cache or SLM based
-on their application. This extension adds runtime kernel property `gpu_cache_config`
+on their application. This extension adds runtime kernel property `cache_config`
 which provides a way to set the preferred cache configuration for a kernel.
 
 === Feature Test Macro
@@ -64,7 +64,7 @@ which provides a way to set the preferred cache configuration for a kernel.
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 "Feature test macros".  Therefore, an
 implementation supporting this extension must predefine the macro
-`SYCL_EXT_INTEL_GPU_CACHE_CONFIG` to one of the values defined
+`SYCL_EXT_INTEL_CACHE_CONFIG` to one of the values defined
 in the table below.  Applications can test for the existence of this macro to
 determine if the implementation supports this feature, or applications can test
 the macro's value to determine which of the extension's APIs the implementation
@@ -81,28 +81,28 @@ supports.
 This extension introduces new kernel property that can be applied to kernels
 using the mechanism defined in link:sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties].
 
-=== GPU Cache Config Property
+=== Cache Config Property
 
 ```c++
 namespace sycl::ext::intel::experimental {
 
 
-enum class gpu_cache_config_enum : std::uint16_t { large_slm, large_data };
+enum class cache_config_enum : std::uint16_t { large_slm, large_data };
 
-inline constexpr gpu_cache_config_enum large_slm =
-    gpu_cache_config_enum::large_slm;
-inline constexpr gpu_cache_config_enum large_data =
-    gpu_cache_config_enum::large_data;
+inline constexpr cache_config_enum large_slm =
+    cache_config_enum::large_slm;
+inline constexpr cache_config_enum large_data =
+    cache_config_enum::large_data;
 
-struct gpu_cache_config {
-  gpu_cache_config(gpu_cache_config_enum v) : value(v) {}
-  gpu_cache_config_enum value;
+struct cache_config {
+  cache_config(cache_config_enum v) : value(v) {}
+  cache_config_enum value;
 };
 
 } // namespace sycl::ext::intel::experimental
 ```
 
-The `gpu_cache_config` property provides a way to set the preferred cache
+The `cache_config` property provides a way to set the preferred cache
 configuration for a kernel. The following values are supported:
 
  * `large_slm`: Prefer using more of a shared cache for
@@ -123,13 +123,13 @@ property.
 A simple example of using this extension  is shown below.
 
 The example assumes that the kernel will benefit from large SLM and hence uses the property
-`gpu_cache_config_large_slm`:
+`cache_config_large_slm`:
 
 ```c++
 using namespace sycl::ext::intel::experimental;
 {
   ...
-  properties kernel_properties{gpu_cache_config{large_slm}};
+  properties kernel_properties{cache_config{large_slm}};
 
   q.single_task(kernel_properties, [=] {
     *a = *b + *c;
@@ -153,7 +153,7 @@ struct KernelFunctor {
   }
 
   auto get(properties_tag) const {
-    return properties{gpu_cache_config{large_slm}};
+    return properties{cache_config{large_slm}};
   }
 
   int* a;

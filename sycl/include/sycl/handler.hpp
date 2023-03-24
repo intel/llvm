@@ -18,7 +18,7 @@
 #include <sycl/detail/handler_proxy.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/event.hpp>
-#include <sycl/ext/intel/experimental/gpu_kernel_properties.hpp>
+#include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
@@ -723,13 +723,13 @@ private:
         ext::oneapi::experimental::is_property_list<PropertiesT>::value,
         "Template type is not a property list.");
     if constexpr (PropertiesT::template has_property<
-                      sycl::ext::intel::experimental::gpu_cache_config_key>()) {
+                      sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
-          sycl::ext::intel::experimental::gpu_cache_config_key>();
+          sycl::ext::intel::experimental::cache_config_key>();
       if (Config == sycl::ext::intel::experimental::large_slm) {
-        setKernelGpuCacheConfig(PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_LARGE_SLM);
+        setKernelCacheConfig(PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM);
       } else if (Config == sycl::ext::intel::experimental::large_data) {
-        setKernelGpuCacheConfig(PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_LARGE_DATA);
+        setKernelCacheConfig(PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA);
       }
     } else {
       std::ignore = Props;
@@ -3060,7 +3060,7 @@ private:
   }
 
   // Set value of the gpu cache configuration for the kernel.
-  void setKernelGpuCacheConfig(RT::PiKernelGpuCacheConfig);
+  void setKernelCacheConfig(RT::PiKernelCacheConfig);
 };
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

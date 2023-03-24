@@ -187,7 +187,7 @@ enum PropKind : uint32_t {
   MaxBurst = 21,
   WaitRequest = 22,
   Alignment = 23,
-  GpuCacheConfig = 24,
+  CacheConfig = 24,
   // PropKindSize must always be the last value.
   PropKindSize = 25,
 };

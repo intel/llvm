@@ -16,26 +16,26 @@ namespace ext::intel::experimental {
 
 template <typename T, typename PropertyListT> class gpu_kernel_attribute;
 
-enum class gpu_cache_config_enum : std::uint16_t { large_slm, large_data };
+enum class cache_config_enum : std::uint16_t { large_slm, large_data };
 
-inline constexpr gpu_cache_config_enum large_slm =
-    gpu_cache_config_enum::large_slm;
-inline constexpr gpu_cache_config_enum large_data =
-    gpu_cache_config_enum::large_data;
+inline constexpr cache_config_enum large_slm =
+    cache_config_enum::large_slm;
+inline constexpr cache_config_enum large_data =
+    cache_config_enum::large_data;
 
-struct gpu_cache_config {
-  gpu_cache_config(gpu_cache_config_enum v) : value(v) {}
-  gpu_cache_config_enum value;
+struct cache_config {
+  cache_config(cache_config_enum v) : value(v) {}
+  cache_config_enum value;
 };
 
-using gpu_cache_config_key = gpu_cache_config;
+using cache_config_key = cache_config;
 
-inline bool operator==(const gpu_cache_config &lhs,
-                       const gpu_cache_config &rhs) {
+inline bool operator==(const cache_config &lhs,
+                       const cache_config &rhs) {
   return lhs.value == rhs.value;
 }
-inline bool operator!=(const gpu_cache_config &lhs,
-                       const gpu_cache_config &rhs) {
+inline bool operator!=(const cache_config &lhs,
+                       const cache_config &rhs) {
   return !(lhs == rhs);
 }
 
@@ -43,22 +43,22 @@ inline bool operator!=(const gpu_cache_config &lhs,
 
 namespace ext::oneapi::experimental {
 template <>
-struct is_property_key<intel::experimental::gpu_cache_config_key>
+struct is_property_key<intel::experimental::cache_config_key>
     : std::true_type {};
 
 template <typename T, typename PropertyListT>
 struct is_property_key_of<
-    intel::experimental::gpu_cache_config_key,
+    intel::experimental::cache_config_key,
     intel::experimental::gpu_kernel_attribute<T, PropertyListT>>
     : std::true_type {};
 
 namespace detail {
-template <> struct PropertyToKind<intel::experimental::gpu_cache_config_key> {
-  static constexpr PropKind Kind = PropKind::GpuCacheConfig;
+template <> struct PropertyToKind<intel::experimental::cache_config_key> {
+  static constexpr PropKind Kind = PropKind::CacheConfig;
 };
 
 template <>
-struct IsRuntimeProperty<intel::experimental::gpu_cache_config_key>
+struct IsRuntimeProperty<intel::experimental::cache_config_key>
     : std::true_type {};
 
 } // namespace detail

@@ -85,8 +85,8 @@ public:
   /// property.
   bool MIsDeviceImageScoped = false;
 
-  RT::PiKernelGpuCacheConfig MKernelGpuCacheConfig =
-      PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_DEFAULT;
+  RT::PiKernelCacheConfig MKernelCacheConfig =
+      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
 };
 
 } // namespace detail

@@ -144,7 +144,7 @@ public:
   detail::OSModuleHandle MOSModuleHandle;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
-  RT::PiKernelGpuCacheConfig MKernelGpuCacheConfig;
+  RT::PiKernelCacheConfig MKernelCacheConfig;
 
   CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -158,7 +158,7 @@ public:
                detail::OSModuleHandle OSModuleHandle,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
-               CGTYPE Type, RT::PiKernelGpuCacheConfig KernelGpuCacheConfig,
+               CGTYPE Type, RT::PiKernelCacheConfig KernelCacheConfig,
                detail::code_location loc = {})
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
@@ -169,7 +169,7 @@ public:
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
         MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
-        MKernelGpuCacheConfig(std::move(KernelGpuCacheConfig)) {
+        MKernelCacheConfig(std::move(KernelCacheConfig)) {
     assert((getType() == RunOnHostIntel || getType() == Kernel) &&
            "Wrong type of exec kernel CG.");
   }

@@ -201,7 +201,7 @@ event handler::finalize() {
             Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs,
                                       KernelBundleImpPtr, MKernel, MKernelName,
                                       MOSModuleHandle, RawEvents, OutEvent,
-                                      nullptr, MImpl->MKernelGpuCacheConfig);
+                                      nullptr, MImpl->MKernelCacheConfig);
           }
         }
         return Result;
@@ -255,7 +255,7 @@ event handler::finalize() {
         std::move(MRequirements), std::move(MEvents), std::move(MArgs),
         MKernelName, MOSModuleHandle, std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
-        MImpl->MKernelGpuCacheConfig, MCodeLoc));
+        MImpl->MKernelCacheConfig, MCodeLoc));
     break;
   }
   case detail::CG::CodeplayInteropTask:
@@ -884,9 +884,9 @@ handler::getContextImplPtr() const {
   return MQueue->getContextImplPtr();
 }
 
-void handler::setKernelGpuCacheConfig(
-    detail::RT::PiKernelGpuCacheConfig Config) {
-  MImpl->MKernelGpuCacheConfig = Config;
+void handler::setKernelCacheConfig(
+    detail::RT::PiKernelCacheConfig Config) {
+  MImpl->MKernelCacheConfig = Config;
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
