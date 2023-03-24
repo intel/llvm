@@ -560,6 +560,7 @@ void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
 void SCFLoopVersionBuilder::createIfOp() {}
 
 void SCFLoopVersionBuilder::createThenBody() const {
+  llvm::errs() << "In createThenBody\n";
   llvm::errs() << "ifOp " << ifOp << "\n";
   llvm::errs() << "ThenBlock:\n";
   getThenBlock(ifOp).dump();
@@ -638,6 +639,7 @@ void SCFLoopGuardBuilder::createIfOp() {
       [&](OpBuilder &b, Location loc) {
         b.create<scf::YieldOp>(loc, getInitVals());
       });
+  llvm::errs() << "Created " << ifOp << "\n";
 }
 void SCFLoopGuardBuilder::createElseBody() const {}
 
