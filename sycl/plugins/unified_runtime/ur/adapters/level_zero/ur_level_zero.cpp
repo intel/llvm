@@ -101,7 +101,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   static std::once_flag ZeCallCountInitialized;
   try {
     std::call_once(ZeCallCountInitialized, []() {
-      if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
+      if (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) {
         ZeCallCount = new std::map<const char *, int>;
       }
     });
@@ -113,7 +113,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
 
   // Setting these environment variables before running zeInit will enable the
   // validation layer in the Level Zero loader.
-  if (ZeDebug & ZE_DEBUG_VALIDATION) {
+  if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
     setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
@@ -141,7 +141,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   }
 
   if (ZeResult != ZE_RESULT_SUCCESS) {
-    zePrint("zeInit: Level Zero initialization failure\n");
+    urPrint("zeInit: Level Zero initialization failure\n");
     return ze2urResult(ZeResult);
   }
 
@@ -248,7 +248,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
   default:
-    zePrint("piPlatformGetInfo: unrecognized ParamName\n");
+    urPrint("piPlatformGetInfo: unrecognized ParamName\n");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -309,7 +309,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
       break;
     default:
       Matched = false;
-      zePrint("Unknown device type");
+      urPrint("Unknown device type");
       break;
     }
     if (Matched)
@@ -359,7 +359,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     case ZE_DEVICE_TYPE_FPGA:
       return ReturnValue(UR_DEVICE_TYPE_FPGA);
     default:
-      zePrint("This device type is not supported\n");
+      urPrint("This device type is not supported\n");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -856,7 +856,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->deviceId});
   case UR_DEVICE_INFO_PCI_ADDRESS: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
-      zePrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
+      urPrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     ZesStruct<zes_pci_properties_t> ZeDevicePciProperties;
@@ -1020,8 +1020,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
 
   // TODO: Implement.
   default:
-    zePrint("Unsupported ParamName in piGetDeviceInfo\n");
-    zePrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
+    urPrint("Unsupported ParamName in piGetDeviceInfo\n");
+    urPrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -1061,7 +1061,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    zePrint("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+    urPrint("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
             "default set.\n");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
@@ -1138,7 +1138,7 @@ ur_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
   if (numQueueGroups == 0) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-  zePrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
+  urPrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
   std::vector<ZeStruct<ze_command_queue_group_properties_t>>
       QueueGroupProperties(numQueueGroups);
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
@@ -1191,14 +1191,14 @@ ur_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
         }
       }
       if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
-        zePrint("NOTE: main blitter/copy engine is not available\n");
+        urPrint("NOTE: main blitter/copy engine is not available\n");
       else
-        zePrint("NOTE: main blitter/copy engine is available\n");
+        urPrint("NOTE: main blitter/copy engine is available\n");
 
       if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
-        zePrint("NOTE: link blitter/copy engines are not available\n");
+        urPrint("NOTE: link blitter/copy engines are not available\n");
       else
-        zePrint("NOTE: link blitter/copy engines are available\n");
+        urPrint("NOTE: link blitter/copy engines are available\n");
     }
   }
 

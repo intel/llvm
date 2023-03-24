@@ -69,15 +69,6 @@ void urPrint(const char *Format, ...) {
   }
 }
 
-void zePrint(const char *Format, ...) {
-  if (ZeDebug & ZE_DEBUG_BASIC) {
-    va_list Args;
-    va_start(Args, Format);
-    vfprintf(stderr, Format, Args);
-    va_end(Args);
-  }
-}
-
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value) {
@@ -87,7 +78,7 @@ bool setEnvVar(const char *name, const char *value) {
   int Res = setenv(name, value, 1);
 #endif
   if (Res != 0) {
-    zePrint(
+    urPrint(
         "Level Zero plugin was unable to set the environment variable: %s\n",
         name);
     return false;
@@ -149,16 +140,16 @@ inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
 
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
-  zePrint("ZE ---> %s%s\n", ZeName, ZeArgs);
+  urPrint("ZE ---> %s%s\n", ZeName, ZeArgs);
 
-  if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
+  if (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) {
     ++(*ZeCallCount)[ZeName];
   }
 
   if (ZeResult && TraceError) {
     const char *ErrorString = "Unknown";
     zeParseError(ZeResult, ErrorString);
-    zePrint("Error (%s) in %s\n", ErrorString, ZeName);
+    urPrint("Error (%s) in %s\n", ErrorString, ZeName);
   }
   return ZeResult;
 }
