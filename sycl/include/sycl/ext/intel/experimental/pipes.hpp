@@ -383,7 +383,7 @@ private:
                              ready_latency_key>::template get<int32_t>(0);
   static constexpr int32_t m_bits_per_symbol =
       detail::ValueOrDefault<_propertiesT,
-                             bits_per_symbol_key>::template get<int32_t>(1);
+                             bits_per_symbol_key>::template get<int32_t>(8);
   static constexpr bool m_uses_valid =
       detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(
           true);
