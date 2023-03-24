@@ -5,8 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
 
 #include <sycl/detail/kernel_desc.hpp>
+
+#include <cstdint>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
