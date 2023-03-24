@@ -22,7 +22,7 @@ int main() {
   (void)Device.get();
   // expected-warning@+1 {{'has_extension' is deprecated: use device::has() function with aspects APIs instead}}
   (void)Device.has_extension("abc");
-  // expected-warning@+1{{'host' is deprecated: deprecated in SYCL 2020, 'host' device concept removed}}
+  // expected-warning@+1{{'host' is deprecated: removed in SYCL 2020, 'host' device has been removed}}
   (void)Device.has(sycl::aspect::host);
 
   cl_event ClEvent;
