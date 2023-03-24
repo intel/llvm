@@ -30,26 +30,6 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-namespace detail {
-template <typename Properties, typename PropertyKey, typename Cond = void>
-struct ValueOrDefault {
-  template <typename ValT> static constexpr ValT get(ValT Default) {
-    return Default;
-  }
-};
-
-template <typename Properties, typename PropertyKey>
-struct ValueOrDefault<
-    Properties, PropertyKey,
-    std::enable_if_t<
-        sycl::ext::oneapi::experimental::is_property_list_v<Properties> &&
-        Properties::template has_property<PropertyKey>()>> {
-  template <typename ValT> static constexpr ValT get(ValT) {
-    return Properties::template get_property<PropertyKey>().value;
-  }
-};
-} // namespace detail
-
 // A helper templateless base class to get the host_pipe name.
 class pipe_base {
 
@@ -100,7 +80,7 @@ public:
     const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
 
     event e = q.submit([=](handler &CGH) {
-      CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), false,
+      CGH.ext_intel_read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), false,
                                true /* read */);
     });
     e.wait();
@@ -128,16 +108,12 @@ public:
     const void *data_ptr = &data;
 
     event e = q.submit([=](handler &CGH) {
-      CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT),
+      CGH.ext_intel_read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT),
                                false, false /* write */);
     });
     e.wait();
-    if (e.get_info<sycl::info::event::command_execution_status>() ==
-        sycl::info::event_command_status::complete) {
-      success_code = true;
-    } else {
-      success_code = false;
-    }
+    success_code = e.get_info<sycl::info::event::command_execution_status>() ==
+      sycl::info::event_command_status::complete;
   }
 
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
@@ -255,7 +231,7 @@ public:
     const void *HostPipePtr = &m_Storage;
     const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
     event e = q.submit([=](handler &CGH) {
-      CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), true,
+      CGH.ext_intel_read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), true,
                                true /*blocking read */);
     });
     e.wait();
@@ -274,7 +250,7 @@ public:
     const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
     const void *data_ptr = &data;
     event e = q.submit([=](handler &CGH) {
-      CGH.read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT),
+      CGH.ext_intel_read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT),
                                true, false /*blocking write */);
     });
     e.wait();
@@ -379,20 +355,20 @@ private:
   static constexpr int32_t m_Capacity = _min_capacity;
 
   static constexpr int32_t m_ready_latency =
-      detail::ValueOrDefault<_propertiesT,
+      oneapi::experimental::detail::ValueOrDefault<_propertiesT,
                              ready_latency_key>::template get<int32_t>(0);
   static constexpr int32_t m_bits_per_symbol =
-      detail::ValueOrDefault<_propertiesT,
+      oneapi::experimental::detail::ValueOrDefault<_propertiesT,
                              bits_per_symbol_key>::template get<int32_t>(8);
   static constexpr bool m_uses_valid =
-      detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(
+      oneapi::experimental::detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(
           true);
   static constexpr bool m_first_symbol_in_high_order_bits =
-      detail::ValueOrDefault<
+      oneapi::experimental::detail::ValueOrDefault<
           _propertiesT,
           first_symbol_in_high_order_bits_key>::template get<int32_t>(0);
   static constexpr protocol_name m_protocol =
-      detail::ValueOrDefault<_propertiesT, protocol_key>::template get<
+      oneapi::experimental::detail::ValueOrDefault<_propertiesT, protocol_key>::template get<
           protocol_name>(protocol_name::AVALON_STREAMING_USES_READY);
 
 public:

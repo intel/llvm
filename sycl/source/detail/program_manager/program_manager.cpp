@@ -1322,12 +1322,10 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           // * 8 bytes - Size of the property.
           // * 4 bytes - Size of the underlying type in the host_pipe.
           // Note: Property may be padded.
-          constexpr unsigned int NumPropertySizeBytes = 8;
-          constexpr unsigned int NumTypeBytes = 4;
-          assert(HostPipeInfo.size() >= NumPropertySizeBytes + NumTypeBytes &&
-                 "Unexpected property size");
-          auto TypeSize = *reinterpret_cast<const std::uint32_t *>(
-              &HostPipeInfo[NumPropertySizeBytes]);
+          
+          HostPipeInfo.dropBytes(8);
+          auto TypeSize = HostPipeInfo.consume<std::uint32_t>();
+          assert(HostPipeInfo.empty() && "Extra data left!");
 
           auto ExistingHostPipe = m_HostPipes.find(HostPipe->Name);
           if (ExistingHostPipe != m_HostPipes.end()) {

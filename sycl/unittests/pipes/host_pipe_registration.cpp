@@ -135,7 +135,7 @@ TEST_F(PipeTest, Basic) {
   int host_pipe_read_data;
   void *data_ptr = &host_pipe_read_data;
   event e = q.submit([=](handler &CGH) {
-    CGH.read_write_host_pipe(pipe_name, data_ptr, sizeof(int), true,
+    CGH.ext_intel_read_write_host_pipe(pipe_name, data_ptr, sizeof(int), true,
                              true /* read */);
   });
   e.wait();
@@ -145,7 +145,7 @@ TEST_F(PipeTest, Basic) {
   int tmp = 9;
   void *data_ptr2 = &tmp;
   event e_write = q.submit([=](handler &CGH) {
-    CGH.read_write_host_pipe(pipe_name, data_ptr2, sizeof(int), true,
+    CGH.ext_intel_read_write_host_pipe(pipe_name, data_ptr2, sizeof(int), true,
                              false /* write */);
   });
   e_write.wait();

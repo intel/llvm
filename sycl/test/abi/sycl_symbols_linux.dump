@@ -3,7 +3,7 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libsycl.so
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libsycl.so
 # REQUIRES: linux
 # UNSUPPORTED: libcxx
 
@@ -3966,7 +3966,6 @@ _ZN4sycl3_V17handler19supportsUSMMemset2DEv
 _ZN4sycl3_V17handler20DisableRangeRoundingEv
 _ZN4sycl3_V17handler20associateWithHandlerEPNS0_6detail16AccessorBaseHostENS0_6access6targetE
 _ZN4sycl3_V17handler20memcpyToDeviceGlobalEPKvS3_bmm
-_ZN4sycl3_V17handler20read_write_host_pipeERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPvmbb
 _ZN4sycl3_V17handler20setStateSpecConstSetEv
 _ZN4sycl3_V17handler22ext_oneapi_fill2d_implEPvmPKvmmm
 _ZN4sycl3_V17handler22memcpyFromDeviceGlobalEPvPKvbmm
@@ -3979,6 +3978,7 @@ _ZN4sycl3_V17handler24ext_oneapi_memset2d_implEPvmimm
 _ZN4sycl3_V17handler27computeFallbackKernelBoundsEmm
 _ZN4sycl3_V17handler28extractArgsAndReqsFromLambdaEPcmPKNS0_6detail19kernel_param_desc_tEb
 _ZN4sycl3_V17handler28setStateExplicitKernelBundleEv
+_ZN4sycl3_V17handler30ext_intel_read_write_host_pipeERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPvmbb
 _ZN4sycl3_V17handler6memcpyEPvPKvm
 _ZN4sycl3_V17handler6memsetEPvim
 _ZN4sycl3_V17handler7barrierERKSt6vectorINS0_5eventESaIS3_EE

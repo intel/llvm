@@ -221,6 +221,24 @@ template <typename LHSPropertiesT, typename RHSPropertiesT>
 using merged_properties_t =
     typename merged_properties<LHSPropertiesT, RHSPropertiesT>::type;
 
+template <typename Properties, typename PropertyKey, typename Cond = void>
+struct ValueOrDefault {
+  template <typename ValT> static constexpr ValT get(ValT Default) {
+    return Default;
+  }
+};
+
+template <typename Properties, typename PropertyKey>
+struct ValueOrDefault<
+    Properties, PropertyKey,
+    std::enable_if_t<
+        is_property_list_v<Properties> &&
+        Properties::template has_property<PropertyKey>()>> {
+  template <typename ValT> static constexpr ValT get(ValT) {
+    return Properties::template get_property<PropertyKey>().value;
+  }
+};
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
