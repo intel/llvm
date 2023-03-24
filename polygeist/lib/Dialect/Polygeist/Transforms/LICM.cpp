@@ -533,7 +533,6 @@ Optional<Operation *> OperationSideEffects::conflictsWithOperationInLoop(
 
 void LoopVersionBuilder::versionLoop() {
   llvm::errs() << "BEGIN versionLoop\n";
-  llvm::errs() << "Calling createIfOp\n";
   createIfOp();
   llvm::errs() << "Calling createThenBody\n";
   createThenBody();
@@ -561,7 +560,12 @@ void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
 void SCFLoopVersionBuilder::createIfOp() {}
 
 void SCFLoopVersionBuilder::createThenBody() const {
-  loop->moveBefore(&*getThenBlock(ifOp).begin());
+  llvm::errs() << "ifOp " << ifOp << "\n";
+  llvm::errs() << "ThenBlock:\n";
+  getThenBlock(ifOp).dump();
+  llvm::errs() << "front\n";
+  getThenBlock(ifOp).front().dump();
+  loop->moveBefore(&getThenBlock(ifOp).front());
 }
 
 void SCFLoopVersionBuilder::createElseBody() const {
