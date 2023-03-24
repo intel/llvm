@@ -1157,7 +1157,9 @@ private:
   template <typename KernelName, typename KernelType, typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_function(
+      "sycl-single-task",
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
   __SYCL_KERNEL_ATTR__ void
@@ -1174,7 +1176,9 @@ private:
   template <typename KernelName, typename KernelType, typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_function(
+      "sycl-single-task",
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
   __SYCL_KERNEL_ATTR__ void
@@ -2503,8 +2507,8 @@ public:
 
     // Do the following:
     // 1. If both are host, use host_task to copy.
-    // 2. If either pointer is host or of the backend supports native memcpy2d,
-    //    use special command.
+    // 2. If either pointer is host or the backend supports native memcpy2d, use
+    //    special command.
     // 3. Otherwise, launch a kernel for copying.
     if (SrcIsHost && DestIsHost) {
       commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,

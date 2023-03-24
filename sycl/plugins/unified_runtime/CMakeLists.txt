@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 6fb8e2620f1474428a539ef46d6dd47043c7d59b)
+  set(UNIFIED_RUNTIME_TAG d6af758779db6eebdc419fd5e249302f566eb5de)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -15,8 +15,17 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   # Disable errors from warnings while building the UR.
   # And remember origin flags before doing that.
   set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
-  if (UNIX)
+  if(WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
+    # FIXME: Unified runtime build fails with /DUNICODE
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
+    # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+    set(USE_Z7 ON)
+  else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
   endif()
 
   # No need to build tests from unified-runtime
@@ -28,16 +37,16 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   # Restore original flags
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
-  add_library(${PROJECT_NAME}::ur_loader ALIAS loader)
-
-  set(UNIFIED_RUNTIME_LIBRARY ${PROJECT_NAME}::ur_loader)
+  add_library(UnifiedRuntimeLoader ALIAS loader)
 
   set(UNIFIED_RUNTIME_SOURCE_DIR
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
   set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 endif()
 
+
 add_library (UnifiedRuntime-Headers INTERFACE)
+
 target_include_directories(UnifiedRuntime-Headers
   INTERFACE
     "${UNIFIED_RUNTIME_INCLUDE_DIR}"
@@ -45,11 +54,6 @@ target_include_directories(UnifiedRuntime-Headers
 
 find_package(Threads REQUIRED)
 
-#
-# NOTE: the Unified Runtime doesn't have the loader [yet].
-# So what we really build is the Unified Runtime with Level Zero Adapter
-# together.
-#
 add_sycl_plugin(unified_runtime
   SOURCES
     # These are short-term shared with Unified Runtime
@@ -60,9 +64,25 @@ add_sycl_plugin(unified_runtime
     "ur_bindings.hpp"
     "pi2ur.hpp"
     "pi2ur.cpp"
+    # These below belong to Unified Runtime PI Plugin only
+    "pi_unified_runtime.hpp"
+    "pi_unified_runtime.cpp"
+    LIBRARIES
+    Threads::Threads
+    UnifiedRuntimeLoader
+    UnifiedRuntime-Headers
+)
+
+# Build level zero adapter
+add_sycl_library("ur_adapter_level_zero" SHARED
+  SOURCES
     "ur/ur.hpp"
     "ur/ur.cpp"
+    "ur/usm_allocator.hpp"
+    "ur/usm_allocator.cpp"
     "ur/adapters/level_zero/ur_level_zero.hpp"
+    "ur/adapters/level_zero/ur_level_zero.cpp"
+    "ur/adapters/level_zero/ur_loader_interface.cpp"
     "ur/adapters/level_zero/ur_level_zero_common.hpp"
     "ur/adapters/level_zero/ur_level_zero_context.hpp"
     "ur/adapters/level_zero/ur_level_zero_device.hpp"
@@ -84,18 +104,19 @@ add_sycl_plugin(unified_runtime
     "ur/adapters/level_zero/ur_level_zero_program.cpp"
     "ur/adapters/level_zero/ur_level_zero_queue.cpp"
     "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
-    "ur/usm_allocator.hpp"
-    "ur/usm_allocator.cpp"
-    # These below belong to Unified Runtime PI Plugin only
-    "pi_unified_runtime.hpp"
-    "pi_unified_runtime.cpp"
-    LIBRARIES
-    Threads::Threads
+  INCLUDE_DIRS
+  LIBRARIES
     UnifiedRuntime-Headers
     LevelZeroLoader-Headers
     LevelZeroLoader
 )
 
-if (TARGET ${PROJECT_NAME}::ur_loader)
+set_target_properties("ur_adapter_level_zero" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+)
+
+
+if (TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
 endif()
