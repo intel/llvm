@@ -2319,12 +2319,12 @@ pi_int32 enqueueImpKernel(
 
     // Set SLM/Cache configuration for the kernel if non-default value is
     // provided.
-    if (KernelGpuCacheConfig == PI_GPU_CACHE_LARGE_SLM ||
-        KernelGpuCacheConfig == PI_GPU_CACHE_LARGE_DATA) {
+    if (KernelGpuCacheConfig == PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_LARGE_SLM ||
+        KernelGpuCacheConfig == PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_LARGE_DATA) {
       const detail::plugin &Plugin = Queue->getPlugin();
       Plugin.call<PiApiKind::piKernelSetExecInfo>(
-          Kernel, PI_GPU_CACHE_CONFIG, sizeof(RT::PiKernelGpuCacheConfig),
-          &KernelGpuCacheConfig);
+          Kernel, PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_CONFIG,
+          sizeof(RT::PiKernelGpuCacheConfig), &KernelGpuCacheConfig);
     }
 
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,

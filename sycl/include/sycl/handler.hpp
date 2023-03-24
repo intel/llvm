@@ -727,9 +727,9 @@ private:
       auto Config = Props.template get_property<
           sycl::ext::intel::experimental::gpu_cache_config_key>();
       if (Config == sycl::ext::intel::experimental::large_slm) {
-        setKernelGpuCacheConfig(PI_GPU_CACHE_LARGE_SLM);
+        setKernelGpuCacheConfig(PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_LARGE_SLM);
       } else if (Config == sycl::ext::intel::experimental::large_data) {
-        setKernelGpuCacheConfig(PI_GPU_CACHE_LARGE_DATA);
+        setKernelGpuCacheConfig(PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_LARGE_DATA);
       }
     } else {
       std::ignore = Props;

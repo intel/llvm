@@ -77,12 +77,12 @@
 // 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
 // 12.23 Added new piextEnqueueDeviceGlobalVariableWrite and
 // piextEnqueueDeviceGlobalVariableRead functions.
-// 12.24 Added new PI_GPU_CACHE_CONFIG property to the _pi_kernel_exec_info.
-// Defined _pi_kernel_gpu_cache_config enum with values of the new
-// PI_GPU_CACHE_CONFIG property.
+// 12.24 Added new PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_CONFIG property to the
+// _pi_kernel_exec_info. Defined _pi_kernel_gpu_cache_config enum with values of
+// the new PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_CONFIG property.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 23
+#define _PI_H_VERSION_MINOR 24
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -626,11 +626,11 @@ constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
 
 typedef enum {
   // No preference for SLM or data cache.
-  PI_GPU_CACHE_DEFAULT = 0x0,
+  PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_DEFAULT = 0x0,
   // Large SLM size.
-  PI_GPU_CACHE_LARGE_SLM = 0x1,
+  PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_LARGE_SLM = 0x1,
   // Large General Data size.
-  PI_GPU_CACHE_LARGE_DATA = 0x2
+  PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_LARGE_DATA = 0x2
 } _pi_kernel_gpu_cache_config;
 
 using pi_result = _pi_result;
@@ -1372,7 +1372,7 @@ typedef enum {
   /// provides an explicit list of pointers that the kernel will access
   PI_USM_PTRS = 0x4203,
   /// provides the preferred cache configuration (large slm or large data)
-  PI_GPU_CACHE_CONFIG = 0x4204
+  PI_EXT_KERNEL_EXEC_INFO_GPU_CACHE_CONFIG = 0x4204
 } _pi_kernel_exec_info;
 
 using pi_kernel_exec_info = _pi_kernel_exec_info;
