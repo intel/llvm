@@ -1308,13 +1308,6 @@ some designs being considered.
 
 **Outcome:** Designs under consideration
 
-=== Executable Graph Update
-
-Is there a ML usecase (e.g pytorch workload) which justifies the inclusion of
-this feature in the extension.
-
-**Outcome:** Unresolved
-
 == Revision History
 
 [cols="5,15,15,70"]
@@ -1322,11 +1315,8 @@ this feature in the extension.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|1|2022-02-11|Pablo Reble|Initial public working draft
-|2|2022-03-11|Pablo Reble|Incorporate feedback from PR
-|3|2022-05-25|Pablo Reble|Extend API and Example
-|4|2022-08-10|Pablo Reble|Adding USM shortcuts
-|5|2022-10-21|Ewan Crawford|Merge in Codeplay vendor extension
-|6|2022-11-14|Ewan Crawford|Change graph execution to be a function on the handler
-|7|2022-12-15|Ewan Crawford|Change record & replay relationship between graph and queue.
+
+|1|2023-03-23|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller
+|Initial public working draft
+
 |========================================
