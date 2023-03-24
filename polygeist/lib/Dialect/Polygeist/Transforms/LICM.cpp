@@ -208,7 +208,7 @@ protected:
 private:
   // virtual Value createCondition() const = 0;
   void createIfOp() override;
-  void createThenBody() const final;
+  void createThenBody() const override;
   void createElseBody() const override;
 };
 
@@ -257,6 +257,7 @@ public:
 private:
   virtual Value createCondition() const = 0;
   void createIfOp() final;
+  void createThenBody() const final;
   void createElseBody() const final;
 };
 
@@ -640,6 +641,15 @@ void SCFLoopGuardBuilder::createIfOp() {
         b.create<scf::YieldOp>(loc, getInitVals());
       });
   llvm::errs() << "Created " << ifOp << "\n";
+}
+void SCFLoopGuardBuilder::createThenBody() const {
+  llvm::errs() << "In SCFLoopGuardBuilder::createThenBody\n";
+  llvm::errs() << "ifOp " << ifOp << "\n";
+  llvm::errs() << "ThenBlock:\n";
+  getThenBlock(ifOp).dump();
+  llvm::errs() << "front\n";
+  getThenBlock(ifOp).front().dump();
+  loop->moveBefore(&getThenBlock(ifOp).front());
 }
 void SCFLoopGuardBuilder::createElseBody() const {}
 
