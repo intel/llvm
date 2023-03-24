@@ -354,32 +354,6 @@ private:
                                 PI_ERROR_INVALID_OPERATION);
   }
 
-  constexpr static int AccessTargetMask = 0x7ff;
-  /// According to section 4.7.6.11. of the SYCL specification, a local accessor
-  /// must not be used in a SYCL kernel function that is invoked via single_task
-  /// or via the simple form of parallel_for that takes a range parameter.
-  template <typename KernelName, typename KernelType>
-  void throwOnLocalAccessorMisuse() const {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using KI = sycl::detail::KernelInfo<NameT>;
-
-    auto *KernelArgs = &KI::getParamDesc(0);
-
-    for (unsigned I = 0; I < KI::getNumParams(); ++I) {
-      const detail::kernel_param_kind_t &Kind = KernelArgs[I].kind;
-      const access::target AccTarget =
-          static_cast<access::target>(KernelArgs[I].info & AccessTargetMask);
-      if ((Kind == detail::kernel_param_kind_t::kind_accessor) &&
-          (AccTarget == target::local))
-        throw sycl::exception(
-            make_error_code(errc::kernel_argument),
-            "A local accessor must not be used in a SYCL kernel function "
-            "that is invoked via single_task or via the simple form of "
-            "parallel_for that takes a range parameter.");
-    }
-  }
-
   /// Extracts and prepares kernel arguments from the lambda using integration
   /// header.
   void
@@ -932,7 +906,6 @@ private:
   void parallel_for_lambda_impl(range<Dims> NumWorkItems,
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
-    throwOnLocalAccessorMisuse<KernelName, KernelType>();
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
 
     // If 1D kernel argument is an integral type, convert it to sycl::item<1>
@@ -1414,7 +1387,6 @@ private:
                 ext::oneapi::experimental::detail::empty_properties_t>
   void single_task_lambda_impl(_KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
-    throwOnLocalAccessorMisuse<KernelName, KernelType>();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
