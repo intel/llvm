@@ -568,7 +568,7 @@ void SCFLoopVersionBuilder::createIfOp() {
 }
 
 void SCFLoopVersionBuilder::createThenBody() const {
-  loop->moveBefore(&getThenBlock(ifOp).front());
+  loop->moveBefore(&*getThenBlock(ifOp).begin());
 }
 
 void SCFLoopVersionBuilder::createElseBody() const {
@@ -613,9 +613,8 @@ std::unique_ptr<LoopGuardBuilder>
 LoopGuardBuilder::create(LoopLikeOpInterface loop) {
   return TypeSwitch<Operation *, std::unique_ptr<LoopGuardBuilder>>(
              (Operation *)loop)
-      .Case<scf::ForOp>([](auto loop) {
-        return std::make_unique<SCFForGuardBuilder>(loop);
-      })
+      .Case<scf::ForOp>(
+          [](auto loop) { return std::make_unique<SCFForGuardBuilder>(loop); })
       .Case<scf::ParallelOp>([](auto loop) {
         return std::make_unique<SCFParallelGuardBuilder>(loop);
       })
@@ -631,7 +630,16 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
 // SCFLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-void SCFLoopGuardBuilder::createElseBody() const {}
+void SCFLoopGuardBuilder::createElseBody() const {
+  auto &origYield = getElseBlock(ifOp).back();
+  bool yieldsResults = !loop->getResults().empty();
+  auto elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  if (yieldsResults) {
+    elseBodyBuilder.create<scf::YieldOp>(loop->getLoc(), getInitVals());
+    origYield.erase();
+  } else
+    getElseBlock(getIfOp()).erase();
+}
 
 //===----------------------------------------------------------------------===//
 // SCFForGuardBuilder
