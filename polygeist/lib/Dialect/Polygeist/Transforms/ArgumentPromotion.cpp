@@ -51,41 +51,98 @@ using namespace mlir;
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
+/// Returns true if the callable operation \p callableOp has a callable region
+/// and private visibility, and false otherwise.
+static bool isPrivateDefinition(CallableOpInterface callableOp) {
+  auto sym = dyn_cast<SymbolOpInterface>(callableOp.getOperation());
+  return (sym && sym.isPrivate() && callableOp.getCallableRegion());
+}
+
+/// Returns true if \p type is 'memref<?xstruct<>>', and false otherwise.
+static bool isValidMemRefType(Type type) {
+  auto mt = dyn_cast<MemRefType>(type);
+  bool isMemRefWithExpectedShape =
+      (mt && mt.hasRank() && (mt.getRank() == 1) &&
+       ShapedType::isDynamic(mt.getShape()[0]) && mt.getLayout().isIdentity());
+  if (!isMemRefWithExpectedShape)
+    return false;
+
+  auto structType = dyn_cast<LLVM::LLVMStructType>(mt.getElementType());
+  if (!structType || llvm::any_of(structType.getBody(), [](Type memType) {
+        return isa<LLVM::LLVMStructType>(memType);
+      }))
+    return false;
+  return true;
+}
+
+// Returns true if the block of \p startOp contains an instruction (after \p
+// startOp) that has a side effects on \p val.
+static auto existsSideEffectAfter(Value val, Operation *startOp) {
+  assert(startOp && "Expecting a valid pointer");
+  Block *block = startOp->getBlock();
+
+  for (Operation &op : *block) {
+    if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op))
+      continue;
+
+    // Currently bail out if any subsequent operation has side effects.
+    // TODO: check whether the operation alias with 'val'.
+    return true;
+  }
+  return false;
+}
+
 namespace {
 
-/// Represent a candidate for the argument promotion transformation.
-class Candidate {
+/// Represents an operand that can be peeled.
+class CandidateOperand {
 public:
-  Candidate(CallOpInterface callOp) : callOp(callOp) {
-    assert(!isRecursiveCall(callOp) && "Callee must not be recursive");
+  CandidateOperand(Value v, unsigned pos) : val(v), pos(pos) {
+    assert(isValidMemRefType(val.getType()) &&
+           "Candidate operand does not have the expected type");
   }
 
-  /// Returns true if the callable operation \p callableOp has a callable region
-  /// and private visibility, and false otherwise.
-  static bool isPrivateCallable(CallableOpInterface callableOp);
+  Value value() const { return val; };
+  unsigned position() const { return pos; };
 
-  /// Returns true if the call \p callOp is recursive, and false otherwise.
-  static bool isRecursiveCall(CallOpInterface callOp);
-
-  /// Returns true if \p type is a pointer to a struct (memref<? x struct<>>),
-  /// and false otherwise.
-  static bool isValidMemRefType(Type type);
-
-  /// Perform the transformation.
-  void transform();
+  /// Peel the operand and populate \p membersPeeled with the members peeled.
+  void peel(CallOpInterface callOp,
+            SmallVectorImpl<Value> &membersPeeled) const;
 
 private:
-  /// Identify call operands that should be peeled and peel them, returns the
-  /// number of struct members peeled. Note: this function populates a map
-  /// between the original operand and the peeled values.
-  unsigned peelMembers();
+  Value val;    /// Operand value.
+  unsigned pos; /// Operand position in the call operator.
+};
+
+/// Represents a candidate for the argument promotion transformation.
+class Candidate {
+public:
+  using CandidateOperands = SmallVector<CandidateOperand>;
+
+  Candidate(CallOpInterface callOp, CandidateOperands &&candidates)
+      : callOp(callOp), candidateOps(std::move(candidates)) {
+    assert(!candidateOps.empty() && "Expecting candidateOps to not be empty");
+  }
+
+  void transform();
+
+  StringRef getCalleeName() {
+    CallInterfaceCallable callableOp = callOp.getCallableForCallee();
+    return callableOp.get<SymbolRefAttr>().getLeafReference();
+  }
+
+private:
+  /// Peel the call operands.
+  /// Note: this function populates a map between the original operands and the
+  /// peeled members.
+  void peelOperands();
 
   /// Modify the call by replacing the original operands with their
   /// corresponding peeled members.
   void modifyCall();
 
   /// Modify the called function by replacing the original operands with their
-  /// corresponding peeled members.
+  /// corresponding peeled members.q
   void modifyCallee();
 
   /// Replace the argument at position \p pos in the region \p callableRgn with
@@ -100,8 +157,12 @@ private:
   void replaceUsesOfArgument(Value origArg, unsigned pos,
                              Region &callableRgn) const;
 
-  /// The candidate call site.
+private:
+  /// The call site to be peeled.
   CallOpInterface callOp;
+
+  /// The operands to be peeled.
+  CandidateOperands candidateOps;
 
   /// Map between the position of the original call operand and its
   /// corresponding peeled arguments.
@@ -119,96 +180,74 @@ private:
   /// Populate \p candidates with call operations to transform.
   void collectCandidates(SmallVectorImpl<Candidate> &candidates);
 
-  /// Return true if the call operation \p callOp is a candidate and false
+  /// Return true if the call operation \p callOp is a candidate, and false
   /// otherwise.
-  bool isCandidate(CallOpInterface callOp);
+  bool isCandidateCall(CallOpInterface callOp) const;
 
-  /// Return true is the callee is a candidate and false otherwise.
-  bool isCandidate(CallableOpInterface callableOp);
+  /// Return true is the callee is a candidate, and false otherwise.
+  bool isCandidateCallable(CallableOpInterface callableOp);
+
+  /// Return true if the call \p callOp operand at position \p pos is a
+  /// candidate for peeling, and false otherwise.
+  bool isCandidateOperand(unsigned pos, CallOpInterface callOp) const;
 };
 
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// CandidateOperand
+//===----------------------------------------------------------------------===//
+
+void CandidateOperand::peel(CallOpInterface callOp,
+                            SmallVectorImpl<Value> &membersPeeled) const {
+  OpBuilder builder(callOp);
+  auto memRefType = cast<MemRefType>(val.getType());
+  auto structType = cast<LLVM::LLVMStructType>(memRefType.getElementType());
+  unsigned numMembers = structType.getBody().size();
+
+  // Generate code to peel the struct members.
+  for (unsigned idx = 0; idx < numMembers; ++idx) {
+    auto memberType = structType.getBody()[idx];
+    auto mt =
+        MemRefType::get(memRefType.getShape(), memberType,
+                        memRefType.getLayout(), memRefType.getMemorySpace());
+    auto subIndexOp = builder.create<polygeist::SubIndexOp>(
+        val.getLoc(), mt, val,
+        builder.create<arith::ConstantIndexOp>(val.getLoc(), idx));
+    membersPeeled.push_back(subIndexOp);
+
+    LLVM_DEBUG(llvm::dbgs().indent(4) << "generated: " << subIndexOp << "\n");
+  }
+}
+
+//===----------------------------------------------------------------------===//
 // Candidate
 //===----------------------------------------------------------------------===//
 
-bool Candidate::isPrivateCallable(CallableOpInterface callableOp) {
-  auto sym = dyn_cast<SymbolOpInterface>(callableOp.getOperation());
-  return (sym && sym.isPrivate() && callableOp.getCallableRegion());
-}
-
-bool Candidate::isRecursiveCall(CallOpInterface callOp) {
-  if (auto callable = dyn_cast<CallableOpInterface>(callOp.resolveCallable())) {
-    Region *callableRegion = callable.getCallableRegion();
-    return callableRegion &&
-           callableRegion->isAncestor(callOp->getParentRegion());
-  }
-  return false;
-}
-
-bool Candidate::isValidMemRefType(Type type) {
-  // We want a ranked memref type with shape 'memref<?x...>'.
-  auto mt = dyn_cast<MemRefType>(type);
-  if (!mt || !mt.hasRank() || mt.getShape().size() != 1 ||
-      !ShapedType::isDynamic(mt.getShape()[0]) || !mt.getLayout().isIdentity())
-    return false;
-
-  // The element type must be a struct.
-  if (!dyn_cast<LLVM::LLVMStructType>(mt.getElementType()))
-    return false;
-
-  return true;
-}
-
 void Candidate::transform() {
-  LLVM_DEBUG(llvm::dbgs() << "\nProcessing candidate:\n" << callOp << "\n");
+  LLVM_DEBUG({
+    StringRef funcName =
+        callOp->getParentOfType<FunctionOpInterface>().getName();
+    llvm::dbgs() << "\nProcessing candidates in function \"" << funcName
+                 << "\":\n";
+    llvm::dbgs().indent(2) << callOp << "\n";
+    llvm::dbgs().indent(2) << "candidate has " << candidateOps.size()
+                           << " peelable operand(s)\n";
+  });
 
-  unsigned numMembersPeeled = peelMembers();
-  if (!numMembersPeeled)
-    return;
-
+  peelOperands();
   modifyCall();
   modifyCallee();
 }
 
-unsigned Candidate::peelMembers() {
-  OpBuilder builder(callOp);
-
-  unsigned numMembersPeeled = 0;
-  for (unsigned pos = 0; pos < callOp->getNumOperands(); ++pos) {
-    Value op = callOp->getOperand(pos);
-    if (!isValidMemRefType(op.getType()))
-      continue;
-
-    auto memRefType = cast<MemRefType>(op.getType());
-    auto structType = cast<LLVM::LLVMStructType>(memRefType.getElementType());
-
-    unsigned numMembers = structType.getBody().size();
-    SmallVector<Value> membersPeeled;
-    membersPeeled.reserve(numMembers);
-
-    // Generate code to peel the struct members.
-    for (unsigned idx = 0; idx < numMembers; ++idx) {
-      auto memberType = structType.getBody()[idx];
-      auto mt =
-          MemRefType::get(memRefType.getShape(), memberType,
-                          memRefType.getLayout(), memRefType.getMemorySpace());
-      auto subIndexOp = builder.create<polygeist::SubIndexOp>(
-          op.getLoc(), mt, op,
-          builder.create<arith::ConstantIndexOp>(op.getLoc(), idx));
-      membersPeeled.push_back(subIndexOp);
-      ++numMembersPeeled;
-
-      LLVM_DEBUG(
-          { llvm::dbgs().indent(2) << "- generated: " << subIndexOp << "\n"; });
-    }
-
-    operandToMembersPeeled.insert({pos, membersPeeled});
+void Candidate::peelOperands() {
+  for (CandidateOperand candOp : candidateOps) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "peeling operand " << candOp.position() << "\n");
+    SmallVector<Value> peeledMembers;
+    candOp.peel(callOp, peeledMembers);
+    operandToMembersPeeled.insert({candOp.position(), peeledMembers});
   }
-
-  LLVM_DEBUG(llvm::dbgs() << "Peeled " << numMembersPeeled << " members.\n\n");
-  return numMembersPeeled;
 }
 
 void Candidate::modifyCall() {
@@ -234,12 +273,17 @@ void Candidate::modifyCall() {
   assert(newCallOperands.size() >= numCallOperands);
 
   callOp->setOperands(newCallOperands);
-  LLVM_DEBUG(llvm::dbgs() << "New call:\n" << callOp << "\n\n");
+
+  LLVM_DEBUG({
+    llvm::dbgs().indent(2) << "New call:\n";
+    llvm::dbgs().indent(4) << callOp << "\n";
+  });
 }
 
 void Candidate::modifyCallee() {
-  auto callable = cast<CallableOpInterface>(callOp.resolveCallable());
-  auto funcOp = cast<func::FuncOp>(callable.getCallableRegion()->getParentOp());
+  CallableOpInterface callableOp = callOp.resolveCallable();
+  auto funcOp =
+      cast<func::FuncOp>(callableOp.getCallableRegion()->getParentOp());
   Region &callableRgn = funcOp.getFunctionBody();
   ArrayAttr origArgAttrs = funcOp.getAllArgAttrs();
   SmallVector<Attribute> newArgAttrs;
@@ -269,7 +313,10 @@ void Candidate::modifyCallee() {
   funcOp.setFunctionType(newFuncType);
   funcOp.setAllArgAttrs(newArgAttrs);
 
-  LLVM_DEBUG(llvm::dbgs() << "New Callee:\n" << funcOp << "\n\n");
+  LLVM_DEBUG({
+    llvm::dbgs().indent(2) << "New Callee:\n";
+    llvm::dbgs() << funcOp << "\n";
+  });
 }
 
 void Candidate::replaceArgumentWith(unsigned pos, Region &callableRgn,
@@ -330,25 +377,36 @@ void ArgumentPromotionPass::collectCandidates(
 
   // Collect candidate call operations in GPU kernels.
   module->walk([&](gpu::GPUFuncOp gpuFuncOp) {
-    LLVM_DEBUG({
-      llvm::dbgs()
-          << "Analyzing: "
-          << cast<SymbolOpInterface>(gpuFuncOp.getOperation()).getNameAttr()
-          << "\n";
-    });
+    LLVM_DEBUG(llvm::dbgs()
+               << "\nAnalyzing function " << gpuFuncOp.getNameAttr() << ":\n");
 
     gpuFuncOp->walk([&](CallOpInterface callOp) {
-      if (!isCandidate(callOp) ||
-          !isCandidate(cast<CallableOpInterface>(callOp.resolveCallable())))
+      // Perform some basic checks to filter out call operations that aren't
+      // candidates.
+      if (!isCandidateCall(callOp) ||
+          !isCandidateCallable(callOp.resolveCallable()))
         return;
 
-      LLVM_DEBUG(llvm::dbgs() << "Found candidate: " << callOp << "\n\n");
-      candidateCalls.push_back(callOp);
+      // Determine which operands can be peeled and collect them.
+      LLVM_DEBUG(llvm::dbgs() << "Analyzing operand(s) of: " << callOp << "\n");
+      Candidate::CandidateOperands candidateOps;
+      for (unsigned pos = 0; pos < callOp->getNumOperands(); ++pos) {
+        if (isCandidateOperand(pos, callOp))
+          candidateOps.push_back({callOp->getOperand(pos), pos});
+      }
+
+      if (candidateOps.empty()) {
+        LLVM_DEBUG(llvm::dbgs().indent(2) << "Not a candidate\n");
+        return;
+      }
+
+      LLVM_DEBUG(llvm::dbgs().indent(2) << "Found candidate\n");
+      candidateCalls.push_back({callOp, std::move(candidateOps)});
     });
   });
 }
 
-bool ArgumentPromotionPass::isCandidate(CallOpInterface callOp) {
+bool ArgumentPromotionPass::isCandidateCall(CallOpInterface callOp) const {
   // Only tail calls are candidates.
   if (!callOp->getBlock()->hasNoSuccessors()) {
     LLVM_DEBUG({
@@ -368,81 +426,60 @@ bool ArgumentPromotionPass::isCandidate(CallOpInterface callOp) {
     return false;
   }
 
-  // Calls to recursive functions are not candidates.
-  if (Candidate::isRecursiveCall(callOp)) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Not a candidate: " << callOp << "\n";
-      llvm::dbgs().indent(2) << "call is recursive\n";
-    });
+  return true;
+}
+
+bool ArgumentPromotionPass::isCandidateOperand(unsigned pos,
+                                               CallOpInterface callOp) const {
+  assert(pos < callOp->getNumOperands() &&
+         "pos must be smaller than the number of call number of operands");
+
+  // The operand must have the expected type(memref<?xstruct<...>>).
+  Value operand = callOp->getOperand(pos);
+  if (!isValidMemRefType(operand.getType())) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Operand " << pos << " doesn't have expected type\n");
     return false;
   }
 
-  // At least one operand must peelable (i.e. a memref with struct element).
-  if (llvm::all_of(callOperands, [](Value op) {
-        return !Candidate::isValidMemRefType(op.getType());
+  // The operand must not be used by any instruction (after the call
+  // operation) which may read or write it.
+  if (existsSideEffectAfter(operand, callOp->getNextNode())) {
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Operand " << pos
+               << " used after call by operation with side effects\n");
+    return false;
+  }
+
+  // The corresponding callee operand must only be used by polygeist
+  // subIndex operations.
+  CallableOpInterface callableOp = callOp.resolveCallable();
+  BlockArgument arg = callableOp.getCallableRegion()->getArgument(pos);
+  if (llvm::any_of(arg.getUses(), [](OpOperand &use) {
+        return !isa<polygeist::SubIndexOp>(use.getOwner());
       })) {
-    LLVM_DEBUG({
-      llvm::dbgs() << "Not a candidate: " << callOp << "\n";
-      llvm::dbgs().indent(2) << "no peelable arguments\n";
-    });
+    LLVM_DEBUG(llvm::dbgs().indent(2)
+               << "Operand " << pos
+               << " used by illegal operation in callee\n");
     return false;
   }
 
-  // Returns the iterator to \p op in its containing block.
-  auto getIter = [](Operation *op) {
-    Block *block = op->getBlock();
-    auto it = block->begin();
-    for (; it != block->end(); ++it) {
-      Operation *currOp = &*it;
-      if (currOp == op)
-        return it;
-    }
-    return block->end();
-  };
-
-  // Returns true if the block of \p startOp contains an instruction that has
-  // a side effects after \p startOp.
-  auto existsSideEffectsAfter = [&](Operation *startOp) {
-    Block *block = startOp->getBlock();
-    auto it = getIter(startOp);
-    assert(it != block->end());
-    WalkResult walk = block->walk(++it, block->end(), [](Operation *op) {
-      if (!isMemoryEffectFree(op))
-        return WalkResult::interrupt();
-      return WalkResult::advance();
-    });
-
-    return walk.wasInterrupted();
-  };
-
-  // Peelable operands should not be used by an instruction (after the call)
-  // that has a side effect.
-  for (Value callOperand : callOperands) {
-    if (!Candidate::isValidMemRefType(callOperand.getType()))
-      continue;
-
-    if (existsSideEffectsAfter(callOp)) {
-      LLVM_DEBUG({
-        llvm::dbgs() << "Not a candidate: " << callOp << "\n";
-        llvm::dbgs().indent(2)
-            << "found operation(s) with side effects after call\n";
-      });
-      return false;
-    }
-  }
+  LLVM_DEBUG(llvm::dbgs().indent(2)
+             << "Operand " << pos << " is a candidate\n");
 
   return true;
 }
 
-bool ArgumentPromotionPass::isCandidate(CallableOpInterface callableOp) {
+bool ArgumentPromotionPass::isCandidateCallable(
+    CallableOpInterface callableOp) {
   ModuleOp module = getOperation();
   SymbolTableCollection symTable;
   SymbolUserMap userMap(symTable, module);
-  StringRef calleeName =
+  [[maybe_unused]] StringRef calleeName =
       cast<SymbolOpInterface>(callableOp.getOperation()).getName();
 
   // The callee must be defined and private.
-  if (!Candidate::isPrivateCallable(callableOp)) {
+  if (!isPrivateDefinition(callableOp)) {
     LLVM_DEBUG({
       llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
       llvm::dbgs().indent(2) << "callee not privately defined\n";
@@ -458,26 +495,6 @@ bool ArgumentPromotionPass::isCandidate(CallableOpInterface callableOp) {
       llvm::dbgs().indent(2) << "has " << numUsers << " call sites\n";
     });
     return false;
-  }
-
-  // In the callee, the members of the struct must be accessed via polygeist
-  // subIndex operations.
-  // FIXME: we ultimately want to maintain a list of peelable arguments.
-  // Currently all arguments that have the expected type must be used by
-  // `polygeist::SubIndexOp` operation or we bail out.
-  for (BlockArgument arg : callableOp.getCallableRegion()->getArguments()) {
-    if (!Candidate::isValidMemRefType(arg.getType()))
-      continue;
-
-    if (llvm::any_of(arg.getUses(), [](OpOperand &use) {
-          return !isa<polygeist::SubIndexOp>(use.getOwner());
-        })) {
-      LLVM_DEBUG({
-        llvm::dbgs() << "Not a candidate: " << calleeName << "\n";
-        llvm::dbgs().indent(2) << "missing polygeist subindex operations\n";
-      });
-      return false;
-    }
   }
 
   return true;
