@@ -532,10 +532,16 @@ Optional<Operation *> OperationSideEffects::conflictsWithOperationInLoop(
 //===----------------------------------------------------------------------===//
 
 void LoopVersionBuilder::versionLoop() {
+  llvm::errs() << "BEGIN versionLoop\n";
+  llvm::errs() << "Calling createIfOp\n";
   createIfOp();
+  llvm::errs() << "Calling createThenBody\n";
   createThenBody();
+  llvm::errs() << "Calling createElseBody\n";
   createElseBody();
+  llvm::errs() << "Calling replaceUsesOfLoopReturnValues\n";
   replaceUsesOfLoopReturnValues();
+  llvm::errs() << "END versionLoop\n";
 }
 
 void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
@@ -600,8 +606,10 @@ std::unique_ptr<LoopGuardBuilder>
 LoopGuardBuilder::create(LoopLikeOpInterface loop) {
   return TypeSwitch<Operation *, std::unique_ptr<LoopGuardBuilder>>(
              (Operation *)loop)
-      .Case<scf::ForOp>(
-          [](auto loop) { return std::make_unique<SCFForGuardBuilder>(loop); })
+      .Case<scf::ForOp>([](auto loop) {
+        llvm::errs() << "Creating SCFForGuardBuilder\n";
+        return std::make_unique<SCFForGuardBuilder>(loop);
+      })
       .Case<scf::ParallelOp>([](auto loop) {
         return std::make_unique<SCFParallelGuardBuilder>(loop);
       })
