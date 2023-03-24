@@ -2941,15 +2941,15 @@ void _pi_queue::pi_queue_group_t::setImmCmdList(
 }
 
 pi_result piextQueueCreateWithNativeHandle2(
-    pi_native_handle NativeHandle, pi_context Context, pi_device Device,
-    bool UseImmCmdList, bool OwnNativeHandle, pi_queue_properties *Properties,
+    pi_native_handle NativeHandle, bool IsImmCmdList, pi_context Context,
+    pi_device Device, bool OwnNativeHandle, pi_queue_properties *Properties,
     pi_queue *Queue) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  if (UseImmCmdList) {
+  if (IsImmCmdList) {
     std::vector<ze_command_queue_handle_t> ComputeQueues{nullptr};
     std::vector<ze_command_queue_handle_t> CopyQueues;
 
@@ -2970,7 +2970,7 @@ pi_result piextQueueCreateWithNativeHandle2(
     *Queue = new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device,
                            OwnNativeHandle, Properties[1]);
   }
-  (*Queue)->UsingImmCmdLists = UseImmCmdList;
+  (*Queue)->UsingImmCmdLists = IsImmCmdList;
 
   return PI_SUCCESS;
 }

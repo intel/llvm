@@ -209,7 +209,9 @@ bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
-pi_native_handle2 queue::getNative2() const { return impl->getNative2(); }
+pi_native_handle queue::getNative2(bool &IsImmCmdList) const {
+  return impl->getNative2(IsImmCmdList);
+}
 
 buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
   return impl->getAssertHappenedBuffer();

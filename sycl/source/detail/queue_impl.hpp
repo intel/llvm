@@ -605,7 +605,12 @@ public:
   ///
   /// \return a native handle.
   pi_native_handle getNative() const;
-  pi_native_handle2 getNative2() const;
+
+  // The getNative2 function is added as a temporary measure so that the
+  // existing getNative function can co-exist with it. At the next ABI
+  // redefinition getNative will be removed and getNative2 will be renamed as
+  // getNative.
+  pi_native_handle getNative2(bool &IsImmCmdList) const;
 
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
