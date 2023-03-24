@@ -346,6 +346,7 @@ static Type convertBoolMemrefType(const spirv::TargetEnv &targetEnv,
     return nullptr;
   }
 
+
   if (!type.hasStaticShape()) {
     // For OpenCL Kernel, dynamic shaped memrefs convert into a pointer pointing
     // to the element.
@@ -412,6 +413,7 @@ static Type convertMemrefType(const spirv::TargetEnv &targetEnv,
                << type << " illegal: cannot deduce converted element size\n");
     return nullptr;
   }
+
 
   if (!type.hasStaticShape()) {
     // For OpenCL Kernel, dynamic shaped memrefs convert into a pointer pointing
