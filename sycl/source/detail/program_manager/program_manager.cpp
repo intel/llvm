@@ -412,7 +412,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   }
   // Add optimization flags
   if (Plugin.getBackend() == backend::ext_oneapi_level_zero) {
-    if (!CompileOpts.empty())
+    if (!CompileOpts.empty() && (optLevel != -1))
       CompileOpts += " ";
     switch (optLevel) {
     case 0: CompileOpts += "-ze-opt-disable"; break;
@@ -421,7 +421,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     case 3: CompileOpts += "-ze-opt-level=2"; break;
     }
   } else if (Plugin.getBackend() == backend::opencl) {
-    if (!CompileOpts.empty())
+    if (!CompileOpts.empty() && (optLevel == 0))
       CompileOpts += " ";
     if (optLevel == 0)
       CompileOpts += "-cl-opt-disable";

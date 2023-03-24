@@ -756,12 +756,12 @@ struct UsedOptionalFeatures {
     llvm::hash_code AspectsHash =
         llvm::hash_combine_range(Aspects.begin(), Aspects.end());
     llvm::hash_code LargeGRFHash = llvm::hash_value(UsesLargeGRF);
-    llvm::hash_code OptLevelHash = llvm::hash_value(OptLevel);
     llvm::hash_code ReqdWorkGroupSizeHash = llvm::hash_combine_range(
         ReqdWorkGroupSize.begin(), ReqdWorkGroupSize.end());
+    llvm::hash_code OptLevelHash = llvm::hash_value(OptLevel);
     Hash = static_cast<unsigned>(
-        llvm::hash_combine(AspectsHash, LargeGRFHash, OptLevelHash,
-                           ReqdWorkGroupSizeHash));
+        llvm::hash_combine(AspectsHash, LargeGRFHash, ReqdWorkGroupSizeHash,
+                           OptLevelHash));
   }
 
   std::string generateModuleName(StringRef BaseName) const {
@@ -821,7 +821,8 @@ public:
         return false;
     }
 
-    return IsEmpty == Other.IsEmpty && UsesLargeGRF == Other.UsesLargeGRF;
+    return IsEmpty == Other.IsEmpty && UsesLargeGRF == Other.UsesLargeGRF &&
+           OptLevel == Other.OptLevel;
   }
 
   unsigned hash() const { return static_cast<unsigned>(Hash); }
