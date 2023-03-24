@@ -61,32 +61,6 @@ class Sink {
         }
     }
 
-    template <typename Arg> void format(const char *fmt, Arg &&arg) {
-        while (*fmt != '\0') {
-            while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
-                *ostream << *fmt++;
-            }
-
-            if (*fmt == '{') {
-                if (*(++fmt) == '{') {
-                    *ostream << *fmt++;
-                } else if (*fmt != '}') {
-                    throw std::runtime_error("Only empty braces are allowed!");
-                } else {
-                    *ostream << arg;
-                    fmt++;
-                }
-            } else if (*fmt == '}') {
-                if (*(++fmt) == '}') {
-                    *ostream << *fmt++;
-                } else {
-                    throw std::runtime_error(
-                        "Closing curly brace not escaped!");
-                }
-            }
-        }
-    }
-
     template <typename Arg, typename... Args>
     void format(const char *fmt, Arg &&arg, Args &&...args) {
         bool arg_printed = false;
@@ -151,7 +125,7 @@ class FileSink : public Sink {
     FileSink(std::string logger_name, std::string file_path)
         : Sink(logger_name) {
         ofstream = std::ofstream(file_path, std::ofstream::out);
-        if (ofstream.rdstate() != std::ofstream::goodbit) {
+        if (!ofstream.good()) {
             throw std::invalid_argument(
                 std::string("Failure while opening log file: ") + file_path +
                 std::string(" Check if given path exists."));
