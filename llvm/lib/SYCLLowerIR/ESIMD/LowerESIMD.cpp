@@ -671,7 +671,8 @@ public:
          {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
         {"slm_init", {"slm.init", {a(0)}}},
         {"bf_cvt", {"bf.cvt", {a(0)}}},
-        {"tf32_cvt", {"tf32.cvt", {a(0)}}}};
+        {"tf32_cvt", {"tf32.cvt", {a(0)}}},
+        {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
