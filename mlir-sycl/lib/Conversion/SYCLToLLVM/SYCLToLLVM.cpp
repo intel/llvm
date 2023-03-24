@@ -2229,11 +2229,11 @@ LogicalResult ConvertSYCLToLLVMPass::convertToSPIRV() {
 
   auto &context = getContext();
   auto module = getOperation();
-  auto &bitIndex = this->indexBitwidth;
+  const unsigned int bitIndex = this->indexBitwidth.getValue();
 
   const auto res = failure(
       module
-          .walk([&context, &bitIndex](gpu::GPUModuleOp gpuModule) {
+          .walk([&context, bitIndex](gpu::GPUModuleOp gpuModule) {
             // We walk the different GPU modules looking for different SPIRV
             // target environment definitions. Currently, this does not affect
             // the behavior of this pass.
@@ -2243,9 +2243,8 @@ LogicalResult ConvertSYCLToLLVMPass::convertToSPIRV() {
             auto target = SPIRVConversionTarget::get(targetAttr);
             SPIRVConversionOptions options;
             options.use64bitIndex =
-                (bitIndex != kDeriveIndexBitwidthFromDataLayout)
-                    ? (bitIndex == 64)
-                    : true;
+                (bitIndex == kDeriveIndexBitwidthFromDataLayout ||
+                 bitIndex == 64);
             SPIRVTypeConverter typeConverter{targetAttr, options};
 
             populateGPUToSPIRVPatterns(typeConverter, patterns);
