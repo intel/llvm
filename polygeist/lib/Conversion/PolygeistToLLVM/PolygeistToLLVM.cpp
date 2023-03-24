@@ -103,8 +103,10 @@ protected:
               assert(t.getBody().size() == 1 && "Expecting single member type");
               currType = t.getBody()[0];
             })
-            .Case<LLVM::LLVMArrayType, LLVM::LLVMPointerType>(
+            .Case<LLVM::LLVMArrayType>(
                 [&](auto t) { currType = t.getElementType(); })
+            .Case<LLVM::LLVMPointerType>(
+                [&](auto t) { assert(false && "Pointer type not allowed"); })
             .Default([&](Type t) {
               currType = t;
               assert(currType == resElemType &&
@@ -188,7 +190,6 @@ struct SubIndexOpLowering : public BaseSubIndexOpLowering {
            "Expecting struct type");
 
     // SYCL case
-    // TODO(Lukas): Opaque pointer handling for SYCL case
     assert(sourceMemRefType.getRank() == viewMemRefType.getRank() &&
            "Expecting the input and output MemRef ranks to be the same");
 
@@ -268,7 +269,6 @@ struct SubIndexBarePtrOpLowering : public BaseSubIndexOpLowering {
            "Expecting struct type");
 
     // SYCL case
-    // TODO(Lukas): Opaque pointer handling for SYCL case
     assert(sourceMemRefType.getRank() == viewMemRefType.getRank() &&
            "Expecting the input and output MemRef ranks to be the same");
 
@@ -401,8 +401,9 @@ struct BareMemref2PointerOpLowering
       return failure();
 
     const auto target = transformed.getSource();
-    // TODO(Lukas): Can we eliminate this bitcast?
-    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, op.getType(), target);
+    // In an opaque pointer world, a bitcast is a no-op, so no need to insert
+    // one here.
+    rewriter.replaceOp(op, target);
 
     return success();
   }
@@ -422,9 +423,9 @@ struct BarePointer2MemrefOpLowering
     const auto convertedType = getTypeConverter()->convertType(op.getType());
     if (!convertedType)
       return failure();
-    // TODO(Lukas): CAn we eliminate this bitcast?
-    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, convertedType,
-                                                 adaptor.getSource());
+    // In an opaque pointer world, a bitcast is a no-op, so no need to insert
+    // one here.
+    rewriter.replaceOp(op, adaptor.getSource());
     return success();
   }
 };
