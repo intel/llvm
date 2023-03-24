@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
-// expected-no-diagnostics
 
 #include <sycl/sycl.hpp>
 
@@ -30,4 +29,9 @@ int main() {
   static_assert(sycl::ext::oneapi::experimental::is_property_list_v<PS>);
   static_assert(PS::has_property<cache_config>());
   assert(Props2.get_property<cache_config>() == large_data);
+
+  // Check that duplicate cache_config can't be specified.
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Duplicate properties in property list.}}
+  sycl::ext::oneapi::experimental::properties Props3(cache_config{large_data},
+                                                     cache_config{large_slm});
 }
