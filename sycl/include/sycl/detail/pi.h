@@ -1372,7 +1372,7 @@ typedef enum {
   /// provides an explicit list of pointers that the kernel will access
   PI_USM_PTRS = 0x4203,
   /// provides the preferred cache configuration (large slm or large data)
-  PI_GPU_CACHE_CONFIG
+  PI_GPU_CACHE_CONFIG = 0x4204
 } _pi_kernel_exec_info;
 
 using pi_kernel_exec_info = _pi_kernel_exec_info;
