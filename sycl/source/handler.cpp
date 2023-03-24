@@ -491,8 +491,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   case kernel_param_kind_t::kind_accessor: {
     // For args kind of accessor Size is information about accessor.
     // The first 11 bits of Size encodes the accessor target.
-    const access::target AccTarget =
-        static_cast<access::target>(Size & AccessTargetMask);
+    const access::target AccTarget = static_cast<access::target>(Size & 0x7ff);
     switch (AccTarget) {
     case access::target::device:
     case access::target::constant_buffer: {
@@ -617,7 +616,7 @@ void handler::extractArgsAndReqsFromLambda(
       // For args kind of accessor Size is information about accessor.
       // The first 11 bits of Size encodes the accessor target.
       const access::target AccTarget =
-          static_cast<access::target>(Size & AccessTargetMask);
+          static_cast<access::target>(Size & 0x7ff);
       if ((AccTarget == access::target::device ||
            AccTarget == access::target::constant_buffer) ||
           (AccTarget == access::target::image ||
