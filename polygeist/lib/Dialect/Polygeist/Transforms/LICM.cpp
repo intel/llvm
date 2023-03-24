@@ -536,16 +536,10 @@ Optional<Operation *> OperationSideEffects::conflictsWithOperationInLoop(
 //===----------------------------------------------------------------------===//
 
 void LoopVersionBuilder::versionLoop() {
-  llvm::errs() << "BEGIN versionLoop\n";
-  llvm::errs() << "Calling createIfOp\n";
   createIfOp();
-  llvm::errs() << "Calling createThenBody\n";
   createThenBody();
-  llvm::errs() << "Calling createElseBody\n";
   createElseBody();
-  llvm::errs() << "Calling replaceUsesOfLoopReturnValues\n";
   replaceUsesOfLoopReturnValues();
-  llvm::errs() << "END versionLoop\n";
 }
 
 void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
@@ -563,7 +557,6 @@ void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
 //===----------------------------------------------------------------------===//
 
 void SCFLoopVersionBuilder::createIfOp() {
-  llvm::errs() << "In createIfOp\n";
   ifOp = builder.create<scf::IfOp>(
       loop.getLoc(), createCondition(),
       [&](OpBuilder &b, Location loc) {
@@ -572,16 +565,9 @@ void SCFLoopVersionBuilder::createIfOp() {
       [&](OpBuilder &b, Location loc) {
         b.create<scf::YieldOp>(loc, loop->getResults());
       });
-  llvm::errs() << "Created " << ifOp << "\n";
 }
 
 void SCFLoopVersionBuilder::createThenBody() const {
-  llvm::errs() << "In createThenBody\n";
-  llvm::errs() << "ifOp " << ifOp << "\n";
-  llvm::errs() << "ThenBlock:\n";
-  getThenBlock(ifOp).dump();
-  llvm::errs() << "front\n";
-  getThenBlock(ifOp).front().dump();
   loop->moveBefore(&getThenBlock(ifOp).front());
 }
 
@@ -628,7 +614,6 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
   return TypeSwitch<Operation *, std::unique_ptr<LoopGuardBuilder>>(
              (Operation *)loop)
       .Case<scf::ForOp>([](auto loop) {
-        llvm::errs() << "Creating SCFForGuardBuilder\n";
         return std::make_unique<SCFForGuardBuilder>(loop);
       })
       .Case<scf::ParallelOp>([](auto loop) {
