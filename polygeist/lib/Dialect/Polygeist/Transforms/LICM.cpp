@@ -200,11 +200,14 @@ public:
   SCFLoopVersionBuilder(LoopLikeOpInterface loop) : LoopVersionBuilder(loop) {}
 
 protected:
-  scf::IfOp getIfOp() const { return cast<scf::IfOp>(ifOp); }
+  scf::IfOp getIfOp() const {
+    assert(ifOp && "Expected valid ifOp");
+    return cast<scf::IfOp>(ifOp);
+  }
 
 private:
-  virtual Value createCondition() const = 0;
-  void createIfOp() final;
+  // virtual Value createCondition() const = 0;
+  void createIfOp() override;
   void createThenBody() const final;
   void createElseBody() const override;
 };
@@ -215,7 +218,10 @@ public:
       : LoopVersionBuilder(loop) {}
 
 protected:
-  AffineIfOp getIfOp() const { return cast<AffineIfOp>(ifOp); }
+  AffineIfOp getIfOp() const {
+    assert(ifOp && "Expected valid ifOp");
+    return cast<AffineIfOp>(ifOp);
+  }
 
 private:
   virtual IntegerSet createCondition(SmallVectorImpl<Value> &) const = 0;
@@ -249,6 +255,8 @@ public:
   void guardLoop() final { versionLoop(); }
 
 private:
+  virtual Value createCondition() const = 0;
+  void createIfOp() final;
   void createElseBody() const final;
 };
 
@@ -544,16 +552,7 @@ void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
 // SCFLoopVersionBuilder
 //===----------------------------------------------------------------------===//
 
-void SCFLoopVersionBuilder::createIfOp() {
-  ifOp = builder.create<scf::IfOp>(
-      loop.getLoc(), createCondition(),
-      [&](OpBuilder &b, Location loc) {
-        b.create<scf::YieldOp>(loc, loop->getResults());
-      },
-      [&](OpBuilder &b, Location loc) {
-        b.create<scf::YieldOp>(loc, loop->getResults());
-      });
-}
+void SCFLoopVersionBuilder::createIfOp() {}
 
 void SCFLoopVersionBuilder::createThenBody() const {
   loop->moveBefore(&*getThenBlock(ifOp).begin());
@@ -618,16 +617,17 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
 // SCFLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-void SCFLoopGuardBuilder::createElseBody() const {
-  auto &origYield = getElseBlock(ifOp).back();
-  bool yieldsResults = !loop->getResults().empty();
-  auto elseBodyBuilder = getIfOp().getElseBodyBuilder();
-  if (yieldsResults) {
-    elseBodyBuilder.create<scf::YieldOp>(loop->getLoc(), getInitVals());
-    origYield.erase();
-  } else
-    getElseBlock(getIfOp()).erase();
+void SCFLoopGuardBuilder::createIfOp() {
+  ifOp = builder.create<scf::IfOp>(
+      loop.getLoc(), createCondition(),
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop->getResults());
+      },
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, getInitVals());
+      });
 }
+void SCFLoopGuardBuilder::createElseBody() const {}
 
 //===----------------------------------------------------------------------===//
 // SCFForGuardBuilder
