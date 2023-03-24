@@ -16,20 +16,17 @@
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
-#include "mlir/Conversion/GPUToSPIRV/GPUToSPIRV.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"
 #include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVM.h"
-#include "mlir/Conversion/SYCLToGPU/SYCLToGPU.h"
 #include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
 #include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRV.h"
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
-#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
@@ -2177,17 +2174,6 @@ void mlir::populateSYCLToLLVMConversionPatterns(
 }
 
 namespace {
-/// A pass converting MLIR SYCL operations into LLVM dialect.
-///
-/// This pass relies on SYCL to GPU and target dialects, e.g., SPIRV, conversion
-/// patterns. This pass is executed in 4 steps:
-/// 1. Lower all of the operations to LLVM. As some of the operations will yield
-///    SYCL grid ops, we need to run this step first;
-/// 2. Convert grid ops to a target dialect, e.g., SPIRV;
-/// 3. Lower remaining operations to LLVM. Same as 1, but no operation will
-///    yield SYCL grid ops, so we can mark these as illegal;
-/// 4. Resolve UnrealizedConversionCastOps appearing due to the fact that this
-///    pass is performed in several steps.
 class ConvertSYCLToLLVMPass
     : public impl::ConvertSYCLToLLVMBase<ConvertSYCLToLLVMPass> {
 public:
