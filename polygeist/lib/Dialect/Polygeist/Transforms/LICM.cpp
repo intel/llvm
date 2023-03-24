@@ -200,12 +200,15 @@ public:
   SCFLoopVersionBuilder(LoopLikeOpInterface loop) : LoopVersionBuilder(loop) {}
 
 protected:
-  scf::IfOp getIfOp() const { return cast<scf::IfOp>(ifOp); }
+  scf::IfOp getIfOp() const {
+    assert(ifOp && "Expected valid ifOp");
+    return cast<scf::IfOp>(ifOp);
+  }
+  void createIfOp() override;
+  void createThenBody() const override;
 
 private:
   virtual Value createCondition() const = 0;
-  void createIfOp() final;
-  void createThenBody() const final;
   void createElseBody() const override;
 };
 
@@ -215,12 +218,15 @@ public:
       : LoopVersionBuilder(loop) {}
 
 protected:
-  AffineIfOp getIfOp() const { return cast<AffineIfOp>(ifOp); }
+  AffineIfOp getIfOp() const {
+    assert(ifOp && "Expected valid ifOp");
+    return cast<AffineIfOp>(ifOp);
+  }
+  void createIfOp() override;
+  void createThenBody() const override;
 
 private:
   virtual IntegerSet createCondition(SmallVectorImpl<Value> &) const = 0;
-  void createIfOp() final;
-  void createThenBody() const final;
   void createElseBody() const override;
 };
 
@@ -249,6 +255,8 @@ public:
   void guardLoop() final { versionLoop(); }
 
 private:
+  void createIfOp() final { SCFLoopVersionBuilder::createIfOp(); }
+  void createThenBody() const final { SCFLoopVersionBuilder::createThenBody(); }
   void createElseBody() const final;
 };
 
@@ -284,6 +292,10 @@ public:
   void guardLoop() final { versionLoop(); }
 
 private:
+  void createIfOp() final { AffineLoopVersionBuilder::createIfOp(); }
+  void createThenBody() const final {
+    AffineLoopVersionBuilder::createThenBody();
+  }
   void createElseBody() const final;
   IntegerSet createCondition(SmallVectorImpl<Value> &) const final;
   virtual void getConstraints(SmallVectorImpl<AffineExpr> &,
