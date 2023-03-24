@@ -56,9 +56,8 @@ rely on APIs defined in this specification.*
 
 There are devices where the same hardware resources are used for shared local
 memory (SLM) and data cache. Developers may want more data cache or SLM based
-on their application. This extension adds compile-time kernel property
-`gpu_cache_config` which provides a way to set the preferred cache configuration
-for a kernel.
+on their application. This extension adds runtime kernel property `gpu_cache_config`
+which provides a way to set the preferred cache configuration for a kernel.
 
 === Feature Test Macro
 
@@ -80,34 +79,25 @@ supports.
 === Introduction
 
 This extension introduces new kernel property that can be applied to kernels
-using the mechanism defined in sycl_ext_oneapi_kernel_properties.
+using the mechanism defined in link:sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties].
 
 === GPU Cache Config Property
 
 ```c++
 namespace sycl::ext::intel::experimental {
 
-enum class gpu_cache_config_enum {
-  large_slm,
-  large_data
+
+enum class gpu_cache_config_enum : std::uint16_t { large_slm, large_data };
+
+inline constexpr gpu_cache_config_enum large_slm =
+    gpu_cache_config_enum::large_slm;
+inline constexpr gpu_cache_config_enum large_data =
+    gpu_cache_config_enum::large_data;
+
+struct gpu_cache_config {
+  gpu_cache_config(gpu_cache_config_enum v) : value(v) {}
+  gpu_cache_config_enum value;
 };
-
-struct gpu_cache_config_key {
-  template <gpu_cache_config_enum option>
-  using value_t = sycl::ext::oneapi::properties::property_value<
-    gpu_cache_config_key,
-    std::integral_constant<gpu_cache_config_enum, option>>;
-};
-
-template <gpu_cache_config_enum option>
-inline constexpr gpu_cache_config_key::value_t<option> gpu_cache_config;
-
-inline constexpr gpu_cache_config_key::value_t<gpu_cache_config_enum::large_slm>
-    gpu_cache_config_large_slm;
-
-inline constexpr gpu_cache_config_key::value_t<
-    gpu_cache_config_enum::large_data>
-    gpu_cache_config_large_data;
 
 } // namespace sycl::ext::intel::experimental
 ```
@@ -121,16 +111,12 @@ configuration for a kernel. The following values are supported:
  * `large_data`: Prefer using less of a shared cache for SLM and
     hence leaving more cache available for data.
 
-The following properties have been provided for convenience:
-`gpu_cache_config_large_slm`,
-`gpu_cache_config_large_data`.
-
-These properties may be passed to any kernel invocation function (e.g.
+These property may be passed to any kernel invocation function (e.g.
 `parallel_for`) via the properties parameter.  At most, only one of these
-properties may be passed to any single kernel invocation function.
+values may be passed to any single kernel invocation function.
 
-Backends that do not support this extension may accept and ignore these
-properties.
+Backends that do not support this extension may accept and ignore this
+property.
 
 === Adding a Property List to a Kernel Launch
 
@@ -143,7 +129,7 @@ The example assumes that the kernel will benefit from large SLM and hence uses t
 using namespace sycl::ext::intel::experimental;
 {
   ...
-  properties kernel_properties{gpu_cache_config_large_slm};
+  properties kernel_properties{gpu_cache_config{large_slm}};
 
   q.single_task(kernel_properties, [=] {
     *a = *b + *c;
@@ -166,8 +152,8 @@ struct KernelFunctor {
     *a = *b + *c;
   }
 
-  auto get(properties_tag) {
-    return properties{gpu_cache_config_large_slm};
+  auto get(properties_tag) const {
+    return properties{gpu_cache_config{large_slm}};
   }
 
   int* a;
