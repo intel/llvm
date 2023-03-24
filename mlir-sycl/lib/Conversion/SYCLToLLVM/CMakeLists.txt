@@ -22,7 +22,6 @@ add_mlir_conversion_library(MLIRSYCLToLLVM
   MLIRReconcileUnrealizedCasts
   MLIRSPIRVToLLVM
   MLIRSYCLDialect  
-  MLIRSYCLToGPU
   MLIRSYCLToSPIRV
   MLIRTransforms
   MLIRVectorToLLVM

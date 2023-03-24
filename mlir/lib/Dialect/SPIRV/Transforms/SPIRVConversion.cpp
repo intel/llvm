@@ -346,7 +346,6 @@ static Type convertBoolMemrefType(const spirv::TargetEnv &targetEnv,
     return nullptr;
   }
 
-
   if (!type.hasStaticShape()) {
     // For OpenCL Kernel, dynamic shaped memrefs convert into a pointer pointing
     // to the element.
@@ -413,7 +412,6 @@ static Type convertMemrefType(const spirv::TargetEnv &targetEnv,
                << type << " illegal: cannot deduce converted element size\n");
     return nullptr;
   }
-
 
   if (!type.hasStaticShape()) {
     // For OpenCL Kernel, dynamic shaped memrefs convert into a pointer pointing
@@ -594,7 +592,8 @@ getOrInsertBuiltinVariable(Block &body, Location loc, spirv::BuiltIn builtin,
   case spirv::BuiltIn::WorkgroupId:
   case spirv::BuiltIn::LocalInvocationId:
   case spirv::BuiltIn::GlobalInvocationId:
-  case spirv::BuiltIn::GlobalOffset: {
+  case spirv::BuiltIn::GlobalOffset:
+  case spirv::BuiltIn::GlobalSize: {
     auto ptrType = spirv::PointerType::get(VectorType::get({3}, integerType),
                                            spirv::StorageClass::Input);
     std::string name = getBuiltinVarName(builtin);

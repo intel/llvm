@@ -7,39 +7,6 @@
 !sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
 !sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64>)>)>
 
-// CHECK-LABEL:   func.func @test_num_work_items() -> !sycl_range_1_ {
-// CHECK-NEXT:      %[[VAL_0:.*]] = memref.alloca() : memref<1x!sycl_range_1_>
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 0 : index
-// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 0 : i32
-// CHECK-NEXT:      %[[VAL_3:.*]] = gpu.grid_dim  x
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.index_cast %[[VAL_3]] : index to i64
-// CHECK-NEXT:      %[[VAL_5:.*]] = sycl.range.get %[[VAL_0]]{{\[}}%[[VAL_2]]] {ArgumentTypes = [memref<1x!sycl_range_1_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @range} : (memref<1x!sycl_range_1_>, i32) -> memref<1xi64>
-// CHECK-NEXT:      memref.store %[[VAL_4]], %[[VAL_5]]{{\[}}%[[VAL_1]]] : memref<1xi64>
-// CHECK-NEXT:      %[[VAL_6:.*]] = memref.load %[[VAL_0]]{{\[}}%[[VAL_1]]] : memref<1x!sycl_range_1_>
-// CHECK-NEXT:      return %[[VAL_6]] : !sycl_range_1_
-// CHECK-NEXT:    }
-func.func @test_num_work_items() -> !sycl_range_1_ {
-  %0 = sycl.num_work_items : !sycl_range_1_
-  return %0 : !sycl_range_1_
-}
-
-// CHECK-LABEL:   func.func @test_num_work_items_dim(
-// CHECK-SAME:                                       %[[VAL_0:.*]]: i32) -> index {
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant dense<0> : vector<3xindex>
-// CHECK-NEXT:      %[[VAL_3:.*]] = gpu.grid_dim  x
-// CHECK-NEXT:      %[[VAL_4:.*]] = vector.insert %[[VAL_3]], %[[VAL_1]] [0] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_5:.*]] = gpu.grid_dim  y
-// CHECK-NEXT:      %[[VAL_6:.*]] = vector.insert %[[VAL_5]], %[[VAL_4]] [1] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_7:.*]] = gpu.grid_dim  z
-// CHECK-NEXT:      %[[VAL_8:.*]] = vector.insert %[[VAL_7]], %[[VAL_6]] [2] : index into vector<3xindex>
-// CHECK-NEXT:      %[[VAL_9:.*]] = vector.extractelement %[[VAL_8]]{{\[}}%[[VAL_0]] : i32] : vector<3xindex>
-// CHECK-NEXT:      return %[[VAL_9]] : index
-// CHECK-NEXT:    }
-func.func @test_num_work_items_dim(%i: i32) -> index {
-  %0 = sycl.num_work_items %i : index
-  return %0 : index
-}
-
 // CHECK-LABEL:   func.func @test_global_id() -> !sycl_id_2_ {
 // CHECK-NEXT:      %[[VAL_0:.*]] = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 0 : index

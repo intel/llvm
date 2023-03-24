@@ -20,23 +20,26 @@ module attributes {gpu.container_module} {
     //CHECK-DAG:      llvm.mlir.global external constant @__builtin_var_LocalInvocationId__() {addr_space = 0 : i32} : vector<3xi64>
     //CHECK-DAG:      llvm.mlir.global external constant @__builtin_var_GlobalInvocationId__() {addr_space = 0 : i32} : vector<3xi64>
     //CHECK-DAG:      llvm.mlir.global external constant @__builtin_var_NumWorkgroups__() {addr_space = 0 : i32} : vector<3xi64>
+    //CHECK-DAG:      llvm.mlir.global external constant @__builtin_var_GlobalSize__() {addr_space = 0 : i32} : vector<3xi64>
   gpu.module @kernels {
     // CHECK-LABEL:   llvm.func @test_num_work_items() -> !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> {
-    // CHECK-DAG:         %[[VAL_0:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_1:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]][1] : (!llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>) -> !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-NEXT:        %[[VAL_3:.*]] = llvm.ptrtoint %[[VAL_2]] : !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>> to i64
-    // CHECK-NEXT:        %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_5:.*]] = llvm.mlir.constant(0 : index) : i64
-    // CHECK-DAG:         %[[VAL_6:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_7:.*]] = llvm.mlir.addressof @__builtin_var_NumWorkgroups__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_9:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_10:.*]] = llvm.extractelement %[[VAL_8]]{{\[}}%[[VAL_9]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_4]][0, 0, 0, 0] : (!llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_10]], %[[VAL_11]] : !llvm.ptr<i64>
-    // CHECK-NEXT:        %[[VAL_12:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-NEXT:        llvm.return %[[VAL_12]] : !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>
+    // CHECK:             %[[VAL_0:.*]] = llvm.mlir.addressof @__builtin_var_GlobalSize__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_1:.*]] = llvm.load %[[VAL_0]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_3:.*]] = llvm.mlir.constant(1 : index) : i64
+    // CHECK:             %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_2]]{{\[}}%[[VAL_3]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_5:.*]] = llvm.ptrtoint %[[VAL_4]] : !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>> to i64
+    // CHECK:             %[[VAL_6:.*]] = llvm.alloca %[[VAL_5]] x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_7:.*]] = llvm.mlir.constant(0 : index) : i64
+    // CHECK:             %[[VAL_8:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_9:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_10:.*]] = llvm.extractelement %[[VAL_1]]{{\[}}%[[VAL_9]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_6]][0, 0, 0, %[[VAL_8]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_12:.*]] = llvm.getelementptr %[[VAL_11]]{{\[}}%[[VAL_7]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_10]], %[[VAL_12]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_13:.*]] = llvm.getelementptr %[[VAL_6]]{{\[}}%[[VAL_7]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_14:.*]] = llvm.load %[[VAL_13]] : !llvm.ptr<struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             llvm.return %[[VAL_14]] : !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>
     // CHECK-NEXT:      }
     func.func @test_num_work_items() -> !sycl_range_1_ {
       %0 = sycl.num_work_items : !sycl_range_1_
@@ -44,268 +47,251 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_num_work_items_dim(
-    // CHECK-SAME:                                         %[[VAL_13:.*]]: i32) -> i64 {
-    // CHECK-DAG:         %[[VAL_14:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_15:.*]] = llvm.mlir.addressof @__builtin_var_NumWorkgroups__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_16:.*]] = llvm.load %[[VAL_15]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_17:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_18:.*]] = llvm.extractelement %[[VAL_16]]{{\[}}%[[VAL_17]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_19:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_20:.*]] = llvm.insertelement %[[VAL_18]], %[[VAL_14]]{{\[}}%[[VAL_19]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_21:.*]] = llvm.mlir.addressof @__builtin_var_NumWorkgroups__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_22:.*]] = llvm.load %[[VAL_21]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_23:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_24:.*]] = llvm.extractelement %[[VAL_22]]{{\[}}%[[VAL_23]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_25:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_26:.*]] = llvm.insertelement %[[VAL_24]], %[[VAL_20]]{{\[}}%[[VAL_25]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_27:.*]] = llvm.mlir.addressof @__builtin_var_NumWorkgroups__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_28:.*]] = llvm.load %[[VAL_27]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_29:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_30:.*]] = llvm.extractelement %[[VAL_28]]{{\[}}%[[VAL_29]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_31:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_32:.*]] = llvm.insertelement %[[VAL_30]], %[[VAL_26]]{{\[}}%[[VAL_31]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_33:.*]] = llvm.extractelement %[[VAL_32]]{{\[}}%[[VAL_13]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_33]] : i64
-    // CHECK-NEXT:      }
+    // CHECK-SAME:                                         %[[VAL_15:.*]]: i32) -> i64 {
+    // CHECK:             %[[VAL_16:.*]] = llvm.mlir.addressof @__builtin_var_GlobalSize__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_17:.*]] = llvm.load %[[VAL_16]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_18:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+    // CHECK:             %[[VAL_19:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_20:.*]] = llvm.extractelement %[[VAL_17]]{{\[}}%[[VAL_19]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_21:.*]] = llvm.mlir.constant(0 : i64) : i64
+    // CHECK:             %[[VAL_22:.*]] = llvm.insertelement %[[VAL_20]], %[[VAL_18]]{{\[}}%[[VAL_21]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_23:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_24:.*]] = llvm.extractelement %[[VAL_17]]{{\[}}%[[VAL_23]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_25:.*]] = llvm.mlir.constant(1 : i64) : i64
+    // CHECK:             %[[VAL_26:.*]] = llvm.insertelement %[[VAL_24]], %[[VAL_22]]{{\[}}%[[VAL_25]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_27:.*]] = llvm.mlir.constant(2 : i32) : i32
+    // CHECK:             %[[VAL_28:.*]] = llvm.extractelement %[[VAL_17]]{{\[}}%[[VAL_27]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_29:.*]] = llvm.mlir.constant(2 : i64) : i64
+    // CHECK:             %[[VAL_30:.*]] = llvm.insertelement %[[VAL_28]], %[[VAL_26]]{{\[}}%[[VAL_29]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_31:.*]] = llvm.extractelement %[[VAL_30]]{{\[}}%[[VAL_15]] : i32] : vector<3xi64>
+    // CHECK:             llvm.return %[[VAL_31]] : i64
+    // CHECK:           }
     func.func @test_num_work_items_dim(%i: i32) -> index {
       %0 = sycl.num_work_items %i : index
       return %0 : index
     }
 
     // CHECK-LABEL:     llvm.func @test_global_id() -> !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> {
-    // CHECK-DAG:         %[[VAL_34:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_35:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_36:.*]] = llvm.getelementptr %[[VAL_34]][1] : (!llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>) -> !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
-    // CHECK-NEXT:        %[[VAL_37:.*]] = llvm.ptrtoint %[[VAL_36]] : !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>> to i64
-    // CHECK-NEXT:        %[[VAL_38:.*]] = llvm.alloca %[[VAL_37]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_39:.*]] = llvm.mlir.constant(0 : index) : i64
-    // CHECK-DAG:         %[[VAL_40:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_41:.*]] = llvm.mlir.addressof @__builtin_var_GlobalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_42:.*]] = llvm.load %[[VAL_41]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_43:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_44:.*]] = llvm.extractelement %[[VAL_42]]{{\[}}%[[VAL_43]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_45:.*]] = llvm.getelementptr inbounds %[[VAL_38]][0, 0, 0, 0] : (!llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_44]], %[[VAL_45]] : !llvm.ptr<i64>
-    // CHECK-DAG:         %[[VAL_46:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_47:.*]] = llvm.mlir.addressof @__builtin_var_GlobalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_48:.*]] = llvm.load %[[VAL_47]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_49:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_50:.*]] = llvm.extractelement %[[VAL_48]]{{\[}}%[[VAL_49]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_51:.*]] = llvm.getelementptr inbounds %[[VAL_38]][0, 0, 0, 1] : (!llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_50]], %[[VAL_51]] : !llvm.ptr<i64>
-    // CHECK-NEXT:        %[[VAL_52:.*]] = llvm.load %[[VAL_38]] : !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
-    // CHECK-NEXT:        llvm.return %[[VAL_52]] : !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>
-    // CHECK-NEXT:      }
+    // CHECK:             %[[VAL_32:.*]] = llvm.mlir.addressof @__builtin_var_GlobalInvocationId__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_33:.*]] = llvm.load %[[VAL_32]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_34:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
+    // CHECK:             %[[VAL_35:.*]] = llvm.mlir.constant(1 : index) : i64
+    // CHECK:             %[[VAL_36:.*]] = llvm.getelementptr %[[VAL_34]]{{\[}}%[[VAL_35]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
+    // CHECK:             %[[VAL_37:.*]] = llvm.ptrtoint %[[VAL_36]] : !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>> to i64
+    // CHECK:             %[[VAL_38:.*]] = llvm.alloca %[[VAL_37]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
+    // CHECK:             %[[VAL_39:.*]] = llvm.mlir.constant(0 : index) : i64
+    // CHECK:             %[[VAL_40:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_41:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_42:.*]] = llvm.extractelement %[[VAL_33]]{{\[}}%[[VAL_41]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_43:.*]] = llvm.getelementptr inbounds %[[VAL_38]][0, 0, 0, %[[VAL_40]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_44:.*]] = llvm.getelementptr %[[VAL_43]]{{\[}}%[[VAL_39]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_42]], %[[VAL_44]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_45:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_46:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_47:.*]] = llvm.extractelement %[[VAL_33]]{{\[}}%[[VAL_46]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_48:.*]] = llvm.getelementptr inbounds %[[VAL_38]][0, 0, 0, %[[VAL_45]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_49:.*]] = llvm.getelementptr %[[VAL_48]]{{\[}}%[[VAL_39]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_47]], %[[VAL_49]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_50:.*]] = llvm.getelementptr %[[VAL_38]]{{\[}}%[[VAL_39]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
+    // CHECK:             %[[VAL_51:.*]] = llvm.load %[[VAL_50]] : !llvm.ptr<struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
+    // CHECK:             llvm.return %[[VAL_51]] : !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>
+    // CHECK:           }
     func.func @test_global_id() -> !sycl_id_2_ {
       %0 = sycl.global_id : !sycl_id_2_
       return %0 : !sycl_id_2_
     }
 
     // CHECK-LABEL:     llvm.func @test_global_id_dim(
-    // CHECK-SAME:                                    %[[VAL_53:.*]]: i32) -> i64 {
-    // CHECK-DAG:         %[[VAL_54:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_55:.*]] = llvm.mlir.addressof @__builtin_var_GlobalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_56:.*]] = llvm.load %[[VAL_55]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_57:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_58:.*]] = llvm.extractelement %[[VAL_56]]{{\[}}%[[VAL_57]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_59:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_60:.*]] = llvm.insertelement %[[VAL_58]], %[[VAL_54]]{{\[}}%[[VAL_59]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_61:.*]] = llvm.mlir.addressof @__builtin_var_GlobalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_62:.*]] = llvm.load %[[VAL_61]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_63:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_64:.*]] = llvm.extractelement %[[VAL_62]]{{\[}}%[[VAL_63]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_65:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_66:.*]] = llvm.insertelement %[[VAL_64]], %[[VAL_60]]{{\[}}%[[VAL_65]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_67:.*]] = llvm.mlir.addressof @__builtin_var_GlobalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_68:.*]] = llvm.load %[[VAL_67]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_69:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_70:.*]] = llvm.extractelement %[[VAL_68]]{{\[}}%[[VAL_69]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_71:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_72:.*]] = llvm.insertelement %[[VAL_70]], %[[VAL_66]]{{\[}}%[[VAL_71]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_73:.*]] = llvm.extractelement %[[VAL_72]]{{\[}}%[[VAL_53]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_73]] : i64
-    // CHECK-NEXT:      }
+    // CHECK-SAME:                                    %[[VAL_52:.*]]: i32) -> i64 {
+    // CHECK:             %[[VAL_53:.*]] = llvm.mlir.addressof @__builtin_var_GlobalInvocationId__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_54:.*]] = llvm.load %[[VAL_53]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_55:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+    // CHECK:             %[[VAL_56:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_57:.*]] = llvm.extractelement %[[VAL_54]]{{\[}}%[[VAL_56]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_58:.*]] = llvm.mlir.constant(0 : i64) : i64
+    // CHECK:             %[[VAL_59:.*]] = llvm.insertelement %[[VAL_57]], %[[VAL_55]]{{\[}}%[[VAL_58]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_60:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_61:.*]] = llvm.extractelement %[[VAL_54]]{{\[}}%[[VAL_60]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_62:.*]] = llvm.mlir.constant(1 : i64) : i64
+    // CHECK:             %[[VAL_63:.*]] = llvm.insertelement %[[VAL_61]], %[[VAL_59]]{{\[}}%[[VAL_62]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_64:.*]] = llvm.mlir.constant(2 : i32) : i32
+    // CHECK:             %[[VAL_65:.*]] = llvm.extractelement %[[VAL_54]]{{\[}}%[[VAL_64]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_66:.*]] = llvm.mlir.constant(2 : i64) : i64
+    // CHECK:             %[[VAL_67:.*]] = llvm.insertelement %[[VAL_65]], %[[VAL_63]]{{\[}}%[[VAL_66]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_68:.*]] = llvm.extractelement %[[VAL_67]]{{\[}}%[[VAL_52]] : i32] : vector<3xi64>
+    // CHECK:             llvm.return %[[VAL_68]] : i64
+    // CHECK:           }
     func.func @test_global_id_dim(%i: i32) -> index {
       %0 = sycl.global_id %i : index
       return %0 : index
     }
 
     // CHECK-LABEL:     llvm.func @test_local_id() -> !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {
-    // CHECK-DAG:         %[[VAL_74:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_75:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_76:.*]] = llvm.getelementptr %[[VAL_74]][1] : (!llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>) -> !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
-    // CHECK-NEXT:        %[[VAL_77:.*]] = llvm.ptrtoint %[[VAL_76]] : !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>> to i64
-    // CHECK-NEXT:        %[[VAL_78:.*]] = llvm.alloca %[[VAL_77]] x !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_79:.*]] = llvm.mlir.constant(0 : index) : i64
-    // CHECK-DAG:         %[[VAL_80:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_81:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_82:.*]] = llvm.load %[[VAL_81]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_83:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_84:.*]] = llvm.extractelement %[[VAL_82]]{{\[}}%[[VAL_83]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_85:.*]] = llvm.getelementptr inbounds %[[VAL_78]][0, 0, 0, 0] : (!llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_84]], %[[VAL_85]] : !llvm.ptr<i64>
-    // CHECK-DAG:         %[[VAL_86:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_87:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_88:.*]] = llvm.load %[[VAL_87]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_89:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_90:.*]] = llvm.extractelement %[[VAL_88]]{{\[}}%[[VAL_89]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_91:.*]] = llvm.getelementptr inbounds %[[VAL_78]][0, 0, 0, 1] : (!llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_90]], %[[VAL_91]] : !llvm.ptr<i64>
-    // CHECK-DAG:         %[[VAL_92:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_93:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_94:.*]] = llvm.load %[[VAL_93]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_95:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_96:.*]] = llvm.extractelement %[[VAL_94]]{{\[}}%[[VAL_95]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_97:.*]] = llvm.getelementptr inbounds %[[VAL_78]][0, 0, 0, 2] : (!llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_96]], %[[VAL_97]] : !llvm.ptr<i64>
-    // CHECK-NEXT:        %[[VAL_98:.*]] = llvm.load %[[VAL_78]] : !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
-    // CHECK-NEXT:        llvm.return %[[VAL_98]] : !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>
-    // CHECK-NEXT:      }
+    // CHECK:             %[[VAL_69:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_70:.*]] = llvm.load %[[VAL_69]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_71:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
+    // CHECK:             %[[VAL_72:.*]] = llvm.mlir.constant(1 : index) : i64
+    // CHECK:             %[[VAL_73:.*]] = llvm.getelementptr %[[VAL_71]]{{\[}}%[[VAL_72]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
+    // CHECK:             %[[VAL_74:.*]] = llvm.ptrtoint %[[VAL_73]] : !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>> to i64
+    // CHECK:             %[[VAL_75:.*]] = llvm.alloca %[[VAL_74]] x !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
+    // CHECK:             %[[VAL_76:.*]] = llvm.mlir.constant(0 : index) : i64
+    // CHECK:             %[[VAL_77:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_78:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_79:.*]] = llvm.extractelement %[[VAL_70]]{{\[}}%[[VAL_78]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_80:.*]] = llvm.getelementptr inbounds %[[VAL_75]][0, 0, 0, %[[VAL_77]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_81:.*]] = llvm.getelementptr %[[VAL_80]]{{\[}}%[[VAL_76]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_79]], %[[VAL_81]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_82:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_83:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_84:.*]] = llvm.extractelement %[[VAL_70]]{{\[}}%[[VAL_83]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_85:.*]] = llvm.getelementptr inbounds %[[VAL_75]][0, 0, 0, %[[VAL_82]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_86:.*]] = llvm.getelementptr %[[VAL_85]]{{\[}}%[[VAL_76]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_84]], %[[VAL_86]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_87:.*]] = llvm.mlir.constant(2 : i32) : i32
+    // CHECK:             %[[VAL_88:.*]] = llvm.mlir.constant(2 : i32) : i32
+    // CHECK:             %[[VAL_89:.*]] = llvm.extractelement %[[VAL_70]]{{\[}}%[[VAL_88]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_90:.*]] = llvm.getelementptr inbounds %[[VAL_75]][0, 0, 0, %[[VAL_87]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_91:.*]] = llvm.getelementptr %[[VAL_90]]{{\[}}%[[VAL_76]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_89]], %[[VAL_91]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_92:.*]] = llvm.getelementptr %[[VAL_75]]{{\[}}%[[VAL_76]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
+    // CHECK:             %[[VAL_93:.*]] = llvm.load %[[VAL_92]] : !llvm.ptr<struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
+    // CHECK:             llvm.return %[[VAL_93]] : !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>
+    // CHECK:           }
     func.func @test_local_id() -> !sycl_id_3_ {
       %0 = sycl.local_id : !sycl_id_3_
       return %0 : !sycl_id_3_
     }
 
     // CHECK-LABEL:     llvm.func @test_local_id_dim(
-    // CHECK-SAME:                                   %[[VAL_99:.*]]: i32) -> i64 {
-    // CHECK-DAG:         %[[VAL_100:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_101:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_102:.*]] = llvm.load %[[VAL_101]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_103:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_104:.*]] = llvm.extractelement %[[VAL_102]]{{\[}}%[[VAL_103]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_105:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_106:.*]] = llvm.insertelement %[[VAL_104]], %[[VAL_100]]{{\[}}%[[VAL_105]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_107:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_108:.*]] = llvm.load %[[VAL_107]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_109:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_110:.*]] = llvm.extractelement %[[VAL_108]]{{\[}}%[[VAL_109]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_111:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_112:.*]] = llvm.insertelement %[[VAL_110]], %[[VAL_106]]{{\[}}%[[VAL_111]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_113:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_114:.*]] = llvm.load %[[VAL_113]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_115:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_116:.*]] = llvm.extractelement %[[VAL_114]]{{\[}}%[[VAL_115]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_117:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_118:.*]] = llvm.insertelement %[[VAL_116]], %[[VAL_112]]{{\[}}%[[VAL_117]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_119:.*]] = llvm.extractelement %[[VAL_118]]{{\[}}%[[VAL_99]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_119]] : i64
-    // CHECK-NEXT:      }
+    // CHECK-SAME:                                   %[[VAL_94:.*]]: i32) -> i64 {
+    // CHECK:             %[[VAL_95:.*]] = llvm.mlir.addressof @__builtin_var_LocalInvocationId__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_96:.*]] = llvm.load %[[VAL_95]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_97:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+    // CHECK:             %[[VAL_98:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_99:.*]] = llvm.extractelement %[[VAL_96]]{{\[}}%[[VAL_98]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_100:.*]] = llvm.mlir.constant(0 : i64) : i64
+    // CHECK:             %[[VAL_101:.*]] = llvm.insertelement %[[VAL_99]], %[[VAL_97]]{{\[}}%[[VAL_100]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_102:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_103:.*]] = llvm.extractelement %[[VAL_96]]{{\[}}%[[VAL_102]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_104:.*]] = llvm.mlir.constant(1 : i64) : i64
+    // CHECK:             %[[VAL_105:.*]] = llvm.insertelement %[[VAL_103]], %[[VAL_101]]{{\[}}%[[VAL_104]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_106:.*]] = llvm.mlir.constant(2 : i32) : i32
+    // CHECK:             %[[VAL_107:.*]] = llvm.extractelement %[[VAL_96]]{{\[}}%[[VAL_106]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_108:.*]] = llvm.mlir.constant(2 : i64) : i64
+    // CHECK:             %[[VAL_109:.*]] = llvm.insertelement %[[VAL_107]], %[[VAL_105]]{{\[}}%[[VAL_108]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_110:.*]] = llvm.extractelement %[[VAL_109]]{{\[}}%[[VAL_94]] : i32] : vector<3xi64>
+    // CHECK:             llvm.return %[[VAL_110]] : i64
+    // CHECK:           }
     func.func @test_local_id_dim(%i: i32) -> index {
       %0 = sycl.local_id %i : index
       return %0 : index
     }
 
     // CHECK-LABEL:     llvm.func @test_work_group_size() -> !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {
-    // CHECK-DAG:         %[[VAL_120:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_121:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_122:.*]] = llvm.getelementptr %[[VAL_120]][1] : (!llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>) -> !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
-    // CHECK-NEXT:        %[[VAL_123:.*]] = llvm.ptrtoint %[[VAL_122]] : !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>> to i64
-    // CHECK-NEXT:        %[[VAL_124:.*]] = llvm.alloca %[[VAL_123]] x !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_125:.*]] = llvm.mlir.constant(0 : index) : i64
-    // CHECK-DAG:         %[[VAL_126:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_127:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupSize__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_128:.*]] = llvm.load %[[VAL_127]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_129:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_130:.*]] = llvm.extractelement %[[VAL_128]]{{\[}}%[[VAL_129]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_131:.*]] = llvm.getelementptr inbounds %[[VAL_124]][0, 0, 0, 0] : (!llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_130]], %[[VAL_131]] : !llvm.ptr<i64>
-    // CHECK-DAG:         %[[VAL_132:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_133:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupSize__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_134:.*]] = llvm.load %[[VAL_133]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_135:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_136:.*]] = llvm.extractelement %[[VAL_134]]{{\[}}%[[VAL_135]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_137:.*]] = llvm.getelementptr inbounds %[[VAL_124]][0, 0, 0, 1] : (!llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_136]], %[[VAL_137]] : !llvm.ptr<i64>
-    // CHECK-DAG:         %[[VAL_138:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_139:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupSize__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_140:.*]] = llvm.load %[[VAL_139]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_141:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_142:.*]] = llvm.extractelement %[[VAL_140]]{{\[}}%[[VAL_141]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_143:.*]] = llvm.getelementptr inbounds %[[VAL_124]][0, 0, 0, 2] : (!llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_142]], %[[VAL_143]] : !llvm.ptr<i64>
-    // CHECK-NEXT:        %[[VAL_144:.*]] = llvm.load %[[VAL_124]] : !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
-    // CHECK-NEXT:        llvm.return %[[VAL_144]] : !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>
-    // CHECK-NEXT:      }
+    // CHECK:             %[[VAL_111:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupSize__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_112:.*]] = llvm.load %[[VAL_111]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_113:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
+    // CHECK:             %[[VAL_114:.*]] = llvm.mlir.constant(1 : index) : i64
+    // CHECK:             %[[VAL_115:.*]] = llvm.getelementptr %[[VAL_113]]{{\[}}%[[VAL_114]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
+    // CHECK:             %[[VAL_116:.*]] = llvm.ptrtoint %[[VAL_115]] : !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>> to i64
+    // CHECK:             %[[VAL_117:.*]] = llvm.alloca %[[VAL_116]] x !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
+    // CHECK:             %[[VAL_118:.*]] = llvm.mlir.constant(0 : index) : i64
+    // CHECK:             %[[VAL_119:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_120:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_121:.*]] = llvm.extractelement %[[VAL_112]]{{\[}}%[[VAL_120]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_122:.*]] = llvm.getelementptr inbounds %[[VAL_117]][0, 0, 0, %[[VAL_119]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_123:.*]] = llvm.getelementptr %[[VAL_122]]{{\[}}%[[VAL_118]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_121]], %[[VAL_123]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_124:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_125:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_126:.*]] = llvm.extractelement %[[VAL_112]]{{\[}}%[[VAL_125]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_127:.*]] = llvm.getelementptr inbounds %[[VAL_117]][0, 0, 0, %[[VAL_124]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_128:.*]] = llvm.getelementptr %[[VAL_127]]{{\[}}%[[VAL_118]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_126]], %[[VAL_128]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_129:.*]] = llvm.mlir.constant(2 : i32) : i32
+    // CHECK:             %[[VAL_130:.*]] = llvm.mlir.constant(2 : i32) : i32
+    // CHECK:             %[[VAL_131:.*]] = llvm.extractelement %[[VAL_112]]{{\[}}%[[VAL_130]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_132:.*]] = llvm.getelementptr inbounds %[[VAL_117]][0, 0, 0, %[[VAL_129]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_133:.*]] = llvm.getelementptr %[[VAL_132]]{{\[}}%[[VAL_118]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_131]], %[[VAL_133]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_134:.*]] = llvm.getelementptr %[[VAL_117]]{{\[}}%[[VAL_118]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
+    // CHECK:             %[[VAL_135:.*]] = llvm.load %[[VAL_134]] : !llvm.ptr<struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>>
+    // CHECK:             llvm.return %[[VAL_135]] : !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)>
+    // CHECK:           }
     func.func @test_work_group_size() -> !sycl_range_3_ {
       %0 = sycl.work_group_size : !sycl_range_3_
       return %0 : !sycl_range_3_
     }
 
     // CHECK-LABEL:     llvm.func @test_work_group_size_dim(
-    // CHECK-SAME:                                          %[[VAL_145:.*]]: i32) -> i64 {
-    // CHECK-DAG:         %[[VAL_146:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_147:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupSize__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_148:.*]] = llvm.load %[[VAL_147]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_149:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_150:.*]] = llvm.extractelement %[[VAL_148]]{{\[}}%[[VAL_149]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_151:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_152:.*]] = llvm.insertelement %[[VAL_150]], %[[VAL_146]]{{\[}}%[[VAL_151]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_153:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupSize__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_154:.*]] = llvm.load %[[VAL_153]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_155:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_156:.*]] = llvm.extractelement %[[VAL_154]]{{\[}}%[[VAL_155]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_157:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_158:.*]] = llvm.insertelement %[[VAL_156]], %[[VAL_152]]{{\[}}%[[VAL_157]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_159:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupSize__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_160:.*]] = llvm.load %[[VAL_159]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_161:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_162:.*]] = llvm.extractelement %[[VAL_160]]{{\[}}%[[VAL_161]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_163:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_164:.*]] = llvm.insertelement %[[VAL_162]], %[[VAL_158]]{{\[}}%[[VAL_163]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_165:.*]] = llvm.extractelement %[[VAL_164]]{{\[}}%[[VAL_145]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_165]] : i64
-    // CHECK-NEXT:      }
+    // CHECK-SAME:                                          %[[VAL_136:.*]]: i32) -> i64 {
+    // CHECK:             %[[VAL_137:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupSize__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_138:.*]] = llvm.load %[[VAL_137]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_139:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+    // CHECK:             %[[VAL_140:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_141:.*]] = llvm.extractelement %[[VAL_138]]{{\[}}%[[VAL_140]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_142:.*]] = llvm.mlir.constant(0 : i64) : i64
+    // CHECK:             %[[VAL_143:.*]] = llvm.insertelement %[[VAL_141]], %[[VAL_139]]{{\[}}%[[VAL_142]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_144:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_145:.*]] = llvm.extractelement %[[VAL_138]]{{\[}}%[[VAL_144]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_146:.*]] = llvm.mlir.constant(1 : i64) : i64
+    // CHECK:             %[[VAL_147:.*]] = llvm.insertelement %[[VAL_145]], %[[VAL_143]]{{\[}}%[[VAL_146]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_148:.*]] = llvm.mlir.constant(2 : i32) : i32
+    // CHECK:             %[[VAL_149:.*]] = llvm.extractelement %[[VAL_138]]{{\[}}%[[VAL_148]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_150:.*]] = llvm.mlir.constant(2 : i64) : i64
+    // CHECK:             %[[VAL_151:.*]] = llvm.insertelement %[[VAL_149]], %[[VAL_147]]{{\[}}%[[VAL_150]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_152:.*]] = llvm.extractelement %[[VAL_151]]{{\[}}%[[VAL_136]] : i32] : vector<3xi64>
+    // CHECK:             llvm.return %[[VAL_152]] : i64
+    // CHECK:           }
     func.func @test_work_group_size_dim(%i: i32) -> index {
       %0 = sycl.work_group_size %i : index
       return %0 : index
     }
 
     // CHECK-LABEL:     llvm.func @test_work_group_id() -> !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> {
-    // CHECK-DAG:         %[[VAL_166:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_167:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_168:.*]] = llvm.getelementptr %[[VAL_166]][1] : (!llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>) -> !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-NEXT:        %[[VAL_169:.*]] = llvm.ptrtoint %[[VAL_168]] : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>> to i64
-    // CHECK-NEXT:        %[[VAL_170:.*]] = llvm.alloca %[[VAL_169]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_171:.*]] = llvm.mlir.constant(0 : index) : i64
-    // CHECK-DAG:         %[[VAL_172:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_173:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_174:.*]] = llvm.load %[[VAL_173]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_175:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_176:.*]] = llvm.extractelement %[[VAL_174]]{{\[}}%[[VAL_175]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_177:.*]] = llvm.getelementptr inbounds %[[VAL_170]][0, 0, 0, 0] : (!llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_176]], %[[VAL_177]] : !llvm.ptr<i64>
-    // CHECK-NEXT:        %[[VAL_178:.*]] = llvm.load %[[VAL_170]] : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-NEXT:        llvm.return %[[VAL_178]] : !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>
-    // CHECK-NEXT:      }
+    // CHECK:             %[[VAL_153:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupId__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_154:.*]] = llvm.load %[[VAL_153]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_155:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_156:.*]] = llvm.mlir.constant(1 : index) : i64
+    // CHECK:             %[[VAL_157:.*]] = llvm.getelementptr %[[VAL_155]]{{\[}}%[[VAL_156]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_158:.*]] = llvm.ptrtoint %[[VAL_157]] : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>> to i64
+    // CHECK:             %[[VAL_159:.*]] = llvm.alloca %[[VAL_158]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_160:.*]] = llvm.mlir.constant(0 : index) : i64
+    // CHECK:             %[[VAL_161:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_162:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_163:.*]] = llvm.extractelement %[[VAL_154]]{{\[}}%[[VAL_162]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_164:.*]] = llvm.getelementptr inbounds %[[VAL_159]][0, 0, 0, %[[VAL_161]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_165:.*]] = llvm.getelementptr %[[VAL_164]]{{\[}}%[[VAL_160]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_163]], %[[VAL_165]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_166:.*]] = llvm.getelementptr %[[VAL_159]]{{\[}}%[[VAL_160]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_167:.*]] = llvm.load %[[VAL_166]] : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             llvm.return %[[VAL_167]] : !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>
+    // CHECK:           }
     func.func @test_work_group_id() -> !sycl_id_1_ {
       %0 = sycl.work_group_id : !sycl_id_1_
       return %0 : !sycl_id_1_
     }
 
     // CHECK-LABEL:     llvm.func @test_work_group_id_dim(
-    // CHECK-SAME:                                        %[[VAL_179:.*]]: i32) -> i64 {
-    // CHECK-DAG:         %[[VAL_180:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_181:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_182:.*]] = llvm.load %[[VAL_181]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_183:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_184:.*]] = llvm.extractelement %[[VAL_182]]{{\[}}%[[VAL_183]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_185:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_186:.*]] = llvm.insertelement %[[VAL_184]], %[[VAL_180]]{{\[}}%[[VAL_185]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_187:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_188:.*]] = llvm.load %[[VAL_187]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_189:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_190:.*]] = llvm.extractelement %[[VAL_188]]{{\[}}%[[VAL_189]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_191:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_192:.*]] = llvm.insertelement %[[VAL_190]], %[[VAL_186]]{{\[}}%[[VAL_191]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_193:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupId__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_194:.*]] = llvm.load %[[VAL_193]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_195:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_196:.*]] = llvm.extractelement %[[VAL_194]]{{\[}}%[[VAL_195]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_197:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_198:.*]] = llvm.insertelement %[[VAL_196]], %[[VAL_192]]{{\[}}%[[VAL_197]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_199:.*]] = llvm.extractelement %[[VAL_198]]{{\[}}%[[VAL_179]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_199]] : i64
-    // CHECK-NEXT:      }
+    // CHECK-SAME:                                        %[[VAL_168:.*]]: i32) -> i64 {
+    // CHECK:             %[[VAL_169:.*]] = llvm.mlir.addressof @__builtin_var_WorkgroupId__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_170:.*]] = llvm.load %[[VAL_169]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_171:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+    // CHECK:             %[[VAL_172:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_173:.*]] = llvm.extractelement %[[VAL_170]]{{\[}}%[[VAL_172]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_174:.*]] = llvm.mlir.constant(0 : i64) : i64
+    // CHECK:             %[[VAL_175:.*]] = llvm.insertelement %[[VAL_173]], %[[VAL_171]]{{\[}}%[[VAL_174]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_176:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_177:.*]] = llvm.extractelement %[[VAL_170]]{{\[}}%[[VAL_176]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_178:.*]] = llvm.mlir.constant(1 : i64) : i64
+    // CHECK:             %[[VAL_179:.*]] = llvm.insertelement %[[VAL_177]], %[[VAL_175]]{{\[}}%[[VAL_178]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_180:.*]] = llvm.mlir.constant(2 : i32) : i32
+    // CHECK:             %[[VAL_181:.*]] = llvm.extractelement %[[VAL_170]]{{\[}}%[[VAL_180]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_182:.*]] = llvm.mlir.constant(2 : i64) : i64
+    // CHECK:             %[[VAL_183:.*]] = llvm.insertelement %[[VAL_181]], %[[VAL_179]]{{\[}}%[[VAL_182]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_184:.*]] = llvm.extractelement %[[VAL_183]]{{\[}}%[[VAL_168]] : i32] : vector<3xi64>
+    // CHECK:             llvm.return %[[VAL_184]] : i64
+    // CHECK:           }
     func.func @test_work_group_id_dim(%i: i32) -> index {
       %0 = sycl.work_group_id %i : index
       return %0 : index
@@ -345,22 +331,24 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_global_offset() -> !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> {
-    // CHECK-NEXT:        %[[VAL_209:.*]] = llvm.mlir.addressof @__builtin_var_GlobalOffset__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_210:.*]] = llvm.load %[[VAL_209]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_211:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_212:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_213:.*]] = llvm.getelementptr %[[VAL_211]][1] : (!llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>) -> !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-NEXT:        %[[VAL_214:.*]] = llvm.ptrtoint %[[VAL_213]] : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>> to i64
-    // CHECK-NEXT:        %[[VAL_215:.*]] = llvm.alloca %[[VAL_214]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_216:.*]] = llvm.mlir.constant(0 : index) : i64
-    // CHECK-DAG:         %[[VAL_217:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-DAG:         %[[VAL_218:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_219:.*]] = llvm.extractelement %[[VAL_210]]{{\[}}%[[VAL_218]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_220:.*]] = llvm.getelementptr inbounds %[[VAL_215]][0, 0, 0, 0] : (!llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_219]], %[[VAL_220]] : !llvm.ptr<i64>
-    // CHECK-NEXT:        %[[VAL_221:.*]] = llvm.load %[[VAL_215]] : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
-    // CHECK-NEXT:        llvm.return %[[VAL_221]] : !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>
-    // CHECK-NEXT:      }
+    // CHECK:             %[[VAL_194:.*]] = llvm.mlir.addressof @__builtin_var_GlobalOffset__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_195:.*]] = llvm.load %[[VAL_194]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_196:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_197:.*]] = llvm.mlir.constant(1 : index) : i64
+    // CHECK:             %[[VAL_198:.*]] = llvm.getelementptr %[[VAL_196]]{{\[}}%[[VAL_197]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_199:.*]] = llvm.ptrtoint %[[VAL_198]] : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>> to i64
+    // CHECK:             %[[VAL_200:.*]] = llvm.alloca %[[VAL_199]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_201:.*]] = llvm.mlir.constant(0 : index) : i64
+    // CHECK:             %[[VAL_202:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_203:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_204:.*]] = llvm.extractelement %[[VAL_195]]{{\[}}%[[VAL_203]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_205:.*]] = llvm.getelementptr inbounds %[[VAL_200]][0, 0, 0, %[[VAL_202]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_206:.*]] = llvm.getelementptr %[[VAL_205]]{{\[}}%[[VAL_201]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_204]], %[[VAL_206]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_207:.*]] = llvm.getelementptr %[[VAL_200]]{{\[}}%[[VAL_201]]] : (!llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             %[[VAL_208:.*]] = llvm.load %[[VAL_207]] : !llvm.ptr<struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>>
+    // CHECK:             llvm.return %[[VAL_208]] : !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>
+    // CHECK:           }
     func.func @test_global_offset() -> !sycl_id_1_ {
       %0 = sycl.global_offset : !sycl_id_1_
       return %0 : !sycl_id_1_
@@ -392,52 +380,55 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_num_work_groups() -> !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> {
-    // CHECK-NEXT:        %[[VAL_239:.*]] = llvm.mlir.addressof @__builtin_var_NumWorkgroups__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_240:.*]] = llvm.load %[[VAL_239]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_241:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_242:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_243:.*]] = llvm.getelementptr %[[VAL_241]][1] : (!llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>) -> !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
-    // CHECK-NEXT:        %[[VAL_244:.*]] = llvm.ptrtoint %[[VAL_243]] : !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>> to i64
-    // CHECK-NEXT:        %[[VAL_245:.*]] = llvm.alloca %[[VAL_244]] x !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
-    // CHECK-DAG:         %[[VAL_246:.*]] = llvm.mlir.constant(0 : index) : i64
-    // CHECK-DAG:         %[[VAL_247:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-DAG:         %[[VAL_248:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_249:.*]] = llvm.extractelement %[[VAL_240]]{{\[}}%[[VAL_248]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_250:.*]] = llvm.getelementptr inbounds %[[VAL_245]][0, 0, 0, 0] : (!llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_249]], %[[VAL_250]] : !llvm.ptr<i64>
-    // CHECK-DAG:         %[[VAL_251:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-DAG:         %[[VAL_252:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_253:.*]] = llvm.extractelement %[[VAL_240]]{{\[}}%[[VAL_252]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_254:.*]] = llvm.getelementptr inbounds %[[VAL_245]][0, 0, 0, 1] : (!llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>) -> !llvm.ptr<i64>
-    // CHECK-NEXT:        llvm.store %[[VAL_253]], %[[VAL_254]] : !llvm.ptr<i64>
-    // CHECK-NEXT:        %[[VAL_255:.*]] = llvm.load %[[VAL_245]] : !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
-    // CHECK-NEXT:        llvm.return %[[VAL_255]] : !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>
-    // CHECK-NEXT:      }
+    // CHECK:             %[[VAL_226:.*]] = llvm.mlir.addressof @__builtin_var_NumWorkgroups__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_227:.*]] = llvm.load %[[VAL_226]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_228:.*]] = llvm.mlir.null : !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
+    // CHECK:             %[[VAL_229:.*]] = llvm.mlir.constant(1 : index) : i64
+    // CHECK:             %[[VAL_230:.*]] = llvm.getelementptr %[[VAL_228]]{{\[}}%[[VAL_229]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
+    // CHECK:             %[[VAL_231:.*]] = llvm.ptrtoint %[[VAL_230]] : !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>> to i64
+    // CHECK:             %[[VAL_232:.*]] = llvm.alloca %[[VAL_231]] x !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
+    // CHECK:             %[[VAL_233:.*]] = llvm.mlir.constant(0 : index) : i64
+    // CHECK:             %[[VAL_234:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_235:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_236:.*]] = llvm.extractelement %[[VAL_227]]{{\[}}%[[VAL_235]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_237:.*]] = llvm.getelementptr inbounds %[[VAL_232]][0, 0, 0, %[[VAL_234]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_238:.*]] = llvm.getelementptr %[[VAL_237]]{{\[}}%[[VAL_233]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_236]], %[[VAL_238]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_239:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_240:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_241:.*]] = llvm.extractelement %[[VAL_227]]{{\[}}%[[VAL_240]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_242:.*]] = llvm.getelementptr inbounds %[[VAL_232]][0, 0, 0, %[[VAL_239]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>, i32) -> !llvm.ptr<i64>
+    // CHECK:             %[[VAL_243:.*]] = llvm.getelementptr %[[VAL_242]]{{\[}}%[[VAL_233]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+    // CHECK:             llvm.store %[[VAL_241]], %[[VAL_243]] : !llvm.ptr<i64>
+    // CHECK:             %[[VAL_244:.*]] = llvm.getelementptr %[[VAL_232]]{{\[}}%[[VAL_233]]] : (!llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>, i64) -> !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
+    // CHECK:             %[[VAL_245:.*]] = llvm.load %[[VAL_244]] : !llvm.ptr<struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>>
+    // CHECK:             llvm.return %[[VAL_245]] : !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)>
+    // CHECK:           }
     func.func @test_num_work_groups() -> !sycl_range_2_ {
       %0 = sycl.num_work_groups : !sycl_range_2_
       return %0 : !sycl_range_2_
     }
 
     // CHECK-LABEL:     llvm.func @test_num_work_groups_dim(
-    // CHECK-SAME:                                          %[[VAL_256:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_257:.*]] = llvm.mlir.addressof @__builtin_var_NumWorkgroups__ : !llvm.ptr<vector<3xi64>>
-    // CHECK-NEXT:        %[[VAL_258:.*]] = llvm.load %[[VAL_257]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG:         %[[VAL_259:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_260:.*]] = llvm.mlir.constant(0 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_261:.*]] = llvm.extractelement %[[VAL_258]]{{\[}}%[[VAL_260]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_262:.*]] = llvm.mlir.constant(0 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_263:.*]] = llvm.insertelement %[[VAL_261]], %[[VAL_259]]{{\[}}%[[VAL_262]] : i64] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_264:.*]] = llvm.mlir.constant(1 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_265:.*]] = llvm.extractelement %[[VAL_258]]{{\[}}%[[VAL_264]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_266:.*]] = llvm.mlir.constant(1 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_267:.*]] = llvm.insertelement %[[VAL_265]], %[[VAL_263]]{{\[}}%[[VAL_266]] : i64] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_268:.*]] = llvm.mlir.constant(2 : i32) : i32
-    // CHECK-NEXT:        %[[VAL_269:.*]] = llvm.extractelement %[[VAL_258]]{{\[}}%[[VAL_268]] : i32] : vector<3xi64>
-    // CHECK-DAG:         %[[VAL_270:.*]] = llvm.mlir.constant(2 : i64) : i64
-    // CHECK-NEXT:        %[[VAL_271:.*]] = llvm.insertelement %[[VAL_269]], %[[VAL_267]]{{\[}}%[[VAL_270]] : i64] : vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_272:.*]] = llvm.extractelement %[[VAL_271]]{{\[}}%[[VAL_256]] : i32] : vector<3xi64>
-    // CHECK-NEXT:        llvm.return %[[VAL_272]] : i64
-    // CHECK-NEXT:      }
+    // CHECK-SAME:                                          %[[VAL_246:.*]]: i32) -> i64 {
+    // CHECK:             %[[VAL_247:.*]] = llvm.mlir.addressof @__builtin_var_NumWorkgroups__ : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_248:.*]] = llvm.load %[[VAL_247]] : !llvm.ptr<vector<3xi64>>
+    // CHECK:             %[[VAL_249:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+    // CHECK:             %[[VAL_250:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK:             %[[VAL_251:.*]] = llvm.extractelement %[[VAL_248]]{{\[}}%[[VAL_250]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_252:.*]] = llvm.mlir.constant(0 : i64) : i64
+    // CHECK:             %[[VAL_253:.*]] = llvm.insertelement %[[VAL_251]], %[[VAL_249]]{{\[}}%[[VAL_252]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_254:.*]] = llvm.mlir.constant(1 : i32) : i32
+    // CHECK:             %[[VAL_255:.*]] = llvm.extractelement %[[VAL_248]]{{\[}}%[[VAL_254]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_256:.*]] = llvm.mlir.constant(1 : i64) : i64
+    // CHECK:             %[[VAL_257:.*]] = llvm.insertelement %[[VAL_255]], %[[VAL_253]]{{\[}}%[[VAL_256]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_258:.*]] = llvm.mlir.constant(2 : i32) : i32
+    // CHECK:             %[[VAL_259:.*]] = llvm.extractelement %[[VAL_248]]{{\[}}%[[VAL_258]] : i32] : vector<3xi64>
+    // CHECK:             %[[VAL_260:.*]] = llvm.mlir.constant(2 : i64) : i64
+    // CHECK:             %[[VAL_261:.*]] = llvm.insertelement %[[VAL_259]], %[[VAL_257]]{{\[}}%[[VAL_260]] : i64] : vector<3xi64>
+    // CHECK:             %[[VAL_262:.*]] = llvm.extractelement %[[VAL_261]]{{\[}}%[[VAL_246]] : i32] : vector<3xi64>
+    // CHECK:             llvm.return %[[VAL_262]] : i64
+    // CHECK:           }
     func.func @test_num_work_groups_dim(%i: i32) -> index {
       %0 = sycl.num_work_groups %i : index
       return %0 : index
