@@ -545,7 +545,8 @@ void LoopVersionBuilder::versionLoop() {
 void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
   // Replace uses of the loop return value(s) with the value(s) yielded by the
   // if operation.
-  for (auto [loopVal, ifVal] : llvm::zip(loop->getResults(), ifOp->getResults()))
+  for (auto [loopVal, ifVal] :
+       llvm::zip(loop->getResults(), ifOp->getResults()))
     loopVal.replaceUsesWithIf(ifVal, [&](OpOperand &op) {
       Block *useBlock = op.getOwner()->getBlock();
       return useBlock != &getThenBlock(ifOp);
