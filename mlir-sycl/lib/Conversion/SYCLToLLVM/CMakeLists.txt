@@ -19,7 +19,6 @@ add_mlir_conversion_library(MLIRSYCLToLLVM
   MLIRLLVMDialect
   MLIRMemRefToLLVM
   MLIRPolygeistTransforms
-  MLIRReconcileUnrealizedCasts
   MLIRSPIRVToLLVM
   MLIRSYCLDialect  
   MLIRSYCLToSPIRV
