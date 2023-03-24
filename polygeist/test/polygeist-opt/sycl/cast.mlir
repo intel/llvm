@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --convert-polygeist-to-llvm --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --convert-polygeist-to-llvm='use-opaque-pointers=1' --split-input-file %s | FileCheck %s
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>

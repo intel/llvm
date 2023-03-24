@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --convert-polygeist-to-llvm --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --convert-polygeist-to-llvm='use-opaque-pointers=1' --split-input-file %s | FileCheck %s
 
 // CHECK-LABEL: @test_1
 // CHECK:      [[ZERO:%.*]] = llvm.mlir.constant(0 : i64) : i64

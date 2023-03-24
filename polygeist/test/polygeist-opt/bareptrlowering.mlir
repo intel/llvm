@@ -1,4 +1,4 @@
-// RUN: polygeist-opt %s --convert-polygeist-to-llvm --split-input-file | FileCheck %s
+// RUN: polygeist-opt %s --convert-polygeist-to-llvm='use-opaque-pointers=1' --split-input-file | FileCheck %s
 
 // CHECK-LABEL:   llvm.func @ptr_ret_static(i64) -> !llvm.ptr
 
