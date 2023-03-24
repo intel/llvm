@@ -1051,10 +1051,8 @@ class ur_usm_pool_limits_desc_t(Structure):
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
                                                                         ## ::UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
-        ("maxPoolSize", c_size_t),                                      ## [in] Maximum size of a memory pool
         ("maxPoolableSize", c_size_t),                                  ## [in] Allocations up to this limit will be subject to pooling
-        ("capacity", c_size_t),                                         ## [in] When pooling, each bucket will hold a max of 4 unfreed slabs
-        ("slabMinSize", c_size_t)                                       ## [in] Minimum allocation size that will be requested from the driver
+        ("minDriverAllocSize", c_size_t)                                ## [in] Minimum allocation size that will be requested from the driver
     ]
 
 ###############################################################################
