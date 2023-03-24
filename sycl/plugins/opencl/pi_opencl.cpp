@@ -282,6 +282,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // For details about Intel UUID extension, see
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
+    return PI_ERROR_INVALID_VALUE;
   case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     // This query is missing beore OpenCL 3.0
     // Check version and handle appropriately
