@@ -739,8 +739,9 @@ struct UsedOptionalFeatures {
       UsesLargeGRF = true;
 
     if (F->hasFnAttribute(ATTR_OPT_LEVEL))
-      if (F->getFnAttribute(ATTR_OPT_LEVEL).getValueAsString()
-                                           .getAsInteger(10, OptLevel))
+      if (F->getFnAttribute(ATTR_OPT_LEVEL)
+              .getValueAsString()
+              .getAsInteger(10, OptLevel))
         OptLevel = -1;
 
     if (const MDNode *MDN = F->getMetadata("reqd_work_group_size")) {
@@ -759,9 +760,8 @@ struct UsedOptionalFeatures {
     llvm::hash_code ReqdWorkGroupSizeHash = llvm::hash_combine_range(
         ReqdWorkGroupSize.begin(), ReqdWorkGroupSize.end());
     llvm::hash_code OptLevelHash = llvm::hash_value(OptLevel);
-    Hash = static_cast<unsigned>(
-        llvm::hash_combine(AspectsHash, LargeGRFHash, ReqdWorkGroupSizeHash,
-                           OptLevelHash));
+    Hash = static_cast<unsigned>(llvm::hash_combine(
+        AspectsHash, LargeGRFHash, ReqdWorkGroupSizeHash, OptLevelHash));
   }
 
   std::string generateModuleName(StringRef BaseName) const {

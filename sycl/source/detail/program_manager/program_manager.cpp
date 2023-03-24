@@ -367,7 +367,6 @@ static int getUint32PropAsInt(const RTDeviceBinaryImage &Img,
   return (int)(DeviceBinaryProperty(Prop).asUint32());
 }
 
-
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
                                           const std::vector<device> &Devs,
@@ -415,10 +414,16 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (!CompileOpts.empty() && (optLevel != -1))
       CompileOpts += " ";
     switch (optLevel) {
-    case 0: CompileOpts += "-ze-opt-disable"; break;
+    case 0:
+      CompileOpts += "-ze-opt-disable";
+      break;
     case 1:
-    case 2: CompileOpts += "-ze-opt-level=1"; break;
-    case 3: CompileOpts += "-ze-opt-level=2"; break;
+    case 2:
+      CompileOpts += "-ze-opt-level=1";
+      break;
+    case 3:
+      CompileOpts += "-ze-opt-level=2";
+      break;
     }
   } else if (Plugin.getBackend() == backend::opencl) {
     if (!CompileOpts.empty() && (optLevel == 0))
