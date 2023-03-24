@@ -218,9 +218,10 @@ gpu.module @device_func {
   func.func private @callee1_wrapper(%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64 {
     %alloca_1 = memref.alloca() : memref<1xi64>    
     %0 = func.call @callee1(%arg0) : (memref<?x!llvm.struct<(i32, i64)>>) -> i64
-    %i = arith.constant 0 : index
-    %1 = memref.load %alloca_1[%i] : memref<1xi64>
-    %add = arith.addi %0, %1 : i64
-    func.return %add : i64
+//    %i = arith.constant 0 : index
+  //  %1 = memref.load %alloca_1[%i] : memref<1xi64>
+    //%add = arith.addi %0, %1 : i64
+//    func.return %add : i64
+    func.return %0 : i64
   }
 }
