@@ -2257,10 +2257,8 @@ typedef struct ur_usm_pool_limits_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be
                                ///< ::UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
-    size_t maxPoolSize;        ///< [in] Maximum size of a memory pool
     size_t maxPoolableSize;    ///< [in] Allocations up to this limit will be subject to pooling
-    size_t capacity;           ///< [in] When pooling, each bucket will hold a max of 4 unfreed slabs
-    size_t slabMinSize;        ///< [in] Minimum allocation size that will be requested from the driver
+    size_t minDriverAllocSize; ///< [in] Minimum allocation size that will be requested from the driver
 
 } ur_usm_pool_limits_desc_t;
 
