@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -spec-const=rt --ir-output-only %s -S -o - \
+; RUN: sycl-post-link -spec-const=rt --ir-output-only < %s -S -o - \
 ; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getCompositeSpecConstantValue"
 ;
 ; This test is intended to check that sycl-post-link tool is capable of handling

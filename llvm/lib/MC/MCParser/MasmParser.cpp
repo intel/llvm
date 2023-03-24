@@ -151,14 +151,14 @@ struct IntFieldInfo {
 
   IntFieldInfo() = default;
   IntFieldInfo(const SmallVector<const MCExpr *, 1> &V) { Values = V; }
-  IntFieldInfo(SmallVector<const MCExpr *, 1> &&V) { Values = V; }
+  IntFieldInfo(SmallVector<const MCExpr *, 1> &&V) { Values = std::move(V); }
 };
 struct RealFieldInfo {
   SmallVector<APInt, 1> AsIntValues;
 
   RealFieldInfo() = default;
   RealFieldInfo(const SmallVector<APInt, 1> &V) { AsIntValues = V; }
-  RealFieldInfo(SmallVector<APInt, 1> &&V) { AsIntValues = V; }
+  RealFieldInfo(SmallVector<APInt, 1> &&V) { AsIntValues = std::move(V); }
 };
 struct StructFieldInfo {
   std::vector<StructInitializer> Initializers;
@@ -269,12 +269,12 @@ FieldInitializer::FieldInitializer(FieldType FT) : FT(FT) {
 
 FieldInitializer::FieldInitializer(SmallVector<const MCExpr *, 1> &&Values)
     : FT(FT_INTEGRAL) {
-  new (&IntInfo) IntFieldInfo(Values);
+  new (&IntInfo) IntFieldInfo(std::move(Values));
 }
 
 FieldInitializer::FieldInitializer(SmallVector<APInt, 1> &&AsIntValues)
     : FT(FT_REAL) {
-  new (&RealInfo) RealFieldInfo(AsIntValues);
+  new (&RealInfo) RealFieldInfo(std::move(AsIntValues));
 }
 
 FieldInitializer::FieldInitializer(
@@ -2125,20 +2125,6 @@ bool MasmParser::parseStatement(ParseStatementInfo &Info,
     // Treat '.' as a valid identifier in this context.
     Lex();
     IDVal = ".";
-  } else if (Lexer.is(AsmToken::LCurly)) {
-    // Treat '{' as a valid identifier in this context.
-    Lex();
-    IDVal = "{";
-
-  } else if (Lexer.is(AsmToken::RCurly)) {
-    // Treat '}' as a valid identifier in this context.
-    Lex();
-    IDVal = "}";
-  } else if (Lexer.is(AsmToken::Star) &&
-             getTargetParser().starIsStartOfStatement()) {
-    // Accept '*' as a valid start of statement.
-    Lex();
-    IDVal = "*";
   } else if (Lexer.is(AsmToken::Real)) {
     // Treat ".<number>" as a valid identifier in this context.
     IDVal = getTok().getString();
@@ -2225,11 +2211,10 @@ bool MasmParser::parseStatement(ParseStatementInfo &Info,
 
   // FIXME: Recurse on local labels?
 
-  // See what kind of statement we have.
-  switch (Lexer.getKind()) {
-  case AsmToken::Colon: {
-    if (!getTargetParser().isLabel(ID))
-      break;
+  // Check for a label.
+  //   ::= identifier ':'
+  //   ::= number ':'
+  if (Lexer.is(AsmToken::Colon) && getTargetParser().isLabel(ID)) {
     if (checkForValidSection())
       return true;
 
@@ -2293,10 +2278,6 @@ bool MasmParser::parseStatement(ParseStatementInfo &Info,
     getTargetParser().onLabelParsed(Sym);
 
     return false;
-  }
-
-  default: // Normal instruction or directive.
-    break;
   }
 
   // If macros are enabled, check to see if this is a macro instantiation.
@@ -7463,7 +7444,7 @@ bool MasmParser::parseMSInlineAsm(
         InputDecls.push_back(OpDecl);
         InputDeclsAddressOf.push_back(Operand.needAddressOf());
         InputConstraints.push_back(Constraint.str());
-        if (Desc.OpInfo[i - 1].isBranchTarget())
+        if (Desc.operands()[i - 1].isBranchTarget())
           AsmStrRewrites.emplace_back(AOK_CallInput, Start, SymName.size());
         else
           AsmStrRewrites.emplace_back(AOK_Input, Start, SymName.size());
@@ -7471,9 +7452,7 @@ bool MasmParser::parseMSInlineAsm(
     }
 
     // Consider implicit defs to be clobbers.  Think of cpuid and push.
-    ArrayRef<MCPhysReg> ImpDefs(Desc.getImplicitDefs(),
-                                Desc.getNumImplicitDefs());
-    llvm::append_range(ClobberRegs, ImpDefs);
+    llvm::append_range(ClobberRegs, Desc.implicit_defs());
   }
 
   // Set the number of Outputs and Inputs.

@@ -755,6 +755,19 @@ __esimd_subb(__ESIMD_DNS::vector_type_t<T, N> src0,
 }
 #endif // !__SYCL_DEVICE_ONLY__
 
+template <uint8_t FuncControl, typename T, int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+    __esimd_bfn(__ESIMD_raw_vec_t(T, N) src0, __ESIMD_raw_vec_t(T, N) src1,
+                __ESIMD_raw_vec_t(T, N) src2)
+#ifdef __SYCL_DEVICE_ONLY__
+        ;
+#else  // !__SYCL_DEVICE_ONLY__
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+  return __ESIMD_DNS::vector_type_t<T, N>();
+}
+#endif // !__SYCL_DEVICE_ONLY__
+
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t
 

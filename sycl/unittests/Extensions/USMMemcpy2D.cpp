@@ -10,6 +10,7 @@
 
 #include <detail/queue_impl.hpp>
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -23,7 +24,9 @@ constexpr const char *USMMemcpyHelperKernelNameChar = "__usmmemcpy2d_char";
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<class __usmfill2d<long>> {
+template <>
+struct KernelInfo<class __usmfill2d<long>>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return USMFillHelperKernelNameLong; }
   static constexpr unsigned getNumParams() { return 7; }
   static const kernel_param_desc_t &getParamDesc(int Idx) {
@@ -39,15 +42,14 @@ template <> struct KernelInfo<class __usmfill2d<long>> {
     };
     return DummySignature[Idx];
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 3 * sizeof(size_t);
   }
 };
 
-template <> struct KernelInfo<class __usmfill2d<unsigned char>> {
+template <>
+struct KernelInfo<class __usmfill2d<unsigned char>>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return USMFillHelperKernelNameChar; }
   static constexpr unsigned getNumParams() { return 7; }
   static const kernel_param_desc_t &getParamDesc(int Idx) {
@@ -63,15 +65,14 @@ template <> struct KernelInfo<class __usmfill2d<unsigned char>> {
     };
     return DummySignature[Idx];
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 3 * sizeof(size_t);
   }
 };
 
-template <> struct KernelInfo<class __usmmemcpy2d<long>> {
+template <>
+struct KernelInfo<class __usmmemcpy2d<long>>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return USMMemcpyHelperKernelNameLong;
   }
@@ -90,15 +91,14 @@ template <> struct KernelInfo<class __usmmemcpy2d<long>> {
     };
     return DummySignature[Idx];
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 4 * sizeof(size_t);
   }
 };
 
-template <> struct KernelInfo<class __usmmemcpy2d<unsigned char>> {
+template <>
+struct KernelInfo<class __usmmemcpy2d<unsigned char>>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return USMMemcpyHelperKernelNameChar;
   }
@@ -117,9 +117,6 @@ template <> struct KernelInfo<class __usmmemcpy2d<unsigned char>> {
     };
     return DummySignature[Idx];
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 4 * sizeof(size_t);
   }
@@ -258,6 +255,28 @@ pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   return PI_SUCCESS;
 }
 
+template <pi_usm_type USMType>
+pi_result after_piextUSMGetMemAllocInfo(pi_context, const void *,
+                                        pi_mem_alloc_info param_name,
+                                        size_t param_value_size,
+                                        void *param_value,
+                                        size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_MEM_ALLOC_TYPE: {
+    if (param_value) {
+      assert(param_value_size == sizeof(pi_usm_type));
+      *static_cast<pi_usm_type *>(param_value) = USMType;
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_usm_type);
+    return PI_SUCCESS;
+  }
+  default:;
+  }
+
+  return PI_SUCCESS;
+}
+
 pi_result redefine_piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
                                          size_t pitch, size_t pattern_size,
                                          const void *pattern, size_t width,
@@ -340,6 +359,8 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
       redefine_piextUSMEnqueueMemset2D);
   Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemcpy2D>(
       redefine_piextUSMEnqueueMemcpy2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
@@ -402,6 +423,8 @@ TEST(USMMemcpy2DTest, USMMemops2DUnsupported) {
       after_piKernelCreate);
   Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
       after_piEnqueueKernelLaunch);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
@@ -447,6 +470,8 @@ TEST(USMMemcpy2DTest, USMFillSupportedOnly) {
       after_piEnqueueKernelLaunch);
   Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueFill2D>(
       redefine_piextUSMEnqueueFill2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
@@ -498,6 +523,8 @@ TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
       after_piEnqueueKernelLaunch);
   Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemset2D>(
       redefine_piextUSMEnqueueMemset2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
@@ -549,6 +576,8 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
       after_piEnqueueKernelLaunch);
   Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemcpy2D>(
       redefine_piextUSMEnqueueMemcpy2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
