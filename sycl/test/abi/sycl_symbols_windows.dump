@@ -909,7 +909,7 @@
 ?getMemoryObject@AccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getMemoryRange@AccessorBaseHost@detail@_V1@sycl@@QEAAAEAV?$range@$02@34@XZ
 ?getMemoryRange@AccessorBaseHost@detail@_V1@sycl@@QEBAAEBV?$range@$02@34@XZ
-?getNative2@queue@_V1@sycl@@AEBA_KAEA_N@Z
+?getNative2@queue@_V1@sycl@@AEBA_KAEAH@Z
 ?getNative@context@_V1@sycl@@AEBA_KXZ
 ?getNative@device@_V1@sycl@@AEBA_KXZ
 ?getNative@device_image_plain@detail@_V1@sycl@@QEBA_KXZ
@@ -1086,7 +1086,7 @@
 ?make_platform@detail@_V1@sycl@@YA?AVplatform@23@_KW4backend@23@@Z
 ?make_platform@level_zero@oneapi@ext@_V1@sycl@@YA?AVplatform@45@_K@Z
 ?make_platform@opencl@_V1@sycl@@YA?AVplatform@23@_K@Z
-?make_queue2@detail@_V1@sycl@@YA?AVqueue@23@_K_NAEBVcontext@23@PEBVdevice@23@1AEBVproperty_list@23@AEBV?$function@$$A6AXVexception_list@_V1@sycl@@@Z@std@@W4backend@23@@Z
+?make_queue2@detail@_V1@sycl@@YA?AVqueue@23@_KHAEBVcontext@23@PEBVdevice@23@_NAEBVproperty_list@23@AEBV?$function@$$A6AXVexception_list@_V1@sycl@@@Z@std@@W4backend@23@@Z
 ?make_queue2@level_zero@oneapi@ext@_V1@sycl@@YA?AVqueue@45@AEBVcontext@45@AEBVdevice@45@_K_N3AEBVproperty_list@45@@Z
 ?make_queue@detail@_V1@sycl@@YA?AVqueue@23@_KAEBVcontext@23@PEBVdevice@23@_NAEBV?$function@$$A6AXVexception_list@_V1@sycl@@@Z@std@@W4backend@23@@Z
 ?make_queue@level_zero@oneapi@ext@_V1@sycl@@YA?AVqueue@45@AEBVcontext@45@AEBVdevice@45@_K_N@Z
