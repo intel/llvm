@@ -2527,8 +2527,8 @@ protected:
   // Method which calculates linear offset for the ID using Range and Offset.
   template <int Dims = AdjustedDim> size_t getLinearIndex(id<Dims> Id) const {
     size_t Result = 0;
-    detail::dim_loop<Dims>(
-        [&, this](size_t I) { Result = Result * getSize()[I] + Id[I]; });
+    for (int I = 0; I < Dims; ++I)
+      Result = Result * getSize()[I] + Id[I];
     return Result;
   }
 
