@@ -209,7 +209,7 @@ bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
-pi_native_handle queue::getNative2(int32_t & NativeHandleDesc) const {
+pi_native_handle queue::getNative2(int32_t &NativeHandleDesc) const {
   return impl->getNative2(NativeHandleDesc);
 }
 
