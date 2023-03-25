@@ -395,7 +395,7 @@ mock_piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle) {
 
 inline pi_result mock_piextQueueGetNativeHandle2(pi_queue queue,
                                                  pi_native_handle *nativeHandle,
-                                                 bool *IsImmCmdList) {
+                                                 int32_t *nativeHandleDesc) {
   *nativeHandle = reinterpret_cast<pi_native_handle>(queue);
   return PI_SUCCESS;
 }
@@ -409,7 +409,7 @@ inline pi_result mock_piextQueueCreateWithNativeHandle(
 }
 
 inline pi_result mock_piextQueueCreateWithNativeHandle2(
-    pi_native_handle nativeHandle, bool UseImmCmdList, pi_context context,
+    pi_native_handle nativeHandle, int32_t nativeHandleDesc, pi_context context,
     pi_device device, bool pluginOwnsNativeHandle,
     pi_queue_properties *Properties, pi_queue *queue) {
   *queue = reinterpret_cast<pi_queue>(nativeHandle);

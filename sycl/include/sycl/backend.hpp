@@ -121,21 +121,14 @@ auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
-    -> backend_return_t<BackendName, SyclObjectT> {
+    ->backend_return_t<BackendName, SyclObjectT> {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
                               PI_ERROR_INVALID_OPERATION);
   }
-  if constexpr (BackendName == backend::ext_oneapi_level_zero)
-    if constexpr (std::is_same<SyclObjectT, queue>::value)
-      return Obj.getNative2();
-    else
-      return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
-          Obj.getNative());
-  else
-    return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
-        Obj.getNative());
+  return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
+      Obj.getNative());
 }
 
 template <backend BackendName, bundle_state State>
@@ -224,7 +217,8 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
 // will be removed. "make_queue2" will be renamed "make_queue" and "getNative2"
 // will be renamed "getNative".
 __SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
-                                bool IsImmCmdList, const context &TargetContext,
+                                int32_t nativeHandleDesc,
+                                const context &TargetContext,
                                 const device *TargetDevice, bool KeepOwnership,
                                 const property_list &PropList,
                                 const async_handler &Handler, backend Backend);
@@ -300,10 +294,9 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
     return sycl::detail::make_queue2(Handle, IsImmCmdList, TargetContext,
                                      nullptr, false, BackendObject.Properties,
                                      Handler, Backend);
-  } else {
-    return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                              TargetContext, nullptr, false, Handler, Backend);
   }
+  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, nullptr, false, Handler, Backend);
 }
 
 template <backend Backend>

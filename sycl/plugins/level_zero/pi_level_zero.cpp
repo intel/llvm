@@ -859,6 +859,12 @@ static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
   return ZeCommandListBatchConfig(IsCopy{true});
 }();
 
+// Temporarily check whether immediate command list env var has been set. This
+// affects default behavior of make_queue API.
+static const bool ImmediateCommandlistEnvVarIsSet = [] {
+  return std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
+}();
+
 _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
@@ -869,8 +875,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       Properties(PiQueueProperties) {
 
   // Set the type of commandlists the queue will use.
-  bool Default;
-  UsingImmCmdLists = Device->useImmediateCommandLists(Default);
+  bool Default = !ImmediateCommandlistEnvVarIsSet;
+  UsingImmCmdLists = Device->useImmediateCommandLists();
   if (OldAPI && Default)
     // The default when called from pre-compiled binaries is to not use
     // immediate command lists.
@@ -1246,9 +1252,7 @@ _pi_queue::pi_queue_group_t &_pi_queue::getQueueGroup(bool UseCopyEngine) {
   auto &InitialGroup = Map.begin()->second;
 
   // Check if thread-specifc immediate commandlists are requested.
-  bool Default;
-  if (Device->useImmediateCommandLists(Default) ==
-      _pi_device::PerThreadPerQueue) {
+  if (Device->useImmediateCommandLists() == _pi_device::PerThreadPerQueue) {
     // Thread id is used to create separate imm cmdlists per thread.
     auto Result = Map.insert({std::this_thread::get_id(), InitialGroup});
     auto &QueueGroupRef = Result.first->second;
@@ -2870,10 +2874,10 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 
 pi_result piextQueueGetNativeHandle2(pi_queue Queue,
                                      pi_native_handle *NativeHandle,
-                                     bool *IsImmCmdList) {
+                                     int32_t *NativeHandleDesc) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
-  PI_ASSERT(IsImmCmdList, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(NativeHandleDesc, PI_ERROR_INVALID_VALUE);
 
   // Lock automatically releases when this goes out of scope.
   std::shared_lock<pi_shared_mutex> lock(Queue->Mutex);
@@ -2897,13 +2901,13 @@ pi_result piextQueueGetNativeHandle2(pi_queue Queue,
     }
     // Extract the Level Zero command list handle from the given PI queue
     *ZeCmdList = ComputeQueueGroupRef.ImmCmdLists[0]->first;
-    *IsImmCmdList = true;
+    *NativeHandleDesc = true;
   } else {
     auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
     // Extract a Level Zero compute queue handle from the given PI queue
     uint32_t QueueGroupOrdinalUnused;
     *ZeQueue = ComputeQueueGroupRef.getZeQueue(&QueueGroupOrdinalUnused);
-    *IsImmCmdList = false;
+    *NativeHandleDesc = false;
   }
   return PI_SUCCESS;
 }
@@ -2941,7 +2945,7 @@ void _pi_queue::pi_queue_group_t::setImmCmdList(
 }
 
 pi_result piextQueueCreateWithNativeHandle2(
-    pi_native_handle NativeHandle, bool IsImmCmdList, pi_context Context,
+    pi_native_handle NativeHandle, int32_t NativeHandleDesc, pi_context Context,
     pi_device Device, bool OwnNativeHandle, pi_queue_properties *Properties,
     pi_queue *Queue) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -2949,7 +2953,9 @@ pi_result piextQueueCreateWithNativeHandle2(
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  if (IsImmCmdList) {
+  // The NativeHandleDesc has value if if the native handle is an immediate
+  // command list.
+  if (NativeHandleDesc == 1) {
     std::vector<ze_command_queue_handle_t> ComputeQueues{nullptr};
     std::vector<ze_command_queue_handle_t> CopyQueues;
 
@@ -2970,7 +2976,7 @@ pi_result piextQueueCreateWithNativeHandle2(
     *Queue = new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device,
                            OwnNativeHandle, Properties[1]);
   }
-  (*Queue)->UsingImmCmdLists = IsImmCmdList;
+  (*Queue)->UsingImmCmdLists = (NativeHandleDesc == 1);
 
   return PI_SUCCESS;
 }

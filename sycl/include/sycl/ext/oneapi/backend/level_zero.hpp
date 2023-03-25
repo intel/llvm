@@ -87,8 +87,8 @@ T make(const context &Context,
        typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
            Interop,
        ownership Ownership = ownership::transfer) {
-  auto CommandQ = std::get_if<ze_command_queue_handle_t>(&Interop);
-  return make_queue(Context, reinterpret_cast<pi_native_handle>(CommandQ),
+  return make_queue(Context, Context.get_devices()[0],
+                    *(reinterpret_cast<pi_native_handle *>(&Interop)),
                     Ownership == ownership::keep);
 }
 
@@ -144,7 +144,7 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
 template <>
 inline auto get_native<backend::ext_oneapi_level_zero, queue>(const queue &Obj)
     -> backend_return_t<backend::ext_oneapi_level_zero, queue> {
-  bool IsImmCmdList;
+  int32_t IsImmCmdList;
   pi_native_handle Handle = Obj.getNative2(IsImmCmdList);
   if (IsImmCmdList) {
     return backend_return_t<backend::ext_oneapi_level_zero, queue>{

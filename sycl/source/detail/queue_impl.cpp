@@ -526,13 +526,13 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
-pi_native_handle queue_impl::getNative2(bool &IsImmCmdList) const {
+pi_native_handle queue_impl::getNative2(int32_t &NativeHandleDesc) const {
   const detail::plugin &Plugin = getPlugin();
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piQueueRetain>(MQueues[0]);
   pi_native_handle Handle{};
   Plugin.call<PiApiKind::piextQueueGetNativeHandle2>(MQueues[0], &Handle,
-                                                     &IsImmCmdList);
+                                                     &NativeHandleDesc);
   return Handle;
 }
 

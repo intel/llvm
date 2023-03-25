@@ -82,7 +82,7 @@
 // piextQueueGetNativeHandle2
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 23
+#define _PI_H_VERSION_MINOR 24
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1200,9 +1200,9 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 ///
 /// \param queue is the PI queue to get the native handle of.
 /// \param nativeHandle is the native handle of queue or commandlist.
-/// \param IsImmCmdList indicates what the native handle is.
+/// \param nativeHandleDesc provides additional properties of the native handle.
 __SYCL_EXPORT pi_result piextQueueGetNativeHandle2(
-    pi_queue queue, pi_native_handle *nativeHandle, bool *IsImmCmdList);
+    pi_queue queue, pi_native_handle *nativeHandle, int32_t *nativeHandleDesc);
 
 /// Creates PI queue object from a native handle.
 /// NOTE: The created PI object takes ownership of the native handle.
@@ -1223,8 +1223,7 @@ __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI queue from.
-/// \param IsImmCmdList indicates whether the created queue should use a
-///        level_zero immediate commandlist.
+/// \param nativeHandleDesc provides additional properties of the native handle.
 /// \param context is the PI context of the queue.
 /// \param device is the PI device associated with the native device used when
 ///   creating the native queue. This parameter is optional but some backends
@@ -1234,7 +1233,7 @@ __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
 /// \param Properties holds queue properties.
 /// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle2(
-    pi_native_handle nativeHandle, bool IsImmCmdList, pi_context context,
+    pi_native_handle nativeHandle, int32_t nativeHandleDesc, pi_context context,
     pi_device device, bool pluginOwnsNativeHandle,
     pi_queue_properties *Properties, pi_queue *queue);
 

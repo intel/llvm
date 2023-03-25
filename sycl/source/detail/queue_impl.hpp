@@ -610,7 +610,7 @@ public:
   // existing getNative function can co-exist with it. At the next ABI
   // redefinition getNative will be removed and getNative2 will be renamed as
   // getNative.
-  pi_native_handle getNative2(bool &IsImmCmdList) const;
+  pi_native_handle getNative2(int32_t &NativeHandleDesc) const;
 
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;

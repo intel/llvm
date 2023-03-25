@@ -254,7 +254,7 @@ struct _ur_device_handle_t : _pi_object {
     PerThreadPerQueue
   };
   // Read env settings to select immediate commandlist mode.
-  ImmCmdlistMode useImmediateCommandLists(bool &Default);
+  ImmCmdlistMode useImmediateCommandLists();
 
   // Returns whether immediate command lists are used on this device.
   ImmCmdlistMode ImmCommandListUsed{};
