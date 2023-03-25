@@ -1462,34 +1462,33 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   if (FixReadNone)
     NewFDecl->removeFnAttr(llvm::Attribute::ReadNone);
   Instruction *NewInst = nullptr;
+  AddrSpaceCastInst *CastInstruction = nullptr;
   if (DoesFunctionReturnStructure) {
-    AddrSpaceCastInst *a = static_cast<AddrSpaceCastInst *>(GenXArgs[0]);
-
+    llvm::esimd::assert_and_diag(
+        isa<AddrSpaceCastInst>(GenXArgs[0]),
+        "Unexpected instruction for returning a structure from a function.");
+    CastInstruction = static_cast<AddrSpaceCastInst *>(GenXArgs[0]);
+    // Remove 1st argument that is used to return the structure
     GenXArgs.erase(GenXArgs.begin());
-    CallInst *NewCI = IntrinsicInst::Create(
-        NewFDecl, GenXArgs,
-        NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
-        &CI);
-    if (FixReadNone)
-      NewCI->setMemoryEffects(MemoryEffects::none());
-    NewCI->setDebugLoc(CI.getDebugLoc());
+  }
 
+  CallInst *NewCI = IntrinsicInst::Create(
+      NewFDecl, GenXArgs,
+      NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
+      &CI);
+  if (FixReadNone)
+    NewCI->setMemoryEffects(MemoryEffects::none());
+  NewCI->setDebugLoc(CI.getDebugLoc());
+  if (DoesFunctionReturnStructure) {
     IRBuilder<> Builder(&CI);
 
     NewInst = Builder.CreateStore(
-        NewCI, Builder.CreateBitCast(a->getPointerOperand(),
+        NewCI, Builder.CreateBitCast(CastInstruction->getPointerOperand(),
                                      NewCI->getType()->getPointerTo()));
   } else {
-    CallInst *NewCI = IntrinsicInst::Create(
-        NewFDecl, GenXArgs,
-        NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
-        &CI);
-    if (FixReadNone)
-      NewCI->setMemoryEffects(MemoryEffects::none());
-    NewCI->setDebugLoc(CI.getDebugLoc());
-
     NewInst = addCastInstIfNeeded(&CI, NewCI);
   }
+
   CI.replaceAllUsesWith(NewInst);
   CI.eraseFromParent();
 }
