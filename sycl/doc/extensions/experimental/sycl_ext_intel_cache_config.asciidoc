@@ -140,7 +140,7 @@ using namespace sycl::ext::intel::experimental;
 === Embedding Property into a Kernel
 
 The example below shows how the kernel from the previous section could be
-rewritten to leverage an embedded property list:
+rewritten to leverage an embedded property list (see link:sycl_ext_oneapi_kernel_properties.asciidoc#embedding-properties-into-a-kernel[embedding-properties-into-a-kernel]):
 
 ```c++
 using namespace sycl::ext::intel::experimental;
