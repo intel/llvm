@@ -381,12 +381,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
                 # have to be explicity declared in the soruce.
                 list( APPEND flags -Xclang -fdeclare-spirv-builtins)
 
-                if(NOT SPIRV_ENABLE_OPAQUE_POINTERS)
-                  list(APPEND flags "-UENABLE_OPAQUE_POINTERS")
-                  list(APPEND flags "SHELL:-Xclang -no-opaque-pointers")
-                  list(APPEND opt_flags "-opaque-pointers=0")
-                endif()
-
                 # OpenCL 3.0 extensions
                 list( APPEND flags -cl-std=CL3.0 "SHELL:-Xclang" )
                 string(CONCAT CL_3_0_EXTENSIONS

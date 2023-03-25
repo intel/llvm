@@ -890,7 +890,7 @@ if(NOT LLVM_ENABLE_NEW_PASS_MANAGER)
                       " no longer supported.")
 endif()
 
-set(DPCPP_ENABLE_OPAQUE_POINTERS TRUE CACHE BOOL
+set(DPCPP_ENABLE_OPAQUE_POINTERS FALSE CACHE BOOL
    "Enable opaque pointers by default.")
 if (DPCPP_ENABLE_OPAQUE_POINTERS)
   add_definitions("-DENABLE_OPAQUE_POINTERS=1")
