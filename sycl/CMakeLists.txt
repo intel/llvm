@@ -162,6 +162,12 @@ endif()
 if ("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_ESIMD_EMULATOR ON)
 endif()
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_PI_OPENCL ON)
+endif()
+if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_PI_LEVEL_ZERO ON)
+endif()
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
