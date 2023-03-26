@@ -3,7 +3,7 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libsycl.so
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libsycl.so
 # REQUIRES: linux
 # UNSUPPORTED: libcxx
 
@@ -3703,6 +3703,11 @@ _ZN4sycl3_V15queue6memcpyEPvPKvmRKSt6vectorINS0_5eventESaIS6_EE
 _ZN4sycl3_V15queue6memsetEPvim
 _ZN4sycl3_V15queue6memsetEPvimNS0_5eventE
 _ZN4sycl3_V15queue6memsetEPvimRKSt6vectorINS0_5eventESaIS4_EE
+_ZN4sycl3_V15queue6queue2ERKNS0_6deviceERKSt8functionIFvNS0_14exception_listEEERKNS0_13property_listE
+_ZN4sycl3_V15queue6queue2ERKNS0_7contextERKNS0_15device_selectorERKNS0_13property_listE
+_ZN4sycl3_V15queue6queue2ERKNS0_7contextERKNS0_15device_selectorERKSt8functionIFvNS0_14exception_listEEERKNS0_13property_listE
+_ZN4sycl3_V15queue6queue2ERKNS0_7contextERKNS0_6deviceERKNS0_13property_listE
+_ZN4sycl3_V15queue6queue2ERKNS0_7contextERKNS0_6deviceERKSt8functionIFvNS0_14exception_listEEERKNS0_13property_listE
 _ZN4sycl3_V15queueC1EP17_cl_command_queueRKNS0_7contextERKSt8functionIFvNS0_14exception_listEEE
 _ZN4sycl3_V15queueC1ERKNS0_6deviceERKSt8functionIFvNS0_14exception_listEEERKNS0_13property_listE
 _ZN4sycl3_V15queueC1ERKNS0_7contextERKNS0_15device_selectorERKNS0_13property_listE
