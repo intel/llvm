@@ -1140,6 +1140,11 @@
 ?prefetch_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?processArg@handler@_V1@sycl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N4@Z
 ?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
+?queue2@queue@_V1@sycl@@QEAAXAEBVcontext@23@AEBVdevice@23@AEBV?$function@$$A6AXVexception_list@_V1@sycl@@@Z@std@@AEBVproperty_list@23@@Z
+?queue2@queue@_V1@sycl@@QEAAXAEBVcontext@23@AEBVdevice@23@AEBVproperty_list@23@@Z
+?queue2@queue@_V1@sycl@@QEAAXAEBVcontext@23@AEBVdevice_selector@23@AEBV?$function@$$A6AXVexception_list@_V1@sycl@@@Z@std@@AEBVproperty_list@23@@Z
+?queue2@queue@_V1@sycl@@QEAAXAEBVcontext@23@AEBVdevice_selector@23@AEBVproperty_list@23@@Z
+?queue2@queue@_V1@sycl@@QEAAXAEBVdevice@23@AEBV?$function@$$A6AXVexception_list@_V1@sycl@@@Z@std@@AEBVproperty_list@23@@Z
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ?reduGetMaxWGSize@detail@_V1@sycl@@YA_KV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z
