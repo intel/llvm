@@ -66,37 +66,37 @@ public:
   // Non-blocking pipes
 
   // Host API
-  static _dataT read(queue &q, bool &success_code,
-                     memory_order order = memory_order::seq_cst) {
-    const device Dev = q.get_device();
+  static _dataT read(queue &Q, bool &Success,
+                     memory_order Order = memory_order::seq_cst) {
+    const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
     if (!IsPipeSupported) {
       return _dataT();
     }
-    _dataT data;
-    void *data_ptr = &data;
+    _dataT Data;
+    void *DataPtr = &Data;
     const void *HostPipePtr = &m_Storage;
-    const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
+    const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
 
-    event e = q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), false,
+    event E = Q.submit([=](handler &CGH) {
+      CGH.ext_intel_read_write_host_pipe(PipeName, DataPtr, sizeof(_dataT), false,
                                true /* read */);
     });
-    e.wait();
-    if (e.get_info<sycl::info::event::command_execution_status>() ==
+    E.wait();
+    if (E.get_info<sycl::info::event::command_execution_status>() ==
         sycl::info::event_command_status::complete) {
-      success_code = true;
-      return *(_dataT *)data_ptr;
+      Success = true;
+      return *(_dataT *)DataPtr;
     } else {
-      success_code = false;
+      Success = false;
       return _dataT();
     }
   }
 
-  static void write(queue &q, const _dataT &data, bool &success_code,
-                    memory_order order = memory_order::seq_cst) {
-    const device Dev = q.get_device();
+  static void write(queue &Q, const _dataT &Data, bool &Success,
+                    memory_order Order = memory_order::seq_cst) {
+    const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
     if (!IsPipeSupported) {
@@ -104,15 +104,15 @@ public:
     }
 
     const void *HostPipePtr = &m_Storage;
-    const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
-    const void *data_ptr = &data;
+    const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
+    const void *DataPtr = &Data;
 
-    event e = q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT),
+    event E = Q.submit([=](handler &CGH) {
+      CGH.ext_intel_read_write_host_pipe(PipeName, (void *)DataPtr, sizeof(_dataT),
                                false, false /* write */);
     });
-    e.wait();
-    success_code = e.get_info<sycl::info::event::command_execution_status>() ==
+    E.wait();
+    Success = E.get_info<sycl::info::event::command_execution_status>() ==
       sycl::info::event_command_status::complete;
   }
 
@@ -219,41 +219,41 @@ public:
   // Blocking pipes
 
   // Host API
-  static _dataT read(queue &q, memory_order order = memory_order::seq_cst) {
-    const device Dev = q.get_device();
+  static _dataT read(queue &Q, memory_order Order = memory_order::seq_cst) {
+    const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
     if (!IsPipeSupported) {
       return _dataT();
     }
-    _dataT data;
-    void *data_ptr = &data;
+    _dataT Data;
+    void *DataPtr = &Data;
     const void *HostPipePtr = &m_Storage;
-    const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
-    event e = q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(pipe_name, data_ptr, sizeof(_dataT), true,
+    const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
+    event E = Q.submit([=](handler &CGH) {
+      CGH.ext_intel_read_write_host_pipe(PipeName, DataPtr, sizeof(_dataT), true,
                                true /*blocking read */);
     });
-    e.wait();
-    return *(_dataT *)data_ptr;
+    E.wait();
+    return *(_dataT *)DataPtr;
   }
 
-  static void write(queue &q, const _dataT &data,
-                    memory_order order = memory_order::seq_cst) {
-    const device Dev = q.get_device();
+  static void write(queue &Q, const _dataT &Data,
+                    memory_order Order = memory_order::seq_cst) {
+    const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
     if (!IsPipeSupported) {
       return;
     }
     const void *HostPipePtr = &m_Storage;
-    const std::string pipe_name = pipe_base::get_pipe_name(HostPipePtr);
-    const void *data_ptr = &data;
-    event e = q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(pipe_name, (void *)data_ptr, sizeof(_dataT),
+    const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
+    const void *DataPtr = &Data;
+    event E = Q.submit([=](handler &CGH) {
+      CGH.ext_intel_read_write_host_pipe(PipeName, (void *)DataPtr, sizeof(_dataT),
                                true, false /*blocking write */);
     });
-    e.wait();
+    E.wait();
   }
 
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V

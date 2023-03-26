@@ -127,27 +127,27 @@ TEST_F(PipeTest, Basic) {
 
   // Get the hostpipe
   const void *HostPipePtr = Pipe::get_host_ptr();
-  detail::HostPipeMapEntry *hostPipeEntry =
+  detail::HostPipeMapEntry *HostPipeEntry =
       detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr);
-  const std::string pipe_name = hostPipeEntry->MUniqueId;
+  const std::string PipeName = HostPipeEntry->MUniqueId;
 
   // Testing read
-  int host_pipe_read_data;
-  void *data_ptr = &host_pipe_read_data;
-  event e = q.submit([=](handler &CGH) {
-    CGH.ext_intel_read_write_host_pipe(pipe_name, data_ptr, sizeof(int), true,
+  int HostPipeReadData;
+  void *DataPtrRead = &HostPipeReadData;
+  event ERead = q.submit([=](handler &CGH) {
+    CGH.ext_intel_read_write_host_pipe(PipeName, DataPtrRead, sizeof(int), true,
                              true /* read */);
   });
-  e.wait();
-  assert(host_pipe_read_data == PipeReadVal);
+  ERead.wait();
+  assert(HostPipeReadData == PipeReadVal);
 
   // Testing write
-  int tmp = 9;
-  void *data_ptr2 = &tmp;
-  event e_write = q.submit([=](handler &CGH) {
-    CGH.ext_intel_read_write_host_pipe(pipe_name, data_ptr2, sizeof(int), true,
+  int HostPipeWriteData = 9;
+  void *DataPtrWrite = &HostPipeWriteData;
+  event EWrite = q.submit([=](handler &CGH) {
+    CGH.ext_intel_read_write_host_pipe(PipeName, DataPtrWrite, sizeof(int), true,
                              false /* write */);
   });
-  e_write.wait();
+  EWrite.wait();
   assert(PipeWriteVal == 9);
 }
