@@ -41,6 +41,12 @@ __local float *
 __clc__get_group_scratch_float() __asm("__clc__get_group_scratch_float");
 __local double *
 __clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
+__local complex_half *__clc__get_group_scratch_complex_half() __asm(
+    "__clc__get_group_scratch_complex_half");
+__local complex_float *__clc__get_group_scratch_complex_float() __asm(
+    "__clc__get_group_scratch_complex_float");
+__local complex_double *__clc__get_group_scratch_complex_double() __asm(
+    "__clc__get_group_scratch_complex_double");
 
 _CLC_DEF uint inline __clc__membermask() {
   // use a full mask as sync operations are required to be convergent and
@@ -89,6 +95,46 @@ _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT double __clc__SubgroupShuffle(double x,
   return as_double(__clc__SubgroupShuffle(as_ulong(x), idx));
 }
 
+typedef union {
+  complex_half h;
+  int i;
+} complex_half_converter;
+
+typedef union {
+  complex_float f;
+  int2 i;
+} complex_float_converter;
+
+typedef union {
+  complex_double d;
+  int4 i;
+} complex_double_converter;
+
+_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT complex_half
+__clc__SubgroupShuffle(complex_half x, uint idx) {
+  complex_half_converter conv = {x};
+  conv.i = __clc__SubgroupShuffle(conv.i, idx);
+  return conv.h;
+}
+
+_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT complex_float
+__clc__SubgroupShuffle(complex_float x, uint idx) {
+  complex_float_converter conv = {x};
+  conv.i.x = __clc__SubgroupShuffle(conv.i.x, idx);
+  conv.i.y = __clc__SubgroupShuffle(conv.i.y, idx);
+  return conv.f;
+}
+
+_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT complex_double
+__clc__SubgroupShuffle(complex_double x, uint idx) {
+  complex_double_converter conv = {x};
+  conv.i.x = __clc__SubgroupShuffle(conv.i.x, idx);
+  conv.i.y = __clc__SubgroupShuffle(conv.i.y, idx);
+  conv.i.z = __clc__SubgroupShuffle(conv.i.z, idx);
+  conv.i.w = __clc__SubgroupShuffle(conv.i.w, idx);
+  return conv.d;
+}
+
 #define __CLC_SUBGROUP_SHUFFLEUP_I32(TYPE)                                     \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __clc__SubgroupShuffleUp(        \
       TYPE x, uint delta) {                                                    \
@@ -130,6 +176,31 @@ __clc__SubgroupShuffleUp(double x, uint delta) {
   return as_double(__clc__SubgroupShuffleUp(as_ulong(x), delta));
 }
 
+_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT complex_half
+__clc__SubgroupShuffleUp(complex_half x, uint delta) {
+  complex_half_converter conv = {x};
+  conv.i = __clc__SubgroupShuffleUp(conv.i, delta);
+  return conv.h;
+}
+
+_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT complex_float
+__clc__SubgroupShuffleUp(complex_float x, uint delta) {
+  complex_float_converter conv = {x};
+  conv.i.x = __clc__SubgroupShuffleUp(conv.i.x, delta);
+  conv.i.y = __clc__SubgroupShuffleUp(conv.i.y, delta);
+  return conv.f;
+}
+
+_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT complex_double
+__clc__SubgroupShuffleUp(complex_double x, uint delta) {
+  complex_double_converter conv = {x};
+  conv.i.x = __clc__SubgroupShuffleUp(conv.i.x, delta);
+  conv.i.y = __clc__SubgroupShuffleUp(conv.i.y, delta);
+  conv.i.z = __clc__SubgroupShuffleUp(conv.i.z, delta);
+  conv.i.w = __clc__SubgroupShuffleUp(conv.i.w, delta);
+  return conv.d;
+}
+
 // TODO: Implement InclusiveScan/ExclusiveScan
 //       Currently only Reduce is required (for GroupAny and GroupAll)
 _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool
@@ -154,6 +225,75 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
 #define __CLC_XOR(x, y) (x ^ y)
 #define __CLC_AND(x, y) (x & y)
 #define __CLC_MUL(x, y) (x * y)
+
+#define __DEFINE_CLC_COMPLEX_MUL(TYPE)                                         \
+  _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT complex_##TYPE __clc_complex_mul(     \
+      complex_##TYPE z, complex_##TYPE w) {                                    \
+    TYPE a = z.real;                                                           \
+    TYPE b = z.imag;                                                           \
+    TYPE c = w.real;                                                           \
+    TYPE d = w.imag;                                                           \
+    TYPE ac = a * c;                                                           \
+    TYPE bd = b * d;                                                           \
+    TYPE ad = a * d;                                                           \
+    TYPE bc = b * c;                                                           \
+    TYPE x = ac - bd;                                                          \
+    TYPE y = ad + bc;                                                          \
+    if (__spirv_IsNan(x) && __spirv_IsNan(y)) {                                \
+      bool __recalc = false;                                                   \
+      if (__spirv_IsInf(a) || __spirv_IsInf(b)) {                              \
+        a = __spirv_ocl_copysign(__spirv_IsInf(a) ? (TYPE)1 : (TYPE)0, a);     \
+        b = __spirv_ocl_copysign(__spirv_IsInf(b) ? (TYPE)1 : (TYPE)0, b);     \
+        if (__spirv_IsNan(c))                                                  \
+          c = __spirv_ocl_copysign((TYPE)0, c);                                \
+        if (__spirv_IsNan(d))                                                  \
+          d = __spirv_ocl_copysign((TYPE)0, d);                                \
+        __recalc = true;                                                       \
+      }                                                                        \
+      if (__spirv_IsInf(c) || __spirv_IsInf(d)) {                              \
+        c = __spirv_ocl_copysign(__spirv_IsInf(c) ? (TYPE)1 : (TYPE)0, c);     \
+        d = __spirv_ocl_copysign(__spirv_IsInf(d) ? (TYPE)1 : (TYPE)0, d);     \
+        if (__spirv_IsNan(a))                                                  \
+          a = __spirv_ocl_copysign((TYPE)0, a);                                \
+        if (__spirv_IsNan(b))                                                  \
+          b = __spirv_ocl_copysign((TYPE)0, b);                                \
+        __recalc = true;                                                       \
+      }                                                                        \
+      if (!__recalc && (__spirv_IsInf(ac) || __spirv_IsInf(bd) ||              \
+                        __spirv_IsInf(ad) || __spirv_IsInf(bc))) {             \
+        if (__spirv_IsNan(a))                                                  \
+          a = __spirv_ocl_copysign((TYPE)0, a);                                \
+        if (__spirv_IsNan(b))                                                  \
+          b = __spirv_ocl_copysign((TYPE)0, b);                                \
+        if (__spirv_IsNan(c))                                                  \
+          c = __spirv_ocl_copysign((TYPE)0, c);                                \
+        if (__spirv_IsNan(d))                                                  \
+          d = __spirv_ocl_copysign((TYPE)0, d);                                \
+        __recalc = true;                                                       \
+      }                                                                        \
+      if (__recalc) {                                                          \
+        x = (TYPE)INFINITY * (a * c - b * d);                                  \
+        y = (TYPE)INFINITY * (a * d + b * c);                                  \
+      }                                                                        \
+    }                                                                          \
+    return (complex_##TYPE){x, y};                                             \
+  }
+
+__DEFINE_CLC_COMPLEX_MUL(half)
+__DEFINE_CLC_COMPLEX_MUL(float)
+__DEFINE_CLC_COMPLEX_MUL(double)
+#undef __DEFINE_CLC_COMPLEX_MUL
+
+// TODO remove these definitions after we have proper implementation of
+// std::complex multiplication in SYCL
+complex_float __mulsc3(float a, float b, float c, float d) {
+  return __clc_complex_mul((complex_float){a, b}, (complex_float){c, d});
+}
+complex_double __muldc3(double a, double b, double c, double d) {
+  return __clc_complex_mul((complex_double){a, b}, (complex_double){c, d});
+}
+
+#define __CLC_COMPLEX_MUL(x, y) __clc_complex_mul(x, y)
 
 #define __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                     \
   uint sg_lid = __spirv_SubgroupLocalInvocationId();                           \
@@ -225,6 +365,13 @@ __CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, half, 1)
 __CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, float, 1)
 __CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, double, 1)
 
+__CLC_SUBGROUP_COLLECTIVE(CMulINTEL, __CLC_COMPLEX_MUL, complex_half,
+                          ((complex_half){1, 0}))
+__CLC_SUBGROUP_COLLECTIVE(CMulINTEL, __CLC_COMPLEX_MUL, complex_float,
+                          ((complex_float){1, 0}))
+__CLC_SUBGROUP_COLLECTIVE(CMulINTEL, __CLC_COMPLEX_MUL, complex_double,
+                          ((complex_double){1, 0}))
+
 __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
 __CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, UCHAR_MAX)
 __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, short, SHRT_MAX)
@@ -281,55 +428,58 @@ __CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
 #undef __CLC_SUBGROUP_COLLECTIVE
 #undef __CLC_SUBGROUP_COLLECTIVE_REDUX
 
-#define __CLC_GROUP_COLLECTIVE_INNER(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY) \
+#define __CLC_GROUP_COLLECTIVE_INNER(CLC_NAME, OP, TYPE, IDENTITY)             \
+  TYPE carry = IDENTITY;                                                       \
+  /* Perform GroupOperation within sub-group */                                \
+  TYPE sg_x = __CLC_APPEND(__clc__Subgroup, CLC_NAME)(op, x, &carry);          \
+  if (scope == Subgroup) {                                                     \
+    return sg_x;                                                               \
+  }                                                                            \
+  __local TYPE *scratch = __CLC_APPEND(__clc__get_group_scratch_, TYPE)();     \
+  uint sg_id = __spirv_SubgroupId();                                           \
+  uint num_sg = __spirv_NumSubgroups();                                        \
+  uint sg_lid = __spirv_SubgroupLocalInvocationId();                           \
+  uint sg_size = __spirv_SubgroupSize();                                       \
+  /* Share carry values across sub-groups */                                   \
+  if (sg_lid == sg_size - 1) {                                                 \
+    scratch[sg_id] = carry;                                                    \
+  }                                                                            \
+  __spirv_ControlBarrier(Workgroup, 0, 0);                                     \
+  /* Perform InclusiveScan over sub-group results */                           \
+  TYPE sg_prefix;                                                              \
+  TYPE sg_aggregate = scratch[0];                                              \
+  _Pragma("unroll") for (int s = 1; s < num_sg; ++s) {                         \
+    if (sg_id == s) {                                                          \
+      sg_prefix = sg_aggregate;                                                \
+    }                                                                          \
+    TYPE addend = scratch[s];                                                  \
+    sg_aggregate = OP(sg_aggregate, addend);                                   \
+  }                                                                            \
+  /* For Reduce, broadcast result from final sub-group */                      \
+  /* For Scan, combine results from previous sub-groups */                     \
+  TYPE result;                                                                 \
+  if (op == Reduce) {                                                          \
+    result = sg_aggregate;                                                     \
+  } else if (op == InclusiveScan || op == ExclusiveScan) {                     \
+    if (sg_id == 0) {                                                          \
+      result = sg_x;                                                           \
+    } else {                                                                   \
+      result = OP(sg_x, sg_prefix);                                            \
+    }                                                                          \
+  }                                                                            \
+  __spirv_ControlBarrier(Workgroup, 0, 0);                                     \
+  return result;
+
+#define __CLC_GROUP_COLLECTIVE_OUTER(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY) \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
       __spirv_Group, SPIRV_NAME)(uint scope, uint op, TYPE x) {                \
-    TYPE carry = IDENTITY;                                                     \
-    /* Perform GroupOperation within sub-group */                              \
-    TYPE sg_x = __CLC_APPEND(__clc__Subgroup, CLC_NAME)(op, x, &carry);        \
-    if (scope == Subgroup) {                                                   \
-      return sg_x;                                                             \
-    }                                                                          \
-    __local TYPE *scratch = __CLC_APPEND(__clc__get_group_scratch_, TYPE)();   \
-    uint sg_id = __spirv_SubgroupId();                                         \
-    uint num_sg = __spirv_NumSubgroups();                                      \
-    uint sg_lid = __spirv_SubgroupLocalInvocationId();                         \
-    uint sg_size = __spirv_SubgroupSize();                                     \
-    /* Share carry values across sub-groups */                                 \
-    if (sg_lid == sg_size - 1) {                                               \
-      scratch[sg_id] = carry;                                                  \
-    }                                                                          \
-    __spirv_ControlBarrier(Workgroup, 0, 0);                                   \
-    /* Perform InclusiveScan over sub-group results */                         \
-    TYPE sg_prefix;                                                            \
-    TYPE sg_aggregate = scratch[0];                                            \
-    _Pragma("unroll") for (int s = 1; s < num_sg; ++s) {                       \
-      if (sg_id == s) {                                                        \
-        sg_prefix = sg_aggregate;                                              \
-      }                                                                        \
-      TYPE addend = scratch[s];                                                \
-      sg_aggregate = OP(sg_aggregate, addend);                                 \
-    }                                                                          \
-    /* For Reduce, broadcast result from final sub-group */                    \
-    /* For Scan, combine results from previous sub-groups */                   \
-    TYPE result;                                                               \
-    if (op == Reduce) {                                                        \
-      result = sg_aggregate;                                                   \
-    } else if (op == InclusiveScan || op == ExclusiveScan) {                   \
-      if (sg_id == 0) {                                                        \
-        result = sg_x;                                                         \
-      } else {                                                                 \
-        result = OP(sg_x, sg_prefix);                                          \
-      }                                                                        \
-    }                                                                          \
-    __spirv_ControlBarrier(Workgroup, 0, 0);                                   \
-    return result;                                                             \
+    __CLC_GROUP_COLLECTIVE_INNER(CLC_NAME, OP, TYPE, IDENTITY)                 \
   }
 
 #define __CLC_GROUP_COLLECTIVE_4(NAME, OP, TYPE, IDENTITY)                     \
-  __CLC_GROUP_COLLECTIVE_INNER(NAME, NAME, OP, TYPE, IDENTITY)
+  __CLC_GROUP_COLLECTIVE_OUTER(NAME, NAME, OP, TYPE, IDENTITY)
 #define __CLC_GROUP_COLLECTIVE_5(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY)     \
-  __CLC_GROUP_COLLECTIVE_INNER(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY)
+  __CLC_GROUP_COLLECTIVE_OUTER(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY)
 
 #define DISPATCH_TO_CLC_GROUP_COLLECTIVE_MACRO(_1, _2, _3, _4, _5, NAME, ...)  \
   NAME
@@ -337,6 +487,13 @@ __CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
   DISPATCH_TO_CLC_GROUP_COLLECTIVE_MACRO(                                      \
       __VA_ARGS__, __CLC_GROUP_COLLECTIVE_5, __CLC_GROUP_COLLECTIVE_4)         \
   (__VA_ARGS__)
+
+#define __CLC_GROUP_COLLECTIVE_MANUAL_MANGLE(SPIRV_NAME_MANGLED, CLC_NAME, OP, \
+                                             TYPE, IDENTITY)                   \
+  _CLC_DEF _CLC_CONVERGENT TYPE SPIRV_NAME_MANGLED(uint scope, uint op,        \
+                                                   TYPE x) {                   \
+    __CLC_GROUP_COLLECTIVE_INNER(CLC_NAME, OP, TYPE, IDENTITY)                 \
+  }
 
 __CLC_GROUP_COLLECTIVE(BitwiseOr, __CLC_OR, bool, false);
 __CLC_GROUP_COLLECTIVE(BitwiseAny, __CLC_AND, bool, true);
@@ -372,6 +529,16 @@ __CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ulong, 1)
 __CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, half, 1)
 __CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, float, 1)
 __CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, double, 1)
+
+__CLC_GROUP_COLLECTIVE_MANUAL_MANGLE(
+    _Z22__spirv_GroupCMulINTELjjN5__spv12complex_halfE, CMulINTEL,
+    __CLC_COMPLEX_MUL, complex_half, ((complex_half){1, 0}))
+__CLC_GROUP_COLLECTIVE_MANUAL_MANGLE(
+    _Z22__spirv_GroupCMulINTELjjN5__spv13complex_floatE, CMulINTEL,
+    __CLC_COMPLEX_MUL, complex_float, ((complex_float){1, 0}))
+__CLC_GROUP_COLLECTIVE_MANUAL_MANGLE(
+    _Z22__spirv_GroupCMulINTELjjN5__spv14complex_doubleE, CMulINTEL,
+    __CLC_COMPLEX_MUL, complex_double, ((complex_double){1, 0}))
 
 __CLC_GROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
 __CLC_GROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, UCHAR_MAX)

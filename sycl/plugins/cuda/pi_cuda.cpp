@@ -1954,18 +1954,14 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 
   case PI_DEVICE_INFO_UUID: {
-    int driver_version = 0;
-    cuDriverGetVersion(&driver_version);
-    int major = driver_version / 1000;
-    int minor = driver_version % 1000 / 10;
     CUuuid uuid;
-    if ((major > 11) || (major == 11 && minor >= 4)) {
-      sycl::detail::pi::assertion(cuDeviceGetUuid_v2(&uuid, device->get()) ==
-                                  CUDA_SUCCESS);
-    } else {
-      sycl::detail::pi::assertion(cuDeviceGetUuid(&uuid, device->get()) ==
-                                  CUDA_SUCCESS);
-    }
+#if (CUDA_VERSION >= 11040)
+    sycl::detail::pi::assertion(cuDeviceGetUuid_v2(&uuid, device->get()) ==
+                                CUDA_SUCCESS);
+#else
+    sycl::detail::pi::assertion(cuDeviceGetUuid(&uuid, device->get()) ==
+                                CUDA_SUCCESS);
+#endif
     std::array<unsigned char, 16> name;
     std::copy(uuid.bytes, uuid.bytes + 16, name.begin());
     return getInfoArray(16, param_value_size, param_value, param_value_size_ret,
