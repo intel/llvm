@@ -160,18 +160,18 @@ public:
   void modifyCall();
 
   /// Modify the called function by replacing the original operands with their
-  /// corresponding peeled members.q
+  /// corresponding peeled members.
   void modifyCallee();
 
 private:
   /// Peel the call operands.
-  /// Note: this function populates a map between the original operands and
-  /// the peeled members.
+  /// Note: this function populates a map between the original operands and the
+  /// peeled members.
   void peelOperands();
 
-  /// Replace the argument at position \p pos in the region \p callableRgn
-  /// with \p newArgs. The reference parameter \p newArgAttrs is filled with
-  /// the new argument attributes.
+  /// Replace the argument at position \p pos in the region \p callableRgn with
+  /// \p newArgs. The reference parameter \p newArgAttrs is filled with the new
+  /// argument attributes.
   void replaceArgumentWith(unsigned pos, Region &callableRgn,
                            const SmallVector<Value> &newArgs,
                            SmallVector<Attribute> &newArgAttrs) const;
