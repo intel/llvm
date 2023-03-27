@@ -28,16 +28,7 @@ runs:
   steps:
   - run: |
       cp -r /actions .
-      git config --global --add safe.directory /__w/repo_cache/intel/llvm-test-suite
     shell: bash
-  - name: Checkout LLVM Test Suite
-    uses: ./actions/cached_checkout
-    with:
-      path: llvm_test_suite
-      repository: 'intel/llvm-test-suite'
-      ref: ${{ inputs.test_ref }}
-      default_branch: 'intel'
-      cache_path: "/__w/repo_cache/"
   - name: Download compiler toolchain
     uses: actions/download-artifact@v3
     with:
@@ -96,6 +87,4 @@ runs:
     if: always()
     run: |
       rm -rf toolchain
-      rm -rf build
       rm -rf build-e2e
-      rm -rf llvm_test_suite
