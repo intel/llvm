@@ -633,10 +633,10 @@ struct StoreMemRefOpLoweringOld : public MemAccessLowering {
 
 void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
     mlir::LLVMTypeConverter &converter, RewritePatternSet &patterns,
-    bool useOpaquePointer) {
+    bool useOpaquePointers) {
   assert(converter.getOptions().useBarePtrCallConv &&
          "Expecting \"bare pointer\" calling convention");
-  if (useOpaquePointer) {
+  if (useOpaquePointers) {
     patterns.add<GetGlobalMemrefOpLowering, ReshapeMemrefOpLowering,
                  AllocMemrefOpLowering, AllocaMemrefOpLowering,
                  CastMemrefOpLowering, DeallocOpLowering, LoadMemRefOpLowering,
@@ -653,11 +653,11 @@ void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
   // Patterns are tried in reverse add order, so this is tried before the
   // one added by default.
   converter.addConversion(
-      [&, useOpaquePointer](MemRefType type) -> Optional<Type> {
+      [&, useOpaquePointers](MemRefType type) -> Optional<Type> {
         if (!canBeLoweredToBarePtr(type))
           return std::nullopt;
 
-        if (useOpaquePointer) {
+        if (useOpaquePointers) {
           return LLVM::LLVMPointerType::get(type.getContext(),
                                             type.getMemorySpaceAsInt());
         }

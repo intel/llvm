@@ -462,7 +462,7 @@ protected:
             .Case<LLVM::LLVMArrayType>(
                 [&](auto t) { currType = t.getElementType(); })
             .Case<LLVM::LLVMPointerType>(
-                [&](auto t) { assert(false && "Pointer type not allowed"); })
+                [&](auto t) { llvm_unreachable("Pointer type not allowed"); })
             .Default([&](Type t) {
               currType = t;
               assert(currType == resElemType &&
@@ -532,7 +532,7 @@ struct SubIndexOpLowering : public BaseSubIndexOpLowering {
 
     // Handle the general (non-SYCL) case first.
     if (convViewElemType ==
-        transformed.getSource().getType().cast<MemRefType>().getElementType()) {
+        cast<MemRefType>(transformed.getSource().getType()).getElementType()) {
       auto memRefDesc = createMemRefDescriptor(
           loc, viewMemRefType, targetMemRef.allocatedPtr(rewriter, loc),
           rewriter.create<LLVM::GEPOp>(loc, prev.getType(), convViewElemType,
@@ -663,10 +663,9 @@ struct Memref2PointerOpLowering
     Value baseOffset = targetMemRef.offset(rewriter, loc);
     Value ptr = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {baseOffset};
-    ptr = rewriter.create<LLVM::GEPOp>(
-        loc, ptr.getType(),
-        transformed.getSource().getType().cast<MemRefType>().getElementType(),
-        ptr, idxs);
+    auto elemType = getTypeConverter()->convertType(
+        op.getSource().getType().getElementType());
+    ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), elemType, ptr, idxs);
     assert(ptr.getType().cast<LLVM::LLVMPointerType>().getAddressSpace() ==
                op.getType().getAddressSpace() &&
            "Expecting Memref2PointerOp source and result types to have the "

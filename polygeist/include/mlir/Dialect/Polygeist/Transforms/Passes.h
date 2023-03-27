@@ -27,7 +27,7 @@ namespace polygeist {
 /// convention.
 void populateBareMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                 RewritePatternSet &patterns,
-                                                bool useOpaquePointer = false);
+                                                bool useOpaquePointers = false);
 
 #define GEN_PASS_DECL
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"

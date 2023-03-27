@@ -46,7 +46,7 @@ func.func @test_3(%arg0: memref<?x!llvm.struct<(i32)>>) -> memref<?xi32> {
 // -----
 
 // CHECK: llvm.func @test_4([[A0:%.*]]: !llvm.ptr, [[A5:%.*]]: i64) -> !llvm.ptr {
-// CHECK: [[GEP:%.*]] = llvm.getelementptr [[A0]][[[A5]]] : (!llvm.ptr, i64) -> !llvm.ptr
+// CHECK: [[GEP:%.*]] = llvm.getelementptr [[A0]][[[A5]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<(struct<"class.sycl::_V1::id.1", {{.*}})>
 // CHECK-NEXT: llvm.return [[GEP]] : !llvm.ptr
 
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
