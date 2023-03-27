@@ -89,7 +89,7 @@ using the mechanism defined in link:sycl_ext_oneapi_kernel_properties.asciidoc[s
 namespace sycl::ext::intel::experimental {
 
 
-enum class cache_config_enum : std::uint16_t { large_slm, large_data };
+enum class cache_config_enum : /*unspecified*/ { large_slm, large_data };
 
 inline constexpr cache_config_enum large_slm =
     cache_config_enum::large_slm;
