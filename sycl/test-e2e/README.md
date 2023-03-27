@@ -27,8 +27,8 @@ on testing scope.
 Get sources
 
 ```
-git clone https://github.com/intel/llvm-test-suite
-cd llvm-test-suite
+git clone https://github.com/intel/llvm
+cd llvm/sycl/test-e2e
 mkdir build
 cd build
 ```
@@ -38,29 +38,12 @@ With compiler tools available in the PATH:
 ```
 # Configure
 cmake \
- -DCMAKE_CXX_COMPILER=clang++ \
- -DTEST_SUITE_SUBDIRS=SYCL \
- -DCHECK_SYCL_ALL="opencl:cpu" \
+ -DSYCL_CXX_COMPILER=clang++ \
+ -DSYCL_TEST_E2E_TARGETS="opencl:cpu" \
  ..
 
 # Build and Run
-make check-sycl-all
-
-```
-
-To run test with single backend:
-
-```
-# Configure
-cmake \
- -DCMAKE_CXX_COMPILER=clang++ \
- -DTEST_SUITE_SUBDIRS=SYCL \
- -DSYCL_BE="opencl" \
- -DSYCL_TARGET_DEVICES="cpu" \
- ..
-
-# Build and Run
-make check
+make check-sycl-e2e
 ```
 
 To use ninja build run as:
@@ -70,14 +53,25 @@ To use ninja build run as:
 cmake -G Ninja ...
 
 # Build and Run
-ninja check-sycl-all
+ninja check-sycl-e2e
+```
+
+In addition to this standalone configuration one can enable `check-sycl-e2e`
+target for the sycl-toolchain workspace/build by specifying
+`SYCL_TEST_E2E_TARGETS` as part of its cmake configuration. For example, like
+this:
+
+```
+CC=<> CXX=<> python llvm/buildbot/configure.py -o build ... \
+  --cmake-opt=-DSYCL_TEST_E2E_TARGETS="level_zero:gpu;opencl:gpu"
+  --cmake-opt=-DSYCL_E2E_TESTS_LIT_FLAGS="--param;dump_ir=True"``
 ```
 
 # Cmake parameters
 
 These parameters can be used to configure tests:
 
-***CMAKE_CXX_COMPILER*** - path to DPCPP compiler
+***SYCL_CXX_COMPILER*** - path to DPCPP compiler
 
 ***TEST_SUITE_LLVM_SIZE*** - path to llvm-size tool, required for code size
 collection
@@ -88,15 +82,15 @@ time collection
 ***TEST_SUITE_COLLECT_CODE_SIZE=OFF*** - can be used to turn off code size
 collection
 
-***TEST_SUITE_LIT*** - path to llvm-lit tool
+***LLVM_LIT*** - path to llvm-lit tool
 
-***CHECK_SYCL_ALL*** - defines selection of multiple SYCL backends with set of
-target devices per each to be tested iteratively. Value is semicolon-separated
-list of configurations. Each configuration includes backend separated
-from comma-separated list of target devices with colon. Example:
+***SYCL_TEST_E2E_TARGETS*** - defines selection of multiple SYCL backends with
+set of target devices per each to be tested iteratively. Value is
+semicolon-separated list of configurations. Each configuration includes backend
+separated from comma-separated list of target devices with colon. Example:
 
 ```
--DCHECK_SYCL_ALL="opencl:cpu;ext_oneapi_level_zero:gpu;ext_oneapi_cuda:gpu;ext_oneapi_hip:gpu;ext_intel_esimd_emulator:gpu"
+-DSYCL_TEST_E2E_TARGETS="opencl:cpu;ext_oneapi_level_zero:gpu;ext_oneapi_cuda:gpu;ext_oneapi_hip:gpu;ext_intel_esimd_emulator:gpu"
 ```
 
 ***SYCL_BE*** - SYCL backend to be used for testing. Supported values are:
