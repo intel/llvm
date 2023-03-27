@@ -9,13 +9,12 @@
 #include "helpers.h"
 #include "logger/ur_logger.hpp"
 
-class CreateLoggerWithEnvVar : public ::testing::TestWithParam<std::string> {
+class LoggerFromEnvVar : public ::testing::Test {
   protected:
     int ret = -1;
-    std::string env_var_value;
 
     void SetUp() override {
-        env_var_value = GetParam();
+        std::string env_var_value = "level:info;output:stderr";
         ret = setenv("UR_LOG_TEST_ADAPTER", env_var_value.c_str(), 1);
         ASSERT_EQ(ret, 0);
         logger::init("test_adapter");
@@ -48,21 +47,14 @@ class FileSink : public ::testing::Test {
 
 class FileSinkDefaultLevel : public FileSink {
   protected:
-    int ret = -1;
-    std::string env_var_value = "output:file," + file_path;
+    std::unique_ptr<logger::Logger> logger;
 
     void SetUp() override {
-        ret = setenv("UR_LOG_TEST_ADAPTER", env_var_value.c_str(), 1);
-        ASSERT_EQ(ret, 0);
-        logger::init("test_adapter");
-        logger::info("{} initialized successfully!", "test_adapter");
+        logger = std::make_unique<logger::Logger>(
+            std::make_unique<logger::FileSink>("test", file_path));
     }
 
-    void TearDown() override {
-        FileSink::TearDown();
-        ret = unsetenv("UR_LOG_TEST_ADAPTER");
-        ASSERT_EQ(ret, 0);
-    }
+    void TearDown() override { FileSink::TearDown(); }
 };
 
 #endif // UR_UNIT_LOGGER_TEST_FIXTURES_HPP
