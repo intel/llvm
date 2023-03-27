@@ -55,7 +55,7 @@ rely on APIs defined in this specification.*
 == Overview
 
 There are devices where the same hardware resources are used for shared local
-memory (SLM) and data cache. Developers may want more data cache or SLM based
+memory (SLM) and L1 data cache. Developers may want more L1 data cache or SLM based
 on their application. This extension adds runtime kernel property `cache_config`
 which provides a way to set the preferred cache configuration for a kernel.
 
@@ -105,11 +105,15 @@ struct cache_config {
 The `cache_config` property provides a way to set the preferred cache
 configuration for a kernel. The following values are supported:
 
- * `large_slm`: Prefer using more of a shared cache for
-    SLM and hence leaving less cache available for data.
+ * `large_slm`: Prefer having larger shared local memory and smaller L1 data cache.
+                In this case driver will ensure that all workgroups will have enough
+                SLM to run.
 
- * `large_data`: Prefer using less of a shared cache for SLM and
-    hence leaving more cache available for data.
+ * `large_data`: Prefer having larger L1 data cache and smaller shared local memory.
+                 In this case SLM size may be shrinked (which may result in workgroups
+                 spawning as there will be not enough SLM to handle multiple workgroups)
+                 but L1 data cache will be bigger. There may be rare use cases when this
+                 is beneficial.
 
 These property may be passed to any kernel invocation function (e.g.
 `parallel_for`) via the properties parameter.  At most, only one of these
