@@ -37,10 +37,6 @@ template <> struct gpu_counterpart_operation<SYCLWorkGroupIDOp> {
   using type = gpu::BlockIdOp;
 };
 
-template <> struct gpu_counterpart_operation<SYCLNumWorkItemsOp> {
-  using type = gpu::GridDimOp;
-};
-
 template <> struct gpu_counterpart_operation<SYCLWorkGroupSizeOp> {
   using type = gpu::BlockDimOp;
 };
@@ -255,8 +251,8 @@ void addGridOpPatterns(RewritePatternSet &patterns, MLIRContext *context) {
 
 void mlir::populateSYCLToGPUConversionPatterns(RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
-  addGridOpPatterns<SYCLWorkGroupIDOp, SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp,
-                    SYCLLocalIDOp, SYCLGlobalIDOp>(patterns, context);
+  addGridOpPatterns<SYCLWorkGroupIDOp, SYCLWorkGroupSizeOp, SYCLLocalIDOp,
+                    SYCLGlobalIDOp>(patterns, context);
   patterns.add<SingleDimGridOpPattern<SYCLSubGroupIDOp>,
                SingleDimGridOpPattern<SYCLNumSubGroupsOp>,
                SingleDimGridOpPattern<SYCLSubGroupSizeOp>>(context);
@@ -282,10 +278,9 @@ void ConvertSYCLToGPUPass::runOnOperation() {
                          memref::MemRefDialect, SYCLDialect,
                          vector::VectorDialect>();
 
-  target
-      .addIllegalOp<SYCLWorkGroupIDOp, SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp,
-                    SYCLLocalIDOp, SYCLGlobalIDOp, SYCLSubGroupIDOp,
-                    SYCLNumSubGroupsOp, SYCLSubGroupSizeOp>();
+  target.addIllegalOp<SYCLWorkGroupIDOp, SYCLWorkGroupSizeOp, SYCLLocalIDOp,
+                      SYCLGlobalIDOp, SYCLSubGroupIDOp, SYCLNumSubGroupsOp,
+                      SYCLSubGroupSizeOp>();
 
   if (failed(
           applyPartialConversion(getOperation(), target, std::move(patterns))))

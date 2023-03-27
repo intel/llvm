@@ -24,7 +24,6 @@ def ConvertSYCLToLLVM : Pass<"convert-sycl-to-llvm", "ModuleOp"> {
   let dependentDialects = [
       "LLVM::LLVMDialect",
       "arith::ArithDialect",
-      "gpu::GPUDialect",
       "memref::MemRefDialect",
       "spirv::SPIRVDialect",
       "vector::VectorDialect"

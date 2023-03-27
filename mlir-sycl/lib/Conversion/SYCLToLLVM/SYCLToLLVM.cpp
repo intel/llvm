@@ -16,23 +16,20 @@
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
-#include "mlir/Conversion/GPUToSPIRV/GPUToSPIRV.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
-#include "mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"
 #include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVM.h"
-#include "mlir/Conversion/SYCLToGPU/SYCLToGPU.h"
 #include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
 #include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRV.h"
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
-#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -586,27 +583,7 @@ public:
 
   void rewrite(Op op, OpAdaptor adaptor,
                ConversionPatternRewriter &rewriter) const final {
-    constexpr unsigned dimGetTyWidth{32};
-
-    const auto loc = op.getLoc();
-    const auto elTy = getTypeConverter()->convertType(op.getType());
-    const Value arraySize = rewriter.create<arith::ConstantIntOp>(loc, 1, 32);
-    const Value alloca = rewriter.create<LLVM::AllocaOp>(
-        loc, LLVM::LLVMPointerType::get(elTy), elTy, arraySize);
-    const auto structMemberTy = getTypeConverter()->getIndexType();
-    const auto dimTy = rewriter.getIndexType();
-    for (unsigned i = 0,
-                  dimensions = getDimensions(op->getOperand(0).getType());
-         i < dimensions; ++i) {
-      const auto ref =
-          getRef(rewriter, loc, structMemberTy, alloca, std::nullopt, i);
-      const Value dim =
-          rewriter.create<arith::ConstantIntOp>(loc, i, dimGetTyWidth);
-      const Value val = rewriter.create<arith::IndexCastUIOp>(
-          loc, structMemberTy, rewriter.create<GridOp>(loc, dimTy, dim));
-      rewriter.create<LLVM::StoreOp>(loc, val, ref);
-    }
-    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
+    rewriter.replaceOpWithNewOp<GridOp>(op, op.getType(), ValueRange{});
   }
 };
 
@@ -2199,117 +2176,19 @@ void mlir::populateSYCLToLLVMConversionPatterns(
 }
 
 namespace {
-/// A pass converting MLIR SYCL operations into LLVM dialect.
-///
-/// This pass relies on SYCL to GPU and target dialects, e.g., SPIRV, conversion
-/// patterns. This pass is executed in 4 steps:
-/// 1. Lower all of the operations to LLVM. As some of the operations will yield
-///    SYCL grid ops, we need to run this step first;
-/// 2. Convert grid ops to a target dialect, e.g., SPIRV;
-/// 3. Lower remaining operations to LLVM. Same as 1, but no operation will
-///    yield SYCL grid ops, so we can mark these as illegal;
-/// 4. Resolve UnrealizedConversionCastOps appearing due to the fact that this
-///    pass is performed in several steps.
 class ConvertSYCLToLLVMPass
     : public impl::ConvertSYCLToLLVMBase<ConvertSYCLToLLVMPass> {
   using Base::Base;
 
 public:
-  void runOnOperation() override;
+  using impl::ConvertSYCLToLLVMBase<
+      ConvertSYCLToLLVMPass>::ConvertSYCLToLLVMBase;
 
-private:
-  LogicalResult convertToSPIRV();
-  LogicalResult convertToLLVM(bool lastRun);
-  void cleanUnrealizedConversionCasts();
+  void runOnOperation() override;
 };
 } // namespace
 
-LogicalResult ConvertSYCLToLLVMPass::convertToSPIRV() {
-  LLVM_DEBUG(llvm::dbgs() << "Lowering to SPIRV...\n");
-
-  auto &context = getContext();
-  auto module = getOperation();
-  const unsigned int bitIndex = this->indexBitwidth.getValue();
-
-  const auto res = failure(
-      module
-          .walk([&context, bitIndex](gpu::GPUModuleOp gpuModule) {
-            // We walk the different GPU modules looking for different SPIRV
-            // target environment definitions. Currently, this does not affect
-            // the behavior of this pass.
-            RewritePatternSet patterns(&context);
-
-            auto targetAttr = spirv::lookupTargetEnvOrDefault(gpuModule);
-            auto target = SPIRVConversionTarget::get(targetAttr);
-            SPIRVConversionOptions options;
-            options.use64bitIndex =
-                (bitIndex == kDeriveIndexBitwidthFromDataLayout ||
-                 bitIndex == 64);
-            SPIRVTypeConverter typeConverter{targetAttr, options};
-
-            populateGPUToSPIRVPatterns(typeConverter, patterns);
-            populateSYCLToSPIRVConversionPatterns(typeConverter, patterns);
-            populateSYCLToGPUConversionPatterns(patterns);
-
-            target->addLegalDialect<arith::ArithDialect, spirv::SPIRVDialect,
-                                    memref::MemRefDialect,
-                                    vector::VectorDialect>();
-
-            target->addDynamicallyLegalDialect<gpu::GPUDialect>(
-                [](Operation *op) {
-                  return isa<gpu::GPUModuleOp, gpu::ModuleEndOp>(op);
-                });
-
-            target->addDynamicallyLegalDialect<SYCLDialect>([](Operation *op) {
-              return !isa<
-                  // Convertible to GPU dialect
-                  SYCLWorkGroupIDOp, SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp,
-                  SYCLLocalIDOp, SYCLGlobalIDOp, SYCLSubGroupIDOp,
-                  SYCLNumSubGroupsOp, SYCLSubGroupSizeOp,
-                  // Not convertible to GPU dialect
-                  SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp,
-                  SYCLSubGroupLocalIDOp, SYCLSubGroupMaxSizeOp>(op);
-            });
-
-            // Add generic source and target materializations to handle cases
-            // where non-LLVM types persist after an LLVM conversion.
-            typeConverter.addSourceMaterialization(
-                [&](OpBuilder &builder, Type resultType, ValueRange inputs,
-                    Location loc) -> std::optional<Value> {
-                  if (inputs.size() != 1)
-                    return std::nullopt;
-
-                  return builder
-                      .create<UnrealizedConversionCastOp>(loc, resultType,
-                                                          inputs)
-                      .getResult(0);
-                });
-            typeConverter.addTargetMaterialization(
-                [&](OpBuilder &builder, Type resultType, ValueRange inputs,
-                    Location loc) -> std::optional<Value> {
-                  if (inputs.size() != 1)
-                    return std::nullopt;
-
-                  return builder
-                      .create<UnrealizedConversionCastOp>(loc, resultType,
-                                                          inputs)
-                      .getResult(0);
-                });
-
-            return applyPartialConversion(gpuModule, *target,
-                                          std::move(patterns))
-                           .failed()
-                       ? WalkResult::interrupt()
-                       : WalkResult::advance();
-          })
-          .wasInterrupted());
-
-  LLVM_DEBUG(llvm::dbgs() << "Module after SPIRV lowering:\n"; module.dump(););
-
-  return res;
-}
-
-LogicalResult ConvertSYCLToLLVMPass::convertToLLVM(bool lastRun) {
+void ConvertSYCLToLLVMPass::runOnOperation() {
   LLVM_DEBUG(llvm::dbgs() << "Lowering to LLVM...\n");
 
   auto &context = getContext();
@@ -2332,6 +2211,7 @@ LogicalResult ConvertSYCLToLLVMPass::convertToLLVM(bool lastRun) {
   populateCallOpTypeConversionPattern(patterns, converter);
   populateAnyFunctionOpInterfaceTypeConversionPattern(patterns, converter);
   polygeist::populateBareMemRefToLLVMConversionPatterns(converter, patterns);
+  populateSYCLToSPIRVConversionPatterns(converter, patterns);
 
   populateSYCLToLLVMConversionPatterns(converter, patterns);
   populateFuncToLLVMConversionPatterns(converter, patterns);
@@ -2340,58 +2220,12 @@ LogicalResult ConvertSYCLToLLVMPass::convertToLLVM(bool lastRun) {
   arith::populateArithToLLVMConversionPatterns(converter, patterns);
   populateSPIRVToLLVMTypeConversion(converter);
   populateSPIRVToLLVMConversionPatterns(converter, patterns);
-  populateSPIRVToLLVMFunctionConversionPatterns(converter, patterns);
 
   LLVMConversionTarget target(context);
-  if (!lastRun) {
-    target.addDynamicallyLegalDialect<sycl::SYCLDialect>([](Operation *op) {
-      return isa< // Convertible to GPU dialect
-          SYCLWorkGroupIDOp, SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp,
-          SYCLLocalIDOp, SYCLGlobalIDOp, SYCLSubGroupIDOp, SYCLNumSubGroupsOp,
-          SYCLSubGroupSizeOp,
-          // Not convertible to GPU dialect
-          SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp, SYCLSubGroupLocalIDOp,
-          SYCLSubGroupMaxSizeOp>(op);
-    });
-  }
+  target.addIllegalDialect<SYCLDialect>();
 
-  const auto res = applyPartialConversion(module, target, std::move(patterns));
+  if (failed(applyPartialConversion(module, target, std::move(patterns))))
+    signalPassFailure();
 
   LLVM_DEBUG(llvm::dbgs() << "Module after LLVM lowering:\n"; module.dump(););
-
-  return res;
-}
-
-void ConvertSYCLToLLVMPass::cleanUnrealizedConversionCasts() {
-  LLVM_DEBUG(
-      llvm::dbgs() << "Reconciling UnrealizedConversionCasts operations...\n");
-
-  auto &context = getContext();
-  auto module = getOperation();
-
-  ConversionTarget target(context);
-  RewritePatternSet patterns(&context);
-
-  populateReconcileUnrealizedCastsPatterns(patterns);
-
-  if (applyPartialConversion(module, target, std::move(patterns)).failed()) {
-    LLVM_DEBUG(llvm::dbgs() << "WARNING: Could not remove every "
-                               "UnrealizedConversionCast operation\n");
-  }
-
-  LLVM_DEBUG(
-      llvm::dbgs()
-          << "Module after reconciling UnrealizedConversionCasts operations:\n";
-      module.dump(););
-}
-
-void ConvertSYCLToLLVMPass::runOnOperation() {
-  if (convertToLLVM(/*lastRun*/ false).failed() || convertToSPIRV().failed() ||
-      convertToLLVM(/*lastRun*/ true).failed()) {
-    signalPassFailure();
-    return;
-  }
-  // We will not signal pass failure here as the operations causing the failure
-  // may come from previous conversions.
-  cleanUnrealizedConversionCasts();
 }
