@@ -567,9 +567,9 @@ void SCFLoopVersionBuilder::createThenBody() const {
 }
 
 void SCFLoopVersionBuilder::createElseBody() const {
-  auto &origYield = getElseBlock(ifOp).back();
-  auto elseBodyBuilder = getIfOp().getElseBodyBuilder();
-  auto *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
+  Operation &origYield = getElseBlock(ifOp).back();
+  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
   elseBodyBuilder.create<scf::YieldOp>(loop.getLoc(), clonedLoop->getResults());
   origYield.erase();
 }
@@ -586,15 +586,15 @@ void AffineLoopVersionBuilder::createIfOp() {
 }
 
 void AffineLoopVersionBuilder::createThenBody() const {
-  auto thenBodyBuilder = getIfOp().getThenBodyBuilder();
+  OpBuilder thenBodyBuilder = getIfOp().getThenBodyBuilder();
   if (!loop->getResults().empty())
     thenBodyBuilder.create<AffineYieldOp>(loop.getLoc(), loop->getResults());
   loop->moveBefore(&*getThenBlock(ifOp).begin());
 }
 
 void AffineLoopVersionBuilder::createElseBody() const {
-  auto elseBodyBuilder = getIfOp().getElseBodyBuilder();
-  auto *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
+  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
   if (!clonedLoop->getResults().empty())
     elseBodyBuilder.create<AffineYieldOp>(loop.getLoc(),
                                           clonedLoop->getResults());
@@ -626,9 +626,9 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
 //===----------------------------------------------------------------------===//
 
 void SCFLoopGuardBuilder::createElseBody() const {
-  auto &origYield = getElseBlock(ifOp).back();
+  Operation &origYield = getElseBlock(ifOp).back();
   bool yieldsResults = !loop->getResults().empty();
-  auto elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
   if (yieldsResults) {
     elseBodyBuilder.create<scf::YieldOp>(loop->getLoc(), getInitVals());
     origYield.erase();
@@ -652,11 +652,10 @@ Value SCFForGuardBuilder::createCondition() const {
 
 Value SCFParallelGuardBuilder::createCondition() const {
   Value cond;
-  for (auto pair : llvm::zip(getLoop().getLowerBound(),
-                             getLoop().getUpperBound(), getLoop().getStep())) {
-    const Value val =
-        builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::slt,
-                                      std::get<0>(pair), std::get<1>(pair));
+  for (auto [lb, ub] :
+       llvm::zip(getLoop().getLowerBound(), getLoop().getUpperBound())) {
+    const Value val = builder.create<arith::CmpIOp>(
+        loop.getLoc(), arith::CmpIPredicate::slt, lb, ub);
     cond = cond ? static_cast<Value>(
                       builder.create<arith::AndIOp>(loop.getLoc(), cond, val))
                 : val;
@@ -670,7 +669,7 @@ Value SCFParallelGuardBuilder::createCondition() const {
 
 void AffineLoopGuardBuilder::createElseBody() const {
   bool yieldsResults = !loop->getResults().empty();
-  auto elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
   if (yieldsResults)
     elseBodyBuilder.create<AffineYieldOp>(loop.getLoc(), getInitVals());
   else
