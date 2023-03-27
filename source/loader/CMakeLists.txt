@@ -33,7 +33,6 @@ set_target_properties(loader PROPERTIES
 target_link_libraries(loader PRIVATE
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::headers
-    ${CMAKE_DL_LIBS}
 )
 
 if(UR_ENABLE_TRACING)
