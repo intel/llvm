@@ -873,7 +873,7 @@ template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_fixed_topology_group_v<Group>>
 ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
-  __spirv_ControlBarrier(group_scope<Group>::Scope, getScope(FenceScope),
+  __spirv_ControlBarrier(group_scope<Group>::value, getScope(FenceScope),
                          getMemorySemanticsMask(Order) |
                              __spv::MemorySemanticsMask::SubgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory |

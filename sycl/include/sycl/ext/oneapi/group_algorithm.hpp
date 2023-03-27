@@ -146,9 +146,10 @@ __SYCL2020_DEPRECATED(
 detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      std::is_trivially_copyable<T>::value &&
                      !detail::is_vector_arithmetic<T>::value),
-                    T> broadcast(Group, T x, typename Group::id_type local_id) {
+                    T> broadcast(Group g, T x,
+                                 typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::GroupBroadcast<Group>(x, local_id);
+  return sycl::detail::spirv::GroupBroadcast(g, x, local_id);
 #else
   (void)x;
   (void)local_id;
