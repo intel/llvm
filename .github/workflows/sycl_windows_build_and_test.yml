@@ -68,7 +68,7 @@ jobs:
       shell: cmd
       # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build build
+        cmake --build build --target sycl-toolchain
     - name: check-llvm
       shell: bash
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
