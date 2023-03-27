@@ -286,7 +286,7 @@ ur_result_t _ur_platform_handle_t::initialize() {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
+ur_result_t urPlatformGet(
     uint32_t NumEntries, ///< [in] the number of platforms to be added to
                          ///< phPlatforms. If phPlatforms is not NULL, then
                          ///< NumEntries should be greater than zero, otherwise
@@ -403,7 +403,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
+ur_result_t urPlatformGetInfo(
     ur_platform_handle_t Platform, ///< [in] handle of the platform
     ur_platform_info_t ParamName,  ///< [in] type of the info to retrieve
     size_t Size,      ///< [in] the number of bytes pointed to by pPlatformInfo.
@@ -457,7 +457,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
+ur_result_t urDeviceGet(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance
     ur_device_type_t DeviceType,   ///< [in] the type of the devices.
     uint32_t NumEntries, ///< [in] the number of devices to be added to
@@ -534,7 +534,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
+ur_result_t urDeviceGetInfo(
     ur_device_handle_t Device,  ///< [in] handle of the device instance
     ur_device_info_t ParamName, ///< [in] type of the info to retrieve
     size_t propSize,  ///< [in] the number of bytes pointed to by pDeviceInfo.
@@ -1173,9 +1173,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     // bfloat16 math functions are not yet supported on Intel GPUs.
     return ReturnValue(bool{false});
   }
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    ur_memory_scope_capability_flags_t result =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+
+    return ReturnValue(result);
+  }
+
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    ur_memory_order_capability_flags_t capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+    return ReturnValue(capabilities);
+  }
 
   // TODO: Implement.
-  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     zePrint("Unsupported ParamName in piGetDeviceInfo\n");
     zePrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
@@ -1639,7 +1660,7 @@ void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
   ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
+ur_result_t urDevicePartition(
     ur_device_handle_t Device, ///< [in] handle of the device to partition.
     const ur_device_partition_property_t
         *Properties, ///< [in] null-terminated array of <$_device_partition_t
@@ -1706,7 +1727,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
   // Currently supported partitioning (by affinity domain/numa) would always
   // partition to all sub-devices.
   //
-  if (NumDevices !=0)
+  if (NumDevices != 0)
     PI_ASSERT(NumDevices == EffectiveNumDevices, UR_RESULT_ERROR_INVALID_VALUE);
 
   for (uint32_t I = 0; I < NumDevices; I++) {
@@ -1720,3 +1741,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
   }
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t urInit(ur_device_init_flags_t device_flags) {
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urTearDown(void *pParams) { return UR_RESULT_SUCCESS; }

@@ -504,6 +504,13 @@ public:
   static constexpr int dimensions = Dims;
 };
 
+// Token class to help with the in-place construction of reducers.
+template <class BinaryOperation, typename IdentityContainerT>
+struct ReducerToken {
+  const IdentityContainerT &IdentityContainer;
+  const BinaryOperation BOp;
+};
+
 } // namespace detail
 
 /// Specialization of the generic class 'reducer'. It is used for reductions
@@ -532,6 +539,14 @@ public:
   reducer(const IdentityContainerT &IdentityContainer, BinaryOperation BOp)
       : MValue(IdentityContainer), MIdentity(IdentityContainer),
         MBinaryOp(BOp) {}
+  reducer(
+      const detail::ReducerToken<BinaryOperation, IdentityContainerT> &Token)
+      : reducer(Token.IdentityContainer, Token.BOp) {}
+
+  reducer(const reducer &) = delete;
+  reducer(reducer &&) = delete;
+  reducer &operator=(const reducer &) = delete;
+  reducer &operator=(reducer &&) = delete;
 
   reducer &combine(const T &Partial) {
     MValue.combine(MBinaryOp, Partial);
@@ -580,6 +595,14 @@ public:
   reducer() : MValue(getIdentity()) {}
   reducer(const IdentityContainerT & /* Identity */, BinaryOperation)
       : MValue(getIdentity()) {}
+  reducer(
+      const detail::ReducerToken<BinaryOperation, IdentityContainerT> &Token)
+      : reducer(Token.IdentityContainer, Token.BOp) {}
+
+  reducer(const reducer &) = delete;
+  reducer(reducer &&) = delete;
+  reducer &operator=(const reducer &) = delete;
+  reducer &operator=(reducer &&) = delete;
 
   reducer &combine(const T &Partial) {
     BinaryOperation BOp;
@@ -618,6 +641,14 @@ class reducer<T, BinaryOperation, Dims, Extent, IdentityContainerT, View,
 public:
   reducer(element_type &Ref, BinaryOperation BOp)
       : MElement(Ref), MBinaryOp(BOp) {}
+  reducer(
+      const detail::ReducerToken<BinaryOperation, IdentityContainerT> &Token)
+      : reducer(Token.IdentityContainer, Token.BOp) {}
+
+  reducer(const reducer &) = delete;
+  reducer(reducer &&) = delete;
+  reducer &operator=(const reducer &) = delete;
+  reducer &operator=(reducer &&) = delete;
 
   reducer &combine(const T &Partial) {
     MElement.combine(MBinaryOp, Partial);
@@ -656,6 +687,14 @@ public:
   reducer(const IdentityContainerT &IdentityContainer, BinaryOperation BOp)
       : MValue(IdentityContainer), MIdentity(IdentityContainer),
         MBinaryOp(BOp) {}
+  reducer(
+      const detail::ReducerToken<BinaryOperation, IdentityContainerT> &Token)
+      : reducer(Token.IdentityContainer, Token.BOp) {}
+
+  reducer(const reducer &) = delete;
+  reducer(reducer &&) = delete;
+  reducer &operator=(const reducer &) = delete;
+  reducer &operator=(reducer &&) = delete;
 
   reducer<T, BinaryOperation, Dims - 1, Extent, IdentityContainerT, true>
   operator[](size_t Index) {
@@ -701,6 +740,14 @@ public:
   reducer() : MValue(getIdentity()) {}
   reducer(const IdentityContainerT & /* Identity */, BinaryOperation)
       : MValue(getIdentity()) {}
+  reducer(
+      const detail::ReducerToken<BinaryOperation, IdentityContainerT> &Token)
+      : reducer(Token.IdentityContainer, Token.BOp) {}
+
+  reducer(const reducer &) = delete;
+  reducer(reducer &&) = delete;
+  reducer &operator=(const reducer &) = delete;
+  reducer &operator=(reducer &&) = delete;
 
   // SYCL 2020 revision 4 says this should be const, but this is a bug
   // see https://github.com/KhronosGroup/SYCL-Docs/pull/252
@@ -795,6 +842,8 @@ public:
 
   using identity_container_type =
       ReductionIdentityContainer<T, BinaryOperation, ExplicitIdentity>;
+  using reducer_token_type =
+      detail::ReducerToken<BinaryOperation, identity_container_type>;
   using reducer_type =
       reducer<T, BinaryOperation, Dims, Extent, identity_container_type>;
   using reducer_element_type =
@@ -2261,8 +2310,11 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
       // Pass all reductions to user's lambda in the same order as supplied
       // Each reducer initializes its own storage
       auto ReduIndices = std::index_sequence_for<Reductions...>();
-      auto ReducersTuple = std::tuple{typename Reductions::reducer_type{
-          std::get<Is>(IdentitiesTuple), std::get<Is>(BOPsTuple)}...};
+      auto ReducerTokensTuple =
+          std::tuple{typename Reductions::reducer_token_type{
+              std::get<Is>(IdentitiesTuple), std::get<Is>(BOPsTuple)}...};
+      auto ReducersTuple = std::tuple<typename Reductions::reducer_type...>{
+          std::get<Is>(ReducerTokensTuple)...};
       std::apply([&](auto &...Reducers) { KernelFunc(NDIt, Reducers...); },
                  ReducersTuple);
 
