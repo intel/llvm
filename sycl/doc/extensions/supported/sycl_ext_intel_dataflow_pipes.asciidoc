@@ -31,7 +31,7 @@ This document describes an extension that adds pipes to SYCL.  Pipes are first i
 
 == Notice
 
-Copyright (c) 2019-2021 Intel Corporation.  All rights reserved.
+Copyright (c) 2019-2023 Intel Corporation.  All rights reserved.
 
 == Status
 
@@ -49,9 +49,24 @@ Revision: 3
 == Contact
 Michael Kinsner, Intel (michael 'dot' kinsner 'at' intel 'dot' com)
 
+== Contributors
+
+Michael Kinsner, Intel +
+Shuo Niu, Intel +
+Bo Lei, Intel +
+Marco Jacques, Intel +
+Joe Garvey, Intel +
+Aditi Kumaraswamy, Intel +
+Robert Ho, Intel +
+Sherry Yuan, Intel +
+Peter Colberg, Intel +
+Zibai Wang, Intel
+
 == Dependencies
 
 This extension is written against the SYCL 2020 specification, Revision 3.
+
+It also depends on the `sycl_ext_oneapi_properties` extension.
 
 The use of blocking pipe reads or writes requires support for https://github.com/KhronosGroup/SPIRV-Registry/blob/master/extensions/INTEL/SPV_INTEL_blocking_pipes.asciidoc[SPV_INTEL_blocking_pipes] if SPIR-V is used by an implementation.
 
@@ -110,9 +125,9 @@ A pipe type is a specialization of the pipe class:
 
 [source,c++,Pipe type def,linenums]
 ----
-template <typename Name,
-          typename DataT,
-          size_t MinCapacity = 0>
+template <class _name, class _dataT, int32_t _min_capacity = 0,
+          class _propertiesT = decltype(oneapi::experimental::properties{}),
+          class = void>
 class pipe;
 ----
 
@@ -126,6 +141,7 @@ using pipe<class foo, int>;
 using pipe<class bar, int>;
 using pipe<class bar, float>;
 using pipe<class bar, float, 5>;
+using pipe<class bar, float, 5, decltype(sycl::ext::oneapi::experimental::properties(sycl::ext::intel::experimental::uses_valid<false>))>;
 ----
 
 
@@ -170,23 +186,32 @@ The pipe class exposes static member functions for writing a data word to a pipe
 
 Blocking and non-blocking forms of the read and write members are defined, with the form chosen based on overload resolution.
 
+In the future, the `sycl::memory_order` parameter of read/write functions will control how other memory accesses, including regular, non-atomic memory accesses, are to be ordered around the pipe read/write operation.  The default memory order is `sycl::memory_order::seq_cst`. Currently, `sycl::memory_order` parameter is defined but not being used in the implementation.
+
 [source,c++,Read write members,linenums]
 ----
-template <typename Name,
-          typename DataT,
-          size_t MinCapacity = 0>
+template <class _name, class _dataT, int32_t _min_capacity = 0,
+          class _propertiesT = decltype(oneapi::experimental::properties{}),
+          class = void>
 class pipe {
   // Blocking
-  static DataT read();
-  static void write( const DataT &Data );
+  static _dataT read();
+  static void write(const _dataT &Data) ;
 
   // Non-blocking
-  static DataT read( bool &Success );
-  static void write( const DataT &Data, bool &Success );
+  static _dataT read(bool &Success);
+  static void write(const _dataT &Data, bool &Success) ;
 
   // Static members
-  using value_type = DataT;
-  size_t min_capacity = MinCapacity;
+  static constexpr int32_t m_Size = sizeof(_dataT);
+  static constexpr int32_t m_Alignment = alignof(_dataT);
+  static constexpr int32_t m_Capacity = _min_capacity;
+  static constexpr int32_t m_ready_latency = oneapi::experimental::detail::ValueOrDefault<_propertiesT, ready_latency_key>::template get<int32_t>(0);
+  static constexpr int32_t m_bits_per_symbol = oneapi::experimental::detail::ValueOrDefault<_propertiesT, bits_per_symbol_key>::template get<int32_t>(8);
+  static constexpr bool m_uses_valid = oneapi::experimental::detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(true);
+  static constexpr bool m_first_symbol_in_high_order_bits = oneapi::experimental::detail::ValueOrDefault<_propertiesT, first_symbol_in_high_order_bits_key>::template             get<int32_t>(0);
+  static constexpr protocol_name m_protocol = oneapi::experimental::detail:: ValueOrDefault<_propertiesT, protocol_key>::template get<protocol_name>(
+          protocol_name::AVALON_STREAMING_USES_READY);
 }
 ----
 
@@ -194,9 +219,10 @@ The read and write member functions may be invoked within device code, or within
 
 The template parameters of the device type are defined as:
 
-* `Name`: Type that is the basis of pipe identification.  Typically a user-defined class, in a user namespace.  Forward declaration of the type is sufficient, and the type does not need to be defined.
-* `DataT`: The type of data word/packet contained within a pipe.  This is the data type that is read during a successful `pipe::read` operation, or written during a successful `pipe::write` operation.  The type must be standard layout and trivially copyable. This template parameter can be queried by using the `value_type` type alias.
-* `MinCapacity`: User defined minimum number of words in units of `DataT` that the pipe must be able to store without any being read out.  A minimum capacity is required in some algorithms to avoid deadlock, or for performance tuning.  An implementation can include more capacity than this parameter, but not less. This template parameter can be queried by using the `min_capacity` static member.
+* `name`: Type that is the basis of pipe identification.  Typically a user-defined class, in a user namespace.  Forward declaration of the type is sufficient, and the type does not need to be defined.
+* `dataT`: The type of data word/packet contained within a pipe.  This is the data type that is read during a successful `pipe::read` operation, or written during a successful `pipe::write` operation.  The type must be standard layout and trivially copyable. This template parameter can be queried by using the `value_type` type alias.
+* `min_capacity`: User defined minimum number of words in units of `DataT` that the pipe must be able to store without any being read out.  A minimum capacity is required in some algorithms to avoid deadlock, or for performance tuning.  An implementation can include more capacity than this parameter, but not less. This template parameter can be queried by using the `min_capacity` static member.
+* `_propertiesT`: The list of properties that are associated with the pipe.
 
 == Pipe types and {cpp} scope
 
@@ -254,15 +280,67 @@ Type aliases in {cpp} through the `using` mechanism do not change the type of a 
   pipe<type_alias, int>::write(0);
 ----
 
+== Host pipe read/write
+
+The read/write member functions of a host pipe have different signatures when they are called from the host side, in which case a `sycl::queue` is added to the parameters.
+
+[source,c++,Host pipe read write members,linenums]
+----
+template <class _name, class _dataT, int32_t _min_capacity = 0,
+          class _propertiesT = decltype(oneapi::experimental::properties{}),
+          class = void>
+class pipe {
+  // Blocking
+  static _dataT read(queue &Q, memory_order Order = memory_order::seq_cst);
+  static void write(queue &Q, const _dataT &Data, memory_order Order = memory_order::seq_cst);
+  // Non-blocking
+  static _dataT read(queue &Q, bool &Success, memory_order Order = memory_order::seq_cst);
+  static void write(queue &Q, const _dataT &Data, bool &Success, memory_order Order = memory_order::seq_cst);
+}
+----
+
+== Simple example of host-to-device write&read
+
+[source,c++,First example,linenums]
+----
+using default_pipe_properties = decltype(sycl::ext::oneapi::experimental::properties(sycl::ext::intel::experimental::uses_valid<true>));
+
+// Classes used to name the kernels
+class TestTask;
+class H2DPipeID;
+class D2HPipeID;
+
+using H2DPipe = sycl::ext::intel::experimental::pipe<H2DPipeID, int, 10, default_pipe_properties>;
+using D2HPipe = sycl::ext::intel::experimental::pipe<D2HPipeID, int, 10, default_pipe_properties>;
+
+struct BasicKernel {
+  void operator()() const { 
+    auto a = H2DPipe::read();
+    D2HPipe::write(a+1);
+  }
+};
+
+int main() {
+  queue q(testconfig_selector{});
+  H2DPipe::write(q, 1);  
+
+  q.submit([&](handler &h) {
+    h.single_task<TestTask>(BasicKernel{});
+  });
+  auto b = D2HPipe::read(q);
+  std::cout << b << std::endl; // It should print 2;
+}
+----
+
 == Host pipe map/unmap
 
 Pipes expose two additional static member functions that are available within host code, and which map to the OpenCL C host pipe extension map/unmap interface.  These member functions provide higher bandwidth or otherwise more efficient communication on some platforms, by allowing block transfers of larger data sets.
 
 [source,c++,Read write members,linenums]
 ----
-template <typename Name,
-          typename DataT,
-          size_t MinCapacity = 0>
+template <class _name, class _dataT, int32_t _min_capacity = 0,
+          class _propertiesT = decltype(oneapi::experimental::properties{}),
+          class = void>
 class pipe {
   template <pipe_property::writeable host_writeable>
     static DataT* map(size_t requested_size, size_t &mapped_size);
@@ -303,7 +381,7 @@ Multiple reads or multiple writes to the same pipe from more than one kernel are
 When there are accesses to a pipe from different work-items or host threads, the order of data written to or read from the pipe is not defined.  Specifically, regarding multiple accesses to the same pipe:
 
 1. *Accesses to a single pipe within a single work-item of a kernel or thread of the host program:* Operations on the same pipe occur in program order with respect to the work-item or host thread.  No "concurrent" accesses or reordering of accesses are observable from the perspective of the single pipe.  If there are multiple pipe access operations to the same pipe within a single kernel, they execute in program order from the perspective of a single work-item.
-2. *Accesses to multiple pipes within a single work-item of a kernel or thread of the host program:*  Different pipes are treated in the same way as non-aliased memory, in that accesses to one pipe may be reordered relative to accesses to another pipe.  There is no expectation of program ordering of pipe operations across different pipes, only for a single pipe.  If a happens-before relationship across pipes is required, synchronization mechanisms such as atomics or barriers must be used.
+2. *Accesses to multiple pipes within a single work-item of a kernel or thread of the host program:*  Different pipes are treated in the same way as non-aliased memory, in that accesses to one pipe may be reordered relative to accesses to another pipe.  There is no expectation of program ordering of pipe operations across different pipes, only for a single pipe.  If a happens-before relationship across pipes is required, synchronization mechanisms such as atomics or barriers must be used. In the future, when the memory_order parameter is implemented, it will control how other memory accesses, including regular, non-atomic memory accesses, are to be ordered around the pipe read/write operation.
 3. *Accesses to a single pipe within two work-items of the same kernel (same or different invocations of a single kernel), and/or threads of the host program:* No ordering guarantees are made on the order of pipe operations across device work-items or host threads.  For example, if two work-items executing a kernel write to a pipe, there are no guarantees that the work-item with lower _id_ (for any definition of _id_) executes before the pipe write from a higher _id_.  The execution order of work-items executing a kernel are not defined by SYCL, may be dynamically reordered, and may not be deterministic.  If ordering guarantees are required across work-items and/or host threads, synchronization mechanisms such as atomics or barriers must be used.
 
 === Restrictions on pipes accessed by both kernels and the host program
@@ -601,6 +679,38 @@ The above example function `pipe_memcpy()` could alternatively be templated on t
 
 Automated mechanisms are possible to provide uniquification across calls, and could be exposed through a wrapper or library.
 
+== Add new copy and memcpy members to the handler class
+
+Add the following functions to the `sycl::handler` interface described in Section 4.9.4.3 of
+the SYCL 2020 specification.
+
+Add to Table 130, "Member functions of the handler class".
+
+--
+[options="header"]
+|====
+| Member Function | Description
+a| 
+[source, c++]
+----
+void ext_intel_read_write_host_pipe
+       (const std::string &Name, void *Ptr,
+                       size_t Size, bool Block, bool Read);
+----
+|  Read from or write to host pipes given a host address.
+
+   `Name` is the name of the host pipe to be passed into lower level runtime.
+   
+   `Ptr` is the host pointer of the host pipe as identified by address of its const expr member.
+   
+   `Size` is the size of data getting read back / to.
+   
+   `Block` is indicating whether read/write opeartion is blocking.
+   
+   `Read` is indeicating whether it's a read/write op, 1 for read, 0 for write.
+a| 
+--
+
 == [[warnings]]Required warning messages needing compiler support
 
 . Warning if two pipes are found within the translation unit that have an identical first template argument, and differ only in one or more of the following template arguments.
@@ -611,6 +721,12 @@ Automated mechanisms are possible to provide uniquification across calls, and co
 +
 --
 *RESOLUTION*: Not resolved.  Looking for input, because this is a valid design pattern in some cases.
+--
+
+. The choice of seq_cst for the default value of the `sycl::memory_order` parameter of the read/write functions is still open for discussion. While seq_cst is more consistent with C++ atomics, it is a change from how pipes work today, which is equivalent to memory_order::relaxed. Another consideration is that SYCL 2020 atomic_ref uses a third approach where the default must be specified as a template parameter of the class itself. 
++
+--
+*RESOLUTION*: Not resolved. Still under discussion.
 --
 
 . Arbitration is allowed by default (more than one read or write endpoint) within a single kernel.  Should there be an additional pipe template parameter to disable arbitration, as part of the type?  Downsides are that restriction as part of the type requires compiler support, since the pipe and read/write member functions are stateless, and adding additional parameters to the type increases likelihood of accidentally creating two pipes with slightly different parameterizations.
@@ -687,9 +803,9 @@ template <int Target, latency_control_type Type, int Cycle>
 inline constexpr latency_constraint_key::value_t<Target, Type, Cycle>
     latency_constraint;
 
-template <typename Name,
-          typename DataT,
-          size_t MinCapacity = 0>
+template <class _name, class _dataT, int32_t _min_capacity = 0,
+          class _propertiesT = decltype(oneapi::experimental::properties{}),
+          class = void>
 class pipe {
   // Blocking
   static DataT read();
@@ -776,6 +892,7 @@ extension's APIs the implementation supports.
 |2|2019-11-13|Michael Kinsner|Incorporate feedback
 |3|2020-04-27|Michael Kinsner|Clarify that pipe operations behave as-if they are relaxed atomic operations.  Make SYCL2020 the baseline
 |4|2021-12-02|Shuo Niu|Add experimental latency control API
+|5|2023-03-27|Zibai Wang|Add memory order parameter and compile-time properties.  Add host pipe read/write functions.
 |========================================
 
 //************************************************************************
