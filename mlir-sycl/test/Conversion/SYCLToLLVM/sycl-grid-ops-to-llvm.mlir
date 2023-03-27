@@ -358,8 +358,8 @@ module attributes {gpu.container_module} {
     // CHECK-SAME:                                        %[[VAL_222:.*]]: i32) -> i64 {
     // CHECK-NEXT:        %[[VAL_223:.*]] = llvm.mlir.addressof @__builtin_var_GlobalOffset__ : !llvm.ptr<vector<3xi64>>
     // CHECK-NEXT:        %[[VAL_224:.*]] = llvm.load %[[VAL_223]] : !llvm.ptr<vector<3xi64>>
-    // CHECK-DAG-         %[[VAL_225:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
-    // CHECK-DAG-         %[[VAL_226:.*]] = llvm.mlir.constant(0 : i32) : i32
+    // CHECK-DAG:         %[[VAL_225:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
+    // CHECK-DAG:         %[[VAL_226:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-NEXT:        %[[VAL_227:.*]] = llvm.extractelement %[[VAL_224]]{{\[}}%[[VAL_226]] : i32] : vector<3xi64>
     // CHECK-DAG:         %[[VAL_228:.*]] = llvm.mlir.constant(0 : i64) : i64
     // CHECK-NEXT:        %[[VAL_229:.*]] = llvm.insertelement %[[VAL_227]], %[[VAL_225]]{{\[}}%[[VAL_228]] : i64] : vector<3xi64>
