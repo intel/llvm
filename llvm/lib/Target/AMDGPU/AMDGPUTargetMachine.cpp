@@ -22,6 +22,7 @@
 #include "AMDGPURegBankSelect.h"
 #include "AMDGPUTargetObjectFile.h"
 #include "AMDGPUTargetTransformInfo.h"
+#include "AMDGPUUnifyDivergentExitNodes.h"
 #include "GCNIterativeScheduler.h"
 #include "GCNSchedStrategy.h"
 #include "GCNVOPDUtils.h"
@@ -672,6 +673,10 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
           PM.addPass(AMDGPUPromoteKernelArgumentsPass());
           return true;
         }
+        if (PassName == "amdgpu-unify-divergent-exit-nodes") {
+          PM.addPass(AMDGPUUnifyDivergentExitNodesPass());
+          return true;
+        }
         return false;
       });
 
@@ -699,11 +704,12 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
   PB.registerPipelineEarlySimplificationEPCallback(
       [this](ModulePassManager &PM, OptimizationLevel Level) {
+        PM.addPass(AMDGPUPrintfRuntimeBindingPass());
+
         if (Level == OptimizationLevel::O0)
           return;
 
         PM.addPass(AMDGPUUnifyMetadataPass());
-        PM.addPass(AMDGPUPrintfRuntimeBindingPass());
 
         if (InternalizeSymbols) {
           PM.addPass(InternalizePass(mustPreserveGV));
