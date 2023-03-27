@@ -13,7 +13,20 @@ if(NOT EXISTS "${SYCL_BUILD_PI_HIP_ROCM_DIR}")
 endif()
 
 # Set HIP include dirs
-set(HIP_HEADERS "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/include;${SYCL_BUILD_PI_HIP_ROCM_DIR}/hsa/include")
+set(SYCL_BUILD_PI_HIP_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/include" CACHE STRING "HIP include dir")
+set(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hsa/include" CACHE STRING "HSA include dir")
+
+if(NOT EXISTS "${SYCL_BUILD_PI_HIP_INCLUDE_DIR}")
+  message(FATAL_ERROR "Couldn't find the HIP include directory at '${SYCL_BUILD_PI_HIP_INCLUDE_DIR}',"
+                      " please set SYCL_BUILD_PI_HIP_INCLUDE_DIR to the path of the HIP include directory from the ROCm installation.")
+endif()
+
+if(NOT EXISTS "${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}")
+  message(FATAL_ERROR "Couldn't find the HSA include directory at '${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}',"
+                      " please set SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR to the path of the HSA include directory from the ROCm installation.")
+endif()
+
+set(HIP_HEADERS "${SYCL_BUILD_PI_HIP_INCLUDE_DIR};${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}")
 
 # Create pi_hip library
 add_sycl_plugin(hip
@@ -30,12 +43,19 @@ add_sycl_plugin(hip
 set_target_properties(pi_hip PROPERTIES LINKER_LANGUAGE CXX)
 
 if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+  # Set HIP lib dir
+  set(SYCL_BUILD_PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/lib" CACHE STRING "HIP lib dir")
+  if(NOT EXISTS "${SYCL_BUILD_PI_HIP_LIB_DIR}")
+    message(FATAL_ERROR "Couldn't find the HIP library directory at '${SYCL_BUILD_PI_HIP_LIB_DIR}',"
+                        " please set SYCL_BUILD_PI_HIP_LIB_DIR to the path of the HIP library directory from the ROCm installation.")
+  endif()
+
   # Import HIP runtime library
   add_library(rocmdrv SHARED IMPORTED GLOBAL)
 
   set_target_properties(
     rocmdrv PROPERTIES
-      IMPORTED_LOCATION                    "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/lib/libamdhip64.so"
+      IMPORTED_LOCATION                    "${SYCL_BUILD_PI_HIP_LIB_DIR}/libamdhip64.so"
       INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
       INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
   )
