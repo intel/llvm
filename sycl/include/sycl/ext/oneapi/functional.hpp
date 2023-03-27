@@ -63,7 +63,7 @@ struct GroupOpTag<
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
   template <__spv::GroupOperation O, typename Group, typename T>               \
   static T calc(Group g, GroupTag, T x, BinaryOperation) {                     \
-    return sycl::detail::spirv::Group##SPIRVOperation(g, O, x);                \
+    return sycl::detail::spirv::Group##SPIRVOperation<O>(g, x);                \
   }
 
 // calc for sycl function objects

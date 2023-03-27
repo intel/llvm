@@ -901,10 +901,10 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
 
 // TODO: Refactor to avoid duplication after design settles
 #define __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction)                          \
-  template <typename Group, typename T>                                        \
-  typename std::enable_if_t<                                                   \
+  template <__spv::GroupOperation Op, typename Group, typename T>              \
+  inline typename std::enable_if_t<                                            \
       ext::oneapi::experimental::is_fixed_topology_group_v<Group>, T>          \
-      Group##Instruction(Group G, __spv::GroupOperation Op, T x) {             \
+      Group##Instruction(Group G, T x) {                                       \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT =                                                               \
@@ -920,9 +920,9 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
     return Ret;                                                                \
   }                                                                            \
                                                                                \
-  template <typename ParentGroup, typename T>                                  \
-  T Group##Instruction(ext::oneapi::experimental::ballot_group<ParentGroup> g, \
-                       __spv::GroupOperation Op, T x) {                        \
+  template <__spv::GroupOperation Op, typename ParentGroup, typename T>        \
+  inline T Group##Instruction(                                                 \
+      ext::oneapi::experimental::ballot_group<ParentGroup> g, T x) {           \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT =                                                               \
@@ -935,8 +935,8 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
     OCLT Arg = x;                                                              \
     /* Each ballot_group implicitly represents two groups */                   \
     /* We have to force each half down different control flow */               \
-    auto Scope = group_scope<ParentGroup>::value;                              \
-    auto OpInt = static_cast<unsigned int>(Op);                                \
+    constexpr auto Scope = group_scope<ParentGroup>::value;                    \
+    constexpr auto OpInt = static_cast<unsigned int>(Op);                      \
     if (g.get_group_id() == 1) {                                               \
       return __spirv_GroupNonUniform##Instruction(Scope, OpInt, Arg);          \
     } else {                                                                   \
