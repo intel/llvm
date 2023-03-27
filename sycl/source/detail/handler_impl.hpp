@@ -100,7 +100,6 @@ public:
 
   RT::PiKernelCacheConfig MKernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
-
 };
 
 } // namespace detail

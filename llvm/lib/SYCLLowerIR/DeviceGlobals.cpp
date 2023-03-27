@@ -79,7 +79,7 @@ bool hasDeviceImageScopeProperty(const GlobalVariable &GV) {
 ///
 /// @param GV [in] Device Global or Hostpipe variable.
 ///
-/// @returns the unique id of the device global or hostpipe variable 
+/// @returns the unique id of the device global or hostpipe variable
 /// represented in the LLVM IR by \c GV.
 StringRef getGlobalVariableUniqueId(const GlobalVariable &GV) {
   assert(GV.hasAttribute(SYCL_UNIQUE_ID_ATTR) &&
