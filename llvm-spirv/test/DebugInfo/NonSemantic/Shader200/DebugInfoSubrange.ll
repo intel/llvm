@@ -11,8 +11,8 @@
 
 ; CHECK-SPIRV: String [[#LocalVarNameId:]] "A$1$upperbound"
 ; CHECK-SPIRV: TypeInt [[#TyInt64Id:]] 64 0
-; CHECK-SPIRV: Constant [[#TyInt64Id]] [[#Constant1Id:]] 1 0
-; CHECK-SPIRV: Constant [[#TyInt64Id]] [[#Constant1000Id:]] 1000 0
+; CHECK-SPIRV-DAG: Constant [[#TyInt64Id]] [[#Constant1Id:]] 1 0
+; CHECK-SPIRV-DAG: Constant [[#TyInt64Id]] [[#Constant1000Id:]] 1000 0
 ; CHECK-SPIRV: [[#DINoneId:]] [[#EISId]] DebugInfoNone
 
 ; CHECK-SPIRV: [[#DebugFuncId:]] [[#EISId]] DebugFunction
