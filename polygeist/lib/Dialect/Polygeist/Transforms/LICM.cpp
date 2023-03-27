@@ -204,11 +204,11 @@ protected:
     assert(ifOp && "Expected valid ifOp");
     return cast<scf::IfOp>(ifOp);
   }
-  void createIfOp() override;
-  void createThenBody() const override;
 
 private:
   virtual Value createCondition() const = 0;
+  void createIfOp() override;
+  void createThenBody() const override;
   void createElseBody() const override;
 };
 
@@ -222,11 +222,11 @@ protected:
     assert(ifOp && "Expected valid ifOp");
     return cast<AffineIfOp>(ifOp);
   }
-  void createIfOp() override;
-  void createThenBody() const override;
 
 private:
   virtual IntegerSet createCondition(SmallVectorImpl<Value> &) const = 0;
+  void createIfOp() override;
+  void createThenBody() const override;
   void createElseBody() const override;
 };
 
@@ -255,8 +255,6 @@ public:
   void guardLoop() final { versionLoop(); }
 
 private:
-  void createIfOp() final { SCFLoopVersionBuilder::createIfOp(); }
-  void createThenBody() const final { SCFLoopVersionBuilder::createThenBody(); }
   void createElseBody() const final;
 };
 
@@ -292,10 +290,6 @@ public:
   void guardLoop() final { versionLoop(); }
 
 private:
-  void createIfOp() final { AffineLoopVersionBuilder::createIfOp(); }
-  void createThenBody() const final {
-    AffineLoopVersionBuilder::createThenBody();
-  }
   void createElseBody() const final;
   IntegerSet createCondition(SmallVectorImpl<Value> &) const final;
   virtual void getConstraints(SmallVectorImpl<AffineExpr> &,
