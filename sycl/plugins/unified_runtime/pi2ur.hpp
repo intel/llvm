@@ -29,7 +29,7 @@ static pi_result ur2piResult(ur_result_t urResult) {
       {UR_RESULT_ERROR_INVALID_FUNCTION_NAME, PI_ERROR_BUILD_PROGRAM_FAILURE},
       {UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE,
        PI_ERROR_INVALID_WORK_GROUP_SIZE},
-      {UR_RESULT_ERROR_MODULE_BUILD_FAILURE, PI_ERROR_BUILD_PROGRAM_FAILURE},
+      {UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE, PI_ERROR_BUILD_PROGRAM_FAILURE},
       {UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY, PI_ERROR_OUT_OF_RESOURCES},
       {UR_RESULT_ERROR_OUT_OF_HOST_MEMORY, PI_ERROR_OUT_OF_HOST_MEMORY}};
 
@@ -228,6 +228,16 @@ inline pi_result ur2piInfoValue(ur_device_info_t ParamName,
              PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE},
         };
     return Value.convertArray(Map);
+  } else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
+    static std::unordered_map<ur_device_local_mem_type_t,
+                              pi_device_local_mem_type>
+        Map = {
+            {UR_DEVICE_LOCAL_MEM_TYPE_LOCAL, PI_DEVICE_LOCAL_MEM_TYPE_LOCAL},
+            {UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL, PI_DEVICE_LOCAL_MEM_TYPE_GLOBAL},
+        };
+    return Value.convert(Map);
+  } else {
+    // TODO: what else needs a UR-PI translation?
   }
 
   if (ParamValueSizePI && ParamValueSizePI != *ParamValueSizeUR) {
@@ -242,6 +252,7 @@ namespace pi2ur {
 inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                                 pi_uint32 *num_platforms) {
 
+  urInit(0);
   uint32_t Count = num_entries;
   auto phPlatforms = reinterpret_cast<ur_platform_handle_t *>(platforms);
   HANDLE_ERRORS(urPlatformGet(Count, phPlatforms, num_platforms));
@@ -475,6 +486,8 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
        (ur_device_info_t)UR_DEVICE_INFO_BFLOAT16},
       {PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
        (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES},
+      {PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+       (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES},
   };
 
   auto InfoType = InfoMapping.find(ParamName);
@@ -545,8 +558,8 @@ inline pi_result piDevicePartition(
 
   auto hDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto phSubDevices = reinterpret_cast<ur_device_handle_t *>(SubDevices);
-  HANDLE_ERRORS(urDevicePartition(hDevice, UrProperties, NumEntries, phSubDevices,
-                                  NumSubDevices));
+  HANDLE_ERRORS(urDevicePartition(hDevice, UrProperties, NumEntries,
+                                  phSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }
 } // namespace pi2ur
