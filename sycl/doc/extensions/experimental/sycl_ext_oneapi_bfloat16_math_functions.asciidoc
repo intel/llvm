@@ -186,6 +186,194 @@ T fabs(T x);
 
 Compute absolute value of a `bfloat16`.
 
+==== ceil
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T ceil(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Round to integral value using the round to positive infinity rounding mode
+for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== floor
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T floor(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Round to integral value using the round to negative infinity rounding mode
+for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== cos
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T cos(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute cosine of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== sin
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T sin(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute sine of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+
+==== exp
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T exp(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute the base-e exponential of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== exp2
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T exp2(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute the base-2 exponential of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== exp10
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T exp10(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute the base-10 exponential of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== log
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T log(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute natural logarithm of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== log2
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T log2(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute base-2 logarithm of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== log10
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T log10(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute base-10 logarithm of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+
+==== rint
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T rint(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Round to integral value using the round to nearest even rounding mode
+for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== sqrt
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T sqrt(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute square root of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== rsqrt
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T rsqrt(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute inverse square root of a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
+==== trunc
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T trunc(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Round to integral value using the round to zero rounding mode
+for a `bfloat16` value or `sycl::marray<bfloat16, N>`.
+
 == Issues
 
 1. The CUDA backend does not have a use case that would necessitate support
