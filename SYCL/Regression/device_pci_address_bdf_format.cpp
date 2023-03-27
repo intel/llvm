@@ -38,8 +38,6 @@ int main(int argc, char **argv) {
       "^[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}.[0-9a-fA-F]$"};
 
   for (const auto &plt : platform::get_platforms()) {
-    if (plt.has(aspect::host))
-      continue;
     for (const auto &dev : plt.get_devices()) {
       if (!dev.has(aspect::ext_intel_pci_address))
         continue;
