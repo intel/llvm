@@ -175,17 +175,9 @@ context_impl::get_info<info::context::atomic_memory_order_capabilities>()
   if (is_host())
     return CapabilityList;
 
-  for (const sycl::device &Device : MDevices) {
-    std::vector<sycl::memory_order> NewCapabilityList;
-    std::vector<sycl::memory_order> DeviceCapabilities =
-        Device.get_info<info::device::atomic_memory_order_capabilities>();
-    std::set_intersection(
-        CapabilityList.begin(), CapabilityList.end(),
-        DeviceCapabilities.begin(), DeviceCapabilities.end(),
-        std::inserter(NewCapabilityList, NewCapabilityList.begin()));
-    CapabilityList = NewCapabilityList;
-  }
-  CapabilityList.shrink_to_fit();
+  GetCapabilitiesIntersectionSet<
+      sycl::memory_order, info::device::atomic_memory_order_capabilities>(
+      MDevices, CapabilityList);
 
   return CapabilityList;
 }
@@ -200,17 +192,9 @@ context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
   if (is_host())
     return CapabilityList;
 
-  for (const sycl::device &Device : MDevices) {
-    std::vector<sycl::memory_scope> NewCapabilityList;
-    std::vector<sycl::memory_scope> DeviceCapabilities =
-        Device.get_info<info::device::atomic_memory_scope_capabilities>();
-    std::set_intersection(
-        CapabilityList.begin(), CapabilityList.end(),
-        DeviceCapabilities.begin(), DeviceCapabilities.end(),
-        std::inserter(NewCapabilityList, NewCapabilityList.begin()));
-    CapabilityList = NewCapabilityList;
-  }
-  CapabilityList.shrink_to_fit();
+  GetCapabilitiesIntersectionSet<
+      sycl::memory_scope, info::device::atomic_memory_scope_capabilities>(
+      MDevices, CapabilityList);
 
   return CapabilityList;
 }
