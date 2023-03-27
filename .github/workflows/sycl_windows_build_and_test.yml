@@ -68,14 +68,7 @@ jobs:
       shell: cmd
       # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build build --target utils/count/install
-        cmake --build build --target utils/not/install
-        cmake --build build --target utils/lit/install
-        cmake --build build --target utils/llvm-lit/install
-        cmake --build build --target install-llvm-size
-        cmake --build build --target install-llvm-cov
-        cmake --build build --target install-llvm-profdata
-        cmake --build build --target install-compiler-rt
+        cmake --build build --target sycl-toolchain
     - name: check-llvm
       shell: bash
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
@@ -104,10 +97,19 @@ jobs:
     - name: Install
       shell: bash
       run: |
-        cmake --build build --target deploy-sycl-toolchain
+        cmake --build build --target utils/count/install
+        cmake --build build --target utils/not/install
+        cmake --build build --target utils/lit/install
+        cmake --build build --target utils/llvm-lit/install
+        cmake --build build --target install-llvm-size
+        cmake --build build --target install-llvm-cov
+        cmake --build build --target install-llvm-profdata
         cmake --build build --target utils/FileCheck/install
+        cmake --build build --target install-compiler-rt
+        cmake --build build --target deploy-sycl-toolchain
+        ls ./install/bin # [UDIT]: Remove this.
         # Copy FileCheck to install/bin for use by E2E tests.
-        copy %GITHUB_WORKSPACE%\build\bin\FileCheck.exe %GITHUB_WORKSPACE%\install\bin\.
+        # copy %GITHUB_WORKSPACE%\build\bin\FileCheck.exe %GITHUB_WORKSPACE%\install\bin\.
     - name: Upload toolchain
       uses: actions/upload-artifact@v3
       with:
@@ -116,7 +118,7 @@ jobs:
 
   llvm_test_suite:
     needs: build
-    if: ${{ needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
+    if: ${{ inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       matrix:
