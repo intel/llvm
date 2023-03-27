@@ -97,6 +97,10 @@ public:
   size_t HostPipeTypeSize = 0;
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
+
+  RT::PiKernelCacheConfig MKernelCacheConfig =
+      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+
 };
 
 } // namespace detail

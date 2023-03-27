@@ -312,7 +312,8 @@ private:
   KernelSetId getKernelSetId(OSModuleHandle M,
                              const std::string &KernelName) const;
   /// Dumps image to current directory
-  void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId) const;
+  void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
+                 uint32_t SequenceID = 0) const;
 
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(OSModuleHandle M, RTDeviceBinaryImage &Img);
