@@ -30,16 +30,11 @@ class LoggerFromEnvVar : public ::testing::Test {
 
 class LoggerWithFileSink : public ::testing::Test {
   protected:
-    std::filesystem::path file_path = "ur_test_logger.log";
+    std::filesystem::path file_name = "ur_test_logger.log";
+    std::filesystem::path file_path = file_name;
     std::string logger_name = "test";
     std::string test_msg = "<" + logger_name + ">";
     std::unique_ptr<logger::Logger> logger;
-
-    void SetUp() override {
-        logger = std::make_unique<logger::Logger>(
-            logger::Level::WARN,
-            std::make_unique<logger::FileSink>(logger_name, file_path));
-    }
 
     void TearDown() override {
         logger.reset();
@@ -50,8 +45,17 @@ class LoggerWithFileSink : public ::testing::Test {
         printed_msg << test_log.rdbuf();
         test_log.close();
 
-        std::filesystem::remove(file_path);
+        ASSERT_GT(std::filesystem::remove_all(*file_path.begin()), 0);
         ASSERT_EQ(printed_msg.str(), test_msg);
+    }
+};
+
+class DefaultLoggerWithFileSink : public LoggerWithFileSink {
+  protected:
+    void SetUp() override {
+        logger = std::make_unique<logger::Logger>(
+            logger::Level::WARN,
+            std::make_unique<logger::FileSink>(logger_name, file_path));
     }
 };
 
