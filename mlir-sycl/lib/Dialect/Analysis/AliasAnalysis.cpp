@@ -30,15 +30,14 @@ static bool isFuncArg(Value val) {
 }
 
 // Return true if the value \p val is a function argument that has the
-// 'local_alias_analysis.restrict' attribute, and false otherwise.
+// 'llvm.noalias' attribute, and false otherwise.
 static bool isRestrict(Value val) {
   if (!isFuncArg(val))
     return false;
 
   auto blockArg = cast<BlockArgument>(val);
   auto func = cast<FunctionOpInterface>(blockArg.getOwner()->getParentOp());
-  return !!func.getArgAttr(blockArg.getArgNumber(),
-                           "local_alias_analysis.restrict");
+  return !!func.getArgAttr(blockArg.getArgNumber(), "llvm.noalias");
 }
 
 // Return true is the given type \p ty is a MemRef type with a SYCL element
