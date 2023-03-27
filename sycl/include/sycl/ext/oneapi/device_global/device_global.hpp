@@ -44,7 +44,7 @@ template <typename T, typename PropertyListT, typename = void>
 class device_global_base {
 protected:
   using pointer_t = typename decorated_global_ptr<T>::pointer;
-  pointer_t usmptr{};
+  mutable pointer_t usmptr{};
   pointer_t get_ptr() noexcept { return usmptr; }
   const pointer_t get_ptr() const noexcept { return usmptr; }
 
