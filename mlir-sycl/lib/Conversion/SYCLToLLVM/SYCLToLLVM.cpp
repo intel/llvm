@@ -593,7 +593,7 @@ public:
     const Value arraySize = rewriter.create<arith::ConstantIntOp>(loc, 1, 32);
     const Value alloca = rewriter.create<LLVM::AllocaOp>(
         loc, LLVM::LLVMPointerType::get(elTy), elTy, arraySize);
-    const auto structMemberTy = rewriter.getI64Type();
+    const auto structMemberTy = getTypeConverter()->getIndexType();
     const auto dimTy = rewriter.getIndexType();
     for (unsigned i = 0,
                   dimensions = getDimensions(op->getOperand(0).getType());
@@ -1092,7 +1092,7 @@ private:
   Value getTotalOffset(OpBuilder &builder, Location loc, AccessorType accTy,
                        OpAdaptor opAdaptor) const {
     const auto acc = opAdaptor.getAcc();
-    const auto resTy = builder.getI64Type();
+    const auto resTy = getTypeConverter()->getIndexType();
     Value res = builder.create<arith::ConstantIntOp>(loc, 0, resTy);
     for (unsigned i = 0; i < accTy.getDimension(); ++i) {
       // Res = Res * Mem[I] + Id[I]
@@ -1109,7 +1109,8 @@ public:
   matchAndRewrite(SYCLAccessorGetPointerOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const final {
     const auto loc = op.getLoc();
-    const Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, 64);
+    const auto indexTy = getTypeConverter()->getIndexType();
+    const Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, indexTy);
     Value index = rewriter.create<arith::SubIOp>(
         loc, zero,
         getTotalOffset(
@@ -1211,8 +1212,8 @@ public:
                        OpAdaptor opAdaptor) const {
     const auto id = opAdaptor.getIndex();
     const auto acc = opAdaptor.getAcc();
-    // int64_t Res{0};
-    const auto resTy = builder.getI64Type();
+    // size_t Res{0};
+    const auto resTy = getTypeConverter()->getIndexType();
     Value res = builder.create<arith::ConstantIntOp>(loc, 0, resTy);
     for (unsigned i = 0, dim = accTy.getDimension(); i < dim; ++i) {
       // Res = Res * Mem[I] + Id[I]
@@ -1299,7 +1300,8 @@ public:
     subscript = rewriter.create<LLVM::InsertValueOp>(
         loc, subscript, opAdaptor.getIndex(), ArrayRef<int64_t>{0, 0, 0, 0});
     // Zero-initialize rest of the offset id<Dim - 1>
-    const Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, 64);
+    const auto indexTy = getTypeConverter()->getIndexType();
+    const Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, indexTy);
     for (unsigned i = 1, dim = getDimensions(op.getAcc().getType()) - 1;
          i < dim; ++i) {
       subscript = rewriter.create<LLVM::InsertValueOp>(
@@ -1437,22 +1439,22 @@ public:
     const auto loc = op.getLoc();
     const auto nd = opAdaptor.getND();
     const auto rangeTy = op.getType();
+    const auto indexTy = getTypeConverter()->getIndexType();
     Value alloca = rewriter.create<LLVM::AllocaOp>(
         loc,
         LLVM::LLVMPointerType::get(getTypeConverter()->convertType(rangeTy)),
-        rewriter.create<arith::ConstantIntOp>(loc, 1, 64),
+        rewriter.create<arith::ConstantIntOp>(loc, 1, indexTy),
         /*alignment*/ 0);
-    const auto i64Ty = rewriter.getI64Type();
     for (int32_t i = 0, dim = rangeTy.getDimension(); i < dim; ++i) {
       const auto lhs =
           GetMemberPattern<NDRangeGetGlobalRange, RangeGetDim>::loadValue(
-              rewriter, loc, i64Ty, nd, i);
+              rewriter, loc, indexTy, nd, i);
       const auto rhs =
           GetMemberPattern<NDRangeGetLocalRange, RangeGetDim>::loadValue(
-              rewriter, loc, i64Ty, nd, i);
+              rewriter, loc, indexTy, nd, i);
       const Value val = rewriter.create<arith::DivUIOp>(loc, lhs, rhs);
       const auto ptr = GetMemberPattern<RangeGetDim>::getRef(
-          rewriter, loc, i64Ty, alloca, std::nullopt, i);
+          rewriter, loc, indexTy, alloca, std::nullopt, i);
       rewriter.create<LLVM::StoreOp>(loc, val, ptr);
     }
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
@@ -2210,6 +2212,8 @@ namespace {
 ///    pass is performed in several steps.
 class ConvertSYCLToLLVMPass
     : public impl::ConvertSYCLToLLVMBase<ConvertSYCLToLLVMPass> {
+  using Base::Base;
+
 public:
   void runOnOperation() override;
 
@@ -2225,10 +2229,11 @@ LogicalResult ConvertSYCLToLLVMPass::convertToSPIRV() {
 
   auto &context = getContext();
   auto module = getOperation();
+  const unsigned int bitIndex = this->indexBitwidth.getValue();
 
   const auto res = failure(
       module
-          .walk([&context](gpu::GPUModuleOp gpuModule) {
+          .walk([&context, bitIndex](gpu::GPUModuleOp gpuModule) {
             // We walk the different GPU modules looking for different SPIRV
             // target environment definitions. Currently, this does not affect
             // the behavior of this pass.
@@ -2237,8 +2242,9 @@ LogicalResult ConvertSYCLToLLVMPass::convertToSPIRV() {
             auto targetAttr = spirv::lookupTargetEnvOrDefault(gpuModule);
             auto target = SPIRVConversionTarget::get(targetAttr);
             SPIRVConversionOptions options;
-            // TODO: Add 32 bits support.
-            options.use64bitIndex = true;
+            options.use64bitIndex =
+                (bitIndex == kDeriveIndexBitwidthFromDataLayout ||
+                 bitIndex == 64);
             SPIRVTypeConverter typeConverter{targetAttr, options};
 
             populateGPUToSPIRVPatterns(typeConverter, patterns);
@@ -2314,6 +2320,8 @@ LogicalResult ConvertSYCLToLLVMPass::convertToLLVM(bool lastRun) {
 
   LowerToLLVMOptions options(&context);
   options.useBarePtrCallConv = true;
+  if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
+    options.overrideIndexBitwidth(indexBitwidth);
   LLVMTypeConverter converter(&context, options);
 
   RewritePatternSet patterns(&context);
