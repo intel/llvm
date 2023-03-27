@@ -286,7 +286,7 @@ ur_result_t _ur_platform_handle_t::initialize() {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urPlatformGet(
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
     uint32_t NumEntries, ///< [in] the number of platforms to be added to
                          ///< phPlatforms. If phPlatforms is not NULL, then
                          ///< NumEntries should be greater than zero, otherwise
@@ -403,7 +403,7 @@ ur_result_t urPlatformGet(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urPlatformGetInfo(
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
     ur_platform_handle_t Platform, ///< [in] handle of the platform
     ur_platform_info_t ParamName,  ///< [in] type of the info to retrieve
     size_t Size,      ///< [in] the number of bytes pointed to by pPlatformInfo.
@@ -457,7 +457,7 @@ ur_result_t urPlatformGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urDeviceGet(
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance
     ur_device_type_t DeviceType,   ///< [in] the type of the devices.
     uint32_t NumEntries, ///< [in] the number of devices to be added to
@@ -534,7 +534,7 @@ ur_result_t urDeviceGet(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urDeviceGetInfo(
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     ur_device_handle_t Device,  ///< [in] handle of the device instance
     ur_device_info_t ParamName, ///< [in] type of the info to retrieve
     size_t propSize,  ///< [in] the number of bytes pointed to by pDeviceInfo.
@@ -1660,7 +1660,7 @@ void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
   ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
 }
 
-ur_result_t urDevicePartition(
+UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     ur_device_handle_t Device, ///< [in] handle of the device to partition.
     const ur_device_partition_property_t
         *Properties, ///< [in] null-terminated array of <$_device_partition_t
@@ -1741,9 +1741,3 @@ ur_result_t urDevicePartition(
   }
   return UR_RESULT_SUCCESS;
 }
-
-ur_result_t urInit(ur_device_init_flags_t device_flags) {
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urTearDown(void *pParams) { return UR_RESULT_SUCCESS; }
