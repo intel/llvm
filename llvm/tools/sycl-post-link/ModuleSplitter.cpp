@@ -891,6 +891,12 @@ void DeviceCodeSplitRulesBuilder::registerSimpleStringAttributeRule(
   Rules.push_back(Rule::get<SimpleStringAttrRuleData>(Attr));
 }
 
+void DeviceCodeSplitRulesBuilder::registerSimpleFlagAttributeRule(
+    StringRef Attr, StringRef TrueStr, StringRef FalseStr) {
+  Rules.push_back(
+      Rule::get<FlagAttributeRuleData>(TrueStr, FalseStr, Attr));
+}
+
 void DeviceCodeSplitRulesBuilder::registerSimpleFlagMetadataRule(
     StringRef TrueStr, StringRef FalseStr, StringRef MetadataName) {
   Rules.push_back(
@@ -931,6 +937,14 @@ std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
         for (const MDOperand &MDOp : MDN->operands())
           Result += std::to_string(
               mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+      }
+    } break;
+    case RuleKind::FLAG_ATTR: {
+      auto AttrName = R.getFlagAttributeRuleData().AttrName;
+      if (F->hasFnAttribute(AttrName)) {
+        Result += R.getFlagAttributeRuleData().TrueStr;
+      } else {
+        Result += R.getFlagAttributeRuleData().FalseStr;
       }
     } break;
     }
@@ -974,6 +988,79 @@ getSplitterByRules(ModuleDesc &&MD, const DeviceCodeSplitRulesBuilder &Rules,
       // if (Features.UsesLargeGRF)
       //   MDProps.UsesLargeGRF = true;
       Groups.emplace_back(Name, std::move(EntryPoints), MDProps);
+    }
+  }
+
+  if (Groups.size() > 1)
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
+  else
+    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+}
+
+std::unique_ptr<ModuleSplitterBase>
+getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode,
+                      bool EmitOnlyKernelsAsEntryPoints) {
+  DeviceCodeSplitRulesBuilder RulesBuilder;
+
+  EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(
+      MD.getModule(), Mode, /* AutoSplitIsGlobalScope */ false);
+
+  if (Scope == Scope_Global) {
+    // We simply perform entry points filtering, but group all of them together.
+    RulesBuilder.registerRule([](Function *) -> std::string {
+      return GLOBAL_SCOPE_NAME;
+    });
+  } else if (Scope == Scope_PerKernel) {
+    // Per-kernel split is quite simple: every kernel goes into a separate
+    // module and that's it, no other rules required.
+    RulesBuilder.registerRule([](Function *F) -> std::string {
+      return F->getName().str();
+    });
+  } else if (Scope == Scope_PerModule) {
+    // The most complex case, because we should account for many other features
+    // like aspects used in a kernel, large-grf mode, reqd-work-group-size, etc.
+
+    // This is core of per-source device code split
+    RulesBuilder.registerSimpleStringAttributeRule("sycl-module-id");
+
+    // Optional features
+    RulesBuilder.registerSimpleFlagAttributeRule(::sycl::kernel_props::ATTR_LARGE_GRF, "large-grf");
+    RulesBuilder.registerListOfIntegersInMetadataRule("sycl_used_aspects");
+    RulesBuilder.registerListOfIntegersInMetadataRule("reqd_work_group_size");
+
+  } else {
+    llvm_unreachable("Unexpected split scope");
+  }
+
+  // std::map is used here to ensure stable ordering of entry point groups,
+  // which is based on their contents, this greatly helps LIT tests
+  std::map<std::string, EntryPointSet> EntryPointsMap;
+
+  // Only process module entry points:
+  for (auto &F : MD.getModule().functions()) {
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
+      continue;
+
+    std::string Key = RulesBuilder.executeRules(&F);
+    EntryPointsMap[std::move(Key)].insert(&F);
+  }
+
+  EntryPointGroupVec Groups;
+
+  if (EntryPointsMap.empty()) {
+    // No entry points met, record this.
+    Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
+  } else {
+    Groups.reserve(EntryPointsMap.size());
+    for (auto &It : EntryPointsMap) {
+      EntryPointSet &EntryPoints = It.second;
+
+      // Start with properties of a source module
+      EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
+      // FIXME: Propagate LargeGRF flag to entry points group
+      // if (Features.UsesLargeGRF)
+      //  MDProps.UsesLargeGRF = true;
+      Groups.emplace_back(It.first, std::move(EntryPoints), MDProps);
     }
   }
 

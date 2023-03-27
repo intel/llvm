@@ -260,6 +260,10 @@ public:
 
   // Creates a simple rule, which adds one or another value to a resulting
   // identifier based on a presence of a metadata on a function.
+  void registerSimpleFlagAttributeRule(StringRef, StringRef, StringRef = "");
+
+  // Creates a simple rule, which adds one or another value to a resulting
+  // identifier based on a presence of a metadata on a function.
   void registerSimpleFlagMetadataRule(StringRef, StringRef, StringRef);
 
   // Creates a rule, which adds a list of dash-separated integers converted
@@ -268,7 +272,7 @@ public:
 
 private:
   enum class RuleKind {
-    CALLBACK, SIMPLE_STRING_ATTR, FLAG_METADATA, INTEGERS_LIST_METADATA
+    CALLBACK, SIMPLE_STRING_ATTR, FLAG_METADATA, INTEGERS_LIST_METADATA, FLAG_ATTR
   };
 
   struct CallbackRuleData {
@@ -289,6 +293,12 @@ private:
     StringRef TrueStr, FalseStr, MetadataName;
   };
 
+  struct FlagAttributeRuleData {
+    constexpr static auto Kind = RuleKind::FLAG_ATTR;
+    FlagAttributeRuleData() = default;
+    StringRef TrueStr, FalseStr, AttrName;
+  };
+
   struct IntegersListMetadataRuleData {
     constexpr static auto Kind = RuleKind::INTEGERS_LIST_METADATA;
     IntegersListMetadataRuleData() = default;
@@ -300,6 +310,7 @@ private:
     std::array<std::byte, std::max({sizeof(CallbackRuleData),
                                     sizeof(SimpleStringAttrRuleData),
                                     sizeof(FlagMetadataRuleData),
+                                    sizeof(FlagAttributeRuleData),
                                     sizeof(IntegersListMetadataRuleData)})>
         Storage;
     public:
@@ -332,6 +343,11 @@ private:
       assert(Kind == RuleKind::INTEGERS_LIST_METADATA);
       return *reinterpret_cast<const IntegersListMetadataRuleData *>(Storage.data());
     }
+
+    FlagAttributeRuleData getFlagAttributeRuleData() const {
+      assert(Kind == RuleKind::FLAG_ATTR);
+      return *reinterpret_cast<const FlagAttributeRuleData *>(Storage.data());
+    }
   };
 
   std::vector<Rule> Rules;
@@ -340,6 +356,10 @@ private:
 std::unique_ptr<ModuleSplitterBase>
 getSplitterByRules(ModuleDesc &&MD, const DeviceCodeSplitRulesBuilder &Rules,
                    bool EmitOnlyKernelsAsEntryPoints);
+
+std::unique_ptr<ModuleSplitterBase>
+getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode,
+                      bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
 getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);

@@ -759,60 +759,19 @@ processInputModule(std::unique_ptr<Module> M) {
           (SplitMode == module_split::SPLIT_AUTO)) &&
          "invalid split mode for IR-only output");
 
-  // Top-level per-kernel/per-source splitter. SYCL/ESIMD splitting is applied
-  // to modules resulting from all other kinds of splitting.
-  std::unique_ptr<module_split::ModuleSplitterBase> ScopedSplitter =
-      module_split::getSplitterByMode(module_split::ModuleDesc{std::move(M)},
-                                      SplitMode, IROutputOnly,
-                                      EmitOnlyKernelsAsEntryPoints);
-
-  SmallVector<module_split::ModuleDesc, 8> TopLevelModules;
+  // FIXME: handle IROutputOnly
+  std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
+      module_split::getDeviceCodeSplitter(module_split::ModuleDesc{std::move(M)},
+                                      SplitMode, EmitOnlyKernelsAsEntryPoints);
+  const bool Split = Splitter->remainingSplits() > 1;
+  Modified |= Split;
 
   // FIXME: this check should be performed on all split levels
   if (DeviceGlobals)
-    ScopedSplitter->verifyNoCrossModuleDeviceGlobalUsage();
+    Splitter->verifyNoCrossModuleDeviceGlobalUsage();
 
-  const bool SplitByScope = ScopedSplitter->remainingSplits() > 1;
-  bool SplitByOptionalFeatures = false;
-
-  while (ScopedSplitter->hasMoreSplits()) {
-    module_split::ModuleDesc MD = ScopedSplitter->nextSplit();
-
-    if (IROutputOnly || SplitMode == module_split::SPLIT_NONE) {
-      // We can't perform any kind of split.
-      TopLevelModules.emplace_back(std::move(MD));
-      continue;
-    }
-
-    std::unique_ptr<module_split::ModuleSplitterBase> OptionalFeaturesSplitter =
-        module_split::getSplitterByOptionalFeatures(
-            std::move(MD), EmitOnlyKernelsAsEntryPoints);
-
-    // Here we perform second-level splitting based on device-specific
-    // features used/declared in entry points.
-    // This step is mandatory, because it is required for functional
-    // correctness, i.e. to prevent speculative compilation of kernels that use
-    // optional features on a HW which doesn't support them.
-    SplitByOptionalFeatures |= OptionalFeaturesSplitter->remainingSplits() > 1;
-
-    while (OptionalFeaturesSplitter->hasMoreSplits()) {
-      TopLevelModules.emplace_back(OptionalFeaturesSplitter->nextSplit());
-    }
-  }
-
-  Modified |= SplitByScope;
-  Modified |= SplitByOptionalFeatures;
-
-  // TODO this nested splitting scheme will not scale well when other split
-  // "dimensions" will be added. Some infra/"split manager" needs to be
-  // implemented in this case - e.g. all needed splitters are registered, then
-  // split manager applies them in the order added and runs needed tforms on the
-  // "leaf" ModuleDesc's resulted from splitting. Some bookkeeping is needed for
-  // ESIMD splitter to link back needed modules.
-
-  // Based on results from the top-level splitting, we perform some lower-level
-  // splitting for various unique features.
-  for (module_split::ModuleDesc &MDesc : TopLevelModules) {
+  while (Splitter->hasMoreSplits()) {
+    module_split::ModuleDesc MDesc = Splitter->nextSplit();
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
@@ -829,7 +788,7 @@ processInputModule(std::unique_ptr<Module> M) {
     const bool SplitByESIMD = ESIMDSplitter->remainingSplits() > 1;
     Modified |= SplitByESIMD;
 
-    if (SplitByESIMD && SplitByScope &&
+    if (SplitByESIMD && Split &&
         (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
       // Controversial state reached - SYCL and ESIMD entry points resulting
       // from SYCL/ESIMD split (which is done always) are linked back, since
@@ -874,8 +833,7 @@ processInputModule(std::unique_ptr<Module> M) {
       Modified = true;
     }
 
-    bool SplitOccurred =
-        SplitByScope || SplitByESIMD || SplitByOptionalFeatures;
+    bool SplitOccurred = Split || SplitByESIMD;
 
     if (IROutputOnly) {
       if (SplitOccurred) {
