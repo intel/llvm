@@ -22,7 +22,13 @@ runs:
     uses: actions/download-artifact@v3
     with:
       name: ${{ inputs.sycl_artifact }}
-      path: install
+  - name: Extract SYCL toolchain
+    shell: bash
+    run: |
+      mkdir install
+      ls
+      tar -xf llvm_sycl.tar.xz -C install
+      ls install/.
   - name: Configure
     shell: cmd
     run: |

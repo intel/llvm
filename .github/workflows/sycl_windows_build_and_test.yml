@@ -112,13 +112,12 @@ jobs:
     - name: Pack toolchain
       shell: bash
       run: |
-        gzip ./install
-        ls
+        tar -cJf llvm_sycl.tar.xz -C install .
     - name: Upload toolchain
       uses: actions/upload-artifact@v3
       with:
         name: sycl_windows_default
-        path: install
+        path: llvm_sycl.tar.xz
 
   llvm_test_suite:
     needs: build
