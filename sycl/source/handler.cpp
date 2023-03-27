@@ -198,9 +198,10 @@ event handler::finalize() {
                 nullptr);
             Result = PI_SUCCESS;
           } else {
-            Result = enqueueImpKernel(
-                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-                MKernelName, MOSModuleHandle, RawEvents, OutEvent, nullptr);
+            Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs,
+                                      KernelBundleImpPtr, MKernel, MKernelName,
+                                      MOSModuleHandle, RawEvents, OutEvent,
+                                      nullptr, MImpl->MKernelCacheConfig);
           }
         }
         return Result;
@@ -253,7 +254,8 @@ event handler::finalize() {
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), std::move(MArgs),
         MKernelName, MOSModuleHandle, std::move(MStreamStorage),
-        std::move(MImpl->MAuxiliaryResources), MCGType, MCodeLoc));
+        std::move(MImpl->MAuxiliaryResources), MCGType,
+        MImpl->MKernelCacheConfig, MCodeLoc));
     break;
   }
   case detail::CG::CodeplayInteropTask:
@@ -880,6 +882,11 @@ void handler::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
   return MQueue->getContextImplPtr();
+}
+
+void handler::setKernelCacheConfig(
+    detail::RT::PiKernelCacheConfig Config) {
+  MImpl->MKernelCacheConfig = Config;
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

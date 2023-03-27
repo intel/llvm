@@ -29,7 +29,7 @@ static pi_result ur2piResult(ur_result_t urResult) {
       {UR_RESULT_ERROR_INVALID_FUNCTION_NAME, PI_ERROR_BUILD_PROGRAM_FAILURE},
       {UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE,
        PI_ERROR_INVALID_WORK_GROUP_SIZE},
-      {UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE, PI_ERROR_BUILD_PROGRAM_FAILURE},
+      {UR_RESULT_ERROR_MODULE_BUILD_FAILURE, PI_ERROR_BUILD_PROGRAM_FAILURE},
       {UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY, PI_ERROR_OUT_OF_RESOURCES},
       {UR_RESULT_ERROR_OUT_OF_HOST_MEMORY, PI_ERROR_OUT_OF_HOST_MEMORY}};
 
@@ -252,7 +252,6 @@ namespace pi2ur {
 inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                                 pi_uint32 *num_platforms) {
 
-  urInit(0);
   uint32_t Count = num_entries;
   auto phPlatforms = reinterpret_cast<ur_platform_handle_t *>(platforms);
   HANDLE_ERRORS(urPlatformGet(Count, phPlatforms, num_platforms));
