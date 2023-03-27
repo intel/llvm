@@ -25,7 +25,7 @@ namespace ext {
 namespace oneapi {
 struct sub_group;
 namespace experimental {
-template <typename ParentGroup> struct ballot_group;
+template <typename ParentGroup> class ballot_group;
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
