@@ -55,7 +55,6 @@ runs:
       export PATH=$PWD/toolchain/bin/:$PATH
       # TODO: Rename check_sycl_all input
       cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ inputs.cmake_args }}
-      cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ inputs.cmake_args }}
       echo "::endgroup::"
   - name: Run testing
     shell: bash
@@ -85,10 +84,7 @@ runs:
       echo $LD_LIBRARY_PATH
       SYCL_PI_TRACE=-1 sycl-ls
       echo "::endgroup::"
-      echo "::group::SYCL In-Tree End-to-End tests"
       ninja -C build-e2e check-sycl-e2e
-      echo "::endgroup::"
-      ninja -C build check-sycl-all
   - name: Upload test results
     uses: actions/upload-artifact@v1
     if: always()
