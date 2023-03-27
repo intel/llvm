@@ -8131,6 +8131,13 @@ TreeTransform<Derived>::TransformCoroutineBodyStmt(CoroutineBodyStmt *S) {
       return StmtError();
     Builder.Deallocate = DeallocRes.get();
 
+    if (auto *ResultDecl = S->getResultDecl()) {
+      StmtResult Res = getDerived().TransformStmt(ResultDecl);
+      if (Res.isInvalid())
+        return StmtError();
+      Builder.ResultDecl = Res.get();
+    }
+
     if (auto *ReturnStmt = S->getReturnStmt()) {
       StmtResult Res = getDerived().TransformStmt(ReturnStmt);
       if (Res.isInvalid())

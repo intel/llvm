@@ -124,6 +124,8 @@ Non-comprehensive list of changes in this release
 - Clang now supports ``__builtin_FILE_NAME()`` which returns the same
   information as the ``__FILE_NAME__`` macro (the presumed file name
   from the invocation point, with no path components included).
+- Clang now supports ``__builtin_assume_separate_storage`` that indicates that
+  its arguments point to objects in separate storage allocations.
 
 New Compiler Flags
 ------------------
@@ -219,6 +221,14 @@ Bug Fixes in This Version
 - Fix crash when using ``[[clang::always_inline]]`` or ``[[clang::noinline]]``
   statement attributes on a call to a template function in the body of a
   template function.
+- Fix coroutines issue where ``get_return_object()`` result was always eargerly
+  converted to the return type. Eager initialization (allowing RVO) is now only
+  perfomed when these types match, otherwise deferred initialization is used,
+  enabling short-circuiting coroutines use cases. This fixes
+  (`#56532 <https://github.com/llvm/llvm-project/issues/56532>`_) in
+  antecipation of `CWG2563 <https://cplusplus.github.io/CWG/issues/2563.html>_`.
+- Fix highlighting issue with ``_Complex`` and initialization list with more than
+  2 items. (`#61518 <https://github.com/llvm/llvm-project/issues/61518>`_)
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

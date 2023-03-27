@@ -112,9 +112,26 @@ protected:
   Expected<std::pair<Linkage, Scope>>
   getSymbolLinkageAndScope(const typename ELFT::Sym &Sym, StringRef Name);
 
+  /// Set the target flags on the given Symbol.
+  virtual TargetFlagsType makeTargetFlags(const typename ELFT::Sym &Sym) {
+    return TargetFlagsType{};
+  }
+
+  /// Get the physical offset of the symbol on the target platform.
+  virtual orc::ExecutorAddrDiff getRawOffset(const typename ELFT::Sym &Sym,
+                                             TargetFlagsType Flags) {
+    return Sym.getValue();
+  }
+
   Error prepare();
   Error graphifySections();
   Error graphifySymbols();
+
+  /// Override in derived classes to suppress certain sections in the link
+  /// graph.
+  virtual bool excludeSection(const typename ELFT::Shdr &Sect) const {
+    return false;
+  }
 
   /// Traverse all matching ELFT::Rela relocation records in the given section.
   /// The handler function Func should be callable with this signature:
@@ -310,6 +327,13 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySections() {
     auto Name = Obj.getSectionName(Sec, SectionStringTab);
     if (!Name)
       return Name.takeError();
+    if (excludeSection(Sec)) {
+      LLVM_DEBUG({
+        dbgs() << "    " << SecIndex << ": Skipping section \"" << *Name
+               << "\" explicitly\n";
+      });
+      continue;
+    }
 
     // Skip null sections.
     if (Sec.sh_type == ELF::SHT_NULL) {
@@ -478,6 +502,9 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySymbols() {
                  << "\"\n";
         });
 
+        TargetFlagsType Flags = makeTargetFlags(Sym);
+        orc::ExecutorAddrDiff Offset = getRawOffset(Sym, Flags);
+
         // In RISCV, temporary symbols (Used to generate dwarf, eh_frame
         // sections...) will appear in object code's symbol table, and LLVM does
         // not use names on these temporary symbols (RISCV gnu toolchain uses
@@ -485,10 +512,13 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySymbols() {
         // anonymous symbol.
         auto &GSym =
             Name->empty()
-                ? G->addAnonymousSymbol(*B, Sym.getValue(), Sym.st_size,
+                ? G->addAnonymousSymbol(*B, Offset, Sym.st_size,
                                         false, false)
-                : G->addDefinedSymbol(*B, Sym.getValue(), *Name, Sym.st_size, L,
-                                      S, Sym.getType() == ELF::STT_FUNC, false);
+                : G->addDefinedSymbol(*B, Offset, *Name, Sym.st_size, L,
+                                      S, Sym.getType() == ELF::STT_FUNC,
+                                      false);
+
+        GSym.setTargetFlags(Flags);
         setGraphSymbol(SymIndex, GSym);
       }
     } else if (Sym.isUndefined() && Sym.isExternal()) {
@@ -547,6 +577,10 @@ Error ELFLinkGraphBuilder<ELFT>::forEachRelaRelocation(
     LLVM_DEBUG(dbgs() << "    skipped (dwarf section)\n\n");
     return Error::success();
   }
+  if (excludeSection(**FixupSection)) {
+    LLVM_DEBUG(dbgs() << "    skipped (fixup section excluded explicitly)\n\n");
+    return Error::success();
+  }
 
   // Lookup the link-graph node corresponding to the target section name.
   auto *BlockToFix = getGraphBlock(RelSect.sh_info);
@@ -591,6 +625,10 @@ Error ELFLinkGraphBuilder<ELFT>::forEachRelRelocation(
   // Consider skipping these relocations.
   if (!ProcessDebugSections && isDwarfSection(*Name)) {
     LLVM_DEBUG(dbgs() << "    skipped (dwarf section)\n\n");
+    return Error::success();
+  }
+  if (excludeSection(**FixupSection)) {
+    LLVM_DEBUG(dbgs() << "    skipped (fixup section excluded explicitly)\n\n");
     return Error::success();
   }
 
