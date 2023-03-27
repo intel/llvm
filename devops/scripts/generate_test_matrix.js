@@ -51,11 +51,11 @@ module.exports = ({core, process}) => {
             v["env"] = {};
           }
           if (v["runs-on"].includes("Windows"))
-             enabledLTSWnConfigs.push(v);
+            enabledLTSWnConfigs.push(v);
           else if (v["runs-on"].includes("Linux"))
-             enabledLTSLxConfigs.push(v);
+            enabledLTSLxConfigs.push(v);
           else
-             console.error("runs-on OS is not recognized");
+            console.error("runs-on OS is not recognized");
           if (v["aws-type"]) enabledLTSAWSConfigs.push(v);
         }
       });
@@ -72,7 +72,8 @@ module.exports = ({core, process}) => {
 
       // drivers update is supported on Linux only
       for (let [key, value] of Object.entries(inputs)) {
-        ltsLxString = ltsLxString.replaceAll("${{ inputs." + key + " }}", value);
+        ltsLxString =
+            ltsLxString.replaceAll("${{ inputs." + key + " }}", value);
         ltsAWSString = ltsAWSString.replaceAll("${{ inputs." + key + " }}", value);
       }
       if (needsDrivers) {
