@@ -1863,6 +1863,28 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
+  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // SYCL2020 4.6.4.2 minimum mandated capabilities for
+    // atomic_fence/memory_scope_capabilities.
+    // Because scopes are hierarchical, wider scopes support all narrower
+    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+    pi_memory_scope_capabilities capabilities = PI_MEMORY_SCOPE_WORK_ITEM |
+                                                PI_MEMORY_SCOPE_SUB_GROUP |
+                                                PI_MEMORY_SCOPE_WORK_GROUP;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   capabilities);
+  }
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+    // SYCL2020 4.6.4.2 minimum mandated capabilities for
+    // atomic_fence_order_capabilities.
+    pi_memory_order_capabilities capabilities =
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   capabilities);
+  }
 
   case PI_DEVICE_INFO_DEVICE_ID: {
     int value = 0;
@@ -1889,9 +1911,6 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 
   // TODO: Investigate if this information is available on HIP.
-  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
