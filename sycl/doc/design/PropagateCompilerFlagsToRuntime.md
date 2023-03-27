@@ -52,7 +52,7 @@ The following table specifies the appropriate backend options for level-zero and
 This chapter discusses changes required in various stages of the compilation pipeline.
 
 
-### Changes to the DPC++ front-end
+### Changes to the clang front-end
 
 For each SYCL kernel, we add a new function attribute that is named `sycl-optlevel`. Value of this attribute is set to the optimization level which was used to compile the overlying module.
 
