@@ -1121,6 +1121,11 @@ inline pi_result mock_piPluginGetLastError(char **message) {
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piPluginGetBackendOptimizationOption(int opt_level,
+                                                           char **option) {
+  return PI_SUCCESS;
+}
+
 // Returns the wall-clock timestamp of host for deviceTime and hostTime
 inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
                                               uint64_t *deviceTime,

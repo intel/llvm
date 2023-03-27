@@ -132,6 +132,18 @@ pi_result hip_piPluginGetLastError(char **message) {
   return ErrorMessageCode;
 }
 
+// Optimization strings
+char EmptyStr[2] = "";
+
+// Returns plugin specific backend optimization option.
+// Return empty string for hip.
+// TODO: Determine correct string to be passed.
+pi_result hip_piPluginGetBackendOptimizationOption(int opt_level,
+                                                   char **backend_option) {
+  *backend_option = EmptyStr;
+  return PI_SUCCESS;
+}
+
 // Iterates over the event wait list, returns correct pi_result error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a pi_result.
@@ -5535,6 +5547,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOptimizationOption,
+         hip_piPluginGetBackendOptimizationOption)
 
 #undef _PI_CL
 

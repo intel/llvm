@@ -167,6 +167,18 @@ pi_result piPluginGetLastError(char **message) {
   return ErrorMessageCode;
 }
 
+// Optimization strings
+char EmptyStr[2] = "";
+
+// Returns plugin specific backend optimization option.
+// Return empty string for esimd emulator.
+// TODO: Determine correct string to be passed.
+pi_result piPluginGetBackendOptimizationOption(int opt_level,
+                                               char **backend_option) {
+  *backend_option = &EmptyStr[0];
+  return PI_SUCCESS;
+}
+
 using IDBuilder = sycl::detail::Builder;
 
 template <int NDims>

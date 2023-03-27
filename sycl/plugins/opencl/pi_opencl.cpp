@@ -93,6 +93,20 @@ pi_result piPluginGetLastError(char **message) {
   return ErrorMessageCode;
 }
 
+// Optimization strings
+char EmptyStr[2] = "";
+char NoOptStr[16] = "-cl-opt-disable";
+
+// Returns plugin specific backend optimization option.
+// Return '-cl-opt-disable' for opt_level = 0 and '' for others.
+pi_result piPluginGetBackendOptimizationOption(int opt_level,
+                                               char **backend_option) {
+  *backend_option = EmptyStr;
+  if (opt_level == 0)
+    *backend_option = NoOptStr;
+  return PI_SUCCESS;
+}
+
 static cl_int getPlatformVersion(cl_platform_id plat,
                                  OCLV::OpenCLVersion &version) {
   cl_int ret_err = CL_INVALID_VALUE;
@@ -2095,6 +2109,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOptimizationOption,
+         piPluginGetBackendOptimizationOption)
 
 #undef _PI_CL
 

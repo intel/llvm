@@ -80,6 +80,18 @@ pi_result cuda_piPluginGetLastError(char **message) {
   return ErrorMessageCode;
 }
 
+// Optimization strings
+char EmptyStr[2] = "";
+
+// Returns plugin specific backend optimization option.
+// Return empty string for cuda.
+// TODO: Determine correct string to be passed.
+pi_result cuda_piPluginGetBackendOptimizationOption(int opt_level,
+                                                    char **backend_option) {
+  *backend_option = &EmptyStr[0];
+  return PI_SUCCESS;
+}
+
 // Iterates over the event wait list, returns correct pi_result error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a pi_result.
@@ -5743,6 +5755,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
+  _PI_CL(piPluginGetBackendOptimizationOption,
+         cuda_piPluginGetBackendOptimizationOption)
 
 #undef _PI_CL
 

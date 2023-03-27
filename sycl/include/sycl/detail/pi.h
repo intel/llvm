@@ -1954,6 +1954,16 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 /// timestamp
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 
+/// API to get backend specific optimization option.
+/// \param opt_level is an integer that contains frontend optimization level.
+/// \param backend_option is used to return the backend optimization option
+/// corresponding to frontend optimization level.
+///
+/// \return PI_SUCCESS is returned always. If a valid option is not
+/// available, an empty string is returned.
+__SYCL_EXPORT pi_result
+piPluginGetBackendOptimizationOption(int opt_level, char **backend_option);
+
 /// Queries  device for it's global timestamp in nanoseconds, and updates
 /// HostTime  with the value of the host timer at the closest possible point in
 /// time to that at which DeviceTime was returned.

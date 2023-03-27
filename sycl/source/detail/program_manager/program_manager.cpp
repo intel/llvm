@@ -410,26 +410,19 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
   // Add optimization flags
-  if (Plugin.getBackend() == backend::ext_oneapi_level_zero) {
-    if (!CompileOpts.empty() && (optLevel != -1))
+  // Assigning space for 16 characters.
+  char *backend_option = nullptr;
+  // Empty string is returned in backend_option when no appropriate backend
+  // option is available for a given opt level.
+  Plugin.getBackendOptimizationOption(optLevel, &backend_option);
+  if (backend_option && backend_option[0] != '\0') {
+    if (!CompileOpts.empty())
       CompileOpts += " ";
-    switch (optLevel) {
-    case 0:
-      CompileOpts += "-ze-opt-disable";
-      break;
-    case 1:
-    case 2:
-      CompileOpts += "-ze-opt-level=1";
-      break;
-    case 3:
-      CompileOpts += "-ze-opt-level=2";
-      break;
-    }
-  } else if (Plugin.getBackend() == backend::opencl) {
-    if (!CompileOpts.empty() && (optLevel == 0))
-      CompileOpts += " ";
-    if (optLevel == 0)
-      CompileOpts += "-cl-opt-disable";
+    CompileOpts += std::string(backend_option);
+  } else {
+    // emit warning
+    if (SYCLConfig<SYCL_RT_WARNING_LEVEL>::get() >= 2)
+      std::clog << "Optimization level not propagated to backend";
   }
   if ((Plugin.getBackend() == backend::ext_oneapi_level_zero ||
        Plugin.getBackend() == backend::opencl) &&

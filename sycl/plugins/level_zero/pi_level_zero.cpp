@@ -2126,6 +2126,36 @@ pi_result piPluginGetLastError(char **message) {
   return pi2ur::piPluginGetLastError(message);
 }
 
+// Optimization strings
+char EmptyStr[2] = "";
+char NoOptStr[16] = "-ze-opt-disable";
+char O1OptStr[16] = "-ze-opt-level=1";
+char O2OptStr[16] = "-ze-opt-level=2";
+
+// Returns plugin specific backend optimization option.
+// Return '-ze-opt-disable' for opt_level = 0.
+// Return '-ze-opt-level=1' for opt_level = 1/2.
+// Return '-ze-opt-level=2' for opt_level = 3.
+pi_result piPluginGetBackendOptimizationOption(int opt_level,
+                                               char **backend_option) {
+  switch (opt_level) {
+  case 0:
+    *backend_option = &NoOptStr[0];
+    break;
+  case 1:
+  case 2:
+    *backend_option = &O1OptStr[0];
+    break;
+  case 3:
+    *backend_option = &O2OptStr[0];
+    break;
+  default:
+    *backend_option = &EmptyStr[0];
+    break;
+  }
+  return PI_SUCCESS;
+}
+
 pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                        pi_uint32 NumEntries, pi_device *Devices,
                        pi_uint32 *NumDevices) {

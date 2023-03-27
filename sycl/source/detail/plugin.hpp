@@ -231,6 +231,15 @@ public:
   void *getLibraryHandle() { return MLibraryHandle; }
   int unload() { return RT::unloadPlugin(MLibraryHandle); }
 
+  // Get backend optimization option
+  void getBackendOptimizationOption(int opt_level,
+                                    char **backend_option) const {
+    [[maybe_unused]] auto pi_result =
+        call_nocheck<PiApiKind::piPluginGetBackendOptimizationOption>(
+            opt_level, backend_option);
+    return;
+  }
+
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   // The function is expected to be called in a thread safe manner.

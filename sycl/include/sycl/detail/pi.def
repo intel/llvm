@@ -152,4 +152,5 @@ _PI_API(piGetDeviceAndHostTimer)
 _PI_API(piextEnqueueDeviceGlobalVariableWrite)
 _PI_API(piextEnqueueDeviceGlobalVariableRead)
 
+_PI_API(piPluginGetBackendOptimizationOption)
 #undef _PI_API
