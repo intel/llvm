@@ -159,8 +159,8 @@ gpu.module @device_func {
     gpu.return
   }
 
-  // COM:      Test that a peelable argument can be peeled when another argument with the expected type 
-  // COM-NEXT: cannot be peeled (because used in the callee by an invalid instruction).
+  // COM: Test that a peelable argument can be peeled when another argument with the expected type 
+  // COM: cannot be peeled (because used in the callee by an invalid instruction).
   gpu.func @test5() kernel {
     // CHECK-LABEL: gpu.func @test5() kernel
     // CHECK:         [[C0:%.*]] = arith.constant 0 : index
@@ -204,10 +204,11 @@ gpu.module @device_func {
   }
 
   // COM: Test that peelable arguments can be peeled if the end function (callee1) is called from more than one call site:
-  // COM-NEXT:  test9 -> callee1_wrapper -> callee1
-  // COM-NEXT:  test1 -> callee1
+  // COM:   test9 -> callee1_wrapper -> callee1
+  // COM:   test1 -> callee1
   gpu.func @test9() kernel {
     // CHECK-LABEL: gpu.func @test9() kernel
+    // CHECK:         {{.*}} = func.call @callee1_wrapper({{.*}}) : (memref<?x!llvm.struct<(i32, i64)>>) -> i64
     %alloca_1 = memref.alloca() : memref<3x!llvm.struct<(i32, i64)>>
     %cast_1 = memref.cast %alloca_1 : memref<3x!llvm.struct<(i32, i64)>> to memref<?x!llvm.struct<(i32, i64)>>
     %0 = func.call @callee1_wrapper(%cast_1) : (memref<?x!llvm.struct<(i32, i64)>>) -> (i64)
@@ -216,12 +217,17 @@ gpu.module @device_func {
 
   // COM: Ensure that the peelable argument is peeled if there is a non-aliased instruction after the call.
   func.func private @callee1_wrapper(%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64 {
-    %alloca_1 = memref.alloca() : memref<1xi64>    
+    // CHECK-LABEL: func.func private @callee1_wrapper
+    // CHECK-SAME:    (%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64
+    // CHECK:         %c0 = arith.constant 0 : index    
+    // CHECK-NEXT:    [[ARG0:%.*]] = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(i32, i64)>>, index) -> memref<?xi32>
+    // CHECK-NEXT:    %c1 = arith.constant 1 : index
+    // CHECK-NEXT:    [[ARG1:%.*]] = "polygeist.subindex"(%arg0, %c1) : (memref<?x!llvm.struct<(i32, i64)>>, index) -> memref<?xi64>
+    // CHECK-NEXT:    {{.*}} = call @callee1([[ARG0]], [[ARG1]]) : (memref<?xi32>, memref<?xi64>) -> i64
+    %alloca = memref.alloca() : memref<i64>        
     %0 = func.call @callee1(%arg0) : (memref<?x!llvm.struct<(i32, i64)>>) -> i64
-//    %i = arith.constant 0 : index
-  //  %1 = memref.load %alloca_1[%i] : memref<1xi64>
-    //%add = arith.addi %0, %1 : i64
-//    func.return %add : i64
-    func.return %0 : i64
+    %1 = memref.load %alloca[] : memref<i64>
+    %add = arith.addi %0, %1 : i64
+    func.return %add : i64
   }
 }

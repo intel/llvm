@@ -76,26 +76,37 @@ static bool isValidMemRefType(Type type) {
   return true;
 }
 
-// Returns true if the block of \p startOp contains an operation (after \p
-// startOp) that has a side effects on \p val.
+// Returns true if the block of \p startOp contains an operation (after startOp)
+// that has a side effects on \p val, and false otherwise.
 static bool existsSideEffectAfter(Value val, Operation *startOp,
                                   AliasAnalysis &aliasAnalysis) {
   assert(startOp && "Expecting a valid pointer");
-  Block *block = startOp->getBlock();
 
-  for (Operation &op : *block) {
-    if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op))
+  for (Operation &op : *startOp->getBlock()) {
+    auto MEI = dyn_cast<MemoryEffectOpInterface>(op);
+    if (op.isBeforeInBlock(startOp) || isMemoryEffectFree(&op) || !MEI)
       continue;
 
-    // Check whether the operation uses an operand that alias with 'val'.
-    if (auto MEI = dyn_cast<MemoryEffectOpInterface>(op)) {
-      if (!llvm::all_of(op.getOperands(), [&](Value operand) {
-            AliasResult aliasRes = aliasAnalysis.alias(operand, val);
-            return aliasRes.isNo();
-          }))
+    // Conservatively assume an operation with a nested region has side effects
+    // on 'val'.
+    if (op.hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+      return true;
+
+    SmallVector<MemoryEffects::EffectInstance, 1> effects;
+    MEI.getEffects(effects);
+    for (MemoryEffects::EffectInstance &effect : effects) {
+      Value effectVal = effect.getValue();
+      if (effectVal == val)
+        return true;
+
+      // Check whether the operation has an effect on a value that is aliased
+      // with 'val'.
+      AliasResult aliasRes = aliasAnalysis.alias(effectVal, val);
+      if (!aliasRes.isNo())
         return true;
     }
   }
+
   return false;
 }
 
@@ -154,19 +165,19 @@ public:
 
 private:
   /// Peel the call operands.
-  /// Note: this function populates a map between the original operands and the
-  /// peeled members.
+  /// Note: this function populates a map between the original operands and
+  /// the peeled members.
   void peelOperands();
 
-  /// Replace the argument at position \p pos in the region \p callableRgn with
-  /// \p newArgs. The reference parameter \p newArgAttrs is filled with the new
-  /// argument attributes.
+  /// Replace the argument at position \p pos in the region \p callableRgn
+  /// with \p newArgs. The reference parameter \p newArgAttrs is filled with
+  /// the new argument attributes.
   void replaceArgumentWith(unsigned pos, Region &callableRgn,
                            const SmallVector<Value> &newArgs,
                            SmallVector<Attribute> &newArgAttrs) const;
 
-  /// Replace uses of the argument \p origArg in the region \p callableRgn with
-  /// the arguments starting at position \p pos in the callable region.
+  /// Replace uses of the argument \p origArg in the region \p callableRgn
+  /// with the arguments starting at position \p pos in the callable region.
   void replaceUsesOfArgument(Value origArg, unsigned pos,
                              Region &callableRgn) const;
 
@@ -281,10 +292,9 @@ void Candidate::modifyCall() {
 
 void Candidate::modifyCallee() {
   CallableOpInterface callableOp = callOp.resolveCallable();
-  auto funcOp =
-      cast<func::FuncOp>(callableOp.getCallableRegion()->getParentOp());
-  Region &callableRgn = funcOp.getFunctionBody();
-  ArrayAttr origArgAttrs = funcOp.getAllArgAttrs();
+  Region &callableRgn = *callableOp.getCallableRegion();
+  auto funcOp = callableRgn.getParentOfType<FunctionOpInterface>();
+  const ArrayAttr origArgAttrs = funcOp.getAllArgAttrs();
   SmallVector<Attribute> newArgAttrs;
 
   // Replace the old arguments with the new ones.
@@ -309,7 +319,7 @@ void Candidate::modifyCallee() {
       FunctionType::get(funcOp.getContext(), callableRgn.getArgumentTypes(),
                         funcOp.getResultTypes());
 
-  funcOp.setFunctionType(newFuncType);
+  funcOp.setType(newFuncType);
   funcOp.setAllArgAttrs(newArgAttrs);
 
   LLVM_DEBUG(llvm::dbgs() << "\nNew Callee:\n" << funcOp << "\n";);
@@ -443,8 +453,7 @@ void ArgumentPromotionPass::collectCandidates(
           if (isCandidateOperand(pos, callOp, aliasAnalysis))
             candidateOps.push_back({callOp->getOperand(pos), pos});
         }
-        if (!candidateOps.empty())
-          candidateOperandMap.insert({callOp, std::move(candidateOps)});
+        candidateOperandMap.insert({callOp, std::move(candidateOps)});
       }
 
       // Ensure all call sites have the same candidate operands.
@@ -545,11 +554,13 @@ bool ArgumentPromotionPass::isCandidateCallable(
 
   // Ensure all the call sites for this function are either in a GPU kernel or
   // in a function that is called directly by a GPU kernel.
+  // TODO: Could generalize by checking that the call chain from the GPU kernel
+  // are all candidates.
   for (Operation *call : userMap.getUsers(callableOp)) {
     if (call->getParentOfType<gpu::GPUFuncOp>())
       continue;
 
-    auto funcOp = call->getParentOfType<func::FuncOp>();
+    auto funcOp = call->getParentOfType<FunctionOpInterface>();
     if (!funcOp || !llvm::all_of(userMap.getUsers(funcOp), [](Operation *call) {
           return call->getParentOfType<gpu::GPUFuncOp>();
         })) {
@@ -564,6 +575,9 @@ bool ArgumentPromotionPass::isCandidateCallable(
 }
 
 // Ensure all call sites have the same candidate operands.
+// Note: we could improve this condition and find the intersection of peelable
+// operands for all call sites to increase the potential opportunity for
+// peeling.
 bool ArgumentPromotionPass::haveSameCandidateOperands(
     const std::map<Operation *, Candidate::CandidateOperands>
         &candidateOperandMap) const {
