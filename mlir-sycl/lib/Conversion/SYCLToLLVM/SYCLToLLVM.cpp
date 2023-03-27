@@ -1069,7 +1069,7 @@ private:
   Value getTotalOffset(OpBuilder &builder, Location loc, AccessorType accTy,
                        OpAdaptor opAdaptor) const {
     const auto acc = opAdaptor.getAcc();
-    const auto resTy = builder.getI64Type();
+    const auto resTy = getTypeConverter()->getIndexType();
     Value res = builder.create<arith::ConstantIntOp>(loc, 0, resTy);
     for (unsigned i = 0; i < accTy.getDimension(); ++i) {
       // Res = Res * Mem[I] + Id[I]
@@ -1086,7 +1086,8 @@ public:
   matchAndRewrite(SYCLAccessorGetPointerOp op, OpAdaptor opAdaptor,
                   ConversionPatternRewriter &rewriter) const final {
     const auto loc = op.getLoc();
-    const Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, 64);
+    const auto indexTy = getTypeConverter()->getIndexType();
+    const Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, indexTy);
     Value index = rewriter.create<arith::SubIOp>(
         loc, zero,
         getTotalOffset(
@@ -1188,8 +1189,8 @@ public:
                        OpAdaptor opAdaptor) const {
     const auto id = opAdaptor.getIndex();
     const auto acc = opAdaptor.getAcc();
-    // int64_t Res{0};
-    const auto resTy = builder.getI64Type();
+    // size_t Res{0};
+    const auto resTy = getTypeConverter()->getIndexType();
     Value res = builder.create<arith::ConstantIntOp>(loc, 0, resTy);
     for (unsigned i = 0, dim = accTy.getDimension(); i < dim; ++i) {
       // Res = Res * Mem[I] + Id[I]
@@ -1276,7 +1277,8 @@ public:
     subscript = rewriter.create<LLVM::InsertValueOp>(
         loc, subscript, opAdaptor.getIndex(), ArrayRef<int64_t>{0, 0, 0, 0});
     // Zero-initialize rest of the offset id<Dim - 1>
-    const Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, 64);
+    const auto indexTy = getTypeConverter()->getIndexType();
+    const Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, indexTy);
     for (unsigned i = 1, dim = getDimensions(op.getAcc().getType()) - 1;
          i < dim; ++i) {
       subscript = rewriter.create<LLVM::InsertValueOp>(
@@ -1414,22 +1416,22 @@ public:
     const auto loc = op.getLoc();
     const auto nd = opAdaptor.getND();
     const auto rangeTy = op.getType();
+    const auto indexTy = getTypeConverter()->getIndexType();
     Value alloca = rewriter.create<LLVM::AllocaOp>(
         loc,
         LLVM::LLVMPointerType::get(getTypeConverter()->convertType(rangeTy)),
-        rewriter.create<arith::ConstantIntOp>(loc, 1, 64),
+        rewriter.create<arith::ConstantIntOp>(loc, 1, indexTy),
         /*alignment*/ 0);
-    const auto i64Ty = rewriter.getI64Type();
     for (int32_t i = 0, dim = rangeTy.getDimension(); i < dim; ++i) {
       const auto lhs =
           GetMemberPattern<NDRangeGetGlobalRange, RangeGetDim>::loadValue(
-              rewriter, loc, i64Ty, nd, i);
+              rewriter, loc, indexTy, nd, i);
       const auto rhs =
           GetMemberPattern<NDRangeGetLocalRange, RangeGetDim>::loadValue(
-              rewriter, loc, i64Ty, nd, i);
+              rewriter, loc, indexTy, nd, i);
       const Value val = rewriter.create<arith::DivUIOp>(loc, lhs, rhs);
       const auto ptr = GetMemberPattern<RangeGetDim>::getRef(
-          rewriter, loc, i64Ty, alloca, std::nullopt, i);
+          rewriter, loc, indexTy, alloca, std::nullopt, i);
       rewriter.create<LLVM::StoreOp>(loc, val, ptr);
     }
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
@@ -2176,6 +2178,8 @@ void mlir::populateSYCLToLLVMConversionPatterns(
 namespace {
 class ConvertSYCLToLLVMPass
     : public impl::ConvertSYCLToLLVMBase<ConvertSYCLToLLVMPass> {
+  using Base::Base;
+
 public:
   using impl::ConvertSYCLToLLVMBase<
       ConvertSYCLToLLVMPass>::ConvertSYCLToLLVMBase;
@@ -2195,6 +2199,8 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
 
   LowerToLLVMOptions options(&context);
   options.useBarePtrCallConv = true;
+  if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
+    options.overrideIndexBitwidth(indexBitwidth);
   LLVMTypeConverter converter(&context, options);
 
   RewritePatternSet patterns(&context);
