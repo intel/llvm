@@ -9,6 +9,7 @@
 #pragma once
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
+#include <sycl/types.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 
 namespace sycl {
