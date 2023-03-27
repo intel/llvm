@@ -56,12 +56,4 @@ bool isHostPipeVariable(const GlobalVariable &GV);
 /// map.
 HostPipePropertyMapTy collectHostPipeProperties(const Module &M);
 
-/// Returns the unique id for the host pipe variable.
-///
-/// @param GV [in] Device Global variable.
-///
-/// @returns the unique id of the host pipe variable represented
-/// in the LLVM IR by \c GV.
-StringRef getHostPipeVariableUniqueId(const GlobalVariable &GV);
-
 } // end namespace llvm

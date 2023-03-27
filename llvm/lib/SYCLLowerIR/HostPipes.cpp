@@ -1,4 +1,4 @@
-//===----- HostPipes.cpp - SYCL Device Globals Pass -------------------===//
+//===------------- HostPipes.cpp - SYCL Host Pipes Pass -------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,7 +24,6 @@ namespace {
 
 constexpr StringRef SYCL_HOST_PIPE_ATTR = "sycl-host-pipe";
 constexpr StringRef SYCL_HOST_PIPE_SIZE_ATTR = "sycl-host-pipe-size";
-constexpr StringRef SYCL_UNIQUE_ID_ATTR = "sycl-unique-id";
 
 /// Returns the size (in bytes) of the type \c T of the host
 /// pipe variable.
@@ -60,22 +59,6 @@ bool isHostPipeVariable(const GlobalVariable &GV) {
   return GV.hasAttribute(SYCL_HOST_PIPE_ATTR);
 }
 
-/// Returns the unique id for the host pipe variable.
-///
-/// The function gets this value from the LLVM IR attribute \c
-/// sycl-unique-id.
-///
-/// @param GV [in] Device Global variable.
-///
-/// @returns the unique id of the host pipe variable represented
-/// in the LLVM IR by \c GV.
-StringRef getHostPipeVariableUniqueId(const GlobalVariable &GV) {
-  assert(GV.hasAttribute(SYCL_UNIQUE_ID_ATTR) &&
-         "a 'sycl-unique-id' string must be associated with every host "
-         "pipe variable");
-  return GV.getAttribute(SYCL_UNIQUE_ID_ATTR).getValueAsString();
-}
-
 HostPipePropertyMapTy collectHostPipeProperties(const Module &M) {
   HostPipePropertyMapTy HPM;
   auto HostPipeNum = count_if(M.globals(), isHostPipeVariable);
@@ -88,7 +71,7 @@ HostPipePropertyMapTy collectHostPipeProperties(const Module &M) {
     if (!isHostPipeVariable(GV))
       continue;
 
-    HPM[getHostPipeVariableUniqueId(GV)] = {getHostPipeTypeSize(GV)};
+    HPM[getGlobalVariableUniqueId(GV)] = {getHostPipeTypeSize(GV)};
   }
 
   return HPM;
