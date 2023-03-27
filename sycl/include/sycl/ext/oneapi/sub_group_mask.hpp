@@ -18,6 +18,13 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class Builder;
+
+namespace spirv {
+
+template <typename Group> struct group_scope;
+
+} // namespace spirv
+
 } // namespace detail
 
 namespace ext::oneapi {
@@ -30,7 +37,7 @@ namespace ext::oneapi {
 #endif
 
 struct sub_group_mask {
-  friend class detail::Builder;
+  friend class sycl::detail::Builder;
   using BitsType = BITS_TYPE;
 
   static constexpr size_t max_bits =
@@ -223,7 +230,7 @@ struct sub_group_mask {
       : Bits(rhs.Bits), bits_num(rhs.bits_num) {}
 
   template <typename Group>
-  friend detail::enable_if_t<
+  friend sycl::detail::enable_if_t<
       std::is_same<std::decay_t<Group>, sub_group>::value, sub_group_mask>
   group_ballot(Group g, bool predicate);
 
@@ -266,17 +273,17 @@ private:
 };
 
 template <typename Group>
-detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
-                    sub_group_mask>
+sycl::detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
+                          sub_group_mask>
 group_ballot(Group g, bool predicate) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   auto res = __spirv_GroupNonUniformBallot(
-      detail::spirv::group_scope<Group>::value, predicate);
+      sycl::detail::spirv::group_scope<Group>::value, predicate);
   BITS_TYPE val = res[0];
   if constexpr (sizeof(BITS_TYPE) == 8)
     val |= ((BITS_TYPE)res[1]) << 32;
-  return detail::Builder::createSubGroupMask<sub_group_mask>(
+  return sycl::detail::Builder::createSubGroupMask<sub_group_mask>(
       val, g.get_max_local_range()[0]);
 #else
   (void)predicate;
