@@ -213,6 +213,7 @@ device::get_info<info::device::aspects>() const {
   template __SYCL_EXPORT ReturnT                                               \
   device::get_info<Namespace::info::DescType::Desc>() const;
 
+#include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC

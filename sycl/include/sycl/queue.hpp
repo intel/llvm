@@ -305,7 +305,7 @@ public:
   /// \return a SYCL event object for the submitted command group.
   template <typename T> event submit(T CGF _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
-
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #if __SYCL_USE_FALLBACK_ASSERT
     if (!is_host()) {
       auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
@@ -345,7 +345,7 @@ public:
   template <typename T>
   event submit(T CGF, queue &SecondaryQueue _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
-
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #if __SYCL_USE_FALLBACK_ASSERT
     if (!is_host()) {
       auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
@@ -441,7 +441,7 @@ public:
   /// @param CodeLoc is the code location of the submit call (default argument)
   void wait(_CODELOCONLYPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
-
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     wait_proxy(CodeLoc);
   }
 
@@ -455,7 +455,7 @@ public:
   /// @param CodeLoc is the code location of the submit call (default argument)
   void wait_and_throw(_CODELOCONLYPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
-
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     wait_and_throw_proxy(CodeLoc);
   }
 
@@ -490,7 +490,10 @@ public:
   /// \param Count is the number of times to fill Pattern into Ptr.
   /// \return an event representing fill operation.
   template <typename T> event fill(void *Ptr, const T &Pattern, size_t Count) {
-    return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); });
+    // TODO: to add code location as parameter when ABI break is permitted
+    const detail::code_location CodeLoc("sycl/queue.hpp", "fill", 0, 0);
+    return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); },
+                  CodeLoc);
   }
 
   /// Fills the specified memory with the specified pattern.
@@ -717,7 +720,9 @@ public:
   /// \param Count is a number of bytes to be prefetched.
   /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count) {
-    return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
+    // TODO: to add code location as parameter when ABI break is permitted
+    const detail::code_location CodeLoc("sycl/queue.hpp", "prefetch", 0, 0);
+    return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); }, CodeLoc);
   }
 
   /// Provides hints to the runtime library that data should be made available
@@ -1354,6 +1359,7 @@ public:
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.template single_task<KernelName, KernelType, PropertiesT>(
@@ -1393,6 +1399,7 @@ public:
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -1436,6 +1443,7 @@ public:
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
@@ -1676,8 +1684,11 @@ public:
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    constexpr detail::code_location CodeLoc(
+        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+        KI::getColumnNumber());
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
@@ -1710,8 +1721,11 @@ public:
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    constexpr detail::code_location CodeLoc(
+        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+        KI::getColumnNumber());
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -1732,8 +1746,11 @@ public:
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    constexpr detail::code_location CodeLoc(
+        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+        KI::getColumnNumber());
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
@@ -1959,8 +1976,11 @@ private:
       event>
   parallel_for_impl(range<Dims> Range, PropertiesT Properties,
                     RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    constexpr detail::code_location CodeLoc(
+        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+        KI::getColumnNumber());
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
@@ -1994,8 +2014,11 @@ private:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   parallel_for_impl(range<Dims> Range, event DepEvent, PropertiesT Properties,
                     RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    constexpr detail::code_location CodeLoc(
+        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+        KI::getColumnNumber());
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -2031,8 +2054,11 @@ private:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   parallel_for_impl(range<Dims> Range, const std::vector<event> &DepEvents,
                     PropertiesT Properties, RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    constexpr detail::code_location CodeLoc(
+        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+        KI::getColumnNumber());
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);

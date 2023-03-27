@@ -943,10 +943,49 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
   if (!DstMem || !SrcMem)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory copy operation.");
+
   const detail::plugin &Plugin = Queue->getPlugin();
-  Plugin.call<PiApiKind::piextUSMEnqueueMemcpy2D>(
-      Queue->getHandleRef(), /*blocking=*/PI_FALSE, DstMem, DstPitch, SrcMem,
-      SrcPitch, Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
+
+  pi_bool SupportsUSMMemcpy2D = false;
+  Plugin.call<detail::PiApiKind::piContextGetInfo>(
+      Queue->getContextImplPtr()->getHandleRef(),
+      PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, sizeof(pi_bool),
+      &SupportsUSMMemcpy2D, nullptr);
+
+  if (SupportsUSMMemcpy2D) {
+    // Direct memcpy2D is supported so we use this function.
+    Plugin.call<PiApiKind::piextUSMEnqueueMemcpy2D>(
+        Queue->getHandleRef(), /*blocking=*/PI_FALSE, DstMem, DstPitch, SrcMem,
+        SrcPitch, Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
+    return;
+  }
+
+  // Otherwise we allow the special case where the copy is to or from host.
+#ifndef NDEBUG
+  context Ctx = createSyclObjFromImpl<context>(Queue->getContextImplPtr());
+  usm::alloc SrcAllocType = get_pointer_type(SrcMem, Ctx);
+  usm::alloc DstAllocType = get_pointer_type(DstMem, Ctx);
+  bool SrcIsHost =
+      SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
+  bool DstIsHost =
+      DstAllocType == usm::alloc::unknown || DstAllocType == usm::alloc::host;
+  assert((SrcIsHost || DstIsHost) && "In fallback path for copy_2d_usm either "
+                                     "source or destination must be on host.");
+#endif // NDEBUG
+
+  // The fallback in this case is to insert a copy per row.
+  std::vector<RT::PiEvent> CopyEvents(Height);
+  for (size_t I = 0; I < Height; ++I) {
+    char *DstItBegin = static_cast<char *>(DstMem) + I * DstPitch;
+    const char *SrcItBegin = static_cast<const char *>(SrcMem) + I * SrcPitch;
+    Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(
+        Queue->getHandleRef(), /* blocking */ PI_FALSE, DstItBegin, SrcItBegin,
+        Width, DepEvents.size(), DepEvents.data(), CopyEvents.data() + I);
+  }
+
+  // Then insert a wait to coalesce the copy events.
+  Queue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
+      Queue->getHandleRef(), CopyEvents.size(), CopyEvents.data(), OutEvent);
 }
 
 void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,

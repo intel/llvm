@@ -75,23 +75,28 @@ static bool IsBannedPlatform(platform Platform) {
   // To avoid problems on default users and deployment of DPC++ on platforms
   // where CUDA is available, the OpenCL support is disabled.
   //
-  auto IsNVIDIAOpenCL = [](platform Platform) {
-    if (Platform.is_host())
+  // There is also no support for the AMD HSA backend for OpenCL consumption,
+  // as well as reported problems with device queries, so AMD OpenCL support
+  // is disabled as well.
+  //
+  auto IsMatchingOpenCL = [](platform Platform, const std::string_view name) {
+    if (getSyclObjImpl(Platform)->is_host())
       return false;
 
-    const bool HasCUDA = Platform.get_info<info::platform::name>().find(
-                             "NVIDIA CUDA") != std::string::npos;
+    const bool HasNameMatch = Platform.get_info<info::platform::name>().find(
+                                  name) != std::string::npos;
     const auto Backend =
         detail::getSyclObjImpl(Platform)->getPlugin().getBackend();
-    const bool IsCUDAOCL = (HasCUDA && Backend == backend::opencl);
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) && IsCUDAOCL) {
-      std::cout << "SYCL_PI_TRACE[all]: "
-                << "NVIDIA CUDA OpenCL platform found but is not compatible."
-                << std::endl;
+    const bool IsMatchingOCL = (HasNameMatch && Backend == backend::opencl);
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) &&
+        IsMatchingOCL) {
+      std::cout << "SYCL_PI_TRACE[all]: " << name
+                << " OpenCL platform found but is not compatible." << std::endl;
     }
-    return IsCUDAOCL;
+    return IsMatchingOCL;
   };
-  return IsNVIDIAOpenCL(Platform);
+  return IsMatchingOpenCL(Platform, "NVIDIA CUDA") ||
+         IsMatchingOpenCL(Platform, "AMD Accelerated Parallel Processing");
 }
 
 // This routine has the side effect of registering each platform's last device

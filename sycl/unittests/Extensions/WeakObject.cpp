@@ -198,6 +198,39 @@ template <typename SyclObjT> struct WeakObjectCheckOwnerLessMap {
   }
 };
 
+template <typename SyclObjT> struct WeakObjectCheckCopy {
+  void operator()(SyclObjT Obj) {
+    sycl::ext::oneapi::weak_object<SyclObjT> WeakObj{Obj};
+
+    sycl::ext::oneapi::weak_object<SyclObjT> WeakObjCopyCtor{WeakObj};
+    sycl::ext::oneapi::weak_object<SyclObjT> WeakObjCopyAssign = WeakObj;
+
+    EXPECT_FALSE(WeakObjCopyCtor.expired());
+    EXPECT_FALSE(WeakObjCopyAssign.expired());
+
+    EXPECT_TRUE(WeakObjCopyCtor.lock() == Obj);
+    EXPECT_TRUE(WeakObjCopyAssign.lock() == Obj);
+  }
+};
+
+template <typename SyclObjT> struct WeakObjectCheckMove {
+  void operator()(SyclObjT Obj) {
+    sycl::ext::oneapi::weak_object<SyclObjT> WeakObj1{Obj};
+    sycl::ext::oneapi::weak_object<SyclObjT> WeakObj2{Obj};
+
+    sycl::ext::oneapi::weak_object<SyclObjT> WeakObjMoveCtor{
+        std::move(WeakObj1)};
+    sycl::ext::oneapi::weak_object<SyclObjT> WeakObjMoveAssign =
+        std::move(WeakObj2);
+
+    EXPECT_FALSE(WeakObjMoveCtor.expired());
+    EXPECT_FALSE(WeakObjMoveAssign.expired());
+
+    EXPECT_TRUE(WeakObjMoveCtor.lock() == Obj);
+    EXPECT_TRUE(WeakObjMoveAssign.lock() == Obj);
+  }
+};
+
 template <template <typename> typename CallableT>
 void runTest(sycl::unittest::PiMock &Mock) {
   sycl::platform Plt = Mock.getPlatform();
@@ -384,4 +417,14 @@ TEST(WeakObjectTest, WeakObjectOwnerBeforeMulti) {
 TEST(WeakObjectTest, WeakObjectOwnerLessMap) {
   sycl::unittest::PiMock Mock;
   runTestMulti<WeakObjectCheckOwnerLessMap>(Mock);
+}
+
+TEST(WeakObjectTest, WeakObjectCopy) {
+  sycl::unittest::PiMock Mock;
+  runTest<WeakObjectCheckCopy>(Mock);
+}
+
+TEST(WeakObjectTest, WeakObjectMove) {
+  sycl::unittest::PiMock Mock;
+  runTest<WeakObjectCheckMove>(Mock);
 }

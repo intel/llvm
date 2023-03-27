@@ -23,6 +23,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
+#include <algorithm>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -136,7 +138,7 @@ context_impl::~context_impl() {
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRelease>(MContext);
+    getPlugin().call_nocheck<PiApiKind::piContextRelease>(MContext);
   }
 }
 
@@ -166,17 +168,26 @@ template <>
 std::vector<sycl::memory_order>
 context_impl::get_info<info::context::atomic_memory_order_capabilities>()
     const {
+  std::vector<sycl::memory_order> CapabilityList{
+      sycl::memory_order::relaxed, sycl::memory_order::acquire,
+      sycl::memory_order::release, sycl::memory_order::acq_rel,
+      sycl::memory_order::seq_cst};
   if (is_host())
-    return {sycl::memory_order::relaxed, sycl::memory_order::acquire,
-            sycl::memory_order::release, sycl::memory_order::acq_rel,
-            sycl::memory_order::seq_cst};
+    return CapabilityList;
 
-  pi_memory_order_capabilities Result;
-  getPlugin().call<PiApiKind::piContextGetInfo>(
-      MContext,
-      PiInfoCode<info::context::atomic_memory_order_capabilities>::value,
-      sizeof(Result), &Result, nullptr);
-  return readMemoryOrderBitfield(Result);
+  for (const sycl::device &Device : MDevices) {
+    std::vector<sycl::memory_order> NewCapabilityList(CapabilityList.size());
+    std::vector<sycl::memory_order> DeviceCapabilities =
+        Device.get_info<info::device::atomic_memory_order_capabilities>();
+    std::set_intersection(
+        CapabilityList.begin(), CapabilityList.end(),
+        DeviceCapabilities.begin(), DeviceCapabilities.end(),
+        std::inserter(NewCapabilityList, NewCapabilityList.begin()));
+    CapabilityList = NewCapabilityList;
+  }
+  CapabilityList.shrink_to_fit();
+
+  return CapabilityList;
 }
 template <>
 std::vector<sycl::memory_scope>

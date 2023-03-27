@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/__spirv/spirv_types.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/aliases.hpp>
 #include <sycl/detail/common.hpp>
@@ -16,6 +17,7 @@
 #include <sycl/half_type.hpp>
 #include <sycl/multi_ptr.hpp>
 
+#include <complex>
 #include <limits>
 
 namespace sycl {
@@ -181,6 +183,8 @@ using is_vigeninteger = is_contained<T, gtl::vector_signed_integer_list>;
 template <typename T>
 using is_vugeninteger = is_contained<T, gtl::vector_unsigned_integer_list>;
 
+template <typename T> using is_genbool = is_contained<T, gtl::bool_list>;
+
 template <typename T> using is_gentype = is_contained<T, gtl::basic_list>;
 
 template <typename T>
@@ -299,7 +303,8 @@ struct convert_data_type_impl<T, B, enable_if_t<is_vgentype<T>::value, T>> {
 template <typename T, typename B>
 using convert_data_type = convert_data_type_impl<T, B, T>;
 
-// Try to get pointer_t (legacy) or pointer, otherwise T
+// TryToGetPointerT<T>::type is T::pointer_t (legacy) or T::pointer if those
+// exist, otherwise T.
 template <typename T> class TryToGetPointerT {
   static T check(...);
   template <typename A> static typename A::pointer_t check(const A &);
@@ -311,7 +316,8 @@ public:
       std::is_pointer<T>::value || !std::is_same<T, type>::value;
 };
 
-// Try to get element_type or value_type, otherwise T
+// TryToGetElementType<T>::type is T::element_type or T::value_type if those
+// exist, otherwise T.
 template <typename T> class TryToGetElementType {
   static T check(...);
   template <typename A> static typename A::element_type check(const A &);
@@ -322,7 +328,7 @@ public:
   static constexpr bool value = !std::is_same<T, type>::value;
 };
 
-// Try to get vector_t, otherwise T
+// TryToGetVectorT<T>::type is T::vector_t if that exists, otherwise T.
 template <typename T> class TryToGetVectorT {
   static T check(...);
   template <typename A> static typename A::vector_t check(const A &);
@@ -443,6 +449,14 @@ using select_cl_scalar_float_t =
                              sycl::opencl::cl_float, sycl::opencl::cl_double>;
 
 template <typename T>
+using select_cl_scalar_complex_or_T_t = std::conditional_t<
+    std::is_same<T, std::complex<float>>::value, __spv::complex_float,
+    std::conditional_t<
+        std::is_same<T, std::complex<double>>::value, __spv::complex_double,
+        std::conditional_t<std::is_same<T, std::complex<half>>::value,
+                           __spv::complex_half, T>>>;
+
+template <typename T>
 using select_cl_scalar_integral_t =
     conditional_t<std::is_signed<T>::value,
                   select_cl_scalar_integral_signed_t<T>,
@@ -453,12 +467,13 @@ using select_cl_scalar_integral_t =
 template <typename T>
 using select_cl_scalar_t = conditional_t<
     std::is_integral<T>::value, select_cl_scalar_integral_t<T>,
-    conditional_t<
-        std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
-        // half is a special case: it is implemented differently on host and
-        // device and therefore, might lower to different types
-        conditional_t<std::is_same<T, half>::value,
-                      sycl::detail::half_impl::BIsRepresentationT, T>>>;
+    conditional_t<std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
+                  // half is a special case: it is implemented differently on
+                  // host and device and therefore, might lower to different
+                  // types
+                  conditional_t<std::is_same<T, half>::value,
+                                sycl::detail::half_impl::BIsRepresentationT,
+                                select_cl_scalar_complex_or_T_t<T>>>>;
 
 // select_cl_vector_or_scalar_or_ptr does cl_* type selection for element type
 // of a vector type T, pointer type substitution, and scalar type substitution.
@@ -543,14 +558,14 @@ using SelectMatchingOpenCLType_t =
 
 // Converts T to OpenCL friendly
 //
+template <typename T /* MatchingOpencCLTypeT */>
+using ConvertToOpenCLTypeImpl_t =
+    conditional_t<TryToGetVectorT<T>::value, typename TryToGetVectorT<T>::type,
+                  conditional_t<TryToGetPointerT<T>::value,
+                                typename TryToGetPointerVecT<T>::type, T>>;
 template <typename T>
-using ConvertToOpenCLType_t = conditional_t<
-    TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::value,
-    typename TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::type,
-    conditional_t<
-        TryToGetPointerT<SelectMatchingOpenCLType_t<T>>::value,
-        typename TryToGetPointerVecT<SelectMatchingOpenCLType_t<T>>::type,
-        SelectMatchingOpenCLType_t<T>>>;
+using ConvertToOpenCLType_t =
+    ConvertToOpenCLTypeImpl_t<SelectMatchingOpenCLType_t<T>>;
 
 // convertDataToType() function converts data from FROM type to TO type using
 // 'as' method for vector type and copy otherwise.

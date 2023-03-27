@@ -740,6 +740,9 @@ namespace llvm {
     // User level interrupts - testui
     TESTUI,
 
+    // Perform an FP80 add after changing precision control in FPCW.
+    FP80_ADD,
+
     /// X86 strict FP compare instructions.
     STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,
     STRICT_FCMPS,
@@ -778,6 +781,9 @@ namespace llvm {
     // Conversions between float and half-float.
     STRICT_CVTPS2PH,
     STRICT_CVTPH2PS,
+
+    // Perform an FP80 add after changing precision control in FPCW.
+    STRICT_FP80_ADD,
 
     // WARNING: Only add nodes here if they are strict FP nodes. Non-memory and
     // non-strict FP nodes should be above FIRST_TARGET_STRICTFP_OPCODE.
@@ -886,8 +892,8 @@ namespace llvm {
     AESDECWIDE256KL,
 
     /// Compare and Add if Condition is Met. Compare value in operand 2 with
-    /// value in memory of operand 1. If condition of operand 4 is met, add value
-    /// operand 3 to m32 and write new value in operand 1. Operand 2 is
+    /// value in memory of operand 1. If condition of operand 4 is met, add
+    /// value operand 3 to m32 and write new value in operand 1. Operand 2 is
     /// always updated with the original value from operand 1.
     CMPCCXADD,
 
@@ -1003,11 +1009,30 @@ namespace llvm {
     /// legal as the hook is used before type legalization.
     bool isSafeMemOpType(MVT VT) const override;
 
+    bool isMemoryAccessFast(EVT VT, Align Alignment) const;
+
     /// Returns true if the target allows unaligned memory accesses of the
     /// specified type. Returns whether it is "fast" in the last argument.
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AS, Align Alignment,
                                         MachineMemOperand::Flags Flags,
                                         unsigned *Fast) const override;
+
+    /// This function returns true if the memory access is aligned or if the
+    /// target allows this specific unaligned memory access. If the access is
+    /// allowed, the optional final parameter returns a relative speed of the
+    /// access (as defined by the target).
+    bool allowsMemoryAccess(
+        LLVMContext &Context, const DataLayout &DL, EVT VT, unsigned AddrSpace,
+        Align Alignment,
+        MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+        unsigned *Fast = nullptr) const override;
+
+    bool allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
+                            const MachineMemOperand &MMO,
+                            unsigned *Fast) const {
+      return allowsMemoryAccess(Context, DL, VT, MMO.getAddrSpace(),
+                                MMO.getAlign(), MMO.getFlags(), Fast);
+    }
 
     /// Provide custom lowering hooks for some operations.
     ///
@@ -1032,6 +1057,13 @@ namespace llvm {
     /// i16 is legal, but undesirable since i16 instruction encodings are longer
     /// and some i16 instructions are slow.
     bool IsDesirableToPromoteOp(SDValue Op, EVT &PVT) const override;
+
+    /// Return prefered fold type, Abs if this is a vector, AddAnd if its an
+    /// integer, None otherwise.
+    TargetLowering::AndOrSETCCFoldKind
+    isDesirableToCombineLogicOpOfSETCC(const SDNode *LogicOp,
+                                       const SDNode *SETCC0,
+                                       const SDNode *SETCC1) const override;
 
     /// Return the newly negated expression if the cost is not expensive and
     /// set the cost in \p Cost to indicate that if it is cheaper or neutral to
@@ -1062,8 +1094,6 @@ namespace llvm {
     bool isCheapToSpeculateCtlz(Type *Ty) const override;
 
     bool isCtlzFast() const override;
-
-    bool hasBitPreservingFPLogic(EVT VT) const override;
 
     bool isMultiStoresCheaperThanBitsMerge(EVT LTy, EVT HTy) const override {
       // If the pair to store is a mixture of float and int values, we will
@@ -1683,6 +1713,7 @@ namespace llvm {
                         LLVMContext &Context) const override;
 
     const MCPhysReg *getScratchRegisters(CallingConv::ID CC) const override;
+    ArrayRef<MCPhysReg> getRoundingControlRegisters() const override;
 
     TargetLoweringBase::AtomicExpansionKind
     shouldExpandAtomicLoadInIR(LoadInst *LI) const override;
