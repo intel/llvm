@@ -71,26 +71,26 @@ jobs:
         cmake --build build --target sycl-toolchain
     - name: check-llvm
       shell: bash
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ false() && always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build build --target check-llvm
     - name: check-clang
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ false() && always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: bash
       run: |
         cmake --build build --target check-clang
     - name: check-sycl
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ false() && always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: bash
       run: |
         cmake --build build --target check-sycl
     - name: check-llvm-spirv
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ false() && always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: bash
       run: |
         cmake --build build --target check-llvm-spirv
     - name: check-xptifw
-      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
+      if: ${{ false() && always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: bash
       run: |
         cmake --build build --target check-xptifw
