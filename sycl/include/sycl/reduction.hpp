@@ -919,7 +919,12 @@ public:
   /// Otherwise, a new buffer is created and accessor to that buffer is
   /// returned.
   auto getWriteAccForPartialReds(size_t Size, handler &CGH) {
-    if constexpr (!is_usm && sizeof(reducer_element_type) == sizeof(T)) {
+    static_assert(!has_identity || sizeof(reducer_element_type) == sizeof(T),
+                  "Unexpected size of reducer element type.");
+
+    // We can only use the output memory directly if it is not USM and we have
+    // and identity, i.e. it has a thin element wrapper.
+    if constexpr (!is_usm && has_identity) {
       if (Size == 1) {
         auto ReinterpretRedOut =
             MRedOut.template reinterpret<reducer_element_type>();
@@ -1454,13 +1459,12 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
     using reducer_type = typename Reduction::reducer_type;
     using element_type = typename ReducerTraits<reducer_type>::element_type;
 
-    // If the size of the element type is the same as the result type, the
-    // partial sum will use the output memory iff NWorkGroups == 1.
-    // Otherwise, we need to make sure the right output buffer is written in
-    // case NWorkGroups == 1.
+    // If reduction has an identity and is not USM, the reducer element is just
+    // a thin wrapper around the result type so the partial sum will use the
+    // output memory iff NWorkGroups == 1. Otherwise, we need to make sure the
+    // right output buffer is written in case NWorkGroups == 1.
     constexpr bool UsePartialSumForOutput =
-        sizeof(element_type) == sizeof(typename Reduction::result_type) &&
-        !Reduction::is_usm;
+        !Reduction::is_usm && Reduction::has_identity;
 
     std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
