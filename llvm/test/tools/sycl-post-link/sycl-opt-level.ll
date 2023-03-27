@@ -16,19 +16,15 @@
 ; CHECK-OPT-LEVEL-PROP-0: optLevel=1|0
 ; CHECK-OPT-LEVEL-PROP-1: optLevel=1|2
 
-; ModuleID = 'final.bc'
-source_filename = "llvm-link"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
 define dso_local spir_func noundef i32 @_Z3fooii(i32 noundef %a, i32 noundef %b) local_unnamed_addr #0 {
 entry:
   %sub = sub nsw i32 %a, %b
   ret i32 %sub
 }
 
-; Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
 define dso_local spir_func noundef i32 @_Z3booii(i32 noundef %a, i32 noundef %b) #1 {
 entry:
   %retval = alloca i32, align 4
@@ -45,6 +41,6 @@ entry:
   ret i32 %add
 }
 
-attributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test3.cpp" "sycl-optlevel"="2" }
-attributes #1 = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test2.cpp" "sycl-optlevel"="0" }
+attributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) "sycl-module-id"="test3.cpp" "sycl-optlevel"="2" }
+attributes #1 = { convergent mustprogress noinline norecurse nounwind optnone "sycl-module-id"="test2.cpp" "sycl-optlevel"="0" }
 
