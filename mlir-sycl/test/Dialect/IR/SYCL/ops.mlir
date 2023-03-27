@@ -260,6 +260,12 @@ func.func @test_work_group_id_const() -> index {
   return %0 : index
 }
 
+// CHECL-LABEL: test_accessor_get_pointer
+func.func @test_accessor_get_pointer(%acc: memref<?x!sycl_accessor_1_i32_w_gb>) -> memref<?xi32, 1> {
+  %0 = sycl.accessor.get_pointer(%acc) { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_w_gb>], FunctionName = @"get_pointer", MangledFunctionName = @"get_pointer", TypeName = @"accessor" }  : (memref<?x!sycl_accessor_1_i32_w_gb>) -> memref<?xi32, 1>
+  return %0 : memref<?xi32, 1>
+}
+
 // CHECK-LABEL: test_accessor_subscript_atomic
 func.func @test_accessor_subscript_atomic(
   %acc: memref<?x!sycl_accessor_1_i32_ato_gb>, 

@@ -20,8 +20,8 @@ bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
   if (Inputs.size() != 1 || Outputs.size() != 1)
     return false;
 
-  const auto Input = Inputs.front().dyn_cast<MemRefType>();
-  const auto Output = Outputs.front().dyn_cast<MemRefType>();
+  const auto Input = dyn_cast<MemRefType>(Inputs.front());
+  const auto Output = dyn_cast<MemRefType>(Outputs.front());
   if (!Input || !Output)
     return false;
 
@@ -69,8 +69,8 @@ bool SYCLAddrSpaceCastOp::areCastCompatible(TypeRange inputs,
   if (inputs.size() != 1 || outputs.size() != 1)
     return false;
 
-  const auto input = inputs.front().dyn_cast<MemRefType>();
-  const auto output = outputs.front().dyn_cast<MemRefType>();
+  const auto input = dyn_cast<MemRefType>(inputs.front());
+  const auto output = dyn_cast<MemRefType>(outputs.front());
   if (!input || !output)
     return false;
 
@@ -89,6 +89,18 @@ bool SYCLAddrSpaceCastOp::areCastCompatible(TypeRange inputs,
           (outputMS == genericAddressSpace));
 }
 
+LogicalResult SYCLAccessorGetPointerOp::verify() {
+  const auto accTy = cast<AccessorType>(
+      cast<MemRefType>(getOperand().getType()).getElementType());
+  const Type resTy = getResult().getType();
+  const Type resElemTy = cast<MemRefType>(resTy).getElementType();
+  return (resElemTy != accTy.getType())
+             ? emitOpError(
+                   "Expecting a reference to this accessor's value type (")
+                   << accTy.getType() << "). Got " << resTy
+             : success();
+}
+
 LogicalResult SYCLAccessorSubscriptOp::verify() {
   // Available only when: (Dimensions > 0)
   // reference operator[](id<Dimensions> index) const;
@@ -98,11 +110,8 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
 
   // Available only when: (AccessMode != access_mode::atomic && Dimensions == 1)
   // reference operator[](size_t index) const;
-  const auto AccessorTy = getOperand(0)
-                              .getType()
-                              .cast<MemRefType>()
-                              .getElementType()
-                              .cast<AccessorType>();
+  const auto AccessorTy = cast<AccessorType>(
+      cast<MemRefType>(getOperand(0).getType()).getElementType());
 
   const unsigned Dimensions = AccessorTy.getDimension();
   if (Dimensions == 0)
@@ -124,7 +133,7 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
             [&](auto Ty) { return VerifyElemType(Ty.getElementType()); })
         .Case<LLVM::LLVMPointerType>([&](auto Ty) {
           const Type ElemType = Ty.getElementType();
-          return (!ElemType.isa<LLVM::LLVMStructType>())
+          return (!isa<LLVM::LLVMStructType>(ElemType))
                      ? emitOpError(
                            "Expecting pointer to struct return type. Got ")
                            << ResultType

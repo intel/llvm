@@ -337,6 +337,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
 
+    // Compile time properties on kernel arguments
     {
       SmallVector<Metadata *, 8> MDOps;
       MDOps.reserve(F.arg_size());
@@ -345,8 +346,12 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
         SmallVector<Metadata *, 8> MDArgOps;
         for (auto &Attribute : F.getAttributes().getParamAttrs(I)) {
           if (MDNode *SPIRVMetadata =
-                  attributeToDecorateMetadata(Ctx, Attribute))
+                  attributeToDecorateMetadata(Ctx, Attribute)) {
+            // sycl-alignment is not collected to SPIRV.ParamDecoration
+            if (Attribute.getKindAsString() == "sycl-alignment")
+              continue;
             MDArgOps.push_back(SPIRVMetadata);
+          }
         }
         if (!MDArgOps.empty())
           FoundKernelProperties = true;

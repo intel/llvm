@@ -169,18 +169,12 @@ operator<<(llvm::raw_ostream &OS, const OperationSideEffects &ME) {
   return OS;
 }
 
-class LoopGuardBuilder {
+class LoopVersionBuilder {
 public:
-  static std::unique_ptr<LoopGuardBuilder> create(LoopLikeOpInterface loop);
+  LoopVersionBuilder(LoopLikeOpInterface loop) : builder(loop), loop(loop) {}
+  virtual ~LoopVersionBuilder() = default;
 
-  LoopGuardBuilder(LoopLikeOpInterface loop) : builder(loop), loop(loop){};
-  LoopGuardBuilder(const LoopGuardBuilder &) = delete;
-  LoopGuardBuilder(LoopGuardBuilder &&) = delete;
-  void operator=(const LoopGuardBuilder &) = delete;
-  void operator=(LoopGuardBuilder &&) = delete;
-  virtual ~LoopGuardBuilder() = default;
-
-  void guardLoop() const;
+  void versionLoop();
 
 protected:
   static Block &getThenBlock(RegionBranchOpInterface ifOp) {
@@ -189,23 +183,79 @@ protected:
   static Block &getElseBlock(RegionBranchOpInterface ifOp) {
     return ifOp->getRegion(1).front();
   }
-  virtual Operation::operand_range getInitVals() const = 0;
 
+  RegionBranchOpInterface ifOp;
   mutable OpBuilder builder;
   mutable LoopLikeOpInterface loop;
 
 private:
-  void replaceUsesOfLoopReturnValues(RegionBranchOpInterface &) const;
-  virtual RegionBranchOpInterface createGuard() const = 0;
+  void replaceUsesOfLoopReturnValues() const;
+  virtual void createIfOp() = 0;
+  virtual void createThenBody() const = 0;
+  virtual void createElseBody() const = 0;
 };
 
-class SCFLoopGuardBuilder : public LoopGuardBuilder {
+class SCFLoopVersionBuilder : public LoopVersionBuilder {
 public:
-  SCFLoopGuardBuilder(LoopLikeOpInterface loop) : LoopGuardBuilder(loop) {}
+  SCFLoopVersionBuilder(LoopLikeOpInterface loop) : LoopVersionBuilder(loop) {}
+
+protected:
+  scf::IfOp getIfOp() const {
+    assert(ifOp && "Expected valid ifOp");
+    return cast<scf::IfOp>(ifOp);
+  }
 
 private:
-  RegionBranchOpInterface createGuard() const final;
-  virtual Value createGuardExpr() const = 0;
+  virtual Value createCondition() const = 0;
+  void createIfOp() override;
+  void createThenBody() const override;
+  void createElseBody() const override;
+};
+
+class AffineLoopVersionBuilder : public LoopVersionBuilder {
+public:
+  AffineLoopVersionBuilder(LoopLikeOpInterface loop)
+      : LoopVersionBuilder(loop) {}
+
+protected:
+  AffineIfOp getIfOp() const {
+    assert(ifOp && "Expected valid ifOp");
+    return cast<AffineIfOp>(ifOp);
+  }
+
+private:
+  virtual IntegerSet createCondition(SmallVectorImpl<Value> &) const = 0;
+  void createIfOp() override;
+  void createThenBody() const override;
+  void createElseBody() const override;
+};
+
+class LoopGuardBuilder {
+public:
+  static std::unique_ptr<LoopGuardBuilder> create(LoopLikeOpInterface loop);
+
+  LoopGuardBuilder() {}
+  LoopGuardBuilder(const LoopGuardBuilder &) = delete;
+  LoopGuardBuilder(LoopGuardBuilder &&) = delete;
+  void operator=(const LoopGuardBuilder &) = delete;
+  void operator=(LoopGuardBuilder &&) = delete;
+  virtual ~LoopGuardBuilder() = default;
+
+  virtual void guardLoop() = 0;
+
+protected:
+  virtual Operation::operand_range getInitVals() const = 0;
+};
+
+class SCFLoopGuardBuilder : public LoopGuardBuilder,
+                            public SCFLoopVersionBuilder {
+public:
+  SCFLoopGuardBuilder(LoopLikeOpInterface loop)
+      : LoopGuardBuilder(), SCFLoopVersionBuilder(loop) {}
+  void guardLoop() final { versionLoop(); }
+
+private:
+  void createElseBody() const final;
 };
 
 class SCFForGuardBuilder : public SCFLoopGuardBuilder {
@@ -214,7 +264,7 @@ public:
 
 private:
   scf::ForOp getLoop() const { return cast<scf::ForOp>(loop); }
-  Value createGuardExpr() const final;
+  Value createCondition() const final;
   Operation::operand_range getInitVals() const final {
     return getLoop().getInitArgs();
   }
@@ -226,19 +276,22 @@ public:
 
 private:
   scf::ParallelOp getLoop() const { return cast<scf::ParallelOp>(loop); }
-  Value createGuardExpr() const final;
+  Value createCondition() const final;
   Operation::operand_range getInitVals() const final {
     return getLoop().getInitVals();
   }
 };
 
-class AffineLoopGuardBuilder : public LoopGuardBuilder {
+class AffineLoopGuardBuilder : public LoopGuardBuilder,
+                               public AffineLoopVersionBuilder {
 public:
-  AffineLoopGuardBuilder(LoopLikeOpInterface loop) : LoopGuardBuilder(loop) {}
+  AffineLoopGuardBuilder(LoopLikeOpInterface loop)
+      : LoopGuardBuilder(), AffineLoopVersionBuilder(loop) {}
+  void guardLoop() final { versionLoop(); }
 
 private:
-  RegionBranchOpInterface createGuard() const final;
-  IntegerSet createGuardExpr() const;
+  void createElseBody() const final;
+  IntegerSet createCondition(SmallVectorImpl<Value> &) const final;
   virtual void getConstraints(SmallVectorImpl<AffineExpr> &,
                               ArrayRef<AffineExpr>,
                               ArrayRef<AffineExpr>) const = 0;
@@ -473,6 +526,81 @@ Optional<Operation *> OperationSideEffects::conflictsWithOperationInLoop(
 }
 
 //===----------------------------------------------------------------------===//
+// LoopVersionBuilder
+//===----------------------------------------------------------------------===//
+
+void LoopVersionBuilder::versionLoop() {
+  createIfOp();
+  createThenBody();
+  createElseBody();
+  replaceUsesOfLoopReturnValues();
+}
+
+void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
+  // Replace uses of the loop return value(s) with the value(s) yielded by the
+  // if operation.
+  for (auto [loopVal, ifVal] :
+       llvm::zip(loop->getResults(), ifOp->getResults()))
+    loopVal.replaceUsesWithIf(ifVal, [&](OpOperand &op) {
+      Block *useBlock = op.getOwner()->getBlock();
+      return useBlock != &getThenBlock(ifOp);
+    });
+}
+
+//===----------------------------------------------------------------------===//
+// SCFLoopVersionBuilder
+//===----------------------------------------------------------------------===//
+
+void SCFLoopVersionBuilder::createIfOp() {
+  ifOp = builder.create<scf::IfOp>(
+      loop.getLoc(), createCondition(),
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop->getResults());
+      },
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, loop->getResults());
+      });
+}
+
+void SCFLoopVersionBuilder::createThenBody() const {
+  loop->moveBefore(&*getThenBlock(ifOp).begin());
+}
+
+void SCFLoopVersionBuilder::createElseBody() const {
+  Operation &origYield = getElseBlock(ifOp).back();
+  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
+  elseBodyBuilder.create<scf::YieldOp>(loop.getLoc(), clonedLoop->getResults());
+  origYield.erase();
+}
+
+//===----------------------------------------------------------------------===//
+// AffineLoopVersionBuilder
+//===----------------------------------------------------------------------===//
+
+void AffineLoopVersionBuilder::createIfOp() {
+  TypeRange types(loop->getResults());
+  SmallVector<Value> values;
+  const IntegerSet &set = createCondition(values);
+  ifOp = builder.create<AffineIfOp>(loop.getLoc(), types, set, values, true);
+}
+
+void AffineLoopVersionBuilder::createThenBody() const {
+  OpBuilder thenBodyBuilder = getIfOp().getThenBodyBuilder();
+  if (!loop->getResults().empty())
+    thenBodyBuilder.create<AffineYieldOp>(loop.getLoc(), loop->getResults());
+  loop->moveBefore(&*getThenBlock(ifOp).begin());
+}
+
+void AffineLoopVersionBuilder::createElseBody() const {
+  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
+  if (!clonedLoop->getResults().empty())
+    elseBodyBuilder.create<AffineYieldOp>(loop.getLoc(),
+                                          clonedLoop->getResults());
+}
+
+//===----------------------------------------------------------------------===//
 // LoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
@@ -493,47 +621,26 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
       });
 }
 
-void LoopGuardBuilder::guardLoop() const {
-  RegionBranchOpInterface ifOp = createGuard();
-  loop->moveBefore(&*getThenBlock(ifOp).begin());
-  replaceUsesOfLoopReturnValues(ifOp);
-}
-
-void LoopGuardBuilder::replaceUsesOfLoopReturnValues(
-    RegionBranchOpInterface &ifOp) const {
-  // Replace uses of the loop return value(s) with the value(s) yielded by the
-  // if operation.
-  for (auto it : llvm::zip(loop->getResults(), ifOp->getResults()))
-    std::get<0>(it).replaceUsesWithIf(std::get<1>(it), [&](OpOperand &op) {
-      Block *useBlock = op.getOwner()->getBlock();
-      return useBlock != &getThenBlock(ifOp);
-    });
-}
-
 //===----------------------------------------------------------------------===//
 // SCFLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-RegionBranchOpInterface SCFLoopGuardBuilder::createGuard() const {
-  auto ifOp = builder.create<scf::IfOp>(
-      loop.getLoc(), createGuardExpr(),
-      [&](OpBuilder &b, Location loc) {
-        b.create<scf::YieldOp>(loc, loop->getResults());
-      },
-      [&](OpBuilder &b, Location loc) {
-        b.create<scf::YieldOp>(loc, getInitVals());
-      });
+void SCFLoopGuardBuilder::createElseBody() const {
+  Operation &origYield = getElseBlock(ifOp).back();
   bool yieldsResults = !loop->getResults().empty();
-  if (!yieldsResults)
-    getElseBlock(ifOp).erase();
-  return ifOp;
+  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  if (yieldsResults) {
+    elseBodyBuilder.create<scf::YieldOp>(loop->getLoc(), getInitVals());
+    origYield.erase();
+  } else
+    getElseBlock(getIfOp()).erase();
 }
 
 //===----------------------------------------------------------------------===//
 // SCFForGuardBuilder
 //===----------------------------------------------------------------------===//
 
-Value SCFForGuardBuilder::createGuardExpr() const {
+Value SCFForGuardBuilder::createCondition() const {
   return builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::slt,
                                        getLoop().getLowerBound(),
                                        getLoop().getUpperBound());
@@ -543,13 +650,12 @@ Value SCFForGuardBuilder::createGuardExpr() const {
 // SCFParallelGuardBuilder
 //===----------------------------------------------------------------------===//
 
-Value SCFParallelGuardBuilder::createGuardExpr() const {
+Value SCFParallelGuardBuilder::createCondition() const {
   Value cond;
-  for (auto pair : llvm::zip(getLoop().getLowerBound(),
-                             getLoop().getUpperBound(), getLoop().getStep())) {
-    const Value val =
-        builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::slt,
-                                      std::get<0>(pair), std::get<1>(pair));
+  for (auto [lb, ub] :
+       llvm::zip(getLoop().getLowerBound(), getLoop().getUpperBound())) {
+    const Value val = builder.create<arith::CmpIOp>(
+        loop.getLoc(), arith::CmpIPredicate::slt, lb, ub);
     cond = cond ? static_cast<Value>(
                       builder.create<arith::AndIOp>(loop.getLoc(), cond, val))
                 : val;
@@ -561,35 +667,29 @@ Value SCFParallelGuardBuilder::createGuardExpr() const {
 // AffineLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-RegionBranchOpInterface AffineLoopGuardBuilder::createGuard() const {
-  SmallVector<Value> values;
-  OperandRange lb_ops = getLowerBoundsOperands(),
-               ub_ops = getUpperBoundsOperands();
-
-  std::copy(lb_ops.begin(), lb_ops.begin() + getLowerBoundsMap().getNumDims(),
-            std::back_inserter(values));
-  std::copy(ub_ops.begin(), ub_ops.begin() + getUpperBoundsMap().getNumDims(),
-            std::back_inserter(values));
-  std::copy(lb_ops.begin() + getLowerBoundsMap().getNumDims(), lb_ops.end(),
-            std::back_inserter(values));
-  std::copy(ub_ops.begin() + getUpperBoundsMap().getNumDims(), ub_ops.end(),
-            std::back_inserter(values));
-
+void AffineLoopGuardBuilder::createElseBody() const {
   bool yieldsResults = !loop->getResults().empty();
-  TypeRange types(loop->getResults());
-  auto ifOp = builder.create<AffineIfOp>(
-      loop.getLoc(), types, createGuardExpr(), values, yieldsResults);
-  if (yieldsResults) {
-    ifOp.getThenBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
-                                                    loop->getResults());
-    ifOp.getElseBodyBuilder().create<AffineYieldOp>(loop.getLoc(),
-                                                    getInitVals());
-  }
-  return ifOp;
+  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  if (yieldsResults)
+    elseBodyBuilder.create<AffineYieldOp>(loop.getLoc(), getInitVals());
+  else
+    getElseBlock(getIfOp()).erase();
 }
 
-IntegerSet AffineLoopGuardBuilder::createGuardExpr() const {
+IntegerSet
+AffineLoopGuardBuilder::createCondition(SmallVectorImpl<Value> &values) const {
+  OperandRange lb_ops = getLowerBoundsOperands(),
+               ub_ops = getUpperBoundsOperands();
   const AffineMap lbMap = getLowerBoundsMap(), ubMap = getUpperBoundsMap();
+
+  std::copy(lb_ops.begin(), lb_ops.begin() + lbMap.getNumDims(),
+            std::back_inserter(values));
+  std::copy(ub_ops.begin(), ub_ops.begin() + ubMap.getNumDims(),
+            std::back_inserter(values));
+  std::copy(lb_ops.begin() + lbMap.getNumDims(), lb_ops.end(),
+            std::back_inserter(values));
+  std::copy(ub_ops.begin() + ubMap.getNumDims(), ub_ops.end(),
+            std::back_inserter(values));
 
   SmallVector<AffineExpr, 4> dims;
   for (unsigned idx = 0; idx < ubMap.getNumDims(); ++idx)

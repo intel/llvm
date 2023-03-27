@@ -31,8 +31,6 @@ using namespace mlir;
 using namespace mlir::sycl;
 
 namespace {
-constexpr unsigned genericAddressSpace{4};
-
 template <typename SYCLOpTy> struct gpu_counterpart_operation {};
 
 template <> struct gpu_counterpart_operation<SYCLWorkGroupIDOp> {
@@ -75,7 +73,7 @@ Value createGetOp(OpBuilder &builder, Location loc, Type underlyingArrTy,
                   Value res, Value index, ArrayAttr argumentTypes,
                   FlatSymbolRefAttr functionName) {
   return TypeSwitch<Type, Value>(
-             res.getType().cast<MemRefType>().getElementType())
+             cast<MemRefType>(res.getType()).getElementType())
       .Case<IDType, RangeType>([&](auto arg) {
         // `this` type
         using ArgTy = decltype(arg);

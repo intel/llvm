@@ -27,6 +27,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -42,24 +43,17 @@ class TestKernel;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<TestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestKernel"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 static constexpr const kernel_param_desc_t Signatures[] = {
     {kernel_param_kind_t::kind_accessor, 4062, 0}};
 
 template <>
-struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
+struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
   }
@@ -68,9 +62,6 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
     assert(!Idx);
     return Signatures[Idx];
   }
-  static constexpr bool isESIMD() { return 0; }
-  static constexpr bool callsThisItem() { return 0; }
-  static constexpr bool callsAnyThisFreeFunction() { return 0; }
   static constexpr int64_t getKernelSize() {
     // The AssertInfoCopier service kernel lambda captures an accessor.
     return sizeof(sycl::accessor<sycl::detail::AssertHappened, 1,

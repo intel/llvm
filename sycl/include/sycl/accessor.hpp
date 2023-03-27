@@ -2089,8 +2089,9 @@ public:
   }
 
   template <access::target AccessTarget_ = AccessTarget,
-            typename = detail::enable_if_t<AccessTarget_ ==
-                                           access::target::host_buffer>>
+            typename = detail::enable_if_t<
+                (AccessTarget_ == access::target::host_buffer) ||
+                (AccessTarget_ == access::target::host_task)>>
 #if SYCL_LANGUAGE_VERSION >= 202001
   std::add_pointer_t<value_type> get_pointer() const noexcept
 #else
@@ -2667,10 +2668,6 @@ public:
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
-  local_ptr<DataT> get_pointer() const {
-    return local_ptr<DataT>(getQualifiedPtr());
-  }
-
   bool operator==(const local_accessor_base &Rhs) const {
     return impl == Rhs.impl;
   }
@@ -2698,6 +2695,11 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
 
   // Use base classes constructors
   using local_acc::local_acc;
+
+public:
+  local_ptr<DataT> get_pointer() const {
+    return local_ptr<DataT>(local_acc::getQualifiedPtr());
+  }
 
 #ifdef __SYCL_DEVICE_ONLY__
 
@@ -2803,6 +2805,10 @@ public:
   }
   const_reverse_iterator crend() const noexcept {
     return const_reverse_iterator(begin());
+  }
+
+  std::add_pointer_t<value_type> get_pointer() const noexcept {
+    return std::add_pointer_t<value_type>(local_acc::getQualifiedPtr());
   }
 
   template <access::decorated IsDecorated>

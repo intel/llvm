@@ -160,7 +160,7 @@ public:
   void modifyCall();
 
   /// Modify the called function by replacing the original operands with their
-  /// corresponding peeled members.
+  /// corresponding peeled members.q
   void modifyCallee();
 
 private:
