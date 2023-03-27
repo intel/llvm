@@ -3,7 +3,6 @@
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
-
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -169,7 +168,7 @@ set(SYCL_SOURCES
     "detail/device_global_map.cpp"
     "detail/device_global_map_entry.cpp"
     "detail/device_impl.cpp"
-    "detail/error_handling/enqueue_kernel.cpp"
+    "detail/error_handling/error_handling.cpp"
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
     "detail/fusion/fusion_wrapper.cpp"

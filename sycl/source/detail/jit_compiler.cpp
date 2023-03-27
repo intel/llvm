@@ -379,6 +379,22 @@ static ParamIterator preProcessArguments(
     // we need to copy the argument to a permant location and update the
     // argument.
     Arg->Arg.MPtr = storePlainArgRaw(ArgStorage, Arg->Arg.MPtr, Arg->Arg.MSize);
+    // Standard layout arguments do not participate in identical argument
+    // detection, but we still add it to the list here. As the SYCL runtime can
+    // only check the raw bytes for identical content, but is unaware of the
+    // underlying datatype, some identities that would be detected here could
+    // not be materialized by the JIT compiler. Instead of removing some
+    // standard layout arguments due to identity and missing some in case the
+    // materialization is not possible, we rely on constant propagation to
+    // replace standard layout arguments by constants (see below).
+    NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
+                                    true);
+    // Propagate values of scalar parameters as constants to the JIT
+    // compiler.
+    JITConstants.emplace_back(
+        ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
+        Arg->Arg.MPtr, Arg->Arg.MSize);
+    return ++Arg;
   }
   // First check if there's already another parameter with identical
   // value.
@@ -455,16 +471,6 @@ static ParamIterator preProcessArguments(
                                       true);
       return ++Arg;
     }
-  } else if (Arg->Arg.MType == kernel_param_kind_t::kind_std_layout) {
-    // No identical parameter exists, so add this to the list.
-    NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
-                                    true);
-    // Propagate values of scalar parameters as constants to the JIT
-    // compiler.
-    JITConstants.emplace_back(
-        ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
-        Arg->Arg.MPtr, Arg->Arg.MSize);
-    return ++Arg;
   } else if (Arg->Arg.MType == kernel_param_kind_t::kind_pointer) {
     // No identical parameter exists, so add this to the list.
     NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
@@ -551,6 +557,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<Requirement *> Requirements;
   std::vector<detail::EventImplPtr> Events;
   std::vector<::jit_compiler::NDRange> Ranges;
+  RT::PiKernelCacheConfig KernelCacheConfig =
+      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
@@ -708,6 +716,15 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
                         KernelCG->MRequirements.end());
     Events.insert(Events.end(), KernelCG->MEvents.begin(),
                   KernelCG->MEvents.end());
+
+    // If all kernels have the same cache config then use it for the merged
+    // kernel, otherwise use default configuration.
+    if (KernelIndex == 0) {
+      KernelCacheConfig = KernelCG->MKernelCacheConfig;
+    } else if (KernelCG->MKernelCacheConfig != KernelCacheConfig) {
+      KernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+    }
+
     ++KernelIndex;
   }
 
@@ -802,7 +819,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       std::move(ArgsStorage), std::move(AccStorage),
       std::move(RawExtendedMembers), std::move(Requirements), std::move(Events),
       std::move(FusedArgs), FusedKernelInfo.Name, OSUtil::DummyModuleHandle, {},
-      {}, CG::CGTYPE::Kernel));
+      {}, CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }
 
