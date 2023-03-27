@@ -10,6 +10,7 @@
 
 #include <detail/queue_impl.hpp>
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -23,7 +24,9 @@ constexpr const char *USMMemcpyHelperKernelNameChar = "__usmmemcpy2d_char";
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<class __usmfill2d<long>> {
+template <>
+struct KernelInfo<class __usmfill2d<long>>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return USMFillHelperKernelNameLong; }
   static constexpr unsigned getNumParams() { return 7; }
   static const kernel_param_desc_t &getParamDesc(int Idx) {
@@ -39,15 +42,14 @@ template <> struct KernelInfo<class __usmfill2d<long>> {
     };
     return DummySignature[Idx];
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 3 * sizeof(size_t);
   }
 };
 
-template <> struct KernelInfo<class __usmfill2d<unsigned char>> {
+template <>
+struct KernelInfo<class __usmfill2d<unsigned char>>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return USMFillHelperKernelNameChar; }
   static constexpr unsigned getNumParams() { return 7; }
   static const kernel_param_desc_t &getParamDesc(int Idx) {
@@ -63,15 +65,14 @@ template <> struct KernelInfo<class __usmfill2d<unsigned char>> {
     };
     return DummySignature[Idx];
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 3 * sizeof(size_t);
   }
 };
 
-template <> struct KernelInfo<class __usmmemcpy2d<long>> {
+template <>
+struct KernelInfo<class __usmmemcpy2d<long>>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return USMMemcpyHelperKernelNameLong;
   }
@@ -90,15 +91,14 @@ template <> struct KernelInfo<class __usmmemcpy2d<long>> {
     };
     return DummySignature[Idx];
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 4 * sizeof(size_t);
   }
 };
 
-template <> struct KernelInfo<class __usmmemcpy2d<unsigned char>> {
+template <>
+struct KernelInfo<class __usmmemcpy2d<unsigned char>>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return USMMemcpyHelperKernelNameChar;
   }
@@ -117,9 +117,6 @@ template <> struct KernelInfo<class __usmmemcpy2d<unsigned char>> {
     };
     return DummySignature[Idx];
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 4 * sizeof(size_t);
   }

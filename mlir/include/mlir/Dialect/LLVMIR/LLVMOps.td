@@ -1583,6 +1583,10 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     /// Returns the result types of this function.
     ArrayRef<Type> getResultTypes() { return getFunctionType().getReturnTypes(); }
 
+    //===------------------------------------------------------------------===//
+    // CallableOpInterface
+    //===------------------------------------------------------------------===//
+
     /// Returns the callable region, which is the function body. If the function
     /// is external, returns null.
     Region *getCallableRegion();
@@ -1596,6 +1600,17 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
       return getFunctionType().getReturnTypes();
     }
 
+    /// Returns the argument attributes for all callable region arguments or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableArgAttrs() {
+      return getArgAttrs().value_or(nullptr);
+    }
+
+    /// Returns the result attributes for all callable region results or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableResAttrs() {
+      return getResAttrs().value_or(nullptr);
+    }
   }];
 
   let hasCustomAssemblyFormat = 1;
@@ -1637,13 +1652,35 @@ def LLVM_UndefOp : LLVM_Op<"mlir.undef", [Pure]>,
     Unlike LLVM IR, MLIR does not have first-class undefined values. Such values
     must be created as SSA values using `llvm.mlir.undef`. This operation has no
     operands or attributes. It creates an undefined value of the specified LLVM
-    IR dialect type wrapping an LLVM IR structure type.
+    IR dialect type.
 
     Example:
 
     ```mlir
     // Create a structure with a 32-bit integer followed by a float.
     %0 = llvm.mlir.undef : !llvm.struct<(i32, f32)>
+    ```
+  }];
+  let results = (outs LLVM_Type:$res);
+  let builders = [LLVM_OneResultOpBuilder];
+  let assemblyFormat = "attr-dict `:` type($res)";
+}
+
+def LLVM_PoisonOp : LLVM_Op<"mlir.poison", [Pure]>,
+                    LLVM_Builder<"$res = llvm::PoisonValue::get($_resultType);"> {
+  let summary = "Creates a poison value of LLVM dialect type.";
+  let description = [{
+    Unlike LLVM IR, MLIR does not have first-class poison values. Such values
+    must be created as SSA values using `llvm.mlir.poison`. This operation has
+    no operands or attributes. It creates a poison value of the specified LLVM
+    IR dialect type.
+
+    Example:
+
+    ```mlir
+    // Create a poison value for a structure with a 32-bit integer followed
+    // by a float.
+    %0 = llvm.mlir.poison : !llvm.struct<(i32, f32)>
     ```
   }];
   let results = (outs LLVM_Type:$res);
