@@ -645,9 +645,8 @@ struct sub_group {
                     "sycl::ext::oneapi::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
-                              __spv::Scope::Subgroup>(
-        typename sycl::detail::GroupOpTag<T>::type(), x, op);
+    return sycl::detail::calc<__spv::GroupOperation::Reduce>(
+        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
 #else
     (void)x;
     (void)op;
@@ -676,9 +675,8 @@ struct sub_group {
                     "sycl::ext::oneapi::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
-                              __spv::Scope::Subgroup>(
-        typename sycl::detail::GroupOpTag<T>::type(), x, op);
+    return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
+        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
 #else
     (void)x;
     (void)op;
@@ -715,9 +713,8 @@ struct sub_group {
                     "sycl::ext::oneapi::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<T, __spv::GroupOperation::InclusiveScan,
-                              __spv::Scope::Subgroup>(
-        typename sycl::detail::GroupOpTag<T>::type(), x, op);
+    return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
+        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
 #else
     (void)x;
     (void)op;

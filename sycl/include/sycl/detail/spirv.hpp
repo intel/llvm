@@ -14,6 +14,7 @@
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 #include <sycl/id.hpp>
 #include <sycl/memory_enums.hpp>
 
@@ -94,11 +95,11 @@ void GenericCall(const Functor &ApplyToBytes) {
   }
 }
 
-template <typename Group> bool GroupAll(bool pred) {
+template <typename Group> bool GroupAll(Group g, bool pred) {
   return __spirv_GroupAll(group_scope<Group>::value, pred);
 }
 
-template <typename Group> bool GroupAny(bool pred) {
+template <typename Group> bool GroupAny(Group g, bool pred) {
   return __spirv_GroupAny(group_scope<Group>::value, pred);
 }
 
@@ -157,7 +158,7 @@ template <> struct GroupId<::sycl::ext::oneapi::sub_group> {
   using type = uint32_t;
 };
 template <typename Group, typename T, typename IdT>
-EnableIfNativeBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
+EnableIfNativeBroadcast<T, IdT> GroupBroadcast(Group, T x, IdT local_id) {
   using GroupIdT = typename GroupId<Group>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(local_id);
   using OCLT = detail::ConvertToOpenCLType_t<T>;
@@ -168,14 +169,14 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
   return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
 }
 template <typename Group, typename T, typename IdT>
-EnableIfBitcastBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
+EnableIfBitcastBroadcast<T, IdT> GroupBroadcast(Group g, T x, IdT local_id) {
   using BroadcastT = ConvertToNativeBroadcastType_t<T>;
   auto BroadcastX = bit_cast<BroadcastT>(x);
-  BroadcastT Result = GroupBroadcast<Group>(BroadcastX, local_id);
+  BroadcastT Result = GroupBroadcast(g, BroadcastX, local_id);
   return bit_cast<T>(Result);
 }
 template <typename Group, typename T, typename IdT>
-EnableIfGenericBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
+EnableIfGenericBroadcast<T, IdT> GroupBroadcast(Group g, T x, IdT local_id) {
   // Initialize with x to support type T without default constructor
   T Result = x;
   char *XBytes = reinterpret_cast<char *>(&x);
@@ -183,7 +184,7 @@ EnableIfGenericBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
   auto BroadcastBytes = [=](size_t Offset, size_t Size) {
     uint64_t BroadcastX, BroadcastResult;
     std::memcpy(&BroadcastX, XBytes + Offset, Size);
-    BroadcastResult = GroupBroadcast<Group>(BroadcastX, local_id);
+    BroadcastResult = GroupBroadcast(g, BroadcastX, local_id);
     std::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
   };
   GenericCall<T>(BroadcastBytes);
@@ -192,9 +193,10 @@ EnableIfGenericBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
 
 // Broadcast with vector local index
 template <typename Group, typename T, int Dimensions>
-EnableIfNativeBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
+EnableIfNativeBroadcast<T> GroupBroadcast(Group g, T x,
+                                          id<Dimensions> local_id) {
   if (Dimensions == 1) {
-    return GroupBroadcast<Group>(x, local_id[0]);
+    return GroupBroadcast(g, x, local_id[0]);
   }
   using IdT = vec<size_t, Dimensions>;
   using OCLT = detail::ConvertToOpenCLType_t<T>;
@@ -209,16 +211,18 @@ EnableIfNativeBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
   return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
 }
 template <typename Group, typename T, int Dimensions>
-EnableIfBitcastBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
+EnableIfBitcastBroadcast<T> GroupBroadcast(Group g, T x,
+                                           id<Dimensions> local_id) {
   using BroadcastT = ConvertToNativeBroadcastType_t<T>;
   auto BroadcastX = bit_cast<BroadcastT>(x);
-  BroadcastT Result = GroupBroadcast<Group>(BroadcastX, local_id);
+  BroadcastT Result = GroupBroadcast(g, BroadcastX, local_id);
   return bit_cast<T>(Result);
 }
 template <typename Group, typename T, int Dimensions>
-EnableIfGenericBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
+EnableIfGenericBroadcast<T> GroupBroadcast(Group g, T x,
+                                           id<Dimensions> local_id) {
   if (Dimensions == 1) {
-    return GroupBroadcast<Group>(x, local_id[0]);
+    return GroupBroadcast(g, x, local_id[0]);
   }
   // Initialize with x to support type T without default constructor
   T Result = x;
@@ -800,6 +804,56 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   GenericCall<T>(ShuffleBytes);
   return Result;
 }
+
+template <typename Group>
+typename std::enable_if_t<
+    ext::oneapi::experimental::is_fixed_topology_group_v<Group>>
+ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
+  __spirv_ControlBarrier(group_scope<Group>::Scope, getScope(FenceScope),
+                         getMemorySemanticsMask(Order) |
+                             __spv::MemorySemanticsMask::SubgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+}
+
+#define __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction)                          \
+  template <typename Group, typename T>                                        \
+  typename std::enable_if_t<                                                   \
+      ext::oneapi::experimental::is_fixed_topology_group_v<Group>, T>          \
+      Group##Instruction(Group G, __spv::GroupOperation Op, T x) {             \
+    using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
+                                                                               \
+    using OCLT =                                                               \
+        conditional_t<std::is_same<ConvertedT, cl_char>() ||                   \
+                          std::is_same<ConvertedT, cl_short>(),                \
+                      cl_int,                                                  \
+                      conditional_t<std::is_same<ConvertedT, cl_uchar>() ||    \
+                                        std::is_same<ConvertedT, cl_ushort>(), \
+                                    cl_uint, ConvertedT>>;                     \
+    OCLT Arg = x;                                                              \
+    OCLT Ret = __spirv_Group##Instruction(group_scope<Group>::value,           \
+                                          static_cast<unsigned int>(Op), Arg); \
+    return Ret;                                                                \
+  }
+
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMin)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMin)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMin)
+
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMax)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMax)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMax)
+
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(IAdd)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FAdd)
+
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(IMulKHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMulKHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(CMulINTEL)
+
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseOrKHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseXorKHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseAndKHR)
 
 } // namespace spirv
 } // namespace detail
