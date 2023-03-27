@@ -26,9 +26,8 @@ runs:
     shell: bash
     run: |
       mkdir install
-      ls
       tar -xf llvm_sycl.tar.gz -C install
-      ls install/.
+      rm llvm_sycl.tar.gz
   - name: Configure
     shell: cmd
     run: |
