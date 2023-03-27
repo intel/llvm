@@ -107,9 +107,13 @@ jobs:
         cmake --build build --target utils/FileCheck/install
         cmake --build build --target install-compiler-rt
         cmake --build build --target deploy-sycl-toolchain
-        ls ./install/bin # [UDIT]: Remove this.
         # Copy FileCheck to install/bin for use by E2E tests.
-        # copy %GITHUB_WORKSPACE%\build\bin\FileCheck.exe %GITHUB_WORKSPACE%\install\bin\.
+        cp build/bin/FileCheck.exe install/bin/.
+    - name: Pack toolchain
+      shell: bash
+      run: |
+        gzip ./install
+        ls
     - name: Upload toolchain
       uses: actions/upload-artifact@v3
       with:
