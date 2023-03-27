@@ -112,9 +112,6 @@ jobs:
     - name: Pack toolchain
       shell: bash
       run: |
-        where xz
-        where tar
-        where gzip
         tar -czf llvm_sycl.tar.gz -C install .
     - name: Upload toolchain
       uses: actions/upload-artifact@v3
