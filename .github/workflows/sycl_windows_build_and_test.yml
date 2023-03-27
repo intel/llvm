@@ -65,8 +65,7 @@ jobs:
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache"
     - name: Build
       id: build
-      shell: cmd
-      # TODO replace utility installation with a single CMake target
+      shell: bash
       run: |
         cmake --build build --target sycl-toolchain
     - name: check-llvm
@@ -97,6 +96,7 @@ jobs:
     - name: Install
       shell: bash
       run: |
+        # TODO replace utility installation with a single CMake target
         cmake --build build --target utils/count/install
         cmake --build build --target utils/not/install
         cmake --build build --target utils/lit/install
