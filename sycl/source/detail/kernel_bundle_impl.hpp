@@ -366,14 +366,14 @@ public:
     const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
         detail::getSyclObjImpl(*It);
 
-    RT::PiKernel Kernel = nullptr;
-    std::tie(Kernel, std::ignore) =
+    auto [Kernel, Ignore, ArgMask] =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             MContext, KernelID.get_name(), /*PropList=*/{},
             DeviceImageImpl->get_program_ref());
 
-    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
-        Kernel, detail::getSyclObjImpl(MContext), DeviceImageImpl, Self);
+    std::shared_ptr<kernel_impl> KernelImpl =
+        std::make_shared<kernel_impl>(Kernel, detail::getSyclObjImpl(MContext),
+                                      DeviceImageImpl, Self, ArgMask);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
