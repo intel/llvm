@@ -953,6 +953,68 @@ __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT int
     __spirv_GroupNonUniformBallotFindLSB(__spv::Scope::Flag,
                                          __ocl_vec_t<uint32_t, 4>) noexcept;
 
+template <typename ValueT, typename IdT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+    __spirv_GroupNonUniformBroadcast(__spv::Scope::Flag, ValueT, IdT);
+
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT bool
+__spirv_GroupNonUniformAll(__spv::Scope::Flag, bool);
+
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT bool
+__spirv_GroupNonUniformAny(__spv::Scope::Flag, bool);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformSMin(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformUMin(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformFMin(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformSMax(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformUMax(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformFMax(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformIAdd(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformFAdd(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformIMul(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformFMul(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformBitwiseOr(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformBitwiseXor(__spv::Scope::Flag, unsigned int, ValueT);
+
+template <typename ValueT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT ValueT
+__spirv_GroupNonUniformBitwiseAnd(__spv::Scope::Flag, unsigned int, ValueT);
+
 extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierInitialize(int64_t *state, int32_t expected_count) noexcept;
 

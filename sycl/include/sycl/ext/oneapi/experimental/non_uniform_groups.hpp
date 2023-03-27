@@ -38,7 +38,31 @@ inline uint32_t CallerPositionInMask(ext::oneapi::sub_group_mask Mask) {
 }
 #endif
 
+template <typename NonUniformGroup>
+inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
+  // TODO: This will need to be optimized
+  sycl::vec<unsigned, 4> MemberMask = ExtractMask(Group.Mask);
+  uint32_t Count = 0;
+  for (int i = 0; i < 4; ++i) {
+    for (int b = 0; b < 32; ++b) {
+      if (MemberMask[i] & (1 << b)) {
+        if (Count == Id) {
+          return i * 32 + b;
+        }
+        Count++;
+      }
+    }
+  }
+  __builtin_unreachable();
+  return Count;
+}
+
 } // namespace detail
+
+namespace ext::oneapi::experimental {
+
+// Forward declarations of non-uniform group types for algorithm definitions
+template <typename ParentGroup> class ballot_group;
 
 } // namespace ext::oneapi::experimental
 
