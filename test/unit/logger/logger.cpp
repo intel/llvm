@@ -16,11 +16,7 @@ TEST(logger, NullSinkTwoParams) {
                  std::invalid_argument);
 }
 
-INSTANTIATE_TEST_SUITE_P(EnvVarSetupStdParams, CreateLoggerWithEnvVar,
-                         ::testing::Values("level:info",
-                                           "level:info;output:stderr"));
-
-TEST_P(CreateLoggerWithEnvVar, EnvVarSetupStd) {
+TEST_F(LoggerFromEnvVar, EnvVarSetupStd) {
     logger::info("Test message: {}", "success");
     logger::debug("This should not be printed: {}", 42);
 }
@@ -94,42 +90,43 @@ TEST_F(FileSink, SetFlushLevelDebugCtor) {
 }
 
 TEST_F(FileSinkDefaultLevel, DefaultLevelNoOutput) {
-    logger::debug("This should not be printed: {}", 42);
+    logger->debug("This should not be printed: {}", 42);
+    test_msg.clear();
 }
 
 TEST_F(FileSinkDefaultLevel, SetLevelDebug) {
     auto level = logger::Level::DEBUG;
-    logger::setLevel(level);
-    logger::setFlushLevel(level);
-    logger::debug("Test message: {}", "success");
+    logger->setLevel(level);
+    logger->setFlushLevel(level);
+    logger->debug("Test message: {}", "success");
 
     test_msg += "[DEBUG]: Test message: success\n";
 }
 
 TEST_F(FileSinkDefaultLevel, SetLevelInfo) {
     auto level = logger::Level::INFO;
-    logger::setLevel(level);
-    logger::setFlushLevel(level);
-    logger::info("Test message: {}", "success");
-    logger::debug("This should not be printed: {}", 42);
+    logger->setLevel(level);
+    logger->setFlushLevel(level);
+    logger->info("Test message: {}", "success");
+    logger->debug("This should not be printed: {}", 42);
 
     test_msg += "[INFO]: Test message: success\n";
 }
 
 TEST_F(FileSinkDefaultLevel, SetLevelWarning) {
     auto level = logger::Level::WARN;
-    logger::setLevel(level);
-    logger::setFlushLevel(level);
-    logger::warning("Test message: {}", "success");
-    logger::info("This should not be printed: {}", 42);
+    logger->setLevel(level);
+    logger->setFlushLevel(level);
+    logger->warning("Test message: {}", "success");
+    logger->info("This should not be printed: {}", 42);
 
     test_msg += "[WARNING]: Test message: success\n";
 }
 
 TEST_F(FileSinkDefaultLevel, SetLevelError) {
-    logger::setLevel(logger::Level::ERR);
-    logger::error("Test message: {}", "success");
-    logger::warning("This should not be printed: {}", 42);
+    logger->setLevel(logger::Level::ERR);
+    logger->error("Test message: {}", "success");
+    logger->warning("This should not be printed: {}", 42);
 
     test_msg += "[ERROR]: Test message: success\n";
 }
