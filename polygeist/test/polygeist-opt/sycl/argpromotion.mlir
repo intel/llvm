@@ -21,7 +21,7 @@ gpu.module @device_func {
   // COM: This function is a candidate, check that it is transformed correctly.
   func.func private @callee1(%arg0: memref<?x!llvm.struct<(i32, i64)>>) -> i64 {
     // CHECK-LABEL: func.func private @callee1
-    // CHECK-SAME:    (%arg0: memref<?xi32>, %arg1: memref<?xi64>) -> i64 {
+    // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xi64> {llvm.noalias}) -> i64 {
     // CHECK-NOT:     {{.*}} = "polygeist.subindex"
     // CHECK:         {{.*}} = affine.load %arg0[0] : memref<?xi32>
     // CHECK-NEXT:    {{.*}} = affine.load %arg1[0] : memref<?xi64>
@@ -49,7 +49,7 @@ gpu.module @device_func {
   // COM: This function is a candidate, check that it is transformed correctly.
   func.func private @callee3(%arg0: memref<?x!llvm.struct<(i32)>>, %arg1: memref<?x!llvm.struct<(f32)>>) {
     // CHECK-LABEL: func.func private @callee3
-    // CHECK-SAME:    (%arg0: memref<?xi32>, %arg1: memref<?xf32>) {
+    // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xf32> {llvm.noalias}) {
     // CHECK-NOT:     {{.*}} = "polygeist.subindex"
     // CHECK:         {{.*}} = affine.load %arg0[0] : memref<?xi32>
     // CHECK-NEXT:    {{.*}} = affine.load %arg1[0] : memref<?xf32>
@@ -64,7 +64,7 @@ gpu.module @device_func {
   // COM: The first argument in this function can be peeled but the second cannot.
   func.func private @callee4(%arg0: memref<?x!llvm.struct<(i32)>>, %arg1: memref<?x!llvm.struct<(f32)>>) {
     // CHECK-LABEL: func.func private @callee4
-    // CHECK-SAME:    (%arg0: memref<?xi32>, %arg1: memref<?x!llvm.struct<(f32)>>) {
+    // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?x!llvm.struct<(f32)>>) {
     // CHECK-NOT:     {{.*}} = "polygeist.subindex"
     // CHECK:         {{.*}} = sycl.addrspacecast %arg1 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
     // CHECK-NEXT:    {{.*}} = affine.load %arg0[0] : memref<?xi32>

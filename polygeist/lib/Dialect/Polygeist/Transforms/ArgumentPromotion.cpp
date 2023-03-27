@@ -341,12 +341,14 @@ void Candidate::replaceArgumentWith(unsigned pos, Region &callableRgn,
   assert(!newArgs.empty() && "Expecting a non-empty vector");
 
   Value origArg = callableRgn.getArgument(pos);
+  MLIRContext *ctx = callableRgn.getContext();
 
   for (unsigned offset = 0; offset < newArgs.size(); ++offset) {
     callableRgn.insertArgument(pos + offset, newArgs[offset].getType(),
                                callableRgn.getLoc());
-    // TODO: add attribute NoAlias on the new argument.
-    newArgAttrs.push_back(Attribute());
+    NamedAttribute noAliasAttr(StringAttr::get(ctx, "llvm.noalias"),
+                               UnitAttr::get(ctx));
+    newArgAttrs.push_back(DictionaryAttr::get(ctx, {noAliasAttr}));
   }
 
   // Replace uses of the original argument with the new arguments injected.
