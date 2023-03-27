@@ -2652,8 +2652,8 @@ public:
   /// expr __pipe member \param Size the size of data getting read back / to.
   /// /// \param Size the size of data getting read back / to. \param Blocking
   /// if read/write opeartion is blocking \param Read 1 for read, 0 for write
-  void ext_intel_read_write_host_pipe(const std::string &Name, void *Ptr, size_t Size,
-                            bool Block, bool Read);
+  void ext_intel_read_write_host_pipe(const std::string &Name, void *Ptr,
+                                      size_t Size, bool Block, bool Read);
 
   /// Copies data from a USM memory region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the

@@ -77,9 +77,10 @@
 // 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
 // 12.23 Added new piextEnqueueDeviceGlobalVariableWrite and
 // piextEnqueueDeviceGlobalVariableRead functions.
+// 12.24 Added piextEnqueueReadHostPipe and piextEnqueueWriteHostPipe functions.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 23
+#define _PI_H_VERSION_MINOR 24
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)

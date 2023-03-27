@@ -80,8 +80,8 @@ public:
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
 
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(PipeName, DataPtr, sizeof(_dataT), false,
-                               true /* read */);
+      CGH.ext_intel_read_write_host_pipe(PipeName, DataPtr, sizeof(_dataT),
+                                         false, true /* read */);
     });
     E.wait();
     if (E.get_info<sycl::info::event::command_execution_status>() ==
@@ -108,12 +108,12 @@ public:
     const void *DataPtr = &Data;
 
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(PipeName, (void *)DataPtr, sizeof(_dataT),
-                               false, false /* write */);
+      CGH.ext_intel_read_write_host_pipe(
+          PipeName, (void *)DataPtr, sizeof(_dataT), false, false /* write */);
     });
     E.wait();
     Success = E.get_info<sycl::info::event::command_execution_status>() ==
-      sycl::info::event_command_status::complete;
+              sycl::info::event_command_status::complete;
   }
 
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
@@ -157,7 +157,8 @@ public:
     (void)Properties;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead.");
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -206,7 +207,8 @@ public:
     (void)Properties;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead.");
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -231,8 +233,8 @@ public:
     const void *HostPipePtr = &m_Storage;
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(PipeName, DataPtr, sizeof(_dataT), true,
-                               true /*blocking read */);
+      CGH.ext_intel_read_write_host_pipe(PipeName, DataPtr, sizeof(_dataT),
+                                         true, true /*blocking read */);
     });
     E.wait();
     return *(_dataT *)DataPtr;
@@ -250,8 +252,9 @@ public:
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
     const void *DataPtr = &Data;
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(PipeName, (void *)DataPtr, sizeof(_dataT),
-                               true, false /*blocking write */);
+      CGH.ext_intel_read_write_host_pipe(PipeName, (void *)DataPtr,
+                                         sizeof(_dataT), true,
+                                         false /*blocking write */);
     });
     E.wait();
   }
@@ -296,7 +299,8 @@ public:
     (void)Properties;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead.");
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -341,7 +345,8 @@ public:
     (void)Properties;
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Device-side API are not supported on a host device. Please use host-side API instead.");
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -355,21 +360,21 @@ private:
   static constexpr int32_t m_Capacity = _min_capacity;
 
   static constexpr int32_t m_ready_latency =
-      oneapi::experimental::detail::ValueOrDefault<_propertiesT,
-                             ready_latency_key>::template get<int32_t>(0);
+      oneapi::experimental::detail::ValueOrDefault<
+          _propertiesT, ready_latency_key>::template get<int32_t>(0);
   static constexpr int32_t m_bits_per_symbol =
-      oneapi::experimental::detail::ValueOrDefault<_propertiesT,
-                             bits_per_symbol_key>::template get<int32_t>(8);
+      oneapi::experimental::detail::ValueOrDefault<
+          _propertiesT, bits_per_symbol_key>::template get<int32_t>(8);
   static constexpr bool m_uses_valid =
-      oneapi::experimental::detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(
-          true);
+      oneapi::experimental::detail::ValueOrDefault<
+          _propertiesT, uses_valid_key>::template get<bool>(true);
   static constexpr bool m_first_symbol_in_high_order_bits =
       oneapi::experimental::detail::ValueOrDefault<
           _propertiesT,
           first_symbol_in_high_order_bits_key>::template get<int32_t>(0);
-  static constexpr protocol_name m_protocol =
-      oneapi::experimental::detail::ValueOrDefault<_propertiesT, protocol_key>::template get<
-          protocol_name>(protocol_name::AVALON_STREAMING_USES_READY);
+  static constexpr protocol_name m_protocol = oneapi::experimental::detail::
+      ValueOrDefault<_propertiesT, protocol_key>::template get<protocol_name>(
+          protocol_name::AVALON_STREAMING_USES_READY);
 
 public:
   static constexpr struct ConstantPipeStorageExp m_Storage = {

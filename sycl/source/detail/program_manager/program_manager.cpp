@@ -1322,7 +1322,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           // * 8 bytes - Size of the property.
           // * 4 bytes - Size of the underlying type in the host_pipe.
           // Note: Property may be padded.
-          
+
           HostPipeInfo.dropBytes(8);
           auto TypeSize = HostPipeInfo.consume<std::uint32_t>();
           assert(HostPipeInfo.empty() && "Extra data left!");

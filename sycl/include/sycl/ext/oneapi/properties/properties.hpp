@@ -231,9 +231,8 @@ struct ValueOrDefault {
 template <typename Properties, typename PropertyKey>
 struct ValueOrDefault<
     Properties, PropertyKey,
-    std::enable_if_t<
-        is_property_list_v<Properties> &&
-        Properties::template has_property<PropertyKey>()>> {
+    std::enable_if_t<is_property_list_v<Properties> &&
+                     Properties::template has_property<PropertyKey>()>> {
   template <typename ValT> static constexpr ValT get(ValT) {
     return Properties::template get_property<PropertyKey>().value;
   }
