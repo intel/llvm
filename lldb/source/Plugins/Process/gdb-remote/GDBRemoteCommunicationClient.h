@@ -14,6 +14,7 @@
 #include <chrono>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -28,7 +29,6 @@
 #include "lldb/Host/windows/PosixApi.h"
 #endif
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/VersionTuple.h"
 
 namespace lldb_private {
@@ -194,13 +194,9 @@ public:
 
   Status GetMemoryRegionInfo(lldb::addr_t addr, MemoryRegionInfo &range_info);
 
-  Status GetWatchpointSupportInfo(uint32_t &num);
+  std::optional<uint32_t> GetWatchpointSlotCount();
 
-  Status GetWatchpointSupportInfo(uint32_t &num, bool &after,
-                                  const ArchSpec &arch);
-
-  Status GetWatchpointsTriggerAfterInstruction(bool &after,
-                                               const ArchSpec &arch);
+  std::optional<bool> GetWatchpointReportedAfter();
 
   const ArchSpec &GetHostArchitecture();
 
@@ -235,9 +231,9 @@ public:
 
   llvm::VersionTuple GetMacCatalystVersion();
 
-  llvm::Optional<std::string> GetOSBuildString();
+  std::optional<std::string> GetOSBuildString();
 
-  llvm::Optional<std::string> GetOSKernelDescription();
+  std::optional<std::string> GetOSKernelDescription();
 
   ArchSpec GetSystemArchitecture();
 
@@ -299,8 +295,8 @@ public:
   // and response times.
   bool SendSpeedTestPacket(uint32_t send_size, uint32_t recv_size);
 
-  llvm::Optional<PidTid>
-  SendSetCurrentThreadPacket(uint64_t tid, uint64_t pid, char op);
+  std::optional<PidTid> SendSetCurrentThreadPacket(uint64_t tid, uint64_t pid,
+                                                   char op);
 
   bool SetCurrentThread(uint64_t tid,
                         lldb::pid_t pid = LLDB_INVALID_PROCESS_ID);
@@ -351,11 +347,11 @@ public:
 
   bool CloseFile(lldb::user_id_t fd, Status &error);
 
-  llvm::Optional<GDBRemoteFStatData> FStat(lldb::user_id_t fd);
+  std::optional<GDBRemoteFStatData> FStat(lldb::user_id_t fd);
 
   // NB: this is just a convenience wrapper over open() + fstat().  It does not
   // work if the file cannot be opened.
-  llvm::Optional<GDBRemoteFStatData> Stat(const FileSpec &file_spec);
+  std::optional<GDBRemoteFStatData> Stat(const FileSpec &file_spec);
 
   lldb::user_id_t GetFileSize(const FileSpec &file_spec);
 
@@ -429,6 +425,8 @@ public:
 
   bool GetSharedCacheInfoSupported();
 
+  bool GetDynamicLoaderProcessStateSupported();
+
   bool GetMemoryTaggingSupported();
 
   bool UsesNativeSignals();
@@ -442,12 +440,12 @@ public:
   /// Use qOffsets to query the offset used when relocating the target
   /// executable. If successful, the returned structure will contain at least
   /// one value in the offsets field.
-  llvm::Optional<QOffsets> GetQOffsets();
+  std::optional<QOffsets> GetQOffsets();
 
   bool GetModuleInfo(const FileSpec &module_file_spec,
                      const ArchSpec &arch_spec, ModuleSpec &module_spec);
 
-  llvm::Optional<std::vector<ModuleSpec>>
+  std::optional<std::vector<ModuleSpec>>
   GetModulesInfo(llvm::ArrayRef<FileSpec> module_file_specs,
                  const llvm::Triple &triple);
 
@@ -553,6 +551,7 @@ protected:
   LazyBool m_supports_jThreadExtendedInfo = eLazyBoolCalculate;
   LazyBool m_supports_jLoadedDynamicLibrariesInfos = eLazyBoolCalculate;
   LazyBool m_supports_jGetSharedCacheInfo = eLazyBoolCalculate;
+  LazyBool m_supports_jGetDyldProcessState = eLazyBoolCalculate;
   LazyBool m_supports_QPassSignals = eLazyBoolCalculate;
   LazyBool m_supports_error_string_reply = eLazyBoolCalculate;
   LazyBool m_supports_multiprocess = eLazyBoolCalculate;

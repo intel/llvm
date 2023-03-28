@@ -46,11 +46,11 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
 #include <cassert>
 #include <cstring>
 #include <memory>
@@ -364,7 +364,7 @@ bool ToolInvocation::run() {
 
   // We already have a cc1, just create an invocation.
   if (CommandLine.size() >= 2 && CommandLine[1] == "-cc1") {
-    ArrayRef<const char *> CC1Args = makeArrayRef(Argv).drop_front();
+    ArrayRef<const char *> CC1Args = ArrayRef(Argv).drop_front();
     std::unique_ptr<CompilerInvocation> Invocation(
         newInvocation(&*Diagnostics, CC1Args, BinaryName));
     if (Diagnostics->hasErrorOccurred())
@@ -382,7 +382,7 @@ bool ToolInvocation::run() {
   if (!Files->getFileSystemOpts().WorkingDir.empty())
     Driver->setCheckInputsExist(false);
   const std::unique_ptr<driver::Compilation> Compilation(
-      Driver->BuildCompilation(llvm::makeArrayRef(Argv)));
+      Driver->BuildCompilation(llvm::ArrayRef(Argv)));
   if (!Compilation)
     return false;
   const llvm::opt::ArgStringList *const CC1Args = getCC1Arguments(

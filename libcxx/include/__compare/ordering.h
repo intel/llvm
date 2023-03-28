@@ -10,7 +10,8 @@
 #define _LIBCPP___COMPARE_ORDERING_H
 
 #include <__config>
-#include <type_traits>
+#include <__type_traits/enable_if.h>
+#include <__type_traits/is_same.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -18,7 +19,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 // exposition only
 enum class _LIBCPP_ENUM_VIS _OrdResult : signed char {
@@ -318,7 +319,7 @@ inline constexpr strong_ordering strong_ordering::greater(_OrdResult::__greater)
 template <class _Tp>
 concept __comparison_category = __one_of_v<_Tp, partial_ordering, weak_ordering, strong_ordering>;
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

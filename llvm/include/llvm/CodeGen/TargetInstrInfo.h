@@ -16,6 +16,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/ADT/Uniformity.h"
 #include "llvm/CodeGen/MIRFormatter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -60,6 +61,7 @@ class TargetRegisterInfo;
 class TargetSchedModel;
 class TargetSubtargetInfo;
 enum class MachineCombinerPattern;
+enum class MachineTraceStrategy;
 
 template <class T> class SmallVectorImpl;
 
@@ -1059,24 +1061,36 @@ public:
   /// Store the specified register of the given register class to the specified
   /// stack frame index. The store instruction is to be added to the given
   /// machine basic block before the specified machine instruction. If isKill
-  /// is true, the register operand is the last use and must be marked kill.
+  /// is true, the register operand is the last use and must be marked kill. If
+  /// \p SrcReg is being directly spilled as part of assigning a virtual
+  /// register, \p VReg is the register being assigned. This additional register
+  /// argument is needed for certain targets when invoked from RegAllocFast to
+  /// map the spilled physical register to its virtual register. A null register
+  /// can be passed elsewhere.
   virtual void storeRegToStackSlot(MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator MI,
                                    Register SrcReg, bool isKill, int FrameIndex,
                                    const TargetRegisterClass *RC,
-                                   const TargetRegisterInfo *TRI) const {
+                                   const TargetRegisterInfo *TRI,
+                                   Register VReg) const {
     llvm_unreachable("Target didn't implement "
                      "TargetInstrInfo::storeRegToStackSlot!");
   }
 
   /// Load the specified register of the given register class from the specified
   /// stack frame index. The load instruction is to be added to the given
-  /// machine basic block before the specified machine instruction.
+  /// machine basic block before the specified machine instruction. If \p
+  /// DestReg is being directly reloaded as part of assigning a virtual
+  /// register, \p VReg is the register being assigned. This additional register
+  /// argument is needed for certain targets when invoked from RegAllocFast to
+  /// map the loaded physical register to its virtual register. A null register
+  /// can be passed elsewhere.
   virtual void loadRegFromStackSlot(MachineBasicBlock &MBB,
                                     MachineBasicBlock::iterator MI,
                                     Register DestReg, int FrameIndex,
                                     const TargetRegisterClass *RC,
-                                    const TargetRegisterInfo *TRI) const {
+                                    const TargetRegisterInfo *TRI,
+                                    Register VReg) const {
     llvm_unreachable("Target didn't implement "
                      "TargetInstrInfo::loadRegFromStackSlot!");
   }
@@ -1237,6 +1251,9 @@ public:
 
   /// Return true when a target supports MachineCombiner.
   virtual bool useMachineCombiner() const { return false; }
+
+  /// Return a strategy that MachineCombiner must use when creating traces.
+  virtual MachineTraceStrategy getMachineCombinerTraceStrategy() const;
 
   /// Return true if the given SDNode can be copied during scheduling
   /// even if it has glue.
@@ -1463,6 +1480,13 @@ public:
 
   /// Returns true if the instruction is already predicated.
   virtual bool isPredicated(const MachineInstr &MI) const { return false; }
+
+  /// Assumes the instruction is already predicated and returns true if the
+  /// instruction can be predicated again.
+  virtual bool canPredicatePredicatedInstr(const MachineInstr &MI) const {
+    assert(isPredicated(MI) && "Instruction is not predicated");
+    return false;
+  }
 
   // Returns a MIRPrinter comment for this machine operand.
   virtual std::string
@@ -1955,17 +1979,43 @@ public:
   virtual void mergeOutliningCandidateAttributes(
       Function &F, std::vector<outliner::Candidate> &Candidates) const;
 
-  /// Returns how or if \p MI should be outlined.
+protected:
+  /// Target-dependent implementation for getOutliningTypeImpl.
   virtual outliner::InstrType
-  getOutliningType(MachineBasicBlock::iterator &MIT, unsigned Flags) const {
+  getOutliningTypeImpl(MachineBasicBlock::iterator &MIT, unsigned Flags) const {
     llvm_unreachable(
-        "Target didn't implement TargetInstrInfo::getOutliningType!");
+        "Target didn't implement TargetInstrInfo::getOutliningTypeImpl!");
   }
+
+public:
+  /// Returns how or if \p MIT should be outlined. \p Flags is the
+  /// target-specific information returned by isMBBSafeToOutlineFrom.
+  outliner::InstrType
+  getOutliningType(MachineBasicBlock::iterator &MIT, unsigned Flags) const;
 
   /// Optional target hook that returns true if \p MBB is safe to outline from,
   /// and returns any target-specific information in \p Flags.
   virtual bool isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
                                       unsigned &Flags) const;
+
+  /// Optional target hook which partitions \p MBB into outlinable ranges for
+  /// instruction mapping purposes. Each range is defined by two iterators:
+  /// [start, end).
+  ///
+  /// Ranges are expected to be ordered top-down. That is, ranges closer to the
+  /// top of the block should come before ranges closer to the end of the block.
+  ///
+  /// Ranges cannot overlap.
+  ///
+  /// If an entire block is mappable, then its range is [MBB.begin(), MBB.end())
+  ///
+  /// All instructions not present in an outlinable range are considered
+  /// illegal.
+  virtual SmallVector<
+      std::pair<MachineBasicBlock::iterator, MachineBasicBlock::iterator>>
+  getOutlinableRanges(MachineBasicBlock &MBB, unsigned &Flags) const {
+    return {std::make_pair(MBB.begin(), MBB.end())};
+  }
 
   /// Insert a custom frame for outlined functions.
   virtual void buildOutlinedFrame(MachineBasicBlock &MBB, MachineFunction &MF,
@@ -2032,6 +2082,21 @@ public:
   /// Returns the callee operand from the given \p MI.
   virtual const MachineOperand &getCalleeOperand(const MachineInstr &MI) const {
     return MI.getOperand(0);
+  }
+
+  /// Return the uniformity behavior of the given instruction.
+  virtual InstructionUniformity
+  getInstructionUniformity(const MachineInstr &MI) const {
+    return InstructionUniformity::Default;
+  }
+
+  /// Returns true if the given \p MI defines a TargetIndex operand that can be
+  /// tracked by their offset, can have values, and can have debug info
+  /// associated with it. If so, sets \p Index and \p Offset of the target index
+  /// operand.
+  virtual bool isExplicitTargetIndexDef(const MachineInstr &MI, int &Index,
+                                        int64_t &Offset) const {
+    return false;
   }
 
 private:

@@ -67,6 +67,10 @@ CONSTFIX char clSetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
 CONSTFIX char clGetDeviceFunctionPointerName[] =
     "clGetDeviceFunctionPointerINTEL";
+CONSTFIX char clEnqueueWriteGlobalVariableName[] =
+    "clEnqueueWriteGlobalVariableINTEL";
+CONSTFIX char clEnqueueReadGlobalVariableName[] =
+    "clEnqueueReadGlobalVariableINTEL";
 
 #undef CONSTFIX
 
@@ -278,9 +282,126 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // For details about Intel UUID extension, see
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_ERROR_INVALID_VALUE;
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    // This query is missing beore OpenCL 3.0
+    // Check version and handle appropriately
+    OCLV::OpenCLVersion devVer;
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS) {
+      return cast<pi_result>(ret_err);
+    }
+
+    // Minimum required capability to be returned
+    // For OpenCL 1.2, this is all that is required
+    pi_memory_order_capabilities capabilities = PI_MEMORY_ORDER_RELAXED;
+
+    if (devVer >= OCLV::V3_0) {
+      // For OpenCL >=3.0, the query should be implemented
+      cl_device_atomic_capabilities cl_capabilities = 0;
+      cl_int ret_err = clGetDeviceInfo(
+          deviceID, CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+          sizeof(cl_device_atomic_capabilities), &cl_capabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return cast<pi_result>(ret_err);
+
+      // Mask operation to only consider atomic_memory_order* capabilities
+      cl_int mask = CL_DEVICE_ATOMIC_ORDER_RELAXED |
+                    CL_DEVICE_ATOMIC_ORDER_ACQ_REL |
+                    CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
+      cl_capabilities &= mask;
+
+      // The memory order capabilities are hierarchical, if one is implied, all
+      // preceding capbilities are implied as well. Especially in the case of
+      // ACQ_REL.
+      if (cl_capabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
+        capabilities |= PI_MEMORY_ORDER_SEQ_CST;
+      }
+      if (cl_capabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) {
+        capabilities |= PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_ACQUIRE |
+                        PI_MEMORY_ORDER_RELEASE;
+      }
+    } else if (devVer >= OCLV::V2_0) {
+      // For OpenCL 2.x, return all capabilities
+      // (https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#_memory_consistency_model)
+      capabilities |= PI_MEMORY_ORDER_ACQUIRE | PI_MEMORY_ORDER_RELEASE |
+                      PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_SEQ_CST;
+    }
+
+    if (paramValue) {
+      if (paramValueSize < sizeof(pi_memory_order_capabilities))
+        return static_cast<pi_result>(CL_INVALID_VALUE);
+
+      std::memcpy(paramValue, &capabilities, sizeof(capabilities));
+    }
+
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(capabilities);
+
+    return static_cast<pi_result>(CL_SUCCESS);
+  }
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // Initialize result to minimum mandated capabilities according to
+    // SYCL2020 4.6.3.2
+    // Because scopes are hierarchical, wider scopes support all narrower
+    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+    pi_memory_scope_capabilities result = PI_MEMORY_SCOPE_WORK_ITEM |
+                                          PI_MEMORY_SCOPE_SUB_GROUP |
+                                          PI_MEMORY_SCOPE_WORK_GROUP;
+
+    OCLV::OpenCLVersion devVer;
+
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    cl_device_atomic_capabilities devCapabilities = 0;
+    if (devVer >= OCLV::V3_0) {
+      ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+                                sizeof(cl_device_atomic_capabilities),
+                                &devCapabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      assert((devCapabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
+             "Violates minimum mandated guarantee");
+
+      // Because scopes are hierarchical, wider scopes support all narrower
+      // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+      // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+      // We already initialized to these minimum mandated capabilities. Just
+      // check wider scopes.
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
+        result |= PI_MEMORY_SCOPE_DEVICE;
+      }
+
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+        result |= PI_MEMORY_SCOPE_SYSTEM;
+      }
+
+    } else {
+      // This info is only available in OpenCL version >= 3.0
+      // Just return minimum mandated capabilities for older versions.
+      // OpenCL 1.x minimum mandated capabilities are WORK_GROUP, we
+      // already initialized using it.
+      if (devVer >= OCLV::V2_0) {
+        // OpenCL 2.x minimum mandated capabilities are WORK_GROUP | DEVICE |
+        // ALL_DEVICES
+        result |= PI_MEMORY_SCOPE_DEVICE | PI_MEMORY_SCOPE_SYSTEM;
+      }
+    }
+    if (paramValue) {
+      if (paramValueSize < sizeof(cl_device_atomic_capabilities))
+        return PI_ERROR_INVALID_VALUE;
+
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
     cl_bool result = CL_FALSE;
@@ -341,7 +462,46 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(pi_int32));
     return PI_SUCCESS;
   }
+  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
+    // Corresponding OpenCL query is only available starting with OpenCL 2.1 and
+    // we have to emulate it on older OpenCL runtimes.
+    OCLV::OpenCLVersion version;
+    cl_int err = getDeviceVersion(cast<cl_device_id>(device), version);
+    if (err != CL_SUCCESS)
+      return static_cast<pi_result>(err);
 
+    if (version >= OCLV::V2_1) {
+      err = clGetDeviceInfo(cast<cl_device_id>(device),
+                            cast<cl_device_info>(paramName), paramValueSize,
+                            paramValue, paramValueSizeRet);
+      if (err != CL_SUCCESS)
+        return static_cast<pi_result>(err);
+
+      if (paramValue && *static_cast<cl_uint *>(paramValue) == 0u) {
+        // OpenCL returns 0 if sub-groups are not supported, but SYCL 2020 spec
+        // says that minimum possible value is 1.
+        cl_uint value = 1u;
+        std::memcpy(paramValue, &value, sizeof(cl_uint));
+      }
+
+      return static_cast<pi_result>(err);
+    }
+
+    // Otherwise, we can't query anything, because even cl_khr_subgroups does
+    // not provide similar query. Therefore, simply return minimum possible
+    // value 1 here.
+    if (paramValue && paramValueSize < sizeof(cl_uint))
+      return static_cast<pi_result>(CL_INVALID_VALUE);
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(cl_uint);
+
+    if (paramValue) {
+      cl_uint value = 1u;
+      std::memcpy(paramValue, &value, sizeof(cl_uint));
+    }
+
+    return static_cast<pi_result>(CL_SUCCESS);
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -1560,6 +1720,89 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return RetVal;
 }
 
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clEnqueueWriteGlobalVariable_fn)(
+    cl_command_queue, cl_program, const char *, cl_bool, size_t, size_t,
+    const void *, cl_uint, const cl_event *, cl_event *);
+
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clEnqueueReadGlobalVariable_fn)(
+    cl_command_queue, cl_program, const char *, cl_bool, size_t, size_t, void *,
+    cl_uint, const cl_event *, cl_event *);
+
+/// API for writing data from host to a device global variable.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device global variable
+/// \param name is the unique identifier for the device global variable
+/// \param blocking_write is true if the write should block
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device global variable to start
+/// copying
+/// \param src is a pointer to where the data must be copied from
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  cl_context Ctx = nullptr;
+  cl_int Res =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(Ctx), &Ctx, nullptr);
+
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
+
+  clEnqueueWriteGlobalVariable_fn F = nullptr;
+  Res = getExtFuncFromContext<clEnqueueWriteGlobalVariableName, decltype(F)>(
+      cast<pi_context>(Ctx), &F);
+
+  if (!F || Res != CL_SUCCESS)
+    return PI_ERROR_INVALID_OPERATION;
+  Res = F(cast<cl_command_queue>(queue), cast<cl_program>(program), name,
+          blocking_write, count, offset, src, num_events_in_wait_list,
+          cast<const cl_event *>(event_wait_list), cast<cl_event *>(event));
+  return cast<pi_result>(Res);
+}
+
+/// API reading data from a device global variable to host.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device global variable
+/// \param name is the unique identifier for the device global variable
+/// \param blocking_read is true if the read should block
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device global variable to start
+/// copying
+/// \param dst is a pointer to where the data must be copied to
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  cl_context Ctx = nullptr;
+  cl_int Res =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(Ctx), &Ctx, nullptr);
+
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
+
+  clEnqueueReadGlobalVariable_fn F = nullptr;
+  Res = getExtFuncFromContext<clEnqueueReadGlobalVariableName, decltype(F)>(
+      cast<pi_context>(Ctx), &F);
+
+  if (!F || Res != CL_SUCCESS)
+    return PI_ERROR_INVALID_OPERATION;
+  Res = F(cast<cl_command_queue>(queue), cast<cl_program>(program), name,
+          blocking_read, count, offset, dst, num_events_in_wait_list,
+          cast<const cl_event *>(event_wait_list), cast<cl_event *>(event));
+  return cast<pi_result>(Res);
+}
+
 /// API to set attributes controlling kernel execution
 ///
 /// \param kernel is the pi kernel to execute
@@ -1658,10 +1901,54 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 }
 
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
+// Windows: dynamically loaded plugins might have been unloaded already
+// when this is called. Sycl RT holds onto the PI plugin so it can be
+// called safely. But this is not transitive. If the PI plugin in turn
+// dynamically loaded a different DLL, that may have been unloaded. 
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
+  return PI_SUCCESS;
+}
+
+pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                  uint64_t *HostTime) {
+  OCLV::OpenCLVersion devVer, platVer;
+  cl_platform_id platform;
+  cl_device_id deviceID = cast<cl_device_id>(Device);
+
+  // TODO: Cache OpenCL version for each device and platform
+  auto ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_PLATFORM,
+                                 sizeof(cl_platform_id), &platform, nullptr);
+  if (ret_err != CL_SUCCESS) {
+    return cast<pi_result>(ret_err);
+  }
+
+  ret_err = getDeviceVersion(deviceID, devVer);
+
+  if (ret_err != CL_SUCCESS) {
+    return cast<pi_result>(ret_err);
+  }
+
+  ret_err = getPlatformVersion(platform, platVer);
+
+  if (platVer < OCLV::V2_1 || devVer < OCLV::V2_1) {
+    setErrorMessage(
+        "OpenCL version for device and/or platform is less than 2.1",
+        PI_ERROR_INVALID_OPERATION);
+    return PI_ERROR_INVALID_OPERATION;
+  }
+
+  if (DeviceTime) {
+    uint64_t dummy;
+    clGetDeviceAndHostTimer(deviceID, DeviceTime,
+                            HostTime == nullptr ? &dummy : HostTime);
+
+  } else if (HostTime) {
+    clGetHostTimer(deviceID, HostTime);
+  }
+
   return PI_SUCCESS;
 }
 
@@ -1797,15 +2084,27 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
+  // Device global variable
+  _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
+         piextEnqueueDeviceGlobalVariableWrite)
+  _PI_CL(piextEnqueueDeviceGlobalVariableRead,
+         piextEnqueueDeviceGlobalVariableRead)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
 
 #undef _PI_CL
 
   return PI_SUCCESS;
 }
+
+#ifdef _WIN32
+#define __SYCL_PLUGIN_DLL_NAME "pi_opencl.dll"
+#include "../common_win_pi_trace/common_win_pi_trace.hpp"
+#undef __SYCL_PLUGIN_DLL_NAME
+#endif
 
 } // end extern 'C'

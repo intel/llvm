@@ -27,6 +27,7 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "nvptx-isel"
+#define PASS_NAME "NVPTX DAG->DAG Pattern Instruction Selection"
 
 /// createNVPTXISelDag - This pass converts a legalized DAG into a
 /// NVPTX-specific DAG, ready for instruction scheduling.
@@ -35,9 +36,13 @@ FunctionPass *llvm::createNVPTXISelDag(NVPTXTargetMachine &TM,
   return new NVPTXDAGToDAGISel(TM, OptLevel);
 }
 
+char NVPTXDAGToDAGISel::ID = 0;
+
+INITIALIZE_PASS(NVPTXDAGToDAGISel, DEBUG_TYPE, PASS_NAME, false, false)
+
 NVPTXDAGToDAGISel::NVPTXDAGToDAGISel(NVPTXTargetMachine &tm,
                                      CodeGenOpt::Level OptLevel)
-    : SelectionDAGISel(tm, OptLevel), TM(tm) {
+    : SelectionDAGISel(ID, tm, OptLevel), TM(tm) {
   doMulWide = (OptLevel > 0);
 }
 
@@ -1665,9 +1670,6 @@ bool NVPTXDAGToDAGISel::tryLDGLDU(SDNode *N) {
     SDValue Ops[] = { Op1, Chain };
     LD = CurDAG->getMachineNode(*Opcode, DL, InstVTList, Ops);
   }
-
-  MachineMemOperand *MemRef = Mem->getMemOperand();
-  CurDAG->setNodeMemRefs(cast<MachineSDNode>(LD), {MemRef});
 
   // For automatic generation of LDG (through SelectLoad[Vector], not the
   // intrinsics), we may have an extending load like:
@@ -3403,7 +3405,7 @@ bool NVPTXDAGToDAGISel::tryBFE(SDNode *N) {
     }
 
     // How many bits are in our mask?
-    uint64_t NumBits = countTrailingOnes(MaskVal);
+    uint64_t NumBits = llvm::countr_one(MaskVal);
     Len = CurDAG->getTargetConstant(NumBits, DL, MVT::i32);
 
     if (LHS.getOpcode() == ISD::SRL || LHS.getOpcode() == ISD::SRA) {
@@ -3467,10 +3469,10 @@ bool NVPTXDAGToDAGISel::tryBFE(SDNode *N) {
         NumZeros = 0;
         // The number of bits in the result bitfield will be the number of
         // trailing ones (the AND) minus the number of bits we shift off
-        NumBits = countTrailingOnes(MaskVal) - ShiftAmt;
+        NumBits = llvm::countr_one(MaskVal) - ShiftAmt;
       } else if (isShiftedMask_64(MaskVal)) {
-        NumZeros = countTrailingZeros(MaskVal);
-        unsigned NumOnes = countTrailingOnes(MaskVal >> NumZeros);
+        NumZeros = llvm::countr_zero(MaskVal);
+        unsigned NumOnes = llvm::countr_one(MaskVal >> NumZeros);
         // The number of bits in the result bitfield will be the number of
         // trailing zeros plus the number of set bits in the mask minus the
         // number of bits we shift off

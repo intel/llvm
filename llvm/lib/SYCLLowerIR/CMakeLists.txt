@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Gorban, Igor <igor.gorban@intel.com>
-    # Date:   Sun Dec 11 20:40:12 2022 +0000
-    # Fix llvm_tot: legacy pass manager
-    set(LLVMGenXIntrinsics_GIT_TAG 7596a83751934c538d809f336ee18bea6e8d1b44)
+    # Author: "Gorban, Igor" <igor.gorban@intel.com>
+    # Date: Wed Feb 15 09:37:04 2023 +0000
+    # Fix module globals accessors
+    set(LLVMGenXIntrinsics_GIT_TAG 3ac855c9253d608a36d10b8ff87e62aa413bbf23)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -52,6 +52,8 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDVerifier.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
+  CompileTimePropertiesPass.cpp
+  DeviceGlobals.cpp
   ESIMD/LowerESIMDVecArg.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
@@ -81,6 +83,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LINK_LIBS
   LLVMGenXIntrinsics
   LLVMDemangle
+  LLVMTargetParser
   LLVMTransformUtils
   
   LINK_COMPONENTS

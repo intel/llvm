@@ -1,7 +1,7 @@
 ; Test to ensure that non-prevailing weak aliasee is kept as a weak definition
 ; when the alias is not dead.
 ; RUN: opt -module-summary %s -o %t1.bc
-; RUN: llvm-lto2 run %t1.bc \
+; RUN: llvm-lto2 run -opaque-pointers %t1.bc \
 ; RUN:	 -r=%t1.bc,__a,lx \
 ; RUN:	 -r=%t1.bc,__b,l \
 ; RUN:	 -r=%t1.bc,a,plx \
@@ -18,14 +18,14 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-@a = hidden alias void (), void ()* @__a
+@a = hidden alias void (), ptr @__a
 
 define weak hidden void @__a() {
 entry:
   ret void
 }
 
-@b = hidden alias void (), void ()* @__b
+@b = hidden alias void (), ptr @__b
 
 define weak hidden void @__b() {
 entry:

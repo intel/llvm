@@ -35,7 +35,7 @@ class WalkResult {
   enum ResultEnum { Interrupt, Advance, Skip } result;
 
 public:
-  WalkResult(ResultEnum result) : result(result) {}
+  WalkResult(ResultEnum result = Advance) : result(result) {}
 
   /// Allow LogicalResult to interrupt the walk on failure.
   WalkResult(LogicalResult result)
@@ -46,6 +46,7 @@ public:
   WalkResult(InFlightDiagnostic &&) : result(Interrupt) {}
 
   bool operator==(const WalkResult &rhs) const { return result == rhs.result; }
+  bool operator!=(const WalkResult &rhs) const { return result != rhs.result; }
 
   static WalkResult interrupt() { return {Interrupt}; }
   static WalkResult advance() { return {Advance}; }

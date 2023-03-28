@@ -44,7 +44,7 @@ template <typename T, typename PropertyListT, typename = void>
 class device_global_base {
 protected:
   using pointer_t = typename decorated_global_ptr<T>::pointer;
-  pointer_t usmptr;
+  pointer_t usmptr{};
   pointer_t get_ptr() noexcept { return usmptr; }
   const pointer_t get_ptr() const noexcept { return usmptr; }
 
@@ -134,13 +134,6 @@ public:
 
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
-
-  // TODO: Remove when support has been added for device_global without the
-  // device_image_scope property.
-  static_assert(
-      property_list_t::template has_property<device_image_scope_key>(),
-      "device_global without the device_image_scope property is currently "
-      "unavailable.");
 
   device_global() = default;
 

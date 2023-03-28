@@ -17,6 +17,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/feature_test.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>
 #include <sycl/platform.hpp>
@@ -242,14 +243,23 @@ struct get_device_info_impl<std::vector<info::fp_config>,
   }
 };
 
-// Specialization for queue_profiling, OpenCL returns a bitfield
+// Specialization for queue_profiling. In addition to pi_queue level profiling,
+// piGetDeviceAndHostTimer support is needed for command_submit query support.
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
-  static bool get(RT::PiDevice dev, const plugin &Plugin) {
-    cl_command_queue_properties result;
+  static bool get(RT::PiDevice Dev, const plugin &Plugin) {
+    pi_queue_properties Properties;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
-        dev, PiInfoCode<info::device::queue_profiling>::value, sizeof(result),
-        &result, nullptr);
-    return (result & CL_QUEUE_PROFILING_ENABLE);
+        Dev, PiInfoCode<info::device::queue_profiling>::value,
+        sizeof(Properties), &Properties, nullptr);
+    if (!(Properties & PI_QUEUE_FLAG_PROFILING_ENABLE))
+      return false;
+    RT::PiResult Result =
+        Plugin.call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
+            Dev, nullptr, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION)
+      return false;
+    Plugin.checkPiResult(Result);
+    return true;
   }
 };
 
@@ -739,6 +749,25 @@ struct get_device_info_impl<bool, info::device::ext_intel_mem_channel> {
         dev, PiInfoCode<info::device::ext_intel_mem_channel>::value,
         sizeof(pi_mem_properties), &caps, nullptr);
     return (Err != PI_SUCCESS) ? false : (caps & PI_MEM_PROPERTIES_CHANNEL);
+  }
+};
+
+// Specialization for kernel fusion support
+template <>
+struct get_device_info_impl<
+    bool, ext::codeplay::experimental::info::device::supports_fusion> {
+  static bool get(RT::PiDevice dev, const plugin &Plugin) {
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+    // Currently fusion is only supported for SPIR-V based backends, i.e. OpenCL
+    // and LevelZero.
+    (void)dev;
+    return (Plugin.getBackend() == backend::ext_oneapi_level_zero) ||
+           (Plugin.getBackend() == backend::opencl);
+#else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+    (void)dev;
+    (void)Plugin;
+    return false;
+#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
   }
 };
 
@@ -1598,6 +1627,13 @@ get_device_info_host<ext::intel::info::device::max_compute_queue_indices>() {
   throw runtime_error(
       "Obtaining max compute queue indices is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline bool get_device_info_host<
+    ext::codeplay::experimental::info::device::supports_fusion>() {
+  // No support for fusion on the host device.
+  return false;
 }
 
 } // namespace detail

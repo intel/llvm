@@ -6,5 +6,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DeviceArchitecture.cpp
   WeakObject.cpp
   USMMemcpy2D.cpp
+  DeviceGlobal.cpp
+  OneAPISubGroupMask.cpp
 )
 

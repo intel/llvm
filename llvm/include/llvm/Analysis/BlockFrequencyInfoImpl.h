@@ -311,14 +311,14 @@ public:
     /// the context of distributing mass, L will be the number of loop headers
     /// an early exit edge jumps out of.
     BlockNode getResolvedNode() const {
-      auto L = getPackagedLoop();
+      auto *L = getPackagedLoop();
       return L ? L->getHeader() : Node;
     }
 
     LoopData *getPackagedLoop() const {
       if (!Loop || !Loop->IsPackaged)
         return nullptr;
-      auto L = Loop;
+      auto *L = Loop;
       while (L->Parent && L->Parent->IsPackaged)
         L = L->Parent;
       return L;
@@ -1277,10 +1277,10 @@ bool BlockFrequencyInfoImpl<BT>::computeMassInLoop(LoopData &Loop) {
         continue;
       }
       LLVM_DEBUG(dbgs() << getBlockName(HeaderNode)
-                        << " has irr loop header weight "
-                        << HeaderWeight.value() << "\n");
+                        << " has irr loop header weight " << *HeaderWeight
+                        << "\n");
       NumHeadersWithWeight++;
-      uint64_t HeaderWeightValue = HeaderWeight.value();
+      uint64_t HeaderWeightValue = *HeaderWeight;
       if (!MinHeaderWeight || HeaderWeightValue < MinHeaderWeight)
         MinHeaderWeight = HeaderWeightValue;
       if (HeaderWeightValue) {
@@ -1655,7 +1655,7 @@ template <class BT> struct BlockEdgesAdder {
   void operator()(IrreducibleGraph &G, IrreducibleGraph::IrrNode &Irr,
                   const LoopData *OuterLoop) {
     const BlockT *BB = BFI.RPOT[Irr.Node.Index];
-    for (const auto Succ : children<const BlockT *>(BB))
+    for (const auto *Succ : children<const BlockT *>(BB))
       G.addEdge(Irr, BFI.getNode(Succ), OuterLoop);
   }
 };
@@ -1732,10 +1732,10 @@ raw_ostream &BlockFrequencyInfoImpl<BT>::print(raw_ostream &OS) const {
     if (std::optional<uint64_t> ProfileCount =
         BlockFrequencyInfoImplBase::getBlockProfileCount(
             F->getFunction(), getNode(&BB)))
-      OS << ", count = " << ProfileCount.value();
+      OS << ", count = " << *ProfileCount;
     if (std::optional<uint64_t> IrrLoopHeaderWeight =
             BB.getIrrLoopHeaderWeight())
-      OS << ", irr_loop_header_weight = " << IrrLoopHeaderWeight.value();
+      OS << ", irr_loop_header_weight = " << *IrrLoopHeaderWeight;
     OS << "\n";
   }
 

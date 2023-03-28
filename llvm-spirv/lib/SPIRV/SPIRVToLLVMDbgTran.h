@@ -152,7 +152,6 @@ private:
   Module *M;
   DIBuilder Builder;
   SPIRVToLLVM *SPIRVReader;
-  DICompileUnit *CU;
   bool Enable;
   std::unordered_map<std::string, DIFile *> FileMap;
   std::unordered_map<SPIRVId, DISubprogram *> FuncMap;

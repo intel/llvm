@@ -137,6 +137,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       NewEvent = Result.NewEvent;
       ShouldEnqueue = Result.ShouldEnqueue;
     }
+    NewEvent->setSubmissionTime();
   }
 
   if (ShouldEnqueue) {
@@ -154,7 +155,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 }
 
 void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
-                                    std::vector<Command *> &AuxiliaryCmds) {
+                                    std::vector<Command *> &AuxiliaryCmds,
+                                    BlockingT Blocking) {
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
@@ -175,7 +177,8 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
     };
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd);
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd,
+                                                Blocking);
       try {
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Auxiliary enqueue process failed.",
@@ -192,8 +195,8 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
       try {
-        bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Lock, Res,
-                                                       ToCleanUp, NewCmd);
+        bool Enqueued = GraphProcessor::enqueueCommand(
+            NewCmd, Lock, Res, ToCleanUp, NewCmd, Blocking);
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
@@ -391,7 +394,6 @@ Scheduler::Scheduler() {
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
 void Scheduler::releaseResources() {
-#ifndef _WIN32
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,
   //  clean them up now.
@@ -407,7 +409,6 @@ void Scheduler::releaseResources() {
   // added to deferred mem obj storage. So we may end up with leak.
   while (!isDeferredMemObjectsEmpty())
     cleanupDeferredMemObjects(BlockingT::BLOCKING);
-#endif
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {

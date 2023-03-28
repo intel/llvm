@@ -27,6 +27,10 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+bool CurrentCodeLocationValid();
+#endif
+
 class queue_impl;
 class event_impl;
 class context_impl;
@@ -225,6 +229,11 @@ public:
   /// in order queue
   std::vector<RT::PiEvent>
   getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
+  /// Collect PI events from EventImpls and filter out some of them in case of
+  /// in order queue. Does blocking enqueue if event is expected to produce pi
+  /// event but has empty native handle.
+  std::vector<RT::PiEvent>
+  getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
 
@@ -277,6 +286,10 @@ public:
     return MPreparedDepsEvents;
   }
 
+  // XPTI instrumentation. Copy code location details to the internal struct.
+  // Memory is allocated in this method and released in destructor.
+  void copySubmissionCodeLocation();
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -303,7 +316,7 @@ public:
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
 
-  // All member variable defined here  are needed for the SYCL instrumentation
+  // All member variables defined here are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
   // to ensure we have the same object layout when the macro in the library and
   // SYCL app are not the same.
@@ -329,6 +342,14 @@ public:
   bool MFirstInstance = false;
   /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
+  /// Represents code location of command submission to SYCL API, assigned with
+  /// the valid value only if command execution is async (host task) or delayed
+  /// (blocked by host task).
+  code_location MSubmissionCodeLocation;
+  /// Introduces string to handle memory management since code_location struct
+  /// works with raw char arrays.
+  std::string MSubmissionFileName;
+  std::string MSubmissionFunctionName;
 
   // This flag allows to control whether host event should be set complete
   // after successfull enqueue of command. Event is considered as host event if
@@ -570,7 +591,8 @@ pi_int32 enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    RT::PiKernelCacheConfig KernelCacheConfig);
 
 class KernelFusionCommand;
 

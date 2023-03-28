@@ -4705,16 +4705,28 @@ let Predicates = [HasAVX512] in {
 let Predicates = [HasFP16] in {
   def : Pat<(v8f16 (X86vzmovl (v8f16 VR128X:$src))),
             (VMOVSHZrr (v8f16 (AVX512_128_SET0)), VR128X:$src)>;
+  def : Pat<(v8i16 (X86vzmovl (v8i16 VR128X:$src))),
+            (VMOVSHZrr (v8i16 (AVX512_128_SET0)), VR128X:$src)>;
 
   // FIXME we need better canonicalization in dag combine
   def : Pat<(v16f16 (X86vzmovl (v16f16 VR256X:$src))),
             (SUBREG_TO_REG (i32 0),
              (v8f16 (VMOVSHZrr (v8f16 (AVX512_128_SET0)),
               (v8f16 (EXTRACT_SUBREG (v16f16 VR256X:$src), sub_xmm)))), sub_xmm)>;
+  def : Pat<(v16i16 (X86vzmovl (v16i16 VR256X:$src))),
+            (SUBREG_TO_REG (i32 0),
+             (v8i16 (VMOVSHZrr (v8i16 (AVX512_128_SET0)),
+              (v8i16 (EXTRACT_SUBREG (v16i16 VR256X:$src), sub_xmm)))), sub_xmm)>;
+
+  // FIXME we need better canonicalization in dag combine
   def : Pat<(v32f16 (X86vzmovl (v32f16 VR512:$src))),
             (SUBREG_TO_REG (i32 0),
              (v8f16 (VMOVSHZrr (v8f16 (AVX512_128_SET0)),
               (v8f16 (EXTRACT_SUBREG (v32f16 VR512:$src), sub_xmm)))), sub_xmm)>;
+  def : Pat<(v32i16 (X86vzmovl (v32i16 VR512:$src))),
+            (SUBREG_TO_REG (i32 0),
+             (v8i16 (VMOVSHZrr (v8i16 (AVX512_128_SET0)),
+              (v8i16 (EXTRACT_SUBREG (v32i16 VR512:$src), sub_xmm)))), sub_xmm)>;
 
   def : Pat<(v8f16 (X86vzload16 addr:$src)),
             (VMOVSHZrm addr:$src)>;
@@ -10484,7 +10496,7 @@ defm VPGATHER : avx512_gather_q_pd<0x90, 0x91, avx512vl_i64_info, "vpgather", "Q
 multiclass avx512_scatter<bits<8> opc, string OpcodeStr, X86VectorVTInfo _,
                           X86MemOperand memop, RegisterClass MaskRC = _.KRCWM> {
 
-let mayStore = 1, Constraints = "$mask = $mask_wb", ExeDomain = _.ExeDomain, 
+let mayStore = 1, Constraints = "$mask = $mask_wb", ExeDomain = _.ExeDomain,
     hasSideEffects = 0 in
 
   def mr  : AVX5128I<opc, MRMDestMem, (outs MaskRC:$mask_wb),

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "MockKernelInfo.hpp"
 #include "PiImage.hpp"
 
 template <size_t KernelSize = 1> class TestKernel;
@@ -15,17 +16,17 @@ template <size_t KernelSize = 1> class TestKernel;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <size_t KernelSize> struct KernelInfo<TestKernel<KernelSize>> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <size_t KernelSize>
+struct KernelInfo<TestKernel<KernelSize>>
+    : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestKernel"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() { return KernelSize; }
+  static constexpr const char *getFileName() { return "TestKernel.hpp"; }
+  static constexpr const char *getFunctionName() {
+    return "TestKernelFunctionName";
+  }
+  static constexpr unsigned getLineNumber() { return 13; }
+  static constexpr unsigned getColumnNumber() { return 8; }
 };
 
 } // namespace detail

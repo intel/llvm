@@ -11,7 +11,6 @@
 
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
-#include "mlir/IR/SubElementInterfaces.h"
 
 namespace llvm {
 class BitVector;
@@ -48,6 +47,8 @@ public:
   static FloatType getF128(MLIRContext *ctx);
   static FloatType getFloat8E5M2(MLIRContext *ctx);
   static FloatType getFloat8E4M3FN(MLIRContext *ctx);
+  static FloatType getFloat8E5M2FNUZ(MLIRContext *ctx);
+  static FloatType getFloat8E4M3FNUZ(MLIRContext *ctx);
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(Type type);
@@ -90,7 +91,7 @@ public:
 
   /// Clone this type with the given shape and element type. If the
   /// provided shape is `None`, the current shape of the type is used.
-  TensorType cloneWith(Optional<ArrayRef<int64_t>> shape,
+  TensorType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                        Type elementType) const;
 
   /// Return true if the specified element type is ok in a tensor.
@@ -126,7 +127,7 @@ public:
 
   /// Clone this type with the given shape and element type. If the
   /// provided shape is `None`, the current shape of the type is used.
-  BaseMemRefType cloneWith(Optional<ArrayRef<int64_t>> shape,
+  BaseMemRefType cloneWith(std::optional<ArrayRef<int64_t>> shape,
                            Type elementType) const;
 
   /// Return true if the specified element type is ok in a memref.
@@ -337,7 +338,7 @@ private:
 /// which dimensions must be kept when e.g. compute MemRef strides under
 /// rank-reducing operations. Return std::nullopt if reducedShape cannot be
 /// obtained by dropping only `1` entries in `originalShape`.
-llvm::Optional<llvm::SmallDenseSet<unsigned>>
+std::optional<llvm::SmallDenseSet<unsigned>>
 computeRankReductionMask(ArrayRef<int64_t> originalShape,
                          ArrayRef<int64_t> reducedShape);
 
@@ -375,8 +376,9 @@ inline bool BaseMemRefType::isValidElementType(Type type) {
 }
 
 inline bool FloatType::classof(Type type) {
-  return type.isa<Float8E5M2Type, Float8E4M3FNType, BFloat16Type, Float16Type,
-                  Float32Type, Float64Type, Float80Type, Float128Type>();
+  return type.isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
+                  Float8E4M3FNUZType, BFloat16Type, Float16Type, Float32Type,
+                  Float64Type, Float80Type, Float128Type>();
 }
 
 inline FloatType FloatType::getFloat8E5M2(MLIRContext *ctx) {
@@ -385,6 +387,14 @@ inline FloatType FloatType::getFloat8E5M2(MLIRContext *ctx) {
 
 inline FloatType FloatType::getFloat8E4M3FN(MLIRContext *ctx) {
   return Float8E4M3FNType::get(ctx);
+}
+
+inline FloatType FloatType::getFloat8E5M2FNUZ(MLIRContext *ctx) {
+  return Float8E5M2FNUZType::get(ctx);
+}
+
+inline FloatType FloatType::getFloat8E4M3FNUZ(MLIRContext *ctx) {
+  return Float8E4M3FNUZType::get(ctx);
 }
 
 inline FloatType FloatType::getBF16(MLIRContext *ctx) {

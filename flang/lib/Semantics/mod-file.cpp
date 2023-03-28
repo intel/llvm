@@ -693,7 +693,6 @@ void ModFileWriter::PutProcEntity(llvm::raw_ostream &os, const Symbol &symbol) {
     return;
   }
   const auto &details{symbol.get<ProcEntityDetails>()};
-  const ProcInterface &interface { details.interface() };
   Attrs attrs{symbol.attrs()};
   if (details.passName()) {
     attrs.reset(Attr::PASS);
@@ -702,10 +701,10 @@ void ModFileWriter::PutProcEntity(llvm::raw_ostream &os, const Symbol &symbol) {
       os, symbol,
       [&]() {
         os << "procedure(";
-        if (interface.symbol()) {
-          os << interface.symbol()->name();
-        } else if (interface.type()) {
-          PutType(os, *interface.type());
+        if (details.procInterface()) {
+          os << details.procInterface()->name();
+        } else if (details.type()) {
+          PutType(os, *details.type());
         }
         os << ')';
         PutPassName(os, details.passName());
@@ -964,8 +963,10 @@ Scope *ModFileReader::Read(const SourceName &name,
     // directory lists, the intrinsic module directory takes precedence.
     options.searchDirectories = context_.searchDirectories();
     for (const auto &dir : context_.intrinsicModuleDirectories()) {
-      std::remove(options.searchDirectories.begin(),
-          options.searchDirectories.end(), dir);
+      options.searchDirectories.erase(
+          std::remove(options.searchDirectories.begin(),
+              options.searchDirectories.end(), dir),
+          options.searchDirectories.end());
     }
     options.searchDirectories.insert(options.searchDirectories.begin(), "."s);
   }
@@ -1135,8 +1136,7 @@ void SubprogramSymbolCollector::Collect() {
         // Is 's' a procedure with interface 'symbol'?
         if (s) {
           if (const auto *sDetails{s->detailsIf<ProcEntityDetails>()}) {
-            const ProcInterface &sInterface{sDetails->interface()};
-            if (sInterface.symbol() == &symbol) {
+            if (sDetails->procInterface() == &symbol) {
               return true;
             }
           }
@@ -1195,10 +1195,11 @@ void SubprogramSymbolCollector::DoSymbol(
                       }
                     },
                     [this](const ProcEntityDetails &details) {
-                      if (const Symbol * symbol{details.interface().symbol()}) {
-                        DoSymbol(*symbol);
+                      if (details.procInterface()) {
+                        DoSymbol(*details.procInterface());
+                      } else {
+                        DoType(details.type());
                       }
-                      DoType(details.interface().type());
                     },
                     [](const auto &) {},
                 },

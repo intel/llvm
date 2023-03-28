@@ -184,7 +184,7 @@ static Value processCountOrOffset(Location loc, Value value, Type srcType,
 
 /// Converts SPIR-V struct with a regular (according to `VulkanLayoutUtils`)
 /// offset to LLVM struct. Otherwise, the conversion is not supported.
-static Optional<Type>
+static std::optional<Type>
 convertStructTypeWithOffset(spirv::StructType type,
                             LLVMTypeConverter &converter) {
   if (type != VulkanLayoutUtils::decorateType(type))
@@ -247,8 +247,8 @@ static LogicalResult replaceWithLoadOrStore(Operation *op, ValueRange operands,
 /// Converts SPIR-V array type to LLVM array. Natural stride (according to
 /// `VulkanLayoutUtils`) is also mapped to LLVM array. This has to be respected
 /// when converting ops that manipulate array types.
-static Optional<Type> convertArrayType(spirv::ArrayType type,
-                                       TypeConverter &converter) {
+static std::optional<Type> convertArrayType(spirv::ArrayType type,
+                                            TypeConverter &converter) {
   unsigned stride = type.getArrayStride();
   Type elementType = type.getElementType();
   auto sizeInBytes = elementType.cast<spirv::SPIRVType>().getSizeInBytes();
@@ -263,16 +263,16 @@ static Optional<Type> convertArrayType(spirv::ArrayType type,
 /// Converts SPIR-V pointer type to LLVM pointer. Pointer's storage class is not
 /// modelled at the moment.
 static Type convertPointerType(spirv::PointerType type,
-                               TypeConverter &converter) {
+                               LLVMTypeConverter &converter) {
   auto pointeeType = converter.convertType(type.getPointeeType());
-  return LLVM::LLVMPointerType::get(pointeeType);
+  return converter.getPointerType(pointeeType);
 }
 
 /// Converts SPIR-V runtime array to LLVM array. Since LLVM allows indexing over
 /// the bounds, the runtime array is converted to a 0-sized LLVM array. There is
 /// no modelling of array stride at the moment.
-static Optional<Type> convertRuntimeArrayType(spirv::RuntimeArrayType type,
-                                              TypeConverter &converter) {
+static std::optional<Type> convertRuntimeArrayType(spirv::RuntimeArrayType type,
+                                                   TypeConverter &converter) {
   if (type.getArrayStride() != 0)
     return std::nullopt;
   auto elementType = converter.convertType(type.getElementType());
@@ -281,8 +281,8 @@ static Optional<Type> convertRuntimeArrayType(spirv::RuntimeArrayType type,
 
 /// Converts SPIR-V struct to LLVM struct. There is no support of structs with
 /// member decorations. Also, only natural offset is supported.
-static Optional<Type> convertStructType(spirv::StructType type,
-                                        LLVMTypeConverter &converter) {
+static std::optional<Type> convertStructType(spirv::StructType type,
+                                             LLVMTypeConverter &converter) {
   SmallVector<spirv::StructType::MemberDecorationInfo, 4> memberDecorations;
   type.getMemberDecorations(memberDecorations);
   if (!memberDecorations.empty())
@@ -317,8 +317,13 @@ public:
     Value zero = rewriter.create<LLVM::ConstantOp>(
         op.getLoc(), llvmIndexType, rewriter.getIntegerAttr(indexType, 0));
     indices.insert(indices.begin(), zero);
-    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(op, dstType, adaptor.getBasePtr(),
-                                             indices);
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        op, dstType,
+        typeConverter.convertType(op.getBasePtr()
+                                      .getType()
+                                      .cast<spirv::PointerType>()
+                                      .getPointeeType()),
+        adaptor.getBasePtr(), indices);
     return success();
   }
 };
@@ -1266,12 +1271,42 @@ public:
     Location loc = varOp.getLoc();
     Value size = createI32ConstantOf(loc, rewriter, 1);
     if (!init) {
-      rewriter.replaceOpWithNewOp<LLVM::AllocaOp>(varOp, dstType, size);
+      rewriter.replaceOpWithNewOp<LLVM::AllocaOp>(
+          varOp, dstType, typeConverter.convertType(pointerTo), size);
       return success();
     }
-    Value allocated = rewriter.create<LLVM::AllocaOp>(loc, dstType, size);
+    Value allocated = rewriter.create<LLVM::AllocaOp>(
+        loc, dstType, typeConverter.convertType(pointerTo), size);
     rewriter.create<LLVM::StoreOp>(loc, adaptor.getInitializer(), allocated);
     rewriter.replaceOp(varOp, allocated);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// BitcastOp conversion
+//===----------------------------------------------------------------------===//
+
+class BitcastConversionPattern
+    : public SPIRVToLLVMConversion<spirv::BitcastOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::BitcastOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::BitcastOp bitcastOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto dstType = typeConverter.convertType(bitcastOp.getType());
+    if (!dstType)
+      return failure();
+
+    if (typeConverter.useOpaquePointers() &&
+        dstType.isa<LLVM::LLVMPointerType>()) {
+      rewriter.replaceOp(bitcastOp, adaptor.getOperand());
+      return success();
+    }
+
+    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(
+        bitcastOp, dstType, adaptor.getOperands(), bitcastOp->getAttrs());
     return success();
   }
 };
@@ -1471,7 +1506,7 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
       NotPattern<spirv::NotOp>,
 
       // Cast ops
-      DirectConversionPattern<spirv::BitcastOp, LLVM::BitcastOp>,
+      BitcastConversionPattern,
       DirectConversionPattern<spirv::ConvertFToSOp, LLVM::FPToSIOp>,
       DirectConversionPattern<spirv::ConvertFToUOp, LLVM::FPToUIOp>,
       DirectConversionPattern<spirv::ConvertSToFOp, LLVM::SIToFPOp>,

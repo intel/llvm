@@ -2777,12 +2777,12 @@ createSymbols(
   // speed it up.
   constexpr size_t numShards = 32;
   const size_t concurrency =
-      PowerOf2Floor(std::min<size_t>(config->threadCount, numShards));
+      llvm::bit_floor(std::min<size_t>(config->threadCount, numShards));
 
   // A sharded map to uniquify symbols by name.
   auto map =
       std::make_unique<DenseMap<CachedHashStringRef, size_t>[]>(numShards);
-  size_t shift = 32 - countTrailingZeros(numShards);
+  size_t shift = 32 - llvm::countr_zero(numShards);
 
   // Instantiate GdbSymbols while uniqufying them by name.
   auto symbols = std::make_unique<SmallVector<GdbSymbol, 0>[]>(numShards);
@@ -2810,7 +2810,7 @@ createSymbols(
   });
 
   size_t numSymbols = 0;
-  for (ArrayRef<GdbSymbol> v : makeArrayRef(symbols.get(), numShards))
+  for (ArrayRef<GdbSymbol> v : ArrayRef(symbols.get(), numShards))
     numSymbols += v.size();
 
   // The return type is a flattened vector, so we'll copy each vector
@@ -2818,7 +2818,7 @@ createSymbols(
   SmallVector<GdbSymbol, 0> ret;
   ret.reserve(numSymbols);
   for (SmallVector<GdbSymbol, 0> &vec :
-       makeMutableArrayRef(symbols.get(), numShards))
+       MutableArrayRef(symbols.get(), numShards))
     for (GdbSymbol &sym : vec)
       ret.push_back(std::move(sym));
 
@@ -3265,7 +3265,7 @@ void MergeNoTailSection::finalizeContents() {
   // Concurrency level. Must be a power of 2 to avoid expensive modulo
   // operations in the following tight loop.
   const size_t concurrency =
-      PowerOf2Floor(std::min<size_t>(config->threadCount, numShards));
+      llvm::bit_floor(std::min<size_t>(config->threadCount, numShards));
 
   // Add section pieces to the builders.
   parallelFor(0, concurrency, [&](size_t threadId) {
@@ -3698,7 +3698,7 @@ static uint8_t getAbiVersion() {
 
   if (config->emachine == EM_AMDGPU && !ctx.objectFiles.empty()) {
     uint8_t ver = ctx.objectFiles[0]->abiVersion;
-    for (InputFile *file : makeArrayRef(ctx.objectFiles).slice(1))
+    for (InputFile *file : ArrayRef(ctx.objectFiles).slice(1))
       if (file->abiVersion != ver)
         error("incompatible ABI version: " + toString(file));
     return ver;

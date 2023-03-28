@@ -69,7 +69,7 @@ define i64 @multiple() !pcsections !0 {
 ; CHECK-NEXT:  .long	21264
 ; CHECK-NEXT:  .text
 entry:
-  %0 = load i64, i64* @bar, align 8, !pcsections !2
+  %0 = load i64, ptr @bar, align 8, !pcsections !2
   ret i64 %0
 }
 
@@ -87,8 +87,8 @@ define i64 @test_simple_atomic() {
 ; LARGE-NEXT:  .quad	.Lpcsection1-.Lpcsection_base5
 ; CHECK-NEXT:  .text
 entry:
-  %0 = load atomic i64, i64* @foo monotonic, align 8, !pcsections !0
-  %1 = load i64, i64* @bar, align 8
+  %0 = load atomic i64, ptr @foo monotonic, align 8, !pcsections !0
+  %1 = load i64, ptr @bar, align 8
   %add = add nsw i64 %1, %0
   ret i64 %add
 }
@@ -109,12 +109,53 @@ define i64 @test_complex_atomic() {
 ; LARGE-NEXT:  .quad	.Lpcsection2-.Lpcsection_base6
 ; CHECK-NEXT:  .text
 entry:
-  %0 = atomicrmw add i64* @foo, i64 1 monotonic, align 8, !pcsections !0
-  %1 = load i64, i64* @bar, align 8
+  %0 = atomicrmw add ptr @foo, i64 1 monotonic, align 8, !pcsections !0
+  %1 = load i64, ptr @bar, align 8
   %inc = add nsw i64 %1, 1
-  store i64 %inc, i64* @bar, align 8
+  store i64 %inc, ptr @bar, align 8
   %add = add nsw i64 %1, %0
   ret i64 %add
+}
+
+define void @mixed_atomic_non_atomic() {
+; CHECK-LABEL: mixed_atomic_non_atomic:
+; CHECK:      .Lpcsection
+; CHECK-NEXT:   movl $1
+; CHECK:      .section        section_no_aux,"awo",@progbits,.text
+; CHECK-NEXT: .Lpcsection_base7:
+; DEFCM-NEXT: .long   .Lpcsection3-.Lpcsection_base7
+; LARGE-NEXT: .quad   .Lpcsection3-.Lpcsection_base7
+; CHECK-NEXT: .text
+entry:
+  %0 = load volatile i32, ptr @foo, align 4
+  %inc = add nsw i32 %0, 1
+  store volatile i32 %inc, ptr @foo, align 4
+  store atomic volatile i32 1, ptr @foo monotonic, align 4, !pcsections !0
+  %1 = load volatile i32, ptr @foo, align 4
+  %dec = add nsw i32 %1, -1
+  store volatile i32 %dec, ptr @foo, align 4
+  ret void
+}
+
+define void @multiple_uleb128() !pcsections !6 {
+; CHECK-LABEL: multiple_uleb128:
+; CHECK:       .section	section_aux,"awo",@progbits,.text
+; CHECK-NEXT:  .Lpcsection_base8:
+; DEFCM-NEXT:  .long	.Lfunc_begin3-.Lpcsection_base8
+; LARGE-NEXT:  .quad	.Lfunc_begin3-.Lpcsection_base8
+; CHECK-NEXT:  .uleb128	.Lfunc_end6-.Lfunc_begin3
+; CHECK-NEXT:  .byte	42
+; CHECK-NEXT:  .ascii	"\345\216&"
+; CHECK-NEXT:  .byte	255
+; CHECK-NEXT:  .section	section_aux_21264,"awo",@progbits,.text
+; CHECK-NEXT:  .Lpcsection_base9:
+; DEFCM-NEXT:  .long	.Lfunc_begin3-.Lpcsection_base9
+; LARGE-NEXT:  .quad	.Lfunc_begin3-.Lpcsection_base9
+; CHECK-NEXT:  .long	.Lfunc_end6-.Lfunc_begin3
+; CHECK-NEXT:  .long	21264
+; CHECK-NEXT:  .text
+entry:
+  ret void
 }
 
 !0 = !{!"section_no_aux"}
@@ -123,3 +164,5 @@ entry:
 !3 = !{i32 10, i32 20, i32 30}
 !4 = !{i32 42}
 !5 = !{i32 21264}
+!6 = !{!"section_aux!C", !7, !"section_aux_21264", !5}
+!7 = !{i64 42, i32 624485, i8 255}

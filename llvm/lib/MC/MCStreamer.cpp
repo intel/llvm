@@ -159,20 +159,22 @@ void MCStreamer::emitIntValue(APInt Value) {
 
 /// EmitULEB128IntValue - Special case of EmitULEB128Value that avoids the
 /// client having to pass in a MCExpr for constant integers.
-void MCStreamer::emitULEB128IntValue(uint64_t Value, unsigned PadTo) {
+unsigned MCStreamer::emitULEB128IntValue(uint64_t Value, unsigned PadTo) {
   SmallString<128> Tmp;
   raw_svector_ostream OSE(Tmp);
   encodeULEB128(Value, OSE, PadTo);
   emitBytes(OSE.str());
+  return Tmp.size();
 }
 
 /// EmitSLEB128IntValue - Special case of EmitSLEB128Value that avoids the
 /// client having to pass in a MCExpr for constant integers.
-void MCStreamer::emitSLEB128IntValue(int64_t Value) {
+unsigned MCStreamer::emitSLEB128IntValue(int64_t Value) {
   SmallString<128> Tmp;
   raw_svector_ostream OSE(Tmp);
   encodeSLEB128(Value, OSE);
   emitBytes(OSE.str());
+  return Tmp.size();
 }
 
 void MCStreamer::emitValue(const MCExpr *Value, unsigned Size, SMLoc Loc) {
@@ -276,7 +278,7 @@ MCSymbol *MCStreamer::getDwarfLineTableSymbol(unsigned CUID) {
 }
 
 bool MCStreamer::hasUnfinishedDwarfFrameInfo() {
-  return !DwarfFrameInfos.empty() && !DwarfFrameInfos.back().End;
+  return !FrameInfoStack.empty();
 }
 
 MCDwarfFrameInfo *MCStreamer::getCurrentDwarfFrameInfo() {
@@ -286,7 +288,7 @@ MCDwarfFrameInfo *MCStreamer::getCurrentDwarfFrameInfo() {
                              ".cfi_startproc and .cfi_endproc directives");
     return nullptr;
   }
-  return &DwarfFrameInfos.back();
+  return &DwarfFrameInfos[FrameInfoStack.back().first];
 }
 
 bool MCStreamer::emitCVFileDirective(unsigned FileNo, StringRef Filename,
@@ -443,7 +445,8 @@ void MCStreamer::emitConditionalAssignment(MCSymbol *Symbol,
 void MCStreamer::emitCFISections(bool EH, bool Debug) {}
 
 void MCStreamer::emitCFIStartProc(bool IsSimple, SMLoc Loc) {
-  if (hasUnfinishedDwarfFrameInfo())
+  if (!FrameInfoStack.empty() &&
+      getCurrentSectionOnly() == FrameInfoStack.back().second)
     return getContext().reportError(
         Loc, "starting new .cfi frame before finishing the previous one");
 
@@ -462,6 +465,7 @@ void MCStreamer::emitCFIStartProc(bool IsSimple, SMLoc Loc) {
     }
   }
 
+  FrameInfoStack.emplace_back(DwarfFrameInfos.size(), getCurrentSectionOnly());
   DwarfFrameInfos.push_back(Frame);
 }
 
@@ -473,6 +477,7 @@ void MCStreamer::emitCFIEndProc() {
   if (!CurFrame)
     return;
   emitCFIEndProcImpl(*CurFrame);
+  FrameInfoStack.pop_back();
 }
 
 void MCStreamer::emitCFIEndProcImpl(MCDwarfFrameInfo &Frame) {

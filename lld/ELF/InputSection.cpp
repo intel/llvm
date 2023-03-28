@@ -44,7 +44,7 @@ template <class ELFT>
 static ArrayRef<uint8_t> getSectionContents(ObjFile<ELFT> &file,
                                             const typename ELFT::Shdr &hdr) {
   if (hdr.sh_type == SHT_NOBITS)
-    return makeArrayRef<uint8_t>(nullptr, hdr.sh_size);
+    return ArrayRef<uint8_t>(nullptr, hdr.sh_size);
   return check(file.getObj().getSectionContents(hdr));
 }
 
@@ -72,7 +72,7 @@ InputSectionBase::InputSectionBase(InputFile *file, uint64_t flags,
   // If SHF_COMPRESSED is set, parse the header. The legacy .zdebug format is no
   // longer supported.
   if (flags & SHF_COMPRESSED)
-    invokeELFT(parseCompressedHeader);
+    invokeELFT(parseCompressedHeader,);
 }
 
 // Drop SHF_GROUP bit unless we are producing a re-linkable object file.
@@ -139,14 +139,14 @@ template <class ELFT> RelsOrRelas<ELFT> InputSectionBase::relsOrRelas() const {
   typename ELFT::Shdr shdr =
       cast<ELFFileBase>(file)->getELFShdrs<ELFT>()[relSecIdx];
   if (shdr.sh_type == SHT_REL) {
-    ret.rels = makeArrayRef(reinterpret_cast<const typename ELFT::Rel *>(
-                                file->mb.getBufferStart() + shdr.sh_offset),
-                            shdr.sh_size / sizeof(typename ELFT::Rel));
+    ret.rels = ArrayRef(reinterpret_cast<const typename ELFT::Rel *>(
+                            file->mb.getBufferStart() + shdr.sh_offset),
+                        shdr.sh_size / sizeof(typename ELFT::Rel));
   } else {
     assert(shdr.sh_type == SHT_RELA);
-    ret.relas = makeArrayRef(reinterpret_cast<const typename ELFT::Rela *>(
-                                 file->mb.getBufferStart() + shdr.sh_offset),
-                             shdr.sh_size / sizeof(typename ELFT::Rela));
+    ret.relas = ArrayRef(reinterpret_cast<const typename ELFT::Rela *>(
+                             file->mb.getBufferStart() + shdr.sh_offset),
+                         shdr.sh_size / sizeof(typename ELFT::Rela));
   }
   return ret;
 }

@@ -12,8 +12,6 @@ __SYCL_PARAM_TRAITS_DEPRECATED(is_linker_available, "deprecated in SYCL 2020, us
 __SYCL_PARAM_TRAITS_DEPRECATED(queue_profiling, "deprecated in SYCL 2020, use device::has(aspect::queue_profiling) instead")
 __SYCL_PARAM_TRAITS_DEPRECATED(built_in_kernels,"deprecated in SYCL 2020, use info::device::built_in_kernel_ids instead")
 __SYCL_PARAM_TRAITS_DEPRECATED(profile,"deprecated in SYCL 2020")
-// TODO Despite giving this deprecation warning, we're still yet to implement
-// info::device::aspects.
 __SYCL_PARAM_TRAITS_DEPRECATED(extensions,"deprecated in SYCL 2020, use info::device::aspects instead")
 __SYCL_PARAM_TRAITS_DEPRECATED(printf_buffer_size,"deprecated in SYCL 2020")
 __SYCL_PARAM_TRAITS_DEPRECATED(preferred_interop_user_sync,"deprecated in SYCL 2020")

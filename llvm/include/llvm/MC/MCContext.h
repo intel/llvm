@@ -173,7 +173,7 @@ private:
   unsigned GetInstance(unsigned LocalLabelVal);
 
   /// LLVM_BB_ADDR_MAP version to emit.
-  uint8_t BBAddrMapVersion = 1;
+  uint8_t BBAddrMapVersion = 2;
 
   /// The file name of the log file from the environment variable
   /// AS_SECURE_LOG_FILE.  Which must be set before the .secure_log_unique
@@ -190,8 +190,7 @@ private:
   SmallString<128> CompilationDir;
 
   /// Prefix replacement map for source file information.
-  std::map<std::string, const std::string, std::greater<std::string>>
-      DebugPrefixMap;
+  std::map<std::string, const std::string, std::greater<>> DebugPrefixMap;
 
   /// The main file name if passed in explicitly.
   std::string MainFileName;

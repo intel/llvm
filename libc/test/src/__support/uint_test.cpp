@@ -9,7 +9,7 @@
 #include "src/__support/CPP/optional.h"
 #include "src/__support/UInt.h"
 
-#include "utils/UnitTest/Test.h"
+#include "test/UnitTest/Test.h"
 
 // We want to test __llvm_libc::cpp::UInt<128> explicitly. So, for convenience,
 // we use a sugar which does not conflict with the UInt128 type which can
@@ -326,6 +326,10 @@ TEST(LlvmLibcUIntClassTest, ShiftLeftTests) {
   LL_UInt128 result6({0, 0});
   EXPECT_EQ((val2 << 128), result6);
   EXPECT_EQ((val2 << 256), result6);
+
+  LL_UInt192 val3({1, 0, 0});
+  LL_UInt192 result7({0, 1, 0});
+  EXPECT_EQ((val3 << 64), result7);
 }
 
 TEST(LlvmLibcUIntClassTest, ShiftRightTests) {
@@ -363,6 +367,10 @@ TEST(LlvmLibcUIntClassTest, ShiftRightTests) {
   EXPECT_EQ((v2 >> 64), r2);
   EXPECT_EQ((v2 >> 128), r3);
   EXPECT_EQ((r2 >> 64), r3);
+
+  LL_UInt192 val3({0, 0, 1});
+  LL_UInt192 result7({0, 1, 0});
+  EXPECT_EQ((val3 >> 64), result7);
 }
 
 TEST(LlvmLibcUIntClassTest, AndTests) {

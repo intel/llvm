@@ -27,7 +27,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace __format {
 
@@ -198,7 +198,7 @@ _LIBCPP_HIDE_FROM_ABI void __create_packed_storage(uint64_t& __types, __basic_fo
   int __shift = 0;
   (
       [&] {
-        basic_format_arg<_Context> __arg = __create_format_arg<_Context>(__args);
+        basic_format_arg<_Context> __arg = __format::__create_format_arg<_Context>(__args);
         if (__shift != 0)
           __types |= static_cast<uint64_t>(__arg.__type_) << __shift;
         else
@@ -212,7 +212,7 @@ _LIBCPP_HIDE_FROM_ABI void __create_packed_storage(uint64_t& __types, __basic_fo
 
 template <class _Context, class... _Args>
 _LIBCPP_HIDE_FROM_ABI void __store_basic_format_arg(basic_format_arg<_Context>* __data, _Args&&... __args) noexcept {
-  ([&] { *__data++ = __create_format_arg<_Context>(__args); }(), ...);
+  ([&] { *__data++ = __format::__create_format_arg<_Context>(__args); }(), ...);
 }
 
 template <class _Context, size_t N>
@@ -247,7 +247,7 @@ struct _LIBCPP_TEMPLATE_VIS __format_arg_store {
   _Storage __storage;
 };
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

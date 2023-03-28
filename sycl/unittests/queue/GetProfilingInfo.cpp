@@ -15,8 +15,10 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <helpers/TestKernel.hpp>
 
 #include <detail/context_impl.hpp>
 
@@ -25,17 +27,9 @@ class InfoTestKernel;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<InfoTestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<InfoTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "InfoTestKernel"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
@@ -315,4 +309,83 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
   }
   // The test passes without this, but keep it still, just in case.
   sycl::detail::getSyclObjImpl(Ctx)->getKernelProgramCache().reset();
+}
+
+bool DeviceTimerCalled;
+
+pi_result redefinedPiGetDeviceAndHostTimer(pi_device Device,
+                                           uint64_t *DeviceTime,
+                                           uint64_t *HostTime) {
+  DeviceTimerCalled = true;
+  return PI_SUCCESS;
+}
+
+TEST(GetProfilingInfo,
+     check_no_command_submission_time_when_event_profiling_disabled) {
+  using namespace sycl;
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
+  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedPiGetDeviceAndHostTimer);
+  device Dev = Plt.get_devices()[0];
+  context Ctx{Dev};
+  queue Queue{Ctx, Dev};
+  DeviceTimerCalled = false;
+
+  event E = Queue.submit(
+      [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  EXPECT_FALSE(DeviceTimerCalled);
+}
+
+// Checks to see if command submit time is calculated before queue.submit
+// returns. A host accessor is contructed before submitting the command, to
+// ensure command submission time is calculated even if command may not be
+// enqueued due to overlap in data dependencies between the kernel and host
+// accessor
+TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
+  using namespace sycl;
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
+  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedPiGetDeviceAndHostTimer);
+  device Dev = Plt.get_devices()[0];
+  context Ctx{Dev};
+  queue Queue{Ctx, Dev, property::queue::enable_profiling()};
+  int data[1024];
+  buffer Buf{data, range<1>{1024}};
+  DeviceTimerCalled = false;
+
+  accessor host_acc = Buf.get_access<access::mode::read_write>();
+  event E = Queue.submit([&](handler &cgh) {
+    accessor writeRes{Buf, cgh, read_write};
+
+    cgh.single_task<TestKernel<>>([]() {});
+  });
+
+  EXPECT_TRUE(DeviceTimerCalled);
+}
+
+pi_result redefinedFailedPiGetDeviceAndHostTimer(pi_device Device,
+                                                 uint64_t *DeviceTime,
+                                                 uint64_t *HostTime) {
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+TEST(GetProfilingInfo, unsupported_device_host_time) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+
+  ASSERT_FALSE(Dev.has(sycl::aspect::queue_profiling));
+  try {
+    sycl::queue q{Ctx, Dev, {sycl::property::queue::enable_profiling()}};
+    FAIL() << "No exception was thrown";
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
+    EXPECT_STREQ(e.what(), "Cannot enable profiling, the associated device "
+                           "does not have the queue_profiling aspect");
+  }
 }

@@ -57,7 +57,7 @@ void initializeSPIRVLowerBoolLegacyPass(PassRegistry &);
 void initializeSPIRVLowerConstExprLegacyPass(PassRegistry &);
 void initializeSPIRVLowerOCLBlocksLegacyPass(PassRegistry &);
 void initializeSPIRVLowerMemmoveLegacyPass(PassRegistry &);
-void initializeSPIRVLowerSaddIntrinsicsLegacyPass(PassRegistry &);
+void initializeSPIRVLowerSaddWithOverflowLegacyPass(PassRegistry &);
 void initializeSPIRVRegularizeLLVMLegacyPass(PassRegistry &);
 void initializeSPIRVToOCL12LegacyPass(PassRegistry &);
 void initializeSPIRVToOCL20LegacyPass(PassRegistry &);
@@ -132,7 +132,11 @@ bool readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
 /// \brief Partially load SPIR-V from the stream and decode only instructions
 /// needed to get information about specialization constants.
 /// \returns true if succeeds.
-using SpecConstInfoTy = std::pair<uint32_t, uint32_t>;
+struct SpecConstInfoTy {
+  uint32_t ID;
+  uint32_t Size;
+  std::string Type;
+};
 bool getSpecConstInfo(std::istream &IS,
                       std::vector<SpecConstInfoTy> &SpecConstInfo);
 
@@ -186,7 +190,7 @@ ModulePass *createSPIRVLowerOCLBlocksLegacy();
 ModulePass *createSPIRVLowerMemmoveLegacy();
 
 /// Create a pass for lowering llvm.sadd.with.overflow
-ModulePass *createSPIRVLowerSaddIntrinsicsLegacy();
+ModulePass *createSPIRVLowerSaddWithOverflowLegacy();
 
 /// Create a pass for regularize LLVM module to be translated to SPIR-V.
 ModulePass *createSPIRVRegularizeLLVMLegacy();

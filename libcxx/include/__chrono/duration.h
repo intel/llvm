@@ -11,9 +11,12 @@
 #define _LIBCPP___CHRONO_DURATION_H
 
 #include <__config>
+#include <__type_traits/common_type.h>
+#include <__type_traits/enable_if.h>
+#include <__type_traits/is_convertible.h>
+#include <__type_traits/is_floating_point.h>
 #include <limits>
 #include <ratio>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -127,7 +130,7 @@ duration_cast(const duration<_Rep, _Period>& __fd)
 template <class _Rep>
 struct _LIBCPP_TEMPLATE_VIS treat_as_floating_point : is_floating_point<_Rep> {};
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template <class _Rep>
 inline constexpr bool treat_as_floating_point_v = treat_as_floating_point<_Rep>::value;
 #endif
@@ -141,7 +144,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY static _LIBCPP_CONSTEXPR _Rep min()  _NOEXCEPT {return numeric_limits<_Rep>::lowest();}
 };
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template <class _ToDuration, class _Rep, class _Period>
 inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
 typename enable_if
@@ -151,7 +154,7 @@ typename enable_if
 >::type
 floor(const duration<_Rep, _Period>& __d)
 {
-    _ToDuration __t = duration_cast<_ToDuration>(__d);
+    _ToDuration __t = chrono::duration_cast<_ToDuration>(__d);
     if (__t > __d)
         __t = __t - _ToDuration{1};
     return __t;
@@ -166,7 +169,7 @@ typename enable_if
 >::type
 ceil(const duration<_Rep, _Period>& __d)
 {
-    _ToDuration __t = duration_cast<_ToDuration>(__d);
+    _ToDuration __t = chrono::duration_cast<_ToDuration>(__d);
     if (__t < __d)
         __t = __t + _ToDuration{1};
     return __t;
@@ -181,13 +184,13 @@ typename enable_if
 >::type
 round(const duration<_Rep, _Period>& __d)
 {
-    _ToDuration __lower = floor<_ToDuration>(__d);
+    _ToDuration __lower = chrono::floor<_ToDuration>(__d);
     _ToDuration __upper = __lower + _ToDuration{1};
-    auto __lowerDiff = __d - __lower;
-    auto __upperDiff = __upper - __d;
-    if (__lowerDiff < __upperDiff)
+    auto __lower_diff   = __d - __lower;
+    auto __upper_diff   = __upper - __d;
+    if (__lower_diff < __upper_diff)
         return __lower;
-    if (__lowerDiff > __upperDiff)
+    if (__lower_diff > __upper_diff)
         return __upper;
     return __lower.count() & 1 ? __upper : __lower;
 }
@@ -304,7 +307,7 @@ typedef duration<long long,        milli> milliseconds;
 typedef duration<long long              > seconds;
 typedef duration<     long, ratio<  60> > minutes;
 typedef duration<     long, ratio<3600> > hours;
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 typedef duration<     int, ratio_multiply<ratio<24>, hours::period>>         days;
 typedef duration<     int, ratio_multiply<ratio<7>,   days::period>>         weeks;
 typedef duration<     int, ratio_multiply<ratio<146097, 400>, days::period>> years;
@@ -527,7 +530,7 @@ operator%(const duration<_Rep1, _Period1>& __lhs, const duration<_Rep2, _Period2
 
 } // namespace chrono
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
 // Suffixes for duration literals [time.duration.literals]
 inline namespace literals
 {
@@ -606,10 +609,14 @@ namespace chrono { // hoist the literals into namespace std::chrono
    using namespace literals::chrono_literals;
 } // namespace chrono
 
-#endif // _LIBCPP_STD_VER > 11
+#endif // _LIBCPP_STD_VER >= 14
 
 _LIBCPP_END_NAMESPACE_STD
 
 _LIBCPP_POP_MACROS
+
+#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <type_traits>
+#endif
 
 #endif // _LIBCPP___CHRONO_DURATION_H

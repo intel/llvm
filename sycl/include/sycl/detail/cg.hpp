@@ -72,6 +72,8 @@ public:
     Copy2DUSM = 16,
     Fill2DUSM = 17,
     Memset2DUSM = 18,
+    CopyToDeviceGlobal = 19,
+    CopyFromDeviceGlobal = 20,
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -97,6 +99,10 @@ public:
   CG(CG &&CommandGroup) = default;
 
   CGTYPE getType() { return MType; }
+
+  std::vector<std::vector<char>> &getArgsStorage() { return MArgsStorage; }
+
+  std::vector<detail::AccessorImplPtr> &getAccStorage() { return MAccStorage; }
 
   virtual ~CG() = default;
 
@@ -138,6 +144,7 @@ public:
   detail::OSModuleHandle MOSModuleHandle;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
+  RT::PiKernelCacheConfig MKernelCacheConfig;
 
   CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -151,7 +158,8 @@ public:
                detail::OSModuleHandle OSModuleHandle,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
-               CGTYPE Type, detail::code_location loc = {})
+               CGTYPE Type, RT::PiKernelCacheConfig KernelCacheConfig,
+               detail::code_location loc = {})
       : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
@@ -160,7 +168,8 @@ public:
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
         MStreams(std::move(Streams)),
-        MAuxiliaryResources(std::move(AuxiliaryResources)) {
+        MAuxiliaryResources(std::move(AuxiliaryResources)),
+        MKernelCacheConfig(std::move(KernelCacheConfig)) {
     assert((getType() == RunOnHostIntel || getType() == Kernel) &&
            "Wrong type of exec kernel CG.");
   }
@@ -484,6 +493,74 @@ public:
   size_t getWidth() const { return MWidth; }
   size_t getHeight() const { return MHeight; }
   char getValue() const { return MValue; }
+};
+
+/// "Copy to device_global" command group class.
+class CGCopyToDeviceGlobal : public CG {
+  void *MSrc;
+  void *MDeviceGlobalPtr;
+  bool MIsDeviceImageScoped;
+  size_t MNumBytes;
+  size_t MOffset;
+  detail::OSModuleHandle MOSModuleHandle;
+
+public:
+  CGCopyToDeviceGlobal(
+      void *Src, void *DeviceGlobalPtr, bool IsDeviceImageScoped,
+      size_t NumBytes, size_t Offset,
+      std::vector<std::vector<char>> ArgsStorage,
+      std::vector<detail::AccessorImplPtr> AccStorage,
+      std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+      std::vector<AccessorImplHost *> Requirements,
+      std::vector<detail::EventImplPtr> Events,
+      detail::OSModuleHandle OSModuleHandle, detail::code_location loc = {})
+      : CG(CopyToDeviceGlobal, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MSrc(Src), MDeviceGlobalPtr(DeviceGlobalPtr),
+        MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
+        MOffset(Offset), MOSModuleHandle(OSModuleHandle) {}
+
+  void *getSrc() { return MSrc; }
+  void *getDeviceGlobalPtr() { return MDeviceGlobalPtr; }
+  bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
+  size_t getNumBytes() { return MNumBytes; }
+  size_t getOffset() { return MOffset; }
+  detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
+};
+
+/// "Copy to device_global" command group class.
+class CGCopyFromDeviceGlobal : public CG {
+  void *MDeviceGlobalPtr;
+  void *MDest;
+  bool MIsDeviceImageScoped;
+  size_t MNumBytes;
+  size_t MOffset;
+  detail::OSModuleHandle MOSModuleHandle;
+
+public:
+  CGCopyFromDeviceGlobal(
+      void *DeviceGlobalPtr, void *Dest, bool IsDeviceImageScoped,
+      size_t NumBytes, size_t Offset,
+      std::vector<std::vector<char>> ArgsStorage,
+      std::vector<detail::AccessorImplPtr> AccStorage,
+      std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+      std::vector<AccessorImplHost *> Requirements,
+      std::vector<detail::EventImplPtr> Events,
+      detail::OSModuleHandle OSModuleHandle, detail::code_location loc = {})
+      : CG(CopyFromDeviceGlobal, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MDeviceGlobalPtr(DeviceGlobalPtr), MDest(Dest),
+        MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
+        MOffset(Offset), MOSModuleHandle(OSModuleHandle) {}
+
+  void *getDeviceGlobalPtr() { return MDeviceGlobalPtr; }
+  void *getDest() { return MDest; }
+  bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
+  size_t getNumBytes() { return MNumBytes; }
+  size_t getOffset() { return MOffset; }
+  detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
 };
 
 } // namespace detail

@@ -55,7 +55,11 @@ static std::string buildIDToString(BuildIDRef ID) {
   return llvm::toHex(ID, /*LowerCase=*/true);
 }
 
-Expected<SmallVector<StringRef>> getDefaultDebuginfodUrls() {
+bool canUseDebuginfod() {
+  return HTTPClient::isAvailable() && !getDefaultDebuginfodUrls().empty();
+}
+
+SmallVector<StringRef> getDefaultDebuginfodUrls() {
   const char *DebuginfodUrlsEnv = std::getenv("DEBUGINFOD_URLS");
   if (DebuginfodUrlsEnv == nullptr)
     return SmallVector<StringRef>();
@@ -126,13 +130,8 @@ Expected<std::string> getCachedOrDownloadArtifact(StringRef UniqueKey,
     return CacheDirOrErr.takeError();
   CacheDir = *CacheDirOrErr;
 
-  Expected<SmallVector<StringRef>> DebuginfodUrlsOrErr =
-      getDefaultDebuginfodUrls();
-  if (!DebuginfodUrlsOrErr)
-    return DebuginfodUrlsOrErr.takeError();
-  SmallVector<StringRef> &DebuginfodUrls = *DebuginfodUrlsOrErr;
   return getCachedOrDownloadArtifact(UniqueKey, UrlPath, CacheDir,
-                                     DebuginfodUrls,
+                                     getDefaultDebuginfodUrls(),
                                      getDefaultDebuginfodTimeout());
 }
 
@@ -159,7 +158,8 @@ public:
 
 Error StreamedHTTPResponseHandler::handleBodyChunk(StringRef BodyChunk) {
   if (!FileStream) {
-    if (Client.responseCode() != 200)
+    unsigned Code = Client.responseCode();
+    if (Code && Code != 200)
       return Error::success();
     Expected<std::unique_ptr<CachedFileStream>> FileStreamOrError =
         CreateStream();
@@ -259,7 +259,8 @@ Expected<std::string> getCachedOrDownloadArtifact(
     if (Err)
       return std::move(Err);
 
-    if (Client.responseCode() != 200)
+    unsigned Code = Client.responseCode();
+    if (Code && Code != 200)
       continue;
 
     // Return the path to the artifact on disk.
@@ -407,13 +408,13 @@ Error DebuginfodCollection::findBinaries(StringRef Path) {
         if (!ID)
           continue;
 
-        std::string IDString = buildIDToString(ID.value());
+        std::string IDString = buildIDToString(*ID);
         if (Object->hasDebugInfo()) {
           std::lock_guard<sys::RWMutex> DebugBinariesGuard(DebugBinariesMutex);
-          DebugBinaries[IDString] = FilePath;
+          (void)DebugBinaries.try_emplace(IDString, std::move(FilePath));
         } else {
           std::lock_guard<sys::RWMutex> BinariesGuard(BinariesMutex);
-          Binaries[IDString] = FilePath;
+          (void)Binaries.try_emplace(IDString, std::move(FilePath));
         }
       }
     });
@@ -425,7 +426,7 @@ Error DebuginfodCollection::findBinaries(StringRef Path) {
   return Error::success();
 }
 
-Expected<Optional<std::string>>
+Expected<std::optional<std::string>>
 DebuginfodCollection::getBinaryPath(BuildIDRef ID) {
   Log.push("getting binary path of ID " + buildIDToString(ID));
   std::shared_lock<sys::RWMutex> Guard(BinariesMutex);
@@ -437,7 +438,7 @@ DebuginfodCollection::getBinaryPath(BuildIDRef ID) {
   return std::nullopt;
 }
 
-Expected<Optional<std::string>>
+Expected<std::optional<std::string>>
 DebuginfodCollection::getDebugBinaryPath(BuildIDRef ID) {
   Log.push("getting debug binary path of ID " + buildIDToString(ID));
   std::shared_lock<sys::RWMutex> Guard(DebugBinariesMutex);
@@ -452,10 +453,10 @@ DebuginfodCollection::getDebugBinaryPath(BuildIDRef ID) {
 Expected<std::string> DebuginfodCollection::findBinaryPath(BuildIDRef ID) {
   {
     // Check collection; perform on-demand update if stale.
-    Expected<Optional<std::string>> PathOrErr = getBinaryPath(ID);
+    Expected<std::optional<std::string>> PathOrErr = getBinaryPath(ID);
     if (!PathOrErr)
       return PathOrErr.takeError();
-    Optional<std::string> Path = *PathOrErr;
+    std::optional<std::string> Path = *PathOrErr;
     if (!Path) {
       Expected<bool> UpdatedOrErr = updateIfStale();
       if (!UpdatedOrErr)
@@ -469,7 +470,7 @@ Expected<std::string> DebuginfodCollection::findBinaryPath(BuildIDRef ID) {
       }
     }
     if (Path)
-      return Path.value();
+      return *Path;
   }
 
   // Try federation.
@@ -483,10 +484,10 @@ Expected<std::string> DebuginfodCollection::findBinaryPath(BuildIDRef ID) {
 
 Expected<std::string> DebuginfodCollection::findDebugBinaryPath(BuildIDRef ID) {
   // Check collection; perform on-demand update if stale.
-  Expected<Optional<std::string>> PathOrErr = getDebugBinaryPath(ID);
+  Expected<std::optional<std::string>> PathOrErr = getDebugBinaryPath(ID);
   if (!PathOrErr)
     return PathOrErr.takeError();
-  Optional<std::string> Path = *PathOrErr;
+  std::optional<std::string> Path = *PathOrErr;
   if (!Path) {
     Expected<bool> UpdatedOrErr = updateIfStale();
     if (!UpdatedOrErr)
@@ -500,7 +501,7 @@ Expected<std::string> DebuginfodCollection::findDebugBinaryPath(BuildIDRef ID) {
     }
   }
   if (Path)
-    return Path.value();
+    return *Path;
 
   // Try federation.
   return getCachedOrDownloadDebuginfo(ID);

@@ -66,7 +66,8 @@ struct ConvertMemRefLoad final : OpConversionPattern<memref::LoadOp> {
                                       op.getMemRefType()));
 
     rewriter.replaceOpWithNewOp<memref::LoadOp>(
-        op, newResTy, adaptor.getMemref(), adaptor.getIndices());
+        op, newResTy, adaptor.getMemref(), adaptor.getIndices(),
+        op.getNontemporal());
     return success();
   }
 };
@@ -88,7 +89,8 @@ struct ConvertMemRefStore final : OpConversionPattern<memref::StoreOp> {
                                       op.getMemRefType()));
 
     rewriter.replaceOpWithNewOp<memref::StoreOp>(
-        op, adaptor.getValue(), adaptor.getMemref(), adaptor.getIndices());
+        op, adaptor.getValue(), adaptor.getMemref(), adaptor.getIndices(),
+        op.getNontemporal());
     return success();
   }
 };
@@ -145,7 +147,7 @@ void memref::populateMemRefWideIntEmulationPatterns(
 void memref::populateMemRefWideIntEmulationConversions(
     arith::WideIntEmulationConverter &typeConverter) {
   typeConverter.addConversion(
-      [&typeConverter](MemRefType ty) -> Optional<Type> {
+      [&typeConverter](MemRefType ty) -> std::optional<Type> {
         auto intTy = ty.getElementType().dyn_cast<IntegerType>();
         if (!intTy)
           return ty;

@@ -3891,6 +3891,19 @@ Additionally, a function may not become multiversioned after its first use.
 }];
 }
 
+def TargetVersionDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+For AArch64 target clang supports function multiversioning by
+``__attribute__((target_version("OPTIONS")))`` attribute. When applied to a
+function it instructs compiler to emit multiple function versions based on
+``target_version`` attribute strings, which resolved at runtime depend on their
+priority and target features availability. One of the versions is always
+( implicitly or explicitly ) the ``default`` (fallback). Attribute strings can
+contain dependent features names joined by the "+" sign.
+}];
+}
+
 def TargetClonesDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -3900,6 +3913,23 @@ multiple versions of the function will be emitted with different code
 generation options.  Additionally, these versions will be resolved at runtime
 based on the priority of their attribute options. All ``target_clone`` functions
 are considered multiversioned functions.
+
+For AArch64 target:
+The attribute contains comma-separated strings of target features joined by "+"
+sign. For example:
+
+  .. code-block:: c++
+
+    __attribute__((target_clones("sha2+memtag2", "fcma+sve2-pmull128")))
+    void foo() {}
+
+For every multiversioned function a ``default`` (fallback) implementation
+always generated if not specified directly.
+
+For x86/x86-64 targets:
+All multiversioned functions must contain a ``default`` (fallback)
+implementation, otherwise usages of the function are considered invalid.
+Additionally, a function may not become multiversioned after its first use.
 
 All multiversioned functions must contain a ``default`` (fallback)
 implementation, otherwise usages of the function are considered invalid.
@@ -7854,6 +7884,84 @@ attribute requires a string literal argument to identify the handle being releas
   }];
 }
 
+def UnsafeBufferUsageDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The attribute ``[[clang::unsafe_buffer_usage]]`` should be placed on functions
+that need to be avoided as they are prone to buffer overflows. It is designed to
+work together with the off-by-default compiler warning ``-Wunsafe-buffer-usage``
+to help codebases transition away from raw pointer based buffer management,
+in favor of safer abstractions such as C++20 ``std::span``. The attribute causes
+``-Wunsafe-buffer-usage`` to warn on every use of the function, and it may
+enable ``-Wunsafe-buffer-usage`` to emit automatic fix-it hints
+which would help the user replace such unsafe functions with safe
+alternatives, though the attribute can be used even when the fix can't be automated.
+
+The attribute does not suppress ``-Wunsafe-buffer-usage`` inside the function
+to which it is attached. These warnings still need to be addressed.
+
+The attribute is warranted even if the only way a function can overflow
+the buffer is by violating the function's preconditions. For example, it
+would make sense to put the attribute on function ``foo()`` below because
+passing an incorrect size parameter would cause a buffer overflow:
+
+.. code-block:: c++
+
+  [[clang::unsafe_buffer_usage]]
+  void foo(int *buf, size_t size) {
+    for (size_t i = 0; i < size; ++i) {
+      buf[i] = i;
+    }
+  }
+
+The attribute is NOT warranted when the function uses safe abstractions,
+assuming that these abstractions weren't misused outside the function.
+For example, function ``bar()`` below doesn't need the attribute,
+because assuming that the container ``buf`` is well-formed (has size that
+fits the original buffer it refers to), overflow cannot occur:
+
+.. code-block:: c++
+
+  void bar(std::span<int> buf) {
+    for (size_t i = 0; i < buf.size(); ++i) {
+      buf[i] = i;
+    }
+  }
+
+In this case function ``bar()`` enables the user to keep the buffer
+"containerized" in a span for as long as possible. On the other hand,
+Function ``foo()`` in the previous example may have internal
+consistency, but by accepting a raw buffer it requires the user to unwrap
+their span, which is undesirable according to the programming model
+behind ``-Wunsafe-buffer-usage``.
+
+The attribute is warranted when a function accepts a raw buffer only to
+immediately put it into a span:
+
+.. code-block:: c++
+
+  [[clang::unsafe_buffer_usage]]
+  void baz(int *buf, size_t size) {
+    std::span<int> sp{ buf, size };
+    for (size_t i = 0; i < sp.size(); ++i) {
+      sp[i] = i;
+    }
+  }
+
+In this case ``baz()`` does not contain any unsafe operations, but the awkward
+parameter type causes the caller to unwrap the span unnecessarily.
+Note that regardless of the attribute, code inside ``baz()`` isn't flagged
+by ``-Wunsafe-buffer-usage`` as unsafe. It is definitely undesirable,
+but if ``baz()`` is on an API surface, there is no way to improve it
+to make it as safe as ``bar()`` without breaking the source and binary
+compatibility with existing users of the function. In such cases
+the proper solution would be to create a different function (possibly
+an overload of ``baz()``) that accepts a safe container like ``bar()``,
+and then use the attribute on the original ``baz()`` to help the users
+update their code to use the new function.
+  }];
+}
+
 def DiagnoseAsBuiltinDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -8285,7 +8393,7 @@ For example:
 
 .. code-block:: c++
 
-  int* [[clang::annotate("category1", "foo", 1)]] f(int[[clang::annotate("category2")]] *);
+  int* [[clang::annotate_type("category1", "foo", 1)]] f(int[[clang::annotate_type("category2")]] *);
 
 The attribute does not have any effect on the semantics of the type system,
 neither type checking rules, nor runtime semantics. In particular:
@@ -8386,5 +8494,44 @@ The symbol used for ``thunk-extern`` is target specific:
 * X86: ``__x86_return_thunk``
 
 As such, this function attribute is currently only supported on X86 targets.
+  }];
+}
+
+def ReadOnlyPlacementDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{This attribute is attached to a structure, class or union declaration.
+  When attached to a record declaration/definition, it checks if all instances
+  of this type can be placed in the read-only data segment of the program. If it
+  finds an instance that can not be placed in a read-only segment, the compiler
+  emits a warning at the source location where the type was used.
+
+  Examples:
+  * ``struct __attribute__((enforce_read_only_placement)) Foo;``
+  * ``struct __attribute__((enforce_read_only_placement)) Bar { ... };``
+
+  Both ``Foo`` and ``Bar`` types have the ``enforce_read_only_placement`` attribute.
+
+  The goal of introducing this attribute is to assist developers with writing secure
+  code. A ``const``-qualified global is generally placed in the read-only section
+  of the memory that has additional run time protection from malicious writes. By
+  attaching this attribute to a declaration, the developer can express the intent
+  to place all instances of the annotated type in the read-only program memory.
+
+  Note 1: The attribute doesn't guarantee that the object will be placed in the
+  read-only data segment as it does not instruct the compiler to ensure such
+  a placement. It emits a warning if something in the code can be proven to prevent
+  an instance from being placed in the read-only data segment.
+
+  Note 2: Currently, clang only checks if all global declarations of a given type 'T'
+  are ``const``-qualified. The following conditions would also prevent the data to be
+  put into read only segment, but the corresponding warnings are not yet implemented.
+
+  1. An instance of type ``T`` is allocated on the heap/stack.
+  2. Type ``T`` defines/inherits a mutable field.
+  3. Type ``T`` defines/inherits non-constexpr constructor(s) for initialization.
+  4. A field of type ``T`` is defined by type ``Q``, which does not bear the
+     ``enforce_read_only_placement`` attribute.
+  5. A type ``Q`` inherits from type ``T`` and it does not have the
+     ``enforce_read_only_placement`` attribute.
   }];
 }

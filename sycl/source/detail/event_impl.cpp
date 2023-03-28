@@ -265,16 +265,7 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
-  if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_submit>(
-          this->getHandleRef(), this->getPlugin());
-    return 0;
-  }
-  if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
-  return MHostProfilingInfo->getStartTime();
+  return MSubmitTime;
 }
 
 template <>
@@ -423,6 +414,22 @@ void event_impl::cleanDepEventsThroughOneLevel() {
     Event->cleanupDependencyEvents();
   }
 }
+
+void event_impl::setSubmissionTime() {
+  if (!MIsProfilingEnabled)
+    return;
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    try {
+      MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+    } catch (feature_not_supported &e) {
+      throw sycl::exception(make_error_code(errc::profiling),
+          std::string("Unable to get command group submission time: ") +
+              e.what());
+    }
+  }
+}
+
+uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
 
 bool event_impl::isCompleted() {
   return get_info<info::event::command_execution_status>() ==

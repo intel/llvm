@@ -9,7 +9,24 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 from lldbsuite.test.decorators import *
 
+
+def isUbuntu18_04():
+    """
+    Check if the host OS is Ubuntu 18.04.
+    Derived from `platform.freedesktop_os_release` in Python 3.10.
+    """
+    for path in ("/etc/os-release", "/usr/lib/os-release"):
+        if os.path.exists(path):
+            with open(path) as f:
+                contents = f.read()
+            if "Ubuntu 18.04" in contents:
+                return True
+
+    return False
+
+
 class TestRerunExprDylib(TestBase):
+    @skipTestIfFn(isUbuntu18_04, bugnumber="rdar://103831050")
     @skipIfWindows
     def test(self):
         """
@@ -52,6 +69,9 @@ class TestRerunExprDylib(TestBase):
         self.expect_expr('*foo', result_type='Foo', result_children=[
                 ValueCheck(name='m_val', value='42')
             ])
+
+        # Delete the dylib to force make to rebuild it.
+        remove_file(self.getBuildArtifact(FULL_DYLIB_NAME))
 
         # Re-build libfoo.dylib
         self.build(dictionary={'DYLIB_CXX_SOURCES':'rebuild.cpp',

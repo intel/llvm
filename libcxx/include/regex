@@ -1012,7 +1012,7 @@ template <regex_constants::error_type _Ev>
 _LIBCPP_NORETURN inline _LIBCPP_INLINE_VISIBILITY
 void __throw_regex_error()
 {
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     throw regex_error(_Ev);
 #else
     _VSTD::abort();
@@ -1157,8 +1157,8 @@ template <class _CharT>
 void
 regex_traits<_CharT>::__init()
 {
-    __ct_ = &use_facet<ctype<char_type> >(__loc_);
-    __col_ = &use_facet<collate<char_type> >(__loc_);
+    __ct_ = &std::use_facet<ctype<char_type> >(__loc_);
+    __col_ = &std::use_facet<collate<char_type> >(__loc_);
 }
 
 template <class _CharT>
@@ -1233,7 +1233,7 @@ regex_traits<_CharT>::__lookup_collatename(_ForwardIterator __f,
     string_type __r;
     if (!__s.empty())
     {
-        __r = __get_collation_name(__s.c_str());
+        __r = std::__get_collation_name(__s.c_str());
         if (__r.empty() && __s.size() <= 2)
         {
             __r = __col_->transform(__s.data(), __s.data() + __s.size());
@@ -1296,7 +1296,7 @@ regex_traits<_CharT>::__lookup_classname(_ForwardIterator __f,
 {
     string_type __s(__f, __l);
     __ct_->tolower(&__s[0], &__s[0] + __s.size());
-    return __get_classname(__s.c_str(), __icase);
+    return std::__get_classname(__s.c_str(), __icase);
 }
 
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
@@ -1446,12 +1446,12 @@ public:
 
     _LIBCPP_INLINE_VISIBILITY
     __node() {}
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_HIDE_FROM_ABI_VIRTUAL
     virtual ~__node() {}
 
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_HIDE_FROM_ABI_VIRTUAL
     virtual void __exec(__state&) const {}
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_HIDE_FROM_ABI_VIRTUAL
     virtual void __exec_split(bool, __state&) const {}
 };
 
@@ -2094,7 +2094,7 @@ __l_anchor_multiline<_CharT>::__exec(__state& __s) const
     }
     else if (__multiline_ &&
              !__s.__at_first_ &&
-             __is_eol(*_VSTD::prev(__s.__current_)))
+             std::__is_eol(*_VSTD::prev(__s.__current_)))
     {
         __s.__do_ = __state::__accept_but_not_consume;
         __s.__node_ = this->first();
@@ -2136,7 +2136,7 @@ __r_anchor_multiline<_CharT>::__exec(__state& __s) const
         __s.__do_ = __state::__accept_but_not_consume;
         __s.__node_ = this->first();
     }
-    else if (__multiline_ && __is_eol(*__s.__current_))
+    else if (__multiline_ && std::__is_eol(*__s.__current_))
     {
         __s.__do_ = __state::__accept_but_not_consume;
         __s.__node_ = this->first();
@@ -2405,7 +2405,7 @@ public:
                     for (size_t __i = 0; __i < __e.size(); ++__i)
                         __e[__i] = __traits_.translate(__e[__i]);
                 }
-                __ranges_.push_back(make_pair(
+                __ranges_.push_back(std::make_pair(
                                   __traits_.transform(__b.begin(), __b.end()),
                                   __traits_.transform(__e.begin(), __e.end())));
             }
@@ -2418,20 +2418,20 @@ public:
                     __b[0] = __traits_.translate_nocase(__b[0]);
                     __e[0] = __traits_.translate_nocase(__e[0]);
                 }
-                __ranges_.push_back(make_pair(_VSTD::move(__b), _VSTD::move(__e)));
+                __ranges_.push_back(std::make_pair(_VSTD::move(__b), _VSTD::move(__e)));
             }
         }
     _LIBCPP_INLINE_VISIBILITY
     void __add_digraph(_CharT __c1, _CharT __c2)
         {
             if (__icase_)
-                __digraphs_.push_back(make_pair(__traits_.translate_nocase(__c1),
-                                                __traits_.translate_nocase(__c2)));
+                __digraphs_.push_back(std::make_pair(__traits_.translate_nocase(__c1),
+                                                     __traits_.translate_nocase(__c2)));
             else if (__collate_)
-                __digraphs_.push_back(make_pair(__traits_.translate(__c1),
-                                                __traits_.translate(__c2)));
+                __digraphs_.push_back(std::make_pair(__traits_.translate(__c1),
+                                                     __traits_.translate(__c2)));
             else
-                __digraphs_.push_back(make_pair(__c1, __c2));
+                __digraphs_.push_back(std::make_pair(__c1, __c2));
         }
     _LIBCPP_INLINE_VISIBILITY
     void __add_equivalence(const string_type& __s)
@@ -4131,9 +4131,9 @@ basic_regex<_CharT, _Traits>::__parse_equivalence_class(_ForwardIterator __first
 {
     // Found [=
     //   This means =] must exist
-    value_type _Equal_close[2] = {'=', ']'};
-    _ForwardIterator __temp = _VSTD::search(__first, __last, _Equal_close,
-                                                            _Equal_close+2);
+    value_type __equal_close[2] = {'=', ']'};
+    _ForwardIterator __temp = _VSTD::search(__first, __last, __equal_close,
+                                                            __equal_close+2);
     if (__temp == __last)
         __throw_regex_error<regex_constants::error_brack>();
     // [__first, __temp) contains all text in [= ... =]
@@ -4173,9 +4173,9 @@ basic_regex<_CharT, _Traits>::__parse_character_class(_ForwardIterator __first,
 {
     // Found [:
     //   This means :] must exist
-    value_type _Colon_close[2] = {':', ']'};
-    _ForwardIterator __temp = _VSTD::search(__first, __last, _Colon_close,
-                                                            _Colon_close+2);
+    value_type __colon_close[2] = {':', ']'};
+    _ForwardIterator __temp = _VSTD::search(__first, __last, __colon_close,
+                                                            __colon_close+2);
     if (__temp == __last)
         __throw_regex_error<regex_constants::error_brack>();
     // [__first, __temp) contains all text in [: ... :]
@@ -4198,9 +4198,9 @@ basic_regex<_CharT, _Traits>::__parse_collating_symbol(_ForwardIterator __first,
 {
     // Found [.
     //   This means .] must exist
-    value_type _Dot_close[2] = {'.', ']'};
-    _ForwardIterator __temp = _VSTD::search(__first, __last, _Dot_close,
-                                                            _Dot_close+2);
+    value_type __dot_close[2] = {'.', ']'};
+    _ForwardIterator __temp = _VSTD::search(__first, __last, __dot_close,
+                                                            __dot_close+2);
     if (__temp == __last)
         __throw_regex_error<regex_constants::error_brack>();
     // [__first, __temp) contains all text in [. ... .]
@@ -5523,7 +5523,7 @@ public:
                regex_constants::match_flag_type __flags = regex_constants::format_default) const
         {
             basic_string<char_type, _ST, _SA> __r;
-            format(back_inserter(__r), __fmt.data(), __fmt.data() + __fmt.size(),
+            format(std::back_inserter(__r), __fmt.data(), __fmt.data() + __fmt.size(),
                    __flags);
             return __r;
         }
@@ -5533,7 +5533,7 @@ public:
                regex_constants::match_flag_type __flags = regex_constants::format_default) const
         {
             string_type __r;
-            format(back_inserter(__r), __fmt,
+            format(std::back_inserter(__r), __fmt,
                    __fmt + char_traits<char_type>::length(__fmt), __flags);
             return __r;
         }
@@ -5861,7 +5861,7 @@ basic_regex<_CharT, _Traits>::__match_at_start_posix_nosubs(
 {
     deque<__state> __states;
     ptrdiff_t __highest_j = 0;
-    ptrdiff_t _Np = _VSTD::distance(__first, __last);
+    ptrdiff_t __np = _VSTD::distance(__first, __last);
     __node* __st = __start_.get();
     if (__st)
     {
@@ -5904,7 +5904,7 @@ basic_regex<_CharT, _Traits>::__match_at_start_posix_nosubs(
                 if (!__matched || __highest_j < __s.__current_ - __s.__first_)
                     __highest_j = __s.__current_ - __s.__first_;
                 __matched = true;
-                if (__highest_j == _Np)
+                if (__highest_j == __np)
                     __states.clear();
                 else
                     __states.pop_back();
@@ -5956,7 +5956,7 @@ basic_regex<_CharT, _Traits>::__match_at_start_posix_subs(
     vector<__state> __states;
     __state __best_state;
     ptrdiff_t __highest_j = 0;
-    ptrdiff_t _Np = _VSTD::distance(__first, __last);
+    ptrdiff_t __np = _VSTD::distance(__first, __last);
     __node* __st = __start_.get();
     if (__st)
     {
@@ -6008,7 +6008,7 @@ basic_regex<_CharT, _Traits>::__match_at_start_posix_subs(
                     __best_state = __s;
                 }
                 __matched = true;
-                if (__highest_j == _Np)
+                if (__highest_j == __np)
                     __states.clear();
                 else
                     __states.pop_back();
@@ -6214,7 +6214,7 @@ regex_search(const basic_string<_CharT, _ST, _SA>& __s,
     return __r;
 }
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
 template <class _ST, class _SA, class _Ap, class _Cp, class _Tp>
 bool
 regex_search(const basic_string<_Cp, _ST, _SA>&& __s,
@@ -6277,7 +6277,7 @@ regex_match(const basic_string<_CharT, _ST, _SA>& __s,
     return _VSTD::regex_match(__s.begin(), __s.end(), __m, __e, __flags);
 }
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
 template <class _ST, class _SA, class _Allocator, class _CharT, class _Traits>
 inline _LIBCPP_INLINE_VISIBILITY
 bool
@@ -6350,7 +6350,7 @@ public:
                    const regex_type& __re,
                    regex_constants::match_flag_type __m
                                               = regex_constants::match_default);
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     regex_iterator(_BidirectionalIterator __a, _BidirectionalIterator __b,
                    const regex_type&& __re,
                    regex_constants::match_flag_type __m
@@ -6482,7 +6482,7 @@ public:
                          const regex_type& __re, int __submatch = 0,
                          regex_constants::match_flag_type __m =
                                                 regex_constants::match_default);
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     regex_token_iterator(_BidirectionalIterator __a, _BidirectionalIterator __b,
                          const regex_type&& __re, int __submatch = 0,
                          regex_constants::match_flag_type __m =
@@ -6493,7 +6493,7 @@ public:
                          const regex_type& __re, const vector<int>& __submatches,
                          regex_constants::match_flag_type __m =
                                                 regex_constants::match_default);
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     regex_token_iterator(_BidirectionalIterator __a, _BidirectionalIterator __b,
                          const regex_type&& __re, const vector<int>& __submatches,
                          regex_constants::match_flag_type __m =
@@ -6507,7 +6507,7 @@ public:
                          regex_constants::match_flag_type __m =
                                                 regex_constants::match_default);
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     regex_token_iterator(_BidirectionalIterator __a, _BidirectionalIterator __b,
                          const regex_type&& __re,
                          initializer_list<int> __submatches,
@@ -6522,7 +6522,7 @@ public:
                              const int (&__submatches)[_Np],
                              regex_constants::match_flag_type __m =
                                                 regex_constants::match_default);
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     template <size_t _Np>
         regex_token_iterator(_BidirectionalIterator __a,
                              _BidirectionalIterator __b,
@@ -6794,7 +6794,7 @@ regex_replace(const basic_string<_CharT, _ST, _SA>& __s,
               regex_constants::match_flag_type __flags = regex_constants::match_default)
 {
     basic_string<_CharT, _ST, _SA> __r;
-    _VSTD::regex_replace(back_inserter(__r), __s.begin(), __s.end(), __e,
+    _VSTD::regex_replace(std::back_inserter(__r), __s.begin(), __s.end(), __e,
                         __fmt.c_str(), __flags);
     return __r;
 }
@@ -6807,7 +6807,7 @@ regex_replace(const basic_string<_CharT, _ST, _SA>& __s,
               regex_constants::match_flag_type __flags = regex_constants::match_default)
 {
     basic_string<_CharT, _ST, _SA> __r;
-    _VSTD::regex_replace(back_inserter(__r), __s.begin(), __s.end(), __e,
+    _VSTD::regex_replace(std::back_inserter(__r), __s.begin(), __s.end(), __e,
                         __fmt, __flags);
     return __r;
 }
@@ -6821,7 +6821,7 @@ regex_replace(const _CharT* __s,
               regex_constants::match_flag_type __flags = regex_constants::match_default)
 {
     basic_string<_CharT> __r;
-    _VSTD::regex_replace(back_inserter(__r), __s,
+    _VSTD::regex_replace(std::back_inserter(__r), __s,
                         __s + char_traits<_CharT>::length(__s), __e,
                         __fmt.c_str(), __flags);
     return __r;
@@ -6836,7 +6836,7 @@ regex_replace(const _CharT* __s,
               regex_constants::match_flag_type __flags = regex_constants::match_default)
 {
     basic_string<_CharT> __r;
-    _VSTD::regex_replace(back_inserter(__r), __s,
+    _VSTD::regex_replace(std::back_inserter(__r), __s,
                         __s + char_traits<_CharT>::length(__s), __e,
                         __fmt, __flags);
     return __r;
@@ -6844,7 +6844,7 @@ regex_replace(const _CharT* __s,
 
 _LIBCPP_END_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 _LIBCPP_BEGIN_NAMESPACE_STD
 namespace pmr {
 template <class _BidirT>
@@ -6869,6 +6869,7 @@ _LIBCPP_POP_MACROS
 #  include <iosfwd>
 #  include <iterator>
 #  include <new>
+#  include <type_traits>
 #  include <typeinfo>
 #  include <utility>
 #endif

@@ -19,6 +19,7 @@
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
 #include "llvm/ADT/StringExtras.h"
+#include <optional>
 
 using namespace clang;
 using namespace sema;
@@ -245,7 +246,7 @@ static IVDepExprResult HandleIVDepAttrExpr(Sema &S, Expr *E,
   if (E->isInstantiationDependent())
     return IVDepExprResult::Dependent;
 
-  Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(S.getASTContext());
+  std::optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(S.getASTContext());
   if (ArgVal) {
     if (checkSYCLIntelIVDepSafeLen(S, *ArgVal, E))
       return IVDepExprResult::Invalid;
@@ -896,7 +897,7 @@ static bool CheckLoopUnrollAttrExpr(Sema &S, Expr *E,
                                     const AttributeCommonInfo &A,
                                     unsigned *UnrollFactor = nullptr) {
   if (E && !E->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(S.Context);
+    std::optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(S.Context);
     if (!ArgVal)
       return S.Diag(E->getExprLoc(), diag::err_attribute_argument_type)
              << A.getAttrName() << AANT_ArgumentIntegerConstant

@@ -26,7 +26,7 @@ namespace scudo {
 // allocator.
 //
 // struct ExampleConfig {
-//   // SizeClasMmap to use with the Primary.
+//   // SizeClassMap to use with the Primary.
 //   using SizeClassMap = DefaultSizeClassMap;
 //   // Indicates possible support for Memory Tagging.
 //   static const bool MaySupportMemoryTagging = false;
@@ -170,7 +170,7 @@ struct FuchsiaConfig {
 
   typedef SizeClassAllocator64<FuchsiaConfig> Primary;
   static const uptr PrimaryRegionSizeLog = 30U;
-  static const uptr PrimaryGroupSizeLog = 30U;
+  static const uptr PrimaryGroupSizeLog = 21U;
   typedef u32 PrimaryCompactPtrT;
   static const bool PrimaryEnableRandomOffset = true;
   static const uptr PrimaryMapSizeIncrement = 1UL << 18;

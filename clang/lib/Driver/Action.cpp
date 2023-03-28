@@ -68,6 +68,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "foreach";
   case SpirvToIrWrapperJobClass:
     return "spirv-to-ir-wrapper";
+  case BinaryAnalyzeJobClass:
+    return "binary-analyzer";
   }
 
   llvm_unreachable("invalid class");
@@ -250,13 +252,17 @@ OffloadAction::OffloadAction(const HostDependence &HDep,
 
   // Add device inputs and propagate info to the device actions. Do work only if
   // we have dependencies.
-  for (unsigned i = 0, e = DDeps.getActions().size(); i != e; ++i)
+  for (unsigned i = 0, e = DDeps.getActions().size(); i != e; ++i) {
     if (auto *A = DDeps.getActions()[i]) {
       getInputs().push_back(A);
       A->propagateDeviceOffloadInfo(DDeps.getOffloadKinds()[i],
                                     DDeps.getBoundArchs()[i],
                                     DDeps.getToolChains()[i]);
+      // If this action is used to forward single dependency, set the toolchain.
+      if (DDeps.getActions().size() == 1)
+        OffloadingToolChain = DDeps.getToolChains()[i];
     }
+  }
 }
 
 void OffloadAction::doOnHostDependence(const OffloadActionWorkTy &Work) const {
@@ -604,3 +610,7 @@ JobAction *ForEachWrappingAction::getTFormInput() const {
 JobAction *ForEachWrappingAction::getJobAction() const {
   return llvm::cast<JobAction>(getInputs()[1]);
 }
+void BinaryAnalyzeJobAction::anchor() {}
+
+BinaryAnalyzeJobAction::BinaryAnalyzeJobAction(Action *Input, types::ID Type)
+    : JobAction(BinaryAnalyzeJobClass, Input, Type) {}

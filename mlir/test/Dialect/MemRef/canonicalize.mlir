@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -canonicalize --split-input-file -allow-unregistered-dialect | FileCheck %s
+// RUN: mlir-opt %s -canonicalize="test-convergence" --split-input-file -allow-unregistered-dialect | FileCheck %s
 
 // CHECK-LABEL: func @subview_of_size_memcast
 //  CHECK-SAME:   %[[ARG0:.[a-z0-9A-Z_]+]]: memref<4x6x16x32xi8>
@@ -874,4 +874,57 @@ func.func @collapse_expand_fold_to_cast(%m: memref<?xf32, strided<[1]>, 3>)
   %1 = memref.collapse_shape %0 [[0, 1]]
       : memref<1x?xf32, 3> into memref<?xf32, 3>
   return %1 : memref<?xf32, 3>
+}
+
+// -----
+
+// CHECK-LABEL: func @fold_trivial_subviews(
+//  CHECK-SAME:     %[[m:.*]]: memref<?xf32, strided<[?], offset: ?>>
+//       CHECK:   %[[subview:.*]] = memref.subview %[[m]][5]
+//       CHECK:   return %[[subview]]
+func.func @fold_trivial_subviews(%m: memref<?xf32, strided<[?], offset: ?>>,
+                                 %sz: index)
+    -> memref<?xf32, strided<[?], offset: ?>>
+{
+  %0 = memref.subview %m[5] [%sz] [1]
+      : memref<?xf32, strided<[?], offset: ?>>
+        to memref<?xf32, strided<[?], offset: ?>>
+  %1 = memref.subview %0[0] [%sz] [1]
+      : memref<?xf32, strided<[?], offset: ?>>
+        to memref<?xf32, strided<[?], offset: ?>>
+  return %1 : memref<?xf32, strided<[?], offset: ?>>
+}
+
+// -----
+
+// CHECK-LABEL: func @load_store_nontemporal(
+func.func @load_store_nontemporal(%input : memref<32xf32, affine_map<(d0) -> (d0)>>, %output : memref<32xf32, affine_map<(d0) -> (d0)>>) {
+  %1 = arith.constant 7 : index
+  // CHECK: memref.load %{{.*}}[%{{.*}}] {nontemporal = true} : memref<32xf32>
+  %2 = memref.load %input[%1] {nontemporal = true} : memref<32xf32, affine_map<(d0) -> (d0)>>
+  // CHECK: memref.store %{{.*}}, %{{.*}}[%{{.*}}] {nontemporal = true} : memref<32xf32>
+  memref.store %2, %output[%1] {nontemporal = true} : memref<32xf32, affine_map<(d0) -> (d0)>>
+  func.return
+}
+
+// -----
+
+// CHECK-LABEL: func @fold_trivial_memory_space_cast(
+//  CHECK-SAME:     %[[arg:.*]]: memref<?xf32>
+//       CHECK:   return %[[arg]]
+func.func @fold_trivial_memory_space_cast(%arg : memref<?xf32>) -> memref<?xf32> {
+  %0 = memref.memory_space_cast %arg : memref<?xf32> to memref<?xf32>
+  return %0 : memref<?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @fold_multiple_memory_space_cast(
+//  CHECK-SAME:     %[[arg:.*]]: memref<?xf32>
+//       CHECK:   %[[res:.*]] = memref.memory_space_cast %[[arg]] : memref<?xf32> to memref<?xf32, 2>
+//       CHECK:   return %[[res]]
+func.func @fold_multiple_memory_space_cast(%arg : memref<?xf32>) -> memref<?xf32, 2> {
+  %0 = memref.memory_space_cast %arg : memref<?xf32> to memref<?xf32, 1>
+  %1 = memref.memory_space_cast %0 : memref<?xf32, 1> to memref<?xf32, 2>
+  return %1 : memref<?xf32, 2>
 }

@@ -25,6 +25,7 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "hexagon-isel"
+#define PASS_NAME "Hexagon DAG->DAG Pattern Instruction Selection"
 
 static
 cl::opt<bool>
@@ -62,6 +63,10 @@ FunctionPass *createHexagonISelDag(HexagonTargetMachine &TM,
   return new HexagonDAGToDAGISel(TM, OptLevel);
 }
 }
+
+char HexagonDAGToDAGISel::ID = 0;
+
+INITIALIZE_PASS(HexagonDAGToDAGISel, DEBUG_TYPE, PASS_NAME, false, false)
 
 void HexagonDAGToDAGISel::SelectIndexedLoad(LoadSDNode *LD, const SDLoc &dl) {
   SDValue Chain = LD->getChain();
@@ -1165,9 +1170,9 @@ void HexagonDAGToDAGISel::ppAddrRewriteAndSrl(std::vector<SDNode*> &&Nodes) {
       continue;
     uint32_t Mask = MN->getZExtValue();
     // Examine the mask.
-    uint32_t TZ = countTrailingZeros(Mask);
-    uint32_t M1 = countTrailingOnes(Mask >> TZ);
-    uint32_t LZ = countLeadingZeros(Mask);
+    uint32_t TZ = llvm::countr_zero(Mask);
+    uint32_t M1 = llvm::countr_one(Mask >> TZ);
+    uint32_t LZ = llvm::countl_zero(Mask);
     // Trailing zeros + middle ones + leading zeros must equal the width.
     if (TZ + M1 + LZ != 32)
       continue;

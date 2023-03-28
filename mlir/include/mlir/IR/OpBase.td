@@ -40,12 +40,6 @@ class StrFunc<string r> {
   string result = r;
 }
 
-// Helper for marking deprecated classes or defs. To mark a def as deprecated,
-// mix in the `Deprecate` class with a reason.
-class Deprecated<string reason> {
-  string odsDeprecated = reason;
-}
-
 //===----------------------------------------------------------------------===//
 // Predicate definitions
 //===----------------------------------------------------------------------===//
@@ -494,6 +488,10 @@ def F8E4M3FN : Type<CPred<"$_self.isFloat8E4M3FN()">, "f8E4M3FN type">,
                BuildableType<"$_builder.getFloat8E4M3FNType()">;
 def F8E5M2 : Type<CPred<"$_self.isFloat8E5M2()">, "f8E5M2 type">,
              BuildableType<"$_builder.getFloat8E5M2Type()">;
+def F8E4M3FNUZ : Type<CPred<"$_self.isFloat8E4M3FNUZ()">, "f8E4M3FNUZ type">,
+                 BuildableType<"$_builder.getFloat8E4M3FNUZType()">;
+def F8E5M2FNUZ : Type<CPred<"$_self.isFloat8E5M2FNUZ()">, "f8E5M2FNUZ type">,
+                 BuildableType<"$_builder.getFloat8E5M2FNUZType()">;
 
 def AnyComplex : Type<CPred<"$_self.isa<::mlir::ComplexType>()">,
                       "complex-type", "::mlir::ComplexType">;
@@ -553,6 +551,12 @@ class HasAnyRankOfPred<list<int> ranks> : And<[
                 CPred<[{$_self.cast<::mlir::ShapedType>().getRank()
                          == }]
                       # rank>)>]>;
+
+// Whether a shaped type has a rank greater than or equal of the specified rank.
+class HasRankGreaterOrEqualPred<int rank> : And<[
+    HasRankPred,
+    CPred<[{$_self.cast<::mlir::ShapedType>().getRank() >= }] # rank>
+]>;
 
 // Vector types.
 
@@ -754,7 +758,16 @@ class RankedTensorOf<
     string summary = "ranked tensor">
   : TensorOf<allowedTypes, !listconcat([HasRankPred], preds), summary>;
 
+class Non0RankedTensorOf<list<Type> allowedTypes>
+  : TensorOf<allowedTypes, [HasRankGreaterOrEqualPred<1>],
+      "non-0-ranked.tensor">;
+
 def AnyRankedTensor : RankedTensorOf<[AnyType]>;
+def AnyNon0RankedTensor  : Non0RankedTensorOf<[AnyType]>;
+def AnyUnrankedTensor  : UnrankedTensorOf<[AnyType]>;
+
+def AnyNon0RankedOrUnrankedTensor:
+    AnyTypeOf<[AnyUnrankedTensor, AnyNon0RankedTensor]>;
 
 // Ranked tensor type with one of the specified types and ranks.
 class TensorRankOf<list<Type> allowedTypes, list<int> ranks>
@@ -788,13 +801,20 @@ def AnyUnrankedMemRef : UnrankedMemRefOf<[AnyType]>;
 class MemRefOf<list<Type> allowedTypes> :
     ShapedContainerType<allowedTypes, IsMemRefTypePred, "memref",
                         "::mlir::MemRefType">;
+class Non0RankedMemRefOf<list<Type> allowedTypes> :
+    ConfinedType<MemRefOf<allowedTypes>, [HasRankGreaterOrEqualPred<1>],
+         "non-0-ranked." # MemRefOf<allowedTypes>.summary,
+         "::mlir::MemRefType">;
 
 def AnyMemRef : MemRefOf<[AnyType]>;
+def AnyNon0RankedMemRef : Non0RankedMemRefOf<[AnyType]>;
 
 class RankedOrUnrankedMemRefOf<list<Type> allowedTypes>:
     AnyTypeOf<[UnrankedMemRefOf<allowedTypes>, MemRefOf<allowedTypes>]>;
 
 def AnyRankedOrUnrankedMemRef: AnyTypeOf<[AnyUnrankedMemRef, AnyMemRef]>;
+def AnyNon0RankedOrUnrankedMemRef:
+    AnyTypeOf<[AnyUnrankedMemRef, AnyNon0RankedMemRef]>;
 
 // Memref declarations handle any memref, independent of rank, size, (static or
 // dynamic), layout, or memory space.
@@ -1033,7 +1053,7 @@ class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.summary> {
   // Rewrite the attribute to be optional.
   // Note: this has to be kept up to date with Attr above.
   let storageType = attr.storageType;
-  let returnType = "::llvm::Optional<" # attr.returnType #">";
+  let returnType = "::std::optional<" # attr.returnType #">";
   let convertFromStorage = "$_self ? " # returnType # "(" #
                            attr.convertFromStorage # ") : (::std::nullopt)";
   let valueType = attr.valueType;
@@ -1083,6 +1103,9 @@ class AnyAttrOf<list<Attr> allowedAttrs, string summary = "",
     let returnType = cppClassName;
     let convertFromStorage = fromStorage;
 }
+
+def LocationAttr : Attr<CPred<"$_self.isa<::mlir::LocationAttr>()">,
+                        "location attribute">;
 
 def BoolAttr : Attr<CPred<"$_self.isa<::mlir::BoolAttr>()">, "bool attribute"> {
   let storageType = [{ ::mlir::BoolAttr }];
@@ -1292,6 +1315,7 @@ def UnitAttr : Attr<CPred<"$_self.isa<::mlir::UnitAttr>()">, "unit attribute"> {
 class DictionaryAttrBase<Pred condition, string summary> :
     Attr<condition, summary> {
   let storageType = [{ ::mlir::DictionaryAttr }];
+  let constBuilderCall = "$_builder.getDictionaryAttr($0)";
   let returnType = [{ ::mlir::DictionaryAttr }];
   let valueType = NoneType;
   let convertFromStorage = "$_self";
@@ -1362,7 +1386,7 @@ class SignlessIntElementsAttr<int width> : IntElementsAttrBase<
   let constBuilderCall = "::mlir::DenseElementsAttr::get("
     "::mlir::RankedTensorType::get({}, "
                                   "$_builder.getIntegerType(" # width # ")), "
-    "::llvm::makeArrayRef($0)).cast<::mlir::DenseIntElementsAttr>()";
+    "::llvm::ArrayRef($0)).cast<::mlir::DenseIntElementsAttr>()";
 }
 
 def I32ElementsAttr : SignlessIntElementsAttr<32>;
@@ -1383,7 +1407,7 @@ class RankedSignlessIntElementsAttr<int width, list<int> dims> :
 
   let constBuilderCall = "::mlir::DenseIntElementsAttr::get("
     "::mlir::RankedTensorType::get({" # !interleave(dims, ", ") #
-    "}, $_builder.getIntegerType(" # width # ")), ::llvm::makeArrayRef($0))";
+    "}, $_builder.getIntegerType(" # width # ")), ::llvm::ArrayRef($0))";
 }
 
 class RankedI32ElementsAttr<list<int> dims> :
@@ -1403,7 +1427,7 @@ class FloatElementsAttr<int width> : ElementsAttrBase<
   // Note that this is only constructing scalar elements attribute.
   let constBuilderCall = "::mlir::DenseElementsAttr::get("
     "::mlir::RankedTensorType::get({}, $_builder.getF" # width # "Type()),"
-    "::llvm::makeArrayRef($0))";
+    "::llvm::ArrayRef($0))";
   let convertFromStorage = "$_self";
 }
 
@@ -1428,7 +1452,7 @@ class RankedFloatElementsAttr<int width, list<int> dims> : ElementsAttrBase<
   let constBuilderCall = "::mlir::DenseElementsAttr::get("
     "::mlir::RankedTensorType::get({" # !interleave(dims, ", ") #
     "}, $_builder.getF" # width # "Type()), "
-    "::llvm::makeArrayRef($0)).cast<::mlir::DenseFPElementsAttr>()";
+    "::llvm::ArrayRef($0)).cast<::mlir::DenseFPElementsAttr>()";
   let convertFromStorage = "$_self";
 }
 
@@ -1481,6 +1505,9 @@ class TypedArrayAttrBase<Attr element, string summary>: ArrayAttrBase<
 
   Attr elementAttr = element;
 }
+
+def LocationArrayAttr : TypedArrayAttrBase<LocationAttr,
+                                           "location array attribute">;
 
 def AffineMapArrayAttr : TypedArrayAttrBase<AffineMapAttr,
                                       "AffineMap array attribute"> {
@@ -1671,6 +1698,10 @@ class ArrayCount<int n> : AttrConstraint<
     CPred<"$_self.cast<::mlir::ArrayAttr>().size() == " #n>,
     "with exactly " # n # " elements">;
 
+class DenseArrayCount<int n> : AttrConstraint<
+    CPred<"$_self.cast<::mlir::DenseArrayAttr>().size() == " #n>,
+    "with exactly " # n # " elements">;
+
 class DenseArrayStrictlyPositive<DenseArrayAttrBase arrayType> : AttrConstraint<
   CPred<"::llvm::all_of($_self.cast<" # arrayType #">().asArrayRef(), "
                         "[&](auto v) { return v > 0; })">,
@@ -1712,6 +1743,24 @@ class IntArrayNthElemMinValue<int index, int min> : AttrConstraint<
         ]>,
     "whose " # index # "-th element must be at least " # min>;
 
+class IntArrayNthElemMaxValue<int index, int max> : AttrConstraint<
+    And<[
+      CPred<"$_self.cast<::mlir::ArrayAttr>().size() > " # index>,
+      CPred<"$_self.cast<::mlir::ArrayAttr>()[" # index # "]"
+        ".cast<::mlir::IntegerAttr>().getInt() <= " # max>
+        ]>,
+    "whose " # index # "-th element must be at most " # max>;
+
+class IntArrayNthElemInRange<int index, int min, int max> : AttrConstraint<
+    And<[
+      CPred<"$_self.cast<::mlir::ArrayAttr>().size() > " # index>,
+      CPred<"$_self.cast<::mlir::ArrayAttr>()[" # index # "]"
+        ".cast<::mlir::IntegerAttr>().getInt() >= " # min>,
+      CPred<"$_self.cast<::mlir::ArrayAttr>()[" # index # "]"
+        ".cast<::mlir::IntegerAttr>().getInt() <= " # max>
+        ]>,
+    "whose " # index # "-th element must be at least " # min # " and at most " # max>;
+
 def IsNullAttr : AttrConstraint<
     CPred<"!$_self">, "empty attribute (for optional attributes)">;
 
@@ -1734,6 +1783,11 @@ class SizedRegion<int numBlocks> : Region<
 class MinSizedRegion<int numBlocks> : Region<
   CPred<"::llvm::hasNItemsOrMore($_self, " # numBlocks # ")">,
   "region with at least " # numBlocks # " blocks">;
+
+// A region with at most the given number of blocks.
+class MaxSizedRegion<int numBlocks> : Region<
+  CPred<"::llvm::hasNItemsOrLess($_self, " # numBlocks # ")">,
+  "region with at most " # numBlocks # " blocks">;
 
 // A variadic region constraint. It expands to zero or more of the base region.
 class VariadicRegion<Region region>
@@ -1948,7 +2002,7 @@ def AttrSizedResultSegments  :
 def NoRegionArguments : NativeOpTrait<"NoRegionArguments">, StructuralOpTrait;
 
 //===----------------------------------------------------------------------===//
-// OpInterface definitions
+// Interface definitions
 //===----------------------------------------------------------------------===//
 
 // Marker used to identify the argument list for an op or interface method.
@@ -2026,7 +2080,7 @@ class StaticInterfaceMethod<string desc, string retTy, string methodName,
                       defaultImplementation>;
 
 // Interface represents a base interface.
-class Interface<string name> {
+class Interface<string name, list<Interface> baseInterfacesArg = []> {
   // A human-readable description of what this interface does.
   string description = "";
 
@@ -2049,28 +2103,43 @@ class Interface<string name> {
   // An optional code block containing extra declarations to place in both
   // the interface and trait declaration.
   code extraSharedClassDeclaration = "";
+
+  // An optional code block for adding additional "classof" logic. This can
+  // be used to better enable "optional" interfaces, where an entity only
+  // implements the interface if some dynamic characteristic holds.
+  // `$_attr`/`$_op`/`$_type` may be used to refer to an instance of the
+  // entity being checked.
+  code extraClassOf = "";
+
+  // An optional set of base interfaces that this interface
+  // "derives" from.
+  list<Interface> baseInterfaces = baseInterfacesArg;
 }
 
 // AttrInterface represents an interface registered to an attribute.
-class AttrInterface<string name> : Interface<name>, InterfaceTrait<name>,
-	Attr<CPred<"$_self.isa<"
-		# !if(!empty(cppNamespace),"", cppNamespace # "::") # name # ">()">,
-			name # " instance">
-{
+class AttrInterface<string name, list<Interface> baseInterfaces = []>
+  : Interface<name, baseInterfaces>, InterfaceTrait<name>,
+	  Attr<CPred<"$_self.isa<"
+		  # !if(!empty(cppNamespace),"", cppNamespace # "::") # name # ">()">,
+			name # " instance"
+    > {
 	let storageType = !if(!empty(cppNamespace), "", cppNamespace # "::") # name;
 	let returnType = storageType;
 	let convertFromStorage = "$_self";
 }
 
 // OpInterface represents an interface registered to an operation.
-class OpInterface<string name> : Interface<name>, OpInterfaceTrait<name>;
+class OpInterface<string name, list<Interface> baseInterfaces = []>
+  : Interface<name, baseInterfaces>, OpInterfaceTrait<name>;
 
 // TypeInterface represents an interface registered to a type.
-class TypeInterface<string name> : Interface<name>, InterfaceTrait<name>,
-	Type<CPred<"$_self.isa<"
-		# !if(!empty(cppNamespace),"", cppNamespace # "::") # name # ">()">,
+class TypeInterface<string name, list<Interface> baseInterfaces = []>
+  : Interface<name, baseInterfaces>, InterfaceTrait<name>,
+	  Type<CPred<"$_self.isa<"
+		  # !if(!empty(cppNamespace),"", cppNamespace # "::") # name # ">()">,
 			name # " instance",
-				!if(!empty(cppNamespace),"", cppNamespace # "::") # name>;
+			!if(!empty(cppNamespace),"", cppNamespace # "::") # name
+    >;
 
 // Whether to declare the interface methods in the user entity's header. This
 // class simply wraps an Interface but is used to indicate that the method
@@ -2086,29 +2155,32 @@ class DeclareInterfaceMethods<list<string> overridenMethods = []> {
 class DeclareAttrInterfaceMethods<AttrInterface interface,
                                   list<string> overridenMethods = []>
       : DeclareInterfaceMethods<overridenMethods>,
-        AttrInterface<interface.cppInterfaceName> {
+        AttrInterface<interface.cppInterfaceName, interface.baseInterfaces> {
     let description = interface.description;
     let cppInterfaceName = interface.cppInterfaceName;
     let cppNamespace = interface.cppNamespace;
     let methods = interface.methods;
+    let baseInterfaces = interface.baseInterfaces;
 }
 class DeclareOpInterfaceMethods<OpInterface interface,
                                 list<string> overridenMethods = []>
       : DeclareInterfaceMethods<overridenMethods>,
-        OpInterface<interface.cppInterfaceName> {
+        OpInterface<interface.cppInterfaceName, interface.baseInterfaces> {
     let description = interface.description;
     let cppInterfaceName = interface.cppInterfaceName;
     let cppNamespace = interface.cppNamespace;
     let methods = interface.methods;
+    let baseInterfaces = interface.baseInterfaces;
 }
 class DeclareTypeInterfaceMethods<TypeInterface interface,
                                   list<string> overridenMethods = []>
       : DeclareInterfaceMethods<overridenMethods>,
-        TypeInterface<interface.cppInterfaceName> {
+        TypeInterface<interface.cppInterfaceName, interface.baseInterfaces> {
     let description = interface.description;
     let cppInterfaceName = interface.cppInterfaceName;
     let cppNamespace = interface.cppNamespace;
     let methods = interface.methods;
+    let baseInterfaces = interface.baseInterfaces;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2166,6 +2238,12 @@ class OpBuilder<dag p, code b = ""> {
   dag dagParams = p;
   code body = b;
 }
+
+// OpBuilder like the above, but the emitted 'build' method is marked as
+// deprecated in C++. Use of it will emit a warning by the C++ compiler
+// with the given reason.
+class DeprecatedOpBuilder<string reason, dag p, code b = "">
+  : OpBuilder<p, b>, CppDeprecated<reason>;
 
 // A base decorator class that may optionally be added to OpVariables.
 class OpVariableDecorator;

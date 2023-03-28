@@ -2026,6 +2026,36 @@ static bool isSubstitutedType(ASTContext &Ctx, QualType T, QualType Pattern,
   return false;
 }
 
+/// Evaluates the expression template argument 'Pattern' and returns true
+/// if 'Arg' evaluates to the same result.
+static bool templateArgumentExpressionsEqual(ASTContext const &Ctx,
+                                             TemplateArgument const &Pattern,
+                                             TemplateArgument const &Arg) {
+  if (Pattern.getKind() != TemplateArgument::Expression)
+    return false;
+
+  // Can't evaluate value-dependent expressions so bail early
+  Expr const *pattern_expr = Pattern.getAsExpr();
+  if (pattern_expr->isValueDependent() ||
+      !pattern_expr->isIntegerConstantExpr(Ctx))
+    return false;
+
+  if (Arg.getKind() == TemplateArgument::Integral)
+    return llvm::APSInt::isSameValue(pattern_expr->EvaluateKnownConstInt(Ctx),
+                                     Arg.getAsIntegral());
+
+  if (Arg.getKind() == TemplateArgument::Expression) {
+    Expr const *args_expr = Arg.getAsExpr();
+    if (args_expr->isValueDependent() || !args_expr->isIntegerConstantExpr(Ctx))
+      return false;
+
+    return llvm::APSInt::isSameValue(args_expr->EvaluateKnownConstInt(Ctx),
+                                     pattern_expr->EvaluateKnownConstInt(Ctx));
+  }
+
+  return false;
+}
+
 static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,
                                           TemplateArgument Pattern,
                                           ArrayRef<TemplateArgument> Args,
@@ -2043,6 +2073,9 @@ static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,
                Args[NTTP->getIndex()].structurallyEquals(Arg);
     }
   }
+
+  if (templateArgumentExpressionsEqual(Ctx, Pattern, Arg))
+    return true;
 
   if (Arg.getKind() != Pattern.getKind())
     return false;
@@ -2063,9 +2096,7 @@ static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,
   return false;
 }
 
-/// Make a best-effort determination of whether the type T can be produced by
-/// substituting Args into the default argument of Param.
-static bool isSubstitutedDefaultArgument(ASTContext &Ctx, TemplateArgument Arg,
+bool clang::isSubstitutedDefaultArgument(ASTContext &Ctx, TemplateArgument Arg,
                                          const NamedDecl *Param,
                                          ArrayRef<TemplateArgument> Args,
                                          unsigned Depth) {
@@ -2097,14 +2128,10 @@ printTo(raw_ostream &OS, ArrayRef<TA> Args, const PrintingPolicy &Policy,
   if (TPL && Policy.SuppressDefaultTemplateArgs &&
       !Policy.PrintCanonicalTypes && !Args.empty() && !IsPack &&
       Args.size() <= TPL->size()) {
-    ASTContext &Ctx = TPL->getParam(0)->getASTContext();
     llvm::SmallVector<TemplateArgument, 8> OrigArgs;
     for (const TA &A : Args)
       OrigArgs.push_back(getArgument(A));
-    while (!Args.empty() &&
-           isSubstitutedDefaultArgument(Ctx, getArgument(Args.back()),
-                                        TPL->getParam(Args.size() - 1),
-                                        OrigArgs, TPL->getDepth()))
+    while (!Args.empty() && getArgument(Args.back()).getIsDefaulted())
       Args = Args.drop_back();
   }
 

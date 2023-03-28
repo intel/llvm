@@ -78,6 +78,9 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   const bool HasFP16 = ST.hasFullFP16();
   const LLT &MinFPScalar = HasFP16 ? s16 : s32;
 
+  const bool HasCSSC = ST.hasCSSC();
+  const bool HasRCPC3 = ST.hasRCPC3();
+
   getActionDefinitionsBuilder({G_IMPLICIT_DEF, G_FREEZE})
       .legalFor({p0, s8, s16, s32, s64})
       .legalFor(PackedVectorAllTypeList)
@@ -123,8 +126,25 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .legalFor({v2s64})
       .widenScalarToNextPow2(0)
       .clampScalar(0, s32, s64)
+      .clampMaxNumElements(0, s8, 16)
+      .clampMaxNumElements(0, s16, 8)
       .clampNumElements(0, v2s32, v4s32)
       .clampNumElements(0, v2s64, v2s64)
+      .minScalarOrEltIf(
+          [=](const LegalityQuery &Query) {
+            return Query.Types[0].getNumElements() <= 2;
+          },
+          0, s32)
+      .minScalarOrEltIf(
+          [=](const LegalityQuery &Query) {
+            return Query.Types[0].getNumElements() <= 4;
+          },
+          0, s16)
+      .minScalarOrEltIf(
+          [=](const LegalityQuery &Query) {
+            return Query.Types[0].getNumElements() <= 16;
+          },
+          0, s8)
       .moreElementsToNextPow2(0);
 
   getActionDefinitionsBuilder({G_SHL, G_ASHR, G_LSHR})
@@ -185,8 +205,19 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .legalFor({s64, v8s16, v16s8, v4s32})
       .lower();
 
-  getActionDefinitionsBuilder({G_SMIN, G_SMAX, G_UMIN, G_UMAX})
-      .legalFor({v8s8, v16s8, v4s16, v8s16, v2s32, v4s32})
+  auto &MinMaxActions = getActionDefinitionsBuilder(
+      {G_SMIN, G_SMAX, G_UMIN, G_UMAX});
+  if (HasCSSC)
+    MinMaxActions
+        .legalFor({s32, s64, v8s8, v16s8, v4s16, v8s16, v2s32, v4s32})
+        // Making clamping conditional on CSSC extension as without legal types we
+        // lower to CMP which can fold one of the two sxtb's we'd otherwise need
+        // if we detect a type smaller than 32-bit.
+        .minScalar(0, s32);
+  else
+    MinMaxActions
+        .legalFor({v8s8, v16s8, v4s16, v8s16, v2s32, v4s32});
+  MinMaxActions
       .clampNumElements(0, v8s8, v16s8)
       .clampNumElements(0, v4s16, v8s16)
       .clampNumElements(0, v2s32, v4s32)
@@ -297,6 +328,10 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder(G_LOAD)
       .customIf([=](const LegalityQuery &Query) {
+        return HasRCPC3 && Query.Types[0] == s128 &&
+               Query.MMODescrs[0].Ordering == AtomicOrdering::Acquire;
+      })
+      .customIf([=](const LegalityQuery &Query) {
         return Query.Types[0] == s128 &&
                Query.MMODescrs[0].Ordering != AtomicOrdering::NotAtomic;
       })
@@ -315,16 +350,17 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
                                  {v2s64, p0, s128, 8}})
       // These extends are also legal
       .legalForTypesWithMemDesc({{s32, p0, s8, 8}, {s32, p0, s16, 8}})
-      .widenScalarToNextPow2(0, /* MinSize = */8)
+      .widenScalarToNextPow2(0, /* MinSize = */ 8)
       .lowerIfMemSizeNotByteSizePow2()
       .clampScalar(0, s8, s64)
-      .narrowScalarIf([=](const LegalityQuery &Query) {
-        // Clamp extending load results to 32-bits.
-        return Query.Types[0].isScalar() &&
-          Query.Types[0] != Query.MMODescrs[0].MemoryTy &&
-          Query.Types[0].getSizeInBits() > 32;
-        },
-        changeTo(0, s32))
+      .narrowScalarIf(
+          [=](const LegalityQuery &Query) {
+            // Clamp extending load results to 32-bits.
+            return Query.Types[0].isScalar() &&
+                   Query.Types[0] != Query.MMODescrs[0].MemoryTy &&
+                   Query.Types[0].getSizeInBits() > 32;
+          },
+          changeTo(0, s32))
       .clampMaxNumElements(0, s8, 16)
       .clampMaxNumElements(0, s16, 8)
       .clampMaxNumElements(0, s32, 4)
@@ -335,30 +371,24 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder(G_STORE)
       .customIf([=](const LegalityQuery &Query) {
+        return HasRCPC3 && Query.Types[0] == s128 &&
+               Query.MMODescrs[0].Ordering == AtomicOrdering::Release;
+      })
+      .customIf([=](const LegalityQuery &Query) {
         return Query.Types[0] == s128 &&
                Query.MMODescrs[0].Ordering != AtomicOrdering::NotAtomic;
       })
-      .legalForTypesWithMemDesc({{s8, p0, s8, 8},
-                                 {s16, p0, s8, 8}, // truncstorei8 from s16
-                                 {s32, p0, s8, 8}, // truncstorei8 from s32
-                                 {s64, p0, s8, 8}, // truncstorei8 from s64
-                                 {s16, p0, s16, 8},
-                                 {s32, p0, s16, 8}, // truncstorei16 from s32
-                                 {s64, p0, s16, 8}, // truncstorei16 from s64
-                                 {s32, p0, s8, 8},
-                                 {s32, p0, s16, 8},
-                                 {s32, p0, s32, 8},
-                                 {s64, p0, s64, 8},
-                                 {s64, p0, s32, 8}, // truncstorei32 from s64
-                                 {p0, p0, s64, 8},
-                                 {s128, p0, s128, 8},
-                                 {v16s8, p0, s128, 8},
-                                 {v8s8, p0, s64, 8},
-                                 {v4s16, p0, s64, 8},
-                                 {v8s16, p0, s128, 8},
-                                 {v2s32, p0, s64, 8},
-                                 {v4s32, p0, s128, 8},
-                                 {v2s64, p0, s128, 8}})
+      .legalForTypesWithMemDesc(
+          {{s8, p0, s8, 8},     {s16, p0, s8, 8},  // truncstorei8 from s16
+           {s32, p0, s8, 8},                       // truncstorei8 from s32
+           {s64, p0, s8, 8},                       // truncstorei8 from s64
+           {s16, p0, s16, 8},   {s32, p0, s16, 8}, // truncstorei16 from s32
+           {s64, p0, s16, 8},                      // truncstorei16 from s64
+           {s32, p0, s8, 8},    {s32, p0, s16, 8},    {s32, p0, s32, 8},
+           {s64, p0, s64, 8},   {s64, p0, s32, 8}, // truncstorei32 from s64
+           {p0, p0, s64, 8},    {s128, p0, s128, 8},  {v16s8, p0, s128, 8},
+           {v8s8, p0, s64, 8},  {v4s16, p0, s64, 8},  {v8s16, p0, s128, 8},
+           {v2s32, p0, s64, 8}, {v4s32, p0, s128, 8}, {v2s64, p0, s128, 8}})
       .clampScalar(0, s8, s64)
       .lowerIf([=](const LegalityQuery &Query) {
         return Query.Types[0].isScalar() &&
@@ -668,7 +698,12 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .lowerIf(isVector(0))
       .clampScalar(0, s32, s64)
       .scalarSameSizeAs(1, 0)
-      .customFor({s32, s64});
+      .legalIf([=](const LegalityQuery &Query) {
+        return (HasCSSC && typeInSet(0, {s32, s64})(Query));
+      })
+      .customIf([=](const LegalityQuery &Query) {
+        return (!HasCSSC && typeInSet(0, {s32, s64})(Query));
+      });
 
   getActionDefinitionsBuilder(G_SHUFFLE_VECTOR)
       .legalIf([=](const LegalityQuery &Query) {
@@ -686,6 +721,13 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .lowerIf([=](const LegalityQuery &Query) {
         return !Query.Types[1].isVector();
       })
+      .moreElementsIf(
+          [](const LegalityQuery &Query) {
+            return Query.Types[0].isVector() && Query.Types[1].isVector() &&
+                   Query.Types[0].getNumElements() >
+                       Query.Types[1].getNumElements();
+          },
+          changeTo(1, 0))
       .moreElementsToNextPow2(0)
       .clampNumElements(0, v4s32, v4s32)
       .clampNumElements(0, v2s64, v2s64);
@@ -724,10 +766,14 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
         .libcall();
   }
 
-  // FIXME: Legal types are only legal with NEON.
-  getActionDefinitionsBuilder(G_ABS)
-      .lowerIf(isScalar(0))
-      .legalFor(PackedVectorAllTypeList);
+  // FIXME: Legal vector types are only legal with NEON.
+  auto &ABSActions = getActionDefinitionsBuilder(G_ABS);
+  if (HasCSSC)
+    ABSActions
+        .legalFor({s32, s64});
+  ABSActions
+      .legalFor(PackedVectorAllTypeList)
+      .lowerIf(isScalar(0));
 
   getActionDefinitionsBuilder(G_VECREDUCE_FADD)
       // We only have FADDP to do reduction-like operations. Lower the rest.
@@ -782,20 +828,36 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .customFor({{s32, s32}, {s64, s64}});
 
   auto always = [=](const LegalityQuery &Q) { return true; };
-  getActionDefinitionsBuilder(G_CTPOP)
-      .legalFor({{v8s8, v8s8}, {v16s8, v16s8}})
+  auto &CTPOPActions = getActionDefinitionsBuilder(G_CTPOP);
+  if (HasCSSC)
+    CTPOPActions
+        .legalFor({{s32, s32},
+                   {s64, s64},
+                   {v8s8, v8s8},
+                   {v16s8, v16s8}})
+        .customFor({{s128, s128},
+                    {v2s64, v2s64},
+                    {v2s32, v2s32},
+                    {v4s32, v4s32},
+                    {v4s16, v4s16},
+                    {v8s16, v8s16}});
+  else
+    CTPOPActions
+        .legalFor({{v8s8, v8s8},
+                   {v16s8, v16s8}})
+        .customFor({{s32, s32},
+                    {s64, s64},
+                    {s128, s128},
+                    {v2s64, v2s64},
+                    {v2s32, v2s32},
+                    {v4s32, v4s32},
+                    {v4s16, v4s16},
+                    {v8s16, v8s16}});
+  CTPOPActions
       .clampScalar(0, s32, s128)
       .widenScalarToNextPow2(0)
       .minScalarEltSameAsIf(always, 1, 0)
-      .maxScalarEltSameAsIf(always, 1, 0)
-      .customFor({{s32, s32},
-                  {s64, s64},
-                  {s128, s128},
-                  {v2s64, v2s64},
-                  {v2s32, v2s32},
-                  {v4s32, v4s32},
-                  {v4s16, v4s16},
-                  {v8s16, v8s16}});
+      .maxScalarEltSameAsIf(always, 1, 0);
 
   // TODO: Vector types.
   getActionDefinitionsBuilder({G_SADDSAT, G_SSUBSAT}).lowerIf(isScalar(0));
@@ -919,8 +981,8 @@ bool AArch64LegalizerInfo::legalizeVectorTrunc(
   Register SrcReg = MI.getOperand(1).getReg();
   LLT DstTy = MRI.getType(DstReg);
   LLT SrcTy = MRI.getType(SrcReg);
-  assert(isPowerOf2_32(DstTy.getSizeInBits()) &&
-         isPowerOf2_32(SrcTy.getSizeInBits()));
+  assert(llvm::has_single_bit<uint32_t>(DstTy.getSizeInBits()) &&
+         llvm::has_single_bit<uint32_t>(SrcTy.getSizeInBits()));
 
   // Split input type.
   LLT SplitSrcTy =
@@ -1063,6 +1125,24 @@ bool AArch64LegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
     MI.eraseFromParent();
     return true;
   }
+  case Intrinsic::aarch64_prefetch: {
+    MachineIRBuilder MIB(MI);
+    auto &AddrVal = MI.getOperand(1);
+
+    int64_t IsWrite = MI.getOperand(2).getImm();
+    int64_t Target = MI.getOperand(3).getImm();
+    int64_t IsStream = MI.getOperand(4).getImm();
+    int64_t IsData = MI.getOperand(5).getImm();
+
+    unsigned PrfOp = (IsWrite << 4) |    // Load/Store bit
+                     (!IsData << 3) |    // IsDataCache bit
+                     (Target << 1) |     // Cache level bits
+                     (unsigned)IsStream; // Stream bit
+
+    MIB.buildInstr(AArch64::G_PREFETCH).addImm(PrfOp).add(AddrVal);
+    MI.eraseFromParent();
+    return true;
+  }
   }
 
   return true;
@@ -1125,26 +1205,49 @@ bool AArch64LegalizerInfo::legalizeLoadStore(
   const LLT ValTy = MRI.getType(ValReg);
 
   if (ValTy == LLT::scalar(128)) {
-    assert((*MI.memoperands_begin())->getSuccessOrdering() ==
-               AtomicOrdering::Monotonic ||
-           (*MI.memoperands_begin())->getSuccessOrdering() ==
-               AtomicOrdering::Unordered);
-    assert(ST->hasLSE2() && "ldp/stp not single copy atomic without +lse2");
+
+    AtomicOrdering Ordering = (*MI.memoperands_begin())->getSuccessOrdering();
+    bool IsLoad = MI.getOpcode() == TargetOpcode::G_LOAD;
+    bool IsLoadAcquire = IsLoad && Ordering == AtomicOrdering::Acquire;
+    bool IsStoreRelease = !IsLoad && Ordering == AtomicOrdering::Release;
+    bool IsRcpC3 =
+        ST->hasLSE2() && ST->hasRCPC3() && (IsLoadAcquire || IsStoreRelease);
+
     LLT s64 = LLT::scalar(64);
+
+    unsigned Opcode;
+    if (IsRcpC3) {
+      Opcode = IsLoad ? AArch64::LDIAPPX : AArch64::STILPX;
+    } else {
+      // For LSE2, loads/stores should have been converted to monotonic and had
+      // a fence inserted after them.
+      assert(Ordering == AtomicOrdering::Monotonic ||
+             Ordering == AtomicOrdering::Unordered);
+      assert(ST->hasLSE2() && "ldp/stp not single copy atomic without +lse2");
+
+      Opcode = IsLoad ? AArch64::LDPXi : AArch64::STPXi;
+    }
+
     MachineInstrBuilder NewI;
-    if (MI.getOpcode() == TargetOpcode::G_LOAD) {
-      NewI = MIRBuilder.buildInstr(AArch64::LDPXi, {s64, s64}, {});
-      MIRBuilder.buildMerge(ValReg, {NewI->getOperand(0), NewI->getOperand(1)});
+    if (IsLoad) {
+      NewI = MIRBuilder.buildInstr(Opcode, {s64, s64}, {});
+      MIRBuilder.buildMergeLikeInstr(
+          ValReg, {NewI->getOperand(0), NewI->getOperand(1)});
     } else {
       auto Split = MIRBuilder.buildUnmerge(s64, MI.getOperand(0));
       NewI = MIRBuilder.buildInstr(
-          AArch64::STPXi, {}, {Split->getOperand(0), Split->getOperand(1)});
+          Opcode, {}, {Split->getOperand(0), Split->getOperand(1)});
     }
-    Register Base;
-    int Offset;
-    matchLDPSTPAddrMode(MI.getOperand(1).getReg(), Base, Offset, MRI);
-    NewI.addUse(Base);
-    NewI.addImm(Offset / 8);
+
+    if (IsRcpC3) {
+      NewI.addUse(MI.getOperand(1).getReg());
+    } else {
+      Register Base;
+      int Offset;
+      matchLDPSTPAddrMode(MI.getOperand(1).getReg(), Base, Offset, MRI);
+      NewI.addUse(Base);
+      NewI.addImm(Offset / 8);
+    }
 
     NewI.cloneMemRefs(MI);
     constrainSelectedInstRegOperands(*NewI, *ST->getInstrInfo(),
@@ -1235,10 +1338,10 @@ bool AArch64LegalizerInfo::legalizeBitfieldExtract(
 bool AArch64LegalizerInfo::legalizeCTPOP(MachineInstr &MI,
                                          MachineRegisterInfo &MRI,
                                          LegalizerHelper &Helper) const {
-  // While there is no integer popcount instruction, it can
-  // be more efficiently lowered to the following sequence that uses
-  // AdvSIMD registers/instructions as long as the copies to/from
-  // the AdvSIMD registers are cheap.
+  // When there is no integer popcount instruction (FEAT_CSSC isn't available),
+  // it can be more efficiently lowered to the following sequence that uses
+  // AdvSIMD registers/instructions as long as the copies to/from the AdvSIMD
+  // registers are cheap.
   //  FMOV    D0, X0        // copy 64-bit int to vector, high bits zero'd
   //  CNT     V0.8B, V0.8B  // 8xbyte pop-counts
   //  ADDV    B0, V0.8B     // sum 8xbyte pop-counts
@@ -1259,10 +1362,23 @@ bool AArch64LegalizerInfo::legalizeCTPOP(MachineInstr &MI,
   Register Dst = MI.getOperand(0).getReg();
   Register Val = MI.getOperand(1).getReg();
   LLT Ty = MRI.getType(Val);
+  unsigned Size = Ty.getSizeInBits();
 
   assert(Ty == MRI.getType(Dst) &&
          "Expected src and dst to have the same type!");
-  unsigned Size = Ty.getSizeInBits();
+
+  if (ST->hasCSSC() && Ty.isScalar() && Size == 128) {
+    LLT s64 = LLT::scalar(64);
+
+    auto Split = MIRBuilder.buildUnmerge(s64, Val);
+    auto CTPOP1 = MIRBuilder.buildCTPOP(s64, Split->getOperand(0));
+    auto CTPOP2 = MIRBuilder.buildCTPOP(s64, Split->getOperand(1));
+    auto Add = MIRBuilder.buildAdd(s64, CTPOP1, CTPOP2);
+
+    MIRBuilder.buildZExt(Dst, Add);
+    MI.eraseFromParent();
+    return true;
+  }
 
   if (!ST->hasNEON() ||
       MI.getMF()->getFunction().hasFnAttribute(Attribute::NoImplicitFloat)) {
@@ -1423,7 +1539,7 @@ bool AArch64LegalizerInfo::legalizeAtomicCmpxchg128(
                                    *MRI.getTargetRegisterInfo(),
                                    *ST->getRegBankInfo());
 
-  MIRBuilder.buildMerge(MI.getOperand(0), {DstLo, DstHi});
+  MIRBuilder.buildMergeLikeInstr(MI.getOperand(0), {DstLo, DstHi});
   MI.eraseFromParent();
   return true;
 }

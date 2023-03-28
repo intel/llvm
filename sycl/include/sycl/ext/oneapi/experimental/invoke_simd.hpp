@@ -24,9 +24,8 @@
 #include <functional>
 
 // TODOs:
-// * (a) TODO bool translation in spmd2simd.
-// * (b) TODO enforce constness of a functor/lambda's () operator
-// * (c) TODO support lambdas and functors in BE
+// * (a) TODO enforce constness of a functor/lambda's () operator
+// * (b) TODO support lambdas and functors in BE
 
 /// Middle End - to - Back End interface to invoke explicit SIMD functions from
 /// SPMD SYCL context. Must not be used by user code. BEs are expected to
@@ -41,7 +40,7 @@
 /// target function and the original SPMD arguments passed to invoke_simd.
 template <bool IsFunc, class SpmdRet, class HelperFunc,
           class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<!IsFunc>>
-SYCL_EXTERNAL __regcall SpmdRet
+__DPCPP_SYCL_EXTERNAL __regcall SpmdRet
 __builtin_invoke_simd(HelperFunc helper, const void *obj,
                       UserSimdFuncAndSpmdArgs... args)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -56,7 +55,7 @@ __builtin_invoke_simd(HelperFunc helper, const void *obj,
 
 template <bool IsFunc, class SpmdRet, class HelperFunc,
           class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<IsFunc>>
-SYCL_EXTERNAL __regcall SpmdRet
+__DPCPP_SYCL_EXTERNAL __regcall SpmdRet
 __builtin_invoke_simd(HelperFunc helper, UserSimdFuncAndSpmdArgs... args)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
@@ -116,6 +115,14 @@ struct spmd2simd<T, N, std::enable_if_t<std::is_arithmetic_v<T>>> {
   using type = simd<T, N>;
 };
 
+// * bool converts to `simd_mask` with a user specified element type.
+// Arbitrarily use unsigned char for the element type for subgroup size
+// deduction and rely on the implicit conversion operator for the the actual
+// user type.
+template <int N> struct spmd2simd<bool, N> {
+  using type = simd_mask<unsigned char, N>;
+};
+
 // This structure performs the SIMD-to-SPMD return type conversion as defined
 // by the spec.
 template <class, class = void> struct simd2spmd;
@@ -135,6 +142,11 @@ template <class... T> struct simd2spmd<std::tuple<T...>> {
 template <class T>
 struct simd2spmd<T, std::enable_if_t<std::is_arithmetic_v<T>>> {
   using type = uniform<T>;
+};
+
+// * `simd_mask` converts to bool
+template <class T, int N> struct simd2spmd<simd_mask<T, N>> {
+  using type = bool;
 };
 
 template <> struct simd2spmd<void> { using type = void; };
@@ -182,6 +194,19 @@ template <typename T> struct unwrap_uniform<uniform<T>> {
   static T impl(uniform<T> val) { return val; }
 };
 
+// Verify the callee return type matches the subgroup size as is required by the
+// spec. For example: simd<int, 8> foo(simd<int,16>); The return type vector
+// length (8) does not match the subgroup size (16).
+template <auto SgSize, typename SimdRet>
+constexpr void verify_return_type_matches_sg_size() {
+  if constexpr (is_simd_or_mask_type<SimdRet>::value) {
+    constexpr auto RetVecLength = SimdRet::size();
+    static_assert(RetVecLength == SgSize,
+                  "invoke_simd callee return type vector length must match "
+                  "kernel subgroup size");
+  }
+}
+
 // Deduces subgroup size of the caller based on given SIMD callable and
 // corresponding SPMD arguments it is being invoke with via invoke_simd.
 // Basically, for each supported subgroup size, this meta-function finds out if
@@ -193,7 +218,7 @@ template <class SimdCallable, class... SpmdArgs> struct sg_size {
   using IsInvocableSgSize = __MP11_NS::mp_bool<std::is_invocable_v<
       SimdCallable, typename spmd2simd<SpmdArgs, N::value>::type...>>;
 
-  SYCL_EXTERNAL constexpr operator int() {
+  __DPCPP_SYCL_EXTERNAL constexpr operator int() {
     using SupportedSgSizes = __MP11_NS::mp_list_c<int, 1, 2, 4, 8, 16, 32>;
     using InvocableSgSizes =
         __MP11_NS::mp_copy_if<SupportedSgSizes, IsInvocableSgSize>;
@@ -234,7 +259,7 @@ static constexpr int get_sg_size() {
 // with captures. Note __regcall - this is needed for efficient argument
 // forwarding.
 template <int N, class Callable, class... T>
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL __regcall detail::
+[[intel::device_indirectly_callable]] __DPCPP_SYCL_EXTERNAL __regcall detail::
     SimdRetType<N, Callable, T...>
     simd_obj_call_helper(const void *obj_ptr,
                          typename detail::spmd2simd<T, N>::type... simd_args) {
@@ -245,7 +270,7 @@ template <int N, class Callable, class... T>
 
 // This function is a wrapper around a call to a function.
 template <int N, class Callable, class... T>
-[[intel::device_indirectly_callable]] SYCL_EXTERNAL __regcall detail::
+[[intel::device_indirectly_callable]] __DPCPP_SYCL_EXTERNAL __regcall detail::
     SimdRetType<N, Callable, T...>
     simd_func_call_helper(Callable f,
                           typename detail::spmd2simd<T, N>::type... simd_args) {
@@ -337,6 +362,8 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
   // is fine in this case.
   constexpr int N = detail::get_sg_size<Callable, T...>();
   using RetSpmd = detail::SpmdRetType<N, Callable, T...>;
+  detail::verify_return_type_matches_sg_size<
+      N, detail::SimdRetType<N, Callable, T...>>();
   constexpr bool is_function = detail::is_function_ptr_or_ref_v<Callable>;
 
   if constexpr (is_function) {

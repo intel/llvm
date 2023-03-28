@@ -74,9 +74,15 @@
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT, and
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT context info query
 // descriptors.
+// 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
+// 12.23 Added new piextEnqueueDeviceGlobalVariableWrite and
+// piextEnqueueDeviceGlobalVariableRead functions.
+// 12.24 Added new PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG property to the
+// _pi_kernel_exec_info. Defined _pi_kernel_cache_config enum with values of
+// the new PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG property.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 21
+#define _PI_H_VERSION_MINOR 24
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -319,6 +325,7 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003,
   PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER = 0x20004,
+  PI_EXT_CODEPLAY_DEVICE_INFO_SUPPORTS_FUSION = 0x20005,
 } _pi_device_info;
 
 typedef enum {
@@ -434,7 +441,9 @@ typedef enum {
   PI_COMMAND_TYPE_SVM_MEMCPY = 0x120A,
   PI_COMMAND_TYPE_SVM_MEMFILL = 0x120B,
   PI_COMMAND_TYPE_SVM_MAP = 0x120C,
-  PI_COMMAND_TYPE_SVM_UNMAP = 0x120D
+  PI_COMMAND_TYPE_SVM_UNMAP = 0x120D,
+  PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ = 0x418E,
+  PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE = 0x418F
 } _pi_command_type;
 
 typedef enum {
@@ -615,6 +624,15 @@ constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
 // clang-format on
 
+typedef enum {
+  // No preference for SLM or data cache.
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT = 0x0,
+  // Large SLM size.
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM = 0x1,
+  // Large General Data size.
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA = 0x2
+} _pi_kernel_cache_config;
+
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;
 using pi_device_type = _pi_device_type;
@@ -644,6 +662,7 @@ using pi_program_build_status = _pi_program_build_status;
 using pi_program_binary_type = _pi_program_binary_type;
 using pi_kernel_info = _pi_kernel_info;
 using pi_profiling_info = _pi_profiling_info;
+using pi_kernel_cache_config = _pi_kernel_cache_config;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_partition_property = intptr_t;
@@ -807,6 +826,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// must appear after the kernel name.
 #define __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
   "@reqd_work_group_size"
+#define __SYCL_PI_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
 
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
@@ -1350,7 +1370,9 @@ typedef enum {
   /// indicates that the kernel might access data through USM ptrs
   PI_USM_INDIRECT_ACCESS,
   /// provides an explicit list of pointers that the kernel will access
-  PI_USM_PTRS = 0x4203
+  PI_USM_PTRS = 0x4203,
+  /// provides the preferred cache configuration (large slm or large data)
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG = 0x4204
 } _pi_kernel_exec_info;
 
 using pi_kernel_exec_info = _pi_kernel_exec_info;
@@ -1875,6 +1897,51 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
     pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
     pi_event *event);
 
+///
+/// Device global variable
+///
+
+/// API for writing data from host to a device global variable.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device global variable
+/// \param blocking_write is true if the write should block
+/// \param name is the unique identifier for the device global variable
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device global variable to start
+/// copying
+/// \param src is a pointer to where the data must be copied from
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
+
+/// API reading data from a device global variable to host.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device global variable
+/// \param blocking_read is true if the read should block
+/// \param name is the unique identifier for the device global variable
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device global variable to start
+/// copying
+/// \param dst is a pointer to where the data must be copied to
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
+///
+/// Plugin
+///
+
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
 /// device code is compiled by the host compiler (e.g. CPU emulators) may use it
 /// to access some device code functionality implemented in/behind the plugin.
@@ -1898,8 +1965,23 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 ///
 /// \return PI_SUCCESS if plugin is indicating non-fatal warning. Any other
 /// error code indicates that plugin considers this to be a fatal error and the
-/// runtime must handle it or end the application.
+/// Returns the global timestamp from \param device , and syncronized host
+/// timestamp
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
+
+/// Queries  device for it's global timestamp in nanoseconds, and updates
+/// HostTime  with the value of the host timer at the closest possible point in
+/// time to that at which DeviceTime was returned.
+///
+/// \param Device device to query for timestamp
+/// \param DeviceTime pointer to store device timestamp in nanoseconds. Optional
+/// argument, can be nullptr
+/// \param HostTime  pointer to store host timestamp in
+/// nanoseconds. Optional argurment, can be nullptr in which case timestamp will
+/// not be written
+__SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
+                                                uint64_t *DeviceTime,
+                                                uint64_t *HostTime);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

@@ -196,10 +196,10 @@ func.func @rank_reducing_parallel_insert_slice(%in: tensor<100xf32>, %out: tenso
   %c1 = arith.constant 1 : index
   %num_threads = arith.constant 100 : index
 
-  // CHECK: scf.foreach_thread {{.*}} {
-  %result = scf.foreach_thread (%thread_idx) in (%num_threads) shared_outs (%o = %out) -> tensor<200x100xf32> {
+  // CHECK: scf.forall {{.*}} {
+  %result = scf.forall (%thread_idx) in (%num_threads) shared_outs (%o = %out) -> tensor<200x100xf32> {
       %1 = tensor.extract_slice %in[%thread_idx][1][1] : tensor<100xf32> to tensor<1xf32>
-      scf.foreach_thread.perform_concurrently {
+      scf.forall.in_parallel {
         // CHECK: memref.subview %{{.*}}[%{{.*}}] [1] [1] : memref<100xf32, strided<[?], offset: ?>> to memref<1xf32, strided<[?], offset: ?>>
         // CHECK: memref.subview %{{.*}}[1, %{{.*}}] [1, 1] [1, 1] : memref<200x100xf32, strided<[?, ?], offset: ?>> to memref<1xf32, strided<[?], offset: ?>>
         tensor.parallel_insert_slice %1 into %o[1, %thread_idx][1, 1][1, 1] :
@@ -329,4 +329,44 @@ func.func @insert_slice_full_overwrite(%t: tensor<10xf32>, %b: tensor<10xf32>) -
   // CHECK: memref.copy %[[b]], %[[t]]
   %2 = tensor.insert_slice %b into %t[0][10][1] : tensor<10xf32> into tensor<10xf32>
   return %2 : tensor<10xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @dim_not_reading(
+//  CHECK-SAME:     %[[t:.*]]: memref<?xf32
+func.func @dim_not_reading(%t: tensor<?xf32>, %f: f32, %pos: index) 
+    -> (tensor<?xf32>, index)
+{
+  %c0 = arith.constant 0 : index
+  // CHECK-NOT: memref.alloc
+  // CHECK-NOT: memref.copy
+  //     CHECK: memref.store %{{.*}}, %[[t]]
+  %0 = tensor.insert %f into %t[%pos] : tensor<?xf32>
+  //     CHECK: memref.dim %[[t]]
+  %1 = tensor.dim %t, %c0 : tensor<?xf32>
+  return %0, %1 : tensor<?xf32>, index
+}
+
+// -----
+
+//       CHECK: #[[$map:.*]] = affine_map<(d0) -> (d0 + 5)>
+// CHECK-LABEL: func.func @cast_retains_buffer_layout(
+//  CHECK-SAME:     %[[t:.*]]: memref<?xf32, #[[$map]]>, %[[sz:.*]]: index) -> memref<?xf32, strided<[1], offset: 7>> {
+//       CHECK:   %[[casted:.*]] = memref.cast %[[t]] : memref<?xf32, #[[$map]]> to memref<10xf32, #[[$map]]>
+//       CHECK:   %[[slice:.*]] = memref.subview %[[casted]][2] [%[[sz]]] [1] : memref<10xf32, #[[$map]]> to memref<?xf32, strided<[1], offset: 7>>
+//       CHECK:   return %[[slice]]
+func.func @cast_retains_buffer_layout(
+    %t: tensor<?xf32>
+        {bufferization.buffer_layout = affine_map<(d0) -> (d0 + 5)>},
+    %sz: index)
+  -> (tensor<10xf32>, tensor<?xf32>)
+{
+  %casted = tensor.cast %t : tensor<?xf32> to tensor<10xf32>
+  %slice = tensor.extract_slice %casted[2][%sz][1] : tensor<10xf32> to tensor<?xf32>
+
+  // Note: The %casted return type is folded away because both buffers are
+  // equivalent. Therefore, we currently loose some static type information
+  // in the caller.
+  return %casted, %slice : tensor<10xf32>, tensor<?xf32>
 }

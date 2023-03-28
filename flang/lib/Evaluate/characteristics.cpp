@@ -63,6 +63,11 @@ bool TypeAndShape::operator==(const TypeAndShape &that) const {
 
 TypeAndShape &TypeAndShape::Rewrite(FoldingContext &context) {
   LEN_ = Fold(context, std::move(LEN_));
+  if (LEN_) {
+    if (auto n{ToInt64(*LEN_)}) {
+      type_ = DynamicType{type_.kind(), *n};
+    }
+  }
   shape_ = Fold(context, std::move(shape_));
   return *this;
 }
@@ -73,11 +78,10 @@ std::optional<TypeAndShape> TypeAndShape::Characterize(
   return common::visit(
       common::visitors{
           [&](const semantics::ProcEntityDetails &proc) {
-            const semantics::ProcInterface &interface { proc.interface() };
-            if (interface.type()) {
-              return Characterize(*interface.type(), context);
-            } else if (interface.symbol()) {
-              return Characterize(*interface.symbol(), context);
+            if (proc.procInterface()) {
+              return Characterize(*proc.procInterface(), context);
+            } else if (proc.type()) {
+              return Characterize(*proc.type(), context);
             } else {
               return std::optional<TypeAndShape>{};
             }
@@ -271,7 +275,7 @@ bool DummyDataObject::IsCompatibleWith(
     }
     return false;
   }
-  if (!type.type().IsTkCompatibleWith(actual.type.type())) {
+  if (!type.type().IsTkLenCompatibleWith(actual.type.type())) {
     if (whyNot) {
       *whyNot = "incompatible dummy data object types: "s +
           type.type().AsFortran() + " vs " + actual.type.type().AsFortran();
@@ -506,8 +510,8 @@ static std::optional<Procedure> CharacterizeProcedure(
               }
               return intrinsic;
             }
-            const semantics::ProcInterface &interface { proc.interface() };
-            if (const semantics::Symbol * interfaceSymbol{interface.symbol()}) {
+            if (const semantics::Symbol *
+                interfaceSymbol{proc.procInterface()}) {
               auto interface {
                 CharacterizeProcedure(*interfaceSymbol, context, seenProcs)
               };
@@ -517,7 +521,7 @@ static std::optional<Procedure> CharacterizeProcedure(
               return interface;
             } else {
               result.attrs.set(Procedure::Attr::ImplicitInterface);
-              const semantics::DeclTypeSpec *type{interface.type()};
+              const semantics::DeclTypeSpec *type{proc.type()};
               if (symbol.test(semantics::Symbol::Flag::Subroutine)) {
                 // ignore any implicit typing
                 result.attrs.set(Procedure::Attr::Subroutine);
@@ -1018,8 +1022,14 @@ bool Procedure::IsCompatibleWith(const Procedure &actual, std::string *whyNot,
     }
   } else {
     for (std::size_t j{0}; j < dummyArguments.size(); ++j) {
-      if (!dummyArguments[j].IsCompatibleWith(
-              actual.dummyArguments[j], whyNot)) {
+      // Subtlety: the dummy/actual distinction must be reversed for this
+      // compatibility test in order to correctly check extended vs.
+      // base types.  Example:
+      //   subroutine s1(base); subroutine s2(extended)
+      //   procedure(s1), pointer :: p
+      //   p => s2 ! an error, s2 is more restricted, can't handle "base"
+      if (!actual.dummyArguments[j].IsCompatibleWith(
+              dummyArguments[j], whyNot)) {
         if (whyNot) {
           *whyNot = "incompatible dummy argument #"s + std::to_string(j + 1) +
               ": "s + *whyNot;
@@ -1183,6 +1193,10 @@ private:
 // Simpler distinguishability rules for operators and assignment
 bool DistinguishUtils::DistinguishableOpOrAssign(
     const Procedure &proc1, const Procedure &proc2) const {
+  if ((proc1.IsFunction() && proc2.IsSubroutine()) ||
+      (proc1.IsSubroutine() && proc2.IsFunction())) {
+    return true;
+  }
   auto &args1{proc1.dummyArguments};
   auto &args2{proc2.dummyArguments};
   if (args1.size() != args2.size()) {
@@ -1198,6 +1212,10 @@ bool DistinguishUtils::DistinguishableOpOrAssign(
 
 bool DistinguishUtils::Distinguishable(
     const Procedure &proc1, const Procedure &proc2) const {
+  if ((proc1.IsFunction() && proc2.IsSubroutine()) ||
+      (proc1.IsSubroutine() && proc2.IsFunction())) {
+    return true;
+  }
   auto &args1{proc1.dummyArguments};
   auto &args2{proc2.dummyArguments};
   auto count1{CountDummyProcedures(args1)};

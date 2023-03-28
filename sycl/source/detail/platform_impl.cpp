@@ -75,23 +75,28 @@ static bool IsBannedPlatform(platform Platform) {
   // To avoid problems on default users and deployment of DPC++ on platforms
   // where CUDA is available, the OpenCL support is disabled.
   //
-  auto IsNVIDIAOpenCL = [](platform Platform) {
+  // There is also no support for the AMD HSA backend for OpenCL consumption,
+  // as well as reported problems with device queries, so AMD OpenCL support
+  // is disabled as well.
+  //
+  auto IsMatchingOpenCL = [](platform Platform, const std::string_view name) {
     if (getSyclObjImpl(Platform)->is_host())
       return false;
 
-    const bool HasCUDA = Platform.get_info<info::platform::name>().find(
-                             "NVIDIA CUDA") != std::string::npos;
+    const bool HasNameMatch = Platform.get_info<info::platform::name>().find(
+                                  name) != std::string::npos;
     const auto Backend =
         detail::getSyclObjImpl(Platform)->getPlugin().getBackend();
-    const bool IsCUDAOCL = (HasCUDA && Backend == backend::opencl);
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) && IsCUDAOCL) {
-      std::cout << "SYCL_PI_TRACE[all]: "
-                << "NVIDIA CUDA OpenCL platform found but is not compatible."
-                << std::endl;
+    const bool IsMatchingOCL = (HasNameMatch && Backend == backend::opencl);
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) &&
+        IsMatchingOCL) {
+      std::cout << "SYCL_PI_TRACE[all]: " << name
+                << " OpenCL platform found but is not compatible." << std::endl;
     }
-    return IsCUDAOCL;
+    return IsMatchingOCL;
   };
-  return IsNVIDIAOpenCL(Platform);
+  return IsMatchingOpenCL(Platform, "NVIDIA CUDA") ||
+         IsMatchingOpenCL(Platform, "AMD Accelerated Parallel Processing");
 }
 
 // This routine has the side effect of registering each platform's last device
@@ -126,10 +131,11 @@ std::vector<platform> platform_impl::get_platforms() {
           // insert PiPlatform into the Plugin
           Plugin.getPlatformId(PiPlatform);
         }
-        // The users of (deprecated) SYCL_DEVICE_ALLOWLIST expect that
-        // platforms with no devices will not be reported.
-        if (!SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get() ||
-            !Platform.get_devices(info::device_type::all).empty()) {
+
+        // The SYCL spec says that a platform has one or more devices. ( SYCL
+        // 2020 4.6.2 ) If we have an empty platform, we don't report it back
+        // from platform::get_platforms().
+        if (!Platform.get_devices(info::device_type::all).empty()) {
           Platforms.push_back(Platform);
         }
       }
@@ -179,10 +185,7 @@ static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     // not add it to the list of available devices.
     std::sort(FilterList->get().begin(), FilterList->get().end(),
               [](const ods_target &filter1, const ods_target &filter2) {
-                std::ignore = filter1;
-                if (filter2.IsNegativeTarget)
-                  return false;
-                return true;
+                return filter1.IsNegativeTarget && !filter2.IsNegativeTarget;
               });
   }
 
@@ -505,6 +508,10 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       pi::cast<RT::PiDeviceType>(DeviceType), // CP info::device_type::all
       NumDevices, PiDevices.data(), nullptr);
 
+  // Some elements of PiDevices vector might be filtered out, so make a copy of
+  // handles to do a cleanup later
+  std::vector<RT::PiDevice> PiDevicesToCleanUp = PiDevices;
+
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     applyAllowList(PiDevices, MPlatform, Plugin);
@@ -536,6 +543,11 @@ platform_impl::get_devices(info::device_type DeviceType) const {
         return detail::createSyclObjFromImpl<device>(
             PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
       });
+
+  // The reference counter for handles, that we used to create sycl objects, is
+  // incremented, so we need to call release here.
+  for (RT::PiDevice &PiDev : PiDevicesToCleanUp)
+    Plugin.call<PiApiKind::piDeviceRelease>(PiDev);
 
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
   // and if there are no devices so far, there won't be any need to replace them

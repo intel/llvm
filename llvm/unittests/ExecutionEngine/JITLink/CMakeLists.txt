@@ -2,11 +2,9 @@ set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   JITLink
   Object
-  OrcJIT
   OrcShared
-  OrcTargetProcess
-  RuntimeDyld
   Support
+  TargetParser
   )
 
 add_llvm_unittest(JITLinkTests

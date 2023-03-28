@@ -24,15 +24,17 @@
 == Introduction
 In OpenCL 2.0 and later, a user is able to allocate program
 scope memory which can be accessed like a {cpp} global variable by any kernel in
-an OpenCL program (`cl_program`). When a program is shared between multiple devices,
-each device receives its own unique instance of the program scope memory allocation.
+an OpenCL program (`cl_program`). When a program is shared between multiple
+devices, each device receives its own unique instance of the program scope
+memory allocation.
 
-This extension introduces device scoped memory allocations into SYCL that can be accessed
-within a kernel using syntax similar to {cpp} global variables, but that have unique
-instances per `sycl::device`. Mechanisms are provided for the host program to enqueue
-copies to or from the allocations on a specific device.  Restrictions are
-placed on the types of data that can be stored within `device_global` allocations, particularly
-around copyability and constructors/destructors.
+This extension introduces device scoped memory allocations into SYCL that can be
+accessed within a kernel using syntax similar to {cpp} global variables, but
+that have unique instances per `sycl::device` and `sycl::context`. Mechanisms
+are provided for the host program to enqueue copies to or from the allocations
+on a specific device.  Restrictions are placed on the types of data that can be
+stored within `device_global` allocations, particularly around copyability and
+constructors/destructors.
 
 == Notice
 
@@ -93,10 +95,11 @@ concepts, types, and mechanisms, and to give examples and context for their usag
 
 === Motivation
 
-Device scope memory allocations can provide an efficient mechanism for communication
-between multiple invocations of a kernel, or between kernels executing on a device.
-There are additional benefits and optimization opportunities when a device compiler
-has visibility into the allocation size (static sizing) and uses of the allocation.
+Device scope memory allocations can provide an efficient mechanism for
+communication between multiple invocations of a kernel, or between kernels
+executing on the same device and context. There are additional benefits and
+optimization opportunities when a device compiler has visibility into the
+allocation size (static sizing) and uses of the allocation.
 
 Syntax allowing direct use of an allocation (without passing pointers or parameters
 through function call boundaries) can also lead to syntax simplification in some
@@ -140,7 +143,9 @@ Q.submit([&](sycl::handler& h) {
 });
 ----
 
-For both `dm1` and `dm2`, the `MyClass` and `int[4]` allocations on each device are zero-initialized before any non-initialization accesses occur.
+For both `dm1` and `dm2`, the `MyClass` and `int[4]` allocations on each device
+in the context associated with `Q` are zero-initialized before any
+non-initialization accesses occur.
 
 == Proposal
 
@@ -163,11 +168,30 @@ that the implementation supports.
 
 === Representation of device globals
 
-`device_global` provides a mechanism to allocate device scope memory - memory which has unique underlying storage (of type _T_) for each `sycl::device` object. If multiple device objects are present then each device object receives its own unique underlying allocation. All kernels that reference the same `device_global` entity (either directly or via a pointer to its underlying object of type _T_) share the same allocation of that object when those kernels run on the same device.
+`device_global` provides a mechanism to allocate device scope memory - memory
+which has unique underlying storage (of type _T_) for each `sycl::device` and
+`sycl::context` combination. If multiple valid device and context combinations
+are present then each receives its own unique underlying allocation. All kernels
+that reference the same `device_global` entity (either directly or via a pointer
+to its underlying object of type _T_) share the same allocation of that object
+when those kernels run on the same device and context.
 
-`device_global` allocations are in the global address space, as are any underlying allocations of type `T` which are implicitly allocated on each device as a result of a `device_global` object. It is undefined behavior if the host program directly accesses a `device_global` or any address obtained from a `device_global` member function, and similarly it is undefined behavior if a `device_global` or address obtained on one device from a `device_global` member function is accessed on a different device.  There is no mechanism to obtain addresses of or directly access a device's `device_global` allocation within the host program.
+`device_global` allocations are in the global address space, as are any
+underlying allocations of type `T` which are implicitly allocated on each device
+as a result of a `device_global` object. It is undefined behavior if the host
+program directly accesses a `device_global` or any address obtained from a
+`device_global` member function, and similarly it is undefined behavior if a
+`device_global` or address obtained on one device from a `device_global` member
+function is accessed on a different device or context.  There is no mechanism to
+obtain addresses of or directly access a device's `device_global` allocation
+within the host program.
 
-A `device_global` on a given device maintains its state (address of the allocation and data within the allocation) even after the application changes the value of a specialization constant via `handler::set_specialization_constant()`.  Additionally, a `device_global` maintains its state even when it is referenced from a kernel in a different `kernel_bundle`.
+A `device_global` on a given device and context maintains its state (address of
+the allocation and data within the allocation) even after the application
+changes the value of a specialization constant via
+`handler::set_specialization_constant()`.  Additionally, a `device_global`
+maintains its state even when it is referenced from a kernel in a different
+`kernel_bundle`.
 
 [source,c++]
 ----
@@ -596,13 +620,13 @@ a|
 This property is most useful for kernels that are submitted to an FPGA device,
 but it may be used with any kernel.  Normally, a single instance of a device
 global variable is allocated for each device, and that instance is shared by
-all kernels that are submitted to the device, regardless of which _device
-image_ contains the kernel.  When this property is specified, it is an
-assertion by the user that the device global is referenced only from kernels
-that are contained by the same _device image_.  An implementation may be able
-to optimize accesses to the device global when this property is specified
-(especially on an FPGA device), but the user must be aware of which _device
-image_ contains the kernels that use the variable.
+all kernels that belong to the same context and are submitted to the same device,
+regardless of which _device image_ contains the kernel.  When this property is
+specified, it is an assertion by the user that the device global is referenced
+only from kernels that are contained by the same _device image_.  An
+implementation may be able to optimize accesses to the device global when this
+property is specified (especially on an FPGA device), but the user must be aware
+of which _device image_ contains the kernels that use the variable.
 
 A device global that is decorated with this property may not be accessed from
 kernels that reside in different _device images_, either by direct reference

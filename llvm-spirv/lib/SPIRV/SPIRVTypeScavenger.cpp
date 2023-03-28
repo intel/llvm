@@ -118,52 +118,84 @@ static Type *getPointerUseType(Function *F, Op Opcode, unsigned ArgNo) {
   }
 }
 
-void SPIRVTypeScavenger::deduceIntrinsicTypes(Function &F, Intrinsic::ID Id) {
-  static constexpr unsigned Return = ~0U;
-  auto AddParameter = [&](unsigned ArgNo, DeducedType Ty) {
-    if (ArgNo == Return) {
-      // TODO: Handle return types properly.
-    } else {
-      Argument *Arg = F.getArg(ArgNo);
-      LLVM_DEBUG(dbgs() << "Parameter " << *Arg << " of " << F.getName()
-                        << " has type " << Ty << "\n");
-      DeducedTypes[Arg] = Ty;
-    }
-  };
-  LLVMContext &Ctx = F.getContext();
+bool SPIRVTypeScavenger::typeIntrinsicCall(
+    CallBase &CB, SmallVectorImpl<std::pair<unsigned, DeducedType>> &ArgTys) {
+  Function *TargetFn = CB.getCalledFunction();
+  assert(TargetFn && TargetFn->isDeclaration() &&
+         "Call is not an intrinsic function call");
+  LLVMContext &Ctx = TargetFn->getContext();
 
-  switch (Id) {
-  case Intrinsic::memcpy:
-    // First parameter is a pointer, but it may be any pointer type.
-    return;
-  case Intrinsic::lifetime_start:
-  case Intrinsic::lifetime_end:
-  case Intrinsic::invariant_start:
-  case Intrinsic::invariant_end:
-    AddParameter(1, Type::getInt8Ty(Ctx));
-    return;
-  // Second and third parameters are strings, which mean nothing.
-  case Intrinsic::annotation:
-    return;
-  case Intrinsic::var_annotation:
-  case Intrinsic::ptr_annotation:
-    AddParameter(0, Type::getInt8Ty(Ctx));
-    // Second and third parameters are strings, so they can be any type.
-    return;
-  case Intrinsic::stacksave:
-    AddParameter(Return, Type::getInt8Ty(Ctx));
-    return;
-  case Intrinsic::stackrestore:
-    AddParameter(0, Type::getInt8Ty(Ctx));
-    return;
-  // llvm.instrprof.* intrinsics are not supported
-  case Intrinsic::instrprof_cover:
-  case Intrinsic::instrprof_increment:
-  case Intrinsic::instrprof_increment_step:
-  case Intrinsic::instrprof_value_profile:
-    AddParameter(0, Type::getInt8Ty(Ctx));
-    return;
-  }
+  if (auto IntrinID = TargetFn->getIntrinsicID()) {
+    switch (IntrinID) {
+    case Intrinsic::memcpy: {
+      // First two parameters are pointers, but it may be any pointer type.
+      DeducedType MemcpyTy = new DeferredType;
+      ArgTys.emplace_back(0, MemcpyTy);
+      ArgTys.emplace_back(1, MemcpyTy);
+      break;
+    }
+    case Intrinsic::memset:
+      ArgTys.emplace_back(0, Type::getInt8Ty(Ctx));
+      break;
+    case Intrinsic::lifetime_start:
+    case Intrinsic::lifetime_end:
+    case Intrinsic::invariant_start:
+      // These intrinsics were stored as i8* as typed pointers, and the SPIR-V
+      // writer will expect these to be i8*, even if they can be any pointer
+      // type.
+      ArgTys.emplace_back(1, Type::getInt8Ty(Ctx));
+      break;
+    case Intrinsic::invariant_end:
+      // This is like invariant_start with an extra string parameter in the
+      // beginning (so the pointer object moves to argument two).
+      ArgTys.emplace_back(0, Type::getInt8Ty(Ctx));
+      ArgTys.emplace_back(2, Type::getInt8Ty(Ctx));
+      break;
+    case Intrinsic::var_annotation:
+    case Intrinsic::ptr_annotation:
+      // The first parameter of these is an i8*.
+      ArgTys.emplace_back(0, Type::getInt8Ty(Ctx));
+      [[fallthrough]];
+    case Intrinsic::annotation:
+      // Second and third parameters are strings, which should be constants
+      // for global variables. Nominally, this is i8*, but we specifically
+      // *do not* want to insert bitcast instructions (they need to remain
+      // global constants).
+      break;
+    case Intrinsic::stacksave:
+      // TODO: support return type.
+      break;
+    case Intrinsic::stackrestore:
+      ArgTys.emplace_back(0, Type::getInt8Ty(Ctx));
+      break;
+    case Intrinsic::instrprof_cover:
+    case Intrinsic::instrprof_increment:
+    case Intrinsic::instrprof_increment_step:
+    case Intrinsic::instrprof_value_profile:
+      // llvm.instrprof.* intrinsics are not supported
+      ArgTys.emplace_back(0, Type::getInt8Ty(Ctx));
+      break;
+    // TODO: handle masked gather/scatter intrinsics. This requires support
+    // for vector-of-pointers in the type scavenger.
+    default:
+      return false;
+    }
+  } else if (TargetFn->getName().startswith("_Z18__spirv_ocl_printf")) {
+    ArgTys.emplace_back(0, Type::getInt8Ty(Ctx));
+  } else if (TargetFn->getName() == "__spirv_GetKernelWorkGroupSize__") {
+    ArgTys.emplace_back(1, Type::getInt8Ty(Ctx));
+  } else if (TargetFn->getName() ==
+             "__spirv_GetKernelPreferredWorkGroupSizeMultiple__") {
+    ArgTys.emplace_back(1, Type::getInt8Ty(Ctx));
+  } else if (TargetFn->getName() ==
+             "__spirv_GetKernelNDrangeMaxSubGroupSize__") {
+    ArgTys.emplace_back(2, Type::getInt8Ty(Ctx));
+  } else if (TargetFn->getName() == "__spirv_GetKernelNDrangeSubGroupCount__") {
+    ArgTys.emplace_back(2, Type::getInt8Ty(Ctx));
+  } else
+    return false;
+
+  return true;
 }
 
 static Type *getParamType(const AttributeList &AL, unsigned ArgNo) {
@@ -222,15 +254,13 @@ void SPIRVTypeScavenger::deduceFunctionType(Function &F) {
     }
   }
 
-  if (auto IntrinID = F.getIntrinsicID()) {
-    deduceIntrinsicTypes(F, IntrinID);
-  }
-
   // If the function is a mangled name, try to recover types from the Itanium
   // name mangling.
   if (F.getName().startswith("_Z")) {
     SmallVector<Type *, 8> ParamTypes;
-    getParameterTypes(&F, ParamTypes);
+    if (!getParameterTypes(&F, ParamTypes)) {
+      return;
+    }
     for (Argument *Arg : PointerArgs) {
       if (auto *Ty = dyn_cast<TypedPointerType>(ParamTypes[Arg->getArgNo()])) {
         DeducedTypes[Arg] = Ty->getElementType();
@@ -263,10 +293,13 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
   }
 
   // Check if we've already deduced a type for the value.
-  DeducedType &Ty = DeducedTypes[V];
+  DeducedType Ty = DeducedTypes[V];
   if (Ty) {
     return Ty;
   }
+
+  assert(!is_contained(VisitStack, V) && "Found cycle in type scavenger");
+  VisitStack.push_back(V);
 
   // There are basically three categories of pointer-typed values:
   // 1. Values that have a well-defined pointee type (e.g., alloca). Return the
@@ -322,8 +355,22 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
   // when we handle uses anyways.
   else if (auto *Select = dyn_cast<SelectInst>(V))
     Ty = PropagateType(Select->getTrueValue());
-  else if (auto *Phi = dyn_cast<PHINode>(V))
-    Ty = PropagateType(Phi->getIncomingValue(0));
+  else if (auto *Phi = dyn_cast<PHINode>(V)) {
+    // If we specifically tried the first argument (or any particular argument),
+    // we could end up in a situation where we get caught in a cycle:
+    // %a = phi(%b, %c)
+    // %b = phi(%a, %d)
+    // So pick the first argument that whose type we are not trying to compute
+    // right now. In the rare case that we have an unreachable block, we could
+    // exhaust all possible options, in which case we'll fall through to having
+    // an unknown type.
+    for (Value *Arg : Phi->incoming_values()) {
+      if (!is_contained(VisitStack, Arg)) {
+        Ty = PropagateType(Arg);
+        break;
+      }
+    }
+  }
 
   else if (auto *Arg = dyn_cast<Argument>(V)) {
     // Check for an sret/byval/etc. attribute on the argument. If it doesn't
@@ -355,6 +402,8 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
     Ty = Deferred;
   }
 
+  DeducedTypes[V] = Ty;
+  VisitStack.pop_back();
   return Ty;
 }
 
@@ -429,15 +478,17 @@ void SPIRVTypeScavenger::correctUseTypes(Instruction &I) {
     // If we have an identified function for the call instruction, map the
     // arguments we pass in to the argument requirements of the function.
     if (Function *F = CB->getCalledFunction()) {
-      for (Use &U : CB->args()) {
-        // If we're calling a var-arg method, we have more operands than the
-        // function has parameters. Bail out if we hit that point.
-        unsigned ArgNo = CB->getArgOperandNo(&U);
-        if (ArgNo >= F->arg_size())
-          break;
-        if (U->getType()->isPointerTy())
-          PointerOperands.emplace_back(
-              U.getOperandNo(), computePointerElementType(F->getArg(ArgNo)));
+      if (!F->isDeclaration() || !typeIntrinsicCall(*CB, PointerOperands)) {
+        for (Use &U : CB->args()) {
+          // If we're calling a var-arg method, we have more operands than the
+          // function has parameters. Bail out if we hit that point.
+          unsigned ArgNo = CB->getArgOperandNo(&U);
+          if (ArgNo >= F->arg_size())
+            break;
+          if (U->getType()->isPointerTy())
+            PointerOperands.emplace_back(
+                U.getOperandNo(), computePointerElementType(F->getArg(ArgNo)));
+        }
       }
     }
   }

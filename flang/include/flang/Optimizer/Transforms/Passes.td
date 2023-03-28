@@ -117,6 +117,12 @@ def ArrayValueCopy : Pass<"array-value-copy", "::mlir::func::FuncOp"> {
   }];
   let constructor = "::fir::createArrayValueCopyPass()";
   let dependentDialects = [ "fir::FIROpsDialect" ];
+  let options = [
+    Option<"optimizeConflicts", "optimize-conflicts", "bool",
+           /*default=*/"false",
+           "do more detailed conflict analysis to reduce the number "
+           "of temporaries">
+  ];
 }
 
 def CharacterConversion : Pass<"character-conversion"> {
@@ -178,6 +184,19 @@ def MemRefDataFlowOpt : Pass<"fir-memref-dataflow-opt", "::mlir::func::FuncOp"> 
   ];
 }
 
+// This needs to be a "mlir::ModuleOp" pass, because we are creating debug for
+// the module in this pass.
+def AddDebugFoundation : Pass<"add-debug-foundation", "mlir::ModuleOp"> {
+  let summary = "Add the foundation for debug info";
+  let description = [{
+    Add the foundation for emitting debug info that can be understood by llvm.
+  }];
+  let constructor = "::fir::createAddDebugFoundationPass()";
+  let dependentDialects = [
+    "fir::FIROpsDialect", "mlir::func::FuncDialect", "mlir::LLVM::LLVMDialect"
+  ];
+}
+
 // This needs to be a "mlir::ModuleOp" pass, because it inserts simplified
 // functions into the module, which is invalid if a finer grain mlir::Operation
 // is used as the pass specification says to not touch things outside hte scope
@@ -214,6 +233,16 @@ def MemoryAllocationOpt : Pass<"memory-allocation-opt", "mlir::func::FuncOp"> {
            "Set maximum number of elements of an array allocated on the stack.">
   ];
   let constructor = "::fir::createMemoryAllocationPass()";
+}
+
+def StackArrays : Pass<"stack-arrays", "mlir::ModuleOp"> {
+  let summary = "Move local array allocations from heap memory into stack memory";
+  let description = [{
+    Convert heap allocations for arrays, even those of unknown size, into stack
+    allocations.
+  }];
+  let dependentDialects = [ "fir::FIROpsDialect" ];
+  let constructor = "::fir::createStackArraysPass()";
 }
 
 def SimplifyRegionLite : Pass<"simplify-region-lite", "mlir::ModuleOp"> {

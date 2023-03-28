@@ -132,6 +132,9 @@ def warn_utf8_symbol_homoglyph : Warning<
 def warn_utf8_symbol_zero_width : Warning<
   "identifier contains Unicode character <U+%0> that is invisible in "
   "some environments">, InGroup<DiagGroup<"unicode-zero-width">>;
+def ext_mathematical_notation : ExtWarn<
+  "mathematical notation character <U+%0> in an identifier is a Clang extension">,
+  InGroup<DiagGroup<"mathematical-notation-identifier-extension">>;
 
 def ext_delimited_escape_sequence : Extension<
   "%select{delimited|named}0 escape sequences are a "
@@ -885,6 +888,8 @@ def warn_use_of_private_header_outside_module : Warning<
   InGroup<DiagGroup<"private-header">>, DefaultError;
 def err_undeclared_use_of_module : Error<
   "module %0 does not depend on a module exporting '%1'">;
+def err_undeclared_use_of_module_indirect : Error<
+  "module %0 does not directly depend on a module exporting '%1', which is part of indirectly-used module %2">;
 def warn_non_modular_include_in_framework_module : Warning<
   "include of non-modular header inside framework module '%0': '%1'">,
   InGroup<NonModularIncludeInFrameworkModule>, DefaultIgnore;
@@ -940,4 +945,15 @@ def err_dep_source_scanner_unexpected_tokens_at_import : Error<
 
 }
 
+def err_pp_double_begin_pragma_unsafe_buffer_usage :
+Error<"already inside '#pragma unsafe_buffer_usage'">;
+
+def err_pp_unmatched_end_begin_pragma_unsafe_buffer_usage :
+Error<"not currently inside '#pragma unsafe_buffer_usage'">;
+
+def err_pp_unclosed_pragma_unsafe_buffer_usage :
+Error<"'#pragma unsafe_buffer_usage' was not ended">;
+
+def err_pp_pragma_unsafe_buffer_usage_syntax :
+Error<"Expected 'begin' or 'end'">;
 }

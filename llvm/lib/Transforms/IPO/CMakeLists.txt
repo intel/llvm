@@ -23,7 +23,6 @@ add_llvm_component_library(LLVMipo
   IPO.cpp
   IROutliner.cpp
   InferFunctionAttrs.cpp
-  InlineSimple.cpp
   Inliner.cpp
   Internalize.cpp
   LoopExtractor.cpp
@@ -68,6 +67,7 @@ add_llvm_component_library(LLVMipo
   ProfileData
   Scalar
   Support
+  TargetParser
   TransformUtils
   Vectorize
   Instrumentation

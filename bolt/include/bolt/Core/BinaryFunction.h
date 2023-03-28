@@ -1614,11 +1614,10 @@ public:
 
   /// Dump function information to debug output. If \p PrintInstructions
   /// is true - include instruction disassembly.
-  void dump(bool PrintInstructions = true) const;
+  void dump() const;
 
   /// Print function information to the \p OS stream.
-  void print(raw_ostream &OS, std::string Annotation = "",
-             bool PrintInstructions = true);
+  void print(raw_ostream &OS, std::string Annotation = "");
 
   /// Print all relocations between \p Offset and \p Offset + \p Size in
   /// this function.
@@ -1827,9 +1826,9 @@ public:
   /// Return true if the function is a secondary fragment of another function.
   bool isFragment() const { return IsFragment; }
 
-  /// Returns if the given function is a parent fragment of this function.
-  bool isParentFragment(BinaryFunction *Parent) const {
-    return ParentFragments.count(Parent);
+  /// Returns if this function is a child of \p Other function.
+  bool isChildOf(const BinaryFunction &Other) const {
+    return llvm::is_contained(ParentFragments, &Other);
   }
 
   /// Set the profile data for the number of times the function was called.

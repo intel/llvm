@@ -22,7 +22,8 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 #include "clang/Tooling/Tooling.h"
-#include "llvm/Support/Host.h"
+#include "llvm/TargetParser/Host.h"
+#include <optional>
 
 using namespace clang;
 using namespace tooling;
@@ -147,7 +148,7 @@ public:
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       ScanningOutputFormat Format, bool OptimizeArgs, bool EagerLoadModules,
-      bool DisableFree, llvm::Optional<StringRef> ModuleName = std::nullopt)
+      bool DisableFree, std::optional<StringRef> ModuleName = std::nullopt)
       : WorkingDirectory(WorkingDirectory), Consumer(Consumer),
         DepFS(std::move(DepFS)), Format(Format), OptimizeArgs(OptimizeArgs),
         EagerLoadModules(EagerLoadModules), DisableFree(DisableFree),
@@ -215,7 +216,7 @@ public:
           DepFS;
       ScanInstance.getPreprocessorOpts().DependencyDirectivesForFile =
           [LocalDepFS = std::move(LocalDepFS)](FileEntryRef File)
-          -> Optional<ArrayRef<dependency_directives_scan::Directive>> {
+          -> std::optional<ArrayRef<dependency_directives_scan::Directive>> {
         if (llvm::ErrorOr<EntryRef> Entry =
                 LocalDepFS->getOrCreateFileSystemEntry(File.getName()))
           return Entry->getDirectiveTokens();
@@ -246,10 +247,12 @@ public:
           std::make_shared<DependencyConsumerForwarder>(
               std::move(Opts), WorkingDirectory, Consumer));
       break;
+    case ScanningOutputFormat::P1689:
     case ScanningOutputFormat::Full:
       MDC = std::make_shared<ModuleDepCollector>(
           std::move(Opts), ScanInstance, Consumer, OriginalInvocation,
-          OptimizeArgs, EagerLoadModules);
+          OptimizeArgs, EagerLoadModules,
+          Format == ScanningOutputFormat::P1689);
       ScanInstance.addDependencyCollector(MDC);
       break;
     }
@@ -302,8 +305,8 @@ private:
   bool OptimizeArgs;
   bool EagerLoadModules;
   bool DisableFree;
-  Optional<StringRef> ModuleName;
-  Optional<CompilerInstance> ScanInstanceStorage;
+  std::optional<StringRef> ModuleName;
+  std::optional<CompilerInstance> ScanInstanceStorage;
   std::shared_ptr<ModuleDepCollector> MDC;
   std::vector<std::string> LastCC1Arguments;
   bool Scanned = false;
@@ -339,7 +342,7 @@ DependencyScanningWorker::DependencyScanningWorker(
 
 llvm::Error DependencyScanningWorker::computeDependencies(
     StringRef WorkingDirectory, const std::vector<std::string> &CommandLine,
-    DependencyConsumer &Consumer, llvm::Optional<StringRef> ModuleName) {
+    DependencyConsumer &Consumer, std::optional<StringRef> ModuleName) {
   std::vector<const char *> CLI;
   for (const std::string &Arg : CommandLine)
     CLI.push_back(Arg.c_str());
@@ -372,7 +375,7 @@ static bool forEachDriverJob(
     Argv.push_back(Arg.c_str());
 
   const std::unique_ptr<driver::Compilation> Compilation(
-      Driver->BuildCompilation(llvm::makeArrayRef(Argv)));
+      Driver->BuildCompilation(llvm::ArrayRef(Argv)));
   if (!Compilation)
     return false;
 
@@ -386,36 +389,46 @@ static bool forEachDriverJob(
 bool DependencyScanningWorker::computeDependencies(
     StringRef WorkingDirectory, const std::vector<std::string> &CommandLine,
     DependencyConsumer &Consumer, DiagnosticConsumer &DC,
-    llvm::Optional<StringRef> ModuleName) {
+    std::optional<StringRef> ModuleName) {
   // Reset what might have been modified in the previous worker invocation.
   BaseFS->setCurrentWorkingDirectory(WorkingDirectory);
 
-  Optional<std::vector<std::string>> ModifiedCommandLine;
+  std::optional<std::vector<std::string>> ModifiedCommandLine;
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> ModifiedFS;
-  if (ModuleName) {
-    ModifiedCommandLine = CommandLine;
-    ModifiedCommandLine->emplace_back(*ModuleName);
 
+  // If we're scanning based on a module name alone, we don't expect the client
+  // to provide us with an input file. However, the driver really wants to have
+  // one. Let's just make it up to make the driver happy.
+  if (ModuleName) {
     auto OverlayFS =
         llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(BaseFS);
     auto InMemoryFS =
         llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
     InMemoryFS->setCurrentWorkingDirectory(WorkingDirectory);
-    InMemoryFS->addFile(*ModuleName, 0, llvm::MemoryBuffer::getMemBuffer(""));
     OverlayFS->pushOverlay(InMemoryFS);
     ModifiedFS = OverlayFS;
+
+    SmallString<128> FakeInputPath;
+    // TODO: We should retry the creation if the path already exists.
+    llvm::sys::fs::createUniquePath(*ModuleName + "-%%%%%%%%.input",
+                                    FakeInputPath,
+                                    /*MakeAbsolute=*/false);
+    InMemoryFS->addFile(FakeInputPath, 0, llvm::MemoryBuffer::getMemBuffer(""));
+
+    ModifiedCommandLine = CommandLine;
+    ModifiedCommandLine->emplace_back(FakeInputPath);
   }
 
   const std::vector<std::string> &FinalCommandLine =
       ModifiedCommandLine ? *ModifiedCommandLine : CommandLine;
+  auto &FinalFS = ModifiedFS ? ModifiedFS : BaseFS;
 
   FileSystemOptions FSOpts;
   FSOpts.WorkingDir = WorkingDirectory.str();
-  auto FileMgr = llvm::makeIntrusiveRefCnt<FileManager>(
-      FSOpts, ModifiedFS ? ModifiedFS : BaseFS);
+  auto FileMgr = llvm::makeIntrusiveRefCnt<FileManager>(FSOpts, FinalFS);
 
-  std::vector<const char *> FinalCCommandLine(CommandLine.size(), nullptr);
-  llvm::transform(CommandLine, FinalCCommandLine.begin(),
+  std::vector<const char *> FinalCCommandLine(FinalCommandLine.size(), nullptr);
+  llvm::transform(FinalCommandLine, FinalCCommandLine.begin(),
                   [](const std::string &Str) { return Str.c_str(); });
 
   auto DiagOpts = CreateAndPopulateDiagOpts(FinalCCommandLine);

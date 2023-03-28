@@ -116,13 +116,12 @@ struct AArch64OutgoingValueAssigner
     bool IsCalleeWin = Subtarget.isCallingConvWin64(State.getCallingConv());
     bool UseVarArgsCCForFixed = IsCalleeWin && State.isVarArg();
 
-    if (!State.isVarArg() && !UseVarArgsCCForFixed && !IsReturn)
-      applyStackPassedSmallTypeDAGHack(OrigVT, ValVT, LocVT);
-
     bool Res;
-    if (Info.IsFixed && !UseVarArgsCCForFixed)
+    if (Info.IsFixed && !UseVarArgsCCForFixed) {
+      if (!IsReturn)
+        applyStackPassedSmallTypeDAGHack(OrigVT, ValVT, LocVT);
       Res = AssignFn(ValNo, ValVT, LocVT, LocInfo, Flags, State);
-    else
+    } else
       Res = AssignFnVarArg(ValNo, ValVT, LocVT, LocInfo, Flags, State);
 
     StackOffset = State.getNextStackOffset();
@@ -415,7 +414,8 @@ bool AArch64CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
                 }
                 auto Undef = MIRBuilder.buildUndef({OldLLT});
                 CurVReg =
-                    MIRBuilder.buildMerge({NewLLT}, {CurVReg, Undef}).getReg(0);
+                    MIRBuilder.buildMergeLikeInstr({NewLLT}, {CurVReg, Undef})
+                        .getReg(0);
               } else {
                 // Just do a vector extend.
                 CurVReg = MIRBuilder.buildInstr(ExtendOp, {NewLLT}, {CurVReg})
@@ -684,7 +684,7 @@ bool AArch64CallLowering::lowerFormalArguments(
     MIRBuilder.setInstr(*MBB.begin());
 
   const AArch64TargetLowering &TLI = *getTLI<AArch64TargetLowering>();
-  CCAssignFn *AssignFn = TLI.CCAssignFnForCall(F.getCallingConv(), IsWin64);
+  CCAssignFn *AssignFn = TLI.CCAssignFnForCall(F.getCallingConv(), IsWin64 && F.isVarArg());
 
   AArch64IncomingValueAssigner Assigner(AssignFn, AssignFn);
   FormalArgHandler Handler(MIRBuilder, MRI);
@@ -1266,8 +1266,7 @@ bool AArch64CallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
     Opc = AArch64::BLR_RVMARKER;
   // A call to a returns twice function like setjmp must be followed by a bti
   // instruction.
-  else if (Info.CB &&
-           Info.CB->getAttributes().hasFnAttr(Attribute::ReturnsTwice) &&
+  else if (Info.CB && Info.CB->hasFnAttr(Attribute::ReturnsTwice) &&
            !Subtarget.noBTIAtReturnTwice() &&
            MF.getInfo<AArch64FunctionInfo>()->branchTargetEnforcement())
     Opc = AArch64::BLR_BTI;
@@ -1336,7 +1335,7 @@ bool AArch64CallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
     if (!determineAndHandleAssignments(
             UsingReturnedArg ? ReturnedArgHandler : Handler, Assigner, InArgs,
             MIRBuilder, Info.CallConv, Info.IsVarArg,
-            UsingReturnedArg ? makeArrayRef(OutArgs[0].Regs) : std::nullopt))
+            UsingReturnedArg ? ArrayRef(OutArgs[0].Regs) : std::nullopt))
       return false;
   }
 

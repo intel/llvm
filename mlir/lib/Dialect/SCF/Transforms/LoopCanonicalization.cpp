@@ -152,7 +152,7 @@ struct DimOfLoopResultFolder : public OpRewritePattern<OpTy> {
 
 /// Canonicalize AffineMinOp/AffineMaxOp operations in the context of scf.for
 /// and scf.parallel loops with a known range.
-template <typename OpTy, bool IsMin>
+template <typename OpTy>
 struct AffineOpSCFCanonicalizationPattern : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
 
@@ -177,13 +177,12 @@ struct AffineOpSCFCanonicalizationPattern : public OpRewritePattern<OpTy> {
         }
         return failure();
       }
-      if (scf::ForeachThreadOp foreachThreadOp =
-              scf::getForeachThreadOpThreadIndexOwner(iv)) {
-        for (int64_t idx = 0; idx < foreachThreadOp.getRank(); ++idx) {
-          if (foreachThreadOp.getThreadIndices()[idx] == iv) {
-            lb = OpBuilder(iv.getContext()).getIndexAttr(0);
-            ub = foreachThreadOp.getNumThreads()[idx];
-            step = OpBuilder(iv.getContext()).getIndexAttr(1);
+      if (scf::ForallOp forallOp = scf::getForallOpThreadIndexOwner(iv)) {
+        for (int64_t idx = 0; idx < forallOp.getRank(); ++idx) {
+          if (forallOp.getInductionVar(idx) == iv) {
+            lb = forallOp.getMixedLowerBound()[idx];
+            ub = forallOp.getMixedUpperBound()[idx];
+            step = forallOp.getMixedStep()[idx];
             return success();
           }
         }
@@ -192,8 +191,7 @@ struct AffineOpSCFCanonicalizationPattern : public OpRewritePattern<OpTy> {
       return failure();
     };
 
-    return scf::canonicalizeMinMaxOpInLoop(
-        rewriter, op, op.getAffineMap(), op.getOperands(), IsMin, loopMatcher);
+    return scf::canonicalizeMinMaxOpInLoop(rewriter, op, loopMatcher);
   }
 };
 
@@ -214,8 +212,8 @@ void mlir::scf::populateSCFForLoopCanonicalizationPatterns(
     RewritePatternSet &patterns) {
   MLIRContext *ctx = patterns.getContext();
   patterns
-      .add<AffineOpSCFCanonicalizationPattern<AffineMinOp, /*IsMin=*/true>,
-           AffineOpSCFCanonicalizationPattern<AffineMaxOp, /*IsMin=*/false>,
+      .add<AffineOpSCFCanonicalizationPattern<AffineMinOp>,
+           AffineOpSCFCanonicalizationPattern<AffineMaxOp>,
            DimOfIterArgFolder<tensor::DimOp>, DimOfIterArgFolder<memref::DimOp>,
            DimOfLoopResultFolder<tensor::DimOp>,
            DimOfLoopResultFolder<memref::DimOp>>(ctx);

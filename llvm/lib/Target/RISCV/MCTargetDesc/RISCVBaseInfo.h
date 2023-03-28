@@ -43,7 +43,12 @@ enum {
   InstFormatCA = 14,
   InstFormatCB = 15,
   InstFormatCJ = 16,
-  InstFormatOther = 17,
+  InstFormatCU = 17,
+  InstFormatCLB = 18,
+  InstFormatCLH = 19,
+  InstFormatCSB = 20,
+  InstFormatCSH = 21,
+  InstFormatOther = 22,
 
   InstFormatMask = 31,
   InstFormatShift = 0,
@@ -95,6 +100,13 @@ enum {
   // compiler has free to select either one.
   UsesMaskPolicyShift = IsRVVWideningReductionShift + 1,
   UsesMaskPolicyMask = 1 << UsesMaskPolicyShift,
+
+  // Indicates that the result can be considered sign extended from bit 31. Some
+  // instructions with this flag aren't W instructions, but are either sign
+  // extended from a smaller size, always outputs a small integer, or put zeros
+  // in bits 63:31. Used by the SExtWRemoval pass.
+  IsSignExtendingOpWShift = UsesMaskPolicyShift + 1,
+  IsSignExtendingOpWMask = 1ULL << IsSignExtendingOpWShift,
 };
 
 // Match with the definitions in RISCVInstrFormats.td
@@ -117,6 +129,7 @@ enum VLMUL : uint8_t {
 };
 
 enum {
+  TAIL_UNDISTURBED_MASK_UNDISTURBED = 0,
   TAIL_AGNOSTIC = 1,
   MASK_AGNOSTIC = 2,
 };
@@ -226,6 +239,7 @@ namespace RISCVOp {
 enum OperandType : unsigned {
   OPERAND_FIRST_RISCV_IMM = MCOI::OPERAND_FIRST_TARGET,
   OPERAND_UIMM2 = OPERAND_FIRST_RISCV_IMM,
+  OPERAND_UIMM2_LSB0,
   OPERAND_UIMM3,
   OPERAND_UIMM4,
   OPERAND_UIMM5,
@@ -233,6 +247,8 @@ enum OperandType : unsigned {
   OPERAND_UIMM7_LSB00,
   OPERAND_UIMM8_LSB00,
   OPERAND_UIMM8_LSB000,
+  OPERAND_UIMM9_LSB000,
+  OPERAND_UIMM10_LSB00_NONZERO,
   OPERAND_UIMM12,
   OPERAND_ZERO,
   OPERAND_SIMM5,
@@ -245,7 +261,7 @@ enum OperandType : unsigned {
   OPERAND_UIMM20,
   OPERAND_UIMMLOG2XLEN,
   OPERAND_UIMMLOG2XLEN_NONZERO,
-  OPERAND_UIMM_SHFL,
+  OPERAND_CLUI_IMM,
   OPERAND_VTYPEI10,
   OPERAND_VTYPEI11,
   OPERAND_RVKRNUM,
@@ -458,6 +474,11 @@ void printVType(unsigned VType, raw_ostream &OS);
 unsigned getSEWLMULRatio(unsigned SEW, RISCVII::VLMUL VLMul);
 
 } // namespace RISCVVType
+
+namespace RISCVRVC {
+bool compress(MCInst &OutInst, const MCInst &MI, const MCSubtargetInfo &STI);
+bool uncompress(MCInst &OutInst, const MCInst &MI, const MCSubtargetInfo &STI);
+} // namespace RISCVRVC
 
 } // namespace llvm
 

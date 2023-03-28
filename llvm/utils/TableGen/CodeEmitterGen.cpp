@@ -12,10 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CodeGenHwModes.h"
 #include "CodeGenInstruction.h"
 #include "CodeGenTarget.h"
-#include "SubtargetFeatureInfo.h"
-#include "Types.h"
+#include "InfoByHwMode.h"
 #include "VarLenCodeEmitterGen.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -517,9 +517,8 @@ void CodeEmitterGen::run(raw_ostream &o) {
       o << "  const unsigned opcode = MI.getOpcode();\n"
         << "  if (Scratch.getBitWidth() != " << BitWidth << ")\n"
         << "    Scratch = Scratch.zext(" << BitWidth << ");\n"
-        << "  Inst = APInt(" << BitWidth
-        << ", makeArrayRef(InstBits + opcode * " << NumWords << ", " << NumWords
-        << "));\n"
+        << "  Inst = APInt(" << BitWidth << ", ArrayRef(InstBits + opcode * "
+        << NumWords << ", " << NumWords << "));\n"
         << "  APInt &Value = Inst;\n"
         << "  APInt &op = Scratch;\n"
         << "  switch (opcode) {\n";

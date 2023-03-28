@@ -21,6 +21,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
+#include <optional>
 
 namespace mlir {
 namespace bufferization {
@@ -214,6 +215,7 @@ struct OneShotBufferizePass
       opt.printConflicts = printConflicts;
       opt.testAnalysisOnly = testAnalysisOnly;
       opt.bufferizeFunctionBoundaries = bufferizeFunctionBoundaries;
+      opt.noAnalysisFuncFilter = noAnalysisFuncFilter;
 
       // Configure type converter.
       LayoutMapOption unknownTypeConversionOption =
@@ -245,18 +247,27 @@ struct OneShotBufferizePass
       opt = *options;
     }
 
+    BufferizationStatistics statistics;
     ModuleOp moduleOp = getOperation();
     if (opt.bufferizeFunctionBoundaries) {
-      if (failed(runOneShotModuleBufferize(moduleOp, opt))) {
+      if (failed(runOneShotModuleBufferize(moduleOp, opt, &statistics))) {
         signalPassFailure();
         return;
       }
     } else {
-      if (failed(runOneShotBufferize(moduleOp, opt))) {
+      assert(opt.noAnalysisFuncFilter.empty() &&
+             "invalid combination of bufferization flags");
+      if (failed(runOneShotBufferize(moduleOp, opt, &statistics))) {
         signalPassFailure();
         return;
       }
     }
+
+    // Set pass statistics.
+    this->numBufferAlloc = statistics.numBufferAlloc;
+    this->numBufferDealloc = statistics.numBufferDealloc;
+    this->numTensorInPlace = statistics.numTensorInPlace;
+    this->numTensorOutOfPlace = statistics.numTensorOutOfPlace;
 
     if (opt.testAnalysisOnly)
       return;
@@ -269,7 +280,7 @@ struct OneShotBufferizePass
   }
 
 private:
-  llvm::Optional<OneShotBufferizationOptions> options;
+  std::optional<OneShotBufferizationOptions> options;
 };
 } // namespace
 
@@ -337,9 +348,11 @@ public:
                         DenseSet<Operation *> &toMemrefOps,
                         SmallVector<Operation *> &worklist,
                         const BufferizationOptions &options,
-                        const OpFilter *opFilter)
+                        const OpFilter *opFilter,
+                        BufferizationStatistics *statistics)
       : IRRewriter(ctx), erasedOps(erasedOps), toMemrefOps(toMemrefOps),
-        worklist(worklist), analysisState(options), opFilter(opFilter) {}
+        worklist(worklist), analysisState(options), opFilter(opFilter),
+        statistics(statistics) {}
 
 protected:
   void notifyOperationRemoved(Operation *op) override {
@@ -352,6 +365,16 @@ protected:
   void notifyOperationInserted(Operation *op) override {
     IRRewriter::notifyOperationInserted(op);
     erasedOps.erase(op);
+
+    // Gather statistics about allocs and deallocs.
+    if (statistics) {
+      if (auto sideEffectingOp = dyn_cast<MemoryEffectOpInterface>(op)) {
+        statistics->numBufferAlloc += static_cast<int64_t>(
+            sideEffectingOp.hasEffect<MemoryEffects::Allocate>());
+        statistics->numBufferDealloc += static_cast<int64_t>(
+            sideEffectingOp.hasEffect<MemoryEffects::Free>());
+      }
+    }
 
     // Keep track of to_memref ops.
     if (isa<ToMemrefOp>(op)) {
@@ -392,13 +415,17 @@ private:
 
   /// An extra op filter for bufferization.
   const OpFilter *opFilter;
+
+  /// Bufferization statistics for debugging.
+  BufferizationStatistics *statistics;
 };
 } // namespace
 
 LogicalResult bufferization::bufferizeOp(Operation *op,
                                          const BufferizationOptions &options,
                                          bool copyBeforeWrite,
-                                         const OpFilter *opFilter) {
+                                         const OpFilter *opFilter,
+                                         BufferizationStatistics *statistics) {
   if (copyBeforeWrite) {
     AnalysisState state(options);
     if (failed(insertTensorCopies(op, state)))
@@ -434,7 +461,7 @@ LogicalResult bufferization::bufferizeOp(Operation *op,
 
   // Bufferize all ops.
   BufferizationRewriter rewriter(op->getContext(), erasedOps, toMemrefOps,
-                                 worklist, options, opFilter);
+                                 worklist, options, opFilter, statistics);
   for (unsigned i = 0; i < worklist.size(); ++i) {
     Operation *nextOp = worklist[i];
     // Skip ops that were erased.
@@ -471,6 +498,15 @@ LogicalResult bufferization::bufferizeOp(Operation *op,
     (void)bufferization::foldToMemrefToTensorPair(rewriter,
                                                   cast<ToMemrefOp>(op));
   }
+
+  // Remove all dead to_tensor ops.
+  op->walk<WalkOrder::PostOrder>([&](ToTensorOp toTensorOp) {
+    if (toTensorOp->getUses().empty()) {
+      rewriter.eraseOp(toTensorOp);
+      return WalkResult::skip();
+    }
+    return WalkResult::advance();
+  });
 
   /// Check the result of bufferization. Return an error if an op was not
   /// bufferized, unless partial bufferization is allowed.

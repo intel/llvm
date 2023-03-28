@@ -872,7 +872,7 @@ static std::pair<Value*, Value*> getMul64(IRBuilder<> &Builder,
   Value *Lo = Builder.CreateTrunc(MUL64, I32Ty);
   Value *Hi = Builder.CreateLShr(MUL64, Builder.getInt64(32));
   Hi = Builder.CreateTrunc(Hi, I32Ty);
-  return std::make_pair(Lo, Hi);
+  return std::pair(Lo, Hi);
 }
 
 static Value* getMulHu(IRBuilder<> &Builder, Value *LHS, Value *RHS) {
@@ -1147,7 +1147,7 @@ Value *AMDGPUCodeGenPrepare::expandDivRem32(IRBuilder<> &Builder,
   Value *FloatY = Builder.CreateUIToFP(Y, F32Ty);
   Function *Rcp = Intrinsic::getDeclaration(Mod, Intrinsic::amdgcn_rcp, F32Ty);
   Value *RcpY = Builder.CreateCall(Rcp, {FloatY});
-  Constant *Scale = ConstantFP::get(F32Ty, BitsToFloat(0x4F7FFFFE));
+  Constant *Scale = ConstantFP::get(F32Ty, llvm::bit_cast<float>(0x4F7FFFFE));
   Value *ScaledY = Builder.CreateFMul(RcpY, Scale);
   Value *Z = Builder.CreateFPToUI(ScaledY, I32Ty);
 

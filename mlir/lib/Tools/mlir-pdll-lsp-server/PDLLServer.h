@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 #include <memory>
 #include <string>
+#include <optional>
 
 namespace mlir {
 namespace lsp {
@@ -67,7 +68,7 @@ public:
   /// Remove the document with the given uri. Returns the version of the removed
   /// document, or std::nullopt if the uri did not have a corresponding document
   /// within the server.
-  Optional<int64_t> removeDocument(const URIForFile &uri);
+  std::optional<int64_t> removeDocument(const URIForFile &uri);
 
   /// Return the locations of the object pointed at by the given position.
   void getLocationsOf(const URIForFile &uri, const Position &defPos,
@@ -83,7 +84,8 @@ public:
 
   /// Find a hover description for the given hover position, or std::nullopt if
   /// one couldn't be found.
-  Optional<Hover> findHover(const URIForFile &uri, const Position &hoverPos);
+  std::optional<Hover> findHover(const URIForFile &uri,
+                                 const Position &hoverPos);
 
   /// Find all of the document symbols within the given file.
   void findDocumentSymbols(const URIForFile &uri,
@@ -103,8 +105,8 @@ public:
 
   /// Get the output of the given PDLL file, or std::nullopt if there is no
   /// valid output.
-  Optional<PDLLViewOutputResult> getPDLLViewOutput(const URIForFile &uri,
-                                                   PDLLViewOutputKind kind);
+  std::optional<PDLLViewOutputResult>
+  getPDLLViewOutput(const URIForFile &uri, PDLLViewOutputKind kind);
 
 private:
   struct Impl;

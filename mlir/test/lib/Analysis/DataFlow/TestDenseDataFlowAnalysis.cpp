@@ -12,6 +12,7 @@
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::dataflow;
@@ -21,7 +22,7 @@ namespace {
 class UnderlyingValue {
 public:
   /// Create an underlying value state with a known underlying value.
-  explicit UnderlyingValue(Optional<Value> underlyingValue = std::nullopt)
+  explicit UnderlyingValue(std::optional<Value> underlyingValue = std::nullopt)
       : underlyingValue(underlyingValue) {}
 
   /// Whether the state is uninitialized.
@@ -54,7 +55,7 @@ public:
   void print(raw_ostream &os) const { os << underlyingValue; }
 
 private:
-  Optional<Value> underlyingValue;
+  std::optional<Value> underlyingValue;
 };
 
 /// This lattice represents, for a given memory resource, the potential last
@@ -101,7 +102,7 @@ public:
 
   /// Get the last modifications of a value. Returns none if the last
   /// modifications are not known.
-  Optional<ArrayRef<Operation *>> getLastModifiers(Value value) const {
+  std::optional<ArrayRef<Operation *>> getLastModifiers(Value value) const {
     auto it = lastMods.find(value);
     if (it == lastMods.end())
       return {};
@@ -259,7 +260,7 @@ struct TestLastModifiedPass
           return solver.lookupState<UnderlyingValueLattice>(value);
         });
         assert(value && "expected an underlying value");
-        if (Optional<ArrayRef<Operation *>> lastMod =
+        if (std::optional<ArrayRef<Operation *>> lastMod =
                 lastMods->getLastModifiers(value)) {
           for (Operation *lastModifier : *lastMod) {
             if (auto tagName =

@@ -111,6 +111,8 @@ public:
   semantics::SemanticsContext &context() const { return context_; }
   bool inWhereBody() const { return inWhereBody_; }
   void set_inWhereBody(bool yes = true) { inWhereBody_ = yes; }
+  bool inDataStmtObject() const { return inDataStmtObject_; }
+  void set_inDataStmtObject(bool yes = true) { inDataStmtObject_ = yes; }
 
   FoldingContext &GetFoldingContext() const { return foldingContext_; }
 
@@ -329,6 +331,7 @@ private:
       DataRef &&, const Symbol &, const semantics::Scope &);
   MaybeExpr CompleteSubscripts(ArrayRef &&);
   MaybeExpr ApplySubscripts(DataRef &&, std::vector<Subscript> &&);
+  void CheckConstantSubscripts(ArrayRef &);
   bool CheckRanks(const DataRef &); // Return false if error exists.
   bool CheckPolymorphic(const DataRef &); // ditto
   bool CheckDataRef(const DataRef &); // ditto
@@ -352,8 +355,8 @@ private:
   using AdjustActuals =
       std::optional<std::function<bool(const Symbol &, ActualArguments &)>>;
   bool ResolveForward(const Symbol &);
-  std::pair<const Symbol *, bool /* failure due to NULL() actuals */>
-  ResolveGeneric(const Symbol &, const ActualArguments &, const AdjustActuals &,
+  std::pair<const Symbol *, bool /* failure due ambiguity */> ResolveGeneric(
+      const Symbol &, const ActualArguments &, const AdjustActuals &,
       bool isSubroutine, bool mightBeStructureConstructor = false);
   void EmitGenericResolutionError(
       const Symbol &, bool dueToNullActuals, bool isSubroutine);
@@ -378,6 +381,8 @@ private:
   bool CheckIsValidForwardReference(const semantics::DerivedTypeSpec &);
   MaybeExpr AnalyzeComplex(MaybeExpr &&re, MaybeExpr &&im, const char *what);
 
+  MaybeExpr IterativelyAnalyzeSubexpressions(const parser::Expr &);
+
   semantics::SemanticsContext &context_;
   FoldingContext &foldingContext_{context_.foldingContext()};
   std::map<parser::CharBlock, int> impliedDos_; // values are INTEGER kinds
@@ -385,8 +390,10 @@ private:
   bool isNullPointerOk_{false};
   bool useSavedTypedExprs_{true};
   bool inWhereBody_{false};
+  bool inDataStmtObject_{false};
   bool inDataStmtConstant_{false};
   bool inStmtFunctionDefinition_{false};
+  bool iterativelyAnalyzingSubexpressions_{false};
   friend class ArgumentAnalyzer;
 };
 
@@ -457,6 +464,8 @@ public:
     exprAnalyzer_.Analyze(x);
     return false;
   }
+  bool Pre(const parser::DataStmtObject &);
+  void Post(const parser::DataStmtObject &);
   bool Pre(const parser::DataImpliedDo &);
 
   bool Pre(const parser::CallStmt &x) {

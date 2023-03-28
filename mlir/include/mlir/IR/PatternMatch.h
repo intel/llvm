@@ -13,6 +13,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/Support/TypeName.h"
+#include <optional>
 
 namespace mlir {
 
@@ -89,7 +90,7 @@ public:
 
   /// Return the root node that this pattern matches. Patterns that can match
   /// multiple root types return std::nullopt.
-  Optional<OperationName> getRootKind() const {
+  std::optional<OperationName> getRootKind() const {
     if (rootKind == RootKind::OperationName)
       return OperationName::getFromOpaquePointer(rootValue);
     return std::nullopt;
@@ -98,7 +99,7 @@ public:
   /// Return the interface ID used to match the root operation of this pattern.
   /// If the pattern does not use an interface ID for deciding the root match,
   /// this returns std::nullopt.
-  Optional<TypeID> getRootInterfaceID() const {
+  std::optional<TypeID> getRootInterfaceID() const {
     if (rootKind == RootKind::InterfaceID)
       return TypeID::getFromOpaquePointer(rootValue);
     return std::nullopt;
@@ -107,7 +108,7 @@ public:
   /// Return the trait ID used to match the root operation of this pattern.
   /// If the pattern does not use a trait ID for deciding the root match, this
   /// returns std::nullopt.
-  Optional<TypeID> getRootTraitID() const {
+  std::optional<TypeID> getRootTraitID() const {
     if (rootKind == RootKind::TraitID)
       return TypeID::getFromOpaquePointer(rootValue);
     return std::nullopt;
@@ -410,8 +411,7 @@ public:
   /// responsible for creating or updating the operation transferring flow of
   /// control to the region and passing it the correct block arguments.
   virtual void cloneRegionBefore(Region &region, Region &parent,
-                                 Region::iterator before,
-                                 BlockAndValueMapping &mapping);
+                                 Region::iterator before, IRMapping &mapping);
   void cloneRegionBefore(Region &region, Region &parent,
                          Region::iterator before);
   void cloneRegionBefore(Region &region, Block *before);
@@ -505,12 +505,32 @@ public:
   /// Find uses of `from` and replace them with `to`. It also marks every
   /// modified uses and notifies the rewriter that an in-place operation
   /// modification is about to happen.
-  void replaceAllUsesWith(Value from, Value to);
+  void replaceAllUsesWith(Value from, Value to) {
+    return replaceAllUsesWith(from.getImpl(), to);
+  }
+  template <typename OperandType, typename ValueT>
+  void replaceAllUsesWith(IRObjectWithUseList<OperandType> *from, ValueT &&to) {
+    for (OperandType &operand : llvm::make_early_inc_range(from->getUses())) {
+      Operation *op = operand.getOwner();
+      updateRootInPlace(op, [&]() { operand.set(to); });
+    }
+  }
+
+  /// Find uses of `from` and replace them with `to` if the `functor` returns
+  /// true. It also marks every modified uses and notifies the rewriter that an
+  /// in-place operation modification is about to happen.
+  void replaceUseIf(Value from, Value to,
+                    llvm::unique_function<bool(OpOperand &) const> functor);
 
   /// Find uses of `from` and replace them with `to` except if the user is
   /// `exceptedUser`. It also marks every modified uses and notifies the
   /// rewriter that an in-place operation modification is about to happen.
-  void replaceAllUsesExcept(Value from, Value to, Operation *exceptedUser);
+  void replaceAllUsesExcept(Value from, Value to, Operation *exceptedUser) {
+    return replaceUseIf(from, to, [&](OpOperand &use) {
+      Operation *user = use.getOwner();
+      return user != exceptedUser;
+    });
+  }
 
   /// Used to notify the rewriter that the IR failed to be rewritten because of
   /// a match failure, and provide a callback to populate a diagnostic with the
@@ -655,7 +675,7 @@ public:
   /// value is not an instance of `T`.
   template <typename T,
             typename ResultT = std::conditional_t<
-                std::is_convertible<T, bool>::value, T, Optional<T>>>
+                std::is_convertible<T, bool>::value, T, std::optional<T>>>
   ResultT dyn_cast() const {
     return isa<T>() ? castImpl<T>() : ResultT();
   }
@@ -1638,12 +1658,15 @@ public:
 
   // Add a matchAndRewrite style pattern represented as a C function pointer.
   template <typename OpType>
-  RewritePatternSet &add(LogicalResult (*implFn)(OpType,
-                                                 PatternRewriter &rewriter)) {
+  RewritePatternSet &
+  add(LogicalResult (*implFn)(OpType, PatternRewriter &rewriter),
+      PatternBenefit benefit = 1, ArrayRef<StringRef> generatedNames = {}) {
     struct FnPattern final : public OpRewritePattern<OpType> {
       FnPattern(LogicalResult (*implFn)(OpType, PatternRewriter &rewriter),
-                MLIRContext *context)
-          : OpRewritePattern<OpType>(context), implFn(implFn) {}
+                MLIRContext *context, PatternBenefit benefit,
+                ArrayRef<StringRef> generatedNames)
+          : OpRewritePattern<OpType>(context, benefit, generatedNames),
+            implFn(implFn) {}
 
       LogicalResult matchAndRewrite(OpType op,
                                     PatternRewriter &rewriter) const override {
@@ -1653,7 +1676,8 @@ public:
     private:
       LogicalResult (*implFn)(OpType, PatternRewriter &rewriter);
     };
-    add(std::make_unique<FnPattern>(std::move(implFn), getContext()));
+    add(std::make_unique<FnPattern>(std::move(implFn), getContext(), benefit,
+                                    generatedNames));
     return *this;
   }
 

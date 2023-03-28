@@ -26,10 +26,10 @@
 
 #include "support/Context.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -56,7 +56,7 @@ struct Config {
   struct CDBSearchSpec {
     enum { Ancestors, FixedDir, NoCDBSearch } Policy = Ancestors;
     // Absolute, native slashes, no trailing slash.
-    llvm::Optional<std::string> FixedCDBPath;
+    std::optional<std::string> FixedCDBPath;
   };
 
   /// Controls how the compile command for the current file is determined.
@@ -88,7 +88,13 @@ struct Config {
     bool StandardLibrary = true;
   } Index;
 
-  enum UnusedIncludesPolicy { Strict, None };
+  enum UnusedIncludesPolicy {
+    /// Diagnose unused includes.
+    Strict,
+    None,
+    /// The same as Strict, but using the include-cleaner library.
+    Experiment,
+  };
   /// Controls warnings and errors when parsing code.
   struct {
     bool SuppressAll = false;

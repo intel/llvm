@@ -65,8 +65,8 @@ class AArch64TTIImpl : public BasicTTIImplBase<AArch64TTIImpl> {
   // 'Val' and 'Index' are forwarded from 'getVectorInstrCost'; 'HasRealUse'
   // indicates whether the vector instruction is available in the input IR or
   // just imaginary in vectorizer passes.
-  InstructionCost getVectorInstrCostHelper(Type *Val, unsigned Index,
-                                           bool HasRealUse);
+  InstructionCost getVectorInstrCostHelper(const Instruction *I, Type *Val,
+                                           unsigned Index, bool HasRealUse);
 
 public:
   explicit AArch64TTIImpl(const AArch64TargetMachine *TM, const Function &F)
@@ -170,8 +170,10 @@ public:
                                  const Instruction *I = nullptr);
 
   InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
-                                     unsigned Index);
+                                     TTI::TargetCostKind CostKind,
+                                     unsigned Index, Value *Op0, Value *Op1);
   InstructionCost getVectorInstrCost(const Instruction &I, Type *Val,
+                                     TTI::TargetCostKind CostKind,
                                      unsigned Index);
 
   InstructionCost getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
@@ -345,10 +347,10 @@ public:
     return ST->hasSVE() ? 5 : 0;
   }
 
-  PredicationStyle emitGetActiveLaneMask() const {
+  TailFoldingStyle getPreferredTailFoldingStyle() const {
     if (ST->hasSVE())
-      return PredicationStyle::DataAndControlFlow;
-    return PredicationStyle::None;
+      return TailFoldingStyle::DataAndControlFlow;
+    return TailFoldingStyle::DataWithoutLaneMask;
   }
 
   bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,

@@ -183,9 +183,22 @@ BuiltinCallMutator &BuiltinCallMutator::replaceArg(unsigned Index,
 BuiltinCallMutator &BuiltinCallMutator::removeArg(unsigned Index) {
   // If the argument being dropped is the last one, there is nothing to move, so
   // just remove the attributes.
-  if (Index == Args.size() - 1)
-    Attrs = Attrs.removeParamAttributes(CI->getContext(), Index);
-  else
+  if (Index == Args.size() - 1) {
+    // TODO: Remove this workaround when LLVM fixes
+    // https://github.com/llvm/llvm-project/issues/59746 on
+    // AttributeList::removeParamAttributes function.
+    // AttributeList::removeParamAttributes function sets attribute at
+    // specified index empty so that return value of
+    // AttributeList::getNumAttrSet() keeps unchanged after that call. When call
+    // BuiltinCallMutator::removeArg function, there is assert failure on
+    // BuiltinCallMutator::doConversion() since new CallInst removed arg but
+    // still holds attribute of that removed arg.
+    SmallVector<AttributeSet, 4> ArgAttrs;
+    for (unsigned I = 0; I < Index; ++I)
+      ArgAttrs.push_back(Attrs.getParamAttrs(I));
+    Attrs = AttributeList::get(CI->getContext(), Attrs.getFnAttrs(),
+                               Attrs.getRetAttrs(), ArgAttrs);
+  } else
     moveAttributes(CI->getContext(), Attrs, Index + 1, Args.size() - Index - 1,
                    Index);
   Args.erase(Args.begin() + Index);

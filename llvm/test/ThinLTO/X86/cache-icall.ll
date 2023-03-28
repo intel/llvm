@@ -4,18 +4,18 @@
 ; This affects code generated for any users of f(). Make sure that we don't pull a stale object
 ; file for %t.o from the cache.
 
-; RUN: opt -module-hash -module-summary -thinlto-bc -thinlto-split-lto-unit %s -o %t.bc
-; RUN: opt -module-hash -module-summary -thinlto-bc -thinlto-split-lto-unit %p/Inputs/cache-icall.ll -o %t2.bc
+; RUN: opt -opaque-pointers -module-hash -module-summary -thinlto-bc -thinlto-split-lto-unit %s -o %t.bc
+; RUN: opt -opaque-pointers -module-hash -module-summary -thinlto-bc -thinlto-split-lto-unit %p/Inputs/cache-icall.ll -o %t2.bc
 
 ; RUN: rm -Rf %t.cache && mkdir %t.cache
 
-; RUN: llvm-lto2 run -o %t-no.o %t.bc -cache-dir %t.cache \
+; RUN: llvm-lto2 run -opaque-pointers -o %t-no.o %t.bc -cache-dir %t.cache \
 ; RUN:   -r=%t.bc,_start,px \
 ; RUN:   -r=%t.bc,f,
 
 ; RUN: llvm-readelf -s %t-no.o.* | FileCheck %s --check-prefix=SYMBOLS-NO
 
-; RUN: llvm-lto2 run -o %t-yes.o %t.bc %t2.bc -cache-dir %t.cache \
+; RUN: llvm-lto2 run -opaque-pointers -o %t-yes.o %t.bc %t2.bc -cache-dir %t.cache \
 ; RUN:   -r=%t.bc,_start,px \
 ; RUN:   -r=%t.bc,f, \
 ; RUN:   -r=%t2.bc,f,p
@@ -32,11 +32,10 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-define i8* @_start(void ()* %p) !type !0 {
+define ptr @_start(ptr %p) !type !0 {
 entry:
-  %0 = bitcast void ()* %p to i8*
-  %1 = tail call i1 @llvm.type.test(i8* %0, metadata !"_ZTSFvvE")
-  br i1 %1, label %cont, label %trap
+  %0 = tail call i1 @llvm.type.test(ptr %p, metadata !"_ZTSFvvE")
+  br i1 %0, label %cont, label %trap
 
 trap:                                             ; preds = %entry
   tail call void @llvm.trap()
@@ -44,10 +43,10 @@ trap:                                             ; preds = %entry
 
 cont:                                             ; preds = %entry
   tail call void %p()
-  ret i8* bitcast (void ()* @f to i8*)
+  ret ptr @f
 }
 
-declare i1 @llvm.type.test(i8*, metadata)
+declare i1 @llvm.type.test(ptr, metadata)
 declare void @llvm.trap()
 declare !type !1 void @f()
 

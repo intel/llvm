@@ -213,7 +213,7 @@ feature_test_macros = [ add_version_header(x) for x in [
   }, {
     "name": "__cpp_lib_constexpr_algorithms",
     "values": { "c++20": 201806 },
-    "headers": ["algorithm"],
+    "headers": ["algorithm", "utility"],
   }, {
     "name": "__cpp_lib_constexpr_bitset",
     "values": { "c++2b": 202207 },
@@ -231,7 +231,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_constexpr_complex",
     "values": { "c++20": 201711 },
     "headers": ["complex"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_constexpr_dynamic_alloc",
     "values": { "c++20": 201907 },
@@ -268,7 +267,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_constexpr_typeinfo",
     "values": { "c++2b": 202106 },
     "headers": ["typeinfo"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_constexpr_utility",
     "values": { "c++20": 201811 },
@@ -286,7 +284,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "values": { "c++20": 201806 },
     "headers": ["new"],
     "test_suite_guard": "TEST_STD_VER > 17 && defined(__cpp_impl_destroying_delete) && __cpp_impl_destroying_delete >= 201806L",
-    "libcxx_guard": "_LIBCPP_STD_VER > 17 && defined(__cpp_impl_destroying_delete) && __cpp_impl_destroying_delete >= 201806L",
+    "libcxx_guard": "_LIBCPP_STD_VER >= 20 && defined(__cpp_impl_destroying_delete) && __cpp_impl_destroying_delete >= 201806L",
   }, {
     "name": "__cpp_lib_enable_shared_from_this",
     "values": { "c++17": 201603 },
@@ -308,6 +306,10 @@ feature_test_macros = [ add_version_header(x) for x in [
     "values": { "c++17": 201603, "c++20": 201902 },
     "headers": ["execution"],
     "unimplemented": True,
+  }, {
+    "name": "__cpp_lib_expected",
+    "values": { "c++2b": 202202 },
+    "headers": ["expected"],
   }, {
     "name": "__cpp_lib_filesystem",
     "values": { "c++17": 201703 },
@@ -389,7 +391,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_invoke_r",
     "values": { "c++2b": 202106 },
     "headers": ["functional"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_is_aggregate",
     "values": { "c++17": 201703 },
@@ -531,7 +532,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "headers": ["iomanip"],
   }, {
     "name": "__cpp_lib_ranges",
-    "values": { "c++20": 201811 },
+    "values": { "c++20": 202106 },
     "headers": ["algorithm", "functional", "iterator", "memory", "ranges"],
   }, {
     "name": "__cpp_lib_ranges_chunk",
@@ -641,7 +642,8 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_source_location",
     "values": { "c++20": 201907 },
     "headers": ["source_location"],
-    "unimplemented": True,
+    "test_suite_guard": "__has_builtin(__builtin_source_location)",
+    "libcxx_guard": "__has_builtin(__builtin_source_location)",
   }, {
     "name": "__cpp_lib_span",
     "values": { "c++20": 202002 },
@@ -871,17 +873,15 @@ def produce_macros_definition_for_std(std):
   return result.strip()
 
 def produce_macros_definitions():
-  macro_definition_template = """#if _LIBCPP_STD_VER > {previous_std_number}
+  macro_definition_template = """#if _LIBCPP_STD_VER >= {std_number}
 {macro_definition}
 #endif"""
 
   macros_definitions = []
-  previous_std_number = '11'
   for std in get_std_dialects():
     macros_definitions.append(
-      macro_definition_template.format(previous_std_number=previous_std_number,
+      macro_definition_template.format(std_number=get_std_number(std).replace('2b', '23'),
                                        macro_definition=produce_macros_definition_for_std(std)))
-    previous_std_number = get_std_number(std)
 
   return '\n\n'.join(macros_definitions)
 

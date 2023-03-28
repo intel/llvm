@@ -21,8 +21,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/Version.h"
+#include "clang/Config/config.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -205,6 +206,7 @@ int main(int argc, const char **argv) {
   }
 
   LLVMContext Context;
+  Context.setOpaquePointers(SPIRV_ENABLE_OPAQUE_POINTERS);
   Type *Int8PtrTy = Type::getInt8PtrTy(Context);
 
   // Create bitcode file with the symbol names for each target and write it to

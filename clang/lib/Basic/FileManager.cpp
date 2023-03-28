@@ -403,8 +403,7 @@ FileEntryRef FileManager::getVirtualFileRef(StringRef Filename, off_t Size,
     FileEntryRef::MapValue Value = *NamedFileEnt.second;
     if (LLVM_LIKELY(Value.V.is<FileEntry *>()))
       return FileEntryRef(NamedFileEnt);
-    return FileEntryRef(*reinterpret_cast<const FileEntryRef::MapEntry *>(
-        Value.V.get<const void *>()));
+    return FileEntryRef(*Value.V.get<const FileEntryRef::MapEntry *>());
   }
 
   // We've not seen this before, or the file is cached as non-existent.
@@ -471,7 +470,7 @@ FileEntryRef FileManager::getVirtualFileRef(StringRef Filename, off_t Size,
   return FileEntryRef(NamedFileEnt);
 }
 
-llvm::Optional<FileEntryRef> FileManager::getBypassFile(FileEntryRef VF) {
+OptionalFileEntryRef FileManager::getBypassFile(FileEntryRef VF) {
   // Stat of the file and return nullptr if it doesn't exist.
   llvm::vfs::Status Status;
   if (getStatValue(VF.getName(), Status, /*isFile=*/true, /*F=*/nullptr))

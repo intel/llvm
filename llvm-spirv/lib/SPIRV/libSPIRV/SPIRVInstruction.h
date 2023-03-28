@@ -1050,7 +1050,7 @@ public:
 
   SPIRVLoopMerge()
       : SPIRVInstruction(OC), MergeBlock(SPIRVID_MAX),
-        LoopControl(SPIRVWORD_MAX) {
+        ContinueTarget(SPIRVID_MAX), LoopControl(SPIRVWORD_MAX) {
     setHasNoId();
     setHasNoType();
   }
@@ -2214,8 +2214,8 @@ protected:
     SPIRVInstruction::validate();
   }
   SPIRVId ExecScope;
-  SPIRVId MemScope;
-  SPIRVId MemSema;
+  SPIRVId MemScope = SPIRVID_INVALID;
+  SPIRVId MemSema = SPIRVID_INVALID;
 };
 
 template <Op OC> class SPIRVLifetime : public SPIRVInstruction {
@@ -3324,6 +3324,9 @@ class SPIRVJointMatrixINTELInst : public SPIRVJointMatrixINTELInstBase {
 _SPIRV_OP(JointMatrixLoad, true, 6, true)
 _SPIRV_OP(JointMatrixStore, false, 5, true)
 _SPIRV_OP(JointMatrixMad, true, 7)
+_SPIRV_OP(JointMatrixSUMad, true, 7)
+_SPIRV_OP(JointMatrixUSMad, true, 7)
+_SPIRV_OP(JointMatrixUUMad, true, 7)
 _SPIRV_OP(JointMatrixWorkItemLength, true, 4)
 #undef _SPIRV_OP
 

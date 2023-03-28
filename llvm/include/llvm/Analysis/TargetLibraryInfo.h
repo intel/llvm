@@ -12,8 +12,10 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 
 namespace llvm {
@@ -22,6 +24,15 @@ template <typename T> class ArrayRef;
 class Function;
 class Module;
 class Triple;
+
+/// Describes a possible implementation of a floating point builtin operation.
+struct AltMathDesc {
+  Intrinsic::ID IntrinID;
+  Type::TypeID BaseFPType;
+  ElementCount VectorizationFactor;
+  StringRef FnImplName;
+  float Accuracy;
+};
 
 /// Describes a possible vectorization of a function.
 /// Function 'VectorFnName' is equivalent to 'ScalarFnName' vectorized
@@ -52,7 +63,7 @@ class TargetLibraryInfoImpl {
   unsigned char AvailableArray[(NumLibFuncs+3)/4];
   DenseMap<unsigned, std::string> CustomNames;
   static StringLiteral const StandardNames[NumLibFuncs];
-  bool ShouldExtI32Param, ShouldExtI32Return, ShouldSignExtI32Param;
+  bool ShouldExtI32Param, ShouldExtI32Return, ShouldSignExtI32Param, ShouldSignExtI32Return;
   unsigned SizeOfInt;
 
   enum AvailabilityState {
@@ -67,6 +78,10 @@ class TargetLibraryInfoImpl {
   AvailabilityState getState(LibFunc F) const {
     return static_cast<AvailabilityState>((AvailableArray[F/4] >> 2*(F&3)) & 3);
   }
+
+  /// Alternate math library functions - sorted by intrinsic ID, then type,
+  /// then vector size, then accuracy
+  std::vector<AltMathDesc> AltMathFuncDescs;
 
   /// Vectorization descriptors - sorted by ScalarFnName.
   std::vector<VecDesc> VectorDescs;
@@ -93,7 +108,21 @@ public:
     DarwinLibSystemM, // Use Darwin's libsystem_m.
     LIBMVEC_X86,      // GLIBC Vector Math library.
     MASSV,            // IBM MASS vector library.
-    SVML              // Intel short vector math library.
+    SVML,             // Intel short vector math library.
+    SLEEFGNUABI       // SLEEF - SIMD Library for Evaluating Elementary Functions.
+  };
+
+  /// List of known alternate math libraries.
+  ///
+  /// The alternate math library provides a set of functions that can ve used
+  /// to replace llvm.fpbuiltin intrinsic calls when one or more constraining
+  /// attributes are specified.
+  /// The library can be specified by either frontend or a commandline option,
+  /// and then used by addAltMathFunctionsFromLib for populating the tables of
+  /// math function implementations.
+  enum AltMathLibrary {
+    NoAltMathLibrary,  // Don't use any alternate math library
+    TestAltMathLibrary // Use a fake alternate math library for testing
   };
 
   TargetLibraryInfoImpl();
@@ -147,13 +176,27 @@ public:
   /// This can be used for options like -fno-builtin.
   void disableAllFunctions();
 
+  /// Add a set of alternate math library function implementations with
+  /// attributes that can be used to select an implementation for an
+  /// llvm.fpbuiltin intrinsic
+  void addAltMathFunctions(ArrayRef<AltMathDesc> Fns);
+
+  /// Calls addAltMathFunctions with a known preset of functions for the
+  /// given alternate math library.
+  void addAltMathFunctionsFromLib(enum AltMathLibrary AltLib);
+
+  /// Select an alternate math library implementation that meets the criteria
+  /// described by an FPBuiltinIntrinsic call.
+  StringRef selectFPBuiltinImplementation(FPBuiltinIntrinsic *Builtin) const;
+
   /// Add a set of scalar -> vector mappings, queryable via
   /// getVectorizedFunction and getScalarizedFunction.
   void addVectorizableFunctions(ArrayRef<VecDesc> Fns);
 
   /// Calls addVectorizableFunctions with a known preset of functions for the
   /// given vector library.
-  void addVectorizableFunctionsFromVecLib(enum VectorLibrary VecLib);
+  void addVectorizableFunctionsFromVecLib(enum VectorLibrary VecLib,
+                                          const llvm::Triple &TargetTriple);
 
   /// Return true if the function F has a vector equivalent with vectorization
   /// factor VF.
@@ -187,6 +230,12 @@ public:
   /// attribute if they correspond to C-level int or unsigned int.
   void setShouldSignExtI32Param(bool Val) {
     ShouldSignExtI32Param = Val;
+  }
+
+  /// Set to true iff i32 results from library functions should have signext
+  /// attribute if they correspond to C-level int or unsigned int.
+  void setShouldSignExtI32Return(bool Val) {
+    ShouldSignExtI32Return = Val;
   }
 
   /// Returns the size of the wchar_t type in bytes or 0 if the size is unknown.
@@ -337,6 +386,9 @@ public:
   bool isFunctionVectorizable(StringRef F) const {
     return Impl->isFunctionVectorizable(F);
   }
+  StringRef selectFPBuiltinImplementation(FPBuiltinIntrinsic *Builtin) const {
+    return Impl->selectFPBuiltinImplementation(Builtin);
+  }
   StringRef getVectorizedFunction(StringRef F, const ElementCount &VF) const {
     return Impl->getVectorizedFunction(F, VF);
   }
@@ -384,24 +436,106 @@ public:
     return Impl->CustomNames.find(F)->second;
   }
 
+  static void initExtensionsForTriple(bool &ShouldExtI32Param,
+                                      bool &ShouldExtI32Return,
+                                      bool &ShouldSignExtI32Param,
+                                      bool &ShouldSignExtI32Return,
+                                      const Triple &T) {
+    ShouldExtI32Param     = ShouldExtI32Return     = false;
+    ShouldSignExtI32Param = ShouldSignExtI32Return = false;
+
+    // PowerPC64, Sparc64, SystemZ need signext/zeroext on i32 parameters and
+    // returns corresponding to C-level ints and unsigned ints.
+    if (T.isPPC64() || T.getArch() == Triple::sparcv9 ||
+        T.getArch() == Triple::systemz) {
+      ShouldExtI32Param = true;
+      ShouldExtI32Return = true;
+    }
+    // Mips and riscv64, on the other hand, needs signext on i32 parameters
+    // corresponding to both signed and unsigned ints.
+    if (T.isMIPS() || T.isRISCV64()) {
+      ShouldSignExtI32Param = true;
+    }
+    // riscv64 needs signext on i32 returns corresponding to both signed and
+    // unsigned ints.
+    if (T.isRISCV64()) {
+      ShouldSignExtI32Return = true;
+    }
+  }
+
   /// Returns extension attribute kind to be used for i32 parameters
   /// corresponding to C-level int or unsigned int.  May be zeroext, signext,
   /// or none.
-  Attribute::AttrKind getExtAttrForI32Param(bool Signed = true) const {
-    if (Impl->ShouldExtI32Param)
+private:
+  static Attribute::AttrKind getExtAttrForI32Param(bool ShouldExtI32Param_,
+                                                   bool ShouldSignExtI32Param_,
+                                                   bool Signed = true) {
+    if (ShouldExtI32Param_)
       return Signed ? Attribute::SExt : Attribute::ZExt;
-    if (Impl->ShouldSignExtI32Param)
+    if (ShouldSignExtI32Param_)
       return Attribute::SExt;
     return Attribute::None;
+  }
+
+public:
+  static Attribute::AttrKind getExtAttrForI32Param(const Triple &T,
+                                                   bool Signed = true) {
+    bool ShouldExtI32Param, ShouldExtI32Return;
+    bool ShouldSignExtI32Param, ShouldSignExtI32Return;
+    initExtensionsForTriple(ShouldExtI32Param, ShouldExtI32Return,
+                            ShouldSignExtI32Param, ShouldSignExtI32Return, T);
+    return getExtAttrForI32Param(ShouldExtI32Param, ShouldSignExtI32Param,
+                                 Signed);
+  }
+
+  Attribute::AttrKind getExtAttrForI32Param(bool Signed = true) const {
+    return getExtAttrForI32Param(Impl->ShouldExtI32Param,
+                                 Impl->ShouldSignExtI32Param, Signed);
   }
 
   /// Returns extension attribute kind to be used for i32 return values
   /// corresponding to C-level int or unsigned int.  May be zeroext, signext,
   /// or none.
-  Attribute::AttrKind getExtAttrForI32Return(bool Signed = true) const {
-    if (Impl->ShouldExtI32Return)
+private:
+  static Attribute::AttrKind getExtAttrForI32Return(bool ShouldExtI32Return_,
+                                                    bool ShouldSignExtI32Return_,
+                                                    bool Signed) {
+    if (ShouldExtI32Return_)
       return Signed ? Attribute::SExt : Attribute::ZExt;
+    if (ShouldSignExtI32Return_)
+      return Attribute::SExt;
     return Attribute::None;
+  }
+
+public:
+  static Attribute::AttrKind getExtAttrForI32Return(const Triple &T,
+                                                   bool Signed = true) {
+    bool ShouldExtI32Param, ShouldExtI32Return;
+    bool ShouldSignExtI32Param, ShouldSignExtI32Return;
+    initExtensionsForTriple(ShouldExtI32Param, ShouldExtI32Return,
+                            ShouldSignExtI32Param, ShouldSignExtI32Return, T);
+    return getExtAttrForI32Return(ShouldExtI32Return, ShouldSignExtI32Return,
+                                  Signed);
+  }
+
+  Attribute::AttrKind getExtAttrForI32Return(bool Signed = true) const {
+    return getExtAttrForI32Return(Impl->ShouldExtI32Return,
+                                  Impl->ShouldSignExtI32Return, Signed);
+  }
+
+  // Helper to create an AttributeList for args (and ret val) which all have
+  // the same signedness. Attributes in AL may be passed in to include them
+  // as well in the returned AttributeList.
+  AttributeList getAttrList(LLVMContext *C, ArrayRef<unsigned> ArgNos,
+                            bool Signed, bool Ret = false,
+                            AttributeList AL = AttributeList()) const {
+    if (auto AK = getExtAttrForI32Param(Signed))
+      for (auto ArgNo : ArgNos)
+        AL = AL.addParamAttribute(*C, ArgNo, AK);
+    if (Ret)
+      if (auto AK = getExtAttrForI32Return(Signed))
+        AL = AL.addRetAttribute(*C, AK);
+    return AL;
   }
 
   /// \copydoc TargetLibraryInfoImpl::getWCharSize()

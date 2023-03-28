@@ -24,7 +24,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -52,8 +51,9 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SMLoc.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/TargetParser.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -318,7 +318,7 @@ class ARMAsmParser : public MCTargetAsmParser {
   bool inImplicitITBlock() { return inITBlock() && !ITState.IsExplicit; }
 
   bool lastInITBlock() {
-    return ITState.CurPosition == 4 - countTrailingZeros(ITState.Mask);
+    return ITState.CurPosition == 4 - (unsigned)llvm::countr_zero(ITState.Mask);
   }
 
   void forwardITPosition() {
@@ -326,7 +326,7 @@ class ARMAsmParser : public MCTargetAsmParser {
     // Move to the next instruction in the IT block, if there is one. If not,
     // mark the block as done, except for implicit IT blocks, which we leave
     // open until we find an instruction that can't be added to it.
-    unsigned TZ = countTrailingZeros(ITState.Mask);
+    unsigned TZ = llvm::countr_zero(ITState.Mask);
     if (++ITState.CurPosition == 5 - TZ && ITState.IsExplicit)
       ITState.CurPosition = ~0U; // Done with the IT block after this.
   }
@@ -336,7 +336,7 @@ class ARMAsmParser : public MCTargetAsmParser {
     assert(inImplicitITBlock());
     assert(ITState.CurPosition > 1);
     ITState.CurPosition--;
-    unsigned TZ = countTrailingZeros(ITState.Mask);
+    unsigned TZ = llvm::countr_zero(ITState.Mask);
     unsigned NewMask = 0;
     NewMask |= ITState.Mask & (0xC << TZ);
     NewMask |= 0x2 << TZ;
@@ -384,7 +384,7 @@ class ARMAsmParser : public MCTargetAsmParser {
     assert(!isITBlockFull());
     assert(Cond == ITState.Cond ||
            Cond == ARMCC::getOppositeCondition(ITState.Cond));
-    unsigned TZ = countTrailingZeros(ITState.Mask);
+    unsigned TZ = llvm::countr_zero(ITState.Mask);
     unsigned NewMask = 0;
     // Keep any existing condition bits.
     NewMask |= ITState.Mask & (0xE << TZ);
@@ -423,7 +423,7 @@ class ARMAsmParser : public MCTargetAsmParser {
   bool inVPTBlock() { return VPTState.CurPosition != ~0U; }
   void forwardVPTPosition() {
     if (!inVPTBlock()) return;
-    unsigned TZ = countTrailingZeros(VPTState.Mask);
+    unsigned TZ = llvm::countr_zero(VPTState.Mask);
     if (++VPTState.CurPosition == 5 - TZ)
       VPTState.CurPosition = ~0U;
   }
@@ -516,86 +516,86 @@ class ARMAsmParser : public MCTargetAsmParser {
 
   bool isThumb() const {
     // FIXME: Can tablegen auto-generate this?
-    return getSTI().getFeatureBits()[ARM::ModeThumb];
+    return getSTI().hasFeature(ARM::ModeThumb);
   }
 
   bool isThumbOne() const {
-    return isThumb() && !getSTI().getFeatureBits()[ARM::FeatureThumb2];
+    return isThumb() && !getSTI().hasFeature(ARM::FeatureThumb2);
   }
 
   bool isThumbTwo() const {
-    return isThumb() && getSTI().getFeatureBits()[ARM::FeatureThumb2];
+    return isThumb() && getSTI().hasFeature(ARM::FeatureThumb2);
   }
 
   bool hasThumb() const {
-    return getSTI().getFeatureBits()[ARM::HasV4TOps];
+    return getSTI().hasFeature(ARM::HasV4TOps);
   }
 
   bool hasThumb2() const {
-    return getSTI().getFeatureBits()[ARM::FeatureThumb2];
+    return getSTI().hasFeature(ARM::FeatureThumb2);
   }
 
   bool hasV6Ops() const {
-    return getSTI().getFeatureBits()[ARM::HasV6Ops];
+    return getSTI().hasFeature(ARM::HasV6Ops);
   }
 
   bool hasV6T2Ops() const {
-    return getSTI().getFeatureBits()[ARM::HasV6T2Ops];
+    return getSTI().hasFeature(ARM::HasV6T2Ops);
   }
 
   bool hasV6MOps() const {
-    return getSTI().getFeatureBits()[ARM::HasV6MOps];
+    return getSTI().hasFeature(ARM::HasV6MOps);
   }
 
   bool hasV7Ops() const {
-    return getSTI().getFeatureBits()[ARM::HasV7Ops];
+    return getSTI().hasFeature(ARM::HasV7Ops);
   }
 
   bool hasV8Ops() const {
-    return getSTI().getFeatureBits()[ARM::HasV8Ops];
+    return getSTI().hasFeature(ARM::HasV8Ops);
   }
 
   bool hasV8MBaseline() const {
-    return getSTI().getFeatureBits()[ARM::HasV8MBaselineOps];
+    return getSTI().hasFeature(ARM::HasV8MBaselineOps);
   }
 
   bool hasV8MMainline() const {
-    return getSTI().getFeatureBits()[ARM::HasV8MMainlineOps];
+    return getSTI().hasFeature(ARM::HasV8MMainlineOps);
   }
   bool hasV8_1MMainline() const {
-    return getSTI().getFeatureBits()[ARM::HasV8_1MMainlineOps];
+    return getSTI().hasFeature(ARM::HasV8_1MMainlineOps);
   }
   bool hasMVE() const {
-    return getSTI().getFeatureBits()[ARM::HasMVEIntegerOps];
+    return getSTI().hasFeature(ARM::HasMVEIntegerOps);
   }
   bool hasMVEFloat() const {
-    return getSTI().getFeatureBits()[ARM::HasMVEFloatOps];
+    return getSTI().hasFeature(ARM::HasMVEFloatOps);
   }
   bool hasCDE() const {
-    return getSTI().getFeatureBits()[ARM::HasCDEOps];
+    return getSTI().hasFeature(ARM::HasCDEOps);
   }
   bool has8MSecExt() const {
-    return getSTI().getFeatureBits()[ARM::Feature8MSecExt];
+    return getSTI().hasFeature(ARM::Feature8MSecExt);
   }
 
   bool hasARM() const {
-    return !getSTI().getFeatureBits()[ARM::FeatureNoARM];
+    return !getSTI().hasFeature(ARM::FeatureNoARM);
   }
 
   bool hasDSP() const {
-    return getSTI().getFeatureBits()[ARM::FeatureDSP];
+    return getSTI().hasFeature(ARM::FeatureDSP);
   }
 
   bool hasD32() const {
-    return getSTI().getFeatureBits()[ARM::FeatureD32];
+    return getSTI().hasFeature(ARM::FeatureD32);
   }
 
   bool hasV8_1aOps() const {
-    return getSTI().getFeatureBits()[ARM::HasV8_1aOps];
+    return getSTI().hasFeature(ARM::HasV8_1aOps);
   }
 
   bool hasRAS() const {
-    return getSTI().getFeatureBits()[ARM::FeatureRAS];
+    return getSTI().hasFeature(ARM::FeatureRAS);
   }
 
   void SwitchMode() {
@@ -607,7 +607,7 @@ class ARMAsmParser : public MCTargetAsmParser {
   void FixModeAfterArchChange(bool WasThumb, SMLoc Loc);
 
   bool isMClass() const {
-    return getSTI().getFeatureBits()[ARM::FeatureMClass];
+    return getSTI().hasFeature(ARM::FeatureMClass);
   }
 
   /// @name Auto-generated Match Functions
@@ -700,8 +700,9 @@ public:
   }
 
   // Implementation of the MCTargetAsmParser interface:
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                     SMLoc &EndLoc) override;
+  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                         SMLoc &EndLoc) override;
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
@@ -1410,8 +1411,8 @@ public:
     const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(getImm());
     if (!CE) return false;
     int64_t Value = CE->getValue();
-    return Value > 0 && countPopulation((uint64_t)Value) == 1 &&
-           Value >= Min && Value <= Max;
+    return Value > 0 && llvm::popcount((uint64_t)Value) == 1 && Value >= Min &&
+           Value <= Max;
   }
   bool isModImm() const { return Kind == k_ModifiedImmediate; }
 
@@ -2502,7 +2503,8 @@ public:
       RegNum = 0;
     } else {
       unsigned NextOpIndex = Inst.getNumOperands();
-      const MCInstrDesc &MCID = ARMInsts[Inst.getOpcode()];
+      const MCInstrDesc &MCID =
+          ARMInsts[ARM::INSTRUCTION_LIST_END - 1 - Inst.getOpcode()];
       int TiedOp = MCID.getOperandConstraint(NextOpIndex, MCOI::TIED_TO);
       assert(TiedOp >= 0 &&
              "Inactive register in vpred_r is not tied to an output!");
@@ -3894,7 +3896,7 @@ public:
 } // end anonymous namespace.
 
 void ARMOperand::print(raw_ostream &OS) const {
-  auto RegName = [](unsigned Reg) {
+  auto RegName = [](MCRegister Reg) {
     if (Reg)
       return ARMInstPrinter::getRegisterName(Reg);
     else
@@ -4060,8 +4062,8 @@ static unsigned MatchRegisterName(StringRef Name);
 
 /// }
 
-bool ARMAsmParser::ParseRegister(unsigned &RegNo,
-                                 SMLoc &StartLoc, SMLoc &EndLoc) {
+bool ARMAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                                 SMLoc &EndLoc) {
   const AsmToken &Tok = getParser().getTok();
   StartLoc = Tok.getLoc();
   EndLoc = Tok.getEndLoc();
@@ -4070,10 +4072,10 @@ bool ARMAsmParser::ParseRegister(unsigned &RegNo,
   return (RegNo == (unsigned)-1);
 }
 
-OperandMatchResultTy ARMAsmParser::tryParseRegister(unsigned &RegNo,
+OperandMatchResultTy ARMAsmParser::tryParseRegister(MCRegister &RegNo,
                                                     SMLoc &StartLoc,
                                                     SMLoc &EndLoc) {
-  if (ParseRegister(RegNo, StartLoc, EndLoc))
+  if (parseRegister(RegNo, StartLoc, EndLoc))
     return MatchOperand_NoMatch;
   return MatchOperand_Success;
 }
@@ -7625,7 +7627,7 @@ bool ARMAsmParser::validateLDRDSTRD(MCInst &Inst,
 
 static int findFirstVectorPredOperandIdx(const MCInstrDesc &MCID) {
   for (unsigned i = 0; i < MCID.NumOperands; ++i) {
-    if (ARM::isVpred(MCID.OpInfo[i].OperandType))
+    if (ARM::isVpred(MCID.operands()[i].OperandType))
       return i;
   }
   return -1;
@@ -7678,7 +7680,7 @@ bool ARMAsmParser::validateInstruction(MCInst &Inst,
     // to keep instructions the same shape even though one cannot
     // legally be predicated, e.g. vmul.f16 vs vmul.f32.
     for (unsigned i = 0, e = MCID.getNumOperands(); i != e; ++i) {
-      if (MCID.OpInfo[i].isPredicate()) {
+      if (MCID.operands()[i].isPredicate()) {
         if (Inst.getOperand(i).getImm() != ARMCC::AL)
           return Error(Loc, "instruction is not predicable");
         break;
@@ -7726,7 +7728,7 @@ bool ARMAsmParser::validateInstruction(MCInst &Inst,
     // Conditions only allowing a 't' are those with no set bit except
     // the lowest-order one that indicates the end of the sequence. In
     // other words, powers of 2.
-    if (Cond == ARMCC::AL && countPopulation(Mask) != 1)
+    if (Cond == ARMCC::AL && llvm::popcount(Mask) != 1)
       return Error(Loc, "unpredictable IT predicate sequence");
     break;
   }
@@ -8796,7 +8798,7 @@ bool ARMAsmParser::processInstruction(MCInst &Inst,
       // before passing it to the ADR instruction.
       unsigned Enc = Inst.getOperand(2).getImm();
       TmpInst.addOperand(MCOperand::createImm(
-        ARM_AM::rotr32(Enc & 0xFF, (Enc & 0xF00) >> 7)));
+          llvm::rotr<uint32_t>(Enc & 0xFF, (Enc & 0xF00) >> 7)));
     } else {
       // Turn PC-relative expression into absolute expression.
       // Reading PC provides the start of the current instruction + 8 and
@@ -10754,7 +10756,7 @@ unsigned ARMAsmParser::checkTargetMatchPredicate(MCInst &Inst) {
     // Find the optional-def operand (cc_out).
     unsigned OpNo;
     for (OpNo = 0;
-         !MCID.OpInfo[OpNo].isOptionalDef() && OpNo < MCID.NumOperands;
+         !MCID.operands()[OpNo].isOptionalDef() && OpNo < MCID.NumOperands;
          ++OpNo)
       ;
     // If we're parsing Thumb1, reject it completely.
@@ -10832,7 +10834,7 @@ unsigned ARMAsmParser::checkTargetMatchPredicate(MCInst &Inst) {
   }
 
   for (unsigned I = 0; I < MCID.NumOperands; ++I)
-    if (MCID.OpInfo[I].RegClass == ARM::rGPRRegClassID) {
+    if (MCID.operands()[I].RegClass == ARM::rGPRRegClassID) {
       // rGPRRegClass excludes PC, and also excluded SP before ARMv8
       const auto &Op = Inst.getOperand(I);
       if (!Op.isReg()) {
@@ -11317,9 +11319,9 @@ bool ARMAsmParser::parseDirectiveCode(SMLoc L) {
 bool ARMAsmParser::parseDirectiveReq(StringRef Name, SMLoc L) {
   MCAsmParser &Parser = getParser();
   Parser.Lex(); // Eat the '.req' token.
-  unsigned Reg;
+  MCRegister Reg;
   SMLoc SRegLoc, ERegLoc;
-  if (check(ParseRegister(Reg, SRegLoc, ERegLoc), SRegLoc,
+  if (check(parseRegister(Reg, SRegLoc, ERegLoc), SRegLoc,
             "register name expected") ||
       parseEOL())
     return true;
@@ -11420,7 +11422,7 @@ bool ARMAsmParser::parseDirectiveEabiAttr(SMLoc L) {
     Tag = CE->getValue();
   }
 
-  if (Parser.parseToken(AsmToken::Comma, "comma expected"))
+  if (Parser.parseComma())
     return true;
 
   StringRef StringValue = "";
@@ -11454,7 +11456,7 @@ bool ARMAsmParser::parseDirectiveEabiAttr(SMLoc L) {
   }
 
   if (Tag == ARMBuildAttrs::compatibility) {
-    if (Parser.parseToken(AsmToken::Comma, "comma expected"))
+    if (Parser.parseComma())
       return true;
   }
 
@@ -11666,7 +11668,7 @@ bool ARMAsmParser::parseDirectiveSetFP(SMLoc L) {
   int FPReg = tryParseRegister();
 
   if (check(FPReg == -1, FPRegLoc, "frame pointer register expected") ||
-      Parser.parseToken(AsmToken::Comma, "comma expected"))
+      Parser.parseComma())
     return true;
 
   // Parse spreg
@@ -11925,7 +11927,7 @@ bool ARMAsmParser::parseDirectiveUnwindRaw(SMLoc L) {
 
   StackOffset = CE->getValue();
 
-  if (Parser.parseToken(AsmToken::Comma, "expected comma"))
+  if (Parser.parseComma())
     return true;
 
   SmallVector<uint8_t, 16> Opcodes;
@@ -12069,7 +12071,7 @@ bool ARMAsmParser::parseDirectiveThumbSet(SMLoc L) {
   StringRef Name;
   if (check(Parser.parseIdentifier(Name),
             "expected identifier after '.thumb_set'") ||
-      parseToken(AsmToken::Comma, "expected comma after name '" + Name + "'"))
+      Parser.parseComma())
     return true;
 
   MCSymbol *Sym;

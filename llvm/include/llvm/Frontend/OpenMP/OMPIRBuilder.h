@@ -94,7 +94,7 @@ public:
   std::optional<bool> HasRequiresUnifiedSharedMemory;
 
   // Flag for specifying if offloading is mandatory.
-  Optional<bool> OpenMPOffloadMandatory;
+  std::optional<bool> OpenMPOffloadMandatory;
 
   /// First separator used between the initial two parts of a name.
   std::optional<StringRef> FirstSeparator;
@@ -112,30 +112,30 @@ public:
   // Getters functions that assert if the required values are not present.
   bool isEmbedded() const {
     assert(IsEmbedded.has_value() && "IsEmbedded is not set");
-    return IsEmbedded.value();
+    return *IsEmbedded;
   }
 
   bool isTargetCodegen() const {
     assert(IsTargetCodegen.has_value() && "IsTargetCodegen is not set");
-    return IsTargetCodegen.value();
+    return *IsTargetCodegen;
   }
 
   bool hasRequiresUnifiedSharedMemory() const {
     assert(HasRequiresUnifiedSharedMemory.has_value() &&
            "HasUnifiedSharedMemory is not set");
-    return HasRequiresUnifiedSharedMemory.value();
+    return *HasRequiresUnifiedSharedMemory;
   }
 
   bool openMPOffloadMandatory() const {
     assert(OpenMPOffloadMandatory.has_value() &&
            "OpenMPOffloadMandatory is not set");
-    return OpenMPOffloadMandatory.value();
+    return *OpenMPOffloadMandatory;
   }
   // Returns the FirstSeparator if set, otherwise use the default
   // separator depending on isTargetCodegen
   StringRef firstSeparator() const {
     if (FirstSeparator.has_value())
-      return FirstSeparator.value();
+      return *FirstSeparator;
     if (isTargetCodegen())
       return "_";
     return ".";
@@ -145,7 +145,7 @@ public:
   // separator depending on isTargetCodegen
   StringRef separator() const {
     if (Separator.has_value())
-      return Separator.value();
+      return *Separator;
     if (isTargetCodegen())
       return "$";
     return ".";
@@ -502,6 +502,13 @@ public:
                                    ArrayRef<CanonicalLoopInfo *> Loops,
                                    InsertPointTy ComputeIP);
 
+  /// Get the default alignment value for given target
+  ///
+  /// \param TargetTriple   Target triple
+  /// \param Features       StringMap which describes extra CPU features
+  static unsigned getOpenMPDefaultSimdAlign(const Triple &TargetTriple,
+                                            const StringMap<bool> &Features);
+
 private:
   /// Modifies the canonical loop to be a statically-scheduled workshare loop.
   ///
@@ -776,7 +783,7 @@ public:
                            InsertPointTy AllocaIP, BodyGenCallbackTy BodyGenCB,
                            bool Tied = true, Value *Final = nullptr,
                            Value *IfCondition = nullptr,
-                           ArrayRef<DependData *> Dependencies = {});
+                           SmallVector<DependData> Dependencies = {});
 
   /// Generator for the taskgroup construct
   ///
@@ -988,12 +995,10 @@ public:
   /// \param NumThreads Number of threads via the 'thread_limit' clause.
   /// \param HostPtr Pointer to the host-side pointer of the target kernel.
   /// \param KernelArgs Array of arguments to the kernel.
-  /// \param NoWaitArgs Optional array of arguments to the nowait kernel.
   InsertPointTy emitTargetKernel(const LocationDescription &Loc, Value *&Return,
                                  Value *Ident, Value *DeviceID, Value *NumTeams,
                                  Value *NumThreads, Value *HostPtr,
-                                 ArrayRef<Value *> KernelArgs,
-                                 ArrayRef<Value *> NoWaitArgs = {});
+                                 ArrayRef<Value *> KernelArgs);
 
   /// Generate a barrier runtime call.
   ///
@@ -1458,17 +1463,13 @@ public:
   ///
   /// \param Loc The insert and source location description.
   /// \param IsSPMD Flag to indicate if the kernel is an SPMD kernel or not.
-  /// \param RequiresFullRuntime Indicate if a full device runtime is necessary.
-  InsertPointTy createTargetInit(const LocationDescription &Loc, bool IsSPMD,
-                                 bool RequiresFullRuntime);
+  InsertPointTy createTargetInit(const LocationDescription &Loc, bool IsSPMD);
 
   /// Create a runtime call for kmpc_target_deinit
   ///
   /// \param Loc The insert and source location description.
   /// \param IsSPMD Flag to indicate if the kernel is an SPMD kernel or not.
-  /// \param RequiresFullRuntime Indicate if a full device runtime is necessary.
-  void createTargetDeinit(const LocationDescription &Loc, bool IsSPMD,
-                          bool RequiresFullRuntime);
+  void createTargetDeinit(const LocationDescription &Loc, bool IsSPMD);
 
   ///}
 

@@ -13,6 +13,7 @@
 #include "lldb/Interpreter/OptionValue.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
+#include <optional>
 
 namespace lldb_private {
 
@@ -38,8 +39,9 @@ public:
   static void Terminate();
 
 public:
-  EmulateInstructionLoongArch(const ArchSpec &arch)
-      : EmulateInstruction(arch) {}
+  EmulateInstructionLoongArch(const ArchSpec &arch) : EmulateInstruction(arch) {
+    m_arch_subtype = arch.GetMachine();
+  }
 
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
@@ -53,10 +55,12 @@ public:
   bool TestEmulation(Stream *out_stream, ArchSpec &arch,
                      OptionValueDictionary *test_data) override;
 
-  llvm::Optional<RegisterInfo> GetRegisterInfo(lldb::RegisterKind reg_kind,
-                                               uint32_t reg_num) override;
+  std::optional<RegisterInfo> GetRegisterInfo(lldb::RegisterKind reg_kind,
+                                              uint32_t reg_num) override;
   lldb::addr_t ReadPC(bool *success);
   bool WritePC(lldb::addr_t pc);
+  bool IsLoongArch64() { return m_arch_subtype == llvm::Triple::loongarch64; }
+  bool TestExecute(uint32_t inst);
 
 private:
   struct Opcode {
@@ -66,9 +70,37 @@ private:
     const char *name;
   };
 
+  llvm::Triple::ArchType m_arch_subtype;
   Opcode *GetOpcodeForInstruction(uint32_t inst);
 
+  bool EmulateBEQZ(uint32_t inst);
+  bool EmulateBNEZ(uint32_t inst);
+  bool EmulateBCEQZ(uint32_t inst);
+  bool EmulateBCNEZ(uint32_t inst);
+  bool EmulateJIRL(uint32_t inst);
+  bool EmulateB(uint32_t inst);
+  bool EmulateBL(uint32_t inst);
+  bool EmulateBEQ(uint32_t inst);
+  bool EmulateBNE(uint32_t inst);
+  bool EmulateBLT(uint32_t inst);
+  bool EmulateBGE(uint32_t inst);
+  bool EmulateBLTU(uint32_t inst);
+  bool EmulateBGEU(uint32_t inst);
   bool EmulateNonJMP(uint32_t inst);
+
+  bool EmulateBEQZ64(uint32_t inst);
+  bool EmulateBNEZ64(uint32_t inst);
+  bool EmulateBCEQZ64(uint32_t inst);
+  bool EmulateBCNEZ64(uint32_t inst);
+  bool EmulateJIRL64(uint32_t inst);
+  bool EmulateB64(uint32_t inst);
+  bool EmulateBL64(uint32_t inst);
+  bool EmulateBEQ64(uint32_t inst);
+  bool EmulateBNE64(uint32_t inst);
+  bool EmulateBLT64(uint32_t inst);
+  bool EmulateBGE64(uint32_t inst);
+  bool EmulateBLTU64(uint32_t inst);
+  bool EmulateBGEU64(uint32_t inst);
 };
 
 } // namespace lldb_private

@@ -12,6 +12,7 @@
 #include <sycl/detail/generic_type_lists.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/type_list.hpp>
+#include <sycl/detail/vector_traits.hpp>
 
 #include <array>
 #include <tuple>
@@ -64,8 +65,10 @@ template <typename ElementType, access::address_space Space,
 class multi_ptr;
 
 template <class T>
-inline constexpr bool is_group_v =
-    detail::is_group<T>::value || detail::is_sub_group<T>::value;
+struct is_group : std::bool_constant<detail::is_group<T>::value ||
+                                     detail::is_sub_group<T>::value> {};
+
+template <class T> inline constexpr bool is_group_v = is_group<T>::value;
 
 namespace ext::oneapi::experimental {
 template <class T>
@@ -85,7 +88,6 @@ template <typename T, typename R>
 using copy_cv_qualifiers_t = typename copy_cv_qualifiers<T, R>::type;
 
 template <int V> using int_constant = std::integral_constant<int, V>;
-
 // vector_size
 // scalars are interpreted as a vector of 1 length.
 template <typename T> struct vector_size_impl : int_constant<1> {};
@@ -93,16 +95,6 @@ template <typename T, int N>
 struct vector_size_impl<vec<T, N>> : int_constant<N> {};
 template <typename T>
 struct vector_size : vector_size_impl<remove_cv_t<remove_reference_t<T>>> {};
-
-// 4.10.2.6 Memory layout and alignment
-template <typename T, int N>
-struct vector_alignment_impl
-    : conditional_t<N == 3, int_constant<sizeof(T) * 4>,
-                    int_constant<sizeof(T) * N>> {};
-
-template <typename T, int N>
-struct vector_alignment
-    : vector_alignment_impl<remove_cv_t<remove_reference_t<T>>, N> {};
 
 // vector_element
 template <typename T> struct vector_element_impl;
@@ -230,6 +222,14 @@ using is_gen_based_on_type_sizeof =
 template <typename> struct is_vec : std::false_type {};
 template <typename T, std::size_t N>
 struct is_vec<sycl::vec<T, N>> : std::true_type {};
+
+template <typename> struct get_vec_size {
+  static constexpr std::size_t size = 1;
+};
+
+template <typename T, std::size_t N> struct get_vec_size<sycl::vec<T, N>> {
+  static constexpr std::size_t size = N;
+};
 
 // is_integral
 template <typename T>

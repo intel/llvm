@@ -199,7 +199,7 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<char>
     using off_type            = streamoff;
     using pos_type            = streampos;
     using state_type          = mbstate_t;
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
     using comparison_category = strong_ordering;
 #endif
 
@@ -269,7 +269,7 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<wchar_t>
     using off_type            = streamoff;
     using pos_type            = streampos;
     using state_type          = mbstate_t;
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
     using comparison_category = strong_ordering;
 #endif
 
@@ -339,7 +339,7 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<char8_t>
     using off_type            = streamoff;
     using pos_type            = u8streampos;
     using state_type          = mbstate_t;
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
     using comparison_category = strong_ordering;
 #endif
 
@@ -427,7 +427,7 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<char16_t>
     using off_type            = streamoff;
     using pos_type            = u16streampos;
     using state_type          = mbstate_t;
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
     using comparison_category = strong_ordering;
 #endif
 
@@ -521,7 +521,7 @@ struct _LIBCPP_TEMPLATE_VIS char_traits<char32_t>
     using off_type            = streamoff;
     using pos_type            = u32streampos;
     using state_type          = mbstate_t;
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
     using comparison_category = strong_ordering;
 #endif
 
@@ -671,7 +671,7 @@ __str_find(const _CharT *__p, _SizeT __sz,
     if (__n == 0) // There is nothing to search, just return __pos.
         return __pos;
 
-    const _CharT *__r = __search_substring<_CharT, _Traits>(
+    const _CharT *__r = std::__search_substring<_CharT, _Traits>(
         __p + __pos, __p + __sz, __s, __s + __n);
 
     if (__r == __p + __sz)

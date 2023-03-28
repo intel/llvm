@@ -14,7 +14,7 @@
 //
 // x86 passes parameters through stack that may lead to false negatives
 // The same applies to s390x register save areas.
-// UNSUPPORTED: x86,i686,powerpc64,arm,s390x
+// UNSUPPORTED: i686,target={{(x86|powerpc64|arm|s390x).*}}
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,5 +52,5 @@ void ConfirmPointerHasSurvived() {
 // CHECK-sanity: Test alloc: [[ADDR:0x[0-9,a-f]+]]
 // CHECK: LeakSanitizer: detected memory leaks
 // CHECK: [[ADDR]] (1337 bytes)
-// CHECK: SUMMARY: {{(Leak|Address)}}Sanitizer:
+// CHECK: SUMMARY: {{.*}}Sanitizer:
 // CHECK-sanity: Value after LSan: [[ADDR]]

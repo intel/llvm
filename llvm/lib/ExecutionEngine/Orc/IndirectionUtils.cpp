@@ -8,13 +8,13 @@
 
 #include "llvm/ExecutionEngine/Orc/IndirectionUtils.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/ExecutionEngine/Orc/OrcABISupport.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/Support/Format.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <sstream>
 
@@ -137,6 +137,11 @@ createLocalCompileCallbackManager(const Triple &T, ExecutionSession &ES,
       return CCMgrT::Create(ES, ErrorHandlerAddress);
     }
 
+    case Triple::loongarch64: {
+      typedef orc::LocalJITCompileCallbackManager<orc::OrcLoongArch64> CCMgrT;
+      return CCMgrT::Create(ES, ErrorHandlerAddress);
+    }
+
     case Triple::mips: {
       typedef orc::LocalJITCompileCallbackManager<orc::OrcMips32Be> CCMgrT;
       return CCMgrT::Create(ES, ErrorHandlerAddress);
@@ -190,6 +195,12 @@ createLocalIndirectStubsManagerBuilder(const Triple &T) {
       return [](){
         return std::make_unique<
                        orc::LocalIndirectStubsManager<orc::OrcI386>>();
+      };
+
+    case Triple::loongarch64:
+      return []() {
+        return std::make_unique<
+            orc::LocalIndirectStubsManager<orc::OrcLoongArch64>>();
       };
 
     case Triple::mips:
@@ -407,7 +418,7 @@ Error addFunctionPointerRelocationsToCurrentSymbol(jitlink::Symbol &Sym,
   auto SymStartInBlock =
       (const uint8_t *)B.getContent().data() + Sym.getOffset();
   auto SymSize = Sym.getSize() ? Sym.getSize() : B.getSize() - Sym.getOffset();
-  auto Content = makeArrayRef(SymStartInBlock, SymSize);
+  auto Content = ArrayRef(SymStartInBlock, SymSize);
 
   LLVM_DEBUG(dbgs() << "Adding self-relocations to " << Sym.getName() << "\n");
 

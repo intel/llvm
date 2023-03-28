@@ -14,6 +14,7 @@
 #include <__assert>
 #include <__config>
 #include <__debug>
+#include <__functional/invoke.h>
 #include <__iterator/distance.h>
 #include <__iterator/iterator_traits.h>
 #include <__iterator/next.h>
@@ -23,6 +24,17 @@
 #include <__memory/swap_allocator.h>
 #include <__memory/unique_ptr.h>
 #include <__type_traits/can_extract_key.h>
+#include <__type_traits/conditional.h>
+#include <__type_traits/is_const.h>
+#include <__type_traits/is_nothrow_copy_constructible.h>
+#include <__type_traits/is_nothrow_default_constructible.h>
+#include <__type_traits/is_nothrow_move_assignable.h>
+#include <__type_traits/is_nothrow_move_constructible.h>
+#include <__type_traits/is_pointer.h>
+#include <__type_traits/is_same.h>
+#include <__type_traits/is_swappable.h>
+#include <__type_traits/remove_const_ref.h>
+#include <__type_traits/remove_cvref.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
 #include <__utility/pair.h>
@@ -806,7 +818,7 @@ public:
     template <class> friend class __map_node_destructor;
 };
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template <class _NodeType, class _Alloc>
 struct __generic_container_node_destructor;
 template <class _Tp, class _VoidPtr, class _Alloc>
@@ -837,7 +849,7 @@ public:
     typedef typename _NodeTypes::__node_value_type_pointer pointer;
 
     _LIBCPP_INLINE_VISIBILITY __tree_iterator() _NOEXCEPT
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     : __ptr_(nullptr)
 #endif
     {}
@@ -910,7 +922,7 @@ public:
     typedef typename _NodeTypes::__const_node_value_type_pointer pointer;
 
     _LIBCPP_INLINE_VISIBILITY __tree_const_iterator() _NOEXCEPT
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
     : __ptr_(nullptr)
 #endif
     {}
@@ -1319,7 +1331,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY iterator
     __remove_node_pointer(__node_pointer) _NOEXCEPT;
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
     template <class _NodeHandle, class _InsertReturnType>
     _LIBCPP_INLINE_VISIBILITY
     _InsertReturnType __node_handle_insert_unique(_NodeHandle&&);
@@ -2253,7 +2265,7 @@ __tree<_Tp, _Compare, _Allocator>::__remove_node_pointer(__node_pointer __ptr) _
     return __r;
 }
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template <class _Tp, class _Compare, class _Allocator>
 template <class _NodeHandle, class _InsertReturnType>
 _LIBCPP_INLINE_VISIBILITY
@@ -2410,7 +2422,7 @@ __tree<_Tp, _Compare, _Allocator>::__node_handle_merge_multi(_Tree& __source)
     }
 }
 
-#endif // _LIBCPP_STD_VER > 14
+#endif // _LIBCPP_STD_VER >= 17
 
 template <class _Tp, class _Compare, class _Allocator>
 typename __tree<_Tp, _Compare, _Allocator>::iterator

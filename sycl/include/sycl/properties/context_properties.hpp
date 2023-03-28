@@ -15,8 +15,9 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::cuda::property::context {
-class use_primary_context : public ::sycl::detail::DataLessProperty<
-                                ::sycl::detail::UsePrimaryContext> {};
+class __SYCL_DEPRECATED("the primary contexts are now always used")
+    use_primary_context : public ::sycl::detail::DataLessProperty<
+                              ::sycl::detail::UsePrimaryContext> {};
 } // namespace ext::oneapi::cuda::property::context
 
 namespace property::context {

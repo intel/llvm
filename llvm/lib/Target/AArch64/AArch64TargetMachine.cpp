@@ -20,7 +20,6 @@
 #include "MCTargetDesc/AArch64MCTargetDesc.h"
 #include "TargetInfo/AArch64TargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/CFIFixup.h"
 #include "llvm/CodeGen/CSEConfigBase.h"
@@ -47,6 +46,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/CFGuard.h"
 #include "llvm/Transforms/Scalar.h"
 #include <memory>
@@ -237,6 +237,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAArch64Target() {
   initializeAArch64StackTaggingPass(*PR);
   initializeAArch64StackTaggingPreRAPass(*PR);
   initializeAArch64LowerHomogeneousPrologEpilogPass(*PR);
+  initializeAArch64DAGToDAGISelPass(*PR);
+  initializeAArch64GlobalsTaggingPass(*PR);
 }
 
 //===----------------------------------------------------------------------===//
@@ -385,14 +387,9 @@ AArch64TargetMachine::getSubtargetImpl(const Function &F) const {
   Attribute TuneAttr = F.getFnAttribute("tune-cpu");
   Attribute FSAttr = F.getFnAttribute("target-features");
 
-  std::string CPU =
-      CPUAttr.isValid() ? CPUAttr.getValueAsString().str() : TargetCPU;
-  std::string TuneCPU =
-      TuneAttr.isValid() ? TuneAttr.getValueAsString().str() : CPU;
-  std::string FS =
-      FSAttr.isValid() ? FSAttr.getValueAsString().str() : TargetFS;
-
-  SmallString<512> Key;
+  StringRef CPU = CPUAttr.isValid() ? CPUAttr.getValueAsString() : TargetCPU;
+  StringRef TuneCPU = TuneAttr.isValid() ? TuneAttr.getValueAsString() : CPU;
+  StringRef FS = FSAttr.isValid() ? FSAttr.getValueAsString() : TargetFS;
 
   bool StreamingSVEModeDisabled =
       !F.hasFnAttribute("aarch64_pstate_sm_enabled") &&
@@ -428,14 +425,10 @@ AArch64TargetMachine::getSubtargetImpl(const Function &F) const {
         (std::max(MinSVEVectorSize, MaxSVEVectorSize) / 128) * 128;
   }
 
-  Key += "SVEMin";
-  Key += std::to_string(MinSVEVectorSize);
-  Key += "SVEMax";
-  Key += std::to_string(MaxSVEVectorSize);
-  Key += "StreamingSVEModeDisabled=" + std::to_string(StreamingSVEModeDisabled);
-  Key += CPU;
-  Key += TuneCPU;
-  Key += FS;
+  SmallString<512> Key;
+  raw_svector_ostream(Key) << "SVEMin" << MinSVEVectorSize << "SVEMax"
+                           << MaxSVEVectorSize << "StreamingSVEModeDisabled="
+                           << StreamingSVEModeDisabled << CPU << TuneCPU << FS;
 
   auto &I = SubtargetMap[Key];
   if (!I) {
@@ -595,6 +588,7 @@ void AArch64PassConfig::addIRPasses() {
   if (getOptLevel() == CodeGenOpt::Aggressive && EnableSelectOpt)
     addPass(createSelectOptimizePass());
 
+  addPass(createAArch64GlobalsTaggingPass());
   addPass(createAArch64StackTaggingPass(
       /*IsOptNone=*/TM->getOptLevel() == CodeGenOpt::None));
 
@@ -656,7 +650,7 @@ bool AArch64PassConfig::addPreISel() {
 
 void AArch64PassConfig::addCodeGenPrepare() {
   if (getOptLevel() != CodeGenOpt::None)
-    addPass(createTypePromotionPass());
+    addPass(createTypePromotionLegacyPass());
   TargetPassConfig::addCodeGenPrepare();
 }
 
@@ -839,6 +833,13 @@ void AArch64PassConfig::addPreEmitPass2() {
   // SVE bundles move prefixes with destructive operations. BLR_RVMARKER pseudo
   // instructions are lowered to bundles as well.
   addPass(createUnpackMachineBundles(nullptr));
+}
+
+MachineFunctionInfo *AArch64TargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return AArch64FunctionInfo::create<AArch64FunctionInfo>(
+      Allocator, F, static_cast<const AArch64Subtarget *>(STI));
 }
 
 yaml::MachineFunctionInfo *

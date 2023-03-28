@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13.4)
 
 if(NOT DEFINED BASE_LLVM_VERSION)
-  set (BASE_LLVM_VERSION 16.0.0)
+  set (BASE_LLVM_VERSION 17.0.0)
 endif(NOT DEFINED BASE_LLVM_VERSION)
 set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
 
@@ -88,6 +88,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       Core
       Passes
       Support
+      TargetParser
       TransformUtils
       ${LLVM_TEST_COMPONENTS}
   )

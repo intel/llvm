@@ -12,6 +12,7 @@
 
 #include <__algorithm/min.h>
 #include <__algorithm/ranges_min.h>
+#include <__assert>
 #include <__concepts/constructible.h>
 #include <__concepts/convertible_to.h>
 #include <__config>
@@ -48,7 +49,7 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace ranges {
 
@@ -63,9 +64,10 @@ public:
   _LIBCPP_HIDE_FROM_ABI
   take_view() requires default_initializable<_View> = default;
 
-  _LIBCPP_HIDE_FROM_ABI
-  constexpr take_view(_View __base, range_difference_t<_View> __count)
-    : __base_(std::move(__base)), __count_(__count) {}
+  _LIBCPP_HIDE_FROM_ABI constexpr take_view(_View __base, range_difference_t<_View> __count)
+      : __base_(std::move(__base)), __count_(__count) {
+    _LIBCPP_ASSERT(__count >= 0, "count has to be greater than or equal to zero");
+  }
 
   _LIBCPP_HIDE_FROM_ABI
   constexpr _View base() const& requires copy_constructible<_View> { return __base_; }
@@ -332,7 +334,7 @@ inline namespace __cpo {
 
 } // namespace ranges
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

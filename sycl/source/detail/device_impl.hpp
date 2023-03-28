@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <mutex>
+#include <utility>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -237,6 +238,10 @@ public:
 
   std::string getDeviceName() const;
 
+  /// Gets the current device timestamp
+  /// @throw sycl::feature_not_supported if feature is not supported on device
+  uint64_t getCurrentDeviceTime();
+
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
                        PlatformImplPtr Platform, const plugin &Plugin);
@@ -248,6 +253,7 @@ private:
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
+  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
 }; // class device_impl
 
 } // namespace detail

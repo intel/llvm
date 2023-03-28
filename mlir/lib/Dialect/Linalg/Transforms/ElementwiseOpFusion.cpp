@@ -23,6 +23,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include <optional>
 #include <utility>
 
 namespace mlir {
@@ -72,6 +73,9 @@ static AffineMap getIndexingMapOfProducerOperandsInCoordinatesOfFusedOp(
 
 /// Conditions for elementwise fusion of generic operations.
 bool mlir::linalg::areElementwiseOpsFusable(OpOperand *fusedOperand) {
+  if (!fusedOperand)
+    return false;
+
   auto producer = fusedOperand->get().getDefiningOp<GenericOp>();
   auto consumer = dyn_cast<GenericOp>(fusedOperand->getOwner());
 
@@ -157,7 +161,7 @@ static void generateFusedElementwiseOpRegion(
   Block &consumerBlock = consumer->getRegion(0).front();
   Block *fusedBlock = new Block();
   fusedOp.getRegion().push_back(fusedBlock);
-  BlockAndValueMapping mapper;
+  IRMapping mapper;
   OpBuilder::InsertionGuard guard(rewriter);
   rewriter.setInsertionPointToStart(fusedBlock);
 
@@ -269,7 +273,7 @@ static void generateFusedElementwiseOpRegion(
          "Ill-formed GenericOp region");
 }
 
-FailureOr<Operation *>
+FailureOr<mlir::linalg::ElementwiseOpFusionResult>
 mlir::linalg::fuseElementwiseOps(RewriterBase &rewriter,
                                  OpOperand *fusedOperand) {
   assert(areElementwiseOpsFusable(fusedOperand) &&
@@ -283,7 +287,7 @@ mlir::linalg::fuseElementwiseOps(RewriterBase &rewriter,
   /// Find the results of the producer that have uses outside of the consumer.
   llvm::SmallDenseSet<int> preservedProducerResults;
   for (const auto &producerResult : llvm::enumerate(producer->getResults())) {
-    auto outputOperand = producer.getDpsInitOperand(producerResult.index());
+    auto *outputOperand = producer.getDpsInitOperand(producerResult.index());
     if (producer.payloadUsesValueFromOperand(outputOperand) ||
         !producer.canOpOperandsBeDropped(outputOperand) ||
         llvm::any_of(producerResult.value().getUsers(), [&](Operation *user) {
@@ -389,7 +393,15 @@ mlir::linalg::fuseElementwiseOps(RewriterBase &rewriter,
   generateFusedElementwiseOpRegion(
       rewriter, fusedOp, consumerToProducerLoopsMap, fusedOperand,
       consumer.getNumLoops(), preservedProducerResults);
-  return fusedOp.getOperation();
+  ElementwiseOpFusionResult result;
+  result.fusedOp = fusedOp;
+  int resultNum = 0;
+  for (auto [index, producerResult] : llvm::enumerate(producer->getResults()))
+    if (preservedProducerResults.count(index))
+      result.replacements[producerResult] = fusedOp->getResult(resultNum++);
+  for (auto consumerResult : consumer->getResults())
+    result.replacements[consumerResult] = fusedOp->getResult(resultNum++);
+  return result;
 }
 
 namespace {
@@ -410,13 +422,19 @@ public:
       if (!controlFn(&opOperand))
         continue;
 
-      FailureOr<Operation *> fusedOp = fuseElementwiseOps(rewriter, &opOperand);
-      if (succeeded(fusedOp)) {
-        auto replacements =
-            fusedOp.value()->getResults().take_back(genericOp.getNumResults());
-        rewriter.replaceOp(genericOp, replacements);
-        return success();
+      FailureOr<ElementwiseOpFusionResult> fusionResult =
+          fuseElementwiseOps(rewriter, &opOperand);
+      if (failed(fusionResult))
+        return rewriter.notifyMatchFailure(genericOp, "fusion failed");
+      Operation *producer = opOperand.get().getDefiningOp();
+      for (auto [origVal, replacement] : fusionResult->replacements) {
+        rewriter.replaceUseIf(origVal, replacement, [&](OpOperand &use) {
+          // Only replace consumer uses.
+          return use.get().getDefiningOp() != producer;
+        });
       }
+      rewriter.eraseOp(genericOp);
+      return success();
     }
     return failure();
   }
@@ -712,7 +730,7 @@ static void updateExpandedGenericOpRegion(PatternRewriter &rewriter,
 /// Implements the fusion of a tensor.collapse_shape or a tensor.expand_shape op
 /// and a generic op as explained in `isFusableWithReshapeByExpansion`. Assumes
 /// that those conditions have been satisfied.
-static Optional<SmallVector<Value>>
+static std::optional<SmallVector<Value>>
 fuseWithReshapeByExpansion(GenericOp genericOp, Operation *reshapeOp,
                            OpOperand *fusableOpOperand,
                            PatternRewriter &rewriter) {
@@ -875,7 +893,7 @@ public:
           (!controlFoldingReshapes(opOperand)))
         continue;
 
-      Optional<SmallVector<Value>> replacementValues =
+      std::optional<SmallVector<Value>> replacementValues =
           fuseWithReshapeByExpansion(genericOp, reshapeOp, opOperand, rewriter);
       if (!replacementValues)
         return failure();
@@ -927,9 +945,11 @@ struct FoldReshapeWithGenericOpByExpansion
                                          "fusion blocked by control function");
     }
 
-    Optional<SmallVector<Value>> replacementValues = fuseWithReshapeByExpansion(
-        producer, reshapeOp,
-        producer.getDpsInitOperand(producerResult.getResultNumber()), rewriter);
+    std::optional<SmallVector<Value>> replacementValues =
+        fuseWithReshapeByExpansion(
+            producer, reshapeOp,
+            producer.getDpsInitOperand(producerResult.getResultNumber()),
+            rewriter);
     if (!replacementValues) {
       return rewriter.notifyMatchFailure(reshapeOp,
                                          "fusion by expansion failed");
@@ -1538,7 +1558,7 @@ public:
         continue;
       }
 
-      Optional<SmallVector<Value>> replacements =
+      std::optional<SmallVector<Value>> replacements =
           collapseGenericOpIterationDims(genericOp, collapsableIterationDims,
                                          rewriter);
       if (!replacements) {
@@ -1572,8 +1592,9 @@ public:
     if (collapsableIterationDims.empty())
       return failure();
 
-    Optional<SmallVector<Value>> replacements = collapseGenericOpIterationDims(
-        genericOp, collapsableIterationDims, rewriter);
+    std::optional<SmallVector<Value>> replacements =
+        collapseGenericOpIterationDims(genericOp, collapsableIterationDims,
+                                       rewriter);
     if (!replacements) {
       return rewriter.notifyMatchFailure(genericOp,
                                          "failed to collapse dimensions");
@@ -1684,7 +1705,7 @@ public:
       // scalar constant.
       Region &region = genericOp->getRegion(0);
       Block &entryBlock = *region.begin();
-      BlockAndValueMapping mapping;
+      IRMapping mapping;
       mapping.map(entryBlock.getArgument(opOperand->getOperandNumber()),
                   scalarConstant);
       Region &fusedRegion = fusedOp->getRegion(0);
@@ -1863,8 +1884,7 @@ struct LinalgElementwiseOpFusionPass
     // Use TopDownTraversal for compile time reasons
     GreedyRewriteConfig grc;
     grc.useTopDownTraversal = true;
-    (void)applyPatternsAndFoldGreedily(op->getRegions(), std::move(patterns),
-                                       grc);
+    (void)applyPatternsAndFoldGreedily(op, std::move(patterns), grc);
   }
 };
 

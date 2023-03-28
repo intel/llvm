@@ -68,6 +68,17 @@ add_gen_header(
     .llvm-libc-types.float_t
 )
 
+# TODO: This should be conditional on POSIX networking being included.
+file(MAKE_DIRECTORY "arpa")
+
+add_gen_header(
+  arpa_inet
+  DEF_FILE arpa/inet.h.def
+  GEN_HDR arpa/inet.h
+  DEPENDS
+    .llvm_libc_common_h
+)
+
 add_gen_header(
   assert
   DEF_FILE assert.h.def
@@ -89,6 +100,16 @@ add_gen_header(
   string
   DEF_FILE string.h.def
   GEN_HDR string.h
+  DEPENDS
+    .llvm_libc_common_h
+    .llvm-libc-macros.null_macro
+    .llvm-libc-types.size_t
+)
+
+add_gen_header(
+  strings
+  DEF_FILE strings.h.def
+  GEN_HDR strings.h
   DEPENDS
     .llvm_libc_common_h
     .llvm-libc-types.size_t
@@ -128,11 +149,9 @@ add_gen_header(
 add_gen_header(
   errno
   DEF_FILE errno.h.def
-  PARAMS
-    platform_errno=../config/${LIBC_TARGET_OS}/errno.h.in
   GEN_HDR errno.h
-  DATA_FILES
-    ../config/${LIBC_TARGET_OS}/errno.h.in
+  DEPENDS
+    .llvm-libc-macros.generic_error_number_macros
 )
 
 add_gen_header(

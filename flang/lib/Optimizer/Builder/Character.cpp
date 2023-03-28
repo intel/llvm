@@ -422,7 +422,7 @@ void fir::factory::CharacterExprHelper::createAssign(
       (lhsCstLen && rhsCstLen && *lhsCstLen == *rhsCstLen) ||
       (rhs.getLen() == lhs.getLen());
 
-  if (compileTimeSameLength && *lhsCstLen == 1) {
+  if (compileTimeSameLength && lhsCstLen && *lhsCstLen == 1) {
     createLengthOneAssign(lhs, rhs);
     return;
   }
@@ -473,6 +473,17 @@ fir::CharBoxValue fir::factory::CharacterExprHelper::createConcatenate(
   return temp;
 }
 
+mlir::Value fir::factory::CharacterExprHelper::genSubstringBase(
+    mlir::Value stringRawAddr, mlir::Value lowerBound,
+    mlir::Type substringAddrType, mlir::Value one) {
+  if (!one)
+    one = builder.createIntegerConstant(loc, lowerBound.getType(), 1);
+  auto offset =
+      builder.create<mlir::arith::SubIOp>(loc, lowerBound, one).getResult();
+  auto addr = createElementAddr(stringRawAddr, offset);
+  return builder.createConvert(loc, substringAddrType, addr);
+}
+
 fir::CharBoxValue fir::factory::CharacterExprHelper::createSubstring(
     const fir::CharBoxValue &box, llvm::ArrayRef<mlir::Value> bounds) {
   // Constant need to be materialize in memory to use fir.coordinate_of.
@@ -488,14 +499,12 @@ fir::CharBoxValue fir::factory::CharacterExprHelper::createSubstring(
         builder.createConvert(loc, builder.getCharacterLengthType(), bound));
   auto lowerBound = castBounds[0];
   // FIR CoordinateOp is zero based but Fortran substring are one based.
-  auto one = builder.createIntegerConstant(loc, lowerBound.getType(), 1);
-  auto offset =
-      builder.create<mlir::arith::SubIOp>(loc, lowerBound, one).getResult();
-  auto addr = createElementAddr(box.getBuffer(), offset);
   auto kind = getCharacterKind(box.getBuffer().getType());
   auto charTy = fir::CharacterType::getUnknownLen(builder.getContext(), kind);
   auto resultType = builder.getRefType(charTy);
-  auto substringRef = builder.createConvert(loc, resultType, addr);
+  auto one = builder.createIntegerConstant(loc, lowerBound.getType(), 1);
+  auto substringRef =
+      genSubstringBase(box.getBuffer(), lowerBound, resultType, one);
 
   // Compute the length.
   mlir::Value substringLen;
@@ -701,15 +710,17 @@ mlir::Value fir::factory::CharacterExprHelper::getLength(mlir::Value memref) {
 std::pair<mlir::Value, mlir::Value>
 fir::factory::extractCharacterProcedureTuple(fir::FirOpBuilder &builder,
                                              mlir::Location loc,
-                                             mlir::Value tuple) {
+                                             mlir::Value tuple,
+                                             bool openBoxProc) {
   mlir::TupleType tupleType = tuple.getType().cast<mlir::TupleType>();
   mlir::Value addr = builder.create<fir::ExtractValueOp>(
       loc, tupleType.getType(0), tuple,
       builder.getArrayAttr(
           {builder.getIntegerAttr(builder.getIndexType(), 0)}));
   mlir::Value proc = [&]() -> mlir::Value {
-    if (auto addrTy = addr.getType().dyn_cast<fir::BoxProcType>())
-      return builder.create<fir::BoxAddrOp>(loc, addrTy.getEleTy(), addr);
+    if (openBoxProc)
+      if (auto addrTy = addr.getType().dyn_cast<fir::BoxProcType>())
+        return builder.create<fir::BoxAddrOp>(loc, addrTy.getEleTy(), addr);
     return addr;
   }();
   mlir::Value len = builder.create<fir::ExtractValueOp>(

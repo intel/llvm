@@ -1125,6 +1125,12 @@ void Sema::CheckCompletedCoroutineBody(FunctionDecl *FD, Stmt *&Body) {
     Diag(Fn->FirstCoroutineStmtLoc, diag::note_declared_coroutine_here)
             << Fn->getFirstCoroutineStmtKeyword();
   }
+
+  // Coroutines will get splitted into pieces. The GNU address of label
+  // extension wouldn't be meaningful in coroutines.
+  for (AddrLabelExpr *ALE : Fn->AddrLabels)
+    Diag(ALE->getBeginLoc(), diag::err_coro_invalid_addr_of_label);
+
   CoroutineStmtBuilder Builder(*this, *FD, *Fn, Body);
   if (Builder.isInvalid() || !Builder.buildStatements())
     return FD->setInvalidDecl();
@@ -1556,7 +1562,7 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   const auto *OpDeleteType =
       OpDeleteQualType.getTypePtr()->castAs<FunctionProtoType>();
   if (OpDeleteType->getNumParams() > DeleteArgs.size() &&
-      S.getASTContext().hasSameType(
+      S.getASTContext().hasSameUnqualifiedType(
           OpDeleteType->getParamType(DeleteArgs.size()), FrameSize->getType()))
     DeleteArgs.push_back(FrameSize);
 
@@ -1573,7 +1579,7 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   // So we are not forced to pass alignment to the deallocation function.
   if (S.getLangOpts().CoroAlignedAllocation &&
       OpDeleteType->getNumParams() > DeleteArgs.size() &&
-      S.getASTContext().hasSameType(
+      S.getASTContext().hasSameUnqualifiedType(
           OpDeleteType->getParamType(DeleteArgs.size()),
           FrameAlignment->getType()))
     DeleteArgs.push_back(FrameAlignment);

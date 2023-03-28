@@ -25,7 +25,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/EquivalenceClasses.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -600,7 +599,7 @@ private:
                              : LLVMLoopDistributeFollowupCoincident});
     if (PartitionID) {
       Loop *NewLoop = Part->getDistributedLoop();
-      NewLoop->setLoopID(PartitionID.value());
+      NewLoop->setLoopID(*PartitionID);
     }
   }
 };
@@ -820,12 +819,10 @@ public:
       // The unversioned loop will not be changed, so we inherit all attributes
       // from the original loop, but remove the loop distribution metadata to
       // avoid to distribute it again.
-      MDNode *UnversionedLoopID =
-          makeFollowupLoopID(OrigLoopID,
-                             {LLVMLoopDistributeFollowupAll,
-                              LLVMLoopDistributeFollowupFallback},
-                             "llvm.loop.distribute.", true)
-              .value();
+      MDNode *UnversionedLoopID = *makeFollowupLoopID(
+          OrigLoopID,
+          {LLVMLoopDistributeFollowupAll, LLVMLoopDistributeFollowupFallback},
+          "llvm.loop.distribute.", true);
       LVer.getNonVersionedLoop()->setLoopID(UnversionedLoopID);
     }
 
@@ -892,7 +889,7 @@ public:
   /// If the optional has a value, it indicates whether distribution was forced
   /// to be enabled (true) or disabled (false).  If the optional has no value
   /// distribution was not forced either way.
-  const Optional<bool> &isForced() const { return IsForced; }
+  const std::optional<bool> &isForced() const { return IsForced; }
 
 private:
   /// Filter out checks between pointers from the same partition.
@@ -936,7 +933,7 @@ private:
   /// Check whether the loop metadata is forcing distribution to be
   /// enabled/disabled.
   void setForced() {
-    Optional<const MDOperand *> Value =
+    std::optional<const MDOperand *> Value =
         findStringMetadataForLoop(L, "llvm.loop.distribute.enable");
     if (!Value)
       return;
@@ -963,7 +960,7 @@ private:
   /// If the optional has a value, it indicates whether distribution was forced
   /// to be enabled (true) or disabled (false).  If the optional has no value
   /// distribution was not forced either way.
-  Optional<bool> IsForced;
+  std::optional<bool> IsForced;
 };
 
 } // end anonymous namespace
@@ -998,45 +995,6 @@ static bool runImpl(Function &F, LoopInfo *LI, DominatorTree *DT,
   return Changed;
 }
 
-namespace {
-
-/// The pass class.
-class LoopDistributeLegacy : public FunctionPass {
-public:
-  static char ID;
-
-  LoopDistributeLegacy() : FunctionPass(ID) {
-    // The default is set by the caller.
-    initializeLoopDistributeLegacyPass(*PassRegistry::getPassRegistry());
-  }
-
-  bool runOnFunction(Function &F) override {
-    if (skipFunction(F))
-      return false;
-
-    auto *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-    auto *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-    auto *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-    auto *ORE = &getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE();
-    auto &LAIs = getAnalysis<LoopAccessLegacyAnalysis>().getLAIs();
-
-    return runImpl(F, LI, DT, SE, ORE, LAIs);
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<ScalarEvolutionWrapperPass>();
-    AU.addRequired<LoopInfoWrapperPass>();
-    AU.addPreserved<LoopInfoWrapperPass>();
-    AU.addRequired<LoopAccessLegacyAnalysis>();
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addPreserved<DominatorTreeWrapperPass>();
-    AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
-    AU.addPreserved<GlobalsAAWrapperPass>();
-  }
-};
-
-} // end anonymous namespace
-
 PreservedAnalyses LoopDistributePass::run(Function &F,
                                           FunctionAnalysisManager &AM) {
   auto &LI = AM.getResult<LoopAnalysis>(F);
@@ -1053,18 +1011,3 @@ PreservedAnalyses LoopDistributePass::run(Function &F,
   PA.preserve<DominatorTreeAnalysis>();
   return PA;
 }
-
-char LoopDistributeLegacy::ID;
-
-static const char ldist_name[] = "Loop Distribution";
-
-INITIALIZE_PASS_BEGIN(LoopDistributeLegacy, LDIST_NAME, ldist_name, false,
-                      false)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LoopAccessLegacyAnalysis)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
-INITIALIZE_PASS_END(LoopDistributeLegacy, LDIST_NAME, ldist_name, false, false)
-
-FunctionPass *llvm::createLoopDistributePass() { return new LoopDistributeLegacy(); }

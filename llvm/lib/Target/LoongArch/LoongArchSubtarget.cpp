@@ -12,6 +12,7 @@
 
 #include "LoongArchSubtarget.h"
 #include "LoongArchFrameLowering.h"
+#include "MCTargetDesc/LoongArchBaseInfo.h"
 
 using namespace llvm;
 
@@ -39,8 +40,17 @@ LoongArchSubtarget &LoongArchSubtarget::initializeSubtargetDependencies(
     GRLen = 64;
   }
 
-  // TODO: ILP32{S,F} LP64{S,F}
-  TargetABI = Is64Bit ? LoongArchABI::ABI_LP64D : LoongArchABI::ABI_ILP32D;
+  if (HasLA32 == HasLA64)
+    report_fatal_error("Please use one feature of 32bit and 64bit.");
+
+  if (Is64Bit && HasLA32)
+    report_fatal_error("Feature 32bit should be used for loongarch32 target.");
+
+  if (!Is64Bit && HasLA64)
+    report_fatal_error("Feature 64bit should be used for loongarch64 target.");
+
+  TargetABI = LoongArchABI::computeTargetABI(TT, ABIName);
+
   return *this;
 }
 

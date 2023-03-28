@@ -78,8 +78,11 @@ std::optional<DataRef> ExtractSubstringBase(const Substring &substring) {
 // IsVariable()
 
 auto IsVariableHelper::operator()(const Symbol &symbol) const -> Result {
-  const Symbol &root{GetAssociationRoot(symbol)};
-  return !IsNamedConstant(root) && root.has<semantics::ObjectEntityDetails>();
+  // ASSOCIATE(x => expr) -- x counts as a variable, but undefinable
+  const Symbol &ultimate{symbol.GetUltimate()};
+  return !IsNamedConstant(ultimate) &&
+      (ultimate.has<semantics::ObjectEntityDetails>() ||
+          ultimate.has<semantics::AssocEntityDetails>());
 }
 auto IsVariableHelper::operator()(const Component &x) const -> Result {
   const Symbol &comp{x.GetLastSymbol()};
@@ -737,6 +740,18 @@ bool IsFunction(const Expr<SomeType> &expr) {
   return designator && designator->GetType().has_value();
 }
 
+bool IsProcedurePointer(const Expr<SomeType> &expr) {
+  return common::visit(common::visitors{
+                           [](const NullPointer &) { return true; },
+                           [](const ProcedureRef &) { return false; },
+                           [&](const auto &) {
+                             const Symbol *last{GetLastSymbol(expr)};
+                             return last && IsProcedurePointer(*last);
+                           },
+                       },
+      expr.u);
+}
+
 bool IsProcedurePointerTarget(const Expr<SomeType> &expr) {
   return common::visit(common::visitors{
                            [](const NullPointer &) { return true; },
@@ -1200,6 +1215,18 @@ const Symbol &ResolveAssociations(const Symbol &original) {
   return symbol;
 }
 
+const Symbol &ResolveAssociationsExceptSelectRank(const Symbol &original) {
+  const Symbol &symbol{original.GetUltimate()};
+  if (const auto *details{symbol.detailsIf<AssocEntityDetails>()}) {
+    if (!details->rank()) {
+      if (const Symbol * nested{UnwrapWholeSymbolDataRef(details->expr())}) {
+        return ResolveAssociations(*nested);
+      }
+    }
+  }
+  return symbol;
+}
+
 // When a construct association maps to a variable, and that variable
 // is not an array with a vector-valued subscript, return the base
 // Symbol of that variable, else nullptr.  Descends into other construct
@@ -1239,24 +1266,19 @@ const Symbol *GetMainEntry(const Symbol *symbol) {
 }
 
 bool IsVariableName(const Symbol &original) {
-  const Symbol &symbol{ResolveAssociations(original)};
-  if (symbol.has<ObjectEntityDetails>()) {
-    return !IsNamedConstant(symbol);
-  } else if (const auto *assoc{symbol.detailsIf<AssocEntityDetails>()}) {
-    const auto &expr{assoc->expr()};
-    return expr && IsVariable(*expr) && !HasVectorSubscript(*expr);
-  } else {
-    return false;
-  }
+  const Symbol &ultimate{original.GetUltimate()};
+  return !IsNamedConstant(ultimate) &&
+      (ultimate.has<ObjectEntityDetails>() ||
+          ultimate.has<AssocEntityDetails>());
 }
 
 bool IsPureProcedure(const Symbol &original) {
   // An ENTRY is pure if its containing subprogram is
   const Symbol &symbol{DEREF(GetMainEntry(&original.GetUltimate()))};
   if (const auto *procDetails{symbol.detailsIf<ProcEntityDetails>()}) {
-    if (const Symbol * procInterface{procDetails->interface().symbol()}) {
+    if (procDetails->procInterface()) {
       // procedure with a pure interface
-      return IsPureProcedure(*procInterface);
+      return IsPureProcedure(*procDetails->procInterface());
     }
   } else if (const auto *details{symbol.detailsIf<ProcBindingDetails>()}) {
     return IsPureProcedure(details->symbol());
@@ -1295,7 +1317,7 @@ bool IsElementalProcedure(const Symbol &original) {
   // An ENTRY is elemental if its containing subprogram is
   const Symbol &symbol{DEREF(GetMainEntry(&original.GetUltimate()))};
   if (const auto *procDetails{symbol.detailsIf<ProcEntityDetails>()}) {
-    if (const Symbol * procInterface{procDetails->interface().symbol()}) {
+    if (const Symbol * procInterface{procDetails->procInterface()}) {
       // procedure with an elemental interface, ignoring the elemental
       // aspect of intrinsic functions
       return !procInterface->attrs().test(Attr::INTRINSIC) &&
@@ -1318,9 +1340,8 @@ bool IsFunction(const Symbol &symbol) {
               common::visitors{
                   [](const SubprogramDetails &x) { return x.isFunction(); },
                   [](const ProcEntityDetails &x) {
-                    const auto &ifc{x.interface()};
-                    return ifc.type() ||
-                        (ifc.symbol() && IsFunction(*ifc.symbol()));
+                    const Symbol *ifc{x.procInterface()};
+                    return x.type() || (ifc && IsFunction(*ifc));
                   },
                   [](const ProcBindingDetails &x) {
                     return IsFunction(x.symbol());
@@ -1618,7 +1639,7 @@ static const Symbol *FindFunctionResult(
                          return subp.isFunction() ? &subp.result() : nullptr;
                        },
           [&](const ProcEntityDetails &proc) {
-            const Symbol *iface{proc.interface().symbol()};
+            const Symbol *iface{proc.procInterface()};
             return iface ? FindFunctionResult(*iface, seen) : nullptr;
           },
           [&](const ProcBindingDetails &binding) {

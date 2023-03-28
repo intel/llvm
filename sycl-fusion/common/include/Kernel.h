@@ -10,18 +10,20 @@
 #define SYCL_FUSION_COMMON_KERNEL_H
 
 #include <algorithm>
+#include <array>
+#include <cassert>
 #include <string>
 #include <vector>
 
 namespace jit_compiler {
 
-using BinaryAddress = const unsigned char *;
+using BinaryAddress = const uint8_t *;
 
 ///
 /// Enumerate possible kinds of parameters.
 /// 1:1 correspondence with the definition in kernel_desc.hpp in the DPC++ SYCL
 /// runtime.
-enum class ParameterKind : unsigned {
+enum class ParameterKind : uint32_t {
   Accessor = 0,
   StdLayout = 1,
   Sampler = 2,
@@ -32,7 +34,7 @@ enum class ParameterKind : unsigned {
 };
 
 /// Different binary formats supported as input to the JIT compiler.
-enum class BinaryFormat { INVALID, LLVM, SPIRV };
+enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV };
 
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.
@@ -40,11 +42,11 @@ struct SYCLKernelBinaryInfo {
 
   BinaryFormat Format = BinaryFormat::INVALID;
 
-  size_t AddressBits = 0;
+  uint64_t AddressBits = 0;
 
   BinaryAddress BinaryStart = nullptr;
 
-  size_t BinarySize = 0;
+  uint64_t BinarySize = 0;
 };
 
 ///
@@ -61,7 +63,7 @@ struct SYCLKernelAttribute {
   AttributeValueList Values;
 };
 
-enum ArgUsage : unsigned char {
+enum ArgUsage : uint8_t {
   // Used to indicate that an argument is not used by the kernel
   Unused = 0,
   // Used to indicate that an argument is used by the kernel
@@ -97,6 +99,114 @@ struct SYCLArgumentDescriptor {
 /// List of SYCL/OpenCL kernel attributes.
 using AttributeList = std::vector<SYCLKernelAttribute>;
 
+using Indices = std::array<size_t, 3>;
+
+///
+/// Class to model SYCL nd_range
+class NDRange {
+public:
+  constexpr static Indices AllZeros{0, 0, 0};
+
+  ///
+  /// Return the product of each index in an indices array.
+  constexpr static size_t linearize(const jit_compiler::Indices &I) {
+    return I[0] * I[1] * I[2];
+  }
+
+  NDRange() : NDRange{1, {1, 1, 1}} {}
+
+  NDRange(int Dimensions, const Indices &GlobalSize,
+          const Indices &LocalSize = {1, 1, 1},
+          const Indices &Offset = {0, 0, 0})
+      : Dimensions{Dimensions},
+        GlobalSize{GlobalSize}, LocalSize{LocalSize}, Offset{Offset} {
+#ifndef NDEBUG
+    const auto CheckDim = [Dimensions](const Indices &Range) {
+      return std::all_of(Range.begin() + Dimensions, Range.end(),
+                         [](auto D) { return D == 1; });
+    };
+    const auto CheckOffsetDim = [Dimensions](const Indices &Offset) {
+      return std::all_of(Offset.begin() + Dimensions, Offset.end(),
+
+                         [](auto D) { return D == 0; });
+    };
+#endif // NDEBUG
+    assert(CheckDim(GlobalSize) &&
+           "Invalid global range for number of dimensions");
+    assert(
+        (CheckDim(LocalSize) || std::all_of(LocalSize.begin(), LocalSize.end(),
+                                            [](auto D) { return D == 0; })) &&
+        "Invalid local range for number of dimensions");
+    assert(CheckOffsetDim(Offset) && "Invalid offset for number of dimensions");
+  }
+
+  constexpr const Indices &getGlobalSize() const { return GlobalSize; }
+  constexpr const Indices &getLocalSize() const { return LocalSize; }
+  constexpr const Indices &getOffset() const { return Offset; }
+  constexpr int getDimensions() const { return Dimensions; }
+
+  bool hasSpecificLocalSize() const { return LocalSize != AllZeros; }
+
+  friend constexpr bool operator==(const NDRange &LHS, const NDRange &RHS) {
+    return LHS.Dimensions == RHS.Dimensions &&
+           LHS.GlobalSize == RHS.GlobalSize &&
+           (!LHS.hasSpecificLocalSize() || !RHS.hasSpecificLocalSize() ||
+            LHS.LocalSize == RHS.LocalSize) &&
+           LHS.Offset == RHS.Offset;
+  }
+
+  friend constexpr bool operator!=(const NDRange &LHS, const NDRange &RHS) {
+    return !(LHS == RHS);
+  }
+
+  friend bool operator<(const NDRange &LHS, const NDRange &RHS) {
+    if (LHS.Dimensions < RHS.Dimensions) {
+      return true;
+    }
+    if (LHS.Dimensions > RHS.Dimensions) {
+      return false;
+    }
+
+    if (LHS.GlobalSize < RHS.GlobalSize) {
+      return true;
+    }
+    if (LHS.GlobalSize > RHS.GlobalSize) {
+      return false;
+    }
+
+    if (!LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
+      return true;
+    }
+    if (LHS.hasSpecificLocalSize() && !RHS.hasSpecificLocalSize()) {
+      return false;
+    }
+    if (LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
+      if (LHS.LocalSize < RHS.LocalSize) {
+        return true;
+      }
+      if (LHS.LocalSize > RHS.LocalSize) {
+        return false;
+      }
+    }
+
+    return LHS.Offset < RHS.Offset;
+  }
+
+  friend bool operator>(const NDRange &LHS, const NDRange &RHS) {
+    return RHS < LHS;
+  }
+
+private:
+  /** @brief The number of dimensions. */
+  int Dimensions;
+  /** @brief The local range. */
+  Indices GlobalSize;
+  /** @brief The local range. */
+  Indices LocalSize;
+  /** @brief The offet. */
+  Indices Offset;
+};
+
 /// Information about a kernel from DPC++.
 struct SYCLKernelInfo {
 
@@ -106,18 +216,21 @@ struct SYCLKernelInfo {
 
   AttributeList Attributes;
 
+  NDRange NDR;
+
   SYCLKernelBinaryInfo BinaryInfo;
 
   //// Explicit constructor for compatibility with LLVM YAML I/O.
-  SYCLKernelInfo() : Name{}, Args{}, Attributes{}, BinaryInfo{} {}
+  SYCLKernelInfo() : Name{}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
 
   SYCLKernelInfo(const std::string &KernelName,
-                 const SYCLArgumentDescriptor &ArgDesc,
+                 const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
                  const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, Args{ArgDesc}, Attributes{}, BinaryInfo{BinInfo} {}
+      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
+                                                                     BinInfo} {}
 
   explicit SYCLKernelInfo(const std::string &KernelName)
-      : Name{KernelName}, Args{}, Attributes{}, BinaryInfo{} {}
+      : Name{KernelName}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
 };
 
 ///

@@ -25,7 +25,6 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
-#include "mlir/IR/SubElementInterfaces.h"
 #include "mlir/IR/Verifier.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
@@ -46,6 +45,7 @@
 #include "llvm/Support/Threading.h"
 
 #include <tuple>
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -251,7 +251,7 @@ bool OpPrintingFlags::shouldElideElementsAttr(ElementsAttr attr) const {
 }
 
 /// Return the size limit for printing large ElementsAttr.
-Optional<int64_t> OpPrintingFlags::getLargeElementsAttrLimit() const {
+std::optional<int64_t> OpPrintingFlags::getLargeElementsAttrLimit() const {
   return elementsAttrElementLimit;
 }
 
@@ -531,7 +531,7 @@ private:
 
     /// The alias for the attribute or type, or std::nullopt if the value has no
     /// alias.
-    Optional<StringRef> alias;
+    std::optional<StringRef> alias;
     /// The alias depth of this attribute or type, i.e. an indication of the
     /// relative ordering of when to print this alias.
     unsigned aliasDepth : 30;
@@ -602,12 +602,8 @@ public:
 
     // If requested, always print the generic form.
     if (!printerFlags.shouldPrintGenericOpForm()) {
-      // Check to see if this is a known operation.  If so, use the registered
-      // custom printer hook.
-      if (auto opInfo = op->getRegisteredInfo()) {
-        opInfo->printAssembly(op, *this, /*defaultDialect=*/"");
-        return;
-      }
+      op->getName().printAssembly(op, *this, /*defaultDialect=*/"");
+      return;
     }
 
     // Otherwise print with the generic assembly form.
@@ -844,13 +840,11 @@ private:
     }
 
     // For most builtin types, we can simply walk the sub elements.
-    if (auto subElementInterface = dyn_cast<SubElementTypeInterface>(type)) {
-      auto visitFn = [&](auto element) {
-        if (element)
-          (void)printAlias(element);
-      };
-      subElementInterface.walkImmediateSubElements(visitFn, visitFn);
-    }
+    auto visitFn = [&](auto element) {
+      if (element)
+        (void)printAlias(element);
+    };
+    type.walkImmediateSubElements(visitFn, visitFn);
   }
 
   /// Consider the given type to be printed for an alias.
@@ -1217,7 +1211,7 @@ private:
   /// 'lookupResultNo'. 'lookupResultNo' is only filled in if the result group
   /// has more than 1 result.
   void getResultIDAndNumber(OpResult result, Value &lookupValue,
-                            Optional<int> &lookupResultNo) const;
+                            std::optional<int> &lookupResultNo) const;
 
   /// Set a special value name for the given value.
   void setValueName(Value value, StringRef name);
@@ -1329,7 +1323,7 @@ void SSANameState::printValueID(Value value, bool printResultNo,
     return;
   }
 
-  Optional<int> resultNo;
+  std::optional<int> resultNo;
   auto lookupValue = value;
 
   // If this is an operation result, collect the head lookup value of the result
@@ -1353,7 +1347,7 @@ void SSANameState::printValueID(Value value, bool printResultNo,
   }
 
   if (resultNo && printResultNo)
-    stream << '#' << resultNo;
+    stream << '#' << *resultNo;
 }
 
 void SSANameState::printOperationID(Operation *op, raw_ostream &stream) const {
@@ -1517,8 +1511,9 @@ void SSANameState::numberValuesInOp(Operation &op) {
   }
 }
 
-void SSANameState::getResultIDAndNumber(OpResult result, Value &lookupValue,
-                                        Optional<int> &lookupResultNo) const {
+void SSANameState::getResultIDAndNumber(
+    OpResult result, Value &lookupValue,
+    std::optional<int> &lookupResultNo) const {
   Operation *owner = result.getOwner();
   if (owner->getNumResults() == 1)
     return;
@@ -2047,7 +2042,10 @@ static void printKeywordOrString(StringRef keyword, raw_ostream &os) {
 /// represented as a string prefixed with '@'. The reference is surrounded with
 /// ""'s and escaped if it has any special or non-printable characters in it.
 static void printSymbolReference(StringRef symbolRef, raw_ostream &os) {
-  assert(!symbolRef.empty() && "expected valid symbol reference");
+  if (symbolRef.empty()) {
+    os << "@<<INVALID EMPTY SYMBOL>>";
+    return;
+  }
   os << '@';
   printKeywordOrString(symbolRef, os);
 }
@@ -2412,6 +2410,8 @@ void AsmPrinter::Impl::printTypeImpl(Type type) {
       .Case<IndexType>([&](Type) { os << "index"; })
       .Case<Float8E5M2Type>([&](Type) { os << "f8E5M2"; })
       .Case<Float8E4M3FNType>([&](Type) { os << "f8E4M3FN"; })
+      .Case<Float8E5M2FNUZType>([&](Type) { os << "f8E5M2FNUZ"; })
+      .Case<Float8E4M3FNUZType>([&](Type) { os << "f8E4M3FNUZ"; })
       .Case<BFloat16Type>([&](Type) { os << "bf16"; })
       .Case<Float16Type>([&](Type) { os << "f16"; })
       .Case<Float32Type>([&](Type) { os << "f32"; })
@@ -3556,7 +3556,10 @@ void Type::print(raw_ostream &os, AsmState &state) const {
   AsmPrinter::Impl(os, state.getImpl()).printType(*this);
 }
 
-void Type::dump() const { print(llvm::errs()); }
+void Type::dump() const {
+  print(llvm::errs());
+  llvm::errs() << "\n";
+}
 
 void AffineMap::dump() const {
   print(llvm::errs());

@@ -161,14 +161,12 @@ bool SIShrinkInstructions::shouldShrinkTrue16(MachineInstr &MI) const {
 
 bool SIShrinkInstructions::isKImmOperand(const MachineOperand &Src) const {
   return isInt<16>(Src.getImm()) &&
-    !TII->isInlineConstant(*Src.getParent(),
-                           Src.getParent()->getOperandNo(&Src));
+         !TII->isInlineConstant(*Src.getParent(), Src.getOperandNo());
 }
 
 bool SIShrinkInstructions::isKUImmOperand(const MachineOperand &Src) const {
   return isUInt<16>(Src.getImm()) &&
-    !TII->isInlineConstant(*Src.getParent(),
-                           Src.getParent()->getOperandNo(&Src));
+         !TII->isInlineConstant(*Src.getParent(), Src.getOperandNo());
 }
 
 bool SIShrinkInstructions::isKImmOrKUImmOperand(const MachineOperand &Src,
@@ -203,8 +201,9 @@ void SIShrinkInstructions::copyExtraImplicitOps(MachineInstr &NewMI,
                                                 MachineInstr &MI) const {
   MachineFunction &MF = *MI.getMF();
   for (unsigned i = MI.getDesc().getNumOperands() +
-         MI.getDesc().getNumImplicitUses() +
-         MI.getDesc().getNumImplicitDefs(), e = MI.getNumOperands();
+                    MI.getDesc().implicit_uses().size() +
+                    MI.getDesc().implicit_defs().size(),
+                e = MI.getNumOperands();
        i != e; ++i) {
     const MachineOperand &MO = MI.getOperand(i);
     if ((MO.isReg() && MO.isImplicit()) || MO.isRegMask())
@@ -496,7 +495,7 @@ bool SIShrinkInstructions::shrinkScalarLogicOp(MachineInstr &MI) const {
 
   if (Opc == AMDGPU::S_AND_B32) {
     if (isPowerOf2_32(~Imm)) {
-      NewImm = countTrailingOnes(Imm);
+      NewImm = llvm::countr_one(Imm);
       Opc = AMDGPU::S_BITSET0_B32;
     } else if (AMDGPU::isInlinableLiteral32(~Imm, ST->hasInv2PiInlineImm())) {
       NewImm = ~Imm;
@@ -504,7 +503,7 @@ bool SIShrinkInstructions::shrinkScalarLogicOp(MachineInstr &MI) const {
     }
   } else if (Opc == AMDGPU::S_OR_B32) {
     if (isPowerOf2_32(Imm)) {
-      NewImm = countTrailingZeros(Imm);
+      NewImm = llvm::countr_zero(Imm);
       Opc = AMDGPU::S_BITSET1_B32;
     } else if (AMDGPU::isInlinableLiteral32(~Imm, ST->hasInv2PiInlineImm())) {
       NewImm = ~Imm;
@@ -595,8 +594,9 @@ SIShrinkInstructions::getSubRegForIndex(Register Reg, unsigned Sub,
 void SIShrinkInstructions::dropInstructionKeepingImpDefs(
     MachineInstr &MI) const {
   for (unsigned i = MI.getDesc().getNumOperands() +
-         MI.getDesc().getNumImplicitUses() +
-         MI.getDesc().getNumImplicitDefs(), e = MI.getNumOperands();
+                    MI.getDesc().implicit_uses().size() +
+                    MI.getDesc().implicit_defs().size(),
+                e = MI.getNumOperands();
        i != e; ++i) {
     const MachineOperand &Op = MI.getOperand(i);
     if (!Op.isDef())

@@ -701,7 +701,15 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
                                            Info.EC.getKnownMinValue() *
                                            Info.NumVectors);
     }
-   case BuiltinType::Dependent:
+#define WASM_REF_TYPE(Name, MangledName, Id, SingletonId, AS)                  \
+  case BuiltinType::Id: {                                                      \
+    if (BuiltinType::Id == BuiltinType::WasmExternRef)                         \
+      ResultType = CGM.getTargetCodeGenInfo().getWasmExternrefReferenceType(); \
+    else                                                                       \
+      llvm_unreachable("Unexpected wasm reference builtin type!");             \
+  } break;
+#include "clang/Basic/WebAssemblyReferenceTypes.def"
+    case BuiltinType::Dependent:
 #define BUILTIN_TYPE(Id, SingletonId)
 #define PLACEHOLDER_TYPE(Id, SingletonId) \
     case BuiltinType::Id:
@@ -875,8 +883,8 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
         ResultType,
         llvm::ArrayType::get(CGM.Int8Ty, (atomicSize - valueSize) / 8)
       };
-      ResultType = llvm::StructType::get(getLLVMContext(),
-                                         llvm::makeArrayRef(elts));
+      ResultType =
+          llvm::StructType::get(getLLVMContext(), llvm::ArrayRef(elts));
     }
     break;
   }

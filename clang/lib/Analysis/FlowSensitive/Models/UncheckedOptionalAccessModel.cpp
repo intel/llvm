@@ -22,12 +22,15 @@
 #include "clang/Analysis/FlowSensitive/CFGMatchSwitch.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Analysis/FlowSensitive/NoopLattice.h"
+#include "clang/Analysis/FlowSensitive/StorageLocation.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -56,7 +59,7 @@ auto hasOptionalType() { return hasType(optionalOrAliasType()); }
 
 auto isOptionalMemberCallWithName(
     llvm::StringRef MemberName,
-    llvm::Optional<StatementMatcher> Ignorable = std::nullopt) {
+    const std::optional<StatementMatcher> &Ignorable = std::nullopt) {
   auto Exception = unless(Ignorable ? expr(anyOf(*Ignorable, cxxThisExpr()))
                                     : cxxThisExpr());
   return cxxMemberCallExpr(
@@ -66,7 +69,7 @@ auto isOptionalMemberCallWithName(
 
 auto isOptionalOperatorCallWithName(
     llvm::StringRef operator_name,
-    llvm::Optional<StatementMatcher> Ignorable = std::nullopt) {
+    const std::optional<StatementMatcher> &Ignorable = std::nullopt) {
   return cxxOperatorCallExpr(
       hasOverloadedOperatorName(operator_name),
       callee(cxxMethodDecl(ofClass(optionalClass()))),
@@ -100,8 +103,10 @@ auto inPlaceClass() {
 }
 
 auto isOptionalNulloptConstructor() {
-  return cxxConstructExpr(hasOptionalType(), argumentCountIs(1),
-                          hasArgument(0, hasNulloptType()));
+  return cxxConstructExpr(
+      hasOptionalType(),
+      hasDeclaration(cxxConstructorDecl(parameterCountIs(1),
+                                        hasParameter(0, hasNulloptType()))));
 }
 
 auto isOptionalInPlaceConstructor() {
@@ -438,12 +443,11 @@ void transferCallReturningOptional(const CallExpr *E,
       Loc, createOptionalValue(State.Env, State.Env.makeAtomicBoolValue()));
 }
 
-void assignOptionalValue(const Expr &E, LatticeTransferState &State,
+void assignOptionalValue(const Expr &E, Environment &Env,
                          BoolValue &HasValueVal) {
   if (auto *OptionalLoc =
-          State.Env.getStorageLocation(E, SkipPast::ReferenceThenPointer)) {
-    State.Env.setValue(*OptionalLoc,
-                       createOptionalValue(State.Env, HasValueVal));
+          Env.getStorageLocation(E, SkipPast::ReferenceThenPointer)) {
+    Env.setValue(*OptionalLoc, createOptionalValue(Env, HasValueVal));
   }
 }
 
@@ -453,6 +457,7 @@ void assignOptionalValue(const Expr &E, LatticeTransferState &State,
 BoolValue &valueOrConversionHasValue(const FunctionDecl &F, const Expr &E,
                                      const MatchFinder::MatchResult &MatchRes,
                                      LatticeTransferState &State) {
+  assert(F.getTemplateSpecializationArgs() != nullptr);
   assert(F.getTemplateSpecializationArgs()->size() > 0);
 
   const int TemplateParamOptionalWrappersCount = countOptionalWrappers(
@@ -479,7 +484,7 @@ void transferValueOrConversionConstructor(
     LatticeTransferState &State) {
   assert(E->getNumArgs() > 0);
 
-  assignOptionalValue(*E, State,
+  assignOptionalValue(*E, State.Env,
                       valueOrConversionHasValue(*E->getConstructor(),
                                                 *E->getArg(0), MatchRes,
                                                 State));
@@ -516,48 +521,54 @@ void transferNulloptAssignment(const CXXOperatorCallExpr *E,
   transferAssignment(E, State.Env.getBoolLiteralValue(false), State);
 }
 
-void transferSwap(const StorageLocation &OptionalLoc1,
-                  const StorageLocation &OptionalLoc2,
-                  LatticeTransferState &State) {
-  auto *OptionalVal1 = State.Env.getValue(OptionalLoc1);
-  assert(OptionalVal1 != nullptr);
+void transferSwap(const Expr &E1, SkipPast E1Skip, const Expr &E2,
+                  Environment &Env) {
+  // We account for cases where one or both of the optionals are not modeled,
+  // either lacking associated storage locations, or lacking values associated
+  // to such storage locations.
+  auto *Loc1 = Env.getStorageLocation(E1, E1Skip);
+  auto *Loc2 = Env.getStorageLocation(E2, SkipPast::Reference);
 
-  auto *OptionalVal2 = State.Env.getValue(OptionalLoc2);
-  assert(OptionalVal2 != nullptr);
+  if (Loc1 == nullptr) {
+    if (Loc2 != nullptr)
+      Env.setValue(*Loc2, createOptionalValue(Env, Env.makeAtomicBoolValue()));
+    return;
+  }
+  if (Loc2 == nullptr) {
+    Env.setValue(*Loc1, createOptionalValue(Env, Env.makeAtomicBoolValue()));
+    return;
+  }
 
-  State.Env.setValue(OptionalLoc1, *OptionalVal2);
-  State.Env.setValue(OptionalLoc2, *OptionalVal1);
+  // Both expressions have locations, though they may not have corresponding
+  // values. In that case, we create a fresh value at this point. Note that if
+  // two branches both do this, they will not share the value, but it at least
+  // allows for local reasoning about the value. To avoid the above, we would
+  // need *lazy* value allocation.
+  // FIXME: allocate values lazily, instead of just creating a fresh value.
+  auto *Val1 = Env.getValue(*Loc1);
+  if (Val1 == nullptr)
+    Val1 = &createOptionalValue(Env, Env.makeAtomicBoolValue());
+
+  auto *Val2 = Env.getValue(*Loc2);
+  if (Val2 == nullptr)
+    Val2 = &createOptionalValue(Env, Env.makeAtomicBoolValue());
+
+  Env.setValue(*Loc1, *Val2);
+  Env.setValue(*Loc2, *Val1);
 }
 
 void transferSwapCall(const CXXMemberCallExpr *E,
                       const MatchFinder::MatchResult &,
                       LatticeTransferState &State) {
   assert(E->getNumArgs() == 1);
-
-  auto *OptionalLoc1 = State.Env.getStorageLocation(
-      *E->getImplicitObjectArgument(), SkipPast::ReferenceThenPointer);
-  assert(OptionalLoc1 != nullptr);
-
-  auto *OptionalLoc2 =
-      State.Env.getStorageLocation(*E->getArg(0), SkipPast::Reference);
-  assert(OptionalLoc2 != nullptr);
-
-  transferSwap(*OptionalLoc1, *OptionalLoc2, State);
+  transferSwap(*E->getImplicitObjectArgument(), SkipPast::ReferenceThenPointer,
+               *E->getArg(0), State.Env);
 }
 
 void transferStdSwapCall(const CallExpr *E, const MatchFinder::MatchResult &,
                          LatticeTransferState &State) {
   assert(E->getNumArgs() == 2);
-
-  auto *OptionalLoc1 =
-      State.Env.getStorageLocation(*E->getArg(0), SkipPast::Reference);
-  assert(OptionalLoc1 != nullptr);
-
-  auto *OptionalLoc2 =
-      State.Env.getStorageLocation(*E->getArg(1), SkipPast::Reference);
-  assert(OptionalLoc2 != nullptr);
-
-  transferSwap(*OptionalLoc1, *OptionalLoc2, State);
+  transferSwap(*E->getArg(0), SkipPast::Reference, *E->getArg(1), State.Env);
 }
 
 BoolValue &evaluateEquality(Environment &Env, BoolValue &EqVal, BoolValue &LHS,
@@ -610,33 +621,33 @@ void transferOptionalAndValueCmp(const clang::CXXOperatorCallExpr *CmpExpr,
   }
 }
 
-llvm::Optional<StatementMatcher>
+std::optional<StatementMatcher>
 ignorableOptional(const UncheckedOptionalAccessModelOptions &Options) {
-  if (Options.IgnoreSmartPointerDereference)
-    return memberExpr(hasObjectExpression(ignoringParenImpCasts(
-        cxxOperatorCallExpr(anyOf(hasOverloadedOperatorName("->"),
-                                  hasOverloadedOperatorName("*")),
-                            unless(hasArgument(0, expr(hasOptionalType())))))));
+  if (Options.IgnoreSmartPointerDereference) {
+    auto SmartPtrUse = expr(ignoringParenImpCasts(cxxOperatorCallExpr(
+        anyOf(hasOverloadedOperatorName("->"), hasOverloadedOperatorName("*")),
+        unless(hasArgument(0, expr(hasOptionalType()))))));
+    return expr(
+        anyOf(SmartPtrUse, memberExpr(hasObjectExpression(SmartPtrUse))));
+  }
   return std::nullopt;
 }
 
 StatementMatcher
-valueCall(llvm::Optional<StatementMatcher> &IgnorableOptional) {
+valueCall(const std::optional<StatementMatcher> &IgnorableOptional) {
   return isOptionalMemberCallWithName("value", IgnorableOptional);
 }
 
 StatementMatcher
-valueOperatorCall(llvm::Optional<StatementMatcher> &IgnorableOptional) {
+valueOperatorCall(const std::optional<StatementMatcher> &IgnorableOptional) {
   return expr(anyOf(isOptionalOperatorCallWithName("*", IgnorableOptional),
                     isOptionalOperatorCallWithName("->", IgnorableOptional)));
 }
 
-auto buildTransferMatchSwitch(
-    const UncheckedOptionalAccessModelOptions &Options) {
+auto buildTransferMatchSwitch() {
   // FIXME: Evaluate the efficiency of matchers. If using matchers results in a
   // lot of duplicated work (e.g. string comparisons), consider providing APIs
   // that avoid it through memoization.
-  auto IgnorableOptional = ignorableOptional(Options);
   return CFGMatchSwitchBuilder<LatticeTransferState>()
       // Attach a symbolic "has_value" state to optional values that we see for
       // the first time.
@@ -647,34 +658,34 @@ auto buildTransferMatchSwitch(
       // make_optional
       .CaseOfCFGStmt<CallExpr>(isMakeOptionalCall(), transferMakeOptionalCall)
 
-      // optional::optional
+      // optional::optional (in place)
       .CaseOfCFGStmt<CXXConstructExpr>(
           isOptionalInPlaceConstructor(),
           [](const CXXConstructExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
-            assignOptionalValue(*E, State, State.Env.getBoolLiteralValue(true));
+            assignOptionalValue(*E, State.Env,
+                                State.Env.getBoolLiteralValue(true));
           })
+      // nullopt_t::nullopt_t
       .CaseOfCFGStmt<CXXConstructExpr>(
           isNulloptConstructor(),
           [](const CXXConstructExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
-            assignOptionalValue(*E, State,
+            assignOptionalValue(*E, State.Env,
                                 State.Env.getBoolLiteralValue(false));
           })
+      // optional::optional(nullopt_t)
       .CaseOfCFGStmt<CXXConstructExpr>(
           isOptionalNulloptConstructor(),
           [](const CXXConstructExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
-            // Shares a temporary with the underlying `nullopt_t` instance.
-            if (auto *OptionalLoc =
-                    State.Env.getStorageLocation(*E, SkipPast::None)) {
-              State.Env.setValue(
-                  *OptionalLoc,
-                  *State.Env.getValue(*E->getArg(0), SkipPast::None));
-            }
+            assignOptionalValue(*E, State.Env,
+                                State.Env.getBoolLiteralValue(false));
           })
+      // optional::optional (value/conversion)
       .CaseOfCFGStmt<CXXConstructExpr>(isOptionalValueOrConversionConstructor(),
                                        transferValueOrConversionConstructor)
+
 
       // optional::operator=
       .CaseOfCFGStmt<CXXOperatorCallExpr>(
@@ -685,14 +696,14 @@ auto buildTransferMatchSwitch(
 
       // optional::value
       .CaseOfCFGStmt<CXXMemberCallExpr>(
-          valueCall(IgnorableOptional),
+          valueCall(std::nullopt),
           [](const CXXMemberCallExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
             transferUnwrapCall(E, E->getImplicitObjectArgument(), State);
           })
 
       // optional::operator*, optional::operator->
-      .CaseOfCFGStmt<CallExpr>(valueOperatorCall(IgnorableOptional),
+      .CaseOfCFGStmt<CallExpr>(valueOperatorCall(std::nullopt),
                                [](const CallExpr *E,
                                   const MatchFinder::MatchResult &,
                                   LatticeTransferState &State) {
@@ -714,7 +725,7 @@ auto buildTransferMatchSwitch(
           isOptionalMemberCallWithName("emplace"),
           [](const CXXMemberCallExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
-            assignOptionalValue(*E->getImplicitObjectArgument(), State,
+            assignOptionalValue(*E->getImplicitObjectArgument(), State.Env,
                                 State.Env.getBoolLiteralValue(true));
           })
 
@@ -723,7 +734,7 @@ auto buildTransferMatchSwitch(
           isOptionalMemberCallWithName("reset"),
           [](const CXXMemberCallExpr *E, const MatchFinder::MatchResult &,
              LatticeTransferState &State) {
-            assignOptionalValue(*E->getImplicitObjectArgument(), State,
+            assignOptionalValue(*E->getImplicitObjectArgument(), State.Env,
                                 State.Env.getBoolLiteralValue(false));
           })
 
@@ -817,15 +828,14 @@ UncheckedOptionalAccessModel::optionalClassDecl() {
   return optionalClass();
 }
 
-UncheckedOptionalAccessModel::UncheckedOptionalAccessModel(
-    ASTContext &Ctx, UncheckedOptionalAccessModelOptions Options)
+UncheckedOptionalAccessModel::UncheckedOptionalAccessModel(ASTContext &Ctx)
     : DataflowAnalysis<UncheckedOptionalAccessModel, NoopLattice>(Ctx),
-      TransferMatchSwitch(buildTransferMatchSwitch(Options)) {}
+      TransferMatchSwitch(buildTransferMatchSwitch()) {}
 
-void UncheckedOptionalAccessModel::transfer(const CFGElement *Elt,
+void UncheckedOptionalAccessModel::transfer(const CFGElement &Elt,
                                             NoopLattice &L, Environment &Env) {
   LatticeTransferState State(L, Env);
-  TransferMatchSwitch(*Elt, getASTContext(), State);
+  TransferMatchSwitch(Elt, getASTContext(), State);
 }
 
 ComparisonResult UncheckedOptionalAccessModel::compare(
@@ -833,7 +843,14 @@ ComparisonResult UncheckedOptionalAccessModel::compare(
     const Value &Val2, const Environment &Env2) {
   if (!isOptionalType(Type))
     return ComparisonResult::Unknown;
-  return isNonEmptyOptional(Val1, Env1) == isNonEmptyOptional(Val2, Env2)
+  bool MustNonEmpty1 = isNonEmptyOptional(Val1, Env1);
+  bool MustNonEmpty2 = isNonEmptyOptional(Val2, Env2);
+  if (MustNonEmpty1 && MustNonEmpty2) return ComparisonResult::Same;
+  // If exactly one is true, then they're different, no reason to check whether
+  // they're definitely empty.
+  if (MustNonEmpty1 || MustNonEmpty2) return ComparisonResult::Different;
+  // Check if they're both definitely empty.
+  return (isEmptyOptional(Val1, Env1) && isEmptyOptional(Val2, Env2))
              ? ComparisonResult::Same
              : ComparisonResult::Different;
 }
@@ -846,14 +863,46 @@ bool UncheckedOptionalAccessModel::merge(QualType Type, const Value &Val1,
                                          Environment &MergedEnv) {
   if (!isOptionalType(Type))
     return true;
-
+  // FIXME: uses same approach as join for `BoolValues`. Requires non-const
+  // values, though, so will require updating the interface.
   auto &HasValueVal = MergedEnv.makeAtomicBoolValue();
-  if (isNonEmptyOptional(Val1, Env1) && isNonEmptyOptional(Val2, Env2))
+  bool MustNonEmpty1 = isNonEmptyOptional(Val1, Env1);
+  bool MustNonEmpty2 = isNonEmptyOptional(Val2, Env2);
+  if (MustNonEmpty1 && MustNonEmpty2)
     MergedEnv.addToFlowCondition(HasValueVal);
-  else if (isEmptyOptional(Val1, Env1) && isEmptyOptional(Val2, Env2))
+  else if (
+      // Only make the costly calls to `isEmptyOptional` if we got "unknown"
+      // (false) for both calls to `isNonEmptyOptional`.
+      !MustNonEmpty1 && !MustNonEmpty2 && isEmptyOptional(Val1, Env1) &&
+      isEmptyOptional(Val2, Env2))
     MergedEnv.addToFlowCondition(MergedEnv.makeNot(HasValueVal));
   setHasValue(MergedVal, HasValueVal);
   return true;
+}
+
+Value *UncheckedOptionalAccessModel::widen(QualType Type, Value &Prev,
+                                           const Environment &PrevEnv,
+                                           Value &Current,
+                                           Environment &CurrentEnv) {
+  switch (compare(Type, Prev, PrevEnv, Current, CurrentEnv)) {
+  case ComparisonResult::Same:
+    return &Prev;
+  case ComparisonResult::Different:
+    if (auto *PrevHasVal =
+            cast_or_null<BoolValue>(Prev.getProperty("has_value"))) {
+      if (isa<TopBoolValue>(PrevHasVal))
+        return &Prev;
+    }
+    if (auto *CurrentHasVal =
+            cast_or_null<BoolValue>(Current.getProperty("has_value"))) {
+      if (isa<TopBoolValue>(CurrentHasVal))
+        return &Current;
+    }
+    return &createOptionalValue(CurrentEnv, CurrentEnv.makeTopBoolValue());
+  case ComparisonResult::Unknown:
+    return nullptr;
+  }
+  llvm_unreachable("all cases covered in switch");
 }
 
 UncheckedOptionalAccessDiagnoser::UncheckedOptionalAccessDiagnoser(

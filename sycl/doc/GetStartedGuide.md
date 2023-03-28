@@ -11,7 +11,8 @@ and a wide range of compute accelerators such as GPU and FPGA.
     - [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     - [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     - [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-emulator)
+    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
+    - [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
     - [Build Doxygen documentation](#build-doxygen-documentation)
     - [Deployment](#deployment)
   - [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -298,6 +299,16 @@ Enabling this flag requires following packages installed.
 Currently, this feature was tested and verified on Ubuntu 20.04
 environment.
 
+### Build DPC++ toolchain with support for runtime kernel fusion
+
+Support for the experimental SYCL extension for user-driven kernel fusion 
+at runtime is enabled by default. 
+
+To disable support for this feature, follow the instructions for the 
+Linux DPC++ toolchain, but add the `--disable-fusion` flag.
+
+Kernel fusion is currently not yet supported on the Windows platform.
+
 ### Build Doxygen documentation
 
 Building Doxygen documentation is similar to building the product itself. First,
@@ -555,8 +566,8 @@ Creating a file `simple-sycl-app.cpp` with the following C++/SYCL code:
 #include <sycl/sycl.hpp>
 
 int main() {
-  // Creating buffer of 4 ints to be used inside the kernel code
-  sycl::buffer<sycl::cl_int, 1> Buffer(4);
+  // Creating buffer of 4 elements to be used inside the kernel code
+  sycl::buffer<size_t, 1> Buffer(4);
 
   // Creating SYCL queue
   sycl::queue Queue;
@@ -566,19 +577,19 @@ int main() {
 
   // Submitting command group(work) to queue
   Queue.submit([&](sycl::handler &cgh) {
-    // Getting write only access to the buffer on a device
-    auto Accessor = Buffer.get_access<sycl::access::mode::write>(cgh);
+    // Getting write only access to the buffer on a device.
+    sycl::accessor Accessor{Buffer, cgh, sycl::write_only};
     // Executing kernel
     cgh.parallel_for<class FillBuffer>(
         NumOfWorkItems, [=](sycl::id<1> WIid) {
-          // Fill buffer with indexes
-          Accessor[WIid] = (sycl::cl_int)WIid.get(0);
+          // Fill buffer with indexes.
+          Accessor[WIid] = WIid.get(0);
         });
   });
 
   // Getting read only access to the buffer on the host.
   // Implicit barrier waiting for queue to complete the work.
-  const auto HostAccessor = Buffer.get_access<sycl::access::mode::read>();
+  sycl::host_accessor HostAccessor{Buffer, sycl::read_only};
 
   // Check the results
   bool MismatchFound = false;

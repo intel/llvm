@@ -1,5 +1,4 @@
 ; RUN: llc %s -stop-after=finalize-isel -o - \
-; RUN:    -experimental-assignment-tracking \
 ; RUN: | FileCheck %s --implicit-check-not=DBG_VALUE
 
 ;; Check that sandwiching instructions between a linked store and dbg.assign
@@ -30,36 +29,35 @@ target triple = "x86_64-unknown-linux-gnu"
 define dso_local void @b() local_unnamed_addr #0 !dbg !7 {
 entry:
   %c = alloca i64, align 1, !DIAssignID !13
-  call void @llvm.dbg.assign(metadata i1 undef, metadata !11, metadata !DIExpression(), metadata !13, metadata i64* %c, metadata !DIExpression()), !dbg !14
-  call void @llvm.lifetime.start.p0i64(i64 1, i64* nonnull %c) #4, !dbg !15
-  store i64 5, i64* %c, align 1, !dbg !16, !DIAssignID !20
-  call void @llvm.dbg.assign(metadata i64 5, metadata !11, metadata !DIExpression(), metadata !20, metadata i64* %c, metadata !DIExpression()), !dbg !14
+  call void @llvm.dbg.assign(metadata i1 undef, metadata !11, metadata !DIExpression(), metadata !13, metadata ptr %c, metadata !DIExpression()), !dbg !14
+  call void @llvm.lifetime.start.p0(i64 1, ptr nonnull %c) #4, !dbg !15
+  store i64 5, ptr %c, align 1, !dbg !16, !DIAssignID !20
+  call void @llvm.dbg.assign(metadata i64 5, metadata !11, metadata !DIExpression(), metadata !20, metadata ptr %c, metadata !DIExpression()), !dbg !14
   tail call void (...) @d() #4, !dbg !21
 
   ; --- VV  Hand written  VV --- ;
-  %bc = bitcast i64* %c to i32*
-  store i32 1, i32* %bc, align 1, !dbg !16, !DIAssignID !31
+  store i32 1, ptr %c, align 1, !dbg !16, !DIAssignID !31
   ;; Check that a dbg.value(undef, frag(0, 32)) is inserted here. The value of
   ;; the fragment is "unknown". TODO: In this case the value of the fragment is
   ;; still obviously 5; a future improvement could be to be smarter and work
   ;; this out. But that's a lot of work for an uncommon case.
   tail call void (...) @d() #4, !dbg !21
-  call void @llvm.dbg.assign(metadata i32 1, metadata !11, metadata !DIExpression(DW_OP_LLVM_fragment, 0, 32), metadata !31, metadata i32* %bc, metadata !DIExpression()), !dbg !14
+  call void @llvm.dbg.assign(metadata i32 1, metadata !11, metadata !DIExpression(DW_OP_LLVM_fragment, 0, 32), metadata !31, metadata ptr %c, metadata !DIExpression()), !dbg !14
   ; --- AA  Hand written  AA --- ;
 
-  call void @a(i64* nonnull %c) #4, !dbg !22
-  call void @llvm.lifetime.end.p0i64(i64 1, i64* nonnull %c) #4, !dbg !23
+  call void @a(ptr nonnull %c) #4, !dbg !22
+  call void @llvm.lifetime.end.p0(i64 1, ptr nonnull %c) #4, !dbg !23
   ret void, !dbg !23
 }
 
-declare void @llvm.lifetime.start.p0i64(i64 immarg, i64* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 declare !dbg !24 dso_local void @d(...) local_unnamed_addr #2
-declare !dbg !27 dso_local void @a(i64*) local_unnamed_addr #2
-declare void @llvm.lifetime.end.p0i64(i64 immarg, i64* nocapture) #1
+declare !dbg !27 dso_local void @a(ptr) local_unnamed_addr #2
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 declare void @llvm.dbg.assign(metadata, metadata, metadata, metadata, metadata, metadata) #3
 
 !llvm.dbg.cu = !{!0}
-!llvm.module.flags = !{!3, !4, !5}
+!llvm.module.flags = !{!3, !4, !5, !1000}
 !llvm.ident = !{!6}
 
 !0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 12.0.0", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, splitDebugInlining: false, nameTableKind: None)
@@ -91,3 +89,4 @@ declare void @llvm.dbg.assign(metadata, metadata, metadata, metadata, metadata, 
 !29 = !{null, !30}
 !30 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !12, size: 64)
 !31 = distinct !DIAssignID()
+!1000 = !{i32 7, !"debug-info-assignment-tracking", i1 true}

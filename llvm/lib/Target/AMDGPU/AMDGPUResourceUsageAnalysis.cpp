@@ -111,7 +111,7 @@ bool AMDGPUResourceUsageAnalysis::runOnModule(Module &M) {
 
   // By default, for code object v5 and later, track only the minimum scratch
   // size
-  if (AMDGPU::getAmdhsaCodeObjectVersion() >= 5) {
+  if (AMDGPU::getCodeObjectVersion(M) >= AMDGPU::AMDHSA_COV5) {
     if (!AssumedStackSizeForDynamicSizeObjects.getNumOccurrences())
       AssumedStackSizeForDynamicSizeObjects = 0;
     if (!AssumedStackSizeForExternalCall.getNumOccurrences())
@@ -126,8 +126,8 @@ bool AMDGPUResourceUsageAnalysis::runOnModule(Module &M) {
     MachineFunction *MF = MMI.getMachineFunction(*F);
     assert(MF && "function must have been generated already");
 
-    auto CI = CallGraphResourceInfo.insert(
-        std::make_pair(F, SIFunctionResourceInfo()));
+    auto CI =
+        CallGraphResourceInfo.insert(std::pair(F, SIFunctionResourceInfo()));
     SIFunctionResourceInfo &Info = CI.first->second;
     assert(CI.second && "should only be called once per function");
     Info = analyzeResourceUsage(*MF, TM);
@@ -142,8 +142,8 @@ bool AMDGPUResourceUsageAnalysis::runOnModule(Module &M) {
     if (!F || F->isDeclaration())
       continue;
 
-    auto CI = CallGraphResourceInfo.insert(
-      std::make_pair(F, SIFunctionResourceInfo()));
+    auto CI =
+        CallGraphResourceInfo.insert(std::pair(F, SIFunctionResourceInfo()));
     if (!CI.second) // Skip already visited functions
       continue;
 

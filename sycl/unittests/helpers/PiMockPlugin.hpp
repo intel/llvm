@@ -14,6 +14,7 @@
 #include <sycl/detail/pi.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <cstring>
 
 // Helpers for dummy handles
@@ -212,6 +213,14 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
     assert(param_value_size == sizeof(pi_device_affinity_domain));
     if (param_value) {
       *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+    }
+    return PI_SUCCESS;
+  }
+  case PI_DEVICE_INFO_QUEUE_PROPERTIES: {
+    assert(param_value_size == sizeof(pi_queue_properties));
+    if (param_value) {
+      *static_cast<pi_queue_properties *>(param_value) =
+          PI_QUEUE_FLAG_PROFILING_ENABLE;
     }
     return PI_SUCCESS;
   }
@@ -1084,6 +1093,23 @@ mock_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking, void *dst_ptr,
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueDeviceGlobalVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
                                                void **opaque_data_return) {
   return PI_SUCCESS;
@@ -1092,5 +1118,23 @@ inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {
+  return PI_SUCCESS;
+}
+
+// Returns the wall-clock timestamp of host for deviceTime and hostTime
+inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
+                                              uint64_t *deviceTime,
+                                              uint64_t *hostTime) {
+
+  using namespace std::chrono;
+  auto timeNanoseconds =
+      duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+          .count();
+  if (deviceTime) {
+    *deviceTime = timeNanoseconds;
+  }
+  if (hostTime) {
+    *hostTime = timeNanoseconds;
+  }
   return PI_SUCCESS;
 }

@@ -78,6 +78,15 @@ public:
   size_t MDstPitch;
   size_t MWidth;
   size_t MHeight;
+
+  /// Offset into a device_global for copy operations.
+  size_t MOffset = 0;
+  /// Boolean flag for whether the device_global had the device_image_scope
+  /// property.
+  bool MIsDeviceImageScoped = false;
+
+  RT::PiKernelCacheConfig MKernelCacheConfig =
+      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
 };
 
 } // namespace detail

@@ -1129,7 +1129,7 @@ void DwarfCompileUnit::constructAbstractSubprogramScopeDIE(
   AbsDef = &ContextCU->createAndAddDIE(dwarf::DW_TAG_subprogram, *ContextDIE, nullptr);
   ContextCU->applySubprogramAttributesToDefinition(SP, *AbsDef);
   ContextCU->addSInt(*AbsDef, dwarf::DW_AT_inline,
-                     DD->getDwarfVersion() <= 4 ? Optional<dwarf::Form>()
+                     DD->getDwarfVersion() <= 4 ? std::optional<dwarf::Form>()
                                                 : dwarf::DW_FORM_implicit_const,
                      dwarf::DW_INL_inlined);
   if (DIE *ObjectPointer = ContextCU->createAndAddScopeChildren(Scope, *AbsDef))
@@ -1289,8 +1289,16 @@ DIE *DwarfCompileUnit::constructImportedEntityDIE(
   addSourceLine(*IMDie, Module->getLine(), Module->getFile());
   addDIEEntry(*IMDie, dwarf::DW_AT_import, *EntityDie);
   StringRef Name = Module->getName();
-  if (!Name.empty())
+  if (!Name.empty()) {
     addString(*IMDie, dwarf::DW_AT_name, Name);
+
+    // FIXME: if consumers ever start caring about handling
+    // unnamed import declarations such as `using ::nullptr_t`
+    // or `using namespace std::ranges`, we could add the
+    // import declaration into the accelerator table with the
+    // name being the one of the entity being imported.
+    DD->addAccelNamespace(*CUNode, Name, *IMDie);
+  }
 
   // This is for imported module with renamed entities (such as variables and
   // subprograms).

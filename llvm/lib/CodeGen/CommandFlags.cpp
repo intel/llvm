@@ -14,15 +14,15 @@
 
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCTargetOptionsCommandFlags.h"
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 
 using namespace llvm;
@@ -359,7 +359,7 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       "relax-elf-relocations",
       cl::desc(
           "Emit GOTPCRELX/REX_GOTPCRELX instead of GOTPCREL on x86-64 ELF"),
-      cl::init(false));
+      cl::init(true));
   CGBINDOPT(RelaxELFRelocations);
 
   static cl::opt<bool> DataSections(

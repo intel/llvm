@@ -4,7 +4,7 @@
 
 ; CHECK-INTRINSIC: InvalidFunctionCall: Unexpected llvm intrinsic:
 ; CHECK-INTRINSIC-NEXT: Translation of llvm.stacksave intrinsic requires SPV_INTEL_variable_length_array extension or -spirv-allow-unknown-intrinsics option.
-; CHECK-INTRINSIC-NEXT: call i8* @llvm.stacksave()
+; CHECK-INTRINSIC-NEXT: call ptr @llvm.stacksave()
 
 ; CHECK-ALLOCA: InvalidInstruction: Can't translate llvm instruction:
 ; CHECK-ALLOCA-NEXT: %vla = alloca i32, i64 %a
@@ -31,19 +31,19 @@ target triple = "spir"
 
 define dso_local i32 @_Z3fooll(i64 %a, i64 %b) local_unnamed_addr #0 {
 entry:
-  %0 = call i8* @llvm.stacksave()
+  %0 = call ptr @llvm.stacksave()
   %vla = alloca i32, i64 %a, align 16
-  %arrayidx = getelementptr inbounds i32, i32* %vla, i64 %b
-  %1 = load i32, i32* %arrayidx, align 4
-  call void @llvm.stackrestore(i8* %0)
+  %arrayidx = getelementptr inbounds i32, ptr %vla, i64 %b
+  %1 = load i32, ptr %arrayidx, align 4
+  call void @llvm.stackrestore(ptr %0)
   %call = call i32 @_Z3barv()
   %add = add nsw i32 %call, %1
   ret i32 %add
 }
 
-declare i8* @llvm.stacksave() #1
+declare ptr @llvm.stacksave() #1
 
-declare void @llvm.stackrestore(i8*) #1
+declare void @llvm.stackrestore(ptr) #1
 
 declare dso_local i32 @_Z3barv() local_unnamed_addr #2
 

@@ -87,6 +87,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUPropagateAttributes.cpp
   AMDGPUPromoteKernelArguments.cpp
   AMDGPURegBankCombiner.cpp
+  AMDGPURegBankSelect.cpp
   AMDGPURegisterBankInfo.cpp
   AMDGPUReleaseVGPRs.cpp
   AMDGPUReplaceLDSUseWithPointer.cpp
@@ -177,6 +178,7 @@ add_llvm_target(AMDGPUCodeGen
   SelectionDAG
   Support
   Target
+  TargetParser
   TransformUtils
   Vectorize
   GlobalISel

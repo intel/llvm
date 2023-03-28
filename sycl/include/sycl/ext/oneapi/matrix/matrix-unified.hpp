@@ -24,10 +24,14 @@ struct joint_matrix {
 #if defined(__NVPTX__)
   sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout>
       cuda_impl;
-#else
+#elif defined(__SPIR__)
   __spv::__spirv_JointMatrixINTEL<
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
       spv_scope_traits<Group>::value, spv_matrix_use_traits<Use>::value> *spvm;
+#else
+  static_assert(
+      false,
+      "The joint_matrix API is only supported by the Intel and CUDA backends");
 #endif // defined(__NVPTX__)
 #endif // defined(__SYCL_DEVICE_ONLY__)
 
@@ -59,7 +63,9 @@ public:
 #if defined(__NVPTX__)
     return jm.cuda_impl.wi_marray.size();
 #else
-    return __spirv_JointMatrixWorkItemLengthINTEL(jm.spvm);
+    throw runtime_error("get_wi_data is available using: "
+                        "ext::intel::experimental::matrix::get_wi_data.",
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   };
 
@@ -67,7 +73,9 @@ public:
 #if defined(__NVPTX__)
     return (jm.cuda_impl.wi_marray[i]);
 #else
-    return wi_element<T, Rows, Cols, Use, Layout, Group>(jm, i);
+    throw runtime_error("get_wi_data is available using: "
+                        "ext::intel::experimental::matrix::get_wi_data.",
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   };
 };
@@ -90,12 +98,24 @@ public:
 
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+__SYCL2020_DEPRECATED("get_wi_data() is deprecated for CUDA backend. Please "
+                      "use joint_matrix_apply() instead.")
+#else
+__attribute__((unavailable(
+    "get_wi_data can't be used on intel device, please use "
+    "sycl::ext::intel::experimental::matrix::get_wi_data instead!")))
+#endif
+#endif
 inline __SYCL_ALWAYS_INLINE decltype(auto)
-get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
+    get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   return wi_data(jm);
 #else
+  std::ignore = sg;
+  std::ignore = jm;
   if constexpr (std::is_same_v<T, precision::tf32>) {
     marray<float, 1> unused{};
     return wi_data<float, 1>(unused);
@@ -104,6 +124,35 @@ get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
     return wi_data<T, 1>(unused);
   }
 #endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
+template <typename Group, typename T, use Use, size_t M, size_t N,
+          layout Layout, typename F>
+inline __SYCL_ALWAYS_INLINE void
+joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
+                   F &&lambda) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  std::ignore = sg;
+  for (int i = 0; i < jm.cuda_impl.wi_marray.size(); i++) {
+    lambda(jm.cuda_impl.wi_marray[i]);
+  }
+#else // NVPTX
+  auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, jm);
+  for (int i = 0; i < wi_data_c.length(); i++) {
+    T element = wi_data_c[i];
+    lambda(element);
+    wi_data_c[i] = element;
+  }
+#endif
+#else
+  std::ignore = sg;
+  std::ignore = jm;
+  std::ignore = lambda;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif
+  return;
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
@@ -181,6 +230,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
+  std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -270,6 +320,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
+  std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -337,7 +388,8 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(float &a) {
   uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
   tmp_uint += 0x1000u;
   tmp_uint &= 0xFFFFE000u;
-  float ret = reinterpret_cast<float &>(tmp_uint);
+  float ret = 0;
+  std::memcpy(&ret, &tmp_uint, sizeof(float));
   return ret;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }

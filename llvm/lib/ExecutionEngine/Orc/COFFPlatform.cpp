@@ -10,6 +10,7 @@
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/LookupAndRecordAddrs.h"
 #include "llvm/ExecutionEngine/Orc/ObjectFileInterface.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ObjectFormats.h"
 
 #include "llvm/Object/COFF.h"
 
@@ -125,8 +126,8 @@ private:
       llvm_unreachable("Unrecognized architecture");
     }
 
-    auto HeaderContent = G.allocateString(
-        StringRef(reinterpret_cast<const char *>(&Hdr), sizeof(Hdr)));
+    auto HeaderContent = G.allocateContent(
+        ArrayRef<char>(reinterpret_cast<const char *>(&Hdr), sizeof(Hdr)));
 
     return G.createContentBlock(HeaderSection, HeaderContent, ExecutorAddr(), 8,
                                 0);
@@ -164,7 +165,7 @@ COFFPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
                      JITDylib &PlatformJD, const char *OrcRuntimePath,
                      LoadDynamicLibrary LoadDynLibrary, bool StaticVCRuntime,
                      const char *VCRuntimePath,
-                     Optional<SymbolAliasMap> RuntimeAliases) {
+                     std::optional<SymbolAliasMap> RuntimeAliases) {
   auto &EPC = ES.getExecutorProcessControl();
 
   // If the target is not supported then bail out immediately.
@@ -850,7 +851,7 @@ Error COFFPlatform::COFFPlatformPlugin::preserveInitializerSections(
     jitlink::LinkGraph &G, MaterializationResponsibility &MR) {
   JITLinkSymbolSet InitSectionSymbols;
   for (auto &Sec : G.sections())
-    if (COFFPlatform::isInitializerSection(Sec.getName()))
+    if (isCOFFInitializerSection(Sec.getName()))
       for (auto *B : Sec.blocks())
         if (!B->edges_empty())
           InitSectionSymbols.insert(
@@ -885,7 +886,7 @@ Error COFFPlatform::COFFPlatformPlugin::
 
   // Collect static initializers
   for (auto &S : G.sections())
-    if (COFFPlatform::isInitializerSection(S.getName()))
+    if (isCOFFInitializerSection(S.getName()))
       for (auto *B : S.blocks()) {
         if (B->edges_empty())
           continue;
