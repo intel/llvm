@@ -3,7 +3,6 @@
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
-using namespace sycl::ext::oneapi::experimental::property;
 using namespace access;
 
 // Using-enum-declaration is C++20.
@@ -42,7 +41,9 @@ void report_results(int *p) {
       continue;
     }
 
-    if (size == -2) {
+    if (size == -2 || size == -3) {
+      if (size == -3)
+        std::cout << std::hex;
       bool all_same = std::all_of(p + idx, p + idx + global_size,
                                  [&](auto v) { return v == p[idx]; });
       if (all_same) {
@@ -51,10 +52,14 @@ void report_results(int *p) {
         for (int i = 0; i < global_size; ++i) {
           if (i % 8 == 0)
             std::cout << "|";
-          std::cout << std::setw(3) << p[idx + i] << " ";
+          if (size == -3)
+            std::cout << "0x" << p[idx + i] << " ";
+          else
+            std::cout << std::setw(3) << p[idx + i] << " ";
         }
         std::cout << "|" << std::endl;
       }
+      std::cout << std::dec;
       idx += global_size;
       continue;
     }
@@ -82,14 +87,20 @@ struct Printer {
     p[idx + ndi.get_global_id(0)] = i;
     idx += ndi.get_global_range(0);
   }
+  void print_ptr(void *ptr) {
+    p[idx++] = -3;
+    p[idx + ndi.get_global_id(0)] = reinterpret_cast<uintptr_t>(ptr);
+    idx += ndi.get_global_range(0);
+  }
   void finalize() { p[idx++] = -1; }
   int *p;
   int idx = 0;
   nd_item<1> ndi;
 };
+
 template <int BlockSize, bool Blocked, int num_blocks_c, typename GlobalPtrTy>
 void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
-                Printer &p) {
+                Printer &p, char *caller_val ) {
 #ifdef __SYCL_DEVICE_ONLY__
   // Needs to be 4 bytes aligned (16 for writes).
 
@@ -244,9 +255,17 @@ void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
 
           if (write_needed) {
             char *ptr = reinterpret_cast<char *>(&val);
+            // p.print("Val before memset:");
+            // p.print(42);
+            // for (int i = 0; i < 17; ++i)
+            //   p.print(caller_val[i]);
+            // p.print(43);
             std::memcpy(priv_ptr + write_idx * sizeof(BlockT),
                         reinterpret_cast<BlockT *>(&val) + vec_idx,
                         sizeof(BlockT));
+            // p.print("Val after memset:");
+            // for (int i = 0; i < 17; ++i)
+            //   p.print(caller_val[i]);
           }
         }
         cur_blocks_start_idx += blocks_per_iter;
@@ -332,7 +351,7 @@ void test() {
 
   buffer<T, 1> b(global_size * ELEMS_PER_WI);
   buffer<bool, 1> result(global_size);
-  int *printer_mem = malloc_shared<int>(1024*8, q);
+  int *printer_mem = malloc_shared<int>(1024*1024, q);
   q.submit([&](handler &cgh) {
      accessor acc{b, cgh};
      accessor res{result, cgh};
@@ -361,9 +380,11 @@ void test() {
            for (int i = 0; i < ELEMS_PER_WI; ++i)
              val[i] = base - i;
 
-           // p.print("Val:");
-           // for (int i = 0; i < ELEMS_PER_WI; ++i)
-           //   p.print(val[i]);
+           p.print("Val ptr:");
+           p.print_ptr(val);
+           p.print("Val:");
+           for (int i = 0; i < ELEMS_PER_WI; ++i)
+             p.print(val[i]);
 
            constexpr bool blocked = true;
 
@@ -379,32 +400,39 @@ void test() {
 
            constexpr int num_blocks = ELEMS_PER_WI;
            char priv[sizeof(T) * num_blocks];
-           load_bytes<sizeof(T), blocked, num_blocks>(sg, sg_mem, priv, p);
+           p.print("Priv ptr:");
+           p.print_ptr(priv);
+           load_bytes<sizeof(T), blocked, num_blocks>(sg, sg_mem, priv, p, val);
            bool success = std::equal(std::begin(priv), std::end(priv),
                                      reinterpret_cast<char *>(val));
            res[gid] = success;
-           // T res_val[ELEMS_PER_WI];
-           // std::memcpy(res_val, priv, sizeof(res_val));
-           // p.print("Result:");
-           // for (int i = 0; i < ELEMS_PER_WI; ++i)
-           //   p.print(res_val[i]);
+           T res_val[ELEMS_PER_WI];
+           std::memcpy(res_val, priv, sizeof(res_val));
+           p.print("Result:");
+           for (int i = 0; i < ELEMS_PER_WI; ++i)
+             p.print(res_val[i]);
+
+           p.print("Success:");
+           p.print(success);
          });
    }).wait();
+
   report_results(printer_mem);
   free(printer_mem, q);
+
   host_accessor res_acc{result};
   assert(std::all_of(res_acc.begin(), res_acc.end(), [](bool r) { return r; }));
 }
 
 int main() {
-  test<char, 1>();
-  test<char, 2>();
-  test<char, 3>();
-  test<char, 7>();
-  test<char, 8>();
-  // test<char, 17>();
-  test<char, 16>();
-  test<char, 32>();
-  test<char, 64>();
-  test<int, 67>();
+  // test<char, 1>();
+  // test<char, 2>();
+  // test<char, 3>();
+  // test<char, 7>();
+  // test<char, 8>();
+  test<char, 17>();
+  // test<char, 16>();
+  // test<char, 32>();
+  // test<char, 64>();
+  // test<int, 67>();
 }
