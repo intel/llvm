@@ -222,9 +222,18 @@ template <class SimdCallable, class... SpmdArgs> struct sg_size {
     using SupportedSgSizes = __MP11_NS::mp_list_c<int, 1, 2, 4, 8, 16, 32>;
     using InvocableSgSizes =
         __MP11_NS::mp_copy_if<SupportedSgSizes, IsInvocableSgSize>;
-    static_assert((__MP11_NS::mp_size<InvocableSgSizes>::value == 1) &&
-                  "no or multiple invoke_simd targets found");
-    return __MP11_NS::mp_front<InvocableSgSizes>::value;
+    constexpr auto found_invoke_simd_target =
+        __MP11_NS::mp_empty<InvocableSgSizes>::value != 1;
+    if constexpr (found_invoke_simd_target) {
+      static_assert((__MP11_NS::mp_size<InvocableSgSizes>::value == 1) &&
+                    "multiple invoke_simd targets found");
+      return __MP11_NS::mp_front<InvocableSgSizes>::value;
+    }
+    static_assert(
+        found_invoke_simd_target,
+        "No callable invoke_simd target found. Confirm the "
+        "invoke_simd invocation argument types are convertible to the "
+        "invoke_simd target argument types");
   }
 };
 
@@ -323,6 +332,11 @@ template <typename Callable> struct remove_ref_from_func_ptr_ref_type {
 };
 
 template <typename Ret, typename... Args>
+struct remove_ref_from_func_ptr_ref_type<Ret (*&)(Args...)> {
+  using type = Ret (*)(Args...);
+};
+
+template <typename Ret, typename... Args>
 struct remove_ref_from_func_ptr_ref_type<Ret(__regcall *&)(Args...)> {
   using type = Ret(__regcall *)(Args...);
 };
@@ -330,6 +344,42 @@ struct remove_ref_from_func_ptr_ref_type<Ret(__regcall *&)(Args...)> {
 template <typename T>
 using remove_ref_from_func_ptr_ref_type_t =
     typename remove_ref_from_func_ptr_ref_type<T>::type;
+
+template <typename T> struct strip_regcall_from_function_ptr;
+
+template <typename Ret, typename... Args>
+struct strip_regcall_from_function_ptr<Ret (*)(Args...)> {
+  using type = Ret (*)(Args...);
+};
+
+template <typename Ret, typename... Args>
+struct strip_regcall_from_function_ptr<Ret(__regcall *)(Args...)> {
+  using type = Ret (*)(Args...);
+};
+
+template <typename T>
+using strip_regcall_from_function_ptr_t =
+    typename strip_regcall_from_function_ptr<T>::type;
+
+template <typename Ret, typename... Args>
+constexpr bool has_ref_arg(Ret (*)(Args...)) {
+  return std::is_reference_v<Ret> || (... || std::is_reference_v<Args>);
+}
+
+template <class Callable> constexpr void verify_no_ref() {
+  if constexpr (is_function_ptr_or_ref_v<Callable>) {
+    using RemoveRef =
+        remove_ref_from_func_ptr_ref_type_t<std::remove_reference_t<Callable>>;
+    using FuncPtrType =
+        std::conditional_t<std::is_pointer_v<RemoveRef>, RemoveRef,
+                           std::add_pointer_t<RemoveRef>>;
+    using FuncPtrNoCC = strip_regcall_from_function_ptr_t<FuncPtrType>;
+    constexpr FuncPtrNoCC obj = {};
+    constexpr bool callable_has_ref_arg_or_ret = has_ref_arg(obj);
+    static_assert(!callable_has_ref_arg_or_ret,
+                  "invoke_simd does not support references");
+  }
+}
 
 } // namespace detail
 
@@ -360,6 +410,7 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
   // what the subgroup size is and arguments don't need widening and return
   // value does not need shrinking by this library or SPMD compiler, so 0
   // is fine in this case.
+  detail::verify_no_ref<Callable>();
   constexpr int N = detail::get_sg_size<Callable, T...>();
   using RetSpmd = detail::SpmdRetType<N, Callable, T...>;
   detail::verify_return_type_matches_sg_size<
