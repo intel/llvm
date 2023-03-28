@@ -1552,7 +1552,6 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
-  bool IsSIMD = false;
   // Keeps track of whether we are currently handling fields inside a struct.
   // Fields of kernel functor or direct kernel captures will have a depth 0.
   int StructFieldDepth = 0;
@@ -1656,10 +1655,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
              << Ty << /*Struct*/ 1;
 
     const RecordDecl *RecD = Ty->getAsRecordDecl();
-    if (IsSIMD && !isSyclAccessorType(Ty))
-      return SemaRef.Diag(Loc.getBegin(),
-                          diag::err_sycl_esimd_not_supported_for_type)
-             << RecD;
+
     if (const ClassTemplateSpecializationDecl *CTSD =
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
@@ -1678,9 +1674,8 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   }
 
 public:
-  SyclKernelFieldChecker(Sema &S, bool isSIMD)
-      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()),
-        IsSIMD(isSIMD) {}
+  SyclKernelFieldChecker(Sema &S)
+      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
   static constexpr const bool VisitNthArrayElement = false;
   bool isValid() { return !IsInvalid; }
 
@@ -2150,6 +2145,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   FunctionDecl *KernelDecl;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   Sema::ContextRAII FuncContext;
+  SourceLocation Loc;
   // Holds the last handled field's first parameter. This doesn't store an
   // iterator as push_back invalidates iterators.
   size_t LastParamIndex = 0;
@@ -2272,6 +2268,11 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
+
+    if (KernelDecl->hasAttr<SYCLSimdAttr>() && !isSyclAccessorType(FieldTy))
+      return SemaRef.Diag(Loc, diag::err_sycl_esimd_not_supported_for_type)
+             << RecordDecl;
+
     llvm::StringLiteral MethodName =
         KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
             ? InitESIMDMethodName
@@ -2365,7 +2366,7 @@ public:
       : SyclKernelFieldHandler(S),
         KernelDecl(
             createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
-        FuncContext(SemaRef, KernelDecl) {
+        FuncContext(SemaRef, KernelDecl), Loc(Loc) {
     S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
 
     if (const auto *AddIRAttrFunc =
@@ -2422,6 +2423,10 @@ public:
                              QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
+
+    if (KernelDecl->hasAttr<SYCLSimdAttr>() && !isSyclAccessorType(FieldTy))
+      return SemaRef.Diag(Loc, diag::err_sycl_esimd_not_supported_for_type)
+             << RecordDecl;
     llvm::StringLiteral MethodName =
         KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
             ? InitESIMDMethodName
@@ -4023,6 +4028,12 @@ public:
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
                                ArrayRef<const Expr *> Args) {
+  QualType KernelNameType =
+      calculateKernelNameType(getASTContext(), KernelFunc);
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
+      *this, Args[0]->getExprLoc(), KernelNameType,
+      IsSYCLUnnamedKernel(*this, KernelFunc));
+  KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
 
   // FIXME: In place until the library works around its 'host' invocation
   // issues.
@@ -4031,8 +4042,6 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
 
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
-
-  KernelCallOperatorVisitor KernelCallOperator(KernelFunc, KernelObj);
 
   if (!KernelObj) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
@@ -4063,6 +4072,37 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
   // Do not visit invalid kernel object.
   if (KernelObj->isInvalidDecl())
     return;
+  KernelCallOperatorVisitor KernelCallOperator(KernelFunc, KernelObj);
+  bool IsSIMDKernel = isESIMDKernelType(KernelCallOperator);
+
+  SyclKernelDecompMarker DecompMarker(*this);
+  SyclKernelFieldChecker FieldChecker(*this);
+  SyclKernelUnionChecker UnionChecker(*this);
+
+  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc(),
+                                            IsSIMDKernel);
+
+  KernelObjVisitor Visitor{*this};
+
+  DiagnosingSYCLKernel = true;
+
+  // Emit diagnostics for SYCL device kernels only
+  Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
+  Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
+                            DecompMarker);
+  // ArgSizeChecker needs to happen after DecompMarker has completed, since it
+  // cares about the decomp attributes. DecompMarker cannot run before the
+  // others, since it counts on the FieldChecker to make sure it is visiting
+  // valid arrays/etc. Thus, ArgSizeChecker has its own visitation.
+  if (FieldChecker.isValid() && UnionChecker.isValid()) {
+    Visitor.VisitRecordBases(KernelObj, ArgsSizeChecker);
+    Visitor.VisitRecordFields(KernelObj, ArgsSizeChecker);
+  }
+  DiagnosingSYCLKernel = false;
+  // Set the kernel function as invalid, if any of the checkers fail validation.
+  if (!FieldChecker.isValid() || !UnionChecker.isValid() ||
+      !KernelNameTypeVisitor.isValid())
+    KernelFunc->setInvalidDecl();
 }
 
 // For a wrapped parallel_for, copy attributes from original
@@ -4169,11 +4209,11 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
   assert(KernelObj && "invalid kernel caller");
 
+  KernelCallOperatorVisitor KernelCallOperator(KernelCallerFunc, KernelObj);
+
   // Do not visit invalid kernel object.
   if (KernelObj->isInvalidDecl())
     return;
-
-  KernelCallOperatorVisitor KernelCallOperator(KernelCallerFunc, KernelObj);
 
   {
     // Do enough to calculate the StableName for the purposes of the hackery
@@ -4196,50 +4236,14 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                     KernelCallerFunc);
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc);
-  QualType KernelNameType =
-      calculateKernelNameType(getASTContext(), KernelCallerFunc);
-
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
-      *this, KernelObj->getLocation(), KernelNameType,
-      IsSYCLUnnamedKernel(*this, KernelCallerFunc));
-  KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
-
-  SyclKernelFieldChecker FieldChecker(*this, IsSIMDKernel);
-
-  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, KernelObj->getLocation(),
-                                            IsSIMDKernel);
-
-  SyclKernelDecompMarker DecompMarker(*this);
-  SyclKernelUnionChecker UnionChecker(*this);
-
-  KernelObjVisitor Visitor{*this};
-
-  DiagnosingSYCLKernel = true;
-
-  // Emit diagnostics for SYCL device kernels only
-  Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
-  Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
-                            DecompMarker);
-  // ArgSizeChecker needs to happen after DecompMarker has completed, since it
-  // cares about the decomp attributes. DecompMarker cannot run before the
-  // others, since it counts on the FieldChecker to make sure it is visiting
-  // valid arrays/etc. Thus, ArgSizeChecker has its own visitation.
-  if (FieldChecker.isValid() && UnionChecker.isValid()) {
-    Visitor.VisitRecordBases(KernelObj, ArgsSizeChecker);
-    Visitor.VisitRecordFields(KernelObj, ArgsSizeChecker);
-  }
-  DiagnosingSYCLKernel = false;
-  // Set the kernel function as invalid, if any of the checkers fail validation.
-  if (!FieldChecker.isValid() || !UnionChecker.isValid() ||
-      !KernelNameTypeVisitor.isValid())
-    KernelCallerFunc->setInvalidDecl();
-
   SyclKernelIntHeaderCreator int_header(
       KernelCallOperator, *this, getSyclIntegrationHeader(), KernelObj,
       calculateKernelNameType(Context, KernelCallerFunc), KernelCallerFunc);
 
   SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
   SyclOptReportCreator opt_report(*this, kernel_decl, KernelObj->getLocation());
+
+  KernelObjVisitor Visitor{*this};
 
   // Visit handlers to generate information for optimization record only if
   // optimization record is saved.
