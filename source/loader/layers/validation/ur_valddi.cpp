@@ -2830,6 +2830,10 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
         if (UR_EVENT_INFO_REFERENCE_COUNT < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
+
+        if (pPropValue && propValueSize == 0) {
+            return UR_RESULT_ERROR_INVALID_VALUE;
+        }
     }
 
     ur_result_t result = pfnGetInfo(hEvent, propName, propValueSize, pPropValue,
@@ -2865,6 +2869,10 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
         if (UR_PROFILING_INFO_COMMAND_END < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
+
+        if (pPropValue && propValueSize == 0) {
+            return UR_RESULT_ERROR_INVALID_VALUE;
+        }
     }
 
     ur_result_t result = pfnGetProfilingInfo(hEvent, propName, propValueSize,
@@ -2890,6 +2898,10 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
     if (context.enableParameterValidation) {
         if (NULL == phEventWaitList) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (numEvents == 0) {
+            return UR_RESULT_ERROR_INVALID_VALUE;
         }
     }
 

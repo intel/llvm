@@ -17,31 +17,37 @@ TEST_P(urEventGetInfoTest, Success) {
 
     switch (info_type) {
     case UR_EVENT_INFO_COMMAND_QUEUE: {
-        auto returned_queue = reinterpret_cast<ur_queue_handle_t>(data.data());
-        ASSERT_EQ(queue, returned_queue);
+        ASSERT_EQ(sizeof(ur_queue_handle_t), size);
+        auto returned_queue =
+            reinterpret_cast<ur_queue_handle_t *>(data.data());
+        ASSERT_EQ(queue, *returned_queue);
         break;
     }
     case UR_EVENT_INFO_CONTEXT: {
+        ASSERT_EQ(sizeof(ur_context_handle_t), size);
         auto returned_context =
-            reinterpret_cast<ur_context_handle_t>(data.data());
-        ASSERT_EQ(context, returned_context);
+            reinterpret_cast<ur_context_handle_t *>(data.data());
+        ASSERT_EQ(context, *returned_context);
         break;
     }
     case UR_EVENT_INFO_COMMAND_TYPE: {
+        ASSERT_EQ(sizeof(ur_command_t), size);
         auto returned_command = reinterpret_cast<ur_command_t *>(data.data());
         ASSERT_EQ(UR_COMMAND_MEM_BUFFER_WRITE, *returned_command);
         break;
     }
     case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
+        ASSERT_EQ(sizeof(ur_event_status_t), size);
         auto returned_status =
             reinterpret_cast<ur_event_status_t *>(data.data());
         ASSERT_EQ(UR_EVENT_STATUS_COMPLETE, *returned_status);
         break;
     }
     case UR_EVENT_INFO_REFERENCE_COUNT: {
+        ASSERT_EQ(sizeof(uint32_t), size);
         auto returned_reference_count =
             reinterpret_cast<uint32_t *>(data.data());
-        ASSERT_EQ(1, *returned_reference_count);
+        ASSERT_GT(*returned_reference_count, 0);
         break;
     }
     default:
