@@ -81,6 +81,6 @@ See [openmp](/tree/openmp) branch.
 
 # License
 
-See [LICENSE](./sycl/sycl/LICENSE.TXT) for details.
+See [LICENSE](./sycl/LICENSE.TXT) for details.
 
 <sub>\*Other names and brands may be claimed as the property of others.</sub>
