@@ -270,9 +270,18 @@ public:
   // into strings listed in a metadata to a resulting identifier.
   void registerListOfIntegersInMetadataRule(StringRef);
 
+  // Creates a rule, which adds a list of sorted dash-separated integers
+  // converted into strings listed in a metadata to a resulting identifier.
+  void registerListOfIntegersInMetadataSortedRule(StringRef);
+
 private:
   enum class RuleKind {
-    CALLBACK, SIMPLE_STRING_ATTR, FLAG_METADATA, INTEGERS_LIST_METADATA, FLAG_ATTR
+    CALLBACK,
+    SIMPLE_STRING_ATTR,
+    FLAG_METADATA,
+    INTEGERS_LIST_METADATA,
+    FLAG_ATTR,
+    SORTED_INTEGERS_LIST_METADATA
   };
 
   struct CallbackRuleData {
@@ -305,12 +314,19 @@ private:
     StringRef MetadataName = "";
   };
 
+  struct SortedIntegersListMetadataRuleData {
+    constexpr static auto Kind = RuleKind::SORTED_INTEGERS_LIST_METADATA;
+    SortedIntegersListMetadataRuleData() = default;
+    StringRef MetadataName = "";
+  };
+
   struct Rule {
     private:
     std::array<std::byte, std::max({sizeof(CallbackRuleData),
                                     sizeof(SimpleStringAttrRuleData),
                                     sizeof(FlagMetadataRuleData),
                                     sizeof(FlagAttributeRuleData),
+                                    sizeof(SortedIntegersListMetadataRuleData),
                                     sizeof(IntegersListMetadataRuleData)})>
         Storage;
     public:
@@ -337,6 +353,11 @@ private:
     FlagMetadataRuleData getFlagMetadataRuleData() const {
       assert(Kind == RuleKind::FLAG_METADATA);
       return *reinterpret_cast<const FlagMetadataRuleData *>(Storage.data());
+    }
+
+    SortedIntegersListMetadataRuleData getSortedIntegersListMetadataRuleData() const {
+      assert(Kind == RuleKind::SORTED_INTEGERS_LIST_METADATA);
+      return *reinterpret_cast<const SortedIntegersListMetadataRuleData *>(Storage.data());
     }
 
     IntegersListMetadataRuleData getIntegersListMetadataRuleData() const {

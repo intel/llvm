@@ -908,6 +908,11 @@ void DeviceCodeSplitRulesBuilder::registerListOfIntegersInMetadataRule(
   Rules.push_back(Rule::get<IntegersListMetadataRuleData>(MetadataName));
 }
 
+void DeviceCodeSplitRulesBuilder::registerListOfIntegersInMetadataSortedRule(
+    StringRef MetadataName) {
+  Rules.push_back(Rule::get<SortedIntegersListMetadataRuleData>(MetadataName));
+}
+
 std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
   std::string Result;
   for (const auto &R : Rules) {
@@ -937,6 +942,21 @@ std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
         for (const MDOperand &MDOp : MDN->operands())
           Result += std::to_string(
               mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+      }
+    } break;
+    case RuleKind::SORTED_INTEGERS_LIST_METADATA: {
+      auto MetadataName = R.getSortedIntegersListMetadataRuleData().MetadataName;
+      if (F->hasMetadata(MetadataName)) {
+        auto *MDN = F->getMetadata(MetadataName);
+
+        SmallVector<unsigned, 8> Values;
+        for (const MDOperand &MDOp : MDN->operands())
+          Values.push_back(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+
+        llvm::sort(Values);
+
+        for (unsigned V : Values)
+          Result += std::to_string(V);
       }
     } break;
     case RuleKind::FLAG_ATTR: {
@@ -1031,7 +1051,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 
     // Optional features
     RulesBuilder.registerSimpleFlagAttributeRule(::sycl::kernel_props::ATTR_LARGE_GRF, "large-grf");
-    RulesBuilder.registerListOfIntegersInMetadataRule("sycl_used_aspects");
+    RulesBuilder.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
     RulesBuilder.registerListOfIntegersInMetadataRule("reqd_work_group_size");
 
   } else {
