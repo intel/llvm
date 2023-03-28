@@ -581,9 +581,6 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
 
 // Compute the filename suffix for the module
 StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
-  if (MD.isLargeGRF()) {
-    return MD.isESIMD() ? "_esimd_large_grf" : "_large_grf";
-  }
   return MD.isESIMD() ? "_esimd" : "";
 }
 

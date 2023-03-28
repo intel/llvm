@@ -594,8 +594,7 @@ void ModuleDesc::dump() const {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
   llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
-               << ", LargeGRF:"
-               << (EntryPoints.Props.UsesLargeGRF ? "YES" : "NO") << "\n";
+               << "\n";
   dumpEntryPoints(entries(), EntryPoints.GroupId.c_str(), 1);
   llvm::errs() << "}\n";
 }
@@ -871,9 +870,6 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 
       // Start with properties of a source module
       EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
-      // FIXME: Propagate LargeGRF flag to entry points group
-      // if (Features.UsesLargeGRF)
-      //  MDProps.UsesLargeGRF = true;
       Groups.emplace_back(It.first, std::move(EntryPoints), MDProps);
     }
   }
