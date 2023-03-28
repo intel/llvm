@@ -92,12 +92,26 @@ bool SYCLAddrSpaceCastOp::areCastCompatible(TypeRange inputs,
 LogicalResult SYCLAccessorGetPointerOp::verify() {
   const auto accTy = cast<AccessorType>(
       cast<MemRefType>(getOperand().getType()).getElementType());
-  const Type resTy = getResult().getType();
-  const Type resElemTy = cast<MemRefType>(resTy).getElementType();
+  const MemRefType resTy = getResult().getType();
+  const Type resElemTy = resTy.getElementType();
   return (resElemTy != accTy.getType())
              ? emitOpError(
                    "Expecting a reference to this accessor's value type (")
                    << accTy.getType() << "). Got " << resTy
+             : success();
+}
+
+LogicalResult SYCLAccessorGetRangeOp::verify() {
+  const auto accTy = cast<AccessorType>(
+      cast<MemRefType>(getOperand().getType()).getElementType());
+  const RangeType resTy = getResult().getType();
+  return (accTy.getDimension() != resTy.getDimension())
+             ? emitOpError(
+                   "Both the result and the accessor must have the same "
+                   "number of dimensions, but the accessor has ")
+                   << accTy.getDimension()
+                   << " dimension(s) and the result has "
+                   << resTy.getDimension() << " dimension(s)"
              : success();
 }
 
@@ -154,8 +168,8 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
                    ? emitOpError(
                          "Both the index and the accessor must have the same "
                          "number of dimensions, but the accessor has ")
-                         << Dimensions << "dimensions and the index, "
-                         << IDTy.getDimension()
+                         << Dimensions << " dimension(s) and the index has "
+                         << IDTy.getDimension() << " dimension(s)"
                    : VerifyResultType();
       })
       .Case<IntegerType>([&](auto) {

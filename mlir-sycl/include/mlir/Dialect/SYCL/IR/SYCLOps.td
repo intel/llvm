@@ -692,6 +692,30 @@ def SYCLAccessorGetPointerOp
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// accessor.range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLAccessorGetRangeOp
+    : SYCLMethodOpInterfaceImpl<"accessor.get_range", "AccessorType",
+                                ["get_range"]> {
+  let summary = "Represents the accessor get_range operation";
+  let description = [{
+    Returns a range object which represents the number of elements per dimension
+    that this accessor may access.
+  }];
+
+  let arguments = (ins Arg<AccessorMemRef, "The accessor", [MemRead]>:$Acc,
+                       TypeArrayAttr:$ArgumentTypes,
+                       FlatSymbolRefAttr:$FunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let hasVerifier = 1;
+
+  let results = (outs SYCL_RangeType:$result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // accessor.size OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
