@@ -667,12 +667,15 @@ void CGDebugInfo::CreateCompileUnit() {
   if (CSKind)
     CSInfo.emplace(*CSKind, Checksum);
 
-  if (!CGM.getCodeGenOpts().SYCLUseMainFileName)
-    MainFileDir = getCurrentDirname();
-
-  llvm::DIFile *CUFile =
-      DBuilder.createFile(remapDIPath(MainFileName), remapDIPath(MainFileDir),
-                          CSInfo, getSource(SM, SM.getMainFileID()));
+  llvm::DIFile *CUFile;
+  if (CGM.getCodeGenOpts().SYCLUseMainFileName)
+    CUFile =
+        DBuilder.createFile(remapDIPath(MainFileName), remapDIPath(MainFileDir),
+                            CSInfo, getSource(SM, SM.getMainFileID()));
+  else
+    CUFile = DBuilder.createFile(remapDIPath(MainFileName),
+                                 remapDIPath(getCurrentDirname()), CSInfo,
+                                 getSource(SM, SM.getMainFileID()));
 
   StringRef Sysroot, SDK;
   if (CGM.getCodeGenOpts().getDebuggerTuning() == llvm::DebuggerKind::LLDB) {
