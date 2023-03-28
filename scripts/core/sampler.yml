@@ -54,12 +54,6 @@ etors:
       desc: "[$x_sampler_addressing_mode_t] Sampler addressing mode setting"
     - name: FILTER_MODE
       desc: "[$x_sampler_filter_mode_t] Sampler filter mode setting"
-    - name: MIP_FILTER_MODE
-      desc: "[bool] Sampler MIP filter mode setting"
-    - name: LOD_MIN
-      desc: "Sampler LOD Min value"
-    - name: LOD_MAX
-      desc: "Sampler LOD Max value"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Sampler properties"
