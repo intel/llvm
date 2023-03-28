@@ -26,6 +26,10 @@ target_link_libraries(SYCLKernelFusion
   sycl-fusion-common
 )
 
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(SYCLKernelFusion PRIVATE FUSION_JIT_SUPPORT_PTX)
+endif()
+
 # Static library for linking with the jit_compiler
 add_llvm_library(SYCLKernelFusionPasses
   SYCLFusionPasses.cpp
@@ -60,3 +64,7 @@ target_link_libraries(SYCLKernelFusionPasses
   PRIVATE
   sycl-fusion-common
 )
+
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(SYCLKernelFusionPasses PRIVATE FUSION_JIT_SUPPORT_PTX)
+endif()

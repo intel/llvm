@@ -209,6 +209,7 @@ public:
 //
 // NVPTXTargetFusionInfo
 //
+#ifdef FUSION_JIT_SUPPORT_PTX
 class NVPTXTargetFusionInfo : public TargetFusionInfoImpl {
 public:
   using TargetFusionInfoImpl::TargetFusionInfoImpl;
@@ -279,6 +280,7 @@ public:
   unsigned getPrivateAddressSpace() const override { return 0; }
   unsigned getLocalAddressSpace() const override { return 3; }
 };
+#endif // FUSION_JIT_SUPPORT_PTX
 
 //
 // TargetFusionInfo
@@ -286,10 +288,12 @@ public:
 
 TargetFusionInfo::TargetFusionInfo(llvm::Module *Mod) {
   llvm::Triple Tri(Mod->getTargetTriple());
+#ifdef FUSION_JIT_SUPPORT_PTX
   if (Tri.isNVPTX()) {
     Impl = std::make_shared<NVPTXTargetFusionInfo>(Mod);
     return;
   }
+#endif // FUSION_JIT_SUPPORT_PTX
   if (Tri.isSPIRV() || Tri.isSPIR()) {
     Impl = std::make_shared<SPIRVTargetFusionInfo>(Mod);
     return;

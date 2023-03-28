@@ -227,7 +227,6 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
   LLVMInitializeNVPTXTarget();
   LLVMInitializeNVPTXAsmPrinter();
   LLVMInitializeNVPTXTargetMC();
-#endif // FUSION_JIT_SUPPORT_PTX
 
   static const char *TARGET_CPU_ATTRIBUTE = "target-cpu";
   static const char *TARGET_FEATURE_ATTRIBUTE = "target-features";
@@ -283,4 +282,5 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
   }
 
   return &JITCtx.emplaceKernelBinary(std::move(PTXASM), BinaryFormat::PTX);
+#endif // FUSION_JIT_SUPPORT_PTX
 }
