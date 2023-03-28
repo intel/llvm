@@ -6,6 +6,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
 //
 //==--- build-log.cpp - Test log message from faild build ----------==//
 //

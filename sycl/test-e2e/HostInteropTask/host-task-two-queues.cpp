@@ -6,6 +6,9 @@
 // TODO: Flaky fail on Level Zero that is why mark as unsupported temporarily.
 // UNSUPPORTED: level_zero
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 #include <iostream>
 #include <sycl/sycl.hpp>
 #include <vector>

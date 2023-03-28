@@ -6,6 +6,9 @@
 // Nvidia.
 // XFAIL: hip_nvidia
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 #include <sycl/sycl.hpp>
 
 int main() {

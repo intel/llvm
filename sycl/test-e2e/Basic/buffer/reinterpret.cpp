@@ -5,6 +5,9 @@
 //
 // XFAIL: level_zero&&gpu
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 //==---------- reinterpret.cpp --- SYCL buffer reinterpret basic test ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

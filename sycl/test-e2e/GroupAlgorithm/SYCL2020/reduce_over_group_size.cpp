@@ -11,6 +11,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t_O0.out
 // RUN: %ACC_RUN_PLACEHOLDER %t_O0.out
 
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+// UNSUPPORTED: cpu
+
 /*
     test performs a lattice reduction.
     sycl::vec<float> is sensitive to .get_size() vs .size() in SYCL headers

@@ -5,6 +5,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 // Missing GroupNonUniformArithmetic capability on CPU RT
 // XFAIL: cpu
 

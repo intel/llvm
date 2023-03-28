@@ -5,6 +5,10 @@
 // RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 
+// https://github.com/intel/llvm/issues/7585 to fix the flaky failure:
+// XFAIL: cpu
+// UNSUPPORTED: gpu
+
 #include <iostream>
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>

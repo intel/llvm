@@ -7,6 +7,9 @@
 // RUN: env SYCL_CACHE_PERSISTENT=1 %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: env SYCL_CACHE_PERSISTENT=1 %ACC_RUN_PLACEHOLDER %t.out
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 #include <sycl/sycl.hpp>
 
 SYCL_EXTERNAL

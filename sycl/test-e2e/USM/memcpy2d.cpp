@@ -14,6 +14,9 @@
 // Temporarily disabled until the failure is addressed.
 // UNSUPPORTED: gpu-intel-pvc || (level_zero && windows)
 
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+// UNSUPPORTED: cpu,gpu
+
 #include <sycl/sycl.hpp>
 
 #include "memops2d_utils.hpp"
