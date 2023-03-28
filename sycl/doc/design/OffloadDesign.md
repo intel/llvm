@@ -133,7 +133,7 @@ listed above.
 
 During this phase, all of the individual device binaries that are extracted and
 are associated with a given target are worked on given the type of binary we
-are working with.  The default device is typically represented in LLVM-IR
+are working with.  The default device code is typically represented in LLVM-IR
 which requires an additional link step of the device code before being
 wrapped and integrated into the final executable.  As mentioned in
 [Packager](#packager) device representation in SPIR-V should be considered
@@ -145,6 +145,10 @@ libraries are being compiled.  This information is sent through the
 `clang-offload-deps` tool to generate a dependency IR file which is used
 during the device link step.
 
+The use of the clang-linker-wrapper introduces the support of LTO for
+device code.  We can leverage this and move away from the dependency gathering
+information step with 'clang-offload-deps' and use thinLTO for device code.
+
 There are multiple device linking steps that also occur.  The first step links
 together all of the objects and the required device libraries.  The second is
 performed including all of optional device libraries, the static device
@@ -152,9 +156,10 @@ libraries and the dependency information that was gathered above.  This link
 step is performed with `--only-needed` to streamline the final device binary.
 
 The device libraries that are pulled in during the device link step will need
-to be controlled by the `clang-linker-wrapper`.  There are controlling options
-that are available to the user which need to be provided to the wrapper to
-understand which device libraries are not desired by the end user.
+to be controlled by the `clang-linker-wrapper`.  There is a controlling option
+(`-fno-sycl-device-lib=arg`) that is available to the user which needs to be
+provided to the wrapper to give more control over what device libraries are
+pulled in during the device link.
 
 ### Ahead Of Time Compilation
 
@@ -191,7 +196,11 @@ are given further below.
 | `--parallel-link-sycl=<arg>` | Provide the number of parallel jobs that will be used when processing with `llvm-foreach` |
 | `--no-sycl-device-lib=<arg>` | Provide the list of device libraries to restrict from linking during device link |
 
-*Table: Additional Options*
+*Table: Additional Options for clang-linker-wrapper*
+
+The `clang-linker-wrapper` provides an existing option named `-wrapper-jobs`
+that may be useful for our usage instead of creating a new option specific
+to `llvm-foreach` processing.
 
 #### spir64_gen support
 
@@ -258,6 +267,18 @@ about the parallel jobs will need to be passed through the
 `clang-linker-wrapper` to be properly processed.  The option will be named
 `--parallel-link-sycl=<arg>` to be consumed and used during `llvm-foreach`
 toolchain events.
+
+#### Beyond llvm-foreach and similar job hiding tools
+
+Tools like `llvm-foreach`, `file-table-tform`, `spirv-to-ir-wrapper` were all
+introduced to provide a way to manipulate behaviors that could only be
+determined at runtime of the compiler toolchain.  These were needed to work
+around the fact that the toolchain commands constructed by the driver is a fixed
+state of commands.
+
+Moving the functionality into `clang-linker-wrapper` presents the opportunity
+step away from the static command construction and create the call chain on
+the fly based on real time output from corresponding tools being called.
 
 ### Host Link
 
