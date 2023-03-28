@@ -5,6 +5,7 @@ set(TEST_NAME example-collected-hello-world)
 
 add_test(NAME ${TEST_NAME}
     COMMAND ${CMAKE_COMMAND}
+    -D MODE=stdout
     -D TEST_FILE=$<TARGET_FILE:hello_world>
     -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/hello_world.out.match
     -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
