@@ -18,14 +18,14 @@
 namespace mlir {
 class Pass;
 class RewritePatternSet;
-class SPIRVTypeConverter;
+class TypeConverter;
 
 #define GEN_PASS_DECL_CONVERTSYCLTOSPIRV
 #include "mlir/Conversion/SYCLPasses.h.inc"
 #undef GEN_PASS_DECL_CONVERTSYCLTOSPIRV
 
 /// Populates the given list with patterns that convert from SYCL to SPIRV.
-void populateSYCLToSPIRVConversionPatterns(SPIRVTypeConverter &typeConverter,
+void populateSYCLToSPIRVConversionPatterns(TypeConverter &typeConverter,
                                            RewritePatternSet &patterns);
 
 } // namespace mlir

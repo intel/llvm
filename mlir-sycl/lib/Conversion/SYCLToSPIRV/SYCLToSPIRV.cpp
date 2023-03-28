@@ -53,6 +53,38 @@ template <> struct spirv_counterpart_builtin<SYCLSubGroupLocalIDOp> {
       spirv::BuiltIn::SubgroupLocalInvocationId};
 };
 
+template <> struct spirv_counterpart_builtin<SYCLWorkGroupIDOp> {
+  constexpr static spirv::BuiltIn value{spirv::BuiltIn::WorkgroupId};
+};
+
+template <> struct spirv_counterpart_builtin<SYCLNumWorkItemsOp> {
+  constexpr static spirv::BuiltIn value{spirv::BuiltIn::GlobalSize};
+};
+
+template <> struct spirv_counterpart_builtin<SYCLWorkGroupSizeOp> {
+  constexpr static spirv::BuiltIn value{spirv::BuiltIn::WorkgroupSize};
+};
+
+template <> struct spirv_counterpart_builtin<SYCLLocalIDOp> {
+  constexpr static spirv::BuiltIn value{spirv::BuiltIn::LocalInvocationId};
+};
+
+template <> struct spirv_counterpart_builtin<SYCLGlobalIDOp> {
+  constexpr static spirv::BuiltIn value{spirv::BuiltIn::GlobalInvocationId};
+};
+
+template <> struct spirv_counterpart_builtin<SYCLSubGroupIDOp> {
+  constexpr static spirv::BuiltIn value{spirv::BuiltIn::SubgroupId};
+};
+
+template <> struct spirv_counterpart_builtin<SYCLNumSubGroupsOp> {
+  constexpr static spirv::BuiltIn value{spirv::BuiltIn::NumSubgroups};
+};
+
+template <> struct spirv_counterpart_builtin<SYCLSubGroupSizeOp> {
+  constexpr static spirv::BuiltIn value{spirv::BuiltIn::SubgroupSize};
+};
+
 template <typename OpTy>
 inline constexpr spirv::BuiltIn spirv_counterpart_builtin_v =
     spirv_counterpart_builtin<OpTy>::value;
@@ -99,14 +131,15 @@ protected:
 /// builtin \p builtin;
 /// 3. Load the value in position \p index (assumed to be inbounds).
 void rewriteNDIndex(Operation *op, spirv::BuiltIn builtin, Value index,
-                    const SPIRVTypeConverter &typeConverter,
+                    TypeConverter &typeConverter,
                     ConversionPatternRewriter &rewriter) {
   // TODO: Get default dimensions from parent modules.
   constexpr int64_t dimensions{3};
   constexpr std::array<int64_t, dimensions> vecInit{0, 0, 0};
 
   const auto values = spirv::getBuiltinVariableValue(
-      op, builtin, typeConverter.getIndexType(), rewriter);
+      op, builtin, typeConverter.convertType(rewriter.getIndexType()),
+      rewriter);
   const auto loc = op->getLoc();
   const auto indexTy = rewriter.getIndexType();
   const auto vecTy = VectorType::get(dimensions, indexTy);
@@ -132,9 +165,9 @@ public:
 
   void rewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
                ConversionPatternRewriter &rewriter) const final {
-    rewriteNDIndex(
-        op, GridOpPattern<OpTy>::spirvBuiltin, opAdaptor.getDimension(),
-        *this->template getTypeConverter<SPIRVTypeConverter>(), rewriter);
+    rewriteNDIndex(op, GridOpPattern<OpTy>::spirvBuiltin,
+                   opAdaptor.getDimension(),
+                   *GridOpPattern<OpTy>::getTypeConverter(), rewriter);
   }
 };
 
@@ -144,12 +177,13 @@ public:
 /// 3. Initialize the dimensions of the object with the values in builtin \p
 /// builtin.
 void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
-                      const SPIRVTypeConverter &typeConverter,
+                      TypeConverter &typeConverter,
                       ConversionPatternRewriter &rewriter) {
   // This conversion is platform dependent
   const auto dimensions = getDimensions(op->getResultTypes()[0]);
   const auto values = spirv::getBuiltinVariableValue(
-      op, builtin, typeConverter.getIndexType(), rewriter);
+      op, builtin, typeConverter.convertType(rewriter.getIndexType()),
+      rewriter);
   const auto loc = op->getLoc();
   const auto getIndexTy = rewriter.getIntegerType(32);
   const auto targetIndexType = rewriter.getI64Type();
@@ -191,16 +225,16 @@ public:
   void rewrite(OpTy op, typename OpTy::Adaptor opAdaptor,
                ConversionPatternRewriter &rewriter) const final {
     rewriteNDNoIndex(op, GridOpPattern<OpTy>::spirvBuiltin,
-                     *this->template getTypeConverter<SPIRVTypeConverter>(),
-                     rewriter);
+                     *GridOpPattern<OpTy>::getTypeConverter(), rewriter);
   }
 };
 
 void rewrite1D(Operation *op, spirv::BuiltIn builtin,
-               SPIRVTypeConverter &typeConverter,
+               TypeConverter &typeConverter,
                ConversionPatternRewriter &rewriter) {
   const auto res = spirv::getBuiltinVariableValue(
-      op, builtin, typeConverter.getIndexType(), rewriter);
+      op, builtin, typeConverter.convertType(rewriter.getIndexType()),
+      rewriter);
   rewriter.replaceOp(op, convertScalarToDtype(
                              rewriter, op->getLoc(), res,
                              typeConverter.convertType(op->getResultTypes()[0]),
@@ -218,29 +252,32 @@ public:
   matchAndRewrite(OpTy op, typename OpTy::Adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     rewrite1D(op, GridOpPattern<OpTy>::spirvBuiltin,
-              *this->template getTypeConverter<SPIRVTypeConverter>(), rewriter);
+              *GridOpPattern<OpTy>::getTypeConverter(), rewriter);
     return success();
   }
 };
 
 template <typename... OpTys>
 void addGridOpPatterns(RewritePatternSet &patterns,
-                       SPIRVTypeConverter &typeConverter,
-                       MLIRContext *context) {
+                       TypeConverter &typeConverter, MLIRContext *context) {
   (patterns.add<GridOpPatternIndex<OpTys>, GridOpPatternNoIndex<OpTys>>(
        typeConverter, context),
    ...);
 }
 } // namespace
 
-void mlir::populateSYCLToSPIRVConversionPatterns(
-    SPIRVTypeConverter &typeConverter, RewritePatternSet &patterns) {
+void mlir::populateSYCLToSPIRVConversionPatterns(TypeConverter &typeConverter,
+                                                 RewritePatternSet &patterns) {
   auto *context = patterns.getContext();
-  addGridOpPatterns<SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp>(
-      patterns, typeConverter, context);
+  addGridOpPatterns<SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp, SYCLWorkGroupIDOp,
+                    SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp, SYCLLocalIDOp,
+                    SYCLGlobalIDOp>(patterns, typeConverter, context);
   patterns.add<SingleDimGridOpPattern<SYCLSubGroupMaxSizeOp>,
-               SingleDimGridOpPattern<SYCLSubGroupLocalIDOp>>(typeConverter,
-                                                              context);
+               SingleDimGridOpPattern<SYCLSubGroupLocalIDOp>,
+               SingleDimGridOpPattern<SYCLSubGroupIDOp>,
+               SingleDimGridOpPattern<SYCLNumSubGroupsOp>,
+               SingleDimGridOpPattern<SYCLSubGroupSizeOp>>(typeConverter,
+                                                           context);
 }
 
 namespace {
@@ -269,11 +306,15 @@ void ConvertSYCLToSPIRVPass::runOnOperation() {
     target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<spirv::SPIRVDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
-    target.addLegalDialect<SYCLDialect>();
     target.addLegalDialect<vector::VectorDialect>();
 
-    target.addIllegalOp<SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp,
-                        SYCLSubGroupLocalIDOp, SYCLSubGroupMaxSizeOp>();
+    target.addDynamicallyLegalDialect<SYCLDialect>([](auto *op) {
+      return !isa<SYCLGlobalOffsetOp, SYCLNumWorkGroupsOp,
+                  SYCLSubGroupLocalIDOp, SYCLSubGroupMaxSizeOp,
+                  SYCLWorkGroupIDOp, SYCLNumWorkItemsOp, SYCLWorkGroupSizeOp,
+                  SYCLLocalIDOp, SYCLGlobalIDOp, SYCLSubGroupIDOp,
+                  SYCLNumSubGroupsOp, SYCLSubGroupSizeOp>(op);
+    });
 
     if (failed(applyPartialConversion(gpuModule, target, std::move(patterns))))
       signalPassFailure();

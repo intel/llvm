@@ -594,7 +594,8 @@ getOrInsertBuiltinVariable(Block &body, Location loc, spirv::BuiltIn builtin,
   case spirv::BuiltIn::WorkgroupId:
   case spirv::BuiltIn::LocalInvocationId:
   case spirv::BuiltIn::GlobalInvocationId:
-  case spirv::BuiltIn::GlobalOffset: {
+  case spirv::BuiltIn::GlobalOffset:
+  case spirv::BuiltIn::GlobalSize: {
     auto ptrType = spirv::PointerType::get(VectorType::get({3}, integerType),
                                            spirv::StorageClass::Input);
     std::string name = getBuiltinVarName(builtin);
