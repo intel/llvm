@@ -1085,6 +1085,22 @@ __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
 
+template <typename dataT, typename ReturnT, typename... ArgsT>
+extern SYCL_EXTERNAL size_t
+__spirv_TaskSequenceCreateINTEL(dataT *Data, ReturnT (*f)(ArgsT...),
+                                uint32_t Pipelined,
+                                uint32_t UseStallEnableClusters) noexcept;
+template <typename dataT, typename... ArgsT>
+extern SYCL_EXTERNAL void
+__spirv_TaskSequenceAsyncINTEL(dataT *Data, uint32_t AsyncCapacity,
+                               ArgsT... Args) noexcept;
+template <typename dataT, typename ReturnT, typename... ArgsT>
+extern SYCL_EXTERNAL ReturnT
+__spirv_TaskSequenceGetINTEL(dataT *Data, uint32_t GetCapacity) noexcept;
+template <typename dataT>
+extern SYCL_EXTERNAL void
+__spirv_TaskSequenceReleaseINTEL(dataT *Data) noexcept;
+
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>
