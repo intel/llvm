@@ -4,7 +4,6 @@
 #ifndef UR_UNIT_LOGGER_TEST_FIXTURES_HPP
 #define UR_UNIT_LOGGER_TEST_FIXTURES_HPP
 
-#include <filesystem>
 #include <gtest/gtest.h>
 
 #include "helpers.h"
