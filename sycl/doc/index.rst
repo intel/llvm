@@ -45,7 +45,8 @@ Design Documents for the oneAPI DPC++ Compiler
    design/HostPipes
    design/ESIMDStatelesAccessors
    design/ESIMDDesignNotes
-   design/DeviceIf
+   design/IfDevice
+   design/IfDeviceHas
    design/KernelFusionJIT
    design/NonRelocatableDeviceCode
    design/DeviceAspectTraitDesign

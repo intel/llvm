@@ -1,0 +1,166 @@
+= sycl_ext_oneapi_if_device
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension adds a way to conditionally select code based on whether the
+caller runs on a device or runs on the host.  This allows an application to
+call some common function from either host or device, and then select one path
+or another for each case.  The `+__SYCL_DEVICE_ONLY__+` macro from the core
+SYCL specification provides this same ability, but the new API in this
+extension provides a solution that works even in a 1-pass implementation of
+SYCL.  In such an implementation, the preprocessor runs only once, so there is
+no way to define the `+__SYCL_DEVICE_ONLY__+` macro differently for the host
+and device compilations.
+
+The goal of this extension is to provide a better alternative to the
+`+__SYCL_DEVICE_ONLY__+` macro, adopt it into a future version of the SYCL
+specification, and deprecate usage of that macro.
+
+The APIs added in this extension are designed in the same style as the APIs in
+link:sycl_ext_oneapi_if_device_has.asciidoc[sycl_ext_oneapi_if_device_has] in
+order to provide a consistent style for conditionally selecting code based on
+where it runs.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_IF_DEVICE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New `if_device` and `if_host` free functions
+
+This extension adds two new free functions which may be called from either
+device or host code.
+
+```
+namespace sycl::ext::oneapi::experimental {
+
+template<typename T>
+/* unspecified */ if_device(T fn);
+
+template<typename T>
+/* unspecified */ if_host(T fn);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+The parameter `fn` must be a C++ `Callable` object which is invocable with an
+empty parameter list.  When called from device code, normal SYCL restrictions
+apply, so `fn` must not be a function pointer or a pointer to a member
+function.  (The expectation is that most applications will pass a lambda
+expression for this parameter.)
+
+The `if_device` function conditionally calls the object `fn` only if
+`if_device` is called from device code.  The `if_host` function conditionally
+calls the object `fn` only if `if_host` is called from host code.
+
+=== Fallback code
+
+The value returned by `if_device` and `if_host` is an object _F_ of an
+unspecified type, which provides the following member function:
+
+```
+class /* unspecified */ {
+ public:
+  template<typename T>
+  void otherwise(T fn);
+};
+```
+
+The parameter `fn` must be a C++ `Callable` object with the same restrictions
+listed above.  The `otherwise` function calls `fn` only if the object _F_ comes
+from a previous call to `if_device` or `if_host` that did not call its `fn`
+object.  Thus, `otherwise` can be used like an "else" clause as demonstrated by
+this example:
+
+```
+namespace syclex = sycl::ext::oneapi::experimental;
+
+void frob() {
+  syclex::if_device([] {
+    // code that runs on the device
+  }).otherwise([] {
+    // code that runs on the host
+  });
+}
+```
+
+=== Affect on device code discovery
+
+As defined in the core SYCL specification, the compiler identifies device
+code by traversing the static call tree of each kernel function.  When
+`if_host` is called from device code, the `fn` object is not called.
+In addition, this call to `fn` is ignored when the compiler identifies
+device code by traversing the static call tree.  Thus, `fn` (and functions
+it calls) may legally use C++ features that are forbidden in device code.
+
+The same is true for the `otherwise` clause when `if_device` is called from
+device code.  The `fn` object is not called in this case, and the call to `fn`
+is ignored when the compiler identifies device code.

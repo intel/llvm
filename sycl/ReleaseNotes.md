@@ -163,7 +163,7 @@ plugin. [b1533c5e]
 - Deprecated `group::get_global_range()`. [95338719]
 
 ### Documentation
-- Updated the [`sycl_ext_oneapi_device_if`](doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc)
+- Updated the [`sycl_ext_oneapi_device_if`](doc/extensions/proposed/sycl_ext_oneapi_if_device_has.asciidoc)
 extension proposal to allow chaining `if_device_has`, `else_if_device_has` and
 `else_device` calls. [7f2b17ed]
 - Updated the [`sycl_ext_intel_fpga_device_selector`](doc/extensions/supported/sycl_ext_intel_fpga_device_selector.asciidoc)
@@ -1725,7 +1725,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    [Uniform](doc/extensions/proposed/sycl_ext_oneapi_uniform.asciidoc) extensions [72e1611]
  - Added [Matrix Programming Extension for DPC++ document](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc) [ace4c733]
  - Implemented SYCL 2020 `sycl::span` [9356d53]
- - Added [device-if](doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc) extension
+ - Added [device-if](doc/extensions/proposed/sycl_ext_oneapi_if_device_has.asciidoc) extension
    [4fb95fc]
  - Added a [programming guide](doc/MultiTileCardWithLevelZero.md) for
    multi-tile and multi-card under Level Zero backend [d581178a]

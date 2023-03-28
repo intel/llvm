@@ -242,7 +242,7 @@ This section lists current major ESIMD gaps/TODOs.
    [design](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/OptionalDeviceFeatures.md).
    This might require splitting implementations into per-architecture variants.
    `if_device_has`
-   [feature](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc)
+   [feature](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_if_device_has.asciidoc)
    may help avoid duplication of common parts and dispatch to
    architecture-dependent code at fine-grained level from within a function.
 1. As VC BE moves away from `genx.*` intrinsics replacing them with `__spirv_*`

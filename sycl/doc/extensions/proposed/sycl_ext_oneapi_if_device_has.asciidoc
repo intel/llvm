@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_device_if
+= sycl_ext_oneapi_if_device_has
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -111,7 +111,7 @@ condition check can be entirely eliminated by the device compiler.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_DEVICE_IF` to one of the values defined in the table
+macro `SYCL_EXT_ONEAPI_IF_DEVICE_HAS` to one of the values defined in the table
 below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -195,14 +195,13 @@ applications to chain calls to `if_device_has`, `else_if_device_has`, and
 the following example:
 
 ```
-using sycl::ext::oneapi::experimental;
-using sycl;
+namespace syclex = sycl::ext::oneapi::experimental;
 
 void frob() {
-  if_device_has<aspect::foo>([] {
-    // code that uses features tied to "foo" aspect
-  }).else_if_device_has<aspect::bar>([] {
-    // code that uses features tied to "bar" aspect
+  syclex::if_device_has<sycl::aspect::fp16>([] {
+    // code that uses features tied to "fp16" aspect
+  }).else_if_device_has<sycl::aspect::fp64>([] {
+    // code that uses features tied to "fp64" aspect
   }).otherwise([] {
     // fallback code that works on all devices
   });
