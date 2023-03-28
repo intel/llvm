@@ -49,13 +49,13 @@ Project documentation is available at:
 #### Docker containers
 
 See available containers with pre-built/pre-installed DPC++ compiler at:
-[Containers](/../sycl/sycl/doc/developer/DockerBKMs.md#sycl-containers-overview)
+[Containers](./sycl/doc/developer/DockerBKMs.md#sycl-containers-overview)
 
 #### Releases
 
 Daily builds of the sycl branch on Linux are available at
-[releases](/../../releases).
-A few times a year, we publish [Release Notes](/../sycl/sycl/ReleaseNotes.md) to
+[releases](https://github.com/intel/llvm//releases).
+A few times a year, we publish [Release Notes](./sycl/ReleaseNotes.md) to
 highlight all important changes made in the project: features implemented and
 issues addressed. The corresponding builds can be found using
 [search](https://github.com/intel/llvm/releases?q=oneAPI+DPC%2B%2B+Compiler&expanded=true)
@@ -65,22 +65,22 @@ expected to be similar to the daily releases.
 
 #### Build from sources
 
-See [Get Started Guide](/../sycl/sycl/doc/GetStartedGuide.md).
+See [Get Started Guide](./sycl/doc/GetStartedGuide.md).
 
 ### Report a problem
 
-Submit an [issue](/../../issues) or initiate a [discussion](/../../discussions).
+Submit an [issue](https://github.com/intel/llvm/issues) or initiate a [discussion](https://github.com/intel/llvm/discussions).
 
 ### How to contribute to DPC++
 
-See [ContributeToDPCPP](/../sycl/sycl/doc/developer/ContributeToDPCPP.md).
+See [ContributeToDPCPP](./sycl/doc/developer/ContributeToDPCPP.md).
 
 ## Late-outline OpenMP\* and OpenMP\* Offload
 
-See [openmp](/../../tree/openmp) branch.
+See [openmp](/tree/openmp) branch.
 
 # License
 
-See [LICENSE](/../sycl/sycl/LICENSE.TXT) for details.
+See [LICENSE](./sycl/sycl/LICENSE.TXT) for details.
 
 <sub>\*Other names and brands may be claimed as the property of others.</sub>
