@@ -827,22 +827,39 @@ Add to Table 130, "Member functions of the handler class".
 a| 
 [source, c++]
 ----
-void ext_intel_read_write_host_pipe
+void ext_intel_read_host_pipe
        (const std::string &Name, void *Ptr,
-                       size_t Size, bool Block, bool Read);
+                       size_t Size, bool Block=false);
 ----
-|  Read from or write to host pipes given a host address.
+|  Read from a host pipes given a host address.
 
    `Name` is the name of the host pipe to be passed into lower level runtime.
    
    `Ptr` is the host pointer of the host pipe as identified by address of its const expr member.
    
-   `Size` is the size of data getting read back / to.
+   `Size` is the size of data getting read.
    
-   `Block` is indicating whether read/write opeartion is blocking.
+   `Block` is indicating whether read/write opeartion is blocking. Default is false.
    
-   `Read` is indeicating whether it's a read/write op, 1 for read, 0 for write.
 a| 
+
+[source, c++]
+----
+void ext_intel_write_host_pipe
+       (const std::string &Name, void *Ptr,
+                       size_t Size, bool Block=false);
+----
+|  Write to a host pipes given a host address.
+
+   `Name` is the name of the host pipe to be passed into lower level runtime.
+   
+   `Ptr` is the host pointer of the host pipe as identified by address of its const expr member.
+   
+   `Size` is the size of data getting write to.
+   
+   `Block` is indicating whether read/write opeartion is blocking. Default is false.
+   
+|====
 --
 
 == Issues for experimental API
