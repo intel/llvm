@@ -929,12 +929,14 @@ __SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(sign, T x, x[i])
     __SYCL_MARRAY_COMMON_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)             \
   }
 
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(min, T x, T y, x[i], y[i])
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(min, T x,
+// min and max may be defined as macros, so we wrap them in parentheses to avoid
+// errors.
+__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((min), T x, T y, x[i], y[i])
+__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((min), T x,
                                              detail::marray_element_type<T> y,
                                              x[i], y)
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(max, T x, T y, x[i], y[i])
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(max, T x,
+__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((max), T x, T y, x[i], y[i])
+__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((max), T x,
                                              detail::marray_element_type<T> y,
                                              x[i], y)
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(step, T edge, T x, edge[i], x[i])
