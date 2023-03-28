@@ -815,20 +815,18 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 
   DeviceCodeSplitRulesBuilder RulesBuilder;
 
-  EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(
-      MD.getModule(), Mode, IROutputOnly);
+  EntryPointsGroupScope Scope =
+      selectDeviceCodeGroupScope(MD.getModule(), Mode, IROutputOnly);
 
   if (Scope == Scope_Global) {
     // We simply perform entry points filtering, but group all of them together.
-    RulesBuilder.registerRule([](Function *) -> std::string {
-      return GLOBAL_SCOPE_NAME;
-    });
+    RulesBuilder.registerRule(
+        [](Function *) -> std::string { return GLOBAL_SCOPE_NAME; });
   } else if (Scope == Scope_PerKernel) {
     // Per-kernel split is quite simple: every kernel goes into a separate
     // module and that's it, no other rules required.
-    RulesBuilder.registerRule([](Function *F) -> std::string {
-      return F->getName().str();
-    });
+    RulesBuilder.registerRule(
+        [](Function *F) -> std::string { return F->getName().str(); });
   } else if (Scope == Scope_PerModule) {
     // The most complex case, because we should account for many other features
     // like aspects used in a kernel, large-grf mode, reqd-work-group-size, etc.
@@ -837,8 +835,10 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     RulesBuilder.registerSimpleStringAttributeRule("sycl-module-id");
 
     // Optional features
-    RulesBuilder.registerSimpleFlagAttributeRule(::sycl::kernel_props::ATTR_LARGE_GRF, "large-grf");
-    RulesBuilder.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
+    RulesBuilder.registerSimpleFlagAttributeRule(
+        ::sycl::kernel_props::ATTR_LARGE_GRF, "large-grf");
+    RulesBuilder.registerListOfIntegersInMetadataSortedRule(
+        "sycl_used_aspects");
     RulesBuilder.registerListOfIntegersInMetadataRule("reqd_work_group_size");
 
   } else {
