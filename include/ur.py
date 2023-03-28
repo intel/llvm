@@ -895,9 +895,6 @@ class ur_sampler_info_v(IntEnum):
     NORMALIZED_COORDS = 2                           ## [bool] Sampler normalized coordinate setting
     ADDRESSING_MODE = 3                             ## [::ur_sampler_addressing_mode_t] Sampler addressing mode setting
     FILTER_MODE = 4                                 ## [::ur_sampler_filter_mode_t] Sampler filter mode setting
-    MIP_FILTER_MODE = 5                             ## [bool] Sampler MIP filter mode setting
-    LOD_MIN = 6                                     ## Sampler LOD Min value
-    LOD_MAX = 7                                     ## Sampler LOD Max value
 
 class ur_sampler_info_t(c_int):
     def __str__(self):

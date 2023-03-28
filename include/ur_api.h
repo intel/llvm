@@ -1932,9 +1932,6 @@ typedef enum ur_sampler_info_t {
     UR_SAMPLER_INFO_NORMALIZED_COORDS = 2, ///< [bool] Sampler normalized coordinate setting
     UR_SAMPLER_INFO_ADDRESSING_MODE = 3,   ///< [::ur_sampler_addressing_mode_t] Sampler addressing mode setting
     UR_SAMPLER_INFO_FILTER_MODE = 4,       ///< [::ur_sampler_filter_mode_t] Sampler filter mode setting
-    UR_SAMPLER_INFO_MIP_FILTER_MODE = 5,   ///< [bool] Sampler MIP filter mode setting
-    UR_SAMPLER_INFO_LOD_MIN = 6,           ///< Sampler LOD Min value
-    UR_SAMPLER_INFO_LOD_MAX = 7,           ///< Sampler LOD Max value
     /// @cond
     UR_SAMPLER_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2050,7 +2047,7 @@ urSamplerRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_SAMPLER_INFO_LOD_MAX < propName`
+///         + `::UR_SAMPLER_INFO_FILTER_MODE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
 ///         + `NULL == pPropSizeRet`
