@@ -2345,12 +2345,12 @@ public:
   ///
   /// \param Ptr is the pointer to the memory to fill
   /// \param Pattern is the pattern to fill into the memory.  T should be
-  /// trivially copyable.
+  /// device copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     throwIfActionIsCreated();
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Pattern must be trivially copyable");
+    static_assert(is_device_copyable<T>::value,
+                  "Pattern must be device copyable");
     parallel_for<class __usmfill<T>>(range<1>(Count), [=](id<1> Index) {
       T *CastedPtr = static_cast<T *>(Ptr);
       CastedPtr[Index] = Pattern;
@@ -2597,15 +2597,15 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestPitch is the pitch of the rows in \param Dest.
   /// \param Pattern is the pattern to fill into the memory.  T should be
-  /// trivially copyable.
+  /// device copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
   /// \param Height is the height in number of rows of the 2D region to fill.
   template <typename T>
   void ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
                          size_t Width, size_t Height) {
     throwIfActionIsCreated();
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Pattern must be trivially copyable");
+    static_assert(is_device_copyable<T>::value,
+                  "Pattern must be device copyable");
     if (Width > DestPitch)
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Destination pitch must be greater than or equal "
