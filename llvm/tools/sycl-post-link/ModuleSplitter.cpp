@@ -726,29 +726,33 @@ private:
 };
 
 std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
-  std::string Result;
+  SmallString<256> Result;
   for (const auto &R : Rules) {
     switch (R.Kind) {
     case Rule::RKind::K_Callback:
       Result += R.getStorage<Rule::RKind::K_Callback>()(F);
       break;
+
     case Rule::RKind::K_SimpleStringAttribute: {
-      auto AttrName = R.getStorage<Rule::RKind::K_SimpleStringAttribute>();
+      StringRef AttrName = R.getStorage<Rule::RKind::K_SimpleStringAttribute>();
       if (F->hasFnAttribute(AttrName)) {
-        auto Attr = F->getFnAttribute(AttrName);
-        assert(Attr.isStringAttribute());
+        Attribute Attr = F->getFnAttribute(AttrName);
         Result += Attr.getValueAsString();
       }
     } break;
+
     case Rule::RKind::K_FlagMetadata: {
-      auto Data = R.getStorage<Rule::RKind::K_FlagMetadata>();
+      std::tuple<StringRef, StringRef, StringRef> Data =
+          R.getStorage<Rule::RKind::K_FlagMetadata>();
       if (F->hasMetadata(std::get<0>(Data)))
         Result += std::get<1>(Data);
       else
         Result += std::get<2>(Data);
     } break;
+
     case Rule::RKind::K_IntegersListMetadata: {
-      auto MetadataName = R.getStorage<Rule::RKind::K_IntegersListMetadata>();
+      StringRef MetadataName =
+          R.getStorage<Rule::RKind::K_IntegersListMetadata>();
       if (F->hasMetadata(MetadataName)) {
         auto *MDN = F->getMetadata(MetadataName);
         for (const MDOperand &MDOp : MDN->operands())
@@ -756,10 +760,12 @@ std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
               mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
       }
     } break;
+
     case Rule::RKind::K_SortedIntegersListMetadata: {
-      auto MetadataName = R.getStorage<Rule::RKind::K_IntegersListMetadata>();
+      StringRef MetadataName =
+          R.getStorage<Rule::RKind::K_IntegersListMetadata>();
       if (F->hasMetadata(MetadataName)) {
-        auto *MDN = F->getMetadata(MetadataName);
+        MDNode *MDN = F->getMetadata(MetadataName);
 
         SmallVector<unsigned, 8> Values;
         for (const MDOperand &MDOp : MDN->operands())
@@ -771,18 +777,19 @@ std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
           Result += std::to_string(V);
       }
     } break;
+
     case Rule::RKind::K_FlagAttribute: {
-      auto Data = R.getStorage<Rule::RKind::K_FlagAttribute>();
-      if (F->hasFnAttribute(std::get<0>(Data))) {
+      std::tuple<StringRef, StringRef, StringRef> Data =
+          R.getStorage<Rule::RKind::K_FlagAttribute>();
+      if (F->hasFnAttribute(std::get<0>(Data)))
         Result += std::get<1>(Data);
-      } else {
+      else
         Result += std::get<2>(Data);
-      }
     } break;
     }
   }
 
-  return Result;
+  return (std::string)Result;
 }
 
 std::unique_ptr<ModuleSplitterBase>
