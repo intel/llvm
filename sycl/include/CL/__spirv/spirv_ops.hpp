@@ -24,7 +24,7 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
-extern SYCL_EXTERNAL float __spirv_RoundFToTF32INTEL(float a);
+extern __DPCPP_SYCL_EXTERNAL float __spirv_RoundFToTF32INTEL(float a);
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
