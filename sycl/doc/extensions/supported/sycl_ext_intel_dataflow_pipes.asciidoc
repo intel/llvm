@@ -126,8 +126,7 @@ A pipe type is a specialization of the pipe class:
 [source,c++,Pipe type def,linenums]
 ----
 template <class _name, class _dataT, int32_t _min_capacity = 0,
-          class _propertiesT = decltype(oneapi::experimental::properties{}),
-          class = void>
+          class _propertiesT = decltype(oneapi::experimental::properties{})>
 class pipe;
 ----
 
@@ -286,8 +285,7 @@ The read/write member functions of a host pipe have different signatures when th
 [source,c++,Host pipe read write members,linenums]
 ----
 template <class _name, class _dataT, int32_t _min_capacity = 0,
-          class _propertiesT = decltype(oneapi::experimental::properties{}),
-          class = void>
+          class _propertiesT = decltype(oneapi::experimental::properties{})>
 class pipe {
   // Blocking
   static _dataT read(queue &Q, memory_order Order = memory_order::seq_cst);
@@ -338,8 +336,7 @@ Pipes expose two additional static member functions that are available within ho
 [source,c++,Read write members,linenums]
 ----
 template <class _name, class _dataT, int32_t _min_capacity = 0,
-          class _propertiesT = decltype(oneapi::experimental::properties{}),
-          class = void>
+          class _propertiesT = decltype(oneapi::experimental::properties{})>
 class pipe {
   template <pipe_property::writeable host_writeable>
     static DataT* map(size_t requested_size, size_t &mapped_size);
@@ -380,7 +377,7 @@ Multiple reads or multiple writes to the same pipe from more than one kernel are
 When there are accesses to a pipe from different work-items or host threads, the order of data written to or read from the pipe is not defined.  Specifically, regarding multiple accesses to the same pipe:
 
 1. *Accesses to a single pipe within a single work-item of a kernel or thread of the host program:* Operations on the same pipe occur in program order with respect to the work-item or host thread.  No "concurrent" accesses or reordering of accesses are observable from the perspective of the single pipe.  If there are multiple pipe access operations to the same pipe within a single kernel, they execute in program order from the perspective of a single work-item.
-2. *Accesses to multiple pipes within a single work-item of a kernel or thread of the host program:*  Different pipes are treated in the same way as non-aliased memory, in that accesses to one pipe may be reordered relative to accesses to another pipe.  There is no expectation of program ordering of pipe operations across different pipes, only for a single pipe.  If a happens-before relationship across pipes is required, synchronization mechanisms such as atomics or barriers must be used. In the future, when the memory_order parameter is implemented, it will control how other memory accesses, including regular, non-atomic memory accesses, are to be ordered around the pipe read/write operation.
+2. *Accesses to multiple pipes within a single work-item of a kernel or thread of the host program:*  Different pipes are treated in the same way as non-aliased memory, in that accesses to one pipe may be reordered relative to accesses to another pipe.  There is no expectation of program ordering of pipe operations across different pipes, only for a single pipe.  If a happens-before relationship across pipes is required, synchronization mechanisms such as atomics or barriers must be used.
 3. *Accesses to a single pipe within two work-items of the same kernel (same or different invocations of a single kernel), and/or threads of the host program:* No ordering guarantees are made on the order of pipe operations across device work-items or host threads.  For example, if two work-items executing a kernel write to a pipe, there are no guarantees that the work-item with lower _id_ (for any definition of _id_) executes before the pipe write from a higher _id_.  The execution order of work-items executing a kernel are not defined by SYCL, may be dynamically reordered, and may not be deterministic.  If ordering guarantees are required across work-items and/or host threads, synchronization mechanisms such as atomics or barriers must be used.
 
 === Restrictions on pipes accessed by both kernels and the host program
