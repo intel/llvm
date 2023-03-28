@@ -28,13 +28,13 @@ class AdapterRegistry {
         }
         if (!altPlatforms) {
             discoverKnownAdapters();
-        }
-
-        std::stringstream ss(*altPlatforms);
-        while (ss.good()) {
-            std::string substr;
-            getline(ss, substr, ',');
-            discovered_adapters.emplace_back(substr);
+        } else {
+            std::stringstream ss(*altPlatforms);
+            while (ss.good()) {
+                std::string substr;
+                getline(ss, substr, ',');
+                discovered_adapters.emplace_back(substr);
+            }
         }
     }
 
