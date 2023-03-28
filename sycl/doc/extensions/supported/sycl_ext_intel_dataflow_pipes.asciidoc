@@ -764,7 +764,7 @@ myQueue.submit([&](handler &cgh) {
 
 == Host Side pipe read/write
 
-The read/write member functions of a host pipe have different signatures when they are called from the host side, in which case a `sycl::queue` is added to the parameters. `memory_order` is also added to the parameter for future work.
+If the read/write member functions of a pipe are called from the host side, a `sycl::queue` is added to the parameters. The `memory_order` parameter is also added to the parameters for future work.
 
 [source,c++,Host pipe read write members,linenums]
 ----
