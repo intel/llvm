@@ -489,6 +489,22 @@ func.func private @subindexop_memref_nested_struct(%arg0: memref<4x!llvm.struct<
 
 // -----
 
+// CHECK-LABEL: llvm.func @subindexop_memref_nested_ptr(
+// CHECK-SAME:     %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr
+// CHECK-NEXT:     %[[VAL_1:.*]] = llvm.mlir.constant(0 : index) : i64
+// CHECK-NEXT:     %[[VAL_2:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:     %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_2]], %[[VAL_1]]] : (!llvm.ptr, i64, i64) -> !llvm.ptr, !llvm.ptr
+// CHECK-NEXT:     llvm.return %[[VAL_3]] : !llvm.ptr
+// CHECK-NEXT: }
+
+func.func private @subindexop_memref_nested_ptr(%arg0: memref<4x!llvm.struct<(ptr)>>) -> memref<?x!llvm.ptr> {
+  %c_0 = arith.constant 0 : index
+  %res = "polygeist.subindex"(%arg0, %c_0) : (memref<4x!llvm.struct<(ptr)>>, index) -> memref<?x!llvm.ptr>
+  return %res : memref<?x!llvm.ptr>
+}
+
+// -----
+
 // CHECK-LABEL:   llvm.func @subindexop_memref_nested_struct_array(
 // CHECK-SAME:                                                     %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(0 : index) : i64
