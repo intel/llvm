@@ -129,6 +129,23 @@ Each item in the archive will be extracted and will be individually checked for
 the file type, properly performing extraction based on the file types already
 listed above.
 
+#### Support of existing fat object format
+
+The current model generates fat objects using the `clang-offload-bundler`
+tool.  This tool creates a binary that contains individual sections that are
+labeled with `__CLANG_OFFLOAD_BUNDLE__kind-triple`.  This format does not
+match the new format as described above.  To enable an ease of transition
+from the old model to the new model, support will be added that allows for
+support of identifying and extracting device binaries that are using the old
+model.
+
+It is expected that all new binaries generated with the updated offloading
+model will represent the embedded fat object format, moving away from the
+`clang-offload-bundler` usage.  We will not support a mixing of fat object
+formats such as objects created with the bundler combined with embedded objects
+in a single archive or objects created with an embedded offload section and
+additional sections generated with the bundler.
+
 ### Device Linking
 
 During this phase, all of the individual device binaries that are extracted and
