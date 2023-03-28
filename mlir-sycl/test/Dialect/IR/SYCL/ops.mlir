@@ -266,6 +266,12 @@ func.func @test_accessor_get_pointer(%acc: memref<?x!sycl_accessor_1_i32_w_gb>) 
   return %0 : memref<?xi32, 1>
 }
 
+// CHECL-LABEL: test_accessor_get_range
+func.func @test_accessor_get_range(%acc: memref<?x!sycl_accessor_1_i32_w_gb>) -> !sycl_range_1_ {
+  %0 = sycl.accessor.get_range(%acc) { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_w_gb>], FunctionName = @"get_range", MangledFunctionName = @"get_range", TypeName = @"accessor" }  : (memref<?x!sycl_accessor_1_i32_w_gb>) -> !sycl_range_1_
+  return %0 : !sycl_range_1_
+}
+
 // CHECK-LABEL: test_accessor_subscript_atomic
 func.func @test_accessor_subscript_atomic(
   %acc: memref<?x!sycl_accessor_1_i32_ato_gb>, 

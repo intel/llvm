@@ -1105,6 +1105,18 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// AccessorSizePattern - Convert `sycl.accessor.get_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+class AccessorGetRangePattern
+    : public LoadMemberPattern<SYCLAccessorGetRangeOp,
+                               AccessorGetMAccessRange> {
+public:
+  using LoadMemberPattern<SYCLAccessorGetRangeOp,
+                          AccessorGetMAccessRange>::LoadMemberPattern;
+};
+
+//===----------------------------------------------------------------------===//
 // AccessorSizePattern - Convert `sycl.accessor.size` to LLVM.
 //===----------------------------------------------------------------------===//
 
@@ -2148,14 +2160,14 @@ void mlir::populateSYCLToLLVMConversionPatterns(
   patterns.add<CastPattern>(typeConverter);
   patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns
-      .add<AccessorGetPointerPattern, AccessorSizePattern,
-           AddZeroArgPattern<SYCLIDGetOp>, AddZeroArgPattern<SYCLItemGetIDOp>,
-           AtomicSubscriptIDOffset, BarePtrAddrSpaceCastPattern,
-           GroupGetGroupIDPattern, GroupGetGroupLinearRangePattern,
-           GroupGetGroupRangeDimPattern, GroupGetLocalIDPattern,
-           GroupGetLocalLinearRangePattern, GroupGetLocalRangeDimPattern,
-           IDGetPattern, IDGetRefPattern, ItemGetIDDimPattern,
-           ItemGetRangeDimPattern, ItemGetRangePattern,
+      .add<AccessorGetPointerPattern, AccessorGetRangePattern,
+           AccessorSizePattern, AddZeroArgPattern<SYCLIDGetOp>,
+           AddZeroArgPattern<SYCLItemGetIDOp>, AtomicSubscriptIDOffset,
+           BarePtrAddrSpaceCastPattern, GroupGetGroupIDPattern,
+           GroupGetGroupLinearRangePattern, GroupGetGroupRangeDimPattern,
+           GroupGetLocalIDPattern, GroupGetLocalLinearRangePattern,
+           GroupGetLocalRangeDimPattern, IDGetPattern, IDGetRefPattern,
+           ItemGetIDDimPattern, ItemGetRangeDimPattern, ItemGetRangePattern,
            NDItemGetGlobalIDDimPattern, NDItemGetGlobalIDPattern,
            NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
            NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,

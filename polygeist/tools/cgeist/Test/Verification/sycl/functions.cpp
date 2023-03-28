@@ -57,6 +57,18 @@ SYCL_EXTERNAL void accessor_get_pointer(sycl::accessor<sycl::cl_int, 2> acc) {
   keep(acc.get_pointer());
 }
 
+// CHECK-MLIR-LABEL: func.func @_Z18accessor_get_rangeN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
+// CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_gb, llvm.noundef})
+// CHECK-MLIR: %{{.*}} = sycl.accessor.get_range(%arg0) {ArgumentTypes = [memref<?x!sycl_accessor_2_i32_rw_gb, 4>], FunctionName = @get_range, MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE9get_rangeILi2EvEENS0_5rangeILi2EEEv, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_rw_gb>) -> !sycl_range_2_
+
+// CHECK-LLVM-LABEL: define spir_func void @_Z18accessor_get_rangeN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
+// CHECK-LLVM:           %"class.sycl::_V1::accessor.2"* noundef byval(%"class.sycl::_V1::accessor.2") align 8 %0) #[[FUNCATTRS:[0-9]+]] {
+// CHECK-LLVM:  %{{.*}} = call spir_func %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE9get_rangeILi2EvEENS0_5rangeILi2EEEv(%"class.sycl::_V1::accessor.2" addrspace(4)* %{{.*}})
+
+SYCL_EXTERNAL void accessor_get_range(sycl::accessor<sycl::cl_int, 2> acc) {
+  keep(acc.get_range());
+}
+
 // CHECK-MLIR-LABEL: func.func @_Z13accessor_sizeN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
 // CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_gb, llvm.noundef})
 // CHECK-MLIR: %{{.*}} = sycl.accessor.size(%arg0) {ArgumentTypes = [memref<?x!sycl_accessor_2_i32_rw_gb, 4>], FunctionName = @size, MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE4sizeEv, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_rw_gb>) -> i64
