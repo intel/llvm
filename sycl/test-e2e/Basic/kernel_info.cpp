@@ -6,8 +6,6 @@
 // Fail is flaky for level_zero, enable when fixed.
 // UNSUPPORTED: level_zero
 //
-// CUDA and HIP do not currently implement global_work_size
-// UNSUPPORTED: cuda, hip
 
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//
 //
@@ -56,9 +54,14 @@ int main() {
   assert(prefWGSizeMult > 0);
 
   try {
+    // To check (a) first if the kernel is device built-in, (b) then check if
+    // the device type is custom
+    if (!sycl::is_compatible({KernelID}, q.get_device())) {
+      assert(dev.get_info<sycl::info::device::device_type>() ==
+             sycl::info::device_type::custom);
+    }
+
     krn.get_info<sycl::info::kernel_device_specific::global_work_size>(dev);
-    assert(dev.get_info<sycl::info::device::device_type>() ==
-           sycl::info::device_type::custom);
   } catch (sycl::exception &e) {
     assert(e.code() == sycl::errc::invalid);
   }

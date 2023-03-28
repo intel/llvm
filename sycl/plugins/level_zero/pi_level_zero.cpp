@@ -4228,7 +4228,6 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
   std::shared_lock<pi_shared_mutex> Guard(Kernel->Mutex);
   switch (ParamName) {
   case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
-    // TODO: To revisit after level_zero/issues/262 is resolved
     struct {
       size_t Arr[3];
     } GlobalWorkSize = {{(Device->ZeDeviceComputeProperties->maxGroupSizeX *
