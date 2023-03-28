@@ -27,9 +27,9 @@ Fundamentals
 The following section provides fundamentals of the API design.
 For more detailed information, refer to the programming guides and detailed specification pages.
 
-Repos for Unified Runtime can be found here:
+The repository for Unified Runtime can be found here:
 
-* Coming soon
+* `oneapi-src/unified-runtime <https://github.com/oneapi-src/unified-runtime>`_
 
 Terminology
 -----------
@@ -226,7 +226,7 @@ Both of these environment variables have the same syntax for setting logger opti
     have to be separated by `,`.
 
 An example of an environment variable for setting up the loader library logger with logging level set to *info*, flush level set to *warning*, and output set to
-the `out.log` file::
+the ``out.log`` file::
 
   UR_LOG_LOADER="level:info;flush:warning;output:file,out.log"
 
@@ -241,15 +241,15 @@ Specific environment variables can be set to control the behavior of unified run
 
 .. envvar:: UR_LOG_LOADER
 
-   Holds parameters for setting Unified Runtime loader logging. The syntax is described in the **Logging** section above.
+   Holds parameters for setting Unified Runtime loader logging. The syntax is described in the Logging_ section.
 
 .. envvar:: UR_LOG_NULL
 
-   Holds parameters for setting Unified Runtime null adapter logging. The syntax is described in the **Logging** section above.
+   Holds parameters for setting Unified Runtime null adapter logging. The syntax is described in the Logging_ section.
 
 .. envvar:: UR_LOG_VALIDATION
 
-   Holds parameters for setting Unified Runtime validation logging. The syntax is described in the **Logging** section above.
+   Holds parameters for setting Unified Runtime validation logging. The syntax is described in the Logging_ section.
 
 .. envvar:: UR_ADAPTERS_FORCE_LOAD
 
@@ -262,7 +262,7 @@ Specific environment variables can be set to control the behavior of unified run
 
 .. envvar:: UR_ENABLE_VALIDATION_LAYER
 
-   Holds the value '0' or '1'. By setting it to '1' you enable validation layer.
+   Holds the value ``0`` or ``1``. By setting it to ``1`` you enable validation layer.
 
    .. note::
 
@@ -270,17 +270,17 @@ Specific environment variables can be set to control the behavior of unified run
 
 .. envvar:: UR_ENABLE_PARAMETER_VALIDATION
 
-   Holds the value '0' or '1'. By setting it to '1' you enable parameter validation for Unified Runtime API calls.
+   Holds the value ``0`` or ``1``. By setting it to ``1`` you enable parameter validation for Unified Runtime API calls.
 
    .. note::
 
-    This environment variable should be used together with "UR_ENABLE_VALIDATION_LAYER".
+    This environment variable should be used together with :envvar:`UR_ENABLE_VALIDATION_LAYER`.
 
 .. envvar:: UR_ENABLE_LEAK_CHECKING
 
-   Holds the value '0' or '1'. By setting it to '1' you enable leak checking for Unified Runtime API calls involving
+   Holds the value ``0`` or ``1``. By setting it to ``1`` you enable leak checking for Unified Runtime API calls involving
    object creation/destruction. Leak checking depends on the logging mechanism.
 
    .. note::
 
-    This environment variable should be used together with "UR_ENABLE_VALIDATION_LAYER" and "UR_LOG_VALIDATION".
+    This environment variable should be used together with :envvar:`UR_ENABLE_VALIDATION_LAYER` and :envvar:`UR_LOG_VALIDATION`.
