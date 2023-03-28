@@ -626,6 +626,19 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   });
 }
 
+// This is a helper class, which allows to group/categorize function based on
+// provided rules. It is intended to be used in device code split
+// implementation.
+//
+// "Rule" is a simple routine, which returns a string for an llvm::Function
+// passed to it. There could be more than one rule and they are applied in order
+// of their registration. Results obtained from those rules are concatenated
+// together to produce the final result.
+//
+// There are some predefined rules for the most popular use-cases, like grouping
+// functions together based on an attribute value or presence of a metadata.
+// However, there is also a possibility to register a custom callback function
+// as a rule, to implement custom/more complex logic.
 class DeviceCodeSplitRulesBuilder {
 public:
   DeviceCodeSplitRulesBuilder() = default;
