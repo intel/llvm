@@ -813,55 +813,6 @@ int main() {
 }
 ----
 
-== Add new member to the handler class leveraged by the Experimental API
-
-Add the following functions to the `sycl::handler` interface described in Section 4.9.4.3 of
-the SYCL 2020 specification.
-
-Add to Table 130, "Member functions of the handler class".
-
---
-[options="header"]
-|====
-| Member Function | Description
-a| 
-[source, c++]
-----
-void ext_intel_read_host_pipe
-       (const std::string &Name, void *Ptr,
-                       size_t Size, bool Block=false);
-----
-|  Read from a host pipes given a host address.
-
-   `Name` is the name of the host pipe to be passed into lower level runtime.
-   
-   `Ptr` is the host pointer of the host pipe as identified by address of its const expr member.
-   
-   `Size` is the size of data getting read.
-   
-   `Block` is indicating whether read/write opeartion is blocking. Default is false.
-   
-a| 
-
-[source, c++]
-----
-void ext_intel_write_host_pipe
-       (const std::string &Name, void *Ptr,
-                       size_t Size, bool Block=false);
-----
-|  Write to a host pipes given a host address.
-
-   `Name` is the name of the host pipe to be passed into lower level runtime.
-   
-   `Ptr` is the host pointer of the host pipe as identified by address of its const expr member.
-   
-   `Size` is the size of data getting write to.
-   
-   `Block` is indicating whether read/write opeartion is blocking. Default is false.
-   
-|====
---
-
 == Issues for experimental API
 
 . Although the memory_order parameter hasn't been used in the implementation, the choice of seq_cst for the default value of the `sycl::memory_order` parameter of the read/write functions is still open for discussion. While seq_cst is more consistent with C++ atomics, it is a change from how pipes work today, which is equivalent to memory_order::relaxed. Another consideration is that SYCL 2020 atomic_ref uses a third approach where the default must be specified as a template parameter of the class itself. 
