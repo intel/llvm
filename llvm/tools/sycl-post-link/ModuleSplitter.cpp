@@ -625,6 +625,136 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   });
 }
 
+class DeviceCodeSplitRulesBuilder {
+public:
+  DeviceCodeSplitRulesBuilder() = default;
+
+  std::string executeRules(Function *) const;
+
+  // Accepts a callback, which should return a string based on provided
+  // function, which will be used as an entry points group identifier.
+  void registerRule(const std::function<std::string(Function *)> &);
+
+  // Creates a simple rule, which adds a value of a string attribute into a
+  // resulting identifier.
+  void registerSimpleStringAttributeRule(StringRef);
+
+  // Creates a simple rule, which adds one or another value to a resulting
+  // identifier based on a presence of a metadata on a function.
+  void registerSimpleFlagAttributeRule(StringRef, StringRef, StringRef = "");
+
+  // Creates a simple rule, which adds one or another value to a resulting
+  // identifier based on a presence of a metadata on a function.
+  void registerSimpleFlagMetadataRule(StringRef, StringRef, StringRef);
+
+  // Creates a rule, which adds a list of dash-separated integers converted
+  // into strings listed in a metadata to a resulting identifier.
+  void registerListOfIntegersInMetadataRule(StringRef);
+
+  // Creates a rule, which adds a list of sorted dash-separated integers
+  // converted into strings listed in a metadata to a resulting identifier.
+  void registerListOfIntegersInMetadataSortedRule(StringRef);
+
+private:
+  enum class RuleKind {
+    CALLBACK,
+    SIMPLE_STRING_ATTR,
+    FLAG_METADATA,
+    INTEGERS_LIST_METADATA,
+    FLAG_ATTR,
+    SORTED_INTEGERS_LIST_METADATA
+  };
+
+  struct CallbackRuleData {
+    constexpr static auto Kind = RuleKind::CALLBACK;
+    CallbackRuleData() = default;
+    std::function<std::string(Function *)> Callback = nullptr;
+  };
+
+  struct SimpleStringAttrRuleData {
+    constexpr static auto Kind = RuleKind::SIMPLE_STRING_ATTR;
+    SimpleStringAttrRuleData() = default;
+    StringRef Attr;
+  };
+
+  struct FlagMetadataRuleData {
+    constexpr static auto Kind = RuleKind::FLAG_METADATA;
+    FlagMetadataRuleData() = default;
+    StringRef TrueStr, FalseStr, MetadataName;
+  };
+
+  struct FlagAttributeRuleData {
+    constexpr static auto Kind = RuleKind::FLAG_ATTR;
+    FlagAttributeRuleData() = default;
+    StringRef TrueStr, FalseStr, AttrName;
+  };
+
+  struct IntegersListMetadataRuleData {
+    constexpr static auto Kind = RuleKind::INTEGERS_LIST_METADATA;
+    IntegersListMetadataRuleData() = default;
+    StringRef MetadataName = "";
+  };
+
+  struct SortedIntegersListMetadataRuleData {
+    constexpr static auto Kind = RuleKind::SORTED_INTEGERS_LIST_METADATA;
+    SortedIntegersListMetadataRuleData() = default;
+    StringRef MetadataName = "";
+  };
+
+  struct Rule {
+    private:
+    std::array<std::byte, std::max({sizeof(CallbackRuleData),
+                                    sizeof(SimpleStringAttrRuleData),
+                                    sizeof(FlagMetadataRuleData),
+                                    sizeof(FlagAttributeRuleData),
+                                    sizeof(SortedIntegersListMetadataRuleData),
+                                    sizeof(IntegersListMetadataRuleData)})>
+        Storage;
+    public:
+    RuleKind Kind;
+
+    template<typename T, typename... Args>
+    static Rule get(Args... args) {
+      Rule R;
+      new(R.Storage.data()) T {args...};
+      R.Kind = T::Kind;
+      return R;
+    }
+
+    CallbackRuleData getCallbackRuleData() const {
+      assert(Kind == RuleKind::CALLBACK);
+      return *reinterpret_cast<const CallbackRuleData *>(Storage.data());
+    }
+
+    SimpleStringAttrRuleData getSimpleStringAttrRuleData() const {
+      assert(Kind == RuleKind::SIMPLE_STRING_ATTR);
+      return *reinterpret_cast<const SimpleStringAttrRuleData *>(Storage.data());
+    }
+
+    FlagMetadataRuleData getFlagMetadataRuleData() const {
+      assert(Kind == RuleKind::FLAG_METADATA);
+      return *reinterpret_cast<const FlagMetadataRuleData *>(Storage.data());
+    }
+
+    SortedIntegersListMetadataRuleData getSortedIntegersListMetadataRuleData() const {
+      assert(Kind == RuleKind::SORTED_INTEGERS_LIST_METADATA);
+      return *reinterpret_cast<const SortedIntegersListMetadataRuleData *>(Storage.data());
+    }
+
+    IntegersListMetadataRuleData getIntegersListMetadataRuleData() const {
+      assert(Kind == RuleKind::INTEGERS_LIST_METADATA);
+      return *reinterpret_cast<const IntegersListMetadataRuleData *>(Storage.data());
+    }
+
+    FlagAttributeRuleData getFlagAttributeRuleData() const {
+      assert(Kind == RuleKind::FLAG_ATTR);
+      return *reinterpret_cast<const FlagAttributeRuleData *>(Storage.data());
+    }
+  };
+
+  std::vector<Rule> Rules;
+};
+
 void DeviceCodeSplitRulesBuilder::registerRule(
     const std::function<std::string(Function *)> &Callback) {
   Rules.push_back(Rule::get<CallbackRuleData>(Callback));
@@ -715,50 +845,6 @@ std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
   }
 
   return Result;
-}
-
-std::unique_ptr<ModuleSplitterBase>
-getSplitterByRules(ModuleDesc &&MD, const DeviceCodeSplitRulesBuilder &Rules,
-                   bool EmitOnlyKernelsAsEntryPoints) {
-  EntryPointGroupVec Groups;
-
-  StringMap<EntryPointSet> GroupNameToFunctionsMap;
-
-  Module &M = MD.getModule();
-
-  // Only process module entry points:
-  for (auto &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
-        !MD.isEntryPointCandidate(F)) {
-      continue;
-    }
-
-    auto Key = Rules.executeRules(&F);
-    GroupNameToFunctionsMap[Key].insert(&F);
-  }
-
-  if (GroupNameToFunctionsMap.empty()) {
-    // No entry points met, record this.
-    Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
-  } else {
-    Groups.reserve(GroupNameToFunctionsMap.size());
-    for (auto &It : GroupNameToFunctionsMap) {
-      auto Name = It.getKey();
-      EntryPointSet &EntryPoints = It.getValue();
-
-      // Start with properties of a source module
-      EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
-      // FIXME: properly set top-level properties
-      // if (Features.UsesLargeGRF)
-      //   MDProps.UsesLargeGRF = true;
-      Groups.emplace_back(Name, std::move(EntryPoints), MDProps);
-    }
-  }
-
-  if (Groups.size() > 1)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
-  else
-    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
 std::unique_ptr<ModuleSplitterBase>
