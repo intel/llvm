@@ -32,7 +32,8 @@ public:
           std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
           getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
           getKernelName(), getOSModuleHandle(), getStreamStorage(),
-          std::move(MImpl->MAuxiliaryResources), getCGType(), getCodeLoc()));
+          std::move(MImpl->MAuxiliaryResources), getCGType(), {},
+          getCodeLoc()));
       break;
     }
     default:

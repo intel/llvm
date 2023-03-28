@@ -218,7 +218,6 @@ jobs:
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: llvm_sycl.tar.xz
         check_sycl_all: ${{ matrix.check_sycl_all }}
-        results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
 
   khronos_sycl_cts:
