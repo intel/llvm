@@ -58,8 +58,8 @@ template <template <typename> typename test_struct> struct cplx_test_cases {
     }
 
     for (auto &test_tuple : comp_test_values) {
-      test_passes &= test_valid_types<test_struct>(Q, get<0>(test_tuple),
-                                                   get<1>(test_tuple),
+      test_passes &= test_valid_types<test_struct>(Q, std::get<0>(test_tuple),
+                                                   std::get<1>(test_tuple),
                                                    /*use_ref*/ true);
     }
 
