@@ -78,7 +78,7 @@ public:
   std::size_t GetElementByteSize(const Descriptor &) const;
   std::size_t GetElements(const Descriptor &) const;
 
-  // For ocmponents that are descriptors, returns size of descriptor;
+  // For components that are descriptors, returns size of descriptor;
   // for Genre::Data, returns elemental byte size times element count.
   std::size_t SizeInBytes(const Descriptor &) const;
 
@@ -132,6 +132,11 @@ public:
     ScalarFinal = 9,
     // higher-ranked final procedures follow
   };
+
+  // Special bindings can be created during execution to handle user-defined
+  // derived type I/O procedures that are not type-bound.
+  SpecialBinding(Which which, ProcedurePointer proc, std::uint8_t isArgDescSet)
+      : which_{which}, isArgDescriptorSet_{isArgDescSet}, proc_{proc} {}
 
   static constexpr Which RankFinal(int rank) {
     return static_cast<Which>(static_cast<int>(Which::ScalarFinal) + rank);

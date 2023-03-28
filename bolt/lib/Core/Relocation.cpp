@@ -636,6 +636,18 @@ bool Relocation::isPCRelative(uint64_t Type) {
   return isPCRelativeX86(Type);
 }
 
+uint64_t Relocation::getAbs64() {
+  if (Arch == Triple::aarch64)
+    return ELF::R_AARCH64_ABS64;
+  return ELF::R_X86_64_64;
+}
+
+uint64_t Relocation::getRelative() {
+  if (Arch == Triple::aarch64)
+    return ELF::R_AARCH64_RELATIVE;
+  return ELF::R_X86_64_RELATIVE;
+}
+
 size_t Relocation::emit(MCStreamer *Streamer) const {
   const size_t Size = getSizeForType(Type);
   MCContext &Ctx = Streamer->getContext();

@@ -11,9 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodeGenIntrinsics.h"
-#include "CodeGenTarget.h"
 #include "SequenceToOffsetTable.h"
-#include "TableGenBackends.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -37,6 +35,7 @@
 #include <utility>
 #include <vector>
 using namespace llvm;
+using namespace llvm::tmp;
 
 cl::OptionCategory GenIntrinsicCat("Options for -gen-intrinsic-enums");
 cl::opt<std::string>
@@ -967,10 +966,16 @@ void IntrinsicEmitter::EmitIntrinsicToBuiltinMap(
   OS << "#endif\n\n";
 }
 
-void llvm::EmitIntrinsicEnums(RecordKeeper &RK, raw_ostream &OS) {
+static void EmitIntrinsicEnums(RecordKeeper &RK, raw_ostream &OS) {
   IntrinsicEmitter(RK).run(OS, /*Enums=*/true);
 }
 
-void llvm::EmitIntrinsicImpl(RecordKeeper &RK, raw_ostream &OS) {
+static TableGen::Emitter::Opt X("gen-intrinsic-enums", EmitIntrinsicEnums,
+                                "Generate intrinsic enums");
+
+static void EmitIntrinsicImpl(RecordKeeper &RK, raw_ostream &OS) {
   IntrinsicEmitter(RK).run(OS, /*Enums=*/false);
 }
+
+static TableGen::Emitter::Opt Y("gen-intrinsic-impl", EmitIntrinsicImpl,
+                                "Generate intrinsic information");

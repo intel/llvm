@@ -64,7 +64,7 @@ entry:
 ; CHECK: Load [[int]] [[Value:[0-9]+]] [[desired_addr]]
 ; CHECK: Load [[int]] [[ComparatorWeak:[0-9]+]] [[exp]]
   %call2 = call spir_func zeroext i1 @_Z28atomic_compare_exchange_weakPVU3AS4U7_AtomiciPU3AS4ii(i32 addrspace(4)* %4, i32 addrspace(4)* %5, i32 %6)
-; CHECK-NEXT: 9 AtomicCompareExchangeWeak [[int]] [[Result:[0-9]+]] [[Pointer]] [[DeviceScope]] [[SequentiallyConsistent_MS]] [[SequentiallyConsistent_MS]] [[Value]] [[ComparatorWeak]]
+; CHECK-NEXT: 9 AtomicCompareExchange [[int]] [[Result:[0-9]+]] [[Pointer]] [[DeviceScope]] [[SequentiallyConsistent_MS]] [[SequentiallyConsistent_MS]] [[Value]] [[ComparatorWeak]]
 ; CHECK-NEXT: Store [[exp]] [[Result]]
 ; CHECK-NEXT: IEqual [[bool]] [[CallRes:[0-9]+]] [[Result]] [[ComparatorWeak]]
 ; CHECK-NOT: [[Result]]

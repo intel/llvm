@@ -17,6 +17,9 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.ctype.tolower
     libc.src.ctype.toupper
 
+    # errno.h entrypoints
+    libc.src.errno.errno
+
     # fcntl.h entrypoints
     libc.src.fcntl.creat
     libc.src.fcntl.open
@@ -108,6 +111,8 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.stdio.remove
     libc.src.stdio.sprintf
     libc.src.stdio.snprintf
+    libc.src.stdio.fprintf
+    libc.src.stdio.printf
 
     # sys/mman.h entrypoints
     libc.src.sys.mman.madvise
@@ -190,6 +195,9 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.unistd.unlink
     libc.src.unistd.unlinkat
     libc.src.unistd.write
+
+    # wchar.h entrypoints
+    # libc.src.wchar.wctob
 )
 
 set(TARGET_LIBM_ENTRYPOINTS
@@ -334,6 +342,8 @@ if(LLVM_LIBC_FULL_BUILD)
     # network.h entrypoints
     libc.src.network.htonl
     libc.src.network.htons
+    libc.src.network.ntohl
+    libc.src.network.ntohs
 
     # pthread.h entrypoints
     libc.src.pthread.pthread_atfork
@@ -404,10 +414,8 @@ if(LLVM_LIBC_FULL_BUILD)
     libc.src.stdio.funlockfile
     libc.src.stdio.fwrite
     libc.src.stdio.fwrite_unlocked
-    libc.src.stdio.fprintf
     libc.src.stdio.getc
     libc.src.stdio.getc_unlocked
-    libc.src.stdio.printf
     libc.src.stdio.sscanf
     libc.src.stdio.scanf
     libc.src.stdio.fscanf

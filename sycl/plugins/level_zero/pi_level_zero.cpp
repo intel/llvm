@@ -2309,14 +2309,16 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     // 2D USM fill and memset is not supported.
     return ReturnValue(pi_bool{false});
-  case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    pi_memory_order_capabilities capabilities =
-        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL |
-        PI_MEMORY_ORDER_SEQ_CST;
-    return ReturnValue(capabilities);
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // These queries should be dealt with in context_impl.cpp by calling the
+    // queries of each device separately and building the intersection set.
+    setErrorMessage("These queries should have never come here.",
+                    UR_RESULT_ERROR_INVALID_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
-  case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     // TODO: implement other parameters
     die("piGetContextInfo: unsuppported ParamName.");
@@ -3344,7 +3346,11 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
     pi_platform Plt = Context->getPlatform();
     std::unique_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex,
                                                    std::defer_lock);
-    if (IndirectAccessTrackingEnabled) {
+    // If we don't own the native handle then we can't control deallocation of
+    // that memory so there is no point of keeping track of the memory
+    // allocation for deferred memory release in the mode when indirect access
+    // tracking is enabled.
+    if (IndirectAccessTrackingEnabled && ownNativeHandle) {
       // We need to keep track of all memory allocations in the context
       ContextsLock.lock();
       // Retain context to be sure that it is released after all memory
@@ -7342,6 +7348,11 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
 // mutex.
 static pi_result USMFreeHelper(pi_context Context, void *Ptr,
                                bool OwnZeMemHandle) {
+  if (!OwnZeMemHandle) {
+    // Memory should not be freed
+    return PI_SUCCESS;
+  }
+
   if (IndirectAccessTrackingEnabled) {
     auto It = Context->MemAllocs.find(Ptr);
     if (It == std::end(Context->MemAllocs)) {
@@ -7355,11 +7366,6 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
     // Reference count is zero, it is ok to free memory.
     // We don't need to track this allocation anymore.
     Context->MemAllocs.erase(It);
-  }
-
-  if (!OwnZeMemHandle) {
-    // Memory should not be freed
-    return PI_SUCCESS;
   }
 
   if (!UseUSMAllocator) {

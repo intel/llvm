@@ -378,7 +378,6 @@ checkTilingLegalityImpl(MutableArrayRef<mlir::AffineForOp> origLoops) {
 
   unsigned numOps = loadAndStoreOps.size();
   unsigned numLoops = origLoops.size();
-  FlatAffineValueConstraints dependenceConstraints;
   for (unsigned d = 1; d <= numLoops + 1; ++d) {
     for (unsigned i = 0; i < numOps; ++i) {
       Operation *srcOp = loadAndStoreOps[i];
@@ -388,9 +387,9 @@ checkTilingLegalityImpl(MutableArrayRef<mlir::AffineForOp> origLoops) {
         MemRefAccess dstAccess(dstOp);
 
         SmallVector<DependenceComponent, 2> depComps;
-        dependenceConstraints.reset();
         DependenceResult result = checkMemrefAccessDependence(
-            srcAccess, dstAccess, d, &dependenceConstraints, &depComps);
+            srcAccess, dstAccess, d, /*dependenceConstraints=*/nullptr,
+            &depComps);
 
         // Skip if there is no dependence in this case.
         if (!hasDependence(result))
@@ -2058,6 +2057,8 @@ static LogicalResult generateCopy(
   OpBuilder topBuilder(f.getBody());
   Value zeroIndex = topBuilder.create<arith::ConstantIndexOp>(f.getLoc(), 0);
 
+  *sizeInBytes = 0;
+
   if (begin == end)
     return success();
 
@@ -2106,7 +2107,6 @@ static LogicalResult generateCopy(
 
   if (*numElements == 0) {
     LLVM_DEBUG(llvm::dbgs() << "Nothing to copy\n");
-    *sizeInBytes = 0;
     return success();
   }
 
@@ -2182,7 +2182,10 @@ static LogicalResult generateCopy(
     // Record it.
     fastBufferMap[memref] = fastMemRef;
     // fastMemRefType is a constant shaped memref.
-    *sizeInBytes = *getMemRefSizeInBytes(fastMemRefType);
+    auto maySizeInBytes = getIntOrFloatMemRefSizeInBytes(fastMemRefType);
+    // We don't account for things of unknown size.
+    *sizeInBytes = maySizeInBytes ? *maySizeInBytes : 0;
+
     LLVM_DEBUG(emitRemarkForBlock(*block)
                << "Creating fast buffer of type " << fastMemRefType
                << " and size " << llvm::divideCeil(*sizeInBytes, 1024)
@@ -2190,7 +2193,6 @@ static LogicalResult generateCopy(
   } else {
     // Reuse the one already created.
     fastMemRef = fastBufferMap[memref];
-    *sizeInBytes = 0;
   }
 
   auto numElementsSSA = top.create<arith::ConstantIndexOp>(loc, *numElements);
@@ -2362,15 +2364,15 @@ static bool getFullMemRefAsRegion(Operation *op, unsigned numParamLoopIVs,
   ivs.resize(numParamLoopIVs);
   SmallVector<Value, 4> symbols;
   extractForInductionVars(ivs, &symbols);
-  regionCst->reset(rank, numParamLoopIVs, 0);
+  *regionCst = FlatAffineValueConstraints(rank, numParamLoopIVs, 0);
   regionCst->setValues(rank, rank + numParamLoopIVs, symbols);
 
   // Memref dim sizes provide the bounds.
   for (unsigned d = 0; d < rank; d++) {
     auto dimSize = memRefType.getDimSize(d);
     assert(dimSize > 0 && "filtered dynamic shapes above");
-    regionCst->addBound(IntegerPolyhedron::LB, d, 0);
-    regionCst->addBound(IntegerPolyhedron::UB, d, dimSize - 1);
+    regionCst->addBound(BoundType::LB, d, 0);
+    regionCst->addBound(BoundType::UB, d, dimSize - 1);
   }
   return true;
 }
@@ -2551,13 +2553,13 @@ LogicalResult mlir::affineDataCopyGenerate(Block::iterator begin,
   if (llvm::DebugFlag && (forOp = dyn_cast<AffineForOp>(&*begin))) {
     LLVM_DEBUG(forOp.emitRemark()
                << llvm::divideCeil(totalCopyBuffersSizeInBytes, 1024)
-               << " KiB of copy buffers in fast memory space for this block\n");
+               << " KiB of copy buffers in fast memory space for this block");
   }
 
   if (totalCopyBuffersSizeInBytes > copyOptions.fastMemCapacityBytes) {
-    StringRef str = "Total size of all copy buffers' for this block "
-                    "exceeds fast memory capacity\n";
-    block->getParentOp()->emitWarning(str);
+    block->getParentOp()->emitWarning(
+        "total size of all copy buffers' for this block exceeds fast memory "
+        "capacity");
   }
 
   return success();

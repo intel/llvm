@@ -178,6 +178,7 @@ M68kTargetLowering::M68kTargetLowering(const M68kTargetMachine &TM,
           ISD::ATOMIC_LOAD_MAX,
           ISD::ATOMIC_LOAD_UMIN,
           ISD::ATOMIC_LOAD_UMAX,
+          ISD::ATOMIC_SWAP,
       },
       {MVT::i8, MVT::i16, MVT::i32}, LibCall);
 
@@ -189,6 +190,24 @@ M68kTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
   return Subtarget.atLeastM68020()
              ? TargetLoweringBase::AtomicExpansionKind::CmpXChg
              : TargetLoweringBase::AtomicExpansionKind::None;
+}
+
+Register
+M68kTargetLowering::getExceptionPointerRegister(const Constant *) const {
+  return M68k::D0;
+}
+
+Register
+M68kTargetLowering::getExceptionSelectorRegister(const Constant *) const {
+  return M68k::D1;
+}
+
+unsigned
+M68kTargetLowering::getInlineAsmMemConstraint(StringRef ConstraintCode) const {
+  return StringSwitch<unsigned>(ConstraintCode)
+      .Case("Q", InlineAsm::Constraint_Q)
+      .Case("U", InlineAsm::Constraint_Um) // We borrow Constraint_Um for 'U'.
+      .Default(TargetLowering::getInlineAsmMemConstraint(ConstraintCode));
 }
 
 EVT M68kTargetLowering::getSetCCResultType(const DataLayout &DL,
@@ -1551,12 +1570,12 @@ static unsigned TranslateM68kCC(ISD::CondCode SetCCOpcode, const SDLoc &DL,
                                 SelectionDAG &DAG) {
   if (!IsFP) {
     if (ConstantSDNode *RHSC = dyn_cast<ConstantSDNode>(RHS)) {
-      if (SetCCOpcode == ISD::SETGT && RHSC->isAllOnesValue()) {
+      if (SetCCOpcode == ISD::SETGT && RHSC->isAllOnes()) {
         // X > -1   -> X == 0, jump !sign.
         RHS = DAG.getConstant(0, DL, RHS.getValueType());
         return M68k::COND_PL;
       }
-      if (SetCCOpcode == ISD::SETLT && RHSC->isNullValue()) {
+      if (SetCCOpcode == ISD::SETLT && RHSC->isZero()) {
         // X < 0   -> X == 0, jump on sign.
         return M68k::COND_MI;
       }
@@ -2754,6 +2773,9 @@ M68kTargetLowering::getConstraintType(StringRef Constraint) const {
           break;
         }
       break;
+    case 'Q':
+    case 'U':
+      return C_Memory;
     default:
       break;
     }
