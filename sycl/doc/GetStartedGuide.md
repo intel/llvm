@@ -533,10 +533,10 @@ architecture. It is possible to change it by adding
 `-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to the CMake
 variable `SYCL_CLANG_EXTRA_FLAGS`.
 
-#### Run DPC++ E2E test suite
+#### Run DPC++ E2E tests
 
 Follow instructions from the link below to build and run tests:
-[README](https://github.com/intel/llvm-test-suite/tree/intel/SYCL#execution)
+[README](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md)
 
 #### Run Khronos\* SYCL\* conformance test suite (optional)
 
