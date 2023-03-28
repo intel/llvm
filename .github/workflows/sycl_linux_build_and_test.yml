@@ -220,6 +220,7 @@ jobs:
       with:
         persist-credentials: false
         path: llvm
+        ref: ${{ inputs.build_ref || github.ref }}
     # TODO should this action be packed into container as well?
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
