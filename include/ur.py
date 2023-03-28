@@ -860,19 +860,41 @@ class ur_buffer_create_type_t(c_int):
 
 
 ###############################################################################
+## @brief Sampler Filter Mode
+class ur_sampler_filter_mode_v(IntEnum):
+    NEAREST = 0                                     ## Filter mode nearest.
+    LINEAR = 1                                      ## Filter mode linear.
+
+class ur_sampler_filter_mode_t(c_int):
+    def __str__(self):
+        return str(ur_sampler_filter_mode_v(self.value))
+
+
+###############################################################################
+## @brief Sampler addressing mode
+class ur_sampler_addressing_mode_v(IntEnum):
+    MIRRORED_REPEAT = 0                             ## Mirrored Repeat
+    REPEAT = 1                                      ## Repeat
+    CLAMP = 2                                       ## Clamp
+    CLAMP_TO_EDGE = 3                               ## Clamp to edge
+    NONE = 4                                        ## None
+
+class ur_sampler_addressing_mode_t(c_int):
+    def __str__(self):
+        return str(ur_sampler_addressing_mode_v(self.value))
+
+
+###############################################################################
 ## @brief Get sample object information
 class ur_sampler_info_v(IntEnum):
     REFERENCE_COUNT = 0                             ## [uint32_t] Reference count of the sampler object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
                                                     ## provided for identifying memory leaks.
-    CONTEXT = 1                                     ## Sampler context info
-    NORMALIZED_COORDS = 2                           ## Sampler normalized coordindate setting
-    ADDRESSING_MODE = 3                             ## Sampler addressing mode setting
-    FILTER_MODE = 4                                 ## Sampler filter mode setting
-    MIP_FILTER_MODE = 5                             ## Sampler MIP filter mode setting
-    LOD_MIN = 6                                     ## Sampler LOD Min value
-    LOD_MAX = 7                                     ## Sampler LOD Max value
+    CONTEXT = 1                                     ## [::ur_context_handle_t] Sampler context info
+    NORMALIZED_COORDS = 2                           ## [bool] Sampler normalized coordinate setting
+    ADDRESSING_MODE = 3                             ## [::ur_sampler_addressing_mode_t] Sampler addressing mode setting
+    FILTER_MODE = 4                                 ## [::ur_sampler_filter_mode_t] Sampler filter mode setting
 
 class ur_sampler_info_t(c_int):
     def __str__(self):
@@ -895,20 +917,6 @@ class ur_sampler_properties_t(c_int):
 ## @brief Sampler Properties type
 class ur_sampler_property_t(c_intptr_t):
     pass
-
-###############################################################################
-## @brief Sampler addressing mode
-class ur_sampler_addressing_mode_v(IntEnum):
-    MIRRORED_REPEAT = 0                             ## Mirrored Repeat
-    REPEAT = 1                                      ## Repeat
-    CLAMP = 2                                       ## Clamp
-    CLAMP_TO_EDGE = 3                               ## Clamp to edge
-    NONE = 4                                        ## None
-
-class ur_sampler_addressing_mode_t(c_int):
-    def __str__(self):
-        return str(ur_sampler_addressing_mode_v(self.value))
-
 
 ###############################################################################
 ## @brief USM memory property flags
