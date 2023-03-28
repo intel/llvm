@@ -1,4 +1,4 @@
-//===-- RISCVInstrInfo.cpp - RISCV Instruction Information ------*- C++ -*-===//
+//===-- RISCVInstrInfo.cpp - RISC-V Instruction Information -----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the RISCV implementation of the TargetInstrInfo class.
+// This file contains the RISC-V implementation of the TargetInstrInfo class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -951,7 +951,7 @@ unsigned RISCVInstrInfo::insertBranch(
   // Shouldn't be a fall through.
   assert(TBB && "insertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 3 || Cond.size() == 0) &&
-         "RISCV branch conditions have two components!");
+         "RISC-V branch conditions have two components!");
 
   // Unconditional branch.
   if (Cond.empty()) {
@@ -1672,7 +1672,9 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
         CASE_OPERAND_UIMM(3)
         CASE_OPERAND_UIMM(4)
         CASE_OPERAND_UIMM(5)
+        CASE_OPERAND_UIMM(6)
         CASE_OPERAND_UIMM(7)
+        CASE_OPERAND_UIMM(8)
         CASE_OPERAND_UIMM(12)
         CASE_OPERAND_UIMM(20)
           // clang-format on
@@ -1737,6 +1739,15 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
           break;
         case RISCVOp::OPERAND_RVKRNUM:
           Ok = Imm >= 0 && Imm <= 10;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_0_7:
+          Ok = Imm >= 0 && Imm <= 7;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_1_10:
+          Ok = Imm >= 1 && Imm <= 10;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_2_14:
+          Ok = Imm >= 2 && Imm <= 14;
           break;
         }
         if (!Ok) {

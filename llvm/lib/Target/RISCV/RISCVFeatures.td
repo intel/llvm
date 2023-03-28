@@ -1,4 +1,4 @@
-//===-- RISCVFeatures.td - RISCV Features and Extensions ---*- tablegen -*-===//
+//===-- RISCVFeatures.td - RISC-V Features and Extensions --*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -309,43 +309,43 @@ def FeatureStdExtZk
                         FeatureStdExtZkr,
                         FeatureStdExtZkt]>;
 
-def FeatureExtZca
+def FeatureStdExtZca
     : SubtargetFeature<"experimental-zca", "HasStdExtZca", "true",
                        "'Zca' (part of the C extension, excluding compressed "
                        "floating point loads/stores)">;
 
 def HasStdExtCOrZca
     : Predicate<"Subtarget->hasStdExtC() || Subtarget->hasStdExtZca()">,
-                AssemblerPredicate<(any_of FeatureStdExtC, FeatureExtZca),
+                AssemblerPredicate<(any_of FeatureStdExtC, FeatureStdExtZca),
                                    "'C' (Compressed Instructions) or "
                                    "'Zca' (part of the C extension, excluding "
                                    "compressed floating point loads/stores)">;
 
-def FeatureExtZcb
+def FeatureStdExtZcb
     : SubtargetFeature<"experimental-zcb", "HasStdExtZcb", "true",
                        "'Zcb' (Compressed basic bit manipulation instructions)",
-                       [FeatureExtZca]>;
+                       [FeatureStdExtZca]>;
 def HasStdExtZcb : Predicate<"Subtarget->hasStdExtZcb()">,
-                             AssemblerPredicate<(all_of FeatureExtZcb),
+                             AssemblerPredicate<(all_of FeatureStdExtZcb),
                              "'Zcb' (Compressed basic bit manipulation instructions)">;
 
-def FeatureExtZcd
+def FeatureStdExtZcd
     : SubtargetFeature<"experimental-zcd", "HasStdExtZcd", "true",
                        "'Zcd' (Compressed Double-Precision Floating-Point Instructions)">;
 
 def HasStdExtCOrZcd
     : Predicate<"Subtarget->hasStdExtC() || Subtarget->hasStdExtZcd()">,
-                AssemblerPredicate<(any_of FeatureStdExtC, FeatureExtZcd),
+                AssemblerPredicate<(any_of FeatureStdExtC, FeatureStdExtZcd),
                                    "'C' (Compressed Instructions) or "
                                    "'Zcd' (Compressed Double-Precision Floating-Point Instructions)">;
 
-def FeatureExtZcf
+def FeatureStdExtZcf
     : SubtargetFeature<"experimental-zcf", "HasStdExtZcf", "true",
                        "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
 
 def HasStdExtCOrZcf
     : Predicate<"Subtarget->hasStdExtC() || Subtarget->hasStdExtZcf()">,
-                AssemblerPredicate<(any_of FeatureStdExtC, FeatureExtZcf),
+                AssemblerPredicate<(any_of FeatureStdExtC, FeatureStdExtZcf),
                                    "'C' (Compressed Instructions) or "
                                    "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
 
@@ -478,6 +478,63 @@ def FeatureStdExtZawrs : SubtargetFeature<"zawrs", "HasStdExtZawrs", "true",
 def HasStdExtZawrs : Predicate<"Subtarget->hasStdExtZawrs()">,
                                AssemblerPredicate<(all_of FeatureStdExtZawrs),
                                "'Zawrs' (Wait on Reservation Set)">;
+
+def FeatureStdExtZvkb
+    : SubtargetFeature<"experimental-zvkb", "HasStdExtZvkb", "true",
+                       "'Zvkb' (Vector Bitmanip instructions for Cryptography.)">;
+def HasStdExtZvkb : Predicate<"Subtarget->hasStdExtZvkb()">,
+                              AssemblerPredicate<(all_of FeatureStdExtZvkb),
+                              "'Zvkb' (Vector Bitmanip instructions for Cryptography.)">;
+
+def FeatureStdExtZvkg
+    : SubtargetFeature<"experimental-zvkg", "HasStdExtZvkg", "true",
+                       "'Zvkg' (Vector GCM instructions for Cryptography.)">;
+def HasStdExtZvkg : Predicate<"Subtarget->hasStdExtZvkg()">,
+                              AssemblerPredicate<(all_of FeatureStdExtZvkg),
+                              "'Zvkg' (Vector GCM instructions for Cryptography.)">;
+
+def FeatureStdExtZvkn
+    : SubtargetFeature<"experimental-zvkn", "HasStdExtZvkn", "true",
+                       "This extension is shorthand for the following set of "
+                       "other extensions: Zvkned, Zvknhb and Zvkb.">;
+
+def FeatureStdExtZvknha
+    : SubtargetFeature<"experimental-zvknha", "HasStdExtZvknha", "true",
+                       "'Zvknha' (Vector SHA-2. (SHA-256 only))">;
+
+def FeatureStdExtZvknhb
+    : SubtargetFeature<"experimental-zvknhb", "HasStdExtZvknhb", "true",
+                       "'Zvknhb' (Vector SHA-2. (SHA-256 and SHA-512))",
+                       [FeatureStdExtZvknha]>;
+def HasStdExtZvknha : Predicate<"Subtarget->hasStdExtZvknha()">,
+                                AssemblerPredicate<(all_of FeatureStdExtZvknha),
+                                "'Zvknha' (Vector SHA-2. (SHA-256 only))">;
+
+def FeatureStdExtZvkned
+    : SubtargetFeature<"experimental-zvkned", "HasStdExtZvkned", "true",
+                       "'Zvkned' (Vector AES Encryption & Decryption (Single Round))">;
+def HasStdExtZvkned : Predicate<"Subtarget->hasStdExtZvkned()">,
+                                AssemblerPredicate<(all_of FeatureStdExtZvkned),
+                                "'Zvkned' (Vector AES Encryption & Decryption (Single Round))">;
+
+def FeatureStdExtZvks
+    : SubtargetFeature<"experimental-zvks", "HasStdExtZvks", "true",
+                       "This extension is shorthand for the following set of "
+                       "other extensions: Zvksed, Zvksh and Zvkb.">;
+
+def FeatureStdExtZvksed
+    : SubtargetFeature<"experimental-zvksed", "HasStdExtZvksed", "true",
+                       "'Zvksed' (SM4 Block Cipher Instructions.)">;
+def HasStdExtZvksed : Predicate<"Subtarget->hasStdExtZvksed()">,
+                                AssemblerPredicate<(all_of FeatureStdExtZvksed),
+                                "'Zvksed' (SM4 Block Cipher Instructions.)">;
+
+def FeatureStdExtZvksh
+    : SubtargetFeature<"experimental-zvksh", "HasStdExtZvksh", "true",
+                       "'Zvksh' (SM3 Hash Function Instructions.)">;
+def HasStdExtZvksh : Predicate<"Subtarget->hasStdExtZvksh()">,
+                               AssemblerPredicate<(all_of FeatureStdExtZvksh),
+                               "'Zvksh' (SM3 Hash Function Instructions.)">;
 
 //===----------------------------------------------------------------------===//
 // Vendor extensions

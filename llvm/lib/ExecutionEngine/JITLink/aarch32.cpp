@@ -25,9 +25,6 @@ namespace llvm {
 namespace jitlink {
 namespace aarch32 {
 
-using namespace support;
-using namespace support::endian;
-
 /// Encode 22-bit immediate value for branch instructions without J1J2 range
 /// extension (formats B T4, BL T1 and BLX T2).
 ///
@@ -157,8 +154,9 @@ struct ThumbRelocation {
 Error makeUnexpectedOpcodeError(const LinkGraph &G, const ThumbRelocation &R,
                                 Edge::Kind Kind) {
   return make_error<JITLinkError>(
-      formatv("Invalid opcode [ 0x{0:x4}, 0x{1:x4} ] for relocation: {2}", R.Hi,
-              R.Lo, G.getEdgeKindName(Kind)));
+      formatv("Invalid opcode [ 0x{0:x4}, 0x{1:x4} ] for relocation: {2}",
+              static_cast<uint16_t>(R.Hi), static_cast<uint16_t>(R.Lo),
+              G.getEdgeKindName(Kind)));
 }
 
 template <EdgeKind_aarch32 Kind> bool checkOpcode(const ThumbRelocation &R) {
@@ -193,8 +191,8 @@ void writeImmediate(WritableThumbRelocation &R, HalfWords Imm) {
 }
 
 Expected<int64_t> readAddendData(LinkGraph &G, Block &B, const Edge &E) {
-  endianness Endian = G.getEndianness();
-  assert(Endian != native && "Declare as little or big explicitly");
+  support::endianness Endian = G.getEndianness();
+  assert(Endian != support::native && "Declare as little or big explicitly");
 
   Edge::Kind Kind = E.getKind();
   const char *BlockWorkingMem = B.getContent().data();
@@ -202,8 +200,7 @@ Expected<int64_t> readAddendData(LinkGraph &G, Block &B, const Edge &E) {
 
   switch (Kind) {
   case Data_Delta32:
-    return SignExtend64<32>((Endian == little) ? read32<little>(FixupPtr)
-                                               : read32<big>(FixupPtr));
+    return SignExtend64<32>(support::endian::read32(FixupPtr, Endian));
   default:
     return make_error<JITLinkError>(
         "In graph " + G.getName() + ", section " + B.getSection().getName() +

@@ -1,4 +1,4 @@
-//===-- RISCVInstrInfo.td - Target Description for RISCV ---*- tablegen -*-===//
+//===-- RISCVInstrInfo.td - Target Description for RISC-V --*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -211,6 +211,13 @@ def uimm3 : Operand<XLenVT> {
   let OperandNamespace = "RISCVOp";
 }
 
+def uimm4 : Operand<XLenVT> {
+  let ParserMatchClass = UImmAsmOperand<4>;
+  let DecoderMethod = "decodeUImmOperand<4>";
+  let OperandType = "OPERAND_UIMM4";
+  let OperandNamespace = "RISCVOp";
+}
+
 def uimm5 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<5>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<5>;
   let DecoderMethod = "decodeUImmOperand<5>";
@@ -225,6 +232,13 @@ def InsnDirectiveOpcode : AsmOperandClass {
   let PredicateMethod = "isImm";
 }
 
+def uimm6 : Operand<XLenVT> {
+  let ParserMatchClass = UImmAsmOperand<6>;
+  let DecoderMethod = "decodeUImmOperand<6>";
+  let OperandType = "OPERAND_UIMM6";
+  let OperandNamespace = "RISCVOp";
+}
+
 def uimm7_opcode : Operand<XLenVT> {
   let ParserMatchClass = InsnDirectiveOpcode;
   let DecoderMethod = "decodeUImmOperand<7>";
@@ -236,6 +250,13 @@ def uimm7 : Operand<XLenVT> {
   let ParserMatchClass = UImmAsmOperand<7>;
   let DecoderMethod = "decodeUImmOperand<7>";
   let OperandType = "OPERAND_UIMM7";
+  let OperandNamespace = "RISCVOp";
+}
+
+def uimm8 : Operand<XLenVT> {
+  let ParserMatchClass = UImmAsmOperand<8>;
+  let DecoderMethod = "decodeUImmOperand<8>";
+  let OperandType = "OPERAND_UIMM8";
   let OperandNamespace = "RISCVOp";
 }
 
@@ -613,11 +634,9 @@ def LUI : RVInstU<OPC_LUI, (outs GPR:$rd), (ins uimm20_lui:$imm20),
 def AUIPC : RVInstU<OPC_AUIPC, (outs GPR:$rd), (ins uimm20_auipc:$imm20),
                     "auipc", "$rd, $imm20">, Sched<[WriteIALU]>;
 
-let isCall = 1 in
 def JAL : RVInstJ<OPC_JAL, (outs GPR:$rd), (ins simm21_lsb0_jal:$imm20),
                   "jal", "$rd, $imm20">, Sched<[WriteJal]>;
 
-let isCall = 1 in
 def JALR : RVInstI<0b000, OPC_JALR, (outs GPR:$rd),
                    (ins GPR:$rs1, simm12:$imm12),
                    "jalr", "$rd, ${imm12}(${rs1})">,
@@ -1876,14 +1895,6 @@ let Predicates = [IsRV64] in {
 def : Pat<(binop_allwusers<add> GPR:$rs1, (AddiPair:$rs2)),
           (ADDIW (ADDIW GPR:$rs1, (AddiPairImmLarge AddiPair:$rs2)),
                  (AddiPairImmSmall AddiPair:$rs2))>;
-}
-
-/// Empty pseudo for RISCVInitUndefPass
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0, Size = 0, isCodeGenOnly = 1 in {
-  def PseudoRVVInitUndefM1     :  Pseudo<(outs VR:$vd), (ins), [], "">;
-  def PseudoRVVInitUndefM2     :  Pseudo<(outs VRM2:$vd), (ins), [], "">;
-  def PseudoRVVInitUndefM4     :  Pseudo<(outs VRM4:$vd), (ins), [], "">;
-  def PseudoRVVInitUndefM8     :  Pseudo<(outs VRM8:$vd), (ins), [], "">;
 }
 
 //===----------------------------------------------------------------------===//

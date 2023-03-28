@@ -1,4 +1,4 @@
-//===-- RISCVISAInfo.cpp - RISCV Arch String Parser -------------*- C++ -*-===//
+//===-- RISCVISAInfo.cpp - RISC-V Arch String Parser ------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -137,6 +137,17 @@ static const RISCVSupportedExtension SupportedExperimentalExtensions[] = {
     {"zfa", RISCVExtensionVersion{0, 1}},
     {"zvfh", RISCVExtensionVersion{0, 1}},
     {"ztso", RISCVExtensionVersion{0, 1}},
+
+    // vector crypto
+    {"zvkb", RISCVExtensionVersion{0, 3}},
+    {"zvkg", RISCVExtensionVersion{0, 3}},
+    {"zvkn", RISCVExtensionVersion{0, 3}},
+    {"zvknha", RISCVExtensionVersion{0, 3}},
+    {"zvknhb", RISCVExtensionVersion{0, 3}},
+    {"zvkned", RISCVExtensionVersion{0, 3}},
+    {"zvks", RISCVExtensionVersion{0, 3}},
+    {"zvksed", RISCVExtensionVersion{0, 3}},
+    {"zvksh", RISCVExtensionVersion{0, 3}},
 };
 
 static bool stripExperimentalPrefix(StringRef &Ext) {
@@ -647,10 +658,18 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
         llvm_unreachable("Default extension version not found?");
   } else {
     // Baseline is `i` or `e`
-    if (auto E = getExtensionVersion(std::string(1, Baseline), Exts, Major, Minor,
-                                     ConsumeLength, EnableExperimentalExtension,
-                                     ExperimentalExtensionVersionCheck))
-      return std::move(E);
+    if (auto E = getExtensionVersion(
+            std::string(1, Baseline), Exts, Major, Minor, ConsumeLength,
+            EnableExperimentalExtension, ExperimentalExtensionVersionCheck)) {
+      if (!IgnoreUnknown)
+        return std::move(E);
+      // If IgnoreUnknown, then ignore an unrecognised version of the baseline
+      // ISA and just use the default supported version.
+      consumeError(std::move(E));
+      auto Version = findDefaultVersion(std::string(1, Baseline));
+      Major = Version->Major;
+      Minor = Version->Minor;
+    }
 
     ISAInfo->addExtension(std::string(1, Baseline), Major, Minor);
   }
@@ -857,6 +876,19 @@ Error RISCVISAInfo::checkDependency() {
         errc::invalid_argument,
         "'zvl*b' requires 'v' or 'zve*' extension to also be specified");
 
+  if ((Exts.count("zvkb") || Exts.count("zvkg") || Exts.count("zvkn") ||
+       Exts.count("zvknha") || Exts.count("zvkned") || Exts.count("zvks") ||
+       Exts.count("zvksed") || Exts.count("zvksh")) &&
+      !HasVector)
+    return createStringError(
+        errc::invalid_argument,
+        "'zvk*' requires 'v' or 'zve*' extension to also be specified");
+
+  if (Exts.count("zvknhb") && !Exts.count("zve64x"))
+    return createStringError(
+        errc::invalid_argument,
+        "'zvknhb' requires 'v' or 'zve64*' extension to also be specified");
+
   // Additional dependency checks.
   // TODO: The 'q' extension requires rv64.
   // TODO: It is illegal to specify 'e' extensions with 'f' and 'd'.
@@ -892,6 +924,9 @@ static const char *ImpliedExtsZkn[] = {"zbkb", "zbkc", "zbkx",
                                        "zkne", "zknd", "zknh"};
 static const char *ImpliedExtsZks[] = {"zbkb", "zbkc", "zbkx", "zksed", "zksh"};
 static const char *ImpliedExtsZvfh[] = {"zve32f"};
+static const char *ImpliedExtsZvkn[] = {"zvkned", "zvknhb", "zvkb"};
+static const char *ImpliedExtsZvknhb[] = {"zvknha"};
+static const char *ImpliedExtsZvks[] = {"zvksed", "zvksh", "zvkb"};
 static const char *ImpliedExtsXTHeadVdot[] = {"v"};
 static const char *ImpliedExtsZcb[] = {"zca"};
 static const char *ImpliedExtsZfa[] = {"f"};
@@ -928,6 +963,9 @@ static constexpr ImpliedExtsEntry ImpliedExts[] = {
     {{"zve64f"}, {ImpliedExtsZve64f}},
     {{"zve64x"}, {ImpliedExtsZve64x}},
     {{"zvfh"}, {ImpliedExtsZvfh}},
+    {{"zvkn"}, {ImpliedExtsZvkn}},
+    {{"zvknhb"}, {ImpliedExtsZvknhb}},
+    {{"zvks"}, {ImpliedExtsZvks}},
     {{"zvl1024b"}, {ImpliedExtsZvl1024b}},
     {{"zvl128b"}, {ImpliedExtsZvl128b}},
     {{"zvl16384b"}, {ImpliedExtsZvl16384b}},
@@ -1070,6 +1108,8 @@ std::vector<std::string> RISCVISAInfo::toFeatureVector() const {
   for (auto const &Ext : Exts) {
     std::string ExtName = Ext.first;
     if (ExtName == "i") // i is not recognized in clang -cc1
+      continue;
+    if (!isSupportedExtension(ExtName))
       continue;
     std::string Feature = isExperimentalExtension(ExtName)
                               ? "+experimental-" + ExtName

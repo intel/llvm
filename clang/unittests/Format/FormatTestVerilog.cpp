@@ -6,47 +6,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "FormatTestUtils.h"
-#include "clang/Format/Format.h"
-#include "llvm/Support/Debug.h"
-#include "gtest/gtest.h"
+#include "FormatTestBase.h"
 
 #define DEBUG_TYPE "format-test"
 
 namespace clang {
 namespace format {
-
-class FormatTestVerilog : public ::testing::Test {
+namespace test {
+namespace {
+class FormatTestVerilog : public test::FormatTestBase {
 protected:
-  static std::string format(llvm::StringRef Code, unsigned Offset,
-                            unsigned Length, const FormatStyle &Style) {
-    LLVM_DEBUG(llvm::errs() << "---\n");
-    LLVM_DEBUG(llvm::errs() << Code << "\n\n");
-    std::vector<tooling::Range> Ranges(1, tooling::Range(Offset, Length));
-    tooling::Replacements Replaces = reformat(Style, Code, Ranges);
-    auto Result = applyAllReplacements(Code, Replaces);
-    EXPECT_TRUE(static_cast<bool>(Result));
-    LLVM_DEBUG(llvm::errs() << "\n" << *Result << "\n\n");
-    return *Result;
+  FormatStyle getDefaultStyle() const override {
+    return getLLVMStyle(FormatStyle::LK_Verilog);
   }
-
-  static std::string
-  format(llvm::StringRef Code,
-         const FormatStyle &Style = getLLVMStyle(FormatStyle::LK_Verilog)) {
-    return format(Code, 0, Code.size(), Style);
-  }
-
-  static void verifyFormat(
-      llvm::StringRef Code,
-      const FormatStyle &Style = getLLVMStyle(FormatStyle::LK_Verilog)) {
-    EXPECT_EQ(Code.str(), format(Code, Style)) << "Expected code is not stable";
-    EXPECT_EQ(Code.str(),
-              format(test::messUp(Code, /*HandleHash=*/false), Style));
+  std::string messUp(llvm::StringRef Code) const override {
+    return test::messUp(Code, /*HandleHash=*/false);
   }
 };
 
 TEST_F(FormatTestVerilog, Align) {
-  FormatStyle Style = getLLVMStyle(FormatStyle::LK_Verilog);
+  FormatStyle Style = getDefaultStyle();
   Style.AlignConsecutiveAssignments.Enabled = true;
   verifyFormat("x            <= x;\n"
                "sfdbddfbdfbb <= x;\n"
@@ -95,6 +74,23 @@ TEST_F(FormatTestVerilog, Align) {
   verifyFormat("x            >>>= x;\n"
                "sfdbddfbdfbb   <= x;",
                Style);
+}
+
+TEST_F(FormatTestVerilog, Assign) {
+  verifyFormat("assign mynet = enable;");
+  verifyFormat("assign (strong1, pull0) #1 mynet = enable;");
+  verifyFormat("assign #1 mynet = enable;");
+  verifyFormat("assign mynet = enable;");
+  // Test that assignments are on separate lines.
+  verifyFormat("assign mynet = enable,\n"
+               "       mynet1 = enable1;");
+  // Test that `<=` and `,` don't confuse it.
+  verifyFormat("assign mynet = enable1 <= enable2;");
+  verifyFormat("assign mynet = enable1 <= enable2,\n"
+               "       mynet1 = enable3;");
+  verifyFormat("assign mynet = enable,\n"
+               "       mynet1 = enable2 <= enable3;");
+  verifyFormat("assign mynet = enable(enable1, enable2);");
 }
 
 TEST_F(FormatTestVerilog, BasedLiteral) {
@@ -225,7 +221,7 @@ TEST_F(FormatTestVerilog, Case) {
                "    instruction3(ir);\n"
                "endcase");
   // Test indention options.
-  auto Style = getLLVMStyle(FormatStyle::LK_Verilog);
+  auto Style = getDefaultStyle();
   Style.IndentCaseLabels = false;
   verifyFormat("case (data)\n"
                "16'd0:\n"
@@ -251,7 +247,7 @@ TEST_F(FormatTestVerilog, Case) {
                "endcase",
                Style);
   // Other colons should not be mistaken as case colons.
-  Style = getLLVMStyle(FormatStyle::LK_Verilog);
+  Style = getDefaultStyle();
   Style.BitFieldColonSpacing = FormatStyle::BFCS_None;
   verifyFormat("case (x[1:0])\n"
                "endcase",
@@ -266,7 +262,7 @@ TEST_F(FormatTestVerilog, Case) {
   verifyFormat("default:\n"
                "  x[1 : 0] = x[1 : 0];",
                Style);
-  Style = getLLVMStyle(FormatStyle::LK_Verilog);
+  Style = getDefaultStyle();
   Style.SpacesInContainerLiterals = true;
   verifyFormat("case ('{x : x, default : 9})\n"
                "endcase",
@@ -338,8 +334,8 @@ TEST_F(FormatTestVerilog, Delay) {
   verifyFormat("#1.5s;");
   // The following expression should be on the same line.
   verifyFormat("#1 x = x;");
-  EXPECT_EQ("#1 x = x;", format("#1\n"
-                                "x = x;"));
+  verifyFormat("#1 x = x;", "#1\n"
+                            "x = x;");
 }
 
 TEST_F(FormatTestVerilog, Headers) {
@@ -469,7 +465,7 @@ TEST_F(FormatTestVerilog, Headers) {
                "                 b);\n"
                "endmodule");
   // With a concatenation in the names.
-  auto Style = getLLVMStyle(FormatStyle::LK_Verilog);
+  auto Style = getDefaultStyle();
   Style.ColumnLimit = 40;
   verifyFormat("`define X(x)                           \\\n"
                "  module test                          \\\n"
@@ -558,6 +554,28 @@ TEST_F(FormatTestVerilog, Hierarchy) {
                "  generate\n"
                "  endgenerate\n"
                "endfunction : x");
+}
+
+TEST_F(FormatTestVerilog, Identifiers) {
+  // Escaped identifiers should not be split.
+  verifyFormat("\\busa+index");
+  verifyFormat("\\-clock");
+  verifyFormat("\\***error-condition***");
+  verifyFormat("\\net1\\/net2");
+  verifyFormat("\\{a,b}");
+  verifyFormat("\\a*(b+c)");
+  // Escaped identifiers can't be joined with the next token.  Extra space
+  // should be removed.
+  verifyFormat("\\busa+index ;", "\\busa+index\n"
+                                 ";");
+  verifyFormat("\\busa+index ;", "\\busa+index\r\n"
+                                 ";");
+  verifyFormat("\\busa+index ;", "\\busa+index  ;");
+  verifyFormat("\\busa+index ;", "\\busa+index\n"
+                                 " ;");
+  verifyFormat("\\busa+index ;");
+  verifyFormat("(\\busa+index );");
+  verifyFormat("\\busa+index \\busa+index ;");
 }
 
 TEST_F(FormatTestVerilog, If) {
@@ -657,6 +675,14 @@ TEST_F(FormatTestVerilog, Operators) {
   verifyFormat("x = ++x;");
   verifyFormat("x = --x;");
 
+  // Test that `*` and `*>` are binary.
+  verifyFormat("x = x * x;");
+  verifyFormat("x = (x * x);");
+  verifyFormat("(opcode *> o1) = 6.1;");
+  verifyFormat("(C, D *> Q) = 18;");
+  // The wildcard import is not a binary operator.
+  verifyFormat("import p::*;");
+
   // Test that operators don't get split.
   verifyFormat("x = x++;");
   verifyFormat("x = x--;");
@@ -694,47 +720,54 @@ TEST_F(FormatTestVerilog, Operators) {
   verifyFormat("x <= x;");
 
   // Test that space is added between operators.
-  EXPECT_EQ("x = x < -x;", format("x=x<-x;"));
-  EXPECT_EQ("x = x << -x;", format("x=x<<-x;"));
-  EXPECT_EQ("x = x <<< -x;", format("x=x<<<-x;"));
+  verifyFormat("x = x < -x;", "x=x<-x;");
+  verifyFormat("x = x << -x;", "x=x<<-x;");
+  verifyFormat("x = x <<< -x;", "x=x<<<-x;");
+
+  // Test that operators that are C++ identifiers get treated as operators.
+  verifyFormat("solve s before d;");                       // before
+  verifyFormat("binsof(i) intersect {0};");                // intersect
+  verifyFormat("req dist {1};");                           // dist
+  verifyFormat("a inside {b, c};");                        // inside
+  verifyFormat("bus.randomize() with { atype == low; };"); // with
 }
 
 TEST_F(FormatTestVerilog, Preprocessor) {
-  auto Style = getLLVMStyle(FormatStyle::LK_Verilog);
+  auto Style = getDefaultStyle();
   Style.ColumnLimit = 20;
 
   // Macro definitions.
-  EXPECT_EQ("`define X          \\\n"
-            "  if (x)           \\\n"
-            "    x = x;",
-            format("`define X if(x)x=x;", Style));
-  EXPECT_EQ("`define X(x)       \\\n"
-            "  if (x)           \\\n"
-            "    x = x;",
-            format("`define X(x) if(x)x=x;", Style));
-  EXPECT_EQ("`define X          \\\n"
-            "  x = x;           \\\n"
-            "  x = x;",
-            format("`define X x=x;x=x;", Style));
+  verifyFormat("`define X          \\\n"
+               "  if (x)           \\\n"
+               "    x = x;",
+               "`define X if(x)x=x;", Style);
+  verifyFormat("`define X(x)       \\\n"
+               "  if (x)           \\\n"
+               "    x = x;",
+               "`define X(x) if(x)x=x;", Style);
+  verifyFormat("`define X          \\\n"
+               "  x = x;           \\\n"
+               "  x = x;",
+               "`define X x=x;x=x;", Style);
   // Macro definitions with invocations inside.
-  EXPECT_EQ("`define LIST       \\\n"
-            "  `ENTRY           \\\n"
-            "  `ENTRY",
-            format("`define LIST \\\n"
-                   "`ENTRY \\\n"
-                   "`ENTRY",
-                   Style));
-  EXPECT_EQ("`define LIST       \\\n"
-            "  `x = `x;         \\\n"
-            "  `x = `x;",
-            format("`define LIST \\\n"
-                   "`x = `x; \\\n"
-                   "`x = `x;",
-                   Style));
-  EXPECT_EQ("`define LIST       \\\n"
-            "  `x = `x;         \\\n"
-            "  `x = `x;",
-            format("`define LIST `x=`x;`x=`x;", Style));
+  verifyFormat("`define LIST       \\\n"
+               "  `ENTRY           \\\n"
+               "  `ENTRY",
+               "`define LIST \\\n"
+               "`ENTRY \\\n"
+               "`ENTRY",
+               Style);
+  verifyFormat("`define LIST       \\\n"
+               "  `x = `x;         \\\n"
+               "  `x = `x;",
+               "`define LIST \\\n"
+               "`x = `x; \\\n"
+               "`x = `x;",
+               Style);
+  verifyFormat("`define LIST       \\\n"
+               "  `x = `x;         \\\n"
+               "  `x = `x;",
+               "`define LIST `x=`x;`x=`x;", Style);
   // Macro invocations.
   verifyFormat("`x = (`x1 + `x2 + x);");
   // Lines starting with a preprocessor directive should not be indented.
@@ -761,49 +794,49 @@ TEST_F(FormatTestVerilog, Preprocessor) {
       "undefineall",
   };
   for (auto &Name : Directives) {
-    EXPECT_EQ("if (x)\n"
-              "`" +
-                  Name +
-                  "\n"
-                  "  ;",
-              format("if (x)\n"
-                     "`" +
-                         Name +
-                         "\n"
-                         ";",
-                     Style));
+    verifyFormat("if (x)\n"
+                 "`" +
+                     Name +
+                     "\n"
+                     "  ;",
+                 "if (x)\n"
+                 "`" +
+                     Name +
+                     "\n"
+                     ";",
+                 Style);
   }
   // Lines starting with a regular macro invocation should be indented as a
   // normal line.
-  EXPECT_EQ("if (x)\n"
-            "  `x = `x;\n"
-            "`timescale 1ns / 1ps",
-            format("if (x)\n"
-                   "`x = `x;\n"
-                   "`timescale 1ns / 1ps",
-                   Style));
-  EXPECT_EQ("if (x)\n"
-            "`timescale 1ns / 1ps\n"
-            "  `x = `x;",
-            format("if (x)\n"
-                   "`timescale 1ns / 1ps\n"
-                   "`x = `x;",
-                   Style));
+  verifyFormat("if (x)\n"
+               "  `x = `x;\n"
+               "`timescale 1ns / 1ps",
+               "if (x)\n"
+               "`x = `x;\n"
+               "`timescale 1ns / 1ps",
+               Style);
+  verifyFormat("if (x)\n"
+               "`timescale 1ns / 1ps\n"
+               "  `x = `x;",
+               "if (x)\n"
+               "`timescale 1ns / 1ps\n"
+               "`x = `x;",
+               Style);
   std::string NonDirectives[] = {
       // For `__FILE__` and `__LINE__`, although the standard classifies them as
       // preprocessor directives, they are used like regular macros.
       "__FILE__", "__LINE__", "elif", "foo", "x",
   };
   for (auto &Name : NonDirectives) {
-    EXPECT_EQ("if (x)\n"
-              "  `" +
-                  Name + ";",
-              format("if (x)\n"
-                     "`" +
-                         Name +
-                         "\n"
-                         ";",
-                     Style));
+    verifyFormat("if (x)\n"
+                 "  `" +
+                     Name + ";",
+                 "if (x)\n"
+                 "`" +
+                     Name +
+                     "\n"
+                     ";",
+                 Style);
   }
 }
 
@@ -847,6 +880,26 @@ TEST_F(FormatTestVerilog, Primitive) {
                "    (?\?) ? : ? : -;\n"
                "  endtable\n"
                "endprimitive");
+}
+
+TEST_F(FormatTestVerilog, Streaming) {
+  verifyFormat("x = {>>{j}};");
+  verifyFormat("x = {>>byte{j}};");
+  verifyFormat("x = {<<{j}};");
+  verifyFormat("x = {<<byte{j}};");
+  verifyFormat("x = {<<16{j}};");
+  verifyFormat("x = {<<{8'b0011_0101}};");
+  verifyFormat("x = {<<4{6'b11_0101}};");
+  verifyFormat("x = {>>4{6'b11_0101}};");
+  verifyFormat("x = {<<2{{<<{4'b1101}}}};");
+  verifyFormat("bit [96 : 1] y = {>>{a, b, c}};");
+  verifyFormat("int j = {>>{a, b, c}};");
+  verifyFormat("{>>{a, b, c}} = 23'b1;");
+  verifyFormat("{>>{a, b, c}} = x;");
+  verifyFormat("{>>{j}} = x;");
+  verifyFormat("{>>byte{j}} = x;");
+  verifyFormat("{<<{j}} = x;");
+  verifyFormat("{<<byte{j}} = x;");
 }
 
 TEST_F(FormatTestVerilog, StructuredProcedure) {
@@ -893,5 +946,7 @@ TEST_F(FormatTestVerilog, StructuredProcedure) {
   verifyFormat("forever\n"
                "  x <= x;");
 }
+} // namespace
+} // namespace test
 } // namespace format
-} // end namespace clang
+} // namespace clang

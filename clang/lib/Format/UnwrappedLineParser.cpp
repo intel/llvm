@@ -2134,7 +2134,7 @@ bool UnwrappedLineParser::tryToParseLambda() {
     case tok::l_brace:
       break;
     case tok::l_paren:
-      parseParens();
+      parseParens(/*AmpAmpTokenType=*/TT_PointerOrReference);
       break;
     case tok::l_square:
       parseSquare();
@@ -2211,6 +2211,12 @@ bool UnwrappedLineParser::tryToParseLambda() {
       SeenArrow = true;
       nextToken();
       break;
+    case tok::kw_requires: {
+      auto *RequiresToken = FormatTok;
+      nextToken();
+      parseRequiresClause(RequiresToken);
+      break;
+    }
     default:
       return true;
     }
@@ -2596,16 +2602,17 @@ void UnwrappedLineParser::handleAttributes() {
   // Handle AttributeMacro, e.g. `if (x) UNLIKELY`.
   if (FormatTok->is(TT_AttributeMacro))
     nextToken();
-  handleCppAttributes();
+  if (FormatTok->is(tok::l_square))
+    handleCppAttributes();
 }
 
 bool UnwrappedLineParser::handleCppAttributes() {
   // Handle [[likely]] / [[unlikely]] attributes.
-  if (FormatTok->is(tok::l_square) && tryToParseSimpleAttribute()) {
-    parseSquare();
-    return true;
-  }
-  return false;
+  assert(FormatTok->is(tok::l_square));
+  if (!tryToParseSimpleAttribute())
+    return false;
+  parseSquare();
+  return true;
 }
 
 /// Returns whether \c Tok begins a block.
@@ -3371,6 +3378,17 @@ void UnwrappedLineParser::parseConstraintExpression() {
   // lambda to be possible.
   // template <typename T> requires requires { ... } [[nodiscard]] ...;
   bool LambdaNextTimeAllowed = true;
+
+  // Within lambda declarations, it is permitted to put a requires clause after
+  // its template parameter list, which would place the requires clause right
+  // before the parentheses of the parameters of the lambda declaration. Thus,
+  // we track if we expect to see grouping parentheses at all.
+  // Without this check, `requires foo<T> (T t)` in the below example would be
+  // seen as the whole requires clause, accidentally eating the parameters of
+  // the lambda.
+  // [&]<typename T> requires foo<T> (T t) { ... };
+  bool TopLevelParensAllowed = true;
+
   do {
     bool LambdaThisTimeAllowed = std::exchange(LambdaNextTimeAllowed, false);
 
@@ -3383,7 +3401,10 @@ void UnwrappedLineParser::parseConstraintExpression() {
     }
 
     case tok::l_paren:
+      if (!TopLevelParensAllowed)
+        return;
       parseParens(/*AmpAmpTokenType=*/TT_BinaryOperator);
+      TopLevelParensAllowed = false;
       break;
 
     case tok::l_square:
@@ -3407,6 +3428,7 @@ void UnwrappedLineParser::parseConstraintExpression() {
       FormatTok->setFinalizedType(TT_BinaryOperator);
       nextToken();
       LambdaNextTimeAllowed = true;
+      TopLevelParensAllowed = true;
       break;
 
     case tok::comma:
@@ -3430,6 +3452,7 @@ void UnwrappedLineParser::parseConstraintExpression() {
     case tok::star:
     case tok::slash:
       LambdaNextTimeAllowed = true;
+      TopLevelParensAllowed = true;
       // Just eat them.
       nextToken();
       break;
@@ -3438,6 +3461,7 @@ void UnwrappedLineParser::parseConstraintExpression() {
     case tok::coloncolon:
     case tok::kw_true:
     case tok::kw_false:
+      TopLevelParensAllowed = false;
       // Just eat them.
       nextToken();
       break;
@@ -3486,6 +3510,7 @@ void UnwrappedLineParser::parseConstraintExpression() {
         parseBracedList(/*ContinueOnSemicolons=*/false, /*IsEnum=*/false,
                         /*ClosingBraceKind=*/tok::greater);
       }
+      TopLevelParensAllowed = false;
       break;
     }
   } while (!eof());
@@ -3704,13 +3729,13 @@ void UnwrappedLineParser::parseJavaEnumBody() {
 void UnwrappedLineParser::parseRecord(bool ParseAsExpr) {
   const FormatToken &InitialToken = *FormatTok;
   nextToken();
-  handleAttributes();
 
   // The actual identifier can be a nested name specifier, and in macros
   // it is often token-pasted.
+  // An [[attribute]] can be before the identifier.
   while (FormatTok->isOneOf(tok::identifier, tok::coloncolon, tok::hashhash,
                             tok::kw___attribute, tok::kw___declspec,
-                            tok::kw_alignas) ||
+                            tok::kw_alignas, tok::l_square) ||
          ((Style.Language == FormatStyle::LK_Java || Style.isJavaScript()) &&
           FormatTok->isOneOf(tok::period, tok::comma))) {
     if (Style.isJavaScript() &&
@@ -3724,16 +3749,15 @@ void UnwrappedLineParser::parseRecord(bool ParseAsExpr) {
         continue;
       }
     }
+    if (FormatTok->is(tok::l_square) && handleCppAttributes())
+      continue;
     bool IsNonMacroIdentifier =
         FormatTok->is(tok::identifier) &&
         FormatTok->TokenText != FormatTok->TokenText.upper();
     nextToken();
     // We can have macros in between 'class' and the class name.
-    if (!IsNonMacroIdentifier) {
-      if (FormatTok->is(tok::l_paren)) {
-        parseParens();
-      }
-    }
+    if (!IsNonMacroIdentifier && FormatTok->is(tok::l_paren))
+      parseParens();
   }
 
   // Note that parsing away template declarations here leads to incorrectly

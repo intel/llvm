@@ -3065,8 +3065,7 @@ pi_result piMemRetain(pi_mem Mem) {
 // If indirect access tracking is not enabled then this functions just performs
 // zeMemFree. If indirect access tracking is enabled then reference counting is
 // performed.
-static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr,
-                                 bool OwnZeMemHandle = true) {
+static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr) {
   pi_platform Plt = Context->getPlatform();
   std::unique_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex,
                                                  std::defer_lock);
@@ -3086,8 +3085,7 @@ static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr,
     Context->MemAllocs.erase(It);
   }
 
-  if (OwnZeMemHandle)
-    ZE_CALL(zeMemFree, (Context->ZeContext, Ptr));
+  ZE_CALL(zeMemFree, (Context->ZeContext, Ptr));
 
   if (IndirectAccessTrackingEnabled)
     PI_CALL(ContextReleaseHelper(Context));
@@ -3096,7 +3094,7 @@ static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr,
 }
 
 static pi_result USMFreeHelper(pi_context Context, void *Ptr,
-                               bool OwnZeMemHandle);
+                               bool OwnZeMemHandle = true);
 
 pi_result piMemRelease(pi_mem Mem) {
   PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
@@ -7050,10 +7048,8 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
   return PI_SUCCESS;
 }
 
-static pi_result USMFreeImpl(pi_context Context, void *Ptr,
-                             bool OwnZeMemHandle) {
-  if (OwnZeMemHandle)
-    ZE_CALL(zeMemFree, (Context->ZeContext, Ptr));
+static pi_result USMFreeImpl(pi_context Context, void *Ptr) {
+  ZE_CALL(zeMemFree, (Context->ZeContext, Ptr));
   return PI_SUCCESS;
 }
 
@@ -7112,8 +7108,8 @@ void *USMMemoryAllocBase::allocate(size_t Size, size_t Alignment) {
   return Ptr;
 }
 
-void USMMemoryAllocBase::deallocate(void *Ptr, bool OwnZeMemHandle) {
-  auto Res = USMFreeImpl(Context, Ptr, OwnZeMemHandle);
+void USMMemoryAllocBase::deallocate(void *Ptr) {
+  auto Res = USMFreeImpl(Context, Ptr);
   if (Res != PI_SUCCESS) {
     throw UsmAllocationException(Res);
   }
@@ -7361,8 +7357,13 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
     Context->MemAllocs.erase(It);
   }
 
+  if (!OwnZeMemHandle) {
+    // Memory should not be freed
+    return PI_SUCCESS;
+  }
+
   if (!UseUSMAllocator) {
-    pi_result Res = USMFreeImpl(Context, Ptr, OwnZeMemHandle);
+    pi_result Res = USMFreeImpl(Context, Ptr);
     if (IndirectAccessTrackingEnabled)
       PI_CALL(ContextReleaseHelper(Context));
     return Res;
@@ -7381,7 +7382,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
   // If memory type is host release from host pool
   if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_HOST) {
     try {
-      Context->HostMemAllocContext->deallocate(Ptr, OwnZeMemHandle);
+      Context->HostMemAllocContext->deallocate(Ptr);
     } catch (const UsmAllocationException &Ex) {
       return Ex.getError();
     } catch (...) {
@@ -7409,16 +7410,16 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
     PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
     auto DeallocationHelper =
-        [Context, Device, Ptr,
-         OwnZeMemHandle](std::unordered_map<ze_device_handle_t, USMAllocContext>
-                             &AllocContextMap) {
+        [Context, Device,
+         Ptr](std::unordered_map<ze_device_handle_t, USMAllocContext>
+                  &AllocContextMap) {
           try {
             auto It = AllocContextMap.find(Device->ZeDevice);
             if (It == AllocContextMap.end())
               return PI_ERROR_INVALID_VALUE;
 
             // The right context is found, deallocate the pointer
-            It->second.deallocate(Ptr, OwnZeMemHandle);
+            It->second.deallocate(Ptr);
           } catch (const UsmAllocationException &Ex) {
             return Ex.getError();
           }
@@ -7444,7 +7445,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
     }
   }
 
-  pi_result Res = USMFreeImpl(Context, Ptr, OwnZeMemHandle);
+  pi_result Res = USMFreeImpl(Context, Ptr);
   if (SharedReadOnlyAllocsIterator != Context->SharedReadOnlyAllocs.end()) {
     Context->SharedReadOnlyAllocs.erase(SharedReadOnlyAllocsIterator);
   }
@@ -7459,7 +7460,7 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
   std::scoped_lock<pi_shared_mutex> Lock(
       IndirectAccessTrackingEnabled ? Plt->ContextsMutex : Context->Mutex);
 
-  return USMFreeHelper(Context, Ptr, true /* OwnZeMemHandle */);
+  return USMFreeHelper(Context, Ptr);
 }
 
 pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,
@@ -7971,6 +7972,23 @@ pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
         ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
     ZE_CALL(zeKernelSetIndirectAccess, (Kernel->ZeKernel, IndirectFlags));
+  } else if (ParamName == PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG) {
+    ze_cache_config_flag_t ZeCacheConfig;
+    switch (*(static_cast<const pi_kernel_cache_config *>(ParamValue))) {
+    case PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM:
+      ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
+      break;
+    case PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA:
+      ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
+      break;
+    case PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT:
+      ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
+      break;
+    default:
+      // Unexpected cache configuration value.
+      return PI_ERROR_INVALID_VALUE;
+    }
+    ZE_CALL(zeKernelSetCacheConfig, (Kernel->ZeKernel, ZeCacheConfig););
   } else {
     zePrint("piKernelSetExecInfo: unsupported ParamName\n");
     return PI_ERROR_INVALID_VALUE;
@@ -8379,11 +8397,11 @@ pi_result _pi_buffer::free() {
       std::scoped_lock<pi_shared_mutex> Lock(
           IndirectAccessTrackingEnabled ? Plt->ContextsMutex : Context->Mutex);
 
-      PI_CALL(USMFreeHelper(Context, ZeHandle, true));
+      PI_CALL(USMFreeHelper(Context, ZeHandle));
       break;
     }
     case allocation_t::free_native:
-      PI_CALL(ZeMemFreeHelper(Context, ZeHandle, true));
+      PI_CALL(ZeMemFreeHelper(Context, ZeHandle));
       break;
     case allocation_t::unimport:
       ZeUSMImport.doZeUSMRelease(Context->getPlatform()->ZeDriver, ZeHandle);

@@ -190,7 +190,7 @@ def m_wasm_Features_Driver_Group : OptionGroup<"<wasm driver features group>">,
 def m_x86_Features_Group : OptionGroup<"<x86 features group>">,
                            Group<m_Group>, Flags<[CoreOption]>, DocName<"X86">;
 def m_riscv_Features_Group : OptionGroup<"<riscv features group>">,
-                             Group<m_Group>, DocName<"RISCV">;
+                             Group<m_Group>, DocName<"RISC-V">;
 
 def m_libc_Group : OptionGroup<"<m libc group>">, Group<m_mips_Features_Group>,
                    Flags<[HelpHidden]>;
@@ -3954,10 +3954,6 @@ def mcode_object_version_EQ : Joined<["-"], "mcode-object-version=">, Group<m_Gr
   NormalizedValues<["COV_None", "COV_2", "COV_3", "COV_4", "COV_5"]>,
   MarshallingInfoEnum<TargetOpts<"CodeObjectVersion">, "COV_4">;
 
-defm code_object_v3_legacy : SimpleMFlag<"code-object-v3",
-  "Legacy option to specify code object ABI V3",
-  "Legacy option to specify code object ABI V2",
-  " (AMDGPU only)">;
 defm cumode : SimpleMFlag<"cumode",
   "Specify CU wavefront", "Specify WGP wavefront",
   " execution mode (AMDGPU only)", m_amdgpu_Features_Group>;
@@ -4071,6 +4067,8 @@ defm zvector : BoolFOption<"zvector",
 def mzvector : Flag<["-"], "mzvector">, Alias<fzvector>;
 def mno_zvector : Flag<["-"], "mno-zvector">, Alias<fno_zvector>;
 
+def mxcoff_build_id_EQ : Joined<["-"], "mxcoff-build-id=">, Group<Link_Group>, MetaVarName<"<0xHEXSTRING>">,
+  HelpText<"On AIX, request creation of a build-id string, \"0xHEXSTRING\", in the string table of the loader section inside the linked binary">;
 def mignore_xcoff_visibility : Flag<["-"], "mignore-xcoff-visibility">, Group<m_Group>,
 HelpText<"Not emit the visibility attribute for asm in AIX OS or give all symbols 'unspecified' visibility in XCOFF object file">,
   Flags<[CC1Option]>;
@@ -4434,9 +4432,9 @@ def no_offload_add_rpath: Flag<["--"], "no-offload-add-rpath">, Flags<[NoArgumen
   Alias<frtlib_add_rpath>;
 def r : Flag<["-"], "r">, Flags<[LinkerInput,NoArgumentUnused]>,
         Group<Link_Group>;
-def save_temps_EQ : Joined<["-", "--"], "save-temps=">, Flags<[CC1Option, FlangOption, NoXarchOption]>,
+def save_temps_EQ : Joined<["-", "--"], "save-temps=">, Flags<[CC1Option, FlangOption, FC1Option, NoXarchOption]>,
   HelpText<"Save intermediate compilation results.">;
-def save_temps : Flag<["-", "--"], "save-temps">, Flags<[FlangOption, NoXarchOption]>,
+def save_temps : Flag<["-", "--"], "save-temps">, Flags<[FlangOption, FC1Option, NoXarchOption]>,
   Alias<save_temps_EQ>, AliasArgs<["cwd"]>,
   HelpText<"Save intermediate compilation results">;
 def save_stats_EQ : Joined<["-", "--"], "save-stats=">, Flags<[NoXarchOption]>,

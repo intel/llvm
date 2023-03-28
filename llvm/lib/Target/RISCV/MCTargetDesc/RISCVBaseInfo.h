@@ -1,4 +1,4 @@
-//===-- RISCVBaseInfo.h - Top level definitions for RISCV MC ----*- C++ -*-===//
+//===-- RISCVBaseInfo.h - Top level definitions for RISC-V MC ---*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains small standalone enum definitions for the RISCV target
+// This file contains small standalone enum definitions for the RISC-V target
 // useful for the compiler back-end and the MC libraries.
 //
 //===----------------------------------------------------------------------===//
@@ -245,9 +245,11 @@ enum OperandType : unsigned {
   OPERAND_UIMM3,
   OPERAND_UIMM4,
   OPERAND_UIMM5,
+  OPERAND_UIMM6,
   OPERAND_UIMM7,
   OPERAND_UIMM7_LSB00,
   OPERAND_UIMM8_LSB00,
+  OPERAND_UIMM8,
   OPERAND_UIMM8_LSB000,
   OPERAND_UIMM9_LSB000,
   OPERAND_UIMM10_LSB00_NONZERO,
@@ -267,7 +269,10 @@ enum OperandType : unsigned {
   OPERAND_VTYPEI10,
   OPERAND_VTYPEI11,
   OPERAND_RVKRNUM,
-  OPERAND_LAST_RISCV_IMM = OPERAND_RVKRNUM,
+  OPERAND_RVKRNUM_0_7,
+  OPERAND_RVKRNUM_1_10,
+  OPERAND_RVKRNUM_2_14,
+  OPERAND_LAST_RISCV_IMM = OPERAND_RVKRNUM_2_14,
   // Operand is either a register or uimm5, this is used by V extension pseudo
   // instructions to represent a value that be passed as AVL to either vsetvli
   // or vsetivli.

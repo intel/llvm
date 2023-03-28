@@ -1,4 +1,4 @@
-//===-- RISCVISelLowering.h - RISCV DAG Lowering Interface ------*- C++ -*-===//
+//===-- RISCVISelLowering.h - RISC-V DAG Lowering Interface -----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the interfaces that RISCV uses to lower LLVM code into a
+// This file defines the interfaces that RISC-V uses to lower LLVM code into a
 // selection DAG.
 //
 //===----------------------------------------------------------------------===//
@@ -334,6 +334,7 @@ enum NodeType : unsigned {
   STRICT_FSUB_VL,
   STRICT_FMUL_VL,
   STRICT_FDIV_VL,
+  STRICT_FSQRT_VL,
   STRICT_FP_EXTEND_VL,
 
   // WARNING: Do not add anything in the end unless you want the node to
@@ -802,7 +803,7 @@ private:
   /// Disable normalizing
   /// select(N0&N1, X, Y) => select(N0, select(N1, X, Y), Y) and
   /// select(N0|N1, X, Y) => select(N0, select(N1, X, Y, Y))
-  /// RISCV doesn't have flags so it's better to perform the and/or in a GPR.
+  /// RISC-V doesn't have flags so it's better to perform the and/or in a GPR.
   bool shouldNormalizeToSelectSequence(LLVMContext &, EVT) const override {
     return false;
   };
