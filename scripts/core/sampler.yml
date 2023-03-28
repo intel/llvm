@@ -11,6 +11,32 @@ desc: "Intel $OneApi Unified Runtime APIs"
 ordinal: "4"
 --- #--------------------------------------------------------------------------
 type: enum
+desc: Sampler Filter Mode
+class: $xSampler
+name: $x_sampler_filter_mode_t
+etors:
+    - name: NEAREST
+      desc: Filter mode nearest.
+    - name: LINEAR
+      desc: Filter mode linear.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Sampler addressing mode"
+class: $xSampler
+name: $x_sampler_addressing_mode_t
+etors:
+    - name: MIRRORED_REPEAT
+      desc: "Mirrored Repeat"
+    - name: REPEAT
+      desc: "Repeat"
+    - name: CLAMP
+      desc: "Clamp"
+    - name: CLAMP_TO_EDGE
+      desc: "Clamp to edge"
+    - name: NONE
+      desc: "None"
+--- #--------------------------------------------------------------------------
+type: enum
 desc: "Get sample object information"
 class: $xSampler
 name: $x_sampler_info_t
@@ -21,19 +47,13 @@ etors:
             The reference count returned should be considered immediately stale. 
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
-      desc: "Sampler context info"
+      desc: "[$x_context_handle_t] Sampler context info"
     - name: NORMALIZED_COORDS
-      desc: "Sampler normalized coordindate setting"
+      desc: "[bool] Sampler normalized coordinate setting"
     - name: ADDRESSING_MODE
-      desc: "Sampler addressing mode setting"
+      desc: "[$x_sampler_addressing_mode_t] Sampler addressing mode setting"
     - name: FILTER_MODE
-      desc: "Sampler filter mode setting"
-    - name: MIP_FILTER_MODE
-      desc: "Sampler MIP filter mode setting"
-    - name: LOD_MIN
-      desc: "Sampler LOD Min value"
-    - name: LOD_MAX
-      desc: "Sampler LOD Max value"
+      desc: "[$x_sampler_filter_mode_t] Sampler filter mode setting"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Sampler properties"
@@ -51,22 +71,6 @@ type: typedef
 desc: "Sampler Properties type"
 name: $x_sampler_property_t
 value: intptr_t
---- #--------------------------------------------------------------------------
-type: enum
-desc: "Sampler addressing mode"
-class: $xSampler
-name: $x_sampler_addressing_mode_t
-etors:
-    - name: MIRRORED_REPEAT
-      desc: "Mirrored Repeat"
-    - name: REPEAT
-      desc: "Repeat"
-    - name: CLAMP
-      desc: "Clamp"
-    - name: CLAMP_TO_EDGE
-      desc: "Clamp to edge"
-    - name: NONE
-      desc: "None"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create a sampler object in a context"
