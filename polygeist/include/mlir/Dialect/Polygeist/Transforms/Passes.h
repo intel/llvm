@@ -26,7 +26,8 @@ namespace polygeist {
 /// MemRef dialect to the LLVM dialect forcing a "bare pointer" calling
 /// convention.
 void populateBareMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
-                                                RewritePatternSet &patterns);
+                                                RewritePatternSet &patterns,
+                                                bool useOpaquePointers = false);
 
 #define GEN_PASS_DECL
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
