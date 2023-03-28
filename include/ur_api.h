@@ -236,6 +236,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_USM_POOL_DESC = 10,                   ///< ::ur_usm_pool_desc_t
     UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 11,            ///< ::ur_usm_pool_limits_desc_t
     UR_STRUCTURE_TYPE_DEVICE_BINARY = 12,                   ///< ::ur_device_binary_t
+    UR_STRUCTURE_TYPE_SAMPLER_DESC = 13,                    ///< ::ur_sampler_desc_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1939,20 +1940,15 @@ typedef enum ur_sampler_info_t {
 } ur_sampler_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Sampler properties
-typedef enum ur_sampler_properties_t {
-    UR_SAMPLER_PROPERTIES_NORMALIZED_COORDS = 0, ///< Sampler normalized coordinates
-    UR_SAMPLER_PROPERTIES_ADDRESSING_MODE = 1,   ///< Sampler addressing mode
-    UR_SAMPLER_PROPERTIES_FILTER_MODE = 2,       ///< Sampler filter mode
-    /// @cond
-    UR_SAMPLER_PROPERTIES_FORCE_UINT32 = 0x7fffffff
-    /// @endcond
+/// @brief Sampler description.
+typedef struct ur_sampler_desc_t {
+    ur_structure_type_t stype;                   ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_SAMPLER_DESC
+    const void *pNext;                           ///< [in][optional] pointer to extension-specific structure
+    bool normalizedCoords;                       ///< [in] Specify if image coordinates are normalized (true) or not (false)
+    ur_sampler_addressing_mode_t addressingMode; ///< [in] Specify the address mode of the sampler
+    ur_sampler_filter_mode_t filterMode;         ///< [in] Specify the filter mode of the sampler
 
-} ur_sampler_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Sampler Properties type
-typedef intptr_t ur_sampler_property_t;
+} ur_sampler_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a sampler object in a context
@@ -1974,8 +1970,11 @@ typedef intptr_t ur_sampler_property_t;
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pProps`
+///         + `NULL == pDesc`
 ///         + `NULL == phSampler`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_SAMPLER_ADDRESSING_MODE_NONE < pDesc->addressingMode`
+///         + `::UR_SAMPLER_FILTER_MODE_LINEAR < pDesc->filterMode`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
@@ -1983,10 +1982,9 @@ typedef intptr_t ur_sampler_property_t;
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerCreate(
-    ur_context_handle_t hContext,        ///< [in] handle of the context object
-    const ur_sampler_property_t *pProps, ///< [in] specifies a list of sampler property names and their
-                                         ///< corresponding values.
-    ur_sampler_handle_t *phSampler       ///< [out] pointer to handle of sampler object created
+    ur_context_handle_t hContext,   ///< [in] handle of the context object
+    const ur_sampler_desc_t *pDesc, ///< [in] pointer to the sampler description
+    ur_sampler_handle_t *phSampler  ///< [out] pointer to handle of sampler object created
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6461,7 +6459,7 @@ typedef struct ur_kernel_callbacks_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_sampler_create_params_t {
     ur_context_handle_t *phContext;
-    const ur_sampler_property_t **ppProps;
+    const ur_sampler_desc_t **ppDesc;
     ur_sampler_handle_t **pphSampler;
 } ur_sampler_create_params_t;
 

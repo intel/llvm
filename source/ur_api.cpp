@@ -1092,18 +1092,19 @@ ur_result_t UR_APICALL urMemImageGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pProps`
+///         + `NULL == pDesc`
 ///         + `NULL == phSampler`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_SAMPLER_ADDRESSING_MODE_NONE < pDesc->addressingMode`
+///         + `::UR_SAMPLER_FILTER_MODE_LINEAR < pDesc->filterMode`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urSamplerCreate(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    const ur_sampler_property_t
-        *pProps, ///< [in] specifies a list of sampler property names and their
-                 ///< corresponding values.
+    ur_context_handle_t hContext,   ///< [in] handle of the context object
+    const ur_sampler_desc_t *pDesc, ///< [in] pointer to the sampler description
     ur_sampler_handle_t
         *phSampler ///< [out] pointer to handle of sampler object created
 ) {

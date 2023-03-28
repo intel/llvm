@@ -980,10 +980,8 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urSamplerCreate
 __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    const ur_sampler_property_t
-        *pProps, ///< [in] specifies a list of sampler property names and their
-                 ///< corresponding values.
+    ur_context_handle_t hContext,   ///< [in] handle of the context object
+    const ur_sampler_desc_t *pDesc, ///< [in] pointer to the sampler description
     ur_sampler_handle_t
         *phSampler ///< [out] pointer to handle of sampler object created
 ) {
@@ -993,11 +991,11 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_sampler_create_params_t params = {&hContext, &pProps, &phSampler};
+    ur_sampler_create_params_t params = {&hContext, &pDesc, &phSampler};
     uint64_t instance = context.notify_begin(UR_FUNCTION_SAMPLER_CREATE,
                                              "urSamplerCreate", &params);
 
-    ur_result_t result = pfnCreate(hContext, pProps, phSampler);
+    ur_result_t result = pfnCreate(hContext, pDesc, phSampler);
 
     context.notify_end(UR_FUNCTION_SAMPLER_CREATE, "urSamplerCreate", &params,
                        &result, instance);

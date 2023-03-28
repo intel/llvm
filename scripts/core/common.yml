@@ -287,7 +287,9 @@ etors:
     - name: USM_POOL_LIMITS_DESC
       desc: $x_usm_pool_limits_desc_t
     - name: DEVICE_BINARY
-      desc: "$x_device_binary_t"
+      desc: $x_device_binary_t
+    - name: SAMPLER_DESC
+      desc: $x_sampler_desc_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"
