@@ -196,8 +196,12 @@ class pipe {
   static void write( const DataT &Data );
 
   // Non-blocking
-  static _dataT read(bool &Success);
-  static void write(const _dataT &Data, bool &Success);
+  static DataT read( bool &Success );
+  static void write( const DataT &Data, bool &Success );
+  
+  // Static members
+  using value_type = DataT;
+  size_t min_capacity = MinCapacity;
 }
 ----
 
