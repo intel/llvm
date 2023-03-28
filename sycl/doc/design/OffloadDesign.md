@@ -78,6 +78,10 @@ These binaries can reside in a variety of binary formats including Bitcode
 files, ELF objects, executables and shared objects, COFF objects, archives or
 simply stored as an offload binary.
 
+We should have the ability to package SPIR-V based device binaries in the
+offload section of any given binary.  These device binaries will be packaged
+as normal with the packager and placed within the given section.
+
 ## Clang Linker Wrapper
 
 The clang-linker-wrapper provides the interface to perform the needed link
@@ -131,7 +135,9 @@ During this phase, all of the individual device binaries that are extracted and
 are associated with a given target are worked on given the type of binary we
 are working with.  The default device is typically represented in LLVM-IR
 which requires an additional link step of the device code before being
-wrapped and integrated into the final executable.
+wrapped and integrated into the final executable.  As mentioned in
+[Packager](#packager) device representation in SPIR-V should be considered
+with the ability to link native SPIR-V modules.
 
 To reduce the potential size of the linked device binary, an additional host
 link step is performed to gather dependency information when static device
