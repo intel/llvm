@@ -445,9 +445,28 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
                                        (unsigned)S};
     if (auto *Use = MT->getUse())
       Params.push_back(static_cast<SPIRVConstant *>(Use)->getZExtIntValue());
+    auto *CTI = MT->getComponentTypeInterpretation();
+    if (!CTI)
+      return mapType(T, getSPIRVType(internal::OpTypeJointMatrixINTEL,
+                                     transTypeToOCLTypeName(MT->getCompType()),
+                                     Params, !UseTPT));
+    std::string ComponentTypeName;
+    switch (static_cast<SPIRVConstant *>(CTI)->getZExtIntValue()) {
+    case internal::InternalJointMatrixCTI::TF32:
+      ComponentTypeName = "tf32";
+      break;
+    case internal::InternalJointMatrixCTI::Bfloat16:
+      ComponentTypeName = "bfloat16";
+      break;
+    case internal::InternalJointMatrixCTI::PackedInt2:
+    case internal::InternalJointMatrixCTI::PackedInt4:
+      // Do nothing just now
+      break;
+    default:
+      llvm_unreachable("Unexpected joint matrix component type");
+    }
     return mapType(T, getSPIRVType(internal::OpTypeJointMatrixINTEL,
-                                   transTypeToOCLTypeName(MT->getCompType()),
-                                   Params, !UseTPT));
+                                   ComponentTypeName, Params, !UseTPT));
   }
   case OpTypeForwardPointer: {
     SPIRVTypeForwardPointer *FP =
@@ -1238,7 +1257,7 @@ static void replaceOperandWithAnnotationIntrinsicCallResult(Value *&V) {
 template <typename SPIRVInstType>
 void SPIRVToLLVM::transAliasingMemAccess(SPIRVInstType *BI, Instruction *I) {
   static_assert(std::is_same<SPIRVInstType, SPIRVStore>::value ||
-                std::is_same<SPIRVInstType, SPIRVLoad>::value,
+                    std::is_same<SPIRVInstType, SPIRVLoad>::value,
                 "Only stores and loads can be aliased by memory access mask");
   if (BI->SPIRVMemoryAccess::isNoAlias())
     addMemAliasMetadata(I, BI->SPIRVMemoryAccess::getNoAliasInstID(),
@@ -2032,10 +2051,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
       case 4: {
         for (int Idx = 0; Idx < 4; ++Idx) {
-          Value *V1 = Builder.CreateShuffleVector(
-              MCache[0], MCache[1], ArrayRef<int>({Idx, Idx + 4}));
-          Value *V2 = Builder.CreateShuffleVector(
-              MCache[2], MCache[3], ArrayRef<int>({Idx, Idx + 4}));
+          Value *V1 = Builder.CreateShuffleVector(MCache[0], MCache[1],
+                                                  ArrayRef<int>{Idx, Idx + 4});
+          Value *V2 = Builder.CreateShuffleVector(MCache[2], MCache[3],
+                                                  ArrayRef<int>{Idx, Idx + 4});
           Value *V3 =
               Builder.CreateShuffleVector(V1, V2, ArrayRef<int>({0, 1, 2, 3}));
           V = Builder.CreateInsertValue(V, V3, Idx);
@@ -2299,6 +2318,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       return mapValue(BV, transOCLBuiltinFromExtInst(ExtInst, BB));
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
+    case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       return mapValue(BV, DbgTran->transDebugIntrinsic(ExtInst, BB));
     default:
       llvm_unreachable("Unknown extended instruction set!");
@@ -3985,6 +4005,27 @@ bool SPIRVToLLVM::transMetadata() {
             BF->getExecutionMode(ExecutionModeSchedulerTargetFmaxMhzINTEL)) {
       F->setMetadata(kSPIR2MD::FmaxMhz,
                      getMDNodeStringIntVec(Context, EM->getLiterals()));
+    }
+    // Generate metadata for Intel FPGA register map interface
+    if (auto *EM =
+            BF->getExecutionMode(ExecutionModeRegisterMapInterfaceINTEL)) {
+      std::vector<uint32_t> InterfaceVec = EM->getLiterals();
+      assert(InterfaceVec.size() == 1 &&
+             "Expected RegisterMapInterfaceINTEL to have exactly 1 literal");
+      std::vector<Metadata *> InterfaceMDVec =
+          [&]() -> std::vector<Metadata *> {
+        switch (InterfaceVec[0]) {
+        case 0:
+          return {MDString::get(*Context, "csr")};
+        case 1:
+          return {MDString::get(*Context, "csr"),
+                  MDString::get(*Context, "wait_for_done_write")};
+        default:
+          llvm_unreachable("Invalid register map interface mode");
+        }
+      }();
+      F->setMetadata(kSPIR2MD::IntelFPGAIPInterface,
+                     MDNode::get(*Context, InterfaceMDVec));
     }
     // Generate metadata for Intel FPGA streaming interface
     if (auto *EM = BF->getExecutionMode(ExecutionModeStreamingInterfaceINTEL)) {

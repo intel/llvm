@@ -173,6 +173,7 @@ static StringRef const StyleNames[] = {
      m(unsigned-short-int) \
      m(unsigned-short) \
      m(unsigned-int) \
+     m(unsigned-char) \
      m(unsigned) \
      m(long-long-int) \
      m(long-double) \
@@ -180,6 +181,7 @@ static StringRef const StyleNames[] = {
      m(long-int) \
      m(long) \
      m(ptrdiff_t) \
+     m(void) \
 
 static StringRef const HungarainNotationPrimitiveTypes[] = {
 #define STRINGIZE(v) #v,
@@ -228,9 +230,8 @@ static StringRef const HungarainNotationUserDefinedTypes[] = {
 // clang-format on
 
 IdentifierNamingCheck::NamingStyle::NamingStyle(
-    std::optional<IdentifierNamingCheck::CaseType> Case,
-    const std::string &Prefix, const std::string &Suffix,
-    const std::string &IgnoredRegexpStr, HungarianPrefixType HPType)
+    std::optional<IdentifierNamingCheck::CaseType> Case, StringRef Prefix,
+    StringRef Suffix, StringRef IgnoredRegexpStr, HungarianPrefixType HPType)
     : Case(Case), Prefix(Prefix), Suffix(Suffix),
       IgnoredRegexpStr(IgnoredRegexpStr), HPType(HPType) {
   if (!IgnoredRegexpStr.empty()) {
@@ -263,22 +264,21 @@ IdentifierNamingCheck::FileStyle IdentifierNamingCheck::getFileStyleFromOptions(
 
     memcpy(&StyleString[StyleSize], "IgnoredRegexp", 13);
     StyleString.truncate(StyleSize + 13);
-    StringRef IgnoredRegexpStr = Options.get(StyleString, "");
+    std::optional<StringRef> IgnoredRegexpStr = Options.get(StyleString);
     memcpy(&StyleString[StyleSize], "Prefix", 6);
     StyleString.truncate(StyleSize + 6);
-    std::string Prefix(Options.get(StyleString, ""));
+    std::optional<StringRef> Prefix(Options.get(StyleString));
     // Fast replacement of [Pre]fix -> [Suf]fix.
     memcpy(&StyleString[StyleSize], "Suf", 3);
-    std::string Postfix(Options.get(StyleString, ""));
+    std::optional<StringRef> Postfix(Options.get(StyleString));
     memcpy(&StyleString[StyleSize], "Case", 4);
     StyleString.pop_back_n(2);
-    auto CaseOptional =
+    std::optional<CaseType> CaseOptional =
         Options.get<IdentifierNamingCheck::CaseType>(StyleString);
 
-    if (CaseOptional || !Prefix.empty() || !Postfix.empty() ||
-        !IgnoredRegexpStr.empty() || HPTOpt)
-      Styles[I].emplace(std::move(CaseOptional), std::move(Prefix),
-                        std::move(Postfix), IgnoredRegexpStr.str(),
+    if (CaseOptional || Prefix || Postfix || IgnoredRegexpStr || HPTOpt)
+      Styles[I].emplace(std::move(CaseOptional), Prefix.value_or(""),
+                        Postfix.value_or(""), IgnoredRegexpStr.value_or(""),
                         HPTOpt.value_or(IdentifierNamingCheck::HPT_Off));
   }
   bool IgnoreMainLike = Options.get("IgnoreMainLikeFunctions", false);
@@ -458,9 +458,9 @@ void IdentifierNamingCheck::HungarianNotation::loadFileConfig(
   }
 
   static constexpr std::pair<StringRef, StringRef> HNCStrings[] = {
-      {"CharPrinter", "char*"},
+      {"CharPointer", "char*"},
       {"CharArray", "char[]"},
-      {"WideCharPrinter", "wchar_t*"},
+      {"WideCharPointer", "wchar_t*"},
       {"WideCharArray", "wchar_t[]"}};
 
   Buffer = {Section, "CString."};
@@ -470,7 +470,7 @@ void IdentifierNamingCheck::HungarianNotation::loadFileConfig(
     Buffer.append(CStr.first);
     StringRef Val = Options.get(Buffer, "");
     if (!Val.empty())
-      HNOption.CString[CStr.first] = Val.str();
+      HNOption.CString[CStr.second] = Val.str();
   }
 
   Buffer = {Section, "PrimitiveType."};
@@ -648,7 +648,9 @@ std::string IdentifierNamingCheck::HungarianNotation::getClassPrefix(
 
 std::string IdentifierNamingCheck::HungarianNotation::getEnumPrefix(
     const EnumConstantDecl *ECD) const {
-  std::string Name = ECD->getType().getAsString();
+  const EnumDecl *ED = cast<EnumDecl>(ECD->getDeclContext());
+
+  std::string Name = ED->getName().str();
   if (std::string::npos != Name.find("enum")) {
     Name = Name.substr(strlen("enum"), Name.length() - strlen("enum"));
     Name = Name.erase(0, Name.find_first_not_of(" "));
@@ -751,13 +753,15 @@ void IdentifierNamingCheck::HungarianNotation::loadDefaultConfig(
         {"unsigned short int",      "usi" },
         {"unsigned short",          "us"  },
         {"unsigned int",            "ui"  },
+        {"unsigned char",           "uc"  },
         {"unsigned",                "u"   },
         {"long long int",           "lli" },
         {"long double",             "ld"  },
         {"long long",               "ll"  },
         {"long int",                "li"  },
         {"long",                    "l"   },
-        {"ptrdiff_t",               "p"   }};
+        {"ptrdiff_t",               "p"   },
+        {"void",                    ""    }};
   // clang-format on
   for (const auto &PT : PrimitiveTypes)
     HNOption.PrimitiveType.try_emplace(PT.first, PT.second);

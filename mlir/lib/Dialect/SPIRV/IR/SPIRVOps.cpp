@@ -1736,7 +1736,7 @@ LogicalResult spirv::BranchConditionalOp::verify() {
       return emitOpError("must have exactly two branch weights");
     }
     if (llvm::all_of(*weights, [](Attribute attr) {
-          return attr.cast<IntegerAttr>().getValue().isNullValue();
+          return attr.cast<IntegerAttr>().getValue().isZero();
         }))
       return emitOpError("branch weights cannot both be zero");
   }
@@ -2467,6 +2467,16 @@ Region *spirv::FuncOp::getCallableRegion() {
 // CallableOpInterface
 ArrayRef<Type> spirv::FuncOp::getCallableResults() {
   return getFunctionType().getResults();
+}
+
+// CallableOpInterface
+::mlir::ArrayAttr spirv::FuncOp::getCallableArgAttrs() {
+  return getArgAttrs().value_or(nullptr);
+}
+
+// CallableOpInterface
+::mlir::ArrayAttr spirv::FuncOp::getCallableResAttrs() {
+  return getResAttrs().value_or(nullptr);
 }
 
 //===----------------------------------------------------------------------===//

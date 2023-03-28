@@ -774,6 +774,7 @@ add_entrypoint_object(
   HDRS
     ../log10.h
   DEPENDS
+    libc.src.__support.FPUtil.fenv_impl
     libc.src.__support.FPUtil.fp_bits
     libc.src.__support.FPUtil.multiply_add
     libc.src.__support.FPUtil.double_double
@@ -1487,6 +1488,30 @@ add_entrypoint_object(
     ../scalbnl.h
   DEPENDS
     libc.src.__support.FPUtil.manipulation_functions
+  COMPILE_OPTIONS
+    -O3
+)
+
+add_entrypoint_object(
+  fmaf
+  SRCS
+    fmaf.cpp
+  HDRS
+    ../fmaf.h
+  DEPENDS
+    libc.src.__support.FPUtil.fma
+  COMPILE_OPTIONS
+    -O3
+)
+
+add_entrypoint_object(
+  fma
+  SRCS
+    fma.cpp
+  HDRS
+    ../fma.h
+  DEPENDS
+    libc.src.__support.FPUtil.fma
   COMPILE_OPTIONS
     -O3
 )

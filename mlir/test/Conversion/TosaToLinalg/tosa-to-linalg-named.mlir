@@ -217,7 +217,7 @@ func.func @avg_pool_f32(%arg0: tensor<1x6x34x62xf32>) -> (tensor<1x5x33x62xf32>)
 
   // Compute the sum padding:
   // CHECK: %[[KERNEL:.+]] = tensor.empty() : tensor<4x4xf32>
-  // CHECK: %[[POOL:.+]] = linalg.pooling_nhwc_sum 
+  // CHECK: %[[POOL:.+]] = linalg.pooling_nhwc_sum
   // CHECK-SAME: dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>}
   // CHECK-SAME: ins(%[[PAD]], %[[KERNEL]] : tensor<1x8x36x62xf32>, tensor<4x4xf32>)
   // CHECK-SAME: outs(%[[FILL]] : tensor<1x5x33x62xf32>)
@@ -233,7 +233,7 @@ func.func @avg_pool_f32(%arg0: tensor<1x6x34x62xf32>) -> (tensor<1x5x33x62xf32>)
 
   // Divide the sum pooling by the number of summed values.
   // CHECK: %[[EMPTY:.+]] = tensor.empty() : tensor<1x5x33x62xf32>
-  // CHECK: %[[GENERIC:.+]] = linalg.generic 
+  // CHECK: %[[GENERIC:.+]] = linalg.generic
   // CHECK-SAME: indexing_maps = [#map, #map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
   // CHECK-SAME: ins(%[[POOL]] : tensor<1x5x33x62xf32>)
   // CHECK-SAME: outs(%[[EMPTY]] : tensor<1x5x33x62xf32>)
@@ -292,12 +292,12 @@ func.func @avg_pool_f32(%arg0: tensor<1x6x34x62xf32>) -> (tensor<1x5x33x62xf32>)
 
 // -----
 
-// CHECK-LABLE: @avg_pool_i8
+// CHECK-LABEL: @avg_pool_i8
 func.func @avg_pool_i8(%arg0: tensor<1x6x34x62xi8>) -> (tensor<1x5x33x62xi8>) {
-  // CHECK: %[[GENERIC:.+]] = linalg.generic 
+  // CHECK: %[[GENERIC:.+]] = linalg.generic
   // CHECK-SAME: indexing_maps = [#map, #map], iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
-  // CHECK-SAME: ins(%[[POOL]] : tensor<1x5x33x62xi32>)
-  // CHECK-SAME: outs(%[[EMPTY]] : tensor<1x5x33x62xi8>)
+  // CHECK-SAME: ins(%[[POOL:.+]] : tensor<1x5x33x62xi32>)
+  // CHECK-SAME: outs(%[[EMPTY:.+]] : tensor<1x5x33x62xi8>)
   // CHECK: ^bb0(%[[IN:.+]]: i32, %{{.+}}: i8)
 
   // Only different behavior is how the division is performed.
@@ -346,7 +346,7 @@ func.func @avg_pool_dyn(%arg0: tensor<?x6x34x62xf32>) -> (tensor<?x5x33x62xf32>)
   // CHECK: %[[EMPTY:.+]] = tensor.empty(%[[BATCH]]) : tensor<?x5x33x62xf32>
   // CHECK: %[[FILL:.+]] = linalg.fill ins(%[[F0]] : f32) outs(%[[EMPTY]] : tensor<?x5x33x62xf32>)
   // CHECK: %[[KERNEL:.+]] = tensor.empty() : tensor<4x4xf32>
-  // CHECK: %[[POOL:.+]] = linalg.pooling_nhwc_sum 
+  // CHECK: %[[POOL:.+]] = linalg.pooling_nhwc_sum
   // CHECK-SAME: dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>
   // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<?x8x36x62xf32>, tensor<4x4xf32>)
   // CHECK-SAME: outs(%[[FILL]] : tensor<?x5x33x62xf32>) -> tensor<?x5x33x62xf32>
@@ -354,6 +354,28 @@ func.func @avg_pool_dyn(%arg0: tensor<?x6x34x62xf32>) -> (tensor<?x5x33x62xf32>)
   // CHECK: %[[GENERIC:.+]] = linalg.generic
   %0 = "tosa.avg_pool2d"(%arg0) {pad = array<i64: 1, 1, 1, 1>, kernel = array<i64: 4, 4>, stride = array<i64: 1, 1>} : (tensor<?x6x34x62xf32>)  -> (tensor<?x5x33x62xf32>)
   return %0 : tensor<?x5x33x62xf32>
+}
+
+// -----
+
+// CHECK: #[[$MAP1:.+]] = affine_map<(d0, d1, d2, d3) -> (d3)>
+// CHECK: #[[$MAP2:.+]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+
+// CHECK-LABEL: @conv2d_i8
+func.func @conv2d_i8(%input: tensor<1x49x42x27xi8>, %weights: tensor<28x1x1x27xi8>, %bias: tensor<28xi8>) -> () {
+  // CHECK: %[[PERM:.+]] = arith.constant dense<[1, 2, 3, 0]>
+  // CHECK: %[[W:.+]] = "tosa.transpose"(%arg1, %[[PERM]])
+  // CHECK: %[[M_IN:.+]] = tensor.empty()
+  // CHECK: %[[CST:.+]] = arith.constant 0
+  // CHECK: %[[FILL:.+]] = linalg.fill
+  // CHECK: %[[B_IN:.+]] = tensor.empty()
+  // CHECK: %[[CONV:.+]] = linalg.conv_2d_nhwc_hwcf_q {dilations = dense<[2, 1]> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins(%arg0, %[[W]], %c0_i32_0, %c0_i32_1 : tensor<1x49x42x27xi8>, tensor<1x1x27x28xi8>, i32, i32) outs(%[[FILL]] : tensor<1x45x40x28xi32>) -> tensor<1x45x40x28xi32>
+  // CHECK: %[[B:.+]] = linalg.generic {indexing_maps = [#[[$MAP1]], #[[$MAP2]], #[[$MAP2]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%arg2, %[[CONV]] : tensor<28xi8>, tensor<1x45x40x28xi32>) outs(%[[B_IN]] : tensor<1x45x40x28xi32>)
+  // CHECK:   arith.extsi
+  // CHECK:   arith.addi
+  // CHECK:   linalg.yield
+  %0 = "tosa.conv2d"(%input, %weights, %bias) {dilation = array<i64: 2, 1>, pad = array<i64: 0, 0, 0, 0>, quantization_info = #tosa.conv_quant<input_zp = 0, weight_zp = 0>, stride = array<i64: 1, 1>} : (tensor<1x49x42x27xi8>, tensor<28x1x1x27xi8>, tensor<28xi8>)  -> (tensor<1x45x40x28xi32>)
+  return
 }
 
 // -----
@@ -637,7 +659,7 @@ func.func @conv3d_f32(%input: tensor<1x49x48x47x27xf32>, %weights: tensor<28x3x4
   // CHECK: %[[GENERIC:.+]] = linalg.generic
   // CHECK-SAME: {indexing_maps = [#map, #map1, #map1], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel"]}
   // CHECK-SAME: ins(%arg2, %[[CONV3D]] : tensor<28xf32>, tensor<1x47x45x43x28xf32>)
-  // CHECK--SAME: outs(%[[EMPTY]] : tensor<1x47x45x43x28xf32>) {
+  // CHECK-SAME: outs(%[[EMPTY]] : tensor<1x47x45x43x28xf32>) {
   // CHECK: ^bb0(%[[A1:.+]]: f32, %[[A2:.+]]: f32, %{{.+}}: f32):
   // CHECK: %[[ADD:.+]] = arith.addf %[[A1]], %[[A2]] : f32
   // CHECK: linalg.yield %[[ADD]]
@@ -664,7 +686,7 @@ func.func @conv3d_i8(%input: tensor<1x49x48x47x27xi8>, %weights: tensor<28x3x4x5
   // CHECK: %[[GENERIC:.+]] = linalg.generic
   // CHECK-SAME: {indexing_maps = [#map, #map1, #map1], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel"]}
   // CHECK-SAME: ins(%arg2, %[[CONV3D]] : tensor<28xi32>, tensor<1x47x45x43x28xi32>)
-  // CHECK--SAME: outs(%[[EMPTY]] : tensor<1x47x45x43x28xi32>) {
+  // CHECK-SAME: outs(%[[EMPTY]] : tensor<1x47x45x43x28xi32>) {
   // CHECK: ^bb0(%[[A1:.+]]: i32, %[[A2:.+]]: i32, %{{.+}}: i32):
   // CHECK: %[[ADD:.+]] = arith.addi %[[A1]], %[[A2]] : i32
   // CHECK: linalg.yield %[[ADD]]

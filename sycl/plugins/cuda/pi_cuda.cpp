@@ -5425,7 +5425,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
                      PI_MEM_TYPE_UNKNOWN);
     }
     case PI_MEM_ALLOC_BASE_PTR: {
-#if __CUDA_API_VERSION >= 10020
+#if CUDA_VERSION >= 10020
       // CU_POINTER_ATTRIBUTE_RANGE_START_ADDR was introduced in CUDA 10.2
       unsigned int value;
       result = PI_CHECK_ERROR(cuPointerGetAttribute(
@@ -5437,7 +5437,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 #endif
     }
     case PI_MEM_ALLOC_SIZE: {
-#if __CUDA_API_VERSION >= 10020
+#if CUDA_VERSION >= 10020
       // CU_POINTER_ATTRIBUTE_RANGE_SIZE was introduced in CUDA 10.2
       unsigned int value;
       result = PI_CHECK_ERROR(cuPointerGetAttribute(
