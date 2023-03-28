@@ -536,7 +536,7 @@ variable `SYCL_CLANG_EXTRA_FLAGS`.
 #### Run DPC++ E2E tests
 
 Follow instructions from the link below to build and run tests:
-[README](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md)
+[README](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md#build-and-run-tests)
 
 #### Run Khronos\* SYCL\* conformance test suite (optional)
 

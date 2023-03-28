@@ -73,7 +73,7 @@ List of target platforms supported by CM_EMU is as follows
 Compilation step for ESIMD kernels prepared for ESIMD_EMULATOR backend
 is same as for OpenCL and Level Zero backends. Full runnable code
 sample used below can be found on the [github
-repo](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/vadd_usm.cpp).
+repo](/sycl/test-e2e/ESIMD/vadd_usm.cpp).
 
 To compile using the open-source Intel DPC++ compiler:
 > `$ clang++ -fsycl vadd_usm.cpp`
@@ -92,7 +92,7 @@ so they can't be used simultaneously by a SYCL offload application process. On t
 hand, it is OK to mix the emulator with non-Intel GPU devices or CPU device in
 `ONEAPI_DEVICE_SELECTOR`.
 
-## Running ESIMD examples from [ESIMD test suite](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/) on github with ESIMD_EMULATOR backend
+## Running ESIMD examples from [ESIMD test suite](/sycl/test-e2e/ESIMD/) on github with ESIMD_EMULATOR backend
 
 ```
 # Get sources
@@ -120,7 +120,7 @@ ninja check-sycl-e2e
 
 ```
 
-Note that only [ESIMD Kernels](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/) are
+Note that only [ESIMD Kernels](/sycl/test-e2e/ESIMD/) are
 tested with above command examples due to ESIMD_EMULATOR's limitations
 below. And, if 'CM_RT_PLATFORM' is not set, 'skl' is set by default.
 

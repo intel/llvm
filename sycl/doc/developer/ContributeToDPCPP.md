@@ -144,9 +144,9 @@ When adding new test to `check-sycl`, please consider the following:
 
 ### DPC++ end-to-end (E2E) tests
 
-These tests are located in [test-e2e](/sycl/test-e2e) directory and are not
+These tests are located in [/sycl/test-e2e](/sycl/test-e2e) directory and are not
 configured to be run by default. See
-[End-to-End tests documentation](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md)
+[End-to-End tests documentation](/sycl/test-e2e/README.md)
 for instructions on how to run them.
 
 A test which requires full stack including backend runtimes (e.g. OpenCL,
