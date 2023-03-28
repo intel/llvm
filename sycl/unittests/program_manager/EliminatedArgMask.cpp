@@ -126,7 +126,7 @@ public:
           std::move(CGH->MEvents), std::move(CGH->MArgs),
           std::move(CGH->MKernelName), std::move(CGH->MOSModuleHandle),
           std::move(CGH->MStreamStorage), std::move(MImpl->MAuxiliaryResources),
-          CGH->MCGType, CGH->MCodeLoc));
+          CGH->MCGType, {}, CGH->MCodeLoc));
       break;
     }
     default:
