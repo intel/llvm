@@ -646,6 +646,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "GlobalVariableDecorationsINTEL");
   add(internal::CapabilityComplexFloatMulDivINTEL, "ComplexFloatMulDivINTEL");
   add(internal::CapabilityMaskedGatherScatterINTEL, "MaskedGatherScatterINTEL");
+  add(internal::CapabilityTensorFloat32RoundingINTEL,
+      "TensorFloat32RoundingINTEL");
   add(internal::CapabilityTensorFloat32ConversionINTEL,
       "TensorFloat32ConversionINTEL");
   add(internal::CapabilityJointMatrixWIInstructionsINTEL,
