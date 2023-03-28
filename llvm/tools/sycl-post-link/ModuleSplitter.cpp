@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <map>
 #include <utility>
+#include <variant>
 
 using namespace llvm;
 using namespace llvm::module_split;
@@ -656,100 +657,51 @@ public:
   void registerListOfIntegersInMetadataSortedRule(StringRef);
 
 private:
-  enum class RuleKind {
-    CALLBACK,
-    SIMPLE_STRING_ATTR,
-    FLAG_METADATA,
-    INTEGERS_LIST_METADATA,
-    FLAG_ATTR,
-    SORTED_INTEGERS_LIST_METADATA
-  };
-
-  struct CallbackRuleData {
-    constexpr static auto Kind = RuleKind::CALLBACK;
-    CallbackRuleData() = default;
-    std::function<std::string(Function *)> Callback = nullptr;
-  };
-
-  struct SimpleStringAttrRuleData {
-    constexpr static auto Kind = RuleKind::SIMPLE_STRING_ATTR;
-    SimpleStringAttrRuleData() = default;
-    StringRef Attr;
-  };
-
-  struct FlagMetadataRuleData {
-    constexpr static auto Kind = RuleKind::FLAG_METADATA;
-    FlagMetadataRuleData() = default;
-    StringRef TrueStr, FalseStr, MetadataName;
-  };
-
-  struct FlagAttributeRuleData {
-    constexpr static auto Kind = RuleKind::FLAG_ATTR;
-    FlagAttributeRuleData() = default;
-    StringRef TrueStr, FalseStr, AttrName;
-  };
-
-  struct IntegersListMetadataRuleData {
-    constexpr static auto Kind = RuleKind::INTEGERS_LIST_METADATA;
-    IntegersListMetadataRuleData() = default;
-    StringRef MetadataName = "";
-  };
-
-  struct SortedIntegersListMetadataRuleData {
-    constexpr static auto Kind = RuleKind::SORTED_INTEGERS_LIST_METADATA;
-    SortedIntegersListMetadataRuleData() = default;
-    StringRef MetadataName = "";
-  };
-
   struct Rule {
-    private:
-    std::array<std::byte, std::max({sizeof(CallbackRuleData),
-                                    sizeof(SimpleStringAttrRuleData),
-                                    sizeof(FlagMetadataRuleData),
-                                    sizeof(FlagAttributeRuleData),
-                                    sizeof(SortedIntegersListMetadataRuleData),
-                                    sizeof(IntegersListMetadataRuleData)})>
+  private:
+    std::variant<StringRef, std::tuple<StringRef, StringRef, StringRef>,
+                 std::function<std::string(Function *)>>
         Storage;
-    public:
-    RuleKind Kind;
+  public:
+    enum class RKind {
+      K_Callback,
+      K_SimpleStringAttribute,
+      K_FlagMetadata,
+      K_FlagAttribute,
+      K_IntegersListMetadata,
+      K_SortedIntegersListMetadata
+    };
+    RKind Kind;
 
-    template<typename T, typename... Args>
-    static Rule get(Args... args) {
-      Rule R;
-      new(R.Storage.data()) T {args...};
-      R.Kind = T::Kind;
-      return R;
+    // Returns an index into std::variant<...> Storage defined above, which
+    // corresponds to the specified rule Kind.
+    constexpr static std::size_t storage_index(RKind K) {
+      switch (K) {
+        case RKind::K_SimpleStringAttribute:
+        case RKind::K_IntegersListMetadata:
+        case RKind::K_SortedIntegersListMetadata:
+          return 0;
+        case RKind::K_Callback:
+          return 2;
+        case RKind::K_FlagMetadata:
+        case RKind::K_FlagAttribute:
+          return 1;
+      }
+      // can't use llvm_unreachable in constexpr context
+      return std::variant_npos;
     }
 
-    CallbackRuleData getCallbackRuleData() const {
-      assert(Kind == RuleKind::CALLBACK);
-      return *reinterpret_cast<const CallbackRuleData *>(Storage.data());
+    template<RKind K>
+    auto getStorage() const {
+      return std::get<storage_index(K)>(Storage);
     }
 
-    SimpleStringAttrRuleData getSimpleStringAttrRuleData() const {
-      assert(Kind == RuleKind::SIMPLE_STRING_ATTR);
-      return *reinterpret_cast<const SimpleStringAttrRuleData *>(Storage.data());
+    template<typename... Args>
+    Rule(RKind K, Args... args) : Storage(args...), Kind(K) {
+      assert(storage_index(K) == Storage.index());
     }
 
-    FlagMetadataRuleData getFlagMetadataRuleData() const {
-      assert(Kind == RuleKind::FLAG_METADATA);
-      return *reinterpret_cast<const FlagMetadataRuleData *>(Storage.data());
-    }
-
-    SortedIntegersListMetadataRuleData getSortedIntegersListMetadataRuleData() const {
-      assert(Kind == RuleKind::SORTED_INTEGERS_LIST_METADATA);
-      return *reinterpret_cast<const SortedIntegersListMetadataRuleData *>(Storage.data());
-    }
-
-    IntegersListMetadataRuleData getIntegersListMetadataRuleData() const {
-      assert(Kind == RuleKind::INTEGERS_LIST_METADATA);
-      return *reinterpret_cast<const IntegersListMetadataRuleData *>(Storage.data());
-    }
-
-    FlagAttributeRuleData getFlagAttributeRuleData() const {
-      assert(Kind == RuleKind::FLAG_ATTR);
-      return *reinterpret_cast<const FlagAttributeRuleData *>(Storage.data());
-    }
+    Rule(Rule&& Other) = default;
   };
 
   std::vector<Rule> Rules;
@@ -757,60 +709,60 @@ private:
 
 void DeviceCodeSplitRulesBuilder::registerRule(
     const std::function<std::string(Function *)> &Callback) {
-  Rules.push_back(Rule::get<CallbackRuleData>(Callback));
+  Rules.emplace_back(Rule::RKind::K_Callback, Callback);
 }
 
 void DeviceCodeSplitRulesBuilder::registerSimpleStringAttributeRule(
     StringRef Attr) {
-  Rules.push_back(Rule::get<SimpleStringAttrRuleData>(Attr));
+  Rules.emplace_back(Rule::RKind::K_SimpleStringAttribute, Attr);
 }
 
 void DeviceCodeSplitRulesBuilder::registerSimpleFlagAttributeRule(
     StringRef Attr, StringRef TrueStr, StringRef FalseStr) {
-  Rules.push_back(
-      Rule::get<FlagAttributeRuleData>(TrueStr, FalseStr, Attr));
+  Rules.emplace_back(
+      Rule::RKind::K_FlagAttribute, std::tuple{Attr, TrueStr, FalseStr});
 }
 
 void DeviceCodeSplitRulesBuilder::registerSimpleFlagMetadataRule(
     StringRef TrueStr, StringRef FalseStr, StringRef MetadataName) {
-  Rules.push_back(
-      Rule::get<FlagMetadataRuleData>(TrueStr, FalseStr, MetadataName));
+  Rules.emplace_back(Rule::RKind::K_FlagMetadata,
+                      std::tuple{MetadataName, TrueStr, FalseStr});
 }
 
 void DeviceCodeSplitRulesBuilder::registerListOfIntegersInMetadataRule(
     StringRef MetadataName) {
-  Rules.push_back(Rule::get<IntegersListMetadataRuleData>(MetadataName));
+  Rules.emplace_back(Rule::RKind::K_IntegersListMetadata, MetadataName);
 }
 
 void DeviceCodeSplitRulesBuilder::registerListOfIntegersInMetadataSortedRule(
     StringRef MetadataName) {
-  Rules.push_back(Rule::get<SortedIntegersListMetadataRuleData>(MetadataName));
+  Rules.emplace_back(Rule::RKind::K_SortedIntegersListMetadata, MetadataName);
 }
 
 std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
   std::string Result;
   for (const auto &R : Rules) {
     switch (R.Kind) {
-    case RuleKind::CALLBACK:
-      Result += R.getCallbackRuleData().Callback(F);
+    case Rule::RKind::K_Callback:
+      Result += R.getStorage<Rule::RKind::K_Callback>()(F);
       break;
-    case RuleKind::SIMPLE_STRING_ATTR: {
-      auto AttrName = R.getSimpleStringAttrRuleData().Attr;
+    case Rule::RKind::K_SimpleStringAttribute: {
+      auto AttrName = R.getStorage<Rule::RKind::K_SimpleStringAttribute>();
       if (F->hasFnAttribute(AttrName)) {
         auto Attr = F->getFnAttribute(AttrName);
         assert(Attr.isStringAttribute());
         Result += Attr.getValueAsString();
       }
     } break;
-    case RuleKind::FLAG_METADATA: {
-      auto Data = R.getFlagMetadataRuleData();
-      if (F->hasMetadata(Data.MetadataName))
-        Result += Data.TrueStr;
+    case Rule::RKind::K_FlagMetadata: {
+      auto Data = R.getStorage<Rule::RKind::K_FlagMetadata>();
+      if (F->hasMetadata(std::get<0>(Data)))
+        Result += std::get<1>(Data);
       else
-        Result += Data.FalseStr;
+        Result += std::get<2>(Data);
     } break;
-    case RuleKind::INTEGERS_LIST_METADATA: {
-      auto MetadataName = R.getIntegersListMetadataRuleData().MetadataName;
+    case Rule::RKind::K_IntegersListMetadata: {
+      auto MetadataName = R.getStorage<Rule::RKind::K_IntegersListMetadata>();
       if (F->hasMetadata(MetadataName)) {
         auto *MDN = F->getMetadata(MetadataName);
         for (const MDOperand &MDOp : MDN->operands())
@@ -818,8 +770,8 @@ std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
               mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
       }
     } break;
-    case RuleKind::SORTED_INTEGERS_LIST_METADATA: {
-      auto MetadataName = R.getSortedIntegersListMetadataRuleData().MetadataName;
+    case Rule::RKind::K_SortedIntegersListMetadata: {
+      auto MetadataName = R.getStorage<Rule::RKind::K_IntegersListMetadata>();
       if (F->hasMetadata(MetadataName)) {
         auto *MDN = F->getMetadata(MetadataName);
 
@@ -833,12 +785,12 @@ std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
           Result += std::to_string(V);
       }
     } break;
-    case RuleKind::FLAG_ATTR: {
-      auto AttrName = R.getFlagAttributeRuleData().AttrName;
-      if (F->hasFnAttribute(AttrName)) {
-        Result += R.getFlagAttributeRuleData().TrueStr;
+    case Rule::RKind::K_FlagAttribute: {
+      auto Data = R.getStorage<Rule::RKind::K_FlagAttribute>();
+      if (F->hasFnAttribute(std::get<0>(Data))) {
+        Result += std::get<1>(Data);
       } else {
-        Result += R.getFlagAttributeRuleData().FalseStr;
+        Result += std::get<2>(Data);
       }
     } break;
     }
