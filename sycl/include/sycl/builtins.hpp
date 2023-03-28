@@ -929,12 +929,14 @@ __SYCL_MARRAY_COMMON_FUNCTION_UNOP_OVERLOAD(sign, T x, x[i])
     __SYCL_MARRAY_COMMON_FUNCTION_OVERLOAD_IMPL(NAME, __VA_ARGS__)             \
   }
 
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(min, T x, T y, x[i], y[i])
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(min, T x,
+// min and max may be defined as macros, so we wrap them in parentheses to avoid
+// errors.
+__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((min), T x, T y, x[i], y[i])
+__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((min), T x,
                                              detail::marray_element_type<T> y,
                                              x[i], y)
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(max, T x, T y, x[i], y[i])
-__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(max, T x,
+__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((max), T x, T y, x[i], y[i])
+__SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD((max), T x,
                                              detail::marray_element_type<T> y,
                                              x[i], y)
 __SYCL_MARRAY_COMMON_FUNCTION_BINOP_OVERLOAD(step, T edge, T x, edge[i], x[i])
@@ -1614,8 +1616,7 @@ any(T x) __NOEXC {
 
 // int any (vigeninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_vigeninteger<T>::value, detail::anyall_ret_t>
-any(T x) __NOEXC {
+detail::enable_if_t<detail::is_vigeninteger<T>::value, int> any(T x) __NOEXC {
   return detail::rel_sign_bit_test_ret_t<T>(
       __sycl_std::__invoke_Any<detail::rel_sign_bit_test_ret_t<T>>(
           detail::rel_sign_bit_test_arg_t<T>(x)));
@@ -1630,8 +1631,7 @@ all(T x) __NOEXC {
 
 // int all (vigeninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_vigeninteger<T>::value, detail::anyall_ret_t>
-all(T x) __NOEXC {
+detail::enable_if_t<detail::is_vigeninteger<T>::value, int> all(T x) __NOEXC {
   return detail::rel_sign_bit_test_ret_t<T>(
       __sycl_std::__invoke_All<detail::rel_sign_bit_test_ret_t<T>>(
           detail::rel_sign_bit_test_arg_t<T>(x)));

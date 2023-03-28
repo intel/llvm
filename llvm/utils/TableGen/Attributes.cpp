@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/TableGen/Record.h"
+#include "llvm/TableGen/TableGenBackend.h"
 #include <vector>
 using namespace llvm;
 
@@ -17,7 +18,7 @@ namespace {
 class Attributes {
 public:
   Attributes(RecordKeeper &R) : Records(R) {}
-  void emit(raw_ostream &OS);
+  void run(raw_ostream &OS);
 
 private:
   void emitTargetIndependentNames(raw_ostream &OS);
@@ -123,16 +124,11 @@ void Attributes::emitAttributeProperties(raw_ostream &OS) {
   OS << "#endif\n";
 }
 
-void Attributes::emit(raw_ostream &OS) {
+void Attributes::run(raw_ostream &OS) {
   emitTargetIndependentNames(OS);
   emitFnAttrCompatCheck(OS, false);
   emitAttributeProperties(OS);
 }
 
-namespace llvm {
-
-void EmitAttributes(RecordKeeper &RK, raw_ostream &OS) {
-  Attributes(RK).emit(OS);
-}
-
-} // End llvm namespace.
+static TableGen::Emitter::OptClass<Attributes> X("gen-attrs",
+                                                 "Generate attributes");
