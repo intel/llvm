@@ -557,6 +557,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<Requirement *> Requirements;
   std::vector<detail::EventImplPtr> Events;
   std::vector<::jit_compiler::NDRange> Ranges;
+  RT::PiKernelCacheConfig KernelCacheConfig =
+      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
@@ -714,6 +716,15 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
                         KernelCG->MRequirements.end());
     Events.insert(Events.end(), KernelCG->MEvents.begin(),
                   KernelCG->MEvents.end());
+
+    // If all kernels have the same cache config then use it for the merged
+    // kernel, otherwise use default configuration.
+    if (KernelIndex == 0) {
+      KernelCacheConfig = KernelCG->MKernelCacheConfig;
+    } else if (KernelCG->MKernelCacheConfig != KernelCacheConfig) {
+      KernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+    }
+
     ++KernelIndex;
   }
 
@@ -808,7 +819,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       std::move(ArgsStorage), std::move(AccStorage),
       std::move(RawExtendedMembers), std::move(Requirements), std::move(Events),
       std::move(FusedArgs), FusedKernelInfo.Name, OSUtil::DummyModuleHandle, {},
-      {}, CG::CGTYPE::Kernel));
+      {}, CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }
 
