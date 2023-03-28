@@ -77,9 +77,12 @@
 // 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
 // 12.23 Added new piextEnqueueDeviceGlobalVariableWrite and
 // piextEnqueueDeviceGlobalVariableRead functions.
+// 12.24 Added new PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG property to the
+// _pi_kernel_exec_info. Defined _pi_kernel_cache_config enum with values of
+// the new PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG property.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 23
+#define _PI_H_VERSION_MINOR 24
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -322,6 +325,7 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003,
   PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER = 0x20004,
+  PI_EXT_CODEPLAY_DEVICE_INFO_SUPPORTS_FUSION = 0x20005,
 } _pi_device_info;
 
 typedef enum {
@@ -620,6 +624,15 @@ constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
 // clang-format on
 
+typedef enum {
+  // No preference for SLM or data cache.
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT = 0x0,
+  // Large SLM size.
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM = 0x1,
+  // Large General Data size.
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA = 0x2
+} _pi_kernel_cache_config;
+
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;
 using pi_device_type = _pi_device_type;
@@ -649,6 +662,7 @@ using pi_program_build_status = _pi_program_build_status;
 using pi_program_binary_type = _pi_program_binary_type;
 using pi_kernel_info = _pi_kernel_info;
 using pi_profiling_info = _pi_profiling_info;
+using pi_kernel_cache_config = _pi_kernel_cache_config;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_partition_property = intptr_t;
@@ -1356,7 +1370,9 @@ typedef enum {
   /// indicates that the kernel might access data through USM ptrs
   PI_USM_INDIRECT_ACCESS,
   /// provides an explicit list of pointers that the kernel will access
-  PI_USM_PTRS = 0x4203
+  PI_USM_PTRS = 0x4203,
+  /// provides the preferred cache configuration (large slm or large data)
+  PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG = 0x4204
 } _pi_kernel_exec_info;
 
 using pi_kernel_exec_info = _pi_kernel_exec_info;

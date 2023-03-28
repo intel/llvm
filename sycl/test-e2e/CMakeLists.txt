@@ -67,6 +67,5 @@ if(SYCL_TEST_E2E_TARGETS)
   endforeach()
 endif(SYCL_TEST_E2E_TARGETS)
 
-# TODO: Re-enable when moving the entire intel/llvm-test-suite back in-tree.
-# add_subdirectory(External)
-# add_subdirectory(ExtraTests)
+add_subdirectory(External)
+add_subdirectory(ExtraTests)

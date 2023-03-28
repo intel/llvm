@@ -8007,9 +8007,30 @@ static bool checkSYCLAddIRAttributesMergeability(const AddIRAttrT &NewAttr,
 
 void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   const auto *AddIRFuncAttr = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
-  if (!AddIRFuncAttr || AddIRFuncAttr->args_size() == 0 ||
+
+  // If there is no such attribute there is nothing to check. If there are
+  // dependent arguments we cannot know the actual number of arguments so we
+  // defer the check.
+  if (!AddIRFuncAttr ||
       hasDependentExpr(AddIRFuncAttr->args_begin(), AddIRFuncAttr->args_size()))
     return;
+
+  // If there are no name-value pairs in the attribute it will not have an
+  // effect and we can skip the check. The filter is ignored.
+  size_t NumArgsWithoutFilter =
+      AddIRFuncAttr->args_size() - (AddIRFuncAttr->hasFilterList() ? 1 : 0);
+  if (NumArgsWithoutFilter == 0)
+    return;
+
+  // "sycl-single-task" is present on all single_task invocations, implicitly
+  // added by the SYCL headers. It can only conflict with max_global_work_dim,
+  // but the value will be the same so there is no need for a warning.
+  if (NumArgsWithoutFilter == 2) {
+    auto NameValuePairs = AddIRFuncAttr->getAttributeNameValuePairs(Context);
+    if (NameValuePairs.size() > 0 &&
+        NameValuePairs[0].first == "sycl-single-task")
+      return;
+  }
 
   // If there are potentially conflicting attributes, we issue a warning.
   for (const auto *Attr : std::vector<AttributeCommonInfo *>{

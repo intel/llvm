@@ -8,6 +8,7 @@
 
 #pragma once
 #include <CL/__spirv/spirv_types.hpp>
+#include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <sycl/detail/defines.hpp>
@@ -104,6 +105,13 @@ template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_CompositeConstruct(const T v);
+
+template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<uint32_t, 2>
+__spirv_JointMatrixGetElementCoordINTEL(
+    __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *, size_t i);
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
@@ -942,6 +950,16 @@ __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
     __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
     __spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
 
+// TODO: I'm not 100% sure that these NonUniform instructions should be
+// convergent Following precedent set for GroupNonUniformBallot above
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT uint32_t
+__spirv_GroupNonUniformBallotBitCount(__spv::Scope::Flag, int,
+                                      __ocl_vec_t<uint32_t, 4>) noexcept;
+
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT int
+    __spirv_GroupNonUniformBallotFindLSB(__spv::Scope::Flag,
+                                         __ocl_vec_t<uint32_t, 4>) noexcept;
+
 extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierInitialize(int64_t *state, int32_t expected_count) noexcept;
 
@@ -1050,6 +1068,19 @@ __CLC_BF16_SCAL_VEC(uint32_t)
 
 #undef __CLC_BF16_SCAL_VEC
 #undef __CLC_BF16
+
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
+    __SYCL_EXPORT __spv::complex_half
+    __spirv_GroupCMulINTEL(unsigned int, unsigned int,
+                           __spv::complex_half) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
+    __SYCL_EXPORT __spv::complex_float
+    __spirv_GroupCMulINTEL(unsigned int, unsigned int,
+                           __spv::complex_float) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
+    __SYCL_EXPORT __spv::complex_double
+    __spirv_GroupCMulINTEL(unsigned int, unsigned int,
+                           __spv::complex_double) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
