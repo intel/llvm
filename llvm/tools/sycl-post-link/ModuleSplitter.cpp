@@ -634,27 +634,45 @@ public:
 
   // Accepts a callback, which should return a string based on provided
   // function, which will be used as an entry points group identifier.
-  void registerRule(const std::function<std::string(Function *)> &);
+  void registerRule(const std::function<std::string(Function *)> &Callback) {
+    Rules.emplace_back(Rule::RKind::K_Callback, Callback);
+  }
 
   // Creates a simple rule, which adds a value of a string attribute into a
   // resulting identifier.
-  void registerSimpleStringAttributeRule(StringRef);
+  void registerSimpleStringAttributeRule(StringRef AttrName) {
+    Rules.emplace_back(Rule::RKind::K_SimpleStringAttribute, AttrName);
+  }
 
   // Creates a simple rule, which adds one or another value to a resulting
   // identifier based on a presence of a metadata on a function.
-  void registerSimpleFlagAttributeRule(StringRef, StringRef, StringRef = "");
+  void registerSimpleFlagAttributeRule(StringRef AttrName,
+                                       StringRef IfPresentStr,
+                                       StringRef IfAbsentStr = "") {
+    Rules.emplace_back(Rule::RKind::K_FlagAttribute,
+                       std::tuple{AttrName, IfPresentStr, IfAbsentStr});
+  }
 
   // Creates a simple rule, which adds one or another value to a resulting
   // identifier based on a presence of a metadata on a function.
-  void registerSimpleFlagMetadataRule(StringRef, StringRef, StringRef);
+  void registerSimpleFlagMetadataRule(StringRef MetadataName,
+                                      StringRef IfPresentStr,
+                                      StringRef IfAbsentStr = "") {
+    Rules.emplace_back(Rule::RKind::K_FlagMetadata,
+                       std::tuple{MetadataName, IfPresentStr, IfAbsentStr});
+  }
 
   // Creates a rule, which adds a list of dash-separated integers converted
   // into strings listed in a metadata to a resulting identifier.
-  void registerListOfIntegersInMetadataRule(StringRef);
+  void registerListOfIntegersInMetadataRule(StringRef MetadataName) {
+    Rules.emplace_back(Rule::RKind::K_IntegersListMetadata, MetadataName);
+  }
 
   // Creates a rule, which adds a list of sorted dash-separated integers
   // converted into strings listed in a metadata to a resulting identifier.
-  void registerListOfIntegersInMetadataSortedRule(StringRef);
+  void registerListOfIntegersInMetadataSortedRule(StringRef MetadataName) {
+    Rules.emplace_back(Rule::RKind::K_SortedIntegersListMetadata, MetadataName);
+  }
 
 private:
   struct Rule {
@@ -706,38 +724,6 @@ private:
 
   std::vector<Rule> Rules;
 };
-
-void DeviceCodeSplitRulesBuilder::registerRule(
-    const std::function<std::string(Function *)> &Callback) {
-  Rules.emplace_back(Rule::RKind::K_Callback, Callback);
-}
-
-void DeviceCodeSplitRulesBuilder::registerSimpleStringAttributeRule(
-    StringRef Attr) {
-  Rules.emplace_back(Rule::RKind::K_SimpleStringAttribute, Attr);
-}
-
-void DeviceCodeSplitRulesBuilder::registerSimpleFlagAttributeRule(
-    StringRef Attr, StringRef TrueStr, StringRef FalseStr) {
-  Rules.emplace_back(
-      Rule::RKind::K_FlagAttribute, std::tuple{Attr, TrueStr, FalseStr});
-}
-
-void DeviceCodeSplitRulesBuilder::registerSimpleFlagMetadataRule(
-    StringRef TrueStr, StringRef FalseStr, StringRef MetadataName) {
-  Rules.emplace_back(Rule::RKind::K_FlagMetadata,
-                      std::tuple{MetadataName, TrueStr, FalseStr});
-}
-
-void DeviceCodeSplitRulesBuilder::registerListOfIntegersInMetadataRule(
-    StringRef MetadataName) {
-  Rules.emplace_back(Rule::RKind::K_IntegersListMetadata, MetadataName);
-}
-
-void DeviceCodeSplitRulesBuilder::registerListOfIntegersInMetadataSortedRule(
-    StringRef MetadataName) {
-  Rules.emplace_back(Rule::RKind::K_SortedIntegersListMetadata, MetadataName);
-}
 
 std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
   std::string Result;
