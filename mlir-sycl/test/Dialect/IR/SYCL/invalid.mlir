@@ -280,7 +280,7 @@ func.func @test_accessor_get_pointer(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>)
 !sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
 
 func.func @test_accessor_get_range(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -> !sycl_range_2_ {
-  // expected-error @+1 {{'sycl.accessor.get_range' op Expecting a reference to this accessor's range type}}
+  // expected-error @+1 {{'sycl.accessor.get_range' op Both the result and the accessor must have the same number of dimensions, but the accessor has 1 dimensions and the result, 2}}
   %0 = sycl.accessor.get_range(%acc) { ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb>], FunctionName = @"get_range", MangledFunctionName = @"get_range", TypeName = @"accessor" }  : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> !sycl_range_2_
   return %0 : !sycl_range_2_
 }

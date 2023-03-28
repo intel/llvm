@@ -104,13 +104,13 @@ LogicalResult SYCLAccessorGetPointerOp::verify() {
 LogicalResult SYCLAccessorGetRangeOp::verify() {
   const auto accTy = cast<AccessorType>(
       cast<MemRefType>(getOperand().getType()).getElementType());
-  const auto accRangeTy = cast<RangeType>(
-      cast<AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
   const RangeType resTy = getResult().getType();
-  return (accRangeTy != resTy)
+  return (accTy.getDimension() != resTy.getDimension())
              ? emitOpError(
-                   "Expecting a reference to this accessor's range type (")
-                   << accRangeTy << "). Got " << resTy
+                   "Both the result and the accessor must have the same "
+                   "number of dimensions, but the accessor has ")
+                   << accTy.getDimension() << " dimensions and the result, "
+                   << resTy.getDimension()
              : success();
 }
 
