@@ -1897,17 +1897,42 @@ urMemImageGetInfo(
 #pragma region sampler
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Sampler Filter Mode
+typedef enum ur_sampler_filter_mode_t {
+    UR_SAMPLER_FILTER_MODE_NEAREST = 0, ///< Filter mode nearest.
+    UR_SAMPLER_FILTER_MODE_LINEAR = 1,  ///< Filter mode linear.
+    /// @cond
+    UR_SAMPLER_FILTER_MODE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_sampler_filter_mode_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Sampler addressing mode
+typedef enum ur_sampler_addressing_mode_t {
+    UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT = 0, ///< Mirrored Repeat
+    UR_SAMPLER_ADDRESSING_MODE_REPEAT = 1,          ///< Repeat
+    UR_SAMPLER_ADDRESSING_MODE_CLAMP = 2,           ///< Clamp
+    UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE = 3,   ///< Clamp to edge
+    UR_SAMPLER_ADDRESSING_MODE_NONE = 4,            ///< None
+    /// @cond
+    UR_SAMPLER_ADDRESSING_MODE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_sampler_addressing_mode_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Get sample object information
 typedef enum ur_sampler_info_t {
     UR_SAMPLER_INFO_REFERENCE_COUNT = 0,   ///< [uint32_t] Reference count of the sampler object.
                                            ///< The reference count returned should be considered immediately stale.
                                            ///< It is unsuitable for general use in applications. This feature is
                                            ///< provided for identifying memory leaks.
-    UR_SAMPLER_INFO_CONTEXT = 1,           ///< Sampler context info
-    UR_SAMPLER_INFO_NORMALIZED_COORDS = 2, ///< Sampler normalized coordindate setting
-    UR_SAMPLER_INFO_ADDRESSING_MODE = 3,   ///< Sampler addressing mode setting
-    UR_SAMPLER_INFO_FILTER_MODE = 4,       ///< Sampler filter mode setting
-    UR_SAMPLER_INFO_MIP_FILTER_MODE = 5,   ///< Sampler MIP filter mode setting
+    UR_SAMPLER_INFO_CONTEXT = 1,           ///< [::ur_context_handle_t] Sampler context info
+    UR_SAMPLER_INFO_NORMALIZED_COORDS = 2, ///< [bool] Sampler normalized coordinate setting
+    UR_SAMPLER_INFO_ADDRESSING_MODE = 3,   ///< [::ur_sampler_addressing_mode_t] Sampler addressing mode setting
+    UR_SAMPLER_INFO_FILTER_MODE = 4,       ///< [::ur_sampler_filter_mode_t] Sampler filter mode setting
+    UR_SAMPLER_INFO_MIP_FILTER_MODE = 5,   ///< [bool] Sampler MIP filter mode setting
     UR_SAMPLER_INFO_LOD_MIN = 6,           ///< Sampler LOD Min value
     UR_SAMPLER_INFO_LOD_MAX = 7,           ///< Sampler LOD Max value
     /// @cond
@@ -1931,20 +1956,6 @@ typedef enum ur_sampler_properties_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler Properties type
 typedef intptr_t ur_sampler_property_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Sampler addressing mode
-typedef enum ur_sampler_addressing_mode_t {
-    UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT = 0, ///< Mirrored Repeat
-    UR_SAMPLER_ADDRESSING_MODE_REPEAT = 1,          ///< Repeat
-    UR_SAMPLER_ADDRESSING_MODE_CLAMP = 2,           ///< Clamp
-    UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE = 3,   ///< Clamp to edge
-    UR_SAMPLER_ADDRESSING_MODE_NONE = 4,            ///< None
-    /// @cond
-    UR_SAMPLER_ADDRESSING_MODE_FORCE_UINT32 = 0x7fffffff
-    /// @endcond
-
-} ur_sampler_addressing_mode_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a sampler object in a context
