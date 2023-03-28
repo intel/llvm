@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2021-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2021-2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -135,20 +135,16 @@ code.  This function is not available in host code.
 ```
 namespace sycl::ext::oneapi::experimental {
 
-template<aspect ...Aspects, typename ...Args, typename T>
-/* unspecified */ if_device_has(T fn, Args ...args);
+template<aspect ...Aspects, typename T>
+/* unspecified */ if_device_has(T fn);
 
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-The parameter `fn` must be a C++ `Callable` object which is invocable with the
-parameters specified in `args`.  Normal SYCL restrictions apply, so `fn` must
-not be a function pointer or a pointer to a member function.  (The expectation
-is that most applications will pass a lambda expression for this parameter.)
-
-If `fn` is a lambda expression, it must not have any captures.  Applications
-can work around this limitation by passing variables referenced by the lambda
-as function arguments.
+The parameter `fn` must be a C++ `Callable` object which is invocable with an
+empty parameter list.  Normal SYCL restrictions apply, so `fn` must not be a
+function pointer or a pointer to a member function.  (The expectation is that
+most applications will pass a lambda expression for this parameter.)
 
 The `Aspects` parameter pack identifies the condition that gates execution of
 the callable object `fn`.  This condition is `true` only if the device which
@@ -164,11 +160,11 @@ which provides the following member functions:
 ```
 class /* unspecified */ {
  public:
-  template<aspect ...Aspects, typename ...Args, typename T>
-  /* unspecified */ else_if_device_has(T fn, Args ...args);
+  template<aspect ...Aspects, typename T>
+  /* unspecified */ else_if_device_has(T fn);
 
-  template<typename T, typename ...Args>
-  void otherwise(T fn, Args ...args);
+  template<typename T>
+  void otherwise(T fn);
 };
 ```
 
@@ -214,10 +210,10 @@ void frob() {
 As specified above, the function `fn` may be discarded if the condition
 associated with the call to `if_device_has`, `else_if_device_has`, or
 `otherwise` is `false`.  More formally, this means that `fn` is potentially
-discarded (if `fn` is a function) or `+operator(Args...)+` of `fn` is
-potentially discarded (if `fn` is a callable object).  In addition, any other
-functions they call (and functions called by those functions etc.) are
-potentially discarded.
+discarded (if `fn` is a function) or `operator()()` of `fn` is potentially
+discarded (if `fn` is a callable object).  In addition, any other functions
+they call (and functions called by those functions etc.) are potentially
+discarded.
 
 These functions are discarded if all calls to them are reachable only from
 `if_device_has`, `else_if_device_has`, or `otherwise` whose associated
