@@ -1122,10 +1122,8 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urSamplerCreate
 __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    const ur_sampler_property_t
-        *pProps, ///< [in] specifies a list of sampler property names and their
-                 ///< corresponding values.
+    ur_context_handle_t hContext,   ///< [in] handle of the context object
+    const ur_sampler_desc_t *pDesc, ///< [in] pointer to the sampler description
     ur_sampler_handle_t
         *phSampler ///< [out] pointer to handle of sampler object created
 ) {
@@ -1140,16 +1138,24 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == pProps) {
+        if (NULL == pDesc) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
         if (NULL == phSampler) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (UR_SAMPLER_ADDRESSING_MODE_NONE < pDesc->addressingMode) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_SAMPLER_FILTER_MODE_LINEAR < pDesc->filterMode) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
     }
 
-    ur_result_t result = pfnCreate(hContext, pProps, phSampler);
+    ur_result_t result = pfnCreate(hContext, pDesc, phSampler);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
         refCountContext.createRefCount(*phSampler);

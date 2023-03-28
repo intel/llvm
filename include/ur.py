@@ -212,6 +212,7 @@ class ur_structure_type_v(IntEnum):
     USM_POOL_DESC = 10                              ## ::ur_usm_pool_desc_t
     USM_POOL_LIMITS_DESC = 11                       ## ::ur_usm_pool_limits_desc_t
     DEVICE_BINARY = 12                              ## ::ur_device_binary_t
+    SAMPLER_DESC = 13                               ## ::ur_sampler_desc_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -902,21 +903,15 @@ class ur_sampler_info_t(c_int):
 
 
 ###############################################################################
-## @brief Sampler properties
-class ur_sampler_properties_v(IntEnum):
-    NORMALIZED_COORDS = 0                           ## Sampler normalized coordinates
-    ADDRESSING_MODE = 1                             ## Sampler addressing mode
-    FILTER_MODE = 2                                 ## Sampler filter mode
-
-class ur_sampler_properties_t(c_int):
-    def __str__(self):
-        return str(ur_sampler_properties_v(self.value))
-
-
-###############################################################################
-## @brief Sampler Properties type
-class ur_sampler_property_t(c_intptr_t):
-    pass
+## @brief Sampler description.
+class ur_sampler_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_SAMPLER_DESC
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("normalizedCoords", c_bool),                                   ## [in] Specify if image coordinates are normalized (true) or not (false)
+        ("addressingMode", ur_sampler_addressing_mode_t),               ## [in] Specify the address mode of the sampler
+        ("filterMode", ur_sampler_filter_mode_t)                        ## [in] Specify the filter mode of the sampler
+    ]
 
 ###############################################################################
 ## @brief USM memory property flags
@@ -1968,9 +1963,9 @@ class ur_kernel_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urSamplerCreate
 if __use_win_types:
-    _urSamplerCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_sampler_property_t), POINTER(ur_sampler_handle_t) )
+    _urSamplerCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_sampler_desc_t), POINTER(ur_sampler_handle_t) )
 else:
-    _urSamplerCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_sampler_property_t), POINTER(ur_sampler_handle_t) )
+    _urSamplerCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_sampler_desc_t), POINTER(ur_sampler_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urSamplerRetain

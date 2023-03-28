@@ -545,7 +545,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetKernelProcAddrTable_t)(
 /// @brief Function-pointer for urSamplerCreate
 typedef ur_result_t(UR_APICALL *ur_pfnSamplerCreate_t)(
     ur_context_handle_t,
-    const ur_sampler_property_t *,
+    const ur_sampler_desc_t *,
     ur_sampler_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
