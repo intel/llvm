@@ -2178,8 +2178,6 @@ void mlir::populateSYCLToLLVMConversionPatterns(
 namespace {
 class ConvertSYCLToLLVMPass
     : public impl::ConvertSYCLToLLVMBase<ConvertSYCLToLLVMPass> {
-  using Base::Base;
-
 public:
   using impl::ConvertSYCLToLLVMBase<
       ConvertSYCLToLLVMPass>::ConvertSYCLToLLVMBase;
