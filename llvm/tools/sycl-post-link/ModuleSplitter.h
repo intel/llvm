@@ -385,18 +385,6 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 std::unique_ptr<ModuleSplitterBase>
 getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
 
-std::unique_ptr<ModuleSplitterBase>
-getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
-                  bool AutoSplitIsGlobalScope,
-                  bool EmitOnlyKernelsAsEntryPoints);
-
-std::unique_ptr<ModuleSplitterBase>
-getSplitterByOptionalFeatures(ModuleDesc &&MD,
-                              bool EmitOnlyKernelsAsEntryPoints);
-
-std::unique_ptr<ModuleSplitterBase>
-getModuleCopier(ModuleDesc &&MD);
-
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
