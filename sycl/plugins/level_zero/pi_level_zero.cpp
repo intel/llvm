@@ -3344,7 +3344,11 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
     pi_platform Plt = Context->getPlatform();
     std::unique_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex,
                                                    std::defer_lock);
-    if (IndirectAccessTrackingEnabled) {
+    // If we don't own the native handle then we can't control deallocation of
+    // that memory so there is no point of keeping track of the memory
+    // allocation for deferred memory release in the mode when indirect access
+    // tracking is enabled.
+    if (IndirectAccessTrackingEnabled && ownNativeHandle) {
       // We need to keep track of all memory allocations in the context
       ContextsLock.lock();
       // Retain context to be sure that it is released after all memory
@@ -7342,6 +7346,11 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
 // mutex.
 static pi_result USMFreeHelper(pi_context Context, void *Ptr,
                                bool OwnZeMemHandle) {
+  if (!OwnZeMemHandle) {
+    // Memory should not be freed
+    return PI_SUCCESS;
+  }
+
   if (IndirectAccessTrackingEnabled) {
     auto It = Context->MemAllocs.find(Ptr);
     if (It == std::end(Context->MemAllocs)) {
@@ -7355,11 +7364,6 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
     // Reference count is zero, it is ok to free memory.
     // We don't need to track this allocation anymore.
     Context->MemAllocs.erase(It);
-  }
-
-  if (!OwnZeMemHandle) {
-    // Memory should not be freed
-    return PI_SUCCESS;
   }
 
   if (!UseUSMAllocator) {
