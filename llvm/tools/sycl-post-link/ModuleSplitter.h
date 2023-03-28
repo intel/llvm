@@ -358,7 +358,7 @@ getSplitterByRules(ModuleDesc &&MD, const DeviceCodeSplitRulesBuilder &Rules,
                    bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
-getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode,
+getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
@@ -372,6 +372,9 @@ getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
 std::unique_ptr<ModuleSplitterBase>
 getSplitterByOptionalFeatures(ModuleDesc &&MD,
                               bool EmitOnlyKernelsAsEntryPoints);
+
+std::unique_ptr<ModuleSplitterBase>
+getModuleCopier(ModuleDesc &&MD);
 
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);

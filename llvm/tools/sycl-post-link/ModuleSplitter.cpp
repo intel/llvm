@@ -998,12 +998,18 @@ getSplitterByRules(ModuleDesc &&MD, const DeviceCodeSplitRulesBuilder &Rules,
 }
 
 std::unique_ptr<ModuleSplitterBase>
-getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode,
+getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints) {
+  if (IROutputOnly && SPLIT_NONE == Mode) {
+    EntryPointGroupVec Groups;
+    Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
+    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+  }
+
   DeviceCodeSplitRulesBuilder RulesBuilder;
 
   EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(
-      MD.getModule(), Mode, /* AutoSplitIsGlobalScope */ false);
+      MD.getModule(), Mode, IROutputOnly);
 
   if (Scope == Scope_Global) {
     // We simply perform entry points filtering, but group all of them together.
@@ -1063,11 +1069,20 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode,
       Groups.emplace_back(It.first, std::move(EntryPoints), MDProps);
     }
   }
+  bool DoSplit = (Mode != SPLIT_NONE &&
+                  (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
-  if (Groups.size() > 1)
+  if (DoSplit)
     return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
   else
     return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+}
+
+std::unique_ptr<ModuleSplitterBase>
+getModuleCopier(ModuleDesc &&MD) {
+  EntryPointGroupVec Groups;
+  Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
+  return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
 } // namespace module_split

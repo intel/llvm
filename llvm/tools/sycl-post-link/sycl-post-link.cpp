@@ -451,8 +451,20 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
   }
-  if (MD.isLargeGRF())
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isLargeGRF", true});
+
+  {
+    // check for large GRF property
+    bool HasLargeGRF = false;
+    for (const auto *F : MD.entries()) {
+      if (F->hasFnAttribute(::sycl::kernel_props::ATTR_LARGE_GRF)) {
+        HasLargeGRF = true;
+        break;
+      }
+    }
+
+    if (HasLargeGRF)
+      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isLargeGRF", true});
+  }
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
@@ -759,10 +771,10 @@ processInputModule(std::unique_ptr<Module> M) {
           (SplitMode == module_split::SPLIT_AUTO)) &&
          "invalid split mode for IR-only output");
 
-  // FIXME: handle IROutputOnly
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
-      module_split::getDeviceCodeSplitter(module_split::ModuleDesc{std::move(M)},
-                                      SplitMode, EmitOnlyKernelsAsEntryPoints);
+      module_split::getDeviceCodeSplitter(
+          module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
+          EmitOnlyKernelsAsEntryPoints);
   const bool Split = Splitter->remainingSplits() > 1;
   Modified |= Split;
 
