@@ -2561,7 +2561,6 @@ public:
 class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   SourceLocation KernelLoc;
   unsigned SizeOfParams = 0;
-  bool IsSIMD = false;
 
   void addParam(QualType ArgTy) {
     SizeOfParams +=
@@ -2571,9 +2570,7 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
-    llvm::StringLiteral MethodName = (IsSIMD && isSyclAccessorType(FieldTy))
-                                         ? InitESIMDMethodName
-                                         : InitMethodName;
+    llvm::StringLiteral MethodName = InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
@@ -2583,8 +2580,8 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
 
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
-  SyclKernelArgsSizeChecker(Sema &S, SourceLocation Loc, bool IsSIMD)
-      : SyclKernelFieldHandler(S), KernelLoc(Loc), IsSIMD(IsSIMD) {}
+  SyclKernelArgsSizeChecker(Sema &S, SourceLocation Loc)
+      : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
 
   ~SyclKernelArgsSizeChecker() {
     if (SizeOfParams > MaxKernelArgsSize)
@@ -4073,14 +4070,12 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
   if (KernelObj->isInvalidDecl())
     return;
   KernelCallOperatorVisitor KernelCallOperator(KernelFunc, KernelObj);
-  bool IsSIMDKernel = isESIMDKernelType(KernelCallOperator);
 
   SyclKernelDecompMarker DecompMarker(*this);
   SyclKernelFieldChecker FieldChecker(*this);
   SyclKernelUnionChecker UnionChecker(*this);
 
-  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc(),
-                                            IsSIMDKernel);
+  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
 
   KernelObjVisitor Visitor{*this};
 
