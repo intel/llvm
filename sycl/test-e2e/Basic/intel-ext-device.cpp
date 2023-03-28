@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
         std::cout << "Backend: ";
         if (plt.get_backend() == backend::ext_oneapi_level_zero) {
           std::cout << "Level Zero" << std::endl;
-          // Required to set the env variable to query free-memory
+          // It's required to set the env variable to query free-memory.
           setenv("ZES_ENABLE_SYSMAN", "1", 0);
         } else if (plt.get_backend() == backend::opencl) {
           std::cout << "OpenCL" << std::endl;
