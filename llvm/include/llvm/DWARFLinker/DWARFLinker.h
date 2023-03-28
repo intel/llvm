@@ -117,16 +117,36 @@ public:
   virtual void
   emitAppleTypes(AccelTable<AppleAccelTableStaticTypeData> &Table) = 0;
 
-  /// Emit piece of .debug_ranges for \p Ranges.
-  virtual void
-  emitDwarfDebugRangesTableFragment(const CompileUnit &Unit,
-                                    const AddressRanges &LinkedRanges) = 0;
+  /// Emit debug ranges (.debug_ranges, .debug_rnglists) header.
+  virtual MCSymbol *emitDwarfDebugRangeListHeader(const CompileUnit &Unit) = 0;
 
-  /// Emit .debug_aranges entries for \p Unit and if \p DoRangesSection is true,
-  /// also emit the .debug_ranges entries for the DW_TAG_compile_unit's
-  /// DW_AT_ranges attribute.
-  virtual void emitUnitRangesEntries(CompileUnit &Unit,
-                                     bool DoRangesSection) = 0;
+  /// Emit debug ranges (.debug_ranges, .debug_rnglists) fragment.
+  virtual void
+  emitDwarfDebugRangeListFragment(const CompileUnit &Unit,
+                                  const AddressRanges &LinkedRanges,
+                                  PatchLocation Patch) = 0;
+
+  /// Emit debug ranges (.debug_ranges, .debug_rnglists) footer.
+  virtual void emitDwarfDebugRangeListFooter(const CompileUnit &Unit,
+                                             MCSymbol *EndLabel) = 0;
+
+  /// Emit debug locations (.debug_loc, .debug_loclists) header.
+  virtual MCSymbol *emitDwarfDebugLocListHeader(const CompileUnit &Unit) = 0;
+
+  /// Emit debug locations (.debug_loc, .debug_loclists) fragment.
+  virtual void emitDwarfDebugLocListFragment(
+      const CompileUnit &Unit,
+      const DWARFLocationExpressionsVector &LinkedLocationExpression,
+      PatchLocation Patch) = 0;
+
+  /// Emit debug locations (.debug_loc, .debug_loclists) footer.
+  virtual void emitDwarfDebugLocListFooter(const CompileUnit &Unit,
+                                           MCSymbol *EndLabel) = 0;
+
+  /// Emit .debug_aranges entries for \p Unit
+  virtual void
+  emitDwarfDebugArangesTable(const CompileUnit &Unit,
+                             const AddressRanges &LinkedRanges) = 0;
 
   /// Copy the .debug_line over to the updated binary while unobfuscating the
   /// file names and directories.
@@ -151,14 +171,6 @@ public:
   /// Emit an FDE with data \p Bytes.
   virtual void emitFDE(uint32_t CIEOffset, uint32_t AddreSize, uint64_t Address,
                        StringRef Bytes) = 0;
-
-  /// Emit the .debug_loc contribution for \p Unit by copying the entries from
-  /// \p Dwarf and offsetting them. Update the location attributes to point to
-  /// the new entries.
-  virtual void emitLocationsForUnit(
-      const CompileUnit &Unit, DWARFContext &Dwarf,
-      std::function<void(StringRef, SmallVectorImpl<uint8_t> &)>
-          ProcessExpr) = 0;
 
   /// Emit the compilation unit header for \p Unit in the
   /// .debug_info section.
@@ -189,6 +201,9 @@ public:
   /// Returns size of generated .debug_ranges section.
   virtual uint64_t getRangesSectionSize() const = 0;
 
+  /// Returns size of generated .debug_rnglists section.
+  virtual uint64_t getRngListsSectionSize() const = 0;
+
   /// Returns size of generated .debug_info section.
   virtual uint64_t getDebugInfoSectionSize() const = 0;
 
@@ -197,6 +212,9 @@ public:
 
   /// Returns size of generated .debug_macro section.
   virtual uint64_t getDebugMacroSectionSize() const = 0;
+
+  /// Returns size of generated .debug_loclists section.
+  virtual uint64_t getLocListsSectionSize() const = 0;
 };
 
 using UnitListTy = std::vector<std::unique_ptr<CompileUnit>>;
@@ -724,14 +742,17 @@ private:
   /// Assign an abbreviation number to \p Abbrev
   void assignAbbrev(DIEAbbrev &Abbrev);
 
-  /// Compute and emit .debug_ranges section for \p Unit, and
-  /// patch the attributes referencing it.
-  void patchRangesForUnit(const CompileUnit &Unit, DWARFContext &Dwarf,
-                          const DWARFFile &File) const;
+  /// Compute and emit debug ranges(.debug_aranges, .debug_ranges,
+  /// .debug_rnglists) for \p Unit, patch the attributes referencing it.
+  void generateUnitRanges(CompileUnit &Unit, const DWARFFile &File) const;
 
-  /// Generate and emit the DW_AT_ranges attribute for a compile_unit if it had
-  /// one.
-  void generateUnitRanges(CompileUnit &Unit) const;
+  using ExpressionHandlerRef = function_ref<void(SmallVectorImpl<uint8_t> &,
+                                                 SmallVectorImpl<uint8_t> &)>;
+
+  /// Compute and emit debug locations (.debug_loc, .debug_loclists)
+  /// for \p Unit, patch the attributes referencing it.
+  void generateUnitLocations(CompileUnit &Unit, const DWARFFile &File,
+                             ExpressionHandlerRef ExprHandler) const;
 
   /// Extract the line tables from the original dwarf, extract the relevant
   /// parts according to the linked function ranges and emit the result in the

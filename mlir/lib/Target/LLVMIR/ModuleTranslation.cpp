@@ -18,6 +18,7 @@
 #include "LoopAnnotationTranslation.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMInterfaces.h"
 #include "mlir/Dialect/LLVMIR/Transforms/LegalizeForExport.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/IR/Attributes.h"
@@ -76,6 +77,15 @@ translateDataLayout(DataLayoutSpecInterface attribute,
           value.getValue() == DLTIDialect::kDataLayoutEndiannessLittle;
       layoutStream << (isLittleEndian ? "e" : "E");
       layoutStream.flush();
+      continue;
+    }
+    if (key.getValue() == DLTIDialect::kDataLayoutAllocaMemorySpaceKey) {
+      auto value = entry.getValue().cast<IntegerAttr>();
+      if (value != 0) {
+        // Only emit non-default address space.
+        layoutStream << "A" << value;
+        layoutStream.flush();
+      }
       continue;
     }
     emitError(*loc) << "unsupported data layout key " << key;
@@ -519,9 +529,7 @@ void mlir::LLVM::detail::connectPHINodes(Region &region,
     auto phis = llvmBB->phis();
     auto numArguments = bb.getNumArguments();
     assert(numArguments == std::distance(phis.begin(), phis.end()));
-    for (auto &numberedPhiNode : llvm::enumerate(phis)) {
-      auto &phiNode = numberedPhiNode.value();
-      unsigned index = numberedPhiNode.index();
+    for (auto [index, phiNode] : llvm::enumerate(phis)) {
       for (auto *pred : bb.getPredecessors()) {
         // Find the LLVM IR block that contains the converted terminator
         // instruction and use it in the PHI node. Note that this block is not
@@ -704,6 +712,8 @@ LogicalResult ModuleTranslation::convertGlobals() {
     std::optional<uint64_t> alignment = op.getAlignment();
     if (alignment.has_value())
       var->setAlignment(llvm::MaybeAlign(alignment.value()));
+
+    var->setVisibility(convertVisibilityToLLVM(op.getVisibility_()));
 
     globalsMapping.try_emplace(op, var);
   }
@@ -974,6 +984,9 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
     if (failed(forwardPassthroughAttributes(
             function.getLoc(), function.getPassthrough(), llvmFunc)))
       return failure();
+
+    // Convert visibility attribute.
+    llvmFunc->setVisibility(convertVisibilityToLLVM(function.getVisibility_()));
   }
 
   return success();
@@ -997,17 +1010,10 @@ LogicalResult ModuleTranslation::createAccessGroupMetadata() {
   return loopAnnotationTranslation->createAccessGroupMetadata();
 }
 
-void ModuleTranslation::setAccessGroupsMetadata(Operation *op,
+void ModuleTranslation::setAccessGroupsMetadata(AccessGroupOpInterface op,
                                                 llvm::Instruction *inst) {
-  auto populateGroupsMetadata = [&](ArrayAttr groupRefs) {
-    if (llvm::MDNode *node =
-            loopAnnotationTranslation->getAccessGroups(op, groupRefs))
-      inst->setMetadata(llvm::LLVMContext::MD_access_group, node);
-  };
-
-  auto groupRefs =
-      op->getAttrOfType<ArrayAttr>(LLVMDialect::getAccessGroupsAttrName());
-  populateGroupsMetadata(groupRefs);
+  if (llvm::MDNode *node = loopAnnotationTranslation->getAccessGroups(op))
+    inst->setMetadata(llvm::LLVMContext::MD_access_group, node);
 }
 
 LogicalResult ModuleTranslation::createAliasScopeMetadata() {
@@ -1059,26 +1065,29 @@ ModuleTranslation::getAliasScope(Operation *op,
   return aliasScopeMetadataMapping.lookup(aliasScopeOp);
 }
 
-void ModuleTranslation::setAliasScopeMetadata(Operation *op,
+llvm::MDNode *ModuleTranslation::getAliasScopes(
+    Operation *op, ArrayRef<SymbolRefAttr> aliasScopeRefs) const {
+  SmallVector<llvm::Metadata *> nodes;
+  nodes.reserve(aliasScopeRefs.size());
+  for (SymbolRefAttr aliasScopeRef : aliasScopeRefs)
+    nodes.push_back(getAliasScope(op, aliasScopeRef));
+  return llvm::MDNode::get(getLLVMContext(), nodes);
+}
+
+void ModuleTranslation::setAliasScopeMetadata(AliasAnalysisOpInterface op,
                                               llvm::Instruction *inst) {
-  auto populateScopeMetadata = [&](ArrayAttr scopeRefs, unsigned kind) {
-    if (!scopeRefs || scopeRefs.empty())
+  auto populateScopeMetadata = [&](ArrayAttr aliasScopeRefs, unsigned kind) {
+    if (!aliasScopeRefs || aliasScopeRefs.empty())
       return;
-    llvm::Module *module = inst->getModule();
-    SmallVector<llvm::Metadata *> scopeMDs;
-    for (SymbolRefAttr scopeRef : scopeRefs.getAsRange<SymbolRefAttr>())
-      scopeMDs.push_back(getAliasScope(op, scopeRef));
-    llvm::MDNode *node = llvm::MDNode::get(module->getContext(), scopeMDs);
+    llvm::MDNode *node = getAliasScopes(
+        op, llvm::to_vector(aliasScopeRefs.getAsRange<SymbolRefAttr>()));
     inst->setMetadata(kind, node);
   };
 
-  auto aliasScopeRefs =
-      op->getAttrOfType<ArrayAttr>(LLVMDialect::getAliasScopesAttrName());
-  populateScopeMetadata(aliasScopeRefs, llvm::LLVMContext::MD_alias_scope);
-
-  auto noaliasScopeRefs =
-      op->getAttrOfType<ArrayAttr>(LLVMDialect::getNoAliasScopesAttrName());
-  populateScopeMetadata(noaliasScopeRefs, llvm::LLVMContext::MD_noalias);
+  populateScopeMetadata(op.getAliasScopesOrNull(),
+                        llvm::LLVMContext::MD_alias_scope);
+  populateScopeMetadata(op.getNoAliasScopesOrNull(),
+                        llvm::LLVMContext::MD_noalias);
 }
 
 llvm::MDNode *ModuleTranslation::getTBAANode(Operation *op,
@@ -1091,31 +1100,25 @@ llvm::MDNode *ModuleTranslation::getTBAANode(Operation *op,
   return tbaaMetadataMapping.lookup(tagOp);
 }
 
-void ModuleTranslation::setTBAAMetadata(Operation *op,
+void ModuleTranslation::setTBAAMetadata(AliasAnalysisOpInterface op,
                                         llvm::Instruction *inst) {
-  auto populateTBAAMetadata = [&](std::optional<ArrayAttr> tagRefs) {
-    if (!tagRefs || tagRefs->empty())
-      return;
+  ArrayAttr tagRefs = op.getTBAATagsOrNull();
+  if (!tagRefs || tagRefs.empty())
+    return;
 
-    // LLVM IR currently does not support attaching more than one
-    // TBAA access tag to a memory accessing instruction.
-    // It may be useful to support this in future, but for the time being
-    // just ignore the metadata if MLIR operation has multiple access tags.
-    if (tagRefs->size() > 1) {
-      op->emitWarning() << "TBAA access tags were not translated, because LLVM "
-                           "IR only supports a single tag per instruction";
-      return;
-    }
+  // LLVM IR currently does not support attaching more than one TBAA access tag
+  // to a memory accessing instruction. It may be useful to support this in
+  // future, but for the time being just ignore the metadata if MLIR operation
+  // has multiple access tags.
+  if (tagRefs.size() > 1) {
+    op.emitWarning() << "TBAA access tags were not translated, because LLVM "
+                        "IR only supports a single tag per instruction";
+    return;
+  }
 
-    SymbolRefAttr tagRef = (*tagRefs)[0].cast<SymbolRefAttr>();
-    llvm::MDNode *node = getTBAANode(op, tagRef);
-    inst->setMetadata(llvm::LLVMContext::MD_tbaa, node);
-  };
-
-  llvm::TypeSwitch<Operation *>(op)
-      .Case<LoadOp, StoreOp>(
-          [&](auto memOp) { populateTBAAMetadata(memOp.getTbaa()); })
-      .Default([](auto) { llvm_unreachable("expected LoadOp or StoreOp"); });
+  SymbolRefAttr tagRef = tagRefs[0].cast<SymbolRefAttr>();
+  llvm::MDNode *node = getTBAANode(op, tagRef);
+  inst->setMetadata(llvm::LLVMContext::MD_tbaa, node);
 }
 
 LogicalResult ModuleTranslation::createTBAAMetadata() {
@@ -1331,6 +1334,10 @@ mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
       return nullptr;
     }
   }
+
+  // Convert module itself.
+  if (failed(translator.convertOperation(*module, llvmBuilder)))
+    return nullptr;
 
   if (llvm::verifyModule(*translator.llvmModule, &llvm::errs()))
     return nullptr;
