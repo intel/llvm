@@ -3,7 +3,6 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %t.out
 //
 // REQUIRES: gpu
-// UNSUPPORTED: hip
 // Temporarily disable on L0 due to fails in CI
 
 //==--------- intel-ext-device.cpp - SYCL device test ------------==//
