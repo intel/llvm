@@ -4,18 +4,15 @@
 // UNSUPPORTED: hip
 // REQUIRES: fusion
 
-// Test complete fusion with private internalization specified on the
-// accessors for a device kernel with sycl::vec::load and sycl::vec::store.
-
-#define VEC 4
+// Test complete fusion with local internalization and an local accessor that
+// already exists in one of the input kernels.
 
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
 
 int main() {
-  constexpr size_t numVec = 512;
-  constexpr size_t dataSize = numVec * VEC;
+  constexpr size_t dataSize = 512;
   int in1[dataSize], in2[dataSize], in3[dataSize], tmp[dataSize], out[dataSize];
 
   for (size_t i = 0; i < dataSize; ++i) {
@@ -44,32 +41,25 @@ int main() {
       auto accIn1 = bIn1.get_access(cgh);
       auto accIn2 = bIn2.get_access(cgh);
       auto accTmp = bTmp.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
-      cgh.parallel_for<class KernelOne>(numVec, [=](id<1> i) {
-        size_t offset = i;
-        vec<int, VEC> in1;
-        in1.load(offset, accIn1.get_pointer());
-        vec<int, VEC> in2;
-        in2.load(offset, accIn2.get_pointer());
-        auto tmp = in1 + in2;
-        tmp.store(offset, accTmp.get_pointer());
-      });
+          cgh, sycl::ext::codeplay::experimental::property::promote_local{});
+      local_accessor<int> accLocal{16, cgh};
+      cgh.parallel_for<class KernelOne>(
+          nd_range<1>{{dataSize}, {16}}, [=](nd_item<1> i) {
+            size_t globalIdx = i.get_global_linear_id();
+            size_t localIdx = i.get_local_linear_id();
+            accLocal[localIdx] = accIn2[globalIdx];
+            accTmp[globalIdx] = accIn1[globalIdx] + accLocal[localIdx];
+          });
     });
 
     q.submit([&](handler &cgh) {
       auto accTmp = bTmp.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
+          cgh, sycl::ext::codeplay::experimental::property::promote_local{});
       auto accIn3 = bIn3.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
-      cgh.parallel_for<class KernelTwo>(numVec, [=](id<1> i) {
-        size_t offset = i;
-        vec<int, VEC> tmp;
-        tmp.load(offset, accTmp.get_pointer());
-        vec<int, VEC> in3;
-        in3.load(offset, accIn3.get_pointer());
-        auto out = tmp * in3;
-        out.store(offset, accOut.get_pointer());
-      });
+      cgh.parallel_for<class KernelTwo>(
+          nd_range<1>{{dataSize}, {16}},
+          [=](id<1> i) { accOut[i] = accTmp[i] * accIn3[i]; });
     });
 
     fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});

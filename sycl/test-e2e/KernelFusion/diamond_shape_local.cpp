@@ -4,7 +4,7 @@
 // UNSUPPORTED: hip
 // REQUIRES: fusion
 
-// Test complete fusion with private internalization specified on the
+// Test complete fusion with local internalization specified on the
 // accessors for a combination of four kernels, forming a diamond-like shape and
 // repeating one of the kernels.
 
@@ -41,9 +41,18 @@ int main() {
     buffer<int> bIn1{in1, range{dataSize}};
     buffer<int> bIn2{in2, range{dataSize}};
     buffer<int> bIn3{in3, range{dataSize}};
-    buffer<int> bTmp1{tmp1, range{dataSize}};
-    buffer<int> bTmp2{tmp2, range{dataSize}};
-    buffer<int> bTmp3{tmp3, range{dataSize}};
+    buffer<int> bTmp1{
+        tmp1,
+        range{dataSize},
+        {sycl::ext::codeplay::experimental::property::promote_local{}}};
+    buffer<int> bTmp2{
+        tmp2,
+        range{dataSize},
+        {sycl::ext::codeplay::experimental::property::promote_local{}}};
+    buffer<int> bTmp3{
+        tmp3,
+        range{dataSize},
+        {sycl::ext::codeplay::experimental::property::promote_local{}}};
     buffer<int> bOut{out, range{dataSize}};
 
     ext::codeplay::experimental::fusion_wrapper fw{q};
@@ -54,37 +63,33 @@ int main() {
     q.submit([&](handler &cgh) {
       auto accIn1 = bIn1.get_access(cgh);
       auto accIn2 = bIn2.get_access(cgh);
-      auto accTmp1 = bTmp1.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
-      cgh.parallel_for<AddKernel>(dataSize, AddKernel{accIn1, accIn2, accTmp1});
+      auto accTmp1 = bTmp1.get_access(cgh);
+      cgh.parallel_for<AddKernel>(nd_range<1>{{dataSize}, {16}},
+                                  AddKernel{accIn1, accIn2, accTmp1});
     });
 
     q.submit([&](handler &cgh) {
-      auto accTmp1 = bTmp1.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
+      auto accTmp1 = bTmp1.get_access(cgh);
       auto accIn3 = bIn3.get_access(cgh);
-      auto accTmp2 = bTmp2.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
+      auto accTmp2 = bTmp2.get_access(cgh);
       cgh.parallel_for<class KernelOne>(
-          dataSize, [=](id<1> i) { accTmp2[i] = accTmp1[i] * accIn3[i]; });
+          nd_range<1>{{dataSize}, {16}},
+          [=](id<1> i) { accTmp2[i] = accTmp1[i] * accIn3[i]; });
     });
 
     q.submit([&](handler &cgh) {
-      auto accTmp1 = bTmp1.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
-      auto accTmp3 = bTmp3.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
+      auto accTmp1 = bTmp1.get_access(cgh);
+      auto accTmp3 = bTmp3.get_access(cgh);
       cgh.parallel_for<class KernelTwo>(
-          dataSize, [=](id<1> i) { accTmp3[i] = accTmp1[i] * 5; });
+          nd_range<1>{{dataSize}, {16}},
+          [=](id<1> i) { accTmp3[i] = accTmp1[i] * 5; });
     });
 
     q.submit([&](handler &cgh) {
-      auto accTmp2 = bTmp2.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
-      auto accTmp3 = bTmp3.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
+      auto accTmp2 = bTmp2.get_access(cgh);
+      auto accTmp3 = bTmp3.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
-      cgh.parallel_for<AddKernel>(dataSize,
+      cgh.parallel_for<AddKernel>(nd_range<1>{{dataSize}, {16}},
                                   AddKernel{accTmp2, accTmp3, accOut});
     });
 
