@@ -885,7 +885,7 @@ extension's APIs the implementation supports.
 |2|2019-11-13|Michael Kinsner|Incorporate feedback
 |3|2020-04-27|Michael Kinsner|Clarify that pipe operations behave as-if they are relaxed atomic operations.  Make SYCL2020 the baseline
 |4|2021-12-02|Shuo Niu|Add experimental latency control API
-|5|2023-03-27|Zibai Wang|Add memory order parameter and compile-time properties.  Add host pipe read/write functions.
+|5|2023-03-27|Zibai Wang|Experimental API change only. Add memory order parameter and compile-time properties.  Add host pipe read/write functions.
 |========================================
 
 //************************************************************************
