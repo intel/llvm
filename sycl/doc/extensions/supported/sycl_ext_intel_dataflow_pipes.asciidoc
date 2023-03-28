@@ -191,8 +191,7 @@ In the future, the `sycl::memory_order` parameter of read/write functions will c
 [source,c++,Read write members,linenums]
 ----
 template <class _name, class _dataT, int32_t _min_capacity = 0,
-          class _propertiesT = decltype(oneapi::experimental::properties{}),
-          class = void>
+          class _propertiesT = decltype(oneapi::experimental::properties{})>
 class pipe {
   // Blocking
   static _dataT read();
