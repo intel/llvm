@@ -109,8 +109,9 @@ LogicalResult SYCLAccessorGetRangeOp::verify() {
              ? emitOpError(
                    "Both the result and the accessor must have the same "
                    "number of dimensions, but the accessor has ")
-                   << accTy.getDimension() << " dimensions and the result, "
-                   << resTy.getDimension()
+                   << accTy.getDimension()
+                   << " dimension(s) and the result has "
+                   << resTy.getDimension() << " dimension(s)"
              : success();
 }
 
@@ -167,8 +168,8 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
                    ? emitOpError(
                          "Both the index and the accessor must have the same "
                          "number of dimensions, but the accessor has ")
-                         << Dimensions << "dimensions and the index, "
-                         << IDTy.getDimension()
+                         << Dimensions << " dimension(s) and the index has "
+                         << IDTy.getDimension() << " dimension(s)"
                    : VerifyResultType();
       })
       .Case<IntegerType>([&](auto) {
