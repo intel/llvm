@@ -80,8 +80,7 @@ public:
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
 
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(PipeName, DataPtr, sizeof(_dataT),
-                                         false, true /* read */);
+      CGH.ext_intel_read_host_pipe(PipeName, DataPtr, sizeof(_dataT) /* non-blocking */);
     });
     E.wait();
     if (E.get_info<sycl::info::event::command_execution_status>() ==
@@ -108,8 +107,8 @@ public:
     const void *DataPtr = &Data;
 
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(
-          PipeName, (void *)DataPtr, sizeof(_dataT), false, false /* write */);
+      CGH.ext_intel_write_host_pipe(
+          PipeName, (void *)DataPtr, sizeof(_dataT) /* non-blocking */);
     });
     E.wait();
     Success = E.get_info<sycl::info::event::command_execution_status>() ==
@@ -233,8 +232,8 @@ public:
     const void *HostPipePtr = &m_Storage;
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(PipeName, DataPtr, sizeof(_dataT),
-                                         true, true /*blocking read */);
+      CGH.ext_intel_read_host_pipe(PipeName, DataPtr, sizeof(_dataT),
+                                         true /*blocking*/);
     });
     E.wait();
     return *(_dataT *)DataPtr;
@@ -252,9 +251,8 @@ public:
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
     const void *DataPtr = &Data;
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_write_host_pipe(PipeName, (void *)DataPtr,
-                                         sizeof(_dataT), true,
-                                         false /*blocking write */);
+      CGH.ext_intel_write_host_pipe(PipeName, (void *)DataPtr,
+                                         sizeof(_dataT), true /*blocking */);
     });
     E.wait();
   }

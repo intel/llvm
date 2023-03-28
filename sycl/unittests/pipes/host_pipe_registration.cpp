@@ -135,8 +135,7 @@ TEST_F(PipeTest, Basic) {
   int HostPipeReadData;
   void *DataPtrRead = &HostPipeReadData;
   event ERead = q.submit([=](handler &CGH) {
-    CGH.ext_intel_read_write_host_pipe(PipeName, DataPtrRead, sizeof(int), true,
-                                       true /* read */);
+    CGH.ext_intel_read_host_pipe(PipeName, DataPtrRead, sizeof(int), true /* blocking */);
   });
   ERead.wait();
   assert(HostPipeReadData == PipeReadVal);
@@ -145,8 +144,7 @@ TEST_F(PipeTest, Basic) {
   int HostPipeWriteData = 9;
   void *DataPtrWrite = &HostPipeWriteData;
   event EWrite = q.submit([=](handler &CGH) {
-    CGH.ext_intel_read_write_host_pipe(PipeName, DataPtrWrite, sizeof(int),
-                                       true, false /* write */);
+    CGH.ext_intel_write_host_pipe(PipeName, DataPtrWrite, sizeof(int), true/* blocking */);
   });
   EWrite.wait();
   assert(PipeWriteVal == 9);

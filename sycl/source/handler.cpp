@@ -863,14 +863,23 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
-void handler::ext_intel_read_write_host_pipe(const std::string &Name, void *Ptr,
-                                             size_t Size, bool Block,
-                                             bool Read) {
+void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
+                                             size_t Size, bool Block) {
   MImpl->HostPipeName = Name;
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;
-  MImpl->HostPipeRead = Read;
+  MImpl->HostPipeRead = 1;
+  setType(detail::CG::ReadWriteHostPipe);
+}
+
+void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
+                                             size_t Size, bool Block) {
+  MImpl->HostPipeName = Name;
+  MImpl->HostPipePtr = Ptr;
+  MImpl->HostPipeTypeSize = Size;
+  MImpl->HostPipeBlocking = Block;
+  MImpl->HostPipeRead = 0;
   setType(detail::CG::ReadWriteHostPipe);
 }
 

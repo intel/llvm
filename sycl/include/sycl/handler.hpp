@@ -2700,14 +2700,23 @@ public:
     else
       commonUSMFill2DFallbackKernel(Dest, DestPitch, Pattern, Width, Height);
   }
-  /// Read from or write to host pipes given a host address and
+  /// Read from a host pipe given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
   /// \param Ptr host pointer of host pipe as identified by address of its const
-  /// expr __pipe member \param Size the size of data getting read back / to.
-  /// /// \param Size the size of data getting read back / to. \param Blocking
-  /// if read/write opeartion is blocking \param Read 1 for read, 0 for write
-  void ext_intel_read_write_host_pipe(const std::string &Name, void *Ptr,
-                                      size_t Size, bool Block, bool Read);
+  /// expr m_Storage member \param Size the size of data getting read back / to.
+  /// /// \param Size the size of data getting read back / to. \param Block
+  /// if read opeartion is blocking, default to false.
+  void ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
+                                      size_t Size, bool Block=false);
+
+  /// Write to host pipes given a host address and
+  /// \param Name name of the host pipe to be passed into lower level runtime
+  /// \param Ptr host pointer of host pipe as identified by address of its const
+  /// expr m_Storage member \param Size the size of data getting read back / to.
+  /// /// \param Size the size of data write / to. \param Block
+  /// if write opeartion is blocking, default to false.
+  void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
+                                      size_t Size, bool Block=false);
 
   /// Copies data from a USM memory region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the
