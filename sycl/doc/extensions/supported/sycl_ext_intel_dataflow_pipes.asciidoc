@@ -198,18 +198,7 @@ class pipe {
 
   // Non-blocking
   static _dataT read(bool &Success);
-  static void write(const _dataT &Data, bool &Success) ;
-
-  // Static members
-  static constexpr int32_t m_Size = sizeof(_dataT);
-  static constexpr int32_t m_Alignment = alignof(_dataT);
-  static constexpr int32_t m_Capacity = _min_capacity;
-  static constexpr int32_t m_ready_latency = oneapi::experimental::detail::ValueOrDefault<_propertiesT, ready_latency_key>::template get<int32_t>(0);
-  static constexpr int32_t m_bits_per_symbol = oneapi::experimental::detail::ValueOrDefault<_propertiesT, bits_per_symbol_key>::template get<int32_t>(8);
-  static constexpr bool m_uses_valid = oneapi::experimental::detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(true);
-  static constexpr bool m_first_symbol_in_high_order_bits = oneapi::experimental::detail::ValueOrDefault<_propertiesT, first_symbol_in_high_order_bits_key>::template             get<int32_t>(0);
-  static constexpr protocol_name m_protocol = oneapi::experimental::detail:: ValueOrDefault<_propertiesT, protocol_key>::template get<protocol_name>(
-          protocol_name::AVALON_STREAMING_USES_READY);
+  static void write(const _dataT &Data, bool &Success);
 }
 ----
 
@@ -799,9 +788,8 @@ template <int Target, latency_control_type Type, int Cycle>
 inline constexpr latency_constraint_key::value_t<Target, Type, Cycle>
     latency_constraint;
 
-template <class _name, class _dataT, int32_t _min_capacity = 0,
-          class _propertiesT = decltype(oneapi::experimental::properties{}),
-          class = void>
+template <class Name, class DataT, int32_t MinCapacity = 0,
+          class PropertiesT = decltype(oneapi::experimental::properties{})>
 class pipe {
   // Blocking
   static DataT read();
