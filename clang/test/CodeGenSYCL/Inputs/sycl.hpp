@@ -458,7 +458,6 @@ kernel_parallel_for_work_group(const KernelType &KernelFunc) {
 
 class handler {
 public:
-
   template <typename KernelName = auto_name, typename KernelType, int Dims>
   void parallel_for(range<Dims> numWorkItems, const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;

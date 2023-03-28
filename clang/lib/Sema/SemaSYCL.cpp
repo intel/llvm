@@ -2788,7 +2788,7 @@ public:
 
 // This Visitor traverses the AST of the function with
 // `sycl_kernel` attribute and returns the version of “operator()()” that is
-// called by kernelFunc(). There will only be one call to kernelFunc() in that
+// called by KernelFunc. There will only be one call to KernelFunc in that
 // AST because the DPC++ headers are structured such that the user’s
 // kernel function is only called once. This ensures that the correct
 // “operator()()” function call is returned, when a named function object used
@@ -3618,10 +3618,10 @@ static bool IsSYCLUnnamedKernel(Sema &SemaRef, const FunctionDecl *FD) {
 
 class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
-  KernelCallOperatorVisitor KernelCallOperator;
   int64_t CurOffset = 0;
   llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
   int StructDepth = 0;
+  bool IsESIMD = false;
 
   // A series of functions to calculate the change in offset based on the type.
   int64_t offsetOf(const FieldDecl *FD, QualType ArgTy) const {
@@ -3650,20 +3650,17 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
 
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
-  SyclKernelIntHeaderCreator(KernelCallOperatorVisitor KernelCallOperator,
-                             Sema &S, SYCLIntegrationHeader &H,
+  SyclKernelIntHeaderCreator(bool IsESIMD, Sema &S, SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelObj, QualType NameType,
                              FunctionDecl *KernelFunc)
-      : SyclKernelFieldHandler(S), Header(H),
-        KernelCallOperator(KernelCallOperator) {
-    bool IsSIMDKernel = isESIMDKernelType(KernelCallOperator);
+      : SyclKernelFieldHandler(S), Header(H), IsESIMD(IsESIMD) {
+
     // The header needs to access the kernel object size.
     int64_t ObjSize = SemaRef.getASTContext()
                           .getTypeSizeInChars(KernelObj->getTypeForDecl())
                           .getQuantity();
-    Header.startKernel(KernelFunc, NameType, KernelObj->getLocation(),
-                       IsSIMDKernel, IsSYCLUnnamedKernel(S, KernelFunc),
-                       ObjSize);
+    Header.startKernel(KernelFunc, NameType, KernelObj->getLocation(), IsESIMD,
+                       IsSYCLUnnamedKernel(S, KernelFunc), ObjSize);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *RD,
@@ -4232,7 +4229,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc);
   SyclKernelIntHeaderCreator int_header(
-      KernelCallOperator, *this, getSyclIntegrationHeader(), KernelObj,
+      IsSIMDKernel, *this, getSyclIntegrationHeader(), KernelObj,
       calculateKernelNameType(Context, KernelCallerFunc), KernelCallerFunc);
 
   SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
