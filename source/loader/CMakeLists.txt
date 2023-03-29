@@ -49,7 +49,7 @@ if (UNIX)
 endif()
 
 if(WIN32)
-    target_link_libraries(loader PRIVATE cfgmgr32.lib dbghelp)
+    target_link_libraries(loader PRIVATE cfgmgr32.lib)
 endif()
 
 if(UNIX)
@@ -90,18 +90,39 @@ if(UR_ENABLE_TRACING)
     )
 endif()
 
+
+# link validation backtrace dependencies
+find_package(Libbacktrace)
+if (VAL_USE_LIBBACKTRACE_BACKTRACE AND LIBBACKTRACE_FOUND AND UNIX)
+    message(STATUS "Using libbacktrace backtrace for validation")
+
+    target_sources(loader PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_libbacktrace.cpp)
+    target_link_libraries(loader PRIVATE Libbacktrace)
+else()
+    message(STATUS "Using default backtrace for validation")
+
+    if(WIN32)
+        target_sources(loader PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_win.cpp)
+        target_link_libraries(loader PRIVATE dbghelp)
+    else()
+        target_sources(loader PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_lin.cpp)
+    endif()
+endif()
+
 if(WIN32)
     target_sources(loader
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/lib_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/windows/loader_init.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_win.cpp
+
     )
 else()
     target_sources(loader
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/lib_init.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/linux/loader_init.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_lin.cpp
     )
 endif()
