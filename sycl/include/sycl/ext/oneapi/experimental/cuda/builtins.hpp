@@ -201,7 +201,7 @@ ldg(const T *ptr) {
     ret.x() = rv1[0];
     ret.y() = rv1[1];
     ret.z() = rv2[0];
-    ret.v() = rv2[1];
+    ret.w() = rv2[1];
     return ret;
   } else if constexpr (std::is_same_v<T, sycl::float2>) {
     typedef float f2 ATTRIBUTE_EXT_VEC_TYPE(2);
