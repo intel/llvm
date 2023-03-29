@@ -695,12 +695,12 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS = 4,                ///< uint32_t: max work item dimensions
     UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES = 5,                     ///< size_t[]: return an array of max work item sizes
     UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE = 6,                     ///< size_t: max work group size
-    UR_DEVICE_INFO_SINGLE_FP_CONFIG = 7,                        ///< Return a bit field of ::ur_fp_capability_flags_t: single precision
-                                                                ///< floating point capability
-    UR_DEVICE_INFO_HALF_FP_CONFIG = 8,                          ///< Return a bit field of ::ur_fp_capability_flags_t: half precision
-                                                                ///< floating point capability
-    UR_DEVICE_INFO_DOUBLE_FP_CONFIG = 9,                        ///< Return a bit field of ::ur_fp_capability_flags_t: double precision
-                                                                ///< floating point capability
+    UR_DEVICE_INFO_SINGLE_FP_CONFIG = 7,                        ///< Return a bit field of ::ur_device_fp_capability_flags_t: single
+                                                                ///< precision floating point capability
+    UR_DEVICE_INFO_HALF_FP_CONFIG = 8,                          ///< Return a bit field of ::ur_device_fp_capability_flags_t: half
+                                                                ///< precision floating point capability
+    UR_DEVICE_INFO_DOUBLE_FP_CONFIG = 9,                        ///< Return a bit field of ::ur_device_fp_capability_flags_t: double
+                                                                ///< precision floating point capability
     UR_DEVICE_INFO_QUEUE_PROPERTIES = 10,                       ///< Return a bit field of ::ur_queue_flags_t: command queue properties
                                                                 ///< supported by the device
     UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR = 11,            ///< uint32_t: preferred vector width for char
@@ -992,20 +992,21 @@ urDeviceSelectBinary(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief FP capabilities
-typedef uint32_t ur_fp_capability_flags_t;
-typedef enum ur_fp_capability_flag_t {
-    UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT = UR_BIT(0), ///< Support correctly rounded divide and sqrt
-    UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST = UR_BIT(1),              ///< Support round to nearest
-    UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO = UR_BIT(2),                 ///< Support round to zero
-    UR_FP_CAPABILITY_FLAG_ROUND_TO_INF = UR_BIT(3),                  ///< Support round to infinity
-    UR_FP_CAPABILITY_FLAG_INF_NAN = UR_BIT(4),                       ///< Support INF to NAN
-    UR_FP_CAPABILITY_FLAG_DENORM = UR_BIT(5),                        ///< Support denorm
-    UR_FP_CAPABILITY_FLAG_FMA = UR_BIT(6),                           ///< Support FMA
+typedef uint32_t ur_device_fp_capability_flags_t;
+typedef enum ur_device_fp_capability_flag_t {
+    UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT = UR_BIT(0), ///< Support correctly rounded divide and sqrt
+    UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST = UR_BIT(1),              ///< Support round to nearest
+    UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO = UR_BIT(2),                 ///< Support round to zero
+    UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF = UR_BIT(3),                  ///< Support round to infinity
+    UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN = UR_BIT(4),                       ///< Support INF to NAN
+    UR_DEVICE_FP_CAPABILITY_FLAG_DENORM = UR_BIT(5),                        ///< Support denorm
+    UR_DEVICE_FP_CAPABILITY_FLAG_FMA = UR_BIT(6),                           ///< Support FMA
+    UR_DEVICE_FP_CAPABILITY_FLAG_SOFT_FLOAT = UR_BIT(7),                    ///< Basic floating point operations implemented in software.
     /// @cond
-    UR_FP_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
+    UR_DEVICE_FP_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
-} ur_fp_capability_flag_t;
+} ur_device_fp_capability_flag_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device memory cache type

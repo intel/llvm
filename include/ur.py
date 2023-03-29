@@ -382,12 +382,12 @@ class ur_device_info_v(IntEnum):
     MAX_WORK_ITEM_DIMENSIONS = 4                    ## uint32_t: max work item dimensions
     MAX_WORK_ITEM_SIZES = 5                         ## size_t[]: return an array of max work item sizes
     MAX_WORK_GROUP_SIZE = 6                         ## size_t: max work group size
-    SINGLE_FP_CONFIG = 7                            ## Return a bit field of ::ur_fp_capability_flags_t: single precision
-                                                    ## floating point capability
-    HALF_FP_CONFIG = 8                              ## Return a bit field of ::ur_fp_capability_flags_t: half precision
-                                                    ## floating point capability
-    DOUBLE_FP_CONFIG = 9                            ## Return a bit field of ::ur_fp_capability_flags_t: double precision
-                                                    ## floating point capability
+    SINGLE_FP_CONFIG = 7                            ## Return a bit field of ::ur_device_fp_capability_flags_t: single
+                                                    ## precision floating point capability
+    HALF_FP_CONFIG = 8                              ## Return a bit field of ::ur_device_fp_capability_flags_t: half
+                                                    ## precision floating point capability
+    DOUBLE_FP_CONFIG = 9                            ## Return a bit field of ::ur_device_fp_capability_flags_t: double
+                                                    ## precision floating point capability
     QUEUE_PROPERTIES = 10                           ## Return a bit field of ::ur_queue_flags_t: command queue properties
                                                     ## supported by the device
     PREFERRED_VECTOR_WIDTH_CHAR = 11                ## uint32_t: preferred vector width for char
@@ -524,7 +524,7 @@ class ur_device_partition_t(c_int):
 
 ###############################################################################
 ## @brief FP capabilities
-class ur_fp_capability_flags_v(IntEnum):
+class ur_device_fp_capability_flags_v(IntEnum):
     CORRECTLY_ROUNDED_DIVIDE_SQRT = UR_BIT(0)       ## Support correctly rounded divide and sqrt
     ROUND_TO_NEAREST = UR_BIT(1)                    ## Support round to nearest
     ROUND_TO_ZERO = UR_BIT(2)                       ## Support round to zero
@@ -532,8 +532,9 @@ class ur_fp_capability_flags_v(IntEnum):
     INF_NAN = UR_BIT(4)                             ## Support INF to NAN
     DENORM = UR_BIT(5)                              ## Support denorm
     FMA = UR_BIT(6)                                 ## Support FMA
+    SOFT_FLOAT = UR_BIT(7)                          ## Basic floating point operations implemented in software.
 
-class ur_fp_capability_flags_t(c_int):
+class ur_device_fp_capability_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 

@@ -159,11 +159,11 @@ etors:
     - name: MAX_WORK_GROUP_SIZE
       desc: "size_t: max work group size"
     - name: SINGLE_FP_CONFIG
-      desc: "Return a bit field of $x_fp_capability_flags_t: single precision floating point capability"
+      desc: "Return a bit field of $x_device_fp_capability_flags_t: single precision floating point capability"
     - name: HALF_FP_CONFIG
-      desc: "Return a bit field of $x_fp_capability_flags_t: half precision floating point capability"
+      desc: "Return a bit field of $x_device_fp_capability_flags_t: half precision floating point capability"
     - name: DOUBLE_FP_CONFIG
-      desc: "Return a bit field of $x_fp_capability_flags_t: double precision floating point capability"
+      desc: "Return a bit field of $x_device_fp_capability_flags_t: double precision floating point capability"
     - name: QUEUE_PROPERTIES
       desc: "Return a bit field of $x_queue_flags_t: command queue properties supported by the device"
     - name: PREFERRED_VECTOR_WIDTH_CHAR
@@ -528,7 +528,7 @@ returns:
 type: enum
 desc: "FP capabilities"
 class: $xDevice
-name: $x_fp_capability_flags_t
+name: $x_device_fp_capability_flags_t
 etors:
     - name: CORRECTLY_ROUNDED_DIVIDE_SQRT
       desc: "Support correctly rounded divide and sqrt"
@@ -551,6 +551,9 @@ etors:
     - name: FMA
       desc: "Support FMA"
       value: "$X_BIT(6)"
+    - name: SOFT_FLOAT
+      desc: "Basic floating point operations implemented in software."
+      value: "$X_BIT(7)"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Device memory cache type"

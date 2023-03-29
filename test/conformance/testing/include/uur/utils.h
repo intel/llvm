@@ -170,13 +170,13 @@ ur_result_t GetDeviceMaxWorkGroupSize(ur_device_handle_t device,
                                       size_t &max_work_group_size);
 ur_result_t
 GetDeviceSingleFPCapabilities(ur_device_handle_t device,
-                              ur_fp_capability_flags_t &fp_capabilities);
+                              ur_device_fp_capability_flags_t &fp_capabilities);
 ur_result_t
 GetDeviceHalfFPCapabilities(ur_device_handle_t device,
-                            ur_fp_capability_flags_t &fp_capabilities);
+                            ur_device_fp_capability_flags_t &fp_capabilities);
 ur_result_t
 GetDeviceDoubleFPCapabilities(ur_device_handle_t device,
-                              ur_fp_capability_flags_t &fp_capabilities);
+                              ur_device_fp_capability_flags_t &fp_capabilities);
 ur_result_t GetDeviceQueueProperties(ur_device_handle_t device,
                                      ur_queue_flags_t &flags);
 ur_result_t GetDevicePreferredVectorWidthChar(ur_device_handle_t device,
