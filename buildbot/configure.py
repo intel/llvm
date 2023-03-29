@@ -192,6 +192,10 @@ def do_configure(args):
         )
 
     # Add additional CMake options if provided
+    if args.gnu_toolchain:
+        cmake_cmd.extend(
+            ["-DSYCL_LIBDEVICE_GCC_TOOLCHAIN={}".format(args.gnu_toolchain)]
+        )
     if args.cmake_opt:
         cmake_cmd += args.cmake_opt
 
@@ -321,6 +325,11 @@ def main():
     )
     parser.add_argument(
         "--shared-libs", action="store_true", help="Build shared libraries"
+    )
+    parser.add_argument(
+        "--gnu-toolchain",
+        metavar="GNU_TOOLCHAIN",
+        help="Toolchain for compiler driver result",
     )
     parser.add_argument(
         "--cmake-opt",
