@@ -95,7 +95,8 @@ pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                                 size_t param_value_size, void *param_value,
                                 size_t *param_value_size_ret) {
   constexpr char MockSupportedExtensions[] =
-      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program cl_intel_program_scope_host_pipe";
+      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program "
+      "cl_intel_program_scope_host_pipe";
   switch (param_name) {
   case PI_DEVICE_INFO_EXTENSIONS: {
     if (param_value) {
@@ -141,19 +142,20 @@ protected:
 
 TEST_F(PipeTest, Basic) {
   // Fake extension
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(after_piDeviceGetInfo);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo);
 
   // Device registration
   static sycl::unittest::PiImage Img = generateDefaultImage();
   static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
-  //Testing read
+  // Testing read
   int HostPipeReadData;
   HostPipeReadData = Pipe::read(q);
   assert(HostPipeReadData == PipeReadVal);
 
   // Testing write
   int HostPipeWriteData = 9;
-  Pipe::write(q,HostPipeWriteData);
+  Pipe::write(q, HostPipeWriteData);
   assert(PipeWriteVal == 9);
 }
