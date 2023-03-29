@@ -86,7 +86,6 @@ class __copyAcc2Acc;
 
 // For unit testing purposes
 class MockHandler;
-class PipeTest_Basic_Test;
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -2901,7 +2900,6 @@ private:
   template <class _name, class _dataT, int32_t _min_capacity,
           class _propertiesT, class> 
   friend class ext::intel::experimental::pipe;
-  friend class ::PipeTest_Basic_Test;
 
   /// Read from a host pipe given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime

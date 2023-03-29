@@ -91,6 +91,26 @@ pi_result redefinedEnqueueWriteHostPipe(pi_queue, pi_program, const char *,
   return PI_SUCCESS;
 }
 
+pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
+                                size_t param_value_size, void *param_value,
+                                size_t *param_value_size_ret) {
+  constexpr char MockSupportedExtensions[] =
+      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program cl_intel_program_scope_host_pipe";
+  switch (param_name) {
+  case PI_DEVICE_INFO_EXTENSIONS: {
+    if (param_value) {
+      assert(param_value_size >= sizeof(MockSupportedExtensions));
+      std::memcpy(param_value, MockSupportedExtensions,
+                  sizeof(MockSupportedExtensions));
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(MockSupportedExtensions);
+    return PI_SUCCESS;
+  }
+  }
+  return PI_SUCCESS;
+}
+
 void preparePiMock(unittest::PiMock &Mock) {
   Mock.redefine<detail::PiApiKind::piextEnqueueReadHostPipe>(
       redefinedEnqueueReadHostPipe);
@@ -120,32 +140,20 @@ protected:
 };
 
 TEST_F(PipeTest, Basic) {
+  // Fake extension
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(after_piDeviceGetInfo);
 
   // Device registration
   static sycl::unittest::PiImage Img = generateDefaultImage();
   static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
-  // Get the hostpipe
-  const void *HostPipePtr = Pipe::get_host_ptr();
-  detail::HostPipeMapEntry *HostPipeEntry =
-      detail::ProgramManager::getInstance().getHostPipeEntry(HostPipePtr);
-  const std::string PipeName = HostPipeEntry->MUniqueId;
-
-  // Testing read
+  //Testing read
   int HostPipeReadData;
-  void *DataPtrRead = &HostPipeReadData;
-  event ERead = q.submit([=](handler &CGH) {
-    CGH.ext_intel_read_host_pipe(PipeName, DataPtrRead, sizeof(int), true /* blocking */);
-  });
-  ERead.wait();
+  HostPipeReadData = Pipe::read(q);
   assert(HostPipeReadData == PipeReadVal);
 
   // Testing write
   int HostPipeWriteData = 9;
-  void *DataPtrWrite = &HostPipeWriteData;
-  event EWrite = q.submit([=](handler &CGH) {
-    CGH.ext_intel_write_host_pipe(PipeName, DataPtrWrite, sizeof(int), true/* blocking */);
-  });
-  EWrite.wait();
+  Pipe::write(q,HostPipeWriteData);
   assert(PipeWriteVal == 9);
 }
