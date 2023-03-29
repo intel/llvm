@@ -13,8 +13,14 @@ if(NOT EXISTS "${SYCL_BUILD_PI_HIP_ROCM_DIR}")
 endif()
 
 # Set HIP include dirs
-set(SYCL_BUILD_PI_HIP_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/include" CACHE STRING "HIP include dir" FORCE)
-set(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hsa/include" CACHE STRING "HSA include dir" FORCE)
+if(NOT DEFINED SYCL_BUILD_PI_HIP_INCLUDE_DIR)
+  set(SYCL_BUILD_PI_HIP_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/include")
+endif()
+
+if(NOT DEFINED SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR)
+  set(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hsa/include")
+endif()
+
 
 if(NOT EXISTS "${SYCL_BUILD_PI_HIP_INCLUDE_DIR}")
   message(FATAL_ERROR "Couldn't find the HIP include directory at '${SYCL_BUILD_PI_HIP_INCLUDE_DIR}',"
@@ -44,7 +50,10 @@ set_target_properties(pi_hip PROPERTIES LINKER_LANGUAGE CXX)
 
 if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
   # Set HIP lib dir
-  set(SYCL_BUILD_PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/lib" CACHE STRING "HIP lib dir" FORCE)
+  if(NOT DEFINED SYCL_BUILD_PI_HIP_LIB_DIR)
+    set(SYCL_BUILD_PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/lib")
+  endif()
+
   if(NOT EXISTS "${SYCL_BUILD_PI_HIP_LIB_DIR}")
     message(FATAL_ERROR "Couldn't find the HIP library directory at '${SYCL_BUILD_PI_HIP_LIB_DIR}',"
                         " please set SYCL_BUILD_PI_HIP_LIB_DIR to the path of the HIP library directory from the ROCm installation.")
