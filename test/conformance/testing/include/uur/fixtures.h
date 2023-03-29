@@ -209,6 +209,45 @@ template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
     ur_queue_handle_t queue;
 };
 
+struct urProfilingQueueTest : urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        ur_queue_property_t props[] = {UR_QUEUE_PROPERTIES_FLAGS,
+                                       UR_QUEUE_FLAG_PROFILING_ENABLE, 0};
+        ASSERT_SUCCESS(
+            urQueueCreate(this->context, this->device, props, &queue));
+    }
+
+    void TearDown() override {
+        if (queue) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+    };
+
+    ur_queue_handle_t queue = nullptr;
+};
+
+template <class T>
+struct urProfilingQueueTestWithParam : urContextTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ur_queue_property_t props[] = {UR_QUEUE_PROPERTIES_FLAGS,
+                                       UR_QUEUE_FLAG_PROFILING_ENABLE, 0};
+        ASSERT_SUCCESS(
+            urQueueCreate(this->context, this->device, props, &queue));
+    }
+
+    void TearDown() override {
+        if (queue) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
+    };
+
+    ur_queue_handle_t queue = nullptr;
+};
+
 struct urMultiQueueTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());

@@ -15,10 +15,12 @@ namespace event {
  * - Execution Status: UR_EVENT_STATUS_COMPLETE
  * - Reference Count: 1
  */
-template <class T> struct urEventTestWithParam : uur::urQueueTestWithParam<T> {
+template <class T>
+struct urEventTestWithParam : uur::urProfilingQueueTestWithParam<T> {
 
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urProfilingQueueTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_WRITE_ONLY,
                                          size, nullptr, &buffer));
 
@@ -36,7 +38,7 @@ template <class T> struct urEventTestWithParam : uur::urQueueTestWithParam<T> {
         if (event) {
             EXPECT_SUCCESS(urEventRelease(event));
         }
-        uur::urQueueTestWithParam<T>::TearDown();
+        uur::urProfilingQueueTestWithParam<T>::TearDown();
     }
 
     const size_t count = 1024;
@@ -51,10 +53,10 @@ template <class T> struct urEventTestWithParam : uur::urQueueTestWithParam<T> {
  * (i.e. urEventRelease and urEventRetain). Does not handle destruction of the
  * event.
  */
-struct urEventReferenceTest : uur::urQueueTest {
+struct urEventReferenceTest : uur::urProfilingQueueTest {
 
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urProfilingQueueTest::SetUp());
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
                                          nullptr, &buffer));
 
@@ -67,7 +69,7 @@ struct urEventReferenceTest : uur::urQueueTest {
         if (buffer) {
             EXPECT_SUCCESS(urMemRelease(buffer));
         }
-        urQueueTest::TearDown();
+        urProfilingQueueTest::TearDown();
     }
 
     const size_t count = 1024;
