@@ -90,15 +90,15 @@ static Optional<Type> getI8Struct(StringRef name,
   return convertedTy;
 }
 
-static unsigned memoryTargetModeToAddressSpace(MemoryTargetMode mtm) {
-  switch (mtm) {
-  case MemoryTargetMode::ConstantBuffer:
-  case MemoryTargetMode::GlobalBuffer:
+static unsigned targetToAddressSpace(Target target) {
+  switch (target) {
+  case Target::ConstantBuffer:
+  case Target::GlobalBuffer:
     return 1;
-  case MemoryTargetMode::Local:
+  case Target::Local:
     return 3;
   default:
-    llvm_unreachable("Invalid MemoryTargetMode for an accessor");
+    llvm_unreachable("Invalid Target for an accessor");
   }
 }
 
@@ -1149,7 +1149,7 @@ public:
   /// Whether the input accessor has atomic access mode.
   static bool hasAtomicAccessor(SYCLAccessorSubscriptOp op) {
     return cast<AccessorType>(op.getAcc().getType().getElementType())
-               .getAccessMode() == MemoryAccessMode::Atomic;
+               .getAccessMode() == AccessMode::Atomic;
   }
 
   /// Whether the input accessor is 1-dimensional.
@@ -1165,7 +1165,7 @@ public:
 
   Value getRef(OpBuilder &builder, Location loc, SYCLAccessorSubscriptOp orig,
                LLVM::LLVMPointerType ptrTy, Value acc, Value index) const {
-    const auto addressSpace = memoryTargetModeToAddressSpace(
+    const auto addressSpace = targetToAddressSpace(
         cast<AccessorType>(orig.getAcc().getType().getElementType())
             .getTargetMode());
     const auto gepPtrTy =
@@ -1318,9 +1318,11 @@ public:
     const auto loc = op.getLoc();
     const auto atomicTy = cast<AtomicType>(op.getType());
     auto *typeConverter = getTypeConverter();
-    const auto ptrTy = cast<LLVM::LLVMPointerType>(typeConverter->convertType(
-        MemRefType::get(ShapedType::kDynamic, atomicTy.getDataType(), {},
-                        static_cast<unsigned>(atomicTy.getAddrSpace()))));
+    auto *context = op.getContext();
+    const auto ptrTy =
+        cast<LLVM::LLVMPointerType>(typeConverter->convertType(MemRefType::get(
+            ShapedType::kDynamic, atomicTy.getDataType(), AffineMap{},
+            AccessAddrSpaceAttr::get(context, atomicTy.getAddrSpace()))));
     const Value undef = rewriter.create<LLVM::UndefOp>(
         loc, typeConverter->convertType(atomicTy));
     const auto ptr = AccessorSubscriptPattern::getRef(

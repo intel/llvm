@@ -16,6 +16,7 @@
 include "mlir/IR/OpBase.td"
 include "mlir/IR/AttrTypeBase.td"
 
+include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.td"
 include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
@@ -161,11 +162,11 @@ def SYCL_AccessorType
   let description = [{ Accessor to a buffer object.}];
   let parameters = (ins "::mlir::Type":$type,
                         "unsigned":$dimension,
-                        "mlir::sycl::MemoryAccessMode":$accessMode,
-                        "mlir::sycl::MemoryTargetMode":$targetMode,
+                        "::mlir::sycl::AccessMode":$accessMode,
+                        "mlir::sycl::Target":$targetMode,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat =
-      "`<` `[` $dimension `,` $type `,` ` ` custom<MemoryAccessMode>($accessMode) `,` ` ` custom<MemoryTargetMode>($targetMode) `]` `,` `(` $body `)` `>`";
+      "`<` `[` $dimension `,` $type `,` ` ` $accessMode `,` ` ` $targetMode `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_AccessorSubscriptType :
@@ -185,7 +186,7 @@ def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
   let parameters = (ins "::mlir::Type":$dataType,
                         "mlir::sycl::AccessAddrSpace":$addrSpace,
                         ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $dataType `,` custom<AccessAddrSpace>($addrSpace) `]` `,` `(` $body `)` `>`";
+  let assemblyFormat = "`<` `[` $dataType `,` $addrSpace `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_GroupType : SYCL_Type<"Group", "group"> {
@@ -238,10 +239,10 @@ def SYCL_LocalAccessorBaseType
         [SYCLInheritanceTypeTrait<"AccessorCommonType">]> {
   let parameters = (ins "::mlir::Type":$type,
                         "unsigned":$dimension,
-                        "mlir::sycl::MemoryAccessMode":$accessMode,
+                        "::mlir::sycl::AccessMode":$accessMode,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat =
-      "`<` `[` $dimension `,` $type `,` ` ` custom<MemoryAccessMode>($accessMode) `]` `,` `(` $body `)` `>`";
+      "`<` `[` $dimension `,` $type `,` ` ` $accessMode `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_LocalAccessorType
@@ -269,9 +270,9 @@ def SYCL_MinimumType : SYCL_Type<"Minimum", "minimum"> {
 def SYCL_MultiPtrType : SYCL_Type<"MultiPtr", "multi_ptr"> {
   let parameters = (ins "::mlir::Type":$dataType,
                         "mlir::sycl::AccessAddrSpace":$addrSpace,
-                        "mlir::sycl::DecoratedAccess":$decAccess,
+                        "mlir::sycl::AccessDecorated":$decAccess,
                         ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $dataType `,` ` ` custom<AccessAddrSpace>($addrSpace) `,` ` ` custom<DecoratedAccess>($decAccess) `]` `,` `(` $body `)` `>`";
+  let assemblyFormat = "`<` `[` $dataType `,` ` ` $addrSpace `,` ` ` $decAccess `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_NdItemType : SYCL_Type<"NdItem", "nd_item"> {

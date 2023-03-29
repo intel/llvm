@@ -31,6 +31,7 @@ endif()
 add_mlir_dialect_library(MLIRSYCLDialect
   SYCLTraits.cpp
   SYCLOps.cpp
+  SYCLOpsAttributes.cpp
   SYCLOpsDialect.cpp
   SYCLOpsTypes.cpp
   MethodUtils.cpp

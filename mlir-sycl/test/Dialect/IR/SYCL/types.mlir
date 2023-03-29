@@ -204,11 +204,11 @@ func.func @swizzled_vec_1(%arg0: !sycl_swizzled_vec_i32_2_1) attributes {llvm.li
 // ATOMIC
 ////////////////////////////////////////////////////////////////////////////////
 
-!sycl_atomic_f32_3_ = !sycl.atomic<[f32,3], (memref<?xf32, 3>)>
-!sycl_atomic_i32_1_ = !sycl.atomic<[i32,1], (memref<?xi32, 1>)>
+!sycl_atomic_f32_loc = !sycl.atomic<[f32, local], (memref<?xf32, 3>)>
+!sycl_atomic_i32_glo = !sycl.atomic<[i32, global], (memref<?xi32, 1>)>
 
-// CHECK: func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !sycl_atomic_f32_3_, %arg1: !sycl_atomic_i32_1_)
-func.func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !sycl_atomic_f32_3_, %arg1: !sycl_atomic_i32_1_) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !sycl_atomic_f32_loc, %arg1: !sycl_atomic_i32_glo)
+func.func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !sycl_atomic_f32_loc, %arg1: !sycl_atomic_i32_glo) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
 
@@ -217,10 +217,10 @@ func.func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !
 // multi_ptr
 ////////////////////////////////////////////////////////////////////////////////
 
-!sycl_multi_ptr_i32_1_ = !sycl.multi_ptr<[i32, 1, 1], (memref<?xi32, 1>)>
+!sycl_multi_ptr_i32_glo = !sycl.multi_ptr<[i32, global, yes], (memref<?xi32, 1>)>
 
-// CHECK: func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(%arg0: !sycl_multi_ptr_i32_1_)
-func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(%arg0: !sycl_multi_ptr_i32_1_) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(%arg0: !sycl_multi_ptr_i32_glo)
+func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(%arg0: !sycl_multi_ptr_i32_glo) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
 
