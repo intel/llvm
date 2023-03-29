@@ -1,0 +1,378 @@
+= sycl_ext_oneapi_complex_marray
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Codeplay Ltd.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+The complex marray extension builds on the `sycl::ext::oneapi::complex` class,
+therefore this extension is dependent on
+link:sycl_ext_oneapi_complex.asciidoc[sycl_ext_oneapi_complex].
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+[NOTE]
+====
+This extension is not currently implemented in {dpcpp}.
+====
+
+
+== Overview
+
+Following the proposal for `sycl::ext::oneapi::complex`, which adds the support
+of complex for SYCL, this proposal allows for adding new complex math features.
+
+This document proposes the specialization of `sycl::marray` to add support for
+storing complex numbers in arrays.
+
+The proposal includes overloading the existing math functions to support complex
+marrays and adding member functions to simplify accessing, setting marray
+values, and constructing complex marrays.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_COMPLEX_MARRAY` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== Marray Complex Class Specialization
+
+The user interface of the `sycl::marray<sycl::ext::oneapi::complex, N>` class is
+changed compared to the SYCL-2020 generic `sycl::marray` interface.
+
+This proposition changes the marray interface when specialized for the
+`sycl::ext::oneapi::complex` type.
+
+The marray complex specialization is trivially copyable, and the type trait
+`is_device_copyable` should resolve to `std::true_type`.
+
+The marray definition used within this proposal assumes that any operator the
+`sycl::marray` class defines is only implemented if the marray's value type also
+implements the operator.
+
+For example, `sycl::marray<sycl::ext::oneapi::complex, N>` does not implement
+the modulus operator as `sycl::ext::oneapi::complex` does not support it.
+
+```C++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+// Specialization of exiting `marray` class for `sycl::ext::oneapi::complex`
+template <typename T, std::size_t NumElements>
+class marray<sycl::ext::oneapi::complex<T>, NumElements> {
+private:
+  using ComplexDataT = sycl::ext::oneapi::complex<T>;
+
+public:
+  using value_type = ComplexDataT;
+  using reference = ComplexDataT &;
+  using const_reference = const ComplexDataT &;
+  using iterator = ComplexDataT *;
+  using const_iterator = const ComplexDataT *;
+
+public:
+  constexpr marray();
+
+  explicit constexpr marray(const ComplexDataT &arg);
+
+  template <typename... ArgTN>
+  constexpr marray(const ArgTN &... args);
+
+  constexpr marray(const marray<ComplexDataT, NumElements> &rhs);
+  constexpr marray(marray<ComplexDataT, NumElements> &&rhs);
+
+  // Available only when: NumElements == 1
+  template <typename = typename std::enable_if<NumElements == 1>>
+  operator ComplexDataT() const;
+
+  static constexpr std::size_t size() noexcept;
+
+  // real and imag
+  marray<T, NumElements> real() const;
+  marray<T, NumElements> imag() const;
+
+  // subscript operator
+  reference operator[](std::size_t i);
+  const_reference operator[](std::size_t i) const;
+
+  marray<ComplexDataT, NumElements> &operator=(const marray<ComplexDataT, NumElements> &rhs);
+  marray<ComplexDataT, NumElements> &operator=(const ComplexDataT &rhs);
+
+  // iterator functions
+  iterator begin();
+  const_iterator begin() const;
+
+  iterator end();
+  const_iterator end() const;
+
+  // OP is: +, -, *, /
+  friend marray<ComplexDataT, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs);
+  friend marray<ComplexDataT, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs);
+  friend marray<ComplexDataT, NumElements> operator op(const ComplexDataT &lhs, const marray<ComplexDataT, NumElements> &rhs);
+
+  // OP is: %
+  friend marray<ComplexDataT, NumElements> operator%(const marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+  friend marray<ComplexDataT, NumElements> operator%(const marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs) = delete;
+  friend marray<ComplexDataT, NumElements> operator%(const ComplexDataT &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+
+  // OP is: +=, -=, *=, /=
+  friend marray<ComplexDataT, NumElements> &operator op(marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs);
+  friend marray<ComplexDataT, NumElements> &operator op(marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs);
+  friend marray<ComplexDataT, NumElements> &operator op(ComplexDataT &lhs, const marray<ComplexDataT, NumElements> &rhs);
+
+  // OP is: %=
+  friend marray<ComplexDataT, NumElements> &operator%=(marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+  friend marray<ComplexDataT, NumElements> &operator%=(marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs) = delete;
+  friend marray<ComplexDataT, NumElements> &operator%=(ComplexDataT &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+
+  // OP is: ++, --
+  friend marray<ComplexDataT, NumElements> operator op(marray<ComplexDataT, NumElements> &lhs, int rhs) = delete;
+  friend marray<ComplexDataT, NumElements> &operator op(marray<ComplexDataT, NumElements> &rhs) = delete;
+
+  // OP is: unary +, unary -
+  friend marray<ComplexDataT, NumElements> operator op(const marray<ComplexDataT, NumElements> &rhs);
+
+  // OP is: &, |, ^
+  friend marray<ComplexDataT, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+  friend marray<ComplexDataT, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs) = delete;
+
+  // OP is: &=, |=, ^=
+  friend marray<ComplexDataT, NumElements> &operator op(marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+  friend marray<ComplexDataT, NumElements> &operator op(marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs) = delete;
+  friend marray<ComplexDataT, NumElements> &operator op(ComplexDataT &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+
+  // OP is: &&, ||
+  friend marray<bool, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+  friend marray<bool, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs) = delete;
+  friend marray<bool, NumElements> operator op(const ComplexDataT &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+
+  // OP is: <<, >>
+  friend marray<ComplexDataT, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+  friend marray<ComplexDataT, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs) = delete;
+  friend marray<ComplexDataT, NumElements> operator op(const ComplexDataT &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+
+  // OP is: <<=, >>=
+  friend marray<ComplexDataT, NumElements> &operator op(marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+  friend marray<ComplexDataT, NumElements> &operator op(marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs) = delete;
+
+  // OP is: ==, !=
+  friend marray<bool, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs);
+  friend marray<bool, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs);
+  friend marray<bool, NumElements> operator op(const ComplexDataT &lhs, const marray<ComplexDataT, NumElements> &rhs);
+
+  // OP is: <, >, <=, >=
+  friend marray<bool, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+  friend marray<bool, NumElements> operator op(const marray<ComplexDataT, NumElements> &lhs, const ComplexDataT &rhs) = delete;
+  friend marray<bool, NumElements> operator op(const ComplexDataT &lhs, const marray<ComplexDataT, NumElements> &rhs) = delete;
+
+  friend marray<ComplexDataT, NumElements> operator~(const marray<ComplexDataT, NumElements> &v) = delete;
+
+  friend marray<bool, NumElements> operator!(const marray<ComplexDataT, NumElements> &v) = delete;
+};
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+```
+
+The table below shows the new member functions added to the `sycl::marray` type
+when it is specialized with `sycl::ext::oneapi::complex<double>`,
+`sycl::ext::oneapi::complex<float>` or `sycl::ext::oneapi::complex<sycl::half>`.
+
+For the purposes of this specification, we use the generic type name
+`mgencomplex` to represent these three specializations, and `mgenfloat` to
+represent `sycl::marray` of floating-point types.
+
+However, there is no C++ type actually named `mgencomplex` and `mgenfloat`.
+
+[%header,cols="5,5"]
+|===
+|Function
+|Description
+
+|`mgenfloat real() const;`
+|Returns a marray of the real components for marray of complex numbers held by this `marray`.
+|`mgenfloat imag() const;`
+|Returns a marray of the imaginary components for marray of complex numbers held by this `marray`.
+|===
+
+=== Mathematical operations
+
+This proposal extends `sycl::ext::oneapi` namespace math functions to accept
+`mgencomplex` for the SYCL math functions, `abs`, `acos`, `asin`, `atan`,
+`acosh`, `asinh`, `atanh`, `arg`, `conj`, `cos`, `cosh`, `exp`, `log`, `log10`,
+`norm`, `polar`, `pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
+For math functions with two parameters marray-scalar and scalar-marray overloads
+are added.
+
+These functions execute as-if the math operation is performed elementwise across
+the marray.
+
+The proposal additionally adds overloads between marrays and scalar inputs.
+
+Overloads with marray's and scalar parameters should execute the operation
+across the marray while keeping the scalar value constant.
+
+Finally, each math function between each element should follow the C++
+standard for handling `NaN` and `Inf` values.
+
+```C++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+// Compute the magnitude for each complex number in marray x.
+mgenfloat abs(const mgencomplex& x);
+
+// Compute the inverse cosine for each complex number in marray x.
+mgencomplex acos(const mgencomplex& x);
+
+// Compute the inverse sine for each complex number in marray x.
+mgencomplex asin(const mgencomplex& x);
+
+// Compute the inverse tangent for each complex number in marray x.
+mgencomplex atan(const mgencomplex& x);
+
+// Compute the inverse hyperbolic cosine for each complex number in marray x.
+mgencomplex acosh(const mgencomplex& x);
+
+// Compute the inverse hyperbolic sine for each complex number in marray x.
+mgencomplex asinh(const mgencomplex& x);
+
+// Compute the inverse hyperbolic tangent for each complex number in marray x.
+mgencomplex atanh(const mgencomplex& x);
+
+// Compute phase angle in radians for each complex number in marray x.
+mgenfloat arg(const mgencomplex& x);
+
+// Compute the conjugate for each complex number in marray x.
+mgencomplex conj(const mgencomplex& x);
+
+// Compute the cosine for each complex number in marray x.
+mgencomplex cos(const mgencomplex& x);
+
+// Compute the hyperbolic cosine for each complex number in marray x.
+mgencomplex cosh(const mgencomplex& x);
+
+// Compute the base-e exponent for each complex number in marray x.
+mgencomplex exp(const mgencomplex& x);
+
+// Compute the natural log for each complex number in marray x.
+mgencomplex log(const mgencomplex& x);
+
+// Compute the base-10 log for each complex number in marray x.
+mgencomplex log10(const mgencomplex& x);
+
+// Compute the squared magnitude for each complex number in marray x.
+mgenfloat norm(const mgencomplex& x);
+
+// Construct an marray, elementwise, of complex numbers from each polar coordinate in marray rho and marray theta.
+mgencomplex polar(const mgenfloat& rho, const mgenfloat& theta);
+// Construct an marray, elementwise, of complex numbers from each polar coordinate in marray rho and scalar theta.
+mgencomplex polar(const mgenfloat& rho, genfloat theta = 0);
+// Construct an marray, elementwise, of complex numbers from each polar coordinate in scalar rho and marray theta.
+mgencomplex polar(genfloat rho, const mgenfloat& theta);
+
+// Raise each complex element in x to the power of the corresponding decimal element in y.
+mgencomplex pow(const mgencomplex& x, const mgenfloat& y);
+// Raise each complex element in x to the power of the decimal number y.
+mgencomplex pow(const mgencomplex& x, genfloat y);
+// Raise complex number x to the power of each decimal element in y.
+mgencomplex pow(const gencomplex& x, const mgenfloat& y);
+
+// Raise each complex element in x to the power of the corresponding complex element in y.
+mgencomplex pow(const mgencomplex& x, const mgencomplex& y);
+// Raise each complex element in x to the power of the complex number y.
+mgencomplex pow(const mgencomplex& x, const gencomplex& y);
+// Raise complex number x to the power of each complex element in y.
+mgencomplex pow(const gencomplex& x, const mgencomplex& y);
+
+// Raise each decimal element in x to the power of the corresponding complex element in y.
+mgencomplex pow(const mgenfloat& x, const mgencomplex& y);
+// Raise each decimal element in x to the power of the complex number y.
+mgencomplex pow(const mgenfloat& x, const gencomplex& y);
+// Raise decimal number x to the power of each complex element in y.
+mgencomplex pow(genfloat x, const mgencomplex& y);
+
+// Compute the projection for each complex number in marray x.
+mgencomplex proj(const mgencomplex& x);
+// Compute the projection for each real number in marray x.
+mgencomplex proj(const mgenfloat& x);
+
+// Compute the sine for each complex number in marray x.
+mgencomplex sin(const mgencomplex& x);
+
+// Compute the hyperbolic sine for each complex number in marray x.
+mgencomplex sinh(const mgencomplex& x);
+
+// Compute the square root for each complex number in marray x.
+mgencomplex sqrt(const mgencomplex& x);
+
+// Compute the tangent for each complex number in marray x.
+mgencomplex tan(const mgencomplex& x);
+
+// Compute the hyperbolic tangent for each complex number in marray x.
+mgencomplex tanh(const mgencomplex& x);
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+```
