@@ -635,7 +635,7 @@ class ur_context_properties_t(Structure):
 ## @brief Supported context info
 class ur_context_info_v(IntEnum):
     NUM_DEVICES = 0                                 ## [uint32_t] The number of the devices in the context
-    DEVICES = 1                                     ## [::ur_context_handle_t...] The array of the device handles in the
+    DEVICES = 1                                     ## [::ur_device_handle_t ...] The array of the device handles in the
                                                     ## context
     REFERENCE_COUNT = 2                             ## [uint32_t] Reference count of the context object.
                                                     ## The reference count returned should be considered immediately stale. 
@@ -979,11 +979,11 @@ class ur_usm_type_t(c_int):
 ###############################################################################
 ## @brief USM memory allocation information type
 class ur_usm_alloc_info_v(IntEnum):
-    TYPE = 0                                        ## Memory allocation type info
-    BASE_PTR = 1                                    ## Memory allocation base pointer info
-    SIZE = 2                                        ## Memory allocation size info
-    DEVICE = 3                                      ## Memory allocation device info
-    POOL = 4                                        ## Memory allocation pool info
+    TYPE = 0                                        ## [::ur_usm_type_t] Memory allocation type info
+    BASE_PTR = 1                                    ## [void *] Memory allocation base pointer info
+    SIZE = 2                                        ## [size_t] Memory allocation size info
+    DEVICE = 3                                      ## [::ur_device_handle_t] Memory allocation device info
+    POOL = 4                                        ## [::ur_usm_pool_handle_t] Memory allocation pool info
 
 class ur_usm_alloc_info_t(c_int):
     def __str__(self):

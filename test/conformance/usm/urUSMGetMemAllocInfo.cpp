@@ -1,6 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 
+#include <map>
 #include <uur/fixtures.h>
 
 using urUSMAllocInfoTest =
@@ -14,12 +15,26 @@ UUR_TEST_SUITE_P(urUSMAllocInfoTest,
                                    UR_USM_ALLOC_INFO_POOL),
                  uur::deviceTestWithParamPrinter<ur_usm_alloc_info_t>);
 
+static std::unordered_map<ur_usm_alloc_info_t, size_t> usm_info_size_map = {
+    {UR_USM_ALLOC_INFO_TYPE, sizeof(ur_usm_type_t)},
+    {UR_USM_ALLOC_INFO_BASE_PTR, sizeof(void *)},
+    {UR_USM_ALLOC_INFO_SIZE, sizeof(size_t)},
+    {UR_USM_ALLOC_INFO_DEVICE, sizeof(ur_device_handle_t)},
+    {UR_USM_ALLOC_INFO_POOL, sizeof(ur_usm_pool_handle_t)},
+};
+
 TEST_P(urUSMAllocInfoTest, Success) {
     size_t size = 0;
     auto alloc_info = getParam();
     ASSERT_SUCCESS(
         urUSMGetMemAllocInfo(context, ptr, alloc_info, 0, nullptr, &size));
     ASSERT_NE(size, 0);
+
+    if (const auto expected_size = usm_info_size_map.find(alloc_info);
+        expected_size != usm_info_size_map.end()) {
+        ASSERT_EQ(expected_size->second, size);
+    }
+
     std::vector<uint8_t> info_data(size);
     ASSERT_SUCCESS(urUSMGetMemAllocInfo(context, ptr, alloc_info, size,
                                         info_data.data(), nullptr));
