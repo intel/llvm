@@ -1,4 +1,4 @@
-//==----- joint_matrix_bfloat16_32x64.cpp  - DPC++ joint_matrix-------------==//
+//==-------- joint_matrix_all_sizes.cpp  - DPC++ joint_matrix---------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,8 +11,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// XFAIL: *
-
 #include <iostream>
 #include <sycl/sycl.hpp>
 
@@ -22,4 +20,4 @@ using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 8
 
-#include "../joint_matrix_bfloat16_32x64_impl.hpp"
+#include "../joint_matrix_all_sizes_impl.hpp"
