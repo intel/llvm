@@ -12,11 +12,16 @@
 #include "CodeCompletionStrings.h"
 #include "Config.h"
 #include "FindTarget.h"
+#include "IncludeCleaner.h"
 #include "ParsedAST.h"
 #include "Selection.h"
 #include "SourceCode.h"
+#include "clang-include-cleaner/Analysis.h"
+#include "clang-include-cleaner/Types.h"
 #include "index/SymbolCollector.h"
+#include "support/Logger.h"
 #include "support/Markup.h"
+#include "support/Trace.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/ASTTypeTraits.h"
@@ -43,11 +48,13 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/raw_ostream.h"
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace clang {
 namespace clangd {
@@ -393,10 +400,10 @@ void fillFunctionTypeAndParams(HoverInfo &HI, const Decl *D,
 // 100   => 0x64
 // Negative numbers are sign-extended to 32/64 bits
 // -2    => 0xfffffffe
-// -2^32 => 0xfffffffeffffffff
+// -2^32 => 0xffffffff00000000
 static llvm::FormattedNumber printHex(const llvm::APSInt &V) {
-  uint64_t Bits = V.getExtValue();
-  if (V.isNegative() && V.getMinSignedBits() <= 32)
+  uint64_t Bits = V.getZExtValue();
+  if (V.isNegative() && V.getSignificantBits() <= 32)
     return llvm::format_hex(uint32_t(Bits), 0);
   return llvm::format_hex(Bits, 0);
 }
@@ -430,7 +437,7 @@ std::optional<std::string> printExprValue(const Expr *E,
 
   // Show enums symbolically, not numerically like APValue::printPretty().
   if (T->isEnumeralType() && Constant.Val.isInt() &&
-      Constant.Val.getInt().getMinSignedBits() <= 64) {
+      Constant.Val.getInt().getSignificantBits() <= 64) {
     // Compare to int64_t to avoid bit-width match requirements.
     int64_t Val = Constant.Val.getInt().getExtValue();
     for (const EnumConstantDecl *ECD :
@@ -442,7 +449,7 @@ std::optional<std::string> printExprValue(const Expr *E,
   }
   // Show hex value of integers if they're at least 10 (or negative!)
   if (T->isIntegralOrEnumerationType() && Constant.Val.isInt() &&
-      Constant.Val.getInt().getMinSignedBits() <= 64 &&
+      Constant.Val.getInt().getSignificantBits() <= 64 &&
       Constant.Val.getInt().uge(10))
     return llvm::formatv("{0} ({1})", Constant.Val.getAsString(Ctx, T),
                          printHex(Constant.Val.getInt()))
@@ -1084,6 +1091,49 @@ const NamedDecl *pickDeclToUse(llvm::ArrayRef<const NamedDecl *> Candidates) {
   return Candidates.front();
 }
 
+void maybeAddSymbolProviders(ParsedAST &AST, HoverInfo &HI,
+                             include_cleaner::Symbol Sym) {
+  trace::Span Tracer("Hover::maybeAddSymbolProviders");
+
+  const SourceManager &SM = AST.getSourceManager();
+  llvm::SmallVector<include_cleaner::Header> RankedProviders =
+      include_cleaner::headersForSymbol(Sym, SM, AST.getPragmaIncludes());
+  if (RankedProviders.empty())
+    return;
+
+  std::string Result;
+  include_cleaner::Includes ConvertedIncludes =
+      convertIncludes(SM, AST.getIncludeStructure().MainFileIncludes);
+  for (const auto &P : RankedProviders) {
+    if (P.kind() == include_cleaner::Header::Physical &&
+        P.physical() == SM.getFileEntryForID(SM.getMainFileID()))
+      // Main file ranked higher than any #include'd file
+      break;
+
+    // Pick the best-ranked #include'd provider
+    auto Matches = ConvertedIncludes.match(P);
+    if (!Matches.empty()) {
+      Result = Matches[0]->quote();
+      break;
+    }
+  }
+
+  if (!Result.empty()) {
+    HI.Provider = std::move(Result);
+    return;
+  }
+
+  // Pick the best-ranked non-#include'd provider
+  const auto &H = RankedProviders.front();
+  if (H.kind() == include_cleaner::Header::Physical &&
+      H.physical() == SM.getFileEntryForID(SM.getMainFileID()))
+    // Do not show main file as provider, otherwise we'll show provider info
+    // on local variables, etc.
+    return;
+
+  HI.Provider = spellHeader(AST, SM.getFileEntryForID(SM.getMainFileID()), H);
+}
+
 } // namespace
 
 std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
@@ -1131,6 +1181,12 @@ std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
       HighlightRange = Tok.range(SM).toCharRange(SM);
       if (auto M = locateMacroAt(Tok, AST.getPreprocessor())) {
         HI = getHoverContents(*M, Tok, AST);
+        if (auto DefLoc = M->Info->getDefinitionLoc(); DefLoc.isValid()) {
+          include_cleaner::Macro IncludeCleanerMacro{
+              AST.getPreprocessor().getIdentifierInfo(Tok.text(SM)), DefLoc};
+          maybeAddSymbolProviders(AST, *HI,
+                                  include_cleaner::Symbol{IncludeCleanerMacro});
+        }
         break;
       }
     } else if (Tok.kind() == tok::kw_auto || Tok.kind() == tok::kw_decltype) {
@@ -1168,6 +1224,7 @@ std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
         if (!HI->Value)
           HI->Value = printExprValue(N, AST.getASTContext());
         maybeAddCalleeArgInfo(N, *HI, PP);
+        maybeAddSymbolProviders(AST, *HI, include_cleaner::Symbol{*DeclToUse});
       } else if (const Expr *E = N->ASTNode.get<Expr>()) {
         HI = getHoverContents(N, E, AST, PP, Index);
       } else if (const Attr *A = N->ASTNode.get<Attr>()) {
@@ -1216,6 +1273,14 @@ markup::Document HoverInfo::present() const {
     Header.appendText(index::getSymbolKindString(Kind)).appendSpace();
   assert(!Name.empty() && "hover triggered on a nameless symbol");
   Header.appendCode(Name);
+
+  if (!Provider.empty()) {
+    markup::Paragraph &DI = Output.addParagraph();
+    DI.appendText("provided by");
+    DI.appendSpace();
+    DI.appendCode(Provider);
+    Output.addRuler();
+  }
 
   // Put a linebreak after header to increase readability.
   Output.addRuler();

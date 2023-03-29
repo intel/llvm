@@ -87,6 +87,7 @@ MODULE_PASS("name-anon-globals", NameAnonGlobalPass())
 MODULE_PASS("no-op-module", NoOpModulePass())
 MODULE_PASS("objc-arc-apelim", ObjCARCAPElimPass())
 MODULE_PASS("partial-inliner", PartialInlinerPass())
+MODULE_PASS("memprof-context-disambiguation", MemProfContextDisambiguation())
 MODULE_PASS("pgo-icall-prom", PGOIndirectCallPromotion())
 MODULE_PASS("pgo-instr-gen", PGOInstrumentationGen())
 MODULE_PASS("pgo-instr-use", PGOInstrumentationUse())
@@ -197,7 +198,6 @@ CGSCC_ANALYSIS("pass-instrumentation", PassInstrumentationAnalysis(PIC))
 #endif
 CGSCC_PASS("argpromotion", ArgumentPromotionPass())
 CGSCC_PASS("invalidate<all>", InvalidateAllAnalysesPass())
-CGSCC_PASS("function-attrs", PostOrderFunctionAttrsPass())
 CGSCC_PASS("attributor-cgscc", AttributorCGSCCPass())
 CGSCC_PASS("openmp-opt-cgscc", OpenMPOptCGSCCPass())
 CGSCC_PASS("no-op-cgscc", NoOpCGSCCPass())
@@ -220,6 +220,13 @@ CGSCC_PASS_WITH_PARAMS("coro-split",
                        },
                        parseCoroSplitPassOptions,
                        "reuse-storage")
+CGSCC_PASS_WITH_PARAMS("function-attrs",
+                       "PostOrderFunctionAttrsPass",
+                       [](bool SkipNonRecursive) {
+                         return PostOrderFunctionAttrsPass(SkipNonRecursive);
+                       },
+                       parsePostOrderFunctionAttrsPassOptions,
+                       "skip-non-recursive")
 #undef CGSCC_PASS_WITH_PARAMS
 
 #ifndef FUNCTION_ANALYSIS

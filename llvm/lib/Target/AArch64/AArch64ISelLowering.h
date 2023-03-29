@@ -618,6 +618,8 @@ public:
   bool shouldReduceLoadWidth(SDNode *Load, ISD::LoadExtType ExtTy,
                              EVT NewVT) const override;
 
+  bool shouldRemoveRedundantExtend(SDValue Op) const override;
+
   bool isTruncateFree(Type *Ty1, Type *Ty2) const override;
   bool isTruncateFree(EVT VT1, EVT VT2) const override;
 
@@ -915,7 +917,7 @@ public:
                               SDValue Chain, SDValue InFlag,
                               SDValue PStateSM, bool Entry) const;
 
-  bool isVScaleKnownToBeAPowerOfTwo() const override;
+  bool isVScaleKnownToBeAPowerOfTwo() const override { return true; }
 
   // Normally SVE is only used for byte size vectors that do not fit within a
   // NEON vector. This changes when OverrideNEON is true, allowing SVE to be
@@ -930,8 +932,7 @@ private:
   bool isExtFreeImpl(const Instruction *Ext) const override;
 
   void addTypeForNEON(MVT VT);
-  void addTypeForStreamingSVE(MVT VT);
-  void addTypeForFixedLengthSVE(MVT VT);
+  void addTypeForFixedLengthSVE(MVT VT, bool StreamingSVE);
   void addDRTypeForNEON(MVT VT);
   void addQRTypeForNEON(MVT VT);
 
@@ -1055,6 +1056,8 @@ private:
   SDValue LowerVECTOR_SPLICE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINSERT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerVECTOR_DEINTERLEAVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerVECTOR_INTERLEAVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerDIV(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerMUL(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVectorSRA_SRL_SHL(SDValue Op, SelectionDAG &DAG) const;
@@ -1087,6 +1090,7 @@ private:
   SDValue LowerWindowsDYNAMIC_STACKALLOC(SDValue Op, SDValue Chain,
                                          SDValue &Size,
                                          SelectionDAG &DAG) const;
+  SDValue LowerAVG(SDValue Op, SelectionDAG &DAG, unsigned NewOp) const;
 
   SDValue LowerFixedLengthVectorIntDivideToSVE(SDValue Op,
                                                SelectionDAG &DAG) const;

@@ -1593,7 +1593,7 @@ void Sema::PushOnScopeChains(NamedDecl *D, Scope *S, bool AddToContext) {
 }
 
 bool Sema::isDeclInScope(NamedDecl *D, DeclContext *Ctx, Scope *S,
-                         bool AllowInlineNamespace) {
+                         bool AllowInlineNamespace) const {
   return IdResolver.isDeclInScope(D, Ctx, S, AllowInlineNamespace);
 }
 
@@ -7726,7 +7726,12 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
     // If we have any template parameter lists that don't directly belong to
     // the variable (matching the scope specifier), store them.
-    unsigned VDTemplateParamLists = TemplateParams ? 1 : 0;
+    // An explicit variable template specialization does not own any template
+    // parameter lists.
+    bool IsExplicitSpecialization =
+        IsVariableTemplateSpecialization && !IsPartialSpecialization;
+    unsigned VDTemplateParamLists =
+        (TemplateParams && !IsExplicitSpecialization) ? 1 : 0;
     if (TemplateParamLists.size() > VDTemplateParamLists)
       NewVD->setTemplateParameterListsInfo(
           Context, TemplateParamLists.drop_back(VDTemplateParamLists));
@@ -9363,6 +9368,12 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
           ParamKind == InvalidKernelParam)
         return ParamKind;
 
+      // OpenCL v3.0 s6.11.a:
+      // A restriction to pass pointers to pointers only applies to OpenCL C
+      // v1.2 or below.
+      if (S.getLangOpts().getOpenCLCompatibleVersion() > 120)
+        return ValidKernelParam;
+
       return PtrPtrKernelParam;
     }
 
@@ -9389,6 +9400,11 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
         !IsStandardLayoutType)
       return InvalidKernelParam;
     }
+
+    // OpenCL v1.2 s6.9.p:
+    // A restriction to pass pointers only applies to OpenCL C v1.2 or below.
+    if (S.getLangOpts().getOpenCLCompatibleVersion() > 120)
+      return ValidKernelParam;
 
     return PtrKernelParam;
   }
@@ -9456,13 +9472,8 @@ static void checkIsValidOpenCLKernelParameter(
     // OpenCL v3.0 s6.11.a:
     // A kernel function argument cannot be declared as a pointer to a pointer
     // type. [...] This restriction only applies to OpenCL C 1.2 or below.
-    if (S.getLangOpts().getOpenCLCompatibleVersion() <= 120) {
-      S.Diag(Param->getLocation(), diag::err_opencl_ptrptr_kernel_param);
-      D.setInvalidType();
-      return;
-    }
-
-    ValidTypes.insert(PT.getTypePtr());
+    S.Diag(Param->getLocation(), diag::err_opencl_ptrptr_kernel_param);
+    D.setInvalidType();
     return;
 
   case InvalidAddrSpacePtrKernelParam:
@@ -9580,7 +9591,8 @@ static void checkIsValidOpenCLKernelParameter(
       // OpenCL v1.2 s6.9.p:
       // Arguments to kernel functions that are declared to be a struct or union
       // do not allow OpenCL objects to be passed as elements of the struct or
-      // union.
+      // union. This restriction was lifted in OpenCL v2.0 with the introduction
+      // of SVM.
       if (ParamType == PtrKernelParam || ParamType == PtrPtrKernelParam ||
           ParamType == InvalidAddrSpacePtrKernelParam) {
         S.Diag(Param->getLocation(),
@@ -14934,7 +14946,11 @@ ParmVarDecl *Sema::CheckParameter(DeclContext *DC, SourceLocation StartLoc,
       // OpenCL allows function arguments declared to be an array of a type
       // to be qualified with an address space.
       !(getLangOpts().OpenCL &&
-        (T->isArrayType() || T.getAddressSpace() == LangAS::opencl_private))) {
+        (T->isArrayType() || T.getAddressSpace() == LangAS::opencl_private)) &&
+      // WebAssembly allows reference types as parameters. Funcref in particular
+      // lives in a different address space.
+      !(T->isFunctionPointerType() &&
+        T.getAddressSpace() == LangAS::wasm_funcref)) {
     Diag(NameLoc, diag::err_arg_with_address_space);
     New->setInvalidDecl();
   }
@@ -19163,7 +19179,7 @@ static bool isRepresentableIntegerValue(ASTContext &Context,
       --BitWidth;
     return Value.getActiveBits() <= BitWidth;
   }
-  return Value.getMinSignedBits() <= BitWidth;
+  return Value.getSignificantBits() <= BitWidth;
 }
 
 // Given an integral type, return the next larger integral type
@@ -19698,8 +19714,8 @@ void Sema::ActOnEnumBody(SourceLocation EnumLoc, SourceRange BraceRange,
       unsigned ActiveBits = InitVal.getActiveBits();
       NumPositiveBits = std::max({NumPositiveBits, ActiveBits, 1u});
     } else {
-      NumNegativeBits = std::max(NumNegativeBits,
-                                 (unsigned)InitVal.getMinSignedBits());
+      NumNegativeBits =
+          std::max(NumNegativeBits, (unsigned)InitVal.getSignificantBits());
     }
   }
 

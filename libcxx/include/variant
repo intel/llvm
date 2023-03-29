@@ -210,10 +210,12 @@ namespace std {
 #include <__compare/compare_three_way_result.h>
 #include <__compare/three_way_comparable.h>
 #include <__config>
+#include <__exception/exception.h>
 #include <__functional/hash.h>
 #include <__functional/invoke.h>
 #include <__functional/operations.h>
 #include <__functional/unary_function.h>
+#include <__memory/addressof.h>
 #include <__type_traits/add_const.h>
 #include <__type_traits/add_cv.h>
 #include <__type_traits/add_pointer.h>
@@ -231,12 +233,13 @@ namespace std {
 #include <__type_traits/remove_const.h>
 #include <__type_traits/type_identity.h>
 #include <__type_traits/void_t.h>
+#include <__utility/declval.h>
 #include <__utility/forward.h>
 #include <__utility/in_place.h>
 #include <__utility/move.h>
 #include <__utility/swap.h>
 #include <__variant/monostate.h>
-#include <exception>
+#include <__verbose_abort>
 #include <initializer_list>
 #include <limits>
 #include <new>
@@ -288,7 +291,7 @@ void __throw_bad_variant_access() {
 #ifndef _LIBCPP_HAS_NO_EXCEPTIONS
         throw bad_variant_access();
 #else
-        _VSTD::abort();
+    _LIBCPP_VERBOSE_ABORT("bad_variant_access was thrown in -fno-exceptions mode");
 #endif
 }
 
@@ -1831,6 +1834,7 @@ _LIBCPP_END_NAMESPACE_STD
 _LIBCPP_POP_MACROS
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <exception>
 #  include <type_traits>
 #  include <typeinfo>
 #  include <utility>

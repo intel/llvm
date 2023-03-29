@@ -89,7 +89,7 @@ void mlir::linalg::transformIndexOps(
     RewriterBase &b, LinalgOp op, SmallVectorImpl<Value> &ivs,
     const LoopIndexToRangeIndexMap &loopIndexToRangeIndex) {
   SmallVector<Value> allIvs(op.getNumLoops(), nullptr);
-  for (auto &en : enumerate(allIvs)) {
+  for (auto en : enumerate(allIvs)) {
     auto rangeIndex = loopIndexToRangeIndex.find(en.index());
     if (rangeIndex == loopIndexToRangeIndex.end())
       continue;
@@ -388,12 +388,13 @@ static FailureOr<ForallTilingResult> tileToForallOpImpl(
     }
 
     // 4. Tile the cloned op and delete the clone.
-    SmallVector<Operation *> tiledOps =
+    FailureOr<TilingResult> tilingResult =
         cast<TilingInterface>(clonedOp).getTiledImplementation(b, tiledOffsets,
                                                                tiledSizes);
     b.eraseOp(clonedOp);
-    assert(tiledOps.size() == 1 && "expected a single produced tiled op");
-    tiledOp = tiledOps.front();
+    assert(tilingResult->tiledOps.size() == 1 &&
+           "expected a single produced tiled op");
+    tiledOp = tilingResult->tiledOps.front();
   }
 
   // 5. Parallel insert back into the result tensor.
@@ -674,7 +675,7 @@ FailureOr<linalg::ForallReductionTilingResult> linalg::tileReductionUsingForall(
         return !isConstantIntValue(ofr, 0);
       }));
   SmallVector<Value> materializedNonZeroNumThreads =
-      getAsValues(b, loc, nonZeroNumThreads);
+      getValueOrCreateConstantIndexOp(b, loc, nonZeroNumThreads);
 
   // 2. Create the ForallOp with an empty region.
   scf::ForallOp forallOp = b.create<scf::ForallOp>(
@@ -691,7 +692,7 @@ FailureOr<linalg::ForallReductionTilingResult> linalg::tileReductionUsingForall(
 
   // 4. Clone the tileable op and update its destination operands to use the
   // output bbArgs of the ForallOp.
-  ValueRange tilingResults;
+  SmallVector<Value> tilingResults;
   ArrayRef<BlockArgument> destBbArgs = forallOp.getOutputBlockArguments();
   {
     // 4.a. RAII guard, inserting within forallOp, before terminator.
@@ -729,12 +730,13 @@ FailureOr<linalg::ForallReductionTilingResult> linalg::tileReductionUsingForall(
 
     // 5. Tile the cloned op and delete the clone.
     if (tileSizes.empty()) {
-      SmallVector<Operation *> tiledOps =
+      FailureOr<TilingResult> tilingResult =
           cast<TilingInterface>(clonedOp).getTiledImplementation(
               b, tiledOffsets, tiledSizes);
-      assert(tiledOps.size() == 1 && "expected a single produced tiled op");
-      tiledOp = tiledOps.front();
-      tilingResults = tiledOp->getResults();
+      assert(tilingResult->tiledOps.size() == 1 &&
+             "expected a single produced tiled op");
+      tiledOp = tilingResult->tiledOps.front();
+      tilingResults = tilingResult->tiledValues;
     } else {
       LinalgTilingOptions options;
       FailureOr<TiledLinalgOp> maybeTiled = tileLinalgOpImpl<scf::ForOp>(

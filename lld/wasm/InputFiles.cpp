@@ -12,6 +12,7 @@
 #include "InputElement.h"
 #include "OutputSegment.h"
 #include "SymbolTable.h"
+#include "lld/Common/Args.h"
 #include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Reproduce.h"
 #include "llvm/Object/Binary.h"
@@ -441,7 +442,7 @@ void ObjFile::parse(bool ignoreComdats) {
   // called directly (i.e. only address taken) don't have to match the defined
   // function's signature.  We cannot do this for directly called functions
   // because those signatures are checked at validation times.
-  // See https://bugs.llvm.org/show_bug.cgi?id=40412
+  // See https://github.com/llvm/llvm-project/issues/39758
   std::vector<bool> isCalledDirectly(wasmObj->getNumberOfSymbols(), false);
   for (const SectionRef &sec : wasmObj->sections()) {
     const WasmSection &section = wasmObj->getWasmSection(sec);
@@ -678,6 +679,48 @@ Symbol *ObjFile::createUndefined(const WasmSymbol &sym, bool isCalledDirectly) {
   llvm_unreachable("unknown symbol kind");
 }
 
+
+StringRef strip(StringRef s) {
+  while (s.starts_with(" ")) {
+    s = s.drop_front();
+  }
+  while (s.ends_with(" ")) {
+    s = s.drop_back();
+  }
+  return s;
+}
+
+void StubFile::parse() {
+  bool first = false;
+
+  for (StringRef line : args::getLines(mb)) {
+    // File must begin with #STUB
+    if (first) {
+      assert(line == "#STUB\n");
+      first = false;
+    }
+
+    // Lines starting with # are considered comments
+    if (line.startswith("#"))
+      continue;
+
+    StringRef sym;
+    StringRef rest;
+    std::tie(sym, rest) = line.split(':');
+    sym = strip(sym);
+    rest = strip(rest);
+
+    symbolDependencies[sym] = {};
+
+    while (rest.size()) {
+      StringRef first;
+      std::tie(first, rest) = rest.split(',');
+      first = strip(first);
+      symbolDependencies[sym].push_back(first);
+    }
+  }
+}
+
 void ArchiveFile::parse() {
   // Parse a MemoryBufferRef as an archive file.
   LLVM_DEBUG(dbgs() << "Parsing library: " << toString(this) << "\n");
@@ -791,7 +834,8 @@ void BitcodeFile::parse() {
   }
   checkArch(t.getArch());
   std::vector<bool> keptComdats;
-  // TODO Support nodeduplicate https://bugs.llvm.org/show_bug.cgi?id=50531
+  // TODO Support nodeduplicate
+  // https://github.com/llvm/llvm-project/issues/49875
   for (std::pair<StringRef, Comdat::SelectionKind> s : obj->getComdatTable())
     keptComdats.push_back(symtab->addComdat(s.first));
 
