@@ -110,8 +110,7 @@ In the SYCL runtime, the device image properties can be accessed to extract the
 associated optimization level. Once the optimization level is available, a query
 is made to the plugin to identify the correct backend option. This backend
 option is added to the existing list of compiler options and is sent to the
-backend. If the plugin returns empty string, then the user is informed of this
-via a warning message.
+backend.
 
 ### Changes to the plugin
 

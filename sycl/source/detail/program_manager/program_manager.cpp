@@ -419,10 +419,6 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (!CompileOpts.empty())
       CompileOpts += " ";
     CompileOpts += std::string(backend_option);
-  } else {
-    // emit warning
-    if (SYCLConfig<SYCL_RT_WARNING_LEVEL>::get() >= 2)
-      std::clog << "Optimization level not propagated to backend";
   }
   if ((Plugin.getBackend() == backend::ext_oneapi_level_zero ||
        Plugin.getBackend() == backend::opencl) &&
