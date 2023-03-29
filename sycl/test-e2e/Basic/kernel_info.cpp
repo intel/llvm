@@ -54,6 +54,18 @@ int main() {
   const size_t prefWGSizeMult = krn.get_info<
       info::kernel_device_specific::preferred_work_group_size_multiple>(dev);
   assert(prefWGSizeMult > 0);
+  const cl_uint maxSgSize =
+      krn.get_info<info::kernel_device_specific::max_sub_group_size>(dev);
+  assert(0 < maxSgSize && maxSgSize <= wgSize);
+  const cl_uint compileSgSize =
+      krn.get_info<info::kernel_device_specific::max_sub_group_size>(dev);
+  assert(compileSgSize <= maxSgSize);
+  const cl_uint maxNumSg =
+      krn.get_info<info::kernel_device_specific::max_num_sub_groups>(dev);
+  assert(0 < maxNumSg);
+  const cl_uint compileNumSg =
+      krn.get_info<info::kernel_device_specific::compile_num_sub_groups>(dev);
+  assert(compileNumSg <= maxNumSg);
 
   try {
     krn.get_info<sycl::info::kernel_device_specific::global_work_size>(dev);
