@@ -529,6 +529,10 @@ public:
       return SPIRVEIS_Debug;
     case DebugInfoEIS::OpenCL_DebugInfo_100:
       return SPIRVEIS_OpenCL_DebugInfo_100;
+    case DebugInfoEIS::NonSemantic_Shader_DebugInfo_100:
+      return SPIRVEIS_NonSemantic_Shader_DebugInfo_100;
+    case DebugInfoEIS::NonSemantic_Shader_DebugInfo_200:
+      return SPIRVEIS_NonSemantic_Shader_DebugInfo_200;
     }
     assert(false && "Unexpected debug info EIS!");
     return SPIRVEIS_Debug;

@@ -157,8 +157,9 @@ public:
   std::optional<Expr<SubscriptInteger>> GetCharLength() const;
 
   std::size_t GetAlignment(const TargetCharacteristics &) const;
-  std::optional<Expr<SubscriptInteger>> MeasureSizeInBytes(
-      FoldingContext &, bool aligned) const;
+  std::optional<Expr<SubscriptInteger>> MeasureSizeInBytes(FoldingContext &,
+      bool aligned,
+      std::optional<std::int64_t> charLength = std::nullopt) const;
 
   std::string AsFortran() const;
   std::string AsFortran(std::string &&charLenExpr) const;
@@ -466,6 +467,11 @@ std::optional<DynamicType> ComparisonType(
     const DynamicType &, const DynamicType &);
 
 bool IsInteroperableIntrinsicType(const DynamicType &);
+
+// Determine whether two derived type specs are sufficiently identical
+// to be considered the "same" type even if declared separately.
+bool AreSameDerivedType(
+    const semantics::DerivedTypeSpec &x, const semantics::DerivedTypeSpec &y);
 
 // For generating "[extern] template class", &c. boilerplate
 #define EXPAND_FOR_EACH_INTEGER_KIND(M, P, S) \

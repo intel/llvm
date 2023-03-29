@@ -38,7 +38,7 @@ pi_result redefinedDevicesGet(pi_platform platform, pi_device_type device_type,
 pi_result redefinedDeviceGetInfo(pi_device device, pi_device_info param_name,
                                  size_t param_value_size, void *param_value,
                                  size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES) {
+  if (param_name == PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES) {
     deviceGetInfoCalled = true;
     if (param_value) {
       pi_memory_order_capabilities *Capabilities =

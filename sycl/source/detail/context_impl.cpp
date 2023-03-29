@@ -198,6 +198,38 @@ context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
 
   return CapabilityList;
 }
+template <>
+std::vector<sycl::memory_order>
+context_impl::get_info<info::context::atomic_fence_order_capabilities>() const {
+  std::vector<sycl::memory_order> CapabilityList{
+      sycl::memory_order::relaxed, sycl::memory_order::acquire,
+      sycl::memory_order::release, sycl::memory_order::acq_rel,
+      sycl::memory_order::seq_cst};
+  if (is_host())
+    return CapabilityList;
+
+  GetCapabilitiesIntersectionSet<sycl::memory_order,
+                                 info::device::atomic_fence_order_capabilities>(
+      MDevices, CapabilityList);
+
+  return CapabilityList;
+}
+template <>
+std::vector<sycl::memory_scope>
+context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
+  std::vector<sycl::memory_scope> CapabilityList{
+      sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
+      sycl::memory_scope::work_group, sycl::memory_scope::device,
+      sycl::memory_scope::system};
+  if (is_host())
+    return CapabilityList;
+
+  GetCapabilitiesIntersectionSet<sycl::memory_scope,
+                                 info::device::atomic_fence_scope_capabilities>(
+      MDevices, CapabilityList);
+
+  return CapabilityList;
+}
 
 RT::PiContext &context_impl::getHandleRef() { return MContext; }
 const RT::PiContext &context_impl::getHandleRef() const { return MContext; }

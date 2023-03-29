@@ -1120,7 +1120,14 @@ code. This issue is expected to be rectified soon.
     <tr>
       <td rowspan=2>Immediate functions (<tt>consteval</tt>)</td>
       <td><a href="https://wg21.link/p1073r3">P1073R3</a></td>
-      <td class="full" align="center">Clang 15</td>
+      <td class="partial" align="center">
+        <details><summary>Clang 15 (Partial)</summary>
+          Clang still incorrectly defers some consteval executions to runtime,
+          resulting in CodeGen crashes. Additionally, Clang does not properly
+          handle default arguments in consteval functions under all
+          circumstances.
+        </details>
+      </td>
     </tr>
       <tr> <!-- from Prague -->
         <td><a href="https://wg21.link/p1937r2">P1937R2</a></td>
@@ -1156,7 +1163,7 @@ code. This issue is expected to be rectified soon.
     <tr>
       <td rowspan="2">Parenthesized initialization of aggregates</td>
       <td><a href="https://wg21.link/p0960r3">P0960R3</a></td>
-      <td rowspan="2" class="unreleased" align="center">Clang 16</td>
+      <td rowspan="2" class="none" align="center">No</td>
     </tr>
       <tr> <!-- from Belfast -->
         <td><a href="https://wg21.link/p1975r0">P1975R0</a></td>
@@ -1215,10 +1222,8 @@ code. This issue is expected to be rectified soon.
       <td><a href="https://wg21.link/p0912r5">P0912R5</a></td>
       <td class="partial" align="center">
         <details><summary>Partial</summary>
-          The optimizer does not yet handle TLS with
-  <tt>__attribute__((const))</tt> attribute correctly. There can be issues where the
-  coroutine may resume on a different thread. <br \>This feature requires further
-  analysis of the C++ Standard to determine what work is necessary for conformance.
+          Fully supported on all targets except Windows, which
+          still has some stability and ABI issues.
         </details></td>
     </tr>
     <!-- Cologne 2019 papers -->
@@ -1366,7 +1371,7 @@ C++20, informally referred to as C++2b.</p>
     <tr>
       <td rowspan=2>Change scope of lambda trailing-return-type</td>
       <td><a href="https://wg21.link/P2036R3">P2036R3</a></td>
-      <td rowspan=2 class="none" align="center">No</td>
+      <td rowspan=2 class="unreleased" align="center">Clang 17</td>
     </tr>
     <tr>
       <td><a href="https://wg21.link/P2579R0">P2579R0</a></td>
