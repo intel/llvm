@@ -1185,6 +1185,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
 
     return ReturnValue(result);
   }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    ur_memory_order_capability_flags_t result =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+
+    return ReturnValue(result);
+  }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    ur_memory_scope_capability_flags_t result =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+
+    return ReturnValue(result);
+  }
 
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     ur_memory_order_capability_flags_t capabilities =

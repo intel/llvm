@@ -859,6 +859,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     // PI_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
     if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
+        !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get() &&
         !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
       assert(!MMarkedForCleanup);
       MMarkedForCleanup = true;

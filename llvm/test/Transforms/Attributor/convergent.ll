@@ -88,9 +88,8 @@ define i32 @calls_defined_with_asm(i32 %a, i32 %b) convergent {
   ret i32 %c
 }
 
-declare void @llvm.memcpy.p0i8.p0i8.i64(i8* %dest, i8* %src, i64 %size, i1 %isVolatile) convergent
-
-define void @calls_intrinsic(i8* %dest, i8* %src, i64 %size) convergent {
+; Use opaque pointer version of calls_intrinsic
+define void @calls_intrinsic(ptr  %dest, ptr %src, i64 %size) convergent {
 ; TUNIT: Function Attrs: convergent nofree norecurse nosync nounwind willreturn memory(argmem: readwrite)
 ; TUNIT-LABEL: define {{[^@]+}}@calls_intrinsic
 ; TUNIT-SAME: (ptr nocapture nofree writeonly [[DEST:%.*]], ptr nocapture nofree readonly [[SRC:%.*]], i64 [[SIZE:%.*]]) #[[ATTR2:[0-9]+]] {
@@ -103,9 +102,14 @@ define void @calls_intrinsic(i8* %dest, i8* %src, i64 %size) convergent {
 ; CGSCC-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr noalias nocapture nofree writeonly [[DEST]], ptr noalias nocapture nofree readonly [[SRC]], i64 [[SIZE]], i1 noundef false) #[[ATTR5]]
 ; CGSCC-NEXT:    ret void
 ;
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %dest, i8* %src, i64 %size, i1 false)
+; Use opaque pointer version of memcpy
+  call void @llvm.memcpy.p0.p0.i64(ptr %dest, ptr %src, i64 %size, i1 false)
   ret void
 }
+
+; Use opaque pointer version of memcpy
+declare void @llvm.memcpy.p0.p0.i64(ptr %dest, ptr %src, i64 %size, i1 %isVolatile) convergent
+
 ;.
 ; TUNIT: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind willreturn memory(none) }
 ; TUNIT: attributes #[[ATTR1]] = { convergent }

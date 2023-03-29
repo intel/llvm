@@ -78,6 +78,8 @@ enum SPIRVExtInstSetKind {
   SPIRVEIS_OpenCL,
   SPIRVEIS_Debug,
   SPIRVEIS_OpenCL_DebugInfo_100,
+  SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+  SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
   SPIRVEIS_Count,
 };
 
@@ -129,6 +131,10 @@ template <> inline void SPIRVMap<SPIRVExtInstSetKind, std::string>::init() {
   add(SPIRVEIS_OpenCL, "OpenCL.std");
   add(SPIRVEIS_Debug, "SPIRV.debug");
   add(SPIRVEIS_OpenCL_DebugInfo_100, "OpenCL.DebugInfo.100");
+  add(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+      "NonSemantic.Shader.DebugInfo.100");
+  add(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+      "NonSemantic.Shader.DebugInfo.200");
 }
 typedef SPIRVMap<SPIRVExtInstSetKind, std::string> SPIRVBuiltinSetNameMap;
 
@@ -197,6 +203,16 @@ template <> inline void SPIRVMap<SPIRVCapabilityKind, SPIRVCapVec>::init() {
                {CapabilitySubgroupAvcMotionEstimationINTEL});
   ADD_VEC_INIT(CapabilitySubgroupAvcMotionEstimationChromaINTEL,
                {CapabilitySubgroupAvcMotionEstimationIntraINTEL});
+  ADD_VEC_INIT(internal::CapabilityJointMatrixWIInstructionsINTEL,
+               {internal::CapabilityJointMatrixINTEL});
+  ADD_VEC_INIT(internal::CapabilityJointMatrixTF32ComponentTypeINTEL,
+               {internal::CapabilityJointMatrixINTEL});
+  ADD_VEC_INIT(internal::CapabilityJointMatrixBF16ComponentTypeINTEL,
+               {internal::CapabilityJointMatrixINTEL});
+  ADD_VEC_INIT(internal::CapabilityJointMatrixPackedInt2ComponentTypeINTEL,
+               {internal::CapabilityJointMatrixINTEL});
+  ADD_VEC_INIT(internal::CapabilityJointMatrixPackedInt4ComponentTypeINTEL,
+               {internal::CapabilityJointMatrixINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVExecutionModelKind, SPIRVCapVec>::init() {
@@ -261,6 +277,8 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(internal::ExecutionModeFastCompositeKernelINTEL,
                {internal::CapabilityFastCompositeINTEL});
+  ADD_VEC_INIT(ExecutionModeRegisterMapInterfaceINTEL,
+               {CapabilityFPGAKernelAttributesv2INTEL});
   ADD_VEC_INIT(ExecutionModeStreamingInterfaceINTEL,
                {CapabilityFPGAKernelAttributesINTEL});
   ADD_VEC_INIT(ExecutionModeNamedBarrierCountINTEL,
