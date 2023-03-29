@@ -171,10 +171,12 @@ private:
 
   /// Replace the argument at position \p pos in the region \p callableRgn with
   /// \p newArgs. The reference parameter \p newArgAttrs is filled with the new
-  /// argument attributes.
+  /// argument attributes. The boolean \p useNoAliasAttrForNewArgs indicate
+  /// whether to add the 'noalias' attribute on the new arguments.
   void replaceArgumentWith(unsigned pos, Region &callableRgn,
                            const SmallVector<Value> &newArgs,
-                           SmallVector<Attribute> &newArgAttrs) const;
+                           SmallVector<Attribute> &newArgAttrs,
+                           bool useNoAliasAttrForNewArgs) const;
 
   /// Replace uses of the argument \p origArg in the region \p callableRgn
   /// with the arguments starting at position \p pos in the callable region.
@@ -308,7 +310,9 @@ void Candidate::modifyCallee() {
 
     // Replace the argument at 'pos' with the new arguments we peeled.
     const SmallVector<Value> &newArgs = operandToMembersPeeled[origPos];
-    replaceArgumentWith(pos, callableRgn, newArgs, newArgAttrs);
+    bool useNoAliasAttrForNewArgs = (operandToMembersPeeled.size() == 1);
+    replaceArgumentWith(pos, callableRgn, newArgs, newArgAttrs,
+                        useNoAliasAttrForNewArgs);
 
     // Delete the original argument.
     pos += newArgs.size();
@@ -337,16 +341,25 @@ void Candidate::peelOperands() {
 
 void Candidate::replaceArgumentWith(unsigned pos, Region &callableRgn,
                                     const SmallVector<Value> &newArgs,
-                                    SmallVector<Attribute> &newArgAttrs) const {
+                                    SmallVector<Attribute> &newArgAttrs,
+                                    bool useNoAliasAttrForNewArgs) const {
   assert(!newArgs.empty() && "Expecting a non-empty vector");
 
   Value origArg = callableRgn.getArgument(pos);
+  MLIRContext *ctx = callableRgn.getContext();
 
   for (unsigned offset = 0; offset < newArgs.size(); ++offset) {
     callableRgn.insertArgument(pos + offset, newArgs[offset].getType(),
                                callableRgn.getLoc());
-    // TODO: add attribute NoAlias on the new argument.
-    newArgAttrs.push_back(Attribute());
+    if (useNoAliasAttrForNewArgs) {
+      NamedAttribute noAliasAttr(
+          StringAttr::get(ctx, LLVM::LLVMDialect::getDialectNamespace() + "." +
+                                   llvm::Attribute::getNameFromAttrKind(
+                                       llvm::Attribute::NoAlias)),
+          UnitAttr::get(ctx));
+      newArgAttrs.push_back(DictionaryAttr::get(ctx, {noAliasAttr}));
+    } else
+      newArgAttrs.push_back(Attribute());
   }
 
   // Replace uses of the original argument with the new arguments injected.

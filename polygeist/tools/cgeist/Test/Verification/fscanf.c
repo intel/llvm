@@ -38,9 +38,9 @@ int* alloc() {
 // CHECK-NEXT:    %7 = arith.index_cast %6 : i64 to index
 // CHECK-NEXT:    %8 = arith.divui %7, %c4 : index
 // CHECK-NEXT:    %[[i8:.+]] = memref.alloc(%8) : memref<?xi32>
-// CHECK-NEXT:    %[[n:.+]] = arith.index_cast %4 : i32 to index
-// CHECK-NEXT:      %[[i9:.+]] = llvm.mlir.addressof @str1 : !llvm.ptr<array<4 x i8>>
-// CHECK-NEXT:      %[[i10:.+]] = llvm.getelementptr inbounds %[[i9]][0, 0] : (!llvm.ptr<array<4 x i8>>) -> !llvm.ptr<i8>
+// CHECK-DAG:     %[[n:.+]] = arith.index_cast %4 : i32 to index
+// CHECK-DAG:     %[[i9:.+]] = llvm.mlir.addressof @str1 : !llvm.ptr<array<4 x i8>>
+// CHECK-DAG:     %[[i10:.+]] = llvm.getelementptr inbounds %[[i9]][0, 0] : (!llvm.ptr<array<4 x i8>>) -> !llvm.ptr<i8>
 // CHECK-NEXT:    scf.for %arg0 = %c0 to %[[n]] step %c1 {
 // CHECK-NEXT:      %[[i13:.+]] = llvm.call @__isoc99_scanf(%[[i10]], %0) : (!llvm.ptr<i8>, !llvm.ptr<i32>) -> i32
 // CHECK-NEXT:      %[[i12:.+]] = llvm.load %0 : !llvm.ptr<i32>

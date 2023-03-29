@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "alias-analysis"
@@ -30,15 +32,18 @@ static bool isFuncArg(Value val) {
 }
 
 // Return true if the value \p val is a function argument that has the
-// 'local_alias_analysis.restrict' attribute, and false otherwise.
+// 'llvm.noalias' attribute, and false otherwise.
 static bool isRestrict(Value val) {
   if (!isFuncArg(val))
     return false;
 
   auto blockArg = cast<BlockArgument>(val);
   auto func = cast<FunctionOpInterface>(blockArg.getOwner()->getParentOp());
-  return !!func.getArgAttr(blockArg.getArgNumber(),
-                           "local_alias_analysis.restrict");
+  auto noAliasAttr = StringAttr::get(
+      val.getContext(),
+      LLVM::LLVMDialect::getDialectNamespace() + "." +
+          llvm::Attribute::getNameFromAttrKind(llvm::Attribute::NoAlias));
+  return !!func.getArgAttr(blockArg.getArgNumber(), noAliasAttr);
 }
 
 // Return true is the given type \p ty is a MemRef type with a SYCL element
