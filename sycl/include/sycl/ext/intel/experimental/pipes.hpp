@@ -104,11 +104,11 @@ public:
 
     const void *HostPipePtr = &m_Storage;
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
-    void *DataPtr = &Data;
+    void *DataPtr = const_cast<void *>(&Data);
 
     event E = Q.submit([=](handler &CGH) {
       CGH.ext_intel_write_host_pipe(
-          PipeName, (void *)DataPtr, sizeof(_dataT) /* non-blocking */);
+          PipeName, DataPtr, sizeof(_dataT) /* non-blocking */);
     });
     E.wait();
     Success = E.get_info<sycl::info::event::command_execution_status>() ==
@@ -249,7 +249,7 @@ public:
     }
     const void *HostPipePtr = &m_Storage;
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
-    void *DataPtr = &Data;
+    void *DataPtr = const_cast<void *>(&Data);
     event E = Q.submit([=](handler &CGH) {
       CGH.ext_intel_write_host_pipe(PipeName, (void *)DataPtr,
                                          sizeof(_dataT), true /*blocking */);
