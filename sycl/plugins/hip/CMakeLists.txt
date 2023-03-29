@@ -33,6 +33,8 @@ if(NOT EXISTS "${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}")
 endif()
 
 set(HIP_HEADERS "${SYCL_BUILD_PI_HIP_INCLUDE_DIR};${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}")
+unset(SYCL_BUILD_PI_HIP_INCLUDE_DIR CACHE)
+unset(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR CACHE)
 
 # Create pi_hip library
 add_sycl_plugin(hip
@@ -68,6 +70,7 @@ if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
       INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
       INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
   )
+  unset(SYCL_BUILD_PI_HIP_LIB_DIR CACHE)
   target_link_libraries(pi_hip PUBLIC rocmdrv)
 
   # Set HIP define to select AMD platform
