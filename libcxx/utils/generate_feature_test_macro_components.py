@@ -488,6 +488,10 @@ feature_test_macros = [ add_version_header(x) for x in [
     "values": { "c++17": 201603 },
     "headers": ["memory_resource"],
   }, {
+    "name": "__cpp_lib_move_iterator_concept",
+    "values": { "c++20": 202207 },
+    "headers": ["iterator"],
+   }, {
     "name": "__cpp_lib_move_only_function",
     "values": { "c++2b": 202110 },
     "headers": ["functional"],
@@ -534,6 +538,10 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_ranges",
     "values": { "c++20": 202106 },
     "headers": ["algorithm", "functional", "iterator", "memory", "ranges"],
+  }, {
+    "name": "__cpp_lib_ranges_as_rvalue",
+    "values": { "c++2b": 202207 },
+    "headers": ["ranges"],
   }, {
     "name": "__cpp_lib_ranges_chunk",
     "values": { "c++2b": 202202 },

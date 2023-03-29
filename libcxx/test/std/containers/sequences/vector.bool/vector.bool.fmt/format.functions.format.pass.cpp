@@ -11,6 +11,9 @@
 // TODO FMT Fix this test using GCC, it currently times out.
 // UNSUPPORTED: gcc-12
 
+// TODO FMT This test should not require std::to_chars(floating-point)
+// XFAIL: availability-fp_to_chars-missing
+
 // <vector>
 
 // template<class T, class charT>

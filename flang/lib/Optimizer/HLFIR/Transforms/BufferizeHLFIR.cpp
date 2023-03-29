@@ -15,23 +15,20 @@
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "flang/Optimizer/Builder/HLFIRTools.h"
-#include "flang/Optimizer/Builder/IntrinsicCall.h"
-#include "flang/Optimizer/Builder/MutableBox.h"
 #include "flang/Optimizer/Builder/Runtime/Assign.h"
 #include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
+#include "flang/Optimizer/Dialect/Support/FIRContext.h"
 #include "flang/Optimizer/HLFIR/HLFIRDialect.h"
 #include "flang/Optimizer/HLFIR/HLFIROps.h"
 #include "flang/Optimizer/HLFIR/Passes.h"
-#include "flang/Optimizer/Support/FIRContext.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include <mlir/Support/LogicalResult.h>
-#include <optional>
 
 namespace hlfir {
 #define GEN_PASS_DEF_BUFFERIZEHLFIR
@@ -294,20 +291,31 @@ struct AssociateOpConversion
   matchAndRewrite(hlfir::AssociateOp associate, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = associate->getLoc();
-    // If this is the last use of the expression value and this is an hlfir.expr
-    // that was bufferized, re-use the storage.
-    // Otherwise, create a temp and assign the storage to it.
+    auto module = associate->getParentOfType<mlir::ModuleOp>();
+    fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
     mlir::Value bufferizedExpr = getBufferizedExprStorage(adaptor.getSource());
     const bool isTrivialValue = fir::isa_trivial(bufferizedExpr.getType());
 
     auto replaceWith = [&](mlir::Value hlfirVar, mlir::Value firVar,
                            mlir::Value flag) {
+      hlfirVar =
+          builder.createConvert(loc, associate.getResultTypes()[0], hlfirVar);
       associate.getResult(0).replaceAllUsesWith(hlfirVar);
+      mlir::Type associateFirVarType = associate.getResultTypes()[1];
+      if (firVar.getType().isa<fir::BaseBoxType>() &&
+          !associateFirVarType.isa<fir::BaseBoxType>())
+        firVar =
+            builder.create<fir::BoxAddrOp>(loc, associateFirVarType, firVar);
+      else
+        firVar = builder.createConvert(loc, associateFirVarType, firVar);
       associate.getResult(1).replaceAllUsesWith(firVar);
       associate.getResult(2).replaceAllUsesWith(flag);
       rewriter.replaceOp(associate, {hlfirVar, firVar, flag});
     };
 
+    // If this is the last use of the expression value and this is an hlfir.expr
+    // that was bufferized, re-use the storage.
+    // Otherwise, create a temp and assign the storage to it.
     if (!isTrivialValue && allOtherUsesAreDestroys(associate.getSource(),
                                                    associate.getOperation())) {
       // Re-use hlfir.expr buffer if this is the only use of the hlfir.expr
@@ -321,8 +329,6 @@ struct AssociateOpConversion
       return mlir::success();
     }
     if (isTrivialValue) {
-      auto module = associate->getParentOfType<mlir::ModuleOp>();
-      fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
       auto temp = builder.createTemporary(loc, bufferizedExpr.getType(),
                                           associate.getUniqName());
       builder.create<fir::StoreOp>(loc, bufferizedExpr, temp);
@@ -501,187 +507,6 @@ struct ElementalOpConversion
   }
 };
 
-/// Base class for passes converting transformational intrinsic operations into
-/// runtime calls
-template <class OP>
-class HlfirIntrinsicConversion : public mlir::OpConversionPattern<OP> {
-  using mlir::OpConversionPattern<OP>::OpConversionPattern;
-
-protected:
-  struct IntrinsicArgument {
-    mlir::Value val; // allowed to be null if the argument is absent
-    mlir::Type desiredType;
-  };
-
-  /// Lower the arguments to the intrinsic: adding nesecarry boxing and
-  /// conversion to match the signature of the intrinsic in the runtime library.
-  llvm::SmallVector<fir::ExtendedValue, 3>
-  lowerArguments(mlir::Operation *op,
-                 const llvm::ArrayRef<IntrinsicArgument> &args,
-                 mlir::ConversionPatternRewriter &rewriter,
-                 const fir::IntrinsicArgumentLoweringRules *argLowering) const {
-    mlir::Location loc = op->getLoc();
-    fir::KindMapping kindMapping{rewriter.getContext()};
-    fir::FirOpBuilder builder{rewriter, kindMapping};
-
-    llvm::SmallVector<fir::ExtendedValue, 3> ret;
-
-    for (size_t i = 0; i < args.size(); ++i) {
-      mlir::Value arg = args[i].val;
-      mlir::Type desiredType = args[i].desiredType;
-      if (!arg) {
-        ret.emplace_back(fir::getAbsentIntrinsicArgument());
-        continue;
-      }
-      hlfir::Entity entity{arg};
-
-      fir::ArgLoweringRule argRules =
-          fir::lowerIntrinsicArgumentAs(*argLowering, i);
-      switch (argRules.lowerAs) {
-      case fir::LowerIntrinsicArgAs::Value: {
-        if (args[i].desiredType != arg.getType()) {
-          arg = builder.createConvert(loc, desiredType, arg);
-          entity = hlfir::Entity{arg};
-        }
-        auto [exv, cleanup] = hlfir::convertToValue(loc, builder, entity);
-        if (cleanup)
-          TODO(loc, "extended value cleanup");
-        ret.emplace_back(exv);
-      } break;
-      case fir::LowerIntrinsicArgAs::Addr: {
-        auto [exv, cleanup] =
-            hlfir::convertToAddress(loc, builder, entity, desiredType);
-        if (cleanup)
-          TODO(loc, "extended value cleanup");
-        ret.emplace_back(exv);
-      } break;
-      case fir::LowerIntrinsicArgAs::Box: {
-        auto [box, cleanup] =
-            hlfir::convertToBox(loc, builder, entity, desiredType);
-        if (cleanup)
-          TODO(loc, "extended value cleanup");
-        ret.emplace_back(box);
-      } break;
-      case fir::LowerIntrinsicArgAs::Inquired: {
-        if (args[i].desiredType != arg.getType()) {
-          arg = builder.createConvert(loc, desiredType, arg);
-          entity = hlfir::Entity{arg};
-        }
-        // Place hlfir.expr in memory, and unbox fir.boxchar. Other entities
-        // are translated to fir::ExtendedValue without transofrmation (notably,
-        // pointers/allocatable are not dereferenced).
-        // TODO: once lowering to FIR retires, UBOUND and LBOUND can be
-        // simplified since the fir.box lowered here are now guarenteed to
-        // contain the local lower bounds thanks to the hlfir.declare (the extra
-        // rebox can be removed).
-        auto [exv, cleanup] =
-            hlfir::translateToExtendedValue(loc, builder, entity);
-        if (cleanup)
-          TODO(loc, "extended value cleanup");
-        ret.emplace_back(exv);
-      } break;
-      }
-    }
-
-    return ret;
-  }
-
-  void processReturnValue(mlir::Operation *op,
-                          const fir::ExtendedValue &resultExv, bool mustBeFreed,
-                          fir::FirOpBuilder &builder,
-                          mlir::PatternRewriter &rewriter) const {
-    mlir::Location loc = op->getLoc();
-
-    mlir::Value firBase = fir::getBase(resultExv);
-    mlir::Type firBaseTy = firBase.getType();
-
-    std::optional<hlfir::EntityWithAttributes> resultEntity;
-    if (fir::isa_trivial(firBaseTy)) {
-      resultEntity = hlfir::EntityWithAttributes{firBase};
-    } else {
-      resultEntity =
-          hlfir::genDeclare(loc, builder, resultExv, ".tmp.intrinsic_result",
-                            fir::FortranVariableFlagsAttr{});
-    }
-
-    if (resultEntity->isVariable()) {
-      hlfir::AsExprOp asExpr = builder.create<hlfir::AsExprOp>(
-          loc, *resultEntity, builder.createBool(loc, mustBeFreed));
-      resultEntity = hlfir::EntityWithAttributes{asExpr.getResult()};
-    }
-
-    rewriter.replaceOp(op, resultEntity->getBase());
-  }
-};
-
-struct SumOpConversion : public HlfirIntrinsicConversion<hlfir::SumOp> {
-  using HlfirIntrinsicConversion<hlfir::SumOp>::HlfirIntrinsicConversion;
-
-  mlir::LogicalResult
-  matchAndRewrite(hlfir::SumOp sum, OpAdaptor adaptor,
-                  mlir::ConversionPatternRewriter &rewriter) const override {
-    fir::KindMapping kindMapping{rewriter.getContext()};
-    fir::FirOpBuilder builder{rewriter, kindMapping};
-    const mlir::Location &loc = sum->getLoc();
-    HLFIRListener listener{builder, rewriter};
-    builder.setListener(&listener);
-
-    mlir::Type i32 = builder.getI32Type();
-    mlir::Type logicalType = fir::LogicalType::get(
-        builder.getContext(), builder.getKindMap().defaultLogicalKind());
-
-    llvm::SmallVector<IntrinsicArgument, 3> inArgs;
-    inArgs.push_back({sum.getArray(), sum.getArray().getType()});
-    inArgs.push_back({sum.getDim(), i32});
-    inArgs.push_back({sum.getMask(), logicalType});
-
-    auto *argLowering = fir::getIntrinsicArgumentLowering("sum");
-    llvm::SmallVector<fir::ExtendedValue, 3> args =
-        lowerArguments(sum, inArgs, rewriter, argLowering);
-
-    mlir::Type scalarResultType = hlfir::getFortranElementType(sum.getType());
-
-    auto [resultExv, mustBeFreed] =
-        fir::genIntrinsicCall(builder, loc, "sum", scalarResultType, args);
-
-    processReturnValue(sum, resultExv, mustBeFreed, builder, rewriter);
-    return mlir::success();
-  }
-};
-
-struct MatmulOpConversion : public HlfirIntrinsicConversion<hlfir::MatmulOp> {
-  using HlfirIntrinsicConversion<hlfir::MatmulOp>::HlfirIntrinsicConversion;
-
-  mlir::LogicalResult
-  matchAndRewrite(hlfir::MatmulOp matmul, OpAdaptor adaptor,
-                  mlir::ConversionPatternRewriter &rewriter) const override {
-    fir::KindMapping kindMapping{rewriter.getContext()};
-    fir::FirOpBuilder builder{rewriter, kindMapping};
-    const mlir::Location &loc = matmul->getLoc();
-    HLFIRListener listener{builder, rewriter};
-    builder.setListener(&listener);
-
-    mlir::Value lhs = matmul.getLhs();
-    mlir::Value rhs = matmul.getRhs();
-    llvm::SmallVector<IntrinsicArgument, 2> inArgs;
-    inArgs.push_back({lhs, lhs.getType()});
-    inArgs.push_back({rhs, rhs.getType()});
-
-    auto *argLowering = fir::getIntrinsicArgumentLowering("matmul");
-    llvm::SmallVector<fir::ExtendedValue, 2> args =
-        lowerArguments(matmul, inArgs, rewriter, argLowering);
-
-    mlir::Type scalarResultType =
-        hlfir::getFortranElementType(matmul.getType());
-
-    auto [resultExv, mustBeFreed] =
-        fir::genIntrinsicCall(builder, loc, "matmul", scalarResultType, args);
-
-    processReturnValue(matmul, resultExv, mustBeFreed, builder, rewriter);
-    return mlir::success();
-  }
-};
-
 class BufferizeHLFIR : public hlfir::impl::BufferizeHLFIRBase<BufferizeHLFIR> {
 public:
   void runOnOperation() override {
@@ -695,11 +520,11 @@ public:
     auto module = this->getOperation();
     auto *context = &getContext();
     mlir::RewritePatternSet patterns(context);
-    patterns.insert<
-        ApplyOpConversion, AsExprOpConversion, AssignOpConversion,
-        AssociateOpConversion, ConcatOpConversion, DestroyOpConversion,
-        ElementalOpConversion, EndAssociateOpConversion, MatmulOpConversion,
-        NoReassocOpConversion, SetLengthOpConversion, SumOpConversion>(context);
+    patterns
+        .insert<ApplyOpConversion, AsExprOpConversion, AssignOpConversion,
+                AssociateOpConversion, ConcatOpConversion, DestroyOpConversion,
+                ElementalOpConversion, EndAssociateOpConversion,
+                NoReassocOpConversion, SetLengthOpConversion>(context);
     mlir::ConversionTarget target(*context);
     target.addIllegalOp<hlfir::ApplyOp, hlfir::AssociateOp, hlfir::ElementalOp,
                         hlfir::EndAssociateOp, hlfir::SetLengthOp,
