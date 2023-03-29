@@ -58,7 +58,7 @@ int main() {
       krn.get_info<info::kernel_device_specific::max_sub_group_size>(dev);
   assert(0 < maxSgSize && maxSgSize <= wgSize);
   const cl_uint compileSgSize =
-      krn.get_info<info::kernel_device_specific::max_sub_group_size>(dev);
+      krn.get_info<info::kernel_device_specific::compile_sub_group_size>(dev);
   assert(compileSgSize <= maxSgSize);
   const cl_uint maxNumSg =
       krn.get_info<info::kernel_device_specific::max_num_sub_groups>(dev);
