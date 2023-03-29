@@ -1,7 +1,102 @@
 // Copyright (C) 2022-2023 Intel Corporation
 // SPDX-License-Identifier: MIT
 
+#include <map>
 #include <uur/fixtures.h>
+
+static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
+    {UR_DEVICE_INFO_TYPE, sizeof(ur_device_type_t)},
+    {UR_DEVICE_INFO_VENDOR_ID, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_DEVICE_ID, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MAX_COMPUTE_UNITS, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t)},
+    {UR_DEVICE_INFO_SINGLE_FP_CONFIG, sizeof(ur_fp_capability_flag_t)},
+    {UR_DEVICE_INFO_HALF_FP_CONFIG, sizeof(ur_fp_capability_flag_t)},
+    {UR_DEVICE_INFO_DOUBLE_FP_CONFIG, sizeof(ur_fp_capability_flag_t)},
+    {UR_DEVICE_INFO_QUEUE_PROPERTIES, sizeof(ur_queue_flags_t)},
+    {UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MEMORY_CLOCK_RATE, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_ADDRESS_BITS, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE, sizeof(uint64_t)},
+    {UR_DEVICE_INFO_IMAGE_SUPPORTED, sizeof(bool)},
+    {UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH, sizeof(size_t)},
+    {UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT, sizeof(size_t)},
+    {UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH, sizeof(size_t)},
+    {UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT, sizeof(size_t)},
+    {UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH, sizeof(size_t)},
+    {UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE, sizeof(size_t)},
+    {UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE, sizeof(size_t)},
+    {UR_DEVICE_INFO_MAX_SAMPLERS, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MAX_PARAMETER_SIZE, sizeof(size_t)},
+    {UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE, sizeof(ur_device_mem_cache_type_t)},
+    {UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE, sizeof(uint64_t)},
+    {UR_DEVICE_INFO_GLOBAL_MEM_SIZE, sizeof(uint64_t)},
+    {UR_DEVICE_INFO_GLOBAL_MEM_FREE, sizeof(uint64_t)},
+    {UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE, sizeof(uint64_t)},
+    {UR_DEVICE_INFO_MAX_CONSTANT_ARGS, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_LOCAL_MEM_TYPE, sizeof(ur_device_local_mem_type_t)},
+    {UR_DEVICE_INFO_LOCAL_MEM_SIZE, sizeof(uint64_t)},
+    {UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT, sizeof(bool)},
+    {UR_DEVICE_INFO_HOST_UNIFIED_MEMORY, sizeof(bool)},
+    {UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION, sizeof(size_t)},
+    {UR_DEVICE_INFO_ENDIAN_LITTLE, sizeof(bool)},
+    {UR_DEVICE_INFO_AVAILABLE, sizeof(bool)},
+    {UR_DEVICE_INFO_COMPILER_AVAILABLE, sizeof(bool)},
+    {UR_DEVICE_INFO_LINKER_AVAILABLE, sizeof(bool)},
+    {UR_DEVICE_INFO_EXECUTION_CAPABILITIES,
+     sizeof(ur_device_exec_capability_flags_t)},
+    {UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES, sizeof(ur_queue_flags_t)},
+    {UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES, sizeof(ur_queue_flags_t)},
+    {UR_DEVICE_INFO_PLATFORM, sizeof(ur_platform_handle_t)},
+    {UR_DEVICE_INFO_REFERENCE_COUNT, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_PRINTF_BUFFER_SIZE, sizeof(size_t)},
+    {UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC, sizeof(bool)},
+    {UR_DEVICE_INFO_PARENT_DEVICE, sizeof(ur_device_handle_t)},
+    {UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN,
+     sizeof(ur_device_affinity_domain_flags_t)},
+    {UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS, sizeof(bool)},
+    {UR_DEVICE_INFO_USM_HOST_SUPPORT, sizeof(bool)},
+    {UR_DEVICE_INFO_USM_DEVICE_SUPPORT, sizeof(bool)},
+    {UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT, sizeof(bool)},
+    {UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT, sizeof(bool)},
+    {UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT, sizeof(bool)},
+    {UR_DEVICE_INFO_GPU_EU_COUNT, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_GPU_EU_SLICES, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_IMAGE_SRGB, sizeof(bool)},
+    {UR_DEVICE_INFO_ATOMIC_64, sizeof(bool)},
+    {UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+     sizeof(ur_memory_order_capability_flags_t)},
+    {UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
+     sizeof(ur_memory_scope_capability_flags_t)},
+    {UR_DEVICE_INFO_BFLOAT16, sizeof(bool)},
+    {UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS, sizeof(bool)},
+};
 
 struct urDeviceGetInfoTest : uur::urAllDevicesTest,
                              ::testing::WithParamInterface<ur_device_info_t> {
@@ -125,6 +220,10 @@ TEST_P(urDeviceGetInfoTest, Success) {
         size_t size = 0;
         ASSERT_SUCCESS(urDeviceGetInfo(device, info_type, 0, nullptr, &size));
         ASSERT_NE(size, 0);
+        if (const auto expected_size = device_info_size_map.find(info_type);
+            expected_size != device_info_size_map.end()) {
+            ASSERT_EQ(expected_size->second, size);
+        }
         void *info_data = alloca(size);
         ASSERT_SUCCESS(
             urDeviceGetInfo(device, info_type, size, info_data, nullptr));
