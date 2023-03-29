@@ -251,7 +251,7 @@ public:
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
     void *DataPtr = const_cast<void *>(&Data);
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_write_host_pipe(PipeName, (void *)DataPtr,
+      CGH.ext_intel_write_host_pipe(PipeName, DataPtr,
                                          sizeof(_dataT), true /*blocking */);
     });
     E.wait();
