@@ -1,9 +1,33 @@
 // Copyright (C) 2023 Intel Corporation
 // SPDX-License-Identifier: MIT
+#include <map>
 #include <uur/fixtures.h>
 
-using urContextGetInfoTestWithInfoParam =
-    uur::urContextTestWithParam<ur_context_info_t>;
+struct urContextGetInfoTestWithInfoParam
+    : uur::urContextTestWithParam<ur_context_info_t> {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urContextTestWithParam<ur_context_info_t>::SetUp());
+
+        ctx_info_size_map = {
+            {UR_CONTEXT_INFO_NUM_DEVICES, sizeof(uint32_t)},
+            {UR_CONTEXT_INFO_DEVICES,
+             sizeof(ur_device_handle_t) *
+                 uur::DevicesEnvironment::instance->devices.size()},
+            {UR_CONTEXT_INFO_REFERENCE_COUNT, sizeof(uint32_t)},
+            {UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, sizeof(bool)},
+            {UR_CONTEXT_INFO_USM_FILL2D_SUPPORT, sizeof(bool)},
+        };
+    }
+
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urContextTestWithParam<ur_context_info_t>::TearDown());
+    }
+
+    std::unordered_map<ur_context_info_t, size_t> ctx_info_size_map;
+};
 
 UUR_TEST_SUITE_P(urContextGetInfoTestWithInfoParam,
                  ::testing::Values(
@@ -21,6 +45,12 @@ TEST_P(urContextGetInfoTestWithInfoParam, Success) {
     size_t info_size = 0;
     ASSERT_SUCCESS(urContextGetInfo(context, info, 0, nullptr, &info_size));
     ASSERT_NE(info_size, 0);
+
+    if (const auto expected_size = ctx_info_size_map.find(info);
+        expected_size != ctx_info_size_map.end()) {
+        ASSERT_EQ(expected_size->second, info_size);
+    }
+
     std::vector<uint8_t> info_data(info_size);
     ASSERT_SUCCESS(
         urContextGetInfo(context, info, info_size, info_data.data(), nullptr));
