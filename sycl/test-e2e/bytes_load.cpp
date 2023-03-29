@@ -214,6 +214,7 @@ void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
       const auto blocks_per_iter = sg_size * vec_size;
 
       auto max_blocks_consumed_per_wi =
+          // blocks_per_wi < blocks_per_iter ? blocks_per_wi : blocks_per_iter;
           std::min<int>(blocks_per_wi, blocks_per_iter);
 
       using LoadT = std::conditional_t<
@@ -299,6 +300,11 @@ void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
             max_num_blocks /= 2;
         });
 
+        p.print("max_num_blocks:");
+        p.print(max_num_blocks);
+        p.print("global_ptr:");
+        p.print_ptr(global_ptr);
+
         // "Select" type matching *run-time* parameters by  looping over all the
         // types and proceeding with the one matching run-time value.
         //
@@ -323,7 +329,9 @@ void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
         });
       };
 
-      // Some manual unroll for dumps readability.
+
+      if (num_blocks > 0)
+        body();
       if (num_blocks > 0)
         body();
       if (num_blocks > 0)
@@ -340,7 +348,7 @@ void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
 #endif
 }
 
-template <typename T, int ELEMS_PER_WI>
+template <bool blocked, typename T, int ELEMS_PER_WI>
 void test() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   queue q;
@@ -380,13 +388,9 @@ void test() {
            for (int i = 0; i < ELEMS_PER_WI; ++i)
              val[i] = base - i;
 
-           // p.print("Val ptr:");
-           // p.print_ptr(val);
-           // p.print("Val:");
-           // for (int i = 0; i < ELEMS_PER_WI; ++i)
-           //   p.print(val[i]);
-
-           constexpr bool blocked = true;
+           p.print("Val:");
+           for (int i = 0; i < ELEMS_PER_WI; ++i)
+             p.print(val[i]);
 
            if constexpr (blocked) {
              for (int i = 0; i < ELEMS_PER_WI; ++i)
@@ -413,12 +417,12 @@ void test() {
            T res_val[ELEMS_PER_WI];
            std::memcpy(res_val, priv, sizeof(res_val));
 
-           // p.print("Result:");
-           // for (int i = 0; i < ELEMS_PER_WI; ++i)
-           //   p.print(res_val[i]);
+           p.print("Result:");
+           for (int i = 0; i < ELEMS_PER_WI; ++i)
+             p.print(res_val[i]);
 
-           // p.print("Success:");
-           // p.print(success);
+           p.print("Success:");
+           p.print(success);
          });
    }).wait();
 
@@ -431,12 +435,23 @@ void test() {
 
 int main() {
   constexpr int sizes[] = {1, 2, 3, 7, 8, 17, 16, 32, 64, 67};
+#ifndef SINGLE
   loop<std::size(sizes)>([&](auto i) {
     constexpr int size = sizes[i.value];
-    test<char, size>();
-    test<short, size>();
-    test<int, size>();
-    test<long long, size>();
-    test<float, size>();
+    test<true, char, size>();
+    test<true, short, size>();
+    test<true, int, size>();
+    test<true, long long, size>();
+    test<true, float, size>();
+
+    test<false, char, size>();
+    test<false, short, size>();
+    test<false, int, size>();
+    test<false, long long, size>();
+    test<false, float, size>();
   });
+#else
+  test<false, char, 65>();
+#endif
+
 }
