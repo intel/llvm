@@ -1766,8 +1766,10 @@ ur_result_t urDevicePartition(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urInit(ur_device_init_flags_t device_flags) {
+ur_result_t urInit([[maybe_unused]] ur_device_init_flags_t device_flags) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urTearDown(void *pParams) { return UR_RESULT_SUCCESS; }
+ur_result_t urTearDown([[maybe_unused]] void *pParams) {
+  return UR_RESULT_SUCCESS;
+}
