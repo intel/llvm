@@ -158,11 +158,11 @@ params:
       desc: |
             [in] the size of the Kernel property value.           
     - type: "void*"
-      name: pKernelInfo
+      name: pPropValue
       desc: |
             [in,out][optional] array of bytes holding the kernel info property.
             If propSize is not equal to or greater than the real number of bytes needed to return 
-            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pKernelInfo is not used.
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
       name: "pPropSizeRet"
       desc: |

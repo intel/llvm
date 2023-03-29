@@ -470,21 +470,21 @@ params:
       name: hMemory
       desc: "[in] handle to the memory object being queried."
     - type: $x_mem_info_t
-      name: MemInfoType
+      name: propName
       desc: "[in] type of the info to retrieve."
     - type: "size_t"
       name: propSize
-      desc: "[in] the number of bytes of memory pointed to by pMemInfo."
+      desc: "[in] the number of bytes of memory pointed to by pPropValue."
     - type: "void*"
-      name: pMemInfo
+      name: pPropValue
       desc: |
             [out][optional] array of bytes holding the info.
             If propSize is less than the real number of bytes needed to return
-            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pMemInfo is not used.
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
       name: pPropSizeRet
       desc: |
-            [out][optional] pointer to the actual size in bytes of data queried by pMemInfo.
+            [out][optional] pointer to the actual size in bytes of the queried propName.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieve information about an image object."
@@ -501,18 +501,18 @@ params:
       name: hMemory
       desc: "[in] handle to the image object being queried."
     - type: $x_image_info_t
-      name: ImgInfoType
+      name: propName
       desc: "[in] type of image info to retrieve."
     - type: "size_t"
       name: propSize
-      desc: "[in] the number of bytes of memory pointer to by pImgInfo."
+      desc: "[in] the number of bytes of memory pointer to by pPropValue."
     - type: "void*"
-      name: pImgInfo
+      name: pPropValue
       desc: |
             [out][optional] array of bytes holding the info.
             If propSize is less than the real number of bytes needed to return
-            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pImgInfo is not used.
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
       name: pPropSizeRet
       desc: |
-            [out][optional] pointer to the actual size in bytes of data queried by pImgInfo.
+            [out][optional] pointer to the actual size in bytes of the queried propName.

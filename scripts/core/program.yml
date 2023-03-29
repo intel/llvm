@@ -347,15 +347,15 @@ params:
       desc: |
             [in] the size of the Program property.
     - type: "void*"
-      name: pProgramInfo
+      name: pPropValue
       desc: |
             [in,out][optional] array of bytes of holding the program info property.
             If propSize is not equal to or greater than the real number of bytes needed to return 
-            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pProgramInfo is not used.
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
       name: "pPropSizeRet"
       desc: |
-            [out][optional] pointer to the actual size in bytes of data copied to pProgramInfo.
+            [out][optional] pointer to the actual size in bytes of the queried propName.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Program object build status"
@@ -426,7 +426,7 @@ params:
             [in,out][optional] value of the Program build property.
             If propSize is not equal to or greater than the real number of bytes
             needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE
-            error is returned and pKernelInfo is not used.
+            error is returned and pPropValue is not used.
     - type: "size_t*"
       name: pPropSizeRet
       desc: |
