@@ -78,30 +78,30 @@ ur_result_t GetDeviceMaxWorkGroupSize(ur_device_handle_t device,
                                  max_work_group_size);
 }
 
-ur_result_t
-GetDeviceSingleFPCapabilities(ur_device_handle_t device,
-                              ur_fp_capability_flags_t &fp_capabilities) {
-    return GetDeviceInfo<ur_fp_capability_flags_t>(
+ur_result_t GetDeviceSingleFPCapabilities(
+    ur_device_handle_t device,
+    ur_device_fp_capability_flags_t &fp_capabilities) {
+    return GetDeviceInfo<ur_device_fp_capability_flags_t>(
         device, UR_DEVICE_INFO_SINGLE_FP_CONFIG, fp_capabilities);
 }
 
 ur_result_t
 GetDeviceHalfFPCapabilities(ur_device_handle_t device,
-                            ur_fp_capability_flags_t &fp_capabilities) {
-    return GetDeviceInfo<ur_fp_capability_flags_t>(
+                            ur_device_fp_capability_flags_t &fp_capabilities) {
+    return GetDeviceInfo<ur_device_fp_capability_flags_t>(
         device, UR_DEVICE_INFO_HALF_FP_CONFIG, fp_capabilities);
 }
 
-ur_result_t
-GetDeviceDoubleFPCapabilities(ur_device_handle_t device,
-                              ur_fp_capability_flags_t &fp_capabilities) {
-    return GetDeviceInfo<ur_fp_capability_flags_t>(
+ur_result_t GetDeviceDoubleFPCapabilities(
+    ur_device_handle_t device,
+    ur_device_fp_capability_flags_t &fp_capabilities) {
+    return GetDeviceInfo<ur_device_fp_capability_flags_t>(
         device, UR_DEVICE_INFO_DOUBLE_FP_CONFIG, fp_capabilities);
 }
 
 ur_result_t GetDeviceQueueProperties(ur_device_handle_t device,
                                      ur_queue_flags_t &flags) {
-    return GetDeviceInfo<ur_fp_capability_flags_t>(
+    return GetDeviceInfo<ur_device_fp_capability_flags_t>(
         device, UR_DEVICE_INFO_QUEUE_PROPERTIES, flags);
 }
 
