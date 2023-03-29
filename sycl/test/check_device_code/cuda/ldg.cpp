@@ -49,6 +49,7 @@ int main() {
   auto *in_d = sycl::malloc_device<double>(1, q);
 
   auto *in_h2 = sycl::malloc_device<half2>(1, q);
+  auto *in_h4 = sycl::malloc_device<half4>(1, q);
   auto *in_f2 = sycl::malloc_device<float2>(1, q);
   auto *in_d2 = sycl::malloc_device<double2>(1, q);
 
@@ -73,6 +74,11 @@ int main() {
       //CHECK: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0v2f16(<2 x half>* %{{.*}}, i32 4)
       //CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
       auto cached_h2 = ldg(&in_h2[0]);
+      //CHECK: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0v2f16(<2 x half>* %{{.*}}, i32 4)
+      //CHECK: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0v2f16(<2 x half>* %{{.*}}, i32 4)
+      //CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
+      //CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
+      auto cached_h4 = ldg(&in_h4[0]);
       //CHECK: tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0v2f32(<2 x float>* %{{.*}}, i32 8)
       //CHECK-OPAQUE: tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0(ptr %{{.*}}, i32 8)
       auto cached_f2 = ldg(&in_f2[0]);
@@ -170,6 +176,7 @@ int main() {
   free(in_f, q);
   free(in_d, q);
   free(in_h2, q);
+  free(in_h4, q);
   free(in_f2, q);
   free(in_f4, q);
   free(in_d2, q);
