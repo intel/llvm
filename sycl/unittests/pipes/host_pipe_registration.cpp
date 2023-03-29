@@ -108,6 +108,7 @@ pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
       *param_value_size_ret = sizeof(MockSupportedExtensions);
     return PI_SUCCESS;
   }
+  default:;
   }
   return PI_SUCCESS;
 }
