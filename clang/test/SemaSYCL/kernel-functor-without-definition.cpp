@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -verify -fsyntax-only %s
-// This test checks that an error is thrown when a functor without a call operator defined or when a fucntor wothout a definition
-// is used as a kernel.
+// This test checks that an error is thrown when a functor without a call operator defined or 
+// when a functor without a definition is used as a kernel.
 
 #include "sycl.hpp"
 
