@@ -70,8 +70,7 @@ struct ReshapeMemrefOpLowering
   matchAndRewrite(memref::ReshapeOp reshape, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (!canBeLoweredToBarePtr(reshape.getType()) ||
-        !canBeLoweredToBarePtr(
-            reshape.getSource().getType().cast<MemRefType>()))
+        !canBeLoweredToBarePtr(cast<MemRefType>(reshape.getSource().getType())))
       return failure();
 
     rewriter.replaceOp(reshape, adaptor.getSource());
@@ -182,7 +181,7 @@ struct DeallocOpLowering : public ConvertOpToLLVMPattern<memref::DeallocOp> {
   matchAndRewrite(memref::DeallocOp deallocOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (!canBeLoweredToBarePtr(
-            deallocOp.getMemref().getType().cast<MemRefType>()))
+            cast<MemRefType>(deallocOp.getMemref().getType())))
       return failure();
     // Insert the `free` declaration if it is not already present.
     const auto freeFunc =
@@ -198,8 +197,8 @@ struct CastMemrefOpLowering : public ConvertOpToLLVMPattern<memref::CastOp> {
   using ConvertOpToLLVMPattern<memref::CastOp>::ConvertOpToLLVMPattern;
 
   LogicalResult match(memref::CastOp castOp) const override {
-    const auto srcType = castOp.getOperand().getType().cast<MemRefType>();
-    const auto dstType = castOp.getType().cast<MemRefType>();
+    const auto srcType = cast<MemRefType>(castOp.getOperand().getType());
+    const auto dstType = cast<MemRefType>(castOp.getType());
 
     // This will be replaced by an identity function, so we need input and
     // output types to match.
@@ -383,8 +382,7 @@ struct ReshapeMemrefOpLoweringOld
   matchAndRewrite(memref::ReshapeOp reshape, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (!canBeLoweredToBarePtr(reshape.getType()) ||
-        !canBeLoweredToBarePtr(
-            reshape.getSource().getType().cast<MemRefType>()))
+        !canBeLoweredToBarePtr(cast<MemRefType>(reshape.getSource().getType())))
       return failure();
 
     rewriter.replaceOp(reshape, adaptor.getSource());
@@ -494,7 +492,7 @@ struct DeallocOpLoweringOld : public ConvertOpToLLVMPattern<memref::DeallocOp> {
   matchAndRewrite(memref::DeallocOp deallocOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (!canBeLoweredToBarePtr(
-            deallocOp.getMemref().getType().cast<MemRefType>()))
+            cast<MemRefType>(deallocOp.getMemref().getType())))
       return failure();
     // Insert the `free` declaration if it is not already present.
     const auto freeFunc =
@@ -514,8 +512,8 @@ struct CastMemrefOpLoweringOld : public ConvertOpToLLVMPattern<memref::CastOp> {
   using ConvertOpToLLVMPattern<memref::CastOp>::ConvertOpToLLVMPattern;
 
   LogicalResult match(memref::CastOp castOp) const override {
-    const auto srcType = castOp.getOperand().getType().cast<MemRefType>();
-    const auto dstType = castOp.getType().cast<MemRefType>();
+    const auto srcType = cast<MemRefType>(castOp.getOperand().getType());
+    const auto dstType = cast<MemRefType>(castOp.getType());
 
     // This will be replaced by an identity function, so we need input and
     // output types to match.

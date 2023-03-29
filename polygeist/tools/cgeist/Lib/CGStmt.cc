@@ -249,12 +249,12 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *Fors) {
     if (auto *S = Fors->getCond()) {
       auto CondRes = Visit(S);
       auto Cond = CondRes.getValue(Builder);
-      if (auto LT = Cond.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+      if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
         auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
         Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                             NullptrLlvm);
       }
-      auto Ty = Cond.getType().cast<IntegerType>();
+      auto Ty = cast<IntegerType>(Cond.getType());
       if (Ty.getWidth() != 1) {
         Cond = Builder.create<arith::CmpIOp>(
             Loc, arith::CmpIPredicate::ne, Cond,
@@ -333,12 +333,12 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *Fors) {
   if (auto *S = Fors->getCond()) {
     auto CondRes = Visit(S);
     auto Cond = CondRes.getValue(Builder);
-    if (auto LT = Cond.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+    if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
       auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
       Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                           NullptrLlvm);
     }
-    auto Ty = Cond.getType().cast<IntegerType>();
+    auto Ty = cast<IntegerType>(Cond.getType());
     if (Ty.getWidth() != 1) {
       Cond = Builder.create<arith::CmpIOp>(
           Loc, arith::CmpIPredicate::ne, Cond,
@@ -490,10 +490,9 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *Fors) {
 
     bool LLVMABI = false;
     bool IsArray = false;
-    if (Glob.getTypes()
-            .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
-                Name->getType()))
-            .isa<LLVM::LLVMPointerType>())
+    if (isa<LLVM::LLVMPointerType>(Glob.getTypes().getMLIRType(
+            Glob.getCGM().getContext().getLValueReferenceType(
+                Name->getType()))))
       LLVMABI = true;
     else
       Glob.getTypes().getMLIRType(Name->getType(), &IsArray);
@@ -556,10 +555,9 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *Par) {
         bool LLVMABI = false;
         bool IsArray = false;
         Type Ty;
-        if (Glob.getTypes()
-                .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
-                    Name->getType()))
-                .isa<LLVM::LLVMPointerType>()) {
+        if (isa<LLVM::LLVMPointerType>(Glob.getTypes().getMLIRType(
+                Glob.getCGM().getContext().getLValueReferenceType(
+                    Name->getType())))) {
           LLVMABI = true;
           bool Undef;
           Ty = Glob.getTypes().getMLIRType(Name->getType(), &Undef);
@@ -665,10 +663,9 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
 
     bool LLVMABI = false;
     bool IsArray = false;
-    if (Glob.getTypes()
-            .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
-                Name->getType()))
-            .isa<LLVM::LLVMPointerType>())
+    if (isa<LLVM::LLVMPointerType>(Glob.getTypes().getMLIRType(
+            Glob.getCGM().getContext().getLValueReferenceType(
+                Name->getType()))))
       LLVMABI = true;
     else
       Glob.getTypes().getMLIRType(Name->getType(), &IsArray);
@@ -723,12 +720,12 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *Fors) {
   if (auto *S = Fors->getCond()) {
     auto CondRes = Visit(S);
     auto Cond = CondRes.getValue(Builder);
-    if (auto LT = Cond.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+    if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
       auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
       Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                           NullptrLlvm);
     }
-    auto Ty = Cond.getType().cast<IntegerType>();
+    auto Ty = cast<IntegerType>(Cond.getType());
     if (Ty.getWidth() != 1) {
       Cond = Builder.create<arith::CmpIOp>(
           Loc, arith::CmpIPredicate::ne, Cond,
@@ -784,12 +781,12 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *Fors) {
   if (auto *S = Fors->getCond()) {
     auto CondRes = Visit(S);
     auto Cond = CondRes.getValue(Builder);
-    if (auto LT = Cond.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+    if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
       auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
       Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                           NullptrLlvm);
     }
-    auto Ty = Cond.getType().cast<IntegerType>();
+    auto Ty = cast<IntegerType>(Cond.getType());
     if (Ty.getWidth() != 1) {
       Cond = Builder.create<arith::CmpIOp>(
           Loc, arith::CmpIPredicate::ne, Cond,
@@ -826,20 +823,20 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *Stmt) {
 
   auto OldPoint = Builder.getInsertionPoint();
   auto *OldBlock = Builder.getInsertionBlock();
-  if (auto LT = Cond.getType().dyn_cast<MemRefType>()) {
+  if (auto LT = dyn_cast<MemRefType>(Cond.getType())) {
     Cond = Builder.create<polygeist::Memref2PointerOp>(
         Loc, LLVM::LLVMPointerType::get(Builder.getI8Type()), Cond);
   }
-  if (auto LT = Cond.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+  if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
     auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
     Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                         NullptrLlvm);
   }
-  if (!Cond.getType().isa<IntegerType>()) {
+  if (!isa<IntegerType>(Cond.getType())) {
     Stmt->dump();
     llvm::errs() << " cond: " << Cond << " ct: " << Cond.getType() << "\n";
   }
-  auto PrevTy = Cond.getType().cast<IntegerType>();
+  auto PrevTy = cast<IntegerType>(Cond.getType());
   if (!PrevTy.isInteger(1)) {
     Cond = Builder.create<arith::CmpIOp>(
         Loc, arith::CmpIPredicate::ne, Cond,
@@ -965,7 +962,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *Stmt) {
   DenseIntElementsAttr CaseValuesAttr;
   ShapedType CaseValueType =
       VectorType::get(static_cast<int64_t>(CaseVals.size()), Cond.getType());
-  auto Ity = Cond.getType().cast<IntegerType>();
+  auto Ity = cast<IntegerType>(Cond.getType());
   if (Ity.getWidth() == 64)
     CaseValuesAttr = DenseIntElementsAttr::get(CaseValueType, CaseVals);
   else if (Ity.getWidth() == 32) {
@@ -1104,19 +1101,19 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *Stmt) {
     assert(Rv.val && "expect right value to be valid");
     assert(Rv.isReference && "right value must be a reference");
     auto Op = Function.getArgument(Function.getNumArguments() - 1);
-    assert(Rv.val.getType().cast<MemRefType>().getElementType() ==
-               Op.getType().cast<MemRefType>().getElementType() &&
+    assert(cast<MemRefType>(Rv.val.getType()).getElementType() ==
+               cast<MemRefType>(Op.getType()).getElementType() &&
            "type mismatch");
-    assert(Op.getType().cast<MemRefType>().getShape().size() == 2 &&
+    assert(cast<MemRefType>(Op.getType()).getShape().size() == 2 &&
            "expect 2d memref");
-    assert(Rv.val.getType().cast<MemRefType>().getShape().size() == 2 &&
+    assert(cast<MemRefType>(Rv.val.getType()).getShape().size() == 2 &&
            "expect 2d memref");
-    assert(Rv.val.getType().cast<MemRefType>().getShape()[1] ==
-           Op.getType().cast<MemRefType>().getShape()[1]);
+    assert(cast<MemRefType>(Rv.val.getType()).getShape()[1] ==
+           cast<MemRefType>(Op.getType()).getShape()[1]);
 
-    for (int I = 0; I < Op.getType().cast<MemRefType>().getShape()[1]; I++) {
+    for (int I = 0; I < cast<MemRefType>(Op.getType()).getShape()[1]; I++) {
       std::vector<Value> Idx = {getConstantIndex(0), getConstantIndex(I)};
-      assert(Rv.val.getType().cast<MemRefType>().getShape().size() == 2);
+      assert(cast<MemRefType>(Rv.val.getType()).getShape().size() == 2);
       Builder.create<memref::StoreOp>(
           Loc, Builder.create<memref::LoadOp>(Loc, Rv.val, Idx), Op, Idx);
     }
@@ -1136,19 +1133,19 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *Stmt) {
         Val = Rv.getValue(Builder);
       }
 
-      auto PostTy = ReturnVal.getType().cast<MemRefType>().getElementType();
-      if (auto PrevTy = Val.getType().dyn_cast<IntegerType>()) {
+      auto PostTy = cast<MemRefType>(ReturnVal.getType()).getElementType();
+      if (auto PrevTy = dyn_cast<IntegerType>(Val.getType())) {
         const auto SrcTy = Stmt->getRetValue()->getType();
         const auto IsSigned =
             SrcTy->isBooleanType() ? false : SrcTy->isSignedIntegerType();
         Val = Rv.IntCast(Builder, getMLIRLocation(Stmt->getReturnLoc()), PostTy,
                          IsSigned)
                   .val;
-      } else if (Val.getType().isa<MemRefType>() &&
-                 PostTy.isa<LLVM::LLVMPointerType>())
+      } else if (isa<MemRefType>(Val.getType()) &&
+                 isa<LLVM::LLVMPointerType>(PostTy))
         Val = Builder.create<polygeist::Memref2PointerOp>(Loc, PostTy, Val);
-      else if (Val.getType().isa<LLVM::LLVMPointerType>() &&
-               PostTy.isa<MemRefType>())
+      else if (isa<LLVM::LLVMPointerType>(Val.getType()) &&
+               isa<MemRefType>(PostTy))
         Val = Builder.create<polygeist::Pointer2MemrefOp>(Loc, PostTy, Val);
       if (PostTy != Val.getType()) {
         Stmt->dump();

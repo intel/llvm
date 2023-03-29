@@ -130,13 +130,13 @@ struct SubIndexOpLoweringOld : public BaseSubIndexOpLoweringOld {
   LogicalResult
   matchAndRewrite(SubIndexOp subViewOp, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
-    assert(subViewOp.getSource().getType().isa<MemRefType>() &&
+    assert(isa<MemRefType>(subViewOp.getSource().getType()) &&
            "Source operand should be a memref type");
-    assert(subViewOp.getType().isa<MemRefType>() &&
+    assert(isa<MemRefType>(subViewOp.getType()) &&
            "Result should be a memref type");
 
-    auto sourceMemRefType = subViewOp.getSource().getType().cast<MemRefType>();
-    auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
+    auto sourceMemRefType = cast<MemRefType>(subViewOp.getSource().getType());
+    auto viewMemRefType = cast<MemRefType>(subViewOp.getType());
 
     auto loc = subViewOp.getLoc();
     MemRefDescriptor targetMemRef(transformed.getSource());
@@ -176,7 +176,7 @@ struct SubIndexOpLoweringOld : public BaseSubIndexOpLoweringOld {
 
     // Handle the general (non-SYCL) case first.
     if (convViewElemType ==
-        prev.getType().cast<LLVM::LLVMPointerType>().getElementType()) {
+        cast<LLVM::LLVMPointerType>(prev.getType()).getElementType()) {
       auto memRefDesc = createMemRefDescriptor(
           loc, viewMemRefType, targetMemRef.allocatedPtr(rewriter, loc),
           rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs), sizes,
@@ -185,7 +185,7 @@ struct SubIndexOpLoweringOld : public BaseSubIndexOpLoweringOld {
       rewriter.replaceOp(subViewOp, {memRefDesc});
       return success();
     }
-    assert(convSourceElemType.isa<LLVM::LLVMStructType>() &&
+    assert(isa<LLVM::LLVMStructType>(convSourceElemType) &&
            "Expecting struct type");
 
     // SYCL case
@@ -193,7 +193,7 @@ struct SubIndexOpLoweringOld : public BaseSubIndexOpLoweringOld {
            "Expecting the input and output MemRef ranks to be the same");
 
     SmallVector<Value, 4> indices;
-    computeIndices(convSourceElemType.cast<LLVM::LLVMStructType>(),
+    computeIndices(cast<LLVM::LLVMStructType>(convSourceElemType),
                    convViewElemType, indices, subViewOp, transformed, rewriter);
     assert(!indices.empty() && "Expecting a least one index");
 
@@ -219,13 +219,13 @@ struct SubIndexBarePtrOpLoweringOld : public BaseSubIndexOpLoweringOld {
   LogicalResult
   matchAndRewrite(SubIndexOp subViewOp, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
-    assert(subViewOp.getSource().getType().isa<MemRefType>() &&
+    assert(isa<MemRefType>(subViewOp.getSource().getType()) &&
            "Source operand should be a memref type");
-    assert(subViewOp.getType().isa<MemRefType>() &&
+    assert(isa<MemRefType>(subViewOp.getType()) &&
            "Result should be a memref type");
 
-    auto sourceMemRefType = subViewOp.getSource().getType().cast<MemRefType>();
-    auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
+    auto sourceMemRefType = cast<MemRefType>(subViewOp.getSource().getType());
+    auto viewMemRefType = cast<MemRefType>(subViewOp.getType());
     if (!canBeLoweredToBarePtr(sourceMemRefType) ||
         !canBeLoweredToBarePtr(viewMemRefType))
       return failure();
@@ -259,11 +259,11 @@ struct SubIndexBarePtrOpLoweringOld : public BaseSubIndexOpLoweringOld {
 
     // Handle the general (non-SYCL) case first.
     if (convViewElemType ==
-        target.getType().cast<LLVM::LLVMPointerType>().getElementType()) {
+        cast<LLVM::LLVMPointerType>(target.getType()).getElementType()) {
       rewriter.replaceOpWithNewOp<LLVM::GEPOp>(subViewOp, resType, target, idx);
       return success();
     }
-    assert(convSourceElemType.isa<LLVM::LLVMStructType>() &&
+    assert(isa<LLVM::LLVMStructType>(convSourceElemType) &&
            "Expecting struct type");
 
     // SYCL case
@@ -271,7 +271,7 @@ struct SubIndexBarePtrOpLoweringOld : public BaseSubIndexOpLoweringOld {
            "Expecting the input and output MemRef ranks to be the same");
 
     SmallVector<Value> indices;
-    computeIndices(convSourceElemType.cast<LLVM::LLVMStructType>(),
+    computeIndices(cast<LLVM::LLVMStructType>(convSourceElemType),
                    convViewElemType, indices, subViewOp, transformed, rewriter);
     assert(!indices.empty() && "Expecting a least one index");
 
@@ -306,7 +306,7 @@ struct Memref2PointerOpLoweringOld
     Value ptr = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {baseOffset};
     ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), ptr, idxs);
-    assert(ptr.getType().cast<LLVM::LLVMPointerType>().getAddressSpace() ==
+    assert(cast<LLVM::LLVMPointerType>(ptr.getType()).getAddressSpace() ==
                op.getType().getAddressSpace() &&
            "Expecting Memref2PointerOp source and result types to have the "
            "same address space");
@@ -330,11 +330,9 @@ struct Pointer2MemrefOpLoweringOld
     auto convertedType = getTypeConverter()->convertType(op.getType());
     assert(convertedType && "unexpected failure in memref type conversion");
     auto descr = MemRefDescriptor::undef(rewriter, loc, convertedType);
-    assert(adaptor.getSource()
-                   .getType()
-                   .cast<LLVM::LLVMPointerType>()
+    assert(cast<LLVM::LLVMPointerType>(adaptor.getSource().getType())
                    .getAddressSpace() ==
-               op.getType().cast<MemRefType>().getMemorySpaceAsInt() &&
+               cast<MemRefType>(op.getType()).getMemorySpaceAsInt() &&
            "Expecting Pointer2MemrefOp source and result types to have the "
            "same address space");
     auto ptr = rewriter.create<LLVM::BitcastOp>(
@@ -486,13 +484,13 @@ struct SubIndexOpLowering : public BaseSubIndexOpLowering {
   LogicalResult
   matchAndRewrite(SubIndexOp subViewOp, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
-    assert(subViewOp.getSource().getType().isa<MemRefType>() &&
+    assert(isa<MemRefType>(subViewOp.getSource().getType()) &&
            "Source operand should be a memref type");
-    assert(subViewOp.getType().isa<MemRefType>() &&
+    assert(isa<MemRefType>(subViewOp.getType()) &&
            "Result should be a memref type");
 
-    auto sourceMemRefType = subViewOp.getSource().getType().cast<MemRefType>();
-    auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
+    auto sourceMemRefType = cast<MemRefType>(subViewOp.getSource().getType());
+    auto viewMemRefType = cast<MemRefType>(subViewOp.getType());
 
     auto loc = subViewOp.getLoc();
     MemRefDescriptor targetMemRef(transformed.getSource());
@@ -542,7 +540,7 @@ struct SubIndexOpLowering : public BaseSubIndexOpLowering {
       rewriter.replaceOp(subViewOp, {memRefDesc});
       return success();
     }
-    assert(convSourceElemType.isa<LLVM::LLVMStructType>() &&
+    assert(isa<LLVM::LLVMStructType>(convSourceElemType) &&
            "Expecting struct type");
 
     // SYCL case
@@ -550,7 +548,7 @@ struct SubIndexOpLowering : public BaseSubIndexOpLowering {
            "Expecting the input and output MemRef ranks to be the same");
 
     SmallVector<Value, 4> indices;
-    computeIndices(convSourceElemType.cast<LLVM::LLVMStructType>(),
+    computeIndices(cast<LLVM::LLVMStructType>(convSourceElemType),
                    convViewElemType, indices, subViewOp, transformed, rewriter);
     assert(!indices.empty() && "Expecting a least one index");
 
@@ -577,13 +575,13 @@ struct SubIndexBarePtrOpLowering : public BaseSubIndexOpLowering {
   LogicalResult
   matchAndRewrite(SubIndexOp subViewOp, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
-    assert(subViewOp.getSource().getType().isa<MemRefType>() &&
+    assert(isa<MemRefType>(subViewOp.getSource().getType()) &&
            "Source operand should be a memref type");
-    assert(subViewOp.getType().isa<MemRefType>() &&
+    assert(isa<MemRefType>(subViewOp.getType()) &&
            "Result should be a memref type");
 
-    auto sourceMemRefType = subViewOp.getSource().getType().cast<MemRefType>();
-    auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
+    auto sourceMemRefType = cast<MemRefType>(subViewOp.getSource().getType());
+    auto viewMemRefType = cast<MemRefType>(subViewOp.getType());
     if (!canBeLoweredToBarePtr(sourceMemRefType) ||
         !canBeLoweredToBarePtr(viewMemRefType))
       return failure();
@@ -621,7 +619,7 @@ struct SubIndexBarePtrOpLowering : public BaseSubIndexOpLowering {
                                                convViewElemType, target, idx);
       return success();
     }
-    assert(convSourceElemType.isa<LLVM::LLVMStructType>() &&
+    assert(isa<LLVM::LLVMStructType>(convSourceElemType) &&
            "Expecting struct type");
 
     // SYCL case
@@ -629,7 +627,7 @@ struct SubIndexBarePtrOpLowering : public BaseSubIndexOpLowering {
            "Expecting the input and output MemRef ranks to be the same");
 
     SmallVector<Value> indices;
-    computeIndices(convSourceElemType.cast<LLVM::LLVMStructType>(),
+    computeIndices(cast<LLVM::LLVMStructType>(convSourceElemType),
                    convViewElemType, indices, subViewOp, transformed, rewriter);
     assert(!indices.empty() && "Expecting a least one index");
 
@@ -666,7 +664,7 @@ struct Memref2PointerOpLowering
     auto elemType = getTypeConverter()->convertType(
         op.getSource().getType().getElementType());
     ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), elemType, ptr, idxs);
-    assert(ptr.getType().cast<LLVM::LLVMPointerType>().getAddressSpace() ==
+    assert(cast<LLVM::LLVMPointerType>(ptr.getType()).getAddressSpace() ==
                op.getType().getAddressSpace() &&
            "Expecting Memref2PointerOp source and result types to have the "
            "same address space");
@@ -689,11 +687,9 @@ struct Pointer2MemrefOpLowering
     auto convertedType = getTypeConverter()->convertType(op.getType());
     assert(convertedType && "unexpected failure in memref type conversion");
     auto descr = MemRefDescriptor::undef(rewriter, loc, convertedType);
-    assert(adaptor.getSource()
-                   .getType()
-                   .cast<LLVM::LLVMPointerType>()
+    assert(cast<LLVM::LLVMPointerType>(adaptor.getSource().getType())
                    .getAddressSpace() ==
-               op.getType().cast<MemRefType>().getMemorySpaceAsInt() &&
+               cast<MemRefType>(op.getType()).getMemorySpaceAsInt() &&
            "Expecting Pointer2MemrefOp source and result types to have the "
            "same address space");
     auto ptr = adaptor.getSource();
@@ -800,7 +796,7 @@ struct TypeSizeOpLowering : public ConvertOpToLLVMPattern<TypeSizeOp> {
 
     auto type = getTypeConverter()->convertType(op.getType());
 
-    if (NT.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(NT)) {
+    if (isa<IntegerType, FloatType>(NT) || LLVM::isCompatibleType(NT)) {
       DataLayout DLI(op->getParentOfType<ModuleOp>());
       rewriter.replaceOpWithNewOp<LLVM::ConstantOp>(
           op, type, rewriter.getIntegerAttr(type, DLI.getTypeSize(NT)));
@@ -830,7 +826,7 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
 
     auto type = getTypeConverter()->convertType(op.getType());
 
-    if (NT.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(NT)) {
+    if (isa<IntegerType, FloatType>(NT) || LLVM::isCompatibleType(NT)) {
       DataLayout DLI(op->getParentOfType<ModuleOp>());
       rewriter.replaceOpWithNewOp<LLVM::ConstantOp>(
           op, type, rewriter.getIntegerAttr(type, DLI.getTypeABIAlignment(NT)));
@@ -1048,16 +1044,16 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
       if (functionInputs.size() == 0) {
       } else if (functionInputs.size() == 1 &&
-                 converter->convertType(functionInputs[0].getType())
-                     .isa<LLVM::LLVMPointerType>()) {
+                 isa<LLVM::LLVMPointerType>(
+                     converter->convertType(functionInputs[0].getType()))) {
         valueMapping.map(
             functionInputs[0],
             rewriter.create<LLVM::BitcastOp>(
                 execute.getLoc(),
                 converter->convertType(functionInputs[0].getType()), arg));
       } else if (functionInputs.size() == 1 &&
-                 converter->convertType(functionInputs[0].getType())
-                     .isa<IntegerType>()) {
+                 isa<IntegerType>(
+                     converter->convertType(functionInputs[0].getType()))) {
         valueMapping.map(
             functionInputs[0],
             rewriter.create<LLVM::PtrToIntOp>(
@@ -1109,13 +1105,13 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
         vals.push_back(
             rewriter.create<LLVM::NullOp>(execute.getLoc(), voidPtr));
       } else if (crossing.size() == 1 &&
-                 converter->convertType(crossing[0].getType())
-                     .isa<LLVM::LLVMPointerType>()) {
+                 isa<LLVM::LLVMPointerType>(
+                     converter->convertType(crossing[0].getType()))) {
         vals.push_back(rewriter.create<LLVM::BitcastOp>(execute.getLoc(),
                                                         voidPtr, crossing[0]));
       } else if (crossing.size() == 1 &&
-                 converter->convertType(crossing[0].getType())
-                     .isa<IntegerType>()) {
+                 isa<IntegerType>(
+                     converter->convertType(crossing[0].getType()))) {
         vals.push_back(rewriter.create<LLVM::IntToPtrOp>(execute.getLoc(),
                                                          voidPtr, crossing[0]));
       } else {
@@ -1266,12 +1262,12 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
       if (functionInputs.size() == 0) {
       } else if (functionInputs.size() == 1 &&
-                 converter->convertType(functionInputs[0].getType())
-                     .isa<LLVM::LLVMPointerType>()) {
+                 isa<LLVM::LLVMPointerType>(
+                     converter->convertType(functionInputs[0].getType()))) {
         valueMapping.map(functionInputs[0], arg);
       } else if (functionInputs.size() == 1 &&
-                 converter->convertType(functionInputs[0].getType())
-                     .isa<IntegerType>()) {
+                 isa<IntegerType>(
+                     converter->convertType(functionInputs[0].getType()))) {
         valueMapping.map(
             functionInputs[0],
             rewriter.create<LLVM::PtrToIntOp>(
@@ -1321,12 +1317,12 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
         vals.push_back(
             rewriter.create<LLVM::NullOp>(execute.getLoc(), voidPtr));
       } else if (crossing.size() == 1 &&
-                 converter->convertType(crossing[0].getType())
-                     .isa<LLVM::LLVMPointerType>()) {
+                 isa<LLVM::LLVMPointerType>(
+                     converter->convertType(crossing[0].getType()))) {
         vals.push_back(crossing[0]);
       } else if (crossing.size() == 1 &&
-                 converter->convertType(crossing[0].getType())
-                     .isa<IntegerType>()) {
+                 isa<IntegerType>(
+                     converter->convertType(crossing[0].getType()))) {
         vals.push_back(rewriter.create<LLVM::IntToPtrOp>(execute.getLoc(),
                                                          voidPtr, crossing[0]));
       } else {

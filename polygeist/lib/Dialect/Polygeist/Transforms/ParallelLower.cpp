@@ -213,8 +213,8 @@ void ParallelLower::runOnOperation() {
 
     auto callable = caller.getCallableForCallee();
     CallableOpInterface callableOp;
-    if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
-      if (!symRef.isa<FlatSymbolRefAttr>())
+    if (SymbolRefAttr symRef = dyn_cast<SymbolRefAttr>(callable)) {
+      if (!isa<FlatSymbolRefAttr>(symRef))
         return;
       auto *symbolOp =
           symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
@@ -362,7 +362,7 @@ void ParallelLower::runOnOperation() {
     });
 
     container.walk([&](mlir::LLVM::AllocaOp alop) {
-      auto PT = alop.getType().cast<LLVM::LLVMPointerType>();
+      auto PT = cast<LLVM::LLVMPointerType>(alop.getType());
       if (PT.getAddressSpace() == 5) {
         builder.setInsertionPointToStart(blockB);
         auto newAlloca = builder.create<LLVM::AllocaOp>(
@@ -488,7 +488,7 @@ void ParallelLower::runOnOperation() {
       auto mf = GetOrCreateMallocFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(1)};
-      if (args[0].getType().cast<IntegerType>().getWidth() < 64)
+      if (cast<IntegerType>(args[0].getType()).getWidth() < 64)
         args[0] =
             bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), args[0]);
       mlir::Value alloc =
@@ -497,7 +497,7 @@ void ParallelLower::runOnOperation() {
       {
         auto retv = bz.create<ConstantIntOp>(
             call.getLoc(), 0,
-            call.getResult().getType().cast<IntegerType>().getWidth());
+            cast<IntegerType>(call.getResult().getType()).getWidth());
         Value vals[] = {retv};
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
@@ -511,7 +511,7 @@ void ParallelLower::runOnOperation() {
       {
         auto retv = bz.create<ConstantIntOp>(
             call.getLoc(), 0,
-            call.getResult().getType().cast<IntegerType>().getWidth());
+            cast<IntegerType>(call.getResult().getType()).getWidth());
         Value vals[] = {retv};
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
@@ -520,7 +520,7 @@ void ParallelLower::runOnOperation() {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,
-          call.getResult().getType().cast<IntegerType>().getWidth());
+          cast<IntegerType>(call.getResult().getType()).getWidth());
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
@@ -528,7 +528,7 @@ void ParallelLower::runOnOperation() {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,
-          call.getResult().getType().cast<IntegerType>().getWidth());
+          cast<IntegerType>(call.getResult().getType()).getWidth());
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
@@ -539,7 +539,7 @@ void ParallelLower::runOnOperation() {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,
-          call.getResult(0).getType().cast<IntegerType>().getWidth());
+          cast<IntegerType>(call.getResult(0).getType()).getWidth());
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
@@ -560,7 +560,7 @@ void ParallelLower::runOnOperation() {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,
-          call.getResult(0).getType().cast<IntegerType>().getWidth());
+          cast<IntegerType>(call.getResult(0).getType()).getWidth());
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();

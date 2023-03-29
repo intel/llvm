@@ -30,10 +30,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
   const unsigned MemType = Decl->hasAttr<clang::CUDASharedAttr>() ? 5 : 0;
   bool LLVMABI = false, IsArray = false;
 
-  if (Glob.getTypes()
-          .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
-              Decl->getType()))
-          .isa<LLVM::LLVMPointerType>())
+  if (isa<LLVM::LLVMPointerType>(Glob.getTypes().getMLIRType(
+          Glob.getCGM().getContext().getLValueReferenceType(Decl->getType()))))
     LLVMABI = true;
   else
     Glob.getTypes().getMLIRType(Decl->getType(), &IsArray);
@@ -47,7 +45,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
 
   if (Expr *Init = Decl->getInit()) {
     bool IsVectorType =
-        Glob.getTypes().getMLIRType(Init->getType()).isa<mlir::VectorType>();
+        isa<mlir::VectorType>(Glob.getTypes().getMLIRType(Init->getType()));
     if ((!isa<clang::InitListExpr>(Init) || IsVectorType) &&
         !isa<clang::CXXConstructExpr>(Init)) {
       auto Res = Visit(Init);
@@ -111,10 +109,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
     ABuilder.setInsertionPointToStart(AllocationScope);
     Location VarLoc = getMLIRLocation(Decl->getBeginLoc());
 
-    if (Glob.getTypes()
-            .getMLIRType(
-                Glob.getCGM().getContext().getPointerType(Decl->getType()))
-            .isa<LLVM::LLVMPointerType>())
+    if (isa<LLVM::LLVMPointerType>(Glob.getTypes().getMLIRType(
+            Glob.getCGM().getContext().getPointerType(Decl->getType()))))
       Op = ABuilder.create<LLVM::AddressOfOp>(
           VarLoc, Glob.getOrCreateLLVMGlobal(
                       Decl, (Function.getName() + "@static@").str()));

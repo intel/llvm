@@ -27,7 +27,7 @@ def CacheLoad
   let results = (outs AnyType:$result);
   let builders = [
     OpBuilder<(ins "Value":$memref, CArg<"ValueRange", "{}">:$indices), [{
-      auto memrefType = memref.getType().cast<MemRefType>();
+      auto memrefType = cast<MemRefType>(memref.getType());
       $_state.addOperands(memref);
       $_state.addOperands(indices);
       $_state.types.push_back(memrefType.getElementType());

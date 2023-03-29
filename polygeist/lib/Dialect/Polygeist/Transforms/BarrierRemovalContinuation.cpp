@@ -318,7 +318,7 @@ static std::pair<Block *, Block::iterator> getInsertionPointAfterDef(Value v) {
   if (Operation *op = v.getDefiningOp())
     return {op->getBlock(), std::next(Block::iterator(op))};
 
-  BlockArgument blockArg = v.cast<BlockArgument>();
+  BlockArgument blockArg = cast<BlockArgument>(v);
   return {blockArg.getParentBlock(), blockArg.getParentBlock()->begin()};
 }
 
@@ -436,7 +436,7 @@ static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
         allocaBuilder, value, iterationCounts, /*alloca*/ true);
     /*
     if
-    (allocation.getType().cast<MemRefType>().getElementType().isa<MemRefType>())
+    (isa<MemRefType>(cast<MemRefType>(allocation.getType()).getElementType()))
     { llvm::errs() << " value: " << value << " alloc: " << allocation << "\n";
         llvm_unreachable("bad allocation\n");
     }
@@ -464,7 +464,7 @@ static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
         accessBuilder.setInsertionPoint(use.getOwner());
         auto buf = allocation;
         for (auto idx : parallel.getInductionVars()) {
-          auto mt0 = buf.getType().cast<MemRefType>();
+          auto mt0 = cast<MemRefType>(buf.getType());
           std::vector<int64_t> shape(mt0.getShape());
           shape.erase(shape.begin());
           auto mt = MemRefType::get(shape, mt0.getElementType(),

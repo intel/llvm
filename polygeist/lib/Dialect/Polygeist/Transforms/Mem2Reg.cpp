@@ -53,8 +53,8 @@ using namespace polygeist;
 enum class Match { Exact, Maybe, None };
 
 bool operator<(Value lhs, Value rhs) {
-  if (auto lhsBA = lhs.dyn_cast<BlockArgument>()) {
-    if (auto rhsBA = rhs.dyn_cast<BlockArgument>()) {
+  if (auto lhsBA = dyn_cast<BlockArgument>(lhs)) {
+    if (auto rhsBA = dyn_cast<BlockArgument>(rhs)) {
       if (lhsBA.getOwner() != rhsBA.getOwner())
         return lhsBA.getOwner() < rhsBA.getOwner();
       else
@@ -63,11 +63,11 @@ bool operator<(Value lhs, Value rhs) {
       return true;
     }
   }
-  auto lhsOR = lhs.cast<OpResult>();
-  if (auto rhsBA = rhs.dyn_cast<BlockArgument>()) {
+  auto lhsOR = cast<OpResult>(lhs);
+  if (auto rhsBA = dyn_cast<BlockArgument>(rhs)) {
     return false;
   } else {
-    auto rhsOR = rhs.cast<OpResult>();
+    auto rhsOR = cast<OpResult>(lhs);
     if (lhsOR.getOwner() != rhsOR.getOwner())
       return lhsOR.getOwner() < rhsOR.getOwner();
     else
@@ -513,7 +513,7 @@ public:
           !exOp->isAncestor(values[0].getDefiningOp())) {
         return values[0];
       }
-      if (auto ba = values[0].dyn_cast<BlockArgument>())
+      if (auto ba = dyn_cast<BlockArgument>(values[0]))
         if (!exOp->isAncestor(ba.getOwner()->getParentOp())) {
           return values[0];
         }
@@ -1421,10 +1421,10 @@ bool Mem2Reg::forwardStoreToLoad(
   }
 
   Type elType;
-  if (auto MT = AI.getType().dyn_cast<MemRefType>())
+  if (auto MT = dyn_cast<MemRefType>(AI.getType()))
     elType = MT.getElementType();
   else
-    elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
+    elType = cast<LLVM::LLVMPointerType>(AI.getType()).getElementType();
 
   ReplacementHandler metaMap(elType);
 
@@ -1742,7 +1742,7 @@ bool Mem2Reg::forwardStoreToLoad(
 
     Value maybeblockArg =
         valueAtStartOfBlock.find(block)->second->materialize(false);
-    auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
+    auto blockArg = dyn_cast<BlockArgument>(maybeblockArg);
     assert(blockArg && blockArg.getOwner() == block);
 
     SetVector<Block *> prepred(block->getPredecessors().begin(),
