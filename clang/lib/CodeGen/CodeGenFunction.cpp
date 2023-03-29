@@ -589,17 +589,11 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     && !FD->hasAttr<SYCLDeviceAttr>())
     return;
 
-  if (getLangOpts().SYCLIsDevice) {
-    // TODO Module identifier is not reliable for this purpose since two modules
-    // can have the same ID, needs improvement
+  // TODO Module identifier is not reliable for this purpose since two modules
+  // can have the same ID, needs improvement
+    if (getLangOpts().SYCLIsDevice)
     Fn->addFnAttr("sycl-module-id", Fn->getParent()->getModuleIdentifier());
 
-    // Here, we add a function attribute 'sycl-optlevel' to store the
-    // optimization level.
-    int SYCLOptLevel = CGM.getCodeGenOpts().OptimizationLevel;
-    assert(SYCLOptLevel >= 0 && "Invalid optimization level!");
-    Fn->addFnAttr("sycl-optlevel", std::to_string(SYCLOptLevel));
-  }
   llvm::LLVMContext &Context = getLLVMContext();
 
   if (FD->hasAttr<OpenCLKernelAttr>() || FD->hasAttr<CUDAGlobalAttr>())
