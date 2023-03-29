@@ -100,7 +100,7 @@ struct Printer {
 
 template <int BlockSize, bool Blocked, int num_blocks_c, typename GlobalPtrTy>
 void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
-                Printer &p, char *caller_val ) {
+                Printer &p) {
 #ifdef __SYCL_DEVICE_ONLY__
   // Needs to be 4 bytes aligned (16 for writes).
 
@@ -380,11 +380,11 @@ void test() {
            for (int i = 0; i < ELEMS_PER_WI; ++i)
              val[i] = base - i;
 
-           p.print("Val ptr:");
-           p.print_ptr(val);
-           p.print("Val:");
-           for (int i = 0; i < ELEMS_PER_WI; ++i)
-             p.print(val[i]);
+           // p.print("Val ptr:");
+           // p.print_ptr(val);
+           // p.print("Val:");
+           // for (int i = 0; i < ELEMS_PER_WI; ++i)
+           //   p.print(val[i]);
 
            constexpr bool blocked = true;
 
@@ -400,20 +400,25 @@ void test() {
 
            constexpr int num_blocks = ELEMS_PER_WI;
            char priv[sizeof(T) * num_blocks];
-           p.print("Priv ptr:");
-           p.print_ptr(priv);
-           load_bytes<sizeof(T), blocked, num_blocks>(sg, sg_mem, priv, p, val);
-           bool success = std::equal(std::begin(priv), std::end(priv),
-                                     reinterpret_cast<char *>(val));
+
+           load_bytes<sizeof(T), blocked, num_blocks>(sg, sg_mem, priv, p);
+
+           // XDEPS-6185 from using std::equal/std::memcmp.
+           char *val_ptr = reinterpret_cast<char *>(val);
+           bool success = true;
+           for (int i = 0; i < sizeof(T) * num_blocks; ++i)
+             success &= (priv[i] == val_ptr[i]);
            res[gid] = success;
+
            T res_val[ELEMS_PER_WI];
            std::memcpy(res_val, priv, sizeof(res_val));
-           p.print("Result:");
-           for (int i = 0; i < ELEMS_PER_WI; ++i)
-             p.print(res_val[i]);
 
-           p.print("Success:");
-           p.print(success);
+           // p.print("Result:");
+           // for (int i = 0; i < ELEMS_PER_WI; ++i)
+           //   p.print(res_val[i]);
+
+           // p.print("Success:");
+           // p.print(success);
          });
    }).wait();
 
@@ -425,14 +430,13 @@ void test() {
 }
 
 int main() {
-  // test<char, 1>();
-  // test<char, 2>();
-  // test<char, 3>();
-  // test<char, 7>();
-  // test<char, 8>();
-  test<char, 17>();
-  // test<char, 16>();
-  // test<char, 32>();
-  // test<char, 64>();
-  // test<int, 67>();
+  constexpr int sizes[] = {1, 2, 3, 7, 8, 17, 16, 32, 64, 67};
+  loop<std::size(sizes)>([&](auto i) {
+    constexpr int size = sizes[i.value];
+    test<char, size>();
+    test<short, size>();
+    test<int, size>();
+    test<long long, size>();
+    test<float, size>();
+  });
 }
