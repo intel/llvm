@@ -3852,10 +3852,6 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
     // RT calls piProgramRelease().
     Program->State = _pi_program::Invalid;
     Result = mapError(ZeResult);
-    if (Program->ZeBuildLog) {
-      ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
-      Program->ZeBuildLog = nullptr;
-    }
     if (ZeModule) {
       ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
       ZeModule = nullptr;
