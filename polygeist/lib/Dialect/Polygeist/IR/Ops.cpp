@@ -1879,7 +1879,7 @@ OpFoldResult Pointer2MemrefOp::fold(FoldAdaptor operands) {
   }
   if (auto mc = getSource().getDefiningOp<LLVM::GEPOp>()) {
     const LLVM::GEPIndicesAdaptor<ValueRange> &indices = mc.getIndices();
-    for (auto &iter : llvm::enumerate(indices)) {
+    for (const auto &iter : llvm::enumerate(indices)) {
       if (indices.isDynamicIndex(iter.index()))
         return nullptr;
       if (!isa<IntegerAttr>(iter.value()))
@@ -2288,7 +2288,7 @@ struct AggressiveAllocaScopeInliner
     Block *block = &op.getRegion().front();
     Operation *terminator = block->getTerminator();
     ValueRange results = terminator->getOperands();
-    rewriter.mergeBlockBefore(block, op);
+    rewriter.inlineBlockBefore(block, op);
     rewriter.replaceOp(op, results);
     rewriter.eraseOp(terminator);
     return success();

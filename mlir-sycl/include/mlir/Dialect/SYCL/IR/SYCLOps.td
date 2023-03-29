@@ -17,7 +17,7 @@ include "mlir/IR/OpBase.td"
 include "mlir/IR/AttrTypeBase.td"
 
 include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.td"
-include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
+include "mlir/Dialect/LLVMIR/LLVMInterfaces.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
@@ -34,7 +34,6 @@ def SYCL_Dialect : Dialect {
   let name = "sycl";
   let cppNamespace = "::mlir::sycl";
   let useDefaultTypePrinterParser = 1;
-  let useFoldAPI = kEmitFoldAdaptorFolder;
   let extraClassDeclaration = [{
     MethodRegistry methods;
 

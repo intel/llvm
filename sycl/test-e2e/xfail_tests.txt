@@ -22,6 +22,8 @@ AtomicRef/assignment.cpp
 AtomicRef/assignment_atomic64.cpp
 AtomicRef/assignment_atomic64_generic.cpp
 AtomicRef/assignment_generic.cpp
+AtomicRef/atomic_memory_order_acq_rel.cpp
+AtomicRef/atomic_memory_order_seq_cst.cpp
 AtomicRef/compare_exchange.cpp
 AtomicRef/compare_exchange_generic.cpp
 AtomicRef/compare_exchange_generic_local.cpp

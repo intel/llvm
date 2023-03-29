@@ -16,15 +16,13 @@ void kernel_correlation(int start, int end) {
 
 // CHECK: #map = affine_map<()[s0] -> (s0 + 1)>
 // CHECK: kernel_correlation
-// CHECK-DAG:     %c-1 = arith.constant -1 : index
 // CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:     %1 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:     affine.for %arg2 = %1 to #map()[%0] {
 // CHECK-NEXT:       %2 = arith.subi %arg2, %1 : index
-// CHECK-NEXT:       %3 = arith.muli %2, %c-1 : index
-// CHECK-NEXT:       %4 = arith.addi %0, %3 : index
-// CHECK-NEXT:       %5 = arith.index_cast %4 : index to i32
-// CHECK-NEXT:       call @use(%5) : (i32) -> ()
+// CHECK-NEXT:       %3 = arith.subi %0, %2 : index
+// CHECK-NEXT:       %4 = arith.index_cast %3 : index to i32
+// CHECK-NEXT:       call @use(%4) : (i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

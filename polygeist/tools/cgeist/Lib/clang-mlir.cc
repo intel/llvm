@@ -728,7 +728,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
 
     auto Ty = cast<IntegerType>(Val.getType());
     auto C1 = Builder.create<arith::ConstantIntOp>(
-        Loc, APInt::getAllOnesValue(Ty.getWidth()).getSExtValue(), Ty);
+        Loc, APInt::getAllOnes(Ty.getWidth()).getSExtValue(), Ty);
     return ValueCategory(Builder.create<arith::XOrIOp>(Loc, Val, C1),
                          /*isReference*/ false);
   }
