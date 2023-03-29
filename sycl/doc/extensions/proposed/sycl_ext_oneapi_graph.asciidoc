@@ -39,6 +39,7 @@ Julian Miller, Intel +
 John Pennycook, Intel +
 Guo Yejun, Intel +
 Dan Holmes, Intel +
+Greg Lueck, Intel +
 Ewan Crawford, Codeplay +
 Ben Tracy, Codeplay +
 Duncan McBain, Codeplay +
@@ -509,7 +510,7 @@ using namespace ext::oneapi::experimental;
 node add(const property_list& propList = {});
 ----
 |This creates an empty node which contains no command. Its intended use is
-either a connection point inside a graph between groups of nodes, and can
+to make a connection point inside a graph between groups of nodes, and can
 significantly reduce the number of edges ( O(n) vs. O(n^2) ). Another use-case
 is building the structure of a graph first and adding tasks later.
 
@@ -991,7 +992,7 @@ preemptively changed the state of the queue.
 In addition to the destruction semantics provided by the SYCL
 {crs}[common reference semantics], when a modifiable `command_graph` is
 destroyed recording is ended on any queues that are recording to that
-graph, equivalent to `this->end_recording()`.
+graph, equivalent to `+this->end_recording()+`.
 
 As a result, users don't need to manually wrap queue recording code in a
 `try` / `catch` block to reset the state of recording queues on an exception
@@ -1098,10 +1099,10 @@ evaluated as normal during command graph execution.
 ----
 using namespace ext::oneapi::experimental;
 auto node = graph.add(device, [&](sycl::handler& cgh){
-// Host code here is evaluated during the call to add()
-cgh.host_task([=](){
-  // Code here is evaluated as part of executing the command graph node
-});
+  // Host code here is evaluated during the call to add()
+  cgh.host_task([=](){
+    // Code here is evaluated as part of executing the command graph node
+  });
 });
 ----
 
