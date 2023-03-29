@@ -349,7 +349,7 @@ RawComment *ASTContext::getRawCommentForDeclNoCacheImpl(
 
   // There should be no other declarations or preprocessor directives between
   // comment and declaration.
-  if (Text.find_first_of(";{}#@") != StringRef::npos)
+  if (Text.find_last_of(";{}#@") != StringRef::npos)
     return nullptr;
 
   return CommentBeforeDecl;
@@ -2334,6 +2334,11 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Width = 0;                                                                 \
     Align = 16;                                                                \
     break;
+#define SVE_OPAQUE_TYPE(Name, MangledName, Id, SingletonId)                    \
+  case BuiltinType::Id:                                                        \
+    Width = 0;                                                                 \
+    Align = 16;                                                                \
+    break;
 #include "clang/Basic/AArch64SVEACLETypes.def"
 #define PPC_VECTOR_TYPE(Name, Id, Size)                                        \
   case BuiltinType::Id:                                                        \
@@ -4048,6 +4053,10 @@ ASTContext::getBuiltinVectorTypeInfo(const BuiltinType *Ty) const {
     return SVE_INT_ELTTY(64, 2, false, 4);
   case BuiltinType::SveBool:
     return SVE_ELTTY(BoolTy, 16, 1);
+  case BuiltinType::SveBoolx2:
+    return SVE_ELTTY(BoolTy, 16, 2);
+  case BuiltinType::SveBoolx4:
+    return SVE_ELTTY(BoolTy, 16, 4);
   case BuiltinType::SveFloat16:
     return SVE_ELTTY(HalfTy, 8, 1);
   case BuiltinType::SveFloat16x2:
@@ -4105,8 +4114,8 @@ QualType ASTContext::getWebAssemblyExternrefType() const {
     return SingletonId;
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
   }
-  assert(false &&
-         "shouldn't try to generate type externref outside WebAssembly target");
+  llvm_unreachable(
+      "shouldn't try to generate type externref outside WebAssembly target");
 }
 
 /// getScalableVectorType - Return the unique reference to a scalable vector
@@ -4131,6 +4140,7 @@ QualType ASTContext::getScalableVectorType(QualType EltTy,
 #define SVE_PREDICATE_TYPE(Name, MangledName, Id, SingletonId, NumEls)         \
   if (EltTy->isBooleanType() && NumElts == NumEls)                             \
     return SingletonId;
+#define SVE_OPAQUE_TYPE(Name, MangledName, Id, SingleTonId)
 #include "clang/Basic/AArch64SVEACLETypes.def"
   } else if (Target->hasRISCVVTypes()) {
     uint64_t EltTySize = getTypeSize(EltTy);
@@ -6603,7 +6613,10 @@ bool ASTContext::FriendsDifferByConstraints(const FunctionDecl *X,
 
   // If the two functions share lexical declaration context, they are not in
   // separate instantations, and thus in the same scope.
-  if (X->getLexicalDeclContext() == Y->getLexicalDeclContext())
+  if (declaresSameEntity(cast<Decl>(X->getLexicalDeclContext()
+                             ->getRedeclContext()),
+                         cast<Decl>(Y->getLexicalDeclContext()
+                             ->getRedeclContext())))
     return false;
 
   if (!X->getDescribedFunctionTemplate()) {
@@ -6695,8 +6708,28 @@ bool ASTContext::isSameEntity(const NamedDecl *X, const NamedDecl *Y) const {
         return false;
     }
 
-    if (!isSameConstraintExpr(FuncX->getTrailingRequiresClause(),
-                              FuncY->getTrailingRequiresClause()))
+    // The trailing require clause of instantiated function may change during
+    // the semantic analysis. Trying to get the primary template function (if
+    // exists) to compare the primary trailing require clause.
+    auto TryToGetPrimaryTemplatedFunction =
+        [](const FunctionDecl *FD) -> const FunctionDecl * {
+      switch (FD->getTemplatedKind()) {
+      case FunctionDecl::TK_DependentNonTemplate:
+        return FD->getInstantiatedFromDecl();
+      case FunctionDecl::TK_FunctionTemplate:
+        return FD->getDescribedFunctionTemplate()->getTemplatedDecl();
+      case FunctionDecl::TK_MemberSpecialization:
+        return FD->getInstantiatedFromMemberFunction();
+      case FunctionDecl::TK_FunctionTemplateSpecialization:
+        return FD->getPrimaryTemplate()->getTemplatedDecl();
+      default:
+        return FD;
+      }
+    };
+    const FunctionDecl *PrimaryX = TryToGetPrimaryTemplatedFunction(FuncX);
+    const FunctionDecl *PrimaryY = TryToGetPrimaryTemplatedFunction(FuncY);
+    if (!isSameConstraintExpr(PrimaryX->getTrailingRequiresClause(),
+                              PrimaryY->getTrailingRequiresClause()))
       return false;
 
     // Constrained friends are different in certain cases, see: [temp.friend]p9.
@@ -9549,16 +9582,18 @@ bool ASTContext::areCompatibleVectorTypes(QualType FirstVec,
 /// getSVETypeSize - Return SVE vector or predicate register size.
 static uint64_t getSVETypeSize(ASTContext &Context, const BuiltinType *Ty) {
   assert(Ty->isVLSTBuiltinType() && "Invalid SVE Type");
-  return Ty->getKind() == BuiltinType::SveBool
-             ? (Context.getLangOpts().VScaleMin * 128) / Context.getCharWidth()
-             : Context.getLangOpts().VScaleMin * 128;
+  if (Ty->getKind() == BuiltinType::SveBool ||
+      Ty->getKind() == BuiltinType::SveCount)
+    return (Context.getLangOpts().VScaleMin * 128) / Context.getCharWidth();
+  return Context.getLangOpts().VScaleMin * 128;
 }
 
 bool ASTContext::areCompatibleSveTypes(QualType FirstType,
                                        QualType SecondType) {
-  assert(((FirstType->isSizelessBuiltinType() && SecondType->isVectorType()) ||
-          (FirstType->isVectorType() && SecondType->isSizelessBuiltinType())) &&
-         "Expected SVE builtin type and vector type!");
+  assert(
+      ((FirstType->isSVESizelessBuiltinType() && SecondType->isVectorType()) ||
+       (FirstType->isVectorType() && SecondType->isSVESizelessBuiltinType())) &&
+      "Expected SVE builtin type and vector type!");
 
   auto IsValidCast = [this](QualType FirstType, QualType SecondType) {
     if (const auto *BT = FirstType->getAs<BuiltinType>()) {
@@ -9585,9 +9620,10 @@ bool ASTContext::areCompatibleSveTypes(QualType FirstType,
 
 bool ASTContext::areLaxCompatibleSveTypes(QualType FirstType,
                                           QualType SecondType) {
-  assert(((FirstType->isSizelessBuiltinType() && SecondType->isVectorType()) ||
-          (FirstType->isVectorType() && SecondType->isSizelessBuiltinType())) &&
-         "Expected SVE builtin type and vector type!");
+  assert(
+      ((FirstType->isSVESizelessBuiltinType() && SecondType->isVectorType()) ||
+       (FirstType->isVectorType() && SecondType->isSVESizelessBuiltinType())) &&
+      "Expected SVE builtin type and vector type!");
 
   auto IsLaxCompatible = [this](QualType FirstType, QualType SecondType) {
     const auto *BT = FirstType->getAs<BuiltinType>();
@@ -11623,9 +11659,8 @@ static GVALinkage basicGVALinkageForFunction(const ASTContext &Context,
 
   // Non-user-provided functions get emitted as weak definitions with every
   // use, no matter whether they've been explicitly instantiated etc.
-  if (const auto *MD = dyn_cast<CXXMethodDecl>(FD))
-    if (!MD->isUserProvided())
-      return GVA_DiscardableODR;
+  if (!FD->isUserProvided())
+    return GVA_DiscardableODR;
 
   GVALinkage External;
   switch (FD->getTemplateSpecializationKind()) {
@@ -11967,7 +12002,7 @@ void ASTContext::forEachMultiversionedFunctionVersion(
        FD->getDeclContext()->getRedeclContext()->lookup(FD->getDeclName())) {
     FunctionDecl *CurFD = CurDecl->getAsFunction()->getMostRecentDecl();
     if (CurFD && hasSameType(CurFD->getType(), FD->getType()) &&
-        !llvm::is_contained(SeenDecls, CurFD)) {
+        !SeenDecls.contains(CurFD)) {
       SeenDecls.insert(CurFD);
       Pred(CurFD);
     }
@@ -13466,6 +13501,7 @@ std::vector<std::string> ASTContext::filterFunctionTargetVersionAttrs(
   TV->getFeatures(Feats);
   for (auto &Feature : Feats)
     if (Target->validateCpuSupports(Feature.str()))
+      // Use '?' to mark features that came from TargetVersion.
       ResFeats.push_back("?" + Feature.str());
   return ResFeats;
 }
@@ -13535,6 +13571,7 @@ void ASTContext::getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
         VersionStr.split(VersionFeatures, "+");
         for (auto &VFeature : VersionFeatures) {
           VFeature = VFeature.trim();
+          // Use '?' to mark features that came from AArch64 TargetClones.
           Features.push_back((StringRef{"?"} + VFeature).str());
         }
       }

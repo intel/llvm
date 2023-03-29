@@ -7,8 +7,6 @@
 // RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
 // RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPV
 // RUN: llvm-spirv %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-//
-// XFAIL: *
 
 // CHECK-SPIRV: TypeDeviceEvent
 // CHECK-SPIRV: 5 Function
