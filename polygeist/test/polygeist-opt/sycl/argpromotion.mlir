@@ -49,7 +49,7 @@ gpu.module @device_func {
   // COM: This function is a candidate, check that it is transformed correctly.
   func.func private @callee3(%arg0: memref<?x!llvm.struct<(i32)>>, %arg1: memref<?x!llvm.struct<(f32)>>) {
     // CHECK-LABEL: func.func private @callee3
-    // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xf32> {llvm.noalias}) {
+    // CHECK-SAME:    (%arg0: memref<?xi32>, %arg1: memref<?xf32>) {
     // CHECK-NOT:     {{.*}} = "polygeist.subindex"
     // CHECK:         {{.*}} = affine.load %arg0[0] : memref<?xi32>
     // CHECK-NEXT:    {{.*}} = affine.load %arg1[0] : memref<?xf32>
