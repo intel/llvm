@@ -807,12 +807,6 @@ std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints) {
-  if (IROutputOnly && SPLIT_NONE == Mode) {
-    EntryPointGroupVec Groups;
-    Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
-    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
-  }
-
   DeviceCodeSplitRulesBuilder RulesBuilder;
 
   EntryPointsGroupScope Scope =
