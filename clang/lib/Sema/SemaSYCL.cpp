@@ -2842,6 +2842,9 @@ public:
   }
 
   CXXMethodDecl *getCallOperator() {
+    if (!CallOperator)
+      return CallOperator;
+
     if (CallOperator)
       return CallOperator;
 
@@ -4037,7 +4040,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
 
-  if (!KernelObj) {
+  if (!KernelObj->hasDefinition() || !KernelObj) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
@@ -4066,7 +4069,6 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
   // Do not visit invalid kernel object.
   if (KernelObj->isInvalidDecl())
     return;
-  KernelCallOperatorVisitor KernelCallOperator(KernelFunc, KernelObj);
 
   SyclKernelDecompMarker DecompMarker(*this);
   SyclKernelFieldChecker FieldChecker(*this);
