@@ -55,10 +55,10 @@ Here the values of specialization constants `SC0` and `SC1` are changed on
 every loop iteration. All what's needed is re-creating a `program` class
 instance, setting new values and rebuilding it via
 `program::build_with_kernel_type`. JIT compiler will effectively replace
-`sc0.get()` and  `sc1.get()` within thhe device code with the corresponding
-constant values (`sc_vals[i][0]` and `sc_vals[i][1]`). Full runnable example
+`sc0.get()` and  `sc1.get()` within the device code with the corresponding
+constant values (`sc_vals[i][0]` and `sc_vals[i][1]`). Full runnable examples
 can be found on
-[github](https://github.com/intel/llvm-test-suite/blob/intel/SYCL/SpecConstants/1.2.1/spec_const_redefine.cpp).
+[github](https://github.com/intel/llvm/tree/sycl/sycl/test-e2e/SpecConstants/2020/).
 
 Specialization constants can be used in programs compiled Ahead-Of-Time, in this
 case a specialization constant takes default value for its type (as specified by
