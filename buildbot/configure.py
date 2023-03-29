@@ -342,7 +342,7 @@ def main():
     )
     parser.add_argument(
         "--llvm-external-projects",
-        help="Add external projects to build. Add as comma seperated list.",
+        help="Add external projects to build. Add as comma-separated list.",
     )
     parser.add_argument(
         "--ci-defaults", action="store_true", help="Enable default CI parameters"
