@@ -104,7 +104,7 @@ public:
 
     const void *HostPipePtr = &m_Storage;
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
-    const void *DataPtr = &Data;
+    void *DataPtr = &Data;
 
     event E = Q.submit([=](handler &CGH) {
       CGH.ext_intel_write_host_pipe(
@@ -249,7 +249,7 @@ public:
     }
     const void *HostPipePtr = &m_Storage;
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
-    const void *DataPtr = &Data;
+    void *DataPtr = &Data;
     event E = Q.submit([=](handler &CGH) {
       CGH.ext_intel_write_host_pipe(PipeName, (void *)DataPtr,
                                          sizeof(_dataT), true /*blocking */);
