@@ -5,7 +5,7 @@
 //==--------- intel-ext-device.cpp - SYCL device test ------------==//
 //
 // Returns the low-level device details.  These are Intel-specific extensions
-// that are only supported on Level Zero.
+// that are only supported on Level Zero or OpenCL.
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

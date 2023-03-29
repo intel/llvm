@@ -13,8 +13,10 @@ int main() {
   queue q;
   device dev = q.get_device();
 
-// Check if this experimental feature is supported
-#ifdef SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY
+#if !defined(SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY)
+#error SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY is not defined!
+#endif
+
   sycl::id<1> groupD = dev.get_info<
       sycl::ext::oneapi::experimental::info::device::max_work_groups<1>>();
   std::cout << "Max work group size in 1D \n";
@@ -41,7 +43,6 @@ int main() {
           group3D[2] <= group_max) &&
          "Max work-group size of each dimension must be smaller than "
          "global work-group size");
-#endif
 
   std::cout << "Passed!" << std::endl;
   return 0;
