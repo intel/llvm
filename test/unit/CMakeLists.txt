@@ -16,6 +16,8 @@ function(add_unit_test name)
     target_link_libraries(${TEST_TARGET_NAME}
         PRIVATE
         ${PROJECT_NAME}::common
+        ${PROJECT_NAME}::headers
+        gmock
         GTest::gtest_main
         unit_tests_helpers
     )

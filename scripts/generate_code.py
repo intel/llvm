@@ -274,6 +274,27 @@ def _mako_tracing_layer_cpp(path, namespace, tags, version, specs, meta):
         meta=meta)
 
 """
+    generates c/c++ files from the specification documents
+"""
+def _mako_params_hpp(path, namespace, tags, version, specs, meta):
+    template = "params.hpp.mako"
+    fin = os.path.join(templates_dir, template)
+
+    name = "%s_params"%(namespace)
+    filename = "%s.hpp"%(name)
+    fout = os.path.join(path, filename)
+
+    print("Generating %s..."%fout)
+    return util.makoWrite(
+        fin, fout,
+        name=name,
+        ver=version,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta)
+
+"""
 Entry-point:
     generates lib code
 """
@@ -328,4 +349,16 @@ def generate_layers(path, section, namespace, tags, version, specs, meta):
     loc = 0
     loc += _mako_tracing_layer_cpp(layer_dstpath, namespace, tags, version, specs, meta)
     print("TRACING Generated %s lines of code.\n"%loc)
+
+"""
+Entry-point:
+    generates common utilities for unified_runtime
+"""
+def generate_common(path, section, namespace, tags, version, specs, meta):
+    layer_dstpath = os.path.join(path, "common")
+    os.makedirs(layer_dstpath, exist_ok=True)
+
+    loc = 0
+    loc += _mako_params_hpp(layer_dstpath, namespace, tags, version, specs, meta)
+    print("COMMON Generated %s lines of code.\n"%loc)
 
