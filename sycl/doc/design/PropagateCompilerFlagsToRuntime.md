@@ -23,8 +23,8 @@ The current behavior is that the optimization level option is captured at link
 time and converted into its backend-specific equivalent. This option is
 propagated to the backend. For example, If `-O0` option is specified during
 link-time when using the OpenCL backend, the SYCL runtime will pass
-`-cl-opt-disable` option to the backend device compiler for {*}all modules{*}
-essentially disabling optimizations for all modules. Otherwise, if the `-O0`
+`-cl-opt-disable` option to the backend device compiler for all modules
+essentially disabling optimizations globally. Otherwise, if the `-O0`
 option is not specified for linker, it will not pass `-cl-opt-disable` option at
 all, therefore making the kernels mostly undebuggable, regardless of the
 original front-end compiler options. Link-time capturing of optimization option
