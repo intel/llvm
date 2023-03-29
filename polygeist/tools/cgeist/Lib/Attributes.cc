@@ -31,34 +31,34 @@ static void addToPassThroughAttr(NamedAttribute &PassThroughAttr,
                                  mlir::NamedAttribute Attr, MLIRContext &Ctx) {
   assert(PassThroughAttr.getName() == PassThroughAttrName &&
          "PassThroughAttr is not valid");
-  assert(PassThroughAttr.getValue().isa<ArrayAttr>() &&
+  assert(isa<ArrayAttr>(PassThroughAttr.getValue()) &&
          "PassThroughAttr should have an ArrayAttr as value");
 
   LLVM_DEBUG(llvm::dbgs() << "Adding attribute " << Attr.getName() << " to '"
                           << PassThroughAttrName << "'.\n";);
 
   std::vector<mlir::Attribute> Vec =
-      PassThroughAttr.getValue().cast<ArrayAttr>().getValue().vec();
+      cast<ArrayAttr>(PassThroughAttr.getValue()).getValue().vec();
 
   // TODO: find a way to add the attributes only if one does not exist already.
-  if (Attr.getValue().isa<UnitAttr>())
+  if (isa<UnitAttr>(Attr.getValue()))
     Vec.push_back(Attr.getName());
   else
     Vec.push_back(ArrayAttr::get(&Ctx, {Attr.getName(), Attr.getValue()}));
 
   auto Comp = [&](const mlir::Attribute &A1, const mlir::Attribute &A2) {
-    assert(A1.isa<StringAttr>() || A1.isa<ArrayAttr>());
-    assert(A2.isa<StringAttr>() || A2.isa<ArrayAttr>());
+    assert(isa<StringAttr>(A1) || isa<ArrayAttr>(A1));
+    assert(isa<StringAttr>(A2) || isa<ArrayAttr>(A2));
 
-    if (auto StrA1 = A1.dyn_cast<StringAttr>()) {
-      if (auto StrA2 = A2.dyn_cast<StringAttr>())
+    if (auto StrA1 = dyn_cast<StringAttr>(A1)) {
+      if (auto StrA2 = dyn_cast<StringAttr>(A2))
         return StrA1 < StrA2;
       return true;
     }
 
-    auto ArrA1 = A1.cast<ArrayAttr>();
-    if (auto ArrA2 = A2.dyn_cast<ArrayAttr>())
-      return ArrA1[0].cast<StringAttr>() < ArrA2[0].cast<StringAttr>();
+    auto ArrA1 = cast<ArrayAttr>(A1);
+    if (auto ArrA2 = dyn_cast<ArrayAttr>(A2))
+      return cast<StringAttr>(ArrA1[0]) < cast<StringAttr>(ArrA2[0]);
     return false;
   };
 
@@ -77,15 +77,15 @@ static void addToPassThroughAttr(mlir::NamedAttribute &PassThroughAttr,
                                  mlir::ArrayAttr NewAttrs, MLIRContext &Ctx) {
   assert(PassThroughAttr.getName() == PassThroughAttrName &&
          "PassThroughAttr is not valid");
-  assert(PassThroughAttr.getValue().isa<ArrayAttr>() &&
+  assert(isa<ArrayAttr>(PassThroughAttr.getValue()) &&
          "PassThroughAttr should have an ArrayAttr as value");
 
   for (mlir::Attribute NewAttr : NewAttrs) {
-    if (auto ArrAttr = NewAttr.dyn_cast<ArrayAttr>()) {
-      assert(ArrAttr.size() == 2 && ArrAttr[0].isa<StringAttr>());
-      NamedAttribute NamedAttr(ArrAttr[0].cast<StringAttr>(), ArrAttr[1]);
+    if (auto ArrAttr = dyn_cast<ArrayAttr>(NewAttr)) {
+      assert(ArrAttr.size() == 2 && isa<StringAttr>(ArrAttr[0]));
+      NamedAttribute NamedAttr(cast<StringAttr>(ArrAttr[0]), ArrAttr[1]);
       addToPassThroughAttr(PassThroughAttr, NamedAttr, Ctx);
-    } else if (auto StrAttr = NewAttr.dyn_cast<StringAttr>()) {
+    } else if (auto StrAttr = dyn_cast<StringAttr>(NewAttr)) {
       NamedAttribute NamedAttr(StrAttr, UnitAttr::get(&Ctx));
       addToPassThroughAttr(PassThroughAttr, NamedAttr, Ctx);
     } else
@@ -124,7 +124,7 @@ AttributeList &AttributeList::addFnAttrs(const NamedAttrList &Attrs,
 
     // Merge the 'passthrough' attribute lists.
     if (ExistingFnAttr->getName() == PassThroughAttrName) {
-      auto Attrs = NewFnAttr.getValue().cast<ArrayAttr>();
+      auto Attrs = cast<ArrayAttr>(NewFnAttr.getValue());
       addToPassThroughAttr(*ExistingFnAttr, Attrs, Ctx);
       FnAttrs.set(ExistingFnAttr->getName(), ExistingFnAttr->getValue());
       continue;
@@ -215,16 +215,16 @@ AttrBuilder &AttrBuilder::removeAttribute(llvm::StringRef AttrName) {
   bool ContainsPassThroughAttr = getAttribute(PassThroughAttrName).has_value();
   if (ContainsPassThroughAttr) {
     NamedAttribute PassThroughAttr = getAttribute(PassThroughAttrName).value();
-    auto ArrAttr = PassThroughAttr.getValue().cast<ArrayAttr>();
+    auto ArrAttr = cast<ArrayAttr>(PassThroughAttr.getValue());
     std::vector<mlir::Attribute> Vec = ArrAttr.getValue().vec();
 
     std::remove_if(Vec.begin(), Vec.end(), [AttrName](mlir::Attribute &Attr) {
-      if (Attr.isa<StringAttr>())
-        return (Attr.cast<StringAttr>().strref() == AttrName);
-      if (Attr.isa<ArrayAttr>()) {
-        auto ArrAttr = Attr.cast<ArrayAttr>();
-        assert(ArrAttr.size() == 2 && ArrAttr[0].isa<StringAttr>());
-        return (ArrAttr[0].cast<StringAttr>().strref() == AttrName);
+      if (isa<StringAttr>(Attr))
+        return (cast<StringAttr>(Attr).strref() == AttrName);
+      if (isa<ArrayAttr>(Attr)) {
+        auto ArrAttr = cast<ArrayAttr>(Attr);
+        assert(ArrAttr.size() == 2 && isa<StringAttr>(ArrAttr[0]));
+        return (cast<StringAttr>(ArrAttr[0]).strref() == AttrName);
       }
       return false;
     });
@@ -405,20 +405,20 @@ bool AttrBuilder::containsInPassThrough(StringRef AttrName) const {
     return false;
 
   NamedAttribute PassThroughAttr = getAttribute(PassThroughAttrName).value();
-  assert(PassThroughAttr.getValue().isa<ArrayAttr>() &&
+  assert(isa<ArrayAttr>(PassThroughAttr.getValue()) &&
          "passthrough attribute value should be an ArrayAttr");
 
   return llvm::any_of(
-      PassThroughAttr.getValue().cast<ArrayAttr>(),
+      cast<ArrayAttr>(PassThroughAttr.getValue()),
       [AttrName](mlir::Attribute Attr) {
-        if (Attr.isa<ArrayAttr>()) {
-          auto ArrAttr = Attr.cast<ArrayAttr>();
-          assert(ArrAttr.size() == 2 && ArrAttr[0].isa<StringAttr>());
-          return ArrAttr[0].cast<StringAttr>() == AttrName;
+        if (isa<ArrayAttr>(Attr)) {
+          auto ArrAttr = cast<ArrayAttr>(Attr);
+          assert(ArrAttr.size() == 2 && isa<StringAttr>(ArrAttr[0]));
+          return cast<StringAttr>(ArrAttr[0]) == AttrName;
         }
 
-        assert(Attr.isa<StringAttr>() && "Unexpected attribute Kind");
-        return Attr.cast<StringAttr>() == AttrName;
+        assert(isa<StringAttr>(Attr) && "Unexpected attribute Kind");
+        return cast<StringAttr>(Attr) == AttrName;
       });
 }
 

@@ -30,28 +30,25 @@ ValueCategory::ValueCategory(mlir::Value val, bool isReference)
     : val(val), isReference(isReference) {
   assert(val && "null value");
   if (isReference) {
-    if (!(val.getType().isa<MemRefType>() ||
-          val.getType().isa<LLVM::LLVMPointerType>())) {
+    if (!(isa<MemRefType>(val.getType()) ||
+          isa<LLVM::LLVMPointerType>(val.getType()))) {
       llvm::errs() << "val: " << val << "\n";
     }
-    assert((val.getType().isa<MemRefType>() ||
-            val.getType().isa<LLVM::LLVMPointerType>()) &&
+    assert((isa<MemRefType>(val.getType()) ||
+            isa<LLVM::LLVMPointerType>(val.getType())) &&
            "Reference value must have pointer/memref type");
   }
 }
 
 ValueCategory::ValueCategory(mlir::Value Val, mlir::Value Index)
     : val{Val}, isReference{true}, Index{Index} {
-  assert(
-      ((val.getType().isa<MemRefType>() &&
-        val.getType().cast<MemRefType>().getElementType().isa<VectorType>()) ||
-       (val.getType().isa<LLVM::LLVMPointerType>() &&
-        val.getType()
-            .cast<LLVM::LLVMPointerType>()
-            .getElementType()
-            .isa<VectorType>())) &&
-      "Expecting memref/pointer of vector");
-  assert(Index.getType().isa<IntegerType>() && "Expecting integer index");
+  assert(((isa<MemRefType>(val.getType()) &&
+           isa<VectorType>(cast<MemRefType>(val.getType()).getElementType())) ||
+          (isa<LLVM::LLVMPointerType>(val.getType()) &&
+           isa<VectorType>(
+               cast<LLVM::LLVMPointerType>(val.getType()).getElementType()))) &&
+         "Expecting memref/pointer of vector");
+  assert(isa<IntegerType>(Index.getType()) && "Expecting integer index");
 }
 
 mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
@@ -59,10 +56,10 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
   if (!isReference)
     return val;
   auto loc = builder.getUnknownLoc();
-  if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
+  if (isa<mlir::LLVM::LLVMPointerType>(val.getType())) {
     return builder.create<mlir::LLVM::LoadOp>(loc, val);
   }
-  if (auto mt = val.getType().dyn_cast<mlir::MemRefType>()) {
+  if (auto mt = dyn_cast<mlir::MemRefType>(val.getType())) {
     assert(mt.getShape().size() == 1 && "must have shape 1");
     auto c0 = builder.create<ConstantIndexOp>(loc, 0);
     Value Loaded = builder.create<memref::LoadOp>(
@@ -117,12 +114,12 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
                                                    ElementType, toStore);
   }
   auto loc = builder.getUnknownLoc();
-  if (auto pt = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+  if (auto pt = dyn_cast<mlir::LLVM::LLVMPointerType>(val.getType())) {
     if (auto p2m = toStore.getDefiningOp<polygeist::Pointer2MemrefOp>()) {
       if (pt.getElementType() == p2m.getSource().getType())
         toStore = p2m.getSource();
       else if (auto nt = p2m.getSource().getDefiningOp<LLVM::NullOp>()) {
-        if (pt.getElementType().isa<LLVM::LLVMPointerType>())
+        if (isa<LLVM::LLVMPointerType>(pt.getElementType()))
           toStore =
               builder.create<LLVM::NullOp>(nt.getLoc(), pt.getElementType());
       }
@@ -130,7 +127,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
 
     if (Index) {
       auto ElemTy =
-          pt.getElementType().cast<mlir::VectorType>().getElementType();
+          cast<mlir::VectorType>(pt.getElementType()).getElementType();
       assert(ElemTy == toStore.getType() &&
              "Vector insertion element mismatch");
       ValueCategory Vec{builder.create<mlir::LLVM::LoadOp>(loc, val), false};
@@ -139,9 +136,9 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
     }
 
     if (toStore.getType() != pt.getElementType()) {
-      if (auto mt = toStore.getType().dyn_cast<MemRefType>()) {
+      if (auto mt = dyn_cast<MemRefType>(toStore.getType())) {
         if (auto spt =
-                pt.getElementType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+                dyn_cast<mlir::LLVM::LLVMPointerType>(pt.getElementType())) {
           CGEIST_WARNING({
             if (mt.getElementType() != spt.getElementType()) {
               // llvm::errs() << " func: " <<
@@ -162,12 +159,12 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
     }
     return;
   }
-  if (auto mt = val.getType().dyn_cast<MemRefType>()) {
+  if (auto mt = dyn_cast<MemRefType>(val.getType())) {
     assert(mt.getShape().size() == 1 && "must have size 1");
 
     if (Index) {
       auto ElemTy =
-          mt.getElementType().cast<mlir::VectorType>().getElementType();
+          cast<mlir::VectorType>(mt.getElementType()).getElementType();
       assert(ElemTy == toStore.getType() &&
              "Vector insertion element mismatch");
       const auto C0 = builder.createOrFold<arith::ConstantIntOp>(
@@ -178,20 +175,18 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
       toStore = Vec.val;
     }
 
-    if (auto PT = toStore.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      if (auto MT = val.getType()
-                        .cast<MemRefType>()
-                        .getElementType()
-                        .dyn_cast<mlir::MemRefType>()) {
+    if (auto PT = dyn_cast<mlir::LLVM::LLVMPointerType>(toStore.getType())) {
+      if (auto MT = dyn_cast<mlir::MemRefType>(
+              cast<MemRefType>(val.getType()).getElementType())) {
         assert(MT.getShape().size() == 1);
         assert(MT.getShape()[0] == ShapedType::kDynamic);
         assert(MT.getElementType() == PT.getElementType());
         toStore = builder.create<polygeist::Pointer2MemrefOp>(loc, MT, toStore);
       }
     }
-    if (auto RHS = toStore.getType().dyn_cast<mlir::MemRefType>()) {
+    if (auto RHS = dyn_cast<mlir::MemRefType>(toStore.getType())) {
       if (auto LHS =
-              mt.getElementType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+              dyn_cast<mlir::LLVM::LLVMPointerType>(mt.getElementType())) {
         assert(LHS.getElementType() == RHS.getElementType() &&
                "Store types mismatch");
         assert(LHS.getAddressSpace() == RHS.getMemorySpaceAsInt() &&
@@ -201,7 +196,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
       }
     }
     assert(toStore.getType() ==
-               val.getType().cast<MemRefType>().getElementType() &&
+               cast<MemRefType>(val.getType()).getElementType() &&
            "expect same type");
     auto c0 = builder.create<ConstantIndexOp>(loc, 0);
     builder.create<mlir::memref::StoreOp>(loc, toStore, val,
@@ -215,7 +210,7 @@ ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
   assert(val && "val must be not-null");
 
   auto loc = builder.getUnknownLoc();
-  if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
+  if (isa<mlir::LLVM::LLVMPointerType>(val.getType())) {
     if (!isReference)
       return ValueCategory(val, /*isReference*/ true);
     else
@@ -223,7 +218,7 @@ ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
                            /*isReference*/ true);
   }
 
-  if (auto mt = val.getType().cast<mlir::MemRefType>()) {
+  if (auto mt = cast<mlir::MemRefType>(val.getType())) {
     auto c0 = builder.create<ConstantIndexOp>(loc, 0);
     auto shape = std::vector<int64_t>(mt.getShape());
 
@@ -260,10 +255,10 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
     auto loc = builder.getUnknownLoc();
     auto zeroIndex = builder.create<ConstantIndexOp>(loc, 0);
 
-    if (auto smt = toStore.val.getType().dyn_cast<mlir::MemRefType>()) {
+    if (auto smt = dyn_cast<mlir::MemRefType>(toStore.val.getType())) {
       assert(smt.getShape().size() <= 2);
 
-      if (auto mt = val.getType().dyn_cast<mlir::MemRefType>()) {
+      if (auto mt = dyn_cast<mlir::MemRefType>(val.getType())) {
         assert(smt.getElementType() == mt.getElementType());
         if (mt.getShape().size() != smt.getShape().size()) {
           llvm::errs() << " val: " << val << " tsv: " << toStore.val << "\n";
@@ -282,9 +277,9 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
               val, idx);
         }
       } else {
-        auto pt = val.getType().cast<mlir::LLVM::LLVMPointerType>();
+        auto pt = cast<mlir::LLVM::LLVMPointerType>(val.getType());
         mlir::Type elty;
-        if (auto at = pt.getElementType().dyn_cast<LLVM::LLVMArrayType>()) {
+        if (auto at = dyn_cast<LLVM::LLVMArrayType>(pt.getElementType())) {
           elty = at.getElementType();
           if (smt.getShape().back() != at.getNumElements()) {
             llvm::errs() << " pt: " << pt << " smt: " << smt << "\n";
@@ -295,7 +290,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
           }
           assert(smt.getShape().back() == at.getNumElements());
         } else {
-          auto st = pt.getElementType().dyn_cast<LLVM::LLVMStructType>();
+          auto st = dyn_cast<LLVM::LLVMStructType>(pt.getElementType());
           elty = st.getBody()[0];
           assert(smt.getShape().back() == (ssize_t)st.getBody().size());
         }
@@ -326,16 +321,16 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
                                                 /* inbounds */ true));
         }
       }
-    } else if (auto smt = val.getType().dyn_cast<mlir::MemRefType>()) {
+    } else if (auto smt = dyn_cast<mlir::MemRefType>(val.getType())) {
       assert(smt.getShape().size() <= 2);
 
-      auto pt = toStore.val.getType().cast<LLVM::LLVMPointerType>();
+      auto pt = cast<LLVM::LLVMPointerType>(toStore.val.getType());
       mlir::Type elty;
-      if (auto at = pt.getElementType().dyn_cast<LLVM::LLVMArrayType>()) {
+      if (auto at = dyn_cast<LLVM::LLVMArrayType>(pt.getElementType())) {
         elty = at.getElementType();
         assert(smt.getShape().back() == at.getNumElements());
       } else {
-        auto st = pt.getElementType().dyn_cast<LLVM::LLVMStructType>();
+        auto st = dyn_cast<LLVM::LLVMStructType>(pt.getElementType());
         elty = st.getBody()[0];
         assert(smt.getShape().back() == (ssize_t)st.getBody().size());
       }
@@ -378,9 +373,9 @@ template <typename OpTy> inline void warnNonExactOp(bool IsExact) {
 
 ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder, Location Loc,
                                      Type PromotionType) const {
-  assert(val.getType().isa<FloatType>() &&
+  assert(isa<FloatType>(val.getType()) &&
          "Expecting floating point source type");
-  assert(PromotionType.isa<FloatType>() &&
+  assert(isa<FloatType>(PromotionType) &&
          "Expecting floating point promotion type");
   assert(val.getType().getIntOrFloatBitWidth() >=
              PromotionType.getIntOrFloatBitWidth() &&
@@ -392,9 +387,9 @@ ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::FPExt(OpBuilder &Builder, Location Loc,
                                    Type PromotionType) const {
-  assert(val.getType().isa<FloatType>() &&
+  assert(isa<FloatType>(val.getType()) &&
          "Expecting floating point source type");
-  assert(PromotionType.isa<FloatType>() &&
+  assert(isa<FloatType>(PromotionType) &&
          "Expecting floating point promotion type");
   assert(val.getType().getIntOrFloatBitWidth() <=
              PromotionType.getIntOrFloatBitWidth() &&
@@ -406,8 +401,8 @@ ValueCategory ValueCategory::FPExt(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::SIToFP(OpBuilder &Builder, Location Loc,
                                     Type PromotionType) const {
-  assert(val.getType().isa<IntegerType>() && "Expecting int source type");
-  assert(PromotionType.isa<FloatType>() &&
+  assert(isa<IntegerType>(val.getType()) && "Expecting int source type");
+  assert(isa<FloatType>(PromotionType) &&
          "Expecting floating point promotion type");
 
   CGEIST_WARNING(warnUnconstrainedOp<arith::SIToFPOp>());
@@ -416,8 +411,8 @@ ValueCategory ValueCategory::SIToFP(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::UIToFP(OpBuilder &Builder, Location Loc,
                                     Type PromotionType) const {
-  assert(val.getType().isa<IntegerType>() && "Expecting int source type");
-  assert(PromotionType.isa<FloatType>() &&
+  assert(isa<IntegerType>(val.getType()) && "Expecting int source type");
+  assert(isa<FloatType>(PromotionType) &&
          "Expecting floating point promotion type");
 
   CGEIST_WARNING(warnUnconstrainedOp<arith::UIToFPOp>());
@@ -426,10 +421,9 @@ ValueCategory ValueCategory::UIToFP(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::FPToUI(OpBuilder &Builder, Location Loc,
                                     Type PromotionType) const {
-  assert(val.getType().isa<FloatType>() &&
+  assert(isa<FloatType>(val.getType()) &&
          "Expecting floating point source type");
-  assert(PromotionType.isa<IntegerType>() &&
-         "Expecting integer promotion type");
+  assert(isa<IntegerType>(PromotionType) && "Expecting integer promotion type");
 
   CGEIST_WARNING(warnUnconstrainedOp<arith::FPToUIOp>());
   return Cast<arith::FPToUIOp>(Builder, Loc, PromotionType);
@@ -437,10 +431,9 @@ ValueCategory ValueCategory::FPToUI(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::FPToSI(OpBuilder &Builder, Location Loc,
                                     Type PromotionType) const {
-  assert(val.getType().isa<FloatType>() &&
+  assert(isa<FloatType>(val.getType()) &&
          "Expecting floating point source type");
-  assert(PromotionType.isa<IntegerType>() &&
-         "Expecting integer promotion type");
+  assert(isa<IntegerType>(PromotionType) && "Expecting integer promotion type");
 
   CGEIST_WARNING(warnUnconstrainedOp<arith::FPToSIOp>());
   return Cast<arith::FPToSIOp>(Builder, Loc, PromotionType);
@@ -448,16 +441,16 @@ ValueCategory ValueCategory::FPToSI(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Location Loc,
                                      Type PromotionType, bool IsSigned) const {
-  assert((val.getType().isa<IntegerType, IndexType>()) &&
+  assert((isa<IntegerType, IndexType>(val.getType())) &&
          "Expecting integer or index source type");
-  assert((PromotionType.isa<IntegerType, IndexType>()) &&
+  assert((isa<IntegerType, IndexType>(PromotionType)) &&
          "Expecting integer or index promotion type");
 
   if (val.getType() == PromotionType)
     return *this;
 
   auto Res = [&]() -> Value {
-    if (val.getType().isa<IndexType>() || PromotionType.isa<IndexType>()) {
+    if (isa<IndexType>(val.getType()) || isa<IndexType>(PromotionType)) {
       // Special indexcast case
       if (IsSigned)
         return Builder.createOrFold<arith::IndexCastOp>(Loc, PromotionType,
@@ -466,8 +459,8 @@ ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Location Loc,
                                                         val);
     }
 
-    auto SrcIntTy = val.getType().cast<IntegerType>();
-    auto DstIntTy = PromotionType.cast<IntegerType>();
+    auto SrcIntTy = cast<IntegerType>(val.getType());
+    auto DstIntTy = cast<IntegerType>(PromotionType);
 
     const unsigned SrcBits = SrcIntTy.getWidth();
     const unsigned DstBits = DstIntTy.getWidth();
@@ -485,18 +478,17 @@ ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::PtrToInt(OpBuilder &Builder, Location Loc,
                                       Type DestTy) const {
-  assert(val.getType().isa<LLVM::LLVMPointerType>() &&
+  assert(isa<LLVM::LLVMPointerType>(val.getType()) &&
          "Expecting pointer source type");
-  assert(DestTy.isa<IntegerType>() &&
-         "Expecting floating point promotion type");
+  assert(isa<IntegerType>(DestTy) && "Expecting floating point promotion type");
 
   return Cast<LLVM::PtrToIntOp>(Builder, Loc, DestTy);
 }
 
 ValueCategory ValueCategory::IntToPtr(OpBuilder &Builder, Location Loc,
                                       Type DestTy) const {
-  assert(val.getType().isa<IntegerType>() && "Expecting pointer source type");
-  assert(DestTy.isa<LLVM::LLVMPointerType>() &&
+  assert(isa<IntegerType>(val.getType()) && "Expecting pointer source type");
+  assert(isa<LLVM::LLVMPointerType>(DestTy) &&
          "Expecting floating point promotion type");
 
   return Cast<LLVM::IntToPtrOp>(Builder, Loc, DestTy);
@@ -521,16 +513,16 @@ ValueCategory ValueCategory::BitCast(OpBuilder &Builder, Location Loc,
           mlirclang::getAddressSpace(val.getType()) ==
               mlirclang::getAddressSpace(DestTy)) &&
          "Expecting equal address spaces");
-  assert((!(val.getType().isa<mlir::VectorType>() &&
-            DestTy.isa<mlir::VectorType>()) ||
-          val.getType().cast<mlir::VectorType>().getNumElements() ==
-              DestTy.cast<mlir::VectorType>().getNumElements()) &&
+  assert((!(isa<mlir::VectorType>(val.getType()) &&
+            isa<mlir::VectorType>(DestTy)) ||
+          cast<mlir::VectorType>(val.getType()).getNumElements() ==
+              cast<mlir::VectorType>(DestTy).getNumElements()) &&
          "Expecting same number of elements");
-  assert((!val.getType().isa<mlir::VectorType>() ||
-          val.getType().cast<mlir::VectorType>().getNumElements() == 1) &&
+  assert((!isa<mlir::VectorType>(val.getType()) ||
+          cast<mlir::VectorType>(val.getType()).getNumElements() == 1) &&
          "Expecting single-element vector");
-  assert((!DestTy.isa<mlir::VectorType>() ||
-          DestTy.cast<mlir::VectorType>().getNumElements() == 1) &&
+  assert((!isa<mlir::VectorType>(DestTy) ||
+          cast<mlir::VectorType>(DestTy).getNumElements() == 1) &&
          "Expecting single-element vector");
 
   return Cast<LLVM::BitcastOp>(Builder, Loc, DestTy);
@@ -538,9 +530,9 @@ ValueCategory ValueCategory::BitCast(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::MemRef2Ptr(OpBuilder &Builder,
                                         Location Loc) const {
-  const auto Ty = val.getType().dyn_cast<MemRefType>();
+  const auto Ty = dyn_cast<MemRefType>(val.getType());
   if (!Ty) {
-    assert(val.getType().isa<LLVM::LLVMPointerType>() &&
+    assert(isa<LLVM::LLVMPointerType>(val.getType()) &&
            "Expecting pointer type");
     return *this;
   }
@@ -555,9 +547,9 @@ ValueCategory
 ValueCategory::Ptr2MemRef(OpBuilder &Builder, Location Loc,
                           llvm::ArrayRef<int64_t> Shape,
                           MemRefLayoutAttrInterface Layout) const {
-  const auto Ty = val.getType().dyn_cast<LLVM::LLVMPointerType>();
+  const auto Ty = dyn_cast<LLVM::LLVMPointerType>(val.getType());
   if (!Ty) {
-    assert(val.getType().isa<MemRefType>() && "Expecting MemRef type");
+    assert(isa<MemRefType>(val.getType()) && "Expecting MemRef type");
     return *this;
   }
 
@@ -570,8 +562,8 @@ ValueCategory::Ptr2MemRef(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::Splat(OpBuilder &Builder, Location Loc,
                                    mlir::Type VecTy) const {
-  assert(VecTy.isa<mlir::VectorType>() && "Expecting vector type for cast");
-  assert(VecTy.cast<mlir::VectorType>().getElementType() == val.getType() &&
+  assert(isa<mlir::VectorType>(VecTy) && "Expecting vector type for cast");
+  assert(cast<mlir::VectorType>(VecTy).getElementType() == val.getType() &&
          "Cannot splat to a vector of different element type");
   return {Builder.createOrFold<vector::SplatOp>(Loc, val, VecTy), false};
 }
@@ -591,7 +583,7 @@ ValueCategory ValueCategory::ICmp(OpBuilder &builder, Location Loc,
                                   mlir::Value RHS) const {
   assert(val.getType() == RHS.getType() &&
          "Cannot compare values of different types");
-  assert(val.getType().isa<IntegerType>() && "Expecting integer inputs");
+  assert(isa<IntegerType>(val.getType()) && "Expecting integer inputs");
   return {builder.createOrFold<arith::CmpIOp>(Loc, predicate, val, RHS), false};
 }
 
@@ -600,7 +592,7 @@ ValueCategory ValueCategory::FCmp(OpBuilder &builder, Location Loc,
                                   mlir::Value RHS) const {
   assert(val.getType() == RHS.getType() &&
          "Cannot compare values of different types");
-  assert(val.getType().isa<FloatType>() && "Expecting floating point inputs");
+  assert(isa<FloatType>(val.getType()) && "Expecting floating point inputs");
   return {builder.createOrFold<arith::CmpFOp>(Loc, predicate, val, RHS), false};
 }
 
@@ -720,8 +712,8 @@ ValueCategory ValueCategory::FSub(OpBuilder &Builder, Location Loc,
 ValueCategory ValueCategory::SubIndex(OpBuilder &Builder, Location Loc,
                                       Type Type, Value Index,
                                       bool IsInBounds) const {
-  assert(val.getType().isa<MemRefType>() && "Expecting a pointer as operand");
-  assert(Index.getType().isa<IndexType>() && "Expecting an index type index");
+  assert(isa<MemRefType>(val.getType()) && "Expecting a pointer as operand");
+  assert(isa<IndexType>(Index.getType()) && "Expecting an index type index");
 
   CGEIST_WARNING({
     if (IsInBounds)
@@ -741,10 +733,10 @@ ValueCategory ValueCategory::InBoundsSubIndex(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::GEP(OpBuilder &Builder, Location Loc, Type Type,
                                  ValueRange IdxList, bool IsInBounds) const {
-  assert(val.getType().isa<LLVM::LLVMPointerType>() &&
+  assert(isa<LLVM::LLVMPointerType>(val.getType()) &&
          "Expecting a pointer as operand");
   assert(std::all_of(IdxList.getType().begin(), IdxList.getType().end(),
-                     [](mlir::Type Ty) { return Ty.isa<IntegerType>(); }) &&
+                     [](mlir::Type Ty) { return isa<IntegerType>(Ty); }) &&
          "Expecting integer indices");
 
   CGEIST_WARNING({
@@ -767,7 +759,7 @@ ValueCategory ValueCategory::GEPOrSubIndex(OpBuilder &Builder, Location Loc,
                                            Type Type, ValueRange IdxList,
                                            bool IsInBounds) const {
   const auto ValType = val.getType();
-  assert((ValType.isa<LLVM::LLVMPointerType, MemRefType>()) &&
+  assert((isa<LLVM::LLVMPointerType, MemRefType>(ValType)) &&
          "Expecting an LLVMPointer or MemRefType input");
 
   return llvm::TypeSwitch<mlir::Type, ValueCategory>(ValType)
@@ -832,10 +824,10 @@ ValueCategory ValueCategory::Xor(mlir::OpBuilder &Builder, mlir::Location Loc,
 ValueCategory ValueCategory::Insert(OpBuilder &Builder, Location Loc, Value V,
                                     llvm::ArrayRef<int64_t> Indices) const {
   assert(Indices.size() == 1 && "Only supporting 1-D vectors for now");
-  assert(val.getType().isa<VectorType>() && "Expecting vector type");
-  assert(val.getType().cast<VectorType>().getElementType() == V.getType() &&
+  assert(isa<VectorType>(val.getType()) && "Expecting vector type");
+  assert(cast<VectorType>(val.getType()).getElementType() == V.getType() &&
          "Cannot insert value in vector of different type");
-  assert(val.getType().cast<VectorType>().getNumElements() > Indices[0] &&
+  assert(cast<VectorType>(val.getType()).getNumElements() > Indices[0] &&
          "Invalid index");
 
   return {Builder.createOrFold<vector::InsertOp>(Loc, V, val, Indices), false};
@@ -843,10 +835,10 @@ ValueCategory ValueCategory::Insert(OpBuilder &Builder, Location Loc, Value V,
 
 ValueCategory ValueCategory::InsertElement(OpBuilder &Builder, Location Loc,
                                            Value V, Value Idx) const {
-  assert(val.getType().isa<VectorType>() && "Expecting vector type");
-  assert(val.getType().cast<VectorType>().getElementType() == V.getType() &&
+  assert(isa<VectorType>(val.getType()) && "Expecting vector type");
+  assert(cast<VectorType>(val.getType()).getElementType() == V.getType() &&
          "Cannot insert value in vector of different type");
-  assert(Idx.getType().isa<IntegerType>() && "Index must be an integer");
+  assert(isa<IntegerType>(Idx.getType()) && "Index must be an integer");
 
   return {Builder.createOrFold<vector::InsertElementOp>(Loc, V, val, Idx),
           false};
@@ -855,8 +847,8 @@ ValueCategory ValueCategory::InsertElement(OpBuilder &Builder, Location Loc,
 ValueCategory ValueCategory::Extract(OpBuilder &Builder, Location Loc,
                                      llvm::ArrayRef<int64_t> Indices) const {
   assert(Indices.size() == 1 && "Only supporting 1-D vectors for now");
-  assert(val.getType().isa<VectorType>() && "Expecting vector type");
-  assert(val.getType().cast<VectorType>().getNumElements() > Indices[0] &&
+  assert(isa<VectorType>(val.getType()) && "Expecting vector type");
+  assert(cast<VectorType>(val.getType()).getNumElements() > Indices[0] &&
          "Invalid index");
 
   return {Builder.createOrFold<vector::ExtractOp>(Loc, val, Indices), false};
@@ -864,16 +856,16 @@ ValueCategory ValueCategory::Extract(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::ExtractElement(OpBuilder &Builder, Location Loc,
                                             Value Idx) const {
-  assert(Idx.getType().isa<IntegerType>() && "Index must be an integer");
-  assert(val.getType().isa<VectorType>() && "Expecting vector type");
+  assert(isa<IntegerType>(Idx.getType()) && "Index must be an integer");
+  assert(isa<VectorType>(val.getType()) && "Expecting vector type");
 
   return {Builder.createOrFold<vector::ExtractElementOp>(Loc, val, Idx), false};
 }
 
 ValueCategory ValueCategory::Shuffle(OpBuilder &Builder, Location Loc, Value V2,
                                      llvm::ArrayRef<int64_t> Indices) const {
-  assert(val.getType().isa<VectorType>() && "Expecting vector type");
-  assert(V2.getType().isa<VectorType>() && "Expecting vector type");
+  assert(isa<VectorType>(val.getType()) && "Expecting vector type");
+  assert(isa<VectorType>(V2.getType()) && "Expecting vector type");
   assert(val.getType() == V2.getType() && "Expecting vectors of equal types");
 
   return {Builder.createOrFold<vector::ShuffleOp>(Loc, val, V2, Indices),
@@ -882,9 +874,9 @@ ValueCategory ValueCategory::Shuffle(OpBuilder &Builder, Location Loc, Value V2,
 
 ValueCategory ValueCategory::Reshape(OpBuilder &Builder, Location Loc,
                                      llvm::ArrayRef<int64_t> Shape) const {
-  assert(val.getType().isa<VectorType>() && "Expecting input vector");
+  assert(isa<VectorType>(val.getType()) && "Expecting input vector");
   assert(Shape.size() == 1 && "We only support 1-D vectors for now");
-  const auto CurrTy = val.getType().cast<VectorType>();
+  const auto CurrTy = cast<VectorType>(val.getType());
   assert(CurrTy.getNumScalableDims() == 0 && "Scalable vectors not supported");
   const auto NewTy = VectorType::get(Shape, CurrTy.getElementType());
   if (CurrTy == NewTy)

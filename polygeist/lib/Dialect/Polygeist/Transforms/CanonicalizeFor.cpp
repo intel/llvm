@@ -120,7 +120,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         if (!sameValue) {
           Value step = addOp.getOperand(1);
 
-          if (!step.getType().isa<IndexType>()) {
+          if (!isa<IndexType>(step.getType())) {
             step = rewriter.create<IndexCastOp>(forOp.getLoc(),
                                                 replacement.getType(), step);
           }
@@ -129,7 +129,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
               rewriter.create<MulIOp>(forOp.getLoc(), replacement, step);
         }
 
-        if (!init.getType().isa<IndexType>()) {
+        if (!isa<IndexType>(init.getType())) {
           init = rewriter.create<IndexCastOp>(forOp.getLoc(),
                                               replacement.getType(), init);
         }
@@ -137,7 +137,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         replacement =
             rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
 
-        if (!std::get<1>(it).getType().isa<IndexType>()) {
+        if (!isa<IndexType>(std::get<1>(it).getType())) {
           replacement = rewriter.create<IndexCastOp>(
               forOp.getLoc(), std::get<1>(it).getType(), replacement);
         }
@@ -160,7 +160,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         if (!sameValue) {
           Value step = addOp.getOperand(1);
 
-          if (!step.getType().isa<IndexType>()) {
+          if (!isa<IndexType>(step.getType())) {
             step = rewriter.create<IndexCastOp>(forOp.getLoc(),
                                                 replacement.getType(), step);
           }
@@ -169,7 +169,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
               rewriter.create<MulIOp>(forOp.getLoc(), replacement, step);
         }
 
-        if (!init.getType().isa<IndexType>()) {
+        if (!isa<IndexType>(init.getType())) {
           init = rewriter.create<IndexCastOp>(forOp.getLoc(),
                                               replacement.getType(), init);
         }
@@ -177,7 +177,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         replacement =
             rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
 
-        if (!std::get<1>(it).getType().isa<IndexType>()) {
+        if (!isa<IndexType>(std::get<1>(it).getType())) {
           replacement = rewriter.create<IndexCastOp>(
               forOp.getLoc(), std::get<1>(it).getType(), replacement);
         }
@@ -251,7 +251,7 @@ struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
     // Replace the operation's results with the new ones.
     SmallVector<Value, 4> repResults(op.getNumResults());
     for (auto en : llvm::enumerate(usedResults))
-      repResults[en.value().cast<OpResult>().getResultNumber()] =
+      repResults[cast<OpResult>(en.value()).getResultNumber()] =
           newForOp.getResult(en.index());
 
     rewriter.replaceOp(op, repResults);
@@ -313,8 +313,8 @@ cast<scf::YieldOp>(op.thenRegion().back().getTerminator());
 +        continue;
 +      if (auto top = std::get<0>(tup).getDefiningOp<ConstantOp>()) {
 +        if (auto fop = std::get<1>(tup).getDefiningOp<ConstantOp>()) {
-+          if (top.getValue().cast<IntegerAttr>().getValue() == 0 &&
-+              fop.getValue().cast<IntegerAttr>().getValue() == 1) {
++          if (cast<IntegerAttr>(top.getValue()).getValue() == 0 &&
++              cast<IntegerAttr>(fop.getValue()).getValue() == 1) {
 +
 +            for (OpOperand &use :
 +                 llvm::make_early_inc_range(std::get<2>(tup).getUses())) {
@@ -324,8 +324,8 @@ cast<scf::YieldOp>(op.thenRegion().back().getTerminator());
 +              });
 +            }
 +          }
-+          if (top.getValue().cast<IntegerAttr>().getValue() == 1 &&
-+              fop.getValue().cast<IntegerAttr>().getValue() == 0) {
++          if (cast<IntegerAttr>(top.getValue()).getValue() == 1 &&
++              cast<IntegerAttr>(fop.getValue()).getValue() == 0) {
 +            for (OpOperand &use :
 +                 llvm::make_early_inc_range(std::get<2>(tup).getUses())) {
 +              changed = true;
@@ -347,8 +347,8 @@ cast<scf::YieldOp>(op.thenRegion().back().getTerminator());
 +    bool changed = false;
 +
 +    if (llvm::all_of(op.results(), [](Value v) {
-+          return v.getType().isa<IntegerType>() &&
-+                 v.getType().cast<IntegerType>().getWidth() == 1;
++          return isa<IntegerType>(v.getType()) &&
++                 cast<IntegerType>(v.getType()).getWidth() == 1;
 +        })) {
 +      if (op.thenRegion().getBlocks().size() == 1 &&
 +          op.elseRegion().getBlocks().size() == 1) {
@@ -418,13 +418,13 @@ yop2.results()[idx]);
 */
 
 bool isTopLevelArgValue(Value value, Region *region) {
-  if (auto arg = value.dyn_cast<BlockArgument>())
+  if (auto arg = dyn_cast<BlockArgument>(value))
     return arg.getParentRegion() == region;
   return false;
 }
 
 bool isBlockArg(Value value) {
-  if (auto arg = value.dyn_cast<BlockArgument>())
+  if (auto arg = dyn_cast<BlockArgument>(value))
     return true;
   return false;
 }
@@ -468,11 +468,11 @@ struct WhileToForHelper {
     negativeStep = false;
 
     auto condOp = loop.getConditionOp();
-    indVar = cmpIOp.getLhs().dyn_cast<BlockArgument>();
+    indVar = dyn_cast<BlockArgument>(cmpIOp.getLhs());
     Type extType = nullptr;
     // todo handle ext
     if (auto ext = cmpIOp.getLhs().getDefiningOp<ExtSIOp>()) {
-      indVar = ext.getIn().dyn_cast<BlockArgument>();
+      indVar = dyn_cast<BlockArgument>(ext.getIn());
       extType = ext.getType();
     }
     // Condition is not the same as an induction variable
@@ -683,7 +683,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       }
       Value res;
       if (isTopLevelArgValue(arg, &loop.getBefore())) {
-        auto blockArg = arg.cast<BlockArgument>();
+        auto blockArg = cast<BlockArgument>(arg);
         auto pos = blockArg.getArgNumber();
         res = loop.getInits()[pos];
       } else
@@ -766,7 +766,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
 
       Value extraCmp = andIOp->getOperand(1 - i);
       Value lookThrough = nullptr;
-      if (auto BA = extraCmp.dyn_cast<BlockArgument>()) {
+      if (auto BA = dyn_cast<BlockArgument>(extraCmp)) {
         lookThrough = oldYield.getOperand(BA.getArgNumber());
       }
       if (!helper.computeLegality(/*sizeCheck*/ false, lookThrough))
@@ -1102,7 +1102,7 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
           //    yield   i:pair<2>
           // }
           if (!std::get<0>(pair).use_empty()) {
-            if (auto blockArg = elseYielded.dyn_cast<BlockArgument>())
+            if (auto blockArg = dyn_cast<BlockArgument>(elseYielded))
               if (blockArg.getOwner() == &op.getBefore().front()) {
                 if (afterYield.getResults()[blockArg.getArgNumber()] ==
                         std::get<2>(pair) &&
@@ -1222,7 +1222,7 @@ struct MoveWhileInvariantIfResult : public OpRewritePattern<WhileOp> {
       if (!std::get<0>(pair).use_empty()) {
         if (auto ifOp = std::get<1>(pair).getDefiningOp<scf::IfOp>()) {
           if (ifOp.getCondition() == term.getCondition()) {
-            auto idx = std::get<1>(pair).cast<OpResult>().getResultNumber();
+            auto idx = cast<OpResult>(std::get<1>(pair)).getResultNumber();
             Value returnWith = ifOp.elseYield().getResults()[idx];
             if (!op.getBefore().isAncestor(returnWith.getParentRegion())) {
               rewriter.updateRootInPlace(op, [&] {
@@ -1341,7 +1341,7 @@ struct WhileCmpOffset : public OpRewritePattern<WhileOp> {
         if (addI.getOperand(1).getDefiningOp() &&
             !op.getBefore().isAncestor(
                 addI.getOperand(1).getDefiningOp()->getParentRegion()))
-          if (auto blockArg = addI.getOperand(0).dyn_cast<BlockArgument>()) {
+          if (auto blockArg = dyn_cast<BlockArgument>(addI.getOperand(0))) {
             if (blockArg.getOwner() == &op.getBefore().front()) {
               auto rng = llvm::make_early_inc_range(blockArg.getUses());
 
@@ -1620,7 +1620,7 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     auto isDefinedOutsideOfBody = [&](Value value) {
       auto *definingOp = value.getDefiningOp();
       if (!definingOp) {
-        if (auto ba = value.dyn_cast<BlockArgument>())
+        if (auto ba = dyn_cast<BlockArgument>(value))
           definingOp = ba.getOwner()->getParentOp();
         assert(definingOp);
       }
