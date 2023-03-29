@@ -348,7 +348,7 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](mlir::memref::AllocaOp alop) {
       if (auto ia =
-              alop.getType().getMemorySpace().dyn_cast_or_null<IntegerAttr>())
+              dyn_cast_or_null<IntegerAttr>(alop.getType().getMemorySpace()))
         if (ia.getValue() == 5) {
           builder.setInsertionPointToStart(blockB);
           auto newAlloca = builder.create<memref::AllocaOp>(

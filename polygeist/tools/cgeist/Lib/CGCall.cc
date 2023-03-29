@@ -35,7 +35,7 @@ static Value castCallerMemRefArg(Value CallerArg, Type CalleeArgType,
   OpBuilder::InsertionGuard Guard(B);
   Type CallerArgType = CallerArg.getType();
 
-  if (MemRefType DstTy = CalleeArgType.dyn_cast_or_null<MemRefType>()) {
+  if (MemRefType DstTy = dyn_cast_or_null<MemRefType>(CalleeArgType)) {
     MemRefType SrcTy = dyn_cast<MemRefType>(CallerArgType);
     if (SrcTy && DstTy.getElementType() == SrcTy.getElementType() &&
         DstTy.getMemorySpace() == SrcTy.getMemorySpace()) {
