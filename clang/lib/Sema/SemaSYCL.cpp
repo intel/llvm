@@ -2841,9 +2841,6 @@ public:
   }
 
   CXXMethodDecl *getCallOperator() {
-    if (!CallOperator)
-      return CallOperator;
-
     if (CallOperator)
       return CallOperator;
 
