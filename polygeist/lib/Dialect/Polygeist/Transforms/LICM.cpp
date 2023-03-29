@@ -819,7 +819,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
   // operands are not defined outside of the loop and cannot themselves be
   // moved.
   auto canBeMoved = [&](Value value) {
-    if (auto BA = value.dyn_cast<BlockArgument>())
+    if (auto BA = dyn_cast<BlockArgument>(value))
       if (willBeMoved.count(BA.getOwner()->getParentOp()))
         return true;
     Operation *definingOp = value.getDefiningOp();

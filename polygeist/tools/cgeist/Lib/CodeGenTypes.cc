@@ -612,7 +612,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       // Fast-isel and the optimizer generally like
       // scalar values better than FCAs, so we flatten them if this is safe to
       // do for this argument.
-      auto ST = MLIRArgTy.dyn_cast<mlir::LLVM::LLVMStructType>();
+      auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(MLIRArgTy);
 
       CGEIST_WARNING({
         if (ST && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened())
@@ -646,8 +646,8 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   if (IsArrayReturn) {
     auto MLIRType = getMLIRType(
         CGM.getContext().getLValueReferenceType(FD.getReturnType()));
-    assert(MLIRType.isa<MemRefType>() &&
-           MLIRType.cast<MemRefType>().getShape().size() == 2);
+    assert(isa<MemRefType>(MLIRType) &&
+           cast<MemRefType>(MLIRType).getShape().size() == 2);
     ArgTypes[NumArgs - 1] = MLIRType;
     LLVM_DEBUG({
       llvm::dbgs() << "Added parameter for array return\n";
@@ -656,7 +656,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   }
 
   SmallVector<mlir::Type, 2> ResultTypes;
-  if (!ResultType.isa<mlir::NoneType>())
+  if (!isa<mlir::NoneType>(ResultType))
     ResultTypes.push_back(ResultType);
 
   assert(llvm::all_of(ArgTypes, [](mlir::Type t) { return t; }) &&
@@ -702,7 +702,7 @@ void CodeGenTypes::constructAttributeList(
     llvm::Optional<mlir::NamedAttribute> A =
         FuncAttrsBuilder.getAttribute(llvm::Attribute::Memory);
     if (A) {
-      IntegerAttr AA = A->getValue().cast<IntegerAttr>();
+      IntegerAttr AA = cast<IntegerAttr>(A->getValue());
       auto ME = llvm::MemoryEffects::createFromIntValue(AA.getInt()) |
                 llvm::MemoryEffects::argMemOnly();
       FuncAttrsBuilder.addAttribute(llvm::Attribute::Memory, ME.toIntValue());
@@ -1320,7 +1320,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       }
 
       // If -memref-fullrank is unset or it cannot be fulfilled.
-      auto MT = MLIRTy.dyn_cast<MemRefType>();
+      auto MT = dyn_cast<MemRefType>(MLIRTy);
       auto Shape2 = std::vector<int64_t>(MT.getShape());
       Shape2[0] = ShapedType::kDynamic;
       return mlir::MemRefType::get(Shape2, MT.getElementType(),
@@ -1423,8 +1423,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         bool SubRef = false;
         auto Ty = getMLIRTypeForMem(F.getType(), &SubRef, /*AllowMerge*/ false);
         assert(!SubRef);
-        InnerLLVM |= Ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
-                            LLVM::LLVMArrayType>();
+        InnerLLVM |= isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
+                         LLVM::LLVMArrayType>(Ty);
         Types.push_back(Ty);
       }
     }
@@ -1433,8 +1433,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       bool SubRef = false;
       auto Ty = getMLIRTypeForMem(F->getType(), &SubRef, /*AllowMerge*/ false);
       assert(!SubRef);
-      InnerLLVM |= Ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
-                          LLVM::LLVMArrayType>();
+      InnerLLVM |=
+          isa<LLVM::LLVMPointerType, LLVM::LLVMStructType, LLVM::LLVMArrayType>(
+              Ty);
       InnerSYCL |= mlir::sycl::isSYCLType(Ty);
       Types.push_back(Ty);
     }
@@ -1467,7 +1468,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     if (const auto *CAT = dyn_cast<clang::ConstantArrayType>(AT))
       Size = CAT->getSize().getZExtValue();
     if (MemRefABI && SubRef) {
-      auto MT = ET.cast<MemRefType>();
+      auto MT = cast<MemRefType>(ET);
       auto Shape2 = std::vector<int64_t>(MT.getShape());
       Shape2.insert(Shape2.begin(), Size);
       if (ImplicitRef)
@@ -1478,8 +1479,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     if (!MemRefABI || !AllowMerge ||
-        ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
-               LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
+        isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType, LLVM::LLVMFunctionType,
+            LLVM::LLVMStructType>(ET))
       return LLVM::LLVMArrayType::get(
           ET, (Size == ShapedType::kDynamic) ? 0 : Size);
 
@@ -1500,7 +1501,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
   if (const auto *FT = dyn_cast<clang::FunctionProtoType>(T)) {
     auto RT = getMLIRType(FT->getReturnType());
-    if (RT.isa<mlir::NoneType>())
+    if (isa<mlir::NoneType>(RT))
       RT = LLVM::LLVMVoidType::get(RT.getContext());
     SmallVector<mlir::Type> Args;
     for (auto T : FT->getParamTypes())
@@ -1510,7 +1511,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
   if (const auto *FT = dyn_cast<clang::FunctionNoProtoType>(T)) {
     auto RT = getMLIRType(FT->getReturnType());
-    if (RT.isa<mlir::NoneType>())
+    if (isa<mlir::NoneType>(RT))
       RT = LLVM::LLVMVoidType::get(RT.getContext());
     SmallVector<mlir::Type> Args;
     return LLVM::LLVMFunctionType::get(RT, Args, /*isVariadic*/ true);
@@ -1532,15 +1533,15 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     auto SubType = getMLIRTypeForMem(PointeeType, &SubRef, /*AllowMerge*/ true);
 
     if (!MemRefABI ||
-        SubType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
-                    LLVM::LLVMPointerType, LLVM::LLVMFunctionType>()) {
+        isa<LLVM::LLVMArrayType, LLVM::LLVMStructType, LLVM::LLVMPointerType,
+            LLVM::LLVMFunctionType>(SubType)) {
       // JLE_QUEL::THOUGHTS
       // When generating the sycl_halide_kernel, If a struct type contains
       // SYCL types, that means that this is the functor, and we can't create
       // a llvm pointer that contains custom aggregate types. We could create
       // a sycl::Functor type, that will help us get rid of those conditions.
       bool InnerSYCL = false;
-      if (auto ST = SubType.dyn_cast<mlir::LLVM::LLVMStructType>())
+      if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(SubType))
         InnerSYCL |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
 
       if (!InnerSYCL)
@@ -1550,7 +1551,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     if (isa<clang::ArrayType>(PTT)) {
-      if (SubType.isa<MemRefType>()) {
+      if (isa<MemRefType>(SubType)) {
         assert(SubRef);
         return SubType;
       }
@@ -1558,14 +1559,14 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     if (isa<clang::VectorType>(PTT) || isa<clang::ComplexType>(PTT)) {
-      if (auto VT = SubType.dyn_cast<mlir::VectorType>())
+      if (auto VT = dyn_cast<mlir::VectorType>(SubType))
         // FIXME: We should create memref of rank 0.
         // Details: https://github.com/intel/llvm/issues/7354
         return mlir::MemRefType::get(Outer, SubType);
 
-      if (SubType.isa<MemRefType>()) {
+      if (isa<MemRefType>(SubType)) {
         assert(SubRef);
-        auto MT = SubType.cast<MemRefType>();
+        auto MT = cast<MemRefType>(SubType);
         auto Shape2 = std::vector<int64_t>(MT.getShape());
         Shape2.insert(Shape2.begin(), Outer);
         return mlir::MemRefType::get(Shape2, MT.getElementType(),
@@ -1577,7 +1578,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     if (isa<clang::RecordType>(PTT) && SubRef) {
-      auto MT = SubType.cast<MemRefType>();
+      auto MT = cast<MemRefType>(SubType);
       auto Shape2 = std::vector<int64_t>(MT.getShape());
       Shape2.insert(Shape2.begin(), Outer);
       return mlir::MemRefType::get(Shape2, MT.getElementType(),
@@ -1787,7 +1788,7 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
 mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
                                                 unsigned AddressSpace,
                                                 bool IsAlloc) const {
-  auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>();
+  auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(Ty);
 
   bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
   if (ST)

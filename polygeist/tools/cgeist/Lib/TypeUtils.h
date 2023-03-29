@@ -64,18 +64,20 @@ bool isFPOrFPVectorTy(mlir::Type Ty);
 bool isIntOrIntVectorTy(mlir::Type Ty);
 
 inline bool isPointerOrMemRefTy(mlir::Type Ty) {
-  return Ty.isa<mlir::MemRefType, mlir::LLVM::LLVMPointerType>();
+  return llvm::isa<mlir::MemRefType, mlir::LLVM::LLVMPointerType>(Ty);
 }
 
 inline bool isFirstClassType(mlir::Type Ty) {
-  return Ty.isa<mlir::IntegerType, mlir::IndexType, mlir::FloatType,
-                mlir::VectorType, mlir::MemRefType, mlir::LLVM::LLVMPointerType,
-                mlir::LLVM::LLVMStructType>() ||
+  return llvm::isa<mlir::IntegerType, mlir::IndexType, mlir::FloatType,
+                   mlir::VectorType, mlir::MemRefType,
+                   mlir::LLVM::LLVMPointerType, mlir::LLVM::LLVMStructType>(
+             Ty) ||
          mlir::sycl::isSYCLType(Ty);
 }
 
 inline bool isAggregateType(mlir::Type Ty) {
-  return Ty.isa<mlir::LLVM::LLVMStructType>() || mlir::sycl::isSYCLType(Ty);
+  return llvm::isa<mlir::LLVM::LLVMStructType>(Ty) ||
+         mlir::sycl::isSYCLType(Ty);
 }
 
 unsigned getPrimitiveSizeInBits(mlir::Type Ty);

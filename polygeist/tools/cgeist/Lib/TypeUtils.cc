@@ -333,9 +333,8 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
                                       NumElems, Body);
     }
     case TypeEnum::SwizzleOp: {
-      const auto VecType =
-          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType())
-              .cast<mlir::sycl::VecType>();
+      const auto VecType = cast<mlir::sycl::VecType>(
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType()));
       const auto IndexesArgs = CTS->getTemplateArgs().get(4).getPackAsArray();
       SmallVector<int> Indexes;
       Indexes.reserve(IndexesArgs.size());
@@ -378,10 +377,10 @@ llvm::Type *getLLVMType(const clang::QualType QT,
 }
 
 template <typename MLIRTy> static bool isTyOrTyVectorTy(mlir::Type Ty) {
-  if (Ty.isa<MLIRTy>())
+  if (isa<MLIRTy>(Ty))
     return true;
-  const auto VecTy = Ty.dyn_cast<mlir::VectorType>();
-  return VecTy && VecTy.getElementType().isa<MLIRTy>();
+  const auto VecTy = dyn_cast<mlir::VectorType>(Ty);
+  return VecTy && isa<MLIRTy>(VecTy.getElementType());
 }
 
 bool isFPOrFPVectorTy(mlir::Type Ty) {

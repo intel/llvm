@@ -13,8 +13,8 @@ using namespace mlirclang;
 
 Value ConstantFolder::foldFPCast(Location Loc, Type PromotionType,
                                  arith::ConstantOp C) {
-  assert(PromotionType.isa<FloatType>() && "Expecting FP type");
-  const auto Attr = C.getValueAttr().cast<FloatAttr>();
+  assert(isa<FloatType>(PromotionType) && "Expecting FP type");
+  const auto Attr = cast<FloatAttr>(C.getValueAttr());
   const auto NewAttr =
       FloatAttr::get(PromotionType, Attr.getValue().convertToDouble());
   return Builder.createOrFold<arith::ConstantOp>(Loc, NewAttr, PromotionType);
