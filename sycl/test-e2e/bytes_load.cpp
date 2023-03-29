@@ -28,6 +28,29 @@ template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 
+struct S1 {
+  S1() = default;
+  S1(int i) : i(i) {}
+  operator int() {
+    return i;
+  }
+  int i = 0;
+  int j = 2;
+};
+static_assert(sizeof(S1) == 8);
+
+struct S2 {
+  S2() = default;
+  S2(int i) : i(i) {}
+  operator int() {
+    return i;
+  }
+  int i = 0;
+  int j = 2;
+  int k = 3;
+};
+static_assert(sizeof(S2) == 12);
+
 void report_results(int *p) {
   int idx = 0;
   int global_size = p[idx++];
@@ -92,6 +115,20 @@ struct Printer {
     p[idx + ndi.get_global_id(0)] = reinterpret_cast<uintptr_t>(ptr);
     idx += ndi.get_global_range(0);
   }
+  void print(S1 s1) {
+    print("i");
+    print(s1.i);
+    print("j");
+    print(s1.j);
+  }
+  void print(S2 s2) {
+    print("i");
+    print(s2.i);
+    print("j");
+    print(s2.j);
+    print("k");
+    print(s2.k);
+  }
   void finalize() { p[idx++] = -1; }
   int *p;
   int idx = 0;
@@ -99,8 +136,11 @@ struct Printer {
 };
 
 template <int BlockSize, bool Blocked, int num_blocks, typename GlobalPtrTy>
-void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
+void load_bytes(sub_group sg, GlobalPtrTy global_ptr_arg, char *priv_ptr,
                 Printer &p) {
+  // There is no implicit conversion between decorated pointers.
+  auto global_ptr = reinterpret_cast<sycl::detail::DecoratedType<
+      char, access::address_space::global_space>::type *>(global_ptr_arg);
 #ifdef __SYCL_DEVICE_ONLY__
   // Needs to be 4 bytes aligned (16 for writes).
 
@@ -347,6 +387,16 @@ void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
 
       return;
     } else {
+      auto sg_size = sg.get_max_local_range().size(); // Assume "full" SG.
+      // load_bytes<BlockSize, true, 1>(sg, global_ptr + 0 * BlockSize * sg_size,
+      //                                priv_ptr + 0 * BlockSize, p);
+      // load_bytes<BlockSize, true, 1>(sg, global_ptr + 1 * BlockSize * sg_size,
+      //                                priv_ptr + 1 * BlockSize, p);
+      // return;
+      for (int i = 0; i < num_blocks; ++i) {
+        load_bytes<BlockSize, true, 1>(sg, global_ptr + i * BlockSize * sg_size,
+                                       priv_ptr + i * BlockSize, p);
+      }
     }
   }
 #endif
@@ -393,6 +443,11 @@ void test() {
              val[i] = base - i;
 
            // p.print("Val:");
+           // for (int i = 0; i < ELEMS_PER_WI; ++i) {
+           //   p.print(val[i].i);
+           //   p.print(val[i].j);
+           //   p.print(val[i].k);
+           // }
            // for (int i = 0; i < ELEMS_PER_WI; ++i)
            //   p.print(val[i]);
 
@@ -422,6 +477,11 @@ void test() {
            std::memcpy(res_val, priv, sizeof(res_val));
 
            // p.print("Result:");
+           // for (int i = 0; i < ELEMS_PER_WI; ++i) {
+           //   p.print(res_val[i].i);
+           //   p.print(res_val[i].j);
+           //   p.print(res_val[i].k);
+           // }
            // for (int i = 0; i < ELEMS_PER_WI; ++i)
            //   p.print(res_val[i]);
 
@@ -447,15 +507,19 @@ int main() {
     test<true, int, size>();
     test<true, long long, size>();
     test<true, float, size>();
+    test<true, S1, size>();
+    test<true, S2, size>();
 
     test<false, char, size>();
     test<false, short, size>();
     test<false, int, size>();
     test<false, long long, size>();
     test<false, float, size>();
+    test<false, S1, size>();
+    test<false, S2, size>();
   });
 #else
-  test<false, short, 65>();
+  test<false, S2, 2>();
 #endif
 
 }
