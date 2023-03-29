@@ -237,7 +237,6 @@ public:
     [[maybe_unused]] auto pi_result =
         call_nocheck<PiApiKind::piPluginGetBackendOptimizationOption>(
             opt_level, backend_option);
-    return;
   }
 
   // return the index of PiPlatforms.

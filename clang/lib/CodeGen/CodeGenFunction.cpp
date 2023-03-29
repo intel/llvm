@@ -591,7 +591,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   // TODO Module identifier is not reliable for this purpose since two modules
   // can have the same ID, needs improvement
-    if (getLangOpts().SYCLIsDevice)
+  if (getLangOpts().SYCLIsDevice)
     Fn->addFnAttr("sycl-module-id", Fn->getParent()->getModuleIdentifier());
 
   llvm::LLVMContext &Context = getLLVMContext();

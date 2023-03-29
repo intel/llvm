@@ -364,7 +364,7 @@ static int getUint32PropAsInt(const RTDeviceBinaryImage &Img,
   pi_device_binary_property Prop = Img.getProperty(PropName);
   if (!Prop)
     return -1;
-  return (int)(DeviceBinaryProperty(Prop).asUint32());
+  return DeviceBinaryProperty(Prop).asUint32();
 }
 
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
