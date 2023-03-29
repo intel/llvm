@@ -98,7 +98,7 @@ struct Printer {
   nd_item<1> ndi;
 };
 
-template <int BlockSize, bool Blocked, int num_blocks_c, typename GlobalPtrTy>
+template <int BlockSize, bool Blocked, int num_blocks, typename GlobalPtrTy>
 void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
                 Printer &p) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -113,7 +113,6 @@ void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
   //   1, 2, 4, or 8 ushorts
 
   if constexpr (Blocked) {
-    constexpr auto num_blocks = num_blocks_c;
     //    WI 0                         WI 1
     // | BlockSize x num_blocks | BlockSize x num_blocks | ...
 
@@ -272,10 +271,10 @@ void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
         cur_blocks_start_idx += blocks_per_iter;
       };
 
-      if (cur_blocks_start_idx + blocks_per_iter <= total_blocks)
-        body();
-      if (cur_blocks_start_idx + blocks_per_iter <= total_blocks)
-        body();
+      // if (cur_blocks_start_idx + blocks_per_iter <= total_blocks)
+      //   body();
+      // if (cur_blocks_start_idx + blocks_per_iter <= total_blocks)
+      //   body();
       while (cur_blocks_start_idx + blocks_per_iter <= total_blocks)
         body();
     });
@@ -291,19 +290,19 @@ void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
 
       unsigned max_num_blocks = BlockSize == 1 ? 16 : 8;
 
-      auto num_blocks = num_blocks_c;
+      int written = 0;
 
       auto body = [&] {
         loop<4>([&](auto i) {
           std::ignore = i;
-          if (max_num_blocks > num_blocks)
+          if (written + max_num_blocks > num_blocks)
             max_num_blocks /= 2;
         });
 
-        p.print("max_num_blocks:");
-        p.print(max_num_blocks);
-        p.print("global_ptr:");
-        p.print_ptr(global_ptr);
+        // p.print("max_num_blocks:");
+        // p.print(max_num_blocks);
+        // p.print("global_ptr:");
+        // p.print_ptr(global_ptr);
 
         // "Select" type matching *run-time* parameters by  looping over all the
         // types and proceeding with the one matching run-time value.
@@ -319,26 +318,31 @@ void load_bytes(sub_group sg, GlobalPtrTy global_ptr, char *priv_ptr,
               sycl::detail::ConvertToOpenCLType_t<vec<BlockT, vec_size>>>;
 
           LoadT load = __spirv_SubgroupBlockReadINTEL<LoadT>(
-              reinterpret_cast<PtrT>(global_ptr));
-          auto size = vec_size * BlockSize;
-          std::memcpy(priv_ptr, &load, size);
-          priv_ptr += size;
-          num_blocks -= vec_size;
-          global_ptr = reinterpret_cast<GlobalPtrTy>(
-              reinterpret_cast<PtrT>(global_ptr) + vec_size * sg_size);
+              reinterpret_cast<PtrT>(global_ptr) + written * sg_size);
+          std::memcpy(priv_ptr + written * BlockSize, &load,
+                      vec_size * BlockSize);
+          written += vec_size;
         });
       };
 
 
-      if (num_blocks > 0)
-        body();
-      if (num_blocks > 0)
-        body();
-      if (num_blocks > 0)
-        body();
-      if (num_blocks > 0)
-        body();
-      while (num_blocks > 0)
+      // if (written < num_blocks)
+      //   body();
+      // if (written < num_blocks)
+      //   body();
+      // if (written < num_blocks)
+      //   body();
+      // if (written < num_blocks)
+      //   body();
+      // if (written < num_blocks)
+      //   body();
+      // if (written < num_blocks)
+      //   body();
+      // if (written < num_blocks)
+      //   body();
+      // if (written < num_blocks)
+      //   body();
+      while (written < num_blocks)
         body();
 
       return;
@@ -388,9 +392,9 @@ void test() {
            for (int i = 0; i < ELEMS_PER_WI; ++i)
              val[i] = base - i;
 
-           p.print("Val:");
-           for (int i = 0; i < ELEMS_PER_WI; ++i)
-             p.print(val[i]);
+           // p.print("Val:");
+           // for (int i = 0; i < ELEMS_PER_WI; ++i)
+           //   p.print(val[i]);
 
            if constexpr (blocked) {
              for (int i = 0; i < ELEMS_PER_WI; ++i)
@@ -417,12 +421,12 @@ void test() {
            T res_val[ELEMS_PER_WI];
            std::memcpy(res_val, priv, sizeof(res_val));
 
-           p.print("Result:");
-           for (int i = 0; i < ELEMS_PER_WI; ++i)
-             p.print(res_val[i]);
+           // p.print("Result:");
+           // for (int i = 0; i < ELEMS_PER_WI; ++i)
+           //   p.print(res_val[i]);
 
-           p.print("Success:");
-           p.print(success);
+           // p.print("Success:");
+           // p.print(success);
          });
    }).wait();
 
@@ -451,7 +455,7 @@ int main() {
     test<false, float, size>();
   });
 #else
-  test<false, char, 65>();
+  test<false, short, 65>();
 #endif
 
 }
