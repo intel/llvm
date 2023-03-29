@@ -109,8 +109,9 @@ template <typename Group> bool GroupAll(Group g, bool pred) {
 template <typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
               bool pred) {
-  // Each ballot_group implicitly represents two groups
-  // We have to force each half down different control flow
+  // ballot_group partitions its parent into two groups (0 and 1)
+  // We have to force each group down different control flow
+  // Work-items in the "false" group (0) may still be active
   if (g.get_group_id() == 1) {
     return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
   } else {
@@ -124,8 +125,9 @@ template <typename Group> bool GroupAny(Group g, bool pred) {
 template <typename ParentGroup>
 bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
               bool pred) {
-  // Each ballot_group implicitly represents two groups
-  // We have to force each half down different control flow
+  // ballot_group partitions its parent into two groups (0 and 1)
+  // We have to force each group down different control flow
+  // Work-items in the "false" group (0) may still be active
   if (g.get_group_id() == 1) {
     return __spirv_GroupNonUniformAny(group_scope<ParentGroup>::value, pred);
   } else {
@@ -214,8 +216,9 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
   WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
   OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
 
-  // Each ballot_group implicitly represents two groups
-  // We have to force each half down different control flow
+  // ballot_group partitions its parent into two groups (0 and 1)
+  // We have to force each group down different control flow
+  // Work-items in the "false" group (0) may still be active
   if (g.get_group_id() == 1) {
     return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
                                             OCLX, OCLId);
@@ -933,8 +936,9 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
                                         std::is_same<ConvertedT, cl_ushort>(), \
                                     cl_uint, ConvertedT>>;                     \
     OCLT Arg = x;                                                              \
-    /* Each ballot_group implicitly represents two groups */                   \
-    /* We have to force each half down different control flow */               \
+    /* ballot_group partitions its parent into two groups (0 and 1) */         \
+    /* We have to force each group down different control flow */              \
+    /* Work-items in the "false" group (0) may still be active */              \
     constexpr auto Scope = group_scope<ParentGroup>::value;                    \
     constexpr auto OpInt = static_cast<unsigned int>(Op);                      \
     if (g.get_group_id() == 1) {                                               \
