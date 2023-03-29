@@ -25,21 +25,21 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
-      "github_tag": "v2021.5.0",
-      "version": "2021.5.0",
-      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.5.0/oneapi-tbb-2021.5.0-lin.tgz",
+      "github_tag": "v2021.8.0",
+      "version": "2021.8.0",
+      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.8.0/oneapi-tbb-2021.8.0-lin.tgz",
       "root": "{DEPS_ROOT}/tbb/lin"
     },
     "oclcpu": {
       "github_tag": "2022-WW33",
-      "version": "2022.14.8.0.04",
-      "url": "https://github.com/intel/llvm/releases/download/2022-WW33/oclcpuexp-2022.14.8.0.04_rel.tar.gz",
+      "version": "2023.15.3.0.20",
+      "url": "https://github.com/intel/llvm/releases/download/2023-WW13/oclcpuexp-2023.15.3.0.20_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     },
     "fpgaemu": {
-      "github_tag": "2022-WW33",
-      "version": "2022.14.8.0.04",
-      "url": "https://github.com/intel/llvm/releases/download/2022-WW33/fpgaemu-2022.14.8.0.04_rel.tar.gz",
+      "github_tag": "2023-WW13",
+      "version": "2023.15.3.0.20",
+      "url": "https://github.com/intel/llvm/releases/download/2023-WW13/fpgaemu-2023.15.3.0.20_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
     },
     "fpga": {
@@ -53,21 +53,21 @@
       "root": ""
     },
     "tbb": {
-      "github_tag": "v2021.5.0",
-      "version": "2021.5.0",
-      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.5.0/oneapi-tbb-2021.5.0-win.zip",
+      "github_tag": "v2021.8.0",
+      "version": "2021.8.0",
+      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.8.0/oneapi-tbb-2021.8.0-win.zip",
       "root": "{DEPS_ROOT}/tbb/win"
     },
     "oclcpu": {
-      "github_tag": "2022-WW33",
-      "version": "2022.14.8.0.04",
-      "url": "https://github.com/intel/llvm/releases/download/2022-WW33/win-oclcpuexp-2022.14.8.0.04_rel.zip",
+      "github_tag": "2023-WW13",
+      "version": "2023.15.3.0.20",
+      "url": "https://github.com/intel/llvm/releases/download/2023-WW13/win-oclcpuexp-2023.15.3.0.20_rel.zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     },
     "fpgaemu": {
-      "github_tag": "2022-WW33",
-      "version": "2022.14.8.0.04",
-      "url": "https://github.com/intel/llvm/releases/download/2022-WW33/win-fpgaemu-2022.14.8.0.04_rel.zip",
+      "github_tag": "2023-WW13",
+      "version": "2023.15.3.0.20",
+      "url": "https://github.com/intel/llvm/releases/download/2023-WW13/win-fpgaemu-2023.15.3.0.20_rel.zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
     },
     "fpga": {
