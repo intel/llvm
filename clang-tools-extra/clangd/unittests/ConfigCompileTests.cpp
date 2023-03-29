@@ -249,19 +249,19 @@ TEST_F(ConfigCompileTests, DiagnosticsIncludeCleaner) {
   // Defaults to None.
   EXPECT_TRUE(compileAndApply());
   EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
-            Config::UnusedIncludesPolicy::None);
+            Config::IncludesPolicy::None);
 
   Frag = {};
   Frag.Diagnostics.UnusedIncludes.emplace("None");
   EXPECT_TRUE(compileAndApply());
   EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
-            Config::UnusedIncludesPolicy::None);
+            Config::IncludesPolicy::None);
 
   Frag = {};
   Frag.Diagnostics.UnusedIncludes.emplace("Strict");
   EXPECT_TRUE(compileAndApply());
   EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
-            Config::UnusedIncludesPolicy::Strict);
+            Config::IncludesPolicy::Strict);
 
   Frag = {};
   EXPECT_TRUE(Conf.Diagnostics.Includes.IgnoreHeader.empty())
@@ -542,6 +542,21 @@ TEST_F(ConfigCompileTests, Style) {
   Frag.Style.FullyQualifiedNamespaces.push_back(std::string("bar"));
   EXPECT_TRUE(compileAndApply());
   EXPECT_THAT(Conf.Style.FullyQualifiedNamespaces, ElementsAre("foo", "bar"));
+}
+
+TEST_F(ConfigCompileTests, AllowDiagsFromStalePreamble) {
+  Frag = {};
+  EXPECT_TRUE(compileAndApply());
+  // Off by default.
+  EXPECT_EQ(Conf.Diagnostics.AllowStalePreamble, false);
+
+  Frag.Diagnostics.AllowStalePreamble.emplace(true);
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_EQ(Conf.Diagnostics.AllowStalePreamble, true);
+
+  Frag.Diagnostics.AllowStalePreamble.emplace(false);
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_EQ(Conf.Diagnostics.AllowStalePreamble, false);
 }
 } // namespace
 } // namespace config

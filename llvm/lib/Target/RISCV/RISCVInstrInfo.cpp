@@ -1,4 +1,4 @@
-//===-- RISCVInstrInfo.cpp - RISCV Instruction Information ------*- C++ -*-===//
+//===-- RISCVInstrInfo.cpp - RISC-V Instruction Information -----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the RISCV implementation of the TargetInstrInfo class.
+// This file contains the RISC-V implementation of the TargetInstrInfo class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -79,19 +79,33 @@ MCInst RISCVInstrInfo::getNop() const {
 
 unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                              int &FrameIndex) const {
+  unsigned Dummy;
+  return isLoadFromStackSlot(MI, FrameIndex, Dummy);
+}
+
+unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
+                                             int &FrameIndex,
+                                             unsigned &MemBytes) const {
   switch (MI.getOpcode()) {
   default:
     return 0;
   case RISCV::LB:
   case RISCV::LBU:
+    MemBytes = 1;
+    break;
   case RISCV::LH:
   case RISCV::LHU:
   case RISCV::FLH:
+    MemBytes = 2;
+    break;
   case RISCV::LW:
   case RISCV::FLW:
   case RISCV::LWU:
+    MemBytes = 4;
+    break;
   case RISCV::LD:
   case RISCV::FLD:
+    MemBytes = 8;
     break;
   }
 
@@ -106,16 +120,30 @@ unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 
 unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                             int &FrameIndex) const {
+  unsigned Dummy;
+  return isStoreToStackSlot(MI, FrameIndex, Dummy);
+}
+
+unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
+                                            int &FrameIndex,
+                                            unsigned &MemBytes) const {
   switch (MI.getOpcode()) {
   default:
     return 0;
   case RISCV::SB:
+    MemBytes = 1;
+    break;
   case RISCV::SH:
-  case RISCV::SW:
   case RISCV::FSH:
+    MemBytes = 2;
+    break;
+  case RISCV::SW:
   case RISCV::FSW:
+    MemBytes = 4;
+    break;
   case RISCV::SD:
   case RISCV::FSD:
+    MemBytes = 8;
     break;
   }
 
@@ -923,7 +951,7 @@ unsigned RISCVInstrInfo::insertBranch(
   // Shouldn't be a fall through.
   assert(TBB && "insertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 3 || Cond.size() == 0) &&
-         "RISCV branch conditions have two components!");
+         "RISC-V branch conditions have two components!");
 
   // Unconditional branch.
   if (Cond.empty()) {
@@ -1623,11 +1651,11 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
                                        StringRef &ErrInfo) const {
   MCInstrDesc const &Desc = MI.getDesc();
 
-  for (auto &OI : enumerate(Desc.operands())) {
-    unsigned OpType = OI.value().OperandType;
+  for (const auto &[Index, Operand] : enumerate(Desc.operands())) {
+    unsigned OpType = Operand.OperandType;
     if (OpType >= RISCVOp::OPERAND_FIRST_RISCV_IMM &&
         OpType <= RISCVOp::OPERAND_LAST_RISCV_IMM) {
-      const MachineOperand &MO = MI.getOperand(OI.index());
+      const MachineOperand &MO = MI.getOperand(Index);
       if (MO.isImm()) {
         int64_t Imm = MO.getImm();
         bool Ok;
@@ -1644,7 +1672,9 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
         CASE_OPERAND_UIMM(3)
         CASE_OPERAND_UIMM(4)
         CASE_OPERAND_UIMM(5)
+        CASE_OPERAND_UIMM(6)
         CASE_OPERAND_UIMM(7)
+        CASE_OPERAND_UIMM(8)
         CASE_OPERAND_UIMM(12)
         CASE_OPERAND_UIMM(20)
           // clang-format on
@@ -1709,6 +1739,15 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
           break;
         case RISCVOp::OPERAND_RVKRNUM:
           Ok = Imm >= 0 && Imm <= 10;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_0_7:
+          Ok = Imm >= 0 && Imm <= 7;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_1_10:
+          Ok = Imm >= 1 && Imm <= 10;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_2_14:
+          Ok = Imm >= 2 && Imm <= 14;
           break;
         }
         if (!Ok) {
@@ -1897,7 +1936,8 @@ bool RISCVInstrInfo::shouldOutlineFromFunctionByDefault(
   return MF.getFunction().hasMinSize();
 }
 
-outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
+std::optional<outliner::OutlinedFunction>
+RISCVInstrInfo::getOutliningCandidateInfo(
     std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
 
   // First we need to filter out candidates where the X5 register (IE t0) can't
@@ -1911,7 +1951,7 @@ outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
 
   // If the sequence doesn't have enough candidates left, then we're done.
   if (RepeatedSequenceLocs.size() < 2)
-    return outliner::OutlinedFunction();
+    return std::nullopt;
 
   unsigned SequenceSize = 0;
 
@@ -2102,6 +2142,15 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
     return false;
 
   switch (MI.getOpcode()) {
+  case RISCV::TH_MVEQZ:
+  case RISCV::TH_MVNEZ:
+    // We can't commute operands if operand 2 (i.e., rs1 in
+    // mveqz/mvnez rd,rs1,rs2) is the zero-register (as it is
+    // not valid as the in/out-operand 1).
+    if (MI.getOperand(2).getReg() == RISCV::X0)
+      return false;
+    // Operands 1 and 2 are commutable, if we switch the opcode.
+    return fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, 1, 2);
   case RISCV::TH_MULA:
   case RISCV::TH_MULAW:
   case RISCV::TH_MULAH:
@@ -2258,6 +2307,14 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   };
 
   switch (MI.getOpcode()) {
+  case RISCV::TH_MVEQZ:
+  case RISCV::TH_MVNEZ: {
+    auto &WorkingMI = cloneIfNew(MI);
+    WorkingMI.setDesc(get(MI.getOpcode() == RISCV::TH_MVEQZ ? RISCV::TH_MVNEZ
+                                                            : RISCV::TH_MVEQZ));
+    return TargetInstrInfo::commuteInstructionImpl(WorkingMI, false, OpIdx1,
+                                                   OpIdx2);
+  }
   case RISCV::PseudoCCMOVGPR: {
     // CCMOV can be commuted by inverting the condition.
     auto CC = static_cast<RISCVCC::CondCode>(MI.getOperand(3).getImm());

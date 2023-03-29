@@ -428,7 +428,7 @@ public:
         return rewriter.notifyMatchFailure(genericOp, "fusion failed");
       Operation *producer = opOperand.get().getDefiningOp();
       for (auto [origVal, replacement] : fusionResult->replacements) {
-        rewriter.replaceUseIf(origVal, replacement, [&](OpOperand &use) {
+        rewriter.replaceUsesWithIf(origVal, replacement, [&](OpOperand &use) {
           // Only replace consumer uses.
           return use.get().getDefiningOp() != producer;
         });
@@ -1394,7 +1394,7 @@ void generateCollapsedIndexingRegion(Location loc, Block *block,
   //   i1 = (i_{folded} / d2) % d1
   //   i0 = i_{folded} / (d1 * d2)
   llvm::DenseMap<unsigned, Value> indexReplacementVals;
-  for (auto &foldedDims :
+  for (auto foldedDims :
        enumerate(collapsingInfo.getCollapsedOpToOrigOpMapping())) {
     ReassociationIndicesRef foldedDimsRef(foldedDims.value());
     Value newIndexVal =
@@ -1798,8 +1798,8 @@ struct FoldFillWithGenericOp : public OpRewritePattern<GenericOp> {
       Value convertedVal =
           convertScalarToDtype(rewriter, fillOp.getLoc(), fillVal, resultType,
                                /*isUnsignedCast =*/false);
-      payload.getArgument(opOperand->getOperandNumber())
-          .replaceAllUsesWith(convertedVal);
+      rewriter.replaceAllUsesWith(
+          payload.getArgument(opOperand->getOperandNumber()), convertedVal);
     }
     return success(fillFound);
   }

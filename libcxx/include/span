@@ -141,11 +141,14 @@ template<class R>
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/enable_view.h>
 #include <__ranges/size.h>
+#include <__type_traits/is_convertible.h>
+#include <__type_traits/remove_cvref.h>
+#include <__type_traits/remove_reference.h>
+#include <__type_traits/type_identity.h>
 #include <__utility/forward.h>
 #include <array>        // for array
 #include <cstddef>      // for byte
 #include <limits>
-#include <type_traits>  // for remove_cv, etc
 #include <version>
 
 // standard-mandated includes
@@ -238,10 +241,12 @@ public:
     template <__span_compatible_iterator<element_type> _It, __span_compatible_sentinel_for<_It> _End>
     _LIBCPP_INLINE_VISIBILITY
     constexpr explicit span(_It __first, _End __last) : __data_{_VSTD::to_address(__first)} {
-      (void)__last;
-      _LIBCPP_ASSERT((__last - __first >= 0), "invalid range in span's constructor (iterator, sentinel)");
-      _LIBCPP_ASSERT(__last - __first == _Extent,
-                     "invalid range in span's constructor (iterator, sentinel): last - first != extent");
+      // [span.cons]/10
+      // Throws: When and what last - first throws.
+      [[maybe_unused]] auto __dist = __last - __first;
+      _LIBCPP_ASSERT(__dist >= 0, "invalid range in span's constructor (iterator, sentinel)");
+      _LIBCPP_ASSERT(
+          __dist == _Extent, "invalid range in span's constructor (iterator, sentinel): last - first != extent");
     }
 
     _LIBCPP_INLINE_VISIBILITY constexpr span(type_identity_t<element_type> (&__arr)[_Extent]) noexcept : __data_{__arr} {}
@@ -593,6 +598,7 @@ _LIBCPP_POP_MACROS
 #  include <concepts>
 #  include <functional>
 #  include <iterator>
+#  include <type_traits>
 #endif
 
 #endif // _LIBCPP_SPAN
