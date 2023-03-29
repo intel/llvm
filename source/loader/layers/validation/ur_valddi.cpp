@@ -283,15 +283,15 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
 /// @brief Intercept function for urDeviceGetInfo
 __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     ur_device_handle_t hDevice, ///< [in] handle of the device instance
-    ur_device_info_t infoType,  ///< [in] type of the info to retrieve
-    size_t propSize,   ///< [in] the number of bytes pointed to by pDeviceInfo.
-    void *pDeviceInfo, ///< [out][optional] array of bytes holding the info.
+    ur_device_info_t propName,  ///< [in] type of the info to retrieve
+    size_t propSize,  ///< [in] the number of bytes pointed to by pPropValue.
+    void *pPropValue, ///< [out][optional] array of bytes holding the info.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return the info
     ///< then the ::UR_RESULT_ERROR_INVALID_VALUE error is returned and
-    ///< pDeviceInfo is not used.
+    ///< pPropValue is not used.
     size_t *
-        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried infoType.
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
     auto pfnGetInfo = context.urDdiTable.Device.pfnGetInfo;
 
@@ -304,13 +304,13 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS < infoType) {
+        if (UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
 
     ur_result_t result =
-        pfnGetInfo(hDevice, infoType, propSize, pDeviceInfo, pPropSizeRet);
+        pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -639,17 +639,17 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextGetInfo
 __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
-    ur_context_handle_t hContext,      ///< [in] handle of the context
-    ur_context_info_t ContextInfoType, ///< [in] type of the info to retrieve
+    ur_context_handle_t hContext, ///< [in] handle of the context
+    ur_context_info_t propName,   ///< [in] type of the info to retrieve
     size_t
-        propSize, ///< [in] the number of bytes of memory pointed to by pContextInfo.
-    void *pContextInfo, ///< [out][optional] array of bytes holding the info.
+        propSize, ///< [in] the number of bytes of memory pointed to by pPropValue.
+    void *pPropValue, ///< [out][optional] array of bytes holding the info.
     ///< if propSize is not equal to or greater than the real number of bytes
     ///< needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    ///< pContextInfo is not used.
+    ///< pPropValue is not used.
     size_t *
-        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data queried by ContextInfoType.
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
     auto pfnGetInfo = context.urDdiTable.Context.pfnGetInfo;
 
@@ -662,13 +662,13 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < ContextInfoType) {
+        if (UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
 
-    ur_result_t result = pfnGetInfo(hContext, ContextInfoType, propSize,
-                                    pContextInfo, pPropSizeRet);
+    ur_result_t result =
+        pfnGetInfo(hContext, propName, propSize, pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -1050,16 +1050,16 @@ __urdlllocal ur_result_t UR_APICALL urMemCreateWithNativeHandle(
 /// @brief Intercept function for urMemGetInfo
 __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     ur_mem_handle_t
-        hMemory, ///< [in] handle to the memory object being queried.
-    ur_mem_info_t MemInfoType, ///< [in] type of the info to retrieve.
+        hMemory,            ///< [in] handle to the memory object being queried.
+    ur_mem_info_t propName, ///< [in] type of the info to retrieve.
     size_t
-        propSize, ///< [in] the number of bytes of memory pointed to by pMemInfo.
-    void *pMemInfo, ///< [out][optional] array of bytes holding the info.
+        propSize, ///< [in] the number of bytes of memory pointed to by pPropValue.
+    void *pPropValue, ///< [out][optional] array of bytes holding the info.
     ///< If propSize is less than the real number of bytes needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    ///< pMemInfo is not used.
+    ///< pPropValue is not used.
     size_t *
-        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data queried by pMemInfo.
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
     auto pfnGetInfo = context.urDdiTable.Mem.pfnGetInfo;
 
@@ -1072,13 +1072,13 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_MEM_INFO_CONTEXT < MemInfoType) {
+        if (UR_MEM_INFO_CONTEXT < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
 
     ur_result_t result =
-        pfnGetInfo(hMemory, MemInfoType, propSize, pMemInfo, pPropSizeRet);
+        pfnGetInfo(hMemory, propName, propSize, pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -1087,15 +1087,15 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
 /// @brief Intercept function for urMemImageGetInfo
 __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
     ur_mem_handle_t hMemory, ///< [in] handle to the image object being queried.
-    ur_image_info_t ImgInfoType, ///< [in] type of image info to retrieve.
+    ur_image_info_t propName, ///< [in] type of image info to retrieve.
     size_t
-        propSize, ///< [in] the number of bytes of memory pointer to by pImgInfo.
-    void *pImgInfo, ///< [out][optional] array of bytes holding the info.
+        propSize, ///< [in] the number of bytes of memory pointer to by pPropValue.
+    void *pPropValue, ///< [out][optional] array of bytes holding the info.
     ///< If propSize is less than the real number of bytes needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    ///< pImgInfo is not used.
+    ///< pPropValue is not used.
     size_t *
-        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data queried by pImgInfo.
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
     auto pfnImageGetInfo = context.urDdiTable.Mem.pfnImageGetInfo;
 
@@ -1108,13 +1108,13 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_IMAGE_INFO_DEPTH < ImgInfoType) {
+        if (UR_IMAGE_INFO_DEPTH < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
 
     ur_result_t result =
-        pfnImageGetInfo(hMemory, ImgInfoType, propSize, pImgInfo, pPropSizeRet);
+        pfnImageGetInfo(hMemory, propName, propSize, pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -1909,13 +1909,13 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     ur_program_info_t propName, ///< [in] name of the Program property to query
     size_t propSize,            ///< [in] the size of the Program property.
     void *
-        pProgramInfo, ///< [in,out][optional] array of bytes of holding the program info property.
+        pPropValue, ///< [in,out][optional] array of bytes of holding the program info property.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    ///< pProgramInfo is not used.
+    ///< pPropValue is not used.
     size_t *
-        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data copied to pProgramInfo.
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 ) {
     auto pfnGetInfo = context.urDdiTable.Program.pfnGetInfo;
 
@@ -1934,7 +1934,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     }
 
     ur_result_t result =
-        pfnGetInfo(hProgram, propName, propSize, pProgramInfo, pPropSizeRet);
+        pfnGetInfo(hProgram, propName, propSize, pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -1951,7 +1951,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
         pPropValue, ///< [in,out][optional] value of the Program build property.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE
-    ///< error is returned and pKernelInfo is not used.
+    ///< error is returned and pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
@@ -2185,11 +2185,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     ur_kernel_info_t propName,  ///< [in] name of the Kernel property to query
     size_t propSize,            ///< [in] the size of the Kernel property value.
     void *
-        pKernelInfo, ///< [in,out][optional] array of bytes holding the kernel info property.
+        pPropValue, ///< [in,out][optional] array of bytes holding the kernel info property.
     ///< If propSize is not equal to or greater than the real number of bytes
     ///< needed to return
     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    ///< pKernelInfo is not used.
+    ///< pPropValue is not used.
     size_t *
         pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of data being
                      ///< queried by propName.
@@ -2211,7 +2211,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     }
 
     ur_result_t result =
-        pfnGetInfo(hKernel, propName, propSize, pKernelInfo, pPropSizeRet);
+        pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
 
     return result;
 }

@@ -371,22 +371,22 @@ params:
       name: hDevice
       desc: "[in] handle of the device instance"
     - type: $x_device_info_t
-      name: infoType
+      name: propName
       desc: "[in] type of the info to retrieve"
     - type: "size_t"
       name: propSize
       desc: |
-            [in] the number of bytes pointed to by pDeviceInfo.
+            [in] the number of bytes pointed to by pPropValue.
     - type: "void*"
-      name: pDeviceInfo
+      name: pPropValue
       desc: |
             [out][optional] array of bytes holding the info.
             If propSize is not equal to or greater than the real number of bytes needed to return the info
-            then the $X_RESULT_ERROR_INVALID_VALUE error is returned and pDeviceInfo is not used.
+            then the $X_RESULT_ERROR_INVALID_VALUE error is returned and pPropValue is not used.
     - type: "size_t*"
       name: pPropSizeRet
       desc: |
-            [out][optional] pointer to the actual size in bytes of the queried infoType.
+            [out][optional] pointer to the actual size in bytes of the queried propName.
 returns:
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------

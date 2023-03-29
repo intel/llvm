@@ -834,19 +834,19 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS < infoType`
+///         + `::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
     ur_device_handle_t hDevice, ///< [in] handle of the device instance
-    ur_device_info_t infoType,  ///< [in] type of the info to retrieve
-    size_t propSize,            ///< [in] the number of bytes pointed to by pDeviceInfo.
-    void *pDeviceInfo,          ///< [out][optional] array of bytes holding the info.
+    ur_device_info_t propName,  ///< [in] type of the info to retrieve
+    size_t propSize,            ///< [in] the number of bytes pointed to by pPropValue.
+    void *pPropValue,           ///< [out][optional] array of bytes holding the info.
                                 ///< If propSize is not equal to or greater than the real number of bytes
                                 ///< needed to return the info
                                 ///< then the ::UR_RESULT_ERROR_INVALID_VALUE error is returned and
-                                ///< pDeviceInfo is not used.
-    size_t *pPropSizeRet        ///< [out][optional] pointer to the actual size in bytes of the queried infoType.
+                                ///< pPropValue is not used.
+    size_t *pPropSizeRet        ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1314,18 +1314,18 @@ urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < ContextInfoType`
+///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetInfo(
-    ur_context_handle_t hContext,      ///< [in] handle of the context
-    ur_context_info_t ContextInfoType, ///< [in] type of the info to retrieve
-    size_t propSize,                   ///< [in] the number of bytes of memory pointed to by pContextInfo.
-    void *pContextInfo,                ///< [out][optional] array of bytes holding the info.
-                                       ///< if propSize is not equal to or greater than the real number of bytes
-                                       ///< needed to return
-                                       ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                                       ///< pContextInfo is not used.
-    size_t *pPropSizeRet               ///< [out][optional] pointer to the actual size in bytes of data queried by ContextInfoType.
+    ur_context_handle_t hContext, ///< [in] handle of the context
+    ur_context_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize,              ///< [in] the number of bytes of memory pointed to by pPropValue.
+    void *pPropValue,             ///< [out][optional] array of bytes holding the info.
+                                  ///< if propSize is not equal to or greater than the real number of bytes
+                                  ///< needed to return
+                                  ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                  ///< pPropValue is not used.
+    size_t *pPropSizeRet          ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1848,17 +1848,17 @@ urMemCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMemory`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_INFO_CONTEXT < MemInfoType`
+///         + `::UR_MEM_INFO_CONTEXT < propName`
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetInfo(
-    ur_mem_handle_t hMemory,   ///< [in] handle to the memory object being queried.
-    ur_mem_info_t MemInfoType, ///< [in] type of the info to retrieve.
-    size_t propSize,           ///< [in] the number of bytes of memory pointed to by pMemInfo.
-    void *pMemInfo,            ///< [out][optional] array of bytes holding the info.
-                               ///< If propSize is less than the real number of bytes needed to return
-                               ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                               ///< pMemInfo is not used.
-    size_t *pPropSizeRet       ///< [out][optional] pointer to the actual size in bytes of data queried by pMemInfo.
+    ur_mem_handle_t hMemory, ///< [in] handle to the memory object being queried.
+    ur_mem_info_t propName,  ///< [in] type of the info to retrieve.
+    size_t propSize,         ///< [in] the number of bytes of memory pointed to by pPropValue.
+    void *pPropValue,        ///< [out][optional] array of bytes holding the info.
+                             ///< If propSize is less than the real number of bytes needed to return
+                             ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                             ///< pPropValue is not used.
+    size_t *pPropSizeRet     ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1878,17 +1878,17 @@ urMemGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMemory`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_IMAGE_INFO_DEPTH < ImgInfoType`
+///         + `::UR_IMAGE_INFO_DEPTH < propName`
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemImageGetInfo(
-    ur_mem_handle_t hMemory,     ///< [in] handle to the image object being queried.
-    ur_image_info_t ImgInfoType, ///< [in] type of image info to retrieve.
-    size_t propSize,             ///< [in] the number of bytes of memory pointer to by pImgInfo.
-    void *pImgInfo,              ///< [out][optional] array of bytes holding the info.
-                                 ///< If propSize is less than the real number of bytes needed to return
-                                 ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                                 ///< pImgInfo is not used.
-    size_t *pPropSizeRet         ///< [out][optional] pointer to the actual size in bytes of data queried by pImgInfo.
+    ur_mem_handle_t hMemory,  ///< [in] handle to the image object being queried.
+    ur_image_info_t propName, ///< [in] type of image info to retrieve.
+    size_t propSize,          ///< [in] the number of bytes of memory pointer to by pPropValue.
+    void *pPropValue,         ///< [out][optional] array of bytes holding the info.
+                              ///< If propSize is less than the real number of bytes needed to return
+                              ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                              ///< pPropValue is not used.
+    size_t *pPropSizeRet      ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 );
 
 #if !defined(__GNUC__)
@@ -2847,12 +2847,12 @@ urProgramGetInfo(
     ur_program_handle_t hProgram, ///< [in] handle of the Program object
     ur_program_info_t propName,   ///< [in] name of the Program property to query
     size_t propSize,              ///< [in] the size of the Program property.
-    void *pProgramInfo,           ///< [in,out][optional] array of bytes of holding the program info property.
+    void *pPropValue,             ///< [in,out][optional] array of bytes of holding the program info property.
                                   ///< If propSize is not equal to or greater than the real number of bytes
                                   ///< needed to return
                                   ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                                  ///< pProgramInfo is not used.
-    size_t *pPropSizeRet          ///< [out][optional] pointer to the actual size in bytes of data copied to pProgramInfo.
+                                  ///< pPropValue is not used.
+    size_t *pPropSizeRet          ///< [out][optional] pointer to the actual size in bytes of the queried propName.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2920,7 +2920,7 @@ urProgramGetBuildInfo(
     void *pPropValue,                 ///< [in,out][optional] value of the Program build property.
                                       ///< If propSize is not equal to or greater than the real number of bytes
                                       ///< needed to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE
-                                      ///< error is returned and pKernelInfo is not used.
+                                      ///< error is returned and pPropValue is not used.
     size_t *pPropSizeRet              ///< [out][optional] pointer to the actual size in bytes of data being
                                       ///< queried by propName.
 );
@@ -3178,11 +3178,11 @@ urKernelGetInfo(
     ur_kernel_handle_t hKernel, ///< [in] handle of the Kernel object
     ur_kernel_info_t propName,  ///< [in] name of the Kernel property to query
     size_t propSize,            ///< [in] the size of the Kernel property value.
-    void *pKernelInfo,          ///< [in,out][optional] array of bytes holding the kernel info property.
+    void *pPropValue,           ///< [in,out][optional] array of bytes holding the kernel info property.
                                 ///< If propSize is not equal to or greater than the real number of bytes
                                 ///< needed to return
                                 ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                                ///< pKernelInfo is not used.
+                                ///< pPropValue is not used.
     size_t *pPropSizeRet        ///< [out][optional] pointer to the actual size in bytes of data being
                                 ///< queried by propName.
 );
@@ -5505,9 +5505,9 @@ typedef void(UR_APICALL *ur_pfnContextReleaseCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_context_get_info_params_t {
     ur_context_handle_t *phContext;
-    ur_context_info_t *pContextInfoType;
+    ur_context_info_t *ppropName;
     size_t *ppropSize;
-    void **ppContextInfo;
+    void **ppPropValue;
     size_t **ppPropSizeRet;
 } ur_context_get_info_params_t;
 
@@ -5975,7 +5975,7 @@ typedef struct ur_program_get_info_params_t {
     ur_program_handle_t *phProgram;
     ur_program_info_t *ppropName;
     size_t *ppropSize;
-    void **ppProgramInfo;
+    void **ppPropValue;
     size_t **ppPropSizeRet;
 } ur_program_get_info_params_t;
 
@@ -6129,7 +6129,7 @@ typedef struct ur_kernel_get_info_params_t {
     ur_kernel_handle_t *phKernel;
     ur_kernel_info_t *ppropName;
     size_t *ppropSize;
-    void **ppKernelInfo;
+    void **ppPropValue;
     size_t **ppPropSizeRet;
 } ur_kernel_get_info_params_t;
 
@@ -6756,9 +6756,9 @@ typedef void(UR_APICALL *ur_pfnMemCreateWithNativeHandleCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_mem_get_info_params_t {
     ur_mem_handle_t *phMemory;
-    ur_mem_info_t *pMemInfoType;
+    ur_mem_info_t *ppropName;
     size_t *ppropSize;
-    void **ppMemInfo;
+    void **ppPropValue;
     size_t **ppPropSizeRet;
 } ur_mem_get_info_params_t;
 
@@ -6780,9 +6780,9 @@ typedef void(UR_APICALL *ur_pfnMemGetInfoCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_mem_image_get_info_params_t {
     ur_mem_handle_t *phMemory;
-    ur_image_info_t *pImgInfoType;
+    ur_image_info_t *ppropName;
     size_t *ppropSize;
-    void **ppImgInfo;
+    void **ppPropValue;
     size_t **ppPropSizeRet;
 } ur_mem_image_get_info_params_t;
 
@@ -7944,9 +7944,9 @@ typedef void(UR_APICALL *ur_pfnDeviceGetCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_device_get_info_params_t {
     ur_device_handle_t *phDevice;
-    ur_device_info_t *pinfoType;
+    ur_device_info_t *ppropName;
     size_t *ppropSize;
-    void **ppDeviceInfo;
+    void **ppPropValue;
     size_t **ppPropSizeRet;
 } ur_device_get_info_params_t;
 
