@@ -88,7 +88,7 @@ etors:
     - name: NUM_DEVICES
       desc: "[uint32_t] The number of the devices in the context"
     - name: DEVICES
-      desc: "[$x_context_handle_t...] The array of the device handles in the context"
+      desc: "[$x_device_handle_t ...] The array of the device handles in the context"
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the context object.

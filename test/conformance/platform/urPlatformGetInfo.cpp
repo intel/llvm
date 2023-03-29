@@ -15,14 +15,9 @@ struct urPlatformGetInfoTest
 
 INSTANTIATE_TEST_SUITE_P(
     urPlatformGetInfo, urPlatformGetInfoTest,
-    ::testing::Values(UR_PLATFORM_INFO_NAME
-                      /*
-   UR_PLATFORM_INFO_VENDOR_NAME,
-   UR_PLATFORM_INFO_VERSION,
-   UR_PLATFORM_INFO_EXTENSIONS,
-   UR_PLATFORM_INFO_PROFILE
- */
-                      ),
+    ::testing::Values(UR_PLATFORM_INFO_NAME, UR_PLATFORM_INFO_VENDOR_NAME,
+                      UR_PLATFORM_INFO_VERSION, UR_PLATFORM_INFO_EXTENSIONS,
+                      UR_PLATFORM_INFO_PROFILE),
     [](const ::testing::TestParamInfo<ur_platform_info_t> &info) {
         std::stringstream ss;
         ss << info.param;

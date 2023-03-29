@@ -75,15 +75,15 @@ class: $xUSM
 name: $x_usm_alloc_info_t
 etors:
     - name: TYPE
-      desc: "Memory allocation type info"
+      desc: "[$x_usm_type_t] Memory allocation type info"
     - name: BASE_PTR
-      desc: "Memory allocation base pointer info"
+      desc: "[void *] Memory allocation base pointer info"
     - name: SIZE
-      desc: "Memory allocation size info"
+      desc: "[size_t] Memory allocation size info"
     - name: DEVICE
-      desc: "Memory allocation device info"
+      desc: "[$x_device_handle_t] Memory allocation device info"
     - name: POOL
-      desc: "Memory allocation pool info"
+      desc: "[$x_usm_pool_handle_t] Memory allocation pool info"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "USM memory advice"
