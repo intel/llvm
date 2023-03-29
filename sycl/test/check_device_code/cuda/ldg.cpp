@@ -30,6 +30,7 @@ int main() {
   auto *in_s2 = sycl::malloc_device<short2>(1, q);
   auto *in_i2 = sycl::malloc_device<int2>(1, q);
   auto *in_ll2 = sycl::malloc_device<longlong2>(1, q);
+  auto *in_ll4 = sycl::malloc_device<longlong4>(1, q);
 
   auto *in_c4 = sycl::malloc_device<char4>(1, q);
   auto *in_s4 = sycl::malloc_device<short4>(1, q);
@@ -39,6 +40,7 @@ int main() {
   auto *in_us2 = sycl::malloc_device<ushort2>(1, q);
   auto *in_ui2 = sycl::malloc_device<uint2>(1, q);
   auto *in_ull2 = sycl::malloc_device<ulonglong2>(1, q);
+  auto *in_ull4 = sycl::malloc_device<ulonglong4>(1, q);
 
   auto *in_uc4 = sycl::malloc_device<uchar4>(1, q);
   auto *in_us4 = sycl::malloc_device<ushort4>(1, q);
@@ -52,6 +54,7 @@ int main() {
   auto *in_h4 = sycl::malloc_device<half4>(1, q);
   auto *in_f2 = sycl::malloc_device<float2>(1, q);
   auto *in_d2 = sycl::malloc_device<double2>(1, q);
+  auto *in_d4 = sycl::malloc_device<double4>(1, q);
 
   auto *in_f4 = sycl::malloc_device<float4>(1, q);
 
@@ -75,9 +78,9 @@ int main() {
       //CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
       auto cached_h2 = ldg(&in_h2[0]);
       //CHECK: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0v2f16(<2 x half>* %{{.*}}, i32 4)
-      //CHECK: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0v2f16(<2 x half>* %{{.*}}, i32 4)
+      //CHECK: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0v2f16(<2 x half>* nonnull %{{.*}}, i32 4)
       //CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
-      //CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
+      //CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr nonnull %{{.*}}, i32 4)
       auto cached_h4 = ldg(&in_h4[0]);
       //CHECK: tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0v2f32(<2 x float>* %{{.*}}, i32 8)
       //CHECK-OPAQUE: tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0(ptr %{{.*}}, i32 8)
@@ -85,6 +88,11 @@ int main() {
       //CHECK: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0v2f64(<2 x double>* %{{.*}}, i32 16)
       //CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr %{{.*}}, i32 16)
       auto cached_d2 = ldg(&in_d2[0]);
+      //CHECK: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0v2f64(<2 x double>* %{{.*}}, i32 16)
+      //CHECK: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0v2f64(<2 x double>* nonnull %{{.*}}, i32 16)
+      //CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr %{{.*}}, i32 16)
+      //CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr nonnull %{{.*}}, i32 16)
+      auto cached_d4 = ldg(&in_d4[0]);
       //CHECK: tail call <4 x float> @llvm.nvvm.ldg.global.f.v4f32.p0v4f32(<4 x float>* %{{.*}}, i32 16)
       //CHECK-OPAQUE: tail call <4 x float> @llvm.nvvm.ldg.global.f.v4f32.p0(ptr %{{.*}}, i32 16)
       auto cached_f4 = ldg(&in_f4[0]);
@@ -135,6 +143,11 @@ int main() {
       //CHECK: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0v2i64(<2 x i64>* %{{.*}}, i32 16)
       //CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
       auto cached_ll2 = ldg(&in_ll2[0]);
+      //CHECK: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0v2i64(<2 x i64>* %{{.*}}, i32 16)
+      //CHECK: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0v2i64(<2 x i64>* nonnull %{{.*}}, i32 16)
+      //CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+      //CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull %{{.*}}, i32 16)
+      auto cached_ll4 = ldg(&in_ll4[0]);
       //CHECK: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0v2i8(<2 x i8>* %{{.*}}, i32 2)
       //CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
       auto cached_uc2 = ldg(&in_uc2[0]);
@@ -147,6 +160,11 @@ int main() {
       //CHECK: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0v2i64(<2 x i64>* %{{.*}}, i32 16)
       //CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
       auto cached_ull2 = ldg(&in_ull2[0]);
+      //CHECK: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0v2i64(<2 x i64>* %{{.*}}, i32 16)
+      //CHECK: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0v2i64(<2 x i64>* nonnull %{{.*}}, i32 16)
+      //CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+      //CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull %{{.*}}, i32 16)
+      auto cached_ull4 = ldg(&in_ull4[0]);
 
       //CHECK: tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0v4i8(<4 x i8>* %{{.*}}, i32 4)
       //CHECK-OPAQUE: tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0(ptr %{{.*}}, i32 4)
@@ -180,6 +198,7 @@ int main() {
   free(in_f2, q);
   free(in_f4, q);
   free(in_d2, q);
+  free(in_d4, q);
   free(in_c, q);
   free(in_s, q);
   free(in_i, q);
@@ -194,10 +213,12 @@ int main() {
   free(in_s2, q);
   free(in_i2, q);
   free(in_ll2, q);
+  free(in_ll4, q);
   free(in_uc2, q);
   free(in_us2, q);
   free(in_ui2, q);
   free(in_ull2, q);
+  free(in_ull4, q);
   free(in_c4, q);
   free(in_s4, q);
   free(in_i4, q);
