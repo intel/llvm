@@ -64,6 +64,12 @@ createNewFirBox(fir::FirOpBuilder &builder, mlir::Location loc,
     cleanedAddr = builder.createConvert(loc, type, addr);
     if (charTy.getLen() == fir::CharacterType::unknownLen())
       cleanedLengths.append(lengths.begin(), lengths.end());
+  } else if (fir::isUnlimitedPolymorphicType(box.getBoxTy())) {
+    if (auto charTy = fir::dyn_cast_ptrEleTy(addr.getType())
+                          .dyn_cast<fir::CharacterType>()) {
+      if (charTy.getLen() == fir::CharacterType::unknownLen())
+        cleanedLengths.append(lengths.begin(), lengths.end());
+    }
   } else if (box.isDerivedWithLenParameters()) {
     TODO(loc, "updating mutablebox of derived type with length parameters");
     cleanedLengths = lengths;
@@ -360,9 +366,9 @@ mlir::Value fir::factory::createUnallocatedBox(
 
 fir::MutableBoxValue fir::factory::createTempMutableBox(
     fir::FirOpBuilder &builder, mlir::Location loc, mlir::Type type,
-    llvm::StringRef name, mlir::Value typeSourceBox) {
+    llvm::StringRef name, mlir::Value typeSourceBox, bool isPolymorphic) {
   mlir::Type boxType;
-  if (typeSourceBox)
+  if (typeSourceBox || isPolymorphic)
     boxType = fir::ClassType::get(fir::HeapType::get(type));
   else
     boxType = fir::BoxType::get(fir::HeapType::get(type));

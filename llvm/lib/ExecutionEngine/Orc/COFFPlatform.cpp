@@ -55,8 +55,7 @@ public:
   void materialize(std::unique_ptr<MaterializationResponsibility> R) override {
     unsigned PointerSize;
     support::endianness Endianness;
-    const auto &TT =
-        CP.getExecutionSession().getExecutorProcessControl().getTargetTriple();
+    const auto &TT = CP.getExecutionSession().getTargetTriple();
 
     switch (TT.getArch()) {
     case Triple::x86_64:
@@ -166,13 +165,14 @@ COFFPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
                      LoadDynamicLibrary LoadDynLibrary, bool StaticVCRuntime,
                      const char *VCRuntimePath,
                      std::optional<SymbolAliasMap> RuntimeAliases) {
-  auto &EPC = ES.getExecutorProcessControl();
 
   // If the target is not supported then bail out immediately.
-  if (!supportedTarget(EPC.getTargetTriple()))
+  if (!supportedTarget(ES.getTargetTriple()))
     return make_error<StringError>("Unsupported COFFPlatform triple: " +
-                                       EPC.getTargetTriple().str(),
+                                       ES.getTargetTriple().str(),
                                    inconvertibleErrorCode());
+
+  auto &EPC = ES.getExecutorProcessControl();
 
   // Create default aliases if the caller didn't supply any.
   if (!RuntimeAliases)
@@ -352,11 +352,11 @@ bool COFFPlatform::supportedTarget(const Triple &TT) {
 COFFPlatform::COFFPlatform(ExecutionSession &ES,
                            ObjectLinkingLayer &ObjLinkingLayer,
                            JITDylib &PlatformJD, const char *OrcRuntimePath,
-                           LoadDynamicLibrary LoadDynLibrary,
+                           LoadDynamicLibrary LoadDynamicLibrary,
                            bool StaticVCRuntime, const char *VCRuntimePath,
                            Error &Err)
     : ES(ES), ObjLinkingLayer(ObjLinkingLayer),
-      LoadDynLibrary(std::move(LoadDynLibrary)),
+      LoadDynLibrary(std::move(LoadDynamicLibrary)),
       StaticVCRuntime(StaticVCRuntime),
       COFFHeaderStartSymbol(ES.intern("__ImageBase")) {
   ErrorAsOutParameter _(&Err);

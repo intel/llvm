@@ -131,7 +131,7 @@ class SelectionDAGBuilder {
     Value *getVariableLocationOp(unsigned Idx) const {
       assert(Idx == 0 && "Dangling variadic debug values not supported yet");
       if (Info.is<VarLocTy>())
-        return Info.get<VarLocTy>()->V;
+        return Info.get<VarLocTy>()->Values.getVariableLocationOp(Idx);
       return Info.get<DbgValTy>()->getVariableLocationOp(Idx);
     }
     DebugLoc getDebugLoc() const {
@@ -649,6 +649,8 @@ private:
   void visitVectorReduce(const CallInst &I, unsigned Intrinsic);
   void visitVectorReverse(const CallInst &I);
   void visitVectorSplice(const CallInst &I);
+  void visitVectorInterleave(const CallInst &I);
+  void visitVectorDeinterleave(const CallInst &I);
   void visitStepVector(const CallInst &I);
 
   void visitUserOp1(const Instruction &I) {
@@ -670,7 +672,6 @@ private:
   /// EmitFuncArgumentDbgValue.
   enum class FuncArgumentDbgValueKind {
     Value,   // This was originally a llvm.dbg.value.
-    Addr,    // This was originally a llvm.dbg.addr.
     Declare, // This was originally a llvm.dbg.declare.
   };
 

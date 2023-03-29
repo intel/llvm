@@ -10,7 +10,6 @@ add_fp_unittest(
   HDRS
     sdcomp26094.h
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.cosf
     libc.src.__support.CPP.array
@@ -39,7 +38,6 @@ add_fp_unittest(
   HDRS
     sdcomp26094.h
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.sinf
     libc.src.__support.CPP.array
@@ -68,7 +66,6 @@ add_fp_unittest(
   HDRS
     sdcomp26094.h
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.sincosf
     libc.src.__support.CPP.array
@@ -85,7 +82,6 @@ add_fp_unittest(
   HDRS
     sdcomp26094.h
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.tanf
     libc.src.__support.CPP.array
@@ -327,7 +323,6 @@ add_fp_unittest(
   HDRS
     RoundToIntegerTest.h
   DEPENDS
-    libc.include.errno
     libc.include.math
     libc.src.errno.errno
     libc.src.fenv.feclearexcept
@@ -347,7 +342,6 @@ add_fp_unittest(
   HDRS
     RoundToIntegerTest.h
   DEPENDS
-    libc.include.errno
     libc.include.math
     libc.src.errno.errno
     libc.src.fenv.feclearexcept
@@ -367,7 +361,6 @@ add_fp_unittest(
   HDRS
     RoundToIntegerTest.h
   DEPENDS
-    libc.include.errno
     libc.include.math
     libc.src.errno.errno
     libc.src.fenv.feclearexcept
@@ -387,7 +380,6 @@ add_fp_unittest(
   HDRS
     RoundToIntegerTest.h
   DEPENDS
-    libc.include.errno
     libc.include.math
     libc.src.errno.errno
     libc.src.fenv.feclearexcept
@@ -407,7 +399,6 @@ add_fp_unittest(
   HDRS
     RoundToIntegerTest.h
   DEPENDS
-    libc.include.errno
     libc.include.math
     libc.src.errno.errno
     libc.src.fenv.feclearexcept
@@ -427,7 +418,6 @@ add_fp_unittest(
   HDRS
     RoundToIntegerTest.h
   DEPENDS
-    libc.include.errno
     libc.include.math
     libc.src.errno.errno
     libc.src.fenv.feclearexcept
@@ -589,7 +579,6 @@ add_fp_unittest(
   SRCS
     expf_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.include.math
     libc.src.math.expf
@@ -604,7 +593,6 @@ add_fp_unittest(
   SRCS
     exp2f_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.include.math
     libc.src.math.exp2f
@@ -619,7 +607,6 @@ add_fp_unittest(
   SRCS
     exp10f_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.include.math
     libc.src.math.exp10f
@@ -1268,7 +1255,6 @@ add_fp_unittest(
   SRCS
     expm1f_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.include.math
     libc.src.math.expm1f
@@ -1295,7 +1281,6 @@ add_fp_unittest(
   SRCS
     logf_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.include.math
     libc.src.math.logf
@@ -1310,7 +1295,6 @@ add_fp_unittest(
   SRCS
     log2f_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.include.math
     libc.src.math.log2f
@@ -1325,7 +1309,6 @@ add_fp_unittest(
  SRCS
    log10_test.cpp
  DEPENDS
-   libc.include.errno
    libc.src.errno.errno
    libc.include.math
    libc.src.math.log10
@@ -1342,7 +1325,6 @@ add_fp_unittest(
   SRCS
     log10f_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.include.math
     libc.src.math.log10f
@@ -1357,7 +1339,6 @@ add_fp_unittest(
   SRCS
     log1pf_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.include.math
     libc.src.math.log1pf
@@ -1374,6 +1355,7 @@ add_fp_unittest(
     FModTest.h
   DEPENDS
     libc.include.math
+    libc.src.errno.errno
     libc.src.math.fmodf
     libc.src.__support.FPUtil.basic_operations
     libc.src.__support.FPUtil.nearest_integer_operations
@@ -1389,6 +1371,7 @@ add_fp_unittest(
     FModTest.h
   DEPENDS
     libc.include.math
+    libc.src.errno.errno
     libc.src.math.fmod
     libc.src.__support.FPUtil.basic_operations
     libc.src.__support.FPUtil.nearest_integer_operations
@@ -1419,7 +1402,6 @@ add_fp_unittest(
   HDRS
     sdcomp26094.h
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.coshf
     libc.src.__support.CPP.array
@@ -1436,7 +1418,6 @@ add_fp_unittest(
   HDRS
     sdcomp26094.h
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.sinhf
     libc.src.__support.CPP.array
@@ -1463,7 +1444,6 @@ add_fp_unittest(
   SRCS
     atanhf_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.atanhf
     libc.src.__support.FPUtil.fp_bits
@@ -1477,7 +1457,6 @@ add_fp_unittest(
   SRCS
     asinhf_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.asinhf
     libc.src.__support.FPUtil.fp_bits
@@ -1491,7 +1470,6 @@ add_fp_unittest(
   SRCS
     acoshf_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.acoshf
     libc.src.__support.FPUtil.fp_bits
@@ -1505,7 +1483,6 @@ add_fp_unittest(
   SRCS
     asinf_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.asinf
     libc.src.__support.FPUtil.fp_bits
@@ -1519,7 +1496,6 @@ add_fp_unittest(
   SRCS
     asin_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.asin
 )
@@ -1532,7 +1508,6 @@ add_fp_unittest(
   SRCS
     acosf_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.acosf
     libc.src.__support.FPUtil.fp_bits
@@ -1546,7 +1521,6 @@ add_fp_unittest(
   SRCS
     atanf_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.atanf
     libc.src.__support.FPUtil.fp_bits
@@ -1574,7 +1548,6 @@ add_fp_unittest(
   SRCS
     pow_test.cpp
   DEPENDS
-    libc.include.errno
     libc.src.errno.errno
     libc.src.math.pow
 )
