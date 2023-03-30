@@ -945,6 +945,13 @@ private:
         !isConvertibleAndHasIdentityMaps(resType))
       return failure();
 
+    if (getTypeConverter()->useOpaquePointers()) {
+      // Bitcasts with opaque pointers are just no-ops, so no need to create
+      // them here.
+      rewriter.replaceOp(op, opAdaptor.getSource());
+      return success();
+    }
+
     // Cast the source memref descriptor's allocate & aligned pointers to the
     // type of those pointers in the results memref.
     Location loc = op.getLoc();
@@ -994,6 +1001,13 @@ public:
     if (!canBeLoweredToBarePtr(srcType) || !canBeLoweredToBarePtr(resType) ||
         !convSrcType || !convResType)
       return failure();
+
+    if (getTypeConverter()->useOpaquePointers()) {
+      // Bitcasts with opaque pointers are just no-ops, so no need to create
+      // them here.
+      rewriter.replaceOp(op, opAdaptor.getSource());
+      return success();
+    }
 
     Location loc = op.getLoc();
     LLVMBuilder builder(rewriter, loc);
@@ -2305,8 +2319,8 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
   populateReturnOpTypeConversionPattern(patterns, converter);
   populateCallOpTypeConversionPattern(patterns, converter);
   populateAnyFunctionOpInterfaceTypeConversionPattern(patterns, converter);
-  polygeist::populateBareMemRefToLLVMConversionPatterns(
-      converter, patterns, useOpaquePointers);
+  polygeist::populateBareMemRefToLLVMConversionPatterns(converter, patterns,
+                                                        useOpaquePointers);
   populateSYCLToSPIRVConversionPatterns(converter, patterns);
 
   populateSYCLToLLVMConversionPatterns(converter, patterns);
