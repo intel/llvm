@@ -92,7 +92,9 @@ typedef enum ${th.make_enum_name(n, tags, obj)}
     %endfor
 
 } ${th.make_enum_name(n, tags, obj)};
+%if th.type_traits.is_flags(obj['name']):
 ${th.make_enum_max_def(n, tags, obj, meta)}
+%endif
 ## STRUCT/UNION ###############################################################
 %elif re.match(r"struct|union", obj['type']):
 typedef ${obj['type']} ${th.make_type_name(n, tags, obj)}
