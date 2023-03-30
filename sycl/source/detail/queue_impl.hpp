@@ -183,9 +183,10 @@ public:
   /// \param Context is a SYCL context to associate with the queue being
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param PropList is the queue properties.
   queue_impl(RT::PiQueue PiQueue, const ContextImplPtr &Context,
-             const async_handler &AsyncHandler)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
+             const async_handler &AsyncHandler, const property_list &PropList)
+      : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
         MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
@@ -385,37 +386,38 @@ public:
       MAsyncHandler(std::move(Exceptions));
   }
 
-  /// Creates PI queue.
+  /// Creates PI properties array.
   ///
-  /// \param Order specifies whether the queue being constructed as in-order
-  /// or out-of-order.
-  RT::PiQueue createQueue(QueueOrder Order) {
+  /// \param PropList SYCL properties.
+  /// \param Order specifies whether queue is in-order or out-of-order.
+  /// \param Properties PI properties array created from SYCL properties.
+  static RT::PiQueueProperties
+  createPiQueueProperties(const property_list &PropList, QueueOrder Order) {
     RT::PiQueueProperties CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
       CreationFlags = PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }
-    if (MPropList.has_property<property::queue::enable_profiling>()) {
+    if (PropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_FLAG_PROFILING_ENABLE;
     }
-    if (MPropList.has_property<
+    if (PropList.has_property<
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
     }
-    if (MPropList
-            .has_property<ext::oneapi::property::queue::discard_events>()) {
+    if (PropList.has_property<ext::oneapi::property::queue::discard_events>()) {
       // Pass this flag to the Level Zero plugin to be able to check it from
       // queue property.
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS;
     }
     // Track that priority settings are not ambiguous.
     bool PrioritySeen = false;
-    if (MPropList
+    if (PropList
             .has_property<ext::oneapi::property::queue::priority_normal>()) {
       // Normal is the default priority, don't pass anything.
       PrioritySeen = true;
     }
-    if (MPropList.has_property<ext::oneapi::property::queue::priority_low>()) {
+    if (PropList.has_property<ext::oneapi::property::queue::priority_low>()) {
       if (PrioritySeen) {
         throw sycl::exception(
             make_error_code(errc::invalid),
@@ -424,23 +426,30 @@ public:
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW;
       PrioritySeen = true;
     }
-    if (MPropList.has_property<ext::oneapi::property::queue::priority_high>()) {
+    if (PropList.has_property<ext::oneapi::property::queue::priority_high>()) {
       if (PrioritySeen) {
         throw sycl::exception(
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different priorities.");
       }
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH;
-      PrioritySeen = true;
     }
+    return CreationFlags;
+  }
+
+  /// Creates PI queue.
+  ///
+  /// \param Order specifies whether the queue being constructed as in-order
+  /// or out-of-order.
+  RT::PiQueue createQueue(QueueOrder Order) {
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();
     const detail::plugin &Plugin = getPlugin();
 
     assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
-    RT::PiQueueProperties Properties[] = {PI_QUEUE_FLAGS, CreationFlags, 0, 0,
-                                          0};
+    RT::PiQueueProperties Properties[] = {
+        PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
     if (has_property<ext::intel::property::queue::compute_index>()) {
       int Idx = get_property<ext::intel::property::queue::compute_index>()
                     .get_index();
@@ -569,7 +578,7 @@ public:
   /// Gets the native handle of the SYCL queue.
   ///
   /// \return a native handle.
-  pi_native_handle getNative() const;
+  pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;

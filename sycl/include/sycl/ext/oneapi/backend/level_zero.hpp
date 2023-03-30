@@ -24,13 +24,10 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    pi_native_handle NativeHandle,
                                    bool keep_ownership = false);
-__SYCL_DEPRECATED("Use make_queue with device parameter")
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle InteropHandle,
-                               bool keep_ownership = false);
 __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                pi_native_handle InteropHandle,
-                               bool keep_ownership = false);
+                               bool IsImmCmdList, bool keep_ownership,
+                               const property_list &Properties);
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
@@ -74,19 +71,7 @@ T make(const std::vector<device> &DeviceList,
                       sycl::detail::pi::cast<pi_native_handle>(Interop),
                       Ownership == ownership::keep);
 }
-
-// Construction of SYCL queue.
-template <typename T, typename sycl::detail::enable_if_t<
-                          std::is_same<T, queue>::value> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
-T make(const context &Context,
-       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
-           Interop,
-       ownership Ownership = ownership::transfer) {
-  return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop),
-                    Ownership == ownership::keep);
-}
-
+#if 0
 // Construction of SYCL event.
 template <typename T, typename sycl::detail::enable_if_t<
                           std::is_same<T, event>::value> * = nullptr>
@@ -98,6 +83,7 @@ T make(const context &Context,
   return make_event(Context, reinterpret_cast<pi_native_handle>(Interop),
                     Ownership == ownership::keep);
 }
+#endif
 } // namespace ext::oneapi::level_zero
 
 // Specialization of sycl::make_context for Level-Zero backend.
@@ -120,10 +106,36 @@ inline queue make_queue<backend::ext_oneapi_level_zero>(
     const context &TargetContext, const async_handler Handler) {
   (void)Handler;
   const device Device = device{BackendObject.Device};
+  bool IsImmCmdList = std::holds_alternative<ze_command_list_handle_t>(
+      BackendObject.NativeHandle);
+  pi_native_handle Handle = IsImmCmdList
+                                ? reinterpret_cast<pi_native_handle>(
+                                      *(std::get_if<ze_command_list_handle_t>(
+                                          &BackendObject.NativeHandle)))
+                                : reinterpret_cast<pi_native_handle>(
+                                      *(std::get_if<ze_command_queue_handle_t>(
+                                          &BackendObject.NativeHandle)));
   return ext::oneapi::level_zero::make_queue(
-      TargetContext, Device,
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+      TargetContext, Device, Handle, IsImmCmdList,
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+      BackendObject.Properties);
+}
+
+// Specialization of sycl::get_native for Level-Zero backend.
+template <>
+inline auto get_native<backend::ext_oneapi_level_zero, queue>(const queue &Obj)
+    ->backend_return_t<backend::ext_oneapi_level_zero, queue> {
+  int32_t IsImmCmdList;
+  pi_native_handle Handle = Obj.getNative(IsImmCmdList);
+  if (IsImmCmdList) {
+    return backend_return_t<backend::ext_oneapi_level_zero, queue>{
+        std::in_place_index<1>,
+        reinterpret_cast<ze_command_list_handle_t>(Handle)};
+  } else {
+    return backend_return_t<backend::ext_oneapi_level_zero, queue>{
+        std::in_place_index<0>,
+        reinterpret_cast<ze_command_queue_handle_t>(Handle)};
+  }
 }
 
 // Specialization of sycl::make_event for Level-Zero backend.

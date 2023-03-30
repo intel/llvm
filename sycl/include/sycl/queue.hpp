@@ -1896,7 +1896,7 @@ public:
   bool ext_oneapi_empty() const;
 
 private:
-  pi_native_handle getNative() const;
+  pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}

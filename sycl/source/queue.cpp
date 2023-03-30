@@ -53,9 +53,10 @@ queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
 
 queue::queue(cl_command_queue clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
+  const property_list PropList{};
   impl = std::make_shared<detail::queue_impl>(
       reinterpret_cast<RT::PiQueue>(clQueue),
-      detail::getSyclObjImpl(SyclContext), AsyncHandler);
+      detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
@@ -207,7 +208,9 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
 
-pi_native_handle queue::getNative() const { return impl->getNative(); }
+pi_native_handle queue::getNative(int32_t & NativeHandleDesc) const {
+  return impl->getNative(NativeHandleDesc);
+}
 
 buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
   return impl->getAssertHappenedBuffer();

@@ -207,8 +207,10 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend);
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               int32_t nativeHandleDesc,
                                const context &TargetContext,
                                const device *TargetDevice, bool KeepOwnership,
+                               const property_list &PropList,
                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
@@ -269,6 +271,20 @@ typename std::enable_if<
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
+  if constexpr (Backend == backend::ext_oneapi_level_zero) {
+    bool IsImmCmdList = std::holds_alternative<ze_command_list_handle_t>(
+        BackendObject.NativeHandle);
+    pi_native_handle Handle =
+        IsImmCmdList ? reinterpret_cast<pi_native_handle>(
+                           *(std::get_if<ze_command_list_handle_t>(
+                               &BackendObject.NativeHandle)))
+                     : reinterpret_cast<pi_native_handle>(
+                           *(std::get_if<ze_command_queue_handle_t>(
+                               &BackendObject.NativeHandle)));
+    return sycl::detail::make_queue(Handle, IsImmCmdList, TargetContext,
+                                    nullptr, false, BackendObject.Properties,
+                                    Handler, Backend);
+  }
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, nullptr, false, Handler, Backend);
 }

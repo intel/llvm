@@ -824,10 +824,13 @@ pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                           pi_context, pi_device,
-                                           bool ownNativeHandle,
+                                           int32_t NativeHandleDesc, pi_context,
+                                           pi_device, bool ownNativeHandle,
+                                           pi_queue_properties *Properties,
                                            pi_queue *piQueue) {
+  (void)NativeHandleDesc;
   (void)ownNativeHandle;
+  (void)Properties;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
   clRetainCommandQueue(cast<cl_command_queue>(nativeHandle));
@@ -2006,7 +2009,9 @@ pi_result piextContextGetNativeHandle(pi_context context,
 }
 
 pi_result piextQueueGetNativeHandle(pi_queue queue,
-                                    pi_native_handle *nativeHandle) {
+                                    pi_native_handle *nativeHandle,
+                                    int32_t *nativeHandleDesc) {
+  (void)nativeHandleDesc;
   return piextGetNativeHandle(queue, nativeHandle);
 }
 
