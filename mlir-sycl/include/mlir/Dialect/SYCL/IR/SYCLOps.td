@@ -163,7 +163,7 @@ def SYCL_AccessorType
   let parameters = (ins "::mlir::Type":$type,
                         "unsigned":$dimension,
                         "::mlir::sycl::AccessMode":$accessMode,
-                        "mlir::sycl::Target":$targetMode,
+                        "::mlir::sycl::Target":$targetMode,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat =
       "`<` `[` $dimension `,` $type `,` ` ` $accessMode `,` ` ` $targetMode `]` `,` `(` $body `)` `>`";
@@ -184,7 +184,7 @@ def SYCL_ArrayType : SYCL_Type<"Array", "array"> {
 
 def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
   let parameters = (ins "::mlir::Type":$dataType,
-                        "mlir::sycl::AccessAddrSpace":$addrSpace,
+                        "::mlir::sycl::AccessAddrSpace":$addrSpace,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dataType `,` $addrSpace `]` `,` `(` $body `)` `>`";
 }
@@ -269,8 +269,8 @@ def SYCL_MinimumType : SYCL_Type<"Minimum", "minimum"> {
 
 def SYCL_MultiPtrType : SYCL_Type<"MultiPtr", "multi_ptr"> {
   let parameters = (ins "::mlir::Type":$dataType,
-                        "mlir::sycl::AccessAddrSpace":$addrSpace,
-                        "mlir::sycl::AccessDecorated":$decAccess,
+                        "::mlir::sycl::AccessAddrSpace":$addrSpace,
+                        "::mlir::sycl::AccessDecorated":$decAccess,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dataType `,` ` ` $addrSpace `,` ` ` $decAccess `]` `,` `(` $body `)` `>`";
 }
