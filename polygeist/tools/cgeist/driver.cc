@@ -361,16 +361,12 @@ static int optimize(mlir::MLIRContext &Ctx,
   mlir::PassManager PM(&Ctx);
   enableOptionsPM(PM);
 
+  mlir::OpPassManager &OptPM = PM.nestAny();
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
   if (OptLevel != llvm::OptimizationLevel::O0) {
     PM.addPass(polygeist::createArgumentPromotionPass());
-
-    mlir::OpPassManager &OptPM = PM.nestAny();
-    if (EnableLICM)
-      OptPM.addPass(polygeist::createLICMPass(
-          {options.getCgeistOpts().getRelaxedAliasing()}));
 
     if (DetectReduction)
       OptPM.addPass(polygeist::detectReductionPass());
