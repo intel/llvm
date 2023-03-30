@@ -388,13 +388,12 @@ static int optimize(mlir::MLIRContext &Ctx,
     if (DetectReduction)
       OptPM.addPass(polygeist::detectReductionPass());
 
-    mlir::OpPassManager &OptPM2 = PM.nestAny();
-    OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
-    OptPM2.addPass(mlir::createCSEPass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    OptPM.addPass(mlir::createCSEPass());
     // Note: affine dialects must be lowered to allow callees containing affine
     // operations to be inlined.
     if (RaiseToAffine)
-      OptPM2.addPass(mlir::createLowerAffinePass());
+      OptPM.addPass(mlir::createLowerAffinePass());
     if (OmitOptionalMangledFunctionName) {
       // Needed as the inliner pass needs the `MangledFunctionName` attribute to
       // build the call graph.
