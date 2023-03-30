@@ -103,10 +103,12 @@ template <typename Group> bool GroupAny(bool pred) {
 }
 
 // Native broadcasts map directly to a SPIR-V GroupBroadcast intrinsic
-// FIXME: Do not special-case for half once all backends support all data types.
+// FIXME: Do not special-case for half or vec once all backends support all data
+// types.
 template <typename T>
-using is_native_broadcast = bool_constant<detail::is_arithmetic<T>::value &&
-                                          !std::is_same<T, half>::value>;
+using is_native_broadcast =
+    bool_constant<detail::is_arithmetic<T>::value &&
+                  !std::is_same<T, half>::value && !detail::is_vec<T>::value>;
 
 template <typename T, typename IdT = size_t>
 using EnableIfNativeBroadcast = detail::enable_if_t<
