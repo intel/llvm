@@ -438,6 +438,7 @@ cc_library(
         ":DebugInfoCodeView",
         ":DebugInfoDWARF",
         ":DebugInfoPDB",
+        ":Demangle",
         ":MC",
         ":MCDisassembler",
         ":Object",
@@ -568,26 +569,18 @@ cc_library(
 )
 
 cc_library(
-    name = "tblgen",
+    name = "LLVMTableGenGlobalISel",
     srcs = glob([
-        "utils/TableGen/*.cpp",
         "utils/TableGen/GlobalISel/*.cpp",
-
-        # Some tablegen sources include headers from MC, so these have to be
-        # listed here. MC uses headers produced by tablegen, so it cannot be a
-        # regular dependency.
-        "include/llvm/MC/*.h",
-
+    ]) + [
+        "utils/TableGen/CodeGenInstruction.h",
+    ],
+    hdrs = glob([
         # We have to include these headers here as well as in the `hdrs` below
         # to allow the `.cpp` files to use file-relative-inclusion to find
         # them, even though consumers of this library use inclusion relative to
         # `utils/TableGen` with the `strip_includes_prefix` of this library.
         # This mixture appears to be incompatible with header modules.
-        "utils/TableGen/*.h",
-        "utils/TableGen/GlobalISel/*.h",
-    ]),
-    hdrs = glob([
-        "utils/TableGen/*.h",
         "utils/TableGen/GlobalISel/*.h",
     ]),
     copts = llvm_copts,
@@ -602,10 +595,23 @@ cc_library(
 
 cc_binary(
     name = "llvm-tblgen",
+    srcs = glob([
+        "utils/TableGen/*.cpp",
+        "utils/TableGen/*.inc",
+        "utils/TableGen/*.h",
+
+        # Some tablegen sources include headers from MC, so these have to be
+        # listed here. MC uses headers produced by tablegen, so it cannot be a
+        # regular dependency.
+        "include/llvm/MC/*.h",
+    ]),
     copts = llvm_copts,
     stamp = 0,
     deps = [
-        ":tblgen",
+        ":LLVMTableGenGlobalISel",
+        ":Support",
+        ":TableGen",
+        ":config",
     ],
 )
 
@@ -1158,7 +1164,6 @@ cc_library(
     ]),
     hdrs = glob(["include/llvm/Transforms/Utils/*.h"]) + [
         "include/llvm/Transforms/Utils.h",
-        "include/llvm-c/Transforms/Utils.h",
     ],
     copts = llvm_copts,
     deps = [
@@ -1198,9 +1203,7 @@ cc_library(
         "lib/Transforms/InstCombine/*.cpp",
         "lib/Transforms/InstCombine/*.h",
     ]),
-    hdrs = glob(["include/llvm/Transforms/InstCombine/*.h"]) + [
-        "include/llvm-c/Transforms/InstCombine.h",
-    ],
+    hdrs = glob(["include/llvm/Transforms/InstCombine/*.h"]),
     copts = llvm_copts,
     deps = [
         ":Analysis",
@@ -1282,7 +1285,6 @@ cc_library(
         "lib/Transforms/Scalar/*.h",
     ]),
     hdrs = glob(["include/llvm/Transforms/Scalar/*.h"]) + [
-        "include/llvm-c/Transforms/Scalar.h",
         "include/llvm/Transforms/Scalar.h",
     ],
     copts = llvm_copts,
@@ -1309,7 +1311,6 @@ cc_library(
     hdrs = glob([
         "include/llvm/Transforms/Vectorize/*.h",
     ]) + [
-        "include/llvm-c/Transforms/Vectorize.h",
         "include/llvm/Transforms/Vectorize.h",
     ],
     copts = llvm_copts,
@@ -1531,8 +1532,6 @@ cc_library(
     hdrs = glob([
         "include/llvm/Transforms/IPO/*.h",
     ]) + [
-        "include/llvm-c/Transforms/IPO.h",
-        "include/llvm-c/Transforms/PassManagerBuilder.h",
         "include/llvm/Transforms/IPO.h",
     ],
     copts = llvm_copts,
@@ -2762,11 +2761,6 @@ cc_library(
         "include/llvm/WindowsManifest/*.h",
     ]),
     copts = llvm_copts,
-    linkopts = [
-        # Libxml2 is required to process Windows manifests. Without this,
-        # lld uses Microsoft mt.exe instead, which is not cross-platform.
-        "-lxml2",
-    ],
     deps = [
         ":Support",
         ":config",
@@ -4723,6 +4717,7 @@ cc_binary(
         ":MCDisassembler",
         ":Object",
         ":OrcJIT",
+        ":Passes",
         ":Remarks",
         ":Scalar",
         ":Support",

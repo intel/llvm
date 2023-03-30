@@ -16,14 +16,12 @@ namespace {
 
 thread_local bool deviceGetInfoCalled;
 
-pi_platform PiPlatform = nullptr;
-
 pi_result redefinedDeviceGetInfoAfter(pi_device device,
                                       pi_device_info param_name,
                                       size_t param_value_size,
                                       void *param_value,
                                       size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES) {
+  if (param_name == PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES) {
     deviceGetInfoCalled = true;
     if (param_value) {
       auto *Result =
@@ -39,10 +37,7 @@ pi_result redefinedDeviceGetInfoAfter(pi_device device,
 TEST(AtomicMemoryScopeCapabilitiesCheck, CheckAtomicMemoryScopeCapabilities) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-
-  PiPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
-  context DefaultCtx = Plt.ext_oneapi_get_default_context();
-  device Dev = DefaultCtx.get_devices()[0];
+  device Dev = Plt.get_devices()[0];
 
   deviceGetInfoCalled = false;
 

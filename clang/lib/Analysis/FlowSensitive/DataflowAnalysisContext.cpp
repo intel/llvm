@@ -15,12 +15,19 @@
 #include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/Analysis/FlowSensitive/DebugSupport.h"
+#include "clang/Analysis/FlowSensitive/Logger.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "llvm/ADT/SetOperations.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include <cassert>
 #include <memory>
 #include <utility>
+
+static llvm::cl::opt<std::string>
+    DataflowLog("dataflow-log", llvm::cl::Hidden, llvm::cl::ValueOptional,
+                llvm::cl::desc("Emit log of dataflow analysis. With no arg, "
+                               "writes textual log to stderr."));
 
 namespace clang {
 namespace dataflow {
@@ -316,10 +323,9 @@ BoolValue &DataflowAnalysisContext::substituteBoolValue(
 BoolValue &DataflowAnalysisContext::buildAndSubstituteFlowCondition(
     AtomicBoolValue &Token,
     llvm::DenseMap<AtomicBoolValue *, BoolValue *> Substitutions) {
-  assert(
-      Substitutions.find(&getBoolLiteralValue(true)) == Substitutions.end() &&
-      Substitutions.find(&getBoolLiteralValue(false)) == Substitutions.end() &&
-      "Do not substitute true/false boolean literals");
+  assert(!Substitutions.contains(&getBoolLiteralValue(true)) &&
+         !Substitutions.contains(&getBoolLiteralValue(false)) &&
+         "Do not substitute true/false boolean literals");
   llvm::DenseMap<BoolValue *, BoolValue *> SubstitutionsCache(
       Substitutions.begin(), Substitutions.end());
   return buildAndSubstituteFlowConditionWithCache(Token, SubstitutionsCache);
@@ -343,7 +349,8 @@ BoolValue &DataflowAnalysisContext::buildAndSubstituteFlowConditionWithCache(
   return substituteBoolValue(*ConstraintsIt->second, SubstitutionsCache);
 }
 
-void DataflowAnalysisContext::dumpFlowCondition(AtomicBoolValue &Token) {
+void DataflowAnalysisContext::dumpFlowCondition(AtomicBoolValue &Token,
+                                                llvm::raw_ostream &OS) {
   llvm::DenseSet<BoolValue *> Constraints = {&Token};
   llvm::DenseSet<AtomicBoolValue *> VisitedTokens;
   addTransitiveFlowConditionConstraints(Token, Constraints, VisitedTokens);
@@ -351,7 +358,7 @@ void DataflowAnalysisContext::dumpFlowCondition(AtomicBoolValue &Token) {
   llvm::DenseMap<const AtomicBoolValue *, std::string> AtomNames = {
       {&getBoolLiteralValue(false), "False"},
       {&getBoolLiteralValue(true), "True"}};
-  llvm::dbgs() << debugString(Constraints, AtomNames);
+  OS << debugString(Constraints, AtomNames);
 }
 
 const ControlFlowContext *
@@ -374,6 +381,27 @@ DataflowAnalysisContext::getControlFlowContext(const FunctionDecl *F) {
 
   return nullptr;
 }
+
+DataflowAnalysisContext::DataflowAnalysisContext(std::unique_ptr<Solver> S,
+                                                 Options Opts)
+    : S(std::move(S)), TrueVal(createAtomicBoolValue()),
+      FalseVal(createAtomicBoolValue()), Opts(Opts) {
+  assert(this->S != nullptr);
+  // If the -dataflow-log command-line flag was set, synthesize a logger.
+  // This is ugly but provides a uniform method for ad-hoc debugging dataflow-
+  // based tools.
+  if (Opts.Log == nullptr) {
+    if (DataflowLog.getNumOccurrences() > 0) {
+      LogOwner = Logger::textual(llvm::errs());
+      this->Opts.Log = LogOwner.get();
+      // FIXME: if the flag is given a value, write an HTML log to a file.
+    } else {
+      this->Opts.Log = &Logger::null();
+    }
+  }
+}
+
+DataflowAnalysisContext::~DataflowAnalysisContext() = default;
 
 } // namespace dataflow
 } // namespace clang

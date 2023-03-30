@@ -85,6 +85,18 @@ def CSE : Pass<"cse"> {
   ];
 }
 
+def PrintIRPass : Pass<"print-ir"> {
+  let summary = "Print IR on the debug stream";
+  let description = [{
+    Print the entire IR on the debug stream. This is meant for debugging
+    purposes to inspect the IR at a specific point in the pipeline.
+  }];
+  let constructor = "mlir::createPrintIRPass()";
+  let options = [
+    Option<"label", "label", "std::string", /*default=*/"", "Label">,
+  ];
+}
+
 def GenerateRuntimeVerification : Pass<"generate-runtime-verification"> {
   let summary = "Generate additional runtime op verification checks";
   let description = [{
@@ -100,7 +112,7 @@ def Inliner : Pass<"inline"> {
   let constructor = "mlir::createInlinerPass()";
   let options = [
     Option<"defaultPipelineStr", "default-pipeline", "std::string",
-           /*default=*/"", "The default optimizer pipeline used for callables">,
+           /*default=*/"\"canonicalize\"", "The default optimizer pipeline used for callables">,
     ListOption<"opPipelineList", "op-pipelines", "OpPassManager",
                "Callable operation specific optimizer pipelines (in the form "
                "of `dialect.op(pipeline)`)">,
@@ -133,7 +145,7 @@ def LocationSnapshot : Pass<"snapshot-op-locations"> {
     ```
 
     * If set, the new location is fused with the original location in the form
-    of a [`Name Location`](Diagnostics.md#name-location) with the specified tag.
+    of a [`Name Location`](Dialects/Builtin.md/#nameloc) with the specified tag.
 
     Example:
 
@@ -187,7 +199,7 @@ def StripDebugInfo : Pass<"strip-debuginfo"> {
   let summary = "Strip debug info from all operations";
   let description = [{
     This pass strips the IR of any location information, by replacing all
-    operation locations with [`unknown`](Diagnostics.md#unknown-location).
+    operation locations with [`unknown`](Dialects/Builtin.md/#unknownloc).
   }];
   let constructor = "mlir::createStripDebugInfoPass()";
 }
@@ -199,7 +211,7 @@ def SymbolDCE : Pass<"symbol-dce"> {
     by computing the set of operations that are known to be live, propagating
     that liveness to other symbols, and then deleting all symbols that are not
     within this live set. Live symbols are those that have a
-    [visibility](SymbolsAndSymbolTables.md#symbol-visibility) that extends
+    [visibility](SymbolsAndSymbolTables.md/#symbol-visibility) that extends
     beyond the IR, e.g. `public`, or those that are referenced by live symbols
     or other non-Symbol operations.
 

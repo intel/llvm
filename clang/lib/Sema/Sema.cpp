@@ -202,7 +202,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       VisContext(nullptr), PragmaAttributeCurrentTargetDecl(nullptr),
       IsBuildingRecoveryCallExpr(false), LateTemplateParser(nullptr),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
-      StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
+      StdInitializerList(nullptr),
       StdCoroutineTraitsCache(nullptr), CXXTypeInfoDecl(nullptr),
       MSVCGuidDecl(nullptr), StdSourceLocationImplDecl(nullptr),
       NSNumberDecl(nullptr), NSValueDecl(nullptr), NSStringDecl(nullptr),
@@ -821,7 +821,7 @@ static bool isFunctionOrVarDeclExternC(NamedDecl *ND) {
 
 /// Determine whether ND is an external-linkage function or variable whose
 /// type has no linkage.
-bool Sema::isExternalWithNoLinkageType(ValueDecl *VD) {
+bool Sema::isExternalWithNoLinkageType(ValueDecl *VD) const {
   // Note: it's not quite enough to check whether VD has UniqueExternalLinkage,
   // because we also want to catch the case where its type has VisibleNoLinkage,
   // which does not affect the linkage of VD.
@@ -1245,8 +1245,8 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   // A global-module-fragment is only permitted within a module unit.
   bool DiagnosedMissingModuleDeclaration = false;
-  if (!ModuleScopes.empty() &&
-      ModuleScopes.back().Module->Kind == Module::GlobalModuleFragment) {
+  if (!ModuleScopes.empty() && ModuleScopes.back().Module->Kind ==
+                                   Module::ExplicitGlobalModuleFragment) {
     Diag(ModuleScopes.back().BeginLoc,
          diag::err_module_declaration_missing_after_global_module_introducer);
     DiagnosedMissingModuleDeclaration = true;
@@ -1484,7 +1484,7 @@ void Sema::ActOnEndOfTranslationUnit() {
 // Helper functions.
 //===----------------------------------------------------------------------===//
 
-DeclContext *Sema::getFunctionLevelDeclContext(bool AllowLambda) {
+DeclContext *Sema::getFunctionLevelDeclContext(bool AllowLambda) const {
   DeclContext *DC = CurContext;
 
   while (true) {
@@ -1504,7 +1504,7 @@ DeclContext *Sema::getFunctionLevelDeclContext(bool AllowLambda) {
 /// getCurFunctionDecl - If inside of a function body, this returns a pointer
 /// to the function decl for the function being parsed.  If we're currently
 /// in a 'block', this returns the containing context.
-FunctionDecl *Sema::getCurFunctionDecl(bool AllowLambda) {
+FunctionDecl *Sema::getCurFunctionDecl(bool AllowLambda) const {
   DeclContext *DC = getFunctionLevelDeclContext(AllowLambda);
   return dyn_cast<FunctionDecl>(DC);
 }
@@ -1516,7 +1516,7 @@ ObjCMethodDecl *Sema::getCurMethodDecl() {
   return dyn_cast<ObjCMethodDecl>(DC);
 }
 
-NamedDecl *Sema::getCurFunctionOrMethodDecl() {
+NamedDecl *Sema::getCurFunctionOrMethodDecl() const {
   DeclContext *DC = getFunctionLevelDeclContext();
   if (isa<ObjCMethodDecl>(DC) || isa<FunctionDecl>(DC))
     return cast<NamedDecl>(DC);
@@ -2436,7 +2436,8 @@ FunctionScopeInfo *Sema::getEnclosingFunction() const {
 LambdaScopeInfo *Sema::getEnclosingLambda() const {
   for (auto *Scope : llvm::reverse(FunctionScopes)) {
     if (auto *LSI = dyn_cast<sema::LambdaScopeInfo>(Scope)) {
-      if (LSI->Lambda && !LSI->Lambda->Encloses(CurContext)) {
+      if (LSI->Lambda && !LSI->Lambda->Encloses(CurContext) &&
+          LSI->AfterParameterList) {
         // We have switched contexts due to template instantiation.
         // FIXME: We should swap out the FunctionScopes during code synthesis
         // so that we don't need to check for this.
@@ -2462,8 +2463,8 @@ LambdaScopeInfo *Sema::getCurLambda(bool IgnoreNonLambdaCapturingScope) {
       return nullptr;
   }
   auto *CurLSI = dyn_cast<LambdaScopeInfo>(*I);
-  if (CurLSI && CurLSI->Lambda &&
-      !CurLSI->Lambda->Encloses(CurContext)) {
+  if (CurLSI && CurLSI->Lambda && CurLSI->CallOperator &&
+      !CurLSI->Lambda->Encloses(CurContext) && CurLSI->AfterParameterList) {
     // We have switched contexts due to template instantiation.
     assert(!CodeSynthesisContexts.empty());
     return nullptr;

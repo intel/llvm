@@ -567,7 +567,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     while (AIt != AEnd) {
       auto Aspect = static_cast<aspect>(*AIt);
       // Strict check for fp64 is disabled temporarily to avoid confusion.
-      if (Aspect != aspect::fp64 && !Dev->has(Aspect))
+      if (!Dev->has(Aspect))
         throw sycl::exception(errc::kernel_not_supported,
                               "Required aspect " + getAspectNameStr(Aspect) +
                                   " is not supported on the device");
@@ -1177,7 +1177,6 @@ bool ProgramManager::kernelUsesAssert(OSModuleHandle M,
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
-
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     OSModuleHandle M = OSUtil::getOSModuleHandle(RawImg);
@@ -1317,6 +1316,38 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
                 DeviceGlobal->Name, ImgId, KSId, TypeSize,
                 DeviceImageScopeDecorated);
             m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
+          }
+        }
+      }
+      // ... and initialize associated host_pipe information
+      {
+        std::lock_guard HostPipesGuard(m_HostPipesMutex);
+        auto HostPipes = Img->getHostPipes();
+        for (const pi_device_binary_property &HostPipe : HostPipes) {
+          ByteArray HostPipeInfo = DeviceBinaryProperty(HostPipe).asByteArray();
+
+          // The supplied host_pipe info property is expected to contain:
+          // * 8 bytes - Size of the property.
+          // * 4 bytes - Size of the underlying type in the host_pipe.
+          // Note: Property may be padded.
+
+          HostPipeInfo.dropBytes(8);
+          auto TypeSize = HostPipeInfo.consume<std::uint32_t>();
+          assert(HostPipeInfo.empty() && "Extra data left!");
+
+          auto ExistingHostPipe = m_HostPipes.find(HostPipe->Name);
+          if (ExistingHostPipe != m_HostPipes.end()) {
+            // If it has already been registered we update the information.
+            ExistingHostPipe->second->initialize(TypeSize);
+            ExistingHostPipe->second->initialize(Img.get());
+          } else {
+            // If it has not already been registered we create a new entry.
+            // Note: Pointer to the host pipe is not available here, so it
+            //       cannot be set until registration happens.
+            auto EntryUPtr =
+                std::make_unique<HostPipeMapEntry>(HostPipe->Name, TypeSize);
+            EntryUPtr->initialize(Img.get());
+            m_HostPipes.emplace(HostPipe->Name, std::move(EntryUPtr));
           }
         }
       }
@@ -1641,6 +1672,37 @@ std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
       FoundEntries.push_back(DeviceGlobalEntry->second.get());
   }
   return FoundEntries;
+}
+
+void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
+                                            const char *UniqueId) {
+  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+
+  auto ExistingHostPipe = m_HostPipes.find(UniqueId);
+  if (ExistingHostPipe != m_HostPipes.end()) {
+    ExistingHostPipe->second->initialize(HostPipePtr);
+    m_Ptr2HostPipe.insert({HostPipePtr, ExistingHostPipe->second.get()});
+    return;
+  }
+
+  auto EntryUPtr = std::make_unique<HostPipeMapEntry>(UniqueId, HostPipePtr);
+  auto NewEntry = m_HostPipes.emplace(UniqueId, std::move(EntryUPtr));
+  m_Ptr2HostPipe.insert({HostPipePtr, NewEntry.first->second.get()});
+}
+
+HostPipeMapEntry *
+ProgramManager::getHostPipeEntry(const std::string &UniqueId) {
+  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+  auto Entry = m_HostPipes.find(UniqueId);
+  assert(Entry != m_HostPipes.end() && "Host pipe entry not found");
+  return Entry->second.get();
+}
+
+HostPipeMapEntry *ProgramManager::getHostPipeEntry(const void *HostPipePtr) {
+  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+  auto Entry = m_Ptr2HostPipe.find(HostPipePtr);
+  assert(Entry != m_Ptr2HostPipe.end() && "Host pipe entry not found");
+  return Entry->second;
 }
 
 device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
@@ -2319,7 +2381,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
     while (!Aspects.empty()) {
       aspect Aspect = Aspects.consume<aspect>();
       // Strict check for fp64 is disabled temporarily to avoid confusion.
-      if (Aspect != aspect::fp64 && !Dev.has(Aspect))
+      if (!Dev.has(Aspect))
         return false;
     }
   }

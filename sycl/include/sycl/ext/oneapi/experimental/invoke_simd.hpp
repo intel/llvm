@@ -194,6 +194,19 @@ template <typename T> struct unwrap_uniform<uniform<T>> {
   static T impl(uniform<T> val) { return val; }
 };
 
+// Verify the callee return type matches the subgroup size as is required by the
+// spec. For example: simd<int, 8> foo(simd<int,16>); The return type vector
+// length (8) does not match the subgroup size (16).
+template <auto SgSize, typename SimdRet>
+constexpr void verify_return_type_matches_sg_size() {
+  if constexpr (is_simd_or_mask_type<SimdRet>::value) {
+    constexpr auto RetVecLength = SimdRet::size();
+    static_assert(RetVecLength == SgSize,
+                  "invoke_simd callee return type vector length must match "
+                  "kernel subgroup size");
+  }
+}
+
 // Deduces subgroup size of the caller based on given SIMD callable and
 // corresponding SPMD arguments it is being invoke with via invoke_simd.
 // Basically, for each supported subgroup size, this meta-function finds out if
@@ -349,6 +362,8 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
   // is fine in this case.
   constexpr int N = detail::get_sg_size<Callable, T...>();
   using RetSpmd = detail::SpmdRetType<N, Callable, T...>;
+  detail::verify_return_type_matches_sg_size<
+      N, detail::SimdRetType<N, Callable, T...>>();
   constexpr bool is_function = detail::is_function_ptr_or_ref_v<Callable>;
 
   if constexpr (is_function) {

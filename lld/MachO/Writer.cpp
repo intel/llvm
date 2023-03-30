@@ -465,7 +465,7 @@ public:
       break;
     }
     c->cmdsize = getSize();
-    c->version = encodeVersion(platformInfo.minimum);
+    c->version = encodeVersion(platformInfo.target.MinDeployment);
     c->sdk = encodeVersion(platformInfo.sdk);
   }
 
@@ -490,7 +490,7 @@ public:
     c->cmdsize = getSize();
 
     c->platform = static_cast<uint32_t>(platformInfo.target.Platform);
-    c->minos = encodeVersion(platformInfo.minimum);
+    c->minos = encodeVersion(platformInfo.target.MinDeployment);
     c->sdk = encodeVersion(platformInfo.sdk);
 
     c->ntools = ntools;
@@ -764,7 +764,9 @@ static bool useLCBuildVersion(const PlatformInfo &platformInfo) {
   auto it = llvm::find_if(minVersion, [&](const auto &p) {
     return p.first == platformInfo.target.Platform;
   });
-  return it == minVersion.end() ? true : platformInfo.minimum >= it->second;
+  return it == minVersion.end()
+             ? true
+             : platformInfo.target.MinDeployment >= it->second;
 }
 
 template <class LP> void Writer::createLoadCommands() {
@@ -1075,9 +1077,10 @@ void Writer::finalizeAddresses() {
     seg->addr = addr;
     assignAddresses(seg);
     // codesign / libstuff checks for segment ordering by verifying that
-    // `fileOff + fileSize == next segment fileOff`. So we call alignTo() before
-    // (instead of after) computing fileSize to ensure that the segments are
-    // contiguous. We handle addr / vmSize similarly for the same reason.
+    // `fileOff + fileSize == next segment fileOff`. So we call
+    // alignToPowerOf2() before (instead of after) computing fileSize to ensure
+    // that the segments are contiguous. We handle addr / vmSize similarly for
+    // the same reason.
     fileOff = alignToPowerOf2(fileOff, pageSize);
     addr = alignToPowerOf2(addr, pageSize);
     seg->vmSize = addr - seg->addr;
@@ -1120,8 +1123,8 @@ void Writer::assignAddresses(OutputSegment *seg) {
   for (OutputSection *osec : seg->getSections()) {
     if (!osec->isNeeded())
       continue;
-    addr = alignTo(addr, osec->align);
-    fileOff = alignTo(fileOff, osec->align);
+    addr = alignToPowerOf2(addr, osec->align);
+    fileOff = alignToPowerOf2(fileOff, osec->align);
     osec->addr = addr;
     osec->fileOff = isZeroFill(osec->flags) ? 0 : fileOff;
     osec->finalize();

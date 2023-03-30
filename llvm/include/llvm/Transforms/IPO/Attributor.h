@@ -2567,7 +2567,10 @@ template <typename base_ty = uint32_t, base_ty BestState = ~base_ty(0),
           base_ty WorstState = 0>
 struct BitIntegerState
     : public IntegerStateBase<base_ty, BestState, WorstState> {
+  using super = IntegerStateBase<base_ty, BestState, WorstState>;
   using base_t = base_ty;
+  BitIntegerState() = default;
+  BitIntegerState(base_t Assumed) : super(Assumed) {}
 
   /// Return true if the bits set in \p BitsEncoding are "known bits".
   bool isKnown(base_t BitsEncoding) const {
@@ -2600,7 +2603,7 @@ struct BitIntegerState
 
   /// Keep only "assumed bits" also set in \p BitsEncoding but all known ones.
   BitIntegerState &intersectAssumedBits(base_t BitsEncoding) {
-    // Make sure we never loose any "known bits".
+    // Make sure we never lose any "known bits".
     this->Assumed = (this->Assumed & BitsEncoding) | this->Known;
     return *this;
   }
@@ -2641,14 +2644,14 @@ struct IncIntegerState
 
   /// Take minimum of assumed and \p Value.
   IncIntegerState &takeAssumedMinimum(base_t Value) {
-    // Make sure we never loose "known value".
+    // Make sure we never lose "known value".
     this->Assumed = std::max(std::min(this->Assumed, Value), this->Known);
     return *this;
   }
 
   /// Take maximum of known and \p Value.
   IncIntegerState &takeKnownMaximum(base_t Value) {
-    // Make sure we never loose "known value".
+    // Make sure we never lose "known value".
     this->Assumed = std::max(Value, this->Assumed);
     this->Known = std::max(Value, this->Known);
     return *this;
@@ -2677,14 +2680,14 @@ struct DecIntegerState : public IntegerStateBase<base_ty, 0, ~base_ty(0)> {
 
   /// Take maximum of assumed and \p Value.
   DecIntegerState &takeAssumedMaximum(base_t Value) {
-    // Make sure we never loose "known value".
+    // Make sure we never lose "known value".
     this->Assumed = std::min(std::max(this->Assumed, Value), this->Known);
     return *this;
   }
 
   /// Take minimum of known and \p Value.
   DecIntegerState &takeKnownMinimum(base_t Value) {
-    // Make sure we never loose "known value".
+    // Make sure we never lose "known value".
     this->Assumed = std::min(Value, this->Assumed);
     this->Known = std::min(Value, this->Known);
     return *this;
@@ -2811,7 +2814,7 @@ struct IntegerRangeState : public AbstractState {
 
   /// Unite assumed range with the passed state.
   void unionAssumed(const ConstantRange &R) {
-    // Don't loose a known range.
+    // Don't lose a known range.
     Assumed = Assumed.unionWith(R).intersectWith(Known);
   }
 
@@ -3222,9 +3225,6 @@ struct AttributorCGSCCPass : public PassInfoMixin<AttributorCGSCCPass> {
   PreservedAnalyses run(LazyCallGraph::SCC &C, CGSCCAnalysisManager &AM,
                         LazyCallGraph &CG, CGSCCUpdateResult &UR);
 };
-
-Pass *createAttributorLegacyPass();
-Pass *createAttributorCGSCCLegacyPass();
 
 /// Helper function to clamp a state \p S of type \p StateType with the
 /// information in \p R and indicate/return if \p S did change (as-in update is
@@ -4843,6 +4843,39 @@ struct AANoUndef
   static const char ID;
 };
 
+struct AANoFPClass
+    : public IRAttribute<
+          Attribute::NoFPClass,
+          StateWrapper<BitIntegerState<uint32_t, fcAllFlags, fcNone>,
+                       AbstractAttribute>> {
+  using Base = StateWrapper<BitIntegerState<uint32_t, fcAllFlags, fcNone>,
+                            AbstractAttribute>;
+
+  AANoFPClass(const IRPosition &IRP, Attributor &A) : IRAttribute(IRP) {}
+
+  /// Return true if we assume that the underlying value is nofpclass.
+  FPClassTest getAssumedNoFPClass() const {
+    return static_cast<FPClassTest>(getAssumed());
+  }
+
+  /// Create an abstract attribute view for the position \p IRP.
+  static AANoFPClass &createForPosition(const IRPosition &IRP, Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AANoFPClass"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AANoFPClass
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
+  /// Unique ID (due to the unique address)
+  static const char ID;
+};
+
 struct AACallGraphNode;
 struct AACallEdges;
 
@@ -5103,6 +5136,37 @@ struct AAInterFnReachability
   const char *getIdAddr() const override { return &ID; }
 
   /// This function should return true if the type of the \p AA is AACallEdges.
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
+  /// Unique ID (due to the unique address)
+  static const char ID;
+};
+
+/// An abstract Attribute for determining the necessity of the convergent
+/// attribute.
+struct AANonConvergent : public StateWrapper<BooleanState, AbstractAttribute> {
+  using Base = StateWrapper<BooleanState, AbstractAttribute>;
+
+  AANonConvergent(const IRPosition &IRP, Attributor &A) : Base(IRP) {}
+
+  /// Create an abstract attribute view for the position \p IRP.
+  static AANonConvergent &createForPosition(const IRPosition &IRP, Attributor &A);
+
+  /// Return true if "non-convergent" is assumed.
+  bool isAssumedNotConvergent() const { return getAssumed(); }
+
+  /// Return true if "non-convergent" is known.
+  bool isKnownNotConvergent() const { return getKnown(); }
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AANonConvergent"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AANonConvergent.
   static bool classof(const AbstractAttribute *AA) {
     return (AA->getIdAddr() == &ID);
   }
