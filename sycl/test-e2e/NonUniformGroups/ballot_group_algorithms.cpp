@@ -72,7 +72,7 @@ int main() {
             BroadcastAcc[WI] = (BroadcastResult == 1);
           }
 
-          bool AnyResult = sycl::any_of_group(BallotGroup, Predicate);
+          bool AnyResult = sycl::any_of_group(BallotGroup, (LID == 0));
           if (Predicate) {
             AnyAcc[WI] = (AnyResult == true);
           } else {
