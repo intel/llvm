@@ -958,7 +958,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMAdvise_t)(
     ur_queue_handle_t,
     const void *,
     size_t,
-    ur_usm_advice_t,
+    ur_usm_advice_flags_t,
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

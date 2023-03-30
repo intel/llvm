@@ -3863,7 +3863,7 @@ ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_USM_ADVICE_BIAS_UNCACHED < advice`
+///         + `0x1ff < advice`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -3873,10 +3873,10 @@ ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urEnqueueUSMAdvise(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    const void *pMem,         ///< [in] pointer to the USM memory object
-    size_t size,              ///< [in] size in bytes to be advised
-    ur_usm_advice_t advice,   ///< [in] USM memory advice
+    ur_queue_handle_t hQueue,     ///< [in] handle of the queue object
+    const void *pMem,             ///< [in] pointer to the USM memory object
+    size_t size,                  ///< [in] size in bytes to be advised
+    ur_usm_advice_flags_t advice, ///< [in] USM memory advice
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.

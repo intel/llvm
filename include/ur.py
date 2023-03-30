@@ -988,20 +988,20 @@ class ur_usm_alloc_info_t(c_int):
 
 ###############################################################################
 ## @brief USM memory advice
-class ur_usm_advice_v(IntEnum):
-    DEFAULT = 0                                     ## The USM memory advice is default
-    SET_READ_MOSTLY = 1                             ## Hint that memory will be read from frequently and written to rarely
-    CLEAR_READ_MOSTLY = 2                           ## Removes the affect of ::::UR_USM_ADVICE_SET_READ_MOSTLY
-    SET_PREFERRED_LOCATION = 3                      ## Hint that the preferred memory location is the specified device
-    CLEAR_PREFERRED_LOCATION = 4                    ## Removes the affect of ::::UR_USM_ADVICE_SET_PREFERRED_LOCATION
-    SET_NON_ATOMIC_MOSTLY = 5                       ## Hints that memory will mostly be accessed non-atomically
-    CLEAR_NON_ATOMIC_MOSTLY = 6                     ## Removes the affect of ::::UR_USM_ADVICE_SET_NON_ATOMIC_MOSTLY
-    BIAS_CACHED = 7                                 ## Hints that memory should be cached
-    BIAS_UNCACHED = 8                               ## Hints that memory should be not be cached
+class ur_usm_advice_flags_v(IntEnum):
+    DEFAULT = UR_BIT(0)                             ## The USM memory advice is default
+    SET_READ_MOSTLY = UR_BIT(1)                     ## Hint that memory will be read from frequently and written to rarely
+    CLEAR_READ_MOSTLY = UR_BIT(2)                   ## Removes the affect of ::::UR_USM_ADVICE_SET_READ_MOSTLY
+    SET_PREFERRED_LOCATION = UR_BIT(3)              ## Hint that the preferred memory location is the specified device
+    CLEAR_PREFERRED_LOCATION = UR_BIT(4)            ## Removes the affect of ::::UR_USM_ADVICE_SET_PREFERRED_LOCATION
+    SET_NON_ATOMIC_MOSTLY = UR_BIT(5)               ## Hints that memory will mostly be accessed non-atomically
+    CLEAR_NON_ATOMIC_MOSTLY = UR_BIT(6)             ## Removes the affect of ::::UR_USM_ADVICE_SET_NON_ATOMIC_MOSTLY
+    BIAS_CACHED = UR_BIT(7)                         ## Hints that memory should be cached
+    BIAS_UNCACHED = UR_BIT(8)                       ## Hints that memory should be not be cached
 
-class ur_usm_advice_t(c_int):
+class ur_usm_advice_flags_t(c_int):
     def __str__(self):
-        return str(ur_usm_advice_v(self.value))
+        return hex(self.value)
 
 
 ###############################################################################
@@ -1016,7 +1016,7 @@ class ur_usm_desc_t(Structure):
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
         ("flags", ur_usm_flags_t),                                      ## [in] memory allocation flags.
-        ("hints", ur_usm_advice_t),                                     ## [in] Memory advice hints
+        ("hints", ur_usm_advice_flags_t),                               ## [in] Memory advice hints
         ("align", c_ulong)                                              ## [in] alignment of the USM memory object
                                                                         ## Must be zero or a power of 2.
                                                                         ## Must be equal to or smaller than the size of the largest data type
@@ -2227,9 +2227,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMAdvise
 if __use_win_types:
-    _urEnqueueUSMAdvise_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_usm_advice_t, POINTER(ur_event_handle_t) )
+    _urEnqueueUSMAdvise_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_usm_advice_flags_t, POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueUSMAdvise_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_usm_advice_t, POINTER(ur_event_handle_t) )
+    _urEnqueueUSMAdvise_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_usm_advice_flags_t, POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMFill2D
