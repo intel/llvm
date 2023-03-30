@@ -12,9 +12,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // This test stores the matrix B that is VNNIed (packed).
-// This is expected to fail on the GPU because some built-ins are missing still.
-
-// XFAIL: gpu
 
 #include <iostream>
 #include <random>
