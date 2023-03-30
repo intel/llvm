@@ -481,6 +481,24 @@ static const size_t ImmCmdListsEventCleanupThreshold = [] {
   return Threshold;
 }();
 
+// Get value of the threshold for number of active command lists allowed before
+// we start heuristically cleaning them up.
+static const size_t CmdListsCleanupThreshold = [] {
+  const char *CmdListsCleanupThresholdStr =
+      std::getenv("SYCL_PI_LEVEL_ZERO_COMMANDLISTS_CLEANUP_THRESHOLD");
+  static constexpr int Default = 20;
+  if (!CmdListsCleanupThresholdStr)
+    return Default;
+
+  int Threshold = std::atoi(CmdListsCleanupThresholdStr);
+
+  // Basically disable threshold if negative value is provided.
+  if (Threshold < 0)
+    return INT_MAX;
+
+  return Threshold;
+}();
+
 pi_device _pi_context::getRootDevice() const {
   assert(Devices.size() > 0);
 
@@ -1116,10 +1134,7 @@ pi_result _pi_context::getAvailableCommandList(
     // It handles the case that the queue is not synced to the host
     // for a long time and we want to reclaim the command-lists for
     // use by other queues.
-    //
-    // TODO: rename ImmCmdListsEventCleanupThreshold to not mention
-    //       be for "immediate" only.
-    if (Queue->CommandListMap.size() > ImmCmdListsEventCleanupThreshold) {
+    if (Queue->CommandListMap.size() > CmdListsCleanupThreshold) {
       resetCommandLists(Queue);
     }
   }
