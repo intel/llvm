@@ -269,8 +269,6 @@ bool test_native_specialization_constant(sycl::queue q) {
   const auto always_false_selector = [](auto device_image) { return false; };
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
       q.get_context(), always_false_selector);
-  if (!check_value(bundle.native_specialization_constant(), false,
-                   "empty bundle native specialization constant"))
-    return false;
-  return true;
+  return check_value(bundle.native_specialization_constant(), false,
+                     "empty bundle native specialization constant");
 }
