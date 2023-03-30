@@ -797,7 +797,7 @@ static Value *checkForNegativeOperand(BinaryOperator &I,
   // LHS = XOR(Y, C1), Y = AND(Z, C2), C1 == (C2 + 1) => LHS == NEG(OR(Z, ~C2))
   // ADD(LHS, RHS) == SUB(RHS, OR(Z, ~C2))
   if (match(LHS, m_Xor(m_Value(Y), m_APInt(C1))))
-    if (C1->countTrailingZeros() == 0)
+    if (C1->countr_zero() == 0)
       if (match(Y, m_And(m_Value(Z), m_APInt(C2))) && *C1 == (*C2 + 1)) {
         Value *NewOr = Builder.CreateOr(Z, ~(*C2));
         return Builder.CreateSub(RHS, NewOr, "sub");
@@ -1431,6 +1431,14 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
       Value *Sub = Builder.CreateSub(A, B);
       return BinaryOperator::CreateAdd(Sub, ConstantExpr::getAdd(C1, C2));
     }
+
+    // Canonicalize a constant sub operand as an add operand for better folding:
+    // (C1 - A) + B --> (B - A) + C1
+    if (match(&I, m_c_Add(m_OneUse(m_Sub(m_ImmConstant(C1), m_Value(A))),
+                          m_Value(B)))) {
+      Value *Sub = Builder.CreateSub(B, A, "reass.sub");
+      return BinaryOperator::CreateAdd(Sub, C1);
+    }
   }
 
   // X % C0 + (( X / C0 ) % C1) * C0 => X % (C0 * C1)
@@ -1449,7 +1457,7 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
 
   // (A & 2^C1) + A => A & (2^C1 - 1) iff bit C1 in A is a sign bit
   if (match(&I, m_c_Add(m_And(m_Value(A), m_APInt(C1)), m_Deferred(A))) &&
-      C1->isPowerOf2() && (ComputeNumSignBits(A) > C1->countLeadingZeros())) {
+      C1->isPowerOf2() && (ComputeNumSignBits(A) > C1->countl_zero())) {
     Constant *NewMask = ConstantInt::get(RHS->getType(), *C1 - 1);
     return BinaryOperator::CreateAnd(A, NewMask);
   }
@@ -1525,7 +1533,7 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
   const APInt *NegPow2C;
   if (match(&I, m_c_Add(m_OneUse(m_Mul(m_Value(A), m_NegatedPower2(NegPow2C))),
                         m_Value(B)))) {
-    Constant *ShiftAmtC = ConstantInt::get(Ty, NegPow2C->countTrailingZeros());
+    Constant *ShiftAmtC = ConstantInt::get(Ty, NegPow2C->countr_zero());
     Value *Shl = Builder.CreateShl(A, ShiftAmtC);
     return BinaryOperator::CreateSub(B, Shl);
   }
@@ -2335,7 +2343,7 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
   const APInt *AddC, *AndC;
   if (match(Op0, m_Add(m_Value(X), m_APInt(AddC))) &&
       match(Op1, m_And(m_Specific(X), m_APInt(AndC)))) {
-    unsigned Cttz = AddC->countTrailingZeros();
+    unsigned Cttz = AddC->countr_zero();
     APInt HighMask(APInt::getHighBitsSet(BitWidth, BitWidth - Cttz));
     if ((HighMask & *AndC).isZero())
       return BinaryOperator::CreateAnd(Op0, ConstantInt::get(Ty, ~(*AndC)));
@@ -2396,6 +2404,18 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
     Value *Sub = Builder.CreateSub(X, Y, "sub", PropagateNUW, PropagateNSW);
     Value *Mul = Builder.CreateMul(Add, Sub, "", PropagateNUW, PropagateNSW);
     return replaceInstUsesWith(I, Mul);
+  }
+
+  // max(X,Y) nsw/nuw - min(X,Y) --> abs(X nsw - Y)
+  if (match(Op0, m_OneUse(m_c_SMax(m_Value(X), m_Value(Y)))) &&
+      match(Op1, m_OneUse(m_c_SMin(m_Specific(X), m_Specific(Y))))) {
+    if (I.hasNoUnsignedWrap() || I.hasNoSignedWrap()) {
+      Value *Sub =
+          Builder.CreateSub(X, Y, "sub", /*HasNUW=*/false, /*HasNSW=*/true);
+      Value *Call =
+          Builder.CreateBinaryIntrinsic(Intrinsic::abs, Sub, Builder.getTrue());
+      return replaceInstUsesWith(I, Call);
+    }
   }
 
   return TryToNarrowDeduceFlags();

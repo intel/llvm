@@ -27,10 +27,11 @@
 #include <__iterator/incrementable_traits.h>
 #include <__iterator/iterator_traits.h>
 #include <__iterator/wrap_iter.h>
+#include <__memory/addressof.h>
+#include <__type_traits/add_pointer.h>
 #include <__utility/move.h>
 #include <cstddef>
 #include <string_view>
-#include <type_traits>
 #include <vector>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)

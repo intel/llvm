@@ -8,11 +8,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/time/nanosleep.h"
+
 #include "include/sys/syscall.h"          // For syscall numbers.
 #include "src/__support/OSUtil/syscall.h" // For syscall functions.
 #include "src/__support/common.h"
-
-#include <errno.h>
+#include "src/errno/libc_errno.h"
 
 namespace __llvm_libc {
 
@@ -20,7 +20,7 @@ LLVM_LIBC_FUNCTION(int, nanosleep,
                    (const struct timespec *req, struct timespec *rem)) {
   int ret = __llvm_libc::syscall_impl(SYS_nanosleep, req, rem);
   if (ret < 0) {
-    errno = -ret;
+    libc_errno = -ret;
     return -1;
   }
   return ret;
