@@ -46,21 +46,23 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
-                            layout::row_major);
+          joint_matrix_load(sg, sub_c, accC.template get_multi_ptr<int32_t>(),
+                            stride, layout::row_major);
           // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.row.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.row.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
+          joint_matrix_load(sg, sub_a, accA.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.row.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.row.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
+          joint_matrix_load(sg, sub_b, accB.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.mma.row.row.u8(i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 {{.*}}
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.mma.row.row.u8(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           // CHECK: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 16)
-          joint_matrix_store(sg, sub_c, accD.get_pointer(), stride,
-                             layout::row_major);
+          joint_matrix_store(sg, sub_c, accD.template get_multi_ptr<int32_t>(),
+                             stride, layout::row_major);
         });
 
     cgh.parallel_for<class col_col_m16n16k16>(
@@ -76,21 +78,23 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
-                            layout::col_major);
+          joint_matrix_load(sg, sub_c, accC.template get_multi_ptr<int32_t>(),
+                            stride, layout::col_major);
           // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.col.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.col.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
+          joint_matrix_load(sg, sub_a, accA.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.col.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.col.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
+          joint_matrix_load(sg, sub_b, accB.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.mma.col.col.u8(i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 {{.*}}
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.mma.col.col.u8(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           // CHECK: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 16)
-          joint_matrix_store(sg, sub_c, accD.get_pointer(), stride,
-                             layout::col_major);
+          joint_matrix_store(sg, sub_c, accD.template get_multi_ptr<int32_t>(),
+                             stride, layout::col_major);
         });
 
     cgh.parallel_for<class row_row_m32n8k16>(
@@ -106,21 +110,23 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.c.row.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
-                            layout::row_major);
+          joint_matrix_load(sg, sub_c, accC.template get_multi_ptr<int32_t>(),
+                            stride, layout::row_major);
           // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.row.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.row.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
+          joint_matrix_load(sg, sub_a, accA.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call i32 @llvm.nvvm.wmma.m32n8k16.load.b.row.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call i32 @llvm.nvvm.wmma.m32n8k16.load.b.row.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
+          joint_matrix_load(sg, sub_b, accB.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.mma.row.row.u8(i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 {{.*}}
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.mma.row.row.u8(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           // CHECK: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.row.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.row.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 16)
-          joint_matrix_store(sg, sub_c, accD.get_pointer(), stride,
-                             layout::row_major);
+          joint_matrix_store(sg, sub_c, accD.template get_multi_ptr<int32_t>(),
+                             stride, layout::row_major);
         });
 
     cgh.parallel_for<class col_col_m32n8k16>(
@@ -136,21 +142,23 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.c.col.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.c.col.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
-                            layout::col_major);
+          joint_matrix_load(sg, sub_c, accC.template get_multi_ptr<int32_t>(),
+                            stride, layout::col_major);
           // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.col.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.col.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
+          joint_matrix_load(sg, sub_a, accA.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call i32 @llvm.nvvm.wmma.m32n8k16.load.b.col.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call i32 @llvm.nvvm.wmma.m32n8k16.load.b.col.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
+          joint_matrix_load(sg, sub_b, accB.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.mma.col.col.u8(i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 {{.*}}
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.mma.col.col.u8(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           // CHECK: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.col.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m32n8k16.store.d.col.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 16)
-          joint_matrix_store(sg, sub_c, accD.get_pointer(), stride,
-                             layout::col_major);
+          joint_matrix_store(sg, sub_c, accD.template get_multi_ptr<int32_t>(),
+                             stride, layout::col_major);
         });
 
     cgh.parallel_for<class row_row_m8n32k16>(
@@ -166,21 +174,23 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.c.row.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
-                            layout::row_major);
+          joint_matrix_load(sg, sub_c, accC.template get_multi_ptr<int32_t>(),
+                            stride, layout::row_major);
           // CHECK: tail call i32 @llvm.nvvm.wmma.m8n32k16.load.a.row.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call i32 @llvm.nvvm.wmma.m8n32k16.load.a.row.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
+          joint_matrix_load(sg, sub_a, accA.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.row.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.row.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
+          joint_matrix_load(sg, sub_b, accB.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.mma.row.row.u8(i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 {{.*}}
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.mma.row.row.u8(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           // CHECK: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.row.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.row.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 16)
-          joint_matrix_store(sg, sub_c, accD.get_pointer(), stride,
-                             layout::row_major);
+          joint_matrix_store(sg, sub_c, accD.template get_multi_ptr<int32_t>(),
+                             stride, layout::row_major);
         });
 
     cgh.parallel_for<class col_col_m8n32k16>(
@@ -196,21 +206,23 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.c.col.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.c.col.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
-                            layout::col_major);
+          joint_matrix_load(sg, sub_c, accC.template get_multi_ptr<int32_t>(),
+                            stride, layout::col_major);
           // CHECK: tail call i32 @llvm.nvvm.wmma.m8n32k16.load.a.col.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call i32 @llvm.nvvm.wmma.m8n32k16.load.a.col.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
+          joint_matrix_load(sg, sub_a, accA.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.col.stride.u8.p0i32(i32* %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.col.stride.u8.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
+          joint_matrix_load(sg, sub_b, accB.template get_multi_ptr<uint8_t>(),
+                            stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.mma.col.col.u8(i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 {{.*}}
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.mma.col.col.u8(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           // CHECK: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.col.stride.s32.p1i32(i32 addrspace(1)* %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 %{{.*}}, i32 16)
           // CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n32k16.store.d.col.stride.s32.p1(ptr addrspace(1) %{{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 16)
-          joint_matrix_store(sg, sub_c, accD.get_pointer(), stride,
-                             layout::col_major);
+          joint_matrix_store(sg, sub_c, accD.template get_multi_ptr<int32_t>(),
+                             stride, layout::col_major);
         });
   });
 
