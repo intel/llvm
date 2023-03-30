@@ -272,14 +272,26 @@ protected:
     const auto addressSpace = targetAddressSpace.value_or(origAddressSpace);
 
     if (origAddressSpace != addressSpace) {
-      ptr = builder.create<LLVM::AddrSpaceCastOp>(
-          loc,
-          LLVM::LLVMPointerType::get(
-              cast<LLVM::LLVMPointerType>(ptr.getType()).getElementType(),
-              addressSpace),
-          ptr);
+      if (useOpaquePtr) {
+        ptr = builder.create<LLVM::AddrSpaceCastOp>(
+            loc, LLVM::LLVMPointerType::get(ty.getContext(), addressSpace),
+            ptr);
+      } else {
+        ptr = builder.create<LLVM::AddrSpaceCastOp>(
+            loc,
+            LLVM::LLVMPointerType::get(
+                cast<LLVM::LLVMPointerType>(ptr.getType()).getElementType(),
+                addressSpace),
+            ptr);
+      }
     }
 
+    if (useOpaquePtr) {
+      const auto ptrTy =
+          LLVM::LLVMPointerType::get(ty.getContext(), addressSpace);
+      return builder.create<LLVM::GEPOp>(loc, ptrTy, ty, ptr, indices,
+                                         /*inbounds*/ true);
+    }
     const auto ptrTy = LLVM::LLVMPointerType::get(ty, addressSpace);
     return builder.create<LLVM::GEPOp>(loc, ptrTy, ptr, indices,
                                        /*inbounds*/ true);
@@ -297,6 +309,10 @@ protected:
                   bool useOpaquePtr, Args &&...args) const {
     const auto gep = getRef<Args...>(builder, loc, ty, ptr, std::nullopt,
                                      useOpaquePtr, std::forward<Args>(args)...);
+
+    if (useOpaquePtr)
+      return builder.create<LLVM::LoadOp>(loc, ty, gep);
+
     return builder.create<LLVM::LoadOp>(loc, gep);
   }
 
@@ -1099,13 +1115,20 @@ public:
             rewriter, loc,
             cast<AccessorType>(op.getAcc().getType().getElementType()),
             opAdaptor));
+    bool useOpaquePointers = getTypeConverter()->useOpaquePointers();
     const auto ptrTy = cast<LLVM::LLVMPointerType>(
         getTypeConverter()->convertType(op.getType()));
     Value ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
-        rewriter, loc, ptrTy, opAdaptor.getAcc(),
-        getTypeConverter()->useOpaquePointers());
-    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(op, ptrTy, ptr, index,
-                                             /*inbounds*/ true);
+        rewriter, loc, ptrTy, opAdaptor.getAcc(), useOpaquePointers);
+    if (useOpaquePointers) {
+      auto elemType =
+          getTypeConverter()->convertType(op.getType().getElementType());
+      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(op, ptrTy, elemType, ptr, index,
+                                               /*inbounds*/ true);
+    } else {
+      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(op, ptrTy, ptr, index,
+                                               /*inbounds*/ true);
+    }
     return success();
   }
 };
@@ -1172,13 +1195,24 @@ public:
 
   Value getRef(OpBuilder &builder, Location loc, SYCLAccessorSubscriptOp orig,
                LLVM::LLVMPointerType ptrTy, Value acc, Value index) const {
-    const auto addressSpace = targetToAddressSpace(
-        cast<AccessorType>(orig.getAcc().getType().getElementType())
-            .getTargetMode());
+    bool useOpaquePointers = getTypeConverter()->useOpaquePointers();
+    auto accTy = cast<AccessorType>(orig.getAcc().getType().getElementType());
+    const auto addressSpace = targetToAddressSpace(accTy.getTargetMode());
+    if (useOpaquePointers) {
+      const auto gepPtrTy =
+          LLVM::LLVMPointerType::get(ptrTy.getContext(), addressSpace);
+      const auto ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
+          builder, loc, gepPtrTy, acc, useOpaquePointers);
+      const Value gep = builder.create<LLVM::GEPOp>(
+          loc, gepPtrTy, accTy.getType(), ptr, index, /*inbounds*/ true);
+      return (ptrTy.getAddressSpace() == addressSpace)
+                 ? gep
+                 : builder.create<LLVM::AddrSpaceCastOp>(loc, ptrTy, gep);
+    }
     const auto gepPtrTy =
         LLVM::LLVMPointerType::get(ptrTy.getElementType(), addressSpace);
     const auto ptr = GetMemberPattern<AccessorGetPtr>::loadValue(
-        builder, loc, gepPtrTy, acc, getTypeConverter()->useOpaquePointers());
+        builder, loc, gepPtrTy, acc, useOpaquePointers);
     const Value gep = builder.create<LLVM::GEPOp>(loc, gepPtrTy, ptr, index,
                                                   /*inbounds*/ true);
     return ptrTy == gepPtrTy
@@ -1306,9 +1340,17 @@ public:
           loc, subscript, zero, ArrayRef<int64_t>{0, 0, 0, i});
     }
     // Insert original accessor
-    rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
-        op, subscript, rewriter.create<LLVM::LoadOp>(loc, opAdaptor.getAcc()),
-        1);
+    if (getTypeConverter()->useOpaquePointers()) {
+      auto accTy = getTypeConverter()->convertType(
+          op.getAcc().getType().getElementType());
+      rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
+          op, subscript,
+          rewriter.create<LLVM::LoadOp>(loc, accTy, opAdaptor.getAcc()), 1);
+    } else {
+      rewriter.replaceOpWithNewOp<LLVM::InsertValueOp>(
+          op, subscript, rewriter.create<LLVM::LoadOp>(loc, opAdaptor.getAcc()),
+          1);
+    }
   }
 };
 
@@ -1440,13 +1482,16 @@ public:
     const auto loc = op.getLoc();
     const auto nd = opAdaptor.getND();
     const auto rangeTy = op.getType();
+    const auto convRangeTy = getTypeConverter()->convertType(rangeTy);
     const auto indexTy = getTypeConverter()->getIndexType();
+    bool useOpaquePointers = getTypeConverter()->useOpaquePointers();
+    const auto allocaTy = (useOpaquePointers)
+                              ? LLVM::LLVMPointerType::get(rangeTy.getContext())
+                              : LLVM::LLVMPointerType::get(convRangeTy);
     Value alloca = rewriter.create<LLVM::AllocaOp>(
-        loc,
-        LLVM::LLVMPointerType::get(getTypeConverter()->convertType(rangeTy)),
+        loc, allocaTy, convRangeTy,
         rewriter.create<arith::ConstantIntOp>(loc, 1, indexTy),
         /*alignment*/ 0);
-    bool useOpaquePointers = getTypeConverter()->useOpaquePointers();
     for (int32_t i = 0, dim = rangeTy.getDimension(); i < dim; ++i) {
       const auto lhs =
           GetMemberPattern<NDRangeGetGlobalRange, RangeGetDim>::loadValue(
@@ -1458,6 +1503,10 @@ public:
       const auto ptr = GetMemberPattern<RangeGetDim>::getRef(
           rewriter, loc, indexTy, alloca, std::nullopt, useOpaquePointers, i);
       rewriter.create<LLVM::StoreOp>(loc, val, ptr);
+    }
+    if (useOpaquePointers) {
+      rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, convRangeTy, alloca);
+      return success();
     }
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
     return success();
@@ -1838,32 +1887,39 @@ public:
     const auto ndItem = opAdaptor.getNDItem();
 
     const auto ndrTy = getTypeConverter()->convertType(op.getType());
+    bool useOpaquePointers = getTypeConverter()->useOpaquePointers();
+    const auto allocaTy = (useOpaquePointers)
+                              ? LLVM::LLVMPointerType::get(ndrTy.getContext())
+                              : LLVM::LLVMPointerType::get(ndrTy);
     const Value alloca = rewriter.create<LLVM::AllocaOp>(
-        loc, LLVM::LLVMPointerType::get(ndrTy), ndrTy,
+        loc, allocaTy, ndrTy,
         rewriter.create<arith::ConstantIntOp>(loc, 1, 32));
 
     const auto rangeTy = cast<LLVM::LLVMStructType>(ndrTy).getBody()[0];
     const auto idTy = cast<LLVM::LLVMStructType>(ndrTy).getBody()[2];
 
-    bool useOpaque = getTypeConverter()->useOpaquePointers();
     rewriter.create<LLVM::StoreOp>(
         loc,
         GetMemberPattern<NDItemGlobalItem, ItemGetRange>::loadValue(
-            rewriter, loc, rangeTy, ndItem, useOpaque),
+            rewriter, loc, rangeTy, ndItem, useOpaquePointers),
         GetMemberPattern<NDRangeGetGlobalRange>::getRef(
-            rewriter, loc, rangeTy, alloca, std::nullopt, useOpaque));
+            rewriter, loc, rangeTy, alloca, std::nullopt, useOpaquePointers));
     rewriter.create<LLVM::StoreOp>(
         loc,
         GetMemberPattern<NDItemLocalItem, ItemGetRange>::loadValue(
-            rewriter, loc, rangeTy, ndItem, useOpaque),
+            rewriter, loc, rangeTy, ndItem, useOpaquePointers),
         GetMemberPattern<NDRangeGetLocalRange>::getRef(
-            rewriter, loc, rangeTy, alloca, std::nullopt, useOpaque));
+            rewriter, loc, rangeTy, alloca, std::nullopt, useOpaquePointers));
     rewriter.create<LLVM::StoreOp>(
         loc,
         GetMemberPattern<NDItemGlobalItem, ItemGetOffset>::loadValue(
-            rewriter, loc, idTy, ndItem, useOpaque),
-        GetMemberPattern<NDRangeGetOffset>::getRef(rewriter, loc, idTy, alloca,
-                                                   std::nullopt, useOpaque));
+            rewriter, loc, idTy, ndItem, useOpaquePointers),
+        GetMemberPattern<NDRangeGetOffset>::getRef(
+            rewriter, loc, idTy, alloca, std::nullopt, useOpaquePointers));
+    if (useOpaquePointers) {
+      rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, ndrTy, alloca);
+      return success();
+    }
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, alloca);
     return success();
   }
@@ -2237,6 +2293,7 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
 
   LowerToLLVMOptions options(&context);
   options.useBarePtrCallConv = true;
+  options.useOpaquePointers = true;
   if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
     options.overrideIndexBitwidth(indexBitwidth);
   LLVMTypeConverter converter(&context, options);
@@ -2248,7 +2305,8 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
   populateReturnOpTypeConversionPattern(patterns, converter);
   populateCallOpTypeConversionPattern(patterns, converter);
   populateAnyFunctionOpInterfaceTypeConversionPattern(patterns, converter);
-  polygeist::populateBareMemRefToLLVMConversionPatterns(converter, patterns);
+  polygeist::populateBareMemRefToLLVMConversionPatterns(
+      converter, patterns, /*useOpaquePointers*/ true);
   populateSYCLToSPIRVConversionPatterns(converter, patterns);
 
   populateSYCLToLLVMConversionPatterns(converter, patterns);
