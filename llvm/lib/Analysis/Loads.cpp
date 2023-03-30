@@ -204,7 +204,7 @@ bool llvm::isDereferenceableAndAlignedPointer(
     const TargetLibraryInfo *TLI) {
   // For unsized types or scalable vectors we don't know exactly how many bytes
   // are dereferenced, so bail out.
-  if (!Ty->isSized() || isa<ScalableVectorType>(Ty))
+  if (!Ty->isSized() || Ty->isScalableTy())
     return false;
 
   // When dereferenceability information is provided by a dereferenceable
@@ -286,15 +286,22 @@ bool llvm::isDereferenceableAndAlignedInLoop(LoadInst *LI, Loop *L,
   auto* Step = dyn_cast<SCEVConstant>(AddRec->getStepRecurrence(SE));
   if (!Step)
     return false;
-  // TODO: generalize to access patterns which have gaps
-  if (Step->getAPInt() != EltSize)
-    return false;
 
   auto TC = SE.getSmallConstantMaxTripCount(L);
   if (!TC)
     return false;
 
-  const APInt AccessSize = TC * EltSize;
+  // TODO: Handle overlapping accesses.
+  // We should be computing AccessSize as (TC - 1) * Step + EltSize.
+  if (EltSize.sgt(Step->getAPInt()))
+    return false;
+
+  // Compute the total access size for access patterns with unit stride and
+  // patterns with gaps. For patterns with unit stride, Step and EltSize are the
+  // same.
+  // For patterns with gaps (i.e. non unit stride), we are
+  // accessing EltSize bytes at every Step.
+  const APInt AccessSize = TC * Step->getAPInt();
 
   auto *StartS = dyn_cast<SCEVUnknown>(AddRec->getStart());
   if (!StartS)

@@ -10,7 +10,7 @@
 #define POLYGEIST_OPS
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
-include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
+include "mlir/Dialect/LLVMIR/LLVMInterfaces.td"
 include "mlir/Dialect/Polygeist/IR/PolygeistBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"

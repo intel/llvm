@@ -669,7 +669,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
         SmallVector<Value> results;
         llvm::append_range(results, terminator->getOperands());
         terminator->erase();
-        B.mergeBlockBefore(block, exec);
+        B.inlineBlockBefore(block, exec);
         exec.replaceAllUsesWith(results);
         exec.erase();
       }

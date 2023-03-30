@@ -225,10 +225,15 @@ set(files
   __bsd_locale_defaults.h
   __bsd_locale_fallbacks.h
   __charconv/chars_format.h
+  __charconv/from_chars_integral.h
   __charconv/from_chars_result.h
   __charconv/tables.h
+  __charconv/to_chars.h
   __charconv/to_chars_base_10.h
+  __charconv/to_chars_floating_point.h
+  __charconv/to_chars_integral.h
   __charconv/to_chars_result.h
+  __charconv/traits.h
   __chrono/calendar.h
   __chrono/concepts.h
   __chrono/convert_to_timespec.h
@@ -289,6 +294,7 @@ set(files
   __concepts/semiregular.h
   __concepts/swappable.h
   __concepts/totally_ordered.h
+  __condition_variable/condition_variable.h
   __config
   __coroutine/coroutine_handle.h
   __coroutine/coroutine_traits.h
@@ -297,6 +303,11 @@ set(files
   __debug
   __debug_utils/randomize_range.h
   __errc
+  __exception/exception.h
+  __exception/exception_ptr.h
+  __exception/nested_exception.h
+  __exception/operations.h
+  __exception/terminate.h
   __expected/bad_expected_access.h
   __expected/expected.h
   __expected/unexpect.h
@@ -464,7 +475,10 @@ set(files
   __memory_resource/pool_options.h
   __memory_resource/synchronized_pool_resource.h
   __memory_resource/unsynchronized_pool_resource.h
-  __mutex_base
+  __mutex/lock_guard.h
+  __mutex/mutex.h
+  __mutex/tag_types.h
+  __mutex/unique_lock.h
   __node_handle
   __numeric/accumulate.h
   __numeric/adjacent_difference.h
@@ -557,6 +571,7 @@ set(files
   __split_buffer
   __std_stream
   __string/char_traits.h
+  __string/constexpr_c_functions.h
   __string/extern_template_lists.h
   __support/android/locale_bionic.h
   __support/fuchsia/xlocale.h
@@ -637,6 +652,7 @@ set(files
   __type_traits/is_destructible.h
   __type_traits/is_empty.h
   __type_traits/is_enum.h
+  __type_traits/is_equality_comparable.h
   __type_traits/is_final.h
   __type_traits/is_floating_point.h
   __type_traits/is_function.h
@@ -701,6 +717,7 @@ set(files
   __type_traits/nat.h
   __type_traits/negation.h
   __type_traits/noexcept_move_assign_container.h
+  __type_traits/predicate_traits.h
   __type_traits/promote.h
   __type_traits/rank.h
   __type_traits/remove_all_extents.h
@@ -789,10 +806,8 @@ set(files
   expected
   experimental/__config
   experimental/__memory
-  experimental/algorithm
   experimental/deque
   experimental/forward_list
-  experimental/functional
   experimental/iterator
   experimental/list
   experimental/map

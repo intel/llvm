@@ -766,7 +766,7 @@ PathDiagnosticPieceRef PathDiagnosticBuilder::generateDiagForSwitchOP(
     case Stmt::CaseStmtClass: {
       os << "Control jumps to 'case ";
       const auto *Case = cast<CaseStmt>(S);
-      const Expr *LHS = Case->getLHS()->IgnoreParenCasts();
+      const Expr *LHS = Case->getLHS()->IgnoreParenImpCasts();
 
       // Determine if it is an enum.
       bool GetRawInt = true;
@@ -2627,8 +2627,7 @@ BugPathInfo *BugPathGetter::getNextBugPath() {
 
   const ExplodedNode *OrigN;
   std::tie(CurrentBugPath.Report, OrigN) = ReportNodes.pop_back_val();
-  assert(PriorityMap.find(OrigN) != PriorityMap.end() &&
-         "error node not accessible from root");
+  assert(PriorityMap.contains(OrigN) && "error node not accessible from root");
 
   // Create a new graph with a single path. This is the graph that will be
   // returned to the caller.

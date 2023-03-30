@@ -326,9 +326,9 @@ void ParallelLower::runOnOperation() {
     launchArgs.push_back(launchOp.getBlockSizeX());
     launchArgs.push_back(launchOp.getBlockSizeY());
     launchArgs.push_back(launchOp.getBlockSizeZ());
-    builder.mergeBlockBefore(&launchOp.getRegion().front(),
-                             threadr.getRegion().front().getTerminator(),
-                             launchArgs);
+    builder.inlineBlockBefore(&launchOp.getRegion().front(),
+                              threadr.getRegion().front().getTerminator(),
+                              launchArgs);
 
     auto container = threadr;
 

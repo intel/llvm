@@ -448,7 +448,7 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
     Value scaled = rewriter.create<MulIOp>(
         op.getLoc(), newForOp.getInductionVar(), op.getStep());
     Value iv = rewriter.create<AddIOp>(op.getLoc(), op.getLowerBound(), scaled);
-    rewriter.mergeBlockBefore(op.getBody(), &newForOp.getBody()->back(), {iv});
+    rewriter.inlineBlockBefore(op.getBody(), &newForOp.getBody()->back(), {iv});
     rewriter.eraseOp(&newForOp.getBody()->back());
     rewriter.eraseOp(op);
     return success();
@@ -460,11 +460,11 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
 static bool isNormalized(scf::ParallelOp op) {
   auto isZero = [](Value v) {
     APInt value;
-    return matchPattern(v, m_ConstantInt(&value)) && value.isNullValue();
+    return matchPattern(v, m_ConstantInt(&value)) && value.isZero();
   };
   auto isOne = [](Value v) {
     APInt value;
-    return matchPattern(v, m_ConstantInt(&value)) && value.isOneValue();
+    return matchPattern(v, m_ConstantInt(&value)) && value.isOne();
   };
   return llvm::all_of(op.getLowerBound(), isZero) &&
          llvm::all_of(op.getStep(), isOne);
@@ -519,8 +519,8 @@ struct NormalizeParallel : public OpRewritePattern<scf::ParallelOp> {
       inductionVars.push_back(shifted);
     }
 
-    rewriter.mergeBlockBefore(op.getBody(), &newOp.getBody()->back(),
-                              inductionVars);
+    rewriter.inlineBlockBefore(op.getBody(), &newOp.getBody()->back(),
+                               inductionVars);
     rewriter.eraseOp(&newOp.getBody()->back());
     rewriter.eraseOp(op);
     return success();
@@ -1222,8 +1222,8 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     }
 
     rewriter.eraseOp(&getThenBlock(ifOp)->back());
-    rewriter.mergeBlockBefore(getThenBlock(ifOp),
-                              &newParallel.getBody()->back());
+    rewriter.inlineBlockBefore(getThenBlock(ifOp),
+                               &newParallel.getBody()->back());
 
     insertRecomputables(rewriter, op, newParallel, ifOp);
   }
@@ -1248,8 +1248,8 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
           });
     }
     rewriter.eraseOp(&getElseBlock(ifOp)->back());
-    rewriter.mergeBlockBefore(getElseBlock(ifOp),
-                              &newParallel.getBody()->back());
+    rewriter.inlineBlockBefore(getElseBlock(ifOp),
+                               &newParallel.getBody()->back());
 
     insertRecomputables(rewriter, op, newParallel, ifOp);
   }
@@ -1303,12 +1303,12 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
 
   // Merge in two stages so we can properly replace uses of two induction
   // varibales defined in different blocks.
-  rewriter.mergeBlockBefore(op.getBody(), &newParallel.getBody()->back(),
-                            newParallel.getBody()->getArguments());
+  rewriter.inlineBlockBefore(op.getBody(), &newParallel.getBody()->back(),
+                             newParallel.getBody()->getArguments());
   rewriter.eraseOp(&newParallel.getBody()->back());
   rewriter.eraseOp(&forLoop.getBody()->back());
-  rewriter.mergeBlockBefore(forLoop.getBody(), &newParallel.getBody()->back(),
-                            newForLoop.getBody()->getArguments());
+  rewriter.inlineBlockBefore(forLoop.getBody(), &newParallel.getBody()->back(),
+                             newForLoop.getBody()->getArguments());
   rewriter.eraseOp(op);
   rewriter.eraseOp(forLoop);
 }
@@ -1459,8 +1459,8 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
     auto beforeParallelOp = makeNewParallelOp();
     auto afterParallelOp = makeNewParallelOp();
 
-    rewriter.mergeBlockBefore(&whileOp.getBefore().front(),
-                              beforeParallelOp.getBody()->getTerminator());
+    rewriter.inlineBlockBefore(&whileOp.getBefore().front(),
+                               beforeParallelOp.getBody()->getTerminator());
     whileOp.getBefore().push_back(new Block());
     conditionOp->moveBefore(&whileOp.getBefore().front(),
                             whileOp.getBefore().front().begin());
@@ -1469,8 +1469,8 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
 
     auto yieldOp = cast<scf::YieldOp>(whileOp.getAfter().front().back());
 
-    rewriter.mergeBlockBefore(&whileOp.getAfter().front(),
-                              afterParallelOp.getBody()->getTerminator());
+    rewriter.inlineBlockBefore(&whileOp.getAfter().front(),
+                               afterParallelOp.getBody()->getTerminator());
     whileOp.getAfter().push_back(new Block());
     yieldOp->moveBefore(&whileOp.getAfter().front(),
                         whileOp.getAfter().front().begin());
@@ -1578,8 +1578,8 @@ struct RotateWhile : public OpRewritePattern<scf::WhileOp> {
     rewriter.setInsertionPoint(condition);
     auto conditional =
         rewriter.create<scf::IfOp>(op.getLoc(), condition.getCondition());
-    rewriter.mergeBlockBefore(&op.getAfter().front(),
-                              &conditional.getBody()->back());
+    rewriter.inlineBlockBefore(&op.getAfter().front(),
+                               &conditional.getBody()->back());
     rewriter.eraseOp(&conditional.getBody()->back());
 
     rewriter.createBlock(&op.getAfter());
@@ -1637,8 +1637,8 @@ struct Reg2MemFor : public OpRewritePattern<T> {
                                  newRegionArguments);
 
     auto oldTerminator = op.getBody()->getTerminator();
-    rewriter.mergeBlockBefore(op.getBody(), newOp.getBody()->getTerminator(),
-                              newRegionArguments);
+    rewriter.inlineBlockBefore(op.getBody(), newOp.getBody()->getTerminator(),
+                               newRegionArguments);
     SmallVector<Value> oldOps;
     llvm::append_range(oldOps, oldTerminator->getOperands());
     rewriter.eraseOp(oldTerminator);
@@ -1652,7 +1652,8 @@ struct Reg2MemFor : public OpRewritePattern<T> {
     }
     rewriter.setInsertionPoint(IP);
     for (auto en : llvm::enumerate(oldOps)) {
-      if (!en.value().getDefiningOp<LLVM::UndefOp>())
+      Value oldOp = en.value();
+      if (!oldOp.getDefiningOp<LLVM::UndefOp>())
         rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
                                          allocated[en.index()], ValueRange());
     }

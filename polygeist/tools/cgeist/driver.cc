@@ -45,6 +45,7 @@
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -257,6 +258,8 @@ static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
 static void registerDialects(MLIRContext &Ctx, const CgeistOptions &options) {
   mlir::DialectRegistry Registry;
   mlir::registerOpenMPDialectTranslation(Registry);
+  // TODO: Only register when translating to LLVM.
+  mlir::registerBuiltinDialectTranslation(Registry);
   mlir::registerLLVMDialectTranslation(Registry);
   Ctx.appendDialectRegistry(Registry);
   loadDialects(Ctx, options.getSYCLIsDevice());
@@ -738,7 +741,7 @@ static void runOptimizationPipeline(llvm::Module &Module, Options &options) {
   PrintPassOpts.SkipAnalyses = true;
   llvm::StandardInstrumentations SI(Module.getContext(), false,
                                     true /*VerifyEachPass*/, PrintPassOpts);
-  SI.registerCallbacks(PIC, &FAM);
+  SI.registerCallbacks(PIC, &MAM);
 
   llvm::TargetMachine *TM = nullptr;
   llvm::PipelineTuningOptions PTO;

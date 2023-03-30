@@ -67,7 +67,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       return failure();
     }
 
-    auto getBounds = [](TypedValue<IndexType> bound, CmpIPredicate cmpPred,
+    auto getBounds = [](Value bound, CmpIPredicate cmpPred,
                         SmallVectorImpl<Value> &bounds) {
       SmallVector<Value> todo = {bound};
       while (todo.size()) {

@@ -258,8 +258,8 @@ OpFoldResult arith::AddIOp::fold(FoldAdaptor adaptor) {
 
 void arith::AddIOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                 MLIRContext *context) {
-  patterns.add<AddIAddConstant, AddISubConstantRHS, AddISubConstantLHS>(
-      context);
+  patterns.add<AddIAddConstant, AddISubConstantRHS, AddISubConstantLHS,
+               AddIMulNegativeOneRhs, AddIMulNegativeOneLhs>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -708,7 +708,7 @@ OpFoldResult arith::RemUIOp::fold(FoldAdaptor adaptor) {
   bool div0 = false;
   auto result = constFoldBinaryOp<IntegerAttr>(adaptor.getOperands(),
                                                [&](APInt a, const APInt &b) {
-                                                 if (div0 || b.isNullValue()) {
+                                                 if (div0 || b.isZero()) {
                                                    div0 = true;
                                                    return a;
                                                  }
@@ -731,7 +731,7 @@ OpFoldResult arith::RemSIOp::fold(FoldAdaptor adaptor) {
   bool div0 = false;
   auto result = constFoldBinaryOp<IntegerAttr>(adaptor.getOperands(),
                                                [&](APInt a, const APInt &b) {
-                                                 if (div0 || b.isNullValue()) {
+                                                 if (div0 || b.isZero()) {
                                                    div0 = true;
                                                    return a;
                                                  }
@@ -1226,10 +1226,7 @@ LogicalResult arith::ExtSIOp::verify() {
 
 /// Always fold extension of FP constants.
 OpFoldResult arith::ExtFOp::fold(FoldAdaptor adaptor) {
-  ArrayRef<Attribute> operands = adaptor.getOperands();
-  assert(operands.size() == 1 && "unary operation takes one operand");
-
-  auto constOperand = operands.front().dyn_cast_or_null<FloatAttr>();
+  auto constOperand = adaptor.getIn().dyn_cast_or_null<FloatAttr>();
   if (!constOperand)
     return {};
 

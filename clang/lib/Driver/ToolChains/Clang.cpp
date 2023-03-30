@@ -2108,22 +2108,19 @@ void Clang::AddMIPSTargetArgs(const ArgList &Args,
 
 void Clang::AddPPCTargetArgs(const ArgList &Args,
                              ArgStringList &CmdArgs) const {
-  if (const Arg *A = Args.getLastArg(options::OPT_mtune_EQ)) {
+  const llvm::Triple &T = getToolChain().getTriple();
+  if (Args.getLastArg(options::OPT_mtune_EQ)) {
     CmdArgs.push_back("-tune-cpu");
-    if (strcmp(A->getValue(), "native") == 0)
-      CmdArgs.push_back(Args.MakeArgString(llvm::sys::getHostCPUName()));
-    else
-      CmdArgs.push_back(A->getValue());
+    std::string CPU = ppc::getPPCTuneCPU(Args, T);
+    CmdArgs.push_back(Args.MakeArgString(CPU));
   }
 
   // Select the ABI to use.
   const char *ABIName = nullptr;
-  const llvm::Triple &T = getToolChain().getTriple();
   if (T.isOSBinFormatELF()) {
     switch (getToolChain().getArch()) {
     case llvm::Triple::ppc64: {
-      if ((T.isOSFreeBSD() && T.getOSMajorVersion() >= 13) ||
-          T.isOSOpenBSD() || T.isMusl())
+      if (T.isPPC64ELFv2ABI())
         ABIName = "elfv2";
       else
         ABIName = "elfv1";
@@ -6178,22 +6175,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   RenderTargetOptions(Triple, Args, KernelOrKext, CmdArgs);
 
-  // FIXME: For now we want to demote any errors to warnings, when they have
-  // been raised for asking the wrong question of scalable vectors, such as
-  // asking for the fixed number of elements. This may happen because code that
-  // is not yet ported to work for scalable vectors uses the wrong interfaces,
-  // whereas the behaviour is actually correct. Emitting a warning helps bring
-  // up scalable vector support in an incremental way. When scalable vector
-  // support is stable enough, all uses of wrong interfaces should be considered
-  // as errors, but until then, we can live with a warning being emitted by the
-  // compiler. This way, Clang can be used to compile code with scalable vectors
-  // and identify possible issues.
-  if (isa<AssembleJobAction>(JA) || isa<CompileJobAction>(JA) ||
-      isa<BackendJobAction>(JA)) {
-    CmdArgs.push_back("-mllvm");
-    CmdArgs.push_back("-treat-scalable-fixed-error-as-warning");
-  }
-
   // These two are potentially updated by AddClangCLArgs.
   codegenoptions::DebugInfoKind DebugInfoKind = codegenoptions::NoDebugInfo;
   bool EmitCodeView = false;
@@ -6930,7 +6911,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_fpatchable_function_entry_EQ)) {
     StringRef S0 = A->getValue(), S = S0;
     unsigned Size, Offset = 0;
-    if (!Triple.isAArch64() && !Triple.isRISCV() && !Triple.isX86())
+    if (!Triple.isAArch64() && !Triple.isLoongArch() && !Triple.isRISCV() &&
+        !Triple.isX86())
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
     else if (S.consumeInteger(10, Size) ||
@@ -6975,18 +6957,24 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
             << A->getAsString(Args) << TripleStr;
     }
   }
-  if (Arg *A = Args.getLastArgNoClaim(options::OPT_p)) {
-    if (TC.getTriple().isOSAIX()) {
-      CmdArgs.push_back("-pg");
-    } else if (!TC.getTriple().isOSOpenBSD()) {
-      D.Diag(diag::err_drv_unsupported_opt_for_target)
-          << A->getAsString(Args) << TripleStr;
-    }
-  }
+
   if (Arg *A = Args.getLastArgNoClaim(options::OPT_pg)) {
     if (TC.getTriple().isOSzOS()) {
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
+    }
+  }
+  if (Arg *A = Args.getLastArgNoClaim(options::OPT_p)) {
+    if (!(TC.getTriple().isOSAIX() || TC.getTriple().isOSOpenBSD())) {
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getAsString(Args) << TripleStr;
+    }
+  }
+  if (Arg *A = Args.getLastArgNoClaim(options::OPT_p, options::OPT_pg)) {
+    if (A->getOption().matches(options::OPT_p)) {
+      A->claim();
+      if (TC.getTriple().isOSAIX() && !Args.hasArgNoClaim(options::OPT_pg))
+        CmdArgs.push_back("-pg");
     }
   }
 
@@ -7184,13 +7172,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -fencode-extended-block-signature=1 is default.
   if (TC.IsEncodeExtendedBlockSignatureDefault())
     CmdArgs.push_back("-fencode-extended-block-signature");
-
-  if (Args.hasFlag(options::OPT_fcoroutines_ts, options::OPT_fno_coroutines_ts,
-                   false) &&
-      types::isCXX(InputType)) {
-    D.Diag(diag::warn_deperecated_fcoroutines_ts_flag);
-    CmdArgs.push_back("-fcoroutines-ts");
-  }
 
   if (Args.hasFlag(options::OPT_fcoro_aligned_allocation,
                    options::OPT_fno_coro_aligned_allocation, false) &&
@@ -7705,8 +7686,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Setup statistics file output.
   SmallString<128> StatsFile = getStatsFileName(Args, Output, Input, D);
-  if (!StatsFile.empty())
+  if (!StatsFile.empty()) {
     CmdArgs.push_back(Args.MakeArgString(Twine("-stats-file=") + StatsFile));
+    if (D.CCPrintInternalStats)
+      CmdArgs.push_back("-stats-file-append");
+  }
 
   // Forward -Xclang arguments to -cc1, and -mllvm arguments to the LLVM option
   // parser.
