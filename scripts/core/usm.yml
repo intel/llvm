@@ -132,7 +132,6 @@ members:
             [in] alignment of the USM memory object
             Must be zero or a power of 2.
             Must be equal to or smaller than the size of the largest data type supported by `hDevice`.
-      desc: "[in] memory advice hints."
 --- #--------------------------------------------------------------------------
 type: struct 
 desc: "USM host allocation descriptor type."
