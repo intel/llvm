@@ -964,11 +964,10 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
 #endif // NDEBUG
 
   // The fallback in this case is to insert a copy per row.
-  // We keep both a vector of the raw PI events and managed objects to ensure
-  // they are correctly freed.
-  std::vector<RT::PiEvent> CopyEvents(Height);
   std::vector<OwnedPiEvent> CopyEventsManaged;
   CopyEventsManaged.reserve(Height);
+  // We'll need continuous range of events for a wait later as well. 
+  std::vector<RT::PiEvent> CopyEvents(Height);
   for (size_t I = 0; I < Height; ++I) {
     char *DstItBegin = static_cast<char *>(DstMem) + I * DstPitch;
     const char *SrcItBegin = static_cast<const char *>(SrcMem) + I * SrcPitch;
