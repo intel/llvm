@@ -685,7 +685,7 @@ public:
         {"__devicelib_ConvertFToBF16INTEL",
          {"__spirv_ConvertFToBF16INTEL", {a(0)}}},
         {"__devicelib_ConvertBF16ToFINTEL",
-         {"__spirv_ConvertBF16ToFINTEL", {a(0)}}}},
+         {"__spirv_ConvertBF16ToFINTEL", {a(0)}}},
         {"bfn", {"bfn", {a(0), a(1), a(2), t(0)}}}};
   }
 
