@@ -6,6 +6,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
 #if __has_include(<filesystem>)
 #include <filesystem>
@@ -142,12 +143,12 @@ class FileSink : public Sink {
     FileSink(std::string logger_name, filesystem::path file_path,
              bool skip_prefix = false)
         : Sink(logger_name, skip_prefix) {
-        ofstream = std::ofstream(file_path, std::ofstream::out);
+        ofstream = std::ofstream(file_path);
         if (!ofstream.good()) {
-            throw std::invalid_argument(
-                std::string("Failure while opening log file: ") +
-                file_path.string() +
-                std::string(" Check if given path exists."));
+            std::stringstream ss;
+            ss << "Failure while opening log file " << file_path.string()
+               << ". Check if given path exists.";
+            throw std::invalid_argument(ss.str());
         }
         this->ostream = &ofstream;
     }
@@ -164,20 +165,20 @@ class FileSink : public Sink {
 
 inline std::unique_ptr<Sink> sink_from_str(std::string logger_name,
                                            std::string name,
-                                           std::string file_path = "",
+                                           std::filesystem::path file_path = "",
                                            bool skip_prefix = false) {
-    if (name == "stdout") {
+    if (name == "stdout" && file_path.empty()) {
         return std::make_unique<logger::StdoutSink>(logger_name, skip_prefix);
-    } else if (name == "stderr") {
+    } else if (name == "stderr" && file_path.empty()) {
         return std::make_unique<logger::StderrSink>(logger_name, skip_prefix);
     } else if (name == "file" && !file_path.empty()) {
-        return std::make_unique<logger::FileSink>(
-            logger_name, file_path.c_str(), skip_prefix);
+        return std::make_unique<logger::FileSink>(logger_name, file_path,
+                                                  skip_prefix);
     }
 
     throw std::invalid_argument(
         std::string("Parsing error: no valid sink for string '") + name +
-        std::string("' with path '") + file_path + std::string("'.") +
+        std::string("' with path '") + file_path.string() + std::string("'.") +
         std::string("\nValid sink names are: stdout, stderr, file"));
 }
 
