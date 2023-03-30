@@ -46,8 +46,8 @@ void test(queue q, InputContainer input, OutputContainer output,
       auto scratch = sycl::local_accessor<std::byte, 1>(temp_memory_size, cgh);
       cgh.parallel_for(
           nd_range<1>(workgroup_size, workgroup_size), [=](nd_item<1> it) {
-            InputT *segment_begin = in.get_pointer();
-            InputT *segment_end = in.get_pointer() + segment_size;
+            InputT *segment_begin = global_ptr<InputT>(in);
+            InputT *segment_end = global_ptr<InputT>(in) + segment_size;
             auto handle =
                 sycl::ext::oneapi::experimental::group_with_scratchpad(
                     it.get_group(), sycl::span(&scratch[0], temp_memory_size));

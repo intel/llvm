@@ -46,7 +46,7 @@ int main() {
         size_t offset = i;
         decorated_global_ptr<int> in1Ptr{accIn1};
         decorated_global_ptr<int> in2Ptr{accIn2};
-        decorated_global_ptr<int> tmpPtr{accTmp};
+        auto tmpPtr{accTmp};
         tmpPtr[offset] = in1Ptr[offset] + in2Ptr[offset];
       });
     });
@@ -59,7 +59,7 @@ int main() {
       cgh.parallel_for<class KernelTwo>(dataSize, [=](id<1> i) {
         size_t offset = i;
         decorated_global_ptr<int> in3Ptr{accIn3};
-        decorated_global_ptr<int> tmpPtr{accTmp};
+        auto tmpPtr{accTmp};
         decorated_global_ptr<int> outPtr{accOut};
         outPtr[offset] = in3Ptr[offset] * tmpPtr[offset];
       });

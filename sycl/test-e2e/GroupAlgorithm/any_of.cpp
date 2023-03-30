@@ -44,7 +44,8 @@ void test(queue q, InputContainer input, OutputContainer output,
         int lid = it.get_local_id(0);
         out[0] = any_of(g, pred(in[lid]));
         out[1] = any_of(g, in[lid], pred);
-        out[2] = any_of(g, in.get_pointer(), in.get_pointer() + N, pred);
+        out[2] =
+            any_of(g, global_ptr<InputT>(in), global_ptr<InputT>(in) + N, pred);
       });
     });
   }

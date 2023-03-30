@@ -66,10 +66,10 @@ template <typename T> void testMultPtr() {
                                                                          wiID) {
         auto ptr_1 =
             make_ptr<T, access::address_space::global_space,
-                     access::decorated::legacy>(accessorData_1.get_pointer());
+                     access::decorated::legacy>(global_ptr<T>(accessorData_1));
         auto ptr_2 =
             make_ptr<T, access::address_space::global_space,
-                     access::decorated::legacy>(accessorData_2.get_pointer());
+                     access::decorated::legacy>(global_ptr<T>(accessorData_2));
         auto local_ptr =
             make_ptr<T, access::address_space::local_space,
                      access::decorated::legacy>(localAccessor.get_pointer());
@@ -142,9 +142,9 @@ template <typename T> void testMultPtrArrowOperator() {
           accessorData_4(bufferData_4, cgh);
 
       cgh.single_task<class testMultPtrArrowOperatorKernel<T>>([=]() {
-        auto ptr_1 =
-            make_ptr<point<T>, access::address_space::global_space,
-                     access::decorated::legacy>(accessorData_1.get_pointer());
+        auto ptr_1 = make_ptr<point<T>, access::address_space::global_space,
+                              access::decorated::legacy>(
+            global_ptr<point<T>>(accessorData_1));
         auto ptr_2 =
             make_ptr<point<T>, access::address_space::constant_space,
                      access::decorated::legacy>(accessorData_2.get_pointer());
@@ -154,7 +154,8 @@ template <typename T> void testMultPtrArrowOperator() {
         auto ptr_4 =
             make_ptr<point<T>,
                      access::address_space::ext_intel_global_device_space,
-                     access::decorated::legacy>(accessorData_4.get_pointer());
+                     access::decorated::legacy>(
+                global_ptr<point<T>>(accessorData_4));
 
         auto x1 = ptr_1->x;
         auto x2 = ptr_2->x;

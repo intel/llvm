@@ -95,8 +95,8 @@ void test(queue q, InputContainer input, OutputContainer output,
       auto out = out_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for<kernel_name2>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
-        exclusive_scan(g, in.get_pointer(), in.get_pointer() + N,
-                       out.get_pointer(), binary_op);
+        exclusive_scan(g, global_ptr<InputT>(in), global_ptr<InputT>(in) + N,
+                       global_ptr<OutputT>(out), binary_op);
       });
     });
   }
@@ -112,8 +112,8 @@ void test(queue q, InputContainer input, OutputContainer output,
       auto out = out_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for<kernel_name3>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
-        exclusive_scan(g, in.get_pointer(), in.get_pointer() + N,
-                       out.get_pointer(), init, binary_op);
+        exclusive_scan(g, global_ptr<InputT>(in), global_ptr<InputT>(in) + N,
+                       global_ptr<OutputT>(out), init, binary_op);
       });
     });
   }

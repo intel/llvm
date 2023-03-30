@@ -122,7 +122,7 @@ void test(queue q, InputContainer input, OutputContainer output,
                 sycl::ext::oneapi::experimental::group_with_scratchpad(
                     it.get_group(), sycl::span(&scratch[0], temp_memory_size));
 
-            InputT *first = in.get_pointer();
+            InputT *first = global_ptr<InputT>(in);
             InputT *last = first + N;
             // check reduce_over_group w/o init
             out[0] = sycl::ext::oneapi::experimental::reduce_over_group(
