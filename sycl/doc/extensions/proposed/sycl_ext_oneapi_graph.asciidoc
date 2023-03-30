@@ -333,11 +333,11 @@ public:
   command_graph<graph_state::executable>
   finalize(const context& syclContext, const property_list& propList = {}) const;
 
-  bool begin_recording(queue recordingQueue);
+  bool begin_recording(queue& recordingQueue);
   bool begin_recording(const std::vector<queue>& recordingQueues);
 
   bool end_recording();
-  bool end_recording(queue recordingQueue);
+  bool end_recording(queue& recordingQueue);
   bool end_recording(const std::vector<queue>& recordingQueues);
 
   node add(const property_list& propList = {});
@@ -345,7 +345,7 @@ public:
   template<typename T>
   node add(T cgf, const property_list& propList = {});
 
-  void make_edge(node src, node dest);
+  void make_edge(node& src, node& dest);
 };
 
 template<>
@@ -362,17 +362,17 @@ class queue {
 public:
   /* -- graph convenience shortcuts -- */
 
-  event ext_oneapi_graph(command_graph<graph_state::executable> graph);
-  event ext_oneapi_graph(command_graph<graph_state::executable> graph,
+  event ext_oneapi_graph(command_graph<graph_state::executable>& graph);
+  event ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                    event depEvent);
-  event ext_oneapi_graph(command_graph<graph_state::executable> graph,
+  event ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                    const std::vector<event>& depEvents);
 };
 
 // New methods added to the sycl::handler class
 class handler {
 public:
-  void ext_oneapi_graph(command_graph<graph_state::executable> graph);
+  void ext_oneapi_graph(command_graph<graph_state::executable>& graph);
 }
 
 }  // namespace sycl
@@ -569,7 +569,7 @@ Exceptions:
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-void make_edge(node src, node dest);
+void make_edge(node& src, node& dest);
 ----
 
 |Creates a dependency between two nodes representing a happens-before relationship.
@@ -646,7 +646,7 @@ Table {counter: tableNumber}. Member functions of the `command_graph` class for 
 [source, c++]
 ----
 using namespace ext::oneapi::experimental;
-bool begin_recording(queue recordingQueue)
+bool begin_recording(queue& recordingQueue)
 ----
 
 |Synchronously changes the state of `recordingQueue` to the
@@ -710,7 +710,7 @@ Returns: `true` if any queue recording to the graph has its state changed from
 [source, c++]
 ----
 using namespace ext::oneapi::experimental;
-bool end_recording(queue recordingQueue)
+bool end_recording(queue& recordingQueue)
 ----
 
 |Synchronously changes the state of `recordingQueue` to the
@@ -901,7 +901,7 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::queue` c
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-event queue::ext_oneapi_graph(command_graph<graph_state::executable> graph)
+event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
 |Queue shortcut function that is equivalent to submitting a command-group
@@ -911,7 +911,7 @@ containing `handler::ext_oneapi_graph(graph)`.
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-event queue::ext_oneapi_graph(command_graph<graph_state::executable> graph,
+event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                         event depEvent);
 ----
 
@@ -923,7 +923,7 @@ containing `handler::depends_on(depEvent)` and
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-event queue::ext_oneapi_graph(command_graph<graph_state::executable> graph,
+event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                         const std::vector<event>& depEvents);
 ----
 
@@ -941,7 +941,7 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::handler`
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-void handler::ext_oneapi_graph(command_graph<graph_state::executable> graph)
+void handler::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
 |Invokes the execution of a graph. Support for invoking an executable graph,
