@@ -88,7 +88,7 @@ int main() {
   TEST(sycl::rhadd, int, 3, EXPECTED(int, 2, -1, 7), ma1, ma2);
   TEST(sycl::rhadd, unsigned int, 3, EXPECTED(unsigned int, 2, 4, 7), ma4, ma5);
   // geninteger clamp(geninteger x, geninteger minval, geninteger maxval)
-  TEST(sycl::clamp, int, 3, EXPECTED(int, 2, 0, 8), ma1, ma2, ma3);
+  TEST(sycl::clamp, int, 3, EXPECTED(int, 2, 3, 8), ma1, ma2, ma3);
   TEST(sycl::clamp, unsigned int, 3, EXPECTED(unsigned int, 2, 0, 8), ma4, ma5,
        ma6);
   // geninteger clamp(geninteger x, sgeninteger minval, sgeninteger maxval)
