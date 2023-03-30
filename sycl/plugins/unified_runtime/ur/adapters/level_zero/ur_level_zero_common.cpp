@@ -8,7 +8,6 @@
 
 #include "ur_level_zero_common.hpp"
 
-
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
     return UR_RESULT_SUCCESS;
