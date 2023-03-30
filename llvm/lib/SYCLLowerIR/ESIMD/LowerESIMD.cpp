@@ -312,28 +312,22 @@ public:
     Table = {
         // An element of the table is std::pair of <key, value>; key is the
         // source
-        // spelling of and intrinsic (what follows the "__esimd_" prefix),
-        // and
+        // spelling of and intrinsic (what follows the "__esimd_" prefix), and
         // the
         // value is an instance of the ESIMDIntrinDesc class.
         // Example for the "rdregion" intrinsic encoding:
-        // "rdregion" - the GenX spelling of the intrinsic ("llvm.genx."
-        // prefix
+        // "rdregion" - the GenX spelling of the intrinsic ("llvm.genx." prefix
         //      and type suffixes maybe added to get full GenX name)
         // {a(0), t(3),...}
-        //      defines a map from the resulting genx.* intrinsic call
-        //      arguments
-        //      to the source call's template or function call arguments,
-        //      e.g.
+        //      defines a map from the resulting genx.* intrinsic call arguments
+        //      to the source call's template or function call arguments, e.g.
         //      0th genx arg - maps to 0th source call arg
         //      1st genx arg - maps to 3rd template argument of the source
         //      call
         // nk(N) or bo(N)
         //      a rule applied to the base intrinsic name in order to
-        //      construct a full name ("llvm.genx." prefix s also added);
-        //      e.g.
-        //      - nk(-1) denotes adding the return type name-based suffix -
-        //      "i"
+        //      construct a full name ("llvm.genx." prefix s also added); e.g.
+        //      - nk(-1) denotes adding the return type name-based suffix - "i"
         //          for integer, "f" - for floating point
         {"rdregion",
          {"rdregion", {a(0), t(3), t(4), t(5), a(1), t(6)}, nk(-1)}},
@@ -477,8 +471,7 @@ public:
         // arg0: vXi1 predicate (overloaded)
         // arg1: i32 surface index
         // arg2: vXi32 element offset in bytes
-        // arg3: vXi32 original value of the register that the data is read
-        // into
+        // arg3: vXi32 original value of the register that the data is read into
         {"dword_atomic0",
          {"dword.atomic", {ai1(0), aSI(1), a(2), u(-1)}, bo(0)}},
 
@@ -486,8 +479,7 @@ public:
         // arg1: i32 surface index
         // arg2: vXi32 element offset in bytes (overloaded)
         // arg3: vXi32/vXfloat src
-        // arg4: vXi32/vXfloat original value of the register that the data
-        // is
+        // arg4: vXi32/vXfloat original value of the register that the data is
         // read into
         {"dword_atomic1",
          {"dword.atomic", {ai1(0), aSI(1), a(2), a(3), u(-1)}, bo(0)}},
@@ -497,8 +489,7 @@ public:
         // arg2: vXi32 element offset in bytes
         // arg3: vXi32 src0
         // arg4: vXi32 src1
-        // arg5: vXi32 original value of the register that the data is read
-        // into
+        // arg5: vXi32 original value of the register that the data is read into
         {"dword_atomic2",
          {"dword.atomic", {ai1(0), aSI(1), a(2), a(3), a(4), u(-1)}, bo(0)}},
 
@@ -692,8 +683,7 @@ public:
   const IntrinTable &getTable() { return Table; }
 };
 
-// The C++11 "magic static" idiom to lazily initialize the ESIMD intrinsic
-// table
+// The C++11 "magic static" idiom to lazily initialize the ESIMD intrinsic table
 static const IntrinTable &getIntrinTable() {
   static ESIMDIntrinDescTable TheTable;
   return TheTable.getTable();
@@ -822,9 +812,9 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
                10);
 }
 
-// Constructs a GenX intrinsic name suffix based on the original C++ name
-// (stem) and the types of its parameters (some intrinsic names have
-// additional suffixes depending on the parameter types).
+// Constructs a GenX intrinsic name suffix based on the original C++ name (stem)
+// and the types of its parameters (some intrinsic names have additional
+// suffixes depending on the parameter types).
 static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
                                         FunctionType *FT,
                                         const ESIMDIntrinDesc::NameRule &Rule) {
@@ -964,9 +954,9 @@ static void translatePackMask(CallInst &CI) {
   Value *Zero = ConstantInt::get(Result->getType(), 0);
   IRBuilder<> Builder(&CI);
   // TODO CM_COMPAT
-  // In CM non LSB bits in mask elements are ignored, so e.g. '2' is treated
-  // as 'false' there. ESIMD adopts C++ semantics, where any non-zero is
-  // 'true'. For CM this ICmpInst should be replaced with truncation to i1.
+  // In CM non LSB bits in mask elements are ignored, so e.g. '2' is treated as
+  // 'false' there. ESIMD adopts C++ semantics, where any non-zero is 'true'.
+  // For CM this ICmpInst should be replaced with truncation to i1.
   Result = Builder.CreateICmp(ICmpInst::ICMP_NE, Result, Zero);
   Result = Builder.CreateBitCast(Result, llvm::Type::getIntNTy(Context, N));
 
@@ -1052,10 +1042,10 @@ static void translateGetSurfaceIndex(CallInst &CI) {
   CI.replaceAllUsesWith(SI);
 }
 
-// Newly created GenX intrinsic might have different return type than
-// expected. This helper function creates cast operation from GenX intrinsic
-// return type to currently expected. Returns pointer to created cast
-// instruction if it was created, otherwise returns NewI.
+// Newly created GenX intrinsic might have different return type than expected.
+// This helper function creates cast operation from GenX intrinsic return type
+// to currently expected. Returns pointer to created cast instruction if it
+// was created, otherwise returns NewI.
 static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
   Type *NITy = NewI->getType();
   Type *OITy = OldI->getType();
@@ -1215,10 +1205,10 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   // uint32_t __spirv_BuiltIn SubgroupId;
   // uint32_t __spirv_BuiltIn GlobalLinearId
 
-  // Translate those loads from _scalar_ SPIRV globals that can be replaced
-  // with a const value here. The loads from other scalar SPIRV globals may
-  // require insertion of GenX calls before each user, which is done in the
-  // loop by users of 'LI' below.
+  // Translate those loads from _scalar_ SPIRV globals that can be replaced with
+  // a const value here.
+  // The loads from other scalar SPIRV globals may require insertion of GenX
+  // calls before each user, which is done in the loop by users of 'LI' below.
   Value *NewInst = nullptr;
   if (SpirvGlobalName == "SubgroupLocalInvocationId") {
     NewInst = llvm::Constant::getNullValue(LI->getType());
@@ -1417,8 +1407,7 @@ static Function *createTestESIMDDeclaration(const ESIMDIntrinDesc &Desc,
 // __esimd_flat_read<int, 16>(
 //     sycl::_V1::ext::intel::experimental::esimd::__vector_type<unsigned long
 //     long, 16>::type,
-//     sycl::_V1::ext::intel::experimental::esimd::__vector_type<int,
-//     16>::type)
+//     sycl::_V1::ext::intel::experimental::esimd::__vector_type<int, 16>::type)
 //
 // ### Itanium-mangled name:
 //
