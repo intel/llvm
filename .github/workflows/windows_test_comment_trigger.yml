@@ -44,7 +44,7 @@ jobs:
 
 
   windows_default:
-    name: Windows
+    name: Windows Branch
     needs: [windows_test_preparation]
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
