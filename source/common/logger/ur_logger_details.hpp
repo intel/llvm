@@ -27,14 +27,6 @@ class Logger {
         }
     }
 
-    Logger(const Logger &other) : level(other.level), sink(std::move(sink)) {}
-
-    Logger &operator=(Logger other) {
-        std::swap(level, other.level);
-        sink.swap(other.sink);
-        return *this;
-    }
-
     ~Logger() = default;
 
     void setLevel(logger::Level level) { this->level = level; }

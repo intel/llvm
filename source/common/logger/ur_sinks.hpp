@@ -4,6 +4,7 @@
 #ifndef UR_SINKS_HPP
 #define UR_SINKS_HPP 1
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 
@@ -49,32 +50,6 @@ class Sink {
                 } else {
                     throw std::runtime_error(
                         "No arguments provided and braces not escaped!");
-                }
-            } else if (*fmt == '}') {
-                if (*(++fmt) == '}') {
-                    *ostream << *fmt++;
-                } else {
-                    throw std::runtime_error(
-                        "Closing curly brace not escaped!");
-                }
-            }
-        }
-    }
-
-    template <typename Arg> void format(const char *fmt, Arg &&arg) {
-        while (*fmt != '\0') {
-            while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
-                *ostream << *fmt++;
-            }
-
-            if (*fmt == '{') {
-                if (*(++fmt) == '{') {
-                    *ostream << *fmt++;
-                } else if (*fmt != '}') {
-                    throw std::runtime_error("Only empty braces are allowed!");
-                } else {
-                    *ostream << arg;
-                    fmt++;
                 }
             } else if (*fmt == '}') {
                 if (*(++fmt) == '}') {
@@ -148,18 +123,20 @@ class StderrSink : public Sink {
 
 class FileSink : public Sink {
   public:
-    FileSink(std::string logger_name, std::string file_path)
+    FileSink(std::string logger_name, std::filesystem::path file_path)
         : Sink(logger_name) {
         ofstream = std::ofstream(file_path, std::ofstream::out);
-        if (ofstream.rdstate() != std::ofstream::goodbit) {
+        if (!ofstream.good()) {
             throw std::invalid_argument(
-                std::string("Failure while opening log file: ") + file_path +
+                std::string("Failure while opening log file: ") +
+                file_path.string() +
                 std::string(" Check if given path exists."));
         }
         this->ostream = &ofstream;
     }
 
-    FileSink(std::string logger_name, std::string file_path, Level flush_lvl)
+    FileSink(std::string logger_name, std::filesystem::path file_path,
+             Level flush_lvl)
         : FileSink(logger_name, file_path) {
         this->flush_level = flush_lvl;
     }
