@@ -191,10 +191,10 @@ module {
 module {
   func.func @noalias(%arg0: memref<?xi32> { llvm.noalias }, %arg1: memref<?xi32> { llvm.noalias }, %arg2: i32) {
     %c0 = arith.constant 0 : index    
-	  %c0_i32 = arith.constant 0 : i32
-	  %c1_i32 = arith.constant 1 : i32
-	  %c3_i64 = arith.constant 3 : index
-	  %1:3 = scf.while (%arg3 = %c0_i32) : (i32) -> (i32, i32, index) {
+    %c0_i32 = arith.constant 0 : i32
+    %c1_i32 = arith.constant 1 : i32
+    %c3_i64 = arith.constant 3 : index
+    %1:3 = scf.while (%arg3 = %c0_i32) : (i32) -> (i32, i32, index) {
       %2 = arith.index_cast %arg3 : i32 to index
       %3 = memref.load %arg0[%c0] : memref<?xi32>
       %4 = arith.cmpi slt, %arg3, %3 : i32      
