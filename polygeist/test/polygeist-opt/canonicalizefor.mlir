@@ -29,7 +29,7 @@ module {
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
 // CHECK-DAG:     %c3 = arith.constant 3 : index
-// CHECK-NEXT:     %0 = scf.while (%arg3 = %c0_i32) : (i32) -> i32 {
+// CHECK-NEXT:    %0 = scf.while (%arg3 = %c0_i32) : (i32) -> i32 {
 // CHECK-NEXT:       %1 = func.call @cmp() : () -> i1
 // CHECK-NEXT:       scf.condition(%1) %arg3 : i32
 // CHECK-NEXT:     } do {
