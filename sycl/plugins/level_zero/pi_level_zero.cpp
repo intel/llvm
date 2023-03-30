@@ -1059,7 +1059,7 @@ static pi_result resetCommandLists(pi_queue Queue) {
   // Handle immediate command lists here, they don't need to be reset and we
   // only need to cleanup events.
   if (Queue->Device->ImmCommandListUsed) {
-    PI_CALL(CleanupEventsInImmCmdLists(Queue));
+    PI_CALL(CleanupEventsInImmCmdLists(Queue, true /*locked*/));
     return PI_SUCCESS;
   }
 
@@ -1090,7 +1090,7 @@ static pi_result resetCommandLists(pi_queue Queue) {
         PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
     }
   }
-  CleanupEventListFromResetCmdList(EventListToCleanup, true);
+  CleanupEventListFromResetCmdList(EventListToCleanup, true /*locked*/);
   return PI_SUCCESS;
 }
 
