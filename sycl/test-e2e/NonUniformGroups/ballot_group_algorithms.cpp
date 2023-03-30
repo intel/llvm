@@ -45,11 +45,11 @@ int main() {
           auto WI = item.get_global_id();
           auto SG = item.get_sub_group();
 
-          // Split into odd and even work-items
+          // Split into odd and even work-items.
           bool Predicate = WI % 2 == 0;
           auto BallotGroup = syclex::get_ballot_group(SG, Predicate);
 
-          // Check all other members' writes are visible after a barrier
+          // Check all other members' writes are visible after a barrier.
           TmpAcc[WI] = 1;
           sycl::group_barrier(BallotGroup);
           size_t Visible = 0;
@@ -60,7 +60,7 @@ int main() {
           }
           BarrierAcc[WI] = Visible;
 
-          // Simple check of group algorithms
+          // Simple check of group algorithms.
           uint32_t OriginalLID = SG.get_local_linear_id();
           uint32_t LID = BallotGroup.get_local_linear_id();
 

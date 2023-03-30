@@ -204,10 +204,10 @@ template <typename ParentGroup, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
 GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
                T x, IdT local_id) {
-  // Remap local_id to its original numbering in ParentGroup
+  // Remap local_id to its original numbering in ParentGroup.
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 
-  // TODO: Refactor to avoid duplication after design settles
+  // TODO: Refactor to avoid duplication after design settles.
   using GroupIdT = typename GroupId<ParentGroup>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
   using OCLT = detail::ConvertToOpenCLType_t<T>;
@@ -274,7 +274,7 @@ template <typename ParentGroup, typename T>
 EnableIfNativeBroadcast<T>
 GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
                T x, id<1> local_id) {
-  // Limited to 1D indices for now because ParentGroup must be sub-group
+  // Limited to 1D indices for now because ParentGroup must be sub-group.
   return GroupBroadcast(g, x, local_id[0]);
 }
 template <typename Group, typename T, int Dimensions>
