@@ -4036,7 +4036,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
 
-  if (!KernelObj->hasDefinition() || !KernelObj) {
+  if (!KernelObj || (KernelObj && !KernelObj->hasDefinition())) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
