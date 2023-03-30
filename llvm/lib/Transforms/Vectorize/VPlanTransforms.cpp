@@ -24,7 +24,7 @@
 using namespace llvm;
 
 void VPlanTransforms::VPInstructionsToVPRecipes(
-    Loop *OrigLoop, VPlanPtr &Plan,
+    VPlanPtr &Plan,
     function_ref<const InductionDescriptor *(PHINode *)>
         GetIntOrFpInductionDescriptor,
     SmallPtrSetImpl<Instruction *> &DeadInstructions, ScalarEvolution &SE,
@@ -76,17 +76,15 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
               Plan->getOrAddVPValue(Store->getValueOperand()), nullptr /*Mask*/,
               false /*Consecutive*/, false /*Reverse*/);
         } else if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Inst)) {
-          NewRecipe = new VPWidenGEPRecipe(
-              GEP, Plan->mapToVPValues(GEP->operands()), OrigLoop);
+          NewRecipe =
+              new VPWidenGEPRecipe(GEP, Plan->mapToVPValues(GEP->operands()));
         } else if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
           NewRecipe =
               new VPWidenCallRecipe(*CI, Plan->mapToVPValues(CI->args()),
                                     getVectorIntrinsicIDForCall(CI, &TLI));
         } else if (SelectInst *SI = dyn_cast<SelectInst>(Inst)) {
-          bool InvariantCond =
-              SE.isLoopInvariant(SE.getSCEV(SI->getOperand(0)), OrigLoop);
-          NewRecipe = new VPWidenSelectRecipe(
-              *SI, Plan->mapToVPValues(SI->operands()), InvariantCond);
+          NewRecipe =
+              new VPWidenSelectRecipe(*SI, Plan->mapToVPValues(SI->operands()));
         } else {
           NewRecipe =
               new VPWidenRecipe(*Inst, Plan->mapToVPValues(Inst->operands()));
@@ -108,7 +106,7 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
   }
 }
 
-bool VPlanTransforms::sinkScalarOperands(VPlan &Plan) {
+static bool sinkScalarOperands(VPlan &Plan) {
   auto Iter = vp_depth_first_deep(Plan.getEntry());
   bool Changed = false;
   // First, collect the operands of all recipes in replicate blocks as seeds for
@@ -169,8 +167,7 @@ bool VPlanTransforms::sinkScalarOperands(VPlan &Plan) {
         continue;
       Instruction *I = cast<Instruction>(
           cast<VPReplicateRecipe>(SinkCandidate)->getUnderlyingValue());
-      auto *Clone =
-          new VPReplicateRecipe(I, SinkCandidate->operands(), true, false);
+      auto *Clone = new VPReplicateRecipe(I, SinkCandidate->operands(), true);
       // TODO: add ".cloned" suffix to name of Clone's VPValue.
 
       Clone->insertBefore(SinkCandidate);
@@ -226,7 +223,10 @@ static VPBasicBlock *getPredicatedThenBlock(VPRegionBlock *R) {
   return nullptr;
 }
 
-bool VPlanTransforms::mergeReplicateRegionsIntoSuccessors(VPlan &Plan) {
+// Merge replicate regions in their successor region, if a replicate region
+// is connected to a successor replicate region with the same predicate by a
+// single, empty VPBasicBlock.
+static bool mergeReplicateRegionsIntoSuccessors(VPlan &Plan) {
   SetVector<VPRegionBlock *> DeletedRegions;
 
   // Collect replicate regions followed by an empty block, followed by another
@@ -314,6 +314,81 @@ bool VPlanTransforms::mergeReplicateRegionsIntoSuccessors(VPlan &Plan) {
   return !DeletedRegions.empty();
 }
 
+static VPRegionBlock *createReplicateRegion(VPReplicateRecipe *PredRecipe,
+                                            VPlan &Plan) {
+  Instruction *Instr = PredRecipe->getUnderlyingInstr();
+  // Build the triangular if-then region.
+  std::string RegionName = (Twine("pred.") + Instr->getOpcodeName()).str();
+  assert(Instr->getParent() && "Predicated instruction not in any basic block");
+  auto *BlockInMask = PredRecipe->getMask();
+  auto *BOMRecipe = new VPBranchOnMaskRecipe(BlockInMask);
+  auto *Entry = new VPBasicBlock(Twine(RegionName) + ".entry", BOMRecipe);
+
+  // Replace predicated replicate recipe with a replicate recipe without a
+  // mask but in the replicate region.
+  auto *RecipeWithoutMask = new VPReplicateRecipe(
+      PredRecipe->getUnderlyingInstr(),
+      make_range(PredRecipe->op_begin(), std::prev(PredRecipe->op_end())),
+      PredRecipe->isUniform());
+  auto *Pred = new VPBasicBlock(Twine(RegionName) + ".if", RecipeWithoutMask);
+
+  VPPredInstPHIRecipe *PHIRecipe = nullptr;
+  if (PredRecipe->getNumUsers() != 0) {
+    PHIRecipe = new VPPredInstPHIRecipe(RecipeWithoutMask);
+    PredRecipe->replaceAllUsesWith(PHIRecipe);
+    PHIRecipe->setOperand(0, RecipeWithoutMask);
+  }
+  PredRecipe->eraseFromParent();
+  auto *Exiting = new VPBasicBlock(Twine(RegionName) + ".continue", PHIRecipe);
+  VPRegionBlock *Region = new VPRegionBlock(Entry, Exiting, RegionName, true);
+
+  // Note: first set Entry as region entry and then connect successors starting
+  // from it in order, to propagate the "parent" of each VPBasicBlock.
+  VPBlockUtils::insertTwoBlocksAfter(Pred, Exiting, Entry);
+  VPBlockUtils::connectBlocks(Pred, Exiting);
+
+  return Region;
+}
+
+static void addReplicateRegions(VPlan &Plan) {
+  SmallVector<VPReplicateRecipe *> WorkList;
+  for (VPBasicBlock *VPBB : VPBlockUtils::blocksOnly<VPBasicBlock>(
+           vp_depth_first_deep(Plan.getEntry()))) {
+    for (VPRecipeBase &R : *VPBB)
+      if (auto *RepR = dyn_cast<VPReplicateRecipe>(&R)) {
+        if (RepR->isPredicated())
+          WorkList.push_back(RepR);
+      }
+  }
+
+  unsigned BBNum = 0;
+  for (VPReplicateRecipe *RepR : WorkList) {
+    VPBasicBlock *CurrentBlock = RepR->getParent();
+    VPBasicBlock *SplitBlock = CurrentBlock->splitAt(RepR->getIterator());
+
+    BasicBlock *OrigBB = RepR->getUnderlyingInstr()->getParent();
+    SplitBlock->setName(
+        OrigBB->hasName() ? OrigBB->getName() + "." + Twine(BBNum++) : "");
+    // Record predicated instructions for above packing optimizations.
+    VPBlockBase *Region = createReplicateRegion(RepR, Plan);
+    Region->setParent(CurrentBlock->getParent());
+    VPBlockUtils::disconnectBlocks(CurrentBlock, SplitBlock);
+    VPBlockUtils::connectBlocks(CurrentBlock, Region);
+    VPBlockUtils::connectBlocks(Region, SplitBlock);
+  }
+}
+
+void VPlanTransforms::createAndOptimizeReplicateRegions(VPlan &Plan) {
+  // Convert masked VPReplicateRecipes to if-then region blocks.
+  addReplicateRegions(Plan);
+
+  bool ShouldSimplify = true;
+  while (ShouldSimplify) {
+    ShouldSimplify = sinkScalarOperands(Plan);
+    ShouldSimplify |= mergeReplicateRegionsIntoSuccessors(Plan);
+    ShouldSimplify |= VPlanTransforms::mergeBlocksIntoPredecessors(Plan);
+  }
+}
 bool VPlanTransforms::mergeBlocksIntoPredecessors(VPlan &Plan) {
   SmallVector<VPBasicBlock *> WorkList;
   for (VPBasicBlock *VPBB : VPBlockUtils::blocksOnly<VPBasicBlock>(
@@ -551,6 +626,9 @@ static VPRegionBlock *GetReplicateRegion(VPRecipeBase *R) {
 
 static bool properlyDominates(const VPRecipeBase *A, const VPRecipeBase *B,
                               VPDominatorTree &VPDT) {
+  if (A == B)
+    return false;
+
   auto LocalComesBefore = [](const VPRecipeBase *A, const VPRecipeBase *B) {
     for (auto &R : *A->getParent()) {
       if (&R == A)
@@ -617,58 +695,11 @@ sinkRecurrenceUsersAfterPrevious(VPFirstOrderRecurrencePHIRecipe *FOR,
   });
 
   for (VPRecipeBase *SinkCandidate : WorkList) {
-    // VPPredInstPHIRecipes don't need sinking, because they will be sunk when
-    // sinking the containing replicate region.
-    if (isa<VPPredInstPHIRecipe>(SinkCandidate) || SinkCandidate == FOR)
+    if (SinkCandidate == FOR)
       continue;
 
-    VPRecipeBase *Target = Previous;
+    SinkCandidate->moveAfter(Previous);
     Previous = SinkCandidate;
-    auto *TargetRegion = GetReplicateRegion(Target);
-    auto *SinkRegion = GetReplicateRegion(SinkCandidate);
-    if (!SinkRegion) {
-      // If the sink source is not a replicate region, sink the recipe
-      // directly.
-      if (TargetRegion) {
-        // The target is in a replication region, make sure to move Sink to
-        // the block after it, not into the replication region itself.
-        VPBasicBlock *NextBlock =
-            cast<VPBasicBlock>(TargetRegion->getSuccessors().front());
-        SinkCandidate->moveBefore(*NextBlock, NextBlock->getFirstNonPhi());
-      } else
-        SinkCandidate->moveAfter(Target);
-      continue;
-    }
-    // The sink source is in a replicate region. Unhook the region from the
-    // CFG.
-    auto *SinkPred = SinkRegion->getSinglePredecessor();
-    auto *SinkSucc = SinkRegion->getSingleSuccessor();
-    VPBlockUtils::disconnectBlocks(SinkPred, SinkRegion);
-    VPBlockUtils::disconnectBlocks(SinkRegion, SinkSucc);
-    VPBlockUtils::connectBlocks(SinkPred, SinkSucc);
-
-    if (TargetRegion) {
-      // The target recipe is also in a replicate region, move the sink
-      // region after the target region.
-      auto *TargetSucc = TargetRegion->getSingleSuccessor();
-      VPBlockUtils::disconnectBlocks(TargetRegion, TargetSucc);
-      VPBlockUtils::connectBlocks(TargetRegion, SinkRegion);
-      VPBlockUtils::connectBlocks(SinkRegion, TargetSucc);
-    } else {
-      // The sink source is in a replicate region, we need to move the whole
-      // replicate region, which should only contain a single recipe in the
-      // main block.
-      auto *SplitBlock =
-          Target->getParent()->splitAt(std::next(Target->getIterator()));
-
-      auto *SplitPred = SplitBlock->getSinglePredecessor();
-
-      VPBlockUtils::disconnectBlocks(SplitPred, SplitBlock);
-      VPBlockUtils::connectBlocks(SplitPred, SinkRegion);
-      VPBlockUtils::connectBlocks(SinkRegion, SplitBlock);
-    }
-    // We modified the CFG, update dominator tree.
-    VPDT.recalculate(*SinkRegion->getPlan());
   }
 }
 
@@ -700,14 +731,7 @@ void VPlanTransforms::adjustFixedOrderRecurrences(VPlan &Plan,
     // Introduce a recipe to combine the incoming and previous values of a
     // fixed-order recurrence.
     VPBasicBlock *InsertBlock = Previous->getParent();
-    auto *Region = GetReplicateRegion(Previous);
-    if (Region)
-      InsertBlock = dyn_cast<VPBasicBlock>(Region->getSingleSuccessor());
-    if (!InsertBlock) {
-      InsertBlock = new VPBasicBlock(Region->getName() + ".succ");
-      VPBlockUtils::insertBlockAfter(InsertBlock, Region);
-    }
-    if (Region || isa<VPHeaderPHIRecipe>(Previous))
+    if (isa<VPHeaderPHIRecipe>(Previous))
       Builder.setInsertPoint(InsertBlock, InsertBlock->getFirstNonPhi());
     else
       Builder.setInsertPoint(InsertBlock, std::next(Previous->getIterator()));

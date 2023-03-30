@@ -43,7 +43,7 @@ __ESIMD_API void split_barrier(split_barrier_action flag) {
 /// @addtogroup sycl_esimd_raw_send
 /// @{
 
-/// Raw sends load.  "s" suffix designates "split" variant - i.e. two sources.
+/// Raw sends.  "s" suffix designates "split" variant - i.e. two sources.
 ///
 /// @param msgDst is the old value of the destination operand.
 /// @param msgSrc0 is the first source operand of send message.
@@ -69,12 +69,12 @@ __ESIMD_API void split_barrier(split_barrier_action flag) {
 /// @return the vector value read from memory.
 template <typename T1, int n1, typename T2, int n2, typename T3, int n3,
           int N = 16>
-__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
-    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-    __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
-    uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
-    uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
-    __ESIMD_NS::simd_mask<N> mask = 1) {
+__ESIMD_API __ESIMD_NS::simd<T1, n1>
+raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+          __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
+          uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
+          uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
+          __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -88,7 +88,20 @@ __ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
       msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
 }
 
-/// Raw send load.
+template <typename T1, int n1, typename T2, int n2, typename T3, int n3,
+          int N = 16>
+__SYCL_DEPRECATED("raw_sends_load is deprecated. Use raw_sends")
+__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
+    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+    __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
+    uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
+    uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
+    __ESIMD_NS::simd_mask<N> mask = 1) {
+  return raw_sends(msgDst, msgSrc0, msgSrc1, exDesc, msgDesc, execSize, sfid,
+                   numSrc0, numSrc1, numDst, isEOT, isSendc);
+}
+
+/// Raw send.
 ///
 /// @param msgDst is the old value of the destination operand.
 /// @param msgSrc0 is the first source operand of send message.
@@ -111,10 +124,10 @@ __ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends_load(
 /// @return the vector value read from memory.
 template <typename T1, int n1, typename T2, int n2, int N = 16>
 __ESIMD_API __ESIMD_NS::simd<T1, n1>
-raw_send_load(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-              uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
-              uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0,
-              uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
+raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+         uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+         uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0,
+         uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -126,7 +139,18 @@ raw_send_load(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
       msgSrc0.data(), msgDst.data());
 }
 
-/// Raw sends store. "s" suffix designates "split" variant - i.e. two sources.
+template <typename T1, int n1, typename T2, int n2, int N = 16>
+__SYCL_DEPRECATED("raw_send_load is deprecated. Use raw_send")
+__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_send_load(
+    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+    uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+    uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0,
+    __ESIMD_NS::simd_mask<N> mask = 1) {
+  return raw_send(msgDst, msgSrc0, exDesc, msgDesc, execSize, sfid, numSrc0,
+                  numDst, isEOT, isSendc, mask);
+}
+
+/// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
 ///
 /// @param msgSrc0 is the first source operand of send message.
 /// @param msgSrc1 is the second source operand of send message.
@@ -148,11 +172,10 @@ raw_send_load(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 /// to on).
 template <typename T1, int n1, typename T2, int n2, int N = 16>
 __ESIMD_API void
-raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
-                __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
-                uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
-                uint8_t numSrc0, uint8_t numSrc1, uint8_t isEOT = 0,
-                uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
+raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
+          uint32_t exDesc, uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+          uint8_t numSrc0, uint8_t numSrc1, uint8_t isEOT = 0,
+          uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -164,7 +187,20 @@ raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
       msgSrc0.data(), msgSrc1.data());
 }
 
-/// Raw send store. Generates a \c send or \c sendc instruction for the message
+template <typename T1, int n1, typename T2, int n2, int N = 16>
+__SYCL_DEPRECATED("raw_sends_store is deprecated. Use raw_sends")
+__ESIMD_API
+    void raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
+                         __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
+                         uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+                         uint8_t numSrc0, uint8_t numSrc1, uint8_t isEOT = 0,
+                         uint8_t isSendc = 0,
+                         __ESIMD_NS::simd_mask<N> mask = 1) {
+  raw_sends(msgSrc0, msgSrc1, exDesc, msgDesc, execSize, sfid, numSrc0, numSrc1,
+            isEOT, isSendc, mask);
+}
+
+/// Raw send. Generates a \c send or \c sendc instruction for the message
 /// gateway.
 ///
 /// @param msgSrc0 is the first source operand of send message.
@@ -183,11 +219,10 @@ raw_sends_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
 /// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
 template <typename T1, int n1, int N = 16>
-__ESIMD_API void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
-                                uint32_t exDesc, uint32_t msgDesc,
-                                uint8_t execSize, uint8_t sfid, uint8_t numSrc0,
-                                uint8_t isEOT = 0, uint8_t isSendc = 0,
-                                __ESIMD_NS::simd_mask<N> mask = 1) {
+__ESIMD_API void
+raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
+         uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t isEOT = 0,
+         uint8_t isSendc = 0, __ESIMD_NS::simd_mask<N> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
 
@@ -195,6 +230,17 @@ __ESIMD_API void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
   __esimd_raw_send2_noresult<T1, n1, N>(modifier, execSize, mask.data(),
                                         numSrc0, sfid, exDesc, msgDesc,
                                         msgSrc0.data());
+}
+
+template <typename T1, int n1, int N = 16>
+__SYCL_DEPRECATED("raw_send_store is deprecated. Use raw_send")
+__ESIMD_API
+    void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
+                        uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+                        uint8_t numSrc0, uint8_t isEOT = 0, uint8_t isSendc = 0,
+                        __ESIMD_NS::simd_mask<N> mask = 1) {
+  raw_send(msgSrc0, exDesc, msgDesc, execSize, sfid, numSrc0, isEOT, isSendc,
+           mask);
 }
 
 /// @} sycl_esimd_raw_send
@@ -2394,8 +2440,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  return raw_send_load(oldDst, payload.get_raw_data(), exDesc, desc, execSize,
-                       sfid, numSrc0, numDst);
+  return raw_send(oldDst, payload.get_raw_data(), exDesc, desc, execSize, sfid,
+                  numSrc0, numDst);
 }
 
 /// A variation of \c 2D stateless block prefetch \c with parameters passed as
@@ -2437,7 +2483,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   constexpr uint8_t execSize = 0x0;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  raw_send_store(payload.get_raw_data(), exDesc, desc, execSize, sfid, numDst);
+  raw_send(payload.get_raw_data(), exDesc, desc, execSize, sfid, numDst);
 }
 
 /// A variation of \c 2D stateless block store \c with parameters passed as
@@ -2476,8 +2522,8 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = (N * sizeof(T)) / 64;
-  raw_sends_store(payload.get_raw_data(), Data, exDesc, desc, execSize, sfid,
-                  numSrc0, numSrc1);
+  raw_sends(payload.get_raw_data(), Data, exDesc, desc, execSize, sfid, numSrc0,
+            numSrc1);
 }
 
 /// SLM atomic.
@@ -2619,7 +2665,9 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 0,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
@@ -2651,7 +2699,9 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 0,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
   using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
@@ -2663,8 +2713,10 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> &&
+        __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 0,
+    __ESIMD_NS::simd<T, N>>
     lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       p, __ESIMD_NS::simd<Toffset, N>(offset), pred);
@@ -2689,7 +2741,9 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 1,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
@@ -2722,7 +2776,9 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 1,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                   __ESIMD_NS::simd<T, N> src0,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
@@ -2735,11 +2791,13 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 ((Op != __ESIMD_NS::atomic_op::store &&
-                                   Op != __ESIMD_NS::atomic_op::xchg) ||
-                                  N == 1),
-                             __ESIMD_NS::simd<T, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> &&
+        __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 1 &&
+        ((Op != __ESIMD_NS::atomic_op::store &&
+          Op != __ESIMD_NS::atomic_op::xchg) ||
+         N == 1),
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
@@ -2765,7 +2823,9 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 2,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
@@ -2800,7 +2860,9 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API __ESIMD_NS::simd<T, N>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 2,
+    __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred = 1) {
@@ -2813,8 +2875,10 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> &&
+        __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 2,
+    __ESIMD_NS::simd<T, N>>
     lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
                       __ESIMD_NS::simd<T, N> src1,
                       __ESIMD_NS::simd_mask<N> pred = 1) {
@@ -3036,58 +3100,64 @@ namespace esimd {
 /// <tt>native::lsc::atomic_op</tt> instead of <tt>atomic_op</tt> as atomic
 /// operation template argument.
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
-                                     simd_mask<N> mask) {
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> offset, simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, mask);
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
-                                     simd_mask<N> mask = 1) {
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0, simd<T, N>>
+atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
+              simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offsets, mask);
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
-    atomic_update(T *p, Toffset offset, simd_mask<N> mask = 1) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 0,
+                             simd<T, N>>
+atomic_update(T *p, Toffset offset, simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, mask);
 }
 
 /// LSC version of the single-argument atomic update.
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
-                                     simd<T, N> src0, simd_mask<N> mask) {
+__ESIMD_API __ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
+    atomic_update(T *p, simd<Toffset, N> offset, simd<T, N> src0,
+                  simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, src0, mask);
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
-                                     simd<T, N> src0, simd_mask<N> mask = 1) {
+__ESIMD_API __ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 1, simd<T, N>>
+    atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
+                  simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offsets, src0, mask);
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
-    atomic_update(T *p, Toffset offset, simd<T, N> src0,
-                  simd_mask<N> mask = 1) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 1,
+                             simd<T, N>>
+atomic_update(T *p, Toffset offset, simd<T, N> src0, simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, src0, mask);
 }
 
 /// LSC version of the two-argument atomic update.
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
-                                     simd<T, N> src0, simd<T, N> src1,
-                                     simd_mask<N> mask) {
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> offset, simd<T, N> src0, simd<T, N> src1,
+              simd_mask<N> mask) {
   // 2-argument lsc_atomic_update arguments order matches the standard one -
   // expected value first, then new value. But atomic_update uses reverse
   // order, hence the src1/src0 swap.
@@ -3097,18 +3167,19 @@ __ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
-                                     simd<T, N> src0, simd<T, N> src1,
-                                     simd_mask<N> mask = 1) {
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2, simd<T, N>>
+atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
+              simd<T, N> src1, simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offsets, src1, src0, mask);
 }
 
 template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
-__ESIMD_API
-    std::enable_if_t<std::is_integral_v<Toffset>, __ESIMD_NS::simd<T, N>>
-    atomic_update(T *p, Toffset offset, simd<T, N> src0, simd<T, N> src1,
-                  simd_mask<N> mask = 1) {
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
+                                 __ESIMD_DNS::get_num_args<Op>() == 2,
+                             __ESIMD_NS::simd<T, N>>
+atomic_update(T *p, Toffset offset, simd<T, N> src0, simd<T, N> src1,
+              simd_mask<N> mask = 1) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, src1, src0, mask);
 }

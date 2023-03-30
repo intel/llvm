@@ -154,7 +154,7 @@ static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
 
-#if ENABLE_OPAQUE_POINTERS
+#if SPIRV_ENABLE_OPAQUE_POINTERS
 constexpr static bool SPIRVOpaquePointersDefault = true;
 #else
 constexpr static bool SPIRVOpaquePointersDefault = false;
@@ -235,7 +235,21 @@ static cl::opt<SPIRV::DebugInfoEIS> DebugEIS(
         clEnumValN(SPIRV::DebugInfoEIS::OpenCL_DebugInfo_100, "ocl-100",
                    "Emit debug info compliant with the OpenCL.DebugInfo.100 "
                    "extended instruction set. This version of SPIR-V debug "
-                   "info format is compatible with the SPIRV-Tools")));
+                   "info format is compatible with the SPIRV-Tools"),
+        clEnumValN(
+            SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_100,
+            "nonsemantic-shader-100",
+            "Emit debug info compliant with the "
+            "NonSemantic.Shader.DebugInfo.100 extended instruction set. This "
+            "version of SPIR-V debug info format is compatible with the rules "
+            "regarding non-semantic instruction sets."),
+        clEnumValN(
+            SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200,
+            "nonsemantic-shader-200",
+            "Emit debug info compliant with the "
+            "NonSemantic.Shader.DebugInfo.200 extended instruction set. This "
+            "version of SPIR-V debug info format is compatible with the rules "
+            "regarding non-semantic instruction sets.")));
 
 static cl::opt<bool> SPIRVReplaceLLVMFmulAddWithOpenCLMad(
     "spirv-replace-fmuladd-with-ocl-mad",
@@ -733,6 +747,15 @@ int main(int Ac, char **Av) {
                 "affects translation from LLVM IR to SPIR-V";
     } else {
       Opts.setDebugInfoEIS(DebugEIS);
+      if (DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
+        Opts.setAllowExtraDIExpressionsEnabled(true);
+      if (DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200 ||
+          DebugEIS.getValue() ==
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
+        Opts.setAllowedToUseExtension(
+            SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
     }
   }
 

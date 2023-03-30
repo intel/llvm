@@ -84,6 +84,9 @@ public:
   /// Boolean flag for whether the device_global had the device_image_scope
   /// property.
   bool MIsDeviceImageScoped = false;
+
+  RT::PiKernelCacheConfig MKernelCacheConfig =
+      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
 };
 
 } // namespace detail

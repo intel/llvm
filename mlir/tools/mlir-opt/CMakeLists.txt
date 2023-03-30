@@ -33,6 +33,7 @@ if(MLIR_INCLUDE_TESTS)
     MLIRTestDialect
     MLIRTestDynDialect
     MLIRTestIR
+    MLIRTestOneToNTypeConversionPass
     MLIRTestPass
     MLIRTestPDLL
     MLIRTestReducer
@@ -41,6 +42,7 @@ if(MLIR_INCLUDE_TESTS)
     MLIRTestTransforms
     MLIRTilingInterfaceTestPasses
     MLIRVectorTestPasses
+    MLIRTestVectorToSPIRV
     MLIRLLVMTestPasses
     )
 endif()

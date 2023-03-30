@@ -66,7 +66,7 @@ private:
   void CheckArraySpec(const Symbol &, const ArraySpec &);
   void CheckProcEntity(const Symbol &, const ProcEntityDetails &);
   void CheckSubprogram(const Symbol &, const SubprogramDetails &);
-  void CheckLocalVsGlobal(const Symbol &);
+  void CheckExternal(const Symbol &);
   void CheckAssumedTypeEntity(const Symbol &, const ObjectEntityDetails &);
   void CheckDerivedType(const Symbol &, const DerivedTypeDetails &);
   bool CheckFinal(
@@ -83,7 +83,7 @@ private:
       const SourceName &, const Symbol &, const Procedure &, std::size_t);
   bool CheckDefinedAssignment(const Symbol &, const Procedure &);
   bool CheckDefinedAssignmentArg(const Symbol &, const DummyArgument &, int);
-  void CheckSpecificsAreDistinguishable(const Symbol &, const GenericDetails &);
+  void CheckSpecifics(const Symbol &, const GenericDetails &);
   void CheckEquivalenceSet(const EquivalenceSet &);
   void CheckBlockData(const Scope &);
   void CheckGenericOps(const Scope &);
@@ -115,6 +115,7 @@ private:
   }
   bool IsResultOkToDiffer(const FunctionResult &);
   void CheckGlobalName(const Symbol &);
+  void CheckExplicitSave(const Symbol &);
   void CheckBindC(const Symbol &);
   void CheckBindCFunctionResult(const Symbol &);
   // Check functions for defined I/O procedures
@@ -161,8 +162,8 @@ private:
   std::map<std::pair<SourceName, const Symbol *>, SymbolRef> moduleProcs_;
   // Collection of symbols with global names, BIND(C) or otherwise
   std::map<std::string, SymbolRef> globalNames_;
-  // Derived types that have defined input/output procedures
-  std::vector<TypeWithDefinedIo> seenDefinedIoTypes_;
+  // Collection of external procedures without global definitions
+  std::map<std::string, SymbolRef> externalNames_;
 };
 
 class DistinguishabilityHelper {
@@ -254,7 +255,13 @@ void CheckHelper::Check(const Symbol &symbol) {
   if (symbol.attrs().test(Attr::VOLATILE)) {
     CheckVolatile(symbol, derived);
   }
-  CheckBindC(symbol);
+  if (symbol.attrs().test(Attr::BIND_C)) {
+    CheckBindC(symbol);
+  }
+  if (symbol.attrs().test(Attr::SAVE) &&
+      !symbol.implicitAttrs().test(Attr::SAVE)) {
+    CheckExplicitSave(symbol);
+  }
   CheckGlobalName(symbol);
   if (isDone) {
     return; // following checks do not apply
@@ -397,20 +404,10 @@ void CheckHelper::Check(const Symbol &symbol) {
       messages_.Say(
           "A dummy argument may not also be a named constant"_err_en_US);
     }
-    if (!symbol.test(Symbol::Flag::InDataStmt) /*caught elsewhere*/ &&
-        IsSaved(symbol)) {
-      messages_.Say(
-          "A dummy argument may not have the SAVE attribute"_err_en_US);
-    }
   } else if (IsFunctionResult(symbol)) {
     if (IsNamedConstant(symbol)) {
       messages_.Say(
           "A function result may not also be a named constant"_err_en_US);
-    }
-    if (!symbol.test(Symbol::Flag::InDataStmt) /*caught elsewhere*/ &&
-        IsSaved(symbol)) {
-      messages_.Say(
-          "A function result may not have the SAVE attribute"_err_en_US);
     }
     CheckBindCFunctionResult(symbol);
   }
@@ -426,11 +423,61 @@ void CheckHelper::Check(const Symbol &symbol) {
         " of a module"_err_en_US,
         symbol.name());
   }
+  if (IsProcedure(symbol) && !symbol.HasExplicitInterface()) {
+    if (IsAllocatable(symbol)) {
+      messages_.Say(
+          "Procedure '%s' may not be ALLOCATABLE without an explicit interface"_err_en_US,
+          symbol.name());
+    } else if (symbol.Rank() > 0) {
+      messages_.Say(
+          "Procedure '%s' may not be an array without an explicit interface"_err_en_US,
+          symbol.name());
+    }
+  }
+  if (symbol.attrs().test(Attr::ASYNCHRONOUS) &&
+      !evaluate::IsVariable(symbol)) {
+    messages_.Say(
+        "An entity may not have the ASYNCHRONOUS attribute unless it is a variable"_err_en_US);
+  }
 }
 
 void CheckHelper::CheckCommonBlock(const Symbol &symbol) {
   CheckGlobalName(symbol);
-  CheckBindC(symbol);
+  if (symbol.attrs().test(Attr::BIND_C)) {
+    CheckBindC(symbol);
+  }
+}
+
+// C859, C860
+void CheckHelper::CheckExplicitSave(const Symbol &symbol) {
+  const Symbol &ultimate{symbol.GetUltimate()};
+  if (ultimate.test(Symbol::Flag::InDataStmt)) {
+    // checked elsewhere
+  } else if (symbol.has<UseDetails>()) {
+    messages_.Say(
+        "The USE-associated name '%s' may not have an explicit SAVE attribute"_err_en_US,
+        symbol.name());
+  } else if (IsDummy(ultimate)) {
+    messages_.Say(
+        "The dummy argument '%s' may not have an explicit SAVE attribute"_err_en_US,
+        symbol.name());
+  } else if (IsFunctionResult(ultimate)) {
+    messages_.Say(
+        "The function result variable '%s' may not have an explicit SAVE attribute"_err_en_US,
+        symbol.name());
+  } else if (const Symbol * common{FindCommonBlockContaining(ultimate)}) {
+    messages_.Say(
+        "The entity '%s' in COMMON block /%s/ may not have an explicit SAVE attribute"_err_en_US,
+        symbol.name(), common->name());
+  } else if (IsAutomatic(ultimate)) {
+    messages_.Say(
+        "The automatic object '%s' may not have an explicit SAVE attribute"_err_en_US,
+        symbol.name());
+  } else if (!evaluate::IsVariable(ultimate) && !IsProcedurePointer(ultimate)) {
+    messages_.Say(
+        "The entity '%s' with an explicit SAVE attribute must be a variable, procedure pointer, or COMMON block"_err_en_US,
+        symbol.name());
+  }
 }
 
 void CheckHelper::CheckBindCFunctionResult(const Symbol &symbol) { // C1553
@@ -914,7 +961,7 @@ void CheckHelper::CheckProcEntity(
     }
     CheckPassArg(symbol, details.procInterface(), details);
   }
-  if (symbol.attrs().test(Attr::POINTER)) {
+  if (IsPointer(symbol)) {
     CheckPointerInitialization(symbol);
     if (const Symbol * interface{details.procInterface()}) {
       const Symbol &ultimate{interface->GetUltimate()};
@@ -934,12 +981,8 @@ void CheckHelper::CheckProcEntity(
             symbol.name()); // C1517
       }
     }
-  } else if (symbol.attrs().test(Attr::SAVE)) {
-    messages_.Say(
-        "Procedure '%s' with SAVE attribute must also have POINTER attribute"_err_en_US,
-        symbol.name());
   }
-  CheckLocalVsGlobal(symbol);
+  CheckExternal(symbol);
 }
 
 // When a module subprogram has the MODULE prefix the following must match
@@ -1044,6 +1087,20 @@ void CheckHelper::CheckSubprogram(
     if (auto msg{evaluate::CheckStatementFunction(
             symbol, *stmtFunction, context_.foldingContext())}) {
       SayWithDeclaration(symbol, std::move(*msg));
+    } else if (details.result().flags().test(Symbol::Flag::Implicit)) {
+      // 15.6.4 p2 weird requirement
+      if (const Symbol *
+          host{symbol.owner().parent().FindSymbol(symbol.name())}) {
+        evaluate::AttachDeclaration(
+            messages_.Say(symbol.name(),
+                "An implicitly typed statement function should not appear when the same symbol is available in its host scope"_port_en_US),
+            *host);
+      }
+    }
+    if (GetProgramUnitOrBlockConstructContaining(symbol).kind() ==
+        Scope::Kind::BlockConstruct) { // C1107
+      messages_.Say(symbol.name(),
+          "A statement function definition may not appear in a BLOCK construct"_err_en_US);
     }
   }
   if (IsElementalProcedure(symbol)) {
@@ -1066,17 +1123,18 @@ void CheckHelper::CheckSubprogram(
           "A function interface may not declare an assumed-length CHARACTER(*) result"_err_en_US);
     }
   }
-  CheckLocalVsGlobal(symbol);
+  CheckExternal(symbol);
   CheckModuleProcedureDef(symbol);
 }
 
-void CheckHelper::CheckLocalVsGlobal(const Symbol &symbol) {
+void CheckHelper::CheckExternal(const Symbol &symbol) {
   if (IsExternal(symbol)) {
-    if (const Symbol *global{FindGlobal(symbol)}; global && global != &symbol) {
-      std::string interfaceName{symbol.name().ToString()};
-      if (const auto *bind{symbol.GetBindName()}) {
-        interfaceName = *bind;
-      }
+    std::string interfaceName{symbol.name().ToString()};
+    if (const auto *bind{symbol.GetBindName()}) {
+      interfaceName = *bind;
+    }
+    if (const Symbol * global{FindGlobal(symbol)};
+        global && global != &symbol) {
       std::string definitionName{global->name().ToString()};
       if (const auto *bind{global->GetBindName()}) {
         definitionName = *bind;
@@ -1114,6 +1172,24 @@ void CheckHelper::CheckLocalVsGlobal(const Symbol &symbol) {
           evaluate::AttachDeclaration(msg, symbol);
         }
       }
+    } else if (auto iter{externalNames_.find(interfaceName)};
+               iter != externalNames_.end()) {
+      const Symbol &previous{*iter->second};
+      if (auto chars{Characterize(symbol)}) {
+        if (auto previousChars{Characterize(previous)}) {
+          std::string whyNot;
+          if (!chars->IsCompatibleWith(*previousChars, &whyNot)) {
+            if (auto *msg{messages_.Say(
+                    "The external interface '%s' is not compatible with an earlier definition (%s)"_warn_en_US,
+                    symbol.name(), whyNot)}) {
+              evaluate::AttachDeclaration(msg, previous);
+              evaluate::AttachDeclaration(msg, symbol);
+            }
+          }
+        }
+      }
+    } else {
+      externalNames_.emplace(interfaceName, symbol);
     }
   }
 }
@@ -1337,7 +1413,7 @@ void CheckHelper::CheckHostAssoc(
 
 void CheckHelper::CheckGeneric(
     const Symbol &symbol, const GenericDetails &details) {
-  CheckSpecificsAreDistinguishable(symbol, details);
+  CheckSpecifics(symbol, details);
   common::visit(common::visitors{
                     [&](const GenericKind::DefinedIo &io) {
                       CheckDefinedIoProc(symbol, details, io);
@@ -1360,11 +1436,36 @@ void CheckHelper::CheckGeneric(
 }
 
 // Check that the specifics of this generic are distinguishable from each other
-void CheckHelper::CheckSpecificsAreDistinguishable(
+void CheckHelper::CheckSpecifics(
     const Symbol &generic, const GenericDetails &details) {
   GenericKind kind{details.kind()};
   DistinguishabilityHelper helper{context_};
   for (const Symbol &specific : details.specificProcs()) {
+    if (specific.attrs().test(Attr::ABSTRACT)) {
+      if (auto *msg{messages_.Say(generic.name(),
+              "Generic interface '%s' must not use abstract interface '%s' as a specific procedure"_err_en_US,
+              generic.name(), specific.name())}) {
+        msg->Attach(
+            specific.name(), "Definition of '%s'"_en_US, specific.name());
+      }
+      continue;
+    }
+    if (specific.attrs().test(Attr::INTRINSIC)) {
+      if (auto *msg{messages_.Say(specific.name(),
+              "Specific procedure '%s' of generic interface '%s' may not be INTRINSIC"_err_en_US,
+              specific.name(), generic.name())}) {
+        msg->Attach(generic.name(), "Definition of '%s'"_en_US, generic.name());
+      }
+      continue;
+    }
+    if (IsStmtFunction(specific)) {
+      if (auto *msg{messages_.Say(specific.name(),
+              "Specific procedure '%s' of generic interface '%s' may not be a statement function"_err_en_US,
+              specific.name(), generic.name())}) {
+        msg->Attach(generic.name(), "Definition of '%s'"_en_US, generic.name());
+      }
+      continue;
+    }
     if (const Procedure *procedure{Characterize(specific)}) {
       if (procedure->HasExplicitInterface()) {
         helper.Add(generic, kind, specific, *procedure);
@@ -1884,7 +1985,7 @@ void CheckHelper::CheckProcBinding(
           if (isNopass) {
             if (!bindingChars->CanOverride(*overriddenChars, std::nullopt)) {
               SayWithDeclaration(*overridden,
-                  "A type-bound procedure and its override must have compatible interfaces"_err_en_US);
+                  "A NOPASS type-bound procedure and its override must have identical interfaces"_err_en_US);
             }
           } else if (!context_.HasError(binding.symbol())) {
             int passIndex{bindingChars->FindPassIndex(binding.passName())};
@@ -1896,15 +1997,25 @@ void CheckHelper::CheckProcBinding(
             } else if (!bindingChars->CanOverride(
                            *overriddenChars, passIndex)) {
               SayWithDeclaration(*overridden,
-                  "A type-bound procedure and its override must have compatible interfaces apart from their passed argument"_err_en_US);
+                  "A type-bound procedure and its override must have compatible interfaces"_err_en_US);
             }
           }
         }
       }
-      if (symbol.attrs().test(Attr::PRIVATE) &&
-          overridden->attrs().test(Attr::PUBLIC)) {
-        SayWithDeclaration(*overridden,
-            "A PRIVATE procedure may not override a PUBLIC procedure"_err_en_US);
+      if (symbol.attrs().test(Attr::PRIVATE)) {
+        if (FindModuleContaining(dtScope) ==
+            FindModuleContaining(overridden->owner())) {
+          // types declared in same madule
+          if (!overridden->attrs().test(Attr::PRIVATE)) {
+            SayWithDeclaration(*overridden,
+                "A PRIVATE procedure may not override a PUBLIC procedure"_err_en_US);
+          }
+        } else { // types declared in distinct madules
+          if (!CheckAccessibleSymbol(dtScope.parent(), *overridden)) {
+            SayWithDeclaration(*overridden,
+                "A PRIVATE procedure may not override an accessible procedure"_err_en_US);
+          }
+        }
       }
     } else {
       SayWithDeclaration(*overridden,
@@ -2169,34 +2280,132 @@ void CheckHelper::CheckGlobalName(const Symbol &symbol) {
 }
 
 void CheckHelper::CheckBindC(const Symbol &symbol) {
-  if (!symbol.attrs().test(Attr::BIND_C)) {
-    return;
+  bool isExplicitBindC{symbol.attrs().test(Attr::BIND_C)};
+  if (isExplicitBindC) {
+    CheckConflicting(symbol, Attr::BIND_C, Attr::PARAMETER);
+    CheckConflicting(symbol, Attr::BIND_C, Attr::ELEMENTAL);
+  } else {
+    // symbol must be interoperable (e.g., dummy argument of interoperable
+    // procedure interface) but is not itself BIND(C).
   }
-  CheckConflicting(symbol, Attr::BIND_C, Attr::PARAMETER);
-  CheckConflicting(symbol, Attr::BIND_C, Attr::ELEMENTAL);
   if (const std::string * bindName{symbol.GetBindName()};
-      bindName && !bindName->empty()) {
-    bool ok{bindName->front() == '_' || parser::IsLetter(bindName->front())};
-    for (char ch : *bindName) {
-      ok &= ch == '_' || parser::IsLetter(ch) || parser::IsDecimalDigit(ch);
+      bindName) { // has a binding name
+    if (!bindName->empty()) {
+      bool ok{bindName->front() == '_' || parser::IsLetter(bindName->front())};
+      for (char ch : *bindName) {
+        ok &= ch == '_' || parser::IsLetter(ch) || parser::IsDecimalDigit(ch);
+      }
+      if (!ok) {
+        messages_.Say(symbol.name(),
+            "Symbol has a BIND(C) name that is not a valid C language identifier"_err_en_US);
+        context_.SetError(symbol);
+      }
     }
-    if (!ok) {
+  }
+  if (symbol.GetIsExplicitBindName()) { // BIND(C,NAME=...); C1552, C1529
+    auto defClass{ClassifyProcedure(symbol)};
+    if (IsProcedurePointer(symbol)) {
       messages_.Say(symbol.name(),
-          "Symbol has a BIND(C) name that is not a valid C language identifier"_err_en_US);
+          "A procedure pointer may not have a BIND attribute with a name"_err_en_US);
+      context_.SetError(symbol);
+    } else if (defClass == ProcedureDefinitionClass::None ||
+        IsExternal(symbol)) {
+    } else if (symbol.attrs().test(Attr::ABSTRACT)) {
+      messages_.Say(symbol.name(),
+          "An ABSTRACT interface may not have a BIND attribute with a name"_err_en_US);
+      context_.SetError(symbol);
+    } else if (defClass == ProcedureDefinitionClass::Internal ||
+        defClass == ProcedureDefinitionClass::Dummy) {
+      messages_.Say(symbol.name(),
+          "An internal or dummy procedure may not have a BIND(C,NAME=) binding label"_err_en_US);
       context_.SetError(symbol);
     }
   }
-  if (symbol.has<ObjectEntityDetails>() && !symbol.owner().IsModule()) {
-    messages_.Say(symbol.name(),
-        "A variable with BIND(C) attribute may only appear in the specification part of a module"_err_en_US);
-    context_.SetError(symbol);
-  }
-  if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
+  if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
+    if (isExplicitBindC && !symbol.owner().IsModule()) {
+      messages_.Say(symbol.name(),
+          "A variable with BIND(C) attribute may only appear in the specification part of a module"_err_en_US);
+      context_.SetError(symbol);
+    }
+    auto shape{evaluate::GetShape(foldingContext_, symbol)};
+    if (shape) {
+      if (evaluate::GetRank(*shape) == 0) { // 18.3.4
+        if (isExplicitBindC && IsAllocatableOrPointer(symbol)) {
+          messages_.Say(symbol.name(),
+              "A scalar interoperable variable may not be ALLOCATABLE or POINTER"_err_en_US);
+          context_.SetError(symbol);
+        }
+      } else { // 18.3.5
+        if (auto extents{
+                evaluate::AsConstantExtents(foldingContext_, *shape)}) {
+          if (evaluate::GetSize(*extents) == 0) {
+            SayWithDeclaration(symbol, symbol.name(),
+                "Interoperable array must have at least one element"_err_en_US);
+            context_.SetError(symbol);
+          }
+        } else if ((isExplicitBindC || symbol.attrs().test(Attr::VALUE)) &&
+            !evaluate::IsExplicitShape(symbol) && !object->IsAssumedSize()) {
+          SayWithDeclaration(symbol, symbol.name(),
+              "BIND(C) array must have explicit shape or be assumed-size unless a dummy argument without the VALUE attribute"_err_en_US);
+          context_.SetError(symbol);
+        }
+      }
+    }
+    if (const auto *type{symbol.GetType()}) {
+      const auto *derived{type->AsDerived()};
+      if (derived && !derived->typeSymbol().attrs().test(Attr::BIND_C)) {
+        if (auto *msg{messages_.Say(symbol.name(),
+                "The derived type of a BIND(C) object must also be BIND(C)"_err_en_US)}) {
+          msg->Attach(
+              derived->typeSymbol().name(), "Non-interoperable type"_en_US);
+        }
+        context_.SetError(symbol);
+      }
+      if (type->IsAssumedType() || IsAssumedLengthCharacter(symbol)) {
+        // ok
+      } else if (IsAllocatableOrPointer(symbol) &&
+          type->category() == DeclTypeSpec::Character &&
+          type->characterTypeSpec().length().isDeferred()) {
+        // ok; F'2018 18.3.6 p2(6)
+      } else if (derived || IsInteroperableIntrinsicType(*type)) {
+        // F'2018 18.3.6 p2(4,5)
+      } else if (type->category() == DeclTypeSpec::Logical && IsDummy(symbol) &&
+          evaluate::GetRank(*shape) == 0) {
+        // Special exception: LOGICAL scalar dummy arguments can be converted
+        // before a call -- & after if not INTENT(IN) -- without loss of
+        // information, and are accepted by some older compilers.
+        messages_.Say(symbol.name(),
+            "A BIND(C) LOGICAL dummy argument should have the interoperable KIND=C_BOOL"_port_en_US);
+      } else if (symbol.attrs().test(Attr::VALUE)) {
+        messages_.Say(symbol.name(),
+            "A BIND(C) VALUE dummy argument must have an interoperable type"_err_en_US);
+        context_.SetError(symbol);
+      } else {
+        messages_.Say(symbol.name(),
+            "A BIND(C) object must have an interoperable type"_err_en_US);
+        context_.SetError(symbol);
+      }
+    }
+    if (IsOptional(symbol) && !symbol.attrs().test(Attr::VALUE)) {
+      messages_.Say(symbol.name(),
+          "An interoperable procedure with an OPTIONAL dummy argument might not be portable"_port_en_US);
+    }
+  } else if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
     if (!proc->procInterface() ||
         !proc->procInterface()->attrs().test(Attr::BIND_C)) {
       messages_.Say(symbol.name(),
           "An interface name with BIND attribute must be specified if the BIND attribute is specified in a procedure declaration statement"_err_en_US);
       context_.SetError(symbol);
+    }
+  } else if (const auto *subp{symbol.detailsIf<SubprogramDetails>()}) {
+    for (const Symbol *dummy : subp->dummyArgs()) {
+      if (dummy) {
+        CheckBindC(*dummy);
+      } else {
+        messages_.Say(symbol.name(),
+            "A subprogram interface with the BIND attribute may not have an alternate return argument"_err_en_US);
+        context_.SetError(symbol);
+      }
     }
   } else if (const auto *derived{symbol.detailsIf<DerivedTypeDetails>()}) {
     if (derived->sequence()) { // C1801
@@ -2215,30 +2424,38 @@ void CheckHelper::CheckBindC(const Symbol &symbol) {
       for (const auto &pair : *symbol.scope()) {
         const Symbol *component{&*pair.second};
         if (IsProcedure(*component)) { // C1804
-          messages_.Say(symbol.name(),
+          messages_.Say(component->name(),
               "A derived type with the BIND attribute cannot have a type bound procedure"_err_en_US);
           context_.SetError(symbol);
-          break;
-        } else if (IsAllocatableOrPointer(*component)) { // C1806
-          messages_.Say(symbol.name(),
+        }
+        if (IsAllocatableOrPointer(*component)) { // C1806
+          messages_.Say(component->name(),
               "A derived type with the BIND attribute cannot have a pointer or allocatable component"_err_en_US);
           context_.SetError(symbol);
-          break;
-        } else if (const auto *type{component->GetType()}) {
+        }
+        if (const auto *type{component->GetType()}) {
           if (const auto *derived{type->AsDerived()}) {
             if (!derived->typeSymbol().attrs().test(Attr::BIND_C)) {
-              messages_.Say(
-                  component->GetType()->AsDerived()->typeSymbol().name(),
-                  "The component of the interoperable derived type must have the BIND attribute"_err_en_US);
+              if (auto *msg{messages_.Say(component->name(),
+                      "Component '%s' of an interoperable derived type must have the BIND attribute"_err_en_US,
+                      component->name())}) {
+                msg->Attach(derived->typeSymbol().name(),
+                    "Non-interoperable component type"_en_US);
+              }
               context_.SetError(symbol);
-              break;
             }
           } else if (!IsInteroperableIntrinsicType(*type)) {
             messages_.Say(component->name(),
                 "Each component of an interoperable derived type must have an interoperable type"_err_en_US);
             context_.SetError(symbol);
-            break;
           }
+        }
+        if (auto extents{
+                evaluate::GetConstantExtents(foldingContext_, component)};
+            extents && evaluate::GetSize(*extents) == 0) {
+          messages_.Say(component->name(),
+              "An array component of an interoperable type must have at least one element"_err_en_US);
+          context_.SetError(symbol);
         }
       }
     }
@@ -2269,24 +2486,32 @@ bool CheckHelper::CheckDioDummyIsData(
 
 void CheckHelper::CheckAlreadySeenDefinedIo(const DerivedTypeSpec &derivedType,
     GenericKind::DefinedIo ioKind, const Symbol &proc, const Symbol &generic) {
-  for (TypeWithDefinedIo definedIoType : seenDefinedIoTypes_) {
-    // It's okay to have two or more distinct derived type I/O procedures
-    // for the same type if they're coming from distinct non-type-bound
-    // interfaces.  (The non-type-bound interfaces would have been merged into
-    // a single generic if both were visible in the same scope.)
-    if (derivedType == definedIoType.type && ioKind == definedIoType.ioKind &&
-        proc != definedIoType.proc &&
-        (generic.owner().IsDerivedType() ||
-            definedIoType.generic.owner().IsDerivedType())) {
-      SayWithDeclaration(proc, definedIoType.proc.name(),
-          "Derived type '%s' already has defined input/output procedure"
-          " '%s'"_err_en_US,
-          derivedType.name(), GenericKind::AsFortran(ioKind));
-      return;
+  // Check for conflict between non-type-bound UDDTIO and type-bound generics.
+  // It's okay to have two or more distinct derived type I/O procedures
+  // for the same type if they're coming from distinct non-type-bound
+  // interfaces.  (The non-type-bound interfaces would have been merged into
+  // a single generic -- with errors where indistinguishable --  if both were
+  // visible in the same scope.)
+  if (generic.owner().IsDerivedType()) {
+    return;
+  }
+  if (const Scope * dtScope{derivedType.scope()}) {
+    if (auto iter{dtScope->find(generic.name())}; iter != dtScope->end()) {
+      for (auto specRef : iter->second->get<GenericDetails>().specificProcs()) {
+        const Symbol &specific{specRef->get<ProcBindingDetails>().symbol()};
+        if (specific == proc) { // unambiguous, accept
+          continue;
+        }
+        if (const auto *specDT{GetDtvArgDerivedType(specific)};
+            specDT && evaluate::AreSameDerivedType(derivedType, *specDT)) {
+          SayWithDeclaration(*specRef, proc.name(),
+              "Derived type '%s' has conflicting type-bound input/output procedure '%s'"_err_en_US,
+              derivedType.name(), GenericKind::AsFortran(ioKind));
+          return;
+        }
+      }
     }
   }
-  seenDefinedIoTypes_.emplace_back(
-      TypeWithDefinedIo{derivedType, ioKind, proc, generic});
 }
 
 void CheckHelper::CheckDioDummyIsDerived(const Symbol &subp, const Symbol &arg,

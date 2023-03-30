@@ -325,6 +325,22 @@ Intrinsic::ID CallBase::getIntrinsicID() const {
   return Intrinsic::not_intrinsic;
 }
 
+FPClassTest CallBase::getRetNoFPClass() const {
+  FPClassTest Mask = Attrs.getRetNoFPClass();
+
+  if (const Function *F = getCalledFunction())
+    Mask |= F->getAttributes().getRetNoFPClass();
+  return Mask;
+}
+
+FPClassTest CallBase::getParamNoFPClass(unsigned i) const {
+  FPClassTest Mask = Attrs.getParamNoFPClass(i);
+
+  if (const Function *F = getCalledFunction())
+    Mask |= F->getAttributes().getParamNoFPClass(i);
+  return Mask;
+}
+
 bool CallBase::isReturnNonNull() const {
   if (hasRetAttr(Attribute::NonNull))
     return true;
@@ -2501,10 +2517,10 @@ bool ShuffleVectorInst::isInsertSubvectorMask(ArrayRef<int> Mask,
 
   // Determine lo/hi span ranges.
   // TODO: How should we handle undefs at the start of subvector insertions?
-  int Src0Lo = Src0Elts.countTrailingZeros();
-  int Src1Lo = Src1Elts.countTrailingZeros();
-  int Src0Hi = NumMaskElts - Src0Elts.countLeadingZeros();
-  int Src1Hi = NumMaskElts - Src1Elts.countLeadingZeros();
+  int Src0Lo = Src0Elts.countr_zero();
+  int Src1Lo = Src1Elts.countr_zero();
+  int Src0Hi = NumMaskElts - Src0Elts.countl_zero();
+  int Src1Hi = NumMaskElts - Src1Elts.countl_zero();
 
   // If src0 is in place, see if the src1 elements is inplace within its own
   // span.
@@ -2710,6 +2726,98 @@ bool ShuffleVectorInst::isOneUseSingleSourceMask(int VF) const {
     return false;
 
   return isOneUseSingleSourceMask(ShuffleMask, VF);
+}
+
+bool ShuffleVectorInst::isInterleave(unsigned Factor) {
+  FixedVectorType *OpTy = dyn_cast<FixedVectorType>(getOperand(0)->getType());
+  // shuffle_vector can only interleave fixed length vectors - for scalable
+  // vectors, see the @llvm.experimental.vector.interleave2 intrinsic
+  if (!OpTy)
+    return false;
+  unsigned OpNumElts = OpTy->getNumElements();
+
+  return isInterleaveMask(ShuffleMask, Factor, OpNumElts * 2);
+}
+
+bool ShuffleVectorInst::isInterleaveMask(
+    ArrayRef<int> Mask, unsigned Factor, unsigned NumInputElts,
+    SmallVectorImpl<unsigned> &StartIndexes) {
+  unsigned NumElts = Mask.size();
+  if (NumElts % Factor)
+    return false;
+
+  unsigned LaneLen = NumElts / Factor;
+  if (!isPowerOf2_32(LaneLen))
+    return false;
+
+  StartIndexes.resize(Factor);
+
+  // Check whether each element matches the general interleaved rule.
+  // Ignore undef elements, as long as the defined elements match the rule.
+  // Outer loop processes all factors (x, y, z in the above example)
+  unsigned I = 0, J;
+  for (; I < Factor; I++) {
+    unsigned SavedLaneValue;
+    unsigned SavedNoUndefs = 0;
+
+    // Inner loop processes consecutive accesses (x, x+1... in the example)
+    for (J = 0; J < LaneLen - 1; J++) {
+      // Lane computes x's position in the Mask
+      unsigned Lane = J * Factor + I;
+      unsigned NextLane = Lane + Factor;
+      int LaneValue = Mask[Lane];
+      int NextLaneValue = Mask[NextLane];
+
+      // If both are defined, values must be sequential
+      if (LaneValue >= 0 && NextLaneValue >= 0 &&
+          LaneValue + 1 != NextLaneValue)
+        break;
+
+      // If the next value is undef, save the current one as reference
+      if (LaneValue >= 0 && NextLaneValue < 0) {
+        SavedLaneValue = LaneValue;
+        SavedNoUndefs = 1;
+      }
+
+      // Undefs are allowed, but defined elements must still be consecutive:
+      // i.e.: x,..., undef,..., x + 2,..., undef,..., undef,..., x + 5, ....
+      // Verify this by storing the last non-undef followed by an undef
+      // Check that following non-undef masks are incremented with the
+      // corresponding distance.
+      if (SavedNoUndefs > 0 && LaneValue < 0) {
+        SavedNoUndefs++;
+        if (NextLaneValue >= 0 &&
+            SavedLaneValue + SavedNoUndefs != (unsigned)NextLaneValue)
+          break;
+      }
+    }
+
+    if (J < LaneLen - 1)
+      return false;
+
+    int StartMask = 0;
+    if (Mask[I] >= 0) {
+      // Check that the start of the I range (J=0) is greater than 0
+      StartMask = Mask[I];
+    } else if (Mask[(LaneLen - 1) * Factor + I] >= 0) {
+      // StartMask defined by the last value in lane
+      StartMask = Mask[(LaneLen - 1) * Factor + I] - J;
+    } else if (SavedNoUndefs > 0) {
+      // StartMask defined by some non-zero value in the j loop
+      StartMask = SavedLaneValue - (LaneLen - 1 - SavedNoUndefs);
+    }
+    // else StartMask remains set to 0, i.e. all elements are undefs
+
+    if (StartMask < 0)
+      return false;
+    // We must stay within the vectors; This case can happen with undefs.
+    if (StartMask + LaneLen > NumInputElts)
+      return false;
+
+    StartIndexes[I] = StartMask;
+  }
+
+  return true;
 }
 
 //===----------------------------------------------------------------------===//
@@ -4136,6 +4244,11 @@ StringRef CmpInst::getPredicateName(Predicate Pred) {
   case ICmpInst::ICMP_ULT:   return "ult";
   case ICmpInst::ICMP_ULE:   return "ule";
   }
+}
+
+raw_ostream &llvm::operator<<(raw_ostream &OS, CmpInst::Predicate Pred) {
+  OS << CmpInst::getPredicateName(Pred);
+  return OS;
 }
 
 ICmpInst::Predicate ICmpInst::getSignedPredicate(Predicate pred) {

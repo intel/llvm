@@ -147,8 +147,9 @@ simplifyBrToBlockWithSinglePred(BranchOp op, PatternRewriter &rewriter) {
     return failure();
 
   // Merge the successor into the current block and erase the branch.
-  rewriter.mergeBlocks(succ, opParent, op.getOperands());
+  SmallVector<Value> brOperands(op.getOperands());
   rewriter.eraseOp(op);
+  rewriter.mergeBlocks(succ, opParent, brOperands);
   return success();
 }
 
@@ -442,7 +443,7 @@ SuccessorOperands CondBranchOp::getSuccessorOperands(unsigned index) {
 
 Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
   if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
-    return condAttr.getValue().isOneValue() ? getTrueDest() : getFalseDest();
+    return condAttr.getValue().isOne() ? getTrueDest() : getFalseDest();
   return nullptr;
 }
 

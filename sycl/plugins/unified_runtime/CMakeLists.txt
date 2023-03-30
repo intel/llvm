@@ -15,8 +15,17 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   # Disable errors from warnings while building the UR.
   # And remember origin flags before doing that.
   set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
-  if (UNIX)
+  if(WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
+    # FIXME: Unified runtime build fails with /DUNICODE
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
+    # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+    set(USE_Z7 ON)
+  else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
   endif()
 
   # No need to build tests from unified-runtime

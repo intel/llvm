@@ -26,6 +26,7 @@ endif()
 add_public_tablegen_target(X86CommonTableGen)
 
 set(sources
+  X86ArgumentStackSlotRebase.cpp
   X86AsmPrinter.cpp
   X86AvoidTrailingCall.cpp
   X86CallFrameOptimization.cpp
@@ -46,6 +47,7 @@ set(sources
   X86FastISel.cpp
   X86FixupBWInsts.cpp
   X86FixupLEAs.cpp
+  X86FixupInstTuning.cpp
   X86AvoidStoreForwardingBlocks.cpp
   X86DynAllocaExpander.cpp
   X86FixupSetCC.cpp

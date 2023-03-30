@@ -2614,18 +2614,8 @@ SDValue NVPTXTargetLowering::LowerSTOREi1(SDValue Op, SelectionDAG &DAG) const {
 // passing variable arguments.
 SDValue NVPTXTargetLowering::getParamSymbol(SelectionDAG &DAG, int idx,
                                             EVT v) const {
-  std::string ParamSym;
-  raw_string_ostream ParamStr(ParamSym);
-
-  ParamStr << DAG.getMachineFunction().getName();
-
-  if (idx < 0)
-    ParamStr << "_vararg";
-  else
-    ParamStr << "_param_" << idx;
-
-  StringRef SavedStr =
-    nvTM->getStrPool().save(ParamSym);
+  StringRef SavedStr = nvTM->getStrPool().save(
+      getParamName(&DAG.getMachineFunction().getFunction(), idx));
   return DAG.getTargetExternalSymbol(SavedStr.data(), v);
 }
 
@@ -2676,7 +2666,9 @@ SDValue NVPTXTargetLowering::LowerFormalArguments(
         SmallVector<EVT, 16> vtparts;
 
         ComputePTXValueVTs(*this, DAG.getDataLayout(), Ty, vtparts);
-        assert(vtparts.size() > 0 && "empty aggregate type not expected");
+        if (vtparts.empty())
+          report_fatal_error("Empty parameter types are not supported");
+
         for (unsigned parti = 0, parte = vtparts.size(); parti != parte;
              ++parti) {
           InVals.push_back(DAG.getNode(ISD::UNDEF, dl, Ins[InsIdx].VT));
@@ -2713,7 +2705,9 @@ SDValue NVPTXTargetLowering::LowerFormalArguments(
       SmallVector<EVT, 16> VTs;
       SmallVector<uint64_t, 16> Offsets;
       ComputePTXValueVTs(*this, DL, Ty, VTs, &Offsets, 0);
-      assert(VTs.size() > 0 && "Unexpected empty type.");
+      if (VTs.empty())
+        report_fatal_error("Empty parameter types are not supported");
+
       auto VectorInfo =
           VectorizePTXValueVTs(VTs, Offsets, DL.getABITypeAlign(Ty));
 
@@ -4520,6 +4514,23 @@ Align NVPTXTargetLowering::getFunctionByValParamAlign(
   ArgAlign = std::max(ArgAlign, Align(4));
 
   return ArgAlign;
+}
+
+// Helper for getting a function parameter name. Name is composed from
+// its index and the function name. Negative index corresponds to special
+// parameter (unsized array) used for passing variable arguments.
+std::string NVPTXTargetLowering::getParamName(const Function *F,
+                                              int Idx) const {
+  std::string ParamName;
+  raw_string_ostream ParamStr(ParamName);
+
+  ParamStr << getTargetMachine().getSymbol(F)->getName();
+  if (Idx < 0)
+    ParamStr << "_vararg";
+  else
+    ParamStr << "_param_" << Idx;
+
+  return ParamName;
 }
 
 /// isLegalAddressingMode - Return true if the addressing mode represented

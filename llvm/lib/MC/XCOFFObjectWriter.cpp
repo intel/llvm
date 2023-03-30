@@ -488,8 +488,7 @@ void XCOFFObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
                                                  const MCAsmLayout &Layout) {
   for (const auto &S : Asm) {
     const auto *MCSec = cast<const MCSectionXCOFF>(&S);
-    assert(SectionMap.find(MCSec) == SectionMap.end() &&
-           "Cannot add a section twice.");
+    assert(!SectionMap.contains(MCSec) && "Cannot add a section twice.");
 
     // If the name does not fit in the storage provided in the symbol table
     // entry, add it to the string table.
@@ -547,7 +546,7 @@ void XCOFFObjectWriter::executePostLayoutBinding(MCAssembler &Asm,
     if (!XSym->isExternal())
       continue;
 
-    assert(SectionMap.find(ContainingCsect) != SectionMap.end() &&
+    assert(SectionMap.contains(ContainingCsect) &&
            "Expected containing csect to exist in map");
     XCOFFSection *Csect = SectionMap[ContainingCsect];
     // Lookup the containing csect and add the symbol to it.
@@ -583,7 +582,7 @@ void XCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
     // If we could not find the symbol directly in SymbolIndexMap, this symbol
     // could either be a temporary symbol or an undefined symbol. In this case,
     // we would need to have the relocation reference its csect instead.
-    return SymbolIndexMap.find(Sym) != SymbolIndexMap.end()
+    return SymbolIndexMap.contains(Sym)
                ? SymbolIndexMap[Sym]
                : SymbolIndexMap[ContainingCsect->getQualNameSymbol()];
   };
@@ -616,7 +615,7 @@ void XCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
       TargetObjectWriter->getRelocTypeAndSignSize(Target, Fixup, IsPCRel);
 
   const MCSectionXCOFF *SymASec = getContainingCsect(cast<MCSymbolXCOFF>(SymA));
-  assert(SectionMap.find(SymASec) != SectionMap.end() &&
+  assert(SectionMap.contains(SymASec) &&
          "Expected containing csect to exist in map.");
 
   const uint32_t Index = getIndex(SymA, SymASec);
@@ -664,7 +663,10 @@ void XCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
     // instr address plus any constant value.
     FixedValue =
         SectionMap[SymASec]->Address - BRInstrAddress + Target.getConstant();
-  }
+  } else if (Type == XCOFF::RelocationType::R_REF)
+    // The FixedValue should always be 0 since it specifies a nonrelocating
+    // reference.
+    FixedValue = 0;
 
   assert((Fixup.getOffset() <=
           MaxRawDataSize - Layout.getFragmentOffset(Fragment)) &&
@@ -674,7 +676,7 @@ void XCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
 
   XCOFFRelocation Reloc = {Index, FixupOffsetInCsect, SignAndSize, Type};
   MCSectionXCOFF *RelocationSec = cast<MCSectionXCOFF>(Fragment->getParent());
-  assert(SectionMap.find(RelocationSec) != SectionMap.end() &&
+  assert(SectionMap.contains(RelocationSec) &&
          "Expected containing csect to exist in map.");
   SectionMap[RelocationSec]->Relocations.push_back(Reloc);
 
@@ -686,7 +688,7 @@ void XCOFFObjectWriter::recordRelocation(MCAssembler &Asm,
     report_fatal_error("relocation for opposite term is not yet supported");
 
   const MCSectionXCOFF *SymBSec = getContainingCsect(cast<MCSymbolXCOFF>(SymB));
-  assert(SectionMap.find(SymBSec) != SectionMap.end() &&
+  assert(SectionMap.contains(SymBSec) &&
          "Expected containing csect to exist in map.");
   if (SymASec == SymBSec)
     report_fatal_error(
