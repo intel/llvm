@@ -34,12 +34,17 @@ void test(queue q, InputContainer input, OutputContainer output,
       cgh.parallel_for<SpecializationKernelName>(
           nd_range<1>(G, G), [=](nd_item<1> it) {
             group<1> g = it.get_group();
+            auto sg = it.get_sub_group();
             int lid = it.get_local_id(0);
             out[0] = reduce_over_group(g, in[lid], binary_op);
             out[1] = reduce_over_group(g, in[lid], init, binary_op);
             out[2] = joint_reduce(g, global_ptr<InputT>(in),
                                   global_ptr<InputT>(in) + N, binary_op);
             out[3] = joint_reduce(g, global_ptr<InputT>(in),
+                                  global_ptr<InputT>(in) + N, init, binary_op);
+            out[4] = joint_reduce(sg, global_ptr<InputT>(in),
+                                  global_ptr<InputT>(in) + N, binary_op);
+            out[5] = joint_reduce(sg, global_ptr<InputT>(in),
                                   global_ptr<InputT>(in) + N, init, binary_op);
           });
     });
@@ -54,6 +59,10 @@ void test(queue q, InputContainer input, OutputContainer output,
          std::accumulate(input.begin(), input.end(), identity, binary_op));
   assert(output[3] ==
          std::accumulate(input.begin(), input.end(), init, binary_op));
+  assert(output[4] ==
+         std::accumulate(input.begin(), input.end(), identity, binary_op));
+  assert(output[5] ==
+         std::accumulate(input.begin(), input.end(), init, binary_op));
 }
 
 int main() {
@@ -65,7 +74,7 @@ int main() {
 
   constexpr int N = 128;
   std::array<int, N> input;
-  std::array<int, 4> output;
+  std::array<int, 6> output;
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), 0);
 
@@ -93,7 +102,7 @@ int main() {
   // sycl::plus binary operation.
 #ifdef SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS
   std::array<std::complex<float>, N> input_cf;
-  std::array<std::complex<float>, 4> output_cf;
+  std::array<std::complex<float>, 6> output_cf;
   std::iota(input_cf.begin(), input_cf.end(), 0);
   std::fill(output_cf.begin(), output_cf.end(), 0);
   test<class KernelNamePlusComplexF>(q, input_cf, output_cf,
@@ -102,7 +111,7 @@ int main() {
 
   if (q.get_device().has(aspect::fp64)) {
     std::array<std::complex<double>, N> input_cd;
-    std::array<std::complex<double>, 4> output_cd;
+    std::array<std::complex<double>, 6> output_cd;
     std::iota(input_cd.begin(), input_cd.end(), 0);
     std::fill(output_cd.begin(), output_cd.end(), 0);
     test<class KernelNamePlusComplexD>(q, input_cd, output_cd,
