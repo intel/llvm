@@ -3,6 +3,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// UNSUPPORTED: https://github.com/intel/llvm/issues/8847
 // NOTE: Tests fetch_add for acquire and release memory ordering.
 
 #include "atomic_memory_order.h"
