@@ -40,8 +40,10 @@ if(("${SYCL_BUILD_PI_HIP_INCLUDE_DIR}" STREQUAL "") OR
    ("${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}" STREQUAL "") OR
    (("${SYCL_BUILD_PI_HIP_LIB_DIR}" STREQUAL "") AND ("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")))
 
-  message(FATAL_ERROR "Couldn't find ROCm installation in '${SYCL_BUILD_PI_HIP_ROCM_DIR}',"
-                      " please set SYCL_BUILD_PI_HIP_ROCM_DIR to the path of the ROCm installation.")
+  if(NOT EXISTS "${SYCL_BUILD_PI_HIP_ROCM_DIR}")
+    message(FATAL_ERROR "Couldn't find ROCm installation in '${SYCL_BUILD_PI_HIP_ROCM_DIR}',"
+                        " please set SYCL_BUILD_PI_HIP_ROCM_DIR to the path of the ROCm installation.")
+  endif()
 endif()
 
 # Check if HIP include path exists
