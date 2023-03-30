@@ -521,7 +521,7 @@ ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief static
+/// @brief Returns synchronized Host and Device global timestamps.
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads for

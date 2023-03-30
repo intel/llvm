@@ -1108,7 +1108,7 @@ urDeviceCreateWithNativeHandle(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief static
+/// @brief Returns synchronized Host and Device global timestamps.
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads for
@@ -2226,7 +2226,10 @@ typedef struct ur_usm_desc_t {
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
     ur_usm_flags_t flags;      ///< [in] memory allocation flags.
     ur_usm_advice_t hints;     ///< [in] Memory advice hints
-    uint32_t align;            ///< [in] memory advice hints.
+    uint32_t align;            ///< [in] alignment of the USM memory object
+                               ///< Must be zero or a power of 2.
+                               ///< Must be equal to or smaller than the size of the largest data type
+                               ///< supported by `hDevice`.
 
 } ur_usm_desc_t;
 

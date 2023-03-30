@@ -664,7 +664,7 @@ type: function
 desc: "Returns synchronized Host and Device global timestamps."
 class: $xDevice
 name: GetGlobalTimestamps
-desc: static
+decl: static
 ordinal: "0"
 analogue:
     - "**clGetDeviceAndHostTimer**"
