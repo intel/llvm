@@ -103,7 +103,7 @@ void GenericCall(const Functor &ApplyToBytes) {
   }
 }
 
-template <typename Group> bool GroupAll(Group g, bool pred) {
+template <typename Group> bool GroupAll(Group, bool pred) {
   return __spirv_GroupAll(group_scope<Group>::value, pred);
 }
 template <typename ParentGroup>
@@ -119,7 +119,7 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
   }
 }
 
-template <typename Group> bool GroupAny(Group g, bool pred) {
+template <typename Group> bool GroupAny(Group, bool pred) {
   return __spirv_GroupAny(group_scope<Group>::value, pred);
 }
 template <typename ParentGroup>
