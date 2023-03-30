@@ -2819,12 +2819,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueUSMMemAdvise
-__urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
+/// @brief Intercept function for urEnqueueUSMAdvise
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     const void *pMem,         ///< [in] pointer to the USM memory object
     size_t size,              ///< [in] size in bytes to be advised
-    ur_mem_advice_t advice,   ///< [in] USM memory advice
+    ur_usm_advice_t advice,   ///< [in] USM memory advice
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
@@ -2832,9 +2832,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnUSMMemAdvise = d_context.urDdiTable.Enqueue.pfnUSMMemAdvise;
-    if (nullptr != pfnUSMMemAdvise) {
-        result = pfnUSMMemAdvise(hQueue, pMem, size, advice, phEvent);
+    auto pfnUSMAdvise = d_context.urDdiTable.Enqueue.pfnUSMAdvise;
+    if (nullptr != pfnUSMAdvise) {
+        result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
     } else {
         // generic implementation
         if (nullptr != phEvent) {
@@ -3153,7 +3153,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 
     pDdiTable->pfnUSMPrefetch = driver::urEnqueueUSMPrefetch;
 
-    pDdiTable->pfnUSMMemAdvise = driver::urEnqueueUSMMemAdvise;
+    pDdiTable->pfnUSMAdvise = driver::urEnqueueUSMAdvise;
 
     pDdiTable->pfnUSMFill2D = driver::urEnqueueUSMFill2D;
 

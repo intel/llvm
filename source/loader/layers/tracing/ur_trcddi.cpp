@@ -3459,31 +3459,31 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueUSMMemAdvise
-__urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
+/// @brief Intercept function for urEnqueueUSMAdvise
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     const void *pMem,         ///< [in] pointer to the USM memory object
     size_t size,              ///< [in] size in bytes to be advised
-    ur_mem_advice_t advice,   ///< [in] USM memory advice
+    ur_usm_advice_t advice,   ///< [in] USM memory advice
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
 ) {
-    auto pfnUSMMemAdvise = context.urDdiTable.Enqueue.pfnUSMMemAdvise;
+    auto pfnUSMAdvise = context.urDdiTable.Enqueue.pfnUSMAdvise;
 
-    if (nullptr == pfnUSMMemAdvise) {
+    if (nullptr == pfnUSMAdvise) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_enqueue_usm_mem_advise_params_t params = {&hQueue, &pMem, &size, &advice,
-                                                 &phEvent};
-    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_MEM_ADVISE,
-                                             "urEnqueueUSMMemAdvise", &params);
+    ur_enqueue_usm_advise_params_t params = {&hQueue, &pMem, &size, &advice,
+                                             &phEvent};
+    uint64_t instance = context.notify_begin(UR_FUNCTION_ENQUEUE_USM_ADVISE,
+                                             "urEnqueueUSMAdvise", &params);
 
-    ur_result_t result = pfnUSMMemAdvise(hQueue, pMem, size, advice, phEvent);
+    ur_result_t result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
 
-    context.notify_end(UR_FUNCTION_ENQUEUE_USM_MEM_ADVISE,
-                       "urEnqueueUSMMemAdvise", &params, &result, instance);
+    context.notify_end(UR_FUNCTION_ENQUEUE_USM_ADVISE, "urEnqueueUSMAdvise",
+                       &params, &result, instance);
 
     return result;
 }
@@ -3858,8 +3858,8 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     dditable.pfnUSMPrefetch = pDdiTable->pfnUSMPrefetch;
     pDdiTable->pfnUSMPrefetch = tracing_layer::urEnqueueUSMPrefetch;
 
-    dditable.pfnUSMMemAdvise = pDdiTable->pfnUSMMemAdvise;
-    pDdiTable->pfnUSMMemAdvise = tracing_layer::urEnqueueUSMMemAdvise;
+    dditable.pfnUSMAdvise = pDdiTable->pfnUSMAdvise;
+    pDdiTable->pfnUSMAdvise = tracing_layer::urEnqueueUSMAdvise;
 
     dditable.pfnUSMFill2D = pDdiTable->pfnUSMFill2D;
     pDdiTable->pfnUSMFill2D = tracing_layer::urEnqueueUSMFill2D;

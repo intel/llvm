@@ -953,12 +953,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMPrefetch_t)(
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEnqueueUSMMemAdvise
-typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMMemAdvise_t)(
+/// @brief Function-pointer for urEnqueueUSMAdvise
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMAdvise_t)(
     ur_queue_handle_t,
     const void *,
     size_t,
-    ur_mem_advice_t,
+    ur_usm_advice_t,
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1039,7 +1039,7 @@ typedef struct ur_enqueue_dditable_t {
     ur_pfnEnqueueUSMFill_t pfnUSMFill;
     ur_pfnEnqueueUSMMemcpy_t pfnUSMMemcpy;
     ur_pfnEnqueueUSMPrefetch_t pfnUSMPrefetch;
-    ur_pfnEnqueueUSMMemAdvise_t pfnUSMMemAdvise;
+    ur_pfnEnqueueUSMAdvise_t pfnUSMAdvise;
     ur_pfnEnqueueUSMFill2D_t pfnUSMFill2D;
     ur_pfnEnqueueUSMMemcpy2D_t pfnUSMMemcpy2D;
     ur_pfnEnqueueDeviceGlobalVariableWrite_t pfnDeviceGlobalVariableWrite;
