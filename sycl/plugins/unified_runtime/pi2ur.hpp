@@ -228,6 +228,43 @@ inline pi_result ur2piInfoValue(ur_device_info_t ParamName,
              PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE},
         };
     return Value.convertArray(Map);
+  } else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
+    static std::unordered_map<ur_device_local_mem_type_t,
+                              pi_device_local_mem_type>
+        Map = {
+            {UR_DEVICE_LOCAL_MEM_TYPE_LOCAL, PI_DEVICE_LOCAL_MEM_TYPE_LOCAL},
+            {UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL, PI_DEVICE_LOCAL_MEM_TYPE_GLOBAL},
+        };
+    return Value.convert(Map);
+  } else if (ParamName == UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES ||
+             ParamName == UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES) {
+    static std::unordered_map<ur_memory_order_capability_flag_t,
+                              pi_memory_order_capabilities>
+        Map = {
+            {UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED, PI_MEMORY_ORDER_RELAXED},
+            {UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE, PI_MEMORY_ORDER_ACQUIRE},
+            {UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE, PI_MEMORY_ORDER_RELEASE},
+            {UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL, PI_MEMORY_ORDER_ACQ_REL},
+            {UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST, PI_MEMORY_ORDER_SEQ_CST},
+        };
+    return Value.convertBitSet(Map);
+  } else if (ParamName == UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES ||
+             ParamName == UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES) {
+    static std::unordered_map<ur_memory_scope_capability_flag_t,
+                              pi_memory_scope_capabilities>
+        Map = {
+            {UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM,
+             PI_MEMORY_SCOPE_WORK_ITEM},
+            {UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP,
+             PI_MEMORY_SCOPE_SUB_GROUP},
+            {UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP,
+             PI_MEMORY_SCOPE_WORK_GROUP},
+            {UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE, PI_MEMORY_SCOPE_DEVICE},
+            {UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM, PI_MEMORY_SCOPE_SYSTEM},
+        };
+    return Value.convertBitSet(Map);
+  } else {
+    // TODO: what else needs a UR-PI translation?
   }
 
   if (ParamValueSizePI && ParamValueSizePI != *ParamValueSizeUR) {
@@ -310,7 +347,7 @@ inline pi_result piDeviceRelease(pi_device Device) {
   return PI_SUCCESS;
 }
 
-inline pi_result piPluginGetLastError(char **message) { return PI_SUCCESS; }
+inline pi_result piPluginGetLastError(char **) { return PI_SUCCESS; }
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                                  size_t ParamValueSize, void *ParamValue,
@@ -473,8 +510,14 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
        (ur_device_info_t)UR_EXT_DEVICE_INFO_MAX_MEM_BANDWIDTH},
       {PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS,
        (ur_device_info_t)UR_DEVICE_INFO_BFLOAT16},
-      {PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
+      {PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+       (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES},
+      {PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
        (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES},
+      {PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES,
+       (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES},
+      {PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES,
+       (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES},
   };
 
   auto InfoType = InfoMapping.find(ParamName);
@@ -545,8 +588,8 @@ inline pi_result piDevicePartition(
 
   auto hDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto phSubDevices = reinterpret_cast<ur_device_handle_t *>(SubDevices);
-  HANDLE_ERRORS(urDevicePartition(hDevice, UrProperties, NumEntries, phSubDevices,
-                                  NumSubDevices));
+  HANDLE_ERRORS(urDevicePartition(hDevice, UrProperties, NumEntries,
+                                  phSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }
 } // namespace pi2ur

@@ -95,6 +95,9 @@ namespace device {
 // atomic_fence_order_capabilities, atomic_fence_scope_capabilities, aspects,
 // il_version.
 
+struct atomic_fence_order_capabilities;
+struct atomic_fence_scope_capabilities;
+
 #define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
   struct __SYCL2020_DEPRECATED(Message) Desc;
 #include <sycl/info/device_traits_deprecated.def>
@@ -184,6 +187,7 @@ template <typename T, T param> struct compatibility_param_traits {};
 namespace ext::oneapi::experimental::info::device {
 template <int Dimensions> struct max_work_groups;
 } // namespace ext::oneapi::experimental::info::device
+#include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC

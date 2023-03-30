@@ -17,6 +17,9 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.ctype.tolower
     libc.src.ctype.toupper
 
+    # errno.h entrypoints
+    libc.src.errno.errno
+
     # string.h entrypoints
     libc.src.string.bcmp
     libc.src.string.bcopy
@@ -86,6 +89,22 @@ set(TARGET_LIBC_ENTRYPOINTS
 )
 
 set(TARGET_LIBM_ENTRYPOINTS
+    # fenv.h entrypoints
+    libc.src.fenv.feclearexcept
+    libc.src.fenv.fedisableexcept
+    libc.src.fenv.feenableexcept
+    libc.src.fenv.fegetenv
+    libc.src.fenv.fegetexcept
+    libc.src.fenv.fegetexceptflag
+    libc.src.fenv.fegetround
+    libc.src.fenv.feholdexcept
+    libc.src.fenv.fesetenv
+    libc.src.fenv.fesetexceptflag
+    libc.src.fenv.fesetround
+    libc.src.fenv.feraiseexcept
+    libc.src.fenv.fetestexcept
+    libc.src.fenv.feupdateenv
+
     # math.h entrypoints
     libc.src.math.fabs
     libc.src.math.fabsf

@@ -491,16 +491,6 @@ func.func @test_concat_axis_1(%arg0 : tensor<2x1xf32>, %arg1 : tensor<2x2xf32>) 
 
 // -----
 
-// CHECK-LABEL: @test_concat_failure
-func.func @test_concat_failure(%arg0 : tensor<2x1xf32>, %arg1 : tensor<2x2xf32>) -> () {
-  // CHECK: "tosa.concat"(%arg0, %arg1) {axis = 0 : i64} : (tensor<2x1xf32>, tensor<2x2xf32>) -> tensor<?x?xf32>
-  %0 = "tosa.concat"(%arg0, %arg1) {axis = 0 : i64} : (tensor<2x1xf32>, tensor<2x2xf32>) -> tensor<?x?xf32>
-
-  return
-}
-
-// -----
-
 // CHECK-LABEL: @test_padding_no_const
 func.func @test_padding_no_const(%arg0 : tensor<1x2xf32>, %arg1 : tensor<2x2xi32>) -> () {
   // CHECK: "tosa.pad"(%arg0, %arg1) : (tensor<1x2xf32>, tensor<2x2xi32>) -> tensor<?x?xf32>
@@ -1215,4 +1205,22 @@ func.func @test_dynamic_width_rfft2d(%arg0 : tensor<5x2x?xf32>) -> () {
   // CHECK: -> (tensor<5x2x?xf32>, tensor<5x2x?xf32>)
   %output_real, %output_imag = "tosa.rfft2d"(%arg0) {} : (tensor<5x2x?xf32>) -> (tensor<?x?x?xf32>, tensor<?x?x?xf32>)
   return
+}
+
+// -----
+
+// CHECK-LABEL: @test_static_fft2d
+func.func @test_static_fft2d(%arg0: tensor<1x4x8xf32>, %arg1: tensor<1x4x8xf32>) -> (tensor<1x4x8xf32>, tensor<1x4x8xf32>) {
+  // CHECK: -> (tensor<1x4x8xf32>, tensor<1x4x8xf32>)
+  %output_real, %output_imag = "tosa.fft2d"(%arg0, %arg1) {inverse = false} : (tensor<1x4x8xf32>, tensor<1x4x8xf32>) -> (tensor<1x4x8xf32>, tensor<1x4x8xf32>)
+  return %output_real, %output_imag : tensor<1x4x8xf32>, tensor<1x4x8xf32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_dynamic_batch_fft2d
+func.func @test_dynamic_batch_fft2d(%arg0: tensor<?x4x8xf32>, %arg1: tensor<?x4x8xf32>) -> (tensor<?x4x8xf32>, tensor<?x4x8xf32>) {
+  // CHECK: -> (tensor<?x4x8xf32>, tensor<?x4x8xf32>)
+  %output_real, %output_imag = "tosa.fft2d"(%arg0, %arg1) {inverse = false} : (tensor<?x4x8xf32>, tensor<?x4x8xf32>) -> (tensor<?x4x8xf32>, tensor<?x4x8xf32>)
+  return %output_real, %output_imag : tensor<?x4x8xf32>, tensor<?x4x8xf32>
 }

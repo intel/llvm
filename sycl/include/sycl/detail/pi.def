@@ -132,6 +132,9 @@ _PI_API(piextUSMEnqueueMemcpy)
 _PI_API(piextUSMEnqueuePrefetch)
 _PI_API(piextUSMEnqueueMemAdvise)
 _PI_API(piextUSMGetMemAllocInfo)
+// Host pipes
+_PI_API(piextEnqueueReadHostPipe)
+_PI_API(piextEnqueueWriteHostPipe)
 
 _PI_API(piextKernelSetArgMemObj)
 _PI_API(piextKernelSetArgSampler)

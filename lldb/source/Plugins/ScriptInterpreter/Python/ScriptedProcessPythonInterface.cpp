@@ -7,14 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Host/Config.h"
+#if LLDB_ENABLE_PYTHON
+// LLDB Python header must be included first
+#include "lldb-python.h"
+#endif
+#include "lldb/Target/Process.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-enumerations.h"
 
 #if LLDB_ENABLE_PYTHON
-
-// LLDB Python header must be included first
-#include "lldb-python.h"
 
 #include "SWIGPythonBridge.h"
 #include "ScriptInterpreterPythonImpl.h"
@@ -54,6 +56,24 @@ StructuredData::GenericSP ScriptedProcessPythonInterface::CreatePluginObject(
       StructuredData::GenericSP(new StructuredPythonObject(std::move(ret_val)));
 
   return m_object_instance_sp;
+}
+
+StructuredData::DictionarySP ScriptedProcessPythonInterface::GetCapabilities() {
+  Status error;
+  StructuredData::DictionarySP dict =
+      Dispatch<StructuredData::DictionarySP>("get_capabilities", error);
+
+  if (!CheckStructuredDataObject(LLVM_PRETTY_FUNCTION, dict, error))
+    return {};
+
+  return dict;
+}
+
+Status
+ScriptedProcessPythonInterface::Attach(const ProcessAttachInfo &attach_info) {
+  lldb::ProcessAttachInfoSP attach_info_sp =
+      std::make_shared<ProcessAttachInfo>(attach_info);
+  return GetStatusFromMethod("attach", attach_info_sp);
 }
 
 Status ScriptedProcessPythonInterface::Launch() {
@@ -103,25 +123,6 @@ StructuredData::DictionarySP ScriptedProcessPythonInterface::GetThreadsInfo() {
   return dict;
 }
 
-StructuredData::DictionarySP
-ScriptedProcessPythonInterface::GetThreadWithID(lldb::tid_t tid) {
-  Status error;
-  StructuredData::ObjectSP obj = Dispatch("get_thread_with_id", error, tid);
-
-  if (!CheckStructuredDataObject(LLVM_PRETTY_FUNCTION, obj, error))
-    return {};
-
-  StructuredData::DictionarySP dict{obj->GetAsDictionary()};
-
-  return dict;
-}
-
-StructuredData::DictionarySP
-ScriptedProcessPythonInterface::GetRegistersForThread(lldb::tid_t tid) {
-  // TODO: Implement
-  return {};
-}
-
 lldb::DataExtractorSP ScriptedProcessPythonInterface::ReadMemoryAtAddress(
     lldb::addr_t address, size_t size, Status &error) {
   Status py_error;
@@ -135,19 +136,29 @@ lldb::DataExtractorSP ScriptedProcessPythonInterface::ReadMemoryAtAddress(
   return data_sp;
 }
 
+lldb::offset_t ScriptedProcessPythonInterface::WriteMemoryAtAddress(
+    lldb::addr_t addr, lldb::DataExtractorSP data_sp, Status &error) {
+  Status py_error;
+  StructuredData::ObjectSP obj =
+      Dispatch("write_memory_at_address", py_error, addr, data_sp, error);
+
+  if (!CheckStructuredDataObject(LLVM_PRETTY_FUNCTION, obj, error))
+    return LLDB_INVALID_OFFSET;
+
+  // If there was an error on the python call, surface it to the user.
+  if (py_error.Fail())
+    error = py_error;
+
+  return obj->GetIntegerValue(LLDB_INVALID_OFFSET);
+}
+
 StructuredData::ArraySP ScriptedProcessPythonInterface::GetLoadedImages() {
   Status error;
   StructuredData::ArraySP array =
       Dispatch<StructuredData::ArraySP>("get_loaded_images", error);
 
-  if (!array || !array->IsValid() || error.Fail()) {
-    return ScriptedInterface::ErrorWithMessage<StructuredData::ArraySP>(
-        LLVM_PRETTY_FUNCTION,
-        llvm::Twine("Null or invalid object (" +
-                    llvm::Twine(error.AsCString()) + llvm::Twine(")."))
-            .str(),
-        error);
-  }
+  if (!CheckStructuredDataObject(LLVM_PRETTY_FUNCTION, array, error))
+    return {};
 
   return array;
 }

@@ -693,9 +693,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint64_t{Device->ZeDeviceProperties->maxMemAllocSize});
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint64_t GlobalMemSize = 0;
+    // Support to read physicalSize depends on kernel,
+    // so fallback into reading totalSize if physicalSize
+    // is not available.
     for (const auto &ZeDeviceMemoryExtProperty :
          Device->ZeDeviceMemoryProperties->second) {
       GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
+    }
+    if (GlobalMemSize == 0) {
+      for (const auto &ZeDeviceMemoryProperty :
+           Device->ZeDeviceMemoryProperties->first) {
+        GlobalMemSize += ZeDeviceMemoryProperty.totalSize;
+      }
     }
     return ReturnValue(uint64_t{GlobalMemSize});
   }
@@ -1164,9 +1173,54 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     // bfloat16 math functions are not yet supported on Intel GPUs.
     return ReturnValue(bool{false});
   }
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    ur_memory_scope_capability_flags_t result =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+
+    return ReturnValue(result);
+  }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    ur_memory_order_capability_flags_t result =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+
+    return ReturnValue(result);
+  }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    ur_memory_scope_capability_flags_t result =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+
+    return ReturnValue(result);
+  }
+
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    ur_memory_order_capability_flags_t capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+    return ReturnValue(capabilities);
+  }
 
   // TODO: Implement.
-  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     zePrint("Unsupported ParamName in piGetDeviceInfo\n");
     zePrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
@@ -1697,7 +1751,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
   // Currently supported partitioning (by affinity domain/numa) would always
   // partition to all sub-devices.
   //
-  if (NumDevices !=0)
+  if (NumDevices != 0)
     PI_ASSERT(NumDevices == EffectiveNumDevices, UR_RESULT_ERROR_INVALID_VALUE);
 
   for (uint32_t I = 0; I < NumDevices; I++) {
