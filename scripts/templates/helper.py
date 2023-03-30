@@ -554,6 +554,15 @@ def make_enum_name(namespace, tags, obj):
     return name
 
 """
+    returns c/c++ definition of enums max value.
+"""
+def make_enum_max_def(namespace, tags, obj, meta):
+    macro_def = "#define"
+    macro_name = make_type_name(namespace, tags, obj).upper()[:-2] + "_MAX_VALUE"
+    max_value = subt(namespace, tags, meta['enum'][obj['name']]['max'])
+    return "%s %s %s"%(macro_def, macro_name, max_value)    
+
+"""
 Public:
     returns c/c++ name of etor
 """

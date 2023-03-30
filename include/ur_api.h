@@ -219,6 +219,7 @@ typedef enum ur_result_t {
     /// @endcond
 
 } ur_result_t;
+#define UR_RESULT_MAX_VALUE UR_RESULT_ERROR_UNKNOWN
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines structure types
@@ -242,6 +243,7 @@ typedef enum ur_structure_type_t {
     /// @endcond
 
 } ur_structure_type_t;
+#define UR_STRUCTURE_TYPE_MAX_VALUE UR_STRUCTURE_TYPE_SAMPLER_DESC
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Base for all properties types
@@ -298,6 +300,7 @@ typedef enum ur_device_init_flag_t {
     /// @endcond
 
 } ur_device_init_flag_t;
+#define UR_DEVICE_INIT_FLAGS_MAX_VALUE 0x1f
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Initialize the 'oneAPI' driver(s)
@@ -399,6 +402,7 @@ typedef enum ur_platform_info_t {
     /// @endcond
 
 } ur_platform_info_t;
+#define UR_PLATFORM_INFO_MAX_VALUE UR_PLATFORM_INFO_PROFILE
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Retrieves various information about platform
@@ -445,6 +449,7 @@ typedef enum ur_api_version_t {
     /// @endcond
 
 } ur_api_version_t;
+#define UR_API_VERSION_MAX_VALUE UR_API_VERSION_CURRENT
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Returns the API version supported by the specified platform
@@ -642,6 +647,7 @@ typedef enum ur_device_type_t {
     /// @endcond
 
 } ur_device_type_t;
+#define UR_DEVICE_TYPE_MAX_VALUE UR_DEVICE_TYPE_VPU
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Retrieves devices within a platform
@@ -815,6 +821,7 @@ typedef enum ur_device_info_t {
     /// @endcond
 
 } ur_device_info_t;
+#define UR_DEVICE_INFO_MAX_VALUE UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Retrieves various information about device
@@ -915,6 +922,7 @@ typedef enum ur_device_partition_t {
     /// @endcond
 
 } ur_device_partition_t;
+#define UR_DEVICE_PARTITION_MAX_VALUE UR_DEVICE_PARTITION_BY_CSLICE
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Partition the device into sub-devices
@@ -1007,6 +1015,7 @@ typedef enum ur_device_fp_capability_flag_t {
     /// @endcond
 
 } ur_device_fp_capability_flag_t;
+#define UR_DEVICE_FP_CAPABILITY_FLAGS_MAX_VALUE 0xff
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device memory cache type
@@ -1019,6 +1028,7 @@ typedef enum ur_device_mem_cache_type_t {
     /// @endcond
 
 } ur_device_mem_cache_type_t;
+#define UR_DEVICE_MEM_CACHE_TYPE_MAX_VALUE UR_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device local memory type
@@ -1031,6 +1041,7 @@ typedef enum ur_device_local_mem_type_t {
     /// @endcond
 
 } ur_device_local_mem_type_t;
+#define UR_DEVICE_LOCAL_MEM_TYPE_MAX_VALUE UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device kernel execution capability
@@ -1043,6 +1054,7 @@ typedef enum ur_device_exec_capability_flag_t {
     /// @endcond
 
 } ur_device_exec_capability_flag_t;
+#define UR_DEVICE_EXEC_CAPABILITY_FLAGS_MAX_VALUE 0x3
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device affinity domain
@@ -1055,6 +1067,7 @@ typedef enum ur_device_affinity_domain_flag_t {
     /// @endcond
 
 } ur_device_affinity_domain_flag_t;
+#define UR_DEVICE_AFFINITY_DOMAIN_FLAGS_MAX_VALUE 0x3
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Return platform native device handle.
@@ -1148,6 +1161,7 @@ typedef enum ur_memory_order_capability_flag_t {
     /// @endcond
 
 } ur_memory_order_capability_flag_t;
+#define UR_MEMORY_ORDER_CAPABILITY_FLAGS_MAX_VALUE 0x1f
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory scope capabilities
@@ -1163,6 +1177,7 @@ typedef enum ur_memory_scope_capability_flag_t {
     /// @endcond
 
 } ur_memory_scope_capability_flag_t;
+#define UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MAX_VALUE 0x1f
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -1181,6 +1196,7 @@ typedef enum ur_context_flag_t {
     /// @endcond
 
 } ur_context_flag_t;
+#define UR_CONTEXT_FLAGS_MAX_VALUE 0x1
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Context creation properties
@@ -1272,6 +1288,7 @@ typedef enum ur_context_info_t {
     /// @endcond
 
 } ur_context_info_t;
+#define UR_CONTEXT_INFO_MAX_VALUE UR_CONTEXT_INFO_USM_FILL2D_SUPPORT
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Releases the context handle reference indicating end of its usage
@@ -1435,6 +1452,7 @@ typedef enum ur_mem_flag_t {
     /// @endcond
 
 } ur_mem_flag_t;
+#define UR_MEM_FLAGS_MAX_VALUE 0x3f
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory types
@@ -1451,6 +1469,7 @@ typedef enum ur_mem_type_t {
     /// @endcond
 
 } ur_mem_type_t;
+#define UR_MEM_TYPE_MAX_VALUE UR_MEM_TYPE_IMAGE1D_BUFFER
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory Information type
@@ -1462,6 +1481,7 @@ typedef enum ur_mem_info_t {
     /// @endcond
 
 } ur_mem_info_t;
+#define UR_MEM_INFO_MAX_VALUE UR_MEM_INFO_CONTEXT
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image channel order info: number of channels and the channel layout
@@ -1486,6 +1506,7 @@ typedef enum ur_image_channel_order_t {
     /// @endcond
 
 } ur_image_channel_order_t;
+#define UR_IMAGE_CHANNEL_ORDER_MAX_VALUE UR_IMAGE_CHANNEL_ORDER_SRGBA
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image channel type info: describe the size of the channel data type
@@ -1510,6 +1531,7 @@ typedef enum ur_image_channel_type_t {
     /// @endcond
 
 } ur_image_channel_type_t;
+#define UR_IMAGE_CHANNEL_TYPE_MAX_VALUE UR_IMAGE_CHANNEL_TYPE_FLOAT
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image information types
@@ -1526,6 +1548,7 @@ typedef enum ur_image_info_t {
     /// @endcond
 
 } ur_image_info_t;
+#define UR_IMAGE_INFO_MAX_VALUE UR_IMAGE_INFO_DEPTH
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image format including channel layout and data type
@@ -1744,6 +1767,7 @@ typedef enum ur_buffer_create_type_t {
     /// @endcond
 
 } ur_buffer_create_type_t;
+#define UR_BUFFER_CREATE_TYPE_MAX_VALUE UR_BUFFER_CREATE_TYPE_REGION
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a sub buffer representing a region in an existing buffer
@@ -1908,6 +1932,7 @@ typedef enum ur_sampler_filter_mode_t {
     /// @endcond
 
 } ur_sampler_filter_mode_t;
+#define UR_SAMPLER_FILTER_MODE_MAX_VALUE UR_SAMPLER_FILTER_MODE_LINEAR
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler addressing mode
@@ -1922,6 +1947,7 @@ typedef enum ur_sampler_addressing_mode_t {
     /// @endcond
 
 } ur_sampler_addressing_mode_t;
+#define UR_SAMPLER_ADDRESSING_MODE_MAX_VALUE UR_SAMPLER_ADDRESSING_MODE_NONE
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get sample object information
@@ -1939,6 +1965,7 @@ typedef enum ur_sampler_info_t {
     /// @endcond
 
 } ur_sampler_info_t;
+#define UR_SAMPLER_INFO_MAX_VALUE UR_SAMPLER_INFO_FILTER_MODE
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler description.
@@ -2132,6 +2159,7 @@ typedef enum ur_usm_flag_t {
     /// @endcond
 
 } ur_usm_flag_t;
+#define UR_USM_FLAGS_MAX_VALUE 0x3
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM host memory property flags
@@ -2143,6 +2171,7 @@ typedef enum ur_usm_host_mem_flag_t {
     /// @endcond
 
 } ur_usm_host_mem_flag_t;
+#define UR_USM_HOST_MEM_FLAGS_MAX_VALUE 0x1
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM device memory property flags
@@ -2157,6 +2186,7 @@ typedef enum ur_usm_device_mem_flag_t {
     /// @endcond
 
 } ur_usm_device_mem_flag_t;
+#define UR_USM_DEVICE_MEM_FLAGS_MAX_VALUE 0x7
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory property flags
@@ -2169,6 +2199,7 @@ typedef enum ur_usm_pool_flag_t {
     /// @endcond
 
 } ur_usm_pool_flag_t;
+#define UR_USM_POOL_FLAGS_MAX_VALUE 0x1
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocation type
@@ -2182,6 +2213,7 @@ typedef enum ur_usm_type_t {
     /// @endcond
 
 } ur_usm_type_t;
+#define UR_USM_TYPE_MAX_VALUE UR_USM_TYPE_SHARED
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory allocation information type
@@ -2196,6 +2228,7 @@ typedef enum ur_usm_alloc_info_t {
     /// @endcond
 
 } ur_usm_alloc_info_t;
+#define UR_USM_ALLOC_INFO_MAX_VALUE UR_USM_ALLOC_INFO_POOL
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory advice
@@ -2214,7 +2247,8 @@ typedef enum ur_usm_advice_flag_t {
     UR_USM_ADVICE_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
-} ur_usm_advice_flag_t;
+} ur_usm_advice_t;
+#define UR_USM_ADVICE_MAX_VALUE UR_USM_ADVICE_BIAS_UNCACHED
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of USM pool
@@ -2515,6 +2549,7 @@ typedef enum ur_program_metadata_type_t {
     /// @endcond
 
 } ur_program_metadata_type_t;
+#define UR_PROGRAM_METADATA_TYPE_MAX_VALUE UR_PROGRAM_METADATA_TYPE_STRING
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Program metadata value union.
@@ -2830,6 +2865,7 @@ typedef enum ur_program_info_t {
     /// @endcond
 
 } ur_program_info_t;
+#define UR_PROGRAM_INFO_MAX_VALUE UR_PROGRAM_INFO_KERNEL_NAMES
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a Program object
@@ -2871,6 +2907,7 @@ typedef enum ur_program_build_status_t {
     /// @endcond
 
 } ur_program_build_status_t;
+#define UR_PROGRAM_BUILD_STATUS_MAX_VALUE UR_PROGRAM_BUILD_STATUS_IN_PROGRESS
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Program object binary type
@@ -2884,6 +2921,7 @@ typedef enum ur_program_binary_type_t {
     /// @endcond
 
 } ur_program_binary_type_t;
+#define UR_PROGRAM_BINARY_TYPE_MAX_VALUE UR_PROGRAM_BINARY_TYPE_EXECUTABLE
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Program object build information
@@ -2898,6 +2936,7 @@ typedef enum ur_program_build_info_t {
     /// @endcond
 
 } ur_program_build_info_t;
+#define UR_PROGRAM_BUILD_INFO_MAX_VALUE UR_PROGRAM_BUILD_INFO_BINARY_TYPE
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query build information about a Program object for a Device
@@ -3117,6 +3156,7 @@ typedef enum ur_kernel_info_t {
     /// @endcond
 
 } ur_kernel_info_t;
+#define UR_KERNEL_INFO_MAX_VALUE UR_KERNEL_INFO_ATTRIBUTES
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel Work Group information
@@ -3135,6 +3175,7 @@ typedef enum ur_kernel_group_info_t {
     /// @endcond
 
 } ur_kernel_group_info_t;
+#define UR_KERNEL_GROUP_INFO_MAX_VALUE UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel SubGroup information
@@ -3149,6 +3190,7 @@ typedef enum ur_kernel_sub_group_info_t {
     /// @endcond
 
 } ur_kernel_sub_group_info_t;
+#define UR_KERNEL_SUB_GROUP_INFO_MAX_VALUE UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Set additional Kernel execution information
@@ -3161,6 +3203,7 @@ typedef enum ur_kernel_exec_info_t {
     /// @endcond
 
 } ur_kernel_exec_info_t;
+#define UR_KERNEL_EXEC_INFO_MAX_VALUE UR_KERNEL_EXEC_INFO_USM_PTRS
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a Kernel object
@@ -3508,6 +3551,7 @@ typedef enum ur_queue_info_t {
     /// @endcond
 
 } ur_queue_info_t;
+#define UR_QUEUE_INFO_MAX_VALUE UR_QUEUE_INFO_SIZE
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Queue property flags
@@ -3525,6 +3569,7 @@ typedef enum ur_queue_flag_t {
     /// @endcond
 
 } ur_queue_flag_t;
+#define UR_QUEUE_FLAGS_MAX_VALUE 0x7f
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Queue property type
@@ -3540,6 +3585,7 @@ typedef enum ur_queue_properties_t {
     /// @endcond
 
 } ur_queue_properties_t;
+#define UR_QUEUE_PROPERTIES_MAX_VALUE UR_QUEUE_PROPERTIES_COMPUTE_INDEX
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
@@ -3802,6 +3848,7 @@ typedef enum ur_command_t {
     /// @endcond
 
 } ur_command_t;
+#define UR_COMMAND_MAX_VALUE UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Event Status
@@ -3815,6 +3862,7 @@ typedef enum ur_event_status_t {
     /// @endcond
 
 } ur_event_status_t;
+#define UR_EVENT_STATUS_MAX_VALUE UR_EVENT_STATUS_QUEUED
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Event query information type
@@ -3832,6 +3880,7 @@ typedef enum ur_event_info_t {
     /// @endcond
 
 } ur_event_info_t;
+#define UR_EVENT_INFO_MAX_VALUE UR_EVENT_INFO_REFERENCE_COUNT
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Profiling query information type
@@ -3849,6 +3898,7 @@ typedef enum ur_profiling_info_t {
     /// @endcond
 
 } ur_profiling_info_t;
+#define UR_PROFILING_INFO_MAX_VALUE UR_PROFILING_INFO_COMMAND_END
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get event object information
@@ -4044,6 +4094,7 @@ typedef enum ur_execution_info_t {
     /// @endcond
 
 } ur_execution_info_t;
+#define UR_EXECUTION_INFO_MAX_VALUE UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Event callback function that can be registered by the application.
@@ -4211,6 +4262,7 @@ typedef enum ur_function_t {
     /// @endcond
 
 } ur_function_t;
+#define UR_FUNCTION_MAX_VALUE UR_FUNCTION_USM_POOL_DESTROY
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -4884,6 +4936,7 @@ typedef enum ur_map_flag_t {
     /// @endcond
 
 } ur_map_flag_t;
+#define UR_MAP_FLAGS_MAX_VALUE 0x3
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Map flags
@@ -4895,6 +4948,7 @@ typedef enum ur_usm_migration_flag_t {
     /// @endcond
 
 } ur_usm_migration_flag_t;
+#define UR_USM_MIGRATION_FLAGS_MAX_VALUE 0x1
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to map a region of the buffer object into the host
