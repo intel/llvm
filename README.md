@@ -15,12 +15,12 @@ For general contribution process see [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 The DPC++ is a LLVM-based compiler project that implements compiler and runtime
 support for the SYCL\* language. The project is hosted in the
-[sycl](https://github.com/intel/llvm/tree/sycl) branch and is synced with the tip of the LLVM upstream
-main branch on a regular basis (revisions delay is usually not more than 1-2
-weeks). DPC++ compiler takes everything from LLVM upstream as is, however some
-modules of LLVM might be not included in the default project build
-configuration. Additional modules can be enabled by modifying build framework
-settings.
+[sycl](https://github.com/intel/llvm/tree/sycl) branch and is synced with the
+tip of the LLVM upstream main branch on a regular basis (revisions delay is
+usually not more than 1-2 weeks). DPC++ compiler takes everything from LLVM
+upstream as is, however some modules of LLVM might be not included in the
+default project build configuration. Additional modules can be enabled by
+modifying build framework settings.
 
 The DPC++ goal is to support the latest SYCL\* standard and work on that is in
 progress. DPC++ also implements a number of extensions to the SYCL\* standard,
@@ -54,7 +54,7 @@ See available containers with pre-built/pre-installed DPC++ compiler at:
 #### Releases
 
 Daily builds of the sycl branch on Linux are available at
-[releases](https://github.com/intel/llvm//releases).
+[releases](https://github.com/intel/llvm/releases).
 A few times a year, we publish [Release Notes](./sycl/ReleaseNotes.md) to
 highlight all important changes made in the project: features implemented and
 issues addressed. The corresponding builds can be found using
