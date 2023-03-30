@@ -56,8 +56,8 @@ n/a
   - `altvalue` must be an ISO-C standard preprocessor replacement list. If specified, then will be contained within the `#else` conditional block.
   - `ordinal` will be used to override the default order (in which they appear) the macro appears within its section; `default="1000"`
   - `version` will be used to define the minimum API version in which the macro will appear; `default="1.0"` This will also affect the order in which the macro appears within its section.
-* A macro may take the following optional sequence of scalars or scalars to sequences: {`details`}
-  - `detail` will be used as the macro's detailed comment
+* A macro may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
+  - `details` will be used as the macro's detailed comment
 
 <table>
 <tr><th>YaML</th><th>C\C++</th><th>Python</th></tr>
@@ -147,8 +147,8 @@ n/a
   - `altvalue` must be an ISO-C standard identifier. If specified, then will be contained within the `#else` conditional block.
   - `ordinal` will be used to override the default order (in which they appear) the typedef appears within its section; `default="1000"`
   - `version` will be used to define the minimum API version in which the typedef will appear; `default="1.0"` This will also affect the order in which the typedef appears within its section and class.
-* A typedef may take the following optional sequence of scalars or scalars to sequences: {`details`}
-  - `detail` will be used as the typedef's detailed comment
+* A typedef may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
+  - `details` will be used as the typedef's detailed comment
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th><th>Python</th></tr>
@@ -244,8 +244,8 @@ std::function<void(void*)> ur_callback_t;
   - `condition` will be used as a C/C++ preprocessor `#if` conditional expression
   - `ordinal` will be used to override the default order (in which they appear) the handles appears within its section; `default="1000"`
   - `version` will be used to define the minimum API version in which the handles will appear; `default="1.0"` This will also affect the order in which the handles appears within its section.
-* A handle may take the following optional sequence of scalars or scalars to sequences: {`details`}
-  - `detail` will be used as the handle's detailed comment
+* A handle may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
+  - `details` will be used as the handle's detailed comment
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th><th>Python</th></tr>
@@ -330,8 +330,8 @@ class ur_name_handle_t(c_void_p):
   - An etor may take the following optional scalar field: {`value`, `version`}
     + `value` must be an ISO-C standard identifier
     + `version` will be used to define the minimum API version in which the etor will appear; `default="1.0"` This will also affect the order in which the etor appears within the enum.
-* An enum may take the following optional sequence of scalars or scalars to sequences: {`details`}
-  - `detail` will be used as the enum's detailed comment
+* An enum may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
+  - `details` will be used as the enum's detailed comment
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th><th>Python</th></tr>
@@ -470,8 +470,8 @@ class ur_name_flags_v(IntEnum):
     + `init` will be used to initialize the C++ struct|union member's value
     + `init` must be an ISO-C standard identifier or literal
     + `version` will be used to define the minimum API version in which the member will appear; `default="1.0"` This will also affect the order in which the member appears within the struct|union.
-* A struct|union may take the following optional sequence of scalars or scalars to sequences: {`details`}
-  - `detail` will be used as the struct|union's detailed comment
+* A struct|union may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
+  - `details` will be used as the struct|union's detailed comment
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th><th>Python</th></tr>
@@ -615,12 +615,13 @@ class ur_name_t(Structure):
   - if `class` is specified and the function is not `decl: static`, then the first param **must** be the handle associated with the class
 * A function may take the following optional sequence of scalars: {`analogue`}
   - `analogue` will be used as the function's remarks comment
-* A function may take the following optional sequence of scalars or scalars to sequences: {`details`, `returns`}
-  - `detail` will be used as the function's detailed comment
-  - `return` will be used as the function's returns comment
-  - `return` must be an etor of `$x_result_t`
-  - `return` defaults are generated by parsing the function's params' description annotations
-  - `return` may contain a sequence of custom validation layer code blocks
+* A function may take the following optional sequence of scalars or scalars to sequences: {`returns`}
+  - `returns` will be used as the function's returns comment
+  - `returns` must be an etor of `$x_result_t`
+  - `returns` defaults are generated by parsing the function's params' description annotations
+  - `returns` may contain a sequence of custom validation layer code blocks
+* A function may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
+  - `details` will be used as the function's detailed comment
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th><th>Python</th></tr>
@@ -729,8 +730,8 @@ _urClsNameFnName_t = CFUNCTYPE( ur_result_t, ur_cls_handle_t, c_ulong, POINTER(c
   - The first member must be the handle associated with the class; the `name` must be `"handle"`
   - If `owner` is specified, then the second member must be the pointer to the owner 
   - The next member may be the `_desc_t` used to create the object; the `name` must be `"desc"`
-* A class may take the following optional sequence of scalars or scalars to sequences: {`details`}
-  - `detail` will be used as the class's detailed comment
+* A class may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
+  - `details` will be used as the class's detailed comment
 
 <table>
 <tr><th>YaML</th><th>C++</th></tr>

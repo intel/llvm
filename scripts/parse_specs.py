@@ -171,23 +171,25 @@ def _validate_doc(f, d, tags, line_num):
 
     def __validate_details(d):
         if 'details' in d:
-            if not isinstance(d['details'], list):
-                raise Exception("'details' must be a sequence: '%s'"%type(d['details']))
 
-            for i, item in enumerate(d['details']):
-                prefix = "'details'[%s] "%i
-                if isinstance(item, dict):
-                    for key in item:
-                        if not isinstance(key, str):
-                            raise Exception(prefix+"must be a string: '%s'"%type(key))
+            if not (isinstance(d['details'], list) or isinstance(d['details'], str)):
+                raise Exception("'details' must be a string or a sequence")
 
-                        for j, val in enumerate(item[key]):
-                            prefix2 = prefix[:-1]+"[%s] "%j
-                            if not isinstance(val, str):
-                                raise Exception(prefix2+"must be a string: '%s'"%type(val))
+            if isinstance(d['details'], list):
+                for i, item in enumerate(d['details']):
+                    prefix = "'details'[%s] "%i
+                    if isinstance(item, dict):
+                        for key in item:
+                            if not isinstance(key, str):
+                                raise Exception(prefix+"must be a string: '%s'"%type(key))
 
-                elif not isinstance(item, str):
-                    raise Exception(prefix+"must be a string: '%s'"%type(item))
+                            for j, val in enumerate(item[key]):
+                                prefix2 = prefix[:-1]+"[%s] "%j
+                                if not isinstance(val, str):
+                                    raise Exception(prefix2+"must be a string: '%s'"%type(val))
+
+                    elif not isinstance(item, str):
+                        raise Exception(prefix+"must be a string: '%s'"%type(item))
 
     def __validate_etors(d, tags):
         if 'etors' not in d:
