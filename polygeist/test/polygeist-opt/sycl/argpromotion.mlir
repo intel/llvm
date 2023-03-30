@@ -96,6 +96,14 @@ gpu.module @device_func {
     func.return
   }
 
+  // COM: This function is a candidate, check that it is transformed correctly.
+  func.func @callee8(%arg0: memref<?x!llvm.struct<(i32, i64)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+    // CHECK-LABEL: func.func @callee8
+    // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xi64> {llvm.noalias})
+    // CHECK-SAME:    attributes {llvm.linkage = #llvm.linkage<internal>} {
+    func.return
+  }
+
   // COM: Test that a call with a single peelable argument is peeled correctly.
   // COM-NEXT: Ensure that the following call sites aren't considered as candidates:
   // COM-NEXT:   - calls to functions with no operands
@@ -229,5 +237,20 @@ gpu.module @device_func {
     %1 = memref.load %alloca[] : memref<i64>
     %add = arith.addi %0, %1 : i64
     func.return %add : i64
+  }
+
+  // COM: Test that the a call to a linkonce_odr function is modified.
+  gpu.func @test10() kernel {  
+    // CHECK-LABEL: gpu.func @test10() kernel
+    // CHECK:         %c0 = arith.constant 0 : index
+    // CHECK-NEXT:    [[ARG0:%.*]] = "polygeist.subindex"(%cast, %c0) : (memref<?x!llvm.struct<(i32, i64)>>, index) -> memref<?xi32>
+    // CHECK-NEXT:    %c1 = arith.constant 1 : index
+    // CHECK-NEXT:    [[ARG1:%.*]] = "polygeist.subindex"(%cast, %c1) : (memref<?x!llvm.struct<(i32, i64)>>, index) -> memref<?xi64>
+    // CHECK-NEXT:    func.call @callee8([[ARG0]], [[ARG1]]) : (memref<?xi32>, memref<?xi64>) -> ()
+    // CHECK-NEXT:    gpu.return
+    %alloca_1 = memref.alloca() : memref<1x!llvm.struct<(i32, i64)>>
+    %cast_1 = memref.cast %alloca_1 : memref<1x!llvm.struct<(i32, i64)>> to memref<?x!llvm.struct<(i32, i64)>>    
+    func.call @callee8(%cast_1) : (memref<?x!llvm.struct<(i32, i64)>>) -> ()
+    gpu.return    
   }
 }

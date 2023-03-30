@@ -52,11 +52,28 @@ using namespace mlir;
 // Helper Functions
 //===----------------------------------------------------------------------===//
 
-/// Returns true if the callable operation \p callableOp has a callable region
-/// and private visibility, and false otherwise.
-static bool isPrivateDefinition(CallableOpInterface callableOp) {
-  auto sym = dyn_cast<SymbolOpInterface>(callableOp.getOperation());
-  return (sym && sym.isPrivate() && callableOp.getCallableRegion());
+/// Returns true if the callable operation \p callableOp has linkonce_odr
+/// linkage, and false otherwise.
+static constexpr StringRef linkageAttrName = "llvm.linkage";
+static bool isLinkonceODR(CallableOpInterface callableOp) {
+  if (!callableOp->hasAttr(linkageAttrName))
+    return false;
+  auto attr =
+      callableOp->getAttr(linkageAttrName).dyn_cast<mlir::LLVM::LinkageAttr>();
+  assert(attr && "Expecting LLVM::LinkageAttr");
+  return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
+}
+
+// Change the linkage of \p callableOp from linkonce_odr to internel.
+// There can be globals of the same name (with linkonce_odr linkage) in another
+// translation unit. As they have different arguments, we need to change the
+// linkage of the modified function to internel.
+static void privatize(FunctionOpInterface callableOp) {
+  if (!isLinkonceODR(cast<CallableOpInterface>(callableOp.getOperation())))
+    return;
+  callableOp->setAttr(linkageAttrName,
+                      mlir::LLVM::LinkageAttr::get(callableOp->getContext(),
+                                                   LLVM::Linkage::Internal));
 }
 
 /// Returns true if \p type is 'memref<?xstruct<>>', and false otherwise.
@@ -325,6 +342,7 @@ void Candidate::modifyCallee() {
 
   funcOp.setType(newFuncType);
   funcOp.setAllArgAttrs(newArgAttrs);
+  privatize(funcOp);
 
   LLVM_DEBUG(llvm::dbgs() << "\nNew Callee:\n" << funcOp << "\n";);
 }
@@ -552,10 +570,17 @@ bool ArgumentPromotionPass::isCandidateCallable(
   [[maybe_unused]] StringRef callableName =
       cast<SymbolOpInterface>(callableOp.getOperation()).getName();
 
-  // The function must be defined and private.
-  if (!isPrivateDefinition(callableOp)) {
+  // The function must be defined.
+  auto sym = dyn_cast<SymbolOpInterface>(callableOp.getOperation());
+  if (!sym || sym.isDeclaration()) {
+    LLVM_DEBUG(llvm::dbgs().indent(2) << "not a candidate: not defined\n");
+    return false;
+  }
+
+  // The function must be private or with linkonce_odr linkage.
+  if (!sym.isPrivate() && !isLinkonceODR(callableOp)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "not a candidate: not privately defined\n");
+               << "not a candidate: not private or linkonce_odr linkage\n");
     return false;
   }
 
