@@ -1,7 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %BE_RUN_PLACEHOLDER %t.out
 
 // This test checks the behavior of `reset()` for `weak_object`.
 
