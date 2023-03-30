@@ -32,14 +32,17 @@ int main() {
           auto SG = item.get_sub_group();
 
           // Split into odd and even work-items.
-          bool Predicate = item.get_global_id() % 2 == 0;
+          bool Predicate = WI % 2 == 0;
           auto BallotGroup = syclex::get_ballot_group(SG, Predicate);
 
           // Check function return values match Predicate.
+          // NB: Test currently uses exactly one sub-group, but we use SG
+          //     below in case this changes in future.
           bool Match = true;
           auto GroupID = (Predicate) ? 1 : 0;
+          auto LocalID = SG.get_local_id() / 2;
           Match &= (BallotGroup.get_group_id() == GroupID);
-          Match &= (BallotGroup.get_local_id() == SG.get_local_id() / 2);
+          Match &= (BallotGroup.get_local_id() == LocalID);
           Match &= (BallotGroup.get_group_range() == 2);
           Match &= (BallotGroup.get_local_range() == 16);
           MatchAcc[WI] = Match;
