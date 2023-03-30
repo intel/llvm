@@ -7,7 +7,7 @@
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
-// CHECK-DAG: error: function 'sycl::_V1::multi_ptr<{{.+}}> sycl::_V1::accessor<{{.+}}>::get_pointer<{{.+}}>() const' is not supported in ESIMD context
+// CHECK-DAG: error: function 'int* sycl::_V1::accessor<{{.+}}>::get_pointer<{{.+}}>() const' is not supported in ESIMD context
 // CHECK-DAG: error: function '{{.+}} sycl::_V1::accessor<{{.+}}>::operator[]<{{.+}}>({{.+}}) const' is not supported in ESIMD context
 // CHECK-DAG: error: function '{{.+}}combine(int const&)' is not supported in ESIMD context
 

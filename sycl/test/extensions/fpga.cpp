@@ -129,8 +129,8 @@ int main() {
         auto input_accessor =
             input_buffer.get_access<sycl::access::mode::read>(cgh);
         cgh.single_task<class AccessorAnnotation>([=]() {
-          auto input_ptr = input_accessor.get_pointer();
-          auto output_ptr = output_accessor.get_pointer();
+          auto input_ptr = sycl::global_ptr<int>(input_accessor);
+          auto output_ptr = sycl::global_ptr<int>(output_accessor);
           intelfpga::lsu_body<>(input_ptr, output_ptr);
         });
       });

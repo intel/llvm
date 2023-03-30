@@ -29,8 +29,8 @@ template <typename T> void async_work_group_test() {
        auto Group = NDId.get_group();
        size_t Offset = GrId * WorkGroupSize;
        auto E = NDId.async_work_group_copy(
-           Local.get_pointer(), In.get_pointer() + Offset, WorkGroupSize);
-       E = NDId.async_work_group_copy(Out.get_pointer() + Offset,
+           Local.get_pointer(), global_ptr<T>(In) + Offset, WorkGroupSize);
+       E = NDId.async_work_group_copy(global_ptr<T>(Out) + Offset,
                                       Local.get_pointer(), WorkGroupSize);
      });
    }).wait();

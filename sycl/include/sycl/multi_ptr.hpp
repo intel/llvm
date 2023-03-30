@@ -126,8 +126,8 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(
-            detail::cast_AS<decorated_type *>(Accessor.get_pointer().get())) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            const_cast<ElementType *>(Accessor.get_pointer()))) {}
 
   // Only if Space == local_space || generic_space
   template <int Dimensions, access::mode Mode,
@@ -178,8 +178,7 @@ public:
       accessor<typename detail::remove_const_t<RelayElementType>, Dimensions,
                Mode, access::target::device, isPlaceholder, PropertyListT>
           Accessor)
-      : multi_ptr(
-            detail::cast_AS<decorated_type *>(Accessor.get_pointer().get())) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
 
   // Only if Space == local_space || generic_space and element type is const
   template <int Dimensions, access::mode Mode,
@@ -762,7 +761,8 @@ public:
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor) {
-    m_Pointer = detail::cast_AS<pointer_t>(Accessor.get_pointer().get());
+    m_Pointer = detail::cast_AS<pointer_t>(
+        const_cast<ElementType *>(Accessor.get_pointer()));
   }
 
   // Only if Space == local_space || generic_space
