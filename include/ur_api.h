@@ -2199,21 +2199,22 @@ typedef enum ur_usm_alloc_info_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory advice
-typedef enum ur_usm_advice_t {
-    UR_USM_ADVICE_DEFAULT = 0,                  ///< The USM memory advice is default
-    UR_USM_ADVICE_SET_READ_MOSTLY = 1,          ///< Hint that memory will be read from frequently and written to rarely
-    UR_USM_ADVICE_CLEAR_READ_MOSTLY = 2,        ///< Removes the affect of ::::UR_USM_ADVICE_SET_READ_MOSTLY
-    UR_USM_ADVICE_SET_PREFERRED_LOCATION = 3,   ///< Hint that the preferred memory location is the specified device
-    UR_USM_ADVICE_CLEAR_PREFERRED_LOCATION = 4, ///< Removes the affect of ::::UR_USM_ADVICE_SET_PREFERRED_LOCATION
-    UR_USM_ADVICE_SET_NON_ATOMIC_MOSTLY = 5,    ///< Hints that memory will mostly be accessed non-atomically
-    UR_USM_ADVICE_CLEAR_NON_ATOMIC_MOSTLY = 6,  ///< Removes the affect of ::::UR_USM_ADVICE_SET_NON_ATOMIC_MOSTLY
-    UR_USM_ADVICE_BIAS_CACHED = 7,              ///< Hints that memory should be cached
-    UR_USM_ADVICE_BIAS_UNCACHED = 8,            ///< Hints that memory should be not be cached
+typedef uint32_t ur_usm_advice_flags_t;
+typedef enum ur_usm_advice_flag_t {
+    UR_USM_ADVICE_FLAG_DEFAULT = UR_BIT(0),                  ///< The USM memory advice is default
+    UR_USM_ADVICE_FLAG_SET_READ_MOSTLY = UR_BIT(1),          ///< Hint that memory will be read from frequently and written to rarely
+    UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY = UR_BIT(2),        ///< Removes the affect of ::::UR_USM_ADVICE_SET_READ_MOSTLY
+    UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION = UR_BIT(3),   ///< Hint that the preferred memory location is the specified device
+    UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION = UR_BIT(4), ///< Removes the affect of ::::UR_USM_ADVICE_SET_PREFERRED_LOCATION
+    UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY = UR_BIT(5),    ///< Hints that memory will mostly be accessed non-atomically
+    UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY = UR_BIT(6),  ///< Removes the affect of ::::UR_USM_ADVICE_SET_NON_ATOMIC_MOSTLY
+    UR_USM_ADVICE_FLAG_BIAS_CACHED = UR_BIT(7),              ///< Hints that memory should be cached
+    UR_USM_ADVICE_FLAG_BIAS_UNCACHED = UR_BIT(8),            ///< Hints that memory should be not be cached
     /// @cond
-    UR_USM_ADVICE_FORCE_UINT32 = 0x7fffffff
+    UR_USM_ADVICE_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 
-} ur_usm_advice_t;
+} ur_usm_advice_flag_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of USM pool
@@ -2222,14 +2223,14 @@ typedef struct ur_usm_pool_handle_t_ *ur_usm_pool_handle_t;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocation descriptor type.
 typedef struct ur_usm_desc_t {
-    ur_structure_type_t stype; ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
-    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
-    ur_usm_flags_t flags;      ///< [in] memory allocation flags.
-    ur_usm_advice_t hints;     ///< [in] Memory advice hints
-    uint32_t align;            ///< [in] alignment of the USM memory object
-                               ///< Must be zero or a power of 2.
-                               ///< Must be equal to or smaller than the size of the largest data type
-                               ///< supported by `hDevice`.
+    ur_structure_type_t stype;   ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_DESC
+    const void *pNext;           ///< [in][optional] pointer to extension-specific structure
+    ur_usm_flags_t flags;        ///< [in] memory allocation flags.
+    ur_usm_advice_flags_t hints; ///< [in] Memory advice hints
+    uint32_t align;              ///< [in] alignment of the USM memory object
+                                 ///< Must be zero or a power of 2.
+                                 ///< Must be equal to or smaller than the size of the largest data type
+                                 ///< supported by `hDevice`.
 
 } ur_usm_desc_t;
 
@@ -5128,7 +5129,7 @@ urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_USM_ADVICE_BIAS_UNCACHED < advice`
+///         + `0x1ff < advice`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -5139,12 +5140,12 @@ urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(
-    ur_queue_handle_t hQueue,  ///< [in] handle of the queue object
-    const void *pMem,          ///< [in] pointer to the USM memory object
-    size_t size,               ///< [in] size in bytes to be advised
-    ur_usm_advice_t advice,    ///< [in] USM memory advice
-    ur_event_handle_t *phEvent ///< [out][optional] return an event object that identifies this particular
-                               ///< command instance.
+    ur_queue_handle_t hQueue,     ///< [in] handle of the queue object
+    const void *pMem,             ///< [in] pointer to the USM memory object
+    size_t size,                  ///< [in] size in bytes to be advised
+    ur_usm_advice_flags_t advice, ///< [in] USM memory advice
+    ur_event_handle_t *phEvent    ///< [out][optional] return an event object that identifies this particular
+                                  ///< command instance.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7332,7 +7333,7 @@ typedef struct ur_enqueue_usm_advise_params_t {
     ur_queue_handle_t *phQueue;
     const void **ppMem;
     size_t *psize;
-    ur_usm_advice_t *padvice;
+    ur_usm_advice_flags_t *padvice;
     ur_event_handle_t **pphEvent;
 } ur_enqueue_usm_advise_params_t;
 

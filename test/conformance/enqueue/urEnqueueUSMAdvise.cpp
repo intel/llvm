@@ -4,10 +4,10 @@
 #include <uur/fixtures.h>
 
 using urEnqueueUSMAdviseWithParamTest =
-    uur::urUSMDeviceAllocTestWithParam<ur_usm_advice_t>;
+    uur::urUSMDeviceAllocTestWithParam<ur_usm_advice_flag_t>;
 UUR_TEST_SUITE_P(urEnqueueUSMAdviseWithParamTest,
-                 ::testing::Values(UR_USM_ADVICE_DEFAULT),
-                 uur::deviceTestWithParamPrinter<ur_usm_advice_t>);
+                 ::testing::Values(UR_USM_ADVICE_FLAG_DEFAULT),
+                 uur::deviceTestWithParamPrinter<ur_usm_advice_flag_t>);
 
 TEST_P(urEnqueueUSMAdviseWithParamTest, Success) {
     ur_event_handle_t advise_event = nullptr;
@@ -29,32 +29,40 @@ TEST_P(urEnqueueUSMAdviseWithParamTest, Success) {
 using urEnqueueUSMAdviseTest = uur::urUSMDeviceAllocTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMAdviseTest);
 
+TEST_P(urEnqueueUSMAdviseTest, MultipleParamsSuccess) {
+    ASSERT_SUCCESS(urEnqueueUSMAdvise(queue, ptr, allocation_size,
+                                      UR_USM_ADVICE_FLAG_SET_READ_MOSTLY |
+                                          UR_USM_ADVICE_FLAG_BIAS_CACHED,
+                                      nullptr));
+}
+
 TEST_P(urEnqueueUSMAdviseTest, InvalidNullHandleQueue) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urEnqueueUSMAdvise(nullptr, ptr, allocation_size,
-                                        UR_USM_ADVICE_DEFAULT, nullptr));
+                                        UR_USM_ADVICE_FLAG_DEFAULT, nullptr));
 }
 
 TEST_P(urEnqueueUSMAdviseTest, InvalidNullPointerMem) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urEnqueueUSMAdvise(queue, nullptr, allocation_size,
-                                        UR_USM_ADVICE_DEFAULT, nullptr));
+                                        UR_USM_ADVICE_FLAG_DEFAULT, nullptr));
 }
 
 TEST_P(urEnqueueUSMAdviseTest, InvalidEnumeration) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urEnqueueUSMAdvise(queue, ptr, allocation_size,
-                                        UR_USM_ADVICE_FORCE_UINT32, nullptr));
+                                        UR_USM_ADVICE_FLAG_FORCE_UINT32,
+                                        nullptr));
 }
 
 TEST_P(urEnqueueUSMAdviseTest, InvalidSizeZero) {
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_SIZE,
-        urEnqueueUSMAdvise(queue, ptr, 0, UR_USM_ADVICE_DEFAULT, nullptr));
+        urEnqueueUSMAdvise(queue, ptr, 0, UR_USM_ADVICE_FLAG_DEFAULT, nullptr));
 }
 
 TEST_P(urEnqueueUSMAdviseTest, InvalidSizeTooLarge) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueUSMAdvise(queue, ptr, allocation_size * 2,
-                                        UR_USM_ADVICE_DEFAULT, nullptr));
+                                        UR_USM_ADVICE_FLAG_DEFAULT, nullptr));
 }

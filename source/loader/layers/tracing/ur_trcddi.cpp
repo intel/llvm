@@ -3461,10 +3461,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMAdvise
 __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    const void *pMem,         ///< [in] pointer to the USM memory object
-    size_t size,              ///< [in] size in bytes to be advised
-    ur_usm_advice_t advice,   ///< [in] USM memory advice
+    ur_queue_handle_t hQueue,     ///< [in] handle of the queue object
+    const void *pMem,             ///< [in] pointer to the USM memory object
+    size_t size,                  ///< [in] size in bytes to be advised
+    ur_usm_advice_flags_t advice, ///< [in] USM memory advice
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command instance.
