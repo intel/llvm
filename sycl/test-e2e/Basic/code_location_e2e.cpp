@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
   });
   q.wait();
 
-  return 0;
+  return 1;
 }
 
 // CHECK: ------- host test -------
