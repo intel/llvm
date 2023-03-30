@@ -1321,7 +1321,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       }
       // ... and initialize associated host_pipe information
       {
-        std::lock_guard HostPipesGuard(m_HostPipesMutex);
+        std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
         auto HostPipes = Img->getHostPipes();
         for (const pi_device_binary_property &HostPipe : HostPipes) {
           ByteArray HostPipeInfo = DeviceBinaryProperty(HostPipe).asByteArray();
