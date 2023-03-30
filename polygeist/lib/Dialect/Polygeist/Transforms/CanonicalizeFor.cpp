@@ -1545,29 +1545,30 @@ struct WhileLICM : public OpRewritePattern<scf::WhileOp> {
           !op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
         return true;
 
-      if (!isReadOnly(op) || isSpeculatable)
-        return false;
-
-      SmallVector<MemoryEffects::EffectInstance> whileEffects, opEffects;
-      collectEffects(whileOp, whileEffects, /*ignoreBarriers*/ false);
-      collectEffects(op, opEffects, /*ignoreBarriers*/ false);
-
-      for (MemoryEffects::EffectInstance &before : opEffects)
-        for (MemoryEffects::EffectInstance &after : whileEffects) {
-          if (after.getValue() == before.getValue())
-            continue;
-
-          AliasResult aliasRes =
-              aliasAnalysis.alias(before.getValue(), after.getValue());
-          if (aliasRes.isNo())
-            continue;
-
-          if (isa<MemoryEffects::Read>(before.getEffect()) &&
-              isa<MemoryEffects::Read>(after.getEffect()))
-            continue;
-
+      if (!memInterface.hasNoEffect()) {
+        if (!isReadOnly(op) || isSpeculatable)
           return false;
-        }
+
+        SmallVector<MemoryEffects::EffectInstance> whileEffects, opEffects;
+        collectEffects(whileOp, whileEffects, /*ignoreBarriers*/ false);
+        collectEffects(op, opEffects, /*ignoreBarriers*/ false);
+
+        for (MemoryEffects::EffectInstance &before : opEffects)
+          for (MemoryEffects::EffectInstance &after : whileEffects) {
+            if (isa<MemoryEffects::Read>(before.getEffect()) &&
+                isa<MemoryEffects::Read>(after.getEffect()))
+              continue;
+
+            if (before.getValue() && after.getValue()) {
+              AliasResult aliasRes =
+                  aliasAnalysis.alias(before.getValue(), after.getValue());
+              if (aliasRes.isNo())
+                continue;
+            }
+
+            return false;
+          }
+      }
     } else if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
       // If the operation doesn't provide the memory effect interface and it
       // doesn't the recursive side effects we treat it conservatively.
