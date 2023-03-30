@@ -28,29 +28,6 @@ template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 
-struct S1 {
-  S1() = default;
-  S1(int i) : i(i) {}
-  operator int() {
-    return i;
-  }
-  int i = 0;
-  int j = 2;
-};
-static_assert(sizeof(S1) == 8);
-
-struct S2 {
-  S2() = default;
-  S2(int i) : i(i) {}
-  operator int() {
-    return i;
-  }
-  int i = 0;
-  int j = 2;
-  int k = 3;
-};
-static_assert(sizeof(S2) == 12);
-
 void report_results(int *p) {
   int idx = 0;
   int global_size = p[idx++];
@@ -114,20 +91,6 @@ struct Printer {
     p[idx++] = -3;
     p[idx + ndi.get_global_id(0)] = reinterpret_cast<uintptr_t>(ptr);
     idx += ndi.get_global_range(0);
-  }
-  void print(S1 s1) {
-    print("i");
-    print(s1.i);
-    print("j");
-    print(s1.j);
-  }
-  void print(S2 s2) {
-    print("i");
-    print(s2.i);
-    print("j");
-    print(s2.j);
-    print("k");
-    print(s2.k);
   }
   void finalize() { p[idx++] = -1; }
   int *p;
@@ -417,6 +380,7 @@ void test() {
   q.submit([&](handler &cgh) {
      accessor acc{b, cgh};
      accessor res{result, cgh};
+     local_accessor<T> local{wg_size * ELEMS_PER_WI * 2, cgh};
      cgh.parallel_for(
          nd_range{range<1>{global_size}, range<1>{wg_size}},
          [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(SG_SIZE)]] {
@@ -437,8 +401,10 @@ void test() {
                global_mem + ndi.get_group(0) * wg_size * ELEMS_PER_WI;
            auto *sg_mem = wg_mem + sg.get_group_id() * simd * ELEMS_PER_WI;
 
+           auto *val = local.get_pointer() + lid * ELEMS_PER_WI;
+           auto *res_val = val + wg_size * ELEMS_PER_WI;
+
            auto base = static_cast<T>(gid) + ELEMS_PER_WI;
-           T val[ELEMS_PER_WI];
            for (int i = 0; i < ELEMS_PER_WI; ++i)
              val[i] = base - i;
 
@@ -448,6 +414,7 @@ void test() {
            //   p.print(val[i].j);
            //   p.print(val[i].k);
            // }
+           // p.print("End val");
            // for (int i = 0; i < ELEMS_PER_WI; ++i)
            //   p.print(val[i]);
 
@@ -473,8 +440,8 @@ void test() {
              success &= (priv[i] == val_ptr[i]);
            res[gid] = success;
 
-           T res_val[ELEMS_PER_WI];
-           std::memcpy(res_val, priv, sizeof(res_val));
+           // T res_val[ELEMS_PER_WI];
+           std::memcpy(res_val, priv, sizeof(T));
 
            // p.print("Result:");
            // for (int i = 0; i < ELEMS_PER_WI; ++i) {
@@ -497,6 +464,41 @@ void test() {
   assert(std::all_of(res_acc.begin(), res_acc.end(), [](bool r) { return r; }));
 }
 
+struct S1 {
+  S1() = default;
+  S1(int i) : i(i) {}
+  operator int() {
+    return i;
+  }
+  int i = 0;
+  int j = 2;
+};
+static_assert(sizeof(S1) == 8);
+
+struct S2 {
+  S2() = default;
+  S2(int i) : i(i) {}
+  operator int() {
+    return i;
+  }
+  int i = 0;
+  int j = 2;
+  int k = 3;
+};
+static_assert(sizeof(S2) == 12);
+
+struct __attribute__((packed)) S3 {
+  S3() = default;
+  S3(int i) : i(i) {}
+  operator int() {
+    return i;
+  }
+  int i = 0;
+  int j = 2;
+  char k = 3;
+};
+static_assert(sizeof(S3) == 9);
+
 int main() {
   constexpr int sizes[] = {1, 2, 3, 7, 8, 17, 16, 32, 64, 67};
 #ifndef SINGLE
@@ -509,6 +511,7 @@ int main() {
     test<true, float, size>();
     test<true, S1, size>();
     test<true, S2, size>();
+    test<true, S3, size>();
 
     test<false, char, size>();
     test<false, short, size>();
@@ -517,9 +520,10 @@ int main() {
     test<false, float, size>();
     test<false, S1, size>();
     test<false, S2, size>();
+    test<false, S3, size>();
   });
 #else
-  test<false, S2, 2>();
+  test<true, S3, 67>();
 #endif
 
 }
