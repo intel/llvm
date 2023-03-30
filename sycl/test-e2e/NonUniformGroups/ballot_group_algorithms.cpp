@@ -58,7 +58,7 @@ int main() {
               Visible += TmpAcc[Other];
             }
           }
-          BarrierAcc[WI] = Visible;
+          BarrierAcc[WI] = (Visible == BallotGroup.get_local_linear_range());
 
           // Simple check of group algorithms.
           uint32_t OriginalLID = SG.get_local_linear_id();
