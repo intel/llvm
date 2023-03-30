@@ -780,23 +780,30 @@ def make_details_lines(namespace, tags, obj):
         lines.append("")
         lines.append("@details")
 
-        for item in obj['details']:
-            if isinstance(item, dict):
-                for key, values in item.items():
-                    prologue = "    -"
-                    for line in split_line(subt(namespace, tags, key, True), 70):
-                        lines.append("%s %s"%(prologue, line))
-                        prologue = "     "
-                    for val in values:
-                        prologue = "        +"
-                        for line in split_line(subt(namespace, tags, val, True), 66):
+        # If obj['details'] is a list of bullet points, add the bullet point formatting to the lines.
+        if isinstance(obj['details'], list):
+            for item in obj['details']:
+                if isinstance(item, dict):
+                    for key, values in item.items():
+                        prologue = "    -"
+                        for line in split_line(subt(namespace, tags, key, True), 70):
                             lines.append("%s %s"%(prologue, line))
-                            prologue = "         "
-            else:
-                prologue = "    -"
-                for line in split_line(subt(namespace, tags, item, True), 70):
+                            prologue = "     "
+                        for val in values:
+                            prologue = "        +"
+                            for line in split_line(subt(namespace, tags, val, True), 66):
+                                lines.append("%s %s"%(prologue, line))
+                                prologue = "         "
+                else:
+                    prologue = "    -"
+                    for line in split_line(subt(namespace, tags, item, True), 70):
                         lines.append("%s %s"%(prologue, line))
                         prologue = "     "
+        # If obj['details'] is a string, then assume that it's already correctly formatted using markdown.
+        else:
+            for line in obj['details'].splitlines(False):
+                lines.append(subt(namespace, tags, line, True))
+
     if 'analogue' in obj:
         lines.append("")
         lines.append("@remarks")
