@@ -195,19 +195,19 @@ module {
 	  %c1_i32 = arith.constant 1 : i32
 	  %c3_i64 = arith.constant 3 : index
 	  %1:3 = scf.while (%arg3 = %c0_i32) : (i32) -> (i32, i32, index) {
-  		%2 = arith.index_cast %arg3 : i32 to index
+      %2 = arith.index_cast %arg3 : i32 to index
       %3 = memref.load %arg0[%c0] : memref<?xi32>
       %4 = arith.cmpi slt, %arg3, %3 : i32      
-  		scf.condition(%4) %arg3, %3, %2 : i32, i32, index
-	  } do {
-	    ^bb0(%arg3: i32, %arg4: i32, %arg5: index):  
-  		%5 = arith.index_cast %arg4 : i32 to index
-		  %parg3 = arith.addi %arg3, %c1_i32 : i32
-  		%6 = memref.load %arg0[%5] : memref<?xi32>
-	  	memref.store %6, %arg1[%5] : memref<?xi32>
-		  scf.yield %parg3 : i32
-	  }
-	  return
+      scf.condition(%4) %arg3, %3, %2 : i32, i32, index
+    } do {
+     ^bb0(%arg3: i32, %arg4: i32, %arg5: index):  
+      %5 = arith.index_cast %arg4 : i32 to index
+      %parg3 = arith.addi %arg3, %c1_i32 : i32
+      %6 = memref.load %arg0[%5] : memref<?xi32>
+      memref.store %6, %arg1[%5] : memref<?xi32>
+      scf.yield %parg3 : i32
+    }
+    return
   }
 
   // CHECK-LABEL: func.func @noalias
