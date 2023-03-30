@@ -13,8 +13,11 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Polygeist/IR/Ops.h"
+#include "mlir/Dialect/Polygeist/IR/Polygeist.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
@@ -37,6 +40,10 @@ namespace polygeist {
 } // namespace mlir
 
 using namespace mlir;
+
+static llvm::cl::opt<bool> EnableSYCLAccessorVersioning(
+    "enable-sycl-accessor-versioning", llvm::cl::init(false),
+    llvm::cl::desc("Enable loop versioning for SYCL accessors"));
 
 namespace {
 
@@ -723,6 +730,210 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
+// SYCLAccessorVersionBuilder
+//===----------------------------------------------------------------------===//
+
+// TODO: Support other kind of loops.
+class SYCLAccessorVersionBuilder : public SCFLoopVersionBuilder {
+public:
+  SYCLAccessorVersionBuilder(LoopLikeOpInterface loop)
+      : SCFLoopVersionBuilder(loop) {}
+
+  bool isVersionCandidate(const Operation &op1, const Operation &op2) {
+    if (!EnableSYCLAccessorVersioning)
+      return false;
+
+    // Currently only allow one accessor pair.
+    if (!empty())
+      return false;
+
+    auto getMemrefOp = [](const Operation &op) -> Operation * {
+      if (auto loadOp = dyn_cast<AffineLoadOp>(op))
+        return loadOp.getMemref().getDefiningOp();
+      if (auto storeOp = dyn_cast<AffineStoreOp>(op))
+        return storeOp.getMemref().getDefiningOp();
+      return nullptr;
+    };
+
+    auto accSub1 =
+        dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op1));
+    auto accSub2 =
+        dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op2));
+    if (!accSub1 || !accSub2)
+      return false;
+
+    TypedValue<MemRefType> acc1 = accSub1.getAcc();
+    TypedValue<MemRefType> acc2 = accSub2.getAcc();
+    if (acc1 == acc2)
+      return false;
+
+    if (!loop.isDefinedOutsideOfLoop(acc1) ||
+        !loop.isDefinedOutsideOfLoop(acc2))
+      return false;
+
+    AccessorPair = std::pair(acc1, acc2);
+
+    return true;
+  }
+
+  void versionLoop() {
+    if (empty())
+      return;
+    builder.setInsertionPoint(loop);
+    SCFLoopVersionBuilder::versionLoop();
+  }
+
+private:
+  Value createCondition() const final {
+    Location loc = loop.getLoc();
+
+    auto GetMemref2PointerOp = [&](Value op) {
+      auto MT = cast<MemRefType>(op.getType());
+      return builder.create<polygeist::Memref2PointerOp>(
+          loop.getLoc(),
+          LLVM::LLVMPointerType::get(MT.getElementType(),
+                                     MT.getMemorySpaceAsInt()),
+          op);
+    };
+
+    auto begin1 = getSYCLAccessorBegin(AccessorPair.first, builder, loc);
+    auto end1 = getSYCLAccessorEnd(AccessorPair.first, builder, loc);
+    auto begin2 = getSYCLAccessorBegin(AccessorPair.second, builder, loc);
+    auto end2 = getSYCLAccessorEnd(AccessorPair.second, builder, loc);
+    auto beforeCond = builder.create<LLVM::ICmpOp>(
+        loc, LLVM::ICmpPredicate::ule, GetMemref2PointerOp(end1),
+        GetMemref2PointerOp(begin2));
+    auto afterCond = builder.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::uge,
+                                                  GetMemref2PointerOp(begin1),
+                                                  GetMemref2PointerOp(end2));
+    return builder.create<arith::OrIOp>(loc, beforeCond, afterCond);
+  }
+
+  static sycl::SYCLIDGetOp createSYCLIDGetOp(TypedValue<MemRefType> id,
+                                             unsigned index, OpBuilder builder,
+                                             Location loc) {
+    const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
+    NamedAttrList attrs;
+    attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
+              builder.getTypeArrayAttr({id.getType(), indexOp.getType()}));
+    attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
+              FlatSymbolRefAttr::get(builder.getStringAttr("operator[]")));
+    attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
+              FlatSymbolRefAttr::get(builder.getStringAttr("id")));
+    const auto resTy = builder.getI64Type();
+    return builder.create<sycl::SYCLIDGetOp>(
+        loc, MemRefType::get(ShapedType::kDynamic, resTy),
+        ValueRange({id, indexOp}), attrs);
+  }
+
+  static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
+                                                   unsigned index,
+                                                   OpBuilder builder,
+                                                   Location loc) {
+    const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
+    NamedAttrList attrs;
+    attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
+              builder.getTypeArrayAttr({range.getType(), indexOp.getType()}));
+    attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
+              FlatSymbolRefAttr::get(builder.getStringAttr("get")));
+    attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
+              FlatSymbolRefAttr::get(builder.getStringAttr("range")));
+    const auto resTy = builder.getI64Type();
+    return builder.create<sycl::SYCLRangeGetOp>(
+        loc, resTy, ValueRange({range, indexOp}), attrs);
+  }
+
+  static sycl::SYCLAccessorGetRangeOp
+  createSYCLAccessorGetRangeOp(TypedValue<MemRefType> accessor,
+                               OpBuilder builder, Location loc) {
+    const auto accTy =
+        cast<sycl::AccessorType>(accessor.getType().getElementType());
+    const auto rangeTy = cast<sycl::RangeType>(
+        cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
+    NamedAttrList attrs;
+    attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
+              builder.getTypeArrayAttr(accessor.getType()));
+    attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
+              FlatSymbolRefAttr::get(builder.getStringAttr("get_range")));
+    attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
+              FlatSymbolRefAttr::get(builder.getStringAttr("accessor")));
+    return builder.create<sycl::SYCLAccessorGetRangeOp>(loc, rangeTy, accessor,
+                                                        attrs);
+  }
+
+  static sycl::SYCLAccessorSubscriptOp
+  createSYCLAccessorSubscriptOp(TypedValue<MemRefType> accessor,
+                                TypedValue<MemRefType> id, OpBuilder builder,
+                                Location loc) {
+    const auto accTy =
+        cast<sycl::AccessorType>(accessor.getType().getElementType());
+    const auto MT = cast<MemRefType>(
+        cast<LLVM::LLVMStructType>(accTy.getBody()[1]).getBody()[0]);
+    NamedAttrList attrs;
+    attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
+              builder.getTypeArrayAttr({accessor.getType(), id.getType()}));
+    attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
+              FlatSymbolRefAttr::get(builder.getStringAttr("operator[]")));
+    attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
+              FlatSymbolRefAttr::get(builder.getStringAttr("accessor")));
+    return builder.create<sycl::SYCLAccessorSubscriptOp>(
+        loc, MT, ValueRange({accessor, id}), attrs);
+  }
+
+  static sycl::SYCLAccessorSubscriptOp
+  getSYCLAccessorBegin(TypedValue<MemRefType> accessor, OpBuilder builder,
+                       Location loc) {
+    const auto accTy =
+        cast<sycl::AccessorType>(accessor.getType().getElementType());
+    const auto idTy = cast<sycl::IDType>(
+        cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
+    auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
+    const Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 64);
+    const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+    for (unsigned i = 0; i < accTy.getDimension(); ++i) {
+      sycl::SYCLIDGetOp idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+      builder.create<memref::StoreOp>(loc, zero, idGetOp, zeroIndex);
+    }
+    return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
+  }
+
+  static polygeist::SubIndexOp
+  getSYCLAccessorEnd(TypedValue<MemRefType> accessor, OpBuilder builder,
+                     Location loc) {
+    const auto accTy =
+        cast<sycl::AccessorType>(accessor.getType().getElementType());
+    sycl::SYCLAccessorGetRangeOp getRangeOp =
+        createSYCLAccessorGetRangeOp(accessor, builder, loc);
+    auto range = builder.create<memref::AllocaOp>(
+        loc, MemRefType::get(1, getRangeOp.getType()));
+    const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
+    builder.create<memref::StoreOp>(loc, getRangeOp, range, zeroIndex);
+    const auto idTy = cast<sycl::IDType>(
+        cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
+    auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
+    const Value one = builder.create<arith::ConstantIntOp>(loc, 1, 64);
+    for (unsigned i = 0; i < accTy.getDimension(); ++i) {
+      sycl::SYCLIDGetOp idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+      sycl::SYCLRangeGetOp rangeGetOp =
+          createSYCLRangeGetOp(range, i, builder, loc);
+      auto index = builder.create<arith::SubIOp>(loc, rangeGetOp, one);
+      builder.create<memref::StoreOp>(loc, index, idGetOp, zeroIndex);
+    }
+    auto accSub = createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
+    const Value oneIndex = builder.create<arith::ConstantIndexOp>(loc, 1);
+    return builder.create<polygeist::SubIndexOp>(loc, accSub.getType(), accSub,
+                                                 oneIndex);
+  }
+
+  bool empty() {
+    return AccessorPair ==
+           std::pair<TypedValue<MemRefType>, TypedValue<MemRefType>>();
+  }
+
+  std::pair<TypedValue<MemRefType>, TypedValue<MemRefType>> AccessorPair;
+};
+
+//===----------------------------------------------------------------------===//
 
 /// Determine whether any operation in the \p loop has a conflict with the
 /// given operation in LICMCandidate \p candidate that prevents hoisting the
@@ -730,6 +941,7 @@ private:
 /// hoisting preventing conflicts in the loop are given in \p willBeMoved.
 static bool hasConflictsInLoop(LICMCandidate &candidate,
                                LoopLikeOpInterface loop,
+                               SYCLAccessorVersionBuilder &versionCandidate,
                                const SmallPtrSetImpl<Operation *> &willBeMoved,
                                const AliasAnalysis &aliasAnalysis,
                                const DominanceInfo &domInfo) {
@@ -752,6 +964,13 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
                  << "can be hoisted: conflicting operation will be hoisted\n");
       continue;
     }
+
+    if (versionCandidate.isVersionCandidate(op, other)) {
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "can be hoisted: require loop versioning\n");
+      continue;
+    }
+
     return true;
   }
 
@@ -759,8 +978,8 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
   if (op.getParentOp() == loop)
     return false;
   LICMCandidate parentCandidate(*op.getParentOp());
-  if (hasConflictsInLoop(parentCandidate, loop, willBeMoved, aliasAnalysis,
-                         domInfo))
+  if (hasConflictsInLoop(parentCandidate, loop, versionCandidate, willBeMoved,
+                         aliasAnalysis, domInfo))
     return true;
 
   // If the parent operation is not guaranteed to execute its
@@ -788,6 +1007,7 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
 /// operations that are known to be loop invariant (and therefore will be moved
 /// outside of the loop).
 static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
+                         SYCLAccessorVersionBuilder &versionCandidate,
                          const SmallPtrSetImpl<Operation *> &willBeMoved,
                          const AliasAnalysis &aliasAnalysis,
                          const DominanceInfo &domInfo) {
@@ -857,8 +1077,8 @@ static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
   // loop prevent hosting it.
   if ((sideEffects.readsFromResource() || sideEffects.writesToResource() ||
        sideEffects.freesResource()) &&
-      hasConflictsInLoop(candidate, loop, willBeMoved, aliasAnalysis,
-                         domInfo)) {
+      hasConflictsInLoop(candidate, loop, versionCandidate, willBeMoved,
+                         aliasAnalysis, domInfo)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "**** cannot be hoisted: found conflicting operation\n\n");
     return false;
@@ -874,8 +1094,8 @@ static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
   for (Region &region : op.getRegions()) {
     for (Operation &innerOp : region.getOps()) {
       LICMCandidate innerCandidate(innerOp);
-      if (!canBeHoisted(innerCandidate, loop, willBeMoved2, aliasAnalysis,
-                        domInfo))
+      if (!canBeHoisted(innerCandidate, loop, versionCandidate, willBeMoved2,
+                        aliasAnalysis, domInfo))
         return false;
       willBeMoved2.insert(&innerOp);
     }
@@ -893,7 +1113,8 @@ static void
 collectHoistableOperations(LoopLikeOpInterface loop,
                            const AliasAnalysis &aliasAnalysis,
                            const DominanceInfo &domInfo,
-                           SmallVectorImpl<LICMCandidate> &LICMCandidates) {
+                           SmallVectorImpl<LICMCandidate> &LICMCandidates,
+                           SYCLAccessorVersionBuilder &versionCandidate) {
   // Do not use walk here, as we do not want to go into nested regions and
   // hoist operations from there. These regions might have semantics unknown
   // to this rewriting. If the nested regions are loops, they will have been
@@ -902,7 +1123,8 @@ collectHoistableOperations(LoopLikeOpInterface loop,
   for (Block &block : loop.getLoopBody()) {
     for (Operation &op : block.without_terminator()) {
       LICMCandidate candidate(op);
-      if (!canBeHoisted(candidate, loop, willBeMoved, aliasAnalysis, domInfo))
+      if (!canBeHoisted(candidate, loop, versionCandidate, willBeMoved,
+                        aliasAnalysis, domInfo))
         continue;
       LICMCandidates.push_back(candidate);
       willBeMoved.insert(&op);
@@ -918,11 +1140,14 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
     return 0;
 
   SmallVector<LICMCandidate> LICMCandidates;
-  collectHoistableOperations(loop, aliasAnalysis, domInfo, LICMCandidates);
+  auto versionCandidate = SYCLAccessorVersionBuilder(loop);
+  collectHoistableOperations(loop, aliasAnalysis, domInfo, LICMCandidates,
+                             versionCandidate);
   if (LICMCandidates.empty())
     return 0;
 
   LoopGuardBuilder::create(loop)->guardLoop();
+  versionCandidate.versionLoop();
 
   size_t numOpsHoisted = 0;
   for (const LICMCandidate &candidate : LICMCandidates) {
