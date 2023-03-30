@@ -12,6 +12,7 @@
 
 #include <__assert>
 #include <__config>
+#include <__exception/exception.h>
 #include <__functional/binary_function.h>
 #include <__functional/invoke.h>
 #include <__functional/unary_function.h>
@@ -23,15 +24,17 @@
 #include <__memory/builtin_new_allocator.h>
 #include <__memory/compressed_pair.h>
 #include <__memory/unique_ptr.h>
+#include <__type_traits/aligned_storage.h>
+#include <__type_traits/is_trivially_copy_constructible.h>
+#include <__type_traits/is_trivially_destructible.h>
 #include <__type_traits/strip_signature.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
 #include <__utility/piecewise_construct.h>
 #include <__utility/swap.h>
-#include <exception>
+#include <__verbose_abort>
 #include <new>
 #include <tuple>
-#include <type_traits>
 #include <typeinfo>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -71,7 +74,7 @@ void __throw_bad_function_call()
 #ifndef _LIBCPP_HAS_NO_EXCEPTIONS
     throw bad_function_call();
 #else
-    _VSTD::abort();
+    _LIBCPP_VERBOSE_ABORT("bad_function_call was thrown in -fno-exceptions mode");
 #endif
 }
 

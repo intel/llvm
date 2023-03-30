@@ -102,8 +102,10 @@ void RTNAME(PointerAssociateRemapping)(Descriptor &pointer,
   Terminator terminator{sourceFile, sourceLine};
   SubscriptValue byteStride{/*captured from first dimension*/};
   std::size_t boundElementBytes{bounds.ElementBytes()};
-  pointer.raw().rank = bounds.rank();
-  for (int j{0}; j < bounds.rank(); ++j) {
+  std::size_t boundsRank{
+      static_cast<std::size_t>(bounds.GetDimension(1).Extent())};
+  pointer.raw().rank = boundsRank;
+  for (unsigned j{0}; j < boundsRank; ++j) {
     auto &dim{pointer.GetDimension(j)};
     dim.SetBounds(GetInt64(bounds.ZeroBasedIndexedElement<const char>(2 * j),
                       boundElementBytes, terminator),
@@ -120,6 +122,13 @@ void RTNAME(PointerAssociateRemapping)(Descriptor &pointer,
     terminator.Crash("PointerAssociateRemapping: too many elements in remapped "
                      "pointer (%zd > %zd)",
         pointer.Elements(), target.Elements());
+  }
+  if (auto *pointerAddendum{pointer.Addendum()}) {
+    if (const auto *targetAddendum{target.Addendum()}) {
+      if (const auto *derived{targetAddendum->derivedType()}) {
+        pointerAddendum->set_derivedType(derived);
+      }
+    }
   }
 }
 
@@ -197,7 +206,8 @@ bool RTNAME(PointerIsAssociatedWith)(
   if (!target) {
     return pointer.raw().base_addr != nullptr;
   }
-  if (!target->raw().base_addr || target->ElementBytes() == 0) {
+  if (!target->raw().base_addr ||
+      (target->raw().type != CFI_type_struct && target->ElementBytes() == 0)) {
     return false;
   }
   int rank{pointer.rank()};

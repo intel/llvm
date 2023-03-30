@@ -10,6 +10,8 @@
 // TODO FMT Evaluate gcc-12 status
 // UNSUPPORTED: gcc-12
 
+// XFAIL: availability-fp_to_chars-missing
+
 // <format>
 
 // string vformat(string_view fmt, format_args args);

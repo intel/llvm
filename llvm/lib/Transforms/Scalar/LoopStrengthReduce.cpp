@@ -799,7 +799,7 @@ static const SCEV *getExactSDiv(const SCEV *LHS, const SCEV *RHS,
 /// value, and mutate S to point to a new SCEV with that value excluded.
 static int64_t ExtractImmediate(const SCEV *&S, ScalarEvolution &SE) {
   if (const SCEVConstant *C = dyn_cast<SCEVConstant>(S)) {
-    if (C->getAPInt().getMinSignedBits() <= 64) {
+    if (C->getAPInt().getSignificantBits() <= 64) {
       S = SE.getConstant(C->getType(), 0);
       return C->getValue()->getSExtValue();
     }
@@ -976,6 +976,7 @@ static bool isHighCostExpansion(const SCEV *S,
   switch (S->getSCEVType()) {
   case scUnknown:
   case scConstant:
+  case scVScale:
     return false;
   case scTruncate:
     return isHighCostExpansion(cast<SCEVTruncateExpr>(S)->getOperand(),
@@ -1414,7 +1415,7 @@ void Cost::RateFormula(const Formula &F,
       C.ImmCost += 64; // Handle symbolic values conservatively.
                      // TODO: This should probably be the pointer size.
     else if (Offset != 0)
-      C.ImmCost += APInt(64, Offset, true).getMinSignedBits();
+      C.ImmCost += APInt(64, Offset, true).getSignificantBits();
 
     // Check with target if this offset with this instruction is
     // specifically not supported.
@@ -2498,7 +2499,7 @@ LSRInstance::OptimizeLoopTermCond() {
             if (C->isOne() || C->isMinusOne())
               goto decline_post_inc;
             // Avoid weird situations.
-            if (C->getValue().getMinSignedBits() >= 64 ||
+            if (C->getValue().getSignificantBits() >= 64 ||
                 C->getValue().isMinSignedValue())
               goto decline_post_inc;
             // Check for possible scaled-address reuse.
@@ -2740,13 +2741,13 @@ void LSRInstance::CollectInterestingTypesAndFactors() {
       if (const SCEVConstant *Factor =
             dyn_cast_or_null<SCEVConstant>(getExactSDiv(NewStride, OldStride,
                                                         SE, true))) {
-        if (Factor->getAPInt().getMinSignedBits() <= 64 && !Factor->isZero())
+        if (Factor->getAPInt().getSignificantBits() <= 64 && !Factor->isZero())
           Factors.insert(Factor->getAPInt().getSExtValue());
       } else if (const SCEVConstant *Factor =
                    dyn_cast_or_null<SCEVConstant>(getExactSDiv(OldStride,
                                                                NewStride,
                                                                SE, true))) {
-        if (Factor->getAPInt().getMinSignedBits() <= 64 && !Factor->isZero())
+        if (Factor->getAPInt().getSignificantBits() <= 64 && !Factor->isZero())
           Factors.insert(Factor->getAPInt().getSExtValue());
       }
     }
@@ -2812,9 +2813,10 @@ static bool isCompatibleIVType(Value *LVal, Value *RVal) {
 /// SCEVUnknown, we simply return the rightmost SCEV operand.
 static const SCEV *getExprBase(const SCEV *S) {
   switch (S->getSCEVType()) {
-  default: // uncluding scUnknown.
+  default: // including scUnknown.
     return S;
   case scConstant:
+  case scVScale:
     return nullptr;
   case scTruncate:
     return getExprBase(cast<SCEVTruncateExpr>(S)->getOperand());
@@ -3175,7 +3177,7 @@ static bool canFoldIVIncExpr(const SCEV *IncExpr, Instruction *UserInst,
   if (!IncConst || !isAddressUse(TTI, UserInst, Operand))
     return false;
 
-  if (IncConst->getAPInt().getMinSignedBits() > 64)
+  if (IncConst->getAPInt().getSignificantBits() > 64)
     return false;
 
   MemAccessTy AccessTy = getAccessType(TTI, UserInst, Operand);
@@ -4379,7 +4381,7 @@ void LSRInstance::GenerateCrossUseConstantOffsets() {
               if ((C->getAPInt() + NewF.BaseOffset)
                       .abs()
                       .slt(std::abs(NewF.BaseOffset)) &&
-                  (C->getAPInt() + NewF.BaseOffset).countTrailingZeros() >=
+                  (C->getAPInt() + NewF.BaseOffset).countr_zero() >=
                       (unsigned)llvm::countr_zero<uint64_t>(NewF.BaseOffset))
                 goto skip_formula;
 
@@ -4989,7 +4991,10 @@ static bool IsSimplerBaseSCEVForTarget(const TargetTransformInfo &TTI,
                                        ScalarEvolution &SE, const SCEV *Best,
                                        const SCEV *Reg,
                                        MemAccessTy AccessType) {
-  if (Best->getType() != Reg->getType())
+  if (Best->getType() != Reg->getType() ||
+      (isa<SCEVAddRecExpr>(Best) && isa<SCEVAddRecExpr>(Reg) &&
+       cast<SCEVAddRecExpr>(Best)->getLoop() !=
+           cast<SCEVAddRecExpr>(Reg)->getLoop()))
     return false;
   const auto *Diff = dyn_cast<SCEVConstant>(SE.getMinusSCEV(Best, Reg));
   if (!Diff)
@@ -6063,7 +6068,7 @@ struct SCEVDbgValueBuilder {
   }
 
   bool pushConst(const SCEVConstant *C) {
-    if (C->getAPInt().getMinSignedBits() > 64)
+    if (C->getAPInt().getSignificantBits() > 64)
       return false;
     Expr.push_back(llvm::dwarf::DW_OP_consts);
     Expr.push_back(C->getAPInt().getSExtValue());
@@ -6152,7 +6157,7 @@ struct SCEVDbgValueBuilder {
   /// SCEV constant value is an identity function.
   bool isIdentityFunction(uint64_t Op, const SCEV *S) {
     if (const SCEVConstant *C = dyn_cast<SCEVConstant>(S)) {
-      if (C->getAPInt().getMinSignedBits() > 64)
+      if (C->getAPInt().getSignificantBits() > 64)
         return false;
       int64_t I = C->getAPInt().getSExtValue();
       switch (Op) {
@@ -6500,7 +6505,7 @@ static bool SalvageDVI(llvm::Loop *L, ScalarEvolution &SE,
     // less DWARF ops than an iteration count-based expression.
     if (std::optional<APInt> Offset =
             SE.computeConstantDifference(DVIRec.SCEVs[i], SCEVInductionVar)) {
-      if (Offset->getMinSignedBits() <= 64)
+      if (Offset->getSignificantBits() <= 64)
         SalvageExpr->createOffsetExpr(Offset->getSExtValue(), LSRInductionVar);
     } else if (!SalvageExpr->createIterCountExpr(DVIRec.SCEVs[i], IterCountExpr,
                                                  SE))
@@ -6676,7 +6681,7 @@ static llvm::PHINode *GetInductionVariable(const Loop &L, ScalarEvolution &SE,
   return nullptr;
 }
 
-static std::optional<std::tuple<PHINode *, PHINode *, const SCEV *>>
+static std::optional<std::tuple<PHINode *, PHINode *, const SCEV *, bool>>
 canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
                       const LoopInfo &LI) {
   if (!L->isInnermost()) {
@@ -6695,16 +6700,13 @@ canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
   }
 
   BasicBlock *LoopLatch = L->getLoopLatch();
-
-  // TODO: Can we do something for greater than and less than?
-  // Terminating condition is foldable when it is an eq/ne icmp
-  BranchInst *BI = cast<BranchInst>(LoopLatch->getTerminator());
-  if (BI->isUnconditional())
+  BranchInst *BI = dyn_cast<BranchInst>(LoopLatch->getTerminator());
+  if (!BI || BI->isUnconditional())
     return std::nullopt;
-  Value *TermCond = BI->getCondition();
-  if (!isa<ICmpInst>(TermCond) || !cast<ICmpInst>(TermCond)->isEquality()) {
-    LLVM_DEBUG(dbgs() << "Cannot fold on branching condition that is not an "
-                         "ICmpInst::eq / ICmpInst::ne\n");
+  auto *TermCond = dyn_cast<ICmpInst>(BI->getCondition());
+  if (!TermCond) {
+    LLVM_DEBUG(
+        dbgs() << "Cannot fold on branching condition that is not an ICmpInst");
     return std::nullopt;
   }
   if (!TermCond->hasOneUse()) {
@@ -6714,89 +6716,42 @@ canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
     return std::nullopt;
   }
 
-  // For `IsToFold`, a primary IV can be replaced by other affine AddRec when it
-  // is only used by the terminating condition. To check for this, we may need
-  // to traverse through a chain of use-def until we can examine the final
-  // usage.
-  //         *----------------------*
-  //   *---->|  LoopHeader:         |
-  //   |     |  PrimaryIV = phi ... |
-  //   |     *----------------------*
-  //   |              |
-  //   |              |
-  //   |           chain of
-  //   |          single use
-  // used by          |
-  //  phi             |
-  //   |            Value
-  //   |          /       \
-  //   |     chain of     chain of
-  //   |    single use     single use
-  //   |      /               \
-  //   |     /                 \
-  //   *- Value                Value --> used by terminating condition
-  auto IsToFold = [&](PHINode &PN) -> bool {
-    Value *V = &PN;
+  BinaryOperator *LHS = dyn_cast<BinaryOperator>(TermCond->getOperand(0));
+  Value *RHS = TermCond->getOperand(1);
+  if (!LHS || !L->isLoopInvariant(RHS))
+    // We could pattern match the inverse form of the icmp, but that is
+    // non-canonical, and this pass is running *very* late in the pipeline.
+    return std::nullopt;
 
-    while (V->getNumUses() == 1)
-      V = *V->user_begin();
+  // Find the IV used by the current exit condition.
+  PHINode *ToFold;
+  Value *ToFoldStart, *ToFoldStep;
+  if (!matchSimpleRecurrence(LHS, ToFold, ToFoldStart, ToFoldStep))
+    return std::nullopt;
 
-    if (V->getNumUses() != 2)
-      return false;
+  // If that IV isn't dead after we rewrite the exit condition in terms of
+  // another IV, there's no point in doing the transform.
+  if (!isAlmostDeadIV(ToFold, LoopLatch, TermCond))
+    return std::nullopt;
 
-    Value *VToPN = nullptr;
-    Value *VToTermCond = nullptr;
-    for (User *U : V->users()) {
-      while (U->getNumUses() == 1) {
-        if (isa<PHINode>(U))
-          VToPN = U;
-        if (U == TermCond)
-          VToTermCond = U;
-        U = *U->user_begin();
-      }
-    }
-    return VToPN && VToTermCond;
-  };
+  const SCEV *BECount = SE.getBackedgeTakenCount(L);
+  const DataLayout &DL = L->getHeader()->getModule()->getDataLayout();
+  SCEVExpander Expander(SE, DL, "lsr_fold_term_cond");
 
-  // If this is an IV which we could replace the terminating condition, return
-  // the final value of the alternative IV on the last iteration.
-  auto getAlternateIVEnd = [&](PHINode &PN) -> const SCEV * {
-    // FIXME: This does not properly account for overflow.
-    const SCEVAddRecExpr *AddRec = cast<SCEVAddRecExpr>(SE.getSCEV(&PN));
-    const SCEV *BECount = SE.getBackedgeTakenCount(L);
-    const SCEV *TermValueS = SE.getAddExpr(
-        AddRec->getOperand(0),
-        SE.getTruncateOrZeroExtend(
-            SE.getMulExpr(
-                AddRec->getOperand(1),
-                SE.getTruncateOrZeroExtend(
-                    SE.getAddExpr(BECount, SE.getOne(BECount->getType())),
-                    AddRec->getOperand(1)->getType())),
-            AddRec->getOperand(0)->getType()));
-    const DataLayout &DL = L->getHeader()->getModule()->getDataLayout();
-    SCEVExpander Expander(SE, DL, "lsr_fold_term_cond");
-    if (!Expander.isSafeToExpand(TermValueS)) {
-      LLVM_DEBUG(
-          dbgs() << "Is not safe to expand terminating value for phi node" << PN
-                 << "\n");
-      return nullptr;
-    }
-    return TermValueS;
-  };
-
-  PHINode *ToFold = nullptr;
   PHINode *ToHelpFold = nullptr;
   const SCEV *TermValueS = nullptr;
-
+  bool MustDropPoison = false;
   for (PHINode &PN : L->getHeader()->phis()) {
+    if (ToFold == &PN)
+      continue;
+
     if (!SE.isSCEVable(PN.getType())) {
       LLVM_DEBUG(dbgs() << "IV of phi '" << PN
                         << "' is not SCEV-able, not qualified for the "
                            "terminating condition folding.\n");
       continue;
     }
-    const SCEV *S = SE.getSCEV(&PN);
-    const SCEVAddRecExpr *AddRec = dyn_cast<SCEVAddRecExpr>(S);
+    const SCEVAddRecExpr *AddRec = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(&PN));
     // Only speculate on affine AddRec
     if (!AddRec || !AddRec->isAffine()) {
       LLVM_DEBUG(dbgs() << "SCEV of phi '" << PN
@@ -6805,12 +6760,63 @@ canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
       continue;
     }
 
-    if (IsToFold(PN))
-      ToFold = &PN;
-    else if (auto P = getAlternateIVEnd(PN)) {
-      ToHelpFold = &PN;
-      TermValueS = P;
+    // Check that we can compute the value of AddRec on the exiting iteration
+    // without soundness problems.  evaluateAtIteration internally needs
+    // to multiply the stride of the iteration number - which may wrap around.
+    // The issue here is subtle because computing the result accounting for
+    // wrap is insufficient. In order to use the result in an exit test, we
+    // must also know that AddRec doesn't take the same value on any previous
+    // iteration. The simplest case to consider is a candidate IV which is
+    // narrower than the trip count (and thus original IV), but this can
+    // also happen due to non-unit strides on the candidate IVs.
+    if (!AddRec->hasNoSelfWrap())
+      continue;
+
+    const SCEVAddRecExpr *PostInc = AddRec->getPostIncExpr(SE);
+    const SCEV *TermValueSLocal = PostInc->evaluateAtIteration(BECount, SE);
+    if (!Expander.isSafeToExpand(TermValueSLocal)) {
+      LLVM_DEBUG(
+          dbgs() << "Is not safe to expand terminating value for phi node" << PN
+                 << "\n");
+      continue;
     }
+
+    // The candidate IV may have been otherwise dead and poison from the
+    // very first iteration.  If we can't disprove that, we can't use the IV.
+    if (!mustExecuteUBIfPoisonOnPathTo(&PN, LoopLatch->getTerminator(), &DT)) {
+      LLVM_DEBUG(dbgs() << "Can not prove poison safety for IV "
+                        << PN << "\n");
+      continue;
+    }
+
+    // The candidate IV may become poison on the last iteration.  If this
+    // value is not branched on, this is a well defined program.  We're
+    // about to add a new use to this IV, and we have to ensure we don't
+    // insert UB which didn't previously exist.
+    bool MustDropPoisonLocal = false;
+    Instruction *PostIncV =
+      cast<Instruction>(PN.getIncomingValueForBlock(LoopLatch));
+    if (!mustExecuteUBIfPoisonOnPathTo(PostIncV, LoopLatch->getTerminator(),
+                                       &DT)) {
+      LLVM_DEBUG(dbgs() << "Can not prove poison safety to insert use"
+                        << PN << "\n");
+
+      // If this is a complex recurrance with multiple instructions computing
+      // the backedge value, we might need to strip poison flags from all of
+      // them.
+      if (PostIncV->getOperand(0) != &PN)
+        continue;
+
+      // In order to perform the transform, we need to drop the poison generating
+      // flags on this instruction (if any).
+      MustDropPoisonLocal = PostIncV->hasPoisonGeneratingFlags();
+    }
+
+    // We pick the last legal alternate IV.  We could expore choosing an optimal
+    // alternate IV if we had a decent heuristic to do so.
+    ToHelpFold = &PN;
+    TermValueS = TermValueSLocal;
+    MustDropPoison = MustDropPoisonLocal;
   }
 
   LLVM_DEBUG(if (ToFold && !ToHelpFold) dbgs()
@@ -6826,7 +6832,7 @@ canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
 
   if (!ToFold || !ToHelpFold)
     return std::nullopt;
-  return std::make_tuple(ToFold, ToHelpFold, TermValueS);
+  return std::make_tuple(ToFold, ToHelpFold, TermValueS, MustDropPoison);
 }
 
 static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
@@ -6889,7 +6895,7 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
 
   if (AllowTerminatingConditionFoldingAfterLSR) {
     if (auto Opt = canFoldTermCondOfLoop(L, SE, DT, LI)) {
-      auto [ToFold, ToHelpFold, TermValueS] = *Opt;
+      auto [ToFold, ToHelpFold, TermValueS, MustDrop] = *Opt;
 
       Changed = true;
       NumTermFold++;
@@ -6906,6 +6912,10 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
       Value *StartValue = ToHelpFold->getIncomingValueForBlock(LoopPreheader);
       (void)StartValue;
       Value *LoopValue = ToHelpFold->getIncomingValueForBlock(LoopLatch);
+
+      // See comment in canFoldTermCondOfLoop on why this is sufficient.
+      if (MustDrop)
+        cast<Instruction>(LoopValue)->dropPoisonGeneratingFlags();
 
       // SCEVExpander for both use in preheader and latch
       const DataLayout &DL = L->getHeader()->getModule()->getDataLayout();
@@ -6928,11 +6938,12 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
       BranchInst *BI = cast<BranchInst>(LoopLatch->getTerminator());
       ICmpInst *OldTermCond = cast<ICmpInst>(BI->getCondition());
       IRBuilder<> LatchBuilder(LoopLatch->getTerminator());
-      // FIXME: We are adding a use of an IV here without account for poison safety.
-      // This is incorrect.
-      Value *NewTermCond = LatchBuilder.CreateICmp(
-          OldTermCond->getPredicate(), LoopValue, TermValue,
-          "lsr_fold_term_cond.replaced_term_cond");
+      Value *NewTermCond =
+          LatchBuilder.CreateICmp(CmpInst::ICMP_EQ, LoopValue, TermValue,
+                                  "lsr_fold_term_cond.replaced_term_cond");
+      // Swap successors to exit loop body if IV equals to new TermValue
+      if (BI->getSuccessor(0) == L->getHeader())
+        BI->swapSuccessors();
 
       LLVM_DEBUG(dbgs() << "Old term-cond:\n"
                         << *OldTermCond << "\n"

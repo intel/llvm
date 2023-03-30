@@ -20,6 +20,7 @@
 
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Interfaces/DataLayoutInterfaces.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
@@ -179,9 +180,10 @@ mlir::translateDataLayout(const llvm::DataLayout &dataLayout,
   // Remaining unhandled default layout defaults
   // e (little endian if not set)
   // p[n]:64:64:64 (non zero address spaces have 64-bit properties)
+  // Alloca address space defaults to 0.
   std::string append =
       "p:64:64:64-S0-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f16:16:16-f64:"
-      "64:64-f128:128:128-v64:64:64-v128:128:128-a:0:64";
+      "64:64-f128:128:128-v64:64:64-v128:128:128-a:0:64-A0";
   if (layoutstr.empty())
     layoutstr = append;
   else
@@ -227,6 +229,18 @@ mlir::translateDataLayout(const llvm::DataLayout &dataLayout,
           StringAttr::get(context, DLTIDialect::kDataLayoutEndiannessKey),
           value);
       entries.emplace_back(entry);
+    } else if (symbol == 'A') {
+      unsigned addressSpace;
+      if (parameter.getAsInteger(/*Radix=*/10, addressSpace))
+        return nullptr;
+      // Skip storing if generic address space is defined.
+      if (addressSpace != 0) {
+        auto entry = DataLayoutEntryAttr::get(
+            StringAttr::get(context,
+                            DLTIDialect::kDataLayoutAllocaMemorySpaceKey),
+            mlir::Builder(context).getUI32IntegerAttr(addressSpace));
+        entries.emplace_back(entry);
+      }
     }
   }
 
@@ -893,6 +907,8 @@ LogicalResult ModuleImport::convertGlobal(llvm::GlobalVariable *globalVar) {
   }
   if (globalVar->hasSection())
     globalOp.setSection(globalVar->getSection());
+  globalOp.setVisibility_(
+      convertVisibilityFromLLVM(globalVar->getVisibility()));
 
   return success();
 }
@@ -1020,6 +1036,12 @@ FailureOr<Value> ModuleImport::convertConstant(llvm::Constant *constant) {
     return builder.create<NullOp>(loc, type).getResult();
   }
 
+  // Convert poison.
+  if (auto *poisonVal = dyn_cast<llvm::PoisonValue>(constant)) {
+    Type type = convertType(poisonVal->getType());
+    return builder.create<PoisonOp>(loc, type).getResult();
+  }
+
   // Convert undef.
   if (auto *undefVal = dyn_cast<llvm::UndefValue>(constant)) {
     Type type = convertType(undefVal->getType());
@@ -1042,7 +1064,7 @@ FailureOr<Value> ModuleImport::convertConstant(llvm::Constant *constant) {
     // resulting in a conflicting `valueMapping` entry.
     llvm::Instruction *inst = constExpr->getAsInstruction();
     auto guard = llvm::make_scope_exit([&]() {
-      assert(noResultOpMapping.find(inst) == noResultOpMapping.end() &&
+      assert(!noResultOpMapping.contains(inst) &&
              "expected constant expression to return a result");
       valueMapping.erase(inst);
       inst->deleteValue();
@@ -1197,6 +1219,13 @@ DILocalVariableAttr ModuleImport::matchLocalVariableAttr(llvm::Value *value) {
   auto *nodeAsVal = cast<llvm::MetadataAsValue>(value);
   auto *node = cast<llvm::DILocalVariable>(nodeAsVal->getMetadata());
   return debugImporter->translate(node);
+}
+
+FailureOr<SmallVector<SymbolRefAttr>>
+ModuleImport::matchAliasScopeAttrs(llvm::Value *value) {
+  auto *nodeAsVal = cast<llvm::MetadataAsValue>(value);
+  auto *node = cast<llvm::MDNode>(nodeAsVal->getMetadata());
+  return lookupAliasScopeAttrs(node);
 }
 
 Location ModuleImport::translateLoc(llvm::DILocation *loc) {
@@ -1610,6 +1639,8 @@ LogicalResult ModuleImport::processFunction(llvm::Function *func) {
 
   if (func->hasGC())
     funcOp.setGarbageCollector(StringRef(func->getGC()));
+
+  funcOp.setVisibility_(convertVisibilityFromLLVM(func->getVisibility()));
 
   // Handle Function attributes.
   processFunctionAttributes(func, funcOp);

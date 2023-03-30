@@ -1661,7 +1661,9 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
     return; // this is not a VME built-in
 
   SmallVector<Type *, 4> ParamTys;
-  getParameterTypes(CI->getCalledFunction(), ParamTys);
+  [[maybe_unused]] bool DidDemangle =
+      getParameterTypes(CI->getCalledFunction(), ParamTys);
+  assert(DidDemangle && "Expected SPIR-V builtins to be properly mangled");
   auto *TyIt = std::find_if(ParamTys.begin(), ParamTys.end(), isSamplerTy);
   assert(TyIt != ParamTys.end() && "Invalid Subgroup AVC Intel built-in call");
   unsigned SamplerIndex = TyIt - ParamTys.begin();

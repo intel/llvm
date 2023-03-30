@@ -29,6 +29,7 @@ add_clang_library(clangDriver
   DriverOptions.cpp
   Job.cpp
   Multilib.cpp
+  MultilibBuilder.cpp
   OffloadBundler.cpp
   OptionUtils.cpp
   Phases.cpp
@@ -82,6 +83,7 @@ add_clang_library(clangDriver
   ToolChains/Myriad.cpp
   ToolChains/NaCl.cpp
   ToolChains/NetBSD.cpp
+  ToolChains/OHOS.cpp
   ToolChains/OpenBSD.cpp
   ToolChains/PS4CPU.cpp
   ToolChains/RISCVToolchain.cpp
