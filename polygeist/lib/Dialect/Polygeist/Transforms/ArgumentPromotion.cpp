@@ -58,19 +58,17 @@ static constexpr StringRef linkageAttrName = "llvm.linkage";
 static bool isLinkonceODR(CallableOpInterface callableOp) {
   if (!callableOp->hasAttr(linkageAttrName))
     return false;
-  auto attr =
-      callableOp->getAttr(linkageAttrName).dyn_cast<mlir::LLVM::LinkageAttr>();
+  auto attr = dyn_cast<LLVM::LinkageAttr>(callableOp->getAttr(linkageAttrName));
   assert(attr && "Expecting LLVM::LinkageAttr");
   return attr.getLinkage() == LLVM::Linkage::LinkonceODR;
 }
 
-// Change the linkage of \p callableOp from linkonce_odr to internel.
+// Change the linkage of \p callableOp from linkonce_odr to internal.
 // There can be globals of the same name (with linkonce_odr linkage) in another
 // translation unit. As they have different arguments, we need to change the
-// linkage of the modified function to internel.
-static void privatize(FunctionOpInterface callableOp) {
-  if (!isLinkonceODR(cast<CallableOpInterface>(callableOp.getOperation())))
-    return;
+// linkage of the modified function to internal.
+static void privatize(CallableOpInterface callableOp) {
+  assert(isLinkonceODR(callableOp) && "Expecting linkonce_odr callableOp");
   callableOp->setAttr(linkageAttrName,
                       mlir::LLVM::LinkageAttr::get(callableOp->getContext(),
                                                    LLVM::Linkage::Internal));
@@ -342,7 +340,8 @@ void Candidate::modifyCallee() {
 
   funcOp.setType(newFuncType);
   funcOp.setAllArgAttrs(newArgAttrs);
-  privatize(funcOp);
+  if (isLinkonceODR(callableOp))
+    privatize(callableOp);
 
   LLVM_DEBUG(llvm::dbgs() << "\nNew Callee:\n" << funcOp << "\n";);
 }
