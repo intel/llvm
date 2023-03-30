@@ -98,8 +98,13 @@ def SCFRaiseToAffine : Pass<"raise-scf-to-affine"> {
 }
 
 def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
-  let summary = "Run some additional canonicalization for scf::for";
+  let summary = "Run some additional canonicalization for scf::for";  
   let constructor = "mlir::polygeist::createCanonicalizeForPass()";
+  let options = [
+    Option<"relaxedAliasing", "relaxed-aliasing", "bool", 
+           /*default=*/"false", 
+           "Whether to use strict aliasing (i.e. type-based aliasing) rules or not">
+  ];
 }
 
 def LICM : Pass<"licm"> {

@@ -1791,8 +1791,7 @@ void CanonicalizeFor::runOnOperation() {
   MLIRContext &ctx = getContext();
   RewritePatternSet rpl(&ctx);
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
-  aliasAnalysis.addAnalysisImplementation(
-      sycl::AliasAnalysis(true)); // relaxedAliasing
+  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 
   rpl.add<WhileLICM>(aliasAnalysis, &ctx)
       .add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
