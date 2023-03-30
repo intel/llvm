@@ -27,5 +27,5 @@ cmake -G Ninja \
         ..
 
 # Build and run full list of SYCL tests
-ninja ninja check-sycl-e2e
+ninja check-sycl-e2e
 ```
