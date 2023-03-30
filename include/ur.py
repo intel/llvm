@@ -1017,7 +1017,10 @@ class ur_usm_desc_t(Structure):
         ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
         ("flags", ur_usm_flags_t),                                      ## [in] memory allocation flags.
         ("hints", ur_usm_advice_t),                                     ## [in] Memory advice hints
-        ("align", c_ulong)                                              ## [in] memory advice hints.
+        ("align", c_ulong)                                              ## [in] alignment of the USM memory object
+                                                                        ## Must be zero or a power of 2.
+                                                                        ## Must be equal to or smaller than the size of the largest data type
+                                                                        ## supported by `hDevice`.
     ]
 
 ###############################################################################
