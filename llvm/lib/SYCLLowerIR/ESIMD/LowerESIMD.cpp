@@ -322,8 +322,7 @@ public:
         //      defines a map from the resulting genx.* intrinsic call arguments
         //      to the source call's template or function call arguments, e.g.
         //      0th genx arg - maps to 0th source call arg
-        //      1st genx arg - maps to 3rd template argument of the source
-        //      call
+        //      1st genx arg - maps to 3rd template argument of the source call
         // nk(N) or bo(N)
         //      a rule applied to the base intrinsic name in order to
         //      construct a full name ("llvm.genx." prefix s also added); e.g.
