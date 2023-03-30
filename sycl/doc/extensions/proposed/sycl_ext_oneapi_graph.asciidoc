@@ -513,8 +513,7 @@ node add(const property_list& propList = {});
 ----
 |This creates an empty node which contains no command. Its intended use is
 to make a connection point inside a graph between groups of nodes, and can
-significantly reduce the number of edges ( O(n) vs. O(n^2) ). Another use-case
-is building the structure of a graph first and adding tasks later.
+significantly reduce the number of edges ( O(n) vs. O(n^2^) ).
 
 Preconditions:
 
