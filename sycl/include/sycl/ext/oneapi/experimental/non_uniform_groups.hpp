@@ -9,8 +9,8 @@
 #pragma once
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/types.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/types.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
