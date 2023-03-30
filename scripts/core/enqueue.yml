@@ -1115,7 +1115,7 @@ returns:
 type: function
 desc: "Enqueue a command to set USM memory advice" 
 class: $xEnqueue
-name: USMMemAdvise
+name: USMAdvise
 ordinal: "0"
 params:
     - type: $x_queue_handle_t
@@ -1127,7 +1127,7 @@ params:
     - type: size_t
       name: size
       desc: "[in] size in bytes to be advised"
-    - type: $x_mem_advice_t
+    - type: $x_usm_advice_t
       name: advice
       desc: "[in] USM memory advice"
     - type: $x_event_handle_t*
