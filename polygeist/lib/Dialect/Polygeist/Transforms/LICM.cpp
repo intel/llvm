@@ -96,24 +96,6 @@ public:
   /// otherwise.
   bool conflictsWith(const Operation &other) const;
 
-  /// Returns the first operation in the given block \p block with side effects
-  /// that conflict with the side effects summarized in this class, and a
-  /// std::nullopt if none is found. If \p point is given, only operations that
-  /// appear before it are considered.
-  Optional<Operation *>
-  conflictsWithOperationInBlock(Block &block, Operation *point = nullptr) const;
-
-  /// Returns the first operation in the given region \p rgn with side effects
-  /// that conflict with the side effects summarized in this class, and a
-  /// std::nullopt if none is found.
-  Optional<Operation *> conflictsWithOperationInRegion(Region &rgn) const;
-
-  /// Returns the first operation in the given loop \p loop with side effects
-  /// that conflict with the side effects summarized in this class, and a
-  /// std::nullopt if none is found.
-  Optional<Operation *>
-  conflictsWithOperationInLoop(LoopLikeOpInterface loop) const;
-
 private:
   const Operation &op; /// Operation associated with the side effects.
   const AliasAnalysis &aliasAnalysis; /// Alias Analysis reference.
@@ -498,33 +480,6 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
   return false;
 }
 
-Optional<Operation *>
-OperationSideEffects::conflictsWithOperationInBlock(Block &block,
-                                                    Operation *point) const {
-  for (Operation &other : block) {
-    if (point && !other.isBeforeInBlock(point))
-      break;
-    if (conflictsWith(other))
-      return &other;
-  }
-  return std::nullopt;
-}
-
-Optional<Operation *>
-OperationSideEffects::conflictsWithOperationInRegion(Region &rgn) const {
-  for (Block &block : rgn) {
-    Optional<Operation *> conflictingOp = conflictsWithOperationInBlock(block);
-    if (conflictingOp.has_value())
-      return conflictingOp.value();
-  }
-  return std::nullopt;
-}
-
-Optional<Operation *> OperationSideEffects::conflictsWithOperationInLoop(
-    LoopLikeOpInterface loop) const {
-  return conflictsWithOperationInRegion(loop.getLoopBody());
-}
-
 //===----------------------------------------------------------------------===//
 // LoopVersionBuilder
 //===----------------------------------------------------------------------===//
@@ -760,26 +715,22 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
                                const DominanceInfo &domInfo) {
   const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo);
 
-  Optional<Operation *> conflictingOp =
-      TypeSwitch<Operation *, Optional<Operation *>>((Operation *)loop)
-          .Case<scf::ParallelOp, AffineParallelOp>([&](auto loop) {
-            // Check for conflicts with (only) other previous operations
-            // in the same block.
-            Operation *point = &op;
-            return sideEffects.conflictsWithOperationInBlock(*op.getBlock(),
-                                                             point);
-          })
-          .Default([&](auto loop) {
-            // Check for conflicts with all other operations in the same
-            // block.
-            return sideEffects.conflictsWithOperationInBlock(*op.getBlock());
-          });
+  // For parallel loop, only check for conflicts with other previous operations
+  // in the same block.
+  Operation *point =
+      (isa<scf::ParallelOp, AffineParallelOp>(loop)) ? &op : nullptr;
+  for (Operation &other : *op.getBlock()) {
+    if (point && !other.isBeforeInBlock(point))
+      break;
+    if (!sideEffects.conflictsWith(other))
+      continue;
 
-  if (conflictingOp.has_value()) {
-    if (!willBeMoved.count(*conflictingOp))
-      return true;
-    LLVM_DEBUG(llvm::dbgs().indent(2)
-               << "can be hoisted: conflicting operation will be hoisted\n");
+    if (willBeMoved.count(&other)) {
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "can be hoisted: conflicting operation will be hoisted\n");
+      continue;
+    }
+    return true;
   }
 
   // Check whether the parent operation has conflicts on the loop.
