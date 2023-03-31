@@ -10,8 +10,8 @@
 // CHECK-DAG: !sycl_accessor_1_21sycl2Evec3C5Bi322C_45D2C_28vector3C4xi323E293E_rw_gb = !sycl.accessor<[1, !sycl_vec_i32_4_, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?x!sycl_vec_i32_4_, 1>)>)>
 // CHECK-DAG: !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 // CHECK-DAG: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
-// CHECK-DAG: !sycl_atomic_f32_3_ = !sycl.atomic<[f32, 3], (memref<?xf32, 3>)>
-// CHECK-DAG: !sycl_atomic_i32_1_ = !sycl.atomic<[i32, 1], (memref<?xi32, 1>)>
+// CHECK-DAG: !sycl_atomic_f32_loc = !sycl.atomic<[f32, local], (memref<?xf32, 3>)>
+// CHECK-DAG: !sycl_atomic_i32_glo = !sycl.atomic<[i32, global], (memref<?xi32, 1>)>
 // CHECK-DAG: !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
 // CHECK-DAG: !sycl_h_item_1_ = !sycl.h_item<[1], (![[ITEM_1_F:.*]], ![[ITEM_1_F]], ![[ITEM_1_F]])>
@@ -31,7 +31,7 @@
 // CHECK-DAG: !sycl_local_accessor_1_i32_ = !sycl.local_accessor<[1, i32], (!sycl_local_accessor_base_1_i32_rw)>
 // CHECK-DAG: !sycl_maximum_i32_ = !sycl.maximum<i32>
 // CHECK-DAG: !sycl_minimum_i32_ = !sycl.minimum<i32>
-// CHECK-DAG: !sycl_multi_ptr_i32_1_ = !sycl.multi_ptr<[i32, 1, 1], (memref<?xi32, 1>)>
+// CHECK-DAG: !sycl_multi_ptr_i32_glo = !sycl.multi_ptr<[i32, global, yes], (memref<?xi32, 1>)>
 // CHECK-DAG: !sycl_nd_item_1_ = !sycl.nd_item<[1], (![[ITEM_1_T]], ![[ITEM_1_F]], !sycl_group_1_)>
 // CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (![[ITEM_2_T]], ![[ITEM_2_F]], !sycl_group_2_)>
 // CHECK-DAG: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
@@ -79,12 +79,12 @@ SYCL_EXTERNAL void arr_1(sycl::detail::array<1> arr) {}
 SYCL_EXTERNAL void arr_2(sycl::detail::array<2> arr) {}
 
 // CHECK-LABEL: func.func @_Z8atomic_1N4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(
-// CHECK:          %arg0: memref<?x!sycl_atomic_i32_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_atomic_i32_1_, llvm.noundef})
+// CHECK:          %arg0: memref<?x!sycl_atomic_i32_glo> {llvm.align = 8 : i64, llvm.byval = !sycl_atomic_i32_glo, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void atomic_1(sycl::atomic<int> atomic_int) {}
 
 // CHECK-LABEL: func.func @_Z8atomic_2N4sycl3_V16atomicIfLNS0_6access13address_spaceE3EEE(
-// CHECK:          %arg0: memref<?x!sycl_atomic_f32_3_> {llvm.align = 8 : i64, llvm.byval = !sycl_atomic_f32_3_, llvm.noundef})
+// CHECK:          %arg0: memref<?x!sycl_atomic_f32_loc> {llvm.align = 8 : i64, llvm.byval = !sycl_atomic_f32_loc, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void atomic_2(sycl::atomic<float, sycl::access::address_space::local_space> atomic_float) {}
 
@@ -159,7 +159,7 @@ SYCL_EXTERNAL void maximum(sycl::maximum<int> max) {}
 SYCL_EXTERNAL void minimum(sycl::minimum<int> min) {}
 
 // CHECK-LABEL: func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(
-// CHECK:          %arg0: memref<?x!sycl_multi_ptr_i32_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_multi_ptr_i32_1_, llvm.noundef})
+// CHECK:          %arg0: memref<?x!sycl_multi_ptr_i32_glo> {llvm.align = 8 : i64, llvm.byval = !sycl_multi_ptr_i32_glo, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void multi_ptr(sycl::multi_ptr<int, sycl::access::address_space::global_space, sycl::access::decorated::yes> multi_ptr_int) {}
 
