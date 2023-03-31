@@ -902,7 +902,7 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
   if (any_of(FixedOrderRecurrences, [LoopLatch, this](const PHINode *Phi) {
         Instruction *V =
             cast<Instruction>(Phi->getIncomingValueForBlock(LoopLatch));
-        return SinkAfter.find(V) != SinkAfter.end();
+        return SinkAfter.contains(V);
       }))
     return false;
 
@@ -1123,6 +1123,20 @@ bool LoopVectorizationLegality::blockCanBePredicated(
     // ignore those for now.
     if (isa<NoAliasScopeDeclInst>(&I))
       continue;
+
+    // We can allow masked calls if there's at least one vector variant, even
+    // if we end up scalarizing due to the cost model calculations.
+    // TODO: Allow other calls if they have appropriate attributes... readonly
+    // and argmemonly?
+    if (CallInst *CI = dyn_cast<CallInst>(&I)) {
+      // Check whether we have at least one masked vector version of a scalar
+      // function.
+      if (any_of(VFDatabase::getMappings(*CI),
+                 [](VFInfo &Info) { return Info.isMasked(); })) {
+        MaskedOp.insert(CI);
+        continue;
+      }
+    }
 
     // Loads are handled via masking (or speculated if safe to do so.)
     if (auto *LI = dyn_cast<LoadInst>(&I)) {

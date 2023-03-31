@@ -630,8 +630,9 @@ public:
     return BaseT::preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LVL, IAI);
   }
 
-  TailFoldingStyle getPreferredTailFoldingStyle() {
-    return BaseT::getPreferredTailFoldingStyle();
+  TailFoldingStyle
+  getPreferredTailFoldingStyle(bool IVUpdateMayOverflow = true) {
+    return BaseT::getPreferredTailFoldingStyle(IVUpdateMayOverflow);
   }
 
   std::optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
@@ -713,6 +714,7 @@ public:
 
   std::optional<unsigned> getMaxVScale() const { return std::nullopt; }
   std::optional<unsigned> getVScaleForTuning() const { return std::nullopt; }
+  bool isVScaleKnownToBeAPowerOfTwo() const { return false; }
 
   /// Estimate the overhead of scalarizing an instruction. Insert and Extract
   /// are set if the demanded result elements need to be inserted and/or
@@ -844,7 +846,7 @@ public:
     }
   }
 
-  unsigned getMaxInterleaveFactor(unsigned VF) { return 1; }
+  unsigned getMaxInterleaveFactor(ElementCount VF) { return 1; }
 
   InstructionCost getArithmeticInstrCost(
       unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
@@ -1508,7 +1510,7 @@ public:
           // SelectionDAGBuilder.
           APInt Exponent = RHSC->getValue().abs();
           unsigned ActiveBits = Exponent.getActiveBits();
-          unsigned PopCount = Exponent.countPopulation();
+          unsigned PopCount = Exponent.popcount();
           InstructionCost Cost = (ActiveBits + PopCount - 2) *
                                  thisT()->getArithmeticInstrCost(
                                      Instruction::FMul, RetTy, CostKind);
@@ -2333,6 +2335,7 @@ public:
   InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
                                              std::optional<FastMathFlags> FMF,
                                              TTI::TargetCostKind CostKind) {
+    assert(Ty && "Unknown reduction vector type");
     if (TTI::requiresOrderedReduction(FMF))
       return getOrderedReductionCost(Opcode, Ty, CostKind);
     return getTreeReductionCost(Opcode, Ty, CostKind);

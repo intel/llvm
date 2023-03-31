@@ -71,6 +71,9 @@ CONSTFIX char clEnqueueWriteGlobalVariableName[] =
     "clEnqueueWriteGlobalVariableINTEL";
 CONSTFIX char clEnqueueReadGlobalVariableName[] =
     "clEnqueueReadGlobalVariableINTEL";
+// Names of host pipe functions queried from OpenCL
+CONSTFIX char clEnqueueReadHostPipeName[] = "clEnqueueReadHostPipeINTEL";
+CONSTFIX char clEnqueueWriteHostPipeName[] = "clEnqueueWriteHostPipeINTEL";
 
 #undef CONSTFIX
 
@@ -282,9 +285,240 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // For details about Intel UUID extension, see
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    // This query is missing beore OpenCL 3.0
+    // Check version and handle appropriately
+    OCLV::OpenCLVersion devVer;
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS) {
+      return cast<pi_result>(ret_err);
+    }
+
+    // Minimum required capability to be returned
+    // For OpenCL 1.2, this is all that is required
+    pi_memory_order_capabilities capabilities = PI_MEMORY_ORDER_RELAXED;
+
+    if (devVer >= OCLV::V3_0) {
+      // For OpenCL >=3.0, the query should be implemented
+      cl_device_atomic_capabilities cl_capabilities = 0;
+      cl_int ret_err = clGetDeviceInfo(
+          deviceID, CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+          sizeof(cl_device_atomic_capabilities), &cl_capabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return cast<pi_result>(ret_err);
+
+      // Mask operation to only consider atomic_memory_order* capabilities
+      cl_int mask = CL_DEVICE_ATOMIC_ORDER_RELAXED |
+                    CL_DEVICE_ATOMIC_ORDER_ACQ_REL |
+                    CL_DEVICE_ATOMIC_ORDER_SEQ_CST;
+      cl_capabilities &= mask;
+
+      // The memory order capabilities are hierarchical, if one is implied, all
+      // preceding capbilities are implied as well. Especially in the case of
+      // ACQ_REL.
+      if (cl_capabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
+        capabilities |= PI_MEMORY_ORDER_SEQ_CST;
+      }
+      if (cl_capabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) {
+        capabilities |= PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_ACQUIRE |
+                        PI_MEMORY_ORDER_RELEASE;
+      }
+    } else if (devVer >= OCLV::V2_0) {
+      // For OpenCL 2.x, return all capabilities
+      // (https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#_memory_consistency_model)
+      capabilities |= PI_MEMORY_ORDER_ACQUIRE | PI_MEMORY_ORDER_RELEASE |
+                      PI_MEMORY_ORDER_ACQ_REL | PI_MEMORY_ORDER_SEQ_CST;
+    }
+
+    if (paramValue) {
+      if (paramValueSize < sizeof(pi_memory_order_capabilities))
+        return static_cast<pi_result>(CL_INVALID_VALUE);
+
+      std::memcpy(paramValue, &capabilities, sizeof(capabilities));
+    }
+
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(capabilities);
+
+    return static_cast<pi_result>(CL_SUCCESS);
+  }
+  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    // Initialize result to minimum mandated capabilities according to
+    // SYCL2020 4.6.3.2
+    // Because scopes are hierarchical, wider scopes support all narrower
+    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+    pi_memory_scope_capabilities result = PI_MEMORY_SCOPE_WORK_ITEM |
+                                          PI_MEMORY_SCOPE_SUB_GROUP |
+                                          PI_MEMORY_SCOPE_WORK_GROUP;
+
+    OCLV::OpenCLVersion devVer;
+
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    cl_device_atomic_capabilities devCapabilities = 0;
+    if (devVer >= OCLV::V3_0) {
+      ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_ATOMIC_MEMORY_CAPABILITIES,
+                                sizeof(cl_device_atomic_capabilities),
+                                &devCapabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      assert((devCapabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
+             "Violates minimum mandated guarantee");
+
+      // Because scopes are hierarchical, wider scopes support all narrower
+      // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+      // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+      // We already initialized to these minimum mandated capabilities. Just
+      // check wider scopes.
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
+        result |= PI_MEMORY_SCOPE_DEVICE;
+      }
+
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+        result |= PI_MEMORY_SCOPE_SYSTEM;
+      }
+
+    } else {
+      // This info is only available in OpenCL version >= 3.0
+      // Just return minimum mandated capabilities for older versions.
+      // OpenCL 1.x minimum mandated capabilities are WORK_GROUP, we
+      // already initialized using it.
+      if (devVer >= OCLV::V2_0) {
+        // OpenCL 2.x minimum mandated capabilities are WORK_GROUP | DEVICE |
+        // ALL_DEVICES
+        result |= PI_MEMORY_SCOPE_DEVICE | PI_MEMORY_SCOPE_SYSTEM;
+      }
+    }
+    if (paramValue) {
+      if (paramValueSize < sizeof(cl_device_atomic_capabilities))
+        return PI_ERROR_INVALID_VALUE;
+
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    // Initialize result to minimum mandated capabilities according to
+    // SYCL2020 4.6.3.2
+    pi_memory_order_capabilities result =
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
+
+    OCLV::OpenCLVersion devVer;
+
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    cl_device_atomic_capabilities devCapabilities = 0;
+    if (devVer >= OCLV::V3_0) {
+      ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+                                sizeof(cl_device_atomic_capabilities),
+                                &devCapabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      assert((devCapabilities & CL_DEVICE_ATOMIC_ORDER_RELAXED) &&
+             "Violates minimum mandated guarantee");
+      assert((devCapabilities & CL_DEVICE_ATOMIC_ORDER_ACQ_REL) &&
+             "Violates minimum mandated guarantee");
+
+      // We already initialized to minimum mandated capabilities. Just
+      // check stronger orders.
+      if (devCapabilities & CL_DEVICE_ATOMIC_ORDER_SEQ_CST) {
+        result |= PI_MEMORY_ORDER_SEQ_CST;
+      }
+
+    } else {
+      // This info is only available in OpenCL version >= 3.0
+      // Just return minimum mandated capabilities for older versions.
+      // OpenCL 1.x minimum mandated capabilities are RELAXED | ACQ_REL, we
+      // already initialized using these.
+      if (devVer >= OCLV::V2_0) {
+        // OpenCL 2.x minimum mandated capabilities are RELAXED | ACQ_REL |
+        // SEQ_CST
+        result |= PI_MEMORY_ORDER_SEQ_CST;
+      }
+    }
+    if (paramValue) {
+      if (paramValueSize < sizeof(cl_device_atomic_capabilities))
+        return PI_ERROR_INVALID_VALUE;
+
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // Initialize result to minimum mandated capabilities according to
+    // SYCL2020 4.6.3.2.
+    // Because scopes are hierarchical, wider scopes support all narrower
+    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+    pi_memory_scope_capabilities result = PI_MEMORY_SCOPE_WORK_ITEM |
+                                          PI_MEMORY_SCOPE_SUB_GROUP |
+                                          PI_MEMORY_SCOPE_WORK_GROUP;
+
+    OCLV::OpenCLVersion devVer;
+
+    cl_device_id deviceID = cast<cl_device_id>(device);
+    cl_int ret_err = getDeviceVersion(deviceID, devVer);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    cl_device_atomic_capabilities devCapabilities = 0;
+    if (devVer >= OCLV::V3_0) {
+      ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+                                sizeof(cl_device_atomic_capabilities),
+                                &devCapabilities, nullptr);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      assert((devCapabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
+             "Violates minimum mandated guarantee");
+
+      // Because scopes are hierarchical, wider scopes support all narrower
+      // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+      // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+      // We already initialized to these minimum mandated capabilities. Just
+      // check wider scopes.
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
+        result |= PI_MEMORY_SCOPE_DEVICE;
+      }
+
+      if (devCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+        result |= PI_MEMORY_SCOPE_SYSTEM;
+      }
+
+    } else {
+      // This info is only available in OpenCL version >= 3.0
+      // Just return minimum mandated capabilities for older versions.
+      // OpenCL 1.x minimum mandated capabilities are WORK_GROUP, we
+      // already initialized using it.
+      if (devVer >= OCLV::V2_0) {
+        // OpenCL 2.x minimum mandated capabilities are WORK_GROUP | DEVICE |
+        // ALL_DEVICES
+        result |= PI_MEMORY_SCOPE_DEVICE | PI_MEMORY_SCOPE_SYSTEM;
+      }
+    }
+    if (paramValue) {
+      if (paramValueSize < sizeof(cl_device_atomic_capabilities))
+        return PI_ERROR_INVALID_VALUE;
+
+      std::memcpy(paramValue, &result, sizeof(result));
+    }
+    if (paramValueSizeRet)
+      *paramValueSizeRet = sizeof(result);
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_ATOMIC_64: {
     cl_int ret_err = CL_SUCCESS;
     cl_bool result = CL_FALSE;
@@ -887,6 +1121,16 @@ pi_result piContextGetInfo(pi_context context, pi_context_info paramName,
     cl_bool result = false;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
+  }
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // These queries should be dealt with in context_impl.cpp by calling the
+    // queries of each device separately and building the intersection set.
+    setErrorMessage("These queries should have never come here.",
+                    PI_ERROR_INVALID_ARG_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
   default:
     cl_int result = clGetContextInfo(
@@ -1686,6 +1930,64 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
   return cast<pi_result>(Res);
 }
 
+pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                   const char *pipe_symbol, pi_bool blocking,
+                                   void *ptr, size_t size,
+                                   pi_uint32 num_events_in_waitlist,
+                                   const pi_event *events_waitlist,
+                                   pi_event *event) {
+  cl_context CLContext;
+  cl_int CLErr =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(cl_context), &CLContext, nullptr);
+  if (CLErr != CL_SUCCESS) {
+    return cast<pi_result>(CLErr);
+  }
+
+  clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<clEnqueueReadHostPipeName,
+                                           clEnqueueReadHostPipeINTEL_fn>(
+      cast<pi_context>(CLContext), &FuncPtr);
+
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(
+        cast<cl_command_queue>(queue), cast<cl_program>(program), pipe_symbol,
+        blocking, ptr, size, num_events_in_waitlist,
+        cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
+  }
+
+  return RetVal;
+}
+
+pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
+                                    const char *pipe_symbol, pi_bool blocking,
+                                    void *ptr, size_t size,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
+  cl_context CLContext;
+  cl_int CLErr =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(cl_context), &CLContext, nullptr);
+  if (CLErr != CL_SUCCESS) {
+    return cast<pi_result>(CLErr);
+  }
+
+  clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<clEnqueueWriteHostPipeName,
+                                           clEnqueueWriteHostPipeINTEL_fn>(
+      cast<pi_context>(CLContext), &FuncPtr);
+
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(
+        cast<cl_command_queue>(queue), cast<cl_program>(program), pipe_symbol,
+        blocking, ptr, size, num_events_in_waitlist,
+        cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
+  }
+
+  return RetVal;
+}
+
 /// API to set attributes controlling kernel execution
 ///
 /// \param kernel is the pi kernel to execute
@@ -1972,6 +2274,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          piextEnqueueDeviceGlobalVariableWrite)
   _PI_CL(piextEnqueueDeviceGlobalVariableRead,
          piextEnqueueDeviceGlobalVariableRead)
+  // Host Pipe
+  _PI_CL(piextEnqueueReadHostPipe, piextEnqueueReadHostPipe)
+  _PI_CL(piextEnqueueWriteHostPipe, piextEnqueueWriteHostPipe)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)

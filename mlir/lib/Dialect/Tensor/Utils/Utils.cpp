@@ -14,6 +14,8 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
+#include "mlir/Dialect/Utils/IndexingUtils.h"
 
 using namespace mlir;
 using namespace mlir::tensor;
@@ -51,6 +53,20 @@ SmallVector<Value> mlir::tensor::createDynamicDimValues(OpBuilder &b,
   return dynamicDims;
 }
 
+FailureOr<OpFoldResult> mlir::tensor::createDimValue(OpBuilder &b, Location loc,
+                                                     Value rankedTensor,
+                                                     int64_t dim) {
+  auto tensorTy = rankedTensor.getType().dyn_cast<RankedTensorType>();
+  if (!tensorTy)
+    return failure();
+  auto shape = tensorTy.getShape();
+  if (dim >= static_cast<int64_t>(shape.size()))
+    return failure();
+  if (ShapedType::isDynamic(shape[dim]))
+    return OpFoldResult(b.createOrFold<tensor::DimOp>(loc, rankedTensor, dim));
+  return OpFoldResult(b.getIndexAttr(shape[dim]));
+}
+
 SmallVector<OpFoldResult>
 mlir::tensor::createDimValues(OpBuilder &b, Location loc, Value rankedTensor) {
   auto tensorTy = rankedTensor.getType().cast<RankedTensorType>();
@@ -64,4 +80,23 @@ mlir::tensor::createDimValues(OpBuilder &b, Location loc, Value rankedTensor) {
     }
   }
   return dims;
+}
+
+FailureOr<RankedTensorType>
+mlir::tensor::computeTransposedType(RankedTensorType rankedTensorType,
+                                    ArrayRef<int64_t> transposeVector) {
+  if (transposeVector.empty())
+    return rankedTensorType;
+  if (!isPermutationVector(transposeVector) ||
+      transposeVector.size() != static_cast<size_t>(rankedTensorType.getRank()))
+    return failure();
+
+  SmallVector<int64_t> transposedShape(rankedTensorType.getShape().begin(),
+                                       rankedTensorType.getShape().end());
+  applyPermutationToVector(transposedShape, transposeVector);
+
+  using RTTBuilder = RankedTensorType::Builder;
+  RankedTensorType transposedTensorType =
+      RTTBuilder(rankedTensorType).setShape(transposedShape);
+  return transposedTensorType;
 }

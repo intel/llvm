@@ -139,37 +139,58 @@ static void parseCodeGenArgs(Fortran::frontend::CodeGenOptions &opts,
        args.filtered(clang::driver::options::OPT_fembed_offload_object_EQ))
     opts.OffloadObjects.push_back(a->getValue());
 
+  // -flto=full/thin option.
+  if (const llvm::opt::Arg *a =
+          args.getLastArg(clang::driver::options::OPT_flto_EQ)) {
+    llvm::StringRef s = a->getValue();
+    assert((s == "full" || s == "thin") && "Unknown LTO mode.");
+    if (s == "full")
+      opts.PrepareForFullLTO = true;
+    else
+      opts.PrepareForThinLTO = true;
+  }
+
+  if (auto *a = args.getLastArg(clang::driver::options::OPT_save_temps_EQ))
+    opts.SaveTempsDir = a->getValue();
+
   // -mrelocation-model option.
-  if (const llvm::opt::Arg *A =
+  if (const llvm::opt::Arg *a =
           args.getLastArg(clang::driver::options::OPT_mrelocation_model)) {
-    llvm::StringRef ModelName = A->getValue();
-    auto RM = llvm::StringSwitch<std::optional<llvm::Reloc::Model>>(ModelName)
-                  .Case("static", llvm::Reloc::Static)
-                  .Case("pic", llvm::Reloc::PIC_)
-                  .Case("dynamic-no-pic", llvm::Reloc::DynamicNoPIC)
-                  .Case("ropi", llvm::Reloc::ROPI)
-                  .Case("rwpi", llvm::Reloc::RWPI)
-                  .Case("ropi-rwpi", llvm::Reloc::ROPI_RWPI)
-                  .Default(std::nullopt);
-    if (RM.has_value())
-      opts.setRelocationModel(*RM);
+    llvm::StringRef modelName = a->getValue();
+    auto relocModel =
+        llvm::StringSwitch<std::optional<llvm::Reloc::Model>>(modelName)
+            .Case("static", llvm::Reloc::Static)
+            .Case("pic", llvm::Reloc::PIC_)
+            .Case("dynamic-no-pic", llvm::Reloc::DynamicNoPIC)
+            .Case("ropi", llvm::Reloc::ROPI)
+            .Case("rwpi", llvm::Reloc::RWPI)
+            .Case("ropi-rwpi", llvm::Reloc::ROPI_RWPI)
+            .Default(std::nullopt);
+    if (relocModel.has_value())
+      opts.setRelocationModel(*relocModel);
     else
       diags.Report(clang::diag::err_drv_invalid_value)
-          << A->getAsString(args) << ModelName;
+          << a->getAsString(args) << modelName;
   }
 
   // -pic-level and -pic-is-pie option.
-  if (int PICLevel = getLastArgIntValue(
+  if (int picLevel = getLastArgIntValue(
           args, clang::driver::options::OPT_pic_level, 0, diags)) {
-    if (PICLevel > 2)
+    if (picLevel > 2)
       diags.Report(clang::diag::err_drv_invalid_value)
           << args.getLastArg(clang::driver::options::OPT_pic_level)
                  ->getAsString(args)
-          << PICLevel;
+          << picLevel;
 
-    opts.PICLevel = PICLevel;
+    opts.PICLevel = picLevel;
     if (args.hasArg(clang::driver::options::OPT_pic_is_pie))
       opts.IsPIE = 1;
+  }
+
+  // This option is compatible with -f[no-]underscoring in gfortran.
+  if (args.hasFlag(clang::driver::options::OPT_fno_underscoring,
+                   clang::driver::options::OPT_funderscoring, false)) {
+    opts.Underscoring = 0;
   }
 }
 
@@ -604,14 +625,17 @@ static bool parseDiagArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
   // TODO: Currently throws a Diagnostic for anything other than -W<error>,
   // this has to change when other -W<opt>'s are supported.
   if (args.hasArg(clang::driver::options::OPT_W_Joined)) {
-    if (args.getLastArgValue(clang::driver::options::OPT_W_Joined)
-            .equals("error")) {
-      res.setWarnAsErr(true);
-    } else {
-      const unsigned diagID =
-          diags.getCustomDiagID(clang::DiagnosticsEngine::Error,
-                                "Only `-Werror` is supported currently.");
-      diags.Report(diagID);
+    const auto &wArgs =
+        args.getAllArgValues(clang::driver::options::OPT_W_Joined);
+    for (const auto &wArg : wArgs) {
+      if (wArg == "error") {
+        res.setWarnAsErr(true);
+      } else {
+        const unsigned diagID =
+            diags.getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                  "Only `-Werror` is supported currently.");
+        diags.Report(diagID);
+      }
     }
   }
 
@@ -661,6 +685,10 @@ static bool parseDialectArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
   if (args.hasArg(clang::driver::options::OPT_fopenmp)) {
     res.getFrontendOpts().features.Enable(
         Fortran::common::LanguageFeature::OpenMP);
+
+    if (args.hasArg(clang::driver::options::OPT_fopenmp_is_device)) {
+      res.getLangOpts().OpenMPIsDevice = 1;
+    }
   }
 
   // -pedantic
@@ -791,6 +819,11 @@ bool CompilerInvocation::createFromArgs(
       diags.Report(clang::diag::err_drv_unknown_argument_with_suggestion)
           << argString << nearest;
     success = false;
+  }
+
+  // -flang-experimental-hlfir
+  if (args.hasArg(clang::driver::options::OPT_flang_experimental_hlfir)) {
+    res.loweringOpts.setLowerToHighLevelFIR(true);
   }
 
   success &= parseFrontendArgs(res.getFrontendOpts(), args, diags);

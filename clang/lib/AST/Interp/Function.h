@@ -90,7 +90,12 @@ public:
 
   /// Returns the name of the function decl this code
   /// was generated for.
-  const std::string getName() const { return F->getNameInfo().getAsString(); }
+  const std::string getName() const {
+    if (!F)
+      return "<<expr>>";
+
+    return F->getQualifiedNameAsString();
+  }
 
   /// Returns the location.
   SourceLocation getLoc() const { return Loc; }
@@ -129,6 +134,8 @@ public:
 
   /// Checks if the function is a constructor.
   bool isConstructor() const { return isa<CXXConstructorDecl>(F); }
+  /// Checks if the function is a destructor.
+  bool isDestructor() const { return isa<CXXDestructorDecl>(F); }
 
   /// Checks if the function is fully done compiling.
   bool isFullyCompiled() const { return IsFullyCompiled; }

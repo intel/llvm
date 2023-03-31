@@ -535,7 +535,7 @@ public:
 
 protected:
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1208,6 +1208,9 @@ public:
 private:
   friend class sycl::stream;
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2087,8 +2090,9 @@ public:
   }
 
   template <access::target AccessTarget_ = AccessTarget,
-            typename = detail::enable_if_t<AccessTarget_ ==
-                                           access::target::host_buffer>>
+            typename = detail::enable_if_t<
+                (AccessTarget_ == access::target::host_buffer) ||
+                (AccessTarget_ == access::target::host_task)>>
 #if SYCL_LANGUAGE_VERSION >= 202001
   std::add_pointer_t<value_type> get_pointer() const noexcept
 #else
@@ -2522,10 +2526,13 @@ protected:
   // Method which calculates linear offset for the ID using Range and Offset.
   template <int Dims = AdjustedDim> size_t getLinearIndex(id<Dims> Id) const {
     size_t Result = 0;
-    for (int I = 0; I < Dims; ++I)
-      Result = Result * getSize()[I] + Id[I];
+    detail::dim_loop<Dims>(
+        [&, this](size_t I) { Result = Result * getSize()[I] + Id[I]; });
     return Result;
   }
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2663,10 +2670,6 @@ public:
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
-  local_ptr<DataT> get_pointer() const {
-    return local_ptr<DataT>(getQualifiedPtr());
-  }
-
   bool operator==(const local_accessor_base &Rhs) const {
     return impl == Rhs.impl;
   }
@@ -2694,6 +2697,11 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
 
   // Use base classes constructors
   using local_acc::local_acc;
+
+public:
+  local_ptr<DataT> get_pointer() const {
+    return local_ptr<DataT>(local_acc::getQualifiedPtr());
+  }
 
 #ifdef __SYCL_DEVICE_ONLY__
 
@@ -2799,6 +2807,10 @@ public:
   }
   const_reverse_iterator crend() const noexcept {
     return const_reverse_iterator(begin());
+  }
+
+  std::add_pointer_t<value_type> get_pointer() const noexcept {
+    return std::add_pointer_t<value_type>(local_acc::getQualifiedPtr());
   }
 
   template <access::decorated IsDecorated>
