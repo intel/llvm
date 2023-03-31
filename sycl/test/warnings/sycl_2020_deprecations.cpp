@@ -326,7 +326,7 @@ int main() {
           LegacyGlobalMptr =
               sycl::make_ptr<int, sycl::access::address_space::global_space,
                              sycl::access::decorated::legacy>(
-                  global_ptr<InputT>(GlobalAcc));
+                  sycl::global_ptr<int>(GlobalAcc));
       // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::local_space, sycl::access::decorated::legacy, std::enable_if<true>>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
       sycl::multi_ptr<int, sycl::access::address_space::local_space,
                       sycl::access::decorated::legacy>
