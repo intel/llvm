@@ -771,8 +771,7 @@ __ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy>,
 lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
            __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer().get(), offsets,
-                                            pred);
+  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer(), offsets, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -824,8 +823,8 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
            __ESIMD_NS::simd_mask<N> pred,
            __ESIMD_NS::simd<T, N * NElts> old_values) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer().get(), offsets,
-                                            pred, old_values);
+  return lsc_gather<T, NElts, DS, L1H, L3H>(acc.get_pointer(), offsets, pred,
+                                            old_values);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
