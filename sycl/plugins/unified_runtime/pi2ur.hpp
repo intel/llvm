@@ -279,6 +279,7 @@ namespace pi2ur {
 inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                                 pi_uint32 *num_platforms) {
 
+  urInit(0);
   uint32_t Count = num_entries;
   auto phPlatforms = reinterpret_cast<ur_platform_handle_t *>(platforms);
   HANDLE_ERRORS(urPlatformGet(Count, phPlatforms, num_platforms));
