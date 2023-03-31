@@ -469,7 +469,7 @@ struct _pi_queue : _pi_object {
   };
 
   // Helper class to facilitate per-thread queue groups
-  // We maintain a hastable of queue groups if requested to do them per-thread.
+  // We maintain a hashtable of queue groups if requested to do them per-thread.
   // Otherwise it is just single entry used for all threads.
   struct pi_queue_group_by_tid_t
       : public std::unordered_map<std::thread::id, pi_queue_group_t> {
@@ -478,7 +478,7 @@ struct _pi_queue : _pi_object {
     // Returns thread id if doing per-thread, or a generic id that represents
     // all the threads.
     std::thread::id tid() const {
-      PerThread ? std::this_thread::get_id() : std::thread::id();
+      return PerThread ? std::this_thread::get_id() : std::thread::id();
     }
 
     // Make the specified queue group be the master
