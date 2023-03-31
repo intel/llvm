@@ -812,30 +812,33 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
   EntryPointsGroupScope Scope =
       selectDeviceCodeGroupScope(MD.getModule(), Mode, IROutputOnly);
 
-  if (Scope == Scope_Global) {
+  switch (Scope) {
+  case Scope_Global:
     // We simply perform entry points filtering, but group all of them together.
     Categorizer.registerRule(
         [](Function *) -> std::string { return GLOBAL_SCOPE_NAME; });
-  } else if (Scope == Scope_PerKernel) {
+    break;
+  case Scope_PerKernel:
     // Per-kernel split is quite simple: every kernel goes into a separate
     // module and that's it, no other rules required.
     Categorizer.registerRule(
         [](Function *F) -> std::string { return F->getName().str(); });
-  } else if (Scope == Scope_PerModule) {
+    break;
+  case Scope_PerModule:
     // The most complex case, because we should account for many other features
     // like aspects used in a kernel, large-grf mode, reqd-work-group-size, etc.
 
     // This is core of per-source device code split
-    Categorizer.registerSimpleStringAttributeRule("sycl-module-id");
+    Categorizer.registerSimpleStringAttributeRule(
+        sycl::utils::ATTR_SYCL_MODULE_ID);
 
     // Optional features
     Categorizer.registerSimpleFlagAttributeRule(
         ::sycl::kernel_props::ATTR_LARGE_GRF, "large-grf");
-    Categorizer.registerListOfIntegersInMetadataSortedRule(
-        "sycl_used_aspects");
+    Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
-
-  } else {
+    break;
+  default:
     llvm_unreachable("Unexpected split scope");
   }
 
@@ -859,14 +862,12 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
   } else {
     Groups.reserve(EntryPointsMap.size());
-    for (auto &It : EntryPointsMap) {
-      EntryPointSet &EntryPoints = It.second;
-
-      // Start with properties of a source module
-      EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
-      Groups.emplace_back(It.first, std::move(EntryPoints), MDProps);
-    }
+    // Start with properties of a source module
+    EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
+    for (auto &It : EntryPointsMap)
+      Groups.emplace_back(It.first, std::move(It.second), MDProps);
   }
+
   bool DoSplit = (Mode != SPLIT_NONE &&
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
