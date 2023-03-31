@@ -122,25 +122,51 @@ gpu.module @device_func {
     gpu.return
   }
 
+  // COM: The second argument in this function can be peeled but the first cannot.
+  func.func private @callee5(%arg0: memref<?x!llvm.struct<(f32)>>, %arg1: memref<?x!llvm.struct<(i32)>>) {
+    // CHECK-LABEL: func.func private @callee5
+    // CHECK-SAME:    (%arg0: memref<?x!llvm.struct<(f32)>>, %arg1: memref<?xi32> {llvm.noalias}) {
+    // CHECK-NOT:     {{.*}} = "polygeist.subindex"
+    // CHECK:         {{.*}} = sycl.addrspacecast %arg0 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
+    // CHECK-NEXT:    {{.*}} = affine.load %arg1[0] : memref<?xi32>
+    %c0 = arith.constant 0 : index
+    %0 = "polygeist.subindex"(%arg1, %c0) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+    %1 = sycl.addrspacecast %arg0 : memref<?x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>, 4>
+    %2 = affine.load %0[0] : memref<?xi32>
+    func.return
+  }
+  gpu.func @test5() kernel {
+    // CHECK-LABEL: gpu.func @test5() kernel
+    // CHECK:         [[C0:%.*]] = arith.constant 0 : index
+    // CHECK-NEXT:    [[ARG0:%.*]] = "polygeist.subindex"({{.*}}, [[C0]]) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+    // CHECK-NEXT:    func.call @callee5({{.*}}, [[ARG0]]) : (memref<?x!llvm.struct<(f32)>>, memref<?xi32>) -> ()
+    %alloca_1 = memref.alloca() : memref<1x!llvm.struct<(i32)>>
+    %cast_1 = memref.cast %alloca_1 : memref<1x!llvm.struct<(i32)>> to memref<?x!llvm.struct<(i32)>>
+    %alloca_2 = memref.alloca() : memref<1x!llvm.struct<(f32)>>
+    %cast_2 = memref.cast %alloca_2 : memref<1x!llvm.struct<(f32)>> to memref<?x!llvm.struct<(f32)>>
+    func.call @callee5(%cast_2, %cast_1) : (memref<?x!llvm.struct<(f32)>>, memref<?x!llvm.struct<(i32)>>) -> ()
+    gpu.return
+  }
+
   // COM: Test that the a call to a linkonce_odr function is modified.
   // COM: This function is a candidate, check that it is transformed correctly.
-  func.func @callee5(%arg0: memref<?x!llvm.struct<(i32, i64)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-    // CHECK-LABEL: func.func @callee5
+  func.func @callee6(%arg0: memref<?x!llvm.struct<(i32, i64)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+    // CHECK-LABEL: func.func @callee6
     // CHECK-SAME:    (%arg0: memref<?xi32> {llvm.noalias}, %arg1: memref<?xi64> {llvm.noalias})
     // CHECK-SAME:    attributes {llvm.linkage = #llvm.linkage<internal>} {
     func.return
   }
-  gpu.func @test5() kernel {  
-    // CHECK-LABEL: gpu.func @test5() kernel
+  gpu.func @test6() kernel {
+    // CHECK-LABEL: gpu.func @test6() kernel
     // CHECK:         %c0 = arith.constant 0 : index
     // CHECK-NEXT:    [[ARG0:%.*]] = "polygeist.subindex"(%cast, %c0) : (memref<?x!llvm.struct<(i32, i64)>>, index) -> memref<?xi32>
     // CHECK-NEXT:    %c1 = arith.constant 1 : index
     // CHECK-NEXT:    [[ARG1:%.*]] = "polygeist.subindex"(%cast, %c1) : (memref<?x!llvm.struct<(i32, i64)>>, index) -> memref<?xi64>
-    // CHECK-NEXT:    func.call @callee5([[ARG0]], [[ARG1]]) : (memref<?xi32>, memref<?xi64>) -> ()
+    // CHECK-NEXT:    func.call @callee6([[ARG0]], [[ARG1]]) : (memref<?xi32>, memref<?xi64>) -> ()
     // CHECK-NEXT:    gpu.return
     %alloca_1 = memref.alloca() : memref<1x!llvm.struct<(i32, i64)>>
-    %cast_1 = memref.cast %alloca_1 : memref<1x!llvm.struct<(i32, i64)>> to memref<?x!llvm.struct<(i32, i64)>>    
-    func.call @callee5(%cast_1) : (memref<?x!llvm.struct<(i32, i64)>>) -> ()
-    gpu.return    
-  }  
+    %cast_1 = memref.cast %alloca_1 : memref<1x!llvm.struct<(i32, i64)>> to memref<?x!llvm.struct<(i32, i64)>>
+    func.call @callee6(%cast_1) : (memref<?x!llvm.struct<(i32, i64)>>) -> ()
+    gpu.return
+  }
 }

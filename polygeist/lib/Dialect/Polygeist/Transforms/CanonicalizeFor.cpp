@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
+#include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Matchers.h"
@@ -1519,10 +1520,15 @@ struct MoveWhileDown3 : public OpRewritePattern<scf::WhileOp> {
 
 // Rewritten from LoopInvariantCodeMotion.cpp
 struct WhileLICM : public OpRewritePattern<scf::WhileOp> {
-  using OpRewritePattern<scf::WhileOp>::OpRewritePattern;
+  WhileLICM(AliasAnalysis &aliasAnalysis, MLIRContext *context,
+            PatternBenefit benefit = 1)
+      : OpRewritePattern<scf::WhileOp>(context, benefit),
+        aliasAnalysis(aliasAnalysis) {}
+
   static bool canBeHoisted(Operation *op,
                            function_ref<bool(Value)> definedOutside,
-                           bool isSpeculatable, scf::WhileOp whileOp) {
+                           bool isSpeculatable, scf::WhileOp whileOp,
+                           AliasAnalysis &aliasAnalysis) {
     // TODO consider requirement of 'isSpeculatable'
 
     // Check that dependencies are defined outside of loop.
@@ -1533,44 +1539,39 @@ struct WhileLICM : public OpRewritePattern<scf::WhileOp> {
     // can be no side-effects because the surrounding op has claimed so, we can
     // (and have to) skip this step.
     if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
-      if (!memInterface.hasNoEffect()) {
-        if (isReadOnly(op) && !isSpeculatable) {
-
-          SmallVector<MemoryEffects::EffectInstance> whileEffects;
-          collectEffects(whileOp, whileEffects, /*ignoreBarriers*/ false);
-
-          SmallVector<MemoryEffects::EffectInstance> opEffects;
-          collectEffects(op, opEffects, /*ignoreBarriers*/ false);
-
-          bool conflict = false;
-          for (auto before : opEffects)
-            for (auto after : whileEffects) {
-              if (mayAlias(before, after)) {
-                // Read, read is okay
-                if (isa<MemoryEffects::Read>(before.getEffect()) &&
-                    isa<MemoryEffects::Read>(after.getEffect()))
-                  continue;
-
-                // Write, write is not okay because may be different offsets and
-                // the later must subsume other conflicts are invalid.
-                conflict = true;
-                break;
-              }
-            }
-          if (conflict)
-            return false;
-        } else
-          return false;
-      }
-      // If the operation doesn't have side effects and it doesn't recursively
-      // have side effects, it can always be hoisted.
-      if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+      // If the operation doesn't have side effects and doesn't recursively have
+      // side effects, it can be hoisted.
+      if (memInterface.hasNoEffect() &&
+          !op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
         return true;
 
-      // Otherwise, if the operation doesn't provide the memory effect interface
-      // and it doesn't have recursive side effects we treat it conservatively
-      // as side-effecting.
+      if (!memInterface.hasNoEffect()) {
+        if (!isReadOnly(op) || isSpeculatable)
+          return false;
+
+        SmallVector<MemoryEffects::EffectInstance> whileEffects, opEffects;
+        collectEffects(whileOp, whileEffects, /*ignoreBarriers*/ false);
+        collectEffects(op, opEffects, /*ignoreBarriers*/ false);
+
+        for (MemoryEffects::EffectInstance &before : opEffects)
+          for (MemoryEffects::EffectInstance &after : whileEffects) {
+            if (isa<MemoryEffects::Read>(before.getEffect()) &&
+                isa<MemoryEffects::Read>(after.getEffect()))
+              continue;
+
+            if (before.getValue() && after.getValue()) {
+              AliasResult aliasRes =
+                  aliasAnalysis.alias(before.getValue(), after.getValue());
+              if (aliasRes.isNo())
+                continue;
+            }
+
+            return false;
+          }
+      }
     } else if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
+      // If the operation doesn't provide the memory effect interface and it
+      // doesn't the recursive side effects we treat it conservatively.
       return false;
     }
 
@@ -1579,7 +1580,8 @@ struct WhileLICM : public OpRewritePattern<scf::WhileOp> {
     for (auto &region : op->getRegions()) {
       for (auto &block : region)
         for (auto &innerOp : block.without_terminator())
-          if (!canBeHoisted(&innerOp, definedOutside, isSpeculatable, whileOp))
+          if (!canBeHoisted(&innerOp, definedOutside, isSpeculatable, whileOp,
+                            aliasAnalysis))
             return false;
     }
 
@@ -1595,7 +1597,7 @@ struct WhileLICM : public OpRewritePattern<scf::WhileOp> {
 
     // Helper to check whether an operation is loop invariant wrt. SSA
     // properties.
-    auto isDefinedOutsideOfBody = [&](Value value) {
+    auto isDefinedOutsideOfLoop = [&](Value value) {
       auto *definingOp = value.getDefiningOp();
       if (!definingOp) {
         if (auto ba = dyn_cast<BlockArgument>(value))
@@ -1613,7 +1615,8 @@ struct WhileLICM : public OpRewritePattern<scf::WhileOp> {
     // processed.
     for (auto &block : whileOp.getBefore()) {
       for (auto &iop : block.without_terminator())
-        if (canBeHoisted(&iop, isDefinedOutsideOfBody, false, whileOp)) {
+        if (canBeHoisted(&iop, isDefinedOutsideOfLoop, false, whileOp,
+                         aliasAnalysis)) {
           opsToMove.push_back(&iop);
           willBeMovedSet.insert(&iop);
         }
@@ -1621,7 +1624,8 @@ struct WhileLICM : public OpRewritePattern<scf::WhileOp> {
 
     for (auto &block : whileOp.getAfter()) {
       for (auto &iop : block.without_terminator())
-        if (canBeHoisted(&iop, isDefinedOutsideOfBody, true, whileOp)) {
+        if (canBeHoisted(&iop, isDefinedOutsideOfLoop, true, whileOp,
+                         aliasAnalysis)) {
           opsToMove.push_back(&iop);
           willBeMovedSet.insert(&iop);
         }
@@ -1632,6 +1636,9 @@ struct WhileLICM : public OpRewritePattern<scf::WhileOp> {
 
     return success(opsToMove.size() > 0);
   }
+
+private:
+  AliasAnalysis &aliasAnalysis;
 };
 
 struct RemoveUnusedCondVar : public OpRewritePattern<scf::WhileOp> {
@@ -1784,12 +1791,16 @@ struct ReturnSq : public OpRewritePattern<func::ReturnOp> {
 void CanonicalizeFor::runOnOperation() {
   MLIRContext &ctx = getContext();
   RewritePatternSet rpl(&ctx);
-  rpl.add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
-          MoveWhileToFor, RemoveWhileSelect, MoveWhileDown, MoveWhileDown2,
-          ReplaceRedundantArgs, MoveWhileAndDown, MoveWhileDown3,
-          MoveWhileInvariantIfResult, WhileLogicalNegation, SubToAdd,
-          WhileCmpOffset, WhileLICM, RemoveUnusedCondVar, ReturnSq,
-          MoveSideEffectFreeWhile>(&ctx);
+  AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
+  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
+
+  rpl.add<WhileLICM>(aliasAnalysis, &ctx)
+      .add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
+           MoveWhileToFor, RemoveWhileSelect, MoveWhileDown, MoveWhileDown2,
+           ReplaceRedundantArgs, MoveWhileAndDown, MoveWhileDown3,
+           MoveWhileInvariantIfResult, WhileLogicalNegation, SubToAdd,
+           WhileCmpOffset, RemoveUnusedCondVar, ReturnSq,
+           MoveSideEffectFreeWhile>(&ctx);
 
   GreedyRewriteConfig config;
   config.maxIterations = 247;
