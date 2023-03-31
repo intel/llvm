@@ -262,10 +262,11 @@ SPIRVToLLVMDbgTran::transTypeArrayOpenCL(const SPIRVExtInst *DebugInst) {
                                                        UpperBound, nullptr));
       continue;
     }
-    if (auto *ExprUB = getDbgInst<SPIRVDebug::Expression>(Ops[I])) {
+    if (const SPIRVExtInst * ExprUB, *ExprLB;
+        (ExprUB = getDbgInst<SPIRVDebug::Expression>(Ops[I])) &&
+        (ExprLB =
+             getDbgInst<SPIRVDebug::Expression>(Ops[Ops.size() / 2 + I]))) {
       auto *UpperBound = transDebugInst<DIExpression>(ExprUB);
-      auto *ExprLB =
-          getDbgInst<SPIRVDebug::Expression>(Ops[Ops.size() / 2 + I]);
       auto *LowerBound = transDebugInst<DIExpression>(ExprLB);
       Subscripts.push_back(Builder.getOrCreateSubrange(nullptr, LowerBound,
                                                        UpperBound, nullptr));
