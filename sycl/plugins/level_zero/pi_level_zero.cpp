@@ -374,7 +374,7 @@ inline static pi_result createEventAndAssociateQueue(
   if (!ForceHostVisible) {
     // Discarded/internal events will not be waited from host, so
     // do not force host-visible scope for them.
-    if (!Queue->isDiscardEvents())
+    if (!IsInternal)
       ForceHostVisible = Queue->Device->ZeEventsScope == AllHostVisible;
   }
   // If event is discarded then try to get event from the queue cache.
