@@ -2835,7 +2835,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
 
   auto IsKernel = isKernel(BF);
   auto Linkage = IsKernel ? GlobalValue::ExternalLinkage : transLinkageType(BF);
-  FunctionType *FT = dyn_cast<FunctionType>(transType(BF->getFunctionType()));
+  FunctionType *FT = cast<FunctionType>(transType(BF->getFunctionType()));
   std::string FuncName = BF->getName();
   StringRef FuncNameRef(FuncName);
   // Transform "@spirv.llvm_memset_p0i8_i32.volatile" to @llvm.memset.p0i8.i32
@@ -2865,7 +2865,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
     if (F->getIntrinsicID() != Intrinsic::umul_with_overflow)
       return F;
     std::string Name = F->getName().str();
-    auto *ST = dyn_cast<StructType>(F->getReturnType());
+    auto *ST = cast<StructType>(F->getReturnType());
     auto *FT = F->getFunctionType();
     auto *NewST = StructType::get(ST->getContext(), ST->elements());
     auto *NewFT = FunctionType::get(NewST, FT->params(), FT->isVarArg());
@@ -2927,7 +2927,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
 
   for (size_t I = 0, E = BF->getNumBasicBlock(); I != E; ++I) {
     SPIRVBasicBlock *BBB = BF->getBasicBlock(I);
-    BasicBlock *BB = dyn_cast<BasicBlock>(transValue(BBB, F, nullptr));
+    BasicBlock *BB = cast<BasicBlock>(transValue(BBB, F, nullptr));
     for (size_t BI = 0, BE = BBB->getNumInst(); BI != BE; ++BI) {
       SPIRVInstruction *BInst = BBB->getInst(BI);
       transValue(BInst, F, BB, false);
