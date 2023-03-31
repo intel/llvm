@@ -121,7 +121,6 @@ gpu.module @device_func {
     func.call @callee4(%cast_1, %cast_2) : (memref<?x!llvm.struct<(i32)>>, memref<?x!llvm.struct<(f32)>>) -> ()
     gpu.return
   }
-<<<<<<< HEAD
 
   // COM: The second argument in this function can be peeled but the first cannot.
   func.func private @callee5(%arg0: memref<?x!llvm.struct<(f32)>>, %arg1: memref<?x!llvm.struct<(i32)>>) {
@@ -148,6 +147,4 @@ gpu.module @device_func {
     func.call @callee5(%cast_2, %cast_1) : (memref<?x!llvm.struct<(f32)>>, memref<?x!llvm.struct<(i32)>>) -> ()
     gpu.return
   }
-=======
->>>>>>> upstream/sycl-mlir
 }
