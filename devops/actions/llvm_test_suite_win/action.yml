@@ -36,7 +36,6 @@ runs:
       cp ocloc_win_101.4146/* ./install/bin/.
       rm ocloc_win_101.4146.zip
       rm -r ocloc_win_101.4146/
-      ls ./install/bin/. #[Udit] For Debugging. Remove it.
   - name: Configure
     shell: cmd
     run: |
