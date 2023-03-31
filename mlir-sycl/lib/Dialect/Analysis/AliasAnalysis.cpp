@@ -33,7 +33,7 @@ static bool isFuncArg(Value val) {
 
 // Return true if the value \p val is a function argument that has the
 // 'llvm.noalias' attribute, and false otherwise.
-static bool isRestrict(Value val) {
+static bool isNoAliasArgument(Value val) {
   if (!isFuncArg(val))
     return false;
 
@@ -62,19 +62,16 @@ AliasResult sycl::AliasAnalysis::aliasImpl(Value lhs, Value rhs) {
   if (lhs == rhs)
     return AliasResult::MustAlias;
 
-  if (AliasResult aliasResult = handleRestrictAlias(lhs, rhs);
+  if (AliasResult aliasResult = handleNoAliasArguments(lhs, rhs);
       !aliasResult.isMay())
     return aliasResult;
 
   return handleSYCLAlias(lhs, rhs);
 }
 
-AliasResult sycl::AliasAnalysis::handleRestrictAlias(Value lhs, Value rhs) {
-  // Function arguments do not alias if any of them are 'restrict' qualified.
-  if (isFuncArg(lhs) && isFuncArg(rhs))
-    if (isRestrict(lhs) || isRestrict(rhs))
-      return AliasResult::NoAlias;
-
+AliasResult sycl::AliasAnalysis::handleNoAliasArguments(Value lhs, Value rhs) {
+  if (isNoAliasArgument(lhs) || isNoAliasArgument(rhs))
+    return AliasResult::NoAlias;
   return AliasResult::MayAlias;
 }
 

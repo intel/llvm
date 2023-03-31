@@ -29,9 +29,9 @@ protected:
   AliasResult aliasImpl(Value lhs, Value rhs) override;
 
 private:
-  /// Return 'NoAlias' if both values are function arguments and any of them
-  /// have attribute 'local_alias_analysis.restrict', and 'MayAlias' otherwise.
-  AliasResult handleRestrictAlias(Value lhs, Value rhs);
+  /// Return 'NoAlias' if \p lhs or \p rhs are function arguments and any of
+  /// them have attribute 'llvm.noalias', and 'MayAlias' otherwise.
+  AliasResult handleNoAliasArguments(Value lhs, Value rhs);
 
   /// This function attempts to refine aliasing for values produced by SYCL
   /// operations. It returns 'NoAlias' if it can prove that values do not alias
