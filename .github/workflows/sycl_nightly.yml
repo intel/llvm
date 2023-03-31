@@ -1,4 +1,4 @@
-name: SYCL Nightly Builds
+name: SYCL Nightly
 
 on:
   workflow_dispatch:
