@@ -14,6 +14,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Type.h"
 
+#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Types.h"
 
@@ -95,6 +96,15 @@ mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType) {
         return mlir::LLVM::LLVMPointerType::get(NewElementType,
                                                 Ty.getAddressSpace());
       });
+}
+
+template <typename F>
+static typename std::invoke_result_t<F, uint32_t>::value_type
+symbolizeAttr(const clang::TemplateArgument &templArg, F symbolize) {
+  auto optVal =
+      symbolize(static_cast<uint32_t>(templArg.getAsIntegral().getZExtValue()));
+  assert(optVal && "Invalid enum value");
+  return *optVal;
 }
 
 mlir::Type getSYCLType(const clang::RecordType *RT,
@@ -184,15 +194,19 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       const auto Dim =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      const auto MemAccessMode = static_cast<mlir::sycl::MemoryAccessMode>(
-          CTS->getTemplateArgs().get(2).getAsIntegral().getExtValue());
-      const auto MemTargetMode = static_cast<mlir::sycl::MemoryTargetMode>(
-          CTS->getTemplateArgs().get(3).getAsIntegral().getExtValue());
+      const auto MemAccessMode =
+          symbolizeAttr(CTS->getTemplateArgs().get(2), [](uint32_t val) {
+            return mlir::sycl::symbolizeAccessMode(val);
+          });
+      const auto MemTargetMode =
+          symbolizeAttr(CTS->getTemplateArgs().get(3), [](uint32_t val) {
+            return mlir::sycl::symbolizeTarget(val);
+          });
 
       // The SYCL RT specialize the accessor class for local memory accesses.
       // That specialization is derived from a non-empty base class, so push it.
       // TODO: we should push the non-empty base classes in a more general way.
-      if (MemTargetMode == mlir::sycl::MemoryTargetMode::Local) {
+      if (MemTargetMode == mlir::sycl::Target::Local) {
         assert(Body.empty());
         Body.push_back(CGT.getMLIRTypeForMem(CTS->bases_begin()->getType()));
       }
@@ -216,11 +230,13 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     case TypeEnum::Atomic: {
       const auto Type =
           CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
-      const int AddrSpace =
-          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       return mlir::sycl::AtomicType::get(
           CGT.getModule()->getContext(), Type,
-          static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace), Body);
+          symbolizeAttr(CTS->getTemplateArgs().get(1),
+                        [](uint32_t val) {
+                          return mlir::sycl::symbolizeAccessAddrSpace(val);
+                        }),
+          Body);
     }
     case TypeEnum::Group: {
       const auto Dim =
@@ -267,8 +283,10 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       const auto Dim =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      const auto MemAccessMode = static_cast<mlir::sycl::MemoryAccessMode>(
-          CTS->getTemplateArgs().get(2).getAsIntegral().getExtValue());
+      const auto MemAccessMode =
+          symbolizeAttr(CTS->getTemplateArgs().get(2), [](uint32_t val) {
+            return mlir::sycl::symbolizeAccessMode(val);
+          });
       return mlir::sycl::LocalAccessorBaseType::get(
           CGT.getModule()->getContext(), Type, Dim, MemAccessMode, Body);
     }
@@ -294,14 +312,17 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     case TypeEnum::MultiPtr: {
       const auto Type =
           CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
-      const int AddrSpace =
-          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      const int DecAccess =
-          CTS->getTemplateArgs().get(2).getAsIntegral().getExtValue();
       return mlir::sycl::MultiPtrType::get(
           CGT.getModule()->getContext(), Type,
-          static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace),
-          static_cast<mlir::sycl::DecoratedAccess>(DecAccess), Body);
+          symbolizeAttr(CTS->getTemplateArgs().get(1),
+                        [](uint32_t val) {
+                          return mlir::sycl::symbolizeAccessAddrSpace(val);
+                        }),
+          symbolizeAttr(CTS->getTemplateArgs().get(2),
+                        [](uint32_t val) {
+                          return mlir::sycl::symbolizeAccessDecorated(val);
+                        }),
+          Body);
     }
     case TypeEnum::NdItem: {
       const auto Dim =

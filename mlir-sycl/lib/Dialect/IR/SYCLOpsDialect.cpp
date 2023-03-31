@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -77,45 +78,63 @@ public:
   AliasResult getAlias(mlir::Type Type, llvm::raw_ostream &OS) const final;
 
 private:
-  static constexpr llvm::StringRef
-  getAlias(mlir::sycl::MemoryAccessMode MemAccessMode) {
-    switch (MemAccessMode) {
-    case mlir::sycl::MemoryAccessMode::Read:
+  static llvm::StringRef getAlias(mlir::sycl::AccessMode Attr) {
+    switch (Attr) {
+    case mlir::sycl::AccessMode::Read:
       return "r";
-    case mlir::sycl::MemoryAccessMode::Write:
+    case mlir::sycl::AccessMode::Write:
       return "w";
-    case mlir::sycl::MemoryAccessMode::ReadWrite:
+    case mlir::sycl::AccessMode::ReadWrite:
       return "rw";
-    case mlir::sycl::MemoryAccessMode::DiscardWrite:
+    case mlir::sycl::AccessMode::DiscardWrite:
       return "dw";
-    case mlir::sycl::MemoryAccessMode::DiscardReadWrite:
+    case mlir::sycl::AccessMode::DiscardReadWrite:
       return "drw";
-    case mlir::sycl::MemoryAccessMode::Atomic:
+    case mlir::sycl::AccessMode::Atomic:
       return "ato";
     }
 
     llvm_unreachable("Unhandled kind");
   }
 
-  static constexpr llvm::StringRef
-  getAlias(mlir::sycl::MemoryTargetMode MemTargetMode) {
-    switch (MemTargetMode) {
-    case mlir::sycl::MemoryTargetMode::GlobalBuffer:
+  static llvm::StringRef getAlias(mlir::sycl::Target Target) {
+    switch (Target) {
+    case mlir::sycl::Target::GlobalBuffer:
       return "gb";
-    case mlir::sycl::MemoryTargetMode::ConstantBuffer:
+    case mlir::sycl::Target::ConstantBuffer:
       return "cb";
-    case mlir::sycl::MemoryTargetMode::Local:
+    case mlir::sycl::Target::Local:
       return "l";
-    case mlir::sycl::MemoryTargetMode::Image:
+    case mlir::sycl::Target::Image:
       return "i";
-    case mlir::sycl::MemoryTargetMode::HostBuffer:
+    case mlir::sycl::Target::HostBuffer:
       return "hb";
-    case mlir::sycl::MemoryTargetMode::HostImage:
+    case mlir::sycl::Target::HostImage:
       return "hi";
-    case mlir::sycl::MemoryTargetMode::ImageArray:
+    case mlir::sycl::Target::ImageArray:
       return "ia";
     }
 
+    llvm_unreachable("Unhandled kind");
+  }
+
+  static llvm::StringRef getAlias(mlir::sycl::AccessAddrSpace AddrSpace) {
+    switch (AddrSpace) {
+    case mlir::sycl::AccessAddrSpace::GlobalAccess:
+      return "glo";
+    case mlir::sycl::AccessAddrSpace::PrivateAccess:
+      return "pri";
+    case mlir::sycl::AccessAddrSpace::LocalAccess:
+      return "loc";
+    case mlir::sycl::AccessAddrSpace::ConstantAccess:
+      return "cons";
+    case mlir::sycl::AccessAddrSpace::GenericAccess:
+      return "gen";
+    case mlir::sycl::AccessAddrSpace::ExtIntelGlobalDeviceAccess:
+      return "ext_int_gda";
+    case mlir::sycl::AccessAddrSpace::ExtIntelHostAccess:
+      return "ext_int_ha";
+    }
     llvm_unreachable("Unhandled kind");
   }
 };
@@ -142,8 +161,7 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
           })
       .Case<mlir::sycl::AtomicType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
-           << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
-           << "_";
+           << "_" << getAlias(Ty.getAddrSpace());
         return AliasResult::FinalAlias;
       })
       .Case<mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
@@ -176,8 +194,7 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
       })
       .Case<mlir::sycl::MultiPtrType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
-           << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
-           << "_";
+           << "_" << getAlias(Ty.getAddrSpace());
         return AliasResult::OverridableAlias;
       })
       .Case<mlir::sycl::SwizzledVecType>([&](auto Ty) {

@@ -176,7 +176,7 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
         if (Dimensions != 1)
           return success(); // Implementation defined result type.
 
-        return (AccessorTy.getAccessMode() == MemoryAccessMode::Atomic)
+        return (AccessorTy.getAccessMode() == AccessMode::Atomic)
                    ? emitOpError(
                          "Cannot use this signature when the atomic access "
                          "mode is used")

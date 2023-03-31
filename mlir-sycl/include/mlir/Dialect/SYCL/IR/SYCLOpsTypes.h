@@ -11,6 +11,7 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpAttributes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -24,59 +25,6 @@
 
 namespace mlir {
 namespace sycl {
-enum class MemoryAccessMode {
-  Read = 1024,
-  Write,
-  ReadWrite,
-  DiscardWrite,
-  DiscardReadWrite,
-  Atomic
-};
-
-enum class MemoryTargetMode {
-  GlobalBuffer = 2014,
-  ConstantBuffer,
-  Local,
-  Image,
-  HostBuffer,
-  HostImage,
-  ImageArray
-};
-
-enum class AccessAddrSpace : int {
-  Private = 0,
-  Global = 1,
-  Constant = 2,
-  Local = 3,
-  Generic = 4,
-  ExtIntelGlobalDevice = 5,
-  ExtIntelHost = 6
-};
-
-enum class DecoratedAccess : int { No = 0, Yes = 1, Legacy = 2 };
-
-llvm::StringRef
-memoryAccessModeAsString(mlir::sycl::MemoryAccessMode MemAccessMode);
-LogicalResult parseMemoryAccessMode(AsmParser &Parser,
-                                    MemoryAccessMode &MemAccessMode);
-void printMemoryAccessMode(AsmPrinter &Printer, MemoryAccessMode MemAccessMode);
-
-llvm::StringRef
-memoryTargetModeAsString(mlir::sycl::MemoryTargetMode MemTargetMode);
-LogicalResult parseMemoryTargetMode(AsmParser &Parser,
-                                    MemoryTargetMode &MemTargetMode);
-void printMemoryTargetMode(AsmPrinter &Printer, MemoryTargetMode MemTargetMode);
-
-std::string accessAddressSpaceAsString(mlir::sycl::AccessAddrSpace AccAddress);
-LogicalResult parseAccessAddrSpace(AsmParser &Parser,
-                                   AccessAddrSpace &AccAddress);
-void printAccessAddrSpace(AsmPrinter &Printer, AccessAddrSpace AccAddress);
-
-std::string decoratedAccessAsString(mlir::sycl::DecoratedAccess DecAccess);
-LogicalResult parseDecoratedAccess(AsmParser &Parser,
-                                   DecoratedAccess &DecAccess);
-void printDecoratedAccess(AsmPrinter &Printer, DecoratedAccess DecAccess);
-
 template <typename Parameter> class SYCLInheritanceTypeTrait {
 public:
   template <typename ConcreteType>
