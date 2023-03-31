@@ -55,7 +55,7 @@ def err_expected_colon_after_setter_name : Error<
 def err_expected_string_literal : Error<"expected string literal "
   "%select{in %1|for diagnostic message in static_assert|"
           "for optional message in 'availability' attribute|"
-          "for %select{language|source container}1 name in "
+          "for %select{language name|source container name|USR}1 in "
           "'external_source_symbol' attribute}0">;
 def err_invalid_string_udl : Error<
   "string literal with user-defined suffix cannot be used here">;
@@ -63,6 +63,10 @@ def err_invalid_character_udl : Error<
   "character literal with user-defined suffix cannot be used here">;
 def err_invalid_numeric_udl : Error<
   "numeric literal with user-defined suffix cannot be used here">;
+def warn_pragma_debug_missing_argument : Warning<
+  "missing argument to debug command '%0'">, InGroup<IgnoredPragmas>;
+def warn_pragma_debug_unexpected_argument : Warning<
+  "unexpected argument to debug command">, InGroup<IgnoredPragmas>;
 
 }
 

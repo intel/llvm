@@ -315,29 +315,6 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 // ---- joint_reduce
-template <typename Group, typename Ptr, class BinaryOperation>
-detail::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
-     detail::is_arithmetic_or_complex<
-         typename detail::remove_pointer<Ptr>::type>::value &&
-     detail::is_plus_or_multiplies_if_complex<
-         typename detail::remove_pointer<Ptr>::type, BinaryOperation>::value),
-    typename detail::remove_pointer<Ptr>::type>
-joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
-#ifdef __SYCL_DEVICE_ONLY__
-  using T = typename detail::remove_pointer<Ptr>::type;
-  T init = detail::identity_for_ga_op<T, BinaryOperation>();
-  return joint_reduce(g, first, last, init, binary_op);
-#else
-  (void)g;
-  (void)first;
-  (void)last;
-  (void)binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif
-}
-
 template <typename Group, typename Ptr, typename T, class BinaryOperation>
 detail::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
@@ -368,6 +345,29 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
 #else
   (void)g;
   (void)last;
+  throw runtime_error("Group algorithms are not supported on host.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif
+}
+
+template <typename Group, typename Ptr, class BinaryOperation>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
+     detail::is_arithmetic_or_complex<
+         typename detail::remove_pointer<Ptr>::type>::value &&
+     detail::is_plus_or_multiplies_if_complex<
+         typename detail::remove_pointer<Ptr>::type, BinaryOperation>::value),
+    typename detail::remove_pointer<Ptr>::type>
+joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  using T = typename detail::remove_pointer<Ptr>::type;
+  T init = detail::identity_for_ga_op<T, BinaryOperation>();
+  return joint_reduce(g, first, last, init, binary_op);
+#else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif

@@ -361,34 +361,50 @@ struct ElideUnitDimsInMultiDimReduction
 
   LogicalResult matchAndRewrite(MultiDimReductionOp reductionOp,
                                 PatternRewriter &rewriter) const override {
-    // Masked reductions can't be folded until we can propagate the mask to the
-    // resulting operation.
-    auto maskableOp = cast<MaskableOpInterface>(reductionOp.getOperation());
-    if (maskableOp.isMasked())
-      return failure();
-
     ArrayRef<int64_t> shape = reductionOp.getSourceVectorType().getShape();
     for (const auto &dim : enumerate(shape)) {
       if (reductionOp.isReducedDim(dim.index()) && dim.value() != 1)
         return failure();
     }
+
+    // Vector mask setup.
+    OpBuilder::InsertionGuard guard(rewriter);
+    Operation *rootOp;
+    Value mask;
+    if (reductionOp.isMasked()) {
+      rewriter.setInsertionPoint(reductionOp.getMaskingOp());
+      rootOp = reductionOp.getMaskingOp();
+      mask = reductionOp.getMaskingOp().getMask();
+    } else {
+      rootOp = reductionOp;
+    }
+
     Location loc = reductionOp.getLoc();
     Value acc = reductionOp.getAcc();
     Value cast;
-    if (reductionOp.getDestType().isa<VectorType>()) {
+    if (auto dstVecType = dyn_cast<VectorType>(reductionOp.getDestType())) {
+      if (mask) {
+        VectorType newMaskType =
+            VectorType::get(dstVecType.getShape(), rewriter.getI1Type());
+        mask = rewriter.create<vector::ShapeCastOp>(loc, newMaskType, mask);
+      }
       cast = rewriter.create<vector::ShapeCastOp>(
           loc, reductionOp.getDestType(), reductionOp.getSource());
     } else {
       // This means we are reducing all the dimensions, and all reduction
       // dimensions are of size 1. So a simple extraction would do.
+      auto zeroAttr =
+          rewriter.getI64ArrayAttr(SmallVector<int64_t>(shape.size(), 0));
+      if (mask)
+        mask = rewriter.create<vector::ExtractOp>(loc, rewriter.getI1Type(),
+                                                  mask, zeroAttr);
       cast = rewriter.create<vector::ExtractOp>(
-          loc, reductionOp.getDestType(), reductionOp.getSource(),
-          rewriter.getI64ArrayAttr(SmallVector<int64_t>(shape.size(), 0)));
+          loc, reductionOp.getDestType(), reductionOp.getSource(), zeroAttr);
     }
 
-    Value result = vector::makeArithReduction(rewriter, loc,
-                                              reductionOp.getKind(), acc, cast);
-    rewriter.replaceOp(reductionOp, result);
+    Value result = vector::makeArithReduction(
+        rewriter, loc, reductionOp.getKind(), acc, cast, mask);
+    rewriter.replaceOp(rootOp, result);
     return success();
   }
 };
@@ -524,11 +540,19 @@ struct ElideSingleElementReduction : public OpRewritePattern<ReductionOp> {
 
   LogicalResult matchAndRewrite(ReductionOp reductionOp,
                                 PatternRewriter &rewriter) const override {
-    // Masked reductions can't be folded until we can propagate the mask to the
-    // resulting operation.
-    auto maskableOp = cast<MaskableOpInterface>(reductionOp.getOperation());
-    if (maskableOp.isMasked())
-      return failure();
+    // Vector mask setup.
+    OpBuilder::InsertionGuard guard(rewriter);
+    auto maskableOp =
+        cast<vector::MaskableOpInterface>(reductionOp.getOperation());
+    Operation *rootOp;
+    Value mask;
+    if (maskableOp.isMasked()) {
+      rewriter.setInsertionPoint(maskableOp.getMaskingOp());
+      rootOp = maskableOp.getMaskingOp();
+      mask = maskableOp.getMaskingOp().getMask();
+    } else {
+      rootOp = reductionOp;
+    }
 
     auto vectorType = reductionOp.getSourceVectorType();
     if (vectorType.getRank() != 0 && vectorType.getDimSize(0) != 1)
@@ -537,8 +561,14 @@ struct ElideSingleElementReduction : public OpRewritePattern<ReductionOp> {
     Location loc = reductionOp.getLoc();
     Value result;
     if (vectorType.getRank() == 0) {
+      if (mask)
+        mask = rewriter.create<ExtractElementOp>(loc, mask);
       result = rewriter.create<ExtractElementOp>(loc, reductionOp.getVector());
     } else {
+      if (mask) {
+        mask = rewriter.create<ExtractOp>(loc, rewriter.getI1Type(), mask,
+                                          rewriter.getI64ArrayAttr(0));
+      }
       result = rewriter.create<ExtractOp>(loc, reductionOp.getType(),
                                           reductionOp.getVector(),
                                           rewriter.getI64ArrayAttr(0));
@@ -546,9 +576,9 @@ struct ElideSingleElementReduction : public OpRewritePattern<ReductionOp> {
 
     if (Value acc = reductionOp.getAcc())
       result = vector::makeArithReduction(rewriter, loc, reductionOp.getKind(),
-                                          result, acc);
+                                          result, acc, mask);
 
-    rewriter.replaceOp(reductionOp, result);
+    rewriter.replaceOp(rootOp, result);
     return success();
   }
 };
@@ -610,7 +640,7 @@ ParseResult ContractionOp::parse(OpAsmParser &parser, OperationState &result) {
   auto loc = parser.getCurrentLocation();
   DictionaryAttr dictAttr;
   // TODO: Unify linalg op attribute parsing.
-  if (parser.parseAttribute(dictAttr, "_", result.attributes) ||
+  if (parser.parseAttribute(dictAttr) ||
       parser.parseOperand(lhsInfo) || parser.parseComma() ||
       parser.parseOperand(rhsInfo) || parser.parseComma() ||
       parser.parseOperand(accInfo) ||
@@ -623,7 +653,7 @@ ParseResult ContractionOp::parse(OpAsmParser &parser, OperationState &result) {
       parser.resolveOperand(accInfo, resultType, result.operands) ||
       parser.addTypeToList(resultType, result.types))
     return failure();
-  result.attributes.assign(dictAttr.getValue().begin(),
+  result.attributes.append(dictAttr.getValue().begin(),
                            dictAttr.getValue().end());
 
   // Convert array of string into an array of IteratyType enums. This is needed,
@@ -1528,7 +1558,7 @@ static Value foldExtractFromShapeCast(ExtractOp extractOp) {
         getDimReverse(shapeCastOp.getSourceVectorType(), i + destinationRank);
   }
   std::reverse(newStrides.begin(), newStrides.end());
-  SmallVector<int64_t, 4> newPosition = delinearize(newStrides, position);
+  SmallVector<int64_t, 4> newPosition = delinearize(position, newStrides);
   // OpBuilder is only used as a helper to build an I64ArrayAttr.
   OpBuilder b(extractOp.getContext());
   extractOp->setAttr(ExtractOp::getPositionAttrStrName(),
@@ -1788,16 +1818,6 @@ static void populateFromInt64AttrArray(ArrayAttr arrayAttr,
 
 std::optional<SmallVector<int64_t, 4>> FMAOp::getShapeForUnroll() {
   return llvm::to_vector<4>(getVectorType().getShape());
-}
-
-// MaskableOpInterface methods.
-
-/// Returns the mask type expected by this operation. Mostly used for
-/// verification purposes. It requires the operation to be vectorized."
-Type FMAOp::getExpectedMaskType() {
-  auto vecType = this->getVectorType();
-  return VectorType::get(vecType.getShape(),
-                         IntegerType::get(vecType.getContext(), /*width=*/1));
 }
 
 //===----------------------------------------------------------------------===//
@@ -3713,6 +3733,8 @@ namespace {
 /// %1 = vector.transfer_read %t[%p0, %p1], %cst {in_bounds = [true, true]}
 ///     : tensor<?x?xf32>, vector<4x5xf32>
 /// ```
+// TODO: this is brittle and should be deprecated in favor of a more general
+// pattern that applies on-demand.
 struct FoldExtractSliceIntoTransferRead
     : public OpRewritePattern<TransferReadOp> {
 public:
@@ -3863,9 +3885,13 @@ struct TransferReadAfterWriteToBroadcast
 
 void TransferReadOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                  MLIRContext *context) {
-  results
-      .add<FoldExtractSliceIntoTransferRead, TransferReadAfterWriteToBroadcast>(
-          context);
+  // clang-format off
+  results.add <
+               // TODO: this is brittle and should be deprecated in favor of a
+               // more general pattern that applies on-demand.
+               FoldExtractSliceIntoTransferRead,
+               TransferReadAfterWriteToBroadcast>(context);
+  // clang-format on
 }
 
 //===----------------------------------------------------------------------===//
@@ -4181,7 +4207,9 @@ public:
         writeOp.getSource().getDefiningOp<vector::TransferWriteOp>();
     while (defWrite) {
       if (checkSameValueWAW(writeOp, defWrite)) {
-        writeToModify.getSourceMutable().assign(defWrite.getSource());
+        rewriter.updateRootInPlace(writeToModify, [&]() {
+          writeToModify.getSourceMutable().assign(defWrite.getSource());
+        });
         return success();
       }
       if (!isDisjointTransferIndices(
@@ -4213,6 +4241,8 @@ public:
 /// %1 = vector.transfer_write %v, %t2[%a, %b] {in_bounds = [true, true]}
 ///     : vector<4x5xf32>, tensor<?x?xf32>
 /// ```
+// TODO: this is brittle and should be deprecated in favor of a more general
+// pattern that applies on-demand.
 struct FoldInsertSliceIntoTransferWrite
     : public OpRewritePattern<tensor::InsertSliceOp> {
 public:
@@ -4395,8 +4425,13 @@ public:
 
 void TransferWriteOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                   MLIRContext *context) {
-  results.add<FoldWaw, FoldInsertSliceIntoTransferWrite,
+  // clang-format off
+  results.add<FoldWaw,
+              // TODO: this is brittle and should be deprecated in favor of a
+              // more general pattern that applies on-demand.
+              FoldInsertSliceIntoTransferWrite,
               SwapExtractSliceOfTransferWrite>(context);
+  // clang-format on
 }
 
 //===----------------------------------------------------------------------===//
@@ -5243,13 +5278,38 @@ public:
   }
 };
 
+/// Folds transpose(create_mask) into a new transposed create_mask.
+class FoldTransposeCreateMask final : public OpRewritePattern<TransposeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TransposeOp transposeOp,
+                                PatternRewriter &rewriter) const override {
+    auto createMaskOp =
+        transposeOp.getVector().getDefiningOp<vector::CreateMaskOp>();
+    if (!createMaskOp)
+      return failure();
+
+    // Get the transpose permutation and apply it to the vector.create_mask
+    // operands.
+    auto maskOperands = createMaskOp.getOperands();
+    SmallVector<int64_t> permutation;
+    transposeOp.getTransp(permutation);
+    SmallVector<Value> newOperands(maskOperands.begin(), maskOperands.end());
+    applyPermutationToVector(newOperands, permutation);
+
+    rewriter.replaceOpWithNewOp<vector::CreateMaskOp>(
+        transposeOp, transposeOp.getResultVectorType(), newOperands);
+    return success();
+  }
+};
+
 } // namespace
 
 void vector::TransposeOp::getCanonicalizationPatterns(
     RewritePatternSet &results, MLIRContext *context) {
-  results
-      .add<FoldTransposedScalarBroadcast, TransposeFolder, FoldTransposeSplat>(
-          context);
+  results.add<FoldTransposeCreateMask, FoldTransposedScalarBroadcast,
+              TransposeFolder, FoldTransposeSplat>(context);
 }
 
 void vector::TransposeOp::getTransp(SmallVectorImpl<int64_t> &results) {
@@ -5475,7 +5535,7 @@ void mlir::vector::MaskOp::print(OpAsmPrinter &p) {
   // Print single masked operation and skip terminator.
   p << " { ";
   Block *singleBlock = &getMaskRegion().getBlocks().front();
-  if (singleBlock && singleBlock->getOperations().size() > 1)
+  if (singleBlock && !singleBlock->getOperations().empty())
     p.printCustomOrGenericOp(&singleBlock->front());
   p << " }";
 
@@ -5491,18 +5551,23 @@ void MaskOp::ensureTerminator(Region &region, Builder &builder, Location loc) {
       MaskOp>::ensureTerminator(region, builder, loc);
   // Keep the default yield terminator if the number of masked operations is not
   // the expected. This case will trigger a verification failure.
-  if (region.front().getOperations().size() != 2)
+  Block &block = region.front();
+  if (block.getOperations().size() != 2)
     return;
 
   // Replace default yield terminator with a new one that returns the results
   // from the masked operation.
   OpBuilder opBuilder(builder.getContext());
-  Operation *maskedOp = &region.front().front();
-  Operation *oldYieldOp = &region.front().back();
+  Operation *maskedOp = &block.front();
+  Operation *oldYieldOp = &block.back();
   assert(isa<vector::YieldOp>(oldYieldOp) && "Expected vector::YieldOp");
 
+  // Empty vector.mask op.
+  if (maskedOp == oldYieldOp)
+    return;
+
   opBuilder.setInsertionPoint(oldYieldOp);
-  opBuilder.create<vector::YieldOp>(maskedOp->getLoc(), maskedOp->getResults());
+  opBuilder.create<vector::YieldOp>(loc, maskedOp->getResults());
   oldYieldOp->dropAllReferences();
   oldYieldOp->erase();
 }
@@ -5510,14 +5575,24 @@ void MaskOp::ensureTerminator(Region &region, Builder &builder, Location loc) {
 LogicalResult MaskOp::verify() {
   // Structural checks.
   Block &block = getMaskRegion().getBlocks().front();
-  if (block.getOperations().size() < 2)
-    return emitOpError("expects an operation to mask");
+  if (block.getOperations().empty())
+    return emitOpError("expects a terminator within the mask region");
   if (block.getOperations().size() > 2)
     return emitOpError("expects only one operation to mask");
 
+  // Terminator checks.
+  auto terminator = dyn_cast<vector::YieldOp>(block.back());
+  if (!terminator)
+    return emitOpError("expects a terminator within the mask region");
+
+  if (terminator->getNumOperands() != getNumResults())
+    return emitOpError(
+        "expects number of results to match mask region yielded values");
+
   auto maskableOp = dyn_cast<MaskableOpInterface>(block.front());
+  // Empty vector.mask. Nothing else to check.
   if (!maskableOp)
-    return emitOpError("expects a maskable operation");
+    return success();
 
   // Result checks.
   if (maskableOp->getNumResults() != getNumResults())
@@ -5555,10 +5630,47 @@ LogicalResult MaskOp::verify() {
   return success();
 }
 
+// Elides empty vector.mask operations with or without return values. Propagates
+// the yielded values by the vector.yield terminator, if any, or erases the op,
+// otherwise.
+class ElideEmptyMaskOp : public OpRewritePattern<MaskOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(MaskOp maskOp,
+                                PatternRewriter &rewriter) const override {
+    auto maskingOp = cast<MaskingOpInterface>(maskOp.getOperation());
+    if (maskingOp.getMaskableOp())
+      return failure();
+
+    Block *block = maskOp.getMaskBlock();
+    if (block->getOperations().size() > 1)
+      return failure();
+
+    auto terminator = cast<vector::YieldOp>(block->front());
+    if (terminator.getNumOperands() == 0)
+      rewriter.eraseOp(maskOp);
+    else
+      rewriter.replaceOp(maskOp, terminator.getOperands());
+
+    return success();
+  }
+};
+
+void MaskOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                         MLIRContext *context) {
+  results.add<ElideEmptyMaskOp>(context);
+}
+
 // MaskingOpInterface definitions.
 
 /// Returns the operation masked by this 'vector.mask'.
-Operation *MaskOp::getMaskableOp() { return &getMaskRegion().front().front(); }
+Operation *MaskOp::getMaskableOp() {
+  Block *block = getMaskBlock();
+  if (block->getOperations().size() < 2)
+    return nullptr;
+
+  return &block->front();
+}
 
 /// Returns true if 'vector.mask' has a passthru value.
 bool MaskOp::hasPassthru() { return getPassthru() != Value(); }
@@ -5807,53 +5919,71 @@ bool WarpExecuteOnLane0Op::areTypesCompatible(Type lhs, Type rhs) {
 }
 
 Value mlir::vector::makeArithReduction(OpBuilder &b, Location loc,
-                                       CombiningKind kind, Value v1, Value v2) {
+                                       CombiningKind kind, Value v1, Value acc,
+                                       Value mask) {
   Type t1 = getElementTypeOrSelf(v1.getType());
-  Type t2 = getElementTypeOrSelf(v2.getType());
+  Type tAcc = getElementTypeOrSelf(acc.getType());
+  Value result;
+
   switch (kind) {
   case CombiningKind::ADD:
-    if (t1.isIntOrIndex() && t2.isIntOrIndex())
-      return b.createOrFold<arith::AddIOp>(loc, v1, v2);
-    else if (t1.isa<FloatType>() && t2.isa<FloatType>())
-      return b.createOrFold<arith::AddFOp>(loc, v1, v2);
-    llvm_unreachable("invalid value types for ADD reduction");
+    if (t1.isIntOrIndex() && tAcc.isIntOrIndex())
+      result = b.createOrFold<arith::AddIOp>(loc, v1, acc);
+    else if (t1.isa<FloatType>() && tAcc.isa<FloatType>())
+      result = b.createOrFold<arith::AddFOp>(loc, v1, acc);
+    else
+      llvm_unreachable("invalid value types for ADD reduction");
+    break;
   case CombiningKind::AND:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::AndIOp>(loc, v1, v2);
+    assert(t1.isIntOrIndex() && tAcc.isIntOrIndex() && "expected int values");
+    result = b.createOrFold<arith::AndIOp>(loc, v1, acc);
+    break;
   case CombiningKind::MAXF:
-    assert(t1.isa<FloatType>() && t2.isa<FloatType>() &&
+    assert(t1.isa<FloatType>() && tAcc.isa<FloatType>() &&
            "expected float values");
-    return b.createOrFold<arith::MaxFOp>(loc, v1, v2);
+    result = b.createOrFold<arith::MaxFOp>(loc, v1, acc);
+    break;
   case CombiningKind::MINF:
-    assert(t1.isa<FloatType>() && t2.isa<FloatType>() &&
+    assert(t1.isa<FloatType>() && tAcc.isa<FloatType>() &&
            "expected float values");
-    return b.createOrFold<arith::MinFOp>(loc, v1, v2);
+    result = b.createOrFold<arith::MinFOp>(loc, v1, acc);
+    break;
   case CombiningKind::MAXSI:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::MaxSIOp>(loc, v1, v2);
+    assert(t1.isIntOrIndex() && tAcc.isIntOrIndex() && "expected int values");
+    result = b.createOrFold<arith::MaxSIOp>(loc, v1, acc);
+    break;
   case CombiningKind::MINSI:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::MinSIOp>(loc, v1, v2);
+    assert(t1.isIntOrIndex() && tAcc.isIntOrIndex() && "expected int values");
+    result = b.createOrFold<arith::MinSIOp>(loc, v1, acc);
+    break;
   case CombiningKind::MAXUI:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::MaxUIOp>(loc, v1, v2);
+    assert(t1.isIntOrIndex() && tAcc.isIntOrIndex() && "expected int values");
+    result = b.createOrFold<arith::MaxUIOp>(loc, v1, acc);
+    break;
   case CombiningKind::MINUI:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::MinUIOp>(loc, v1, v2);
+    assert(t1.isIntOrIndex() && tAcc.isIntOrIndex() && "expected int values");
+    result = b.createOrFold<arith::MinUIOp>(loc, v1, acc);
+    break;
   case CombiningKind::MUL:
-    if (t1.isIntOrIndex() && t2.isIntOrIndex())
-      return b.createOrFold<arith::MulIOp>(loc, v1, v2);
-    else if (t1.isa<FloatType>() && t2.isa<FloatType>())
-      return b.createOrFold<arith::MulFOp>(loc, v1, v2);
-    llvm_unreachable("invalid value types for MUL reduction");
+    if (t1.isIntOrIndex() && tAcc.isIntOrIndex())
+      result = b.createOrFold<arith::MulIOp>(loc, v1, acc);
+    else if (t1.isa<FloatType>() && tAcc.isa<FloatType>())
+      result = b.createOrFold<arith::MulFOp>(loc, v1, acc);
+    else
+      llvm_unreachable("invalid value types for MUL reduction");
+    break;
   case CombiningKind::OR:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::OrIOp>(loc, v1, v2);
+    assert(t1.isIntOrIndex() && tAcc.isIntOrIndex() && "expected int values");
+    result = b.createOrFold<arith::OrIOp>(loc, v1, acc);
+    break;
   case CombiningKind::XOR:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::XOrIOp>(loc, v1, v2);
+    assert(t1.isIntOrIndex() && tAcc.isIntOrIndex() && "expected int values");
+    result = b.createOrFold<arith::XOrIOp>(loc, v1, acc);
+    break;
   };
-  llvm_unreachable("unknown CombiningKind");
+
+  assert(result && "unknown CombiningKind");
+  return selectPassthru(b, mask, result, acc);
 }
 
 //===----------------------------------------------------------------------===//
@@ -5875,13 +6005,34 @@ void mlir::vector::createMaskOpRegion(OpBuilder &builder,
 /// Creates a vector.mask operation around a maskable operation. Returns the
 /// vector.mask operation if the mask provided is valid. Otherwise, returns
 /// the maskable operation itself.
-Operation *mlir::vector::maskOperation(RewriterBase &rewriter,
-                                       Operation *maskableOp, Value mask) {
+Operation *mlir::vector::maskOperation(OpBuilder &builder,
+                                       Operation *maskableOp, Value mask,
+                                       Value passthru) {
   if (!mask)
     return maskableOp;
-  return rewriter.create<MaskOp>(maskableOp->getLoc(),
-                                 maskableOp->getResultTypes(), mask, maskableOp,
-                                 createMaskOpRegion);
+  if (passthru)
+    return builder.create<MaskOp>(maskableOp->getLoc(),
+                                  maskableOp->getResultTypes(), mask, passthru,
+                                  maskableOp, createMaskOpRegion);
+  return builder.create<MaskOp>(maskableOp->getLoc(),
+                                maskableOp->getResultTypes(), mask, maskableOp,
+                                createMaskOpRegion);
+}
+
+/// Creates a vector select operation that picks values from `newValue` or
+/// `passthru` for each result vector lane based on `mask`. This utility is used
+/// to propagate the pass-thru value of vector.mask or for cases where only the
+/// pass-thru value propagation is needed. VP intrinsics do not support
+/// pass-thru values and every mask-out lane is set to poison. LLVM backends are
+/// usually able to match op + select patterns and fold them into a native
+/// target instructions.
+Value mlir::vector::selectPassthru(OpBuilder &builder, Value mask,
+                                   Value newValue, Value passthru) {
+  if (!mask)
+    return newValue;
+
+  return builder.create<arith::SelectOp>(newValue.getLoc(), newValue.getType(),
+                                         mask, newValue, passthru);
 }
 
 //===----------------------------------------------------------------------===//

@@ -14,15 +14,16 @@
 
 #include "AMDGPU.h"
 #include "AMDGPUTargetMachine.h"
+#include "SIModeRegisterDefaults.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ConstantFolding.h"
-#include "llvm/Analysis/LegacyDivergenceAnalysis.h"
+#include "llvm/Analysis/UniformityAnalysis.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/KnownBits.h"
@@ -72,7 +73,7 @@ class AMDGPUCodeGenPrepare : public FunctionPass,
   const GCNSubtarget *ST = nullptr;
   AssumptionCache *AC = nullptr;
   DominatorTree *DT = nullptr;
-  LegacyDivergenceAnalysis *DA = nullptr;
+  UniformityInfo *UA = nullptr;
   Module *Mod = nullptr;
   const DataLayout *DL = nullptr;
   bool HasUnsafeFPMath = false;
@@ -223,7 +224,7 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<AssumptionCacheTracker>();
-    AU.addRequired<LegacyDivergenceAnalysis>();
+    AU.addRequired<UniformityInfoWrapperPass>();
 
     // FIXME: Division expansion needs to preserve the dominator tree.
     if (!ExpandDiv64InIR)
@@ -313,7 +314,7 @@ bool AMDGPUCodeGenPrepare::canWidenScalarExtLoad(LoadInst &I) const {
   int TySize = DL.getTypeSizeInBits(Ty);
   Align Alignment = DL.getValueOrABITypeAlignment(I.getAlign(), Ty);
 
-  return I.isSimple() && TySize < 32 && Alignment >= 4 && DA->isUniform(&I);
+  return I.isSimple() && TySize < 32 && Alignment >= 4 && UA->isUniform(&I);
 }
 
 bool AMDGPUCodeGenPrepare::promoteUniformOpToI32(BinaryOperator &I) const {
@@ -518,7 +519,7 @@ bool AMDGPUCodeGenPrepare::replaceMulWithMul24(BinaryOperator &I) const {
     return false;
 
   // Prefer scalar if this could be s_mul_i32
-  if (DA->isUniform(&I))
+  if (UA->isUniform(&I))
     return false;
 
   Value *LHS = I.getOperand(0);
@@ -1236,7 +1237,7 @@ bool AMDGPUCodeGenPrepare::visitBinaryOperator(BinaryOperator &I) {
     return true;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getType()) &&
-      DA->isUniform(&I) && promoteUniformOpToI32(I))
+      UA->isUniform(&I) && promoteUniformOpToI32(I))
     return true;
 
   if (UseMul24Intrin && replaceMulWithMul24(I))
@@ -1366,7 +1367,7 @@ bool AMDGPUCodeGenPrepare::visitICmpInst(ICmpInst &I) {
   bool Changed = false;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getOperand(0)->getType()) &&
-      DA->isUniform(&I))
+      UA->isUniform(&I))
     Changed |= promoteUniformOpToI32(I);
 
   return Changed;
@@ -1376,7 +1377,7 @@ bool AMDGPUCodeGenPrepare::visitSelectInst(SelectInst &I) {
   bool Changed = false;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getType()) &&
-      DA->isUniform(&I))
+      UA->isUniform(&I))
     Changed |= promoteUniformOpToI32(I);
 
   return Changed;
@@ -1395,7 +1396,7 @@ bool AMDGPUCodeGenPrepare::visitBitreverseIntrinsicInst(IntrinsicInst &I) {
   bool Changed = false;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getType()) &&
-      DA->isUniform(&I))
+      UA->isUniform(&I))
     Changed |= promoteUniformBitreverseToI32(I);
 
   return Changed;
@@ -1418,14 +1419,14 @@ bool AMDGPUCodeGenPrepare::runOnFunction(Function &F) {
   const AMDGPUTargetMachine &TM = TPC->getTM<AMDGPUTargetMachine>();
   ST = &TM.getSubtarget<GCNSubtarget>(F);
   AC = &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
-  DA = &getAnalysis<LegacyDivergenceAnalysis>();
+  UA = &getAnalysis<UniformityInfoWrapperPass>().getUniformityInfo();
 
   auto *DTWP = getAnalysisIfAvailable<DominatorTreeWrapperPass>();
   DT = DTWP ? &DTWP->getDomTree() : nullptr;
 
   HasUnsafeFPMath = hasUnsafeFPMath(F);
 
-  AMDGPU::SIModeRegisterDefaults Mode(F);
+  SIModeRegisterDefaults Mode(F);
   HasFP32Denormals = Mode.allFP32Denormals();
 
   bool MadeChange = false;
@@ -1458,7 +1459,7 @@ bool AMDGPUCodeGenPrepare::runOnFunction(Function &F) {
 INITIALIZE_PASS_BEGIN(AMDGPUCodeGenPrepare, DEBUG_TYPE,
                       "AMDGPU IR optimizations", false, false)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
-INITIALIZE_PASS_DEPENDENCY(LegacyDivergenceAnalysis)
+INITIALIZE_PASS_DEPENDENCY(UniformityInfoWrapperPass)
 INITIALIZE_PASS_END(AMDGPUCodeGenPrepare, DEBUG_TYPE, "AMDGPU IR optimizations",
                     false, false)
 

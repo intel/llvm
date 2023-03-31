@@ -242,7 +242,8 @@ Environment::Environment(DataflowAnalysisContext &DACtx,
     llvm::DenseSet<const FieldDecl *> Fields;
     llvm::DenseSet<const VarDecl *> Vars;
 
-    // Look for global variable references in the constructor-initializers.
+    // Look for global variable and field references in the
+    // constructor-initializers.
     if (const auto *CtorDecl = dyn_cast<CXXConstructorDecl>(&DeclCtx)) {
       for (const auto *Init : CtorDecl->inits()) {
         if (const auto *M = Init->getAnyMember())
@@ -251,6 +252,10 @@ Environment::Environment(DataflowAnalysisContext &DACtx,
         assert(E != nullptr);
         getFieldsAndGlobalVars(*E, Fields, Vars);
       }
+      // Add all fields mentioned in default member initializers.
+      for (const FieldDecl *F  : CtorDecl->getParent()->fields())
+        if (const auto *I = F->getInClassInitializer())
+          getFieldsAndGlobalVars(*I, Fields, Vars);
     }
     getFieldsAndGlobalVars(*FuncDecl->getBody(), Fields, Vars);
 
@@ -578,7 +583,7 @@ StorageLocation &Environment::createStorageLocation(const Expr &E) {
 }
 
 void Environment::setStorageLocation(const ValueDecl &D, StorageLocation &Loc) {
-  assert(DeclToLoc.find(&D) == DeclToLoc.end());
+  assert(!DeclToLoc.contains(&D));
   DeclToLoc[&D] = &Loc;
 }
 
@@ -590,7 +595,7 @@ StorageLocation *Environment::getStorageLocation(const ValueDecl &D,
 
 void Environment::setStorageLocation(const Expr &E, StorageLocation &Loc) {
   const Expr &CanonE = ignoreCFGOmittedNodes(E);
-  assert(ExprToLoc.find(&CanonE) == ExprToLoc.end());
+  assert(!ExprToLoc.contains(&CanonE));
   ExprToLoc[&CanonE] = &Loc;
 }
 
@@ -807,7 +812,7 @@ void Environment::dump(raw_ostream &OS) const {
   }
 
   OS << "FlowConditionToken:\n";
-  DACtx->dumpFlowCondition(*FlowConditionToken);
+  DACtx->dumpFlowCondition(*FlowConditionToken, OS);
 }
 
 void Environment::dump() const {

@@ -791,13 +791,23 @@ static bool unswitchTrivialSwitch(Loop &L, SwitchInst &SI, DominatorTree &DT,
   Loop *OuterL = &L;
 
   if (DefaultExitBB) {
-    // Clear out the default destination temporarily to allow accurate
-    // predecessor lists to be examined below.
-    SI.setDefaultDest(nullptr);
     // Check the loop containing this exit.
     Loop *ExitL = LI.getLoopFor(DefaultExitBB);
     if (!ExitL || ExitL->contains(OuterL))
       OuterL = ExitL;
+  }
+
+  if (SE) {
+    if (OuterL)
+      SE->forgetLoop(OuterL);
+    else
+      SE->forgetTopmostLoop(&L);
+  }
+
+  if (DefaultExitBB) {
+    // Clear out the default destination temporarily to allow accurate
+    // predecessor lists to be examined below.
+    SI.setDefaultDest(nullptr);
   }
 
   // Store the exit cases into a separate data structure and remove them from
@@ -820,13 +830,6 @@ static bool unswitchTrivialSwitch(Loop &L, SwitchInst &SI, DominatorTree &DT,
     ExitCases.emplace_back(CaseI->getCaseValue(), CaseI->getCaseSuccessor(), W);
     // Delete the unswitched cases.
     SIW.removeCase(CaseI);
-  }
-
-  if (SE) {
-    if (OuterL)
-      SE->forgetLoop(OuterL);
-    else
-      SE->forgetTopmostLoop(&L);
   }
 
   // Check if after this all of the remaining cases point at the same
@@ -3002,15 +3005,23 @@ injectPendingInvariantConditions(NonTrivialUnswitchCandidate Candidate, Loop &L,
   auto *InLoopSucc = Candidate.PendingInjection->InLoopSucc;
   auto *TI = cast<BranchInst>(Candidate.TI);
   auto *BB = Candidate.TI->getParent();
-  assert(InLoopSucc == TI->getSuccessor(0));
-  auto *OutOfLoopSucc = TI->getSuccessor(1);
+  auto *OutOfLoopSucc = InLoopSucc == TI->getSuccessor(0) ? TI->getSuccessor(1)
+                                                          : TI->getSuccessor(0);
   // FIXME: Remove this once limitation on successors is lifted.
   assert(L.contains(InLoopSucc) && "Not supported yet!");
   assert(!L.contains(OutOfLoopSucc) && "Not supported yet!");
   auto &Ctx = BB->getContext();
 
-  assert(LHS->getType() == RHS->getType() && "Type mismatch!");
-  // Do not use builder here: CreateICmp may simplify this intro a constant and
+  IRBuilder<> Builder(Preheader->getTerminator());
+  assert(ICmpInst::isUnsigned(Pred) && "Not supported yet!");
+  if (LHS->getType() != RHS->getType()) {
+    if (LHS->getType()->getIntegerBitWidth() <
+        RHS->getType()->getIntegerBitWidth())
+      LHS = Builder.CreateZExt(LHS, RHS->getType(), LHS->getName() + ".wide");
+    else
+      RHS = Builder.CreateZExt(RHS, LHS->getType(), RHS->getName() + ".wide");
+  }
+  // Do not use builder here: CreateICmp may simplify this into a constant and
   // unswitching will break. Better optimize it away later.
   auto *InjectedCond =
       ICmpInst::Create(Instruction::ICmp, Pred, LHS, RHS, "injected.cond",
@@ -3019,7 +3030,7 @@ injectPendingInvariantConditions(NonTrivialUnswitchCandidate Candidate, Loop &L,
 
   BasicBlock *CheckBlock = BasicBlock::Create(Ctx, BB->getName() + ".check",
                                               BB->getParent(), InLoopSucc);
-  IRBuilder<> Builder(TI);
+  Builder.SetInsertPoint(TI);
   auto *InvariantBr =
       Builder.CreateCondBr(InjectedCond, InLoopSucc, CheckBlock);
 
@@ -3157,7 +3168,11 @@ static bool collectUnswitchCandidatesWithInjections(
       continue;
     if (!shouldTryInjectBasingOnMetadata(cast<BranchInst>(Term), IfTrue))
       continue;
+    // Strip ZEXT for unsigned predicate.
+    // TODO: once signed predicates are supported, also strip SEXT.
     CompareDesc Desc(cast<BranchInst>(Term), RHS, IfTrue);
+    while (auto *Zext = dyn_cast<ZExtInst>(LHS))
+      LHS = Zext->getOperand(0);
     CandidatesULT[LHS].push_back(Desc);
   }
 
@@ -3478,10 +3493,33 @@ unswitchLoop(Loop &L, DominatorTree &DT, LoopInfo &LI, AssumptionCache &AC,
   if (L.getHeader()->getParent()->hasOptSize())
     return false;
 
-  // Skip cold loops, as unswitching them brings little benefit
-  // but increases the code size
-  if (PSI && PSI->hasProfileSummary() && BFI &&
-      PSI->isFunctionColdInCallGraph(L.getHeader()->getParent(), *BFI)) {
+  // Returns true if Loop L's loop nest is cold, i.e. if the headers of L,
+  // of the loops L is nested in, and of the loops nested in L are all cold.
+  auto IsLoopNestCold = [&](const Loop *L) {
+    // Check L and all of its parent loops.
+    auto *Parent = L;
+    while (Parent) {
+      if (!PSI->isColdBlock(Parent->getHeader(), BFI))
+        return false;
+      Parent = Parent->getParentLoop();
+    }
+    // Next check all loops nested within L.
+    SmallVector<const Loop *, 4> Worklist;
+    Worklist.insert(Worklist.end(), L->getSubLoops().begin(),
+                    L->getSubLoops().end());
+    while (!Worklist.empty()) {
+      auto *CurLoop = Worklist.pop_back_val();
+      if (!PSI->isColdBlock(CurLoop->getHeader(), BFI))
+        return false;
+      Worklist.insert(Worklist.end(), CurLoop->getSubLoops().begin(),
+                      CurLoop->getSubLoops().end());
+    }
+    return true;
+  };
+
+  // Skip cold loops in cold loop nests, as unswitching them brings little
+  // benefit but increases the code size
+  if (PSI && PSI->hasProfileSummary() && BFI && IsLoopNestCold(&L)) {
     LLVM_DEBUG(dbgs() << " Skip cold loop: " << L << "\n");
     return false;
   }
@@ -3583,10 +3621,10 @@ void SimpleLoopUnswitchPass::printPipeline(
   static_cast<PassInfoMixin<SimpleLoopUnswitchPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
 
-  OS << "<";
+  OS << '<';
   OS << (NonTrivial ? "" : "no-") << "nontrivial;";
   OS << (Trivial ? "" : "no-") << "trivial";
-  OS << ">";
+  OS << '>';
 }
 
 namespace {

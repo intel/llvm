@@ -13,7 +13,6 @@
 
 #include "llvm/Transforms/Utils.h"
 #include "llvm-c/Initialization.h"
-#include "llvm-c/Transforms/Utils.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -31,7 +30,6 @@ void llvm::initializeTransformUtils(PassRegistry &Registry) {
   initializeCanonicalizeFreezeInLoopsPass(Registry);
   initializeInstNamerPass(Registry);
   initializeLCSSAWrapperPassPass(Registry);
-  initializeLibCallsShrinkWrapLegacyPassPass(Registry);
   initializeLoopSimplifyPass(Registry);
   initializeLowerGlobalDtorsLegacyPassPass(Registry);
   initializeLowerInvokeLegacyPassPass(Registry);
@@ -49,16 +47,4 @@ void llvm::initializeTransformUtils(PassRegistry &Registry) {
 /// LLVMInitializeTransformUtils - C binding for initializeTransformUtilsPasses.
 void LLVMInitializeTransformUtils(LLVMPassRegistryRef R) {
   initializeTransformUtils(*unwrap(R));
-}
-
-void LLVMAddLowerSwitchPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createLowerSwitchPass());
-}
-
-void LLVMAddPromoteMemoryToRegisterPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createPromoteMemoryToRegisterPass());
-}
-
-void LLVMAddAddDiscriminatorsPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createAddDiscriminatorsPass());
 }

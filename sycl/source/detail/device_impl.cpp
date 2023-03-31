@@ -296,6 +296,11 @@ bool device_impl::has(aspect Aspect) const {
     return is_accelerator();
   case aspect::custom:
     return false;
+  // TODO: Implement this for FPGA and ESIMD emulators.
+  case aspect::emulated:
+    return false;
+  case aspect::host_debuggable:
+    return false;
   case aspect::fp16:
     return has_extension("cl_khr_fp16");
   case aspect::fp64:

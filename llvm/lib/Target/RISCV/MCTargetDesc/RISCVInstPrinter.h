@@ -1,4 +1,4 @@
-//===-- RISCVInstPrinter.h - Convert RISCV MCInst to asm syntax ---*- C++ -*--//
+//===-- RISCVInstPrinter.h - Convert RISC-V MCInst to asm syntax --*- C++ -*--//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This class prints a RISCV MCInst to a .s file.
+// This class prints a RISC-V MCInst to a .s file.
 //
 //===----------------------------------------------------------------------===//
 
@@ -40,6 +40,8 @@ public:
                      const MCSubtargetInfo &STI, raw_ostream &O);
   void printFRMArg(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                    raw_ostream &O);
+  void printFPImmOperand(const MCInst *MI, unsigned OpNo,
+                         const MCSubtargetInfo &STI, raw_ostream &O);
   void printZeroOffsetMemOp(const MCInst *MI, unsigned OpNo,
                             const MCSubtargetInfo &STI, raw_ostream &O);
   void printVTypeI(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,

@@ -37,7 +37,6 @@ AttributeMacros: ['_LIBCPP_HIDE_FROM_ABI',
                   '_LIBCPP_EXCLUDE_FROM_EXPLICIT_INSTANTIATION',
                   '_LIBCPP_HIDE_FROM_ABI_AFTER_V1',
                   '_LIBCPP_INLINE_VISIBILITY',
-                  '_LIBCPP_CONSTEVAL',
                   '_LIBCPP_NOALIAS',
                   '_LIBCPP_USING_IF_EXISTS',
                   '_LIBCPP_DEPRECATED',
@@ -76,10 +75,6 @@ SpacesInAngles: Leave
 AlwaysBreakTemplateDeclarations: true
 PointerAlignment: Left
 
-
-# Disable formatting options which may break tests.
-SortIncludes: false
-ReflowComments: false
 
 # libc++'s preferred indentions of preprocessor statements.
 IndentPPDirectives: AfterHash

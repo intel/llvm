@@ -169,6 +169,11 @@ def ExternalNameConversion : Pass<"external-name-interop", "mlir::ModuleOp"> {
     Demangle FIR internal name and mangle them for external interoperability.
   }];
   let constructor = "::fir::createExternalNameConversionPass()";
+  let options = [
+    Option<"appendUnderscore", "append-underscore",
+           "bool", /*default=*/"true",
+           "Append trailing underscore to external names.">
+  ];
 }
 
 def MemRefDataFlowOpt : Pass<"fir-memref-dataflow-opt", "::mlir::func::FuncOp"> {
@@ -266,4 +271,18 @@ def AlgebraicSimplification : Pass<"flang-algebraic-simplification"> {
   let constructor = "::fir::createAlgebraicSimplificationPass()";
 }
 
+def PolymorphicOpConversion : Pass<"fir-polymorphic-op", "::mlir::func::FuncOp"> {
+  let summary =
+    "Simplify operations on polymorphic types";
+  let description = [{
+    This pass breaks up the lowering of operations on polymorphic types by 
+    introducing an intermediate FIR level that simplifies code geneation. 
+  }];
+  let constructor = "::fir::createPolymorphicOpConversionPass()";
+  let dependentDialects = [
+    "fir::FIROpsDialect", "mlir::func::FuncDialect"
+  ];
+}
+
+  
 #endif // FLANG_OPTIMIZER_TRANSFORMS_PASSES

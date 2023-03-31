@@ -585,13 +585,20 @@ private:
   void **MDstPtr = nullptr;
 };
 
+pi_int32 enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
+                                  const std::string &PipeName, bool blocking,
+                                  void *ptr, size_t size,
+                                  std::vector<RT::PiEvent> &RawEvents,
+                                  RT::PiEvent *OutEvent, bool read);
+
 pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    RT::PiKernelCacheConfig KernelCacheConfig);
 
 class KernelFusionCommand;
 
