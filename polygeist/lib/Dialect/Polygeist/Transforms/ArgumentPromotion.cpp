@@ -305,6 +305,7 @@ void Candidate::modifyCallee() {
   for (unsigned origPos = 0; origPos < orinNumArgs; ++origPos) {
     if (operandToMembersPeeled.find(origPos) == operandToMembersPeeled.end()) {
       newArgAttrs.push_back(origArgAttrs ? origArgAttrs[origPos] : Attribute());
+      ++pos;
       continue;
     }
 
@@ -472,8 +473,8 @@ void ArgumentPromotionPass::collectCandidates(
       // Ensure all call sites have the same candidate operands.
       if (!candidateOperandMap.empty() &&
           !haveSameCandidateOperands(candidateOperandMap)) {
-        LLVM_DEBUG(llvm::dbgs().indent(2)
-                   << "call sites have different candidate operands\n");
+        LLVM_DEBUG(llvm::dbgs().indent(2) << "not a candidate: call sites have "
+                                             "different candidate operands\n");
         return;
       }
 
