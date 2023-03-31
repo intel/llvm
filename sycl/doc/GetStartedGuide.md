@@ -123,7 +123,7 @@ flags can be found by launching the script with `--help`):
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
+* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries
@@ -898,7 +898,7 @@ which contains all the symbols required.
 
 ## Find More
 
-* [DPC++ specification](https://spec.oneapi.io/versions/latest/elements/dpcpp/source/index.html)
+* [DPC++ specification](https://spec.oneapi.io/versions/latest/)
 * [SYCL\* specification](https://www.khronos.org/registry/SYCL)
 * [Level Zero specification](https://spec.oneapi.io/level-zero/latest/index.html)
 
