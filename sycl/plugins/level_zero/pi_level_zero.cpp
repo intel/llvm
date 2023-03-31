@@ -481,6 +481,24 @@ static const size_t ImmCmdListsEventCleanupThreshold = [] {
   return Threshold;
 }();
 
+// Get value of the threshold for number of active command lists allowed before
+// we start heuristically cleaning them up.
+static const size_t CmdListsCleanupThreshold = [] {
+  const char *CmdListsCleanupThresholdStr =
+      std::getenv("SYCL_PI_LEVEL_ZERO_COMMANDLISTS_CLEANUP_THRESHOLD");
+  static constexpr int Default = 20;
+  if (!CmdListsCleanupThresholdStr)
+    return Default;
+
+  int Threshold = std::atoi(CmdListsCleanupThresholdStr);
+
+  // Basically disable threshold if negative value is provided.
+  if (Threshold < 0)
+    return INT_MAX;
+
+  return Threshold;
+}();
+
 pi_device _pi_context::getRootDevice() const {
   assert(Devices.size() > 0);
 
@@ -1051,7 +1069,7 @@ static pi_result CleanupEventsInImmCmdLists(pi_queue Queue,
 
 /// @brief Reset signalled command lists in the queue and put them to the cache
 /// of command lists. Also cleanup events associated with signalled command
-/// lists. Queue must not be locked by the caller.
+/// lists. Queue must be locked by the caller for modification.
 /// @param Queue Queue where we look for signalled command lists and cleanup
 /// events.
 /// @return PI_SUCCESS if successful, PI error code otherwise.
@@ -1059,7 +1077,7 @@ static pi_result resetCommandLists(pi_queue Queue) {
   // Handle immediate command lists here, they don't need to be reset and we
   // only need to cleanup events.
   if (Queue->Device->ImmCommandListUsed) {
-    PI_CALL(CleanupEventsInImmCmdLists(Queue));
+    PI_CALL(CleanupEventsInImmCmdLists(Queue, true /*locked*/));
     return PI_SUCCESS;
   }
 
@@ -1068,31 +1086,29 @@ static pi_result resetCommandLists(pi_queue Queue) {
   // locks are hard to control and can cause deadlocks if mutexes are locked in
   // different order.
   std::vector<pi_event> EventListToCleanup;
-  {
-    // We check for command lists that have been already signalled, but have not
-    // been added to the available list yet. Each command list has a fence
-    // associated which tracks if a command list has completed dispatch of its
-    // commands and is ready for reuse. If a command list is found to have been
-    // signalled, then the command list & fence are reset and command list is
-    // returned to the command list cache. All events associated with command
-    // list are cleaned up if command list was reset.
-    std::unique_lock<pi_shared_mutex> QueueLock(Queue->Mutex);
-    for (auto &&it = Queue->CommandListMap.begin();
-         it != Queue->CommandListMap.end(); ++it) {
-      // Immediate commandlists don't use a fence and are handled separately
-      // above.
-      assert(it->second.ZeFence != nullptr);
-      // It is possible that the fence was already noted as signalled and
-      // reset. In that case the ZeFenceInUse flag will be false.
-      if (it->second.ZeFenceInUse) {
-        ze_result_t ZeResult =
-            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-        if (ZeResult == ZE_RESULT_SUCCESS)
-          PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
-      }
+
+  // We check for command lists that have been already signalled, but have not
+  // been added to the available list yet. Each command list has a fence
+  // associated which tracks if a command list has completed dispatch of its
+  // commands and is ready for reuse. If a command list is found to have been
+  // signalled, then the command list & fence are reset and command list is
+  // returned to the command list cache. All events associated with command
+  // list are cleaned up if command list was reset.
+  for (auto &&it = Queue->CommandListMap.begin();
+       it != Queue->CommandListMap.end(); ++it) {
+    // Immediate commandlists don't use a fence and are handled separately
+    // above.
+    assert(it->second.ZeFence != nullptr);
+    // It is possible that the fence was already noted as signalled and
+    // reset. In that case the ZeFenceInUse flag will be false.
+    if (it->second.ZeFenceInUse) {
+      ze_result_t ZeResult =
+          ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+      if (ZeResult == ZE_RESULT_SUCCESS)
+        PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
     }
   }
-  CleanupEventListFromResetCmdList(EventListToCleanup);
+  CleanupEventListFromResetCmdList(EventListToCleanup, true /*locked*/);
   return PI_SUCCESS;
 }
 
@@ -1113,6 +1129,14 @@ pi_result _pi_context::getAvailableCommandList(
     if (auto Res = Queue->insertActiveBarriers(CommandList, UseCopyEngine))
       return Res;
     return PI_SUCCESS;
+  } else {
+    // Cleanup regular command-lists if there are too many.
+    // It handles the case that the queue is not synced to the host
+    // for a long time and we want to reclaim the command-lists for
+    // use by other queues.
+    if (Queue->CommandListMap.size() > CmdListsCleanupThreshold) {
+      resetCommandLists(Queue);
+    }
   }
 
   auto &CommandBatch =
@@ -2810,8 +2834,10 @@ pi_result piQueueFinish(pi_queue Queue) {
   // Reset signalled command lists and return them back to the cache of
   // available command lists. Events in the immediate command lists are cleaned
   // up in synchronize().
-  if (!Queue->Device->ImmCommandListUsed)
+  if (!Queue->Device->ImmCommandListUsed) {
+    std::unique_lock<pi_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
+  }
   return PI_SUCCESS;
 }
 
@@ -5072,9 +5098,10 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
   // We waited some events above, check queue for signaled command lists and
   // reset them.
-  for (auto &Q : Queues)
+  for (auto &Q : Queues) {
+    std::unique_lock<pi_shared_mutex> Lock(Q->Mutex);
     resetCommandLists(Q);
-
+  }
   return PI_SUCCESS;
 }
 
@@ -5471,8 +5498,10 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     }
   }
 
-  if (!Queue->Device->ImmCommandListUsed)
+  if (!Queue->Device->ImmCommandListUsed) {
+    std::unique_lock<pi_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
+  }
 
   return PI_SUCCESS;
 }
