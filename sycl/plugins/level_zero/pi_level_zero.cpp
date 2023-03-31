@@ -371,9 +371,12 @@ inline static pi_result createEventAndAssociateQueue(
     pi_command_list_ptr_t CommandList, bool IsInternal = false,
     bool ForceHostVisible = false) {
 
-  if (!ForceHostVisible)
-    ForceHostVisible = Queue->Device->ZeEventsScope == AllHostVisible;
-
+  if (!ForceHostVisible) {
+    // Discarded/internal events will not be waited from host, so
+    // do not force host-visible scope for them.
+    if (!Queue->isDiscardEvents())
+      ForceHostVisible = Queue->Device->ZeEventsScope == AllHostVisible;
+  }
   // If event is discarded then try to get event from the queue cache.
   *Event =
       IsInternal ? Queue->getEventFromQueueCache(ForceHostVisible) : nullptr;
