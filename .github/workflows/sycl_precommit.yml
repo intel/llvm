@@ -49,7 +49,7 @@ jobs:
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "ocl_x64;ocl_gen9;l0_gen9"
+      lts_config: "ocl_x64;ocl_gen9"
 
   linux_default:
     name: Linux
