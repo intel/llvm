@@ -64,7 +64,7 @@ int main() {
         // On SPIRV devices, vectors can be printed via native OpenCL types:
         using ocl_int4 = sycl::vec<int, 4>::vector_t;
         {
-          static const CONSTANT char format[] = "%v4d\n";
+          static const CONSTANT char format[] = "%v4hld\n";
           ext::oneapi::experimental::printf(format, (ocl_int4)v4);
         }
 
