@@ -57,7 +57,8 @@ void test(queue q, InputContainer input, OutputContainer output,
             out[2] = inclusive_scan(g, in[lid], binary_op);
             out[3] = exclusive_scan(g, in[lid], binary_op);
             out[4] = broadcast(g, in[lid]);
-            out[5] = any_of(g, in.get_pointer(), in.get_pointer() + N, pred);
+            out[5] = any_of(g, global_ptr<InputT>(in),
+                            global_ptr<InputT>(in) + N, pred);
             out[6] = all_of(g, pred(in[lid]));
             if (leader(g)) {
               out[7]++;
