@@ -82,7 +82,7 @@ jobs:
     - uses: ./actions/cached_checkout
       with:
         path: src
-        ref: ${{ inputs.build_ref || github.ref }}
+        ref: ${{ inputs.build_ref || github.sha }}
         cache_path: "/__w/repo_cache/"
     - name: Configure
       env:
@@ -220,7 +220,7 @@ jobs:
       with:
         persist-credentials: false
         path: llvm
-        ref: ${{ inputs.build_ref || github.ref }}
+        ref: ${{ inputs.build_ref || github.sha }}
     # TODO should this action be packed into container as well?
     - uses: ./llvm/devops/actions/e2e-tests
       name: Run SYCL End-to-End tests
