@@ -69,7 +69,8 @@ See [Get Started Guide](./sycl/doc/GetStartedGuide.md).
 
 ### Report a problem
 
-Submit an [issue](https://github.com/intel/llvm/issues) or initiate a [discussion](https://github.com/intel/llvm/discussions).
+Submit an [issue](https://github.com/intel/llvm/issues) or initiate a 
+[discussion](https://github.com/intel/llvm/discussions).
 
 ### How to contribute to DPC++
 
