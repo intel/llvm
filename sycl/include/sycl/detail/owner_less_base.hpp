@@ -42,6 +42,13 @@ public:
     return getSyclObjImpl(*static_cast<const SyclObjT *>(this))
         .owner_before(getSyclObjImpl(Other));
   }
+#else
+  // On device calls to these functions are disallowed, so declare them but
+  // don't define them to avoid compilation failures.
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<SyclObjT> &Other)
+      const noexcept;
+  bool ext_oneapi_owner_before(const SyclObjT &Other) const noexcept;
 #endif
 };
 

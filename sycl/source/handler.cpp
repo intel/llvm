@@ -359,6 +359,14 @@ event handler::finalize() {
         std::move(MEvents), MOSModuleHandle, MCodeLoc));
     break;
   }
+  case detail::CG::ReadWriteHostPipe: {
+    CommandGroup.reset(new detail::CGReadWriteHostPipe(
+        MImpl->HostPipeName, MImpl->HostPipeBlocking, MImpl->HostPipePtr,
+        MImpl->HostPipeTypeSize, MImpl->HostPipeRead, std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
+    break;
+  }
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
@@ -855,6 +863,26 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
+void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
+                                             size_t Size, bool Block) {
+  MImpl->HostPipeName = Name;
+  MImpl->HostPipePtr = Ptr;
+  MImpl->HostPipeTypeSize = Size;
+  MImpl->HostPipeBlocking = Block;
+  MImpl->HostPipeRead = 1;
+  setType(detail::CG::ReadWriteHostPipe);
+}
+
+void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
+                                             size_t Size, bool Block) {
+  MImpl->HostPipeName = Name;
+  MImpl->HostPipePtr = Ptr;
+  MImpl->HostPipeTypeSize = Size;
+  MImpl->HostPipeBlocking = Block;
+  MImpl->HostPipeRead = 0;
+  setType(detail::CG::ReadWriteHostPipe);
+}
+
 void handler::memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
                                    bool IsDeviceImageScoped, size_t NumBytes,
                                    size_t Offset) {
@@ -884,8 +912,7 @@ handler::getContextImplPtr() const {
   return MQueue->getContextImplPtr();
 }
 
-void handler::setKernelCacheConfig(
-    detail::RT::PiKernelCacheConfig Config) {
+void handler::setKernelCacheConfig(detail::RT::PiKernelCacheConfig Config) {
   MImpl->MKernelCacheConfig = Config;
 }
 
