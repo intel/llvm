@@ -25,7 +25,7 @@ __urdlllocal ur_result_t UR_APICALL urInit(
     }
 
     if (context.enableParameterValidation) {
-        if (0x1f < device_flags) {
+        if (0xffffffe0 & device_flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
@@ -788,7 +788,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (0x3f < flags) {
+        if (0xffffffc0 & flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -849,7 +849,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (0x3f < flags) {
+        if (0xffffffc0 & flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -957,7 +957,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (0x3f < flags) {
+        if (0xffffffc0 & flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -1559,7 +1559,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (0x1 < pPoolDesc->flags) {
+        if (0xfffffffe & pPoolDesc->flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
@@ -3940,7 +3940,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (0x3 < mapFlags) {
+        if (0xfffffffc & mapFlags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -4182,7 +4182,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (0x1 < flags) {
+        if (0xfffffffe & flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
