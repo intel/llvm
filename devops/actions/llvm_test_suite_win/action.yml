@@ -31,7 +31,7 @@ runs:
   - name: Download and Install OCLOC
     shell: bash
     run: |
-      curl https://registrationcenter-download.intel.com/akdlm/IRC_NAS/283b6f29-43d2-4bc9-b599-eefc2e33627f/ocloc_win_101.4146.zip
+      curl https://registrationcenter-download.intel.com/akdlm/IRC_NAS/283b6f29-43d2-4bc9-b599-eefc2e33627f/ocloc_win_101.4146.zip -o ocloc_win_101.4146.zip
       unzip ocloc_win_101.4146.zip
       cp ocloc_win_101.4146/* ./install/bin/.
       rm ocloc_win_101.4146.zip
