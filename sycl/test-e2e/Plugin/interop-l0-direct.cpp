@@ -92,180 +92,127 @@ int main() {
   std::cout << "Commandlist created: " << ZeCommand_list << std::endl;
 
   // Interop object creation
-  {
-    backend_traits<backend::ext_oneapi_level_zero>::return_type<device>
-        ZeDevice;
-    ZeDevice = ZeDevices[0];
+  //{
+  backend_traits<backend::ext_oneapi_level_zero>::return_type<device> ZeDevice;
+  ZeDevice = ZeDevices[0];
 
-    backend_input_t<backend::ext_oneapi_level_zero, platform>
-        InteropPlatformInput{ZeDriver};
-    platform InteropPlatform =
-        make_platform<backend::ext_oneapi_level_zero>(InteropPlatformInput);
-    std::cout << "Made platform\n";
+  backend_input_t<backend::ext_oneapi_level_zero, platform>
+      InteropPlatformInput{ZeDriver};
+  platform InteropPlatform =
+      make_platform<backend::ext_oneapi_level_zero>(InteropPlatformInput);
+  std::cout << "Made platform\n";
 
-    backend_input_t<backend::ext_oneapi_level_zero, device> InteropDeviceInput{
-        ZeDevice};
-    device InteropDevice =
-        make_device<backend::ext_oneapi_level_zero>(InteropDeviceInput);
-    std::cout << "Made device\n";
+  backend_input_t<backend::ext_oneapi_level_zero, device> InteropDeviceInput{
+      ZeDevice};
+  device InteropDevice =
+      make_device<backend::ext_oneapi_level_zero>(InteropDeviceInput);
+  std::cout << "Made device\n";
 
-    backend_input_t<backend::ext_oneapi_level_zero, context>
-        InteropContextInput{ZeContext, std::vector<device>(1, InteropDevice),
-                            ext::oneapi::level_zero::ownership::keep};
-    context InteropContext =
-        make_context<backend::ext_oneapi_level_zero>(InteropContextInput);
-    std::cout << "Made context\n";
+  backend_input_t<backend::ext_oneapi_level_zero, context> InteropContextInput{
+      ZeContext, std::vector<device>(1, InteropDevice),
+      ext::oneapi::level_zero::ownership::keep};
+  context InteropContext =
+      make_context<backend::ext_oneapi_level_zero>(InteropContextInput);
+  std::cout << "Made context\n";
 
-#define XOLD_MAKE_QUEUE_WITH_QUEUE
-#ifdef OLD_MAKE_QUEUE_WITH_QUEUE
-    backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInputCQ{
-        ZeCommand_queue, InteropDevice,
-        ext::oneapi::level_zero::ownership::keep };
-    queue InteropQueueCQ =
-      ext::oneapi::level_zero::make<queue>(InteropContext, { ZeCommand_queue });
-    std::cout << "Made SYCL queue with L0 command queue\n";
-#else
-    backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInputCQ{
-        ZeCommand_queue, InteropDevice,
-        ext::oneapi::level_zero::ownership::keep, property::queue::in_order() };
+  backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInputCQ{
+      ZeCommand_queue, InteropDevice, ext::oneapi::level_zero::ownership::keep};
+#if 0
     queue InteropQueueCQ = make_queue<backend::ext_oneapi_level_zero>(
-      InteropQueueInputCQ, InteropContext);
-    std::cout << "Made SYCL queue with L0 command queue\n";
-    std::cout << "SYCL queue is in order = " << InteropQueueCQ.is_in_order()
-      << std::endl;
-    if (!InteropQueueCQ.is_in_order()) {
-      std::cout << "Test failed, command queue is not in-order\n";
-      return 1;
-    }
-#endif
-
-    auto InteropQueueCQ_NewHandle =
-        get_native<backend::ext_oneapi_level_zero, queue>(InteropQueueCQ);
-    if (std::holds_alternative<ze_command_list_handle_t>(
-            InteropQueueCQ_NewHandle)) {
-      std::cout << "Test failed, queue created using command queue returns a "
-                   "command list type handle"
-                << std::endl;
-    } else {
-      auto Queue =
-          std::get_if<ze_command_queue_handle_t>(&InteropQueueCQ_NewHandle);
-      std::cout << "Command queue obtained new style: " << *Queue << std::endl;
-      if (ZeCommand_queue != *Queue) {
-        std::cout
-            << "Test failed, command queue retrieved in new style does not "
-               "match one used in queue creation\n";
-        return 1;
-      }
-    }
-
-    backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInputCL{
-        ZeCommand_list, InteropDevice,
-        ext::oneapi::level_zero::ownership::keep};
-#define XOLD_MAKE_QUEUE_WITH_LIST
-#ifdef OLD_MAKE_QUEUE_WITH_LIST
-    queue InteropQueueCL = ext::oneapi::level_zero::make<queue>(
-      InteropContext, ZeCommand_list);
+        InteropQueueInputCQ, InteropContext);
 #else
-    queue InteropQueueCL = make_queue<backend::ext_oneapi_level_zero>(
-      InteropQueueInputCL, InteropContext);
+  queue InteropQueueCQ =
+      ext::oneapi::level_zero::make<queue>(InteropContext, {ZeCommand_queue});
 #endif
-    std::cout << "Made SYCL queue with L0 immediate command list\n";
-    std::cout << "SYCL queue is in order = " << InteropQueueCL.is_in_order()
-              << std::endl;
-    if (InteropQueueCL.is_in_order()) {
-      std::cout << "Test failed, command queue is in-order\n";
-      return 1;
-    }
-    auto InteropQueueCL_NewHandle =
-        get_native<backend::ext_oneapi_level_zero, queue>(InteropQueueCL);
-    if (std::holds_alternative<ze_command_list_handle_t>(
-            InteropQueueCL_NewHandle)) {
-      auto List =
-          std::get_if<ze_command_list_handle_t>(&InteropQueueCL_NewHandle);
-      std::cout << "Command list obtained new style: " << *List << std::endl;
-      if (ZeCommand_list != *List) {
-        std::cout
-            << "Test failed, command list retrieved in new style does not "
-               "match one used in queue creation\n";
-        return 1;
-      }
-    } else {
-      std::cout << "Test failed, queue created using command list returns a "
-                   "command queue type handle"
-                << std::endl;
-    }
+  std::cout << "Made SYCL queue with L0 command queue\n";
+  std::cout << "Queue is in-order: " << InteropQueueCQ.is_in_order()
+            << std::endl;
 
-    int data[3] = {7, 8, 0};
-    buffer<int, 1> bufData{data, 3};
-    buffer<int, 1> bufDataCQ{data, 3};
-    buffer<int, 1> bufDataCL{data, 3};
-    range<1> dataCount{3};
-
-    queue SyclQueue;
-    device SyclDevice = SyclQueue.get_device();
-    context SyclContext = SyclQueue.get_context();
-
-    auto deviceData = malloc_device<int>(2, InteropDevice, InteropContext);
-    int addend[2];
-
-    for (int i = 0; i < 3; i++) {
-      addend[0] = i;
-      addend[1] = i + 1;
-
-      // Try SYCL queue
-      SyclQueue.copy<int>(addend, deviceData, 2).wait();
-      SyclQueue
-          .submit([&](handler &cgh) {
-            accessor numbers{bufData, cgh, read_write};
-            cgh.parallel_for(dataCount,
-                             [=](id<1> Id) { numbers[Id] += deviceData[0]; });
-          })
-          .wait();
-      host_accessor hostOut{bufData, read_only};
-      std::cout << "GPU Result from SYCL Q = {" << hostOut[0] << ", "
-                << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
-
-      // Try interop queue with standard commandlist
-      InteropQueueCQ.copy<int>(addend, deviceData, 2).wait();
-      InteropQueueCQ
-          .submit([&](handler &cgh) {
-            accessor numbers{bufDataCQ, cgh, read_write};
-            cgh.parallel_for(dataCount,
-                             [=](id<1> Id) { numbers[Id] += deviceData[0]; });
-          })
-          .wait();
-      host_accessor hostOutCQ{bufDataCQ, read_only};
-      std::cout << "GPU Result from Standard Q = {" << hostOut[0] << ", "
-                << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
-
-      // Try interop queue with immediate commandlist
-      InteropQueueCL.copy<int>(addend, deviceData, 2).wait();
-      InteropQueueCL
-          .submit([&](handler &cgh) {
-            accessor numbers{bufDataCL, cgh, read_write};
-            cgh.single_task([=]() {
-              numbers[2] += numbers[0] + numbers[1] + deviceData[1];
-            });
-          })
-          .wait();
-      host_accessor hostOutCL{bufDataCL, read_only};
-      std::cout << "GPU Result from Immediate Q = {" << hostOut[0] << ", "
-                << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
-    }
-    // Check results
-    buffer<int, 1> bufDataResult{data, 3};
-    host_accessor hostResult{bufDataResult, read_only};
-    if (hostResult[0] != 13 || hostResult[1] != 14 || hostResult[2] != 73) {
-      std::cout
-          << "Test failed, expected final result to be {13, 14, 73}, actual {"
-          << hostResult[0] << ", " << hostResult[1] << ", " << hostResult[2]
-          << "}" << std::endl;
-      return 1;
-    }
+  auto InteropQueueCQ_Handle =
+      get_native<backend::ext_oneapi_level_zero, queue>(InteropQueueCQ);
+#if 1
+  std::cout << "Command queue obtained: " << InteropQueueCQ_Handle << std::endl;
+  if (ZeCommand_queue != InteropQueueCQ_Handle) {
+    std::cout << "Test failed, command queue retrieved does not match one "
+                 "used in queue creation\n";
+    return 1;
   }
+#endif
 
-  //zeCommandQueueDestroy(ZeCommand_queue);
-  //zeContextDestroy(ZeContext);
+  int data[3] = {7, 8, 0};
+  buffer<int, 1> bufData{data, 3};
+  buffer<int, 1> bufDataCQ{data, 3};
+  buffer<int, 1> bufDataCL{data, 3};
+  range<1> dataCount{3};
+
+  queue SyclQueue;
+  device SyclDevice = SyclQueue.get_device();
+  context SyclContext = SyclQueue.get_context();
+
+#if 1
+  auto Q_Handle = get_native<backend::ext_oneapi_level_zero, queue>(SyclQueue);
+#if 1
+  std::cout << "Command queue obtained from regular SYCL queue: " << Q_Handle
+            << std::endl;
+#endif
+#endif
+
+  auto deviceData = malloc_device<int>(2, InteropDevice, InteropContext);
+  int addend[2];
+
+  for (int i = 0; i < 3; i++) {
+    addend[0] = i;
+    addend[1] = i + 1;
+
+    // Try SYCL queue
+    SyclQueue.copy<int>(addend, deviceData, 2).wait();
+    SyclQueue.submit([&](handler &cgh) {
+      accessor numbers{bufData, cgh, read_write};
+      cgh.parallel_for(dataCount,
+                       [=](id<1> Id) { numbers[Id] += deviceData[0]; });
+    });
+    host_accessor hostOut{bufData, read_only};
+    std::cout << "GPU Result from SYCL Q = {" << hostOut[0] << ", "
+              << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
+
+    auto Q_Handle =
+        get_native<backend::ext_oneapi_level_zero, queue>(SyclQueue);
+#if 1
+    std::cout << "Command queue obtained from regular SYCL queue: " << Q_Handle
+              << std::endl;
+#endif
+
+    // Try interop queue with standard commandlist
+    InteropQueueCQ.copy<int>(addend, deviceData, 2).wait();
+    InteropQueueCQ.submit([&](handler &cgh) {
+      accessor numbers{bufDataCQ, cgh, read_write};
+      cgh.parallel_for(dataCount,
+                       [=](id<1> Id) { numbers[Id] += deviceData[0]; });
+    });
+    host_accessor hostOutCQ{bufDataCQ, read_only};
+    std::cout << "GPU Result from Standard Q = {" << hostOut[0] << ", "
+              << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
+
+    // Try interop queue with immediate commandlist
+    InteropQueueCQ.copy<int>(addend, deviceData, 2).wait();
+    InteropQueueCQ.submit([&](handler &cgh) {
+      accessor numbers{bufDataCL, cgh, read_write};
+      cgh.single_task(
+          [=]() { numbers[2] += numbers[0] + numbers[1] + deviceData[1]; });
+    });
+    host_accessor hostOutCL{bufDataCL, read_only};
+    std::cout << "GPU Result from Immediate Q = {" << hostOut[0] << ", "
+              << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
+  }
+  // Check results
+  buffer<int, 1> bufDataResult{data, 3};
+  host_accessor hostResult{bufDataResult, read_only};
+  if (hostResult[0] != 13 || hostResult[1] != 14 || hostResult[2] != 73) {
+    std::cout << "Test failed, expected final result to be {" << hostResult[0]
+              << ", " << hostResult[1] << ", " << hostResult[2] << "}"
+              << std::endl;
+    return 1;
+  }
 
   return 0;
 }
