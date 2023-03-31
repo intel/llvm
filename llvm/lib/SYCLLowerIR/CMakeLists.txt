@@ -1,3 +1,4 @@
+set(CMAKE_BUILD_TYPE Debug)
 if(${CMAKE_VERSION} VERSION_LESS 3.14)
     macro(FetchContent_MakeAvailable NAME)
         FetchContent_GetProperties(${NAME})
