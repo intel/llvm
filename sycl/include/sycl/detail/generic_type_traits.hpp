@@ -233,8 +233,20 @@ using is_genintptr = bool_constant<
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
 template <typename T>
+using is_genintptr_marray = bool_constant<
+    is_pointer<T>::value &&
+    is_genint<marray_element_t<remove_pointer_t<T>>>::value &&
+    is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
+
+template <typename T>
 using is_genfloatptr = bool_constant<
     is_pointer<T>::value && is_genfloat<remove_pointer_t<T>>::value &&
+    is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
+
+template <typename T>
+using is_genfloatptr_marray = bool_constant<
+    is_pointer<T>::value &&
+    is_genfloat<marray_element_t<remove_pointer_t<T>>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
 template <typename T>
