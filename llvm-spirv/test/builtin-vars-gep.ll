@@ -14,28 +14,32 @@ target triple = "spir64"
 define spir_func void @foo() {
 entry:
   %GroupID = alloca [3 x i64], align 8
-  %0 = addrspacecast <3 x i64> addrspace(1)* @__spirv_BuiltInWorkgroupSize to <3 x i64> addrspace(4)*
-  %1 = getelementptr <3 x i64>, <3 x i64> addrspace(4)* %0, i64 0, i64 0
+  %0 = addrspacecast ptr addrspace(1) @__spirv_BuiltInWorkgroupSize to ptr addrspace(4)
+  %1 = getelementptr <3 x i64>, ptr addrspace(4) %0, i64 0, i64 0
 ; CHECK-LLVM: %[[GLocalSize0:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 0) #1
-; CHECK-LLVM: %[[Ins0:[0-9]+]] = insertelement <3 x i64> undef, i64 %[[GLocalSize0]], i32 0
-; CHECK-LLVM: %[[GLocalSize1:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 1) #1
-; CHECK-LLVM: %[[Ins1:[0-9]+]] = insertelement <3 x i64> %[[Ins0]], i64 %[[GLocalSize1]], i32 1
+  %2 = addrspacecast ptr addrspace(1) @__spirv_BuiltInWorkgroupSize to ptr addrspace(4)
+  %3 = getelementptr <3 x i64>, ptr addrspace(4) %2, i64 0, i64 2
+  %4 = load i64, ptr addrspace(4) %1, align 32
+  %5 = load i64, ptr addrspace(4) %3, align 8
 ; CHECK-LLVM: %[[GLocalSize2:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 2) #1
-; CHECK-LLVM: %[[Ins2:[0-9]+]] = insertelement <3 x i64> %[[Ins1]], i64 %[[GLocalSize2]], i32 2
-; CHECK-LLVM: %[[Extract:[0-9]+]] = extractelement <3 x i64> %[[Ins2]], i64 0
-  %2 = addrspacecast <3 x i64> addrspace(1)* @__spirv_BuiltInWorkgroupSize to <3 x i64> addrspace(4)*
-  %3 = getelementptr <3 x i64>, <3 x i64> addrspace(4)* %2, i64 0, i64 2
-  %4 = load i64, i64 addrspace(4)* %1, align 32
-  %5 = load i64, i64 addrspace(4)* %3, align 8
-; CHECK-LLVM: %[[GLocalSize01:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 0) #1
-; CHECK-LLVM: %[[Ins01:[0-9]+]] = insertelement <3 x i64> undef, i64 %[[GLocalSize01]], i32 0
-; CHECK-LLVM: %[[GLocalSize11:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 1) #1
-; CHECK-LLVM: %[[Ins11:[0-9]+]] = insertelement <3 x i64> %[[Ins01]], i64 %[[GLocalSize11]], i32 1
-; CHECK-LLVM: %[[GLocalSize21:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 2) #1
-; CHECK-LLVM: %[[Ins21:[0-9]+]] = insertelement <3 x i64> %[[Ins11]], i64 %[[GLocalSize21]], i32 2
-; CHECK-LLVM: %[[Extract1:[0-9]+]] = extractelement <3 x i64> %[[Ins21]], i64 2
-; CHECK-LLVM:  mul i64 %[[Extract]], %[[Extract1]]
+; CHECK-LLVM:  mul i64 %[[GLocalSize0]], %[[GLocalSize2]]
   %mul = mul i64 %4, %5
   ret void
 }
 
+; Function Attrs: alwaysinline convergent nounwind mustprogress
+define spir_func void @foo_i8gep() {
+entry:
+  %GroupID = alloca [3 x i64], align 8
+  %0 = addrspacecast ptr addrspace(1) @__spirv_BuiltInWorkgroupSize to ptr addrspace(4)
+  %1 = getelementptr i8, ptr addrspace(4) %0, i64 0
+; CHECK-LLVM: %[[GLocalSize0:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 0) #1
+  %2 = addrspacecast ptr addrspace(1) @__spirv_BuiltInWorkgroupSize to ptr addrspace(4)
+  %3 = getelementptr i8, ptr addrspace(4) %2, i64 16
+  %4 = load i64, ptr addrspace(4) %1, align 32
+  %5 = load i64, ptr addrspace(4) %3, align 8
+; CHECK-LLVM: %[[GLocalSize2:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 2) #1
+; CHECK-LLVM:  mul i64 %[[GLocalSize0]], %[[GLocalSize2]]
+  %mul = mul i64 %4, %5
+  ret void
+}
