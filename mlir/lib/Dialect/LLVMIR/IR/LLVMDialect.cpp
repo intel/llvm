@@ -1523,21 +1523,8 @@ LogicalResult ReturnOp::verify() {
 //===----------------------------------------------------------------------===//
 
 LogicalResult ResumeOp::verify() {
-  auto parentFunc = getOperation()->getParentOfType<FunctionOpInterface>();
-  assert(parentFunc && "Expecting parent function");
-  const auto ty = getOperand().getType();
-  if (!parentFunc
-           ->walk([ty](LandingpadOp landingpad) {
-             return landingpad.getType() == ty
-                        ? WalkResult::interrupt() // Just an operation needed
-                        : WalkResult::advance();
-           })
-           .wasInterrupted()) {
-    // No operation was found: emit error
-    return emitOpError("expects landingpad operation in the same function and "
-                       "with the same type as this operation's operand");
-  }
-
+  if (!getValue().getDefiningOp<LandingpadOp>())
+    return emitOpError("expects landingpad value as operand");
   // No check for personality of function - landingpad op verifies it.
   return success();
 }
