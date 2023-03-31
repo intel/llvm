@@ -778,10 +778,10 @@ processInputModule(std::unique_ptr<Module> M) {
       module_split::getDeviceCodeSplitter(
           module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
           EmitOnlyKernelsAsEntryPoints);
-  const bool Split = Splitter->remainingSplits() > 1;
-  Modified |= Split;
+  bool SplitOccurred = Splitter->remainingSplits() > 1;
+  Modified |= SplitOccurred;
 
-  // FIXME: this check should be performed on all split levels
+  // FIXME: this check is not performed for ESIMD splits
   if (DeviceGlobals)
     Splitter->verifyNoCrossModuleDeviceGlobalUsage();
 
@@ -800,11 +800,11 @@ processInputModule(std::unique_ptr<Module> M) {
     std::unique_ptr<module_split::ModuleSplitterBase> ESIMDSplitter =
         module_split::getSplitterByKernelType(std::move(MDesc),
                                               EmitOnlyKernelsAsEntryPoints);
-    const bool SplitByESIMD = ESIMDSplitter->remainingSplits() > 1;
-    Modified |= SplitByESIMD;
+    SplitOccurred |= ESIMDSplitter->remainingSplits() > 1;
+    Modified |= SplitOccurred;
 
-    if (SplitByESIMD && Split &&
-        (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
+    if (SplitOccurred && (SplitMode == module_split::SPLIT_PER_KERNEL) &&
+        !SplitEsimd) {
       // Controversial state reached - SYCL and ESIMD entry points resulting
       // from SYCL/ESIMD split (which is done always) are linked back, since
       // -split-esimd is not specified, but per-kernel split is requested.
@@ -847,8 +847,6 @@ processInputModule(std::unique_ptr<Module> M) {
       DUMP_ENTRY_POINTS(MMs.back().entries(), MMs.back().Name.c_str(), 3);
       Modified = true;
     }
-
-    bool SplitOccurred = Split || SplitByESIMD;
 
     if (IROutputOnly) {
       if (SplitOccurred) {
