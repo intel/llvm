@@ -582,8 +582,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     if (Device->isCCS()) {
       struct {
         ur_device_partition_property_t Arr[2];
-      } PartitionProperties = {{UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE,
-                                ur_device_partition_property_t(0)}};
+      } PartitionProperties = {
+          {UR_DEVICE_PARTITION_BY_CSLICE, ur_device_partition_property_t(0)}};
       return ReturnValue(PartitionProperties);
     }
 
@@ -1504,7 +1504,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
          Properties[1] != UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA)) {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
-  } else if (Properties[0] == UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE) {
+  } else if (Properties[0] == UR_DEVICE_PARTITION_BY_CSLICE) {
     if (Properties[1] != 0) {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
@@ -1535,7 +1535,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
         return 0;
       }
     }
-    if (Properties[0] == UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE) {
+    if (Properties[0] == UR_DEVICE_PARTITION_BY_CSLICE) {
       // Not a CSlice-based partitioning.
       if (!Device->SubDevices[0]->isCCS()) {
         return 0;
