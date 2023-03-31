@@ -363,7 +363,12 @@ using strip_regcall_from_function_ptr_t =
 
 template <typename Ret, typename... Args>
 constexpr bool has_ref_arg(Ret (*)(Args...)) {
-  return std::is_reference_v<Ret> || (... || std::is_reference_v<Args>);
+  return (... || std::is_reference_v<Args>);
+}
+
+template <typename Ret, typename... Args>
+constexpr bool has_ref_ret(Ret (*)(Args...)) {
+  return std::is_reference_v<Ret>;
 }
 
 template <class Callable> constexpr void verify_no_ref() {
@@ -375,9 +380,14 @@ template <class Callable> constexpr void verify_no_ref() {
                            std::add_pointer_t<RemoveRef>>;
     using FuncPtrNoCC = strip_regcall_from_function_ptr_t<FuncPtrType>;
     constexpr FuncPtrNoCC obj = {};
-    constexpr bool callable_has_ref_arg_or_ret = has_ref_arg(obj);
-    static_assert(!callable_has_ref_arg_or_ret,
-                  "invoke_simd does not support references");
+    constexpr bool callable_has_ref_ret = has_ref_ret(obj);
+    static_assert(
+        !callable_has_ref_ret,
+        "invoke_simd does not support callables returning references");
+    constexpr bool callable_has_ref_arg = has_ref_arg(obj);
+    static_assert(
+        !callable_has_ref_arg,
+        "invoke_simd does not support callables with reference arguments");
   }
 }
 

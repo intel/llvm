@@ -1,5 +1,5 @@
-// RUN: not %clangxx -fsycl -fsycl-device-only -Xclang -fsycl-allow-func-ptr -S %s -o /dev/null 2>&1 -DRET_REF | FileCheck %s
-// RUN: not %clangxx -fsycl -fsycl-device-only -Xclang -fsycl-allow-func-ptr -S %s -o /dev/null 2>&1 | FileCheck %s
+// RUN: not %clangxx -fsycl -fsycl-device-only -Xclang -fsycl-allow-func-ptr -S %s -o /dev/null 2>&1 -DRET_REF | FileCheck -check-prefix CHECK-RET %s
+// RUN: not %clangxx -fsycl -fsycl-device-only -Xclang -fsycl-allow-func-ptr -S %s -o /dev/null 2>&1 | FileCheck -check-prefix CHECK-ARG %s
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/sycl.hpp>
 
@@ -34,5 +34,6 @@ void foo() {
 
 int main() {
   foo();
-  // CHECK: {{.*}}error:{{.*}}static assertion failed due to requirement '!callable_has_ref_arg_or_ret': invoke_simd does not support references
+  // CHECK-ARG: {{.*}}error:{{.*}}static assertion failed due to requirement '!callable_has_ref_arg': invoke_simd does not support callables with reference arguments
+  // CHECK-RET: {{.*}}error:{{.*}}static assertion failed due to requirement '!callable_has_ref_ret': invoke_simd does not support callables returning references
 }
