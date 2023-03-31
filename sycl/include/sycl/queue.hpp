@@ -319,22 +319,22 @@ public:
 
   // The following map the queue constructors into alternate entry points in the
   // library so old and new implementations can co-exist.
-  void queue2(const device& SyclDevice, const async_handler& AsyncHandler,
-    const property_list& PropList = {});
+  void queue2(const device &SyclDevice, const async_handler &AsyncHandler,
+              const property_list &PropList = {});
 
-  void queue2(const context& SyclContext, const device_selector& DeviceSelector,
-    const property_list& PropList = {});
+  void queue2(const context &SyclContext, const device_selector &DeviceSelector,
+              const property_list &PropList = {});
 
-  void queue2(const context& SyclContext, const device_selector& DeviceSelector,
-    const async_handler& AsyncHandler,
-    const property_list& PropList = {});
+  void queue2(const context &SyclContext, const device_selector &DeviceSelector,
+              const async_handler &AsyncHandler,
+              const property_list &PropList = {});
 
-  void queue2(const context& SyclContext, const device& SyclDevice,
-    const property_list& PropList = {});
+  void queue2(const context &SyclContext, const device &SyclDevice,
+              const property_list &PropList = {});
 
-  void queue2(const context& SyclContext, const device& SyclDevice,
-    const async_handler& AsyncHandler,
-    const property_list& PropList = {});
+  void queue2(const context &SyclContext, const device &SyclDevice,
+              const async_handler &AsyncHandler,
+              const property_list &PropList = {});
 
   /// Constructs a SYCL queue with an optional async_handler from an OpenCL
   /// cl_command_queue.
