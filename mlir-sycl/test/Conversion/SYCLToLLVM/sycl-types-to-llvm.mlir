@@ -87,10 +87,10 @@ func.func @test_OwnerLessBase(%arg0: !sycl.owner_less_base) {
 
 // -----
 
-!sycl_atomic_i32_1_ = !sycl.atomic<[i32,1], (memref<?xi32, 1>)>
-!sycl_atomic_f32_3_ = !sycl.atomic<[f32,3], (memref<?xf32, 3>)>
+!sycl_atomic_i32_glo = !sycl.atomic<[i32, global], (memref<?xi32, 1>)>
+!sycl_atomic_f32_loc = !sycl.atomic<[f32, local], (memref<?xf32, 3>)>
 // CHECK: llvm.func @test_atomic(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic", \(ptr<f32, 3>\)>]], %arg1: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic.1", \(ptr<i32, 1>\)>]]) {
-func.func @test_atomic(%arg0: !sycl_atomic_f32_3_, %arg1: !sycl_atomic_i32_1_) {
+func.func @test_atomic(%arg0: !sycl_atomic_f32_loc, %arg1: !sycl_atomic_i32_glo) {
   return
 }
 
@@ -178,9 +178,9 @@ func.func @test_minimum(%arg0: !sycl_minimum_i32_) {
 
 // -----
 
-!sycl_multi_ptr_i32_1_ = !sycl.multi_ptr<[i32, 1, 1], (memref<?xi32, 1>)>
+!sycl_multi_ptr_i32_glo = !sycl.multi_ptr<[i32, global, yes], (memref<?xi32, 1>)>
 // CHECK: llvm.func @test_multi_ptr(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::multi_ptr", \(ptr<i32, 1>\)>]]) {
-func.func @test_multi_ptr(%arg0: !sycl_multi_ptr_i32_1_) {
+func.func @test_multi_ptr(%arg0: !sycl_multi_ptr_i32_glo) {
     return
 }
 
