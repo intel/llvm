@@ -877,10 +877,15 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   // Set the type of commandlists the queue will use.
   bool Default = !ImmediateCommandlistEnvVarIsSet;
   UsingImmCmdLists = Device->useImmediateCommandLists();
+  zePrint("ImmCmdList env var is set (%s), OldAPI (%s)\n",
+          (ImmediateCommandlistEnvVarIsSet ? "YES" : "NO"),
+          (OldAPI ? "YES" : "NO"));
+
   if (OldAPI && Default)
     // The default when called from pre-compiled binaries is to not use
     // immediate command lists.
     UsingImmCmdLists = false;
+  zePrint("ImmCmdList setting (%s)\n", (UsingImmCmdLists ? "YES" : "NO"));
 
   // Compute group initialization.
   // First, see if the queue's device allows for round-robin or it is

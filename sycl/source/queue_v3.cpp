@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _WIN32
+#undef __SYCL_SUPPRESS_QUEUE_CONSTRUCTORS
 #define __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -67,4 +67,3 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-#endif // _WIN32

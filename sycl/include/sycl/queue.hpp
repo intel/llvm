@@ -87,6 +87,7 @@ static event submitAssertCapture(queue &, event &, queue *,
 /// \ingroup sycl_api
 class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
 public:
+#ifndef __SYCL_SUPPRESS_QUEUE_CONSTRUCTORS
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
   ///
@@ -259,25 +260,6 @@ public:
     queue2(SyclContext, SyclDevice, AsyncHandler, PropList);
   }
 
-  // The following map the queue constructors into alternate entry points in the
-  // library so old and new implementations can co-exist.
-  void queue2(const device &SyclDevice, const async_handler &AsyncHandler,
-              const property_list &PropList = {});
-
-  void queue2(const context &SyclContext, const device_selector &DeviceSelector,
-              const property_list &PropList = {});
-
-  void queue2(const context &SyclContext, const device_selector &DeviceSelector,
-              const async_handler &AsyncHandler,
-              const property_list &PropList = {});
-
-  void queue2(const context &SyclContext, const device &SyclDevice,
-              const property_list &PropList = {});
-
-  void queue2(const context &SyclContext, const device &SyclDevice,
-              const async_handler &AsyncHandler,
-              const property_list &PropList = {});
-
 #else // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
 
   /// Constructs a SYCL queue instance with an async_handler using the device
@@ -333,6 +315,26 @@ public:
         const async_handler &AsyncHandler, const property_list &PropList = {});
 
 #endif // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO__V3
+#endif // __SYCL_SUPPRESS_QUEUE_CONSTRUCTORS
+
+  // The following map the queue constructors into alternate entry points in the
+  // library so old and new implementations can co-exist.
+  void queue2(const device& SyclDevice, const async_handler& AsyncHandler,
+    const property_list& PropList = {});
+
+  void queue2(const context& SyclContext, const device_selector& DeviceSelector,
+    const property_list& PropList = {});
+
+  void queue2(const context& SyclContext, const device_selector& DeviceSelector,
+    const async_handler& AsyncHandler,
+    const property_list& PropList = {});
+
+  void queue2(const context& SyclContext, const device& SyclDevice,
+    const property_list& PropList = {});
+
+  void queue2(const context& SyclContext, const device& SyclDevice,
+    const async_handler& AsyncHandler,
+    const property_list& PropList = {});
 
   /// Constructs a SYCL queue with an optional async_handler from an OpenCL
   /// cl_command_queue.
