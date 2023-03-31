@@ -402,7 +402,7 @@ llvm::Type *CodeGenTypes::ConvertFunctionTypeInternal(QualType QFT) {
 }
 
 template <bool NeedTypeInterpret = false>
-llvm::Type* getJointMatrixINTELExtType(llvm::Type *CompTy,
+llvm::Type *getJointMatrixINTELExtType(llvm::Type *CompTy,
                                        ArrayRef<TemplateArgument> TemplateArgs,
                                        const unsigned Val = 0) {
   // TODO: we should actually have exactly 5 template parameters: 1 for
@@ -418,17 +418,16 @@ llvm::Type* getJointMatrixINTELExtType(llvm::Type *CompTy,
                                 SmallVector<unsigned, 5>>::type;
   ParamsType Params;
   if constexpr (NeedTypeInterpret)
-    Params = { 0, 0, 0, 0, 0, Val};
+    Params = {0, 0, 0, 0, 0, Val};
   else
-    Params = { 0, 0, 0, 0, 0};
+    Params = {0, 0, 0, 0, 0};
   for (size_t I = 1; I != TemplateArgs.size(); ++I) {
-    assert(TemplateArgs[I].getKind() ==
-           TemplateArgument::Integral &&
+    assert(TemplateArgs[I].getKind() == TemplateArgument::Integral &&
            "Wrong JointMatrixINTEL template parameter");
     Params[I - 1] = TemplateArgs[I].getAsIntegral().getExtValue();
   }
-  return llvm::TargetExtType::get(
-      CompTy->getContext(), "spirv.JointMatrixINTEL", {CompTy}, Params);
+  return llvm::TargetExtType::get(CompTy->getContext(),
+                                  "spirv.JointMatrixINTEL", {CompTy}, Params);
 }
 
 /// ConvertSYCLJointMatrixINTELType - Convert SYCL joint_matrix type
@@ -442,7 +441,7 @@ llvm::Type *CodeGenTypes::ConvertSYCLJointMatrixINTELType(RecordDecl *RD) {
   ArrayRef<TemplateArgument> TemplateArgs =
       TemplateDecl->getTemplateArgs().asArray();
   assert(TemplateArgs[0].getKind() == TemplateArgument::Type &&
-        "1st JointMatrixINTEL template parameter must be type");
+         "1st JointMatrixINTEL template parameter must be type");
   llvm::Type *CompTy = ConvertType(TemplateArgs[0].getAsType());
 
   // Per JointMatrixINTEL spec the type can have an Optional
@@ -760,14 +759,13 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     if (PointeeType->isVoidTy())
       PointeeType = llvm::Type::getInt8Ty(getLLVMContext());
     if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
-      const Type* ClangETy = ETy.getTypePtrOrNull();
+      const Type *ClangETy = ETy.getTypePtrOrNull();
       if (ClangETy && ClangETy->isStructureOrClassType()) {
-        RecordDecl *RD = ClangETy->getAsCXXRecordDecl();
-        if (RD->getQualifiedNameAsString() ==
-            "__spv::__spirv_JointMatrixINTEL") {
+      RecordDecl *RD = ClangETy->getAsCXXRecordDecl();
+      if (RD->getQualifiedNameAsString() == "__spv::__spirv_JointMatrixINTEL") {
           ResultType = ConvertSYCLJointMatrixINTELType(RD);
           break;
-        }
+      }
       }
     }
 
