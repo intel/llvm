@@ -638,11 +638,11 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
 // functions together based on an attribute value or presence of a metadata.
 // However, there is also a possibility to register a custom callback function
 // as a rule, to implement custom/more complex logic.
-class DeviceCodeSplitRulesBuilder {
+class FunctionsCategorizer {
 public:
-  DeviceCodeSplitRulesBuilder() = default;
+  FunctionsCategorizer() = default;
 
-  std::string executeRules(Function *) const;
+  std::string computeCategoryFor(Function *) const;
 
   // Accepts a callback, which should return a string based on provided
   // function, which will be used as an entry points group identifier.
@@ -737,7 +737,7 @@ private:
   std::vector<Rule> Rules;
 };
 
-std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
+std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
   SmallString<256> Result;
   for (const auto &R : Rules) {
     switch (R.Kind) {
@@ -807,33 +807,33 @@ std::string DeviceCodeSplitRulesBuilder::executeRules(Function *F) const {
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints) {
-  DeviceCodeSplitRulesBuilder RulesBuilder;
+  FunctionsCategorizer Categorizer;
 
   EntryPointsGroupScope Scope =
       selectDeviceCodeGroupScope(MD.getModule(), Mode, IROutputOnly);
 
   if (Scope == Scope_Global) {
     // We simply perform entry points filtering, but group all of them together.
-    RulesBuilder.registerRule(
+    Categorizer.registerRule(
         [](Function *) -> std::string { return GLOBAL_SCOPE_NAME; });
   } else if (Scope == Scope_PerKernel) {
     // Per-kernel split is quite simple: every kernel goes into a separate
     // module and that's it, no other rules required.
-    RulesBuilder.registerRule(
+    Categorizer.registerRule(
         [](Function *F) -> std::string { return F->getName().str(); });
   } else if (Scope == Scope_PerModule) {
     // The most complex case, because we should account for many other features
     // like aspects used in a kernel, large-grf mode, reqd-work-group-size, etc.
 
     // This is core of per-source device code split
-    RulesBuilder.registerSimpleStringAttributeRule("sycl-module-id");
+    Categorizer.registerSimpleStringAttributeRule("sycl-module-id");
 
     // Optional features
-    RulesBuilder.registerSimpleFlagAttributeRule(
+    Categorizer.registerSimpleFlagAttributeRule(
         ::sycl::kernel_props::ATTR_LARGE_GRF, "large-grf");
-    RulesBuilder.registerListOfIntegersInMetadataSortedRule(
+    Categorizer.registerListOfIntegersInMetadataSortedRule(
         "sycl_used_aspects");
-    RulesBuilder.registerListOfIntegersInMetadataRule("reqd_work_group_size");
+    Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
 
   } else {
     llvm_unreachable("Unexpected split scope");
@@ -848,7 +848,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
       continue;
 
-    std::string Key = RulesBuilder.executeRules(&F);
+    std::string Key = Categorizer.computeCategoryFor(&F);
     EntryPointsMap[std::move(Key)].insert(&F);
   }
 
