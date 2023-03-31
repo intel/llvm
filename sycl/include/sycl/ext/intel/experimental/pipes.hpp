@@ -68,6 +68,9 @@ public:
   // Host API
   static _dataT read(queue &Q, bool &Success,
                      memory_order Order = memory_order::seq_cst) {
+    // Order is currently unused.
+    std::ignore = Order;
+
     const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
@@ -95,6 +98,9 @@ public:
 
   static void write(queue &Q, const _dataT &Data, bool &Success,
                     memory_order Order = memory_order::seq_cst) {
+    // Order is currently unused.
+    std::ignore = Order;
+
     const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
@@ -221,6 +227,9 @@ public:
 
   // Host API
   static _dataT read(queue &Q, memory_order Order = memory_order::seq_cst) {
+    // Order is currently unused.
+    std::ignore = Order;
+
     const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
@@ -241,6 +250,9 @@ public:
 
   static void write(queue &Q, const _dataT &Data,
                     memory_order Order = memory_order::seq_cst) {
+    // Order is currently unused.
+    std::ignore = Order;
+
     const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");

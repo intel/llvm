@@ -100,6 +100,7 @@ pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   switch (param_name) {
   case PI_DEVICE_INFO_EXTENSIONS: {
     if (param_value) {
+      std::ignore = param_value_size;
       assert(param_value_size >= sizeof(MockSupportedExtensions));
       std::memcpy(param_value, MockSupportedExtensions,
                   sizeof(MockSupportedExtensions));
@@ -153,10 +154,10 @@ TEST_F(PipeTest, Basic) {
   // Testing read
   int HostPipeReadData;
   HostPipeReadData = Pipe::read(q);
-  assert(HostPipeReadData == PipeReadVal);
+  EXPECT_EQ(HostPipeReadData, PipeReadVal);
 
   // Testing write
   int HostPipeWriteData = 9;
   Pipe::write(q, HostPipeWriteData);
-  assert(PipeWriteVal == 9);
+  EXPECT_EQ(PipeWriteVal, 9);
 }
