@@ -31,7 +31,7 @@
       "root": "{DEPS_ROOT}/tbb/lin"
     },
     "oclcpu": {
-      "github_tag": "2022-WW33",
+      "github_tag": "2023-WW13",
       "version": "2023.15.3.0.20",
       "url": "https://github.com/intel/llvm/releases/download/2023-WW13/oclcpuexp-2023.15.3.0.20_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
