@@ -1236,19 +1236,66 @@ Value *SPIRVToLLVM::oclTransConstantPipeStorage(
                             GlobalValue::NotThreadLocal, SPIRAS_Global);
 }
 
+namespace {
+
 // A pointer annotation may have been generated for the operand. If the operand
 // is used further in IR, it should be replaced with the intrinsic call result.
 // Otherwise, the generated pointer annotation call is left unused.
-static void replaceOperandWithAnnotationIntrinsicCallResult(Value *&V) {
-  if (Use *SingleUse = V->getSingleUndroppableUse()) {
-    if (auto *II = dyn_cast<IntrinsicInst>(SingleUse->getUser())) {
-      if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
-          II->getType() == V->getType())
-        // Overwrite the future operand with the intrinsic call result.
-        V = II;
+static void replaceOperandWithAnnotationIntrinsicCallResult(Function *F,
+                                                            Value *&V) {
+
+  SPIRVDBG(spvdbgs() << "\n"
+                     << "-------- REPLACE --------" << '\n';)
+  SPIRVDBG(dbgs() << "value: " << *V << '\n');
+
+  Value *BaseValue = nullptr;
+  IntrinsicInst *CallResult = nullptr;
+
+  auto SearchPtrAnn = [=](Value *BV, IntrinsicInst *&CR) {
+    CR = nullptr;
+    for (auto *Use : BV->users()) {
+      if (auto *II = dyn_cast<IntrinsicInst>(Use)) {
+        if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
+            II->getType() == BV->getType()) {
+          assert(CR == nullptr && "Multiple annotation created for same value");
+          CR = II;
+        }
+      }
+    }
+    return CR ? true : false;
+  };
+
+  if (SearchPtrAnn(V, CallResult)) {
+    BaseValue = V;
+  } else {
+    // scan def-use chain, skip bitcast and addrspacecast
+    // search for the closest floating ptr.annotation
+    auto *Inst = dyn_cast<Instruction>(V);
+    while (Inst && (isa<BitCastInst>(Inst) || isa<AddrSpaceCastInst>(Inst))) {
+      if ((Inst = dyn_cast<Instruction>(Inst->getOperand(0))) &&
+          SearchPtrAnn(Inst, CallResult)) {
+        BaseValue = Inst;
+        break;
+      }
     }
   }
+
+  // overwrite operand with intrinsic call result
+  if (CallResult) {
+    SPIRVDBG(dbgs() << "BaseValue: " << *BaseValue << '\n'
+                    << "CallResult: " << *CallResult << '\n');
+    DominatorTree DT(*F);
+    BaseValue->replaceUsesWithIf(CallResult, [&DT, &CallResult](Use &U) {
+      return DT.dominates(CallResult, U);
+    });
+
+    // overwrite V
+    if (V == BaseValue)
+      V = CallResult;
+  }
 }
+
+} // namespace
 
 // Translate aliasing memory access masks for SPIRVLoad and SPIRVStore
 // instructions. These masks are mapped on alias.scope and noalias
@@ -1727,9 +1774,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *Src = transValue(BS->getSrc(), F, BB);
     auto *Dst = transValue(BS->getDst(), F, BB);
     // A ptr.annotation may have been generated for the source variable.
-    replaceOperandWithAnnotationIntrinsicCallResult(Src);
+    replaceOperandWithAnnotationIntrinsicCallResult(F, Src);
     // A ptr.annotation may have been generated for the destination variable.
-    replaceOperandWithAnnotationIntrinsicCallResult(Dst);
+    replaceOperandWithAnnotationIntrinsicCallResult(F, Dst);
 
     bool isVolatile = BS->SPIRVMemoryAccess::isVolatile();
     uint64_t AlignValue = BS->SPIRVMemoryAccess::getAlignment();
@@ -1747,7 +1794,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVLoad *BL = static_cast<SPIRVLoad *>(BV);
     auto *V = transValue(BL->getSrc(), F, BB);
     // A ptr.annotation may have been generated for the source variable.
-    replaceOperandWithAnnotationIntrinsicCallResult(V);
+    replaceOperandWithAnnotationIntrinsicCallResult(F, V);
 
     Type *Ty = transType(BL->getType());
     LoadInst *LI = nullptr;
