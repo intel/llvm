@@ -6,6 +6,9 @@
 // CUDA does not support info::device::image3d_max_width query.
 // TODO: Irregular runtime fails on Windows/opencl:gpu require analysis.
 
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+// UNSUPPORTED: level_zero
+
 // The test checks that 'image' with max allowed sizes is handled correctly.
 
 #include <iostream>
