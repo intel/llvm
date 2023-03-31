@@ -11,6 +11,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/memory_manager.hpp>
+#include <detail/pi_utils.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
 
@@ -963,6 +964,9 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
 #endif // NDEBUG
 
   // The fallback in this case is to insert a copy per row.
+  std::vector<OwnedPiEvent> CopyEventsManaged;
+  CopyEventsManaged.reserve(Height);
+  // We'll need continuous range of events for a wait later as well.
   std::vector<RT::PiEvent> CopyEvents(Height);
   for (size_t I = 0; I < Height; ++I) {
     char *DstItBegin = static_cast<char *>(DstMem) + I * DstPitch;
@@ -970,6 +974,8 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(
         Queue->getHandleRef(), /* blocking */ PI_FALSE, DstItBegin, SrcItBegin,
         Width, DepEvents.size(), DepEvents.data(), CopyEvents.data() + I);
+    CopyEventsManaged.emplace_back(CopyEvents[I], Plugin,
+                                   /*TakeOwnership=*/true);
   }
 
   // Then insert a wait to coalesce the copy events.

@@ -535,7 +535,7 @@ public:
 
 protected:
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1208,6 +1208,9 @@ public:
 private:
   friend class sycl::stream;
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2521,6 +2524,9 @@ protected:
         [&, this](size_t I) { Result = Result * getSize()[I] + Id[I]; });
     return Result;
   }
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
