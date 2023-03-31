@@ -18,32 +18,6 @@ std::mutex ZeCall::GlobalLock;
 
 ZeUSMImportExtension ZeUSMImport;
 
-void zePrint(const char *Format, ...) {
-  if (ZeDebug & ZE_DEBUG_BASIC) {
-    va_list Args;
-    va_start(Args, Format);
-    vfprintf(stderr, Format, Args);
-    va_end(Args);
-  }
-}
-
-// This function will ensure compatibility with both Linux and Windows for
-// setting environment variables.
-bool setEnvVar(const char *name, const char *value) {
-#ifdef _WIN32
-  int Res = _putenv_s(name, value);
-#else
-  int Res = setenv(name, value, 1);
-#endif
-  if (Res != 0) {
-    zePrint(
-        "Level Zero plugin was unable to set the environment variable: %s\n",
-        name);
-    return false;
-  }
-  return true;
-}
-
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
   {                                                                            \
@@ -51,182 +25,6 @@ bool setEnvVar(const char *name, const char *value) {
     if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
       return ze2urResult(Result);                                              \
   }
-
-// This will count the calls to Level-Zero
-std::map<const char *, int> *ZeCallCount = nullptr;
-
-inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
-  switch (ZeError) {
-#define ZE_ERRCASE(ERR)                                                        \
-  case ERR:                                                                    \
-    ErrorString = "" #ERR;                                                     \
-    break;
-
-    ZE_ERRCASE(ZE_RESULT_SUCCESS)
-    ZE_ERRCASE(ZE_RESULT_NOT_READY)
-    ZE_ERRCASE(ZE_RESULT_ERROR_DEVICE_LOST)
-    ZE_ERRCASE(ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY)
-    ZE_ERRCASE(ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY)
-    ZE_ERRCASE(ZE_RESULT_ERROR_MODULE_BUILD_FAILURE)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS)
-    ZE_ERRCASE(ZE_RESULT_ERROR_NOT_AVAILABLE)
-    ZE_ERRCASE(ZE_RESULT_ERROR_UNINITIALIZED)
-    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_VERSION)
-    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_ARGUMENT)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_NULL_HANDLE)
-    ZE_ERRCASE(ZE_RESULT_ERROR_HANDLE_OBJECT_IN_USE)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_NULL_POINTER)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_SIZE)
-    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_SIZE)
-    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_ENUMERATION)
-    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
-    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_NATIVE_BINARY)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_GLOBAL_NAME)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_FUNCTION_NAME)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_COMMAND_LIST_TYPE)
-    ZE_ERRCASE(ZE_RESULT_ERROR_OVERLAPPING_REGIONS)
-    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_MODULE_UNLINKED)
-    ZE_ERRCASE(ZE_RESULT_ERROR_UNKNOWN)
-
-#undef ZE_ERRCASE
-  default:
-    assert(false && "Unexpected Error code");
-  } // switch
-}
-
-ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
-                           const char *ZeArgs, bool TraceError) {
-  zePrint("ZE ---> %s%s\n", ZeName, ZeArgs);
-
-  if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
-    ++(*ZeCallCount)[ZeName];
-  }
-
-  if (ZeResult && TraceError) {
-    const char *ErrorString = "Unknown";
-    zeParseError(ZeResult, ErrorString);
-    zePrint("Error (%s) in %s\n", ErrorString, ZeName);
-  }
-  return ZeResult;
-}
-
-// Specializations for various L0 structures
-template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
-  return ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_fence_desc_t>() {
-  return ZE_STRUCTURE_TYPE_FENCE_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_command_list_desc_t>() {
-  return ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_context_desc_t>() {
-  return ZE_STRUCTURE_TYPE_CONTEXT_DESC;
-}
-template <>
-ze_structure_type_t
-getZeStructureType<ze_relaxed_allocation_limits_exp_desc_t>() {
-  return ZE_STRUCTURE_TYPE_RELAXED_ALLOCATION_LIMITS_EXP_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_host_mem_alloc_desc_t>() {
-  return ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_mem_alloc_desc_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_command_queue_desc_t>() {
-  return ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_image_desc_t>() {
-  return ZE_STRUCTURE_TYPE_IMAGE_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_module_desc_t>() {
-  return ZE_STRUCTURE_TYPE_MODULE_DESC;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_module_program_exp_desc_t>() {
-  return ZE_STRUCTURE_TYPE_MODULE_PROGRAM_EXP_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_kernel_desc_t>() {
-  return ZE_STRUCTURE_TYPE_KERNEL_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_event_desc_t>() {
-  return ZE_STRUCTURE_TYPE_EVENT_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_sampler_desc_t>() {
-  return ZE_STRUCTURE_TYPE_SAMPLER_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_driver_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DRIVER_PROPERTIES;
-}
-template <> ze_structure_type_t getZeStructureType<ze_device_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_compute_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_COMPUTE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_command_queue_group_properties_t>() {
-  return ZE_STRUCTURE_TYPE_COMMAND_QUEUE_GROUP_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_image_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_module_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_cache_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_memory_ext_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_EXT_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
-}
-template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
-  return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
-}
-template <> ze_structure_type_t getZeStructureType<ze_kernel_properties_t>() {
-  return ZE_STRUCTURE_TYPE_KERNEL_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_memory_allocation_properties_t>() {
-  return ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;
-}
-
-template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
-  return ZES_STRUCTURE_TYPE_PCI_PROPERTIES;
-}
-
-template <> zes_structure_type_t getZesStructureType<zes_mem_state_t>() {
-  return ZES_STRUCTURE_TYPE_MEM_STATE;
-}
-
-template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
-  return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
-}
 
 static const bool ExposeCSliceInAffinityPartitioning = [] {
   const char *Flag =
@@ -303,7 +101,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   static std::once_flag ZeCallCountInitialized;
   try {
     std::call_once(ZeCallCountInitialized, []() {
-      if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
+      if (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) {
         ZeCallCount = new std::map<const char *, int>;
       }
     });
@@ -315,7 +113,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
 
   // Setting these environment variables before running zeInit will enable the
   // validation layer in the Level Zero loader.
-  if (ZeDebug & ZE_DEBUG_VALIDATION) {
+  if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
     setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
@@ -343,7 +141,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   }
 
   if (ZeResult != ZE_RESULT_SUCCESS) {
-    zePrint("zeInit: Level Zero initialization failure\n");
+    urPrint("zeInit: Level Zero initialization failure\n");
     return ze2urResult(ZeResult);
   }
 
@@ -450,7 +248,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
   default:
-    zePrint("piPlatformGetInfo: unrecognized ParamName\n");
+    urPrint("piPlatformGetInfo: unrecognized ParamName\n");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -511,7 +309,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
       break;
     default:
       Matched = false;
-      zePrint("Unknown device type");
+      urPrint("Unknown device type");
       break;
     }
     if (Matched)
@@ -561,7 +359,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     case ZE_DEVICE_TYPE_FPGA:
       return ReturnValue(UR_DEVICE_TYPE_FPGA);
     default:
-      zePrint("This device type is not supported\n");
+      urPrint("This device type is not supported\n");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -1058,7 +856,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->deviceId});
   case UR_DEVICE_INFO_PCI_ADDRESS: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
-      zePrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
+      urPrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     ZesStruct<zes_pci_properties_t> ZeDevicePciProperties;
@@ -1185,6 +983,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
 
     return ReturnValue(result);
   }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    ur_memory_order_capability_flags_t result =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+
+    return ReturnValue(result);
+  }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // There are no explicit restrictions in L0 programming guide, so assume all
+    // are supported
+    ur_memory_scope_capability_flags_t result =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+
+    return ReturnValue(result);
+  }
 
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     ur_memory_order_capability_flags_t capabilities =
@@ -1198,8 +1020,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
 
   // TODO: Implement.
   default:
-    zePrint("Unsupported ParamName in piGetDeviceInfo\n");
-    zePrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
+    urPrint("Unsupported ParamName in piGetDeviceInfo\n");
+    urPrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -1239,7 +1061,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    zePrint("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+    urPrint("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
             "default set.\n");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
@@ -1317,7 +1139,7 @@ ur_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
   if (numQueueGroups == 0) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-  zePrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
+  urPrint("NOTE: Number of queue groups = %d\n", numQueueGroups);
   std::vector<ZeStruct<ze_command_queue_group_properties_t>>
       QueueGroupProperties(numQueueGroups);
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
@@ -1370,14 +1192,14 @@ ur_result_t _ur_device_handle_t::initialize(int SubSubDeviceOrdinal,
         }
       }
       if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
-        zePrint("NOTE: main blitter/copy engine is not available\n");
+        urPrint("NOTE: main blitter/copy engine is not available\n");
       else
-        zePrint("NOTE: main blitter/copy engine is available\n");
+        urPrint("NOTE: main blitter/copy engine is available\n");
 
       if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
-        zePrint("NOTE: link blitter/copy engines are not available\n");
+        urPrint("NOTE: link blitter/copy engines are not available\n");
       else
-        zePrint("NOTE: link blitter/copy engines are available\n");
+        urPrint("NOTE: link blitter/copy engines are available\n");
     }
   }
 

@@ -1,4 +1,4 @@
-; RUN: opt -enable-new-pm=0 -globaloffset %s -S -o - | FileCheck %s
+; RUN: opt -bugpoint-enable-legacy-pm -globaloffset %s -S -o - | FileCheck %s
 ; ModuleID = 'global-offset-simple.bc'
 source_filename = "global-offset-simple.ll"
 

@@ -535,7 +535,7 @@ public:
 
 protected:
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1208,6 +1208,9 @@ public:
 private:
   friend class sycl::stream;
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2523,10 +2526,13 @@ protected:
   // Method which calculates linear offset for the ID using Range and Offset.
   template <int Dims = AdjustedDim> size_t getLinearIndex(id<Dims> Id) const {
     size_t Result = 0;
-    for (int I = 0; I < Dims; ++I)
-      Result = Result * getSize()[I] + Id[I];
+    detail::dim_loop<Dims>(
+        [&, this](size_t I) { Result = Result * getSize()[I] + Id[I]; });
     return Result;
   }
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

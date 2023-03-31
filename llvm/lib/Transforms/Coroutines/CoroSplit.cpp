@@ -31,6 +31,7 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/LazyCallGraph.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Argument.h"
@@ -1970,18 +1971,14 @@ splitCoroutine(Function &F, SmallVectorImpl<Function *> &Clones,
   // This invalidates SwiftErrorOps in the Shape.
   replaceSwiftErrorOps(F, Shape, nullptr);
 
-  // Finally, salvage the llvm.dbg.{declare,addr} in our original function that
-  // point into the coroutine frame. We only do this for the current function
-  // since the Cloner salvaged debug info for us in the new coroutine funclets.
+  // Finally, salvage the llvm.dbg.declare in our original function that point
+  // into the coroutine frame. We only do this for the current function since
+  // the Cloner salvaged debug info for us in the new coroutine funclets.
   SmallVector<DbgVariableIntrinsic *, 8> Worklist;
   SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> DbgPtrAllocaCache;
   for (auto &BB : F) {
     for (auto &I : BB) {
       if (auto *DDI = dyn_cast<DbgDeclareInst>(&I)) {
-        Worklist.push_back(DDI);
-        continue;
-      }
-      if (auto *DDI = dyn_cast<DbgAddrIntrinsic>(&I)) {
         Worklist.push_back(DDI);
         continue;
       }
@@ -2146,10 +2143,18 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     F.setSplittedCoroutine();
 
     SmallVector<Function *, 4> Clones;
+    auto &ORE = FAM.getResult<OptimizationRemarkEmitterAnalysis>(F);
     const coro::Shape Shape =
         splitCoroutine(F, Clones, FAM.getResult<TargetIRAnalysis>(F),
                        OptimizeFrame, MaterializableCallback);
     updateCallGraphAfterCoroutineSplit(*N, Shape, Clones, C, CG, AM, UR, FAM);
+
+    ORE.emit([&]() {
+      return OptimizationRemark(DEBUG_TYPE, "CoroSplit", &F)
+             << "Split '" << ore::NV("function", F.getName())
+             << "' (frame_size=" << ore::NV("frame_size", Shape.FrameSize)
+             << ", align=" << ore::NV("align", Shape.FrameAlign.value()) << ")";
+    });
 
     if (!Shape.CoroSuspends.empty()) {
       // Run the CGSCC pipeline on the original and newly split functions.
