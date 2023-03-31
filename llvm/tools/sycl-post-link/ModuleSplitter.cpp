@@ -692,6 +692,7 @@ private:
     std::variant<StringRef, std::tuple<StringRef, StringRef, StringRef>,
                  std::function<std::string(Function *)>>
         Storage;
+
   public:
     enum class RKind {
       K_Callback,
@@ -707,31 +708,30 @@ private:
     // corresponds to the specified rule Kind.
     constexpr static std::size_t storage_index(RKind K) {
       switch (K) {
-        case RKind::K_SimpleStringAttribute:
-        case RKind::K_IntegersListMetadata:
-        case RKind::K_SortedIntegersListMetadata:
-          return 0;
-        case RKind::K_Callback:
-          return 2;
-        case RKind::K_FlagMetadata:
-        case RKind::K_FlagAttribute:
-          return 1;
+      case RKind::K_SimpleStringAttribute:
+      case RKind::K_IntegersListMetadata:
+      case RKind::K_SortedIntegersListMetadata:
+        return 0;
+      case RKind::K_Callback:
+        return 2;
+      case RKind::K_FlagMetadata:
+      case RKind::K_FlagAttribute:
+        return 1;
       }
       // can't use llvm_unreachable in constexpr context
       return std::variant_npos;
     }
 
-    template<RKind K>
-    auto getStorage() const {
+    template <RKind K> auto getStorage() const {
       return std::get<storage_index(K)>(Storage);
     }
 
-    template<typename... Args>
+    template <typename... Args>
     Rule(RKind K, Args... args) : Storage(args...), Kind(K) {
       assert(storage_index(K) == Storage.index());
     }
 
-    Rule(Rule&& Other) = default;
+    Rule(Rule &&Other) = default;
   };
 
   std::vector<Rule> Rules;
