@@ -459,7 +459,7 @@ llvm::Type *CodeGenTypes::ConvertSYCLJointMatrixINTELType(RecordDecl *RD) {
       CompTy = llvm::Type::getHalfTy(getLLVMContext());
       return getJointMatrixINTELExtType(CompTy, TemplateArgs);
     } else if (LlvmTyName == "tf32") {
-      CompTy = llvm::Type::getHalfTy(getLLVMContext());
+      CompTy = llvm::Type::getFloatTy(getLLVMContext());
       // 'tf32' interpretation is mapped to '0'
       return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 0);
     } else if (LlvmTyName == "bfloat16") {

@@ -9,7 +9,6 @@ namespace __spv {
   struct __spirv_JointMatrixINTEL;
 }
 
-target("spirv.JointMatrixINTEL", i16, 16, 16, 2, 3, 1, 1)
 // CHECK: @_Z2f1{{.*}}(target("spirv.JointMatrixINTEL", float, 5, 10, 0, 1, 0)
 void f1(__spv::__spirv_JointMatrixINTEL<float, 5, 10, 0, 1, 0> *matrix) {}
 
