@@ -1,0 +1,128 @@
+= sycl_ext_oneapi_append_and_shift
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification. All references below to the "core SYCL specification" or to section numbers in the SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community feedback. Interfaces defined in this specification may not be implemented yet or may be in a preliminary state. The specification itself may also change in incompatible ways before it is finalized. Shipping software products should not rely on APIs defined in this specification.
+
+
+== Overview
+
+The current specification and implementation of `sycl::shift_group_left` returns "the value of x from the work-item whose group local id (`id`) is delta larger than that of the calling work-item." If `id+delta` is greater or equal than the group's linear size (`sg_size`), then the value returned is unspecified. An equivalent problem occurs for `sycl::shift_group_right` if `id-delta < 0`.
+The proposed extension of sycl::shift_group_left takes two values, the "current" value `c` and the "next" value `n`. If `id+delta` is less than the group's linear size, the function returns `c` of the work-item with group local id `id+delta`. If `id+delta` is greater or equal than the group's linear size, the function returns `n` of the work-item with the group local id `id+delta-sg_size`. Thus, in all cases the return value is defined and valid.
+Similarly, the proposed extension of `sycl::shift_group_right` returns `c` of the work-item with group local id `id-delta`, if `id-delta` is greater or equal 0 and `n` of the work-item with group local id `sg_size+(id-delta)`, otherwise.
+While this feature can easily be reproduced manually, is indicated below in the section "possible implementation", an extension is feasible since the underlying `pass:[__]spirv_SubgroupShuffleDownINTEL` and `pass:[__]spirv_SubgroupShuffleUpINTEL` already take the proposed two values and support the required capabilities.
+Note that there are multiple alternatives for the API suggested below ("append_and_shift_group_*"). For example, 
+
+
+``` 
+template <typename Group, typename T> 
+shift_group_left(Group g, T c, Group::linear_id_type delta=1, T n = 0);
+```
+or
+
+```
+template <typename Group, typename T> 
+shift_group_left_app(Group g, T c, T n, Group::linear_id_type delta=1);
+```
+
+
+== Specification
+
+=== Feature test macro
+This extension provides a feature-test macro as described in the core SYCL specification. An implementation supporting this extension must predefine the macro `SYCL_EXT_ONEAPI_APPEND_AND_SHIFT` to one of the values defined in the table below. Applications can test for the existence of this macro to determine if the implementation supports this feature, or applications can test the macro's value to determine which of the extension's features the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+	
+|1
+|The APIs of this experimental extension are not versioned, so the feature-test macro always has this value.
+|===
+
+=== API
+
+```
+template <typename Group, typename T>
+T sycl::ext::oneapi::append_and_shift_group_left(Group g, T c, T n, Group::linear_id_type delta=1);
+```
+
+_Constraints_: Available only if `std::is_same_v<std::decay_t<Group>, sub_group>` is true and `T` is a trivially copyable type.
+
+_Preconditions_: `delta` must be the same value for all work-items in the group.
+
+_Returns_: The value `c` of the work-item with group local id `id+delta`. If `id+delta` is greater or equal than the group's linear size, the function returns `n` of the work-item with the group local id `id+delta-sg_size`.
+
+
+
+```
+template <typename Group, typename T>
+T sycl::ext::oneapi::append_and_shift_group_right(Group g, T c, T n, Group::linear_id_type delta=1);
+```
+_Constraints_: Available only if `std::is_same_v<std::decay_t<Group>, sub_group>` is true and `T` is a trivially copyable type.
+
+_Preconditions_: `delta` must be the same value for all work-items in the group.
+
+_Returns_: The value `c` of the work-item with group local id `id-delta`, if `id-delta` is greater or equal 0, and `n` of the work-item with group local id `sg_size+(id-delta)`, otherwise.
+
+
+=== Possible Implementation
+
+The feature can be implemented based on `pass:[__]spirv_SubgroupShuffleDownINTEL` and `pass:[__]spirv_SubgroupShuffleUpINTEL`. For devices without that capability, it can be implemented with the existing shuffle capabilities as follows:
+
+```
+T sycl::ext::oneapi::append_and_shift_group_left(Group g, T c, T n, Group::linear_id_type delta = 1)
+{
+	T down_val = sycl::shift_group_left(g, c, delta);
+	T up_val = sycl::shift_group_right(g,n, g.get_local_linear_range()-delta);
+    return delta+g.get_local_linear_id() > g.get_local_linear_range() ? down_val : up_val;
+}
+
+
+T sycl::ext::oneapi::append_and_shift_group_right(Group g, T c, T n, Group::linear_id_type delta = 1)
+{
+	T up_val = sycl::shift_group_right(g, c, delta);
+	T down_val = sycl::shift_group_left(g,n, g.get_local_linear_range()-delta);
+    return g.get_local_linear_id()-delta >= 0 ? up_val : down_val;
+}
+```
+
