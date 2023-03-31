@@ -139,19 +139,6 @@ Then LowerESIMD lowers parameter annotation depending on
 The drawback is that is allowed to use `[[intel::sycl_explicit_simd]]` w/o
 `SYCL_ESIMD_KERNEL`
 
-#### ESIMD Verifier changes
-
-All the compiler variants require that accessor::get_pointer() can be used in
-the device code. `ESIMDVerifier.cpp` needs to additionally allow the following
-regexps:
-```
-    "^cl::sycl::accessor<.+>::getPointerAdjusted",
-    "^cl::sycl::accessor<.+>::getQualifiedPtr",
-    "^cl::sycl::accessor<.+>::get_pointer",
-    "^cl::sycl::multi_ptr<.+>::.+"
-```
-But only if it is run in "force-stateless" mode.
-
 ### Long-term
 
 Long term solution would be replacing the

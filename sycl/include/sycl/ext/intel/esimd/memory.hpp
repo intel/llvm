@@ -60,11 +60,13 @@ struct LocalAccessorMarker {};
 ///
 template <typename AccessorTy>
 __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
-  if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
+  if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
+                sycl::detail::acc_properties::is_local_accessor<
+                    AccessorTy>::value) {
     return detail::SLM_BTI;
   } else {
     return __esimd_get_surface_index(
-        detail::AccessorPrivateProxy::getNativeImageObj(acc));
+        detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
   }
 }
 
@@ -342,7 +344,7 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
                 "block size must be at most 8 owords");
 
   auto surf_ind = __esimd_get_surface_index(
-      detail::AccessorPrivateProxy::getNativeImageObj(acc));
+      detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
 
   if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
@@ -406,7 +408,7 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
                 "block size must be at most 8 owords");
 
   auto surf_ind = __esimd_get_surface_index(
-      detail::AccessorPrivateProxy::getNativeImageObj(acc));
+      detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
 #endif
 }
