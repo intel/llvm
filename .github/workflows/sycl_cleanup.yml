@@ -21,7 +21,7 @@ jobs:
             run_id: context.payload.workflow_run.id,
           });
           let matchArtifacts = allArtifacts.data.artifacts.filter((artifact) => {
-            return artifact.name.match(/^sycl_(linux|windows)_/);
+            return artifact.name.match(/^sycl_(linux|windows|macos)_/);
           });
           matchArtifacts.forEach(async (artifact) => {
             await github.rest.actions.deleteArtifact({
