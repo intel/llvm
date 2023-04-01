@@ -89,7 +89,8 @@ Region *getAffineScope(Operation *op);
 class AffineDmaStartOp
     : public Op<AffineDmaStartOp, OpTrait::MemRefsNormalizable,
                 OpTrait::VariadicOperands, OpTrait::ZeroResults,
-                OpTrait::OpInvariants, AffineMapAccessInterface::Trait> {
+                OpTrait::OpInvariants, AffineMapAccessInterface::Trait,
+                MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static ArrayRef<StringRef> getAttributeNames() { return {}; }
@@ -233,6 +234,10 @@ public:
     return isSrcMemorySpaceFaster() ? 0 : getDstMemRefOperandIndex();
   }
 
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects);
+
   static StringRef getSrcMapAttrStrName() { return "src_map"; }
   static StringRef getDstMapAttrStrName() { return "dst_map"; }
   static StringRef getTagMapAttrStrName() { return "tag_map"; }
@@ -333,6 +338,9 @@ public:
   LogicalResult verifyInvariants() { return verifyInvariantsImpl(); }
   LogicalResult fold(ArrayRef<Attribute> cstOperands,
                      SmallVectorImpl<OpFoldResult> &results);
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects);
 };
 
 /// Returns true if the given Value can be used as a dimension id in the region
@@ -441,9 +449,20 @@ namespace mlir {
 /// AffineForOp.
 bool isAffineForInductionVar(Value val);
 
+/// Returns true if `val` is the induction variable of an AffineParallelOp.
+bool isAffineParallelInductionVar(Value val);
+
+/// Returns true if the provided value is the induction variable of an
+/// AffineForOp or AffineParallelOp.
+bool isAffineInductionVar(Value val);
+
 /// Returns the loop parent of an induction variable. If the provided value is
 /// not an induction variable, then return nullptr.
 AffineForOp getForInductionVarOwner(Value val);
+
+/// Returns true if the provided value is among the induction variables of an
+/// AffineParallelOp.
+AffineParallelOp getAffineParallelInductionVarOwner(Value val);
 
 /// Extracts the induction variables from a list of AffineForOps and places them
 /// in the output argument `ivs`.

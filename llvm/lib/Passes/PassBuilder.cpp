@@ -127,6 +127,7 @@
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/LoopExtractor.h"
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
+#include "llvm/Transforms/IPO/MemProfContextDisambiguation.h"
 #include "llvm/Transforms/IPO/MergeFunctions.h"
 #include "llvm/Transforms/IPO/ModuleInliner.h"
 #include "llvm/Transforms/IPO/OpenMPOpt.h"
@@ -497,6 +498,28 @@ static std::optional<int> parseRepeatPassName(StringRef Name) {
   return Count;
 }
 
+static std::optional<std::pair<bool, bool>>
+parseFunctionPipelineName(StringRef Name) {
+  std::pair<bool, bool> Params;
+  if (!Name.consume_front("function"))
+    return std::nullopt;
+  if (Name.empty())
+    return Params;
+  if (!Name.consume_front("<") || !Name.consume_back(">"))
+    return std::nullopt;
+  while (!Name.empty()) {
+    auto [Front, Back] = Name.split(';');
+    Name = Back;
+    if (Front == "eager-inv")
+      Params.first = true;
+    else if (Front == "no-rerun")
+      Params.second = true;
+    else
+      return std::nullopt;
+  }
+  return Params;
+}
+
 static std::optional<int> parseDevirtPassName(StringRef Name) {
   if (!Name.consume_front("devirt<") || !Name.consume_back(">"))
     return std::nullopt;
@@ -666,6 +689,11 @@ Expected<bool> parseInlinerPassOptions(StringRef Params) {
 
 Expected<bool> parseCoroSplitPassOptions(StringRef Params) {
   return parseSinglePassOption(Params, "reuse-storage", "CoroSplitPass");
+}
+
+Expected<bool> parsePostOrderFunctionAttrsPassOptions(StringRef Params) {
+  return parseSinglePassOption(Params, "skip-non-recursive",
+                               "PostOrderFunctionAttrs");
 }
 
 Expected<bool> parseEarlyCSEPassOptions(StringRef Params) {
@@ -1015,12 +1043,14 @@ static bool isModulePassName(StringRef Name, CallbacksT &Callbacks) {
   if (startsWithDefaultPipelineAliasPrefix(Name))
     return DefaultAliasRegex.match(Name);
 
+  StringRef NameNoBracket = Name.take_until([](char C) { return C == '<'; });
+
   // Explicitly handle pass manager names.
   if (Name == "module")
     return true;
   if (Name == "cgscc")
     return true;
-  if (Name == "function" || Name == "function<eager-inv>")
+  if (NameNoBracket == "function")
     return true;
   if (Name == "coro-cond")
     return true;
@@ -1046,9 +1076,10 @@ static bool isModulePassName(StringRef Name, CallbacksT &Callbacks) {
 template <typename CallbacksT>
 static bool isCGSCCPassName(StringRef Name, CallbacksT &Callbacks) {
   // Explicitly handle pass manager names.
+  StringRef NameNoBracket = Name.take_until([](char C) { return C == '<'; });
   if (Name == "cgscc")
     return true;
-  if (Name == "function" || Name == "function<eager-inv>")
+  if (NameNoBracket == "function")
     return true;
 
   // Explicitly handle custom-parsed pass names.
@@ -1074,7 +1105,8 @@ static bool isCGSCCPassName(StringRef Name, CallbacksT &Callbacks) {
 template <typename CallbacksT>
 static bool isFunctionPassName(StringRef Name, CallbacksT &Callbacks) {
   // Explicitly handle pass manager names.
-  if (Name == "function" || Name == "function<eager-inv>")
+  StringRef NameNoBracket = Name.take_until([](char C) { return C == '<'; });
+  if (NameNoBracket == "function")
     return true;
   if (Name == "loop" || Name == "loop-mssa")
     return true;
@@ -1232,12 +1264,16 @@ Error PassBuilder::parseModulePass(ModulePassManager &MPM,
       MPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(std::move(CGPM)));
       return Error::success();
     }
-    if (Name == "function" || Name == "function<eager-inv>") {
+    if (auto Params = parseFunctionPipelineName(Name)) {
+      if (Params->second)
+        return make_error<StringError>(
+            "cannot have a no-rerun module to function adaptor",
+            inconvertibleErrorCode());
       FunctionPassManager FPM;
       if (auto Err = parseFunctionPassPipeline(FPM, InnerPipeline))
         return Err;
-      MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM),
-                                                    Name != "function"));
+      MPM.addPass(
+          createModuleToFunctionPassAdaptor(std::move(FPM), Params->first));
       return Error::success();
     }
     if (auto Count = parseRepeatPassName(Name)) {
@@ -1276,12 +1312,6 @@ Error PassBuilder::parseModulePass(ModulePassManager &MPM,
                               .Case("O3", OptimizationLevel::O3)
                               .Case("Os", OptimizationLevel::Os)
                               .Case("Oz", OptimizationLevel::Oz);
-    if (L == OptimizationLevel::O0 && Matches[1] != "thinlto" &&
-        Matches[1] != "lto") {
-      MPM.addPass(buildO0DefaultPipeline(L, Matches[1] == "thinlto-pre-link" ||
-                                                Matches[1] == "lto-pre-link"));
-      return Error::success();
-    }
 
     // This is consistent with old pass manager invoked via opt, but
     // inconsistent with clang. Clang doesn't enable loop vectorization
@@ -1406,13 +1436,13 @@ Error PassBuilder::parseCGSCCPass(CGSCCPassManager &CGPM,
       CGPM.addPass(std::move(NestedCGPM));
       return Error::success();
     }
-    if (Name == "function" || Name == "function<eager-inv>") {
+    if (auto Params = parseFunctionPipelineName(Name)) {
       FunctionPassManager FPM;
       if (auto Err = parseFunctionPassPipeline(FPM, InnerPipeline))
         return Err;
       // Add the nested pass manager with the appropriate adaptor.
-      CGPM.addPass(
-          createCGSCCToFunctionPassAdaptor(std::move(FPM), Name != "function"));
+      CGPM.addPass(createCGSCCToFunctionPassAdaptor(
+          std::move(FPM), Params->first, Params->second));
       return Error::success();
     }
     if (auto Count = parseRepeatPassName(Name)) {

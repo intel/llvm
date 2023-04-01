@@ -40,7 +40,8 @@ LLVM_LIBC_FUNCTION(float, exp10f, (float x)) {
         return x;
       if (fputil::get_round() == FE_UPWARD)
         return static_cast<float>(FPBits(FPBits::MIN_SUBNORMAL));
-      errno = ERANGE;
+      fputil::set_errno_if_required(ERANGE);
+      fputil::raise_except_if_required(FE_UNDERFLOW);
       return 0.0f;
     }
     // x >= log10(2^128) or nan
@@ -51,7 +52,8 @@ LLVM_LIBC_FUNCTION(float, exp10f, (float x)) {
         if (rounding == FE_DOWNWARD || rounding == FE_TOWARDZERO)
           return static_cast<float>(FPBits(FPBits::MAX_NORMAL));
 
-        errno = ERANGE;
+        fputil::set_errno_if_required(ERANGE);
+        fputil::raise_except_if_required(FE_OVERFLOW);
       }
       // x is +inf or nan
       return x + static_cast<float>(FPBits::inf());
@@ -70,7 +72,7 @@ LLVM_LIBC_FUNCTION(float, exp10f, (float x)) {
       return fputil::multiply_add(x, 0x1.26bb1cp+1f, 1.0f);
     }
 
-    return Exp10Base::powb_lo(x);
+    return static_cast<float>(Exp10Base::powb_lo(x));
   }
 
   // Exceptional value.
@@ -127,7 +129,7 @@ LLVM_LIBC_FUNCTION(float, exp10f, (float x)) {
   // 10^x = 2^(mid + hi) * 10^lo
   //      ~ mh * (c0 + p * lo^2)
   //      = (mh * c0) + p * (mh * lo^2)
-  return multiply_add(p, lo2 * rr.mh, c0 * rr.mh);
+  return static_cast<float>(multiply_add(p, lo2 * rr.mh, c0 * rr.mh));
 }
 
 } // namespace __llvm_libc

@@ -261,6 +261,24 @@ inline fir::SequenceType unwrapUntilSeqType(mlir::Type t) {
   }
 }
 
+/// Unwrap the referential and sequential outer types (if any). Returns the
+/// the element if type is fir::RecordType
+inline fir::RecordType unwrapIfDerived(fir::BaseBoxType boxTy) {
+  return fir::unwrapSequenceType(fir::unwrapRefType(boxTy.getEleTy()))
+      .template dyn_cast<fir::RecordType>();
+}
+
+/// Return true iff `boxTy` wraps a fir::RecordType with length parameters
+inline bool isDerivedTypeWithLenParams(fir::BaseBoxType boxTy) {
+  auto recTy = unwrapIfDerived(boxTy);
+  return recTy && recTy.getNumLenParams() > 0;
+}
+
+/// Return true iff `boxTy` wraps a fir::RecordType
+inline bool isDerivedType(fir::BaseBoxType boxTy) {
+  return static_cast<bool>(unwrapIfDerived(boxTy));
+}
+
 #ifndef NDEBUG
 // !fir.ptr<X> and !fir.heap<X> where X is !fir.ptr, !fir.heap, or !fir.ref
 // is undefined and disallowed.
@@ -283,6 +301,12 @@ bool isBoxNone(mlir::Type ty);
 /// e.g. !fir.box<!fir.type<derived>>
 bool isBoxedRecordType(mlir::Type ty);
 
+/// Return true iff `ty` is a scalar boxed record type.
+/// e.g. !fir.box<!fir.type<derived>>
+///      !fir.box<!fir.heap<!fir.type<derived>>>
+///      !fir.class<!fir.type<derived>>
+bool isScalarBoxedRecordType(mlir::Type ty);
+
 /// Return the nested RecordType if one if found. Return ty otherwise.
 mlir::Type getDerivedType(mlir::Type ty);
 
@@ -293,6 +317,16 @@ bool isPolymorphicType(mlir::Type ty);
 /// Return true iff `ty` is the type of an unlimited polymorphic entity or
 /// value.
 bool isUnlimitedPolymorphicType(mlir::Type ty);
+
+/// Return true iff `ty` is the type of an assumed type.
+bool isAssumedType(mlir::Type ty);
+
+/// Return true iff `boxTy` wraps a record type or an unlimited polymorphic
+/// entity. Polymorphic entities with intrinsic type spec do not have addendum
+inline bool boxHasAddendum(fir::BaseBoxType boxTy) {
+  return static_cast<bool>(unwrapIfDerived(boxTy)) ||
+         fir::isUnlimitedPolymorphicType(boxTy);
+}
 
 /// Return the inner type of the given type.
 mlir::Type unwrapInnerType(mlir::Type ty);

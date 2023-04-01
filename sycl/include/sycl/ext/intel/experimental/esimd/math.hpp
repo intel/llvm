@@ -496,6 +496,80 @@ imul(T &rmd, T0 src0, T1 src1) {
   return Res[0];
 }
 
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  std::pair<__ESIMD_DNS::vector_type_t<uint32_t, N>,
+            __ESIMD_DNS::vector_type_t<uint32_t, N>>
+      Result = __esimd_addc<uint32_t, N>(src0.data(), src1.data());
+
+  carry = Result.first;
+  return Result.second;
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, __ESIMD_NS::simd<uint32_t, N> src0,
+     uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src1V = src1;
+  return addc(carry, src0, Src1V);
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+addc(__ESIMD_NS::simd<uint32_t, N> &carry, uint32_t src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src0V = src0;
+  return addc(carry, Src0V, src1);
+}
+
+__ESIMD_API uint32_t addc(uint32_t &carry, uint32_t src0, uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, 1> CarryV = carry;
+  __ESIMD_NS::simd<uint32_t, 1> Src0V = src0;
+  __ESIMD_NS::simd<uint32_t, 1> Src1V = src1;
+  __ESIMD_NS::simd<uint32_t, 1> Res = addc(CarryV, Src0V, Src1V);
+  carry = CarryV[0];
+  return Res[0];
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  std::pair<__ESIMD_DNS::vector_type_t<uint32_t, N>,
+            __ESIMD_DNS::vector_type_t<uint32_t, N>>
+      Result = __esimd_subb<uint32_t, N>(src0.data(), src1.data());
+
+  borrow = Result.first;
+  return Result.second;
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, __ESIMD_NS::simd<uint32_t, N> src0,
+     uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src1V = src1;
+  return subb(borrow, src0, Src1V);
+}
+
+template <int N>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+subb(__ESIMD_NS::simd<uint32_t, N> &borrow, uint32_t src0,
+     __ESIMD_NS::simd<uint32_t, N> src1) {
+  __ESIMD_NS::simd<uint32_t, N> Src0V = src0;
+  return subb(borrow, Src0V, src1);
+}
+
+__ESIMD_API uint32_t subb(uint32_t &borrow, uint32_t src0, uint32_t src1) {
+  __ESIMD_NS::simd<uint32_t, 1> BorrowV = borrow;
+  __ESIMD_NS::simd<uint32_t, 1> Src0V = src0;
+  __ESIMD_NS::simd<uint32_t, 1> Src1V = src1;
+  __ESIMD_NS::simd<uint32_t, 1> Res = subb(BorrowV, Src0V, Src1V);
+  borrow = BorrowV[0];
+  return Res[0];
+}
+
 /// Integral quotient (vector version)
 /// @tparam T element type of the input and return vectors.
 /// @tparam SZ size of the input and returned vectors.

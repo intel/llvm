@@ -198,9 +198,10 @@ event handler::finalize() {
                 nullptr);
             Result = PI_SUCCESS;
           } else {
-            Result = enqueueImpKernel(
-                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-                MKernelName, MOSModuleHandle, RawEvents, OutEvent, nullptr);
+            Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs,
+                                      KernelBundleImpPtr, MKernel, MKernelName,
+                                      MOSModuleHandle, RawEvents, OutEvent,
+                                      nullptr, MImpl->MKernelCacheConfig);
           }
         }
         return Result;
@@ -253,7 +254,8 @@ event handler::finalize() {
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), std::move(MArgs),
         MKernelName, MOSModuleHandle, std::move(MStreamStorage),
-        std::move(MImpl->MAuxiliaryResources), MCGType, MCodeLoc));
+        std::move(MImpl->MAuxiliaryResources), MCGType,
+        MImpl->MKernelCacheConfig, MCodeLoc));
     break;
   }
   case detail::CG::CodeplayInteropTask:
@@ -355,6 +357,14 @@ event handler::finalize() {
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MOSModuleHandle, MCodeLoc));
+    break;
+  }
+  case detail::CG::ReadWriteHostPipe: {
+    CommandGroup.reset(new detail::CGReadWriteHostPipe(
+        MImpl->HostPipeName, MImpl->HostPipeBlocking, MImpl->HostPipePtr,
+        MImpl->HostPipeTypeSize, MImpl->HostPipeRead, std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
   }
   case detail::CG::None:
@@ -853,6 +863,26 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
+void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
+                                       size_t Size, bool Block) {
+  MImpl->HostPipeName = Name;
+  MImpl->HostPipePtr = Ptr;
+  MImpl->HostPipeTypeSize = Size;
+  MImpl->HostPipeBlocking = Block;
+  MImpl->HostPipeRead = 1;
+  setType(detail::CG::ReadWriteHostPipe);
+}
+
+void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
+                                        size_t Size, bool Block) {
+  MImpl->HostPipeName = Name;
+  MImpl->HostPipePtr = Ptr;
+  MImpl->HostPipeTypeSize = Size;
+  MImpl->HostPipeBlocking = Block;
+  MImpl->HostPipeRead = 0;
+  setType(detail::CG::ReadWriteHostPipe);
+}
+
 void handler::memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
                                    bool IsDeviceImageScoped, size_t NumBytes,
                                    size_t Offset) {
@@ -880,6 +910,10 @@ void handler::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
   return MQueue->getContextImplPtr();
+}
+
+void handler::setKernelCacheConfig(detail::RT::PiKernelCacheConfig Config) {
+  MImpl->MKernelCacheConfig = Config;
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

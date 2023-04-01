@@ -37,6 +37,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/Support/CommandLine.h"
@@ -467,6 +468,11 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     auto DevGlobalPropertyMap = collectDeviceGlobalProperties(M);
     if (!DevGlobalPropertyMap.empty())
       PropSet.add(PropSetRegTy::SYCL_DEVICE_GLOBALS, DevGlobalPropertyMap);
+  }
+
+  auto HostPipePropertyMap = collectHostPipeProperties(M);
+  if (!HostPipePropertyMap.empty()) {
+    PropSet.add(PropSetRegTy::SYCL_HOST_PIPES, HostPipePropertyMap);
   }
 
   std::error_code EC;

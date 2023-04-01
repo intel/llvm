@@ -138,17 +138,15 @@ FailureOr<Value> bufferization::allocateTensorForShapedValue(
     bool reifiedShapes = false;
     if (shapedValue.getType().isa<RankedTensorType>() &&
         shapedValue.isa<OpResult>()) {
-      if (auto rankedOp = dyn_cast_or_null<ReifyRankedShapedTypeOpInterface>(
-              shapedValue.getDefiningOp())) {
-        ReifiedRankedShapedTypeDims resultDims;
-        if (succeeded(rankedOp.reifyResultShapes(b, resultDims))) {
-          reifiedShapes = true;
-          auto &shape =
-              resultDims[shapedValue.cast<OpResult>().getResultNumber()];
-          for (const auto &dim : enumerate(tensorType.getShape()))
-            if (ShapedType::isDynamic(dim.value()))
-              dynamicSizes.push_back(shape[dim.index()]);
-        }
+      ReifiedRankedShapedTypeDims resultDims;
+      if (succeeded(
+              reifyResultShapes(b, shapedValue.getDefiningOp(), resultDims))) {
+        reifiedShapes = true;
+        auto &shape =
+            resultDims[shapedValue.cast<OpResult>().getResultNumber()];
+        for (const auto &dim : enumerate(tensorType.getShape()))
+          if (ShapedType::isDynamic(dim.value()))
+            dynamicSizes.push_back(shape[dim.index()].get<Value>());
       }
     }
 
@@ -482,8 +480,14 @@ llvm::SetVector<Value> AnalysisState::findValueInReverseUseDefChain(
 
   while (!workingSet.empty()) {
     Value value = workingSet.pop_back_val();
-    if (condition(value) || value.isa<BlockArgument>()) {
+    if (condition(value)) {
       result.insert(value);
+      continue;
+    }
+
+    if (value.isa<BlockArgument>()) {
+      if (alwaysIncludeLeaves)
+        result.insert(value);
       continue;
     }
 

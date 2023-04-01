@@ -138,6 +138,9 @@ private:
   /// Read relocations from a given section.
   void readDynamicRelocations(const object::SectionRef &Section, bool IsJmpRel);
 
+  /// Read relocations from a given RELR section.
+  void readDynamicRelrRelocations(BinarySection &Section);
+
   /// Print relocation information.
   void printRelocationInfo(const RelocationRef &Rel, StringRef SymbolName,
                            uint64_t SymbolAddress, uint64_t Addend,
@@ -312,6 +315,9 @@ private:
   /// Patch allocatable relocation sections.
   ELF_FUNCTION(void, patchELFAllocatableRelaSections);
 
+  /// Patch allocatable relr section.
+  ELF_FUNCTION(void, patchELFAllocatableRelrSection);
+
   /// Finalize memory image of section header string table.
   ELF_FUNCTION(void, finalizeSectionStringTable);
 
@@ -474,6 +480,10 @@ private:
   uint64_t NewTextSegmentOffset{0};
   uint64_t NewTextSegmentSize{0};
 
+  /// New writable segment info.
+  uint64_t NewWritableSegmentAddress{0};
+  uint64_t NewWritableSegmentSize{0};
+
   /// Track next available address for new allocatable sections.
   uint64_t NextAvailableAddress{0};
 
@@ -481,6 +491,11 @@ private:
   std::optional<uint64_t> DynamicRelocationsAddress;
   uint64_t DynamicRelocationsSize{0};
   uint64_t DynamicRelativeRelocationsCount{0};
+
+  // Location and size of .relr.dyn relocations.
+  std::optional<uint64_t> DynamicRelrAddress;
+  uint64_t DynamicRelrSize{0};
+  uint64_t DynamicRelrEntrySize{0};
 
   /// PLT relocations are special kind of dynamic relocations stored separately.
   std::optional<uint64_t> PLTRelocationsAddress;
@@ -546,18 +561,6 @@ private:
   /// Exception handling and stack unwinding information in this binary.
   ErrorOr<BinarySection &> LSDASection{std::errc::bad_address};
   ErrorOr<BinarySection &> EHFrameSection{std::errc::bad_address};
-
-  /// .got.plt sections.
-  ///
-  /// Contains jump slots (addresses) indirectly referenced by
-  /// instructions in .plt section.
-  ErrorOr<BinarySection &> GOTPLTSection{std::errc::bad_address};
-
-  /// .rela.plt section.
-  ///
-  /// Contains relocations against .got.plt.
-  ErrorOr<BinarySection &> RelaPLTSection{std::errc::bad_address};
-  ErrorOr<BinarySection &> RelaDynSection{std::errc::bad_address};
 
   /// .note.gnu.build-id section.
   ErrorOr<BinarySection &> BuildIDSection{std::errc::bad_address};
