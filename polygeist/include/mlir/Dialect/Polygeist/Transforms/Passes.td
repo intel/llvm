@@ -16,14 +16,6 @@ def AffineCFG : Pass<"affine-cfg"> {
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
 
-def DetectReduction : Pass<"detect-reduction"> {
-  let summary = "Detect array reduction operations in a loop";
-  let constructor = "mlir::polygeist::detectReductionPass()";
-  let statistics = [
-    Statistic<"numReductions", "num-reductions", "Number of reductions detected">
-  ];
-}
-
 def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
   let summary = "Promote function arguments";
   let description = [{
@@ -47,6 +39,14 @@ def ArgumentPromotion : Pass<"arg-promotion", "mlir::ModuleOp"> {
   let constructor = "mlir::polygeist::createArgumentPromotionPass()";
   let statistics = [
     Statistic<"numStructMemberPeeled", "num-struct-member-peeled", "Number of struct member peeled">
+  ];
+}
+
+def DetectReduction : Pass<"detect-reduction"> {
+  let summary = "Detect array reduction operations in a loop";
+  let constructor = "mlir::polygeist::detectReductionPass()";
+  let statistics = [
+    Statistic<"numReductions", "num-reductions", "Number of reductions detected">
   ];
 }
 
