@@ -34,7 +34,7 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_artifact_suffix: default
+      build_artifact_suffix: default-2204
       build_configure_extra_args: ''
       build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
 
@@ -57,7 +57,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_cache_suffix: opaque_pointers
-      build_artifact_suffix: opaque_pointers
+      build_artifact_suffix: opaque_pointers-2204
       build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
       build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
 
@@ -111,7 +111,7 @@ jobs:
     - uses: actions/checkout@v3
     - uses: actions/download-artifact@v3
       with:
-        name: sycl_linux_default
+        name: sycl_linux_default-2204
         path: devops/
     - name: Build and Push Container (with drivers)
       uses: ./devops/actions/build_container
