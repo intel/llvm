@@ -274,6 +274,13 @@ defm MATCH_ALLP_SYNC_32 : MATCH_ALLP_SYNC<Int32Regs, "b32", int_nvvm_match_all_s
 defm MATCH_ALLP_SYNC_64 : MATCH_ALLP_SYNC<Int64Regs, "b64", int_nvvm_match_all_sync_i64p,
                                          i64imm>;
 
+// reqs ptx62 sm_30;
+// activemask.b32 d;
+def INT_ACTIVEMASK :
+  NVPTXInst<(outs Int32Regs:$dest), (ins),
+                  "activemask.b32 \t$dest;",
+      [(set Int32Regs:$dest, (int_nvvm_activemask_ui))]>;
+
 multiclass REDUX_SYNC<string BinOp, string PTXType, Intrinsic Intrin> {
   def : NVPTXInst<(outs Int32Regs:$dst), (ins Int32Regs:$src, Int32Regs:$mask),
           "redux.sync." # BinOp # "." # PTXType # " $dst, $src, $mask;",

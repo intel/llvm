@@ -130,7 +130,8 @@ inline opportunistic_group get_opportunistic_group() {
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(sg, true);
   return opportunistic_group(mask);
 #elif defined(__NVPTX__)
-  // TODO: Construct from __activemask
+  sub_group_mask mask = sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(__nvvm_activemask(), 32);
+  return opportunistic_group(mask);
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",

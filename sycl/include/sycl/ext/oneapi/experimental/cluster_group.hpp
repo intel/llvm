@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -111,8 +112,17 @@ public:
 #endif
   }
 
+#if defined (__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+private:
+  sub_group_mask Mask;
+#endif
+
 protected:
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  cluster_group(ext::oneapi::sub_group_mask mask):Mask(mask) {}
+#else
   cluster_group() {}
+#endif
 
   friend cluster_group<ClusterSize, ParentGroup>
   get_cluster_group<ClusterSize, ParentGroup>(ParentGroup g);
@@ -125,7 +135,16 @@ inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
 get_cluster_group(Group group) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  uint32_t loc_id = group.get_local_linear_id();
+  uint32_t loc_size = group.get_local_linear_range();
+  uint32_t bits = (1 << ClusterSize) - 1;
+
+  return cluster_group<ClusterSize, sycl::sub_group>(sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
+      bits << ((loc_id / ClusterSize) * ClusterSize), loc_size));
+#else
   return cluster_group<ClusterSize, sycl::sub_group>();
+#endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);

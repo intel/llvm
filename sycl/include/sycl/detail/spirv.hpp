@@ -109,6 +109,7 @@ template <typename Group> bool GroupAll(Group g, bool pred) {
 template <typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
               bool pred) {
+#if defined (__SPIR__)
   // ballot_group partitions its parent into two groups (0 and 1)
   // We have to force each group down different control flow
   // Work-items in the "false" group (0) may still be active
@@ -117,6 +118,10 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
   } else {
     return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
   }
+#elif defined (__NVPTX__)
+    sycl::vec<unsigned, 4> MemberMask = detail::ExtractMask(detail::GetMask(g));
+   return __nvvm_vote_all_sync(MemberMask[0], pred);
+#endif
 }
 
 template <typename Group> bool GroupAny(Group g, bool pred) {
@@ -125,6 +130,7 @@ template <typename Group> bool GroupAny(Group g, bool pred) {
 template <typename ParentGroup>
 bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
               bool pred) {
+#if defined (__SPIR__)
   // ballot_group partitions its parent into two groups (0 and 1)
   // We have to force each group down different control flow
   // Work-items in the "false" group (0) may still be active
@@ -133,6 +139,10 @@ bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
   } else {
     return __spirv_GroupNonUniformAny(group_scope<ParentGroup>::value, pred);
   }
+#elif defined (__NVPTX__)
+    sycl::vec<unsigned, 4> MemberMask = detail::ExtractMask(detail::GetMask(g));
+   return __nvvm_vote_any_sync(MemberMask[0], pred);
+#endif
 }
 
 // Native broadcasts map directly to a SPIR-V GroupBroadcast intrinsic
@@ -219,6 +229,7 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
   // ballot_group partitions its parent into two groups (0 and 1)
   // We have to force each group down different control flow
   // Work-items in the "false" group (0) may still be active
+#if defined(__SPIR__)
   if (g.get_group_id() == 1) {
     return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
                                             OCLX, OCLId);
@@ -226,6 +237,10 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
     return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
                                             OCLX, OCLId);
   }
+#elif defined(__NVPTX__)
+    sycl::vec<unsigned, 4> MemberMask = detail::ExtractMask(detail::GetMask(g));
+    return __nvvm_shfl_sync_idx_i32(MemberMask[0], x, LocalId, 31); //31 not 32 as docs suggest.
+#endif
 }
 
 template <typename Group, typename T, typename IdT>
@@ -886,7 +901,7 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
 template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>>
-ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
+ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
 #if defined(__SPIR__)
   // SPIR-V does not define an instruction to synchronize partial groups.
   // However, most (possibly all?) of the current SPIR-V targets execute
@@ -899,6 +914,7 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 #elif defined(__NVPTX__)
   // TODO: Call syncwarp with appropriate mask extracted from the group
+  __nvvm_bar_warp_sync(detail::ExtractMask(detail::GetMask(g))[0]);
 #endif
 }
 

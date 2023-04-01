@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "membermask.h"
+#include <integer/popcount.h>
 
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
@@ -30,7 +31,12 @@ _Z29__spirv_GroupNonUniformBallotjb(unsigned flag, bool predicate) {
   unsigned threads = __clc__membermask();
 
   // run the ballot operation
-  res[0] = __nvvm_vote_ballot_sync(threads, predicate);
+  res[0] = __nvvm_vote_ballot_sync(threads, predicate); // couldnt call this within intel impl because undefined behaviour if not all reach it?
 
   return res;
 }
+
+  _CLC_DEF _CLC_CONVERGENT uint _Z37__spirv_GroupNonUniformBallotBitCountN5__spv5Scope4FlagEiDv4_j(uint scope, uint flag, __clc_vec4_uint32_t mask) {
+                                                                     
+     return __clc_native_popcount(__nvvm_read_ptx_sreg_lanemask_lt() & mask[0]);
+  }

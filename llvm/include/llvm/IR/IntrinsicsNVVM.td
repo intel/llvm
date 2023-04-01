@@ -4628,6 +4628,11 @@ def int_nvvm_match_all_sync_i64p :
   Intrinsic<[llvm_i32_ty, llvm_i1_ty], [llvm_i32_ty, llvm_i64_ty],
             [IntrInaccessibleMemOnly, IntrConvergent, IntrNoCallback], "llvm.nvvm.match.all.sync.i64p">;
 
+// activemask.b32 d;
+def int_nvvm_activemask_ui : ClangBuiltin<"__nvvm_activemask">,
+  Intrinsic<[llvm_i32_ty], [],
+            [IntrConvergent, IntrInaccessibleMemOnly]>;
+
 //
 // REDUX.SYNC
 //

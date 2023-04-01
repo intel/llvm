@@ -39,10 +39,16 @@ inline uint32_t CallerPositionInMask(ext::oneapi::sub_group_mask Mask) {
 }
 #endif
 
+//todo inline works?
+template <typename NonUniformGroup>
+inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
+  return Group.Mask;
+}
+
 template <typename NonUniformGroup>
 inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
   // TODO: This will need to be optimized
-  sycl::vec<unsigned, 4> MemberMask = ExtractMask(Group.Mask);
+  sycl::vec<unsigned, 4> MemberMask = ExtractMask(GetMask(Group));
   uint32_t Count = 0;
   for (int i = 0; i < 4; ++i) {
     for (int b = 0; b < 32; ++b) {
