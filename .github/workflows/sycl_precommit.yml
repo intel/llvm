@@ -43,7 +43,7 @@ jobs:
     - name: Run clang-format
       uses: ./devops/actions/clang-format
 
-  # This job generates matrix of tests for LLVM Test Suite
+  # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
