@@ -50,12 +50,13 @@ public:
 
   weak_object &operator=(const SYCLObjT &SYCLObj) noexcept {
     // Create weak_ptr from the shared_ptr to SYCLObj's implementation object.
-    this->MObjWeakPtr = sycl::detail::getSyclObjImpl(SYCLObj);
+    this->MObjWeakPtr = GetWeakImpl(SYCLObj);
     return *this;
   }
   weak_object &operator=(const weak_object &Other) noexcept = default;
   weak_object &operator=(weak_object &&Other) noexcept = default;
 
+#ifndef __SYCL_DEVICE_ONLY__
   std::optional<SYCLObjT> try_lock() const noexcept {
     auto MObjImplPtr = this->MObjWeakPtr.lock();
     if (!MObjImplPtr)
@@ -69,6 +70,12 @@ public:
                             "Referenced object has expired.");
     return *OptionalObj;
   }
+#else
+  // On device calls to these functions are disallowed, so declare them but
+  // don't define them to avoid compilation failures.
+  std::optional<SYCLObjT> try_lock() const noexcept;
+  SYCLObjT lock() const;
+#endif // __SYCL_DEVICE_ONLY__
 };
 
 // Specialization of weak_object for buffer as it needs additional members
@@ -96,7 +103,7 @@ public:
 
   weak_object &operator=(const buffer_type &SYCLObj) noexcept {
     // Create weak_ptr from the shared_ptr to SYCLObj's implementation object.
-    this->MObjWeakPtr = sycl::detail::getSyclObjImpl(SYCLObj);
+    this->MObjWeakPtr = GetWeakImpl(SYCLObj);
     this->MRange = SYCLObj.Range;
     this->MOffsetInBytes = SYCLObj.OffsetInBytes;
     this->MIsSubBuffer = SYCLObj.IsSubBuffer;
@@ -105,6 +112,7 @@ public:
   weak_object &operator=(const weak_object &Other) noexcept = default;
   weak_object &operator=(weak_object &&Other) noexcept = default;
 
+#ifndef __SYCL_DEVICE_ONLY__
   std::optional<buffer_type> try_lock() const noexcept {
     auto MObjImplPtr = this->MObjWeakPtr.lock();
     if (!MObjImplPtr)
@@ -119,6 +127,12 @@ public:
                             "Referenced object has expired.");
     return *OptionalObj;
   }
+#else
+  // On device calls to these functions are disallowed, so declare them but
+  // don't define them to avoid compilation failures.
+  std::optional<buffer_type> try_lock() const noexcept;
+  buffer_type lock() const;
+#endif // __SYCL_DEVICE_ONLY__
 
 private:
   // Additional members required for recreating buffers.
