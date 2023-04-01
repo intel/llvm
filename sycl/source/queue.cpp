@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#undef __SYCL_SUPPRESS_QUEUE_CONSTRUCTORS
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
