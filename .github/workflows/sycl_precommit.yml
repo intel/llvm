@@ -1,4 +1,4 @@
-name: SYCL
+name: SYCL Pre Commit
 
 on:
   pull_request_target:
