@@ -16,8 +16,8 @@ def AffineCFG : Pass<"affine-cfg"> {
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
 
-def AffineReduction : Pass<"detect-reduction"> {
-  let summary = "Detect reductions in affine.for";
+def DetectReduction : Pass<"detect-reduction"> {
+  let summary = "Detect array reduction operations in a loop";
   let constructor = "mlir::polygeist::detectReductionPass()";
   let statistics = [
     Statistic<"numReductions", "num-reductions", "Number of reductions detected">
