@@ -142,10 +142,8 @@ protected:
       ++ArgNo;
     }
 
-    Region &NewBlock = NewLoop.getLoopBody(), &OldBlock = Loop.getLoopBody();
-    assert((OldBlock.hasOneBlock() && NewBlock.hasOneBlock()) &&
-           "loop body should have a single block");
-
+    Block &NewBlock = NewLoop.getLoopBody().front();
+    Block &OldBlock = Loop.getLoopBody().front();
     SmallVector<Value, 4> NewBlockTransferArgs;
     NewBlockTransferArgs.push_back(*NewLoop.getSingleInductionVar());
     const Block::BlockArgListType &IterArgs = getRegionIterArgs(NewLoop);
@@ -153,10 +151,9 @@ protected:
       NewBlockTransferArgs.push_back(IterArgs[ArgNo]);
     assert(OldBlock.getNumArguments() == NewBlockTransferArgs.size() &&
            "unexpected argument size mismatch");
-    Rewriter.mergeBlocks(&OldBlock.front(), &NewBlock.front(),
-                         NewBlockTransferArgs);
+    Rewriter.mergeBlocks(&OldBlock, &NewBlock, NewBlockTransferArgs);
 
-    cloneFilteredTerminator(NewBlock.front().getTerminator(), ReductionOps);
+    cloneFilteredTerminator(NewBlock.getTerminator(), ReductionOps);
 
     // Prepare for new yielded value for 'replaceOp'.
     SmallVector<Value, 4> NewYieldedRes, NewRes(NewLoop->getResults());
