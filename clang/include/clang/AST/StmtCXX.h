@@ -326,8 +326,8 @@ class CoroutineBodyStmt final
     OnFallthrough, ///< Handler for control flow falling off the body.
     Allocate,      ///< Coroutine frame memory allocation.
     Deallocate,    ///< Coroutine frame memory deallocation.
-    ReturnValue,   ///< Return value for thunk function: p.get_return_object().
     ResultDecl,    ///< Declaration holding the result of get_return_object.
+    ReturnValue,   ///< Return value for thunk function: p.get_return_object().
     ReturnStmt,    ///< Return statement for the thunk function.
     ReturnStmtOnAllocFailure, ///< Return statement if allocation failed.
     FirstParamMove ///< First offset for move construction of parameter copies.
@@ -353,8 +353,8 @@ public:
     Stmt *OnFallthrough = nullptr;
     Expr *Allocate = nullptr;
     Expr *Deallocate = nullptr;
-    Expr *ReturnValue = nullptr;
     Stmt *ResultDecl = nullptr;
+    Expr *ReturnValue = nullptr;
     Stmt *ReturnStmt = nullptr;
     Stmt *ReturnStmtOnAllocFailure = nullptr;
     ArrayRef<Stmt *> ParamMoves;
@@ -406,10 +406,14 @@ public:
   Expr *getDeallocate() const {
     return cast_or_null<Expr>(getStoredStmts()[SubStmt::Deallocate]);
   }
+  Stmt *getResultDecl() const { return getStoredStmts()[SubStmt::ResultDecl]; }
   Expr *getReturnValueInit() const {
     return cast<Expr>(getStoredStmts()[SubStmt::ReturnValue]);
   }
-  Stmt *getResultDecl() const { return getStoredStmts()[SubStmt::ResultDecl]; }
+  Expr *getReturnValue() const {
+    auto *RS = dyn_cast_or_null<clang::ReturnStmt>(getReturnStmt());
+    return RS ? RS->getRetValue() : nullptr;
+  }
   Stmt *getReturnStmt() const { return getStoredStmts()[SubStmt::ReturnStmt]; }
   Stmt *getReturnStmtOnAllocFailure() const {
     return getStoredStmts()[SubStmt::ReturnStmtOnAllocFailure];
@@ -495,16 +499,10 @@ public:
   }
 
   child_range children() {
-    if (!getOperand())
-      return child_range(SubStmts + SubStmt::PromiseCall,
-                         SubStmts + SubStmt::Count);
     return child_range(SubStmts, SubStmts + SubStmt::Count);
   }
 
   const_child_range children() const {
-    if (!getOperand())
-      return const_child_range(SubStmts + SubStmt::PromiseCall,
-                               SubStmts + SubStmt::Count);
     return const_child_range(SubStmts, SubStmts + SubStmt::Count);
   }
 

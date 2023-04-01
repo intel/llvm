@@ -7,6 +7,8 @@ set(SCUDO_CFLAGS)
 list(APPEND SCUDO_CFLAGS
   -Werror=conversion
   -Wall
+  -Wextra
+  -pedantic
   -g
   -nostdinc++)
 
@@ -28,6 +30,9 @@ else()
   list(APPEND SCUDO_CFLAGS -O3)
 endif()
 
+append_list_if(COMPILER_RT_HAS_WTHREAD_SAFETY_FLAG -Werror=thread-safety
+  SCUDO_CFLAGS)
+
 set(SCUDO_LINK_FLAGS)
 
 list(APPEND SCUDO_LINK_FLAGS -Wl,-z,defs,-z,now,-z,relro)
@@ -36,6 +41,11 @@ list(APPEND SCUDO_LINK_FLAGS -ffunction-sections -fdata-sections -Wl,--gc-sectio
 
 # We don't use the C++ standard library, so avoid including it by mistake.
 append_list_if(COMPILER_RT_HAS_NOSTDLIBXX_FLAG -nostdlib++ SCUDO_LINK_FLAGS)
+append_list_if(CXX_SUPPORTS_UNWINDLIB_NONE_FLAG --unwindlib=none SCUDO_LINK_FLAGS)
+
+if(COMPILER_RT_SCUDO_STANDALONE_SYSROOT_PATH)
+  list(APPEND SCUDO_CFLAGS "--sysroot=${COMPILER_RT_SCUDO_STANDALONE_SYSROOT_PATH}")
+endif()
 
 if(ANDROID)
   list(APPEND SCUDO_CFLAGS -fno-emulated-tls)
@@ -69,6 +79,7 @@ set(SCUDO_HEADERS
   quarantine.h
   release.h
   report.h
+  rss_limit_checker.h
   secondary.h
   size_class_map.h
   stack_depot.h
@@ -94,11 +105,15 @@ set(SCUDO_SOURCES
   linux.cpp
   release.cpp
   report.cpp
+  rss_limit_checker.cpp
   string_utils.cpp
   )
 
-# Enable the SSE 4.2 instruction set for crc32_hw.cpp, if available.
-if (COMPILER_RT_HAS_MSSE4_2_FLAG)
+# Enable the necessary instruction set for scudo_crc32.cpp, if available.
+# Newer compiler versions use -mcrc32 rather than -msse4.2.
+if (COMPILER_RT_HAS_MCRC32_FLAG)
+  set_source_files_properties(crc32_hw.cpp PROPERTIES COMPILE_FLAGS -mcrc32)
+elseif (COMPILER_RT_HAS_MSSE4_2_FLAG)
   set_source_files_properties(crc32_hw.cpp PROPERTIES COMPILE_FLAGS -msse4.2)
 endif()
 
@@ -131,28 +146,43 @@ if (COMPILER_RT_HAS_GWP_ASAN)
 
 endif()
 
-set(SCUDO_LINK_LIBS)
+set(SCUDO_LINK_LIBS ${COMPILER_RT_UNWINDER_LINK_LIBS})
+
+if(COMPILER_RT_BUILD_SCUDO_STANDALONE_WITH_LLVM_LIBC)
+  include_directories(${COMPILER_RT_BINARY_DIR}/../libc/include/)
+
+  set(SCUDO_DEPS libc-headers)
+
+  list(APPEND SCUDO_CFLAGS "-ffreestanding")
+endif()
 
 append_list_if(COMPILER_RT_HAS_LIBPTHREAD -pthread SCUDO_LINK_FLAGS)
 
 append_list_if(FUCHSIA zircon SCUDO_LINK_LIBS)
+
+if(COMPILER_RT_DEFAULT_TARGET_ARCH MATCHES "mips|mips64|mipsel|mips64el")
+  list(APPEND SCUDO_LINK_LIBS atomic)
+endif()
 
 if(COMPILER_RT_HAS_SCUDO_STANDALONE)
   add_compiler_rt_object_libraries(RTScudoStandalone
     ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
     SOURCES ${SCUDO_SOURCES}
     ADDITIONAL_HEADERS ${SCUDO_HEADERS}
-    CFLAGS ${SCUDO_CFLAGS})
+    CFLAGS ${SCUDO_CFLAGS}
+    DEPS ${SCUDO_DEPS})
   add_compiler_rt_object_libraries(RTScudoStandaloneCWrappers
     ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
     SOURCES ${SCUDO_SOURCES_C_WRAPPERS}
     ADDITIONAL_HEADERS ${SCUDO_HEADERS}
-    CFLAGS ${SCUDO_CFLAGS})
+    CFLAGS ${SCUDO_CFLAGS}
+    DEPS ${SCUDO_DEPS})
   add_compiler_rt_object_libraries(RTScudoStandaloneCxxWrappers
     ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
     SOURCES ${SCUDO_SOURCES_CXX_WRAPPERS}
     ADDITIONAL_HEADERS ${SCUDO_HEADERS}
-    CFLAGS ${SCUDO_CFLAGS})
+    CFLAGS ${SCUDO_CFLAGS}
+    DEPS ${SCUDO_DEPS})
 
   add_compiler_rt_runtime(clang_rt.scudo_standalone
     STATIC
@@ -160,6 +190,7 @@ if(COMPILER_RT_HAS_SCUDO_STANDALONE)
     SOURCES ${SCUDO_SOURCES} ${SCUDO_SOURCES_C_WRAPPERS}
     ADDITIONAL_HEADERS ${SCUDO_HEADERS}
     CFLAGS ${SCUDO_CFLAGS}
+    DEPS ${SCUDO_DEPS}
     OBJECT_LIBS ${SCUDO_OBJECT_LIBS}
     PARENT_TARGET scudo_standalone)
   add_compiler_rt_runtime(clang_rt.scudo_standalone_cxx
@@ -168,18 +199,22 @@ if(COMPILER_RT_HAS_SCUDO_STANDALONE)
     SOURCES ${SCUDO_SOURCES_CXX_WRAPPERS}
     ADDITIONAL_HEADERS ${SCUDO_HEADERS}
     CFLAGS ${SCUDO_CFLAGS}
+    DEPS ${SCUDO_DEPS}
     PARENT_TARGET scudo_standalone)
 
-  add_compiler_rt_runtime(clang_rt.scudo_standalone
-    SHARED
-    ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
-    SOURCES ${SCUDO_SOURCES} ${SCUDO_SOURCES_C_WRAPPERS} ${SCUDO_SOURCES_CXX_WRAPPERS}
-    ADDITIONAL_HEADERS ${SCUDO_HEADERS}
-    CFLAGS ${SCUDO_CFLAGS}
-    OBJECT_LIBS ${SCUDO_OBJECT_LIBS}
-    LINK_FLAGS ${SCUDO_LINK_FLAGS}
-    LINK_LIBS ${SCUDO_LINK_LIBS}
-    PARENT_TARGET scudo_standalone)
+  if(COMPILER_RT_SCUDO_STANDALONE_BUILD_SHARED)
+    add_compiler_rt_runtime(clang_rt.scudo_standalone
+      SHARED
+      ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
+      SOURCES ${SCUDO_SOURCES} ${SCUDO_SOURCES_C_WRAPPERS} ${SCUDO_SOURCES_CXX_WRAPPERS}
+      ADDITIONAL_HEADERS ${SCUDO_HEADERS}
+      CFLAGS ${SCUDO_CFLAGS}
+      DEPS ${SCUDO_DEPS}
+      OBJECT_LIBS ${SCUDO_OBJECT_LIBS}
+      LINK_FLAGS ${SCUDO_LINK_FLAGS}
+      LINK_LIBS ${SCUDO_LINK_LIBS}
+      PARENT_TARGET scudo_standalone)
+  endif()
 
   add_subdirectory(benchmarks)
   if(COMPILER_RT_INCLUDE_TESTS)

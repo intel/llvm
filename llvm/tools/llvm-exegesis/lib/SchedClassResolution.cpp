@@ -10,6 +10,7 @@
 #include "BenchmarkResult.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MCA/Support.h"
 #include "llvm/Support/FormatVariadic.h"
 #include <limits>
 #include <unordered_set>
@@ -45,7 +46,7 @@ namespace exegesis {
 //
 // Note that in this case, P016 does not contribute any cycles, so it would
 // be removed by this function.
-// FIXME: Move this to MCSubtargetInfo and use it in llvm-mca.
+// FIXME: Merge this with the equivalent in llvm-mca.
 static SmallVector<MCWriteProcResEntry, 8>
 getNonRedundantWriteProcRes(const MCSchedClassDesc &SCDesc,
                             const MCSubtargetInfo &STI) {
@@ -53,12 +54,33 @@ getNonRedundantWriteProcRes(const MCSchedClassDesc &SCDesc,
   const auto &SM = STI.getSchedModel();
   const unsigned NumProcRes = SM.getNumProcResourceKinds();
 
-  // This assumes that the ProcResDescs are sorted in topological order, which
-  // is guaranteed by the tablegen backend.
-  SmallVector<float, 32> ProcResUnitUsage(NumProcRes);
+  // Collect resource masks.
+  SmallVector<uint64_t> ProcResourceMasks(NumProcRes);
+  mca::computeProcResourceMasks(SM, ProcResourceMasks);
+
+  // Sort entries by smaller resources for (basic) topological ordering.
+  using ResourceMaskAndEntry = std::pair<uint64_t, const MCWriteProcResEntry *>;
+  SmallVector<ResourceMaskAndEntry, 8> ResourceMaskAndEntries;
   for (const auto *WPR = STI.getWriteProcResBegin(&SCDesc),
                   *const WPREnd = STI.getWriteProcResEnd(&SCDesc);
        WPR != WPREnd; ++WPR) {
+    uint64_t Mask = ProcResourceMasks[WPR->ProcResourceIdx];
+    ResourceMaskAndEntries.push_back({Mask, WPR});
+  }
+  sort(ResourceMaskAndEntries,
+       [](const ResourceMaskAndEntry &A, const ResourceMaskAndEntry &B) {
+         unsigned popcntA = llvm::popcount(A.first);
+         unsigned popcntB = llvm::popcount(B.first);
+         if (popcntA < popcntB)
+           return true;
+         if (popcntA > popcntB)
+           return false;
+         return A.first < B.first;
+       });
+
+  SmallVector<float, 32> ProcResUnitUsage(NumProcRes);
+  for (const ResourceMaskAndEntry &Entry : ResourceMaskAndEntries) {
+    const MCWriteProcResEntry *WPR = Entry.second;
     const MCProcResourceDesc *const ProcResDesc =
         SM.getProcResource(WPR->ProcResourceIdx);
     if (ProcResDesc->SubUnitsIdxBegin == nullptr) {
@@ -258,13 +280,13 @@ static unsigned findProcResIdx(const MCSubtargetInfo &STI,
 }
 
 std::vector<BenchmarkMeasure> ResolvedSchedClass::getAsPoint(
-    InstructionBenchmark::ModeE Mode, const MCSubtargetInfo &STI,
+    Benchmark::ModeE Mode, const MCSubtargetInfo &STI,
     ArrayRef<PerInstructionStats> Representative) const {
   const size_t NumMeasurements = Representative.size();
 
   std::vector<BenchmarkMeasure> SchedClassPoint(NumMeasurements);
 
-  if (Mode == InstructionBenchmark::Latency) {
+  if (Mode == Benchmark::Latency) {
     assert(NumMeasurements == 1 && "Latency is a single measure.");
     BenchmarkMeasure &LatencyMeasure = SchedClassPoint[0];
 
@@ -277,7 +299,7 @@ std::vector<BenchmarkMeasure> ResolvedSchedClass::getAsPoint(
       LatencyMeasure.PerInstructionValue =
           std::max<double>(LatencyMeasure.PerInstructionValue, WLE->Cycles);
     }
-  } else if (Mode == InstructionBenchmark::Uops) {
+  } else if (Mode == Benchmark::Uops) {
     for (auto I : zip(SchedClassPoint, Representative)) {
       BenchmarkMeasure &Measure = std::get<0>(I);
       const PerInstructionStats &Stats = std::get<1>(I);
@@ -304,7 +326,7 @@ std::vector<BenchmarkMeasure> ResolvedSchedClass::getAsPoint(
         return {};
       }
     }
-  } else if (Mode == InstructionBenchmark::InverseThroughput) {
+  } else if (Mode == Benchmark::InverseThroughput) {
     assert(NumMeasurements == 1 && "Inverse Throughput is a single measure.");
     BenchmarkMeasure &RThroughputMeasure = SchedClassPoint[0];
 

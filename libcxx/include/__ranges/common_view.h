@@ -6,9 +6,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___RANGES_COMMON_VIEW_H
 #define _LIBCPP___RANGES_COMMON_VIEW_H
 
+#include <__concepts/constructible.h>
+#include <__concepts/copyable.h>
 #include <__config>
 #include <__iterator/common_iterator.h>
 #include <__iterator/iterator_traits.h>
@@ -21,16 +24,14 @@
 #include <__ranges/view_interface.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
-#include <concepts>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if _LIBCPP_STD_VER >= 20
 
 namespace ranges {
 
@@ -44,13 +45,13 @@ public:
   common_view() requires default_initializable<_View> = default;
 
   _LIBCPP_HIDE_FROM_ABI
-  constexpr explicit common_view(_View __v) : __base_(_VSTD::move(__v)) { }
+  constexpr explicit common_view(_View __v) : __base_(std::move(__v)) { }
 
   _LIBCPP_HIDE_FROM_ABI
   constexpr _View base() const& requires copy_constructible<_View> { return __base_; }
 
   _LIBCPP_HIDE_FROM_ABI
-  constexpr _View base() && { return _VSTD::move(__base_); }
+  constexpr _View base() && { return std::move(__base_); }
 
   _LIBCPP_HIDE_FROM_ABI
   constexpr auto begin() {
@@ -109,26 +110,26 @@ namespace __common {
       requires common_range<_Range>
     [[nodiscard]] _LIBCPP_HIDE_FROM_ABI
     constexpr auto operator()(_Range&& __range) const
-      noexcept(noexcept(views::all(_VSTD::forward<_Range>(__range))))
-      -> decltype(      views::all(_VSTD::forward<_Range>(__range)))
-      { return          views::all(_VSTD::forward<_Range>(__range)); }
+      noexcept(noexcept(views::all(std::forward<_Range>(__range))))
+      -> decltype(      views::all(std::forward<_Range>(__range)))
+      { return          views::all(std::forward<_Range>(__range)); }
 
     template<class _Range>
     [[nodiscard]] _LIBCPP_HIDE_FROM_ABI
     constexpr auto operator()(_Range&& __range) const
-      noexcept(noexcept(common_view{_VSTD::forward<_Range>(__range)}))
-      -> decltype(      common_view{_VSTD::forward<_Range>(__range)})
-      { return          common_view{_VSTD::forward<_Range>(__range)}; }
+      noexcept(noexcept(common_view{std::forward<_Range>(__range)}))
+      -> decltype(      common_view{std::forward<_Range>(__range)})
+      { return          common_view{std::forward<_Range>(__range)}; }
   };
-}
+} // namespace __common
 
 inline namespace __cpo {
   inline constexpr auto common = __common::__fn{};
-}
+} // namespace __cpo
 } // namespace views
 } // namespace ranges
 
-#endif // !defined(_LIBCPP_HAS_NO_RANGES)
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

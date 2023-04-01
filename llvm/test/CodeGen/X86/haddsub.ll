@@ -502,7 +502,7 @@ define float @extract_extract23_v4f32_fadd_f32(<4 x float> %x) {
 ; AVX-SLOW-LABEL: extract_extract23_v4f32_fadd_f32:
 ; AVX-SLOW:       # %bb.0:
 ; AVX-SLOW-NEXT:    vpermilpd {{.*#+}} xmm1 = xmm0[1,0]
-; AVX-SLOW-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,3,3,3]
+; AVX-SLOW-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; AVX-SLOW-NEXT:    vaddss %xmm0, %xmm1, %xmm0
 ; AVX-SLOW-NEXT:    retq
 ;
@@ -563,7 +563,7 @@ define float @extract_extract23_v4f32_fadd_f32_commute(<4 x float> %x) {
 ; AVX-SLOW-LABEL: extract_extract23_v4f32_fadd_f32_commute:
 ; AVX-SLOW:       # %bb.0:
 ; AVX-SLOW-NEXT:    vpermilpd {{.*#+}} xmm1 = xmm0[1,0]
-; AVX-SLOW-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,3,3,3]
+; AVX-SLOW-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; AVX-SLOW-NEXT:    vaddss %xmm1, %xmm0, %xmm0
 ; AVX-SLOW-NEXT:    retq
 ;
@@ -683,7 +683,7 @@ define float @extract_extract23_v4f32_fsub_f32(<4 x float> %x) {
 ; AVX-SLOW-LABEL: extract_extract23_v4f32_fsub_f32:
 ; AVX-SLOW:       # %bb.0:
 ; AVX-SLOW-NEXT:    vpermilpd {{.*#+}} xmm1 = xmm0[1,0]
-; AVX-SLOW-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,3,3,3]
+; AVX-SLOW-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; AVX-SLOW-NEXT:    vsubss %xmm0, %xmm1, %xmm0
 ; AVX-SLOW-NEXT:    retq
 ;
@@ -729,7 +729,7 @@ define float @extract_extract23_v4f32_fsub_f32_commute(<4 x float> %x) {
 ; AVX-LABEL: extract_extract23_v4f32_fsub_f32_commute:
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    vpermilpd {{.*#+}} xmm1 = xmm0[1,0]
-; AVX-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,3,3,3]
+; AVX-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; AVX-NEXT:    vsubss %xmm1, %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %x0 = extractelement <4 x float> %x, i32 2
@@ -837,7 +837,7 @@ define float @extract_extract23_v8f32_fadd_f32(<8 x float> %x) {
 ; AVX-SLOW-LABEL: extract_extract23_v8f32_fadd_f32:
 ; AVX-SLOW:       # %bb.0:
 ; AVX-SLOW-NEXT:    vpermilpd {{.*#+}} xmm1 = xmm0[1,0]
-; AVX-SLOW-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,3,3,3]
+; AVX-SLOW-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; AVX-SLOW-NEXT:    vaddss %xmm0, %xmm1, %xmm0
 ; AVX-SLOW-NEXT:    vzeroupper
 ; AVX-SLOW-NEXT:    retq
@@ -873,7 +873,7 @@ define float @extract_extract67_v8f32_fadd_f32(<8 x float> %x) {
 ; AVX-SLOW:       # %bb.0:
 ; AVX-SLOW-NEXT:    vextractf128 $1, %ymm0, %xmm0
 ; AVX-SLOW-NEXT:    vpermilpd {{.*#+}} xmm1 = xmm0[1,0]
-; AVX-SLOW-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,3,3,3]
+; AVX-SLOW-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; AVX-SLOW-NEXT:    vaddss %xmm0, %xmm1, %xmm0
 ; AVX-SLOW-NEXT:    vzeroupper
 ; AVX-SLOW-NEXT:    retq
@@ -939,7 +939,7 @@ define float @extract_extract23_v8f32_fadd_f32_commute(<8 x float> %x) {
 ; AVX-SLOW-LABEL: extract_extract23_v8f32_fadd_f32_commute:
 ; AVX-SLOW:       # %bb.0:
 ; AVX-SLOW-NEXT:    vpermilpd {{.*#+}} xmm1 = xmm0[1,0]
-; AVX-SLOW-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,3,3,3]
+; AVX-SLOW-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; AVX-SLOW-NEXT:    vaddss %xmm1, %xmm0, %xmm0
 ; AVX-SLOW-NEXT:    vzeroupper
 ; AVX-SLOW-NEXT:    retq
@@ -975,7 +975,7 @@ define float @extract_extract67_v8f32_fadd_f32_commute(<8 x float> %x) {
 ; AVX-SLOW:       # %bb.0:
 ; AVX-SLOW-NEXT:    vextractf128 $1, %ymm0, %xmm0
 ; AVX-SLOW-NEXT:    vpermilpd {{.*#+}} xmm1 = xmm0[1,0]
-; AVX-SLOW-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,3,3,3]
+; AVX-SLOW-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; AVX-SLOW-NEXT:    vaddss %xmm1, %xmm0, %xmm0
 ; AVX-SLOW-NEXT:    vzeroupper
 ; AVX-SLOW-NEXT:    retq
@@ -1172,7 +1172,7 @@ define float @extract_extract23_v8f32_fsub_f32(<8 x float> %x) {
 ; AVX-SLOW-LABEL: extract_extract23_v8f32_fsub_f32:
 ; AVX-SLOW:       # %bb.0:
 ; AVX-SLOW-NEXT:    vpermilpd {{.*#+}} xmm1 = xmm0[1,0]
-; AVX-SLOW-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,3,3,3]
+; AVX-SLOW-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[3,3,3,3]
 ; AVX-SLOW-NEXT:    vsubss %xmm0, %xmm1, %xmm0
 ; AVX-SLOW-NEXT:    vzeroupper
 ; AVX-SLOW-NEXT:    retq
@@ -1527,7 +1527,7 @@ define double @extract_extract01_v8f64_fsub_f64_commute(<8 x double> %x) {
 
 ; Check output when 1 or both extracts have extra uses.
 
-define float @extract_extract01_v4f32_fadd_f32_uses1(<4 x float> %x, float* %p) {
+define float @extract_extract01_v4f32_fadd_f32_uses1(<4 x float> %x, ptr %p) {
 ; SSE3-SLOW-LABEL: extract_extract01_v4f32_fadd_f32_uses1:
 ; SSE3-SLOW:       # %bb.0:
 ; SSE3-SLOW-NEXT:    movss %xmm0, (%rdi)
@@ -1554,13 +1554,13 @@ define float @extract_extract01_v4f32_fadd_f32_uses1(<4 x float> %x, float* %p) 
 ; AVX-FAST-NEXT:    vhaddps %xmm0, %xmm0, %xmm0
 ; AVX-FAST-NEXT:    retq
   %x0 = extractelement <4 x float> %x, i32 0
-  store float %x0, float* %p
+  store float %x0, ptr %p
   %x1 = extractelement <4 x float> %x, i32 1
   %x01 = fadd float %x0, %x1
   ret float %x01
 }
 
-define float @extract_extract01_v4f32_fadd_f32_uses2(<4 x float> %x, float* %p) {
+define float @extract_extract01_v4f32_fadd_f32_uses2(<4 x float> %x, ptr %p) {
 ; SSE3-SLOW-LABEL: extract_extract01_v4f32_fadd_f32_uses2:
 ; SSE3-SLOW:       # %bb.0:
 ; SSE3-SLOW-NEXT:    movshdup {{.*#+}} xmm1 = xmm0[1,1,3,3]
@@ -1589,12 +1589,12 @@ define float @extract_extract01_v4f32_fadd_f32_uses2(<4 x float> %x, float* %p) 
 ; AVX-FAST-NEXT:    retq
   %x0 = extractelement <4 x float> %x, i32 0
   %x1 = extractelement <4 x float> %x, i32 1
-  store float %x1, float* %p
+  store float %x1, ptr %p
   %x01 = fadd float %x0, %x1
   ret float %x01
 }
 
-define float @extract_extract01_v4f32_fadd_f32_uses3(<4 x float> %x, float* %p1, float* %p2) {
+define float @extract_extract01_v4f32_fadd_f32_uses3(<4 x float> %x, ptr %p1, ptr %p2) {
 ; SSE3-LABEL: extract_extract01_v4f32_fadd_f32_uses3:
 ; SSE3:       # %bb.0:
 ; SSE3-NEXT:    movss %xmm0, (%rdi)
@@ -1611,9 +1611,9 @@ define float @extract_extract01_v4f32_fadd_f32_uses3(<4 x float> %x, float* %p1,
 ; AVX-NEXT:    vaddss %xmm1, %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %x0 = extractelement <4 x float> %x, i32 0
-  store float %x0, float* %p1
+  store float %x0, ptr %p1
   %x1 = extractelement <4 x float> %x, i32 1
-  store float %x1, float* %p2
+  store float %x1, ptr %p2
   %x01 = fadd float %x0, %x1
   ret float %x01
 }

@@ -7,17 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
-
-// ADDITIONAL_COMPILE_FLAGS: -Wno-sign-compare
 
 // constexpr W operator*() const noexcept(is_nothrow_copy_constructible_v<W>);
+
+#include "test_macros.h"
+
+TEST_CLANG_DIAGNOSTIC_IGNORED("-Wsign-compare")
+TEST_GCC_DIAGNOSTIC_IGNORED("-Wsign-compare")
+TEST_MSVC_DIAGNOSTIC_IGNORED(4018) // various "signed/unsigned mismatch"
 
 #include <ranges>
 #include <cassert>
 
-#include "test_macros.h"
 #include "../types.h"
 
 struct NotNoexceptCopy {
@@ -25,7 +26,7 @@ struct NotNoexceptCopy {
 
   int value_;
   constexpr explicit NotNoexceptCopy(int value = 0) : value_(value) {}
-  NotNoexceptCopy(const NotNoexceptCopy&) noexcept(false) = default;
+  constexpr NotNoexceptCopy(const NotNoexceptCopy& other) noexcept(false) : value_(other.value_) {}
 
   bool operator==(const NotNoexceptCopy&) const = default;
 

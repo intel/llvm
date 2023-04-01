@@ -9,15 +9,16 @@
 #ifndef LLVM_LIBC_SRC_SUPPORT_OSUTIL_LINUX_IO_H
 #define LLVM_LIBC_SRC_SUPPORT_OSUTIL_LINUX_IO_H
 
-#include "include/sys/syscall.h" // For syscall numbers.
 #include "src/string/string_utils.h"
 #include "syscall.h" // For internal syscall function.
 
+#include <sys/syscall.h> // For syscall numbers.
+
 namespace __llvm_libc {
 
-static inline void write_to_stderr(const char *msg) {
-  __llvm_libc::syscall(SYS_write, 2 /* stderr */, msg,
-                       internal::string_length(msg));
+LIBC_INLINE void write_to_stderr(const char *msg) {
+  __llvm_libc::syscall_impl(SYS_write, 2 /* stderr */, msg,
+                            internal::string_length(msg));
 }
 
 } // namespace __llvm_libc

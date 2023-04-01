@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "Annotations.h"
-#include "ClangdLSPServer.h"
 #include "ClangdServer.h"
 #include "CodeComplete.h"
+#include "CompileCommands.h"
 #include "ConfigFragment.h"
 #include "GlobalCompilationDatabase.h"
 #include "Matchers.h"
@@ -17,7 +17,6 @@
 #include "TestFS.h"
 #include "TestTU.h"
 #include "TidyProvider.h"
-#include "URI.h"
 #include "refactor/Tweak.h"
 #include "support/MemoryTree.h"
 #include "support/Path.h"
@@ -26,13 +25,10 @@
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/Core/Replacement.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
@@ -43,6 +39,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <optional>
 #include <random>
 #include <string>
 #include <thread>
@@ -212,7 +209,7 @@ TEST(ClangdServerTest, ParseWithHeader) {
   parseSourceAndDumpAST("foo.cpp", "#include \"foo.h\"", {{"foo.h", ""}},
                         /*ExpectErrors=*/false);
 
-  const auto SourceContents = R"cpp(
+  const auto *SourceContents = R"cpp(
 #include "foo.h"
 int b = a;
 )cpp";
@@ -228,7 +225,7 @@ TEST(ClangdServerTest, Reparse) {
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
 
-  const auto SourceContents = R"cpp(
+  const auto *SourceContents = R"cpp(
 #include "foo.h"
 int b = a;
 )cpp";
@@ -263,7 +260,7 @@ TEST(ClangdServerTest, ReparseOnHeaderChange) {
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
 
-  const auto SourceContents = R"cpp(
+  const auto *SourceContents = R"cpp(
 #include "foo.h"
 int b = a;
 )cpp";
@@ -352,7 +349,7 @@ TEST(ClangdServerTest, RespectsConfig) {
   Opts.ContextProvider =
       ClangdServer::createConfiguredContextProvider(&CfgProvider, nullptr);
   OverlayCDB CDB(/*Base=*/nullptr, /*FallbackFlags=*/{},
-                 tooling::ArgumentsAdjuster(CommandMangler::forTests()));
+                 CommandMangler::forTests());
   MockFS FS;
   ClangdServer Server(CDB, FS, Opts);
   // foo.cc sees the expected definition, as FOO is defined.
@@ -420,7 +417,7 @@ TEST(ClangdServerTest, SearchLibDir) {
   FS.Files[StringPath] = "class mock_string {};";
 
   auto FooCpp = testPath("foo.cpp");
-  const auto SourceContents = R"cpp(
+  const auto *SourceContents = R"cpp(
 #include <string>
 mock_string x;
 )cpp";
@@ -429,7 +426,7 @@ mock_string x;
   runAddDocument(Server, FooCpp, SourceContents);
   EXPECT_FALSE(DiagConsumer.hadErrorInLastDiags());
 
-  const auto SourceContentsWithError = R"cpp(
+  const auto *SourceContentsWithError = R"cpp(
 #include <string>
 std::string x;
 )cpp";
@@ -445,11 +442,11 @@ TEST(ClangdServerTest, ForceReparseCompileCommand) {
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
 
   auto FooCpp = testPath("foo.cpp");
-  const auto SourceContents1 = R"cpp(
+  const auto *SourceContents1 = R"cpp(
 template <class T>
 struct foo { T x; };
 )cpp";
-  const auto SourceContents2 = R"cpp(
+  const auto *SourceContents2 = R"cpp(
 template <class T>
 struct bar { T x; };
 )cpp";
@@ -481,7 +478,7 @@ TEST(ClangdServerTest, ForceReparseCompileCommandDefines) {
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
 
   auto FooCpp = testPath("foo.cpp");
-  const auto SourceContents = R"cpp(
+  const auto *SourceContents = R"cpp(
 #ifdef WITH_ERROR
 this
 #endif
@@ -585,7 +582,7 @@ TEST(ClangdServerTest, FileStats) {
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
 
   Path FooCpp = testPath("foo.cpp");
-  const auto SourceContents = R"cpp(
+  const auto *SourceContents = R"cpp(
 struct Something {
   int method();
 };
@@ -652,14 +649,14 @@ TEST(ClangdThreadingTest, StressTest) {
   // BlockingRequestInterval-request will be a blocking one.
   const unsigned BlockingRequestInterval = 40;
 
-  const auto SourceContentsWithoutErrors = R"cpp(
+  const auto *SourceContentsWithoutErrors = R"cpp(
 int a;
 int b;
 int c;
 int d;
 )cpp";
 
-  const auto SourceContentsWithErrors = R"cpp(
+  const auto *SourceContentsWithErrors = R"cpp(
 int a = x;
 int b;
 int c;
@@ -892,14 +889,14 @@ TEST(ClangdThreadingTest, NoConcurrentDiagnostics) {
     std::promise<void> StartSecondReparse;
   };
 
-  const auto SourceContentsWithoutErrors = R"cpp(
+  const auto *SourceContentsWithoutErrors = R"cpp(
 int a;
 int b;
 int c;
 int d;
 )cpp";
 
-  const auto SourceContentsWithErrors = R"cpp(
+  const auto *SourceContentsWithErrors = R"cpp(
 int a = x;
 int b;
 int c;
@@ -945,7 +942,7 @@ void f() {}
   FS.Files[Path] = Code;
   runAddDocument(Server, Path, Code);
 
-  auto Replaces = runFormatFile(Server, Path, /*Rng=*/llvm::None);
+  auto Replaces = runFormatFile(Server, Path, /*Rng=*/std::nullopt);
   EXPECT_TRUE(static_cast<bool>(Replaces));
   auto Changed = tooling::applyAllReplacements(Code, *Replaces);
   EXPECT_TRUE(static_cast<bool>(Changed));
@@ -1113,7 +1110,7 @@ TEST(ClangdServerTest, FallbackWhenWaitingForCompileCommand) {
     DelayedCompilationDatabase(Notification &CanReturnCommand)
         : CanReturnCommand(CanReturnCommand) {}
 
-    llvm::Optional<tooling::CompileCommand>
+    std::optional<tooling::CompileCommand>
     getCompileCommand(PathRef File) const override {
       // FIXME: make this timeout and fail instead of waiting forever in case
       // something goes wrong.

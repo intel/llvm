@@ -16,7 +16,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/Register.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 
 #define GET_REGBANK_DECLARATIONS
 #include "AMDGPUGenRegisterBank.inc"
@@ -59,6 +59,9 @@ public:
     SmallSet<Register, 4> &SGPROperandRegs,
     MachineRegisterInfo &MRI) const;
 
+  Register buildReadFirstLane(MachineIRBuilder &B, MachineRegisterInfo &MRI,
+                              Register Src) const;
+
   bool executeInWaterfallLoop(MachineIRBuilder &B,
                               MachineInstr &MI,
                               MachineRegisterInfo &MRI,
@@ -79,9 +82,14 @@ public:
   applyMappingImage(MachineInstr &MI,
                     const OperandsMapper &OpdMapper,
                     MachineRegisterInfo &MRI, int RSrcIdx) const;
+  unsigned setBufferOffsets(MachineIRBuilder &B, Register CombinedOffset,
+                            Register &VOffsetReg, Register &SOffsetReg,
+                            int64_t &InstOffsetVal, Align Alignment) const;
   bool applyMappingSBufferLoad(const OperandsMapper &OpdMapper) const;
 
   bool applyMappingBFE(const OperandsMapper &OpdMapper, bool Signed) const;
+
+  bool applyMappingMAD_64_32(const OperandsMapper &OpdMapper) const;
 
   Register handleD16VData(MachineIRBuilder &B, MachineRegisterInfo &MRI,
                           Register Reg) const;

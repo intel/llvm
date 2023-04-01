@@ -7,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
+
+// We voluntarily use std::default_initializable on types that have redundant
+// or ignored cv-qualifiers -- don't warn about it.
+// ADDITIONAL_COMPILE_FLAGS: -Wno-ignored-qualifiers
 
 // template<class T>
 //     concept default_initializable = constructible_from<T> &&
@@ -257,9 +260,4 @@ void test()
     test_true     <std::shared_ptr<int>>();
     test_true     <std::weak_ptr<int>>();
 
-}
-
-// Required for MSVC internal test runner compatibility.
-int main(int, char**) {
-    return 0;
 }

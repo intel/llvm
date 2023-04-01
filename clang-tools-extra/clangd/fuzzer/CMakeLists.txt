@@ -1,5 +1,5 @@
 set(LLVM_LINK_COMPONENTS
-  FuzzMutate
+  FuzzerCLI
   Support
   )
 
@@ -21,5 +21,6 @@ clang_target_link_libraries(clangd-fuzzer
 target_link_libraries(clangd-fuzzer
   PRIVATE
   clangDaemon
+  clangIncludeCleaner
   clangdSupport
   )

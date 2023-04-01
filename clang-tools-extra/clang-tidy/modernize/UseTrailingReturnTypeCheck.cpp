@@ -15,12 +15,11 @@
 #include "llvm/ADT/StringExtras.h"
 
 #include <cctype>
+#include <optional>
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 namespace {
 struct UnqualNameVisitor : public RecursiveASTVisitor<UnqualNameVisitor> {
 public:
@@ -97,7 +96,9 @@ public:
     if (TL.getQualifierLoc() &&
         !TraverseNestedNameSpecifierLoc(TL.getQualifierLoc()))
       return false;
-    return TraverseTypeLoc(TL.getNamedTypeLoc(), true);
+    const auto *T = TL.getTypePtr();
+    return TraverseTypeLoc(TL.getNamedTypeLoc(),
+                           T->getKeyword() != ETK_None || T->getQualifier());
   }
 
   bool VisitDeclRefExpr(DeclRefExpr *S) {
@@ -175,7 +176,7 @@ static bool isSpecifier(Token T) {
                    tok::kw_static, tok::kw_friend, tok::kw_virtual);
 }
 
-static llvm::Optional<ClassifiedToken>
+static std::optional<ClassifiedToken>
 classifyToken(const FunctionDecl &F, Preprocessor &PP, Token Tok) {
   ClassifiedToken CT;
   CT.T = Tok;
@@ -210,12 +211,12 @@ classifyToken(const FunctionDecl &F, Preprocessor &PP, Token Tok) {
   // If the Token/Macro contains more than one type of tokens, we would need
   // to split the macro in order to move parts to the trailing return type.
   if (ContainsQualifiers + ContainsSpecifiers + ContainsSomethingElse > 1)
-    return llvm::None;
+    return std::nullopt;
 
   return CT;
 }
 
-llvm::Optional<SmallVector<ClassifiedToken, 8>>
+std::optional<SmallVector<ClassifiedToken, 8>>
 UseTrailingReturnTypeCheck::classifyTokensBeforeFunctionName(
     const FunctionDecl &F, const ASTContext &Ctx, const SourceManager &SM,
     const LangOptions &LangOpts) {
@@ -241,7 +242,7 @@ UseTrailingReturnTypeCheck::classifyTokensBeforeFunctionName(
         if (!MI || MI->isFunctionLike()) {
           // Cannot handle function style macros.
           diag(F.getLocation(), Message);
-          return llvm::None;
+          return std::nullopt;
         }
       }
 
@@ -249,11 +250,11 @@ UseTrailingReturnTypeCheck::classifyTokensBeforeFunctionName(
       T.setKind(Info.getTokenID());
     }
 
-    if (llvm::Optional<ClassifiedToken> CT = classifyToken(F, *PP, T))
+    if (std::optional<ClassifiedToken> CT = classifyToken(F, *PP, T))
       ClassifiedTokens.push_back(*CT);
     else {
       diag(F.getLocation(), Message);
-      return llvm::None;
+      return std::nullopt;
     }
   }
 
@@ -285,41 +286,13 @@ SourceRange UseTrailingReturnTypeCheck::findReturnTypeAndCVSourceRange(
     return {};
   }
 
-  // If the return type is a constrained 'auto' or 'decltype(auto)', we need to
-  // include the tokens after the concept. Unfortunately, the source range of an
-  // AutoTypeLoc, if it is constrained, does not include the 'auto' or
-  // 'decltype(auto)'. If the return type is a plain 'decltype(...)', the
-  // source range only contains the first 'decltype' token.
-  auto ATL = ReturnLoc.getAs<AutoTypeLoc>();
-  if ((ATL && (ATL.isConstrained() ||
-               ATL.getAutoKeyword() == AutoTypeKeyword::DecltypeAuto)) ||
-      ReturnLoc.getAs<DecltypeTypeLoc>()) {
-    SourceLocation End =
-        expandIfMacroId(ReturnLoc.getSourceRange().getEnd(), SM);
-    SourceLocation BeginNameF = expandIfMacroId(F.getLocation(), SM);
-
-    // Extend the ReturnTypeRange until the last token before the function
-    // name.
-    std::pair<FileID, unsigned> Loc = SM.getDecomposedLoc(End);
-    StringRef File = SM.getBufferData(Loc.first);
-    const char *TokenBegin = File.data() + Loc.second;
-    Lexer Lexer(SM.getLocForStartOfFile(Loc.first), LangOpts, File.begin(),
-                TokenBegin, File.end());
-    Token T;
-    SourceLocation LastTLoc = End;
-    while (!Lexer.LexFromRawLexer(T) &&
-           SM.isBeforeInTranslationUnit(T.getLocation(), BeginNameF)) {
-      LastTLoc = T.getLocation();
-    }
-    ReturnTypeRange.setEnd(LastTLoc);
-  }
 
   // If the return type has no local qualifiers, it's source range is accurate.
   if (!hasAnyNestedLocalQualifiers(F.getReturnType()))
     return ReturnTypeRange;
 
   // Include qualifiers to the left and right of the return type.
-  llvm::Optional<SmallVector<ClassifiedToken, 8>> MaybeTokens =
+  std::optional<SmallVector<ClassifiedToken, 8>> MaybeTokens =
       classifyTokensBeforeFunctionName(F, Ctx, SM, LangOpts);
   if (!MaybeTokens)
     return {};
@@ -371,7 +344,7 @@ void UseTrailingReturnTypeCheck::keepSpecifiers(
 
   // Tokenize return type. If it contains macros which contain a mix of
   // qualifiers, specifiers and types, give up.
-  llvm::Optional<SmallVector<ClassifiedToken, 8>> MaybeTokens =
+  std::optional<SmallVector<ClassifiedToken, 8>> MaybeTokens =
       classifyTokensBeforeFunctionName(F, Ctx, SM, LangOpts);
   if (!MaybeTokens)
     return;
@@ -432,14 +405,17 @@ void UseTrailingReturnTypeCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Fr = Result.Nodes.getNodeAs<FriendDecl>("Friend");
   assert(F && "Matcher is expected to find only FunctionDecls");
 
-  if (F->getLocation().isInvalid())
+  // Three-way comparison operator<=> is syntactic sugar and generates implicit
+  // nodes for all other operators.
+  if (F->getLocation().isInvalid() || F->isImplicit())
     return;
 
-  // Skip functions which return just 'auto'.
+  // Skip functions which return 'auto' and defaulted operators.
   const auto *AT = F->getDeclaredReturnType()->getAs<AutoType>();
-  if (AT != nullptr && !AT->isConstrained() &&
-      AT->getKeyword() == AutoTypeKeyword::Auto &&
-      !hasAnyNestedLocalQualifiers(F->getDeclaredReturnType()))
+  if (AT != nullptr &&
+      ((!AT->isConstrained() && AT->getKeyword() == AutoTypeKeyword::Auto &&
+        !hasAnyNestedLocalQualifiers(F->getDeclaredReturnType())) ||
+       F->isDefaulted()))
     return;
 
   // TODO: implement those
@@ -518,6 +494,4 @@ void UseTrailingReturnTypeCheck::check(const MatchFinder::MatchResult &Result) {
       << FixItHint::CreateInsertion(InsertionLoc, " -> " + ReturnType);
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

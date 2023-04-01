@@ -13,12 +13,11 @@
 #ifndef LLVM_SUPPORT_BLOCKFREQUENCY_H
 #define LLVM_SUPPORT_BLOCKFREQUENCY_H
 
-#include "llvm/Support/BranchProbability.h"
-#include "llvm/Support/DataTypes.h"
+#include <cstdint>
 
 namespace llvm {
 
-class raw_ostream;
+class BranchProbability;
 
 // This class represents Block Frequency as a 64-bit value.
 class BlockFrequency {
@@ -28,7 +27,7 @@ public:
   BlockFrequency(uint64_t Freq = 0) : Frequency(Freq) { }
 
   /// Returns the maximum possible frequency, the saturation value.
-  static uint64_t getMaxFrequency() { return -1ULL; }
+  static uint64_t getMaxFrequency() { return UINT64_MAX; }
 
   /// Returns the frequency as a fixpoint number scaled by the entry
   /// frequency.
@@ -76,6 +75,6 @@ public:
   }
 };
 
-}
+} // namespace llvm
 
 #endif

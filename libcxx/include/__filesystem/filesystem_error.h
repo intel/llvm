@@ -14,10 +14,15 @@
 #include <__config>
 #include <__filesystem/path.h>
 #include <__memory/shared_ptr.h>
+#include <__utility/forward.h>
+#include <__verbose_abort>
 #include <iosfwd>
 #include <new>
 #include <system_error>
-#include <type_traits>
+
+#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+#  pragma GCC system_header
+#endif
 
 #ifndef _LIBCPP_CXX03_LANG
 
@@ -56,7 +61,7 @@ public:
   filesystem_error(const filesystem_error&) = default;
   ~filesystem_error() override; // key function
 
-  _LIBCPP_INLINE_VISIBILITY
+  _LIBCPP_HIDE_FROM_ABI_VIRTUAL
   const char* what() const noexcept override {
     return __storage_->__what_.c_str();
   }
@@ -81,13 +86,13 @@ _LIBCPP_AVAILABILITY_FILESYSTEM_PUSH
 
 template <class... _Args>
 _LIBCPP_NORETURN inline _LIBCPP_INLINE_VISIBILITY
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
 void __throw_filesystem_error(_Args&&... __args) {
   throw filesystem_error(_VSTD::forward<_Args>(__args)...);
 }
 #else
 void __throw_filesystem_error(_Args&&...) {
-  _VSTD::abort();
+    _LIBCPP_VERBOSE_ABORT("filesystem_error was thrown in -fno-exceptions mode");
 }
 #endif
 _LIBCPP_AVAILABILITY_FILESYSTEM_POP

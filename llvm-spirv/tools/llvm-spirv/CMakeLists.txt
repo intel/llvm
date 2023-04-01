@@ -4,7 +4,9 @@ set(LLVM_LINK_COMPONENTS
   BitReader
   BitWriter
   Core
+  Passes
   Support
+  TargetParser
   TransformUtils
 )
 

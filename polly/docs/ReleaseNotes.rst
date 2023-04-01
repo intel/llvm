@@ -1,28 +1,25 @@
-=============================
-Release Notes 14.0 (upcoming)
-=============================
+===========================================
+Release Notes |release| |ReleaseNotesTitle|
+===========================================
 
-In Polly 14 the following important changes have been incorporated.
+In Polly |version| the following important changes have been incorporated.
 
-.. warning::
+.. only:: PreRelease
 
-  These release notes are for the next release of Polly and describe
-  the new features that have recently been committed to our development
-  branch.
+  .. warning::
+    These release notes are for the next release of Polly and describe
+    the new features that have recently been committed to our development
+    branch.
 
-- The command line option -polly-opt-fusion has been removed. What the
-  flag does was frequently misunderstood and is rarely useful. However,
-  the functionality is still accessible using
 
-  .. code-block:: console
+- Support for -polly-vectorizer=polly has been removed. Polly's internal
+  vectorizer is not well maintained and is known to not work in some cases
+  such as region ScopStmts. Unlike LLVM's LoopVectorize pass it also does
+  not have a target-dependent cost heuristics, and we recommend using
+  LoopVectorize instead of -polly-vectorizer=polly.
 
-    -polly-isl-arg=--no-schedule-serialize-sccs
+  In the future we hope that Polly can collaborate better with LoopVectorize,
+  like Polly marking a loop is safe to vectorize with a specific simd width,
+  instead of replicating its functionality.
 
-- The command line option -polly-loopfusion-greedy has been added.
-  This will aggressively try to fuse any loop regardless of
-  profitability. The is what users might have expected what
-  -polly-opt-fusion=max would do.
-
-- Support for gfortran-generated code has been removed. This includes
-  Fortran Array Descriptors (-polly-detect-fortran-arrays) and the
-  -polly-rewrite-byref-params pass.
+- Polly-ACC has been removed.

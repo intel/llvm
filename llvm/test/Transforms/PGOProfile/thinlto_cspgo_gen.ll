@@ -2,7 +2,7 @@
 
 ; RUN: opt -passes='thinlto-pre-link<O2>' --cs-profilegen-file=alloc -cspgo-kind=cspgo-instr-gen-pipeline -module-summary %s -o %t1.bc
 ; RUN: opt -passes='thinlto-pre-link<O2>' --cs-profilegen-file=alloc -cspgo-kind=cspgo-instr-gen-pipeline -module-summary %S/Inputs/thinlto_cspgo_bar_gen.ll -o %t2.bc
-; RUN: llvm-lto2 run -lto-cspgo-profile-file=alloc -lto-cspgo-gen -save-temps -o %t %t1.bc %t2.bc \
+; RUN: llvm-lto2 run -opaque-pointers -lto-cspgo-profile-file=alloc -lto-cspgo-gen -save-temps -o %t %t1.bc %t2.bc \
 ; RUN:   -r=%t1.bc,foo,pl \
 ; RUN:   -r=%t1.bc,bar,l \
 ; RUN:   -r=%t1.bc,main,plx \
@@ -17,11 +17,11 @@
 ; RUN: llvm-dis %t.2.4.opt.bc -o - | FileCheck %s --check-prefixes=CSGEN,NOPREVAILING
 
 ;; Prevailing __llvm_profile_raw_version is kept by LTO.
-; PREVAILING: @__llvm_profile_raw_version = constant i64
+; PREVAILING: @__llvm_profile_raw_version = hidden constant i64
 
 ;; Non-prevailing __llvm_profile_raw_version is discarded by LTO. Ensure the
 ;; declaration is retained.
-; NOPREVAILING: @__llvm_profile_raw_version = external constant i64
+; NOPREVAILING: @__llvm_profile_raw_version = external hidden constant i64
 ; CSGEN: @__profc_
 ; CSGEN: @__profd_
 

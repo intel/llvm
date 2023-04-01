@@ -21,6 +21,8 @@ else()
   include(HandleInLLVMTree)
 endif()
 
+set(CMAKE_CXX_STANDARD 17)
+
 include( GNUInstallDirs )
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   amdgcn-amdhsa/lib/SOURCES;
@@ -81,7 +83,6 @@ if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
 	set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
 endif()
 
-
 set(LIBCLC_TARGET_TO_TEST)
 
 foreach ( t ${LIBCLC_TEST_TARGETS_ALL})
@@ -121,12 +122,12 @@ message( "LLVM bindir: ${LLVM_TOOLS_BINARY_DIR}" )
 message( "LLVM cxx flags: ${LLVM_CXX_FLAGS}" )
 message( "" )
 
-find_program( LLVM_CLANG clang PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
-find_program( LLVM_AS llvm-as PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
-find_program( LLVM_LINK llvm-link PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
-find_program( LLVM_OPT opt PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
-find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
-find_program( LIBCLC_REMANGLER libclc-remangler PATHS ${LLVM_BINDIR}
+find_program( LLVM_CLANG clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_AS llvm-as PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_LINK llvm-link PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_OPT opt PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LIBCLC_REMANGLER libclc-remangler PATHS ${LLVM_TOOLS_BINARY_DIR}
 							NO_DEFAULT_PATH )
 
 # Print toolchain
@@ -158,8 +159,8 @@ set( CMAKE_LLAsm_ARCHIVE ${LLVM_LINK} )
 
 # LLVM 13 enables standard includes by default
 if( ${LLVM_VERSION} VERSION_GREATER "12.99.99" )
-				set( CMAKE_LLAsm_FLAGS ${CMAKE_LLAsm_FLAGS} -cl-no-stdinc )
-				set( CMAKE_CLC_FLAGS ${CMAKE_CLC_FLAGS} -cl-no-stdinc )
+				set( CMAKE_LLAsm_FLAGS "${CMAKE_LLAsm_FLAGS} -cl-no-stdinc")
+				set( CMAKE_CLC_FLAGS "${CMAKE_CLC_FLAGS} -cl-no-stdinc")
 endif()
 
 enable_language( CLC LLAsm )
@@ -296,11 +297,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
 	# Add the generated convert.cl here to prevent adding
 	# the one listed in SOURCES
-	if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" AND
-			NOT ${ARCH} STREQUAL "clspv" AND NOT ${ARCH} STREQUAL "clspv64" )
+	if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" )
 		set( rel_files convert.cl )
 		set( objects convert.cl )
-		if( NOT ENABLE_RUNTIME_SUBNORMAL )
+		if( NOT ENABLE_RUNTIME_SUBNORMAL AND NOT ${ARCH} STREQUAL "clspv" AND
+		    NOT ${ARCH} STREQUAL "clspv64" )
 			list( APPEND rel_files generic/lib/subnormal_use_default.ll )
 		endif()
 	else()
@@ -337,8 +338,12 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				# Disables NVVM reflection to defer to after linking
 				set( flags "SHELL:-Xclang -target-feature" "SHELL:-Xclang +ptx72"
 						 "SHELL:-march=sm_86" "SHELL:-mllvm --nvvm-reflect-enable=false")
-                        else()
-                                set ( flags )
+			elseif( ${ARCH} STREQUAL amdgcn )
+				# AMDGCN needs libclc to be compiled to high bc version since all atomic
+				# clang builtins need to be accessible
+				set( flags "SHELL:-mcpu=gfx940")
+			else()
+				set ( flags )
 			endif()
 			set( arch_suffix "${t}" )
 		else()
@@ -375,6 +380,27 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
                 # Enable SPIR-V builtin function declarations, so they don't
                 # have to be explicity declared in the soruce.
                 list( APPEND flags -Xclang -fdeclare-spirv-builtins)
+
+                if(NOT SPIRV_ENABLE_OPAQUE_POINTERS)
+                  list(APPEND flags "-UENABLE_OPAQUE_POINTERS")
+                  list(APPEND flags "SHELL:-Xclang -no-opaque-pointers")
+                  list(APPEND opt_flags "-opaque-pointers=0")
+                endif()
+
+                # OpenCL 3.0 extensions
+                list( APPEND flags -cl-std=CL3.0 "SHELL:-Xclang" )
+                string(CONCAT CL_3_0_EXTENSIONS
+                  "-cl-ext="
+                  "+cl_khr_fp64,"
+                  "+__opencl_c_3d_image_writes,"
+                  "+__opencl_c_images,"
+                  "+cl_khr_3d_image_writes,"
+                  "+__opencl_c_generic_address_space")
+                if ( NOT ${ARCH} STREQUAL amdgcn )
+                  string(APPEND CL_3_0_EXTENSIONS
+                    ",+cl_khr_fp16")
+                endif()
+                list( APPEND flags ${CL_3_0_EXTENSIONS})
 
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}

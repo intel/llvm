@@ -3,11 +3,11 @@
 // rdar://problem/14039866
 
 // CHECK: define{{.*}}@main()
-// CHECK: store{{.*}}bitcast{{.*}}, !dbg ![[ASSIGNMENT:[0-9]+]]
+// CHECK: store {{.*}}, !dbg ![[ASSIGNMENT:[0-9]+]]
 // CHECK: define {{.*}} @__main_block_invoke
 // CHECK: , !dbg ![[BLOCK_ENTRY:[0-9]+]]
 
-int main()
+int main(void)
 {
 // CHECK: [[ASSIGNMENT]] = !DILocation(line: [[@LINE+2]],
 // CHECK: [[BLOCK_ENTRY]] = !DILocation(line: [[@LINE+1]],

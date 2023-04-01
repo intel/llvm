@@ -9,11 +9,14 @@
 #include "PlatformWindows.h"
 
 #include <cstdio>
+#include <optional>
 #if defined(_WIN32)
 #include "lldb/Host/windows/windows.h"
 #include <winsock2.h>
 #endif
 
+#include "Plugins/Platform/gdb-server/PlatformRemoteGDBServer.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Breakpoint/BreakpointSite.h"
 #include "lldb/Core/Debugger.h"
@@ -27,8 +30,6 @@
 #include "lldb/Target/DynamicLoader.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Utility/Status.h"
-
-#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/ConvertUTF.h"
@@ -124,11 +125,9 @@ PlatformWindows::PlatformWindows(bool is_host) : RemoteAwarePlatform(is_host) {
     if (spec.IsValid())
       m_supported_architectures.push_back(spec);
   };
-  AddArch(ArchSpec("i686-pc-windows"));
   AddArch(HostInfo::GetArchitecture(HostInfo::eArchKindDefault));
   AddArch(HostInfo::GetArchitecture(HostInfo::eArchKind32));
   AddArch(HostInfo::GetArchitecture(HostInfo::eArchKind64));
-  AddArch(ArchSpec("i386-pc-windows"));
 }
 
 Status PlatformWindows::ConnectRemote(Args &args) {
@@ -140,7 +139,8 @@ Status PlatformWindows::ConnectRemote(Args &args) {
   } else {
     if (!m_remote_platform_sp)
       m_remote_platform_sp =
-          Platform::Create(ConstString("remote-gdb-server"), error);
+          platform_gdb_server::PlatformRemoteGDBServer::CreateInstance(
+              /*force=*/true, nullptr);
 
     if (m_remote_platform_sp) {
       if (error.Success()) {
@@ -226,7 +226,7 @@ uint32_t PlatformWindows::DoLoadImage(Process *process,
 
   /* Inject paths parameter into inferior */
   lldb::addr_t injected_paths{0x0};
-  llvm::Optional<llvm::detail::scope_exit<std::function<void()>>> paths_cleanup;
+  std::optional<llvm::detail::scope_exit<std::function<void()>>> paths_cleanup;
   if (paths) {
     llvm::SmallVector<llvm::UTF16, 261> search_paths;
 
@@ -336,19 +336,21 @@ uint32_t PlatformWindows::DoLoadImage(Process *process,
     return LLDB_INVALID_IMAGE_TOKEN;
   }
 
-  auto parameter_cleanup = llvm::make_scope_exit([invocation, &context, injected_parameters]() {
-    invocation->DeallocateFunctionResults(context, injected_parameters);
-  });
+  auto parameter_cleanup =
+      llvm::make_scope_exit([invocation, &context, injected_parameters]() {
+        invocation->DeallocateFunctionResults(context, injected_parameters);
+      });
 
-  TypeSystemClang *ast =
+  TypeSystemClangSP scratch_ts_sp =
       ScratchTypeSystemClang::GetForTarget(process->GetTarget());
-  if (!ast) {
+  if (!scratch_ts_sp) {
     error.SetErrorString("LoadLibrary error: unable to get (clang) type system");
     return LLDB_INVALID_IMAGE_TOKEN;
   }
 
   /* Setup Return Type */
-  CompilerType VoidPtrTy = ast->GetBasicType(eBasicTypeVoid).GetPointerType();
+  CompilerType VoidPtrTy =
+      scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
 
   Value value;
   value.SetCompilerType(VoidPtrTy);
@@ -488,18 +490,20 @@ ProcessSP PlatformWindows::DebugProcess(ProcessLaunchInfo &launch_info,
     // This is a process attach.  Don't need to launch anything.
     ProcessAttachInfo attach_info(launch_info);
     return Attach(attach_info, debugger, &target, error);
-  } else {
-    ProcessSP process_sp = target.CreateProcess(
-        launch_info.GetListener(), launch_info.GetProcessPluginName(), nullptr,
-        false);
-
-    // We need to launch and attach to the process.
-    launch_info.GetFlags().Set(eLaunchFlagDebug);
-    if (process_sp)
-      error = process_sp->Launch(launch_info);
-
-    return process_sp;
   }
+
+  ProcessSP process_sp =
+      target.CreateProcess(launch_info.GetListener(),
+                           launch_info.GetProcessPluginName(), nullptr, false);
+
+  process_sp->HijackProcessEvents(launch_info.GetHijackListener());
+
+  // We need to launch and attach to the process.
+  launch_info.GetFlags().Set(eLaunchFlagDebug);
+  if (process_sp)
+    error = process_sp->Launch(launch_info);
+
+  return process_sp;
 }
 
 lldb::ProcessSP PlatformWindows::Attach(ProcessAttachInfo &attach_info,
@@ -648,7 +652,7 @@ _Static_assert(sizeof(struct __lldb_LoadLibraryResult) <= 3 * sizeof(void *),
 
 void * __lldb_LoadLibraryHelper(const wchar_t *name, const wchar_t *paths,
                                 __lldb_LoadLibraryResult *result) {
-  for (const wchar_t *path = paths; path; ) {
+  for (const wchar_t *path = paths; path && *path; ) {
     (void)AddDllDirectory(path);
     path += wcslen(path) + 1;
   }
@@ -681,12 +685,15 @@ void * __lldb_LoadLibraryHelper(const wchar_t *name, const wchar_t *paths,
     return nullptr;
   }
 
-  TypeSystemClang *ast = ScratchTypeSystemClang::GetForTarget(target);
-  if (!ast)
+  TypeSystemClangSP scratch_ts_sp =
+      ScratchTypeSystemClang::GetForTarget(target);
+  if (!scratch_ts_sp)
     return nullptr;
 
-  CompilerType VoidPtrTy = ast->GetBasicType(eBasicTypeVoid).GetPointerType();
-  CompilerType WCharPtrTy = ast->GetBasicType(eBasicTypeWChar).GetPointerType();
+  CompilerType VoidPtrTy =
+      scratch_ts_sp->GetBasicType(eBasicTypeVoid).GetPointerType();
+  CompilerType WCharPtrTy =
+      scratch_ts_sp->GetBasicType(eBasicTypeWChar).GetPointerType();
 
   ValueList parameters;
 

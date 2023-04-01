@@ -10,11 +10,14 @@
 
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/ExecutionEngine/JITLink/ELF_x86_64.h"
+#include "llvm/ExecutionEngine/JITLink/aarch64.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ObjectFormats.h"
 #include "llvm/Support/BinaryByteStream.h"
 #include "llvm/Support/Debug.h"
+#include <optional>
 
 #define DEBUG_TYPE "orc"
 
@@ -38,14 +41,18 @@ public:
     unsigned PointerSize;
     support::endianness Endianness;
     jitlink::Edge::Kind EdgeKind;
-    const auto &TT =
-        ENP.getExecutionSession().getExecutorProcessControl().getTargetTriple();
+    const auto &TT = ENP.getExecutionSession().getTargetTriple();
 
     switch (TT.getArch()) {
     case Triple::x86_64:
       PointerSize = 8;
       Endianness = support::endianness::little;
       EdgeKind = jitlink::x86_64::Pointer64;
+      break;
+    case Triple::aarch64:
+      PointerSize = 8;
+      Endianness = support::endianness::little;
+      EdgeKind = jitlink::aarch64::Pointer64;
       break;
     default:
       llvm_unreachable("Unrecognized architecture");
@@ -56,7 +63,7 @@ public:
         "<DSOHandleMU>", TT, PointerSize, Endianness,
         jitlink::getGenericEdgeKindName);
     auto &DSOHandleSection =
-        G->createSection(".data.__dso_handle", jitlink::MemProt::Read);
+        G->createSection(".data.__dso_handle", MemProt::Read);
     auto &DSOHandleBlock = G->createContentBlock(
         DSOHandleSection, getDSOHandleContent(PointerSize), orc::ExecutorAddr(),
         8, 0);
@@ -89,36 +96,31 @@ private:
   ELFNixPlatform &ENP;
 };
 
-StringRef EHFrameSectionName = ".eh_frame";
-StringRef InitArrayFuncSectionName = ".init_array";
-
-StringRef ThreadBSSSectionName = ".tbss";
-StringRef ThreadDataSectionName = ".tdata";
-
-StringRef InitSectionNames[] = {InitArrayFuncSectionName};
-
 } // end anonymous namespace
 
 namespace llvm {
 namespace orc {
 
-Expected<std::unique_ptr<ELFNixPlatform>>
-ELFNixPlatform::Create(ExecutionSession &ES,
-                       ObjectLinkingLayer &ObjLinkingLayer,
-                       JITDylib &PlatformJD, const char *OrcRuntimePath,
-                       Optional<SymbolAliasMap> RuntimeAliases) {
+Expected<std::unique_ptr<ELFNixPlatform>> ELFNixPlatform::Create(
+    ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
+    JITDylib &PlatformJD, std::unique_ptr<DefinitionGenerator> OrcRuntime,
+    std::optional<SymbolAliasMap> RuntimeAliases) {
+
+  // If the target is not supported then bail out immediately.
+  if (!supportedTarget(ES.getTargetTriple()))
+    return make_error<StringError>("Unsupported ELFNixPlatform triple: " +
+                                       ES.getTargetTriple().str(),
+                                   inconvertibleErrorCode());
 
   auto &EPC = ES.getExecutorProcessControl();
 
-  // If the target is not supported then bail out immediately.
-  if (!supportedTarget(EPC.getTargetTriple()))
-    return make_error<StringError>("Unsupported ELFNixPlatform triple: " +
-                                       EPC.getTargetTriple().str(),
-                                   inconvertibleErrorCode());
-
   // Create default aliases if the caller didn't supply any.
-  if (!RuntimeAliases)
-    RuntimeAliases = standardPlatformAliases(ES);
+  if (!RuntimeAliases) {
+    auto StandardRuntimeAliases = standardPlatformAliases(ES, PlatformJD);
+    if (!StandardRuntimeAliases)
+      return StandardRuntimeAliases.takeError();
+    RuntimeAliases = std::move(*StandardRuntimeAliases);
+  }
 
   // Define the aliases.
   if (auto Err = PlatformJD.define(symbolAliases(std::move(*RuntimeAliases))))
@@ -134,25 +136,39 @@ ELFNixPlatform::Create(ExecutionSession &ES,
              JITSymbolFlags::Exported}}})))
     return std::move(Err);
 
-  // Create a generator for the ORC runtime archive.
-  auto OrcRuntimeArchiveGenerator = StaticLibraryDefinitionGenerator::Load(
-      ObjLinkingLayer, OrcRuntimePath, EPC.getTargetTriple());
-  if (!OrcRuntimeArchiveGenerator)
-    return OrcRuntimeArchiveGenerator.takeError();
-
   // Create the instance.
   Error Err = Error::success();
-  auto P = std::unique_ptr<ELFNixPlatform>(
-      new ELFNixPlatform(ES, ObjLinkingLayer, PlatformJD,
-                         std::move(*OrcRuntimeArchiveGenerator), Err));
+  auto P = std::unique_ptr<ELFNixPlatform>(new ELFNixPlatform(
+      ES, ObjLinkingLayer, PlatformJD, std::move(OrcRuntime), Err));
   if (Err)
     return std::move(Err);
   return std::move(P);
 }
 
+Expected<std::unique_ptr<ELFNixPlatform>>
+ELFNixPlatform::Create(ExecutionSession &ES,
+                       ObjectLinkingLayer &ObjLinkingLayer,
+                       JITDylib &PlatformJD, const char *OrcRuntimePath,
+                       std::optional<SymbolAliasMap> RuntimeAliases) {
+
+  // Create a generator for the ORC runtime archive.
+  auto OrcRuntimeArchiveGenerator =
+      StaticLibraryDefinitionGenerator::Load(ObjLinkingLayer, OrcRuntimePath);
+  if (!OrcRuntimeArchiveGenerator)
+    return OrcRuntimeArchiveGenerator.takeError();
+
+  return Create(ES, ObjLinkingLayer, PlatformJD,
+                std::move(*OrcRuntimeArchiveGenerator),
+                std::move(RuntimeAliases));
+}
+
 Error ELFNixPlatform::setupJITDylib(JITDylib &JD) {
   return JD.define(
       std::make_unique<DSOHandleMaterializationUnit>(*this, DSOHandleSymbol));
+}
+
+Error ELFNixPlatform::teardownJITDylib(JITDylib &JD) {
+  return Error::success();
 }
 
 Error ELFNixPlatform::notifyAdding(ResourceTracker &RT,
@@ -185,10 +201,53 @@ static void addAliases(ExecutionSession &ES, SymbolAliasMap &Aliases,
   }
 }
 
-SymbolAliasMap ELFNixPlatform::standardPlatformAliases(ExecutionSession &ES) {
+Expected<SymbolAliasMap>
+ELFNixPlatform::standardPlatformAliases(ExecutionSession &ES,
+                                        JITDylib &PlatformJD) {
   SymbolAliasMap Aliases;
   addAliases(ES, Aliases, requiredCXXAliases());
   addAliases(ES, Aliases, standardRuntimeUtilityAliases());
+
+  // Determine whether or not the libunwind extended-API function for
+  // dynamically registering an entire .eh_frame section is available.
+  // If it is not, we assume that libgcc_s is being used, and alias to
+  // its __register_frame with the same functionality.
+  auto RTRegisterFrame = ES.intern("__orc_rt_register_eh_frame_section");
+  auto LibUnwindRegisterFrame = ES.intern("__unw_add_dynamic_eh_frame_section");
+  auto RTDeregisterFrame = ES.intern("__orc_rt_deregister_eh_frame_section");
+  auto LibUnwindDeregisterFrame =
+      ES.intern("__unw_remove_dynamic_eh_frame_section");
+  auto SM = ES.lookup(makeJITDylibSearchOrder(&PlatformJD),
+                      SymbolLookupSet()
+                          .add(LibUnwindRegisterFrame,
+                               SymbolLookupFlags::WeaklyReferencedSymbol)
+                          .add(LibUnwindDeregisterFrame,
+                               SymbolLookupFlags::WeaklyReferencedSymbol));
+  if (!SM) { // Weak-ref means no "missing symbol" errors, so this must be
+             // something more serious that we should report.
+    return SM.takeError();
+  } else if (SM->size() == 2) {
+    LLVM_DEBUG({
+      dbgs() << "Using libunwind " << LibUnwindRegisterFrame
+             << " for unwind info registration\n";
+    });
+    Aliases[std::move(RTRegisterFrame)] = {LibUnwindRegisterFrame,
+                                           JITSymbolFlags::Exported};
+    Aliases[std::move(RTDeregisterFrame)] = {LibUnwindDeregisterFrame,
+                                             JITSymbolFlags::Exported};
+  } else {
+    // Since LLVM libunwind is not present, we assume that unwinding
+    // is provided by libgcc
+    LLVM_DEBUG({
+      dbgs() << "Using libgcc __register_frame"
+             << " for unwind info registration\n";
+    });
+    Aliases[std::move(RTRegisterFrame)] = {ES.intern("__register_frame"),
+                                           JITSymbolFlags::Exported};
+    Aliases[std::move(RTDeregisterFrame)] = {ES.intern("__deregister_frame"),
+                                             JITSymbolFlags::Exported};
+  }
+
   return Aliases;
 }
 
@@ -206,23 +265,20 @@ ELFNixPlatform::standardRuntimeUtilityAliases() {
   static const std::pair<const char *, const char *>
       StandardRuntimeUtilityAliases[] = {
           {"__orc_rt_run_program", "__orc_rt_elfnix_run_program"},
+          {"__orc_rt_jit_dlerror", "__orc_rt_elfnix_jit_dlerror"},
+          {"__orc_rt_jit_dlopen", "__orc_rt_elfnix_jit_dlopen"},
+          {"__orc_rt_jit_dlclose", "__orc_rt_elfnix_jit_dlclose"},
+          {"__orc_rt_jit_dlsym", "__orc_rt_elfnix_jit_dlsym"},
           {"__orc_rt_log_error", "__orc_rt_log_error_to_stderr"}};
 
   return ArrayRef<std::pair<const char *, const char *>>(
       StandardRuntimeUtilityAliases);
 }
 
-bool ELFNixPlatform::isInitializerSection(StringRef SecName) {
-  for (auto &Name : InitSectionNames) {
-    if (Name.equals(SecName))
-      return true;
-  }
-  return false;
-}
-
 bool ELFNixPlatform::supportedTarget(const Triple &TT) {
   switch (TT.getArch()) {
   case Triple::x86_64:
+  case Triple::aarch64:
     return true;
   default:
     return false;
@@ -316,9 +372,14 @@ void ELFNixPlatform::getInitializersLookupPhase(
     SendInitializerSequenceFn SendResult, JITDylib &JD) {
 
   auto DFSLinkOrder = JD.getDFSLinkOrder();
+  if (!DFSLinkOrder) {
+    SendResult(DFSLinkOrder.takeError());
+    return;
+  }
+
   DenseMap<JITDylib *, SymbolLookupSet> NewInitSymbols;
   ES.runSessionLocked([&]() {
-    for (auto &InitJD : DFSLinkOrder) {
+    for (auto &InitJD : *DFSLinkOrder) {
       auto RISItr = RegisteredInitSymbols.find(InitJD.get());
       if (RISItr != RegisteredInitSymbols.end()) {
         NewInitSymbols[InitJD.get()] = std::move(RISItr->second);
@@ -331,7 +392,7 @@ void ELFNixPlatform::getInitializersLookupPhase(
   // phase.
   if (NewInitSymbols.empty()) {
     getInitializersBuildSequencePhase(std::move(SendResult), JD,
-                                      std::move(DFSLinkOrder));
+                                      std::move(*DFSLinkOrder));
     return;
   }
 
@@ -659,7 +720,7 @@ void ELFNixPlatform::ELFNixPlatformPlugin::addEHAndTLVSupportPasses(
   Config.PostFixupPasses.push_back([this](jitlink::LinkGraph &G) -> Error {
     ELFPerObjectSectionsToRegister POSR;
 
-    if (auto *EHFrameSection = G.findSectionByName(EHFrameSectionName)) {
+    if (auto *EHFrameSection = G.findSectionByName(ELFEHFrameSectionName)) {
       jitlink::SectionRange R(*EHFrameSection);
       if (!R.empty())
         POSR.EHFrameSection = {ExecutorAddr(R.getStart()),
@@ -669,10 +730,10 @@ void ELFNixPlatform::ELFNixPlatformPlugin::addEHAndTLVSupportPasses(
     // Get a pointer to the thread data section if there is one. It will be used
     // below.
     jitlink::Section *ThreadDataSection =
-        G.findSectionByName(ThreadDataSectionName);
+        G.findSectionByName(ELFThreadDataSectionName);
 
     // Handle thread BSS section if there is one.
-    if (auto *ThreadBSSSection = G.findSectionByName(ThreadBSSSectionName)) {
+    if (auto *ThreadBSSSection = G.findSectionByName(ELFThreadBSSSectionName)) {
       // If there's already a thread data section in this graph then merge the
       // thread BSS section content into it, otherwise just treat the thread
       // BSS section as the thread data section.
@@ -714,16 +775,15 @@ Error ELFNixPlatform::ELFNixPlatformPlugin::preserveInitSections(
     jitlink::LinkGraph &G, MaterializationResponsibility &MR) {
 
   JITLinkSymbolSet InitSectionSymbols;
-  for (auto &InitSectionName : InitSectionNames) {
+  for (auto &InitSection : G.sections()) {
     // Skip non-init sections.
-    auto *InitSection = G.findSectionByName(InitSectionName);
-    if (!InitSection)
+    if (!isELFInitializerSection(InitSection.getName()))
       continue;
 
     // Make a pass over live symbols in the section: those blocks are already
     // preserved.
     DenseSet<jitlink::Block *> AlreadyLiveBlocks;
-    for (auto &Sym : InitSection->symbols()) {
+    for (auto &Sym : InitSection.symbols()) {
       auto &B = Sym->getBlock();
       if (Sym->isLive() && Sym->getOffset() == 0 &&
           Sym->getSize() == B.getSize() && !AlreadyLiveBlocks.count(&B)) {
@@ -733,7 +793,7 @@ Error ELFNixPlatform::ELFNixPlatformPlugin::preserveInitSections(
     }
 
     // Add anonymous symbols to preserve any not-already-preserved blocks.
-    for (auto *B : InitSection->blocks())
+    for (auto *B : InitSection.blocks())
       if (!AlreadyLiveBlocks.count(B))
         InitSectionSymbols.insert(
             &G.addAnonymousSymbol(*B, 0, B->getSize(), false, true));
@@ -754,9 +814,9 @@ Error ELFNixPlatform::ELFNixPlatformPlugin::registerInitSections(
 
   LLVM_DEBUG({ dbgs() << "ELFNixPlatform::registerInitSections\n"; });
 
-  for (auto InitSectionName : InitSectionNames) {
-    if (auto *Sec = G.findSectionByName(InitSectionName)) {
-      InitSections.push_back(Sec);
+  for (auto &Sec : G.sections()) {
+    if (isELFInitializerSection(Sec.getName())) {
+      InitSections.push_back(&Sec);
     }
   }
 
@@ -776,16 +836,18 @@ Error ELFNixPlatform::ELFNixPlatformPlugin::registerInitSections(
 Error ELFNixPlatform::ELFNixPlatformPlugin::fixTLVSectionsAndEdges(
     jitlink::LinkGraph &G, JITDylib &JD) {
 
-  // TODO implement TLV support
-  for (auto *Sym : G.external_symbols())
+  for (auto *Sym : G.external_symbols()) {
     if (Sym->getName() == "__tls_get_addr") {
       Sym->setName("___orc_rt_elfnix_tls_get_addr");
+    } else if (Sym->getName() == "__tlsdesc_resolver") {
+      Sym->setName("___orc_rt_elfnix_tlsdesc_resolver");
     }
+  }
 
   auto *TLSInfoEntrySection = G.findSectionByName("$__TLSINFO");
 
   if (TLSInfoEntrySection) {
-    Optional<uint64_t> Key;
+    std::optional<uint64_t> Key;
     {
       std::lock_guard<std::mutex> Lock(MP.PlatformMutex);
       auto I = MP.JITDylibToPThreadKey.find(&JD);

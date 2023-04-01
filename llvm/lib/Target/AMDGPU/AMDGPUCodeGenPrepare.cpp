@@ -14,15 +14,16 @@
 
 #include "AMDGPU.h"
 #include "AMDGPUTargetMachine.h"
+#include "SIModeRegisterDefaults.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ConstantFolding.h"
-#include "llvm/Analysis/LegacyDivergenceAnalysis.h"
+#include "llvm/Analysis/UniformityAnalysis.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/KnownBits.h"
@@ -72,7 +73,7 @@ class AMDGPUCodeGenPrepare : public FunctionPass,
   const GCNSubtarget *ST = nullptr;
   AssumptionCache *AC = nullptr;
   DominatorTree *DT = nullptr;
-  LegacyDivergenceAnalysis *DA = nullptr;
+  UniformityInfo *UA = nullptr;
   Module *Mod = nullptr;
   const DataLayout *DL = nullptr;
   bool HasUnsafeFPMath = false;
@@ -223,7 +224,7 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<AssumptionCacheTracker>();
-    AU.addRequired<LegacyDivergenceAnalysis>();
+    AU.addRequired<UniformityInfoWrapperPass>();
 
     // FIXME: Division expansion needs to preserve the dominator tree.
     if (!ExpandDiv64InIR)
@@ -313,7 +314,7 @@ bool AMDGPUCodeGenPrepare::canWidenScalarExtLoad(LoadInst &I) const {
   int TySize = DL.getTypeSizeInBits(Ty);
   Align Alignment = DL.getValueOrABITypeAlignment(I.getAlign(), Ty);
 
-  return I.isSimple() && TySize < 32 && Alignment >= 4 && DA->isUniform(&I);
+  return I.isSimple() && TySize < 32 && Alignment >= 4 && UA->isUniform(&I);
 }
 
 bool AMDGPUCodeGenPrepare::promoteUniformOpToI32(BinaryOperator &I) const {
@@ -468,10 +469,12 @@ static void extractValues(IRBuilder<> &Builder,
 static Value *insertValues(IRBuilder<> &Builder,
                            Type *Ty,
                            SmallVectorImpl<Value *> &Values) {
-  if (Values.size() == 1)
+  if (!Ty->isVectorTy()) {
+    assert(Values.size() == 1);
     return Values[0];
+  }
 
-  Value *NewVal = UndefValue::get(Ty);
+  Value *NewVal = PoisonValue::get(Ty);
   for (int I = 0, E = Values.size(); I != E; ++I)
     NewVal = Builder.CreateInsertElement(NewVal, Values[I], I);
 
@@ -516,7 +519,7 @@ bool AMDGPUCodeGenPrepare::replaceMulWithMul24(BinaryOperator &I) const {
     return false;
 
   // Prefer scalar if this could be s_mul_i32
-  if (DA->isUniform(&I))
+  if (UA->isUniform(&I))
     return false;
 
   Value *LHS = I.getOperand(0);
@@ -626,13 +629,13 @@ bool AMDGPUCodeGenPrepare::foldBinOpIntoSelect(BinaryOperator &BO) const {
   Constant *FoldedT = SelOpNo ?
     ConstantFoldBinaryOpOperands(BO.getOpcode(), CBO, CT, *DL) :
     ConstantFoldBinaryOpOperands(BO.getOpcode(), CT, CBO, *DL);
-  if (isa<ConstantExpr>(FoldedT))
+  if (!FoldedT || isa<ConstantExpr>(FoldedT))
     return false;
 
   Constant *FoldedF = SelOpNo ?
     ConstantFoldBinaryOpOperands(BO.getOpcode(), CBO, CF, *DL) :
     ConstantFoldBinaryOpOperands(BO.getOpcode(), CF, CBO, *DL);
-  if (isa<ConstantExpr>(FoldedF))
+  if (!FoldedF || isa<ConstantExpr>(FoldedF))
     return false;
 
   IRBuilder<> Builder(&BO);
@@ -792,7 +795,7 @@ bool AMDGPUCodeGenPrepare::visitFDiv(BinaryOperator &FDiv) {
 
   Value *NewFDiv = nullptr;
   if (auto *VT = dyn_cast<FixedVectorType>(FDiv.getType())) {
-    NewFDiv = UndefValue::get(VT);
+    NewFDiv = PoisonValue::get(VT);
 
     // FIXME: Doesn't do the right thing for cases where the vector is partially
     // constant. This works when the scalarizer pass is run first.
@@ -870,14 +873,14 @@ static std::pair<Value*, Value*> getMul64(IRBuilder<> &Builder,
   Value *Lo = Builder.CreateTrunc(MUL64, I32Ty);
   Value *Hi = Builder.CreateLShr(MUL64, Builder.getInt64(32));
   Hi = Builder.CreateTrunc(Hi, I32Ty);
-  return std::make_pair(Lo, Hi);
+  return std::pair(Lo, Hi);
 }
 
 static Value* getMulHu(IRBuilder<> &Builder, Value *LHS, Value *RHS) {
   return getMul64(Builder, LHS, RHS).second;
 }
 
-/// Figure out how many bits are really needed for this ddivision. \p AtLeast is
+/// Figure out how many bits are really needed for this division. \p AtLeast is
 /// an optimization hint to bypass the second ComputeNumSignBits call if we the
 /// first one is insufficient. Returns -1 on failure.
 int AMDGPUCodeGenPrepare::getDivNumBits(BinaryOperator &I,
@@ -1145,7 +1148,7 @@ Value *AMDGPUCodeGenPrepare::expandDivRem32(IRBuilder<> &Builder,
   Value *FloatY = Builder.CreateUIToFP(Y, F32Ty);
   Function *Rcp = Intrinsic::getDeclaration(Mod, Intrinsic::amdgcn_rcp, F32Ty);
   Value *RcpY = Builder.CreateCall(Rcp, {FloatY});
-  Constant *Scale = ConstantFP::get(F32Ty, BitsToFloat(0x4F7FFFFE));
+  Constant *Scale = ConstantFP::get(F32Ty, llvm::bit_cast<float>(0x4F7FFFFE));
   Value *ScaledY = Builder.CreateFMul(RcpY, Scale);
   Value *Z = Builder.CreateFPToUI(ScaledY, I32Ty);
 
@@ -1234,7 +1237,7 @@ bool AMDGPUCodeGenPrepare::visitBinaryOperator(BinaryOperator &I) {
     return true;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getType()) &&
-      DA->isUniform(&I) && promoteUniformOpToI32(I))
+      UA->isUniform(&I) && promoteUniformOpToI32(I))
     return true;
 
   if (UseMul24Intrin && replaceMulWithMul24(I))
@@ -1258,7 +1261,7 @@ bool AMDGPUCodeGenPrepare::visitBinaryOperator(BinaryOperator &I) {
     Builder.SetCurrentDebugLocation(I.getDebugLoc());
 
     if (auto *VT = dyn_cast<FixedVectorType>(Ty)) {
-      NewDiv = UndefValue::get(VT);
+      NewDiv = PoisonValue::get(VT);
 
       for (unsigned N = 0, E = VT->getNumElements(); N != E; ++N) {
         Value *NumEltN = Builder.CreateExtractElement(Num, N);
@@ -1364,7 +1367,7 @@ bool AMDGPUCodeGenPrepare::visitICmpInst(ICmpInst &I) {
   bool Changed = false;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getOperand(0)->getType()) &&
-      DA->isUniform(&I))
+      UA->isUniform(&I))
     Changed |= promoteUniformOpToI32(I);
 
   return Changed;
@@ -1374,7 +1377,7 @@ bool AMDGPUCodeGenPrepare::visitSelectInst(SelectInst &I) {
   bool Changed = false;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getType()) &&
-      DA->isUniform(&I))
+      UA->isUniform(&I))
     Changed |= promoteUniformOpToI32(I);
 
   return Changed;
@@ -1393,7 +1396,7 @@ bool AMDGPUCodeGenPrepare::visitBitreverseIntrinsicInst(IntrinsicInst &I) {
   bool Changed = false;
 
   if (ST->has16BitInsts() && needsPromotionToI32(I.getType()) &&
-      DA->isUniform(&I))
+      UA->isUniform(&I))
     Changed |= promoteUniformBitreverseToI32(I);
 
   return Changed;
@@ -1416,14 +1419,14 @@ bool AMDGPUCodeGenPrepare::runOnFunction(Function &F) {
   const AMDGPUTargetMachine &TM = TPC->getTM<AMDGPUTargetMachine>();
   ST = &TM.getSubtarget<GCNSubtarget>(F);
   AC = &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
-  DA = &getAnalysis<LegacyDivergenceAnalysis>();
+  UA = &getAnalysis<UniformityInfoWrapperPass>().getUniformityInfo();
 
   auto *DTWP = getAnalysisIfAvailable<DominatorTreeWrapperPass>();
   DT = DTWP ? &DTWP->getDomTree() : nullptr;
 
   HasUnsafeFPMath = hasUnsafeFPMath(F);
 
-  AMDGPU::SIModeRegisterDefaults Mode(F);
+  SIModeRegisterDefaults Mode(F);
   HasFP32Denormals = Mode.allFP32Denormals();
 
   bool MadeChange = false;
@@ -1456,7 +1459,7 @@ bool AMDGPUCodeGenPrepare::runOnFunction(Function &F) {
 INITIALIZE_PASS_BEGIN(AMDGPUCodeGenPrepare, DEBUG_TYPE,
                       "AMDGPU IR optimizations", false, false)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
-INITIALIZE_PASS_DEPENDENCY(LegacyDivergenceAnalysis)
+INITIALIZE_PASS_DEPENDENCY(UniformityInfoWrapperPass)
 INITIALIZE_PASS_END(AMDGPUCodeGenPrepare, DEBUG_TYPE, "AMDGPU IR optimizations",
                     false, false)
 

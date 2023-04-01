@@ -39,7 +39,7 @@ void test1(id x) {
 }
 
 // CHECK-LABEL: define {{.*}}void @check_invoke
-void check_invoke() {
+void check_invoke(void) {
   // MSGS: {{invoke.*@objc_msgSend}}
   // MSGS: {{invoke.*@objc_msgSend}}
   // CALLS: {{invoke.*@objc_alloc}}
@@ -74,22 +74,16 @@ void test2(void* x) {
 - (A*) autorelease;
 @end
 
-// Make sure we get a bitcast on the return type as the
-// call will return i8* which we have to cast to A*
 // CHECK-LABEL: define {{.*}}void @test_alloc_class_ptr
-A* test_alloc_class_ptr() {
+A* test_alloc_class_ptr(void) {
   // CALLS: {{call.*@objc_alloc}}
-  // CALLS-NEXT: bitcast i8*
   // CALLS-NEXT: ret
   return [B alloc];
 }
 
-// Make sure we get a bitcast on the return type as the
-// call will return i8* which we have to cast to A*
 // CHECK-LABEL: define {{.*}}void @test_alloc_class_ptr
-A* test_allocWithZone_class_ptr() {
+A* test_allocWithZone_class_ptr(void) {
   // CALLS: {{call.*@objc_allocWithZone}}
-  // CALLS-NEXT: bitcast i8*
   // CALLS-NEXT: ret
   return [B allocWithZone:nil];
 }
@@ -108,21 +102,19 @@ void test_alloc_instance(A *a) {
 }
 
 // Make sure we get a bitcast on the return type as the
-// call will return i8* which we have to cast to A*
+// call will return ptr which we have to cast to A*
 // CHECK-LABEL: define {{.*}}void @test_retain_class_ptr
 A* test_retain_class_ptr(B *b) {
   // CALLS: {{call.*@objc_retain}}
-  // CALLS-NEXT: bitcast i8*
   // CALLS-NEXT: ret
   return [b retain];
 }
 
 // Make sure we get a bitcast on the return type as the
-// call will return i8* which we have to cast to A*
+// call will return ptr which we have to cast to A*
 // CHECK-LABEL: define {{.*}}void @test_autorelease_class_ptr
 A* test_autorelease_class_ptr(B *b) {
   // CALLS: {{tail call.*@objc_autorelease}}
-  // CALLS-NEXT: bitcast i8*
   // CALLS-NEXT: ret
   return [b autorelease];
 }
@@ -135,7 +127,7 @@ A* test_autorelease_class_ptr(B *b) {
 
 // Make sure we only accept pointer types
 // CHECK-LABEL: define {{.*}}void @test_allocWithZone_int
-C* test_allocWithZone_int() {
+C* test_allocWithZone_int(void) {
   // MSGS: {{call.*@objc_msgSend}}
   // CALLS: {{call.*@objc_msgSend}}
   return [C allocWithZone:3];
@@ -158,7 +150,7 @@ float test_cannot_message_return_float(C *c) {
 @end
 
 @implementation TestSelf
-// CHECK-LABEL: define internal i8* @"\01+[TestSelf classMeth]"(
+// CHECK-LABEL: define internal ptr @"\01+[TestSelf classMeth]"(
 + (id)classMeth {
   // MSGS: {{call.*@objc_msgSend}}
   // MSGS: {{call.*@objc_msgSend}}
@@ -167,7 +159,7 @@ float test_cannot_message_return_float(C *c) {
   [self allocWithZone:nil];
   return [self alloc];
 }
-// CHECK-LABEL: define internal i8* @"\01-[TestSelf instanceMeth]"(
+// CHECK-LABEL: define internal ptr @"\01-[TestSelf instanceMeth]"(
 - (id)instanceMeth {
   // MSGS: {{call.*@objc_msgSend}}
   // MSGS: {{call.*@objc_msgSend}}
@@ -208,7 +200,7 @@ float test_cannot_message_return_float(C *c) {
 // CHECK-LABEL: define {{.*}}void @testException_release
 void testException_release(NSObject *a) {
   // MSGS: {{invoke.*@objc_msgSend}}
-  // CALLS: invoke{{.*}}void @objc_release(i8* %
+  // CALLS: invoke{{.*}}void @objc_release(ptr %
   @try {
     [a release];
   } @catch (Ety *e) {
@@ -219,7 +211,7 @@ void testException_release(NSObject *a) {
 void testException_autorelease(NSObject *a) {
   @try {
     // MSGS: {{invoke.*@objc_msgSend}}
-    // CALLS: invoke{{.*}}objc_autorelease(i8* %
+    // CALLS: invoke{{.*}}objc_autorelease(ptr %
     [a autorelease];
   } @catch (Ety *e) {
   }
@@ -229,7 +221,7 @@ void testException_autorelease(NSObject *a) {
 void testException_retain(NSObject *a) {
   @try {
     // MSGS: {{invoke.*@objc_msgSend}}
-    // CALLS: invoke{{.*}}@objc_retain(i8* %
+    // CALLS: invoke{{.*}}@objc_retain(ptr %
     [a retain];
   } @catch (Ety *e) {
   }
@@ -237,20 +229,20 @@ void testException_retain(NSObject *a) {
 
 
 // CHECK-LABEL: define {{.*}}void @testException_alloc(
-void testException_alloc() {
+void testException_alloc(void) {
   @try {
     // MSGS: {{invoke.*@objc_msgSend}}
-    // CALLS: invoke{{.*}}@objc_alloc(i8* %
+    // CALLS: invoke{{.*}}@objc_alloc(ptr %
     [A alloc];
   } @catch (Ety *e) {
   }
 }
 
 // CHECK-LABEL: define {{.*}}void @testException_allocWithZone
-void testException_allocWithZone() {
+void testException_allocWithZone(void) {
   @try {
     // MSGS: {{invoke.*@objc_msgSend}}
-    // CALLS: invoke{{.*}}@objc_allocWithZone(i8* %
+    // CALLS: invoke{{.*}}@objc_allocWithZone(ptr %
     [A allocWithZone:nil];
   } @catch (Ety *e) {
   }

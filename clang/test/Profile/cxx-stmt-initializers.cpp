@@ -10,7 +10,7 @@
 // switch initializer, and the switch successor block.
 //
 // CHECK-LABEL: define {{.*}}void @_Z11switch_initv()
-// PGOGEN: store {{.*}} @[[SIC]], i32 0, i32 0
+// PGOGEN: store {{.*}} @[[SIC]]
 void switch_init() {
   switch (int i = true ? 0 : 1; i) {}
   // PGOGEN: store {{.*}} @[[SIC]], i32 0, i32 2
@@ -21,7 +21,7 @@ void switch_init() {
 // if initializer, and the if successor block.
 //
 // CHECK-LABEL: define {{.*}}void @_Z7if_initv()
-// PGOGEN: store {{.*}} @[[IIC]], i32 0, i32 0
+// PGOGEN: store {{.*}} @[[IIC]]
 void if_init() {
   if (int i = true ? 0 : 1; i) {}
   // PGOGEN: store {{.*}} @[[IIC]], i32 0, i32 2

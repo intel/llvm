@@ -20,6 +20,7 @@
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIMachineFunctionInfo.h"
 #include "llvm/CodeGen/LiveIntervals.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/InitializePasses.h"
 
@@ -36,6 +37,7 @@ private:
   const SIRegisterInfo *TRI = nullptr;
   const SIInstrInfo *TII = nullptr;
   LiveIntervals *LIS = nullptr;
+  SlotIndexes *Indexes = nullptr;
 
   // Save and Restore blocks of the current function. Typically there is a
   // single save block, unless Windows EH funclets are involved.
@@ -71,14 +73,16 @@ INITIALIZE_PASS_END(SILowerSGPRSpills, DEBUG_TYPE,
 
 char &llvm::SILowerSGPRSpillsID = SILowerSGPRSpills::ID;
 
-/// Insert restore code for the callee-saved registers used in the function.
+/// Insert spill code for the callee-saved registers used in the function.
 static void insertCSRSaves(MachineBasicBlock &SaveBlock,
-                           ArrayRef<CalleeSavedInfo> CSI,
+                           ArrayRef<CalleeSavedInfo> CSI, SlotIndexes *Indexes,
                            LiveIntervals *LIS) {
   MachineFunction &MF = *SaveBlock.getParent();
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
   const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
   const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
+  const SIRegisterInfo *RI = ST.getRegisterInfo();
 
   MachineBasicBlock::iterator I = SaveBlock.begin();
   if (!TFI->spillCalleeSavedRegisters(SaveBlock, I, CSI, TRI)) {
@@ -89,8 +93,8 @@ static void insertCSRSaves(MachineBasicBlock &SaveBlock,
       MCRegister Reg = CS.getReg();
 
       MachineInstrSpan MIS(I, &SaveBlock);
-      const TargetRegisterClass *RC =
-        TRI->getMinimalPhysRegClass(Reg, MVT::i32);
+      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(
+          Reg, Reg == RI->getReturnAddressReg(MF) ? MVT::i64 : MVT::i32);
 
       // If this value was already livein, we probably have a direct use of the
       // incoming register value, so don't kill at the spill point. This happens
@@ -98,15 +102,16 @@ static void insertCSRSaves(MachineBasicBlock &SaveBlock,
       // range.
       const bool IsLiveIn = MRI.isLiveIn(Reg);
       TII.storeRegToStackSlot(SaveBlock, I, Reg, !IsLiveIn, CS.getFrameIdx(),
-                              RC, TRI);
+                              RC, TRI, Register());
 
-      if (LIS) {
+      if (Indexes) {
         assert(std::distance(MIS.begin(), I) == 1);
         MachineInstr &Inst = *std::prev(I);
-
-        LIS->InsertMachineInstrInMaps(Inst);
-        LIS->removeAllRegUnitsForPhysReg(Reg);
+        Indexes->insertMachineInstrInMaps(Inst);
       }
+
+      if (LIS)
+        LIS->removeAllRegUnitsForPhysReg(Reg);
     }
   }
 }
@@ -114,12 +119,13 @@ static void insertCSRSaves(MachineBasicBlock &SaveBlock,
 /// Insert restore code for the callee-saved registers used in the function.
 static void insertCSRRestores(MachineBasicBlock &RestoreBlock,
                               MutableArrayRef<CalleeSavedInfo> CSI,
-                              LiveIntervals *LIS) {
+                              SlotIndexes *Indexes, LiveIntervals *LIS) {
   MachineFunction &MF = *RestoreBlock.getParent();
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
   const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
   const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
-
+  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
+  const SIRegisterInfo *RI = ST.getRegisterInfo();
   // Restore all registers immediately before the return and any
   // terminators that precede it.
   MachineBasicBlock::iterator I = RestoreBlock.getFirstTerminator();
@@ -127,21 +133,24 @@ static void insertCSRRestores(MachineBasicBlock &RestoreBlock,
   // FIXME: Just emit the readlane/writelane directly
   if (!TFI->restoreCalleeSavedRegisters(RestoreBlock, I, CSI, TRI)) {
     for (const CalleeSavedInfo &CI : reverse(CSI)) {
-      unsigned Reg = CI.getReg();
-      const TargetRegisterClass *RC =
-        TRI->getMinimalPhysRegClass(Reg, MVT::i32);
+      Register Reg = CI.getReg();
+      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(
+          Reg, Reg == RI->getReturnAddressReg(MF) ? MVT::i64 : MVT::i32);
 
-      TII.loadRegFromStackSlot(RestoreBlock, I, Reg, CI.getFrameIdx(), RC, TRI);
+      TII.loadRegFromStackSlot(RestoreBlock, I, Reg, CI.getFrameIdx(), RC, TRI,
+                               Register());
       assert(I != RestoreBlock.begin() &&
              "loadRegFromStackSlot didn't insert any code!");
       // Insert in reverse order.  loadRegFromStackSlot can insert
       // multiple instructions.
 
-      if (LIS) {
+      if (Indexes) {
         MachineInstr &Inst = *std::prev(I);
-        LIS->InsertMachineInstrInMaps(Inst);
-        LIS->removeAllRegUnitsForPhysReg(Reg);
+        Indexes->insertMachineInstrInMaps(Inst);
       }
+
+      if (LIS)
+        LIS->removeAllRegUnitsForPhysReg(Reg);
     }
   }
 }
@@ -224,14 +233,14 @@ bool SILowerSGPRSpills::spillCalleeSavedRegs(MachineFunction &MF) {
 
     if (!CSI.empty()) {
       for (MachineBasicBlock *SaveBlock : SaveBlocks)
-        insertCSRSaves(*SaveBlock, CSI, LIS);
+        insertCSRSaves(*SaveBlock, CSI, Indexes, LIS);
 
       // Add live ins to save blocks.
       assert(SaveBlocks.size() == 1 && "shrink wrapping not fully implemented");
       updateLiveness(MF, CSI);
 
       for (MachineBasicBlock *RestoreBlock : RestoreBlocks)
-        insertCSRRestores(*RestoreBlock, CSI, LIS);
+        insertCSRRestores(*RestoreBlock, CSI, Indexes, LIS);
       return true;
     }
   }
@@ -245,6 +254,7 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
   TRI = &TII->getRegisterInfo();
 
   LIS = getAnalysisIfAvailable<LiveIntervals>();
+  Indexes = getAnalysisIfAvailable<SlotIndexes>();
 
   assert(SaveBlocks.empty() && RestoreBlocks.empty());
 
@@ -287,10 +297,10 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
 
         int FI = TII->getNamedOperand(MI, AMDGPU::OpName::addr)->getIndex();
         assert(MFI.getStackID(FI) == TargetStackID::SGPRSpill);
-        if (FuncInfo->allocateSGPRSpillToVGPR(MF, FI)) {
+        if (FuncInfo->allocateSGPRSpillToVGPRLane(MF, FI)) {
           NewReservedRegs = true;
-          bool Spilled = TRI->eliminateSGPRToVGPRSpillFrameIndex(MI, FI,
-                                                                 nullptr, LIS);
+          bool Spilled = TRI->eliminateSGPRToVGPRSpillFrameIndex(
+              MI, FI, nullptr, Indexes, LIS);
           (void)Spilled;
           assert(Spilled && "failed to spill SGPR to VGPR when allocated");
           SpillFIs.set(FI);
@@ -300,8 +310,8 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
 
     // FIXME: Adding to live-ins redundant with reserving registers.
     for (MachineBasicBlock &MBB : MF) {
-      for (auto SSpill : FuncInfo->getSGPRSpillVGPRs())
-        MBB.addLiveIn(SSpill.VGPR);
+      for (auto Reg : FuncInfo->getSGPRSpillVGPRs())
+        MBB.addLiveIn(Reg);
       MBB.sortUniqueLiveIns();
 
       // FIXME: The dead frame indices are replaced with a null register from
@@ -310,6 +320,7 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
       // adequate to lower the DIExpression. It should be worked out later.
       for (MachineInstr &MI : MBB) {
         if (MI.isDebugValue() && MI.getOperand(0).isFI() &&
+            !MFI.isFixedObjectIndex(MI.getOperand(0).getIndex()) &&
             SpillFIs[MI.getOperand(0).getIndex()]) {
           MI.getOperand(0).ChangeToRegister(Register(), false /*isDef*/);
         }
@@ -321,7 +332,7 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
     // free frame index ids by the later pass(es) like "stack slot coloring"
     // which in turn could mess-up with the book keeping of "frame index to VGPR
     // lane".
-    FuncInfo->removeDeadFrameIndices(MFI);
+    FuncInfo->removeDeadFrameIndices(MFI, /*ResetSGPRSpillStackIDs*/ false);
 
     MadeChange = true;
   }

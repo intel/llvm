@@ -19,11 +19,11 @@
 #include "M68kMachineFunction.h"
 #include "M68kSubtarget.h"
 
-#include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/Passes.h" // For IDs of passes that are preserved.
+#include "llvm/IR/EHPersonalities.h"
 #include "llvm/IR/GlobalValue.h"
 
 using namespace llvm;
@@ -302,7 +302,7 @@ bool M68kExpandPseudo::ExpandMBB(MachineBasicBlock &MBB) {
 }
 
 bool M68kExpandPseudo::runOnMachineFunction(MachineFunction &MF) {
-  STI = &static_cast<const M68kSubtarget &>(MF.getSubtarget());
+  STI = &MF.getSubtarget<M68kSubtarget>();
   TII = STI->getInstrInfo();
   TRI = STI->getRegisterInfo();
   MFI = MF.getInfo<M68kMachineFunctionInfo>();

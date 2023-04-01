@@ -15,7 +15,7 @@ struct S foo(void);
 
 // CHECK-LABEL: define dso_local void @bar
 __attribute__((optnone))
-struct S bar() {
+struct S bar(void) {
   // O0-NOT: @llvm.lifetime.start
   // O0-NOT: @llvm.lifetime.end
 
@@ -24,29 +24,23 @@ struct S bar() {
   // O1: %[[TMP2_ALLOCA:[^ ]+]] = alloca %struct.S
   // O1: %[[TMP3_ALLOCA:[^ ]+]] = alloca %struct.S
 
-  // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP1_ALLOCA]] to i8*
-  // O1: call void @llvm.lifetime.start.p0i8({{[^,]*}}, i8* %[[P]])
+  // O1: call void @llvm.lifetime.start.p0({{[^,]*}}, ptr %[[TMP1_ALLOCA]])
   // O1: call void @foo
   r = foo();
   // O1: memcpy
-  // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP1_ALLOCA]] to i8*
-  // O1: call void @llvm.lifetime.end.p0i8({{[^,]*}}, i8* %[[P]])
+  // O1: call void @llvm.lifetime.end.p0({{[^,]*}}, ptr %[[TMP1_ALLOCA]])
 
-  // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP2_ALLOCA]] to i8*
-  // O1: call void @llvm.lifetime.start.p0i8({{[^,]*}}, i8* %[[P]])
+  // O1: call void @llvm.lifetime.start.p0({{[^,]*}}, ptr %[[TMP2_ALLOCA]])
   // O1: call void @foo
   r = foo();
   // O1: memcpy
-  // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP2_ALLOCA]] to i8*
-  // O1: call void @llvm.lifetime.end.p0i8({{[^,]*}}, i8* %[[P]])
+  // O1: call void @llvm.lifetime.end.p0({{[^,]*}}, ptr %[[TMP2_ALLOCA]])
 
-  // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP3_ALLOCA]] to i8*
-  // O1: call void @llvm.lifetime.start.p0i8({{[^,]*}}, i8* %[[P]])
+  // O1: call void @llvm.lifetime.start.p0({{[^,]*}}, ptr %[[TMP3_ALLOCA]])
   // O1: call void @foo
   r = foo();
   // O1: memcpy
-  // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP3_ALLOCA]] to i8*
-  // O1: call void @llvm.lifetime.end.p0i8({{[^,]*}}, i8* %[[P]])
+  // O1: call void @llvm.lifetime.end.p0({{[^,]*}}, ptr %[[TMP3_ALLOCA]])
 
   return r;
 }
@@ -65,22 +59,17 @@ struct S baz(int i, volatile int *j) {
   // O1: %[[TMP2_ALLOCA:[^ ]+]] = alloca %struct.S
 
   do {
-    // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP1_ALLOCA]] to i8*
-    // O1: call void @llvm.lifetime.start.p0i8({{[^,]*}}, i8* %[[P]])
+    // O1: call void @llvm.lifetime.start.p0({{[^,]*}}, ptr %[[TMP1_ALLOCA]])
     //
-    // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP1_ALLOCA]] to i8*
-    // O1: call void @llvm.lifetime.end.p0i8({{[^,]*}}, i8* %[[P]])
+    // O1: call void @llvm.lifetime.end.p0({{[^,]*}}, ptr %[[TMP1_ALLOCA]])
     //
-    // O1: call void @foo_int(%struct.S* sret(%struct.S) align 4 %[[TMP1_ALLOCA]],
+    // O1: call void @foo_int(ptr sret(%struct.S) align 4 %[[TMP1_ALLOCA]],
     // O1: call void @llvm.memcpy
-    // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP1_ALLOCA]] to i8*
-    // O1: call void @llvm.lifetime.end.p0i8({{[^,]*}}, i8* %[[P]])
-    // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP2_ALLOCA]] to i8*
-    // O1: call void @llvm.lifetime.start.p0i8({{[^,]*}}, i8* %[[P]])
-    // O1: call void @foo_int(%struct.S* sret(%struct.S) align 4 %[[TMP2_ALLOCA]],
+    // O1: call void @llvm.lifetime.end.p0({{[^,]*}}, ptr %[[TMP1_ALLOCA]])
+    // O1: call void @llvm.lifetime.start.p0({{[^,]*}}, ptr %[[TMP2_ALLOCA]])
+    // O1: call void @foo_int(ptr sret(%struct.S) align 4 %[[TMP2_ALLOCA]],
     // O1: call void @llvm.memcpy
-    // O1: %[[P:[^ ]+]] = bitcast %struct.S* %[[TMP2_ALLOCA]] to i8*
-    // O1: call void @llvm.lifetime.end.p0i8({{[^,]*}}, i8* %[[P]])
+    // O1: call void @llvm.lifetime.end.p0({{[^,]*}}, ptr %[[TMP2_ALLOCA]])
     r = foo_int(({
       if (*j)
         break;

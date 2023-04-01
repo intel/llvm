@@ -1,9 +1,16 @@
-// RUN: %clang_cc1 -triple spir -cl-std=cl2.0 -disable-llvm-passes -fdeclare-opencl-builtins -finclude-default-header %s -emit-llvm-bc -o %t.bc
-// RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
-// RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv %t.bc -o %t.spv
-// RUN: spirv-val %t.spv
-// RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+// RUN: %clang_cc1 -triple spir -cl-std=cl2.0 -disable-llvm-passes -fdeclare-opencl-builtins -finclude-default-header %s -emit-llvm-bc -o %t.bc -no-opaque-pointers
+
+// RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -opaque-pointers=0 -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -opaque-pointers=0 -o %t.spirv1.1.spv
+// RUN: spirv-val --target-env spv1.1 %t.spirv1.1.spv
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spirv1.1.spv -o %t.rev.bc
+// RUN: llvm-dis %t.rev.bc
+// RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
+// RUN: llvm-spirv --spirv-max-version=1.4 %t.bc -opaque-pointers=0 -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// RUN: llvm-spirv --spirv-max-version=1.4 %t.bc -opaque-pointers=0 -o %t.spirv1.4.spv
+// RUN: spirv-val --target-env spv1.4 %t.spirv1.4.spv
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spirv1.4.spv -o %t.rev.bc
 // RUN: llvm-dis %t.rev.bc
 // RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
@@ -24,6 +31,13 @@ kernel void block_ret_struct(__global int* res)
   res[tid] = kernelBlock(aa).a - 6;
 }
 
+// CHECK-SPIRV1_4: EntryPoint 6 [[#]] "block_ret_struct" [[#InterdaceId1:]] [[#InterdaceId2:]]
+// CHECK-SPIRV1_4: Name [[#InterdaceId1]] "__block_literal_global"
+// CHECK-SPIRV1_4: Name [[#InterdaceId2]] "__spirv_BuiltInGlobalInvocationId"
+
+// CHECK-SPIRV1_1: EntryPoint 6 [[#]] "block_ret_struct" [[#InterdaceId1:]]
+// CHECK-SPIRV1_1: Name [[#InterdaceId1]] "__spirv_BuiltInGlobalInvocationId"
+
 // CHECK-SPIRV: Name [[BlockInv:[0-9]+]] "__block_ret_struct_block_invoke"
 
 // CHECK-SPIRV: 4 TypeInt [[IntTy:[0-9]+]] 32
@@ -38,4 +52,4 @@ kernel void block_ret_struct(__global int* res)
 // CHECK-SPIRV: 7 FunctionCall {{[0-9]+}} {{[0-9]+}} [[BlockInv]] [[StructRet]] [[BlockLit]] [[StructArg]]
 
 // CHECK-LLVM: %[[StructA:.*]] = type { i32 }
-// CHECK-LLVM: call {{.*}} void @__block_ret_struct_block_invoke(%[[StructA]]*
+// CHECK-LLVM: call {{.*}} void @__block_ret_struct_block_invoke(ptr noalias sret(%[[StructA]])

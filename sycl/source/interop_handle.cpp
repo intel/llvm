@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/interop_handle.hpp>
+#include <detail/accessor_impl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/interop_handle.hpp>
 
 #include <algorithm>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 backend interop_handle::get_backend() const noexcept {
   return detail::getImplBackend(MQueue);
@@ -29,7 +29,7 @@ pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
 
   if (Iter == std::end(MMemObjs)) {
     throw invalid_object_error("Invalid memory object used inside interop",
-                               PI_INVALID_MEM_OBJECT);
+                               PI_ERROR_INVALID_MEM_OBJECT);
   }
 
   auto Plugin = MQueue->getPlugin();
@@ -51,5 +51,5 @@ pi_native_handle interop_handle::getNativeQueue() const {
   return MQueue->getNative();
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -22,11 +22,10 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
-#include "llvm/CodeGen/GlobalISel/CSEMIRBuilder.h"
+#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/SwiftErrorValueTracking.h"
 #include "llvm/CodeGen/SwitchLoweringUtils.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/CodeGen.h"
 #include <memory>
@@ -35,6 +34,7 @@
 namespace llvm {
 
 class AllocaInst;
+class AssumptionCache;
 class BasicBlock;
 class CallInst;
 class CallLowering;
@@ -48,6 +48,7 @@ class MachineInstr;
 class MachineRegisterInfo;
 class OptimizationRemarkEmitter;
 class PHINode;
+class TargetLibraryInfo;
 class TargetPassConfig;
 class User;
 class Value;
@@ -103,9 +104,7 @@ private:
       return ValToVRegs.find(&V);
     }
 
-    bool contains(const Value &V) const {
-      return ValToVRegs.find(&V) != ValToVRegs.end();
-    }
+    bool contains(const Value &V) const { return ValToVRegs.contains(&V); }
 
     void reset() {
       ValToVRegs.clear();
@@ -116,7 +115,7 @@ private:
 
   private:
     VRegListT *insertVRegs(const Value &V) {
-      assert(ValToVRegs.find(&V) == ValToVRegs.end() && "Value already exists");
+      assert(!ValToVRegs.contains(&V) && "Value already exists");
 
       // We placement new using our fast allocator since we never try to free
       // the vectors until translation is finished.
@@ -126,8 +125,7 @@ private:
     }
 
     OffsetListT *insertOffsets(const Value &V) {
-      assert(TypeToOffsets.find(V.getType()) == TypeToOffsets.end() &&
-             "Type already exists");
+      assert(!TypeToOffsets.contains(V.getType()) && "Type already exists");
 
       auto *OffsetList = new (OffsetAlloc.Allocate()) OffsetListT();
       TypeToOffsets[V.getType()] = OffsetList;
@@ -247,12 +245,6 @@ private:
                                MachineIRBuilder &MIRBuilder);
 
   bool translateInlineAsm(const CallBase &CB, MachineIRBuilder &MIRBuilder);
-
-  /// Returns true if the value should be split into multiple LLTs.
-  /// If \p Offsets is given then the split type's offsets will be stored in it.
-  /// If \p Offsets is not empty it will be cleared first.
-  bool valueIsSplit(const Value &V,
-                    SmallVectorImpl<uint64_t> *Offsets = nullptr);
 
   /// Common code for translating normal calls or invokes.
   bool translateCallBase(const CallBase &CB, MachineIRBuilder &MIRBuilder);
@@ -576,6 +568,9 @@ private:
   /// Current optimization remark emitter. Used to report failures.
   std::unique_ptr<OptimizationRemarkEmitter> ORE;
 
+  AAResults *AA;
+  AssumptionCache *AC;
+  const TargetLibraryInfo *LibInfo;
   FunctionLoweringInfo FuncInfo;
 
   // True when either the Target Machine specifies no optimizations or the
@@ -596,7 +591,7 @@ private:
       assert(irt && "irt is null!");
     }
 
-    virtual void addSuccessorWithProb(
+    void addSuccessorWithProb(
         MachineBasicBlock *Src, MachineBasicBlock *Dst,
         BranchProbability Prob = BranchProbability::getUnknown()) override {
       IRT->addSuccessorWithProb(Src, Dst, Prob);

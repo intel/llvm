@@ -26,6 +26,6 @@ void test_dir64b(void *dst, const void *src) {
   _movdir64b(dst, src);
 }
 
-// CHECK: declare void @llvm.x86.directstore32(i8*, i32)
-// X86_64: declare void @llvm.x86.directstore64(i8*, i64)
-// CHECK: declare void @llvm.x86.movdir64b(i8*, i8*)
+// CHECK: declare void @llvm.x86.directstore32(ptr, i32)
+// X86_64: declare void @llvm.x86.directstore64(ptr, i64)
+// CHECK: declare void @llvm.x86.movdir64b(ptr, ptr)

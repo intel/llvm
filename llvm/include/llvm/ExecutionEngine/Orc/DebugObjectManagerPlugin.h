@@ -13,7 +13,6 @@
 #ifndef LLVM_EXECUTIONENGINE_ORC_DEBUGOBJECTMANAGERPLUGIN_H
 #define LLVM_EXECUTIONENGINE_ORC_DEBUGOBJECTMANAGERPLUGIN_H
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
@@ -21,6 +20,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <functional>
 #include <map>
@@ -57,9 +57,9 @@ public:
 
   Error notifyEmitted(MaterializationResponsibility &MR) override;
   Error notifyFailed(MaterializationResponsibility &MR) override;
-  Error notifyRemovingResources(ResourceKey K) override;
+  Error notifyRemovingResources(JITDylib &JD, ResourceKey K) override;
 
-  void notifyTransferringResources(ResourceKey DstKey,
+  void notifyTransferringResources(JITDylib &JD, ResourceKey DstKey,
                                    ResourceKey SrcKey) override;
 
   void modifyPassConfig(MaterializationResponsibility &MR,

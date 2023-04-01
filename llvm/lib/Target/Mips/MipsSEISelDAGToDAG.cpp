@@ -38,7 +38,7 @@ using namespace llvm;
 #define DEBUG_TYPE "mips-isel"
 
 bool MipsSEDAGToDAGISel::runOnMachineFunction(MachineFunction &MF) {
-  Subtarget = &static_cast<const MipsSubtarget &>(MF.getSubtarget());
+  Subtarget = &MF.getSubtarget<MipsSubtarget>();
   if (Subtarget->inMips16Mode())
     return false;
   return MipsDAGToDAGISel::runOnMachineFunction(MF);
@@ -172,7 +172,7 @@ void MipsSEDAGToDAGISel::processFunctionAfterISel(MachineFunction &MF) {
           MI.addOperand(MachineOperand::CreateReg(Mips::SP, false, true));
           break;
         }
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case Mips::BuildPairF64:
       case Mips::ExtractElementF64:
         if (Subtarget->isABI_FPXX() && !Subtarget->hasMTHC1())
@@ -282,7 +282,7 @@ bool MipsSEDAGToDAGISel::selectAddrFrameIndexOffset(
     SDValue Addr, SDValue &Base, SDValue &Offset, unsigned OffsetBits,
     unsigned ShiftAmount = 0) const {
   if (CurDAG->isBaseWithConstantOffset(Addr)) {
-    ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Addr.getOperand(1));
+    auto *CN = cast<ConstantSDNode>(Addr.getOperand(1));
     if (isIntN(OffsetBits + ShiftAmount, CN->getSExtValue())) {
       EVT ValTy = Addr.getValueType();
 
@@ -670,8 +670,7 @@ bool MipsSEDAGToDAGISel::selectVSplatMaskL(SDValue N, SDValue &Imm) const {
     // as the original value.
     if (ImmValue == ~(~ImmValue & ~(~ImmValue + 1))) {
 
-      Imm = CurDAG->getTargetConstant(ImmValue.countPopulation() - 1, SDLoc(N),
-                                      EltTy);
+      Imm = CurDAG->getTargetConstant(ImmValue.popcount() - 1, SDLoc(N), EltTy);
       return true;
     }
   }
@@ -702,8 +701,7 @@ bool MipsSEDAGToDAGISel::selectVSplatMaskR(SDValue N, SDValue &Imm) const {
     // Extract the run of set bits starting with bit zero, and test that the
     // result is the same as the original value
     if (ImmValue == (ImmValue & ~(ImmValue + 1))) {
-      Imm = CurDAG->getTargetConstant(ImmValue.countPopulation() - 1, SDLoc(N),
-                                      EltTy);
+      Imm = CurDAG->getTargetConstant(ImmValue.popcount() - 1, SDLoc(N), EltTy);
       return true;
     }
   }
@@ -954,6 +952,38 @@ bool MipsSEDAGToDAGISel::trySelect(SDNode *Node) {
     }
     }
     break;
+  }
+
+  case MipsISD::FAbs: {
+    MVT ResTy = Node->getSimpleValueType(0);
+    assert((ResTy == MVT::f64 || ResTy == MVT::f32) &&
+           "Unsupported float type!");
+    unsigned Opc = 0;
+    if (ResTy == MVT::f64)
+      Opc = (Subtarget->isFP64bit() ? Mips::FABS_D64 : Mips::FABS_D32);
+    else
+      Opc = Mips::FABS_S;
+
+    if (Subtarget->inMicroMipsMode()) {
+      switch (Opc) {
+      case Mips::FABS_D64:
+        Opc = Mips::FABS_D64_MM;
+        break;
+      case Mips::FABS_D32:
+        Opc = Mips::FABS_D32_MM;
+        break;
+      case Mips::FABS_S:
+        Opc = Mips::FABS_S_MM;
+        break;
+      default:
+        llvm_unreachable("Unknown opcode for MIPS floating point abs!");
+      }
+    }
+
+    ReplaceNode(Node,
+                CurDAG->getMachineNode(Opc, DL, ResTy, Node->getOperand(0)));
+
+    return true;
   }
 
   // Manually match MipsISD::Ins nodes to get the correct instruction. It has

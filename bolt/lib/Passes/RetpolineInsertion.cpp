@@ -32,12 +32,9 @@ namespace opts {
 
 extern cl::OptionCategory BoltCategory;
 
-llvm::cl::opt<bool>
-InsertRetpolines("insert-retpolines",
-  cl::desc("run retpoline insertion pass"),
-  cl::init(false),
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+llvm::cl::opt<bool> InsertRetpolines("insert-retpolines",
+                                     cl::desc("run retpoline insertion pass"),
+                                     cl::cat(BoltCategory));
 
 llvm::cl::opt<bool>
 RetpolineLfence("retpoline-lfence",
@@ -47,19 +44,17 @@ RetpolineLfence("retpoline-lfence",
   cl::Hidden,
   cl::cat(BoltCategory));
 
-cl::opt<RetpolineInsertion::AvailabilityOptions>
-R11Availability("r11-availability",
-  cl::desc("determine the availablity of r11 before indirect branches"),
-  cl::init(RetpolineInsertion::AvailabilityOptions::NEVER),
-  cl::values(
-    clEnumValN(RetpolineInsertion::AvailabilityOptions::NEVER,
-      "never", "r11 not available"),
-    clEnumValN(RetpolineInsertion::AvailabilityOptions::ALWAYS,
-      "always", "r11 avaialable before calls and jumps"),
-    clEnumValN(RetpolineInsertion::AvailabilityOptions::ABI,
-      "abi", "r11 avaialable before calls but not before jumps")),
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+cl::opt<RetpolineInsertion::AvailabilityOptions> R11Availability(
+    "r11-availability",
+    cl::desc("determine the availability of r11 before indirect branches"),
+    cl::init(RetpolineInsertion::AvailabilityOptions::NEVER),
+    cl::values(clEnumValN(RetpolineInsertion::AvailabilityOptions::NEVER,
+                          "never", "r11 not available"),
+               clEnumValN(RetpolineInsertion::AvailabilityOptions::ALWAYS,
+                          "always", "r11 avaialable before calls and jumps"),
+               clEnumValN(RetpolineInsertion::AvailabilityOptions::ABI, "abi",
+                          "r11 avaialable before calls but not before jumps")),
+    cl::ZeroOrMore, cl::cat(BoltCategory));
 
 } // namespace opts
 
@@ -94,8 +89,7 @@ BinaryFunction *createNewRetpoline(BinaryContext &BC,
   for (int I = 0; I < 3; I++) {
     MCSymbol *Symbol =
         Ctx.createNamedTempSymbol(Twine(RetpolineTag + "_BB" + to_string(I)));
-    NewBlocks[I] = NewRetpoline->createBasicBlock(
-        BinaryBasicBlock::INVALID_OFFSET, Symbol);
+    NewBlocks[I] = NewRetpoline->createBasicBlock(Symbol);
     NewBlocks[I].get()->setCFIState(0);
   }
 
@@ -140,8 +134,8 @@ BinaryFunction *createNewRetpoline(BinaryContext &BC,
 
       MCInst LoadCalleeAddrs;
       const IndirectBranchInfo::MemOpInfo &MemRef = BrInfo.Memory;
-      MIB.createLoad(LoadCalleeAddrs, MemRef.BaseRegNum, MemRef.ScaleValue,
-                     MemRef.IndexRegNum, MemRef.DispValue, MemRef.DispExpr,
+      MIB.createLoad(LoadCalleeAddrs, MemRef.BaseRegNum, MemRef.ScaleImm,
+                     MemRef.IndexRegNum, MemRef.DispImm, MemRef.DispExpr,
                      MemRef.SegRegNum, MIB.getX86R11(), 8);
 
       BB2.addInstruction(LoadCalleeAddrs);
@@ -168,7 +162,7 @@ BinaryFunction *createNewRetpoline(BinaryContext &BC,
   MCInst Return;
   MIB.createReturn(Return);
   BB2.addInstruction(Return);
-  NewRetpoline->insertBasicBlocks(nullptr, move(NewBlocks),
+  NewRetpoline->insertBasicBlocks(nullptr, std::move(NewBlocks),
                                   /* UpdateLayout */ true,
                                   /* UpdateCFIState */ false);
 
@@ -201,11 +195,10 @@ std::string createRetpolineFunctionTag(BinaryContext &BC,
              ? "r" + to_string(MemRef.BaseRegNum)
              : "";
 
-  Tag +=
-      MemRef.DispExpr ? "+" + DispExprStr : "+" + to_string(MemRef.DispValue);
+  Tag += MemRef.DispExpr ? "+" + DispExprStr : "+" + to_string(MemRef.DispImm);
 
   Tag += MemRef.IndexRegNum != BC.MIB->getNoRegister()
-             ? "+" + to_string(MemRef.ScaleValue) + "*" +
+             ? "+" + to_string(MemRef.ScaleImm) + "*" +
                    to_string(MemRef.IndexRegNum)
              : "";
 
@@ -238,8 +231,8 @@ void createBranchReplacement(BinaryContext &BC,
   if (BrInfo.isMem() && R11Available) {
     const IndirectBranchInfo::MemOpInfo &MemRef = BrInfo.Memory;
     MCInst LoadCalleeAddrs;
-    MIB.createLoad(LoadCalleeAddrs, MemRef.BaseRegNum, MemRef.ScaleValue,
-                   MemRef.IndexRegNum, MemRef.DispValue, MemRef.DispExpr,
+    MIB.createLoad(LoadCalleeAddrs, MemRef.BaseRegNum, MemRef.ScaleImm,
+                   MemRef.IndexRegNum, MemRef.DispImm, MemRef.DispExpr,
                    MemRef.SegRegNum, MIB.getX86R11(), 8);
     Replacement.push_back(LoadCalleeAddrs);
   }
@@ -258,11 +251,11 @@ IndirectBranchInfo::IndirectBranchInfo(MCInst &Inst, MCPlusBuilder &MIB) {
 
   if (MIB.isBranchOnMem(Inst)) {
     IsMem = true;
-    if (!MIB.evaluateX86MemoryOperand(Inst, &Memory.BaseRegNum,
-                                      &Memory.ScaleValue,
-                                      &Memory.IndexRegNum, &Memory.DispValue,
-                                      &Memory.SegRegNum, &Memory.DispExpr))
+    std::optional<MCPlusBuilder::X86MemOperand> MO =
+        MIB.evaluateX86MemoryOperand(Inst);
+    if (!MO)
       llvm_unreachable("not expected");
+    Memory = MO.value();
   } else if (MIB.isBranchOnReg(Inst)) {
     assert(MCPlus::getNumPrimeOperands(Inst) == 1 && "expect 1 operand");
     BranchReg = Inst.getOperand(0).getReg();
@@ -312,9 +305,9 @@ void RetpolineInsertion::runOnFunctions(BinaryContext &BC) {
           IndirectBranchInfo::MemOpInfo &MemRef = BrInfo.Memory;
           int Addend = (BrInfo.isJump() || BrInfo.isTailCall()) ? 8 : 16;
           if (MemRef.BaseRegNum == MIB.getStackPointer())
-            MemRef.DispValue += Addend;
+            MemRef.DispImm += Addend;
           if (MemRef.IndexRegNum == MIB.getStackPointer())
-            MemRef.DispValue += Addend * MemRef.ScaleValue;
+            MemRef.DispImm += Addend * MemRef.ScaleImm;
         }
 
         TargetRetpoline = getOrCreateRetpoline(BC, BrInfo, R11Available);

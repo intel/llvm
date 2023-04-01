@@ -2,8 +2,6 @@
 // RUN: %clang_dfsan %s %t-calloc.o -o %t
 // RUN: %run %t
 //
-// REQUIRES: x86_64-target-arch
-//
 // Tests that calling mmap() during during dfsan initialization works.
 
 #include <sanitizer/dfsan_interface.h>
@@ -11,6 +9,8 @@
 #include <unistd.h>
 
 #ifdef CALLOC
+
+extern void exit(int) __attribute__((noreturn));
 
 // dfsan_init() installs interceptors via dlysm(), which calls calloc().
 // Calling mmap() from here should work even if interceptors haven't been fully

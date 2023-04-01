@@ -7,11 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/TextAPI/Target.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/Format.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
@@ -49,7 +46,10 @@ Expected<Target> Target::create(StringRef TargetValue) {
 }
 
 Target::operator std::string() const {
-  return (getArchitectureName(Arch) + " (" + getPlatformName(Platform) + ")")
+  auto Version = MinDeployment.empty() ? "" : MinDeployment.getAsString();
+
+  return (getArchitectureName(Arch) + " (" + getPlatformName(Platform) +
+          Version + ")")
       .str();
 }
 
@@ -73,8 +73,11 @@ ArchitectureSet mapToArchitectureSet(ArrayRef<Target> Targets) {
 }
 
 std::string getTargetTripleName(const Target &Targ) {
+  auto Version =
+      Targ.MinDeployment.empty() ? "" : Targ.MinDeployment.getAsString();
+
   return (getArchitectureName(Targ.Arch) + "-apple-" +
-          getOSAndEnvironmentName(Targ.Platform))
+          getOSAndEnvironmentName(Targ.Platform, Version))
       .str();
 }
 

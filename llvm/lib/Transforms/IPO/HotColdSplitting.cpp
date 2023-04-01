@@ -29,46 +29,33 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
-#include "llvm/Analysis/BranchProbabilityInfo.h"
-#include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/IR/Type.h"
-#include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/BlockFrequency.h"
-#include "llvm/Support/BranchProbability.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
-#include "llvm/Transforms/Utils/Local.h"
-#include "llvm/Transforms/Utils/ValueMapper.h"
 #include <algorithm>
-#include <limits>
 #include <cassert>
+#include <limits>
 #include <string>
 
 #define DEBUG_TYPE "hotcoldsplit"
@@ -126,7 +113,8 @@ bool unlikelyExecuted(BasicBlock &BB) {
   // mark sanitizer traps as cold.
   for (Instruction &I : BB)
     if (auto *CB = dyn_cast<CallBase>(&I))
-      if (CB->hasFnAttr(Attribute::Cold) && !CB->getMetadata("nosanitize"))
+      if (CB->hasFnAttr(Attribute::Cold) &&
+          !CB->getMetadata(LLVMContext::MD_nosanitize))
         return true;
 
   // The block is cold if it has an unreachable terminator, unless it's
@@ -180,23 +168,6 @@ static bool markFunctionCold(Function &F, bool UpdateEntryCount = false) {
 
   return Changed;
 }
-
-class HotColdSplittingLegacyPass : public ModulePass {
-public:
-  static char ID;
-  HotColdSplittingLegacyPass() : ModulePass(ID) {
-    initializeHotColdSplittingLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<BlockFrequencyInfoWrapperPass>();
-    AU.addRequired<ProfileSummaryInfoWrapperPass>();
-    AU.addRequired<TargetTransformInfoWrapperPass>();
-    AU.addUsedIfAvailable<AssumptionCacheTracker>();
-  }
-
-  bool runOnModule(Module &M) override;
-};
 
 } // end anonymous namespace
 
@@ -352,7 +323,7 @@ Function *HotColdSplitting::extractColdRegion(
   // TODO: Pass BFI and BPI to update profile information.
   CodeExtractor CE(Region, &DT, /* AggregateArgs */ false, /* BFI */ nullptr,
                    /* BPI */ nullptr, AC, /* AllowVarArgs */ false,
-                   /* AllowAlloca */ false,
+                   /* AllowAlloca */ false, /* AllocaBlock */ nullptr,
                    /* Suffix */ "cold." + std::to_string(Count));
 
   // Perform a simple cost/benefit analysis to decide whether or not to permit
@@ -725,32 +696,6 @@ bool HotColdSplitting::run(Module &M) {
   return Changed;
 }
 
-bool HotColdSplittingLegacyPass::runOnModule(Module &M) {
-  if (skipModule(M))
-    return false;
-  ProfileSummaryInfo *PSI =
-      &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
-  auto GTTI = [this](Function &F) -> TargetTransformInfo & {
-    return this->getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
-  };
-  auto GBFI = [this](Function &F) {
-    return &this->getAnalysis<BlockFrequencyInfoWrapperPass>(F).getBFI();
-  };
-  std::unique_ptr<OptimizationRemarkEmitter> ORE;
-  std::function<OptimizationRemarkEmitter &(Function &)> GetORE =
-      [&ORE](Function &F) -> OptimizationRemarkEmitter & {
-    ORE.reset(new OptimizationRemarkEmitter(&F));
-    return *ORE.get();
-  };
-  auto LookupAC = [this](Function &F) -> AssumptionCache * {
-    if (auto *ACT = getAnalysisIfAvailable<AssumptionCacheTracker>())
-      return ACT->lookupAssumptionCache(F);
-    return nullptr;
-  };
-
-  return HotColdSplitting(PSI, GBFI, GTTI, &GetORE, LookupAC).run(M);
-}
-
 PreservedAnalyses
 HotColdSplittingPass::run(Module &M, ModuleAnalysisManager &AM) {
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
@@ -772,7 +717,7 @@ HotColdSplittingPass::run(Module &M, ModuleAnalysisManager &AM) {
   std::function<OptimizationRemarkEmitter &(Function &)> GetORE =
       [&ORE](Function &F) -> OptimizationRemarkEmitter & {
     ORE.reset(new OptimizationRemarkEmitter(&F));
-    return *ORE.get();
+    return *ORE;
   };
 
   ProfileSummaryInfo *PSI = &AM.getResult<ProfileSummaryAnalysis>(M);
@@ -780,16 +725,4 @@ HotColdSplittingPass::run(Module &M, ModuleAnalysisManager &AM) {
   if (HotColdSplitting(PSI, GBFI, GTTI, &GetORE, LookupAC).run(M))
     return PreservedAnalyses::none();
   return PreservedAnalyses::all();
-}
-
-char HotColdSplittingLegacyPass::ID = 0;
-INITIALIZE_PASS_BEGIN(HotColdSplittingLegacyPass, "hotcoldsplit",
-                      "Hot Cold Splitting", false, false)
-INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(BlockFrequencyInfoWrapperPass)
-INITIALIZE_PASS_END(HotColdSplittingLegacyPass, "hotcoldsplit",
-                    "Hot Cold Splitting", false, false)
-
-ModulePass *llvm::createHotColdSplittingPass() {
-  return new HotColdSplittingLegacyPass();
 }

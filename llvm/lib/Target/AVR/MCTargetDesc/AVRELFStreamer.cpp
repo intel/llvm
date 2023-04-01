@@ -1,6 +1,7 @@
 #include "AVRELFStreamer.h"
 
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/FormattedStream.h"
@@ -60,6 +61,7 @@ AVRELFStreamer::AVRELFStreamer(MCStreamer &S, const MCSubtargetInfo &STI)
   unsigned EFlags = MCA.getELFHeaderEFlags();
 
   EFlags |= getEFlagsForFeatureSet(STI.getFeatureBits());
+  EFlags |= ELF::EF_AVR_LINKRELAX_PREPARED;
 
   MCA.setELFHeaderEFlags(EFlags);
 }

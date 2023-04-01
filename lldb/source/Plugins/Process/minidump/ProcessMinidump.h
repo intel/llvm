@@ -20,7 +20,7 @@
 
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
-
+#include <optional>
 
 namespace lldb_private {
 
@@ -75,9 +75,6 @@ public:
 
   ArchSpec GetArchitecture();
 
-  Status GetMemoryRegionInfo(lldb::addr_t load_addr,
-                             MemoryRegionInfo &range_info) override;
-
   Status GetMemoryRegions(
       lldb_private::MemoryRegionInfos &region_list) override;
 
@@ -90,13 +87,16 @@ public:
     return error;
   }
 
-  llvm::Optional<MinidumpParser> m_minidump_parser;
+  std::optional<MinidumpParser> m_minidump_parser;
 
 protected:
   void Clear();
 
   bool DoUpdateThreadList(ThreadList &old_thread_list,
                           ThreadList &new_thread_list) override;
+
+  Status DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                               MemoryRegionInfo &range_info) override;
 
   void ReadModuleList();
 
@@ -113,7 +113,7 @@ private:
   const minidump::ExceptionStream *m_active_exception;
   lldb::CommandObjectSP m_command_sp;
   bool m_is_wow64;
-  llvm::Optional<MemoryRegionInfos> m_memory_regions;
+  std::optional<MemoryRegionInfos> m_memory_regions;
 
   void BuildMemoryRegions();
 };

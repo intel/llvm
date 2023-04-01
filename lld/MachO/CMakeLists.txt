@@ -10,11 +10,11 @@ add_lld_library(lldMachO
   Arch/ARM64Common.cpp
   Arch/ARM64_32.cpp
   Arch/X86_64.cpp
-  CallGraphSort.cpp
   ConcatOutputSection.cpp
   Driver.cpp
   DriverUtils.cpp
   Dwarf.cpp
+  EhFrame.cpp
   ExportTrie.cpp
   ICF.cpp
   InputFiles.cpp
@@ -26,6 +26,7 @@ add_lld_library(lldMachO
   OutputSection.cpp
   OutputSegment.cpp
   Relocations.cpp
+  SectionPriorities.cpp
   SymbolTable.cpp
   Symbols.cpp
   SyntheticSections.cpp
@@ -37,6 +38,7 @@ add_lld_library(lldMachO
   ${LLVM_TARGETS_TO_BUILD}
   BinaryFormat
   BitReader
+  BitWriter
   Core
   DebugInfoDWARF
   Demangle
@@ -47,6 +49,7 @@ add_lld_library(lldMachO
   Option
   Passes
   Support
+  TargetParser
   TextAPI
 
   LINK_LIBS

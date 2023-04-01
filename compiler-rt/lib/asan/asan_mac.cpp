@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "sanitizer_common/sanitizer_platform.h"
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 
 #include "asan_interceptors.h"
 #include "asan_internal.h"
@@ -93,10 +93,6 @@ void FlushUnneededASanShadowMemory(uptr p, uptr size) {
   // Since asan's mapping is compacting, the shadow chunk may be
   // not page-aligned, so we only flush the page-aligned portion.
   ReleaseMemoryPagesToOS(MemToShadow(p), MemToShadow(p + size));
-}
-
-void ReadContextStack(void *context, uptr *stack, uptr *ssize) {
-  UNIMPLEMENTED();
 }
 
 // Support for the following functions from libdispatch on Mac OS:
@@ -296,4 +292,4 @@ INTERCEPTOR(void, dispatch_source_set_event_handler,
 }
 #endif
 
-#endif  // SANITIZER_MAC
+#endif  // SANITIZER_APPLE

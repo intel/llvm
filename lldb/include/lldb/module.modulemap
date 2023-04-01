@@ -2,7 +2,7 @@
 module lldb_API {
   requires cplusplus
 
-  textual header "Utility/ReproducerInstrumentation.h"
+  textual header "Utility/Instrumentation.h"
 
   umbrella "API"
   module * { export * }
@@ -97,8 +97,6 @@ module lldb_Wrapper {
 
     umbrella "Expression"
     module * { export * }
-    // TODO: This file includes a non-public header.
-    exclude header "Expression/REPL.h"
   }
 
   module lldb_Interpreter {
@@ -134,7 +132,6 @@ module lldb_Utility {
   module lldb_enumerations { header "lldb-enumerations.h" export * }
   module lldb_forward { header "lldb-forward.h" export * }
   module lldb_private_enumerations { header "lldb-private-enumerations.h" export * }
-  module lldb_private_defines { header "lldb-private-defines.h" export * }
   module lldb_private_forward { header "lldb-private-forward.h" export * }
   module lldb_private { header "lldb-private.h" export * }
   module lldb_private_interfaces { header "lldb-private-interfaces.h" export * }

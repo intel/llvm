@@ -15,6 +15,7 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Host/MainLoop.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/Iterable.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/TraceGDBRemotePackets.h"
 #include "lldb/Utility/UnimplementedError.h"
@@ -26,6 +27,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -47,6 +49,16 @@ struct SVR4LibraryInfo {
 class NativeProcessProtocol {
 public:
   virtual ~NativeProcessProtocol() = default;
+
+  typedef std::vector<std::unique_ptr<NativeThreadProtocol>> thread_collection;
+  template <typename I>
+  static NativeThreadProtocol &thread_list_adapter(I &iter) {
+    assert(*iter);
+    return **iter;
+  }
+  typedef LockingAdaptedIterable<thread_collection, NativeThreadProtocol &,
+                                 thread_list_adapter, std::recursive_mutex>
+      ThreadIterable;
 
   virtual Status Resume(const ResumeActionList &resume_actions) = 0;
 
@@ -160,7 +172,7 @@ public:
   // Watchpoint functions
   virtual const NativeWatchpointList::WatchpointMap &GetWatchpointMap() const;
 
-  virtual llvm::Optional<std::pair<uint32_t, uint32_t>>
+  virtual std::optional<std::pair<uint32_t, uint32_t>>
   GetHardwareDebugSupportInfo() const;
 
   virtual Status SetWatchpoint(lldb::addr_t addr, size_t size,
@@ -193,7 +205,7 @@ public:
   GetAuxvData() const = 0;
 
   // Exit Status
-  virtual llvm::Optional<WaitStatus> GetExitStatus();
+  virtual std::optional<WaitStatus> GetExitStatus();
 
   virtual bool SetExitStatus(WaitStatus status, bool bNotifyStateChange);
 
@@ -208,6 +220,10 @@ public:
 
   NativeThreadProtocol *GetCurrentThread() {
     return GetThreadByID(m_current_thread_id);
+  }
+
+  ThreadIterable Threads() const {
+    return ThreadIterable(m_threads, m_threads_mutex);
   }
 
   // Access to inferior stdio
@@ -310,6 +326,12 @@ public:
     virtual Extension GetSupportedExtensions() const { return {}; }
   };
 
+  /// Notify tracers that the target process will resume
+  virtual void NotifyTracersProcessWillResume() {}
+
+  /// Notify tracers that the target process just stopped
+  virtual void NotifyTracersProcessDidStop() {}
+
   /// Start tracing a process or its threads.
   ///
   /// \param[in] json_params
@@ -401,7 +423,7 @@ protected:
   lldb::StateType m_state = lldb::eStateInvalid;
   mutable std::recursive_mutex m_state_mutex;
 
-  llvm::Optional<WaitStatus> m_exit_status;
+  std::optional<WaitStatus> m_exit_status;
 
   NativeDelegate &m_delegate;
   NativeWatchpointList m_watchpoint_list;
@@ -457,7 +479,7 @@ protected:
   ///
   /// Provide a mechanism for a delegate to clear out any exec-
   /// sensitive data.
-  void NotifyDidExec();
+  virtual void NotifyDidExec();
 
   NativeThreadProtocol *GetThreadByIDUnlocked(lldb::tid_t tid);
 

@@ -17,10 +17,10 @@
 
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SparseSet.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/MachineBranchProbabilityInfo.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -30,7 +30,6 @@
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/MachineTraceMetrics.h"
-#include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -111,12 +110,11 @@ public:
   /// Information about each phi in the Tail block.
   struct PHIInfo {
     MachineInstr *PHI;
-    unsigned TReg, FReg;
+    unsigned TReg = 0, FReg = 0;
     // Latencies from Cond+Branch, TReg, and FReg to DstReg.
-    int CondCycles, TCycles, FCycles;
+    int CondCycles = 0, TCycles = 0, FCycles = 0;
 
-    PHIInfo(MachineInstr *phi)
-      : PHI(phi), TReg(0), FReg(0), CondCycles(0), TCycles(0), FCycles(0) {}
+    PHIInfo(MachineInstr *phi) : PHI(phi) {}
   };
 
   SmallVector<PHIInfo, 8> PHIs;
@@ -264,12 +262,12 @@ bool SSAIfConv::InstrDependenciesAllowIfConv(MachineInstr *I) {
     Register Reg = MO.getReg();
 
     // Remember clobbered regunits.
-    if (MO.isDef() && Register::isPhysicalRegister(Reg))
+    if (MO.isDef() && Reg.isPhysical())
       for (MCRegUnitIterator Units(Reg.asMCReg(), TRI); Units.isValid();
            ++Units)
         ClobberedRegUnits.set(*Units);
 
-    if (!MO.readsReg() || !Register::isVirtualRegister(Reg))
+    if (!MO.readsReg() || !Reg.isVirtual())
       continue;
     MachineInstr *DefMI = MRI->getVRegDef(Reg);
     if (!DefMI || DefMI->getParent() != Head)
@@ -323,9 +321,15 @@ bool SSAIfConv::canPredicateInstrs(MachineBasicBlock *MBB) {
       return false;
     }
 
-    // Check that instruction is predicable and that it is not already
-    // predicated.
-    if (!TII->isPredicable(*I) || TII->isPredicated(*I)) {
+    // Check that instruction is predicable
+    if (!TII->isPredicable(*I)) {
+      LLVM_DEBUG(dbgs() << "Isn't predicable: " << *I);
+      return false;
+    }
+
+    // Check that instruction is not already predicated.
+    if (TII->isPredicated(*I) && !TII->canPredicatePredicatedInstr(*I)) {
+      LLVM_DEBUG(dbgs() << "Is already predicated: " << *I);
       return false;
     }
 
@@ -383,7 +387,7 @@ bool SSAIfConv::findInsertionPoint() {
       if (!MO.isReg())
         continue;
       Register Reg = MO.getReg();
-      if (!Register::isPhysicalRegister(Reg))
+      if (!Reg.isPhysical())
         continue;
       // I clobbers Reg, so it isn't live before I.
       if (MO.isDef())
@@ -578,7 +582,7 @@ static bool hasSameValue(const MachineRegisterInfo &MRI,
 
   // If the instruction could modify memory, or there may be some intervening
   // store between the two, we can't consider them to be equal.
-  if (TDef->mayLoadOrStore() && !TDef->isDereferenceableInvariantLoad(nullptr))
+  if (TDef->mayLoadOrStore() && !TDef->isDereferenceableInvariantLoad())
     return false;
 
   // We also can't guarantee that they are the same if, for example, the
@@ -665,8 +669,8 @@ void SSAIfConv::rewritePHIOperands() {
         PI.PHI->getOperand(i-1).setMBB(Head);
         PI.PHI->getOperand(i-2).setReg(DstReg);
       } else if (MBB == getFPred()) {
-        PI.PHI->RemoveOperand(i-1);
-        PI.PHI->RemoveOperand(i-2);
+        PI.PHI->removeOperand(i-1);
+        PI.PHI->removeOperand(i-2);
       }
     }
     LLVM_DEBUG(dbgs() << "          --> " << *PI.PHI);
@@ -810,7 +814,7 @@ void updateDomTree(MachineDominatorTree *DomTree, const SSAIfConv &IfConv,
   // TBB and FBB should not dominate any blocks.
   // Tail children should be transferred to Head.
   MachineDomTreeNode *HeadNode = DomTree->getNode(IfConv.Head);
-  for (auto B : Removed) {
+  for (auto *B : Removed) {
     MachineDomTreeNode *Node = DomTree->getNode(B);
     assert(Node != HeadNode && "Cannot erase the head node");
     while (Node->getNumChildren()) {
@@ -828,7 +832,7 @@ void updateLoops(MachineLoopInfo *Loops,
     return;
   // If-conversion doesn't change loop structure, and it doesn't mess with back
   // edges, so updating LoopInfo is simply removing the dead blocks.
-  for (auto B : Removed)
+  for (auto *B : Removed)
     Loops->removeBlock(B);
 }
 } // namespace
@@ -870,7 +874,7 @@ bool EarlyIfConverter::shouldConvertIf() {
     return true;
 
   if (!MinInstr)
-    MinInstr = Traces->getEnsemble(MachineTraceMetrics::TS_MinInstrCount);
+    MinInstr = Traces->getEnsemble(MachineTraceStrategy::TS_MinInstrCount);
 
   MachineTraceMetrics::Trace TBBTrace = MinInstr->getTrace(IfConv.getTPred());
   MachineTraceMetrics::Trace FBBTrace = MinInstr->getTrace(IfConv.getFPred());
@@ -1067,7 +1071,7 @@ bool EarlyIfConverter::runOnMachineFunction(MachineFunction &MF) {
   // if-conversion in a single pass. The tryConvertIf() function may erase
   // blocks, but only blocks dominated by the head block. This makes it safe to
   // update the dominator tree while the post-order iterator is still active.
-  for (auto DomNode : post_order(DomTree))
+  for (auto *DomNode : post_order(DomTree))
     if (tryConvertIf(DomNode->getBlock()))
       Changed = true;
 
@@ -1200,7 +1204,7 @@ bool EarlyIfPredicator::runOnMachineFunction(MachineFunction &MF) {
   // if-conversion in a single pass. The tryConvertIf() function may erase
   // blocks, but only blocks dominated by the head block. This makes it safe to
   // update the dominator tree while the post-order iterator is still active.
-  for (auto DomNode : post_order(DomTree))
+  for (auto *DomNode : post_order(DomTree))
     if (tryConvertIf(DomNode->getBlock()))
       Changed = true;
 

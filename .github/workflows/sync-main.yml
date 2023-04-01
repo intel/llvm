@@ -1,14 +1,14 @@
-name: automatic sync main branch from llvm-project to llvm
+name: main branch sync
 
 on:
-  schedule:
-  - cron: '0 */1 * * *'
+  workflow_dispatch:
+
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     if: github.repository == 'intel/llvm'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           # persist-credentials: false allows us to use our own credentials for
           # pushing to the repository.  Otherwise, the default github actions token

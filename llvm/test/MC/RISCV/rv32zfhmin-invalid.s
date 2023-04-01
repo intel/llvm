@@ -1,5 +1,7 @@
 # RUN: not llvm-mc -triple riscv32 -mattr=+zfhmin < %s 2>&1 | \
 # RUN:   FileCheck %s
+# RUN: not llvm-mc -triple riscv64 -mattr=+zfhmin < %s 2>&1 | \
+# RUN:   FileCheck %s
 
 # Out of range immediates
 ## simm12
@@ -20,4 +22,4 @@ fmv.x.h fs7, a2 # CHECK: :[[@LINE]]:9: error: invalid operand for instruction
 fmv.h.x a8, ft2 # CHECK: :[[@LINE]]:9: error: invalid operand for instruction
 
 # Zfh instructions
-fmadd.h f10, f11, f12, f13, dyn # CHECK: :[[@LINE]]:1: error: instruction requires the following: 'Zfh' (Half-Precision Floating-Point)
+fmadd.h f10, f11, f12, f13, dyn # CHECK: :[[@LINE]]:1: error: instruction requires the following: 'Zfh' (Half-Precision Floating-Point){{$}}

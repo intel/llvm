@@ -27,6 +27,7 @@ namespace clang {
   enum {
     LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
 #define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE) BI##ID,
 #include "clang/Basic/BuiltinsNEON.def"
     FirstTSBuiltin
   };
@@ -121,7 +122,12 @@ namespace clang {
 
   /// VE builtins
   namespace VE {
-  enum { LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1, LastTSBuiltin };
+  enum {
+    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsVE.def"
+    LastTSBuiltin
+  };
   }
 
   namespace RISCVVector {
@@ -144,6 +150,16 @@ namespace clang {
     LastTSBuiltin
   };
   } // namespace RISCV
+
+  /// LoongArch builtins
+  namespace LoongArch {
+  enum {
+    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsLoongArch.def"
+    LastTSBuiltin
+  };
+  } // namespace LoongArch
 
   /// Flags to identify the types for overloaded Neon builtins.
   ///
@@ -227,10 +243,10 @@ namespace clang {
     };
 
     SVETypeFlags(uint64_t F) : Flags(F) {
-      EltTypeShift = llvm::countTrailingZeros(EltTypeMask);
-      MemEltTypeShift = llvm::countTrailingZeros(MemEltTypeMask);
-      MergeTypeShift = llvm::countTrailingZeros(MergeTypeMask);
-      SplatOperandMaskShift = llvm::countTrailingZeros(SplatOperandMask);
+      EltTypeShift = llvm::countr_zero(EltTypeMask);
+      MemEltTypeShift = llvm::countr_zero(MemEltTypeMask);
+      MergeTypeShift = llvm::countr_zero(MergeTypeMask);
+      SplatOperandMaskShift = llvm::countr_zero(SplatOperandMask);
     }
 
     EltType getEltType() const {
@@ -272,6 +288,8 @@ namespace clang {
     bool isInsertOp1SVALL() const { return Flags & IsInsertOp1SVALL; }
     bool isGatherPrefetch() const { return Flags & IsGatherPrefetch; }
     bool isReverseUSDOT() const { return Flags & ReverseUSDOT; }
+    bool isReverseMergeAnyBinOp() const { return Flags & ReverseMergeAnyBinOp; }
+    bool isReverseMergeAnyAccOp() const { return Flags & ReverseMergeAnyAccOp; }
     bool isUndef() const { return Flags & IsUndef; }
     bool isTupleCreate() const { return Flags & IsTupleCreate; }
     bool isTupleGet() const { return Flags & IsTupleGet; }

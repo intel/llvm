@@ -14,11 +14,11 @@
 
 #include "Types.h"
 
-namespace _OMP {
+namespace ompx {
 
 namespace mapping {
 
-#pragma omp declare target
+#pragma omp begin declare target device_type(nohost)
 
 inline constexpr uint32_t MaxThreadsPerTeam = 1024;
 
@@ -79,7 +79,12 @@ uint32_t getNumberOfWarpsInBlock();
 uint32_t getBlockId();
 
 /// Return the block size, thus number of threads in the block.
+///
+/// Note: The version taking \p IsSPMD mode explicitly can be used during the
+/// initialization of the target region, that is before `mapping::isSPMDMode()`
+/// can be called by any thread other than the main one.
 uint32_t getBlockSize();
+uint32_t getBlockSize(bool IsSPMD);
 
 /// Return the number of blocks in the kernel.
 uint32_t getNumberOfBlocks();
@@ -92,6 +97,6 @@ uint32_t getNumberOfProcessorElements();
 
 } // namespace mapping
 
-} // namespace _OMP
+} // namespace ompx
 
 #endif

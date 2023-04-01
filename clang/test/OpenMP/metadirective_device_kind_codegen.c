@@ -1,13 +1,13 @@
-// RUN: %clang_cc1 -verify -fopenmp -x c -triple x86_64-unknown-linux -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -verify -fopenmp -x c -triple aarch64-unknown-linux -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -verify -fopenmp -x c -triple ppc64le-unknown-linux -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c -triple x86_64-unknown-linux -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c -triple aarch64-unknown-linux -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c -triple ppc64le-unknown-linux -emit-llvm %s -o - | FileCheck %s
 // expected-no-diagnostics
 #ifndef HEADER
 #define HEADER
 
-void bar();
+void bar(void);
 
-void foo() {
+void foo(void) {
 #pragma omp metadirective when(device = {kind(any)} \
                                : parallel)
   bar();
@@ -47,7 +47,7 @@ void foo() {
 // CHECK: ret void
 
 // CHECK: define internal void [[OUTLINED_1]](
-// CHECK: call void {{.+}} @bar
+// CHECK: call void @bar
 // CHECK: ret void
 
 // CHECK: define internal void [[OUTLINED_2]](
@@ -61,15 +61,15 @@ void foo() {
 // CHECK: ret void
 
 // CHECK: define internal void [[OUTLINED_4]](
-// CHECK: call void {{.+}} @bar
+// CHECK: call void @bar
 // CHECK: ret void
 
 // CHECK: define internal void [[OUTLINED_5]](
-// CHECK: call void {{.+}} @bar
+// CHECK: call void @bar
 // CHECK: ret void
 
 // CHECK: define internal void [[OUTLINED_6]](
-// CHECK: call void {{.+}} @bar
+// CHECK: call void @bar
 // CHECK: ret void
 
 // CHECK: define internal void [[OUTLINED_7]](

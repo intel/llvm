@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-ast -analyze < %s | FileCheck %s -check-prefix=AST
+; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-print-ast -disable-output < %s | FileCheck %s -check-prefix=AST
 ; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-codegen -S -verify-dom-info < %s | FileCheck %s -check-prefix=IR
 
 ; This test case verifies that we create correct code even if two OpenMP loops
@@ -15,7 +15,7 @@
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-define void @foo(i64 %nj, [512 x double]* %R) {
+define void @foo(i64 %nj, ptr %R) {
 entry:
   br label %for.cond1.preheader
 
@@ -26,8 +26,8 @@ for.cond1.preheader:
 
 for.body35:
   %j.012 = phi i64 [ %j.0, %for.body35 ], [ %j.010, %for.cond1.preheader ]
-  %arrayidx39 = getelementptr inbounds [512 x double], [512 x double]* %R, i64 0, i64 %j.012
-  store double 0.000000e+00, double* %arrayidx39
+  %arrayidx39 = getelementptr inbounds [512 x double], ptr %R, i64 0, i64 %j.012
+  store double 0.000000e+00, ptr %arrayidx39
   %j.0 = add nsw i64 %j.012, 1
   %cmp34 = icmp slt i64 %j.0, %nj
   br i1 %cmp34, label %for.body35, label %for.inc86

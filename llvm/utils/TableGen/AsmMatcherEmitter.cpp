@@ -95,6 +95,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CodeGenInstAlias.h"
+#include "CodeGenInstruction.h"
+#include "CodeGenRegisters.h"
 #include "CodeGenTarget.h"
 #include "SubtargetFeatureInfo.h"
 #include "Types.h"
@@ -104,7 +107,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -594,8 +596,9 @@ struct MatchableInfo {
   /// findAsmOperandNamed - Find the first AsmOperand with the specified name.
   /// This does not check the suboperand index.
   int findAsmOperandNamed(StringRef N, int LastIdx = -1) const {
-    auto I = std::find_if(AsmOperands.begin() + LastIdx + 1, AsmOperands.end(),
-                     [&](const AsmOperand &Op) { return Op.SrcOpName == N; });
+    auto I =
+        llvm::find_if(llvm::drop_begin(AsmOperands, LastIdx + 1),
+                      [&](const AsmOperand &Op) { return Op.SrcOpName == N; });
     return (I != AsmOperands.end()) ? I - AsmOperands.begin() : -1;
   }
 
@@ -1448,17 +1451,23 @@ void AsmMatcherInfo::buildOperandMatchInfo() {
   typedef std::map<ClassInfo *, unsigned, deref<std::less<>>> OpClassMaskTy;
   OpClassMaskTy OpClassMask;
 
+  bool CallCustomParserForAllOperands =
+      AsmParser->getValueAsBit("CallCustomParserForAllOperands");
   for (const auto &MI : Matchables) {
     OpClassMask.clear();
 
     // Keep track of all operands of this instructions which belong to the
     // same class.
+    unsigned NumOptionalOps = 0;
     for (unsigned i = 0, e = MI->AsmOperands.size(); i != e; ++i) {
       const MatchableInfo::AsmOperand &Op = MI->AsmOperands[i];
-      if (Op.Class->ParserMethod.empty())
-        continue;
-      unsigned &OperandMask = OpClassMask[Op.Class];
-      OperandMask |= (1 << i);
+      if (CallCustomParserForAllOperands || !Op.Class->ParserMethod.empty()) {
+        unsigned &OperandMask = OpClassMask[Op.Class];
+        OperandMask |= maskTrailingOnes<unsigned>(NumOptionalOps + 1)
+                       << (i - NumOptionalOps);
+      }
+      if (Op.Class->IsOptional)
+        ++NumOptionalOps;
     }
 
     // Generate operand match info for each mnemonic/operand class pair.
@@ -2834,12 +2843,12 @@ static bool emitMnemonicAliases(raw_ostream &OS, const AsmMatcherInfo &Info,
   return true;
 }
 
-static void emitCustomOperandParsing(raw_ostream &OS, CodeGenTarget &Target,
-                              const AsmMatcherInfo &Info, StringRef ClassName,
-                              StringToOffsetTable &StringTable,
-                              unsigned MaxMnemonicIndex,
-                              unsigned MaxFeaturesIndex,
-                              bool HasMnemonicFirst) {
+static void
+emitCustomOperandParsing(raw_ostream &OS, CodeGenTarget &Target,
+                         const AsmMatcherInfo &Info, StringRef ClassName,
+                         StringToOffsetTable &StringTable,
+                         unsigned MaxMnemonicIndex, unsigned MaxFeaturesIndex,
+                         bool HasMnemonicFirst, const Record &AsmParser) {
   unsigned MaxMask = 0;
   for (const OperandMatchEntry &OMI : Info.OperandMatchInfo) {
     MaxMask |= OMI.OperandMask;
@@ -2990,9 +2999,12 @@ static void emitCustomOperandParsing(raw_ostream &OS, CodeGenTarget &Target,
   OS << "      continue;\n\n";
 
   // Emit call to the custom parser method
+  StringRef ParserName = AsmParser.getValueAsString("OperandParserMethod");
+  if (ParserName.empty())
+    ParserName = "tryCustomParseOperand";
   OS << "    // call custom parse method to handle the operand\n";
-  OS << "    OperandMatchResultTy Result = ";
-  OS << "tryCustomParseOperand(Operands, it->Class);\n";
+  OS << "    OperandMatchResultTy Result = " << ParserName
+     << "(Operands, it->Class);\n";
   OS << "    if (Result != MatchOperand_NoMatch)\n";
   OS << "      return Result;\n";
   OS << "  }\n\n";
@@ -3027,11 +3039,9 @@ static void emitAsmTiedOperandConstraints(CodeGenTarget &Target,
   OS << "      if (OpndNum1 != OpndNum2) {\n";
   OS << "        auto &SrcOp1 = Operands[OpndNum1];\n";
   OS << "        auto &SrcOp2 = Operands[OpndNum2];\n";
-  OS << "        if (SrcOp1->isReg() && SrcOp2->isReg()) {\n";
-  OS << "          if (!AsmParser.regsEqual(*SrcOp1, *SrcOp2)) {\n";
-  OS << "            ErrorInfo = OpndNum2;\n";
-  OS << "            return false;\n";
-  OS << "          }\n";
+  OS << "        if (!AsmParser.areEqualRegs(*SrcOp1, *SrcOp2)) {\n";
+  OS << "          ErrorInfo = OpndNum2;\n";
+  OS << "          return false;\n";
   OS << "        }\n";
   OS << "      }\n";
   OS << "      break;\n";
@@ -3192,6 +3202,8 @@ void AsmMatcherEmitter::run(raw_ostream &OS) {
   CodeGenTarget Target(Records);
   Record *AsmParser = Target.getAsmParser();
   StringRef ClassName = AsmParser->getValueAsString("AsmParserClassName");
+
+  emitSourceFileHeader("Assembly Matcher Source Fragment", OS);
 
   // Compute the information on the instructions to match.
   AsmMatcherInfo Info(AsmParser, Target, Records);
@@ -3394,7 +3406,7 @@ void AsmMatcherEmitter::run(raw_ostream &OS) {
                         StringTable.GetOrAddStringOffset(LenMnemonic, false));
   }
 
-  OS << "static const char *const MnemonicTable =\n";
+  OS << "static const char MnemonicTable[] =\n";
   StringTable.EmitString(OS);
   OS << ";\n\n";
 
@@ -3666,7 +3678,8 @@ void AsmMatcherEmitter::run(raw_ostream &OS) {
   OS << "      else\n";
   OS << "        DEBUG_WITH_TYPE(\"asm-matcher\", dbgs() << \": \");\n";
   OS << "      if (ActualIdx >= Operands.size()) {\n";
-  OS << "        DEBUG_WITH_TYPE(\"asm-matcher\", dbgs() << \"actual operand index out of range \");\n";
+  OS << "        DEBUG_WITH_TYPE(\"asm-matcher\", dbgs() << \"actual operand "
+        "index out of range\\n\");\n";
   if (ReportMultipleNearMisses) {
     OS << "        bool ThisOperandValid = (Formal == " <<"InvalidMatchClass) || "
                                    "isSubclass(Formal, OptionalMatchClass);\n";
@@ -3685,17 +3698,26 @@ void AsmMatcherEmitter::run(raw_ostream &OS) {
     OS << "            break;\n";
     OS << "          }\n";
     OS << "        } else {\n";
-    OS << "          DEBUG_WITH_TYPE(\"asm-matcher\", dbgs() << \"but formal operand not required\\n\");\n";
-    OS << "          break;\n";
+    OS << "          DEBUG_WITH_TYPE(\"asm-matcher\", dbgs() << \"but formal "
+          "operand not required\\n\");\n";
     OS << "        }\n";
     OS << "        continue;\n";
   } else {
-    OS << "        OperandsValid = (Formal == InvalidMatchClass) || isSubclass(Formal, OptionalMatchClass);\n";
-    OS << "        if (!OperandsValid) ErrorInfo = ActualIdx;\n";
+    OS << "        if (Formal == InvalidMatchClass) {\n";
     if (HasOptionalOperands) {
-      OS << "        OptionalOperandsMask.set(FormalIdx, " << MaxNumOperands
+      OS << "          OptionalOperandsMask.set(FormalIdx, " << MaxNumOperands
          << ");\n";
     }
+    OS << "          break;\n";
+    OS << "        }\n";
+    OS << "        if (isSubclass(Formal, OptionalMatchClass)) {\n";
+    if (HasOptionalOperands) {
+      OS << "          OptionalOperandsMask.set(FormalIdx);\n";
+    }
+    OS << "          continue;\n";
+    OS << "        }\n";
+    OS << "        OperandsValid = false;\n";
+    OS << "        ErrorInfo = ActualIdx;\n";
     OS << "        break;\n";
   }
   OS << "      }\n";
@@ -3928,7 +3950,7 @@ void AsmMatcherEmitter::run(raw_ostream &OS) {
     OS << "        MII.getDeprecatedInfo(Inst, getSTI(), Info)) {\n";
     OS << "      SMLoc Loc = ((" << Target.getName()
        << "Operand &)*Operands[0]).getStartLoc();\n";
-    OS << "      getParser().Warning(Loc, Info, None);\n";
+    OS << "      getParser().Warning(Loc, Info, std::nullopt);\n";
     OS << "    }\n";
   }
 
@@ -3960,7 +3982,7 @@ void AsmMatcherEmitter::run(raw_ostream &OS) {
   if (!Info.OperandMatchInfo.empty())
     emitCustomOperandParsing(OS, Target, Info, ClassName, StringTable,
                              MaxMnemonicIndex, FeatureBitsets.size(),
-                             HasMnemonicFirst);
+                             HasMnemonicFirst, *AsmParser);
 
   OS << "#endif // GET_MATCHER_IMPLEMENTATION\n\n";
 
@@ -3980,11 +4002,5 @@ void AsmMatcherEmitter::run(raw_ostream &OS) {
   OS << "#endif // GET_MNEMONIC_CHECKER\n\n";
 }
 
-namespace llvm {
-
-void EmitAsmMatcher(RecordKeeper &RK, raw_ostream &OS) {
-  emitSourceFileHeader("Assembly Matcher Source Fragment", OS);
-  AsmMatcherEmitter(RK).run(OS);
-}
-
-} // end namespace llvm
+static TableGen::Emitter::OptClass<AsmMatcherEmitter>
+    X("gen-asm-matcher", "Generate assembly instruction matcher");

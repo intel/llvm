@@ -1,0 +1,323 @@
+= sycl_ext_oneapi_bfloat16
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 5.
+
+== Status
+
+This extension is implemented and fully supported by DPC++.
+[NOTE]
+====
+The DPC++ compiler has the following limitation when using this extension
+in conjunction with ahead-of-time (AOT) compilation with the `-fsycl-targets`
+compiler option.  When doing AOT compilation for an Intel GPU device via
+`-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device ..."`,
+the compiler chooses either fallback or native support for bfloat16 according
+to the device(s) specified in `...`.  Native support is used only if all of
+these devices have native bfloat16 support.  As a result, AOT compiling for
+multiple Intel GPU devices could result in the lower performance fallback
+support even when running on a GPU that has native support.  Therefore, the
+recommendation is to use AOT only when all Intel GPU devices have the same
+type of bfloat16 support (all native support or all fallback support).
+
+There is a similar limitation when AOT compiling for one Intel GPU device and
+running on a different Intel GPU device. In this case, the compiler chooses
+either fallback or native bfloat16 support according to the device(s) specified
+on the command line. If the fallback library was chosen at AOT compilation
+time, then the binary will run on all Intel GPU devices but you will not
+get the performance benefit of native support even when running on a new
+Intel GPU that has native support. If however, the native
+bfloat16 library had been chosen at AOT compilation time then the binary
+will run only on Intel GPU devices that have native bfloat16 support.
+====
+
+
+== Overview
+
+This extension adds support for a 16-bit floating point type `bfloat16`.
+This type occupies 16 bits of storage space as does the `sycl::half` type.
+However, `bfloat16` allots 8 bits to the exponent instead of the 5 bits used by
+`sycl::half` and 7 bits to the significand versus 10 bits used by `sycl::half`.
+Thus, `bfloat16` has the same dynamic range as a 32-bit `float` but with
+reduced precision. This type is useful when memory required to store the values
+must be reduced, and when the calculations require high dynamic range but can
+tolerate lower precision. Some implementations may still perform operations
+ on this type using 32-bit math. For example, they may convert the `bfloat16`
+ value to `float`, and then perform the operation on the 32-bit `float`.
+
+[NOTE]
+The bfloat16 type is supported on all devices. DPC++ currently supports this
+type natively on Intel Xe HP GPUs and Nvidia GPUs with
+Compute Capability >= SM80. On other devices, and in host code, it is emulated
+in software.
+
+== Specification
+
+
+=== New `bfloat16` class
+
+The `bfloat16` type represents a 16-bit floating point value.
+Conversions from `float` to `bfloat16` are done with round to
+nearest even (RTE) rounding mode.
+
+The bfloat16 type and its operations are available in both device code and
+host code.
+
+[source]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+class bfloat16 {
+
+public:
+  bfloat16() = default;
+  bfloat16(const bfloat16 &) = default;
+  ~bfloat16() = default;
+
+  // Convert from float to bfloat16
+  bfloat16(const float &a);
+  bfloat16 &operator=(const float &a);
+
+  // Convert bfloat16 to float
+  operator float() const;
+  
+  // Convert from sycl::half to bfloat16
+  bfloat16(const sycl::half &a);
+  bfloat16 &operator=(const sycl::half &a);
+
+  // Convert bfloat16 to sycl::half
+  operator sycl::half() const;
+
+  // Convert bfloat16 to bool type
+  explicit operator bool();
+
+  friend bfloat16 operator-(bfloat16 &bf) { /* ... */ }
+
+  // OP is: prefix ++, --
+  friend bfloat16 &operatorOP(bfloat16 &bf) { /* ... */ }
+
+  // OP is: postfix ++, --
+  friend bfloat16 operatorOP(bfloat16 &bf, int) { /* ... */ }
+
+  // OP is: +=, -=, *=, /=
+  friend bfloat16 &operatorOP(bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }
+
+  // OP is +, -, *, /
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
+  { /* ... */ }
+  template <typename T>
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }
+  template <typename T>
+  friend bfloat16 operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }
+
+  // OP is ==,!=, <, >, <=, >=
+  friend bool operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
+  { /* ... */ }
+  template <typename T>
+  friend bool operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }
+  template <typename T>
+  friend bool operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }
+};
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+Table 1. Member functions of `bfloat16` class.
+|===
+| Member Function | Description
+
+| `bfloat16(const float& a);`
+| Construct `bfloat16` from `float`. Converts `float` to `bfloat16`.
+
+| `bfloat16 &operator=(const float &a);`
+| Replace the value with `a` converted to `bfloat16`
+
+| `operator float() const;`
+|  Return `bfloat16` value converted to `float`.
+
+| `bfloat16(const sycl::half& a);`
+| Construct `bfloat16` from `sycl::half`. Converts `sycl::half` to `bfloat16`.
+
+| `bfloat16 &operator=(const sycl::half &a);`
+| Replace the value with `a` converted to `bfloat16`
+
+| `operator sycl::half() const;`
+|  Return `bfloat16` value converted to `sycl::half`.
+
+| `explicit operator bool() { /* ... */ }`
+| Convert `bfloat16` to `bool` type. Return `false` if the `value` equals to
+  zero, return `true` otherwise.
+
+| `friend bfloat16 operator-(bfloat16 &bf) { /* ... */ }`
+| Construct new instance of `bfloat16` class with negated value of the `bf`.
+
+| `friend bfloat16 &operatorOP(bfloat16 &bf) { /* ... */ }`
+| Perform an in-place `OP` prefix arithmetic operation on the `bf`,
+  assigning the result to the `bf` and return the `bf`.
+
+  OP is: `++, --`
+
+| `friend bfloat16 operatorOP(bfloat16 &bf, int) { /* ... */ }`
+| Perform an in-place `OP` postfix arithmetic operation on `bf`, assigning
+  the result to the `bf` and return a copy of `bf` before the operation is
+  performed.
+
+  OP is: `++, --`
+
+| `friend bfloat16 operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
+{ /* ... */ }`
+| Perform an in-place `OP` arithmetic operation between the `lhs` and the `rhs`
+  and return the `lhs`.
+
+  OP is: `+=, -=, *=, /=`
+
+| `friend type operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
+{ /* ... */ }`
+| Construct a new instance of the `bfloat16` class with the value of the new
+  `bfloat16` instance being the result of an OP arithmetic operation between
+  the `lhs` `bfloat16` and `rhs` `bfloat16` values.
+
+  OP is `+, -, *, /`
+
+| `template <typename T>
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }`
+| Construct a new instance of the `bfloat16` class with the value of the new
+  `bfloat16` instance being the result of an OP arithmetic operation between
+  the `lhs` `bfloat16` value and `rhs` of template type `T`. Type `T` must be
+  convertible to `float`.
+
+  OP is `+, -, *, /`
+
+| `template <typename T>
+  friend bfloat16 operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }`
+| Construct a new instance of the `bfloat16` class with the value of the new
+  `bfloat16` instance being the result of an OP arithmetic operation between
+  the `lhs` of template type `T` and `rhs` `bfloat16` value. Type `T` must be
+  convertible to `float`.
+
+  OP is `+, -, *, /`
+
+| `friend bool operatorOP(const bfloat16 &lhs, const bfloat16 &rhs)
+{ /* ... */ }`
+| Perform comparison operation OP between `lhs` `bfloat16` and `rhs` `bfloat16`
+  values and return the result as a boolean value.
+
+OP is `+==, !=, <, >, <=, >=+`
+
+| `template <typename T>
+  friend bool operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }`
+| Perform comparison operation OP between `lhs` `bfloat16` and `rhs` of
+  template type `T` and return the result as a boolean value. Type `T` must be
+  convertible to `float`.
+
+OP is `+==, !=, <, >, <=, >=+`
+
+| `template <typename T>
+  friend bool operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }`
+| Perform comparison operation OP between `lhs` of template type `T` and `rhs`
+  `bfloat16` value and return the result as a boolean value. Type `T` must be
+  convertible to `float`.
+
+OP is `+==, !=, <, >, <=, >=+`
+|===
+
+=== Example
+
+[source]
+----
+#include <sycl/sycl.hpp>
+
+using namespace sycl;
+using sycl::ext::oneapi::bfloat16;
+
+float foo(float a, float b) {
+  // Convert from float to bfloat16.
+  bfloat16 A{a};
+  bfloat16 B{b};
+
+  // Convert A and B from bfloat16 to float, do addition on floating-point
+  // numbers, then convert the result to bfloat16 and store it in C.
+  bfloat16 C = A + B;
+
+  // Return the result converted from bfloat16 to float.
+  return C;
+}
+
+int main(int argc, char *argv[]) {
+  float data[3] = {7.0, 8.1, 0.0};
+  device dev{gpu_selector()};
+  queue deviceQueue{dev};
+  buffer<float, 1> buf{data, 3};
+
+  deviceQueue.submit([&](handler &cgh) {
+    accessor numbers{buf, cgh, read_write};
+    cgh.single_task([=]() { numbers[2] = foo(numbers[0], numbers[1]); });
+  });
+
+  host_accessor hostOutAcc{buf, read_only};
+  std::cout << "Result = " << hostOutAcc[2] << std::endl;
+  
+  return 0;
+}
+----
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-08-02|Alexey Sotkin |Initial public working draft
+|2|2021-08-17|Alexey Sotkin |Add explicit conversion functions +
+                             Add operator overloadings +
+                             Apply code review suggestions
+|3|2021-08-18|Alexey Sotkin |Remove `uint16_t` constructor
+|4|2022-03-07|Aidan Belton and Jack Kirk |Switch from Intel vendor specific
+ to oneapi
+|5|2022-04-05|Jack Kirk | Added section for bfloat16 math builtins
+|6|2022-09-15|Rajiv Deodhar |Move bfloat16 from experimental to supported
+and leave math functions as experimental
+|========================================

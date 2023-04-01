@@ -1,0 +1,18 @@
+@LIT_SITE_CFG_HEADER@
+
+import sys
+
+# Directory containing the LLVM tools (opt, FileCheck, ...)
+config.llvm_tools_dir = "@LLVM_TOOLS_BINARY_DIR@"
+# File extension of shared libraries, platform-dependent
+config.llvm_shlib_ext = "@CMAKE_SHARED_LIBRARY_SUFFIX@"
+# Output directory for shared libraries build for this project.
+config.llvm_shlib_dir = "@CMAKE_LIBRARY_OUTPUT_DIRECTORY@"
+
+import lit.llvm
+
+lit.llvm.initialize(lit_config, config)
+
+config.test_exec_root = os.path.join("@CMAKE_CURRENT_BINARY_DIR@")
+
+lit_config.load_config(config, "@CMAKE_CURRENT_SOURCE_DIR@/lit.cfg.py")

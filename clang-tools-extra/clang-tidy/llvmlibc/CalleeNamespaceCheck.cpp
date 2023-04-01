@@ -14,15 +14,13 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace llvm_libc {
+namespace clang::tidy::llvm_libc {
 
 // Gets the outermost namespace of a DeclContext, right under the Translation
 // Unit.
 const DeclContext *getOutermostNamespace(const DeclContext *Decl) {
   const DeclContext *Parent = Decl->getParent();
-  if (Parent && Parent->isTranslationUnit())
+  if (Parent->isTranslationUnit())
     return Decl;
   return getOutermostNamespace(Parent);
 }
@@ -52,7 +50,9 @@ void CalleeNamespaceCheck::check(const MatchFinder::MatchResult &Result) {
   if (NS && NS->getName() == "__llvm_libc")
     return;
 
-  if (IgnoredFunctions.contains(FuncDecl->getName()))
+  const DeclarationName &Name = FuncDecl->getDeclName();
+  if (Name.isIdentifier() &&
+      IgnoredFunctions.contains(Name.getAsIdentifierInfo()->getName()))
     return;
 
   diag(UsageSiteExpr->getBeginLoc(), "%0 must resolve to a function declared "
@@ -63,6 +63,4 @@ void CalleeNamespaceCheck::check(const MatchFinder::MatchResult &Result) {
        clang::DiagnosticIDs::Note);
 }
 
-} // namespace llvm_libc
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::llvm_libc

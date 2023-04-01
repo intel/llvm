@@ -5,14 +5,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// Utilities for dealing with flags related to floating point mode controls.
-//
+///
+/// \file
+/// Utilities for dealing with flags related to floating point properties and
+/// mode controls.
+///
 //===----------------------------------------------------------------------===/
 
 #ifndef LLVM_ADT_FLOATINGPOINTMODE_H
 #define LLVM_ADT_FLOATINGPOINTMODE_H
 
+#include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -190,6 +193,47 @@ void DenormalMode::print(raw_ostream &OS) const {
   OS << denormalModeKindName(Output) << ',' << denormalModeKindName(Input);
 }
 
-}
+/// Floating-point class tests, supported by 'is_fpclass' intrinsic. Actual
+/// test may be an OR combination of basic tests.
+enum FPClassTest : unsigned {
+  fcNone = 0,
+
+  fcSNan = 0x0001,
+  fcQNan = 0x0002,
+  fcNegInf = 0x0004,
+  fcNegNormal = 0x0008,
+  fcNegSubnormal = 0x0010,
+  fcNegZero = 0x0020,
+  fcPosZero = 0x0040,
+  fcPosSubnormal = 0x0080,
+  fcPosNormal = 0x0100,
+  fcPosInf = 0x0200,
+
+  fcNan = fcSNan | fcQNan,
+  fcInf = fcPosInf | fcNegInf,
+  fcNormal = fcPosNormal | fcNegNormal,
+  fcSubnormal = fcPosSubnormal | fcNegSubnormal,
+  fcZero = fcPosZero | fcNegZero,
+  fcPosFinite = fcPosNormal | fcPosSubnormal | fcPosZero,
+  fcNegFinite = fcNegNormal | fcNegSubnormal | fcNegZero,
+  fcFinite = fcPosFinite | fcNegFinite,
+  fcPositive = fcPosFinite | fcPosInf,
+  fcNegative = fcNegFinite | fcNegInf,
+
+  fcAllFlags = fcNan | fcInf | fcFinite,
+};
+
+LLVM_DECLARE_ENUM_AS_BITMASK(FPClassTest, /* LargestValue */ fcPosInf);
+
+/// Return the test mask which returns true if the value's sign bit is flipped.
+FPClassTest fneg(FPClassTest Mask);
+
+/// Return the test mask which returns true if the value's sign bit is cleared.
+FPClassTest fabs(FPClassTest Mask);
+
+/// Write a human readable form of \p Mask to \p OS
+raw_ostream &operator<<(raw_ostream &OS, FPClassTest Mask);
+
+} // namespace llvm
 
 #endif // LLVM_ADT_FLOATINGPOINTMODE_H

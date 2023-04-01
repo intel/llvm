@@ -518,7 +518,7 @@ void LiveVariables::runOnInstr(MachineInstr &MI,
       continue;
     Register MOReg = MO.getReg();
     if (MO.isUse()) {
-      if (!(Register::isPhysicalRegister(MOReg) && MRI->isReserved(MOReg)))
+      if (!(MOReg.isPhysical() && MRI->isReserved(MOReg)))
         MO.setIsKill(false);
       if (MO.readsReg())
         UseRegs.push_back(MOReg);
@@ -526,7 +526,7 @@ void LiveVariables::runOnInstr(MachineInstr &MI,
       assert(MO.isDef());
       // FIXME: We should not remove any dead flags. However the MIPS RDDSP
       // instruction needs it at the moment: http://llvm.org/PR27116.
-      if (Register::isPhysicalRegister(MOReg) && !MRI->isReserved(MOReg))
+      if (MOReg.isPhysical() && !MRI->isReserved(MOReg))
         MO.setIsDead(false);
       DefRegs.push_back(MOReg);
     }
@@ -699,7 +699,7 @@ void LiveVariables::recomputeForSingleDefVirtReg(Register Reg) {
     if (UseMI.isPHI()) {
       // If Reg is used in a phi then it is live-to-end of the corresponding
       // predecessor.
-      unsigned Idx = UseMI.getOperandNo(&UseMO);
+      unsigned Idx = UseMO.getOperandNo();
       LiveToEndBlocks.push_back(UseMI.getOperand(Idx + 1).getMBB());
     } else if (&UseBB == &DefBB) {
       // A non-phi use in the same BB as the single def must come after the def.
@@ -758,12 +758,11 @@ void LiveVariables::replaceKillInstruction(Register Reg, MachineInstr &OldMI,
 /// removeVirtualRegistersKilled - Remove all killed info for the specified
 /// instruction.
 void LiveVariables::removeVirtualRegistersKilled(MachineInstr &MI) {
-  for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-    MachineOperand &MO = MI.getOperand(i);
+  for (MachineOperand &MO : MI.operands()) {
     if (MO.isReg() && MO.isKill()) {
       MO.setIsKill(false);
       Register Reg = MO.getReg();
-      if (Register::isVirtualRegister(Reg)) {
+      if (Reg.isVirtual()) {
         bool removed = getVarInfo(Reg).removeKill(MI);
         assert(removed && "kill not in register's VarInfo?");
         (void)removed;
@@ -851,7 +850,7 @@ void LiveVariables::addNewBlock(MachineBasicBlock *BB,
   // Record all vreg defs and kills of all instructions in SuccBB.
   for (; BBI != BBE; ++BBI) {
     for (const MachineOperand &Op : BBI->operands()) {
-      if (Op.isReg() && Register::isVirtualRegister(Op.getReg())) {
+      if (Op.isReg() && Op.getReg().isVirtual()) {
         if (Op.isDef())
           Defs.insert(Op.getReg());
         else if (Op.isKill())

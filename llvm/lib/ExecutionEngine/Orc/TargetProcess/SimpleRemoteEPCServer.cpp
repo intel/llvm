@@ -10,8 +10,8 @@
 
 #include "llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Process.h"
+#include "llvm/TargetParser/Host.h"
 
 #include "OrcRTBootstrap.h"
 
@@ -22,9 +22,9 @@ using namespace llvm::orc::shared;
 namespace llvm {
 namespace orc {
 
-ExecutorBootstrapService::~ExecutorBootstrapService() {}
+ExecutorBootstrapService::~ExecutorBootstrapService() = default;
 
-SimpleRemoteEPCServer::Dispatcher::~Dispatcher() {}
+SimpleRemoteEPCServer::Dispatcher::~Dispatcher() = default;
 
 #if LLVM_ENABLE_THREADS
 void SimpleRemoteEPCServer::ThreadDispatcher::dispatch(

@@ -1,64 +1,22 @@
-# Extensions
+# SYCL Extensions in DPC++
 
-The directory contains documents that describe DPC++ extensions to SYCL
-specification.
+The DPC++ compiler supports the [SYCL language][1].  In addition to the core
+SYCL features, DPC++ also implements certain extensions, and this directory
+contains the specifications for those extensions.  These extensions are
+organized into subdirectories according to their state.
 
-DPC++ extensions status:
+[1]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html>
 
-|  Extension  |    Status   |   Comment   |
-|-------------|:------------|:------------|
-| [SYCL_INTEL_bitcast](Bitcast/SYCL_INTEL_bitcast.asciidoc)                                                                   | Supported                                 | As sycl::detail::bit_cast |
-| [C and C++ Standard libraries support](C-CXX-StandardLibrary/C-CXX-StandardLibrary.rst)                                     | Partially supported(OpenCL: CPU, GPU)     | |
-| [SYCL_INTEL_data_flow_pipes](DataFlowPipes/data_flow_pipes.asciidoc)                                                        | Partially supported(OpenCL: ACCELERATOR)  | kernel_host_pipe_support part is not implemented |
-| [SYCL_INTEL_deduction_guides](deduction_guides/SYCL_INTEL_deduction_guides.asciidoc)                                        | Supported                                 | |
-| [SYCL_INTEL_device_specific_kernel_queries](DeviceSpecificKernelQueries/SYCL_INTEL_device_specific_kernel_queries.asciidoc) | Proposal                                  | |
-| [SYCL_INTEL_enqueue_barrier](EnqueueBarrier/enqueue_barrier.asciidoc)                                                       | Supported(OpenCL, Level Zero)             | |
-| [SYCL_INTEL_extended_atomics](ExtendedAtomics/SYCL_INTEL_extended_atomics.asciidoc)                                         | Supported(OpenCL: CPU, GPU)               | |
-| [SYCL_INTEL_group_algorithms](GroupAlgorithms/SYCL_INTEL_group_algorithms.asciidoc)                                         | Deprecated                                | |
-| [GroupMask](GroupMask/GroupMask.asciidoc)                                                                                   | Proposal                                  | |
-| [FPGA selector](IntelFPGA/FPGASelector.md)                                                                                  | Supported                                 | |
-| [FPGA reg](IntelFPGA/FPGAReg.md)                                                                                            | Supported(OpenCL: ACCELERATOR)            | |
-| [SYCL_INTEL_kernel_restrict_all](KernelRestrictAll/SYCL_INTEL_kernel_restrict_all.asciidoc)                                 | Supported(OpenCL)                         | |
-| [SYCL_INTEL_attribute_style](KernelRHSAttributes/SYCL_INTEL_attribute_style.asciidoc)                                       | Proposal                                  | |
-| [Queue Order Properties](OrderedQueue/OrderedQueue_v2.adoc)                                                                 | Supported                                 | |
-| [Queue Shortcuts](QueueShortcuts/QueueShortcuts.adoc)                                                                       | Supported                                 | |
-| [Reductions for ND-Range Parallelism](Reduction/Reduction.md)                                                               | Partially supported(OpenCL: CPU, GPU; CUDA) | Not supported: multiple reduction vars, multi-dimensional reduction vars |
-| [SYCL_INTEL_relax_standard_layout](RelaxStdLayout/SYCL_INTEL_relax_standard_layout.asciidoc)                                | Supported                                 | |
-| [SYCL_INTEL_reqd_work_group_size](ReqdWorkGroupSize/SYCL_INTEL_reqd_work_group_size.asciidoc)                               | Supported(OpenCL: CPU, GPU)               | |
-| [SPV_INTEL_function_pointers](SPIRV/SPV_INTEL_function_pointers.asciidoc)                                                   | Supported(OpenCL: CPU, GPU; HOST)         | |
-| [SPV_INTEL_inline_assembly](SPIRV/SPV_INTEL_inline_assembly.asciidoc)                                                       | Supported(OpenCL: GPU)                    | |
-| [LocalMemory](LocalMemory/LocalMemory.asciidoc)                                                                             | Supported(OpenCL; CUDA)                   | Revision 1 of the spec is fully supported, future revisions are expected to expand the functionality |
-| [SYCL_INTEL_static_local_memory_query](StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)                | Proposal                                  | |
-| [Sub-groups for NDRange Parallelism](SubGroupNDRange/SubGroupNDRange.md)                                                    | Deprecated(OpenCL: CPU, GPU)              | |
-| [Sub-groups](SubGroup/SYCL_INTEL_sub_group.asciidoc)                                                                        | Deprecated                                | |
-| [SYCL_INTEL_unnamed_kernel_lambda](UnnamedKernelLambda/SYCL_INTEL_unnamed_kernel_lambda.asciidoc)                           | Supported(OpenCL)                         | |
-| [Unified Shared Memory](USM/USM.adoc)                                                                                       | Supported(OpenCL)                         | |
-| [Use Pinned Memory Property](UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc)                                           | Supported                                 | |
-| [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	      | Supported                                 | |
-| [Platform Context](PlatformContext/PlatformContext.adoc) | Proposal | |
-| [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc) | Proposal | |
-| [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Experimental. Partially supported         | |
-| [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
-| [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
-| [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc)                                                                                | Proposal                                  | |
-| [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                                | Partially supported(AMX AOT)              | Not supported: dynamic-extent, wg and wi scopes, layouts other than packed|
-| [SYCL_INTEL_free_function_queries](FreeFunctionQueries/SYCL_INTEL_free_function_queries.asciidoc)                           | Supported (experimental)                  | |
-| [EXT_ONEAPI_max_work_groups](MaxWorkGroupQueries/max_work_group_query.md)                                                   | Supported                                 | |
-| [SYCL_EXT_ONEAPI_DEVICE_GLOBAL](DeviceGlobal/SYCL_INTEL_device_global.asciidoc)                                             | Proposal                                  | |
-| [SYCL_INTEL_bf16_conversion](Bf16Conversion/SYCL_INTEL_bf16_conversion.asciidoc)                                            | Partially supported (Level Zero: GPU)     | Currently available only on Xe HP GPU. ext_intel_bf16_conversion aspect is not supported. |
-| [Property List](PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc)                                                        | Proposal                                  | |
-| [KernelProperties](KernelProperties/KernelProperties.asciidoc)                                                              | Proposal                                  | |
-| [DiscardQueueEvents](DiscardQueueEvents/SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS.asciidoc) | Proposal | |
+| Directory        | Description                                                   |
+|------------------|---------------------------------------------------------------|
+|[supported][2]    | Extensions which are fully supported                          |
+|[experimental][3] | Extensions which are implemented but may change in the future |
+|[deprecated][4]   | Extensions which are supported but will be removed soon       |
+|[proposed][5]     | Extensions which proposed but not yet implemented             |
+|[removed][6]      | Extensions which used to be supported but are now removed     |
 
-Legend:
-
-|  Keyword    |   Meaning   |
-|-------------|:------------|
-|  Proposal                        | A document describing an extension is published, but the extension is not supported yet |
-|  Supported                       | An extension is supported |
-|  Partially supported             | An extension is partially supported, see comments column for more info |
-|  Deprecated                      | An extension is deprecated and can be removed in future versions |
-|  (API: DeviceType1, DeviceType2) | An extension is supported when specific combination of API and device types are used. If device type or API are not mentioned then an extension is supported on any device type or API. API can be OpenCL, CUDA, HOST. DeviceType can be CPU, GPU, ACCELERATOR |
-
-
-See [User Manual](../UsersManual.md) to find information how to enable extensions.
+[2]: <supported>
+[3]: <experimental>
+[4]: <deprecated>
+[5]: <proposed>
+[6]: <removed>

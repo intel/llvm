@@ -9,9 +9,43 @@ from lldbsuite.test import lldbutil
 
 
 class TestStepOverWatchpoint(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
+
+    def get_to_start(self, bkpt_text):
+        """Test stepping over watchpoints."""
+        self.build()
+        target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(self, bkpt_text,
+                                                                       lldb.SBFileSpec("main.c"))
+        frame = thread.GetFrameAtIndex(0)
+        self.assertTrue(frame.IsValid(), "Failed to get frame.")
+
+        read_value = frame.FindValue('g_watch_me_read',
+                                     lldb.eValueTypeVariableGlobal)
+        self.assertTrue(read_value.IsValid(), "Failed to find read value.")
+
+        error = lldb.SBError()
+
+        # resolve_location=True, read=True, write=False
+        read_watchpoint = read_value.Watch(True, True, False, error)
+        self.assertSuccess(error, "Error while setting watchpoint")
+        self.assertTrue(read_watchpoint, "Failed to set read watchpoint.")
+
+        # Disable the breakpoint we hit so we don't muddy the waters with
+        # stepping off from the breakpoint:
+        bkpt.SetEnabled(False)
+        
+        return (target, process, thread, frame, read_watchpoint)
+    
+    # Read-write watchpoints not supported on SystemZ
+    @expectedFailureAll(archs=['s390x'])
+    @add_test_categories(["basic_process"])
+    def test_step_over(self):
+        target, process, thread, frame, wp = self.get_to_start("Set a breakpoint here")
+    
+        thread.StepOver()
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonWatchpoint,
+                        STOPPED_DUE_TO_WATCHPOINT)
+        self.assertEquals(thread.GetStopDescription(20), 'watchpoint 1')
 
     @expectedFailureAll(
         oslist=["freebsd", "linux"],
@@ -26,48 +60,8 @@ class TestStepOverWatchpoint(TestBase):
         archs=['aarch64', 'arm'],
         bugnumber="<rdar://problem/34027183>")
     @add_test_categories(["basic_process"])
-    def test(self):
-        """Test stepping over watchpoints."""
-        self.build()
-        target = self.createTestTarget()
-
-        lldbutil.run_break_set_by_symbol(self, 'main')
-
-        process = target.LaunchSimple(None, None,
-                                      self.get_process_working_directory())
-        self.assertTrue(process.IsValid(), PROCESS_IS_VALID)
-        self.assertEquals(process.GetState(), lldb.eStateStopped,
-                        PROCESS_STOPPED)
-
-        thread = lldbutil.get_stopped_thread(process,
-                                             lldb.eStopReasonBreakpoint)
-        self.assertTrue(thread.IsValid(), "Failed to get thread.")
-
-        frame = thread.GetFrameAtIndex(0)
-        self.assertTrue(frame.IsValid(), "Failed to get frame.")
-
-        read_value = frame.FindValue('g_watch_me_read',
-                                     lldb.eValueTypeVariableGlobal)
-        self.assertTrue(read_value.IsValid(), "Failed to find read value.")
-
-        error = lldb.SBError()
-
-        # resolve_location=True, read=True, write=False
-        read_watchpoint = read_value.Watch(True, True, False, error)
-        self.assertTrue(error.Success(),
-                        "Error while setting watchpoint: %s" %
-                        error.GetCString())
-        self.assertTrue(read_watchpoint, "Failed to set read watchpoint.")
-
-        thread.StepOver()
-        self.assertEquals(thread.GetStopReason(), lldb.eStopReasonWatchpoint,
-                        STOPPED_DUE_TO_WATCHPOINT)
-        self.assertEquals(thread.GetStopDescription(20), 'watchpoint 1')
-
-        process.Continue()
-        self.assertEquals(process.GetState(), lldb.eStateStopped,
-                        PROCESS_STOPPED)
-        self.assertEquals(thread.GetStopDescription(20), 'step over')
+    def test_step_instruction(self):
+        target, process, thread, frame, wp = self.get_to_start("Set breakpoint after call")
 
         self.step_inst_for_watchpoint(1)
 
@@ -81,21 +75,20 @@ class TestStepOverWatchpoint(TestBase):
         if re.match("^mips", arch) or re.match("powerpc64le", arch):
             self.runCmd("watchpoint delete 1")
 
+        error = lldb.SBError()
         # resolve_location=True, read=False, write=True
         write_watchpoint = write_value.Watch(True, False, True, error)
         self.assertTrue(write_watchpoint, "Failed to set write watchpoint.")
-        self.assertTrue(error.Success(),
-                        "Error while setting watchpoint: %s" %
-                        error.GetCString())
+        self.assertSuccess(error, "Error while setting watchpoint")
 
         thread.StepOver()
-        self.assertEquals(thread.GetStopReason(), lldb.eStopReasonWatchpoint,
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonWatchpoint,
                         STOPPED_DUE_TO_WATCHPOINT)
         self.assertEquals(thread.GetStopDescription(20), 'watchpoint 2')
 
         process.Continue()
-        self.assertEquals(process.GetState(), lldb.eStateStopped,
-                        PROCESS_STOPPED)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         PROCESS_STOPPED)
         self.assertEquals(thread.GetStopDescription(20), 'step over')
 
         self.step_inst_for_watchpoint(2)
@@ -114,6 +107,6 @@ class TestStepOverWatchpoint(TestBase):
                                 "Watchpoint ID didn't match.")
                 watchpoint_hit = True
             else:
-                self.assertEquals(stop_reason, lldb.eStopReasonPlanComplete,
+                self.assertStopReason(stop_reason, lldb.eStopReasonPlanComplete,
                                 STOPPED_DUE_TO_STEP_IN)
         self.assertTrue(watchpoint_hit, "Watchpoint never hit.")

@@ -1,4 +1,4 @@
-// RUN: mlir-opt -convert-scf-to-openmp -split-input-file %s | FileCheck %s
+// RUN: mlir-opt -convert-scf-to-openmp='use-opaque-pointers=1' -split-input-file %s | FileCheck %s
 
 // CHECK: omp.reduction.declare @[[$REDF:.*]] : f32
 
@@ -12,16 +12,15 @@
 // CHECK: omp.yield(%[[RES]] : f32)
 
 // CHECK: atomic
-// CHECK: ^{{.*}}(%[[ARG0:.*]]: !llvm.ptr<f32>, %[[ARG1:.*]]: !llvm.ptr<f32>):
-// CHECK: %[[RHS:.*]] = llvm.load %[[ARG1]]
+// CHECK: ^{{.*}}(%[[ARG0:.*]]: !llvm.ptr, %[[ARG1:.*]]: !llvm.ptr):
+// CHECK: %[[RHS:.*]] = llvm.load %[[ARG1]] : !llvm.ptr -> f32
 // CHECK: llvm.atomicrmw fadd %[[ARG0]], %[[RHS]] monotonic
 
 // CHECK-LABEL: @reduction1
-func @reduction1(%arg0 : index, %arg1 : index, %arg2 : index,
+func.func @reduction1(%arg0 : index, %arg1 : index, %arg2 : index,
                  %arg3 : index, %arg4 : index) {
   // CHECK: %[[CST:.*]] = arith.constant 0.0
   // CHECK: %[[ONE:.*]] = llvm.mlir.constant(1
-  // CHECK: llvm.intr.stacksave
   // CHECK: %[[BUF:.*]] = llvm.alloca %[[ONE]] x f32
   // CHECK: llvm.store %[[CST]], %[[BUF]]
   %step = arith.constant 1 : index
@@ -29,6 +28,7 @@ func @reduction1(%arg0 : index, %arg1 : index, %arg2 : index,
   // CHECK: omp.parallel
   // CHECK: omp.wsloop
   // CHECK-SAME: reduction(@[[$REDF]] -> %[[BUF]]
+  // CHECK: memref.alloca_scope
   scf.parallel (%i0, %i1) = (%arg0, %arg1) to (%arg2, %arg3)
                             step (%arg4, %step) init (%zero) -> (f32) {
     // CHECK: %[[CST_INNER:.*]] = arith.constant 1.0
@@ -43,7 +43,6 @@ func @reduction1(%arg0 : index, %arg1 : index, %arg2 : index,
   }
   // CHECK: omp.terminator
   // CHECK: llvm.load %[[BUF]]
-  // CHECK: llvm.intr.stackrestore
   return
 }
 
@@ -64,7 +63,7 @@ func @reduction1(%arg0 : index, %arg1 : index, %arg2 : index,
 // CHECK-NOT: atomic
 
 // CHECK-LABEL: @reduction2
-func @reduction2(%arg0 : index, %arg1 : index, %arg2 : index,
+func.func @reduction2(%arg0 : index, %arg1 : index, %arg2 : index,
                  %arg3 : index, %arg4 : index) {
   %step = arith.constant 1 : index
   %zero = arith.constant 0.0 : f32
@@ -82,6 +81,43 @@ func @reduction2(%arg0 : index, %arg1 : index, %arg2 : index,
 
 // -----
 
+// Check the generation of declaration for arith.muli.
+// Mostly, the same check as above, except for the types,
+// the name of the op and the init value.
+
+// CHECK: omp.reduction.declare @[[$REDI:.*]] : i32
+
+// CHECK: init
+// CHECK: %[[INIT:.*]] = llvm.mlir.constant(1 : i32)
+// CHECK: omp.yield(%[[INIT]] : i32)
+
+// CHECK: combiner
+// CHECK: ^{{.*}}(%[[ARG0:.*]]: i32, %[[ARG1:.*]]: i32)
+// CHECK: %[[RES:.*]] = arith.muli %[[ARG0]], %[[ARG1]]
+// CHECK: omp.yield(%[[RES]] : i32)
+
+// CHECK-NOT: atomic
+
+// CHECK-LABEL: @reduction_muli
+func.func @reduction_muli(%arg0 : index, %arg1 : index, %arg2 : index,
+                 %arg3 : index, %arg4 : index) {
+  %step = arith.constant 1 : index
+  %one = arith.constant 1 : i32
+  scf.parallel (%i0, %i1) = (%arg0, %arg1) to (%arg2, %arg3)
+                            step (%arg4, %step) init (%one) -> (i32) {
+    // CHECK: omp.reduction
+    %pow2 = arith.constant 2 : i32
+    scf.reduce(%pow2) : i32 {
+    ^bb0(%lhs : i32, %rhs: i32):
+      %res = arith.muli %lhs, %rhs : i32
+      scf.reduce.return %res : i32
+    }
+  }
+  return
+}
+
+// -----
+
 // Only check the declaration here, the rest is same as above.
 // CHECK: omp.reduction.declare @{{.*}} : f32
 
@@ -92,13 +128,13 @@ func @reduction2(%arg0 : index, %arg1 : index, %arg2 : index,
 // CHECK: combiner
 // CHECK: ^{{.*}}(%[[ARG0:.*]]: f32, %[[ARG1:.*]]: f32)
 // CHECK: %[[CMP:.*]] = arith.cmpf oge, %[[ARG0]], %[[ARG1]]
-// CHECK: %[[RES:.*]] = select %[[CMP]], %[[ARG0]], %[[ARG1]]
+// CHECK: %[[RES:.*]] = arith.select %[[CMP]], %[[ARG0]], %[[ARG1]]
 // CHECK: omp.yield(%[[RES]] : f32)
 
 // CHECK-NOT: atomic
 
 // CHECK-LABEL: @reduction3
-func @reduction3(%arg0 : index, %arg1 : index, %arg2 : index,
+func.func @reduction3(%arg0 : index, %arg1 : index, %arg2 : index,
                  %arg3 : index, %arg4 : index) {
   %step = arith.constant 1 : index
   %zero = arith.constant 0.0 : f32
@@ -108,7 +144,7 @@ func @reduction3(%arg0 : index, %arg1 : index, %arg2 : index,
     scf.reduce(%one) : f32 {
     ^bb0(%lhs : f32, %rhs: f32):
       %cmp = arith.cmpf oge, %lhs, %rhs : f32
-      %res = select %cmp, %lhs, %rhs : f32
+      %res = arith.select %cmp, %lhs, %rhs : f32
       scf.reduce.return %res : f32
     }
   }
@@ -126,7 +162,7 @@ func @reduction3(%arg0 : index, %arg1 : index, %arg2 : index,
 // CHECK: combiner
 // CHECK: ^{{.*}}(%[[ARG0:.*]]: f32, %[[ARG1:.*]]: f32)
 // CHECK: %[[CMP:.*]] = arith.cmpf oge, %[[ARG0]], %[[ARG1]]
-// CHECK: %[[RES:.*]] = select %[[CMP]], %[[ARG0]], %[[ARG1]]
+// CHECK: %[[RES:.*]] = arith.select %[[CMP]], %[[ARG0]], %[[ARG1]]
 // CHECK: omp.yield(%[[RES]] : f32)
 
 // CHECK-NOT: atomic
@@ -140,16 +176,16 @@ func @reduction3(%arg0 : index, %arg1 : index, %arg2 : index,
 // CHECK: combiner
 // CHECK: ^{{.*}}(%[[ARG0:.*]]: i64, %[[ARG1:.*]]: i64)
 // CHECK: %[[CMP:.*]] = arith.cmpi slt, %[[ARG0]], %[[ARG1]]
-// CHECK: %[[RES:.*]] = select %[[CMP]], %[[ARG1]], %[[ARG0]]
+// CHECK: %[[RES:.*]] = arith.select %[[CMP]], %[[ARG1]], %[[ARG0]]
 // CHECK: omp.yield(%[[RES]] : i64)
 
 // CHECK: atomic
-// CHECK: ^{{.*}}(%[[ARG0:.*]]: !llvm.ptr<i64>, %[[ARG1:.*]]: !llvm.ptr<i64>):
-// CHECK: %[[RHS:.*]] = llvm.load %[[ARG1]]
+// CHECK: ^{{.*}}(%[[ARG0:.*]]: !llvm.ptr, %[[ARG1:.*]]: !llvm.ptr):
+// CHECK: %[[RHS:.*]] = llvm.load %[[ARG1]] : !llvm.ptr -> i64
 // CHECK: llvm.atomicrmw max %[[ARG0]], %[[RHS]] monotonic
 
 // CHECK-LABEL: @reduction4
-func @reduction4(%arg0 : index, %arg1 : index, %arg2 : index,
+func.func @reduction4(%arg0 : index, %arg1 : index, %arg2 : index,
                  %arg3 : index, %arg4 : index) -> (f32, i64) {
   %step = arith.constant 1 : index
   // CHECK: %[[ZERO:.*]] = arith.constant 0.0
@@ -165,6 +201,7 @@ func @reduction4(%arg0 : index, %arg1 : index, %arg2 : index,
   // CHECK: omp.wsloop
   // CHECK-SAME: reduction(@[[$REDF1]] -> %[[BUF1]]
   // CHECK-SAME:           @[[$REDF2]] -> %[[BUF2]]
+  // CHECK: memref.alloca_scope
   %res:2 = scf.parallel (%i0, %i1) = (%arg0, %arg1) to (%arg2, %arg3)
                         step (%arg4, %step) init (%zero, %ione) -> (f32, i64) {
     %one = arith.constant 1.0 : f32
@@ -172,7 +209,7 @@ func @reduction4(%arg0 : index, %arg1 : index, %arg2 : index,
     scf.reduce(%one) : f32 {
     ^bb0(%lhs : f32, %rhs: f32):
       %cmp = arith.cmpf oge, %lhs, %rhs : f32
-      %res = select %cmp, %lhs, %rhs : f32
+      %res = arith.select %cmp, %lhs, %rhs : f32
       scf.reduce.return %res : f32
     }
     // CHECK: arith.fptosi
@@ -181,14 +218,14 @@ func @reduction4(%arg0 : index, %arg1 : index, %arg2 : index,
     scf.reduce(%1) : i64 {
     ^bb1(%lhs: i64, %rhs: i64):
       %cmp = arith.cmpi slt, %lhs, %rhs : i64
-      %res = select %cmp, %rhs, %lhs : i64
+      %res = arith.select %cmp, %rhs, %lhs : i64
       scf.reduce.return %res : i64
     }
     // CHECK: omp.yield
   }
   // CHECK: omp.terminator
-  // CHECK: %[[RES1:.*]] = llvm.load %[[BUF1]]
-  // CHECK: %[[RES2:.*]] = llvm.load %[[BUF2]]
+  // CHECK: %[[RES1:.*]] = llvm.load %[[BUF1]] : !llvm.ptr -> f32
+  // CHECK: %[[RES2:.*]] = llvm.load %[[BUF2]] : !llvm.ptr -> i64
   // CHECK: return %[[RES1]], %[[RES2]]
   return %res#0, %res#1 : f32, i64
 }

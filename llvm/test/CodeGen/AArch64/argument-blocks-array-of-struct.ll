@@ -53,8 +53,8 @@ define [ 9 x double ] @array_9() {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    movi v0.2d, #0000000000000000
 ; CHECK-NEXT:    str xzr, [x8, #64]
-; CHECK-NEXT:    stp q0, q0, [x8, #32]
 ; CHECK-NEXT:    stp q0, q0, [x8]
+; CHECK-NEXT:    stp q0, q0, [x8, #32]
 ; CHECK-NEXT:    ret
   ret [ 9 x double ] zeroinitializer
 }
@@ -232,8 +232,8 @@ define [ 5 x %T_STRUCT_SAMEM ] @array_of_struct_in_memory() {
 ; CHECK-LABEL: array_of_struct_in_memory:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    movi v0.2d, #0000000000000000
-; CHECK-NEXT:    stp q0, q0, [x8, #48]
 ; CHECK-NEXT:    stp q0, q0, [x8, #16]
+; CHECK-NEXT:    stp q0, q0, [x8, #48]
 ; CHECK-NEXT:    str q0, [x8]
 ; CHECK-NEXT:    ret
   ret [ 5 x %T_STRUCT_SAMEM ] zeroinitializer
@@ -350,8 +350,8 @@ define [ 2 x %T_NESTED_STRUCT_SAMEM ] @array_of_struct_nested_same_field_types_2
 ; CHECK-LABEL: array_of_struct_nested_same_field_types_2:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    movi v0.2d, #0000000000000000
-; CHECK-NEXT:    stp q0, q0, [x8, #48]
 ; CHECK-NEXT:    stp q0, q0, [x8, #16]
+; CHECK-NEXT:    stp q0, q0, [x8, #48]
 ; CHECK-NEXT:    str q0, [x8]
 ; CHECK-NEXT:    ret
   ret [ 2 x %T_NESTED_STRUCT_SAMEM ] zeroinitializer
@@ -394,7 +394,7 @@ define void @caller_in_block() {
 ; CHECK-NEXT:    ldr x30, [sp], #16 // 8-byte Folded Reload
 ; CHECK-NEXT:    ret
   %1 = call %T_IN_BLOCK @return_in_block()
-  store %T_IN_BLOCK %1, %T_IN_BLOCK* @in_block_store
+  store %T_IN_BLOCK %1, ptr @in_block_store
   ret void
 }
 
@@ -410,7 +410,7 @@ define void @callee_in_block(%T_IN_BLOCK %a) {
 ; CHECK-NEXT:    str d1, [x8, #8]
 ; CHECK-NEXT:    str d0, [x8]
 ; CHECK-NEXT:    ret
-  store %T_IN_BLOCK %a, %T_IN_BLOCK* @in_block_store
+  store %T_IN_BLOCK %a, ptr @in_block_store
   ret void
 }
 
@@ -428,7 +428,7 @@ define void @argument_in_block() {
 ; CHECK-NEXT:    bl callee_in_block
 ; CHECK-NEXT:    ldr x30, [sp], #16 // 8-byte Folded Reload
 ; CHECK-NEXT:    ret
-  %1 = load %T_IN_BLOCK, %T_IN_BLOCK* @in_block_store
+  %1 = load %T_IN_BLOCK, ptr @in_block_store
   call void @callee_in_block(%T_IN_BLOCK %1)
   ret void
 }
@@ -440,8 +440,8 @@ define %T_IN_MEMORY @return_in_memory() {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    movi v0.2d, #0000000000000000
 ; CHECK-NEXT:    str xzr, [x8, #64]
-; CHECK-NEXT:    stp q0, q0, [x8, #32]
 ; CHECK-NEXT:    stp q0, q0, [x8]
+; CHECK-NEXT:    stp q0, q0, [x8, #32]
 ; CHECK-NEXT:    ret
   ret %T_IN_MEMORY zeroinitializer
 }
@@ -452,15 +452,15 @@ define void @caller_in_memory() {
 ; CHECK-LABEL: caller_in_memory:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    sub sp, sp, #96
-; CHECK-NEXT:    str x30, [sp, #80] // 8-byte Folded Spill
 ; CHECK-NEXT:    .cfi_def_cfa_offset 96
+; CHECK-NEXT:    str x30, [sp, #80] // 8-byte Folded Spill
 ; CHECK-NEXT:    .cfi_offset w30, -16
 ; CHECK-NEXT:    add x8, sp, #8
 ; CHECK-NEXT:    bl return_in_memory
-; CHECK-NEXT:    adrp x8, in_memory_store
 ; CHECK-NEXT:    ldur q0, [sp, #24]
-; CHECK-NEXT:    ldur q1, [sp, #8]
+; CHECK-NEXT:    adrp x8, in_memory_store
 ; CHECK-NEXT:    add x8, x8, :lo12:in_memory_store
+; CHECK-NEXT:    ldur q1, [sp, #8]
 ; CHECK-NEXT:    ldur q2, [sp, #56]
 ; CHECK-NEXT:    ldur q3, [sp, #40]
 ; CHECK-NEXT:    ldr d4, [sp, #72]
@@ -471,24 +471,24 @@ define void @caller_in_memory() {
 ; CHECK-NEXT:    add sp, sp, #96
 ; CHECK-NEXT:    ret
   %1 = call %T_IN_MEMORY @return_in_memory()
-  store %T_IN_MEMORY %1, %T_IN_MEMORY* @in_memory_store
+  store %T_IN_MEMORY %1, ptr @in_memory_store
   ret void
 }
 
 define void @callee_in_memory(%T_IN_MEMORY %a) {
 ; CHECK-LABEL: callee_in_memory:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    adrp x8, in_memory_store
 ; CHECK-NEXT:    ldr d0, [sp, #64]
-; CHECK-NEXT:    ldp q1, q2, [sp, #32]
+; CHECK-NEXT:    adrp x8, in_memory_store
 ; CHECK-NEXT:    add x8, x8, :lo12:in_memory_store
-; CHECK-NEXT:    str d0, [x8, #64]
 ; CHECK-NEXT:    ldr q3, [sp, #16]
-; CHECK-NEXT:    stp q1, q2, [x8, #32]
+; CHECK-NEXT:    ldp q1, q2, [sp, #32]
+; CHECK-NEXT:    str d0, [x8, #64]
 ; CHECK-NEXT:    ldr q0, [sp]
+; CHECK-NEXT:    stp q1, q2, [x8, #32]
 ; CHECK-NEXT:    stp q0, q3, [x8]
 ; CHECK-NEXT:    ret
-  store %T_IN_MEMORY %a, %T_IN_MEMORY* @in_memory_store
+  store %T_IN_MEMORY %a, ptr @in_memory_store
   ret void
 }
 
@@ -496,22 +496,22 @@ define void @argument_in_memory() {
 ; CHECK-LABEL: argument_in_memory:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    sub sp, sp, #96
-; CHECK-NEXT:    str x30, [sp, #80] // 8-byte Folded Spill
 ; CHECK-NEXT:    .cfi_def_cfa_offset 96
+; CHECK-NEXT:    str x30, [sp, #80] // 8-byte Folded Spill
 ; CHECK-NEXT:    .cfi_offset w30, -16
 ; CHECK-NEXT:    adrp x8, in_memory_store
 ; CHECK-NEXT:    add x8, x8, :lo12:in_memory_store
 ; CHECK-NEXT:    ldp q0, q1, [x8]
 ; CHECK-NEXT:    ldp q2, q3, [x8, #32]
-; CHECK-NEXT:    stp q0, q1, [sp]
 ; CHECK-NEXT:    ldr d4, [x8, #64]
+; CHECK-NEXT:    stp q0, q1, [sp]
 ; CHECK-NEXT:    stp q2, q3, [sp, #32]
 ; CHECK-NEXT:    str d4, [sp, #64]
 ; CHECK-NEXT:    bl callee_in_memory
 ; CHECK-NEXT:    ldr x30, [sp, #80] // 8-byte Folded Reload
 ; CHECK-NEXT:    add sp, sp, #96
 ; CHECK-NEXT:    ret
-  %1 = load %T_IN_MEMORY, %T_IN_MEMORY* @in_memory_store
+  %1 = load %T_IN_MEMORY, ptr @in_memory_store
   call void @callee_in_memory(%T_IN_MEMORY %1)
   ret void
 }
@@ -547,7 +547,7 @@ define void @caller_no_block() {
 ; CHECK-NEXT:    ldr x30, [sp], #16 // 8-byte Folded Reload
 ; CHECK-NEXT:    ret
   %1 = call %T_NO_BLOCK @return_no_block()
-  store %T_NO_BLOCK %1, %T_NO_BLOCK* @no_block_store
+  store %T_NO_BLOCK %1, ptr @no_block_store
   ret void
 }
 
@@ -561,7 +561,7 @@ define void @callee_no_block(%T_NO_BLOCK %a) {
 ; CHECK-NEXT:    str w0, [x8, #8]
 ; CHECK-NEXT:    str d0, [x8]
 ; CHECK-NEXT:    ret
-  store %T_NO_BLOCK %a, %T_NO_BLOCK* @no_block_store
+  store %T_NO_BLOCK %a, ptr @no_block_store
   ret void
 }
 
@@ -580,7 +580,7 @@ define void @argument_no_block() {
 ; CHECK-NEXT:    bl callee_no_block
 ; CHECK-NEXT:    ldr x30, [sp], #16 // 8-byte Folded Reload
 ; CHECK-NEXT:    ret
-  %1 = load %T_NO_BLOCK, %T_NO_BLOCK* @no_block_store
+  %1 = load %T_NO_BLOCK, ptr @no_block_store
   call void @callee_no_block(%T_NO_BLOCK %1)
   ret void
 }

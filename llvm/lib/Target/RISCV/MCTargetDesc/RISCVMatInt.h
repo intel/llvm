@@ -17,11 +17,27 @@ namespace llvm {
 class APInt;
 
 namespace RISCVMatInt {
-struct Inst {
-  unsigned Opc;
-  int64_t Imm;
 
-  Inst(unsigned Opc, int64_t Imm) : Opc(Opc), Imm(Imm) {}
+enum OpndKind {
+  RegImm, // ADDI/ADDIW/SLLI/SRLI/BSETI/BCLRI
+  Imm,    // LUI
+  RegReg, // SH1ADD/SH2ADD/SH3ADD
+  RegX0,  // ADD_UW
+};
+
+class Inst {
+  unsigned Opc;
+  int32_t Imm; // The largest value we need to store is 20 bits.
+
+public:
+  Inst(unsigned Opc, int64_t I) : Opc(Opc), Imm(I) {
+    assert(I == Imm && "truncated");
+  }
+
+  unsigned getOpcode() const { return Opc; }
+  int64_t getImm() const { return Imm; }
+
+  OpndKind getOpndKind() const;
 };
 using InstSeq = SmallVector<Inst, 8>;
 

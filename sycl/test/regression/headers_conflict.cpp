@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -o %t.out -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
 // expected-no-diagnostics
 //
 //===----------------------------------------------------------------------===//
@@ -10,4 +10,4 @@
 #define SUCCESS 0
 class distance;
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>

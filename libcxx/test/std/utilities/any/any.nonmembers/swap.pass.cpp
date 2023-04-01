@@ -8,8 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14
 
-// Throwing bad_any_cast is supported starting in macosx10.13
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}} && !no-exceptions
+// XFAIL: availability-bad_any_cast-missing && !no-exceptions
 
 // <any>
 
@@ -22,24 +21,21 @@
 
 #include "test_macros.h"
 
-using std::any;
-using std::any_cast;
-
 int main(int, char**)
 {
 
     { // test noexcept
-        any a;
+        std::any a;
         static_assert(noexcept(swap(a, a)), "swap(any&, any&) must be noexcept");
     }
     {
-        any a1(1);
-        any a2(2);
+        std::any a1 = 1;
+        std::any a2 = 2;
 
         swap(a1, a2);
 
-        assert(any_cast<int>(a1) == 2);
-        assert(any_cast<int>(a2) == 1);
+        assert(std::any_cast<int>(a1) == 2);
+        assert(std::any_cast<int>(a2) == 1);
     }
 
   return 0;

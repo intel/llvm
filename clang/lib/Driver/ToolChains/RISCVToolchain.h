@@ -1,4 +1,4 @@
-//===--- RISCVToolchain.h - RISCV ToolChain Implementations -----*- C++ -*-===//
+//===--- RISCVToolchain.h - RISC-V ToolChain Implementations ----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,7 +22,6 @@ public:
                  const llvm::opt::ArgList &Args);
 
   static bool hasGCCToolchain(const Driver &D, const llvm::opt::ArgList &Args);
-  bool IsIntegratedAssemblerDefault() const override { return true; }
   void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                              llvm::opt::ArgStringList &CC1Args,
                              Action::OffloadKind) const override;

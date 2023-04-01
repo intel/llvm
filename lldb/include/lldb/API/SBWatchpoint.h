@@ -10,6 +10,7 @@
 #define LLDB_API_SBWATCHPOINT_H
 
 #include "lldb/API/SBDefines.h"
+#include "lldb/API/SBType.h"
 
 namespace lldb {
 
@@ -19,7 +20,9 @@ public:
 
   SBWatchpoint(const lldb::SBWatchpoint &rhs);
 
+#ifndef SWIG
   SBWatchpoint(const lldb::WatchpointSP &wp_sp);
+#endif
 
   ~SBWatchpoint();
 
@@ -62,9 +65,11 @@ public:
 
   void Clear();
 
+#ifndef SWIG
   lldb::WatchpointSP GetSP() const;
 
   void SetSP(const lldb::WatchpointSP &sp);
+#endif
 
   static bool EventIsWatchpointEvent(const lldb::SBEvent &event);
 
@@ -72,6 +77,16 @@ public:
   GetWatchpointEventTypeFromEvent(const lldb::SBEvent &event);
 
   static lldb::SBWatchpoint GetWatchpointFromEvent(const lldb::SBEvent &event);
+
+  lldb::SBType GetType();
+
+  WatchpointValueKind GetWatchValueKind();
+
+  const char *GetWatchSpec();
+
+  bool IsWatchingReads();
+
+  bool IsWatchingWrites();
 
 private:
   friend class SBTarget;

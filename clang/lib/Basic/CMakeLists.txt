@@ -1,5 +1,6 @@
 set(LLVM_LINK_COMPONENTS
   Support
+  TargetParser
   )
 
 find_first_existing_vc_file("${LLVM_MAIN_SRC_DIR}" llvm_vc)
@@ -54,15 +55,18 @@ add_clang_library(clangBasic
   IdentifierTable.cpp
   LangOptions.cpp
   LangStandards.cpp
+  MakeSupport.cpp
   Module.cpp
   ObjCRuntime.cpp
   OpenCLOptions.cpp
   OpenMPKinds.cpp
   OperatorPrecedence.cpp
+  ParsedAttrInfo.cpp
   ProfileList.cpp
   NoSanitizeList.cpp
   SanitizerSpecialCaseList.cpp
   Sanitizers.cpp
+  Sarif.cpp
   SourceLocation.cpp
   SourceManager.cpp
   Stack.cpp
@@ -75,9 +79,12 @@ add_clang_library(clangBasic
   Targets/ARM.cpp
   Targets/AVR.cpp
   Targets/BPF.cpp
+  Targets/CSKY.cpp
+  Targets/DirectX.cpp
   Targets/Hexagon.cpp
   Targets/Lanai.cpp
   Targets/Le64.cpp
+  Targets/LoongArch.cpp
   Targets/M68k.cpp
   Targets/MSP430.cpp
   Targets/Mips.cpp
@@ -104,5 +111,10 @@ add_clang_library(clangBasic
 
   DEPENDS
   omp_gen
+  RISCVTargetParserTableGen
   )
 
+target_link_libraries(clangBasic
+  PRIVATE
+  ${LLVM_ATOMIC_LIB}
+)

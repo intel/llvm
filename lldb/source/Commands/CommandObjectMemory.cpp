@@ -13,9 +13,11 @@
 #include "lldb/Core/ValueObjectMemory.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Host/OptionParser.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/OptionGroupFormat.h"
+#include "lldb/Interpreter/OptionGroupMemoryTag.h"
 #include "lldb/Interpreter/OptionGroupOutputFile.h"
 #include "lldb/Interpreter/OptionGroupValueObjectDisplay.h"
 #include "lldb/Interpreter/OptionValueLanguage.h"
@@ -33,11 +35,11 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/DataBufferHeap.h"
-#include "lldb/Utility/DataBufferLLVM.h"
 #include "lldb/Utility/StreamString.h"
 #include "llvm/Support/MathExtras.h"
 #include <cinttypes>
 #include <memory>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -48,13 +50,13 @@ using namespace lldb_private;
 class OptionGroupReadMemory : public OptionGroup {
 public:
   OptionGroupReadMemory()
-      : m_num_per_line(1, 1), m_view_as_type(), m_offset(0, 0),
+      : m_num_per_line(1, 1), m_offset(0, 0),
         m_language_for_type(eLanguageTypeUnknown) {}
 
   ~OptionGroupReadMemory() override = default;
 
   llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-    return llvm::makeArrayRef(g_memory_read_options);
+    return llvm::ArrayRef(g_memory_read_options);
   }
 
   Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_value,
@@ -274,7 +276,7 @@ public:
   OptionValueUInt64 m_num_per_line;
   bool m_output_as_binary = false;
   OptionValueString m_view_as_type;
-  bool m_force;
+  bool m_force = false;
   OptionValueUInt64 m_offset;
   OptionValueLanguage m_language_for_type;
 };
@@ -287,12 +289,9 @@ public:
             interpreter, "memory read",
             "Read from the memory of the current target process.", nullptr,
             eCommandRequiresTarget | eCommandProcessMustBePaused),
-        m_option_group(), m_format_options(eFormatBytesWithASCII, 1, 8),
-        m_memory_options(), m_outfile_options(), m_varobj_options(),
-        m_next_addr(LLDB_INVALID_ADDRESS), m_prev_byte_size(0),
-        m_prev_format_options(eFormatBytesWithASCII, 1, 8),
-        m_prev_memory_options(), m_prev_outfile_options(),
-        m_prev_varobj_options() {
+        m_format_options(eFormatBytesWithASCII, 1, 8),
+        m_memory_tag_options(/*note_binary=*/true),
+        m_prev_format_options(eFormatBytesWithASCII, 1, 8) {
     CommandArgumentEntry arg1;
     CommandArgumentEntry arg2;
     CommandArgumentData start_addr_arg;
@@ -334,6 +333,8 @@ public:
     m_option_group.Append(&m_outfile_options, LLDB_OPT_SET_ALL,
                           LLDB_OPT_SET_1 | LLDB_OPT_SET_2 | LLDB_OPT_SET_3);
     m_option_group.Append(&m_varobj_options, LLDB_OPT_SET_ALL, LLDB_OPT_SET_3);
+    m_option_group.Append(&m_memory_tag_options, LLDB_OPT_SET_ALL,
+                          LLDB_OPT_SET_ALL);
     m_option_group.Finalize();
   }
 
@@ -341,9 +342,9 @@ public:
 
   Options *GetOptions() override { return &m_option_group; }
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
-    return m_cmd_name.c_str();
+  std::optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                              uint32_t index) override {
+    return m_cmd_name;
   }
 
 protected:
@@ -427,7 +428,7 @@ protected:
           switch (type_str[type_str.size() - 1]) {
           case '*':
             ++pointer_count;
-            LLVM_FALLTHROUGH;
+            [[fallthrough]];
           case ' ':
           case '\t':
             type_str.erase(type_str.size() - 1);
@@ -476,7 +477,7 @@ protected:
         for (auto lang : languages_to_check) {
           if (auto *persistent_vars =
                   target->GetPersistentExpressionStateForLanguage(lang)) {
-            if (llvm::Optional<CompilerType> type =
+            if (std::optional<CompilerType> type =
                     persistent_vars->GetCompilerTypeFromPersistentDecl(
                         lookup_type_name)) {
               user_defined_types.emplace(*type);
@@ -521,7 +522,7 @@ protected:
         --pointer_count;
       }
 
-      llvm::Optional<uint64_t> size = compiler_type.GetByteSize(nullptr);
+      std::optional<uint64_t> size = compiler_type.GetByteSize(nullptr);
       if (!size) {
         result.AppendErrorWithFormat(
             "unable to get the byte size of the type '%s'\n",
@@ -553,11 +554,13 @@ protected:
       if (!m_format_options.AnyOptionWasSet() &&
           !m_memory_options.AnyOptionWasSet() &&
           !m_outfile_options.AnyOptionWasSet() &&
-          !m_varobj_options.AnyOptionWasSet()) {
+          !m_varobj_options.AnyOptionWasSet() &&
+          !m_memory_tag_options.AnyOptionWasSet()) {
         m_format_options = m_prev_format_options;
         m_memory_options = m_prev_memory_options;
         m_outfile_options = m_prev_outfile_options;
         m_varobj_options = m_prev_varobj_options;
+        m_memory_tag_options = m_prev_memory_tag_options;
       }
     }
 
@@ -591,15 +594,9 @@ protected:
       return false;
     }
 
-    ABISP abi = m_exe_ctx.GetProcessPtr()->GetABI();
-    if (abi)
-      addr = abi->FixDataAddress(addr);
-
     if (argc == 2) {
       lldb::addr_t end_addr = OptionArgParser::ToAddress(
           &m_exe_ctx, command[1].ref(), LLDB_INVALID_ADDRESS, nullptr);
-      if (end_addr != LLDB_INVALID_ADDRESS && abi)
-        end_addr = abi->FixDataAddress(end_addr);
 
       if (end_addr == LLDB_INVALID_ADDRESS) {
         result.AppendError("invalid end address expression.");
@@ -637,7 +634,7 @@ protected:
       return false;
     }
 
-    DataBufferSP data_sp;
+    WritableDataBufferSP data_sp;
     size_t bytes_read = 0;
     if (compiler_type.GetOpaqueQualType()) {
       // Make sure we don't display our type as ASCII bytes like the default
@@ -645,7 +642,7 @@ protected:
       if (!m_format_options.GetFormatValue().OptionWasSet())
         m_format_options.GetFormatValue().SetCurrentValue(eFormatDefault);
 
-      llvm::Optional<uint64_t> size = compiler_type.GetByteSize(nullptr);
+      std::optional<uint64_t> size = compiler_type.GetByteSize(nullptr);
       if (!size) {
         result.AppendError("can't get size of type");
         return false;
@@ -751,6 +748,7 @@ protected:
     m_prev_memory_options = m_memory_options;
     m_prev_outfile_options = m_outfile_options;
     m_prev_varobj_options = m_varobj_options;
+    m_prev_memory_tag_options = m_memory_tag_options;
     m_prev_compiler_type = compiler_type;
 
     std::unique_ptr<Stream> output_stream_storage;
@@ -862,7 +860,7 @@ protected:
     size_t bytes_dumped = DumpDataExtractor(
         data, output_stream_p, 0, format, item_byte_size, item_count,
         num_per_line / target->GetArchitecture().GetDataByteSize(), addr, 0, 0,
-        exe_scope);
+        exe_scope, m_memory_tag_options.GetShowTags().GetCurrentValue());
     m_next_addr = addr + bytes_dumped;
     output_stream_p->EOL();
     return true;
@@ -873,12 +871,14 @@ protected:
   OptionGroupReadMemory m_memory_options;
   OptionGroupOutputFile m_outfile_options;
   OptionGroupValueObjectDisplay m_varobj_options;
-  lldb::addr_t m_next_addr;
-  lldb::addr_t m_prev_byte_size;
+  OptionGroupMemoryTag m_memory_tag_options;
+  lldb::addr_t m_next_addr = LLDB_INVALID_ADDRESS;
+  lldb::addr_t m_prev_byte_size = 0;
   OptionGroupFormat m_prev_format_options;
   OptionGroupReadMemory m_prev_memory_options;
   OptionGroupOutputFile m_prev_outfile_options;
   OptionGroupValueObjectDisplay m_prev_varobj_options;
+  OptionGroupMemoryTag m_prev_memory_tag_options;
   CompilerType m_prev_compiler_type;
 };
 
@@ -890,12 +890,12 @@ class CommandObjectMemoryFind : public CommandObjectParsed {
 public:
   class OptionGroupFindMemory : public OptionGroup {
   public:
-    OptionGroupFindMemory() : OptionGroup(), m_count(1), m_offset(0) {}
+    OptionGroupFindMemory() : m_count(1), m_offset(0) {}
 
     ~OptionGroupFindMemory() override = default;
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_memory_find_options);
+      return llvm::ArrayRef(g_memory_find_options);
     }
 
     Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_value,
@@ -944,8 +944,7 @@ public:
       : CommandObjectParsed(
             interpreter, "memory find",
             "Find a value in the memory of the current target process.",
-            nullptr, eCommandRequiresProcess | eCommandProcessMustBeLaunched),
-        m_option_group(), m_memory_options() {
+            nullptr, eCommandRequiresProcess | eCommandProcessMustBeLaunched) {
     CommandArgumentEntry arg1;
     CommandArgumentEntry arg2;
     CommandArgumentData addr_arg;
@@ -972,6 +971,8 @@ public:
     m_arguments.push_back(arg2);
 
     m_option_group.Append(&m_memory_options);
+    m_option_group.Append(&m_memory_tag_options, LLDB_OPT_SET_ALL,
+                          LLDB_OPT_SET_ALL);
     m_option_group.Finalize();
   }
 
@@ -983,7 +984,7 @@ protected:
   class ProcessMemoryIterator {
   public:
     ProcessMemoryIterator(ProcessSP process_sp, lldb::addr_t base)
-        : m_process_sp(process_sp), m_base_addr(base), m_is_valid(true) {
+        : m_process_sp(process_sp), m_base_addr(base) {
       lldbassert(process_sp.get() != nullptr);
     }
 
@@ -1007,7 +1008,7 @@ protected:
   private:
     ProcessSP m_process_sp;
     lldb::addr_t m_base_addr;
-    bool m_is_valid;
+    bool m_is_valid = true;
   };
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     // No need to check "process" for validity as eCommandRequiresProcess
@@ -1045,9 +1046,14 @@ protected:
 
     DataBufferHeap buffer;
 
-    if (m_memory_options.m_string.OptionWasSet())
-      buffer.CopyData(m_memory_options.m_string.GetStringValue());
-    else if (m_memory_options.m_expr.OptionWasSet()) {
+    if (m_memory_options.m_string.OptionWasSet()) {
+      llvm::StringRef str = m_memory_options.m_string.GetStringValue();
+      if (str.empty()) {
+        result.AppendError("search string must have non-zero length.");
+        return false;
+      }
+      buffer.CopyData(str);
+    } else if (m_memory_options.m_expr.OptionWasSet()) {
       StackFrame *frame = m_exe_ctx.GetFramePtr();
       ValueObjectSP result_sp;
       if ((eExpressionCompleted ==
@@ -1055,7 +1061,7 @@ protected:
                m_memory_options.m_expr.GetStringValue(), frame, result_sp)) &&
           result_sp) {
         uint64_t value = result_sp->GetValueAsUnsigned(0);
-        llvm::Optional<uint64_t> size =
+        std::optional<uint64_t> size =
             result_sp->GetCompilerType().GetByteSize(nullptr);
         if (!size)
           return false;
@@ -1125,7 +1131,9 @@ protected:
         DumpDataExtractor(
             data, &result.GetOutputStream(), 0, lldb::eFormatBytesWithASCII, 1,
             dumpbuffer.GetByteSize(), 16,
-            found_location + m_memory_options.m_offset.GetCurrentValue(), 0, 0);
+            found_location + m_memory_options.m_offset.GetCurrentValue(), 0, 0,
+            m_exe_ctx.GetBestExecutionContextScope(),
+            m_memory_tag_options.GetShowTags().GetCurrentValue());
         result.GetOutputStream().EOL();
       }
 
@@ -1168,6 +1176,7 @@ protected:
 
   OptionGroupOptions m_option_group;
   OptionGroupFindMemory m_memory_options;
+  OptionGroupMemoryTag m_memory_tag_options;
 };
 
 #define LLDB_OPTIONS_memory_write
@@ -1178,12 +1187,12 @@ class CommandObjectMemoryWrite : public CommandObjectParsed {
 public:
   class OptionGroupWriteMemory : public OptionGroup {
   public:
-    OptionGroupWriteMemory() : OptionGroup() {}
+    OptionGroupWriteMemory() = default;
 
     ~OptionGroupWriteMemory() override = default;
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_memory_write_options);
+      return llvm::ArrayRef(g_memory_write_options);
     }
 
     Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_value,
@@ -1230,16 +1239,14 @@ public:
             interpreter, "memory write",
             "Write to the memory of the current target process.", nullptr,
             eCommandRequiresProcess | eCommandProcessMustBeLaunched),
-        m_option_group(),
         m_format_options(
             eFormatBytes, 1, UINT64_MAX,
             {std::make_tuple(
                  eArgTypeFormat,
                  "The format to use for each of the value to be written."),
-             std::make_tuple(
-                 eArgTypeByteSize,
-                 "The size in bytes to write from input file or each value.")}),
-        m_memory_options() {
+             std::make_tuple(eArgTypeByteSize,
+                             "The size in bytes to write from input file or "
+                             "each value.")}) {
     CommandArgumentEntry arg1;
     CommandArgumentEntry arg2;
     CommandArgumentData addr_arg;
@@ -1579,9 +1586,9 @@ public:
 
   ~CommandObjectMemoryHistory() override = default;
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
-    return m_cmd_name.c_str();
+  std::optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                              uint32_t index) override {
+    return m_cmd_name;
   }
 
 protected:
@@ -1631,20 +1638,112 @@ protected:
 // CommandObjectMemoryRegion
 #pragma mark CommandObjectMemoryRegion
 
+#define LLDB_OPTIONS_memory_region
+#include "CommandOptions.inc"
+
 class CommandObjectMemoryRegion : public CommandObjectParsed {
 public:
+  class OptionGroupMemoryRegion : public OptionGroup {
+  public:
+    OptionGroupMemoryRegion() : m_all(false, false) {}
+
+    ~OptionGroupMemoryRegion() override = default;
+
+    llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
+      return llvm::ArrayRef(g_memory_region_options);
+    }
+
+    Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_value,
+                          ExecutionContext *execution_context) override {
+      Status status;
+      const int short_option = g_memory_region_options[option_idx].short_option;
+
+      switch (short_option) {
+      case 'a':
+        m_all.SetCurrentValue(true);
+        m_all.SetOptionWasSet();
+        break;
+      default:
+        llvm_unreachable("Unimplemented option");
+      }
+
+      return status;
+    }
+
+    void OptionParsingStarting(ExecutionContext *execution_context) override {
+      m_all.Clear();
+    }
+
+    OptionValueBoolean m_all;
+  };
+
   CommandObjectMemoryRegion(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "memory region",
                             "Get information on the memory region containing "
                             "an address in the current target process.",
-                            "memory region ADDR",
+                            "memory region <address-expression> (or --all)",
                             eCommandRequiresProcess | eCommandTryTargetAPILock |
-                                eCommandProcessMustBeLaunched),
-        m_prev_end_addr(LLDB_INVALID_ADDRESS) {}
+                                eCommandProcessMustBeLaunched) {
+    // Address in option set 1.
+    m_arguments.push_back(CommandArgumentEntry{CommandArgumentData(
+        eArgTypeAddressOrExpression, eArgRepeatPlain, LLDB_OPT_SET_1)});
+    // "--all" will go in option set 2.
+    m_option_group.Append(&m_memory_region_options);
+    m_option_group.Finalize();
+  }
 
   ~CommandObjectMemoryRegion() override = default;
 
+  Options *GetOptions() override { return &m_option_group; }
+
 protected:
+  void DumpRegion(CommandReturnObject &result, Target &target,
+                  const MemoryRegionInfo &range_info, lldb::addr_t load_addr) {
+    lldb_private::Address addr;
+    ConstString section_name;
+    if (target.ResolveLoadAddress(load_addr, addr)) {
+      SectionSP section_sp(addr.GetSection());
+      if (section_sp) {
+        // Got the top most section, not the deepest section
+        while (section_sp->GetParent())
+          section_sp = section_sp->GetParent();
+        section_name = section_sp->GetName();
+      }
+    }
+
+    ConstString name = range_info.GetName();
+    result.AppendMessageWithFormatv(
+        "[{0:x16}-{1:x16}) {2:r}{3:w}{4:x}{5}{6}{7}{8}",
+        range_info.GetRange().GetRangeBase(),
+        range_info.GetRange().GetRangeEnd(), range_info.GetReadable(),
+        range_info.GetWritable(), range_info.GetExecutable(), name ? " " : "",
+        name, section_name ? " " : "", section_name);
+    MemoryRegionInfo::OptionalBool memory_tagged = range_info.GetMemoryTagged();
+    if (memory_tagged == MemoryRegionInfo::OptionalBool::eYes)
+      result.AppendMessage("memory tagging: enabled");
+
+    const std::optional<std::vector<addr_t>> &dirty_page_list =
+        range_info.GetDirtyPageList();
+    if (dirty_page_list) {
+      const size_t page_count = dirty_page_list->size();
+      result.AppendMessageWithFormat(
+          "Modified memory (dirty) page list provided, %zu entries.\n",
+          page_count);
+      if (page_count > 0) {
+        bool print_comma = false;
+        result.AppendMessageWithFormat("Dirty pages: ");
+        for (size_t i = 0; i < page_count; i++) {
+          if (print_comma)
+            result.AppendMessageWithFormat(", ");
+          else
+            print_comma = true;
+          result.AppendMessageWithFormat("0x%" PRIx64, (*dirty_page_list)[i]);
+        }
+        result.AppendMessageWithFormat(".\n");
+      }
+    }
+  }
+
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     ProcessSP process_sp = m_exe_ctx.GetProcessSP();
     if (!process_sp) {
@@ -1658,13 +1757,16 @@ protected:
     m_prev_end_addr = LLDB_INVALID_ADDRESS;
 
     const size_t argc = command.GetArgumentCount();
-    if (argc > 1 || (argc == 0 && load_addr == LLDB_INVALID_ADDRESS)) {
-      result.AppendErrorWithFormat("'%s' takes one argument:\nUsage: %s\n",
-                                   m_cmd_name.c_str(), m_cmd_syntax.c_str());
-      return false;
-    }
+    const lldb::ABISP &abi = process_sp->GetABI();
 
     if (argc == 1) {
+      if (m_memory_region_options.m_all) {
+        result.AppendError(
+            "The \"--all\" option cannot be used when an address "
+            "argument is given");
+        return false;
+      }
+
       auto load_addr_str = command[0].ref();
       load_addr = OptionArgParser::ToAddress(&m_exe_ctx, load_addr_str,
                                              LLDB_INVALID_ADDRESS, &error);
@@ -1673,58 +1775,59 @@ protected:
                                      command[0].c_str(), error.AsCString());
         return false;
       }
+    } else if (argc > 1 ||
+               // When we're repeating the command, the previous end address is
+               // used for load_addr. If that was 0xF...F then we must have
+               // reached the end of memory.
+               (argc == 0 && !m_memory_region_options.m_all &&
+                load_addr == LLDB_INVALID_ADDRESS) ||
+               // If the target has non-address bits (tags, limited virtual
+               // address size, etc.), the end of mappable memory will be lower
+               // than that. So if we find any non-address bit set, we must be
+               // at the end of the mappable range.
+               (abi && (abi->FixAnyAddress(load_addr) != load_addr))) {
+      result.AppendErrorWithFormat(
+          "'%s' takes one argument or \"--all\" option:\nUsage: %s\n",
+          m_cmd_name.c_str(), m_cmd_syntax.c_str());
+      return false;
     }
 
-    lldb_private::MemoryRegionInfo range_info;
-    error = process_sp->GetMemoryRegionInfo(load_addr, range_info);
+    // Is is important that we track the address used to request the region as
+    // this will give the correct section name in the case that regions overlap.
+    // On Windows we get mutliple regions that start at the same place but are
+    // different sizes and refer to different sections.
+    std::vector<std::pair<lldb_private::MemoryRegionInfo, lldb::addr_t>>
+        region_list;
+    if (m_memory_region_options.m_all) {
+      // We don't use GetMemoryRegions here because it doesn't include unmapped
+      // areas like repeating the command would. So instead, emulate doing that.
+      lldb::addr_t addr = 0;
+      while (error.Success() && addr != LLDB_INVALID_ADDRESS &&
+             // When there are non-address bits the last range will not extend
+             // to LLDB_INVALID_ADDRESS but to the max virtual address.
+             // This prevents us looping forever if that is the case.
+             (!abi || (abi->FixAnyAddress(addr) == addr))) {
+        lldb_private::MemoryRegionInfo region_info;
+        error = process_sp->GetMemoryRegionInfo(addr, region_info);
+
+        if (error.Success()) {
+          region_list.push_back({region_info, addr});
+          addr = region_info.GetRange().GetRangeEnd();
+        }
+      }
+    } else {
+      lldb_private::MemoryRegionInfo region_info;
+      error = process_sp->GetMemoryRegionInfo(load_addr, region_info);
+      if (error.Success())
+        region_list.push_back({region_info, load_addr});
+    }
+
     if (error.Success()) {
-      lldb_private::Address addr;
-      ConstString name = range_info.GetName();
-      ConstString section_name;
-      if (process_sp->GetTarget().ResolveLoadAddress(load_addr, addr)) {
-        SectionSP section_sp(addr.GetSection());
-        if (section_sp) {
-          // Got the top most section, not the deepest section
-          while (section_sp->GetParent())
-            section_sp = section_sp->GetParent();
-          section_name = section_sp->GetName();
-        }
+      for (std::pair<MemoryRegionInfo, addr_t> &range : region_list) {
+        DumpRegion(result, process_sp->GetTarget(), range.first, range.second);
+        m_prev_end_addr = range.first.GetRange().GetRangeEnd();
       }
 
-      result.AppendMessageWithFormatv(
-          "[{0:x16}-{1:x16}) {2:r}{3:w}{4:x}{5}{6}{7}{8}",
-          range_info.GetRange().GetRangeBase(),
-          range_info.GetRange().GetRangeEnd(), range_info.GetReadable(),
-          range_info.GetWritable(), range_info.GetExecutable(), name ? " " : "",
-          name, section_name ? " " : "", section_name);
-      MemoryRegionInfo::OptionalBool memory_tagged =
-          range_info.GetMemoryTagged();
-      if (memory_tagged == MemoryRegionInfo::OptionalBool::eYes)
-        result.AppendMessage("memory tagging: enabled");
-
-      const llvm::Optional<std::vector<addr_t>> &dirty_page_list =
-          range_info.GetDirtyPageList();
-      if (dirty_page_list.hasValue()) {
-        const size_t page_count = dirty_page_list.getValue().size();
-        result.AppendMessageWithFormat(
-            "Modified memory (dirty) page list provided, %zu entries.\n",
-            page_count);
-        if (page_count > 0) {
-          bool print_comma = false;
-          result.AppendMessageWithFormat("Dirty pages: ");
-          for (size_t i = 0; i < page_count; i++) {
-            if (print_comma)
-              result.AppendMessageWithFormat(", ");
-            else
-              print_comma = true;
-            result.AppendMessageWithFormat("0x%" PRIx64,
-                                           dirty_page_list.getValue()[i]);
-          }
-          result.AppendMessageWithFormat(".\n");
-        }
-      }
-
-      m_prev_end_addr = range_info.GetRange().GetRangeEnd();
       result.SetStatus(eReturnStatusSuccessFinishResult);
       return true;
     }
@@ -1733,14 +1836,17 @@ protected:
     return false;
   }
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
+  std::optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                              uint32_t index) override {
     // If we repeat this command, repeat it without any arguments so we can
     // show the next memory range
-    return m_cmd_name.c_str();
+    return m_cmd_name;
   }
 
-  lldb::addr_t m_prev_end_addr;
+  lldb::addr_t m_prev_end_addr = LLDB_INVALID_ADDRESS;
+
+  OptionGroupOptions m_option_group;
+  OptionGroupMemoryRegion m_memory_region_options;
 };
 
 // CommandObjectMemory

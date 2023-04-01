@@ -10,23 +10,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/LoopUtils.h"
-#include "mlir/Transforms/Passes.h"
 
 #define PASS_NAME "test-loop-permutation"
 
 using namespace mlir;
 
-static llvm::cl::OptionCategory clOptionsCategory(PASS_NAME " options");
-
 namespace {
 
 /// This pass applies the permutation on the first maximal perfect nest.
 struct TestLoopPermutation
-    : public PassWrapper<TestLoopPermutation, FunctionPass> {
+    : public PassWrapper<TestLoopPermutation, OperationPass<>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestLoopPermutation)
+
   StringRef getArgument() const final { return PASS_NAME; }
   StringRef getDescription() const final {
     return "Tests affine loop permutation utility";
@@ -34,24 +33,24 @@ struct TestLoopPermutation
   TestLoopPermutation() = default;
   TestLoopPermutation(const TestLoopPermutation &pass) : PassWrapper(pass){};
 
-  void runOnFunction() override;
+  void runOnOperation() override;
 
 private:
   /// Permutation specifying loop i is mapped to permList[i] in
   /// transformed nest (with i going from outermost to innermost).
   ListOption<unsigned> permList{*this, "permutation-map",
                                 llvm::cl::desc("Specify the loop permutation"),
-                                llvm::cl::OneOrMore, llvm::cl::CommaSeparated};
+                                llvm::cl::OneOrMore};
 };
 
 } // namespace
 
-void TestLoopPermutation::runOnFunction() {
+void TestLoopPermutation::runOnOperation() {
 
   SmallVector<unsigned, 4> permMap(permList.begin(), permList.end());
 
   SmallVector<AffineForOp, 2> forOps;
-  getFunction().walk([&](AffineForOp forOp) { forOps.push_back(forOp); });
+  getOperation()->walk([&](AffineForOp forOp) { forOps.push_back(forOp); });
 
   for (auto forOp : forOps) {
     SmallVector<AffineForOp, 6> nest;

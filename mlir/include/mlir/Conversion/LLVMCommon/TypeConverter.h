@@ -24,9 +24,12 @@ class LowerToLLVMOptions;
 
 namespace LLVM {
 class LLVMDialect;
+class LLVMPointerType;
+class LLVMFunctionType;
+class LLVMStructType;
 } // namespace LLVM
 
-/// Conversion from types in the Standard dialect to the LLVM IR dialect.
+/// Conversion from types to the LLVM IR dialect.
 class LLVMTypeConverter : public TypeConverter {
   /// Give structFuncArgTypeConverter access to memref-specific functions.
   friend LogicalResult
@@ -80,6 +83,13 @@ public:
 
   const LowerToLLVMOptions &getOptions() const { return options; }
 
+  /// Set the lowering options to `newOptions`. Note: using this after some
+  /// some conversions have been performed can lead to inconsistencies in the
+  /// IR.
+  void dangerousSetOptions(LowerToLLVMOptions newOptions) {
+    options = std::move(newOptions);
+  }
+
   /// Promote the LLVM representation of all operands including promoting MemRef
   /// descriptors to stack and use pointers to struct to avoid the complexity
   /// of the platform-specific C/C++ ABI lowering related to struct argument
@@ -98,7 +108,8 @@ public:
   /// pointers to memref descriptors for arguments. Also converts the return
   /// type to a pointer argument if it is a struct. Returns true if this
   /// was the case.
-  std::pair<Type, bool> convertFunctionTypeCWrapper(FunctionType type);
+  std::pair<LLVM::LLVMFunctionType, LLVM::LLVMStructType>
+  convertFunctionTypeCWrapper(FunctionType type);
 
   /// Returns the data layout to use during and after conversion.
   const llvm::DataLayout &getDataLayout() { return options.dataLayout; }
@@ -112,6 +123,17 @@ public:
   /// integer type with the size configured for this type converter.
   Type getIndexType();
 
+  /// Returns true if using opaque pointers was enabled in the lowering options.
+  bool useOpaquePointers() const { return getOptions().useOpaquePointers; }
+
+  /// Creates an LLVM pointer type with the given element type and address
+  /// space.
+  /// This function is meant to be used in code supporting both typed and opaque
+  /// pointers, as it will create an opaque pointer with the given address space
+  /// if opaque pointers are enabled in the lowering options.
+  LLVM::LLVMPointerType getPointerType(Type elementType,
+                                       unsigned addressSpace = 0);
+
   /// Gets the bitwidth of the index type when converted to LLVM.
   unsigned getIndexTypeBitwidth() { return options.getIndexBitwidth(); }
 
@@ -124,6 +146,14 @@ public:
   /// Returns the size of the unranked memref descriptor object in bytes.
   unsigned getUnrankedMemRefDescriptorSize(UnrankedMemRefType type,
                                            const DataLayout &layout);
+
+  /// Return the LLVM address space corresponding to the memory space of the
+  /// memref type `type` or failure if the memory space cannot be converted to
+  /// an integer.
+  FailureOr<unsigned> getMemRefAddressSpace(BaseMemRefType type);
+
+  /// Check if a memref type can be converted to a bare pointer.
+  static bool canConvertToBarePtr(BaseMemRefType type);
 
 protected:
   /// Pointer to the LLVM dialect.
@@ -191,8 +221,8 @@ private:
   /// These types can be recomposed to a unranked memref descriptor struct.
   SmallVector<Type, 2> getUnrankedMemRefDescriptorFields();
 
-  // Convert an unranked memref type to an LLVM type that captures the
-  // runtime rank and a pointer to the static ranked memref desc
+  /// Convert an unranked memref type to an LLVM type that captures the
+  /// runtime rank and a pointer to the static ranked memref desc
   Type convertUnrankedMemRefType(UnrankedMemRefType type);
 
   /// Convert a memref type to a bare pointer to the memref element type.

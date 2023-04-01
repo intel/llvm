@@ -10,11 +10,7 @@
 #include "index/Background.h"
 #include "support/Logger.h"
 #include "support/Path.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
@@ -22,6 +18,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include <functional>
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -101,7 +98,7 @@ public:
 class DiskBackedIndexStorageManager {
 public:
   DiskBackedIndexStorageManager(
-      std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo)
+      std::function<std::optional<ProjectInfo>(PathRef)> GetProjectInfo)
       : IndexStorageMapMu(std::make_unique<std::mutex>()),
         GetProjectInfo(std::move(GetProjectInfo)) {
     llvm::SmallString<128> FallbackDir;
@@ -138,14 +135,14 @@ private:
   llvm::StringMap<std::unique_ptr<BackgroundIndexStorage>> IndexStorageMap;
   std::unique_ptr<std::mutex> IndexStorageMapMu;
 
-  std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo;
+  std::function<std::optional<ProjectInfo>(PathRef)> GetProjectInfo;
 };
 
 } // namespace
 
 BackgroundIndexStorage::Factory
 BackgroundIndexStorage::createDiskBackedStorageFactory(
-    std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo) {
+    std::function<std::optional<ProjectInfo>(PathRef)> GetProjectInfo) {
   return DiskBackedIndexStorageManager(std::move(GetProjectInfo));
 }
 

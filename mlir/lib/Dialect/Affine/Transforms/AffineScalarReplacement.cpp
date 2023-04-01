@@ -16,11 +16,16 @@
 
 #include "mlir/Dialect/Affine/Passes.h"
 
-#include "PassDetail.h"
 #include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Support/LogicalResult.h"
 #include <algorithm>
+
+namespace mlir {
+#define GEN_PASS_DEF_AFFINESCALARREPLACEMENT
+#include "mlir/Dialect/Affine/Passes.h.inc"
+} // namespace mlir
 
 #define DEBUG_TYPE "affine-scalrep"
 
@@ -28,17 +33,18 @@ using namespace mlir;
 
 namespace {
 struct AffineScalarReplacement
-    : public AffineScalarReplacementBase<AffineScalarReplacement> {
-  void runOnFunction() override;
+    : public impl::AffineScalarReplacementBase<AffineScalarReplacement> {
+  void runOnOperation() override;
 };
 
 } // namespace
 
-std::unique_ptr<FunctionPass> mlir::createAffineScalarReplacementPass() {
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::createAffineScalarReplacementPass() {
   return std::make_unique<AffineScalarReplacement>();
 }
 
-void AffineScalarReplacement::runOnFunction() {
-  affineScalarReplace(getFunction(), getAnalysis<DominanceInfo>(),
+void AffineScalarReplacement::runOnOperation() {
+  affineScalarReplace(getOperation(), getAnalysis<DominanceInfo>(),
                       getAnalysis<PostDominanceInfo>());
 }

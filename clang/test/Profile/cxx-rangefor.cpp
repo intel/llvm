@@ -10,7 +10,7 @@
 // PGOGEN: @[[RFC:__profc__Z9range_forv]] = {{(private|internal)}} global [5 x i64] zeroinitializer
 
 // CHECK-LABEL: define {{.*}}void @_Z9range_forv()
-// PGOGEN: store {{.*}} @[[RFC]], i32 0, i32 0
+// PGOGEN: store {{.*}} @[[RFC]]
 void range_for() {
   int arr[] = {1, 2, 3, 4, 5};
   int sum = 0;

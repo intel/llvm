@@ -69,7 +69,7 @@ template <> struct hash<xpti::uid_t> {
 
 namespace xpti {
 constexpr int invalid_id = -1;
-constexpr int invalid_uid = 0;
+constexpr uint64_t invalid_uid = 0;
 constexpr uint8_t default_vendor = 0;
 
 /// @brief Flag values used by the payload_t structure to mark the information
@@ -105,6 +105,7 @@ enum class payload_flag_t {
 using trace_point_t = uint16_t;
 using event_type_t = uint16_t;
 using string_id_t = int32_t;
+using object_id_t = int32_t;
 
 using safe_flag_t = std::atomic<bool>;
 using safe_uint64_t = std::atomic<uint64_t>;
@@ -113,7 +114,7 @@ using safe_uint16_t = std::atomic<uint16_t>;
 using safe_int64_t = std::atomic<int64_t>;
 using safe_int32_t = std::atomic<int32_t>;
 using safe_int16_t = std::atomic<int16_t>;
-using metadata_t = std::unordered_map<string_id_t, string_id_t>;
+using metadata_t = std::unordered_map<string_id_t, object_id_t>;
 
 #define XPTI_EVENT(val) xpti::event_type_t(val)
 #define XPTI_TRACE_POINT_BEGIN(val) xpti::trace_point_t(val << 1 | 0)
@@ -122,6 +123,12 @@ using metadata_t = std::unordered_map<string_id_t, string_id_t>;
 #define XPTI_PACK08_RET16(value1, value2) ((value1 << 8) | value2)
 #define XPTI_PACK16_RET32(value1, value2) ((value1 << 16) | value2)
 #define XPTI_PACK32_RET64(value1, value2) (((uint64_t)value1 << 32) | value2)
+
+struct object_data_t {
+  size_t size;
+  const char *data;
+  uint8_t type;
+};
 
 /// @brief Payload data structure that is optional for trace point callback
 /// API
@@ -168,7 +175,7 @@ struct payload_t {
   //  valid since we can potentially reconstruct the name and the source file
   //  information during post-processing step of symbol resolution; this
   //  indicates a partial but valid payload.
-  payload_t(void *codeptr) {
+  payload_t(const void *codeptr) {
     code_ptr_va = codeptr;
     name = nullptr;         ///< Invalid name string pointer
     source_file = nullptr;  ///< Invalid source file string pointer
@@ -193,7 +200,7 @@ struct payload_t {
     }
   }
 
-  payload_t(const char *func_name, void *codeptr) {
+  payload_t(const char *func_name, const void *codeptr) {
     code_ptr_va = codeptr;
     name = func_name;      ///< Invalid name string pointer
     source_file = nullptr; ///< Invalid source file string pointer
@@ -210,7 +217,7 @@ struct payload_t {
   //  on dynamic backtrace as a possibility. In this case, we send in the
   //  caller/callee information as a string in the form "caller->callee" that
   //  will be used to generate the unique ID.
-  payload_t(const char *kname, const char *caller_callee, void *codeptr) {
+  payload_t(const char *kname, const char *caller_callee, const void *codeptr) {
     if (codeptr) {
       code_ptr_va = codeptr;
       flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
@@ -231,17 +238,17 @@ struct payload_t {
   //  also have the function name and source file name along with the line and
   //  column number of the trace point that forms the payload.
   payload_t(const char *kname, const char *sf, int line, int col,
-            void *codeptr) {
+            const void *codeptr) {
     code_ptr_va = codeptr;
     /// Capture the rest of the parameters
     name = kname;
     source_file = sf;
     line_no = line;
     column_no = col;
-    if (kname) {
+    if (kname && kname[0] != '\0') {
       flags = (uint64_t)payload_flag_t::NameAvailable;
     }
-    if (sf) {
+    if (sf && sf[0] != '\0') {
       flags |= (uint64_t)payload_flag_t::SourceFileAvailable |
                (uint64_t)payload_flag_t::LineInfoAvailable |
                (uint64_t)payload_flag_t::ColumnInfoAvailable;
@@ -369,7 +376,7 @@ enum class trace_point_type_t : uint16_t {
   /// Used to trace function call begin and its arguments.
   function_with_args_begin = XPTI_TRACE_POINT_BEGIN(14),
   /// Used to trace function call end.
-  function_with_args_end = XPTI_TRACE_POINT_END(15),
+  function_with_args_end = XPTI_TRACE_POINT_END(14),
   /// Used to notify that a new memory allocation is about to start.
   mem_alloc_begin = XPTI_TRACE_POINT_BEGIN(16),
   /// Used to notify that a memory allocation took place.
@@ -387,8 +394,14 @@ enum class trace_point_type_t : uint16_t {
   offload_alloc_destruct = XPTI_TRACE_POINT_BEGIN(22),
   /// Used to notify about releasing internal handle for offload buffer
   offload_alloc_release = XPTI_TRACE_POINT_BEGIN(23),
-  /// Used to notify about creation accessor for ofload buffer
+  /// Used to notify about creation accessor for offload buffer
   offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
+  /// User to notify when a queue has been created
+  queue_create = XPTI_TRACE_POINT_BEGIN(25),
+  /// User to notify when a queue has been destroyed
+  queue_destroy = XPTI_TRACE_POINT_END(25),
+  /// Used to notify error/informational messages and no action to take
+  diagnostics = XPTI_TRACE_POINT_BEGIN(63),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7
@@ -479,6 +492,16 @@ enum class trace_activity_type_t {
   sleep_activity = 1 << 3
 };
 
+/// Provides hints to the tools on how to interpret unknown metadata values.
+enum class metadata_type_t {
+  binary = 0,
+  string = 1,
+  signed_integer = 2,
+  unsigned_integer = 3,
+  floating = 4,
+  boolean = 5
+};
+
 struct reserved_data_t {
   /// Has a reference to the associated payload field for an event
   payload_t *payload = nullptr;
@@ -520,6 +543,16 @@ struct trace_event_data_t {
 struct offload_buffer_data_t {
   /// A pointer to user level memory offload object.
   uintptr_t user_object_handle = 0;
+  /// A pointer to host memory offload object.
+  uintptr_t host_object_handle = 0;
+  /// A string representing the type of buffer element.
+  const char *element_type = nullptr;
+  /// Buffer element size in bytes
+  uint32_t element_size = 0;
+  /// Buffer dimensions number.
+  uint32_t dim = 0;
+  /// Buffer size for each dimension.
+  size_t range[3] = {0, 0, 0};
 };
 
 /// Describes offload accessor
@@ -542,6 +575,31 @@ struct offload_buffer_association_data_t {
   /// A pointer to platform specific handler for the offload object
   uintptr_t mem_object_handle = 0;
 };
+
+/// Describes enqueued kernel object
+struct offload_kernel_enqueue_data_t {
+  /// Global size
+  size_t global_size[3] = {0, 0, 0};
+  /// Local size
+  size_t local_size[3] = {0, 0, 0};
+  /// Offset
+  size_t offset[3] = {0, 0, 0};
+  /// Number of kernel arguments
+  size_t args_num = 0;
+};
+
+/// Describes enqueued kernel argument
+struct offload_kernel_arg_data_t {
+  /// Argument type as set in kernel_param_kind_t
+  int type = -1;
+  /// Pointer to the data
+  void *pointer = nullptr;
+  /// Size of the argument
+  int size = 0;
+  /// Index of the argument in the kernel
+  int index = 0;
+};
+
 /// Describes memory allocation
 struct mem_alloc_data_t {
   /// A platform-specific memory object handle. Some heterogeneous programming
@@ -641,6 +699,14 @@ constexpr uint16_t trace_edge_create =
     static_cast<uint16_t>(xpti::trace_point_type_t::edge_create);
 constexpr uint16_t trace_signal =
     static_cast<uint16_t>(xpti::trace_point_type_t::signal);
+constexpr uint16_t trace_function_begin =
+    static_cast<uint16_t>(xpti::trace_point_type_t::function_begin);
+constexpr uint16_t trace_function_end =
+    static_cast<uint16_t>(xpti::trace_point_type_t::function_end);
+constexpr uint16_t trace_function_with_args_begin =
+    static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_begin);
+constexpr uint16_t trace_function_with_args_end =
+    static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_end);
 constexpr uint16_t trace_offload_alloc_construct =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_construct);
 constexpr uint16_t trace_offload_alloc_associate =
@@ -660,6 +726,9 @@ constexpr uint16_t trace_offload_buffer_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_buffer);
 constexpr uint16_t trace_offload_accessor_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_accessor);
+
+constexpr uint16_t trace_diagnostics =
+    static_cast<uint16_t>(xpti::trace_point_type_t::diagnostics);
 } // namespace xpti
 
 using xpti_tp = xpti::trace_point_type_t;

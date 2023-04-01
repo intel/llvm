@@ -48,10 +48,14 @@ public:
   void SetCondition(const char *condition);
 
   const char *GetCondition();
-   
+
   void SetAutoContinue(bool auto_continue);
 
   bool GetAutoContinue();
+
+#ifndef SWIG
+  void SetCallback(SBBreakpointHitCallback callback, void *baton);
+#endif
 
   void SetScriptCallbackFunction(const char *callback_function_name);
 
@@ -86,7 +90,9 @@ public:
 
   SBBreakpoint GetBreakpoint();
 
+#ifndef SWIG
   SBBreakpointLocation(const lldb::BreakpointLocationSP &break_loc_sp);
+#endif
 
 private:
   friend class SBBreakpoint;

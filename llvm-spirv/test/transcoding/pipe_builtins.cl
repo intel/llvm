@@ -1,6 +1,6 @@
 // Pipe built-ins are mangled accordingly to SPIR2.0/C++ ABI.
 
-// RUN: %clang_cc1 -x cl -cl-std=CL2.0 -triple spir64-unknonw-unknown -emit-llvm-bc -fdeclare-opencl-builtins -finclude-default-header -Dcl_khr_subgroups %s -o %t.bc
+// RUN: %clang_cc1 -x cl -cl-std=CL2.0 -triple spir64-unknown-unknown -emit-llvm-bc -fdeclare-opencl-builtins -finclude-default-header -Dcl_khr_subgroups %s -o %t.bc
 // RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 // RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv

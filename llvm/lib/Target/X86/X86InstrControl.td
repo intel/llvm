@@ -88,23 +88,6 @@ let isBranch = 1, isTerminator = 1, Uses = [EFLAGS], SchedRW = [WriteJump],
   }
 }
 
-def : InstAlias<"jo\t$dst",  (JCC_1 brtarget8:$dst,  0), 0>;
-def : InstAlias<"jno\t$dst", (JCC_1 brtarget8:$dst,  1), 0>;
-def : InstAlias<"jb\t$dst",  (JCC_1 brtarget8:$dst,  2), 0>;
-def : InstAlias<"jae\t$dst", (JCC_1 brtarget8:$dst,  3), 0>;
-def : InstAlias<"je\t$dst",  (JCC_1 brtarget8:$dst,  4), 0>;
-def : InstAlias<"jne\t$dst", (JCC_1 brtarget8:$dst,  5), 0>;
-def : InstAlias<"jbe\t$dst", (JCC_1 brtarget8:$dst,  6), 0>;
-def : InstAlias<"ja\t$dst",  (JCC_1 brtarget8:$dst,  7), 0>;
-def : InstAlias<"js\t$dst",  (JCC_1 brtarget8:$dst,  8), 0>;
-def : InstAlias<"jns\t$dst", (JCC_1 brtarget8:$dst,  9), 0>;
-def : InstAlias<"jp\t$dst",  (JCC_1 brtarget8:$dst, 10), 0>;
-def : InstAlias<"jnp\t$dst", (JCC_1 brtarget8:$dst, 11), 0>;
-def : InstAlias<"jl\t$dst",  (JCC_1 brtarget8:$dst, 12), 0>;
-def : InstAlias<"jge\t$dst", (JCC_1 brtarget8:$dst, 13), 0>;
-def : InstAlias<"jle\t$dst", (JCC_1 brtarget8:$dst, 14), 0>;
-def : InstAlias<"jg\t$dst",  (JCC_1 brtarget8:$dst, 15), 0>;
-
 // jcx/jecx/jrcx instructions.
 let isBranch = 1, isTerminator = 1, hasSideEffects = 0, SchedRW = [WriteJump] in {
   // These are the 32-bit versions of this instruction for the asmparser.  In
@@ -147,7 +130,7 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1 in {
 
   // Win64 wants indirect jumps leaving the function to have a REX_W prefix.
   // These are switched from TAILJMPr/m64_REX in MCInstLower.
-  let isCodeGenOnly = 1, hasREX_WPrefix = 1 in {
+  let isCodeGenOnly = 1, hasREX_W = 1 in {
     def JMP64r_REX : I<0xFF, MRM4r, (outs), (ins GR64:$dst),
                        "rex64 jmp{q}\t{*}$dst", []>, Sched<[WriteJump]>;
     let mayLoad = 1 in
@@ -384,7 +367,7 @@ let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1,
                            []>, Sched<[WriteJumpLd]>;
 
   // Win64 wants indirect jumps leaving the function to have a REX_W prefix.
-  let hasREX_WPrefix = 1 in {
+  let hasREX_W = 1 in {
     def TAILJMPr64_REX : PseudoI<(outs), (ins ptr_rc_tailcall:$dst),
                                  []>, Sched<[WriteJump]>;
 

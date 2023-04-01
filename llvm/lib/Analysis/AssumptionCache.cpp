@@ -11,18 +11,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
@@ -31,7 +30,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <utility>
 
@@ -89,7 +87,7 @@ findAffectedValues(CallBase *CI, TargetTransformInfo *TTI,
   AddAffected(Cond);
 
   CmpInst::Predicate Pred;
-  if (match(Cond, m_ICmp(Pred, m_Value(A), m_Value(B)))) {
+  if (match(Cond, m_Cmp(Pred, m_Value(A), m_Value(B)))) {
     AddAffected(A);
     AddAffected(B);
 
@@ -107,7 +105,7 @@ findAffectedValues(CallBase *CI, TargetTransformInfo *TTI,
         if (match(V, m_BitwiseLogic(m_Value(A), m_Value(B)))) {
           AddAffected(A);
           AddAffected(B);
-        // (A << C) or (A >>_s C) or (A >>_u C) where C is some constant.
+          // (A << C) or (A >>_s C) or (A >>_u C) where C is some constant.
         } else if (match(V, m_Shift(m_Value(A), m_ConstantInt()))) {
           AddAffected(A);
         }
@@ -115,15 +113,33 @@ findAffectedValues(CallBase *CI, TargetTransformInfo *TTI,
 
       AddAffectedFromEq(A);
       AddAffectedFromEq(B);
+    } else if (Pred == ICmpInst::ICMP_NE) {
+      Value *X, *Y;
+      // Handle (a & b != 0). If a/b is a power of 2 we can use this
+      // information.
+      if (match(A, m_And(m_Value(X), m_Value(Y))) && match(B, m_Zero())) {
+        AddAffected(X);
+        AddAffected(Y);
+      }
+    } else if (Pred == ICmpInst::ICMP_ULT) {
+      Value *X;
+      // Handle (A + C1) u< C2, which is the canonical form of A > C3 && A < C4,
+      // and recognized by LVI at least.
+      if (match(A, m_Add(m_Value(X), m_ConstantInt())) &&
+          match(B, m_ConstantInt()))
+        AddAffected(X);
+    } else if (CmpInst::isFPPredicate(Pred)) {
+      // fcmp fneg(x), y
+      // fcmp fabs(x), y
+      // fcmp fneg(fabs(x)), y
+      if (match(A, m_FNeg(m_Value(A))))
+        AddAffected(A);
+      if (match(A, m_FAbs(m_Value(A))))
+        AddAffected(A);
     }
-
-    Value *X;
-    // Handle (A + C1) u< C2, which is the canonical form of A > C3 && A < C4,
-    // and recognized by LVI at least.
-    if (Pred == ICmpInst::ICMP_ULT &&
-        match(A, m_Add(m_Value(X), m_ConstantInt())) &&
-        match(B, m_ConstantInt()))
-      AddAffected(X);
+  } else if (match(Cond, m_Intrinsic<Intrinsic::is_fpclass>(m_Value(A),
+                                                            m_Value(B)))) {
+    AddAffected(A);
   }
 
   if (TTI) {

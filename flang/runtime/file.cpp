@@ -45,8 +45,8 @@ static int openfile_mkstemp(IoErrorHandler &handler) {
   if (::GetTempFileNameA(tempDirName, "Fortran", uUnique, tempFileName) == 0) {
     return -1;
   }
-  int fd{::_open(
-      tempFileName, _O_CREAT | _O_TEMPORARY | _O_RDWR, _S_IREAD | _S_IWRITE)};
+  int fd{::_open(tempFileName, _O_CREAT | _O_BINARY | _O_TEMPORARY | _O_RDWR,
+      _S_IREAD | _S_IWRITE)};
 #else
   char path[]{"/tmp/Fortran-Scratch-XXXXXX"};
   int fd{::mkstemp(path)};
@@ -82,6 +82,12 @@ void OpenFile::Open(OpenStatus status, std::optional<Action> action,
       return;
     }
     int flags{0};
+#ifdef _WIN32
+    // We emit explicit CR+LF line endings and cope with them on input
+    // for formatted files, since we can't yet always know now at OPEN
+    // time whether the file is formatted or not.
+    flags |= O_BINARY;
+#endif
     if (status != OpenStatus::Old) {
       flags |= O_CREAT;
     }
@@ -91,12 +97,18 @@ void OpenFile::Open(OpenStatus status, std::optional<Action> action,
       flags |= O_TRUNC;
     }
     if (!action) {
-      // Try to open read/write, back off to read-only on failure
+      // Try to open read/write, back off to read-only or even write-only
+      // on failure
       fd_ = ::open(path_.get(), flags | O_RDWR, 0600);
       if (fd_ >= 0) {
         action = Action::ReadWrite;
       } else {
-        action = Action::Read;
+        fd_ = ::open(path_.get(), flags | O_RDONLY, 0600);
+        if (fd_ >= 0) {
+          action = Action::Read;
+        } else {
+          action = Action::Write;
+        }
       }
     }
     if (fd_ < 0) {
@@ -120,9 +132,9 @@ void OpenFile::Open(OpenStatus status, std::optional<Action> action,
   RUNTIME_CHECK(handler, action.has_value());
   pending_.reset();
   if (position == Position::Append && !RawSeekToEnd()) {
-    handler.SignalErrno();
+    handler.SignalError(IostatOpenBadAppend);
   }
-  isTerminal_ = ::isatty(fd_) == 1;
+  isTerminal_ = IsATerminal(fd_) == 1;
   mayRead_ = *action != Action::Write;
   mayWrite_ = *action != Action::Read;
   if (status == OpenStatus::Old || status == OpenStatus::Unknown) {
@@ -151,9 +163,13 @@ void OpenFile::Predefine(int fd) {
   knownSize_.reset();
   nextId_ = 0;
   pending_.reset();
+  isTerminal_ = IsATerminal(fd_) == 1;
   mayRead_ = fd == 0;
   mayWrite_ = fd != 0;
   mayPosition_ = false;
+#ifdef _WIN32
+  isWindowsTextFile_ = true;
+#endif
 }
 
 void OpenFile::Close(CloseStatus status, IoErrorHandler &handler) {
@@ -362,7 +378,7 @@ bool OpenFile::Seek(FileOffset at, IoErrorHandler &handler) {
     SetPosition(at);
     return true;
   } else {
-    handler.SignalErrno();
+    handler.SignalError(IostatCannotReposition);
     return false;
   }
 }
@@ -410,10 +426,12 @@ void OpenFile::CloseFd(IoErrorHandler &handler) {
 
 bool IsATerminal(int fd) { return ::isatty(fd); }
 
-#ifdef WIN32
+#if defined(_WIN32) && !defined(F_OK)
 // Access flags are normally defined in unistd.h, which unavailable under
 // Windows. Instead, define the flags as documented at
 // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/access-waccess
+// On Mingw, io.h does define these same constants - so check whether they
+// already are defined before defining these.
 #define F_OK 00
 #define W_OK 02
 #define R_OK 04
@@ -425,4 +443,17 @@ bool MayWrite(const char *path) { return ::access(path, W_OK) == 0; }
 bool MayReadAndWrite(const char *path) {
   return ::access(path, R_OK | W_OK) == 0;
 }
+
+std::int64_t SizeInBytes(const char *path) {
+#ifndef _WIN32
+  struct stat buf;
+  if (::stat(path, &buf) == 0) {
+    return buf.st_size;
+  }
+#else // TODO: _WIN32
+#endif
+  // No Fortran compiler signals an error
+  return -1;
+}
+
 } // namespace Fortran::runtime::io

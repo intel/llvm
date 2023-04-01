@@ -7,9 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ExecutionEngine/JITLink/EHFrameSupport.h"
+#include "llvm/ExecutionEngine/JITLink/aarch32.h"
 #include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
+#include "llvm/ExecutionEngine/Orc/ObjectFileInterface.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ObjectFormats.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <string>
 #include <vector>
@@ -21,6 +23,53 @@ using namespace llvm::jitlink;
 using namespace llvm::orc;
 
 namespace {
+
+bool hasInitializerSection(jitlink::LinkGraph &G) {
+  bool IsMachO = G.getTargetTriple().isOSBinFormatMachO();
+  bool IsElf = G.getTargetTriple().isOSBinFormatELF();
+  if (!IsMachO && !IsElf)
+    return false;
+
+  for (auto &Sec : G.sections()) {
+    if (IsMachO && isMachOInitializerSection(Sec.getName()))
+      return true;
+    if (IsElf && isELFInitializerSection(Sec.getName()))
+      return true;
+  }
+
+  return false;
+}
+
+JITTargetAddress getJITSymbolPtrForSymbol(Symbol &Sym, const Triple &TT) {
+  uint64_t CallableAddr = Sym.getAddress().getValue();
+  switch (TT.getArch()) {
+  case Triple::arm:
+  case Triple::armeb:
+  case Triple::thumb:
+  case Triple::thumbeb:
+    if (Sym.hasTargetFlags(aarch32::ThumbSymbol) && Sym.isCallable())
+      CallableAddr |= 0x01; // LSB is thumb bit
+    break;
+  default:
+    break;
+  }
+  return CallableAddr;
+}
+
+JITSymbolFlags getJITSymbolFlagsForSymbol(Symbol &Sym) {
+  JITSymbolFlags Flags;
+
+  if (Sym.getLinkage() == Linkage::Weak)
+    Flags |= JITSymbolFlags::Weak;
+
+  if (Sym.getScope() == Scope::Default)
+    Flags |= JITSymbolFlags::Exported;
+
+  if (Sym.isCallable())
+    Flags |= JITSymbolFlags::Callable;
+
+  return Flags;
+}
 
 class LinkGraphMaterializationUnit : public MaterializationUnit {
 public:
@@ -48,40 +97,14 @@ private:
         continue;
       assert(Sym->hasName() && "Anonymous non-local symbol?");
 
-      JITSymbolFlags Flags;
-      if (Sym->getScope() == Scope::Default)
-        Flags |= JITSymbolFlags::Exported;
-
-      if (Sym->isCallable())
-        Flags |= JITSymbolFlags::Callable;
-
-      LGI.SymbolFlags[ES.intern(Sym->getName())] = Flags;
+      LGI.SymbolFlags[ES.intern(Sym->getName())] =
+          getJITSymbolFlagsForSymbol(*Sym);
     }
 
-    if ((G.getTargetTriple().isOSBinFormatMachO() && hasMachOInitSection(G)) ||
-        (G.getTargetTriple().isOSBinFormatELF() && hasELFInitSection(G)))
+    if (hasInitializerSection(G))
       LGI.InitSymbol = makeInitSymbol(ES, G);
 
     return LGI;
-  }
-
-  static bool hasMachOInitSection(LinkGraph &G) {
-    for (auto &Sec : G.sections())
-      if (Sec.getName() == "__DATA,__obj_selrefs" ||
-          Sec.getName() == "__DATA,__objc_classlist" ||
-          Sec.getName() == "__TEXT,__swift5_protos" ||
-          Sec.getName() == "__TEXT,__swift5_proto" ||
-          Sec.getName() == "__TEXT,__swift5_types" ||
-          Sec.getName() == "__DATA,__mod_init_func")
-        return true;
-    return false;
-  }
-
-  static bool hasELFInitSection(LinkGraph &G) {
-    for (auto &Sec : G.sections())
-      if (Sec.getName() == ".init_array")
-        return true;
-    return false;
   }
 
   static SymbolStringPtr makeInitSymbol(ExecutionSession &ES, LinkGraph &G) {
@@ -209,15 +232,9 @@ public:
     for (auto *Sym : G.defined_symbols())
       if (Sym->hasName() && Sym->getScope() != Scope::Local) {
         auto InternedName = ES.intern(Sym->getName());
-        JITSymbolFlags Flags;
-
-        if (Sym->isCallable())
-          Flags |= JITSymbolFlags::Callable;
-        if (Sym->getScope() == Scope::Default)
-          Flags |= JITSymbolFlags::Exported;
-
-        InternedResult[InternedName] =
-            JITEvaluatedSymbol(Sym->getAddress().getValue(), Flags);
+        auto Ptr = getJITSymbolPtrForSymbol(*Sym, G.getTargetTriple());
+        auto Flags = getJITSymbolFlagsForSymbol(*Sym);
+        InternedResult[InternedName] = JITEvaluatedSymbol(Ptr, Flags);
         if (AutoClaim && !MR->getSymbols().count(InternedName)) {
           assert(!ExtraSymbolsToClaim.count(InternedName) &&
                  "Duplicate symbol to claim?");
@@ -226,16 +243,11 @@ public:
       }
 
     for (auto *Sym : G.absolute_symbols())
-      if (Sym->hasName()) {
+      if (Sym->hasName() && Sym->getScope() != Scope::Local) {
         auto InternedName = ES.intern(Sym->getName());
-        JITSymbolFlags Flags;
-        Flags |= JITSymbolFlags::Absolute;
-        if (Sym->isCallable())
-          Flags |= JITSymbolFlags::Callable;
-        if (Sym->getLinkage() == Linkage::Weak)
-          Flags |= JITSymbolFlags::Weak;
-        InternedResult[InternedName] =
-            JITEvaluatedSymbol(Sym->getAddress().getValue(), Flags);
+        auto Ptr = getJITSymbolPtrForSymbol(*Sym, G.getTargetTriple());
+        auto Flags = getJITSymbolFlagsForSymbol(*Sym);
+        InternedResult[InternedName] = JITEvaluatedSymbol(Ptr, Flags);
         if (AutoClaim && !MR->getSymbols().count(InternedName)) {
           assert(!ExtraSymbolsToClaim.count(InternedName) &&
                  "Duplicate symbol to claim?");
@@ -424,10 +436,8 @@ private:
           Sym->getScope() != Scope::Local) {
         auto Name = ES.intern(Sym->getName());
         if (!MR->getSymbols().count(ES.intern(Sym->getName()))) {
-          JITSymbolFlags SF = JITSymbolFlags::Weak;
-          if (Sym->getScope() == Scope::Default)
-            SF |= JITSymbolFlags::Exported;
-          NewSymbolsToClaim[Name] = SF;
+          NewSymbolsToClaim[Name] =
+              getJITSymbolFlagsForSymbol(*Sym) | JITSymbolFlags::Weak;
           NameToSym.push_back(std::make_pair(std::move(Name), Sym));
         }
       }
@@ -443,9 +453,15 @@ private:
     // claim, at which point we'll externalize that symbol.
     cantFail(MR->defineMaterializing(std::move(NewSymbolsToClaim)));
 
-    for (auto &KV : NameToSym)
-      if (!MR->getSymbols().count(KV.first))
+    // Walk the list of symbols that we just tried to claim. Symbols that we're
+    // responsible for are marked live. Symbols that we're not responsible for
+    // are turned into external references.
+    for (auto &KV : NameToSym) {
+      if (MR->getSymbols().count(KV.first))
+        KV.second->setLive(true);
+      else
         G.makeExternal(*KV.second);
+    }
 
     return Error::success();
   }
@@ -533,7 +549,8 @@ private:
     for (auto *B : G.blocks()) {
       auto &BI = BlockInfos[B];
       for (auto &E : B->edges()) {
-        if (E.getTarget().getScope() == Scope::Local) {
+        if (E.getTarget().getScope() == Scope::Local &&
+            !E.getTarget().isAbsolute()) {
           auto &TgtB = E.getTarget().getBlock();
           if (&TgtB != B) {
             BI.Dependencies.insert(&TgtB);
@@ -607,7 +624,7 @@ private:
   DenseMap<SymbolStringPtr, SymbolNameSet> InternalNamedSymbolDeps;
 };
 
-ObjectLinkingLayer::Plugin::~Plugin() {}
+ObjectLinkingLayer::Plugin::~Plugin() = default;
 
 char ObjectLinkingLayer::ID;
 
@@ -690,12 +707,12 @@ Error ObjectLinkingLayer::notifyEmitted(MaterializationResponsibility &MR,
       [&](ResourceKey K) { Allocs[K].push_back(std::move(FA)); });
 }
 
-Error ObjectLinkingLayer::handleRemoveResources(ResourceKey K) {
+Error ObjectLinkingLayer::handleRemoveResources(JITDylib &JD, ResourceKey K) {
 
   {
     Error Err = Error::success();
     for (auto &P : Plugins)
-      Err = joinErrors(std::move(Err), P->notifyRemovingResources(K));
+      Err = joinErrors(std::move(Err), P->notifyRemovingResources(JD, K));
     if (Err)
       return Err;
   }
@@ -715,7 +732,8 @@ Error ObjectLinkingLayer::handleRemoveResources(ResourceKey K) {
   return MemMgr.deallocate(std::move(AllocsToRemove));
 }
 
-void ObjectLinkingLayer::handleTransferResources(ResourceKey DstKey,
+void ObjectLinkingLayer::handleTransferResources(JITDylib &JD,
+                                                 ResourceKey DstKey,
                                                  ResourceKey SrcKey) {
   auto I = Allocs.find(SrcKey);
   if (I != Allocs.end()) {
@@ -731,7 +749,7 @@ void ObjectLinkingLayer::handleTransferResources(ResourceKey DstKey,
   }
 
   for (auto &P : Plugins)
-    P->notifyTransferringResources(DstKey, SrcKey);
+    P->notifyTransferringResources(JD, DstKey, SrcKey);
 }
 
 EHFrameRegistrationPlugin::EHFrameRegistrationPlugin(
@@ -783,7 +801,8 @@ Error EHFrameRegistrationPlugin::notifyFailed(
   return Error::success();
 }
 
-Error EHFrameRegistrationPlugin::notifyRemovingResources(ResourceKey K) {
+Error EHFrameRegistrationPlugin::notifyRemovingResources(JITDylib &JD,
+                                                         ResourceKey K) {
   std::vector<ExecutorAddrRange> RangesToRemove;
 
   ES.runSessionLocked([&] {
@@ -807,7 +826,7 @@ Error EHFrameRegistrationPlugin::notifyRemovingResources(ResourceKey K) {
 }
 
 void EHFrameRegistrationPlugin::notifyTransferringResources(
-    ResourceKey DstKey, ResourceKey SrcKey) {
+    JITDylib &JD, ResourceKey DstKey, ResourceKey SrcKey) {
   auto SI = EHFrameRanges.find(SrcKey);
   if (SI == EHFrameRanges.end())
     return;

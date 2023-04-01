@@ -22,10 +22,10 @@ kernel void foo(global long *arg) {
 #endif
   my_st *tmp = 0;
 
-  // SPIRV32: store i64 4, i64 addrspace(1)*
-  // SPIRV64: store i64 8, i64 addrspace(1)*
+  // SPIRV32: store i64 4, ptr addrspace(1)
+  // SPIRV64: store i64 8, ptr addrspace(1)
   arg[0] = (long)(&tmp->v);
-  // SPIRV32: store i64 8, i64 addrspace(1)*
-  // SPIRV64: store i64 16, i64 addrspace(1)*
+  // SPIRV32: store i64 8, ptr addrspace(1)
+  // SPIRV64: store i64 16, ptr addrspace(1)
   arg[1] = (long)(&tmp->v2);
 }

@@ -93,6 +93,11 @@ bool FileExists(const char *filename) {
   return ::GetFileAttributesA(filename) != INVALID_FILE_ATTRIBUTES;
 }
 
+bool DirExists(const char *path) {
+  auto attr = ::GetFileAttributesA(path);
+  return (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
+}
+
 uptr internal_getpid() {
   return GetProcessId(GetCurrentProcess());
 }
@@ -125,6 +130,11 @@ void GetThreadStackTopAndBottom(bool at_initialization, uptr *stack_top,
   *stack_bottom = (uptr)mbi.AllocationBase;
 }
 #endif  // #if !SANITIZER_GO
+
+bool ErrorIsOOM(error_t err) {
+  // TODO: This should check which `err`s correspond to OOM.
+  return false;
+}
 
 void *MmapOrDie(uptr size, const char *mem_type, bool raw_report) {
   void *rv = VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -222,6 +232,17 @@ void *MmapAlignedOrDieOnFatalError(uptr size, uptr alignment,
     return ReturnNullptrOnOOMOrDie(size, mem_type, "allocate aligned");
 
   return (void *)mapped_addr;
+}
+
+// ZeroMmapFixedRegion zero's out a region of memory previously returned from a
+// call to one of the MmapFixed* helpers. On non-windows systems this would be
+// done with another mmap, but on windows remapping is not an option.
+// VirtualFree(DECOMMIT)+VirtualAlloc(RECOMMIT) would also be a way to zero the
+// memory, but we can't do this atomically, so instead we fall back to using
+// internal_memset.
+bool ZeroMmapFixedRegion(uptr fixed_addr, uptr size) {
+  internal_memset((void*) fixed_addr, 0, size);
+  return true;
 }
 
 bool MmapFixedNoReserve(uptr fixed_addr, uptr size, const char *name) {
@@ -517,7 +538,7 @@ void ReExec() {
   UNIMPLEMENTED();
 }
 
-void PlatformPrepareForSandboxing(__sanitizer_sandbox_arguments *args) {}
+void PlatformPrepareForSandboxing(void *args) {}
 
 bool StackSizeIsUnlimited() {
   UNIMPLEMENTED();
@@ -983,7 +1004,7 @@ SignalContext::WriteFlag SignalContext::GetWriteFlag() const {
 
   // The write flag is only available for access violation exceptions.
   if (exception_record->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
-    return SignalContext::UNKNOWN;
+    return SignalContext::Unknown;
 
   // The contents of this array are documented at
   // https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-exception_record
@@ -991,13 +1012,13 @@ SignalContext::WriteFlag SignalContext::GetWriteFlag() const {
   // second element is the faulting address.
   switch (exception_record->ExceptionInformation[0]) {
     case 0:
-      return SignalContext::READ;
+      return SignalContext::Read;
     case 1:
-      return SignalContext::WRITE;
+      return SignalContext::Write;
     case 8:
-      return SignalContext::UNKNOWN;
+      return SignalContext::Unknown;
   }
-  return SignalContext::UNKNOWN;
+  return SignalContext::Unknown;
 }
 
 void SignalContext::DumpAllRegisters(void *context) {
@@ -1082,10 +1103,6 @@ void CheckVMASize() {
 
 void InitializePlatformEarly() {
   // Do nothing.
-}
-
-void MaybeReexec() {
-  // No need to re-exec on Windows.
 }
 
 void CheckASLR() {

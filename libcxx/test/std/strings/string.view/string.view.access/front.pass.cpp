@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // constexpr const _CharT& back();
@@ -16,7 +18,7 @@
 #include "test_macros.h"
 
 template <typename CharT>
-bool test ( const CharT *s, size_t len ) {
+bool test ( const CharT *s, std::size_t len ) {
     typedef std::basic_string_view<CharT> SV;
     SV sv ( s, len );
     ASSERT_SAME_TYPE(decltype(sv.front()), typename SV::const_reference);
@@ -30,8 +32,10 @@ int main(int, char**) {
     assert ( test ( "ABCDE", 5 ));
     assert ( test ( "a", 1 ));
 
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     assert ( test ( L"ABCDE", 5 ));
     assert ( test ( L"a", 1 ));
+#endif
 
 #if TEST_STD_VER >= 11
     assert ( test ( u"ABCDE", 5 ));

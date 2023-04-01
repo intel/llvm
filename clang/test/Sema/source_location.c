@@ -17,16 +17,18 @@ char *const NCFUNC = __builtin_FUNCTION();
 
 #ifdef CONST_STRINGS
 _Static_assert(IsEqual(__builtin_FILE(), __FILE__), "");
+_Static_assert(IsEqual(__builtin_FILE_NAME(), __FILE_NAME__), "");
 _Static_assert(__builtin_LINE() == __LINE__, "");
 _Static_assert(IsEqual("", __builtin_FUNCTION()), "");
 
 #line 42 "my_file.c"
 _Static_assert(__builtin_LINE() == 42, "");
 _Static_assert(IsEqual(__builtin_FILE(), "my_file.c"), "");
+_Static_assert(IsEqual(__builtin_FILE_NAME(), "my_file.c"), "");
 
 _Static_assert(__builtin_COLUMN() == __builtin_strlen("_Static_assert(_"), "");
 
-void foo() {
+void foo(void) {
   _Static_assert(IsEqual(__builtin_FUNCTION(), "foo"), "");
 }
 #endif // CONST_STRINGS

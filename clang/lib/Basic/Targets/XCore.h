@@ -15,14 +15,13 @@
 
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 namespace targets {
 
 class LLVM_LIBRARY_VISIBILITY XCoreTargetInfo : public TargetInfo {
-  static const Builtin::Info BuiltinInfo[];
 
 public:
   XCoreTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
@@ -57,11 +56,11 @@ public:
         "r0", "r1", "r2",  "r3",  "r4", "r5", "r6", "r7",
         "r8", "r9", "r10", "r11", "cp", "dp", "sp", "lr"
     };
-    return llvm::makeArrayRef(GCCRegNames);
+    return llvm::ArrayRef(GCCRegNames);
   }
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
-    return None;
+    return std::nullopt;
   }
 
   bool validateAsmConstraint(const char *&Name,

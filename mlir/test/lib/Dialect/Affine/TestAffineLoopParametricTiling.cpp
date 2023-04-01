@@ -12,8 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Affine/Passes.h"
-#include "mlir/Transforms/LoopUtils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 
 using namespace mlir;
 
@@ -21,12 +22,15 @@ using namespace mlir;
 
 namespace {
 struct TestAffineLoopParametricTiling
-    : public PassWrapper<TestAffineLoopParametricTiling, FunctionPass> {
+    : public PassWrapper<TestAffineLoopParametricTiling,
+                         OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestAffineLoopParametricTiling)
+
   StringRef getArgument() const final { return "test-affine-parametric-tile"; }
   StringRef getDescription() const final {
     return "Tile affine loops using SSA values as tile sizes";
   }
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 } // namespace
 
@@ -37,7 +41,7 @@ static void checkIfTilingParametersExist(ArrayRef<AffineForOp> band) {
   assert(!band.empty() && "no loops in input band");
   AffineForOp topLoop = band[0];
 
-  if (FuncOp funcOp = dyn_cast<FuncOp>(topLoop->getParentOp()))
+  if (func::FuncOp funcOp = dyn_cast<func::FuncOp>(topLoop->getParentOp()))
     assert(funcOp.getNumArguments() >= band.size() && "Too few tile sizes");
 }
 
@@ -61,10 +65,10 @@ static void getTilingParameters(ArrayRef<AffineForOp> band,
   }
 }
 
-void TestAffineLoopParametricTiling::runOnFunction() {
+void TestAffineLoopParametricTiling::runOnOperation() {
   // Bands of loops to tile.
   std::vector<SmallVector<AffineForOp, 6>> bands;
-  getTileableBands(getFunction(), &bands);
+  getTileableBands(getOperation(), &bands);
 
   // Tile each band.
   for (MutableArrayRef<AffineForOp> band : bands) {

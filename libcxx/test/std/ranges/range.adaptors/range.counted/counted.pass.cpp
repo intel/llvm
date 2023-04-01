@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // std::views::counted;
 
@@ -48,7 +46,7 @@ constexpr bool test() {
   {
     static_assert(std::addressof(std::views::counted) == std::addressof(std::ranges::views::counted));
 
-    static_assert( CountedInvocable<int*, size_t>);
+    static_assert( CountedInvocable<int*, std::size_t>);
     static_assert(!CountedInvocable<int*, LvalueConvertible>);
     static_assert( CountedInvocable<int*, LvalueConvertible&>);
     static_assert( CountedInvocable<int*, RvalueConvertible>);
@@ -56,7 +54,7 @@ constexpr bool test() {
     static_assert(!CountedInvocable<int*, OnlyExplicitlyConvertible>);
     static_assert(!CountedInvocable<int*, int*>);
     static_assert(!CountedInvocable<int*>);
-    static_assert(!CountedInvocable<size_t>);
+    static_assert(!CountedInvocable<std::size_t>);
     static_assert(!CountedInvocable<>);
   }
 
@@ -171,12 +169,12 @@ constexpr bool test() {
   }
 
   {
-    auto it = output_iterator<int*>(buffer);
+    auto it = cpp17_output_iterator<int*>(buffer);
 
     auto c1 = std::views::counted(it, 3);
     auto c2 = std::views::counted(std::as_const(it), 3);
     auto c3 = std::views::counted(std::move(it), 3);
-    auto c4 = std::views::counted(output_iterator<int*>(buffer), 3);
+    auto c4 = std::views::counted(cpp17_output_iterator<int*>(buffer), 3);
 
     using Expected = std::ranges::subrange<std::counted_iterator<decltype(it)>, std::default_sentinel_t>;
 

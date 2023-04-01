@@ -138,7 +138,7 @@ typedef union kmp_tas_lock kmp_tas_lock_t;
 //    kmp_tas_lock_t xlock = KMP_TAS_LOCK_INITIALIZER( xlock );
 #define KMP_TAS_LOCK_INITIALIZER(lock)                                         \
   {                                                                            \
-    { ATOMIC_VAR_INIT(KMP_LOCK_FREE(tas)), 0 }                                 \
+    { KMP_LOCK_FREE(tas), 0 }                                                  \
   }
 
 extern int __kmp_acquire_tas_lock(kmp_tas_lock_t *lck, kmp_int32 gtid);
@@ -276,11 +276,7 @@ typedef union kmp_ticket_lock kmp_ticket_lock_t;
 // Note the macro argument. It is important to make var properly initialized.
 #define KMP_TICKET_LOCK_INITIALIZER(lock)                                      \
   {                                                                            \
-    {                                                                          \
-      ATOMIC_VAR_INIT(true)                                                    \
-      , &(lock), NULL, ATOMIC_VAR_INIT(0U), ATOMIC_VAR_INIT(0U),               \
-          ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(-1)                              \
-    }                                                                          \
+    { true, &(lock), NULL, 0U, 0U, 0, -1 }                                     \
   }
 
 extern int __kmp_acquire_ticket_lock(kmp_ticket_lock_t *lck, kmp_int32 gtid);
@@ -651,12 +647,15 @@ extern int (*__kmp_acquire_user_lock_with_checks_)(kmp_user_lock_p lck,
     if (lck->tas.lk.poll != 0 ||                                               \
         !__kmp_atomic_compare_store_acq(&lck->tas.lk.poll, 0, gtid + 1)) {     \
       kmp_uint32 spins;                                                        \
+      kmp_uint64 time;                                                         \
       KMP_FSYNC_PREPARE(lck);                                                  \
       KMP_INIT_YIELD(spins);                                                   \
+      KMP_INIT_BACKOFF(time);                                                  \
       do {                                                                     \
-        KMP_YIELD_OVERSUB_ELSE_SPIN(spins);                                    \
-      } while (lck->tas.lk.poll != 0 || !__kmp_atomic_compare_store_acq(       \
-                                            &lck->tas.lk.poll, 0, gtid + 1));  \
+        KMP_YIELD_OVERSUB_ELSE_SPIN(spins, time);                              \
+      } while (                                                                \
+          lck->tas.lk.poll != 0 ||                                             \
+          !__kmp_atomic_compare_store_acq(&lck->tas.lk.poll, 0, gtid + 1));    \
     }                                                                          \
     KMP_FSYNC_ACQUIRED(lck);                                                   \
   } else {                                                                     \
@@ -758,10 +757,12 @@ extern int (*__kmp_acquire_nested_user_lock_with_checks_)(kmp_user_lock_p lck,
       if ((lck->tas.lk.poll != 0) ||                                           \
           !__kmp_atomic_compare_store_acq(&lck->tas.lk.poll, 0, gtid + 1)) {   \
         kmp_uint32 spins;                                                      \
+        kmp_uint64 time;                                                       \
         KMP_FSYNC_PREPARE(lck);                                                \
         KMP_INIT_YIELD(spins);                                                 \
+        KMP_INIT_BACKOFF(time);                                                \
         do {                                                                   \
-          KMP_YIELD_OVERSUB_ELSE_SPIN(spins);                                  \
+          KMP_YIELD_OVERSUB_ELSE_SPIN(spins, time);                            \
         } while (                                                              \
             (lck->tas.lk.poll != 0) ||                                         \
             !__kmp_atomic_compare_store_acq(&lck->tas.lk.poll, 0, gtid + 1));  \

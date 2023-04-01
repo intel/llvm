@@ -426,6 +426,12 @@ def top16Zero: PatLeaf<(i32 GPR:$src), [{
          CurDAG->MaskedValueIsZero(SDValue(N,0), APInt::getHighBitsSet(32, 16));
   }]>;
 
+// topbitsallzero - Return true if all bits except the lowest bit are known zero
+def topbitsallzero32 : PatLeaf<(i32 GPRwithZR:$src), [{
+  return SDValue(N,0)->getValueType(0) == MVT::i32 &&
+         CurDAG->MaskedValueIsZero(SDValue(N,0), APInt::getHighBitsSet(32, 31));
+  }]>;
+
 class BinOpFrag<dag res> : PatFrag<(ops node:$LHS, node:$RHS), res>;
 class UnOpFrag <dag res> : PatFrag<(ops node:$Src), res>;
 
@@ -2189,6 +2195,10 @@ def : InstAlias<"sevl$p", (HINT 5, pred:$p)>, Requires<[IsARM, HasV8]>;
 def : InstAlias<"esb$p", (HINT 16, pred:$p)>, Requires<[IsARM, HasRAS]>;
 def : InstAlias<"csdb$p", (HINT 20, pred:$p)>, Requires<[IsARM, HasV6K]>;
 
+// Clear BHB instruction
+def : InstAlias<"clrbhb$p", (HINT 22, pred:$p), 0>, Requires<[IsARM, HasV8]>;
+def : InstAlias<"clrbhb$p", (HINT 22, pred:$p), 1>, Requires<[IsARM, HasV8, HasCLRBHB]>;
+
 def SEL : AI<(outs GPR:$Rd), (ins GPR:$Rn, GPR:$Rm), DPFrm, NoItinerary, "sel",
              "\t$Rd, $Rn, $Rm",
              [(set GPR:$Rd, (int_arm_sel GPR:$Rn, GPR:$Rm))]>,
@@ -3657,6 +3667,8 @@ def : InstAlias<"mov${p} $Rd, $imm",
                 (MOVi16 GPR:$Rd, imm0_65535_expr:$imm, pred:$p), 0>,
         Requires<[IsARM, HasV6T2]>;
 
+// This gets lowered to a single 4-byte instructions
+let Size = 4 in
 def MOVi16_ga_pcrel : PseudoInst<(outs GPR:$Rd),
                                 (ins i32imm:$addr, pclabel:$id), IIC_iMOVi, []>,
                       Sched<[WriteALU]>;
@@ -3680,6 +3692,8 @@ def MOVTi16 : AI1<0b1010, (outs GPRnopc:$Rd),
   let DecoderMethod = "DecodeArmMOVTWInstruction";
 }
 
+// This gets lowered to a single 4-byte instructions
+let Size = 4 in
 def MOVTi16_ga_pcrel : PseudoInst<(outs GPR:$Rd),
                       (ins GPR:$src, i32imm:$addr, pclabel:$id), IIC_iMOVi, []>,
                       Sched<[WriteALU]>;
@@ -4887,6 +4901,13 @@ def : ARMPat<(ARMcmpZ GPR:$src, so_reg_imm:$rhs),
              (CMPrsi   GPR:$src, so_reg_imm:$rhs)>;
 def : ARMPat<(ARMcmpZ GPR:$src, so_reg_reg:$rhs),
              (CMPrsr   GPR:$src, so_reg_reg:$rhs)>;
+// Following patterns aimed to prevent usage of CMPrsi and CMPrsr for a comparison
+// with zero. Usage of CMPri in these cases helps to replace cmp with S-versions of
+// shift instructions during peephole optimizations pass.
+def : ARMPat<(ARMcmpZ so_reg_imm:$rhs, 0),
+             (CMPri (MOVsi so_reg_imm:$rhs), 0)>;
+def : ARMPat<(ARMcmpZ so_reg_reg:$rhs, 0),
+             (CMPri (MOVsr so_reg_reg:$rhs), 0)>;
 
 // CMN register-integer
 let isCompare = 1, Defs = [CPSR] in {
@@ -5125,6 +5146,7 @@ let hasNoSchedulingInfo = 1 in
 def TSB : AInoP<(outs), (ins tsb_opt:$opt), MiscFrm, NoItinerary,
                 "tsb", "\t$opt", []>, Requires<[IsARM, HasV8_4a]> {
   let Inst{31-0} = 0xe320f012;
+  let DecoderMethod = "DecodeTSBInstruction";
 }
 
 }
@@ -5895,27 +5917,30 @@ def : ARMPat<(ARMthread_pointer), (MRC 15, 0, 13, 0, 3)>,
 //
 // These are pseudo-instructions and are lowered to individual MC-insts, so
 // no encoding information is necessary.
+// This gets lowered to an instruction sequence of 20 bytes
 let Defs =
   [ R0,  R1,  R2,  R3,  R4,  R5,  R6,  R7,  R8,  R9,  R10, R11, R12, LR, CPSR,
     Q0, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15 ],
-  hasSideEffects = 1, isBarrier = 1, usesCustomInserter = 1 in {
+  hasSideEffects = 1, isBarrier = 1, usesCustomInserter = 1, Size = 20 in {
   def Int_eh_sjlj_setjmp : PseudoInst<(outs), (ins GPR:$src, GPR:$val),
                                NoItinerary,
                          [(set R0, (ARMeh_sjlj_setjmp GPR:$src, GPR:$val))]>,
                            Requires<[IsARM, HasVFP2]>;
 }
 
+// This gets lowered to an instruction sequence of 20 bytes
 let Defs =
   [ R0,  R1,  R2,  R3,  R4,  R5,  R6,  R7,  R8,  R9,  R10, R11, R12, LR, CPSR ],
-  hasSideEffects = 1, isBarrier = 1, usesCustomInserter = 1 in {
+  hasSideEffects = 1, isBarrier = 1, usesCustomInserter = 1, Size = 20 in {
   def Int_eh_sjlj_setjmp_nofp : PseudoInst<(outs), (ins GPR:$src, GPR:$val),
                                    NoItinerary,
                          [(set R0, (ARMeh_sjlj_setjmp GPR:$src, GPR:$val))]>,
                                 Requires<[IsARM, NoVFP]>;
 }
 
+// This gets lowered to an instruction sequence of 16 bytes
 // FIXME: Non-IOS version(s)
-let isBarrier = 1, hasSideEffects = 1, isTerminator = 1,
+let isBarrier = 1, hasSideEffects = 1, isTerminator = 1, Size = 16,
     Defs = [ R7, LR, SP ] in {
 def Int_eh_sjlj_longjmp : PseudoInst<(outs), (ins GPR:$src, GPR:$scratch),
                              NoItinerary,
@@ -5958,7 +5983,7 @@ let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [SP] in
 // This is a single pseudo instruction, the benefit is that it can be remat'd
 // as a single unit instead of having to handle reg inputs.
 // FIXME: Remove this when we can do generalized remat.
-let isReMaterializable = 1, isMoveImm = 1 in
+let isReMaterializable = 1, isMoveImm = 1, Size = 8 in
 def MOVi32imm : PseudoInst<(outs GPR:$dst), (ins i32imm:$src), IIC_iMOVix2,
                            [(set GPR:$dst, (arm_i32imm:$src))]>,
                            Requires<[IsARM]>;
@@ -6380,7 +6405,7 @@ def : ARMInstAlias<"neg${s}${p} $Rd, $Rm",
                    (RSBri GPR:$Rd, GPR:$Rm, 0, pred:$p, cc_out:$s)>;
 
 // Pre-v6, 'mov r0, r0' was used as a NOP encoding.
-def : InstAlias<"nop${p}", (MOVr R0, R0, pred:$p, zero_reg)>,
+def : InstAlias<"nop${p}", (MOVr R0, R0, pred:$p, zero_reg), 0>,
          Requires<[IsARM, NoV6]>;
 
 // MUL/UMLAL/SMLAL/UMULL/SMULL are available on all arches, but
@@ -6408,8 +6433,7 @@ def : InstAlias<"umull${s}${p} $RdLo, $RdHi, $Rn, $Rm",
 
 // 'it' blocks in ARM mode just validate the predicates. The IT itself
 // is discarded.
-def ITasm : ARMAsmPseudo<"it$mask $cc", (ins it_pred:$cc, it_mask:$mask)>,
-         ComplexDeprecationPredicate<"IT">;
+def ITasm : ARMAsmPseudo<"it$mask $cc", (ins it_pred:$cc, it_mask:$mask)>;
 
 let mayLoad = 1, mayStore =1, hasSideEffects = 1, hasNoSchedulingInfo = 1 in
 def SPACE : PseudoInst<(outs GPR:$Rd), (ins i32imm:$size, GPR:$Rn),
@@ -6419,8 +6443,12 @@ def SPACE : PseudoInst<(outs GPR:$Rd), (ins i32imm:$size, GPR:$Rn),
 // SpeculationBarrierEndBB must only be used after an unconditional control
 // flow, i.e. after a terminator for which isBarrier is True.
 let hasSideEffects = 1, isCodeGenOnly = 1, isTerminator = 1, isBarrier = 1 in {
+  // This gets lowered to a pair of 4-byte instructions
+  let Size = 8 in
   def SpeculationBarrierISBDSBEndBB
       : PseudoInst<(outs), (ins), NoItinerary, []>, Sched<[]>;
+  // This gets lowered to a single 4-byte instructions
+  let Size = 4 in
   def SpeculationBarrierSBEndBB
       : PseudoInst<(outs), (ins), NoItinerary, []>, Sched<[]>;
 }
@@ -6458,10 +6486,25 @@ def CMP_SWAP_64 : PseudoInst<(outs GPRPair:$Rd, GPR:$temp),
                              NoItinerary, []>, Sched<[]>;
 }
 
-def CompilerBarrier : PseudoInst<(outs), (ins i32imm:$ordering), NoItinerary,
-                                 [(atomic_fence timm:$ordering, 0)]> {
-  let hasSideEffects = 1;
-  let Size = 0;
-  let AsmString = "@ COMPILER BARRIER";
-  let hasNoSchedulingInfo = 1;
+def : Pat<(atomic_fence (timm), 0), (MEMBARRIER)>;
+
+//===----------------------------------------------------------------------===//
+// Instructions used for emitting unwind opcodes on Windows.
+//===----------------------------------------------------------------------===//
+let isPseudo = 1 in {
+  def SEH_StackAlloc : PseudoInst<(outs), (ins i32imm:$size, i32imm:$wide), NoItinerary, []>, Sched<[]>;
+  def SEH_SaveRegs : PseudoInst<(outs), (ins i32imm:$mask, i32imm:$wide), NoItinerary, []>, Sched<[]>;
+  let isTerminator = 1 in
+  def SEH_SaveRegs_Ret : PseudoInst<(outs), (ins i32imm:$mask, i32imm:$wide), NoItinerary, []>, Sched<[]>;
+  def SEH_SaveSP : PseudoInst<(outs), (ins i32imm:$reg), NoItinerary, []>, Sched<[]>;
+  def SEH_SaveFRegs : PseudoInst<(outs), (ins i32imm:$first, i32imm:$last), NoItinerary, []>, Sched<[]>;
+  let isTerminator = 1 in
+  def SEH_SaveLR : PseudoInst<(outs), (ins i32imm:$offst), NoItinerary, []>, Sched<[]>;
+  def SEH_Nop : PseudoInst<(outs), (ins i32imm:$wide), NoItinerary, []>, Sched<[]>;
+  let isTerminator = 1 in
+  def SEH_Nop_Ret : PseudoInst<(outs), (ins i32imm:$wide), NoItinerary, []>, Sched<[]>;
+  def SEH_PrologEnd : PseudoInst<(outs), (ins), NoItinerary, []>, Sched<[]>;
+  def SEH_EpilogStart : PseudoInst<(outs), (ins), NoItinerary, []>, Sched<[]>;
+  let isTerminator = 1 in
+  def SEH_EpilogEnd : PseudoInst<(outs), (ins), NoItinerary, []>, Sched<[]>;
 }

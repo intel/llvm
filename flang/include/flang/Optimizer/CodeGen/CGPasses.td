@@ -26,26 +26,27 @@ def FIRToLLVMLowering : Pass<"fir-to-llvm-ir", "mlir::ModuleOp"> {
   let dependentDialects = ["mlir::LLVM::LLVMDialect"];
   let options = [
     Option<"forcedTargetTriple", "target", "std::string", /*default=*/"",
-           "Override module's target triple.">
+           "Override module's target triple.">,
+    Option<"applyTBAA", "apply-tbaa", "bool", /*default=*/"false",
+           "Attach TBAA tags to memory accessing operations.">
   ];
 }
 
-def CodeGenRewrite : Pass<"cg-rewrite"> {
+def CodeGenRewrite : Pass<"cg-rewrite", "mlir::ModuleOp"> {
   let summary = "Rewrite some FIR ops into their code-gen forms.";
   let description = [{
     Fuse specific subgraphs into single Ops for code generation.
   }];
-  let constructor = "fir::createFirCodeGenRewritePass()";
+  let constructor = "::fir::createFirCodeGenRewritePass()";
   let dependentDialects = [
-    "fir::FIROpsDialect", "fir::FIRCodeGenDialect", "mlir::BuiltinDialect",
-    "mlir::LLVM::LLVMDialect", "mlir::omp::OpenMPDialect"
+    "fir::FIROpsDialect", "fir::FIRCodeGenDialect"
   ];
   let statistics = [
     Statistic<"numDCE", "num-dce'd", "Number of operations eliminated">
   ];
 }
 
-def TargetRewrite : Pass<"target-rewrite", "mlir::ModuleOp"> {
+def TargetRewritePass : Pass<"target-rewrite", "mlir::ModuleOp"> {
   let summary = "Rewrite some FIR dialect into target specific forms.";
   let description = [{
       Certain abstractions in the FIR dialect need to be rewritten to reflect
@@ -62,6 +63,16 @@ def TargetRewrite : Pass<"target-rewrite", "mlir::ModuleOp"> {
     Option<"noComplexConversion", "no-complex-conversion",
            "bool", /*default=*/"false",
            "Disable target-specific conversion of COMPLEX.">
+  ];
+}
+
+def BoxedProcedurePass : Pass<"boxed-procedure", "mlir::ModuleOp"> {
+  let constructor = "::fir::createBoxedProcedurePass()";
+  let options = [
+    Option<"useThunks", "use-thunks",
+           "bool", /*default=*/"true",
+           "Convert procedure pointer abstractions to a single code pointer, "
+           "deploying thunks wherever required.">
   ];
 }
 

@@ -49,10 +49,10 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM: %[[struct0_type:[0-9a-z\.]+]] = type { <2 x i32>, %[[struct1_type:[0-9a-z\.]+]] }
 ; CHECK-LLVM: %[[struct1_type]] = type { i32, i8 }
-; CHECK-LLVM: %[[struct:[0-9]+]] = getelementptr inbounds %[[struct0_type]], %[[struct0_type]] addrspace(1)* %in, i64 %{{[0-9]*}}
-; CHECK-LLVM: store %[[struct0_type]] { <2 x i32> <i32 -2100480000, i32 2100480000>, %[[struct1_type]] { i32 -2100483600, i8 -128 } }, %[[struct0_type]] addrspace(1)* %[[struct]]
+; CHECK-LLVM: %[[struct:[0-9]+]] = getelementptr inbounds %[[struct0_type]], ptr addrspace(1) %in, i64 %{{[0-9]*}}
+; CHECK-LLVM: store %[[struct0_type]] { <2 x i32> <i32 -2100480000, i32 2100480000>, %[[struct1_type]] { i32 -2100483600, i8 -128 } }, ptr addrspace(1) %[[struct]]

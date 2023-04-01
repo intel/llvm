@@ -1,4 +1,4 @@
-//===-- RISCVMCTargetDesc.cpp - RISCV Target Descriptions -----------------===//
+//===-- RISCVMCTargetDesc.cpp - RISC-V Target Descriptions ----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 ///
-/// This file provides RISCV-specific target descriptions.
+/// This file provides RISC-V specific target descriptions.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -33,6 +33,7 @@
 #include "llvm/Support/ErrorHandling.h"
 
 #define GET_INSTRINFO_MC_DESC
+#define ENABLE_INSTR_PREDICATE_VERIFIER
 #include "RISCVGenInstrInfo.inc"
 
 #define GET_REGINFO_MC_DESC
@@ -77,11 +78,9 @@ createRISCVMCObjectFileInfo(MCContext &Ctx, bool PIC,
 
 static MCSubtargetInfo *createRISCVMCSubtargetInfo(const Triple &TT,
                                                    StringRef CPU, StringRef FS) {
-  if (CPU.empty())
+  if (CPU.empty() || CPU == "generic")
     CPU = TT.isArch64Bit() ? "generic-rv64" : "generic-rv32";
-  if (CPU == "generic")
-    report_fatal_error(Twine("CPU 'generic' is not supported. Use ") +
-                       (TT.isArch64Bit() ? "generic-rv64" : "generic-rv32"));
+
   return createRISCVMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
 }
 

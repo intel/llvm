@@ -70,11 +70,9 @@ static CCMangling getCallingConvMangling(const ASTContext &Context,
 
   // On wasm, the argc/argv form of "main" is renamed so that the startup code
   // can call it with the correct function signature.
-  // On Emscripten, users may be exporting "main" and expecting to call it
-  // themselves, so we can't mangle it.
-  if (Triple.isWasm() && !Triple.isOSEmscripten())
+  if (Triple.isWasm())
     if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(ND))
-      if (FD->isMain() && FD->hasPrototype() && FD->param_size() == 2)
+      if (FD->isMain() && FD->getNumParams() == 2)
         return CCM_WasmMainArgcArgv;
 
   if (!Triple.isOSWindows() || !Triple.isX86())
@@ -225,6 +223,7 @@ void MangleContext::mangleName(GlobalDecl GD, raw_ostream &Out) {
   if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(FD))
     if (!MD->isStatic())
       ++ArgWords;
+  uint64_t DefaultPtrWidth = TI.getPointerWidth(LangAS::Default);
   for (const auto &AT : Proto->param_types()) {
     // If an argument type is incomplete there is no way to get its size to
     // correctly encode into the mangling scheme.
@@ -232,11 +231,10 @@ void MangleContext::mangleName(GlobalDecl GD, raw_ostream &Out) {
     if (AT->isIncompleteType())
       break;
     // Size should be aligned to pointer size.
-    ArgWords +=
-        llvm::alignTo(ASTContext.getTypeSize(AT), TI.getPointerWidth(0)) /
-        TI.getPointerWidth(0);
+    ArgWords += llvm::alignTo(ASTContext.getTypeSize(AT), DefaultPtrWidth) /
+                DefaultPtrWidth;
   }
-  Out << ((TI.getPointerWidth(0) / 8) * ArgWords);
+  Out << ((DefaultPtrWidth / 8) * ArgWords);
 }
 
 void MangleContext::mangleMSGuidDecl(const MSGuidDecl *GD, raw_ostream &Out) {

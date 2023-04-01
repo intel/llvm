@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ByteStreamer.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/AsmPrinter.h"
@@ -19,14 +18,11 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCDwarf.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
-#include "llvm/MC/MachineLocation.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
-#include "llvm/Target/TargetMachine.h"
 #include <cstdint>
 using namespace llvm;
 
@@ -35,28 +31,6 @@ using namespace llvm;
 //===----------------------------------------------------------------------===//
 // Dwarf Emission Helper Routines
 //===----------------------------------------------------------------------===//
-
-/// EmitSLEB128 - emit the specified signed leb128 value.
-void AsmPrinter::emitSLEB128(int64_t Value, const char *Desc) const {
-  if (isVerbose() && Desc)
-    OutStreamer->AddComment(Desc);
-
-  OutStreamer->emitSLEB128IntValue(Value);
-}
-
-void AsmPrinter::emitULEB128(uint64_t Value, const char *Desc,
-                             unsigned PadTo) const {
-  if (isVerbose() && Desc)
-    OutStreamer->AddComment(Desc);
-
-  OutStreamer->emitULEB128IntValue(Value, PadTo);
-}
-
-/// Emit something like ".uleb128 Hi-Lo".
-void AsmPrinter::emitLabelDifferenceAsULEB128(const MCSymbol *Hi,
-                                              const MCSymbol *Lo) const {
-  OutStreamer->emitAbsoluteSymbolDiffAsULEB128(Hi, Lo);
-}
 
 static const char *DecodeDWARFEncoding(unsigned Encoding) {
   switch (Encoding) {
@@ -162,12 +136,12 @@ void AsmPrinter::emitDwarfSymbolReference(const MCSymbol *Label,
     if (MAI->needsDwarfSectionOffsetDirective()) {
       assert(!isDwarf64() &&
              "emitting DWARF64 is not implemented for COFF targets");
-      OutStreamer->EmitCOFFSecRel32(Label, /*Offset=*/0);
+      OutStreamer->emitCOFFSecRel32(Label, /*Offset=*/0);
       return;
     }
 
     // If the format uses relocations with dwarf, refer to the symbol directly.
-    if (MAI->doesDwarfUseRelocationsAcrossSections()) {
+    if (doesDwarfUseRelocationsAcrossSections()) {
       OutStreamer->emitSymbolValue(Label, getDwarfOffsetByteSize());
       return;
     }
@@ -179,7 +153,7 @@ void AsmPrinter::emitDwarfSymbolReference(const MCSymbol *Label,
 }
 
 void AsmPrinter::emitDwarfStringOffset(DwarfStringPoolEntry S) const {
-  if (MAI->doesDwarfUseRelocationsAcrossSections()) {
+  if (doesDwarfUseRelocationsAcrossSections()) {
     assert(S.Symbol && "No symbol available");
     emitDwarfSymbolReference(S.Symbol);
     return;
@@ -277,6 +251,12 @@ void AsmPrinter::emitCFIInstruction(const MCCFIInstruction &Inst) const {
   case MCCFIInstruction::OpUndefined:
     OutStreamer->emitCFIUndefined(Inst.getRegister());
     break;
+  case MCCFIInstruction::OpRememberState:
+    OutStreamer->emitCFIRememberState();
+    break;
+  case MCCFIInstruction::OpRestoreState:
+    OutStreamer->emitCFIRestoreState();
+    break;
   }
 }
 
@@ -307,7 +287,7 @@ void AsmPrinter::emitDwarfDIE(const DIE &Die) const {
 
   // Emit the DIE children if any.
   if (Die.hasChildren()) {
-    for (auto &Child : Die.children())
+    for (const auto &Child : Die.children())
       emitDwarfDIE(Child);
 
     OutStreamer->AddComment("End Of Children Mark");

@@ -35,7 +35,6 @@
 // PPC64:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // PPC64:#define __FLT_DIG__ 6
 // PPC64:#define __FLT_EPSILON__ 1.19209290e-7F
-// PPC64:#define __FLT_EVAL_METHOD__ 0
 // PPC64:#define __FLT_HAS_DENORM__ 1
 // PPC64:#define __FLT_HAS_INFINITY__ 1
 // PPC64:#define __FLT_HAS_QUIET_NAN__ 1
@@ -199,7 +198,6 @@
 // PPC64:#define __WCHAR_WIDTH__ 32
 // PPC64:#define __WINT_TYPE__ int
 // PPC64:#define __WINT_WIDTH__ 32
-// PPC64:#define __ppc64__ 1
 // PPC64:#define __ppc__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64le-none-none -target-cpu pwr7 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPC64LE %s
@@ -240,7 +238,6 @@
 // PPC64LE:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // PPC64LE:#define __FLT_DIG__ 6
 // PPC64LE:#define __FLT_EPSILON__ 1.19209290e-7F
-// PPC64LE:#define __FLT_EVAL_METHOD__ 0
 // PPC64LE:#define __FLT_HAS_DENORM__ 1
 // PPC64LE:#define __FLT_HAS_INFINITY__ 1
 // PPC64LE:#define __FLT_HAS_QUIET_NAN__ 1
@@ -405,7 +402,6 @@
 // PPC64LE:#define __WCHAR_WIDTH__ 32
 // PPC64LE:#define __WINT_TYPE__ int
 // PPC64LE:#define __WINT_WIDTH__ 32
-// PPC64LE:#define __ppc64__ 1
 // PPC64LE:#define __ppc__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu 630 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPC630 %s
@@ -703,7 +699,6 @@
 // PPC64-AIX:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // PPC64-AIX:#define __FLT_DIG__ 6
 // PPC64-AIX:#define __FLT_EPSILON__ 1.19209290e-7F
-// PPC64-AIX:#define __FLT_EVAL_METHOD__ 1
 // PPC64-AIX:#define __FLT_HAS_DENORM__ 1
 // PPC64-AIX:#define __FLT_HAS_INFINITY__ 1
 // PPC64-AIX:#define __FLT_HAS_QUIET_NAN__ 1
@@ -868,7 +863,6 @@
 // PPC64-AIX:#define __WINT_WIDTH__ 32
 // PPC64-AIX:#define __powerpc64__ 1
 // PPC64-AIX:#define __powerpc__ 1
-// PPC64-AIX:#define __ppc64__ 1
 // PPC64-AIX:#define __ppc__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-unknown-linux-gnu -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-LINUX %s
@@ -902,7 +896,6 @@
 // PPC64-LINUX:#define __FLT_DENORM_MIN__ 1.40129846e-45F
 // PPC64-LINUX:#define __FLT_DIG__ 6
 // PPC64-LINUX:#define __FLT_EPSILON__ 1.19209290e-7F
-// PPC64-LINUX:#define __FLT_EVAL_METHOD__ 0
 // PPC64-LINUX:#define __FLT_HAS_DENORM__ 1
 // PPC64-LINUX:#define __FLT_HAS_INFINITY__ 1
 // PPC64-LINUX:#define __FLT_HAS_QUIET_NAN__ 1
@@ -1068,7 +1061,6 @@
 // PPC64-LINUX:#define __WINT_WIDTH__ 32
 // PPC64-LINUX:#define __powerpc64__ 1
 // PPC64-LINUX:#define __powerpc__ 1
-// PPC64-LINUX:#define __ppc64__ 1
 // PPC64-LINUX:#define __ppc__ 1
 
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=powerpc64-unknown-linux-gnu < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-ELFv1 %s

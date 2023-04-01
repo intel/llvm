@@ -29,15 +29,35 @@
 namespace spv {
 namespace internal {
 
+enum InternalSourceLanguageNonSemanticDI {
+  ISourceLanguagePython = 200,
+  ISourceLanguageJulia = 201,
+  ISourceLanguageRust = 202,
+  ISourceLanguageD = 203,
+  ISourceLanguageFortran77 = 204,
+  ISourceLanguageFortran90 = 205,
+  ISourceLanguageFortran95 = 206,
+  ISourceLanguageFortran2003 = 207,
+  ISourceLanguageFortran2008 = 208,
+  ISourceLanguageFortran2018 = 209,
+  ISourceLanguageC = 210,
+  ISourceLanguageC99 = 211,
+  ISourceLanguageC11 = 212,
+  ISourceLanguageC17 = 213,
+  ISourceLanguageCPP = 214,
+  ISourceLanguageCPP03 = 215,
+  ISourceLanguageCPP11 = 216,
+  ISourceLanguageCPP14 = 217,
+  ISourceLanguageCPP17 = 218,
+  ISourceLanguageCPP20 = 219,
+};
+
 enum InternalLinkageType {
   ILTPrev = LinkageTypeMax - 2,
   ILTInternal
 };
 
 enum InternalOp {
-  IOpAliasDomainDeclINTEL = 5911,
-  IOpAliasScopeDeclINTEL = 5912,
-  IOpAliasScopeListDeclINTEL = 5913,
   IOpTypeTokenINTEL = 6113,
   IOpConvertFToBF16INTEL = 6116,
   IOpConvertBF16ToFINTEL = 6117,
@@ -45,57 +65,76 @@ enum InternalOp {
   IOpJointMatrixLoadINTEL = 6120,
   IOpJointMatrixStoreINTEL = 6121,
   IOpJointMatrixMadINTEL = 6122,
+  IOpJointMatrixSUMadINTEL = 6128,
+  IOpJointMatrixUSMadINTEL = 6129,
+  IOpJointMatrixUUMadINTEL = 6130,
   IOpArithmeticFenceINTEL = 6145,
+  IOpJointMatrixWorkItemLengthINTEL = 6410,
+  IOpComplexFMulINTEL = 6415,
+  IOpComplexFDivINTEL = 6416,
+  IOpConvertFToTF32INTEL = 6426,
+  IOpMaskedGatherINTEL = 6428,
+  IOpMaskedScatterINTEL = 6429,
+  IOpJointMatrixGetElementCoordINTEL = 6440,
   IOpPrev = OpMax - 2,
   IOpForward
 };
 
 enum InternalDecoration {
-  IDecMathOpDSPModeINTEL = 5909,
-  IDecAliasScopeINTEL = 5914,
-  IDecNoAliasINTEL = 5915,
-  IDecInitiationIntervalINTEL = 5917,
-  IDecMaxConcurrencyINTEL = 5918,
-  IDecPipelineEnableINTEL = 5919,
   IDecRuntimeAlignedINTEL = 5940,
   IDecCallableFunctionINTEL = 6087,
+  IDecHostAccessINTEL = 6147,
+  IDecInitModeINTEL = 6148,
+  IDecImplementInCSRINTEL = 6149,
   IDecArgumentAttributeINTEL = 6409,
   IDecFuncParamKindINTEL = 9624,
   IDecFuncParamDescINTEL = 9625
 };
 
 enum InternalCapability {
-  ICapFPGADSPControlINTEL = 5908,
-  ICapMemoryAccessAliasingINTEL = 5910,
-  ICapFPGAInvocationPipeliningAttributesINTEL = 5916,
-  ICapRuntimeAlignedAttributeINTEL = 5939,
   ICapFastCompositeINTEL = 6093,
   ICapOptNoneINTEL = 6094,
   ICapTokenTypeINTEL = 6112,
   ICapBfloat16ConversionINTEL = 6115,
   ICapabilityJointMatrixINTEL = 6118,
   ICapabilityHWThreadQueryINTEL = 6134,
-  ICapFPArithmeticFenceINTEL = 6144
+  ICapFPArithmeticFenceINTEL = 6144,
+  ICapGlobalVariableDecorationsINTEL = 6146,
+  ICapabilityComplexFloatMulDivINTEL = 6414,
+  ICapabilityTensorFloat32ConversionINTEL = 6425,
+  ICapabilityMaskedGatherScatterINTEL = 6427,
+  ICapabilityJointMatrixWIInstructionsINTEL = 6435,
+  ICapabilityJointMatrixTF32ComponentTypeINTEL = 6436,
+  ICapabilityJointMatrixBF16ComponentTypeINTEL = 6437,
+  ICapabilityJointMatrixPackedInt2ComponentTypeINTEL = 6438,
+  ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
-enum InternalMemoryAccessMask {
-  IMemAccessAliasScopeINTELMask = 0x10000,
-  IMemAccessNoAliasINTELMask = 0x20000
-};
-
 enum InternalExecutionMode {
   IExecModeFastCompositeKernelINTEL = 6088,
-  IExecModeStreamingInterfaceINTEL = 6154
 };
-
-enum InternalLoopControlMask { ILoopControlLoopCountINTELMask = 0x1000000 };
 
 constexpr LinkageType LinkageTypeInternal =
     static_cast<LinkageType>(ILTInternal);
 
-enum InternalJointMatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
+enum InternalJointMatrixLayout {
+  RowMajor = 0,
+  ColumnMajor = 1,
+  PackedA = 2,
+  PackedB = 3
+};
+
+enum InternalJointMatrixUse { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
+
+enum InternalJointMatrixCTI {
+  None = 0,
+  TF32 = 1,
+  Bfloat16 = 2,
+  PackedInt2 = 3,
+  PackedInt4 = 4
+};
 
 enum InternalBuiltIn {
   IBuiltInSubDeviceIDINTEL = 6135,
@@ -104,40 +143,94 @@ enum InternalBuiltIn {
 
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
 _SPIRV_OP(Capability, JointMatrixINTEL)
+_SPIRV_OP(Capability, JointMatrixWIInstructionsINTEL)
+_SPIRV_OP(Capability, JointMatrixTF32ComponentTypeINTEL)
+_SPIRV_OP(Capability, JointMatrixBF16ComponentTypeINTEL)
+_SPIRV_OP(Capability, JointMatrixPackedInt2ComponentTypeINTEL)
+_SPIRV_OP(Capability, JointMatrixPackedInt4ComponentTypeINTEL)
 _SPIRV_OP(Op, TypeJointMatrixINTEL)
 _SPIRV_OP(Op, JointMatrixLoadINTEL)
 _SPIRV_OP(Op, JointMatrixStoreINTEL)
 _SPIRV_OP(Op, JointMatrixMadINTEL)
+_SPIRV_OP(Op, JointMatrixSUMadINTEL)
+_SPIRV_OP(Op, JointMatrixUSMadINTEL)
+_SPIRV_OP(Op, JointMatrixUUMadINTEL)
+_SPIRV_OP(Op, JointMatrixWorkItemLengthINTEL)
+_SPIRV_OP(Op, JointMatrixGetElementCoordINTEL)
 
 _SPIRV_OP(Capability, HWThreadQueryINTEL)
 _SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
 _SPIRV_OP(BuiltIn, GlobalHWThreadIDINTEL)
+
+_SPIRV_OP(Capability, ComplexFloatMulDivINTEL)
+_SPIRV_OP(Op, ComplexFMulINTEL)
+_SPIRV_OP(Op, ComplexFDivINTEL)
+
+_SPIRV_OP(Capability, MaskedGatherScatterINTEL)
+_SPIRV_OP(Op, MaskedGatherINTEL)
+_SPIRV_OP(Op, MaskedScatterINTEL)
+
+_SPIRV_OP(Capability, TensorFloat32ConversionINTEL)
+_SPIRV_OP(Op, ConvertFToTF32INTEL)
 #undef _SPIRV_OP
 
+constexpr SourceLanguage SourceLanguagePython =
+    static_cast<SourceLanguage>(ISourceLanguagePython);
+constexpr SourceLanguage SourceLanguageJulia =
+    static_cast<SourceLanguage>(ISourceLanguageJulia);
+constexpr SourceLanguage SourceLanguageRust =
+    static_cast<SourceLanguage>(ISourceLanguageRust);
+constexpr SourceLanguage SourceLanguageD =
+    static_cast<SourceLanguage>(ISourceLanguageD);
+constexpr SourceLanguage SourceLanguageFortran77 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran77);
+constexpr SourceLanguage SourceLanguageFortran90 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran90);
+constexpr SourceLanguage SourceLanguageFortran95 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran95);
+constexpr SourceLanguage SourceLanguageFortran2003 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran2003);
+constexpr SourceLanguage SourceLanguageFortran2008 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran2008);
+constexpr SourceLanguage SourceLanguageFortran2018 =
+    static_cast<SourceLanguage>(ISourceLanguageFortran2018);
+constexpr SourceLanguage SourceLanguageC =
+    static_cast<SourceLanguage>(ISourceLanguageC);
+constexpr SourceLanguage SourceLanguageC99 =
+    static_cast<SourceLanguage>(ISourceLanguageC99);
+constexpr SourceLanguage SourceLanguageC11 =
+    static_cast<SourceLanguage>(ISourceLanguageC11);
+constexpr SourceLanguage SourceLanguageC17 =
+    static_cast<SourceLanguage>(ISourceLanguageC17);
+constexpr SourceLanguage SourceLanguageCPP =
+    static_cast<SourceLanguage>(ISourceLanguageCPP);
+constexpr SourceLanguage SourceLanguageCPP03 =
+    static_cast<SourceLanguage>(ISourceLanguageCPP03);
+constexpr SourceLanguage SourceLanguageCPP11 =
+    static_cast<SourceLanguage>(ISourceLanguageCPP11);
+constexpr SourceLanguage SourceLanguageCPP14 =
+    static_cast<SourceLanguage>(ISourceLanguageCPP14);
+constexpr SourceLanguage SourceLanguageCPP17 =
+    static_cast<SourceLanguage>(ISourceLanguageCPP17);
+constexpr SourceLanguage SourceLanguageCPP20 =
+    static_cast<SourceLanguage>(ISourceLanguageCPP20);
+
 constexpr Op OpForward = static_cast<Op>(IOpForward);
-constexpr Op OpAliasDomainDeclINTEL = static_cast<Op>(IOpAliasDomainDeclINTEL);
-constexpr Op OpAliasScopeDeclINTEL = static_cast<Op>(IOpAliasScopeDeclINTEL);
-constexpr Op OpAliasScopeListDeclINTEL =
-    static_cast<Op>(IOpAliasScopeListDeclINTEL);
 constexpr Op OpTypeTokenINTEL = static_cast<Op>(IOpTypeTokenINTEL);
 constexpr Op OpArithmeticFenceINTEL = static_cast<Op>(IOpArithmeticFenceINTEL);
 constexpr Op OpConvertFToBF16INTEL = static_cast<Op>(IOpConvertFToBF16INTEL);
 constexpr Op OpConvertBF16ToFINTEL = static_cast<Op>(IOpConvertBF16ToFINTEL);
 
-constexpr Decoration DecorationAliasScopeINTEL =
-    static_cast<Decoration>(IDecAliasScopeINTEL );
-constexpr Decoration DecorationNoAliasINTEL =
-    static_cast<Decoration>(IDecNoAliasINTEL);
-constexpr Decoration DecorationInitiationIntervalINTEL =
-    static_cast<Decoration>(IDecInitiationIntervalINTEL);
-constexpr Decoration DecorationMaxConcurrencyINTEL =
-    static_cast<Decoration>(IDecMaxConcurrencyINTEL);
-constexpr Decoration DecorationPipelineEnableINTEL =
-    static_cast<Decoration>(IDecPipelineEnableINTEL);
 constexpr Decoration DecorationCallableFunctionINTEL =
     static_cast<Decoration>(IDecCallableFunctionINTEL);
 constexpr Decoration DecorationRuntimeAlignedINTEL =
     static_cast<Decoration>(IDecRuntimeAlignedINTEL);
+constexpr Decoration DecorationHostAccessINTEL =
+    static_cast<Decoration>(IDecHostAccessINTEL);
+constexpr Decoration DecorationInitModeINTEL =
+    static_cast<Decoration>(IDecInitModeINTEL);
+constexpr Decoration DecorationImplementInCSRINTEL =
+    static_cast<Decoration>(IDecImplementInCSRINTEL);
 constexpr Decoration DecorationArgumentAttributeINTEL =
     static_cast<Decoration>(IDecArgumentAttributeINTEL);
 constexpr Decoration DecorationFuncParamKindINTEL =
@@ -149,39 +242,20 @@ constexpr Capability CapabilityFastCompositeINTEL =
     static_cast<Capability>(ICapFastCompositeINTEL);
 constexpr Capability CapabilityOptNoneINTEL =
     static_cast<Capability>(ICapOptNoneINTEL);
-constexpr Capability CapabilityFPGADSPControlINTEL =
-    static_cast<Capability>(ICapFPGADSPControlINTEL);
-constexpr Capability CapabilityMemoryAccessAliasingINTEL =
-    static_cast<Capability>(ICapMemoryAccessAliasingINTEL);
-constexpr Capability CapabilityFPGAInvocationPipeliningAttributesINTEL =
-    static_cast<Capability>(ICapFPGAInvocationPipeliningAttributesINTEL);
 constexpr Capability CapabilityTokenTypeINTEL =
     static_cast<Capability>(ICapTokenTypeINTEL);
-constexpr Capability CapabilityRuntimeAlignedAttributeINTEL =
-    static_cast<Capability>(ICapRuntimeAlignedAttributeINTEL);
 constexpr Capability CapabilityFPArithmeticFenceINTEL =
     static_cast<Capability>(ICapFPArithmeticFenceINTEL);
 constexpr Capability CapabilityBfloat16ConversionINTEL =
     static_cast<Capability>(ICapBfloat16ConversionINTEL);
+constexpr Capability CapabilityGlobalVariableDecorationsINTEL =
+    static_cast<Capability>(ICapGlobalVariableDecorationsINTEL);
 
 constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
     static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);
 
-constexpr Decoration DecorationMathOpDSPModeINTEL =
-    static_cast<Decoration>(IDecMathOpDSPModeINTEL);
-
-constexpr MemoryAccessMask MemoryAccessAliasScopeINTELMask =
-    static_cast<MemoryAccessMask>(IMemAccessAliasScopeINTELMask);
-constexpr MemoryAccessMask MemoryAccessNoAliasINTELMask =
-    static_cast<MemoryAccessMask>(IMemAccessNoAliasINTELMask);
-
 constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
     static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
-constexpr ExecutionMode ExecutionModeStreamingInterfaceINTEL =
-    static_cast<ExecutionMode>(IExecModeStreamingInterfaceINTEL);
-
-constexpr LoopControlMask LoopControlLoopCountINTELMask =
-    static_cast<LoopControlMask>(ILoopControlLoopCountINTELMask);
 
 } // namespace internal
 } // namespace spv

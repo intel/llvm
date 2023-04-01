@@ -8,16 +8,21 @@
 
 #include "mlir/Conversion/ShapeToStandard/ShapeToStandard.h"
 
-#include "../PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/STLExtras.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTSHAPETOSTANDARD
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::shape;
@@ -87,7 +92,7 @@ Value getBroadcastedDim(ImplicitLocOpBuilder lb, ValueRange extentTensors,
     Type indexTy = lb.getIndexType();
     broadcastedDim =
         lb.create<IfOp>(
-              TypeRange{indexTy}, outOfBounds,
+              outOfBounds,
               [&](OpBuilder &b, Location loc) {
                 b.create<scf::YieldOp>(loc, broadcastedDim);
               },
@@ -107,8 +112,8 @@ Value getBroadcastedDim(ImplicitLocOpBuilder lb, ValueRange extentTensors,
                 Value dimIsOne =
                     b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                             lesserRankOperandExtent, one);
-                Value dim = b.create<SelectOp>(loc, dimIsOne, broadcastedDim,
-                                               lesserRankOperandExtent);
+                Value dim = b.create<arith::SelectOp>(
+                    loc, dimIsOne, broadcastedDim, lesserRankOperandExtent);
                 b.create<scf::YieldOp>(loc, dim);
               })
             .getResult(0);
@@ -144,7 +149,7 @@ LogicalResult BroadcastOpConverter::matchAndRewrite(
   for (Value v : llvm::drop_begin(ranks, 1)) {
     Value rankIsGreater =
         lb.create<arith::CmpIOp>(arith::CmpIPredicate::ugt, v, maxRank);
-    maxRank = lb.create<SelectOp>(rankIsGreater, v, maxRank);
+    maxRank = lb.create<arith::SelectOp>(rankIsGreater, v, maxRank);
   }
 
   // Calculate the difference of ranks and the maximum rank for later offsets.
@@ -259,7 +264,7 @@ LogicalResult IsBroadcastableOpConverter::matchAndRewrite(
   for (Value v : llvm::drop_begin(ranks, 1)) {
     Value rankIsGreater =
         lb.create<arith::CmpIOp>(arith::CmpIPredicate::ugt, v, maxRank);
-    maxRank = lb.create<SelectOp>(rankIsGreater, v, maxRank);
+    maxRank = lb.create<arith::SelectOp>(rankIsGreater, v, maxRank);
   }
 
   // Calculate the difference of ranks and the maximum rank for later offsets.
@@ -288,7 +293,7 @@ LogicalResult IsBroadcastableOpConverter::matchAndRewrite(
               loc, arith::CmpIPredicate::ult, iv, rankDiff);
           broadcastable =
               b.create<IfOp>(
-                   loc, TypeRange{i1Ty}, outOfBounds,
+                   loc, outOfBounds,
                    [&](OpBuilder &b, Location loc) {
                      // Non existent dimensions are always broadcastable
                      b.create<scf::YieldOp>(loc, broadcastable);
@@ -319,6 +324,28 @@ LogicalResult IsBroadcastableOpConverter::matchAndRewrite(
       });
 
   rewriter.replaceOp(op, reduceResult.getResults().front());
+  return success();
+}
+
+namespace {
+class DimOpConverter : public OpConversionPattern<DimOp> {
+  using OpConversionPattern<DimOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(DimOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+} // namespace
+
+LogicalResult
+DimOpConverter::matchAndRewrite(DimOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter &rewriter) const {
+  // Lower to dim(X, i) to get_extent(shape_of(X), i) and rely on further
+  // lowerings. This can be further optimized if needed to avoid intermediate
+  // steps.
+  auto shapeOf = rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.getValue());
+  rewriter.replaceOpWithNewOp<shape::GetExtentOp>(op, op.getType(), shapeOf,
+                                                  op.getIndex());
   return success();
 }
 
@@ -412,7 +439,7 @@ ReduceOpConverter::matchAndRewrite(shape::ReduceOp op, OpAdaptor adaptor,
         SmallVector<Value, 2> mappedValues{iv, extent};
         mappedValues.append(args.begin(), args.end());
 
-        BlockAndValueMapping mapping;
+        IRMapping mapping;
         Block *reduceBody = op.getBody();
         mapping.map(reduceBody->getArguments(), mappedValues);
         for (auto &nested : reduceBody->without_terminator())
@@ -495,7 +522,7 @@ ShapeEqOpConverter::matchAndRewrite(ShapeEqOp op, OpAdaptor adaptor,
     Value eqRank = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                                   firstRank, rank);
     auto same = rewriter.create<IfOp>(
-        loc, i1Ty, eqRank,
+        loc, eqRank,
         [&](OpBuilder &b, Location loc) {
           Value one = b.create<arith::ConstantIndexOp>(loc, 1);
           Value init =
@@ -619,7 +646,7 @@ LogicalResult SplitAtOpConversion::matchAndRewrite(
   Value add = b.create<arith::AddIOp>(originalIndex, rank);
   Value indexIsNegative =
       b.create<arith::CmpIOp>(arith::CmpIPredicate::slt, originalIndex, zero);
-  Value index = b.create<SelectOp>(indexIsNegative, add, originalIndex);
+  Value index = b.create<arith::SelectOp>(indexIsNegative, add, originalIndex);
 
   Value one = b.create<arith::ConstantIndexOp>(1);
   Value head =
@@ -658,7 +685,7 @@ namespace {
 namespace {
 /// Conversion pass.
 class ConvertShapeToStandardPass
-    : public ConvertShapeToStandardBase<ConvertShapeToStandardPass> {
+    : public impl::ConvertShapeToStandardBase<ConvertShapeToStandardPass> {
 
   void runOnOperation() override;
 };
@@ -668,9 +695,9 @@ void ConvertShapeToStandardPass::runOnOperation() {
   // Setup target legality.
   MLIRContext &ctx = getContext();
   ConversionTarget target(ctx);
-  target.addLegalDialect<arith::ArithmeticDialect, StandardOpsDialect,
-                         SCFDialect, tensor::TensorDialect>();
-  target.addLegalOp<CstrRequireOp, FuncOp, ModuleOp>();
+  target.addLegalDialect<arith::ArithDialect, SCFDialect,
+                         tensor::TensorDialect>();
+  target.addLegalOp<CstrRequireOp, func::FuncOp, ModuleOp>();
 
   // Setup conversion patterns.
   RewritePatternSet patterns(&ctx);
@@ -693,6 +720,7 @@ void mlir::populateShapeToStandardConversionPatterns(
       BroadcastOpConverter,
       ConstShapeOpConverter,
       ConstSizeOpConversion,
+      DimOpConverter,
       IsBroadcastableOpConverter,
       GetExtentOpConverter,
       RankOpConverter,

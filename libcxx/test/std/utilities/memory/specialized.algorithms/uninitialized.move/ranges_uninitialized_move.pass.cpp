@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts, libcpp-has-no-incomplete-ranges
 
 // <memory>
 //
@@ -18,6 +17,7 @@
 
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <iterator>
 #include <memory>
@@ -27,6 +27,7 @@
 
 #include "../buffer.h"
 #include "../counted.h"
+#include "MoveOnly.h"
 #include "test_macros.h"
 #include "test_iterators.h"
 
@@ -40,40 +41,6 @@ static_assert(std::is_invocable_v<decltype(std::ranges::uninitialized_move), int
 struct NotConvertibleFromInt {};
 static_assert(!std::is_invocable_v<decltype(std::ranges::uninitialized_move), int*, int*, NotConvertibleFromInt*,
                                    NotConvertibleFromInt*>);
-
-namespace adl {
-
-static int iter_move_invocations = 0;
-
-template <class T>
-struct Iterator {
-  using value_type = T;
-  using difference_type = int;
-  using iterator_concept = std::input_iterator_tag;
-
-  T* ptr = nullptr;
-
-  Iterator() = default;
-  explicit Iterator(int* p) : ptr(p) {}
-
-  T& operator*() const { return *ptr; }
-
-  Iterator& operator++() { ++ptr; return *this; }
-  Iterator operator++(int) {
-    Iterator prev = *this;
-    ++ptr;
-    return prev;
-  }
-
-  friend T&& iter_move(Iterator iter) {
-    ++iter_move_invocations;
-    return std::move(*iter);
-  }
-
-  friend bool operator==(const Iterator& lhs, const Iterator& rhs) { return lhs.ptr == rhs.ptr; }
-};
-
-} // namespace adl
 
 int main(int, char**) {
   // An empty range -- no default constructors should be invoked.
@@ -250,7 +217,7 @@ int main(int, char**) {
     constexpr int N = 5;
     int in[N] = {1, 2, 3, 4, 5};
     int out[N] = {6, 7, 8, 9, 10};
-    assert(!std::equal(in, in + N, in, out + N));
+    assert(!std::equal(in, in + N, out, out + N));
 
     std::ranges::uninitialized_move(in, in + 1, out, out + N);
     assert(out[0] == 1);
@@ -350,8 +317,8 @@ int main(int, char**) {
   // Conversions, (iter, sentinel) overload.
   {
     constexpr int N = 3;
-    double in[N] = {1.0, 2.0, 3.0};
-    Buffer<int, N> out;
+    int in[N] = {1, 2, 3};
+    Buffer<double, N> out;
 
     std::ranges::uninitialized_move(in, in + N, out.begin(), out.end());
     assert(std::equal(in, in + N, out.begin(), out.end()));
@@ -360,8 +327,8 @@ int main(int, char**) {
   // Conversions, (range) overload.
   {
     constexpr int N = 3;
-    double in[N] = {1.0, 2.0, 3.0};
-    Buffer<int, N> out;
+    int in[N] = {1, 2, 3};
+    Buffer<double, N> out;
 
     std::ranges::uninitialized_move(in, out);
     assert(std::equal(in, in + N, out.begin(), out.end()));
@@ -411,17 +378,61 @@ int main(int, char**) {
     constexpr int N = 3;
     int in[N] = {1, 2, 3};
     Buffer<int, N> out;
-    adl::Iterator<int> begin(in);
-    adl::Iterator<int> end(in + N);
+    int iter_moves = 0;
+    adl::Iterator begin = adl::Iterator::TrackMoves(in, iter_moves);
+    adl::Iterator end = adl::Iterator::TrackMoves(in + N, iter_moves);
 
     std::ranges::uninitialized_move(begin, end, out.begin(), out.end());
-    assert(adl::iter_move_invocations == 3);
-    adl::iter_move_invocations = 0;
+    assert(iter_moves == 3);
+    iter_moves = 0;
 
     std::ranges::subrange range(begin, end);
     std::ranges::uninitialized_move(range, out);
-    assert(adl::iter_move_invocations == 3);
-    adl::iter_move_invocations = 0;
+    assert(iter_moves == 3);
+    iter_moves = 0;
+  }
+
+  // Move-only iterators are supported.
+  {
+    using MoveOnlyIter = cpp20_input_iterator<const int*>;
+    static_assert(!std::is_copy_constructible_v<MoveOnlyIter>);
+
+    constexpr int N = 3;
+    struct MoveOnlyRange {
+      int buffer[N] = {1, 2, 3};
+      auto begin() const { return MoveOnlyIter(buffer); }
+      auto end() const { return sentinel_wrapper<MoveOnlyIter>(MoveOnlyIter(buffer)); }
+    };
+    static_assert(std::ranges::input_range<MoveOnlyRange>);
+    MoveOnlyRange in;
+
+    // (iter, sentinel) overload.
+    {
+      Buffer<int, N> out;
+      std::ranges::uninitialized_move(in.begin(), in.end(), out.begin(), out.end());
+    }
+
+    // (range) overload.
+    {
+      Buffer<int, N> out;
+      std::ranges::uninitialized_move(in, out);
+    }
+  }
+
+  // MoveOnly types are supported
+  {
+    {
+      MoveOnly a[] = {1, 2, 3, 4};
+      Buffer<MoveOnly, 4> out;
+      std::ranges::uninitialized_move(std::begin(a), std::end(a), std::begin(out), std::end(out));
+      assert(std::ranges::equal(out, std::array<MoveOnly, 4>{1, 2, 3, 4}));
+    }
+    {
+      MoveOnly a[] = {1, 2, 3, 4};
+      Buffer<MoveOnly, 4> out;
+      std::ranges::uninitialized_move(a, out);
+      assert(std::ranges::equal(out, std::array<MoveOnly, 4>{1, 2, 3, 4}));
+    }
   }
 
   return 0;

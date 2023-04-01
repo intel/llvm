@@ -9,7 +9,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // -- ESIMD Lambda kernel.
 

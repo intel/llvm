@@ -2,7 +2,11 @@
 # RUN: rm -rf %t; split-file %s %t
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/test.s -o %t/test.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/qux.s -o %t/qux.o
-# RUN: %lld -dylib --deduplicate-literals %t/test.o %t/qux.o -o %t/test
+# RUN: %lld -dylib %t/test.o %t/qux.o -o %t/test
+# RUN: llvm-objdump --macho --section="__TEXT,__literals" --section="__DATA,ptrs" --syms %t/test | FileCheck %s
+# RUN: llvm-readobj --section-headers %t/test | FileCheck %s --check-prefix=HEADER
+
+# RUN: %lld -dylib -no_deduplicate %t/test.o %t/qux.o -o %t/test
 # RUN: llvm-objdump --macho --section="__TEXT,__literals" --section="__DATA,ptrs" --syms %t/test | FileCheck %s
 # RUN: llvm-readobj --section-headers %t/test | FileCheck %s --check-prefix=HEADER
 

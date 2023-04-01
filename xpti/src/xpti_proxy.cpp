@@ -18,9 +18,13 @@ enum functions_t {
   XPTI_FRAMEWORK_FINALIZE,
   XPTI_INITIALIZE,
   XPTI_FINALIZE,
+  XPTI_GET_UNIVERSAL_ID,
+  XPTI_SET_UNIVERSAL_ID,
   XPTI_GET_UNIQUE_ID,
   XPTI_REGISTER_STRING,
   XPTI_LOOKUP_STRING,
+  XPTI_REGISTER_OBJECT,
+  XPTI_LOOKUP_OBJECT,
   XPTI_REGISTER_STREAM,
   XPTI_UNREGISTER_STREAM,
   XPTI_REGISTER_USER_DEFINED_TP,
@@ -36,6 +40,7 @@ enum functions_t {
   XPTI_TRACE_ENABLED,
   XPTI_REGISTER_PAYLOAD,
   XPTI_QUERY_PAYLOAD_BY_UID,
+  XPTI_FORCE_SET_TRACE_ENABLED,
 
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
@@ -49,9 +54,13 @@ class ProxyLoader {
       {XPTI_FRAMEWORK_FINALIZE, "xptiFrameworkFinalize"},
       {XPTI_INITIALIZE, "xptiInitialize"},
       {XPTI_FINALIZE, "xptiFinalize"},
+      {XPTI_GET_UNIVERSAL_ID, "xptiGetUniversalId"},
+      {XPTI_SET_UNIVERSAL_ID, "xptiSetUniversalId"},
       {XPTI_GET_UNIQUE_ID, "xptiGetUniqueId"},
       {XPTI_REGISTER_STRING, "xptiRegisterString"},
       {XPTI_LOOKUP_STRING, "xptiLookupString"},
+      {XPTI_REGISTER_OBJECT, "xptiRegisterObject"},
+      {XPTI_LOOKUP_OBJECT, "xptiLookupObject"},
       {XPTI_REGISTER_PAYLOAD, "xptiRegisterPayload"},
       {XPTI_REGISTER_STREAM, "xptiRegisterStream"},
       {XPTI_UNREGISTER_STREAM, "xptiUnregisterStream"},
@@ -66,7 +75,8 @@ class ProxyLoader {
       {XPTI_NOTIFY_SUBSCRIBERS, "xptiNotifySubscribers"},
       {XPTI_ADD_METADATA, "xptiAddMetadata"},
       {XPTI_QUERY_METADATA, "xptiQueryMetadata"},
-      {XPTI_TRACE_ENABLED, "xptiTraceEnabled"}};
+      {XPTI_TRACE_ENABLED, "xptiTraceEnabled"},
+      {XPTI_FORCE_SET_TRACE_ENABLED, "xptiForceSetTraceEnabled"}};
 
 public:
   typedef std::vector<xpti_plugin_function_t> dispatch_table_t;
@@ -78,33 +88,7 @@ public:
     // see if it has been set. If not, all methods in
     // the proxy should end up being close to no-ops
     //
-    std::string env =
-        m_loader.getEnvironmentVariable("XPTI_FRAMEWORK_DISPATCHER");
-    if (env.empty())
-      return;
-    std::string error;
-    m_fw_plugin_handle = m_loader.loadLibrary(env.c_str(), error);
-    if (m_fw_plugin_handle) {
-      // We will defer changing m_loaded = true until the
-      // end of this block after we are able to resolve
-      // all of the entry points
-      //
-      m_dispatch_table.resize(XPTI_FW_API_COUNT);
-      for (auto &func_name : m_function_names) {
-        xpti_plugin_function_t func =
-            m_loader.findFunction(m_fw_plugin_handle, func_name.second);
-        if (!func) { // Return if we fail on even one function
-          m_loader.unloadLibrary(m_fw_plugin_handle);
-          m_fw_plugin_handle = nullptr;
-          return;
-        }
-        m_dispatch_table[func_name.first] = func;
-      }
-      // Only if all the functions are found and loaded,
-      // do we set the m_loaded = true
-      //
-      m_loaded = true;
-    }
+    tryToEnable();
   }
 
   ~ProxyLoader() {
@@ -130,6 +114,38 @@ public:
   static ProxyLoader &instance() {
     static ProxyLoader *loader = new ProxyLoader();
     return *loader;
+  }
+  // needed for testing
+  void tryToEnable() {
+    if (m_loaded)
+      return;
+    std::string env =
+        m_loader.getEnvironmentVariable("XPTI_FRAMEWORK_DISPATCHER");
+    if (!env.empty()) {
+      std::string error;
+      m_fw_plugin_handle = m_loader.loadLibrary(env.c_str(), error);
+      if (m_fw_plugin_handle) {
+        // We will defer changing m_loaded = true until the
+        // end of this block after we are able to resolve
+        // all of the entry points
+        //
+        m_dispatch_table.resize(XPTI_FW_API_COUNT);
+        for (auto &func_name : m_function_names) {
+          xpti_plugin_function_t func =
+              m_loader.findFunction(m_fw_plugin_handle, func_name.second);
+          if (!func) { // Return if we fail on even one function
+            m_loader.unloadLibrary(m_fw_plugin_handle);
+            m_fw_plugin_handle = nullptr;
+            return;
+          }
+          m_dispatch_table[func_name.first] = func;
+        }
+        // Only if all the functions are found and loaded,
+        // do we set the m_loaded = true
+        //
+        m_loaded = true;
+      }
+    }
   }
 
 private:
@@ -208,6 +224,27 @@ XPTI_EXPORT_API void xptiFinalize(const char *stream) {
   }
 }
 
+XPTI_EXPORT_API uint64_t xptiGetUniversalId() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_GET_UNIVERSAL_ID);
+    if (f) {
+      return (*reinterpret_cast<xpti_get_universal_id_t>(f))();
+    }
+  }
+  return xpti::invalid_id;
+}
+
+XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_SET_UNIVERSAL_ID);
+    if (f) {
+      return (*reinterpret_cast<xpti_set_universal_id_t>(f))(uid);
+    }
+  }
+}
+
 XPTI_EXPORT_API uint64_t xptiGetUniqueId() {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_GET_UNIQUE_ID);
@@ -238,6 +275,28 @@ XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t id) {
     }
   }
   return nullptr;
+}
+
+XPTI_EXPORT_API xpti::object_id_t
+xptiRegisterObject(const char *data, size_t size, uint8_t type) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_REGISTER_OBJECT);
+    if (f) {
+      return (*(xpti_register_object_t)f)(data, size, type);
+    }
+  }
+  return xpti::invalid_id;
+}
+
+XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t id) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_LOOKUP_OBJECT);
+    if (f) {
+      return (*(xpti_lookup_object_t)f)(id);
+    }
+  }
+  return xpti::object_data_t{0, nullptr, 0};
 }
 
 XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
@@ -369,13 +428,27 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
   return false;
 }
 
+XPTI_EXPORT_API void xptiTraceTryToEnable() {
+  xpti::ProxyLoader::instance().tryToEnable();
+}
+
+XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool YesOrNo) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_FORCE_SET_TRACE_ENABLED);
+    if (f) {
+      (*(xpti_force_set_trace_enabled_t)f)(YesOrNo);
+    }
+  }
+}
+
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
                                                const char *key,
-                                               const char *value) {
+                                               xpti::object_id_t value_id) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_ADD_METADATA);
     if (f) {
-      return (*(xpti_add_metadata_t)f)(e, key, value);
+      return (*(xpti_add_metadata_t)f)(e, key, value_id);
     }
   }
   return xpti::result_t::XPTI_RESULT_FAIL;

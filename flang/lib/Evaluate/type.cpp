@@ -8,9 +8,9 @@
 
 #include "flang/Evaluate/type.h"
 #include "flang/Common/idioms.h"
-#include "flang/Common/template.h"
 #include "flang/Evaluate/expression.h"
 #include "flang/Evaluate/fold.h"
+#include "flang/Evaluate/target.h"
 #include "flang/Parser/characters.h"
 #include "flang/Semantics/scope.h"
 #include "flang/Semantics/symbol.h"
@@ -55,7 +55,7 @@ static bool IsDescriptor(const ProcEntityDetails &details) {
 }
 
 bool IsDescriptor(const Symbol &symbol) {
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](const ObjectEntityDetails &d) {
             return IsAllocatableOrPointer(symbol) || IsDescriptor(d);
@@ -96,7 +96,7 @@ DynamicType::DynamicType(int k, const semantics::ParamValue &pv)
     : category_{TypeCategory::Character}, kind_{k} {
   CHECK(IsValidKindOfIntrinsicType(category_, kind_));
   if (auto n{ToInt64(pv.GetExplicit())}) {
-    knownLength_ = *n;
+    knownLength_ = *n > 0 ? *n : 0;
   } else {
     charLengthParamValue_ = &pv;
   }
@@ -127,54 +127,40 @@ std::optional<Expr<SubscriptInteger>> DynamicType::GetCharLength() const {
   return std::nullopt;
 }
 
-static constexpr std::size_t RealKindBytes(int kind) {
-  switch (kind) {
-  case 3: // non-IEEE 16-bit format (truncated 32-bit)
-    return 2;
-  case 10: // 80387 80-bit extended precision
-  case 12: // possible variant spelling
-    return 16;
-  default:
-    return kind;
-  }
-}
-
-std::size_t DynamicType::GetAlignment(const FoldingContext &context) const {
-  switch (category_) {
-  case TypeCategory::Integer:
-  case TypeCategory::Character:
-  case TypeCategory::Logical:
-    return std::min<std::size_t>(kind_, context.maxAlignment());
-  case TypeCategory::Real:
-  case TypeCategory::Complex:
-    return std::min(RealKindBytes(kind_), context.maxAlignment());
-  case TypeCategory::Derived:
+std::size_t DynamicType::GetAlignment(
+    const TargetCharacteristics &targetCharacteristics) const {
+  if (category_ == TypeCategory::Derived) {
     if (derived_ && derived_->scope()) {
       return derived_->scope()->alignment().value_or(1);
     }
-    break;
+  } else {
+    return targetCharacteristics.GetAlignment(category_, kind_);
   }
   return 1; // needs to be after switch to dodge a bogus gcc warning
 }
 
 std::optional<Expr<SubscriptInteger>> DynamicType::MeasureSizeInBytes(
-    FoldingContext &context, bool aligned) const {
+    FoldingContext &context, bool aligned,
+    std::optional<std::int64_t> charLength) const {
   switch (category_) {
   case TypeCategory::Integer:
-    return Expr<SubscriptInteger>{kind_};
   case TypeCategory::Real:
-    return Expr<SubscriptInteger>{RealKindBytes(kind_)};
   case TypeCategory::Complex:
-    return Expr<SubscriptInteger>{2 * RealKindBytes(kind_)};
+  case TypeCategory::Logical:
+    return Expr<SubscriptInteger>{
+        context.targetCharacteristics().GetByteSize(category_, kind_)};
   case TypeCategory::Character:
-    if (auto len{GetCharLength()}) {
-      return Fold(context, Expr<SubscriptInteger>{kind_} * std::move(*len));
+    if (auto len{charLength ? Expr<SubscriptInteger>{Constant<SubscriptInteger>{
+                                  *charLength}}
+                            : GetCharLength()}) {
+      return Fold(context,
+          Expr<SubscriptInteger>{
+              context.targetCharacteristics().GetByteSize(category_, kind_)} *
+              std::move(*len));
     }
     break;
-  case TypeCategory::Logical:
-    return Expr<SubscriptInteger>{kind_};
   case TypeCategory::Derived:
-    if (derived_ && derived_->scope()) {
+    if (!IsPolymorphic() && derived_ && derived_->scope()) {
       auto size{derived_->scope()->size()};
       auto align{aligned ? derived_->scope()->alignment().value_or(0) : 0};
       auto alignedSize{align > 0 ? ((size + align - 1) / align) * align : size};
@@ -226,12 +212,17 @@ const semantics::DerivedTypeSpec *GetDerivedTypeSpec(const DynamicType &type) {
 static const semantics::Symbol *FindParentComponent(
     const semantics::DerivedTypeSpec &derived) {
   const semantics::Symbol &typeSymbol{derived.typeSymbol()};
-  if (const semantics::Scope * scope{typeSymbol.scope()}) {
+  const semantics::Scope *scope{derived.scope()};
+  if (!scope) {
+    scope = typeSymbol.scope();
+  }
+  if (scope) {
     const auto &dtDetails{typeSymbol.get<semantics::DerivedTypeDetails>()};
+    // TODO: Combine with semantics::DerivedTypeDetails::GetParentComponent
     if (auto extends{dtDetails.GetParentComponentName()}) {
       if (auto iter{scope->find(*extends)}; iter != scope->cend()) {
-        if (const Symbol & symbol{*iter->second};
-            symbol.test(Symbol::Flag::ParentComp)) {
+        if (const semantics::Symbol & symbol{*iter->second};
+            symbol.test(semantics::Symbol::Flag::ParentComp)) {
           return &symbol;
         }
       }
@@ -257,15 +248,143 @@ using SetOfDerivedTypePairs =
     std::set<std::pair<const semantics::DerivedTypeSpec *,
         const semantics::DerivedTypeSpec *>>;
 
-static bool AreSameComponent(const semantics::Symbol &,
-    const semantics::Symbol &, SetOfDerivedTypePairs &inProgress);
+static bool AreSameComponent(const semantics::Symbol &x,
+    const semantics::Symbol &y,
+    SetOfDerivedTypePairs & /* inProgress - not yet used */) {
+  if (x.attrs() != y.attrs()) {
+    return false;
+  }
+  if (x.attrs().test(semantics::Attr::PRIVATE)) {
+    return false;
+  }
+  // TODO: compare types, parameters, bounds, &c.
+  return x.has<semantics::ObjectEntityDetails>() ==
+      y.has<semantics::ObjectEntityDetails>();
+}
+
+// TODO: These utilities were cloned out of Semantics to avoid a cyclic
+// dependency and should be repackaged into then "namespace semantics"
+// part of Evaluate/tools.cpp.
+
+static const semantics::Symbol *GetParentComponent(
+    const semantics::DerivedTypeDetails &details,
+    const semantics::Scope &scope) {
+  if (auto extends{details.GetParentComponentName()}) {
+    if (auto iter{scope.find(*extends)}; iter != scope.cend()) {
+      if (const Symbol & symbol{*iter->second};
+          symbol.test(semantics::Symbol::Flag::ParentComp)) {
+        return &symbol;
+      }
+    }
+  }
+  return nullptr;
+}
+
+static const semantics::Symbol *GetParentComponent(
+    const semantics::Symbol *symbol, const semantics::Scope &scope) {
+  if (symbol) {
+    if (const auto *dtDetails{
+            symbol->detailsIf<semantics::DerivedTypeDetails>()}) {
+      return GetParentComponent(*dtDetails, scope);
+    }
+  }
+  return nullptr;
+}
+
+static const semantics::DerivedTypeSpec *GetParentTypeSpec(
+    const semantics::Symbol *symbol, const semantics::Scope &scope) {
+  if (const Symbol * parentComponent{GetParentComponent(symbol, scope)}) {
+    return &parentComponent->get<semantics::ObjectEntityDetails>()
+                .type()
+                ->derivedTypeSpec();
+  } else {
+    return nullptr;
+  }
+}
+
+static const semantics::Scope *GetDerivedTypeParent(
+    const semantics::Scope *scope) {
+  if (scope) {
+    CHECK(scope->IsDerivedType());
+    if (const auto *parent{GetParentTypeSpec(scope->GetSymbol(), *scope)}) {
+      return parent->scope();
+    }
+  }
+  return nullptr;
+}
+
+static const semantics::Symbol *FindComponent(
+    const semantics::Scope *scope, parser::CharBlock name) {
+  if (!scope) {
+    return nullptr;
+  }
+  CHECK(scope->IsDerivedType());
+  auto found{scope->find(name)};
+  if (found != scope->end()) {
+    return &*found->second;
+  } else {
+    return FindComponent(GetDerivedTypeParent(scope), name);
+  }
+}
+
+static bool AreTypeParamCompatible(const semantics::DerivedTypeSpec &x,
+    const semantics::DerivedTypeSpec &y, bool ignoreLenParameters) {
+  const auto *xScope{x.typeSymbol().scope()};
+  const auto *yScope{y.typeSymbol().scope()};
+  for (const auto &[paramName, value] : x.parameters()) {
+    const auto *yValue{y.FindParameter(paramName)};
+    if (!yValue) {
+      return false;
+    }
+    const auto *xParm{FindComponent(xScope, paramName)};
+    const auto *yParm{FindComponent(yScope, paramName)};
+    if (xParm && yParm) {
+      const auto *xTPD{xParm->detailsIf<semantics::TypeParamDetails>()};
+      const auto *yTPD{yParm->detailsIf<semantics::TypeParamDetails>()};
+      if (xTPD && yTPD) {
+        if (xTPD->attr() != yTPD->attr()) {
+          return false;
+        }
+        if (!ignoreLenParameters ||
+            xTPD->attr() != common::TypeParamAttr::Len) {
+          auto xExpr{value.GetExplicit()};
+          auto yExpr{yValue->GetExplicit()};
+          if (xExpr && yExpr) {
+            auto xVal{ToInt64(*xExpr)};
+            auto yVal{ToInt64(*yExpr)};
+            if (xVal && yVal && *xVal != *yVal) {
+              return false;
+            }
+          }
+        }
+      }
+    }
+  }
+  for (const auto &[paramName, _] : y.parameters()) {
+    if (!x.FindParameter(paramName)) {
+      return false; // y has more parameters than x
+    }
+  }
+  return true;
+}
 
 static bool AreSameDerivedType(const semantics::DerivedTypeSpec &x,
-    const semantics::DerivedTypeSpec &y, SetOfDerivedTypePairs &inProgress) {
+    const semantics::DerivedTypeSpec &y, bool ignoreTypeParameterValues,
+    bool ignoreLenParameters, SetOfDerivedTypePairs &inProgress) {
+  if (&x == &y) {
+    return true;
+  }
+  if (!ignoreTypeParameterValues &&
+      !AreTypeParamCompatible(x, y, ignoreLenParameters)) {
+    return false;
+  }
   const auto &xSymbol{x.typeSymbol()};
   const auto &ySymbol{y.typeSymbol()};
-  if (&x == &y || xSymbol == ySymbol) {
+  if (xSymbol == ySymbol) {
     return true;
+  }
+  if (xSymbol.name() != ySymbol.name()) {
+    return false;
   }
   auto thisQuery{std::make_pair(&x, &y)};
   if (inProgress.find(thisQuery) != inProgress.end()) {
@@ -274,9 +393,6 @@ static bool AreSameDerivedType(const semantics::DerivedTypeSpec &x,
   inProgress.insert(thisQuery);
   const auto &xDetails{xSymbol.get<semantics::DerivedTypeDetails>()};
   const auto &yDetails{ySymbol.get<semantics::DerivedTypeDetails>()};
-  if (xSymbol.name() != ySymbol.name()) {
-    return false;
-  }
   if (!(xDetails.sequence() && yDetails.sequence()) &&
       !(xSymbol.attrs().test(semantics::Attr::BIND_C) &&
           ySymbol.attrs().test(semantics::Attr::BIND_C))) {
@@ -305,49 +421,101 @@ static bool AreSameDerivedType(const semantics::DerivedTypeSpec &x,
   return yComponentName == yEnd;
 }
 
-static bool AreSameComponent(const semantics::Symbol &x,
-    const semantics::Symbol &y,
-    SetOfDerivedTypePairs & /* inProgress - not yet used */) {
-  if (x.attrs() != y.attrs()) {
-    return false;
-  }
-  if (x.attrs().test(semantics::Attr::PRIVATE)) {
-    return false;
-  }
-  // TODO: compare types, parameters, bounds, &c.
-  return x.has<semantics::ObjectEntityDetails>() ==
-      y.has<semantics::ObjectEntityDetails>();
+bool AreSameDerivedType(
+    const semantics::DerivedTypeSpec &x, const semantics::DerivedTypeSpec &y) {
+  SetOfDerivedTypePairs inProgress;
+  return AreSameDerivedType(x, y, false, false, inProgress);
 }
 
 static bool AreCompatibleDerivedTypes(const semantics::DerivedTypeSpec *x,
-    const semantics::DerivedTypeSpec *y, bool isPolymorphic) {
+    const semantics::DerivedTypeSpec *y, bool isPolymorphic,
+    bool ignoreTypeParameterValues, bool ignoreLenTypeParameters) {
   if (!x || !y) {
     return false;
   } else {
     SetOfDerivedTypePairs inProgress;
-    if (AreSameDerivedType(*x, *y, inProgress)) {
+    if (AreSameDerivedType(*x, *y, ignoreTypeParameterValues,
+            ignoreLenTypeParameters, inProgress)) {
       return true;
     } else {
       return isPolymorphic &&
-          AreCompatibleDerivedTypes(x, GetParentTypeSpec(*y), true);
+          AreCompatibleDerivedTypes(x, GetParentTypeSpec(*y), true,
+              ignoreTypeParameterValues, ignoreLenTypeParameters);
     }
+  }
+}
+
+static bool AreCompatibleTypes(const DynamicType &x, const DynamicType &y,
+    bool ignoreTypeParameterValues, bool ignoreLengths) {
+  if (x.IsUnlimitedPolymorphic()) {
+    return true;
+  } else if (y.IsUnlimitedPolymorphic()) {
+    return false;
+  } else if (x.category() != y.category()) {
+    return false;
+  } else if (x.category() == TypeCategory::Character) {
+    const auto xLen{x.knownLength()};
+    const auto yLen{y.knownLength()};
+    return x.kind() == y.kind() &&
+        (ignoreLengths || !xLen || !yLen || *xLen == *yLen);
+  } else if (x.category() != TypeCategory::Derived) {
+    return x.kind() == y.kind();
+  } else {
+    const auto *xdt{GetDerivedTypeSpec(x)};
+    const auto *ydt{GetDerivedTypeSpec(y)};
+    return AreCompatibleDerivedTypes(
+        xdt, ydt, x.IsPolymorphic(), ignoreTypeParameterValues, false);
   }
 }
 
 // See 7.3.2.3 (5) & 15.5.2.4
 bool DynamicType::IsTkCompatibleWith(const DynamicType &that) const {
-  if (IsUnlimitedPolymorphic()) {
+  return AreCompatibleTypes(*this, that, false, true);
+}
+
+bool DynamicType::IsTkLenCompatibleWith(const DynamicType &that) const {
+  return AreCompatibleTypes(*this, that, false, false);
+}
+
+// 16.9.165
+std::optional<bool> DynamicType::SameTypeAs(const DynamicType &that) const {
+  bool x{AreCompatibleTypes(*this, that, true, true)};
+  bool y{AreCompatibleTypes(that, *this, true, true)};
+  if (!x && !y) {
+    return false;
+  } else if (x && y && !IsPolymorphic() && !that.IsPolymorphic()) {
     return true;
-  } else if (that.IsUnlimitedPolymorphic()) {
-    return false;
-  } else if (category_ != that.category_) {
-    return false;
-  } else if (derived_) {
-    return that.derived_ &&
-        AreCompatibleDerivedTypes(derived_, that.derived_, IsPolymorphic()) &&
-        AreTypeParamCompatible(*derived_, *that.derived_);
   } else {
-    return kind_ == that.kind_;
+    return std::nullopt;
+  }
+}
+
+// 16.9.76
+std::optional<bool> DynamicType::ExtendsTypeOf(const DynamicType &that) const {
+  if (IsUnlimitedPolymorphic() || that.IsUnlimitedPolymorphic()) {
+    return std::nullopt; // unknown
+  }
+  const auto *thisDts{evaluate::GetDerivedTypeSpec(*this)};
+  const auto *thatDts{evaluate::GetDerivedTypeSpec(that)};
+  if (!thisDts || !thatDts) {
+    return std::nullopt;
+  } else if (!AreCompatibleDerivedTypes(thatDts, thisDts, true, true, true)) {
+    // Note that I check *thisDts, not its parent, so that EXTENDS_TYPE_OF()
+    // is .true. when they are the same type.  This is technically
+    // an implementation-defined case in the standard, but every other
+    // compiler works this way.
+    if (IsPolymorphic() &&
+        AreCompatibleDerivedTypes(thisDts, thatDts, true, true, true)) {
+      // 'that' is *this or an extension of *this, and so runtime *this
+      // could be an extension of 'that'
+      return std::nullopt;
+    } else {
+      return false;
+    }
+  } else if (that.IsPolymorphic()) {
+    return std::nullopt; // unknown
+  } else {
+    return true;
   }
 }
 
@@ -476,75 +644,74 @@ int SelectedCharKind(const std::string &s, int defaultKind) { // 16.9.168
   }
 }
 
-class SelectedIntKindVisitor {
-public:
-  explicit SelectedIntKindVisitor(std::int64_t p) : precision_{p} {}
-  using Result = std::optional<int>;
-  using Types = IntegerTypes;
-  template <typename T> Result Test() const {
-    if (Scalar<T>::RANGE >= precision_) {
-      return T::kind;
-    } else {
+std::optional<DynamicType> ComparisonType(
+    const DynamicType &t1, const DynamicType &t2) {
+  switch (t1.category()) {
+  case TypeCategory::Integer:
+    switch (t2.category()) {
+    case TypeCategory::Integer:
+      return DynamicType{TypeCategory::Integer, std::max(t1.kind(), t2.kind())};
+    case TypeCategory::Real:
+    case TypeCategory::Complex:
+      return t2;
+    default:
       return std::nullopt;
     }
-  }
-
-private:
-  std::int64_t precision_;
-};
-
-int SelectedIntKind(std::int64_t precision) {
-  if (auto kind{common::SearchTypes(SelectedIntKindVisitor{precision})}) {
-    return *kind;
-  } else {
-    return -1;
+  case TypeCategory::Real:
+    switch (t2.category()) {
+    case TypeCategory::Integer:
+      return t1;
+    case TypeCategory::Real:
+    case TypeCategory::Complex:
+      return DynamicType{t2.category(), std::max(t1.kind(), t2.kind())};
+    default:
+      return std::nullopt;
+    }
+  case TypeCategory::Complex:
+    switch (t2.category()) {
+    case TypeCategory::Integer:
+      return t1;
+    case TypeCategory::Real:
+    case TypeCategory::Complex:
+      return DynamicType{TypeCategory::Complex, std::max(t1.kind(), t2.kind())};
+    default:
+      return std::nullopt;
+    }
+  case TypeCategory::Character:
+    switch (t2.category()) {
+    case TypeCategory::Character:
+      return DynamicType{
+          TypeCategory::Character, std::max(t1.kind(), t2.kind())};
+    default:
+      return std::nullopt;
+    }
+  case TypeCategory::Logical:
+    switch (t2.category()) {
+    case TypeCategory::Logical:
+      return DynamicType{TypeCategory::Logical, LogicalResult::kind};
+    default:
+      return std::nullopt;
+    }
+  default:
+    return std::nullopt;
   }
 }
 
-class SelectedRealKindVisitor {
-public:
-  explicit SelectedRealKindVisitor(std::int64_t p, std::int64_t r)
-      : precision_{p}, range_{r} {}
-  using Result = std::optional<int>;
-  using Types = RealTypes;
-  template <typename T> Result Test() const {
-    if (Scalar<T>::PRECISION >= precision_ && Scalar<T>::RANGE >= range_) {
-      return {T::kind};
-    } else {
-      return std::nullopt;
-    }
-  }
-
-private:
-  std::int64_t precision_, range_;
-};
-
-int SelectedRealKind(
-    std::int64_t precision, std::int64_t range, std::int64_t radix) {
-  if (radix != 2) {
-    return -5;
-  }
-  if (auto kind{
-          common::SearchTypes(SelectedRealKindVisitor{precision, range})}) {
-    return *kind;
-  }
-  // No kind has both sufficient precision and sufficient range.
-  // The negative return value encodes whether any kinds exist that
-  // could satisfy either constraint independently.
-  bool pOK{common::SearchTypes(SelectedRealKindVisitor{precision, 0})};
-  bool rOK{common::SearchTypes(SelectedRealKindVisitor{0, range})};
-  if (pOK) {
-    if (rOK) {
-      return -4;
-    } else {
-      return -2;
-    }
-  } else {
-    if (rOK) {
-      return -1;
-    } else {
-      return -3;
-    }
+bool IsInteroperableIntrinsicType(const DynamicType &type) {
+  switch (type.category()) {
+  case TypeCategory::Integer:
+    return true;
+  case TypeCategory::Real:
+  case TypeCategory::Complex:
+    return type.kind() >= 4; // no short or half floats
+  case TypeCategory::Logical:
+    return type.kind() == 1; // C_BOOL
+  case TypeCategory::Character:
+    return type.kind() == 1 /* C_CHAR */ && type.knownLength().value_or(0) == 1;
+  default:
+    // Derived types are tested in Semantics/check-declarations.cpp
+    return false;
   }
 }
+
 } // namespace Fortran::evaluate

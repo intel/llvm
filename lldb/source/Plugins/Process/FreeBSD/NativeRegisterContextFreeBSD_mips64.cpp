@@ -22,6 +22,7 @@
 #include <sys/ptrace.h>
 #include <sys/types.h>
 // clang-format on
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -60,7 +61,7 @@ uint32_t NativeRegisterContextFreeBSD_mips64::GetUserRegisterCount() const {
   return count;
 }
 
-llvm::Optional<NativeRegisterContextFreeBSD_mips64::RegSetKind>
+std::optional<NativeRegisterContextFreeBSD_mips64::RegSetKind>
 NativeRegisterContextFreeBSD_mips64::GetSetForNativeRegNum(
     uint32_t reg_num) const {
   switch (GetRegisterInfoInterface().GetTargetArchitecture().GetMachine()) {
@@ -120,7 +121,7 @@ NativeRegisterContextFreeBSD_mips64::ReadRegister(const RegisterInfo *reg_info,
                                                ? reg_info->name
                                                : "<unknown register>");
 
-  llvm::Optional<RegSetKind> opt_set = GetSetForNativeRegNum(reg);
+  std::optional<RegSetKind> opt_set = GetSetForNativeRegNum(reg);
   if (!opt_set) {
     // This is likely an internal register for lldb use only and should not be
     // directly queried.
@@ -129,7 +130,7 @@ NativeRegisterContextFreeBSD_mips64::ReadRegister(const RegisterInfo *reg_info,
     return error;
   }
 
-  RegSetKind set = opt_set.getValue();
+  RegSetKind set = *opt_set;
   error = ReadRegisterSet(set);
   if (error.Fail())
     return error;
@@ -154,7 +155,7 @@ Status NativeRegisterContextFreeBSD_mips64::WriteRegister(
                                                ? reg_info->name
                                                : "<unknown register>");
 
-  llvm::Optional<RegSetKind> opt_set = GetSetForNativeRegNum(reg);
+  std::optional<RegSetKind> opt_set = GetSetForNativeRegNum(reg);
   if (!opt_set) {
     // This is likely an internal register for lldb use only and should not be
     // directly queried.
@@ -163,7 +164,7 @@ Status NativeRegisterContextFreeBSD_mips64::WriteRegister(
     return error;
   }
 
-  RegSetKind set = opt_set.getValue();
+  RegSetKind set = *opt_set;
   error = ReadRegisterSet(set);
   if (error.Fail())
     return error;
@@ -176,7 +177,7 @@ Status NativeRegisterContextFreeBSD_mips64::WriteRegister(
 }
 
 Status NativeRegisterContextFreeBSD_mips64::ReadAllRegisterValues(
-    lldb::DataBufferSP &data_sp) {
+    lldb::WritableDataBufferSP &data_sp) {
   Status error;
 
   error = ReadRegisterSet(GPRegSet);
@@ -213,7 +214,7 @@ Status NativeRegisterContextFreeBSD_mips64::WriteAllRegisterValues(
     return error;
   }
 
-  uint8_t *src = data_sp->GetBytes();
+  const uint8_t *src = data_sp->GetBytes();
   if (src == nullptr) {
     error.SetErrorStringWithFormat("NativeRegisterContextFreeBSD_mips64::%s "
                                    "DataBuffer::GetBytes() returned a null "

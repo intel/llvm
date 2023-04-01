@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-ast -polly-ast-detect-parallel -analyze < %s | FileCheck %s
+; RUN: opt %loadPolly -polly-print-ast -polly-ast-detect-parallel -disable-output < %s | FileCheck %s
 ;
 ; CHECK: pragma simd reduction
 ;
@@ -23,9 +23,9 @@ for.cond:                                         ; preds = %for.inc, %entry
 
 for.body:                                         ; preds = %for.cond
   %add2 = add nsw i32 %i1.0, 3
-  %tmp1 = load i32, i32* @prod, align 4
+  %tmp1 = load i32, ptr @prod, align 4
   %mul3 = mul nsw i32 %tmp1, %add2
-  store i32 %mul3, i32* @prod, align 4
+  store i32 %mul3, ptr @prod, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body

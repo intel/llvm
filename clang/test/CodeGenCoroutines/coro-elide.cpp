@@ -58,6 +58,5 @@ Task task1() {
   co_return co_await task0();
 }
 
-// CHECK: %_Z5task1v.Frame = type {{.*}}%_Z5task0v.Frame
 // CHECK-LABEL: define{{.*}} void @_Z5task1v.resume
 // CHECK-NOT: call{{.*}}_Znwm

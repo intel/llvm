@@ -104,7 +104,6 @@ void *Allocate(const StackTrace &stack, uptr size, uptr alignment,
   if (cleared && allocator.FromPrimary(p))
     memset(p, 0, size);
   RegisterAllocation(stack, p, size);
-  if (&__sanitizer_malloc_hook) __sanitizer_malloc_hook(p, size);
   RunMallocHooks(p, size);
   return p;
 }
@@ -120,7 +119,6 @@ static void *Calloc(uptr nmemb, uptr size, const StackTrace &stack) {
 }
 
 void Deallocate(void *p) {
-  if (&__sanitizer_free_hook) __sanitizer_free_hook(p);
   RunFreeHooks(p);
   RegisterDeallocation(p);
   allocator.Deallocate(GetAllocatorCache(), p);
@@ -148,6 +146,8 @@ void GetAllocatorCacheRange(uptr *begin, uptr *end) {
 }
 
 uptr GetMallocUsableSize(const void *p) {
+  if (!p)
+    return 0;
   ChunkMetadata *m = Metadata(p);
   if (!m) return 0;
   return m->requested_size;
@@ -275,6 +275,10 @@ uptr GetUserBegin(uptr chunk) {
   return chunk;
 }
 
+uptr GetUserAddr(uptr chunk) {
+  return chunk;
+}
+
 LsanMetadata::LsanMetadata(uptr chunk) {
   metadata_ = Metadata(reinterpret_cast<void *>(chunk));
   CHECK(metadata_);
@@ -319,7 +323,7 @@ IgnoreObjectResult IgnoreObjectLocked(const void *p) {
   }
 }
 
-void GetAdditionalThreadContextPtrs(ThreadContextBase *tctx, void *ptrs) {
+void GetAdditionalThreadContextPtrsLocked(InternalMmapVector<uptr> *ptrs) {
   // This function can be used to treat memory reachable from `tctx` as live.
   // This is useful for threads that have been created but not yet started.
 
@@ -364,16 +368,4 @@ uptr __sanitizer_get_allocated_size(const void *p) {
   return GetMallocUsableSize(p);
 }
 
-#if !SANITIZER_SUPPORTS_WEAK_HOOKS
-// Provide default (no-op) implementation of malloc hooks.
-SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
-void __sanitizer_malloc_hook(void *ptr, uptr size) {
-  (void)ptr;
-  (void)size;
-}
-SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
-void __sanitizer_free_hook(void *ptr) {
-  (void)ptr;
-}
-#endif
 } // extern "C"

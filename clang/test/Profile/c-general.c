@@ -24,8 +24,8 @@
 
 // PGOGEN-LABEL: @simple_loops()
 // PGOUSE-LABEL: @simple_loops()
-// PGOGEN: store {{.*}} @[[SLC]], i32 0, i32 0
-void simple_loops() {
+// PGOGEN: store {{.*}} @[[SLC]]
+void simple_loops(void) {
   int i;
   // PGOGEN: store {{.*}} @[[SLC]], i32 0, i32 1
   // PGOUSE: br {{.*}} !prof ![[SL1:[0-9]+]]
@@ -45,8 +45,8 @@ void simple_loops() {
 
 // PGOGEN-LABEL: @conditionals()
 // PGOUSE-LABEL: @conditionals()
-// PGOGEN: store {{.*}} @[[IFC]], i32 0, i32 0
-void conditionals() {
+// PGOGEN: store {{.*}} @[[IFC]]
+void conditionals(void) {
   // PGOGEN: store {{.*}} @[[IFC]], i32 0, i32 1
   // PGOUSE: br {{.*}} !prof ![[IF1:[0-9]+]]
   for (int i = 0; i < 100; ++i) {
@@ -86,8 +86,8 @@ void conditionals() {
 
 // PGOGEN-LABEL: @early_exits()
 // PGOUSE-LABEL: @early_exits()
-// PGOGEN: store {{.*}} @[[EEC]], i32 0, i32 0
-void early_exits() {
+// PGOGEN: store {{.*}} @[[EEC]]
+void early_exits(void) {
   int i = 0;
 
   // PGOGEN: store {{.*}} @[[EEC]], i32 0, i32 1
@@ -133,8 +133,8 @@ void early_exits() {
 
 // PGOGEN-LABEL: @jumps()
 // PGOUSE-LABEL: @jumps()
-// PGOGEN: store {{.*}} @[[JMC]], i32 0, i32 0
-void jumps() {
+// PGOGEN: store {{.*}} @[[JMC]]
+void jumps(void) {
   int i;
 
   // PGOGEN: store {{.*}} @[[JMC]], i32 0, i32 1
@@ -215,8 +215,8 @@ third:
 
 // PGOGEN-LABEL: @switches()
 // PGOUSE-LABEL: @switches()
-// PGOGEN: store {{.*}} @[[SWC]], i32 0, i32 0
-void switches() {
+// PGOGEN: store {{.*}} @[[SWC]]
+void switches(void) {
   static int weights[] = {1, 2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5};
 
   // No cases -> no weights
@@ -288,8 +288,8 @@ void switches() {
 
 // PGOGEN-LABEL: @big_switch()
 // PGOUSE-LABEL: @big_switch()
-// PGOGEN: store {{.*}} @[[BSC]], i32 0, i32 0
-void big_switch() {
+// PGOGEN: store {{.*}} @[[BSC]]
+void big_switch(void) {
   // PGOGEN: store {{.*}} @[[BSC]], i32 0, i32 1
   // PGOUSE: br {{.*}} !prof ![[BS1:[0-9]+]]
   for (int i = 0; i < 32; ++i) {
@@ -355,8 +355,8 @@ void big_switch() {
 
 // PGOGEN-LABEL: @boolean_operators()
 // PGOUSE-LABEL: @boolean_operators()
-// PGOGEN: store {{.*}} @[[BOC]], i32 0, i32 0
-void boolean_operators() {
+// PGOGEN: store {{.*}} @[[BOC]]
+void boolean_operators(void) {
   int v;
   // PGOGEN: store {{.*}} @[[BOC]], i32 0, i32 1
   // PGOUSE: br {{.*}} !prof ![[BO1:[0-9]+]]
@@ -394,8 +394,8 @@ void boolean_operators() {
 
 // PGOGEN-LABEL: @boolop_loops()
 // PGOUSE-LABEL: @boolop_loops()
-// PGOGEN: store {{.*}} @[[BLC]], i32 0, i32 0
-void boolop_loops() {
+// PGOGEN: store {{.*}} @[[BLC]]
+void boolop_loops(void) {
   int i = 100;
 
   // PGOGEN: store {{.*}} @[[BLC]], i32 0, i32 2
@@ -434,8 +434,8 @@ void boolop_loops() {
 
 // PGOGEN-LABEL: @conditional_operator()
 // PGOUSE-LABEL: @conditional_operator()
-// PGOGEN: store {{.*}} @[[COC]], i32 0, i32 0
-void conditional_operator() {
+// PGOGEN: store {{.*}} @[[COC]]
+void conditional_operator(void) {
   int i = 100;
 
   // PGOGEN: store {{.*}} @[[COC]], i32 0, i32 1
@@ -452,8 +452,8 @@ void conditional_operator() {
 
 // PGOGEN-LABEL: @do_fallthrough()
 // PGOUSE-LABEL: @do_fallthrough()
-// PGOGEN: store {{.*}} @[[DFC]], i32 0, i32 0
-void do_fallthrough() {
+// PGOGEN: store {{.*}} @[[DFC]]
+void do_fallthrough(void) {
   // PGOGEN: store {{.*}} @[[DFC]], i32 0, i32 1
   // PGOUSE: br {{.*}} !prof ![[DF1:[0-9]+]]
   for (int i = 0; i < 10; ++i) {
@@ -474,8 +474,8 @@ void do_fallthrough() {
 
 // PGOGEN-LABEL: @static_func()
 // PGOUSE-LABEL: @static_func()
-// PGOGEN: store {{.*}} @[[STC]], i32 0, i32 0
-static void static_func() {
+// PGOGEN: store {{.*}} @[[STC]]
+static void static_func(void) {
   // PGOGEN: store {{.*}} @[[STC]], i32 0, i32 1
   // PGOUSE: br {{.*}} !prof ![[ST1:[0-9]+]]
   for (int i = 0; i < 10; ++i) {

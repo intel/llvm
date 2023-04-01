@@ -10,14 +10,14 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/GSYM/DwarfTransformer.h"
-#include "llvm/DebugInfo/GSYM/Header.h"
+#include "llvm/DebugInfo/GSYM/ExtractRanges.h"
 #include "llvm/DebugInfo/GSYM/FileEntry.h"
 #include "llvm/DebugInfo/GSYM/FileWriter.h"
 #include "llvm/DebugInfo/GSYM/FunctionInfo.h"
 #include "llvm/DebugInfo/GSYM/GsymCreator.h"
 #include "llvm/DebugInfo/GSYM/GsymReader.h"
+#include "llvm/DebugInfo/GSYM/Header.h"
 #include "llvm/DebugInfo/GSYM/InlineInfo.h"
-#include "llvm/DebugInfo/GSYM/Range.h"
 #include "llvm/DebugInfo/GSYM/StringTable.h"
 #include "llvm/ObjectYAML/DWARFEmitter.h"
 #include "llvm/Support/DataExtractor.h"
@@ -112,11 +112,11 @@ TEST(GSYMTest, TestFunctionInfo) {
   EXPECT_EQ(A1, A2);
   // Make sure things are not equal if they only differ by start address.
   B = A2;
-  B.setStartAddress(0x2000);
+  B.Range = {0x1001, B.endAddress()};
   EXPECT_NE(B, A2);
   // Make sure things are not equal if they only differ by size.
   B = A2;
-  B.setSize(0x101);
+  B.Range = {B.startAddress(), B.startAddress() + 0x101};
   EXPECT_NE(B, A2);
   // Make sure things are not equal if they only differ by name.
   B = A2;
@@ -125,7 +125,7 @@ TEST(GSYMTest, TestFunctionInfo) {
   // Check < operator.
   // Check less than where address differs.
   B = A2;
-  B.setStartAddress(A2.startAddress() + 0x1000);
+  B.Range = {A2.startAddress() + 0x1000, A2.endAddress() + 0x1000};
   EXPECT_LT(A1, B);
 
   // We use the < operator to take a variety of different FunctionInfo
@@ -253,8 +253,8 @@ static void TestFunctionInfoEncodeDecode(llvm::support::endianness ByteOrder,
   std::string Bytes(OutStrm.str());
   uint8_t AddressSize = 4;
   DataExtractor Data(Bytes, ByteOrder == llvm::support::little, AddressSize);
-  llvm::Expected<FunctionInfo> Decoded = FunctionInfo::decode(Data,
-                                                              FI.Range.Start);
+  llvm::Expected<FunctionInfo> Decoded =
+      FunctionInfo::decode(Data, FI.Range.start());
   // Make sure decoding succeeded.
   ASSERT_TRUE((bool)Decoded);
   // Make sure decoded object is the same as the one we encoded.
@@ -323,7 +323,7 @@ static void TestInlineInfoEncodeDecode(llvm::support::endianness ByteOrder,
   SmallString<512> Str;
   raw_svector_ostream OutStrm(Str);
   FileWriter FW(OutStrm, ByteOrder);
-  const uint64_t BaseAddr = Inline.Ranges[0].Start;
+  const uint64_t BaseAddr = Inline.Ranges[0].start();
   llvm::Error Err = Inline.encode(FW, BaseAddr);
   ASSERT_FALSE(Err);
   std::string Bytes(OutStrm.str());
@@ -354,7 +354,8 @@ static void TestInlineInfoEncodeError(llvm::support::endianness ByteOrder,
   SmallString<512> Str;
   raw_svector_ostream OutStrm(Str);
   FileWriter FW(OutStrm, ByteOrder);
-  const uint64_t BaseAddr = Inline.Ranges.empty() ? 0 : Inline.Ranges[0].Start;
+  const uint64_t BaseAddr =
+      Inline.Ranges.empty() ? 0 : Inline.Ranges[0].start();
   llvm::Error Err = Inline.encode(FW, BaseAddr);
   checkError(ExpectedErrorMsg, std::move(Err));
 }
@@ -407,33 +408,33 @@ TEST(GSYMTest, TestInlineInfo) {
   EXPECT_FALSE(Root.getInlineStack(0x50));
 
   // Verify that we get no inline stacks for addresses out of [0x100-0x200)
-  EXPECT_FALSE(Root.getInlineStack(Root.Ranges[0].Start - 1));
-  EXPECT_FALSE(Root.getInlineStack(Root.Ranges[0].End));
+  EXPECT_FALSE(Root.getInlineStack(Root.Ranges[0].start() - 1));
+  EXPECT_FALSE(Root.getInlineStack(Root.Ranges[0].end()));
 
   // Verify we get no inline stack entries for addresses that are in
   // [0x100-0x200) but not in [0x150-0x160)
-  EXPECT_FALSE(Root.getInlineStack(Inline1.Ranges[0].Start - 1));
-  EXPECT_FALSE(Root.getInlineStack(Inline1.Ranges[0].End));
+  EXPECT_FALSE(Root.getInlineStack(Inline1.Ranges[0].start() - 1));
+  EXPECT_FALSE(Root.getInlineStack(Inline1.Ranges[0].end()));
 
   // Verify we get one inline stack entry for addresses that are in
   // [[0x150-0x160)) but not in [0x152-0x155) or [0x157-0x158)
-  auto InlineInfos = Root.getInlineStack(Inline1.Ranges[0].Start);
+  auto InlineInfos = Root.getInlineStack(Inline1.Ranges[0].start());
   ASSERT_TRUE(InlineInfos);
   ASSERT_EQ(InlineInfos->size(), 1u);
   ASSERT_EQ(*InlineInfos->at(0), Inline1);
-  InlineInfos = Root.getInlineStack(Inline1.Ranges[0].End - 1);
+  InlineInfos = Root.getInlineStack(Inline1.Ranges[0].end() - 1);
   EXPECT_TRUE(InlineInfos);
   ASSERT_EQ(InlineInfos->size(), 1u);
   ASSERT_EQ(*InlineInfos->at(0), Inline1);
 
   // Verify we get two inline stack entries for addresses that are in
   // [0x152-0x155)
-  InlineInfos = Root.getInlineStack(Inline1Sub1.Ranges[0].Start);
+  InlineInfos = Root.getInlineStack(Inline1Sub1.Ranges[0].start());
   EXPECT_TRUE(InlineInfos);
   ASSERT_EQ(InlineInfos->size(), 2u);
   ASSERT_EQ(*InlineInfos->at(0), Inline1Sub1);
   ASSERT_EQ(*InlineInfos->at(1), Inline1);
-  InlineInfos = Root.getInlineStack(Inline1Sub1.Ranges[0].End - 1);
+  InlineInfos = Root.getInlineStack(Inline1Sub1.Ranges[0].end() - 1);
   EXPECT_TRUE(InlineInfos);
   ASSERT_EQ(InlineInfos->size(), 2u);
   ASSERT_EQ(*InlineInfos->at(0), Inline1Sub1);
@@ -441,12 +442,12 @@ TEST(GSYMTest, TestInlineInfo) {
 
   // Verify we get two inline stack entries for addresses that are in
   // [0x157-0x158)
-  InlineInfos = Root.getInlineStack(Inline1Sub2.Ranges[0].Start);
+  InlineInfos = Root.getInlineStack(Inline1Sub2.Ranges[0].start());
   EXPECT_TRUE(InlineInfos);
   ASSERT_EQ(InlineInfos->size(), 2u);
   ASSERT_EQ(*InlineInfos->at(0), Inline1Sub2);
   ASSERT_EQ(*InlineInfos->at(1), Inline1);
-  InlineInfos = Root.getInlineStack(Inline1Sub2.Ranges[0].End - 1);
+  InlineInfos = Root.getInlineStack(Inline1Sub2.Ranges[0].end() - 1);
   EXPECT_TRUE(InlineInfos);
   ASSERT_EQ(InlineInfos->size(), 2u);
   ASSERT_EQ(*InlineInfos->at(0), Inline1Sub2);
@@ -470,7 +471,7 @@ TEST(GSYMTest, TestInlineInfoEncodeErrors) {
   // Verify that we get an error trying to encode an InlineInfo object that has
   // a child InlineInfo that has no ranges.
   InlineInfo ContainsEmpty;
-  ContainsEmpty.Ranges.insert({0x100,200});
+  ContainsEmpty.Ranges.insert({0x100, 0x200});
   ContainsEmpty.Children.push_back(Empty);
   TestInlineInfoEncodeError(llvm::support::little, ContainsEmpty, EmptyErr);
   TestInlineInfoEncodeError(llvm::support::big, ContainsEmpty, EmptyErr);
@@ -479,9 +480,9 @@ TEST(GSYMTest, TestInlineInfoEncodeErrors) {
   // a child whose address range is not contained in the parent address range.
   InlineInfo ChildNotContained;
   std::string ChildNotContainedErr("child range not contained in parent");
-  ChildNotContained.Ranges.insert({0x100,200});
+  ChildNotContained.Ranges.insert({0x100, 0x200});
   InlineInfo ChildNotContainedChild;
-  ChildNotContainedChild.Ranges.insert({0x200,300});
+  ChildNotContainedChild.Ranges.insert({0x200, 0x300});
   ChildNotContained.Children.push_back(ChildNotContainedChild);
   TestInlineInfoEncodeError(llvm::support::little, ChildNotContained,
                             ChildNotContainedErr);
@@ -502,7 +503,7 @@ TEST(GSYMTest, TestInlineInfoDecodeErrors) {
       "0x00000000: missing InlineInfo address ranges data");
   AddressRanges Ranges;
   Ranges.insert({BaseAddr, BaseAddr+0x100});
-  Ranges.encode(FW, BaseAddr);
+  encodeRanges(Ranges, FW, BaseAddr);
   TestInlineInfoDecodeError(ByteOrder, OutStrm.str(), BaseAddr,
       "0x00000004: missing InlineInfo uint8_t indicating children");
   FW.writeU8(0);
@@ -540,134 +541,6 @@ TEST(GSYMTest, TestLineEntry) {
   EXPECT_NE(E1, DifferentFile);
   EXPECT_NE(E1, DifferentLine);
   EXPECT_LT(E1, DifferentAddr);
-}
-
-TEST(GSYMTest, TestRanges) {
-  // test llvm::gsym::AddressRange.
-  const uint64_t StartAddr = 0x1000;
-  const uint64_t EndAddr = 0x2000;
-  // Verify constructor and API to ensure it takes start and end address.
-  const AddressRange Range(StartAddr, EndAddr);
-  EXPECT_EQ(Range.size(), EndAddr - StartAddr);
-
-  // Verify llvm::gsym::AddressRange::contains().
-  EXPECT_FALSE(Range.contains(0));
-  EXPECT_FALSE(Range.contains(StartAddr - 1));
-  EXPECT_TRUE(Range.contains(StartAddr));
-  EXPECT_TRUE(Range.contains(EndAddr - 1));
-  EXPECT_FALSE(Range.contains(EndAddr));
-  EXPECT_FALSE(Range.contains(UINT64_MAX));
-
-  const AddressRange RangeSame(StartAddr, EndAddr);
-  const AddressRange RangeDifferentStart(StartAddr + 1, EndAddr);
-  const AddressRange RangeDifferentEnd(StartAddr, EndAddr + 1);
-  const AddressRange RangeDifferentStartEnd(StartAddr + 1, EndAddr + 1);
-  // Test == and != with values that are the same
-  EXPECT_EQ(Range, RangeSame);
-  EXPECT_FALSE(Range != RangeSame);
-  // Test == and != with values that are the different
-  EXPECT_NE(Range, RangeDifferentStart);
-  EXPECT_NE(Range, RangeDifferentEnd);
-  EXPECT_NE(Range, RangeDifferentStartEnd);
-  EXPECT_FALSE(Range == RangeDifferentStart);
-  EXPECT_FALSE(Range == RangeDifferentEnd);
-  EXPECT_FALSE(Range == RangeDifferentStartEnd);
-
-  // Test "bool operator<(const AddressRange &, const AddressRange &)".
-  EXPECT_FALSE(Range < RangeSame);
-  EXPECT_FALSE(RangeSame < Range);
-  EXPECT_LT(Range, RangeDifferentStart);
-  EXPECT_LT(Range, RangeDifferentEnd);
-  EXPECT_LT(Range, RangeDifferentStartEnd);
-  // Test "bool operator<(const AddressRange &, uint64_t)"
-  EXPECT_LT(Range.Start, StartAddr + 1);
-  // Test "bool operator<(uint64_t, const AddressRange &)"
-  EXPECT_LT(StartAddr - 1, Range.Start);
-
-  // Verify llvm::gsym::AddressRange::isContiguousWith() and
-  // llvm::gsym::AddressRange::intersects().
-  const AddressRange EndsBeforeRangeStart(0, StartAddr - 1);
-  const AddressRange EndsAtRangeStart(0, StartAddr);
-  const AddressRange OverlapsRangeStart(StartAddr - 1, StartAddr + 1);
-  const AddressRange InsideRange(StartAddr + 1, EndAddr - 1);
-  const AddressRange OverlapsRangeEnd(EndAddr - 1, EndAddr + 1);
-  const AddressRange StartsAtRangeEnd(EndAddr, EndAddr + 0x100);
-  const AddressRange StartsAfterRangeEnd(EndAddr + 1, EndAddr + 0x100);
-
-  EXPECT_FALSE(Range.intersects(EndsBeforeRangeStart));
-  EXPECT_FALSE(Range.intersects(EndsAtRangeStart));
-  EXPECT_TRUE(Range.intersects(OverlapsRangeStart));
-  EXPECT_TRUE(Range.intersects(InsideRange));
-  EXPECT_TRUE(Range.intersects(OverlapsRangeEnd));
-  EXPECT_FALSE(Range.intersects(StartsAtRangeEnd));
-  EXPECT_FALSE(Range.intersects(StartsAfterRangeEnd));
-
-  // Test the functions that maintain GSYM address ranges:
-  //  "bool AddressRange::contains(uint64_t Addr) const;"
-  //  "void AddressRanges::insert(const AddressRange &R);"
-  AddressRanges Ranges;
-  Ranges.insert(AddressRange(0x1000, 0x2000));
-  Ranges.insert(AddressRange(0x2000, 0x3000));
-  Ranges.insert(AddressRange(0x4000, 0x5000));
-
-  EXPECT_FALSE(Ranges.contains(0));
-  EXPECT_FALSE(Ranges.contains(0x1000 - 1));
-  EXPECT_TRUE(Ranges.contains(0x1000));
-  EXPECT_TRUE(Ranges.contains(0x2000));
-  EXPECT_TRUE(Ranges.contains(0x4000));
-  EXPECT_TRUE(Ranges.contains(0x2000 - 1));
-  EXPECT_TRUE(Ranges.contains(0x3000 - 1));
-  EXPECT_FALSE(Ranges.contains(0x3000 + 1));
-  EXPECT_TRUE(Ranges.contains(0x5000 - 1));
-  EXPECT_FALSE(Ranges.contains(0x5000 + 1));
-  EXPECT_FALSE(Ranges.contains(UINT64_MAX));
-
-  EXPECT_FALSE(Ranges.contains(AddressRange()));
-  EXPECT_FALSE(Ranges.contains(AddressRange(0x1000-1, 0x1000)));
-  EXPECT_FALSE(Ranges.contains(AddressRange(0x1000, 0x1000)));
-  EXPECT_TRUE(Ranges.contains(AddressRange(0x1000, 0x1000+1)));
-  EXPECT_TRUE(Ranges.contains(AddressRange(0x1000, 0x2000)));
-  EXPECT_FALSE(Ranges.contains(AddressRange(0x1000, 0x2001)));
-  EXPECT_TRUE(Ranges.contains(AddressRange(0x2000, 0x3000)));
-  EXPECT_FALSE(Ranges.contains(AddressRange(0x2000, 0x3001)));
-  EXPECT_FALSE(Ranges.contains(AddressRange(0x3000, 0x3001)));
-  EXPECT_FALSE(Ranges.contains(AddressRange(0x1500, 0x4500)));
-  EXPECT_FALSE(Ranges.contains(AddressRange(0x5000, 0x5001)));
-
-  // Verify that intersecting ranges get combined
-  Ranges.clear();
-  Ranges.insert(AddressRange(0x1100, 0x1F00));
-  // Verify a wholy contained range that is added doesn't do anything.
-  Ranges.insert(AddressRange(0x1500, 0x1F00));
-  EXPECT_EQ(Ranges.size(), 1u);
-  EXPECT_EQ(Ranges[0], AddressRange(0x1100, 0x1F00));
-
-  // Verify a range that starts before and intersects gets combined.
-  Ranges.insert(AddressRange(0x1000, Ranges[0].Start + 1));
-  EXPECT_EQ(Ranges.size(), 1u);
-  EXPECT_EQ(Ranges[0], AddressRange(0x1000, 0x1F00));
-
-  // Verify a range that starts inside and extends ranges gets combined.
-  Ranges.insert(AddressRange(Ranges[0].End - 1, 0x2000));
-  EXPECT_EQ(Ranges.size(), 1u);
-  EXPECT_EQ(Ranges[0], AddressRange(0x1000, 0x2000));
-
-  // Verify that adjacent ranges don't get combined
-  Ranges.insert(AddressRange(0x2000, 0x3000));
-  EXPECT_EQ(Ranges.size(), 2u);
-  EXPECT_EQ(Ranges[0], AddressRange(0x1000, 0x2000));
-  EXPECT_EQ(Ranges[1], AddressRange(0x2000, 0x3000));
-  // Verify if we add an address range that intersects two ranges
-  // that they get combined
-  Ranges.insert(AddressRange(Ranges[0].End - 1, Ranges[1].Start + 1));
-  EXPECT_EQ(Ranges.size(), 1u);
-  EXPECT_EQ(Ranges[0], AddressRange(0x1000, 0x3000));
-
-  Ranges.insert(AddressRange(0x3000, 0x4000));
-  Ranges.insert(AddressRange(0x4000, 0x5000));
-  Ranges.insert(AddressRange(0x2000, 0x4500));
-  EXPECT_EQ(Ranges.size(), 1u);
-  EXPECT_EQ(Ranges[0], AddressRange(0x1000, 0x5000));
 }
 
 TEST(GSYMTest, TestStringTable) {
@@ -745,16 +618,16 @@ TEST(GSYMTest, TestAddressRangeEncodeDecode) {
   const uint64_t BaseAddr = 0x1000;
   const AddressRange Range1(0x1000, 0x1010);
   const AddressRange Range2(0x1020, 0x1030);
-  Range1.encode(FW, BaseAddr);
-  Range2.encode(FW, BaseAddr);
+  encodeRange(Range1, FW, BaseAddr);
+  encodeRange(Range2, FW, BaseAddr);
   std::string Bytes(OutStrm.str());
   uint8_t AddressSize = 4;
   DataExtractor Data(Bytes, ByteOrder == llvm::support::little, AddressSize);
 
   AddressRange DecodedRange1, DecodedRange2;
   uint64_t Offset = 0;
-  DecodedRange1.decode(Data, BaseAddr, Offset);
-  DecodedRange2.decode(Data, BaseAddr, Offset);
+  DecodedRange1 = decodeRange(Data, BaseAddr, Offset);
+  DecodedRange2 = decodeRange(Data, BaseAddr, Offset);
   EXPECT_EQ(Range1, DecodedRange1);
   EXPECT_EQ(Range2, DecodedRange2);
 }
@@ -765,7 +638,7 @@ static void TestAddressRangeEncodeDecodeHelper(const AddressRanges &Ranges,
   raw_svector_ostream OutStrm(Str);
   const auto ByteOrder = llvm::support::endian::system_endianness();
   FileWriter FW(OutStrm, ByteOrder);
-  Ranges.encode(FW, BaseAddr);
+  encodeRanges(Ranges, FW, BaseAddr);
 
   std::string Bytes(OutStrm.str());
   uint8_t AddressSize = 4;
@@ -773,7 +646,7 @@ static void TestAddressRangeEncodeDecodeHelper(const AddressRanges &Ranges,
 
   AddressRanges DecodedRanges;
   uint64_t Offset = 0;
-  DecodedRanges.decode(Data, BaseAddr, Offset);
+  decodeRanges(DecodedRanges, Data, BaseAddr, Offset);
   EXPECT_EQ(Ranges, DecodedRanges);
 }
 
@@ -1107,7 +980,7 @@ TEST(GSYMTest, TestGsymCreatorEncodeErrors) {
   // Verify errors are propagated when we try to encoding an invalid inline
   // info.
   GC.forEachFunctionInfo([](FunctionInfo &FI) -> bool {
-    FI.OptLineTable = llvm::None;
+    FI.OptLineTable = std::nullopt;
     FI.Inline = InlineInfo(); // Invalid InlineInfo.
     return false; // Stop iterating
   });
@@ -1119,7 +992,7 @@ static void Compare(const GsymCreator &GC, const GsymReader &GR) {
   // Verify that all of the data in a GsymCreator is correctly decoded from
   // a GsymReader. To do this, we iterator over
   GC.forEachFunctionInfo([&](const FunctionInfo &FI) -> bool {
-    auto DecodedFI = GR.getFunctionInfo(FI.Range.Start);
+    auto DecodedFI = GR.getFunctionInfo(FI.Range.start());
     EXPECT_TRUE(bool(DecodedFI));
     EXPECT_EQ(FI, *DecodedFI);
     return true; // Keep iterating over all FunctionInfo objects.
@@ -1476,8 +1349,8 @@ TEST(GSYMTest, TestDWARFFunctionWithAddresses) {
   auto ExpFI = GR->getFunctionInfo(0x1000);
   ASSERT_THAT_EXPECTED(ExpFI, Succeeded());
   ASSERT_EQ(ExpFI->Range, AddressRange(0x1000, 0x2000));
-  EXPECT_FALSE(ExpFI->OptLineTable.hasValue());
-  EXPECT_FALSE(ExpFI->Inline.hasValue());
+  EXPECT_FALSE(ExpFI->OptLineTable.has_value());
+  EXPECT_FALSE(ExpFI->Inline.has_value());
 }
 
 TEST(GSYMTest, TestDWARFFunctionWithAddressAndOffset) {
@@ -1553,8 +1426,8 @@ TEST(GSYMTest, TestDWARFFunctionWithAddressAndOffset) {
   auto ExpFI = GR->getFunctionInfo(0x1000);
   ASSERT_THAT_EXPECTED(ExpFI, Succeeded());
   ASSERT_EQ(ExpFI->Range, AddressRange(0x1000, 0x2000));
-  EXPECT_FALSE(ExpFI->OptLineTable.hasValue());
-  EXPECT_FALSE(ExpFI->Inline.hasValue());
+  EXPECT_FALSE(ExpFI->OptLineTable.has_value());
+  EXPECT_FALSE(ExpFI->Inline.has_value());
 }
 
 TEST(GSYMTest, TestDWARFStructMethodNoMangled) {
@@ -1660,8 +1533,8 @@ TEST(GSYMTest, TestDWARFStructMethodNoMangled) {
   auto ExpFI = GR->getFunctionInfo(0x1000);
   ASSERT_THAT_EXPECTED(ExpFI, Succeeded());
   ASSERT_EQ(ExpFI->Range, AddressRange(0x1000, 0x2000));
-  EXPECT_FALSE(ExpFI->OptLineTable.hasValue());
-  EXPECT_FALSE(ExpFI->Inline.hasValue());
+  EXPECT_FALSE(ExpFI->OptLineTable.has_value());
+  EXPECT_FALSE(ExpFI->Inline.has_value());
   StringRef MethodName = GR->getString(ExpFI->Name);
   EXPECT_EQ(MethodName, "Foo::dump");
 }
@@ -1765,10 +1638,39 @@ TEST(GSYMTest, TestDWARFTextRanges) {
   auto ExpFI = GR->getFunctionInfo(0x1000);
   ASSERT_THAT_EXPECTED(ExpFI, Succeeded());
   ASSERT_EQ(ExpFI->Range, AddressRange(0x1000, 0x2000));
-  EXPECT_FALSE(ExpFI->OptLineTable.hasValue());
-  EXPECT_FALSE(ExpFI->Inline.hasValue());
+  EXPECT_FALSE(ExpFI->OptLineTable.has_value());
+  EXPECT_FALSE(ExpFI->Inline.has_value());
   StringRef MethodName = GR->getString(ExpFI->Name);
   EXPECT_EQ(MethodName, "main");
+}
+
+TEST(GSYMTest, TestEmptySymbolEndAddressOfTextRanges) {
+  // Test that if we have valid text ranges and we have a symbol with no size
+  // as the last FunctionInfo entry that the size of the symbol gets set to the
+  // end address of the text range.
+  GsymCreator GC;
+  AddressRanges TextRanges;
+  TextRanges.insert(AddressRange(0x1000, 0x2000));
+  GC.SetValidTextRanges(TextRanges);
+  GC.addFunctionInfo(FunctionInfo(0x1500, 0, GC.insertString("symbol")));
+  auto &OS = llvm::nulls();
+  ASSERT_THAT_ERROR(GC.finalize(OS), Succeeded());
+  SmallString<512> Str;
+  raw_svector_ostream OutStrm(Str);
+  const auto ByteOrder = support::endian::system_endianness();
+  FileWriter FW(OutStrm, ByteOrder);
+  ASSERT_THAT_ERROR(GC.encode(FW), Succeeded());
+  Expected<GsymReader> GR = GsymReader::copyBuffer(OutStrm.str());
+  ASSERT_THAT_EXPECTED(GR, Succeeded());
+  // There should only be one function in our GSYM.
+  EXPECT_EQ(GR->getNumAddresses(), 1u);
+  auto ExpFI = GR->getFunctionInfo(0x1500);
+  ASSERT_THAT_EXPECTED(ExpFI, Succeeded());
+  ASSERT_EQ(ExpFI->Range, AddressRange(0x1500, 0x2000));
+  EXPECT_FALSE(ExpFI->OptLineTable.has_value());
+  EXPECT_FALSE(ExpFI->Inline.has_value());
+  StringRef MethodName = GR->getString(ExpFI->Name);
+  EXPECT_EQ(MethodName, "symbol");
 }
 
 TEST(GSYMTest, TestDWARFInlineInfo) {
@@ -1934,8 +1836,8 @@ TEST(GSYMTest, TestDWARFInlineInfo) {
   auto ExpFI = GR->getFunctionInfo(0x1000);
   ASSERT_THAT_EXPECTED(ExpFI, Succeeded());
   ASSERT_EQ(ExpFI->Range, AddressRange(0x1000, 0x2000));
-  EXPECT_TRUE(ExpFI->OptLineTable.hasValue());
-  EXPECT_TRUE(ExpFI->Inline.hasValue());
+  EXPECT_TRUE(ExpFI->OptLineTable.has_value());
+  EXPECT_TRUE(ExpFI->Inline.has_value());
   StringRef MethodName = GR->getString(ExpFI->Name);
   EXPECT_EQ(MethodName, "main");
 
@@ -2195,7 +2097,7 @@ TEST(GSYMTest, TestDWARFNoLines) {
   auto ExpFI = GR->getFunctionInfo(0x1000);
   ASSERT_THAT_EXPECTED(ExpFI, Succeeded());
   ASSERT_EQ(ExpFI->Range, AddressRange(0x1000, 0x2000));
-  EXPECT_TRUE(ExpFI->OptLineTable.hasValue());
+  EXPECT_TRUE(ExpFI->OptLineTable);
   StringRef MethodName = GR->getString(ExpFI->Name);
   EXPECT_EQ(MethodName, "lines_no_decl");
   // Make sure have two line table entries and that get the first line entry
@@ -2207,7 +2109,7 @@ TEST(GSYMTest, TestDWARFNoLines) {
   ExpFI = GR->getFunctionInfo(0x2000);
   ASSERT_THAT_EXPECTED(ExpFI, Succeeded());
   ASSERT_EQ(ExpFI->Range, AddressRange(0x2000, 0x3000));
-  EXPECT_TRUE(ExpFI->OptLineTable.hasValue());
+  EXPECT_TRUE(ExpFI->OptLineTable);
   MethodName = GR->getString(ExpFI->Name);
   EXPECT_EQ(MethodName, "lines_with_decl");
   // Make sure have two line table entries and that we don't use line 20
@@ -2220,14 +2122,14 @@ TEST(GSYMTest, TestDWARFNoLines) {
   ASSERT_THAT_EXPECTED(ExpFI, Succeeded());
   ASSERT_EQ(ExpFI->Range, AddressRange(0x3000, 0x4000));
   // Make sure we have no line table.
-  EXPECT_FALSE(ExpFI->OptLineTable.hasValue());
+  EXPECT_FALSE(ExpFI->OptLineTable.has_value());
   MethodName = GR->getString(ExpFI->Name);
   EXPECT_EQ(MethodName, "no_lines_no_decl");
 
   ExpFI = GR->getFunctionInfo(0x4000);
   ASSERT_THAT_EXPECTED(ExpFI, Succeeded());
   ASSERT_EQ(ExpFI->Range, AddressRange(0x4000, 0x5000));
-  EXPECT_TRUE(ExpFI->OptLineTable.hasValue());
+  EXPECT_TRUE(ExpFI->OptLineTable.has_value());
   MethodName = GR->getString(ExpFI->Name);
   EXPECT_EQ(MethodName, "no_lines_with_decl");
   // Make sure we have one line table entry that uses the DW_AT_decl_file/line
@@ -2540,4 +2442,212 @@ TEST(GSYMTest, TestGsymCreatorMultipleSymbolsWithNoSize) {
   TestEncodeDecode(GC, llvm::support::big, GSYM_VERSION, AddrOffSize, BaseAddr,
                    1, // NumAddresses
                    ArrayRef<uint8_t>(UUID));
+}
+
+// Helper function to quickly create a FunctionInfo in a GsymCreator for testing.
+static void AddFunctionInfo(GsymCreator &GC, const char *FuncName,
+                            uint64_t FuncAddr, const char *SourcePath,
+                            const char *HeaderPath) {
+  FunctionInfo FI(FuncAddr, 0x30, GC.insertString(FuncName));
+  FI.OptLineTable = LineTable();
+  const uint32_t SourceFileIdx = GC.insertFile(SourcePath);
+  const uint32_t HeaderFileIdx = GC.insertFile(HeaderPath);
+  FI.OptLineTable->push(LineEntry(FuncAddr+0x00, SourceFileIdx, 5));
+  FI.OptLineTable->push(LineEntry(FuncAddr+0x10, HeaderFileIdx, 10));
+  FI.OptLineTable->push(LineEntry(FuncAddr+0x12, HeaderFileIdx, 20));
+  FI.OptLineTable->push(LineEntry(FuncAddr+0x14, HeaderFileIdx, 11));
+  FI.OptLineTable->push(LineEntry(FuncAddr+0x16, HeaderFileIdx, 30));
+  FI.OptLineTable->push(LineEntry(FuncAddr+0x18, HeaderFileIdx, 12));
+  FI.OptLineTable->push(LineEntry(FuncAddr+0x20, SourceFileIdx, 8));
+  FI.Inline = InlineInfo();
+
+  std::string InlineName1(FuncName); InlineName1.append("1");
+  std::string InlineName2(FuncName); InlineName2.append("2");
+  std::string InlineName3(FuncName); InlineName3.append("3");
+
+  FI.Inline->Name = GC.insertString(InlineName1);
+  FI.Inline->CallFile = SourceFileIdx;
+  FI.Inline->CallLine = 6;
+  FI.Inline->Ranges.insert(AddressRange(FuncAddr + 0x10, FuncAddr + 0x20));
+  InlineInfo Inline2;
+  Inline2.Name = GC.insertString(InlineName2);
+  Inline2.CallFile = HeaderFileIdx;
+  Inline2.CallLine = 33;
+  Inline2.Ranges.insert(AddressRange(FuncAddr + 0x12, FuncAddr + 0x14));
+  FI.Inline->Children.emplace_back(Inline2);
+  InlineInfo Inline3;
+  Inline3.Name = GC.insertString(InlineName3);
+  Inline3.CallFile = HeaderFileIdx;
+  Inline3.CallLine = 35;
+  Inline3.Ranges.insert(AddressRange(FuncAddr + 0x16, FuncAddr + 0x18));
+  FI.Inline->Children.emplace_back(Inline3);
+  GC.addFunctionInfo(std::move(FI));
+}
+
+// Finalize a GsymCreator, encode it and decode it and return the error or
+// GsymReader that was successfully decoded.
+static Expected<GsymReader> FinalizeEncodeAndDecode(GsymCreator &GC) {
+  Error FinalizeErr = GC.finalize(llvm::nulls());
+  if (FinalizeErr)
+    return std::move(FinalizeErr);
+  SmallString<1024> Str;
+  raw_svector_ostream OutStrm(Str);
+  const auto ByteOrder = support::endian::system_endianness();
+  FileWriter FW(OutStrm, ByteOrder);
+  llvm::Error Err = GC.encode(FW);
+  if (Err)
+    return std::move(Err);
+  return GsymReader::copyBuffer(OutStrm.str());
+}
+
+TEST(GSYMTest, TestGsymSegmenting) {
+  // Test creating a GSYM file with function infos and segment the information.
+  // We verify segmenting is working by creating a full GSYM and also by
+  // encoding multiple segments, then we verify that we get the same information
+  // when doing lookups on the full GSYM that was decoded from encoding the
+  // entire GSYM and also by decoding information from the segments themselves.
+  GsymCreator GC;
+  GC.setBaseAddress(0);
+  AddFunctionInfo(GC, "main", 0x1000, "/tmp/main.c", "/tmp/main.h");
+  AddFunctionInfo(GC, "foo", 0x2000, "/tmp/foo.c", "/tmp/foo.h");
+  AddFunctionInfo(GC, "bar", 0x3000, "/tmp/bar.c", "/tmp/bar.h");
+  AddFunctionInfo(GC, "baz", 0x4000, "/tmp/baz.c", "/tmp/baz.h");
+  Expected<GsymReader> GR = FinalizeEncodeAndDecode(GC);
+  ASSERT_THAT_EXPECTED(GR, Succeeded());
+  //GR->dump(outs());
+
+  // Create segmented GSYM files where each file contains 1 function. We will
+  // then test doing lookups on the "GR", or the full GSYM file and then test
+  // doing lookups on the GsymReader objects for each segment to ensure we get
+  // the exact same information. So after all of the code below we will have
+  // GsymReader objects that each contain one function. We name the creators
+  // and readers to match the one and only address they contain.
+  // GC1000 and GR1000 are for [0x1000-0x1030)
+  // GC2000 and GR2000 are for [0x2000-0x2030)
+  // GC3000 and GR3000 are for [0x3000-0x3030)
+  // GC4000 and GR4000 are for [0x4000-0x4030)
+
+  // Create the segments and verify that FuncIdx, an in/out parameter, gets
+  // updated as expected.
+  size_t FuncIdx = 0;
+  // Make sure we get an error if the segment size is too small to encode a
+  // single function info.
+  llvm::Expected<std::unique_ptr<GsymCreator>> GCError =
+      GC.createSegment(57, FuncIdx);
+  ASSERT_FALSE((bool)GCError);
+  checkError("a segment size of 57 is to small to fit any function infos, "
+             "specify a larger value", GCError.takeError());
+  // Make sure that the function index didn't get incremented when we didn't
+  // encode any values into the segmented GsymCreator.
+  ASSERT_EQ(FuncIdx, (size_t)0);
+
+  llvm::Expected<std::unique_ptr<GsymCreator>> GC1000 =
+      GC.createSegment(128, FuncIdx);
+  ASSERT_THAT_EXPECTED(GC1000, Succeeded());
+  ASSERT_EQ(FuncIdx, (size_t)1);
+  llvm::Expected<std::unique_ptr<GsymCreator>> GC2000 =
+      GC.createSegment(128, FuncIdx);
+  ASSERT_THAT_EXPECTED(GC2000, Succeeded());
+  ASSERT_EQ(FuncIdx, (size_t)2);
+  llvm::Expected<std::unique_ptr<GsymCreator>> GC3000 =
+      GC.createSegment(128, FuncIdx);
+  ASSERT_THAT_EXPECTED(GC3000, Succeeded());
+  ASSERT_EQ(FuncIdx, (size_t)3);
+  llvm::Expected<std::unique_ptr<GsymCreator>> GC4000 =
+      GC.createSegment(128, FuncIdx);
+  ASSERT_THAT_EXPECTED(GC4000, Succeeded());
+  ASSERT_EQ(FuncIdx, (size_t)4);
+  // When there are no function infos left to encode we expect to get  no error
+  // and get a NULL GsymCreator in the return value from createSegment.
+  llvm::Expected<std::unique_ptr<GsymCreator>> GCNull =
+      GC.createSegment(128, FuncIdx);
+  ASSERT_THAT_EXPECTED(GCNull, Succeeded());
+  ASSERT_TRUE(GC1000.get() != nullptr);
+  ASSERT_TRUE(GC2000.get() != nullptr);
+  ASSERT_TRUE(GC3000.get() != nullptr);
+  ASSERT_TRUE(GC4000.get() != nullptr);
+  ASSERT_TRUE(GCNull.get() == nullptr);
+  // Encode and decode the GsymReader for each segment and verify they succeed.
+  Expected<GsymReader> GR1000 = FinalizeEncodeAndDecode(*GC1000.get());
+  ASSERT_THAT_EXPECTED(GR1000, Succeeded());
+  Expected<GsymReader> GR2000 = FinalizeEncodeAndDecode(*GC2000.get());
+  ASSERT_THAT_EXPECTED(GR2000, Succeeded());
+  Expected<GsymReader> GR3000 = FinalizeEncodeAndDecode(*GC3000.get());
+  ASSERT_THAT_EXPECTED(GR3000, Succeeded());
+  Expected<GsymReader> GR4000 = FinalizeEncodeAndDecode(*GC4000.get());
+  ASSERT_THAT_EXPECTED(GR4000, Succeeded());
+
+  // Verify that all lookups match the range [0x1000-0x1030) when doing lookups
+  // in the GsymReader that contains all functions and from the segmented
+  // GsymReader in GR1000.
+  for (uint64_t Addr = 0x1000; Addr < 0x1030; ++Addr) {
+    // Lookup in the main GsymReader that contains all function infos
+    auto MainLR = GR->lookup(Addr);
+    ASSERT_THAT_EXPECTED(MainLR, Succeeded());
+    auto SegmentLR = GR1000->lookup(Addr);
+    ASSERT_THAT_EXPECTED(SegmentLR, Succeeded());
+    // Make sure the lookup results match.
+    EXPECT_EQ(MainLR.get(), SegmentLR.get());
+    // Make sure that the lookups on the functions that are not in the segment
+    // fail as expected.
+    ASSERT_THAT_EXPECTED(GR1000->lookup(0x2000), Failed());
+    ASSERT_THAT_EXPECTED(GR1000->lookup(0x3000), Failed());
+    ASSERT_THAT_EXPECTED(GR1000->lookup(0x4000), Failed());
+  }
+
+  // Verify that all lookups match the range [0x2000-0x2030) when doing lookups
+  // in the GsymReader that contains all functions and from the segmented
+  // GsymReader in GR2000.
+  for (uint64_t Addr = 0x2000; Addr < 0x2030; ++Addr) {
+    // Lookup in the main GsymReader that contains all function infos
+    auto MainLR = GR->lookup(Addr);
+    ASSERT_THAT_EXPECTED(MainLR, Succeeded());
+    auto SegmentLR = GR2000->lookup(Addr);
+    ASSERT_THAT_EXPECTED(SegmentLR, Succeeded());
+    // Make sure the lookup results match.
+    EXPECT_EQ(MainLR.get(), SegmentLR.get());
+    // Make sure that the lookups on the functions that are not in the segment
+    // fail as expected.
+    ASSERT_THAT_EXPECTED(GR2000->lookup(0x1000), Failed());
+    ASSERT_THAT_EXPECTED(GR2000->lookup(0x3000), Failed());
+    ASSERT_THAT_EXPECTED(GR2000->lookup(0x4000), Failed());
+
+  }
+
+  // Verify that all lookups match the range [0x3000-0x3030) when doing lookups
+  // in the GsymReader that contains all functions and from the segmented
+  // GsymReader in GR3000.
+  for (uint64_t Addr = 0x3000; Addr < 0x3030; ++Addr) {
+    // Lookup in the main GsymReader that contains all function infos
+    auto MainLR = GR->lookup(Addr);
+    ASSERT_THAT_EXPECTED(MainLR, Succeeded());
+    auto SegmentLR = GR3000->lookup(Addr);
+    ASSERT_THAT_EXPECTED(SegmentLR, Succeeded());
+    // Make sure the lookup results match.
+    EXPECT_EQ(MainLR.get(), SegmentLR.get());
+    // Make sure that the lookups on the functions that are not in the segment
+    // fail as expected.
+    ASSERT_THAT_EXPECTED(GR3000->lookup(0x1000), Failed());
+    ASSERT_THAT_EXPECTED(GR3000->lookup(0x2000), Failed());
+    ASSERT_THAT_EXPECTED(GR3000->lookup(0x4000), Failed());
+}
+
+  // Verify that all lookups match the range [0x4000-0x4030) when doing lookups
+  // in the GsymReader that contains all functions and from the segmented
+  // GsymReader in GR4000.
+  for (uint64_t Addr = 0x4000; Addr < 0x4030; ++Addr) {
+    // Lookup in the main GsymReader that contains all function infos
+    auto MainLR = GR->lookup(Addr);
+    ASSERT_THAT_EXPECTED(MainLR, Succeeded());
+    // Lookup in the GsymReader for that contains 0x4000
+    auto SegmentLR = GR4000->lookup(Addr);
+    ASSERT_THAT_EXPECTED(SegmentLR, Succeeded());
+    // Make sure the lookup results match.
+    EXPECT_EQ(MainLR.get(), SegmentLR.get());
+    // Make sure that the lookups on the functions that are not in the segment
+    // fail as expected.
+    ASSERT_THAT_EXPECTED(GR4000->lookup(0x1000), Failed());
+    ASSERT_THAT_EXPECTED(GR4000->lookup(0x2000), Failed());
+    ASSERT_THAT_EXPECTED(GR4000->lookup(0x3000), Failed());
+  }
 }

@@ -574,6 +574,9 @@ TEST_F(FormatTestCSharp, CSharpEscapedQuotesInVerbatimStrings) {
   verifyFormat(R"(string str = @"""";)", Style);
   verifyFormat(R"(string str = @"""Hello world""";)", Style);
   verifyFormat(R"(string str = $@"""Hello {friend}""";)", Style);
+  verifyFormat(R"(return $@"Foo ""/foo?f={Request.Query["f"]}""";)", Style);
+  verifyFormat(R"(return @$"Foo ""/foo?f={Request.Query["f"]}""";)", Style);
+  verifyFormat(R"(return @$"path\to\{specifiedFile}")", Style);
 }
 
 TEST_F(FormatTestCSharp, CSharpQuotesInInterpolatedStrings) {
@@ -614,6 +617,24 @@ var x = foo(className, $@"some code:
 		", values)}");)";
 
   EXPECT_EQ(Code, format(Code, Style));
+}
+
+TEST_F(FormatTestCSharp, CSharpNewOperator) {
+  FormatStyle Style = getLLVMStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat("public void F() {\n"
+               "  var v = new C(() => { var t = 5; });\n"
+               "}",
+               Style);
+  verifyFormat("public void F() {\n"
+               "  var v = new C(() => {\n"
+               "    try {\n"
+               "    } catch {\n"
+               "      var t = 5;\n"
+               "    }\n"
+               "  });\n"
+               "}",
+               Style);
 }
 
 TEST_F(FormatTestCSharp, CSharpLambdas) {
@@ -960,9 +981,11 @@ TEST_F(FormatTestCSharp, CSharpPropertyAccessors) {
   verifyFormat("int Value { get; } = 0", Style);
   verifyFormat("int Value { set }", Style);
   verifyFormat("int Value { set; }", Style);
+  verifyFormat("int Value { init; }", Style);
   verifyFormat("int Value { internal set; }", Style);
   verifyFormat("int Value { set; } = 0", Style);
   verifyFormat("int Value { get; set }", Style);
+  verifyFormat("int Value { get; init; }", Style);
   verifyFormat("int Value { set; get }", Style);
   verifyFormat("int Value { get; private set; }", Style);
   verifyFormat("int Value { get; set; }", Style);
@@ -974,6 +997,18 @@ TEST_F(FormatTestCSharp, CSharpPropertyAccessors) {
 public string Name {
   get => _name;
   set => _name = value;
+})",
+               Style);
+  verifyFormat(R"(//
+public string Name {
+  init => _name = value;
+  get => _name;
+})",
+               Style);
+  verifyFormat(R"(//
+public string Name {
+  set => _name = value;
+  get => _name;
 })",
                Style);
 
@@ -1062,6 +1097,26 @@ public class SaleItem
     public decimal Price { get; set; }
 })",
                MicrosoftStyle);
+}
+
+TEST_F(FormatTestCSharp, DefaultLiteral) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat(
+      "T[] InitializeArray<T>(int length, T initialValue = default) {}", Style);
+  verifyFormat("System.Numerics.Complex fillValue = default;", Style);
+  verifyFormat("int Value { get } = default;", Style);
+  verifyFormat("int Value { get } = default!;", Style);
+  verifyFormat(R"(//
+public record Person {
+  public string GetInit { get; init; } = default!;
+};)",
+               Style);
+  verifyFormat(R"(//
+public record Person {
+  public string GetSet { get; set; } = default!;
+};)",
+               Style);
 }
 
 TEST_F(FormatTestCSharp, CSharpSpaces) {
@@ -1543,6 +1598,10 @@ TEST_F(FormatTestCSharp, ShortFunctions) {
                "  }\n"
                "};",
                Style);
+}
+
+TEST_F(FormatTestCSharp, BrokenBrackets) {
+  EXPECT_NE("", format("int where b <")); // reduced from crasher
 }
 
 } // namespace format

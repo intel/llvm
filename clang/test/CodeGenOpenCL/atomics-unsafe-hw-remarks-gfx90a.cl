@@ -34,9 +34,9 @@ typedef enum memory_scope {
 // GFX90A-HW-REMARK: global_atomic_add_f32 v0, v[0:1], v2, off glc
 // GFX90A-HW-REMARK: global_atomic_add_f32 v0, v[0:1], v2, off glc
 // GFX90A-HW-LABEL: @atomic_unsafe_hw
-// GFX90A-HW:   atomicrmw fadd float addrspace(1)* %{{.*}}, float %{{.*}} syncscope("workgroup-one-as") monotonic, align 4
-// GFX90A-HW:   atomicrmw fadd float addrspace(1)* %{{.*}}, float %{{.*}} syncscope("agent-one-as") monotonic, align 4
-// GFX90A-HW:   atomicrmw fadd float addrspace(1)* %{{.*}}, float %{{.*}} syncscope("wavefront-one-as") monotonic, align 4
+// GFX90A-HW:   atomicrmw fadd ptr addrspace(1) %{{.*}}, float %{{.*}} syncscope("workgroup-one-as") monotonic, align 4
+// GFX90A-HW:   atomicrmw fadd ptr addrspace(1) %{{.*}}, float %{{.*}} syncscope("agent-one-as") monotonic, align 4
+// GFX90A-HW:   atomicrmw fadd ptr addrspace(1) %{{.*}}, float %{{.*}} syncscope("wavefront-one-as") monotonic, align 4
 void atomic_unsafe_hw(__global atomic_float *d, float a) {
   float ret1 = __opencl_atomic_fetch_add(d, a, memory_order_relaxed, memory_scope_work_group);
   float ret2 = __opencl_atomic_fetch_add(d, a, memory_order_relaxed, memory_scope_device);

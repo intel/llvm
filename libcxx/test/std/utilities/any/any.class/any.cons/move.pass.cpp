@@ -8,8 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14
 
-// Throwing bad_any_cast is supported starting in macosx10.13
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}} && !no-exceptions
+// XFAIL: availability-bad_any_cast-missing && !no-exceptions
 
 // <any>
 
@@ -24,9 +23,6 @@
 #include "count_new.h"
 #include "test_macros.h"
 
-using std::any;
-using std::any_cast;
-
 // Moves are always noexcept. The throws_on_move object
 // must be stored dynamically so the pointer is moved and
 // not the stored object.
@@ -36,12 +32,12 @@ void test_move_does_not_throw()
     assert(throws_on_move::count == 0);
     {
         throws_on_move v(42);
-        any a(v);
+        std::any a = v;
         assert(throws_on_move::count == 2);
         // No allocations should be performed after this point.
         DisableAllocationGuard g; ((void)g);
         try {
-            any const a2(std::move(a));
+            const std::any a2 = std::move(a);
             assertEmpty(a);
             assertContains<throws_on_move>(a2, 42);
         } catch (...) {
@@ -57,8 +53,8 @@ void test_move_does_not_throw()
 void test_move_empty() {
     DisableAllocationGuard g; ((void)g); // no allocations should be performed.
 
-    any a1;
-    any a2(std::move(a1));
+    std::any a1;
+    std::any a2 = std::move(a1);
 
     assertEmpty(a1);
     assertEmpty(a2);
@@ -69,7 +65,7 @@ void test_move() {
     assert(Type::count == 0);
     Type::reset();
     {
-        any a((Type(42)));
+        std::any a = Type(42);
         assert(Type::count == 1);
         assert(Type::copied == 0);
         assert(Type::moved == 1);
@@ -77,7 +73,7 @@ void test_move() {
         // Moving should not perform allocations since it must be noexcept.
         DisableAllocationGuard g; ((void)g);
 
-        any a2(std::move(a));
+        std::any a2 = std::move(a);
 
         assert(Type::moved == 1 || Type::moved == 2); // zero or more move operations can be performed.
         assert(Type::copied == 0); // no copies can be performed.
@@ -93,12 +89,8 @@ void test_move() {
 int main(int, char**)
 {
     // noexcept test
-    {
-        static_assert(
-            std::is_nothrow_move_constructible<any>::value
-          , "any must be nothrow move constructible"
-          );
-    }
+    static_assert(std::is_nothrow_move_constructible<std::any>::value);
+
     test_move<small>();
     test_move<large>();
     test_move_empty();

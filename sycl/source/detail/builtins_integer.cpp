@@ -10,15 +10,14 @@
 // in SYCL SPEC section - 4.13.4 Integer functions.
 
 #include "builtins_helper.hpp"
-#include <CL/sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp>
 
 #include <algorithm>
 #include <type_traits>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 namespace d = s::detail;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 namespace {
 
@@ -238,624 +237,736 @@ template <typename T> inline T __mul24(T x, T y) { return (x * y); }
 
 // --------------- 4.13.4 Integer functions. Host implementations --------------
 // u_abs
-__SYCL_EXPORT s::cl_uchar u_abs(s::cl_uchar x) __NOEXC { return x; }
-__SYCL_EXPORT s::cl_ushort u_abs(s::cl_ushort x) __NOEXC { return x; }
-__SYCL_EXPORT s::cl_uint u_abs(s::cl_uint x) __NOEXC { return x; }
-__SYCL_EXPORT s::cl_ulong u_abs(s::cl_ulong x) __NOEXC { return x; }
-MAKE_1V(u_abs, s::cl_uchar, s::cl_uchar)
-MAKE_1V(u_abs, s::cl_ushort, s::cl_ushort)
-MAKE_1V(u_abs, s::cl_uint, s::cl_uint)
-MAKE_1V(u_abs, s::cl_ulong, s::cl_ulong)
+__SYCL_EXPORT s::cl_uchar sycl_host_u_abs(s::cl_uchar x) __NOEXC { return x; }
+__SYCL_EXPORT s::cl_ushort sycl_host_u_abs(s::cl_ushort x) __NOEXC { return x; }
+__SYCL_EXPORT s::cl_uint sycl_host_u_abs(s::cl_uint x) __NOEXC { return x; }
+__SYCL_EXPORT s::cl_ulong sycl_host_u_abs(s::cl_ulong x) __NOEXC { return x; }
+MAKE_1V(sycl_host_u_abs, s::cl_uchar, s::cl_uchar)
+MAKE_1V(sycl_host_u_abs, s::cl_ushort, s::cl_ushort)
+MAKE_1V(sycl_host_u_abs, s::cl_uint, s::cl_uint)
+MAKE_1V(sycl_host_u_abs, s::cl_ulong, s::cl_ulong)
 
 // s_abs
-__SYCL_EXPORT s::cl_uchar s_abs(s::cl_char x) __NOEXC { return std::abs(x); }
-__SYCL_EXPORT s::cl_ushort s_abs(s::cl_short x) __NOEXC { return std::abs(x); }
-__SYCL_EXPORT s::cl_uint s_abs(s::cl_int x) __NOEXC { return std::abs(x); }
-__SYCL_EXPORT s::cl_ulong s_abs(s::cl_long x) __NOEXC { return std::abs(x); }
-MAKE_1V(s_abs, s::cl_uchar, s::cl_char)
-MAKE_1V(s_abs, s::cl_ushort, s::cl_short)
-MAKE_1V(s_abs, s::cl_uint, s::cl_int)
-MAKE_1V(s_abs, s::cl_ulong, s::cl_long)
+__SYCL_EXPORT s::cl_uchar sycl_host_s_abs(s::cl_char x) __NOEXC {
+  return std::abs(x);
+}
+__SYCL_EXPORT s::cl_ushort sycl_host_s_abs(s::cl_short x) __NOEXC {
+  return std::abs(x);
+}
+__SYCL_EXPORT s::cl_uint sycl_host_s_abs(s::cl_int x) __NOEXC {
+  return std::abs(x);
+}
+__SYCL_EXPORT s::cl_ulong sycl_host_s_abs(s::cl_long x) __NOEXC {
+  return std::abs(x);
+}
+MAKE_1V(sycl_host_s_abs, s::cl_uchar, s::cl_char)
+MAKE_1V(sycl_host_s_abs, s::cl_ushort, s::cl_short)
+MAKE_1V(sycl_host_s_abs, s::cl_uint, s::cl_int)
+MAKE_1V(sycl_host_s_abs, s::cl_ulong, s::cl_long)
 
 // u_abs_diff
-__SYCL_EXPORT s::cl_uchar u_abs_diff(s::cl_uchar x, s::cl_uchar y) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_abs_diff(s::cl_uchar x,
+                                               s::cl_uchar y) __NOEXC {
   return __abs_diff(x, y);
 }
-__SYCL_EXPORT s::cl_ushort u_abs_diff(s::cl_ushort x, s::cl_ushort y) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_abs_diff(s::cl_ushort x,
+                                                s::cl_ushort y) __NOEXC {
   return __abs_diff(x, y);
 }
-__SYCL_EXPORT s::cl_uint u_abs_diff(s::cl_uint x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_abs_diff(s::cl_uint x,
+                                              s::cl_uint y) __NOEXC {
   return __abs_diff(x, y);
 }
-__SYCL_EXPORT s::cl_ulong u_abs_diff(s::cl_ulong x, s::cl_ulong y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_abs_diff(s::cl_ulong x,
+                                               s::cl_ulong y) __NOEXC {
   return __abs_diff(x, y);
 }
 
-MAKE_1V_2V(u_abs_diff, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V(u_abs_diff, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V(u_abs_diff, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V(u_abs_diff, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V(sycl_host_u_abs_diff, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2V(sycl_host_u_abs_diff, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2V(sycl_host_u_abs_diff, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_u_abs_diff, s::cl_ulong, s::cl_ulong, s::cl_ulong)
 
 // s_abs_diff
-__SYCL_EXPORT s::cl_uchar s_abs_diff(s::cl_char x, s::cl_char y) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_s_abs_diff(s::cl_char x,
+                                               s::cl_char y) __NOEXC {
   return __abs_diff(x, y);
 }
-__SYCL_EXPORT s::cl_ushort s_abs_diff(s::cl_short x, s::cl_short y) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_s_abs_diff(s::cl_short x,
+                                                s::cl_short y) __NOEXC {
   return __abs_diff(x, y);
 }
-__SYCL_EXPORT s::cl_uint s_abs_diff(s::cl_int x, s::cl_int y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_s_abs_diff(s::cl_int x,
+                                              s::cl_int y) __NOEXC {
   return __abs_diff(x, y);
 }
-__SYCL_EXPORT s::cl_ulong s_abs_diff(s::cl_long x, s::cl_long y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_s_abs_diff(s::cl_long x,
+                                               s::cl_long y) __NOEXC {
   return __abs_diff(x, y);
 }
-MAKE_1V_2V(s_abs_diff, s::cl_uchar, s::cl_char, s::cl_char)
-MAKE_1V_2V(s_abs_diff, s::cl_ushort, s::cl_short, s::cl_short)
-MAKE_1V_2V(s_abs_diff, s::cl_uint, s::cl_int, s::cl_int)
-MAKE_1V_2V(s_abs_diff, s::cl_ulong, s::cl_long, s::cl_long)
+MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_uchar, s::cl_char, s::cl_char)
+MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_ushort, s::cl_short, s::cl_short)
+MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_uint, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_ulong, s::cl_long, s::cl_long)
 
 // u_add_sat
-__SYCL_EXPORT s::cl_uchar u_add_sat(s::cl_uchar x, s::cl_uchar y) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_add_sat(s::cl_uchar x,
+                                              s::cl_uchar y) __NOEXC {
   return __u_add_sat(x, y);
 }
-__SYCL_EXPORT s::cl_ushort u_add_sat(s::cl_ushort x, s::cl_ushort y) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_add_sat(s::cl_ushort x,
+                                               s::cl_ushort y) __NOEXC {
   return __u_add_sat(x, y);
 }
-__SYCL_EXPORT s::cl_uint u_add_sat(s::cl_uint x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_add_sat(s::cl_uint x,
+                                             s::cl_uint y) __NOEXC {
   return __u_add_sat(x, y);
 }
-__SYCL_EXPORT s::cl_ulong u_add_sat(s::cl_ulong x, s::cl_ulong y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_add_sat(s::cl_ulong x,
+                                              s::cl_ulong y) __NOEXC {
   return __u_add_sat(x, y);
 }
-MAKE_1V_2V(u_add_sat, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V(u_add_sat, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V(u_add_sat, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V(u_add_sat, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V(sycl_host_u_add_sat, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2V(sycl_host_u_add_sat, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2V(sycl_host_u_add_sat, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_u_add_sat, s::cl_ulong, s::cl_ulong, s::cl_ulong)
 
 // s_add_sat
-__SYCL_EXPORT s::cl_char s_add_sat(s::cl_char x, s::cl_char y) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_s_add_sat(s::cl_char x,
+                                             s::cl_char y) __NOEXC {
   return __s_add_sat(x, y);
 }
-__SYCL_EXPORT s::cl_short s_add_sat(s::cl_short x, s::cl_short y) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_add_sat(s::cl_short x,
+                                              s::cl_short y) __NOEXC {
   return __s_add_sat(x, y);
 }
-__SYCL_EXPORT s::cl_int s_add_sat(s::cl_int x, s::cl_int y) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_add_sat(s::cl_int x, s::cl_int y) __NOEXC {
   return __s_add_sat(x, y);
 }
-__SYCL_EXPORT s::cl_long s_add_sat(s::cl_long x, s::cl_long y) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_add_sat(s::cl_long x,
+                                             s::cl_long y) __NOEXC {
   return __s_add_sat(x, y);
 }
-MAKE_1V_2V(s_add_sat, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V(s_add_sat, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V(s_add_sat, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V(s_add_sat, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V(sycl_host_s_add_sat, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2V(sycl_host_s_add_sat, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2V(sycl_host_s_add_sat, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_s_add_sat, s::cl_long, s::cl_long, s::cl_long)
 
 // u_hadd
-__SYCL_EXPORT s::cl_uchar u_hadd(s::cl_uchar x, s::cl_uchar y) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_hadd(s::cl_uchar x,
+                                           s::cl_uchar y) __NOEXC {
   return __hadd(x, y);
 }
-__SYCL_EXPORT s::cl_ushort u_hadd(s::cl_ushort x, s::cl_ushort y) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_hadd(s::cl_ushort x,
+                                            s::cl_ushort y) __NOEXC {
   return __hadd(x, y);
 }
-__SYCL_EXPORT s::cl_uint u_hadd(s::cl_uint x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_hadd(s::cl_uint x, s::cl_uint y) __NOEXC {
   return __hadd(x, y);
 }
-__SYCL_EXPORT s::cl_ulong u_hadd(s::cl_ulong x, s::cl_ulong y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_hadd(s::cl_ulong x,
+                                           s::cl_ulong y) __NOEXC {
   return __hadd(x, y);
 }
-MAKE_1V_2V(u_hadd, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V(u_hadd, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V(u_hadd, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V(u_hadd, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V(sycl_host_u_hadd, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2V(sycl_host_u_hadd, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2V(sycl_host_u_hadd, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_u_hadd, s::cl_ulong, s::cl_ulong, s::cl_ulong)
 
 // s_hadd
-__SYCL_EXPORT s::cl_char s_hadd(s::cl_char x, s::cl_char y) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_s_hadd(s::cl_char x, s::cl_char y) __NOEXC {
   return __hadd(x, y);
 }
-__SYCL_EXPORT s::cl_short s_hadd(s::cl_short x, s::cl_short y) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_hadd(s::cl_short x,
+                                           s::cl_short y) __NOEXC {
   return __hadd(x, y);
 }
-__SYCL_EXPORT s::cl_int s_hadd(s::cl_int x, s::cl_int y) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_hadd(s::cl_int x, s::cl_int y) __NOEXC {
   return __hadd(x, y);
 }
-__SYCL_EXPORT s::cl_long s_hadd(s::cl_long x, s::cl_long y) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_hadd(s::cl_long x, s::cl_long y) __NOEXC {
   return __hadd(x, y);
 }
-MAKE_1V_2V(s_hadd, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V(s_hadd, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V(s_hadd, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V(s_hadd, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V(sycl_host_s_hadd, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2V(sycl_host_s_hadd, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2V(sycl_host_s_hadd, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_s_hadd, s::cl_long, s::cl_long, s::cl_long)
 
 // u_rhadd
-__SYCL_EXPORT s::cl_uchar u_rhadd(s::cl_uchar x, s::cl_uchar y) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_rhadd(s::cl_uchar x,
+                                            s::cl_uchar y) __NOEXC {
   return __rhadd(x, y);
 }
-__SYCL_EXPORT s::cl_ushort u_rhadd(s::cl_ushort x, s::cl_ushort y) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_rhadd(s::cl_ushort x,
+                                             s::cl_ushort y) __NOEXC {
   return __rhadd(x, y);
 }
-__SYCL_EXPORT s::cl_uint u_rhadd(s::cl_uint x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_rhadd(s::cl_uint x, s::cl_uint y) __NOEXC {
   return __rhadd(x, y);
 }
-__SYCL_EXPORT s::cl_ulong u_rhadd(s::cl_ulong x, s::cl_ulong y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_rhadd(s::cl_ulong x,
+                                            s::cl_ulong y) __NOEXC {
   return __rhadd(x, y);
 }
-MAKE_1V_2V(u_rhadd, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V(u_rhadd, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V(u_rhadd, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V(u_rhadd, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V(sycl_host_u_rhadd, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2V(sycl_host_u_rhadd, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2V(sycl_host_u_rhadd, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_u_rhadd, s::cl_ulong, s::cl_ulong, s::cl_ulong)
 
 // s_rhadd
-__SYCL_EXPORT s::cl_char s_rhadd(s::cl_char x, s::cl_char y) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_s_rhadd(s::cl_char x, s::cl_char y) __NOEXC {
   return __rhadd(x, y);
 }
-__SYCL_EXPORT s::cl_short s_rhadd(s::cl_short x, s::cl_short y) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_rhadd(s::cl_short x,
+                                            s::cl_short y) __NOEXC {
   return __rhadd(x, y);
 }
-__SYCL_EXPORT s::cl_int s_rhadd(s::cl_int x, s::cl_int y) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_rhadd(s::cl_int x, s::cl_int y) __NOEXC {
   return __rhadd(x, y);
 }
-__SYCL_EXPORT s::cl_long s_rhadd(s::cl_long x, s::cl_long y) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_rhadd(s::cl_long x, s::cl_long y) __NOEXC {
   return __rhadd(x, y);
 }
-MAKE_1V_2V(s_rhadd, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V(s_rhadd, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V(s_rhadd, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V(s_rhadd, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V(sycl_host_s_rhadd, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2V(sycl_host_s_rhadd, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2V(sycl_host_s_rhadd, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_s_rhadd, s::cl_long, s::cl_long, s::cl_long)
 
 // u_clamp
-__SYCL_EXPORT s::cl_uchar u_clamp(s::cl_uchar x, s::cl_uchar minval,
-                                  s::cl_uchar maxval) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_clamp(s::cl_uchar x, s::cl_uchar minval,
+                                            s::cl_uchar maxval) __NOEXC {
   return __clamp(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_ushort u_clamp(s::cl_ushort x, s::cl_ushort minval,
-                                   s::cl_ushort maxval) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_clamp(s::cl_ushort x,
+                                             s::cl_ushort minval,
+                                             s::cl_ushort maxval) __NOEXC {
   return __clamp(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_uint u_clamp(s::cl_uint x, s::cl_uint minval,
-                                 s::cl_uint maxval) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_clamp(s::cl_uint x, s::cl_uint minval,
+                                           s::cl_uint maxval) __NOEXC {
   return __clamp(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_ulong u_clamp(s::cl_ulong x, s::cl_ulong minval,
-                                  s::cl_ulong maxval) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_clamp(s::cl_ulong x, s::cl_ulong minval,
+                                            s::cl_ulong maxval) __NOEXC {
   return __clamp(x, minval, maxval);
 }
-MAKE_1V_2V_3V(u_clamp, s::cl_uchar, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V_3V(u_clamp, s::cl_ushort, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V_3V(u_clamp, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V_3V(u_clamp, s::cl_ulong, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2S_3S(u_clamp, s::cl_uchar, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2S_3S(u_clamp, s::cl_ushort, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2S_3S(u_clamp, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2S_3S(u_clamp, s::cl_ulong, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V_3V(sycl_host_u_clamp, s::cl_uchar, s::cl_uchar, s::cl_uchar,
+              s::cl_uchar)
+MAKE_1V_2V_3V(sycl_host_u_clamp, s::cl_ushort, s::cl_ushort, s::cl_ushort,
+              s::cl_ushort)
+MAKE_1V_2V_3V(sycl_host_u_clamp, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V_3V(sycl_host_u_clamp, s::cl_ulong, s::cl_ulong, s::cl_ulong,
+              s::cl_ulong)
+MAKE_1V_2S_3S(sycl_host_u_clamp, s::cl_uchar, s::cl_uchar, s::cl_uchar,
+              s::cl_uchar)
+MAKE_1V_2S_3S(sycl_host_u_clamp, s::cl_ushort, s::cl_ushort, s::cl_ushort,
+              s::cl_ushort)
+MAKE_1V_2S_3S(sycl_host_u_clamp, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2S_3S(sycl_host_u_clamp, s::cl_ulong, s::cl_ulong, s::cl_ulong,
+              s::cl_ulong)
 
 // s_clamp
-__SYCL_EXPORT s::cl_char s_clamp(s::cl_char x, s::cl_char minval,
-                                 s::cl_char maxval) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_s_clamp(s::cl_char x, s::cl_char minval,
+                                           s::cl_char maxval) __NOEXC {
   return __clamp(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_short s_clamp(s::cl_short x, s::cl_short minval,
-                                  s::cl_short maxval) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_clamp(s::cl_short x, s::cl_short minval,
+                                            s::cl_short maxval) __NOEXC {
   return __clamp(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_int s_clamp(s::cl_int x, s::cl_int minval,
-                                s::cl_int maxval) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_clamp(s::cl_int x, s::cl_int minval,
+                                          s::cl_int maxval) __NOEXC {
   return __clamp(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_long s_clamp(s::cl_long x, s::cl_long minval,
-                                 s::cl_long maxval) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_clamp(s::cl_long x, s::cl_long minval,
+                                           s::cl_long maxval) __NOEXC {
   return __clamp(x, minval, maxval);
 }
-MAKE_1V_2V_3V(s_clamp, s::cl_char, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V_3V(s_clamp, s::cl_short, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V_3V(s_clamp, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V_3V(s_clamp, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2S_3S(s_clamp, s::cl_char, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2S_3S(s_clamp, s::cl_short, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2S_3S(s_clamp, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2S_3S(s_clamp, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V_3V(sycl_host_s_clamp, s::cl_char, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2V_3V(sycl_host_s_clamp, s::cl_short, s::cl_short, s::cl_short,
+              s::cl_short)
+MAKE_1V_2V_3V(sycl_host_s_clamp, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V_3V(sycl_host_s_clamp, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2S_3S(sycl_host_s_clamp, s::cl_char, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2S_3S(sycl_host_s_clamp, s::cl_short, s::cl_short, s::cl_short,
+              s::cl_short)
+MAKE_1V_2S_3S(sycl_host_s_clamp, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2S_3S(sycl_host_s_clamp, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
 
 // clz
-__SYCL_EXPORT s::cl_uchar clz(s::cl_uchar x) __NOEXC { return __clz(x); }
-__SYCL_EXPORT s::cl_char clz(s::cl_char x) __NOEXC { return __clz(x); }
-__SYCL_EXPORT s::cl_ushort clz(s::cl_ushort x) __NOEXC { return __clz(x); }
-__SYCL_EXPORT s::cl_short clz(s::cl_short x) __NOEXC { return __clz(x); }
-__SYCL_EXPORT s::cl_uint clz(s::cl_uint x) __NOEXC { return __clz(x); }
-__SYCL_EXPORT s::cl_int clz(s::cl_int x) __NOEXC { return __clz(x); }
-__SYCL_EXPORT s::cl_ulong clz(s::cl_ulong x) __NOEXC { return __clz(x); }
-__SYCL_EXPORT s::cl_long clz(s::cl_long x) __NOEXC { return __clz(x); }
-MAKE_1V(clz, s::cl_uchar, s::cl_uchar)
-MAKE_1V(clz, s::cl_char, s::cl_char)
-MAKE_1V(clz, s::cl_ushort, s::cl_ushort)
-MAKE_1V(clz, s::cl_short, s::cl_short)
-MAKE_1V(clz, s::cl_uint, s::cl_uint)
-MAKE_1V(clz, s::cl_int, s::cl_int)
-MAKE_1V(clz, s::cl_ulong, s::cl_ulong)
-MAKE_1V(clz, s::cl_long, s::cl_long)
+__SYCL_EXPORT s::cl_uchar sycl_host_clz(s::cl_uchar x) __NOEXC {
+  return __clz(x);
+}
+__SYCL_EXPORT s::cl_char sycl_host_clz(s::cl_char x) __NOEXC {
+  return __clz(x);
+}
+__SYCL_EXPORT s::cl_ushort sycl_host_clz(s::cl_ushort x) __NOEXC {
+  return __clz(x);
+}
+__SYCL_EXPORT s::cl_short sycl_host_clz(s::cl_short x) __NOEXC {
+  return __clz(x);
+}
+__SYCL_EXPORT s::cl_uint sycl_host_clz(s::cl_uint x) __NOEXC {
+  return __clz(x);
+}
+__SYCL_EXPORT s::cl_int sycl_host_clz(s::cl_int x) __NOEXC { return __clz(x); }
+__SYCL_EXPORT s::cl_ulong sycl_host_clz(s::cl_ulong x) __NOEXC {
+  return __clz(x);
+}
+__SYCL_EXPORT s::cl_long sycl_host_clz(s::cl_long x) __NOEXC {
+  return __clz(x);
+}
+MAKE_1V(sycl_host_clz, s::cl_uchar, s::cl_uchar)
+MAKE_1V(sycl_host_clz, s::cl_char, s::cl_char)
+MAKE_1V(sycl_host_clz, s::cl_ushort, s::cl_ushort)
+MAKE_1V(sycl_host_clz, s::cl_short, s::cl_short)
+MAKE_1V(sycl_host_clz, s::cl_uint, s::cl_uint)
+MAKE_1V(sycl_host_clz, s::cl_int, s::cl_int)
+MAKE_1V(sycl_host_clz, s::cl_ulong, s::cl_ulong)
+MAKE_1V(sycl_host_clz, s::cl_long, s::cl_long)
 
 // ctz
-__SYCL_EXPORT s::cl_uchar ctz(s::cl_uchar x) __NOEXC { return __ctz(x); }
-__SYCL_EXPORT s::cl_char ctz(s::cl_char x) __NOEXC { return __ctz(x); }
-__SYCL_EXPORT s::cl_ushort ctz(s::cl_ushort x) __NOEXC { return __ctz(x); }
-__SYCL_EXPORT s::cl_short ctz(s::cl_short x) __NOEXC { return __ctz(x); }
-__SYCL_EXPORT s::cl_uint ctz(s::cl_uint x) __NOEXC { return __ctz(x); }
-__SYCL_EXPORT s::cl_int ctz(s::cl_int x) __NOEXC { return __ctz(x); }
-__SYCL_EXPORT s::cl_ulong ctz(s::cl_ulong x) __NOEXC { return __ctz(x); }
-__SYCL_EXPORT s::cl_long ctz(s::cl_long x) __NOEXC { return __ctz(x); }
-MAKE_1V(ctz, s::cl_uchar, s::cl_uchar)
-MAKE_1V(ctz, s::cl_char, s::cl_char)
-MAKE_1V(ctz, s::cl_ushort, s::cl_ushort)
-MAKE_1V(ctz, s::cl_short, s::cl_short)
-MAKE_1V(ctz, s::cl_uint, s::cl_uint)
-MAKE_1V(ctz, s::cl_int, s::cl_int)
-MAKE_1V(ctz, s::cl_ulong, s::cl_ulong)
-MAKE_1V(ctz, s::cl_long, s::cl_long)
+__SYCL_EXPORT s::cl_uchar sycl_host_ctz(s::cl_uchar x) __NOEXC {
+  return __ctz(x);
+}
+__SYCL_EXPORT s::cl_char sycl_host_ctz(s::cl_char x) __NOEXC {
+  return __ctz(x);
+}
+__SYCL_EXPORT s::cl_ushort sycl_host_ctz(s::cl_ushort x) __NOEXC {
+  return __ctz(x);
+}
+__SYCL_EXPORT s::cl_short sycl_host_ctz(s::cl_short x) __NOEXC {
+  return __ctz(x);
+}
+__SYCL_EXPORT s::cl_uint sycl_host_ctz(s::cl_uint x) __NOEXC {
+  return __ctz(x);
+}
+__SYCL_EXPORT s::cl_int sycl_host_ctz(s::cl_int x) __NOEXC { return __ctz(x); }
+__SYCL_EXPORT s::cl_ulong sycl_host_ctz(s::cl_ulong x) __NOEXC {
+  return __ctz(x);
+}
+__SYCL_EXPORT s::cl_long sycl_host_ctz(s::cl_long x) __NOEXC {
+  return __ctz(x);
+}
+MAKE_1V(sycl_host_ctz, s::cl_uchar, s::cl_uchar)
+MAKE_1V(sycl_host_ctz, s::cl_char, s::cl_char)
+MAKE_1V(sycl_host_ctz, s::cl_ushort, s::cl_ushort)
+MAKE_1V(sycl_host_ctz, s::cl_short, s::cl_short)
+MAKE_1V(sycl_host_ctz, s::cl_uint, s::cl_uint)
+MAKE_1V(sycl_host_ctz, s::cl_int, s::cl_int)
+MAKE_1V(sycl_host_ctz, s::cl_ulong, s::cl_ulong)
+MAKE_1V(sycl_host_ctz, s::cl_long, s::cl_long)
 
 // s_mul_hi
-__SYCL_EXPORT s::cl_char s_mul_hi(s::cl_char a, s::cl_char b) {
+__SYCL_EXPORT s::cl_char sycl_host_s_mul_hi(s::cl_char a, s::cl_char b) {
   return __mul_hi(a, b);
 }
-__SYCL_EXPORT s::cl_short s_mul_hi(s::cl_short a, s::cl_short b) {
+__SYCL_EXPORT s::cl_short sycl_host_s_mul_hi(s::cl_short a, s::cl_short b) {
   return __mul_hi(a, b);
 }
-__SYCL_EXPORT s::cl_int s_mul_hi(s::cl_int a, s::cl_int b) {
+__SYCL_EXPORT s::cl_int sycl_host_s_mul_hi(s::cl_int a, s::cl_int b) {
   return __mul_hi(a, b);
 }
-__SYCL_EXPORT s::cl_long s_mul_hi(s::cl_long x, s::cl_long y) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_mul_hi(s::cl_long x,
+                                            s::cl_long y) __NOEXC {
   return __s_long_mul_hi(x, y);
 }
-MAKE_1V_2V(s_mul_hi, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V(s_mul_hi, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V(s_mul_hi, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V(s_mul_hi, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V(sycl_host_s_mul_hi, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2V(sycl_host_s_mul_hi, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2V(sycl_host_s_mul_hi, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_s_mul_hi, s::cl_long, s::cl_long, s::cl_long)
 
 // u_mul_hi
-__SYCL_EXPORT s::cl_uchar u_mul_hi(s::cl_uchar a, s::cl_uchar b) {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_mul_hi(s::cl_uchar a, s::cl_uchar b) {
   return __mul_hi(a, b);
 }
-__SYCL_EXPORT s::cl_ushort u_mul_hi(s::cl_ushort a, s::cl_ushort b) {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_mul_hi(s::cl_ushort a, s::cl_ushort b) {
   return __mul_hi(a, b);
 }
-__SYCL_EXPORT s::cl_uint u_mul_hi(s::cl_uint a, s::cl_uint b) {
+__SYCL_EXPORT s::cl_uint sycl_host_u_mul_hi(s::cl_uint a, s::cl_uint b) {
   return __mul_hi(a, b);
 }
-__SYCL_EXPORT s::cl_ulong u_mul_hi(s::cl_ulong x, s::cl_ulong y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_mul_hi(s::cl_ulong x,
+                                             s::cl_ulong y) __NOEXC {
   return __u_long_mul_hi(x, y);
 }
-MAKE_1V_2V(u_mul_hi, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V(u_mul_hi, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V(u_mul_hi, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V(u_mul_hi, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V(sycl_host_u_mul_hi, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2V(sycl_host_u_mul_hi, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2V(sycl_host_u_mul_hi, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_u_mul_hi, s::cl_ulong, s::cl_ulong, s::cl_ulong)
 
 // s_mad_hi
-__SYCL_EXPORT s::cl_char s_mad_hi(s::cl_char x, s::cl_char minval,
-                                  s::cl_char maxval) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_s_mad_hi(s::cl_char x, s::cl_char minval,
+                                            s::cl_char maxval) __NOEXC {
   return __mad_hi(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_short s_mad_hi(s::cl_short x, s::cl_short minval,
-                                   s::cl_short maxval) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_mad_hi(s::cl_short x, s::cl_short minval,
+                                             s::cl_short maxval) __NOEXC {
   return __mad_hi(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_int s_mad_hi(s::cl_int x, s::cl_int minval,
-                                 s::cl_int maxval) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_mad_hi(s::cl_int x, s::cl_int minval,
+                                           s::cl_int maxval) __NOEXC {
   return __mad_hi(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_long s_mad_hi(s::cl_long x, s::cl_long minval,
-                                  s::cl_long maxval) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_mad_hi(s::cl_long x, s::cl_long minval,
+                                            s::cl_long maxval) __NOEXC {
   return __s_long_mad_hi(x, minval, maxval);
 }
-MAKE_1V_2V_3V(s_mad_hi, s::cl_char, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V_3V(s_mad_hi, s::cl_short, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V_3V(s_mad_hi, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V_3V(s_mad_hi, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V_3V(sycl_host_s_mad_hi, s::cl_char, s::cl_char, s::cl_char,
+              s::cl_char)
+MAKE_1V_2V_3V(sycl_host_s_mad_hi, s::cl_short, s::cl_short, s::cl_short,
+              s::cl_short)
+MAKE_1V_2V_3V(sycl_host_s_mad_hi, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V_3V(sycl_host_s_mad_hi, s::cl_long, s::cl_long, s::cl_long,
+              s::cl_long)
 
 // u_mad_hi
-__SYCL_EXPORT s::cl_uchar u_mad_hi(s::cl_uchar x, s::cl_uchar minval,
-                                   s::cl_uchar maxval) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_mad_hi(s::cl_uchar x, s::cl_uchar minval,
+                                             s::cl_uchar maxval) __NOEXC {
   return __mad_hi(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_ushort u_mad_hi(s::cl_ushort x, s::cl_ushort minval,
-                                    s::cl_ushort maxval) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_mad_hi(s::cl_ushort x,
+                                              s::cl_ushort minval,
+                                              s::cl_ushort maxval) __NOEXC {
   return __mad_hi(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_uint u_mad_hi(s::cl_uint x, s::cl_uint minval,
-                                  s::cl_uint maxval) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_mad_hi(s::cl_uint x, s::cl_uint minval,
+                                            s::cl_uint maxval) __NOEXC {
   return __mad_hi(x, minval, maxval);
 }
-__SYCL_EXPORT s::cl_ulong u_mad_hi(s::cl_ulong x, s::cl_ulong minval,
-                                   s::cl_ulong maxval) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_mad_hi(s::cl_ulong x, s::cl_ulong minval,
+                                             s::cl_ulong maxval) __NOEXC {
   return __u_long_mad_hi(x, minval, maxval);
 }
-MAKE_1V_2V_3V(u_mad_hi, s::cl_uchar, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V_3V(u_mad_hi, s::cl_ushort, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V_3V(u_mad_hi, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V_3V(u_mad_hi, s::cl_ulong, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V_3V(sycl_host_u_mad_hi, s::cl_uchar, s::cl_uchar, s::cl_uchar,
+              s::cl_uchar)
+MAKE_1V_2V_3V(sycl_host_u_mad_hi, s::cl_ushort, s::cl_ushort, s::cl_ushort,
+              s::cl_ushort)
+MAKE_1V_2V_3V(sycl_host_u_mad_hi, s::cl_uint, s::cl_uint, s::cl_uint,
+              s::cl_uint)
+MAKE_1V_2V_3V(sycl_host_u_mad_hi, s::cl_ulong, s::cl_ulong, s::cl_ulong,
+              s::cl_ulong)
 
 // s_mad_sat
-__SYCL_EXPORT s::cl_char s_mad_sat(s::cl_char a, s::cl_char b,
-                                   s::cl_char c) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_s_mad_sat(s::cl_char a, s::cl_char b,
+                                             s::cl_char c) __NOEXC {
   return __s_mad_sat(a, b, c);
 }
-__SYCL_EXPORT s::cl_short s_mad_sat(s::cl_short a, s::cl_short b,
-                                    s::cl_short c) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_mad_sat(s::cl_short a, s::cl_short b,
+                                              s::cl_short c) __NOEXC {
   return __s_mad_sat(a, b, c);
 }
-__SYCL_EXPORT s::cl_int s_mad_sat(s::cl_int a, s::cl_int b,
-                                  s::cl_int c) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_mad_sat(s::cl_int a, s::cl_int b,
+                                            s::cl_int c) __NOEXC {
   return __s_mad_sat(a, b, c);
 }
-__SYCL_EXPORT s::cl_long s_mad_sat(s::cl_long a, s::cl_long b,
-                                   s::cl_long c) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_mad_sat(s::cl_long a, s::cl_long b,
+                                             s::cl_long c) __NOEXC {
   return __s_long_mad_sat(a, b, c);
 }
-MAKE_1V_2V_3V(s_mad_sat, s::cl_char, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V_3V(s_mad_sat, s::cl_short, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V_3V(s_mad_sat, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V_3V(s_mad_sat, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V_3V(sycl_host_s_mad_sat, s::cl_char, s::cl_char, s::cl_char,
+              s::cl_char)
+MAKE_1V_2V_3V(sycl_host_s_mad_sat, s::cl_short, s::cl_short, s::cl_short,
+              s::cl_short)
+MAKE_1V_2V_3V(sycl_host_s_mad_sat, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V_3V(sycl_host_s_mad_sat, s::cl_long, s::cl_long, s::cl_long,
+              s::cl_long)
 
 // u_mad_sat
-__SYCL_EXPORT s::cl_uchar u_mad_sat(s::cl_uchar a, s::cl_uchar b,
-                                    s::cl_uchar c) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_mad_sat(s::cl_uchar a, s::cl_uchar b,
+                                              s::cl_uchar c) __NOEXC {
   return __u_mad_sat(a, b, c);
 }
-__SYCL_EXPORT s::cl_ushort u_mad_sat(s::cl_ushort a, s::cl_ushort b,
-                                     s::cl_ushort c) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_mad_sat(s::cl_ushort a, s::cl_ushort b,
+                                               s::cl_ushort c) __NOEXC {
   return __u_mad_sat(a, b, c);
 }
-__SYCL_EXPORT s::cl_uint u_mad_sat(s::cl_uint a, s::cl_uint b,
-                                   s::cl_uint c) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_mad_sat(s::cl_uint a, s::cl_uint b,
+                                             s::cl_uint c) __NOEXC {
   return __u_mad_sat(a, b, c);
 }
-__SYCL_EXPORT s::cl_ulong u_mad_sat(s::cl_ulong a, s::cl_ulong b,
-                                    s::cl_ulong c) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_mad_sat(s::cl_ulong a, s::cl_ulong b,
+                                              s::cl_ulong c) __NOEXC {
   return __u_long_mad_sat(a, b, c);
 }
-MAKE_1V_2V_3V(u_mad_sat, s::cl_uchar, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V_3V(u_mad_sat, s::cl_ushort, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V_3V(u_mad_sat, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V_3V(u_mad_sat, s::cl_ulong, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V_3V(sycl_host_u_mad_sat, s::cl_uchar, s::cl_uchar, s::cl_uchar,
+              s::cl_uchar)
+MAKE_1V_2V_3V(sycl_host_u_mad_sat, s::cl_ushort, s::cl_ushort, s::cl_ushort,
+              s::cl_ushort)
+MAKE_1V_2V_3V(sycl_host_u_mad_sat, s::cl_uint, s::cl_uint, s::cl_uint,
+              s::cl_uint)
+MAKE_1V_2V_3V(sycl_host_u_mad_sat, s::cl_ulong, s::cl_ulong, s::cl_ulong,
+              s::cl_ulong)
 
 // s_max
-__SYCL_EXPORT s::cl_char s_max(s::cl_char x, s::cl_char y) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_s_max(s::cl_char x, s::cl_char y) __NOEXC {
   return std::max(x, y);
 }
-__SYCL_EXPORT s::cl_short s_max(s::cl_short x, s::cl_short y) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_max(s::cl_short x,
+                                          s::cl_short y) __NOEXC {
   return std::max(x, y);
 }
-__SYCL_EXPORT s::cl_int s_max(s::cl_int x, s::cl_int y) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_max(s::cl_int x, s::cl_int y) __NOEXC {
   return std::max(x, y);
 }
-__SYCL_EXPORT s::cl_long s_max(s::cl_long x, s::cl_long y) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_max(s::cl_long x, s::cl_long y) __NOEXC {
   return std::max(x, y);
 }
-MAKE_1V_2V(s_max, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V(s_max, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V(s_max, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V(s_max, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2S(s_max, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2S(s_max, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2S(s_max, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2S(s_max, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V(sycl_host_s_max, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2V(sycl_host_s_max, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2V(sycl_host_s_max, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_s_max, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2S(sycl_host_s_max, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2S(sycl_host_s_max, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2S(sycl_host_s_max, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2S(sycl_host_s_max, s::cl_long, s::cl_long, s::cl_long)
 
 // u_max
-__SYCL_EXPORT s::cl_uchar u_max(s::cl_uchar x, s::cl_uchar y) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_max(s::cl_uchar x,
+                                          s::cl_uchar y) __NOEXC {
   return std::max(x, y);
 }
-__SYCL_EXPORT s::cl_ushort u_max(s::cl_ushort x, s::cl_ushort y) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_max(s::cl_ushort x,
+                                           s::cl_ushort y) __NOEXC {
   return std::max(x, y);
 }
-__SYCL_EXPORT s::cl_uint u_max(s::cl_uint x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_max(s::cl_uint x, s::cl_uint y) __NOEXC {
   return std::max(x, y);
 }
-__SYCL_EXPORT s::cl_ulong u_max(s::cl_ulong x, s::cl_ulong y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_max(s::cl_ulong x,
+                                          s::cl_ulong y) __NOEXC {
   return std::max(x, y);
 }
-MAKE_1V_2V(u_max, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V(u_max, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V(u_max, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V(u_max, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2S(u_max, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2S(u_max, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2S(u_max, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2S(u_max, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V(sycl_host_u_max, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2V(sycl_host_u_max, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2V(sycl_host_u_max, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_u_max, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2S(sycl_host_u_max, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2S(sycl_host_u_max, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2S(sycl_host_u_max, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2S(sycl_host_u_max, s::cl_ulong, s::cl_ulong, s::cl_ulong)
 
 // s_min
-__SYCL_EXPORT s::cl_char s_min(s::cl_char x, s::cl_char y) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_s_min(s::cl_char x, s::cl_char y) __NOEXC {
   return std::min(x, y);
 }
-__SYCL_EXPORT s::cl_short s_min(s::cl_short x, s::cl_short y) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_min(s::cl_short x,
+                                          s::cl_short y) __NOEXC {
   return std::min(x, y);
 }
-__SYCL_EXPORT s::cl_int s_min(s::cl_int x, s::cl_int y) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_min(s::cl_int x, s::cl_int y) __NOEXC {
   return std::min(x, y);
 }
-__SYCL_EXPORT s::cl_long s_min(s::cl_long x, s::cl_long y) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_min(s::cl_long x, s::cl_long y) __NOEXC {
   return std::min(x, y);
 }
-MAKE_1V_2V(s_min, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V(s_min, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V(s_min, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V(s_min, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2S(s_min, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2S(s_min, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2S(s_min, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2S(s_min, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V(sycl_host_s_min, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2V(sycl_host_s_min, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2V(sycl_host_s_min, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_s_min, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2S(sycl_host_s_min, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2S(sycl_host_s_min, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2S(sycl_host_s_min, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2S(sycl_host_s_min, s::cl_long, s::cl_long, s::cl_long)
 
 // u_min
-__SYCL_EXPORT s::cl_uchar u_min(s::cl_uchar x, s::cl_uchar y) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_min(s::cl_uchar x,
+                                          s::cl_uchar y) __NOEXC {
   return std::min(x, y);
 }
-__SYCL_EXPORT s::cl_ushort u_min(s::cl_ushort x, s::cl_ushort y) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_min(s::cl_ushort x,
+                                           s::cl_ushort y) __NOEXC {
   return std::min(x, y);
 }
-__SYCL_EXPORT s::cl_uint u_min(s::cl_uint x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_min(s::cl_uint x, s::cl_uint y) __NOEXC {
   return std::min(x, y);
 }
-__SYCL_EXPORT s::cl_ulong u_min(s::cl_ulong x, s::cl_ulong y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_min(s::cl_ulong x,
+                                          s::cl_ulong y) __NOEXC {
   return std::min(x, y);
 }
-MAKE_1V_2V(u_min, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V(u_min, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V(u_min, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V(u_min, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2S(u_min, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2S(u_min, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2S(u_min, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2S(u_min, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V(sycl_host_u_min, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2V(sycl_host_u_min, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2V(sycl_host_u_min, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_u_min, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2S(sycl_host_u_min, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2S(sycl_host_u_min, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2S(sycl_host_u_min, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2S(sycl_host_u_min, s::cl_ulong, s::cl_ulong, s::cl_ulong)
 
 // rotate
-__SYCL_EXPORT s::cl_uchar rotate(s::cl_uchar x, s::cl_uchar y) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_rotate(s::cl_uchar x,
+                                           s::cl_uchar y) __NOEXC {
   return __rotate(x, y);
 }
-__SYCL_EXPORT s::cl_ushort rotate(s::cl_ushort x, s::cl_ushort y) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_rotate(s::cl_ushort x,
+                                            s::cl_ushort y) __NOEXC {
   return __rotate(x, y);
 }
-__SYCL_EXPORT s::cl_uint rotate(s::cl_uint x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_rotate(s::cl_uint x, s::cl_uint y) __NOEXC {
   return __rotate(x, y);
 }
-__SYCL_EXPORT s::cl_ulong rotate(s::cl_ulong x, s::cl_ulong y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_rotate(s::cl_ulong x,
+                                           s::cl_ulong y) __NOEXC {
   return __rotate(x, y);
 }
-__SYCL_EXPORT s::cl_char rotate(s::cl_char x, s::cl_char y) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_rotate(s::cl_char x, s::cl_char y) __NOEXC {
   return __rotate(x, y);
 }
-__SYCL_EXPORT s::cl_short rotate(s::cl_short x, s::cl_short y) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_rotate(s::cl_short x,
+                                           s::cl_short y) __NOEXC {
   return __rotate(x, y);
 }
-__SYCL_EXPORT s::cl_int rotate(s::cl_int x, s::cl_int y) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_rotate(s::cl_int x, s::cl_int y) __NOEXC {
   return __rotate(x, y);
 }
-__SYCL_EXPORT s::cl_long rotate(s::cl_long x, s::cl_long y) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_rotate(s::cl_long x, s::cl_long y) __NOEXC {
   return __rotate(x, y);
 }
-MAKE_1V_2V(rotate, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V(rotate, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V(rotate, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V(rotate, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V(rotate, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V(rotate, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V(rotate, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V(rotate, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V(sycl_host_rotate, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2V(sycl_host_rotate, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2V(sycl_host_rotate, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_rotate, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V(sycl_host_rotate, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2V(sycl_host_rotate, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2V(sycl_host_rotate, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_rotate, s::cl_long, s::cl_long, s::cl_long)
 
 // u_sub_sat
-__SYCL_EXPORT s::cl_uchar u_sub_sat(s::cl_uchar x, s::cl_uchar y) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_u_sub_sat(s::cl_uchar x,
+                                              s::cl_uchar y) __NOEXC {
   return __u_sub_sat(x, y);
 }
-__SYCL_EXPORT s::cl_ushort u_sub_sat(s::cl_ushort x, s::cl_ushort y) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_sub_sat(s::cl_ushort x,
+                                               s::cl_ushort y) __NOEXC {
   return __u_sub_sat(x, y);
 }
-__SYCL_EXPORT s::cl_uint u_sub_sat(s::cl_uint x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_sub_sat(s::cl_uint x,
+                                             s::cl_uint y) __NOEXC {
   return __u_sub_sat(x, y);
 }
-__SYCL_EXPORT s::cl_ulong u_sub_sat(s::cl_ulong x, s::cl_ulong y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_sub_sat(s::cl_ulong x,
+                                              s::cl_ulong y) __NOEXC {
   return __u_sub_sat(x, y);
 }
-MAKE_1V_2V(u_sub_sat, s::cl_uchar, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V(u_sub_sat, s::cl_ushort, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V(u_sub_sat, s::cl_uint, s::cl_uint, s::cl_uint)
-MAKE_1V_2V(u_sub_sat, s::cl_ulong, s::cl_ulong, s::cl_ulong)
+MAKE_1V_2V(sycl_host_u_sub_sat, s::cl_uchar, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2V(sycl_host_u_sub_sat, s::cl_ushort, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2V(sycl_host_u_sub_sat, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_u_sub_sat, s::cl_ulong, s::cl_ulong, s::cl_ulong)
 
 // s_sub_sat
-__SYCL_EXPORT s::cl_char s_sub_sat(s::cl_char x, s::cl_char y) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_s_sub_sat(s::cl_char x,
+                                             s::cl_char y) __NOEXC {
   return __s_sub_sat(x, y);
 }
-__SYCL_EXPORT s::cl_short s_sub_sat(s::cl_short x, s::cl_short y) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_sub_sat(s::cl_short x,
+                                              s::cl_short y) __NOEXC {
   return __s_sub_sat(x, y);
 }
-__SYCL_EXPORT s::cl_int s_sub_sat(s::cl_int x, s::cl_int y) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_sub_sat(s::cl_int x, s::cl_int y) __NOEXC {
   return __s_sub_sat(x, y);
 }
-__SYCL_EXPORT s::cl_long s_sub_sat(s::cl_long x, s::cl_long y) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_sub_sat(s::cl_long x,
+                                             s::cl_long y) __NOEXC {
   return __s_sub_sat(x, y);
 }
-MAKE_1V_2V(s_sub_sat, s::cl_char, s::cl_char, s::cl_char)
-MAKE_1V_2V(s_sub_sat, s::cl_short, s::cl_short, s::cl_short)
-MAKE_1V_2V(s_sub_sat, s::cl_int, s::cl_int, s::cl_int)
-MAKE_1V_2V(s_sub_sat, s::cl_long, s::cl_long, s::cl_long)
+MAKE_1V_2V(sycl_host_s_sub_sat, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2V(sycl_host_s_sub_sat, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2V(sycl_host_s_sub_sat, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_s_sub_sat, s::cl_long, s::cl_long, s::cl_long)
 
 // u_upsample
-__SYCL_EXPORT s::cl_ushort u_upsample(s::cl_uchar x, s::cl_uchar y) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_u_upsample(s::cl_uchar x,
+                                                s::cl_uchar y) __NOEXC {
   return __upsample(x, y);
 }
-__SYCL_EXPORT s::cl_uint u_upsample(s::cl_ushort x, s::cl_ushort y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_upsample(s::cl_ushort x,
+                                              s::cl_ushort y) __NOEXC {
   return __upsample(x, y);
 }
-__SYCL_EXPORT s::cl_ulong u_upsample(s::cl_uint x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_u_upsample(s::cl_uint x,
+                                               s::cl_uint y) __NOEXC {
   return __upsample(x, y);
 }
-MAKE_1V_2V(u_upsample, s::cl_ushort, s::cl_uchar, s::cl_uchar)
-MAKE_1V_2V(u_upsample, s::cl_uint, s::cl_ushort, s::cl_ushort)
-MAKE_1V_2V(u_upsample, s::cl_ulong, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_u_upsample, s::cl_ushort, s::cl_uchar, s::cl_uchar)
+MAKE_1V_2V(sycl_host_u_upsample, s::cl_uint, s::cl_ushort, s::cl_ushort)
+MAKE_1V_2V(sycl_host_u_upsample, s::cl_ulong, s::cl_uint, s::cl_uint)
 
-__SYCL_EXPORT s::cl_short s_upsample(s::cl_char x, s::cl_uchar y) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_upsample(s::cl_char x,
+                                               s::cl_uchar y) __NOEXC {
   return __upsample(x, y);
 }
-__SYCL_EXPORT s::cl_int s_upsample(s::cl_short x, s::cl_ushort y) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_upsample(s::cl_short x,
+                                             s::cl_ushort y) __NOEXC {
   return __upsample(x, y);
 }
-__SYCL_EXPORT s::cl_long s_upsample(s::cl_int x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_upsample(s::cl_int x,
+                                              s::cl_uint y) __NOEXC {
   return __upsample(x, y);
 }
-MAKE_1V_2V(s_upsample, s::cl_short, s::cl_char, s::cl_uchar)
-MAKE_1V_2V(s_upsample, s::cl_int, s::cl_short, s::cl_ushort)
-MAKE_1V_2V(s_upsample, s::cl_long, s::cl_int, s::cl_uint)
+MAKE_1V_2V(sycl_host_s_upsample, s::cl_short, s::cl_char, s::cl_uchar)
+MAKE_1V_2V(sycl_host_s_upsample, s::cl_int, s::cl_short, s::cl_ushort)
+MAKE_1V_2V(sycl_host_s_upsample, s::cl_long, s::cl_int, s::cl_uint)
 
 // popcount
-__SYCL_EXPORT s::cl_uchar popcount(s::cl_uchar x) __NOEXC {
+__SYCL_EXPORT s::cl_uchar sycl_host_popcount(s::cl_uchar x) __NOEXC {
   return __popcount(x);
 }
-__SYCL_EXPORT s::cl_ushort popcount(s::cl_ushort x) __NOEXC {
+__SYCL_EXPORT s::cl_ushort sycl_host_popcount(s::cl_ushort x) __NOEXC {
   return __popcount(x);
 }
-__SYCL_EXPORT s::cl_uint popcount(s::cl_uint x) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_popcount(s::cl_uint x) __NOEXC {
   return __popcount(x);
 }
-__SYCL_EXPORT s::cl_ulong popcount(s::cl_ulong x) __NOEXC {
+__SYCL_EXPORT s::cl_ulong sycl_host_popcount(s::cl_ulong x) __NOEXC {
   return __popcount(x);
 }
-MAKE_1V(popcount, s::cl_uchar, s::cl_uchar)
-MAKE_1V(popcount, s::cl_ushort, s::cl_ushort)
-MAKE_1V(popcount, s::cl_uint, s::cl_uint)
-MAKE_1V(popcount, s::cl_ulong, s::cl_ulong)
+MAKE_1V(sycl_host_popcount, s::cl_uchar, s::cl_uchar)
+MAKE_1V(sycl_host_popcount, s::cl_ushort, s::cl_ushort)
+MAKE_1V(sycl_host_popcount, s::cl_uint, s::cl_uint)
+MAKE_1V(sycl_host_popcount, s::cl_ulong, s::cl_ulong)
 
-__SYCL_EXPORT s::cl_char popcount(s::cl_char x) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_popcount(s::cl_char x) __NOEXC {
   return __popcount(x);
 }
-__SYCL_EXPORT s::cl_short popcount(s::cl_short x) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_popcount(s::cl_short x) __NOEXC {
   return __popcount(x);
 }
-__SYCL_EXPORT s::cl_int popcount(s::cl_int x) __NOEXC { return __popcount(x); }
-__SYCL_EXPORT s::cl_long popcount(s::cl_long x) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_popcount(s::cl_int x) __NOEXC {
   return __popcount(x);
 }
-MAKE_1V(popcount, s::cl_char, s::cl_char)
-MAKE_1V(popcount, s::cl_short, s::cl_short)
-MAKE_1V(popcount, s::cl_int, s::cl_int)
-MAKE_1V(popcount, s::cl_long, s::cl_long)
+__SYCL_EXPORT s::cl_long sycl_host_popcount(s::cl_long x) __NOEXC {
+  return __popcount(x);
+}
+MAKE_1V(sycl_host_popcount, s::cl_char, s::cl_char)
+MAKE_1V(sycl_host_popcount, s::cl_short, s::cl_short)
+MAKE_1V(sycl_host_popcount, s::cl_int, s::cl_int)
+MAKE_1V(sycl_host_popcount, s::cl_long, s::cl_long)
 
 // u_mad24
-__SYCL_EXPORT s::cl_uint u_mad24(s::cl_uint x, s::cl_uint y,
-                                 s::cl_uint z) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_mad24(s::cl_uint x, s::cl_uint y,
+                                           s::cl_uint z) __NOEXC {
   return __mad24(x, y, z);
 }
-MAKE_1V_2V_3V(u_mad24, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V_3V(sycl_host_u_mad24, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
 
 // s_mad24
-__SYCL_EXPORT s::cl_int s_mad24(s::cl_int x, s::cl_int y, s::cl_int z) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_mad24(s::cl_int x, s::cl_int y,
+                                          s::cl_int z) __NOEXC {
   return __mad24(x, y, z);
 }
-MAKE_1V_2V_3V(s_mad24, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V_3V(sycl_host_s_mad24, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
 
 // u_mul24
-__SYCL_EXPORT s::cl_uint u_mul24(s::cl_uint x, s::cl_uint y) __NOEXC {
+__SYCL_EXPORT s::cl_uint sycl_host_u_mul24(s::cl_uint x, s::cl_uint y) __NOEXC {
   return __mul24(x, y);
 }
-MAKE_1V_2V(u_mul24, s::cl_uint, s::cl_uint, s::cl_uint)
+MAKE_1V_2V(sycl_host_u_mul24, s::cl_uint, s::cl_uint, s::cl_uint)
 
 // s_mul24
-__SYCL_EXPORT s::cl_int s_mul24(s::cl_int x, s::cl_int y) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_mul24(s::cl_int x, s::cl_int y) __NOEXC {
   return __mul24(x, y);
 }
-MAKE_1V_2V(s_mul24, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_s_mul24, s::cl_int, s::cl_int, s::cl_int)
 
 } // namespace __host_std
-} // __SYCL_INLINE_NAMESPACE(cl)

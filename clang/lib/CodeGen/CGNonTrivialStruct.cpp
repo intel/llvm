@@ -315,8 +315,7 @@ static const CGFunctionInfo &getFunctionInfo(CodeGenModule &CGM,
         Ctx, nullptr, SourceLocation(), &Ctx.Idents.get(ValNameStr[I]), ParamTy,
         ImplicitParamDecl::Other));
 
-  for (auto &P : Params)
-    Args.push_back(P);
+  llvm::append_range(Args, Params);
 
   return CGM.getTypes().arrangeBuiltinFunctionDeclaration(Ctx.VoidTy, Args);
 }
@@ -326,9 +325,9 @@ static std::array<Address, N> getParamAddrs(std::index_sequence<Ints...> IntSeq,
                                             std::array<CharUnits, N> Alignments,
                                             FunctionArgList Args,
                                             CodeGenFunction *CGF) {
-  return std::array<Address, N>{{
-      Address(CGF->Builder.CreateLoad(CGF->GetAddrOfLocalVar(Args[Ints])),
-              Alignments[Ints])...}};
+  return std::array<Address, N>{
+      {Address(CGF->Builder.CreateLoad(CGF->GetAddrOfLocalVar(Args[Ints])),
+               CGF->VoidPtrTy, Alignments[Ints], KnownNonNull)...}};
 }
 
 // Template classes that are used as bases for classes that emit special
@@ -400,8 +399,9 @@ template <class Derived> struct GenFuncBase {
     std::array<Address, N> NewAddrs = Addrs;
 
     for (unsigned I = 0; I < N; ++I)
-      NewAddrs[I] = Address(
-          PHIs[I], StartAddrs[I].getAlignment().alignmentAtOffset(EltSize));
+      NewAddrs[I] =
+            Address(PHIs[I], CGF.Int8PtrTy,
+                    StartAddrs[I].getAlignment().alignmentAtOffset(EltSize));
 
     EltQT = IsVolatile ? EltQT.withVolatile() : EltQT;
     this->asDerived().visitWithKind(FK, EltQT, nullptr, CharUnits::Zero(),
@@ -522,7 +522,8 @@ struct GenBinaryFunc : CopyStructVisitor<Derived, IsMove>,
     Address SrcAddr = this->getAddrWithOffset(Addrs[SrcIdx], this->Start);
 
     // Emit memcpy.
-    if (Size.getQuantity() >= 16 || !llvm::isPowerOf2_32(Size.getQuantity())) {
+    if (Size.getQuantity() >= 16 ||
+        !llvm::has_single_bit<uint32_t>(Size.getQuantity())) {
       llvm::Value *SizeVal =
           llvm::ConstantInt::get(this->CGF->SizeTy, Size.getQuantity());
       DstAddr =

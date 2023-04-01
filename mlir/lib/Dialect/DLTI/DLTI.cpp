@@ -71,13 +71,13 @@ DataLayoutEntryAttr DataLayoutEntryAttr::parse(AsmParser &parser) {
 
   Type type = nullptr;
   std::string identifier;
-  llvm::SMLoc idLoc = parser.getCurrentLocation();
+  SMLoc idLoc = parser.getCurrentLocation();
   OptionalParseResult parsedType = parser.parseOptionalType(type);
-  if (parsedType.hasValue() && failed(parsedType.getValue()))
+  if (parsedType.has_value() && failed(parsedType.value()))
     return {};
-  if (!parsedType.hasValue()) {
+  if (!parsedType.has_value()) {
     OptionalParseResult parsedString = parser.parseOptionalString(&identifier);
-    if (!parsedString.hasValue() || failed(parsedString.getValue())) {
+    if (!parsedString.has_value() || failed(parsedString.value())) {
       parser.emitError(idLoc) << "expected a type or a quoted string";
       return {};
     }
@@ -106,6 +106,8 @@ void DataLayoutEntryAttr::print(AsmPrinter &os) const {
 //===----------------------------------------------------------------------===//
 //
 constexpr const StringLiteral mlir::DataLayoutSpecAttr::kAttrKeyword;
+constexpr const StringLiteral
+    mlir::DLTIDialect::kDataLayoutAllocaMemorySpaceKey;
 
 namespace mlir {
 namespace impl {
@@ -231,8 +233,8 @@ combineOneSpec(DataLayoutSpecInterface spec,
     // dialect is not loaded for some reason, use the default combinator
     // that conservatively accepts identical entries only.
     entriesForID[id] =
-        dialect ? dialect->getRegisteredInterface<DataLayoutDialectInterface>()
-                      ->combine(entriesForID[id], kvp.second)
+        dialect ? cast<DataLayoutDialectInterface>(dialect)->combine(
+                      entriesForID[id], kvp.second)
                 : DataLayoutDialectInterface::defaultCombine(entriesForID[id],
                                                              kvp.second);
     if (!entriesForID[id])
@@ -273,6 +275,12 @@ DataLayoutEntryListRef DataLayoutSpecAttr::getEntries() const {
   return getImpl()->entries;
 }
 
+StringAttr
+DataLayoutSpecAttr::getAllocaMemorySpaceIdentifier(MLIRContext *context) const {
+  return Builder(context).getStringAttr(
+      DLTIDialect::kDataLayoutAllocaMemorySpaceKey);
+}
+
 /// Parses an attribute with syntax
 ///   attr ::= `#target.` `dl_spec` `<` attr-list? `>`
 ///   attr-list ::= attr
@@ -286,14 +294,11 @@ DataLayoutSpecAttr DataLayoutSpecAttr::parse(AsmParser &parser) {
     return get(parser.getContext(), {});
 
   SmallVector<DataLayoutEntryInterface> entries;
-  do {
-    entries.emplace_back();
-    if (failed(parser.parseAttribute(entries.back())))
-      return {};
-  } while (succeeded(parser.parseOptionalComma()));
-
-  if (failed(parser.parseGreater()))
+  if (parser.parseCommaSeparatedList(
+          [&]() { return parser.parseAttribute(entries.emplace_back()); }) ||
+      parser.parseGreater())
     return {};
+
   return getChecked([&] { return parser.emitError(parser.getNameLoc()); },
                     parser.getContext(), entries);
 }
@@ -332,6 +337,8 @@ public:
                             << DLTIDialect::kDataLayoutEndiannessBig << "' or '"
                             << DLTIDialect::kDataLayoutEndiannessLittle << "'";
     }
+    if (entryName == DLTIDialect::kDataLayoutAllocaMemorySpaceKey)
+      return success();
     return emitError(loc) << "unknown data layout entry name: " << entryName;
   }
 };

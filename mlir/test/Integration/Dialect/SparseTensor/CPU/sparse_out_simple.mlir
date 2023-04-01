@@ -1,30 +1,34 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
-// RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
+// DEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
+// DEFINE: mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_c_runner_utils | \
+// DEFINE: FileCheck %s
 //
-// Do the same run, but now with SIMDization as well. This should not change the outcome.
+// RUN: %{compile} | %{run}
 //
-// RUN: mlir-opt %s \
-// RUN:   --sparsification="vectorization-strategy=2 vl=4" --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
-// RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// Do the same run, but now with direct IR generation.
+// REDEFINE: %{option} = enable-runtime-library=false
+// RUN: %{compile} | %{run}
+//
+// Do the same run, but now with direct IR generation and vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
+// RUN: %{compile} | %{run}
 
-!Filename = type !llvm.ptr<i8>
+// Do the same run, but now with direct IR generation and, if available, VLA
+// vectorization.
+// REDEFINE: %{option} = "enable-runtime-library=false vl=4  enable-arm-sve=%ENABLE_VLA"
+// REDEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
+// REDEFINE: %lli \
+// REDEFINE:   --entry-function=entry_lli \
+// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
+// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
+// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext | \
+// REDEFINE: FileCheck %s
+// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
+
+!Filename = !llvm.ptr<i8>
 
 #DCSR = #sparse_tensor.encoding<{
   dimLevelType = [ "compressed", "compressed" ],
@@ -51,7 +55,7 @@ module {
   // a sparse tensor as output, but although the values of the
   // sparse tensor change, its nonzero structure remains the same.
   //
-  func @kernel_eltwise_mult(%argx: tensor<?x?xf64, #DCSR> {linalg.inplaceable = true})
+  func.func @kernel_eltwise_mult(%argx: tensor<?x?xf64, #DCSR>)
     -> tensor<?x?xf64, #DCSR> {
     %0 = linalg.generic #eltwise_mult
       outs(%argx: tensor<?x?xf64, #DCSR>) {
@@ -62,12 +66,12 @@ module {
     return %0 : tensor<?x?xf64, #DCSR>
   }
 
-  func private @getTensorFilename(index) -> (!Filename)
+  func.func private @getTensorFilename(index) -> (!Filename)
 
   //
   // Main driver that reads matrix from file and calls the sparse kernel.
   //
-  func @entry() {
+  func.func @entry() {
     %d0 = arith.constant 0.0 : f64
     %c0 = arith.constant 0 : index
 
@@ -87,7 +91,7 @@ module {
     vector.print %v : vector<9xf64>
 
     // Release the resources.
-    sparse_tensor.release %x : tensor<?x?xf64, #DCSR>
+    bufferization.dealloc_tensor %x : tensor<?x?xf64, #DCSR>
 
     return
   }

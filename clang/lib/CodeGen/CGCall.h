@@ -22,9 +22,6 @@
 #include "clang/AST/Type.h"
 #include "llvm/IR/Value.h"
 
-// FIXME: Restructure so we don't have to expose so much stuff.
-#include "ABIInfo.h"
-
 namespace llvm {
 class Type;
 class Value;
@@ -112,7 +109,8 @@ public:
     assert(functionPtr && "configuring callee without function pointer");
     assert(functionPtr->getType()->isPointerTy());
     assert(functionPtr->getType()->isOpaquePointerTy() ||
-           functionPtr->getType()->getPointerElementType()->isFunctionTy());
+           functionPtr->getType()->getNonOpaquePointerElementType()
+               ->isFunctionTy());
   }
 
   static CGCallee forBuiltin(unsigned builtinID,

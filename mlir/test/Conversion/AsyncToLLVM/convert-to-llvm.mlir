@@ -1,7 +1,7 @@
-// RUN: mlir-opt %s -split-input-file -async-to-async-runtime -convert-async-to-llvm | FileCheck %s
+// RUN: mlir-opt %s -split-input-file -async-to-async-runtime -convert-async-to-llvm='use-opaque-pointers=1' | FileCheck %s
 
 // CHECK-LABEL: reference_counting
-func @reference_counting(%arg0: !async.token) {
+func.func @reference_counting(%arg0: !async.token) {
   // CHECK: %[[C2:.*]] = arith.constant 2 : i64
   // CHECK: call @mlirAsyncRuntimeAddRef(%arg0, %[[C2]])
   async.runtime.add_ref %arg0 {count = 2 : i64} : !async.token
@@ -16,7 +16,7 @@ func @reference_counting(%arg0: !async.token) {
 // -----
 
 // CHECK-LABEL: execute_no_async_args
-func @execute_no_async_args(%arg0: f32, %arg1: memref<1xf32>) {
+func.func @execute_no_async_args(%arg0: f32, %arg1: memref<1xf32>) {
   // CHECK: %[[TOKEN:.*]] = call @async_execute_fn(%arg0, %arg1)
   %token = async.execute {
     %c0 = arith.constant 0 : index
@@ -27,7 +27,7 @@ func @execute_no_async_args(%arg0: f32, %arg1: memref<1xf32>) {
   // CHECK: %[[IS_ERROR:.*]] = call @mlirAsyncRuntimeIsTokenError(%[[TOKEN]])
   // CHECK: %[[TRUE:.*]] = arith.constant true
   // CHECK: %[[NOT_ERROR:.*]] = arith.xori %[[IS_ERROR]], %[[TRUE]] : i1
-  // CHECK: assert %[[NOT_ERROR]]
+  // CHECK: cf.assert %[[NOT_ERROR]]
   // CHECK-NEXT: return
   async.await %token : !async.token
   return
@@ -35,7 +35,7 @@ func @execute_no_async_args(%arg0: f32, %arg1: memref<1xf32>) {
 
 // Function outlined from the async.execute operation.
 // CHECK-LABEL: func private @async_execute_fn(%arg0: f32, %arg1: memref<1xf32>)
-// CHECK-SAME: -> !llvm.ptr<i8>
+// CHECK-SAME: -> !llvm.ptr
 
 // Create token for return op, and mark a function as a coroutine.
 // CHECK: %[[RET:.*]] = call @mlirAsyncRuntimeCreateToken()
@@ -71,7 +71,7 @@ func @execute_no_async_args(%arg0: f32, %arg1: memref<1xf32>) {
 // -----
 
 // CHECK-LABEL: nested_async_execute
-func @nested_async_execute(%arg0: f32, %arg1: f32, %arg2: memref<1xf32>) {
+func.func @nested_async_execute(%arg0: f32, %arg1: f32, %arg2: memref<1xf32>) {
   // CHECK: %[[TOKEN:.*]] = call @async_execute_fn_0(%arg0, %arg2, %arg1)
   %token0 = async.execute {
     %c0 = arith.constant 0 : index
@@ -90,14 +90,14 @@ func @nested_async_execute(%arg0: f32, %arg1: f32, %arg2: memref<1xf32>) {
   // CHECK: %[[IS_ERROR:.*]] = call @mlirAsyncRuntimeIsTokenError(%[[TOKEN]])
   // CHECK: %[[TRUE:.*]] = arith.constant true
   // CHECK: %[[NOT_ERROR:.*]] = arith.xori %[[IS_ERROR]], %[[TRUE]] : i1
-  // CHECK: assert %[[NOT_ERROR]]
+  // CHECK: cf.assert %[[NOT_ERROR]]
   async.await %token0 : !async.token
   return
 }
 
 // Function outlined from the inner async.execute operation.
 // CHECK-LABEL: func private @async_execute_fn(%arg0: f32, %arg1: memref<1xf32>)
-// CHECK-SAME: -> !llvm.ptr<i8>
+// CHECK-SAME: -> !llvm.ptr
 // CHECK: %[[RET_0:.*]] = call @mlirAsyncRuntimeCreateToken()
 // CHECK: %[[HDL_0:.*]] = llvm.intr.coro.begin
 // CHECK: call @mlirAsyncRuntimeExecute
@@ -108,7 +108,7 @@ func @nested_async_execute(%arg0: f32, %arg1: f32, %arg2: memref<1xf32>) {
 
 // Function outlined from the outer async.execute operation.
 // CHECK-LABEL: func private @async_execute_fn_0(%arg0: f32, %arg1: memref<1xf32>, %arg2: f32)
-// CHECK-SAME: -> !llvm.ptr<i8>
+// CHECK-SAME: -> !llvm.ptr
 // CHECK: %[[RET_1:.*]] = call @mlirAsyncRuntimeCreateToken()
 // CHECK: %[[HDL_1:.*]] = llvm.intr.coro.begin
 
@@ -129,7 +129,7 @@ func @nested_async_execute(%arg0: f32, %arg1: f32, %arg2: memref<1xf32>) {
 // -----
 
 // CHECK-LABEL: async_execute_token_dependency
-func @async_execute_token_dependency(%arg0: f32, %arg1: memref<1xf32>) {
+func.func @async_execute_token_dependency(%arg0: f32, %arg1: memref<1xf32>) {
   // CHECK: %0 = call @async_execute_fn(%arg0, %arg1)
   %token = async.execute {
     %c0 = arith.constant 0 : index
@@ -147,7 +147,7 @@ func @async_execute_token_dependency(%arg0: f32, %arg1: memref<1xf32>) {
 
 // Function outlined from the first async.execute operation.
 // CHECK-LABEL: func private @async_execute_fn(%arg0: f32, %arg1: memref<1xf32>)
-// CHECK-SAME: -> !llvm.ptr<i8>
+// CHECK-SAME: -> !llvm.ptr
 // CHECK: %[[RET_0:.*]] = call @mlirAsyncRuntimeCreateToken()
 // CHECK: %[[HDL_0:.*]] = llvm.intr.coro.begin
 // CHECK: call @mlirAsyncRuntimeExecute
@@ -156,8 +156,8 @@ func @async_execute_token_dependency(%arg0: f32, %arg1: memref<1xf32>) {
 // CHECK: call @mlirAsyncRuntimeEmplaceToken(%[[RET_0]])
 
 // Function outlined from the second async.execute operation with dependency.
-// CHECK-LABEL: func private @async_execute_fn_0(%arg0: !llvm.ptr<i8>, %arg1: f32, %arg2: memref<1xf32>)
-// CHECK-SAME: -> !llvm.ptr<i8>
+// CHECK-LABEL: func private @async_execute_fn_0(%arg0: !llvm.ptr, %arg1: f32, %arg2: memref<1xf32>)
+// CHECK-SAME: -> !llvm.ptr
 // CHECK: %[[RET_1:.*]] = call @mlirAsyncRuntimeCreateToken()
 // CHECK: %[[HDL_1:.*]] = llvm.intr.coro.begin
 
@@ -177,7 +177,7 @@ func @async_execute_token_dependency(%arg0: f32, %arg1: memref<1xf32>) {
 // -----
 
 // CHECK-LABEL: async_group_await_all
-func @async_group_await_all(%arg0: f32, %arg1: memref<1xf32>) {
+func.func @async_group_await_all(%arg0: f32, %arg1: memref<1xf32>) {
   %c = arith.constant 1 : index
   // CHECK: %[[GROUP:.*]] = call @mlirAsyncRuntimeCreateGroup
   %0 = async.create_group %c : !async.group
@@ -200,7 +200,7 @@ func @async_group_await_all(%arg0: f32, %arg1: memref<1xf32>) {
 }
 
 // Function outlined from the async.execute operation.
-// CHECK: func private @async_execute_fn_0(%arg0: !llvm.ptr<i8>)
+// CHECK: func private @async_execute_fn_0(%arg0: !llvm.ptr)
 // CHECK: %[[RET_1:.*]] = call @mlirAsyncRuntimeCreateToken()
 // CHECK: %[[HDL_1:.*]] = llvm.intr.coro.begin
 
@@ -219,7 +219,7 @@ func @async_group_await_all(%arg0: f32, %arg1: memref<1xf32>) {
 // -----
 
 // CHECK-LABEL: execute_and_return_f32
-func @execute_and_return_f32() -> f32 {
+func.func @execute_and_return_f32() -> f32 {
  // CHECK: %[[RET:.*]]:2 = call @async_execute_fn
   %token, %result = async.execute -> !async.value<f32> {
     %c0 = arith.constant 123.0 : f32
@@ -227,8 +227,7 @@ func @execute_and_return_f32() -> f32 {
   }
 
   // CHECK: %[[STORAGE:.*]] = call @mlirAsyncRuntimeGetValueStorage(%[[RET]]#1)
-  // CHECK: %[[ST_F32:.*]] = llvm.bitcast %[[STORAGE]]
-  // CHECK: %[[LOADED:.*]] = llvm.load %[[ST_F32]] :  !llvm.ptr<f32>
+  // CHECK: %[[LOADED:.*]] = llvm.load %[[STORAGE]] : !llvm.ptr -> f32
   %0 = async.await %result : !async.value<f32>
 
   return %0 : f32
@@ -247,8 +246,7 @@ func @execute_and_return_f32() -> f32 {
 // Emplace result value.
 // CHECK: %[[CST:.*]] = arith.constant 1.230000e+02 : f32
 // CHECK: %[[STORAGE:.*]] = call @mlirAsyncRuntimeGetValueStorage(%[[VALUE]])
-// CHECK: %[[ST_F32:.*]] = llvm.bitcast %[[STORAGE]]
-// CHECK: llvm.store %[[CST]], %[[ST_F32]] : !llvm.ptr<f32>
+// CHECK: llvm.store %[[CST]], %[[STORAGE]] : f32, !llvm.ptr
 // CHECK: call @mlirAsyncRuntimeEmplaceValue(%[[VALUE]])
 
 // Emplace result token.
@@ -257,7 +255,7 @@ func @execute_and_return_f32() -> f32 {
 // -----
 
 // CHECK-LABEL: @async_value_operands
-func @async_value_operands() {
+func.func @async_value_operands() {
   // CHECK: %[[RET:.*]]:2 = call @async_execute_fn
   %token, %result = async.execute -> !async.value<f32> {
     %c0 = arith.constant 123.0 : f32
@@ -280,7 +278,7 @@ func @async_value_operands() {
 // CHECK-LABEL: func private @async_execute_fn()
 
 // Function outlined from the second async.execute operation.
-// CHECK-LABEL: func private @async_execute_fn_0(%arg0: !llvm.ptr<i8>)
+// CHECK-LABEL: func private @async_execute_fn_0(%arg0: !llvm.ptr)
 // CHECK: %[[TOKEN:.*]] = call @mlirAsyncRuntimeCreateToken()
 // CHECK: %[[HDL:.*]] = llvm.intr.coro.begin
 
@@ -295,8 +293,7 @@ func @async_value_operands() {
 
 // Get the operand value storage, cast to f32 and add the value.
 // CHECK: %[[STORAGE:.*]] = call @mlirAsyncRuntimeGetValueStorage(%arg0)
-// CHECK: %[[ST_F32:.*]] = llvm.bitcast %[[STORAGE]]
-// CHECK: %[[LOADED:.*]] = llvm.load %[[ST_F32]] :  !llvm.ptr<f32>
+// CHECK: %[[LOADED:.*]] = llvm.load %[[STORAGE]] : !llvm.ptr -> f32
 // CHECK: arith.addf %[[LOADED]], %[[LOADED]] : f32
 
 // Emplace result token.

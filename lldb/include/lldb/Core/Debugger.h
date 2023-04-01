@@ -12,8 +12,10 @@
 #include <cstdint>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
+#include "lldb/Core/DebuggerEvents.h"
 #include "lldb/Core/FormatEntity.h"
 #include "lldb/Core/IOHandler.h"
 #include "lldb/Core/SourceManager.h"
@@ -26,6 +28,7 @@
 #include "lldb/Target/TargetList.h"
 #include "lldb/Utility/Broadcaster.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/Diagnostics.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/UserID.h"
@@ -48,11 +51,14 @@
 
 namespace llvm {
 class raw_ostream;
+class ThreadPool;
 }
 
 namespace lldb_private {
 class Address;
+class CallbackLogHandler;
 class CommandInterpreter;
+class LogHandler;
 class Process;
 class Stream;
 class SymbolContext;
@@ -76,6 +82,9 @@ public:
   /// Broadcaster event bits definitions.
   enum {
     eBroadcastBitProgress = (1 << 0),
+    eBroadcastBitWarning = (1 << 1),
+    eBroadcastBitError = (1 << 2),
+    eBroadcastSymbolChange = (1 << 3),
   };
 
   static ConstString GetStaticBroadcasterClass();
@@ -83,39 +92,6 @@ public:
   /// Get the public broadcaster for this debugger.
   Broadcaster &GetBroadcaster() { return m_broadcaster; }
   const Broadcaster &GetBroadcaster() const { return m_broadcaster; }
-
-  class ProgressEventData : public EventData {
-
-  public:
-    ProgressEventData(uint64_t progress_id, const std::string &message,
-                      uint64_t completed, uint64_t total,
-                      bool debugger_specific)
-        : m_message(message), m_id(progress_id), m_completed(completed),
-          m_total(total), m_debugger_specific(debugger_specific) {}
-
-    static ConstString GetFlavorString();
-
-    ConstString GetFlavor() const override;
-
-    void Dump(Stream *s) const override;
-
-    static const ProgressEventData *
-    GetEventDataFromEvent(const Event *event_ptr);
-    uint64_t GetID() const { return m_id; }
-    uint64_t GetCompleted() const { return m_completed; }
-    uint64_t GetTotal() const { return m_total; }
-    const std::string &GetMessage() const { return m_message; }
-    bool IsDebuggerSpecific() const { return m_debugger_specific; }
-
-  private:
-    std::string m_message;
-    const uint64_t m_id;
-    uint64_t m_completed;
-    const uint64_t m_total;
-    const bool m_debugger_specific;
-    ProgressEventData(const ProgressEventData &) = delete;
-    const ProgressEventData &operator=(const ProgressEventData &) = delete;
-  };
 
   ~Debugger() override;
 
@@ -178,11 +154,7 @@ public:
 
   Status SetInputString(const char *data);
 
-  // This method will setup data recorder if reproducer enabled.
-  // On reply mode this method should take instructions from reproducer file.
-  Status SetInputFile(lldb::FileSP file);
-
-  void SetInputFile(lldb::FileSP file, repro::DataRecorder *recorder);
+  void SetInputFile(lldb::FileSP file);
 
   void SetOutputFile(lldb::FileSP file);
 
@@ -203,7 +175,7 @@ public:
 
   ScriptInterpreter *
   GetScriptInterpreter(bool can_create = true,
-                       llvm::Optional<lldb::ScriptLanguage> language = {});
+                       std::optional<lldb::ScriptLanguage> language = {});
 
   lldb::ListenerSP GetListener() { return m_listener_sp; }
 
@@ -272,6 +244,7 @@ public:
   bool EnableLog(llvm::StringRef channel,
                  llvm::ArrayRef<const char *> categories,
                  llvm::StringRef log_file, uint32_t log_options,
+                 size_t buffer_size, LogHandlerKind log_handler_kind,
                  llvm::raw_ostream &error_stream);
 
   void SetLoggingCallback(lldb::LogOutputCallback log_callback, void *baton);
@@ -319,8 +292,6 @@ public:
   void SetPrompt(llvm::StringRef p);
   void SetPrompt(const char *) = delete;
 
-  llvm::StringRef GetReproducerPath() const;
-
   bool GetUseExternalEditor() const;
 
   bool SetUseExternalEditor(bool use_external_editor_p);
@@ -329,7 +300,19 @@ public:
 
   bool SetUseColor(bool use_color);
 
+  bool GetShowProgress() const;
+
+  bool SetShowProgress(bool show_progress);
+
+  llvm::StringRef GetShowProgressAnsiPrefix() const;
+
+  llvm::StringRef GetShowProgressAnsiSuffix() const;
+
   bool GetUseAutosuggestion() const;
+
+  llvm::StringRef GetAutosuggestionAnsiPrefix() const;
+
+  llvm::StringRef GetAutosuggestionAnsiSuffix() const;
 
   bool GetUseSourceCache() const;
 
@@ -367,6 +350,8 @@ public:
 
   bool SetTabSize(uint32_t tab_size);
 
+  lldb::DWIMPrintVerbosity GetDWIMPrintVerbosity() const;
+
   bool GetEscapeNonPrintables() const;
 
   bool GetNotifyVoid() const;
@@ -386,6 +371,48 @@ public:
   bool IsHandlingEvents() const { return m_event_handler_thread.IsJoinable(); }
 
   Status RunREPL(lldb::LanguageType language, const char *repl_options);
+  
+  /// Interruption in LLDB:
+  /// 
+  /// This is a voluntary interruption mechanism, not preemptive.  Parts of lldb
+  /// that do work that can be safely interrupted call 
+  /// Debugger::InterruptRequested and if that returns true, they should return
+  /// at a safe point, shortcutting the rest of the work they were to do.
+  ///  
+  /// lldb clients can both offer a CommandInterpreter (through 
+  /// RunCommandInterpreter) and use the SB API's for their own purposes, so it
+  /// is convenient to separate "interrupting the CommandInterpreter execution"
+  /// and interrupting the work it is doing with the SB API's.  So there are two 
+  /// ways to cause an interrupt: 
+  ///   * CommandInterpreter::InterruptCommand: Interrupts the command currently
+  ///     running in the command interpreter IOHandler thread
+  ///   * Debugger::RequestInterrupt: Interrupts are active on anything but the
+  ///     CommandInterpreter thread till CancelInterruptRequest is called.
+  ///
+  /// Since the two checks are mutually exclusive, however, it's also convenient
+  /// to have just one function to check the interrupt state.
+
+
+  /// Bump the "interrupt requested" count on the debugger to support
+  /// cooperative interruption.  If this is non-zero, InterruptRequested will
+  /// return true.  Interruptible operations are expected to query the
+  /// InterruptRequested API periodically, and interrupt what they were doing
+  /// if it returns \b true.
+  ///
+  void RequestInterrupt();
+  
+  /// Decrement the "interrupt requested" counter.
+  void CancelInterruptRequest();
+  
+  /// This is the correct way to query the state of Interruption.
+  /// If you are on the RunCommandInterpreter thread, it will check the 
+  /// command interpreter state, and if it is on another thread it will 
+  /// check the debugger Interrupt Request state.
+  ///
+  /// \return
+  ///  A boolean value, if \b true an interruptible operation should interrupt
+  ///  itself.
+  bool InterruptRequested();
 
   // This is for use in the command interpreter, when you either want the
   // selected target, or if no target is present you want to prime the dummy
@@ -396,6 +423,79 @@ public:
   lldb::BroadcasterManagerSP GetBroadcasterManager() {
     return m_broadcaster_manager_sp;
   }
+
+  /// Shared thread poll. Use only with ThreadPoolTaskGroup.
+  static llvm::ThreadPool &GetThreadPool();
+
+  /// Report warning events.
+  ///
+  /// Warning events will be delivered to any debuggers that have listeners
+  /// for the eBroadcastBitWarning.
+  ///
+  /// \param[in] message
+  ///   The warning message to be reported.
+  ///
+  /// \param [in] debugger_id
+  ///   If this optional parameter has a value, it indicates the unique
+  ///   debugger identifier that this diagnostic should be delivered to. If
+  ///   this optional parameter does not have a value, the diagnostic event
+  ///   will be delivered to all debuggers.
+  ///
+  /// \param [in] once
+  ///   If a pointer is passed to a std::once_flag, then it will be used to
+  ///   ensure the given warning is only broadcast once.
+  static void
+  ReportWarning(std::string message,
+                std::optional<lldb::user_id_t> debugger_id = std::nullopt,
+                std::once_flag *once = nullptr);
+
+  /// Report error events.
+  ///
+  /// Error events will be delivered to any debuggers that have listeners
+  /// for the eBroadcastBitError.
+  ///
+  /// \param[in] message
+  ///   The error message to be reported.
+  ///
+  /// \param [in] debugger_id
+  ///   If this optional parameter has a value, it indicates the unique
+  ///   debugger identifier that this diagnostic should be delivered to. If
+  ///   this optional parameter does not have a value, the diagnostic event
+  ///   will be delivered to all debuggers.
+  ///
+  /// \param [in] once
+  ///   If a pointer is passed to a std::once_flag, then it will be used to
+  ///   ensure the given error is only broadcast once.
+  static void
+  ReportError(std::string message,
+              std::optional<lldb::user_id_t> debugger_id = std::nullopt,
+              std::once_flag *once = nullptr);
+
+  /// Report info events.
+  ///
+  /// Unlike warning and error events, info events are not broadcast but are
+  /// logged for diagnostic purposes.
+  ///
+  /// \param[in] message
+  ///   The info message to be reported.
+  ///
+  /// \param [in] debugger_id
+  ///   If this optional parameter has a value, it indicates this diagnostic is
+  ///   associated with a unique debugger instance.
+  ///
+  /// \param [in] once
+  ///   If a pointer is passed to a std::once_flag, then it will be used to
+  ///   ensure the given info is only logged once.
+  static void
+  ReportInfo(std::string message,
+             std::optional<lldb::user_id_t> debugger_id = std::nullopt,
+             std::once_flag *once = nullptr);
+
+  static void ReportSymbolChange(const ModuleSpec &module_spec);
+
+  void
+  SetDestroyCallback(lldb_private::DebuggerDestroyCallback destroy_callback,
+                     void *baton);
 
 protected:
   friend class CommandInterpreter;
@@ -431,38 +531,56 @@ protected:
   ///   debugger identifier that this progress should be delivered to. If this
   ///   optional parameter does not have a value, the progress will be
   ///   delivered to all debuggers.
-  static void ReportProgress(uint64_t progress_id, const std::string &message,
-                             uint64_t completed, uint64_t total,
-                             llvm::Optional<lldb::user_id_t> debugger_id);
+  static void ReportProgress(uint64_t progress_id, std::string title,
+                             std::string details, uint64_t completed,
+                             uint64_t total,
+                             std::optional<lldb::user_id_t> debugger_id);
+
+  static void ReportDiagnosticImpl(DiagnosticEventData::Type type,
+                                   std::string message,
+                                   std::optional<lldb::user_id_t> debugger_id,
+                                   std::once_flag *once);
+
+  void HandleDestroyCallback();
+
+  void PrintProgress(const ProgressEventData &data);
 
   bool StartEventHandlerThread();
 
   void StopEventHandlerThread();
-
-  static lldb::thread_result_t EventHandlerThread(lldb::thread_arg_t arg);
 
   void PushIOHandler(const lldb::IOHandlerSP &reader_sp,
                      bool cancel_top_handler = true);
 
   bool PopIOHandler(const lldb::IOHandlerSP &reader_sp);
 
-  bool HasIOHandlerThread();
+  bool HasIOHandlerThread() const;
 
   bool StartIOHandlerThread();
 
   void StopIOHandlerThread();
+  
+  // Sets the IOHandler thread to the new_thread, and returns
+  // the previous IOHandler thread.
+  HostThread SetIOHandlerThread(HostThread &new_thread);
 
   void JoinIOHandlerThread();
+  
+  bool IsIOHandlerThreadCurrentThread() const;
 
-  static lldb::thread_result_t IOHandlerThread(lldb::thread_arg_t arg);
+  lldb::thread_result_t IOHandlerThread();
 
-  void DefaultEventHandler();
+  lldb::thread_result_t DefaultEventHandler();
 
   void HandleBreakpointEvent(const lldb::EventSP &event_sp);
 
   void HandleProcessEvent(const lldb::EventSP &event_sp);
 
   void HandleThreadEvent(const lldb::EventSP &event_sp);
+
+  void HandleProgressEvent(const lldb::EventSP &event_sp);
+
+  void HandleDiagnosticEvent(const lldb::EventSP &event_sp);
 
   // Ensures two threads don't attempt to flush process output in parallel.
   std::mutex m_output_flush_mutex;
@@ -512,8 +630,10 @@ protected:
   IOHandlerStack m_io_handler_stack;
   std::recursive_mutex m_io_handler_synchronous_mutex;
 
-  llvm::StringMap<std::weak_ptr<llvm::raw_ostream>> m_log_streams;
-  std::shared_ptr<llvm::raw_ostream> m_log_callback_stream_sp;
+  std::optional<uint64_t> m_current_event_id;
+
+  llvm::StringMap<std::weak_ptr<LogHandler>> m_stream_handlers;
+  std::shared_ptr<CallbackLogHandler> m_callback_handler_sp;
   ConstString m_instance_name;
   static LoadPluginCallbackType g_load_plugin_callback;
   typedef std::vector<llvm::sys::DynamicLibrary> LoadedPluginsList;
@@ -525,6 +645,13 @@ protected:
   lldb::ListenerSP m_forward_listener_sp;
   llvm::once_flag m_clear_once;
   lldb::TargetSP m_dummy_target_sp;
+  Diagnostics::CallbackID m_diagnostics_callback_id;
+
+  lldb_private::DebuggerDestroyCallback m_destroy_callback = nullptr;
+  void *m_destroy_callback_baton = nullptr;
+
+  uint32_t m_interrupt_requested = 0; ///< Tracks interrupt requests
+  std::mutex m_interrupt_mutex;
 
   // Events for m_sync_broadcaster
   enum {

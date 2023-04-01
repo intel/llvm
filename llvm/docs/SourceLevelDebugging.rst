@@ -175,47 +175,6 @@ Debugger intrinsic functions
 LLVM uses several intrinsic functions (name prefixed with "``llvm.dbg``") to
 track source local variables through optimization and code generation.
 
-``llvm.dbg.addr``
-^^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: llvm
-
-  void @llvm.dbg.addr(metadata, metadata, metadata)
-
-This intrinsic provides information about a local element (e.g., variable).
-The first argument is metadata holding the address of variable, typically a
-static alloca in the function entry block.  The second argument is a
-`local variable <LangRef.html#dilocalvariable>`_ containing a description of
-the variable.  The third argument is a `complex expression
-<LangRef.html#diexpression>`_.  An `llvm.dbg.addr` intrinsic describes the
-*address* of a source variable.
-
-.. code-block:: text
-
-    %i.addr = alloca i32, align 4
-    call void @llvm.dbg.addr(metadata i32* %i.addr, metadata !1,
-                             metadata !DIExpression()), !dbg !2
-    !1 = !DILocalVariable(name: "i", ...) ; int i
-    !2 = !DILocation(...)
-    ...
-    %buffer = alloca [256 x i8], align 8
-    ; The address of i is buffer+64.
-    call void @llvm.dbg.addr(metadata [256 x i8]* %buffer, metadata !3,
-                             metadata !DIExpression(DW_OP_plus, 64)), !dbg !4
-    !3 = !DILocalVariable(name: "i", ...) ; int i
-    !4 = !DILocation(...)
-
-A frontend should generate exactly one call to ``llvm.dbg.addr`` at the point
-of declaration of a source variable. Optimization passes that fully promote the
-variable from memory to SSA values will replace this call with possibly
-multiple calls to `llvm.dbg.value`. Passes that delete stores are effectively
-partial promotion, and they will insert a mix of calls to ``llvm.dbg.value``
-and ``llvm.dbg.addr`` to track the source variable value when it is available.
-After optimization, there may be multiple calls to ``llvm.dbg.addr`` describing
-the program points where the variables lives in memory. All calls for the same
-concrete source variable must agree on the memory location.
-
-
 ``llvm.dbg.declare``
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -223,14 +182,38 @@ concrete source variable must agree on the memory location.
 
   void @llvm.dbg.declare(metadata, metadata, metadata)
 
-This intrinsic is identical to `llvm.dbg.addr`, except that there can only be
-one call to `llvm.dbg.declare` for a given concrete `local variable
-<LangRef.html#dilocalvariable>`_. It is not control-dependent, meaning that if
-a call to `llvm.dbg.declare` exists and has a valid location argument, that
-address is considered to be the true home of the variable across its entire
-lifetime. This makes it hard for optimizations to preserve accurate debug info
-in the presence of ``llvm.dbg.declare``, so we are transitioning away from it,
-and we plan to deprecate it in future LLVM releases.
+This intrinsic provides information about a local element (e.g., variable).
+The first argument is metadata holding the address of variable, typically a
+static alloca in the function entry block.  The second argument is a
+`local variable <LangRef.html#dilocalvariable>`_ containing a description of
+the variable.  The third argument is a `complex expression
+<LangRef.html#diexpression>`_.  An `llvm.dbg.declare` intrinsic describes the
+*address* of a source variable.
+
+.. code-block:: text
+
+    %i.addr = alloca i32, align 4
+    call void @llvm.dbg.declare(metadata i32* %i.addr, metadata !1,
+                                metadata !DIExpression()), !dbg !2
+    !1 = !DILocalVariable(name: "i", ...) ; int i
+    !2 = !DILocation(...)
+    ...
+    %buffer = alloca [256 x i8], align 8
+    ; The address of i is buffer+64.
+    call void @llvm.dbg.declare(metadata [256 x i8]* %buffer, metadata !3,
+                               metadata !DIExpression(DW_OP_plus, 64)), !dbg !4
+    !3 = !DILocalVariable(name: "i", ...) ; int i
+    !4 = !DILocation(...)
+
+A frontend should generate exactly one call to ``llvm.dbg.declare`` at the point
+of declaration of a source variable. Optimization passes that fully promote the
+variable from memory to SSA values will replace this call with possibly multiple
+calls to `llvm.dbg.value`. Passes that delete stores are effectively partial
+promotion, and they will insert a mix of calls to ``llvm.dbg.value`` to track
+the source variable value when it is available. After optimization, there may be
+multiple calls to ``llvm.dbg.declare`` describing the program points where the
+variables lives in memory. All calls for the same concrete source variable must
+agree on the memory location.
 
 
 ``llvm.dbg.value``
@@ -250,6 +233,40 @@ An `llvm.dbg.value` intrinsic describes the *value* of a source variable
 directly, not its address.  Note that the value operand of this intrinsic may
 be indirect (i.e, a pointer to the source variable), provided that interpreting
 the complex expression derives the direct value.
+
+``llvm.dbg.assign``
+^^^^^^^^^^^^^^^^^^^
+.. toctree::
+   :hidden:
+
+   AssignmentTracking
+
+.. code-block:: llvm
+
+  void @llvm.dbg.assign(Value *Value,
+                        DIExpression *ValueExpression,
+                        DILocalVariable *Variable,
+                        DIAssignID *ID,
+                        Value *Address,
+                        DIExpression *AddressExpression)
+
+This intrinsic marks the position in IR where a source assignment occured. It
+encodes the value of the variable. It references the store, if any, that
+performs the assignment, and the destination address.
+
+The first three arguments are the same as for an ``llvm.dbg.value``. The fourth
+argument is a ``DIAssignID`` used to reference a store. The fifth is the
+destination of the store (wrapped as metadata), and the sixth is a `complex
+expression <LangRef.html#diexpression>`_ that modfies it.
+
+The formal LLVM-IR signature is:
+
+.. code-block:: llvm
+
+  void @llvm.dbg.assign(metadata, metadata, metadata, metadata, metadata, metadata)
+
+
+See :doc:`AssignmentTracking` for more info.
 
 Object lifetimes and scoping
 ============================
@@ -277,9 +294,6 @@ following C fragment, for example:
   7.    }
   8.    X = Y;
   9.  }
-
-.. FIXME: Update the following example to use llvm.dbg.addr once that is the
-   default in clang.
 
 Compiled to LLVM, this function would be represented like this:
 
@@ -575,8 +589,8 @@ in IR the location would be assigned ``undef`` by a debug intrinsic, and in MIR
 the equivalent location is used.
 
 After MIR locations are assigned to each variable, machine pseudo-instructions
-corresponding to each ``llvm.dbg.value`` and ``llvm.dbg.addr`` intrinsic are
-inserted. There are two forms of this type of instruction.
+corresponding to each ``llvm.dbg.value`` intrinsic are inserted. There are two
+forms of this type of instruction.
 
 The first form, ``DBG_VALUE``, appears thus:
 
@@ -1087,6 +1101,10 @@ a Fortran front-end would generate the following descriptors:
   !DILocalVariable(name: "string", arg: 1, scope: !10, file: !3, line: 4, type: !15)
   !DIStringType(name: "character(*)!2", stringLength: !16, stringLengthExpression: !DIExpression(), size: 32)
 
+A fortran deferred-length character can also contain the information of raw storage of the characters in addition to the length of the string. This information is encoded in the  stringLocationExpression field. Based on this information, DW_AT_data_location attribute is emitted in a DW_TAG_string_type debug info.
+
+  !DIStringType(name: "character(*)!2", stringLengthExpression: !DIExpression(), stringLocationExpression: !DIExpression(DW_OP_push_object_address, DW_OP_deref), size: 32)
+
 and this will materialize in DWARF tags as:
 
 .. code-block:: text
@@ -1097,8 +1115,28 @@ and this will materialize in DWARF tags as:
    0x00000064:    DW_TAG_variable
                   DW_AT_location      (DW_OP_fbreg +16)
                   DW_AT_type  (0x00000083 "integer*8")
+                  DW_AT_data_location (DW_OP_push_object_address, DW_OP_deref)
                   ...
                   DW_AT_artificial    (true)
+
+A Fortran front-end may need to generate a *trampoline* function to call a
+function defined in a different compilation unit. In this case, the front-end
+can emit the following descriptor for the trampoline function:
+
+.. code-block:: text
+
+  !DISubprogram(name: "sub1_.t0p", linkageName: "sub1_.t0p", scope: !4, file: !4, type: !5, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition, unit: !7, retainedNodes: !24, targetFuncName: "sub1_")
+
+The targetFuncName field is the name of the function that the trampoline
+calls. This descriptor results in the following DWARF tag:
+
+.. code-block:: text
+
+  DW_TAG_subprogram
+    ...
+    DW_AT_linkage_name	("sub1_.t0p")
+    DW_AT_name	("sub1_.t0p")
+    DW_AT_trampoline	("sub1_")
 
 Debugging information format
 ============================

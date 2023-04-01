@@ -12,6 +12,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/ScopedPrinter.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::pdll::ast;
@@ -37,7 +38,7 @@ private:
             std::enable_if_t<!std::is_convertible<RangeT, const Node *>::value>
                 * = nullptr>
   void printChildren(RangeT &&range) {
-    if (llvm::empty(range))
+    if (range.empty())
       return;
 
     // Print the first N-1 elements with a prefix of "|-".
@@ -59,10 +60,10 @@ private:
   /// the given label.
   template <typename RangeT>
   void printChildren(StringRef label, RangeT &&range) {
-    if (llvm::empty(range))
+    if (range.empty())
       return;
     elementIndentStack.reserve(elementIndentStack.size() + 1);
-    llvm::SaveAndRestore<bool> lastElement(elementIndentStack.back(), true);
+    llvm::SaveAndRestore lastElement(elementIndentStack.back(), true);
 
     printIndent();
     os << label << "`\n";
@@ -76,12 +77,15 @@ private:
   void printImpl(const EraseStmt *stmt);
   void printImpl(const LetStmt *stmt);
   void printImpl(const ReplaceStmt *stmt);
+  void printImpl(const ReturnStmt *stmt);
   void printImpl(const RewriteStmt *stmt);
 
   void printImpl(const AttributeExpr *expr);
+  void printImpl(const CallExpr *expr);
   void printImpl(const DeclRefExpr *expr);
   void printImpl(const MemberAccessExpr *expr);
   void printImpl(const OperationExpr *expr);
+  void printImpl(const RangeExpr *expr);
   void printImpl(const TupleExpr *expr);
   void printImpl(const TypeExpr *expr);
 
@@ -89,11 +93,13 @@ private:
   void printImpl(const OpConstraintDecl *decl);
   void printImpl(const TypeConstraintDecl *decl);
   void printImpl(const TypeRangeConstraintDecl *decl);
+  void printImpl(const UserConstraintDecl *decl);
   void printImpl(const ValueConstraintDecl *decl);
   void printImpl(const ValueRangeConstraintDecl *decl);
   void printImpl(const NamedAttributeDecl *decl);
   void printImpl(const OpNameDecl *decl);
   void printImpl(const PatternDecl *decl);
+  void printImpl(const UserRewriteDecl *decl);
   void printImpl(const VariableDecl *decl);
   void printImpl(const Module *module);
 
@@ -102,7 +108,7 @@ private:
     if (elementIndentStack.empty())
       return;
 
-    for (bool isLastElt : llvm::makeArrayRef(elementIndentStack).drop_back())
+    for (bool isLastElt : llvm::ArrayRef(elementIndentStack).drop_back())
       os << (isLastElt ? "  " : " |");
     os << (elementIndentStack.back() ? " `" : " |");
   }
@@ -128,13 +134,14 @@ void NodePrinter::print(Type type) {
       .Case([&](ConstraintType) { os << "Constraint"; })
       .Case([&](OperationType type) {
         os << "Op";
-        if (Optional<StringRef> name = type.getName())
+        if (std::optional<StringRef> name = type.getName())
           os << "<" << *name << ">";
       })
       .Case([&](RangeType type) {
         print(type.getElementType());
         os << "Range";
       })
+      .Case([&](RewriteType) { os << "Rewrite"; })
       .Case([&](TupleType type) {
         os << "Tuple<";
         llvm::interleaveComma(
@@ -160,17 +167,19 @@ void NodePrinter::print(const Node *node) {
       .Case<
           // Statements.
           const CompoundStmt, const EraseStmt, const LetStmt, const ReplaceStmt,
-          const RewriteStmt,
+          const ReturnStmt, const RewriteStmt,
 
           // Expressions.
-          const AttributeExpr, const DeclRefExpr, const MemberAccessExpr,
-          const OperationExpr, const TupleExpr, const TypeExpr,
+          const AttributeExpr, const CallExpr, const DeclRefExpr,
+          const MemberAccessExpr, const OperationExpr, const RangeExpr,
+          const TupleExpr, const TypeExpr,
 
           // Decls.
           const AttrConstraintDecl, const OpConstraintDecl,
           const TypeConstraintDecl, const TypeRangeConstraintDecl,
-          const ValueConstraintDecl, const ValueRangeConstraintDecl,
-          const NamedAttributeDecl, const OpNameDecl, const PatternDecl,
+          const UserConstraintDecl, const ValueConstraintDecl,
+          const ValueRangeConstraintDecl, const NamedAttributeDecl,
+          const OpNameDecl, const PatternDecl, const UserRewriteDecl,
           const VariableDecl,
 
           const Module>([&](auto derivedNode) { this->printImpl(derivedNode); })
@@ -199,6 +208,11 @@ void NodePrinter::printImpl(const ReplaceStmt *stmt) {
   printChildren("ReplValues", stmt->getReplExprs());
 }
 
+void NodePrinter::printImpl(const ReturnStmt *stmt) {
+  os << "ReturnStmt " << stmt << "\n";
+  printChildren(stmt->getResultExpr());
+}
+
 void NodePrinter::printImpl(const RewriteStmt *stmt) {
   os << "RewriteStmt " << stmt << "\n";
   printChildren(stmt->getRootOpExpr(), stmt->getRewriteBody());
@@ -206,6 +220,14 @@ void NodePrinter::printImpl(const RewriteStmt *stmt) {
 
 void NodePrinter::printImpl(const AttributeExpr *expr) {
   os << "AttributeExpr " << expr << " Value<\"" << expr->getValue() << "\">\n";
+}
+
+void NodePrinter::printImpl(const CallExpr *expr) {
+  os << "CallExpr " << expr << " Type<";
+  print(expr->getType());
+  os << ">\n";
+  printChildren(expr->getCallableExpr());
+  printChildren("Arguments", expr->getArguments());
 }
 
 void NodePrinter::printImpl(const DeclRefExpr *expr) {
@@ -232,6 +254,14 @@ void NodePrinter::printImpl(const OperationExpr *expr) {
   printChildren("Operands", expr->getOperands());
   printChildren("Result Types", expr->getResultTypes());
   printChildren("Attributes", expr->getAttributes());
+}
+
+void NodePrinter::printImpl(const RangeExpr *expr) {
+  os << "RangeExpr " << expr << " Type<";
+  print(expr->getType());
+  os << ">\n";
+
+  printChildren(expr->getElements());
 }
 
 void NodePrinter::printImpl(const TupleExpr *expr) {
@@ -265,6 +295,21 @@ void NodePrinter::printImpl(const TypeRangeConstraintDecl *decl) {
   os << "TypeRangeConstraintDecl " << decl << "\n";
 }
 
+void NodePrinter::printImpl(const UserConstraintDecl *decl) {
+  os << "UserConstraintDecl " << decl << " Name<" << decl->getName().getName()
+     << "> ResultType<" << decl->getResultType() << ">";
+  if (std::optional<StringRef> codeBlock = decl->getCodeBlock()) {
+    os << " Code<";
+    llvm::printEscapedString(*codeBlock, os);
+    os << ">";
+  }
+  os << "\n";
+  printChildren("Inputs", decl->getInputs());
+  printChildren("Results", decl->getResults());
+  if (const CompoundStmt *body = decl->getBody())
+    printChildren(body);
+}
+
 void NodePrinter::printImpl(const ValueConstraintDecl *decl) {
   os << "ValueConstraintDecl " << decl << "\n";
   if (const auto *typeExpr = decl->getTypeExpr())
@@ -285,8 +330,8 @@ void NodePrinter::printImpl(const NamedAttributeDecl *decl) {
 
 void NodePrinter::printImpl(const OpNameDecl *decl) {
   os << "OpNameDecl " << decl;
-  if (Optional<StringRef> name = decl->getName())
-    os << " Name<" << name << ">";
+  if (std::optional<StringRef> name = decl->getName())
+    os << " Name<" << *name << ">";
   os << "\n";
 }
 
@@ -294,13 +339,28 @@ void NodePrinter::printImpl(const PatternDecl *decl) {
   os << "PatternDecl " << decl;
   if (const Name *name = decl->getName())
     os << " Name<" << name->getName() << ">";
-  if (Optional<uint16_t> benefit = decl->getBenefit())
+  if (std::optional<uint16_t> benefit = decl->getBenefit())
     os << " Benefit<" << *benefit << ">";
   if (decl->hasBoundedRewriteRecursion())
     os << " Recursion";
 
   os << "\n";
   printChildren(decl->getBody());
+}
+
+void NodePrinter::printImpl(const UserRewriteDecl *decl) {
+  os << "UserRewriteDecl " << decl << " Name<" << decl->getName().getName()
+     << "> ResultType<" << decl->getResultType() << ">";
+  if (std::optional<StringRef> codeBlock = decl->getCodeBlock()) {
+    os << " Code<";
+    llvm::printEscapedString(*codeBlock, os);
+    os << ">";
+  }
+  os << "\n";
+  printChildren("Inputs", decl->getInputs());
+  printChildren("Results", decl->getResults());
+  if (const CompoundStmt *body = decl->getBody())
+    printChildren(body);
 }
 
 void NodePrinter::printImpl(const VariableDecl *decl) {

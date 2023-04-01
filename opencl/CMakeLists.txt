@@ -20,8 +20,8 @@ set(OCL_LOADER_REPO
 
 # Repo tags/hashes
 
-set(OCL_HEADERS_TAG 23710f1b99186065c1768fc3098ba681adc0f253)
-set(OCL_LOADER_TAG 5f8249691ec8c25775789498951f8e9eb62c201d)
+set(OCL_HEADERS_TAG 9ddb236e6eb3cf844f9e2f81677e1045f9bf838e)
+set(OCL_LOADER_TAG 9a3e962f16f5097d2054233ad8b6dad51b6f41b7)
 
 # OpenCL Headers
 if(NOT OpenCL_HEADERS)
@@ -44,7 +44,7 @@ FetchContent_GetProperties(ocl-headers)
 set(OpenCL_INCLUDE_DIR
   ${ocl-headers_SOURCE_DIR} CACHE PATH "Path to OpenCL Headers")
 
-target_compile_definitions(Headers INTERFACE -DCL_TARGET_OPENCL_VERSION=220)
+target_compile_definitions(Headers INTERFACE -DCL_TARGET_OPENCL_VERSION=300)
 add_library(OpenCL-Headers ALIAS Headers)
 
 # OpenCL Library (ICD Loader)

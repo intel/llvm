@@ -17,7 +17,7 @@
 //
 // Because this structure is shared throughout clangd, it's a potential source
 // of layering problems. Config should be expressed in terms of simple
-// vocubulary types where possible.
+// vocabulary types where possible.
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,9 +26,10 @@
 
 #include "support/Context.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
+#include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -55,7 +56,7 @@ struct Config {
   struct CDBSearchSpec {
     enum { Ancestors, FixedDir, NoCDBSearch } Policy = Ancestors;
     // Absolute, native slashes, no trailing slash.
-    llvm::Optional<std::string> FixedCDBPath;
+    std::optional<std::string> FixedCDBPath;
   };
 
   /// Controls how the compile command for the current file is determined.
@@ -64,7 +65,7 @@ struct Config {
     std::vector<llvm::unique_function<void(std::vector<std::string> &) const>>
         Edits;
     /// Where to search for compilation databases for this file's flags.
-    CDBSearchSpec CDBSearch = {CDBSearchSpec::Ancestors, llvm::None};
+    CDBSearchSpec CDBSearch = {CDBSearchSpec::Ancestors, std::nullopt};
   } CompileFlags;
 
   enum class BackgroundPolicy { Build, Skip };
@@ -79,14 +80,19 @@ struct Config {
     /// forward-slashes.
     std::string MountPoint;
   };
-  /// Controls background-index behavior.
+  /// Controls index behavior.
   struct {
-    /// Whether this TU should be indexed.
+    /// Whether this TU should be background-indexed.
     BackgroundPolicy Background = BackgroundPolicy::Build;
     ExternalIndexSpec External;
+    bool StandardLibrary = true;
   } Index;
 
-  enum UnusedIncludesPolicy { Strict, None };
+  enum class IncludesPolicy {
+    /// Diagnose missing and unused includes.
+    Strict,
+    None,
+  };
   /// Controls warnings and errors when parsing code.
   struct {
     bool SuppressAll = false;
@@ -99,7 +105,17 @@ struct Config {
       llvm::StringMap<std::string> CheckOptions;
     } ClangTidy;
 
-    UnusedIncludesPolicy UnusedIncludes = None;
+    /// Enable emitting diagnostics using stale preambles.
+    bool AllowStalePreamble = false;
+
+    IncludesPolicy UnusedIncludes = IncludesPolicy::None;
+    IncludesPolicy MissingIncludes = IncludesPolicy::None;
+
+    /// IncludeCleaner will not diagnose usages of these headers matched by
+    /// these regexes.
+    struct {
+      std::vector<std::function<bool(llvm::StringRef)>> IgnoreHeader;
+    } Includes;
   } Diagnostics;
 
   /// Style of the codebase.
@@ -120,7 +136,7 @@ struct Config {
   /// Configures hover feature.
   struct {
     /// Whether hover show a.k.a type.
-    bool ShowAKA = false;
+    bool ShowAKA = true;
   } Hover;
 
   struct {
@@ -130,6 +146,7 @@ struct Config {
     // Whether specific categories of hints are enabled.
     bool Parameters = true;
     bool DeducedTypes = true;
+    bool Designators = true;
   } InlayHints;
 };
 

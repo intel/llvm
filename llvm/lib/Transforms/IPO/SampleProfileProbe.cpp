@@ -13,27 +13,27 @@
 #include "llvm/Transforms/IPO/SampleProfileProbe.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/EHUtils.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CFG.h"
-#include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
-#include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/MDBuilder.h"
+#include "llvm/IR/PseudoProbe.h"
 #include "llvm/ProfileData/SampleProf.h"
 #include "llvm/Support/CRC.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <unordered_set>
 #include <vector>
 
 using namespace llvm;
-#define DEBUG_TYPE "sample-profile-probe"
+#define DEBUG_TYPE "pseudo-probe"
 
 STATISTIC(ArtificialDbgLine,
           "Number of probes that have an artificial debug line");
@@ -56,11 +56,7 @@ static uint64_t getCallStackHash(const DILocation *DIL) {
   while (InlinedAt) {
     Hash ^= MD5Hash(std::to_string(InlinedAt->getLine()));
     Hash ^= MD5Hash(std::to_string(InlinedAt->getColumn()));
-    const DISubprogram *SP = InlinedAt->getScope()->getSubprogram();
-    // Use linkage name for C++ if possible.
-    auto Name = SP->getLinkageName();
-    if (Name.empty())
-      Name = SP->getName();
+    auto Name = InlinedAt->getSubprogramLinkageName();
     Hash ^= MD5Hash(Name);
     InlinedAt = InlinedAt->getInlinedAt();
   }
@@ -99,14 +95,14 @@ void PseudoProbeVerifier::runAfterPass(StringRef PassID, Any IR) {
   std::string Banner =
       "\n*** Pseudo Probe Verification After " + PassID.str() + " ***\n";
   dbgs() << Banner;
-  if (any_isa<const Module *>(IR))
-    runAfterPass(any_cast<const Module *>(IR));
-  else if (any_isa<const Function *>(IR))
-    runAfterPass(any_cast<const Function *>(IR));
-  else if (any_isa<const LazyCallGraph::SCC *>(IR))
-    runAfterPass(any_cast<const LazyCallGraph::SCC *>(IR));
-  else if (any_isa<const Loop *>(IR))
-    runAfterPass(any_cast<const Loop *>(IR));
+  if (const auto **M = any_cast<const Module *>(&IR))
+    runAfterPass(*M);
+  else if (const auto **F = any_cast<const Function *>(&IR))
+    runAfterPass(*F);
+  else if (const auto **C = any_cast<const LazyCallGraph::SCC *>(&IR))
+    runAfterPass(*C);
+  else if (const auto **L = any_cast<const Loop *>(&IR))
+    runAfterPass(*L);
   else
     llvm_unreachable("Unknown IR unit");
 }
@@ -138,7 +134,7 @@ void PseudoProbeVerifier::runAfterPass(const Loop *L) {
 void PseudoProbeVerifier::collectProbeFactors(const BasicBlock *Block,
                                               ProbeFactorMap &ProbeFactors) {
   for (const auto &I : *Block) {
-    if (Optional<PseudoProbe> Probe = extractProbe(I)) {
+    if (std::optional<PseudoProbe> Probe = extractProbe(I)) {
       uint64_t Hash = computeCallStackHash(I);
       ProbeFactors[{Probe->Id, Hash}] += Probe->Factor;
     }
@@ -254,8 +250,14 @@ void SampleProfileProber::computeCFGHash() {
 }
 
 void SampleProfileProber::computeProbeIdForBlocks() {
+  DenseSet<BasicBlock *> KnownColdBlocks;
+  computeEHOnlyBlocks(*F, KnownColdBlocks);
+  // Insert pseudo probe to non-cold blocks only. This will reduce IR size as
+  // well as the binary size while retaining the profile quality.
   for (auto &BB : *F) {
-    BlockProbeIds[&BB] = ++LastProbeId;
+    ++LastProbeId;
+    if (!KnownColdBlocks.contains(&BB))
+      BlockProbeIds[&BB] = LastProbeId;
   }
 }
 
@@ -284,9 +286,16 @@ uint32_t SampleProfileProber::getCallsiteId(const Instruction *Call) const {
 void SampleProfileProber::instrumentOneFunc(Function &F, TargetMachine *TM) {
   Module *M = F.getParent();
   MDBuilder MDB(F.getContext());
-  // Compute a GUID without considering the function's linkage type. This is
-  // fine since function name is the only key in the profile database.
-  uint64_t Guid = Function::getGUID(F.getName());
+  // Since the GUID from probe desc and inline stack are computed seperately, we
+  // need to make sure their names are consistent, so here also use the name
+  // from debug info.
+  StringRef FName = F.getName();
+  if (auto *SP = F.getSubprogram()) {
+    FName = SP->getLinkageName();
+    if (FName.empty())
+      FName = SP->getName();
+  }
+  uint64_t Guid = Function::getGUID(FName);
 
   // Assign an artificial debug line to a probe that doesn't come with a real
   // line. A probe not having a debug line will get an incomplete inline
@@ -369,7 +378,7 @@ void SampleProfileProber::instrumentOneFunc(Function &F, TargetMachine *TM) {
   // - FunctionHash.
   // - FunctionName
   auto Hash = getFunctionHash();
-  auto *MD = MDB.createPseudoProbeDesc(Guid, Hash, &F);
+  auto *MD = MDB.createPseudoProbeDesc(Guid, Hash, FName);
   auto *NMD = M->getNamedMetadata(PseudoProbeDescMetadataName);
   assert(NMD && "llvm.pseudo_probe_desc should be pre-created");
   NMD->addOperand(MD);
@@ -415,14 +424,14 @@ void PseudoProbeUpdatePass::runOnFunction(Function &F,
                                           FunctionAnalysisManager &FAM) {
   BlockFrequencyInfo &BFI = FAM.getResult<BlockFrequencyAnalysis>(F);
   auto BBProfileCount = [&BFI](BasicBlock *BB) {
-    return BFI.getBlockProfileCount(BB).getValueOr(0);
+    return BFI.getBlockProfileCount(BB).value_or(0);
   };
 
   // Collect the sum of execution weight for each probe.
   ProbeFactorMap ProbeFactors;
   for (auto &Block : F) {
     for (auto &I : Block) {
-      if (Optional<PseudoProbe> Probe = extractProbe(I)) {
+      if (std::optional<PseudoProbe> Probe = extractProbe(I)) {
         uint64_t Hash = computeCallStackHash(I);
         ProbeFactors[{Probe->Id, Hash}] += BBProfileCount(&Block);
       }
@@ -432,7 +441,7 @@ void PseudoProbeUpdatePass::runOnFunction(Function &F,
   // Fix up over-counted probes.
   for (auto &Block : F) {
     for (auto &I : Block) {
-      if (Optional<PseudoProbe> Probe = extractProbe(I)) {
+      if (std::optional<PseudoProbe> Probe = extractProbe(I)) {
         uint64_t Hash = computeCallStackHash(I);
         float Sum = ProbeFactors[{Probe->Id, Hash}];
         if (Sum != 0)

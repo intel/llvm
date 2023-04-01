@@ -8,10 +8,13 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 
-__SYCL_WARNING(
-    "sycl/ext/intel/online_compiler.hpp usage is deprecated, include "
-    "sycl/ext/intel/experimental/online_compiler.hpp instead")
+#if !defined(_MSC_VER) || defined(__clang__)
+// MSVC doesn't support #warning and we cannot use other methods to report a
+// warning from inside a system header (which SYCL is considered to be).
+#warning sycl/ext/intel/online_compiler.hpp usage is deprecated, \
+include sycl/ext/intel/experimental/online_compiler.hpp instead
+#endif
 
 #include <sycl/ext/intel/experimental/online_compiler.hpp>

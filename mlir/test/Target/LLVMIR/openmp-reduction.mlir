@@ -15,21 +15,21 @@ combiner {
   omp.yield (%1 : f32)
 }
 atomic {
-^bb2(%arg2: !llvm.ptr<f32>, %arg3: !llvm.ptr<f32>):
-  %2 = llvm.load %arg3 : !llvm.ptr<f32>
-  llvm.atomicrmw fadd %arg2, %2 monotonic : f32
+^bb2(%arg2: !llvm.ptr, %arg3: !llvm.ptr):
+  %2 = llvm.load %arg3 : !llvm.ptr -> f32
+  llvm.atomicrmw fadd %arg2, %2 monotonic : !llvm.ptr, f32
   omp.yield
 }
 
 // CHECK-LABEL: @simple_reduction
 llvm.func @simple_reduction(%lb : i64, %ub : i64, %step : i64) {
   %c1 = llvm.mlir.constant(1 : i32) : i32
-  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
+  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
   omp.parallel {
-    omp.wsloop (%iv) : i64 = (%lb) to (%ub) step (%step)
-    reduction(@add_f32 -> %0 : !llvm.ptr<f32>) {
+    omp.wsloop reduction(@add_f32 -> %0 : !llvm.ptr)
+    for (%iv) : i64 = (%lb) to (%ub) step (%step) {
       %1 = llvm.mlir.constant(2.0 : f32) : f32
-      omp.reduction %1, %0 : !llvm.ptr<f32>
+      omp.reduction %1, %0 : f32, !llvm.ptr
       omp.yield
     }
     omp.terminator
@@ -46,15 +46,15 @@ llvm.func @simple_reduction(%lb : i64, %ub : i64, %step : i64) {
 
 // Private reduction variable and its initialization.
 // CHECK: %[[PRIVATE:.+]] = alloca float
-// CHECK: store float 0.000000e+00, float* %[[PRIVATE]]
+// CHECK: store float 0.000000e+00, ptr %[[PRIVATE]]
 
 // Call to the reduction function.
 // CHECK: call i32 @__kmpc_reduce
 // CHECK-SAME: @[[REDFUNC:[A-Za-z_.][A-Za-z0-9_.]*]]
 
 // Atomic reduction.
-// CHECK: %[[PARTIAL:.+]] = load float, float* %[[PRIVATE]]
-// CHECK: atomicrmw fadd float* %{{.*}}, float %[[PARTIAL]]
+// CHECK: %[[PARTIAL:.+]] = load float, ptr %[[PRIVATE]]
+// CHECK: atomicrmw fadd ptr %{{.*}}, float %[[PARTIAL]]
 
 // Non-atomic reduction:
 // CHECK: fadd float
@@ -66,9 +66,9 @@ llvm.func @simple_reduction(%lb : i64, %ub : i64, %step : i64) {
 
 // Update of the private variable using the reduction region
 // (the body block currently comes after all the other blocks).
-// CHECK: %[[PARTIAL:.+]] = load float, float* %[[PRIVATE]]
+// CHECK: %[[PARTIAL:.+]] = load float, ptr %[[PRIVATE]]
 // CHECK: %[[UPDATED:.+]] = fadd float %[[PARTIAL]], 2.000000e+00
-// CHECK: store float %[[UPDATED]], float* %[[PRIVATE]]
+// CHECK: store float %[[UPDATED]], ptr %[[PRIVATE]]
 
 // Reduction function.
 // CHECK: define internal void @[[REDFUNC]]
@@ -88,9 +88,9 @@ combiner {
   omp.yield (%1 : f32)
 }
 atomic {
-^bb2(%arg2: !llvm.ptr<f32>, %arg3: !llvm.ptr<f32>):
-  %2 = llvm.load %arg3 : !llvm.ptr<f32>
-  llvm.atomicrmw fadd %arg2, %2 monotonic : f32
+^bb2(%arg2: !llvm.ptr, %arg3: !llvm.ptr):
+  %2 = llvm.load %arg3 : !llvm.ptr -> f32
+  llvm.atomicrmw fadd %arg2, %2 monotonic : !llvm.ptr, f32
   omp.yield
 }
 
@@ -100,14 +100,14 @@ atomic {
 // CHECK-LABEL: @reuse_declaration
 llvm.func @reuse_declaration(%lb : i64, %ub : i64, %step : i64) {
   %c1 = llvm.mlir.constant(1 : i32) : i32
-  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
-  %2 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
+  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
+  %2 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
   omp.parallel {
-    omp.wsloop (%iv) : i64 = (%lb) to (%ub) step (%step)
-    reduction(@add_f32 -> %0 : !llvm.ptr<f32>, @add_f32 -> %2 : !llvm.ptr<f32>) {
+    omp.wsloop reduction(@add_f32 -> %0 : !llvm.ptr, @add_f32 -> %2 : !llvm.ptr)
+    for (%iv) : i64 = (%lb) to (%ub) step (%step) {
       %1 = llvm.mlir.constant(2.0 : f32) : f32
-      omp.reduction %1, %0 : !llvm.ptr<f32>
-      omp.reduction %1, %2 : !llvm.ptr<f32>
+      omp.reduction %1, %0 : f32, !llvm.ptr
+      omp.reduction %1, %2 : f32, !llvm.ptr
       omp.yield
     }
     omp.terminator
@@ -125,18 +125,18 @@ llvm.func @reuse_declaration(%lb : i64, %ub : i64, %step : i64) {
 // Private reduction variable and its initialization.
 // CHECK: %[[PRIVATE1:.+]] = alloca float
 // CHECK: %[[PRIVATE2:.+]] = alloca float
-// CHECK: store float 0.000000e+00, float* %[[PRIVATE1]]
-// CHECK: store float 0.000000e+00, float* %[[PRIVATE2]]
+// CHECK: store float 0.000000e+00, ptr %[[PRIVATE1]]
+// CHECK: store float 0.000000e+00, ptr %[[PRIVATE2]]
 
 // Call to the reduction function.
 // CHECK: call i32 @__kmpc_reduce
 // CHECK-SAME: @[[REDFUNC:[A-Za-z_.][A-Za-z0-9_.]*]]
 
 // Atomic reduction.
-// CHECK: %[[PARTIAL1:.+]] = load float, float* %[[PRIVATE1]]
-// CHECK: atomicrmw fadd float* %{{.*}}, float %[[PARTIAL1]]
-// CHECK: %[[PARTIAL2:.+]] = load float, float* %[[PRIVATE2]]
-// CHECK: atomicrmw fadd float* %{{.*}}, float %[[PARTIAL2]]
+// CHECK: %[[PARTIAL1:.+]] = load float, ptr %[[PRIVATE1]]
+// CHECK: atomicrmw fadd ptr %{{.*}}, float %[[PARTIAL1]]
+// CHECK: %[[PARTIAL2:.+]] = load float, ptr %[[PRIVATE2]]
+// CHECK: atomicrmw fadd ptr %{{.*}}, float %[[PARTIAL2]]
 
 // Non-atomic reduction:
 // CHECK: fadd float
@@ -149,12 +149,12 @@ llvm.func @reuse_declaration(%lb : i64, %ub : i64, %step : i64) {
 
 // Update of the private variable using the reduction region
 // (the body block currently comes after all the other blocks).
-// CHECK: %[[PARTIAL1:.+]] = load float, float* %[[PRIVATE1]]
+// CHECK: %[[PARTIAL1:.+]] = load float, ptr %[[PRIVATE1]]
 // CHECK: %[[UPDATED1:.+]] = fadd float %[[PARTIAL1]], 2.000000e+00
-// CHECK: store float %[[UPDATED1]], float* %[[PRIVATE1]]
-// CHECK: %[[PARTIAL2:.+]] = load float, float* %[[PRIVATE2]]
+// CHECK: store float %[[UPDATED1]], ptr %[[PRIVATE1]]
+// CHECK: %[[PARTIAL2:.+]] = load float, ptr %[[PRIVATE2]]
 // CHECK: %[[UPDATED2:.+]] = fadd float %[[PARTIAL2]], 2.000000e+00
-// CHECK: store float %[[UPDATED2]], float* %[[PRIVATE2]]
+// CHECK: store float %[[UPDATED2]], ptr %[[PRIVATE2]]
 
 // Reduction function.
 // CHECK: define internal void @[[REDFUNC]]
@@ -176,9 +176,9 @@ combiner {
   omp.yield (%1 : f32)
 }
 atomic {
-^bb2(%arg2: !llvm.ptr<f32>, %arg3: !llvm.ptr<f32>):
-  %2 = llvm.load %arg3 : !llvm.ptr<f32>
-  llvm.atomicrmw fadd %arg2, %2 monotonic : f32
+^bb2(%arg2: !llvm.ptr, %arg3: !llvm.ptr):
+  %2 = llvm.load %arg3 : !llvm.ptr -> f32
+  llvm.atomicrmw fadd %arg2, %2 monotonic : !llvm.ptr, f32
   omp.yield
 }
 
@@ -186,13 +186,13 @@ atomic {
 // CHECK-LABEL: @missing_omp_reduction
 llvm.func @missing_omp_reduction(%lb : i64, %ub : i64, %step : i64) {
   %c1 = llvm.mlir.constant(1 : i32) : i32
-  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
-  %2 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
+  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
+  %2 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
   omp.parallel {
-    omp.wsloop (%iv) : i64 = (%lb) to (%ub) step (%step)
-    reduction(@add_f32 -> %0 : !llvm.ptr<f32>, @add_f32 -> %2 : !llvm.ptr<f32>) {
+    omp.wsloop reduction(@add_f32 -> %0 : !llvm.ptr, @add_f32 -> %2 : !llvm.ptr)
+    for (%iv) : i64 = (%lb) to (%ub) step (%step) {
       %1 = llvm.mlir.constant(2.0 : f32) : f32
-      omp.reduction %1, %0 : !llvm.ptr<f32>
+      omp.reduction %1, %0 : f32, !llvm.ptr
       omp.yield
     }
     omp.terminator
@@ -210,18 +210,18 @@ llvm.func @missing_omp_reduction(%lb : i64, %ub : i64, %step : i64) {
 // Private reduction variable and its initialization.
 // CHECK: %[[PRIVATE1:.+]] = alloca float
 // CHECK: %[[PRIVATE2:.+]] = alloca float
-// CHECK: store float 0.000000e+00, float* %[[PRIVATE1]]
-// CHECK: store float 0.000000e+00, float* %[[PRIVATE2]]
+// CHECK: store float 0.000000e+00, ptr %[[PRIVATE1]]
+// CHECK: store float 0.000000e+00, ptr %[[PRIVATE2]]
 
 // Call to the reduction function.
 // CHECK: call i32 @__kmpc_reduce
 // CHECK-SAME: @[[REDFUNC:[A-Za-z_.][A-Za-z0-9_.]*]]
 
 // Atomic reduction.
-// CHECK: %[[PARTIAL1:.+]] = load float, float* %[[PRIVATE1]]
-// CHECK: atomicrmw fadd float* %{{.*}}, float %[[PARTIAL1]]
-// CHECK: %[[PARTIAL2:.+]] = load float, float* %[[PRIVATE2]]
-// CHECK: atomicrmw fadd float* %{{.*}}, float %[[PARTIAL2]]
+// CHECK: %[[PARTIAL1:.+]] = load float, ptr %[[PRIVATE1]]
+// CHECK: atomicrmw fadd ptr %{{.*}}, float %[[PARTIAL1]]
+// CHECK: %[[PARTIAL2:.+]] = load float, ptr %[[PRIVATE2]]
+// CHECK: atomicrmw fadd ptr %{{.*}}, float %[[PARTIAL2]]
 
 // Non-atomic reduction:
 // CHECK: fadd float
@@ -234,10 +234,10 @@ llvm.func @missing_omp_reduction(%lb : i64, %ub : i64, %step : i64) {
 
 // Update of the private variable using the reduction region
 // (the body block currently comes after all the other blocks).
-// CHECK: %[[PARTIAL1:.+]] = load float, float* %[[PRIVATE1]]
+// CHECK: %[[PARTIAL1:.+]] = load float, ptr %[[PRIVATE1]]
 // CHECK: %[[UPDATED1:.+]] = fadd float %[[PARTIAL1]], 2.000000e+00
-// CHECK: store float %[[UPDATED1]], float* %[[PRIVATE1]]
-// CHECK-NOT: %{{.*}} = load float, float* %[[PRIVATE2]]
+// CHECK: store float %[[UPDATED1]], ptr %[[PRIVATE1]]
+// CHECK-NOT: %{{.*}} = load float, ptr %[[PRIVATE2]]
 // CHECK-NOT: %{{.*}} = fadd float %[[PARTIAL2]], 2.000000e+00
 
 // Reduction function.
@@ -259,9 +259,9 @@ combiner {
   omp.yield (%1 : f32)
 }
 atomic {
-^bb2(%arg2: !llvm.ptr<f32>, %arg3: !llvm.ptr<f32>):
-  %2 = llvm.load %arg3 : !llvm.ptr<f32>
-  llvm.atomicrmw fadd %arg2, %2 monotonic : f32
+^bb2(%arg2: !llvm.ptr, %arg3: !llvm.ptr):
+  %2 = llvm.load %arg3 : !llvm.ptr -> f32
+  llvm.atomicrmw fadd %arg2, %2 monotonic : !llvm.ptr, f32
   omp.yield
 }
 
@@ -270,13 +270,13 @@ atomic {
 // CHECK-LABEL: @double_reference
 llvm.func @double_reference(%lb : i64, %ub : i64, %step : i64) {
   %c1 = llvm.mlir.constant(1 : i32) : i32
-  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
+  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
   omp.parallel {
-    omp.wsloop (%iv) : i64 = (%lb) to (%ub) step (%step)
-    reduction(@add_f32 -> %0 : !llvm.ptr<f32>) {
+    omp.wsloop reduction(@add_f32 -> %0 : !llvm.ptr)
+    for (%iv) : i64 = (%lb) to (%ub) step (%step) {
       %1 = llvm.mlir.constant(2.0 : f32) : f32
-      omp.reduction %1, %0 : !llvm.ptr<f32>
-      omp.reduction %1, %0 : !llvm.ptr<f32>
+      omp.reduction %1, %0 : f32, !llvm.ptr
+      omp.reduction %1, %0 : f32, !llvm.ptr
       omp.yield
     }
     omp.terminator
@@ -293,15 +293,15 @@ llvm.func @double_reference(%lb : i64, %ub : i64, %step : i64) {
 
 // Private reduction variable and its initialization.
 // CHECK: %[[PRIVATE:.+]] = alloca float
-// CHECK: store float 0.000000e+00, float* %[[PRIVATE]]
+// CHECK: store float 0.000000e+00, ptr %[[PRIVATE]]
 
 // Call to the reduction function.
 // CHECK: call i32 @__kmpc_reduce
 // CHECK-SAME: @[[REDFUNC:[A-Za-z_.][A-Za-z0-9_.]*]]
 
 // Atomic reduction.
-// CHECK: %[[PARTIAL:.+]] = load float, float* %[[PRIVATE]]
-// CHECK: atomicrmw fadd float* %{{.*}}, float %[[PARTIAL]]
+// CHECK: %[[PARTIAL:.+]] = load float, ptr %[[PRIVATE]]
+// CHECK: atomicrmw fadd ptr %{{.*}}, float %[[PARTIAL]]
 
 // Non-atomic reduction:
 // CHECK: fadd float
@@ -313,12 +313,12 @@ llvm.func @double_reference(%lb : i64, %ub : i64, %step : i64) {
 
 // Update of the private variable using the reduction region
 // (the body block currently comes after all the other blocks).
-// CHECK: %[[PARTIAL:.+]] = load float, float* %[[PRIVATE]]
+// CHECK: %[[PARTIAL:.+]] = load float, ptr %[[PRIVATE]]
 // CHECK: %[[UPDATED:.+]] = fadd float %[[PARTIAL]], 2.000000e+00
-// CHECK: store float %[[UPDATED]], float* %[[PRIVATE]]
-// CHECK: %[[PARTIAL:.+]] = load float, float* %[[PRIVATE]]
+// CHECK: store float %[[UPDATED]], ptr %[[PRIVATE]]
+// CHECK: %[[PARTIAL:.+]] = load float, ptr %[[PRIVATE]]
 // CHECK: %[[UPDATED:.+]] = fadd float %[[PARTIAL]], 2.000000e+00
-// CHECK: store float %[[UPDATED]], float* %[[PRIVATE]]
+// CHECK: store float %[[UPDATED]], ptr %[[PRIVATE]]
 
 // Reduction function.
 // CHECK: define internal void @[[REDFUNC]]
@@ -338,9 +338,9 @@ combiner {
   omp.yield (%1 : f32)
 }
 atomic {
-^bb2(%arg2: !llvm.ptr<f32>, %arg3: !llvm.ptr<f32>):
-  %2 = llvm.load %arg3 : !llvm.ptr<f32>
-  llvm.atomicrmw fadd %arg2, %2 monotonic : f32
+^bb2(%arg2: !llvm.ptr, %arg3: !llvm.ptr):
+  %2 = llvm.load %arg3 : !llvm.ptr -> f32
+  llvm.atomicrmw fadd %arg2, %2 monotonic : !llvm.ptr, f32
   omp.yield
 }
 
@@ -359,14 +359,14 @@ combiner {
 // CHECK-LABEL: @no_atomic
 llvm.func @no_atomic(%lb : i64, %ub : i64, %step : i64) {
   %c1 = llvm.mlir.constant(1 : i32) : i32
-  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
-  %2 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
+  %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
+  %2 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
   omp.parallel {
-    omp.wsloop (%iv) : i64 = (%lb) to (%ub) step (%step)
-    reduction(@add_f32 -> %0 : !llvm.ptr<f32>, @mul_f32 -> %2 : !llvm.ptr<f32>) {
+    omp.wsloop reduction(@add_f32 -> %0 : !llvm.ptr, @mul_f32 -> %2 : !llvm.ptr)
+    for (%iv) : i64 = (%lb) to (%ub) step (%step) {
       %1 = llvm.mlir.constant(2.0 : f32) : f32
-      omp.reduction %1, %0 : !llvm.ptr<f32>
-      omp.reduction %1, %2 : !llvm.ptr<f32>
+      omp.reduction %1, %0 : f32, !llvm.ptr
+      omp.reduction %1, %2 : f32, !llvm.ptr
       omp.yield
     }
     omp.terminator
@@ -384,8 +384,8 @@ llvm.func @no_atomic(%lb : i64, %ub : i64, %step : i64) {
 // Private reduction variable and its initialization.
 // CHECK: %[[PRIVATE1:.+]] = alloca float
 // CHECK: %[[PRIVATE2:.+]] = alloca float
-// CHECK: store float 0.000000e+00, float* %[[PRIVATE1]]
-// CHECK: store float 1.000000e+00, float* %[[PRIVATE2]]
+// CHECK: store float 0.000000e+00, ptr %[[PRIVATE1]]
+// CHECK: store float 1.000000e+00, ptr %[[PRIVATE2]]
 
 // Call to the reduction function.
 // CHECK: call i32 @__kmpc_reduce
@@ -405,12 +405,12 @@ llvm.func @no_atomic(%lb : i64, %ub : i64, %step : i64) {
 
 // Update of the private variable using the reduction region
 // (the body block currently comes after all the other blocks).
-// CHECK: %[[PARTIAL1:.+]] = load float, float* %[[PRIVATE1]]
+// CHECK: %[[PARTIAL1:.+]] = load float, ptr %[[PRIVATE1]]
 // CHECK: %[[UPDATED1:.+]] = fadd float %[[PARTIAL1]], 2.000000e+00
-// CHECK: store float %[[UPDATED1]], float* %[[PRIVATE1]]
-// CHECK: %[[PARTIAL2:.+]] = load float, float* %[[PRIVATE2]]
+// CHECK: store float %[[UPDATED1]], ptr %[[PRIVATE1]]
+// CHECK: %[[PARTIAL2:.+]] = load float, ptr %[[PRIVATE2]]
 // CHECK: %[[UPDATED2:.+]] = fmul float %[[PARTIAL2]], 2.000000e+00
-// CHECK: store float %[[UPDATED2]], float* %[[PRIVATE2]]
+// CHECK: store float %[[UPDATED2]], ptr %[[PRIVATE2]]
 
 // Reduction function.
 // CHECK: define internal void @[[REDFUNC]]

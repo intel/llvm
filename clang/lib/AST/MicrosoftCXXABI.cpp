@@ -69,12 +69,27 @@ class MSHIPNumberingContext : public MicrosoftNumberingContext {
   std::unique_ptr<MangleNumberingContext> DeviceCtx;
 
 public:
+  using MicrosoftNumberingContext::getManglingNumber;
   MSHIPNumberingContext(MangleContext *DeviceMangler) {
     DeviceCtx = createItaniumNumberingContext(DeviceMangler);
   }
 
   unsigned getDeviceManglingNumber(const CXXMethodDecl *CallOperator) override {
     return DeviceCtx->getManglingNumber(CallOperator);
+  }
+
+  unsigned getManglingNumber(const TagDecl *TD,
+                             unsigned MSLocalManglingNumber) override {
+    unsigned DeviceN = DeviceCtx->getManglingNumber(TD, MSLocalManglingNumber);
+    unsigned HostN =
+        MicrosoftNumberingContext::getManglingNumber(TD, MSLocalManglingNumber);
+    if (DeviceN > 0xFFFF || HostN > 0xFFFF) {
+      DiagnosticsEngine &Diags = TD->getASTContext().getDiagnostics();
+      unsigned DiagID = Diags.getCustomDiagID(
+          DiagnosticsEngine::Error, "Mangling number exceeds limit (65535)");
+      Diags.Report(TD->getLocation(), DiagID);
+    }
+    return (DeviceN << 16) | HostN;
   }
 };
 
@@ -291,7 +306,7 @@ CXXABI::MemberPointerInfo MicrosoftCXXABI::getMemberPointerInfo(
   // The nominal struct is laid out with pointers followed by ints and aligned
   // to a pointer width if any are present and an int width otherwise.
   const TargetInfo &Target = Context.getTargetInfo();
-  unsigned PtrSize = Target.getPointerWidth(0);
+  unsigned PtrSize = Target.getPointerWidth(LangAS::Default);
   unsigned IntSize = Target.getIntWidth();
 
   unsigned Ptrs, Ints;
@@ -306,7 +321,7 @@ CXXABI::MemberPointerInfo MicrosoftCXXABI::getMemberPointerInfo(
   if (Ptrs + Ints > 1 && Target.getTriple().isArch32Bit())
     MPI.Align = 64;
   else if (Ptrs)
-    MPI.Align = Target.getPointerAlign(0);
+    MPI.Align = Target.getPointerAlign(LangAS::Default);
   else
     MPI.Align = Target.getIntAlign();
 

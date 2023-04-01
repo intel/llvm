@@ -31,19 +31,19 @@ target triple = "armv7m-none-nacl-android"
 
 define hidden i32 @x() local_unnamed_addr #0 {
 entry:
-  %0 = load volatile i32, i32* @a, align 4
-  %1 = load volatile i32, i32* @b, align 4
+  %0 = load volatile i32, ptr @a, align 4
+  %1 = load volatile i32, ptr @b, align 4
   %add = add nsw i32 %1, %0
-  %2 = load volatile i32, i32* @c, align 4
-  %3 = load volatile i32, i32* @d, align 4
+  %2 = load volatile i32, ptr @c, align 4
+  %3 = load volatile i32, ptr @d, align 4
   %add1 = add nsw i32 %3, %2
   %div = sdiv i32 %add, %add1
-  %4 = load volatile i32, i32* @e, align 4
-  %5 = load volatile i32, i32* @f, align 4
-  %6 = load volatile i32, i32* @g, align 4
+  %4 = load volatile i32, ptr @e, align 4
+  %5 = load volatile i32, ptr @f, align 4
+  %6 = load volatile i32, ptr @g, align 4
   %div3 = sdiv i32 %5, %6
-  %7 = load volatile i32, i32* @h, align 4
-  %8 = load volatile i32, i32* @i, align 4
+  %7 = load volatile i32, ptr @h, align 4
+  %8 = load volatile i32, ptr @i, align 4
   %add2 = add i32 %div, 1
   %add4 = add i32 %add2, %4
   %add5 = add i32 %add4, %div3
@@ -72,19 +72,19 @@ entry:
 
 define hidden i32 @y() local_unnamed_addr #0 {
 entry:
-  %0 = load volatile i32, i32* @a, align 4
-  %1 = load volatile i32, i32* @b, align 4
+  %0 = load volatile i32, ptr @a, align 4
+  %1 = load volatile i32, ptr @b, align 4
   %add = add nsw i32 %1, %0
-  %2 = load volatile i32, i32* @c, align 4
-  %3 = load volatile i32, i32* @d, align 4
+  %2 = load volatile i32, ptr @c, align 4
+  %3 = load volatile i32, ptr @d, align 4
   %add1 = add nsw i32 %3, %2
   %div = sdiv i32 %add, %add1
-  %4 = load volatile i32, i32* @e, align 4
-  %5 = load volatile i32, i32* @f, align 4
-  %6 = load volatile i32, i32* @g, align 4
+  %4 = load volatile i32, ptr @e, align 4
+  %5 = load volatile i32, ptr @f, align 4
+  %6 = load volatile i32, ptr @g, align 4
   %div3 = sdiv i32 %5, %6
-  %7 = load volatile i32, i32* @h, align 4
-  %8 = load volatile i32, i32* @i, align 4
+  %7 = load volatile i32, ptr @h, align 4
+  %8 = load volatile i32, ptr @i, align 4
   %add2 = add i32 %div, 2
   %add4 = add i32 %add2, %4
   %add5 = add i32 %add4, %div3
@@ -120,9 +120,9 @@ attributes #0 = { minsize nofree norecurse nounwind optsize uwtable}
 
 !llvm.module.flags = !{!0, !1, !2}
 
-!0 = !{i32 1, !"branch-target-enforcement", i32 0}
-!1 = !{i32 1, !"sign-return-address", i32 1}
-!2 = !{i32 1, !"sign-return-address-all", i32 0}
+!0 = !{i32 8, !"branch-target-enforcement", i32 0}
+!1 = !{i32 8, !"sign-return-address", i32 1}
+!2 = !{i32 8, !"sign-return-address-all", i32 0}
 
 ; UNWIND-LABEL: FunctionAddress: 0x0
 ; UNWIND:       0xB4      ; pop ra_auth_code
@@ -137,7 +137,9 @@ attributes #0 = { minsize nofree norecurse nounwind optsize uwtable}
 ; UNWIND-NEXT:  0xB0      ; finish
 
 ; UNWIND-LABEL:  FunctionAddress: 0x40
-; UNWIND:        Model: CantUnwind
+; UNWIND:        Opcodes [
+; UNWIND-NEXT:     0xB0      ; finish
+
 
 ; UNWINND-LABEL: 00000041 {{.*}} OUTLINED_FUNCTION_0
 ; UNWINND-LABEL: 00000001 {{.*}} x

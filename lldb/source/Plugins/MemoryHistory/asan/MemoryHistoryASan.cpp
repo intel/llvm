@@ -67,21 +67,19 @@ const char *memory_history_asan_command_prefix = R"(
         size_t __asan_get_alloc_stack(void *addr, void **trace, size_t size, int *thread_id);
         size_t __asan_get_free_stack(void *addr, void **trace, size_t size, int *thread_id);
     }
-
-    struct data {
-        void *alloc_trace[256];
-        size_t alloc_count;
-        int alloc_tid;
-        
-        void *free_trace[256];
-        size_t free_count;
-        int free_tid;
-    };
 )";
 
 const char *memory_history_asan_command_format =
     R"(
-    data t;
+    struct {
+        void *alloc_trace[256];
+        size_t alloc_count;
+        int alloc_tid;
+
+        void *free_trace[256];
+        size_t free_count;
+        int free_tid;
+    } t;
 
     t.alloc_count = __asan_get_alloc_stack((void *)0x%)" PRIx64
     R"(, t.alloc_trace, 256, &t.alloc_tid);
@@ -179,9 +177,11 @@ HistoryThreads MemoryHistoryASan::GetHistoryThreads(lldb::addr_t address) {
   ExpressionResults expr_result = UserExpression::Evaluate(
       exe_ctx, options, expr.GetString(), "", return_value_sp, eval_error);
   if (expr_result != eExpressionCompleted) {
-    process_sp->GetTarget().GetDebugger().GetAsyncOutputStream()->Printf(
-        "Warning: Cannot evaluate AddressSanitizer expression:\n%s\n",
-        eval_error.AsCString());
+    StreamString ss;
+    ss << "cannot evaluate AddressSanitizer expression:\n";
+    ss << eval_error.AsCString();
+    Debugger::ReportWarning(ss.GetString().str(),
+                            process_sp->GetTarget().GetDebugger().GetID());
     return result;
   }
 

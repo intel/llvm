@@ -42,13 +42,19 @@ target_cflags=[get_required_attr(config, "target_cflags")]
 clang_cflags = target_cflags + extra_link_flags
 clang_cxxflags = config.cxx_mode_flags + clang_cflags
 
+# TODO: target_cflags can sometimes contain C++ only flags like -stdlib=<FOO>, which are
+#       ignored when compiling as C code. Passing this flag when compiling as C results in
+#       warnings that break tests that use -Werror.
+#       We remove -stdlib= from the cflags here to avoid problems, but the interaction between
+#       CMake and compiler-rt's tests should be reworked so that cflags don't contain C++ only
+#       flags.
+clang_cflags = [flag.replace('-stdlib=libc++', '').replace('-stdlib=libstdc++', '') for flag in clang_cflags]
+
 def build_invocation(compile_flags, with_lto = False):
   lto_flags = []
-  lto_prefix = []
   if with_lto and config.lto_supported:
     lto_flags += config.lto_flags
-    lto_prefix += config.lto_launch
-  return " " + " ".join(lto_prefix + [config.clang] + lto_flags + compile_flags) + " "
+  return " " + " ".join([config.clang] + lto_flags + compile_flags) + " "
 
 def exclude_unsupported_files_for_aix(dirname):
    for filename in os.listdir(dirname):
@@ -67,20 +73,26 @@ def exclude_unsupported_files_for_aix(dirname):
 # Add clang substitutions.
 config.substitutions.append( ("%clang ", build_invocation(clang_cflags)) )
 config.substitutions.append( ("%clangxx ", build_invocation(clang_cxxflags)) )
+
 config.substitutions.append( ("%clang_profgen ", build_invocation(clang_cflags) + " -fprofile-instr-generate ") )
 config.substitutions.append( ("%clang_profgen=", build_invocation(clang_cflags) + " -fprofile-instr-generate=") )
-config.substitutions.append( ("%clang_pgogen ", build_invocation(clang_cflags) + " -fprofile-generate ") )
-config.substitutions.append( ("%clang_pgogen=", build_invocation(clang_cflags) + " -fprofile-generate=") )
-
 config.substitutions.append( ("%clangxx_profgen ", build_invocation(clang_cxxflags) + " -fprofile-instr-generate ") )
 config.substitutions.append( ("%clangxx_profgen=", build_invocation(clang_cxxflags) + " -fprofile-instr-generate=") )
+
+config.substitutions.append( ("%clang_pgogen ", build_invocation(clang_cflags) + " -fprofile-generate ") )
+config.substitutions.append( ("%clang_pgogen=", build_invocation(clang_cflags) + " -fprofile-generate=") )
 config.substitutions.append( ("%clangxx_pgogen ", build_invocation(clang_cxxflags) + " -fprofile-generate ") )
 config.substitutions.append( ("%clangxx_pgogen=", build_invocation(clang_cxxflags) + " -fprofile-generate=") )
 
-config.substitutions.append( ("%clang_profgen_gcc=", build_invocation(clang_cflags) + " -fprofile-generate=") )
-config.substitutions.append( ("%clang_profuse_gcc=", build_invocation(clang_cflags) + " -fprofile-use=") )
+config.substitutions.append( ("%clang_cspgogen ", build_invocation(clang_cflags) + " -fcs-profile-generate ") )
+config.substitutions.append( ("%clang_cspgogen=", build_invocation(clang_cflags) + " -fcs-profile-generate=") )
+config.substitutions.append( ("%clangxx_cspgogen ", build_invocation(clang_cxxflags) + " -fcs-profile-generate ") )
+config.substitutions.append( ("%clangxx_cspgogen=", build_invocation(clang_cxxflags) + " -fcs-profile-generate=") )
 
 config.substitutions.append( ("%clang_profuse=", build_invocation(clang_cflags) + " -fprofile-instr-use=") )
+config.substitutions.append( ("%clangxx_profuse=", build_invocation(clang_cxxflags) + " -fprofile-instr-use=") )
+
+config.substitutions.append( ("%clang_pgouse=", build_invocation(clang_cflags) + " -fprofile-use=") )
 config.substitutions.append( ("%clangxx_profuse=", build_invocation(clang_cxxflags) + " -fprofile-instr-use=") )
 
 config.substitutions.append( ("%clang_lto_profgen=", build_invocation(clang_cflags, True) + " -fprofile-instr-generate=") )

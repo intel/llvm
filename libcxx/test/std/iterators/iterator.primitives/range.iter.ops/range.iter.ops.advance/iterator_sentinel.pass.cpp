@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // ranges::advance(it, sent)
 
@@ -35,7 +34,7 @@ constexpr void check_assignable(int* first, int* last, int* expected) {
     auto it = stride_counting_iterator(It(first));
     auto sent = assignable_sentinel(stride_counting_iterator(It(last)));
     std::ranges::advance(it, sent);
-    assert(base(it.base()) == expected);
+    assert(base(base(it)) == expected);
     assert(it.stride_count() == 0); // because we got here by assigning from last, not by incrementing
   }
 }

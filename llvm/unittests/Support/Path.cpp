@@ -10,18 +10,19 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ConvertUTF.h"
+#include "llvm/Support/Duration.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gmock/gmock.h"
@@ -453,7 +454,7 @@ std::string getEnvWin(const wchar_t *Var) {
 // RAII helper to set and restore an environment variable.
 class WithEnv {
   const char *Var;
-  llvm::Optional<std::string> OriginalValue;
+  std::optional<std::string> OriginalValue;
 
 public:
   WithEnv(const char *Var, const char *Value) : Var(Var) {
@@ -483,12 +484,12 @@ TEST(Support, HomeDirectory) {
 #endif
   // Do not try to test it if we don't know what to expect.
   // On Windows we use something better than env vars.
-  if (!expected.empty()) {
-    SmallString<128> HomeDir;
-    auto status = path::home_directory(HomeDir);
-    EXPECT_TRUE(status);
-    EXPECT_EQ(expected, HomeDir);
-  }
+  if (expected.empty())
+    GTEST_SKIP();
+  SmallString<128> HomeDir;
+  auto status = path::home_directory(HomeDir);
+  EXPECT_TRUE(status);
+  EXPECT_EQ(expected, HomeDir);
 }
 
 // Apple has their own solution for this.
@@ -498,7 +499,8 @@ TEST(Support, HomeDirectoryWithNoEnv) {
 
   // Don't run the test if we have nothing to compare against.
   struct passwd *pw = getpwuid(getuid());
-  if (!pw || !pw->pw_dir) return;
+  if (!pw || !pw->pw_dir)
+    GTEST_SKIP();
   std::string PwDir = pw->pw_dir;
 
   SmallString<128> HomeDir;
@@ -563,21 +565,21 @@ TEST(Support, ConfigDirectory) {
 TEST(Support, ConfigDirectory) {
   std::string Expected = getEnvWin(L"LOCALAPPDATA");
   // Do not try to test it if we don't know what to expect.
-  if (!Expected.empty()) {
-    SmallString<128> CacheDir;
-    EXPECT_TRUE(path::user_config_directory(CacheDir));
-    EXPECT_EQ(Expected, CacheDir);
-  }
+  if (Expected.empty())
+    GTEST_SKIP();
+  SmallString<128> CacheDir;
+  EXPECT_TRUE(path::user_config_directory(CacheDir));
+  EXPECT_EQ(Expected, CacheDir);
 }
 
 TEST(Support, CacheDirectory) {
   std::string Expected = getEnvWin(L"LOCALAPPDATA");
   // Do not try to test it if we don't know what to expect.
-  if (!Expected.empty()) {
-    SmallString<128> CacheDir;
-    EXPECT_TRUE(path::cache_directory(CacheDir));
-    EXPECT_EQ(Expected, CacheDir);
-  }
+  if (Expected.empty())
+    GTEST_SKIP();
+  SmallString<128> CacheDir;
+  EXPECT_TRUE(path::cache_directory(CacheDir));
+  EXPECT_EQ(Expected, CacheDir);
 }
 #endif
 
@@ -814,6 +816,27 @@ TEST_F(FileSystemTest, RealPathNoReadPerm) {
                                 false));
 
   ASSERT_NO_ERROR(fs::remove_directories(Twine(TestDirectory) + "/noreadperm"));
+}
+TEST_F(FileSystemTest, RemoveDirectoriesNoExePerm) {
+  SmallString<64> Expanded;
+
+  ASSERT_NO_ERROR(
+      fs::create_directories(Twine(TestDirectory) + "/noexeperm/foo"));
+  ASSERT_TRUE(fs::exists(Twine(TestDirectory) + "/noexeperm/foo"));
+
+  fs::setPermissions(Twine(TestDirectory) + "/noexeperm",
+                     fs::all_read | fs::all_write);
+
+  ASSERT_NO_ERROR(fs::remove_directories(Twine(TestDirectory) + "/noexeperm",
+                                         /*IgnoreErrors=*/true));
+
+  // It's expected that the directory exists, but some environments appear to
+  // allow the removal despite missing the 'x' permission, so be flexible.
+  if (fs::exists(Twine(TestDirectory) + "/noexeperm")) {
+    fs::setPermissions(Twine(TestDirectory) + "/noexeperm", fs::all_perms);
+    ASSERT_NO_ERROR(fs::remove_directories(Twine(TestDirectory) + "/noexeperm",
+                                           /*IgnoreErrors=*/false));
+  }
 }
 #endif
 
@@ -1543,16 +1566,14 @@ TEST(Support, RemoveDots) {
   EXPECT_EQ("C:\\a\\c", remove_dots("C:\\foo\\bar//..\\..\\a\\c", true,
                                     path::Style::windows));
 
-  // FIXME: These leading forward slashes are emergent behavior. VFS depends on
-  // this behavior now.
-  EXPECT_EQ("C:/bar",
+  EXPECT_EQ("C:\\bar",
             remove_dots("C:/foo/../bar", true, path::Style::windows));
-  EXPECT_EQ("C:/foo\\bar",
+  EXPECT_EQ("C:\\foo\\bar",
             remove_dots("C:/foo/bar", true, path::Style::windows));
-  EXPECT_EQ("C:/foo\\bar",
+  EXPECT_EQ("C:\\foo\\bar",
             remove_dots("C:/foo\\bar", true, path::Style::windows));
-  EXPECT_EQ("/", remove_dots("/", true, path::Style::windows));
-  EXPECT_EQ("C:/", remove_dots("C:/", true, path::Style::windows));
+  EXPECT_EQ("\\", remove_dots("/", true, path::Style::windows));
+  EXPECT_EQ("C:\\", remove_dots("C:/", true, path::Style::windows));
 
   // Some clients of remove_dots expect it to remove trailing slashes. Again,
   // this is emergent behavior that VFS relies on, and not inherently part of
@@ -1563,7 +1584,8 @@ TEST(Support, RemoveDots) {
             remove_dots("/foo/bar/", true, path::Style::posix));
 
   // A double separator is rewritten.
-  EXPECT_EQ("C:/foo\\bar", remove_dots("C:/foo//bar", true, path::Style::windows));
+  EXPECT_EQ("C:\\foo\\bar",
+            remove_dots("C:/foo//bar", true, path::Style::windows));
 
   SmallString<64> Path1(".\\.\\c");
   EXPECT_TRUE(path::remove_dots(Path1, true, path::Style::windows));
@@ -1746,7 +1768,7 @@ static void verifyFileContents(const Twine &Path, StringRef Contents) {
 
 TEST_F(FileSystemTest, CreateNew) {
   int FD;
-  Optional<FileDescriptorCloser> Closer;
+  std::optional<FileDescriptorCloser> Closer;
 
   // Succeeds if the file does not exist.
   ASSERT_FALSE(fs::exists(NonExistantFile));
@@ -1770,7 +1792,7 @@ TEST_F(FileSystemTest, CreateNew) {
 
 TEST_F(FileSystemTest, CreateAlways) {
   int FD;
-  Optional<FileDescriptorCloser> Closer;
+  std::optional<FileDescriptorCloser> Closer;
 
   // Succeeds if the file does not exist.
   ASSERT_FALSE(fs::exists(NonExistantFile));
@@ -1848,7 +1870,7 @@ TEST_F(FileSystemTest, AppendSetsCorrectFileOffset) {
   // the specified disposition.
   for (fs::CreationDisposition Disp : Disps) {
     int FD;
-    Optional<FileDescriptorCloser> Closer;
+    std::optional<FileDescriptorCloser> Closer;
 
     createFileWithData(NonExistantFile, false, fs::CD_CreateNew, "Fizz");
 
@@ -1939,7 +1961,7 @@ TEST_F(FileSystemTest, readNativeFile) {
       return FD.takeError();
     auto Close = make_scope_exit([&] { fs::closeFile(*FD); });
     if (Expected<size_t> BytesRead = fs::readNativeFile(
-            *FD, makeMutableArrayRef(&*Buf.begin(), Buf.size())))
+            *FD, MutableArrayRef(&*Buf.begin(), Buf.size())))
       return Buf.substr(0, *BytesRead);
     else
       return BytesRead.takeError();
@@ -1954,7 +1976,7 @@ TEST_F(FileSystemTest, readNativeFileToEOF) {
   createFileWithData(NonExistantFile, false, fs::CD_CreateNew, Content);
   FileRemover Cleanup(NonExistantFile);
   const auto &Read = [&](SmallVectorImpl<char> &V,
-                         Optional<ssize_t> ChunkSize) {
+                         std::optional<ssize_t> ChunkSize) {
     Expected<fs::file_t> FD = fs::openNativeFileForRead(NonExistantFile);
     if (!FD)
       return FD.takeError();
@@ -1973,7 +1995,7 @@ TEST_F(FileSystemTest, readNativeFileToEOF) {
         static_cast<SmallVectorImpl<char> *>(&StaysSmall),
     };
     for (SmallVectorImpl<char> *V : Vectors) {
-      ASSERT_THAT_ERROR(Read(*V, None), Succeeded());
+      ASSERT_THAT_ERROR(Read(*V, std::nullopt), Succeeded());
       ASSERT_EQ(Content, StringRef(V->begin(), V->size()));
     }
     ASSERT_EQ(fs::DefaultReadChunkSize + Content.size(), StaysSmall.capacity());
@@ -1983,7 +2005,7 @@ TEST_F(FileSystemTest, readNativeFileToEOF) {
       constexpr StringLiteral Prefix = "prefix-";
       for (SmallVectorImpl<char> *V : Vectors) {
         V->assign(Prefix.begin(), Prefix.end());
-        ASSERT_THAT_ERROR(Read(*V, None), Succeeded());
+        ASSERT_THAT_ERROR(Read(*V, std::nullopt), Succeeded());
         ASSERT_EQ((Prefix + Content).str(), StringRef(V->begin(), V->size()));
       }
     }
@@ -2006,7 +2028,7 @@ TEST_F(FileSystemTest, readNativeFileSlice) {
                          size_t ToRead) -> Expected<std::string> {
     std::string Buf(ToRead, '?');
     if (Expected<size_t> BytesRead = fs::readNativeFileSlice(
-            *FD, makeMutableArrayRef(&*Buf.begin(), Buf.size()), Offset))
+            *FD, MutableArrayRef(&*Buf.begin(), Buf.size()), Offset))
       return Buf.substr(0, *BytesRead);
     else
       return BytesRead.takeError();
@@ -2315,7 +2337,7 @@ TEST_F(FileSystemTest, widenPath) {
   for (size_t i = 0; i < NumChars; ++i)
     Input += Pi;
   // Check that UTF-8 length already exceeds MAX_PATH.
-  EXPECT_TRUE(Input.size() > MAX_PATH);
+  EXPECT_GT(Input.size(), (size_t)MAX_PATH);
   SmallVector<wchar_t, MAX_PATH + 16> Result;
   ASSERT_NO_ERROR(windows::widenPath(Input, Result));
   // Result should not start with the long path prefix.

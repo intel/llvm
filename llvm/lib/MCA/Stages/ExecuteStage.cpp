@@ -165,8 +165,8 @@ static void verifyInstructionEliminated(const InstRef &IR) {
 
   // Ensure that instructions eliminated at register renaming stage are in a
   // consistent state.
-  const InstrDesc &Desc = Inst.getDesc();
-  assert(!Desc.MayLoad && !Desc.MayStore && "Cannot eliminate a memory op!");
+  assert(!Inst.getMayLoad() && !Inst.getMayStore() &&
+         "Cannot eliminate a memory op!");
 }
 #endif
 
@@ -274,7 +274,7 @@ void ExecuteStage::notifyReservedOrReleasedBuffers(const InstRef &IR,
   if (!UsedBuffers)
     return;
 
-  SmallVector<unsigned, 4> BufferIDs(countPopulation(UsedBuffers), 0);
+  SmallVector<unsigned, 4> BufferIDs(llvm::popcount(UsedBuffers), 0);
   for (unsigned I = 0, E = BufferIDs.size(); I < E; ++I) {
     uint64_t CurrentBufferMask = UsedBuffers & (-UsedBuffers);
     BufferIDs[I] = HWS.getResourceID(CurrentBufferMask);

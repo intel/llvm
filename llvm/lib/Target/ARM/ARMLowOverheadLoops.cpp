@@ -59,8 +59,10 @@
 #include "MVETailPredUtils.h"
 #include "Thumb2InstrInfo.h"
 #include "llvm/ADT/SetOperations.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineLoopUtils.h"
@@ -78,6 +80,11 @@ static cl::opt<bool>
 DisableTailPredication("arm-loloops-disable-tailpred", cl::Hidden,
     cl::desc("Disable tail-predication in the ARM LowOverheadLoop pass"),
     cl::init(false));
+
+static cl::opt<bool>
+    DisableOmitDLS("arm-disable-omit-dls", cl::Hidden,
+                   cl::desc("Disable omitting 'dls lr, lr' instructions"),
+                   cl::init(false));
 
 static bool isVectorPredicated(MachineInstr *MI) {
   int PIdx = llvm::findFirstVPTPredOperandIdx(*MI);
@@ -900,7 +907,7 @@ static bool producesFalseLanesZero(MachineInstr &MI,
       continue;
     // Skip the lr predicate reg
     int PIdx = llvm::findFirstVPTPredOperandIdx(MI);
-    if (PIdx != -1 && (int)MI.getOperandNo(&MO) == PIdx + 2)
+    if (PIdx != -1 && (int)MO.getOperandNo() == PIdx + 2)
       continue;
 
     // Check that this instruction will produce zeros in its false lanes:
@@ -909,6 +916,8 @@ static bool producesFalseLanesZero(MachineInstr &MI,
     //   false lane zeros, so we can ignore the uses.
     SmallPtrSet<MachineInstr *, 2> Defs;
     RDA.getGlobalReachingDefs(&MI, MO.getReg(), Defs);
+    if (Defs.empty())
+      return false;
     for (auto *Def : Defs) {
       if (Def == &MI || FalseLanesZero.count(Def) || IsZeroInit(Def))
         continue;
@@ -1199,7 +1208,7 @@ static bool ValidateMVEStore(MachineInstr *MI, MachineLoop *ML) {
     }
 
     if (LookAtSuccessors) {
-      for (auto Succ : BB->successors()) {
+      for (auto *Succ : BB->successors()) {
         if (!Visited.contains(Succ) && !is_contained(Frontier, Succ))
           Frontier.push_back(Succ);
       }
@@ -1240,7 +1249,7 @@ bool LowOverheadLoop::ValidateMVEInst(MachineInstr *MI) {
   const MCInstrDesc &MCID = MI->getDesc();
   bool IsUse = false;
   unsigned LastOpIdx = MI->getNumOperands() - 1;
-  for (auto &Op : enumerate(reverse(MCID.operands()))) {
+  for (const auto &Op : enumerate(reverse(MCID.operands()))) {
     const MachineOperand &MO = MI->getOperand(LastOpIdx - Op.index());
     if (!MO.isReg() || !MO.isUse() || MO.getReg() != ARM::VPR)
       continue;
@@ -1297,7 +1306,7 @@ bool LowOverheadLoop::ValidateMVEInst(MachineInstr *MI) {
 }
 
 bool ARMLowOverheadLoops::runOnMachineFunction(MachineFunction &mf) {
-  const ARMSubtarget &ST = static_cast<const ARMSubtarget&>(mf.getSubtarget());
+  const ARMSubtarget &ST = mf.getSubtarget<ARMSubtarget>();
   if (!ST.hasLOB())
     return false;
 
@@ -1315,7 +1324,7 @@ bool ARMLowOverheadLoops::runOnMachineFunction(MachineFunction &mf) {
   BBUtils->adjustBBOffsetsAfter(&MF->front());
 
   bool Changed = false;
-  for (auto ML : *MLI) {
+  for (auto *ML : *MLI) {
     if (ML->isOutermost())
       Changed |= ProcessLoop(ML);
   }
@@ -1551,7 +1560,8 @@ MachineInstr* ARMLowOverheadLoops::ExpandLoopStart(LowOverheadLoop &LoLoop) {
 
   // A DLS lr, lr we needn't emit
   MachineInstr* NewStart;
-  if (Opc == ARM::t2DLS && Count.isReg() && Count.getReg() == ARM::LR) {
+  if (!DisableOmitDLS && Opc == ARM::t2DLS && Count.isReg() &&
+      Count.getReg() == ARM::LR) {
     LLVM_DEBUG(dbgs() << "ARM Loops: Didn't insert start: DLS lr, lr");
     NewStart = nullptr;
   } else {

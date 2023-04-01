@@ -24,7 +24,11 @@ config.name = 'SYCL'
 config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp', '.dump'] #add .spv. Currently not clear what to do with those
+dump_only_tests = bool(lit_config.params.get('SYCL_LIB_DUMPS_ONLY', False))
+if dump_only_tests:
+    config.suffixes = ['.dump'] # Only run dump testing
+else:
+    config.suffixes = ['.c', '.cpp', '.dump', '.test'] #add .spv. Currently not clear what to do with those
 
 # feature tests are considered not so lightweight, so, they are excluded by default
 config.excludes = ['Inputs', 'feature-tests']
@@ -35,10 +39,10 @@ config.test_source_root = os.path.dirname(__file__)
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 
-llvm_config.use_clang(additional_flags=config.sycl_clang_extra_flags.split(' '))
-
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
+
+config.substitutions.append(('%python', '"%s"' % (sys.executable)))
 
 # Propagate extra environment variables
 if config.extra_environment:
@@ -82,23 +86,31 @@ config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
 config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
+config.substitutions.append( ('%level_zero_include_dir',  config.level_zero_include_dir) )
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 config.substitutions.append( ('%cuda_toolkit_include',  config.cuda_toolkit_include) )
 config.substitutions.append( ('%sycl_tools_src_dir',  config.sycl_tools_src_dir ) )
 config.substitutions.append( ('%llvm_build_lib_dir',  config.llvm_build_lib_dir ) )
 config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir ) )
 
-config.substitutions.append( ('%fsycl-host-only', '-std=c++17 -Xclang -fsycl-is-host -isystem %s -isystem %s -isystem %s' % (config.sycl_include, config.opencl_include_dir, config.sycl_include + '/sycl/') ) )
+llvm_symbolizer = os.path.join(config.llvm_build_bin_dir, 'llvm-symbolizer')
+llvm_config.with_environment('LLVM_SYMBOLIZER_PATH', llvm_symbolizer)
+
+sycl_host_only_options = '-std=c++17 -Xclang -fsycl-is-host'
+for include_dir in [config.sycl_include, config.level_zero_include_dir, config.opencl_include_dir, config.sycl_include + '/sycl/']:
+    if include_dir:
+        sycl_host_only_options += ' -isystem %s' % include_dir
+config.substitutions.append( ('%fsycl-host-only', sycl_host_only_options) )
+
+config.substitutions.append( ('%sycl_lib', ' -lsycl6' if platform.system() == "Windows" else '-lsycl') )
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 
-config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
-
-# Every SYCL implementation provides a host implementation.
-config.available_features.add('host')
 triple=lit_config.params.get('SYCL_TRIPLE', 'spir64-unknown-unknown')
 lit_config.note("Triple: {}".format(triple))
 config.substitutions.append( ('%sycl_triple',  triple ) )
+
+additional_flags = config.sycl_clang_extra_flags.split(' ')
 
 if config.cuda_be == "ON":
     config.available_features.add('cuda_be')
@@ -109,18 +121,29 @@ if config.hip_be == "ON":
 if config.esimd_emulator_be == "ON":
     config.available_features.add('esimd_emulator_be')
 
+if config.opencl_be == "ON":
+    config.available_features.add('opencl_be')
+
+if config.level_zero_be == "ON":
+    config.available_features.add('level_zero_be')
+
 if triple == 'nvptx64-nvidia-cuda':
+    llvm_config.with_system_environment('CUDA_PATH')
     config.available_features.add('cuda')
 
 if triple == 'amdgcn-amd-amdhsa':
+    llvm_config.with_system_environment('ROCM_PATH')
     config.available_features.add('hip_amd')
     # For AMD the specific GPU has to be specified with --offload-arch
-    if not re.match('.*--offload-arch.*', config.sycl_clang_extra_flags):
-        raise Exception("Error: missing --offload-arch flag when trying to "  \
-                        "run lit tests for AMD GPU, please add "              \
-                        "--hip-amd-arch=<target> to buildbot/configure.py or add"  \
-                        "`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to " \
-                        "the CMake variable SYCL_CLANG_EXTRA_FLAGS")
+    if not any([f.startswith('--offload-arch') for f in additional_flags]):
+        # If the offload arch wasn't specified in SYCL_CLANG_EXTRA_FLAGS,
+        # hardcode it to gfx906, this is fine because only compiler tests
+        additional_flags += ['-Xsycl-target-backend=amdgcn-amd-amdhsa',
+                            '--offload-arch=gfx906']
+
+# Dump-only tests do not have clang available
+if not dump_only_tests:
+    llvm_config.use_clang(additional_flags=additional_flags)
 
 # Set timeout for test = 10 mins
 try:

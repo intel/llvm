@@ -8,18 +8,18 @@
 
 #include "wrapper.h"
 
-#ifdef __SPIR__
-DEVICE_EXTERN_C
+#if defined(__SPIR__) || defined(__NVPTX__)
+DEVICE_EXTERN_C_INLINE
 void *memcpy(void *dest, const void *src, size_t n) {
   return __devicelib_memcpy(dest, src, n);
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 void *memset(void *dest, int c, size_t n) {
   return __devicelib_memset(dest, c, n);
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 int memcmp(const void *s1, const void *s2, size_t n) {
   return __devicelib_memcmp(s1, s2, n);
 }
@@ -64,4 +64,4 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
       __spirv_LocalInvocationId_z());
 }
 #endif
-#endif // __SPIR__
+#endif // __SPIR__ || __NVPTX__

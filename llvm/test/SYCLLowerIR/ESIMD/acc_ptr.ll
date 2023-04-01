@@ -1,4 +1,4 @@
-; RUN: opt -LowerESIMD -S < %s | FileCheck %s
+; RUN: opt -passes=LowerESIMD -S < %s | FileCheck %s
 
 ; This test checks that LowerESIMD pass correctly interpretes the
 ; 'kernel_arg_accessor_ptr' metadata. Particularly, that it generates additional
@@ -30,7 +30,7 @@ define weak_odr dso_local spir_kernel void @ESIMDKernel(i32 %_arg_, float addrsp
 
 ; CHECK: attributes #[[GENX_MAIN]] = { "CMGenxMain" "oclrt"="1" }
 ; CHECK: !genx.kernels = !{![[GENX_KERNELS:[0-9]+]]}
-; CHECK: ![[GENX_KERNELS]] = !{void (i32, float addrspace(1)*, float addrspace(1)*, i32, float addrspace(1)*)* @ESIMDKernel, !"ESIMDKernel", ![[ARG_KINDS:[0-9]+]], i32 0, i32 0, ![[ARG_IO_KINDS:[0-9]+]], ![[ARG_DESCS:[0-9]+]]}
+; CHECK: ![[GENX_KERNELS]] = !{void (i32, float addrspace(1)*, float addrspace(1)*, i32, float addrspace(1)*)* @ESIMDKernel, !"ESIMDKernel", ![[ARG_KINDS:[0-9]+]], i32 0, i32 0, ![[ARG_IO_KINDS:[0-9]+]], ![[ARG_DESCS:[0-9]+]], i32 0, i32 0}
 ; CHECK: ![[ARG_KINDS]] = !{i32 0, i32 2, i32 2, i32 0, i32 0}
 ; CHECK: ![[ARG_IO_KINDS]] = !{i32 0, i32 0, i32 0, i32 0, i32 0}
 ; CHECK: ![[ARG_DESCS]] = !{!"", !"buffer_t", !"buffer_t", !"", !"svmptr_t"}

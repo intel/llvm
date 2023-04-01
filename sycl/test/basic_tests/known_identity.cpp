@@ -1,15 +1,15 @@
-// RUN: %clangxx -fsycl -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -o %t.out -std=c++17
-// RUN: %RUN_ON_HOST %t.out
+// RUN: %clangxx %fsycl-host-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -o %t.out -std=c++17 %sycl_lib -L%sycl_libs_dir
+// RUN: %t.out
 // expected-no-diagnostics
 
 // This test performs basic checks of has_known_identity and known_identity
 // type traits.
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <cstddef>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename T> void checkCommonKnownIdentity() {
   static_assert(has_known_identity<sycl::maximum<>, T>::value);
@@ -198,7 +198,7 @@ template <typename T> void checkVecTypeKnownIdentity() {
 }
 
 void checkVecTypesKnownIdentity() {
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   checkVecTypeKnownIdentity<std::byte>();
 #endif
   checkVecTypeKnownIdentity<int8_t>();
@@ -347,7 +347,7 @@ template <typename T> void checkMarrayTypeKnownIdentity() {
 }
 
 void checkMarrayTypesKnownIdentity() {
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   checkMarrayTypeKnownIdentity<std::byte>();
 #endif
   checkMarrayTypeKnownIdentity<int8_t>();
@@ -420,7 +420,6 @@ int main() {
 
   checkCommonKnownIdentity<half>();
   checkCommonKnownIdentity<sycl::cl_half>();
-  checkCommonKnownIdentity<::cl_half>();
 
   checkBoolKnownIdentity<bool>();
 

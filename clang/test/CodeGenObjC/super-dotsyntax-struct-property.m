@@ -44,4 +44,4 @@ typedef struct CGRect CGRect;
 
 @end
 // CHECK-NOT: declare void @objc_msgSendSuper2_stret
-// CHECK: declare i8* @objc_msgSendSuper2
+// CHECK: declare ptr @objc_msgSendSuper2

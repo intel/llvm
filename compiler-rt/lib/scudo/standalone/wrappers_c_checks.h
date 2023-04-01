@@ -47,9 +47,12 @@ inline bool checkPosixMemalignAlignment(uptr Alignment) {
 // costly division.
 inline bool checkForCallocOverflow(uptr Size, uptr N, uptr *Product) {
 #if __has_builtin(__builtin_umull_overflow) && (SCUDO_WORDSIZE == 64U)
-  return __builtin_umull_overflow(Size, N, Product);
+  return __builtin_umull_overflow(Size, N,
+                                  reinterpret_cast<unsigned long *>(Product));
 #elif __has_builtin(__builtin_umul_overflow) && (SCUDO_WORDSIZE == 32U)
-  return __builtin_umul_overflow(Size, N, Product);
+  // On, e.g. armv7, uptr/uintptr_t may be defined as unsigned long
+  return __builtin_umul_overflow(Size, N,
+                                 reinterpret_cast<unsigned int *>(Product));
 #else
   *Product = Size * N;
   if (!Size)
@@ -61,7 +64,7 @@ inline bool checkForCallocOverflow(uptr Size, uptr N, uptr *Product) {
 // Returns true if the size passed to pvalloc overflows when rounded to the next
 // multiple of PageSize.
 inline bool checkForPvallocOverflow(uptr Size, uptr PageSize) {
-  return roundUpTo(Size, PageSize) < Size;
+  return roundUp(Size, PageSize) < Size;
 }
 
 } // namespace scudo

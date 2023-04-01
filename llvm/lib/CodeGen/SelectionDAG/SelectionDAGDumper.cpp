@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "SDNodeDbgValue.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
@@ -45,7 +45,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetIntrinsicInfo.h"
 #include "llvm/Target/TargetMachine.h"
-#include "SDNodeDbgValue.h"
 #include <cstdint>
 #include <iterator>
 
@@ -80,6 +79,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::DELETED_NODE:               return "<<Deleted Node!>>";
 #endif
   case ISD::PREFETCH:                   return "Prefetch";
+  case ISD::MEMBARRIER:                 return "MemBarrier";
   case ISD::ATOMIC_FENCE:               return "AtomicFence";
   case ISD::ATOMIC_CMP_SWAP:            return "AtomicCmpSwap";
   case ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS: return "AtomicCmpSwapWithSuccess";
@@ -96,6 +96,10 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::ATOMIC_LOAD_UMIN:           return "AtomicLoadUMin";
   case ISD::ATOMIC_LOAD_UMAX:           return "AtomicLoadUMax";
   case ISD::ATOMIC_LOAD_FADD:           return "AtomicLoadFAdd";
+  case ISD::ATOMIC_LOAD_UINC_WRAP:
+    return "AtomicLoadUIncWrap";
+  case ISD::ATOMIC_LOAD_UDEC_WRAP:
+    return "AtomicLoadUDecWrap";
   case ISD::ATOMIC_LOAD:                return "AtomicLoad";
   case ISD::ATOMIC_STORE:               return "AtomicStore";
   case ISD::PCMARKER:                   return "PCMarker";
@@ -231,6 +235,10 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::MUL:                        return "mul";
   case ISD::MULHU:                      return "mulhu";
   case ISD::MULHS:                      return "mulhs";
+  case ISD::AVGFLOORU:                  return "avgflooru";
+  case ISD::AVGFLOORS:                  return "avgfloors";
+  case ISD::AVGCEILU:                   return "avgceilu";
+  case ISD::AVGCEILS:                   return "avgceils";
   case ISD::ABDS:                       return "abds";
   case ISD::ABDU:                       return "abdu";
   case ISD::SDIV:                       return "sdiv";
@@ -267,6 +275,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::FCOPYSIGN:                  return "fcopysign";
   case ISD::FGETSIGN:                   return "fgetsign";
   case ISD::FCANONICALIZE:              return "fcanonicalize";
+  case ISD::IS_FPCLASS:                 return "is_fpclass";
   case ISD::FPOW:                       return "fpow";
   case ISD::STRICT_FPOW:                return "strict_fpow";
   case ISD::SMIN:                       return "smin";
@@ -288,6 +297,8 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::CONCAT_VECTORS:             return "concat_vectors";
   case ISD::INSERT_SUBVECTOR:           return "insert_subvector";
   case ISD::EXTRACT_SUBVECTOR:          return "extract_subvector";
+  case ISD::VECTOR_DEINTERLEAVE:        return "vector_deinterleave";
+  case ISD::VECTOR_INTERLEAVE:          return "vector_interleave";
   case ISD::SCALAR_TO_VECTOR:           return "scalar_to_vector";
   case ISD::VECTOR_SHUFFLE:             return "vector_shuffle";
   case ISD::VECTOR_SPLICE:              return "vector_splice";
@@ -361,6 +372,8 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::STRICT_FP16_TO_FP:          return "strict_fp16_to_fp";
   case ISD::FP_TO_FP16:                 return "fp_to_fp16";
   case ISD::STRICT_FP_TO_FP16:          return "strict_fp_to_fp16";
+  case ISD::BF16_TO_FP:                 return "bf16_to_fp";
+  case ISD::FP_TO_BF16:                 return "fp_to_bf16";
   case ISD::LROUND:                     return "lround";
   case ISD::STRICT_LROUND:              return "strict_lround";
   case ISD::LLROUND:                    return "llround";
@@ -416,7 +429,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
     return "call_alloc";
 
   // Floating point environment manipulation
-  case ISD::FLT_ROUNDS_:                return "flt_rounds";
+  case ISD::GET_ROUNDING:               return "get_rounding";
   case ISD::SET_ROUNDING:               return "set_rounding";
 
   // Bit manipulation
@@ -480,6 +493,10 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::VECREDUCE_UMIN:             return "vecreduce_umin";
   case ISD::VECREDUCE_FMAX:             return "vecreduce_fmax";
   case ISD::VECREDUCE_FMIN:             return "vecreduce_fmin";
+  case ISD::STACKMAP:
+    return "stackmap";
+  case ISD::PATCHPOINT:
+    return "patchpoint";
 
     // Vector Predication
 #define BEGIN_REGISTER_VP_SDNODE(SDID, LEGALARG, NAME, ...)                    \
@@ -683,7 +700,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     else
       OS << "<null>";
   } else if (const VTSDNode *N = dyn_cast<VTSDNode>(this)) {
-    OS << ":" << N->getVT().getEVTString();
+    OS << ":" << N->getVT();
   }
   else if (const LoadSDNode *LD = dyn_cast<LoadSDNode>(this)) {
     OS << "<";
@@ -698,7 +715,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     case ISD::ZEXTLOAD: OS << ", zext"; break;
     }
     if (doExt)
-      OS << " from " << LD->getMemoryVT().getEVTString();
+      OS << " from " << LD->getMemoryVT();
 
     const char *AM = getIndexedModeName(LD->getAddressingMode());
     if (*AM)
@@ -710,7 +727,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     printMemOperand(OS, *ST->getMemOperand(), G);
 
     if (ST->isTruncatingStore())
-      OS << ", trunc to " << ST->getMemoryVT().getEVTString();
+      OS << ", trunc to " << ST->getMemoryVT();
 
     const char *AM = getIndexedModeName(ST->getAddressingMode());
     if (*AM)
@@ -730,7 +747,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     case ISD::ZEXTLOAD: OS << ", zext"; break;
     }
     if (doExt)
-      OS << " from " << MLd->getMemoryVT().getEVTString();
+      OS << " from " << MLd->getMemoryVT();
 
     const char *AM = getIndexedModeName(MLd->getAddressingMode());
     if (*AM)
@@ -745,7 +762,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     printMemOperand(OS, *MSt->getMemOperand(), G);
 
     if (MSt->isTruncatingStore())
-      OS << ", trunc to " << MSt->getMemoryVT().getEVTString();
+      OS << ", trunc to " << MSt->getMemoryVT();
 
     const char *AM = getIndexedModeName(MSt->getAddressingMode());
     if (*AM)
@@ -767,7 +784,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     case ISD::ZEXTLOAD: OS << ", zext"; break;
     }
     if (doExt)
-      OS << " from " << MGather->getMemoryVT().getEVTString();
+      OS << " from " << MGather->getMemoryVT();
 
     auto Signed = MGather->isIndexSigned() ? "signed" : "unsigned";
     auto Scaled = MGather->isIndexScaled() ? "scaled" : "unscaled";
@@ -779,7 +796,7 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
     printMemOperand(OS, *MScatter->getMemOperand(), G);
 
     if (MScatter->isTruncatingStore())
-      OS << ", trunc to " << MScatter->getMemoryVT().getEVTString();
+      OS << ", trunc to " << MScatter->getMemoryVT();
 
     auto Signed = MScatter->isIndexSigned() ? "signed" : "unsigned";
     auto Scaled = MScatter->isIndexScaled() ? "scaled" : "unscaled";
@@ -814,6 +831,8 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
   } else if (const LifetimeSDNode *LN = dyn_cast<LifetimeSDNode>(this)) {
     if (LN->hasOffset())
       OS << "<" << LN->getOffset() << " to " << LN->getOffset() + LN->getSize() << ">";
+  } else if (const auto *AA = dyn_cast<AssertAlignSDNode>(this)) {
+    OS << '<' << AA->getAlign().value() << '>';
   }
 
   if (VerboseDAGDumping) {
@@ -832,6 +851,12 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
           Dbg->print(OS);
     } else if (getHasDebugValue())
       OS << " [NoOfDbgValues>0]";
+
+    if (const auto *MD = G ? G->getPCSections(this) : nullptr) {
+      OS << " [pcsections ";
+      MD->printAsOperand(OS, G->getMachineFunction().getFunction().getParent());
+      OS << ']';
+    }
   }
 }
 
@@ -1047,6 +1072,9 @@ LLVM_DUMP_METHOD void SDNode::dumprFull(const SelectionDAG *G) const {
 
 void SDNode::print(raw_ostream &OS, const SelectionDAG *G) const {
   printr(OS, G);
+  // Under VerboseDAGDumping divergence will be printed always.
+  if (isDivergent() && !VerboseDAGDumping)
+    OS << " # D:1";
   for (unsigned i = 0, e = getNumOperands(); i != e; ++i) {
     if (i) OS << ", "; else OS << " ";
     printOperand(OS, G, getOperand(i));

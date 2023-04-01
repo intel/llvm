@@ -7,7 +7,7 @@ config.substitutions.append(('%{flags}',
     '-isysroot {}'.format('@CMAKE_OSX_SYSROOT@') if '@CMAKE_OSX_SYSROOT@' else ''
 ))
 config.substitutions.append(('%{compile_flags}',
-    '-nostdinc++ -isystem %{include} -isystem %{target-include} -I %{libcxx}/test/support'
+    '-nostdinc++ -I %{include} -I %{target-include} -I %{libcxx}/test/support'
 ))
 config.substitutions.append(('%{link_flags}',
     '-nostdlib++ -L %{lib} -Wl,-rpath,%{lib} -lc++ -pthread'
@@ -18,8 +18,8 @@ config.substitutions.append(('%{exec}',
 
 import os, site
 site.addsitedir(os.path.join('@LIBCXX_SOURCE_DIR@', 'utils'))
-import libcxx.test.params, libcxx.test.newconfig
-libcxx.test.newconfig.configure(
+import libcxx.test.params, libcxx.test.config
+libcxx.test.config.configure(
     libcxx.test.params.DEFAULT_PARAMETERS,
     libcxx.test.features.DEFAULT_FEATURES,
     config,

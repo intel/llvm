@@ -16,7 +16,7 @@ define i32 @func32(i32 %x, i32 %y, i32 %z) nounwind {
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; X86-NEXT:    leal (%eax,%ecx), %edx
 ; X86-NEXT:    sarl $31, %edx
-; X86-NEXT:    xorl $-2147483648, %edx # imm = 0x80000000
+; X86-NEXT:    addl $-2147483648, %edx # imm = 0x80000000
 ; X86-NEXT:    addl %ecx, %eax
 ; X86-NEXT:    cmovol %edx, %eax
 ; X86-NEXT:    retl
@@ -28,7 +28,7 @@ define i32 @func32(i32 %x, i32 %y, i32 %z) nounwind {
 ; X64-NEXT:    imull %edx, %esi
 ; X64-NEXT:    leal (%rdi,%rsi), %eax
 ; X64-NEXT:    sarl $31, %eax
-; X64-NEXT:    xorl $-2147483648, %eax # imm = 0x80000000
+; X64-NEXT:    addl $-2147483648, %eax # imm = 0x80000000
 ; X64-NEXT:    addl %edi, %esi
 ; X64-NEXT:    cmovnol %esi, %eax
 ; X64-NEXT:    retq
@@ -50,7 +50,7 @@ define i64 @func64(i64 %x, i64 %y, i64 %z) nounwind {
 ; X86-NEXT:    sarl $31, %edx
 ; X86-NEXT:    testb %bl, %bl
 ; X86-NEXT:    cmovnel %edx, %eax
-; X86-NEXT:    xorl $-2147483648, %edx # imm = 0x80000000
+; X86-NEXT:    addl $-2147483648, %edx # imm = 0x80000000
 ; X86-NEXT:    testb %bl, %bl
 ; X86-NEXT:    cmovel %ecx, %edx
 ; X86-NEXT:    popl %ebx
@@ -107,13 +107,13 @@ define signext i16 @func16(i16 signext %x, i16 signext %y, i16 signext %z) nounw
 define signext i8 @func8(i8 signext %x, i8 signext %y, i8 signext %z) nounwind {
 ; X86-LABEL: func8:
 ; X86:       # %bb.0:
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    mulb {{[0-9]+}}(%esp)
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %cl
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %ecx
 ; X86-NEXT:    movl %eax, %edx
 ; X86-NEXT:    addb %cl, %dl
 ; X86-NEXT:    sarb $7, %dl
-; X86-NEXT:    xorb $-128, %dl
+; X86-NEXT:    addb $-128, %dl
 ; X86-NEXT:    addb %cl, %al
 ; X86-NEXT:    movzbl %al, %ecx
 ; X86-NEXT:    movzbl %dl, %eax
@@ -130,7 +130,7 @@ define signext i8 @func8(i8 signext %x, i8 signext %y, i8 signext %z) nounwind {
 ; X64-NEXT:    # kill: def $al killed $al def $rax
 ; X64-NEXT:    leal (%rdi,%rax), %ecx
 ; X64-NEXT:    sarb $7, %cl
-; X64-NEXT:    xorb $-128, %cl
+; X64-NEXT:    addb $-128, %cl
 ; X64-NEXT:    addb %al, %dil
 ; X64-NEXT:    movzbl %dil, %edx
 ; X64-NEXT:    movzbl %cl, %eax
@@ -145,7 +145,7 @@ define signext i8 @func8(i8 signext %x, i8 signext %y, i8 signext %z) nounwind {
 define signext i4 @func4(i4 signext %x, i4 signext %y, i4 signext %z) nounwind {
 ; X86-LABEL: func4:
 ; X86:       # %bb.0:
-; X86-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    mulb {{[0-9]+}}(%esp)
 ; X86-NEXT:    shlb $4, %al
 ; X86-NEXT:    sarb $4, %al

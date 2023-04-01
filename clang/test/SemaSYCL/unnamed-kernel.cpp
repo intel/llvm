@@ -31,60 +31,60 @@ private:
 
 public:
   void test() {
-    cl::sycl::queue q;
+    sycl::queue q;
     // expected-error@#KernelSingleTask {{'InvalidKernelName1' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+3{{in instantiation of function template specialization}}
     class InvalidKernelName1 {};
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<InvalidKernelName1>([] {});
     });
 
     // expected-error@#KernelSingleTask {{'namespace1::KernelName<InvalidKernelName2>' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+3{{in instantiation of function template specialization}}
     class InvalidKernelName2 {};
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidKernelName2>>([] {});
     });
 
     // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName0' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<InvalidKernelName0>([] {});
     });
 
     // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidKernelName3>>([] {});
     });
 
     using ValidAlias = MyWrapper;
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<ValidAlias>([] {});
     });
 
-    // expected-error@#KernelSingleTask {{'std::max_align_t' is an invalid kernel name, 'std::(anonymous)' is declared in the 'std' namespace}}
+    // expected-error@#KernelSingleTask {{'std::max_align_t' is an invalid kernel name, 'std::max_align_t' is declared in the 'std' namespace}}
     // expected-note@+2{{in instantiation of function template specialization}}
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<std::max_align_t>([] {});
     });
 
     using InvalidAlias = InvalidKernelName4;
     // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName4' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<InvalidAlias>([] {});
     });
 
     using InvalidAlias1 = InvalidKernelName5;
     // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidAlias1>>([] {});
     });
     // expected-error@#KernelSingleTask {{'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>>([] {});
     });
   }
@@ -93,44 +93,44 @@ public:
   // Test unnamed kernels the same way.  The above set should still be errors,
   // but this set is now fine.
   void test_unnamed() {
-    cl::sycl::queue q;
-    q.submit([&](cl::sycl::handler &h) {
+    sycl::queue q;
+    q.submit([&](sycl::handler &h) {
       h.single_task([] {});
     });
 
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task([] {});
     });
 
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task([] {});
     });
 
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task([] {});
     });
 
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task([] {});
     });
 
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task([] {});
     });
 
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task([] {});
     });
 
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task([] {});
     });
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task([] {});
     });
 
     // This should have no problem, since the types match.
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       auto SomeLambda = []() {};
       h.single_task<decltype(SomeLambda)>(SomeLambda);
     });
@@ -139,7 +139,7 @@ public:
     //  so this is not the unnamed lambda situation.
     // expected-error@#KernelSingleTask {{unnamed type 'const}}
     // expected-note@+3{{in instantiation of function template specialization}}
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       auto SomeLambda = []() {};
       h.single_task<const decltype(SomeLambda)>(SomeLambda);
     });
@@ -148,12 +148,12 @@ public:
 };
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
   // expected-error-re@#KernelSingleTask {{unnamed type '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' is invalid; provide a kernel name, or use '-fsycl-unnamed-lambda' to enable unnamed kernel lambdas}}
   // expected-note@+2{{in instantiation of function template specialization}}
 #endif
-  q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });
+  q.submit([&](sycl::handler &h) { h.single_task([] {}); });
 
   return 0;
 }

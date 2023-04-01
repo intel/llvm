@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/Utility/ReproducerInstrumentation.h"
-#include "SystemInitializerFull.h"
-
 #include "lldb/API/SBDebugger.h"
+#include "SystemInitializerFull.h"
+#include "lldb/Utility/Instrumentation.h"
+#include "lldb/Utility/LLDBLog.h"
 
 #include "lldb/API/SBBroadcaster.h"
 #include "lldb/API/SBCommandInterpreter.h"
@@ -27,6 +27,7 @@
 #include "lldb/API/SBStructuredData.h"
 #include "lldb/API/SBTarget.h"
 #include "lldb/API/SBThread.h"
+#include "lldb/API/SBTrace.h"
 #include "lldb/API/SBTypeCategory.h"
 #include "lldb/API/SBTypeFilter.h"
 #include "lldb/API/SBTypeFormat.h"
@@ -35,6 +36,7 @@
 #include "lldb/API/SBTypeSynthetic.h"
 
 #include "lldb/Core/Debugger.h"
+#include "lldb/Core/DebuggerEvents.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Progress.h"
 #include "lldb/Core/StreamFile.h"
@@ -49,6 +51,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/TargetList.h"
 #include "lldb/Utility/Args.h"
+#include "lldb/Utility/Diagnostics.h"
 #include "lldb/Utility/State.h"
 #include "lldb/Version/Version.h"
 
@@ -56,6 +59,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/Signals.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -105,43 +110,34 @@ SBError SBInputReader::Initialize(
                               unsigned long),
     void *a, lldb::InputReaderGranularity b, char const *c, char const *d,
     bool e) {
-  LLDB_RECORD_METHOD(
-      lldb::SBError, SBInputReader, Initialize,
-      (lldb::SBDebugger &,
-       unsigned long (*)(void *, lldb::SBInputReader *, lldb::InputReaderAction,
-                         const char *, unsigned long),
-       void *, lldb::InputReaderGranularity, const char *, const char *, bool),
-      sb_debugger, callback, a, b, c, d, e);
+  LLDB_INSTRUMENT_VA(this, sb_debugger, callback, a, b, c, d, e);
 
   return SBError();
 }
 
-void SBInputReader::SetIsDone(bool b) {
-  LLDB_RECORD_METHOD(void, SBInputReader, SetIsDone, (bool), b);
-}
+void SBInputReader::SetIsDone(bool b) { LLDB_INSTRUMENT_VA(this, b); }
 
 bool SBInputReader::IsActive() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBInputReader, IsActive);
+  LLDB_INSTRUMENT_VA(this);
 
   return false;
 }
 
-SBDebugger::SBDebugger() { LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBDebugger); }
+SBDebugger::SBDebugger() { LLDB_INSTRUMENT_VA(this); }
 
 SBDebugger::SBDebugger(const lldb::DebuggerSP &debugger_sp)
     : m_opaque_sp(debugger_sp) {
-  LLDB_RECORD_CONSTRUCTOR(SBDebugger, (const lldb::DebuggerSP &), debugger_sp);
+  LLDB_INSTRUMENT_VA(this, debugger_sp);
 }
 
 SBDebugger::SBDebugger(const SBDebugger &rhs) : m_opaque_sp(rhs.m_opaque_sp) {
-  LLDB_RECORD_CONSTRUCTOR(SBDebugger, (const lldb::SBDebugger &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 }
 
 SBDebugger::~SBDebugger() = default;
 
 SBDebugger &SBDebugger::operator=(const SBDebugger &rhs) {
-  LLDB_RECORD_METHOD(lldb::SBDebugger &,
-                     SBDebugger, operator=,(const lldb::SBDebugger &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 
   if (this != &rhs) {
     m_opaque_sp = rhs.m_opaque_sp;
@@ -150,8 +146,7 @@ SBDebugger &SBDebugger::operator=(const SBDebugger &rhs) {
 }
 
 const char *SBDebugger::GetBroadcasterClass() {
-  LLDB_RECORD_STATIC_METHOD_NO_ARGS(const char *, SBDebugger,
-                                    GetBroadcasterClass);
+  LLDB_INSTRUMENT();
 
   return Debugger::GetStaticBroadcasterClass().AsCString();
 }
@@ -161,37 +156,63 @@ const char *SBDebugger::GetProgressFromEvent(const lldb::SBEvent &event,
                                              uint64_t &completed,
                                              uint64_t &total,
                                              bool &is_debugger_specific) {
-  const Debugger::ProgressEventData *progress_data =
-      Debugger::ProgressEventData::GetEventDataFromEvent(event.get());
+  LLDB_INSTRUMENT_VA(event);
+
+  const ProgressEventData *progress_data =
+      ProgressEventData::GetEventDataFromEvent(event.get());
   if (progress_data == nullptr)
     return nullptr;
   progress_id = progress_data->GetID();
   completed = progress_data->GetCompleted();
   total = progress_data->GetTotal();
   is_debugger_specific = progress_data->IsDebuggerSpecific();
-  // We must record the static method _after_ the out parameters have been
-  // filled in.
-  LLDB_RECORD_STATIC_METHOD(
-      const char *, SBDebugger, GetProgressFromEvent,
-      (const lldb::SBEvent &, uint64_t &, uint64_t &, uint64_t &, bool &),
-      event, progress_id, completed, total, is_debugger_specific);
-  return progress_data->GetMessage().c_str();
+  ConstString message(progress_data->GetMessage());
+  return message.AsCString();
+}
+
+lldb::SBStructuredData
+SBDebugger::GetProgressDataFromEvent(const lldb::SBEvent &event) {
+  LLDB_INSTRUMENT_VA(event);
+
+  StructuredData::DictionarySP dictionary_sp =
+      ProgressEventData::GetAsStructuredData(event.get());
+
+  if (!dictionary_sp)
+    return {};
+
+  SBStructuredData data;
+  data.m_impl_up->SetObjectSP(std::move(dictionary_sp));
+  return data;
+}
+
+lldb::SBStructuredData
+SBDebugger::GetDiagnosticFromEvent(const lldb::SBEvent &event) {
+  LLDB_INSTRUMENT_VA(event);
+
+  StructuredData::DictionarySP dictionary_sp =
+      DiagnosticEventData::GetAsStructuredData(event.get());
+
+  if (!dictionary_sp)
+    return {};
+
+  SBStructuredData data;
+  data.m_impl_up->SetObjectSP(std::move(dictionary_sp));
+  return data;
 }
 
 SBBroadcaster SBDebugger::GetBroadcaster() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBBroadcaster, SBDebugger, GetBroadcaster);
+  LLDB_INSTRUMENT_VA(this);
   SBBroadcaster broadcaster(&m_opaque_sp->GetBroadcaster(), false);
   return broadcaster;
 }
 
 void SBDebugger::Initialize() {
-  LLDB_RECORD_STATIC_METHOD_NO_ARGS(void, SBDebugger, Initialize);
+  LLDB_INSTRUMENT();
   SBError ignored = SBDebugger::InitializeWithErrorHandling();
 }
 
 lldb::SBError SBDebugger::InitializeWithErrorHandling() {
-  LLDB_RECORD_STATIC_METHOD_NO_ARGS(lldb::SBError, SBDebugger,
-                                    InitializeWithErrorHandling);
+  LLDB_INSTRUMENT();
 
   SBError error;
   if (auto e = g_debugger_lifetime->Initialize(
@@ -201,14 +222,33 @@ lldb::SBError SBDebugger::InitializeWithErrorHandling() {
   return error;
 }
 
+void SBDebugger::PrintStackTraceOnError() {
+  LLDB_INSTRUMENT();
+
+  llvm::EnablePrettyStackTrace();
+  static std::string executable =
+      llvm::sys::fs::getMainExecutable(nullptr, nullptr);
+  llvm::sys::PrintStackTraceOnErrorSignal(executable);
+}
+
+static void DumpDiagnostics(void *cookie) {
+  Diagnostics::Instance().Dump(llvm::errs());
+}
+
+void SBDebugger::PrintDiagnosticsOnError() {
+  LLDB_INSTRUMENT();
+
+  llvm::sys::AddSignalHandler(&DumpDiagnostics, nullptr);
+}
+
 void SBDebugger::Terminate() {
-  LLDB_RECORD_STATIC_METHOD_NO_ARGS(void, SBDebugger, Terminate);
+  LLDB_INSTRUMENT();
 
   g_debugger_lifetime->Terminate();
 }
 
 void SBDebugger::Clear() {
-  LLDB_RECORD_METHOD_NO_ARGS(void, SBDebugger, Clear);
+  LLDB_INSTRUMENT_VA(this);
 
   if (m_opaque_sp)
     m_opaque_sp->ClearIOHandlers();
@@ -217,14 +257,13 @@ void SBDebugger::Clear() {
 }
 
 SBDebugger SBDebugger::Create() {
-  LLDB_RECORD_STATIC_METHOD_NO_ARGS(lldb::SBDebugger, SBDebugger, Create);
+  LLDB_INSTRUMENT();
 
   return SBDebugger::Create(false, nullptr, nullptr);
 }
 
 SBDebugger SBDebugger::Create(bool source_init_files) {
-  LLDB_RECORD_STATIC_METHOD(lldb::SBDebugger, SBDebugger, Create, (bool),
-                            source_init_files);
+  LLDB_INSTRUMENT_VA(source_init_files);
 
   return SBDebugger::Create(source_init_files, nullptr, nullptr);
 }
@@ -233,9 +272,7 @@ SBDebugger SBDebugger::Create(bool source_init_files,
                               lldb::LogOutputCallback callback, void *baton)
 
 {
-  LLDB_RECORD_STATIC_METHOD(lldb::SBDebugger, SBDebugger, Create,
-                            (bool, lldb::LogOutputCallback, void *),
-                            source_init_files, callback, baton);
+  LLDB_INSTRUMENT_VA(source_init_files, callback, baton);
 
   SBDebugger debugger;
 
@@ -254,6 +291,7 @@ SBDebugger SBDebugger::Create(bool source_init_files,
     interp.get()->SkipLLDBInitFiles(false);
     interp.get()->SkipAppInitFiles(false);
     SBCommandReturnObject result;
+    interp.SourceInitFileInGlobalDirectory(result);
     interp.SourceInitFileInHomeDirectory(result, false);
   } else {
     interp.get()->SkipLLDBInitFiles(true);
@@ -263,8 +301,7 @@ SBDebugger SBDebugger::Create(bool source_init_files,
 }
 
 void SBDebugger::Destroy(SBDebugger &debugger) {
-  LLDB_RECORD_STATIC_METHOD(void, SBDebugger, Destroy, (lldb::SBDebugger &),
-                            debugger);
+  LLDB_INSTRUMENT_VA(debugger);
 
   Debugger::Destroy(debugger.m_opaque_sp);
 
@@ -273,7 +310,7 @@ void SBDebugger::Destroy(SBDebugger &debugger) {
 }
 
 void SBDebugger::MemoryPressureDetected() {
-  LLDB_RECORD_STATIC_METHOD_NO_ARGS(void, SBDebugger, MemoryPressureDetected);
+  LLDB_INSTRUMENT();
 
   // Since this function can be call asynchronously, we allow it to be non-
   // mandatory. We have seen deadlocks with this function when called so we
@@ -286,52 +323,51 @@ void SBDebugger::MemoryPressureDetected() {
 }
 
 bool SBDebugger::IsValid() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBDebugger, IsValid);
+  LLDB_INSTRUMENT_VA(this);
   return this->operator bool();
 }
 SBDebugger::operator bool() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBDebugger, operator bool);
+  LLDB_INSTRUMENT_VA(this);
 
   return m_opaque_sp.get() != nullptr;
 }
 
 void SBDebugger::SetAsync(bool b) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetAsync, (bool), b);
+  LLDB_INSTRUMENT_VA(this, b);
 
   if (m_opaque_sp)
     m_opaque_sp->SetAsyncExecution(b);
 }
 
 bool SBDebugger::GetAsync() {
-  LLDB_RECORD_METHOD_NO_ARGS(bool, SBDebugger, GetAsync);
+  LLDB_INSTRUMENT_VA(this);
 
   return (m_opaque_sp ? m_opaque_sp->GetAsyncExecution() : false);
 }
 
 void SBDebugger::SkipLLDBInitFiles(bool b) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SkipLLDBInitFiles, (bool), b);
+  LLDB_INSTRUMENT_VA(this, b);
 
   if (m_opaque_sp)
     m_opaque_sp->GetCommandInterpreter().SkipLLDBInitFiles(b);
 }
 
 void SBDebugger::SkipAppInitFiles(bool b) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SkipAppInitFiles, (bool), b);
+  LLDB_INSTRUMENT_VA(this, b);
 
   if (m_opaque_sp)
     m_opaque_sp->GetCommandInterpreter().SkipAppInitFiles(b);
 }
 
 void SBDebugger::SetInputFileHandle(FILE *fh, bool transfer_ownership) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetInputFileHandle, (FILE *, bool), fh,
-                     transfer_ownership);
+  LLDB_INSTRUMENT_VA(this, fh, transfer_ownership);
   if (m_opaque_sp)
     m_opaque_sp->SetInputFile(
         (FileSP)std::make_shared<NativeFile>(fh, transfer_ownership));
 }
 
 SBError SBDebugger::SetInputString(const char *data) {
-  LLDB_RECORD_METHOD(SBError, SBDebugger, SetInputString, (const char *), data);
+  LLDB_INSTRUMENT_VA(this, data);
   SBError sb_error;
   if (data == nullptr) {
     sb_error.SetErrorString("String data is null");
@@ -357,35 +393,38 @@ SBError SBDebugger::SetInputString(const char *data) {
 // of problems; don't want users trying to switch modes in the middle of a
 // debugging session.
 SBError SBDebugger::SetInputFile(SBFile file) {
-  LLDB_RECORD_METHOD(SBError, SBDebugger, SetInputFile, (SBFile), file);
+  LLDB_INSTRUMENT_VA(this, file);
 
   SBError error;
   if (!m_opaque_sp) {
     error.ref().SetErrorString("invalid debugger");
     return error;
   }
-  error.SetError(m_opaque_sp->SetInputFile(file.m_opaque_sp));
+  if (!file) {
+    error.ref().SetErrorString("invalid file");
+    return error;
+  }
+  m_opaque_sp->SetInputFile(file.m_opaque_sp);
   return error;
 }
 
 SBError SBDebugger::SetInputFile(FileSP file_sp) {
-  LLDB_RECORD_METHOD(SBError, SBDebugger, SetInputFile, (FileSP), file_sp);
+  LLDB_INSTRUMENT_VA(this, file_sp);
   return SetInputFile(SBFile(file_sp));
 }
 
 SBError SBDebugger::SetOutputFile(FileSP file_sp) {
-  LLDB_RECORD_METHOD(SBError, SBDebugger, SetOutputFile, (FileSP), file_sp);
+  LLDB_INSTRUMENT_VA(this, file_sp);
   return SetOutputFile(SBFile(file_sp));
 }
 
 void SBDebugger::SetOutputFileHandle(FILE *fh, bool transfer_ownership) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetOutputFileHandle, (FILE *, bool), fh,
-                     transfer_ownership);
+  LLDB_INSTRUMENT_VA(this, fh, transfer_ownership);
   SetOutputFile((FileSP)std::make_shared<NativeFile>(fh, transfer_ownership));
 }
 
 SBError SBDebugger::SetOutputFile(SBFile file) {
-  LLDB_RECORD_METHOD(SBError, SBDebugger, SetOutputFile, (SBFile file), file);
+  LLDB_INSTRUMENT_VA(this, file);
   SBError error;
   if (!m_opaque_sp) {
     error.ref().SetErrorString("invalid debugger");
@@ -400,18 +439,17 @@ SBError SBDebugger::SetOutputFile(SBFile file) {
 }
 
 void SBDebugger::SetErrorFileHandle(FILE *fh, bool transfer_ownership) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetErrorFileHandle, (FILE *, bool), fh,
-                     transfer_ownership);
+  LLDB_INSTRUMENT_VA(this, fh, transfer_ownership);
   SetErrorFile((FileSP)std::make_shared<NativeFile>(fh, transfer_ownership));
 }
 
 SBError SBDebugger::SetErrorFile(FileSP file_sp) {
-  LLDB_RECORD_METHOD(SBError, SBDebugger, SetErrorFile, (FileSP), file_sp);
+  LLDB_INSTRUMENT_VA(this, file_sp);
   return SetErrorFile(SBFile(file_sp));
 }
 
 SBError SBDebugger::SetErrorFile(SBFile file) {
-  LLDB_RECORD_METHOD(SBError, SBDebugger, SetErrorFile, (SBFile file), file);
+  LLDB_INSTRUMENT_VA(this, file);
   SBError error;
   if (!m_opaque_sp) {
     error.ref().SetErrorString("invalid debugger");
@@ -425,8 +463,31 @@ SBError SBDebugger::SetErrorFile(SBFile file) {
   return error;
 }
 
+lldb::SBStructuredData SBDebugger::GetSetting(const char *setting) {
+  LLDB_INSTRUMENT_VA(this, setting);
+
+  SBStructuredData data;
+  if (!m_opaque_sp)
+    return data;
+
+  StreamString json_strm;
+  ExecutionContext exe_ctx(
+      m_opaque_sp->GetCommandInterpreter().GetExecutionContext());
+  if (setting && strlen(setting) > 0)
+    m_opaque_sp->DumpPropertyValue(&exe_ctx, json_strm, setting,
+                                   /*dump_mask*/ 0,
+                                   /*is_json*/ true);
+  else
+    m_opaque_sp->DumpAllPropertyValues(&exe_ctx, json_strm, /*dump_mask*/ 0,
+                                       /*is_json*/ true);
+
+  data.m_impl_up->SetObjectSP(
+      StructuredData::ParseJSON(json_strm.GetString().str()));
+  return data;
+}
+
 FILE *SBDebugger::GetInputFileHandle() {
-  LLDB_RECORD_METHOD_NO_ARGS(FILE *, SBDebugger, GetInputFileHandle);
+  LLDB_INSTRUMENT_VA(this);
   if (m_opaque_sp) {
     File &file_sp = m_opaque_sp->GetInputFile();
     return file_sp.GetStream();
@@ -435,7 +496,7 @@ FILE *SBDebugger::GetInputFileHandle() {
 }
 
 SBFile SBDebugger::GetInputFile() {
-  LLDB_RECORD_METHOD_NO_ARGS(SBFile, SBDebugger, GetInputFile);
+  LLDB_INSTRUMENT_VA(this);
   if (m_opaque_sp) {
     return SBFile(m_opaque_sp->GetInputFileSP());
   }
@@ -443,7 +504,7 @@ SBFile SBDebugger::GetInputFile() {
 }
 
 FILE *SBDebugger::GetOutputFileHandle() {
-  LLDB_RECORD_METHOD_NO_ARGS(FILE *, SBDebugger, GetOutputFileHandle);
+  LLDB_INSTRUMENT_VA(this);
   if (m_opaque_sp) {
     StreamFile &stream_file = m_opaque_sp->GetOutputStream();
     return stream_file.GetFile().GetStream();
@@ -452,7 +513,7 @@ FILE *SBDebugger::GetOutputFileHandle() {
 }
 
 SBFile SBDebugger::GetOutputFile() {
-  LLDB_RECORD_METHOD_NO_ARGS(SBFile, SBDebugger, GetOutputFile);
+  LLDB_INSTRUMENT_VA(this);
   if (m_opaque_sp) {
     SBFile file(m_opaque_sp->GetOutputStream().GetFileSP());
     return file;
@@ -461,7 +522,7 @@ SBFile SBDebugger::GetOutputFile() {
 }
 
 FILE *SBDebugger::GetErrorFileHandle() {
-  LLDB_RECORD_METHOD_NO_ARGS(FILE *, SBDebugger, GetErrorFileHandle);
+  LLDB_INSTRUMENT_VA(this);
 
   if (m_opaque_sp) {
     StreamFile &stream_file = m_opaque_sp->GetErrorStream();
@@ -471,7 +532,7 @@ FILE *SBDebugger::GetErrorFileHandle() {
 }
 
 SBFile SBDebugger::GetErrorFile() {
-  LLDB_RECORD_METHOD_NO_ARGS(SBFile, SBDebugger, GetErrorFile);
+  LLDB_INSTRUMENT_VA(this);
   SBFile file;
   if (m_opaque_sp) {
     SBFile file(m_opaque_sp->GetErrorStream().GetFileSP());
@@ -481,21 +542,20 @@ SBFile SBDebugger::GetErrorFile() {
 }
 
 void SBDebugger::SaveInputTerminalState() {
-  LLDB_RECORD_METHOD_NO_ARGS(void, SBDebugger, SaveInputTerminalState);
+  LLDB_INSTRUMENT_VA(this);
 
   if (m_opaque_sp)
     m_opaque_sp->SaveInputTerminalState();
 }
 
 void SBDebugger::RestoreInputTerminalState() {
-  LLDB_RECORD_METHOD_NO_ARGS(void, SBDebugger, RestoreInputTerminalState);
+  LLDB_INSTRUMENT_VA(this);
 
   if (m_opaque_sp)
     m_opaque_sp->RestoreInputTerminalState();
 }
 SBCommandInterpreter SBDebugger::GetCommandInterpreter() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBCommandInterpreter, SBDebugger,
-                             GetCommandInterpreter);
+  LLDB_INSTRUMENT_VA(this);
 
   SBCommandInterpreter sb_interpreter;
   if (m_opaque_sp)
@@ -505,7 +565,7 @@ SBCommandInterpreter SBDebugger::GetCommandInterpreter() {
 }
 
 void SBDebugger::HandleCommand(const char *command) {
-  LLDB_RECORD_METHOD(void, SBDebugger, HandleCommand, (const char *), command);
+  LLDB_INSTRUMENT_VA(this, command);
 
   if (m_opaque_sp) {
     TargetSP target_sp(m_opaque_sp->GetSelectedTarget());
@@ -538,7 +598,7 @@ void SBDebugger::HandleCommand(const char *command) {
 }
 
 SBListener SBDebugger::GetListener() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBListener, SBDebugger, GetListener);
+  LLDB_INSTRUMENT_VA(this);
 
   SBListener sb_listener;
   if (m_opaque_sp)
@@ -550,10 +610,7 @@ SBListener SBDebugger::GetListener() {
 void SBDebugger::HandleProcessEvent(const SBProcess &process,
                                     const SBEvent &event, SBFile out,
                                     SBFile err) {
-  LLDB_RECORD_METHOD(
-      void, SBDebugger, HandleProcessEvent,
-      (const lldb::SBProcess &, const lldb::SBEvent &, SBFile, SBFile), process,
-      event, out, err);
+  LLDB_INSTRUMENT_VA(this, process, event, out, err);
 
   return HandleProcessEvent(process, event, out.m_opaque_sp, err.m_opaque_sp);
 }
@@ -561,10 +618,7 @@ void SBDebugger::HandleProcessEvent(const SBProcess &process,
 void SBDebugger::HandleProcessEvent(const SBProcess &process,
                                     const SBEvent &event, FILE *out,
                                     FILE *err) {
-  LLDB_RECORD_METHOD(
-      void, SBDebugger, HandleProcessEvent,
-      (const lldb::SBProcess &, const lldb::SBEvent &, FILE *, FILE *), process,
-      event, out, err);
+  LLDB_INSTRUMENT_VA(this, process, event, out, err);
 
   FileSP outfile = std::make_shared<NativeFile>(out, false);
   FileSP errfile = std::make_shared<NativeFile>(err, false);
@@ -575,10 +629,7 @@ void SBDebugger::HandleProcessEvent(const SBProcess &process,
                                     const SBEvent &event, FileSP out_sp,
                                     FileSP err_sp) {
 
-  LLDB_RECORD_METHOD(
-      void, SBDebugger, HandleProcessEvent,
-      (const lldb::SBProcess &, const lldb::SBEvent &, FileSP, FileSP), process,
-      event, out_sp, err_sp);
+  LLDB_INSTRUMENT_VA(this, process, event, out_sp, err_sp);
 
   if (!process.IsValid())
     return;
@@ -622,16 +673,14 @@ void SBDebugger::HandleProcessEvent(const SBProcess &process,
 }
 
 SBSourceManager SBDebugger::GetSourceManager() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBSourceManager, SBDebugger,
-                             GetSourceManager);
+  LLDB_INSTRUMENT_VA(this);
 
   SBSourceManager sb_source_manager(*this);
   return sb_source_manager;
 }
 
 bool SBDebugger::GetDefaultArchitecture(char *arch_name, size_t arch_name_len) {
-  LLDB_RECORD_STATIC_METHOD(bool, SBDebugger, GetDefaultArchitecture,
-                            (char *, size_t), arch_name, "", arch_name_len);
+  LLDB_INSTRUMENT_VA(arch_name, arch_name_len);
 
   if (arch_name && arch_name_len) {
     ArchSpec default_arch = Target::GetDefaultArchitecture();
@@ -652,8 +701,7 @@ bool SBDebugger::GetDefaultArchitecture(char *arch_name, size_t arch_name_len) {
 }
 
 bool SBDebugger::SetDefaultArchitecture(const char *arch_name) {
-  LLDB_RECORD_STATIC_METHOD(bool, SBDebugger, SetDefaultArchitecture,
-                            (const char *), arch_name);
+  LLDB_INSTRUMENT_VA(arch_name);
 
   if (arch_name) {
     ArchSpec arch(arch_name);
@@ -667,8 +715,7 @@ bool SBDebugger::SetDefaultArchitecture(const char *arch_name) {
 
 ScriptLanguage
 SBDebugger::GetScriptingLanguage(const char *script_language_name) {
-  LLDB_RECORD_METHOD(lldb::ScriptLanguage, SBDebugger, GetScriptingLanguage,
-                     (const char *), script_language_name);
+  LLDB_INSTRUMENT_VA(this, script_language_name);
 
   if (!script_language_name)
     return eScriptLanguageDefault;
@@ -678,8 +725,7 @@ SBDebugger::GetScriptingLanguage(const char *script_language_name) {
 
 SBStructuredData
 SBDebugger::GetScriptInterpreterInfo(lldb::ScriptLanguage language) {
-  LLDB_RECORD_METHOD(SBStructuredData, SBDebugger, GetScriptInterpreterInfo,
-                     (lldb::ScriptLanguage), language);
+  LLDB_INSTRUMENT_VA(this, language);
   SBStructuredData data;
   if (m_opaque_sp) {
     lldb_private::ScriptInterpreter *interp =
@@ -692,14 +738,13 @@ SBDebugger::GetScriptInterpreterInfo(lldb::ScriptLanguage language) {
 }
 
 const char *SBDebugger::GetVersionString() {
-  LLDB_RECORD_STATIC_METHOD_NO_ARGS(const char *, SBDebugger, GetVersionString);
+  LLDB_INSTRUMENT();
 
   return lldb_private::GetVersion();
 }
 
 const char *SBDebugger::StateAsCString(StateType state) {
-  LLDB_RECORD_STATIC_METHOD(const char *, SBDebugger, StateAsCString,
-                            (lldb::StateType), state);
+  LLDB_INSTRUMENT_VA(state);
 
   return lldb_private::StateAsCString(state);
 }
@@ -725,8 +770,7 @@ static void AddLLVMTargets(StructuredData::Dictionary &dict) {
 }
 
 SBStructuredData SBDebugger::GetBuildConfiguration() {
-  LLDB_RECORD_STATIC_METHOD_NO_ARGS(lldb::SBStructuredData, SBDebugger,
-                                    GetBuildConfiguration);
+  LLDB_INSTRUMENT();
 
   auto config_up = std::make_unique<StructuredData::Dictionary>();
   AddBoolConfigEntry(
@@ -758,8 +802,7 @@ SBStructuredData SBDebugger::GetBuildConfiguration() {
 }
 
 bool SBDebugger::StateIsRunningState(StateType state) {
-  LLDB_RECORD_STATIC_METHOD(bool, SBDebugger, StateIsRunningState,
-                            (lldb::StateType), state);
+  LLDB_INSTRUMENT_VA(state);
 
   const bool result = lldb_private::StateIsRunningState(state);
 
@@ -767,8 +810,7 @@ bool SBDebugger::StateIsRunningState(StateType state) {
 }
 
 bool SBDebugger::StateIsStoppedState(StateType state) {
-  LLDB_RECORD_STATIC_METHOD(bool, SBDebugger, StateIsStoppedState,
-                            (lldb::StateType), state);
+  LLDB_INSTRUMENT_VA(state);
 
   const bool result = lldb_private::StateIsStoppedState(state, false);
 
@@ -780,10 +822,8 @@ lldb::SBTarget SBDebugger::CreateTarget(const char *filename,
                                         const char *platform_name,
                                         bool add_dependent_modules,
                                         lldb::SBError &sb_error) {
-  LLDB_RECORD_METHOD(
-      lldb::SBTarget, SBDebugger, CreateTarget,
-      (const char *, const char *, const char *, bool, lldb::SBError &),
-      filename, target_triple, platform_name, add_dependent_modules, sb_error);
+  LLDB_INSTRUMENT_VA(this, filename, target_triple, platform_name,
+                     add_dependent_modules, sb_error);
 
   SBTarget sb_target;
   TargetSP target_sp;
@@ -803,7 +843,7 @@ lldb::SBTarget SBDebugger::CreateTarget(const char *filename,
     sb_error.SetErrorString("invalid debugger");
   }
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
   LLDB_LOGF(log,
             "SBDebugger(%p)::CreateTarget (filename=\"%s\", triple=%s, "
             "platform_name=%s, add_dependent_modules=%u, error=%s) => "
@@ -818,9 +858,7 @@ lldb::SBTarget SBDebugger::CreateTarget(const char *filename,
 SBTarget
 SBDebugger::CreateTargetWithFileAndTargetTriple(const char *filename,
                                                 const char *target_triple) {
-  LLDB_RECORD_METHOD(lldb::SBTarget, SBDebugger,
-                     CreateTargetWithFileAndTargetTriple,
-                     (const char *, const char *), filename, target_triple);
+  LLDB_INSTRUMENT_VA(this, filename, target_triple);
 
   SBTarget sb_target;
   TargetSP target_sp;
@@ -833,7 +871,7 @@ SBDebugger::CreateTargetWithFileAndTargetTriple(const char *filename,
     sb_target.SetSP(target_sp);
   }
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
   LLDB_LOGF(log,
             "SBDebugger(%p)::CreateTargetWithFileAndTargetTriple "
             "(filename=\"%s\", triple=%s) => SBTarget(%p)",
@@ -845,10 +883,9 @@ SBDebugger::CreateTargetWithFileAndTargetTriple(const char *filename,
 
 SBTarget SBDebugger::CreateTargetWithFileAndArch(const char *filename,
                                                  const char *arch_cstr) {
-  LLDB_RECORD_METHOD(lldb::SBTarget, SBDebugger, CreateTargetWithFileAndArch,
-                     (const char *, const char *), filename, arch_cstr);
+  LLDB_INSTRUMENT_VA(this, filename, arch_cstr);
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
 
   SBTarget sb_target;
   TargetSP target_sp;
@@ -858,16 +895,18 @@ SBTarget SBDebugger::CreateTargetWithFileAndArch(const char *filename,
       // The version of CreateTarget that takes an ArchSpec won't accept an
       // empty ArchSpec, so when the arch hasn't been specified, we need to
       // call the target triple version.
-      error = m_opaque_sp->GetTargetList().CreateTarget(*m_opaque_sp, filename, 
-          arch_cstr, eLoadDependentsYes, nullptr, target_sp);
+      error = m_opaque_sp->GetTargetList().CreateTarget(
+          *m_opaque_sp, filename, arch_cstr, eLoadDependentsYes, nullptr,
+          target_sp);
     } else {
-      PlatformSP platform_sp = m_opaque_sp->GetPlatformList()
-          .GetSelectedPlatform();
-      ArchSpec arch = Platform::GetAugmentedArchSpec(platform_sp.get(), 
-          arch_cstr);
+      PlatformSP platform_sp =
+          m_opaque_sp->GetPlatformList().GetSelectedPlatform();
+      ArchSpec arch =
+          Platform::GetAugmentedArchSpec(platform_sp.get(), arch_cstr);
       if (arch.IsValid())
-        error = m_opaque_sp->GetTargetList().CreateTarget(*m_opaque_sp, filename, 
-            arch, eLoadDependentsYes, platform_sp, target_sp);
+        error = m_opaque_sp->GetTargetList().CreateTarget(
+            *m_opaque_sp, filename, arch, eLoadDependentsYes, platform_sp,
+            target_sp);
       else
         error.SetErrorStringWithFormat("invalid arch_cstr: %s", arch_cstr);
     }
@@ -887,8 +926,7 @@ SBTarget SBDebugger::CreateTargetWithFileAndArch(const char *filename,
 }
 
 SBTarget SBDebugger::CreateTarget(const char *filename) {
-  LLDB_RECORD_METHOD(lldb::SBTarget, SBDebugger, CreateTarget, (const char *),
-                     filename);
+  LLDB_INSTRUMENT_VA(this, filename);
 
   SBTarget sb_target;
   TargetSP target_sp;
@@ -903,7 +941,7 @@ SBTarget SBDebugger::CreateTarget(const char *filename) {
     if (error.Success())
       sb_target.SetSP(target_sp);
   }
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
   LLDB_LOGF(log,
             "SBDebugger(%p)::CreateTarget (filename=\"%s\") => SBTarget(%p)",
             static_cast<void *>(m_opaque_sp.get()), filename,
@@ -912,13 +950,13 @@ SBTarget SBDebugger::CreateTarget(const char *filename) {
 }
 
 SBTarget SBDebugger::GetDummyTarget() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBTarget, SBDebugger, GetDummyTarget);
+  LLDB_INSTRUMENT_VA(this);
 
   SBTarget sb_target;
   if (m_opaque_sp) {
     sb_target.SetSP(m_opaque_sp->GetDummyTarget().shared_from_this());
   }
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
   LLDB_LOGF(log, "SBDebugger(%p)::GetDummyTarget() => SBTarget(%p)",
             static_cast<void *>(m_opaque_sp.get()),
             static_cast<void *>(sb_target.GetSP().get()));
@@ -926,8 +964,7 @@ SBTarget SBDebugger::GetDummyTarget() {
 }
 
 bool SBDebugger::DeleteTarget(lldb::SBTarget &target) {
-  LLDB_RECORD_METHOD(bool, SBDebugger, DeleteTarget, (lldb::SBTarget &),
-                     target);
+  LLDB_INSTRUMENT_VA(this, target);
 
   bool result = false;
   if (m_opaque_sp) {
@@ -940,7 +977,7 @@ bool SBDebugger::DeleteTarget(lldb::SBTarget &target) {
     }
   }
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
   LLDB_LOGF(log, "SBDebugger(%p)::DeleteTarget (SBTarget(%p)) => %i",
             static_cast<void *>(m_opaque_sp.get()),
             static_cast<void *>(target.m_opaque_sp.get()), result);
@@ -949,8 +986,7 @@ bool SBDebugger::DeleteTarget(lldb::SBTarget &target) {
 }
 
 SBTarget SBDebugger::GetTargetAtIndex(uint32_t idx) {
-  LLDB_RECORD_METHOD(lldb::SBTarget, SBDebugger, GetTargetAtIndex, (uint32_t),
-                     idx);
+  LLDB_INSTRUMENT_VA(this, idx);
 
   SBTarget sb_target;
   if (m_opaque_sp) {
@@ -961,8 +997,7 @@ SBTarget SBDebugger::GetTargetAtIndex(uint32_t idx) {
 }
 
 uint32_t SBDebugger::GetIndexOfTarget(lldb::SBTarget target) {
-  LLDB_RECORD_METHOD(uint32_t, SBDebugger, GetIndexOfTarget, (lldb::SBTarget),
-                     target);
+  LLDB_INSTRUMENT_VA(this, target);
 
   lldb::TargetSP target_sp = target.GetSP();
   if (!target_sp)
@@ -975,8 +1010,7 @@ uint32_t SBDebugger::GetIndexOfTarget(lldb::SBTarget target) {
 }
 
 SBTarget SBDebugger::FindTargetWithProcessID(lldb::pid_t pid) {
-  LLDB_RECORD_METHOD(lldb::SBTarget, SBDebugger, FindTargetWithProcessID,
-                     (lldb::pid_t), pid);
+  LLDB_INSTRUMENT_VA(this, pid);
 
   SBTarget sb_target;
   if (m_opaque_sp) {
@@ -988,8 +1022,7 @@ SBTarget SBDebugger::FindTargetWithProcessID(lldb::pid_t pid) {
 
 SBTarget SBDebugger::FindTargetWithFileAndArch(const char *filename,
                                                const char *arch_name) {
-  LLDB_RECORD_METHOD(lldb::SBTarget, SBDebugger, FindTargetWithFileAndArch,
-                     (const char *, const char *), filename, arch_name);
+  LLDB_INSTRUMENT_VA(this, filename, arch_name);
 
   SBTarget sb_target;
   if (m_opaque_sp && filename && filename[0]) {
@@ -1015,7 +1048,7 @@ SBTarget SBDebugger::FindTargetWithLLDBProcess(const ProcessSP &process_sp) {
 }
 
 uint32_t SBDebugger::GetNumTargets() {
-  LLDB_RECORD_METHOD_NO_ARGS(uint32_t, SBDebugger, GetNumTargets);
+  LLDB_INSTRUMENT_VA(this);
 
   if (m_opaque_sp) {
     // No need to lock, the target list is thread safe
@@ -1025,9 +1058,9 @@ uint32_t SBDebugger::GetNumTargets() {
 }
 
 SBTarget SBDebugger::GetSelectedTarget() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBTarget, SBDebugger, GetSelectedTarget);
+  LLDB_INSTRUMENT_VA(this);
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
 
   SBTarget sb_target;
   TargetSP target_sp;
@@ -1049,10 +1082,9 @@ SBTarget SBDebugger::GetSelectedTarget() {
 }
 
 void SBDebugger::SetSelectedTarget(SBTarget &sb_target) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetSelectedTarget, (lldb::SBTarget &),
-                     sb_target);
+  LLDB_INSTRUMENT_VA(this, sb_target);
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
 
   TargetSP target_sp(sb_target.GetSP());
   if (m_opaque_sp) {
@@ -1068,9 +1100,9 @@ void SBDebugger::SetSelectedTarget(SBTarget &sb_target) {
 }
 
 SBPlatform SBDebugger::GetSelectedPlatform() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBPlatform, SBDebugger, GetSelectedPlatform);
+  LLDB_INSTRUMENT_VA(this);
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
 
   SBPlatform sb_platform;
   DebuggerSP debugger_sp(m_opaque_sp);
@@ -1085,10 +1117,9 @@ SBPlatform SBDebugger::GetSelectedPlatform() {
 }
 
 void SBDebugger::SetSelectedPlatform(SBPlatform &sb_platform) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetSelectedPlatform,
-                     (lldb::SBPlatform &), sb_platform);
+  LLDB_INSTRUMENT_VA(this, sb_platform);
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
 
   DebuggerSP debugger_sp(m_opaque_sp);
   if (debugger_sp) {
@@ -1102,7 +1133,7 @@ void SBDebugger::SetSelectedPlatform(SBPlatform &sb_platform) {
 }
 
 uint32_t SBDebugger::GetNumPlatforms() {
-  LLDB_RECORD_METHOD_NO_ARGS(uint32_t, SBDebugger, GetNumPlatforms);
+  LLDB_INSTRUMENT_VA(this);
 
   if (m_opaque_sp) {
     // No need to lock, the platform list is thread safe
@@ -1112,8 +1143,7 @@ uint32_t SBDebugger::GetNumPlatforms() {
 }
 
 SBPlatform SBDebugger::GetPlatformAtIndex(uint32_t idx) {
-  LLDB_RECORD_METHOD(lldb::SBPlatform, SBDebugger, GetPlatformAtIndex,
-                     (uint32_t), idx);
+  LLDB_INSTRUMENT_VA(this, idx);
 
   SBPlatform sb_platform;
   if (m_opaque_sp) {
@@ -1124,7 +1154,7 @@ SBPlatform SBDebugger::GetPlatformAtIndex(uint32_t idx) {
 }
 
 uint32_t SBDebugger::GetNumAvailablePlatforms() {
-  LLDB_RECORD_METHOD_NO_ARGS(uint32_t, SBDebugger, GetNumAvailablePlatforms);
+  LLDB_INSTRUMENT_VA(this);
 
   uint32_t idx = 0;
   while (true) {
@@ -1138,8 +1168,7 @@ uint32_t SBDebugger::GetNumAvailablePlatforms() {
 }
 
 SBStructuredData SBDebugger::GetAvailablePlatformInfoAtIndex(uint32_t idx) {
-  LLDB_RECORD_METHOD(lldb::SBStructuredData, SBDebugger,
-                     GetAvailablePlatformInfoAtIndex, (uint32_t), idx);
+  LLDB_INSTRUMENT_VA(this, idx);
 
   SBStructuredData data;
   auto platform_dict = std::make_unique<StructuredData::Dictionary>();
@@ -1169,17 +1198,15 @@ SBStructuredData SBDebugger::GetAvailablePlatformInfoAtIndex(uint32_t idx) {
 }
 
 void SBDebugger::DispatchInput(void *baton, const void *data, size_t data_len) {
-  LLDB_RECORD_METHOD(void, SBDebugger, DispatchInput,
-                     (void *, const void *, size_t), baton, data, data_len);
+  LLDB_INSTRUMENT_VA(this, baton, data, data_len);
 
   DispatchInput(data, data_len);
 }
 
 void SBDebugger::DispatchInput(const void *data, size_t data_len) {
-  LLDB_RECORD_METHOD(void, SBDebugger, DispatchInput, (const void *, size_t),
-                     data, data_len);
+  LLDB_INSTRUMENT_VA(this, data, data_len);
 
-  //    Log *log(GetLogIfAllCategoriesSet (LIBLLDB_LOG_API));
+  //    Log *log(GetLog (LLDBLog::API));
   //
   //    if (log)
   //        LLDB_LOGF(log, "SBDebugger(%p)::DispatchInput (data=\"%.*s\",
@@ -1194,28 +1221,26 @@ void SBDebugger::DispatchInput(const void *data, size_t data_len) {
 }
 
 void SBDebugger::DispatchInputInterrupt() {
-  LLDB_RECORD_METHOD_NO_ARGS(void, SBDebugger, DispatchInputInterrupt);
+  LLDB_INSTRUMENT_VA(this);
 
   if (m_opaque_sp)
     m_opaque_sp->DispatchInputInterrupt();
 }
 
 void SBDebugger::DispatchInputEndOfFile() {
-  LLDB_RECORD_METHOD_NO_ARGS(void, SBDebugger, DispatchInputEndOfFile);
+  LLDB_INSTRUMENT_VA(this);
 
   if (m_opaque_sp)
     m_opaque_sp->DispatchInputEndOfFile();
 }
 
 void SBDebugger::PushInputReader(SBInputReader &reader) {
-  LLDB_RECORD_METHOD(void, SBDebugger, PushInputReader, (lldb::SBInputReader &),
-                     reader);
+  LLDB_INSTRUMENT_VA(this, reader);
 }
 
 void SBDebugger::RunCommandInterpreter(bool auto_handle_events,
                                        bool spawn_thread) {
-  LLDB_RECORD_METHOD(void, SBDebugger, RunCommandInterpreter, (bool, bool),
-                     auto_handle_events, spawn_thread);
+  LLDB_INSTRUMENT_VA(this, auto_handle_events, spawn_thread);
 
   if (m_opaque_sp) {
     CommandInterpreterRunOptions options;
@@ -1232,11 +1257,8 @@ void SBDebugger::RunCommandInterpreter(bool auto_handle_events,
                                        bool &stopped_for_crash)
 
 {
-  LLDB_RECORD_METHOD(void, SBDebugger, RunCommandInterpreter,
-                     (bool, bool, lldb::SBCommandInterpreterRunOptions &, int &,
-                      bool &, bool &),
-                     auto_handle_events, spawn_thread, options, num_errors,
-                     quit_requested, stopped_for_crash);
+  LLDB_INSTRUMENT_VA(this, auto_handle_events, spawn_thread, options,
+                     num_errors, quit_requested, stopped_for_crash);
 
   if (m_opaque_sp) {
     options.SetAutoHandleEvents(auto_handle_events);
@@ -1254,9 +1276,7 @@ void SBDebugger::RunCommandInterpreter(bool auto_handle_events,
 
 SBCommandInterpreterRunResult SBDebugger::RunCommandInterpreter(
     const SBCommandInterpreterRunOptions &options) {
-  LLDB_RECORD_METHOD(lldb::SBCommandInterpreterRunResult, SBDebugger,
-                     RunCommandInterpreter,
-                     (const lldb::SBCommandInterpreterRunOptions &), options);
+  LLDB_INSTRUMENT_VA(this, options);
 
   if (!m_opaque_sp)
     return SBCommandInterpreterRunResult();
@@ -1270,9 +1290,7 @@ SBCommandInterpreterRunResult SBDebugger::RunCommandInterpreter(
 
 SBError SBDebugger::RunREPL(lldb::LanguageType language,
                             const char *repl_options) {
-  LLDB_RECORD_METHOD(lldb::SBError, SBDebugger, RunREPL,
-                     (lldb::LanguageType, const char *), language,
-                     repl_options);
+  LLDB_INSTRUMENT_VA(this, language, repl_options);
 
   SBError error;
   if (m_opaque_sp)
@@ -1296,8 +1314,7 @@ Debugger &SBDebugger::ref() const {
 const lldb::DebuggerSP &SBDebugger::get_sp() const { return m_opaque_sp; }
 
 SBDebugger SBDebugger::FindDebuggerWithID(int id) {
-  LLDB_RECORD_STATIC_METHOD(lldb::SBDebugger, SBDebugger, FindDebuggerWithID,
-                            (int), id);
+  LLDB_INSTRUMENT_VA(id);
 
   // No need to lock, the debugger list is thread safe
   SBDebugger sb_debugger;
@@ -1308,16 +1325,14 @@ SBDebugger SBDebugger::FindDebuggerWithID(int id) {
 }
 
 const char *SBDebugger::GetInstanceName() {
-  LLDB_RECORD_METHOD_NO_ARGS(const char *, SBDebugger, GetInstanceName);
+  LLDB_INSTRUMENT_VA(this);
 
   return (m_opaque_sp ? m_opaque_sp->GetInstanceName().AsCString() : nullptr);
 }
 
 SBError SBDebugger::SetInternalVariable(const char *var_name, const char *value,
                                         const char *debugger_instance_name) {
-  LLDB_RECORD_STATIC_METHOD(lldb::SBError, SBDebugger, SetInternalVariable,
-                            (const char *, const char *, const char *),
-                            var_name, value, debugger_instance_name);
+  LLDB_INSTRUMENT_VA(var_name, value, debugger_instance_name);
 
   SBError sb_error;
   DebuggerSP debugger_sp(Debugger::FindDebuggerWithInstanceName(
@@ -1340,9 +1355,7 @@ SBError SBDebugger::SetInternalVariable(const char *var_name, const char *value,
 SBStringList
 SBDebugger::GetInternalVariableValue(const char *var_name,
                                      const char *debugger_instance_name) {
-  LLDB_RECORD_STATIC_METHOD(
-      lldb::SBStringList, SBDebugger, GetInternalVariableValue,
-      (const char *, const char *), var_name, debugger_instance_name);
+  LLDB_INSTRUMENT_VA(var_name, debugger_instance_name);
 
   DebuggerSP debugger_sp(Debugger::FindDebuggerWithInstanceName(
       ConstString(debugger_instance_name)));
@@ -1367,23 +1380,22 @@ SBDebugger::GetInternalVariableValue(const char *var_name,
 }
 
 uint32_t SBDebugger::GetTerminalWidth() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(uint32_t, SBDebugger, GetTerminalWidth);
+  LLDB_INSTRUMENT_VA(this);
 
   return (m_opaque_sp ? m_opaque_sp->GetTerminalWidth() : 0);
 }
 
 void SBDebugger::SetTerminalWidth(uint32_t term_width) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetTerminalWidth, (uint32_t),
-                     term_width);
+  LLDB_INSTRUMENT_VA(this, term_width);
 
   if (m_opaque_sp)
     m_opaque_sp->SetTerminalWidth(term_width);
 }
 
 const char *SBDebugger::GetPrompt() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(const char *, SBDebugger, GetPrompt);
+  LLDB_INSTRUMENT_VA(this);
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
+  Log *log = GetLog(LLDBLog::API);
 
   LLDB_LOGF(log, "SBDebugger(%p)::GetPrompt () => \"%s\"",
             static_cast<void *>(m_opaque_sp.get()),
@@ -1394,30 +1406,26 @@ const char *SBDebugger::GetPrompt() const {
 }
 
 void SBDebugger::SetPrompt(const char *prompt) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetPrompt, (const char *), prompt);
+  LLDB_INSTRUMENT_VA(this, prompt);
 
   if (m_opaque_sp)
     m_opaque_sp->SetPrompt(llvm::StringRef(prompt));
 }
 
 const char *SBDebugger::GetReproducerPath() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(const char *, SBDebugger, GetReproducerPath);
+  LLDB_INSTRUMENT_VA(this);
 
-  return (m_opaque_sp
-              ? ConstString(m_opaque_sp->GetReproducerPath()).GetCString()
-              : nullptr);
+  return "GetReproducerPath has been deprecated";
 }
 
 ScriptLanguage SBDebugger::GetScriptLanguage() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(lldb::ScriptLanguage, SBDebugger,
-                                   GetScriptLanguage);
+  LLDB_INSTRUMENT_VA(this);
 
   return (m_opaque_sp ? m_opaque_sp->GetScriptLanguage() : eScriptLanguageNone);
 }
 
 void SBDebugger::SetScriptLanguage(ScriptLanguage script_lang) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetScriptLanguage,
-                     (lldb::ScriptLanguage), script_lang);
+  LLDB_INSTRUMENT_VA(this, script_lang);
 
   if (m_opaque_sp) {
     m_opaque_sp->SetScriptLanguage(script_lang);
@@ -1425,15 +1433,13 @@ void SBDebugger::SetScriptLanguage(ScriptLanguage script_lang) {
 }
 
 LanguageType SBDebugger::GetREPLLanguage() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(lldb::LanguageType, SBDebugger,
-                                   GetREPLLanguage);
+  LLDB_INSTRUMENT_VA(this);
 
   return (m_opaque_sp ? m_opaque_sp->GetREPLLanguage() : eLanguageTypeUnknown);
 }
 
 void SBDebugger::SetREPLLanguage(LanguageType repl_lang) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetREPLLanguage, (lldb::LanguageType),
-                     repl_lang);
+  LLDB_INSTRUMENT_VA(this, repl_lang);
 
   if (m_opaque_sp) {
     m_opaque_sp->SetREPLLanguage(repl_lang);
@@ -1441,44 +1447,43 @@ void SBDebugger::SetREPLLanguage(LanguageType repl_lang) {
 }
 
 bool SBDebugger::SetUseExternalEditor(bool value) {
-  LLDB_RECORD_METHOD(bool, SBDebugger, SetUseExternalEditor, (bool), value);
+  LLDB_INSTRUMENT_VA(this, value);
 
   return (m_opaque_sp ? m_opaque_sp->SetUseExternalEditor(value) : false);
 }
 
 bool SBDebugger::GetUseExternalEditor() {
-  LLDB_RECORD_METHOD_NO_ARGS(bool, SBDebugger, GetUseExternalEditor);
+  LLDB_INSTRUMENT_VA(this);
 
   return (m_opaque_sp ? m_opaque_sp->GetUseExternalEditor() : false);
 }
 
 bool SBDebugger::SetUseColor(bool value) {
-  LLDB_RECORD_METHOD(bool, SBDebugger, SetUseColor, (bool), value);
+  LLDB_INSTRUMENT_VA(this, value);
 
   return (m_opaque_sp ? m_opaque_sp->SetUseColor(value) : false);
 }
 
 bool SBDebugger::GetUseColor() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBDebugger, GetUseColor);
+  LLDB_INSTRUMENT_VA(this);
 
   return (m_opaque_sp ? m_opaque_sp->GetUseColor() : false);
 }
 
 bool SBDebugger::SetUseSourceCache(bool value) {
-  LLDB_RECORD_METHOD(bool, SBDebugger, SetUseSourceCache, (bool), value);
+  LLDB_INSTRUMENT_VA(this, value);
 
   return (m_opaque_sp ? m_opaque_sp->SetUseSourceCache(value) : false);
 }
 
 bool SBDebugger::GetUseSourceCache() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBDebugger, GetUseSourceCache);
+  LLDB_INSTRUMENT_VA(this);
 
   return (m_opaque_sp ? m_opaque_sp->GetUseSourceCache() : false);
 }
 
 bool SBDebugger::GetDescription(SBStream &description) {
-  LLDB_RECORD_METHOD(bool, SBDebugger, GetDescription, (lldb::SBStream &),
-                     description);
+  LLDB_INSTRUMENT_VA(this, description);
 
   Stream &strm = description.ref();
 
@@ -1493,33 +1498,22 @@ bool SBDebugger::GetDescription(SBStream &description) {
 }
 
 user_id_t SBDebugger::GetID() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::user_id_t, SBDebugger, GetID);
+  LLDB_INSTRUMENT_VA(this);
 
   return (m_opaque_sp ? m_opaque_sp->GetID() : LLDB_INVALID_UID);
 }
 
 SBError SBDebugger::SetCurrentPlatform(const char *platform_name_cstr) {
-  LLDB_RECORD_METHOD(lldb::SBError, SBDebugger, SetCurrentPlatform,
-                     (const char *), platform_name_cstr);
+  LLDB_INSTRUMENT_VA(this, platform_name_cstr);
 
   SBError sb_error;
   if (m_opaque_sp) {
     if (platform_name_cstr && platform_name_cstr[0]) {
-      ConstString platform_name(platform_name_cstr);
-      PlatformSP platform_sp(Platform::Find(platform_name));
-
-      if (platform_sp) {
-        // Already have a platform with this name, just select it
-        m_opaque_sp->GetPlatformList().SetSelectedPlatform(platform_sp);
-      } else {
-        // We don't have a platform by this name yet, create one
-        platform_sp = Platform::Create(platform_name, sb_error.ref());
-        if (platform_sp) {
-          // We created the platform, now append and select it
-          bool make_selected = true;
-          m_opaque_sp->GetPlatformList().Append(platform_sp, make_selected);
-        }
-      }
+      PlatformList &platforms = m_opaque_sp->GetPlatformList();
+      if (PlatformSP platform_sp = platforms.GetOrCreate(platform_name_cstr))
+        platforms.SetSelectedPlatform(platform_sp);
+      else
+        sb_error.ref().SetErrorString("platform not found");
     } else {
       sb_error.ref().SetErrorString("invalid platform name");
     }
@@ -1530,41 +1524,30 @@ SBError SBDebugger::SetCurrentPlatform(const char *platform_name_cstr) {
 }
 
 bool SBDebugger::SetCurrentPlatformSDKRoot(const char *sysroot) {
-  LLDB_RECORD_METHOD(bool, SBDebugger, SetCurrentPlatformSDKRoot,
-                     (const char *), sysroot);
+  LLDB_INSTRUMENT_VA(this, sysroot);
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_API));
-  if (m_opaque_sp) {
-    PlatformSP platform_sp(
-        m_opaque_sp->GetPlatformList().GetSelectedPlatform());
-
-    if (platform_sp) {
-      if (log && sysroot)
-        LLDB_LOGF(log, "SBDebugger::SetCurrentPlatformSDKRoot (\"%s\")",
-                  sysroot);
-      platform_sp->SetSDKRootDirectory(ConstString(sysroot));
-      return true;
-    }
+  if (SBPlatform platform = GetSelectedPlatform()) {
+    platform.SetSDKRoot(sysroot);
+    return true;
   }
   return false;
 }
 
 bool SBDebugger::GetCloseInputOnEOF() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBDebugger, GetCloseInputOnEOF);
+  LLDB_INSTRUMENT_VA(this);
 
   return (m_opaque_sp ? m_opaque_sp->GetCloseInputOnEOF() : false);
 }
 
 void SBDebugger::SetCloseInputOnEOF(bool b) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetCloseInputOnEOF, (bool), b);
+  LLDB_INSTRUMENT_VA(this, b);
 
   if (m_opaque_sp)
     m_opaque_sp->SetCloseInputOnEOF(b);
 }
 
 SBTypeCategory SBDebugger::GetCategory(const char *category_name) {
-  LLDB_RECORD_METHOD(lldb::SBTypeCategory, SBDebugger, GetCategory,
-                     (const char *), category_name);
+  LLDB_INSTRUMENT_VA(this, category_name);
 
   if (!category_name || *category_name == 0)
     return SBTypeCategory();
@@ -1580,8 +1563,7 @@ SBTypeCategory SBDebugger::GetCategory(const char *category_name) {
 }
 
 SBTypeCategory SBDebugger::GetCategory(lldb::LanguageType lang_type) {
-  LLDB_RECORD_METHOD(lldb::SBTypeCategory, SBDebugger, GetCategory,
-                     (lldb::LanguageType), lang_type);
+  LLDB_INSTRUMENT_VA(this, lang_type);
 
   TypeCategoryImplSP category_sp;
   if (DataVisualization::Categories::GetCategory(lang_type, category_sp)) {
@@ -1592,8 +1574,7 @@ SBTypeCategory SBDebugger::GetCategory(lldb::LanguageType lang_type) {
 }
 
 SBTypeCategory SBDebugger::CreateCategory(const char *category_name) {
-  LLDB_RECORD_METHOD(lldb::SBTypeCategory, SBDebugger, CreateCategory,
-                     (const char *), category_name);
+  LLDB_INSTRUMENT_VA(this, category_name);
 
   if (!category_name || *category_name == 0)
     return SBTypeCategory();
@@ -1609,8 +1590,7 @@ SBTypeCategory SBDebugger::CreateCategory(const char *category_name) {
 }
 
 bool SBDebugger::DeleteCategory(const char *category_name) {
-  LLDB_RECORD_METHOD(bool, SBDebugger, DeleteCategory, (const char *),
-                     category_name);
+  LLDB_INSTRUMENT_VA(this, category_name);
 
   if (!category_name || *category_name == 0)
     return false;
@@ -1619,29 +1599,26 @@ bool SBDebugger::DeleteCategory(const char *category_name) {
 }
 
 uint32_t SBDebugger::GetNumCategories() {
-  LLDB_RECORD_METHOD_NO_ARGS(uint32_t, SBDebugger, GetNumCategories);
+  LLDB_INSTRUMENT_VA(this);
 
   return DataVisualization::Categories::GetCount();
 }
 
 SBTypeCategory SBDebugger::GetCategoryAtIndex(uint32_t index) {
-  LLDB_RECORD_METHOD(lldb::SBTypeCategory, SBDebugger, GetCategoryAtIndex,
-                     (uint32_t), index);
+  LLDB_INSTRUMENT_VA(this, index);
 
   return SBTypeCategory(
       DataVisualization::Categories::GetCategoryAtIndex(index));
 }
 
 SBTypeCategory SBDebugger::GetDefaultCategory() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBTypeCategory, SBDebugger,
-                             GetDefaultCategory);
+  LLDB_INSTRUMENT_VA(this);
 
   return GetCategory("default");
 }
 
 SBTypeFormat SBDebugger::GetFormatForType(SBTypeNameSpecifier type_name) {
-  LLDB_RECORD_METHOD(lldb::SBTypeFormat, SBDebugger, GetFormatForType,
-                     (lldb::SBTypeNameSpecifier), type_name);
+  LLDB_INSTRUMENT_VA(this, type_name);
 
   SBTypeCategory default_category_sb = GetDefaultCategory();
   if (default_category_sb.GetEnabled())
@@ -1650,8 +1627,7 @@ SBTypeFormat SBDebugger::GetFormatForType(SBTypeNameSpecifier type_name) {
 }
 
 SBTypeSummary SBDebugger::GetSummaryForType(SBTypeNameSpecifier type_name) {
-  LLDB_RECORD_METHOD(lldb::SBTypeSummary, SBDebugger, GetSummaryForType,
-                     (lldb::SBTypeNameSpecifier), type_name);
+  LLDB_INSTRUMENT_VA(this, type_name);
 
   if (!type_name.IsValid())
     return SBTypeSummary();
@@ -1659,8 +1635,7 @@ SBTypeSummary SBDebugger::GetSummaryForType(SBTypeNameSpecifier type_name) {
 }
 
 SBTypeFilter SBDebugger::GetFilterForType(SBTypeNameSpecifier type_name) {
-  LLDB_RECORD_METHOD(lldb::SBTypeFilter, SBDebugger, GetFilterForType,
-                     (lldb::SBTypeNameSpecifier), type_name);
+  LLDB_INSTRUMENT_VA(this, type_name);
 
   if (!type_name.IsValid())
     return SBTypeFilter();
@@ -1668,8 +1643,7 @@ SBTypeFilter SBDebugger::GetFilterForType(SBTypeNameSpecifier type_name) {
 }
 
 SBTypeSynthetic SBDebugger::GetSyntheticForType(SBTypeNameSpecifier type_name) {
-  LLDB_RECORD_METHOD(lldb::SBTypeSynthetic, SBDebugger, GetSyntheticForType,
-                     (lldb::SBTypeNameSpecifier), type_name);
+  LLDB_INSTRUMENT_VA(this, type_name);
 
   if (!type_name.IsValid())
     return SBTypeSynthetic();
@@ -1683,12 +1657,11 @@ static llvm::ArrayRef<const char *> GetCategoryArray(const char **categories) {
   size_t len = 0;
   while (categories[len] != nullptr)
     ++len;
-  return llvm::makeArrayRef(categories, len);
+  return llvm::ArrayRef(categories, len);
 }
 
 bool SBDebugger::EnableLog(const char *channel, const char **categories) {
-  LLDB_RECORD_METHOD(bool, SBDebugger, EnableLog, (const char *, const char **),
-                     channel, categories);
+  LLDB_INSTRUMENT_VA(this, channel, categories);
 
   if (m_opaque_sp) {
     uint32_t log_options =
@@ -1696,17 +1669,54 @@ bool SBDebugger::EnableLog(const char *channel, const char **categories) {
     std::string error;
     llvm::raw_string_ostream error_stream(error);
     return m_opaque_sp->EnableLog(channel, GetCategoryArray(categories), "",
-                                  log_options, error_stream);
+                                  log_options, /*buffer_size=*/0,
+                                  eLogHandlerStream, error_stream);
   } else
     return false;
 }
 
 void SBDebugger::SetLoggingCallback(lldb::LogOutputCallback log_callback,
                                     void *baton) {
-  LLDB_RECORD_METHOD(void, SBDebugger, SetLoggingCallback,
-                     (lldb::LogOutputCallback, void *), log_callback, baton);
+  LLDB_INSTRUMENT_VA(this, log_callback, baton);
 
   if (m_opaque_sp) {
     return m_opaque_sp->SetLoggingCallback(log_callback, baton);
   }
+}
+
+void SBDebugger::SetDestroyCallback(
+    lldb::SBDebuggerDestroyCallback destroy_callback, void *baton) {
+  LLDB_INSTRUMENT_VA(this, destroy_callback, baton);
+  if (m_opaque_sp) {
+    return m_opaque_sp->SetDestroyCallback(
+        destroy_callback, baton);
+  }
+}
+
+SBTrace
+SBDebugger::LoadTraceFromFile(SBError &error,
+                              const SBFileSpec &trace_description_file) {
+  LLDB_INSTRUMENT_VA(this, error, trace_description_file);
+  return SBTrace::LoadTraceFromFile(error, *this, trace_description_file);
+}
+
+void SBDebugger::RequestInterrupt() {
+  LLDB_INSTRUMENT_VA(this);
+  
+  if (m_opaque_sp)
+    m_opaque_sp->RequestInterrupt();  
+}
+void SBDebugger::CancelInterruptRequest()  {
+  LLDB_INSTRUMENT_VA(this);
+  
+  if (m_opaque_sp)
+    m_opaque_sp->CancelInterruptRequest();  
+}
+
+bool SBDebugger::InterruptRequested()   {
+  LLDB_INSTRUMENT_VA(this);
+  
+  if (m_opaque_sp)
+    return m_opaque_sp->InterruptRequested();
+  return false;
 }

@@ -1,5 +1,5 @@
 //===- ScalarizeMaskedMemIntrin.cpp - Scalarize unsupported masked mem ----===//
-//                                    instrinsics
+//                                    intrinsics
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,11 +24,9 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
@@ -36,8 +34,8 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include <algorithm>
 #include <cassert>
+#include <optional>
 
 using namespace llvm;
 
@@ -659,7 +657,7 @@ static void scalarizeMaskedExpandLoad(const DataLayout &DL, CallInst *CI,
   // shuffle blend with the pass through value.
   if (isConstantIntVector(Mask)) {
     unsigned MemIndex = 0;
-    VResult = UndefValue::get(VecType);
+    VResult = PoisonValue::get(VecType);
     SmallVector<int, 16> ShuffleMask(VectorWidth, UndefMaskElem);
     for (unsigned Idx = 0; Idx < VectorWidth; ++Idx) {
       Value *InsertElt;
@@ -864,7 +862,7 @@ static void scalarizeMaskedCompressStore(const DataLayout &DL, CallInst *CI,
 
 static bool runImpl(Function &F, const TargetTransformInfo &TTI,
                     DominatorTree *DT) {
-  Optional<DomTreeUpdater> DTU;
+  std::optional<DomTreeUpdater> DTU;
   if (DT)
     DTU.emplace(DT, DomTreeUpdater::UpdateStrategy::Lazy);
 
@@ -876,7 +874,7 @@ static bool runImpl(Function &F, const TargetTransformInfo &TTI,
     for (BasicBlock &BB : llvm::make_early_inc_range(F)) {
       bool ModifiedDTOnIteration = false;
       MadeChange |= optimizeBlock(BB, ModifiedDTOnIteration, TTI, DL,
-                                  DTU.hasValue() ? DTU.getPointer() : nullptr);
+                                  DTU ? &*DTU : nullptr);
 
       // Restart BB iteration if the dominator tree of the Function was changed
       if (ModifiedDTOnIteration)

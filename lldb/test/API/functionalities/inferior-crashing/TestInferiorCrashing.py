@@ -11,8 +11,6 @@ from lldbsuite.test.lldbtest import *
 
 class CrashingInferiorTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24778")
     @expectedFailureNetBSD
     def test_inferior_crashing(self):
@@ -20,7 +18,6 @@ class CrashingInferiorTestCase(TestBase):
         self.build()
         self.inferior_crashing()
 
-    @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24778")
     def test_inferior_crashing_register(self):
         """Test that lldb reliably reads registers from the inferior after crashing (command)."""
         self.build()
@@ -127,8 +124,8 @@ class CrashingInferiorTestCase(TestBase):
 
         # The lldb expression interpreter should be able to read from addresses
         # of the inferior after a crash.
-        self.expect("p argc",
+        self.expect("expression argc",
                     startstr='(int) $0 = 1')
 
-        self.expect("p hello_world",
+        self.expect("expression hello_world",
                     substrs=['Hello'])

@@ -11,8 +11,6 @@ from lldbsuite.test import lldbutil
 
 class CrashingRecursiveInferiorTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24778")
     @expectedFailureNetBSD
     def test_recursive_inferior_crashing(self):
@@ -20,7 +18,6 @@ class CrashingRecursiveInferiorTestCase(TestBase):
         self.build()
         self.recursive_inferior_crashing()
 
-    @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24778")
     def test_recursive_inferior_crashing_register(self):
         """Test that lldb reliably reads registers from the inferior after crashing (command)."""
         self.build()
@@ -137,5 +134,5 @@ class CrashingRecursiveInferiorTestCase(TestBase):
 
         # The lldb expression interpreter should be able to read from addresses
         # of the inferior after a crash.
-        self.expect("p i",
+        self.expect("expression i",
                     startstr='(int) $0 =')

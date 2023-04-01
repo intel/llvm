@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // ranges::next(it, n)
 
@@ -38,7 +37,7 @@ constexpr bool test() {
     check<random_access_iterator<int*>>(range, n, range+n);
     check<contiguous_iterator<int*>>(   range, n, range+n);
     check<int*>(                        range, n, range+n);
-    check<output_iterator<int*> >(      range, n, range+n);
+    check<cpp17_output_iterator<int*> >(range, n, range+n);
   }
 
   // Check next() backward

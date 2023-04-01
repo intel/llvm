@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::ext::oneapi::accessor_property_list PL{

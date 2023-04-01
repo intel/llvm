@@ -10,6 +10,7 @@
 #include <unordered_set>
 
 #include "llvm/DebugInfo/DIContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFCompileUnit.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ThreadPool.h"
@@ -20,6 +21,7 @@
 #include "llvm/DebugInfo/GSYM/GsymCreator.h"
 #include "llvm/DebugInfo/GSYM/GsymReader.h"
 #include "llvm/DebugInfo/GSYM/InlineInfo.h"
+#include <optional>
 
 using namespace llvm;
 using namespace gsym;
@@ -127,9 +129,8 @@ static DWARFDie GetParentDeclContextDIE(DWARFDie &Die) {
 /// .debug_info. If we create a qualified name string in this function by
 /// combining multiple strings in the DWARF string table or info, we will make
 /// a copy of the string when we add it to the string table.
-static Optional<uint32_t> getQualifiedNameIndex(DWARFDie &Die,
-                                                uint64_t Language,
-                                                GsymCreator &Gsym) {
+static std::optional<uint32_t>
+getQualifiedNameIndex(DWARFDie &Die, uint64_t Language, GsymCreator &Gsym) {
   // If the dwarf has mangled name, use mangled name
   if (auto LinkageName =
           dwarf::toString(Die.findRecursively({dwarf::DW_AT_MIPS_linkage_name,
@@ -139,7 +140,7 @@ static Optional<uint32_t> getQualifiedNameIndex(DWARFDie &Die,
 
   StringRef ShortName(Die.getName(DINameKind::ShortName));
   if (ShortName.empty())
-    return llvm::None;
+    return std::nullopt;
 
   // For C++ and ObjC, prepend names of all parent declaration contexts
   if (!(Language == dwarf::DW_LANG_C_plus_plus ||
@@ -287,12 +288,12 @@ static void convertFunctionLineTable(raw_ostream &Log, CUInfo &CUI,
     // linker problems or LTO or other DWARF re-linking so it is worth emitting
     // an error, but not worth stopping the creation of the GSYM.
     if (!FI.Range.contains(RowAddress)) {
-      if (RowAddress < FI.Range.Start) {
+      if (RowAddress < FI.Range.start()) {
         Log << "error: DIE has a start address whose LowPC is between the "
           "line table Row[" << RowIndex << "] with address "
           << HEX64(RowAddress) << " and the next one.\n";
         Die.dump(Log, 0, DIDumpOptions::getForSingleDIE());
-        RowAddress = FI.Range.Start;
+        RowAddress = FI.Range.start();
       } else {
         continue;
       }
@@ -345,7 +346,7 @@ static void convertFunctionLineTable(raw_ostream &Log, CUInfo &CUI,
   // If not line table rows were added, clear the line table so we don't encode
   // on in the GSYM file.
   if (FI.OptLineTable->empty())
-    FI.OptLineTable = llvm::None;
+    FI.OptLineTable = std::nullopt;
 }
 
 void DwarfTransformer::handleDie(raw_ostream &OS, CUInfo &CUI, DWARFDie Die) {
@@ -403,8 +404,7 @@ void DwarfTransformer::handleDie(raw_ostream &OS, CUInfo &CUI, DWARFDie Die) {
       }
 
       FunctionInfo FI;
-      FI.setStartAddress(Range.LowPC);
-      FI.setEndAddress(Range.HighPC);
+      FI.Range = {Range.LowPC, Range.HighPC};
       FI.Name = *NameIndex;
       if (CUI.LineTable) {
         convertFunctionLineTable(OS, CUI, Die, Gsym, FI);
@@ -427,11 +427,28 @@ void DwarfTransformer::handleDie(raw_ostream &OS, CUInfo &CUI, DWARFDie Die) {
 
 Error DwarfTransformer::convert(uint32_t NumThreads) {
   size_t NumBefore = Gsym.getNumFunctionInfos();
+  auto getDie = [&](DWARFUnit &DwarfUnit) -> DWARFDie {
+    DWARFDie ReturnDie = DwarfUnit.getUnitDIE(false);
+    if (std::optional<uint64_t> DWOId = DwarfUnit.getDWOId()) {
+      DWARFUnit *DWOCU = DwarfUnit.getNonSkeletonUnitDIE(false).getDwarfUnit();
+      if (!DWOCU->isDWOUnit()) {
+        std::string DWOName = dwarf::toString(
+            DwarfUnit.getUnitDIE().find(
+                {dwarf::DW_AT_dwo_name, dwarf::DW_AT_GNU_dwo_name}),
+            "");
+        Log << "warning: Unable to retrieve DWO .debug_info section for "
+            << DWOName << "\n";
+      } else {
+        ReturnDie = DWOCU->getUnitDIE(false);
+      }
+    }
+    return ReturnDie;
+  };
   if (NumThreads == 1) {
     // Parse all DWARF data from this thread, use the same string/file table
     // for everything
     for (const auto &CU : DICtx.compile_units()) {
-      DWARFDie Die = CU->getUnitDIE(false);
+      DWARFDie Die = getDie(*CU);
       CUInfo CUI(DICtx, dyn_cast<DWARFCompileUnit>(CU.get()));
       handleDie(Log, CUI, Die);
     }
@@ -456,7 +473,7 @@ Error DwarfTransformer::convert(uint32_t NumThreads) {
     // Now convert all DWARF to GSYM in a thread pool.
     std::mutex LogMutex;
     for (const auto &CU : DICtx.compile_units()) {
-      DWARFDie Die = CU->getUnitDIE(false /*CUDieOnly*/);
+      DWARFDie Die = getDie(*CU);
       if (Die) {
         CUInfo CUI(DICtx, dyn_cast<DWARFCompileUnit>(CU.get()));
         pool.async([this, CUI, &LogMutex, Die]() mutable {

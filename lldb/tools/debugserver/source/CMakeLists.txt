@@ -2,8 +2,11 @@ include(CheckCXXCompilerFlag)
 include(CheckLibraryExists)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/..)
 include_directories(${LLDB_SOURCE_DIR}/source)
-
 include_directories(MacOSX)
+include_directories(MacOSX/i386)
+include_directories(MacOSX/x86_64)
+include_directories(MacOSX/arm)
+include_directories(MacOSX/arm64)
 
 function(check_certificate identity result_valid)
   execute_process(
@@ -95,7 +98,7 @@ check_c_source_compiles(
     #else
     #error Not building for ARM64
     #endif
-    int main() { return 0; }
+    int main(void) { return 0; }
     "
     BUILDING_FOR_ARM64_OSX
 )
@@ -106,11 +109,7 @@ if (BUILDING_FOR_ARM64_OSX AND LLDB_ENABLE_ARM64E_DEBUGSERVER)
   set(CMAKE_OSX_ARCHITECTURES "arm64;arm64e")
 endif ()
 
-check_library_exists(compression compression_encode_buffer "" HAVE_LIBCOMPRESSION)
-
 find_library(SECURITY_LIBRARY Security)
-
-add_subdirectory(MacOSX)
 
 set(LLDB_CODESIGN_IDENTITY "" CACHE STRING
     "Identity override for debugserver; see 'Code Signing on macOS' in the documentation (Darwin only)")
@@ -125,6 +124,7 @@ set_property(GLOBAL PROPERTY
   LLDB_DEBUGSERVER_CODESIGN_IDENTITY ${debugserver_codesign_identity})
 
 if(APPLE)
+  set(LIBCOMPRESSION compression)
   if(APPLE_EMBEDDED)
     find_library(BACKBOARD_LIBRARY BackBoardServices
       PATHS ${CMAKE_OSX_SYSROOT}/System/Library/PrivateFrameworks)
@@ -144,10 +144,6 @@ if(APPLE)
       set(SKIP_TEST_DEBUGSERVER ON CACHE BOOL "" FORCE)
     endif()
   endif()
-endif()
-
-if(HAVE_LIBCOMPRESSION)
-  set(LIBCOMPRESSION compression)
 endif()
 
 if(LLDB_USE_ENTITLEMENTS)
@@ -232,6 +228,10 @@ set(lldbDebugserverCommonSources
   MacOSX/MachVMMemory.cpp
   MacOSX/MachVMRegion.cpp
   MacOSX/OsLogger.cpp
+  MacOSX/arm/DNBArchImpl.cpp
+  MacOSX/arm64/DNBArchImplARM64.cpp
+  MacOSX/i386/DNBArchImplI386.cpp
+  MacOSX/x86_64/DNBArchImplX86_64.cpp
   ${generated_mach_interfaces}
   ${DEBUGSERVER_VERS_GENERATED_FILE})
 
@@ -253,15 +253,10 @@ target_link_libraries(lldbDebugserverCommon
                       ${MOBILESERVICES_LIBRARY}
                       ${LOCKDOWN_LIBRARY}
                       ${CAROUSELSERVICES_LIBRARY}
-                      lldbDebugserverArchSupport
                       ${FOUNDATION_LIBRARY}
                       ${SECURITY_LIBRARY}
                       ${LIBCOMPRESSION}
                       ${ENERGY_LIBRARY})
-if(HAVE_LIBCOMPRESSION)
-  set_property(TARGET lldbDebugserverCommon APPEND PROPERTY
-                COMPILE_DEFINITIONS HAVE_LIBCOMPRESSION)
-endif()
 add_lldb_tool(debugserver ADD_TO_FRAMEWORK
   debugserver.cpp
   LINK_LIBS lldbDebugserverCommon
@@ -322,13 +317,8 @@ if(APPLE_EMBEDDED)
                       INTERFACE ${COCOA_LIBRARY}
                       ${CORE_FOUNDATION_LIBRARY}
                       ${FOUNDATION_LIBRARY}
-                      lldbDebugserverArchSupport
                       ${SECURITY_LIBRARY}
                       ${LIBCOMPRESSION})
-  if(HAVE_LIBCOMPRESSION)
-    set_property(TARGET lldbDebugserverCommon_NonUI APPEND PROPERTY
-                  COMPILE_DEFINITIONS HAVE_LIBCOMPRESSION)
-  endif()
 
   add_lldb_tool(debugserver-nonui
     debugserver.cpp

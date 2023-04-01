@@ -1,9 +1,6 @@
 name: Reusable SYCL Linux build and test workflow
 
 on:
-  pull_request:
-    paths:
-    - '.github/workflows/sycl_linux_build_and_test.yml'
   workflow_call:
     inputs:
       cc:
@@ -18,14 +15,9 @@ on:
         type: string
         required: false
         default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
-      build_runs_on:
+      build_ref:
         type: string
         required: false
-        default: "ubuntu-latest"
-      build_github_cache:
-        type: boolean
-        required: false
-        default: false
       build_cache_root:
         type: string
         required: true
@@ -36,77 +28,49 @@ on:
       build_cache_size:
         type: string
         required: false
-        default: 2G
+        default: 8G
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --hip-amd-arch=gfx906 --cuda"
+        default: "--hip --cuda --enable-esimd-emulator"
       build_artifact_suffix:
         type: string
         required: true
-      intel_drivers_image:
+      lts_matrix:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest"
-      lts_config:
+        default: "[]"
+      lts_aws_matrix:
+        type: string
+        required: false
+        default: "[]"
+      lts_cmake_extra_args:
         type: string
         required: false
         default: ""
-      gen9_runs_on:
+      lts_ref:
         type: string
         required: false
-        default: "gen9"
-      amdgpu_image:
+        default: 'intel'
+      cts_matrix:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
-      amdgpu_runs_on:
+        default: ""
+      cts_cmake_extra_args:
         type: string
         required: false
-        default: "amdgpu"
+        default: ""
+      cts_ref:
+        type: string
+        required: false
+        default: 'SYCL-2020'
 
 jobs:
-  configure:
-    name: Pre-build configuration
-    runs-on: ubuntu-latest
-    outputs:
-      params: ${{ steps.input-parameters.outputs.params }}
-    steps:
-      - id: input-parameters
-        env:
-          INPUTS: ${{ toJSON(inputs) }}
-        run: |
-          if [[ "$GITHUB_WORKFLOW" == "Reusable SYCL Linux build and test workflow" ]]; then
-            INPUTS="{
-              \"cc\":\"gcc\",
-              \"cxx\":\"g++\",
-              \"build_runs_on\":\"build\",
-              \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
-              \"build_github_cache\":\"false\",
-              \"build_cache_root\":\"/__w/\",
-              \"build_cache_suffix\":\"default\",
-              \"build_cache_size\":\"2G\",
-              \"build_configure_extra_args\":\"--hip --hip-amd-arch=gfx906 --cuda\",
-              \"build_artifact_suffix\":\"default\",
-              \"build_upload_artifact\":\"false\",
-              \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
-              \"amdgpu_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
-              \"lts_config\":\"ocl_x64;hip_amdgpu\",
-              \"gen9_runs_on\":\"gen9\",
-              \"amdgpu_runs_on\":\"amdgpu\"
-            }"
-          fi
-          INPUTS="${INPUTS//'%'/'%25'}"
-          INPUTS="${INPUTS//$'\n'/'%0A'}"
-          INPUTS="${INPUTS//$'\r'/'%0D'}"
-          echo "::set-output name=params::$INPUTS"
-          echo "$INPUTS"
   build:
     name: Build + LIT
-    needs: configure
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
+    runs-on: [Linux, build]
     container:
-      image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
+      image: ${{ inputs.build_image }}
       options: -u 1001:1001
     steps:
     # GHA requires relative paths for actions. Copy actions from container root
@@ -118,24 +82,16 @@ jobs:
     - uses: ./actions/cached_checkout
       with:
         path: src
+        ref: ${{ inputs.build_ref || github.sha }}
         cache_path: "/__w/repo_cache/"
-    - name: Setup Cache
-      uses: actions/cache@v2
-      if: ${{ steps.parameters.build_github_cache }}
-      id: cache
-      with:
-        path: ${{ fromJSON(needs.configure.outputs.params).build_cache_root }}/build_cache_${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
-        key: sycl-build-${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}-${{ github.sha }}
-        restore-keys: |
-          sycl-build-${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}-
     - name: Configure
       env:
-        CC: ${{ fromJSON(needs.configure.outputs.params).cc }}
-        CXX: ${{ fromJSON(needs.configure.outputs.params).cxx }}
-        CACHE_ROOT: ${{ fromJSON(needs.configure.outputs.params).build_cache_root }}
-        CACHE_SUFFIX: ${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
-        CACHE_SIZE: ${{ fromJSON(needs.configure.outputs.params).build_cache_size }}
-        ARGS: ${{ fromJSON(needs.configure.outputs.params).build_configure_extra_args }}
+        CC: ${{ inputs.cc }}
+        CXX: ${{ inputs.cxx }}
+        CACHE_ROOT: ${{ inputs.build_cache_root }}
+        CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
+        CACHE_SIZE: ${{ inputs.build_cache_size }}
+        ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
         mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
@@ -150,33 +106,34 @@ jobs:
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
+      id: build
       run: cmake --build $GITHUB_WORKSPACE/build
     # TODO allow to optionally disable in-tree checks
     - name: check-llvm
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         # TODO consider moving this to Dockerfile
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-llvm-spirv
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
     - name: check-xptifw
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-xptifw
     - name: check-libclc
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libclc
     - name: Install
@@ -191,138 +148,155 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-size
-        # TODO this should be resolved in CMakeLists.txt
-        cmake --build $GITHUB_WORKSPACE/build --target install-lld || echo "skipped"
+        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-cov
+        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
+        cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
 
     - name: Pack toolchain
       run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
-    - name: Pack LIT
-      run: tar -cJf lit.tar.xz -C $GITHUB_WORKSPACE/src/llvm/utils/lit .
     - name: Upload toolchain
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v3
       with:
-        name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: llvm_sycl.tar.xz
-    - name: Upload LIT
-      uses: actions/upload-artifact@v1
-      with:
-        name: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        path: lit.tar.xz
 
-  llvm_test_suite_l0_gen9:
-    name: L0 GEN9 Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'l0_gen9') }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).gen9_runs_on }}
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
-      options: -u 1001 --device=/dev/dri
+  aws-start:
+    name: Start AWS
+    needs: build
+    if: ${{ inputs.lts_aws_matrix != '[]' }}
+    runs-on: ubuntu-20.04
+    environment: aws
     steps:
+      - name: Setup script
+        run: |
+          mkdir -p ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
+          npm install ./aws-ec2
+      - name: Start AWS EC2 runners
+        uses: ./aws-ec2
+        with:
+          runs-on-list: ${{ inputs.lts_aws_matrix }}
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+
+  e2e-tests:
+    needs: [build, aws-start]
+    # Continue if build was successful. If aws-start is not successful all
+    # AWS tasks will fail, but all non-AWS tasks should continue.
+    if: ${{ always() && needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.lts_matrix) }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runs-on }}
+    env: ${{ matrix.env }}
+    container:
+      image: ${{ matrix.image }}
+      options: ${{ matrix.container_options }}
+    steps:
+    - name: Reset GPU
+      if: ${{ contains(matrix.config, 'gen9') }}
+      run: |
+        sudo mount -t debugfs none /sys/kernel/debug
+        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
     - run: cp -r /actions .
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup
+    - name: Install drivers
+      if: env.compute_runtime_tag != ''
+      run: |
+        if [ -e /opt/install_drivers.sh ]; then
+          # TODO pack this script into container
+          wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/get_release.py
+          sudo mv get_release.py /opt/
+          sudo -E /opt/install_drivers.sh --all
+        fi
     # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+      with:
+        persist-credentials: false
+        path: llvm
+        ref: ${{ inputs.build_ref || github.sha }}
+    # TODO should this action be packed into container as well?
+    - uses: ./llvm/devops/actions/e2e-tests
+      name: Run SYCL End-to-End tests
+      with:
+        sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
+        sycl_archive: llvm_sycl.tar.xz
+        targets: ${{ matrix.targets }}
+        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+
+  khronos_sycl_cts:
+    needs: build
+    if: ${{ inputs.cts_matrix != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.cts_matrix) }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runs-on }}
+    env: ${{ matrix.env }}
+    container:
+      image: ${{ matrix.image }}
+      options: ${{ matrix.container_options }}
+    steps:
+    - name: Reset GPU
+      if: ${{ contains(matrix.config, 'gen9') }}
+      run: |
+        sudo mount -t debugfs none /sys/kernel/debug
+        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
+    - run: cp -r /actions .
+    - name: Register cleanup after job is finished
+      uses: ./actions/cleanup
+    - name: Install drivers
+      if: env.compute_runtime_tag != ''
+      run: |
+        if [ -e /opt/install_drivers.sh ]; then
+          # TODO pack this script into container
+          wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/get_release.py
+          sudo mv get_release.py /opt/
+          sudo -E /opt/install_drivers.sh --all
+        fi
+    # FIXME cached_checkout fails here, but works everywhere else
+    # TODO: figure out if we remove this action
+    - uses: actions/checkout@v3
       with:
         path: llvm
     # TODO should this action be packed into container as well?
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
+    - uses: ./llvm/devops/actions/khronos_cts_test
+      name: Run Khronos SYCL CTS
       with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        test_ref: ${{ inputs.cts_ref }}
+        sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'level_zero:gpu,host'
-        results_name_suffix: l0_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DGPU_AOT_TARGET_OPTS="\\\"-device gen9\\\""'
+        sycl_device_filter: ${{ matrix.sycl_device_filter }}
+        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.cts_cmake_extra_args }}'
 
-  llvm_test_suite_ocl_gen9:
-    name: OCL GEN9 Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'ocl_gen9') }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).gen9_runs_on }}
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
-      options: -u 1001 --device=/dev/dri
+  aws-stop:
+    name: Stop AWS
+    needs: [ aws-start, e2e-tests ]
+    # Always attempt to shutdown AWS instance, even if AWS start was not
+    # successful.
+    if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
+    runs-on: ubuntu-20.04
+    environment: aws
     steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'opencl:gpu,host'
-        results_name_suffix: ocl_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DGPU_AOT_TARGET_OPTS="\\\"-device gen9\\\""'
-
-  llvm_test_suite_ocl_x64:
-    name: OCL x64 Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'ocl_x64') }}
-    runs-on: x64
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
-      options: -u 1001
-    steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'opencl:cpu,host'
-        results_name_suffix: ocl_x64_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-
-  llvm_test_suite_hip_amdgpu:
-    name: HIP AMD GPU Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'hip_amdgpu') }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).amdgpu_runs_on }}
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).amdgpu_image }}
-      options: --device=/dev/dri --device=/dev/kfd
-    steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    # TODO remove this step one LLVM Test Suite action is settled and packed
-    # into container.
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'hip:gpu,host'
-        results_name_suffix: hip_amdgpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"'
+      - name: Setup script
+        run: |
+          mkdir -p ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
+          npm install ./aws-ec2
+      - name: Stop AWS EC2 runners
+        uses: ./aws-ec2
+        with:
+          runs-on-list: ${{ inputs.lts_aws_matrix }}
+          mode: stop
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}

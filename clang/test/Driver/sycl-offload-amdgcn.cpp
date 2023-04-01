@@ -1,5 +1,4 @@
 /// Tests specific to `-fsycl-targets=amdgcn-amd-amdhsa`
-// REQUIRES: clang-driver
 
 // UNSUPPORTED: system-windows
 
@@ -44,3 +43,16 @@
 // CHK-PHASES-NO-CC: 19: file-table-tform, {12, 18}, tempfiletable, (device-sycl, gfx906)
 // CHK-PHASES-NO-CC: 20: clang-offload-wrapper, {19}, object, (device-sycl, gfx906)
 // CHK-PHASES-NO-CC: 21: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (amdgcn-amd-amdhsa:gfx906)" {20}, image
+
+/// Check that we only unbundle an archive once.
+// RUN: %clangxx -### -target x86_64-unknown-linux-gnu -fsycl \
+// RUN:   -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend \
+// RUN:   --offload-arch=gfx906 %s -L%S/Inputs/SYCL -llin64 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-ARCHIVE %s
+// RUN: %clangxx -### -target x86_64-unknown-linux-gnu -fsycl \
+// RUN:   -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend \
+// RUN:   --offload-arch=gfx906 %s %S/Inputs/SYCL/liblin64.a 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-ARCHIVE %s
+// CHK-ARCHIVE: clang-offload-bundler{{.*}} "-input={{.*}}/Inputs/SYCL/liblin64.a"
+// CHK-ARCHIVE: llvm-link{{.*}}
+// CHK-ARCHIVE-NOT: clang-offload-bundler{{.*}} "-unbundle"

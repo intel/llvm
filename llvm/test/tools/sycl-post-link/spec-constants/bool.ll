@@ -1,6 +1,6 @@
-; RUN: sycl-post-link -spec-const=rt -S %s --ir-output-only -o %t.ll
+; RUN: sycl-post-link -spec-const=rt -S < %s --ir-output-only -o %t.ll
 ; RUN: FileCheck %s --input-file=%t.ll --implicit-check-not "call i8 bitcast" --check-prefixes=CHECK,CHECK-RT
-; RUN: sycl-post-link -spec-const=default -S %s --ir-output-only -o %t.ll
+; RUN: sycl-post-link -spec-const=default -S < %s --ir-output-only -o %t.ll
 ; RUN: FileCheck %s --input-file=%t.ll --check-prefixes=CHECK,CHECK-DEF
 
 ; CHECK-LABEL: void @kernel_A
@@ -14,7 +14,7 @@
 ; CHECK-LABEL: void @kernel_B
 ; CHECK-RT: call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8
 ;
-; CHECK-DEF: %[[GEP:gep.*]] = getelementptr i8, i8 addrspace(4)* null, i32 1
+; CHECK-DEF: %[[GEP:gep.*]] = getelementptr i8, i8 addrspace(4)* null, i32 4
 ; CHECK-DEF: %[[BC:bc.*]] = bitcast i8 addrspace(4)* %[[GEP]] to %struct.user_type addrspace(4)*
 ; CHECK-DEF: %[[LOAD:load.*]] = load %struct.user_type, %struct.user_type addrspace(4)* %[[BC]], align 4
 

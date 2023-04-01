@@ -6,17 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "InputFiles.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
-#include "Thunks.h"
 #include "lld/Common/ErrorHandler.h"
-#include "llvm/Object/ELF.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/Endian.h"
 
 using namespace llvm;
 using namespace llvm::support::endian;
+using namespace llvm::support;
 using namespace llvm::ELF;
 using namespace lld;
 using namespace lld::elf;
@@ -194,24 +193,22 @@ void ARM::writeIgotPlt(uint8_t *buf, const Symbol &s) const {
 }
 
 // Long form PLT Header that does not have any restrictions on the displacement
-// of the .plt from the .plt.got.
+// of the .plt from the .got.plt.
 static void writePltHeaderLong(uint8_t *buf) {
-  const uint8_t pltData[] = {
-      0x04, 0xe0, 0x2d, 0xe5, //     str lr, [sp,#-4]!
-      0x04, 0xe0, 0x9f, 0xe5, //     ldr lr, L2
-      0x0e, 0xe0, 0x8f, 0xe0, // L1: add lr, pc, lr
-      0x08, 0xf0, 0xbe, 0xe5, //     ldr pc, [lr, #8]
-      0x00, 0x00, 0x00, 0x00, // L2: .word   &(.got.plt) - L1 - 8
-      0xd4, 0xd4, 0xd4, 0xd4, //     Pad to 32-byte boundary
-      0xd4, 0xd4, 0xd4, 0xd4, //     Pad to 32-byte boundary
-      0xd4, 0xd4, 0xd4, 0xd4};
-  memcpy(buf, pltData, sizeof(pltData));
+  write32(buf + 0, 0xe52de004);   //     str lr, [sp,#-4]!
+  write32(buf + 4, 0xe59fe004);   //     ldr lr, L2
+  write32(buf + 8, 0xe08fe00e);   // L1: add lr, pc, lr
+  write32(buf + 12, 0xe5bef008);  //     ldr pc, [lr, #8]
+  write32(buf + 16, 0x00000000);  // L2: .word   &(.got.plt) - L1 - 8
+  write32(buf + 20, 0xd4d4d4d4);  //     Pad to 32-byte boundary
+  write32(buf + 24, 0xd4d4d4d4);  //     Pad to 32-byte boundary
+  write32(buf + 28, 0xd4d4d4d4);
   uint64_t gotPlt = in.gotPlt->getVA();
   uint64_t l1 = in.plt->getVA() + 8;
   write32le(buf + 16, gotPlt - l1 - 8);
 }
 
-// The default PLT header requires the .plt.got to be within 128 Mb of the
+// The default PLT header requires the .got.plt to be within 128 Mb of the
 // .plt in the positive direction.
 void ARM::writePltHeader(uint8_t *buf) const {
   // Use a similar sequence to that in writePlt(), the difference is the calling
@@ -247,21 +244,18 @@ void ARM::addPltHeaderSymbols(InputSection &isec) const {
 }
 
 // Long form PLT entries that do not have any restrictions on the displacement
-// of the .plt from the .plt.got.
+// of the .plt from the .got.plt.
 static void writePltLong(uint8_t *buf, uint64_t gotPltEntryAddr,
                          uint64_t pltEntryAddr) {
-  const uint8_t pltData[] = {
-      0x04, 0xc0, 0x9f, 0xe5, //     ldr ip, L2
-      0x0f, 0xc0, 0x8c, 0xe0, // L1: add ip, ip, pc
-      0x00, 0xf0, 0x9c, 0xe5, //     ldr pc, [ip]
-      0x00, 0x00, 0x00, 0x00, // L2: .word   Offset(&(.plt.got) - L1 - 8
-  };
-  memcpy(buf, pltData, sizeof(pltData));
+  write32(buf + 0, 0xe59fc004);   //     ldr ip, L2
+  write32(buf + 4, 0xe08cc00f);   // L1: add ip, ip, pc
+  write32(buf + 8, 0xe59cf000);   //     ldr pc, [ip]
+  write32(buf + 12, 0x00000000);  // L2: .word   Offset(&(.got.plt) - L1 - 8
   uint64_t l1 = pltEntryAddr + 4;
   write32le(buf + 12, gotPltEntryAddr - l1 - 8);
 }
 
-// The default PLT entries require the .plt.got to be within 128 Mb of the
+// The default PLT entries require the .got.plt to be within 128 Mb of the
 // .plt in the positive direction.
 void ARM::writePlt(uint8_t *buf, const Symbol &sym,
                    uint64_t pltEntryAddr) const {
@@ -271,9 +265,9 @@ void ARM::writePlt(uint8_t *buf, const Symbol &sym,
   // hard code the most compact rotations for simplicity. This saves a load
   // instruction over the long plt sequences.
   const uint32_t pltData[] = {
-      0xe28fc600, // L1: add ip, pc,  #0x0NN00000  Offset(&(.plt.got) - L1 - 8
-      0xe28cca00, //     add ip, ip,  #0x000NN000  Offset(&(.plt.got) - L1 - 8
-      0xe5bcf000, //     ldr pc, [ip, #0x00000NNN] Offset(&(.plt.got) - L1 - 8
+      0xe28fc600, // L1: add ip, pc,  #0x0NN00000  Offset(&(.got.plt) - L1 - 8
+      0xe28cca00, //     add ip, ip,  #0x000NN000  Offset(&(.got.plt) - L1 - 8
+      0xe5bcf000, //     ldr pc, [ip, #0x00000NNN] Offset(&(.got.plt) - L1 - 8
   };
 
   uint64_t offset = sym.getGotPltVA() - pltEntryAddr - 8;
@@ -296,9 +290,11 @@ void ARM::addPltSymbols(InputSection &isec, uint64_t off) const {
 bool ARM::needsThunk(RelExpr expr, RelType type, const InputFile *file,
                      uint64_t branchAddr, const Symbol &s,
                      int64_t a) const {
-  // If S is an undefined weak symbol and does not have a PLT entry then it
-  // will be resolved as a branch to the next instruction.
-  if (s.isUndefWeak() && !s.isInPlt())
+  // If s is an undefined weak symbol and does not have a PLT entry then it will
+  // be resolved as a branch to the next instruction. If it is hidden, its
+  // binding has been converted to local, so we just check isUndefined() here. A
+  // undefined non-weak symbol will have been errored.
+  if (s.isUndefined() && !s.isInPlt())
     return false;
   // A state change from ARM to Thumb and vice versa must go through an
   // interworking thunk if the relocation type is not R_ARM_CALL or
@@ -311,10 +307,11 @@ bool ARM::needsThunk(RelExpr expr, RelType type, const InputFile *file,
     // Otherwise we need to interwork if STT_FUNC Symbol has bit 0 set (Thumb).
     if (s.isFunc() && expr == R_PC && (s.getVA() & 1))
       return true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case R_ARM_CALL: {
     uint64_t dst = (expr == R_PLT_PC) ? s.getPltVA() : s.getVA();
-    return !inBranchRange(type, branchAddr, dst + a);
+    return !inBranchRange(type, branchAddr, dst + a) ||
+        (!config->armHasBlx && (s.getVA() & 1));
   }
   case R_ARM_THM_JUMP19:
   case R_ARM_THM_JUMP24:
@@ -322,10 +319,11 @@ bool ARM::needsThunk(RelExpr expr, RelType type, const InputFile *file,
     // Otherwise we need to interwork if STT_FUNC Symbol has bit 0 clear (ARM).
     if (expr == R_PLT_PC || (s.isFunc() && (s.getVA() & 1) == 0))
       return true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case R_ARM_THM_CALL: {
     uint64_t dst = (expr == R_PLT_PC) ? s.getPltVA() : s.getVA();
-    return !inBranchRange(type, branchAddr, dst + a);
+    return !inBranchRange(type, branchAddr, dst + a) ||
+        (!config->armHasBlx && (s.getVA() & 1) == 0);;
   }
   }
   return false;
@@ -430,7 +428,7 @@ static std::pair<uint32_t, uint32_t> getRemAndLZForGroup(unsigned group,
                                                          uint32_t val) {
   uint32_t rem, lz;
   do {
-    lz = llvm::countLeadingZeros(val) & ~1;
+    lz = llvm::countl_zero(val) & ~1;
     rem = val;
     if (lz == 32) // implies rem == 0
       break;
@@ -550,7 +548,7 @@ void ARM::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     write32le(loc, 0xeb000000 | (read32le(loc) & 0x00ffffff));
     // fall through as BL encoding is shared with B
   }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case R_ARM_JUMP24:
   case R_ARM_PC24:
   case R_ARM_PLT32:
@@ -617,7 +615,7 @@ void ARM::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     }
   }
     // Fall through as rest of encoding is the same as B.W
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case R_ARM_THM_JUMP24:
     // Encoding B  T4, BL T1, BLX T2: Val = S:I1:I2:imm10:imm11:0
     checkInt(loc, val, 25, rel);
@@ -809,7 +807,7 @@ int64_t ARM::getImplicitAddend(const uint8_t *buf, RelType type) const {
                               ((lo & 0x7ff) << 1));  // imm11:0
       break;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case R_ARM_THM_JUMP24: {
     // Encoding B T4, BL T1, BLX T2: A = S:I1:I2:imm10:imm11:0
     // I1 = NOT(J1 EOR S), I2 = NOT(J2 EOR S)

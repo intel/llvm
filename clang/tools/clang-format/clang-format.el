@@ -82,7 +82,7 @@ in such buffers."
         (let* ((children (xml-node-children node))
                (text (car children)))
           (cl-case (xml-node-name node)
-            ('replacement
+            (replacement
              (let* ((offset (xml-get-attribute-or-nil node 'offset))
                     (length (xml-get-attribute-or-nil node 'length)))
                (when (or (null offset) (null length))
@@ -93,7 +93,7 @@ in such buffers."
                (setq offset (string-to-number offset))
                (setq length (string-to-number length))
                (push (list offset length text) replacements)))
-            ('cursor
+            (cursor
              (setq cursor (string-to-number text)))))))
 
     ;; Sort by decreasing offset, length.
@@ -147,7 +147,7 @@ uses the function `buffer-file-name'."
     (setq style clang-format-style))
 
   (unless assume-file-name
-    (setq assume-file-name buffer-file-name))
+    (setq assume-file-name (buffer-file-name (buffer-base-buffer))))
 
   (let ((file-start (clang-format--bufferpos-to-filepos start 'approximate
                                                         'utf-8-unix))

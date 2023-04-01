@@ -23,8 +23,8 @@
 define void @_Z4topA2EA(i32 %sa) #0 !dbg !7 {
 entry:
   %sa.addr = alloca i32, align 4
-  store i32 %sa, i32* %sa.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %sa.addr, metadata !22, metadata !DIExpression()), !dbg !23
+  store i32 %sa, ptr %sa.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %sa.addr, metadata !22, metadata !DIExpression()), !dbg !23
   ret void, !dbg !24
 }
 
@@ -35,8 +35,8 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 define void @_Z4topB2EA(i32 %sa) #0 !dbg !17 {
 entry:
   %sa.addr = alloca i32, align 4
-  store i32 %sa, i32* %sa.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %sa.addr, metadata !25, metadata !DIExpression()), !dbg !26
+  store i32 %sa, ptr %sa.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %sa.addr, metadata !25, metadata !DIExpression()), !dbg !26
   ret void, !dbg !27
 }
 
@@ -64,7 +64,7 @@ attributes #1 = { nounwind readnone }
 !15 = !DICompositeType(tag: DW_TAG_enumeration_type, name: "EA", line: 1, size: 32, align: 32, file: !13, elements: !4, identifier: "_ZTS2EA")
 !17 = distinct !DISubprogram(name: "topB", linkageName: "_Z4topB2EA", line: 5, isLocal: false, isDefinition: true, virtualIndex: 6, flags: DIFlagPrototyped, isOptimized: false, unit: !12, scopeLine: 5, file: !13, scope: !18, type: !9, retainedNodes: !11)
 !18 = !DIFile(filename: "b.cpp", directory: "")
-!19 = !{i32 2, !"Dwarf Version", i32 2}
+!19 = !{i32 2, !"Dwarf Version", i32 3}
 !20 = !{i32 2, !"Debug Info Version", i32 3}
 !21 = !{!"clang version 3.5.0 (trunk 214102:214133) (llvm/trunk 214102:214132)"}
 !22 = !DILocalVariable(name: "sa", line: 5, arg: 1, scope: !7, file: !8, type: !3)

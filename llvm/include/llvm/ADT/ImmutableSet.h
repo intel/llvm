@@ -5,9 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file defines the ImutAVLTree and ImmutableSet classes.
-//
+///
+/// \file
+/// This file defines the ImutAVLTree and ImmutableSet classes.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_IMMUTABLESET_H
@@ -995,7 +996,7 @@ public:
     ///  of this operation is logarithmic in the size of the original set.
     ///  The memory allocated to represent the set is released when the
     ///  factory object that created the set is destroyed.
-    LLVM_NODISCARD ImmutableSet add(ImmutableSet Old, value_type_ref V) {
+    [[nodiscard]] ImmutableSet add(ImmutableSet Old, value_type_ref V) {
       TreeTy *NewT = F.add(Old.Root.get(), V);
       return ImmutableSet(Canonicalize ? F.getCanonicalTree(NewT) : NewT);
     }
@@ -1007,7 +1008,7 @@ public:
     ///  of this operation is logarithmic in the size of the original set.
     ///  The memory allocated to represent the set is released when the
     ///  factory object that created the set is destroyed.
-    LLVM_NODISCARD ImmutableSet remove(ImmutableSet Old, value_type_ref V) {
+    [[nodiscard]] ImmutableSet remove(ImmutableSet Old, value_type_ref V) {
       TreeTy *NewT = F.remove(Old.Root.get(), V);
       return ImmutableSet(Canonicalize ? F.getCanonicalTree(NewT) : NewT);
     }

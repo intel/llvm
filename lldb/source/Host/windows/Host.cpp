@@ -195,8 +195,7 @@ bool Host::GetProcessInfo(lldb::pid_t pid, ProcessInstanceInfo &process_info) {
 }
 
 llvm::Expected<HostThread> Host::StartMonitoringChildProcess(
-    const Host::MonitorChildProcessCallback &callback, lldb::pid_t pid,
-    bool monitor_signals) {
+    const Host::MonitorChildProcessCallback &callback, lldb::pid_t pid) {
   return HostThread();
 }
 
@@ -246,7 +245,7 @@ Status Host::ShellExpandArguments(ProcessLaunchInfo &launch_info) {
     }
 
     auto dict_sp = data_sp->GetAsDictionary();
-    if (!data_sp) {
+    if (!dict_sp) {
       error.SetErrorString("invalid JSON");
       return error;
     }

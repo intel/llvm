@@ -12,12 +12,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "sanitizer_common/sanitizer_platform.h"
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 
 #include "interception/interception.h"
 #include "tsan_interceptors.h"
 #include "tsan_interface.h"
 #include "tsan_interface_ann.h"
+#include "tsan_spinlock_defs_mac.h"
 #include "sanitizer_common/sanitizer_addrhashmap.h"
 
 #include <errno.h>
@@ -518,4 +519,4 @@ STDCXX_INTERCEPTOR(void, _ZNSt3__111__call_onceERVmPvPFvS2_E, void *flag,
 
 }  // namespace __tsan
 
-#endif  // SANITIZER_MAC
+#endif  // SANITIZER_APPLE

@@ -14,20 +14,22 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
-#include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
+#include "llvm/CodeGen/StackProtector.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/EHPersonalities.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
@@ -35,7 +37,9 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cstddef>
 
 using namespace llvm;
@@ -165,7 +169,136 @@ size_t DwarfEHPrepare::pruneUnreachableResumes(
   return ResumesLeft;
 }
 
+/// If a landingpad block doesn't already have a cleanup case, add one
+/// that feeds directly into a resume instruction.
+static void addCleanupResumeToLandingPad(BasicBlock &BB, DomTreeUpdater *DTU) {
+  LandingPadInst *LP = BB.getLandingPadInst();
+  if (LP->isCleanup())
+    return;
+
+  // There will usually be code testing for the other kinds of exception
+  // immediately after the landingpad. Working out the far end of that chain is
+  // tricky, so put our test for the new cleanup case (i.e. selector == 0) at
+  // the beginning.
+  BasicBlock *ContBB = SplitBlock(&BB, LP->getNextNode(), DTU);
+  BB.getTerminator()->eraseFromParent();
+
+  LP->setCleanup(true);
+  IRBuilder<> B(&BB);
+  Value *Selector = B.CreateExtractValue(LP, 1);
+  Value *Cmp = B.CreateICmpEQ(Selector, ConstantInt::get(Selector->getType(), 0));
+
+  Function *F = BB.getParent();
+  LLVMContext &Ctx = F->getContext();
+  BasicBlock *ResumeBB = BasicBlock::Create(Ctx, "resume", F);
+  ResumeInst::Create(LP, ResumeBB);
+
+  B.CreateCondBr(Cmp, ResumeBB, ContBB);
+  if (DTU) {
+    SmallVector<DominatorTree::UpdateType> Updates;
+    Updates.push_back({DominatorTree::Insert, &BB, ResumeBB});
+    DTU->applyUpdates(Updates);
+  }
+}
+
+/// Create a basic block that has a `landingpad` instruction feeding
+/// directly into a `resume`. Will be set to the unwind destination of a new
+/// invoke.
+static BasicBlock *createCleanupResumeBB(Function &F,  Type *LandingPadTy) {
+  LLVMContext &Ctx = F.getContext();
+  BasicBlock *BB = BasicBlock::Create(Ctx, "cleanup_resume", &F);
+  IRBuilder<> B(BB);
+
+  // If this is going to be the only landingpad in the function, synthesize the
+  // standard type all ABIs use, which is essentially `{ ptr, i32 }`.
+  if (!LandingPadTy)
+    LandingPadTy =
+        StructType::get(Type::getInt8PtrTy(Ctx), IntegerType::get(Ctx, 32));
+
+  LandingPadInst *Except = B.CreateLandingPad(LandingPadTy, 0);
+  Except->setCleanup(true);
+  B.CreateResume(Except);
+  return BB;
+}
+
+/// Convert a call that might throw into an invoke that unwinds to the specified
+/// simple landingpad/resume block.
+static void changeCallToInvokeResume(CallInst &CI, BasicBlock *CleanupResumeBB,
+                                     DomTreeUpdater *DTU) {
+  BasicBlock *BB = CI.getParent();
+  BasicBlock *ContBB = SplitBlock(BB, &CI, DTU);
+  BB->getTerminator()->eraseFromParent();
+
+  IRBuilder<> B(BB);
+  SmallVector<Value *> Args(CI.args());
+  SmallVector<OperandBundleDef> Bundles;
+  CI.getOperandBundlesAsDefs(Bundles);
+  InvokeInst *NewCall =
+      B.CreateInvoke(CI.getFunctionType(), CI.getCalledOperand(), ContBB,
+                     CleanupResumeBB, Args, Bundles, CI.getName());
+  NewCall->setAttributes(CI.getAttributes());
+  NewCall->setCallingConv(CI.getCallingConv());
+  NewCall->copyMetadata(CI);
+
+  if (DTU) {
+    SmallVector<DominatorTree::UpdateType> Updates;
+    Updates.push_back({DominatorTree::Insert, BB, CleanupResumeBB});
+    DTU->applyUpdates(Updates);
+  }
+  CI.replaceAllUsesWith(NewCall);
+  CI.eraseFromParent();
+}
+
+/// Ensure that any call in this function that might throw has an associated
+/// cleanup/resume that the stack protector can instrument later. Existing
+/// invokes will get an added `cleanup` clause if needed, calls will be
+/// converted to an invoke with trivial unwind followup.
+static void addCleanupPathsForStackProtector(Function &F, DomTreeUpdater *DTU) {
+  // First add cleanup -> resume paths to all existing landingpads, noting what
+  // type landingpads in this function actually have along the way.
+  Type *LandingPadTy = nullptr;
+  for (Function::iterator FI = F.begin(); FI != F.end(); ++FI) {
+    BasicBlock &BB = *FI;
+    if (LandingPadInst *LP = BB.getLandingPadInst()) {
+      // We can assume the type is broadly compatible with { ptr, i32 } since
+      // other parts of this pass already try to extract values from it.
+      LandingPadTy = LP->getType();
+      addCleanupResumeToLandingPad(BB, DTU);
+    }
+  }
+
+  // Next convert any call that might throw into an invoke to a resume
+  // instruction for later instrumentation.
+  BasicBlock *CleanupResumeBB = nullptr;
+  for (Function::iterator FI = F.begin(); FI != F.end(); ++FI) {
+    BasicBlock &BB = *FI;
+    for (Instruction &I : BB) {
+      CallInst *CI = dyn_cast<CallInst>(&I);
+      if (!CI || CI->doesNotThrow())
+        continue;
+
+      // Tail calls cannot use our stack so no need to check whether it was
+      // corrupted.
+      if (CI->isTailCall())
+        continue;
+
+      if (!CleanupResumeBB)
+        CleanupResumeBB = createCleanupResumeBB(F, LandingPadTy);
+
+      changeCallToInvokeResume(*CI, CleanupResumeBB, DTU);
+
+      // This block has been split, start again on its continuation.
+      break;
+    }
+  }
+}
+
 bool DwarfEHPrepare::InsertUnwindResumeCalls() {
+  if (F.hasPersonalityFn() &&
+      !isScopedEHPersonality(classifyEHPersonality(F.getPersonalityFn())) &&
+      StackProtector::requiresStackProtector(&F, nullptr))
+    addCleanupPathsForStackProtector(F, DTU);
+
   SmallVector<ResumeInst *, 16> Resumes;
   SmallVector<LandingPadInst *, 16> CleanupLPads;
   if (F.doesNotThrow())
@@ -247,6 +380,13 @@ bool DwarfEHPrepare::InsertUnwindResumeCalls() {
     // Call the rewind function.
     CallInst *CI =
         CallInst::Create(RewindFunction, RewindFunctionArgs, "", UnwindBB);
+    // The verifier requires that all calls of debug-info-bearing functions
+    // from debug-info-bearing functions have a debug location (for inlining
+    // purposes). Assign a dummy location to satisfy the constraint.
+    Function *RewindFn = dyn_cast<Function>(RewindFunction.getCallee());
+    if (RewindFn && RewindFn->getSubprogram())
+      if (DISubprogram *SP = F.getSubprogram())
+        CI->setDebugLoc(DILocation::get(SP->getContext(), 0, 0, SP));
     CI->setCallingConv(RewindFunctionCallingConv);
 
     // We never expect _Unwind_Resume to return.

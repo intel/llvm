@@ -7,10 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03
-// UNSUPPORTED: libcxxabi-no-threads
+// UNSUPPORTED: no-threads
 
-// TODO: Investigate this failure
-// XFAIL: target=arm64-apple-{{.+}}
+// XFAIL: LIBCXX-FREEBSD-FIXME
 
 #include <cassert>
 #include <thread>

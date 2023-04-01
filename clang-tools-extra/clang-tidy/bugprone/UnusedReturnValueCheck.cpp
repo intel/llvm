@@ -14,9 +14,7 @@
 using namespace clang::ast_matchers;
 using namespace clang::ast_matchers::internal;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 
@@ -138,8 +136,7 @@ void UnusedReturnValueCheck::registerMatchers(MatchFinder *Finder) {
       callExpr(callee(functionDecl(
                    // Don't match void overloads of checked functions.
                    unless(returns(voidType())),
-                   isInstantiatedFrom(hasAnyName(
-                       std::vector<StringRef>(FunVec.begin(), FunVec.end()))))))
+                   isInstantiatedFrom(hasAnyName(FunVec)))))
           .bind("match"))));
 
   auto UnusedInCompoundStmt =
@@ -177,6 +174,4 @@ void UnusedReturnValueCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

@@ -50,6 +50,8 @@ contains
     select type ( a )
       !ERROR: The type specification statement must have LEN type parameter as assumed
       type is ( character(len=10) ) !<-- assumed length-type
+      !ERROR: The type specification statement must have LEN type parameter as assumed
+      type is ( character )
       ! OK
       type is ( character(len=*) )
       !ERROR: The type specification statement must have LEN type parameter as assumed
@@ -186,6 +188,24 @@ subroutine CheckC1162
   end select
 end
 
+module c1162a
+  type pdt(kind,len)
+    integer, kind :: kind
+    integer, len :: len
+  end type
+ contains
+  subroutine foo(x)
+    class(pdt(kind=1,len=:)), allocatable :: x
+    select type (x)
+    type is (pdt(kind=1, len=*))
+    !ERROR: Type specification 'pdt(kind=2_4,len=*)' must be an extension of TYPE 'pdt(kind=1_4,len=:)'
+    type is (pdt(kind=2, len=*))
+    !ERROR: Type specification 'pdt(kind=*,len=*)' must be an extension of TYPE 'pdt(kind=1_4,len=:)'
+    type is (pdt(kind=*, len=*))
+    end select
+  end subroutine
+end module
+
 subroutine CheckC1163
   use m1
   !assign dynamically
@@ -256,4 +276,15 @@ subroutine WorkingPolymorphism
     CLASS DEFAULT
       print *, "default"
   end select
+end
+
+subroutine CheckNotProcedure
+  use m1
+  !ERROR: Selector may not be a procedure
+  select type (x=>f)
+  end select
+ contains
+  function f() result(res)
+    class(shape), allocatable :: res
+  end
 end

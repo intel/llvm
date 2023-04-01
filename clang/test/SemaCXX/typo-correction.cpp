@@ -494,7 +494,7 @@ template <typename T> struct Wrappable {
 // instead of incorrectly suggesting dropping "PR18213::WrapperInfo::".
 template <>
 PR18213::WrapperInfo ::PR18213::Wrappable<int>::kWrapperInfo = { 0 };  // expected-error {{no member named 'PR18213' in 'PR18213::WrapperInfo'; did you mean simply 'PR18213'?}} \
-                                                                       // expected-error {{C++ requires a type specifier for all declarations}}
+                                                                       // expected-error {{a type specifier is required for all declarations}}
 }
 
 namespace PR18651 {
@@ -753,7 +753,7 @@ namespace PR46487 {
   // because it doesn't make the expression valid.
   // expected-error@+2 {{did you mean 'g_var_bool'}}
   // expected-error@+1 {{assigning to 'bool' from incompatible type 'void'}}
-  enum : decltype((g_var_long = throw))::a {
+  enum : typename decltype((g_var_long = throw))::a {
     b = g_volatile_uchar // expected-error {{did you mean 'g_volatile_char'}}
   };
 }

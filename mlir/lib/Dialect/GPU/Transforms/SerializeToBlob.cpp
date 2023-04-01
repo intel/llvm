@@ -12,14 +12,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/GPU/Passes.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Target/LLVMIR/Dialect/GPU/GPUToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
+
+#include <string>
+#include <optional>
+
+#define DEBUG_TYPE "serialize-to-blob"
 
 using namespace mlir;
 
@@ -31,13 +37,13 @@ gpu::SerializeToBlobPass::SerializeToBlobPass(TypeID passID)
 gpu::SerializeToBlobPass::SerializeToBlobPass(const SerializeToBlobPass &other)
     : OperationPass<gpu::GPUModuleOp>(other) {}
 
-Optional<std::string>
+std::optional<std::string>
 gpu::SerializeToBlobPass::translateToISA(llvm::Module &llvmModule,
                                          llvm::TargetMachine &targetMachine) {
   llvmModule.setDataLayout(targetMachine.createDataLayout());
 
   if (failed(optimizeLlvm(llvmModule, targetMachine)))
-    return llvm::None;
+    return std::nullopt;
 
   std::string targetISA;
   llvm::raw_string_ostream stream(targetISA);
@@ -48,7 +54,7 @@ gpu::SerializeToBlobPass::translateToISA(llvm::Module &llvmModule,
 
     if (targetMachine.addPassesToEmitFile(codegenPasses, pstream, nullptr,
                                           llvm::CGFT_AssemblyFile))
-      return llvm::None;
+      return std::nullopt;
 
     codegenPasses.run(llvmModule);
   }
@@ -68,13 +74,19 @@ void gpu::SerializeToBlobPass::runOnOperation() {
   if (!targetMachine)
     return signalPassFailure();
 
-  Optional<std::string> maybeTargetISA =
+  std::optional<std::string> maybeTargetISA =
       translateToISA(*llvmModule, *targetMachine);
 
-  if (!maybeTargetISA.hasValue())
+  if (!maybeTargetISA.has_value())
     return signalPassFailure();
 
-  std::string targetISA = std::move(maybeTargetISA.getValue());
+  std::string targetISA = std::move(*maybeTargetISA);
+
+  LLVM_DEBUG({
+    llvm::dbgs() << "ISA for module: " << getOperation().getNameAttr() << "\n";
+    llvm::dbgs() << targetISA << "\n";
+    llvm::dbgs().flush();
+  });
 
   // Serialize the target ISA.
   std::unique_ptr<std::vector<char>> blob = serializeISA(targetISA);
@@ -97,6 +109,7 @@ gpu::SerializeToBlobPass::optimizeLlvm(llvm::Module &llvmModule,
 
 void gpu::SerializeToBlobPass::getDependentDialects(
     DialectRegistry &registry) const {
+  registerGPUDialectTranslation(registry);
   registerLLVMDialectTranslation(registry);
   OperationPass<gpu::GPUModuleOp>::getDependentDialects(registry);
 }

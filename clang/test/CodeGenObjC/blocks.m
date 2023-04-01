@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple i386-apple-darwin9 -fobjc-runtime=macosx-fragile-10.5 -emit-llvm -fblocks -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple i386-apple-darwin9 -fobjc-runtime=macosx-fragile-10.5 -emit-llvm -fblocks -Wno-strict-prototypes -o - %s | FileCheck %s
 
 // CHECK: %[[STRUCT_BLOCK_DESCRIPTOR:.*]] = type { i32, i32 }
 
@@ -124,7 +124,7 @@ void test3(void (^block)(int, ...)) {
 // CHECK-NEXT: [[T3:%.*]] = bitcast [[BLOCK_T]]* [[T1]] to i8*
 // CHECK-NEXT: [[T4:%.*]] = load i8*, i8** [[T2]]
 // CHECK-NEXT: [[T5:%.*]] = bitcast i8* [[T4]] to void (i8*, i32, ...)*
-// CHECK-NEXT: call void (i8*, i32, ...) [[T5]](i8* [[T3]], i32 0, i32 1, i32 2, i32 3)
+// CHECK-NEXT: call void (i8*, i32, ...) [[T5]](i8* noundef [[T3]], i32 noundef 0, i32 noundef 1, i32 noundef 2, i32 noundef 3)
 // CHECK-NEXT: ret void
 
 void test4(void (^block)()) {
@@ -139,7 +139,7 @@ void test4(void (^block)()) {
 // CHECK-NEXT: [[T3:%.*]] = bitcast [[BLOCK_T]]* [[T1]] to i8*
 // CHECK-NEXT: [[T4:%.*]] = load i8*, i8** [[T2]]
 // CHECK-NEXT: [[T5:%.*]] = bitcast i8* [[T4]] to void (i8*, i32, i32, i32, i32)*
-// CHECK-NEXT: call void [[T5]](i8* [[T3]], i32 0, i32 1, i32 2, i32 3)
+// CHECK-NEXT: call void [[T5]](i8* noundef [[T3]], i32 noundef 0, i32 noundef 1, i32 noundef 2, i32 noundef 3)
 // CHECK-NEXT: ret void
 
 void test5(A *a) {

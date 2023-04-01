@@ -16,6 +16,7 @@ static_library("MachO") {
     "//llvm/lib/Option",
     "//llvm/lib/Support",
     "//llvm/lib/Target:TargetsToBuild",
+    "//llvm/lib/TargetParser",
   ]
   include_dirs = [
     ".",
@@ -27,11 +28,11 @@ static_library("MachO") {
     "Arch/ARM64Common.cpp",
     "Arch/ARM64_32.cpp",
     "Arch/X86_64.cpp",
-    "CallGraphSort.cpp",
     "ConcatOutputSection.cpp",
     "Driver.cpp",
     "DriverUtils.cpp",
     "Dwarf.cpp",
+    "EhFrame.cpp",
     "ExportTrie.cpp",
     "ICF.cpp",
     "InputFiles.cpp",
@@ -43,6 +44,7 @@ static_library("MachO") {
     "OutputSection.cpp",
     "OutputSegment.cpp",
     "Relocations.cpp",
+    "SectionPriorities.cpp",
     "SymbolTable.cpp",
     "Symbols.cpp",
     "SyntheticSections.cpp",

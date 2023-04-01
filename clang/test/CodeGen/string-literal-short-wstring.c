@@ -3,13 +3,13 @@
 
 // Run in C mode as wide multichar literals are not valid in C++
 
-// XFAIL: hexagon
+// XFAIL: target=hexagon-{{.*}}
 // Hexagon aligns arrays of size 8+ bytes to a 64-bit boundary, which fails
 // the first check line with "align 1".
 
 typedef __WCHAR_TYPE__ wchar_t;
 
-int main() {
+int main(void) {
   // This should convert to utf8.
   // CHECK: private unnamed_addr constant [10 x i8] c"\E1\84\A0\C8\A0\F4\82\80\B0\00", align 1
   char b[10] = "\u1120\u0220\U00102030";

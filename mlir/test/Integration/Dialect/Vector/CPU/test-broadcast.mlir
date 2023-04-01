@@ -1,9 +1,9 @@
-// RUN: mlir-opt %s -convert-scf-to-std -convert-vector-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts | \
+// RUN: mlir-opt %s -convert-scf-to-cf -convert-vector-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_c_runner_utils | \
 // RUN: FileCheck %s
 
-func @entry() {
+func.func @entry() {
   %i = arith.constant 2147483647: i32
   %l = arith.constant 9223372036854775807 : i64
 
@@ -43,7 +43,7 @@ func @entry() {
   %x = vector.broadcast %f5 : f32 to vector<1xf32>
   %y = vector.broadcast %x  : vector<1xf32> to vector<8xf32>
   vector.print %y : vector<8xf32>
-  // CHECK : ( 5, 5, 5, 5, 5, 5, 5, 5 )
+  // CHECK: ( 5, 5, 5, 5, 5, 5, 5, 5 )
 
   // Test "stretch" in leading dimension.
   %s = vector.broadcast %v3 : vector<4xf32> to vector<1x4xf32>

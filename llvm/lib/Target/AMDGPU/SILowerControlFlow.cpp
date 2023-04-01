@@ -56,6 +56,7 @@
 #include "llvm/CodeGen/LiveVariables.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
@@ -89,6 +90,8 @@ private:
   unsigned OrTermrOpc;
   unsigned OrSaveExecOpc;
   unsigned Exec;
+
+  bool EnableOptimizeEndCf = false;
 
   bool hasKill(const MachineBasicBlock *Begin, const MachineBasicBlock *End);
 
@@ -145,6 +148,7 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addUsedIfAvailable<LiveIntervals>();
     // Should preserve the same set that TwoAddressInstructions does.
     AU.addPreserved<MachineDominatorTree>();
     AU.addPreserved<SlotIndexes>();
@@ -506,8 +510,35 @@ MachineBasicBlock *SILowerControlFlow::emitEndCf(MachineInstr &MI) {
     BuildMI(MBB, InsPt, DL, TII->get(Opcode), Exec)
     .addReg(Exec)
     .add(MI.getOperand(0));
-  if (LV)
-    LV->replaceKillInstruction(MI.getOperand(0).getReg(), MI, *NewMI);
+  if (LV) {
+    LV->replaceKillInstruction(DataReg, MI, *NewMI);
+
+    if (SplitBB != &MBB) {
+      // Track the set of registers defined in the split block so we don't
+      // accidentally add the original block to AliveBlocks.
+      DenseSet<Register> SplitDefs;
+      for (MachineInstr &X : *SplitBB) {
+        for (MachineOperand &Op : X.operands()) {
+          if (Op.isReg() && Op.isDef() && Op.getReg().isVirtual())
+            SplitDefs.insert(Op.getReg());
+        }
+      }
+
+      for (unsigned i = 0, e = MRI->getNumVirtRegs(); i != e; ++i) {
+        Register Reg = Register::index2VirtReg(i);
+        LiveVariables::VarInfo &VI = LV->getVarInfo(Reg);
+
+        if (VI.AliveBlocks.test(MBB.getNumber()))
+          VI.AliveBlocks.set(SplitBB->getNumber());
+        else {
+          for (MachineInstr *Kill : VI.Kills) {
+            if (Kill->getParent() == SplitBB && !SplitDefs.contains(Reg))
+              VI.AliveBlocks.set(MBB.getNumber());
+          }
+        }
+      }
+    }
+  }
 
   LoweredEndCf.insert(NewMI);
 
@@ -537,7 +568,7 @@ void SILowerControlFlow::findMaskOperands(MachineInstr &MI, unsigned OpNo,
     return;
 
   // Make sure we do not modify exec between def and use.
-  // A copy with implcitly defined exec inserted earlier is an exclusion, it
+  // A copy with implicitly defined exec inserted earlier is an exclusion, it
   // does not really modify exec.
   for (auto I = Def->getIterator(); I != MI.getIterator(); ++I)
     if (I->modifiesRegister(AMDGPU::EXEC, TRI) &&
@@ -570,16 +601,16 @@ void SILowerControlFlow::combineMasks(MachineInstr &MI) {
   else return;
 
   Register Reg = MI.getOperand(OpToReplace).getReg();
-  MI.RemoveOperand(OpToReplace);
+  MI.removeOperand(OpToReplace);
   MI.addOperand(Ops[UniqueOpndIdx]);
   if (MRI->use_empty(Reg))
     MRI->getUniqueVRegDef(Reg)->eraseFromParent();
 }
 
 void SILowerControlFlow::optimizeEndCf() {
-  // If the only instruction immediately following this END_CF is an another
+  // If the only instruction immediately following this END_CF is another
   // END_CF in the only successor we can avoid emitting exec mask restore here.
-  if (!RemoveRedundantEndcf)
+  if (!EnableOptimizeEndCf)
     return;
 
   for (MachineInstr *MI : reverse(LoweredEndCf)) {
@@ -807,6 +838,8 @@ bool SILowerControlFlow::runOnMachineFunction(MachineFunction &MF) {
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
   TII = ST.getInstrInfo();
   TRI = &TII->getRegisterInfo();
+  EnableOptimizeEndCf =
+      RemoveRedundantEndcf && MF.getTarget().getOptLevel() > CodeGenOpt::None;
 
   // This doesn't actually need LiveIntervals, but we can preserve them.
   LIS = getAnalysisIfAvailable<LiveIntervals>();
@@ -860,6 +893,7 @@ bool SILowerControlFlow::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
+  bool Changed = false;
   MachineFunction::iterator NextBB;
   for (MachineFunction::iterator BI = MF.begin();
        BI != MF.end(); BI = NextBB) {
@@ -881,6 +915,7 @@ bool SILowerControlFlow::runOnMachineFunction(MachineFunction &MF) {
       case AMDGPU::SI_LOOP:
       case AMDGPU::SI_END_CF:
         SplitMBB = process(MI);
+        Changed = true;
         break;
 
       // FIXME: find a better place for this
@@ -889,6 +924,7 @@ bool SILowerControlFlow::runOnMachineFunction(MachineFunction &MF) {
         lowerInitExec(MBB, MI);
         if (LIS)
           LIS->removeAllRegUnitsForPhysReg(AMDGPU::EXEC);
+        Changed = true;
         break;
 
       default:
@@ -908,5 +944,5 @@ bool SILowerControlFlow::runOnMachineFunction(MachineFunction &MF) {
   LoweredIf.clear();
   KillBlocks.clear();
 
-  return true;
+  return Changed;
 }

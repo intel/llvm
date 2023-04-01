@@ -8,8 +8,8 @@
 
 #include "src/fenv/feupdateenv.h"
 
-#include "src/__support/FPUtil/FEnvUtils.h"
-#include "utils/UnitTest/Test.h"
+#include "src/__support/FPUtil/FEnvImpl.h"
+#include "test/UnitTest/Test.h"
 
 #include <fenv.h>
 #include <signal.h>

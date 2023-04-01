@@ -13,7 +13,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Comdat.h"
 #include "llvm/IR/DataLayout.h"
@@ -22,17 +22,17 @@
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/MC/StringTableBuilder.h"
-#include "llvm/Object/IRObjectFile.h"
 #include "llvm/Object/ModuleSymbolTable.h"
 #include "llvm/Object/SymbolicFile.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VCSRevision.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <cassert>
 #include <string>
 #include <utility>
@@ -40,6 +40,10 @@
 
 using namespace llvm;
 using namespace irsymtab;
+
+static cl::opt<bool> DisableBitcodeVersionUpgrade(
+    "disable-bitcode-version-upgrade", cl::Hidden,
+    cl::desc("Disable automatic bitcode upgrade for version mismatch"));
 
 static const char *PreservedSymbols[] = {
 #define HANDLE_LIBCALL(code, name) name,
@@ -285,7 +289,7 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
                                      inconvertibleErrorCode());
     Uncommon().CommonSize =
         GV->getParent()->getDataLayout().getTypeAllocSize(GV->getValueType());
-    Uncommon().CommonAlign = GVar->getAlignment();
+    Uncommon().CommonAlign = GVar->getAlign() ? GVar->getAlign()->value() : 0;
   }
 
   const GlobalObject *GO = GV->getAliaseeObject();
@@ -402,20 +406,22 @@ Expected<FileContents> irsymtab::readBitcode(const BitcodeFileContents &BFC) {
     return make_error<StringError>("Bitcode file does not contain any modules",
                                    inconvertibleErrorCode());
 
-  if (BFC.StrtabForSymtab.empty() ||
-      BFC.Symtab.size() < sizeof(storage::Header))
-    return upgrade(BFC.Mods);
+  if (!DisableBitcodeVersionUpgrade) {
+    if (BFC.StrtabForSymtab.empty() ||
+        BFC.Symtab.size() < sizeof(storage::Header))
+      return upgrade(BFC.Mods);
 
-  // We cannot use the regular reader to read the version and producer, because
-  // it will expect the header to be in the current format. The only thing we
-  // can rely on is that the version and producer will be present as the first
-  // struct elements.
-  auto *Hdr = reinterpret_cast<const storage::Header *>(BFC.Symtab.data());
-  unsigned Version = Hdr->Version;
-  StringRef Producer = Hdr->Producer.get(BFC.StrtabForSymtab);
-  if (Version != storage::Header::kCurrentVersion ||
-      Producer != kExpectedProducerName)
-    return upgrade(BFC.Mods);
+    // We cannot use the regular reader to read the version and producer,
+    // because it will expect the header to be in the current format. The only
+    // thing we can rely on is that the version and producer will be present as
+    // the first struct elements.
+    auto *Hdr = reinterpret_cast<const storage::Header *>(BFC.Symtab.data());
+    unsigned Version = Hdr->Version;
+    StringRef Producer = Hdr->Producer.get(BFC.StrtabForSymtab);
+    if (Version != storage::Header::kCurrentVersion ||
+        Producer != kExpectedProducerName)
+      return upgrade(BFC.Mods);
+  }
 
   FileContents FC;
   FC.TheReader = {{BFC.Symtab.data(), BFC.Symtab.size()},

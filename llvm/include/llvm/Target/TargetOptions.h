@@ -130,7 +130,7 @@ namespace llvm {
           HonorSignDependentRoundingFPMathOption(false), NoZerosInBSS(false),
           GuaranteedTailCallOpt(false), StackSymbolOrdering(true),
           EnableFastISel(false), EnableGlobalISel(false), UseInitArray(false),
-          DisableIntegratedAS(false), RelaxELFRelocations(false),
+          DisableIntegratedAS(false), RelaxELFRelocations(true),
           FunctionSections(false), DataSections(false),
           IgnoreXCOFFVisibility(false), XCOFFTracebackTable(true),
           UniqueSectionNames(true), UniqueBasicBlockSectionNames(false),
@@ -140,9 +140,10 @@ namespace llvm {
           EnableMachineFunctionSplitter(false), SupportsDefaultOutlining(false),
           EmitAddrsig(false), EmitCallSiteInfo(false),
           SupportsDebugEntryValues(false), EnableDebugEntryValues(false),
-          ValueTrackingVariableLocations(false),
-          ForceDwarfFrameSection(false), XRayOmitFunctionIndex(false),
-          DebugStrictDwarf(false),
+          ValueTrackingVariableLocations(false), ForceDwarfFrameSection(false),
+          XRayOmitFunctionIndex(false), DebugStrictDwarf(false),
+          Hotpatch(false), PPCGenScalarMASSEntries(false), JMCInstrument(false),
+          EnableCFIFixup(false), MisExpect(false), XCOFFReadOnlyPointers(false),
           FPDenormalMode(DenormalMode::IEEE, DenormalMode::IEEE) {}
 
     /// DisableFramePointerElim - This returns true if frame pointer elimination
@@ -341,6 +342,26 @@ namespace llvm {
     /// When set to true, don't use DWARF extensions in later DWARF versions.
     /// By default, it is set to false.
     unsigned DebugStrictDwarf : 1;
+
+    /// Emit the hotpatch flag in CodeView debug.
+    unsigned Hotpatch : 1;
+
+    /// Enables scalar MASS conversions
+    unsigned PPCGenScalarMASSEntries : 1;
+
+    /// Enable JustMyCode instrumentation.
+    unsigned JMCInstrument : 1;
+
+    /// Enable the CFIFixup pass.
+    unsigned EnableCFIFixup : 1;
+
+    /// When set to true, enable MisExpect Diagnostics
+    /// By default, it is set to false
+    unsigned MisExpect : 1;
+
+    /// When set to true, const objects with relocatable address values are put
+    /// into the RO data section.
+    unsigned XCOFFReadOnlyPointers : 1;
 
     /// Name of the stack usage file (i.e., .su file) if user passes
     /// -fstack-usage. If empty, it can be implied that -fstack-usage is not

@@ -212,7 +212,7 @@ static bool isCandidateStore(const MachineInstr &MI, const MachineOperand &MO) {
     // In case we have str xA, [xA, #imm], this is two different uses
     // of xA and we cannot fold, otherwise the xA stored may be wrong,
     // even if #imm == 0.
-    return MI.getOperandNo(&MO) == 1 &&
+    return MO.getOperandNo() == 1 &&
            MI.getOperand(0).getReg() != MI.getOperand(1).getReg();
   }
 }
@@ -528,10 +528,8 @@ static void handleNormalInst(const MachineInstr &MI, LOHInfo *LOHInfos) {
     // count as MultiUser or block optimization. This is especially important on
     // arm64_32, where any memory operation is likely to be an explicit use of
     // xN and an implicit use of wN (the base address register).
-    if (!UsesSeen.count(Idx)) {
+    if (UsesSeen.insert(Idx).second)
       handleUse(MI, MO, LOHInfos[Idx]);
-      UsesSeen.insert(Idx);
-    }
   }
 }
 
@@ -559,7 +557,7 @@ bool AArch64CollectLOH::runOnMachineFunction(MachineFunction &MF) {
     // Walk the basic block backwards and update the per register state machine
     // in the process.
     for (const MachineInstr &MI :
-         instructionsWithoutDebug(MBB.rbegin(), MBB.rend())) {
+         instructionsWithoutDebug(MBB.instr_rbegin(), MBB.instr_rend())) {
       unsigned Opcode = MI.getOpcode();
       switch (Opcode) {
       case AArch64::ADDXri:

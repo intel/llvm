@@ -7,11 +7,12 @@
 #include "Inputs/system-header-simulator.h"
 
 void clang_analyzer_eval(int);
-void clang_analyzer_warnIfReached();
+void clang_analyzer_dump(int);
+void clang_analyzer_warnIfReached(void);
 void StreamTesterChecker_make_feof_stream(FILE *);
 void StreamTesterChecker_make_ferror_stream(FILE *);
 
-void error_fopen() {
+void error_fopen(void) {
   FILE *F = fopen("file", "r");
   if (!F)
     return;
@@ -20,7 +21,7 @@ void error_fopen() {
   fclose(F);
 }
 
-void error_freopen() {
+void error_freopen(void) {
   FILE *F = fopen("file", "r");
   if (!F)
     return;
@@ -32,7 +33,7 @@ void error_freopen() {
   fclose(F);
 }
 
-void stream_error_feof() {
+void stream_error_feof(void) {
   FILE *F = fopen("file", "r");
   if (!F)
     return;
@@ -45,7 +46,7 @@ void stream_error_feof() {
   fclose(F);
 }
 
-void stream_error_ferror() {
+void stream_error_ferror(void) {
   FILE *F = fopen("file", "r");
   if (!F)
     return;
@@ -58,7 +59,7 @@ void stream_error_ferror() {
   fclose(F);
 }
 
-void error_fread() {
+void error_fread(void) {
   FILE *F = tmpfile();
   if (!F)
     return;
@@ -83,7 +84,7 @@ void error_fread() {
   Ret = fread(Buf, 1, 10, F); // expected-warning {{Stream might be already closed}}
 }
 
-void error_fwrite() {
+void error_fwrite(void) {
   FILE *F = tmpfile();
   if (!F)
     return;
@@ -101,10 +102,15 @@ void error_fwrite() {
 }
 
 void freadwrite_zerosize(FILE *F) {
-  fwrite(0, 1, 0, F);
-  fwrite(0, 0, 1, F);
-  fread(0, 1, 0, F);
-  fread(0, 0, 1, F);
+  size_t Ret;
+  Ret = fwrite(0, 1, 0, F);
+  clang_analyzer_dump(Ret); // expected-warning {{0 }}
+  Ret = fwrite(0, 0, 1, F);
+  clang_analyzer_dump(Ret); // expected-warning {{0 }}
+  Ret = fread(0, 1, 0, F);
+  clang_analyzer_dump(Ret); // expected-warning {{0 }}
+  Ret = fread(0, 0, 1, F);
+  clang_analyzer_dump(Ret); // expected-warning {{0 }}
 }
 
 void freadwrite_zerosize_eofstate(FILE *F) {
@@ -114,7 +120,7 @@ void freadwrite_zerosize_eofstate(FILE *F) {
   fread(0, 0, 1, F); // expected-warning {{Read function called when stream is in EOF state}}
 }
 
-void error_fread_fwrite_zerosize() {
+void error_fread_fwrite_zerosize(void) {
   FILE *F = fopen("file", "r");
   if (!F)
     return;
@@ -136,7 +142,7 @@ void error_fread_fwrite_zerosize() {
   fclose(F);
 }
 
-void error_fseek() {
+void error_fseek(void) {
   FILE *F = fopen("file", "r");
   if (!F)
     return;
@@ -167,7 +173,7 @@ void error_fseek() {
   fclose(F);
 }
 
-void error_indeterminate() {
+void error_indeterminate(void) {
   FILE *F = fopen("file", "r+");
   if (!F)
     return;
@@ -185,7 +191,7 @@ void error_indeterminate() {
   fclose(F);
 }
 
-void error_indeterminate_clearerr() {
+void error_indeterminate_clearerr(void) {
   FILE *F = fopen("file", "r+");
   if (!F)
     return;
@@ -206,7 +212,7 @@ void error_indeterminate_clearerr() {
   fclose(F);
 }
 
-void error_indeterminate_feof1() {
+void error_indeterminate_feof1(void) {
   FILE *F = fopen("file", "r+");
   if (!F)
     return;
@@ -220,7 +226,7 @@ void error_indeterminate_feof1() {
   fclose(F);
 }
 
-void error_indeterminate_feof2() {
+void error_indeterminate_feof2(void) {
   FILE *F = fopen("file", "r+");
   if (!F)
     return;

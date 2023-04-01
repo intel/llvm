@@ -13,12 +13,15 @@
 #ifndef LLVM_CLANG_LIB_BASIC_TARGETS_SPIR_H
 #define LLVM_CLANG_LIB_BASIC_TARGETS_SPIR_H
 
+#include "Targets.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Support/Compiler.h"
 #include "OSTargets.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
+#include <optional>
 
 namespace clang {
 namespace targets {
@@ -44,7 +47,11 @@ static const unsigned SPIRDefIsPrivMap[] = {
     0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr
-    0  // ptr64
+    0, // ptr64
+    0, // hlsl_groupshared
+    // Wasm address space values for this target are dummy values,
+    // as it is only enabled for Wasm targets.
+    20, // wasm_funcref
 };
 
 // Used by both the SPIR and SPIR-V targets.
@@ -76,13 +83,19 @@ static const unsigned SPIRDefIsGenMap[] = {
     0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr
-    0  // ptr64
+    0, // ptr64
+    0, // hlsl_groupshared
+    // Wasm address space values for this target are dummy values,
+    // as it is only enabled for Wasm targets.
+    20, // wasm_funcref
 };
 
 // Base class for SPIR and SPIR-V target info.
 class LLVM_LIBRARY_VISIBILITY BaseSPIRTargetInfo : public TargetInfo {
+  std::unique_ptr<TargetInfo> HostTarget;
+
 protected:
-  BaseSPIRTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
+  BaseSPIRTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : TargetInfo(Triple) {
     assert((Triple.isSPIR() || Triple.isSPIRV()) &&
            "Invalid architecture for SPIR or SPIR-V.");
@@ -96,6 +109,52 @@ protected:
     // Define available target features
     // These must be defined in sorted order!
     NoAsmVariants = true;
+
+    llvm::Triple HostTriple(Opts.HostTriple);
+    if (!HostTriple.isSPIR() && !HostTriple.isSPIRV() &&
+        HostTriple.getArch() != llvm::Triple::UnknownArch) {
+      HostTarget.reset(AllocateTarget(llvm::Triple(Opts.HostTriple), Opts));
+
+      // Copy properties from host target.
+      BoolWidth = HostTarget->getBoolWidth();
+      BoolAlign = HostTarget->getBoolAlign();
+      IntWidth = HostTarget->getIntWidth();
+      IntAlign = HostTarget->getIntAlign();
+      HalfWidth = HostTarget->getHalfWidth();
+      HalfAlign = HostTarget->getHalfAlign();
+      FloatWidth = HostTarget->getFloatWidth();
+      FloatAlign = HostTarget->getFloatAlign();
+      DoubleWidth = HostTarget->getDoubleWidth();
+      DoubleAlign = HostTarget->getDoubleAlign();
+      LongWidth = HostTarget->getLongWidth();
+      LongAlign = HostTarget->getLongAlign();
+      LongLongWidth = HostTarget->getLongLongWidth();
+      LongLongAlign = HostTarget->getLongLongAlign();
+      MinGlobalAlign = HostTarget->getMinGlobalAlign(/* TypeSize = */ 0);
+      NewAlign = HostTarget->getNewAlign();
+      DefaultAlignForAttributeAligned =
+          HostTarget->getDefaultAlignForAttributeAligned();
+      IntMaxType = HostTarget->getIntMaxType();
+      WCharType = HostTarget->getWCharType();
+      WIntType = HostTarget->getWIntType();
+      Char16Type = HostTarget->getChar16Type();
+      Char32Type = HostTarget->getChar32Type();
+      Int64Type = HostTarget->getInt64Type();
+      SigAtomicType = HostTarget->getSigAtomicType();
+      ProcessIDType = HostTarget->getProcessIDType();
+
+      UseBitFieldTypeAlignment = HostTarget->useBitFieldTypeAlignment();
+      UseZeroLengthBitfieldAlignment =
+          HostTarget->useZeroLengthBitfieldAlignment();
+      UseExplicitBitFieldAlignment = HostTarget->useExplicitBitFieldAlignment();
+      ZeroLengthBitfieldBoundary = HostTarget->getZeroLengthBitfieldBoundary();
+
+      // This is a bit of a lie, but it controls __GCC_ATOMIC_XXX_LOCK_FREE, and
+      // we need those macros to be identical on host and device, because (among
+      // other things) they affect which standard library classes are defined,
+      // and we need all classes to be defined on both the host and device.
+      MaxAtomicInlineWidth = HostTarget->getMaxAtomicInlineWidth();
+    }
   }
 
 public:
@@ -103,11 +162,15 @@ public:
   // memcpy as per section 3 of the SPIR spec.
   bool useFP16ConversionIntrinsics() const override { return false; }
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return None; }
+  ArrayRef<Builtin::Info> getTargetBuiltins() const override {
+    return std::nullopt;
+  }
 
   const char *getClobbers() const override { return ""; }
 
-  ArrayRef<const char *> getGCCRegNames() const override { return None; }
+  ArrayRef<const char *> getGCCRegNames() const override {
+    return std::nullopt;
+  }
 
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &info) const override {
@@ -115,21 +178,26 @@ public:
   }
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
-    return None;
+    return std::nullopt;
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::VoidPtrBuiltinVaList;
   }
 
-  Optional<unsigned>
+  std::optional<unsigned>
   getDWARFAddressSpace(unsigned AddressSpace) const override {
     return AddressSpace;
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
-                                                            : CCCR_Warning;
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel ||
+            // Permit CC_X86RegCall which is used to mark external functions
+            // with explicit simd or structure type arguments to pass them via
+            // registers.
+            CC == CC_X86RegCall)
+               ? CCCR_OK
+               : CCCR_Warning;
   }
 
   CallingConv getDefaultCallingConv() const override {
@@ -145,16 +213,16 @@ public:
     // NOTE: SYCL specification considers unannotated pointers and references
     // to be pointing to the generic address space. See section 5.9.3 of
     // SYCL 2020 specification.
-    // Currently, there is no way of representing SYCL's and HIP's default
+    // Currently, there is no way of representing SYCL's and HIP/CUDA's default
     // address space language semantic along with the semantics of embedded C's
     // default address space in the same address space map. Hence the map needs
     // to be reset to allow mapping to the desired value of 'Default' entry for
-    // SYCL and HIP.
+    // SYCL and HIP/CUDA.
     setAddressSpaceMap(
         /*DefaultIsGeneric=*/Opts.SYCLIsDevice ||
-        // The address mapping from HIP language for device code is only defined
-        // for SPIR-V.
-        (getTriple().isSPIRV() && Opts.HIP && Opts.CUDAIsDevice));
+        // The address mapping from HIP/CUDA language for device code is only
+        // defined for SPIR-V.
+        (getTriple().isSPIRV() && Opts.CUDAIsDevice));
   }
 
   void setSupportedOpenCLOpts() override {
@@ -181,6 +249,8 @@ public:
   bool hasFeature(StringRef Feature) const override {
     return Feature == "spir";
   }
+
+  bool checkArithmeticFenceSupported() const override { return true; }
 };
 
 class LLVM_LIBRARY_VISIBILITY SPIR32TargetInfo : public SPIRTargetInfo {
@@ -218,6 +288,14 @@ public:
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
+};
+
+// spir64_fpga target
+class LLVM_LIBRARY_VISIBILITY SPIR64FPGATargetInfo : public SPIR64TargetInfo {
+public:
+  SPIR64FPGATargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
+      : SPIR64TargetInfo(Triple, Opts) {}
+  virtual size_t getMaxBitIntWidth() const override { return 4096; }
 };
 
 // x86-32 SPIR Windows target
@@ -286,8 +364,10 @@ public:
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    if (CC == CC_X86VectorCall)
+    if (CC == CC_X86VectorCall || CC == CC_X86RegCall)
       // Permit CC_X86VectorCall which is used in Microsoft headers
+      // Permit CC_X86RegCall which is used to mark external functions with
+      // explicit simd or structure type arguments to pass them via registers.
       return CCCR_OK;
     return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
                                     : CCCR_Warning;

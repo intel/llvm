@@ -11,6 +11,7 @@
 #include "TargetInfo/M68kTargetInfo.h"
 
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCStreamer.h"
@@ -42,9 +43,8 @@ class M68kAsmParser : public MCTargetAsmParser {
                       const uint64_t &ErrorInfo);
   bool missingFeature(const SMLoc &Loc, const uint64_t &ErrorInfo);
   bool emit(MCInst &Inst, SMLoc const &Loc, MCStreamer &Out) const;
-  bool parseRegisterName(unsigned int &RegNo, SMLoc Loc,
-                         StringRef RegisterName);
-  OperandMatchResultTy parseRegister(unsigned int &RegNo);
+  bool parseRegisterName(MCRegister &RegNo, SMLoc Loc, StringRef RegisterName);
+  OperandMatchResultTy parseRegister(MCRegister &RegNo);
 
   // Parser functions.
   void eatComma();
@@ -66,8 +66,9 @@ public:
 
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                     SMLoc &EndLoc) override;
+  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                         SMLoc &EndLoc) override;
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
@@ -102,8 +103,8 @@ struct M68kMemOp {
   //   OuterDisp(%OuterReg, %InnerReg.Size * Scale, InnerDisp)
 
   Kind Op;
-  unsigned OuterReg;
-  unsigned InnerReg;
+  MCRegister OuterReg;
+  MCRegister InnerReg;
   const MCExpr *OuterDisp;
   const MCExpr *InnerDisp;
   uint8_t Size : 4;
@@ -574,7 +575,7 @@ unsigned M68kAsmParser::validateTargetOperandClass(MCParsedAsmOperand &Op,
   return Match_InvalidOperand;
 }
 
-bool M68kAsmParser::parseRegisterName(unsigned &RegNo, SMLoc Loc,
+bool M68kAsmParser::parseRegisterName(MCRegister &RegNo, SMLoc Loc,
                                       StringRef RegisterName) {
   auto RegisterNameLower = RegisterName.lower();
 
@@ -623,7 +624,7 @@ bool M68kAsmParser::parseRegisterName(unsigned &RegNo, SMLoc Loc,
   return false;
 }
 
-OperandMatchResultTy M68kAsmParser::parseRegister(unsigned &RegNo) {
+OperandMatchResultTy M68kAsmParser::parseRegister(MCRegister &RegNo) {
   bool HasPercent = false;
   AsmToken PercentToken;
 
@@ -655,7 +656,7 @@ OperandMatchResultTy M68kAsmParser::parseRegister(unsigned &RegNo) {
   return MatchOperand_Success;
 }
 
-bool M68kAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+bool M68kAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                   SMLoc &EndLoc) {
   auto Result = tryParseRegister(RegNo, StartLoc, EndLoc);
   if (Result != MatchOperand_Success) {
@@ -665,7 +666,7 @@ bool M68kAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
   return false;
 }
 
-OperandMatchResultTy M68kAsmParser::tryParseRegister(unsigned &RegNo,
+OperandMatchResultTy M68kAsmParser::tryParseRegister(MCRegister &RegNo,
                                                      SMLoc &StartLoc,
                                                      SMLoc &EndLoc) {
   StartLoc = getLexer().getLoc();
@@ -840,7 +841,7 @@ M68kAsmParser::parseRegOrMoveMask(OperandVector &Operands) {
     bool IsFirstRegister =
         (MemOp.Op == M68kMemOp::Kind::RegMask) && (MemOp.RegMask == 0);
 
-    unsigned FirstRegister;
+    MCRegister FirstRegister;
     auto Result = parseRegister(FirstRegister);
     if (IsFirstRegister && (Result == llvm::MatchOperand_NoMatch)) {
       return MatchOperand_NoMatch;
@@ -850,7 +851,7 @@ M68kAsmParser::parseRegOrMoveMask(OperandVector &Operands) {
       return MatchOperand_ParseFail;
     }
 
-    unsigned LastRegister = FirstRegister;
+    MCRegister LastRegister = FirstRegister;
     if (getLexer().is(AsmToken::Minus)) {
       getLexer().Lex();
       Result = parseRegister(LastRegister);

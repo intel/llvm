@@ -118,12 +118,15 @@
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-SYNC_CAS_ARMv6
 // CHECK-SYNC_CAS_ARMv6-NOT: __GCC_HAVE_SYNC_COMPARE_AND_SWAP
 //
+// RUN: %clang_cc1 %s -E -dM -o - -triple mips -target-cpu mips1 \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-SYNC_CAS_MIPS32_MIPS1
 // RUN: %clang_cc1 %s -E -dM -o - -triple mips -target-cpu mips2 \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-SYNC_CAS_MIPS \
 // RUN:         --check-prefix=CHECK-SYNC_CAS_MIPS32
 // RUN: %clang_cc1 %s -E -dM -o - -triple mips64 -target-cpu mips3 \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-SYNC_CAS_MIPS \
 // RUN:         --check-prefix=CHECK-SYNC_CAS_MIPS64
+// CHECK-SYNC_CAS_MIPS32_MIPS1-NOT: __GCC_HAVE_SYNC_COMPARE_AND_SWAP
 // CHECK-SYNC_CAS_MIPS: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1 1
 // CHECK-SYNC_CAS_MIPS: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2 1
 // CHECK-SYNC_CAS_MIPS: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4 1
@@ -247,6 +250,7 @@
 // CHECK-HIP-NEG-NOT: #define __CUDA_ARCH__
 // CHECK-HIP-NEG-NOT: #define __HIP_DEVICE_COMPILE__ 1
 // CHECK-HIP-NEG-NOT: #define __CLANG_RDC__ 1
+// CHECK-HIP-NEG-NOT: #define HIP_API_PER_THREAD_DEFAULT_STREAM
 
 // RUN: %clang_cc1 %s -E -dM -o - -x hip -triple amdgcn-amd-amdhsa \
 // RUN:   -fcuda-is-device \
@@ -265,6 +269,7 @@
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-HIP-DEV-NEG
 // CHECK-HIP-DEV-NEG-NOT: #define __CUDA_ARCH__
 // CHECK-HIP-DEV-NEG-NOT: #define __CLANG_RDC__ 1
+// CHECK-HIP-DEV-NEG-NOT: #define HIP_API_PER_THREAD_DEFAULT_STREAM
 
 // RUN: %clang_cc1 %s -E -dM -o - -x cuda -triple x86_64-unknown-linux-gnu \
 // RUN:   -fgpu-rdc | FileCheck %s --check-prefix=CHECK-RDC
@@ -305,3 +310,11 @@
 
 // CHECK-RANGE: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
 // CHECK-NO-RANGE-NOT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
+
+// RUN: %clang_cc1 %s -E -dM -o - -x hip -triple x86_64-unknown-linux-gnu \
+// RUN:   -fgpu-default-stream=per-thread \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-PTH
+// RUN: %clang_cc1 %s -E -dM -o - -x hip -triple amdgcn-amd-amdhsa \
+// RUN:   -fcuda-is-device -fgpu-default-stream=per-thread \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-PTH
+// CHECK-PTH: #define HIP_API_PER_THREAD_DEFAULT_STREAM 1

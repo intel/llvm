@@ -1,13 +1,22 @@
-#include "LSPClient.h"
-#include "gtest/gtest.h"
-#include <condition_variable>
+//===-- LSPClient.cpp - Helper for ClangdLSPServer tests ------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
+#include "LSPClient.h"
 #include "Protocol.h"
 #include "TestFS.h"
 #include "Transport.h"
+#include "support/Logger.h"
 #include "support/Threading.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include "gtest/gtest.h"
+#include <condition_variable>
+#include <optional>
 #include <queue>
 
 namespace clang {
@@ -16,7 +25,7 @@ namespace clangd {
 llvm::Expected<llvm::json::Value> clang::clangd::LSPClient::CallResult::take() {
   std::unique_lock<std::mutex> Lock(Mu);
   if (!clangd::wait(Lock, CV, timeoutSeconds(10),
-                    [this] { return Value.hasValue(); })) {
+                    [this] { return Value.has_value(); })) {
     ADD_FAILURE() << "No result from call after 10 seconds!";
     return llvm::json::Value(nullptr);
   }
@@ -190,7 +199,7 @@ void LSPClient::didClose(llvm::StringRef Path) {
 
 void LSPClient::sync() { call("sync", nullptr).takeValue(); }
 
-llvm::Optional<std::vector<llvm::json::Value>>
+std::optional<std::vector<llvm::json::Value>>
 LSPClient::diagnostics(llvm::StringRef Path) {
   sync();
   auto Notifications = takeNotifications("textDocument/publishDiagnostics");

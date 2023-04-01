@@ -73,10 +73,6 @@ lldb_plugins += [
     "AppleObjCRuntime",
   ],
   [
-    "//lldb/source/Plugins/LanguageRuntime/RenderScript/RenderScriptRuntime",
-    "RenderScriptRuntime",
-  ],
-  [
     "//lldb/source/Plugins/ObjectContainer/BSD-Archive",
     "ObjectContainerBSDArchive",
   ],
@@ -109,6 +105,10 @@ lldb_plugins += [
     "ObjectFilePECOFF",
   ],
   [
+    "//lldb/source/Plugins/ObjectFile/Placeholder",
+    "ObjectFilePlaceholder",
+  ],
+  [
     "//lldb/source/Plugins/ObjectFile/wasm",
     "ObjectFileWasm",
   ],
@@ -139,6 +139,10 @@ lldb_plugins += [
   [
     "//lldb/source/Plugins/Process/minidump",
     "ProcessMinidump",
+  ],
+  [
+    "//lldb/source/Plugins/REPL/Clang",
+    "ClangREPL",
   ],
   [
     "//lldb/source/Plugins/ScriptInterpreter/None",
@@ -176,6 +180,11 @@ lldb_plugins += [
   [
     "//lldb/source/Plugins/SymbolVendor/wasm",
     "SymbolVendorWasm",
+  ],
+
+  [
+    "//lldb/source/Plugins/SymbolVendor/PECOFF",
+    "SymbolVendorPECOFF",
   ],
 
   [

@@ -19,17 +19,13 @@ E: arsenm2@gmail.com
 I: arsenm
 D: InferAddressSpaces
 
-N: Simon Atanasyan
-E: simon@atanasyan.com
-D: MIPS Backend (lib/Target/Mips/*)
-
 N: Justin Bogner
 E: mail@justinbogner.com
 D: InstrProfiling and related parts of ProfileData
 D: SelectionDAG (lib/CodeGen/SelectionDAG/*)
 
 N: Alex Bradbury
-E: asb@lowrisc.org
+E: asb@igalia.com
 D: RISC-V backend (lib/Target/RISCV/*)
 
 N: Matthias Braun
@@ -120,8 +116,7 @@ E: lhames@gmail.com
 D: MCJIT, RuntimeDyld and JIT event listeners, Orcish Warchief
 
 N: Min-Yih Hsu
-E: minyihh@uci.edu
-E: yihshyng223@gmail.com
+E: min@myhsu.dev
 D: M68k Target (lib/Target/M68k/*)
 
 N: Teresa Johnson
@@ -134,7 +129,7 @@ D: LLVM Buildbot
 
 N: Anton Korobeynikov
 E: anton@korobeynikov.info
-D: Exception handling, Windows codegen, ARM EABI
+D: Exception handling, Windows codegen, ARM EABI, MSP430 Target (lib/Target/MSP430/*)
 
 N: Benjamin Kramer
 E: benny.kra@gmail.com
@@ -153,6 +148,10 @@ E: sabre@nondot.org
 W: http://nondot.org/~sabre/
 D: Everything not covered by someone else
 
+N: Weining Lu
+E: luweining@loongson.cn
+D: LoongArch backend (lib/Target/LoongArch/*)
+
 N: David Majnemer
 E: david.majnemer@gmail.com
 D: IR Constant Folder, InstCombine
@@ -161,8 +160,8 @@ N: Dylan McKay
 E: me@dylanmckay.io
 D: AVR Backend
 
-N: Simon Moll
-E: simon.moll@emea.nec.com
+N: Kazushi Marukawa
+E: marukawa@nec.com
 D: VE Backend
 
 N: Tim Northover
@@ -185,17 +184,25 @@ N: Jacques Pienaar
 E: jpienaar@google.com
 D: Lanai Backend
 
+N: Simon Pilgrim
+E: llvm-dev@redking.me.uk
+D: X86 Backend
+
 N: Philip Reames
 E: listmail@philipreames.com
 D: IndVar Simplify, Scalar Evolution
 
 N: Paul Robinson
-E: paul_robinson@playstation.sony.com
+E: paul.robinson@sony.com
 D: Sony PlayStation®4 support
 
 N: Chad Rosier
 E: mcrosier@codeaurora.org
 D: Fast-Isel
+
+N: Andrei Safronov
+E: andrei.safronov@espressif.com
+D: Xtensa backend (lib/Target/Xtensa/*)
 
 N: Duncan Sands
 E: baldrick@free.fr
@@ -225,8 +232,8 @@ N: Evgeniy Stepanov
 E: eugenis@google.com
 D: MemorySanitizer (LLVM part)
 
-N: Craig Topper
-E: craig.topper@gmail.com
+N: Phoebe Wang
+E: phoebe.wang@intel.com
 D: X86 Backend
 
 N: Ulrich Weigand
@@ -248,3 +255,7 @@ D: MinGW
 N: Zi Xuan Wu (Zeson)
 E: zixuan.wu@linux.alibaba.com
 D: C-SKY backend (lib/Target/CSKY/*)
+
+N: Ilia Diachkov
+E: ilia.diachkov@gmail.com
+D: SPIR-V backend (lib/Target/SPIRV/*)

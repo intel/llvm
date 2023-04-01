@@ -103,8 +103,10 @@ extern cl::opt<bool> ForceBottomUp;
 extern cl::opt<bool> VerifyScheduling;
 #ifndef NDEBUG
 extern cl::opt<bool> ViewMISchedDAGs;
+extern cl::opt<bool> PrintDAGs;
 #else
 extern const bool ViewMISchedDAGs;
+extern const bool PrintDAGs;
 #endif
 
 class AAResults;
@@ -287,7 +289,7 @@ protected:
   const SUnit *NextClusterPred = nullptr;
   const SUnit *NextClusterSucc = nullptr;
 
-#ifndef NDEBUG
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
   /// The number of instructions scheduled so far. Used to cut off the
   /// scheduler at the point determined by misched-cutoff.
   unsigned NumInstrsScheduled = 0;
@@ -372,6 +374,9 @@ protected:
 
   /// dump the scheduled Sequence.
   void dumpSchedule() const;
+  /// Print execution trace of the schedule top-down or bottom-up.
+  void dumpScheduleTraceTopDown() const;
+  void dumpScheduleTraceBottomUp() const;
 
   // Lesser helpers...
   bool checkSchedLimit();
@@ -672,14 +677,39 @@ private:
   // scheduled instruction.
   SmallVector<unsigned, 16> ReservedCycles;
 
-  // For each PIdx, stores first index into ReservedCycles that corresponds to
-  // it.
+  /// For each PIdx, stores first index into ReservedCycles that corresponds to
+  /// it.
+  ///
+  /// For example, consider the following 3 resources (ResourceCount =
+  /// 3):
+  ///
+  ///   +------------+--------+
+  ///   |ResourceName|NumUnits|
+  ///   +------------+--------+
+  ///   |     X      |    2   |
+  ///   +------------+--------+
+  ///   |     Y      |    3   |
+  ///   +------------+--------+
+  ///   |     Z      |    1   |
+  ///   +------------+--------+
+  ///
+  /// In this case, the total number of resource instances is 6. The
+  /// vector \ref ReservedCycles will have a slot for each instance. The
+  /// vector \ref ReservedCyclesIndex will track at what index the first
+  /// instance of the resource is found in the vector of \ref
+  /// ReservedCycles:
+  ///
+  ///                              Indexes of instances in ReservedCycles
+  ///                              0   1   2   3   4  5
+  /// ReservedCyclesIndex[0] = 0; [X0, X1,
+  /// ReservedCyclesIndex[1] = 2;          Y0, Y1, Y2
+  /// ReservedCyclesIndex[2] = 5;                     Z
   SmallVector<unsigned, 16> ReservedCyclesIndex;
 
   // For each PIdx, stores the resource group IDs of its subunits
   SmallVector<APInt, 16> ResourceGroupSubUnitMasks;
 
-#ifndef NDEBUG
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
   // Remember the greatest possible stall as an upper bound on the number of
   // times we should retry the pending queue because of a hazard.
   unsigned MaxObservedStall;
@@ -800,6 +830,8 @@ public:
   /// available instruction, or NULL if there are multiple candidates.
   SUnit *pickOnlyChoice();
 
+  /// Dump the state of the information that tracks resource usage.
+  void dumpReservedCycles() const;
   void dumpScheduledState() const;
 };
 

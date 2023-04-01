@@ -20,7 +20,6 @@
 #include "clang/Frontend/Utils.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -44,7 +43,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
@@ -53,7 +51,10 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <memory>
+#include <optional>
 #include <system_error>
 using namespace clang;
 using namespace clang::driver;
@@ -134,8 +135,12 @@ struct AssemblerInvocation {
   unsigned NoExecStack : 1;
   unsigned FatalWarnings : 1;
   unsigned NoWarn : 1;
+  unsigned NoTypeCheck : 1;
   unsigned IncrementalLinkerCompatible : 1;
   unsigned EmbedBitcode : 1;
+
+  /// Whether to emit DWARF unwind info.
+  EmitDwarfUnwindType EmitDwarfUnwind;
 
   /// The name of the relocation model to use.
   std::string RelocationModel;
@@ -144,6 +149,16 @@ struct AssemblerInvocation {
   /// otherwise.
   std::string TargetABI;
 
+  /// Darwin target variant triple, the variant of the deployment target
+  /// for which the code is being compiled.
+  std::optional<llvm::Triple> DarwinTargetVariantTriple;
+
+  /// The version of the darwin target variant SDK which was used during the
+  /// compilation
+  llvm::VersionTuple DarwinTargetVariantSDKVersion;
+
+  /// The name of a file to use with \c .secure_log_unique directives.
+  std::string AsSecureLogFile;
   /// @}
 
 public:
@@ -160,10 +175,12 @@ public:
     NoExecStack = 0;
     FatalWarnings = 0;
     NoWarn = 0;
+    NoTypeCheck = 0;
     IncrementalLinkerCompatible = 0;
     Dwarf64 = 0;
     DwarfVersion = 0;
     EmbedBitcode = 0;
+    EmitDwarfUnwind = EmitDwarfUnwindType::Default;
   }
 
   static bool CreateFromArgs(AssemblerInvocation &Res,
@@ -209,6 +226,17 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
 
   // Target Options
   Opts.Triple = llvm::Triple::normalize(Args.getLastArgValue(OPT_triple));
+  if (Arg *A = Args.getLastArg(options::OPT_darwin_target_variant_triple))
+    Opts.DarwinTargetVariantTriple = llvm::Triple(A->getValue());
+  if (Arg *A = Args.getLastArg(OPT_darwin_target_variant_sdk_version_EQ)) {
+    VersionTuple Version;
+    if (Version.tryParse(A->getValue()))
+      Diags.Report(diag::err_drv_invalid_value)
+          << A->getAsString(Args) << A->getValue();
+    else
+      Opts.DarwinTargetVariantSDKVersion = Version;
+  }
+
   Opts.CPU = std::string(Args.getLastArgValue(OPT_target_cpu));
   Opts.Features = Args.getAllArgValues(OPT_target_feature);
 
@@ -227,12 +255,12 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
     Opts.CompressDebugSections =
         llvm::StringSwitch<llvm::DebugCompressionType>(A->getValue())
             .Case("none", llvm::DebugCompressionType::None)
-            .Case("zlib", llvm::DebugCompressionType::Z)
-            .Case("zlib-gnu", llvm::DebugCompressionType::GNU)
+            .Case("zlib", llvm::DebugCompressionType::Zlib)
+            .Case("zstd", llvm::DebugCompressionType::Zstd)
             .Default(llvm::DebugCompressionType::None);
   }
 
-  Opts.RelaxELFRelocations = Args.hasArg(OPT_mrelax_relocations);
+  Opts.RelaxELFRelocations = !Args.hasArg(OPT_mrelax_relocations_no);
   if (auto *DwarfFormatArg = Args.getLastArg(OPT_gdwarf64, OPT_gdwarf32))
     Opts.Dwarf64 = DwarfFormatArg->getOption().matches(OPT_gdwarf64);
   Opts.DwarfVersion = getLastArgIntValue(Args, OPT_dwarf_version_EQ, 2, Diags);
@@ -295,6 +323,7 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
   Opts.NoExecStack = Args.hasArg(OPT_mno_exec_stack);
   Opts.FatalWarnings = Args.hasArg(OPT_massembler_fatal_warnings);
   Opts.NoWarn = Args.hasArg(OPT_massembler_no_warn);
+  Opts.NoTypeCheck = Args.hasArg(OPT_mno_type_check);
   Opts.RelocationModel =
       std::string(Args.getLastArgValue(OPT_mrelocation_model, "pic"));
   Opts.TargetABI = std::string(Args.getLastArgValue(OPT_target_abi));
@@ -311,6 +340,16 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
                             .Case("marker", 1)
                             .Default(0);
   }
+
+  if (auto *A = Args.getLastArg(OPT_femit_dwarf_unwind_EQ)) {
+    Opts.EmitDwarfUnwind =
+        llvm::StringSwitch<EmitDwarfUnwindType>(A->getValue())
+            .Case("always", EmitDwarfUnwindType::Always)
+            .Case("no-compact-unwind", EmitDwarfUnwindType::NoCompactUnwind)
+            .Case("default", EmitDwarfUnwindType::Default);
+  }
+
+  Opts.AsSecureLogFile = Args.getLastArgValue(OPT_as_secure_log_file);
 
   return Success;
 }
@@ -345,8 +384,8 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
       MemoryBuffer::getFileOrSTDIN(Opts.InputFile, /*IsText=*/true);
 
   if (std::error_code EC = Buffer.getError()) {
-    Error = EC.message();
-    return Diags.Report(diag::err_fe_error_reading) << Opts.InputFile;
+    return Diags.Report(diag::err_fe_error_reading)
+           << Opts.InputFile << EC.message();
   }
 
   SourceMgr SrcMgr;
@@ -362,6 +401,9 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
   assert(MRI && "Unable to create target register info!");
 
   MCTargetOptions MCOptions;
+  MCOptions.EmitDwarfUnwind = Opts.EmitDwarfUnwind;
+  MCOptions.AsSecureLogFile = Opts.AsSecureLogFile;
+
   std::unique_ptr<MCAsmInfo> MAI(
       TheTarget->createMCAsmInfo(*MRI, Opts.Triple, MCOptions));
   assert(MAI && "Unable to create target asm info!");
@@ -408,6 +450,10 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
   // MCObjectFileInfo needs a MCContext reference in order to initialize itself.
   std::unique_ptr<MCObjectFileInfo> MOFI(
       TheTarget->createMCObjectFileInfo(Ctx, PIC));
+  if (Opts.DarwinTargetVariantTriple)
+    MOFI->setDarwinTargetVariantTriple(*Opts.DarwinTargetVariantTriple);
+  if (!Opts.DarwinTargetVariantSDKVersion.empty())
+    MOFI->setDarwinTargetVariantSDKVersion(Opts.DarwinTargetVariantSDKVersion);
   Ctx.setObjectFileInfo(MOFI.get());
 
   if (Opts.SaveTemporaryLabels)
@@ -447,6 +493,7 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
 
   MCOptions.MCNoWarn = Opts.NoWarn;
   MCOptions.MCFatalWarnings = Opts.FatalWarnings;
+  MCOptions.MCNoTypeCheck = Opts.NoTypeCheck;
   MCOptions.ABIName = Opts.TargetABI;
 
   // FIXME: There is a bit of code duplication with addPassesToEmitFile.
@@ -456,7 +503,7 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
 
     std::unique_ptr<MCCodeEmitter> CE;
     if (Opts.ShowEncoding)
-      CE.reset(TheTarget->createMCCodeEmitter(*MCII, *MRI, Ctx));
+      CE.reset(TheTarget->createMCCodeEmitter(*MCII, Ctx));
     std::unique_ptr<MCAsmBackend> MAB(
         TheTarget->createMCAsmBackend(*STI, *MRI, MCOptions));
 
@@ -476,7 +523,7 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
     }
 
     std::unique_ptr<MCCodeEmitter> CE(
-        TheTarget->createMCCodeEmitter(*MCII, *MRI, Ctx));
+        TheTarget->createMCCodeEmitter(*MCII, Ctx));
     std::unique_ptr<MCAsmBackend> MAB(
         TheTarget->createMCAsmBackend(*STI, *MRI, MCOptions));
     assert(MAB && "Unable to create asm backend!");
@@ -498,7 +545,7 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
   if (Opts.EmbedBitcode && Ctx.getObjectFileType() == MCContext::IsMachO) {
     MCSection *AsmLabel = Ctx.getMachOSection(
         "__LLVM", "__asm", MachO::S_REGULAR, 4, SectionKind::getReadOnly());
-    Str.get()->SwitchSection(AsmLabel);
+    Str.get()->switchSection(AsmLabel);
     Str.get()->emitZeros(1);
   }
 

@@ -222,7 +222,7 @@ struct OperandPosition
 struct OperandGroupPosition
     : public PredicateBase<
           OperandGroupPosition, Position,
-          std::tuple<OperationPosition *, Optional<unsigned>, bool>,
+          std::tuple<OperationPosition *, std::optional<unsigned>, bool>,
           Predicates::OperandGroupPos> {
   explicit OperandGroupPosition(const KeyTy &key);
 
@@ -231,9 +231,11 @@ struct OperandGroupPosition
     return llvm::hash_value(key);
   }
 
-  /// Returns the group number of this position. If None, this group refers to
-  /// all operands.
-  Optional<unsigned> getOperandGroupNumber() const { return std::get<1>(key); }
+  /// Returns the group number of this position. If std::nullopt, this group
+  /// refers to all operands.
+  std::optional<unsigned> getOperandGroupNumber() const {
+    return std::get<1>(key);
+  }
 
   /// Returns if the operand group has unknown size. If false, the operand group
   /// has at max one element.
@@ -298,7 +300,7 @@ struct ResultPosition
 struct ResultGroupPosition
     : public PredicateBase<
           ResultGroupPosition, Position,
-          std::tuple<OperationPosition *, Optional<unsigned>, bool>,
+          std::tuple<OperationPosition *, std::optional<unsigned>, bool>,
           Predicates::ResultGroupPos> {
   explicit ResultGroupPosition(const KeyTy &key) : Base(key) {
     parent = std::get<0>(key);
@@ -309,9 +311,11 @@ struct ResultGroupPosition
     return llvm::hash_value(key);
   }
 
-  /// Returns the group number of this position. If None, this group refers to
-  /// all results.
-  Optional<unsigned> getResultGroupNumber() const { return std::get<1>(key); }
+  /// Returns the group number of this position. If std::nullopt, this group
+  /// refers to all results.
+  std::optional<unsigned> getResultGroupNumber() const {
+    return std::get<1>(key);
+  }
 
   /// Returns if the result group has unknown size. If false, the result group
   /// has at max one element.
@@ -445,10 +449,9 @@ struct AttributeQuestion
 
 /// Apply a parameterized constraint to multiple position values.
 struct ConstraintQuestion
-    : public PredicateBase<
-          ConstraintQuestion, Qualifier,
-          std::tuple<StringRef, ArrayRef<Position *>, Attribute>,
-          Predicates::ConstraintQuestion> {
+    : public PredicateBase<ConstraintQuestion, Qualifier,
+                           std::tuple<StringRef, ArrayRef<Position *>>,
+                           Predicates::ConstraintQuestion> {
   using Base::Base;
 
   /// Return the name of the constraint.
@@ -457,17 +460,11 @@ struct ConstraintQuestion
   /// Return the arguments of the constraint.
   ArrayRef<Position *> getArgs() const { return std::get<1>(key); }
 
-  /// Return the constant parameters of the constraint.
-  ArrayAttr getParams() const {
-    return std::get<2>(key).dyn_cast_or_null<ArrayAttr>();
-  }
-
   /// Construct an instance with the given storage allocator.
   static ConstraintQuestion *construct(StorageUniquer::StorageAllocator &alloc,
                                        KeyTy key) {
     return Base::construct(alloc, KeyTy{alloc.copyInto(std::get<0>(key)),
-                                        alloc.copyInto(std::get<1>(key)),
-                                        std::get<2>(key)});
+                                        alloc.copyInto(std::get<1>(key))});
   }
 };
 
@@ -602,12 +599,12 @@ public:
   }
 
   /// Returns a position for a group of operands of the given operation.
-  Position *getOperandGroup(OperationPosition *p, Optional<unsigned> group,
+  Position *getOperandGroup(OperationPosition *p, std::optional<unsigned> group,
                             bool isVariadic) {
     return OperandGroupPosition::get(uniquer, p, group, isVariadic);
   }
   Position *getAllOperands(OperationPosition *p) {
-    return getOperandGroup(p, /*group=*/llvm::None, /*isVariadic=*/true);
+    return getOperandGroup(p, /*group=*/std::nullopt, /*isVariadic=*/true);
   }
 
   /// Returns a result position for a result of the given operation.
@@ -616,12 +613,12 @@ public:
   }
 
   /// Returns a position for a group of results of the given operation.
-  Position *getResultGroup(OperationPosition *p, Optional<unsigned> group,
+  Position *getResultGroup(OperationPosition *p, std::optional<unsigned> group,
                            bool isVariadic) {
     return ResultGroupPosition::get(uniquer, p, group, isVariadic);
   }
   Position *getAllResults(OperationPosition *p) {
-    return getResultGroup(p, /*group=*/llvm::None, /*isVariadic=*/true);
+    return getResultGroup(p, /*group=*/std::nullopt, /*isVariadic=*/true);
   }
 
   /// Returns a type position for the given entity.
@@ -667,11 +664,9 @@ public:
   }
 
   /// Create a predicate that applies a generic constraint.
-  Predicate getConstraint(StringRef name, ArrayRef<Position *> pos,
-                          Attribute params) {
-    return {
-        ConstraintQuestion::get(uniquer, std::make_tuple(name, pos, params)),
-        TrueAnswer::get(uniquer)};
+  Predicate getConstraint(StringRef name, ArrayRef<Position *> pos) {
+    return {ConstraintQuestion::get(uniquer, std::make_tuple(name, pos)),
+            TrueAnswer::get(uniquer)};
   }
 
   /// Create a predicate comparing a value with null.

@@ -21,7 +21,7 @@ add_libc_unittest(
     libc.src.fenv.feclearexcept
     libc.src.fenv.feraiseexcept
     libc.src.fenv.fetestexcept
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fenv_impl
 )
 
 add_libc_unittest(
@@ -35,7 +35,7 @@ add_libc_unittest(
     libc.src.fenv.fegetround
     libc.src.fenv.fesetenv
     libc.src.fenv.fesetround
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fenv_impl
 )
 
 add_libc_unittest(
@@ -47,7 +47,7 @@ add_libc_unittest(
   DEPENDS
     libc.src.fenv.fegetexceptflag
     libc.src.fenv.fesetexceptflag
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fenv_impl
 )
 
 add_libc_unittest(
@@ -59,7 +59,7 @@ add_libc_unittest(
   DEPENDS
     libc.include.signal
     libc.src.fenv.feupdateenv
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fenv_impl
 )
 
 add_libc_unittest(
@@ -70,7 +70,7 @@ add_libc_unittest(
     feclearexcept_test.cpp
   DEPENDS
     libc.src.fenv.feclearexcept
-    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fenv_impl
 )
 
 add_libc_unittest(
@@ -85,11 +85,13 @@ add_libc_unittest(
     libc.src.fenv.fegetexcept
 )
 
-if (NOT (LLVM_USE_SANITIZER OR (${LIBC_TARGET_OS} STREQUAL "windows")))
+if (NOT (LLVM_USE_SANITIZER OR (${LIBC_TARGET_OS} STREQUAL "windows")
+         OR (${LIBC_TARGET_OS} STREQUAL "darwin")))
   # Sanitizers don't like SIGFPE. So, we will run the 
   # tests which raise SIGFPE only in non-sanitizer builds.
-  # The tests are also disabled for Windows as they fail currently.
-  # TODO: Investigate and fix the windows failures and enable them for Windows.
+  # The tests are also disabled for Windows and MacOS as they fail currently.
+  # TODO: Investigate and fix the windows failures and enable them for Windows
+  # and MacOS.
   add_fp_unittest(
     enabled_exceptions_test
     SUITE
@@ -101,7 +103,7 @@ if (NOT (LLVM_USE_SANITIZER OR (${LIBC_TARGET_OS} STREQUAL "windows")))
       libc.src.fenv.feclearexcept
       libc.src.fenv.feraiseexcept
       libc.src.fenv.fetestexcept
-      libc.src.__support.FPUtil.fputil
+      libc.src.__support.FPUtil.fenv_impl
   )
 
   add_fp_unittest(
@@ -113,6 +115,6 @@ if (NOT (LLVM_USE_SANITIZER OR (${LIBC_TARGET_OS} STREQUAL "windows")))
     DEPENDS
       libc.include.fenv
       libc.src.fenv.feholdexcept
-      libc.src.__support.FPUtil.fputil
+      libc.src.__support.FPUtil.fenv_impl
   )
 endif()

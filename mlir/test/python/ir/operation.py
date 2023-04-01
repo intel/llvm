@@ -4,6 +4,7 @@ import gc
 import io
 import itertools
 from mlir.ir import *
+from mlir.dialects.builtin import ModuleOp
 
 
 def run(f):
@@ -14,6 +15,14 @@ def run(f):
   return f
 
 
+def expect_index_error(callback):
+  try:
+    _ = callback()
+    raise RuntimeError("Expected IndexError")
+  except IndexError:
+    pass
+
+
 # Verify iterator based traversal of the op/region/block hierarchy.
 # CHECK-LABEL: TEST: testTraverseOpRegionBlockIterators
 @run
@@ -22,7 +31,7 @@ def testTraverseOpRegionBlockIterators():
   ctx.allow_unregistered_dialects = True
   module = Module.parse(
       r"""
-    func @f1(%arg0: i32) -> i32 {
+    func.func @f1(%arg0: i32) -> i32 {
       %1 = "custom.addi"(%arg0, %arg0) : (i32, i32) -> i32
       return %1 : i32
     }
@@ -67,7 +76,7 @@ def testTraverseOpRegionBlockIterators():
   # CHECK:       REGION 0:
   # CHECK:         BLOCK 0:
   # CHECK:           OP 0: %0 = "custom.addi"
-  # CHECK:           OP 1: return
+  # CHECK:           OP 1: func.return
   walk_operations("", op)
 
 
@@ -79,7 +88,7 @@ def testTraverseOpRegionBlockIndices():
   ctx.allow_unregistered_dialects = True
   module = Module.parse(
       r"""
-    func @f1(%arg0: i32) -> i32 {
+    func.func @f1(%arg0: i32) -> i32 {
       %1 = "custom.addi"(%arg0, %arg0) : (i32, i32) -> i32
       return %1 : i32
     }
@@ -105,9 +114,9 @@ def testTraverseOpRegionBlockIndices():
   # CHECK:       REGION 0:
   # CHECK:         BLOCK 0:
   # CHECK:           OP 0: %0 = "custom.addi"
-  # CHECK:           OP 0: parent builtin.func
-  # CHECK:           OP 1: return
-  # CHECK:           OP 1: parent builtin.func
+  # CHECK:           OP 0: parent func.func
+  # CHECK:           OP 1: func.return
+  # CHECK:           OP 1: parent func.func
   walk_operations("", module.operation)
 
 
@@ -119,8 +128,8 @@ def testBlockAndRegionOwners():
   module = Module.parse(
       r"""
     builtin.module {
-      builtin.func @f() {
-        std.return
+      func.func @f() {
+        func.return
       }
     }
   """, ctx)
@@ -139,7 +148,7 @@ def testBlockArgumentList():
   with Context() as ctx:
     module = Module.parse(
         r"""
-      func @f1(%arg0: i32, %arg1: f64, %arg2: index) {
+      func.func @f1(%arg0: i32, %arg1: f64, %arg2: index) {
         return
       }
     """, ctx)
@@ -177,6 +186,19 @@ def testBlockArgumentList():
     for t in entry_block.arguments.types:
       print("Type: ", t)
 
+    # Check that slicing and type access compose.
+    # CHECK: Sliced type: i16
+    # CHECK: Sliced type: i24
+    for t in entry_block.arguments[1:].types:
+      print("Sliced type: ", t)
+
+    # Check that slice addition works as expected.
+    # CHECK: Argument 2, type i24
+    # CHECK: Argument 0, type i8
+    restructured = entry_block.arguments[-1:] + entry_block.arguments[:1]
+    for arg in restructured:
+      print(f"Argument {arg.arg_number}, type {arg.type}")
+
 
 # CHECK-LABEL: TEST: testOperationOperands
 @run
@@ -184,7 +206,7 @@ def testOperationOperands():
   with Context() as ctx:
     ctx.allow_unregistered_dialects = True
     module = Module.parse(r"""
-      func @f1(%arg0: i32) {
+      func.func @f1(%arg0: i32) {
         %0 = "test.producer"() : () -> i64
         "test.consumer"(%arg0, %0) : (i32, i64) -> ()
         return
@@ -207,7 +229,7 @@ def testOperationOperandsSlice():
   with Context() as ctx:
     ctx.allow_unregistered_dialects = True
     module = Module.parse(r"""
-      func @f1() {
+      func.func @f1() {
         %0 = "test.producer0"() : () -> i64
         %1 = "test.producer1"() : () -> i64
         %2 = "test.producer2"() : () -> i64
@@ -265,7 +287,7 @@ def testOperationOperandsSet():
   with Context() as ctx, Location.unknown(ctx):
     ctx.allow_unregistered_dialects = True
     module = Module.parse(r"""
-      func @f1() {
+      func.func @f1() {
         %0 = "test.producer0"() : () -> i64
         %1 = "test.producer1"() : () -> i64
         %2 = "test.producer2"() : () -> i64
@@ -306,7 +328,7 @@ def testDetachedOperation():
             "foo": StringAttr.get("foo_value"),
             "bar": StringAttr.get("bar_value"),
         })
-    # CHECK: %0:2 = "custom.op1"() ( {
+    # CHECK: %0:2 = "custom.op1"() ({
     # CHECK: }) {bar = "bar_value", foo = "foo_value"} : () -> (si32, si32)
     print(op1)
 
@@ -320,7 +342,7 @@ def testOperationInsertionPoint():
   ctx.allow_unregistered_dialects = True
   module = Module.parse(
       r"""
-    func @f1(%arg0: i32) -> i32 {
+    func.func @f1(%arg0: i32) -> i32 {
       %1 = "custom.addi"(%arg0, %arg0) : (i32, i32) -> i32
       return %1 : i32
     }
@@ -360,8 +382,8 @@ def testOperationWithRegion():
     i32 = IntegerType.get_signed(32)
     op1 = Operation.create("custom.op1", regions=1)
     block = op1.regions[0].blocks.append(i32, i32)
-    # CHECK: "custom.op1"() ( {
-    # CHECK: ^bb0(%arg0: si32, %arg1: si32):  // no predecessors
+    # CHECK: "custom.op1"() ({
+    # CHECK: ^bb0(%arg0: si32, %arg1: si32):
     # CHECK:   "custom.terminator"() : () -> ()
     # CHECK: }) : () -> ()
     terminator = Operation.create("custom.terminator")
@@ -375,7 +397,7 @@ def testOperationWithRegion():
     # TODO: Also verify accessing the terminator once both parents are nulled
     # out.
     module = Module.parse(r"""
-      func @f1(%arg0: i32) -> i32 {
+      func.func @f1(%arg0: i32) -> i32 {
         %1 = "custom.addi"(%arg0, %arg0) : (i32, i32) -> i32
         return %1 : i32
       }
@@ -397,11 +419,11 @@ def testOperationResultList():
   ctx = Context()
   module = Module.parse(
       r"""
-    func @f1() {
+    func.func @f1() {
       %0:3 = call @f2() : () -> (i32, f64, index)
       return
     }
-    func private @f2() -> (i32, f64, index)
+    func.func private @f2() -> (i32, f64, index)
   """, ctx)
   caller = module.body.operations[0]
   call = caller.regions[0].blocks[0].operations[0]
@@ -418,7 +440,9 @@ def testOperationResultList():
   for t in call.results.types:
     print(f"Result type {t}")
 
-
+  # Out of range
+  expect_index_error(lambda: call.results[3])
+  expect_index_error(lambda: call.results[-4])
 
 
 # CHECK-LABEL: TEST: testOperationResultListSlice
@@ -427,7 +451,7 @@ def testOperationResultListSlice():
   with Context() as ctx:
     ctx.allow_unregistered_dialects = True
     module = Module.parse(r"""
-      func @f1() {
+      func.func @f1() {
         "some.op"() : () -> (i1, i2, i3, i4, i5)
         return
       }
@@ -468,8 +492,6 @@ def testOperationResultListSlice():
     inverted_middle = producer.results[-2:0:-2]
     for res in inverted_middle:
       print(f"Result {res.result_number}, type {res.type}")
-
-
 
 
 # CHECK-LABEL: TEST: testOperationAttributes
@@ -526,8 +548,8 @@ def testOperationPrint():
   ctx = Context()
   module = Module.parse(
       r"""
-    func @f1(%arg0: i32) -> i32 {
-      %0 = arith.constant dense<[1, 2, 3, 4]> : tensor<4xi32>
+    func.func @f1(%arg0: i32) -> i32 {
+      %0 = arith.constant dense<[1, 2, 3, 4]> : tensor<4xi32> loc("nom")
       return %arg0 : i32
     }
   """, ctx)
@@ -545,6 +567,18 @@ def testOperationPrint():
   print(str_value.__class__)
   print(f.getvalue())
 
+  # Test roundtrip to bytecode.
+  bytecode_stream = io.BytesIO()
+  module.operation.write_bytecode(bytecode_stream)
+  bytecode = bytecode_stream.getvalue()
+  assert bytecode.startswith(b'ML\xefR'), "Expected bytecode to start with MLïR"
+  module_roundtrip = Module.parse(bytecode, ctx)
+  f = io.StringIO()
+  module_roundtrip.operation.print(file=f)
+  roundtrip_value = f.getvalue()
+  assert str_value == roundtrip_value, "Mismatch after roundtrip bytecode"
+
+
   # Test print to binary file.
   f = io.BytesIO()
   # CHECK: <class 'bytes'>
@@ -554,9 +588,13 @@ def testOperationPrint():
   print(bytes_value.__class__)
   print(bytes_value)
 
+  # Test get_asm local_scope.
+  # CHECK: constant dense<[1, 2, 3, 4]> : tensor<4xi32> loc("nom")
+  module.operation.print(enable_debug_info=True, use_local_scope=True)
+
   # Test get_asm with options.
-  # CHECK: value = opaque<"_", "0xDEADBEEF"> : tensor<4xi32>
-  # CHECK: "std.return"(%arg0) : (i32) -> () -:4:7
+  # CHECK: value = dense_resource<__elided__> : tensor<4xi32>
+  # CHECK: "func.return"(%arg0) : (i32) -> () -:4:7
   module.operation.print(
       large_elements_limit=2,
       enable_debug_info=True,
@@ -579,10 +617,10 @@ def testKnownOpView():
     """)
     print(module)
 
-    # addf should map to a known OpView class in the std dialect.
+    # addf should map to a known OpView class in the arithmetic dialect.
     # We know the OpView for it defines an 'lhs' attribute.
     addf = module.body.operations[2]
-    # CHECK: <mlir.dialects._arith_ops_gen._AddFOp object
+    # CHECK: <mlir.dialects._arith_ops_gen.AddFOp object
     print(repr(addf))
     # CHECK: "custom.f32"()
     print(addf.lhs)
@@ -644,12 +682,22 @@ def testInvalidOperationStrSoftFails():
   with Location.unknown(ctx):
     invalid_op = create_invalid_operation()
     # Verify that we fallback to the generic printer for safety.
-    # CHECK: // Verification failed, printing generic form
-    # CHECK: "builtin.module"() ( {
+    # CHECK: "builtin.module"() ({
     # CHECK: }) : () -> ()
     print(invalid_op)
-    # CHECK: .verify = False
-    print(f".verify = {invalid_op.operation.verify()}")
+    try:
+      invalid_op.verify()
+    except MLIRError as e:
+      # CHECK: Exception: <
+      # CHECK:   Verification failed:
+      # CHECK:   error: unknown: 'builtin.module' op requires one region
+      # CHECK:    note: unknown: see current operation:
+      # CHECK:     "builtin.module"() ({
+      # CHECK:     ^bb0:
+      # CHECK:     }, {
+      # CHECK:     }) : () -> ()
+      # CHECK: >
+      print(f"Exception: <{e}>")
 
 
 # CHECK-LABEL: TEST: testInvalidModuleStrSoftFails
@@ -661,7 +709,8 @@ def testInvalidModuleStrSoftFails():
     with InsertionPoint(module.body):
       invalid_op = create_invalid_operation()
     # Verify that we fallback to the generic printer for safety.
-    # CHECK: // Verification failed, printing generic form
+    # CHECK: "builtin.module"() ({
+    # CHECK: }) : () -> ()
     print(module)
 
 
@@ -672,7 +721,7 @@ def testInvalidOperationGetAsmBinarySoftFails():
   with Location.unknown(ctx):
     invalid_op = create_invalid_operation()
     # Verify that we fallback to the generic printer for safety.
-    # CHECK: b'// Verification failed, printing generic form\n
+    # CHECK: b'"builtin.module"() ({\n^bb0:\n}, {\n}) : () -> ()\n'
     print(invalid_op.get_asm(binary=True))
 
 
@@ -759,6 +808,26 @@ def testOperationErase():
       Operation.create("custom.op2")
 
 
+# CHECK-LABEL: TEST: testOperationClone
+@run
+def testOperationClone():
+  ctx = Context()
+  ctx.allow_unregistered_dialects = True
+  with Location.unknown(ctx):
+    m = Module.create()
+    with InsertionPoint(m.body):
+      op = Operation.create("custom.op1")
+
+      # CHECK: "custom.op1"
+      print(m)
+
+      clone = op.operation.clone()
+      op.operation.erase()
+
+      # CHECK: "custom.op1"
+      print(m)
+
+
 # CHECK-LABEL: TEST: testOperationLoc
 @run
 def testOperationLoc():
@@ -775,10 +844,10 @@ def testOperationLoc():
 @run
 def testModuleMerge():
   with Context():
-    m1 = Module.parse("func private @foo()")
+    m1 = Module.parse("func.func private @foo()")
     m2 = Module.parse("""
-      func private @bar()
-      func private @qux()
+      func.func private @bar()
+      func.func private @qux()
     """)
     foo = m1.body.operations[0]
     bar = m2.body.operations[0]
@@ -801,8 +870,8 @@ def testModuleMerge():
 @run
 def testAppendMoveFromAnotherBlock():
   with Context():
-    m1 = Module.parse("func private @foo()")
-    m2 = Module.parse("func private @bar()")
+    m1 = Module.parse("func.func private @foo()")
+    m2 = Module.parse("func.func private @bar()")
     func = m1.body.operations[0]
     m2.body.append(func)
 
@@ -820,7 +889,7 @@ def testAppendMoveFromAnotherBlock():
 @run
 def testDetachFromParent():
   with Context():
-    m1 = Module.parse("func private @foo()")
+    m1 = Module.parse("func.func private @foo()")
     func = m1.body.operations[0].detach_from_parent()
 
     try:
@@ -843,3 +912,31 @@ def testOperationHash():
   with ctx, Location.unknown():
     op = Operation.create("custom.op1")
     assert hash(op) == hash(op.operation)
+
+
+# CHECK-LABEL: TEST: testOperationParse
+@run
+def testOperationParse():
+  with Context() as ctx:
+    ctx.allow_unregistered_dialects = True
+
+    # Generic operation parsing.
+    m = Operation.parse('module {}')
+    o = Operation.parse('"test.foo"() : () -> ()')
+    assert isinstance(m, ModuleOp)
+    assert type(o) is OpView
+
+    # Parsing specific operation.
+    m = ModuleOp.parse('module {}')
+    assert isinstance(m, ModuleOp)
+    try:
+      ModuleOp.parse('"test.foo"() : () -> ()')
+    except MLIRError as e:
+      # CHECK: error: Expected a 'builtin.module' op, got: 'test.foo'
+      print(f"error: {e}")
+    else:
+      assert False, "expected error"
+
+    o = Operation.parse('"test.foo"() : () -> ()', source_name="my-source-string")
+    # CHECK: op_with_source_name: "test.foo"() : () -> () loc("my-source-string":1:1)
+    print(f"op_with_source_name: {o.get_asm(enable_debug_info=True, use_local_scope=True)}")

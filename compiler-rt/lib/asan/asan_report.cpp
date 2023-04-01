@@ -11,17 +11,19 @@
 // This file contains error reporting code.
 //===----------------------------------------------------------------------===//
 
+#include "asan_report.h"
+
+#include "asan_descriptions.h"
 #include "asan_errors.h"
 #include "asan_flags.h"
-#include "asan_descriptions.h"
 #include "asan_internal.h"
 #include "asan_mapping.h"
-#include "asan_report.h"
 #include "asan_scariness_score.h"
 #include "asan_stack.h"
 #include "asan_thread.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_flags.h"
+#include "sanitizer_common/sanitizer_interface_internal.h"
 #include "sanitizer_common/sanitizer_report_decorator.h"
 #include "sanitizer_common/sanitizer_stackdepot.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
@@ -349,6 +351,18 @@ void ReportBadParamsToAnnotateContiguousContainer(uptr beg, uptr end,
   ScopedInErrorReport in_report;
   ErrorBadParamsToAnnotateContiguousContainer error(
       GetCurrentTidOrInvalid(), stack, beg, end, old_mid, new_mid);
+  in_report.ReportError(error);
+}
+
+void ReportBadParamsToAnnotateDoubleEndedContiguousContainer(
+    uptr storage_beg, uptr storage_end, uptr old_container_beg,
+    uptr old_container_end, uptr new_container_beg, uptr new_container_end,
+    BufferedStackTrace *stack) {
+  ScopedInErrorReport in_report;
+  ErrorBadParamsToAnnotateDoubleEndedContiguousContainer error(
+      GetCurrentTidOrInvalid(), stack, storage_beg, storage_end,
+      old_container_beg, old_container_end, new_container_beg,
+      new_container_end);
   in_report.ReportError(error);
 }
 

@@ -8,10 +8,32 @@
 #ifndef MLIR_PASS_PASSDETAIL_H_
 #define MLIR_PASS_PASSDETAIL_H_
 
+#include "mlir/IR/Action.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/FormatVariadic.h"
 
 namespace mlir {
+/// Encapsulate the "action" of executing a single pass, used for the MLIR
+/// tracing infrastructure.
+struct PassExecutionAction : public tracing::ActionImpl<PassExecutionAction> {
+  using Base = tracing::ActionImpl<PassExecutionAction>;
+  PassExecutionAction(ArrayRef<IRUnit> irUnits, const Pass &pass)
+      : Base(irUnits), pass(pass) {}
+  static constexpr StringLiteral tag = "pass-execution-action";
+  void print(raw_ostream &os) const override;
+  const Pass &getPass() const { return pass; }
+  Operation *getOp() const {
+    ArrayRef<IRUnit> irUnits = getContextIRUnits();
+    return irUnits.empty() ? nullptr : irUnits[0].dyn_cast<Operation *>();
+  }
+
+public:
+  const Pass &pass;
+  Operation *op;
+};
+
 namespace detail {
 
 //===----------------------------------------------------------------------===//
@@ -29,8 +51,16 @@ public:
   void runOnOperation(bool verifyPasses);
   void runOnOperation() override;
 
-  /// Merge the current pass adaptor into given 'rhs'.
-  void mergeInto(OpToOpPassAdaptor &rhs);
+  /// Try to merge the current pass adaptor into 'rhs'. This will try to append
+  /// the pass managers of this adaptor into those within `rhs`, or return
+  /// failure if merging isn't possible. The main situation in which merging is
+  /// not possible is if one of the adaptors has an `any` pipeline that is not
+  /// compatible with a pass manager in the other adaptor. For example, if this
+  /// adaptor has a `func.func` pipeline and `rhs` has an `any` pipeline that
+  /// operates on FunctionOpInterface. In this situation the pipelines have a
+  /// conflict (they both want to run on the same operations), so we can't
+  /// merge.
+  LogicalResult tryMergeInto(MLIRContext *ctx, OpToOpPassAdaptor &rhs);
 
   /// Returns the pass managers held by this adaptor.
   MutableArrayRef<OpPassManager> getPassManagers() { return mgrs; }
@@ -66,9 +96,8 @@ private:
   /// parent pass manager, and is used to initialize any dynamic pass pipelines
   /// run by the given passes.
   static LogicalResult runPipeline(
-      iterator_range<OpPassManager::pass_iterator> passes, Operation *op,
-      AnalysisManager am, bool verifyPasses, unsigned parentInitGeneration,
-      PassInstrumentor *instrumentor = nullptr,
+      OpPassManager &pm, Operation *op, AnalysisManager am, bool verifyPasses,
+      unsigned parentInitGeneration, PassInstrumentor *instrumentor = nullptr,
       const PassInstrumentation::PipelineParentInfo *parentInfo = nullptr);
 
   /// A set of adaptors to run.

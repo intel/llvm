@@ -12,6 +12,7 @@
 #include "OutputSegment.h"
 #include "Target.h"
 
+#include "lld/Common/ErrorHandler.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 
@@ -40,7 +41,7 @@ template <class LP> static bool objectHasObjCSection(MemoryBufferRef mb) {
       if ((segname == segment_names::data &&
            sectname == section_names::objcCatList) ||
           (segname == segment_names::text &&
-           sectname == section_names::swift)) {
+           sectname.startswith(section_names::swift))) {
         return true;
       }
     }

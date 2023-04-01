@@ -117,7 +117,11 @@ protected:
 
   bool PrintChildrenOneLiner(bool hide_names);
 
+  bool HasReachedMaximumDepth();
+
 private:
+  bool ShouldShowName() const;
+
   ValueObject *m_orig_valobj;
   ValueObject *m_valobj;
   Stream *m_stream;

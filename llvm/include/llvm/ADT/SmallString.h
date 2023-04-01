@@ -5,9 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file defines the SmallString class.
-//
+///
+/// \file
+/// This file defines the SmallString class.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_SMALLSTRING_H
@@ -97,8 +98,9 @@ public:
     return str().equals_insensitive(RHS);
   }
 
-  /// Compare two strings; the result is -1, 0, or 1 if this string is
-  /// lexicographically less than, equal to, or greater than the \p RHS.
+  /// compare - Compare two strings; the result is negative, zero, or positive
+  /// if this string is lexicographically less than, equal to, or greater than
+  /// the \p RHS.
   int compare(StringRef RHS) const {
     return str().compare(RHS);
   }

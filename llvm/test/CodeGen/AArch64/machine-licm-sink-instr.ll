@@ -9,8 +9,8 @@ define i32 @sink_load_and_copy(i32 %n) {
 ; CHECK-LABEL: sink_load_and_copy:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    stp x30, x21, [sp, #-32]! // 16-byte Folded Spill
-; CHECK-NEXT:    stp x20, x19, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
+; CHECK-NEXT:    stp x20, x19, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    .cfi_offset w19, -8
 ; CHECK-NEXT:    .cfi_offset w20, -16
 ; CHECK-NEXT:    .cfi_offset w21, -24
@@ -42,7 +42,7 @@ entry:
   br i1 %cmp63, label %for.body.preheader, label %for.cond.cleanup
 
 for.body.preheader:
-  %0 = load i32, i32* getelementptr inbounds ([100 x i32], [100 x i32]* @A, i64 0, i64 0), align 4
+  %0 = load i32, ptr @A, align 4
   br label %for.body
 
 for.cond.cleanup:
@@ -63,8 +63,8 @@ define i32 @cant_sink_successive_call(i32 %n) {
 ; CHECK-LABEL: cant_sink_successive_call:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    stp x30, x21, [sp, #-32]! // 16-byte Folded Spill
-; CHECK-NEXT:    stp x20, x19, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
+; CHECK-NEXT:    stp x20, x19, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    .cfi_offset w19, -8
 ; CHECK-NEXT:    .cfi_offset w20, -16
 ; CHECK-NEXT:    .cfi_offset w21, -24
@@ -98,7 +98,7 @@ entry:
   br i1 %cmp63, label %for.body.preheader, label %for.cond.cleanup
 
 for.body.preheader:
-  %0 = load i32, i32* getelementptr inbounds ([100 x i32], [100 x i32]* @A, i64 0, i64 0), align 4
+  %0 = load i32, ptr @A, align 4
   %call0 = tail call i32 @_Z3usei(i32 %n)
   br label %for.body
 
@@ -116,12 +116,12 @@ for.body:
   br i1 %exitcond.not, label %for.cond.cleanup, label %for.body
 }
 
-define i32 @cant_sink_successive_store(i32* nocapture readnone %store, i32 %n) {
+define i32 @cant_sink_successive_store(ptr nocapture readnone %store, i32 %n) {
 ; CHECK-LABEL: cant_sink_successive_store:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    stp x30, x21, [sp, #-32]! // 16-byte Folded Spill
-; CHECK-NEXT:    stp x20, x19, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
+; CHECK-NEXT:    stp x20, x19, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    .cfi_offset w19, -8
 ; CHECK-NEXT:    .cfi_offset w20, -16
 ; CHECK-NEXT:    .cfi_offset w21, -24
@@ -155,8 +155,8 @@ entry:
   br i1 %cmp63, label %for.body.preheader, label %for.cond.cleanup
 
 for.body.preheader:
-  %0 = load i32, i32* getelementptr inbounds ([100 x i32], [100 x i32]* @A, i64 0, i64 0), align 4
-  store i32 42, i32* %store, align 4
+  %0 = load i32, ptr @A, align 4
+  store i32 42, ptr %store, align 4
   br label %for.body
 
 for.cond.cleanup:

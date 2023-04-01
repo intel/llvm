@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // constexpr basic_string_view(const _CharT* _s)
 //    : __data (_s), __size(_Traits::length(_s)) {}
-
 
 #include <string_view>
 #include <string>
@@ -21,7 +22,7 @@
 
 template<typename CharT>
 size_t StrLen ( const CharT *s ) {
-    size_t retVal = 0;
+    std::size_t retVal = 0;
     while ( *s != 0 ) { ++retVal; ++s; }
     return retVal;
     }
@@ -44,9 +45,11 @@ int main(int, char**) {
     test ( "A" );
     test ( "" );
 
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     test ( L"QBCDE" );
     test ( L"A" );
     test ( L"" );
+#endif
 
 #if TEST_STD_VER >= 11
     test ( u"QBCDE" );

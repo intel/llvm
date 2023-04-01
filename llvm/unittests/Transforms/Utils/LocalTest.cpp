@@ -14,6 +14,7 @@
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DIBuilder.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -595,9 +596,10 @@ TEST(Local, SimplifyVScaleWithRange) {
   Function *VScale = Intrinsic::getDeclaration(&M, Intrinsic::vscale, {Ty});
   auto *CI = CallInst::Create(VScale, {}, "vscale");
 
-  // Test that SimplifyCall won't try to query it's parent function for
+  // Test that simplifyCall won't try to query it's parent function for
   // vscale_range attributes in order to simplify llvm.vscale -> constant.
-  EXPECT_EQ(SimplifyCall(CI, SimplifyQuery(M.getDataLayout())), nullptr);
+  EXPECT_EQ(simplifyCall(CI, VScale, {}, SimplifyQuery(M.getDataLayout())),
+            nullptr);
   delete CI;
 }
 
@@ -678,7 +680,7 @@ TEST(Local, ReplaceAllDbgUsesWith) {
       call void @llvm.dbg.declare(metadata i64* %c, metadata !13, metadata !DIExpression()), !dbg !17
 
       %d = inttoptr i64 0 to i32*, !dbg !18
-      call void @llvm.dbg.addr(metadata i32* %d, metadata !20, metadata !DIExpression()), !dbg !18
+      call void @llvm.dbg.declare(metadata i32* %d, metadata !20, metadata !DIExpression()), !dbg !18
 
       %e = add <2 x i16> zeroinitializer, zeroinitializer
       call void @llvm.dbg.value(metadata <2 x i16> %e, metadata !14, metadata !DIExpression()), !dbg !18
@@ -694,7 +696,6 @@ TEST(Local, ReplaceAllDbgUsesWith) {
       ret void, !dbg !19
     }
 
-    declare void @llvm.dbg.addr(metadata, metadata, metadata)
     declare void @llvm.dbg.declare(metadata, metadata, metadata)
     declare void @llvm.dbg.value(metadata, metadata, metadata)
 
@@ -754,10 +755,7 @@ TEST(Local, ReplaceAllDbgUsesWith) {
   SmallVector<DbgVariableIntrinsic *, 2> CDbgVals;
   findDbgUsers(CDbgVals, &C);
   EXPECT_EQ(2U, CDbgVals.size());
-  EXPECT_TRUE(any_of(CDbgVals, [](DbgVariableIntrinsic *DII) {
-    return isa<DbgAddrIntrinsic>(DII);
-  }));
-  EXPECT_TRUE(any_of(CDbgVals, [](DbgVariableIntrinsic *DII) {
+  EXPECT_TRUE(all_of(CDbgVals, [](DbgVariableIntrinsic *DII) {
     return isa<DbgDeclareInst>(DII);
   }));
 
@@ -766,10 +764,7 @@ TEST(Local, ReplaceAllDbgUsesWith) {
   SmallVector<DbgVariableIntrinsic *, 2> DDbgVals;
   findDbgUsers(DDbgVals, &D);
   EXPECT_EQ(2U, DDbgVals.size());
-  EXPECT_TRUE(any_of(DDbgVals, [](DbgVariableIntrinsic *DII) {
-    return isa<DbgAddrIntrinsic>(DII);
-  }));
-  EXPECT_TRUE(any_of(DDbgVals, [](DbgVariableIntrinsic *DII) {
+  EXPECT_TRUE(all_of(DDbgVals, [](DbgVariableIntrinsic *DII) {
     return isa<DbgDeclareInst>(DII);
   }));
 
@@ -785,7 +780,7 @@ TEST(Local, ReplaceAllDbgUsesWith) {
 
   auto *FDbgVal = cast<DbgValueInst>(F_.getNextNode());
   EXPECT_EQ(FDbgVal->getNumVariableLocationOps(), 1u);
-  EXPECT_TRUE(FDbgVal->isUndef());
+  EXPECT_TRUE(FDbgVal->isKillLocation());
 
   SmallVector<DbgValueInst *, 1> FDbgVals;
   findDbgValues(FDbgVals, &F_);

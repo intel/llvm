@@ -27,29 +27,34 @@ extern llvm::cl::OptionCategory BoltRelocCategory;
 extern llvm::cl::OptionCategory BoltOutputCategory;
 extern llvm::cl::OptionCategory AggregatorCategory;
 extern llvm::cl::OptionCategory BoltInstrCategory;
-
-extern llvm::cl::SubCommand HeatmapCommand;
+extern llvm::cl::OptionCategory HeatmapCategory;
 
 extern llvm::cl::opt<unsigned> AlignText;
+extern llvm::cl::opt<unsigned> AlignFunctions;
 extern llvm::cl::opt<bool> AggregateOnly;
 extern llvm::cl::opt<unsigned> BucketsPerLine;
 extern llvm::cl::opt<bool> DiffOnly;
 extern llvm::cl::opt<bool> EnableBAT;
+extern llvm::cl::opt<bool> EqualizeBBCounts;
 extern llvm::cl::opt<bool> RemoveSymtab;
 extern llvm::cl::opt<unsigned> ExecutionCountThreshold;
 extern llvm::cl::opt<unsigned> HeatmapBlock;
-extern llvm::cl::opt<std::string> HeatmapFile;
 extern llvm::cl::opt<unsigned long long> HeatmapMaxAddress;
 extern llvm::cl::opt<unsigned long long> HeatmapMinAddress;
 extern llvm::cl::opt<bool> HotData;
 extern llvm::cl::opt<bool> HotFunctionsAtEnd;
 extern llvm::cl::opt<bool> HotText;
-extern llvm::cl::opt<std::string> InputFilename;
+extern llvm::cl::opt<bool> Hugify;
 extern llvm::cl::opt<bool> Instrument;
 extern llvm::cl::opt<std::string> OutputFilename;
 extern llvm::cl::opt<std::string> PerfData;
 extern llvm::cl::opt<bool> PrintCacheMetrics;
 extern llvm::cl::opt<bool> PrintSections;
+
+// The format to use with -o in aggregation mode (perf2bolt)
+enum ProfileFormatKind { PF_Fdata, PF_YAML };
+
+extern llvm::cl::opt<ProfileFormatKind> ProfileFormat;
 extern llvm::cl::opt<bool> SplitEH;
 extern llvm::cl::opt<bool> StrictMode;
 extern llvm::cl::opt<bool> TimeOpts;

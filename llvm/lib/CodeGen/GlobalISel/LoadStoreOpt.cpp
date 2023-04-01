@@ -73,6 +73,7 @@ void LoadStoreOpt::init(MachineFunction &MF) {
 
 void LoadStoreOpt::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<AAResultsWrapperPass>();
+  AU.setPreservesAll();
   getSelectionDAGFallbackAnalysisUsage(AU);
   MachineFunctionPass::getAnalysisUsage(AU);
 }
@@ -297,15 +298,15 @@ bool LoadStoreOpt::mergeStores(SmallVectorImpl<GStore *> &StoresToMerge) {
   const auto &LegalSizes = LegalStoreSizes[AS];
 
 #ifndef NDEBUG
-  for (auto StoreMI : StoresToMerge)
+  for (auto *StoreMI : StoresToMerge)
     assert(MRI->getType(StoreMI->getValueReg()) == OrigTy);
 #endif
 
   const auto &DL = MF->getFunction().getParent()->getDataLayout();
   bool AnyMerged = false;
   do {
-    unsigned NumPow2 = PowerOf2Floor(StoresToMerge.size());
-    unsigned MaxSizeBits = NumPow2 * OrigTy.getSizeInBits().getFixedSize();
+    unsigned NumPow2 = llvm::bit_floor(StoresToMerge.size());
+    unsigned MaxSizeBits = NumPow2 * OrigTy.getSizeInBits().getFixedValue();
     // Compute the biggest store we can generate to handle the number of stores.
     unsigned MergeSizeBits;
     for (MergeSizeBits = MaxSizeBits; MergeSizeBits > 1; MergeSizeBits /= 2) {
@@ -351,13 +352,13 @@ bool LoadStoreOpt::doSingleStoreMerge(SmallVectorImpl<GStore *> &Stores) {
   const unsigned NumStores = Stores.size();
   LLT SmallTy = MRI->getType(FirstStore->getValueReg());
   LLT WideValueTy =
-      LLT::scalar(NumStores * SmallTy.getSizeInBits().getFixedSize());
+      LLT::scalar(NumStores * SmallTy.getSizeInBits().getFixedValue());
 
   // For each store, compute pairwise merged debug locs.
-  DebugLoc MergedLoc;
-  for (unsigned AIdx = 0, BIdx = 1; BIdx < NumStores; ++AIdx, ++BIdx)
-    MergedLoc = DILocation::getMergedLocation(Stores[AIdx]->getDebugLoc(),
-                                              Stores[BIdx]->getDebugLoc());
+  DebugLoc MergedLoc = Stores.front()->getDebugLoc();
+  for (auto *Store : drop_begin(Stores))
+    MergedLoc = DILocation::getMergedLocation(MergedLoc, Store->getDebugLoc());
+
   Builder.setInstr(*Stores.back());
   Builder.setDebugLoc(MergedLoc);
 
@@ -365,7 +366,7 @@ bool LoadStoreOpt::doSingleStoreMerge(SmallVectorImpl<GStore *> &Stores) {
   // directly. Otherwise, we need to generate some instructions to merge the
   // existing values together into a wider type.
   SmallVector<APInt, 8> ConstantVals;
-  for (auto Store : Stores) {
+  for (auto *Store : Stores) {
     auto MaybeCst =
         getIConstantVRegValWithLookThrough(Store->getValueReg(), *MRI);
     if (!MaybeCst) {
@@ -399,7 +400,9 @@ bool LoadStoreOpt::doSingleStoreMerge(SmallVectorImpl<GStore *> &Stores) {
   auto NewStore =
       Builder.buildStore(WideReg, FirstStore->getPointerReg(), *WideMMO);
   (void) NewStore;
-  LLVM_DEBUG(dbgs() << "Created merged store: " << *NewStore);
+  LLVM_DEBUG(dbgs() << "Merged " << Stores.size()
+                    << " stores into merged store: " << *NewStore);
+  LLVM_DEBUG(for (auto *MI : Stores) dbgs() << "  " << *MI;);
   NumStoresMerged += Stores.size();
 
   MachineOptimizationRemarkEmitter MORE(*MF, nullptr);
@@ -414,7 +417,7 @@ bool LoadStoreOpt::doSingleStoreMerge(SmallVectorImpl<GStore *> &Stores) {
     return R;
   });
 
-  for (auto MI : Stores)
+  for (auto *MI : Stores)
     InstsToErase.insert(MI);
   return true;
 }
@@ -444,19 +447,18 @@ bool LoadStoreOpt::processMergeCandidate(StoreMergeCandidate &C) {
     for (auto AliasInfo : reverse(C.PotentialAliases)) {
       MachineInstr *PotentialAliasOp = AliasInfo.first;
       unsigned PreCheckedIdx = AliasInfo.second;
-      if (static_cast<unsigned>(Idx) > PreCheckedIdx) {
-        // Need to check this alias.
-        if (GISelAddressing::instMayAlias(CheckStore, *PotentialAliasOp, *MRI,
-                                          AA)) {
-          LLVM_DEBUG(dbgs() << "Potential alias " << *PotentialAliasOp
-                            << " detected\n");
-          return true;
-        }
-      } else {
+      if (static_cast<unsigned>(Idx) < PreCheckedIdx) {
         // Once our store index is lower than the index associated with the
         // potential alias, we know that we've already checked for this alias
         // and all of the earlier potential aliases too.
         return false;
+      }
+      // Need to check this alias.
+      if (GISelAddressing::instMayAlias(CheckStore, *PotentialAliasOp, *MRI,
+                                        AA)) {
+        LLVM_DEBUG(dbgs() << "Potential alias " << *PotentialAliasOp
+                          << " detected\n");
+        return true;
       }
     }
     return false;
@@ -506,6 +508,12 @@ bool LoadStoreOpt::addStoreToCandidate(GStore &StoreMI,
 
   // Don't allow truncating stores for now.
   if (StoreMI.getMemSizeInBits() != ValueTy.getSizeInBits())
+    return false;
+
+  // Avoid adding volatile or ordered stores to the candidate. We already have a
+  // check for this in instMayAlias() but that only get's called later between
+  // potential aliasing hazards.
+  if (!StoreMI.isSimple())
     return false;
 
   Register StoreAddr = StoreMI.getPointerReg();

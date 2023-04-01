@@ -8,6 +8,7 @@
 
 #include "NameSearchContext.h"
 #include "ClangUtil.h"
+#include "lldb/Utility/LLDBLog.h"
 
 using namespace clang;
 using namespace lldb_private;
@@ -18,8 +19,7 @@ clang::NamedDecl *NameSearchContext::AddVarDecl(const CompilerType &type) {
   if (!type.IsValid())
     return nullptr;
 
-  TypeSystemClang *lldb_ast =
-      llvm::dyn_cast<TypeSystemClang>(type.GetTypeSystem());
+  auto lldb_ast = type.GetTypeSystem().dyn_cast_or_null<TypeSystemClang>();
   if (!lldb_ast)
     return nullptr;
 
@@ -45,8 +45,7 @@ clang::NamedDecl *NameSearchContext::AddFunDecl(const CompilerType &type,
   if (m_function_types.count(type))
     return nullptr;
 
-  TypeSystemClang *lldb_ast =
-      llvm::dyn_cast<TypeSystemClang>(type.GetTypeSystem());
+  auto lldb_ast = type.GetTypeSystem().dyn_cast_or_null<TypeSystemClang>();
   if (!lldb_ast)
     return nullptr;
 
@@ -106,7 +105,7 @@ clang::NamedDecl *NameSearchContext::AddFunDecl(const CompilerType &type,
 
     func_decl->setParams(ArrayRef<ParmVarDecl *>(parm_var_decls));
   } else {
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+    Log *log = GetLog(LLDBLog::Expressions);
 
     LLDB_LOG(log, "Function type wasn't a FunctionProtoType");
   }

@@ -7,15 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/errno/libc_errno.h"
 #include "src/stdlib/strtof.h"
 
-#include "utils/UnitTest/Test.h"
+#include "test/UnitTest/Test.h"
+#include "utils/testutils/RoundingModeUtils.h"
 
-#include <errno.h>
 #include <limits.h>
 #include <stddef.h>
 
-class LlvmLibcStrToFTest : public __llvm_libc::testing::Test {
+using __llvm_libc::testutils::ForceRoundingModeTest;
+using __llvm_libc::testutils::RoundingMode;
+
+class LlvmLibcStrToFTest : public __llvm_libc::testing::Test,
+                           ForceRoundingModeTest<RoundingMode::Nearest> {
 public:
   void run_test(const char *inputString, const ptrdiff_t expectedStrLen,
                 const uint32_t expectedRawData, const int expectedErrno = 0) {
@@ -38,7 +43,7 @@ public:
     __llvm_libc::fputil::FPBits<float> expected_fp =
         __llvm_libc::fputil::FPBits<float>(expectedRawData);
 
-    errno = 0;
+    libc_errno = 0;
     float result = __llvm_libc::strtof(inputString, &str_end);
 
     __llvm_libc::fputil::FPBits<float> actual_fp =
@@ -50,7 +55,7 @@ public:
     EXPECT_EQ(actual_fp.get_sign(), expected_fp.get_sign());
     EXPECT_EQ(actual_fp.get_exponent(), expected_fp.get_exponent());
     EXPECT_EQ(actual_fp.get_mantissa(), expected_fp.get_mantissa());
-    EXPECT_EQ(errno, expectedErrno);
+    EXPECT_EQ(libc_errno, expectedErrno);
   }
 };
 

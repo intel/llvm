@@ -4,8 +4,13 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_clang_library(clangTidyCppCoreGuidelinesModule
+  AvoidCaptureDefaultWhenCapturingThisCheck.cpp
+  AvoidCapturingLambdaCoroutinesCheck.cpp
+  AvoidConstOrRefDataMembersCheck.cpp
+  AvoidDoWhileCheck.cpp
   AvoidGotoCheck.cpp
   AvoidNonConstGlobalVariablesCheck.cpp
+  AvoidReferenceCoroutineParametersCheck.cpp
   CppCoreGuidelinesTidyModule.cpp
   InitVariablesCheck.cpp
   InterfacesGlobalInitCheck.cpp
@@ -24,6 +29,7 @@ add_clang_library(clangTidyCppCoreGuidelinesModule
   ProTypeStaticCastDowncastCheck.cpp
   ProTypeUnionAccessCheck.cpp
   ProTypeVarargCheck.cpp
+  RvalueReferenceParamNotMovedCheck.cpp
   SlicingCheck.cpp
   SpecialMemberFunctionsCheck.cpp
   VirtualClassDestructorCheck.cpp

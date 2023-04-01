@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/property_list.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/sampler_impl.hpp>
+#include <sycl/property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
@@ -71,7 +71,7 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
   errcode_ret = Plugin.call_nocheck<PiApiKind::piSamplerCreate>(
       getSyclObjImpl(Context)->getHandleRef(), sprops, &resultSampler);
 
-  if (errcode_ret == PI_INVALID_OPERATION)
+  if (errcode_ret == PI_ERROR_INVALID_OPERATION)
     throw feature_not_supported("Images are not supported by this device.",
                                 errcode_ret);
 
@@ -92,5 +92,5 @@ sampler_impl::get_coordinate_normalization_mode() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

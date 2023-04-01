@@ -1,12 +1,12 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 //
-// CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
+// CHECK: #include <sycl/detail/kernel_desc.hpp>
 
 // CHECK: class wrapped_access;
 
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
+// CHECK-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // CHECK-NEXT: namespace detail {
 
 // CHECK: static constexpr
@@ -35,7 +35,7 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
 }
 
 int main() {
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> acc;
+  sycl::accessor<int, 1, sycl::access::mode::read_write> acc;
   auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
   kernel<class wrapped_access>(
       [=]() {

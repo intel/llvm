@@ -25,18 +25,14 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TokenKinds.h"
-#include "clang/Driver/Types.h"
-#include "clang/Format/Format.h"
-#include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Syntax/Tokens.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include <cstddef>
+#include <optional>
 #include <string>
 
 namespace clang {
@@ -62,8 +58,8 @@ const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
   return nullptr;
 }
 
-llvm::Optional<Path> getSourceFile(llvm::StringRef FileName,
-                                   const Tweak::Selection &Sel) {
+std::optional<Path> getSourceFile(llvm::StringRef FileName,
+                                  const Tweak::Selection &Sel) {
   assert(Sel.FS);
   if (auto Source = getCorrespondingHeaderOrSource(FileName, Sel.FS))
     return *Source;
@@ -72,8 +68,8 @@ llvm::Optional<Path> getSourceFile(llvm::StringRef FileName,
 
 // Synthesize a DeclContext for TargetNS from CurContext. TargetNS must be empty
 // for global namespace, and endwith "::" otherwise.
-// Returns None if TargetNS is not a prefix of CurContext.
-llvm::Optional<const DeclContext *>
+// Returns std::nullopt if TargetNS is not a prefix of CurContext.
+std::optional<const DeclContext *>
 findContextForNS(llvm::StringRef TargetNS, const DeclContext *CurContext) {
   assert(TargetNS.empty() || TargetNS.endswith("::"));
   // Skip any non-namespace contexts, e.g. TagDecls, functions/methods.
@@ -96,7 +92,7 @@ findContextForNS(llvm::StringRef TargetNS, const DeclContext *CurContext) {
   // If TargetNS is not a prefix of CurrentContext, there's no way to reach
   // it.
   if (!CurrentContextNS.startswith(TargetNS))
-    return llvm::None;
+    return std::nullopt;
 
   while (CurrentContextNS != TargetNS) {
     CurContext = CurContext->getParent();
@@ -190,26 +186,30 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
   // Get rid of default arguments, since they should not be specified in
   // out-of-line definition.
   for (const auto *PVD : FD->parameters()) {
-    if (PVD->hasDefaultArg()) {
-      // Deletion range initially spans the initializer, excluding the `=`.
-      auto DelRange = CharSourceRange::getTokenRange(PVD->getDefaultArgRange());
-      // Get all tokens before the default argument.
-      auto Tokens = TokBuf.expandedTokens(PVD->getSourceRange())
-                        .take_while([&SM, &DelRange](const syntax::Token &Tok) {
-                          return SM.isBeforeInTranslationUnit(
-                              Tok.location(), DelRange.getBegin());
-                        });
-      // Find the last `=` before the default arg.
+    if (!PVD->hasDefaultArg())
+      continue;
+    // Deletion range spans the initializer, usually excluding the `=`.
+    auto DelRange = CharSourceRange::getTokenRange(PVD->getDefaultArgRange());
+    // Get all tokens before the default argument.
+    auto Tokens = TokBuf.expandedTokens(PVD->getSourceRange())
+                      .take_while([&SM, &DelRange](const syntax::Token &Tok) {
+                        return SM.isBeforeInTranslationUnit(
+                            Tok.location(), DelRange.getBegin());
+                      });
+    if (TokBuf.expandedTokens(DelRange.getAsRange()).front().kind() !=
+        tok::equal) {
+      // Find the last `=` if it isn't included in the initializer, and update
+      // the DelRange to include it.
       auto Tok =
           llvm::find_if(llvm::reverse(Tokens), [](const syntax::Token &Tok) {
             return Tok.kind() == tok::equal;
           });
       assert(Tok != Tokens.rend());
       DelRange.setBegin(Tok->location());
-      if (auto Err =
-              DeclarationCleanups.add(tooling::Replacement(SM, DelRange, "")))
-        Errors = llvm::joinErrors(std::move(Errors), std::move(Err));
     }
+    if (auto Err =
+            DeclarationCleanups.add(tooling::Replacement(SM, DelRange, "")))
+      Errors = llvm::joinErrors(std::move(Errors), std::move(Err));
   }
 
   auto DelAttr = [&](const Attr *A) {
@@ -242,7 +242,7 @@ getFunctionSourceCode(const FunctionDecl *FD, llvm::StringRef TargetNamespace,
       if (Tok.kind() != Kind)
         continue;
       FoundAny = true;
-      auto Spelling = TokBuf.spelledForExpanded(llvm::makeArrayRef(Tok));
+      auto Spelling = TokBuf.spelledForExpanded(llvm::ArrayRef(Tok));
       if (!Spelling) {
         Errors = llvm::joinErrors(
             std::move(Errors),
@@ -392,11 +392,20 @@ public:
     if (Source->getTemplateSpecializationInfo())
       return false;
 
-    // Bail out in templated classes, as it is hard to spell the class name, i.e
-    // if the template parameter is unnamed.
     if (auto *MD = llvm::dyn_cast<CXXMethodDecl>(Source)) {
+      // Bail out in templated classes, as it is hard to spell the class name,
+      // i.e if the template parameter is unnamed.
       if (MD->getParent()->isTemplated())
         return false;
+
+      // The refactoring is meaningless for unnamed classes and definitions
+      // within unnamed namespaces.
+      for (const DeclContext *DC = MD->getParent(); DC; DC = DC->getParent()) {
+        if (auto *ND = llvm::dyn_cast<NamedDecl>(DC)) {
+          if (ND->getDeclName().isEmpty())
+            return false;
+        }
+      }
     }
 
     // Note that we don't check whether an implementation file exists or not in
@@ -407,12 +416,7 @@ public:
 
   Expected<Effect> apply(const Selection &Sel) override {
     const SourceManager &SM = Sel.AST->getSourceManager();
-    auto MainFileName =
-        getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM);
-    if (!MainFileName)
-      return error("Couldn't get absolute path for main file.");
-
-    auto CCFile = getSourceFile(*MainFileName, Sel);
+    auto CCFile = getSourceFile(Sel.AST->tuPath(), Sel);
 
     if (!CCFile)
       return error("Couldn't find a suitable implementation file.");

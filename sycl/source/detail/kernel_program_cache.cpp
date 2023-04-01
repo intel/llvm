@@ -10,11 +10,11 @@
 #include <detail/kernel_program_cache.hpp>
 #include <detail/plugin.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 KernelProgramCache::~KernelProgramCache() {
-  for (auto &ProgIt : MCachedPrograms) {
+  for (auto &ProgIt : MCachedPrograms.Cache) {
     ProgramWithBuildStateT &ProgWithState = ProgIt.second;
     PiProgramT *ToBeDeleted = ProgWithState.Ptr.load();
 
@@ -40,6 +40,6 @@ KernelProgramCache::~KernelProgramCache() {
     Plugin.call<PiApiKind::piProgramRelease>(ToBeDeleted);
   }
 }
-}
-}
-}
+} // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

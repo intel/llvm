@@ -1,7 +1,7 @@
-; RUN: llvm-as <%s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-as -opaque-pointers=0 <%s -o %t.bc
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o %t_4mspirv.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t_4mspirv.bc
 ; RUN: llvm-dis %t_4mspirv.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 ;
 ; CHECK-SPIRV-DAG: TypeInt [[i32:[0-9]+]] 32 0
@@ -33,11 +33,11 @@
 ; CHECK-LLVM:@__const.test.arr = internal addrspace(2) constant [3 x i32] [i32 1, i32 2, i32 3], align 4 
 ; CHECK-LLVM-DAG:@__const.test.arr2 = internal addrspace(2) constant [3 x i32] [i32 1, i32 2, i32 3], align 4 
 
-; CHECK-LLVM:%[[VAR1:.*]] = bitcast [3 x i32] addrspace(2)* @__const.test.arr to i8 addrspace(2)* 
-; CHECK-LLVM-DAG:call void @llvm.memcpy.p0i8.p2i8.i32(i8* align 4 %[[VAR0:.*]], i8 addrspace(2)* align 4 %[[VAR1]], i32 12, i1 false)
+; CHECK-LLVM:%[[VAR1:.*]] = bitcast ptr addrspace(2) @__const.test.arr to ptr addrspace(2) 
+; CHECK-LLVM-DAG:call void @llvm.memcpy.p0.p2.i32(ptr align 4 %[[VAR0:.*]], ptr addrspace(2) align 4 %[[VAR1]], i32 12, i1 false)
 
-; CHECK-LLVM:%[[VAR3:.*]] = bitcast [3 x i32] addrspace(2)* @__const.test.arr2 to i8 addrspace(2)* 
-; CHECK-LLVM-DAG:call void @llvm.memcpy.p0i8.p2i8.i32(i8* align 4 %[[VAR2:.*]], i8 addrspace(2)* align 4 %[[VAR3]], i32 12, i1 false)
+; CHECK-LLVM:%[[VAR3:.*]] = bitcast ptr addrspace(2) @__const.test.arr2 to ptr addrspace(2)
+; CHECK-LLVM-DAG:call void @llvm.memcpy.p0.p2.i32(ptr align 4 %[[VAR2:.*]], ptr addrspace(2) align 4 %[[VAR3]], i32 12, i1 false)
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"

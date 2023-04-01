@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -w -fmerge-all-constants -triple x86_64-elf-gnu -emit-llvm -o - %s -std=c++11 | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -w -fmerge-all-constants -triple x86_64-elf-gnu -emit-llvm -o - %s -std=c++11 | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -w -fmerge-all-constants -triple x86_64-elf-gnu -emit-llvm -o - %s -std=c++20 | FileCheck -check-prefix=CHECK20 %s
 
 // FIXME: The padding in all these objects should be zero-initialized.
 namespace StructUnion {
@@ -424,6 +425,7 @@ namespace DR2126 {
 // CHECK: @_ZGRN39ClassTemplateWithHiddenStaticDataMember1SIvE1aE_ = linkonce_odr hidden constant i32 5, comdat
 // CHECK: @_ZN39ClassTemplateWithHiddenStaticDataMember3useE ={{.*}} constant i32* @_ZGRN39ClassTemplateWithHiddenStaticDataMember1SIvE1aE_
 // CHECK: @_ZGRZN20InlineStaticConstRef3funEvE1i_ = linkonce_odr constant i32 10, comdat
+// CHECK20: @_ZZN12LocalVarInit4dtorEvE1a = internal constant {{.*}} i32 103
 
 // Constant initialization tests go before this point,
 // dynamic initialization tests go after.
@@ -483,6 +485,14 @@ namespace LocalVarInit {
   // CHECK-NOT: ret i32 103
   // CHECK: }
   int mutable_() { constexpr Mutable a = { f(103) }; return a.k; }
+
+#if __cplusplus >= 202002L
+  // CHECK20: define {{.*}} @_ZN12LocalVarInit4dtorEv
+  // CHECK20-NOT: call
+  // CHECK20: ret i32 103
+  struct Dtor { constexpr Dtor(int n) : k(n) {} constexpr ~Dtor() {} int k; };
+  int dtor() { constexpr Dtor a = { f(103) }; return a.k; }
+#endif
 }
 
 namespace CrossFuncLabelDiff {
@@ -531,7 +541,7 @@ namespace Unreferenced {
   const int &rt = t;
   int f(int);
   int u = f(rt);
-  // CHECK: call i32 @_ZN12Unreferenced1fEi(i32 1)
+  // CHECK: call noundef i32 @_ZN12Unreferenced1fEi(i32 noundef 1)
 }
 
 namespace InitFromConst {
@@ -549,28 +559,28 @@ namespace InitFromConst {
   constexpr int a[3] = { 1, 4, 9 };
 
   void test() {
-    // CHECK: call void @_ZN13InitFromConst7consumeIbEEvT_(i1 zeroext true)
+    // CHECK: call void @_ZN13InitFromConst7consumeIbEEvT_(i1 noundef zeroext true)
     consume(b);
 
-    // CHECK: call void @_ZN13InitFromConst7consumeIiEEvT_(i32 5)
+    // CHECK: call void @_ZN13InitFromConst7consumeIiEEvT_(i32 noundef 5)
     consume(n);
 
-    // CHECK: call void @_ZN13InitFromConst7consumeIdEEvT_(double 4.300000e+00)
+    // CHECK: call void @_ZN13InitFromConst7consumeIdEEvT_(double noundef 4.300000e+00)
     consume(d);
 
-    // CHECK: call void @_ZN13InitFromConst7consumeIRKNS_1SEEEvT_(%"struct.InitFromConst::S"* nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) @_ZN13InitFromConstL1sE)
+    // CHECK: call void @_ZN13InitFromConst7consumeIRKNS_1SEEEvT_(%"struct.InitFromConst::S"* noundef nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) @_ZN13InitFromConstL1sE)
     consume<const S&>(s);
 
-    // CHECK: call void @_ZN13InitFromConst7consumeIRKNS_1SEEEvT_(%"struct.InitFromConst::S"* nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) @_ZN13InitFromConstL1sE)
+    // CHECK: call void @_ZN13InitFromConst7consumeIRKNS_1SEEEvT_(%"struct.InitFromConst::S"* noundef nonnull align {{[0-9]+}} dereferenceable({{[0-9]+}}) @_ZN13InitFromConstL1sE)
     consume<const S&>(r);
 
-    // CHECK: call void @_ZN13InitFromConst7consumeIPKNS_1SEEEvT_(%"struct.InitFromConst::S"* @_ZN13InitFromConstL1sE)
+    // CHECK: call void @_ZN13InitFromConst7consumeIPKNS_1SEEEvT_(%"struct.InitFromConst::S"* noundef @_ZN13InitFromConstL1sE)
     consume(p);
 
     // CHECK: call void @_ZN13InitFromConst7consumeIMNS_1SEiEEvT_(i64 0)
     consume(mp);
 
-    // CHECK: call void @_ZN13InitFromConst7consumeIPKiEEvT_(i32* getelementptr inbounds ([3 x i32], [3 x i32]* @_ZN13InitFromConstL1aE, i64 0, i64 0))
+    // CHECK: call void @_ZN13InitFromConst7consumeIPKiEEvT_(i32* noundef getelementptr inbounds ([3 x i32], [3 x i32]* @_ZN13InitFromConstL1aE, i64 0, i64 0))
     consume(a);
   }
 }

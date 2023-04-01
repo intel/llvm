@@ -11,24 +11,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Passes.h"
 
 #define PASS_NAME "test-affine-data-copy"
 
 using namespace mlir;
 
-static llvm::cl::OptionCategory clOptionsCategory(PASS_NAME " options");
-
 namespace {
 
 struct TestAffineDataCopy
-    : public PassWrapper<TestAffineDataCopy, FunctionPass> {
+    : public PassWrapper<TestAffineDataCopy, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestAffineDataCopy)
+
   StringRef getArgument() const final { return PASS_NAME; }
   StringRef getDescription() const final {
     return "Tests affine data copy utility functions.";
@@ -39,7 +40,7 @@ struct TestAffineDataCopy
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect>();
   }
-  void runOnFunction() override;
+  void runOnOperation() override;
 
 private:
   Option<bool> clMemRefFilter{
@@ -55,11 +56,12 @@ private:
 
 } // namespace
 
-void TestAffineDataCopy::runOnFunction() {
+void TestAffineDataCopy::runOnOperation() {
   // Gather all AffineForOps by loop depth.
   std::vector<SmallVector<AffineForOp, 2>> depthToLoops;
-  gatherLoops(getFunction(), depthToLoops);
-  assert(!depthToLoops.empty() && "Loop nest not found");
+  gatherLoops(getOperation(), depthToLoops);
+  if (depthToLoops.empty())
+    return;
 
   // Only support tests with a single loop nest and a single innermost loop
   // for now.
@@ -131,7 +133,9 @@ void TestAffineDataCopy::runOnFunction() {
       AffineStoreOp::getCanonicalizationPatterns(patterns, &getContext());
     }
   }
-  (void)applyOpPatternsAndFold(copyOps, std::move(patterns), /*strict=*/true);
+  GreedyRewriteConfig config;
+  config.strictMode = GreedyRewriteStrictness::ExistingAndNewOps;
+  (void)applyOpPatternsAndFold(copyOps, std::move(patterns), config);
 }
 
 namespace mlir {

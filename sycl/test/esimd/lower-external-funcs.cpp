@@ -6,12 +6,12 @@
 // from the module and go through sycl-post-link. This test also checks that
 // ESIMD lowering happens for such functions as well.
 
-#include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 constexpr unsigned VL = 8;
-using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl;
+using namespace sycl::ext::intel::esimd;
 extern "C" SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void vmult2(simd<float, VL> a) {
   int i = __spirv_GlobalInvocationId_x();
   a *= i;

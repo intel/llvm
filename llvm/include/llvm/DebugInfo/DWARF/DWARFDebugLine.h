@@ -9,14 +9,11 @@
 #ifndef LLVM_DEBUGINFO_DWARF_DWARFDEBUGLINE_H
 #define LLVM_DEBUGINFO_DWARF_DWARFDEBUGLINE_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DIContext.h"
-#include "llvm/DebugInfo/DWARF/DWARFCompileUnit.h"
-#include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
-#include "llvm/DebugInfo/DWARF/DWARFRelocMap.h"
-#include "llvm/DebugInfo/DWARF/DWARFTypeUnit.h"
+#include "llvm/DebugInfo/DWARF/DWARFUnit.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/Path.h"
 #include <cstdint>
@@ -26,7 +23,6 @@
 
 namespace llvm {
 
-class DWARFUnit;
 class raw_ostream;
 
 class DWARFDebugLine {
@@ -117,7 +113,7 @@ public:
 
     bool hasFileAtIndex(uint64_t FileIndex) const;
 
-    Optional<uint64_t> getLastValidFileIndex() const;
+    std::optional<uint64_t> getLastValidFileIndex() const;
 
     bool
     getFileNameByIndex(uint64_t FileIndex, StringRef CompDir,
@@ -249,7 +245,7 @@ public:
       return Prologue.hasFileAtIndex(FileIndex);
     }
 
-    Optional<uint64_t> getLastValidFileIndex() const {
+    std::optional<uint64_t> getLastValidFileIndex() const {
       return Prologue.getLastValidFileIndex();
     }
 
@@ -270,6 +266,11 @@ public:
                                    const char *CompDir,
                                    DILineInfoSpecifier::FileLineInfoKind Kind,
                                    DILineInfo &Result) const;
+
+    /// Extracts directory name by its Entry in include directories table
+    /// in prologue. Returns true on success.
+    bool getDirectoryForEntry(const FileNameEntry &Entry,
+                              std::string &Directory) const;
 
     void dump(raw_ostream &OS, DIDumpOptions DumpOptions) const;
     void clear();
@@ -292,7 +293,7 @@ public:
   private:
     uint32_t findRowInSeq(const DWARFDebugLine::Sequence &Seq,
                           object::SectionedAddress Address) const;
-    Optional<StringRef>
+    std::optional<StringRef>
     getSourceByIndex(uint64_t FileIndex,
                      DILineInfoSpecifier::FileLineInfoKind Kind) const;
 
@@ -307,6 +308,7 @@ public:
   getOrParseLineTable(DWARFDataExtractor &DebugLineData, uint64_t Offset,
                       const DWARFContext &Ctx, const DWARFUnit *U,
                       function_ref<void(Error)> RecoverableErrorHandler);
+  void clearLineTable(uint64_t Offset);
 
   /// Helper to allow for parsing of an entire .debug_line section in sequence.
   class SectionParser {
@@ -353,6 +355,7 @@ public:
   private:
     DWARFUnit *prepareToParse(uint64_t Offset);
     void moveToNextTable(uint64_t OldOffset, const Prologue &P);
+    bool hasValidVersion(uint64_t Offset);
 
     LineToUnitMap LineToUnit;
 

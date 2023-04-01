@@ -9,12 +9,11 @@
 // <ranges>
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
-#include <ranges>
+// Check that different_from.h is self-contained
+// ADDITIONAL_COMPILE_FLAGS: -Wno-private-header
 
-#include "test_macros.h"
+#include <__concepts/different_from.h>
 
 static_assert(std::__different_from<int, char>);
 static_assert(std::__different_from<const int, char>);
@@ -27,4 +26,3 @@ static_assert(!std::__different_from<int, int&>);
 static_assert(!std::__different_from<int&, const int&>);
 static_assert(!std::__different_from<int(&)(), int()>);
 static_assert(std::__different_from<int(&)(), int(*)()>);
-

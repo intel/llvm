@@ -16,7 +16,7 @@
 
 // PGOGEN-LABEL: @_Z6throwsv()
 // PGOUSE-LABEL: @_Z6throwsv()
-// PGOGEN: store {{.*}} @[[THC]], i32 0, i32 0
+// PGOGEN: store {{.*}} @[[THC]]
 void throws() {
   // PGOGEN: store {{.*}} @[[THC]], i32 0, i32 1
   // PGOUSE: br {{.*}} !prof ![[TH1:[0-9]+]]
@@ -63,7 +63,7 @@ void throws() {
 
 // PGOGEN-LABEL: @_Z11unreachablei(i32
 // PGOUSE-LABEL: @_Z11unreachablei(i32
-// PGOGEN: store {{.*}} @[[UNC]], i32 0, i32 0
+// PGOGEN: store {{.*}} @[[UNC]]
 void unreachable(int i) {
   // PGOGEN: store {{.*}} @[[UNC]], i32 0, i32 1
   // PGOUSE: br {{.*}} !prof ![[UN1:[0-9]+]]

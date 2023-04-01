@@ -1,7 +1,8 @@
 // RUN: %libomptarget-compilexx-run-and-check-generic
 
 // Error on the gpu that crashes the host
-// UNSUPPORTED: amdgcn-amd-amdhsa-newRTL
+// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: amdgcn-amd-amdhsa-oldDriver
 
 #include <iostream>
 
@@ -28,7 +29,7 @@ int main() {
     C[I] = -9;
   }
 
-#pragma omp target data map(tofrom : C [0:N]) map(to : A [0:N], B [0:N])
+#pragma omp target data map(tofrom : C[0 : N]) map(to : A[0 : N], B[0 : N])
   {
     forall(0, N, [&](int I) { C[I] += A[I] + B[I]; });
   }

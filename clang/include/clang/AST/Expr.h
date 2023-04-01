@@ -36,6 +36,7 @@
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/TrailingObjects.h"
+#include <optional>
 
 namespace clang {
   class APValue;
@@ -523,15 +524,25 @@ public:
   /// semantically correspond to a bool.
   bool isKnownToHaveBooleanValue(bool Semantic = true) const;
 
+  /// Check whether this array fits the idiom of a flexible array member,
+  /// depending on the value of -fstrict-flex-array.
+  /// When IgnoreTemplateOrMacroSubstitution is set, it doesn't consider sizes
+  /// resulting from the substitution of a macro or a template as special sizes.
+  bool isFlexibleArrayMemberLike(
+      ASTContext &Context,
+      LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel,
+      bool IgnoreTemplateOrMacroSubstitution = false) const;
+
   /// isIntegerConstantExpr - Return the value if this expression is a valid
-  /// integer constant expression.  If not a valid i-c-e, return None and fill
-  /// in Loc (if specified) with the location of the invalid expression.
+  /// integer constant expression.  If not a valid i-c-e, return std::nullopt
+  /// and fill in Loc (if specified) with the location of the invalid
+  /// expression.
   ///
   /// Note: This does not perform the implicit conversions required by C++11
   /// [expr.const]p5.
-  Optional<llvm::APSInt> getIntegerConstantExpr(const ASTContext &Ctx,
-                                                SourceLocation *Loc = nullptr,
-                                                bool isEvaluated = true) const;
+  std::optional<llvm::APSInt>
+  getIntegerConstantExpr(const ASTContext &Ctx, SourceLocation *Loc = nullptr,
+                         bool isEvaluated = true) const;
   bool isIntegerConstantExpr(const ASTContext &Ctx,
                              SourceLocation *Loc = nullptr) const;
 
@@ -654,8 +665,8 @@ public:
                        SideEffectsKind AllowSideEffects = SE_NoSideEffects,
                        bool InConstantContext = false) const;
 
-  /// EvaluateAsFloat - Return true if this is a constant which we can fold and
-  /// convert to a fixed point value.
+  /// EvaluateAsFixedPoint - Return true if this is a constant which we can fold
+  /// and convert to a fixed point value.
   bool EvaluateAsFixedPoint(EvalResult &Result, const ASTContext &Ctx,
                             SideEffectsKind AllowSideEffects = SE_NoSideEffects,
                             bool InConstantContext = false) const;
@@ -1786,7 +1797,7 @@ class StringLiteral final
   /// * An array of getByteLength() char used to store the string data.
 
 public:
-  enum StringKind { Ascii, Wide, UTF8, UTF16, UTF32 };
+  enum StringKind { Ordinary, Wide, UTF8, UTF16, UTF32 };
 
 private:
   unsigned numTrailingObjects(OverloadToken<unsigned>) const { return 1; }
@@ -1883,7 +1894,7 @@ public:
     return static_cast<StringKind>(StringLiteralBits.Kind);
   }
 
-  bool isAscii() const { return getKind() == Ascii; }
+  bool isOrdinary() const { return getKind() == Ordinary; }
   bool isWide() const { return getKind() == Wide; }
   bool isUTF8() const { return getKind() == UTF8; }
   bool isUTF16() const { return getKind() == UTF16; }
@@ -1973,7 +1984,7 @@ public:
     LFunction, // Same as Function, but as wide string.
     FuncDName,
     FuncSig,
-    LFuncSig, // Same as FuncSig, but as as wide string
+    LFuncSig, // Same as FuncSig, but as wide string
     PrettyFunction,
     /// The same as PrettyFunction, except that the
     /// 'virtual' keyword is omitted for virtual member functions.
@@ -3062,7 +3073,7 @@ public:
   /// Compute and set dependence bits.
   void computeDependence() {
     setDependence(clang::computeDependence(
-        this, llvm::makeArrayRef(
+        this, llvm::ArrayRef(
                   reinterpret_cast<Expr **>(getTrailingStmts() + PREARGS_START),
                   getNumPreArgs())));
   }
@@ -3109,13 +3120,9 @@ public:
   /// interface.  This provides efficient reverse iteration of the
   /// subexpressions.  This is currently used for CFG construction.
   ArrayRef<Stmt *> getRawSubExprs() {
-    return llvm::makeArrayRef(getTrailingStmts(),
-                              PREARGS_START + getNumPreArgs() + getNumArgs());
+    return llvm::ArrayRef(getTrailingStmts(),
+                          PREARGS_START + getNumPreArgs() + getNumArgs());
   }
-
-  /// getNumCommas - Return the number of commas that must have been present in
-  /// this function call.
-  unsigned getNumCommas() const { return getNumArgs() ? getNumArgs() - 1 : 0; }
 
   /// Get FPOptionsOverride from trailing storage.
   FPOptionsOverride getStoredFPFeatures() const {
@@ -3180,11 +3187,7 @@ public:
     setDependence(getDependence() | ExprDependence::TypeValueInstantiation);
   }
 
-  bool isCallToStdMove() const {
-    const FunctionDecl *FD = getDirectCallee();
-    return getNumArgs() == 1 && FD && FD->isInStdNamespace() &&
-           FD->getIdentifier() && FD->getIdentifier()->isStr("move");
-  }
+  bool isCallToStdMove() const;
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() >= firstCallExprConstant &&
@@ -3549,7 +3552,6 @@ protected:
     CastExprBits.BasePathSize = BasePathSize;
     assert((CastExprBits.BasePathSize == BasePathSize) &&
            "BasePathSize overflow!");
-    setDependence(computeDependence(this));
     assert(CastConsistency());
     CastExprBits.HasFPFeatures = HasFPFeatures;
   }
@@ -3683,6 +3685,7 @@ class ImplicitCastExpr final
                    ExprValueKind VK)
       : CastExpr(ImplicitCastExprClass, ty, VK, kind, op, BasePathLength,
                  FPO.requiresTrailingStorage()) {
+    setDependence(computeDependence(this));
     if (hasStoredFPFeatures())
       *getTrailingFPFeatures() = FPO;
   }
@@ -3760,7 +3763,9 @@ protected:
                    CastKind kind, Expr *op, unsigned PathSize,
                    bool HasFPFeatures, TypeSourceInfo *writtenTy)
       : CastExpr(SC, exprTy, VK, kind, op, PathSize, HasFPFeatures),
-        TInfo(writtenTy) {}
+        TInfo(writtenTy) {
+    setDependence(computeDependence(this));
+  }
 
   /// Construct an empty explicit cast.
   ExplicitCastExpr(StmtClass SC, EmptyShell Shell, unsigned PathSize,
@@ -4063,7 +4068,7 @@ public:
   }
 
   // This is used in ASTImporter
-  FPOptionsOverride getFPFeatures(const LangOptions &LO) const {
+  FPOptionsOverride getFPFeatures() const {
     if (BinaryOperatorBits.HasFPFeatures)
       return getStoredFPFeatures();
     return FPOptionsOverride();
@@ -4732,16 +4737,18 @@ public:
 };
 
 /// Represents a function call to one of __builtin_LINE(), __builtin_COLUMN(),
-/// __builtin_FUNCTION(), or __builtin_FILE().
+/// __builtin_FUNCTION(), __builtin_FILE(), __builtin_FILE_NAME(),
+/// or __builtin_source_location().
 class SourceLocExpr final : public Expr {
   SourceLocation BuiltinLoc, RParenLoc;
   DeclContext *ParentContext;
 
 public:
-  enum IdentKind { Function, File, Line, Column };
+  enum IdentKind { Function, File, FileName, Line, Column, SourceLocStruct };
 
-  SourceLocExpr(const ASTContext &Ctx, IdentKind Type, SourceLocation BLoc,
-                SourceLocation RParenLoc, DeclContext *Context);
+  SourceLocExpr(const ASTContext &Ctx, IdentKind Type, QualType ResultTy,
+                SourceLocation BLoc, SourceLocation RParenLoc,
+                DeclContext *Context);
 
   /// Build an empty call expression.
   explicit SourceLocExpr(EmptyShell Empty) : Expr(SourceLocExprClass, Empty) {}
@@ -4758,18 +4765,19 @@ public:
     return static_cast<IdentKind>(SourceLocExprBits.Kind);
   }
 
-  bool isStringType() const {
+  bool isIntType() const {
     switch (getIdentKind()) {
     case File:
+    case FileName:
     case Function:
-      return true;
+    case SourceLocStruct:
+      return false;
     case Line:
     case Column:
-      return false;
+      return true;
     }
     llvm_unreachable("unknown source location expression kind");
   }
-  bool isIntType() const LLVM_READONLY { return !isStringType(); }
 
   /// If the SourceLocExpr has been resolved return the subexpression
   /// representing the resolved value. Otherwise return null.
@@ -4881,12 +4889,10 @@ public:
     return reinterpret_cast<Expr * const *>(InitExprs.data());
   }
 
-  ArrayRef<Expr *> inits() {
-    return llvm::makeArrayRef(getInits(), getNumInits());
-  }
+  ArrayRef<Expr *> inits() { return llvm::ArrayRef(getInits(), getNumInits()); }
 
   ArrayRef<Expr *> inits() const {
-    return llvm::makeArrayRef(getInits(), getNumInits());
+    return llvm::ArrayRef(getInits(), getNumInits());
   }
 
   const Expr *getInit(unsigned Init) const {
@@ -5628,9 +5634,7 @@ public:
     return reinterpret_cast<Expr **>(getTrailingObjects<Stmt *>());
   }
 
-  ArrayRef<Expr *> exprs() {
-    return llvm::makeArrayRef(getExprs(), getNumExprs());
-  }
+  ArrayRef<Expr *> exprs() { return llvm::ArrayRef(getExprs(), getNumExprs()); }
 
   SourceLocation getLParenLoc() const { return LParenLoc; }
   SourceLocation getRParenLoc() const { return RParenLoc; }
@@ -6481,7 +6485,7 @@ public:
 
   ArrayRef<Expr *> subExpressions() {
     auto *B = getTrailingObjects<Expr *>();
-    return llvm::makeArrayRef(B, B + NumExprs);
+    return llvm::ArrayRef(B, B + NumExprs);
   }
 
   ArrayRef<const Expr *> subExpressions() const {

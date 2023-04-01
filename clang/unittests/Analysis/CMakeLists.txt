@@ -9,6 +9,7 @@ add_clang_unittest(ClangAnalysisTests
   CloneDetectionTest.cpp
   ExprMutationAnalyzerTest.cpp
   MacroExpansionContextTest.cpp
+  UnsafeBufferUsageTest.cpp
   )
 
 clang_target_link_libraries(ClangAnalysisTests
@@ -20,12 +21,12 @@ clang_target_link_libraries(ClangAnalysisTests
   clangFrontend
   clangLex
   clangSerialization
-  clangTesting
   clangTooling
   )
 
 target_link_libraries(ClangAnalysisTests
   PRIVATE
+  clangTesting
   LLVMTestingSupport
   )
 

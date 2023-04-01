@@ -1,4 +1,4 @@
-//===- Bufferize.h - Bufferization utilities --------------------*- C++ -*-===//
+//===- Bufferize.h - Bufferization Utilities --------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,14 +9,10 @@
 // We use the term "bufferize" to mean conversion from tensor types to
 // memref types.
 //
-// Generally speaking, for each op that operates on tensor types, a conversion
-// pattern needs to be written. The infrastructure in this file assists in
-// defining these conversion patterns in a composable way.
-//
-// Bufferization conversion patterns should generally use the ordinary
-// conversion pattern classes (e.g. OpConversionPattern). A TypeConverter
-// (accessible with getTypeConverter()) is available if needed for converting
-// types.
+// Generally speaking, for each op that operates on tensor types, the
+// `BufferizableOpInterface` needs to be implemented. This file contains the
+// bufferization driver that is responsible for bufferizing the ops in the right
+// order, etc.
 //
 //===----------------------------------------------------------------------===//
 
@@ -27,6 +23,20 @@
 
 namespace mlir {
 namespace bufferization {
+
+class AnalysisState;
+struct BufferizationOptions;
+class OpFilter;
+
+/// Bufferization statistics for debugging. These can be printed after running
+/// the OneShotBufferizePass with `-mlir-pass-statistics`. See the pass
+/// definition for more details.
+struct BufferizationStatistics {
+  int64_t numBufferAlloc = 0;
+  int64_t numBufferDealloc = 0;
+  int64_t numTensorInPlace = 0;
+  int64_t numTensorOutOfPlace = 0;
+};
 
 /// A helper type converter class that automatically populates the relevant
 /// materializations and type conversions for bufferization.
@@ -51,6 +61,24 @@ void populateBufferizeMaterializationLegality(ConversionTarget &target);
 /// In particular, these are the tensor_load/buffer_cast ops.
 void populateEliminateBufferizeMaterializationsPatterns(
     BufferizeTypeConverter &typeConverter, RewritePatternSet &patterns);
+
+/// Bufferize `op` and its nested ops that implement `BufferizableOpInterface`.
+/// If `copyBeforeWrite`, buffers are duplicated and copied before any tensor
+/// use that bufferizes to a memory write.
+///
+/// Note: In the general case, it unsafe to run with `copyBeforeWrite = false`
+/// because read-after-write conflicts may materialize during bufferization.
+/// `copyBeforeWrite = false` is safe only if the input IR is guaranteed to
+/// *not* require any out-of-place bufferization.
+///
+/// Note: This function bufferizes ops without utilizing analysis results. It
+/// can be used to implement partial bufferization passes.
+LogicalResult bufferizeOp(Operation *op, const BufferizationOptions &options,
+                          bool copyBeforeWrite = true,
+                          const OpFilter *opFilter = nullptr,
+                          BufferizationStatistics *statistics = nullptr);
+
+BufferizationOptions getPartialBufferizationOptions();
 
 } // namespace bufferization
 } // namespace mlir

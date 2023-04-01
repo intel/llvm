@@ -2,9 +2,6 @@
 Test newly added SBSymbol and SBAddress APIs.
 """
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -12,8 +9,6 @@ from lldbsuite.test import lldbutil
 
 
 class SymbolAPITestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def setUp(self):
         # Call super's setUp().
@@ -52,7 +47,7 @@ class SymbolAPITestCase(TestBase):
         self.assertTrue(process, PROCESS_IS_VALID)
 
         # Frame #0 should be on self.line1.
-        self.assertEqual(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(
@@ -64,12 +59,12 @@ class SymbolAPITestCase(TestBase):
         self.assertEqual(symbol_line1.GetType(), lldb.eSymbolTypeCode)
         addr_line1 = symbol_line1.GetStartAddress()
         # And a section type of code, too.
-        self.assertTrue(addr_line1.GetSection().GetSectionType()
-                        == lldb.eSectionTypeCode)
+        self.assertEqual(addr_line1.GetSection().GetSectionType(),
+                         lldb.eSectionTypeCode)
 
         # Continue the inferior, the breakpoint 2 should be hit.
         process.Continue()
-        self.assertEqual(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         thread = lldbutil.get_stopped_thread(
             process, lldb.eStopReasonBreakpoint)
         self.assertTrue(
@@ -81,11 +76,11 @@ class SymbolAPITestCase(TestBase):
         self.assertEqual(symbol_line2.GetType(), lldb.eSymbolTypeCode)
         addr_line2 = symbol_line2.GetStartAddress()
         # And a section type of code, too.
-        self.assertTrue(addr_line2.GetSection().GetSectionType()
-                        == lldb.eSectionTypeCode)
+        self.assertEqual(addr_line2.GetSection().GetSectionType(),
+                         lldb.eSectionTypeCode)
 
         # Now verify that both addresses point to the same module.
         if self.TraceOn():
             print("UUID:", addr_line1.GetModule().GetUUIDString())
-        self.assertTrue(addr_line1.GetModule().GetUUIDString()
-                        == addr_line2.GetModule().GetUUIDString())
+        self.assertEqual(addr_line1.GetModule().GetUUIDString(),
+                         addr_line2.GetModule().GetUUIDString())

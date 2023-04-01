@@ -7,23 +7,21 @@ target triple = "armv7--linux-gnueabi"
 define void @function() {
 ; CHECK: cmp r0, #0
 ; CHECK: bxne lr
-; CHECK: vmov.i32 q8, #0xff0000
 entry:
   br i1 undef, label %vector.body, label %for.end
 
-; CHECK: vld1.32 {d18, d19}, [r0]
-; CHECK: vand q10, q9, q8
-; CHECK: vbic.i16 q9, #0xff
-; CHECK: vorr q9, q9, q10
-; CHECK: vst1.32 {d18, d19}, [r0]
+; CHECK: vld1.32 {d16, d17}, [r0]
+; CHECK: vbic.i32 q8, #0xff
+; CHECK: vorr q8, q8, q9
+; CHECK: vst1.32 {d16, d17}, [r0]
 vector.body:
-  %wide.load = load <4 x i32>, <4 x i32>* undef, align 4
+  %wide.load = load <4 x i32>, ptr undef, align 4
   %0 = and <4 x i32> %wide.load, <i32 -16711936, i32 -16711936, i32 -16711936, i32 -16711936>
   %1 = sub <4 x i32> %wide.load, zeroinitializer
   %2 = and <4 x i32> %1, <i32 16711680, i32 16711680, i32 16711680, i32 16711680>
   %3 = or <4 x i32> %0, <i32 1, i32 2, i32 3, i32 4>
   %4 = or <4 x i32> %3, %2
-  store <4 x i32> %4, <4 x i32>* undef, align 4
+  store <4 x i32> %4, ptr undef, align 4
   br label %vector.body
 
 for.end:

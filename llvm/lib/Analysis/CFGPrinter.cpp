@@ -23,7 +23,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
-#include <algorithm>
+#include "llvm/Support/GraphWriter.h"
 
 using namespace llvm;
 
@@ -325,8 +325,7 @@ bool DOTGraphTraits<DOTFuncInfo *>::isNodeHidden(const BasicBlock *Node,
         return true;
     }
   if (HideUnreachablePaths || HideDeoptimizePaths) {
-    if (isOnDeoptOrUnreachablePath.find(Node) == 
-        isOnDeoptOrUnreachablePath.end())
+    if (!isOnDeoptOrUnreachablePath.contains(Node))
       computeDeoptOrUnreachablePaths(Node->getParent());
     return isOnDeoptOrUnreachablePath[Node];
   }

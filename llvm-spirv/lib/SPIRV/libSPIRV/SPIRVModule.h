@@ -179,8 +179,8 @@ public:
   virtual void setSPIRVVersion(SPIRVWord) = 0;
   virtual void insertEntryNoId(SPIRVEntry *Entry) = 0;
 
-  void setMinSPIRVVersion(SPIRVWord Ver) {
-    setSPIRVVersion(std::max(Ver, getSPIRVVersion()));
+  void setMinSPIRVVersion(VersionNumber Ver) {
+    setSPIRVVersion(std::max(static_cast<SPIRVWord>(Ver), getSPIRVVersion()));
   }
 
   // Object creation functions
@@ -245,8 +245,7 @@ public:
   virtual void closeStructType(SPIRVTypeStruct *, bool) = 0;
   virtual SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) = 0;
   virtual SPIRVTypeJointMatrixINTEL *
-  addJointMatrixINTELType(SPIRVType *, SPIRVValue *, SPIRVValue *, SPIRVValue *,
-                          SPIRVValue *) = 0;
+  addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
   virtual SPIRVTypeVoid *addVoidType() = 0;
   virtual SPIRVType *addOpaqueGenericType(Op) = 0;
   virtual SPIRVTypeDeviceEvent *addDeviceEventType() = 0;
@@ -530,6 +529,10 @@ public:
       return SPIRVEIS_Debug;
     case DebugInfoEIS::OpenCL_DebugInfo_100:
       return SPIRVEIS_OpenCL_DebugInfo_100;
+    case DebugInfoEIS::NonSemantic_Shader_DebugInfo_100:
+      return SPIRVEIS_NonSemantic_Shader_DebugInfo_100;
+    case DebugInfoEIS::NonSemantic_Shader_DebugInfo_200:
+      return SPIRVEIS_NonSemantic_Shader_DebugInfo_200;
     }
     assert(false && "Unexpected debug info EIS!");
     return SPIRVEIS_Debug;

@@ -44,7 +44,7 @@ Class Test(const void *inObject1) {
 +(id)method;
 @end
 
-id Test2() {
+id Test2(void) {
     if([Foo method]->isa)
       return (*[Foo method]).isa;
     return [Foo method]->isa;
@@ -64,10 +64,8 @@ id Test2() {
     ((id)cat)->isa = dynamicSubclass;
 }
 @end
-// CHECK-LP64: %{{.*}} = load i8*, i8** %
-// CHECK-NEXT: %{{.*}} = bitcast i8* %{{.*}} to i8**
-// CHECK-NEXT: store i8* %{{.*}}, i8** %{{.*}}
+// CHECK-LP64: %{{.*}} = load ptr, ptr %
+// CHECK-NEXT: store ptr %{{.*}}, ptr %{{.*}}
 
-// CHECK-LP32: %{{.*}} = load i8*, i8** %
-// CHECK-NEXT: %{{.*}} = bitcast i8* %{{.*}} to i8**
-// CHECK-NEXT: store i8* %{{.*}}, i8** %{{.*}}
+// CHECK-LP32: %{{.*}} = load ptr, ptr %
+// CHECK-NEXT: store ptr %{{.*}}, ptr %{{.*}}

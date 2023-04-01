@@ -1,4 +1,4 @@
-# RUN: SUPPORT_LIB=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+# RUN: env SUPPORT_LIB=%mlir_c_runner_utils \
 # RUN:   %PYTHON %s | FileCheck %s
 
 import ctypes
@@ -6,20 +6,22 @@ import errno
 import itertools
 import os
 import sys
+
 from typing import List, Callable
 
 import numpy as np
 
-import mlir.all_passes_registration
-
 from mlir import ir
 from mlir import runtime as rt
-from mlir.execution_engine import ExecutionEngine
-from mlir.passmanager import PassManager
 
+from mlir.dialects import bufferization
 from mlir.dialects import builtin
-from mlir.dialects import std
+from mlir.dialects import func
 from mlir.dialects import sparse_tensor as st
+
+_SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(_SCRIPT_PATH)
+from tools import sparse_compiler
 
 # ===----------------------------------------------------------------------=== #
 
@@ -108,7 +110,7 @@ class StressTest:
       # TODO: assert dense? assert element type is recognised by the TypeConverter?
       types.append(tp0)
       funcTp = ir.FunctionType.get(inputs=[tp0], results=[tp0])
-      funcOp = builtin.FuncOp(name='main', type=funcTp)
+      funcOp = func.FuncOp(name='main', type=funcTp)
       funcOp.attributes['llvm.emit_c_interface'] = ir.UnitAttr.get()
       with ir.InsertionPoint(funcOp.add_entry_block()):
         arg0 = funcOp.entry_block.arguments[0]
@@ -117,10 +119,10 @@ class StressTest:
         for tp in types:
           w = st.ConvertOp(tp, v)
           # Release intermediate tensors before they fall out of scope.
-          st.ReleaseOp(v.result)
+          bufferization.DeallocTensorOp(v.result)
           v = w
         self._assertEqualsRoundtripTp(v.result.type)
-        std.ReturnOp(v)
+        func.ReturnOp(v)
     return self
 
   def writeTo(self, filename):
@@ -137,13 +139,13 @@ class StressTest:
       f.write(str(self._module))
     return self
 
-  def compile(self, compiler: Callable[[ir.Module], ExecutionEngine]):
+  def compile(self, compiler):
     """Compile the ir.Module."""
     assert self._module is not None, \
         'StressTest: must call build() before compile()'
     assert self._engine is None, \
         'StressTest: must not call compile() repeatedly'
-    self._engine = compiler(self._module)
+    self._engine = compiler.compile_and_jit(self._module)
     return self
 
   def run(self, np_arg0: np.ndarray) -> np.ndarray:
@@ -160,36 +162,6 @@ class StressTest:
     mem_out = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(np_out)))
     self._engine.invoke('main', mem_out, mem_arg0)
     return rt.ranked_memref_to_numpy(mem_out[0])
-
-# ===----------------------------------------------------------------------=== #
-
-# TODO: move this boilerplate to its own module, so it can be used by
-# other tests and programs.
-class SparseCompiler:
-  """Sparse compiler passes."""
-
-  def __init__(self, sparsification_options: str, support_lib: str):
-    self._support_lib = support_lib
-    self._pipeline = (
-        f'builtin.func(linalg-generalize-named-ops,linalg-fuse-elementwise-ops),'
-        f'sparsification{{{sparsification_options}}},'
-        f'sparse-tensor-conversion,'
-        f'builtin.func(linalg-bufferize,convert-linalg-to-loops,convert-vector-to-scf),'
-        f'convert-scf-to-std,'
-        f'func-bufferize,'
-        f'tensor-constant-bufferize,'
-        f'builtin.func(tensor-bufferize,std-bufferize,finalizing-bufferize),'
-        f'convert-vector-to-llvm{{reassociate-fp-reductions=1 enable-index-optimizations=1}},'
-        f'lower-affine,'
-        f'convert-memref-to-llvm,'
-        f'convert-std-to-llvm,'
-        f'reconcile-unrealized-casts')
-    # Must be in the scope of a `with ir.Context():`
-    self._passmanager = PassManager.parse(self._pipeline)
-
-  def __call__(self, module: ir.Module) -> ExecutionEngine:
-    self._passmanager.run(module)
-    return ExecutionEngine(module, opt_level=0, shared_libs=[self._support_lib])
 
 # ===----------------------------------------------------------------------=== #
 
@@ -211,22 +183,25 @@ def main():
   # CHECK-LABEL: TEST: test_stress
   print("\nTEST: test_stress")
   with ir.Context() as ctx, ir.Location.unknown():
-    par = 0
-    vec = 0
-    vl = 1
-    e = False
+    # Disable direct sparse2sparse conversion, because it doubles the time!
+    # TODO: While direct s2s is far too slow for per-commit testing,
+    # we should have some framework ensure that we run this test with
+    # `s2s=0` on a regular basis, to ensure that it does continue to work.
+    # TODO: be sure to test s2s=0 together with singletons.
+    s2s = 1
     sparsification_options = (
-        f'parallelization-strategy={par} '
-        f'vectorization-strategy={vec} '
-        f'vl={vl} '
-        f'enable-simd-index32={e}')
-    compiler = SparseCompiler(sparsification_options, support_lib)
+        f'parallelization-strategy=none '
+        f's2s-strategy={s2s}')
+    compiler = sparse_compiler.SparseCompiler(
+        options=sparsification_options, opt_level=0, shared_libs=[support_lib])
     f64 = ir.F64Type.get()
     # Be careful about increasing this because
-    #     len(types) = 1 + 2^rank * rank! * len(bitwidths)^2
-    shape = range(2, 6)
+    #     len(types) = 1 + len(level_choices)^rank * rank! * len(bitwidths)^2
+    shape = range(2, 3)
     rank = len(shape)
     # All combinations.
+    # TODO: add singleton here too; which requires updating how `np_arg0`
+    # is initialized below.
     levels = list(itertools.product(*itertools.repeat(
       [st.DimLevelType.dense, st.DimLevelType.compressed], rank)))
     # All permutations.
@@ -239,7 +214,7 @@ def main():
       for ordering in orderings:
         for pwidth in bitwidths:
           for iwidth in bitwidths:
-            attr = st.EncodingAttr.get(level, ordering, pwidth, iwidth)
+            attr = st.EncodingAttr.get(level, ordering, None, pwidth, iwidth)
             types.append(ir.RankedTensorType.get(shape, f64, attr))
     #
     # For exhaustiveness we should have one or more StressTest, such
@@ -255,12 +230,9 @@ def main():
       size *= d
     np_arg0 = np.arange(size, dtype=tyconv.irtype_to_dtype(f64)).reshape(*shape)
     np_out = (
-        StressTest(tyconv)
-        .build(types)
-        .writeTo(sys.argv[1] if len(sys.argv) > 1 else None)
-        .compile(compiler)
-        .writeTo(sys.argv[2] if len(sys.argv) > 2 else None)
-        .run(np_arg0))
+        StressTest(tyconv).build(types).writeTo(
+            sys.argv[1] if len(sys.argv) > 1 else None).compile(compiler)
+        .writeTo(sys.argv[2] if len(sys.argv) > 2 else None).run(np_arg0))
     # CHECK: Passed
     if np.allclose(np_out, np_arg0):
       print('Passed')

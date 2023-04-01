@@ -20,7 +20,7 @@
 #include "lldb/Utility/StructuredData.h"
 #include "lldb/Utility/UUID.h"
 
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace lldb_private {
 
@@ -70,6 +70,8 @@ protected:
   void SetDYLDModule(lldb::ModuleSP &dyld_module_sp);
 
   lldb::ModuleSP GetDYLDModule();
+
+  void ClearDYLDModule();
 
   class Segment {
   public:

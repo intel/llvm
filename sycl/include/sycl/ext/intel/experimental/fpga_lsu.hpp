@@ -8,14 +8,13 @@
 #pragma once
 
 #include "fpga_utils.hpp"
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/pointers.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/pointers.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::experimental {
 
 constexpr uint8_t BURST_COALESCE = 0x1;
 constexpr uint8_t CACHE = 0x2;
@@ -50,94 +49,124 @@ template <class... _mem_access_params> class lsu final {
 public:
   lsu() = delete;
 
-  template <class... _Params, typename _T, access::address_space _space>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
+  template <typename _T, access::address_space _space,
+            access::decorated _Is_decorated, typename _propertiesT>
+  static _T load(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr,
+                 _propertiesT Properties) {
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    static constexpr auto _anchor_id =
-        _GetValue<int32_t, latency_anchor_id, _Params...>::value;
-    static constexpr auto _constraint =
-        _GetValue3<int32_t, type, int32_t, latency_constraint,
-                   _Params...>::value;
+    // Get latency control properties
+    using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_anchor_id_key,
+        detail::defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_constraint_key,
+        detail::defaultLatencyConstraintProperty>::type;
 
-    static constexpr int32_t _target_anchor = std::get<0>(_constraint);
-    static constexpr type _control_type = std::get<1>(_constraint);
-    static constexpr int32_t _cycle = std::get<2>(_constraint);
-    int32_t _type = 0; // Default: _control_type == type::none
-    if constexpr (_control_type == type::exact) {
-      _type = 1;
-    } else if constexpr (_control_type == type::max) {
-      _type = 2;
-    } else if constexpr (_control_type == type::min) {
-      _type = 3;
+    // Get latency control property values
+    static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
+    static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
+    static constexpr latency_control_type _control_type =
+        _latency_constraint_prop::type;
+    static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
+
+    int32_t _control_type_code = 0; // latency_control_type::none is default
+    if constexpr (_control_type == latency_control_type::exact) {
+      _control_type_code = 1;
+    } else if constexpr (_control_type == latency_control_type::max) {
+      _control_type_code = 2;
+    } else if constexpr (_control_type == latency_control_type::min) {
+      _control_type_code = 3;
     }
 
     return *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor,
-                                          _type, _cycle);
+                                          _control_type_code, _relative_cycle);
 #else
+    (void)Properties;
     return *Ptr;
 #endif
   }
 
-  template <class... _Params, typename _T, access::address_space _space>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
+  template <typename _T, access::address_space _space,
+            access::decorated _Is_decorated>
+  static _T load(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr) {
+    return load<_T, _space>(Ptr, oneapi::experimental::properties{});
+  }
+
+  template <typename _T, access::address_space _space,
+            access::decorated _Is_decorated, typename _propertiesT>
+  static void store(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr, _T Val,
+                    _propertiesT Properties) {
     check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    static constexpr auto _anchor_id =
-        _GetValue<int32_t, latency_anchor_id, _Params...>::value;
-    static constexpr auto _constraint =
-        _GetValue3<int32_t, type, int32_t, latency_constraint,
-                   _Params...>::value;
+    // Get latency control properties
+    using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_anchor_id_key,
+        detail::defaultLatencyAnchorIdProperty>::type;
+    using _latency_constraint_prop = typename detail::GetOrDefaultValT<
+        _propertiesT, latency_constraint_key,
+        detail::defaultLatencyConstraintProperty>::type;
 
-    static constexpr int32_t _target_anchor = std::get<0>(_constraint);
-    static constexpr type _control_type = std::get<1>(_constraint);
-    static constexpr int32_t _cycle = std::get<2>(_constraint);
-    int32_t _type = 0; // Default: _control_type == type::none
-    if constexpr (_control_type == type::exact) {
-      _type = 1;
-    } else if constexpr (_control_type == type::max) {
-      _type = 2;
-    } else if constexpr (_control_type == type::min) {
-      _type = 3;
+    // Get latency control property values
+    static constexpr int32_t _anchor_id = _latency_anchor_id_prop::value;
+    static constexpr int32_t _target_anchor = _latency_constraint_prop::target;
+    static constexpr latency_control_type _control_type =
+        _latency_constraint_prop::type;
+    static constexpr int32_t _relative_cycle = _latency_constraint_prop::cycle;
+
+    int32_t _control_type_code = 0; // latency_control_type::none is default
+    if constexpr (_control_type == latency_control_type::exact) {
+      _control_type_code = 1;
+    } else if constexpr (_control_type == latency_control_type::max) {
+      _control_type_code = 2;
+    } else if constexpr (_control_type == latency_control_type::min) {
+      _control_type_code = 3;
     }
 
-    *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor, _type,
-                                   _cycle) = Val;
+    *__latency_control_mem_wrapper((_T *)Ptr, _anchor_id, _target_anchor,
+                                   _control_type_code, _relative_cycle) = Val;
 #else
+    (void)Properties;
     *Ptr = Val;
 #endif
   }
 
+  template <typename _T, access::address_space _space,
+            access::decorated _Is_decorated>
+  static void store(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr, _T Val) {
+    store<_T, _space>(Ptr, Val, oneapi::experimental::properties{});
+  }
+
 private:
   static constexpr int32_t _burst_coalesce_val =
-      _GetValue<int32_t, burst_coalesce_impl, _mem_access_params...>::value;
+      detail::_GetValue<burst_coalesce_impl, _mem_access_params...>::value;
   static constexpr uint8_t _burst_coalesce =
       _burst_coalesce_val == 1 ? BURST_COALESCE : 0;
 
   static constexpr int32_t _cache_val =
-      _GetValue<int32_t, cache, _mem_access_params...>::value;
+      detail::_GetValue<cache, _mem_access_params...>::value;
   static constexpr uint8_t _cache = (_cache_val > 0) ? CACHE : 0;
 
   static constexpr int32_t _statically_coalesce_val =
-      _GetValue<int32_t, statically_coalesce_impl,
-                _mem_access_params...>::value;
+      detail::_GetValue<statically_coalesce_impl, _mem_access_params...>::value;
   static constexpr uint8_t _dont_statically_coalesce =
       _statically_coalesce_val == 0 ? STATICALLY_COALESCE : 0;
 
   static constexpr int32_t _prefetch_val =
-      _GetValue<int32_t, prefetch_impl, _mem_access_params...>::value;
+      detail::_GetValue<prefetch_impl, _mem_access_params...>::value;
   static constexpr uint8_t _prefetch = _prefetch_val ? PREFETCH : 0;
 
   static_assert(_cache_val >= 0, "cache size parameter must be non-negative");
 
   template <access::address_space _space> static void check_space() {
-    static_assert(_space == access::address_space::global_space ||
-                      _space == access::address_space::global_device_space ||
-                      _space == access::address_space::global_host_space,
-                  "lsu controls are only supported for global_ptr, "
-                  "device_ptr, and host_ptr objects");
+    static_assert(
+        _space == access::address_space::global_space ||
+            _space == access::address_space::ext_intel_global_device_space ||
+            _space == access::address_space::ext_intel_global_host_space,
+        "lsu controls are only supported for global_ptr, "
+        "device_ptr, and host_ptr objects");
   }
 
   static void check_load() {
@@ -170,8 +199,6 @@ private:
 #endif
 };
 
-} // namespace experimental
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::experimental
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

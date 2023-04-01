@@ -14,10 +14,9 @@
 #include "../utils/OptionsUtils.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/Diagnostic.h"
+#include <optional>
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 namespace {
 
 using namespace ::clang::ast_matchers;
@@ -35,18 +34,18 @@ void recordFixes(const VarDecl &Var, ASTContext &Context,
                  DiagnosticBuilder &Diagnostic) {
   Diagnostic << utils::fixit::changeVarDeclToReference(Var, Context);
   if (!Var.getType().isLocalConstQualified()) {
-    if (llvm::Optional<FixItHint> Fix = utils::fixit::addQualifierToVarDecl(
+    if (std::optional<FixItHint> Fix = utils::fixit::addQualifierToVarDecl(
             Var, Context, DeclSpec::TQ::TQ_const))
       Diagnostic << *Fix;
   }
 }
 
-llvm::Optional<SourceLocation> firstLocAfterNewLine(SourceLocation Loc,
-                                                    SourceManager &SM) {
+std::optional<SourceLocation> firstLocAfterNewLine(SourceLocation Loc,
+                                                   SourceManager &SM) {
   bool Invalid;
   const char *TextAfter = SM.getCharacterData(Loc, &Invalid);
   if (Invalid) {
-    return llvm::None;
+    return std::nullopt;
   }
   size_t Offset = std::strcspn(TextAfter, "\n");
   return Loc.getLocWithOffset(TextAfter[Offset] == '\0' ? Offset : Offset + 1);
@@ -58,7 +57,7 @@ void recordRemoval(const DeclStmt &Stmt, ASTContext &Context,
   // Attempt to remove trailing comments as well.
   auto Tok = utils::lexer::findNextTokenSkippingComments(Stmt.getEndLoc(), SM,
                                                          Context.getLangOpts());
-  llvm::Optional<SourceLocation> PastNewLine =
+  std::optional<SourceLocation> PastNewLine =
       firstLocAfterNewLine(Stmt.getEndLoc(), SM);
   if (Tok && PastNewLine) {
     auto BeforeFirstTokenAfterComment = Tok->getLocation().getLocWithOffset(-1);
@@ -76,7 +75,7 @@ void recordRemoval(const DeclStmt &Stmt, ASTContext &Context,
 }
 
 AST_MATCHER_FUNCTION_P(StatementMatcher, isConstRefReturningMethodCall,
-                       std::vector<std::string>, ExcludedContainerTypes) {
+                       std::vector<StringRef>, ExcludedContainerTypes) {
   // Match method call expressions where the `this` argument is only used as
   // const, this will be checked in `check()` part. This returned const
   // reference is highly likely to outlive the local const reference of the
@@ -110,7 +109,7 @@ AST_MATCHER_FUNCTION(StatementMatcher, isConstRefReturningFunctionCall) {
 }
 
 AST_MATCHER_FUNCTION_P(StatementMatcher, initializerReturnsReferenceToConst,
-                       std::vector<std::string>, ExcludedContainerTypes) {
+                       std::vector<StringRef>, ExcludedContainerTypes) {
   auto OldVarDeclRef =
       declRefExpr(to(varDecl(hasLocalStorage()).bind(OldVarDeclId)));
   return expr(
@@ -135,7 +134,7 @@ AST_MATCHER_FUNCTION_P(StatementMatcher, initializerReturnsReferenceToConst,
 // object arg or variable that is referenced is immutable as well.
 static bool isInitializingVariableImmutable(
     const VarDecl &InitializingVar, const Stmt &BlockStmt, ASTContext &Context,
-    const std::vector<std::string> &ExcludedContainerTypes) {
+    const std::vector<StringRef> &ExcludedContainerTypes) {
   if (!isOnlyUsedAsConst(InitializingVar, BlockStmt, Context))
     return false;
 
@@ -191,12 +190,12 @@ bool differentReplacedTemplateParams(const QualType &VarType,
           getSubstitutedType(VarType, Context)) {
     if (const SubstTemplateTypeParmType *InitializerTmplType =
             getSubstitutedType(InitializerType, Context)) {
-      return VarTmplType->getReplacedParameter()
-                 ->desugar()
-                 .getCanonicalType() !=
-             InitializerTmplType->getReplacedParameter()
-                 ->desugar()
-                 .getCanonicalType();
+      const TemplateTypeParmDecl *VarTTP = VarTmplType->getReplacedParameter();
+      const TemplateTypeParmDecl *InitTTP =
+          InitializerTmplType->getReplacedParameter();
+      return (VarTTP->getDepth() != InitTTP->getDepth() ||
+              VarTTP->getIndex() != InitTTP->getIndex() ||
+              VarTTP->isParameterPack() != InitTTP->isParameterPack());
     }
   }
   return false;
@@ -369,6 +368,4 @@ void UnnecessaryCopyInitialization::storeOptions(
                 utils::options::serializeStringList(ExcludedContainerTypes));
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

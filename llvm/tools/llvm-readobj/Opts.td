@@ -37,6 +37,7 @@ def section_mapping : FF<"section-mapping", "Display the section to segment mapp
 def section_mapping_EQ_false : FF<"section-mapping=false", "Don't display the section to segment mapping">, Flags<[HelpHidden]>;
 def section_relocations : FF<"section-relocations", "Display relocations for each section shown. This option has no effect for GNU style output">;
 def section_symbols : FF<"section-symbols", "Display symbols for each section shown. This option has no effect for GNU style output">;
+defm sort_symbols : Eq<"sort-symbols", "Specify the keys to sort the symbols before displaying symtab">;
 def stack_sizes : FF<"stack-sizes", "Display contents of all stack sizes sections. This option has no effect for GNU style output">;
 def stackmap : FF<"stackmap", "Display contents of stackmap section">;
 defm string_dump : Eq<"string-dump", "Display the specified section(s) as a list of strings">, MetaVarName<"<name or index>">;
@@ -54,6 +55,7 @@ def section_groups : FF<"section-groups", "Display section groups">, Group<grp_e
 def gnu_hash_table : FF<"gnu-hash-table", "Display the GNU hash table for dynamic symbols">, Group<grp_elf>;
 def hash_symbols : FF<"hash-symbols", "Display the dynamic symbols derived from the hash section">, Group<grp_elf>;
 def hash_table : FF<"hash-table", "Display .hash section">, Group<grp_elf>;
+def memtag : FF<"memtag", "Display memory tagging metadata (modes, Android notes, global descriptors)">, Group<grp_elf>;
 def needed_libs : FF<"needed-libs", "Display the needed libraries">, Group<grp_elf>;
 def notes : FF<"notes", "Display notes">, Group<grp_elf>;
 def program_headers : FF<"program-headers", "Display program headers">, Group<grp_elf>;
@@ -86,7 +88,11 @@ def coff_tls_directory : FF<"coff-tls-directory", "Display TLS directory">, Grou
 
 // XCOFF specific options.
 def grp_xcoff : OptionGroup<"kind">, HelpText<"OPTIONS (XCOFF specific)">;
-def auxiliary_header : FF<"auxiliary-header" , "display the auxiliary header">, Group<grp_xcoff>;
+def auxiliary_header : FF<"auxiliary-header" , "Display the auxiliary header">, Group<grp_xcoff>;
+def exception_section : FF<"exception-section" , "Display the exception section entries">, Group<grp_xcoff>;
+def loader_section_header : FF<"loader-section-header" , "Display the loader section header">, Group<grp_xcoff>;
+def loader_section_symbols : FF<"loader-section-symbols" , "Display the loader section symbol table">, Group<grp_xcoff>;
+def loader_section_relocations : FF<"loader-section-relocations" , "Display the loader section relocation entries">, Group<grp_xcoff>;
 
 def help : FF<"help", "Display this help">;
 def version : FF<"version", "Display the version">;

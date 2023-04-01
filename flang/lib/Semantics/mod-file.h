@@ -51,6 +51,7 @@ private:
       useExtraAttrsBuf_}; // attrs added to used entity
   llvm::raw_string_ostream decls_{declsBuf_};
   llvm::raw_string_ostream contains_{containsBuf_};
+  bool isSubmodule_{false};
 
   void WriteAll(const Scope &);
   void WriteOne(const Scope &);
@@ -72,6 +73,9 @@ private:
   void PutGeneric(const Symbol &);
   void PutUse(const Symbol &);
   void PutUseExtraAttr(Attr, const Symbol &, const Symbol &);
+  llvm::raw_ostream &PutAttrs(llvm::raw_ostream &, Attrs,
+      const std::string * = nullptr, bool = false, std::string before = ","s,
+      std::string after = ""s) const;
 };
 
 class ModFileReader {
@@ -81,8 +85,8 @@ public:
   // Find and read the module file for a module or submodule.
   // If ancestor is specified, look for a submodule of that module.
   // Return the Scope for that module/submodule or nullptr on error.
-  Scope *Read(
-      const SourceName &, Scope *ancestor = nullptr, bool silent = false);
+  Scope *Read(const SourceName &, std::optional<bool> isIntrinsic,
+      Scope *ancestor, bool silent = false);
 
 private:
   SemanticsContext &context_;

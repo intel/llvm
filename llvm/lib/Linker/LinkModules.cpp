@@ -14,7 +14,6 @@
 #include "llvm-c/Linker.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/IR/Comdat.h"
-#include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -353,8 +352,12 @@ bool ModuleLinker::linkIfNeeded(GlobalValue &GV,
         SGVar->setConstant(false);
       }
       if (DGVar->hasCommonLinkage() && SGVar->hasCommonLinkage()) {
-        MaybeAlign Align(
-            std::max(DGVar->getAlignment(), SGVar->getAlignment()));
+        MaybeAlign DAlign = DGVar->getAlign();
+        MaybeAlign SAlign = SGVar->getAlign();
+        MaybeAlign Align = std::nullopt;
+        if (DAlign || SAlign)
+          Align = std::max(DAlign.valueOrOne(), SAlign.valueOrOne());
+
         SGVar->setAlignment(Align);
         DGVar->setAlignment(Align);
       }
@@ -573,11 +576,13 @@ bool ModuleLinker::run() {
   // FIXME: Propagate Errors through to the caller instead of emitting
   // diagnostics.
   bool HasErrors = false;
-  if (Error E = Mover.move(std::move(SrcM), ValuesToLink.getArrayRef(),
-                           [this](GlobalValue &GV, IRMover::ValueAdder Add) {
-                             addLazyFor(GV, Add);
-                           },
-                           /* IsPerformingImport */ false)) {
+  if (Error E =
+          Mover.move(std::move(SrcM), ValuesToLink.getArrayRef(),
+                     IRMover::LazyCallback(
+                         [this](GlobalValue &GV, IRMover::ValueAdder Add) {
+                           addLazyFor(GV, Add);
+                         }),
+                     /* IsPerformingImport */ false)) {
     handleAllErrors(std::move(E), [&](ErrorInfoBase &EIB) {
       DstM.getContext().diagnose(LinkDiagnosticInfo(DS_Error, EIB.message()));
       HasErrors = true;

@@ -14,8 +14,6 @@ from lldbsuite.test import lldbutil
 @skipIfWindows  # The Windows platform doesn't implement DoLoadImage.
 class LoadUsingPathsTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
@@ -85,7 +83,7 @@ class LoadUsingPathsTestCase(TestBase):
 
         # Now see that we can call a function in the loaded module.
         value = thread.frames[0].EvaluateExpression("d_function()", lldb.SBExpressionOptions())
-        self.assertTrue(value.GetError().Success(), "Got a value from the expression")
+        self.assertSuccess(value.GetError(), "Got a value from the expression")
         ret_val = value.GetValueAsSigned()
         self.assertEqual(ret_val, 12345, "Got the right value")
 

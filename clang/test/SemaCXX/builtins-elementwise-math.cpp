@@ -21,6 +21,22 @@ void test_builtin_elementwise_abs() {
   static_assert(!is_const<decltype(__builtin_elementwise_abs(b))>::value);
 }
 
+void test_builtin_elementwise_add_sat() {
+  const int a = 2;
+  int b = 1;
+  static_assert(!is_const<decltype(__builtin_elementwise_add_sat(a, b))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_add_sat(b, a))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_add_sat(a, a))>::value);
+}
+
+void test_builtin_elementwise_sub_sat() {
+  const int a = 2;
+  int b = 1;
+  static_assert(!is_const<decltype(__builtin_elementwise_sub_sat(a, b))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_sub_sat(b, a))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_sub_sat(a, a))>::value);
+}
+
 void test_builtin_elementwise_max() {
   const int a = 2;
   int b = 1;
@@ -42,4 +58,53 @@ void test_builtin_elementwise_ceil() {
   float b = 42.3;
   static_assert(!is_const<decltype(__builtin_elementwise_ceil(a))>::value);
   static_assert(!is_const<decltype(__builtin_elementwise_ceil(b))>::value);
+}
+
+void test_builtin_elementwise_cos() {
+  const float a = 42.0;
+  float b = 42.3;
+  static_assert(!is_const<decltype(__builtin_elementwise_cos(a))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_cos(b))>::value);
+}
+
+void test_builtin_elementwise_exp() {
+  const float a = 42.0;
+  float b = 42.3;
+  static_assert(!is_const<decltype(__builtin_elementwise_exp(a))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_exp(b))>::value);
+}
+
+void test_builtin_elementwise_exp2() {
+  const float a = 42.0;
+  float b = 42.3;
+  static_assert(!is_const<decltype(__builtin_elementwise_exp2(a))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_exp2(b))>::value);
+}
+
+void test_builtin_elementwise_sin() {
+  const float a = 42.0;
+  float b = 42.3;
+  static_assert(!is_const<decltype(__builtin_elementwise_sin(a))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_sin(b))>::value);
+}
+
+void test_builtin_elementwise_log() {
+  const float a = 42.0;
+  float b = 42.3;
+  static_assert(!is_const<decltype(__builtin_elementwise_log(a))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_log(b))>::value);
+}
+
+void test_builtin_elementwise_log10() {
+  const float a = 42.0;
+  float b = 42.3;
+  static_assert(!is_const<decltype(__builtin_elementwise_log10(a))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_log10(b))>::value);
+}
+
+void test_builtin_elementwise_log2() {
+  const float a = 42.0;
+  float b = 42.3;
+  static_assert(!is_const<decltype(__builtin_elementwise_log2(a))>::value);
+  static_assert(!is_const<decltype(__builtin_elementwise_log2(b))>::value);
 }

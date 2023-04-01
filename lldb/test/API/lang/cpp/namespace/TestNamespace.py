@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class NamespaceBreakpointTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @expectedFailureAll(bugnumber="llvm.org/pr28548", compiler="gcc")
     @expectedFailureAll(oslist=["windows"])
     def test_breakpoints_func_auto(self):
@@ -98,8 +96,6 @@ class NamespaceBreakpointTestCase(TestBase):
 
 
 class NamespaceTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def setUp(self):
         # Call super's setUp().
@@ -224,8 +220,8 @@ class NamespaceTestCase(TestBase):
         # global namespace qualification with function in anonymous namespace
         self.expect_expr("myanonfunc(4)", result_value="8")
 
-        self.expect("p myanonfunc",
+        self.expect("expression myanonfunc",
                     patterns=['\(anonymous namespace\)::myanonfunc\(int\)'])
 
-        self.expect("p variadic_sum", patterns=[
+        self.expect("expression variadic_sum", patterns=[
                     '\(anonymous namespace\)::variadic_sum\(int, ...\)'])

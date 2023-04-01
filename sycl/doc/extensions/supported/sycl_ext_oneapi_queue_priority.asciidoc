@@ -1,0 +1,107 @@
+= sycl_ext_oneapi_queue_priority
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+[NOTE]
+====
+Although {dpcpp} supports this extension on all backends, it is currently used
+only on Level Zero. Other backends ignore the properties defined in this specification.
+====
+
+== Overview
+
+Introduce SYCL queue properties specifying the desired priority of a queue.
+These priorities are a hint and may be ignored if not supported by
+underlying backends. 
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine
+the macro `SYCL_EXT_ONEAPI_QUEUE_PRIORITY` to one of the values defined
+in the table below.  Applications can test for the existence of this macro
+to determine if the implementation supports this feature, or applications
+can test the macro's value to determine which of the extension's features
+the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== API of the extension
+
+This extension adds support for new properties for SYCL queue constructors
+taking properties list:
+
+```c++
+namespace sycl::ext::oneapi::property::queue {
+
+  class priority_normal {
+  public:
+    priority_normal() = default;
+  };
+  class priority_low {
+  public:
+    priority_low() = default;
+  };
+  class priority_high {
+  public:
+    priority_high() = default;
+  };
+
+} // namespace
+```
+The new properties hint the SYCL runtime that the queue gets the specified
+priority for execution if supported by underlying target runtimes. These
+properties are hints and may safely be ignored by an implementation.
+
+It is illegal to specify multiple differrent priority hints for the same queue.
+Doing so causes the `queue` constructor to throw a synchronous `exception` with
+the `errc::invalid` error code.

@@ -1,4 +1,4 @@
-; RUN: opt < %s -debugify -LowerWGScope -S | FileCheck %s
+; RUN: opt < %s -passes=debugify,LowerWGScope -S | FileCheck %s
 ;
 ; Check that debug info is not lost after the LowerWGScope pass.
 ; Case with additional control flow in pfwg.

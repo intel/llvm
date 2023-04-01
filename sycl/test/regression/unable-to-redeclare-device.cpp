@@ -11,7 +11,7 @@
 // This test checks that the following symbols (Device, GroupOperation) are not
 // defined in global namespace by sycl.hpp and available to user
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 enum GroupOperation {
   ADD, SUB

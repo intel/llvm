@@ -35,6 +35,9 @@
 
 namespace llvm {
 
+class ModulePass;
+class PassRegistry;
+
 class SYCLLowerWGLocalMemoryPass
     : public PassInfoMixin<SYCLLowerWGLocalMemoryPass> {
 public:

@@ -70,6 +70,10 @@ public:
                                          ~static_cast<uintptr_t>(1));
   }
 
+  /// Runs the given callback under the session lock, passing in the associated
+  /// ResourceKey. This is the safe way to associate resources with trackers.
+  template <typename Func> Error withResourceKeyDo(Func &&F);
+
   /// Remove all resources associated with this key.
   Error remove();
 
@@ -97,8 +101,9 @@ private:
 class ResourceManager {
 public:
   virtual ~ResourceManager();
-  virtual Error handleRemoveResources(ResourceKey K) = 0;
-  virtual void handleTransferResources(ResourceKey DstK, ResourceKey SrcK) = 0;
+  virtual Error handleRemoveResources(JITDylib &JD, ResourceKey K) = 0;
+  virtual void handleTransferResources(JITDylib &JD, ResourceKey DstK,
+                                       ResourceKey SrcK) = 0;
 };
 
 /// A set of symbol names (represented by SymbolStringPtrs for
@@ -192,7 +197,7 @@ public:
       std::initializer_list<SymbolStringPtr> Names,
       SymbolLookupFlags Flags = SymbolLookupFlags::RequiredSymbol) {
     Symbols.reserve(Names.size());
-    for (auto &Name : Names)
+    for (const auto &Name : Names)
       add(std::move(Name), Flags);
   }
 
@@ -331,7 +336,7 @@ public:
   SymbolNameVector getSymbolNames() const {
     SymbolNameVector Names;
     Names.reserve(Symbols.size());
-    for (auto &KV : Symbols)
+    for (const auto &KV : Symbols)
       Names.push_back(KV.first);
     return Names;
   }
@@ -339,11 +344,7 @@ public:
   /// Sort the lookup set by pointer value. This sort is fast but sensitive to
   /// allocation order and so should not be used where a consistent order is
   /// required.
-  void sortByAddress() {
-    llvm::sort(Symbols, [](const value_type &LHS, const value_type &RHS) {
-      return LHS.first < RHS.first;
-    });
-  }
+  void sortByAddress() { llvm::sort(Symbols, llvm::less_first()); }
 
   /// Sort the lookup set lexicographically. This sort is slow but the order
   /// is unaffected by allocation order.
@@ -420,12 +421,15 @@ class FailedToMaterialize : public ErrorInfo<FailedToMaterialize> {
 public:
   static char ID;
 
-  FailedToMaterialize(std::shared_ptr<SymbolDependenceMap> Symbols);
+  FailedToMaterialize(std::shared_ptr<SymbolStringPool> SSP,
+                      std::shared_ptr<SymbolDependenceMap> Symbols);
+  ~FailedToMaterialize();
   std::error_code convertToErrorCode() const override;
   void log(raw_ostream &OS) const override;
   const SymbolDependenceMap &getSymbols() const { return *Symbols; }
 
 private:
+  std::shared_ptr<SymbolStringPool> SSP;
   std::shared_ptr<SymbolDependenceMap> Symbols;
 };
 
@@ -531,8 +535,11 @@ public:
   ///        emitted or notified of an error.
   ~MaterializationResponsibility();
 
-  /// Returns the ResourceTracker for this instance.
-  template <typename Func> Error withResourceKeyDo(Func &&F) const;
+  /// Runs the given callback under the session lock, passing in the associated
+  /// ResourceKey. This is the safe way to associate resources with trackers.
+  template <typename Func> Error withResourceKeyDo(Func &&F) const {
+    return RT->withResourceKeyDo(std::forward<Func>(F));
+  }
 
   /// Returns the target JITDylib that these symbols are being materialized
   ///        into.
@@ -686,7 +693,7 @@ public:
   MaterializationUnit(Interface I)
       : SymbolFlags(std::move(I.SymbolFlags)),
         InitSymbol(std::move(I.InitSymbol)) {}
-  virtual ~MaterializationUnit() {}
+  virtual ~MaterializationUnit() = default;
 
   /// Return the name of this materialization unit. Useful for debugging
   /// output.
@@ -708,6 +715,13 @@ public:
   /// has been overridden.
   void doDiscard(const JITDylib &JD, const SymbolStringPtr &Name) {
     SymbolFlags.erase(Name);
+    if (InitSymbol == Name) {
+      DEBUG_WITH_TYPE("orc", {
+        dbgs() << "In " << getName() << ": discarding init symbol \""
+               << *Name << "\"\n";
+      });
+      InitSymbol = nullptr;
+    }
     discard(JD, std::move(Name));
   }
 
@@ -1120,32 +1134,33 @@ public:
   /// DFS order (based on linkage relationships). Each JITDylib will appear
   /// only once.
   ///
-  /// It is illegal to call this method on a defunct JITDylib and the client
-  /// is responsible for ensuring that they do not do so.
-  static std::vector<JITDylibSP> getDFSLinkOrder(ArrayRef<JITDylibSP> JDs);
+  /// If any JITDylib in the order is defunct then this method will return an
+  /// error, otherwise returns the order.
+  static Expected<std::vector<JITDylibSP>>
+  getDFSLinkOrder(ArrayRef<JITDylibSP> JDs);
 
-  /// Returns the given JITDylibs and all of their transitive dependensies in
+  /// Returns the given JITDylibs and all of their transitive dependencies in
   /// reverse DFS order (based on linkage relationships). Each JITDylib will
   /// appear only once.
   ///
-  /// It is illegal to call this method on a defunct JITDylib and the client
-  /// is responsible for ensuring that they do not do so.
-  static std::vector<JITDylibSP>
+  /// If any JITDylib in the order is defunct then this method will return an
+  /// error, otherwise returns the order.
+  static Expected<std::vector<JITDylibSP>>
   getReverseDFSLinkOrder(ArrayRef<JITDylibSP> JDs);
 
   /// Return this JITDylib and its transitive dependencies in DFS order
   /// based on linkage relationships.
   ///
-  /// It is illegal to call this method on a defunct JITDylib and the client
-  /// is responsible for ensuring that they do not do so.
-  std::vector<JITDylibSP> getDFSLinkOrder();
+  /// If any JITDylib in the order is defunct then this method will return an
+  /// error, otherwise returns the order.
+  Expected<std::vector<JITDylibSP>> getDFSLinkOrder();
 
   /// Rteurn this JITDylib and its transitive dependencies in reverse DFS order
   /// based on linkage relationships.
   ///
-  /// It is illegal to call this method on a defunct JITDylib and the client
-  /// is responsible for ensuring that they do not do so.
-  std::vector<JITDylibSP> getReverseDFSLinkOrder();
+  /// If any JITDylib in the order is defunct then this method will return an
+  /// error, otherwise returns the order.
+  Expected<std::vector<JITDylibSP>> getReverseDFSLinkOrder();
 
 private:
   using AsynchronousSymbolQuerySet =
@@ -1196,14 +1211,14 @@ private:
         : Flags(Flags), State(static_cast<uint8_t>(SymbolState::NeverSearched)),
           MaterializerAttached(false), PendingRemoval(false) {}
 
-    JITTargetAddress getAddress() const { return Addr; }
+    ExecutorAddr getAddress() const { return Addr; }
     JITSymbolFlags getFlags() const { return Flags; }
     SymbolState getState() const { return static_cast<SymbolState>(State); }
 
     bool hasMaterializerAttached() const { return MaterializerAttached; }
     bool isPendingRemoval() const { return PendingRemoval; }
 
-    void setAddress(JITTargetAddress Addr) { this->Addr = Addr; }
+    void setAddress(ExecutorAddr Addr) { this->Addr = Addr; }
     void setFlags(JITSymbolFlags Flags) { this->Flags = Flags; }
     void setState(SymbolState State) {
       assert(static_cast<uint8_t>(State) < (1 << 6) &&
@@ -1220,11 +1235,11 @@ private:
     }
 
     JITEvaluatedSymbol getSymbol() const {
-      return JITEvaluatedSymbol(Addr, Flags);
+      return JITEvaluatedSymbol(Addr.getValue(), Flags);
     }
 
   private:
-    JITTargetAddress Addr = 0;
+    ExecutorAddr Addr;
     JITSymbolFlags Flags;
     uint8_t State : 6;
     uint8_t MaterializerAttached : 1;
@@ -1309,6 +1324,10 @@ public:
   /// __dso_handle).
   virtual Error setupJITDylib(JITDylib &JD) = 0;
 
+  /// This method will be called outside the session lock each time a JITDylib
+  /// is removed to allow the Platform to remove any JITDylib-specific data.
+  virtual Error teardownJITDylib(JITDylib &JD) = 0;
+
   /// This method will be called under the ExecutionSession lock each time a
   /// MaterializationUnit is added to a JITDylib.
   virtual Error notifyAdding(ResourceTracker &RT,
@@ -1326,9 +1345,8 @@ public:
   lookupInitSymbols(ExecutionSession &ES,
                     const DenseMap<JITDylib *, SymbolLookupSet> &InitSyms);
 
-  /// Performs an async lookup for the the given symbols in each of the given
-  /// JITDylibs, calling the given handler with the compound result map once
-  /// all lookups have completed.
+  /// Performs an async lookup for the given symbols in each of the given
+  /// JITDylibs, calling the given handler once all lookups have completed.
   static void
   lookupInitSymbolsAsync(unique_function<void(Error)> OnComplete,
                          ExecutionSession &ES,
@@ -1385,13 +1403,20 @@ public:
   /// object.
   ExecutionSession(std::unique_ptr<ExecutorProcessControl> EPC);
 
+  /// Destroy an ExecutionSession. Verifies that endSession was called prior to
+  /// destruction.
+  ~ExecutionSession();
+
   /// End the session. Closes all JITDylibs and disconnects from the
-  /// executor.
+  /// executor. Clients must call this method before destroying the session.
   Error endSession();
 
   /// Get the ExecutorProcessControl object associated with this
   /// ExecutionSession.
   ExecutorProcessControl &getExecutorProcessControl() { return *EPC; }
+
+  /// Return the triple for the executor.
+  const Triple &getTargetTriple() const { return EPC->getTargetTriple(); }
 
   /// Get the SymbolStringPool for this instance.
   std::shared_ptr<SymbolStringPool> getSymbolStringPool() {
@@ -1519,7 +1544,7 @@ public:
   /// after resolution, the function will return a success value, but the
   /// error will be reported via reportErrors.
   Expected<SymbolMap> lookup(const JITDylibSearchOrder &SearchOrder,
-                             const SymbolLookupSet &Symbols,
+                             SymbolLookupSet Symbols,
                              LookupKind K = LookupKind::Static,
                              SymbolState RequiredState = SymbolState::Ready,
                              RegisterDependenciesFunction RegisterDependencies =
@@ -1756,19 +1781,18 @@ private:
       JITDispatchHandlers;
 };
 
+template <typename Func> Error ResourceTracker::withResourceKeyDo(Func &&F) {
+  return getJITDylib().getExecutionSession().runSessionLocked([&]() -> Error {
+    if (isDefunct())
+      return make_error<ResourceTrackerDefunct>(this);
+    F(getKeyUnsafe());
+    return Error::success();
+  });
+}
+
 inline ExecutionSession &
 MaterializationResponsibility::getExecutionSession() const {
   return JD.getExecutionSession();
-}
-
-template <typename Func>
-Error MaterializationResponsibility::withResourceKeyDo(Func &&F) const {
-  return JD.getExecutionSession().runSessionLocked([&]() -> Error {
-    if (RT->isDefunct())
-      return make_error<ResourceTrackerDefunct>(RT);
-    F(RT->getKeyUnsafe());
-    return Error::success();
-  });
 }
 
 template <typename GeneratorT>

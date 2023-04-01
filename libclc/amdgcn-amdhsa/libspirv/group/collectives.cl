@@ -42,8 +42,8 @@ __clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
   _CLC_DECL TYPE _Z28__spirv_SubgroupShuffleINTELI##TYPE_MANGLED##ET_S0_j(     \
       TYPE, int);                                                              \
   _CLC_DECL TYPE                                                               \
-      _Z30__spirv_SubgroupShuffleUpINTELI##TYPE_MANGLED##ET_S0_S0_j(TYPE,      \
-                                                                    int);
+      _Z30__spirv_SubgroupShuffleUpINTELI##TYPE_MANGLED##ET_S0_S0_j(           \
+          TYPE, TYPE, unsigned int);
 
 __CLC_DECLARE_SHUFFLES(char, a);
 __CLC_DECLARE_SHUFFLES(unsigned char, h);
@@ -72,7 +72,8 @@ __CLC_DECLARE_SHUFFLES(double, d);
   /* Can't use XOR/butterfly shuffles; some lanes may be inactive */           \
   for (int o = 1; o < __spirv_SubgroupMaxSize(); o *= 2) {                     \
     TYPE contribution =                                                        \
-        _Z28__spirv_SubgroupShuffleINTELI##TYPE_MANGLED##ET_S0_j(x, o);        \
+        _Z30__spirv_SubgroupShuffleUpINTELI##TYPE_MANGLED##ET_S0_S0_j(x, x,    \
+                                                                      o);      \
     bool inactive = (sg_lid < o);                                              \
     contribution = (inactive) ? IDENTITY : contribution;                       \
     x = OP(x, contribution);                                                   \
@@ -90,8 +91,8 @@ __CLC_DECLARE_SHUFFLES(double, d);
   } /* For ExclusiveScan, shift and prepend identity */                        \
   else if (op == ExclusiveScan) {                                              \
     *carry = x;                                                                \
-    result =                                                                   \
-        _Z30__spirv_SubgroupShuffleUpINTELI##TYPE_MANGLED##ET_S0_S0_j(x, 1);   \
+    result = _Z30__spirv_SubgroupShuffleUpINTELI##TYPE_MANGLED##ET_S0_S0_j(    \
+        x, x, 1);                                                              \
     if (sg_lid == 0) {                                                         \
       result = IDENTITY;                                                       \
     }                                                                          \
@@ -115,16 +116,16 @@ __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, ulong, m, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, float, f, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, double, d, 0)
 
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, char, a, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, uchar, h, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, short, s, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, ushort, t, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, int, i, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, uint, j, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, long, l, 1)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, ulong, m, 1)
-__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, float, f, 1)
-__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, double, d, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, char, a, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uchar, h, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, short, s, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ushort, t, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, int, i, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uint, j, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, long, l, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ulong, m, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, float, f, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, double, d, 1)
 
 __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, char, a, CHAR_MAX)
 __CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, h, UCHAR_MAX)
@@ -233,17 +234,16 @@ __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, ulong, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
 
-// There is no Mul group op in SPIR-V, use non-uniform variant instead.
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, char, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, uchar, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, short, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, ushort, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, int, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, uint, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, long, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, ulong, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, float, 1)
-__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, double, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, char, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uchar, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, short, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ushort, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, int, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uint, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, long, 1)
+__CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ulong, 1)
+__CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, float, 1)
+__CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, double, 1)
 
 __CLC_GROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
 __CLC_GROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, UCHAR_MAX)

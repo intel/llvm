@@ -19,6 +19,17 @@ using namespace clang::ast_matchers;
 /// Returns true when the statements are Type I clones of each other.
 static bool areStatementsIdentical(const Stmt *LHS, const Stmt *RHS,
                                    const ASTContext &Context) {
+  if (isa<Expr>(LHS) && isa<Expr>(RHS)) {
+    // If we have errors in expressions, we will be unable
+    // to accurately profile and compute hashes for each
+    // of the left and right statements.
+    const auto *LHSExpr = llvm::cast<Expr>(LHS);
+    const auto *RHSExpr = llvm::cast<Expr>(RHS);
+    if (LHSExpr->containsErrors() && RHSExpr->containsErrors()) {
+      return false;
+    }
+  }
+
   llvm::FoldingSetNodeID DataLHS, DataRHS;
   LHS->Profile(DataLHS, Context, false);
   RHS->Profile(DataRHS, Context, false);
@@ -53,9 +64,7 @@ static bool areSwitchBranchesIdentical(const SwitchBranch LHS,
   return true;
 }
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 void BranchCloneCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -132,7 +141,7 @@ void BranchCloneCheck::check(const MatchFinder::MatchResult &Result) {
         if (NumCopies == 2) {
           // We report the first occurrence only when we find the second one.
           diag(Branches[I]->getBeginLoc(),
-               "repeated branch in conditional chain");
+               "repeated branch body in conditional chain");
           SourceLocation End =
               Lexer::getLocForEndOfToken(Branches[I]->getEndLoc(), 0,
                                          *Result.SourceManager, getLangOpts());
@@ -227,6 +236,4 @@ void BranchCloneCheck::check(const MatchFinder::MatchResult &Result) {
   llvm_unreachable("No if statement and no switch statement.");
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

@@ -11,9 +11,14 @@ from lldbsuite.test import lldbutil
 
 
 class WatchLocationUsingWatchpointSetTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
+
+    # on arm64 targets, lldb has incorrect hit-count / ignore-counts
+    # for watchpoints when they are hit with multiple threads at
+    # the same time.  Tracked as llvm.org/pr49433
+    # or rdar://93863107 inside Apple.
+    def affected_by_radar_93863107(self):
+        return (self.getArchitecture() in ['arm64', 'arm64e']) and self.platformIsDarwin()
 
     def setUp(self):
         # Call super's setUp().
@@ -41,7 +46,7 @@ class WatchLocationUsingWatchpointSetTestCase(TestBase):
         self.setTearDownCleanup()
 
         exe = self.getBuildArtifact("a.out")
-        self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
+        target = self.dbg.CreateTarget(exe)
 
         # Add a breakpoint to set a watchpoint when stopped on the breakpoint.
         lldbutil.run_break_set_by_file_and_line(
@@ -76,6 +81,12 @@ class WatchLocationUsingWatchpointSetTestCase(TestBase):
         self.expect("watchpoint list -v",
                     substrs=['hit_count = 0'])
 
+        # Check the underlying SBWatchpoint.
+        watchpoint = target.GetWatchpointAtIndex(0)
+        self.assertEqual(watchpoint.GetWatchSize(), 1)
+        self.assertEqual(watchpoint.GetHitCount(), 0)
+        self.assertEqual(watchpoint.GetWatchSpec(), "g_char_ptr + 7")
+
         self.runCmd("process continue")
 
         # We should be stopped again due to the watchpoint (write type), but
@@ -102,7 +113,9 @@ class WatchLocationUsingWatchpointSetTestCase(TestBase):
         # stopped on a watchpoint.
         threads = lldbutil.get_stopped_threads(
             self.process(), lldb.eStopReasonWatchpoint)
-        self.expect("watchpoint list -v",
-                    substrs=['hit_count = %d' % len(threads)])
+
+        if not self.affected_by_radar_93863107():
+          self.expect("watchpoint list -v",
+                      substrs=['hit_count = %d' % len(threads)])
 
         self.runCmd("thread backtrace all")

@@ -16,9 +16,9 @@
 #include "OSTargets.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 namespace targets {
@@ -50,7 +50,6 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
   } ArchDefineTypes;
 
   ArchDefineTypes ArchDefs = ArchDefineNone;
-  static const Builtin::Info BuiltinInfo[];
   static const char *const GCCRegNames[];
   static const TargetInfo::GCCRegAlias GCCRegAliases[];
   std::string CPU;
@@ -62,6 +61,7 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
   bool HasROPProtect = false;
   bool HasPrivileged = false;
   bool HasVSX = false;
+  bool UseCRBits = false;
   bool HasP8Vector = false;
   bool HasP8Crypto = false;
   bool HasDirectMove = false;
@@ -78,6 +78,7 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
   bool IsISA2_07 = false;
   bool IsISA3_0 = false;
   bool IsISA3_1 = false;
+  bool HasQuadwordAtomics = false;
 
 protected:
   std::string ABI;
@@ -86,7 +87,6 @@ public:
   PPCTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
     SuitableAlign = 128;
-    SimdDefaultAlign = 128;
     LongDoubleWidth = LongDoubleAlign = 128;
     LongDoubleFormat = &llvm::APFloat::PPCDoubleDouble();
     HasStrictFP = true;
@@ -214,7 +214,7 @@ public:
       // Don't use floating point registers on soft float ABI.
       if (FloatABI == SoftFloat)
         return false;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 'b': // Base register
       Info.setAllowsRegister();
       break;
@@ -293,7 +293,7 @@ public:
     case 'Q': // Memory operand that is an offset from a register (it is
               // usually better to use `m' or `es' in asm statements)
       Info.setAllowsRegister();
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 'Z': // Memory operand that is an indexed or indirect from a
               // register (it is usually better to use `m' or `es' in
               // asm statements)
@@ -427,7 +427,10 @@ public:
       ABI = "elfv2";
     } else {
       DataLayout = "E-m:e-i64:64-n32:64";
-      ABI = "elfv1";
+      if (Triple.isPPC64ELFv2ABI())
+        ABI = "elfv2";
+      else
+        ABI = "elfv1";
     }
 
     if (Triple.isOSFreeBSD() || Triple.isOSOpenBSD() || Triple.isMusl()) {
@@ -439,8 +442,18 @@ public:
       DataLayout += "-S128-v256:256:256-v512:512:512";
     resetDataLayout(DataLayout);
 
-    // PPC64 supports atomics up to 8 bytes.
-    MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
+    // Newer PPC64 instruction sets support atomics up to 16 bytes.
+    MaxAtomicPromoteWidth = 128;
+    // Baseline PPC64 supports inlining atomics up to 8 bytes.
+    MaxAtomicInlineWidth = 64;
+  }
+
+  void setMaxAtomicWidth() override {
+    // For power8 and up, backend is able to inline 16-byte atomic lock free
+    // code.
+    // TODO: We should allow AIX to inline quadword atomics in the future.
+    if (!getTriple().isOSAIX() && hasFeature("quadword-atomics"))
+      MaxAtomicInlineWidth = 128;
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {

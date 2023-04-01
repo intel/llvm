@@ -11,18 +11,18 @@
 ; RUN: FileCheck -implicit-check-not=uninteresting --check-prefixes=ALL,CHECK-NOCALL %s < %t
 
 
-declare i8* @llvm.sponentry.p0i8()
-declare void @uninteresting()
+declare ptr @llvm.sponentry.p0()
+declare i8 @uninteresting()
 
-; ALL-LABEL: define i8* @interesting(
-define i8* @interesting() {
+; ALL-LABEL: define ptr @interesting(
+define ptr @interesting() {
 entry:
-  ; CHECK-INTERESTINGNESS: call
-  ; CHECK-NOCALL-NOT: call
+  ; CHECK-INTERESTINGNESS: call ptr
+  ; CHECK-NOCALL-NOT: call i8
 
-  ; CHECK-FINAL: %call = call i8* @llvm.sponentry.p0i8()
-  ; CHECK-FINAL-NEXT: ret i8* %call
-  %call = call i8* @llvm.sponentry.p0i8()
-  call void @uninteresting()
-  ret i8* %call
+  ; CHECK-FINAL: %call = call ptr @llvm.sponentry.p0()
+  ; CHECK-FINAL-NEXT: ret ptr %call
+  %call = call ptr @llvm.sponentry.p0()
+  call i8 @uninteresting()
+  ret ptr %call
 }

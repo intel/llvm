@@ -8,8 +8,8 @@
 
 #include "llvm/ExecutionEngine/Orc/LazyReexports.h"
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/Orc/OrcABISupport.h"
+#include "llvm/TargetParser/Triple.h"
 
 #define DEBUG_TYPE "orc"
 
@@ -119,6 +119,10 @@ createLocalLazyCallThroughManager(const Triple &T, ExecutionSession &ES,
   case Triple::x86:
     return LocalLazyCallThroughManager::Create<OrcI386>(ES, ErrorHandlerAddr);
 
+  case Triple::loongarch64:
+    return LocalLazyCallThroughManager::Create<OrcLoongArch64>(
+        ES, ErrorHandlerAddr);
+
   case Triple::mips:
     return LocalLazyCallThroughManager::Create<OrcMips32Be>(ES,
                                                             ErrorHandlerAddr);
@@ -130,6 +134,10 @@ createLocalLazyCallThroughManager(const Triple &T, ExecutionSession &ES,
   case Triple::mips64:
   case Triple::mips64el:
     return LocalLazyCallThroughManager::Create<OrcMips64>(ES, ErrorHandlerAddr);
+
+  case Triple::riscv64:
+    return LocalLazyCallThroughManager::Create<OrcRiscv64>(ES,
+                                                           ErrorHandlerAddr);
 
   case Triple::x86_64:
     if (T.getOS() == Triple::OSType::Win32)

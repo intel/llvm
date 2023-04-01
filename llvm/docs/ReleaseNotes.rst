@@ -1,29 +1,31 @@
-=========================
-LLVM 14.0.0 Release Notes
-=========================
+============================
+LLVM |release| Release Notes
+============================
 
 .. contents::
     :local:
 
-.. warning::
-   These are in-progress notes for the upcoming LLVM 14 release.
-   Release notes for previous releases can be found on
-   `the Download Page <https://releases.llvm.org/download.html>`_.
+.. only:: PreRelease
+
+  .. warning::
+     These are in-progress notes for the upcoming LLVM |version| release.
+     Release notes for previous releases can be found on
+     `the Download Page <https://releases.llvm.org/download.html>`_.
 
 
 Introduction
 ============
 
 This document contains the release notes for the LLVM Compiler Infrastructure,
-release 14.0.0.  Here we describe the status of LLVM, including major improvements
+release |release|.  Here we describe the status of LLVM, including major improvements
 from the previous release, improvements in various subprojects of LLVM, and
 some of the current users of the code.  All LLVM releases may be downloaded
 from the `LLVM releases web site <https://llvm.org/releases/>`_.
 
 For more information about LLVM, including information about the latest
 release, please check out the `main LLVM web site <https://llvm.org/>`_.  If you
-have questions or comments, the `LLVM Developer's Mailing List
-<https://lists.llvm.org/mailman/listinfo/llvm-dev>`_ is a good place to send
+have questions or comments, the `Discourse forums
+<https://discourse.llvm.org>`_ is a good place to ask
 them.
 
 Note that if you are reading this file from a Git checkout or the main
@@ -40,87 +42,124 @@ Non-comprehensive list of changes in this release
    functionality, or simply have a lot to talk about), see the `NOTE` below
    for adding a new subsection.
 
-
-.. NOTE
-   If you would like to document a larger change, then you can add a
-   subsection about it right here. You can copy the following boilerplate
-   and un-indent it (the indentation causes it to be inside this comment).
-
-   Special New Feature
-   -------------------
-
-   Makes programs 10x faster by doing Special New Thing.
-
 * ...
+
+Update on required toolchains to build LLVM
+-------------------------------------------
 
 Changes to the LLVM IR
 ----------------------
 
-* Using the legacy pass manager for the optimization pipeline is deprecated and
-  will be removed after LLVM 14. In the meantime, only minimal effort will be
-  made to maintain the legacy pass manager for the optimization pipeline.
-* Max allowed integer type was reduced from 2^24-1 bits to 2^23 bits.
-* Max allowed alignment was increased from 2^29 to 2^32.
+* Typed pointers are no longer supported. See the `opaque pointers
+  <OpaquePointers.html>`__ documentation for migration instructions.
+
+* The ``nofpclass`` attribute was introduced. This allows more
+  optimizations around special floating point value comparisons.
+
+* The constant expression variants of the following instructions have been
+  removed:
+
+  * ``select``
+
+Changes to LLVM infrastructure
+------------------------------
+
+* The legacy optimization pipeline has been removed.
+
+* Alloca merging in the inliner has been removed, since it only worked with the
+  legacy inliner pass. Backend stack coloring should handle cases alloca
+  merging initially set out to handle.
 
 Changes to building LLVM
 ------------------------
 
-* ...
-
 Changes to TableGen
 -------------------
+
+Changes to Interprocedural Optimizations
+----------------------------------------
 
 Changes to the AArch64 Backend
 ------------------------------
 
-* Added support for the Armv9-A, Armv9.1-A and Armv9.2-A architectures.
-* The compiler now recognises the "tune-cpu" function attribute to support
-  the use of the -mtune frontend flag. This allows certain scheduling features
-  and optimisations to be enabled independently of the architecture. If the
-  "tune-cpu" attribute is absent it tunes according to the "target-cpu".
+Changes to the AMDGPU Backend
+-----------------------------
+* More fine-grained synchronization around barriers for newer architectures
+  (gfx90a+, gfx10+). The AMDGPU backend now omits previously automatically
+  generated waitcnt instructions before barriers, allowing for more precise
+  control. Users must now use memory fences to implement fine-grained
+  synchronization strategies around barriers. Refer to `AMDGPU memory model
+  <AMDGPUUsage.html#memory-model>`__.
 
 Changes to the ARM Backend
 --------------------------
 
-* Added support for the Armv9-A, Armv9.1-A and Armv9.2-A architectures.
-* Added support for the Armv8.1-M PACBTI-M extension.
+- The hard-float ABI is now available in Armv8.1-M configurations that
+  have integer MVE instructions (and therefore have FP registers) but
+  no scalar or vector floating point computation.
 
-Changes to the MIPS Target
+Changes to the AVR Backend
 --------------------------
-
-During this release ...
-
-Changes to the Hexagon Target
------------------------------
 
 * ...
 
-Changes to the PowerPC Target
+Changes to the DirectX Backend
+------------------------------
+
+Changes to the Hexagon Backend
+------------------------------
+
+* ...
+
+Changes to the LoongArch Backend
+--------------------------------
+
+Changes to the MIPS Backend
+---------------------------
+
+* ...
+
+Changes to the PowerPC Backend
+------------------------------
+
+* A new option ``-mroptr`` is added to ``clang`` and ``llc``. When this option
+  is present, constant objects with relocatable address values are put into the
+  RO data section. This option should be used with the ``-fdata-sections``
+  option, and is not supported with ``-fno-data-sections``. The option is
+  only supported on AIX.
+
+Changes to the RISC-V Backend
 -----------------------------
 
-During this release ...
+* Assembler support for version 1.0.1 of the Zcb extension was added.
+* Zca, Zcf, and Zcd extensions were upgraded to version 1.0.1.
+* vsetvli intrinsics no longer have side effects. They may now be combined,
+  moved, deleted, etc. by optimizations.
+* Adds support for the vendor-defined XTHeadBa (address-generation) extension.
+* Adds support for the vendor-defined XTHeadBb (basic bit-manipulation) extension.
+* Adds support for the vendor-defined XTHeadBs (single-bit) extension.
+* Adds support for the vendor-defined XTHeadCondMov (conditional move) extension.
+* Adds support for the vendor-defined XTHeadMac (multiply-accumulate instructions) extension.
+* Added support for the vendor-defined XTHeadMemPair (two-GPR memory operations)
+  extension disassembler/assembler.
+* Added support for the vendor-defined XTHeadMemIdx (indexed memory operations)
+  extension disassembler/assembler.
+* Support for the now-ratified Zawrs extension is no longer experimental.
+* Adds support for the vendor-defined XTHeadCmo (cache management operations) extension.
+* Adds support for the vendor-defined XTHeadSync (multi-core synchronization instructions) extension.
+* Added support for the vendor-defined XTHeadFMemIdx (indexed memory operations for floating point) extension.
+* Assembler support for RV64E was added.
 
-Changes to the X86 Target
--------------------------
+Changes to the WebAssembly Backend
+----------------------------------
 
-During this release ...
+* ...
 
-* Support for ``AVX512-FP16`` instructions has been added.
-
-Changes to the AMDGPU Target
+Changes to the Windows Target
 -----------------------------
 
-During this release ...
-
-Changes to the AVR Target
------------------------------
-
-During this release ...
-
-Changes to the WebAssembly Target
----------------------------------
-
-During this release ...
+Changes to the X86 Backend
+--------------------------
 
 Changes to the OCaml bindings
 -----------------------------
@@ -129,12 +168,20 @@ Changes to the OCaml bindings
 Changes to the C API
 --------------------
 
-* ``LLVMSetInstDebugLocation`` has been deprecated in favor of the more general
-  ``LLVMAddMetadataToInst``.
+* ``LLVMContextSetOpaquePointers``, a temporary API to pin to legacy typed
+  pointer, has been removed.
+* Functions for adding legacy passes like ``LLVMAddInstructionCombiningPass``
+  have been removed.
+* Removed ``LLVMPassManagerBuilderRef`` and functions interacting with it.
+  These belonged to the no longer supported legacy pass manager.
+* As part of the opaque pointer transition, ``LLVMGetElementType`` no longer
+  gives the pointee type of a pointer type.
+* The following functions for creating constant expressions have been removed,
+  because the underlying constant expressions are no longer supported. Instead,
+  an instruction should be created using the ``LLVMBuildXYZ`` APIs, which will
+  constant fold the operands if possible and create an instruction otherwise:
 
-Changes to the Go bindings
---------------------------
-
+  * ``LLVMConstSelect``
 
 Changes to the FastISel infrastructure
 --------------------------------------
@@ -145,32 +192,50 @@ Changes to the DAG infrastructure
 ---------------------------------
 
 
+Changes to the Metadata Info
+---------------------------------
+
 Changes to the Debug Info
 ---------------------------------
 
-During this release ...
+* The DWARFv5 feature of attaching ``DW_AT_default_value`` to defaulted template
+  parameters will now be available in any non-strict DWARF mode and in a wider
+  range of cases than previously.
+  (`D139953 <https://reviews.llvm.org/D139953>`_,
+  `D139988 <https://reviews.llvm.org/D139988>`_)
+
+* The ``DW_AT_name`` on ``DW_AT_typedef``\ s for alias templates will now omit
+  defaulted template parameters. (`D142268 <https://reviews.llvm.org/D142268>`_)
+
+* The experimental ``@llvm.dbg.addr`` intrinsic has been removed (`D144801
+  <https://reviews.llvm.org/D144801>`_). IR inputs with this intrinsic are
+  auto-upgraded to ``@llvm.dbg.value`` with ``DW_OP_deref`` appended to the
+  ``DIExpression`` (`D144793 <https://reviews.llvm.org/D144793>`_).
 
 Changes to the LLVM tools
 ---------------------------------
+* llvm-lib now supports the /def option for generating a Windows import library from a definition file.
 
-* llvm-cov: `-name-allowlist` is now accepted in addition to `-name-whitelist`.
-  `-name-whitelist` is marked as deprecated and to be removed in future
-  releases.
+* Made significant changes to JSON output format of `llvm-readobj`/`llvm-readelf`
+  to improve correctness and clarity.
 
 Changes to LLDB
 ---------------------------------
 
-* A change in Clang's type printing has changed the way LLDB names array types
-  (from ``int [N]`` to ``int[N]``) - LLDB pretty printer type name matching
-  code may need to be updated to handle this.
-* The ``memory read`` command now ignores non-address bits in start and end
-  addresses. In addition, non-address bits will not be shown in the addresses
-  in the output.
+* In the results of commands such as ``expr`` and ``frame var``, type summaries will now
+  omit defaulted template parameters. The full template parameter list can still be
+  viewed with ``expr --raw-output``/``frame var --raw-output``. (`D141828 <https://reviews.llvm.org/D141828>`_)
+
+* LLDB is now able to show the subtype of signals found in a core file. For example
+  memory tagging specific segfaults such as ``SIGSEGV: sync tag check fault``.
 
 Changes to Sanitizers
 ---------------------
 
-External Open Source Projects Using LLVM 14
+Other Changes
+-------------
+
+External Open Source Projects Using LLVM 15
 ===========================================
 
 * A project...
@@ -186,4 +251,4 @@ code.  You can access versions of these documents specific to this release by
 going into the ``llvm/docs/`` directory in the LLVM tree.
 
 If you have any questions or comments about LLVM, please feel free to contact
-us via the `mailing lists <https://llvm.org/docs/#mailing-lists>`_.
+us via the `Discourse forums <https://discourse.llvm.org>`_.

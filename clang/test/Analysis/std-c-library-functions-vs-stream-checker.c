@@ -28,7 +28,7 @@
 
 // Verify that the summaries are loaded when the StdLibraryFunctionsChecker is
 // enabled.
-//      CHECK: Loaded summary for: int getchar()
+//      CHECK: Loaded summary for: int getchar(void)
 // CHECK-NEXT: Loaded summary for: unsigned long fread(void *restrict, size_t, size_t, FILE *restrict)
 // CHECK-NEXT: Loaded summary for: unsigned long fwrite(const void *restrict, size_t, size_t, FILE *restrict)
 
@@ -45,12 +45,13 @@ void test_fread_fwrite(FILE *fp, int *buf) {
   clang_analyzer_eval(x <= 10); // \
  // stream-warning{{TRUE}} \
  // stdLib-warning{{TRUE}} \
- // both-warning{{TRUE}} \
+ // both-warning{{TRUE}}
 
   clang_analyzer_eval(x == 10); // \
   // stream-warning{{TRUE}} \
   // stream-warning{{FALSE}} \
-  // stdLib-warning{{UNKNOWN}} \
+  // stdLib-warning{{TRUE}} \
+  // stdLib-warning{{FALSE}} \
   // both-warning{{TRUE}} \
   // both-warning{{FALSE}}
 

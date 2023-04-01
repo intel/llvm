@@ -3,7 +3,6 @@
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
-
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -18,18 +17,45 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
-function(add_sycl_rt_library LIB_NAME)
+function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
   cmake_parse_arguments(ARG "" "XPTI_LIB" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
-  set(LIB_OBJ_NAME ${LIB_NAME}_object)
-
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
-  add_library(${LIB_NAME} SHARED 
+  add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
-    
+
+  # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
+  # so, we link LLVMSupport lib to matching sycl version only.
+  if (SYCL_ENABLE_STACK_PRINTING)
+    if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
+      (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
+        add_dependencies(${LIB_NAME} LLVMSupport)
+        target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
+        target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
+    endif()
+  endif()
+
+  # TODO: Enabled for MSVC
+  if (NOT MSVC AND SYCL_LIB_WITH_DEBUG_SYMBOLS)
+    separate_arguments(CMAKE_CXX_FLAGS_DEBUG_SEPARATED UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
+    target_compile_options(${LIB_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
+  endif()
+
+  if (SYCL_ENABLE_COVERAGE)
+    target_compile_options(${LIB_OBJ_NAME} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+    target_compile_options(${LIB_NAME} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+    target_link_options(${LIB_NAME} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+  endif()
+
   if (ARG_COMPILE_OPTIONS)
     target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
   endif()
@@ -49,26 +75,37 @@ function(add_sycl_rt_library LIB_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
+  # win_proxy_loader
+  if (WIN32)
+    include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/win_proxy_loader)
+    if(WIN_DUPE)
+      target_link_libraries(${LIB_NAME} PUBLIC win_proxy_loaderd)
+    else()
+      target_link_libraries(${LIB_NAME} PUBLIC win_proxy_loader)
+    endif()
+  endif()
+
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
 
-  if (MSVC)
+  if (WIN32) 
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
+  endif()
+
+  if (MSVC)
     # Install stripped PDB
     add_stripped_pdb(${LIB_NAME})
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
-    set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
-    set(abi_linker_script "${CMAKE_CURRENT_SOURCE_DIR}/abi_replacements_linux.txt")
-    target_link_libraries(
-      ${LIB_NAME} PRIVATE "-Wl,${abi_linker_script}")
-    set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${abi_linker_script})
-    target_link_libraries(
-        ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
-    set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
+    if (UNIX AND NOT APPLE)
+      set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
+      target_link_libraries(
+          ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
+      set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
+    endif()
     if (SYCL_ENABLE_XPTI_TRACING)
-      target_link_libraries(${LIB_NAME} PRIVATE dl)
+      target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
   endif()
 
@@ -80,20 +117,26 @@ function(add_sycl_rt_library LIB_NAME)
       ${CMAKE_CURRENT_SOURCE_DIR}
       "${sycl_inc_dir}"
   )
-  #TODO: Remove dependency on icd loader and opencl headers.
+  #TODO: Remove dependency on opencl headers.
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE OpenCL-Headers
   )
+
+  if(SYCL_ENABLE_KERNEL_FUSION)
+    target_link_libraries(${LIB_NAME} PRIVATE sycl-fusion)
+    target_link_libraries(${LIB_OBJ_NAME} PRIVATE sycl-fusion)
+    if (BUILD_SHARED_LIBS)
+     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
+       sycl-fusion)
+    endif (BUILD_SHARED_LIBS)
+  endif(SYCL_ENABLE_KERNEL_FUSION)
 
   find_package(Threads REQUIRED)
 
   target_link_libraries(${LIB_NAME}
     PRIVATE
-      OpenCL-ICD
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
-    PUBLIC
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
@@ -128,19 +171,26 @@ set(SYCL_SOURCES
     "detail/context_impl.cpp"
     "detail/device_binary_image.cpp"
     "detail/device_filter.cpp"
+    "detail/host_pipe_map.cpp"
+    "detail/device_global_map.cpp"
+    "detail/device_global_map_entry.cpp"
     "detail/device_impl.cpp"
-    "detail/error_handling/enqueue_kernel.cpp"
+    "detail/error_handling/error_handling.cpp"
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
-    "detail/force_device.cpp"
+    "detail/fusion/fusion_wrapper.cpp"
+    "detail/fusion/fusion_wrapper_impl.cpp"
     "detail/global_handler.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
     "detail/image_impl.cpp"
+    "detail/jit_compiler.cpp"
+    "detail/jit_device_binaries.cpp"
     "detail/kernel_impl.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
+    "detail/pipes.cpp"
     "detail/platform_impl.cpp"
     "detail/program_impl.cpp"
     "detail/program_manager/program_manager.cpp"
@@ -155,7 +205,6 @@ set(SYCL_SOURCES
     "detail/scheduler/commands.cpp"
     "detail/scheduler/leaves_collection.cpp"
     "detail/scheduler/scheduler.cpp"
-    "detail/scheduler/scheduler_helpers.cpp"
     "detail/scheduler/graph_processor.cpp"
     "detail/scheduler/graph_builder.cpp"
     "detail/spec_constant_impl.cpp"
@@ -164,21 +213,20 @@ set(SYCL_SOURCES
     "detail/util.cpp"
     "detail/xpti_registry.cpp"
     "accessor.cpp"
+    "buffer.cpp"
     "context.cpp"
     "device.cpp"
     "device_selector.cpp"
     "event.cpp"
     "exception.cpp"
     "exception_list.cpp"
-    "function_pointer.cpp"
-    "half_type.cpp"
     "handler.cpp"
+    "image.cpp"
     "interop_handle.cpp"
     "interop_handler.cpp"
     "kernel.cpp"
     "kernel_bundle.cpp"
     "platform.cpp"
-    "program.cpp"
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"
@@ -186,7 +234,6 @@ set(SYCL_SOURCES
     "esimd_emulator_device_interface.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
-    "$<$<PLATFORM_ID:Windows>:abi_replacements_windows.cpp>"
 )
 
 if (MSVC)
@@ -202,26 +249,38 @@ if (MSVC)
     string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
   endforeach()
 
+  set(WIN_DUPE "1")
   if (SYCL_ENABLE_XPTI_TRACING)
-    add_sycl_rt_library(sycld XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   else()
-    add_sycl_rt_library(sycld COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   endif()
+  unset(WIN_DUPE)
+  add_library(sycld ALIAS sycl${SYCL_MAJOR_VERSION}d)
 
   set(SYCL_EXTRA_OPTS "/MD")
 endif()
 
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_sycl_rt_library(sycl XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
-else()
-  add_sycl_rt_library(sycl COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+check_cxx_compiler_flag(-fsemantic-interposition HAS_SEMANTIC_INTERPOSITION_FLAG)
+if (HAS_SEMANTIC_INTERPOSITION_FLAG)
+  # See https://github.com/llvm/llvm-project/issues/58295.
+  set_source_files_properties(device_selector.cpp PROPERTIES COMPILE_FLAGS -fsemantic-interposition)
 endif()
 
-# Enable new IN_LIST operator.
-cmake_policy(SET CMP0057 NEW)
+if (WIN32)
+set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
+else()
+set(LIB_NAME "sycl")
+endif()
 
-if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
-  add_dependencies(sycl libsycldevice)
+if (SYCL_ENABLE_XPTI_TRACING)
+  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
+else()
+  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+endif()
+
+if (WIN32)
+  add_library(sycl ALIAS ${LIB_NAME})
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}

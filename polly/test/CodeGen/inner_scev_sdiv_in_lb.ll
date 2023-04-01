@@ -1,7 +1,5 @@
-; RUN: opt %loadPolly \
-; RUN:     -polly-scops -analyze < %s | FileCheck %s
-; RUN: opt %loadPolly \
-; RUN:      -S -polly-codegen < %s | FileCheck %s --check-prefix=CODEGEN
+; RUN: opt %loadPolly -polly-print-scops -disable-output < %s | FileCheck %s
+; RUN: opt %loadPolly -polly-codegen -S < %s | FileCheck %s --check-prefix=CODEGEN
 ;
 ; CHECK: [N] -> { Stmt_bb11[i0, i1] : i0 < N and i1 >= 0 and 3i1 <= -3 + i0 };
 ; CODEGEN: polly
@@ -14,7 +12,7 @@
 ;
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-define void @f(i32* %A, i32 %N) {
+define void @f(ptr %A, i32 %N) {
 bb:
   %tmp = sext i32 %N to i64
   br label %bb3
@@ -36,12 +34,12 @@ bb6:                                              ; preds = %bb17, %bb5
   br i1 %tmp10, label %bb11, label %bb18
 
 bb11:                                             ; preds = %bb6
-  %tmp12 = getelementptr inbounds i32, i32* %A, i64 %indvars.iv
-  %tmp13 = load i32, i32* %tmp12, align 4
-  %tmp14 = getelementptr inbounds i32, i32* %A, i64 %indvars.iv1
-  %tmp15 = load i32, i32* %tmp14, align 4
+  %tmp12 = getelementptr inbounds i32, ptr %A, i64 %indvars.iv
+  %tmp13 = load i32, ptr %tmp12, align 4
+  %tmp14 = getelementptr inbounds i32, ptr %A, i64 %indvars.iv1
+  %tmp15 = load i32, ptr %tmp14, align 4
   %tmp16 = add nsw i32 %tmp15, %tmp13
-  store i32 %tmp16, i32* %tmp14, align 4
+  store i32 %tmp16, ptr %tmp14, align 4
   br label %bb17
 
 bb17:                                             ; preds = %bb11

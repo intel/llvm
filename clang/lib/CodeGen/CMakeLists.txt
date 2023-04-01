@@ -7,8 +7,10 @@ set(LLVM_LINK_COMPONENTS
   Coverage
   Demangle
   Extensions
+  FrontendHLSL
   FrontendOpenMP
   IPO
+  IRPrinter
   IRReader
   AggressiveInstCombine
   InstCombine
@@ -25,6 +27,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   SYCLLowerIR
   Target
+  TargetParser
   TransformUtils
   )
 
@@ -52,6 +55,7 @@ add_clang_library(clangCodeGen
   CGExprConstant.cpp
   CGExprScalar.cpp
   CGGPUBuiltin.cpp
+  CGHLSLRuntime.cpp
   CGLoopInfo.cpp
   CGNonTrivialStruct.cpp
   CGObjC.cpp

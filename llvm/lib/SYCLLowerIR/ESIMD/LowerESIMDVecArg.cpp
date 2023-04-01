@@ -67,6 +67,7 @@
 //        i64 0, i32 0))
 //===----------------------------------------------------------------------===//
 
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -113,14 +114,13 @@ Type *ESIMDLowerVecArgPass::getSimdArgPtrTyOrNull(Value *arg) {
   if (!ArgType)
     return nullptr;
   Type *Res = nullptr;
-  StructType *ST = dyn_cast_or_null<StructType>(ArgType->getElementType());
+  StructType *ST =
+      dyn_cast_or_null<StructType>(ArgType->getNonOpaquePointerElementType());
 
-  while (ST && (ST->getStructNumElements() == 1)) {
-    Res = ST->getStructElementType(0);
-    ST = dyn_cast<StructType>(Res);
-  }
-  if (!Res || !Res->isVectorTy())
+  Res = esimd::getVectorTyOrNull(ST);
+  if (!Res)
     return nullptr;
+
   return PointerType::get(Res, ArgType->getPointerAddressSpace());
 }
 
@@ -172,7 +172,7 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
   // insert bitcasts in new function only if its a definition
   for (auto &B : BitCasts) {
     if (!F.isDeclaration())
-      NF->begin()->getInstList().push_front(B);
+      B->insertBefore(NF->begin()->getFirstNonPHI());
     else
       delete B;
   }
@@ -207,12 +207,19 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
     OldNewInst.push_back(std::make_pair(Call, NewCallInst));
   }
 
-  for (auto InstPair : OldNewInst) {
+  for (auto &InstPair : OldNewInst) {
     auto OldInst = InstPair.first;
     auto NewInst = InstPair.second;
     ReplaceInstWithInst(OldInst, NewInst);
   }
 
+  // Make sure to update any metadata as well
+  if(F.isUsedByMetadata()) {
+    // The old function is about to be destroyed, so
+    // just change its type so all replacement works.
+    F.mutateType(NF->getType());
+    ValueAsMetadata::handleRAUW(&F, NF);
+  }
   F.eraseFromParent();
 
   return NF;
@@ -221,11 +228,10 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
 // This function creates new global variables of type vector* type
 // when old one is of simd* type.
 void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
-  for (auto &G : M.getGlobalList()) {
-    auto NewTy = getSimdArgPtrTyOrNull(&G);
+  for (auto &G : M.globals()) {
+    Type *GVTy = G.getValueType();
+    Type *NewTy = esimd::getVectorTyOrNull(dyn_cast<StructType>(GVTy));
     if (NewTy && !G.user_empty()) {
-      // Peel off ptr type that getSimdArgPtrTyOrNull applies
-      NewTy = NewTy->getPointerElementType();
       auto InitVal =
           G.hasInitializer() && isa<UndefValue>(G.getInitializer())
               ? static_cast<ConstantData *>(UndefValue::get(NewTy))
@@ -237,7 +243,7 @@ void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
       NewGlobalVar->copyAttributesFrom(&G);
       NewGlobalVar->takeName(&G);
       NewGlobalVar->copyMetadata(&G, 0);
-      M.getGlobalList().push_back(NewGlobalVar);
+      M.insertGlobalVariable(NewGlobalVar);
       OldNewGlobal.insert(std::make_pair(&G, NewGlobalVar));
     }
   }

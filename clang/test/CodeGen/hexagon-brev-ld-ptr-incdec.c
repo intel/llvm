@@ -31,7 +31,7 @@ int brev_ptr_dec(int A[], int B[]) {
 // The store in bitcode needs to be of width correspondng to 16-bit.
 // CHECK: @brev_ptr_half
 // CHECK: llvm.hexagon.L2.loadrh.pbr
-// CHECK: store{{.*}}i16{{.*}}i16*
+// CHECK: store{{.*}}i16{{.*}}ptr
 short int brev_ptr_half(short int A[], short int B[]) {
   short int *p0 = &B[0];
   short int *p1 = &A[0];
@@ -42,7 +42,7 @@ short int brev_ptr_half(short int A[], short int B[]) {
 // The store in bitcode needs to be of width correspondng to 8-bit.
 // CHECK: @brev_ptr_byte
 // CHECK: llvm.hexagon.L2.loadrub.pbr
-// CHECK: store{{.*}}i8{{.*}}i8*
+// CHECK: store{{.*}}i8{{.*}}ptr
 unsigned char brev_ptr_byte(unsigned char A[], unsigned char B[]) {
   unsigned char *p0 = &B[0];
   unsigned char *p1 = &A[0];

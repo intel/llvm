@@ -8,11 +8,14 @@ lldb_tablegen(ProcessGDBRemotePropertiesEnum.inc -gen-lldb-property-enum-defs
 
 set(LLDB_PLUGINS
   lldbPluginProcessUtility
-  lldbPluginPlatformMacOSX
 )
 
 if(HAVE_LIBCOMPRESSION)
   set(LIBCOMPRESSION compression)
+endif()
+
+if(LLVM_ENABLE_ZLIB)
+  list(APPEND LLDB_SYSTEM_LIBS ZLIB::ZLIB)
 endif()
 
 add_lldb_library(lldbPluginProcessGDBRemote PLUGIN
@@ -25,6 +28,7 @@ add_lldb_library(lldbPluginProcessGDBRemote PLUGIN
   GDBRemoteCommunicationServerLLGS.cpp
   GDBRemoteCommunicationServerPlatform.cpp
   GDBRemoteRegisterContext.cpp
+  GDBRemoteRegisterFallback.cpp
   ProcessGDBRemote.cpp
   ProcessGDBRemoteLog.cpp
   ThreadGDBRemote.cpp
@@ -38,10 +42,12 @@ add_lldb_library(lldbPluginProcessGDBRemote PLUGIN
     lldbSymbol
     lldbTarget
     lldbUtility
+    ${LLDB_SYSTEM_LIBS}
     ${LLDB_PLUGINS}
     ${LIBCOMPRESSION}
   LINK_COMPONENTS
     Support
+    TargetParser
   )
 
 add_dependencies(lldbPluginProcessGDBRemote

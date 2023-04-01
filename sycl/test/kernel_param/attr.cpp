@@ -3,8 +3,8 @@
 
 // Check copying of parallel_for kernel attributes to wrapper kernel.
 
-#include <CL/sycl.hpp>
-using namespace cl::sycl;
+#include <sycl/sycl.hpp>
+using namespace sycl;
 
 int main() {
   range<1> Size{10};

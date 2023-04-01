@@ -12,6 +12,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/LangStandard.h"
 #include "clang/Basic/SourceManager.h"
@@ -25,6 +26,7 @@
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/LogDiagnosticPrinter.h"
+#include "clang/Frontend/SARIFDiagnosticPrinter.h"
 #include "clang/Frontend/SerializedDiagnosticPrinter.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Frontend/Utils.h"
@@ -37,12 +39,13 @@
 #include "clang/Serialization/ASTReader.h"
 #include "clang/Serialization/GlobalModuleIndex.h"
 #include "clang/Serialization/InMemoryModuleCache.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/LockFileManager.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
@@ -51,6 +54,8 @@
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include <optional>
 #include <time.h>
 #include <utility>
 
@@ -109,25 +114,25 @@ bool CompilerInstance::createTarget() {
   // other side of CUDA/OpenMP/SYCL compilation.
   if (!getAuxTarget() &&
       (getLangOpts().CUDA || getLangOpts().OpenMPIsDevice ||
-       getLangOpts().SYCLIsDevice) &&
+       getLangOpts().isSYCL()) &&
       !getFrontendOpts().AuxTriple.empty()) {
     auto TO = std::make_shared<TargetOptions>();
     TO->Triple = llvm::Triple::normalize(getFrontendOpts().AuxTriple);
     if (getFrontendOpts().AuxTargetCPU)
-      TO->CPU = getFrontendOpts().AuxTargetCPU.getValue();
+      TO->CPU = *getFrontendOpts().AuxTargetCPU;
     if (getFrontendOpts().AuxTargetFeatures)
-      TO->FeaturesAsWritten = getFrontendOpts().AuxTargetFeatures.getValue();
+      TO->FeaturesAsWritten = *getFrontendOpts().AuxTargetFeatures;
     TO->HostTriple = getTarget().getTriple().str();
     setAuxTarget(TargetInfo::CreateTargetInfo(getDiagnostics(), TO));
   }
 
   if (!getTarget().hasStrictFP() && !getLangOpts().ExpStrictFP) {
-    if (getLangOpts().getFPRoundingMode() !=
-        llvm::RoundingMode::NearestTiesToEven) {
+    if (getLangOpts().RoundingMath) {
       getDiagnostics().Report(diag::warn_fe_backend_unsupported_fp_rounding);
-      getLangOpts().setFPRoundingMode(llvm::RoundingMode::NearestTiesToEven);
+      getLangOpts().RoundingMath = false;
     }
-    if (getLangOpts().getFPExceptionMode() != LangOptions::FPE_Ignore) {
+    auto FPExc = getLangOpts().getFPExceptionMode();
+    if (FPExc != LangOptions::FPE_Default && FPExc != LangOptions::FPE_Ignore) {
       getDiagnostics().Report(diag::warn_fe_backend_unsupported_fp_exceptions);
       getLangOpts().setFPExceptionMode(LangOptions::FPE_Ignore);
     }
@@ -141,7 +146,6 @@ bool CompilerInstance::createTarget() {
     return false;
 
   // Inform the target of the language options.
-  //
   // FIXME: We shouldn't need to do this, the target should be immutable once
   // created. This complexity should be lifted elsewhere.
   getTarget().adjust(getDiagnostics(), getLangOpts());
@@ -234,7 +238,7 @@ static void collectIncludePCH(CompilerInstance &CI,
 
   StringRef PCHInclude = PPOpts.ImplicitPCHInclude;
   FileManager &FileMgr = CI.getFileManager();
-  auto PCHDir = FileMgr.getDirectory(PCHInclude);
+  auto PCHDir = FileMgr.getOptionalDirectoryRef(PCHInclude);
   if (!PCHDir) {
     MDC->addFile(PCHInclude);
     return;
@@ -242,7 +246,7 @@ static void collectIncludePCH(CompilerInstance &CI,
 
   std::error_code EC;
   SmallString<128> DirNative;
-  llvm::sys::path::native((*PCHDir)->getName(), DirNative);
+  llvm::sys::path::native(PCHDir->getName(), DirNative);
   llvm::vfs::FileSystem &FS = FileMgr.getVirtualFileSystem();
   SimpleASTReaderListener Validator(CI.getPreprocessor());
   for (llvm::vfs::directory_iterator Dir = FS.dir_begin(DirNative, EC), DirEnd;
@@ -251,7 +255,8 @@ static void collectIncludePCH(CompilerInstance &CI,
     // used here since we're not interested in validating the PCH at this time,
     // but only to check whether this is a file containing an AST.
     if (!ASTReader::readASTFileControlBlock(
-            Dir->path(), FileMgr, CI.getPCHContainerReader(),
+            Dir->path(), FileMgr, CI.getModuleCache(),
+            CI.getPCHContainerReader(),
             /*FindModuleFileExtensions=*/false, Validator,
             /*ValidateDiagnosticOptions=*/false))
       MDC->addFile(Dir->path());
@@ -348,6 +353,8 @@ CompilerInstance::createDiagnostics(DiagnosticOptions *Opts,
   // implementing -verify.
   if (Client) {
     Diags->setClient(Client, ShouldOwnClient);
+  } else if (Opts->getFormat() == DiagnosticOptions::SARIF) {
+    Diags->setClient(new SARIFDiagnosticPrinter(llvm::errs(), Opts));
   } else
     Diags->setClient(new TextDiagnosticPrinter(llvm::errs(), Opts));
 
@@ -421,7 +428,7 @@ static void InitializeFileRemapping(DiagnosticsEngine &Diags,
   // Remap files in the source manager (with other files).
   for (const auto &RF : InitOpts.RemappedFiles) {
     // Find the file that we're mapping to.
-    auto ToFile = FileMgr.getFile(RF.second);
+    OptionalFileEntryRef ToFile = FileMgr.getOptionalFileRef(RF.second);
     if (!ToFile) {
       Diags.Report(diag::err_fe_remap_missing_to_file) << RF.first << RF.second;
       continue;
@@ -429,7 +436,7 @@ static void InitializeFileRemapping(DiagnosticsEngine &Diags,
 
     // Create the file entry for the file that we're mapping from.
     const FileEntry *FromFile =
-        FileMgr.getVirtualFile(RF.first, (*ToFile)->getSize(), 0);
+        FileMgr.getVirtualFile(RF.first, ToFile->getSize(), 0);
     if (!FromFile) {
       Diags.Report(diag::err_fe_remap_missing_from_file) << RF.first;
       continue;
@@ -712,13 +719,10 @@ static bool EnableCodeCompletion(Preprocessor &PP,
 void CompilerInstance::createCodeCompletionConsumer() {
   const ParsedSourceLocation &Loc = getFrontendOpts().CodeCompletionAt;
   if (!CompletionConsumer) {
-    setCodeCompletionConsumer(
-      createCodeCompletionConsumer(getPreprocessor(),
-                                   Loc.FileName, Loc.Line, Loc.Column,
-                                   getFrontendOpts().CodeCompleteOpts,
-                                   llvm::outs()));
-    if (!CompletionConsumer)
-      return;
+    setCodeCompletionConsumer(createCodeCompletionConsumer(
+        getPreprocessor(), Loc.FileName, Loc.Line, Loc.Column,
+        getFrontendOpts().CodeCompleteOpts, llvm::outs()));
+    return;
   } else if (EnableCodeCompletion(getPreprocessor(), Loc.FileName,
                                   Loc.Line, Loc.Column)) {
     setCodeCompletionConsumer(nullptr);
@@ -762,6 +766,8 @@ void CompilerInstance::createSema(TranslationUnitKind TUKind,
 // Output Files
 
 void CompilerInstance::clearOutputFiles(bool EraseFiles) {
+  // The ASTConsumer can own streams that write to the output files.
+  assert(!hasASTConsumer() && "ASTConsumer should be reset");
   // Ignore errors that occur when trying to discard the temp file.
   for (OutputFile &OF : OutputFiles) {
     if (EraseFiles) {
@@ -780,12 +786,7 @@ void CompilerInstance::clearOutputFiles(bool EraseFiles) {
       continue;
     }
 
-    // If '-working-directory' was passed, the output filename should be
-    // relative to that.
-    SmallString<128> NewOutFile(OF.Filename);
-    FileMgr->FixupRelativePath(NewOutFile);
-
-    llvm::Error E = OF.File->keep(NewOutFile);
+    llvm::Error E = OF.File->keep(OF.Filename);
     if (!E)
       continue;
 
@@ -806,7 +807,7 @@ std::unique_ptr<raw_pwrite_stream> CompilerInstance::createDefaultOutputFile(
     bool Binary, StringRef InFile, StringRef Extension, bool RemoveFileOnSignal,
     bool CreateMissingDirectories, bool ForceUseTemporary) {
   StringRef OutputPath = getFrontendOpts().OutputFile;
-  Optional<SmallString<128>> PathStorage;
+  std::optional<SmallString<128>> PathStorage;
   if (OutputPath.empty()) {
     if (InFile == "-" || Extension.empty()) {
       OutputPath = "-";
@@ -848,8 +849,20 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
   assert((!CreateMissingDirectories || UseTemporary) &&
          "CreateMissingDirectories is only allowed when using temporary files");
 
+  // If '-working-directory' was passed, the output filename should be
+  // relative to that.
+  std::optional<SmallString<128>> AbsPath;
+  if (OutputPath != "-" && !llvm::sys::path::is_absolute(OutputPath)) {
+    assert(hasFileManager() &&
+           "File Manager is required to fix up relative path.\n");
+
+    AbsPath.emplace(OutputPath);
+    FileMgr->FixupRelativePath(*AbsPath);
+    OutputPath = *AbsPath;
+  }
+
   std::unique_ptr<llvm::raw_fd_ostream> OS;
-  Optional<StringRef> OSFile;
+  std::optional<StringRef> OSFile;
 
   if (UseTemporary) {
     if (OutputPath == "-")
@@ -871,7 +884,7 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
     }
   }
 
-  Optional<llvm::sys::fs::TempFile> Temp;
+  std::optional<llvm::sys::fs::TempFile> Temp;
   if (UseTemporary) {
     // Create a temporary file.
     // Insert -%%%%%%%% before the extension (if any), and because some tools
@@ -970,10 +983,9 @@ bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input,
                        ? FileMgr.getSTDIN()
                        : FileMgr.getFileRef(InputFile, /*OpenFile=*/true);
   if (!FileOrErr) {
-    // FIXME: include the error in the diagnostic even when it's not stdin.
     auto EC = llvm::errorToErrorCode(FileOrErr.takeError());
     if (InputFile != "-")
-      Diags.Report(diag::err_fe_error_reading) << InputFile;
+      Diags.Report(diag::err_fe_error_reading) << InputFile << EC.message();
     else
       Diags.Report(diag::err_fe_error_reading_stdin) << EC.message();
     return false;
@@ -999,6 +1011,11 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
   // DesiredStackSpace available.
   noteBottomOfStack();
 
+  auto FinishDiagnosticClient = llvm::make_scope_exit([&]() {
+    // Notify the diagnostic client that all files were processed.
+    getDiagnosticClient().finish();
+  });
+
   raw_ostream &OS = getVerboseOutputStream();
 
   if (!Act.PrepareToExecute(*this))
@@ -1013,9 +1030,9 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
 
   // Validate/process some options.
   if (getHeaderSearchOpts().Verbose)
-    OS << "clang -cc1 version " CLANG_VERSION_STRING
-       << " based upon " << BACKEND_PACKAGE_STRING
-       << " default target " << llvm::sys::getDefaultTargetTriple() << "\n";
+    OS << "clang -cc1 version " CLANG_VERSION_STRING << " based upon LLVM "
+       << LLVM_VERSION_STRING << " default target "
+       << llvm::sys::getDefaultTargetTriple() << "\n";
 
   if (getCodeGenOpts().TimePasses)
     createFrontendTimer();
@@ -1036,9 +1053,6 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
       Act.EndSourceFile();
     }
   }
-
-  // Notify the diagnostic client that all files were processed.
-  getDiagnostics().getClient()->finish();
 
   if (getDiagnosticOpts().ShowCarets) {
     // We can have multiple diagnostics sharing one diagnostic client.
@@ -1074,9 +1088,12 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
   }
   StringRef StatsFile = getFrontendOpts().StatsFile;
   if (!StatsFile.empty()) {
+    llvm::sys::fs::OpenFlags FileFlags = llvm::sys::fs::OF_TextWithCRLF;
+    if (getFrontendOpts().AppendStats)
+      FileFlags |= llvm::sys::fs::OF_Append;
     std::error_code EC;
-    auto StatS = std::make_unique<llvm::raw_fd_ostream>(
-        StatsFile, EC, llvm::sys::fs::OF_TextWithCRLF);
+    auto StatS =
+        std::make_unique<llvm::raw_fd_ostream>(StatsFile, EC, FileFlags);
     if (EC) {
       getDiagnostics().Report(diag::warn_fe_unable_to_open_stats_file)
           << StatsFile << EC.message();
@@ -1151,8 +1168,7 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
 
   // For any options that aren't intended to affect how a module is built,
   // reset them to their default values.
-  Invocation->getLangOpts()->resetNonModularOptions();
-  PPOpts.resetNonModularOptions();
+  Invocation->resetNonModularOptions();
 
   // Remove any macro definitions that are explicitly ignored by the module.
   // They aren't supposed to affect how the module is built anyway.
@@ -1214,11 +1230,16 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
                                    ImportingInstance.getDiagnosticClient()),
                              /*ShouldOwnClient=*/true);
 
-  // Note that this module is part of the module build stack, so that we
-  // can detect cycles in the module graph.
-  Instance.setFileManager(&ImportingInstance.getFileManager());
+  if (FrontendOpts.ModulesShareFileManager) {
+    Instance.setFileManager(&ImportingInstance.getFileManager());
+  } else {
+    Instance.createFileManager(&ImportingInstance.getVirtualFileSystem());
+  }
   Instance.createSourceManager(Instance.getFileManager());
   SourceManager &SourceMgr = Instance.getSourceManager();
+
+  // Note that this module is part of the module build stack, so that we
+  // can detect cycles in the module graph.
   SourceMgr.setModuleBuildStack(
     ImportingInstance.getSourceManager().getModuleBuildStack());
   SourceMgr.pushModuleBuildStack(ModuleName,
@@ -1238,8 +1259,7 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
 
   // Execute the action to actually build the module in-place. Use a separate
   // thread so that we get a stack large enough.
-  llvm::CrashRecoveryContext CRC;
-  CRC.RunSafelyOnThread(
+  bool Crashed = !llvm::CrashRecoveryContext().RunSafelyOnThread(
       [&]() {
         GenerateModuleFromModuleMapAction Action;
         Instance.ExecuteAction(Action);
@@ -1252,9 +1272,15 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
                                             diag::remark_module_build_done)
     << ModuleName;
 
-  // Delete any remaining temporary files related to Instance, in case the
-  // module generation thread crashed.
-  Instance.clearOutputFiles(/*EraseFiles=*/true);
+  if (Crashed) {
+    // Clear the ASTConsumer if it hasn't been already, in case it owns streams
+    // that must be closed before clearing output files.
+    Instance.setSema(nullptr);
+    Instance.setASTConsumer(nullptr);
+
+    // Delete any remaining temporary files related to Instance.
+    Instance.clearOutputFiles(/*EraseFiles=*/true);
+  }
 
   // If \p AllowPCMWithCompilerErrors is set return 'success' even if errors
   // occurred.
@@ -1262,19 +1288,17 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
          Instance.getFrontendOpts().AllowPCMWithCompilerErrors;
 }
 
-static const FileEntry *getPublicModuleMap(const FileEntry *File,
-                                           FileManager &FileMgr) {
-  StringRef Filename = llvm::sys::path::filename(File->getName());
-  SmallString<128> PublicFilename(File->getDir()->getName());
+static OptionalFileEntryRef getPublicModuleMap(FileEntryRef File,
+                                               FileManager &FileMgr) {
+  StringRef Filename = llvm::sys::path::filename(File.getName());
+  SmallString<128> PublicFilename(File.getDir().getName());
   if (Filename == "module_private.map")
     llvm::sys::path::append(PublicFilename, "module.map");
   else if (Filename == "module.private.modulemap")
     llvm::sys::path::append(PublicFilename, "module.modulemap");
   else
-    return nullptr;
-  if (auto FE = FileMgr.getFile(PublicFilename))
-    return *FE;
-  return nullptr;
+    return std::nullopt;
+  return FileMgr.getOptionalFileRef(PublicFilename);
 }
 
 /// Compile a module file for the given module in a separate compiler instance,
@@ -1290,21 +1314,22 @@ static bool compileModule(CompilerInstance &ImportingInstance,
   ModuleMap &ModMap
     = ImportingInstance.getPreprocessor().getHeaderSearchInfo().getModuleMap();
   bool Result;
-  if (const FileEntry *ModuleMapFile =
+  if (OptionalFileEntryRef ModuleMapFile =
           ModMap.getContainingModuleMapFile(Module)) {
     // Canonicalize compilation to start with the public module map. This is
     // vital for submodules declarations in the private module maps to be
     // correctly parsed when depending on a top level module in the public one.
-    if (const FileEntry *PublicMMFile = getPublicModuleMap(
-            ModuleMapFile, ImportingInstance.getFileManager()))
+    if (OptionalFileEntryRef PublicMMFile = getPublicModuleMap(
+            *ModuleMapFile, ImportingInstance.getFileManager()))
       ModuleMapFile = PublicMMFile;
+
+    StringRef ModuleMapFilePath = ModuleMapFile->getNameAsRequested();
 
     // Use the module map where this module resides.
     Result = compileModuleImpl(
         ImportingInstance, ImportLoc, Module->getTopLevelModuleName(),
-        FrontendInputFile(ModuleMapFile->getName(), IK, +Module->IsSystem),
-        ModMap.getModuleMapFileForUniquing(Module)->getName(),
-        ModuleFileName);
+        FrontendInputFile(ModuleMapFilePath, IK, +Module->IsSystem),
+        ModMap.getModuleMapFileForUniquing(Module)->getName(), ModuleFileName);
   } else {
     // FIXME: We only need to fake up an input file here as a way of
     // transporting the module's directory to the module map parser. We should
@@ -1326,7 +1351,7 @@ static bool compileModule(CompilerInstance &ImportingInstance,
         [&](CompilerInstance &Instance) {
       std::unique_ptr<llvm::MemoryBuffer> ModuleMapBuffer =
           llvm::MemoryBuffer::getMemBuffer(InferredModuleMapContent);
-      ModuleMapFile = Instance.getFileManager().getVirtualFile(
+      const FileEntry *ModuleMapFile = Instance.getFileManager().getVirtualFile(
           FakeModuleMapFile, InferredModuleMapContent.size(), 0);
       Instance.getSourceManager().overrideFileContents(
           ModuleMapFile, std::move(ModuleMapBuffer));
@@ -1428,7 +1453,7 @@ static bool compileModuleAndReadASTBehindLock(
           << Module->Name << Locked.getErrorMessage();
       // Clear out any potential leftover.
       Locked.unsafeRemoveLockFile();
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case llvm::LockFileManager::LFS_Owned:
       // We're responsible for building the module ourselves.
       return compileModuleAndReadASTImpl(ImportingInstance, ImportLoc,
@@ -1866,7 +1891,7 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
                               diag::warn_module_config_mismatch)
           << ModuleFilename;
     // Fall through to error out.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ASTReader::VersionMismatch:
   case ASTReader::HadErrors:
     ModuleLoader::HadFatalFailure = true;
@@ -1965,14 +1990,7 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
     Module = PP->getHeaderSearchInfo().lookupModule(
         ModuleName, ImportLoc, /*AllowSearch*/ true,
         /*AllowExtraModuleMapSearch*/ !IsInclusionDirective);
-    /// FIXME: perhaps we should (a) look for a module using the module name
-    //  to file map (PrebuiltModuleFiles) and (b) diagnose if still not found?
-    //if (Module == nullptr) {
-    //  getDiagnostics().Report(ModuleNameLoc, diag::err_module_not_found)
-    //    << ModuleName;
-    //  DisableGeneratingGlobalModuleIndex = true;
-    //  return ModuleLoadResult();
-    //}
+
     MM.cacheModuleLoad(*Path[0].first, Module);
   } else {
     ModuleLoadResult Result = findOrCompileModuleAndReadAST(
@@ -2001,8 +2019,7 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
     // match Foo_Private and emit a warning asking for the user to write
     // @import Foo_Private instead. FIXME: remove this when existing clients
     // migrate off of Foo.Private syntax.
-    if (!Sub && PP->getLangOpts().ImplicitModules && Name == "Private" &&
-        Module == Module->getTopLevelModule()) {
+    if (!Sub && Name == "Private" && Module == Module->getTopLevelModule()) {
       SmallString<128> PrivateModule(Module->Name);
       PrivateModule.append("_Private");
 
@@ -2016,6 +2033,7 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
         Sub = loadModule(ImportLoc, PrivPath, Visibility, IsInclusionDirective);
       if (Sub) {
         MapPrivateSubModToTopLevel = true;
+        PP->markClangModuleAsAffecting(Module);
         if (!getDiagnostics().isIgnored(
                 diag::warn_no_priv_submodule_use_toplevel, ImportLoc)) {
           getDiagnostics().Report(Path[I].second,
@@ -2087,7 +2105,7 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
         << Module->getFullModuleName()
         << SourceRange(Path.front().second, Path.back().second);
 
-      return ModuleLoadResult::MissingExpected;
+      return ModuleLoadResult(Module, ModuleLoadResult::MissingExpected);
     }
 
     // Check whether this module is available.

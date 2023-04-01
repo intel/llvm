@@ -40,27 +40,27 @@
 
 const __NSConstantString *s = __builtin___CFStringMakeConstantString("");
 
-// CHECK-OBJC: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32* getelementptr inbounds ([0 x i32], [0 x i32]* @__CFConstantStringClassReference, i32 0, i32 0), i32 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i64 0 }
-// CHECK-OBJC-LLP64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32* getelementptr inbounds ([0 x i32], [0 x i32]* @__CFConstantStringClassReference, i32 0, i32 0), i32 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
+// CHECK-OBJC: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { ptr @__CFConstantStringClassReference, i32 1992, ptr @.str, i64 0 }
+// CHECK-OBJC-LLP64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { ptr @__CFConstantStringClassReference, i32 1992, ptr @.str, i32 0 }
 
-// CHECK-SWIFT-DARWIN-5_0-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (i64* @"$s15SwiftFoundation19_NSCFConstantStringCN" to i64), i64 1, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i64 0 }
-// CHECK-SWIFT-DARWIN-5_0-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (i32* @"$s15SwiftFoundation19_NSCFConstantStringCN" to i32), i32 1, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
-// CHECK-SWIFT-5_0-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (i64* @"$s10Foundation19_NSCFConstantStringCN" to i64), i64 1, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i64 0 }
+// CHECK-SWIFT-DARWIN-5_0-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (ptr @"$s15SwiftFoundation19_NSCFConstantStringCN" to i64), i64 1, i64 1992, ptr @.str, i64 0 }
+// CHECK-SWIFT-DARWIN-5_0-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (ptr @"$s15SwiftFoundation19_NSCFConstantStringCN" to i32), i32 1, i64 1992, ptr @.str, i32 0 }
+// CHECK-SWIFT-5_0-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (ptr @"$s10Foundation19_NSCFConstantStringCN" to i64), i64 1, i64 1992, ptr @.str, i64 0 }
 // CHECK-SWIFT-5_0-64-SAME: align 8
-// CHECK-SWIFT-5_0-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (i32* @"$s10Foundation19_NSCFConstantStringCN" to i32), i32 1, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
+// CHECK-SWIFT-5_0-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (ptr @"$s10Foundation19_NSCFConstantStringCN" to i32), i32 1, i64 1992, ptr @.str, i32 0 }
 // CHECK-SWIFT-5_0-32-SAME: align 8
 
-// CHECK-SWIFT-DARWIN-4_2-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (i64* @"$S15SwiftFoundation19_NSCFConstantStringCN" to i64), i64 1, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
-// CHECK-SWIFT-DARWIN-4_2-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (i32* @"$S15SwiftFoundation19_NSCFConstantStringCN" to i32), i32 1, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
-// CHECK-SWIFT-4_2-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (i64* @"$S10Foundation19_NSCFConstantStringCN" to i64), i64 1, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
+// CHECK-SWIFT-DARWIN-4_2-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (ptr @"$S15SwiftFoundation19_NSCFConstantStringCN" to i64), i64 1, i64 1992, ptr @.str, i32 0 }
+// CHECK-SWIFT-DARWIN-4_2-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (ptr @"$S15SwiftFoundation19_NSCFConstantStringCN" to i32), i32 1, i64 1992, ptr @.str, i32 0 }
+// CHECK-SWIFT-4_2-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (ptr @"$S10Foundation19_NSCFConstantStringCN" to i64), i64 1, i64 1992, ptr @.str, i32 0 }
 // CHECK-SWIFT-4_2-64-SAME: align 8
-// CHECK-SWIFT-4_2-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (i32* @"$S10Foundation19_NSCFConstantStringCN" to i32), i32 1, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
+// CHECK-SWIFT-4_2-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (ptr @"$S10Foundation19_NSCFConstantStringCN" to i32), i32 1, i64 1992, ptr @.str, i32 0 }
 // CHECK-SWIFT-4_2-32-SAME: align 8
 
-// CHECK-SWIFT-DARWIN-4_1-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (i64* @__T015SwiftFoundation19_NSCFConstantStringCN to i64), i64 5, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
-// CHECK-SWIFT-DARWIN-4_1-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (i32* @__T015SwiftFoundation19_NSCFConstantStringCN to i32), i32 5, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
-// CHECK-SWIFT-4_1-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (i64* @__T010Foundation19_NSCFConstantStringCN to i64), i64 5, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
+// CHECK-SWIFT-DARWIN-4_1-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (ptr @__T015SwiftFoundation19_NSCFConstantStringCN to i64), i64 5, i64 1992, ptr @.str, i32 0 }
+// CHECK-SWIFT-DARWIN-4_1-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (ptr @__T015SwiftFoundation19_NSCFConstantStringCN to i32), i32 5, i64 1992, ptr @.str, i32 0 }
+// CHECK-SWIFT-4_1-64: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i64 ptrtoint (ptr @__T010Foundation19_NSCFConstantStringCN to i64), i64 5, i64 1992, ptr @.str, i32 0 }
 // CHECK-SWIFT-4_1-64-SAME: align 8
-// CHECK-SWIFT-4_1-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (i32* @__T010Foundation19_NSCFConstantStringCN to i32), i32 5, i64 1992, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.str, i32 0, i32 0), i32 0 }
+// CHECK-SWIFT-4_1-32: @_unnamed_cfstring_ = private global %struct.__NSConstantString_tag { i32 ptrtoint (ptr @__T010Foundation19_NSCFConstantStringCN to i32), i32 5, i64 1992, ptr @.str, i32 0 }
 // CHECK-SWIFT-4_1-32-SAME: align 8
 

@@ -1,13 +1,13 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/half_type.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/detail/common.hpp>
+#include <sycl/half_type.hpp>
+#include <sycl/sycl.hpp>
 
-namespace s = cl::sycl;
-namespace d = cl::sycl::detail;
+namespace s = sycl;
+namespace d = sycl::detail;
 
 using i_t = int;
 using f_t = float;
@@ -21,23 +21,27 @@ struct v {};
 
 int main() {
   // is_floatn
-  static_assert(d::is_floatn<s::cl_float4>::value == true, "");
-  static_assert(d::is_floatn<s::cl_float16>::value == true, "");
+  static_assert(d::is_floatn<s::vec<s::opencl::cl_float, 4>>::value == true);
+  static_assert(d::is_floatn<s::vec<s::opencl::cl_float, 16>>::value == true);
+  static_assert(d::is_floatn<s::float4>::value == true, "");
+  static_assert(d::is_floatn<s::float16>::value == true, "");
 
-  static_assert(d::is_floatn<s::cl_float>::value == false, "");
-  static_assert(d::is_floatn<s::cl_int>::value == false, "");
+  static_assert(d::is_floatn<s::opencl::cl_float>::value == false);
+  static_assert(d::is_floatn<s::opencl::cl_int>::value == false);
   static_assert(d::is_floatn<i_t>::value == false, "");
   static_assert(d::is_floatn<f_t>::value == false, "");
   static_assert(d::is_floatn<t::c_t>::value == false, "");
   static_assert(d::is_floatn<t::d_t>::value == false, "");
   static_assert(d::is_floatn<v>::value == false, "");
   // is_genfloatf
-  static_assert(d::is_genfloatf<s::cl_float4>::value == true, "");
-  static_assert(d::is_genfloatf<s::cl_float16>::value == true, "");
-  static_assert(d::is_genfloatf<s::cl_float>::value == true, "");
+  static_assert(d::is_genfloatf<s::vec<s::opencl::cl_float, 4>>::value == true);
+  static_assert(d::is_genfloatf<s::vec<s::opencl::cl_float, 16>>::value == true);
+  static_assert(d::is_genfloatf<s::opencl::cl_float>::value == true);
+  static_assert(d::is_genfloatf<s::float4>::value == true);
+  static_assert(d::is_genfloatf<s::float16>::value == true);
   static_assert(d::is_genfloatf<f_t>::value == true, "");
 
-  static_assert(d::is_genfloatf<s::cl_int>::value == false, "");
+  static_assert(d::is_genfloatf<s::opencl::cl_int>::value == false);
   static_assert(d::is_genfloatf<i_t>::value == false, "");
   static_assert(d::is_genfloatf<t::c_t>::value == false, "");
   static_assert(d::is_genfloatf<t::d_t>::value == false, "");
@@ -45,15 +49,19 @@ int main() {
 
   //
 
-  static_assert(d::is_genfloat<s::cl_float>::value == true, "");
-  static_assert(d::is_genfloat<s::cl_float4>::value == true, "");
-  static_assert(d::is_genfloat<s::cl_float4>::value == true, "");
+  static_assert(d::is_genfloat<s::opencl::cl_float>::value == true);
+  static_assert(d::is_genfloat<s::vec<s::opencl::cl_float, 4>>::value == true);
 
-  static_assert(d::is_ugenint<s::cl_float4>::value == false, "");
+  static_assert(d::is_ugenint<s::vec<s::opencl::cl_float, 4>>::value == false);
+  static_assert(d::is_ugenint<s::float4>::value == false);
 
-  static_assert(d::is_ugenint<s::cl_uint>::value == true, "");
+  static_assert(d::is_ugenint<s::opencl::cl_uint>::value == true);
+  static_assert(d::is_ugenint<unsigned int>::value == true);
 
-  static_assert(d::is_ugenint<s::cl_uint3>::value == true, "");
+  static_assert(d::is_ugenint<s::vec<s::opencl::cl_uint, 3>>::value == true);
+  static_assert(d::is_ugenint<s::uint3>::value == true);
+
+  static_assert(d::is_half<s::half>::value);
 
   // TODO add checks for the following type traits
   /*
@@ -99,42 +107,6 @@ int main() {
   is_genint
   */
 
-  // is_ulongn
-  static_assert(d::is_ulongn<s::uchar>::value == false, "");
-  static_assert(d::is_ulongn<s::ulong>::value == false, "");
-  static_assert(d::is_ulongn<s::ulong2>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong3>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong4>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong8>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong16>::value == true, "");
-
-  // is_ugenlong
-  static_assert(d::is_ugenlong<s::uchar>::value == false, "");
-  static_assert(d::is_ugenlong<s::ulong>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong2>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong3>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong4>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong8>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong16>::value == true, "");
-
-  // is_longn
-  static_assert(d::is_longn<char>::value == false, "");
-  static_assert(d::is_longn<long>::value == false, "");
-  static_assert(d::is_longn<s::long2>::value == true, "");
-  static_assert(d::is_longn<s::long3>::value == true, "");
-  static_assert(d::is_longn<s::long4>::value == true, "");
-  static_assert(d::is_longn<s::long8>::value == true, "");
-  static_assert(d::is_longn<s::long16>::value == true, "");
-
-  // is_genlong
-  static_assert(d::is_genlong<char>::value == false, "");
-  static_assert(d::is_genlong<long>::value == true, "");
-  static_assert(d::is_genlong<s::long2>::value == true, "");
-  static_assert(d::is_genlong<s::long3>::value == true, "");
-  static_assert(d::is_genlong<s::long4>::value == true, "");
-  static_assert(d::is_genlong<s::long8>::value == true, "");
-  static_assert(d::is_genlong<s::long16>::value == true, "");
-
   /*
   is_ulonglongn
   is_ugenlonglong
@@ -175,11 +147,11 @@ int main() {
   */
   // is_nan_type
   static_assert(d::is_nan_type<unsigned long long int>::value == true, "");
-  static_assert(d::is_nan_type<s::longlong>::value == false, "");
-  static_assert(d::is_nan_type<s::ulonglong>::value == true, "");
+  static_assert(d::is_nan_type<long long>::value == false, "");
+  static_assert(d::is_nan_type<unsigned long long>::value == true, "");
   static_assert(d::is_nan_type<unsigned long>::value == true, "");
   static_assert(d::is_nan_type<long>::value == false, "");
-  static_assert(d::is_nan_type<s::ulong>::value == true, "");
+  static_assert(d::is_nan_type<unsigned long>::value == true, "");
   /*
   float_point_to_sign_integeral
 
@@ -188,83 +160,82 @@ int main() {
   */
 
   // checks for some type conversions.
-  static_assert(
-      std::is_same<d::SelectMatchingOpenCLType_t<s::cl_int>, s::cl_int>::value,
-      "");
+  static_assert(std::is_same<d::SelectMatchingOpenCLType_t<s::opencl::cl_int>,
+                             s::opencl::cl_int>::value);
 
   static_assert(
-      std::is_same<d::SelectMatchingOpenCLType_t<s::vec<s::cl_int, 2>>,
-                   s::vec<s::cl_int, 2>>::value,
-      "");
+      std::is_same<d::SelectMatchingOpenCLType_t<s::vec<s::opencl::cl_int, 2>>,
+                   s::vec<s::opencl::cl_int, 2>>::value);
+
+  static_assert(std::is_same<
+                d::SelectMatchingOpenCLType_t<s::multi_ptr<
+                    s::opencl::cl_int, s::access::address_space::global_space,
+                    s::access::decorated::yes>>,
+                s::multi_ptr<s::opencl::cl_int,
+                             s::access::address_space::global_space,
+                             s::access::decorated::yes>>::value);
+
+  static_assert(
+      std::is_same<d::SelectMatchingOpenCLType_t<
+                       s::multi_ptr<s::vec<s::opencl::cl_int, 2>,
+                                    s::access::address_space::global_space,
+                                    s::access::decorated::yes>>,
+                   s::multi_ptr<s::vec<s::opencl::cl_int, 2>,
+                                s::access::address_space::global_space,
+                                s::access::decorated::yes>>::value);
+
+  static_assert(std::is_same<d::SelectMatchingOpenCLType_t<long long>,
+                             s::opencl::cl_long>::value);
+
+  static_assert(
+      std::is_same<d::SelectMatchingOpenCLType_t<s::vec<long long, 2>>,
+                   s::vec<s::opencl::cl_long, 2>>::value);
 
   static_assert(
       std::is_same<d::SelectMatchingOpenCLType_t<s::multi_ptr<
-                       s::cl_int, s::access::address_space::global_space>>,
-                   s::multi_ptr<s::cl_int,
-                                s::access::address_space::global_space>>::value,
-      "");
+                       long long, s::access::address_space::global_space,
+                       s::access::decorated::yes>>,
+                   s::multi_ptr<s::opencl::cl_long,
+                                s::access::address_space::global_space,
+                                s::access::decorated::yes>>::value);
 
   static_assert(
       std::is_same<
           d::SelectMatchingOpenCLType_t<s::multi_ptr<
-              s::vec<s::cl_int, 2>, s::access::address_space::global_space>>,
-          s::multi_ptr<s::vec<s::cl_int, 2>,
-                       s::access::address_space::global_space>>::value,
-      "");
-
-  static_assert(std::is_same<d::SelectMatchingOpenCLType_t<s::longlong>,
-                             s::cl_long>::value,
-                "");
-
-  static_assert(
-      std::is_same<d::SelectMatchingOpenCLType_t<s::vec<s::longlong, 2>>,
-                   s::vec<s::cl_long, 2>>::value,
-      "");
-
-  static_assert(
-      std::is_same<d::SelectMatchingOpenCLType_t<s::multi_ptr<
-                       s::longlong, s::access::address_space::global_space>>,
-                   s::multi_ptr<s::cl_long,
-                                s::access::address_space::global_space>>::value,
-      "");
-
-  static_assert(
-      std::is_same<
-          d::SelectMatchingOpenCLType_t<s::multi_ptr<
-              s::vec<s::longlong, 2>, s::access::address_space::global_space>>,
-          s::multi_ptr<s::vec<s::cl_long, 2>,
-                       s::access::address_space::global_space>>::value,
-      "");
+              s::vec<long long, 2>, s::access::address_space::global_space,
+              s::access::decorated::yes>>,
+          s::multi_ptr<s::vec<s::opencl::cl_long, 2>,
+                       s::access::address_space::global_space,
+                       s::access::decorated::yes>>::value);
 
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(
-      std::is_same<d::ConvertToOpenCLType_t<s::vec<s::cl_int, 2>>,
-                   s::vec<s::cl_int, 2>::vector_t>::value,
-      "");
+      std::is_same<d::ConvertToOpenCLType_t<s::vec<s::opencl::cl_int, 2>>,
+                   s::vec<s::opencl::cl_int, 2>::vector_t>::value);
+  static_assert(std::is_same<d::ConvertToOpenCLType_t<s::vec<long long, 2>>,
+                             s::vec<s::opencl::cl_long, 2>::vector_t>::value);
+  static_assert(std::is_same<
+                d::ConvertToOpenCLType_t<s::multi_ptr<
+                    s::opencl::cl_int, s::access::address_space::global_space,
+                    s::access::decorated::yes>>,
+                s::multi_ptr<s::opencl::cl_int,
+                             s::access::address_space::global_space,
+                             s::access::decorated::yes>::pointer>::value);
   static_assert(
-      std::is_same<d::ConvertToOpenCLType_t<s::vec<s::longlong, 2>>,
-                   s::vec<s::cl_long, 2>::vector_t>::value,
-      "");
-  static_assert(
-      std::is_same<
-          d::ConvertToOpenCLType_t<
-              s::multi_ptr<s::cl_int, s::access::address_space::global_space>>,
-          s::multi_ptr<s::cl_int, s::access::address_space::global_space>::
-              pointer_t>::value,
-      "");
-  static_assert(
-      std::is_same<
-          d::ConvertToOpenCLType_t<s::multi_ptr<
-              s::vec<s::cl_int, 4>, s::access::address_space::global_space>>,
-          s::multi_ptr<s::vec<s::cl_int, 4>::vector_t,
-                       s::access::address_space::global_space>::pointer_t>::
-          value,
-      "");
+      std::is_same<d::ConvertToOpenCLType_t<
+                       s::multi_ptr<s::vec<s::opencl::cl_int, 4>,
+                                    s::access::address_space::global_space,
+                                    s::access::decorated::yes>>,
+                   s::multi_ptr<s::vec<s::opencl::cl_int, 4>::vector_t,
+                                s::access::address_space::global_space,
+                                s::access::decorated::yes>::pointer>::value);
 #endif
   static_assert(std::is_same<d::ConvertToOpenCLType_t<s::half>,
                              d::half_impl::BIsRepresentationT>::value,
                 "");
 
-  s::multi_ptr<int, s::access::address_space::global_space> mp;
+  s::multi_ptr<int, s::access::address_space::global_space,
+               s::access::decorated::yes>
+      mp;
   int *dp = mp;
 }

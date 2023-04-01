@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: no-threads
 // UNSUPPORTED: c++03, c++11
 
 // <barrier>
@@ -18,8 +18,3 @@
 #ifndef _LIBCPP_VERSION
 #error _LIBCPP_VERSION not defined
 #endif
-
-int main(int, char**)
-{
-  return 0;
-}

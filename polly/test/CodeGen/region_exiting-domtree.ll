@@ -1,11 +1,11 @@
-; RUN: opt %loadPolly -polly-codegen -verify-dom-info -analyze < %s
+; RUN: opt %loadPolly -polly-codegen -verify-dom-info -disable-output < %s
 
 ; Verify that the DominatorTree is preserved correctly for the inserted
 ; %polly.stmt.exit.exit block, which serves as new exit block for the generated
 ; subregion. In particulat, it must be dominated by %polly.stmt.subregion.enter,
 ; the generated subregion's entry block.
 
-define void @func(i32 %n, i32* noalias nonnull %A) {
+define void @func(i32 %n, ptr noalias nonnull %A) {
 entry:
   br label %loop
 
@@ -24,7 +24,7 @@ subregion.skip:
 subregion.enter:
   %sqr = mul i32 %i, %i
   %cond = icmp eq i32 %sqr, 0
-  store i32 %i, i32* %A
+  store i32 %i, ptr %A
   br i1 %cond, label %subregion.true, label %subregion.false
 
 subregion.true:

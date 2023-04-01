@@ -15,6 +15,7 @@
 
 #include "ScriptedPythonInterface.h"
 #include "lldb/Interpreter/ScriptedProcessInterface.h"
+#include <optional>
 
 namespace lldb_private {
 class ScriptedThreadPythonInterface : public ScriptedThreadInterface,
@@ -24,15 +25,16 @@ public:
 
   StructuredData::GenericSP
   CreatePluginObject(llvm::StringRef class_name, ExecutionContext &exe_ctx,
-                     StructuredData::DictionarySP args_sp) override;
+                     StructuredData::DictionarySP args_sp,
+                     StructuredData::Generic *script_obj = nullptr) override;
 
   lldb::tid_t GetThreadID() override;
 
-  llvm::Optional<std::string> GetName() override;
+  std::optional<std::string> GetName() override;
 
   lldb::StateType GetState() override;
 
-  llvm::Optional<std::string> GetQueue() override;
+  std::optional<std::string> GetQueue() override;
 
   StructuredData::DictionarySP GetStopReason() override;
 
@@ -40,7 +42,9 @@ public:
 
   StructuredData::DictionarySP GetRegisterInfo() override;
 
-  llvm::Optional<std::string> GetRegisterContext() override;
+  std::optional<std::string> GetRegisterContext() override;
+
+  StructuredData::ArraySP GetExtendedInfo() override;
 };
 } // namespace lldb_private
 

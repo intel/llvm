@@ -59,16 +59,17 @@ enum LoadCWDlldbinitFile {
   eLoadCWDlldbinitWarn
 };
 
-enum LoadDependentFiles {
-  eLoadDependentsDefault,
-  eLoadDependentsYes,
-  eLoadDependentsNo,
-};
-
 enum ImportStdModule {
   eImportStdModuleFalse,
   eImportStdModuleFallback,
   eImportStdModuleTrue,
+};
+
+enum DynamicClassInfoHelper {
+  eDynamicClassInfoHelperAuto,
+  eDynamicClassInfoHelperRealizedClassesStruct,
+  eDynamicClassInfoHelperCopyRealizedClassList,
+  eDynamicClassInfoHelperGetRealizedClassList,
 };
 
 class TargetExperimentalProperties : public Properties {
@@ -140,6 +141,8 @@ public:
 
   PathMappingList &GetSourcePathMap() const;
 
+  bool GetAutoSourceMapRelative() const;
+
   FileSpecList GetExecutableSearchPaths();
 
   void AppendExecutableSearchPaths(const FileSpec &);
@@ -152,19 +155,30 @@ public:
 
   ImportStdModule GetImportStdModule() const;
 
+  DynamicClassInfoHelper GetDynamicClassInfoHelper() const;
+
   bool GetEnableAutoApplyFixIts() const;
 
   uint64_t GetNumberOfRetriesWithFixits() const;
 
   bool GetEnableNotifyAboutFixIts() const;
 
-  bool GetEnableSaveObjects() const;
+  FileSpec GetSaveJITObjectsDir() const;
 
   bool GetEnableSyntheticValue() const;
 
   uint32_t GetMaxZeroPaddingInFloatFormat() const;
 
   uint32_t GetMaximumNumberOfChildrenToDisplay() const;
+
+  /// Get the max depth value, augmented with a bool to indicate whether the
+  /// depth is the default.
+  ///
+  /// When the user has customized the max depth, the bool will be false.
+  ///
+  /// \returns the max depth, and true if the max depth is the system default,
+  /// otherwise false.
+  std::pair<uint32_t, bool> GetMaximumDepthOfChildrenToDisplay() const;
 
   uint32_t GetMaximumSizeOfStringSummary() const;
 
@@ -248,6 +262,9 @@ private:
   void DisableASLRValueChangedCallback();
   void InheritTCCValueChangedCallback();
   void DisableSTDIOValueChangedCallback();
+
+  // Settings checker for target.jit-save-objects-dir:
+  void CheckJITObjectsDir();
 
   Environment ComputeEnvironment() const;
 
@@ -396,9 +413,11 @@ public:
 
   uint32_t GetPoundLineLine() const { return m_pound_line_line; }
 
-  void SetResultIsInternal(bool b) { m_result_is_internal = b; }
+  void SetSuppressPersistentResult(bool b) { m_suppress_persistent_result = b; }
 
-  bool GetResultIsInternal() const { return m_result_is_internal; }
+  bool GetSuppressPersistentResult() const {
+    return m_suppress_persistent_result;
+  }
 
   void SetAutoApplyFixIts(bool b) { m_auto_apply_fixits = b; }
 
@@ -429,7 +448,7 @@ private:
   bool m_repl = false;
   bool m_generate_debug_info = false;
   bool m_ansi_color_errors = false;
-  bool m_result_is_internal = false;
+  bool m_suppress_persistent_result = false;
   bool m_auto_apply_fixits = true;
   uint64_t m_retries_with_fixits = 1;
   /// True if the executed code should be treated as utility code that is only
@@ -438,14 +457,14 @@ private:
 
   lldb::DynamicValueType m_use_dynamic = lldb::eNoDynamicValues;
   Timeout<std::micro> m_timeout = default_timeout;
-  Timeout<std::micro> m_one_thread_timeout = llvm::None;
+  Timeout<std::micro> m_one_thread_timeout = std::nullopt;
   lldb::ExpressionCancelCallback m_cancel_callback = nullptr;
   void *m_cancel_callback_baton = nullptr;
   // If m_pound_line_file is not empty and m_pound_line_line is non-zero, use
   // #line %u "%s" before the expression content to remap where the source
   // originates
   mutable std::string m_pound_line_file;
-  mutable uint32_t m_pound_line_line;
+  mutable uint32_t m_pound_line_line = 0;
 };
 
 // Target
@@ -464,7 +483,8 @@ public:
     eBroadcastBitModulesLoaded = (1 << 1),
     eBroadcastBitModulesUnloaded = (1 << 2),
     eBroadcastBitWatchpointChanged = (1 << 3),
-    eBroadcastBitSymbolsLoaded = (1 << 4)
+    eBroadcastBitSymbolsLoaded = (1 << 4),
+    eBroadcastBitSymbolsChanged = (1 << 5),
   };
 
   // These two functions fill out the Broadcaster interface:
@@ -739,8 +759,7 @@ public:
                                const BreakpointName::Permissions &permissions);
   void ApplyNameToBreakpoints(BreakpointName &bp_name);
 
-  // This takes ownership of the name obj passed in.
-  void AddBreakpointName(BreakpointName *bp_name);
+  void AddBreakpointName(std::unique_ptr<BreakpointName> bp_name);
 
   void GetBreakpointNames(std::vector<std::string> &names);
 
@@ -763,6 +782,9 @@ public:
   bool EnableBreakpointByID(lldb::break_id_t break_id);
 
   bool RemoveBreakpointByID(lldb::break_id_t break_id);
+
+  /// Resets the hit count of all breakpoints.
+  void ResetBreakpointHitCounts();
 
   // The flag 'end_to_end', default to true, signifies that the operation is
   // performed end to end, for both the debugger and the debuggee.
@@ -967,6 +989,9 @@ public:
 
   const ArchSpec &GetArchitecture() const { return m_arch.GetSpec(); }
 
+  /// Returns the name of the target's ABI plugin.
+  llvm::StringRef GetABIName() const;
+
   /// Set the architecture for this target.
   ///
   /// If the current target has no Images read in, then this just sets the
@@ -990,9 +1015,14 @@ public:
   ///     currently selected platform isn't compatible (in case it might be
   ///     manually set following this function call).
   ///
+  /// \param[in] merged
+  ///     If true, arch_spec is merged with the current
+  ///     architecture. Otherwise it's replaced.
+  ///
   /// \return
-  ///     \b true if the architecture was successfully set, \bfalse otherwise.
-  bool SetArchitecture(const ArchSpec &arch_spec, bool set_platform = false);
+  ///     \b true if the architecture was successfully set, \b false otherwise.
+  bool SetArchitecture(const ArchSpec &arch_spec, bool set_platform = false,
+                       bool merge = true);
 
   bool MergeArchitecture(const ArchSpec &arch_spec);
 
@@ -1019,10 +1049,11 @@ public:
                     lldb::addr_t *load_addr_ptr = nullptr);
 
   size_t ReadCStringFromMemory(const Address &addr, std::string &out_str,
-                               Status &error);
+                               Status &error, bool force_live_memory = false);
 
   size_t ReadCStringFromMemory(const Address &addr, char *dst,
-                               size_t dst_max_len, Status &result_error);
+                               size_t dst_max_len, Status &result_error,
+                               bool force_live_memory = false);
 
   /// Read a NULL terminated string from memory
   ///
@@ -1089,11 +1120,12 @@ public:
 
   PathMappingList &GetImageSearchPathList();
 
-  llvm::Expected<TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetScratchTypeSystemForLanguage(lldb::LanguageType language,
                                   bool create_on_demand = true);
 
-  std::vector<TypeSystem *> GetScratchTypeSystems(bool create_on_demand = true);
+  std::vector<lldb::TypeSystemSP>
+  GetScratchTypeSystems(bool create_on_demand = true);
 
   PersistentExpressionState *
   GetPersistentExpressionStateForLanguage(lldb::LanguageType language);
@@ -1273,7 +1305,7 @@ public:
 
   class StopHookCommandLine : public StopHook {
   public:
-    virtual ~StopHookCommandLine() = default;
+    ~StopHookCommandLine() override = default;
 
     StringList &GetCommands() { return m_commands; }
     void SetActionFromString(const std::string &strings);
@@ -1296,7 +1328,7 @@ public:
 
   class StopHookScripted : public StopHook {
   public:
-    virtual ~StopHookScripted() = default;
+    ~StopHookScripted() override = default;
     StopHookResult HandleStop(ExecutionContext &exc_ctx,
                               lldb::StreamSP output) override;
 
@@ -1398,6 +1430,44 @@ public:
     return *m_frame_recognizer_manager_up;
   }
 
+  void SaveScriptedLaunchInfo(lldb_private::ProcessInfo &process_info);
+
+  /// Add a signal for the target.  This will get copied over to the process
+  /// if the signal exists on that target.  Only the values with Yes and No are
+  /// set, Calculate values will be ignored.
+protected:
+  struct DummySignalValues {
+    LazyBool pass = eLazyBoolCalculate;
+    LazyBool notify = eLazyBoolCalculate;
+    LazyBool stop = eLazyBoolCalculate;
+    DummySignalValues(LazyBool pass, LazyBool notify, LazyBool stop)
+        : pass(pass), notify(notify), stop(stop) {}
+    DummySignalValues() = default;
+  };
+  using DummySignalElement = llvm::StringMapEntry<DummySignalValues>;
+  static bool UpdateSignalFromDummy(lldb::UnixSignalsSP signals_sp,
+                                    const DummySignalElement &element);
+  static bool ResetSignalFromDummy(lldb::UnixSignalsSP signals_sp,
+                                   const DummySignalElement &element);
+
+public:
+  /// Add a signal to the Target's list of stored signals/actions.  These
+  /// values will get copied into any processes launched from
+  /// this target.
+  void AddDummySignal(llvm::StringRef name, LazyBool pass, LazyBool print,
+                      LazyBool stop);
+  /// Updates the signals in signals_sp using the stored dummy signals.
+  /// If warning_stream_sp is not null, if any stored signals are not found in
+  /// the current process, a warning will be emitted here.
+  void UpdateSignalsFromDummy(lldb::UnixSignalsSP signals_sp,
+                              lldb::StreamSP warning_stream_sp);
+  /// Clear the dummy signals in signal_names from the target, or all signals
+  /// if signal_names is empty.  Also remove the behaviors they set from the
+  /// process's signals if it exists.
+  void ClearDummySignals(Args &signal_names);
+  /// Print all the signals set in this target.
+  void PrintDummySignals(Stream &strm, Args &signals);
+
 protected:
   /// Implementing of ModuleList::Notifier.
 
@@ -1427,6 +1497,7 @@ protected:
     ArchSpec m_spec;
     std::unique_ptr<Architecture> m_plugin_up;
   };
+
   // Member variables.
   Debugger &m_debugger;
   lldb::PlatformSP m_platform_sp; ///< The platform for this target.
@@ -1444,7 +1515,8 @@ protected:
   SectionLoadHistory m_section_load_history;
   BreakpointList m_breakpoint_list;
   BreakpointList m_internal_breakpoint_list;
-  using BreakpointNameList = std::map<ConstString, BreakpointName *>;
+  using BreakpointNameList =
+      std::map<ConstString, std::unique_ptr<BreakpointName>>;
   BreakpointNameList m_breakpoint_names;
 
   lldb::BreakpointSP m_last_created_breakpoint;
@@ -1477,6 +1549,10 @@ protected:
   lldb::TraceSP m_trace_sp;
   /// Stores the frame recognizers of this target.
   lldb::StackFrameRecognizerManagerUP m_frame_recognizer_manager_up;
+  /// These are used to set the signal state when you don't have a process and
+  /// more usefully in the Dummy target where you can't know exactly what
+  /// signals you will have.
+  llvm::StringMap<DummySignalValues> m_dummy_signals;
 
   static void ImageSearchPathsChanged(const PathMappingList &path_list,
                                       void *baton);

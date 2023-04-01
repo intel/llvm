@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: apple-clang-12
 
 // In MSVC mode, there's a slightly different number of errors printed for
 // each of these, so it doesn't add up to the exact expected count of 18.
@@ -51,9 +50,8 @@ void test_category(T v) {
   TEST_PASS(v, <=>);
 }
 
-int main(int, char**) {
+void f() {
   test_category(std::strong_ordering::equivalent);
   test_category(std::weak_ordering::equivalent);
   test_category(std::partial_ordering::equivalent);
-  return 0;
 }

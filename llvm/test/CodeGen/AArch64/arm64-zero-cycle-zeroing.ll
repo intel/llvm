@@ -8,7 +8,7 @@
 ; RUN: llc < %s -mtriple=arm64-apple-ios   -mcpu=cyclone -mattr=+fullfp16 | FileCheck %s -check-prefixes=ALL,ZEROGP,NONE16
 ; RUN: llc < %s -mtriple=aarch64-linux-gnu -mcpu=exynos-m3                | FileCheck %s -check-prefixes=ALL,NONEGP,ZEROFP
 ; RUN: llc < %s -mtriple=aarch64-linux-gnu -mcpu=kryo                     | FileCheck %s -check-prefixes=ALL,ZEROGP,ZEROFP
-; UN: llc < %s -mtriple=aarch64-linux-gnu -mcpu=falkor                   | FileCheck %s -check-prefixes=ALL,ZEROGP,ZEROFP
+; RUN: llc < %s -mtriple=aarch64-linux-gnu -mcpu=falkor                   | FileCheck %s -check-prefixes=ALL,ZEROGP,ZEROFP
 
 declare void @bar(half, float, double, <2 x double>)
 declare void @bari(i32, i32)
@@ -19,7 +19,7 @@ define void @t1() nounwind ssp {
 entry:
 ; ALL-LABEL: t1:
 ; ALL-NOT: fmov
-; NONEFP-DAG: ldr h0,{{.*}}
+; NONEFP-DAG: fmov s0, wzr
 ; NONEFP-DAG: fmov s1, wzr
 ; NONEFP-DAG: fmov d2, xzr
 ; NONEFP-DAG: movi{{(.16b)?}} v3{{(.2d)?}}, #0
@@ -27,7 +27,7 @@ entry:
 ; NONE16: fmov s1, wzr
 ; NONE16: fmov d2, xzr
 ; NONE16: movi{{(.16b)?}} v3{{(.2d)?}}, #0
-; ZEROFP-DAG: ldr h0,{{.*}}
+; ZEROFP-DAG: movi d0, #0
 ; ZEROFP-DAG: movi d1, #0
 ; ZEROFP-DAG: movi d2, #0
 ; ZEROFP-DAG: movi v3.2d, #0

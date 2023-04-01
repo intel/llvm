@@ -16,6 +16,7 @@
 
 #define DEBUG_TYPE "EasilySwappableParametersCheck"
 #include "llvm/Support/Debug.h"
+#include <optional>
 
 namespace optutils = clang::tidy::utils::options;
 
@@ -23,42 +24,53 @@ namespace optutils = clang::tidy::utils::options;
 static constexpr std::size_t DefaultMinimumLength = 2;
 
 /// The default value for ignored parameter names.
-static const std::string DefaultIgnoredParameterNames =
-    optutils::serializeStringList({"\"\"", "iterator", "Iterator", "begin",
-                                   "Begin", "end", "End", "first", "First",
-                                   "last", "Last", "lhs", "LHS", "rhs", "RHS"});
+static constexpr llvm::StringLiteral DefaultIgnoredParameterNames = "\"\";"
+                                                                    "iterator;"
+                                                                    "Iterator;"
+                                                                    "begin;"
+                                                                    "Begin;"
+                                                                    "end;"
+                                                                    "End;"
+                                                                    "first;"
+                                                                    "First;"
+                                                                    "last;"
+                                                                    "Last;"
+                                                                    "lhs;"
+                                                                    "LHS;"
+                                                                    "rhs;"
+                                                                    "RHS";
 
 /// The default value for ignored parameter type suffixes.
-static const std::string DefaultIgnoredParameterTypeSuffixes =
-    optutils::serializeStringList({"bool",
-                                   "Bool",
-                                   "_Bool",
-                                   "it",
-                                   "It",
-                                   "iterator",
-                                   "Iterator",
-                                   "inputit",
-                                   "InputIt",
-                                   "forwardit",
-                                   "ForwardIt",
-                                   "bidirit",
-                                   "BidirIt",
-                                   "constiterator",
-                                   "const_iterator",
-                                   "Const_Iterator",
-                                   "Constiterator",
-                                   "ConstIterator",
-                                   "RandomIt",
-                                   "randomit",
-                                   "random_iterator",
-                                   "ReverseIt",
-                                   "reverse_iterator",
-                                   "reverse_const_iterator",
-                                   "ConstReverseIterator",
-                                   "Const_Reverse_Iterator",
-                                   "const_reverse_iterator",
-                                   "Constreverseiterator",
-                                   "constreverseiterator"});
+static constexpr llvm::StringLiteral DefaultIgnoredParameterTypeSuffixes =
+    "bool;"
+    "Bool;"
+    "_Bool;"
+    "it;"
+    "It;"
+    "iterator;"
+    "Iterator;"
+    "inputit;"
+    "InputIt;"
+    "forwardit;"
+    "ForwardIt;"
+    "bidirit;"
+    "BidirIt;"
+    "constiterator;"
+    "const_iterator;"
+    "Const_Iterator;"
+    "Constiterator;"
+    "ConstIterator;"
+    "RandomIt;"
+    "randomit;"
+    "random_iterator;"
+    "ReverseIt;"
+    "reverse_iterator;"
+    "reverse_const_iterator;"
+    "ConstReverseIterator;"
+    "Const_Reverse_Iterator;"
+    "const_reverse_iterator;"
+    "Constreverseiterator;"
+    "constreverseiterator";
 
 /// The default value for the QualifiersMix check option.
 static constexpr bool DefaultQualifiersMix = false;
@@ -77,9 +89,7 @@ static constexpr std::size_t
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 using TheCheck = EasilySwappableParametersCheck;
 
@@ -941,7 +951,7 @@ static inline bool isDerivedToBase(const CXXRecordDecl *Derived,
          Base->isCompleteDefinition() && Derived->isDerivedFrom(Base);
 }
 
-static Optional<QualType>
+static std::optional<QualType>
 approximateStandardConversionSequence(const TheCheck &Check, QualType From,
                                       QualType To, const ASTContext &Ctx) {
   LLVM_DEBUG(llvm::dbgs() << ">>> approximateStdConv for LType:\n";
@@ -1116,7 +1126,7 @@ public:
 
   /// Selects the best conversion function that is applicable from the
   /// prepared set of potential conversion functions taken.
-  Optional<PreparedConversion> operator()() const {
+  std::optional<PreparedConversion> operator()() const {
     if (FlaggedConversions.empty()) {
       LLVM_DEBUG(llvm::dbgs() << "--- selectUserDefinedConv. Empty.\n");
       return {};
@@ -1126,7 +1136,7 @@ public:
       return FlaggedConversions.front();
     }
 
-    Optional<PreparedConversion> BestConversion;
+    std::optional<PreparedConversion> BestConversion;
     unsigned short HowManyGoodConversions = 0;
     for (const auto &Prepared : FlaggedConversions) {
       LLVM_DEBUG(llvm::dbgs() << "--- selectUserDefinedConv. Candidate flags: "
@@ -1180,7 +1190,7 @@ private:
 
 } // namespace
 
-static Optional<ConversionSequence>
+static std::optional<ConversionSequence>
 tryConversionOperators(const TheCheck &Check, const CXXRecordDecl *RD,
                        QualType ToType) {
   if (!RD || !RD->isCompleteDefinition())
@@ -1206,7 +1216,7 @@ tryConversionOperators(const TheCheck &Check, const CXXRecordDecl *RD,
     ConversionSet.addConversion(Con, Con->getConversionType(), ToType);
   }
 
-  if (Optional<UserDefinedConversionSelector::PreparedConversion>
+  if (std::optional<UserDefinedConversionSelector::PreparedConversion>
           SelectedConversion = ConversionSet()) {
     QualType RecordType{RD->getTypeForDecl(), 0};
 
@@ -1231,7 +1241,7 @@ tryConversionOperators(const TheCheck &Check, const CXXRecordDecl *RD,
   return {};
 }
 
-static Optional<ConversionSequence>
+static std::optional<ConversionSequence>
 tryConvertingConstructors(const TheCheck &Check, QualType FromType,
                           const CXXRecordDecl *RD) {
   if (!RD || !RD->isCompleteDefinition())
@@ -1257,7 +1267,7 @@ tryConvertingConstructors(const TheCheck &Check, QualType FromType,
     ConversionSet.addConversion(Con, FromType, Con->getParamDecl(0)->getType());
   }
 
-  if (Optional<UserDefinedConversionSelector::PreparedConversion>
+  if (std::optional<UserDefinedConversionSelector::PreparedConversion>
           SelectedConversion = ConversionSet()) {
     QualType RecordType{RD->getTypeForDecl(), 0};
 
@@ -1312,12 +1322,12 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
   ConversionSequence ImplicitSeq{LType, RType};
   QualType WorkType = LType;
 
-  Optional<QualType> AfterFirstStdConv =
+  std::optional<QualType> AfterFirstStdConv =
       approximateStandardConversionSequence(Check, LType, RType, Ctx);
   if (AfterFirstStdConv) {
     LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Standard "
                                "Pre-Conversion found!\n");
-    ImplicitSeq.AfterFirstStandard = AfterFirstStdConv.getValue();
+    ImplicitSeq.AfterFirstStandard = *AfterFirstStdConv;
     WorkType = ImplicitSeq.AfterFirstStandard;
   }
 
@@ -1332,12 +1342,12 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
     bool FoundConversionOperator = false, FoundConvertingCtor = false;
 
     if (const auto *LRD = WorkType->getAsCXXRecordDecl()) {
-      Optional<ConversionSequence> ConversionOperatorResult =
+      std::optional<ConversionSequence> ConversionOperatorResult =
           tryConversionOperators(Check, LRD, RType);
       if (ConversionOperatorResult) {
         LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Found "
                                    "conversion operator.\n");
-        ImplicitSeq.update(ConversionOperatorResult.getValue());
+        ImplicitSeq.update(*ConversionOperatorResult);
         WorkType = ImplicitSeq.getTypeAfterUserDefinedConversion();
         FoundConversionOperator = true;
       }
@@ -1347,12 +1357,12 @@ approximateImplicitConversion(const TheCheck &Check, QualType LType,
       // Use the original "LType" here, and not WorkType, because the
       // conversion to the converting constructors' parameters will be
       // modelled in the recursive call.
-      Optional<ConversionSequence> ConvCtorResult =
+      std::optional<ConversionSequence> ConvCtorResult =
           tryConvertingConstructors(Check, LType, RRD);
       if (ConvCtorResult) {
         LLVM_DEBUG(llvm::dbgs() << "--- approximateImplicitConversion. Found "
                                    "converting constructor.\n");
-        ImplicitSeq.update(ConvCtorResult.getValue());
+        ImplicitSeq.update(*ConvCtorResult);
         WorkType = ImplicitSeq.getTypeAfterUserDefinedConversion();
         FoundConvertingCtor = true;
       }
@@ -1501,12 +1511,10 @@ static bool isIgnoredParameter(const TheCheck &Check, const ParmVarDecl *Node) {
                           << "' is ignored.\n");
 
   if (!Node->getIdentifier())
-    return llvm::find(Check.IgnoredParameterNames, "\"\"") !=
-           Check.IgnoredParameterNames.end();
+    return llvm::is_contained(Check.IgnoredParameterNames, "\"\"");
 
   StringRef NodeName = Node->getName();
-  if (llvm::find(Check.IgnoredParameterNames, NodeName) !=
-      Check.IgnoredParameterNames.end()) {
+  if (llvm::is_contained(Check.IgnoredParameterNames, NodeName)) {
     LLVM_DEBUG(llvm::dbgs() << "\tName ignored.\n");
     return true;
   }
@@ -1541,7 +1549,7 @@ static bool isIgnoredParameter(const TheCheck &Check, const ParmVarDecl *Node) {
   LLVM_DEBUG(llvm::dbgs() << "\tType name is '" << NodeTypeName << "'\n");
   if (!NodeTypeName.empty()) {
     if (llvm::any_of(Check.IgnoredParameterTypeSuffixes,
-                     [NodeTypeName](const std::string &E) {
+                     [NodeTypeName](StringRef E) {
                        return !E.empty() && NodeTypeName.endswith(E);
                      })) {
       LLVM_DEBUG(llvm::dbgs() << "\tType suffix ignored.\n");
@@ -1573,7 +1581,7 @@ bool lazyMapOfSetsIntersectionExists(const MapTy &Map, const ElemTy &E1,
     return false;
 
   for (const auto &E1SetElem : E1Iterator->second)
-    if (llvm::find(E2Iterator->second, E1SetElem) != E2Iterator->second.end())
+    if (E2Iterator->second.contains(E1SetElem))
       return true;
 
   return false;
@@ -1666,13 +1674,13 @@ public:
       if (!CalledFn)
         continue;
 
-      llvm::Optional<unsigned> TargetIdx;
+      std::optional<unsigned> TargetIdx;
       unsigned NumFnParams = CalledFn->getNumParams();
       for (unsigned Idx = 0; Idx < NumFnParams; ++Idx)
         if (CalledFn->getParamDecl(Idx) == PassedToParam)
           TargetIdx.emplace(Idx);
 
-      assert(TargetIdx.hasValue() && "Matched, but didn't find index?");
+      assert(TargetIdx && "Matched, but didn't find index?");
       TargetParams[PassedParamOfThisFn].insert(
           {CalledFn->getCanonicalDecl(), *TargetIdx});
     }
@@ -1735,8 +1743,8 @@ public:
   }
 
   bool operator()(const ParmVarDecl *Param1, const ParmVarDecl *Param2) const {
-    return llvm::find(ReturnedParams, Param1) != ReturnedParams.end() &&
-           llvm::find(ReturnedParams, Param2) != ReturnedParams.end();
+    return llvm::is_contained(ReturnedParams, Param1) &&
+           llvm::is_contained(ReturnedParams, Param2);
   }
 };
 
@@ -2301,6 +2309,4 @@ void EasilySwappableParametersCheck::check(
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

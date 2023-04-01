@@ -15,9 +15,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace altera {
+namespace clang::tidy::altera {
 
 namespace {
 
@@ -29,9 +27,9 @@ public:
 
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
-                          CharSourceRange FileNameRange, const FileEntry *File,
-                          StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported,
+                          CharSourceRange FileNameRange,
+                          OptionalFileEntryRef File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
 
   void EndOfMainFile() override;
@@ -62,7 +60,7 @@ void KernelNameRestrictionCheck::registerPPCallbacks(const SourceManager &SM,
 
 void KernelNameRestrictionPPCallbacks::InclusionDirective(
     SourceLocation HashLoc, const Token &, StringRef FileName, bool,
-    CharSourceRange, const FileEntry *, StringRef, StringRef, const Module *,
+    CharSourceRange, OptionalFileEntryRef, StringRef, StringRef, const Module *,
     SrcMgr::CharacteristicKind) {
   IncludeDirective ID = {HashLoc, FileName};
   IncludeDirectives.push_back(std::move(ID));
@@ -102,6 +100,4 @@ void KernelNameRestrictionPPCallbacks::EndOfMainFile() {
   }
 }
 
-} // namespace altera
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::altera

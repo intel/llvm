@@ -13,7 +13,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/Optional.h"
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -34,12 +34,11 @@ public:
   /// class will do the matching and call the derived class'
   /// getDeclFailureInfo() and getMacroFailureInfo() for determining whether a
   /// given identifier passes or fails the check.
-  void registerMatchers(ast_matchers::MatchFinder *Finder) override final;
-  void
-  check(const ast_matchers::MatchFinder::MatchResult &Result) override final;
+  void registerMatchers(ast_matchers::MatchFinder *Finder) final;
+  void check(const ast_matchers::MatchFinder::MatchResult &Result) final;
   void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
-                           Preprocessor *ModuleExpanderPP) override final;
-  void onEndOfTranslationUnit() override final;
+                           Preprocessor *ModuleExpanderPP) final;
+  void onEndOfTranslationUnit() final;
 
   /// Derived classes that override this function should call this method from
   /// the overridden method.
@@ -124,14 +123,15 @@ public:
 
 protected:
   /// Overridden by derived classes, returns information about if and how a Decl
-  /// failed the check. A 'None' result means the Decl did not fail the check.
-  virtual llvm::Optional<FailureInfo>
+  /// failed the check. A 'std::nullopt' result means the Decl did not fail the
+  /// check.
+  virtual std::optional<FailureInfo>
   getDeclFailureInfo(const NamedDecl *Decl, const SourceManager &SM) const = 0;
 
   /// Overridden by derived classes, returns information about if and how a
-  /// macro failed the check. A 'None' result means the macro did not fail the
-  /// check.
-  virtual llvm::Optional<FailureInfo>
+  /// macro failed the check. A 'std::nullopt' result means the macro did not
+  /// fail the check.
+  virtual std::optional<FailureInfo>
   getMacroFailureInfo(const Token &MacroNameTok,
                       const SourceManager &SM) const = 0;
 

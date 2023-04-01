@@ -13,6 +13,7 @@
 #include "bolt/Passes/RegAnalysis.h"
 #include "bolt/Core/BinaryFunction.h"
 #include "bolt/Passes/CallGraphWalker.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/CommandLine.h"
 
 #define DEBUG_TYPE "ra"
@@ -23,12 +24,9 @@ namespace opts {
 extern cl::opt<unsigned> Verbosity;
 extern cl::OptionCategory BoltOptCategory;
 
-cl::opt<bool> AssumeABI(
-    "assume-abi",
-    cl::desc("assume the ABI is never violated"),
-    cl::ZeroOrMore,
-    cl::init(false),
-    cl::cat(BoltOptCategory));
+cl::opt<bool> AssumeABI("assume-abi",
+                        cl::desc("assume the ABI is never violated"),
+                        cl::cat(BoltOptCategory));
 }
 
 namespace llvm {

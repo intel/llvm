@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts, libcpp-has-no-incomplete-ranges
 
 // <memory>
 //
@@ -16,6 +15,7 @@
 // uninitialized_copy_n_result<I, O> uninitialized_copy_n(I ifirst, iter_difference_t<I> n, O ofirst, S olast); // since C++20
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <iterator>
 #include <memory>
@@ -24,8 +24,9 @@
 
 #include "../buffer.h"
 #include "../counted.h"
-#include "test_macros.h"
+#include "MoveOnly.h"
 #include "test_iterators.h"
+#include "test_macros.h"
 
 // TODO(varconst): consolidate the ADL checks into a single file.
 // Because this is a variable and not a function, it's guaranteed that ADL won't be used. However,
@@ -33,44 +34,10 @@
 // libc++-specific.
 LIBCPP_STATIC_ASSERT(std::is_class_v<decltype(std::ranges::uninitialized_move_n)>);
 
-static_assert(std::is_invocable_v<decltype(std::ranges::uninitialized_move_n), int*, size_t, long*, long*>);
+static_assert(std::is_invocable_v<decltype(std::ranges::uninitialized_move_n), int*, std::size_t, long*, long*>);
 struct NotConvertibleFromInt {};
-static_assert(!std::is_invocable_v<decltype(std::ranges::uninitialized_move_n), int*, size_t, NotConvertibleFromInt*,
+static_assert(!std::is_invocable_v<decltype(std::ranges::uninitialized_move_n), int*, std::size_t, NotConvertibleFromInt*,
                                    NotConvertibleFromInt*>);
-
-namespace adl {
-
-static int iter_move_invocations = 0;
-
-template <class T>
-struct Iterator {
-  using value_type = T;
-  using difference_type = int;
-  using iterator_concept = std::input_iterator_tag;
-
-  T* ptr = nullptr;
-
-  Iterator() = default;
-  explicit Iterator(int* p) : ptr(p) {}
-
-  T& operator*() const { return *ptr; }
-
-  Iterator& operator++() { ++ptr; return *this; }
-  Iterator operator++(int) {
-    Iterator prev = *this;
-    ++ptr;
-    return prev;
-  }
-
-  friend T&& iter_move(Iterator iter) {
-    ++iter_move_invocations;
-    return std::move(*iter);
-  }
-
-  friend bool operator==(const Iterator& lhs, const Iterator& rhs) { return lhs.ptr == rhs.ptr; }
-};
-
-} // namespace adl
 
 int main(int, char**) {
   // An empty range -- no default constructors should be invoked.
@@ -156,8 +123,8 @@ int main(int, char**) {
   // Conversions.
   {
     constexpr int N = 3;
-    double in[N] = {1.0, 2.0, 3.0};
-    Buffer<int, N> out;
+    int in[N] = {1, 2, 3};
+    Buffer<double, N> out;
 
     std::ranges::uninitialized_move_n(in, N, out.begin(), out.end());
     assert(std::equal(in, in + N, out.begin(), out.end()));
@@ -187,17 +154,41 @@ int main(int, char**) {
     constexpr int N = 3;
     int in[N] = {1, 2, 3};
     Buffer<int, N> out;
-    adl::Iterator<int> begin(in);
-    adl::Iterator<int> end(in + N);
+    int iter_moves = 0;
+    adl::Iterator begin = adl::Iterator::TrackMoves(in, iter_moves);
+    adl::Iterator end = adl::Iterator::TrackMoves(in + N, iter_moves);
 
     std::ranges::uninitialized_move(begin, end, out.begin(), out.end());
-    assert(adl::iter_move_invocations == 3);
-    adl::iter_move_invocations = 0;
+    assert(iter_moves == 3);
+    iter_moves = 0;
 
     std::ranges::subrange range(begin, end);
     std::ranges::uninitialized_move(range, out);
-    assert(adl::iter_move_invocations == 3);
-    adl::iter_move_invocations = 0;
+    assert(iter_moves == 3);
+    iter_moves = 0;
+  }
+
+  // Move-only iterators are supported.
+  {
+    using MoveOnlyIter = cpp20_input_iterator<const int*>;
+    static_assert(!std::is_copy_constructible_v<MoveOnlyIter>);
+
+    constexpr int N = 3;
+    int buffer[N] = {1, 2, 3};
+
+    MoveOnlyIter in(buffer);
+    Buffer<int, N> out;
+    std::ranges::uninitialized_move_n(std::move(in), N, out.begin(), out.end());
+  }
+
+  // MoveOnly types are supported
+  {
+    {
+      MoveOnly a[] = {1, 2, 3, 4};
+      Buffer<MoveOnly, 4> out;
+      std::ranges::uninitialized_move_n(std::begin(a), std::size(a), std::begin(out), std::end(out));
+      assert(std::ranges::equal(out, std::array<MoveOnly, 4>{1, 2, 3, 4}));
+    }
   }
 
   return 0;

@@ -189,7 +189,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
@@ -818,6 +817,10 @@ SeparateConstOffsetFromGEP::accumulateByteOffset(GetElementPtrInst *GEP,
   gep_type_iterator GTI = gep_type_begin(*GEP);
   for (unsigned I = 1, E = GEP->getNumOperands(); I != E; ++I, ++GTI) {
     if (GTI.isSequential()) {
+      // Constant offsets of scalable types are not really constant.
+      if (isa<ScalableVectorType>(GTI.getIndexedType()))
+        continue;
+
       // Tries to extract a constant offset from this GEP index.
       int64_t ConstantOffset =
           ConstantOffsetExtractor::Find(GEP->getOperand(I), GEP, DT);
@@ -1007,6 +1010,10 @@ bool SeparateConstOffsetFromGEP::splitGEP(GetElementPtrInst *GEP) {
   gep_type_iterator GTI = gep_type_begin(*GEP);
   for (unsigned I = 1, E = GEP->getNumOperands(); I != E; ++I, ++GTI) {
     if (GTI.isSequential()) {
+      // Constant offsets of scalable types are not really constant.
+      if (isa<ScalableVectorType>(GTI.getIndexedType()))
+        continue;
+
       // Splits this GEP index into a variadic part and a constant offset, and
       // uses the variadic part as the new index.
       Value *OldIdx = GEP->getOperand(I);
@@ -1123,18 +1130,17 @@ bool SeparateConstOffsetFromGEP::splitGEP(GetElementPtrInst *GEP) {
     // sizeof(int64).
     //
     // Emit an uglygep in this case.
-    Type *I8PtrTy = Type::getInt8PtrTy(GEP->getContext(),
-                                       GEP->getPointerAddressSpace());
-    NewGEP = new BitCastInst(NewGEP, I8PtrTy, "", GEP);
-    NewGEP = GetElementPtrInst::Create(
-        Type::getInt8Ty(GEP->getContext()), NewGEP,
-        ConstantInt::get(IntPtrTy, AccumulativeByteOffset, true), "uglygep",
-        GEP);
+    IRBuilder<> Builder(GEP);
+    Type *I8PtrTy =
+        Builder.getInt8Ty()->getPointerTo(GEP->getPointerAddressSpace());
+
+    NewGEP = cast<Instruction>(Builder.CreateGEP(
+        Builder.getInt8Ty(), Builder.CreateBitCast(NewGEP, I8PtrTy),
+        {ConstantInt::get(IntPtrTy, AccumulativeByteOffset, true)}, "uglygep",
+        GEPWasInBounds));
+
     NewGEP->copyMetadata(*GEP);
-    // Inherit the inbounds attribute of the original GEP.
-    cast<GetElementPtrInst>(NewGEP)->setIsInBounds(GEPWasInBounds);
-    if (GEP->getType() != I8PtrTy)
-      NewGEP = new BitCastInst(NewGEP, GEP->getType(), GEP->getName(), GEP);
+    NewGEP = cast<Instruction>(Builder.CreateBitCast(NewGEP, GEP->getType()));
   }
 
   GEP->replaceAllUsesWith(NewGEP);
@@ -1226,8 +1232,8 @@ bool SeparateConstOffsetFromGEP::reuniteExts(Instruction *I) {
     }
   } else if (match(I, m_Sub(m_SExt(m_Value(LHS)), m_SExt(m_Value(RHS))))) {
     if (LHS->getType() == RHS->getType()) {
-      const SCEV *Key =
-          SE->getAddExpr(SE->getUnknown(LHS), SE->getUnknown(RHS));
+      const SCEV *Key = SE->getAddExpr(
+          SE->getUnknown(LHS), SE->getNegativeSCEV(SE->getUnknown(RHS)));
       if (auto *Dom = findClosestMatchingDominator(Key, I, DominatingSubs)) {
         Instruction *NewSExt = new SExtInst(Dom, I->getType(), "", I);
         NewSExt->takeName(I);
@@ -1247,8 +1253,8 @@ bool SeparateConstOffsetFromGEP::reuniteExts(Instruction *I) {
     }
   } else if (match(I, m_NSWSub(m_Value(LHS), m_Value(RHS)))) {
     if (programUndefinedIfPoison(I)) {
-      const SCEV *Key =
-          SE->getAddExpr(SE->getUnknown(LHS), SE->getUnknown(RHS));
+      const SCEV *Key = SE->getAddExpr(
+          SE->getUnknown(LHS), SE->getNegativeSCEV(SE->getUnknown(RHS)));
       DominatingSubs[Key].push_back(I);
     }
   }
@@ -1368,6 +1374,16 @@ void SeparateConstOffsetFromGEP::swapGEPOperand(GetElementPtrInst *First,
     Second->setIsInBounds(false);
   } else
     First->setIsInBounds(true);
+}
+
+void SeparateConstOffsetFromGEPPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<SeparateConstOffsetFromGEPPass> *>(this)
+      ->printPipeline(OS, MapClassName2PassName);
+  OS << '<';
+  if (LowerGEP)
+    OS << "lower-gep";
+  OS << '>';
 }
 
 PreservedAnalyses

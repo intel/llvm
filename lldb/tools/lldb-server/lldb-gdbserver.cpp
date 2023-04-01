@@ -27,6 +27,7 @@
 #include "lldb/Host/Socket.h"
 #include "lldb/Host/common/NativeProcessProtocol.h"
 #include "lldb/Target/Process.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Status.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Option/ArgList.h"
@@ -94,7 +95,7 @@ static int g_sighup_received_count = 0;
 static void sighup_handler(MainLoopBase &mainloop) {
   ++g_sighup_received_count;
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   LLDB_LOGF(log, "lldb-server:%s swallowing SIGHUP (receive count=%d)",
             __FUNCTION__, g_sighup_received_count);
 
@@ -277,11 +278,14 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  constexpr llvm::StringLiteral NAME##_init[] = VALUE;                         \
+  constexpr llvm::ArrayRef<llvm::StringLiteral> NAME(                          \
+      NAME##_init, std::size(NAME##_init) - 1);
 #include "LLGSOptions.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -293,9 +297,9 @@ const opt::OptTable::Info InfoTable[] = {
 #undef OPTION
 };
 
-class LLGSOptTable : public opt::OptTable {
+class LLGSOptTable : public opt::GenericOptTable {
 public:
-  LLGSOptTable() : OptTable(InfoTable) {}
+  LLGSOptTable() : opt::GenericOptTable(InfoTable) {}
 
   void PrintHelp(llvm::StringRef Name) {
     std::string Usage =

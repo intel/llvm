@@ -1,16 +1,32 @@
-// RUN: rm -rf %t
-// RUN: rm -rf %t.mcp
-// RUN: mkdir -p %t
+// RUN: rm -rf %t && mkdir %t
+// RUN: split-file %s %t
 
-// Build without b.modulemap
-// RUN: %clang_cc1 -fmodules -fimplicit-module-maps -fmodules-cache-path=%t.mcp -fdisable-module-hash -fmodule-map-file=%S/Inputs/AddRemoveIrrelevantModuleMap/a.modulemap %s -verify
-// RUN: cp %t.mcp/a.pcm %t/a.pcm
+//--- a/module.modulemap
+module a {}
 
-// Build with b.modulemap
-// RUN: rm -rf %t.mcp
-// RUN: %clang_cc1 -fmodules -fimplicit-module-maps -fmodules-cache-path=%t.mcp -fdisable-module-hash -fmodule-map-file=%S/Inputs/AddRemoveIrrelevantModuleMap/a.modulemap -fmodule-map-file=%S/Inputs/AddRemoveIrrelevantModuleMap/b.modulemap %s -verify
-// RUN: not diff %t.mcp/a.pcm %t/a.pcm
+//--- b/module.modulemap
+module b {}
 
+//--- c/module.modulemap
+module c {}
+
+//--- module.modulemap
+module m { header "m.h" }
+//--- m.h
+@import c;
+
+//--- test-simple.m
 // expected-no-diagnostics
+@import m;
 
-@import a;
+// Build modules with the non-affecting "a/module.modulemap".
+// RUN: %clang_cc1 -I %t/a -I %t/b -I %t/c -I %t -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/cache -fdisable-module-hash %t/test-simple.m -verify
+// RUN: mv %t/cache %t/cache-with
+
+// Build modules without the non-affecting "a/module.modulemap".
+// RUN: rm -rf %t/a/module.modulemap
+// RUN: %clang_cc1 -I %t/a -I %t/b -I %t/c -I %t -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/cache -fdisable-module-hash %t/test-simple.m -verify
+// RUN: mv %t/cache %t/cache-without
+
+// Check that the PCM files are bit-for-bit identical.
+// RUN: diff %t/cache-with/m.pcm %t/cache-without/m.pcm

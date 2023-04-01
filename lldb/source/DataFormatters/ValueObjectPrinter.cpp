@@ -71,6 +71,18 @@ void ValueObjectPrinter::Init(
 }
 
 bool ValueObjectPrinter::PrintValueObject() {
+  if (!m_orig_valobj)
+    return false;
+
+  // If the incoming ValueObject is in an error state, the best we're going to 
+  // get out of it is its type.  But if we don't even have that, just print
+  // the error and exit early.
+  if (m_orig_valobj->GetError().Fail() 
+      && !m_orig_valobj->GetCompilerType().IsValid()) {
+    m_stream->Printf("Error: '%s'", m_orig_valobj->GetError().AsCString());
+    return true;
+  }
+   
   if (!GetMostSpecializedValue() || m_valobj == nullptr)
     return false;
 
@@ -263,7 +275,7 @@ void ValueObjectPrinter::PrintDecl() {
 
   StreamString varName;
 
-  if (!m_options.m_hide_name) {
+  if (ShouldShowName()) {
     if (m_options.m_flat_output)
       m_valobj->GetExpressionPath(varName);
     else
@@ -302,7 +314,7 @@ void ValueObjectPrinter::PrintDecl() {
       m_stream->Printf("(%s) ", typeName.GetData());
     if (!varName.Empty())
       m_stream->Printf("%s =", varName.GetData());
-    else if (!m_options.m_hide_name)
+    else if (ShouldShowName())
       m_stream->Printf(" =");
   }
 }
@@ -425,7 +437,9 @@ bool ValueObjectPrinter::PrintValueAndSummaryIfNeeded(bool &value_printed,
         if (m_options.m_hide_pointer_value &&
             IsPointerValue(m_valobj->GetCompilerType())) {
         } else {
-          m_stream->Printf(" %s", m_value.c_str());
+          if (ShouldShowName())
+            m_stream->PutChar(' ');
+          m_stream->PutCString(m_value);
           value_printed = true;
         }
       }
@@ -445,7 +459,7 @@ bool ValueObjectPrinter::PrintObjectDescriptionIfNeeded(bool value_printed,
     // let's avoid the overly verbose no description error for a nil thing
     if (m_options.m_use_objc && !IsNil() && !IsUninitialized() &&
         (!m_options.m_pointer_as_array)) {
-      if (!m_options.m_hide_value || !m_options.m_hide_name)
+      if (!m_options.m_hide_value || ShouldShowName())
         m_stream->Printf(" ");
       const char *object_desc = nullptr;
       if (value_printed || summary_printed)
@@ -500,7 +514,7 @@ bool ValueObjectPrinter::ShouldPrintChildren(
   if (m_options.m_use_objc)
     return false;
 
-  if (is_failed_description || m_curr_depth < m_options.m_max_depth) {
+  if (is_failed_description || !HasReachedMaximumDepth()) {
     // We will show children for all concrete types. We won't show pointer
     // contents unless a pointer depth has been specified. We won't reference
     // contents unless the reference is the root object (depth of zero).
@@ -551,8 +565,14 @@ void ValueObjectPrinter::PrintChildrenPreamble() {
     if (ShouldPrintValueObject())
       m_stream->EOL();
   } else {
-    if (ShouldPrintValueObject())
-      m_stream->PutCString(IsRef() ? ": {\n" : " {\n");
+    if (ShouldPrintValueObject()) {
+      if (IsRef()) {
+        m_stream->PutCString(": ");
+      } else if (ShouldShowName()) {
+        m_stream->PutChar(' ');
+      }
+      m_stream->PutCString("{\n");
+    }
     m_stream->IndentMore();
   }
 }
@@ -786,9 +806,28 @@ void ValueObjectPrinter::PrintChildrenIfNeeded(bool value_printed,
       m_stream->EOL();
     } else
       PrintChildren(value_printed, summary_printed, curr_ptr_depth);
-  } else if (m_curr_depth >= m_options.m_max_depth && IsAggregate() &&
+  } else if (HasReachedMaximumDepth() && IsAggregate() &&
              ShouldPrintValueObject()) {
     m_stream->PutCString("{...}\n");
+    // The maximum child depth has been reached. If `m_max_depth` is the default
+    // (i.e. the user has _not_ customized it), then lldb presents a warning to
+    // the user. The warning tells the user that the limit has been reached, but
+    // more importantly tells them how to expand the limit if desired.
+    if (m_options.m_max_depth_is_default)
+      m_valobj->GetTargetSP()
+          ->GetDebugger()
+          .GetCommandInterpreter()
+          .SetReachedMaximumDepth();
   } else
     m_stream->EOL();
+}
+
+bool ValueObjectPrinter::HasReachedMaximumDepth() {
+  return m_curr_depth >= m_options.m_max_depth;
+}
+
+bool ValueObjectPrinter::ShouldShowName() const {
+  if (m_curr_depth == 0)
+    return !m_options.m_hide_root_name && !m_options.m_hide_name;
+  return !m_options.m_hide_name;
 }

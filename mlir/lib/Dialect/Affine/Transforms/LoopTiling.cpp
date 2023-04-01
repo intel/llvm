@@ -10,20 +10,28 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
-#include "mlir/Analysis/LoopAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Passes.h"
+
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/Affine/Passes.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/Transforms/LoopUtils.h"
-#include "mlir/Transforms/Utils.h"
+#include "mlir/IR/IRMapping.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include <optional>
+
+namespace mlir {
+#define GEN_PASS_DEF_AFFINELOOPTILING
+#include "mlir/Dialect/Affine/Passes.h.inc"
+} // namespace mlir
+
 using namespace mlir;
 
 #define DEBUG_TYPE "affine-loop-tile"
@@ -31,14 +39,14 @@ using namespace mlir;
 namespace {
 
 /// A pass to perform loop tiling on all suitable loop nests of a Function.
-struct LoopTiling : public AffineLoopTilingBase<LoopTiling> {
+struct LoopTiling : public impl::AffineLoopTilingBase<LoopTiling> {
   LoopTiling() = default;
   explicit LoopTiling(uint64_t cacheSizeBytes, bool avoidMaxMinBounds = true)
       : avoidMaxMinBounds(avoidMaxMinBounds) {
     this->cacheSizeInKiB = cacheSizeBytes / 1024;
   }
 
-  void runOnFunction() override;
+  void runOnOperation() override;
   void getTileSizes(ArrayRef<AffineForOp> band,
                     SmallVectorImpl<unsigned> *tileSizes);
 
@@ -53,11 +61,11 @@ struct LoopTiling : public AffineLoopTilingBase<LoopTiling> {
 
 /// Creates a pass to perform loop tiling on all suitable loop nests of a
 /// Function.
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createLoopTilingPass(uint64_t cacheSizeBytes) {
   return std::make_unique<LoopTiling>(cacheSizeBytes);
 }
-std::unique_ptr<OperationPass<FuncOp>> mlir::createLoopTilingPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> mlir::createLoopTilingPass() {
   return std::make_unique<LoopTiling>();
 }
 
@@ -68,12 +76,12 @@ static void adjustToDivisorsOfTripCounts(ArrayRef<AffineForOp> band,
   assert(band.size() == tileSizes->size() && "invalid tile size count");
   for (unsigned i = 0, e = band.size(); i < e; i++) {
     unsigned &tSizeAdjusted = (*tileSizes)[i];
-    Optional<uint64_t> mayConst = getConstantTripCount(band[i]);
+    std::optional<uint64_t> mayConst = getConstantTripCount(band[i]);
     if (!mayConst)
       continue;
     // Adjust the tile size to largest factor of the trip count less than
     // tSize.
-    uint64_t constTripCount = mayConst.getValue();
+    uint64_t constTripCount = *mayConst;
     if (constTripCount > 1 && tSizeAdjusted > constTripCount / 2)
       tSizeAdjusted = constTripCount / 2;
     while (constTripCount % tSizeAdjusted != 0)
@@ -114,7 +122,7 @@ void LoopTiling::getTileSizes(ArrayRef<AffineForOp> band,
   // the cache size. This is an approximation with the assumption that the
   // footprint increases with the tile size linearly in that dimension (i.e.,
   // assumes one-to-one access function).
-  Optional<int64_t> fp = getMemoryFootprintBytes(band[0], 0);
+  std::optional<int64_t> fp = getMemoryFootprintBytes(band[0], 0);
   if (!fp) {
     // Fill with default tile sizes if footprint is unknown.
     std::fill(tileSizes->begin(), tileSizes->end(),
@@ -129,7 +137,7 @@ void LoopTiling::getTileSizes(ArrayRef<AffineForOp> band,
 
   // Check how many times larger the cache size is when compared to footprint.
   uint64_t cacheSizeBytes = cacheSizeInKiB * 1024;
-  uint64_t excessFactor = llvm::divideCeil(fp.getValue(), cacheSizeBytes);
+  uint64_t excessFactor = llvm::divideCeil(*fp, cacheSizeBytes);
   if (excessFactor <= 1) {
     // No need of any tiling - set tile size to 1.
     std::fill(tileSizes->begin(), tileSizes->end(), 1);
@@ -160,10 +168,10 @@ void LoopTiling::getTileSizes(ArrayRef<AffineForOp> band,
     adjustToDivisorsOfTripCounts(band, tileSizes);
 }
 
-void LoopTiling::runOnFunction() {
+void LoopTiling::runOnOperation() {
   // Bands of loops to tile.
   std::vector<SmallVector<AffineForOp, 6>> bands;
-  getTileableBands(getFunction(), &bands);
+  getTileableBands(getOperation(), &bands);
 
   // Tile each band.
   for (auto &band : bands) {

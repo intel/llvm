@@ -8,8 +8,8 @@
 // PGOGEN: @[[C1C:__profc_c_captured.c___captured_stmt.1]] = private global [3 x i64] zeroinitializer
 
 // PGOALL-LABEL: define{{.*}} void @debug_captured()
-// PGOGEN: store {{.*}} @[[DCC]], i32 0, i32 0
-void debug_captured() {
+// PGOGEN: store {{.*}} @[[DCC]]
+void debug_captured(void) {
   int x = 10;
 
 // Check both debug_captured counters, so we can do this all in one pass
@@ -20,7 +20,7 @@ void debug_captured() {
 // PGOALL: ret
 
 // PGOALL-LABEL: define internal void @__captured_stmt(
-// PGOGEN: store {{.*}} @[[CSC]], i32 0, i32 0
+// PGOGEN: store {{.*}} @[[CSC]]
 #pragma clang __debug captured
   {
     // PGOGEN: store {{.*}} @[[CSC]], i32 0, i32 1
@@ -32,7 +32,7 @@ void debug_captured() {
   if (x) {} // This is DC1. Checked above.
 
 // PGOALL-LABEL: define internal void @__captured_stmt.1(
-// PGOGEN: store {{.*}} @[[C1C]], i32 0, i32 0
+// PGOGEN: store {{.*}} @[[C1C]]
 #pragma clang __debug captured
   {
     // PGOGEN: store {{.*}} @[[C1C]], i32 0, i32 1

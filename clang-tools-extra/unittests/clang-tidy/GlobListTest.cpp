@@ -7,7 +7,7 @@ namespace tidy {
 template <typename GlobListT> struct GlobListTest : public ::testing::Test {};
 
 using GlobListTypes = ::testing::Types<GlobList, CachedGlobList>;
-TYPED_TEST_SUITE(GlobListTest, GlobListTypes);
+TYPED_TEST_SUITE(GlobListTest, GlobListTypes, );
 
 TYPED_TEST(GlobListTest, Empty) {
   TypeParam Filter("");
@@ -102,6 +102,19 @@ TYPED_TEST(GlobListTest, Complex) {
   EXPECT_FALSE(Filter.contains("qwe"));
   EXPECT_FALSE(Filter.contains("asdfqweasdf"));
   EXPECT_TRUE(Filter.contains("asdfqwEasdf"));
+}
+
+TYPED_TEST(GlobListTest, NewlineCharactersAsSeparators) {
+  TypeParam Filter("a*  \n b,\n-c*,dd");
+
+  EXPECT_FALSE(Filter.contains(""));
+  EXPECT_TRUE(Filter.contains("aaa"));
+  EXPECT_TRUE(Filter.contains("b"));
+  EXPECT_FALSE(Filter.contains("c"));
+  EXPECT_FALSE(Filter.contains("ccc"));
+  EXPECT_FALSE(Filter.contains("d"));
+  EXPECT_TRUE(Filter.contains("dd"));
+  EXPECT_FALSE(Filter.contains("ddd"));
 }
 
 } // namespace tidy

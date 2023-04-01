@@ -7,8 +7,13 @@ static_library("FlowSensitive") {
   ]
   sources = [
     "ControlFlowContext.cpp",
+    "DataflowAnalysisContext.cpp",
     "DataflowEnvironment.cpp",
+    "DebugSupport.cpp",
+    "Logger.cpp",
     "Transfer.cpp",
     "TypeErasedDataflowAnalysis.cpp",
+    "Value.cpp",
+    "WatchedLiteralsSolver.cpp",
   ]
 }

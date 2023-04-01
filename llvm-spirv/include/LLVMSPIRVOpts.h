@@ -39,13 +39,13 @@
 #ifndef SPIRV_LLVMSPIRVOPTS_H
 #define SPIRV_LLVMSPIRVOPTS_H
 
-#include <llvm/ADT/Optional.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
 
 #include <cassert>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <unordered_map>
 
 namespace llvm {
@@ -80,7 +80,12 @@ enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
 
 enum class FPContractMode : uint32_t { On, Off, Fast };
 
-enum class DebugInfoEIS : uint32_t { SPIRV_Debug, OpenCL_DebugInfo_100 };
+enum class DebugInfoEIS : uint32_t {
+  SPIRV_Debug,
+  OpenCL_DebugInfo_100,
+  NonSemantic_Shader_DebugInfo_100,
+  NonSemantic_Shader_DebugInfo_200
+};
 
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
@@ -103,6 +108,10 @@ public:
       return false;
 
     return I->second;
+  }
+
+  void setAllowedToUseExtension(ExtensionID Extension, bool Allow = true) {
+    ExtStatusMap[Extension] = Allow;
   }
 
   VersionNumber getMaxVersion() const { return MaxVersion; }
@@ -206,7 +215,7 @@ private:
 
   // Unknown LLVM intrinsics will be translated as external function calls in
   // SPIR-V
-  llvm::Optional<ArgList> SPIRVAllowUnknownIntrinsics{};
+  std::optional<ArgList> SPIRVAllowUnknownIntrinsics{};
 
   // Enable support for extra DIExpression opcodes not listed in the SPIR-V
   // DebugInfo specification.

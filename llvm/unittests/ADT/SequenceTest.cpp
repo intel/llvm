@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/Sequence.h"
+#include "llvm/ADT/STLExtras.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -293,6 +294,15 @@ TEST(SequenceTest, NonIterableEnums) {
   EXPECT_THAT(enum_seq_inclusive(UntypedEnum::A, UntypedEnum::A,
                                  force_iteration_on_noniterable_enum),
               ElementsAre(UntypedEnum::A));
+}
+
+// Reproducer for https://github.com/llvm/llvm-project/issues/61122
+TEST(SequenceTest, CorrectReferenceType) {
+  std::vector<int> vals = {1, 2, 3};
+  detail::SafeIntIterator<int, false> begin(4);
+  detail::SafeIntIterator<int, false> end(6);
+  vals.insert(vals.end(), begin, end);
+  EXPECT_THAT(vals, ElementsAre(1, 2, 3, 4, 5));
 }
 
 } // namespace

@@ -39,10 +39,10 @@ bool BinaryBasicBlock::hasInstructions() const {
   return getParent()->hasInstructions();
 }
 
-bool BinaryBasicBlock::hasJumpTable() const {
+const JumpTable *BinaryBasicBlock::getJumpTable() const {
   const MCInst *Inst = getLastNonPseudoInstr();
   const JumpTable *JT = Inst ? Function->getJumpTable(*Inst) : nullptr;
-  return (JT != nullptr);
+  return JT;
 }
 
 void BinaryBasicBlock::adjustNumPseudos(const MCInst &Inst, int Sign) {
@@ -102,7 +102,7 @@ bool BinaryBasicBlock::validateSuccessorInvariants() {
     if (Valid) {
       for (const MCSymbol *Sym : UniqueSyms) {
         Valid &= (Sym == Function->getFunctionEndLabel() ||
-                  Sym == Function->getFunctionColdEndLabel());
+                  Sym == Function->getFunctionEndLabel(getFragmentNum()));
         if (!Valid) {
           errs() << "BOLT-WARNING: Jump table contains illegal entry: "
                  << Sym->getName() << "\n";
@@ -198,14 +198,13 @@ int32_t BinaryBasicBlock::getCFIStateAtInstr(const MCInst *Instr) const {
   // Find the last CFI preceding Instr in this basic block.
   const MCInst *LastCFI = nullptr;
   bool InstrSeen = (Instr == nullptr);
-  for (auto RII = Instructions.rbegin(), E = Instructions.rend(); RII != E;
-       ++RII) {
+  for (const MCInst &Inst : llvm::reverse(Instructions)) {
     if (!InstrSeen) {
-      InstrSeen = (&*RII == Instr);
+      InstrSeen = (&Inst == Instr);
       continue;
     }
-    if (Function->getBinaryContext().MIB->isCFI(*RII)) {
-      LastCFI = &*RII;
+    if (Function->getBinaryContext().MIB->isCFI(Inst)) {
+      LastCFI = &Inst;
       break;
     }
   }
@@ -328,6 +327,7 @@ void BinaryBasicBlock::removePredecessor(BinaryBasicBlock *Pred,
     }
   }
   assert(Erased && "Pred is not a predecessor of this block!");
+  (void)Erased;
 }
 
 void BinaryBasicBlock::removeDuplicateConditionalSuccessor(MCInst *CondBranch) {
@@ -349,6 +349,36 @@ void BinaryBasicBlock::removeDuplicateConditionalSuccessor(MCInst *CondBranch) {
   if (CondBI.Count != COUNT_NO_PROFILE && UncondBI.Count != COUNT_NO_PROFILE)
     Count = CondBI.Count + UncondBI.Count;
   BranchInfo.push_back({Count, 0});
+}
+
+void BinaryBasicBlock::updateJumpTableSuccessors() {
+  const JumpTable *JT = getJumpTable();
+  assert(JT && "Expected jump table instruction.");
+
+  // Clear existing successors.
+  removeAllSuccessors();
+
+  // Generate the list of successors in deterministic order without duplicates.
+  SmallVector<BinaryBasicBlock *, 16> SuccessorBBs;
+  for (const MCSymbol *Label : JT->Entries) {
+    BinaryBasicBlock *BB = getFunction()->getBasicBlockForLabel(Label);
+    // Ignore __builtin_unreachable()
+    if (!BB) {
+      assert(Label == getFunction()->getFunctionEndLabel() &&
+             "JT label should match a block or end of function.");
+      continue;
+    }
+    SuccessorBBs.emplace_back(BB);
+  }
+  llvm::sort(SuccessorBBs,
+             [](const BinaryBasicBlock *BB1, const BinaryBasicBlock *BB2) {
+               return BB1->getInputOffset() < BB2->getInputOffset();
+             });
+  SuccessorBBs.erase(std::unique(SuccessorBBs.begin(), SuccessorBBs.end()),
+                     SuccessorBBs.end());
+
+  for (BinaryBasicBlock *BB : SuccessorBBs)
+    addSuccessor(BB);
 }
 
 void BinaryBasicBlock::adjustExecutionCount(double Ratio) {
@@ -460,7 +490,7 @@ void BinaryBasicBlock::addBranchInstruction(const BinaryBasicBlock *Successor) {
   assert(isSuccessor(Successor));
   BinaryContext &BC = Function->getBinaryContext();
   MCInst NewInst;
-  std::unique_lock<std::shared_timed_mutex> Lock(BC.CtxMutex);
+  std::unique_lock<llvm::sys::RWMutex> Lock(BC.CtxMutex);
   BC.MIB->createUncondBranch(NewInst, Successor->getLabel(), BC.Ctx.get());
   Instructions.emplace_back(std::move(NewInst));
 }
@@ -513,7 +543,7 @@ BinaryBasicBlock::getBranchStats(const BinaryBasicBlock *Succ) const {
     }
 
     if (TotalCount > 0) {
-      auto Itr = std::find(Successors.begin(), Successors.end(), Succ);
+      auto Itr = llvm::find(Successors, Succ);
       assert(Itr != Successors.end());
       const BinaryBranchInfo &BI = BranchInfo[Itr - Successors.begin()];
       if (BI.Count && BI.Count != COUNT_NO_PROFILE) {
@@ -532,7 +562,7 @@ void BinaryBasicBlock::dump() const {
   if (Label)
     outs() << Label->getName() << ":\n";
   BC.printInstructions(outs(), Instructions.begin(), Instructions.end(),
-                       getOffset());
+                       getOffset(), Function);
   outs() << "preds:";
   for (auto itr = pred_begin(); itr != pred_end(); ++itr) {
     outs() << " " << (*itr)->getName();
@@ -550,34 +580,23 @@ uint64_t BinaryBasicBlock::estimateSize(const MCCodeEmitter *Emitter) const {
 
 BinaryBasicBlock::BinaryBranchInfo &
 BinaryBasicBlock::getBranchInfo(const BinaryBasicBlock &Succ) {
-  auto BI = branch_info_begin();
-  for (BinaryBasicBlock *BB : successors()) {
-    if (&Succ == BB)
-      return *BI;
-    ++BI;
-  }
-
-  llvm_unreachable("Invalid successor");
-  return *BI;
+  return const_cast<BinaryBranchInfo &>(
+      static_cast<const BinaryBasicBlock &>(*this).getBranchInfo(Succ));
 }
 
-BinaryBasicBlock::BinaryBranchInfo &
-BinaryBasicBlock::getBranchInfo(const MCSymbol *Label) {
-  auto BI = branch_info_begin();
-  for (BinaryBasicBlock *BB : successors()) {
-    if (BB->getLabel() == Label)
-      return *BI;
-    ++BI;
-  }
-
-  llvm_unreachable("Invalid successor");
-  return *BI;
+const BinaryBasicBlock::BinaryBranchInfo &
+BinaryBasicBlock::getBranchInfo(const BinaryBasicBlock &Succ) const {
+  const auto Zip = llvm::zip(successors(), branch_info());
+  const auto Result = llvm::find_if(
+      Zip, [&](const auto &Tuple) { return std::get<0>(Tuple) == &Succ; });
+  assert(Result != Zip.end() && "Cannot find target in successors");
+  return std::get<1>(*Result);
 }
 
 BinaryBasicBlock *BinaryBasicBlock::splitAt(iterator II) {
   assert(II != end() && "expected iterator pointing to instruction");
 
-  BinaryBasicBlock *NewBlock = getFunction()->addBasicBlock(0);
+  BinaryBasicBlock *NewBlock = getFunction()->addBasicBlock();
 
   // Adjust successors/predecessors and propagate the execution count.
   moveAllSuccessorsTo(NewBlock);

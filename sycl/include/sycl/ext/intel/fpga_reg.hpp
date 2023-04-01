@@ -8,13 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
+#include <sycl/detail/defines.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace intel {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel {
 
 // Returns a registered copy of the input
 // This function is intended for FPGA users to instruct the compiler to insert
@@ -43,11 +42,10 @@ fpga_reg(_T t) {
 #endif
 }
 
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 // Keep it consistent with FPGA attributes like intelfpga::memory()
 // Currently clang does not support nested namespace for attributes
@@ -55,6 +53,6 @@ namespace intelfpga {
 template <typename _T>
 [[deprecated("intelfpga::fpga_reg will be removed in a future release.")]] _T
 fpga_reg(const _T &t) {
-  return cl::sycl::ext::intel::fpga_reg(t);
+  return sycl::ext::intel::fpga_reg(t);
 }
 } // namespace intelfpga

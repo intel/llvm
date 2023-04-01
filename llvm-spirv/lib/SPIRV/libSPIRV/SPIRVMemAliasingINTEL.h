@@ -68,10 +68,10 @@ public:
   void validate() const override { SPIRVEntry::validate(); }
 
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(internal::CapabilityMemoryAccessAliasingINTEL);
+    return getVec(CapabilityMemoryAccessAliasingINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_memory_access_aliasing;
   }
 
@@ -83,7 +83,7 @@ protected:
 };
 
 #define _SPIRV_OP(x, ...)                                                      \
-  typedef SPIRVMemAliasingINTELGeneric<internal::Op##x, __VA_ARGS__> SPIRV##x;
+  typedef SPIRVMemAliasingINTELGeneric<Op##x, __VA_ARGS__> SPIRV##x;
 // Intel Memory Alasing Instructions
 _SPIRV_OP(AliasDomainDeclINTEL, 2)
 _SPIRV_OP(AliasScopeDeclINTEL, 2)

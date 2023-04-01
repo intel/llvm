@@ -16,9 +16,9 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "mlir-c/Dialect/Standard.h"
+#include "mlir-c/Dialect/Func.h"
 #include "mlir-c/IntegerSet.h"
-#include "mlir-c/Registration.h"
+#include "mlir-c/RegisterEverything.h"
 #include "mlir-c/Support.h"
 
 #include <assert.h>
@@ -27,6 +27,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static void registerAllUpstreamDialects(MlirContext ctx) {
+  MlirDialectRegistry registry = mlirDialectRegistryCreate();
+  mlirRegisterAllDialects(registry);
+  mlirContextAppendDialectRegistry(ctx, registry);
+  mlirDialectRegistryDestroy(registry);
+}
 
 void populateLoopBody(MlirContext ctx, MlirBlock loopBody,
                       MlirLocation location, MlirBlock funcBody) {
@@ -81,9 +88,11 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
   MlirType memrefType =
       mlirTypeParseGet(ctx, mlirStringRefCreateFromCString("memref<?xf32>"));
   MlirType funcBodyArgTypes[] = {memrefType, memrefType};
+  MlirLocation funcBodyArgLocs[] = {location, location};
   MlirRegion funcBodyRegion = mlirRegionCreate();
-  MlirBlock funcBody = mlirBlockCreate(
-      sizeof(funcBodyArgTypes) / sizeof(MlirType), funcBodyArgTypes);
+  MlirBlock funcBody =
+      mlirBlockCreate(sizeof(funcBodyArgTypes) / sizeof(MlirType),
+                      funcBodyArgTypes, funcBodyArgLocs);
   mlirRegionAppendOwnedBlock(funcBodyRegion, funcBody);
 
   MlirAttribute funcTypeAttr = mlirAttributeParseGet(
@@ -93,13 +102,14 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
       mlirAttributeParseGet(ctx, mlirStringRefCreateFromCString("\"add\""));
   MlirNamedAttribute funcAttrs[] = {
       mlirNamedAttributeGet(
-          mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("type")),
+          mlirIdentifierGet(ctx,
+                            mlirStringRefCreateFromCString("function_type")),
           funcTypeAttr),
       mlirNamedAttributeGet(
           mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("sym_name")),
           funcNameAttr)};
   MlirOperationState funcState = mlirOperationStateGet(
-      mlirStringRefCreateFromCString("builtin.func"), location);
+      mlirStringRefCreateFromCString("func.func"), location);
   mlirOperationStateAddAttributes(&funcState, 2, funcAttrs);
   mlirOperationStateAddOwnedRegions(&funcState, 1, &funcBodyRegion);
   MlirOperation func = mlirOperationCreate(&funcState);
@@ -130,8 +140,8 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
   mlirBlockAppendOwnedOperation(funcBody, dim);
 
   MlirRegion loopBodyRegion = mlirRegionCreate();
-  MlirBlock loopBody = mlirBlockCreate(0, NULL);
-  mlirBlockAddArgument(loopBody, indexType);
+  MlirBlock loopBody = mlirBlockCreate(0, NULL, NULL);
+  mlirBlockAddArgument(loopBody, indexType, location);
   mlirRegionAppendOwnedBlock(loopBodyRegion, loopBody);
 
   MlirAttribute indexOneLiteral =
@@ -159,7 +169,7 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
   populateLoopBody(ctx, loopBody, location, funcBody);
 
   MlirOperationState retState = mlirOperationStateGet(
-      mlirStringRefCreateFromCString("std.return"), location);
+      mlirStringRefCreateFromCString("func.return"), location);
   MlirOperation ret = mlirOperationCreate(&retState);
   mlirBlockAppendOwnedOperation(funcBody, ret);
 
@@ -299,7 +309,7 @@ int collectStats(MlirOperation operation) {
   // clang-format off
   // CHECK-LABEL: @stats
   // CHECK: Number of operations: 12
-  // CHECK: Number of attributes: 4
+  // CHECK: Number of attributes: 5
   // CHECK: Number of blocks: 3
   // CHECK: Number of regions: 3
   // CHECK: Number of values: 9
@@ -384,7 +394,7 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   fprintf(stderr, "Terminator: ");
   mlirOperationPrint(terminator, printToStderr, NULL);
   fprintf(stderr, "\n");
-  // CHECK: Terminator: return
+  // CHECK: Terminator: func.return
 
   // Get the attribute by index.
   MlirNamedAttribute namedAttr0 = mlirOperationGetAttribute(operation, 0);
@@ -457,13 +467,13 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   MlirOpPrintingFlags flags = mlirOpPrintingFlagsCreate();
   mlirOpPrintingFlagsElideLargeElementsAttrs(flags, 2);
   mlirOpPrintingFlagsPrintGenericOpForm(flags);
-  mlirOpPrintingFlagsEnableDebugInfo(flags, /*prettyForm=*/0);
+  mlirOpPrintingFlagsEnableDebugInfo(flags, /*enable=*/1, /*prettyForm=*/0);
   mlirOpPrintingFlagsUseLocalScope(flags);
   fprintf(stderr, "Op print with all flags: ");
   mlirOperationPrintWithFlags(operation, flags, printToStderr, NULL);
   fprintf(stderr, "\n");
   // clang-format off
-  // CHECK: Op print with all flags: %{{.*}} = "arith.constant"() {elts = opaque<"_", "0xDEADBEEF"> : tensor<4xi32>, value = 0 : index} : () -> index loc(unknown)
+  // CHECK: Op print with all flags: %{{.*}} = "arith.constant"() {elts = dense_resource<__elided__> : tensor<4xi32>, value = 0 : index} : () -> index loc(unknown)
   // clang-format on
 
   mlirOpPrintingFlagsDestroy(flags);
@@ -507,15 +517,18 @@ static void buildWithInsertionsAndPrint(MlirContext ctx) {
   MlirType i2 = mlirIntegerTypeGet(ctx, 2);
   MlirType i3 = mlirIntegerTypeGet(ctx, 3);
   MlirType i4 = mlirIntegerTypeGet(ctx, 4);
-  MlirBlock block1 = mlirBlockCreate(1, &i1);
-  MlirBlock block2 = mlirBlockCreate(1, &i2);
-  MlirBlock block3 = mlirBlockCreate(1, &i3);
-  MlirBlock block4 = mlirBlockCreate(1, &i4);
+  MlirType i5 = mlirIntegerTypeGet(ctx, 5);
+  MlirBlock block1 = mlirBlockCreate(1, &i1, &loc);
+  MlirBlock block2 = mlirBlockCreate(1, &i2, &loc);
+  MlirBlock block3 = mlirBlockCreate(1, &i3, &loc);
+  MlirBlock block4 = mlirBlockCreate(1, &i4, &loc);
+  MlirBlock block5 = mlirBlockCreate(1, &i5, &loc);
   // Insert blocks so as to obtain the 1-2-3-4 order,
   mlirRegionInsertOwnedBlockBefore(region, nullBlock, block3);
   mlirRegionInsertOwnedBlockBefore(region, block3, block2);
   mlirRegionInsertOwnedBlockAfter(region, nullBlock, block1);
   mlirRegionInsertOwnedBlockAfter(region, block3, block4);
+  mlirRegionInsertOwnedBlockBefore(region, block3, block5);
 
   MlirOperationState op1State =
       mlirOperationStateGet(mlirStringRefCreateFromCString("dummy.op1"), loc);
@@ -531,6 +544,8 @@ static void buildWithInsertionsAndPrint(MlirContext ctx) {
       mlirOperationStateGet(mlirStringRefCreateFromCString("dummy.op6"), loc);
   MlirOperationState op7State =
       mlirOperationStateGet(mlirStringRefCreateFromCString("dummy.op7"), loc);
+  MlirOperationState op8State =
+      mlirOperationStateGet(mlirStringRefCreateFromCString("dummy.op8"), loc);
   MlirOperation op1 = mlirOperationCreate(&op1State);
   MlirOperation op2 = mlirOperationCreate(&op2State);
   MlirOperation op3 = mlirOperationCreate(&op3State);
@@ -538,6 +553,7 @@ static void buildWithInsertionsAndPrint(MlirContext ctx) {
   MlirOperation op5 = mlirOperationCreate(&op5State);
   MlirOperation op6 = mlirOperationCreate(&op6State);
   MlirOperation op7 = mlirOperationCreate(&op7State);
+  MlirOperation op8 = mlirOperationCreate(&op8State);
 
   // Insert operations in the first block so as to obtain the 1-2-3-4 order.
   MlirOperation nullOperation = mlirBlockGetFirstOperation(block1);
@@ -552,6 +568,11 @@ static void buildWithInsertionsAndPrint(MlirContext ctx) {
   mlirBlockAppendOwnedOperation(block2, op5);
   mlirBlockAppendOwnedOperation(block3, op6);
   mlirBlockAppendOwnedOperation(block4, op7);
+  mlirBlockAppendOwnedOperation(block5, op8);
+
+  // Remove block5.
+  mlirBlockDetach(block5);
+  mlirBlockDestroy(block5);
 
   mlirOperationDump(op);
   mlirOperationDestroy(op);
@@ -565,6 +586,8 @@ static void buildWithInsertionsAndPrint(MlirContext ctx) {
   // CHECK-NEXT:   "dummy.op4"
   // CHECK:      ^{{.*}}(%{{.*}}: i2
   // CHECK:        "dummy.op5"
+  // CHECK-NOT:  ^{{.*}}(%{{.*}}: i5
+  // CHECK-NOT:    "dummy.op8"
   // CHECK:      ^{{.*}}(%{{.*}}: i3
   // CHECK:        "dummy.op6"
   // CHECK:      ^{{.*}}(%{{.*}}: i4
@@ -779,6 +802,21 @@ static int printBuiltinTypes(MlirContext ctx) {
   fprintf(stderr, "\n");
   // CHECK: (index, i1) -> (i16, i32, i64)
 
+  // Opaque type.
+  MlirStringRef namespace = mlirStringRefCreate("dialect", 7);
+  MlirStringRef data = mlirStringRefCreate("type", 4);
+  mlirContextSetAllowUnregisteredDialects(ctx, true);
+  MlirType opaque = mlirOpaqueTypeGet(ctx, namespace, data);
+  mlirContextSetAllowUnregisteredDialects(ctx, false);
+  if (!mlirTypeIsAOpaque(opaque) ||
+      !mlirStringRefEqual(mlirOpaqueTypeGetDialectNamespace(opaque),
+                          namespace) ||
+      !mlirStringRefEqual(mlirOpaqueTypeGetData(opaque), data))
+    return 25;
+  mlirTypeDump(opaque);
+  fprintf(stderr, "\n");
+  // CHECK: !dialect.type
+
   return 0;
 }
 
@@ -811,11 +849,21 @@ int printBuiltinAttributes(MlirContext ctx) {
   // CHECK: f64
 
   MlirAttribute integer = mlirIntegerAttrGet(mlirIntegerTypeGet(ctx, 32), 42);
+  MlirAttribute signedInteger =
+      mlirIntegerAttrGet(mlirIntegerTypeSignedGet(ctx, 8), -1);
+  MlirAttribute unsignedInteger =
+      mlirIntegerAttrGet(mlirIntegerTypeUnsignedGet(ctx, 8), 255);
   if (!mlirAttributeIsAInteger(integer) ||
-      mlirIntegerAttrGetValueInt(integer) != 42)
+      mlirIntegerAttrGetValueInt(integer) != 42 ||
+      mlirIntegerAttrGetValueSInt(signedInteger) != -1 ||
+      mlirIntegerAttrGetValueUInt(unsignedInteger) != 255)
     return 2;
   mlirAttributeDump(integer);
+  mlirAttributeDump(signedInteger);
+  mlirAttributeDump(unsignedInteger);
   // CHECK: 42 : i32
+  // CHECK: -1 : si8
+  // CHECK: 255 : ui8
 
   MlirAttribute boolean = mlirBoolAttrGet(ctx, 1);
   if (!mlirAttributeIsABool(boolean) || !mlirBoolAttrGetValue(boolean))
@@ -825,10 +873,10 @@ int printBuiltinAttributes(MlirContext ctx) {
 
   const char data[] = "abcdefghijklmnopqestuvwxyz";
   MlirAttribute opaque =
-      mlirOpaqueAttrGet(ctx, mlirStringRefCreateFromCString("std"), 3, data,
+      mlirOpaqueAttrGet(ctx, mlirStringRefCreateFromCString("func"), 3, data,
                         mlirNoneTypeGet(ctx));
   if (!mlirAttributeIsAOpaque(opaque) ||
-      !stringIsEqual("std", mlirOpaqueAttrGetDialectNamespace(opaque)))
+      !stringIsEqual("func", mlirOpaqueAttrGetDialectNamespace(opaque)))
     return 4;
 
   MlirStringRef opaqueData = mlirOpaqueAttrGetData(opaque);
@@ -836,7 +884,7 @@ int printBuiltinAttributes(MlirContext ctx) {
       strncmp(data, opaqueData.data, opaqueData.length))
     return 5;
   mlirAttributeDump(opaque);
-  // CHECK: #std.abc
+  // CHECK: #func.abc
 
   MlirAttribute string =
       mlirStringAttrGet(ctx, mlirStringRefCreate(data + 3, 2));
@@ -902,12 +950,16 @@ int printBuiltinAttributes(MlirContext ctx) {
   int bools[] = {0, 1};
   uint8_t uints8[] = {0u, 1u};
   int8_t ints8[] = {0, 1};
+  uint16_t uints16[] = {0u, 1u};
+  int16_t ints16[] = {0, 1};
   uint32_t uints32[] = {0u, 1u};
   int32_t ints32[] = {0, 1};
   uint64_t uints64[] = {0u, 1u};
   int64_t ints64[] = {0, 1};
   float floats[] = {0.0f, 1.0f};
   double doubles[] = {0.0, 1.0};
+  uint16_t bf16s[] = {0x0, 0x3f80};
+  uint16_t f16s[] = {0x0, 0x3c00};
   MlirAttribute encoding = mlirAttributeGetNull();
   MlirAttribute boolElements = mlirDenseElementsAttrBoolGet(
       mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeGet(ctx, 1), encoding),
@@ -919,6 +971,13 @@ int printBuiltinAttributes(MlirContext ctx) {
   MlirAttribute int8Elements = mlirDenseElementsAttrInt8Get(
       mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeGet(ctx, 8), encoding),
       2, ints8);
+  MlirAttribute uint16Elements = mlirDenseElementsAttrUInt16Get(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeUnsignedGet(ctx, 16),
+                              encoding),
+      2, uints16);
+  MlirAttribute int16Elements = mlirDenseElementsAttrInt16Get(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeGet(ctx, 16), encoding),
+      2, ints16);
   MlirAttribute uint32Elements = mlirDenseElementsAttrUInt32Get(
       mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeUnsignedGet(ctx, 32),
                               encoding),
@@ -939,6 +998,12 @@ int printBuiltinAttributes(MlirContext ctx) {
   MlirAttribute doubleElements = mlirDenseElementsAttrDoubleGet(
       mlirRankedTensorTypeGet(2, shape, mlirF64TypeGet(ctx), encoding), 2,
       doubles);
+  MlirAttribute bf16Elements = mlirDenseElementsAttrBFloat16Get(
+      mlirRankedTensorTypeGet(2, shape, mlirBF16TypeGet(ctx), encoding), 2,
+      bf16s);
+  MlirAttribute f16Elements = mlirDenseElementsAttrFloat16Get(
+      mlirRankedTensorTypeGet(2, shape, mlirF16TypeGet(ctx), encoding), 2,
+      f16s);
 
   if (!mlirAttributeIsADenseElements(boolElements) ||
       !mlirAttributeIsADenseElements(uint8Elements) ||
@@ -948,12 +1013,16 @@ int printBuiltinAttributes(MlirContext ctx) {
       !mlirAttributeIsADenseElements(uint64Elements) ||
       !mlirAttributeIsADenseElements(int64Elements) ||
       !mlirAttributeIsADenseElements(floatElements) ||
-      !mlirAttributeIsADenseElements(doubleElements))
+      !mlirAttributeIsADenseElements(doubleElements) ||
+      !mlirAttributeIsADenseElements(bf16Elements) ||
+      !mlirAttributeIsADenseElements(f16Elements))
     return 14;
 
   if (mlirDenseElementsAttrGetBoolValue(boolElements, 1) != 1 ||
       mlirDenseElementsAttrGetUInt8Value(uint8Elements, 1) != 1 ||
       mlirDenseElementsAttrGetInt8Value(int8Elements, 1) != 1 ||
+      mlirDenseElementsAttrGetUInt16Value(uint16Elements, 1) != 1 ||
+      mlirDenseElementsAttrGetInt16Value(int16Elements, 1) != 1 ||
       mlirDenseElementsAttrGetUInt32Value(uint32Elements, 1) != 1 ||
       mlirDenseElementsAttrGetInt32Value(int32Elements, 1) != 1 ||
       mlirDenseElementsAttrGetUInt64Value(uint64Elements, 1) != 1 ||
@@ -972,6 +1041,8 @@ int printBuiltinAttributes(MlirContext ctx) {
   mlirAttributeDump(int64Elements);
   mlirAttributeDump(floatElements);
   mlirAttributeDump(doubleElements);
+  mlirAttributeDump(bf16Elements);
+  mlirAttributeDump(f16Elements);
   // CHECK: dense<{{\[}}[false, true]]> : tensor<1x2xi1>
   // CHECK: dense<{{\[}}[0, 1]]> : tensor<1x2xui8>
   // CHECK: dense<{{\[}}[0, 1]]> : tensor<1x2xi8>
@@ -981,6 +1052,8 @@ int printBuiltinAttributes(MlirContext ctx) {
   // CHECK: dense<{{\[}}[0, 1]]> : tensor<1x2xi64>
   // CHECK: dense<{{\[}}[0.000000e+00, 1.000000e+00]]> : tensor<1x2xf32>
   // CHECK: dense<{{\[}}[0.000000e+00, 1.000000e+00]]> : tensor<1x2xf64>
+  // CHECK: dense<{{\[}}[0.000000e+00, 1.000000e+00]]> : tensor<1x2xbf16>
+  // CHECK: dense<{{\[}}[0.000000e+00, 1.000000e+00]]> : tensor<1x2xf16>
 
   MlirAttribute splatBool = mlirDenseElementsAttrBoolSplatGet(
       mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeGet(ctx, 1), encoding),
@@ -1057,12 +1130,18 @@ int printBuiltinAttributes(MlirContext ctx) {
   float *floatRawData = (float *)mlirDenseElementsAttrGetRawData(floatElements);
   double *doubleRawData =
       (double *)mlirDenseElementsAttrGetRawData(doubleElements);
+  uint16_t *bf16RawData =
+      (uint16_t *)mlirDenseElementsAttrGetRawData(bf16Elements);
+  uint16_t *f16RawData =
+      (uint16_t *)mlirDenseElementsAttrGetRawData(f16Elements);
   if (uint8RawData[0] != 0u || uint8RawData[1] != 1u || int8RawData[0] != 0 ||
       int8RawData[1] != 1 || uint32RawData[0] != 0u || uint32RawData[1] != 1u ||
       int32RawData[0] != 0 || int32RawData[1] != 1 || uint64RawData[0] != 0u ||
       uint64RawData[1] != 1u || int64RawData[0] != 0 || int64RawData[1] != 1 ||
       floatRawData[0] != 0.0f || floatRawData[1] != 1.0f ||
-      doubleRawData[0] != 0.0 || doubleRawData[1] != 1.0)
+      doubleRawData[0] != 0.0 || doubleRawData[1] != 1.0 ||
+      bf16RawData[0] != 0 || bf16RawData[1] != 0x3f80 || f16RawData[0] != 0 ||
+      f16RawData[1] != 0x3c00)
     return 18;
 
   mlirAttributeDump(splatBool);
@@ -1086,8 +1165,12 @@ int printBuiltinAttributes(MlirContext ctx) {
 
   mlirAttributeDump(mlirElementsAttrGetValue(floatElements, 2, uints64));
   mlirAttributeDump(mlirElementsAttrGetValue(doubleElements, 2, uints64));
+  mlirAttributeDump(mlirElementsAttrGetValue(bf16Elements, 2, uints64));
+  mlirAttributeDump(mlirElementsAttrGetValue(f16Elements, 2, uints64));
   // CHECK: 1.000000e+00 : f32
   // CHECK: 1.000000e+00 : f64
+  // CHECK: 1.000000e+00 : bf16
+  // CHECK: 1.000000e+00 : f16
 
   int64_t indices[] = {0, 1};
   int64_t one = 1;
@@ -1102,6 +1185,130 @@ int printBuiltinAttributes(MlirContext ctx) {
       indicesAttr, valuesAttr);
   mlirAttributeDump(sparseAttr);
   // CHECK: sparse<{{\[}}[0, 1]], 0.000000e+00> : tensor<1x2xf32>
+
+  MlirAttribute boolArray = mlirDenseBoolArrayGet(ctx, 2, bools);
+  MlirAttribute int8Array = mlirDenseI8ArrayGet(ctx, 2, ints8);
+  MlirAttribute int16Array = mlirDenseI16ArrayGet(ctx, 2, ints16);
+  MlirAttribute int32Array = mlirDenseI32ArrayGet(ctx, 2, ints32);
+  MlirAttribute int64Array = mlirDenseI64ArrayGet(ctx, 2, ints64);
+  MlirAttribute floatArray = mlirDenseF32ArrayGet(ctx, 2, floats);
+  MlirAttribute doubleArray = mlirDenseF64ArrayGet(ctx, 2, doubles);
+  if (!mlirAttributeIsADenseBoolArray(boolArray) ||
+      !mlirAttributeIsADenseI8Array(int8Array) ||
+      !mlirAttributeIsADenseI16Array(int16Array) ||
+      !mlirAttributeIsADenseI32Array(int32Array) ||
+      !mlirAttributeIsADenseI64Array(int64Array) ||
+      !mlirAttributeIsADenseF32Array(floatArray) ||
+      !mlirAttributeIsADenseF64Array(doubleArray))
+    return 19;
+
+  if (mlirDenseArrayGetNumElements(boolArray) != 2 ||
+      mlirDenseArrayGetNumElements(int8Array) != 2 ||
+      mlirDenseArrayGetNumElements(int16Array) != 2 ||
+      mlirDenseArrayGetNumElements(int32Array) != 2 ||
+      mlirDenseArrayGetNumElements(int64Array) != 2 ||
+      mlirDenseArrayGetNumElements(floatArray) != 2 ||
+      mlirDenseArrayGetNumElements(doubleArray) != 2)
+    return 20;
+
+  if (mlirDenseBoolArrayGetElement(boolArray, 1) != 1 ||
+      mlirDenseI8ArrayGetElement(int8Array, 1) != 1 ||
+      mlirDenseI16ArrayGetElement(int16Array, 1) != 1 ||
+      mlirDenseI32ArrayGetElement(int32Array, 1) != 1 ||
+      mlirDenseI64ArrayGetElement(int64Array, 1) != 1 ||
+      fabsf(mlirDenseF32ArrayGetElement(floatArray, 1) - 1.0f) > 1E-6f ||
+      fabs(mlirDenseF64ArrayGetElement(doubleArray, 1) - 1.0) > 1E-6)
+    return 21;
+
+  int64_t layoutStrides[3] = {5, 7, 13};
+  MlirAttribute stridedLayoutAttr =
+      mlirStridedLayoutAttrGet(ctx, 42, 3, &layoutStrides[0]);
+
+  // CHECK: strided<[5, 7, 13], offset: 42>
+  mlirAttributeDump(stridedLayoutAttr);
+
+  if (mlirStridedLayoutAttrGetOffset(stridedLayoutAttr) != 42 ||
+      mlirStridedLayoutAttrGetNumStrides(stridedLayoutAttr) != 3 ||
+      mlirStridedLayoutAttrGetStride(stridedLayoutAttr, 0) != 5 ||
+      mlirStridedLayoutAttrGetStride(stridedLayoutAttr, 1) != 7 ||
+      mlirStridedLayoutAttrGetStride(stridedLayoutAttr, 2) != 13)
+    return 22;
+
+  MlirAttribute uint8Blob = mlirUnmanagedDenseUInt8ResourceElementsAttrGet(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeUnsignedGet(ctx, 8),
+                              encoding),
+      mlirStringRefCreateFromCString("resource_ui8"), 2, uints8);
+  MlirAttribute uint16Blob = mlirUnmanagedDenseUInt16ResourceElementsAttrGet(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeUnsignedGet(ctx, 16),
+                              encoding),
+      mlirStringRefCreateFromCString("resource_ui16"), 2, uints16);
+  MlirAttribute uint32Blob = mlirUnmanagedDenseUInt32ResourceElementsAttrGet(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeUnsignedGet(ctx, 32),
+                              encoding),
+      mlirStringRefCreateFromCString("resource_ui32"), 2, uints32);
+  MlirAttribute uint64Blob = mlirUnmanagedDenseUInt64ResourceElementsAttrGet(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeUnsignedGet(ctx, 64),
+                              encoding),
+      mlirStringRefCreateFromCString("resource_ui64"), 2, uints64);
+  MlirAttribute int8Blob = mlirUnmanagedDenseInt8ResourceElementsAttrGet(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeGet(ctx, 8), encoding),
+      mlirStringRefCreateFromCString("resource_i8"), 2, ints8);
+  MlirAttribute int16Blob = mlirUnmanagedDenseInt16ResourceElementsAttrGet(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeGet(ctx, 16), encoding),
+      mlirStringRefCreateFromCString("resource_i16"), 2, ints16);
+  MlirAttribute int32Blob = mlirUnmanagedDenseInt32ResourceElementsAttrGet(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeGet(ctx, 32), encoding),
+      mlirStringRefCreateFromCString("resource_i32"), 2, ints32);
+  MlirAttribute int64Blob = mlirUnmanagedDenseInt64ResourceElementsAttrGet(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeGet(ctx, 64), encoding),
+      mlirStringRefCreateFromCString("resource_i64"), 2, ints64);
+  MlirAttribute floatsBlob = mlirUnmanagedDenseFloatResourceElementsAttrGet(
+      mlirRankedTensorTypeGet(2, shape, mlirF32TypeGet(ctx), encoding),
+      mlirStringRefCreateFromCString("resource_f32"), 2, floats);
+  MlirAttribute doublesBlob = mlirUnmanagedDenseDoubleResourceElementsAttrGet(
+      mlirRankedTensorTypeGet(2, shape, mlirF64TypeGet(ctx), encoding),
+      mlirStringRefCreateFromCString("resource_f64"), 2, doubles);
+
+  mlirAttributeDump(uint8Blob);
+  mlirAttributeDump(uint16Blob);
+  mlirAttributeDump(uint32Blob);
+  mlirAttributeDump(uint64Blob);
+  mlirAttributeDump(int8Blob);
+  mlirAttributeDump(int16Blob);
+  mlirAttributeDump(int32Blob);
+  mlirAttributeDump(int64Blob);
+  mlirAttributeDump(floatsBlob);
+  mlirAttributeDump(doublesBlob);
+  // CHECK: dense_resource<resource_ui8> : tensor<1x2xui8>
+  // CHECK: dense_resource<resource_ui16> : tensor<1x2xui16>
+  // CHECK: dense_resource<resource_ui32> : tensor<1x2xui32>
+  // CHECK: dense_resource<resource_ui64> : tensor<1x2xui64>
+  // CHECK: dense_resource<resource_i8> : tensor<1x2xi8>
+  // CHECK: dense_resource<resource_i16> : tensor<1x2xi16>
+  // CHECK: dense_resource<resource_i32> : tensor<1x2xi32>
+  // CHECK: dense_resource<resource_i64> : tensor<1x2xi64>
+  // CHECK: dense_resource<resource_f32> : tensor<1x2xf32>
+  // CHECK: dense_resource<resource_f64> : tensor<1x2xf64>
+
+  if (mlirDenseUInt8ResourceElementsAttrGetValue(uint8Blob, 1) != 1 ||
+      mlirDenseUInt16ResourceElementsAttrGetValue(uint16Blob, 1) != 1 ||
+      mlirDenseUInt32ResourceElementsAttrGetValue(uint32Blob, 1) != 1 ||
+      mlirDenseUInt64ResourceElementsAttrGetValue(uint64Blob, 1) != 1 ||
+      mlirDenseInt8ResourceElementsAttrGetValue(int8Blob, 1) != 1 ||
+      mlirDenseInt16ResourceElementsAttrGetValue(int16Blob, 1) != 1 ||
+      mlirDenseInt32ResourceElementsAttrGetValue(int32Blob, 1) != 1 ||
+      mlirDenseInt64ResourceElementsAttrGetValue(int64Blob, 1) != 1 ||
+      fabsf(mlirDenseF32ArrayGetElement(floatArray, 1) - 1.0f) > 1E-6f ||
+      fabsf(mlirDenseFloatResourceElementsAttrGetValue(floatsBlob, 1) - 1.0f) >
+          1e-6 ||
+      fabs(mlirDenseDoubleResourceElementsAttrGetValue(doublesBlob, 1) - 1.0f) >
+          1e-6)
+    return 23;
+
+  MlirLocation loc = mlirLocationUnknownGet(ctx);
+  MlirAttribute locAttr = mlirLocationGetAttribute(loc);
+  if (!mlirAttributeIsALocation(locAttr))
+    return 24;
 
   return 0;
 }
@@ -1485,13 +1692,13 @@ int printIntegerSet(MlirContext ctx) {
   return 0;
 }
 
-int registerOnlyStd() {
+int registerOnlyStd(void) {
   MlirContext ctx = mlirContextCreate();
   // The built-in dialect is always loaded.
   if (mlirContextGetNumLoadedDialects(ctx) != 1)
     return 1;
 
-  MlirDialectHandle stdHandle = mlirGetDialectHandle__std__();
+  MlirDialectHandle stdHandle = mlirGetDialectHandle__func__();
 
   MlirDialect std = mlirContextGetOrLoadDialect(
       ctx, mlirDialectHandleGetNamespace(stdHandle));
@@ -1518,15 +1725,15 @@ int registerOnlyStd() {
   fprintf(stderr, "@registration\n");
   // CHECK-LABEL: @registration
 
-  // CHECK: std.cond_br is_registered: 1
-  fprintf(stderr, "std.cond_br is_registered: %d\n",
+  // CHECK: cf.cond_br is_registered: 1
+  fprintf(stderr, "cf.cond_br is_registered: %d\n",
           mlirContextIsRegisteredOperation(
-              ctx, mlirStringRefCreateFromCString("std.cond_br")));
+              ctx, mlirStringRefCreateFromCString("cf.cond_br")));
 
-  // CHECK: std.not_existing_op is_registered: 0
-  fprintf(stderr, "std.not_existing_op is_registered: %d\n",
+  // CHECK: func.not_existing_op is_registered: 0
+  fprintf(stderr, "func.not_existing_op is_registered: %d\n",
           mlirContextIsRegisteredOperation(
-              ctx, mlirStringRefCreateFromCString("std.not_existing_op")));
+              ctx, mlirStringRefCreateFromCString("func.not_existing_op")));
 
   // CHECK: not_existing_dialect.not_existing_op is_registered: 0
   fprintf(stderr, "not_existing_dialect.not_existing_op is_registered: %d\n",
@@ -1539,7 +1746,7 @@ int registerOnlyStd() {
 }
 
 /// Tests backreference APIs
-static int testBackreferences() {
+static int testBackreferences(void) {
   fprintf(stderr, "@test_backreferences\n");
 
   MlirContext ctx = mlirContextCreate();
@@ -1549,7 +1756,7 @@ static int testBackreferences() {
   MlirOperationState opState =
       mlirOperationStateGet(mlirStringRefCreateFromCString("invalid.op"), loc);
   MlirRegion region = mlirRegionCreate();
-  MlirBlock block = mlirBlockCreate(0, NULL);
+  MlirBlock block = mlirBlockCreate(0, NULL, NULL);
   mlirRegionAppendOwnedBlock(region, block);
   mlirOperationStateAddOwnedRegions(&opState, 1, &region);
   MlirOperation op = mlirOperationCreate(&opState);
@@ -1577,12 +1784,14 @@ static int testBackreferences() {
 }
 
 /// Tests operand APIs.
-int testOperands() {
+int testOperands(void) {
   fprintf(stderr, "@testOperands\n");
   // CHECK-LABEL: @testOperands
 
   MlirContext ctx = mlirContextCreate();
-  mlirRegisterAllDialects(ctx);
+  registerAllUpstreamDialects(ctx);
+
+  mlirContextGetOrLoadDialect(ctx, mlirStringRefCreateFromCString("arith"));
   mlirContextGetOrLoadDialect(ctx, mlirStringRefCreateFromCString("test"));
   MlirLocation loc = mlirLocationUnknownGet(ctx);
   MlirType indexType = mlirIndexTypeGet(ctx);
@@ -1625,16 +1834,44 @@ int testOperands() {
   fprintf(stderr, "Num Operands: %" PRIdPTR "\n", numOperands);
   // CHECK: Num Operands: 1
 
-  MlirValue opOperand = mlirOperationGetOperand(op, 0);
+  MlirValue opOperand1 = mlirOperationGetOperand(op, 0);
   fprintf(stderr, "Original operand: ");
-  mlirValuePrint(opOperand, printToStderr, NULL);
+  mlirValuePrint(opOperand1, printToStderr, NULL);
   // CHECK: Original operand: {{.+}} arith.constant 0 : index
 
   mlirOperationSetOperand(op, 0, constOneValue);
-  opOperand = mlirOperationGetOperand(op, 0);
+  MlirValue opOperand2 = mlirOperationGetOperand(op, 0);
   fprintf(stderr, "Updated operand: ");
-  mlirValuePrint(opOperand, printToStderr, NULL);
+  mlirValuePrint(opOperand2, printToStderr, NULL);
   // CHECK: Updated operand: {{.+}} arith.constant 1 : index
+
+  // Test op operand APIs.
+  MlirOpOperand use1 = mlirValueGetFirstUse(opOperand1);
+  if (!mlirOpOperandIsNull(use1)) {
+    fprintf(stderr, "ERROR: Use should be null\n");
+    return 1;
+  }
+
+  MlirOpOperand use2 = mlirValueGetFirstUse(opOperand2);
+  if (mlirOpOperandIsNull(use2)) {
+    fprintf(stderr, "ERROR: Use should not be null\n");
+    return 2;
+  }
+
+  fprintf(stderr, "Use owner: ");
+  mlirOperationPrint(mlirOpOperandGetOwner(use2), printToStderr, NULL);
+  fprintf(stderr, "\n");
+  // CHECK: Use owner: "dummy.op"
+
+  fprintf(stderr, "Use operandNumber: %d\n",
+          mlirOpOperandGetOperandNumber(use2));
+  // CHECK: Use operandNumber: 0
+
+  use2 = mlirOpOperandGetNextUse(use2);
+  if (!mlirOpOperandIsNull(use2)) {
+    fprintf(stderr, "ERROR: Next use should be null\n");
+    return 3;
+  }
 
   mlirOperationDestroy(op);
   mlirOperationDestroy(constZero);
@@ -1645,13 +1882,14 @@ int testOperands() {
 }
 
 /// Tests clone APIs.
-int testClone() {
+int testClone(void) {
   fprintf(stderr, "@testClone\n");
   // CHECK-LABEL: @testClone
 
   MlirContext ctx = mlirContextCreate();
-  mlirRegisterAllDialects(ctx);
-  mlirContextGetOrLoadDialect(ctx, mlirStringRefCreateFromCString("std"));
+  registerAllUpstreamDialects(ctx);
+
+  mlirContextGetOrLoadDialect(ctx, mlirStringRefCreateFromCString("func"));
   MlirLocation loc = mlirLocationUnknownGet(ctx);
   MlirType indexType = mlirIndexTypeGet(ctx);
   MlirStringRef valueStringRef = mlirStringRefCreateFromCString("value");
@@ -1729,15 +1967,13 @@ int testTypeID(MlirContext ctx) {
     return 2;
   }
 
-  if (mlirTypeIDEqual(i32ID, f32ID) ||
-      mlirTypeIDHashValue(i32ID) == mlirTypeIDHashValue(f32ID)) {
+  if (mlirTypeIDEqual(i32ID, f32ID)) {
     fprintf(stderr,
             "ERROR: Expected integer type id to not equal float type id\n");
     return 3;
   }
 
-  if (mlirTypeIDEqual(i32ID, i32AttrID) ||
-      mlirTypeIDHashValue(i32ID) == mlirTypeIDHashValue(i32AttrID)) {
+  if (mlirTypeIDEqual(i32ID, i32AttrID)) {
     fprintf(stderr, "ERROR: Expected integer type id to not equal integer "
                     "attribute type id\n");
     return 4;
@@ -1803,10 +2039,10 @@ int testTypeID(MlirContext ctx) {
 int testSymbolTable(MlirContext ctx) {
   fprintf(stderr, "@testSymbolTable\n");
 
-  const char *moduleString = "func private @foo()"
-                             "func private @bar()";
-  const char *otherModuleString = "func private @qux()"
-                                  "func private @foo()";
+  const char *moduleString = "func.func private @foo()"
+                             "func.func private @bar()";
+  const char *otherModuleString = "func.func private @qux()"
+                                  "func.func private @foo()";
 
   MlirModule module =
       mlirModuleCreateParse(ctx, mlirStringRefCreateFromCString(moduleString));
@@ -1891,13 +2127,46 @@ int testSymbolTable(MlirContext ctx) {
   return 0;
 }
 
-void testDiagnostics() {
+int testDialectRegistry(void) {
+  fprintf(stderr, "@testDialectRegistry\n");
+
+  MlirDialectRegistry registry = mlirDialectRegistryCreate();
+  if (mlirDialectRegistryIsNull(registry)) {
+    fprintf(stderr, "ERROR: Expected registry to be present\n");
+    return 1;
+  }
+
+  MlirDialectHandle stdHandle = mlirGetDialectHandle__func__();
+  mlirDialectHandleInsertDialect(stdHandle, registry);
+
+  MlirContext ctx = mlirContextCreate();
+  if (mlirContextGetNumRegisteredDialects(ctx) != 0) {
+    fprintf(stderr,
+            "ERROR: Expected no dialects to be registered to new context\n");
+  }
+
+  mlirContextAppendDialectRegistry(ctx, registry);
+  if (mlirContextGetNumRegisteredDialects(ctx) != 1) {
+    fprintf(stderr, "ERROR: Expected the dialect in the registry to be "
+                    "registered to the context\n");
+  }
+
+  mlirContextDestroy(ctx);
+  mlirDialectRegistryDestroy(registry);
+
+  return 0;
+}
+
+void testDiagnostics(void) {
   MlirContext ctx = mlirContextCreate();
   MlirDiagnosticHandlerID id = mlirContextAttachDiagnosticHandler(
       ctx, errorHandler, (void *)42, deleteUserData);
   fprintf(stderr, "@test_diagnostics\n");
   MlirLocation unknownLoc = mlirLocationUnknownGet(ctx);
   mlirEmitError(unknownLoc, "test diagnostics");
+  MlirAttribute unknownAttr = mlirLocationGetAttribute(unknownLoc);
+  MlirLocation unknownClone = mlirLocationFromAttribute(unknownAttr);
+  mlirEmitError(unknownClone, "test clone");
   MlirLocation fileLineColLoc = mlirLocationFileLineColGet(
       ctx, mlirStringRefCreateFromCString("file.c"), 1, 2);
   mlirEmitError(fileLineColLoc, "test diagnostics");
@@ -1919,6 +2188,9 @@ void testDiagnostics() {
   // CHECK-LABEL: @test_diagnostics
   // CHECK: processing diagnostic (userData: 42) <<
   // CHECK:   test diagnostics
+  // CHECK:   loc(unknown)
+  // CHECK: processing diagnostic (userData: 42) <<
+  // CHECK:   test clone
   // CHECK:   loc(unknown)
   // CHECK: >> end of diagnostic (userData: 42)
   // CHECK: processing diagnostic (userData: 42) <<
@@ -1942,9 +2214,14 @@ void testDiagnostics() {
   mlirContextDestroy(ctx);
 }
 
-int main() {
+int main(void) {
   MlirContext ctx = mlirContextCreate();
-  mlirRegisterAllDialects(ctx);
+  registerAllUpstreamDialects(ctx);
+  mlirContextGetOrLoadDialect(ctx, mlirStringRefCreateFromCString("func"));
+  mlirContextGetOrLoadDialect(ctx, mlirStringRefCreateFromCString("memref"));
+  mlirContextGetOrLoadDialect(ctx, mlirStringRefCreateFromCString("shape"));
+  mlirContextGetOrLoadDialect(ctx, mlirStringRefCreateFromCString("scf"));
+
   if (constructAndTraverseIr(ctx))
     return 1;
   buildWithInsertionsAndPrint(ctx);
@@ -1975,6 +2252,8 @@ int main() {
     return 13;
   if (testSymbolTable(ctx))
     return 14;
+  if (testDialectRegistry())
+    return 15;
 
   mlirContextDestroy(ctx);
 

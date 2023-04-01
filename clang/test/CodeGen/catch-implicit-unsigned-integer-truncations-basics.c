@@ -37,7 +37,7 @@ signed char convert_signed_char_to_signed_char(signed char x) {
 
 // CHECK-LABEL: @convert_unsigned_int_to_unsigned_char
 unsigned char convert_unsigned_int_to_unsigned_char(unsigned int x) {
-  // CHECK: call void @__ubsan_handle_implicit_conversion(i8* bitcast ({ {{{.*}}}, {{{.*}}}*, {{{.*}}}*, i8 }* @[[LINE_500_UNSIGNED_TRUNCATION]] to i8*)
+  // CHECK: call void @__ubsan_handle_implicit_conversion(ptr @[[LINE_500_UNSIGNED_TRUNCATION]]
 #line 500
   return x;
 }

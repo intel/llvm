@@ -18,19 +18,42 @@
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Pass.h"
 
 #define DEBUG_TYPE "instcombine"
 #include "llvm/Transforms/Utils/InstructionWorklist.h"
 
 namespace llvm {
 
+static constexpr unsigned InstCombineDefaultMaxIterations = 1000;
+
+struct InstCombineOptions {
+  bool UseLoopInfo;
+  unsigned MaxIterations;
+
+  InstCombineOptions()
+      : UseLoopInfo(false), MaxIterations(InstCombineDefaultMaxIterations) {}
+
+  InstCombineOptions &setUseLoopInfo(bool Value) {
+    UseLoopInfo = Value;
+    return *this;
+  }
+
+  InstCombineOptions &setMaxIterations(unsigned Value) {
+    MaxIterations = Value;
+    return *this;
+  }
+};
+
 class InstCombinePass : public PassInfoMixin<InstCombinePass> {
+private:
   InstructionWorklist Worklist;
-  const unsigned MaxIterations;
+  InstCombineOptions Options;
 
 public:
-  explicit InstCombinePass();
-  explicit InstCombinePass(unsigned MaxIterations);
+  explicit InstCombinePass(InstCombineOptions Opts = {});
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName);
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };

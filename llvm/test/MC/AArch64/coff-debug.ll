@@ -12,7 +12,7 @@ target triple = "aarch64--windows-msvc18.0.0"
 define i32 @main() #0 !dbg !7 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, align 4
+  store i32 0, ptr %retval, align 4
   ret i32 1, !dbg !11
 }
 
@@ -77,7 +77,8 @@ attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-ma
 ; CHECK:     Compile3Sym {
 ; CHECK:       Kind: S_COMPILE3 (0x113C)
 ; CHECK:       Language: C (0x0)
-; CHECK:       Flags [ (0x0)
+; CHECK:       Flags [ (0x4000
+; CHECK:        HotPatch (0x4000)
 ; CHECK:       ]
 ; CHECK:     }
 ; CHECK:   ]

@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace altera {
+namespace clang::tidy::altera {
 
 void SingleWorkItemBarrierCheck::registerMatchers(MatchFinder *Finder) {
   // Find any function that calls barrier but does not call an ID function.
@@ -57,9 +55,8 @@ void SingleWorkItemBarrierCheck::check(const MatchFinder::MatchResult &Result) {
     bool IsNDRange = false;
     if (MatchedDecl->hasAttr<ReqdWorkGroupSizeAttr>()) {
       const auto *Attribute = MatchedDecl->getAttr<ReqdWorkGroupSizeAttr>();
-      if (*Attribute->getXDimVal(*Result.Context) > 1 ||
-          *Attribute->getYDimVal(*Result.Context) > 1 ||
-          *Attribute->getZDimVal(*Result.Context) > 1)
+      if (Attribute->getXDim() > 1 || Attribute->getYDim() > 1 ||
+          Attribute->getZDim() > 1)
         IsNDRange = true;
     }
     if (IsNDRange) // No warning if kernel is treated as an NDRange.
@@ -80,6 +77,4 @@ void SingleWorkItemBarrierCheck::storeOptions(
   Options.store(Opts, "AOCVersion", AOCVersion);
 }
 
-} // namespace altera
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::altera

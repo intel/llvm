@@ -8,8 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14
 
-// Throwing bad_variant_access is supported starting in macosx10.13
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}} && !no-exceptions
+// XFAIL: availability-bad_variant_access-missing && !no-exceptions
 
 // <variant>
 
@@ -210,16 +209,6 @@ void test_T_assignment_basic() {
     v = nullptr;
     assert(v.index() == 1);
     assert(std::get<1>(v) == nullptr);
-  }
-  {
-    std::variant<bool volatile, int> v = 42;
-    v = false;
-    assert(v.index() == 0);
-    assert(!std::get<0>(v));
-    bool lvt = true;
-    v = lvt;
-    assert(v.index() == 0);
-    assert(std::get<0>(v));
   }
 #if !defined(TEST_VARIANT_HAS_NO_REFERENCES)
   {

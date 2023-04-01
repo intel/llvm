@@ -20,8 +20,6 @@
 #include "clang/Lex/ModuleMap.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -47,6 +45,7 @@ class DirectoryEntry;
 class ExternalPreprocessorSource;
 class FileEntry;
 class FileManager;
+class HeaderSearch;
 class HeaderSearchOptions;
 class IdentifierInfo;
 class LangOptions;
@@ -57,6 +56,8 @@ class TargetInfo;
 /// The preprocessor keeps track of this information for each
 /// file that is \#included.
 struct HeaderFileInfo {
+  // TODO: Whether the file was imported is not a property of the file itself.
+  // It's a preprocessor state, move it there.
   /// True if this is a \#import'd file.
   unsigned isImport : 1;
 
@@ -95,9 +96,6 @@ struct HeaderFileInfo {
   /// Whether this file has been looked up as a header.
   unsigned IsValid : 1;
 
-  /// The number of times the file has been included already.
-  unsigned short NumIncludes = 0;
-
   /// The ID number of the controlling macro.
   ///
   /// This ID number will be non-zero when there is a controlling
@@ -118,14 +116,6 @@ struct HeaderFileInfo {
   /// If this header came from a framework include, this is the name
   /// of the framework.
   StringRef Framework;
-
-  /// List of aliases that this header is known as.
-  /// Most headers should only have at most one alias, but a handful
-  /// have two.
-  llvm::SetVector<llvm::SmallString<32>,
-                  llvm::SmallVector<llvm::SmallString<32>, 2>,
-                  llvm::SmallSet<llvm::SmallString<32>, 2>>
-      Aliases;
 
   HeaderFileInfo()
       : isImport(false), isPragmaOnce(false), DirInfo(SrcMgr::C_User),
@@ -155,7 +145,7 @@ public:
 /// This structure is used to record entries in our framework cache.
 struct FrameworkCacheEntry {
   /// The directory entry which should be used for the cached framework.
-  const DirectoryEntry *Directory;
+  OptionalDirectoryEntryRef Directory;
 
   /// Whether this framework has been "user-specified" to be treated as if it
   /// were a system framework (even if it was found outside a system framework
@@ -163,10 +153,78 @@ struct FrameworkCacheEntry {
   bool IsUserSpecifiedSystemFramework;
 };
 
+namespace detail {
+template <bool Const, typename T>
+using Qualified = std::conditional_t<Const, const T, T>;
+
+/// Forward iterator over the search directories of \c HeaderSearch.
+template <bool IsConst>
+struct SearchDirIteratorImpl
+    : llvm::iterator_facade_base<SearchDirIteratorImpl<IsConst>,
+                                 std::forward_iterator_tag,
+                                 Qualified<IsConst, DirectoryLookup>> {
+  /// Const -> non-const iterator conversion.
+  template <typename Enable = std::enable_if<IsConst, bool>>
+  SearchDirIteratorImpl(const SearchDirIteratorImpl<false> &Other)
+      : HS(Other.HS), Idx(Other.Idx) {}
+
+  SearchDirIteratorImpl(const SearchDirIteratorImpl &) = default;
+
+  SearchDirIteratorImpl &operator=(const SearchDirIteratorImpl &) = default;
+
+  bool operator==(const SearchDirIteratorImpl &RHS) const {
+    return HS == RHS.HS && Idx == RHS.Idx;
+  }
+
+  SearchDirIteratorImpl &operator++() {
+    assert(*this && "Invalid iterator.");
+    ++Idx;
+    return *this;
+  }
+
+  Qualified<IsConst, DirectoryLookup> &operator*() const {
+    assert(*this && "Invalid iterator.");
+    return HS->SearchDirs[Idx];
+  }
+
+  /// Creates an invalid iterator.
+  SearchDirIteratorImpl(std::nullptr_t) : HS(nullptr), Idx(0) {}
+
+  /// Checks whether the iterator is valid.
+  explicit operator bool() const { return HS != nullptr; }
+
+private:
+  /// The parent \c HeaderSearch. This is \c nullptr for invalid iterator.
+  Qualified<IsConst, HeaderSearch> *HS;
+
+  /// The index of the current element.
+  size_t Idx;
+
+  /// The constructor that creates a valid iterator.
+  SearchDirIteratorImpl(Qualified<IsConst, HeaderSearch> &HS, size_t Idx)
+      : HS(&HS), Idx(Idx) {}
+
+  /// Only HeaderSearch is allowed to instantiate valid iterators.
+  friend HeaderSearch;
+
+  /// Enables const -> non-const conversion.
+  friend SearchDirIteratorImpl<!IsConst>;
+};
+} // namespace detail
+
+using ConstSearchDirIterator = detail::SearchDirIteratorImpl<true>;
+using SearchDirIterator = detail::SearchDirIteratorImpl<false>;
+
+using ConstSearchDirRange = llvm::iterator_range<ConstSearchDirIterator>;
+using SearchDirRange = llvm::iterator_range<SearchDirIterator>;
+
 /// Encapsulates the information needed to find the file referenced
 /// by a \#include or \#include_next, (sub-)framework lookup, etc.
 class HeaderSearch {
   friend class DirectoryLookup;
+
+  friend ConstSearchDirIterator;
+  friend SearchDirIterator;
 
   /// Header-search options used to initialize this header search.
   std::shared_ptr<HeaderSearchOptions> HSOpts;
@@ -191,6 +249,14 @@ class HeaderSearch {
   unsigned SystemDirIdx = 0;
   bool NoCurDirSearch = false;
 
+  /// Maps HeaderMap keys to SearchDir indices. When HeaderMaps are used
+  /// heavily, SearchDirs can start with thousands of HeaderMaps, so this Index
+  /// lets us avoid scanning them all to find a match.
+  llvm::StringMap<unsigned, llvm::BumpPtrAllocator> SearchDirHeaderMapIndex;
+
+  /// The index of the first SearchDir that isn't a header map.
+  unsigned FirstNonHeaderMapSearchDirIdx = 0;
+
   /// \#include prefixes for which the 'system header' property is
   /// overridden.
   ///
@@ -211,13 +277,13 @@ class HeaderSearch {
 
   /// Keeps track of each lookup performed by LookupFile.
   struct LookupFileCacheInfo {
-    /// Starting index in SearchDirs that the cached search was performed from.
-    /// If there is a hit and this value doesn't match the current query, the
-    /// cache has to be ignored.
-    unsigned StartIdx = 0;
+    /// Starting search directory iterator that the cached search was performed
+    /// from. If there is a hit and this value doesn't match the current query,
+    /// the cache has to be ignored.
+    ConstSearchDirIterator StartIt = nullptr;
 
-    /// The entry in SearchDirs that satisfied the query.
-    unsigned HitIdx = 0;
+    /// The search directory iterator that satisfied the query.
+    ConstSearchDirIterator HitIt = nullptr;
 
     /// This is non-null if the original filename was mapped to a framework
     /// include via a headermap.
@@ -226,9 +292,9 @@ class HeaderSearch {
     /// Default constructor -- Initialize all members with zero.
     LookupFileCacheInfo() = default;
 
-    void reset(unsigned StartIdx) {
-      this->StartIdx = StartIdx;
-      this->MappedName = nullptr;
+    void reset(ConstSearchDirIterator NewStartIt) {
+      StartIt = NewStartIt;
+      MappedName = nullptr;
     }
   };
   llvm::StringMap<LookupFileCacheInfo, llvm::BumpPtrAllocator> LookupFileCache;
@@ -257,6 +323,9 @@ class HeaderSearch {
   /// whether they were valid or not.
   llvm::DenseMap<const FileEntry *, bool> LoadedModuleMaps;
 
+  // A map of discovered headers with their associated include file name.
+  llvm::DenseMap<const FileEntry *, llvm::SmallString<64>> IncludeNames;
+
   /// Uniqued set of framework names, which is used to track which
   /// headers were included as framework headers.
   llvm::StringSet<llvm::BumpPtrAllocator> FrameworkNames;
@@ -268,6 +337,10 @@ class HeaderSearch {
 
   /// Entity used to look up stored header file information.
   ExternalHeaderFileInfoSource *ExternalSource = nullptr;
+
+  /// Scan all of the header maps at the beginning of SearchDirs and
+  /// map their keys to the SearchDir index of their header map.
+  void indexInitialHeaderMaps();
 
 public:
   HeaderSearch(std::shared_ptr<HeaderSearchOptions> HSOpts,
@@ -406,14 +479,15 @@ public:
   /// found in any of searched SearchDirs. Will be set to false if a framework
   /// is found only through header maps. Doesn't guarantee the requested file is
   /// found.
-  Optional<FileEntryRef> LookupFile(
+  OptionalFileEntryRef LookupFile(
       StringRef Filename, SourceLocation IncludeLoc, bool isAngled,
-      const DirectoryLookup *FromDir, const DirectoryLookup *&CurDir,
+      ConstSearchDirIterator FromDir, ConstSearchDirIterator *CurDir,
       ArrayRef<std::pair<const FileEntry *, const DirectoryEntry *>> Includers,
       SmallVectorImpl<char> *SearchPath, SmallVectorImpl<char> *RelativePath,
       Module *RequestingModule, ModuleMap::KnownHeader *SuggestedModule,
       bool *IsMapped, bool *IsFrameworkFound, bool SkipCache = false,
-      bool BuildSystemModule = false);
+      bool BuildSystemModule = false, bool OpenFile = true,
+      bool CacheFailures = true);
 
   /// Look up a subframework for the specified \#include file.
   ///
@@ -421,7 +495,7 @@ public:
   /// within ".../Carbon.framework/Headers/Carbon.h", check to see if
   /// HIToolbox is a subframework within Carbon.framework.  If so, return
   /// the FileEntry for the designated file, otherwise return null.
-  Optional<FileEntryRef> LookupSubframeworkHeader(
+  OptionalFileEntryRef LookupSubframeworkHeader(
       StringRef Filename, const FileEntry *ContextFileEnt,
       SmallVectorImpl<char> *SearchPath, SmallVectorImpl<char> *RelativePath,
       Module *RequestingModule, ModuleMap::KnownHeader *SuggestedModule);
@@ -460,20 +534,10 @@ public:
     getFileInfo(File).DirInfo = SrcMgr::C_System;
   }
 
-  void AddFileAlias(const FileEntry *File, StringRef Alias) {
-    getFileInfo(File).Aliases.insert(Alias);
-  }
-
   /// Mark the specified file as part of a module.
   void MarkFileModuleHeader(const FileEntry *FE,
                             ModuleMap::ModuleHeaderRole Role,
                             bool isCompilingModuleHeader);
-
-  /// Increment the count for the number of times the specified
-  /// FileEntry has been entered.
-  void IncrementIncludeCount(const FileEntry *File) {
-    ++getFileInfo(File).NumIncludes;
-  }
 
   /// Mark the specified file as having a controlling macro.
   ///
@@ -499,6 +563,7 @@ public:
 
   /// Determine which HeaderSearchOptions::UserEntries have been successfully
   /// used so far and mark their index with 'true' in the resulting bit vector.
+  /// Note: implicit module maps don't contribute to entry usage.
   std::vector<bool> computeUserEntryUsage() const;
 
   /// This method returns a HeaderMap for the specified
@@ -595,7 +660,8 @@ public:
   /// \param File The header that we wish to map to a module.
   /// \param AllowTextual Whether we want to find textual headers too.
   ModuleMap::KnownHeader findModuleForHeader(const FileEntry *File,
-                                             bool AllowTextual = false) const;
+                                             bool AllowTextual = false,
+                                             bool AllowExcluded = false) const;
 
   /// Retrieve all the modules corresponding to the given file.
   ///
@@ -675,8 +741,7 @@ private:
   /// frameworks.
   ///
   /// \returns The module, if found; otherwise, null.
-  Module *loadFrameworkModule(StringRef Name,
-                              const DirectoryEntry *Dir,
+  Module *loadFrameworkModule(StringRef Name, DirectoryEntryRef Dir,
                               bool IsSystem);
 
   /// Load all of the module maps within the immediate subdirectories
@@ -704,16 +769,19 @@ private:
 
   /// Look up the file with the specified name and determine its owning
   /// module.
-  Optional<FileEntryRef>
+  OptionalFileEntryRef
   getFileAndSuggestModule(StringRef FileName, SourceLocation IncludeLoc,
                           const DirectoryEntry *Dir, bool IsSystemHeaderDir,
                           Module *RequestingModule,
-                          ModuleMap::KnownHeader *SuggestedModule);
+                          ModuleMap::KnownHeader *SuggestedModule,
+                          bool OpenFile = true, bool CacheFailures = true);
 
   /// Cache the result of a successful lookup at the given include location
-  /// using the search path at index `HitIdx`.
-  void cacheLookupSuccess(LookupFileCacheInfo &CacheLookup, unsigned HitIdx,
+  /// using the search path at \c HitIt.
+  void cacheLookupSuccess(LookupFileCacheInfo &CacheLookup,
+                          ConstSearchDirIterator HitIt,
                           SourceLocation IncludeLoc);
+
   /// Note that a lookup at the given include location was successful using the
   /// search path at index `HitIdx`.
   void noteLookupUsage(unsigned HitIdx, SourceLocation IncludeLoc);
@@ -738,40 +806,51 @@ public:
   const HeaderFileInfo *getExistingFileInfo(const FileEntry *FE,
                                             bool WantExternal = true) const;
 
-  // Used by external tools
-  using search_dir_iterator = std::vector<DirectoryLookup>::const_iterator;
+  SearchDirIterator search_dir_begin() { return {*this, 0}; }
+  SearchDirIterator search_dir_end() { return {*this, SearchDirs.size()}; }
+  SearchDirRange search_dir_range() {
+    return {search_dir_begin(), search_dir_end()};
+  }
 
-  search_dir_iterator search_dir_begin() const { return SearchDirs.begin(); }
-  search_dir_iterator search_dir_end() const { return SearchDirs.end(); }
+  ConstSearchDirIterator search_dir_begin() const { return quoted_dir_begin(); }
+  ConstSearchDirIterator search_dir_nth(size_t n) const {
+    assert(n < SearchDirs.size());
+    return {*this, n};
+  }
+  ConstSearchDirIterator search_dir_end() const { return system_dir_end(); }
+  ConstSearchDirRange search_dir_range() const {
+    return {search_dir_begin(), search_dir_end()};
+  }
+
   unsigned search_dir_size() const { return SearchDirs.size(); }
 
-  search_dir_iterator quoted_dir_begin() const {
-    return SearchDirs.begin();
-  }
+  ConstSearchDirIterator quoted_dir_begin() const { return {*this, 0}; }
+  ConstSearchDirIterator quoted_dir_end() const { return angled_dir_begin(); }
 
-  search_dir_iterator quoted_dir_end() const {
-    return SearchDirs.begin() + AngledDirIdx;
+  ConstSearchDirIterator angled_dir_begin() const {
+    return {*this, AngledDirIdx};
   }
+  ConstSearchDirIterator angled_dir_end() const { return system_dir_begin(); }
 
-  search_dir_iterator angled_dir_begin() const {
-    return SearchDirs.begin() + AngledDirIdx;
+  ConstSearchDirIterator system_dir_begin() const {
+    return {*this, SystemDirIdx};
   }
-
-  search_dir_iterator angled_dir_end() const {
-    return SearchDirs.begin() + SystemDirIdx;
+  ConstSearchDirIterator system_dir_end() const {
+    return {*this, SearchDirs.size()};
   }
-
-  search_dir_iterator system_dir_begin() const {
-    return SearchDirs.begin() + SystemDirIdx;
-  }
-
-  search_dir_iterator system_dir_end() const { return SearchDirs.end(); }
 
   /// Get the index of the given search directory.
-  Optional<unsigned> searchDirIdx(const DirectoryLookup &DL) const;
+  unsigned searchDirIdx(const DirectoryLookup &DL) const;
 
   /// Retrieve a uniqued framework name.
   StringRef getUniqueFrameworkName(StringRef Framework);
+
+  /// Retrieve the include name for the header.
+  ///
+  /// \param File The entry for a given header.
+  /// \returns The name of how the file was included when the header's location
+  /// was resolved.
+  StringRef getIncludeNameForHeader(const FileEntry *File) const;
 
   /// Suggest a path by which the specified file could be found, for use in
   /// diagnostics to suggest a #include. Returned path will only contain forward
@@ -823,7 +902,7 @@ private:
 
   LoadModuleMapResult loadModuleMapFileImpl(const FileEntry *File,
                                             bool IsSystem,
-                                            const DirectoryEntry *Dir,
+                                            DirectoryEntryRef Dir,
                                             FileID ID = FileID(),
                                             unsigned *Offset = nullptr);
 
@@ -847,8 +926,8 @@ private:
   ///
   /// \returns The result of attempting to load the module map file from the
   /// named directory.
-  LoadModuleMapResult loadModuleMapFile(const DirectoryEntry *Dir,
-                                        bool IsSystem, bool IsFramework);
+  LoadModuleMapResult loadModuleMapFile(DirectoryEntryRef Dir, bool IsSystem,
+                                        bool IsFramework);
 };
 
 /// Apply the header search options to get given HeaderSearch object.

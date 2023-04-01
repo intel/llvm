@@ -13,6 +13,8 @@ namespace mlir {
 
 class RewritePatternSet;
 
+void populateExpandCtlzPattern(RewritePatternSet &patterns);
+void populateExpandTanPattern(RewritePatternSet &patterns);
 void populateExpandTanhPattern(RewritePatternSet &patterns);
 
 void populateMathAlgebraicSimplificationPatterns(RewritePatternSet &patterns);

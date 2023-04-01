@@ -9,6 +9,7 @@ endif()
 if (MLIR_ENABLE_ROCM_CONVERSIONS)
   set(AMDGPU_LIBS
     IRReader
+    IPO
     linker
     MCParser
     AMDGPUAsmParser
@@ -21,23 +22,25 @@ endif()
 
 add_mlir_dialect_library(MLIRGPUOps
   IR/GPUDialect.cpp
+  IR/InferIntRangeInterfaceImpls.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/GPU
 
   DEPENDS
   MLIRGPUOpsIncGen
+  MLIRGPUOpsAttributesIncGen
   MLIRGPUOpsEnumsGen
   MLIRGPUOpInterfacesIncGen
 
   LINK_LIBS PUBLIC
-  MLIRArithmetic
-  MLIRDLTI
+  MLIRArithDialect
+  MLIRDLTIDialect
+  MLIRInferIntRangeInterface
   MLIRIR
-  MLIRMemRef
+  MLIRMemRefDialect
   MLIRSideEffectInterfaces
   MLIRSupport
-  MLIRLLVMIR
   )
 
 add_mlir_dialect_library(MLIRGPUTransforms
@@ -61,24 +64,29 @@ add_mlir_dialect_library(MLIRGPUTransforms
 
   DEPENDS
   MLIRGPUPassIncGen
-  MLIRParallelLoopMapperAttrGen
   MLIRParallelLoopMapperEnumsGen
 
   LINK_LIBS PUBLIC
-  MLIRArithmetic
-  MLIRAsync
+  MLIRAffineUtils
+  MLIRArithDialect
+  MLIRAsyncDialect
+  MLIRBuiltinToLLVMIRTranslation
   MLIRDataLayoutInterfaces
+  MLIRExecutionEngineUtils
   MLIRGPUOps
   MLIRIR
-  MLIRLLVMIR
+  MLIRLLVMDialect
+  MLIRGPUToLLVMIRTranslation
   MLIRLLVMToLLVMIRTranslation
-  MLIRMemRef
+  MLIRMemRefDialect
   MLIRPass
-  MLIRSCF
-  MLIRStandard
+  MLIRSCFDialect
+  MLIRSideEffectInterfaces
   MLIRSupport
   MLIRTransformUtils
   )
+
+add_subdirectory(TransformOps)
 
 if(MLIR_ENABLE_CUDA_RUNNER)
   if(NOT MLIR_ENABLE_CUDA_CONVERSIONS)
@@ -119,15 +127,10 @@ if(MLIR_ENABLE_CUDA_RUNNER)
 
 endif()
 
-if(MLIR_ENABLE_ROCM_RUNNER)
+if(MLIR_ENABLE_ROCM_CONVERSIONS)
   if (NOT ("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD))
     message(SEND_ERROR
       "Building mlir with ROCm support requires the AMDGPU backend")
-  endif()
-
-  # Ensure lld is enabled.
-  if (NOT "lld" IN_LIST LLVM_ENABLE_PROJECTS)
-    message(SEND_ERROR "lld is not enabled. Please revise LLVM_ENABLE_PROJECTS")
   endif()
 
   set(DEFAULT_ROCM_PATH "/opt/rocm" CACHE PATH "Fallback path to search for ROCm installs")
@@ -137,21 +140,8 @@ if(MLIR_ENABLE_ROCM_RUNNER)
     MLIR_GPU_TO_HSACO_PASS_ENABLE=1
   )
 
-  target_include_directories(obj.MLIRGPUTransforms
+  target_link_libraries(MLIRGPUTransforms
     PRIVATE
-    ${MLIR_SOURCE_DIR}/../lld/include
-  )
-
-  target_link_libraries(MLIRGPUOps
-    PRIVATE
-    lldELF
-    MLIRExecutionEngine
     MLIRROCDLToLLVMIRTranslation
   )
-
-  # Link lldELF also to libmlir.so. Create an alias that starts with LLVM
-  # because LINK_COMPONENTS elements are implicitly prefixed with LLVM.
-  add_library(LLVMAliasTolldELF ALIAS lldELF)
-  set_property(GLOBAL APPEND PROPERTY MLIR_LLVM_LINK_COMPONENTS AliasTolldELF)
-
 endif()

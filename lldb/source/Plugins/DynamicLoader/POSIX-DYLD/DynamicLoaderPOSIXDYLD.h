@@ -55,6 +55,11 @@ public:
   // PluginInterface protocol
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
+  lldb::ModuleSP LoadModuleAtAddress(const lldb_private::FileSpec &file,
+                                     lldb::addr_t link_map_addr,
+                                     lldb::addr_t base_addr,
+                                     bool base_addr_is_offset) override;
+
 protected:
   /// Runtime linker rendezvous structure.
   DYLDRendezvous m_rendezvous;
@@ -85,6 +90,9 @@ protected:
   /// Loaded module list. (link map for each module)
   std::map<lldb::ModuleWP, lldb::addr_t, std::owner_less<lldb::ModuleWP>>
       m_loaded_modules;
+
+  /// Returns true if the process is for a core file.
+  bool IsCoreFile() const;
 
   /// If possible sets a breakpoint on a function called by the runtime
   /// linker each time a module is loaded or unloaded.

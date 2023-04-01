@@ -8,7 +8,6 @@
 
 #include "llvm-c/Core.h"
 #include "llvm-c/Error.h"
-#include "llvm-c/Initialization.h"
 #include "llvm-c/LLJIT.h"
 #include "llvm-c/Support.h"
 #include "llvm-c/Target.h"
@@ -45,7 +44,7 @@ int allowedSymbols(void *Ctx, LLVMOrcSymbolStringPoolEntryRef Sym) {
   return 0;
 }
 
-LLVMOrcThreadSafeModuleRef createDemoModule() {
+LLVMOrcThreadSafeModuleRef createDemoModule(void) {
   // Create a new ThreadSafeContext and underlying LLVMContext.
   LLVMOrcThreadSafeContextRef TSCtx = LLVMOrcCreateNewThreadSafeContext();
 
@@ -100,6 +99,9 @@ LLVMOrcThreadSafeModuleRef createDemoModule() {
   //  - Build the return instruction.
   LLVMBuildRet(Builder, AddResult);
 
+  //  - Free the builder.
+  LLVMDisposeBuilder(Builder);
+
   // Our demo module is now complete. Wrap it and our ThreadSafeContext in a
   // ThreadSafeModule.
   LLVMOrcThreadSafeModuleRef TSM = LLVMOrcCreateNewThreadSafeModule(M, TSCtx);
@@ -118,7 +120,6 @@ int main(int argc, char *argv[]) {
 
   // Parse command line arguments and initialize LLVM Core.
   LLVMParseCommandLineOptions(argc, (const char **)argv, "");
-  LLVMInitializeCore(LLVMGetGlobalPassRegistry());
 
   // Initialize native target codegen and asm printer.
   LLVMInitializeNativeTarget();

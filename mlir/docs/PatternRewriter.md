@@ -232,7 +232,7 @@ creation, as well as many useful attribute and type construction methods.
 ## Pattern Application
 
 After a set of patterns have been defined, they are collected and provided to a
-specific driver for application. A driver consists of several high levels parts:
+specific driver for application. A driver consists of several high level parts:
 
 *   Input `RewritePatternSet`
 
@@ -283,7 +283,7 @@ public:
 
 /// Apply the custom driver to `op`.
 void applyMyPatternDriver(Operation *op,
-                          const RewritePatternSet &patterns) {
+                          const FrozenRewritePatternSet &patterns) {
   // Initialize the custom PatternRewriter.
   MyPatternRewriter rewriter(op->getContext());
 
@@ -322,22 +322,48 @@ driver can be found [here](DialectConversion.md).
 
 ### Greedy Pattern Rewrite Driver
 
-This driver walks the provided operations and greedily applies the patterns that
-locally have the most benefit. The benefit of
-a pattern is decided solely by the benefit specified on the pattern, and the
-relative order of the pattern within the pattern list (when two patterns have
-the same local benefit). Patterns are iteratively applied to operations until a
-fixed point is reached, at which point the driver finishes. This driver may be
-used via the following: `applyPatternsAndFoldGreedily` and
-`applyOpPatternsAndFold`. The latter of which only applies patterns to the
-provided operation, and will not traverse the IR.
+This driver processes ops in a worklist-driven fashion and greedily applies the
+patterns that locally have the most benefit. The benefit of a pattern is decided
+solely by the benefit specified on the pattern, and the relative order of the
+pattern within the pattern list (when two patterns have the same local benefit).
+Patterns are iteratively applied to operations until a fixed point is reached or
+until the configurable maximum number of iterations exhausted, at which point
+the driver finishes.
 
-The driver is configurable and supports two modes: 1) you may opt-in to a
-"top-down" traversal, which seeds the worklist with each operation top down and
-in a pre-order over the region tree.  This is generally more efficient in
-compile time.  2) the default is a "bottom up" traversal, which builds the
-initial worklist with a postorder traversal of the region tree.  This may
-match larger patterns with ambiguous pattern sets.
+This driver comes in two fashions:
+
+*   `applyPatternsAndFoldGreedily` ("region-based driver") applies patterns to
+    all ops in a given region or a given container op (but not the container op
+    itself). I.e., the worklist is initialized with all containing ops.
+*   `applyOpPatternsAndFold` ("op-based driver") applies patterns to the
+    provided list of operations. I.e., the worklist is initialized with the
+    specified list of ops.
+
+The driver is configurable via `GreedyRewriteConfig`. The region-based driver
+supports two modes for populating the initial worklist:
+
+*   Top-down traversal: Traverse the container op/region top down and in
+    pre-order. This is generally more efficient in compile time.
+*   Bottom-up traversal: This is the default setting. It builds the initial
+    worklist with a postorder traversal and then reverses the worklist. This may
+    match larger patterns with ambiguous pattern sets.
+
+By default, ops that were modified in-place and newly created are added back to
+the worklist. Ops that are outside of the configurable "scope" of the driver are
+not added to the worklist. Furthermore, "strict mode" can exclude certain ops
+from being added to the worklist throughout the rewrite process:
+
+*   `GreedyRewriteStrictness::AnyOp`: No ops are excluded (apart from the ones
+    that are out of scope).
+*   `GreedyRewriteStrictness::ExistingAndNewOps`: Only pre-existing ops (with
+    which the worklist was initialized) and newly created ops are added to the
+    worklist.
+*   `GreedyRewriteStrictness::ExistingOps`: Only pre-existing ops (with which
+    the worklist was initialized) are added to the worklist.
+
+Note: This driver listens for IR changes via the callbacks provided by
+`RewriterBase`. It is important that patterns announce all IR changes to the
+rewriter and do not bypass the rewriter API by modifying ops directly.
 
 Note: This driver is the one used by the [canonicalization](Canonicalization.md)
 [pass](Passes.md/#-canonicalize-canonicalize-operations) in MLIR.
@@ -356,24 +382,24 @@ Example output is shown below:
 
 ```
 //===-------------------------------------------===//
-Processing operation : 'std.cond_br'(0x60f000001120) {
-  "std.cond_br"(%arg0)[^bb2, ^bb2] {operand_segment_sizes = dense<[1, 0, 0]> : vector<3xi32>} : (i1) -> ()
+Processing operation : 'cf.cond_br'(0x60f000001120) {
+  "cf.cond_br"(%arg0)[^bb2, ^bb2] {operand_segment_sizes = array<i32: 1, 0, 0>} : (i1) -> ()
 
-  * Pattern SimplifyConstCondBranchPred : 'std.cond_br -> ()' {
+  * Pattern SimplifyConstCondBranchPred : 'cf.cond_br -> ()' {
   } -> failure : pattern failed to match
 
-  * Pattern SimplifyCondBranchIdenticalSuccessors : 'std.cond_br -> ()' {
-    ** Insert  : 'std.br'(0x60b000003690)
-    ** Replace : 'std.cond_br'(0x60f000001120)
+  * Pattern SimplifyCondBranchIdenticalSuccessors : 'cf.cond_br -> ()' {
+    ** Insert  : 'cf.br'(0x60b000003690)
+    ** Replace : 'cf.cond_br'(0x60f000001120)
   } -> success : pattern applied successfully
 } -> success : pattern matched
 //===-------------------------------------------===//
 ```
 
-This output is describing the processing of a `std.cond_br` operation. We first
+This output is describing the processing of a `cf.cond_br` operation. We first
 try to apply the `SimplifyConstCondBranchPred`, which fails. From there, another
 pattern (`SimplifyCondBranchIdenticalSuccessors`) is applied that matches the
-`std.cond_br` and replaces it with a `std.br`.
+`cf.cond_br` and replaces it with a `cf.br`.
 
 ## Debugging
 
@@ -439,12 +465,10 @@ below:
 
 ```tablegen
 ListOption<"disabledPatterns", "disable-patterns", "std::string",
-           "Labels of patterns that should be filtered out during application",
-           "llvm::cl::MiscFlags::CommaSeparated">,
+           "Labels of patterns that should be filtered out during application">,
 ListOption<"enabledPatterns", "enable-patterns", "std::string",
            "Labels of patterns that should be used during application, all "
-           "other patterns are filtered out",
-           "llvm::cl::MiscFlags::CommaSeparated">,
+           "other patterns are filtered out">,
 ```
 
 These options may be used to provide filtering behavior when constructing any

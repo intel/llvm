@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split=source -S %s -o %t.table
+; RUN: sycl-post-link -split=source -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR-0
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-IR-1
@@ -47,9 +47,9 @@ attributes #1 = { "sycl-module-id"="b.cpp" }
 ; CHECK: {{.*}}_0.ll|{{.*}}_0.prop
 ; CHECK: {{.*}}_1.ll|{{.*}}_1.prop
 
-; CHECK-IR-0-DAG: define dso_local spir_kernel void @SYCL_kernel1()
-; CHECK-IR-0-DAG: define dso_local spir_kernel void @ESIMD_kernel()
-; CHECK-IR-0-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
-
-; CHECK-IR-1-DAG: define dso_local spir_kernel void @SYCL_kernel2()
+; CHECK-IR-1-DAG: define dso_local spir_kernel void @SYCL_kernel1()
+; CHECK-IR-1-DAG: define dso_local spir_kernel void @ESIMD_kernel()
 ; CHECK-IR-1-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
+
+; CHECK-IR-0-DAG: define dso_local spir_kernel void @SYCL_kernel2()
+; CHECK-IR-0-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()

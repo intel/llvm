@@ -21,7 +21,7 @@
 #include "test_macros.h"
 
 template <class Alloc>
-inline typename std::allocator_traits<Alloc>::size_type alloc_max_size(Alloc const& a) {
+TEST_CONSTEXPR_CXX20 inline typename std::allocator_traits<Alloc>::size_type alloc_max_size(Alloc const& a) {
   typedef std::allocator_traits<Alloc> AT;
   return AT::max_size(a);
 }
@@ -31,6 +31,8 @@ struct test_allocator_statistics {
   int throw_after = INT_MAX;
   int count = 0;
   int alloc_count = 0;
+  int construct_count = 0; // the number of times that ::construct was called
+  int destroy_count = 0; // the number of times that ::destroy was called
   int copied = 0;
   int moved = 0;
   int converted = 0;
@@ -40,6 +42,8 @@ struct test_allocator_statistics {
     count = 0;
     time_to_throw = 0;
     alloc_count = 0;
+    construct_count = 0;
+    destroy_count = 0;
     throw_after = INT_MAX;
     clear_ctor_counters();
   }
@@ -112,7 +116,6 @@ public:
     }
   }
 
-#if TEST_STD_VER >= 11
   TEST_CONSTEXPR_CXX14 test_allocator(test_allocator&& a) TEST_NOEXCEPT : data_(a.data_), id_(a.id_), stats_(a.stats_) {
     if (stats_ != nullptr) {
       ++stats_->count;
@@ -123,7 +126,6 @@ public:
     a.data_ = test_alloc_base::moved_value;
     a.id_ = test_alloc_base::moved_value;
   }
-#endif
 
   template <class U>
   TEST_CONSTEXPR_CXX14 test_allocator(const test_allocator<U>& a) TEST_NOEXCEPT
@@ -146,7 +148,7 @@ public:
   TEST_CONSTEXPR pointer address(reference x) const { return &x; }
   TEST_CONSTEXPR const_pointer address(const_reference x) const { return &x; }
 
-  TEST_CONSTEXPR_CXX14 pointer allocate(size_type n, const void* = 0) {
+  TEST_CONSTEXPR_CXX14 pointer allocate(size_type n, const void* = nullptr) {
     assert(data_ != test_alloc_base::destructed_value);
     if (stats_ != nullptr) {
       if (stats_->time_to_throw >= stats_->throw_after)
@@ -166,102 +168,27 @@ public:
 
   TEST_CONSTEXPR size_type max_size() const TEST_NOEXCEPT { return UINT_MAX / sizeof(T); }
 
-#if TEST_STD_VER < 11
-  void construct(pointer p, const T& val) { ::new (static_cast<void*>(p)) T(val); }
-#else
   template <class U>
-  TEST_CONSTEXPR_CXX14 void construct(pointer p, U&& val) {
+  TEST_CONSTEXPR_CXX20 void construct(pointer p, U&& val) {
+    if (stats_ != nullptr)
+      ++stats_->construct_count;
+#if TEST_STD_VER > 17
+    std::construct_at(std::to_address(p), std::forward<U>(val));
+#else
     ::new (static_cast<void*>(p)) T(std::forward<U>(val));
-  }
 #endif
-  TEST_CONSTEXPR_CXX14 void destroy(pointer p) { p->~T(); }
+  }
+
+  TEST_CONSTEXPR_CXX14 void destroy(pointer p) {
+    if (stats_ != nullptr)
+      ++stats_->destroy_count;
+    p->~T();
+  }
   TEST_CONSTEXPR friend bool operator==(const test_allocator& x, const test_allocator& y) { return x.data_ == y.data_; }
   TEST_CONSTEXPR friend bool operator!=(const test_allocator& x, const test_allocator& y) { return !(x == y); }
 
   TEST_CONSTEXPR int get_data() const { return data_; }
   TEST_CONSTEXPR int get_id() const { return id_; }
-};
-
-template <class T>
-class non_default_test_allocator {
-  int data_ = 0;
-  test_allocator_statistics* stats_ = nullptr;
-
-  template <class U>
-  friend class non_default_test_allocator;
-
-public:
-  typedef unsigned size_type;
-  typedef int difference_type;
-  typedef T value_type;
-  typedef value_type* pointer;
-  typedef const value_type* const_pointer;
-  typedef typename std::add_lvalue_reference<value_type>::type reference;
-  typedef typename std::add_lvalue_reference<const value_type>::type const_reference;
-
-  template <class U>
-  struct rebind {
-    typedef non_default_test_allocator<U> other;
-  };
-
-  TEST_CONSTEXPR_CXX14
-  explicit non_default_test_allocator(int i, test_allocator_statistics* stats = nullptr) TEST_NOEXCEPT
-      : data_(i), stats_(stats) {
-    if (stats_ != nullptr) {
-      ++stats_->count;
-    }
-  }
-
-  TEST_CONSTEXPR_CXX14
-  non_default_test_allocator(const non_default_test_allocator& a) TEST_NOEXCEPT : data_(a.data_), stats_(a.stats_) {
-    if (stats_ != nullptr)
-      ++stats_->count;
-  }
-
-  template <class U>
-  TEST_CONSTEXPR_CXX14 non_default_test_allocator(const non_default_test_allocator<U>& a) TEST_NOEXCEPT
-      : data_(a.data_), stats_(a.stats_) {
-    if (stats_ != nullptr)
-      ++stats_->count;
-  }
-
-  TEST_CONSTEXPR_CXX20 ~non_default_test_allocator() TEST_NOEXCEPT {
-    assert(data_ != test_alloc_base::destructed_value);
-    if (stats_ != nullptr)
-      --stats_->count;
-    data_ = test_alloc_base::destructed_value;
-  }
-
-  TEST_CONSTEXPR pointer address(reference x) const { return &x; }
-  TEST_CONSTEXPR const_pointer address(const_reference x) const { return &x; }
-
-  TEST_CONSTEXPR_CXX20 pointer allocate(size_type n, const void* = nullptr) {
-    assert(data_ != test_alloc_base::destructed_value);
-    if (stats_ != nullptr) {
-      if (stats_->time_to_throw >= stats_->throw_after)
-        TEST_THROW(std::bad_alloc());
-      ++stats_->time_to_throw;
-      ++stats_->alloc_count;
-    }
-    return std::allocator<value_type>().allocate(n);
-  }
-
-  TEST_CONSTEXPR_CXX20 void deallocate(pointer p, size_type n) {
-    assert(data_ != test_alloc_base::destructed_value);
-    if (stats_ != nullptr)
-      --stats_->alloc_count;
-    std::allocator<value_type>().deallocate(p, n);
-  }
-
-  TEST_CONSTEXPR size_type max_size() const TEST_NOEXCEPT { return UINT_MAX / sizeof(T); }
-
-  TEST_CONSTEXPR friend bool operator==(const non_default_test_allocator& x, const non_default_test_allocator& y) {
-    return x.data_ == y.data_;
-  }
-
-  TEST_CONSTEXPR friend bool operator!=(const non_default_test_allocator& x, const non_default_test_allocator& y) {
-    return !(x == y);
-  }
 };
 
 template <>
@@ -358,8 +285,6 @@ public:
 #endif
 };
 
-#if TEST_STD_VER >= 11
-
 struct Ctor_Tag {};
 
 template <typename T>
@@ -369,15 +294,15 @@ struct Tag_X {
   // All constructors must be passed the Tag type.
 
   // DefaultInsertable into vector<X, TaggingAllocator<X>>,
-  constexpr Tag_X(Ctor_Tag) {}
+  TEST_CONSTEXPR Tag_X(Ctor_Tag) {}
   // CopyInsertable into vector<X, TaggingAllocator<X>>,
-  constexpr Tag_X(Ctor_Tag, const Tag_X&) {}
+  TEST_CONSTEXPR Tag_X(Ctor_Tag, const Tag_X&) {}
   // MoveInsertable into vector<X, TaggingAllocator<X>>, and
-  constexpr Tag_X(Ctor_Tag, Tag_X&&) {}
+  TEST_CONSTEXPR Tag_X(Ctor_Tag, Tag_X&&) {}
 
   // EmplaceConstructible into vector<X, TaggingAllocator<X>> from args.
   template <typename... Args>
-  constexpr Tag_X(Ctor_Tag, Args&&...) {}
+  TEST_CONSTEXPR Tag_X(Ctor_Tag, Args&&...) {}
 
   // not DefaultConstructible, CopyConstructible or MoveConstructible.
   Tag_X() = delete;
@@ -403,22 +328,25 @@ public:
   TaggingAllocator() = default;
 
   template <typename U>
-  constexpr TaggingAllocator(const TaggingAllocator<U>&){};
+  TEST_CONSTEXPR TaggingAllocator(const TaggingAllocator<U>&) {}
 
   template <typename... Args>
-  void construct(Tag_X* p, Args&&... args) {
-    ::new ((void*)p) Tag_X(Ctor_Tag{}, std::forward<Args>(args)...);
+  TEST_CONSTEXPR_CXX20 void construct(Tag_X* p, Args&&... args) {
+#if TEST_STD_VER > 17
+    std::construct_at(p, Ctor_Tag{}, std::forward<Args>(args)...);
+#else
+    ::new (static_cast<void*>(p)) Tag_X(Ctor_Tag(), std::forward<Args>(args)...);
+#endif
   }
 
   template <typename U>
-  void destroy(U* p) {
+  TEST_CONSTEXPR_CXX20 void destroy(U* p) {
     p->~U();
   }
 
-  TEST_CONSTEXPR_CXX20 T* allocate(std::size_t n) { return std::allocator<T>{}.allocate(n); }
-  TEST_CONSTEXPR_CXX20 void deallocate(T* p, std::size_t n) { std::allocator<T>{}.deallocate(p, n); }
+  TEST_CONSTEXPR_CXX20 T* allocate(std::size_t n) { return std::allocator<T>().allocate(n); }
+  TEST_CONSTEXPR_CXX20 void deallocate(T* p, std::size_t n) { std::allocator<T>().deallocate(p, n); }
 };
-#endif
 
 template <std::size_t MaxAllocs>
 struct limited_alloc_handle {
@@ -429,9 +357,10 @@ struct limited_alloc_handle {
   TEST_CONSTEXPR_CXX20 T* allocate(std::size_t N) {
     if (N + outstanding_ > MaxAllocs)
       TEST_THROW(std::bad_alloc());
-    last_alloc_ = std::allocator<T>().allocate(N);
+    auto alloc = std::allocator<T>().allocate(N);
+    last_alloc_ = alloc;
     outstanding_ += N;
-    return static_cast<T*>(last_alloc_);
+    return alloc;
   }
 
   template <class T>
@@ -476,7 +405,7 @@ private:
   struct control_block {
     template <class... Args>
     TEST_CONSTEXPR control_block(Args... args) : content(std::forward<Args>(args)...) {}
-    size_t ref_count = 1;
+    std::size_t ref_count = 1;
     T content;
   };
 

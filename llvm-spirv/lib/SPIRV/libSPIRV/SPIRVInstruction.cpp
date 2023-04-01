@@ -157,6 +157,47 @@ std::vector<SPIRVType *> SPIRVInstruction::getOperandTypes() {
   return getOperandTypes(getOperands());
 }
 
+size_t SPIRVImageInstBase::getImageOperandsIndex() const {
+  switch (OpCode) {
+  case OpImageRead:
+  case OpImageSampleExplicitLod:
+    return 2;
+  case OpImageWrite:
+    return 3;
+  default:
+    return ~0U;
+  }
+}
+
+void SPIRVImageInstBase::setOpWords(const std::vector<SPIRVWord> &OpsArg) {
+  std::vector<SPIRVWord> Ops = OpsArg;
+
+  // If the Image Operands field has the SignExtend or ZeroExtend bit set,
+  // either raise the minimum SPIR-V version to 1.4, or drop the operand
+  // if SPIR-V 1.4 cannot be emitted.
+  size_t ImgOpsIndex = getImageOperandsIndex();
+  if (ImgOpsIndex != ~0U && ImgOpsIndex < Ops.size()) {
+    SPIRVWord ImgOps = Ops[ImgOpsIndex];
+    unsigned SignZeroExtMasks = ImageOperandsMask::ImageOperandsSignExtendMask |
+                                ImageOperandsMask::ImageOperandsZeroExtendMask;
+    if (ImgOps & SignZeroExtMasks) {
+      SPIRVModule *M = getModule();
+      if (M->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)) {
+        M->setMinSPIRVVersion(VersionNumber::SPIRV_1_4);
+      } else {
+        // Drop SignExtend/ZeroExtend if we cannot use SPIR-V 1.4.
+        Ops[ImgOpsIndex] &= ~SignZeroExtMasks;
+        if (Ops[ImgOpsIndex] == 0) {
+          // Drop the Image Operands if SignExtend/ZeroExtend was the only
+          // bit set.
+          Ops.pop_back();
+        }
+      }
+    }
+  }
+  SPIRVInstTemplateBase::setOpWords(Ops);
+}
+
 bool isSpecConstantOpAllowedOp(Op OC) {
   static SPIRVWord Table[] = {
       OpSConvert,

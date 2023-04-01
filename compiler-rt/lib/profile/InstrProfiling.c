@@ -25,7 +25,7 @@ COMPILER_RT_VISIBILITY uint64_t __llvm_profile_get_magic(void) {
                                             : (INSTR_PROF_RAW_MAGIC_32);
 }
 
-COMPILER_RT_VISIBILITY void __llvm_profile_set_dumped() {
+COMPILER_RT_VISIBILITY void __llvm_profile_set_dumped(void) {
   lprofSetProfileDumped(1);
 }
 
@@ -45,7 +45,9 @@ COMPILER_RT_VISIBILITY void __llvm_profile_reset_counters(void) {
   char *I = __llvm_profile_begin_counters();
   char *E = __llvm_profile_end_counters();
 
-  memset(I, 0, E - I);
+  char ResetValue =
+      (__llvm_profile_get_version() & VARIANT_MASK_BYTE_COVERAGE) ? 0xFF : 0;
+  memset(I, ResetValue, E - I);
 
   const __llvm_profile_data *DataBegin = __llvm_profile_begin_data();
   const __llvm_profile_data *DataEnd = __llvm_profile_end_data();
@@ -62,11 +64,11 @@ COMPILER_RT_VISIBILITY void __llvm_profile_reset_counters(void) {
       CurrentVSiteCount += DI->NumValueSites[VKI];
 
     for (i = 0; i < CurrentVSiteCount; ++i) {
-      ValueProfNode *CurrentVNode = ValueCounters[i];
+      ValueProfNode *CurrVNode = ValueCounters[i];
 
-      while (CurrentVNode) {
-        CurrentVNode->Count = 0;
-        CurrentVNode = CurrentVNode->Next;
+      while (CurrVNode) {
+        CurrVNode->Count = 0;
+        CurrVNode = CurrVNode->Next;
       }
     }
   }

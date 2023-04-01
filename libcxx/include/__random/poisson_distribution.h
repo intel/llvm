@@ -12,6 +12,7 @@
 #include <__config>
 #include <__random/clamp_to_integral.h>
 #include <__random/exponential_distribution.h>
+#include <__random/is_valid.h>
 #include <__random/normal_distribution.h>
 #include <__random/uniform_real_distribution.h>
 #include <cmath>
@@ -19,7 +20,7 @@
 #include <limits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS
@@ -30,6 +31,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 template<class _IntType = int>
 class _LIBCPP_TEMPLATE_VIS poisson_distribution
 {
+    static_assert(__libcpp_random_is_valid_inttype<_IntType>::value, "IntType must be a supported integer type");
 public:
     // types
     typedef _IntType result_type;
@@ -142,12 +144,12 @@ poisson_distribution<_IntType>::param_type::param_type(double __mean)
         __d_ = 6 * __mean_ * __mean_;
         __l_ = _VSTD::trunc(__mean_ - 1.1484);
         __omega_ = .3989423 / __s_;
-        double __b1_ = .4166667E-1 / __mean_;
-        double __b2_ = .3 * __b1_ * __b1_;
-        __c3_ = .1428571 * __b1_ * __b2_;
-        __c2_ = __b2_ - 15. * __c3_;
-        __c1_ = __b1_ - 6. * __b2_ + 45. * __c3_;
-        __c0_ = 1. - __b1_ + 3. * __b2_ - 15. * __c3_;
+        double __b1 = .4166667E-1 / __mean_;
+        double __b2 = .3 * __b1 * __b1;
+        __c3_ = .1428571 * __b1 * __b2;
+        __c2_ = __b2 - 15. * __c3_;
+        __c1_ = __b1 - 6. * __b2 + 45. * __c3_;
+        __c0_ = 1. - __b1 + 3. * __b2 - 15. * __c3_;
         __c_ = .1069 / __mean_;
     }
 }
@@ -157,6 +159,7 @@ template<class _URNG>
 _IntType
 poisson_distribution<_IntType>::operator()(_URNG& __urng, const param_type& __pr)
 {
+    static_assert(__libcpp_random_is_valid_urng<_URNG>::value, "");
     double __tx;
     uniform_real_distribution<double> __urd;
     if (__pr.__mean_ < 10)
@@ -242,7 +245,7 @@ poisson_distribution<_IntType>::operator()(_URNG& __urng, const param_type& __pr
 }
 
 template <class _CharT, class _Traits, class _IntType>
-basic_ostream<_CharT, _Traits>&
+_LIBCPP_HIDE_FROM_ABI basic_ostream<_CharT, _Traits>&
 operator<<(basic_ostream<_CharT, _Traits>& __os,
            const poisson_distribution<_IntType>& __x)
 {
@@ -254,7 +257,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
 }
 
 template <class _CharT, class _Traits, class _IntType>
-basic_istream<_CharT, _Traits>&
+_LIBCPP_HIDE_FROM_ABI basic_istream<_CharT, _Traits>&
 operator>>(basic_istream<_CharT, _Traits>& __is,
            poisson_distribution<_IntType>& __x)
 {

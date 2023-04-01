@@ -18,7 +18,7 @@ void test_recipsqrt_ieee_f64(global double* out, double a)
 #endif
 
 // CHECK-LABEL: @test_implicitarg_ptr
-// CHECK: call i8 addrspace(7)* @llvm.r600.implicitarg.ptr()
+// CHECK: call ptr addrspace(7) @llvm.r600.implicitarg.ptr()
 void test_implicitarg_ptr(__attribute__((address_space(7))) unsigned char ** out)
 {
   *out = __builtin_r600_implicitarg_ptr();

@@ -29,7 +29,6 @@
 
 @end
 
-// CHECK: define internal [[RET:%.*]]* @"\01-[BPXLAppDelegate arrayOfThings
-// CHECK: [[THREE:%.*]] = bitcast [[OPQ:%.*]]* [[TWO:%.*]] to [[RET]]*
-// CHECK: ret [[RET]]* [[THREE]]
+// CHECK: define internal ptr @"\01-[BPXLAppDelegate arrayOfThings
+// CHECK: ret ptr [[TWO:%.*]]
 

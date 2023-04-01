@@ -1,9 +1,9 @@
 
-; RUN: opt < %s -instcombine -verify -S -o - | FileCheck %s
+; RUN: opt < %s -passes=instcombine,verify -S -o - | FileCheck %s
 
 ; Hand-reduced from this example.
 ; -g -O -mllvm -disable-llvm-optzns -gno-column-info
-; plus opt -sroa -instcombine -inline
+; plus opt -sroa -passes=instcombine -inline
 
 ; #include <stdio.h>
 ;

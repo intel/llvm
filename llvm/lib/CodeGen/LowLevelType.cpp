@@ -15,7 +15,6 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
 LLT llvm::getLLTForType(Type &Ty, const DataLayout &DL) {
@@ -32,7 +31,7 @@ LLT llvm::getLLTForType(Type &Ty, const DataLayout &DL) {
     return LLT::pointer(AddrSpace, DL.getPointerSizeInBits(AddrSpace));
   }
 
-  if (Ty.isSized()) {
+  if (Ty.isSized() && !Ty.isScalableTargetExtTy()) {
     // Aggregates are no different from real scalars as far as GlobalISel is
     // concerned.
     auto SizeInBits = DL.getTypeSizeInBits(&Ty);

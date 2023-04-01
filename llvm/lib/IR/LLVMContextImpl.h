@@ -14,7 +14,6 @@
 #ifndef LLVM_LIB_IR_LLVMCONTEXTIMPL_H
 #define LLVM_LIB_IR_LLVMCONTEXTIMPL_H
 
-#include "AttributeImpl.h"
 #include "ConstantsContext.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
@@ -24,7 +23,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -34,27 +32,44 @@
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LLVMRemarkStreamer.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/TrackingMDRef.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Value.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/StringSaver.h"
-#include "llvm/Support/YAMLTraits.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace llvm {
 
+class AttributeImpl;
+class AttributeListImpl;
+class AttributeSetNode;
+class BasicBlock;
+struct DiagnosticHandler;
+class ElementCount;
+class Function;
+class GlobalObject;
+class GlobalValue;
+class InlineAsm;
+class LLVMRemarkStreamer;
+class OptPassGate;
+namespace remarks {
+class RemarkStreamer;
+}
+template <typename T> class StringMapEntry;
 class StringRef;
-class Type;
-class Value;
+class TypedPointerType;
 class ValueHandleBase;
 
 using DenseMapAPIntKeyInfo = DenseMapInfo<APInt>;
@@ -171,6 +186,55 @@ struct FunctionTypeKeyInfo {
   }
 
   static bool isEqual(const FunctionType *LHS, const FunctionType *RHS) {
+    return LHS == RHS;
+  }
+};
+
+struct TargetExtTypeKeyInfo {
+  struct KeyTy {
+    StringRef Name;
+    ArrayRef<Type *> TypeParams;
+    ArrayRef<unsigned> IntParams;
+
+    KeyTy(StringRef N, const ArrayRef<Type *> &TP, const ArrayRef<unsigned> &IP)
+        : Name(N), TypeParams(TP), IntParams(IP) {}
+    KeyTy(const TargetExtType *TT)
+        : Name(TT->getName()), TypeParams(TT->type_params()),
+          IntParams(TT->int_params()) {}
+
+    bool operator==(const KeyTy &that) const {
+      return Name == that.Name && TypeParams == that.TypeParams &&
+             IntParams == that.IntParams;
+    }
+    bool operator!=(const KeyTy &that) const { return !this->operator==(that); }
+  };
+
+  static inline TargetExtType *getEmptyKey() {
+    return DenseMapInfo<TargetExtType *>::getEmptyKey();
+  }
+
+  static inline TargetExtType *getTombstoneKey() {
+    return DenseMapInfo<TargetExtType *>::getTombstoneKey();
+  }
+
+  static unsigned getHashValue(const KeyTy &Key) {
+    return hash_combine(
+        Key.Name,
+        hash_combine_range(Key.TypeParams.begin(), Key.TypeParams.end()),
+        hash_combine_range(Key.IntParams.begin(), Key.IntParams.end()));
+  }
+
+  static unsigned getHashValue(const TargetExtType *FT) {
+    return getHashValue(KeyTy(FT));
+  }
+
+  static bool isEqual(const KeyTy &LHS, const TargetExtType *RHS) {
+    if (RHS == getEmptyKey() || RHS == getTombstoneKey())
+      return false;
+    return LHS == KeyTy(RHS);
+  }
+
+  static bool isEqual(const TargetExtType *LHS, const TargetExtType *RHS) {
     return LHS == RHS;
   }
 };
@@ -428,20 +492,22 @@ template <> struct MDNodeKeyImpl<DIStringType> {
   MDString *Name;
   Metadata *StringLength;
   Metadata *StringLengthExp;
+  Metadata *StringLocationExp;
   uint64_t SizeInBits;
   uint32_t AlignInBits;
   unsigned Encoding;
 
   MDNodeKeyImpl(unsigned Tag, MDString *Name, Metadata *StringLength,
-                Metadata *StringLengthExp, uint64_t SizeInBits,
-                uint32_t AlignInBits, unsigned Encoding)
+                Metadata *StringLengthExp, Metadata *StringLocationExp,
+                uint64_t SizeInBits, uint32_t AlignInBits, unsigned Encoding)
       : Tag(Tag), Name(Name), StringLength(StringLength),
-        StringLengthExp(StringLengthExp), SizeInBits(SizeInBits),
-        AlignInBits(AlignInBits), Encoding(Encoding) {}
+        StringLengthExp(StringLengthExp), StringLocationExp(StringLocationExp),
+        SizeInBits(SizeInBits), AlignInBits(AlignInBits), Encoding(Encoding) {}
   MDNodeKeyImpl(const DIStringType *N)
       : Tag(N->getTag()), Name(N->getRawName()),
         StringLength(N->getRawStringLength()),
         StringLengthExp(N->getRawStringLengthExp()),
+        StringLocationExp(N->getRawStringLocationExp()),
         SizeInBits(N->getSizeInBits()), AlignInBits(N->getAlignInBits()),
         Encoding(N->getEncoding()) {}
 
@@ -464,7 +530,7 @@ template <> struct MDNodeKeyImpl<DIDerivedType> {
   uint64_t SizeInBits;
   uint64_t OffsetInBits;
   uint32_t AlignInBits;
-  Optional<unsigned> DWARFAddressSpace;
+  std::optional<unsigned> DWARFAddressSpace;
   unsigned Flags;
   Metadata *ExtraData;
   Metadata *Annotations;
@@ -472,7 +538,7 @@ template <> struct MDNodeKeyImpl<DIDerivedType> {
   MDNodeKeyImpl(unsigned Tag, MDString *Name, Metadata *File, unsigned Line,
                 Metadata *Scope, Metadata *BaseType, uint64_t SizeInBits,
                 uint32_t AlignInBits, uint64_t OffsetInBits,
-                Optional<unsigned> DWARFAddressSpace, unsigned Flags,
+                std::optional<unsigned> DWARFAddressSpace, unsigned Flags,
                 Metadata *ExtraData, Metadata *Annotations)
       : Tag(Tag), Name(Name), File(File), Line(Line), Scope(Scope),
         BaseType(BaseType), SizeInBits(SizeInBits), OffsetInBits(OffsetInBits),
@@ -649,12 +715,12 @@ template <> struct MDNodeKeyImpl<DISubroutineType> {
 template <> struct MDNodeKeyImpl<DIFile> {
   MDString *Filename;
   MDString *Directory;
-  Optional<DIFile::ChecksumInfo<MDString *>> Checksum;
-  Optional<MDString *> Source;
+  std::optional<DIFile::ChecksumInfo<MDString *>> Checksum;
+  MDString *Source;
 
   MDNodeKeyImpl(MDString *Filename, MDString *Directory,
-                Optional<DIFile::ChecksumInfo<MDString *>> Checksum,
-                Optional<MDString *> Source)
+                std::optional<DIFile::ChecksumInfo<MDString *>> Checksum,
+                MDString *Source)
       : Filename(Filename), Directory(Directory), Checksum(Checksum),
         Source(Source) {}
   MDNodeKeyImpl(const DIFile *N)
@@ -669,8 +735,7 @@ template <> struct MDNodeKeyImpl<DIFile> {
 
   unsigned getHashValue() const {
     return hash_combine(Filename, Directory, Checksum ? Checksum->Kind : 0,
-                        Checksum ? Checksum->Value : nullptr,
-                        Source.getValueOr(nullptr));
+                        Checksum ? Checksum->Value : nullptr, Source);
   }
 };
 
@@ -693,6 +758,7 @@ template <> struct MDNodeKeyImpl<DISubprogram> {
   Metadata *RetainedNodes;
   Metadata *ThrownTypes;
   Metadata *Annotations;
+  MDString *TargetFuncName;
 
   MDNodeKeyImpl(Metadata *Scope, MDString *Name, MDString *LinkageName,
                 Metadata *File, unsigned Line, Metadata *Type,
@@ -700,14 +766,15 @@ template <> struct MDNodeKeyImpl<DISubprogram> {
                 unsigned VirtualIndex, int ThisAdjustment, unsigned Flags,
                 unsigned SPFlags, Metadata *Unit, Metadata *TemplateParams,
                 Metadata *Declaration, Metadata *RetainedNodes,
-                Metadata *ThrownTypes, Metadata *Annotations)
+                Metadata *ThrownTypes, Metadata *Annotations,
+                MDString *TargetFuncName)
       : Scope(Scope), Name(Name), LinkageName(LinkageName), File(File),
         Line(Line), Type(Type), ScopeLine(ScopeLine),
         ContainingType(ContainingType), VirtualIndex(VirtualIndex),
         ThisAdjustment(ThisAdjustment), Flags(Flags), SPFlags(SPFlags),
         Unit(Unit), TemplateParams(TemplateParams), Declaration(Declaration),
         RetainedNodes(RetainedNodes), ThrownTypes(ThrownTypes),
-        Annotations(Annotations) {}
+        Annotations(Annotations), TargetFuncName(TargetFuncName) {}
   MDNodeKeyImpl(const DISubprogram *N)
       : Scope(N->getRawScope()), Name(N->getRawName()),
         LinkageName(N->getRawLinkageName()), File(N->getRawFile()),
@@ -720,7 +787,8 @@ template <> struct MDNodeKeyImpl<DISubprogram> {
         Declaration(N->getRawDeclaration()),
         RetainedNodes(N->getRawRetainedNodes()),
         ThrownTypes(N->getRawThrownTypes()),
-        Annotations(N->getRawAnnotations()) {}
+        Annotations(N->getRawAnnotations()),
+        TargetFuncName(N->getRawTargetFuncName()) {}
 
   bool isKeyOf(const DISubprogram *RHS) const {
     return Scope == RHS->getRawScope() && Name == RHS->getRawName() &&
@@ -736,7 +804,8 @@ template <> struct MDNodeKeyImpl<DISubprogram> {
            Declaration == RHS->getRawDeclaration() &&
            RetainedNodes == RHS->getRawRetainedNodes() &&
            ThrownTypes == RHS->getRawThrownTypes() &&
-           Annotations == RHS->getRawAnnotations();
+           Annotations == RHS->getRawAnnotations() &&
+           TargetFuncName == RHS->getRawTargetFuncName();
   }
 
   bool isDefinition() const { return SPFlags & DISubprogram::SPFlagDefinition; }
@@ -1362,7 +1431,12 @@ public:
   /// constant.
   ///
   /// If threshold option is not specified, it is disabled (0) by default.
-  Optional<uint64_t> DiagnosticsHotnessThreshold = 0;
+  std::optional<uint64_t> DiagnosticsHotnessThreshold = 0;
+
+  /// The percentage of difference between profiling branch weights and
+  /// llvm.expect branch weights to tolerate when emiting MisExpect diagnostics
+  std::optional<uint32_t> DiagnosticsMisExpectTolerance = 0;
+  bool MisExpectWarningRequested = false;
 
   /// The specialized remark streamer used by LLVM's OptimizationRemarkEmitter.
   std::unique_ptr<LLVMRemarkStreamer> LLVMRS;
@@ -1370,13 +1444,15 @@ public:
   LLVMContext::YieldCallbackTy YieldCallback = nullptr;
   void *YieldOpaqueHandle = nullptr;
 
-  using IntMapTy =
-      DenseMap<APInt, std::unique_ptr<ConstantInt>, DenseMapAPIntKeyInfo>;
-  IntMapTy IntConstants;
+  DenseMap<const Value *, ValueName *> ValueNames;
 
-  using FPMapTy =
-      DenseMap<APFloat, std::unique_ptr<ConstantFP>, DenseMapAPFloatKeyInfo>;
-  FPMapTy FPConstants;
+  DenseMap<unsigned, std::unique_ptr<ConstantInt>> IntZeroConstants;
+  DenseMap<unsigned, std::unique_ptr<ConstantInt>> IntOneConstants;
+  DenseMap<APInt, std::unique_ptr<ConstantInt>, DenseMapAPIntKeyInfo>
+      IntConstants;
+
+  DenseMap<APFloat, std::unique_ptr<ConstantFP>, DenseMapAPFloatKeyInfo>
+      FPConstants;
 
   FoldingSet<AttributeImpl> AttrsSet;
   FoldingSet<AttributeListImpl> AttrsLists;
@@ -1386,14 +1462,12 @@ public:
   DenseMap<Value *, ValueAsMetadata *> ValuesAsMetadata;
   DenseMap<Metadata *, MetadataAsValue *> MetadataAsValues;
 
-  DenseMap<const Value *, ValueName *> ValueNames;
-
 #define HANDLE_MDNODE_LEAF_UNIQUABLE(CLASS)                                    \
   DenseSet<CLASS *, CLASS##Info> CLASS##s;
 #include "llvm/IR/Metadata.def"
 
   // Optional map for looking up composite types by identifier.
-  Optional<DenseMap<const MDString *, DICompositeType *>> DITypeMap;
+  std::optional<DenseMap<const MDString *, DICompositeType *>> DITypeMap;
 
   // MDNodes may be uniqued or not uniqued.  When they're not uniqued, they
   // aren't in the MDNodeSet, but they're still shared between objects, so no
@@ -1413,6 +1487,8 @@ public:
   VectorConstantsTy VectorConstants;
 
   DenseMap<PointerType *, std::unique_ptr<ConstantPointerNull>> CPNConstants;
+
+  DenseMap<TargetExtType *, std::unique_ptr<ConstantTargetNone>> CTNConstants;
 
   DenseMap<Type *, std::unique_ptr<UndefValue>> UVConstants;
 
@@ -1434,13 +1510,13 @@ public:
   ConstantInt *TheTrueVal = nullptr;
   ConstantInt *TheFalseVal = nullptr;
 
-  std::unique_ptr<ConstantTokenNone> TheNoneToken;
-
   // Basic type instances.
   Type VoidTy, LabelTy, HalfTy, BFloatTy, FloatTy, DoubleTy, MetadataTy,
       TokenTy;
   Type X86_FP80Ty, FP128Ty, PPC_FP128Ty, X86_MMXTy, X86_AMXTy;
   IntegerType Int1Ty, Int8Ty, Int16Ty, Int32Ty, Int64Ty, Int128Ty;
+
+  std::unique_ptr<ConstantTokenNone> TheNoneToken;
 
   BumpPtrAllocator Alloc;
   UniqueStringSaver Saver{Alloc};
@@ -1454,10 +1530,15 @@ public:
   StringMap<StructType *> NamedStructTypes;
   unsigned NamedStructTypesUniqueID = 0;
 
+  using TargetExtTypeSet = DenseSet<TargetExtType *, TargetExtTypeKeyInfo>;
+  TargetExtTypeSet TargetExtTypes;
+
   DenseMap<std::pair<Type *, uint64_t>, ArrayType *> ArrayTypes;
   DenseMap<std::pair<Type *, ElementCount>, VectorType *> VectorTypes;
-  DenseMap<Type *, PointerType *> PointerTypes; // Pointers in AddrSpace = 0
-  DenseMap<std::pair<Type *, unsigned>, PointerType *> ASPointerTypes;
+  PointerType *AS0PointerType = nullptr; // AddrSpace = 0
+  DenseMap<unsigned, PointerType *> PointerTypes;
+  DenseMap<std::pair<Type *, unsigned>, PointerType *> LegacyPointerTypes;
+  DenseMap<std::pair<Type *, unsigned>, TypedPointerType *> ASTypedPointerTypes;
 
   /// ValueHandles - This map keeps track of all of the value handles that are
   /// watching a Value*.  The Value::HasValueHandle bit is used to know
@@ -1471,11 +1552,19 @@ public:
   /// Collection of metadata used in this context.
   DenseMap<const Value *, MDAttachments> ValueMetadata;
 
+  /// Map DIAssignID -> Instructions with that attachment.
+  /// Managed by Instruction via Instruction::updateDIAssignIDMapping.
+  /// Query using the at:: functions defined in DebugInfo.h.
+  DenseMap<DIAssignID *, SmallVector<Instruction *, 1>> AssignmentIDToInstrs;
+
   /// Collection of per-GlobalObject sections used in this context.
   DenseMap<const GlobalObject *, StringRef> GlobalObjectSections;
 
   /// Collection of per-GlobalValue partitions used in this context.
   DenseMap<const GlobalValue *, StringRef> GlobalValuePartitions;
+
+  DenseMap<const GlobalValue *, GlobalValue::SanitizerMetadata>
+      GlobalValueSanitizerMetadata;
 
   /// DiscriminatorTable - This table maps file:line locations to an
   /// integer representing the next DWARF path discriminator to assign to
@@ -1539,10 +1628,11 @@ public:
   // TODO: clean up the following after we no longer support non-opaque pointer
   // types.
   bool getOpaquePointers();
+  bool hasOpaquePointersValue();
   void setOpaquePointers(bool OP);
 
 private:
-  Optional<bool> OpaquePointers;
+  std::optional<bool> OpaquePointers;
 };
 
 } // end namespace llvm

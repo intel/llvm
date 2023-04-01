@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TestTU.h"
+#include "TestFS.h"
 #include "TweakTesting.h"
-#include "gmock/gmock-matchers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -85,6 +84,32 @@ TEST_F(DefineOutlineTest, TriggersOnFunctionDecl) {
     template <typename> void fo^o() {};
     template <> void fo^o<int>() {};
   )cpp");
+
+  // Not available on methods of unnamed classes.
+  EXPECT_UNAVAILABLE(R"cpp(
+    struct Foo {
+      struct { void b^ar() {} } Bar;
+    };
+  )cpp");
+
+  // Not available on methods of named classes with unnamed parent in parents
+  // nesting.
+  EXPECT_UNAVAILABLE(R"cpp(
+    struct Foo {
+      struct {
+        struct Bar { void b^ar() {} };
+      } Baz;
+    };
+  )cpp");
+
+  // Not available on definitions within unnamed namespaces
+  EXPECT_UNAVAILABLE(R"cpp(
+    namespace {
+      struct Foo {
+        void f^oo() {}
+      };
+    } // namespace
+  )cpp");
 }
 
 TEST_F(DefineOutlineTest, FailsWithoutSource) {
@@ -116,6 +141,11 @@ TEST_F(DefineOutlineTest, ApplyTest) {
           "void fo^o(int x, int y = 5, int = 2, int (*foo)(int) = nullptr) {}",
           "void foo(int x, int y = 5, int = 2, int (*foo)(int) = nullptr) ;",
           "void foo(int x, int y , int , int (*foo)(int) ) {}",
+      },
+      {
+          "struct Bar{Bar();}; void fo^o(Bar x = {}) {}",
+          "struct Bar{Bar();}; void foo(Bar x = {}) ;",
+          "void foo(Bar x ) {}",
       },
       // Constructors
       {

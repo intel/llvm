@@ -562,7 +562,6 @@ defm : X86WriteResPairUnsupported<WriteFMAZ>;
 defm : JWriteResFpuPair<WriteDPPD,   [JFPU1, JFPM, JFPA],  9, [1, 3, 3],  3>;
 defm : JWriteResFpuPair<WriteDPPS,   [JFPU1, JFPM, JFPA], 11, [1, 3, 3],  5>;
 defm : JWriteResYMMPair<WriteDPPSY,  [JFPU1, JFPM, JFPA], 12, [2, 6, 6], 10>;
-defm : X86WriteResPairUnsupported<WriteDPPSZ>;
 defm : JWriteResFpuPair<WriteFRcp,         [JFPU1, JFPM],  2>;
 defm : JWriteResFpuPair<WriteFRcpX,        [JFPU1, JFPM],  2>;
 defm : JWriteResYMMPair<WriteFRcpY,        [JFPU1, JFPM],  2, [2,2], 2>;
@@ -840,8 +839,8 @@ def JWriteMASKMOVDQU: SchedWriteRes<[JFPU0, JFPA, JFPU1, JSTC, JLAGU, JSAGU, JAL
   let ResourceCycles = [1, 1, 2, 2, 2, 16, 42];
   let NumMicroOps = 63;
 }
-def : InstRW<[JWriteMASKMOVDQU], (instrs MASKMOVDQU, MASKMOVDQU64, MASKMOVDQUX32,
-                                         VMASKMOVDQU, VMASKMOVDQU64, VMASKMOVDQUX32)>;
+def : InstRW<[JWriteMASKMOVDQU], (instrs MASKMOVDQU, MASKMOVDQU64,
+                                         VMASKMOVDQU, VMASKMOVDQU64)>;
 
 ///////////////////////////////////////////////////////////////////////////////
 //  SchedWriteVariant definitions.

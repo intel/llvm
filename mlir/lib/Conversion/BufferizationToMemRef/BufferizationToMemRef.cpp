@@ -11,14 +11,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../PassDetail.h"
 #include "mlir/Conversion/BufferizationToMemRef/BufferizationToMemRef.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTBUFFERIZATIONTOMEMREF
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
@@ -39,22 +45,37 @@ struct CloneOpConversion : public OpConversionPattern<bufferization::CloneOp> {
       return rewriter.notifyMatchFailure(
           op, "UnrankedMemRefType is not supported.");
     }
+    MemRefType memrefType = type.cast<MemRefType>();
+    MemRefLayoutAttrInterface layout;
+    auto allocType =
+        MemRefType::get(memrefType.getShape(), memrefType.getElementType(),
+                        layout, memrefType.getMemorySpace());
+    // Since this implementation always allocates, certain result types of the
+    // clone op cannot be lowered.
+    if (!memref::CastOp::areCastCompatible({allocType}, {memrefType}))
+      return failure();
 
     // Transform a clone operation into alloc + copy operation and pay
     // attention to the shape dimensions.
-    MemRefType memrefType = type.cast<MemRefType>();
     Location loc = op->getLoc();
     SmallVector<Value, 4> dynamicOperands;
     for (int i = 0; i < memrefType.getRank(); ++i) {
       if (!memrefType.isDynamicDim(i))
         continue;
       Value size = rewriter.createOrFold<arith::ConstantIndexOp>(loc, i);
-      Value dim = rewriter.createOrFold<memref::DimOp>(loc, op.input(), size);
+      Value dim =
+          rewriter.createOrFold<memref::DimOp>(loc, op.getInput(), size);
       dynamicOperands.push_back(dim);
     }
-    Value alloc = rewriter.replaceOpWithNewOp<memref::AllocOp>(op, memrefType,
-                                                               dynamicOperands);
-    rewriter.create<memref::CopyOp>(loc, op.input(), alloc);
+
+    // Allocate a memref with identity layout.
+    Value alloc = rewriter.create<memref::AllocOp>(op->getLoc(), allocType,
+                                                   dynamicOperands);
+    // Cast the allocation to the specified type if needed.
+    if (memrefType != allocType)
+      alloc = rewriter.create<memref::CastOp>(op->getLoc(), memrefType, alloc);
+    rewriter.replaceOp(op, alloc);
+    rewriter.create<memref::CopyOp>(loc, op.getInput(), alloc);
     return success();
   }
 };
@@ -67,7 +88,7 @@ void mlir::populateBufferizationToMemRefConversionPatterns(
 
 namespace {
 struct BufferizationToMemRefPass
-    : public ConvertBufferizationToMemRefBase<BufferizationToMemRefPass> {
+    : public impl::ConvertBufferizationToMemRefBase<BufferizationToMemRefPass> {
   BufferizationToMemRefPass() = default;
 
   void runOnOperation() override {

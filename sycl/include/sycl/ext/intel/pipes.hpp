@@ -10,15 +10,16 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace intel {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel {
 
 template <class _name, class _dataT, int32_t _min_capacity = 0> class pipe {
 public:
+  using value_type = _dataT;
+  static constexpr int32_t min_capacity = _min_capacity;
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
@@ -32,7 +33,10 @@ public:
     return TempData;
 #else
     (void)_Success;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -47,7 +51,10 @@ public:
 #else
     (void)_Success;
     (void)_Data;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -62,7 +69,10 @@ public:
     __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead..");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -75,17 +85,19 @@ public:
     __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
 #else
     (void)_Data;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
 private:
   static constexpr int32_t m_Size = sizeof(_dataT);
   static constexpr int32_t m_Alignment = alignof(_dataT);
-  static constexpr int32_t m_Capacity = _min_capacity;
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage = {m_Size, m_Alignment,
-                                                           m_Capacity};
+                                                           min_capacity};
 #endif // __SYCL_DEVICE_ONLY__
 };
 
@@ -112,6 +124,8 @@ using ethernet_write_pipe =
 template <class _name, class _dataT, size_t _min_capacity = 0>
 class kernel_readable_io_pipe {
 public:
+  using value_type = _dataT;
+  static constexpr int32_t min_capacity = _min_capacity;
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
@@ -125,7 +139,10 @@ public:
     return TempData;
 #else
     (void)_Success;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -140,24 +157,28 @@ public:
     __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
 private:
   static constexpr int32_t m_Size = sizeof(_dataT);
   static constexpr int32_t m_Alignment = alignof(_dataT);
-  static constexpr int32_t m_Capacity = _min_capacity;
   static constexpr int32_t ID = _name::id;
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage
-      __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, m_Capacity};
+      __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, min_capacity};
 #endif // __SYCL_DEVICE_ONLY__
 };
 
 template <class _name, class _dataT, size_t _min_capacity = 0>
 class kernel_writeable_io_pipe {
 public:
+  using value_type = _dataT;
+  static constexpr int32_t min_capacity = _min_capacity;
   // Non-blocking pipes
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
@@ -170,7 +191,10 @@ public:
 #else
     (void)_Data;
     (void)_Success;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -184,23 +208,24 @@ public:
     __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
 #else
     (void)_Data;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device-side API are not supported on a host device. Please use "
+        "host-side API instead.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
 private:
   static constexpr int32_t m_Size = sizeof(_dataT);
   static constexpr int32_t m_Alignment = alignof(_dataT);
-  static constexpr int32_t m_Capacity = _min_capacity;
   static constexpr int32_t ID = _name::id;
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage
-      __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, m_Capacity};
+      __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, min_capacity};
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

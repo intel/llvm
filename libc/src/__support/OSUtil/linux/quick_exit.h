@@ -9,15 +9,18 @@
 #ifndef LLVM_LIBC_SRC_SUPPORT_OSUTIL_LINUX_QUICK_EXIT_H
 #define LLVM_LIBC_SRC_SUPPORT_OSUTIL_LINUX_QUICK_EXIT_H
 
-#include "include/sys/syscall.h" // For syscall numbers.
 #include "syscall.h"             // For internal syscall function.
+
+#include "src/__support/common.h"
+
+#include <sys/syscall.h> // For syscall numbers.
 
 namespace __llvm_libc {
 
-static inline void quick_exit(int status) {
+LIBC_INLINE void quick_exit(int status) {
   for (;;) {
-    __llvm_libc::syscall(SYS_exit_group, status);
-    __llvm_libc::syscall(SYS_exit, status);
+    __llvm_libc::syscall_impl(SYS_exit_group, status);
+    __llvm_libc::syscall_impl(SYS_exit, status);
   }
 }
 

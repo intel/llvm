@@ -11,11 +11,11 @@
 // RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSPIRV_1_3 %s -I . -o \
    %t13.out
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cassert>
 #include <limits>
 #include <numeric>
+#include <sycl/sycl.hpp>
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 

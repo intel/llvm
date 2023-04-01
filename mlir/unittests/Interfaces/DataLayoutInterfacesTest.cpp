@@ -14,7 +14,7 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/Parser.h"
+#include "mlir/Parser/Parser.h"
 
 #include <gtest/gtest.h>
 
@@ -22,6 +22,8 @@ using namespace mlir;
 
 namespace {
 constexpr static llvm::StringLiteral kAttrName = "dltest.layout";
+constexpr static llvm::StringLiteral kAllocaKeyName =
+    "dltest.alloca_memory_space";
 
 /// Trivial array storage for the custom data layout spec attribute, just a list
 /// of entries.
@@ -49,6 +51,8 @@ struct CustomDataLayoutSpec
     : public Attribute::AttrBase<CustomDataLayoutSpec, Attribute,
                                  DataLayoutSpecStorage,
                                  DataLayoutSpecInterface::Trait> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(CustomDataLayoutSpec)
+
   using Base::Base;
   static CustomDataLayoutSpec get(MLIRContext *ctx,
                                   ArrayRef<DataLayoutEntryInterface> entries) {
@@ -60,6 +64,9 @@ struct CustomDataLayoutSpec
   }
   DataLayoutEntryListRef getEntries() const { return getImpl()->entries; }
   LogicalResult verifySpec(Location loc) { return success(); }
+  StringAttr getAllocaMemorySpaceIdentifier(MLIRContext *context) const {
+    return Builder(context).getStringAttr(kAllocaKeyName);
+  }
 };
 
 /// A type subject to data layout that exits the program if it is queried more
@@ -67,6 +74,8 @@ struct CustomDataLayoutSpec
 struct SingleQueryType
     : public Type::TypeBase<SingleQueryType, Type, TypeStorage,
                             DataLayoutTypeInterface::Trait> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SingleQueryType)
+
   using Base::Base;
 
   static SingleQueryType get(MLIRContext *ctx) { return Base::get(ctx); }
@@ -100,10 +109,21 @@ struct SingleQueryType
     executed = true;
     return 4;
   }
+
+  Attribute getAllocaMemorySpace(DataLayoutEntryInterface entry) {
+    static bool executed = false;
+    if (executed)
+      llvm::report_fatal_error("repeated call");
+
+    executed = true;
+    return Attribute();
+  }
 };
 
 /// A types that is not subject to data layout.
 struct TypeNoLayout : public Type::TypeBase<TypeNoLayout, Type, TypeStorage> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TypeNoLayout)
+
   using Base::Base;
 
   static TypeNoLayout get(MLIRContext *ctx) { return Base::get(ctx); }
@@ -113,6 +133,8 @@ struct TypeNoLayout : public Type::TypeBase<TypeNoLayout, Type, TypeStorage> {
 /// attribute attached. This can handle data layout requests for the built-in
 /// types itself.
 struct OpWithLayout : public Op<OpWithLayout, DataLayoutOpInterface::Trait> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(OpWithLayout)
+
   using Op::Op;
   static ArrayRef<StringRef> getAttributeNames() { return {}; }
 
@@ -156,6 +178,8 @@ struct OpWithLayout : public Op<OpWithLayout, DataLayoutOpInterface::Trait> {
 
 struct OpWith7BitByte
     : public Op<OpWith7BitByte, DataLayoutOpInterface::Trait> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(OpWith7BitByte)
+
   using Op::Op;
   static ArrayRef<StringRef> getAttributeNames() { return {}; }
 
@@ -174,6 +198,8 @@ struct OpWith7BitByte
 
 /// A dialect putting all the above together.
 struct DLTestDialect : Dialect {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(DLTestDialect)
+
   explicit DLTestDialect(MLIRContext *ctx)
       : Dialect(getDialectNamespace(), ctx, TypeID::get<DLTestDialect>()) {
     ctx->getOrLoadDialect<DLTIDialect>();
@@ -200,11 +226,13 @@ struct DLTestDialect : Dialect {
       return CustomDataLayoutSpec::get(parser.getContext(), {});
 
     SmallVector<DataLayoutEntryInterface> entries;
-    do {
+    ok = succeeded(parser.parseCommaSeparatedList([&]() {
       entries.emplace_back();
       ok = succeeded(parser.parseAttribute(entries.back()));
       assert(ok);
-    } while (succeeded(parser.parseOptionalComma()));
+      return success();
+    }));
+    assert(ok);
     ok = succeeded(parser.parseGreater());
     assert(ok);
     return CustomDataLayoutSpec::get(parser.getContext(), entries);
@@ -236,7 +264,7 @@ module {}
   registry.insert<DLTIDialect, DLTestDialect>();
   MLIRContext ctx(registry);
 
-  OwningModuleRef module = parseSourceString(ir, &ctx);
+  OwningOpRef<ModuleOp> module = parseSourceString<ModuleOp>(ir, &ctx);
   DataLayout layout(module.get());
   EXPECT_EQ(layout.getTypeSize(IntegerType::get(&ctx, 42)), 6u);
   EXPECT_EQ(layout.getTypeSize(Float16Type::get(&ctx)), 2u);
@@ -246,6 +274,8 @@ module {}
   EXPECT_EQ(layout.getTypeABIAlignment(Float16Type::get(&ctx)), 2u);
   EXPECT_EQ(layout.getTypePreferredAlignment(IntegerType::get(&ctx, 42)), 8u);
   EXPECT_EQ(layout.getTypePreferredAlignment(Float16Type::get(&ctx)), 2u);
+
+  EXPECT_EQ(layout.getAllocaMemorySpace(), Attribute());
 }
 
 TEST(DataLayout, NullSpec) {
@@ -257,10 +287,11 @@ TEST(DataLayout, NullSpec) {
   registry.insert<DLTIDialect, DLTestDialect>();
   MLIRContext ctx(registry);
 
-  OwningModuleRef module = parseSourceString(ir, &ctx);
+  OwningOpRef<ModuleOp> module = parseSourceString<ModuleOp>(ir, &ctx);
   auto op =
       cast<DataLayoutOpInterface>(module->getBody()->getOperations().front());
   DataLayout layout(op);
+
   EXPECT_EQ(layout.getTypeSize(IntegerType::get(&ctx, 42)), 42u);
   EXPECT_EQ(layout.getTypeSize(Float16Type::get(&ctx)), 16u);
   EXPECT_EQ(layout.getTypeSizeInBits(IntegerType::get(&ctx, 42)), 8u * 42u);
@@ -269,6 +300,8 @@ TEST(DataLayout, NullSpec) {
   EXPECT_EQ(layout.getTypeABIAlignment(Float16Type::get(&ctx)), 16u);
   EXPECT_EQ(layout.getTypePreferredAlignment(IntegerType::get(&ctx, 42)), 128u);
   EXPECT_EQ(layout.getTypePreferredAlignment(Float16Type::get(&ctx)), 32u);
+
+  EXPECT_EQ(layout.getAllocaMemorySpace(), Attribute());
 }
 
 TEST(DataLayout, EmptySpec) {
@@ -280,7 +313,7 @@ TEST(DataLayout, EmptySpec) {
   registry.insert<DLTIDialect, DLTestDialect>();
   MLIRContext ctx(registry);
 
-  OwningModuleRef module = parseSourceString(ir, &ctx);
+  OwningOpRef<ModuleOp> module = parseSourceString<ModuleOp>(ir, &ctx);
   auto op =
       cast<DataLayoutOpInterface>(module->getBody()->getOperations().front());
   DataLayout layout(op);
@@ -292,13 +325,16 @@ TEST(DataLayout, EmptySpec) {
   EXPECT_EQ(layout.getTypeABIAlignment(Float16Type::get(&ctx)), 16u);
   EXPECT_EQ(layout.getTypePreferredAlignment(IntegerType::get(&ctx, 42)), 128u);
   EXPECT_EQ(layout.getTypePreferredAlignment(Float16Type::get(&ctx)), 32u);
+
+  EXPECT_EQ(layout.getAllocaMemorySpace(), Attribute());
 }
 
 TEST(DataLayout, SpecWithEntries) {
   const char *ir = R"MLIR(
 "dltest.op_with_layout"() { dltest.layout = #dltest.spec<
   #dlti.dl_entry<i42, 5>,
-  #dlti.dl_entry<i16, 6>
+  #dlti.dl_entry<i16, 6>,
+  #dlti.dl_entry<"dltest.alloca_memory_space", 5 : i32>
 > } : () -> ()
   )MLIR";
 
@@ -306,7 +342,7 @@ TEST(DataLayout, SpecWithEntries) {
   registry.insert<DLTIDialect, DLTestDialect>();
   MLIRContext ctx(registry);
 
-  OwningModuleRef module = parseSourceString(ir, &ctx);
+  OwningOpRef<ModuleOp> module = parseSourceString<ModuleOp>(ir, &ctx);
   auto op =
       cast<DataLayoutOpInterface>(module->getBody()->getOperations().front());
   DataLayout layout(op);
@@ -327,6 +363,8 @@ TEST(DataLayout, SpecWithEntries) {
   EXPECT_EQ(layout.getTypeABIAlignment(Float32Type::get(&ctx)), 32u);
   EXPECT_EQ(layout.getTypePreferredAlignment(IntegerType::get(&ctx, 32)), 64u);
   EXPECT_EQ(layout.getTypePreferredAlignment(Float32Type::get(&ctx)), 64u);
+
+  EXPECT_EQ(layout.getAllocaMemorySpace(), Builder(&ctx).getI32IntegerAttr(5));
 }
 
 TEST(DataLayout, Caching) {
@@ -338,7 +376,7 @@ TEST(DataLayout, Caching) {
   registry.insert<DLTIDialect, DLTestDialect>();
   MLIRContext ctx(registry);
 
-  OwningModuleRef module = parseSourceString(ir, &ctx);
+  OwningOpRef<ModuleOp> module = parseSourceString<ModuleOp>(ir, &ctx);
   auto op =
       cast<DataLayoutOpInterface>(module->getBody()->getOperations().front());
   DataLayout layout(op);
@@ -369,7 +407,7 @@ TEST(DataLayout, CacheInvalidation) {
   registry.insert<DLTIDialect, DLTestDialect>();
   MLIRContext ctx(registry);
 
-  OwningModuleRef module = parseSourceString(ir, &ctx);
+  OwningOpRef<ModuleOp> module = parseSourceString<ModuleOp>(ir, &ctx);
   auto op =
       cast<DataLayoutOpInterface>(module->getBody()->getOperations().front());
   DataLayout layout(op);
@@ -395,7 +433,7 @@ TEST(DataLayout, UnimplementedTypeInterface) {
   registry.insert<DLTIDialect, DLTestDialect>();
   MLIRContext ctx(registry);
 
-  OwningModuleRef module = parseSourceString(ir, &ctx);
+  OwningOpRef<ModuleOp> module = parseSourceString<ModuleOp>(ir, &ctx);
   auto op =
       cast<DataLayoutOpInterface>(module->getBody()->getOperations().front());
   DataLayout layout(op);
@@ -414,7 +452,7 @@ TEST(DataLayout, SevenBitByte) {
   registry.insert<DLTIDialect, DLTestDialect>();
   MLIRContext ctx(registry);
 
-  OwningModuleRef module = parseSourceString(ir, &ctx);
+  OwningOpRef<ModuleOp> module = parseSourceString<ModuleOp>(ir, &ctx);
   auto op =
       cast<DataLayoutOpInterface>(module->getBody()->getOperations().front());
   DataLayout layout(op);

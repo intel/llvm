@@ -1,0 +1,216 @@
+= sycl_ext_intel_usm_address_spaces
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+
+== Overview
+
+This extension adds two new address spaces: device and host that are subsets of
+the global address space.
+New interfaces for `multi_ptr` are added for each of these address spaces.
+
+The goal of this division of the global address space is to enable users to
+explicitly tell the compiler which address space a pointer resides in for the
+purposes of enabling optimization.
+While automatic address space inference is often possible for accessors, it is
+harder for USM pointers as it requires inter-procedural optimization with the
+host code.
+This additional information can be particularly beneficial on FPGA targets where
+knowing that a pointer only ever accesses host or device memory can allow
+compilers to produce more area efficient memory-accessing hardware.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_USM_ADDRESS_SPACES` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+
+|2
+|Adds `sycl::ext::intel::host_ptr`, `sycl::ext::intel::raw_host_ptr`,
+`sycl::ext::intel::decorated_host_ptr`, `sycl::ext::intel::device_ptr`,
+`sycl::ext::intel::raw_device_ptr` and `sycl::ext::intel::decorated_device_ptr`.
+`sycl::host_ptr` and `sycl::device_ptr` are deprecated.
+|===
+
+== Modifications to SYCL 2020
+
+The following sections contain the related changes and additions to the SYCL
+2020 specification relating to this extension.
+
+=== SYCL Device Memory Model
+
+Add to the end of the definition of global memory:
+Global memory is a virtual address space which overlaps the device and host
+address spaces.
+
+Add two new memory regions as follows:
+
+*Device memory* is a sub-region of global memory that is not directly accessible
+by the host.  Buffer accessors and USM allocations whose kind is
+`usm::alloc::device` reside in this address space.
+
+*Host memory* is a sub-region of global memory.  USM allocations whose kind is
+`usm::alloc::host` reside in this address space.
+
+
+=== Multi-pointer Class
+
+Add the following enumerations to the `access::address_space` enum:
+```c++
+enum class address_space : /* unspecified */ {
+  ...
+  ext_intel_global_device_space,
+  ext_intel_global_host_space
+};
+```
+
+Add the following new conversion operator to the `multi_ptr` class:
+```c++
+// Explicit conversion to global_space
+// Only available if Space == address_space::ext_intel_global_device_space || Space == address_space::ext_intel_global_host_space
+explicit operator multi_ptr<ElementType, access::address_space::global_space, DecorateAddress>() const;
+```
+
+Change the `multi_ptr` constructor taking an accessor with `target::device` to
+also allow `access::address_space::ext_intel_global_device_space` as follows:
+
+--
+[options="header"]
+|===
+| Constructor | Description
+a|
+```c++
+template <int Dimensions, access_mode Mode, access::placeholder IsPlaceholder>
+multi_ptr(
+    accessor<ElementType, Dimensions, Mode, target::device, IsPlaceholder>);
+```
+| Available only when:
+`Space == access::address_space::global_space \|\| Space == access::address_space::ext_intel_global_device_space \|\| Space == access::address_space::generic_space`.
+
+Constructs a `multi_ptr` from an accessor of `target::device`.
+
+This constructor may only be called from within a command.
+|===
+--
+
+
+=== Explicit Pointer Aliases
+
+Add `device_ptr`, `host_ptr`, `raw_device_ptr`, `raw_host_ptr`,
+`decorated_device_ptr`, and `decorated_host_ptr` aliases to the list of
+`multi_ptr` aliases as follows:
+```c++
+namespace sycl {
+
+// Deprecated.
+template<typename ElementType,
+         access::decorated IsDecorated = access::decorated::legacy>
+using device_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
+              IsDecorated>
+
+// Deprecated.
+template<typename ElementType,
+         access::decorated IsDecorated = access::decorated::legacy>
+using host_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
+              IsDecorated>
+
+namespace ext {
+namespace intel {
+
+template<typename ElementType,
+         access::decorated IsDecorated = access::decorated::legacy>
+using device_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
+              IsDecorated>
+
+template<typename ElementType,
+         access::decorated IsDecorated = access::decorated::legacy>
+using host_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
+              IsDecorated>
+
+template<typename ElementType>
+using raw_device_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
+              access::decorated::no>
+
+template<typename ElementType>
+using raw_host_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
+              access::decorated::no>
+
+template<typename ElementType>
+using decorated_device_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
+              access::decorated::yes>
+
+template<typename ElementType>
+using decorated_host_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
+              access::decorated::yes>
+
+} // namespace intel
+} // namespace ext
+} // namespace sycl
+```
+

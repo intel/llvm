@@ -7,7 +7,7 @@
 
 declare hidden void @callee() #0
 
-define amdgpu_kernel void @known_x_0(i32 addrspace(1)* %out) !reqd_work_group_size !0 {
+define amdgpu_kernel void @known_x_0(ptr addrspace(1) %out) !reqd_work_group_size !0 {
 ; CHECK-LABEL: known_x_0:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    s_add_u32 flat_scratch_lo, s6, s9
@@ -27,7 +27,7 @@ define amdgpu_kernel void @known_x_0(i32 addrspace(1)* %out) !reqd_work_group_si
 }
 ; CHECK: .amdhsa_system_vgpr_workitem_id 2
 
-define amdgpu_kernel void @known_y_0(i32 addrspace(1)* %out) !reqd_work_group_size !1 {
+define amdgpu_kernel void @known_y_0(ptr addrspace(1) %out) !reqd_work_group_size !1 {
 ; CHECK-LABEL: known_y_0:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    s_add_u32 flat_scratch_lo, s6, s9
@@ -46,7 +46,7 @@ define amdgpu_kernel void @known_y_0(i32 addrspace(1)* %out) !reqd_work_group_si
 }
 ; CHECK: .amdhsa_system_vgpr_workitem_id 2
 
-define amdgpu_kernel void @known_z_0(i32 addrspace(1)* %out) !reqd_work_group_size !2 {
+define amdgpu_kernel void @known_z_0(ptr addrspace(1) %out) !reqd_work_group_size !2 {
 ; CHECK-LABEL: known_z_0:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    s_add_u32 flat_scratch_lo, s6, s9
@@ -63,9 +63,9 @@ define amdgpu_kernel void @known_z_0(i32 addrspace(1)* %out) !reqd_work_group_si
   call void @callee()
   ret void
 }
-; CHECK: .amdhsa_system_vgpr_workitem_id 2
+; CHECK: .amdhsa_system_vgpr_workitem_id 1
 
-define amdgpu_kernel void @known_yz_0(i32 addrspace(1)* %out) !reqd_work_group_size !3 {
+define amdgpu_kernel void @known_yz_0(ptr addrspace(1) %out) !reqd_work_group_size !3 {
 ; CHECK-LABEL: known_yz_0:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    s_add_u32 flat_scratch_lo, s6, s9
@@ -82,9 +82,9 @@ define amdgpu_kernel void @known_yz_0(i32 addrspace(1)* %out) !reqd_work_group_s
   call void @callee()
   ret void
 }
-; CHECK: .amdhsa_system_vgpr_workitem_id 2
+; CHECK: .amdhsa_system_vgpr_workitem_id 0
 
-define amdgpu_kernel void @known_xz_0(i32 addrspace(1)* %out) !reqd_work_group_size !4 {
+define amdgpu_kernel void @known_xz_0(ptr addrspace(1) %out) !reqd_work_group_size !4 {
 ; CHECK-LABEL: known_xz_0:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    s_add_u32 flat_scratch_lo, s6, s9
@@ -101,10 +101,10 @@ define amdgpu_kernel void @known_xz_0(i32 addrspace(1)* %out) !reqd_work_group_s
   call void @callee()
   ret void
 }
-; CHECK: .amdhsa_system_vgpr_workitem_id 2
+; CHECK: .amdhsa_system_vgpr_workitem_id 1
 
 
-define amdgpu_kernel void @known_xyz_0(i32 addrspace(1)* %out) !reqd_work_group_size !5 {
+define amdgpu_kernel void @known_xyz_0(ptr addrspace(1) %out) !reqd_work_group_size !5 {
 ; CHECK-LABEL: known_xyz_0:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    s_add_u32 flat_scratch_lo, s6, s9
@@ -121,9 +121,9 @@ define amdgpu_kernel void @known_xyz_0(i32 addrspace(1)* %out) !reqd_work_group_
   call void @callee()
   ret void
 }
-; CHECK: .amdhsa_system_vgpr_workitem_id 2
+; CHECK: .amdhsa_system_vgpr_workitem_id 0
 
-attributes #0 = { "amdgpu-no-dispatch-id" "amdgpu-no-dispatch-ptr" "amdgpu-no-implicitarg-ptr" "amdgpu-no-queue-ptr" "amdgpu-no-workgroup-id-x" "amdgpu-no-workgroup-id-y" "amdgpu-no-workgroup-id-z" }
+attributes #0 = { "amdgpu-no-dispatch-id" "amdgpu-no-dispatch-ptr" "amdgpu-no-implicitarg-ptr" "amdgpu-no-lds-kernel-id" "amdgpu-no-queue-ptr" "amdgpu-no-workgroup-id-x" "amdgpu-no-workgroup-id-y" "amdgpu-no-workgroup-id-z" }
 
 !0 = !{i32 1, i32 64, i32 64}
 !1 = !{i32 64, i32 1, i32 64}

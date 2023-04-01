@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -sycl-std=2020 -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -sycl-std=2020 -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // Tests that SYCL kernel arguments with non-trivially copyable types are
 // passed by-valued.
 
 #include "Inputs/sycl.hpp"
-using namespace cl::sycl;
+using namespace sycl;
 
 struct NontriviallyCopyable {
   int I;
@@ -27,5 +27,10 @@ int main() {
   });
 }
 
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name(%struct.NontriviallyCopyable* byval(%struct.NontriviallyCopyable)
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name(ptr noundef byval(%struct.NontriviallyCopyable)
 // CHECK-NOT: define {{.*}}spir_func void @{{.*}}device_func{{.*}}({{.*}}byval(%struct.NontriviallyCopyable)
+// CHECK: define dso_local spir_func void @_Z11device_func20NontriviallyCopyable(ptr noundef %X)
+// CHECK: %X.indirect_addr = alloca ptr addrspace(4)
+// CHECK: %X.indirect_addr.ascast = addrspacecast ptr %X.indirect_addr to ptr addrspace(4)
+// CHECK: %X.ascast = addrspacecast ptr %X to ptr addrspace(4)
+// CHECK: store ptr addrspace(4) %X.ascast, ptr addrspace(4) %X.indirect_addr.ascast

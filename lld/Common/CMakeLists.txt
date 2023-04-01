@@ -1,9 +1,3 @@
-set(LLD_SYSTEM_LIBS ${LLVM_PTHREAD_LIB})
-
-if(NOT HAVE_CXX_ATOMICS64_WITHOUT_LIB)
-  list(APPEND LLD_SYSTEM_LIBS atomic)
-endif()
-
 find_first_existing_vc_file("${LLVM_MAIN_SRC_DIR}" llvm_vc)
 find_first_existing_vc_file("${LLD_SOURCE_DIR}" lld_vc)
 
@@ -28,6 +22,7 @@ set_source_files_properties("${version_inc}"
 
 add_lld_library(lldCommon
   Args.cpp
+  CommonLinkerContext.cpp
   DWARF.cpp
   ErrorHandler.cpp
   Filesystem.cpp
@@ -51,9 +46,11 @@ add_lld_library(lldCommon
   Option
   Support
   Target
+  TargetParser
 
   LINK_LIBS
-  ${LLD_SYSTEM_LIBS}
+  ${LLVM_PTHREAD_LIB}
+  ${LLVM_ATOMIC_LIB}
 
   DEPENDS
   intrinsics_gen

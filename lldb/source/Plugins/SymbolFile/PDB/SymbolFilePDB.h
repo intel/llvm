@@ -18,10 +18,11 @@
 #include "llvm/DebugInfo/PDB/IPDBSession.h"
 #include "llvm/DebugInfo/PDB/PDB.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolExe.h"
+#include <optional>
 
 class PDBASTParser;
 
-class SymbolFilePDB : public lldb_private::SymbolFile {
+class SymbolFilePDB : public lldb_private::SymbolFileCommon {
   /// LLVM RTTI support.
   static char ID;
 
@@ -29,7 +30,7 @@ public:
   /// LLVM RTTI support.
   /// \{
   bool isA(const void *ClassID) const override {
-    return ClassID == &ID || SymbolFile::isA(ClassID);
+    return ClassID == &ID || SymbolFileCommon::isA(ClassID);
   }
   static bool classof(const SymbolFile *obj) { return obj->isA(&ID); }
   /// \}
@@ -83,7 +84,7 @@ public:
   ParseVariablesForContext(const lldb_private::SymbolContext &sc) override;
 
   lldb_private::Type *ResolveTypeUID(lldb::user_id_t type_uid) override;
-  llvm::Optional<ArrayInfo> GetDynamicArrayInfoForUID(
+  std::optional<ArrayInfo> GetDynamicArrayInfoForUID(
       lldb::user_id_t type_uid,
       const lldb_private::ExecutionContext *exe_ctx) override;
 
@@ -119,9 +120,8 @@ public:
                            uint32_t max_matches,
                            lldb_private::VariableList &variables) override;
 
-  void FindFunctions(lldb_private::ConstString name,
+  void FindFunctions(const lldb_private::Module::LookupInfo &lookup_info,
                      const lldb_private::CompilerDeclContext &parent_decl_ctx,
-                     lldb::FunctionNameType name_type_mask,
                      bool include_inlines,
                      lldb_private::SymbolContextList &sc_list) override;
 
@@ -154,7 +154,7 @@ public:
                 lldb::TypeClass type_mask,
                 lldb_private::TypeList &type_list) override;
 
-  llvm::Expected<lldb_private::TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetTypeSystemForLanguage(lldb::LanguageType language) override;
 
   lldb_private::CompilerDeclContext FindNamespace(

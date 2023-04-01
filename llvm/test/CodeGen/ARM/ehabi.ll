@@ -83,8 +83,12 @@
 ; RUN:   | FileCheck %s --check-prefix=DWARF-V7-FP-ELIM
 
 ; RUN: llc -mtriple thumbv7-windows-gnu \
-; RUN:     -filetype=asm -o - %s \
+; RUN:     -filetype=asm -exception-model=dwarf -o - %s \
 ; RUN:   | FileCheck %s --check-prefix=DWARF-WIN-FP-ELIM
+
+; RUN: llc -mtriple thumbv7-windows-gnu \
+; RUN:     -filetype=asm -o - %s \
+; RUN:   | FileCheck %s --check-prefix=SEH-WIN-FP-ELIM
 
 ;-------------------------------------------------------------------------------
 ; Test 1
@@ -109,16 +113,16 @@ declare void @_Z5printddddd(double, double, double, double, double)
 
 define void @_Z4testiiiiiddddd(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e,
                                double %m, double %n, double %p,
-                               double %q, double %r) personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+                               double %q, double %r) personality ptr @__gxx_personality_v0 {
 entry:
   invoke void @_Z5printiiiii(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e)
           to label %try.cont unwind label %lpad
 
 lpad:
-  %0 = landingpad { i8*, i32 }
-          catch i8* null
-  %1 = extractvalue { i8*, i32 } %0, 0
-  %2 = tail call i8* @__cxa_begin_catch(i8* %1)
+  %0 = landingpad { ptr, i32 }
+          catch ptr null
+  %1 = extractvalue { ptr, i32 } %0, 0
+  %2 = tail call ptr @__cxa_begin_catch(ptr %1)
   invoke void @_Z5printddddd(double %m, double %n, double %p,
                              double %q, double %r)
           to label %invoke.cont2 unwind label %lpad1
@@ -131,27 +135,27 @@ try.cont:
   ret void
 
 lpad1:
-  %3 = landingpad { i8*, i32 }
+  %3 = landingpad { ptr, i32 }
           cleanup
   invoke void @__cxa_end_catch()
           to label %eh.resume unwind label %terminate.lpad
 
 eh.resume:
-  resume { i8*, i32 } %3
+  resume { ptr, i32 } %3
 
 terminate.lpad:
-  %4 = landingpad { i8*, i32 }
-          catch i8* null
-  %5 = extractvalue { i8*, i32 } %4, 0
-  tail call void @__clang_call_terminate(i8* %5)
+  %4 = landingpad { ptr, i32 }
+          catch ptr null
+  %5 = extractvalue { ptr, i32 } %4, 0
+  tail call void @__clang_call_terminate(ptr %5)
   unreachable
 }
 
-declare void @__clang_call_terminate(i8*)
+declare void @__clang_call_terminate(ptr)
 
 declare i32 @__gxx_personality_v0(...)
 
-declare i8* @__cxa_begin_catch(i8*)
+declare ptr @__cxa_begin_catch(ptr)
 
 declare void @__cxa_end_catch()
 
@@ -311,6 +315,26 @@ declare void @_ZSt9terminatev()
 ; DWARF-WIN-FP-ELIM:    pop {r4, pc}
 ; DWARF-WIN-FP-ELIM:    .cfi_endproc
 
+; SEH-WIN-FP-ELIM-LABEL: _Z4testiiiiiddddd:
+; SEH-WIN-FP-ELIM:    .seh_proc _Z4testiiiiiddddd
+; SEH-WIN-FP-ELIM:    .seh_handler __gxx_personality_v0, %unwind, %except
+; SEH-WIN-FP-ELIM:    push {r4, lr}
+; SEH-WIN-FP-ELIM:    .seh_save_regs {r4, lr}
+; SEH-WIN-FP-ELIM:    vpush {d8, d9, d10, d11, d12}
+; SEH-WIN-FP-ELIM:    .seh_save_fregs {d8-d12}
+; SEH-WIN-FP-ELIM:    sub sp, #8
+; SEH-WIN-FP-ELIM:    .seh_stackalloc 8
+; SEH-WIN-FP-ELIM:    .seh_endprologue
+; SEH-WIN-FP-ELIM:    .seh_startepilogue
+; SEH-WIN-FP-ELIM:    add sp, #8
+; SEH-WIN-FP-ELIM:    .seh_stackalloc 8
+; SEH-WIN-FP-ELIM:    vpop {d8, d9, d10, d11, d12}
+; SEH-WIN-FP-ELIM:    .seh_save_fregs {d8-d12}
+; SEH-WIN-FP-ELIM:    pop {r4, pc}
+; SEH-WIN-FP-ELIM:    .seh_save_regs {r4, lr}
+; SEH-WIN-FP-ELIM:    .seh_endepilogue
+; SEH-WIN-FP-ELIM:    .seh_endproc
+
 ;-------------------------------------------------------------------------------
 ; Test 2
 ;-------------------------------------------------------------------------------
@@ -407,6 +431,16 @@ entry:
 ; DWARF-WIN-FP-ELIM:    .cfi_offset r11, -8
 ; DWARF-WIN-FP-ELIM:    pop.w  {r11, pc}
 ; DWARF-WIN-FP-ELIM:    .cfi_endproc
+
+; SEH-WIN-FP-ELIM-LABEL: test2:
+; SEH-WIN-FP-ELIM:    .seh_proc test2
+; SEH-WIN-FP-ELIM:    push.w {r11, lr}
+; SEH-WIN-FP-ELIM:    .seh_save_regs_w {r11, lr}
+; SEH-WIN-FP-ELIM:    .seh_endprologue
+; SEH-WIN-FP-ELIM:    .seh_startepilogue
+; SEH-WIN-FP-ELIM:    pop.w  {r11, pc}
+; SEH-WIN-FP-ELIM:    .seh_endepilogue
+; SEH-WIN-FP-ELIM:    .seh_endproc
 
 
 ;-------------------------------------------------------------------------------
@@ -525,6 +559,17 @@ entry:
 ; DWARF-WIN-FP-ELIM:    pop.w  {r4, r5, r11, pc}
 ; DWARF-WIN-FP-ELIM:    .cfi_endproc
 
+; SEH-WIN-FP-ELIM-LABEL: test3:
+; SEH-WIN-FP-ELIM:    .seh_proc test3
+; SEH-WIN-FP-ELIM:    push.w {r4, r5, r11, lr}
+; SEH-WIN-FP-ELIM:    .seh_save_regs_w {r4-r5, r11, lr}
+; SEH-WIN-FP-ELIM:    .seh_endprologue
+; SEH-WIN-FP-ELIM:    .seh_startepilogue
+; SEH-WIN-FP-ELIM:    pop.w  {r4, r5, r11, pc}
+; SEH-WIN-FP-ELIM:    .seh_save_regs_w {r4-r5, r11, lr}
+; SEH-WIN-FP-ELIM:    .seh_endepilogue
+; SEH-WIN-FP-ELIM:    .seh_endproc
+
 
 ;-------------------------------------------------------------------------------
 ; Test 4
@@ -587,3 +632,8 @@ entry:
 ; DWARF-WIN-FP-ELIM-NOT: .cfi_startproc
 ; DWARF-WIN-FP-ELIM:     bx lr
 ; DWARF-WIN-FP-ELIM-NOT: .cfi_endproc
+
+; SEH-WIN-FP-ELIM-LABEL: test4:
+; SEH-WIN-FP-ELIM-NOT: .seh_proc test4
+; SEH-WIN-FP-ELIM:     bx lr
+; SEH-WIN-FP-ELIM-NOT: .seh_endproc

@@ -9,15 +9,15 @@
 #include "gtest/gtest.h"
 
 #include "TestGetPlugin.hpp"
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/sycl.hpp>
 
 #include <vector>
 
 namespace {
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class SamplerPropertiesTest
     : public ::testing::TestWithParam<std::tuple<

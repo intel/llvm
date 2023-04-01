@@ -15,7 +15,9 @@
 #   $ docker run --env-file <secrets> -it $(docker build -q libcxx/utils/ci)
 #
 # The environment variables in `<secrets>` should be the ones necessary
-# to run a BuildKite agent.
+# to run a BuildKite agent:
+#
+#   BUILDKITE_AGENT_TOKEN=<token>
 #
 # If you're only looking to run the Docker image locally for debugging a
 # build bot, see the `run-buildbot-container` script located in this directory.
@@ -28,25 +30,23 @@
 #   $ docker push ldionne/libcxx-builder
 #
 
-FROM ubuntu:focal
+FROM ubuntu:jammy
 
 # Make sure apt-get doesn't try to prompt for stuff like our time zone, etc.
 ENV DEBIAN_FRONTEND=noninteractive
 
-# This dummy command is meant to be edited from time to time, which causes the
-# CI builders to rebuild their copy of the Docker image. This is not a great
-# solution, however without that, the CI builders will keep the same cached
-# Docker image forever.
-RUN echo 6
-
 RUN apt-get update && apt-get install -y bash curl
 
 # Install various tools used by the build or the test suite
-RUN apt-get update && apt-get install -y ninja-build python3 python3-sphinx python3-distutils git gdb
+RUN apt-get update && apt-get install -y ninja-build python3 python3-sphinx python3-distutils python3-psutil git gdb
+
+# Install dependencies required to run the LLDB data formatter tests
+RUN apt-get update && apt-get install -y python3 python3-dev libpython3-dev uuid-dev libncurses5-dev swig3.0 libxml2-dev libedit-dev
 
 # Locales for gdb and localization tests
 RUN apt-get update && apt-get install -y language-pack-en language-pack-fr \
-                                         language-pack-ru language-pack-zh-hans
+                                         language-pack-ja language-pack-ru \
+                                         language-pack-zh-hans
 # These two are not enabled by default so generate them
 RUN printf "fr_CA ISO-8859-1\ncs_CZ ISO-8859-2" >> /etc/locale.gen
 RUN mkdir /usr/local/share/i1en/
@@ -54,26 +54,37 @@ RUN printf "fr_CA ISO-8859-1\ncs_CZ ISO-8859-2" >> /usr/local/share/i1en/SUPPORT
 RUN locale-gen
 
 # Install Clang <latest>, <latest-1> and ToT, which are the ones we support.
-ENV LLVM_LATEST_VERSION=13
+# We also install <latest-2> because we need to support the "latest-1" of the
+# current LLVM release branch, which is effectively the <latest-2> of the
+# tip-of-trunk LLVM. For example, after branching LLVM 14 but before branching
+# LLVM 15, we still need to have Clang 12 in this Docker image because the LLVM
+# 14 release branch CI uses it. The tip-of-trunk CI will never use Clang 12,
+# though.
+ENV LLVM_HEAD_VERSION=17
 RUN apt-get update && apt-get install -y lsb-release wget software-properties-common
 RUN wget https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
-RUN bash /tmp/llvm.sh $(($LLVM_LATEST_VERSION - 1)) # previous release
-RUN bash /tmp/llvm.sh $LLVM_LATEST_VERSION          # latest release
-RUN bash /tmp/llvm.sh $(($LLVM_LATEST_VERSION + 1)) # current ToT
+RUN bash /tmp/llvm.sh $(($LLVM_HEAD_VERSION - 3)) # for CI transitions
+RUN bash /tmp/llvm.sh $(($LLVM_HEAD_VERSION - 2)) # previous release
+RUN bash /tmp/llvm.sh $(($LLVM_HEAD_VERSION - 1)) # latest release
+RUN bash /tmp/llvm.sh $LLVM_HEAD_VERSION          # current ToT
 
-# Make the ToT Clang the "default" compiler on the system
-RUN ln -fs /usr/bin/clang++-$(($LLVM_LATEST_VERSION + 1)) /usr/bin/c++ && [ -e $(readlink /usr/bin/c++) ]
-RUN ln -fs /usr/bin/clang-$(($LLVM_LATEST_VERSION + 1)) /usr/bin/cc && [ -e $(readlink /usr/bin/cc) ]
+# Install clang-format; always use the lastest stable branch.
+RUN apt-get update && apt-get install -y clang-format-$(($LLVM_HEAD_VERSION - 2)) clang-format-$(($LLVM_HEAD_VERSION - 1))
 
-# Install clang-format
-RUN apt-get install -y clang-format-$LLVM_LATEST_VERSION
-RUN ln -s /usr/bin/clang-format-$LLVM_LATEST_VERSION /usr/bin/clang-format && [ -e $(readlink /usr/bin/clang-format) ]
-RUN ln -s /usr/bin/git-clang-format-$LLVM_LATEST_VERSION /usr/bin/git-clang-format && [ -e $(readlink /usr/bin/git-clang-format) ]
+# Install clang-tidy
+RUN apt-get update && apt-get install -y clang-tidy-$(($LLVM_HEAD_VERSION - 2)) clang-tidy-$((LLVM_HEAD_VERSION - 1))
 
-# Install the most recent GCC
-ENV GCC_LATEST_VERSION=11
-RUN add-apt-repository ppa:ubuntu-toolchain-r/test
+# Install llvm-dev and libclang-dev to compile custom clang-tidy checks
+RUN apt-get update && apt-get install -y llvm-$(($LLVM_HEAD_VERSION - 1))-dev     llvm-$(($LLVM_HEAD_VERSION - 2))-dev \
+                                     libclang-$(($LLVM_HEAD_VERSION - 1))-dev libclang-$(($LLVM_HEAD_VERSION - 2))-dev
+
+# Install the most recent GCC, like clang install the previous version as a transition.
+ENV GCC_LATEST_VERSION=12
+RUN apt-get update && apt install -y gcc-$((GCC_LATEST_VERSION - 1)) g++-$((GCC_LATEST_VERSION - 1))
 RUN apt-get update && apt install -y gcc-$GCC_LATEST_VERSION g++-$GCC_LATEST_VERSION
+
+# Remove all, no longer needed, apt data
+RUN rm -rf /var/lib/apt/lists/*
 
 # Install a recent CMake
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.21.1/cmake-3.21.1-linux-x86_64.sh -O /tmp/install-cmake.sh

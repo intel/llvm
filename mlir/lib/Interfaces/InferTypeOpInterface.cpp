@@ -22,6 +22,49 @@ namespace mlir {
 #include "mlir/Interfaces/InferTypeOpInterface.cpp.inc"
 } // namespace mlir
 
+LogicalResult
+mlir::reifyResultShapes(OpBuilder &b, Operation *op,
+                        ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
+  auto reifiableOp = dyn_cast<ReifyRankedShapedTypeOpInterface>(op);
+  if (!reifiableOp)
+    return failure();
+  LogicalResult status = reifiableOp.reifyResultShapes(b, reifiedReturnShapes);
+#ifndef NDEBUG
+  if (failed(status))
+    return failure();
+  // Assert that ReifyRankedShapedTypeOpInterface::reifyResultShapes produced
+  // a correct result.
+  int64_t resultIdx = 0;
+  for (OpResult result : op->getResults()) {
+    auto shapedType = result.getType().dyn_cast<ShapedType>();
+    if (!shapedType)
+      continue;
+    if (!shapedType.hasRank()) {
+      // Nothing to check for unranked shaped values.
+      ++resultIdx;
+      continue;
+    }
+    // Assert one OpFoldResult per dimension.
+    assert(shapedType.getRank() ==
+               static_cast<int64_t>(reifiedReturnShapes[resultIdx].size()) &&
+           "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+    for (int64_t dim = 0; dim < shapedType.getRank(); ++dim) {
+      // reifyResultShapes must return:
+      // * Attribute for static dimensions
+      // * Value for dynamic dimensions
+      assert(shapedType.isDynamicDim(dim) ==
+                 reifiedReturnShapes[resultIdx][dim].is<Value>() &&
+             "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+    }
+    ++resultIdx;
+  }
+  // Assert that every shaped value result was reified.
+  assert(resultIdx == static_cast<int64_t>(reifiedReturnShapes.size()) &&
+         "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+#endif // NDEBUG
+  return status;
+}
+
 bool ShapeAdaptor::hasRank() const {
   if (val.isNull())
     return false;
@@ -100,10 +143,7 @@ bool ShapeAdaptor::hasStaticShape() const {
     return true;
   }
   auto *stc = val.get<ShapedTypeComponents *>();
-  for (int64_t dim : stc->getDims())
-    if (ShapedType::isDynamic(dim))
-      return false;
-  return true;
+  return llvm::none_of(stc->getDims(), ShapedType::isDynamic);
 }
 
 int64_t ShapeAdaptor::getNumElements() const {
@@ -177,12 +217,13 @@ ShapeAdaptor ValueShapeRange::getShape(int index) const {
 }
 
 LogicalResult mlir::detail::inferReturnTensorTypes(
-    function_ref<LogicalResult(
-        MLIRContext *, Optional<Location> location, ValueShapeRange operands,
-        DictionaryAttr attributes, RegionRange regions,
-        SmallVectorImpl<ShapedTypeComponents> &retComponents)>
+    function_ref<
+        LogicalResult(MLIRContext *, std::optional<Location> location,
+                      ValueShapeRange operands, DictionaryAttr attributes,
+                      RegionRange regions,
+                      SmallVectorImpl<ShapedTypeComponents> &retComponents)>
         componentTypeFn,
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   SmallVector<ShapedTypeComponents, 2> retComponents;
@@ -190,29 +231,25 @@ LogicalResult mlir::detail::inferReturnTensorTypes(
                              retComponents)))
     return failure();
   for (const auto &shapeAndType : retComponents) {
-    assert(shapeAndType.getAttribute() == nullptr && "attribute not supported");
-    if (shapeAndType.hasRank())
-      inferredReturnTypes.push_back(RankedTensorType::get(
-          shapeAndType.getDims(), shapeAndType.getElementType()));
-    else
+    Type elementTy = shapeAndType.getElementType();
+    assert(elementTy && "element type required to construct tensor");
+
+    Attribute attr = shapeAndType.getAttribute();
+    if (shapeAndType.hasRank()) {
       inferredReturnTypes.push_back(
-          UnrankedTensorType::get(shapeAndType.getElementType()));
+          RankedTensorType::get(shapeAndType.getDims(), elementTy, attr));
+    } else {
+      assert(attr == nullptr && "attribute not supported");
+      inferredReturnTypes.push_back(UnrankedTensorType::get(elementTy));
+    }
   }
   return success();
 }
 
 LogicalResult mlir::detail::verifyInferredResultTypes(Operation *op) {
-  SmallVector<Type, 4> inferredReturnTypes;
+  SmallVector<Type, 4> inferredReturnTypes(op->getResultTypes());
   auto retTypeFn = cast<InferTypeOpInterface>(op);
-  if (failed(retTypeFn.inferReturnTypes(
-          op->getContext(), op->getLoc(), op->getOperands(),
-          op->getAttrDictionary(), op->getRegions(), inferredReturnTypes)))
-    return failure();
-  if (!retTypeFn.isCompatibleReturnTypes(inferredReturnTypes,
-                                         op->getResultTypes()))
-    return op->emitOpError("inferred type(s) ")
-           << inferredReturnTypes
-           << " are incompatible with return type(s) of operation "
-           << op->getResultTypes();
-  return success();
+  return retTypeFn.refineReturnTypes(op->getContext(), op->getLoc(),
+                                     op->getOperands(), op->getAttrDictionary(),
+                                     op->getRegions(), inferredReturnTypes);
 }

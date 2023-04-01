@@ -24,13 +24,18 @@ TEST(DataLayoutUpgradeTest, ValidDataLayoutUpgrade) {
   EXPECT_EQ(DL1, "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64"
                  "-f80:128-n8:16:32:64-S128");
   EXPECT_EQ(DL2, "e-m:w-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64"
-                 "-f80:32-n8:16:32-S32");
+                 "-f80:128-n8:16:32-S32");
   EXPECT_EQ(DL3, "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128"
                  "-n32:64-S128");
 
   // Check that AMDGPU targets add -G1 if it's not present.
   EXPECT_EQ(UpgradeDataLayoutString("e-p:32:32", "r600"), "e-p:32:32-G1");
   EXPECT_EQ(UpgradeDataLayoutString("e-p:64:64", "amdgcn"), "e-p:64:64-G1");
+
+  // Check that RISCV64 upgrades -n64 to -n32:64.
+  EXPECT_EQ(UpgradeDataLayoutString("e-m:e-p:64:64-i64:64-i128:128-n64-S128",
+                                    "riscv64"),
+            "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128");
 }
 
 TEST(DataLayoutUpgradeTest, NoDataLayoutUpgrade) {

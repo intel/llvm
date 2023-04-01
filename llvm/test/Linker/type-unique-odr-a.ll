@@ -1,4 +1,4 @@
-; REQUIRES: default_triple, object-emission
+; REQUIRES: object-emission
 ;
 ; RUN: llvm-link %s %p/type-unique-odr-b.ll -S -o - \
 ; RUN:   | %llc_dwarf -dwarf-linkage-names=All -filetype=obj -O0 \
@@ -69,7 +69,7 @@ entry:
 define internal void @_ZL3barv() #0 !dbg !19 {
 entry:
   %a = alloca %class.A, align 4
-  call void @llvm.dbg.declare(metadata %class.A* %a, metadata !24, metadata !DIExpression()), !dbg !25
+  call void @llvm.dbg.declare(metadata ptr %a, metadata !24, metadata !DIExpression()), !dbg !25
   ret void, !dbg !26
 }
 

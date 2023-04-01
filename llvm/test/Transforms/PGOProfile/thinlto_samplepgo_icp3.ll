@@ -6,7 +6,7 @@
 
 ; Test to make sure importing and dead stripping works in the
 ; case where the target is a local function that also indirectly calls itself.
-; RUN: llvm-lto2 run -thinlto-threads=1 -save-temps -o %t3 %t.bc %t2.bc -r %t.bc,fptr,plx -r %t.bc,main,plx -r %t2.bc,_Z6updatei,pl -r %t2.bc,fptr,l
+; RUN: llvm-lto2 run -opaque-pointers -thinlto-threads=1 -save-temps -o %t3 %t.bc %t2.bc -r %t.bc,fptr,plx -r %t.bc,main,plx -r %t2.bc,_Z6updatei,pl -r %t2.bc,fptr,l
 ; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORTS
 
 ; Make sure we import the promted indirectly called target
@@ -19,12 +19,12 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-@fptr = local_unnamed_addr global void ()* null, align 8
+@fptr = local_unnamed_addr global ptr null, align 8
 
 ; Function Attrs: norecurse uwtable
 define i32 @main() local_unnamed_addr #0 !prof !34 {
 entry:
-  %0 = load void ()*, void ()** @fptr, align 8
+  %0 = load ptr, ptr @fptr, align 8
   tail call void %0(), !prof !40
   ret i32 0
 }

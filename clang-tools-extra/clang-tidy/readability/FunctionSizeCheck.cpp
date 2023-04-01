@@ -9,12 +9,11 @@
 #include "FunctionSizeCheck.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "llvm/ADT/BitVector.h"
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 namespace {
 
 class FunctionASTVisitor : public RecursiveASTVisitor<FunctionASTVisitor> {
@@ -51,7 +50,7 @@ public:
     case Stmt::ForStmtClass:
     case Stmt::SwitchStmtClass:
       ++Info.Branches;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Stmt::CompoundStmtClass:
       TrackedParent.push_back(true);
       break;
@@ -118,7 +117,7 @@ public:
     std::vector<SourceLocation> NestingThresholders;
   };
   FunctionInfo Info;
-  std::vector<bool> TrackedParent;
+  llvm::BitVector TrackedParent;
   unsigned StructNesting = 0;
   unsigned CurrentNestingLevel = 0;
 };
@@ -220,6 +219,4 @@ void FunctionSizeCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

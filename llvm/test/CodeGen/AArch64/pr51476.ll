@@ -5,12 +5,12 @@ define void @test(i8 %arg) nounwind {
 ; CHECK-LABEL: test:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    str x30, [sp, #-16]! // 8-byte Folded Spill
-; CHECK-NEXT:    and w8, w0, #0xff
-; CHECK-NEXT:    cmp w8, #1
+; CHECK-NEXT:    and w9, w0, #0xff
+; CHECK-NEXT:    mov w8, #1
+; CHECK-NEXT:    cmp w9, #1
 ; CHECK-NEXT:    cset w0, ne
-; CHECK-NEXT:    cmp w0, #3
 ; CHECK-NEXT:    strb w0, [sp, #12]
-; CHECK-NEXT:    b.eq .LBB0_2
+; CHECK-NEXT:    cbz w8, .LBB0_2
 ; CHECK-NEXT:  // %bb.1: // %do_call
 ; CHECK-NEXT:    bl unknown
 ; CHECK-NEXT:  .LBB0_2: // %common.ret
@@ -19,8 +19,8 @@ define void @test(i8 %arg) nounwind {
   %tmp = alloca i8
   %cmp1 = icmp ne i8 %arg, 1
   %zext = zext i1 %cmp1 to i8
-  store i8 %zext, i8* %tmp
-  %zext2 = load i8, i8* %tmp
+  store i8 %zext, ptr %tmp
+  %zext2 = load i8, ptr %tmp
   %cmp2 = icmp eq i8 %zext2, 3
   br i1 %cmp2, label %exit, label %do_call
 

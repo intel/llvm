@@ -67,19 +67,18 @@ __ubsan_get_current_report_data(const char **OutIssueKind,
     const char **OutMessage, const char **OutFilename, unsigned *OutLine,
     unsigned *OutCol, char **OutMemoryAddr);
 }
+)";
 
-struct data {
+static const char *ub_sanitizer_retrieve_report_data_command = R"(
+struct {
   const char *issue_kind;
   const char *message;
   const char *filename;
   unsigned line;
   unsigned col;
   char *memory_addr;
-};
-)";
+} t;
 
-static const char *ub_sanitizer_retrieve_report_data_command = R"(
-data t;
 __ubsan_get_current_report_data(&t.issue_kind, &t.message, &t.filename, &t.line,
                                 &t.col, &t.memory_addr);
 t;
@@ -136,9 +135,11 @@ StructuredData::ObjectSP InstrumentationRuntimeUBSan::RetrieveReportData(
       exe_ctx, options, ub_sanitizer_retrieve_report_data_command, "",
       main_value, eval_error);
   if (result != eExpressionCompleted) {
-    target.GetDebugger().GetAsyncOutputStream()->Printf(
-        "Warning: Cannot evaluate UndefinedBehaviorSanitizer expression:\n%s\n",
-        eval_error.AsCString());
+    StreamString ss;
+    ss << "cannot evaluate UndefinedBehaviorSanitizer expression:\n";
+    ss << eval_error.AsCString();
+    Debugger::ReportWarning(ss.GetString().str(),
+                            process_sp->GetTarget().GetDebugger().GetID());
     return StructuredData::ObjectSP();
   }
 
@@ -273,8 +274,9 @@ void InstrumentationRuntimeUBSan::Activate() {
           .CreateBreakpoint(symbol_address, /*internal=*/true,
                             /*hardware=*/false)
           .get();
+  const bool sync = false;
   breakpoint->SetCallback(InstrumentationRuntimeUBSan::NotifyBreakpointHit,
-                          this, true);
+                          this, sync);
   breakpoint->SetBreakpointKind("undefined-behavior-sanitizer-report");
   SetBreakpointID(breakpoint->GetID());
 

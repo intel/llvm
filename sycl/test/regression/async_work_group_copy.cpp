@@ -1,10 +1,10 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o -
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 // Test checks for that no compile errors occur for
 // builtin async_work_group_copy
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // Define the number of work items to enqueue.
 const size_t NElems = 32;
@@ -56,7 +56,8 @@ int main() {
   test<int16_t>();
   test<int32_t>();
   test<int64_t>();
-  test<cl::sycl::cl_half>();
+  test<sycl::opencl::cl_half>();
+  test<sycl::half>();
   test<float>();
   test<double>();
   return 1;

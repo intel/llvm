@@ -9,15 +9,15 @@
 #ifndef LLD_ELF_SYMBOL_TABLE_H
 #define LLD_ELF_SYMBOL_TABLE_H
 
-#include "InputFiles.h"
 #include "Symbols.h"
-#include "lld/Common/Strings.h"
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Compiler.h"
 
-namespace lld {
-namespace elf {
+namespace lld::elf {
+
+class InputFile;
+class SharedFile;
 
 // SymbolTable is a bucket of all known symbols, including defined,
 // undefined, or lazy symbols (the last one is symbols in archive
@@ -33,13 +33,18 @@ namespace elf {
 // is one add* function per symbol type.
 class SymbolTable {
 public:
-  ArrayRef<Symbol *> symbols() const { return symVector; }
+  ArrayRef<Symbol *> getSymbols() const { return symVector; }
 
   void wrap(Symbol *sym, Symbol *real, Symbol *wrap);
 
   Symbol *insert(StringRef name);
 
-  Symbol *addSymbol(const Symbol &newSym);
+  template <typename T> Symbol *addSymbol(const T &newSym) {
+    Symbol *sym = insert(newSym.getName());
+    sym->resolve(newSym);
+    return sym;
+  }
+  Symbol *addAndCheckDuplicate(const Defined &newSym);
 
   void scanVersionScript();
 
@@ -48,7 +53,7 @@ public:
   void handleDynamicList();
 
   // Set of .so files to not link the same shared object file more than once.
-  llvm::DenseMap<StringRef, SharedFile *> soNames;
+  llvm::DenseMap<llvm::CachedHashStringRef, SharedFile *> soNames;
 
   // Comdat groups define "link once" sections. If two comdat groups have the
   // same name, only one of them is linked, and the other is ignored. This map
@@ -66,13 +71,9 @@ private:
   void assignWildcardVersion(SymbolVersion ver, uint16_t versionId,
                              bool includeNonDefault);
 
-  // The order the global symbols are in is not defined. We can use an arbitrary
-  // order, but it has to be reproducible. That is true even when cross linking.
-  // The default hashing of StringRef produces different results on 32 and 64
-  // bit systems so we use a map to a vector. That is arbitrary, deterministic
-  // but a bit inefficient.
-  // FIXME: Experiment with passing in a custom hashing or sorting the symbols
-  // once symbol resolution is finished.
+  // Global symbols and a map from symbol name to the index. The order is not
+  // defined. We can use an arbitrary order, but it has to be deterministic even
+  // when cross linking.
   llvm::DenseMap<llvm::CachedHashStringRef, int> symMap;
   SmallVector<Symbol *, 0> symVector;
 
@@ -80,12 +81,11 @@ private:
   // This mapping is 1:N because two symbols with different versions
   // can have the same name. We use this map to handle "extern C++ {}"
   // directive in version scripts.
-  llvm::Optional<llvm::StringMap<SmallVector<Symbol *, 0>>> demangledSyms;
+  std::optional<llvm::StringMap<SmallVector<Symbol *, 0>>> demangledSyms;
 };
 
-extern std::unique_ptr<SymbolTable> symtab;
+LLVM_LIBRARY_VISIBILITY extern SymbolTable symtab;
 
-} // namespace elf
-} // namespace lld
+} // namespace lld::elf
 
 #endif

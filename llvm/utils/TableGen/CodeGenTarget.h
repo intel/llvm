@@ -17,19 +17,26 @@
 #define LLVM_UTILS_TABLEGEN_CODEGENTARGET_H
 
 #include "CodeGenHwModes.h"
-#include "CodeGenInstruction.h"
 #include "CodeGenRegisters.h"
 #include "InfoByHwMode.h"
 #include "SDNodeProperties.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/TableGen/Record.h"
-#include <algorithm>
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/MachineValueType.h"
+#include <cassert>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace llvm {
 
-struct CodeGenRegister;
+class RecordKeeper;
+class Record;
+class CodeGenInstruction;
 class CodeGenSchedModels;
-class CodeGenTarget;
 
 /// getValueType - Return the MVT::SimpleValueType that the specified TableGen
 /// record corresponds to.
@@ -109,7 +116,7 @@ public:
 
   /// Return the largest register class on \p RegBank which supports \p Ty and
   /// covers \p SubIdx if it exists.
-  Optional<CodeGenRegisterClass *>
+  std::optional<CodeGenRegisterClass *>
   getSuperRegForSubReg(const ValueTypeByHwMode &Ty, CodeGenRegBank &RegBank,
                        const CodeGenSubRegIndex *SubIdx,
                        bool MustBeAllocatable = false) const;

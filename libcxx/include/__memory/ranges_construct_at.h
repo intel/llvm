@@ -12,7 +12,6 @@
 
 #include <__concepts/destructible.h>
 #include <__config>
-#include <__function_like.h>
 #include <__iterator/incrementable_traits.h>
 #include <__iterator/readable_traits.h>
 #include <__memory/concepts.h>
@@ -23,25 +22,24 @@
 #include <__utility/declval.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
+#include <new>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if _LIBCPP_STD_VER >= 20
 namespace ranges {
 
 // construct_at
 
 namespace __construct_at {
 
-struct __fn final : private __function_like {
-  _LIBCPP_HIDE_FROM_ABI constexpr explicit __fn(__tag __x) noexcept : __function_like(__x) {}
-
+struct __fn {
   template<class _Tp, class... _Args, class = decltype(
-    ::new (declval<void*>()) _Tp(declval<_Args>()...)
+    ::new (std::declval<void*>()) _Tp(std::declval<_Args>()...)
   )>
   _LIBCPP_HIDE_FROM_ABI
   constexpr _Tp* operator()(_Tp* __location, _Args&& ...__args) const {
@@ -52,16 +50,14 @@ struct __fn final : private __function_like {
 } // namespace __construct_at
 
 inline namespace __cpo {
-  inline constexpr auto construct_at = __construct_at::__fn(__function_like::__tag());
+  inline constexpr auto construct_at = __construct_at::__fn{};
 } // namespace __cpo
 
 // destroy_at
 
 namespace __destroy_at {
 
-struct __fn final : private __function_like {
-  _LIBCPP_HIDE_FROM_ABI constexpr explicit __fn(__tag __x) noexcept : __function_like(__x) {}
-
+struct __fn {
   template <destructible _Tp>
   _LIBCPP_HIDE_FROM_ABI
   constexpr void operator()(_Tp* __location) const noexcept {
@@ -72,16 +68,14 @@ struct __fn final : private __function_like {
 } // namespace __destroy_at
 
 inline namespace __cpo {
-  inline constexpr auto destroy_at = __destroy_at::__fn(__function_like::__tag());
+  inline constexpr auto destroy_at = __destroy_at::__fn{};
 } // namespace __cpo
 
 // destroy
 
 namespace __destroy {
 
-struct __fn final : private __function_like {
-  _LIBCPP_HIDE_FROM_ABI constexpr explicit __fn(__tag __x) noexcept : __function_like(__x) {}
-
+struct __fn {
   template <__nothrow_input_iterator _InputIterator, __nothrow_sentinel_for<_InputIterator> _Sentinel>
     requires destructible<iter_value_t<_InputIterator>>
   _LIBCPP_HIDE_FROM_ABI
@@ -100,16 +94,14 @@ struct __fn final : private __function_like {
 } // namespace __destroy
 
 inline namespace __cpo {
-  inline constexpr auto destroy = __destroy::__fn(__function_like::__tag());
+  inline constexpr auto destroy = __destroy::__fn{};
 } // namespace __cpo
 
 // destroy_n
 
 namespace __destroy_n {
 
-struct __fn final : private __function_like {
-  _LIBCPP_HIDE_FROM_ABI constexpr explicit __fn(__tag __x) noexcept : __function_like(__x) {}
-
+struct __fn {
   template <__nothrow_input_iterator _InputIterator>
     requires destructible<iter_value_t<_InputIterator>>
   _LIBCPP_HIDE_FROM_ABI
@@ -121,11 +113,12 @@ struct __fn final : private __function_like {
 } // namespace __destroy_n
 
 inline namespace __cpo {
-  inline constexpr auto destroy_n = __destroy_n::__fn(__function_like::__tag());
+  inline constexpr auto destroy_n = __destroy_n::__fn{};
 } // namespace __cpo
 
 } // namespace ranges
-#endif // !defined(_LIBCPP_HAS_NO_RANGES)
+
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

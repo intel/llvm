@@ -2,6 +2,7 @@
 ; RUN: %llc_dwarf -O0 -filetype=obj < %s -strict-dwarf=true | llvm-dwarfdump -debug-info - \
 ; RUN:   | FileCheck %s --check-prefix=STRICT --implicit-check-not DW_AT_calling_convention
 ;
+
 ; // S is not trivially copyable.
 ; struct S {
 ;    ~S() {}

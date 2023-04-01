@@ -22,7 +22,19 @@ if (HAS_WERROR_GLOBAL_CTORS)
 endif()
 
 if(LLVM_ENABLE_ZLIB)
-  set(imported_libs ZLIB::ZLIB)
+  list(APPEND imported_libs ZLIB::ZLIB)
+endif()
+
+if(LLVM_ENABLE_ZSTD)
+  if(TARGET zstd::libzstd_shared AND NOT LLVM_USE_STATIC_ZSTD)
+    set(zstd_target zstd::libzstd_shared)
+  else()
+    set(zstd_target zstd::libzstd_static)
+  endif()
+endif()
+
+if(LLVM_ENABLE_ZSTD)
+  list(APPEND imported_libs ${zstd_target})
 endif()
 
 if( MSVC OR MINGW )
@@ -47,18 +59,19 @@ elseif( CMAKE_HOST_UNIX )
   if( LLVM_ENABLE_TERMINFO )
     set(imported_libs ${imported_libs} Terminfo::terminfo)
   endif()
-  if( LLVM_ENABLE_THREADS AND (HAVE_LIBATOMIC OR HAVE_CXX_LIBATOMICS64) )
-    set(system_libs ${system_libs} atomic)
-  endif()
+  set(system_libs ${system_libs} ${LLVM_ATOMIC_LIB})
   set(system_libs ${system_libs} ${LLVM_PTHREAD_LIB})
   if( UNIX AND NOT (BEOS OR HAIKU) )
     set(system_libs ${system_libs} m)
+  endif()
+  if( UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "SunOS" )
+    set(system_libs ${system_libs} kstat)
   endif()
   if( FUCHSIA )
     set(system_libs ${system_libs} zircon)
   endif()
   if ( HAIKU )
-    add_definitions(-D_BSD_SOURCE)
+    add_compile_definitions(_BSD_SOURCE)
     set(system_libs ${system_libs} bsd)
   endif()
 endif( MSVC OR MINGW )
@@ -87,10 +100,10 @@ if(LLVM_INTEGRATED_CRT_ALLOC)
   endif()
 
   if(LLVM_INTEGRATED_CRT_ALLOC MATCHES "rpmalloc$")
-    add_definitions(-DENABLE_OVERRIDE -DENABLE_PRELOAD)
+    add_compile_definitions(ENABLE_OVERRIDE ENABLE_PRELOAD)
     set(ALLOCATOR_FILES "${LLVM_INTEGRATED_CRT_ALLOC}/rpmalloc/rpmalloc.c")
   elseif(LLVM_INTEGRATED_CRT_ALLOC MATCHES "snmalloc$")
-    set(ALLOCATOR_FILES "${LLVM_INTEGRATED_CRT_ALLOC}/src/override/malloc.cc" "${LLVM_INTEGRATED_CRT_ALLOC}/src/override/new.cc")
+    set(ALLOCATOR_FILES "${LLVM_INTEGRATED_CRT_ALLOC}/src/snmalloc/override/new.cc")
     set(system_libs ${system_libs} "mincore.lib" "-INCLUDE:malloc")
   elseif(LLVM_INTEGRATED_CRT_ALLOC MATCHES "mimalloc$")
     set(MIMALLOC_LIB "${LLVM_INTEGRATED_CRT_ALLOC}/out/msvc-x64/Release/mimalloc-static.lib")
@@ -101,10 +114,10 @@ if(LLVM_INTEGRATED_CRT_ALLOC)
   endif()
 endif()
 
+add_subdirectory(BLAKE3)
+
 add_llvm_component_library(LLVMSupport
-  AArch64TargetParser.cpp
   ABIBreak.cpp
-  ARMTargetParser.cpp
   AMDGPUMetadata.cpp
   APFixedPoint.cpp
   APFloat.cpp
@@ -135,6 +148,8 @@ add_llvm_component_library(LLVMSupport
   ConvertUTF.cpp
   ConvertUTFWrapper.cpp
   CrashRecoveryContext.cpp
+  CSKYAttributes.cpp
+  CSKYAttributeParser.cpp
   DataExtractor.cpp
   Debug.cpp
   DebugCounter.cpp
@@ -150,6 +165,7 @@ add_llvm_component_library(LLVMSupport
   FileCollector.cpp
   FileUtilities.cpp
   FileOutputBuffer.cpp
+  FloatingPointMode.cpp
   FoldingSet.cpp
   FormattedStream.cpp
   FormatVariadic.cpp
@@ -160,7 +176,6 @@ add_llvm_component_library(LLVMSupport
   InstructionCost.cpp
   IntEqClasses.cpp
   IntervalMap.cpp
-  ItaniumManglingCanonicalizer.cpp
   JSON.cpp
   KnownBits.cpp
   LEB128.cpp
@@ -179,6 +194,7 @@ add_llvm_component_library(LLVMSupport
   NativeFormatting.cpp
   OptimizedStructLayout.cpp
   Optional.cpp
+  PGOOptions.cpp
   Parallel.cpp
   PluginLoader.cpp
   PrettyStackTrace.cpp
@@ -204,24 +220,22 @@ add_llvm_component_library(LLVMSupport
   StringSaver.cpp
   StringRef.cpp
   SuffixTree.cpp
-  SymbolRemappingReader.cpp
   SystemUtils.cpp
   TarWriter.cpp
-  TargetParser.cpp
   ThreadPool.cpp
   TimeProfiler.cpp
   Timer.cpp
   ToolOutputFile.cpp
   TrigramIndex.cpp
-  Triple.cpp
   Twine.cpp
   TypeSize.cpp
   Unicode.cpp
   UnicodeCaseFold.cpp
+  UnicodeNameToCodepoint.cpp
+  UnicodeNameToCodepointGenerated.cpp
   VersionTuple.cpp
   VirtualFileSystem.cpp
   WithColor.cpp
-  X86TargetParser.cpp
   YAMLParser.cpp
   YAMLTraits.cpp
   raw_os_ostream.cpp
@@ -235,19 +249,18 @@ add_llvm_component_library(LLVMSupport
   Z3Solver.cpp
 
   ${ALLOCATOR_FILES}
+  $<TARGET_OBJECTS:LLVMSupportBlake3>
 
 # System
   Atomic.cpp
   DynamicLibrary.cpp
   Errno.cpp
-  Host.cpp
   Memory.cpp
   Path.cpp
   Process.cpp
   Program.cpp
   RWMutex.cpp
   Signals.cpp
-  ThreadLocal.cpp
   Threading.cpp
   Valgrind.cpp
   Watchdog.cpp
@@ -283,6 +296,19 @@ if(LLVM_ENABLE_ZLIB)
   set(llvm_system_libs ${llvm_system_libs} "${zlib_library}")
 endif()
 
+if(LLVM_ENABLE_ZSTD)
+  # CMAKE_BUILD_TYPE is only meaningful to single-configuration generators.
+  if(CMAKE_BUILD_TYPE)
+    string(TOUPPER ${CMAKE_BUILD_TYPE} build_type)
+    get_property(zstd_library TARGET ${zstd_target} PROPERTY LOCATION_${build_type})
+  endif()
+  if(NOT zstd_library)
+    get_property(zstd_library TARGET ${zstd_target} PROPERTY LOCATION)
+  endif()
+  get_library_name(${zstd_library} zstd_library)
+  set(llvm_system_libs ${llvm_system_libs} "${zstd_library}")
+endif()
+
 if(LLVM_ENABLE_TERMINFO)
   if(NOT terminfo_library)
     get_property(terminfo_library TARGET Terminfo::terminfo PROPERTY LOCATION)
@@ -297,7 +323,7 @@ set_property(TARGET LLVMSupport PROPERTY LLVM_SYSTEM_LIBS "${llvm_system_libs}")
 if(LLVM_INTEGRATED_CRT_ALLOC)
   if(LLVM_INTEGRATED_CRT_ALLOC MATCHES "snmalloc$")
     set_property(TARGET LLVMSupport PROPERTY CXX_STANDARD 17)
-    add_definitions(-D_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
+    add_compile_definitions(_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
     if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" AND
         "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "x86_64")
       set_property(TARGET LLVMSupport PROPERTY COMPILE_FLAGS "-mcx16")

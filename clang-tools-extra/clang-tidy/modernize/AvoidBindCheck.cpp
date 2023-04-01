@@ -29,9 +29,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 namespace {
 
@@ -548,11 +546,10 @@ getLambdaProperties(const MatchFinder::MatchResult &Result) {
   LambdaProperties LP;
 
   const auto *Bind = Result.Nodes.getNodeAs<CallExpr>("bind");
-  const auto *Decl = dyn_cast<FunctionDecl>(Bind->getCalleeDecl());
-  const auto *NS =
-      dyn_cast<NamespaceDecl>(Decl->getEnclosingNamespaceContext());
+  const auto *Decl = cast<FunctionDecl>(Bind->getCalleeDecl());
+  const auto *NS = cast<NamespaceDecl>(Decl->getEnclosingNamespaceContext());
   while (NS->isInlineNamespace())
-    NS = dyn_cast<NamespaceDecl>(NS->getDeclContext());
+    NS = cast<NamespaceDecl>(NS->getDeclContext());
   LP.BindNamespace = NS->getName();
 
   LP.Callable.Type = getCallableType(Result);
@@ -628,7 +625,7 @@ static void emitCaptureList(const LambdaProperties &LP,
 
 static ArrayRef<BindArgument>
 getForwardedArgumentList(const LambdaProperties &P) {
-  ArrayRef<BindArgument> Args = makeArrayRef(P.BindArguments);
+  ArrayRef<BindArgument> Args = ArrayRef(P.BindArguments);
   if (P.Callable.Type != CT_MemberFunction)
     return Args;
 
@@ -673,7 +670,7 @@ void AvoidBindCheck::check(const MatchFinder::MatchResult &Result) {
   emitCaptureList(LP, Result, Stream);
   Stream << "]";
 
-  ArrayRef<BindArgument> FunctionCallArgs = makeArrayRef(LP.BindArguments);
+  ArrayRef<BindArgument> FunctionCallArgs = ArrayRef(LP.BindArguments);
 
   addPlaceholderArgs(LP, Stream, PermissiveParameterList);
 
@@ -700,7 +697,7 @@ void AvoidBindCheck::check(const MatchFinder::MatchResult &Result) {
         Stream << "(" << LP.Callable.UsageIdentifier << ")";
         break;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case CE_InitExpression:
       Stream << LP.Callable.UsageIdentifier;
       break;
@@ -718,6 +715,4 @@ void AvoidBindCheck::check(const MatchFinder::MatchResult &Result) {
                                        Stream.str());
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

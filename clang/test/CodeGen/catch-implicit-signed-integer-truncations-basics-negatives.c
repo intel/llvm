@@ -6,7 +6,7 @@
 // CHECK-LABEL: @ignorelist_0_convert_signed_int_to_signed_char
 __attribute__((no_sanitize("undefined"))) signed char ignorelist_0_convert_signed_int_to_signed_char(signed int x) {
   // We are not in "undefined" group, so that doesn't work.
-  // CHECK: call void @__ubsan_handle_implicit_conversion(i8* bitcast ({ {{{.*}}}, {{{.*}}}*, {{{.*}}}*, i8 }* @[[LINE_100_SIGNED_TRUNCATION]] to i8*)
+  // CHECK: call void @__ubsan_handle_implicit_conversion(ptr @[[LINE_100_SIGNED_TRUNCATION]]
 #line 100
   return x;
 }
@@ -34,7 +34,7 @@ __attribute__((no_sanitize("implicit-signed-integer-truncation"))) signed char i
 // CHECK-LABEL: @ignorelist_5_convert_signed_int_to_signed_char
 __attribute__((no_sanitize("implicit-unsigned-integer-truncation"))) signed char ignorelist_5_convert_signed_int_to_signed_char(signed int x) {
   // This is an signed truncation, not unsigned-one.
-  // CHECK: call void @__ubsan_handle_implicit_conversion(i8* bitcast ({ {{{.*}}}, {{{.*}}}*, {{{.*}}}*, i8 }* @[[LINE_200_SIGNED_TRUNCATION]] to i8*)
+  // CHECK: call void @__ubsan_handle_implicit_conversion(ptr @[[LINE_200_SIGNED_TRUNCATION]]
 #line 200
   return x;
 }

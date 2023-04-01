@@ -18,8 +18,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/GlobalVariable.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include <cassert>
 #include <deque>
@@ -27,6 +25,7 @@
 
 namespace llvm {
 
+class CallBase;
 class DataLayout;
 class Function;
 class TargetLibraryInfo;
@@ -102,7 +101,7 @@ public:
 
   DenseMap<GlobalVariable *, Constant *> getMutatedInitializers() const {
     DenseMap<GlobalVariable *, Constant *> Result;
-    for (auto &Pair : MutatedMemory)
+    for (const auto &Pair : MutatedMemory)
       Result[Pair.first] = Pair.second.toConstant();
     return Result;
   }
@@ -127,7 +126,7 @@ private:
   }
 
   /// Casts call result to a type of bitcast call expression
-  Constant *castCallResultIfNeeded(Value *CallExpr, Constant *RV);
+  Constant *castCallResultIfNeeded(Type *ReturnType, Constant *RV);
 
   /// Given call site return callee and list of its formal arguments
   Function *getCalleeWithFormalArgs(CallBase &CB,
@@ -139,6 +138,8 @@ private:
                        SmallVectorImpl<Constant *> &Formals);
 
   Constant *ComputeLoadResult(Constant *P, Type *Ty);
+  Constant *ComputeLoadResult(GlobalVariable *GV, Type *Ty,
+                              const APInt &Offset);
 
   /// As we compute SSA register values, we store their contents here. The back
   /// of the deque contains the current function and the stack contains the

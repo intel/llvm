@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -mllvm -emptyline-comment-coverage=false -triple x86_64-unknown-linux-gnu -fcoroutines-ts -std=c++14 -emit-llvm -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping %s -o - | FileCheck %s
+// RUN: %clang_cc1 -mllvm -emptyline-comment-coverage=false -triple x86_64-unknown-linux-gnu -std=c++20 -emit-llvm -fprofile-instrument=clang -fcoverage-mapping -dump-coverage-mapping %s -o - | FileCheck %s
 
 namespace std {
 template <typename... T>
@@ -30,6 +30,7 @@ struct std::coroutine_traits<int, int> {
     int get_return_object();
     suspend_always initial_suspend();
     suspend_always final_suspend() noexcept;
+    void unhandled_exception() noexcept;
     void return_value(int);
   };
 };

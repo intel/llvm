@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: no-threads
 // ALLOW_RETRIES: 2
 
 // <mutex>
@@ -18,10 +18,11 @@
 // template<class _Mutex> unique_lock(unique_lock<_Mutex>)
 //     -> unique_lock<_Mutex>;  // C++17
 
+#include <cassert>
+#include <chrono>
+#include <cstdlib>
 #include <mutex>
 #include <thread>
-#include <cstdlib>
-#include <cassert>
 
 #include "make_test_thread.h"
 #include "test_macros.h"

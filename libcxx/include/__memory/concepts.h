@@ -10,22 +10,24 @@
 #ifndef _LIBCPP___MEMORY_CONCEPTS_H
 #define _LIBCPP___MEMORY_CONCEPTS_H
 
+#include <__concepts/same_as.h>
 #include <__config>
 #include <__iterator/concepts.h>
 #include <__iterator/iterator_traits.h>
 #include <__iterator/readable_traits.h>
 #include <__ranges/access.h>
 #include <__ranges/concepts.h>
-#include <concepts>
-#include <type_traits>
+#include <__type_traits/is_reference.h>
+#include <__type_traits/remove_cvref.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if _LIBCPP_STD_VER >= 20
+
 namespace ranges {
 
 // [special.mem.concepts]
@@ -59,7 +61,8 @@ concept __nothrow_forward_range =
     __nothrow_forward_iterator<iterator_t<_Rp>>;
 
 } // namespace ranges
-#endif // !defined(_LIBCPP_HAS_NO_RANGES)
+
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

@@ -7,10 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ProfileData/InstrProfCorrelator.h"
+#include "llvm/DebugInfo/DIContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFDie.h"
+#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
+#include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
+#include "llvm/DebugInfo/DWARF/DWARFLocationExpression.h"
+#include "llvm/DebugInfo/DWARF/DWARFUnit.h"
 #include "llvm/Object/MachO.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Path.h"
+#include <optional>
 
 #define DEBUG_TYPE "correlator"
 
@@ -23,7 +29,8 @@ Expected<object::SectionRef> getCountersSection(const object::ObjectFile &Obj) {
       if (SectionName.get() == INSTR_PROF_CNTS_SECT_NAME)
         return Section;
   return make_error<InstrProfError>(
-      instrprof_error::unable_to_correlate_profile);
+      instrprof_error::unable_to_correlate_profile,
+      "could not find counter section (" INSTR_PROF_CNTS_SECT_NAME ")");
 }
 
 const char *InstrProfCorrelator::FunctionNameAttributeName = "Function Name";
@@ -54,9 +61,9 @@ InstrProfCorrelator::get(StringRef DebugInfoFilename) {
     // TODO: Enable profile correlation when there are multiple objects in a
     // dSYM bundle.
     if (DsymObjectsOrErr->size() > 1)
-      return createStringError(
-          std::error_code(),
-          "Profile correlation using multiple objects is not yet supported");
+      return make_error<InstrProfError>(
+          instrprof_error::unable_to_correlate_profile,
+          "using multiple objects is not yet supported");
     DebugInfoFilename = *DsymObjectsOrErr->begin();
   }
   auto BufferOrErr =
@@ -84,7 +91,16 @@ InstrProfCorrelator::get(std::unique_ptr<MemoryBuffer> Buffer) {
       return InstrProfCorrelatorImpl<uint32_t>::get(std::move(*CtxOrErr), *Obj);
   }
   return make_error<InstrProfError>(
-      instrprof_error::unable_to_correlate_profile);
+      instrprof_error::unable_to_correlate_profile, "not an object file");
+}
+
+std::optional<size_t> InstrProfCorrelator::getDataSize() const {
+  if (auto *C = dyn_cast<InstrProfCorrelatorImpl<uint32_t>>(this)) {
+    return C->getDataSize();
+  } else if (auto *C = dyn_cast<InstrProfCorrelatorImpl<uint64_t>>(this)) {
+    return C->getDataSize();
+  }
+  return {};
 }
 
 namespace llvm {
@@ -120,18 +136,60 @@ InstrProfCorrelatorImpl<IntPtrT>::get(
     return std::make_unique<DwarfInstrProfCorrelator<IntPtrT>>(std::move(DICtx),
                                                                std::move(Ctx));
   }
-  return make_error<InstrProfError>(instrprof_error::unsupported_debug_format);
+  return make_error<InstrProfError>(
+      instrprof_error::unable_to_correlate_profile,
+      "unsupported debug info format (only DWARF is supported)");
 }
 
 template <class IntPtrT>
 Error InstrProfCorrelatorImpl<IntPtrT>::correlateProfileData() {
-  assert(Data.empty() && CompressedNames.empty() && Names.empty());
+  assert(Data.empty() && Names.empty() && NamesVec.empty());
   correlateProfileDataImpl();
+  if (Data.empty() || NamesVec.empty())
+    return make_error<InstrProfError>(
+        instrprof_error::unable_to_correlate_profile,
+        "could not find any profile metadata in debug info");
   auto Result =
-      collectPGOFuncNameStrings(Names, /*doCompression=*/true, CompressedNames);
+      collectPGOFuncNameStrings(NamesVec, /*doCompression=*/false, Names);
   CounterOffsets.clear();
-  Names.clear();
+  NamesVec.clear();
   return Result;
+}
+
+template <> struct yaml::MappingTraits<InstrProfCorrelator::CorrelationData> {
+  static void mapping(yaml::IO &io,
+                      InstrProfCorrelator::CorrelationData &Data) {
+    io.mapRequired("Probes", Data.Probes);
+  }
+};
+
+template <> struct yaml::MappingTraits<InstrProfCorrelator::Probe> {
+  static void mapping(yaml::IO &io, InstrProfCorrelator::Probe &P) {
+    io.mapRequired("Function Name", P.FunctionName);
+    io.mapOptional("Linkage Name", P.LinkageName);
+    io.mapRequired("CFG Hash", P.CFGHash);
+    io.mapRequired("Counter Offset", P.CounterOffset);
+    io.mapRequired("Num Counters", P.NumCounters);
+    io.mapOptional("File", P.FilePath);
+    io.mapOptional("Line", P.LineNumber);
+  }
+};
+
+template <> struct yaml::SequenceElementTraits<InstrProfCorrelator::Probe> {
+  static const bool flow = false;
+};
+
+template <class IntPtrT>
+Error InstrProfCorrelatorImpl<IntPtrT>::dumpYaml(raw_ostream &OS) {
+  InstrProfCorrelator::CorrelationData Data;
+  correlateProfileDataImpl(&Data);
+  if (Data.Probes.empty())
+    return make_error<InstrProfError>(
+        instrprof_error::unable_to_correlate_profile,
+        "could not find any profile metadata in debug info");
+  yaml::Output YamlOS(OS);
+  YamlOS << Data;
+  return Error::success();
 }
 
 template <class IntPtrT>
@@ -155,11 +213,11 @@ void InstrProfCorrelatorImpl<IntPtrT>::addProbe(StringRef FunctionName,
       maybeSwap<uint32_t>(NumCounters),
       /*NumValueSites=*/{maybeSwap<uint16_t>(0), maybeSwap<uint16_t>(0)},
   });
-  Names.push_back(FunctionName.str());
+  NamesVec.push_back(FunctionName.str());
 }
 
 template <class IntPtrT>
-llvm::Optional<uint64_t>
+std::optional<uint64_t>
 DwarfInstrProfCorrelator<IntPtrT>::getLocation(const DWARFDie &Die) const {
   auto Locations = Die.getLocations(dwarf::DW_AT_location);
   if (!Locations) {
@@ -167,13 +225,19 @@ DwarfInstrProfCorrelator<IntPtrT>::getLocation(const DWARFDie &Die) const {
     return {};
   }
   auto &DU = *Die.getDwarfUnit();
+  auto AddressSize = DU.getAddressByteSize();
   for (auto &Location : *Locations) {
-    auto AddressSize = DU.getAddressByteSize();
     DataExtractor Data(Location.Expr, DICtx->isLittleEndian(), AddressSize);
     DWARFExpression Expr(Data, AddressSize);
-    for (auto &Op : Expr)
-      if (Op.getCode() == dwarf::DW_OP_addr)
+    for (auto &Op : Expr) {
+      if (Op.getCode() == dwarf::DW_OP_addr) {
         return Op.getRawOperand(0);
+      } else if (Op.getCode() == dwarf::DW_OP_addrx) {
+        uint64_t Index = Op.getRawOperand(0);
+        if (auto SA = DU.getAddrOffsetSectionItem(Index))
+          return SA->Address;
+      }
+    }
   }
   return {};
 }
@@ -195,16 +259,17 @@ bool DwarfInstrProfCorrelator<IntPtrT>::isDIEOfProbe(const DWARFDie &Die) {
 }
 
 template <class IntPtrT>
-void DwarfInstrProfCorrelator<IntPtrT>::correlateProfileDataImpl() {
+void DwarfInstrProfCorrelator<IntPtrT>::correlateProfileDataImpl(
+    InstrProfCorrelator::CorrelationData *Data) {
   auto maybeAddProbe = [&](DWARFDie Die) {
     if (!isDIEOfProbe(Die))
       return;
-    Optional<const char *> FunctionName;
-    Optional<uint64_t> CFGHash;
-    Optional<uint64_t> CounterPtr = getLocation(Die);
-    auto FunctionPtr =
-        dwarf::toAddress(Die.getParent().find(dwarf::DW_AT_low_pc));
-    Optional<uint64_t> NumCounters;
+    std::optional<const char *> FunctionName;
+    std::optional<uint64_t> CFGHash;
+    std::optional<uint64_t> CounterPtr = getLocation(Die);
+    auto FnDie = Die.getParent();
+    auto FunctionPtr = dwarf::toAddress(FnDie.find(dwarf::DW_AT_low_pc));
+    std::optional<uint64_t> NumCounters;
     for (const DWARFDie &Child : Die.children()) {
       if (Child.getTag() != dwarf::DW_TAG_LLVM_annotation)
         continue;
@@ -256,8 +321,26 @@ void DwarfInstrProfCorrelator<IntPtrT>::correlateProfileDataImpl() {
                         << "\n");
       LLVM_DEBUG(Die.dump(dbgs()));
     }
-    this->addProbe(*FunctionName, *CFGHash, *CounterPtr - CountersStart,
-                   FunctionPtr.getValueOr(0), *NumCounters);
+    IntPtrT CounterOffset = *CounterPtr - CountersStart;
+    if (Data) {
+      InstrProfCorrelator::Probe P;
+      P.FunctionName = *FunctionName;
+      if (auto Name = FnDie.getName(DINameKind::LinkageName))
+        P.LinkageName = Name;
+      P.CFGHash = *CFGHash;
+      P.CounterOffset = CounterOffset;
+      P.NumCounters = *NumCounters;
+      auto FilePath = FnDie.getDeclFile(
+          DILineInfoSpecifier::FileLineInfoKind::RelativeFilePath);
+      if (!FilePath.empty())
+        P.FilePath = FilePath;
+      if (auto LineNumber = FnDie.getDeclLine())
+        P.LineNumber = LineNumber;
+      Data->Probes.push_back(P);
+    } else {
+      this->addProbe(*FunctionName, *CFGHash, CounterOffset,
+                     FunctionPtr.value_or(0), *NumCounters);
+    }
   };
   for (auto &CU : DICtx->normal_units())
     for (const auto &Entry : CU->dies())

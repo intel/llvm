@@ -66,7 +66,8 @@ public:
   bool HasNativeLLVMSupport() const override;
 
   bool IsIntegratedAssemblerDefault() const override;
-  bool IsUnwindTablesDefault(const llvm::opt::ArgList &Args) const override;
+  UnwindTableLevel
+  getDefaultUnwindTableLevel(const llvm::opt::ArgList &Args) const override;
   bool isPICDefault() const override;
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override;
   bool isPICDefaultForced() const override;
@@ -79,6 +80,10 @@ public:
   void
   AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                             llvm::opt::ArgStringList &CC1Args) const override;
+  void
+  addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
+                        llvm::opt::ArgStringList &CC1Args,
+                        Action::OffloadKind DeviceOffloadKind) const override;
   void AddClangCXXStdlibIncludeArgs(
       const llvm::opt::ArgList &DriverArgs,
       llvm::opt::ArgStringList &CC1Args) const override;
@@ -89,6 +94,8 @@ public:
                          llvm::opt::ArgStringList &CC1Args) const override;
 
   void printVerboseInfo(raw_ostream &OS) const override;
+
+  unsigned GetDefaultDwarfVersion() const override { return 4; }
 
 protected:
   Tool *getTool(Action::ActionClass AC) const override;
@@ -101,11 +108,13 @@ private:
 
   std::string Base;
   std::string GccLibDir;
+  clang::driver::toolchains::Generic_GCC::GCCVersion GccVer;
   std::string Ver;
   std::string SubdirName;
+  std::string TripleDirName;
   mutable std::unique_ptr<tools::gcc::Preprocessor> Preprocessor;
   mutable std::unique_ptr<tools::gcc::Compiler> Compiler;
-  void findGccLibDir();
+  void findGccLibDir(const llvm::Triple &LiteralTriple);
 
   bool NativeLLVMSupport;
 };

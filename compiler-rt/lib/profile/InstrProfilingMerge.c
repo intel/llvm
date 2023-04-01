@@ -20,7 +20,7 @@ COMPILER_RT_VISIBILITY
 void (*VPMergeHook)(ValueProfData *, __llvm_profile_data *);
 
 COMPILER_RT_VISIBILITY
-uint64_t lprofGetLoadModuleSignature() {
+uint64_t lprofGetLoadModuleSignature(void) {
   /* A very fast way to compute a module signature.  */
   uint64_t Version = __llvm_profile_get_version();
   uint64_t NumCounters = __llvm_profile_get_num_counters(
@@ -48,7 +48,7 @@ int __llvm_profile_check_compatibility(const char *ProfileData,
   SrcDataStart =
       (__llvm_profile_data *)(ProfileData + sizeof(__llvm_profile_header) +
                               Header->BinaryIdsSize);
-  SrcDataEnd = SrcDataStart + Header->NumData;
+  SrcDataEnd = SrcDataStart + Header->DataSize;
 
   if (ProfileSize < sizeof(__llvm_profile_header))
     return 1;
@@ -56,10 +56,10 @@ int __llvm_profile_check_compatibility(const char *ProfileData,
   /* Check the header first.  */
   if (Header->Magic != __llvm_profile_get_magic() ||
       Header->Version != __llvm_profile_get_version() ||
-      Header->NumData !=
+      Header->DataSize !=
           __llvm_profile_get_num_data(__llvm_profile_begin_data(),
                                       __llvm_profile_end_data()) ||
-      Header->NumCounters !=
+      Header->CountersSize !=
           __llvm_profile_get_num_counters(__llvm_profile_begin_counters(),
                                           __llvm_profile_end_counters()) ||
       Header->NamesSize != (uint64_t)(__llvm_profile_end_names() -
@@ -69,8 +69,8 @@ int __llvm_profile_check_compatibility(const char *ProfileData,
 
   if (ProfileSize <
       sizeof(__llvm_profile_header) + Header->BinaryIdsSize +
-          Header->NumData * sizeof(__llvm_profile_data) + Header->NamesSize +
-          Header->NumCounters * __llvm_profile_counter_entry_size())
+          Header->DataSize * sizeof(__llvm_profile_data) + Header->NamesSize +
+          Header->CountersSize * __llvm_profile_counter_entry_size())
     return 1;
 
   for (SrcData = SrcDataStart,
@@ -115,10 +115,10 @@ int __llvm_profile_merge_from_buffer(const char *ProfileData,
   SrcDataStart =
       (__llvm_profile_data *)(ProfileData + sizeof(__llvm_profile_header) +
                               Header->BinaryIdsSize);
-  SrcDataEnd = SrcDataStart + Header->NumData;
+  SrcDataEnd = SrcDataStart + Header->DataSize;
   SrcCountersStart = (char *)SrcDataEnd;
   SrcNameStart = SrcCountersStart +
-                 Header->NumCounters * __llvm_profile_counter_entry_size();
+                 Header->CountersSize * __llvm_profile_counter_entry_size();
   SrcValueProfDataStart =
       SrcNameStart + Header->NamesSize +
       __llvm_profile_get_num_padding_bytes(Header->NamesSize);
@@ -155,8 +155,14 @@ int __llvm_profile_merge_from_buffer(const char *ProfileData,
     if (SrcCounters < SrcCountersStart || SrcCounters >= SrcNameStart ||
         (SrcCounters + __llvm_profile_counter_entry_size() * NC) > SrcNameStart)
       return 1;
-    for (unsigned I = 0; I < NC; I++)
-      ((uint64_t *)DstCounters)[I] += ((uint64_t *)SrcCounters)[I];
+    for (unsigned I = 0; I < NC; I++) {
+      if (__llvm_profile_get_version() & VARIANT_MASK_BYTE_COVERAGE) {
+        // A value of zero signifies the function is covered.
+        DstCounters[I] &= SrcCounters[I];
+      } else {
+        ((uint64_t *)DstCounters)[I] += ((uint64_t *)SrcCounters)[I];
+      }
+    }
 
     /* Now merge value profile data. */
     if (!VPMergeHook)

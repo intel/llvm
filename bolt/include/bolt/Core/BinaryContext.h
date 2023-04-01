@@ -21,28 +21,29 @@
 #include "bolt/RuntimeLibs/RuntimeLibrary.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
-#include "llvm/MC/MCDwarf.h"
-#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCPseudoProbe.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCSectionMachO.h"
+#include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/RWMutex.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include <functional>
+#include <list>
 #include <map>
+#include <optional>
 #include <set>
-#include <shared_mutex>
 #include <string>
 #include <system_error>
 #include <type_traits>
@@ -83,6 +84,13 @@ inline raw_ostream &operator<<(raw_ostream &OS, const SegmentInfo &SegInfo) {
   return OS;
 }
 
+// AArch64-specific symbol markers used to delimit code/data in .text.
+enum class MarkerSymType : char {
+  NONE = 0,
+  CODE,
+  DATA,
+};
+
 enum class MemoryContentsType : char {
   UNKNOWN = 0,             /// Unknown contents.
   POSSIBLE_JUMP_TABLE,     /// Possibly a non-PIC jump table.
@@ -97,12 +105,9 @@ inline int64_t truncateToSize(int64_t Value, unsigned Bytes) {
 /// Filter iterator.
 template <typename ItrType,
           typename PredType = std::function<bool(const ItrType &)>>
-class FilterIterator
-    : public std::iterator<std::bidirectional_iterator_tag,
-                           typename std::iterator_traits<ItrType>::value_type> {
+class FilterIterator {
+  using inner_traits = std::iterator_traits<ItrType>;
   using Iterator = FilterIterator;
-  using T = typename std::iterator_traits<ItrType>::reference;
-  using PointerT = typename std::iterator_traits<ItrType>::pointer;
 
   PredType Pred;
   ItrType Itr, End;
@@ -121,14 +126,20 @@ class FilterIterator
   }
 
 public:
+  using iterator_category = std::bidirectional_iterator_tag;
+  using value_type = typename inner_traits::value_type;
+  using difference_type = typename inner_traits::difference_type;
+  using pointer = typename inner_traits::pointer;
+  using reference = typename inner_traits::reference;
+
   Iterator &operator++() { next(); return *this; }
   Iterator &operator--() { prev(); return *this; }
   Iterator operator++(int) { auto Tmp(Itr); next(); return Tmp; }
   Iterator operator--(int) { auto Tmp(Itr); prev(); return Tmp; }
   bool operator==(const Iterator &Other) const { return Itr == Other.Itr; }
   bool operator!=(const Iterator &Other) const { return !operator==(Other); }
-  T operator*() { return *Itr; }
-  PointerT operator->() { return &operator*(); }
+  reference operator*() { return *Itr; }
+  pointer operator->() { return &operator*(); }
   FilterIterator(PredType Pred, ItrType Itr, ItrType End)
       : Pred(Pred), Itr(Itr), End(End) {
     nextMatching();
@@ -142,7 +153,7 @@ class BinaryContext {
   std::string Filename;
 
   /// Unique build ID if available for the binary.
-  Optional<std::string> FileBuildID;
+  std::optional<std::string> FileBuildID;
 
   /// Set of all sections.
   struct CompareSections {
@@ -169,6 +180,10 @@ class BinaryContext {
   using NameToSectionMapType = std::multimap<std::string, BinarySection *>;
   NameToSectionMapType NameToSection;
 
+  /// Map section references to BinarySection for matching sections in the
+  /// input file to internal section representation.
+  DenseMap<SectionRef, BinarySection *> SectionRefToBinarySection;
+
   /// Low level section registration.
   BinarySection &registerSection(BinarySection *Section);
 
@@ -176,7 +191,7 @@ class BinaryContext {
   std::map<uint64_t, BinaryFunction> BinaryFunctions;
 
   /// A mutex that is used to control parallel accesses to BinaryFunctions
-  mutable std::shared_timed_mutex BinaryFunctionsMutex;
+  mutable llvm::sys::RWMutex BinaryFunctionsMutex;
 
   /// Functions injected by BOLT
   std::vector<BinaryFunction *> InjectedBinaryFunctions;
@@ -193,7 +208,7 @@ class BinaryContext {
   uint32_t DuplicatedJumpTables{0x10000000};
 
   /// Function fragments to skip.
-  std::vector<BinaryFunction *> FragmentsToSkip;
+  std::unordered_set<BinaryFunction *> FragmentsToSkip;
 
   /// The runtime library.
   std::unique_ptr<RuntimeLibrary> RtLibrary;
@@ -205,14 +220,20 @@ class BinaryContext {
   using DWOIdToCUMapType = std::unordered_map<uint64_t, DWARFUnit *>;
   DWOIdToCUMapType DWOCUs;
 
+  bool ContainsDwarf5{false};
+  bool ContainsDwarfLegacy{false};
+
   /// Preprocess DWO debug information.
   void preprocessDWODebugInfo();
 
   /// DWARF line info for CUs.
   std::map<unsigned, DwarfLineTable> DwarfLineTablesCUMap;
 
+  /// Internal helper for removing section name from a lookup table.
+  void deregisterSectionName(const BinarySection &Section);
+
 public:
-  static std::unique_ptr<BinaryContext>
+  static Expected<std::unique_ptr<BinaryContext>>
   createBinaryContext(const ObjectFile *File, bool IsPIC,
                       std::unique_ptr<DWARFContext> DwCtx);
 
@@ -226,16 +247,34 @@ public:
     MIB = std::move(TargetBuilder);
   }
 
+  /// Return function fragments to skip.
+  const std::unordered_set<BinaryFunction *> &getFragmentsToSkip() {
+    return FragmentsToSkip;
+  }
+
+  /// Add function fragment to skip
+  void addFragmentsToSkip(BinaryFunction *Function) {
+    FragmentsToSkip.insert(Function);
+  }
+
+  void clearFragmentsToSkip() { FragmentsToSkip.clear(); }
+
   /// Given DWOId returns CU if it exists in DWOCUs.
-  Optional<DWARFUnit *> getDWOCU(uint64_t DWOId);
+  std::optional<DWARFUnit *> getDWOCU(uint64_t DWOId);
 
   /// Returns DWOContext if it exists.
-  DWARFContext *getDWOContext();
+  DWARFContext *getDWOContext() const;
 
   /// Get Number of DWOCUs in a map.
   uint32_t getNumDWOCUs() { return DWOCUs.size(); }
 
-  const std::map<unsigned, DwarfLineTable> &getDwarfLineTables() const {
+  /// Returns true if DWARF5 is used.
+  bool isDWARF5Used() const { return ContainsDwarf5; }
+
+  /// Returns true if DWARF4 or lower is used.
+  bool isDWARFLegacyUsed() const { return ContainsDwarfLegacy; }
+
+  std::map<unsigned, DwarfLineTable> &getDwarfLineTables() {
     return DwarfLineTablesCUMap;
   }
 
@@ -245,8 +284,9 @@ public:
 
   Expected<unsigned> getDwarfFile(StringRef Directory, StringRef FileName,
                                   unsigned FileNumber,
-                                  Optional<MD5::MD5Result> Checksum,
-                                  Optional<StringRef> Source, unsigned CUID);
+                                  std::optional<MD5::MD5Result> Checksum,
+                                  std::optional<StringRef> Source,
+                                  unsigned CUID, unsigned DWARFVersion);
 
   /// [start memory address] -> [segment info] mapping.
   std::map<uint64_t, SegmentInfo> SegmentMapInfo;
@@ -280,11 +320,11 @@ public:
   StringRef getFilename() const { return Filename; }
   void setFilename(StringRef Name) { Filename = std::string(Name); }
 
-  Optional<StringRef> getFileBuildID() const {
+  std::optional<StringRef> getFileBuildID() const {
     if (FileBuildID)
       return StringRef(*FileBuildID);
 
-    return NoneType();
+    return std::nullopt;
   }
   void setFileBuildID(StringRef ID) { FileBuildID = std::string(ID); }
 
@@ -326,6 +366,13 @@ public:
   BinaryFunction *getBinaryFunctionContainingAddress(uint64_t Address,
                                                      bool CheckPastEnd = false,
                                                      bool UseMaxSize = false);
+  const BinaryFunction *
+  getBinaryFunctionContainingAddress(uint64_t Address,
+                                     bool CheckPastEnd = false,
+                                     bool UseMaxSize = false) const {
+    return const_cast<BinaryContext *>(this)
+        ->getBinaryFunctionContainingAddress(Address, CheckPastEnd, UseMaxSize);
+  }
 
   /// Return a BinaryFunction that starts at a given \p Address.
   BinaryFunction *getBinaryFunctionAtAddress(uint64_t Address);
@@ -354,6 +401,8 @@ public:
   }
 
   unsigned getDWARFEncodingSize(unsigned Encoding) {
+    if (Encoding == dwarf::DW_EH_PE_omit)
+      return 0;
     switch (Encoding & 0x0f) {
     default:
       llvm_unreachable("unknown encoding");
@@ -379,7 +428,7 @@ public:
   std::unordered_map<const MCSymbol *, BinaryFunction *> SymbolToFunctionMap;
 
   /// A mutex that is used to control parallel accesses to SymbolToFunctionMap
-  mutable std::shared_timed_mutex SymbolToFunctionMapMutex;
+  mutable llvm::sys::RWMutex SymbolToFunctionMapMutex;
 
   /// Look up the symbol entry that contains the given \p Address (based on
   /// the start address and size for each symbol).  Returns a pointer to
@@ -459,15 +508,17 @@ public:
   /// If \p NextJTAddress is different from zero, it is used as an upper
   /// bound for jump table memory layout.
   ///
-  /// Optionally, populate \p Offsets with jump table entries. The entries
+  /// Optionally, populate \p Address from jump table entries. The entries
   /// could be partially populated if the jump table detection fails.
   bool analyzeJumpTable(const uint64_t Address,
-                        const JumpTable::JumpTableType Type, BinaryFunction &BF,
+                        const JumpTable::JumpTableType Type,
+                        const BinaryFunction &BF,
                         const uint64_t NextJTAddress = 0,
-                        JumpTable::OffsetsType *Offsets = nullptr);
+                        JumpTable::AddressesType *EntriesAsAddress = nullptr,
+                        bool *HasEntryInFragment = nullptr) const;
 
   /// After jump table locations are established, this function will populate
-  /// their OffsetEntries based on memory contents.
+  /// their EntriesAsAddress based on memory contents.
   void populateJumpTables();
 
   /// Returns a jump table ID and label pointing to the duplicated jump table.
@@ -482,6 +533,14 @@ public:
   /// to function \p BF.
   std::string generateJumpTableName(const BinaryFunction &BF, uint64_t Address);
 
+  /// Free memory used by JumpTable's EntriesAsAddress
+  void clearJumpTableTempData() {
+    for (auto &JTI : JumpTables) {
+      JumpTable &JT = *JTI.second;
+      JumpTable::AddressesType Temp;
+      Temp.swap(JT.EntriesAsAddress);
+    }
+  }
   /// Return true if the array of bytes represents a valid code padding.
   bool hasValidCodePadding(const BinaryFunction &BF);
 
@@ -490,7 +549,9 @@ public:
   void adjustCodePadding();
 
   /// Regular page size.
-  static constexpr unsigned RegularPageSize = 0x1000;
+  unsigned RegularPageSize{0x1000};
+  static constexpr unsigned RegularPageSizeX86 = 0x1000;
+  static constexpr unsigned RegularPageSizeAArch64 = 0x10000;
 
   /// Huge page size to use.
   static constexpr unsigned HugePageSize = 0x200000;
@@ -505,9 +566,9 @@ public:
   std::unique_ptr<MCContext> Ctx;
 
   /// A mutex that is used to control parallel accesses to Ctx
-  mutable std::shared_timed_mutex CtxMutex;
-  std::unique_lock<std::shared_timed_mutex> scopeLock() const {
-    return std::unique_lock<std::shared_timed_mutex>(CtxMutex);
+  mutable llvm::sys::RWMutex CtxMutex;
+  std::unique_lock<llvm::sys::RWMutex> scopeLock() const {
+    return std::unique_lock<llvm::sys::RWMutex>(CtxMutex);
   }
 
   std::unique_ptr<DWARFContext> DwCtx;
@@ -538,10 +599,19 @@ public:
 
   std::unique_ptr<MCDisassembler> DisAsm;
 
+  /// Symbolic disassembler.
+  std::unique_ptr<MCDisassembler> SymbolicDisAsm;
+
   std::unique_ptr<MCAsmBackend> MAB;
 
   /// Indicates if relocations are available for usage.
   bool HasRelocations{false};
+
+  /// Indicates if the binary is stripped
+  bool IsStripped{false};
+
+  /// Indicates if the binary contains split functions.
+  bool HasSplitFunctions{false};
 
   /// Is the binary always loaded at a fixed address. Shared objects and
   /// position-independent executables (PIEs) are examples of binaries that
@@ -564,6 +634,9 @@ public:
 
   /// Number of functions with profile information
   uint64_t NumProfiledFuncs{0};
+
+  /// Number of functions with stale profile information
+  uint64_t NumStaleProfileFuncs{0};
 
   /// Number of objects in profile whose profile was ignored.
   uint64_t NumUnusedProfiledObjects{0};
@@ -590,11 +663,11 @@ public:
 
   /// Address of the code/function that is executed before any other code in
   /// the binary.
-  Optional<uint64_t> StartFunctionAddress;
+  std::optional<uint64_t> StartFunctionAddress;
 
   /// Address of the code/function that is going to be executed right before
   /// the execution of the binary is completed.
-  Optional<uint64_t> FiniFunctionAddress;
+  std::optional<uint64_t> FiniFunctionAddress;
 
   /// Page alignment used for code layout.
   uint64_t PageAlign{HugePageSize};
@@ -612,12 +685,15 @@ public:
   /// special linux kernel sections
   std::unordered_map<uint64_t, std::vector<LKInstructionMarkerInfo>> LKMarkers;
 
+  /// List of external addresses in the code that are not a function start
+  /// and are referenced from BinaryFunction.
+  std::list<std::pair<BinaryFunction *, uint64_t>> InterproceduralReferences;
+
   /// PseudoProbe decoder
   MCPseudoProbeDecoder ProbeDecoder;
 
   /// DWARF encoding. Available encoding types defined in BinaryFormat/Dwarf.h
   /// enum Constants, e.g. DW_EH_PE_omit.
-  unsigned TTypeEncoding = dwarf::DW_EH_PE_omit;
   unsigned LSDAEncoding = dwarf::DW_EH_PE_omit;
 
   BinaryContext(std::unique_ptr<MCContext> Ctx,
@@ -650,6 +726,11 @@ public:
     return TheTriple->getArch() == llvm::Triple::x86 ||
            TheTriple->getArch() == llvm::Triple::x86_64;
   }
+
+  // AArch64-specific functions to check if symbol is used to delimit
+  // code/data in .text. Code is marked by $x, data by $d.
+  MarkerSymType getMarkerType(const SymbolRef &Symbol) const;
+  bool isMarker(const SymbolRef &Symbol) const;
 
   /// Iterate over all BinaryData.
   iterator_range<binary_data_const_iterator> getBinaryData() const {
@@ -773,6 +854,22 @@ public:
     return Itr != GlobalSymbols.end() ? Itr->second : nullptr;
   }
 
+  /// Return registered PLT entry BinaryData with the given \p Name
+  /// or nullptr if no global PLT symbol with that name exists.
+  const BinaryData *getPLTBinaryDataByName(StringRef Name) const {
+    if (const BinaryData *Data = getBinaryDataByName(Name.str() + "@PLT"))
+      return Data;
+
+    // The symbol name might contain versioning information e.g
+    // memcpy@@GLIBC_2.17. Remove it and try to locate binary data
+    // without it.
+    size_t At = Name.find("@");
+    if (At != std::string::npos)
+      return getBinaryDataByName(Name.str().substr(0, At) + "@PLT");
+
+    return nullptr;
+  }
+
   /// Return true if \p SymbolName was generated internally and was not present
   /// in the input binary.
   bool isInternalSymbolName(const StringRef Name) {
@@ -834,8 +931,23 @@ public:
   bool registerFragment(BinaryFunction &TargetFunction,
                         BinaryFunction &Function) const;
 
-  /// Resolve inter-procedural dependencies from \p Function.
-  void processInterproceduralReferences(BinaryFunction &Function);
+  /// Add unterprocedural reference for \p Function to \p Address
+  void addInterproceduralReference(BinaryFunction *Function, uint64_t Address) {
+    InterproceduralReferences.push_back({Function, Address});
+  }
+
+  /// Used to fix the target of linker-generated AArch64 adrp + add
+  /// sequence with no relocation info.
+  void addAdrpAddRelocAArch64(BinaryFunction &BF, MCInst &LoadLowBits,
+                              MCInst &LoadHiBits, uint64_t Target);
+
+  /// Return true if AARch64 veneer was successfully matched at a given
+  /// \p Address and register veneer binary function if \p MatchOnly
+  /// argument is false.
+  bool handleAArch64Veneer(uint64_t Address, bool MatchOnly = false);
+
+  /// Resolve inter-procedural dependencies from
+  void processInterproceduralReferences();
 
   /// Skip functions with all parent and child fragments transitively.
   void skipMarkedFragments();
@@ -859,13 +971,13 @@ public:
   BinarySection &registerSection(SectionRef Section);
 
   /// Register a copy of /p OriginalSection under a different name.
-  BinarySection &registerSection(StringRef SectionName,
+  BinarySection &registerSection(const Twine &SectionName,
                                  const BinarySection &OriginalSection);
 
   /// Register or update the information for the section with the given
   /// /p Name.  If the section already exists, the information in the
   /// section will be updated with the new data.
-  BinarySection &registerOrUpdateSection(StringRef Name, unsigned ELFType,
+  BinarySection &registerOrUpdateSection(const Twine &Name, unsigned ELFType,
                                          unsigned ELFFlags,
                                          uint8_t *Data = nullptr,
                                          uint64_t Size = 0,
@@ -875,7 +987,7 @@ public:
   /// with the given /p Name.  If the section already exists, the
   /// information in the section will be updated with the new data.
   BinarySection &
-  registerOrUpdateNoteSection(StringRef Name, uint8_t *Data = nullptr,
+  registerOrUpdateNoteSection(const Twine &Name, uint8_t *Data = nullptr,
                               uint64_t Size = 0, unsigned Alignment = 1,
                               bool IsReadOnly = true,
                               unsigned ELFType = ELF::SHT_PROGBITS) {
@@ -884,9 +996,15 @@ public:
                                    Size, Alignment);
   }
 
+  /// Remove sections that were preregistered but never used.
+  void deregisterUnusedSections();
+
   /// Remove the given /p Section from the set of all sections.  Return
   /// true if the section was removed (and deleted), otherwise false.
   bool deregisterSection(BinarySection &Section);
+
+  /// Re-register \p Section under the \p NewName.
+  void renameSection(BinarySection &Section, const Twine &NewName);
 
   /// Iterate over all registered sections.
   iterator_range<FilteredSectionIterator> sections() {
@@ -953,6 +1071,15 @@ public:
                                               Sections.end()));
   }
 
+  /// Return base address for the shared object or PIE based on the segment
+  /// mapping information. \p MMapAddress is an address where one of the
+  /// segments was mapped. \p FileOffset is the offset in the file of the
+  /// mapping. Note that \p FileOffset should be page-aligned and could be
+  /// different from the file offset of the segment which could be unaligned.
+  /// If no segment is found that matches \p FileOffset, return std::nullopt.
+  std::optional<uint64_t> getBaseAddressForMapping(uint64_t MMapAddress,
+                                                   uint64_t FileOffset) const;
+
   /// Check if the address belongs to this binary's static allocation space.
   bool containsAddress(uint64_t Address) const {
     return Address >= FirstAllocAddress && Address < LayoutStartAddress;
@@ -972,20 +1099,26 @@ public:
     return const_cast<BinaryContext *>(this)->getSectionForAddress(Address);
   }
 
+  /// Return internal section representation for a section in a file.
+  BinarySection *getSectionForSectionRef(SectionRef Section) const {
+    return SectionRefToBinarySection.lookup(Section);
+  }
+
   /// Return section(s) associated with given \p Name.
   iterator_range<NameToSectionMapType::iterator>
-  getSectionByName(StringRef Name) {
-    return make_range(NameToSection.equal_range(std::string(Name)));
+  getSectionByName(const Twine &Name) {
+    return make_range(NameToSection.equal_range(Name.str()));
   }
   iterator_range<NameToSectionMapType::const_iterator>
-  getSectionByName(StringRef Name) const {
-    return make_range(NameToSection.equal_range(std::string(Name)));
+  getSectionByName(const Twine &Name) const {
+    return make_range(NameToSection.equal_range(Name.str()));
   }
 
   /// Return the unique section associated with given \p Name.
   /// If there is more than one section with the same name, return an error
   /// object.
-  ErrorOr<BinarySection &> getUniqueSectionByName(StringRef SectionName) const {
+  ErrorOr<BinarySection &>
+  getUniqueSectionByName(const Twine &SectionName) const {
     auto Sections = getSectionByName(SectionName);
     if (Sections.begin() != Sections.end() &&
         std::next(Sections.begin()) == Sections.end())
@@ -1019,7 +1152,7 @@ public:
 
   /// Return a relocation registered at a given \p Address, or nullptr if there
   /// is no relocation at such address.
-  const Relocation *getRelocationAt(uint64_t Address);
+  const Relocation *getRelocationAt(uint64_t Address) const;
 
   /// Register a presence of PC-relative relocation at the given \p Address.
   void addPCRelativeDataRelocation(uint64_t Address) {
@@ -1116,10 +1249,10 @@ public:
     return Size;
   }
 
-  /// Verify that assembling instruction \p Inst results in the same sequence of
-  /// bytes as \p Encoding.
-  bool validateEncoding(const MCInst &Instruction,
-                        ArrayRef<uint8_t> Encoding) const;
+  /// Validate that disassembling the \p Sequence of bytes into an instruction
+  /// and assembling the instruction again, results in a byte sequence identical
+  /// to the original one.
+  bool validateInstructionEncoding(ArrayRef<uint8_t> Sequence) const;
 
   /// Return a function execution count threshold for determining whether
   /// the function is 'hot'. Consider it hot if count is above the average exec
@@ -1151,7 +1284,8 @@ public:
                         uint64_t Offset = 0,
                         const BinaryFunction *Function = nullptr,
                         bool PrintMCInst = false, bool PrintMemData = false,
-                        bool PrintRelocations = false) const;
+                        bool PrintRelocations = false,
+                        StringRef Endl = "\n") const;
 
   /// Print a range of instructions.
   template <typename Itr>
@@ -1159,10 +1293,11 @@ public:
   printInstructions(raw_ostream &OS, Itr Begin, Itr End, uint64_t Offset = 0,
                     const BinaryFunction *Function = nullptr,
                     bool PrintMCInst = false, bool PrintMemData = false,
-                    bool PrintRelocations = false) const {
+                    bool PrintRelocations = false,
+                    StringRef Endl = "\n") const {
     while (Begin != End) {
       printInstruction(OS, *Begin, Offset, Function, PrintMCInst, PrintMemData,
-                       PrintRelocations);
+                       PrintRelocations, Endl);
       Offset += computeCodeSize(Begin, Begin + 1);
       ++Begin;
     }
@@ -1193,14 +1328,14 @@ public:
                                           /*PIC=*/!HasFixedLoadAddress));
     MCEInstance.LocalCtx->setObjectFileInfo(MCEInstance.LocalMOFI.get());
     MCEInstance.MCE.reset(
-        TheTarget->createMCCodeEmitter(*MII, *MRI, *MCEInstance.LocalCtx));
+        TheTarget->createMCCodeEmitter(*MII, *MCEInstance.LocalCtx));
     return MCEInstance;
   }
 
   /// Creating MCStreamer instance.
   std::unique_ptr<MCStreamer>
   createStreamer(llvm::raw_pwrite_stream &OS) const {
-    MCCodeEmitter *MCE = TheTarget->createMCCodeEmitter(*MII, *MRI, *Ctx);
+    MCCodeEmitter *MCE = TheTarget->createMCCodeEmitter(*MII, *Ctx);
     MCAsmBackend *MAB =
         TheTarget->createMCAsmBackend(*STI, *MRI, MCTargetOptions());
     std::unique_ptr<MCObjectWriter> OW = MAB->createObjectWriter(OS);

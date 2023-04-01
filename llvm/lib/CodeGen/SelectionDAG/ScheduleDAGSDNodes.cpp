@@ -47,8 +47,7 @@ static cl::opt<int> HighLatencyCycles(
            "instructions take for targets with no itinerary"));
 
 ScheduleDAGSDNodes::ScheduleDAGSDNodes(MachineFunction &mf)
-    : ScheduleDAG(mf), BB(nullptr), DAG(nullptr),
-      InstrItins(mf.getSubtarget().getInstrItineraryData()) {}
+    : ScheduleDAG(mf), InstrItins(mf.getSubtarget().getInstrItineraryData()) {}
 
 /// Run - perform scheduling.
 ///
@@ -111,11 +110,15 @@ SUnit *ScheduleDAGSDNodes::Clone(SUnit *Old) {
 static void CheckForPhysRegDependency(SDNode *Def, SDNode *User, unsigned Op,
                                       const TargetRegisterInfo *TRI,
                                       const TargetInstrInfo *TII,
+                                      const TargetLowering &TLI,
                                       unsigned &PhysReg, int &Cost) {
   if (Op != 2 || User->getOpcode() != ISD::CopyToReg)
     return;
 
   unsigned Reg = cast<RegisterSDNode>(User->getOperand(1))->getReg();
+  if (TLI.checkForPhysRegDependency(Def, User, Op, TRI, TII, PhysReg, Cost))
+    return;
+
   if (Register::isVirtualRegister(Reg))
     return;
 
@@ -189,7 +192,7 @@ static void RemoveUnusedGlue(SDNode *N, SelectionDAG *DAG) {
          "expected an unused glue value");
 
   CloneNodeWithValues(N, DAG,
-                      makeArrayRef(N->value_begin(), N->getNumValues() - 1));
+                      ArrayRef(N->value_begin(), N->getNumValues() - 1));
 }
 
 /// ClusterNeighboringLoads - Force nearby loads together by "gluing" them.
@@ -461,7 +464,7 @@ void ScheduleDAGSDNodes::AddSchedEdges() {
     // Find all predecessors and successors of the group.
     for (SDNode *N = SU.getNode(); N; N = N->getGluedNode()) {
       if (N->isMachineOpcode() &&
-          TII->get(N->getMachineOpcode()).getImplicitDefs()) {
+          !TII->get(N->getMachineOpcode()).implicit_defs().empty()) {
         SU.hasPhysRegClobbers = true;
         unsigned NumUsed = InstrEmitter::CountResults(N);
         while (NumUsed != 0 && !N->hasAnyUseOfValue(NumUsed - 1))
@@ -486,7 +489,8 @@ void ScheduleDAGSDNodes::AddSchedEdges() {
         unsigned PhysReg = 0;
         int Cost = 1;
         // Determine if this is a physical register dependency.
-        CheckForPhysRegDependency(OpN, N, i, TRI, TII, PhysReg, Cost);
+        const TargetLowering &TLI = DAG->getTargetLoweringInfo();
+        CheckForPhysRegDependency(OpN, N, i, TRI, TII, TLI, PhysReg, Cost);
         assert((PhysReg == 0 || !isChain) &&
                "Chain dependence via physreg data?");
         // FIXME: See ScheduleDAGSDNodes::EmitCopyFromReg. For now, scheduler
@@ -577,7 +581,7 @@ void ScheduleDAGSDNodes::RegDefIter::InitNodeNumDefs() {
 // Construct a RegDefIter for this SUnit and find the first valid value.
 ScheduleDAGSDNodes::RegDefIter::RegDefIter(const SUnit *SU,
                                            const ScheduleDAGSDNodes *SD)
-  : SchedDAG(SD), Node(SU->getNode()), DefIdx(0), NodeNumDefs(0) {
+    : SchedDAG(SD), Node(SU->getNode()) {
   InitNodeNumDefs();
   Advance();
 }
@@ -750,7 +754,7 @@ ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
   // source order number as N.
   MachineBasicBlock *BB = Emitter.getBlock();
   MachineBasicBlock::iterator InsertPos = Emitter.getInsertPos();
-  for (auto DV : DAG->GetDbgValues(N)) {
+  for (auto *DV : DAG->GetDbgValues(N)) {
     if (DV->isEmitted())
       continue;
     unsigned DVOrder = DV->getOrder();
@@ -884,11 +888,14 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
 
     if (MI->isCandidateForCallSiteEntry() &&
         DAG->getTarget().Options.EmitCallSiteInfo)
-      MF.addCallArgsForwardingRegs(MI, DAG->getSDCallSiteInfo(Node));
+      MF.addCallArgsForwardingRegs(MI, DAG->getCallSiteInfo(Node));
 
     if (DAG->getNoMergeSiteInfo(Node)) {
       MI->setFlag(MachineInstr::MIFlag::NoMerge);
     }
+
+    if (MDNode *MD = DAG->getPCSections(Node))
+      MI->setPCSections(MF, MD);
 
     return MI;
   };
@@ -1057,11 +1064,12 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
            "first terminator cannot be a debug value");
     for (MachineInstr &MI : make_early_inc_range(
              make_range(std::next(FirstTerm), InsertBB->end()))) {
+      // Only scan up to insertion point.
+      if (&MI == InsertPos)
+        break;
+
       if (!MI.isDebugValue())
         continue;
-
-      if (&MI == InsertPos)
-        InsertPos = std::prev(InsertPos->getIterator());
 
       // The DBG_VALUE was referencing a value produced by a terminator. By
       // moving the DBG_VALUE, the referenced value also needs invalidating.

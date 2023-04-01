@@ -62,7 +62,7 @@ __device__ T add_func (T x, T y)
   return x + y;
 }
 
-// DEV-DAG: @_Z10p_add_funcIiE = linkonce_odr addrspace(1) externally_initialized global i32 (i32, i32)* @_Z8add_funcIiET_S0_S0_
+// DEV-DAG: @_Z10p_add_funcIiE = linkonce_odr addrspace(1) externally_initialized global ptr @_Z8add_funcIiET_S0_S0_
 template <typename T>
 __device__ func_t<T> p_add_func = add_func<T>;
 

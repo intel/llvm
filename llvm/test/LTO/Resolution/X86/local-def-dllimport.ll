@@ -1,5 +1,5 @@
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t0.bc %s
-; RUN: llvm-lto2 run -r %t0.bc,__imp_f,l \
+; RUN: llvm-lto2 run -opaque-pointers -r %t0.bc,__imp_f,l \
 ; RUN:               -r %t0.bc,g,p \
 ; RUN:               -r %t0.bc,g,l \
 ; RUN:               -r %t0.bc,e,l \
@@ -13,7 +13,7 @@ target triple = "x86_64-unknown-linux-gnu"
 $g = comdat any
 @g = global i8 42, comdat, !type !0
 
-; CHECK: define available_externally dllimport i8* @f()
+; CHECK: define available_externally dllimport ptr @f()
 define available_externally dllimport i8* @f() {
   ret i8* @g
 }

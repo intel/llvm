@@ -37,6 +37,10 @@ Align GISelKnownBits::computeKnownAlignment(Register R, unsigned Depth) {
   switch (MI->getOpcode()) {
   case TargetOpcode::COPY:
     return computeKnownAlignment(MI->getOperand(1).getReg(), Depth);
+  case TargetOpcode::G_ASSERT_ALIGN: {
+    // TODO: Min with source
+    return Align(MI->getOperand(2).getImm());
+  }
   case TargetOpcode::G_FRAME_INDEX: {
     int FrameIdx = MI->getOperand(1).getIndex();
     return MF.getFrameInfo().getObjectAlign(FrameIdx);
@@ -281,7 +285,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     LLT Ty = MRI.getType(MI.getOperand(1).getReg());
     if (DL.isNonIntegralAddressSpace(Ty.getAddressSpace()))
       break;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case TargetOpcode::G_ADD: {
     computeKnownBitsImpl(MI.getOperand(1).getReg(), Known, DemandedElts,
@@ -442,7 +446,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     if (DstTy.isVector())
       break;
     // Fall through and handle them the same as zext/trunc.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case TargetOpcode::G_ASSERT_ZEXT:
   case TargetOpcode::G_ZEXT:
   case TargetOpcode::G_TRUNC: {
@@ -464,6 +468,16 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     Known = Known.zextOrTrunc(BitWidth);
     if (BitWidth > SrcBitWidth)
       Known.Zero.setBitsFrom(SrcBitWidth);
+    break;
+  }
+  case TargetOpcode::G_ASSERT_ALIGN: {
+    int64_t LogOfAlign = Log2_64(MI.getOperand(2).getImm());
+
+    // TODO: Should use maximum with source
+    // If a node is guaranteed to be aligned, set low zero bits accordingly as
+    // well as clearing one bits.
+    Known.Zero.setLowBits(LogOfAlign);
+    Known.One.clearLowBits(LogOfAlign);
     break;
   }
   case TargetOpcode::G_MERGE_VALUES: {
@@ -516,7 +530,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     // We can bound the space the count needs.  Also, bits known to be zero can't
     // contribute to the population.
     unsigned BitsPossiblySet = Known2.countMaxPopulation();
-    unsigned LowBits = Log2_32(BitsPossiblySet)+1;
+    unsigned LowBits = llvm::bit_width(BitsPossiblySet);
     Known.Zero.setBitsFrom(LowBits);
     // TODO: we could bound Known.One using the lower bound on the number of
     // bits which might be set provided by popcnt KnownOne2.
@@ -548,6 +562,26 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     KnownBits ShiftKnown = KnownBits::computeForAddSub(
         /*Add*/ false, /*NSW*/ false, ExtKnown, WidthKnown);
     Known = KnownBits::ashr(KnownBits::shl(Known, ShiftKnown), ShiftKnown);
+    break;
+  }
+  case TargetOpcode::G_UADDO:
+  case TargetOpcode::G_UADDE:
+  case TargetOpcode::G_SADDO:
+  case TargetOpcode::G_SADDE:
+  case TargetOpcode::G_USUBO:
+  case TargetOpcode::G_USUBE:
+  case TargetOpcode::G_SSUBO:
+  case TargetOpcode::G_SSUBE:
+  case TargetOpcode::G_UMULO:
+  case TargetOpcode::G_SMULO: {
+    if (MI.getOperand(1).getReg() == R) {
+      // If we know the result of a compare has the top bits zero, use this
+      // info.
+      if (TL.getBooleanContents(DstTy.isVector(), false) ==
+              TargetLowering::ZeroOrOneBooleanContent &&
+          BitWidth > 1)
+        Known.Zero.setBitsFrom(1);
+    }
     break;
   }
   }
@@ -656,6 +690,39 @@ unsigned GISelKnownBits::computeNumSignBits(Register R,
                                  MI.getOperand(3).getReg(), DemandedElts,
                                  Depth + 1);
   }
+  case TargetOpcode::G_SADDO:
+  case TargetOpcode::G_SADDE:
+  case TargetOpcode::G_UADDO:
+  case TargetOpcode::G_UADDE:
+  case TargetOpcode::G_SSUBO:
+  case TargetOpcode::G_SSUBE:
+  case TargetOpcode::G_USUBO:
+  case TargetOpcode::G_USUBE:
+  case TargetOpcode::G_SMULO:
+  case TargetOpcode::G_UMULO: {
+    // If compares returns 0/-1, all bits are sign bits.
+    // We know that we have an integer-based boolean since these operations
+    // are only available for integer.
+    if (MI.getOperand(1).getReg() == R) {
+      if (TL.getBooleanContents(DstTy.isVector(), false) ==
+          TargetLowering::ZeroOrNegativeOneBooleanContent)
+        return TyBits;
+    }
+
+    break;
+  }
+  case TargetOpcode::G_FCMP:
+  case TargetOpcode::G_ICMP: {
+    bool IsFP = Opcode == TargetOpcode::G_FCMP;
+    if (TyBits == 1)
+      break;
+    auto BC = TL.getBooleanContents(DstTy.isVector(), IsFP);
+    if (BC == TargetLoweringBase::ZeroOrNegativeOneBooleanContent)
+      return TyBits; // All bits are sign bits.
+    if (BC == TargetLowering::ZeroOrOneBooleanContent)
+      return TyBits - 1; // Every always-zero bit is a sign bit.
+    break;
+  }
   case TargetOpcode::G_INTRINSIC:
   case TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS:
   default: {
@@ -683,7 +750,7 @@ unsigned GISelKnownBits::computeNumSignBits(Register R,
   // Okay, we know that the sign bit in Mask is set.  Use CLO to determine
   // the number of identical bits in the top of the input value.
   Mask <<= Mask.getBitWidth() - TyBits;
-  return std::max(FirstAnswer, Mask.countLeadingOnes());
+  return std::max(FirstAnswer, Mask.countl_one());
 }
 
 unsigned GISelKnownBits::computeNumSignBits(Register R, unsigned Depth) {

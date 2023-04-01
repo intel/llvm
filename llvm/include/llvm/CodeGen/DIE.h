@@ -115,6 +115,11 @@ public:
     Data.push_back(DIEAbbrevData(Attribute, Value));
   }
 
+  /// Adds another set of attribute information to the abbreviation.
+  void AddAttribute(const DIEAbbrevData &AbbrevData) {
+    Data.push_back(AbbrevData);
+  }
+
   /// Used to gather unique data for the abbreviation folding set.
   void Profile(FoldingSetNodeID &ID) const;
 
@@ -886,8 +891,8 @@ class DIEUnit {
   DIE Die;
   /// The section this unit will be emitted in. This may or may not be set to
   /// a valid section depending on the client that is emitting DWARF.
-  MCSection *Section;
-  uint64_t Offset; /// .debug_info or .debug_types absolute section offset.
+  MCSection *Section = nullptr;
+  uint64_t Offset = 0; /// .debug_info or .debug_types absolute section offset.
 protected:
   virtual ~DIEUnit() = default;
 

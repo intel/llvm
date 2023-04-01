@@ -29,9 +29,11 @@ static_library("Common") {
     "//llvm/lib/Option",
     "//llvm/lib/Support",
     "//llvm/lib/Target",
+    "//llvm/lib/TargetParser",
   ]
   sources = [
     "Args.cpp",
+    "CommonLinkerContext.cpp",
     "DWARF.cpp",
     "ErrorHandler.cpp",
     "Filesystem.cpp",

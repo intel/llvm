@@ -10,18 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/NestedMatcher.h"
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/NestedMatcher.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Affine/Utils.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/Dialect/Vector/VectorUtils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Utils/IndexingUtils.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Passes.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -37,7 +39,7 @@ static llvm::cl::OptionCategory clOptionsCategory(DEBUG_TYPE " options");
 static llvm::cl::list<int> clTestVectorShapeRatio(
     "vector-shape-ratio",
     llvm::cl::desc("Specify the HW vector size for vectorization"),
-    llvm::cl::ZeroOrMore, llvm::cl::cat(clOptionsCategory));
+    llvm::cl::cat(clOptionsCategory));
 static llvm::cl::opt<bool> clTestForwardSlicingAnalysis(
     "forward-slicing",
     llvm::cl::desc("Enable testing forward static slicing and topological sort "
@@ -69,7 +71,9 @@ static llvm::cl::opt<bool> clTestVecAffineLoopNest(
 
 namespace {
 struct VectorizerTestPass
-    : public PassWrapper<VectorizerTestPass, FunctionPass> {
+    : public PassWrapper<VectorizerTestPass, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(VectorizerTestPass)
+
   static constexpr auto kTestAffineMapOpName = "test_affine_map";
   static constexpr auto kTestAffineMapAttrName = "affine_map";
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -80,7 +84,7 @@ struct VectorizerTestPass
     return "Tests vectorizer standalone functionality.";
   }
 
-  void runOnFunction() override;
+  void runOnOperation() override;
   void testVectorShapeRatio(llvm::raw_ostream &outs);
   void testForwardSlicing(llvm::raw_ostream &outs);
   void testBackwardSlicing(llvm::raw_ostream &outs);
@@ -94,7 +98,7 @@ struct VectorizerTestPass
 } // namespace
 
 void VectorizerTestPass::testVectorShapeRatio(llvm::raw_ostream &outs) {
-  auto f = getFunction();
+  auto f = getOperation();
   using matcher::Op;
   SmallVector<int64_t, 8> shape(clTestVectorShapeRatio.begin(),
                                 clTestVectorShapeRatio.end());
@@ -123,8 +127,9 @@ void VectorizerTestPass::testVectorShapeRatio(llvm::raw_ostream &outs) {
     // purpose of this test. If we need to test more intricate behavior in the
     // future we can always extend.
     auto superVectorType = opInst->getResult(0).getType().cast<VectorType>();
-    auto ratio = shapeRatio(superVectorType, subVectorType);
-    if (!ratio.hasValue()) {
+    auto ratio =
+        computeShapeRatio(superVectorType.getShape(), subVectorType.getShape());
+    if (!ratio) {
       opInst->emitRemark("NOT MATCHED");
     } else {
       outs << "\nmatched: " << *opInst << " with shape ratio: ";
@@ -144,7 +149,7 @@ static NestedPattern patternTestSlicingOps() {
 }
 
 void VectorizerTestPass::testBackwardSlicing(llvm::raw_ostream &outs) {
-  auto f = getFunction();
+  auto f = getOperation();
   outs << "\n" << f.getName();
 
   SmallVector<NestedMatch, 8> matches;
@@ -160,7 +165,7 @@ void VectorizerTestPass::testBackwardSlicing(llvm::raw_ostream &outs) {
 }
 
 void VectorizerTestPass::testForwardSlicing(llvm::raw_ostream &outs) {
-  auto f = getFunction();
+  auto f = getOperation();
   outs << "\n" << f.getName();
 
   SmallVector<NestedMatch, 8> matches;
@@ -176,7 +181,7 @@ void VectorizerTestPass::testForwardSlicing(llvm::raw_ostream &outs) {
 }
 
 void VectorizerTestPass::testSlicing(llvm::raw_ostream &outs) {
-  auto f = getFunction();
+  auto f = getOperation();
   outs << "\n" << f.getName();
 
   SmallVector<NestedMatch, 8> matches;
@@ -195,7 +200,7 @@ static bool customOpWithAffineMapAttribute(Operation &op) {
 }
 
 void VectorizerTestPass::testComposeMaps(llvm::raw_ostream &outs) {
-  auto f = getFunction();
+  auto f = getOperation();
 
   using matcher::Op;
   auto pattern = Op(customOpWithAffineMapAttribute);
@@ -210,6 +215,9 @@ void VectorizerTestPass::testComposeMaps(llvm::raw_ostream &outs) {
                    .getValue();
     maps.push_back(map);
   }
+  if (maps.empty())
+    // Nothing to compose
+    return;
   AffineMap res;
   for (auto m : maps) {
     res = res ? res.compose(m) : m;
@@ -220,7 +228,7 @@ void VectorizerTestPass::testComposeMaps(llvm::raw_ostream &outs) {
 /// Test for 'vectorizeAffineLoopNest' utility.
 void VectorizerTestPass::testVecAffineLoopNest() {
   std::vector<SmallVector<AffineForOp, 2>> loops;
-  gatherLoops(getFunction(), loops);
+  gatherLoops(getOperation(), loops);
 
   // Expected only one loop nest.
   if (loops.empty() || loops[0].size() != 1)
@@ -236,9 +244,9 @@ void VectorizerTestPass::testVecAffineLoopNest() {
   (void)vectorizeAffineLoopNest(loopsToVectorize, strategy);
 }
 
-void VectorizerTestPass::runOnFunction() {
+void VectorizerTestPass::runOnOperation() {
   // Only support single block functions at this point.
-  FuncOp f = getFunction();
+  func::FuncOp f = getOperation();
   if (!llvm::hasSingleElement(f))
     return;
 

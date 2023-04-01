@@ -16,11 +16,21 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/TextAPI/Architecture.h"
-#include "llvm/TextAPI/ArchitectureSet.h"
 #include "llvm/TextAPI/InterfaceFile.h"
-#include "llvm/TextAPI/PackedVersion.h"
+#include "llvm/TextAPI/Platform.h"
+#include "llvm/TextAPI/Target.h"
 
 using UUID = std::pair<llvm::MachO::Target, std::string>;
+
+// clang-format off
+enum TBDFlags : unsigned {
+  None                         = 0U,
+  FlatNamespace                = 1U << 0,
+  NotApplicationExtensionSafe  = 1U << 1,
+  InstallAPI                   = 1U << 2,
+  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/InstallAPI),
+};
+// clang-format on
 
 LLVM_YAML_STRONG_TYPEDEF(llvm::StringRef, FlowStringRef)
 LLVM_YAML_STRONG_TYPEDEF(uint8_t, SwiftVersion)
@@ -28,6 +38,18 @@ LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(UUID)
 LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(FlowStringRef)
 
 namespace llvm {
+
+namespace MachO {
+class ArchitectureSet;
+class PackedVersion;
+
+Expected<std::unique_ptr<InterfaceFile>>
+getInterfaceFileFromJSON(StringRef JSON);
+
+Error serializeInterfaceFileToJSON(raw_ostream &OS, const InterfaceFile &File,
+                                   bool Compact);
+} // namespace MachO
+
 namespace yaml {
 
 template <> struct ScalarTraits<FlowStringRef> {

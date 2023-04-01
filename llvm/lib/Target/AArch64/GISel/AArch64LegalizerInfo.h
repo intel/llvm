@@ -47,6 +47,7 @@ private:
                                   MachineIRBuilder &MIRBuilder,
                                   GISelChangeObserver &Observer) const;
   bool legalizeVectorTrunc(MachineInstr &MI, LegalizerHelper &Helper) const;
+  bool legalizeShuffleVector(MachineInstr &MI, LegalizerHelper &Helper) const;
   bool legalizeBitfieldExtract(MachineInstr &MI, MachineRegisterInfo &MRI,
                                LegalizerHelper &Helper) const;
   bool legalizeRotate(MachineInstr &MI, MachineRegisterInfo &MRI,
@@ -56,6 +57,8 @@ private:
   bool legalizeAtomicCmpxchg128(MachineInstr &MI, MachineRegisterInfo &MRI,
                                 LegalizerHelper &Helper) const;
   bool legalizeCTTZ(MachineInstr &MI, LegalizerHelper &Helper) const;
+  bool legalizeMemOps(MachineInstr &MI, LegalizerHelper &Helper) const;
+  bool legalizeFCopySign(MachineInstr &MI, LegalizerHelper &Helper) const;
   const AArch64Subtarget *ST;
 };
 } // End llvm namespace.

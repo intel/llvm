@@ -1,6 +1,5 @@
 ; Make sure we don't end up in an infinite recursion in singleReachablePHIPath().
-; REQUIRES: asserts
-; RUN: opt -newgvn -S %s | FileCheck %s
+; RUN: opt < %s -passes=newgvn -S | FileCheck %s
 
 @c = external global i64, align 8
 
@@ -14,13 +13,13 @@
 ; CHECK: for.body:                                         ; preds = %ph, %if.then
 ; CHECK-NEXT:   br i1 undef, label %ontrue, label %onfalse
 ; CHECK: onfalse:                                          ; preds = %for.body
-; CHECK-NEXT:   %patatino = load i64, i64* @c
+; CHECK-NEXT:   %patatino = load i64, ptr @c
 ; CHECK-NEXT:   ret void
 ; CHECK: ontrue:                                           ; preds = %for.body
-; CHECK-NEXT:   %dipsy = load i64, i64* @c
+; CHECK-NEXT:   %dipsy = load i64, ptr @c
 ; CHECK-NEXT:   br label %ph
 ; CHECK: back:                                             ; preds = %l2
-; CHECK-NEXT:   store i8 poison, i8* null
+; CHECK-NEXT:   store i8 poison, ptr null
 ; CHECK-NEXT:   br label %ph
 ; CHECK: end:                                              ; preds = %l2
 ; CHECK-NEXT:   ret void
@@ -38,12 +37,12 @@ ph:
 for.body:
   br i1 undef, label %ontrue, label %onfalse
 onfalse:
-  %patatino = load i64, i64* @c
-  store i64 %patatino, i64* @c
+  %patatino = load i64, ptr @c
+  store i64 %patatino, ptr @c
   ret void
 ontrue:
-  %dipsy = load i64, i64* @c
-  store i64 %dipsy, i64* @c
+  %dipsy = load i64, ptr @c
+  store i64 %dipsy, ptr @c
   br label %ph
 back:
   br label %ph

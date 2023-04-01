@@ -1,6 +1,8 @@
+# TODO: Add property `NO_PLUGIN_DEPENDENCIES` to lldbExpression
 add_lldb_library(lldbExpression
   DiagnosticManager.cpp
   DWARFExpression.cpp
+  DWARFExpressionList.cpp
   Expression.cpp
   ExpressionVariable.cpp
   FunctionCaller.cpp

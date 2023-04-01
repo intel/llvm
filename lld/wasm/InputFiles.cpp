@@ -12,14 +12,15 @@
 #include "InputElement.h"
 #include "OutputSegment.h"
 #include "SymbolTable.h"
-#include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Memory.h"
+#include "lld/Common/Args.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Reproduce.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/Wasm.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 #define DEBUG_TYPE "lld"
 
@@ -45,10 +46,10 @@ namespace wasm {
 
 void InputFile::checkArch(Triple::ArchType arch) const {
   bool is64 = arch == Triple::wasm64;
-  if (is64 && !config->is64.hasValue()) {
+  if (is64 && !config->is64) {
     fatal(toString(this) +
           ": must specify -mwasm64 to process wasm64 object files");
-  } else if (config->is64.getValueOr(false) != is64) {
+  } else if (config->is64.value_or(false) != is64) {
     fatal(toString(this) +
           ": wasm32 object file can't be linked in wasm64 mode");
   }
@@ -56,13 +57,13 @@ void InputFile::checkArch(Triple::ArchType arch) const {
 
 std::unique_ptr<llvm::TarWriter> tar;
 
-Optional<MemoryBufferRef> readFile(StringRef path) {
+std::optional<MemoryBufferRef> readFile(StringRef path) {
   log("Loading: " + path);
 
   auto mbOrErr = MemoryBuffer::getFile(path);
   if (auto ec = mbOrErr.getError()) {
     error("cannot open " + path + ": " + ec.message());
-    return None;
+    return std::nullopt;
   }
   std::unique_ptr<MemoryBuffer> &mb = *mbOrErr;
   MemoryBufferRef mbref = mb->getMemBufferRef();
@@ -88,7 +89,12 @@ InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName,
   if (magic == file_magic::bitcode)
     return make<BitcodeFile>(mb, archiveName, offsetInArchive);
 
-  fatal("unknown file type: " + mb.getBufferIdentifier());
+  std::string name = mb.getBufferIdentifier().str();
+  if (!archiveName.empty()) {
+    name = archiveName.str() + "(" + name + ")";
+  }
+
+  fatal("unknown file type: " + name);
 }
 
 // Relocations contain either symbol or type indices.  This function takes a
@@ -107,7 +113,7 @@ uint32_t ObjFile::calcNewIndex(const WasmRelocation &reloc) const {
 
 // Relocations can contain addend for combined sections. This function takes a
 // relocation and returns updated addend by offset in the output section.
-uint64_t ObjFile::calcNewAddend(const WasmRelocation &reloc) const {
+int64_t ObjFile::calcNewAddend(const WasmRelocation &reloc) const {
   switch (reloc.Type) {
   case R_WASM_MEMORY_ADDR_LEB:
   case R_WASM_MEMORY_ADDR_LEB64:
@@ -408,10 +414,12 @@ void ObjFile::parse(bool ignoreComdats) {
   tableEntries.resize(totalFunctions);
   for (const WasmElemSegment &seg : wasmObj->elements()) {
     int64_t offset;
-    if (seg.Offset.Opcode == WASM_OPCODE_I32_CONST)
-      offset = seg.Offset.Value.Int32;
-    else if (seg.Offset.Opcode == WASM_OPCODE_I64_CONST)
-      offset = seg.Offset.Value.Int64;
+    if (seg.Offset.Extended)
+      fatal(toString(this) + ": extended init exprs not supported");
+    else if (seg.Offset.Inst.Opcode == WASM_OPCODE_I32_CONST)
+      offset = seg.Offset.Inst.Value.Int32;
+    else if (seg.Offset.Inst.Opcode == WASM_OPCODE_I64_CONST)
+      offset = seg.Offset.Inst.Value.Int64;
     else
       fatal(toString(this) + ": invalid table elements");
     for (size_t index = 0; index < seg.Functions.size(); index++) {
@@ -434,7 +442,7 @@ void ObjFile::parse(bool ignoreComdats) {
   // called directly (i.e. only address taken) don't have to match the defined
   // function's signature.  We cannot do this for directly called functions
   // because those signatures are checked at validation times.
-  // See https://bugs.llvm.org/show_bug.cgi?id=40412
+  // See https://github.com/llvm/llvm-project/issues/39758
   std::vector<bool> isCalledDirectly(wasmObj->getNumberOfSymbols(), false);
   for (const SectionRef &sec : wasmObj->sections()) {
     const WasmSection &section = wasmObj->getWasmSection(sec);
@@ -470,19 +478,17 @@ void ObjFile::parse(bool ignoreComdats) {
   // Populate `Segments`.
   for (const WasmSegment &s : wasmObj->dataSegments()) {
     InputChunk *seg;
-    if (shouldMerge(s)) {
+    if (shouldMerge(s))
       seg = make<MergeInputChunk>(s, this);
-    } else
+    else
       seg = make<InputSegment>(s, this);
     seg->discarded = isExcludedByComdat(seg);
     // Older object files did not include WASM_SEG_FLAG_TLS and instead
     // relied on the naming convention.  To maintain compat with such objects
     // we still imply the TLS flag based on the name of the segment.
     if (!seg->isTLS() &&
-        (seg->name.startswith(".tdata") || seg->name.startswith(".tbss"))) {
+        (seg->name.startswith(".tdata") || seg->name.startswith(".tbss")))
       seg->flags |= WASM_SEG_FLAG_TLS;
-      seg->implicitTLS = true;
-    }
     segments.emplace_back(seg);
   }
   setRelocs(segments, dataSection);
@@ -582,9 +588,11 @@ Symbol *ObjFile::createDefined(const WasmSymbol &sym) {
     InputChunk *seg = segments[sym.Info.DataRef.Segment];
     auto offset = sym.Info.DataRef.Offset;
     auto size = sym.Info.DataRef.Size;
-    if (seg->implicitTLS) {
+    // Support older (e.g. llvm 13) object files that pre-date the per-symbol
+    // TLS flag, and symbols were assumed to be TLS by being defined in a TLS
+    // segment.
+    if (!(flags & WASM_SYMBOL_TLS) && seg->isTLS())
       flags |= WASM_SYMBOL_TLS;
-    }
     if (sym.isBindingLocal())
       return make<DefinedData>(name, flags, this, seg, offset, size);
     if (seg->discarded)
@@ -671,6 +679,48 @@ Symbol *ObjFile::createUndefined(const WasmSymbol &sym, bool isCalledDirectly) {
   llvm_unreachable("unknown symbol kind");
 }
 
+
+StringRef strip(StringRef s) {
+  while (s.starts_with(" ")) {
+    s = s.drop_front();
+  }
+  while (s.ends_with(" ")) {
+    s = s.drop_back();
+  }
+  return s;
+}
+
+void StubFile::parse() {
+  bool first = false;
+
+  for (StringRef line : args::getLines(mb)) {
+    // File must begin with #STUB
+    if (first) {
+      assert(line == "#STUB\n");
+      first = false;
+    }
+
+    // Lines starting with # are considered comments
+    if (line.startswith("#"))
+      continue;
+
+    StringRef sym;
+    StringRef rest;
+    std::tie(sym, rest) = line.split(':');
+    sym = strip(sym);
+    rest = strip(rest);
+
+    symbolDependencies[sym] = {};
+
+    while (rest.size()) {
+      StringRef first;
+      std::tie(first, rest) = rest.split(',');
+      first = strip(first);
+      symbolDependencies[sym].push_back(first);
+    }
+  }
+}
+
 void ArchiveFile::parse() {
   // Parse a MemoryBufferRef as an archive file.
   LLVM_DEBUG(dbgs() << "Parsing library: " << toString(this) << "\n");
@@ -683,6 +733,7 @@ void ArchiveFile::parse() {
     ++count;
   }
   LLVM_DEBUG(dbgs() << "Read " << count << " symbols\n");
+  (void) count;
 }
 
 void ArchiveFile::addMember(const Archive::Symbol *sym) {
@@ -721,7 +772,7 @@ static uint8_t mapVisibility(GlobalValue::VisibilityTypes gvVisibility) {
 static Symbol *createBitcodeSymbol(const std::vector<bool> &keptComdats,
                                    const lto::InputFile::Symbol &objSym,
                                    BitcodeFile &f) {
-  StringRef name = saver.save(objSym.getName());
+  StringRef name = saver().save(objSym.getName());
 
   uint32_t flags = objSym.isWeak() ? WASM_SYMBOL_BINDING_WEAK : 0;
   flags |= mapVisibility(objSym.getVisibility());
@@ -732,8 +783,8 @@ static Symbol *createBitcodeSymbol(const std::vector<bool> &keptComdats,
   if (objSym.isUndefined() || excludedByComdat) {
     flags |= WASM_SYMBOL_UNDEFINED;
     if (objSym.isExecutable())
-      return symtab->addUndefinedFunction(name, None, None, flags, &f, nullptr,
-                                          true);
+      return symtab->addUndefinedFunction(name, std::nullopt, std::nullopt,
+                                          flags, &f, nullptr, true);
     return symtab->addUndefinedData(name, flags, &f);
   }
 
@@ -756,9 +807,9 @@ BitcodeFile::BitcodeFile(MemoryBufferRef m, StringRef archiveName,
   // symbols later in the link stage). So we append file offset to make
   // filename unique.
   StringRef name = archiveName.empty()
-                       ? saver.save(path)
-                       : saver.save(archiveName + "(" + path::filename(path) +
-                                    " at " + utostr(offsetInArchive) + ")");
+                       ? saver().save(path)
+                       : saver().save(archiveName + "(" + path::filename(path) +
+                                      " at " + utostr(offsetInArchive) + ")");
   MemoryBufferRef mbref(mb.getBuffer(), name);
 
   obj = check(lto::InputFile::create(mbref));
@@ -783,7 +834,8 @@ void BitcodeFile::parse() {
   }
   checkArch(t.getArch());
   std::vector<bool> keptComdats;
-  // TODO Support nodeduplicate https://bugs.llvm.org/show_bug.cgi?id=50531
+  // TODO Support nodeduplicate
+  // https://github.com/llvm/llvm-project/issues/49875
   for (std::pair<StringRef, Comdat::SelectionKind> s : obj->getComdatTable())
     keptComdats.push_back(symtab->addComdat(s.first));
 

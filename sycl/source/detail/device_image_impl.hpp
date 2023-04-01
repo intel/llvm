@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -28,9 +28,15 @@
 #include <mutex>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
+
+template <class T> struct LessByHash {
+  bool operator()(const T &LHS, const T &RHS) const {
+    return getSyclObjImpl(LHS) < getSyclObjImpl(RHS);
+  }
+};
 
 // The class is impl counterpart for sycl::device_image
 // It can represent a program in different states, kernel_id's it has and state
@@ -51,7 +57,8 @@ public:
 
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
-                    std::vector<kernel_id> KernelIDs, RT::PiProgram Program)
+                    std::shared_ptr<std::vector<kernel_id>> KernelIDs,
+                    RT::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::move(KernelIDs)) {
@@ -60,8 +67,8 @@ public:
 
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
-                    std::vector<kernel_id> KernelIDs, RT::PiProgram Program,
-                    const SpecConstMapT &SpecConstMap,
+                    std::shared_ptr<std::vector<kernel_id>> KernelIDs,
+                    RT::PiProgram Program, const SpecConstMapT &SpecConstMap,
                     const std::vector<unsigned char> &SpecConstsBlob)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
@@ -69,21 +76,29 @@ public:
         MSpecConstSymMap(SpecConstMap) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
-    return std::binary_search(MKernelIDs.begin(), MKernelIDs.end(),
-                              KernelIDCand, LessByNameComp{});
+    return std::binary_search(MKernelIDs->begin(), MKernelIDs->end(),
+                              KernelIDCand, LessByHash<kernel_id>{});
   }
 
   bool has_kernel(const kernel_id &KernelIDCand,
                   const device &DeviceCand) const noexcept {
+    // If the device is in the device list and the kernel ID is in the kernel
+    // bundle, return true.
     for (const device &Device : MDevices)
       if (Device == DeviceCand)
         return has_kernel(KernelIDCand);
+
+    // Otherwise, if the device candidate is a sub-device it is also valid if
+    // its parent is valid.
+    if (!getSyclObjImpl(DeviceCand)->isRootDevice())
+      return has_kernel(KernelIDCand,
+                        DeviceCand.get_info<info::device::parent_device>());
 
     return false;
   }
 
   const std::vector<kernel_id> &get_kernel_ids() const noexcept {
-    return MKernelIDs;
+    return *MKernelIDs;
   }
 
   bool has_specialization_constants() const noexcept {
@@ -95,8 +110,15 @@ public:
   }
 
   bool all_specialization_constant_native() const noexcept {
-    assert(false && "Not implemented");
-    return false;
+    // Specialization constants are natively supported in JIT mode on backends,
+    // that are using SPIR-V as IR
+    auto IsJITSPIRVTarget = [](const char *Target) {
+      return (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+              strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0);
+    };
+    return (MContext.get_backend() == backend::opencl ||
+            MContext.get_backend() == backend::ext_oneapi_level_zero) &&
+           IsJITSPIRVTarget(MBinImage->getRawData().DeviceTargetSpec);
   }
 
   bool has_specialization_constant(const char *SpecName) const noexcept {
@@ -176,7 +198,9 @@ public:
 
   const context &get_context() const noexcept { return MContext; }
 
-  std::vector<kernel_id> &get_kernel_ids_ref() noexcept { return MKernelIDs; }
+  std::shared_ptr<std::vector<kernel_id>> &get_kernel_ids_ptr() noexcept {
+    return MKernelIDs;
+  }
 
   std::vector<unsigned char> &get_spec_const_blob_ref() noexcept {
     return MSpecConstsBlob;
@@ -213,6 +237,8 @@ public:
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const plugin &Plugin = ContextImplPtr->getPlugin();
 
+    if (Plugin.getBackend() == backend::opencl)
+      Plugin.call<PiApiKind::piProgramRetain>(MProgram);
     pi_native_handle NativeProgram = 0;
     Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
                                                         &NativeProgram);
@@ -236,12 +262,12 @@ public:
 private:
   void updateSpecConstSymMap() {
     if (MBinImage) {
-      const pi::DeviceBinaryImage::PropertyRange &SCRange =
+      const RTDeviceBinaryImage::PropertyRange &SCRange =
           MBinImage->getSpecConstants();
-      using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
+      using SCItTy = RTDeviceBinaryImage::PropertyRange::ConstIterator;
 
       // get default values for specialization constants
-      const pi::DeviceBinaryImage::PropertyRange &SCDefValRange =
+      const RTDeviceBinaryImage::PropertyRange &SCDefValRange =
           MBinImage->getSpecConstantsDefaultValues();
 
       // This variable is used to calculate spec constant value offset in a
@@ -250,35 +276,34 @@ private:
       for (SCItTy SCIt : SCRange) {
         const char *SCName = (*SCIt)->Name;
 
-        pi::ByteArray Descriptors =
-            pi::DeviceBinaryProperty(*SCIt).asByteArray();
-        assert(Descriptors.size() > 8 && "Unexpected property size");
+        ByteArray Descriptors = DeviceBinaryProperty(*SCIt).asByteArray();
+        // First 8 bytes are consumed by the size of the property.
+        Descriptors.dropBytes(8);
 
         // Expected layout is vector of 3-component tuples (flattened into a
         // vector of scalars), where each tuple consists of: ID of a scalar spec
         // constant, (which might be a member of the composite); offset, which
         // is used to calculate location of scalar member within the composite
-        // or zero for scalar spec constants; size of a spec constant
-        constexpr size_t NumElements = 3;
-        assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) %
-                       NumElements ==
-                   0 &&
-               "unexpected layout of composite spec const descriptors");
-        auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
-        auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
-                                                            Descriptors.size());
-        unsigned PrevOffset = 0;
-        while (It != End) {
-          // Make sure that alignment is correct in blob.
-          BlobOffset += /*Offset*/ It[1] - PrevOffset;
-          PrevOffset = It[1];
-          // The map is not locked here because updateSpecConstSymMap() is only
-          // supposed to be called from c'tor.
-          MSpecConstSymMap[std::string{SCName}].push_back(
-              SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
-                             /*Size*/ It[2], BlobOffset});
-          BlobOffset += /*Size*/ It[2];
-          It += NumElements;
+        // or zero for scalar spec constants; size of a spec constant.
+        unsigned LocalOffset = 0;
+        while (!Descriptors.empty()) {
+          auto [Id, CompositeOffset, Size] =
+              Descriptors.consume<uint32_t, uint32_t, uint32_t>();
+
+          // Make sure that alignment is correct in the blob.
+          const unsigned OffsetFromLast = CompositeOffset - LocalOffset;
+          BlobOffset += OffsetFromLast;
+          // Composites may have a special padding element at the end which
+          // should not have a descriptor. These padding elements all have max
+          // ID value.
+          if (Id != std::numeric_limits<std::uint32_t>::max()) {
+            // The map is not locked here because updateSpecConstSymMap() is
+            // only supposed to be called from c'tor.
+            MSpecConstSymMap[std::string{SCName}].push_back(
+                SpecConstDescT{Id, CompositeOffset, Size, BlobOffset});
+          }
+          LocalOffset += OffsetFromLast + Size;
+          BlobOffset += Size;
         }
       }
       MSpecConstsBlob.resize(BlobOffset);
@@ -286,8 +311,11 @@ private:
       bool HasDefaultValues = SCDefValRange.begin() != SCDefValRange.end();
 
       if (HasDefaultValues) {
-        pi::ByteArray DefValDescriptors =
-            pi::DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+        ByteArray DefValDescriptors =
+            DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+        assert(DefValDescriptors.size() - 8 == MSpecConstsBlob.size() &&
+               "Specialization constant default value blob do not have the "
+               "expected size.");
         std::uninitialized_copy(&DefValDescriptors[8],
                                 &DefValDescriptors[8] + MSpecConstsBlob.size(),
                                 MSpecConstsBlob.data());
@@ -303,7 +331,7 @@ private:
   RT::PiProgram MProgram = nullptr;
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp
-  std::vector<kernel_id> MKernelIDs;
+  std::shared_ptr<std::vector<kernel_id>> MKernelIDs;
 
   // A mutex for sycnhronizing access to spec constants blob. Mutable because
   // needs to be locked in the const method for getting spec constant value.
@@ -321,5 +349,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

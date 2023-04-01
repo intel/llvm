@@ -87,7 +87,7 @@ struct Renamer {
   Renamer(unsigned int seed) { prng.srand(seed); }
 
   const char *newName() {
-    return metaNames[prng.rand() % array_lengthof(metaNames)];
+    return metaNames[prng.rand() % std::size(metaNames)];
   }
 
   PRNG prng;
@@ -115,7 +115,7 @@ void MetaRename(Function &F) {
 
     for (auto &I : BB)
       if (!I.getType()->isVoidTy())
-        I.setName("tmp");
+        I.setName(I.getOpcodeName());
   }
 }
 

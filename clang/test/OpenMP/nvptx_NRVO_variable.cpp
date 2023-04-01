@@ -16,12 +16,10 @@ void bar(S &);
 S foo() {
   // CHECK: [[RETVAL:%.+]] = alloca %struct.S,
   S s;
-  // CHECK: call void @{{.+}}bar{{.+}}(%struct.S* {{.*}}[[S_REF:%.+]])
+  // CHECK: call void @{{.+}}bar{{.+}}(ptr {{.*}}[[S_REF:%.+]])
   bar(s);
-  // CHECK: [[DEST:%.+]] = bitcast %struct.S* [[RETVAL]] to i8*
-  // CHECK: [[SOURCE:%.+]] = bitcast %struct.S* [[S_REF]] to i8*
-  // CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* {{.*}}[[DEST]], i8* {{.*}}[[SOURCE]], i64 4, i1 false)
-  // CHECK: [[VAL:%.+]] = load %struct.S, %struct.S* [[RETVAL]],
+  // CHECK: call void @llvm.memcpy.p0.p0.i64(ptr {{.*}}[[RETVAL]], ptr {{.*}}[[S_REF]], i64 4, i1 false)
+  // CHECK: [[VAL:%.+]] = load %struct.S, ptr [[RETVAL]],
   // CHECK: ret %struct.S [[VAL]]
   return s;
 }

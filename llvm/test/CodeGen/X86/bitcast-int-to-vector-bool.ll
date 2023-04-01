@@ -31,7 +31,7 @@ define <2 x i1> @bitcast_i2_2i1(i2 zeroext %a0) {
 ; AVX2-LABEL: bitcast_i2_2i1:
 ; AVX2:       # %bb.0:
 ; AVX2-NEXT:    vmovd %edi, %xmm0
-; AVX2-NEXT:    vpbroadcastq %xmm0, %xmm0
+; AVX2-NEXT:    vpbroadcastd %xmm0, %xmm0
 ; AVX2-NEXT:    vmovdqa {{.*#+}} xmm1 = [1,2]
 ; AVX2-NEXT:    vpand %xmm1, %xmm0, %xmm0
 ; AVX2-NEXT:    vpcmpeqq %xmm1, %xmm0, %xmm0
@@ -131,6 +131,50 @@ define <8 x i1> @bitcast_i8_8i1(i8 zeroext %a0) {
   ret <8 x i1> %1
 }
 
+; PR54911
+define <8 x i1> @bitcast_i8_8i1_freeze(i8 zeroext %a0) {
+; SSE2-SSSE3-LABEL: bitcast_i8_8i1_freeze:
+; SSE2-SSSE3:       # %bb.0:
+; SSE2-SSSE3-NEXT:    movd %edi, %xmm0
+; SSE2-SSSE3-NEXT:    pshuflw {{.*#+}} xmm0 = xmm0[0,0,0,0,4,5,6,7]
+; SSE2-SSSE3-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
+; SSE2-SSSE3-NEXT:    movdqa {{.*#+}} xmm1 = [1,2,4,8,16,32,64,128]
+; SSE2-SSSE3-NEXT:    pand %xmm1, %xmm0
+; SSE2-SSSE3-NEXT:    pcmpeqw %xmm1, %xmm0
+; SSE2-SSSE3-NEXT:    psrlw $15, %xmm0
+; SSE2-SSSE3-NEXT:    retq
+;
+; AVX1-LABEL: bitcast_i8_8i1_freeze:
+; AVX1:       # %bb.0:
+; AVX1-NEXT:    vmovd %edi, %xmm0
+; AVX1-NEXT:    vpshuflw {{.*#+}} xmm0 = xmm0[0,0,0,0,4,5,6,7]
+; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,0,0,0]
+; AVX1-NEXT:    vmovdqa {{.*#+}} xmm1 = [1,2,4,8,16,32,64,128]
+; AVX1-NEXT:    vpand %xmm1, %xmm0, %xmm0
+; AVX1-NEXT:    vpcmpeqw %xmm1, %xmm0, %xmm0
+; AVX1-NEXT:    vpsrlw $15, %xmm0, %xmm0
+; AVX1-NEXT:    retq
+;
+; AVX2-LABEL: bitcast_i8_8i1_freeze:
+; AVX2:       # %bb.0:
+; AVX2-NEXT:    vmovd %edi, %xmm0
+; AVX2-NEXT:    vpbroadcastb %xmm0, %xmm0
+; AVX2-NEXT:    vmovdqa {{.*#+}} xmm1 = [1,2,4,8,16,32,64,128]
+; AVX2-NEXT:    vpand %xmm1, %xmm0, %xmm0
+; AVX2-NEXT:    vpcmpeqw %xmm1, %xmm0, %xmm0
+; AVX2-NEXT:    vpsrlw $15, %xmm0, %xmm0
+; AVX2-NEXT:    retq
+;
+; AVX512-LABEL: bitcast_i8_8i1_freeze:
+; AVX512:       # %bb.0:
+; AVX512-NEXT:    kmovd %edi, %k0
+; AVX512-NEXT:    vpmovm2w %k0, %xmm0
+; AVX512-NEXT:    retq
+  %1 = bitcast i8 %a0 to <8 x i1>
+  %2 = freeze <8 x i1> %1
+  ret <8 x i1> %2
+}
+
 define <16 x i1> @bitcast_i16_16i1(i16 zeroext %a0) {
 ; SSE2-LABEL: bitcast_i16_16i1:
 ; SSE2:       # %bb.0:
@@ -202,7 +246,7 @@ define <32 x i1> @bitcast_i32_32i1(i32 %a0) {
 ; AVX1-NEXT:    vpshuflw {{.*#+}} xmm1 = xmm0[0,0,1,1,4,5,6,7]
 ; AVX1-NEXT:    vpshuflw {{.*#+}} xmm0 = xmm0[2,2,3,3,4,5,6,7]
 ; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
-; AVX1-NEXT:    vpermilps {{.*#+}} ymm0 = ymm0[0,0,1,1,4,4,5,5]
+; AVX1-NEXT:    vshufps {{.*#+}} ymm0 = ymm0[0,0,1,1,4,4,5,5]
 ; AVX1-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm0, %ymm0
 ; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm1
 ; AVX1-NEXT:    vmovddup {{.*#+}} xmm2 = [9241421688590303745,9241421688590303745]

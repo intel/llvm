@@ -14,18 +14,28 @@
 #define LLVM_OBJECT_TAPIFILE_H
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/iterator_range.h"
+#include "llvm/Object/Binary.h"
+#include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/SymbolicFile.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/MemoryBuffer.h"
-#include "llvm/TextAPI/InterfaceFile.h"
+#include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/TextAPI/Architecture.h"
 
 namespace llvm {
+
+class raw_ostream;
+
+namespace MachO {
+
+class InterfaceFile;
+
+}
+
 namespace object {
 
 class TapiFile : public SymbolicFile {
 public:
-  TapiFile(MemoryBufferRef Source, const MachO::InterfaceFile &interface,
+  TapiFile(MemoryBufferRef Source, const MachO::InterfaceFile &Interface,
            MachO::Architecture Arch);
   ~TapiFile() override;
 
@@ -39,18 +49,22 @@ public:
 
   basic_symbol_iterator symbol_end() const override;
 
+  Expected<SymbolRef::Type> getSymbolType(DataRefImpl DRI) const;
+
   static bool classof(const Binary *v) { return v->isTapiFile(); }
 
-  bool is64Bit() { return MachO::is64Bit(Arch); }
+  bool is64Bit() const override { return MachO::is64Bit(Arch); }
 
 private:
   struct Symbol {
     StringRef Prefix;
     StringRef Name;
     uint32_t Flags;
+    SymbolRef::Type Type;
 
-    constexpr Symbol(StringRef Prefix, StringRef Name, uint32_t Flags)
-        : Prefix(Prefix), Name(Name), Flags(Flags) {}
+    constexpr Symbol(StringRef Prefix, StringRef Name, uint32_t Flags,
+                     SymbolRef::Type Type)
+        : Prefix(Prefix), Name(Name), Flags(Flags), Type(Type) {}
   };
 
   std::vector<Symbol> Symbols;

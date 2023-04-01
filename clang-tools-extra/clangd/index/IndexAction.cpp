@@ -11,32 +11,30 @@
 #include "Headers.h"
 #include "index/Relation.h"
 #include "index/SymbolOrigin.h"
-#include "support/Logger.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/MultiplexConsumer.h"
+#include "clang/Frontend/FrontendAction.h"
 #include "clang/Index/IndexingAction.h"
 #include "clang/Index/IndexingOptions.h"
-#include "clang/Tooling/Tooling.h"
-#include "llvm/ADT/STLExtras.h"
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace clang {
 namespace clangd {
 namespace {
 
-llvm::Optional<std::string> toURI(const FileEntry *File) {
+std::optional<std::string> toURI(OptionalFileEntryRef File) {
   if (!File)
-    return llvm::None;
-  auto AbsolutePath = File->tryGetRealPathName();
+    return std::nullopt;
+  auto AbsolutePath = File->getFileEntry().tryGetRealPathName();
   if (AbsolutePath.empty())
-    return llvm::None;
+    return std::nullopt;
   return URI::create(AbsolutePath).toString();
 }
 
@@ -61,7 +59,7 @@ public:
       return;
 
     const auto FileID = SM.getFileID(Loc);
-    const auto File = SM.getFileEntryForID(FileID);
+    auto File = SM.getFileEntryRefForID(FileID);
     auto URI = toURI(File);
     if (!URI)
       return;
@@ -87,15 +85,15 @@ public:
   // Add edges from including files to includes.
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           llvm::StringRef FileName, bool IsAngled,
-                          CharSourceRange FilenameRange, const FileEntry *File,
-                          llvm::StringRef SearchPath,
+                          CharSourceRange FilenameRange,
+                          OptionalFileEntryRef File, llvm::StringRef SearchPath,
                           llvm::StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override {
     auto IncludeURI = toURI(File);
     if (!IncludeURI)
       return;
 
-    auto IncludingURI = toURI(SM.getFileEntryForID(SM.getFileID(HashLoc)));
+    auto IncludingURI = toURI(SM.getFileEntryRefForID(SM.getFileID(HashLoc)));
     if (!IncludingURI)
       return;
 
@@ -109,7 +107,7 @@ public:
   void FileSkipped(const FileEntryRef &SkippedFile, const Token &FilenameTok,
                    SrcMgr::CharacteristicKind FileType) override {
 #ifndef NDEBUG
-    auto URI = toURI(&SkippedFile.getFileEntry());
+    auto URI = toURI(SkippedFile);
     if (!URI)
       return;
     auto I = IG.try_emplace(*URI);

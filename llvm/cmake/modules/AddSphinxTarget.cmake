@@ -39,6 +39,10 @@ function (add_sphinx_target builder project)
     set(ARG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
   endif()
 
+  if ("${LLVM_VERSION_SUFFIX}" STREQUAL "git")
+    set(PreReleaseTag "-tPreRelease")
+  endif()
+
   add_custom_target(${SPHINX_TARGET_NAME}
                     COMMAND ${CMAKE_COMMAND} -E env ${ARG_ENV_VARS}
                             ${SPHINX_EXECUTABLE}
@@ -46,6 +50,9 @@ function (add_sphinx_target builder project)
                             -d "${SPHINX_DOC_TREE_DIR}"
                             -q # Quiet: no output other than errors and warnings.
                             -t builder-${builder} # tag for builder
+                            -D version=${LLVM_VERSION_MAJOR}
+                            -D release=${PACKAGE_VERSION}
+                            ${PreReleaseTag}
                             ${SPHINX_WARNINGS_AS_ERRORS_FLAG} # Treat warnings as errors if requested
                             "${ARG_SOURCE_DIR}" # Source
                             "${SPHINX_BUILD_DIR}" # Output
@@ -61,8 +68,7 @@ function (add_sphinx_target builder project)
   # but we should only add this path once
   get_property(_CURRENT_MAKE_CLEAN_FILES
                DIRECTORY PROPERTY ADDITIONAL_MAKE_CLEAN_FILES)
-  list(FIND _CURRENT_MAKE_CLEAN_FILES "${SPHINX_DOC_TREE_DIR}" _INDEX)
-  if (_INDEX EQUAL -1)
+  if (NOT "${SPHINX_DOC_TREE_DIR}" IN_LIST _CURRENT_MAKE_CLEAN_FILES)
     set_property(DIRECTORY APPEND PROPERTY
                  ADDITIONAL_MAKE_CLEAN_FILES
                  "${SPHINX_DOC_TREE_DIR}")

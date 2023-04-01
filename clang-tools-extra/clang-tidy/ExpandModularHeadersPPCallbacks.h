@@ -13,12 +13,10 @@
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/DenseSet.h"
 
-namespace llvm {
-namespace vfs {
+namespace llvm::vfs {
 class OverlayFileSystem;
 class InMemoryFileSystem;
-} // namespace vfs
-} // namespace llvm
+} // namespace llvm::vfs
 
 namespace clang {
 class CompilerInstance;
@@ -69,8 +67,9 @@ private:
   void InclusionDirective(SourceLocation DirectiveLoc,
                           const Token &IncludeToken, StringRef IncludedFilename,
                           bool IsAngled, CharSourceRange FilenameRange,
-                          const FileEntry *IncludedFile, StringRef SearchPath,
-                          StringRef RelativePath, const Module *Imported,
+                          OptionalFileEntryRef IncludedFile,
+                          StringRef SearchPath, StringRef RelativePath,
+                          const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
 
   void EndOfMainFile() override;
@@ -90,7 +89,7 @@ private:
   void PragmaDiagnosticPop(SourceLocation Loc, StringRef) override;
   void PragmaDiagnostic(SourceLocation Loc, StringRef, diag::Severity,
                         StringRef) override;
-  void HasInclude(SourceLocation Loc, StringRef, bool, Optional<FileEntryRef> ,
+  void HasInclude(SourceLocation Loc, StringRef, bool, OptionalFileEntryRef,
                   SrcMgr::CharacteristicKind) override;
   void PragmaOpenCLExtension(SourceLocation NameLoc, const IdentifierInfo *,
                              SourceLocation StateLoc, unsigned) override;

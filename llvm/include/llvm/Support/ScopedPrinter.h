@@ -18,7 +18,6 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 
 namespace llvm {
 
@@ -82,7 +81,6 @@ struct FlagEntry {
 };
 
 raw_ostream &operator<<(raw_ostream &OS, const HexNumber &Value);
-std::string to_hexString(uint64_t Value, bool UpperCase = true);
 
 template <class T> std::string to_string(const T &Value) {
   std::string number;
@@ -96,7 +94,7 @@ std::string enumToString(T Value, ArrayRef<EnumEntry<TEnum>> EnumValues) {
   for (const EnumEntry<TEnum> &EnumItem : EnumValues)
     if (EnumItem.Value == Value)
       return std::string(EnumItem.AltName);
-  return to_hexString(Value, false);
+  return utohexstr(Value, true);
 }
 
 class ScopedPrinter {
@@ -108,7 +106,7 @@ public:
 
   ScopedPrinter(raw_ostream &OS,
                 ScopedPrinterKind Kind = ScopedPrinterKind::Base)
-      : OS(OS), IndentLevel(0), Kind(Kind) {}
+      : OS(OS), Kind(Kind) {}
 
   ScopedPrinterKind getKind() const { return Kind; }
 
@@ -116,14 +114,14 @@ public:
     return SP->getKind() == ScopedPrinterKind::Base;
   }
 
-  virtual ~ScopedPrinter() {}
+  virtual ~ScopedPrinter() = default;
 
   void flush() { OS.flush(); }
 
   void indent(int Levels = 1) { IndentLevel += Levels; }
 
   void unindent(int Levels = 1) {
-    IndentLevel = std::max(0, IndentLevel - Levels);
+    IndentLevel = IndentLevel > Levels ? IndentLevel - Levels : 0;
   }
 
   void resetIndent() { IndentLevel = 0; }
@@ -236,6 +234,14 @@ public:
     startLine() << Label << ": " << Value << "\n";
   }
 
+  virtual void printNumber(StringRef Label, float Value) {
+    startLine() << Label << ": " << format("%5.1f", Value) << "\n";
+  }
+
+  virtual void printNumber(StringRef Label, double Value) {
+    startLine() << Label << ": " << format("%5.1f", Value) << "\n";
+  }
+
   template <typename T>
   void printNumber(StringRef Label, StringRef Str, T Value) {
     printNumberImpl(Label, Str, to_string(Value));
@@ -346,13 +352,17 @@ public:
     startLine() << Label << ": " << Value << "\n";
   }
 
+  void printStringEscaped(StringRef Label, StringRef Value) {
+    printStringEscapedImpl(Label, Value);
+  }
+
   void printBinary(StringRef Label, StringRef Str, ArrayRef<uint8_t> Value) {
     printBinaryImpl(Label, Str, Value, false);
   }
 
   void printBinary(StringRef Label, StringRef Str, ArrayRef<char> Value) {
-    auto V = makeArrayRef(reinterpret_cast<const uint8_t *>(Value.data()),
-                          Value.size());
+    auto V =
+        ArrayRef(reinterpret_cast<const uint8_t *>(Value.data()), Value.size());
     printBinaryImpl(Label, Str, V, false);
   }
 
@@ -361,14 +371,14 @@ public:
   }
 
   void printBinary(StringRef Label, ArrayRef<char> Value) {
-    auto V = makeArrayRef(reinterpret_cast<const uint8_t *>(Value.data()),
-                          Value.size());
+    auto V =
+        ArrayRef(reinterpret_cast<const uint8_t *>(Value.data()), Value.size());
     printBinaryImpl(Label, StringRef(), V, false);
   }
 
   void printBinary(StringRef Label, StringRef Value) {
-    auto V = makeArrayRef(reinterpret_cast<const uint8_t *>(Value.data()),
-                          Value.size());
+    auto V =
+        ArrayRef(reinterpret_cast<const uint8_t *>(Value.data()), Value.size());
     printBinaryImpl(Label, StringRef(), V, false);
   }
 
@@ -382,8 +392,8 @@ public:
   }
 
   void printBinaryBlock(StringRef Label, StringRef Value) {
-    auto V = makeArrayRef(reinterpret_cast<const uint8_t *>(Value.data()),
-                          Value.size());
+    auto V =
+        ArrayRef(reinterpret_cast<const uint8_t *>(Value.data()), Value.size());
     printBinaryImpl(Label, StringRef(), V, true);
   }
 
@@ -480,6 +490,12 @@ private:
     startLine() << Label << ": " << Str << " (" << Value << ")\n";
   }
 
+  virtual void printStringEscapedImpl(StringRef Label, StringRef Value) {
+    startLine() << Label << ": ";
+    OS.write_escaped(Value);
+    OS << '\n';
+  }
+
   void scopedBegin(char Symbol) {
     startLine() << Symbol << '\n';
     indent();
@@ -499,7 +515,7 @@ private:
   }
 
   raw_ostream &OS;
-  int IndentLevel;
+  int IndentLevel = 0;
   StringRef Prefix;
   ScopedPrinterKind Kind;
 };
@@ -575,6 +591,14 @@ public:
   }
 
   void printNumber(StringRef Label, int8_t Value) override {
+    JOS.attribute(Label, Value);
+  }
+
+  void printNumber(StringRef Label, float Value) override {
+    JOS.attribute(Label, Value);
+  }
+
+  void printNumber(StringRef Label, double Value) override {
     JOS.attribute(Label, Value);
   }
 
@@ -674,7 +698,7 @@ private:
   void printFlagsImpl(StringRef Label, HexNumber Value,
                       ArrayRef<FlagEntry> Flags) override {
     JOS.attributeObject(Label, [&]() {
-      JOS.attribute("RawFlags", hexNumberToInt(Value));
+      JOS.attribute("Value", hexNumberToInt(Value));
       JOS.attributeArray("Flags", [&]() {
         for (const FlagEntry &Flag : Flags) {
           JOS.objectBegin();
@@ -689,7 +713,7 @@ private:
   void printFlagsImpl(StringRef Label, HexNumber Value,
                       ArrayRef<HexNumber> Flags) override {
     JOS.attributeObject(Label, [&]() {
-      JOS.attribute("RawFlags", hexNumberToInt(Value));
+      JOS.attribute("Value", hexNumberToInt(Value));
       JOS.attributeArray("Flags", [&]() {
         for (const HexNumber &Flag : Flags) {
           JOS.value(Flag.Value);
@@ -720,8 +744,8 @@ private:
 
   void printHexImpl(StringRef Label, StringRef Str, HexNumber Value) override {
     JOS.attributeObject(Label, [&]() {
-      JOS.attribute("Value", Str);
-      JOS.attribute("RawValue", hexNumberToInt(Value));
+      JOS.attribute("Name", Str);
+      JOS.attribute("Value", hexNumberToInt(Value));
     });
   }
 
@@ -736,8 +760,8 @@ private:
   void printNumberImpl(StringRef Label, StringRef Str,
                        StringRef Value) override {
     JOS.attributeObject(Label, [&]() {
-      JOS.attribute("Value", Str);
-      JOS.attributeBegin("RawValue");
+      JOS.attribute("Name", Str);
+      JOS.attributeBegin("Value");
       JOS.rawValueBegin() << Value;
       JOS.rawValueEnd();
       JOS.attributeEnd();
@@ -793,13 +817,13 @@ private:
 struct DelimitedScope {
   DelimitedScope(ScopedPrinter &W) : W(&W) {}
   DelimitedScope() : W(nullptr) {}
-  virtual ~DelimitedScope(){};
+  virtual ~DelimitedScope() = default;
   virtual void setPrinter(ScopedPrinter &W) = 0;
   ScopedPrinter *W;
 };
 
 struct DictScope : DelimitedScope {
-  explicit DictScope() {}
+  explicit DictScope() = default;
   explicit DictScope(ScopedPrinter &W) : DelimitedScope(W) { W.objectBegin(); }
 
   DictScope(ScopedPrinter &W, StringRef N) : DelimitedScope(W) {
@@ -818,7 +842,7 @@ struct DictScope : DelimitedScope {
 };
 
 struct ListScope : DelimitedScope {
-  explicit ListScope() {}
+  explicit ListScope() = default;
   explicit ListScope(ScopedPrinter &W) : DelimitedScope(W) { W.arrayBegin(); }
 
   ListScope(ScopedPrinter &W, StringRef N) : DelimitedScope(W) {

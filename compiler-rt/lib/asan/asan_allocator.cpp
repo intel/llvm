@@ -597,7 +597,7 @@ struct Allocator {
       CHECK_LE(alloc_beg + sizeof(LargeChunkHeader), chunk_beg);
       reinterpret_cast<LargeChunkHeader *>(alloc_beg)->Set(m);
     }
-    ASAN_MALLOC_HOOK(res, size);
+    RunMallocHooks(res, size);
     return res;
   }
 
@@ -678,7 +678,7 @@ struct Allocator {
       return;
     }
 
-    ASAN_FREE_HOOK(ptr);
+    RunFreeHooks(ptr);
 
     // Must mark the chunk as quarantined before any changes to its metadata.
     // Do not quarantine given chunk if we failed to set CHUNK_QUARANTINE flag.
@@ -803,8 +803,8 @@ struct Allocator {
     sptr offset = 0;
     if (!m1 || AsanChunkView(m1).AddrIsAtLeft(addr, 1, &offset)) {
       // The address is in the chunk's left redzone, so maybe it is actually
-      // a right buffer overflow from the other chunk to the left.
-      // Search a bit to the left to see if there is another chunk.
+      // a right buffer overflow from the other chunk before.
+      // Search a bit before to see if there is another chunk.
       AsanChunk *m2 = nullptr;
       for (uptr l = 1; l < GetPageSizeCached(); l++) {
         m2 = GetAsanChunkByAddr(addr - l);
@@ -1094,8 +1094,14 @@ uptr PointsIntoChunk(void *p) {
 }
 
 uptr GetUserBegin(uptr chunk) {
+  // FIXME: All usecases provide chunk address, GetAsanChunkByAddrFastLocked is
+  // not needed.
   __asan::AsanChunk *m = __asan::instance.GetAsanChunkByAddrFastLocked(chunk);
   return m ? m->Beg() : 0;
+}
+
+uptr GetUserAddr(uptr chunk) {
+  return chunk;
 }
 
 LsanMetadata::LsanMetadata(uptr chunk) {
@@ -1153,33 +1159,6 @@ IgnoreObjectResult IgnoreObjectLocked(const void *p) {
   return kIgnoreObjectSuccess;
 }
 
-void GetAdditionalThreadContextPtrs(ThreadContextBase *tctx, void *ptrs) {
-  // Look for the arg pointer of threads that have been created or are running.
-  // This is necessary to prevent false positive leaks due to the AsanThread
-  // holding the only live reference to a heap object.  This can happen because
-  // the `pthread_create()` interceptor doesn't wait for the child thread to
-  // start before returning and thus loosing the the only live reference to the
-  // heap object on the stack.
-
-  __asan::AsanThreadContext *atctx =
-      reinterpret_cast<__asan::AsanThreadContext *>(tctx);
-  __asan::AsanThread *asan_thread = atctx->thread;
-
-  // Note ThreadStatusRunning is required because there is a small window where
-  // the thread status switches to `ThreadStatusRunning` but the `arg` pointer
-  // still isn't on the stack yet.
-  if (atctx->status != ThreadStatusCreated &&
-      atctx->status != ThreadStatusRunning)
-    return;
-
-  uptr thread_arg = reinterpret_cast<uptr>(asan_thread->get_arg());
-  if (!thread_arg)
-    return;
-
-  auto ptrsVec = reinterpret_cast<InternalMmapVector<uptr> *>(ptrs);
-  ptrsVec->push_back(thread_arg);
-}
-
 }  // namespace __lsan
 
 // ---------------------- Interface ---------------- {{{1
@@ -1217,16 +1196,3 @@ int __asan_update_allocation_context(void* addr) {
   GET_STACK_TRACE_MALLOC;
   return instance.UpdateAllocationStack((uptr)addr, &stack);
 }
-
-#if !SANITIZER_SUPPORTS_WEAK_HOOKS
-// Provide default (no-op) implementation of malloc hooks.
-SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_malloc_hook,
-                             void *ptr, uptr size) {
-  (void)ptr;
-  (void)size;
-}
-
-SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_free_hook, void *ptr) {
-  (void)ptr;
-}
-#endif

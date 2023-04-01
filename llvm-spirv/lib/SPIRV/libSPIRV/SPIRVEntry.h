@@ -45,12 +45,11 @@
 #include "SPIRVError.h"
 #include "SPIRVIsValidEnum.h"
 
-#include <llvm/ADT/Optional.h>
-
 #include <cassert>
 #include <iostream>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -271,6 +270,7 @@ public:
 
   bool exist(SPIRVId) const;
   template <class T> T *get(SPIRVId TheId) const {
+    // NOLINTNEXTLINE
     return static_cast<T *>(getEntry(TheId));
   }
   SPIRVEntry *getEntry(SPIRVId) const;
@@ -293,10 +293,9 @@ public:
   Op getOpCode() const { return OpCode; }
   SPIRVModule *getModule() const { return Module; }
   virtual SPIRVCapVec getRequiredCapability() const { return SPIRVCapVec(); }
-  virtual llvm::Optional<ExtensionID> getRequiredExtension() const {
-    return {};
-  }
+  virtual std::optional<ExtensionID> getRequiredExtension() const { return {}; }
   const std::string &getName() const { return Name; }
+  size_t getNumDecorations() const { return Decorates.size(); }
   bool hasDecorate(Decoration Kind, size_t Index = 0,
                    SPIRVWord *Result = 0) const;
   bool hasDecorateId(Decoration Kind, size_t Index = 0,
@@ -309,11 +308,17 @@ public:
   std::vector<SPIRVWord>
   getMemberDecorationLiterals(Decoration Kind, SPIRVWord MemberNumber) const;
   std::vector<std::string> getDecorationStringLiteral(Decoration Kind) const;
+  std::vector<std::vector<std::string>>
+  getAllDecorationStringLiterals(Decoration Kind) const;
+  std::vector<std::vector<std::string>>
+  getAllMemberDecorationStringLiterals(Decoration Kind,
+                                       SPIRVWord MemberNumber) const;
   std::vector<std::string>
   getMemberDecorationStringLiteral(Decoration Kind,
                                    SPIRVWord MemberNumber) const;
   std::set<SPIRVWord> getDecorate(Decoration Kind, size_t Index = 0) const;
   std::vector<SPIRVDecorate const *> getDecorations(Decoration Kind) const;
+  std::vector<SPIRVDecorate const *> getDecorations() const;
   std::set<SPIRVId> getDecorateId(Decoration Kind, size_t Index = 0) const;
   std::vector<SPIRVDecorateId const *> getDecorationIds(Decoration Kind) const;
   bool hasId() const { return !(Attrib & SPIRVEA_NOID); }
@@ -421,8 +426,8 @@ protected:
   /// An entry may have multiple FuncParamAttr decorations.
   typedef std::multimap<Decoration, const SPIRVDecorate *> DecorateMapType;
   typedef std::multimap<Decoration, const SPIRVDecorateId *> DecorateIdMapType;
-  typedef std::map<std::pair<SPIRVWord, Decoration>,
-                   const SPIRVMemberDecorate *>
+  typedef std::multimap<std::pair<SPIRVWord, Decoration>,
+                        const SPIRVMemberDecorate *>
       MemberDecorateMapType;
 
   bool canHaveMemberDecorates() const {
@@ -531,7 +536,7 @@ public:
 
   _SPIRV_DCL_ENCDEC
 protected:
-  SPIRVExecutionModelKind ExecModel;
+  SPIRVExecutionModelKind ExecModel = ExecutionModelMax;
   std::string Name;
 
 private:
@@ -839,14 +844,8 @@ public:
     }
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     switch (static_cast<unsigned>(Kind)) {
-    case CapabilityDenormPreserve:
-    case CapabilityDenormFlushToZero:
-    case CapabilitySignedZeroInfNanPreserve:
-    case CapabilityRoundingModeRTE:
-    case CapabilityRoundingModeRTZ:
-      return ExtensionID::SPV_KHR_float_controls;
     case CapabilityRoundToInfinityINTEL:
     case CapabilityFloatingPointModeINTEL:
     case CapabilityFunctionFloatControlINTEL:
@@ -907,7 +906,7 @@ public:
     return getVec(CapabilityLongConstantCompositeINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_long_constant_composite;
   }
 

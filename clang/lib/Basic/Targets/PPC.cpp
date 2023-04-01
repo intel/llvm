@@ -18,11 +18,11 @@
 using namespace clang;
 using namespace clang::targets;
 
-const Builtin::Info PPCTargetInfo::BuiltinInfo[] = {
+static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define LIBBUILTIN(ID, TYPE, ATTRS, HEADER)                                    \
-  {#ID, TYPE, ATTRS, HEADER, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::HEADER, ALL_LANGUAGES},
 #include "clang/Basic/BuiltinsPPC.def"
 };
 
@@ -36,6 +36,8 @@ bool PPCTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasAltivec = true;
     } else if (Feature == "+vsx") {
       HasVSX = true;
+    } else if (Feature == "+crbits") {
+      UseCRBits = true;
     } else if (Feature == "+bpermd") {
       HasBPERMD = true;
     } else if (Feature == "+extdiv") {
@@ -81,6 +83,8 @@ bool PPCTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       IsISA3_0 = true;
     } else if (Feature == "+isa-v31-instructions") {
       IsISA3_1 = true;
+    } else if (Feature == "+quadword-atomics") {
+      HasQuadwordAtomics = true;
     }
     // TODO: Finish this list and add an assert that we've handled them
     // all.
@@ -206,6 +210,7 @@ static void defineXLCompatMacros(MacroBuilder &Builder) {
   Builder.defineMacro("__dcbf", "__builtin_dcbf");
   Builder.defineMacro("__fmadd", "__builtin_fma");
   Builder.defineMacro("__fmadds", "__builtin_fmaf");
+  Builder.defineMacro("__abs", "__builtin_abs");
   Builder.defineMacro("__labs", "__builtin_labs");
   Builder.defineMacro("__llabs", "__builtin_llabs");
   Builder.defineMacro("__popcnt4", "__builtin_popcount");
@@ -247,6 +252,14 @@ static void defineXLCompatMacros(MacroBuilder &Builder) {
   Builder.defineMacro("__test_data_class", "__builtin_ppc_test_data_class");
   Builder.defineMacro("__swdiv", "__builtin_ppc_swdiv");
   Builder.defineMacro("__swdivs", "__builtin_ppc_swdivs");
+  Builder.defineMacro("__fnabs", "__builtin_ppc_fnabs");
+  Builder.defineMacro("__fnabss", "__builtin_ppc_fnabss");
+  Builder.defineMacro("__builtin_maxfe", "__builtin_ppc_maxfe");
+  Builder.defineMacro("__builtin_maxfl", "__builtin_ppc_maxfl");
+  Builder.defineMacro("__builtin_maxfs", "__builtin_ppc_maxfs");
+  Builder.defineMacro("__builtin_minfe", "__builtin_ppc_minfe");
+  Builder.defineMacro("__builtin_minfl", "__builtin_ppc_minfl");
+  Builder.defineMacro("__builtin_minfs", "__builtin_ppc_minfs");
 }
 
 /// PPCTargetInfo::getTargetDefines - Return a set of the PowerPC-specific
@@ -268,7 +281,6 @@ void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
   if (PointerWidth == 64) {
     Builder.defineMacro("_ARCH_PPC64");
     Builder.defineMacro("__powerpc64__");
-    Builder.defineMacro("__ppc64__");
     Builder.defineMacro("__PPC64__");
   } else if (getTriple().isOSAIX()) {
     // The XL compilers on AIX define _ARCH_PPC64 for both 32 and 64-bit modes.
@@ -506,6 +518,11 @@ bool PPCTargetInfo::initFeatureMap(
                                 .Case("pwr9", true)
                                 .Case("pwr8", true)
                                 .Default(false);
+  Features["crbits"] = llvm::StringSwitch<bool>(CPU)
+                                .Case("ppc64le", true)
+                                .Case("pwr9", true)
+                                .Case("pwr8", true)
+                                .Default(false);
   Features["vsx"] = llvm::StringSwitch<bool>(CPU)
                         .Case("ppc64le", true)
                         .Case("pwr9", true)
@@ -533,6 +550,7 @@ bool PPCTargetInfo::initFeatureMap(
                                           .Case("pwr9", true)
                                           .Case("pwr8", true)
                                           .Case("pwr7", true)
+                                          .Case("a2", true)
                                           .Default(false);
 
   Features["isa-v207-instructions"] = llvm::StringSwitch<bool>(CPU)
@@ -543,6 +561,12 @@ bool PPCTargetInfo::initFeatureMap(
 
   Features["isa-v30-instructions"] =
       llvm::StringSwitch<bool>(CPU).Case("pwr9", true).Default(false);
+
+  Features["quadword-atomics"] =
+      getTriple().isArch64Bit() && llvm::StringSwitch<bool>(CPU)
+                                       .Case("pwr9", true)
+                                       .Case("pwr8", true)
+                                       .Default(false);
 
   // Power10 includes all the same features as Power9 plus any features specific
   // to the Power10 core.
@@ -561,20 +585,20 @@ bool PPCTargetInfo::initFeatureMap(
   if (!ppcUserFeaturesCheck(Diags, FeaturesVec))
     return false;
 
-  if (!(ArchDefs & ArchDefinePwr9) && (ArchDefs & ArchDefinePpcgr) &&
+  if (!(ArchDefs & ArchDefinePwr7) && (ArchDefs & ArchDefinePpcgr) &&
       llvm::is_contained(FeaturesVec, "+float128")) {
-    // We have __float128 on PPC but not power 9 and above.
+    // We have __float128 on PPC but not pre-VSX targets.
     Diags.Report(diag::err_opt_not_valid_with_opt) << "-mfloat128" << CPU;
     return false;
   }
 
   if (!(ArchDefs & ArchDefinePwr10)) {
-    if (llvm::find(FeaturesVec, "+mma") != FeaturesVec.end()) {
+    if (llvm::is_contained(FeaturesVec, "+mma")) {
       // MMA operations are not available pre-Power10.
       Diags.Report(diag::err_opt_not_valid_with_opt) << "-mmma" << CPU;
       return false;
     }
-    if (llvm::find(FeaturesVec, "+pcrel") != FeaturesVec.end()) {
+    if (llvm::is_contained(FeaturesVec, "+pcrel")) {
       // PC-Relative instructions are not available pre-Power10,
       // and these instructions also require prefixed instructions support.
       Diags.Report(diag::err_opt_not_valid_without_opt)
@@ -582,13 +606,13 @@ bool PPCTargetInfo::initFeatureMap(
           << "-mcpu=pwr10 -mprefixed";
       return false;
     }
-    if (llvm::find(FeaturesVec, "+prefixed") != FeaturesVec.end()) {
+    if (llvm::is_contained(FeaturesVec, "+prefixed")) {
       // Prefixed instructions are not available pre-Power10.
       Diags.Report(diag::err_opt_not_valid_without_opt) << "-mprefixed"
                                                         << "-mcpu=pwr10";
       return false;
     }
-    if (llvm::find(FeaturesVec, "+paired-vector-memops") != FeaturesVec.end()) {
+    if (llvm::is_contained(FeaturesVec, "+paired-vector-memops")) {
       // Paired vector memops are not available pre-Power10.
       Diags.Report(diag::err_opt_not_valid_without_opt)
           << "-mpaired-vector-memops"
@@ -634,6 +658,7 @@ bool PPCTargetInfo::hasFeature(StringRef Feature) const {
       .Case("powerpc", true)
       .Case("altivec", HasAltivec)
       .Case("vsx", HasVSX)
+      .Case("crbits", UseCRBits)
       .Case("power8-vector", HasP8Vector)
       .Case("crypto", HasP8Crypto)
       .Case("direct-move", HasDirectMove)
@@ -654,6 +679,7 @@ bool PPCTargetInfo::hasFeature(StringRef Feature) const {
       .Case("isa-v207-instructions", IsISA2_07)
       .Case("isa-v30-instructions", IsISA3_0)
       .Case("isa-v31-instructions", IsISA3_1)
+      .Case("quadword-atomics", HasQuadwordAtomics)
       .Default(false);
 }
 
@@ -728,33 +754,38 @@ const char *const PPCTargetInfo::GCCRegNames[] = {
 };
 
 ArrayRef<const char *> PPCTargetInfo::getGCCRegNames() const {
-  return llvm::makeArrayRef(GCCRegNames);
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 const TargetInfo::GCCRegAlias PPCTargetInfo::GCCRegAliases[] = {
     // While some of these aliases do map to different registers
     // they still share the same register name.
-    {{"0"}, "r0"},     {{"1"}, "r1"},     {{"2"}, "r2"},     {{"3"}, "r3"},
-    {{"4"}, "r4"},     {{"5"}, "r5"},     {{"6"}, "r6"},     {{"7"}, "r7"},
-    {{"8"}, "r8"},     {{"9"}, "r9"},     {{"10"}, "r10"},   {{"11"}, "r11"},
-    {{"12"}, "r12"},   {{"13"}, "r13"},   {{"14"}, "r14"},   {{"15"}, "r15"},
-    {{"16"}, "r16"},   {{"17"}, "r17"},   {{"18"}, "r18"},   {{"19"}, "r19"},
-    {{"20"}, "r20"},   {{"21"}, "r21"},   {{"22"}, "r22"},   {{"23"}, "r23"},
-    {{"24"}, "r24"},   {{"25"}, "r25"},   {{"26"}, "r26"},   {{"27"}, "r27"},
-    {{"28"}, "r28"},   {{"29"}, "r29"},   {{"30"}, "r30"},   {{"31"}, "r31"},
-    {{"fr0"}, "f0"},   {{"fr1"}, "f1"},   {{"fr2"}, "f2"},   {{"fr3"}, "f3"},
-    {{"fr4"}, "f4"},   {{"fr5"}, "f5"},   {{"fr6"}, "f6"},   {{"fr7"}, "f7"},
-    {{"fr8"}, "f8"},   {{"fr9"}, "f9"},   {{"fr10"}, "f10"}, {{"fr11"}, "f11"},
-    {{"fr12"}, "f12"}, {{"fr13"}, "f13"}, {{"fr14"}, "f14"}, {{"fr15"}, "f15"},
-    {{"fr16"}, "f16"}, {{"fr17"}, "f17"}, {{"fr18"}, "f18"}, {{"fr19"}, "f19"},
-    {{"fr20"}, "f20"}, {{"fr21"}, "f21"}, {{"fr22"}, "f22"}, {{"fr23"}, "f23"},
-    {{"fr24"}, "f24"}, {{"fr25"}, "f25"}, {{"fr26"}, "f26"}, {{"fr27"}, "f27"},
-    {{"fr28"}, "f28"}, {{"fr29"}, "f29"}, {{"fr30"}, "f30"}, {{"fr31"}, "f31"},
-    {{"cc"}, "cr0"},
+    {{"0"}, "r0"},     {{"1", "sp"}, "r1"}, {{"2"}, "r2"},
+    {{"3"}, "r3"},     {{"4"}, "r4"},       {{"5"}, "r5"},
+    {{"6"}, "r6"},     {{"7"}, "r7"},       {{"8"}, "r8"},
+    {{"9"}, "r9"},     {{"10"}, "r10"},     {{"11"}, "r11"},
+    {{"12"}, "r12"},   {{"13"}, "r13"},     {{"14"}, "r14"},
+    {{"15"}, "r15"},   {{"16"}, "r16"},     {{"17"}, "r17"},
+    {{"18"}, "r18"},   {{"19"}, "r19"},     {{"20"}, "r20"},
+    {{"21"}, "r21"},   {{"22"}, "r22"},     {{"23"}, "r23"},
+    {{"24"}, "r24"},   {{"25"}, "r25"},     {{"26"}, "r26"},
+    {{"27"}, "r27"},   {{"28"}, "r28"},     {{"29"}, "r29"},
+    {{"30"}, "r30"},   {{"31"}, "r31"},     {{"fr0"}, "f0"},
+    {{"fr1"}, "f1"},   {{"fr2"}, "f2"},     {{"fr3"}, "f3"},
+    {{"fr4"}, "f4"},   {{"fr5"}, "f5"},     {{"fr6"}, "f6"},
+    {{"fr7"}, "f7"},   {{"fr8"}, "f8"},     {{"fr9"}, "f9"},
+    {{"fr10"}, "f10"}, {{"fr11"}, "f11"},   {{"fr12"}, "f12"},
+    {{"fr13"}, "f13"}, {{"fr14"}, "f14"},   {{"fr15"}, "f15"},
+    {{"fr16"}, "f16"}, {{"fr17"}, "f17"},   {{"fr18"}, "f18"},
+    {{"fr19"}, "f19"}, {{"fr20"}, "f20"},   {{"fr21"}, "f21"},
+    {{"fr22"}, "f22"}, {{"fr23"}, "f23"},   {{"fr24"}, "f24"},
+    {{"fr25"}, "f25"}, {{"fr26"}, "f26"},   {{"fr27"}, "f27"},
+    {{"fr28"}, "f28"}, {{"fr29"}, "f29"},   {{"fr30"}, "f30"},
+    {{"fr31"}, "f31"}, {{"cc"}, "cr0"},
 };
 
 ArrayRef<TargetInfo::GCCRegAlias> PPCTargetInfo::getGCCRegAliases() const {
-  return llvm::makeArrayRef(GCCRegAliases);
+  return llvm::ArrayRef(GCCRegAliases);
 }
 
 // PPC ELFABIv2 DWARF Definitoin "Table 2.26. Mappings of Common Registers".
@@ -782,7 +813,7 @@ const TargetInfo::AddlRegName GCCAddlRegNames[] = {
 
 ArrayRef<TargetInfo::AddlRegName> PPCTargetInfo::getGCCAddlRegNames() const {
   if (ABI == "elfv2")
-    return llvm::makeArrayRef(GCCAddlRegNames);
+    return llvm::ArrayRef(GCCAddlRegNames);
   else 
     return TargetInfo::getGCCAddlRegNames(); 
 }
@@ -817,9 +848,12 @@ void PPCTargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts) {
                            ? &llvm::APFloat::IEEEquad()
                            : &llvm::APFloat::PPCDoubleDouble();
   Opts.IEEE128 = 1;
+  if (getTriple().isOSAIX() && Opts.EnableAIXQuadwordAtomicsABI &&
+      HasQuadwordAtomics)
+    MaxAtomicInlineWidth = 128;
 }
 
 ArrayRef<Builtin::Info> PPCTargetInfo::getTargetBuiltins() const {
-  return llvm::makeArrayRef(BuiltinInfo, clang::PPC::LastTSBuiltin -
-                                             Builtin::FirstTSBuiltin);
+  return llvm::ArrayRef(BuiltinInfo,
+                        clang::PPC::LastTSBuiltin - Builtin::FirstTSBuiltin);
 }

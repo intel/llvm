@@ -31,6 +31,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/DynamicType.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
+#include <optional>
 
 using namespace clang;
 using namespace ento;
@@ -55,9 +56,6 @@ class DynamicTypePropagation:
                     check::PostStmt<CXXNewExpr>,
                     check::PreObjCMessage,
                     check::PostObjCMessage > {
-
-  const ObjCObjectType *getObjectTypeForAllocAndNew(const ObjCMessageExpr *MsgE,
-                                                    CheckerContext &C) const;
 
   /// Return a better dynamic type if one can be derived from the cast.
   const ObjCObjectPointerType *getBetterObjCType(const Expr *CastE,
@@ -108,7 +106,7 @@ public:
   void checkPostObjCMessage(const ObjCMethodCall &M, CheckerContext &C) const;
 
   /// This value is set to true, when the Generics checker is turned on.
-  DefaultBool CheckGenerics;
+  bool CheckGenerics = false;
   CheckerNameRef GenericCheckName;
 };
 
@@ -849,7 +847,7 @@ void DynamicTypePropagation::checkPreObjCMessage(const ObjCMethodCall &M,
       return;
   }
 
-  Optional<ArrayRef<QualType>> TypeArgs =
+  std::optional<ArrayRef<QualType>> TypeArgs =
       (*TrackedType)->getObjCSubstitutions(Method->getDeclContext());
   // This case might happen when there is an unspecialized override of a
   // specialized method.
@@ -982,7 +980,7 @@ void DynamicTypePropagation::checkPostObjCMessage(const ObjCMethodCall &M,
   if (!Method)
     return;
 
-  Optional<ArrayRef<QualType>> TypeArgs =
+  std::optional<ArrayRef<QualType>> TypeArgs =
       (*TrackedType)->getObjCSubstitutions(Method->getDeclContext());
   if (!TypeArgs)
     return;

@@ -5,6 +5,10 @@
 
 #include "Inputs/sycl.hpp"
 
+namespace std {
+typedef long unsigned int size_t;
+} // namespace std
+
 enum unscoped_enum : int {
   val_1,
   val_2
@@ -110,6 +114,14 @@ public:
   void operator()() const {}
 };
 
+enum class TestStdEnum : std::size_t { A, B };
+
+template <TestStdEnum value>
+class dummy_functor_9 {
+public:
+  void operator()() const {}
+};
+
 int main() {
 
   dummy_functor_1<no_namespace_int::val_1> f1;
@@ -121,51 +133,56 @@ int main() {
   dummy_functor_7<no_namespace_int> f7;
   dummy_functor_7<internal::namespace_short> f8;
   dummy_functor_8<EnumTypeOut, Baz> f9;
+  dummy_functor_9<TestStdEnum::A> f10;
 
-  cl::sycl::queue q;
+  sycl::queue q;
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f1);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f2);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f3);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f4);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f5);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f6);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f7);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f8);
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task<T1<T2<type_argument_template_enum::E::A>>>([=]() {});
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task<T1<T3<type_argument_template_enum::E>>>([=]() {});
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task(f9);
+  });
+
+  q.submit([&](sycl::handler &cgh) {
+    cgh.single_task(f10);
   });
 
   return 0;
@@ -198,6 +215,8 @@ int main() {
 // NUL: enum class EnumValueIn : int;
 // NUL: template <EnumValueIn EnumValue, typename EnumTypeIn> class Baz;
 // NUL: template <typename EnumTypeOut, template <EnumValueIn EnumValue, typename EnumTypeIn> class T> class dummy_functor_8;
+// NUL: enum class TestStdEnum : unsigned long;
+// NUL: template <TestStdEnum value> class dummy_functor_9;
 
 // CHECK: Specializations of KernelInfo for kernel function types:
 // NUL: template <> struct KernelInfo<::dummy_functor_1<static_cast<::no_namespace_int>(0)>>
@@ -220,3 +239,5 @@ int main() {
 // CHECK: template <> struct KernelInfo<::T1<::T3<::type_argument_template_enum::E>>>
 // NUL: template <> struct KernelInfo<::dummy_functor_8<::EnumTypeOut, Baz>>
 // UL: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', '1', '5', 'd', 'u', 'm', 'm', 'y', '_', 'f', 'u', 'n', 'c', 't', 'o', 'r', '_', '8', 'I', '1', '1', 'E', 'n', 'u', 'm', 'T', 'y', 'p', 'e', 'O', 'u', 't', '3', 'B', 'a', 'z', 'E'>
+// NUL: template <> struct KernelInfo<::dummy_functor_9<static_cast<::TestStdEnum>(0)>> {
+// UL: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', '1', '5', 'd', 'u', 'm', 'm', 'y', '_', 'f', 'u', 'n', 'c', 't', 'o', 'r', '_', '9', 'I', 'L', '1', '1', 'T', 'e', 's', 't', 'S', 't', 'd', 'E', 'n', 'u', 'm', '0', 'E', 'E'>

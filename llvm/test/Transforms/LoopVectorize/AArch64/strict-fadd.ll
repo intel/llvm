@@ -1,8 +1,8 @@
-; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=false -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-NOT-VECTORIZED
-; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=false -hints-allow-reordering=true  -S 2>%t | FileCheck %s --check-prefix=CHECK-UNORDERED
-; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=true  -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-ORDERED
-; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=true  -hints-allow-reordering=true  -S 2>%t | FileCheck %s --check-prefix=CHECK-UNORDERED
-; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-ORDERED
+; RUN: opt < %s -passes=loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=false -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-NOT-VECTORIZED
+; RUN: opt < %s -passes=loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=false -hints-allow-reordering=true  -S 2>%t | FileCheck %s --check-prefix=CHECK-UNORDERED
+; RUN: opt < %s -passes=loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=true  -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-ORDERED
+; RUN: opt < %s -passes=loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=true  -hints-allow-reordering=true  -S 2>%t | FileCheck %s --check-prefix=CHECK-UNORDERED
+; RUN: opt < %s -passes=loop-vectorize -mtriple aarch64-unknown-linux-gnu -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-ORDERED
 
 define float @fadd_strict(float* noalias nocapture readonly %a, i64 %n) {
 ; CHECK-ORDERED-LABEL: @fadd_strict
@@ -65,7 +65,7 @@ define float @fadd_strict_fmf(float* noalias nocapture readonly %a, i64 %n) {
 ; CHECK-UNORDERED: [[VEC_PHI:%.*]] = phi <8 x float> [ <float 0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %vector.ph ], [ [[FADD_VEC:%.*]], %vector.body ]
 ; CHECK-UNORDERED: [[LOAD_VEC:%.*]] = load <8 x float>, <8 x float>*
 ; CHECK-UNORDERED: [[FADD_VEC]] = fadd nnan <8 x float> [[LOAD_VEC]], [[VEC_PHI]]
-; CHECK-UNORDERED-NOT: @llvm.vector.reduce.fadd 
+; CHECK-UNORDERED-NOT: @llvm.vector.reduce.fadd
 ; CHECK-UNORDERED: middle.block:
 ; CHECK-UNORDERED: [[RDX:%.*]] = call nnan float @llvm.vector.reduce.fadd.v8f32(float -0.000000e+00, <8 x float> [[FADD_VEC]])
 ; CHECK-UNORDERED: for.body:
@@ -263,8 +263,8 @@ define void @fadd_strict_interleave(float* noalias nocapture readonly %a, float*
 ; CHECK-ORDERED: %[[WIDE_LOAD:.*]] = load <8 x float>, <8 x float>*
 ; CHECK-ORDERED: %[[STRIDED1:.*]] = shufflevector <8 x float> %[[WIDE_LOAD]], <8 x float> poison, <4 x i32> <i32 0, i32 2, i32 4, i32 6>
 ; CHECK-ORDERED: %[[STRIDED2:.*]] = shufflevector <8 x float> %[[WIDE_LOAD]], <8 x float> poison, <4 x i32> <i32 1, i32 3, i32 5, i32 7>
-; CHECK-ORDERED: %[[RDX1]] = call float @llvm.vector.reduce.fadd.v4f32(float %[[VEC_PHI2]], <4 x float> %[[STRIDED1]])
 ; CHECK-ORDERED: %[[RDX2]] = call float @llvm.vector.reduce.fadd.v4f32(float %[[VEC_PHI1]], <4 x float> %[[STRIDED2]])
+; CHECK-ORDERED: %[[RDX1]] = call float @llvm.vector.reduce.fadd.v4f32(float %[[VEC_PHI2]], <4 x float> %[[STRIDED1]])
 ; CHECK-ORDERED: for.end
 ; CHECK-ORDERED: ret void
 
@@ -483,7 +483,7 @@ define float @fadd_predicated(float* noalias nocapture %a, i64 %n) {
 ; CHECK-ORDERED-LABEL: @fadd_predicated
 ; CHECK-ORDERED: vector.ph
 ; CHECK-ORDERED: %[[TRIP_MINUS_ONE:.*]] = sub i64 %n, 1
-; CHECK-ORDERED: %[[BROADCAST_INS:.*]] = insertelement <2 x i64> poison, i64 %[[TRIP_MINUS_ONE]], i32 0
+; CHECK-ORDERED: %[[BROADCAST_INS:.*]] = insertelement <2 x i64> poison, i64 %[[TRIP_MINUS_ONE]], i64 0
 ; CHECK-ORDERED: %[[SPLAT:.*]] = shufflevector <2 x i64> %[[BROADCAST_INS]], <2 x i64> poison, <2 x i32> zeroinitializer
 ; CHECK-ORDERED: vector.body
 ; CHECK-ORDERED: %[[RDX_PHI:.*]] =  phi float [ 0.000000e+00, %vector.ph ], [ %[[RDX:.*]], %pred.load.continue2 ]
@@ -498,7 +498,7 @@ define float @fadd_predicated(float* noalias nocapture %a, i64 %n) {
 ; CHECK-UNORDERED-LABEL: @fadd_predicated
 ; CHECK-UNORDERED: vector.ph
 ; CHECK-UNORDERED: %[[TRIP_MINUS_ONE:.*]] = sub i64 %n, 1
-; CHECK-UNORDERED: %[[BROADCAST_INS:.*]] = insertelement <2 x i64> poison, i64 %[[TRIP_MINUS_ONE]], i32 0
+; CHECK-UNORDERED: %[[BROADCAST_INS:.*]] = insertelement <2 x i64> poison, i64 %[[TRIP_MINUS_ONE]], i64 0
 ; CHECK-UNORDERED: %[[SPLAT:.*]] = shufflevector <2 x i64> %[[BROADCAST_INS]], <2 x i64> poison, <2 x i32> zeroinitializer
 ; CHECK-UNORDERED: vector.body
 ; CHECK-UNORDERED: %[[RDX_PHI:.*]] =  phi <2 x float> [ <float 0.000000e+00, float -0.000000e+00>, %vector.ph ], [ %[[FADD:.*]], %pred.load.continue2 ]
@@ -576,6 +576,55 @@ for.body:                                         ; preds = %entry, %for.body
   %arrayidx2 = getelementptr inbounds float, float* %b, i64 %iv
   %1 = load float, float* %arrayidx2, align 4
   %add3 = fadd float %add, %1
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !0
+
+for.end:                                         ; preds = %for.body
+  %rdx = phi float [ %add3, %for.body ]
+  ret float %rdx
+}
+
+; Negative test - loop contains two fadds and only one fadd has the fast flag,
+; which we cannot safely reorder.
+define float @fadd_multiple_one_flag(float* noalias nocapture %a, float* noalias nocapture %b, i64 %n) {
+; CHECK-ORDERED-LABEL: @fadd_multiple_one_flag
+; CHECK-ORDERED-NOT: vector.body
+
+; CHECK-UNORDERED-LABEL: @fadd_multiple_one_flag
+; CHECK-UNORDERED: vector.body
+; CHECK-UNORDERED: %[[PHI:.*]] = phi <8 x float> [ <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %vector.ph ], [ %[[VEC_FADD2:.*]], %vector.body ]
+; CHECK-UNORDERED: %[[VEC_LOAD1:.*]] = load <8 x float>, <8 x float>
+; CHECK-UNORDERED: %[[VEC_FADD1:.*]] = fadd <8 x float> %[[PHI]], %[[VEC_LOAD1]]
+; CHECK-UNORDERED: %[[VEC_LOAD2:.*]] = load <8 x float>, <8 x float>
+; CHECK-UNORDERED: %[[VEC_FADD2]] = fadd fast <8 x float> %[[VEC_FADD1]], %[[VEC_LOAD2]]
+; CHECK-UNORDERED: middle.block
+; CHECK-UNORDERED: %[[RDX:.*]] = call float @llvm.vector.reduce.fadd.v8f32(float -0.000000e+00, <8 x float> %[[VEC_FADD2]])
+; CHECK-UNORDERED: for.body
+; CHECK-UNORDERED: %[[SUM:.*]] = phi float [ %bc.merge.rdx, %scalar.ph ], [ %[[FADD2:.*]], %for.body ]
+; CHECK-UNORDERED: %[[LOAD1:.*]] = load float, float*
+; CHECK-UNORDERED: %[[FADD1:.*]] = fadd float %sum, %[[LOAD1]]
+; CHECK-UNORDERED: %[[LOAD2:.*]] = load float, float*
+; CHECK-UNORDERED: %[[FADD2]] = fadd fast float %[[FADD1]], %[[LOAD2]]
+; CHECK-UNORDERED: for.end
+; CHECK-UNORDERED: %[[RET:.*]] = phi float [ %[[FADD2]], %for.body ], [ %[[RDX]], %middle.block ]
+; CHECK-UNORDERED: ret float %[[RET]]
+
+; CHECK-NOT-VECTORIZED-LABEL: @fadd_multiple_one_flag
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  br label %for.body
+
+for.body:                                         ; preds = %entry, %for.body
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum = phi float [ -0.000000e+00, %entry ], [ %add3, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %add = fadd float %sum, %0
+  %arrayidx2 = getelementptr inbounds float, float* %b, i64 %iv
+  %1 = load float, float* %arrayidx2, align 4
+  %add3 = fadd fast float %add, %1
   %iv.next = add nuw nsw i64 %iv, 1
   %exitcond.not = icmp eq i64 %iv.next, %n
   br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !0
@@ -1090,10 +1139,10 @@ define float @fmuladd_scalar_vf(float* %a, float* %b, i64 %n) {
 ; CHECK-UNORDERED: [[LOAD5:%.*]] = load float, float*
 ; CHECK-UNORDERED: [[LOAD6:%.*]] = load float, float*
 ; CHECK-UNORDERED: [[LOAD7:%.*]] = load float, float*
-; CHECK-UNORDERED: [[FMULADD]] = call float @llvm.fmuladd.f32(float [[LOAD]], float [[LOAD4]], float [[VEC_PHI]])
-; CHECK-UNORDERED: [[FMULADD1]] = call float @llvm.fmuladd.f32(float [[LOAD1]], float [[LOAD5]], float [[VEC_PHI1]])
-; CHECK-UNORDERED: [[FMULADD2]] = call float @llvm.fmuladd.f32(float [[LOAD2]], float [[LOAD6]], float [[VEC_PHI2]])
-; CHECK-UNORDERED: [[FMULADD3]] = call float @llvm.fmuladd.f32(float [[LOAD3]], float [[LOAD7]], float [[VEC_PHI3]])
+; CHECK-UNORDERED: [[FMULADD]] = tail call float @llvm.fmuladd.f32(float [[LOAD]], float [[LOAD4]], float [[VEC_PHI]])
+; CHECK-UNORDERED: [[FMULADD1]] = tail call float @llvm.fmuladd.f32(float [[LOAD1]], float [[LOAD5]], float [[VEC_PHI1]])
+; CHECK-UNORDERED: [[FMULADD2]] = tail call float @llvm.fmuladd.f32(float [[LOAD2]], float [[LOAD6]], float [[VEC_PHI2]])
+; CHECK-UNORDERED: [[FMULADD3]] = tail call float @llvm.fmuladd.f32(float [[LOAD3]], float [[LOAD7]], float [[VEC_PHI3]])
 ; CHECK-UNORDERED-NOT: llvm.vector.reduce.fadd
 ; CHECK-UNORDERED: middle.block:
 ; CHECK-UNORDERED: [[BIN_RDX:%.*]] = fadd float [[FMULADD1]], [[FMULADD]]
@@ -1308,6 +1357,61 @@ for.end:
 }
 
 declare float @llvm.fmuladd.f32(float, float, float)
+
+; Test case with invariant store where fadd is strict.
+define void @reduction_store_to_invariant_address(float* %dst, float* readonly %src) {
+; CHECK-ORDERED-LABEL: @reduction_store_to_invariant_address(
+; CHECK-ORDERED: entry
+; CHECK-ORDERED: %[[DEST_PTR:.*]] = getelementptr inbounds float, float* %dst, i64 42
+; CHECK-ORDERED: vector.body
+; CHECK-ORDERED: %[[VEC_PHI:.*]] = phi float [ 0.000000e+00, %vector.ph ], [ %[[RDX:.*]], %vector.body ]
+; CHECK-ORDERED: %[[LOAD_VEC:.*]] = load <8 x float>, <8 x float>*
+; CHECK-ORDERED: %[[RDX:.*]] = call float @llvm.vector.reduce.fadd.v8f32(float %[[VEC_PHI]], <8 x float> %[[LOAD_VEC]])
+; CHECK-ORDERED: middle.block
+; CHECK-ORDERED: store float %[[RDX]], float* %[[DEST_PTR]]
+; CHECK-ORDERED: for.body
+; CHECK-ORDERED: %[[LOAD:.*]] = load float, float*
+; CHECK-ORDERED: %[[FADD:.*]] = fadd float %{{.*}}, %[[LOAD]]
+; CHECK-ORDERED: store float %[[FADD]], float* %[[DEST_PTR]]
+
+; CHECK-UNORDERED-LABEL: @reduction_store_to_invariant_address(
+; CHECK-UNORDERED: entry
+; CHECK-UNORDERED: %[[DEST_PTR:.*]] = getelementptr inbounds float, float* %dst, i64 42
+; CHECK-UNORDERED: vector.body
+; CHECK-UNORDERED: %[[VEC_PHI:.*]] = phi <8 x float> [ <float 0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %vector.ph ], [ %[[FADD_VEC:.*]], %vector.body ]
+; CHECK-UNORDERED: %[[LOAD_VEC:.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: %[[FADD_VEC]] = fadd <8 x float> %[[VEC_PHI]], %[[LOAD_VEC]]
+; CHECK-UNORDERED-NOT: call float @llvm.vector.reduce.fadd
+; CHECK-UNORDERED: middle.block
+; CHECK-UNORDERED: %[[RDX:.*]] = call float @llvm.vector.reduce.fadd.v8f32(float -0.000000e+00, <8 x float> %[[FADD_VEC]])
+; CHECK-UNORDERED: store float %[[RDX]], float* %[[DEST_PTR]]
+; CHECK-UNORDERED: for.body
+; CHECK-UNORDERED: %[[LOAD:.*]] = load float, float*
+; CHECK-UNORDERED: %[[FADD:.*]] = fadd float {{.*}}, %[[LOAD]]
+; CHECK-UNORDERED: store float %[[FADD]], float* %[[DEST_PTR]]
+
+; CHECK-NOT-VECTORIZED-LABEL: @reduction_store_to_invariant_address(
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  %arrayidx = getelementptr inbounds float, float* %dst, i64 42
+  store float 0.000000e+00, float* %arrayidx, align 4
+  br label %for.body
+
+for.body:
+  %0 = phi float [ 0.000000e+00, %entry ], [ %add, %for.body ]
+  %indvars.iv = phi i64 [ 0, %entry ], [ %indvars.iv.next, %for.body ]
+  %arrayidx1 = getelementptr inbounds float, float* %src, i64 %indvars.iv
+  %1 = load float, float* %arrayidx1, align 4
+  %add = fadd float %0, %1
+  store float %add, float* %arrayidx, align 4
+  %indvars.iv.next = add nuw nsw i64 %indvars.iv, 1
+  %exitcond = icmp eq i64 %indvars.iv.next, 1000
+  br i1 %exitcond, label %for.cond.cleanup, label %for.body, !llvm.loop !0
+
+for.cond.cleanup:
+  ret void
+}
 
 !0 = distinct !{!0, !5, !9, !11}
 !1 = distinct !{!1, !5, !10, !11}

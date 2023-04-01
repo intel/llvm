@@ -5,7 +5,30 @@ add_header_library(
   HDRS
     string_utils.h
   DEPENDS
-    libc.src.__support.CPP.standalone_cpp
+    libc.include.stdlib
+    libc.src.__support.CPP.bitset
+    libc.src.__support.common
+    .memory_utils.memcpy_implementation
+    .memory_utils.bzero_implementation
+)
+
+add_header_library(
+  allocating_string_utils
+  HDRS
+    allocating_string_utils.h
+  DEPENDS
+    .memory_utils.memcpy_implementation
+    libc.include.stdlib
+    libc.src.__support.CPP.optional
+    libc.src.__support.macros.config
+)
+
+add_entrypoint_object(
+  bcopy
+  SRCS
+    bcopy.cpp
+  HDRS
+    bcopy.h
 )
 
 add_entrypoint_object(
@@ -15,7 +38,6 @@ add_entrypoint_object(
   HDRS
     memccpy.h
 )
-
 
 add_entrypoint_object(
   mempcpy
@@ -63,7 +85,7 @@ add_entrypoint_object(
   HDRS
     stpncpy.h
   DEPENDS
-    .memory_utils.memset_implementation
+    .memory_utils.bzero_implementation
 )
 
 add_entrypoint_object(
@@ -91,6 +113,38 @@ add_entrypoint_object(
     strcmp.cpp
   HDRS
     strcmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+)
+
+add_entrypoint_object(
+  strcasecmp
+  SRCS
+    strcasecmp.cpp
+  HDRS
+    strcasecmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+    libc.src.__support.ctype_utils
+)
+
+add_entrypoint_object(
+  strcasestr
+  SRCS
+    strcasestr.cpp
+  HDRS
+    strcasestr.h
+  DEPENDS
+    .memory_utils.strstr_implementation
+    libc.src.__support.ctype_utils
+)
+
+add_entrypoint_object(
+  strcoll
+  SRCS
+    strcoll.cpp
+  HDRS
+    strcoll.h
 )
 
 add_entrypoint_object(
@@ -124,6 +178,49 @@ add_entrypoint_object(
     .memory_utils.memcpy_implementation
     .string_utils
     libc.include.stdlib
+    libc.src.errno.errno
+)
+
+add_entrypoint_object(
+  strerror
+  SRCS
+    strerror.cpp
+  HDRS
+    strerror.h
+  DEPENDS
+    libc.src.__support.StringUtil.error_to_string
+)
+
+add_entrypoint_object(
+  strerror_r
+  SRCS
+    strerror_r.cpp
+  HDRS
+    strerror_r.h
+  DEPENDS
+    libc.src.__support.StringUtil.error_to_string
+)
+
+add_entrypoint_object(
+  strlcat
+  SRCS
+    strlcat.cpp
+  HDRS
+    strlcat.h
+  DEPENDS
+    .string_utils
+    libc.include.string
+)
+
+add_entrypoint_object(
+  strlcpy
+  SRCS
+    strlcpy.cpp
+  HDRS
+    strlcpy.h
+  DEPENDS
+    .string_utils
+    libc.include.string
 )
 
 add_entrypoint_object(
@@ -133,6 +230,7 @@ add_entrypoint_object(
   HDRS
     strlen.h
   DEPENDS
+    .string_utils
     libc.include.string
 )
 
@@ -153,6 +251,19 @@ add_entrypoint_object(
     strncmp.cpp
   HDRS
     strncmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+)
+
+add_entrypoint_object(
+  strncasecmp
+  SRCS
+    strncasecmp.cpp
+  HDRS
+    strncasecmp.h
+  DEPENDS
+    .memory_utils.strcmp_implementation
+    libc.src.__support.ctype_utils
 )
 
 add_entrypoint_object(
@@ -173,6 +284,7 @@ add_entrypoint_object(
     .memory_utils.memcpy_implementation
     .string_utils
     libc.include.stdlib
+    libc.src.__support.CPP.new
 )
 
 add_entrypoint_object(
@@ -204,13 +316,23 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  strsignal
+  SRCS
+    strsignal.cpp
+  HDRS
+    strsignal.h
+  DEPENDS
+    libc.src.__support.StringUtil.signal_to_string
+)
+
+add_entrypoint_object(
   strspn
   SRCS
     strspn.cpp
   HDRS
     strspn.h
   DEPENDS
-    libc.src.__support.CPP.standalone_cpp
+    libc.src.__support.CPP.bitset
 )
 
 add_entrypoint_object(
@@ -219,6 +341,8 @@ add_entrypoint_object(
     strstr.cpp
   HDRS
     strstr.h
+  DEPENDS
+    .memory_utils.strstr_implementation
 )
 
 add_entrypoint_object(
@@ -251,14 +375,22 @@ function(add_implementation name impl_name)
     "ADD_IMPL"
     "" # Optional arguments
     "" # Single value arguments
-    "REQUIRE;SRCS;HDRS;DEPENDS;COMPILE_OPTIONS" # Multi value arguments
+    "REQUIRE;SRCS;HDRS;DEPENDS;COMPILE_OPTIONS;MLLVM_COMPILE_OPTIONS" # Multi value arguments
     ${ARGN})
+
+  if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+    # Note that '-mllvm' needs to be prefixed with 'SHELL:' to prevent CMake flag deduplication.
+    foreach(opt IN LISTS ADD_IMPL_MLLVM_COMPILE_OPTIONS)
+      list(APPEND ADD_IMPL_COMPILE_OPTIONS "SHELL:-mllvm ${opt}")
+    endforeach()
+  endif()
+
   add_entrypoint_object(${impl_name}
     NAME ${name}
     SRCS ${ADD_IMPL_SRCS}
     HDRS ${ADD_IMPL_HDRS}
     DEPENDS ${ADD_IMPL_DEPENDS}
-    COMPILE_OPTIONS ${ADD_IMPL_COMPILE_OPTIONS} "SHELL:-mllvm -combiner-global-alias-analysis"
+    COMPILE_OPTIONS ${ADD_IMPL_COMPILE_OPTIONS}
   )
   get_fq_target_name(${impl_name} fq_target_name)
   set_target_properties(${fq_target_name} PROPERTIES REQUIRE_CPU_FEATURES "${ADD_IMPL_REQUIRE}")
@@ -276,9 +408,6 @@ function(add_bcmp bcmp_name)
     DEPENDS
       .memory_utils.memory_utils
       libc.include.string
-    COMPILE_OPTIONS
-      -fno-builtin-memcmp
-      -fno-builtin-bcmp
     ${ARGN}
   )
 endfunction()
@@ -287,7 +416,7 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
   add_bcmp(bcmp_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
   add_bcmp(bcmp_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
   add_bcmp(bcmp_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
-  add_bcmp(bcmp_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_bcmp(bcmp_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512BW)
   add_bcmp(bcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_bcmp(bcmp)
 else()
@@ -306,8 +435,6 @@ function(add_bzero bzero_name)
     DEPENDS
       .memory_utils.memset_implementation
       libc.include.string
-    COMPILE_OPTIONS
-      -fno-builtin-bzero
     ${ARGN}
   )
 endfunction()
@@ -335,8 +462,6 @@ function(add_memcmp memcmp_name)
     DEPENDS
       .memory_utils.memcmp_implementation
       libc.include.string
-    COMPILE_OPTIONS
-      -fno-builtin-memcmp
     ${ARGN}
   )
 endfunction()
@@ -345,7 +470,7 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
   add_memcmp(memcmp_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
   add_memcmp(memcmp_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
   add_memcmp(memcmp_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
-  add_memcmp(memcmp_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_memcmp(memcmp_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512BW)
   add_memcmp(memcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memcmp(memcmp)
 elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
@@ -367,8 +492,6 @@ function(add_memcpy memcpy_name)
     DEPENDS
       .memory_utils.memcpy_implementation
       libc.include.string
-    COMPILE_OPTIONS
-      -fno-builtin-memcpy
     ${ARGN}
   )
 endfunction()
@@ -382,10 +505,9 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
   add_memcpy(memcpy)
 elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
   # Disable tail merging as it leads to lower performance.
-  # Note that '-mllvm' needs to be prefixed with 'SHELL:' to prevent CMake flag deduplication.
   add_memcpy(memcpy_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE}
-                                      COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
-  add_memcpy(memcpy                   COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
+                                      MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
+  add_memcpy(memcpy                   MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
 else()
   add_memcpy(memcpy_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memcpy(memcpy)
@@ -400,11 +522,8 @@ function(add_memmove memmove_name)
     SRCS ${LIBC_SOURCE_DIR}/src/string/memmove.cpp
     HDRS ${LIBC_SOURCE_DIR}/src/string/memmove.h
     DEPENDS
-      .memory_utils.memory_utils
       .memory_utils.memcpy_implementation
       libc.include.string
-    COMPILE_OPTIONS
-      -fno-builtin
     ${ARGN}
   )
 endfunction()
@@ -418,10 +537,9 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
   add_memmove(memmove)
 elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
   # Disable tail merging as it leads to lower performance.
-  # Note that '-mllvm' needs to be prefixed with 'SHELL:' to prevent CMake flag deduplication.
   add_memmove(memmove_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE}
-                                        COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
-  add_memmove(memmove                   COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
+                                        MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
+  add_memmove(memmove                   MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
 else()
   add_memmove(memmove_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memmove(memmove)
@@ -438,8 +556,6 @@ function(add_memset memset_name)
     DEPENDS
       .memory_utils.memset_implementation
       libc.include.string
-    COMPILE_OPTIONS
-      -fno-builtin-memset
     ${ARGN}
   )
 endfunction()
@@ -452,9 +568,10 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
   add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memset(memset)
 elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
+  # Disable tail merging as it leads to lower performance.
   add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE}
-                                      COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
-  add_memset(memset                   COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
+                                      MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
+  add_memset(memset                   MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
 else()
   add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memset(memset)

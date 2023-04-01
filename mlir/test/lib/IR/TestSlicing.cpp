@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
@@ -25,13 +25,13 @@ using namespace mlir;
 /// with name being the function name and a `suffix`.
 static LogicalResult createBackwardSliceFunction(Operation *op,
                                                  StringRef suffix) {
-  FuncOp parentFuncOp = op->getParentOfType<FuncOp>();
+  func::FuncOp parentFuncOp = op->getParentOfType<func::FuncOp>();
   OpBuilder builder(parentFuncOp);
   Location loc = op->getLoc();
   std::string clonedFuncOpName = parentFuncOp.getName().str() + suffix.str();
-  FuncOp clonedFuncOp =
-      builder.create<FuncOp>(loc, clonedFuncOpName, parentFuncOp.getType());
-  BlockAndValueMapping mapper;
+  func::FuncOp clonedFuncOp = builder.create<func::FuncOp>(
+      loc, clonedFuncOpName, parentFuncOp.getFunctionType());
+  IRMapping mapper;
   builder.setInsertionPointToEnd(clonedFuncOp.addEntryBlock());
   for (const auto &arg : enumerate(parentFuncOp.getArguments()))
     mapper.map(arg.value(), clonedFuncOp.getArgument(arg.index()));
@@ -39,7 +39,7 @@ static LogicalResult createBackwardSliceFunction(Operation *op,
   getBackwardSlice(op, &slice);
   for (Operation *slicedOp : slice)
     builder.clone(*slicedOp, mapper);
-  builder.create<ReturnOp>(loc);
+  builder.create<func::ReturnOp>(loc);
   return success();
 }
 
@@ -47,6 +47,8 @@ namespace {
 /// Pass to test slice generated from slice analysis.
 struct SliceAnalysisTestPass
     : public PassWrapper<SliceAnalysisTestPass, OperationPass<ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SliceAnalysisTestPass)
+
   StringRef getArgument() const final { return "slice-analysis-test"; }
   StringRef getDescription() const final {
     return "Test Slice analysis functionality.";
@@ -59,9 +61,14 @@ struct SliceAnalysisTestPass
 
 void SliceAnalysisTestPass::runOnOperation() {
   ModuleOp module = getOperation();
-  auto funcOps = module.getOps<FuncOp>();
+  auto funcOps = module.getOps<func::FuncOp>();
   unsigned opNum = 0;
   for (auto funcOp : funcOps) {
+    if (!llvm::hasSingleElement(funcOp.getBody())) {
+      funcOp->emitOpError("Does not support functions with multiple blocks");
+      signalPassFailure();
+      return;
+    }
     // TODO: For now this is just looking for Linalg ops. It can be generalized
     // to look for other ops using flags.
     funcOp.walk([&](Operation *op) {

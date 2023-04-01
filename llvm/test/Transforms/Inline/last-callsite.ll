@@ -1,5 +1,4 @@
 ; RUN: opt < %s -passes='cgscc(inline)' -inline-threshold=0 -S | FileCheck %s
-; RUN: opt < %s -passes='cgscc(inline)' -inline-threshold=0 -inline-enable-priority-order=true -S | FileCheck %s
 
 ; The 'test1_' prefixed functions test the basic 'last callsite' inline
 ; threshold adjustment where we specifically inline the last call site of an
@@ -8,14 +7,14 @@
 define internal void @test1_f() {
 entry:
   %p = alloca i32
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
   ret void
 }
 
@@ -25,14 +24,14 @@ entry:
 define internal void @test1_g() {
 entry:
   %p = alloca i32
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
   ret void
 }
 
@@ -62,14 +61,14 @@ entry:
   br i1 %b, label %then, label %exit
 
 then:
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
   br label %exit
 
 exit:
@@ -85,14 +84,14 @@ entry:
   br i1 %b, label %then, label %exit
 
 then:
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
   br label %exit
 
 exit:
@@ -133,14 +132,14 @@ entry:
   br i1 %b, label %then, label %exit
 
 then:
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
   br label %exit
 
 exit:
@@ -156,14 +155,14 @@ entry:
   br i1 %b, label %then, label %exit
 
 then:
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
   br label %exit
 
 exit:
@@ -203,14 +202,14 @@ entry:
   br i1 %b, label %then, label %exit
 
 then:
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
   br label %exit
 
 exit:
@@ -226,14 +225,14 @@ entry:
   br i1 %b, label %then, label %exit
 
 then:
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
-  store volatile i32 0, i32* %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
+  store volatile i32 0, ptr %p
   br label %exit
 
 exit:
@@ -248,7 +247,7 @@ entry:
   ; constant expression. Merely inlining and deleting the call isn't enough to
   ; drop the use count here, we need to GC the dead constant expression as
   ; well.
-  call void @test4_f(i1 icmp ne (i64 ptrtoint (void (i1)* @test4_f to i64), i64 ptrtoint(void (i1)* @test4_f to i64)))
+  call void @test4_f(i1 icmp ne (i64 ptrtoint (ptr @test4_f to i64), i64 ptrtoint(ptr @test4_f to i64)))
 ; CHECK-NOT: @test4_f
 
   ; The second call is too expensive to inline unless we update the number of
@@ -261,9 +260,9 @@ entry:
   ; a second use. If this part starts failing we need to use more complex
   ; constant expressions to reference a particular function with them.
   %sink = alloca i64
-  store volatile i64 mul (i64 ptrtoint (void (i1)* @test4_g to i64), i64 ptrtoint(void (i1)* @test4_g to i64)), i64* %sink
+  store volatile i64 mul (i64 ptrtoint (ptr @test4_g to i64), i64 ptrtoint(ptr @test4_g to i64)), ptr %sink
   call void @test4_g(i1 true)
-; CHECK: store volatile i64 mul (i64 ptrtoint (void (i1)* @test4_g to i64), i64 ptrtoint (void (i1)* @test4_g to i64)), i64* %sink
+; CHECK: store volatile i64 mul (i64 ptrtoint (ptr @test4_g to i64), i64 ptrtoint (ptr @test4_g to i64)), ptr %sink
 ; CHECK: call void @test4_g(i1 true)
 
   ret void

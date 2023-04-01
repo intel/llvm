@@ -7,16 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/API/SBWatchpoint.h"
-#include "lldb/Utility/ReproducerInstrumentation.h"
 #include "lldb/API/SBAddress.h"
 #include "lldb/API/SBDebugger.h"
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBEvent.h"
 #include "lldb/API/SBStream.h"
+#include "lldb/Utility/Instrumentation.h"
 
 #include "lldb/Breakpoint/Watchpoint.h"
 #include "lldb/Breakpoint/WatchpointList.h"
 #include "lldb/Core/StreamFile.h"
+#include "lldb/Symbol/CompilerType.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/Stream.h"
@@ -26,21 +27,20 @@
 using namespace lldb;
 using namespace lldb_private;
 
-SBWatchpoint::SBWatchpoint() { LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBWatchpoint); }
+SBWatchpoint::SBWatchpoint() { LLDB_INSTRUMENT_VA(this); }
 
 SBWatchpoint::SBWatchpoint(const lldb::WatchpointSP &wp_sp)
     : m_opaque_wp(wp_sp) {
-  LLDB_RECORD_CONSTRUCTOR(SBWatchpoint, (const lldb::WatchpointSP &), wp_sp);
+  LLDB_INSTRUMENT_VA(this, wp_sp);
 }
 
 SBWatchpoint::SBWatchpoint(const SBWatchpoint &rhs)
     : m_opaque_wp(rhs.m_opaque_wp) {
-  LLDB_RECORD_CONSTRUCTOR(SBWatchpoint, (const lldb::SBWatchpoint &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 }
 
 const SBWatchpoint &SBWatchpoint::operator=(const SBWatchpoint &rhs) {
-  LLDB_RECORD_METHOD(const lldb::SBWatchpoint &,
-                     SBWatchpoint, operator=,(const lldb::SBWatchpoint &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 
   m_opaque_wp = rhs.m_opaque_wp;
   return *this;
@@ -49,8 +49,7 @@ const SBWatchpoint &SBWatchpoint::operator=(const SBWatchpoint &rhs) {
 SBWatchpoint::~SBWatchpoint() = default;
 
 watch_id_t SBWatchpoint::GetID() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::watch_id_t, SBWatchpoint, GetID);
-
+  LLDB_INSTRUMENT_VA(this);
 
   watch_id_t watch_id = LLDB_INVALID_WATCH_ID;
   lldb::WatchpointSP watchpoint_sp(GetSP());
@@ -61,31 +60,29 @@ watch_id_t SBWatchpoint::GetID() {
 }
 
 bool SBWatchpoint::IsValid() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBWatchpoint, IsValid);
+  LLDB_INSTRUMENT_VA(this);
   return this->operator bool();
 }
 SBWatchpoint::operator bool() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBWatchpoint, operator bool);
+  LLDB_INSTRUMENT_VA(this);
 
   return bool(m_opaque_wp.lock());
 }
 
 bool SBWatchpoint::operator==(const SBWatchpoint &rhs) const {
-  LLDB_RECORD_METHOD_CONST(
-      bool, SBWatchpoint, operator==,(const SBWatchpoint &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 
   return GetSP() == rhs.GetSP();
 }
 
 bool SBWatchpoint::operator!=(const SBWatchpoint &rhs) const {
-  LLDB_RECORD_METHOD_CONST(
-      bool, SBWatchpoint, operator!=,(const SBWatchpoint &), rhs);
+  LLDB_INSTRUMENT_VA(this, rhs);
 
   return !(*this == rhs);
 }
 
 SBError SBWatchpoint::GetError() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBError, SBWatchpoint, GetError);
+  LLDB_INSTRUMENT_VA(this);
 
   SBError sb_error;
   lldb::WatchpointSP watchpoint_sp(GetSP());
@@ -96,7 +93,7 @@ SBError SBWatchpoint::GetError() {
 }
 
 int32_t SBWatchpoint::GetHardwareIndex() {
-  LLDB_RECORD_METHOD_NO_ARGS(int32_t, SBWatchpoint, GetHardwareIndex);
+  LLDB_INSTRUMENT_VA(this);
 
   int32_t hw_index = -1;
 
@@ -111,7 +108,7 @@ int32_t SBWatchpoint::GetHardwareIndex() {
 }
 
 addr_t SBWatchpoint::GetWatchAddress() {
-  LLDB_RECORD_METHOD_NO_ARGS(lldb::addr_t, SBWatchpoint, GetWatchAddress);
+  LLDB_INSTRUMENT_VA(this);
 
   addr_t ret_addr = LLDB_INVALID_ADDRESS;
 
@@ -126,7 +123,7 @@ addr_t SBWatchpoint::GetWatchAddress() {
 }
 
 size_t SBWatchpoint::GetWatchSize() {
-  LLDB_RECORD_METHOD_NO_ARGS(size_t, SBWatchpoint, GetWatchSize);
+  LLDB_INSTRUMENT_VA(this);
 
   size_t watch_size = 0;
 
@@ -141,7 +138,7 @@ size_t SBWatchpoint::GetWatchSize() {
 }
 
 void SBWatchpoint::SetEnabled(bool enabled) {
-  LLDB_RECORD_METHOD(void, SBWatchpoint, SetEnabled, (bool), enabled);
+  LLDB_INSTRUMENT_VA(this, enabled);
 
   lldb::WatchpointSP watchpoint_sp(GetSP());
   if (watchpoint_sp) {
@@ -161,7 +158,7 @@ void SBWatchpoint::SetEnabled(bool enabled) {
 }
 
 bool SBWatchpoint::IsEnabled() {
-  LLDB_RECORD_METHOD_NO_ARGS(bool, SBWatchpoint, IsEnabled);
+  LLDB_INSTRUMENT_VA(this);
 
   lldb::WatchpointSP watchpoint_sp(GetSP());
   if (watchpoint_sp) {
@@ -173,7 +170,7 @@ bool SBWatchpoint::IsEnabled() {
 }
 
 uint32_t SBWatchpoint::GetHitCount() {
-  LLDB_RECORD_METHOD_NO_ARGS(uint32_t, SBWatchpoint, GetHitCount);
+  LLDB_INSTRUMENT_VA(this);
 
   uint32_t count = 0;
   lldb::WatchpointSP watchpoint_sp(GetSP());
@@ -187,7 +184,7 @@ uint32_t SBWatchpoint::GetHitCount() {
 }
 
 uint32_t SBWatchpoint::GetIgnoreCount() {
-  LLDB_RECORD_METHOD_NO_ARGS(uint32_t, SBWatchpoint, GetIgnoreCount);
+  LLDB_INSTRUMENT_VA(this);
 
   lldb::WatchpointSP watchpoint_sp(GetSP());
   if (watchpoint_sp) {
@@ -199,7 +196,7 @@ uint32_t SBWatchpoint::GetIgnoreCount() {
 }
 
 void SBWatchpoint::SetIgnoreCount(uint32_t n) {
-  LLDB_RECORD_METHOD(void, SBWatchpoint, SetIgnoreCount, (uint32_t), n);
+  LLDB_INSTRUMENT_VA(this, n);
 
   lldb::WatchpointSP watchpoint_sp(GetSP());
   if (watchpoint_sp) {
@@ -210,7 +207,7 @@ void SBWatchpoint::SetIgnoreCount(uint32_t n) {
 }
 
 const char *SBWatchpoint::GetCondition() {
-  LLDB_RECORD_METHOD_NO_ARGS(const char *, SBWatchpoint, GetCondition);
+  LLDB_INSTRUMENT_VA(this);
 
   lldb::WatchpointSP watchpoint_sp(GetSP());
   if (watchpoint_sp) {
@@ -222,8 +219,7 @@ const char *SBWatchpoint::GetCondition() {
 }
 
 void SBWatchpoint::SetCondition(const char *condition) {
-  LLDB_RECORD_METHOD(void, SBWatchpoint, SetCondition, (const char *),
-                     condition);
+  LLDB_INSTRUMENT_VA(this, condition);
 
   lldb::WatchpointSP watchpoint_sp(GetSP());
   if (watchpoint_sp) {
@@ -235,9 +231,7 @@ void SBWatchpoint::SetCondition(const char *condition) {
 
 bool SBWatchpoint::GetDescription(SBStream &description,
                                   DescriptionLevel level) {
-  LLDB_RECORD_METHOD(bool, SBWatchpoint, GetDescription,
-                     (lldb::SBStream &, lldb::DescriptionLevel), description,
-                     level);
+  LLDB_INSTRUMENT_VA(this, description, level);
 
   Stream &strm = description.ref();
 
@@ -254,27 +248,25 @@ bool SBWatchpoint::GetDescription(SBStream &description,
 }
 
 void SBWatchpoint::Clear() {
-  LLDB_RECORD_METHOD_NO_ARGS(void, SBWatchpoint, Clear);
+  LLDB_INSTRUMENT_VA(this);
 
   m_opaque_wp.reset();
 }
 
 lldb::WatchpointSP SBWatchpoint::GetSP() const {
-  LLDB_RECORD_METHOD_CONST_NO_ARGS(lldb::WatchpointSP, SBWatchpoint, GetSP);
+  LLDB_INSTRUMENT_VA(this);
 
   return m_opaque_wp.lock();
 }
 
 void SBWatchpoint::SetSP(const lldb::WatchpointSP &sp) {
-  LLDB_RECORD_METHOD(void, SBWatchpoint, SetSP, (const lldb::WatchpointSP &),
-                     sp);
+  LLDB_INSTRUMENT_VA(this, sp);
 
   m_opaque_wp = sp;
 }
 
 bool SBWatchpoint::EventIsWatchpointEvent(const lldb::SBEvent &event) {
-  LLDB_RECORD_STATIC_METHOD(bool, SBWatchpoint, EventIsWatchpointEvent,
-                            (const lldb::SBEvent &), event);
+  LLDB_INSTRUMENT_VA(event);
 
   return Watchpoint::WatchpointEventData::GetEventDataFromEvent(event.get()) !=
          nullptr;
@@ -282,9 +274,7 @@ bool SBWatchpoint::EventIsWatchpointEvent(const lldb::SBEvent &event) {
 
 WatchpointEventType
 SBWatchpoint::GetWatchpointEventTypeFromEvent(const SBEvent &event) {
-  LLDB_RECORD_STATIC_METHOD(lldb::WatchpointEventType, SBWatchpoint,
-                            GetWatchpointEventTypeFromEvent,
-                            (const lldb::SBEvent &), event);
+  LLDB_INSTRUMENT_VA(event);
 
   if (event.IsValid())
     return Watchpoint::WatchpointEventData::GetWatchpointEventTypeFromEvent(
@@ -293,13 +283,80 @@ SBWatchpoint::GetWatchpointEventTypeFromEvent(const SBEvent &event) {
 }
 
 SBWatchpoint SBWatchpoint::GetWatchpointFromEvent(const lldb::SBEvent &event) {
-  LLDB_RECORD_STATIC_METHOD(lldb::SBWatchpoint, SBWatchpoint,
-                            GetWatchpointFromEvent, (const lldb::SBEvent &),
-                            event);
+  LLDB_INSTRUMENT_VA(event);
 
   SBWatchpoint sb_watchpoint;
   if (event.IsValid())
     sb_watchpoint =
         Watchpoint::WatchpointEventData::GetWatchpointFromEvent(event.GetSP());
   return sb_watchpoint;
+}
+
+lldb::SBType SBWatchpoint::GetType() {
+  LLDB_INSTRUMENT_VA(this);
+
+  lldb::WatchpointSP watchpoint_sp(GetSP());
+  if (watchpoint_sp) {
+    std::lock_guard<std::recursive_mutex> guard(
+        watchpoint_sp->GetTarget().GetAPIMutex());
+    const CompilerType &type = watchpoint_sp->GetCompilerType();
+    return lldb::SBType(type);
+  }
+  return lldb::SBType();
+}
+
+WatchpointValueKind SBWatchpoint::GetWatchValueKind() {
+  LLDB_INSTRUMENT_VA(this);
+
+  lldb::WatchpointSP watchpoint_sp(GetSP());
+  if (watchpoint_sp) {
+    std::lock_guard<std::recursive_mutex> guard(
+        watchpoint_sp->GetTarget().GetAPIMutex());
+    if (watchpoint_sp->IsWatchVariable())
+      return WatchpointValueKind::eWatchPointValueKindVariable;
+    return WatchpointValueKind::eWatchPointValueKindExpression;
+  }
+  return WatchpointValueKind::eWatchPointValueKindInvalid;
+}
+
+const char *SBWatchpoint::GetWatchSpec() {
+  LLDB_INSTRUMENT_VA(this);
+
+  lldb::WatchpointSP watchpoint_sp(GetSP());
+  if (watchpoint_sp) {
+    std::lock_guard<std::recursive_mutex> guard(
+        watchpoint_sp->GetTarget().GetAPIMutex());
+    // Store the result of `GetWatchSpec()` as a ConstString
+    // so that the C string we return has a sufficiently long
+    // lifetime. Note this a memory leak but should be fairly
+    // low impact.
+    return ConstString(watchpoint_sp->GetWatchSpec()).AsCString();
+  }
+  return nullptr;
+}
+
+bool SBWatchpoint::IsWatchingReads() {
+  LLDB_INSTRUMENT_VA(this);
+  lldb::WatchpointSP watchpoint_sp(GetSP());
+  if (watchpoint_sp) {
+    std::lock_guard<std::recursive_mutex> guard(
+        watchpoint_sp->GetTarget().GetAPIMutex());
+
+    return watchpoint_sp->WatchpointRead();
+  }
+
+  return false;
+}
+
+bool SBWatchpoint::IsWatchingWrites() {
+  LLDB_INSTRUMENT_VA(this);
+  lldb::WatchpointSP watchpoint_sp(GetSP());
+  if (watchpoint_sp) {
+    std::lock_guard<std::recursive_mutex> guard(
+        watchpoint_sp->GetTarget().GetAPIMutex());
+
+    return watchpoint_sp->WatchpointWrite();
+  }
+
+  return false;
 }

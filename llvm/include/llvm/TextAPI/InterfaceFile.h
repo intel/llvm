@@ -19,11 +19,7 @@
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator.h"
-#include "llvm/BinaryFormat/MachO.h"
-#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/Error.h"
-#include "llvm/TextAPI/Architecture.h"
 #include "llvm/TextAPI/ArchitectureSet.h"
 #include "llvm/TextAPI/PackedVersion.h"
 #include "llvm/TextAPI/Platform.h"
@@ -69,6 +65,9 @@ enum FileType : unsigned {
 
   /// Text-based stub file (.tbd) version 4.0
   TBD_V4  = 1U <<  3,
+
+  /// Text-based stub file (.tbd) version 5.0
+  TBD_V5  = 1U <<  4,
 
   All     = ~0U,
 
@@ -349,6 +348,18 @@ public:
     return Documents;
   }
 
+  /// Set the runpath search paths.
+  /// \param InputTarget The target applicable to runpath search path.
+  /// \param RPath The name of runpath.
+  void addRPath(const Target &InputTarget, StringRef RPath);
+
+  /// Get the list of runpath search paths.
+  ///
+  /// \return Returns a list of the rpaths per target.
+  const std::vector<std::pair<Target, std::string>> &rpaths() const {
+    return RPaths;
+  }
+
   /// Add a symbol to the symbols list or extend an existing one.
   void addSymbol(SymbolKind Kind, StringRef Name, const TargetList &Targets,
                  SymbolFlags Flags = SymbolFlags::None);
@@ -385,7 +396,16 @@ public:
 
   const_filtered_symbol_range exports() const {
     std::function<bool(const Symbol *)> fn = [](const Symbol *Symbol) {
-      return !Symbol->isUndefined();
+      return !Symbol->isUndefined() && !Symbol->isReexported();
+    };
+    return make_filter_range(
+        make_range<const_symbol_iterator>({Symbols.begin()}, {Symbols.end()}),
+        fn);
+  }
+
+  const_filtered_symbol_range reexports() const {
+    std::function<bool(const Symbol *)> fn = [](const Symbol *Symbol) {
+      return Symbol->isReexported();
     };
     return make_filter_range(
         make_range<const_symbol_iterator>({Symbols.begin()}, {Symbols.end()}),
@@ -422,7 +442,7 @@ private:
 
   TargetList Targets;
   std::string Path;
-  FileType FileKind;
+  FileType FileKind{FileType::Invalid};
   std::string InstallName;
   PackedVersion CurrentVersion;
   PackedVersion CompatibilityVersion;
@@ -436,6 +456,7 @@ private:
   std::vector<InterfaceFileRef> ReexportedLibraries;
   std::vector<std::shared_ptr<InterfaceFile>> Documents;
   std::vector<std::pair<Target, std::string>> UUIDs;
+  std::vector<std::pair<Target, std::string>> RPaths;
   SymbolMapType Symbols;
   InterfaceFile *Parent = nullptr;
 };

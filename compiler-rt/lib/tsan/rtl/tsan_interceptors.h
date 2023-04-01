@@ -21,8 +21,9 @@ class ScopedInterceptor {
 
  private:
   ThreadState *const thr_;
-  bool in_ignored_lib_;
-  bool ignoring_;
+  bool in_ignored_lib_ = false;
+  bool in_blocking_func_ = false;
+  bool ignoring_ = false;
 
   void DisableIgnoresImpl();
   void EnableIgnoresImpl();
@@ -77,6 +78,14 @@ inline bool MustIgnoreInterceptor(ThreadState *thr) {
     si.EnableIgnores();
 
 #define TSAN_INTERCEPTOR(ret, func, ...) INTERCEPTOR(ret, func, __VA_ARGS__)
+
+#if SANITIZER_FREEBSD
+#  define TSAN_INTERCEPTOR_FREEBSD_ALIAS(ret, func, ...) \
+    TSAN_INTERCEPTOR(ret, _pthread_##func, __VA_ARGS__)  \
+    ALIAS(WRAPPER_NAME(pthread_##func));
+#else
+#  define TSAN_INTERCEPTOR_FREEBSD_ALIAS(ret, func, ...)
+#endif
 
 #if SANITIZER_NETBSD
 # define TSAN_INTERCEPTOR_NETBSD_ALIAS(ret, func, ...) \

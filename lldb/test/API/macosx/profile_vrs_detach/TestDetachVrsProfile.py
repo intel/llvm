@@ -17,12 +17,11 @@ import signal
 
 class TestDetachVrsProfile(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     NO_DEBUG_INFO_TESTCASE = True
 
     @skipUnlessDarwin
     @skipIfOutOfTreeDebugserver
+    @skipIfRemote
     def test_profile_and_detach(self):
         """There can be many tests in a test case - describe this test here."""
         self.build()
@@ -69,8 +68,8 @@ class TestDetachVrsProfile(TestBase):
         success = listener.WaitForEventForBroadcaster(0, process.GetBroadcaster(), event)
         self.assertTrue(success, "Got an event which should be running.")
         event_state = process.GetStateFromEvent(event)
-        self.assertEqual(event_state, lldb.eStateRunning, "Got the running event")
+        self.assertState(event_state, lldb.eStateRunning, "Got the running event")
 
         # Now detach:
         error = process.Detach()
-        self.assertTrue(error.Success(), "Detached successfully")
+        self.assertSuccess(error, "Detached successfully")

@@ -1,5 +1,4 @@
-; RUN: opt %loadPolly -polly-scops -analyze \
-; RUN: -polly-invariant-load-hoisting=true < %s | FileCheck %s
+; RUN: opt %loadPolly -polly-invariant-load-hoisting=true -polly-print-scops -disable-output < %s | FileCheck %s
 ;
 ;    void f(int *A, unsigned N) {
 ;      for (unsigned i = 0; i < N; i++)
@@ -22,7 +21,7 @@
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-define void @f(i32* %A, i64 %N) {
+define void @f(ptr %A, i64 %N) {
 entry:
   br label %for.cond
 
@@ -34,11 +33,11 @@ for.cond:                                         ; preds = %for.inc, %entry
 for.body:                                         ; preds = %for.cond
   %mul = mul nsw i64 %N, 5
   %div2 = udiv i64 %mul, 3
-  %arrayidx2 = getelementptr inbounds i32, i32* %A, i64 %div2
-  %load = load i32, i32* %arrayidx2, align 4
+  %arrayidx2 = getelementptr inbounds i32, ptr %A, i64 %div2
+  %load = load i32, ptr %arrayidx2, align 4
   %div = udiv i64 %indvars.iv, 3
-  %arrayidx = getelementptr inbounds i32, i32* %A, i64 %div
-  store i32 %load, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %A, i64 %div
+  store i32 %load, ptr %arrayidx, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body

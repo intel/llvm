@@ -10,15 +10,11 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_DIAGNOSTICS_H
 
 #include "Protocol.h"
-#include "support/Path.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/JSON.h"
@@ -26,6 +22,7 @@
 #include <cassert>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -64,7 +61,7 @@ struct DiagBase {
   // May be relative, absolute or even artificially constructed.
   std::string File;
   // Absolute path to containing file, if available.
-  llvm::Optional<std::string> AbsFile;
+  std::optional<std::string> AbsFile;
 
   clangd::Range Range;
   DiagnosticsEngine::Level Severity = DiagnosticsEngine::Note;
@@ -72,7 +69,7 @@ struct DiagBase {
   // Since File is only descriptive, we store a separate flag to distinguish
   // diags from the main file.
   bool InsideMainFile = false;
-  unsigned ID; // e.g. member of clang::diag, or clang-tidy assigned ID.
+  unsigned ID = 0; // e.g. member of clang::diag, or clang-tidy assigned ID.
   // Feature modules can make use of this field to propagate data from a
   // diagnostic to a CodeAction request. Each module should only append to the
   // list.
@@ -129,6 +126,10 @@ CodeAction toCodeAction(const Fix &D, const URIForFile &File);
 /// Convert from clang diagnostic level to LSP severity.
 int getSeverity(DiagnosticsEngine::Level L);
 
+/// Returns a URI providing more information about a particular diagnostic.
+std::optional<std::string> getDiagnosticDocURI(Diag::DiagSource, unsigned ID,
+                                               llvm::StringRef Name);
+
 /// StoreDiags collects the diagnostics that can later be reported by
 /// clangd. It groups all notes for a diagnostic into a single Diag
 /// and filters out diagnostics that don't mention the main file (i.e. neither
@@ -169,9 +170,9 @@ private:
   LevelAdjuster Adjuster = nullptr;
   DiagCallback DiagCB = nullptr;
   std::vector<Diag> Output;
-  llvm::Optional<LangOptions> LangOpts;
-  llvm::Optional<Diag> LastDiag;
-  llvm::Optional<FullSourceLoc> LastDiagLoc; // Valid only when LastDiag is set.
+  std::optional<LangOptions> LangOpts;
+  std::optional<Diag> LastDiag;
+  std::optional<FullSourceLoc> LastDiagLoc;  // Valid only when LastDiag is set.
   bool LastDiagOriginallyError = false;      // Valid only when LastDiag is set.
   SourceManager *OrigSrcMgr = nullptr;
 

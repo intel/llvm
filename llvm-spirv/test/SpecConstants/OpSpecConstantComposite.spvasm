@@ -11,9 +11,9 @@
 ; CHECK-INFO: Spec const id = 4, size in bytes = 4
 ; CHECK-INFO: Spec const id = 7, size in bytes = 4
 
-; RUN: llvm-spirv -r -o - %t.spv | llvm-dis -o %t.default.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers -o - %t.spv | llvm-dis -o %t.default.ll
 ; RUN: FileCheck < %t.default.ll  %s --check-prefixes=CHECK-COMMON,CHECK-DEFAULT
-; RUN: llvm-spirv -r -spec-const "3:i32:42 4:f32:2.71 6:i32:43 7:f32:3.14 10:i32:44 11:i32:55" -o - %t.spv | llvm-dis -o %t.spec.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers -spec-const "3:i32:42 4:f32:2.71 6:i32:43 7:f32:3.14 10:i32:44 11:i32:55" -o - %t.spv | llvm-dis -o %t.spec.ll
 ; RUN: FileCheck < %t.spec.ll %s --check-prefixes=CHECK-COMMON,CHECK-SPEC
 
 
@@ -21,9 +21,9 @@
 ; CHECK-COMMON: %struct._ZTS1A.A = type { i32, float }
 ; CHECK-COMMON: %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" = type { <2 x i32> }
   
-; CHECK-DEFAULT: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 1, float 0.000000e+00 }, %struct._ZTS1A.A { i32 35, float 0.000000e+00 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 45, i32 55> }     }, %struct._ZTS3POD.POD addrspace(4)* %[[#]]
+; CHECK-DEFAULT: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 1, float 0.000000e+00 }, %struct._ZTS1A.A { i32 35, float 0.000000e+00 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 45, i32 55> }     }, ptr addrspace(4) %[[#]]
 
-; CHECK-SPEC: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 42, float 0x4005AE1480000000 }, %struct._ZTS1A.A { i32 43, float 0x40091EB860000000 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 44, i32 55> } }, %struct._ZTS3POD.POD addrspace(4)* %3
+; CHECK-SPEC: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 42, float 0x4005AE1480000000 }, %struct._ZTS1A.A { i32 43, float 0x40091EB860000000 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 44, i32 55> } }, ptr addrspace(4) %3
 
 ; SPIR-V
 ; Version: 1.1

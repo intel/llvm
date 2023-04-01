@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple < %t.ll | FileCheck %s
 ; RUN: llc -mtriple=%triple < %t.ll -filetype=obj | llvm-dwarfdump -v - --debug-info | FileCheck %s --check-prefix=DWARF
@@ -27,7 +27,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: noinline nounwind uwtable
 define void @use_dbg_declare() #0 !dbg !7 {
 entry:
-  %o = alloca %struct.Foo, align 4
+  %o = alloca %struct.Foo, align 8
   call void @llvm.dbg.declare(metadata %struct.Foo* %o, metadata !10, metadata !15), !dbg !16
   call void @escape_foo(%struct.Foo* %o), !dbg !17
   ret void, !dbg !18

@@ -1,13 +1,15 @@
-// RUN: not llvm-mc --amdhsa-code-object-version=3 -triple amdgcn-amd-amdhsa -mcpu=gfx810 -mattr=+xnack -show-encoding %s 2>&1 >/dev/null | FileCheck %s --check-prefixes=GCN,GFX8,NONGFX10,AMDHSA
-// RUN: not llvm-mc --amdhsa-code-object-version=3 -triple amdgcn-amd-amdhsa -mcpu=gfx1010 -mattr=+xnack -show-encoding %s 2>&1 >/dev/null | FileCheck %s --check-prefixes=GCN,GFX10,AMDHSA
+// RUN: not llvm-mc --amdhsa-code-object-version=3 -triple amdgcn-amd-amdhsa -mcpu=gfx810 -mattr=+xnack -show-encoding %s 2>&1 >/dev/null | FileCheck %s --check-prefixes=GCN,GFX8,PREGFX10,AMDHSA
+// RUN: not llvm-mc --amdhsa-code-object-version=3 -triple amdgcn-amd-amdhsa -mcpu=gfx1010 -mattr=+xnack -show-encoding %s 2>&1 >/dev/null | FileCheck %s --check-prefixes=GCN,GFX10PLUS,GFX10,AMDHSA
+// RUN: not llvm-mc --amdhsa-code-object-version=3 -triple amdgcn-amd-amdhsa -mcpu=gfx1100 -show-encoding %s 2>&1 >/dev/null | FileCheck %s --check-prefixes=GCN,GFX10PLUS,GFX11,AMDHSA
 // RUN: not llvm-mc --amdhsa-code-object-version=3 -triple amdgcn-amd- -mcpu=gfx810 -mattr=+xnack -show-encoding %s 2>&1 >/dev/null | FileCheck %s --check-prefixes=GCN,NONAMDHSA
-// RUN: not llvm-mc --amdhsa-code-object-version=3 -triple amdgcn-amd-amdhsa -mcpu=gfx90a -mattr=+xnack -show-encoding %s 2>&1 >/dev/null | FileCheck %s --check-prefixes=GFX90A,NONGFX10,AMDHSA,ALL
+// RUN: not llvm-mc --amdhsa-code-object-version=3 -triple amdgcn-amd-amdhsa -mcpu=gfx90a -mattr=+xnack -show-encoding %s 2>&1 >/dev/null | FileCheck %s --check-prefixes=GFX90A,PREGFX10,AMDHSA,ALL
 
 .text
 
 // GCN-LABEL: warning: test_target
 // GFX8-NOT: error:
 // GFX10: error: .amdgcn_target directive's target id amdgcn-amd-amdhsa--gfx810+xnack does not match the specified target id amdgcn-amd-amdhsa--gfx1010+xnack
+// GFX11: error: .amdgcn_target directive's target id amdgcn-amd-amdhsa--gfx810+xnack does not match the specified target id amdgcn-amd-amdhsa--gfx1100
 // NONAMDHSA: error: .amdgcn_target directive's target id amdgcn-amd-amdhsa--gfx810+xnack does not match the specified target id amdgcn-amd-unknown--gfx810
 .warning "test_target"
 .amdgcn_target "amdgcn-amd-amdhsa--gfx810+xnack"
@@ -154,8 +156,8 @@
 .end_amdhsa_kernel
 
 // ALL-LABEL: warning: test_amdhsa_wavefront_size32
-// NONGFX10: error: directive requires gfx10+
-// GFX10: error: .amdhsa_next_free_vgpr directive is required
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: .amdhsa_next_free_vgpr directive is required
 // NONAMDHSA: error: unknown directive
 .warning "test_amdhsa_wavefront_size32"
 .amdhsa_kernel test_amdhsa_wavefront_size32
@@ -163,8 +165,8 @@
 .end_amdhsa_kernel
 
 // GCN-LABEL: warning: test_amdhsa_wavefront_size32_invalid
-// NONGFX10: error: directive requires gfx10+
-// GFX10: error: value out of range
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: value out of range
 // NONAMDHSA: error: unknown directive
 .warning "test_amdhsa_wavefront_size32_invalid"
 .amdhsa_kernel test_amdhsa_wavefront_size32_invalid
@@ -172,8 +174,8 @@
 .end_amdhsa_kernel
 
 // GCN-LABEL: warning: test_amdhsa_workgroup_processor_mode
-// NONGFX10: error: directive requires gfx10+
-// GFX10: error: .amdhsa_next_free_vgpr directive is required
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: .amdhsa_next_free_vgpr directive is required
 // NONAMDHSA: error: unknown directive
 .warning "test_amdhsa_workgroup_processor_mode"
 .amdhsa_kernel test_amdhsa_workgroup_processor_mode
@@ -181,8 +183,8 @@
 .end_amdhsa_kernel
 
 // GCN-LABEL: warning: test_amdhsa_workgroup_processor_mode_invalid
-// NONGFX10: error: directive requires gfx10+
-// GFX10: error: value out of range
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: value out of range
 // NONAMDHSA: error: unknown directive
 .warning "test_amdhsa_workgroup_processor_mode_invalid"
 .amdhsa_kernel test_amdhsa_workgroup_processor_mode_invalid
@@ -190,8 +192,8 @@
 .end_amdhsa_kernel
 
 // GCN-LABEL: warning: test_amdhsa_memory_ordered
-// NONGFX10: error: directive requires gfx10+
-// GFX10: error: .amdhsa_next_free_vgpr directive is required
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: .amdhsa_next_free_vgpr directive is required
 // NONAMDHSA: error: unknown directive
 .warning "test_amdhsa_memory_ordered"
 .amdhsa_kernel test_amdhsa_memory_ordered
@@ -199,8 +201,8 @@
 .end_amdhsa_kernel
 
 // GCN-LABEL: warning: test_amdhsa_memory_ordered_invalid
-// NONGFX10: error: directive requires gfx10+
-// GFX10: error: value out of range
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: value out of range
 // NONAMDHSA: error: unknown directive
 .warning "test_amdhsa_memory_ordered_invalid"
 .amdhsa_kernel test_amdhsa_memory_ordered_invalid
@@ -208,8 +210,8 @@
 .end_amdhsa_kernel
 
 // GCN-LABEL: warning: test_amdhsa_forward_progress
-// NONGFX10: error: directive requires gfx10+
-// GFX10: error: .amdhsa_next_free_vgpr directive is required
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: .amdhsa_next_free_vgpr directive is required
 // NONAMDHSA: error: unknown directive
 .warning "test_amdhsa_forward_progress"
 .amdhsa_kernel test_amdhsa_forward_progress
@@ -217,12 +219,55 @@
 .end_amdhsa_kernel
 
 // GCN-LABEL: warning: test_amdhsa_forward_progress_invalid
-// NONGFX10: error: directive requires gfx10+
-// GFX10: error: value out of range
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: value out of range
 // NONAMDHSA: error: unknown directive
 .warning "test_amdhsa_forward_progress_invalid"
 .amdhsa_kernel test_amdhsa_forward_progress_invalid
   .amdhsa_forward_progress 5
+.end_amdhsa_kernel
+
+// GCN-LABEL: warning: test_amdhsa_shared_vgpr_count_invalid1
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: .amdhsa_next_free_vgpr directive is required
+// NONAMDHSA: error: unknown directive
+.warning "test_amdhsa_shared_vgpr_count_invalid1"
+.amdhsa_kernel test_amdhsa_shared_vgpr_count_invalid1
+  .amdhsa_shared_vgpr_count 8
+.end_amdhsa_kernel
+
+// GCN-LABEL: warning: test_amdhsa_shared_vgpr_count_invalid2
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: shared_vgpr_count directive not valid on wavefront size 32
+// NONAMDHSA: error: unknown directive
+.warning "test_amdhsa_shared_vgpr_count_invalid2"
+.amdhsa_kernel test_amdhsa_shared_vgpr_count_invalid2
+  .amdhsa_next_free_vgpr 16
+  .amdhsa_next_free_sgpr 0
+  .amdhsa_shared_vgpr_count 8
+  .amdhsa_wavefront_size32 1
+.end_amdhsa_kernel
+
+// GCN-LABEL: warning: test_amdhsa_shared_vgpr_count_invalid3
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: value out of range
+// NONAMDHSA: error: unknown directive
+.warning "test_amdhsa_shared_vgpr_count_invalid3"
+.amdhsa_kernel test_amdhsa_shared_vgpr_count_invalid3
+  .amdhsa_next_free_vgpr 32
+  .amdhsa_next_free_sgpr 0
+  .amdhsa_shared_vgpr_count 16
+.end_amdhsa_kernel
+
+// GCN-LABEL: warning: test_amdhsa_shared_vgpr_count_invalid4
+// PREGFX10: error: directive requires gfx10+
+// GFX10PLUS: error: shared_vgpr_count*2 + compute_pgm_rsrc1.GRANULATED_WORKITEM_VGPR_COUNT cannot exceed 63
+// NONAMDHSA: error: unknown directive
+.warning "test_amdhsa_shared_vgpr_count_invalid4"
+.amdhsa_kernel test_amdhsa_shared_vgpr_count_invalid4
+  .amdhsa_next_free_vgpr 273
+  .amdhsa_next_free_sgpr 0
+  .amdhsa_shared_vgpr_count 15
 .end_amdhsa_kernel
 
 // GCN-LABEL: warning: test_next_free_vgpr_invalid

@@ -105,6 +105,7 @@ values for thread-safety and concept parsimony reasons. Instead, regular values
 are produced by dedicated operations that have the corresponding semantics:
 [`llvm.mlir.constant`](#llvmmlirconstant-mlirllvmconstantop),
 [`llvm.mlir.undef`](#llvmmlirundef-mlirllvmundefop),
+[`llvm.mlir.poison`](#llvmmlirpoison-mlirllvmpoisonop),
 [`llvm.mlir.null`](#llvmmlirnull-mlirllvmnullop). Note how these operations are
 prefixed with `mlir.` to indicate that they don't belong to LLVM IR but are only
 necessary to model it in MLIR. The values produced by these operations are
@@ -194,8 +195,8 @@ objects, the creation and manipulation of LLVM dialect types is thread-safe.
 MLIR does not support module-scoped named type declarations, e.g. `%s = type
 {i32, i32}` in LLVM IR. Instead, types must be fully specified at each use,
 except for recursive types where only the first reference to a named type needs
-to be fully specified. MLIR [type aliases](../LangRef.md/#type-aliases) can be used
-to achieve more compact syntax.
+to be fully specified. MLIR [type aliases](../LangRef.md/#type-aliases) can be
+used to achieve more compact syntax.
 
 The general syntax of LLVM dialect types is `!llvm.`, followed by a type kind
 identifier (e.g., `ptr` for pointer or `struct` for structure) and by an
@@ -257,17 +258,24 @@ the element type, which can be either compatible built-in or LLVM dialect types.
 
 Pointer types specify an address in memory.
 
-Pointer types are parametric types parameterized by the element type and the
-address space. The address space is an integer, but this choice may be
-reconsidered if MLIR implements named address spaces. Their syntax is as
-follows:
+Both opaque and type-parameterized pointer types are supported.
+[Opaque pointers](https://llvm.org/docs/OpaquePointers.html) do not indicate the
+type of the data pointed to, and are intended to simplify LLVM IR by encoding
+behavior relevant to the pointee type into operations rather than into types.
+Non-opaque pointer types carry the pointee type as a type parameter. Both kinds
+of pointers may be additionally parameterized by an address space. The address
+space is an integer, but this choice may be reconsidered if MLIR implements
+named address spaces. The syntax of pointer types is as follows:
 
 ```
-  llvm-ptr-type ::= `!llvm.ptr<` type (`,` integer-literal)? `>`
+  llvm-ptr-type ::= `!llvm.ptr` (`<` integer-literal `>`)?
+                  | `!llvm.ptr<` type (`,` integer-literal)? `>`
 ```
 
-where the optional integer literal corresponds to the memory space. Both cases
-are represented by `LLVMPointerType` internally.
+where the former case is the opaque pointer type and the latter case is the
+non-opaque pointer type; the optional group containing the integer literal
+corresponds to the memory space. All cases are represented by `LLVMPointerType`
+internally.
 
 #### Array Types
 
@@ -466,3 +474,22 @@ All operations in the LLVM IR dialect have a custom form in MLIR. The mnemonic
 of an operation is that used in LLVM IR prefixed with "`llvm.`".
 
 [include "Dialects/LLVMOps.md"]
+
+## Operations for LLVM IR Intrinsics
+
+MLIR operation system is open making it unnecessary to introduce a hard bound
+between "core" operations and "intrinsics". General LLVM IR intrinsics are
+modeled as first-class operations in the LLVM dialect. Target-specific LLVM IR
+intrinsics, e.g., NVVM or ROCDL, are modeled as separate dialects.
+
+[include "Dialects/LLVMIntrinsicOps.md"]
+
+### Debug Info
+
+Debug information within the LLVM dialect is represented using locations in
+combination with a set of attributes that mirror the DINode structure defined by
+the debug info metadata within LLVM IR. Debug scoping information is attached
+to LLVM IR dialect operations using a fused location (`FusedLoc`) whose metadata
+holds the DIScopeAttr representing the debug scope. Similarly, the subprogram
+of LLVM IR dialect `FuncOp` operations is attached using a fused location whose
+metadata is a DISubprogramAttr.

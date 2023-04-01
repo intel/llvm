@@ -8,15 +8,16 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/property_list_base.hpp>
-#include <CL/sycl/property_list.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/property_list_base.hpp>
+#include <sycl/property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
-template <typename, int, access::mode, access::target, access::placeholder,
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
 class accessor;
 namespace detail {
@@ -24,8 +25,7 @@ namespace detail {
 // of each compile-time-constant property.
 template <typename T> struct IsCompileTimePropertyInstance : std::false_type {};
 } // namespace detail
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 template <typename T> struct is_compile_time_property : std::false_type {};
 
@@ -40,19 +40,20 @@ template <typename T> struct is_compile_time_property : std::false_type {};
 ///
 /// \ingroup sycl_api
 template <typename... PropsT>
-class accessor_property_list : protected sycl::detail::PropertyListBase {
+class __SYCL_TYPE(accessor_property_list) accessor_property_list
+    : protected sycl::detail::PropertyListBase {
   // These structures check if compile-time-constant property is present in
   // list. For runtime properties this check is always true.
   template <class T, class U> struct AreSameTemplate : std::is_same<T, U> {};
   template <template <class...> class T, class T1, class T2>
   struct AreSameTemplate<T<T1>, T<T2>> : std::true_type {};
-#if __cplusplus >= 201703L
+
   // Declaring non-type template parameters with auto is a C++17 feature. Since
   // the extension is written against SYCL 2020, which implies use of C++17,
   // there's no need to provide alternative implementations for older standards.
   template <template <auto...> class T, auto... T1, auto... T2>
   struct AreSameTemplate<T<T1...>, T<T2...>> : std::true_type {};
-#endif
+
   // This template helps to identify if PropListT parameter pack contains
   // property of PropT type, where PropT is a nested instance template of
   // compile-time-constant property.
@@ -80,7 +81,6 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
     using Rest = void;
   };
 
-#if __cplusplus >= 201703L
   // This template serves the same purpose as ContainsProperty, but operates on
   // template template arguments.
   template <typename ContainerT, template <auto...> typename PropT,
@@ -96,7 +96,6 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
 
   template <template <auto...> typename PropT, auto... Args>
   struct ContainsPropertyInstance<void, PropT, Args...> : std::false_type {};
-#endif
 
   // This template checks if two lists of properties contain the same set of
   // compile-time-constant properties in any order. Run time properties are
@@ -113,7 +112,6 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   template <typename... OtherProps>
   struct ContainsSameProperties<void, OtherProps...> : std::true_type {};
 
-#if __cplusplus >= 201703L
   // This template helps to extract exact property instance type based on
   // template template argument. If there's an instance of target property in
   // ContainerT, find instance template and use it as type. Otherwise, just
@@ -131,7 +129,6 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
     using type = typename sycl::detail::conditional_t<
         AreSameTemplate<Head, PropT<Args...>>::value, Head, void>;
   };
-#endif
 
   // The structs validate that all objects passed are SYCL properties.
   // Properties are either run time SYCL 1.2.1 properties, and thus derive from
@@ -181,7 +178,7 @@ public:
   PropT get_property() const {
     if (!has_property<PropT>())
       throw sycl::invalid_object_error("The property is not found",
-                                       PI_INVALID_VALUE);
+                                       PI_ERROR_INVALID_VALUE);
 
     return get_property_helper<PropT>();
   }
@@ -193,7 +190,6 @@ public:
     return has_property_helper<PropT>();
   }
 
-#if __cplusplus >= 201703L
   template <typename T>
   static constexpr bool has_property(
       typename std::enable_if_t<is_compile_time_property<T>::value> * = 0) {
@@ -210,7 +206,10 @@ public:
     return typename GetCompileTimePropertyHelper<PropertyContainer<PropsT...>,
                                                  T::template instance>::type{};
   }
-#endif
+
+  operator sycl::property_list() const {
+    return property_list(MDataLessProps, MPropsWithData);
+  }
 
 private:
   template <typename, int, access::mode, access::target, access::placeholder,
@@ -229,8 +228,7 @@ private:
                                   PropsT...>::value;
   }
 };
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___RANGES_EMPTY_H
 #define _LIBCPP___RANGES_EMPTY_H
 
@@ -14,15 +15,14 @@
 #include <__iterator/concepts.h>
 #include <__ranges/access.h>
 #include <__ranges/size.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if _LIBCPP_STD_VER >= 20
 
 // [range.prim.empty]
 
@@ -68,14 +68,14 @@ namespace __empty {
       return ranges::begin(__t) == ranges::end(__t);
     }
   };
-}
+} // namespace __empty
 
 inline namespace __cpo {
   inline constexpr auto empty = __empty::__fn{};
 } // namespace __cpo
 } // namespace ranges
 
-#endif // !defined(_LIBCPP_HAS_NO_RANGES)
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

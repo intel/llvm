@@ -13,15 +13,16 @@
 
 #include "AMDGPU.h"
 #include "GCNSubtarget.h"
+#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsR600.h"
 #include "llvm/Pass.h"
 #include "llvm/Target/TargetMachine.h"
-#include "Utils/AMDGPUBaseInfo.h"
 
 #define DEBUG_TYPE "amdgpu-promote-alloca"
 
@@ -220,7 +221,7 @@ AMDGPUPromoteAllocaImpl::getLocalSizeYZ(IRBuilder<> &Builder) {
     ST.makeLIDRangeMetadata(LocalSizeY);
     ST.makeLIDRangeMetadata(LocalSizeZ);
 
-    return std::make_pair(LocalSizeY, LocalSizeZ);
+    return std::pair(LocalSizeY, LocalSizeZ);
   }
 
   // We must read the size out of the dispatch pointer.
@@ -281,7 +282,7 @@ AMDGPUPromoteAllocaImpl::getLocalSizeYZ(IRBuilder<> &Builder) {
   Value *GEPZU = Builder.CreateConstInBoundsGEP1_64(I32Ty, CastDispatchPtr, 2);
   LoadInst *LoadZU = Builder.CreateAlignedLoad(I32Ty, GEPZU, Align(4));
 
-  MDNode *MD = MDNode::get(Mod->getContext(), None);
+  MDNode *MD = MDNode::get(Mod->getContext(), std::nullopt);
   LoadXY->setMetadata(LLVMContext::MD_invariant_load, MD);
   LoadZU->setMetadata(LLVMContext::MD_invariant_load, MD);
   ST.makeLIDRangeMetadata(LoadZU);
@@ -289,7 +290,7 @@ AMDGPUPromoteAllocaImpl::getLocalSizeYZ(IRBuilder<> &Builder) {
   // Extract y component. Upper half of LoadZU should be zero already.
   Value *Y = Builder.CreateLShr(LoadXY, 16);
 
-  return std::make_pair(Y, LoadZU);
+  return std::pair(Y, LoadZU);
 }
 
 Value *AMDGPUPromoteAllocaImpl::getWorkitemID(IRBuilder<> &Builder,
@@ -333,87 +334,55 @@ static FixedVectorType *arrayTypeToVecType(ArrayType *ArrayTy) {
                               ArrayTy->getNumElements());
 }
 
-static Value *stripBitcasts(Value *V) {
-  while (Instruction *I = dyn_cast<Instruction>(V)) {
-    if (I->getOpcode() != Instruction::BitCast)
-      break;
-    V = I->getOperand(0);
-  }
-  return V;
-}
-
 static Value *
 calculateVectorIndex(Value *Ptr,
                      const std::map<GetElementPtrInst *, Value *> &GEPIdx) {
-  GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(stripBitcasts(Ptr));
+  auto *GEP = dyn_cast<GetElementPtrInst>(Ptr->stripPointerCasts());
   if (!GEP)
-    return nullptr;
+    return ConstantInt::getNullValue(Type::getInt32Ty(Ptr->getContext()));
 
   auto I = GEPIdx.find(GEP);
-  return I == GEPIdx.end() ? nullptr : I->second;
+  assert(I != GEPIdx.end() && "Must have entry for GEP!");
+  return I->second;
 }
 
-static Value* GEPToVectorIndex(GetElementPtrInst *GEP) {
-  // FIXME we only support simple cases
-  if (GEP->getNumOperands() != 3)
+static Value *GEPToVectorIndex(GetElementPtrInst *GEP, AllocaInst *Alloca,
+                               Type *VecElemTy, const DataLayout &DL) {
+  // TODO: Extracting a "multiple of X" from a GEP might be a useful generic
+  // helper.
+  unsigned BW = DL.getIndexTypeSizeInBits(GEP->getType());
+  MapVector<Value *, APInt> VarOffsets;
+  APInt ConstOffset(BW, 0);
+  if (GEP->getPointerOperand()->stripPointerCasts() != Alloca ||
+      !GEP->collectOffset(DL, BW, VarOffsets, ConstOffset))
     return nullptr;
 
-  ConstantInt *I0 = dyn_cast<ConstantInt>(GEP->getOperand(1));
-  if (!I0 || !I0->isZero())
+  unsigned VecElemSize = DL.getTypeAllocSize(VecElemTy);
+  if (VarOffsets.size() > 1)
     return nullptr;
 
-  return GEP->getOperand(2);
+  if (VarOffsets.size() == 1) {
+    // Only handle cases where we don't need to insert extra arithmetic
+    // instructions.
+    const auto &VarOffset = VarOffsets.front();
+    if (!ConstOffset.isZero() || VarOffset.second != VecElemSize)
+      return nullptr;
+    return VarOffset.first;
+  }
+
+  APInt Quot;
+  uint64_t Rem;
+  APInt::udivrem(ConstOffset, VecElemSize, Quot, Rem);
+  if (Rem != 0)
+    return nullptr;
+
+  return ConstantInt::get(GEP->getContext(), Quot);
 }
 
-// Not an instruction handled below to turn into a vector.
-//
-// TODO: Check isTriviallyVectorizable for calls and handle other
-// instructions.
-static bool canVectorizeInst(Instruction *Inst, User *User,
-                             const DataLayout &DL) {
-  switch (Inst->getOpcode()) {
-  case Instruction::Load: {
-    // Currently only handle the case where the Pointer Operand is a GEP.
-    // Also we could not vectorize volatile or atomic loads.
-    LoadInst *LI = cast<LoadInst>(Inst);
-    if (isa<AllocaInst>(User) &&
-        LI->getPointerOperandType() == User->getType() &&
-        isa<VectorType>(LI->getType()))
-      return true;
-
-    Instruction *PtrInst = dyn_cast<Instruction>(LI->getPointerOperand());
-    if (!PtrInst)
-      return false;
-
-    return (PtrInst->getOpcode() == Instruction::GetElementPtr ||
-            PtrInst->getOpcode() == Instruction::BitCast) &&
-           LI->isSimple();
-  }
-  case Instruction::BitCast:
-    return true;
-  case Instruction::Store: {
-    // Must be the stored pointer operand, not a stored value, plus
-    // since it should be canonical form, the User should be a GEP.
-    // Also we could not vectorize volatile or atomic stores.
-    StoreInst *SI = cast<StoreInst>(Inst);
-    if (isa<AllocaInst>(User) &&
-        SI->getPointerOperandType() == User->getType() &&
-        isa<VectorType>(SI->getValueOperand()->getType()))
-      return true;
-
-    Instruction *UserInst = dyn_cast<Instruction>(User);
-    if (!UserInst)
-      return false;
-
-    return (SI->getPointerOperand() == User) &&
-           (UserInst->getOpcode() == Instruction::GetElementPtr ||
-            UserInst->getOpcode() == Instruction::BitCast) &&
-           SI->isSimple();
-  }
-  default:
-    return false;
-  }
-}
+struct MemTransferInfo {
+  ConstantInt *SrcIndex = nullptr;
+  ConstantInt *DestIndex = nullptr;
+};
 
 static bool tryPromoteAllocaToVector(AllocaInst *Alloca, const DataLayout &DL,
                                      unsigned MaxVGPRs) {
@@ -454,75 +423,145 @@ static bool tryPromoteAllocaToVector(AllocaInst *Alloca, const DataLayout &DL,
   }
 
   std::map<GetElementPtrInst*, Value*> GEPVectorIdx;
-  std::vector<Value *> WorkList;
-  SmallVector<User *, 8> Users(Alloca->users());
-  SmallVector<User *, 8> UseUsers(Users.size(), Alloca);
-  Type *VecEltTy = VectorTy->getElementType();
-  while (!Users.empty()) {
-    User *AllocaUser = Users.pop_back_val();
-    User *UseUser = UseUsers.pop_back_val();
-    Instruction *Inst = dyn_cast<Instruction>(AllocaUser);
+  SmallVector<Instruction *> WorkList;
+  SmallVector<Instruction *> DeferredInsts;
+  SmallVector<Use *, 8> Uses;
+  DenseMap<MemTransferInst *, MemTransferInfo> TransferInfo;
 
-    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(AllocaUser);
-    if (!GEP) {
-      if (!canVectorizeInst(Inst, UseUser, DL))
+  for (Use &U : Alloca->uses())
+    Uses.push_back(&U);
+
+  Type *VecEltTy = VectorTy->getElementType();
+  unsigned ElementSize = DL.getTypeSizeInBits(VecEltTy) / 8;
+  while (!Uses.empty()) {
+    Use *U = Uses.pop_back_val();
+    Instruction *Inst = cast<Instruction>(U->getUser());
+
+    if (Value *Ptr = getLoadStorePointerOperand(Inst)) {
+      // This is a store of the pointer, not to the pointer.
+      if (isa<StoreInst>(Inst) &&
+          U->getOperandNo() != StoreInst::getPointerOperandIndex())
         return false;
 
-      if (Inst->getOpcode() == Instruction::BitCast) {
-        Type *FromTy = Inst->getOperand(0)->getType()->getPointerElementType();
-        Type *ToTy = Inst->getType()->getPointerElementType();
-        if (FromTy->isAggregateType() || ToTy->isAggregateType() ||
-            DL.getTypeSizeInBits(FromTy) != DL.getTypeSizeInBits(ToTy))
-          continue;
+      Type *AccessTy = getLoadStoreType(Inst);
+      Ptr = Ptr->stripPointerCasts();
 
-        for (User *CastUser : Inst->users()) {
-          if (isAssumeLikeIntrinsic(cast<Instruction>(CastUser)))
-            continue;
-          Users.push_back(CastUser);
-          UseUsers.push_back(Inst);
-        }
-
+      // Alloca already accessed as vector, leave alone.
+      if (Ptr == Alloca && DL.getTypeStoreSize(Alloca->getAllocatedType()) ==
+                               DL.getTypeStoreSize(AccessTy))
         continue;
-      }
 
-      WorkList.push_back(AllocaUser);
+      // Check that this is a simple access of a vector element.
+      bool IsSimple = isa<LoadInst>(Inst) ? cast<LoadInst>(Inst)->isSimple()
+                                          : cast<StoreInst>(Inst)->isSimple();
+      if (!IsSimple ||
+          !CastInst::isBitOrNoopPointerCastable(VecEltTy, AccessTy, DL))
+        return false;
+
+      WorkList.push_back(Inst);
       continue;
     }
 
-    Value *Index = GEPToVectorIndex(GEP);
-
-    // If we can't compute a vector index from this GEP, then we can't
-    // promote this alloca to vector.
-    if (!Index) {
-      LLVM_DEBUG(dbgs() << "  Cannot compute vector index for GEP " << *GEP
-                        << '\n');
-      return false;
+    if (isa<BitCastInst>(Inst)) {
+      // Look through bitcasts.
+      for (Use &U : Inst->uses())
+        Uses.push_back(&U);
+      continue;
     }
 
-    GEPVectorIdx[GEP] = Index;
-    Users.append(GEP->user_begin(), GEP->user_end());
-    UseUsers.append(GEP->getNumUses(), GEP);
+    if (auto *GEP = dyn_cast<GetElementPtrInst>(Inst)) {
+      // If we can't compute a vector index from this GEP, then we can't
+      // promote this alloca to vector.
+      Value *Index = GEPToVectorIndex(GEP, Alloca, VecEltTy, DL);
+      if (!Index) {
+        LLVM_DEBUG(dbgs() << "  Cannot compute vector index for GEP " << *GEP
+                          << '\n');
+        return false;
+      }
+
+      GEPVectorIdx[GEP] = Index;
+      for (Use &U : Inst->uses())
+        Uses.push_back(&U);
+      continue;
+    }
+
+    if (MemTransferInst *TransferInst = dyn_cast<MemTransferInst>(Inst)) {
+      if (TransferInst->isVolatile())
+        return false;
+
+      ConstantInt *Len = dyn_cast<ConstantInt>(TransferInst->getLength());
+      if (!Len || !!(Len->getZExtValue() % ElementSize))
+        return false;
+
+      if (!TransferInfo.count(TransferInst)) {
+        DeferredInsts.push_back(Inst);
+        WorkList.push_back(Inst);
+        TransferInfo[TransferInst] = MemTransferInfo();
+      }
+
+      auto getPointerIndexOfAlloca = [&](Value *Ptr) -> ConstantInt * {
+        GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Ptr);
+        if (Ptr != Alloca && !GEPVectorIdx.count(GEP))
+          return nullptr;
+
+        return dyn_cast<ConstantInt>(calculateVectorIndex(Ptr, GEPVectorIdx));
+      };
+
+      unsigned OpNum = U->getOperandNo();
+      MemTransferInfo *TI = &TransferInfo[TransferInst];
+      if (OpNum == 0) {
+        Value *Dest = TransferInst->getDest();
+        ConstantInt *Index = getPointerIndexOfAlloca(Dest);
+        if (!Index)
+          return false;
+        TI->DestIndex = Index;
+      } else {
+        assert(OpNum == 1);
+        Value *Src = TransferInst->getSource();
+        ConstantInt *Index = getPointerIndexOfAlloca(Src);
+        if (!Index)
+          return false;
+        TI->SrcIndex = Index;
+      }
+      continue;
+    }
+
+    // Ignore assume-like intrinsics and comparisons used in assumes.
+    if (isAssumeLikeIntrinsic(Inst))
+      continue;
+
+    if (isa<ICmpInst>(Inst) && all_of(Inst->users(), [](User *U) {
+          return isAssumeLikeIntrinsic(cast<Instruction>(U));
+        }))
+      continue;
+
+    // Unknown user.
+    return false;
+  }
+
+  while (!DeferredInsts.empty()) {
+    Instruction *Inst = DeferredInsts.pop_back_val();
+    MemTransferInst *TransferInst = cast<MemTransferInst>(Inst);
+    // TODO: Support the case if the pointers are from different alloca or
+    // from different address spaces.
+    MemTransferInfo &Info = TransferInfo[TransferInst];
+    if (!Info.SrcIndex || !Info.DestIndex)
+      return false;
   }
 
   LLVM_DEBUG(dbgs() << "  Converting alloca to vector " << *AllocaTy << " -> "
                     << *VectorTy << '\n');
 
-  for (Value *V : WorkList) {
-    Instruction *Inst = cast<Instruction>(V);
+  for (Instruction *Inst : WorkList) {
     IRBuilder<> Builder(Inst);
     switch (Inst->getOpcode()) {
     case Instruction::Load: {
-      if (Inst->getType() == AllocaTy || Inst->getType()->isVectorTy())
-        break;
-
       Value *Ptr = cast<LoadInst>(Inst)->getPointerOperand();
       Value *Index = calculateVectorIndex(Ptr, GEPVectorIdx);
-      if (!Index)
-        break;
-
-      Type *VecPtrTy = VectorTy->getPointerTo(AMDGPUAS::PRIVATE_ADDRESS);
+      Type *VecPtrTy = VectorTy->getPointerTo(Alloca->getAddressSpace());
       Value *BitCast = Builder.CreateBitCast(Alloca, VecPtrTy);
-      Value *VecValue = Builder.CreateLoad(VectorTy, BitCast);
+      Value *VecValue =
+          Builder.CreateAlignedLoad(VectorTy, BitCast, Alloca->getAlign());
       Value *ExtractElement = Builder.CreateExtractElement(VecValue, Index);
       if (Inst->getType() != VecEltTy)
         ExtractElement = Builder.CreateBitOrPointerCast(ExtractElement, Inst->getType());
@@ -532,24 +571,47 @@ static bool tryPromoteAllocaToVector(AllocaInst *Alloca, const DataLayout &DL,
     }
     case Instruction::Store: {
       StoreInst *SI = cast<StoreInst>(Inst);
-      if (SI->getValueOperand()->getType() == AllocaTy ||
-          SI->getValueOperand()->getType()->isVectorTy())
-        break;
-
       Value *Ptr = SI->getPointerOperand();
       Value *Index = calculateVectorIndex(Ptr, GEPVectorIdx);
-      if (!Index)
-        break;
-
-      Type *VecPtrTy = VectorTy->getPointerTo(AMDGPUAS::PRIVATE_ADDRESS);
+      Type *VecPtrTy = VectorTy->getPointerTo(Alloca->getAddressSpace());
       Value *BitCast = Builder.CreateBitCast(Alloca, VecPtrTy);
-      Value *VecValue = Builder.CreateLoad(VectorTy, BitCast);
+      Value *VecValue =
+          Builder.CreateAlignedLoad(VectorTy, BitCast, Alloca->getAlign());
       Value *Elt = SI->getValueOperand();
       if (Elt->getType() != VecEltTy)
         Elt = Builder.CreateBitOrPointerCast(Elt, VecEltTy);
       Value *NewVecValue = Builder.CreateInsertElement(VecValue, Elt, Index);
-      Builder.CreateStore(NewVecValue, BitCast);
+      Builder.CreateAlignedStore(NewVecValue, BitCast, Alloca->getAlign());
       Inst->eraseFromParent();
+      break;
+    }
+    case Instruction::Call: {
+      if (const MemTransferInst *MTI = dyn_cast<MemTransferInst>(Inst)) {
+        ConstantInt *Length = cast<ConstantInt>(MTI->getLength());
+        unsigned NumCopied = Length->getZExtValue() / ElementSize;
+        MemTransferInfo *TI = &TransferInfo[cast<MemTransferInst>(Inst)];
+        unsigned SrcBegin = TI->SrcIndex->getZExtValue();
+        unsigned DestBegin = TI->DestIndex->getZExtValue();
+
+        SmallVector<int> Mask;
+        for (unsigned Idx = 0; Idx < VectorTy->getNumElements(); ++Idx) {
+          if (Idx >= DestBegin && Idx < DestBegin + NumCopied) {
+            Mask.push_back(SrcBegin++);
+          } else {
+            Mask.push_back(Idx);
+          }
+        }
+        Type *VecPtrTy = VectorTy->getPointerTo(Alloca->getAddressSpace());
+        Value *BitCast = Builder.CreateBitCast(Alloca, VecPtrTy);
+        Value *VecValue =
+            Builder.CreateAlignedLoad(VectorTy, BitCast, Alloca->getAlign());
+        Value *NewVecValue = Builder.CreateShuffleVector(VecValue, Mask);
+        Builder.CreateAlignedStore(NewVecValue, BitCast, Alloca->getAlign());
+
+        Inst->eraseFromParent();
+      } else {
+        llvm_unreachable("Unsupported call when promoting alloca to vector");
+      }
       break;
     }
 
@@ -736,7 +798,7 @@ bool AMDGPUPromoteAllocaImpl::hasSufficientLocalMem(const Function &F) {
     }
   }
 
-  LocalMemLimit = ST.getLocalMemorySize();
+  LocalMemLimit = ST.getAddressableLocalMemorySize();
   if (LocalMemLimit == 0)
     return false;
 
@@ -789,6 +851,17 @@ bool AMDGPUPromoteAllocaImpl::hasSufficientLocalMem(const Function &F) {
     Align Alignment =
         DL.getValueOrABITypeAlignment(GV->getAlign(), GV->getValueType());
     uint64_t AllocSize = DL.getTypeAllocSize(GV->getValueType());
+
+    // HIP uses an extern unsized array in local address space for dynamically
+    // allocated shared memory.  In that case, we have to disable the promotion.
+    if (GV->hasExternalLinkage() && AllocSize == 0) {
+      LocalMemLimit = 0;
+      LLVM_DEBUG(dbgs() << "Function has a reference to externally allocated "
+                           "local memory. Promoting to local memory "
+                           "disabled.\n");
+      return false;
+    }
+
     AllocatedSizes.emplace_back(AllocSize, Alignment);
   }
 
@@ -796,10 +869,7 @@ bool AMDGPUPromoteAllocaImpl::hasSufficientLocalMem(const Function &F) {
   //
   // FIXME: We should really do something to fix the addresses to a more optimal
   // value instead
-  llvm::sort(AllocatedSizes, [](std::pair<uint64_t, Align> LHS,
-                                std::pair<uint64_t, Align> RHS) {
-    return LHS.second < RHS.second;
-  });
+  llvm::sort(AllocatedSizes, llvm::less_second());
 
   // Check how much local memory is being used by global objects
   CurrentLocalMemUsage = 0;
@@ -905,7 +975,7 @@ bool AMDGPUPromoteAllocaImpl::handleAlloca(AllocaInst &I, bool SufficientLDS) {
   // usage order.
   //
   // FIXME: It is also possible that if we're allowed to use all of the memory
-  // could could end up using more than the maximum due to alignment padding.
+  // could end up using more than the maximum due to alignment padding.
 
   uint32_t NewSize = alignTo(CurrentLocalMemUsage, Alignment);
   uint32_t AllocSize = WorkGroupSize * DL.getTypeAllocSize(AllocaTy);
@@ -932,12 +1002,9 @@ bool AMDGPUPromoteAllocaImpl::handleAlloca(AllocaInst &I, bool SufficientLDS) {
 
   Type *GVTy = ArrayType::get(I.getAllocatedType(), WorkGroupSize);
   GlobalVariable *GV = new GlobalVariable(
-      *Mod, GVTy, false, GlobalValue::InternalLinkage,
-      UndefValue::get(GVTy),
-      Twine(F->getName()) + Twine('.') + I.getName(),
-      nullptr,
-      GlobalVariable::NotThreadLocal,
-      AMDGPUAS::LOCAL_ADDRESS);
+      *Mod, GVTy, false, GlobalValue::InternalLinkage, PoisonValue::get(GVTy),
+      Twine(F->getName()) + Twine('.') + I.getName(), nullptr,
+      GlobalVariable::NotThreadLocal, AMDGPUAS::LOCAL_ADDRESS);
   GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
   GV->setAlignment(I.getAlign());
 
@@ -1029,9 +1096,9 @@ bool AMDGPUPromoteAllocaImpl::handleAlloca(AllocaInst &I, bool SufficientLDS) {
       continue;
     case Intrinsic::memset: {
       MemSetInst *MemSet = cast<MemSetInst>(Intr);
-      Builder.CreateMemSet(
-          MemSet->getRawDest(), MemSet->getValue(), MemSet->getLength(),
-          MaybeAlign(MemSet->getDestAlignment()), MemSet->isVolatile());
+      Builder.CreateMemSet(MemSet->getRawDest(), MemSet->getValue(),
+                           MemSet->getLength(), MemSet->getDestAlign(),
+                           MemSet->isVolatile());
       Intr->eraseFromParent();
       continue;
     }

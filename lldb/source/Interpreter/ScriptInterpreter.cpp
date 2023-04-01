@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <string>
 
 using namespace lldb;
@@ -28,10 +29,10 @@ using namespace lldb_private;
 
 ScriptInterpreter::ScriptInterpreter(
     Debugger &debugger, lldb::ScriptLanguage script_lang,
-    lldb::ScriptedProcessInterfaceUP scripted_process_interface_up)
+    lldb::ScriptedPlatformInterfaceUP scripted_platform_interface_up)
     : m_debugger(debugger), m_script_lang(script_lang),
-      m_scripted_process_interface_up(
-          std::move(scripted_process_interface_up)) {}
+      m_scripted_platform_interface_up(
+          std::move(scripted_platform_interface_up)) {}
 
 void ScriptInterpreter::CollectDataForBreakpointCommandCallback(
     std::vector<std::reference_wrapper<BreakpointOptions>> &bp_options_vec,
@@ -79,19 +80,30 @@ ScriptInterpreter::GetDataExtractorFromSBData(const lldb::SBData &data) const {
   return data.m_opaque_sp;
 }
 
+lldb::ProcessAttachInfoSP ScriptInterpreter::GetOpaqueTypeFromSBAttachInfo(
+    const lldb::SBAttachInfo &attach_info) const {
+  return attach_info.m_opaque_sp;
+}
+
+lldb::ProcessLaunchInfoSP ScriptInterpreter::GetOpaqueTypeFromSBLaunchInfo(
+    const lldb::SBLaunchInfo &launch_info) const {
+  return std::make_shared<ProcessLaunchInfo>(
+      *reinterpret_cast<ProcessLaunchInfo *>(launch_info.m_opaque_sp.get()));
+}
+
 Status
 ScriptInterpreter::GetStatusFromSBError(const lldb::SBError &error) const {
   if (error.m_opaque_up)
-    return *error.m_opaque_up.get();
+    return *error.m_opaque_up;
 
   return Status();
 }
 
-llvm::Optional<MemoryRegionInfo>
+std::optional<MemoryRegionInfo>
 ScriptInterpreter::GetOpaqueTypeFromSBMemoryRegionInfo(
     const lldb::SBMemoryRegionInfo &mem_region) const {
   if (!mem_region.m_opaque_up)
-    return llvm::None;
+    return std::nullopt;
   return *mem_region.m_opaque_up.get();
 }
 
@@ -109,13 +121,14 @@ ScriptInterpreter::StringToLanguage(const llvm::StringRef &language) {
 Status ScriptInterpreter::SetBreakpointCommandCallback(
     std::vector<std::reference_wrapper<BreakpointOptions>> &bp_options_vec,
     const char *callback_text) {
-  Status return_error;
+  Status error;
   for (BreakpointOptions &bp_options : bp_options_vec) {
-    return_error = SetBreakpointCommandCallback(bp_options, callback_text);
-    if (return_error.Success())
+    error = SetBreakpointCommandCallback(bp_options, callback_text,
+                                         /*is_callback=*/false);
+    if (!error.Success())
       break;
   }
-  return return_error;
+  return error;
 }
 
 Status ScriptInterpreter::SetBreakpointCommandCallbackFunction(

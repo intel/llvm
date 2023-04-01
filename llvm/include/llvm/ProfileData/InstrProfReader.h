@@ -17,11 +17,14 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/ProfileSummary.h"
+#include "llvm/Object/BuildID.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/ProfileData/InstrProfCorrelator.h"
+#include "llvm/ProfileData/MemProf.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/LineIterator.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/OnDiskHashTable.h"
 #include "llvm/Support/SwapByteOrder.h"
@@ -38,26 +41,41 @@ namespace llvm {
 
 class InstrProfReader;
 
+namespace vfs {
+class FileSystem;
+} // namespace vfs
+
 /// A file format agnostic iterator over profiling data.
+template <class record_type = NamedInstrProfRecord,
+          class reader_type = InstrProfReader>
 class InstrProfIterator {
 public:
   using iterator_category = std::input_iterator_tag;
-  using value_type = NamedInstrProfRecord;
+  using value_type = record_type;
   using difference_type = std::ptrdiff_t;
   using pointer = value_type *;
   using reference = value_type &;
 
 private:
-  InstrProfReader *Reader = nullptr;
+  reader_type *Reader = nullptr;
   value_type Record;
 
-  void Increment();
+  void increment() {
+    if (Error E = Reader->readNextRecord(Record)) {
+      // Handle errors in the reader.
+      InstrProfError::take(std::move(E));
+      *this = InstrProfIterator();
+    }
+  }
 
 public:
   InstrProfIterator() = default;
-  InstrProfIterator(InstrProfReader *Reader) : Reader(Reader) { Increment(); }
+  InstrProfIterator(reader_type *Reader) : Reader(Reader) { increment(); }
 
-  InstrProfIterator &operator++() { Increment(); return *this; }
+  InstrProfIterator &operator++() {
+    increment();
+    return *this;
+  }
   bool operator==(const InstrProfIterator &RHS) const {
     return Reader == RHS.Reader;
   }
@@ -84,12 +102,20 @@ public:
   /// Read a single record.
   virtual Error readNextRecord(NamedInstrProfRecord &Record) = 0;
 
-  /// Print binary ids on stream OS.
+  /// Read a list of binary ids.
+  virtual Error readBinaryIds(std::vector<llvm::object::BuildID> &BinaryIds) {
+    return success();
+  }
+
+  /// Print binary ids.
   virtual Error printBinaryIds(raw_ostream &OS) { return success(); };
 
   /// Iterator over profile data.
-  InstrProfIterator begin() { return InstrProfIterator(this); }
-  InstrProfIterator end() { return InstrProfIterator(); }
+  InstrProfIterator<> begin() { return InstrProfIterator<>(this); }
+  InstrProfIterator<> end() { return InstrProfIterator<>(); }
+
+  /// Return the profile version.
+  virtual uint64_t getVersion() const = 0;
 
   virtual bool isIRLevelProfile() const = 0;
 
@@ -99,6 +125,19 @@ public:
 
   /// Return true if we must provide debug info to create PGO profiles.
   virtual bool useDebugInfoCorrelate() const { return false; }
+
+  /// Return true if the profile has single byte counters representing coverage.
+  virtual bool hasSingleByteCoverage() const = 0;
+
+  /// Return true if the profile only instruments function entries.
+  virtual bool functionEntryOnly() const = 0;
+
+  /// Return true if profile includes a memory profile.
+  virtual bool hasMemoryProfile() const = 0;
+
+  /// Returns a BitsetEnum describing the attributes of the profile. To check
+  /// individual attributes prefer using the helpers above.
+  virtual InstrProfKind getProfileKind() const = 0;
 
   /// Return the PGO symtab. There are three different readers:
   /// Raw, Text, and Indexed profile readers. The first two types
@@ -155,7 +194,8 @@ public:
   /// Factory method to create an appropriately typed reader for the given
   /// instrprof file.
   static Expected<std::unique_ptr<InstrProfReader>>
-  create(const Twine &Path, const InstrProfCorrelator *Correlator = nullptr);
+  create(const Twine &Path, vfs::FileSystem &FS,
+         const InstrProfCorrelator *Correlator = nullptr);
 
   static Expected<std::unique_ptr<InstrProfReader>>
   create(std::unique_ptr<MemoryBuffer> Buffer,
@@ -176,9 +216,8 @@ private:
   std::unique_ptr<MemoryBuffer> DataBuffer;
   /// Iterator over the profile data.
   line_iterator Line;
-  bool IsIRLevelProfile = false;
-  bool HasCSIRLevelProfile = false;
-  bool InstrEntryBBEnabled = false;
+  /// The attributes of the current profile.
+  InstrProfKind ProfileKind = InstrProfKind::Unknown;
 
   Error readValueProfileData(InstrProfRecord &Record);
 
@@ -191,11 +230,36 @@ public:
   /// Return true if the given buffer is in text instrprof format.
   static bool hasFormat(const MemoryBuffer &Buffer);
 
-  bool isIRLevelProfile() const override { return IsIRLevelProfile; }
+  // Text format does not have version, so return 0.
+  uint64_t getVersion() const override { return 0; }
 
-  bool hasCSIRLevelProfile() const override { return HasCSIRLevelProfile; }
+  bool isIRLevelProfile() const override {
+    return static_cast<bool>(ProfileKind & InstrProfKind::IRInstrumentation);
+  }
 
-  bool instrEntryBBEnabled() const override { return InstrEntryBBEnabled; }
+  bool hasCSIRLevelProfile() const override {
+    return static_cast<bool>(ProfileKind & InstrProfKind::ContextSensitive);
+  }
+
+  bool instrEntryBBEnabled() const override {
+    return static_cast<bool>(ProfileKind &
+                             InstrProfKind::FunctionEntryInstrumentation);
+  }
+
+  bool hasSingleByteCoverage() const override {
+    return static_cast<bool>(ProfileKind & InstrProfKind::SingleByteCoverage);
+  }
+
+  bool functionEntryOnly() const override {
+    return static_cast<bool>(ProfileKind & InstrProfKind::FunctionEntryOnly);
+  }
+
+  bool hasMemoryProfile() const override {
+    // TODO: Add support for text format memory profiles.
+    return false;
+  }
+
+  InstrProfKind getProfileKind() const override { return ProfileKind; }
 
   /// Read the header.
   Error readHeader() override;
@@ -204,8 +268,8 @@ public:
   Error readNextRecord(NamedInstrProfRecord &Record) override;
 
   InstrProfSymtab &getSymtab() override {
-    assert(Symtab.get());
-    return *Symtab.get();
+    assert(Symtab);
+    return *Symtab;
   }
 };
 
@@ -243,7 +307,9 @@ private:
   uint32_t ValueKindLast;
   uint32_t CurValueDataSize;
 
-  uint64_t BinaryIdsSize;
+  /// Total size of binary ids.
+  uint64_t BinaryIdsSize{0};
+  /// Start address of binary id length and data pairs.
   const uint8_t *BinaryIdsStart;
 
 public:
@@ -258,7 +324,10 @@ public:
   static bool hasFormat(const MemoryBuffer &DataBuffer);
   Error readHeader() override;
   Error readNextRecord(NamedInstrProfRecord &Record) override;
+  Error readBinaryIds(std::vector<llvm::object::BuildID> &BinaryIds) override;
   Error printBinaryIds(raw_ostream &OS) override;
+
+  uint64_t getVersion() const override { return Version; }
 
   bool isIRLevelProfile() const override {
     return (Version & VARIANT_MASK_IR_PROF) != 0;
@@ -275,6 +344,23 @@ public:
   bool useDebugInfoCorrelate() const override {
     return (Version & VARIANT_MASK_DBG_CORRELATE) != 0;
   }
+
+  bool hasSingleByteCoverage() const override {
+    return (Version & VARIANT_MASK_BYTE_COVERAGE) != 0;
+  }
+
+  bool functionEntryOnly() const override {
+    return (Version & VARIANT_MASK_FUNCTION_ENTRY_ONLY) != 0;
+  }
+
+  bool hasMemoryProfile() const override {
+    // Memory profiles have a separate raw format, so this should never be set.
+    assert(!(Version & VARIANT_MASK_MEMPROF));
+    return false;
+  }
+
+  /// Returns a BitsetEnum describing the attributes of the raw instr profile.
+  InstrProfKind getProfileKind() const override;
 
   InstrProfSymtab &getSymtab() override {
     assert(Symtab.get());
@@ -333,7 +419,9 @@ private:
     return Symtab->getFuncName(swap(NameRef));
   }
 
-  int getCounterTypeSize() const { return sizeof(uint64_t); }
+  int getCounterTypeSize() const {
+    return hasSingleByteCoverage() ? sizeof(uint8_t) : sizeof(uint64_t);
+  }
 };
 
 using RawInstrProfReader32 = RawInstrProfReader<uint32_t>;
@@ -413,11 +501,20 @@ struct InstrProfReaderIndexBase {
   virtual bool isIRLevelProfile() const = 0;
   virtual bool hasCSIRLevelProfile() const = 0;
   virtual bool instrEntryBBEnabled() const = 0;
+  virtual bool hasSingleByteCoverage() const = 0;
+  virtual bool functionEntryOnly() const = 0;
+  virtual bool hasMemoryProfile() const = 0;
+  virtual InstrProfKind getProfileKind() const = 0;
   virtual Error populateSymtab(InstrProfSymtab &) = 0;
 };
 
 using OnDiskHashTableImplV3 =
     OnDiskIterableChainedHashTable<InstrProfLookupTrait>;
+
+using MemProfRecordHashTable =
+    OnDiskIterableChainedHashTable<memprof::RecordLookupTrait>;
+using MemProfFrameHashTable =
+    OnDiskIterableChainedHashTable<memprof::FrameLookupTrait>;
 
 template <typename HashTableImpl>
 class InstrProfReaderItaniumRemapper;
@@ -465,6 +562,20 @@ public:
     return (FormatVersion & VARIANT_MASK_INSTR_ENTRY) != 0;
   }
 
+  bool hasSingleByteCoverage() const override {
+    return (FormatVersion & VARIANT_MASK_BYTE_COVERAGE) != 0;
+  }
+
+  bool functionEntryOnly() const override {
+    return (FormatVersion & VARIANT_MASK_FUNCTION_ENTRY_ONLY) != 0;
+  }
+
+  bool hasMemoryProfile() const override {
+    return (FormatVersion & VARIANT_MASK_MEMPROF) != 0;
+  }
+
+  InstrProfKind getProfileKind() const override;
+
   Error populateSymtab(InstrProfSymtab &Symtab) override {
     return Symtab.create(HashTable->keys());
   }
@@ -473,7 +584,7 @@ public:
 /// Name matcher supporting fuzzy matching of symbol names to names in profiles.
 class InstrProfReaderRemapper {
 public:
-  virtual ~InstrProfReaderRemapper() {}
+  virtual ~InstrProfReaderRemapper() = default;
   virtual Error populateRemappings() { return Error::success(); }
   virtual Error getRecords(StringRef FuncName,
                            ArrayRef<NamedInstrProfRecord> &Data) = 0;
@@ -494,6 +605,17 @@ private:
   std::unique_ptr<ProfileSummary> Summary;
   /// Context sensitive profile summary data.
   std::unique_ptr<ProfileSummary> CS_Summary;
+  /// MemProf profile schema (if available).
+  memprof::MemProfSchema Schema;
+  /// MemProf record profile data on-disk indexed via llvm::md5(FunctionName).
+  std::unique_ptr<MemProfRecordHashTable> MemProfRecordTable;
+  /// MemProf frame profile data on-disk indexed via frame id.
+  std::unique_ptr<MemProfFrameHashTable> MemProfFrameTable;
+  /// Total size of binary ids.
+  uint64_t BinaryIdsSize{0};
+  /// Start address of binary id length and data pairs.
+  const uint8_t *BinaryIdsStart = nullptr;
+
   // Index to the current record in the record array.
   unsigned RecordIndex;
 
@@ -513,7 +635,7 @@ public:
   IndexedInstrProfReader &operator=(const IndexedInstrProfReader &) = delete;
 
   /// Return the profile version.
-  uint64_t getVersion() const { return Index->getVersion(); }
+  uint64_t getVersion() const override { return Index->getVersion(); }
   bool isIRLevelProfile() const override { return Index->isIRLevelProfile(); }
   bool hasCSIRLevelProfile() const override {
     return Index->hasCSIRLevelProfile();
@@ -521,6 +643,20 @@ public:
 
   bool instrEntryBBEnabled() const override {
     return Index->instrEntryBBEnabled();
+  }
+
+  bool hasSingleByteCoverage() const override {
+    return Index->hasSingleByteCoverage();
+  }
+
+  bool functionEntryOnly() const override { return Index->functionEntryOnly(); }
+
+  bool hasMemoryProfile() const override { return Index->hasMemoryProfile(); }
+
+  /// Returns a BitsetEnum describing the attributes of the indexed instr
+  /// profile.
+  InstrProfKind getProfileKind() const override {
+    return Index->getProfileKind();
   }
 
   /// Return true if the given buffer is in an indexed instrprof format.
@@ -531,9 +667,18 @@ public:
   /// Read a single record.
   Error readNextRecord(NamedInstrProfRecord &Record) override;
 
-  /// Return the NamedInstrProfRecord associated with FuncName and FuncHash
-  Expected<InstrProfRecord> getInstrProfRecord(StringRef FuncName,
-                                               uint64_t FuncHash);
+  /// Return the NamedInstrProfRecord associated with FuncName and FuncHash.
+  /// When return a hash_mismatch error and MismatchedFuncSum is not nullptr,
+  /// the sum of all counters in the mismatched function will be set to
+  /// MismatchedFuncSum. If there are multiple instances of mismatched
+  /// functions, MismatchedFuncSum returns the maximum.
+  Expected<InstrProfRecord>
+  getInstrProfRecord(StringRef FuncName, uint64_t FuncHash,
+                     uint64_t *MismatchedFuncSum = nullptr);
+
+  /// Return the memprof record for the function identified by
+  /// llvm::md5(Name).
+  Expected<memprof::MemProfRecord> getMemProfRecord(uint64_t FuncNameHash);
 
   /// Fill Counts with the profile data for the given function name.
   Error getFunctionCounts(StringRef FuncName, uint64_t FuncHash,
@@ -553,7 +698,8 @@ public:
 
   /// Factory method to create an indexed reader.
   static Expected<std::unique_ptr<IndexedInstrProfReader>>
-  create(const Twine &Path, const Twine &RemappingPath = "");
+  create(const Twine &Path, vfs::FileSystem &FS,
+         const Twine &RemappingPath = "");
 
   static Expected<std::unique_ptr<IndexedInstrProfReader>>
   create(std::unique_ptr<MemoryBuffer> Buffer,
@@ -574,12 +720,15 @@ public:
   ProfileSummary &getSummary(bool UseCS) {
     if (UseCS) {
       assert(CS_Summary && "No context sensitive summary");
-      return *(CS_Summary.get());
+      return *CS_Summary;
     } else {
       assert(Summary && "No profile summary");
-      return *(Summary.get());
+      return *Summary;
     }
   }
+
+  Error readBinaryIds(std::vector<llvm::object::BuildID> &BinaryIds) override;
+  Error printBinaryIds(raw_ostream &OS) override;
 };
 
 } // end namespace llvm

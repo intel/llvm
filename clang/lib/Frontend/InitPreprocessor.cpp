@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/FileManager.h"
+#include "clang/Basic/HLSLRuntime.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/SyncScope.h"
@@ -25,6 +26,7 @@
 #include "clang/Serialization/ASTReader.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DerivedTypes.h"
 using namespace clang;
 
 static bool MacroBodyEndsInBackslash(StringRef MacroBody) {
@@ -297,12 +299,12 @@ static void DefineFastIntType(unsigned TypeWidth, bool IsSigned,
 
 /// Get the value the ATOMIC_*_LOCK_FREE macro should have for a type with
 /// the specified properties.
-static const char *getLockFreeValue(unsigned TypeWidth, unsigned TypeAlign,
-                                    unsigned InlineWidth) {
+static const char *getLockFreeValue(unsigned TypeWidth, const TargetInfo &TI) {
   // Fully-aligned, power-of-2 sizes no larger than the inline
   // width will be inlined as lock-free operations.
-  if (TypeWidth == TypeAlign && (TypeWidth & (TypeWidth - 1)) == 0 &&
-      TypeWidth <= InlineWidth)
+  // Note: we do not need to check alignment since _Atomic(T) is always
+  // appropriately-aligned in clang.
+  if (TI.hasBuiltinAtomic(TypeWidth, TypeWidth))
     return "2"; // "always lock free"
   // We cannot be certain what operations the lib calls might be
   // able to implement as lock-free on future processors.
@@ -370,6 +372,50 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
                                                const LangOptions &LangOpts,
                                                const FrontendOptions &FEOpts,
                                                MacroBuilder &Builder) {
+  if (LangOpts.HLSL) {
+    Builder.defineMacro("__hlsl_clang");
+    // HLSL Version
+    Builder.defineMacro("__HLSL_VERSION",
+                        Twine((unsigned)LangOpts.getHLSLVersion()));
+
+    if (LangOpts.NativeHalfType)
+      Builder.defineMacro("__HLSL_ENABLE_16_BIT",
+                          Twine((unsigned)LangOpts.getHLSLVersion()));
+
+    // Shader target information
+    // "enums" for shader stages
+    Builder.defineMacro("__SHADER_STAGE_VERTEX",
+                        Twine((uint32_t)ShaderStage::Vertex));
+    Builder.defineMacro("__SHADER_STAGE_PIXEL",
+                        Twine((uint32_t)ShaderStage::Pixel));
+    Builder.defineMacro("__SHADER_STAGE_GEOMETRY",
+                        Twine((uint32_t)ShaderStage::Geometry));
+    Builder.defineMacro("__SHADER_STAGE_HULL",
+                        Twine((uint32_t)ShaderStage::Hull));
+    Builder.defineMacro("__SHADER_STAGE_DOMAIN",
+                        Twine((uint32_t)ShaderStage::Domain));
+    Builder.defineMacro("__SHADER_STAGE_COMPUTE",
+                        Twine((uint32_t)ShaderStage::Compute));
+    Builder.defineMacro("__SHADER_STAGE_AMPLIFICATION",
+                        Twine((uint32_t)ShaderStage::Amplification));
+    Builder.defineMacro("__SHADER_STAGE_MESH",
+                        Twine((uint32_t)ShaderStage::Mesh));
+    Builder.defineMacro("__SHADER_STAGE_LIBRARY",
+                        Twine((uint32_t)ShaderStage::Library));
+    // The current shader stage itself
+    uint32_t StageInteger = static_cast<uint32_t>(
+        hlsl::getStageFromEnvironment(TI.getTriple().getEnvironment()));
+
+    Builder.defineMacro("__SHADER_TARGET_STAGE", Twine(StageInteger));
+    // Add target versions
+    if (TI.getTriple().getOS() == llvm::Triple::ShaderModel) {
+      VersionTuple Version = TI.getTriple().getOSVersion();
+      Builder.defineMacro("__SHADER_TARGET_MAJOR", Twine(Version.getMajor()));
+      unsigned Minor = Version.getMinor().value_or(0);
+      Builder.defineMacro("__SHADER_TARGET_MINOR", Twine(Minor));
+    }
+    return;
+  }
   // C++ [cpp.predefined]p1:
   //   The following macro names shall be defined by the implementation:
 
@@ -542,13 +588,18 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   if (LangOpts.HIP) {
     Builder.defineMacro("__HIP__");
     Builder.defineMacro("__HIPCC__");
+    if (LangOpts.CUDAIsDevice)
+      Builder.defineMacro("__HIP_DEVICE_COMPILE__");
+    if (LangOpts.GPUDefaultStream ==
+        LangOptions::GPUDefaultStreamKind::PerThread)
+      Builder.defineMacro("HIP_API_PER_THREAD_DEFAULT_STREAM");
+  }
+  if (LangOpts.HIP || (LangOpts.OpenCL && TI.getTriple().isAMDGPU())) {
     Builder.defineMacro("__HIP_MEMORY_SCOPE_SINGLETHREAD", "1");
     Builder.defineMacro("__HIP_MEMORY_SCOPE_WAVEFRONT", "2");
     Builder.defineMacro("__HIP_MEMORY_SCOPE_WORKGROUP", "3");
     Builder.defineMacro("__HIP_MEMORY_SCOPE_AGENT", "4");
     Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
-    if (LangOpts.CUDAIsDevice)
-      Builder.defineMacro("__HIP_DEVICE_COMPILE__");
   }
 }
 
@@ -569,10 +620,11 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_unicode_literals", "200710L");
     Builder.defineMacro("__cpp_user_defined_literals", "200809L");
     Builder.defineMacro("__cpp_lambdas", "200907L");
-    Builder.defineMacro("__cpp_constexpr",
-                        LangOpts.CPlusPlus20 ? "201907L" :
-                        LangOpts.CPlusPlus17 ? "201603L" :
-                        LangOpts.CPlusPlus14 ? "201304L" : "200704");
+    Builder.defineMacro("__cpp_constexpr", LangOpts.CPlusPlus2b   ? "202211L"
+                                           : LangOpts.CPlusPlus20 ? "201907L"
+                                           : LangOpts.CPlusPlus17 ? "201603L"
+                                           : LangOpts.CPlusPlus14 ? "201304L"
+                                                                  : "200704");
     Builder.defineMacro("__cpp_constexpr_in_decltype", "201711L");
     Builder.defineMacro("__cpp_range_based_for",
                         LangOpts.CPlusPlus17 ? "201603L" : "200907");
@@ -636,7 +688,11 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
 
   // C++20 features.
   if (LangOpts.CPlusPlus20) {
-    //Builder.defineMacro("__cpp_aggregate_paren_init", "201902L");
+    Builder.defineMacro("__cpp_aggregate_paren_init", "201902L");
+
+    // P0848 is implemented, but we're still waiting for other concepts
+    // issues to be addressed before bumping __cpp_concepts up to 202002L.
+    // Refer to the discussion of this at https://reviews.llvm.org/D128619.
     Builder.defineMacro("__cpp_concepts", "201907L");
     Builder.defineMacro("__cpp_conditional_explicit", "201806L");
     //Builder.defineMacro("__cpp_consteval", "201811L");
@@ -653,14 +709,18 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_implicit_move", "202011L");
     Builder.defineMacro("__cpp_size_t_suffix", "202011L");
     Builder.defineMacro("__cpp_if_consteval", "202106L");
+    Builder.defineMacro("__cpp_multidimensional_subscript", "202211L");
   }
-  if (LangOpts.Char8)
-    Builder.defineMacro("__cpp_char8_t", "201811L");
-  Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
 
-  // TS features.
-  if (LangOpts.Coroutines)
-    Builder.defineMacro("__cpp_coroutines", "201703L");
+  // We provide those C++2b features as extensions in earlier language modes, so
+  // we also define their feature test macros.
+  if (LangOpts.CPlusPlus11)
+    Builder.defineMacro("__cpp_static_call_operator", "202207L");
+  Builder.defineMacro("__cpp_named_character_escapes", "202207L");
+
+  if (LangOpts.Char8)
+    Builder.defineMacro("__cpp_char8_t", "202207L");
+  Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
 }
 
 /// InitializeOpenCLFeatureTestMacros - Define OpenCL macros based on target
@@ -784,21 +844,15 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       if (version >= VersionTuple(2, 0))
         Builder.defineMacro("__OBJC_GNUSTEP_RUNTIME_ABI__", "20");
       else
-        Builder.defineMacro("__OBJC_GNUSTEP_RUNTIME_ABI__",
-            "1" + Twine(std::min(8U, version.getMinor().getValueOr(0))));
+        Builder.defineMacro(
+            "__OBJC_GNUSTEP_RUNTIME_ABI__",
+            "1" + Twine(std::min(8U, version.getMinor().value_or(0))));
     }
 
     if (LangOpts.ObjCRuntime.getKind() == ObjCRuntime::ObjFW) {
       VersionTuple tuple = LangOpts.ObjCRuntime.getVersion();
-
-      unsigned minor = 0;
-      if (tuple.getMinor().hasValue())
-        minor = tuple.getMinor().getValue();
-
-      unsigned subminor = 0;
-      if (tuple.getSubminor().hasValue())
-        subminor = tuple.getSubminor().getValue();
-
+      unsigned minor = tuple.getMinor().value_or(0);
+      unsigned subminor = tuple.getSubminor().value_or(0);
       Builder.defineMacro("__OBJFW_RUNTIME_ABI__",
                           Twine(tuple.getMajor() * 10000 + minor * 100 +
                                 subminor));
@@ -904,14 +958,14 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__LITTLE_ENDIAN__");
   }
 
-  if (TI.getPointerWidth(0) == 64 && TI.getLongWidth() == 64
-      && TI.getIntWidth() == 32) {
+  if (TI.getPointerWidth(LangAS::Default) == 64 && TI.getLongWidth() == 64 &&
+      TI.getIntWidth() == 32) {
     Builder.defineMacro("_LP64");
     Builder.defineMacro("__LP64__");
   }
 
-  if (TI.getPointerWidth(0) == 32 && TI.getLongWidth() == 32
-      && TI.getIntWidth() == 32) {
+  if (TI.getPointerWidth(LangAS::Default) == 32 && TI.getLongWidth() == 32 &&
+      TI.getIntWidth() == 32) {
     Builder.defineMacro("_ILP32");
     Builder.defineMacro("__ILP32__");
   }
@@ -926,6 +980,13 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   Builder.defineMacro("__LONG_WIDTH__", Twine(TI.getLongWidth()));
   Builder.defineMacro("__LLONG_WIDTH__", Twine(TI.getLongLongWidth()));
 
+  size_t BitIntMaxWidth = TI.getMaxBitIntWidth();
+  assert(BitIntMaxWidth <= llvm::IntegerType::MAX_INT_BITS &&
+         "Target defined a max bit width larger than LLVM can support!");
+  assert(BitIntMaxWidth >= TI.getLongLongWidth() &&
+         "Target defined a max bit width smaller than the C standard allows!");
+  Builder.defineMacro("__BITINT_MAXWIDTH__", Twine(BitIntMaxWidth));
+
   DefineTypeSize("__SCHAR_MAX__", TargetInfo::SignedChar, TI, Builder);
   DefineTypeSize("__SHRT_MAX__", TargetInfo::SignedShort, TI, Builder);
   DefineTypeSize("__INT_MAX__", TargetInfo::SignedInt, TI, Builder);
@@ -937,7 +998,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   DefineTypeSizeAndWidth("__SIZE", TI.getSizeType(), TI, Builder);
 
   DefineTypeSizeAndWidth("__UINTMAX", TI.getUIntMaxType(), TI, Builder);
-  DefineTypeSizeAndWidth("__PTRDIFF", TI.getPtrDiffType(0), TI, Builder);
+  DefineTypeSizeAndWidth("__PTRDIFF", TI.getPtrDiffType(LangAS::Default), TI,
+                         Builder);
   DefineTypeSizeAndWidth("__INTPTR", TI.getIntPtrType(), TI, Builder);
   DefineTypeSizeAndWidth("__UINTPTR", TI.getUIntPtrType(), TI, Builder);
 
@@ -947,10 +1009,12 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   DefineTypeSizeof("__SIZEOF_LONG__", TI.getLongWidth(), TI, Builder);
   DefineTypeSizeof("__SIZEOF_LONG_DOUBLE__",TI.getLongDoubleWidth(),TI,Builder);
   DefineTypeSizeof("__SIZEOF_LONG_LONG__", TI.getLongLongWidth(), TI, Builder);
-  DefineTypeSizeof("__SIZEOF_POINTER__", TI.getPointerWidth(0), TI, Builder);
+  DefineTypeSizeof("__SIZEOF_POINTER__", TI.getPointerWidth(LangAS::Default),
+                   TI, Builder);
   DefineTypeSizeof("__SIZEOF_SHORT__", TI.getShortWidth(), TI, Builder);
   DefineTypeSizeof("__SIZEOF_PTRDIFF_T__",
-                   TI.getTypeWidth(TI.getPtrDiffType(0)), TI, Builder);
+                   TI.getTypeWidth(TI.getPtrDiffType(LangAS::Default)), TI,
+                   Builder);
   DefineTypeSizeof("__SIZEOF_SIZE_T__",
                    TI.getTypeWidth(TI.getSizeType()), TI, Builder);
   DefineTypeSizeof("__SIZEOF_WCHAR_T__",
@@ -968,8 +1032,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   DefineFmt("__UINTMAX", TI.getUIntMaxType(), TI, Builder);
   Builder.defineMacro("__UINTMAX_C_SUFFIX__",
                       TI.getTypeConstantSuffix(TI.getUIntMaxType()));
-  DefineType("__PTRDIFF_TYPE__", TI.getPtrDiffType(0), Builder);
-  DefineFmt("__PTRDIFF", TI.getPtrDiffType(0), TI, Builder);
+  DefineType("__PTRDIFF_TYPE__", TI.getPtrDiffType(LangAS::Default), Builder);
+  DefineFmt("__PTRDIFF", TI.getPtrDiffType(LangAS::Default), TI, Builder);
   DefineType("__INTPTR_TYPE__", TI.getIntPtrType(), Builder);
   DefineFmt("__INTPTR", TI.getIntPtrType(), TI, Builder);
   DefineType("__SIZE_TYPE__", TI.getSizeType(), Builder);
@@ -1000,7 +1064,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
   // Define a __POINTER_WIDTH__ macro for stdint.h.
   Builder.defineMacro("__POINTER_WIDTH__",
-                      Twine((int)TI.getPointerWidth(0)));
+                      Twine((int)TI.getPointerWidth(LangAS::Default)));
 
   // Define __BIGGEST_ALIGNMENT__ to be compatible with gcc.
   Builder.defineMacro("__BIGGEST_ALIGNMENT__",
@@ -1099,12 +1163,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
   auto addLockFreeMacros = [&](const llvm::Twine &Prefix) {
     // Used by libc++ and libstdc++ to implement ATOMIC_<foo>_LOCK_FREE.
-    unsigned InlineWidthBits = TI.getMaxAtomicInlineWidth();
 #define DEFINE_LOCK_FREE_MACRO(TYPE, Type)                                     \
   Builder.defineMacro(Prefix + #TYPE "_LOCK_FREE",                             \
-                      getLockFreeValue(TI.get##Type##Width(),                  \
-                                       TI.get##Type##Align(),                  \
-                                       InlineWidthBits));
+                      getLockFreeValue(TI.get##Type##Width(), TI));
     DEFINE_LOCK_FREE_MACRO(BOOL, Bool);
     DEFINE_LOCK_FREE_MACRO(CHAR, Char);
     if (LangOpts.Char8)
@@ -1116,10 +1177,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     DEFINE_LOCK_FREE_MACRO(INT, Int);
     DEFINE_LOCK_FREE_MACRO(LONG, Long);
     DEFINE_LOCK_FREE_MACRO(LLONG, LongLong);
-    Builder.defineMacro(Prefix + "POINTER_LOCK_FREE",
-                        getLockFreeValue(TI.getPointerWidth(0),
-                                         TI.getPointerAlign(0),
-                                         InlineWidthBits));
+    Builder.defineMacro(
+        Prefix + "POINTER_LOCK_FREE",
+        getLockFreeValue(TI.getPointerWidth(LangAS::Default), TI));
 #undef DEFINE_LOCK_FREE_MACRO
   };
   addLockFreeMacros("__CLANG_ATOMIC_");
@@ -1139,7 +1199,6 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   }
 
   // Macros to control C99 numerics and <float.h>
-  Builder.defineMacro("__FLT_EVAL_METHOD__", Twine(TI.getFloatEvalMethod()));
   Builder.defineMacro("__FLT_RADIX__", "2");
   Builder.defineMacro("__DECIMAL_DIG__", "__LDBL_DECIMAL_DIG__");
 
@@ -1209,6 +1268,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     case 52:
       Builder.defineMacro("_OPENMP", "202111");
       break;
+    case 50:
     default:
       // Default version is OpenMP 5.0
       Builder.defineMacro("_OPENMP", "201811");
@@ -1233,18 +1293,23 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // SYCL device compiler which doesn't produce host binary.
   if (LangOpts.SYCLIsDevice) {
     Builder.defineMacro("__SYCL_DEVICE_ONLY__");
-    Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
+    if (LangOpts.GPURelocatableDeviceCode)
+      Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
     const llvm::Triple &DeviceTriple = TI.getTriple();
     const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
-    if (DeviceTriple.isSPIR() &&
-        DeviceSubArch != llvm::Triple::SPIRSubArch_fpga)
+    if (DeviceTriple.isNVPTX() || DeviceTriple.isAMDGPU() ||
+        (DeviceTriple.isSPIR() &&
+         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga))
       Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
     // Enable generation of USM address spaces for FPGA.
     if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga) {
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
       Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
     }
+
+    if (LangOpts.SYCLESIMDForceStatelessMem)
+      Builder.defineMacro("__ESIMD_FORCE_STATELESS_MEM");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");
@@ -1270,8 +1335,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 }
 
 /// InitializePreprocessor - Initialize the preprocessor getting it and the
-/// environment ready to process a single file. This returns true on error.
-///
+/// environment ready to process a single file.
 void clang::InitializePreprocessor(
     Preprocessor &PP, const PreprocessorOptions &InitOpts,
     const PCHContainerReader &PCHContainerRdr,
@@ -1282,11 +1346,10 @@ void clang::InitializePreprocessor(
   llvm::raw_string_ostream Predefines(PredefineBuffer);
   MacroBuilder Builder(Predefines);
 
-  // Emit line markers for various builtin sections of the file.  We don't do
-  // this in asm preprocessor mode, because "# 4" is not a line marker directive
-  // in this mode.
-  if (!PP.getLangOpts().AsmPreprocessor)
-    Builder.append("# 1 \"<built-in>\" 3");
+  // Emit line markers for various builtin sections of the file. The 3 here
+  // marks <built-in> as being a system header, which suppresses warnings when
+  // the same macro is defined multiple times.
+  Builder.append("# 1 \"<built-in>\" 3");
 
   // Install things like __POWERPC__, __GNUC__, etc into the macro table.
   if (InitOpts.UsePredefines) {
@@ -1324,8 +1387,7 @@ void clang::InitializePreprocessor(
 
   // Add on the predefines from the driver.  Wrap in a #line directive to report
   // that they come from the command line.
-  if (!PP.getLangOpts().AsmPreprocessor)
-    Builder.append("# 1 \"<command line>\" 1");
+  Builder.append("# 1 \"<command line>\" 1");
 
   // Process #define's and #undef's in the order they are given.
   for (unsigned i = 0, e = InitOpts.Macros.size(); i != e; ++i) {
@@ -1337,8 +1399,7 @@ void clang::InitializePreprocessor(
   }
 
   // Exit the command line and go back to <built-in> (2 is LC_LEAVE).
-  if (!PP.getLangOpts().AsmPreprocessor)
-    Builder.append("# 1 \"<built-in>\" 2");
+  Builder.append("# 1 \"<built-in>\" 2");
 
   // If -imacros are specified, include them now.  These are processed before
   // any -include directives.
@@ -1361,5 +1422,5 @@ void clang::InitializePreprocessor(
                              InitOpts.PrecompiledPreambleBytes.second);
 
   // Copy PredefinedBuffer into the Preprocessor.
-  PP.setPredefines(Predefines.str());
+  PP.setPredefines(std::move(PredefineBuffer));
 }

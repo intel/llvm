@@ -29,7 +29,7 @@
 
 using namespace llvm;
 
-DEFINE_PPC_REGCLASSES;
+DEFINE_PPC_REGCLASSES
 
 // Evaluate an expression containing condition register
 // or condition register field symbols.  Returns positive
@@ -103,10 +103,11 @@ class PPCAsmParser : public MCTargetAsmParser {
 
   bool isPPC64() const { return IsPPC64; }
 
-  bool MatchRegisterName(unsigned &RegNo, int64_t &IntVal);
+  bool MatchRegisterName(MCRegister &RegNo, int64_t &IntVal);
 
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                     SMLoc &EndLoc) override;
+  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                         SMLoc &EndLoc) override;
 
   const MCExpr *ExtractModifierFromExpr(const MCExpr *E,
@@ -121,6 +122,7 @@ class PPCAsmParser : public MCTargetAsmParser {
   bool ParseDirectiveMachine(SMLoc L);
   bool ParseDirectiveAbiVersion(SMLoc L);
   bool ParseDirectiveLocalEntry(SMLoc L);
+  bool ParseGNUAttribute(SMLoc L);
 
   bool MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                OperandVector &Operands, MCStreamer &Out,
@@ -290,6 +292,26 @@ public:
     return (unsigned) Imm.Val;
   }
 
+  unsigned getDMRROWReg() const {
+    assert(isDMRROWRegNumber() && "Invalid access!");
+    return (unsigned)Imm.Val;
+  }
+
+  unsigned getDMRROWpReg() const {
+    assert(isDMRROWpRegNumber() && "Invalid access!");
+    return (unsigned)Imm.Val;
+  }
+
+  unsigned getDMRReg() const {
+    assert(isDMRRegNumber() && "Invalid access!");
+    return (unsigned)Imm.Val;
+  }
+
+  unsigned getDMRpReg() const {
+    assert(isDMRpRegNumber() && "Invalid access!");
+    return (unsigned)Imm.Val;
+  }
+
   unsigned getVSRpEvenReg() const {
     assert(isVSRpEvenRegNumber() && "Invalid access!");
     return (unsigned) Imm.Val >> 1;
@@ -312,7 +334,7 @@ public:
 
   unsigned getCRBitMask() const {
     assert(isCRBitMask() && "Invalid access!");
-    return 7 - countTrailingZeros<uint64_t>(Imm.Val);
+    return 7 - llvm::countr_zero<uint64_t>(Imm.Val);
   }
 
   bool isToken() const override { return Kind == Token; }
@@ -340,31 +362,11 @@ public:
 
   bool isU10Imm() const { return Kind == Immediate && isUInt<10>(getImm()); }
   bool isU12Imm() const { return Kind == Immediate && isUInt<12>(getImm()); }
-  bool isU16Imm() const {
-    switch (Kind) {
-      case Expression:
-        return true;
-      case Immediate:
-      case ContextImmediate:
-        return isUInt<16>(getImmU16Context());
-      default:
-        return false;
-    }
-  }
-  bool isS16Imm() const {
-    switch (Kind) {
-      case Expression:
-        return true;
-      case Immediate:
-      case ContextImmediate:
-        return isInt<16>(getImmS16Context());
-      default:
-        return false;
-    }
-  }
-  bool isS16ImmX4() const { return Kind == Expression ||
-                                   (Kind == Immediate && isInt<16>(getImm()) &&
-                                    (getImm() & 3) == 0); }
+  bool isU16Imm() const { return isExtImm<16>(/*Signed*/ false, 1); }
+  bool isS16Imm() const { return isExtImm<16>(/*Signed*/ true, 1); }
+  bool isS16ImmX4() const { return isExtImm<16>(/*Signed*/ true, 4); }
+  bool isS16ImmX16() const { return isExtImm<16>(/*Signed*/ true, 16); }
+  bool isS17Imm() const { return isExtImm<17>(/*Signed*/ true, 1); }
 
   bool isHashImmX8() const {
     // The Hash Imm form is used for instructions that check or store a hash.
@@ -374,9 +376,6 @@ public:
             (getImm() & 7) == 0);
   }
 
-  bool isS16ImmX16() const { return Kind == Expression ||
-                                    (Kind == Immediate && isInt<16>(getImm()) &&
-                                     (getImm() & 15) == 0); }
   bool isS34ImmX16() const {
     return Kind == Expression ||
            (Kind == Immediate && isInt<34>(getImm()) && (getImm() & 15) == 0);
@@ -387,17 +386,6 @@ public:
     return Kind == Expression || (Kind == Immediate && isInt<34>(getImm()));
   }
 
-  bool isS17Imm() const {
-    switch (Kind) {
-      case Expression:
-        return true;
-      case Immediate:
-      case ContextImmediate:
-        return isInt<17>(getImmS16Context());
-      default:
-        return false;
-    }
-  }
   bool isTLSReg() const { return Kind == TLSRegister; }
   bool isDirectBr() const {
     if (Kind == Expression)
@@ -424,6 +412,18 @@ public:
   bool isACCRegNumber() const {
     return Kind == Immediate && isUInt<3>(getImm());
   }
+  bool isDMRROWRegNumber() const {
+    return Kind == Immediate && isUInt<6>(getImm());
+  }
+  bool isDMRROWpRegNumber() const {
+    return Kind == Immediate && isUInt<5>(getImm());
+  }
+  bool isDMRRegNumber() const {
+    return Kind == Immediate && isUInt<3>(getImm());
+  }
+  bool isDMRpRegNumber() const {
+    return Kind == Immediate && isUInt<2>(getImm());
+  }
   bool isVSRpEvenRegNumber() const {
     return Kind == Immediate && isUInt<6>(getImm()) && ((getImm() & 1) == 0);
   }
@@ -441,8 +441,10 @@ public:
 
   bool isEvenRegNumber() const { return isRegNumber() && (getImm() & 1) == 0; }
 
-  bool isCRBitMask() const { return Kind == Immediate && isUInt<8>(getImm()) &&
-                                    isPowerOf2_32(getImm()); }
+  bool isCRBitMask() const {
+    return Kind == Immediate && isUInt<8>(getImm()) &&
+           llvm::has_single_bit<uint32_t>(getImm());
+  }
   bool isATBitsAsHint() const { return false; }
   bool isMem() const override { return false; }
   bool isReg() const override { return false; }
@@ -538,6 +540,36 @@ public:
   void addRegACCRCOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     Inst.addOperand(MCOperand::createReg(ACCRegs[getACCReg()]));
+  }
+
+  void addRegDMRROWRCOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(DMRROWRegs[getDMRROWReg()]));
+  }
+
+  void addRegDMRROWpRCOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(DMRROWpRegs[getDMRROWpReg()]));
+  }
+
+  void addRegDMRRCOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(DMRRegs[getDMRReg()]));
+  }
+
+  void addRegDMRpRCOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(DMRpRegs[getDMRpReg()]));
+  }
+
+  void addRegWACCRCOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(WACCRegs[getACCReg()]));
+  }
+
+  void addRegWACC_HIRCOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(WACC_HIRegs[getACCReg()]));
   }
 
   void addRegVSRpRCOperands(MCInst &Inst, unsigned N) const {
@@ -710,6 +742,25 @@ public:
     }
 
     return CreateExpr(Val, S, E, IsPPC64);
+  }
+
+private:
+  template <unsigned Width>
+  bool isExtImm(bool Signed, unsigned Multiple) const {
+    switch (Kind) {
+    default:
+      return false;
+    case Expression:
+      return true;
+    case Immediate:
+    case ContextImmediate:
+      if (Signed)
+        return isInt<Width>(getImmS16Context()) &&
+               (getImmS16Context() & (Multiple - 1)) == 0;
+      else
+        return isUInt<Width>(getImmU16Context()) &&
+               (getImmU16Context() & (Multiple - 1)) == 0;
+    }
   }
 };
 
@@ -1149,7 +1200,7 @@ void PPCAsmParser::ProcessInstruction(MCInst &Inst,
     break;
   }
   case PPC::MFTB: {
-    if (getSTI().getFeatureBits()[PPC::FeatureMFTB]) {
+    if (getSTI().hasFeature(PPC::FeatureMFTB)) {
       assert(Inst.getNumOperands() == 2 && "Expecting two operands");
       Inst.setOpcode(PPC::MFSPR);
     }
@@ -1200,7 +1251,7 @@ bool PPCAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   llvm_unreachable("Implement any new match types added!");
 }
 
-bool PPCAsmParser::MatchRegisterName(unsigned &RegNo, int64_t &IntVal) {
+bool PPCAsmParser::MatchRegisterName(MCRegister &RegNo, int64_t &IntVal) {
   if (getParser().getTok().is(AsmToken::Percent))
     getParser().Lex(); // Eat the '%'.
 
@@ -1232,20 +1283,41 @@ bool PPCAsmParser::MatchRegisterName(unsigned &RegNo, int64_t &IntVal) {
   } else if (Name.startswith_insensitive("cr") &&
              !Name.substr(2).getAsInteger(10, IntVal) && IntVal < 8) {
     RegNo = CRRegs[IntVal];
+  } else if (Name.startswith_insensitive("acc") &&
+             !Name.substr(3).getAsInteger(10, IntVal) && IntVal < 8) {
+    RegNo = ACCRegs[IntVal];
+  } else if (Name.startswith_insensitive("wacc_hi") &&
+             !Name.substr(7).getAsInteger(10, IntVal) && IntVal < 8) {
+    RegNo = ACCRegs[IntVal];
+  } else if (Name.startswith_insensitive("wacc") &&
+             !Name.substr(4).getAsInteger(10, IntVal) && IntVal < 8) {
+    RegNo = WACCRegs[IntVal];
+  } else if (Name.startswith_insensitive("dmrrowp") &&
+             !Name.substr(7).getAsInteger(10, IntVal) && IntVal < 32) {
+    RegNo = DMRROWpRegs[IntVal];
+  } else if (Name.startswith_insensitive("dmrrow") &&
+             !Name.substr(6).getAsInteger(10, IntVal) && IntVal < 64) {
+    RegNo = DMRROWRegs[IntVal];
+  } else if (Name.startswith_insensitive("dmrp") &&
+             !Name.substr(4).getAsInteger(10, IntVal) && IntVal < 4) {
+    RegNo = DMRROWpRegs[IntVal];
+  } else if (Name.startswith_insensitive("dmr") &&
+             !Name.substr(3).getAsInteger(10, IntVal) && IntVal < 8) {
+    RegNo = DMRRegs[IntVal];
   } else
     return true;
   getParser().Lex();
   return false;
 }
 
-bool PPCAsmParser::
-ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) {
+bool PPCAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                                 SMLoc &EndLoc) {
   if (tryParseRegister(RegNo, StartLoc, EndLoc) != MatchOperand_Success)
     return TokError("invalid register name");
   return false;
 }
 
-OperandMatchResultTy PPCAsmParser::tryParseRegister(unsigned &RegNo,
+OperandMatchResultTy PPCAsmParser::tryParseRegister(MCRegister &RegNo,
                                                     SMLoc &StartLoc,
                                                     SMLoc &EndLoc) {
   const AsmToken &Tok = getParser().getTok();
@@ -1433,7 +1505,7 @@ bool PPCAsmParser::ParseOperand(OperandVector &Operands) {
   // Special handling for register names.  These are interpreted
   // as immediates corresponding to the register number.
   case AsmToken::Percent: {
-    unsigned RegNo;
+    MCRegister RegNo;
     int64_t IntVal;
     if (MatchRegisterName(RegNo, IntVal))
       return Error(S, "invalid register name");
@@ -1453,7 +1525,7 @@ bool PPCAsmParser::ParseOperand(OperandVector &Operands) {
     if (!ParseExpression(EVal))
       break;
     // Fall-through
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   default:
     return Error(S, "unknown operand");
   }
@@ -1489,7 +1561,7 @@ bool PPCAsmParser::ParseOperand(OperandVector &Operands) {
     int64_t IntVal;
     switch (getLexer().getKind()) {
     case AsmToken::Percent: {
-      unsigned RegNo;
+      MCRegister RegNo;
       if (MatchRegisterName(RegNo, IntVal))
         return Error(S, "invalid register name");
       break;
@@ -1570,7 +1642,7 @@ bool PPCAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
   //  where th can be omitted when it is 0. dcbtst is the same. We take the
   //  server form to be the default, so swap the operands if we're parsing for
   //  an embedded core (they'll be swapped again upon printing).
-  if (getSTI().getFeatureBits()[PPC::FeatureBookE] &&
+  if (getSTI().hasFeature(PPC::FeatureBookE) &&
       Operands.size() == 4 &&
       (Name == "dcbt" || Name == "dcbtst")) {
     std::swap(Operands[1], Operands[3]);
@@ -1605,6 +1677,8 @@ bool PPCAsmParser::ParseDirective(AsmToken DirectiveID) {
     ParseDirectiveAbiVersion(DirectiveID.getLoc());
   else if (IDVal == ".localentry")
     ParseDirectiveLocalEntry(DirectiveID.getLoc());
+  else if (IDVal.startswith(".gnu_attribute"))
+    ParseGNUAttribute(DirectiveID.getLoc());
   else
     return true;
   return false;
@@ -1647,7 +1721,7 @@ bool PPCAsmParser::ParseDirectiveTC(unsigned Size, AsmToken ID) {
     return addErrorSuffix(" in '.tc' directive");
 
   // Align to word size.
-  getParser().getStreamer().emitValueToAlignment(Size);
+  getParser().getStreamer().emitValueToAlignment(Align(Size));
 
   // Emit expressions.
   return ParseDirectiveWord(Size, ID);
@@ -1720,7 +1794,16 @@ bool PPCAsmParser::ParseDirectiveLocalEntry(SMLoc L) {
   return false;
 }
 
+bool PPCAsmParser::ParseGNUAttribute(SMLoc L) {
+  int64_t Tag;
+  int64_t IntegerValue;
+  if (!getParser().parseGNUAttribute(L, Tag, IntegerValue))
+    return false;
 
+  getParser().getStreamer().emitGNUAttribute(Tag, IntegerValue);
+
+  return true;
+}
 
 /// Force static initialization.
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCAsmParser() {

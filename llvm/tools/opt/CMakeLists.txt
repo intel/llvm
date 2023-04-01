@@ -7,12 +7,14 @@ set(LLVM_LINK_COMPONENTS
   Analysis
   AsmParser
   BitWriter
+  CFGuard
   CodeGen
   Core
   Coroutines
   Extensions
   IPO
   IRReader
+  IRPrinter
   InstCombine
   Instrumentation
   MC
@@ -22,6 +24,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   SYCLLowerIR
   Target
+  TargetParser
   TransformUtils
   Vectorize
   Passes
@@ -30,10 +33,7 @@ set(LLVM_LINK_COMPONENTS
 add_llvm_tool(opt
   AnalysisWrappers.cpp
   BreakpointPrinter.cpp
-  GraphPrinters.cpp
   NewPMDriver.cpp
-  PassPrinters.cpp
-  PrintSCC.cpp
   opt.cpp
 
   DEPENDS
@@ -41,7 +41,3 @@ add_llvm_tool(opt
   SUPPORT_PLUGINS
   )
 export_executable_symbols_for_plugins(opt)
-
-if(LLVM_BUILD_EXAMPLES)
-    target_link_libraries(opt PRIVATE ExampleIRTransforms)
-endif(LLVM_BUILD_EXAMPLES)

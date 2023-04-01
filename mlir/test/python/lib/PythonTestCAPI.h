@@ -9,13 +9,23 @@
 #ifndef MLIR_TEST_PYTHON_LIB_PYTHONTESTCAPI_H
 #define MLIR_TEST_PYTHON_LIB_PYTHONTESTCAPI_H
 
-#include "mlir-c/Registration.h"
+#include "mlir-c/IR.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(PythonTest, python_test);
+
+MLIR_CAPI_EXPORTED bool
+mlirAttributeIsAPythonTestTestAttribute(MlirAttribute attr);
+
+MLIR_CAPI_EXPORTED MlirAttribute
+mlirPythonTestTestAttributeGet(MlirContext context);
+
+MLIR_CAPI_EXPORTED bool mlirTypeIsAPythonTestTestType(MlirType type);
+
+MLIR_CAPI_EXPORTED MlirType mlirPythonTestTestTypeGet(MlirContext context);
 
 #ifdef __cplusplus
 }

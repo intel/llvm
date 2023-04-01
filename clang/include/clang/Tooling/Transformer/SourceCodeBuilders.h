@@ -43,6 +43,15 @@ inline bool needParensBeforeDotOrArrow(const Expr &E) {
 /// Determines whether printing this expression to the right of a unary operator
 /// requires a parentheses to preserve its meaning.
 bool needParensAfterUnaryOperator(const Expr &E);
+
+// Recognizes known types (and sugared versions thereof) that overload the `*`
+// and `->` operator. Below is the list of currently included types, but it is
+// subject to change:
+//
+// * std::unique_ptr, std::shared_ptr, std::weak_ptr,
+// * std::optional, absl::optional, llvm::Optional,
+// * absl::StatusOr, llvm::Expected.
+bool isKnownPointerLikeType(QualType Ty, ASTContext &Context);
 /// @}
 
 /// \name Basic code-string generation utilities.
@@ -50,18 +59,18 @@ bool needParensAfterUnaryOperator(const Expr &E);
 
 /// Builds source for an expression, adding parens if needed for unambiguous
 /// parsing.
-llvm::Optional<std::string> buildParens(const Expr &E,
-                                        const ASTContext &Context);
+std::optional<std::string> buildParens(const Expr &E,
+                                       const ASTContext &Context);
 
 /// Builds idiomatic source for the dereferencing of `E`: prefix with `*` but
 /// simplify when it already begins with `&`.  \returns empty string on failure.
-llvm::Optional<std::string> buildDereference(const Expr &E,
-                                             const ASTContext &Context);
+std::optional<std::string> buildDereference(const Expr &E,
+                                            const ASTContext &Context);
 
 /// Builds idiomatic source for taking the address of `E`: prefix with `&` but
 /// simplify when it already begins with `*`.  \returns empty string on failure.
-llvm::Optional<std::string> buildAddressOf(const Expr &E,
-                                           const ASTContext &Context);
+std::optional<std::string> buildAddressOf(const Expr &E,
+                                          const ASTContext &Context);
 
 /// Adds a dot to the end of the given expression, but adds parentheses when
 /// needed by the syntax, and simplifies to `->` when possible, e.g.:
@@ -69,7 +78,9 @@ llvm::Optional<std::string> buildAddressOf(const Expr &E,
 ///  `x` becomes `x.`
 ///  `*a` becomes `a->`
 ///  `a+b` becomes `(a+b).`
-llvm::Optional<std::string> buildDot(const Expr &E, const ASTContext &Context);
+///
+/// DEPRECATED. Use `buildAccess`.
+std::optional<std::string> buildDot(const Expr &E, const ASTContext &Context);
 
 /// Adds an arrow to the end of the given expression, but adds parentheses
 /// when needed by the syntax, and simplifies to `.` when possible, e.g.:
@@ -77,8 +88,31 @@ llvm::Optional<std::string> buildDot(const Expr &E, const ASTContext &Context);
 ///  `x` becomes `x->`
 ///  `&a` becomes `a.`
 ///  `a+b` becomes `(a+b)->`
-llvm::Optional<std::string> buildArrow(const Expr &E,
-                                       const ASTContext &Context);
+///
+/// DEPRECATED. Use `buildAccess`.
+std::optional<std::string> buildArrow(const Expr &E, const ASTContext &Context);
+
+/// Specifies how to classify pointer-like types -- like values or like pointers
+/// -- with regard to generating member-access syntax.
+enum class PLTClass : bool {
+  Value,
+  Pointer,
+};
+
+/// Adds an appropriate access operator (`.`, `->` or nothing, in the case of
+/// implicit `this`) to the end of the given expression. Adds parentheses when
+/// needed by the syntax and simplifies when possible. If `PLTypeClass` is
+/// `Pointer`, for known pointer-like types (see `isKnownPointerLikeType`),
+/// treats `operator->` and `operator*` like the built-in `->` and `*`
+/// operators.
+///
+///  `x` becomes `x->` or `x.`, depending on `E`'s type
+///  `a+b` becomes `(a+b)->` or `(a+b).`, depending on `E`'s type
+///  `&a` becomes `a.`
+///  `*a` becomes `a->`
+std::optional<std::string>
+buildAccess(const Expr &E, ASTContext &Context,
+            PLTClass Classification = PLTClass::Pointer);
 /// @}
 
 } // namespace tooling

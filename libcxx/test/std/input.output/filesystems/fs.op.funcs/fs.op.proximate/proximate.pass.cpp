@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// XFAIL: LIBCXX-DEBUG-FIXME
-
 // UNSUPPORTED: c++03
 
 // <filesystem>
@@ -22,23 +20,20 @@
 
 #include "test_macros.h"
 #include "count_new.h"
-#include "rapid-cxx-test.h"
 #include "filesystem_test_helper.h"
 
 
 static int count_path_elems(const fs::path& p) {
   int count = 0;
-  for (auto& elem : p) {
+  for (auto&& elem : p) {
     if (elem != p.root_name() && elem != "/" && elem != "")
       ++count;
   }
   return count;
 }
 
-TEST_SUITE(filesystem_proximate_path_test_suite)
 
-
-TEST_CASE(signature_test)
+static void signature_test()
 {
     using fs::path;
     const path p; ((void)p);
@@ -49,12 +44,12 @@ TEST_CASE(signature_test)
     ASSERT_NOT_NOEXCEPT(proximate(p, p, ec));
 }
 
-TEST_CASE(basic_test) {
+static void basic_test() {
   using fs::path;
   const path cwd = fs::current_path();
   const path parent_cwd = cwd.parent_path();
   const path curdir = cwd.filename();
-  TEST_REQUIRE(!cwd.native().empty());
+  assert(!cwd.native().empty());
   int cwd_depth = count_path_elems(cwd);
   path dot_dot_to_root;
   for (int i=0; i < cwd_depth; ++i)
@@ -143,7 +138,7 @@ TEST_CASE(basic_test) {
     fs::path expect = TC.expect;
     expect.make_preferred();
     if (ec) {
-      TEST_CHECK(!ec);
+      assert(!ec);
       std::fprintf(stderr, "TEST CASE #%d FAILED:\n"
                   "  Input: '%s'\n"
                   "  Base: '%s'\n"
@@ -151,7 +146,7 @@ TEST_CASE(basic_test) {
         ID, TC.input.string().c_str(), TC.base.string().c_str(),
         expect.string().c_str());
     } else if (!PathEq(output, expect)) {
-      TEST_CHECK(PathEq(output, expect));
+      assert(PathEq(output, expect));
 
       const path canon_input = fs::weakly_canonical(TC.input);
       const path canon_base = fs::weakly_canonical(TC.base);
@@ -172,4 +167,9 @@ TEST_CASE(basic_test) {
   }
 }
 
-TEST_SUITE_END()
+int main(int, char**) {
+  signature_test();
+  basic_test();
+
+  return 0;
+}

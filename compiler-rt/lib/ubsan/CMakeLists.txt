@@ -62,7 +62,10 @@ endif()
 
 set(UBSAN_LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS})
 
-set(UBSAN_DYNAMIC_LIBS ${SANITIZER_CXX_ABI_LIBRARIES} ${SANITIZER_COMMON_LINK_LIBS})
+set(UBSAN_DYNAMIC_LIBS
+  ${COMPILER_RT_UNWINDER_LINK_LIBS}
+  ${SANITIZER_CXX_ABI_LIBRARIES}
+  ${SANITIZER_COMMON_LINK_LIBS})
 
 append_list_if(COMPILER_RT_HAS_LIBDL dl UBSAN_DYNAMIC_LIBS)
 append_list_if(COMPILER_RT_HAS_LIBLOG log UBSAN_DYNAMIC_LIBS)
@@ -111,19 +114,21 @@ if(APPLE)
       LINK_FLAGS ${WEAK_SYMBOL_LINK_FLAGS}
       PARENT_TARGET ubsan)
 
-    add_compiler_rt_runtime(clang_rt.ubsan
-      STATIC
-      OS ${UBSAN_SUPPORTED_OS}
-      ARCHS ${UBSAN_SUPPORTED_ARCH}
-      OBJECT_LIBS RTUbsan
-                  RTUbsan_standalone
-                  RTSanitizerCommonNoHooks
-                  RTSanitizerCommonLibcNoHooks
-                  RTSanitizerCommonCoverage
-                  RTSanitizerCommonSymbolizerNoHooks
-                  RTInterception
-      LINK_FLAGS ${WEAK_SYMBOL_LINK_FLAGS}
-      PARENT_TARGET ubsan)
+    if (NOT APPLE)
+      add_compiler_rt_runtime(clang_rt.ubsan
+        STATIC
+        OS ${UBSAN_SUPPORTED_OS}
+        ARCHS ${UBSAN_SUPPORTED_ARCH}
+        OBJECT_LIBS RTUbsan
+                    RTUbsan_standalone
+                    RTSanitizerCommonNoHooks
+                    RTSanitizerCommonLibcNoHooks
+                    RTSanitizerCommonCoverage
+                    RTSanitizerCommonSymbolizerNoHooks
+                    RTInterception
+        LINK_FLAGS ${WEAK_SYMBOL_LINK_FLAGS}
+        PARENT_TARGET ubsan)
+    endif()
   endif()
 
 else()
@@ -153,14 +158,16 @@ else()
     add_compiler_rt_object_libraries(UbsanWeakInterception
       ${SANITIZER_COMMON_SUPPORTED_OS}
       ARCHS ${UBSAN_SUPPORTED_ARCH}
-      SOURCES ubsan_win_weak_interception.cpp
+      SOURCES
+        ubsan_win_weak_interception.cpp
       CFLAGS ${UBSAN_CFLAGS} -DSANITIZER_DYNAMIC
       DEFS ${UBSAN_COMMON_DEFINITIONS})
 
     add_compiler_rt_object_libraries(UbsanDllThunk
       ${SANITIZER_COMMON_SUPPORTED_OS}
       ARCHS ${UBSAN_SUPPORTED_ARCH}
-      SOURCES ubsan_win_dll_thunk.cpp
+      SOURCES
+        ubsan_win_dll_thunk.cpp
       CFLAGS ${UBSAN_CFLAGS} -DSANITIZER_DLL_THUNK
       DEFS ${UBSAN_COMMON_DEFINITIONS})
 
@@ -173,7 +180,8 @@ else()
     add_compiler_rt_object_libraries(UbsanDynamicRuntimeThunk
       ${SANITIZER_COMMON_SUPPORTED_OS}
       ARCHS ${UBSAN_SUPPORTED_ARCH}
-      SOURCES ubsan_win_dynamic_runtime_thunk.cpp
+      SOURCES
+        ubsan_win_dynamic_runtime_thunk.cpp
       CFLAGS ${UBSAN_CFLAGS} ${DYNAMIC_RUNTIME_THUNK_CFLAGS}
       DEFS ${UBSAN_COMMON_DEFINITIONS})
   endif()
@@ -189,7 +197,8 @@ else()
     add_compiler_rt_runtime(clang_rt.ubsan_standalone
       STATIC
       ARCHS ${UBSAN_SUPPORTED_ARCH}
-      SOURCES ubsan_init_standalone_preinit.cpp
+      SOURCES
+        ubsan_init_standalone_preinit.cpp
       ADDITIONAL_HEADERS ${UBSAN_HEADERS}
       OBJECT_LIBS RTSanitizerCommon
               RTSanitizerCommonLibc

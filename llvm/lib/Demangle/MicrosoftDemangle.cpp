@@ -245,8 +245,11 @@ demanglePointerCVQualifiers(StringView &MangledName) {
 }
 
 StringView Demangler::copyString(StringView Borrowed) {
-  char *Stable = Arena.allocUnalignedBuffer(Borrowed.size() + 1);
-  std::strcpy(Stable, Borrowed.begin());
+  char *Stable = Arena.allocUnalignedBuffer(Borrowed.size());
+  // This is not a micro-optimization, it avoids UB, should Borrowed be an null
+  // buffer.
+  if (Borrowed.size())
+    std::memcpy(Stable, Borrowed.begin(), Borrowed.size());
 
   return {Stable, Borrowed.size()};
 }
@@ -823,11 +826,15 @@ SymbolNode *Demangler::parse(StringView &MangledName) {
 }
 
 TagTypeNode *Demangler::parseTagUniqueName(StringView &MangledName) {
-  if (!MangledName.consumeFront(".?A"))
+  if (!MangledName.consumeFront(".?A")) {
+    Error = true;
     return nullptr;
+  }
   MangledName.consumeFront(".?A");
-  if (MangledName.empty())
+  if (MangledName.empty()) {
+    Error = true;
     return nullptr;
+  }
 
   return demangleClassType(MangledName);
 }
@@ -966,16 +973,10 @@ void Demangler::memorizeIdentifier(IdentifierNode *Identifier) {
   // Render this class template name into a string buffer so that we can
   // memorize it for the purpose of back-referencing.
   OutputBuffer OB;
-  if (!initializeOutputBuffer(nullptr, nullptr, OB, 1024))
-    // FIXME: Propagate out-of-memory as an error?
-    std::terminate();
   Identifier->output(OB, OF_Default);
-  OB << '\0';
-  char *Name = OB.getBuffer();
-
-  StringView Owned = copyString(Name);
+  StringView Owned = copyString(OB);
   memorizeString(Owned);
-  std::free(Name);
+  std::free(OB.getBuffer());
 }
 
 IdentifierNode *
@@ -1279,14 +1280,8 @@ Demangler::demangleStringLiteral(StringView &MangledName) {
   bool IsWcharT = false;
   bool IsNegative = false;
   size_t CrcEndPos = 0;
-  char *ResultBuffer = nullptr;
 
   EncodedStringLiteralNode *Result = Arena.alloc<EncodedStringLiteralNode>();
-
-  // Must happen before the first `goto StringLiteralError`.
-  if (!initializeOutputBuffer(nullptr, nullptr, OB, 1024))
-    // FIXME: Propagate out-of-memory as an error?
-    std::terminate();
 
   // Prefix indicating the beginning of a string literal
   if (!MangledName.consumeFront("@_"))
@@ -1375,10 +1370,8 @@ Demangler::demangleStringLiteral(StringView &MangledName) {
     }
   }
 
-  OB << '\0';
-  ResultBuffer = OB.getBuffer();
-  Result->DecodedString = copyString(ResultBuffer);
-  std::free(ResultBuffer);
+  Result->DecodedString = copyString(OB);
+  std::free(OB.getBuffer());
   return Result;
 
 StringLiteralError:
@@ -1448,17 +1441,13 @@ Demangler::demangleLocallyScopedNamePiece(StringView &MangledName) {
 
   // Render the parent symbol's name into a buffer.
   OutputBuffer OB;
-  if (!initializeOutputBuffer(nullptr, nullptr, OB, 1024))
-    // FIXME: Propagate out-of-memory as an error?
-    std::terminate();
   OB << '`';
   Scope->output(OB, OF_Default);
   OB << '\'';
   OB << "::`" << Number << "'";
-  OB << '\0';
-  char *Result = OB.getBuffer();
-  Identifier->Name = copyString(Result);
-  std::free(Result);
+
+  Identifier->Name = copyString(OB);
+  std::free(OB.getBuffer());
   return Identifier;
 }
 
@@ -2314,16 +2303,14 @@ void Demangler::dumpBackReferences() {
 
   // Create an output stream so we can render each type.
   OutputBuffer OB;
-  if (!initializeOutputBuffer(nullptr, nullptr, OB, 1024))
-    std::terminate();
   for (size_t I = 0; I < Backrefs.FunctionParamCount; ++I) {
     OB.setCurrentPosition(0);
 
     TypeNode *T = Backrefs.FunctionParams[I];
     T->output(OB, OF_Default);
 
-    std::printf("  [%d] - %.*s\n", (int)I, (int)OB.getCurrentPosition(),
-                OB.getBuffer());
+    StringView B = OB;
+    std::printf("  [%d] - %.*s\n", (int)I, (int)B.size(), B.begin());
   }
   std::free(OB.getBuffer());
 
@@ -2342,7 +2329,6 @@ char *llvm::microsoftDemangle(const char *MangledName, size_t *NMangled,
                               char *Buf, size_t *N,
                               int *Status, MSDemangleFlags Flags) {
   Demangler D;
-  OutputBuffer OB;
 
   StringView Name{MangledName};
   SymbolNode *AST = D.parse(Name);
@@ -2367,9 +2353,8 @@ char *llvm::microsoftDemangle(const char *MangledName, size_t *NMangled,
   int InternalStatus = demangle_success;
   if (D.Error)
     InternalStatus = demangle_invalid_mangled_name;
-  else if (!initializeOutputBuffer(Buf, N, OB, 1024))
-    InternalStatus = demangle_memory_alloc_failure;
   else {
+    OutputBuffer OB(Buf, N);
     AST->output(OB, OF);
     OB += '\0';
     if (N != nullptr)

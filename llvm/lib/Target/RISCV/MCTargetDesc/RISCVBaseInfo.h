@@ -1,4 +1,4 @@
-//===-- RISCVBaseInfo.h - Top level definitions for RISCV MC ----*- C++ -*-===//
+//===-- RISCVBaseInfo.h - Top level definitions for RISC-V MC ---*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains small standalone enum definitions for the RISCV target
+// This file contains small standalone enum definitions for the RISC-V target
 // useful for the compiler back-end and the MC libraries.
 //
 //===----------------------------------------------------------------------===//
@@ -14,10 +14,13 @@
 #define LLVM_LIB_TARGET_RISCV_MCTARGETDESC_RISCVBASEINFO_H
 
 #include "MCTargetDesc/RISCVMCTargetDesc.h"
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/Support/RISCVISAInfo.h"
 
 namespace llvm {
 
@@ -42,7 +45,12 @@ enum {
   InstFormatCA = 14,
   InstFormatCB = 15,
   InstFormatCJ = 16,
-  InstFormatOther = 17,
+  InstFormatCU = 17,
+  InstFormatCLB = 18,
+  InstFormatCLH = 19,
+  InstFormatCSB = 20,
+  InstFormatCSH = 21,
+  InstFormatOther = 22,
 
   InstFormatMask = 31,
   InstFormatShift = 0,
@@ -87,9 +95,23 @@ enum {
   // Pseudos.
   IsRVVWideningReductionShift = HasVecPolicyOpShift + 1,
   IsRVVWideningReductionMask = 1 << IsRVVWideningReductionShift,
+
+  // Does this instruction care about mask policy. If it is not, the mask policy
+  // could be either agnostic or undisturbed. For example, unmasked, store, and
+  // reduction operations result would not be affected by mask policy, so
+  // compiler has free to select either one.
+  UsesMaskPolicyShift = IsRVVWideningReductionShift + 1,
+  UsesMaskPolicyMask = 1 << UsesMaskPolicyShift,
+
+  // Indicates that the result can be considered sign extended from bit 31. Some
+  // instructions with this flag aren't W instructions, but are either sign
+  // extended from a smaller size, always outputs a small integer, or put zeros
+  // in bits 63:31. Used by the SExtWRemoval pass.
+  IsSignExtendingOpWShift = UsesMaskPolicyShift + 1,
+  IsSignExtendingOpWMask = 1ULL << IsSignExtendingOpWShift,
 };
 
-// Match with the definitions in RISCVInstrFormatsV.td
+// Match with the definitions in RISCVInstrFormats.td
 enum VConstraintType {
   NoConstraint = 0,
   VS2Constraint = 0b001,
@@ -109,8 +131,9 @@ enum VLMUL : uint8_t {
 };
 
 enum {
-  TAIL_UNDISTURBED = 0,
+  TAIL_UNDISTURBED_MASK_UNDISTURBED = 0,
   TAIL_AGNOSTIC = 1,
+  MASK_AGNOSTIC = 2,
 };
 
 // Helper functions to read TSFlags.
@@ -120,8 +143,8 @@ static inline unsigned getFormat(uint64_t TSFlags) {
 }
 /// \returns the constraint for the instruction.
 static inline VConstraintType getConstraint(uint64_t TSFlags) {
-  return static_cast<VConstraintType>
-             ((TSFlags & ConstraintMask) >> ConstraintShift);
+  return static_cast<VConstraintType>((TSFlags & ConstraintMask) >>
+                                      ConstraintShift);
 }
 /// \returns the LMUL for the instruction.
 static inline VLMUL getLMul(uint64_t TSFlags) {
@@ -155,6 +178,41 @@ static inline bool hasVecPolicyOp(uint64_t TSFlags) {
 static inline bool isRVVWideningReduction(uint64_t TSFlags) {
   return TSFlags & IsRVVWideningReductionMask;
 }
+/// \returns true if mask policy is valid for the instruction.
+static inline bool usesMaskPolicy(uint64_t TSFlags) {
+  return TSFlags & UsesMaskPolicyMask;
+}
+
+static inline unsigned getMergeOpNum(const MCInstrDesc &Desc) {
+  assert(hasMergeOp(Desc.TSFlags));
+  assert(!Desc.isVariadic());
+  return Desc.getNumDefs();
+}
+
+static inline unsigned getVLOpNum(const MCInstrDesc &Desc) {
+  const uint64_t TSFlags = Desc.TSFlags;
+  // This method is only called if we expect to have a VL operand, and all
+  // instructions with VL also have SEW.
+  assert(hasSEWOp(TSFlags) && hasVLOp(TSFlags));
+  unsigned Offset = 2;
+  if (hasVecPolicyOp(TSFlags))
+    Offset = 3;
+  return Desc.getNumOperands() - Offset;
+}
+
+static inline unsigned getSEWOpNum(const MCInstrDesc &Desc) {
+  const uint64_t TSFlags = Desc.TSFlags;
+  assert(hasSEWOp(TSFlags));
+  unsigned Offset = 1;
+  if (hasVecPolicyOp(TSFlags))
+    Offset = 2;
+  return Desc.getNumOperands() - Offset;
+}
+
+static inline unsigned getVecPolicyOpNum(const MCInstrDesc &Desc) {
+  assert(hasVecPolicyOp(Desc.TSFlags));
+  return Desc.getNumOperands() - 1;
+}
 
 // RISC-V Specific Machine Operand Flags
 enum {
@@ -183,15 +241,38 @@ namespace RISCVOp {
 enum OperandType : unsigned {
   OPERAND_FIRST_RISCV_IMM = MCOI::OPERAND_FIRST_TARGET,
   OPERAND_UIMM2 = OPERAND_FIRST_RISCV_IMM,
+  OPERAND_UIMM2_LSB0,
   OPERAND_UIMM3,
   OPERAND_UIMM4,
   OPERAND_UIMM5,
+  OPERAND_UIMM6,
   OPERAND_UIMM7,
+  OPERAND_UIMM7_LSB00,
+  OPERAND_UIMM8_LSB00,
+  OPERAND_UIMM8,
+  OPERAND_UIMM8_LSB000,
+  OPERAND_UIMM9_LSB000,
+  OPERAND_UIMM10_LSB00_NONZERO,
   OPERAND_UIMM12,
+  OPERAND_ZERO,
+  OPERAND_SIMM5,
+  OPERAND_SIMM5_PLUS1,
+  OPERAND_SIMM6,
+  OPERAND_SIMM6_NONZERO,
+  OPERAND_SIMM10_LSB0000_NONZERO,
   OPERAND_SIMM12,
+  OPERAND_SIMM12_LSB00000,
   OPERAND_UIMM20,
   OPERAND_UIMMLOG2XLEN,
-  OPERAND_LAST_RISCV_IMM = OPERAND_UIMMLOG2XLEN,
+  OPERAND_UIMMLOG2XLEN_NONZERO,
+  OPERAND_CLUI_IMM,
+  OPERAND_VTYPEI10,
+  OPERAND_VTYPEI11,
+  OPERAND_RVKRNUM,
+  OPERAND_RVKRNUM_0_7,
+  OPERAND_RVKRNUM_1_10,
+  OPERAND_RVKRNUM_2_14,
+  OPERAND_LAST_RISCV_IMM = OPERAND_RVKRNUM_2_14,
   // Operand is either a register or uimm5, this is used by V extension pseudo
   // instructions to represent a value that be passed as AVL to either vsetvli
   // or vsetivli.
@@ -266,6 +347,19 @@ inline static bool isValidRoundingMode(unsigned Mode) {
 }
 } // namespace RISCVFPRndMode
 
+//===----------------------------------------------------------------------===//
+// Floating-point Immediates
+//
+
+namespace RISCVLoadFPImm {
+float getFPImm(unsigned Imm);
+
+/// getLoadFPImm - Return a 5-bit binary encoding of the floating-point
+/// immediate value. If the value cannot be represented as a 5-bit binary
+/// encoding, then return -1.
+int getLoadFPImm(APFloat FPImm);
+} // namespace RISCVLoadFPImm
+
 namespace RISCVSysReg {
 struct SysReg {
   const char *Name;
@@ -319,6 +413,7 @@ enum ABI {
   ABI_LP64,
   ABI_LP64F,
   ABI_LP64D,
+  ABI_LP64E,
   ABI_Unknown
 };
 
@@ -343,9 +438,8 @@ namespace RISCVFeatures {
 // triple. Exits with report_fatal_error if not.
 void validate(const Triple &TT, const FeatureBitset &FeatureBits);
 
-// Convert FeatureBitset to FeatureVector.
-void toFeatureVector(std::vector<std::string> &FeatureVector,
-                     const FeatureBitset &FeatureBits);
+llvm::Expected<std::unique_ptr<RISCVISAInfo>>
+parseFeatureBits(bool IsRV64, const FeatureBitset &FeatureBits);
 
 } // namespace RISCVFeatures
 
@@ -371,9 +465,20 @@ inline static RISCVII::VLMUL getVLMUL(unsigned VType) {
 // Decode VLMUL into 1,2,4,8 and fractional indicator.
 std::pair<unsigned, bool> decodeVLMUL(RISCVII::VLMUL VLMUL);
 
+inline static RISCVII::VLMUL encodeLMUL(unsigned LMUL, bool Fractional) {
+  assert(isValidLMUL(LMUL, Fractional) && "Unsupported LMUL");
+  unsigned LmulLog2 = Log2_32(LMUL);
+  return static_cast<RISCVII::VLMUL>(Fractional ? 8 - LmulLog2 : LmulLog2);
+}
+
 inline static unsigned decodeVSEW(unsigned VSEW) {
   assert(VSEW < 8 && "Unexpected VSEW value");
   return 1 << (VSEW + 3);
+}
+
+inline static unsigned encodeSEW(unsigned SEW) {
+  assert(isValidSEW(SEW) && "Unexpected SEW value");
+  return Log2_32(SEW) - 3;
 }
 
 inline static unsigned getSEW(unsigned VType) {
@@ -387,7 +492,14 @@ inline static bool isMaskAgnostic(unsigned VType) { return VType & 0x80; }
 
 void printVType(unsigned VType, raw_ostream &OS);
 
+unsigned getSEWLMULRatio(unsigned SEW, RISCVII::VLMUL VLMul);
+
 } // namespace RISCVVType
+
+namespace RISCVRVC {
+bool compress(MCInst &OutInst, const MCInst &MI, const MCSubtargetInfo &STI);
+bool uncompress(MCInst &OutInst, const MCInst &MI, const MCSubtargetInfo &STI);
+} // namespace RISCVRVC
 
 } // namespace llvm
 

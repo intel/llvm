@@ -26,6 +26,7 @@
 #include "lldb/lldb-private.h"
 
 #include <mutex>
+#include <optional>
 #include <stack>
 
 namespace lldb_private {
@@ -223,11 +224,11 @@ public:
     eBroadcastBitAsynchronousErrorData = (1 << 4)
   };
 
-  enum ChildrenTruncatedWarningStatus // tristate boolean to manage children
-                                      // truncation warning
-  { eNoTruncation = 0,                // never truncated
-    eUnwarnedTruncation = 1,          // truncated but did not notify
-    eWarnedTruncation = 2             // truncated and notified
+  /// Tristate boolean to manage children omission warnings.
+  enum ChildrenOmissionWarningStatus {
+    eNoOmission = 0,       ///< No children were omitted.
+    eUnwarnedOmission = 1, ///< Children omitted, and not yet notified.
+    eWarnedOmission = 2    ///< Children omitted and notified.
   };
 
   enum CommandTypes {
@@ -238,6 +239,14 @@ public:
     eCommandTypesHidden  = 0x0010, //< commands prefixed with an underscore
     eCommandTypesAllThem = 0xFFFF  //< all commands
   };
+
+  // The CommandAlias and CommandInterpreter both have a hand in 
+  // substituting for alias commands.  They work by writing special tokens
+  // in the template form of the Alias command, and then detecting them when the
+  // command is executed.  These are the special tokens:
+  static const char *g_no_argument;
+  static const char *g_need_argument;
+  static const char *g_argument;
 
   CommandInterpreter(Debugger &debugger, bool synchronous_execution);
 
@@ -252,7 +261,8 @@ public:
   }
 
   void SourceInitFileCwd(CommandReturnObject &result);
-  void SourceInitFileHome(CommandReturnObject &result, bool is_repl = false);
+  void SourceInitFileHome(CommandReturnObject &result, bool is_repl);
+  void SourceInitFileGlobal(CommandReturnObject &result);
 
   bool AddCommand(llvm::StringRef name, const lldb::CommandObjectSP &cmd_sp,
                   bool can_replace);
@@ -342,9 +352,10 @@ public:
                      CommandReturnObject &result);
 
   bool HandleCommand(const char *command_line, LazyBool add_to_history,
-                     CommandReturnObject &result);
+                     CommandReturnObject &result,
+                     bool force_repeat_command = false);
 
-  bool WasInterrupted() const;
+  bool InterruptCommand();
 
   /// Execute a list of commands in sequence.
   ///
@@ -397,7 +408,7 @@ public:
 
   /// Returns the auto-suggestion string that should be added to the given
   /// command line.
-  llvm::Optional<std::string> GetAutoSuggestionForCommand(llvm::StringRef line);
+  std::optional<std::string> GetAutoSuggestionForCommand(llvm::StringRef line);
 
   // This handles command line completion.
   void HandleCompletion(CompletionRequest &request);
@@ -495,21 +506,33 @@ public:
   }
 
   void ChildrenTruncated() {
-    if (m_truncation_warning == eNoTruncation)
-      m_truncation_warning = eUnwarnedTruncation;
+    if (m_truncation_warning == eNoOmission)
+      m_truncation_warning = eUnwarnedOmission;
   }
 
-  bool TruncationWarningNecessary() {
-    return (m_truncation_warning == eUnwarnedTruncation);
+  void SetReachedMaximumDepth() {
+    if (m_max_depth_warning == eNoOmission)
+      m_max_depth_warning = eUnwarnedOmission;
   }
 
-  void TruncationWarningGiven() { m_truncation_warning = eWarnedTruncation; }
+  void PrintWarningsIfNecessary(Stream &s, const std::string &cmd_name) {
+    if (m_truncation_warning == eUnwarnedOmission) {
+      s.Printf("*** Some of the displayed variables have more members than the "
+               "debugger will show by default. To show all of them, you can "
+               "either use the --show-all-children option to %s or raise the "
+               "limit by changing the target.max-children-count setting.\n",
+               cmd_name.c_str());
+      m_truncation_warning = eWarnedOmission;
+    }
 
-  const char *TruncationWarningText() {
-    return "*** Some of your variables have more members than the debugger "
-           "will show by default. To show all of them, you can either use the "
-           "--show-all-children option to %s or raise the limit by changing "
-           "the target.max-children-count setting.\n";
+    if (m_max_depth_warning == eUnwarnedOmission) {
+      s.Printf("*** Some of the displayed variables have a greater depth of "
+               "members than the debugger will show by default. To increase "
+               "the limit, use the --depth option to %s, or raise the limit by "
+               "changing the target.max-children-depth setting.\n",
+               cmd_name.c_str());
+      m_max_depth_warning = eWarnedOmission;
+    }
   }
 
   CommandHistory &GetCommandHistory() { return m_command_history; }
@@ -538,6 +561,9 @@ public:
   bool GetSaveSessionOnQuit() const;
   void SetSaveSessionOnQuit(bool enable);
 
+  bool GetOpenTranscriptInEditor() const;
+  void SetOpenTranscriptInEditor(bool enable);
+
   FileSpec GetSaveSessionDirectory() const;
   void SetSaveSessionDirectory(llvm::StringRef path);
 
@@ -548,6 +574,8 @@ public:
   void SetEchoCommentCommands(bool enable);
 
   bool GetRepeatPreviousCommand() const;
+  
+  bool GetRequireCommandOverwrite() const;
 
   const CommandObject::CommandMap &GetUserCommands() const {
     return m_user_dict;
@@ -573,7 +601,7 @@ public:
   /// \return True if the exit code was successfully set; false if the
   ///         interpreter doesn't allow custom exit codes.
   /// \see AllowExitCodeOnQuit
-  LLVM_NODISCARD bool SetQuitExitCode(int exit_code);
+  [[nodiscard]] bool SetQuitExitCode(int exit_code);
 
   /// Returns the exit code that the user has specified when running the
   /// 'quit' command.
@@ -601,12 +629,23 @@ public:
   /// \return \b true if the session transcript was successfully written to
   /// disk, \b false otherwise.
   bool SaveTranscript(CommandReturnObject &result,
-                      llvm::Optional<std::string> output_file = llvm::None);
+                      std::optional<std::string> output_file = std::nullopt);
 
   FileSpec GetCurrentSourceDir();
 
+  bool IsInteractive();
+
+  bool IOHandlerInterrupt(IOHandler &io_handler) override;
+
+  Status PreprocessCommand(std::string &command);
+  Status PreprocessToken(std::string &token);
+
 protected:
   friend class Debugger;
+
+  // This checks just the RunCommandInterpreter interruption state.  It is only
+  // meant to be used in Debugger::InterruptRequested
+  bool WasInterrupted() const;
 
   // IOHandlerDelegate functions
   void IOHandlerInputComplete(IOHandler &io_handler,
@@ -617,8 +656,6 @@ protected:
       return ConstString("quit\n");
     return ConstString();
   }
-
-  bool IOHandlerInterrupt(IOHandler &io_handler) override;
 
   void GetProcessOutput();
 
@@ -637,8 +674,6 @@ private:
 
   void RestoreExecutionContext();
 
-  Status PreprocessCommand(std::string &command);
-
   void SourceInitFile(FileSpec file, CommandReturnObject &result);
 
   // Completely resolves aliases and abbreviations, returning a pointer to the
@@ -652,7 +687,8 @@ private:
                               const CommandObject::CommandMap &command_map);
 
   // An interruptible wrapper around the stream output
-  void PrintCommandOutput(Stream &stream, llvm::StringRef str);
+  void PrintCommandOutput(IOHandler &io_handler, llvm::StringRef str,
+                          bool is_stdout);
 
   bool EchoCommandNonInteractive(llvm::StringRef line,
                                  const Flags &io_handler_flags) const;
@@ -671,7 +707,6 @@ private:
 
   void StartHandlingCommand();
   void FinishHandlingCommand();
-  bool InterruptCommand();
 
   Debugger &m_debugger; // The debugger session that this interpreter is
                         // associated with
@@ -695,9 +730,12 @@ private:
   lldb::IOHandlerSP m_command_io_handler_sp;
   char m_comment_char;
   bool m_batch_command_mode;
-  ChildrenTruncatedWarningStatus m_truncation_warning; // Whether we truncated
-                                                       // children and whether
-                                                       // the user has been told
+  /// Whether we truncated a value's list of children and whether the user has
+  /// been told.
+  ChildrenOmissionWarningStatus m_truncation_warning;
+  /// Whether we reached the maximum child nesting depth and whether the user
+  /// has been told.
+  ChildrenOmissionWarningStatus m_max_depth_warning;
 
   // FIXME: Stop using this to control adding to the history and then replace
   // this with m_command_source_dirs.size().
@@ -710,7 +748,7 @@ private:
 
   // The exit code the user has requested when calling the 'quit' command.
   // No value means the user hasn't set a custom exit code so far.
-  llvm::Optional<int> m_quit_exit_code;
+  std::optional<int> m_quit_exit_code;
   // If the driver is accepts custom exit codes for the 'quit' command.
   bool m_allow_exit_code = false;
 

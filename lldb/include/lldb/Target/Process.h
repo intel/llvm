@@ -17,15 +17,16 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
 #include "lldb/Breakpoint/BreakpointSiteList.h"
-#include "lldb/Core/Communication.h"
 #include "lldb/Core/LoadedModuleInfoList.h"
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Core/ThreadSafeValue.h"
+#include "lldb/Core/ThreadedCommunication.h"
 #include "lldb/Core/UserSettingsController.h"
 #include "lldb/Host/HostThread.h"
 #include "lldb/Host/ProcessLaunchInfo.h"
@@ -112,7 +113,7 @@ protected:
 
 class ProcessAttachInfo : public ProcessInstanceInfo {
 public:
-  ProcessAttachInfo() {}
+  ProcessAttachInfo() = default;
 
   ProcessAttachInfo(const ProcessLaunchInfo &launch_info)
       : m_resume_count(0), m_wait_for_launch(false), m_ignore_existing(true),
@@ -365,9 +366,6 @@ public:
     eBroadcastInternalStateControlResume = (1 << 2)
   };
 
-  /// Process warning types.
-  enum Warnings { eWarningsOptimization = 1, eWarningsUnsupportedLanguage = 2 };
-
   typedef Range<lldb::addr_t, lldb::addr_t> LoadRange;
   // We use a read/write lock to allow on or more clients to access the process
   // state while the process is stopped (reader). We lock the write lock to
@@ -477,15 +475,6 @@ public:
     ProcessEventData(const ProcessEventData &) = delete;
     const ProcessEventData &operator=(const ProcessEventData &) = delete;
   };
-
-  /// Construct with a shared pointer to a target, and the Process listener.
-  /// Uses the Host UnixSignalsSP by default.
-  Process(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
-
-  /// Construct with a shared pointer to a target, the Process listener, and
-  /// the appropriate UnixSignalsSP for the process.
-  Process(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
-          const lldb::UnixSignalsSP &unix_signals_sp);
 
   /// Destructor.
   ///
@@ -653,6 +642,8 @@ public:
   /// plug-in.
   virtual DynamicLoader *GetDynamicLoader();
 
+  void SetDynamicLoader(lldb::DynamicLoaderUP dyld);
+
   // Returns AUXV structure found in many ELF-based environments.
   //
   // The default action is to return an empty data buffer.
@@ -696,6 +687,9 @@ protected:
   virtual JITLoaderList &GetJITLoaders();
 
 public:
+  /// Get the system architecture for this process.
+  virtual ArchSpec GetSystemArchitecture() { return {}; }
+
   /// Get the system runtime plug-in for this process.
   ///
   /// \return
@@ -891,11 +885,9 @@ public:
 
   /// Called before attaching to a process.
   ///
-  /// Allow Process plug-ins to execute some code before attaching a process.
-  ///
   /// \return
   ///     Returns an error object.
-  virtual Status WillAttachToProcessWithID(lldb::pid_t pid) { return Status(); }
+  Status WillAttachToProcessWithID(lldb::pid_t pid);
 
   /// Called before attaching to a process.
   ///
@@ -903,8 +895,25 @@ public:
   ///
   /// \return
   ///     Returns an error object.
-  virtual Status WillAttachToProcessWithName(const char *process_name,
-                                             bool wait_for_launch) {
+  virtual Status DoWillAttachToProcessWithID(lldb::pid_t pid) {
+    return Status();
+  }
+
+  /// Called before attaching to a process.
+  ///
+  /// \return
+  ///     Returns an error object.
+  Status WillAttachToProcessWithName(const char *process_name,
+                                     bool wait_for_launch);
+
+  /// Called before attaching to a process.
+  ///
+  /// Allow Process plug-ins to execute some code before attaching a process.
+  ///
+  /// \return
+  ///     Returns an error object.
+  virtual Status DoWillAttachToProcessWithName(const char *process_name,
+                                               bool wait_for_launch) {
     return Status();
   }
 
@@ -997,12 +1006,17 @@ public:
   virtual void DidVForkDone() {}
 
   /// Called before launching to a process.
+  /// \return
+  ///     Returns an error object.
+  Status WillLaunch(Module *module);
+
+  /// Called before launching to a process.
   ///
   /// Allow Process plug-ins to execute some code before launching a process.
   ///
   /// \return
   ///     Returns an error object.
-  virtual Status WillLaunch(Module *module) { return Status(); }
+  virtual Status DoWillLaunch(Module *module) { return Status(); }
 
   /// Launch a new process.
   ///
@@ -1306,6 +1320,15 @@ public:
   // system) in use.
   virtual lldb_private::StructuredData::ObjectSP GetSharedCacheInfo() {
     return StructuredData::ObjectSP();
+  }
+
+  // Get information about the launch state of the process, if possible.
+  //
+  // On Darwin systems, libdyld can report on process state, most importantly
+  // the startup stages where the system library is not yet initialized.
+  virtual lldb_private::StructuredData::ObjectSP
+  GetDynamicLoaderProcessState() {
+    return {};
   }
 
   /// Print a user-visible warning about a module being built with
@@ -1715,8 +1738,8 @@ public:
   ///     an error saying so.
   ///     If it does, either the memory tags or an error describing a
   ///     failure to read or unpack them.
-  llvm::Expected<std::vector<lldb::addr_t>> ReadMemoryTags(lldb::addr_t addr,
-                                                           size_t len);
+  virtual llvm::Expected<std::vector<lldb::addr_t>>
+  ReadMemoryTags(lldb::addr_t addr, size_t len);
 
   /// Write memory tags for a range of memory.
   /// (calls DoWriteMemoryTags to do the target specific work)
@@ -1759,7 +1782,7 @@ public:
   ///
   /// If load_addr is within the address space the process has mapped
   /// range_info will be filled in with the start and end of that range as
-  /// well as the permissions for that range and range_info.GetMapped will
+  /// well as the permissions for that range and range_info. GetMapped will
   /// return true.
   ///
   /// If load_addr is outside any mapped region then range_info will have its
@@ -1768,23 +1791,21 @@ public:
   /// there are no valid mapped ranges between load_addr and the end of the
   /// process address space.
   ///
-  /// GetMemoryRegionInfo will only return an error if it is unimplemented for
-  /// the current process.
+  /// GetMemoryRegionInfo calls DoGetMemoryRegionInfo. Override that function in
+  /// process subclasses.
   ///
   /// \param[in] load_addr
-  ///     The load address to query the range_info for.
+  ///     The load address to query the range_info for. May include non
+  ///     address bits, these will be removed by the the ABI plugin if there is
+  ///     one.
   ///
   /// \param[out] range_info
   ///     An range_info value containing the details of the range.
   ///
   /// \return
   ///     An error value.
-  virtual Status GetMemoryRegionInfo(lldb::addr_t load_addr,
-                                     MemoryRegionInfo &range_info) {
-    Status error;
-    error.SetErrorString("Process::GetMemoryRegionInfo() not supported");
-    return error;
-  }
+  Status GetMemoryRegionInfo(lldb::addr_t load_addr,
+                             MemoryRegionInfo &range_info);
 
   /// Obtain all the mapped memory regions within this process.
   ///
@@ -1797,20 +1818,35 @@ public:
   virtual Status
   GetMemoryRegions(lldb_private::MemoryRegionInfos &region_list);
 
-  virtual Status GetWatchpointSupportInfo(uint32_t &num) {
-    Status error;
-    num = 0;
-    error.SetErrorString("Process::GetWatchpointSupportInfo() not supported");
-    return error;
+  /// Get the number of watchpoints supported by this target.
+  ///
+  /// We may be able to determine the number of watchpoints available
+  /// on this target; retrieve this value if possible.
+  ///
+  /// This number may be less than the number of watchpoints a user
+  /// can specify. This is because a single user watchpoint may require
+  /// multiple watchpoint slots to implement. Due to the size
+  /// and/or alignment of objects.
+  ///
+  /// \return
+  ///     Returns the number of watchpoints, if available.
+  virtual std::optional<uint32_t> GetWatchpointSlotCount() {
+    return std::nullopt;
   }
 
-  virtual Status GetWatchpointSupportInfo(uint32_t &num, bool &after) {
-    Status error;
-    num = 0;
-    after = true;
-    error.SetErrorString("Process::GetWatchpointSupportInfo() not supported");
-    return error;
-  }
+  /// Whether lldb will be notified about watchpoints after
+  /// the instruction has completed executing, or if the
+  /// instruction is rolled back and it is notified before it
+  /// executes.
+  /// The default behavior is "exceptions received after instruction
+  /// has executed", except for certain CPU architectures.
+  /// Process subclasses may override this if they have additional
+  /// information.
+  ///
+  /// \return
+  ///     Returns true for targets where lldb is notified after
+  ///     the instruction has completed executing.
+  bool GetWatchpointReportedAfter();
 
   lldb::ModuleSP ReadModuleFromMemory(const FileSpec &file_spec,
                                       lldb::addr_t header_addr,
@@ -1884,7 +1920,7 @@ public:
   ///     want to deallocate.
   ///
   /// \return
-  ///     \btrue if the memory was deallocated, \bfalse otherwise.
+  ///     \b true if the memory was deallocated, \b false otherwise.
   virtual Status DoDeallocateMemory(lldb::addr_t ptr) {
     Status error;
     error.SetErrorStringWithFormatv(
@@ -1903,7 +1939,7 @@ public:
   ///     want to deallocate.
   ///
   /// \return
-  ///     \btrue if the memory was deallocated, \bfalse otherwise.
+  ///     \b true if the memory was deallocated, \b false otherwise.
   Status DeallocateMemory(lldb::addr_t ptr);
 
   /// Get any available STDOUT.
@@ -2096,7 +2132,7 @@ public:
 
   // Queue Queries
 
-  void UpdateQueueListIfNeeded();
+  virtual void UpdateQueueListIfNeeded();
 
   QueueList &GetQueueList() {
     UpdateQueueListIfNeeded();
@@ -2412,6 +2448,13 @@ void PruneThreadPlans();
     return Status("Not supported");
   }
 
+  /// Fetch process defined metadata.
+  ///
+  /// \return
+  ///     A StructuredDataSP object which, if non-empty, will contain the
+  ///     information related to the process.
+  virtual StructuredData::DictionarySP GetMetadata() { return nullptr; }
+
   size_t AddImageToken(lldb::addr_t image_ptr);
 
   lldb::addr_t GetImagePtrFromToken(size_t token) const;
@@ -2499,8 +2542,20 @@ void PruneThreadPlans();
   lldb::StructuredDataPluginSP
   GetStructuredDataPlugin(ConstString type_name) const;
 
+  virtual void *GetImplementation() { return nullptr; }
+
 protected:
   friend class Trace;
+
+  /// Construct with a shared pointer to a target, and the Process listener.
+  /// Uses the Host UnixSignalsSP by default.
+  Process(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
+
+  /// Construct with a shared pointer to a target, the Process listener, and
+  /// the appropriate UnixSignalsSP for the process.
+  Process(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
+          const lldb::UnixSignalsSP &unix_signals_sp);
+
   ///  Get the processor tracing type supported for this process.
   ///  Responses might be different depending on the architecture and
   ///  capabilities of the underlying OS.
@@ -2604,6 +2659,44 @@ protected:
   virtual size_t DoReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
                               Status &error) = 0;
 
+  /// DoGetMemoryRegionInfo is called by GetMemoryRegionInfo after it has
+  /// removed non address bits from load_addr. Override this method in
+  /// subclasses of Process.
+  ///
+  /// See GetMemoryRegionInfo for details of the logic.
+  ///
+  /// \param[in] load_addr
+  ///     The load address to query the range_info for. (non address bits
+  ///     removed)
+  ///
+  /// \param[out] range_info
+  ///     An range_info value containing the details of the range.
+  ///
+  /// \return
+  ///     An error value.
+  virtual Status DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                                       MemoryRegionInfo &range_info) {
+    return Status("Process::DoGetMemoryRegionInfo() not supported");
+  }
+
+  /// Provide an override value in the subclass for lldb's
+  /// CPU-based logic for whether watchpoint exceptions are
+  /// received before or after an instruction executes.
+  ///
+  /// If a Process subclass needs to override this architecture-based
+  /// result, it may do so by overriding this method.
+  ///
+  /// \return
+  ///     No boolean returned means there is no override of the
+  ///     default architecture-based behavior.
+  ///     true is returned for targets where watchpoints are reported
+  ///     after the instruction has completed.
+  ///     false is returned for targets where watchpoints are reported
+  ///     before the instruction executes.
+  virtual std::optional<bool> DoGetWatchpointReportedAfter() {
+    return std::nullopt;
+  }
+
   lldb::StateType GetPrivateState();
 
   /// The "private" side of resuming a process.  This doesn't alter the state
@@ -2615,35 +2708,6 @@ protected:
 
   // Called internally
   void CompleteAttach();
-
-  /// Print a user-visible warning one time per Process
-  ///
-  /// A facility for printing a warning to the user once per repeat_key.
-  ///
-  /// warning_type is from the Process::Warnings enums. repeat_key is a
-  /// pointer value that will be used to ensure that the warning message is
-  /// not printed multiple times.  For instance, with a warning about a
-  /// function being optimized, you can pass the CompileUnit pointer to have
-  /// the warning issued for only the first function in a CU, or the Function
-  /// pointer to have it issued once for every function, or a Module pointer
-  /// to have it issued once per Module.
-  ///
-  /// Classes outside Process should call a specific PrintWarning method so
-  /// that the warning strings are all centralized in Process, instead of
-  /// calling PrintWarning() directly.
-  ///
-  /// \param [in] warning_type
-  ///     One of the types defined in Process::Warnings.
-  ///
-  /// \param [in] repeat_key
-  ///     A pointer value used to ensure that the warning is only printed once.
-  ///     May be nullptr, indicating that the warning is printed unconditionally
-  ///     every time.
-  ///
-  /// \param [in] fmt
-  ///     printf style format string
-  void PrintWarning(uint64_t warning_type, const void *repeat_key,
-                    const char *fmt, ...) __attribute__((format(printf, 4, 5)));
 
   // NextEventAction provides a way to register an action on the next event
   // that is delivered to this process.  There is currently only one next event
@@ -2676,7 +2740,7 @@ protected:
   };
 
   void SetNextEventAction(Process::NextEventAction *next_event_action) {
-    if (m_next_event_action_up.get())
+    if (m_next_event_action_up)
       m_next_event_action_up->HandleBeingUnshipped();
 
     m_next_event_action_up.reset(next_event_action);
@@ -2809,8 +2873,6 @@ protected:
   // Type definitions
   typedef std::map<lldb::LanguageType, lldb::LanguageRuntimeSP>
       LanguageRuntimeCollection;
-  typedef std::unordered_set<const void *> WarningsPointerSet;
-  typedef std::map<uint64_t, WarningsPointerSet> WarningsCollection;
 
   struct PreResumeCallbackAndBaton {
     bool (*callback)(void *);
@@ -2895,7 +2957,7 @@ protected:
       m_unix_signals_sp; /// This is the current signal set for this process.
   lldb::ABISP m_abi_sp;
   lldb::IOHandlerSP m_process_input_reader;
-  Communication m_stdio_communication;
+  ThreadedCommunication m_stdio_communication;
   std::recursive_mutex m_stdio_communication_mutex;
   bool m_stdin_forward; /// Remember if stdin must be forwarded to remote debug
                         /// server
@@ -2940,11 +3002,9 @@ protected:
                                           /// ShouldBroadcastEvent.
   std::map<lldb::addr_t, lldb::addr_t> m_resolved_indirect_addresses;
   bool m_destroy_in_process;
-  bool m_can_interpret_function_calls;  // Some targets, e.g the OSX kernel,
-                                        // don't support the ability to modify
-                                        // the stack.
-  WarningsCollection m_warnings_issued; // A set of object pointers which have
-                                        // already had warnings printed
+  bool m_can_interpret_function_calls; // Some targets, e.g the OSX kernel,
+                                       // don't support the ability to modify
+                                       // the stack.
   std::mutex m_run_thread_plan_lock;
   StructuredDataPluginMap m_structured_data_plugin_map;
 
@@ -2971,17 +3031,6 @@ protected:
   void ResumePrivateStateThread();
 
 private:
-  struct PrivateStateThreadArgs {
-    PrivateStateThreadArgs(Process *p, bool s)
-        : process(p), is_secondary_thread(s){};
-    Process *process;
-    bool is_secondary_thread;
-  };
-
-  // arg is a pointer to a new'ed PrivateStateThreadArgs structure.
-  // PrivateStateThread will free it for you.
-  static lldb::thread_result_t PrivateStateThread(void *arg);
-
   // The starts up the private state thread that will watch for events from the
   // debugee. Pass true for is_secondary_thread in the case where you have to
   // temporarily spin up a secondary state thread to handle events from a hand-
@@ -3054,6 +3103,9 @@ private:
   bool ShouldBroadcastEvent(Event *event_ptr);
 
   void ControlPrivateStateThread(uint32_t signal);
+
+  Status LaunchPrivate(ProcessLaunchInfo &launch_info, lldb::StateType &state,
+                       lldb::EventSP &event_sp);
 
   Process(const Process &) = delete;
   const Process &operator=(const Process &) = delete;

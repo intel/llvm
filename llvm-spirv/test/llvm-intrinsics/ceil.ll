@@ -10,7 +10,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK: 3 TypeFloat [[var1:[0-9]+]] 32
 ; CHECK: 3 TypeFloat [[var2:[0-9]+]] 64
-; CHECK: 4 TypeVector [[var3:[0-9]+]] 2 4
+; CHECK: 4 TypeVector [[var3:[0-9]+]] [[var1]] 4
 
 ; CHECK: Function
 ; CHECK: 6 ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] ceil

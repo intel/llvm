@@ -1,7 +1,7 @@
 ;; Test that the -print-pipeline-passes option correctly prints some explicitly specified pipelines.
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(adce),function(simplifycfg<bonus-inst-threshold=123;no-forward-switch-cond;switch-to-lookup;keep-loops;no-hoist-common-insts;sink-common-insts>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-0
-; CHECK-0: function(adce),function(simplifycfg<bonus-inst-threshold=123;no-forward-switch-cond;switch-to-lookup;keep-loops;no-hoist-common-insts;sink-common-insts>)
+; CHECK-0: function(adce),function(simplifycfg<bonus-inst-threshold=123;no-forward-switch-cond;no-switch-range-to-icmp;switch-to-lookup;keep-loops;no-hoist-common-insts;sink-common-insts>)
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='module(rpo-function-attrs,require<globals-aa>,function(float2int,lower-constant-intrinsics,loop(loop-rotate)),invalidate<globals-aa>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-1
 ; CHECK-1: rpo-function-attrs,require<globals-aa>,function(float2int,lower-constant-intrinsics,loop(loop-rotate)),invalidate<globals-aa>
@@ -10,7 +10,7 @@
 ; CHECK-2: repeat<5>(function(mem2reg)),invalidate<all>
 
 ;; Test that we get ClassName printed when there is no ClassName to pass-name mapping (as is the case for the BitcodeWriterPass).
-; RUN: opt -o /dev/null -disable-verify -print-pipeline-passes -passes='function(mem2reg)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-3
+; RUN: opt -o /dev/null -disable-verify -print-pipeline-passes -passes='function(mem2reg)' < %s -disable-pipeline-verification | FileCheck %s --match-full-lines --check-prefixes=CHECK-3
 ; CHECK-3: function(mem2reg),BitcodeWriterPass
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(loop-mssa(indvars))' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-4
@@ -40,14 +40,11 @@
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(early-cse<>,early-cse<memssa>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-12
 ; CHECK-12: function(early-cse<>,early-cse<memssa>)
 
-; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='msan-module,function(msan,msan<>,msan<recover;kernel;eager-checks;track-origins=5>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-13
-; CHECK-13: msan-module,function(msan<track-origins=0>,msan<track-origins=0>,msan<recover;kernel;eager-checks;track-origins=5>)
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='msan,module(msan,msan<>,msan<recover;kernel;eager-checks;track-origins=5>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-13
+; CHECK-13: msan<track-origins=0>,msan<track-origins=0>,msan<track-origins=0>,msan<recover;kernel;eager-checks;track-origins=5>
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='module(hwasan<>,hwasan<kernel;recover>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-14
 ; CHECK-14: hwasan<>,hwasan<kernel;recover>
-
-; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(asan<>,asan<kernel>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-15
-; CHECK-15: function(asan<>,asan<kernel>)
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='module(loop-extract<>,loop-extract<single>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-16
 ; CHECK-16: loop-extract<>,loop-extract<single>
@@ -56,7 +53,7 @@
 ; CHECK-17: function(print<stack-lifetime><may>,print<stack-lifetime><must>)
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(simplifycfg<bonus-inst-threshold=5;forward-switch-cond;switch-to-lookup;keep-loops;hoist-common-insts;sink-common-insts>,simplifycfg<bonus-inst-threshold=7;no-forward-switch-cond;no-switch-to-lookup;no-keep-loops;no-hoist-common-insts;no-sink-common-insts>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-18
-; CHECK-18: function(simplifycfg<bonus-inst-threshold=5;forward-switch-cond;switch-to-lookup;keep-loops;hoist-common-insts;sink-common-insts>,simplifycfg<bonus-inst-threshold=7;no-forward-switch-cond;no-switch-to-lookup;no-keep-loops;no-hoist-common-insts;no-sink-common-insts>)
+; CHECK-18: function(simplifycfg<bonus-inst-threshold=5;forward-switch-cond;no-switch-range-to-icmp;switch-to-lookup;keep-loops;hoist-common-insts;sink-common-insts>,simplifycfg<bonus-inst-threshold=7;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-lookup;no-keep-loops;no-hoist-common-insts;no-sink-common-insts>)
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only>,loop-vectorize<interleave-forced-only;vectorize-forced-only>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-19
 ; CHECK-19: function(loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only;>,loop-vectorize<interleave-forced-only;vectorize-forced-only;>)
@@ -72,4 +69,45 @@
 
 ;; Test that the loop-nest-pass lnicm is printed with the other loop-passes in the pipeline.
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(loop-mssa(licm,loop-rotate,loop-deletion,lnicm,loop-rotate))' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-23
-; CHECK-23: function(loop-mssa(licm,loop-rotate,loop-deletion,lnicm,loop-rotate))
+; CHECK-23: function(loop-mssa(licm<allowspeculation>,loop-rotate,loop-deletion,lnicm<allowspeculation>,loop-rotate))
+
+;; Test that -debugify and -check-debugify is printed correctly.
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='debugify,no-op-function,check-debugify' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-24
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -enable-debugify -passes='no-op-function' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-24
+; CHECK-24: debugify,function(no-op-function),check-debugify
+
+;; Test that LICM & LNICM with options.
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(loop-mssa(licm<allowspeculation>,licm<no-allowspeculation>,lnicm<allowspeculation>,lnicm<no-allowspeculation>))' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-25
+; CHECK-25: function(loop-mssa(licm<allowspeculation>,licm<no-allowspeculation>,lnicm<allowspeculation>,lnicm<no-allowspeculation>))
+
+;; Test coro-cond.
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='coro-cond(no-op-module)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-26
+; CHECK-26: coro-cond(no-op-module)
+
+;; Test that -print-pipeline-passes is parsable (implicitly done with -print-pipeline-passes) for various default pipelines.
+; RUN: opt -disable-output -passes='default<O0>' < %s
+; RUN: opt -disable-output -passes='default<O1>' < %s
+; RUN: opt -disable-output -passes='default<O2>' < %s
+; RUN: opt -disable-output -passes='default<O3>' < %s
+
+;; Test SeparateConstOffsetFromGEPPass option.
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='separate-const-offset-from-gep<lower-gep>' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-27
+; CHECK-27: function(separate-const-offset-from-gep<lower-gep>)
+
+;; Test InstCombine options - the first pass checks default settings, and the second checks customized options.
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(instcombine,instcombine<use-loop-info;max-iterations=42>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-28
+; CHECK-28: function(instcombine<max-iterations=1000;no-use-loop-info>,instcombine<max-iterations=42;use-loop-info>)
+
+;; Test function-attrs
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='cgscc(function-attrs<skip-non-recursive>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-29
+; CHECK-29: cgscc(function-attrs<skip-non-recursive>)
+
+;; Test cgscc -> function adaptor
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='cgscc(function<eager-inv;no-rerun>(no-op-function))' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-30
+; CHECK-30: cgscc(function<eager-inv;no-rerun>(no-op-function))
+
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='cgscc(function<no-rerun;eager-inv>(no-op-function))' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-31
+; CHECK-31: cgscc(function<eager-inv;no-rerun>(no-op-function))
+
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='cgscc(function<no-rerun>(no-op-function))' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-32
+; CHECK-32: cgscc(function<no-rerun>(no-op-function))

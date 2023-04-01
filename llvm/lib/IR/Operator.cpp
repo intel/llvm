@@ -14,7 +14,6 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Type.h"
 
 #include "ConstantsContext.h"
 
@@ -36,13 +35,20 @@ bool Operator::hasPoisonGeneratingFlags() const {
   case Instruction::GetElementPtr: {
     auto *GEP = cast<GEPOperator>(this);
     // Note: inrange exists on constexpr only
-    return GEP->isInBounds() || GEP->getInRangeIndex() != None;
+    return GEP->isInBounds() || GEP->getInRangeIndex() != std::nullopt;
   }
   default:
     if (const auto *FP = dyn_cast<FPMathOperator>(this))
       return FP->hasNoNaNs() || FP->hasNoInfs();
     return false;
   }
+}
+
+bool Operator::hasPoisonGeneratingFlagsOrMetadata() const {
+  if (hasPoisonGeneratingFlags())
+    return true;
+  auto *I = dyn_cast<Instruction>(this);
+  return I && I->hasPoisonGeneratingMetadata();
 }
 
 Type *GEPOperator::getSourceElementType() const {
@@ -64,7 +70,7 @@ Align GEPOperator::getMaxPreservedAlignment(const DataLayout &DL) const {
   Align Result = Align(llvm::Value::MaximumAlignment);
   for (gep_type_iterator GTI = gep_type_begin(this), GTE = gep_type_end(this);
        GTI != GTE; ++GTI) {
-    int64_t Offset = 1;
+    uint64_t Offset;
     ConstantInt *OpC = dyn_cast<ConstantInt>(GTI.getOperand());
 
     if (StructType *STy = GTI.getStructTypeOrNull()) {
@@ -72,11 +78,9 @@ Align GEPOperator::getMaxPreservedAlignment(const DataLayout &DL) const {
       Offset = SL->getElementOffset(OpC->getZExtValue());
     } else {
       assert(GTI.isSequential() && "should be sequencial");
-      /// If the index isn't know we take 1 because it is the index that will
+      /// If the index isn't known, we take 1 because it is the index that will
       /// give the worse alignment of the offset.
-      int64_t ElemCount = 1;
-      if (OpC)
-        ElemCount = OpC->getZExtValue();
+      const uint64_t ElemCount = OpC ? OpC->getZExtValue() : 1;
       Offset = DL.getTypeAllocSize(GTI.getIndexedType()) * ElemCount;
     }
     Result = Align(MinAlign(Offset, Result.value()));

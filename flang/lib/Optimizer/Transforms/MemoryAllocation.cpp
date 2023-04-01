@@ -6,22 +6,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/TypeSwitch.h"
 
+namespace fir {
+#define GEN_PASS_DEF_MEMORYALLOCATIONOPT
+#include "flang/Optimizer/Transforms/Passes.h.inc"
+} // namespace fir
+
 #define DEBUG_TYPE "flang-memory-allocation-opt"
 
 // Number of elements in an array does not determine where it is allocated.
-static constexpr std::size_t UnlimitedArraySize = ~static_cast<std::size_t>(0);
+static constexpr std::size_t unlimitedArraySize = ~static_cast<std::size_t>(0);
 
 namespace {
 struct MemoryAllocationOptions {
@@ -32,16 +36,18 @@ struct MemoryAllocationOptions {
   // Number of elements in array threshold for moving to heap. In environments
   // with limited stack size, moving large arrays to the heap can avoid running
   // out of stack space.
-  std::size_t maxStackArraySize = UnlimitedArraySize;
+  std::size_t maxStackArraySize = unlimitedArraySize;
 };
 
 class ReturnAnalysis {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ReturnAnalysis)
+
   ReturnAnalysis(mlir::Operation *op) {
-    if (auto func = mlir::dyn_cast<mlir::FuncOp>(op))
+    if (auto func = mlir::dyn_cast<mlir::func::FuncOp>(op))
       for (mlir::Block &block : func)
         for (mlir::Operation &i : block)
-          if (mlir::isa<mlir::ReturnOp>(i)) {
+          if (mlir::isa<mlir::func::ReturnOp>(i)) {
             returnMap[op].push_back(&i);
             break;
           }
@@ -110,15 +116,16 @@ public:
     auto loc = alloca.getLoc();
     mlir::Type varTy = alloca.getInType();
     auto unpackName =
-        [](llvm::Optional<llvm::StringRef> opt) -> llvm::StringRef {
+        [](std::optional<llvm::StringRef> opt) -> llvm::StringRef {
       if (opt)
         return *opt;
       return {};
     };
-    auto uniqName = unpackName(alloca.uniq_name());
-    auto bindcName = unpackName(alloca.bindc_name());
+    auto uniqName = unpackName(alloca.getUniqName());
+    auto bindcName = unpackName(alloca.getBindcName());
     auto heap = rewriter.create<fir::AllocMemOp>(
-        loc, varTy, uniqName, bindcName, alloca.typeparams(), alloca.shape());
+        loc, varTy, uniqName, bindcName, alloca.getTypeparams(),
+        alloca.getShape());
     auto insPt = rewriter.saveInsertionPoint();
     for (mlir::Operation *retOp : returnOps) {
       rewriter.setInsertionPoint(retOp);
@@ -148,15 +155,38 @@ private:
 ///   2. If a stack allocation is an array with a runtime evaluated size make
 ///      it a heap allocation.
 class MemoryAllocationOpt
-    : public fir::MemoryAllocationOptBase<MemoryAllocationOpt> {
+    : public fir::impl::MemoryAllocationOptBase<MemoryAllocationOpt> {
 public:
+  MemoryAllocationOpt() {
+    // Set options with default values. (See Passes.td.) Note that the
+    // command-line options, e.g. dynamicArrayOnHeap,  are not set yet.
+    options = {dynamicArrayOnHeap, maxStackArraySize};
+  }
+
+  MemoryAllocationOpt(bool dynOnHeap, std::size_t maxStackSize) {
+    // Set options with default values. (See Passes.td.)
+    options = {dynOnHeap, maxStackSize};
+  }
+
+  /// Override `options` if command-line options have been set.
+  inline void useCommandLineOptions() {
+    if (dynamicArrayOnHeap)
+      options.dynamicArrayOnHeap = dynamicArrayOnHeap;
+    if (maxStackArraySize != unlimitedArraySize)
+      options.maxStackArraySize = maxStackArraySize;
+  }
+
   void runOnOperation() override {
     auto *context = &getContext();
     auto func = getOperation();
-    mlir::OwningRewritePatternList patterns(context);
+    mlir::RewritePatternSet patterns(context);
     mlir::ConversionTarget target(*context);
-    MemoryAllocationOptions options = {dynamicArrayOnHeap.getValue(),
-                                       maxStackArraySize.getValue()};
+
+    useCommandLineOptions();
+    LLVM_DEBUG(llvm::dbgs()
+               << "dynamic arrays on heap: " << options.dynamicArrayOnHeap
+               << "\nmaximum number of elements of array on stack: "
+               << options.maxStackArraySize << '\n');
 
     // If func is a declaration, skip it.
     if (func.empty())
@@ -164,8 +194,8 @@ public:
 
     const auto &analysis = getAnalysis<ReturnAnalysis>();
 
-    target.addLegalDialect<fir::FIROpsDialect, mlir::arith::ArithmeticDialect,
-                           mlir::StandardOpsDialect>();
+    target.addLegalDialect<fir::FIROpsDialect, mlir::arith::ArithDialect,
+                           mlir::func::FuncDialect>();
     target.addDynamicallyLegalOp<fir::AllocaOp>([&](fir::AllocaOp alloca) {
       return keepStackAllocation(alloca, &func.front(), options);
     });
@@ -178,9 +208,17 @@ public:
       signalPassFailure();
     }
   }
+
+private:
+  MemoryAllocationOptions options;
 };
 } // namespace
 
 std::unique_ptr<mlir::Pass> fir::createMemoryAllocationPass() {
   return std::make_unique<MemoryAllocationOpt>();
+}
+
+std::unique_ptr<mlir::Pass>
+fir::createMemoryAllocationPass(bool dynOnHeap, std::size_t maxStackSize) {
+  return std::make_unique<MemoryAllocationOpt>(dynOnHeap, maxStackSize);
 }

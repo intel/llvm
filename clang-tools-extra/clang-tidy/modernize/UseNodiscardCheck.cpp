@@ -14,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 
 static bool doesNoDiscardMacroExist(ASTContext &Context,
                                     const llvm::StringRef &MacroId) {
@@ -131,7 +129,7 @@ void UseNodiscardCheck::check(const MatchFinder::MatchResult &Result) {
   // 1. A const member function which returns a variable which is ignored
   // but performs some external I/O operation and the return value could be
   // ignored.
-  Diag << FixItHint::CreateInsertion(RetLoc, NoDiscardMacro + " ");
+  Diag << FixItHint::CreateInsertion(RetLoc, (NoDiscardMacro + " ").str());
 }
 
 bool UseNodiscardCheck::isLanguageVersionSupported(
@@ -146,6 +144,4 @@ bool UseNodiscardCheck::isLanguageVersionSupported(
   return LangOpts.CPlusPlus;
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

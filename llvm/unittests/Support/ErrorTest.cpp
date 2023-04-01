@@ -12,7 +12,6 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
@@ -179,7 +178,7 @@ TEST(Error, HandleCustomError) {
     CaughtErrorInfo = CE.getInfo();
   });
 
-  EXPECT_TRUE(CaughtErrorInfo == 42) << "Wrong result from CustomError handler";
+  EXPECT_EQ(CaughtErrorInfo, 42) << "Wrong result from CustomError handler";
 }
 
 // Check that handler type deduction also works for handlers
@@ -253,7 +252,8 @@ TEST(Error, HandleCustomErrorWithCustomBaseClass) {
                     CaughtErrorExtraInfo = SE.getExtraInfo();
                   });
 
-  EXPECT_TRUE(CaughtErrorInfo == 42 && CaughtErrorExtraInfo == 7)
+  EXPECT_EQ(CaughtErrorInfo, 42) << "Wrong result from CustomSubError handler";
+  EXPECT_EQ(CaughtErrorExtraInfo, 7)
       << "Wrong result from CustomSubError handler";
 }
 
@@ -270,9 +270,9 @@ TEST(Error, FirstHandlerOnly) {
                   },
                   [&](const CustomError &CE) { DummyInfo = CE.getInfo(); });
 
-  EXPECT_TRUE(CaughtErrorInfo == 42 && CaughtErrorExtraInfo == 7 &&
-              DummyInfo == 0)
-      << "Activated the wrong Error handler(s)";
+  EXPECT_EQ(CaughtErrorInfo, 42) << "Activated the wrong Error handler(s)";
+  EXPECT_EQ(CaughtErrorExtraInfo, 7) << "Activated the wrong Error handler(s)";
+  EXPECT_EQ(DummyInfo, 0) << "Activated the wrong Error handler(s)";
 }
 
 // Check that general handlers shadow specific ones.
@@ -289,7 +289,11 @@ TEST(Error, HandlerShadowing) {
         DummyExtraInfo = SE.getExtraInfo();
       });
 
-  EXPECT_TRUE(CaughtErrorInfo == 42 && DummyInfo == 0 && DummyExtraInfo == 0)
+  EXPECT_EQ(CaughtErrorInfo, 42)
+      << "General Error handler did not shadow specific handler";
+  EXPECT_EQ(DummyInfo, 0)
+      << "General Error handler did not shadow specific handler";
+  EXPECT_EQ(DummyExtraInfo, 0)
       << "General Error handler did not shadow specific handler";
 }
 
@@ -317,9 +321,9 @@ TEST(Error, CheckJoinErrors) {
                     CustomErrorInfo1 = CE.getInfo();
                   });
 
-  EXPECT_TRUE(CustomErrorInfo1 == 7 && CustomErrorInfo2 == 42 &&
-              CustomErrorExtraInfo == 7)
-      << "Failed handling compound Error.";
+  EXPECT_EQ(CustomErrorInfo1, 7) << "Failed handling compound Error.";
+  EXPECT_EQ(CustomErrorInfo2, 42) << "Failed handling compound Error.";
+  EXPECT_EQ(CustomErrorExtraInfo, 7) << "Failed handling compound Error.";
 
   // Test appending a single item to a list.
   {
@@ -469,7 +473,7 @@ TEST(Error, createStringError) {
 }
 
 // Test that the ExitOnError utility works as expected.
-TEST(Error, ExitOnError) {
+TEST(ErrorDeathTest, ExitOnError) {
   ExitOnError ExitOnErr;
   ExitOnErr.setBanner("Error in tool:");
   ExitOnErr.setExitCodeMapper([](const Error &E) {
@@ -1034,8 +1038,10 @@ public:
   }
 };
 
-static llvm::ManagedStatic<TestErrorCategory> TestErrCategory;
-const std::error_category &TErrorCategory() { return *TestErrCategory; }
+const std::error_category &TErrorCategory() {
+  static TestErrorCategory TestErrCategory;
+  return TestErrCategory;
+}
 
 char TestDebugError::ID;
 
@@ -1064,7 +1070,7 @@ static Error createAnyError() {
 }
 
 struct MoveOnlyBox {
-  Optional<int> Box;
+  std::optional<int> Box;
 
   explicit MoveOnlyBox(int I) : Box(I) {}
   MoveOnlyBox() = default;
@@ -1091,7 +1097,7 @@ TEST(Error, moveInto) {
 
     // Failure with no prior value.
     EXPECT_THAT_ERROR(makeFailure().moveInto(V), Failed());
-    EXPECT_EQ(None, V.Box);
+    EXPECT_EQ(std::nullopt, V.Box);
 
     // Success with no prior value.
     EXPECT_THAT_ERROR(make(5).moveInto(V), Succeeded());
@@ -1111,9 +1117,9 @@ TEST(Error, moveInto) {
   // Check that this works with optionals too.
   {
     // Same cases as above.
-    Optional<MoveOnlyBox> MaybeV;
+    std::optional<MoveOnlyBox> MaybeV;
     EXPECT_THAT_ERROR(makeFailure().moveInto(MaybeV), Failed());
-    EXPECT_EQ(None, MaybeV);
+    EXPECT_EQ(std::nullopt, MaybeV);
 
     EXPECT_THAT_ERROR(make(5).moveInto(MaybeV), Succeeded());
     EXPECT_EQ(MoveOnlyBox(5), MaybeV);

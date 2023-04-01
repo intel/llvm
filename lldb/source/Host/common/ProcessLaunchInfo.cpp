@@ -13,6 +13,7 @@
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Host/ProcessLaunchInfo.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 
@@ -31,8 +32,7 @@ using namespace lldb_private;
 ProcessLaunchInfo::ProcessLaunchInfo()
     : ProcessInfo(), m_working_dir(), m_plugin_name(), m_flags(0),
       m_file_actions(), m_pty(new PseudoTerminal), m_monitor_callback(nullptr),
-      m_listener_sp(), m_hijack_listener_sp(), m_scripted_process_class_name(),
-      m_scripted_process_dictionary_sp() {}
+      m_listener_sp(), m_hijack_listener_sp() {}
 
 ProcessLaunchInfo::ProcessLaunchInfo(const FileSpec &stdin_file_spec,
                                      const FileSpec &stdout_file_spec,
@@ -40,10 +40,7 @@ ProcessLaunchInfo::ProcessLaunchInfo(const FileSpec &stdin_file_spec,
                                      const FileSpec &working_directory,
                                      uint32_t launch_flags)
     : ProcessInfo(), m_working_dir(), m_plugin_name(), m_flags(launch_flags),
-      m_file_actions(), m_pty(new PseudoTerminal), m_resume_count(0),
-      m_monitor_callback(nullptr), m_monitor_callback_baton(nullptr),
-      m_monitor_signals(false), m_listener_sp(), m_hijack_listener_sp(),
-      m_scripted_process_class_name(), m_scripted_process_dictionary_sp() {
+      m_file_actions(), m_pty(new PseudoTerminal) {
   if (stdin_file_spec) {
     FileAction file_action;
     const bool read = true;
@@ -172,31 +169,20 @@ void ProcessLaunchInfo::Clear() {
   m_resume_count = 0;
   m_listener_sp.reset();
   m_hijack_listener_sp.reset();
-  m_scripted_process_class_name.clear();
-  m_scripted_process_dictionary_sp.reset();
 }
 
-void ProcessLaunchInfo::SetMonitorProcessCallback(
-    const Host::MonitorChildProcessCallback &callback, bool monitor_signals) {
-  m_monitor_callback = callback;
-  m_monitor_signals = monitor_signals;
-}
-
-bool ProcessLaunchInfo::NoOpMonitorCallback(lldb::pid_t pid, bool exited, int signal, int status) {
-  Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS);
-  LLDB_LOG(log, "pid = {0}, exited = {1}, signal = {2}, status = {3}", pid,
-           exited, signal, status);
-  return true;
+void ProcessLaunchInfo::NoOpMonitorCallback(lldb::pid_t pid, int signal,
+                                            int status) {
+  Log *log = GetLog(LLDBLog::Process);
+  LLDB_LOG(log, "pid = {0}, signal = {1}, status = {2}", pid, signal, status);
 }
 
 bool ProcessLaunchInfo::MonitorProcess() const {
   if (m_monitor_callback && ProcessIDIsValid()) {
     llvm::Expected<HostThread> maybe_thread =
-    Host::StartMonitoringChildProcess(m_monitor_callback, GetProcessID(),
-                                      m_monitor_signals);
+        Host::StartMonitoringChildProcess(m_monitor_callback, GetProcessID());
     if (!maybe_thread)
-      LLDB_LOG(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST),
-               "failed to launch host thread: {}",
+      LLDB_LOG(GetLog(LLDBLog::Host), "failed to launch host thread: {}",
                llvm::toString(maybe_thread.takeError()));
     return true;
   }
@@ -211,7 +197,7 @@ void ProcessLaunchInfo::SetDetachOnError(bool enable) {
 }
 
 llvm::Error ProcessLaunchInfo::SetUpPtyRedirection() {
-  Log *log = GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS);
+  Log *log = GetLog(LLDBLog::Process);
 
   bool stdin_free = GetFileActionForFD(STDIN_FILENO) == nullptr;
   bool stdout_free = GetFileActionForFD(STDOUT_FILENO) == nullptr;
@@ -335,6 +321,8 @@ bool ProcessLaunchInfo::ConvertArgumentsForLaunchingInShell(
       } else {
         for (size_t i = 0; argv[i] != nullptr; ++i) {
           std::string safe_arg = Args::GetShellSafeArgument(m_shell, argv[i]);
+          if (safe_arg.empty())
+            safe_arg = "\"\"";
           // Add a space to separate this arg from the previous one.
           shell_command.PutCString(" ");
           shell_command.PutCString(safe_arg);

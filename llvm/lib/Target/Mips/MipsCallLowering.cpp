@@ -18,6 +18,7 @@
 #include "MipsTargetMachine.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 
 using namespace llvm;
 
@@ -180,7 +181,7 @@ MipsIncomingValueHandler::assignCustomValue(CallLowering::ArgInfo &Arg,
 
   Arg.OrigRegs.assign(Arg.Regs.begin(), Arg.Regs.end());
   Arg.Regs = { CopyLo.getReg(0), CopyHi.getReg(0) };
-  MIRBuilder.buildMerge(Arg.OrigRegs[0], {CopyLo, CopyHi});
+  MIRBuilder.buildMergeLikeInstr(Arg.OrigRegs[0], {CopyLo, CopyHi});
 
   markPhysRegUsed(VALo.getLocReg());
   markPhysRegUsed(VAHi.getLocReg());
@@ -540,8 +541,7 @@ bool MipsCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
   }
   MIRBuilder.insertInstr(MIB);
   if (MIB->getOpcode() == Mips::JALRPseudo) {
-    const MipsSubtarget &STI =
-        static_cast<const MipsSubtarget &>(MIRBuilder.getMF().getSubtarget());
+    const MipsSubtarget &STI = MIRBuilder.getMF().getSubtarget<MipsSubtarget>();
     MIB.constrainAllUses(MIRBuilder.getTII(), *STI.getRegisterInfo(),
                          *STI.getRegBankInfo());
   }

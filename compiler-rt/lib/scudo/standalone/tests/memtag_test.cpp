@@ -38,7 +38,7 @@ TEST(MemtagBasicDeathTest, Unsupported) {
   EXPECT_DEATH(addFixedTag(nullptr, 0), "not supported");
 }
 
-class MemtagTest : public ::testing::Test {
+class MemtagTest : public Test {
 protected:
   void SetUp() override {
     if (!archSupportsMemoryTagging() || !systemDetectsMemoryTagFaultsTestOnly())
@@ -163,7 +163,7 @@ TEST_F(MemtagTest, StoreTags) {
     uptr TaggedBegin = addFixedTag(NoTagBegin, Tag);
     uptr TaggedEnd = addFixedTag(NoTagEnd, Tag);
 
-    EXPECT_EQ(roundUpTo(TaggedEnd, archMemoryTagGranuleSize()),
+    EXPECT_EQ(roundUp(TaggedEnd, archMemoryTagGranuleSize()),
               storeTags(TaggedBegin, TaggedEnd));
 
     uptr LoadPtr = Addr;

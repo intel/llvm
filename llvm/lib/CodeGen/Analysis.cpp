@@ -21,12 +21,9 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/Utils/GlobalStatus.h"
 
 using namespace llvm;
 
@@ -322,8 +319,9 @@ static const Value *getNoopInput(const Value *V,
         NoopInput = Op;
     } else if (isa<TruncInst>(I) &&
                TLI.allowTruncateForTailCall(Op->getType(), I->getType())) {
-      DataBits = std::min((uint64_t)DataBits,
-                         I->getType()->getPrimitiveSizeInBits().getFixedSize());
+      DataBits =
+          std::min((uint64_t)DataBits,
+                   I->getType()->getPrimitiveSizeInBits().getFixedValue());
       NoopInput = Op;
     } else if (auto *CB = dyn_cast<CallBase>(I)) {
       const Value *ReturnedOp = CB->getReturnedArgOperand();
@@ -577,15 +575,15 @@ bool llvm::attributesPermitTailCall(const Function *F, const Instruction *I,
   bool &ADS = AllowDifferingSizes ? *AllowDifferingSizes : DummyADS;
   ADS = true;
 
-  AttrBuilder CallerAttrs(F->getContext(), F->getAttributes(), AttributeList::ReturnIndex);
-  AttrBuilder CalleeAttrs(F->getContext(), cast<CallInst>(I)->getAttributes(),
-                          AttributeList::ReturnIndex);
+  AttrBuilder CallerAttrs(F->getContext(), F->getAttributes().getRetAttrs());
+  AttrBuilder CalleeAttrs(F->getContext(),
+                          cast<CallInst>(I)->getAttributes().getRetAttrs());
 
   // Following attributes are completely benign as far as calling convention
   // goes, they shouldn't affect whether the call is a tail call.
   for (const auto &Attr : {Attribute::Alignment, Attribute::Dereferenceable,
                            Attribute::DereferenceableOrNull, Attribute::NoAlias,
-                           Attribute::NonNull}) {
+                           Attribute::NonNull, Attribute::NoUndef}) {
     CallerAttrs.removeAttribute(Attr);
     CalleeAttrs.removeAttribute(Attr);
   }

@@ -20,7 +20,7 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Tooling/Tooling.h"
-#include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "gtest/gtest.h"
 
 using namespace clang;
@@ -135,13 +135,19 @@ TEST(LabelStmt, Range) {
 TEST(ParmVarDecl, KNRLocation) {
   LocationVerifier<ParmVarDecl> Verifier;
   Verifier.expectLocation(1, 8);
-  EXPECT_TRUE(Verifier.match("void f(i) {}", varDecl(), Lang_C99));
+  EXPECT_TRUE(Verifier.match("void f(i) {}", varDecl(), Lang_C89));
+
+  Verifier.expectLocation(1, 15);
+  EXPECT_TRUE(Verifier.match("void f(i) int i; {}", varDecl(), Lang_C99));
 }
 
 TEST(ParmVarDecl, KNRRange) {
   RangeVerifier<ParmVarDecl> Verifier;
   Verifier.expectRange(1, 8, 1, 8);
-  EXPECT_TRUE(Verifier.match("void f(i) {}", varDecl(), Lang_C99));
+  EXPECT_TRUE(Verifier.match("void f(i) {}", varDecl(), Lang_C89));
+
+  Verifier.expectRange(1, 11, 1, 15);
+  EXPECT_TRUE(Verifier.match("void f(i) int i; {}", varDecl(), Lang_C99));
 }
 
 TEST(CXXNewExpr, ArrayRange) {
@@ -240,6 +246,21 @@ TEST(TypeLoc, DecltypeTypeLocRange) {
 
   const auto *Target2 = MatchedLocs[1].getNodeAs<DecltypeTypeLoc>("target");
   verify(Target2->getSourceRange(), Code.range("full2"));
+}
+
+TEST(TypeLoc, AutoTypeLocRange) {
+  RangeVerifier<TypeLoc> Verifier;
+  Verifier.expectRange(1, 1, 1, 14);
+  EXPECT_TRUE(Verifier.match("decltype(auto) a = 1;", typeLoc(loc(autoType())),
+                             Lang_CXX14));
+
+  const char *Code =
+      R"cpp(template <typename T> concept C = true;
+C auto abc();
+)cpp";
+  // Should include "C auto" tokens.
+  Verifier.expectRange(2, 1, 2, 3); // token range.
+  EXPECT_TRUE(Verifier.match(Code, typeLoc(loc(autoType())), Lang_CXX20));
 }
 
 TEST(TypeLoc, LongDoubleRange) {
@@ -415,6 +436,47 @@ TEST(UnaryTransformTypeLoc, ParensRange) {
       "typedef __underlying_type(T) type;\n"
       "};",
       loc(unaryTransformType())));
+}
+
+TEST(PointerTypeLoc, StarLoc) {
+  llvm::Annotations Example(R"c(
+    int $star^*var;
+  )c");
+
+  auto AST = tooling::buildASTFromCode(Example.code());
+  SourceManager &SM = AST->getSourceManager();
+  auto &Ctx = AST->getASTContext();
+
+  auto *VD = selectFirst<VarDecl>("vd", match(varDecl(hasName("var")).bind("vd"), Ctx));
+  ASSERT_NE(VD, nullptr);
+
+  auto TL =
+      VD->getTypeSourceInfo()->getTypeLoc().castAs<PointerTypeLoc>();
+  ASSERT_EQ(SM.getFileOffset(TL.getStarLoc()), Example.point("star"));
+}
+
+TEST(PointerTypeLoc, StarLocBehindSugar) {
+  llvm::Annotations Example(R"c(
+    #define NODEREF __attribute__((noderef))
+    char $1st^* NODEREF _Nonnull $2nd^* var;
+  )c");
+
+  auto AST = tooling::buildASTFromCode(Example.code());
+  SourceManager &SM = AST->getSourceManager();
+  auto &Ctx = AST->getASTContext();
+
+  auto *VD = selectFirst<VarDecl>("vd", match(varDecl(hasName("var")).bind("vd"), Ctx));
+  ASSERT_NE(VD, nullptr);
+
+  auto TL = VD->getTypeSourceInfo()->getTypeLoc().castAs<PointerTypeLoc>();
+  EXPECT_EQ(SM.getFileOffset(TL.getStarLoc()), Example.point("2nd"));
+
+  // Cast intermediate TypeLoc to make sure the structure matches expectations.
+  auto InnerPtrTL = TL.getPointeeLoc().castAs<AttributedTypeLoc>()
+    .getNextTypeLoc().castAs<MacroQualifiedTypeLoc>()
+    .getNextTypeLoc().castAs<AttributedTypeLoc>()
+    .getNextTypeLoc().castAs<PointerTypeLoc>();
+  EXPECT_EQ(SM.getFileOffset(InnerPtrTL.getStarLoc()), Example.point("1st"));
 }
 
 TEST(CXXFunctionalCastExpr, SourceRange) {

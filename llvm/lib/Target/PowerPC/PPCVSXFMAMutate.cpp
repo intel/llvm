@@ -128,7 +128,7 @@ protected:
           continue;
 
         Register AddendSrcReg = AddendMI->getOperand(1).getReg();
-        if (Register::isVirtualRegister(AddendSrcReg)) {
+        if (AddendSrcReg.isVirtual()) {
           if (MRI.getRegClass(AddendMI->getOperand(0).getReg()) !=
               MRI.getRegClass(AddendSrcReg))
             continue;
@@ -209,7 +209,7 @@ protected:
         // legality checks above, the live range for the addend source register
         // could be extended), but it seems likely that such a trivial copy can
         // be coalesced away later, and thus is not worth the effort.
-        if (Register::isVirtualRegister(AddendSrcReg) &&
+        if (AddendSrcReg.isVirtual() &&
             !LIS->getInterval(AddendSrcReg).liveAt(FMAIdx))
           continue;
 
@@ -297,18 +297,16 @@ protected:
         // fma result.
 
         LiveInterval &NewFMAInt = LIS->getInterval(KilledProdReg);
-        for (LiveInterval::iterator AI = FMAInt.begin(), AE = FMAInt.end();
-             AI != AE; ++AI) {
+        for (auto &AI : FMAInt) {
           // Don't add the segment that corresponds to the original copy.
-          if (AI->valno == AddendValNo)
+          if (AI.valno == AddendValNo)
             continue;
 
           VNInfo *NewFMAValNo =
-            NewFMAInt.getNextValue(AI->start,
-                                   LIS->getVNInfoAllocator());
+              NewFMAInt.getNextValue(AI.start, LIS->getVNInfoAllocator());
 
-          NewFMAInt.addSegment(LiveInterval::Segment(AI->start, AI->end,
-                                                     NewFMAValNo));
+          NewFMAInt.addSegment(
+              LiveInterval::Segment(AI.start, AI.end, NewFMAValNo));
         }
         LLVM_DEBUG(dbgs() << "  extended: " << NewFMAInt << '\n');
 

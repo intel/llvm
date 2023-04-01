@@ -12,11 +12,11 @@
 
 // void swap(basic_string& c)
 //     noexcept(!allocator_type::propagate_on_container_swap::value ||
-//              __is_nothrow_swappable<allocator_type>::value);
+//              __is_nothrow_swappable<allocator_type>::value); // constexpr since C++20
 //
 //  In C++17, the standard says that swap shall have:
 //     noexcept(allocator_traits<Allocator>::propagate_on_container_swap::value ||
-//              allocator_traits<Allocator>::is_always_equal::value);
+//              allocator_traits<Allocator>::is_always_equal::value); // constexpr since C++20
 
 // This tests a conforming extension
 
@@ -34,7 +34,7 @@ struct some_alloc
 
     some_alloc() {}
     some_alloc(const some_alloc&);
-    T *allocate(size_t);
+    T *allocate(std::size_t);
     void deallocate(void*, unsigned) {}
     typedef std::true_type propagate_on_container_swap;
 };
@@ -46,7 +46,7 @@ struct some_alloc2
 
     some_alloc2() {}
     some_alloc2(const some_alloc2&);
-    T *allocate(size_t);
+    T *allocate(std::size_t);
     void deallocate(void*, unsigned) {}
 
     typedef std::false_type propagate_on_container_swap;

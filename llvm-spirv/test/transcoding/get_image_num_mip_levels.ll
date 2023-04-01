@@ -1,11 +1,11 @@
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 ; RUN: llvm-spirv -spirv-text %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; Generated from the following OpenCL C code:
@@ -39,13 +39,14 @@ target triple = "spir-unknown-unknown"
 %opencl.image2d_array_depth_ro_t = type opaque
 
 ; CHECK-SPIRV: TypeInt [[INT:[0-9]+]] 32
-; CHECK-SPIRV: TypeImage [[IMAGE1D_T:[0-9]+]] 2 0 0 0 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE2D_T:[0-9]+]] 2 1 0 0 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE3D_T:[0-9]+]] 2 2 0 0 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE1D_ARRAY_T:[0-9]+]] 2 0 0 1 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE2D_ARRAY_T:[0-9]+]] 2 1 0 1 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE2D_DEPTH_T:[0-9]+]] 2 1 1 0 0 0 0 0
-; CHECK-SPIRV: TypeImage [[IMAGE2D_ARRAY_DEPTH_T:[0-9]+]] 2 1 1 1 0 0 0 0
+; CHECK-SPIRV: TypeVoid [[VOID:[0-9]+]]
+; CHECK-SPIRV: TypeImage [[IMAGE1D_T:[0-9]+]] [[VOID]] 0 0 0 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE2D_T:[0-9]+]] [[VOID]] 1 0 0 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE3D_T:[0-9]+]] [[VOID]] 2 0 0 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE1D_ARRAY_T:[0-9]+]] [[VOID]] 0 0 1 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE2D_ARRAY_T:[0-9]+]] [[VOID]] 1 0 1 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE2D_DEPTH_T:[0-9]+]] [[VOID]] 1 1 0 0 0 0 0
+; CHECK-SPIRV: TypeImage [[IMAGE2D_ARRAY_DEPTH_T:[0-9]+]] [[VOID]] 1 1 1 0 0 0 0
 
 ; CHECK-LLVM: %opencl.image1d_ro_t = type opaque
 ; CHECK-LLVM: %opencl.image2d_ro_t = type opaque

@@ -267,7 +267,7 @@
 ///
 ///===----------------------------------------------------------------------===//
 
-#include "Utils/WebAssemblyUtilities.h"
+#include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
 #include "WebAssembly.h"
 #include "WebAssemblyTargetMachine.h"
 #include "llvm/ADT/StringExtras.h"
@@ -406,8 +406,9 @@ static bool canThrow(const Value *V) {
   return true;
 }
 
-// Get a global variable with the given name. If it doesn't exist declare it,
-// which will generate an import and assume that it will exist at link time.
+// Get a thread-local global variable with the given name. If it doesn't exist
+// declare it, which will generate an import and assume that it will exist at
+// link time.
 static GlobalVariable *getGlobalVariable(Module &M, Type *Ty,
                                          WebAssemblyTargetMachine &TM,
                                          const char *Name) {
@@ -415,16 +416,11 @@ static GlobalVariable *getGlobalVariable(Module &M, Type *Ty,
   if (!GV)
     report_fatal_error(Twine("unable to create global: ") + Name);
 
-  // If the target supports TLS, make this variable thread-local. We can't just
-  // unconditionally make it thread-local and depend on
-  // CoalesceFeaturesAndStripAtomics to downgrade it, because stripping TLS has
-  // the side effect of disallowing the object from being linked into a
-  // shared-memory module, which we don't want to be responsible for.
-  auto *Subtarget = TM.getSubtargetImpl();
-  auto TLS = Subtarget->hasAtomics() && Subtarget->hasBulkMemory()
-                 ? GlobalValue::LocalExecTLSModel
-                 : GlobalValue::NotThreadLocal;
-  GV->setThreadLocalMode(TLS);
+  // Variables created by this function are thread local. If the target does not
+  // support TLS, we depend on CoalesceFeaturesAndStripAtomics to downgrade it
+  // to non-thread-local ones, in which case we don't allow this object to be
+  // linked with other objects using shared memory.
+  GV->setThreadLocalMode(GlobalValue::GeneralDynamicTLSModel);
   return GV;
 }
 
@@ -549,17 +545,18 @@ Value *WebAssemblyLowerEmscriptenEHSjLj::wrapInvoke(CallBase *CI) {
     ArgAttributes.push_back(InvokeAL.getParamAttrs(I));
 
   AttrBuilder FnAttrs(CI->getContext(), InvokeAL.getFnAttrs());
-  if (FnAttrs.contains(Attribute::AllocSize)) {
+  if (auto Args = FnAttrs.getAllocSizeArgs()) {
     // The allocsize attribute (if any) referes to parameters by index and needs
     // to be adjusted.
-    unsigned SizeArg;
-    Optional<unsigned> NEltArg;
-    std::tie(SizeArg, NEltArg) = FnAttrs.getAllocSizeArgs();
+    auto [SizeArg, NEltArg] = *Args;
     SizeArg += 1;
-    if (NEltArg.hasValue())
-      NEltArg = NEltArg.getValue() + 1;
+    if (NEltArg)
+      NEltArg = *NEltArg + 1;
     FnAttrs.addAllocSizeAttr(SizeArg, NEltArg);
   }
+  // In case the callee has 'noreturn' attribute, We need to remove it, because
+  // we expect invoke wrappers to return.
+  FnAttrs.removeAttribute(Attribute::NoReturn);
 
   // Reconstruct the AttributesList based on the vector we constructed.
   AttributeList NewCallAL = AttributeList::get(
@@ -583,7 +580,7 @@ Function *WebAssemblyLowerEmscriptenEHSjLj::getInvokeWrapper(CallBase *CI) {
   FunctionType *CalleeFTy = CI->getFunctionType();
 
   std::string Sig = getSignature(CalleeFTy);
-  if (InvokeWrappers.find(Sig) != InvokeWrappers.end())
+  if (InvokeWrappers.contains(Sig))
     return InvokeWrappers[Sig];
 
   // Put the pointer to the callee as first argument
@@ -611,6 +608,8 @@ static bool canLongjmp(const Value *Callee) {
     return false;
   StringRef CalleeName = Callee->getName();
 
+  // TODO Include more functions or consider checking with mangled prefixes
+
   // The reason we include malloc/free here is to exclude the malloc/free
   // calls generated in setjmp prep / cleanup routines.
   if (CalleeName == "setjmp" || CalleeName == "malloc" || CalleeName == "free")
@@ -627,9 +626,50 @@ static bool canLongjmp(const Value *Callee) {
     return false;
 
   // Exception-catching related functions
-  if (CalleeName == "__cxa_begin_catch" || CalleeName == "__cxa_end_catch" ||
+  //
+  // We intentionally treat __cxa_end_catch longjmpable in Wasm SjLj even though
+  // it surely cannot longjmp, in order to maintain the unwind relationship from
+  // all existing catchpads (and calls within them) to catch.dispatch.longjmp.
+  //
+  // In Wasm EH + Wasm SjLj, we
+  // 1. Make all catchswitch and cleanuppad that unwind to caller unwind to
+  //    catch.dispatch.longjmp instead
+  // 2. Convert all longjmpable calls to invokes that unwind to
+  //    catch.dispatch.longjmp
+  // But catchswitch BBs are removed in isel, so if an EH catchswitch (generated
+  // from an exception)'s catchpad does not contain any calls that are converted
+  // into invokes unwinding to catch.dispatch.longjmp, this unwind relationship
+  // (EH catchswitch BB -> catch.dispatch.longjmp BB) is lost and
+  // catch.dispatch.longjmp BB can be placed before the EH catchswitch BB in
+  // CFGSort.
+  // int ret = setjmp(buf);
+  // try {
+  //   foo(); // longjmps
+  // } catch (...) {
+  // }
+  // Then in this code, if 'foo' longjmps, it first unwinds to 'catch (...)'
+  // catchswitch, and is not caught by that catchswitch because it is a longjmp,
+  // then it should next unwind to catch.dispatch.longjmp BB. But if this 'catch
+  // (...)' catchswitch -> catch.dispatch.longjmp unwind relationship is lost,
+  // it will not unwind to catch.dispatch.longjmp, producing an incorrect
+  // result.
+  //
+  // Every catchpad generated by Wasm C++ contains __cxa_end_catch, so we
+  // intentionally treat it as longjmpable to work around this problem. This is
+  // a hacky fix but an easy one.
+  //
+  // The comment block in findWasmUnwindDestinations() in
+  // SelectionDAGBuilder.cpp is addressing a similar problem.
+  if (CalleeName == "__cxa_end_catch")
+    return WebAssembly::WasmEnableSjLj;
+  if (CalleeName == "__cxa_begin_catch" ||
       CalleeName == "__cxa_allocate_exception" || CalleeName == "__cxa_throw" ||
       CalleeName == "__clang_call_terminate")
+    return false;
+
+  // std::terminate, which is generated when another exception occurs while
+  // handling an exception, cannot longjmp.
+  if (CalleeName == "_ZSt9terminatev")
     return false;
 
   // Otherwise we don't know
@@ -733,7 +773,7 @@ void WebAssemblyLowerEmscriptenEHSjLj::wrapTestSetjmp(
   // Output parameter assignment
   Label = LabelPHI;
   EndBB = EndBB1;
-  LongjmpResult = IRB.CreateCall(GetTempRet0F, None, "longjmp_result");
+  LongjmpResult = IRB.CreateCall(GetTempRet0F, std::nullopt, "longjmp_result");
 }
 
 void WebAssemblyLowerEmscriptenEHSjLj::rebuildSSA(Function &F) {
@@ -828,15 +868,17 @@ static void nullifySetjmp(Function *F) {
   Function *SetjmpF = M.getFunction("setjmp");
   SmallVector<Instruction *, 1> ToErase;
 
-  for (User *U : SetjmpF->users()) {
-    auto *CI = dyn_cast<CallInst>(U);
-    // FIXME 'invoke' to setjmp can happen when we use Wasm EH + Wasm SjLj, but
-    // we don't support two being used together yet.
-    if (!CI)
-      report_fatal_error("Wasm EH + Wasm SjLj is not fully supported yet");
-    BasicBlock *BB = CI->getParent();
+  for (User *U : make_early_inc_range(SetjmpF->users())) {
+    auto *CB = cast<CallBase>(U);
+    BasicBlock *BB = CB->getParent();
     if (BB->getParent() != F) // in other function
       continue;
+    CallInst *CI = nullptr;
+    // setjmp cannot throw. So if it is an invoke, lower it to a call
+    if (auto *II = dyn_cast<InvokeInst>(CB))
+      CI = llvm::changeToCall(II);
+    else
+      CI = cast<CallInst>(CB);
     ToErase.push_back(CI);
     CI->replaceAllUsesWith(IRB.getInt32(0));
   }
@@ -1016,22 +1058,16 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runOnModule(Module &M) {
       nullifySetjmp(F);
   }
 
-  if (!Changed) {
-    // Delete unused global variables and functions
-    if (ResumeF)
-      ResumeF->eraseFromParent();
-    if (EHTypeIDF)
-      EHTypeIDF->eraseFromParent();
-    if (EmLongjmpF)
-      EmLongjmpF->eraseFromParent();
-    if (SaveSetjmpF)
-      SaveSetjmpF->eraseFromParent();
-    if (TestSetjmpF)
-      TestSetjmpF->eraseFromParent();
-    return false;
-  }
+  // Delete unused global variables and functions
+  for (auto *V : {ThrewGV, ThrewValueGV})
+    if (V && V->use_empty())
+      V->eraseFromParent();
+  for (auto *V : {GetTempRet0F, SetTempRet0F, ResumeF, EHTypeIDF, EmLongjmpF,
+                  SaveSetjmpF, TestSetjmpF, WasmLongjmpF, CatchF})
+    if (V && V->use_empty())
+      V->eraseFromParent();
 
-  return true;
+  return Changed;
 }
 
 bool WebAssemblyLowerEmscriptenEHSjLj::runEHOnFunction(Function &F) {
@@ -1181,7 +1217,7 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runEHOnFunction(Function &F) {
     for (unsigned I = 0, E = LPI->getNumClauses(); I < E; ++I) {
       Constant *Clause = LPI->getClause(I);
       // TODO Handle filters (= exception specifications).
-      // https://bugs.llvm.org/show_bug.cgi?id=50396
+      // https://github.com/llvm/llvm-project/issues/49740
       if (LPI->isCatch(I))
         FMCArgs.push_back(Clause);
     }
@@ -1189,9 +1225,9 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runEHOnFunction(Function &F) {
     // Create a call to __cxa_find_matching_catch_N function
     Function *FMCF = getFindMatchingCatch(M, FMCArgs.size());
     CallInst *FMCI = IRB.CreateCall(FMCF, FMCArgs, "fmc");
-    Value *Undef = UndefValue::get(LPI->getType());
-    Value *Pair0 = IRB.CreateInsertValue(Undef, FMCI, 0, "pair0");
-    Value *TempRet0 = IRB.CreateCall(GetTempRet0F, None, "tempret0");
+    Value *Poison = PoisonValue::get(LPI->getType());
+    Value *Pair0 = IRB.CreateInsertValue(Poison, FMCI, 0, "pair0");
+    Value *TempRet0 = IRB.CreateCall(GetTempRet0F, std::nullopt, "tempret0");
     Value *Pair1 = IRB.CreateInsertValue(Pair0, TempRet0, 1, "pair1");
 
     LPI->replaceAllUsesWith(Pair1);
@@ -1252,9 +1288,11 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runSjLjOnFunction(Function &F) {
                              "setjmpTableSize", Entry->getTerminator());
   SetjmpTableSize->setDebugLoc(FirstDL);
   // setjmpTable = (int *) malloc(40);
-  Instruction *SetjmpTable = CallInst::CreateMalloc(
-      SetjmpTableSize, IRB.getInt32Ty(), IRB.getInt32Ty(), IRB.getInt32(40),
-      nullptr, nullptr, "setjmpTable");
+  Type *IntPtrTy = getAddrIntType(&M);
+  Constant *size = ConstantInt::get(IntPtrTy, 40);
+  Instruction *SetjmpTable =
+      CallInst::CreateMalloc(SetjmpTableSize, IntPtrTy, IRB.getInt32Ty(), size,
+                             nullptr, nullptr, "setjmpTable");
   SetjmpTable->setDebugLoc(FirstDL);
   // CallInst::CreateMalloc may return a bitcast instruction if the result types
   // mismatch. We need to set the debug loc for the original call too.
@@ -1271,15 +1309,26 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runSjLjOnFunction(Function &F) {
   // Setjmp transformation
   SmallVector<PHINode *, 4> SetjmpRetPHIs;
   Function *SetjmpF = M.getFunction("setjmp");
-  for (User *U : SetjmpF->users()) {
-    auto *CI = dyn_cast<CallInst>(U);
-    // FIXME 'invoke' to setjmp can happen when we use Wasm EH + Wasm SjLj, but
-    // we don't support two being used together yet.
-    if (!CI)
-      report_fatal_error("Wasm EH + Wasm SjLj is not fully supported yet");
-    BasicBlock *BB = CI->getParent();
+  for (auto *U : make_early_inc_range(SetjmpF->users())) {
+    auto *CB = cast<CallBase>(U);
+    BasicBlock *BB = CB->getParent();
     if (BB->getParent() != &F) // in other function
       continue;
+    if (CB->getOperandBundle(LLVMContext::OB_funclet)) {
+      std::string S;
+      raw_string_ostream SS(S);
+      SS << "In function " + F.getName() +
+                ": setjmp within a catch clause is not supported in Wasm EH:\n";
+      SS << *CB;
+      report_fatal_error(StringRef(SS.str()));
+    }
+
+    CallInst *CI = nullptr;
+    // setjmp cannot throw. So if it is an invoke, lower it to a call
+    if (auto *II = dyn_cast<InvokeInst>(CB))
+      CI = llvm::changeToCall(II);
+    else
+      CI = cast<CallInst>(CB);
 
     // The tail is everything right after the call, and will be reached once
     // when setjmp is called, and later when longjmp returns to the setjmp
@@ -1306,7 +1355,7 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runSjLjOnFunction(Function &F) {
     Instruction *NewSetjmpTable =
         IRB.CreateCall(SaveSetjmpF, Args, "setjmpTable");
     Instruction *NewSetjmpTableSize =
-        IRB.CreateCall(GetTempRet0F, None, "setjmpTableSize");
+        IRB.CreateCall(GetTempRet0F, std::nullopt, "setjmpTableSize");
     SetjmpTableInsts.push_back(NewSetjmpTable);
     SetjmpTableSizeInsts.push_back(NewSetjmpTableSize);
     ToErase.push_back(CI);
@@ -1448,10 +1497,16 @@ void WebAssemblyLowerEmscriptenEHSjLj::handleLongjmpableCallsForEmscriptenSjLj(
   for (unsigned I = 0; I < BBs.size(); I++) {
     BasicBlock *BB = BBs[I];
     for (Instruction &I : *BB) {
-      if (isa<InvokeInst>(&I))
-        report_fatal_error("When using Wasm EH with Emscripten SjLj, there is "
-                           "a restriction that `setjmp` function call and "
-                           "exception cannot be used within the same function");
+      if (isa<InvokeInst>(&I)) {
+        std::string S;
+        raw_string_ostream SS(S);
+        SS << "In function " << F.getName()
+           << ": When using Wasm EH with Emscripten SjLj, there is a "
+              "restriction that `setjmp` function call and exception cannot be "
+              "used within the same function:\n";
+        SS << I;
+        report_fatal_error(StringRef(SS.str()));
+      }
       auto *CI = dyn_cast<CallInst>(&I);
       if (!CI)
         continue;
@@ -1575,7 +1630,7 @@ void WebAssemblyLowerEmscriptenEHSjLj::handleLongjmpableCallsForEmscriptenSjLj(
 
       // Create switch instruction
       IRB.SetInsertPoint(EndBB);
-      IRB.SetCurrentDebugLocation(EndBB->getInstList().back().getDebugLoc());
+      IRB.SetCurrentDebugLocation(EndBB->back().getDebugLoc());
       SwitchInst *SI = IRB.CreateSwitch(Label, Tail, SetjmpRetPHIs.size());
       // -1 means no longjmp happened, continue normally (will hit the default
       // switch case). 0 means a longjmp that is not ours to handle, needs a
@@ -1594,6 +1649,13 @@ void WebAssemblyLowerEmscriptenEHSjLj::handleLongjmpableCallsForEmscriptenSjLj(
 
   for (Instruction *I : ToErase)
     I->eraseFromParent();
+}
+
+static BasicBlock *getCleanupRetUnwindDest(const CleanupPadInst *CPI) {
+  for (const User *U : CPI->users())
+    if (const auto *CRI = dyn_cast<CleanupReturnInst>(U))
+      return CRI->getUnwindDest();
+  return nullptr;
 }
 
 // Create a catchpad in which we catch a longjmp's env and val arguments, test
@@ -1747,6 +1809,7 @@ void WebAssemblyLowerEmscriptenEHSjLj::handleLongjmpableCallsForWasmSjLj(
       LongjmpableCalls.push_back(CI);
     }
   }
+
   for (auto *CI : LongjmpableCalls) {
     // Even if the callee function has attribute 'nounwind', which is true for
     // all C functions, it can longjmp, which means it can throw a Wasm
@@ -1754,8 +1817,62 @@ void WebAssemblyLowerEmscriptenEHSjLj::handleLongjmpableCallsForWasmSjLj(
     CI->removeFnAttr(Attribute::NoUnwind);
     if (Function *CalleeF = CI->getCalledFunction())
       CalleeF->removeFnAttr(Attribute::NoUnwind);
+
     // Change it to an invoke and make it unwind to the catch.dispatch.longjmp
-    // BB.
-    changeToInvokeAndSplitBasicBlock(CI, CatchDispatchLongjmpBB);
+    // BB. If the call is enclosed in another catchpad/cleanuppad scope, unwind
+    // to its parent pad's unwind destination instead to preserve the scope
+    // structure. It will eventually unwind to the catch.dispatch.longjmp.
+    SmallVector<OperandBundleDef, 1> Bundles;
+    BasicBlock *UnwindDest = nullptr;
+    if (auto Bundle = CI->getOperandBundle(LLVMContext::OB_funclet)) {
+      Instruction *FromPad = cast<Instruction>(Bundle->Inputs[0]);
+      while (!UnwindDest) {
+        if (auto *CPI = dyn_cast<CatchPadInst>(FromPad)) {
+          UnwindDest = CPI->getCatchSwitch()->getUnwindDest();
+          break;
+        }
+        if (auto *CPI = dyn_cast<CleanupPadInst>(FromPad)) {
+          // getCleanupRetUnwindDest() can return nullptr when
+          // 1. This cleanuppad's matching cleanupret uwninds to caller
+          // 2. There is no matching cleanupret because it ends with
+          //    unreachable.
+          // In case of 2, we need to traverse the parent pad chain.
+          UnwindDest = getCleanupRetUnwindDest(CPI);
+          Value *ParentPad = CPI->getParentPad();
+          if (isa<ConstantTokenNone>(ParentPad))
+            break;
+          FromPad = cast<Instruction>(ParentPad);
+        }
+      }
+    }
+    if (!UnwindDest)
+      UnwindDest = CatchDispatchLongjmpBB;
+    changeToInvokeAndSplitBasicBlock(CI, UnwindDest);
   }
+
+  SmallVector<Instruction *, 16> ToErase;
+  for (auto &BB : F) {
+    if (auto *CSI = dyn_cast<CatchSwitchInst>(BB.getFirstNonPHI())) {
+      if (CSI != CatchSwitchLongjmp && CSI->unwindsToCaller()) {
+        IRB.SetInsertPoint(CSI);
+        ToErase.push_back(CSI);
+        auto *NewCSI = IRB.CreateCatchSwitch(CSI->getParentPad(),
+                                             CatchDispatchLongjmpBB, 1);
+        NewCSI->addHandler(*CSI->handler_begin());
+        NewCSI->takeName(CSI);
+        CSI->replaceAllUsesWith(NewCSI);
+      }
+    }
+
+    if (auto *CRI = dyn_cast<CleanupReturnInst>(BB.getTerminator())) {
+      if (CRI->unwindsToCaller()) {
+        IRB.SetInsertPoint(CRI);
+        ToErase.push_back(CRI);
+        IRB.CreateCleanupRet(CRI->getCleanupPad(), CatchDispatchLongjmpBB);
+      }
+    }
+  }
+
+  for (Instruction *I : ToErase)
+    I->eraseFromParent();
 }

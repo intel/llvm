@@ -8,7 +8,7 @@
 
 // RUN: %clang_cc1 -triple i686-unknown-win32 -emit-llvm -o - %s | \
 // RUN:     FileCheck --check-prefix=I686-WIN32 %s
-// I686-WIN32: target datalayout = "e-m:x-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:32-n8:16:32-a:0:32-S32"
+// I686-WIN32: target datalayout = "e-m:x-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32-a:0:32-S32"
 
 // RUN: %clang_cc1 -triple i686-unknown-cygwin -emit-llvm -o - %s | \
 // RUN:     FileCheck --check-prefix=I686-CYGWIN %s
@@ -223,7 +223,7 @@
 // RUN: FileCheck %s -check-prefix=SYSTEMZ
 // RUN: %clang_cc1 -triple s390x-unknown -target-cpu z13 -target-feature +soft-float -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=SYSTEMZ
-// SYSTEMZ: target datalayout = "E-m:e-i1:8:16-i8:8:16-i64:64-f128:64-a:8:16-n32:64"
+// SYSTEMZ: target datalayout = "E-m:e-i1:8:16-i8:8:16-i64:64-f128:64-v128:64-a:8:16-n32:64"
 
 // RUN: %clang_cc1 -triple s390x-unknown -target-cpu z13 -o - -emit-llvm %s | \
 // RUN: FileCheck %s -check-prefix=SYSTEMZ-VECTOR

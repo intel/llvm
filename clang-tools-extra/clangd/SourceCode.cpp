@@ -10,11 +10,8 @@
 #include "FuzzyMatch.h"
 #include "Preamble.h"
 #include "Protocol.h"
-#include "refactor/Tweak.h"
 #include "support/Context.h"
 #include "support/Logger.h"
-#include "support/Threading.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -27,7 +24,7 @@
 #include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
@@ -39,11 +36,11 @@
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/SHA1.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/xxhash.h"
 #include <algorithm>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -75,7 +72,7 @@ static bool iterateCodepoints(llvm::StringRef U8, const Callback &CB) {
       continue;
     }
     // This convenient property of UTF-8 holds for all non-ASCII characters.
-    size_t UTF8Length = llvm::countLeadingOnes(C);
+    size_t UTF8Length = llvm::countl_one(C);
     // 0xxx is ASCII, handled above. 10xxx is a trailing byte, invalid here.
     // 11111xxx is not valid UTF-8 at all, maybe some ISO-8859-*.
     if (LLVM_UNLIKELY(UTF8Length < 2 || UTF8Length > 4)) {
@@ -231,12 +228,16 @@ Position sourceLocToPosition(const SourceManager &SM, SourceLocation Loc) {
 }
 
 bool isSpelledInSource(SourceLocation Loc, const SourceManager &SM) {
-  if (Loc.isMacroID()) {
-    std::string PrintLoc = SM.getSpellingLoc(Loc).printToString(SM);
-    if (llvm::StringRef(PrintLoc).startswith("<scratch") ||
-        llvm::StringRef(PrintLoc).startswith("<command line>"))
-      return false;
-  }
+  if (Loc.isFileID())
+    return true;
+  auto Spelling = SM.getDecomposedSpellingLoc(Loc);
+  StringRef SpellingFile = SM.getSLocEntry(Spelling.first).getFile().getName();
+  if (SpellingFile == "<scratch space>")
+    return false;
+  if (SpellingFile == "<built-in>")
+    // __STDC__ etc are considered spelled, but BAR in arg -DFOO=BAR is not.
+    return !SM.isWrittenInCommandLineFile(
+        SM.getComposedLoc(Spelling.first, Spelling.second));
   return true;
 }
 
@@ -421,16 +422,16 @@ bool isInsideMainFile(SourceLocation Loc, const SourceManager &SM) {
   return FID == SM.getMainFileID() || FID == SM.getPreambleFileID();
 }
 
-llvm::Optional<SourceRange> toHalfOpenFileRange(const SourceManager &SM,
-                                                const LangOptions &LangOpts,
-                                                SourceRange R) {
+std::optional<SourceRange> toHalfOpenFileRange(const SourceManager &SM,
+                                               const LangOptions &LangOpts,
+                                               SourceRange R) {
   SourceRange R1 = getTokenFileRange(R.getBegin(), SM, LangOpts);
   if (!isValidFileRange(SM, R1))
-    return llvm::None;
+    return std::nullopt;
 
   SourceRange R2 = getTokenFileRange(R.getEnd(), SM, LangOpts);
   if (!isValidFileRange(SM, R2))
-    return llvm::None;
+    return std::nullopt;
 
   SourceRange Result =
       rangeInCommonFile(unionTokenRange(R1, R2, SM, LangOpts), SM, LangOpts);
@@ -438,7 +439,7 @@ llvm::Optional<SourceRange> toHalfOpenFileRange(const SourceManager &SM,
   // Convert from closed token range to half-open (char) range
   Result.setEnd(Result.getEnd().getLocWithOffset(TokLen));
   if (!isValidFileRange(SM, Result))
-    return llvm::None;
+    return std::nullopt;
 
   return Result;
 }
@@ -511,10 +512,10 @@ std::vector<TextEdit> replacementsToEdits(llvm::StringRef Code,
   return Edits;
 }
 
-llvm::Optional<std::string> getCanonicalPath(const FileEntry *F,
-                                             const SourceManager &SourceMgr) {
+std::optional<std::string> getCanonicalPath(const FileEntry *F,
+                                            const SourceManager &SourceMgr) {
   if (!F)
-    return None;
+    return std::nullopt;
 
   llvm::SmallString<128> FilePath = F->getName();
   if (!llvm::sys::path::is_absolute(FilePath)) {
@@ -523,7 +524,7 @@ llvm::Optional<std::string> getCanonicalPath(const FileEntry *F,
                 FilePath)) {
       elog("Could not turn relative path '{0}' to absolute: {1}", FilePath,
            EC.message());
-      return None;
+      return std::nullopt;
     }
   }
 
@@ -569,11 +570,11 @@ FileDigest digest(llvm::StringRef Content) {
   return Result;
 }
 
-llvm::Optional<FileDigest> digestFile(const SourceManager &SM, FileID FID) {
+std::optional<FileDigest> digestFile(const SourceManager &SM, FileID FID) {
   bool Invalid = false;
   llvm::StringRef Content = SM.getBufferData(FID, &Invalid);
   if (Invalid)
-    return None;
+    return std::nullopt;
   return digest(Content);
 }
 
@@ -582,7 +583,7 @@ format::FormatStyle getFormatStyleForFile(llvm::StringRef File,
                                           const ThreadsafeFS &TFS) {
   auto Style = format::getStyle(format::DefaultFormatStyle, File,
                                 format::DefaultFallbackStyle, Content,
-                                TFS.view(/*CWD=*/llvm::None).get());
+                                TFS.view(/*CWD=*/std::nullopt).get());
   if (!Style) {
     log("getStyle() failed for file {0}: {1}. Fallback is LLVM style.", File,
         Style.takeError());
@@ -663,7 +664,7 @@ void parseNamespaceEvents(llvm::StringRef Code, const LangOptions &LangOpts,
   // Stack of enclosing namespaces, e.g. {"clang", "clangd"}
   std::vector<std::string> Enclosing; // Contains e.g. "clang", "clangd"
   // Stack counts open braces. true if the brace opened a namespace.
-  std::vector<bool> BraceStack;
+  llvm::BitVector BraceStack;
 
   enum {
     Default,
@@ -699,14 +700,14 @@ void parseNamespaceEvents(llvm::StringRef Code, const LangOptions &LangOpts,
       switch (State) {
       case UsingNamespace:
         NSName.clear();
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case UsingNamespaceName:
         NSName.append(Tok.text(SM).str());
         State = UsingNamespaceName;
         break;
       case Namespace:
         NSName.clear();
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case NamespaceName:
         NSName.append(Tok.text(SM).str());
         State = NamespaceName;
@@ -723,7 +724,7 @@ void parseNamespaceEvents(llvm::StringRef Code, const LangOptions &LangOpts,
       switch (State) {
       case UsingNamespace:
         NSName.clear();
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case UsingNamespaceName:
         NSName.append("::");
         State = UsingNamespaceName;
@@ -793,6 +794,12 @@ llvm::SmallVector<llvm::StringRef> ancestorNamespaces(llvm::StringRef NS) {
   for (llvm::StringRef &R : Results)
     R = NS.take_front(R.end() - NS.begin());
   return Results;
+}
+
+// Checks whether \p FileName is a valid spelling of main file.
+bool isMainFile(llvm::StringRef FileName, const SourceManager &SM) {
+  auto FE = SM.getFileManager().getFile(FileName);
+  return FE && *FE == SM.getFileEntryForID(SM.getMainFileID());
 }
 
 } // namespace
@@ -868,7 +875,7 @@ llvm::StringSet<> collectWords(llvm::StringRef Content) {
     switch (Roles[I]) {
     case Head:
       Flush();
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Tail:
       Word.push_back(Content[I]);
       break;
@@ -923,9 +930,9 @@ static bool isLikelyIdentifier(llvm::StringRef Word, llvm::StringRef Before,
   return false;
 }
 
-llvm::Optional<SpelledWord> SpelledWord::touching(SourceLocation SpelledLoc,
-                                                  const syntax::TokenBuffer &TB,
-                                                  const LangOptions &LangOpts) {
+std::optional<SpelledWord> SpelledWord::touching(SourceLocation SpelledLoc,
+                                                 const syntax::TokenBuffer &TB,
+                                                 const LangOptions &LangOpts) {
   const auto &SM = TB.sourceManager();
   auto Touching = syntax::spelledTokensTouching(SpelledLoc, TB);
   for (const auto &T : Touching) {
@@ -950,14 +957,14 @@ llvm::Optional<SpelledWord> SpelledWord::touching(SourceLocation SpelledLoc,
   bool Invalid = false;
   llvm::StringRef Code = SM.getBufferData(File, &Invalid);
   if (Invalid)
-    return llvm::None;
+    return std::nullopt;
   unsigned B = Offset, E = Offset;
   while (B > 0 && isAsciiIdentifierContinue(Code[B - 1]))
     --B;
   while (E < Code.size() && isAsciiIdentifierContinue(Code[E]))
     ++E;
   if (B == E)
-    return llvm::None;
+    return std::nullopt;
 
   SpelledWord Result;
   Result.Location = SM.getComposedLoc(File, B);
@@ -973,16 +980,16 @@ llvm::Optional<SpelledWord> SpelledWord::touching(SourceLocation SpelledLoc,
   return Result;
 }
 
-llvm::Optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
-                                           Preprocessor &PP) {
+std::optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
+                                          Preprocessor &PP) {
   if (SpelledTok.kind() != tok::identifier)
-    return None;
+    return std::nullopt;
   SourceLocation Loc = SpelledTok.location();
   assert(Loc.isFileID());
   const auto &SM = PP.getSourceManager();
   IdentifierInfo *IdentifierInfo = PP.getIdentifierInfo(SpelledTok.text(SM));
   if (!IdentifierInfo || !IdentifierInfo->hadMacroDefinition())
-    return None;
+    return std::nullopt;
 
   // We need to take special case to handle #define and #undef.
   // Preprocessor::getMacroDefinitionAtLoc() only considers a macro
@@ -1003,7 +1010,7 @@ llvm::Optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
                     .getMacroInfo();
   }
   if (!MacroInfo) {
-    return None;
+    return std::nullopt;
   }
   return DefinedMacro{
       IdentifierInfo->getName(), MacroInfo,
@@ -1062,6 +1069,40 @@ llvm::Error reformatEdit(Edit &E, const format::FormatStyle &Style) {
   return llvm::Error::success();
 }
 
+// Workaround for editors that have buggy handling of newlines at end of file.
+//
+// The editor is supposed to expose document contents over LSP as an exact
+// string, with whitespace and newlines well-defined. But internally many
+// editors treat text as an array of lines, and there can be ambiguity over
+// whether the last line ends with a newline or not.
+//
+// This confusion can lead to incorrect edits being sent. Failing to apply them
+// is catastrophic: we're desynced, LSP has no mechanism to get back in sync.
+// We apply a heuristic to avoid this state.
+//
+// If our current view of an N-line file does *not* end in a newline, but the
+// editor refers to the start of the next line (an impossible location), then
+// we silently add a newline to make this valid.
+// We will still validate that the rangeLength is correct, *including* the
+// inferred newline.
+//
+// See https://github.com/neovim/neovim/issues/17085
+static void inferFinalNewline(llvm::Expected<size_t> &Err,
+                              std::string &Contents, const Position &Pos) {
+  if (Err)
+    return;
+  if (!Contents.empty() && Contents.back() == '\n')
+    return;
+  if (Pos.character != 0)
+    return;
+  if (Pos.line != llvm::count(Contents, '\n') + 1)
+    return;
+  log("Editor sent invalid change coordinates, inferring newline at EOF");
+  Contents.push_back('\n');
+  consumeError(Err.takeError());
+  Err = Contents.size();
+}
+
 llvm::Error applyChange(std::string &Contents,
                         const TextDocumentContentChangeEvent &Change) {
   if (!Change.range) {
@@ -1071,11 +1112,13 @@ llvm::Error applyChange(std::string &Contents,
 
   const Position &Start = Change.range->start;
   llvm::Expected<size_t> StartIndex = positionToOffset(Contents, Start, false);
+  inferFinalNewline(StartIndex, Contents, Start);
   if (!StartIndex)
     return StartIndex.takeError();
 
   const Position &End = Change.range->end;
   llvm::Expected<size_t> EndIndex = positionToOffset(Contents, End, false);
+  inferFinalNewline(EndIndex, Contents, End);
   if (!EndIndex)
     return EndIndex.takeError();
 
@@ -1159,7 +1202,7 @@ EligibleRegion getEligiblePoints(llvm::StringRef Code,
 }
 
 bool isHeaderFile(llvm::StringRef FileName,
-                  llvm::Optional<LangOptions> LangOpts) {
+                  std::optional<LangOptions> LangOpts) {
   // Respect the langOpts, for non-file-extension cases, e.g. standard library
   // files.
   if (LangOpts && LangOpts->IsHeaderFile)
@@ -1176,64 +1219,30 @@ bool isProtoFile(SourceLocation Loc, const SourceManager &SM) {
     return false;
   auto FID = SM.getFileID(Loc);
   // All proto generated headers should start with this line.
-  static const char *PROTO_HEADER_COMMENT =
+  static const char *ProtoHeaderComment =
       "// Generated by the protocol buffer compiler.  DO NOT EDIT!";
   // Double check that this is an actual protobuf header.
-  return SM.getBufferData(FID).startswith(PROTO_HEADER_COMMENT);
+  return SM.getBufferData(FID).startswith(ProtoHeaderComment);
 }
 
-namespace {
-
-// Is Line an #if or #ifdef directive?
-// FIXME: This makes headers with #ifdef LINUX/WINDOWS/MACOS marked as non
-// self-contained and is probably not what we want.
-bool isIf(llvm::StringRef Line) {
-  Line = Line.ltrim();
-  if (!Line.consume_front("#"))
-    return false;
-  Line = Line.ltrim();
-  return Line.startswith("if");
-}
-
-// Is Line an #error directive mentioning includes?
-bool isErrorAboutInclude(llvm::StringRef Line) {
-  Line = Line.ltrim();
-  if (!Line.consume_front("#"))
-    return false;
-  Line = Line.ltrim();
-  if (!Line.startswith("error"))
-    return false;
-  return Line.contains_insensitive(
-      "includ"); // Matches "include" or "including".
-}
-
-// Heuristically headers that only want to be included via an umbrella.
-bool isDontIncludeMeHeader(llvm::StringRef Content) {
-  llvm::StringRef Line;
-  // Only sniff up to 100 lines or 10KB.
-  Content = Content.take_front(100 * 100);
-  for (unsigned I = 0; I < 100 && !Content.empty(); ++I) {
-    std::tie(Line, Content) = Content.split('\n');
-    if (isIf(Line) && isErrorAboutInclude(Content.split('\n').first))
-      return true;
+SourceLocation translatePreamblePatchLocation(SourceLocation Loc,
+                                              const SourceManager &SM) {
+  auto DefFile = SM.getFileID(Loc);
+  if (auto FE = SM.getFileEntryRefForID(DefFile)) {
+    auto IncludeLoc = SM.getIncludeLoc(DefFile);
+    // Preamble patch is included inside the builtin file.
+    if (IncludeLoc.isValid() && SM.isWrittenInBuiltinFile(IncludeLoc) &&
+        FE->getName().endswith(PreamblePatch::HeaderName)) {
+      auto Presumed = SM.getPresumedLoc(Loc);
+      // Check that line directive is pointing at main file.
+      if (Presumed.isValid() && Presumed.getFileID().isInvalid() &&
+          isMainFile(Presumed.getFilename(), SM)) {
+        Loc = SM.translateLineCol(SM.getMainFileID(), Presumed.getLine(),
+                                  Presumed.getColumn());
+      }
+    }
   }
-  return false;
+  return Loc;
 }
-
-} // namespace
-
-bool isSelfContainedHeader(const FileEntry *FE, FileID FID,
-                           const SourceManager &SM, HeaderSearch &HeaderInfo) {
-  // FIXME: Should files that have been #import'd be considered
-  // self-contained? That's really a property of the includer,
-  // not of the file.
-  if (!HeaderInfo.isFileMultipleIncludeGuarded(FE) &&
-      !HeaderInfo.hasFileBeenImported(FE))
-    return false;
-  // This pattern indicates that a header can't be used without
-  // particular preprocessor state, usually set up by another header.
-  return !isDontIncludeMeHeader(SM.getBufferData(FID));
-}
-
 } // namespace clangd
 } // namespace clang

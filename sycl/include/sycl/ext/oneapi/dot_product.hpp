@@ -10,10 +10,12 @@
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/types.hpp>
+
 namespace sycl {
-namespace ext {
-namespace oneapi {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::oneapi {
 
 union Us {
   char s[4];
@@ -72,8 +74,7 @@ int32_t dot_acc(vec<int8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
          c;
 }
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

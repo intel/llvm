@@ -48,6 +48,10 @@
 // RUN: FileCheck --check-prefix=CHECK-VERSION-IOS10 %s
 // CHECK-VERSION-IOS10: x86_64-apple-ios11.0.0-simulator
 
+// RUN: %clang -target arm64-apple-darwin -mios-simulator-version-min=11.0 -c -### %s 2>&1 | \
+// RUN: FileCheck --check-prefix=CHECK-VERSION-IOS10-ARM64 %s
+// CHECK-VERSION-IOS10-ARM64: arm64-apple-ios11.0.0-simulator
+
 // RUN: %clang -target arm64-apple-ios11.1 -c -### %s 2>&1 | \
 // RUN: FileCheck --check-prefix=CHECK-VERSION-IOS11 %s
 // CHECK-VERSION-IOS11: arm64-apple-ios11.1.0
@@ -98,6 +102,10 @@
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-WATCHSIM20 %s
 // CHECK-VERSION-WATCHSIM20: "i386-apple-watchos2.0.0-simulator"
 
+// RUN: %clang -target x86_64-apple-driverkit19.0 -c %s -### 2>&1 | \
+// RUN:   FileCheck --check-prefix=CHECK-VERSION-DRIVERKIT190 %s
+// CHECK-VERSION-DRIVERKIT190: "x86_64-apple-driverkit19.0.0"
+
 // Check environment variable gets interpreted correctly
 // RUN: env MACOSX_DEPLOYMENT_TARGET=10.5 IPHONEOS_DEPLOYMENT_TARGET=2.0 \
 // RUN:   %clang -target i686-apple-darwin9 -c %s -### 2>&1 | \
@@ -144,6 +152,15 @@
 // RUN: %clang -target x86_64-apple-watchos4.0 -c %s -### 2>&1 | \
 // RUN: FileCheck --check-prefix=CHECK-VERSION-WATCHOS-TARGET %s
 // CHECK-VERSION-WATCHOS-TARGET: "x86_64-apple-watchos4.0.0-simulator"
+
+// RUN: env DRIVERKIT_DEPLOYMENT_TARGET=19.0 \
+// RUN:   %clang -target x86_64-apple-darwin -c %s -### 2>&1 | \
+// RUN:   FileCheck --check-prefix=CHECK-VERSION-DRIVERKIT %s
+// CHECK-VERSION-DRIVERKIT: "x86_64-apple-driverkit19.0.0"
+//
+// Make sure stdlib is not mistaken
+// RUN: env DRIVERKIT_DEPLOYMENT_TARGET=2.0 \
+// RUN:   %clang -target arm64-apple-darwin -c -x c++ %s -stdlib=libc++ -### 2>&1
 
 // RUN: env MACOSX_DEPLOYMENT_TARGET=1000.1000 \
 // RUN:   %clang -target x86_64-apple-darwin -c %s -### 2>&1 | \
@@ -292,7 +309,7 @@
 
 // Target with OS version is not overridden by arch:
 
-// RUN: %clang -target uknown-apple-macos10.11.2 -arch=armv7k -c %s -### 2>&1 | \
+// RUN: %clang -target uknown-apple-macos10.11.2 -c %s -### 2>&1 | \
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-TIGNORE-ARCH1 %s
 // CHECK-VERSION-TIGNORE-ARCH1: "unknown-apple-macosx10.11.2"
 
@@ -315,3 +332,18 @@
 // RUN:   FileCheck --check-prefix=CHECK-MACOS11 %s
 
 // CHECK-MACOS11: "x86_64-apple-macosx11.0.0"
+
+// RUN: %clang -target arm64-apple-macos999 -c %s -### 2>&1 | \
+// RUN:   FileCheck --check-prefix=CHECK-MACOS999 %s
+
+// CHECK-MACOS999: "arm64-apple-macosx999.0.0"
+
+// RUN: %clang -target arm64-apple-watchos99 -c %s -### 2>&1 | \
+// RUN:   FileCheck --check-prefix=CHECK-WATCHOS99 %s
+
+// CHECK-WATCHOS99: "arm64-apple-watchos99.0.0"
+
+// RUN: not %clang -target arm64-apple-ios999999 -c %s 2>&1 | \
+// RUN:   FileCheck --check-prefix=CHECK-IOS999999 %s
+
+// CHECK-IOS999999: error: invalid version number in '-target arm64-apple-ios999999'

@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -triple=i686-apple-darwin9 -verify -DVERIFY
-// RUN: %clang_cc1 %s -E -triple=i686-apple-darwin9
+// RUN: %clang_cc1 %s -triple=i686-apple-darwin9 -target-cpu pentium4 -verify -DVERIFY
+// RUN: %clang_cc1 %s -E -triple=i686-apple-darwin9 -target-cpu pentium4
 #ifndef __has_feature
 #error Should have __has_feature
 #endif
@@ -24,6 +24,7 @@
 // still return true.
 #if !__has_builtin(__builtin_LINE) || \
     !__has_builtin(__builtin_FILE) || \
+    !__has_builtin(__builtin_FILE_NAME) || \
     !__has_builtin(__builtin_FUNCTION) || \
     !__has_builtin(__builtin_COLUMN) || \
     !__has_builtin(__builtin_types_compatible_p)

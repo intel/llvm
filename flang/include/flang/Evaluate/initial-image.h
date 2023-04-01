@@ -49,7 +49,10 @@ public:
           bytes !=
               x.values().size() * static_cast<std::size_t>(*elementBytes)) {
         return SizeMismatch;
+      } else if (bytes == 0) {
+        return Ok;
       } else {
+        // TODO endianness
         std::memcpy(&data_.at(offset), &x.values().at(0), bytes);
         return Ok;
       }
@@ -66,20 +69,25 @@ public:
       auto elementBytes{bytes > 0 ? bytes / elements : 0};
       if (elements * elementBytes != bytes) {
         return SizeMismatch;
+      } else if (bytes == 0) {
+        return Ok;
       } else {
+        Result result{Ok};
         for (auto at{x.lbounds()}; elements-- > 0; x.IncrementSubscripts(at)) {
           auto scalar{x.At(at)}; // this is a std string; size() in chars
-          // Subtle: an initializer for a substring may have been
-          // expanded to the length of the entire string.
           auto scalarBytes{scalar.size() * KIND};
-          if (scalarBytes < elementBytes ||
-              (scalarBytes > elementBytes && elements != 0)) {
-            return SizeMismatch;
+          if (scalarBytes != elementBytes) {
+            result = SizeMismatch;
           }
-          std::memcpy(&data_[offset], scalar.data(), elementBytes);
+          // Blank padding when short
+          for (; scalarBytes < elementBytes; scalarBytes += KIND) {
+            scalar += ' ';
+          }
+          // TODO endianness
+          std::memcpy(&data_.at(offset), scalar.data(), elementBytes);
           offset += elementBytes;
         }
-        return Ok;
+        return result;
       }
     }
   }
@@ -88,7 +96,7 @@ public:
   template <typename T>
   Result Add(ConstantSubscript offset, std::size_t bytes, const Expr<T> &x,
       FoldingContext &c) {
-    return std::visit(
+    return common::visit(
         [&](const auto &y) { return Add(offset, bytes, y, c); }, x.u);
   }
 
@@ -99,7 +107,8 @@ public:
 
   // Conversions to constant initializers
   std::optional<Expr<SomeType>> AsConstant(FoldingContext &,
-      const DynamicType &, const ConstantSubscripts &,
+      const DynamicType &, std::optional<std::int64_t> charLength,
+      const ConstantSubscripts &, bool padWithZero = false,
       ConstantSubscript offset = 0) const;
   std::optional<Expr<SomeType>> AsConstantPointer(
       ConstantSubscript offset = 0) const;

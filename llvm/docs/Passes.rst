@@ -156,15 +156,15 @@ This pass, only available in ``opt``, prints the dominator tree into a ``.dot``
 graph, omitting the function bodies.  This graph can then be processed with the
 :program:`dot` tool to convert it to postscript or some other suitable format.
 
-``-dot-postdom``: Print postdominance tree of function to "dot" file
---------------------------------------------------------------------
+``-dot-post-dom``: Print postdominance tree of function to "dot" file
+---------------------------------------------------------------------
 
 This pass, only available in ``opt``, prints the post dominator tree into a
 ``.dot`` graph.  This graph can then be processed with the :program:`dot` tool
 to convert it to postscript or some other suitable format.
 
-``-dot-postdom-only``: Print postdominance tree of function to "dot" file (with no function bodies)
----------------------------------------------------------------------------------------------------
+``-dot-post-dom-only``: Print postdominance tree of function to "dot" file (with no function bodies)
+----------------------------------------------------------------------------------------------------
 
 This pass, only available in ``opt``, prints the post dominator tree into a
 ``.dot`` graph, omitting the function bodies.  This graph can then be processed
@@ -295,11 +295,6 @@ standard error in a human-readable form.
 
 This pass, only available in ``opt``, printsthe SCCs of each function CFG to
 standard error in a human-readable fom.
-
-``-print-dom-info``: Dominator Info Printer
--------------------------------------------
-
-Dominator Info Printer.
 
 ``-print-externalfnconstants``: Print external fn callsites passed constants
 ----------------------------------------------------------------------------
@@ -875,6 +870,14 @@ than a threshold.
 This pass expects :ref:`LICM <passes-licm>` to be run before it to hoist
 invariant conditions out of the loop, to make the unswitching opportunity
 obvious.
+
+``-lower-global-dtors``: Lower global destructors
+------------------------------------------------------------
+
+This pass lowers global module destructors (``llvm.global_dtors``) by creating
+wrapper functions that are registered as global constructors in
+``llvm.global_ctors`` and which contain a call to ``__cxa_atexit`` to register
+their destructor functions.
 
 ``-loweratomic``: Lower atomic intrinsics to non-atomic form
 ------------------------------------------------------------

@@ -16,6 +16,18 @@
 #ifndef FORTRAN_LOWER_RUNTIME_H
 #define FORTRAN_LOWER_RUNTIME_H
 
+#include <optional>
+
+namespace mlir {
+class Location;
+class Value;
+} // namespace mlir
+
+namespace fir {
+class CharBoxValue;
+class FirOpBuilder;
+} // namespace fir
+
 namespace Fortran {
 
 namespace parser {
@@ -51,6 +63,14 @@ void genSyncTeamStatement(AbstractConverter &, const parser::SyncTeamStmt &);
 void genUnlockStatement(AbstractConverter &, const parser::UnlockStmt &);
 void genPauseStatement(AbstractConverter &, const parser::PauseStmt &);
 
+void genPointerAssociate(fir::FirOpBuilder &, mlir::Location,
+                         mlir::Value pointer, mlir::Value target);
+void genPointerAssociateRemapping(fir::FirOpBuilder &, mlir::Location,
+                                  mlir::Value pointer, mlir::Value target,
+                                  mlir::Value bounds);
+void genPointerAssociateLowerBounds(fir::FirOpBuilder &, mlir::Location,
+                                    mlir::Value pointer, mlir::Value target,
+                                    mlir::Value lbounds);
 } // namespace lower
 } // namespace Fortran
 

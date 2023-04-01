@@ -17,6 +17,25 @@ module m
 
   real, volatile, target :: volatile
 
+  interface
+    ! Ensure no errors for "ignored" declarations in a pure interface.
+    ! These declarations do not contribute to the characteristics of
+    ! the procedure and must not elicit spurious errors about being used
+    ! in a pure procedure.
+    pure subroutine s05a
+      import polyAlloc
+      real, save :: v1
+      real :: v2 = 0.
+      real :: v3
+      data v3/0./
+      real :: v4
+      common /blk/ v4
+      save /blk/
+      type(polyAlloc) :: v5
+      real, volatile :: v6
+    end subroutine
+  end interface
+
  contains
 
   subroutine impure(x)
@@ -85,9 +104,9 @@ module m
   pure subroutine s05 ! C1589
     !ERROR: A pure subprogram may not have a variable with the SAVE attribute
     real, save :: v1
-    !ERROR: A pure subprogram may not have a variable with the SAVE attribute
+    !ERROR: A pure subprogram may not initialize a variable
     real :: v2 = 0.
-    !ERROR: A pure subprogram may not have a variable with the SAVE attribute
+    !ERROR: A pure subprogram may not initialize a variable
     real :: v3
     data v3/0./
     !ERROR: A pure subprogram may not have a variable with the SAVE attribute
@@ -97,7 +116,7 @@ module m
     block
     !ERROR: A pure subprogram may not have a variable with the SAVE attribute
       real, save :: v5
-    !ERROR: A pure subprogram may not have a variable with the SAVE attribute
+    !ERROR: A pure subprogram may not initialize a variable
       real :: v6 = 0.
     end block
   end subroutine
@@ -141,7 +160,8 @@ module m
     !ERROR: Deallocation of polymorphic object 'auto%a' is not permitted in a pure subprogram
     type(polyAlloc) :: auto
     type(polyAlloc), intent(in out) :: to
-    !ERROR: Deallocation of polymorphic non-coarray component '%a' is not permitted in a pure subprogram
+    !ERROR: Left-hand side of assignment is not definable
+    !BECAUSE: 'to' has polymorphic non-coarray component '%a' in a pure subprogram
     to = auto
   end subroutine
   pure subroutine s12

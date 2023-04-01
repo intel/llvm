@@ -16,6 +16,7 @@
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstBuilder.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
@@ -44,8 +45,9 @@ class MSP430AsmParser : public MCTargetAsmParser {
                                uint64_t &ErrorInfo,
                                bool MatchingInlineAsm) override;
 
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                     SMLoc &EndLoc) override;
+  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                         SMLoc &EndLoc) override;
 
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
@@ -288,7 +290,7 @@ bool MSP430AsmParser::MatchAndEmitInstruction(SMLoc Loc, unsigned &Opcode,
 static unsigned MatchRegisterName(StringRef Name);
 static unsigned MatchRegisterAltName(StringRef Name);
 
-bool MSP430AsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+bool MSP430AsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                     SMLoc &EndLoc) {
   switch (tryParseRegister(RegNo, StartLoc, EndLoc)) {
   case MatchOperand_ParseFail:
@@ -302,7 +304,7 @@ bool MSP430AsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
   llvm_unreachable("unknown match result type");
 }
 
-OperandMatchResultTy MSP430AsmParser::tryParseRegister(unsigned &RegNo,
+OperandMatchResultTy MSP430AsmParser::tryParseRegister(MCRegister &RegNo,
                                                        SMLoc &StartLoc,
                                                        SMLoc &EndLoc) {
   if (getLexer().getKind() == AsmToken::Identifier) {
@@ -454,13 +456,13 @@ bool MSP430AsmParser::ParseOperand(OperandVector &Operands) {
     default: return true;
     case AsmToken::Identifier: {
       // try rN
-      unsigned RegNo;
+      MCRegister RegNo;
       SMLoc StartLoc, EndLoc;
-      if (!ParseRegister(RegNo, StartLoc, EndLoc)) {
+      if (!parseRegister(RegNo, StartLoc, EndLoc)) {
         Operands.push_back(MSP430Operand::CreateReg(RegNo, StartLoc, EndLoc));
         return false;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     }
     case AsmToken::Integer:
     case AsmToken::Plus:
@@ -469,13 +471,13 @@ bool MSP430AsmParser::ParseOperand(OperandVector &Operands) {
       const MCExpr *Val;
       // Try constexpr[(rN)]
       if (!getParser().parseExpression(Val)) {
-        unsigned RegNo = MSP430::PC;
+        MCRegister RegNo = MSP430::PC;
         SMLoc EndLoc = getParser().getTok().getLoc();
         // Try (rN)
         if (getLexer().getKind() == AsmToken::LParen) {
           getLexer().Lex(); // Eat '('
           SMLoc RegStartLoc;
-          if (ParseRegister(RegNo, RegStartLoc, EndLoc))
+          if (parseRegister(RegNo, RegStartLoc, EndLoc))
             return true;
           if (getLexer().getKind() != AsmToken::RParen)
             return true;
@@ -505,9 +507,9 @@ bool MSP430AsmParser::ParseOperand(OperandVector &Operands) {
       // Try @rN[+]
       SMLoc StartLoc = getParser().getTok().getLoc();
       getLexer().Lex(); // Eat '@'
-      unsigned RegNo;
+      MCRegister RegNo;
       SMLoc RegStartLoc, EndLoc;
-      if (ParseRegister(RegNo, RegStartLoc, EndLoc))
+      if (parseRegister(RegNo, RegStartLoc, EndLoc))
         return true;
       if (getLexer().getKind() == AsmToken::Plus) {
         Operands.push_back(MSP430Operand::CreatePostIndReg(RegNo, StartLoc, EndLoc));

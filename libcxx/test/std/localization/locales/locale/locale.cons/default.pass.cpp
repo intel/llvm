@@ -8,10 +8,7 @@
 
 // REQUIRES: locale.en_US.UTF-8
 
-// This test relies on P0482 being fixed, which isn't in
-// older Apple dylibs
-//
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
+// XFAIL: availability-char8_t_support-missing
 
 // This test runs in C++20, but we have deprecated codecvt<char(16|32), char, mbstate_t> in C++20.
 // ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS

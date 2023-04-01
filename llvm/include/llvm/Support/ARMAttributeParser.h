@@ -11,13 +11,12 @@
 
 #include "ARMBuildAttributes.h"
 #include "ELFAttributeParser.h"
-#include "ScopedPrinter.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/Support/DataExtractor.h"
-#include "llvm/Support/Endian.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm {
+
+class ScopedPrinter;
 
 class ARMAttributeParser : public ELFAttributeParser {
   struct DisplayHandler {
@@ -71,6 +70,7 @@ class ARMAttributeParser : public ELFAttributeParser {
   Error PACRET_use(ARMBuildAttrs::AttrType tag);
   Error BTI_use(ARMBuildAttrs::AttrType tag);
   Error nodefaults(ARMBuildAttrs::AttrType tag);
+  Error also_compatible_with(ARMBuildAttrs::AttrType tag);
 
 public:
   ARMAttributeParser(ScopedPrinter *sw)

@@ -46,6 +46,7 @@ class MachORewriteInstance {
   void processProfileDataPreCFG();
   void processProfileData();
 
+  static StringRef getNewSecPrefix() { return ".bolt.new"; }
   static StringRef getOrgSecPrefix() { return ".bolt.org"; }
 
   void mapInstrumentationSection(StringRef SectionName);
@@ -65,7 +66,14 @@ class MachORewriteInstance {
   void rewriteFile();
 
 public:
-  MachORewriteInstance(object::MachOObjectFile *InputFile, StringRef ToolPath);
+  // This constructor has complex initialization that can fail during
+  // construction. Constructors can’t return errors, so clients must test \p Err
+  // after the object is constructed. Use `create` method instead.
+  MachORewriteInstance(object::MachOObjectFile *InputFile, StringRef ToolPath,
+                       Error &Err);
+
+  static Expected<std::unique_ptr<MachORewriteInstance>>
+  create(object::MachOObjectFile *InputFile, StringRef ToolPath);
   ~MachORewriteInstance();
 
   Error setProfile(StringRef FileName);

@@ -1,4 +1,4 @@
-// XFAIL: aix
+// XFAIL: target={{.*}}-aix{{.*}}
 
 // Test to ensure -emit-llvm profile-sample-accurate is honored in ThinLTO.
 // RUN: %clang -O2 %s -flto=thin -fprofile-sample-accurate -c -o %t.o
@@ -7,5 +7,5 @@
 
 // CHECK: define{{.*}} void @foo()
 // CHECK: attributes{{.*}} "profile-sample-accurate"
-void foo() {
+void foo(void) {
 }

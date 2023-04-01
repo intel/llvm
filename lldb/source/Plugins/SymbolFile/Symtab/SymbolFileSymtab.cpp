@@ -21,6 +21,7 @@
 #include "lldb/Utility/Timer.h"
 
 #include <memory>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -51,8 +52,8 @@ void SymbolFileSymtab::GetTypes(SymbolContextScope *sc_scope,
                                 lldb_private::TypeList &type_list) {}
 
 SymbolFileSymtab::SymbolFileSymtab(ObjectFileSP objfile_sp)
-    : SymbolFile(std::move(objfile_sp)), m_source_indexes(), m_func_indexes(),
-      m_code_indexes(), m_objc_class_name_to_index() {}
+    : SymbolFileCommon(std::move(objfile_sp)), m_source_indexes(),
+      m_func_indexes(), m_code_indexes(), m_objc_class_name_to_index() {}
 
 uint32_t SymbolFileSymtab::CalculateAbilities() {
   uint32_t abilities = 0;
@@ -229,10 +230,10 @@ Type *SymbolFileSymtab::ResolveTypeUID(lldb::user_id_t type_uid) {
   return nullptr;
 }
 
-llvm::Optional<SymbolFile::ArrayInfo>
+std::optional<SymbolFile::ArrayInfo>
 SymbolFileSymtab::GetDynamicArrayInfoForUID(
     lldb::user_id_t type_uid, const lldb_private::ExecutionContext *exe_ctx) {
-  return llvm::None;
+  return std::nullopt;
 }
 
 bool SymbolFileSymtab::CompleteType(lldb_private::CompilerType &compiler_type) {

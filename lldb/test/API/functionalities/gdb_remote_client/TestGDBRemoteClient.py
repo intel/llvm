@@ -9,8 +9,6 @@ from lldbsuite.test.lldbgdbclient import GDBRemoteTestBase
 
 class TestGDBRemoteClient(GDBRemoteTestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     class gPacketResponder(MockGDBServerResponder):
         registers = [
             "name:rax;bitsize:64;offset:0;encoding:uint;format:hex;set:General Purpose Registers;ehframe:0;dwarf:0;",
@@ -88,7 +86,30 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
         error = lldb.SBError()
         target.Launch(lldb.SBListener(), None, None, None, None, None,
                 None, 0, True, error)
-        self.assertEquals("'A' packet returned an error: 71", error.GetCString())
+        self.assertRegex(error.GetCString(), "Cannot launch '.*a': Error 71")
+
+    def test_launch_rich_error(self):
+        class MyResponder(MockGDBServerResponder):
+            def qC(self):
+                return "E42"
+
+            def qfThreadInfo(self):
+                return "OK" # No threads.
+
+            # Then, when we are asked to attach, error out.
+            def vRun(self, packet):
+                return "Eff;" + seven.hexlify("I'm a teapot")
+
+        self.server.responder = MyResponder()
+
+        target = self.createTarget("a.yaml")
+        process = self.connect(target)
+        lldbutil.expect_state_changes(self, self.dbg.GetListener(), process, [lldb.eStateConnected])
+
+        error = lldb.SBError()
+        target.Launch(lldb.SBListener(), None, None, None, None, None,
+                None, 0, True, error)
+        self.assertRegex(error.GetCString(), "Cannot launch '.*a': I'm a teapot")
 
     def test_read_registers_using_g_packets(self):
         """Test reading registers using 'g' packets (default behavior)"""
@@ -317,11 +338,11 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
                       lldb.SBError())  # error
 
         self.assertPacketLogContains([
-          "QEnvironment:PLAIN=foo",
-          "QEnvironmentHexEncoded:4e45454453454e433d66726f6224",
-          "QEnvironmentHexEncoded:4e45454453454e43323d66722a6f62",
           "QEnvironmentHexEncoded:4e45454453454e43333d66726f7d62",
           "QEnvironmentHexEncoded:4e45454453454e43343d6623726f62",
+          "QEnvironment:PLAIN=foo",
+          "QEnvironmentHexEncoded:4e45454453454e43323d66722a6f62",
+          "QEnvironmentHexEncoded:4e45454453454e433d66726f6224",
           "QEnvironment:EQUALS=foo=bar",
         ])
 
@@ -365,11 +386,11 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
                       lldb.SBError())  # error
 
         self.assertPacketLogContains([
-          "QEnvironmentHexEncoded:504c41494e3d666f6f",
-          "QEnvironmentHexEncoded:4e45454453454e433d66726f6224",
-          "QEnvironmentHexEncoded:4e45454453454e43323d66722a6f62",
           "QEnvironmentHexEncoded:4e45454453454e43333d66726f7d62",
           "QEnvironmentHexEncoded:4e45454453454e43343d6623726f62",
+          "QEnvironmentHexEncoded:504c41494e3d666f6f",
+          "QEnvironmentHexEncoded:4e45454453454e43323d66722a6f62",
+          "QEnvironmentHexEncoded:4e45454453454e433d66726f6224",
           "QEnvironmentHexEncoded:455155414c533d666f6f3d626172",
         ])
 
@@ -490,3 +511,98 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
                          lldb.eStopReasonSignal)
         self.assertEqual(process.threads[0].GetStopDescription(100),
                          'signal SIGUSR1')
+
+    def do_siginfo_test(self, platform, target_yaml, raw_data, expected):
+        class MyResponder(MockGDBServerResponder):
+            def qSupported(self, client_supported):
+                return "PacketSize=3fff;QStartNoAckMode+;qXfer:siginfo:read+"
+
+            def qXferRead(self, obj, annex, offset, length):
+                if obj == "siginfo":
+                    return raw_data, False
+                else:
+                    return None, False
+
+            def haltReason(self):
+                return "T02"
+
+            def cont(self):
+                return self.haltReason()
+
+        self.server.responder = MyResponder()
+
+        self.runCmd("platform select " + platform)
+        target = self.createTarget(target_yaml)
+        process = self.connect(target)
+
+        siginfo = process.threads[0].GetSiginfo()
+        self.assertSuccess(siginfo.GetError())
+
+        for key, value in expected.items():
+            self.assertEqual(siginfo.GetValueForExpressionPath("." + key)
+                             .GetValueAsUnsigned(),
+                             value)
+
+
+    def test_siginfo_linux_amd64(self):
+        data = (
+          # si_signo         si_errno        si_code
+            "\x11\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"
+          # __pad0           si_pid          si_uid
+            "\x00\x00\x00\x00\xbf\xf7\x0b\x00\xe8\x03\x00\x00"
+          # si_status
+            "\x0c\x00\x00\x00" + "\x00" * 100)
+        expected = {
+            "si_signo": 17,  # SIGCHLD
+            "si_errno": 0,
+            "si_code": 1,  # CLD_EXITED
+            "_sifields._sigchld.si_pid": 784319,
+            "_sifields._sigchld.si_uid": 1000,
+            "_sifields._sigchld.si_status": 12,
+            "_sifields._sigchld.si_utime": 0,
+            "_sifields._sigchld.si_stime": 0,
+        }
+        self.do_siginfo_test("remote-linux", "basic_eh_frame.yaml",
+                             data, expected)
+
+    def test_siginfo_linux_i386(self):
+        data = (
+          # si_signo         si_errno        si_code
+            "\x11\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"
+          # si_pid           si_uid          si_status
+            "\x49\x43\x07\x00\xe8\x03\x00\x00\x0c\x00\x00\x00"
+            + "\x00" * 104)
+        expected = {
+            "si_signo": 17,  # SIGCHLD
+            "si_errno": 0,
+            "si_code": 1,  # CLD_EXITED
+            "_sifields._sigchld.si_pid": 475977,
+            "_sifields._sigchld.si_uid": 1000,
+            "_sifields._sigchld.si_status": 12,
+            "_sifields._sigchld.si_utime": 0,
+            "_sifields._sigchld.si_stime": 0,
+        }
+        self.do_siginfo_test("remote-linux", "basic_eh_frame-i386.yaml",
+                             data, expected)
+
+    def test_siginfo_freebsd_amd64(self):
+        data = (
+          # si_signo         si_errno        si_code
+            "\x0b\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"
+          # si_pid           si_uid          si_status
+            "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+          # si_addr
+            "\x76\x98\xba\xdc\xfe\x00\x00\x00"
+          # si_status                        si_trapno
+            "\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x00\x00\x00"
+            + "\x00" * 36)
+
+        expected = {
+            "si_signo": 11,  # SIGSEGV
+            "si_errno": 0,
+            "si_code": 1,  # SEGV_MAPERR
+            "si_addr": 0xfedcba9876,
+            "_reason._fault._trapno": 12,
+        }
+        self.do_siginfo_test("remote-freebsd", "basic_eh_frame.yaml",
+                             data, expected)

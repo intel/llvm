@@ -1,11 +1,10 @@
-// RUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S %s -flegacy-pass-manager -o - | FileCheck %s
-// RUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S %s -fno-legacy-pass-manager -o - | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S %s -o - | FileCheck %s
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
-// CHECK: define {{.*}}dso_local spir_func void @{{.*}}testItem{{.*}}(%"class.{{.*}}item"*{{.*}}%{{.*}})
+// CHECK: define {{.*}}dso_local spir_func void @{{.*}}testItem{{.*}}(%"class.{{.*}}item"{{.*}}%{{.*}})
 SYCL_EXTERNAL void testItem(item<1> TestItem) {
   // CHECK: call void @llvm.assume(i1 {{.*}})
   int Id = TestItem.get_id(0);
@@ -15,7 +14,7 @@ SYCL_EXTERNAL void testItem(item<1> TestItem) {
   int LinearId = TestItem.get_linear_id();
 }
 
-// CHECK: define {{.*}}dso_local spir_func void @{{.*}}testNDItem{{.*}}(%"class.{{.*}}nd_item"*{{.*}}%{{.*}})
+// CHECK: define {{.*}}dso_local spir_func void @{{.*}}testNDItem{{.*}}(%"class.{{.*}}nd_item"{{.*}}%{{.*}})
 SYCL_EXTERNAL void testNDItem(nd_item<1> TestNDItem) {
   // CHECK: call void @llvm.assume(i1 {{.*}})
   int GlobalId = TestNDItem.get_global_id(0);

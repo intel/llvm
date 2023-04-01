@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -verify %s -Wimplicit-int-conversion -Wno-unused -Wunevaluated-expression -triple x86_64-gnu-linux
+// RUN: %clang_cc1 -fsyntax-only -verify %s -Wimplicit-int-conversion -Wno-unused -Wunevaluated-expression -triple aarch64-unknown-unknown
 
 template<int Bounds>
 struct HasExtInt {
@@ -17,7 +17,7 @@ _BitInt(33) Declarations(_BitInt(48) &Param) { // Useable in params and returns.
   unsigned _BitInt(5) e = 5;
   _BitInt(5) unsigned f;
 
-  _BitInt(-3) g; // expected-error{{signed _BitInt must have a bit size of at least 2}}
+  _BitInt(-3) g; // expected-error{{signed _BitInt of bit sizes greater than 128 not supported}}
   _BitInt(0) h; // expected-error{{signed _BitInt must have a bit size of at least 2}}
   _BitInt(1) i; // expected-error{{signed _BitInt must have a bit size of at least 2}}
   _BitInt(2) j;;
@@ -28,13 +28,13 @@ _BitInt(33) Declarations(_BitInt(48) &Param) { // Useable in params and returns.
   constexpr _BitInt(6) n = 33; // expected-warning{{implicit conversion from 'int' to 'const _BitInt(6)' changes value from 33 to -31}}
   constexpr _BitInt(7) o = 33;
 
-  // Check LLVM imposed max size.
-  _BitInt(8388609) p;               // expected-error {{signed _BitInt of bit sizes greater than 8388608 not supported}}
-  unsigned _BitInt(0xFFFFFFFFFF) q; // expected-error {{unsigned _BitInt of bit sizes greater than 8388608 not supported}}
+  // Check imposed max size.
+  _BitInt(129) p;               // expected-error {{signed _BitInt of bit sizes greater than 128 not supported}}
+  unsigned _BitInt(0xFFFFFFFFFF) q; // expected-error {{unsigned _BitInt of bit sizes greater than 128 not supported}}
 
 // Ensure template params are instantiated correctly.
-  // expected-error@5{{signed _BitInt must have a bit size of at least 2}}
-  // expected-error@6{{unsigned _BitInt must have a bit size of at least 1}}
+  // expected-error@5{{signed _BitInt of bit sizes greater than 128 not supported}}
+  // expected-error@6{{unsigned _BitInt of bit sizes greater than 128 not supported}}
   // expected-note@+1{{in instantiation of template class }}
   HasExtInt<-1> r;
   // expected-error@5{{signed _BitInt must have a bit size of at least 2}}
@@ -84,8 +84,22 @@ struct is_same<T,T> {
 };
 
 // Reject vector types:
-// expected-error@+1{{invalid vector element type '_BitInt(32)'}}
-typedef _BitInt(32) __attribute__((vector_size(16))) VecTy;
+// expected-error@+1{{'_BitInt' vector element width must be at least as wide as 'CHAR_BIT'}}
+typedef _BitInt(2) __attribute__((vector_size(16))) VecTy;
+// expected-error@+1{{'_BitInt' vector element width must be at least as wide as 'CHAR_BIT'}}
+typedef _BitInt(2) __attribute__((ext_vector_type(32))) OtherVecTy;
+// expected-error@+1{{'_BitInt' vector element width must be at least as wide as 'CHAR_BIT'}}
+typedef _BitInt(4) __attribute__((vector_size(16))) VecTy2;
+// expected-error@+1{{'_BitInt' vector element width must be at least as wide as 'CHAR_BIT'}}
+typedef _BitInt(4) __attribute__((ext_vector_type(32))) OtherVecTy2;
+// expected-error@+1{{'_BitInt' vector element width must be at least as wide as 'CHAR_BIT'}}
+typedef _BitInt(5) __attribute__((vector_size(16))) VecTy3;
+// expected-error@+1{{'_BitInt' vector element width must be at least as wide as 'CHAR_BIT'}}
+typedef _BitInt(5) __attribute__((ext_vector_type(32))) OtherVecTy3;
+// expected-error@+1{{'_BitInt' vector element width must be a power of 2}}
+typedef _BitInt(37) __attribute__((vector_size(16))) VecTy4;
+// expected-error@+1{{'_BitInt' vector element width must be a power of 2}}
+typedef _BitInt(37) __attribute__((ext_vector_type(32))) OtherVecTy4;
 
 // Allow _Complex:
 _Complex _BitInt(3) Cmplx;
@@ -186,14 +200,8 @@ void Ops() {
   static_assert(sizeof(x43_s) == 8, "");
   static_assert(sizeof(x4_s) == 1, "");
 
-  static_assert(sizeof(_BitInt(3340)) == 424, ""); // 424 * 8 == 3392.
-  static_assert(sizeof(_BitInt(1049)) == 136, ""); // 136  *  8 == 1088.
-
   static_assert(alignof(decltype(x43_s)) == 8, "");
   static_assert(alignof(decltype(x4_s)) == 1, "");
-
-  static_assert(alignof(_BitInt(3340)) == 8, "");
-  static_assert(alignof(_BitInt(1049)) == 8, "");
 }
 
 constexpr int func() { return 42;}

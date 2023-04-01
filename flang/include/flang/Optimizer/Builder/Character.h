@@ -14,7 +14,11 @@
 #define FORTRAN_OPTIMIZER_BUILDER_CHARACTER_H
 
 #include "flang/Optimizer/Builder/BoxValue.h"
-#include "flang/Optimizer/Builder/FIRBuilder.h"
+#include "flang/Optimizer/Builder/LowLevelIntrinsics.h"
+
+namespace fir {
+class FirOpBuilder;
+}
 
 namespace fir::factory {
 
@@ -42,6 +46,13 @@ public:
   /// bound is optional.
   fir::CharBoxValue createSubstring(const fir::CharBoxValue &str,
                                     llvm::ArrayRef<mlir::Value> bounds);
+
+  /// Compute substring base address given the raw address (not fir.boxchar) of
+  /// a scalar string, a substring / lower bound, and the substring type.
+  mlir::Value genSubstringBase(mlir::Value stringRawAddr,
+                               mlir::Value lowerBound,
+                               mlir::Type substringAddrType,
+                               mlir::Value one = {});
 
   /// Return blank character of given \p type !fir.char<kind>
   mlir::Value createBlankConstant(fir::CharacterType type);
@@ -107,7 +118,15 @@ public:
   /// Extract the kind of a character or array of character type.
   static fir::KindTy getCharacterOrSequenceKind(mlir::Type type);
 
-  /// Determine the base character type
+  // TODO: Do we really need all these flavors of unwrapping to get the fir.char
+  // type? Or can we merge these? It would be better to merge them and eliminate
+  // the confusion.
+
+  /// Determine the inner character type. Unwraps references, boxes, and
+  /// sequences to find the !fir.char element type.
+  static fir::CharacterType getCharType(mlir::Type type);
+
+  /// Get fir.char<kind> type with the same kind as inside str.
   static fir::CharacterType getCharacterType(mlir::Type type);
   static fir::CharacterType getCharacterType(const fir::CharBoxValue &box);
   static fir::CharacterType getCharacterType(mlir::Value str);
@@ -164,6 +183,9 @@ public:
   /// to the number of characters per the Fortran KIND.
   mlir::Value readLengthFromBox(mlir::Value box);
 
+  /// Same as readLengthFromBox but the CharacterType is provided.
+  mlir::Value readLengthFromBox(mlir::Value box, fir::CharacterType charTy);
+
 private:
   /// FIXME: the implementation also needs a clean-up now that
   /// CharBoxValue are better propagated.
@@ -177,15 +199,36 @@ private:
   void createAssign(const fir::CharBoxValue &lhs, const fir::CharBoxValue &rhs);
   mlir::Value createBlankConstantCode(fir::CharacterType type);
 
+private:
   FirOpBuilder &builder;
   mlir::Location loc;
 };
 
-// FIXME: Move these to Optimizer
-mlir::FuncOp getLlvmMemcpy(FirOpBuilder &builder);
-mlir::FuncOp getLlvmMemmove(FirOpBuilder &builder);
-mlir::FuncOp getLlvmMemset(FirOpBuilder &builder);
-mlir::FuncOp getRealloc(FirOpBuilder &builder);
+//===----------------------------------------------------------------------===//
+// Tools to work with Character dummy procedures
+//===----------------------------------------------------------------------===//
+
+/// Create a tuple<function type, length type> type to pass character functions
+/// as arguments along their length. The function type set in the tuple is the
+/// one provided by \p funcPointerType.
+mlir::Type getCharacterProcedureTupleType(mlir::Type funcPointerType);
+
+/// Create a tuple<addr, len> given \p addr and \p len as well as the tuple
+/// type \p argTy. \p addr must be any function address, and \p len may be any
+/// integer or nullptr. Converts will be inserted if needed if \addr and \p len
+/// types are not the same as the one inside the tuple type \p tupleType.
+mlir::Value createCharacterProcedureTuple(fir::FirOpBuilder &builder,
+                                          mlir::Location loc,
+                                          mlir::Type tupleType,
+                                          mlir::Value addr, mlir::Value len);
+
+/// Given a tuple containing a character function address and its result length,
+/// extract the tuple into a pair of value <function address, result length>.
+/// If openBoxProc is true, the function address is extracted from the
+/// fir.boxproc, otherwise, the returned function address is the fir.boxproc.
+std::pair<mlir::Value, mlir::Value>
+extractCharacterProcedureTuple(fir::FirOpBuilder &builder, mlir::Location loc,
+                               mlir::Value tuple, bool openBoxProc = true);
 
 } // namespace fir::factory
 

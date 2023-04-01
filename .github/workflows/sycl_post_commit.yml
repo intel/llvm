@@ -1,39 +1,58 @@
-name: Linux Post Commit Checks
+name: SYCL Post Commit
 
 on:
   push:
     branches:
-      - sycl
+    - sycl
   pull_request:
+    branches:
+    - sycl
     paths:
-    - '.github/workflows/sycl_post_commit.yml'
+    - .github/workflows/sycl_post_commit.yml
+    - .github/workflows/sycl_gen_test_matrix.yml
+    - .github/workflows/sycl_linux_build_and_test.yml
+    - .github/workflows/sycl_windows_build_and_test.yml
+    - .github/workflows/sycl_macos_build_and_test.yml
+  workflow_dispatch:
 
 jobs:
+  # This job generates matrix of tests for SYCL End-to-End tests
+  test_matrix:
+    name: Generate Test Matrix
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_gen_test_matrix.yml
+    with:
+      lts_config: "l0_gen9"
+      cts_config: "cuda"
   linux_default:
     name: Linux Default
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    if: github.repository == 'intel/llvm'
+    needs: test_matrix
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
-      build_runs_on: build
       build_cache_root: "/__w/llvm"
-      build_github_cache: true
-      build_artifact_suffix: default
+      build_artifact_suffix: "post_commit"
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
+      cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
+      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      build_configure_extra_args: --hip --cuda --enable-esimd-emulator --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
   linux_no_assert:
     name: Linux (no assert)
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
     with:
-      build_runs_on: build
       build_cache_root: "/__w/llvm"
-      build_github_cache: true
       build_cache_suffix: gcc_no_assertions
       build_artifact_suffix: gcc_no_assertions
       build_configure_extra_args: --no-assertions
   linux_self_prod:
     name: Linux (Self build + shared libraries)
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
-      build_runs_on: build
       build_cache_root: "/__w/llvm"
-      build_github_cache: true
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
       build_configure_extra_args: --shared-libs

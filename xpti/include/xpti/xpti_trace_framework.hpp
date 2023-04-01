@@ -8,22 +8,27 @@
 #pragma once
 
 #include <atomic>
+#include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <sstream>
 #include <thread>
 
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
+#include "xpti_trace_framework.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <string>
-#include <strsafe.h>
 // Windows.h defines min and max macros, that interfere with C++ std::min and
 // std::max. The following definition disables that feature.
 #define NOMINMAX
 #include <windows.h>
 #undef NOMINMAX
+// strsafe.h must be included after all other includes as per official
+// documentation
+#include <strsafe.h>
 typedef HINSTANCE xpti_plugin_handle_t;
 typedef FARPROC xpti_plugin_function_t;
 #define XPTI_PLUGIN_STRING "*.dll"
@@ -305,8 +310,166 @@ struct finally {
 
 } // namespace utils
 
+template <typename T>
+inline result_t addMetadata(trace_event_data_t *Event, const std::string &Key,
+                            const T &Data) {
+  static_assert(std::is_trivially_copyable_v<T>,
+                "T must be trivially copyable");
+  static_assert(!std::is_same_v<T, const char *>);
+
+  const uint8_t Type = [] {
+    if (std::is_same_v<bool, T>) {
+      return static_cast<uint8_t>(metadata_type_t::boolean);
+    }
+    if (std::numeric_limits<T>::is_integer &&
+        std::numeric_limits<T>::is_signed) {
+      return static_cast<uint8_t>(metadata_type_t::signed_integer);
+    }
+    if (std::numeric_limits<T>::is_integer &&
+        !std::numeric_limits<T>::is_signed) {
+      return static_cast<uint8_t>(metadata_type_t::unsigned_integer);
+    }
+    if (std::numeric_limits<T>::is_specialized &&
+        !std::numeric_limits<T>::is_integer) {
+      return static_cast<uint8_t>(metadata_type_t::floating);
+    }
+
+    return static_cast<uint8_t>(metadata_type_t::binary);
+  }();
+
+  object_id_t Value = xptiRegisterObject(reinterpret_cast<const char *>(&Data),
+                                         sizeof(Data), Type);
+  return xptiAddMetadata(Event, Key.c_str(), Value);
+}
+
+template <>
+inline result_t addMetadata<std::string>(trace_event_data_t *Event,
+                                         const std::string &Key,
+                                         const std::string &Data) {
+  const uint8_t Type = static_cast<uint8_t>(metadata_type_t::string);
+  object_id_t Value = xptiRegisterObject(Data.c_str(), Data.size(), Type);
+  return xptiAddMetadata(Event, Key.c_str(), Value);
+}
+
+template <>
+inline result_t addMetadata<const char *>(trace_event_data_t *Event,
+                                          const std::string &Key,
+                                          const char *const &Data) {
+  const uint8_t Type = static_cast<uint8_t>(metadata_type_t::string);
+  object_id_t Value = xptiRegisterObject(Data, strlen(Data), Type);
+  return xptiAddMetadata(Event, Key.c_str(), Value);
+}
+
+template <typename T>
+inline std::pair<std::string_view, T>
+getMetadata(const metadata_t::value_type &MD) {
+  static_assert(std::is_trivially_copyable<T>::value,
+                "T must be trivially copyable");
+
+  object_data_t RawData = xptiLookupObject(MD.second);
+  assert(RawData.size == sizeof(T));
+
+  T Value = *reinterpret_cast<const T *>(RawData.data);
+
+  const char *Key = xptiLookupString(MD.first);
+
+  return std::make_pair(std::string_view(Key), Value);
+}
+
+template <>
+inline std::pair<std::string_view, std::string>
+getMetadata(const metadata_t::value_type &MD) {
+  object_data_t RawData = xptiLookupObject(MD.second);
+
+  std::string Value(RawData.data, RawData.size);
+
+  const char *Key = xptiLookupString(MD.first);
+
+  return std::make_pair(std::string_view(Key), Value);
+}
+
+template <>
+inline std::pair<std::string_view, std::string_view>
+getMetadata(const metadata_t::value_type &MD) {
+  object_data_t RawData = xptiLookupObject(MD.second);
+
+  std::string_view Value(RawData.data, RawData.size);
+
+  const char *Key = xptiLookupString(MD.first);
+
+  return std::make_pair(std::string_view(Key), Value);
+}
+
+inline std::string readMetadata(const metadata_t::value_type &MD) {
+  object_data_t RawData = xptiLookupObject(MD.second);
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::binary)) {
+    return std::string("Binary data, size: ") + std::to_string(RawData.size);
+  }
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::boolean)) {
+    bool Value = *reinterpret_cast<const bool *>(RawData.data);
+    return Value ? "true" : "false";
+  }
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::signed_integer)) {
+    if (RawData.size == 1) {
+      auto I = *reinterpret_cast<const int8_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 2) {
+      auto I = *reinterpret_cast<const int16_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 4) {
+      auto I = *reinterpret_cast<const int32_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 8) {
+      auto I = *reinterpret_cast<const int64_t *>(RawData.data);
+      return std::to_string(I);
+    }
+  }
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::unsigned_integer)) {
+    if (RawData.size == 1) {
+      auto I = *reinterpret_cast<const uint8_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 2) {
+      auto I = *reinterpret_cast<const uint16_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 4) {
+      auto I = *reinterpret_cast<const uint32_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 8) {
+      auto I = *reinterpret_cast<const uint64_t *>(RawData.data);
+      return std::to_string(I);
+    }
+  }
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::floating)) {
+    if (RawData.size == 4) {
+      auto F = *reinterpret_cast<const float *>(RawData.data);
+      return std::to_string(F);
+    }
+    if (RawData.size == 8) {
+      auto F = *reinterpret_cast<const double *>(RawData.data);
+      return std::to_string(F);
+    }
+  }
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::string)) {
+    return std::string(RawData.data, RawData.size);
+  }
+
+  return std::string("Unknown metadata type, size ") +
+         std::to_string(RawData.size);
+}
+
 namespace framework {
-static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 constexpr uint16_t signal = (uint16_t)xpti::trace_point_type_t::signal;
 constexpr uint16_t graph_create =
     (uint16_t)xpti::trace_point_type_t::graph_create;
@@ -330,21 +493,33 @@ public:
                             m_user_data);
     }
   }
+  scoped_notify(uint8_t stream_id, uint16_t trace_type,
+                xpti::trace_event_data_t *parent,
+                xpti::trace_event_data_t *object, uint64_t instance,
+                const void *user_data = nullptr)
+      : m_object(object), m_parent(parent), m_stream_id(stream_id),
+        m_trace_type(trace_type), m_user_data(user_data), m_instance(instance) {
+    if (!xptiTraceEnabled())
+      return;
+    uint16_t open = m_trace_type & 0xfffe;
+    xptiNotifySubscribers(m_stream_id, open, parent, object, instance,
+                          m_user_data);
+  }
 
   ~scoped_notify() {
-    if (xptiTraceEnabled()) {
-      switch (m_trace_type) {
-      case signal:
-      case graph_create:
-      case node_create:
-      case edge_create:
-        break;
-      default: {
-        uint16_t close = m_trace_type | 1;
-        xptiNotifySubscribers(m_stream_id, close, m_parent, m_object,
-                              m_instance, m_user_data);
-      } break;
-      }
+    if (xptiTraceEnabled())
+      return;
+    switch (m_trace_type) {
+    case signal:
+    case graph_create:
+    case node_create:
+    case edge_create:
+      break;
+    default: {
+      uint16_t close = m_trace_type | 1;
+      xptiNotifySubscribers(m_stream_id, close, m_parent, m_object, m_instance,
+                            m_user_data);
+    } break;
     }
   }
 
@@ -424,32 +599,160 @@ public:
   // Constructor that makes calls to xpti API layer to register strings and
   // create the Universal ID that is stored in the TLS entry for lookup
   tracepoint_t(xpti::payload_t *p) : m_payload(nullptr), m_top(false) {
-    if (p) {
-      // We expect the payload input has been populated with the information
-      // available at that time
-      uint64_t uid = g_tls_uid;
-      if (uid != xpti::invalid_uid) {
-        // We already have a parent SW layer that has a tracepoint defined
-        m_payload = xptiQueryPayloadByUID(uid);
+    // If tracing is not enabled, don't do anything
+    if (!xptiTraceEnabled())
+      return;
+
+    init();
+    // We expect the payload input has been populated with the information
+    // available at that time; before we use this payload, we need to check if a
+    // tracepoint has been set at a higher scope.
+    uint64_t uid = xptiGetUniversalId();
+    if (uid != xpti::invalid_uid) {
+      // We already have a parent SW layer that has a tracepoint defined. This
+      // should be associated with a trace event and a payload
+      m_trace_event =
+          const_cast<xpti::trace_event_data_t *>(xptiFindEvent(uid));
+      // If the trace event is valid, extract the payload
+      if (m_trace_event) {
+        m_payload = m_trace_event->reserved.payload;
       } else {
-        m_top = true;
-        uid = xptiRegisterPayload(p);
-        if (uid != xpti::invalid_uid) {
-          g_tls_uid = uid;
-          m_payload = xptiQueryPayloadByUID(uid);
-        }
+        // Trace event is unavailable, so let is create one with the payload
+        // associated with the UID;
+        m_payload = xptiQueryPayloadByUID(uid);
+        m_trace_event = xptiMakeEvent(
+            m_default_name, const_cast<xpti::payload_t *>(m_payload),
+            m_default_event_type, m_default_activity_type, &m_instID);
+      }
+    } else if (p) {
+      // We may have a valid Payload
+      m_top = true;
+      uid = xptiRegisterPayload(p);
+      // If the payload is valid, we will have a valid UID
+      if (uid != xpti::invalid_uid) {
+        xptiSetUniversalId(uid); // Set TLS with the UID
+        m_payload = xptiQueryPayloadByUID(uid);
+        m_trace_event = xptiMakeEvent(
+            m_default_name, const_cast<xpti::payload_t *>(m_payload),
+            m_default_event_type, m_default_activity_type, &m_instID);
+      }
+    }
+  }
+  // Constructor that makes calls to xpti API layer to register strings and
+  // create the Universal ID that is stored in the TLS entry for lookup; this
+  // constructor is needed when only code location information is available
+  tracepoint_t(const char *fileName, const char *funcName, int line, int column,
+               void *codeptr = nullptr)
+      : m_payload(nullptr), m_top(false) {
+    // If tracing is not enabled, don't do anything
+    if (!xptiTraceEnabled())
+      return;
+    init();
+
+    // Before we use the code location information, we need to check if a
+    // tracepoint has been set at a higher scope.
+    uint64_t uid = xptiGetUniversalId();
+    if (uid != xpti::invalid_uid) {
+      // We already have a parent SW layer that has a tracepoint defined. This
+      // should be associated with a trace event and a payload
+      m_trace_event =
+          const_cast<xpti::trace_event_data_t *>(xptiFindEvent(uid));
+      // If the trace event is valid, extract the payload
+      if (m_trace_event) {
+        m_payload = m_trace_event->reserved.payload;
+      } else {
+        // Trace event is unavailable, so let is create one with the payload
+        // associated with the UID;
+        m_payload = xptiQueryPayloadByUID(uid);
+        m_trace_event = xptiMakeEvent(
+            m_default_name, const_cast<xpti::payload_t *>(m_payload),
+            m_default_event_type, m_default_activity_type, &m_instID);
+      }
+    } else if (fileName || funcName) {
+      // We expect the the file name and function name to be valid
+      m_top = true;
+      // Create a payload structure from the code location data
+      payload_t p(funcName, fileName, line, column, codeptr);
+      // Register the payload to generate the UID
+      uid = xptiRegisterPayload(&p);
+      if (uid != xpti::invalid_uid) {
+        xptiSetUniversalId(uid);
+        m_payload = xptiQueryPayloadByUID(uid);
+        m_trace_event = xptiMakeEvent(
+            m_default_name, const_cast<xpti::payload_t *>(m_payload),
+            m_default_event_type, m_default_activity_type, &m_instID);
       }
     }
   }
   ~tracepoint_t() {
+    // If tracing is not enabled, don't do anything
+    if (!xptiTraceEnabled())
+      return;
+
     if (m_top) {
-      g_tls_uid = xpti::invalid_uid;
+      xptiSetUniversalId(xpti::invalid_uid);
     }
   }
 
+  tracepoint_t &stream(const char *stream_name) {
+    // If tracing is not enabled, don't do anything
+    if (xptiTraceEnabled()) {
+      m_default_stream = xptiRegisterStream(stream_name);
+    }
+    return *this;
+  }
+
+  tracepoint_t &trace_type(xpti::trace_point_type_t type) {
+    m_default_trace_type = (uint16_t)type;
+    return *this;
+  }
+
+  tracepoint_t &event_type(xpti::trace_event_type_t type) {
+    if (xptiTraceEnabled()) {
+      m_default_event_type = (uint16_t)type;
+      if (m_trace_event)
+        m_trace_event->event_type = m_default_event_type;
+    }
+    return *this;
+  }
+
+  tracepoint_t &activity_type(xpti::trace_activity_type_t type) {
+    if (xptiTraceEnabled()) {
+      m_default_activity_type = type;
+      if (m_trace_event)
+        m_trace_event->activity_type = (uint16_t)m_default_activity_type;
+    }
+    return *this;
+  }
+
+  tracepoint_t &parent_event(xpti::trace_event_data_t *event) {
+    if (xptiTraceEnabled()) {
+      m_parent_event = event;
+    }
+    return *this;
+  }
+
+  void notify(const void *user_data) {
+    // If tracing is not enabled, don't notify
+    if (!xptiTraceEnabled())
+      return;
+
+    xptiNotifySubscribers(m_default_stream, m_default_trace_type,
+                          m_parent_event, m_trace_event, m_instID, user_data);
+  }
   // The payload object that is returned will have the UID object populated and
   // can be looked up in the xpti lookup APIs or be used to make an event.
   const payload_t *payload() { return m_payload; }
+
+  // If the tracepoint has been successfully created, the trace event will be
+  // set; this method allows us to query and reuse
+  const xpti::trace_event_data_t *trace_event() { return m_trace_event; }
+
+  // Method to extract the stream used by the current tracepoint type
+  uint8_t stream_id() { return m_default_stream; }
+
+  // Method to extract the stream used by the current tracepoint type
+  uint64_t instance_id() { return m_instID; }
 
   uint64_t universal_id() {
     if (m_payload &&
@@ -462,10 +765,94 @@ public:
   }
 
 private:
+  /// @brief Initializes the default values for some parameters
+  void init() {
+    m_default_stream = xptiRegisterStream("diagnostics");
+    m_default_trace_type = (uint16_t)xpti::trace_point_type_t::diagnostics;
+    m_default_event_type = (uint16_t)xpti::trace_event_type_t::algorithm;
+    m_default_activity_type = xpti::trace_activity_type_t::active;
+    m_default_name = "Message"; // Likely never used
+  }
   /// The payload data structure that is prepared from code_location(),
   /// caller_callee string or kernel name/codepointer based on the opt-in flag.
   const payload_t *m_payload;
+  /// Indicates if the Payload was added to TLS by current instance
   bool m_top;
+  /// We define a default stream to push notifications to
+  uint8_t m_default_stream;
+  /// We define a default trace type for the notifications which can be
+  /// overridden
+  uint16_t m_default_trace_type;
+  /// Default sting to use in Notify() calls
+  const char *m_default_name;
+  /// Holds the event type that qualifies the event (as algorithm etc)
+  uint16_t m_default_event_type;
+  /// Holds the activity type; only needed to qualify activity
+  xpti::trace_activity_type_t m_default_activity_type;
+  /// Parent anc child trace event objects for graph actions
+  xpti::trace_event_data_t *m_trace_event = nullptr, *m_parent_event = nullptr;
+  /// Instance number of the event
+  uint64_t m_instID;
+};
+
+/// @brief Checkpoint data type helps with Universal ID propagation
+/// @details The class is a convenience class to support the propagation of
+/// universal ID. This is a scoped class and ensures that the propagation is
+/// possible withing the scope of the function that uses this service
+///
+/// Usage:-
+/// void foo() {
+/// #ifdef XPTI_TRACE_ENABLED
+///   xpti::framework::checkpoint_t t(Object->uid);
+/// #endif
+///   ...
+///   ...
+/// }
+///
+///  See also: xptiCheckPointTest in xpti_correctness_tests.cpp
+class checkpoint_t {
+public:
+  checkpoint_t(uint64_t universal_id) {
+    // If tracing is not enabled, don't do anything
+    if (!xptiTraceEnabled())
+      return;
+
+    // Let's check if TLS is currently active; if so, we will just use that
+    uint64_t uid = xptiGetUniversalId();
+    if (uid == xpti::invalid_uid) {
+      // If the payload is valid, we will have a valid UID
+      if (universal_id != xpti::invalid_uid) {
+        m_top = true;
+        m_uid = universal_id;
+        xptiSetUniversalId(m_uid); // Set TLS with the UID
+      }
+    }
+  }
+  // Payload is queries each time and returned if the universal ID is valid
+  const payload_t *payload() {
+    if (m_uid != xpti::invalid_uid)
+      return xptiQueryPayloadByUID(m_uid);
+    else
+      return nullptr;
+  }
+
+  ~checkpoint_t() {
+    // If tracing is not enabled, don't do anything
+    if (!xptiTraceEnabled())
+      return;
+
+    if (m_top) {
+      xptiSetUniversalId(xpti::invalid_uid);
+    }
+  }
+
+private:
+  /// The payload data structure that is prepared from code_location(),
+  /// caller_callee string or kernel name/codepointer based on the opt-in
+  /// flag.
+  uint64_t m_uid = xpti::invalid_uid;
+  /// Indicates if the Payload was added to TLS by current instance
+  bool m_top = false;
 };
 } // namespace framework
 } // namespace xpti

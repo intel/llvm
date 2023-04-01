@@ -14,7 +14,6 @@
 #include "index/Index.h"
 #include "index/Relation.h"
 #include "index/Serialization.h"
-#include "index/dex/Dex.h"
 #include "index/remote/Client.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallVector.h"
@@ -22,6 +21,7 @@
 #include "llvm/LineEditor/LineEditor.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Signals.h"
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -414,6 +414,13 @@ int main(int argc, const char *argv[]) {
   using namespace clang::clangd;
 
   llvm::cl::ParseCommandLineOptions(argc, argv, Overview);
+
+  // Preserve global options when flag parser is reset, so commands can use
+  // them.
+  IndexLocation.setValue(IndexLocation, /*initial=*/true);
+  ExecCommand.setValue(ExecCommand, /*initial=*/true);
+  ProjectRoot.setValue(ProjectRoot, /*initial=*/true);
+
   llvm::cl::ResetCommandLineParser(); // We reuse it for REPL commands.
   llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
 
@@ -436,6 +443,6 @@ int main(int argc, const char *argv[]) {
     return runCommand(ExecCommand, *Index) ? 0 : 1;
 
   llvm::LineEditor LE("dexp");
-  while (llvm::Optional<std::string> Request = LE.readLine())
+  while (std::optional<std::string> Request = LE.readLine())
     runCommand(std::move(*Request), *Index);
 }

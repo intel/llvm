@@ -2,18 +2,17 @@
 # RUN: rm -rf %t; split-file %s %t
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/test.s -o %t/test.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/more-foo.s -o %t/more-foo.o
-# RUN: %lld -dylib --deduplicate-literals %t/test.o %t/more-foo.o -o %t/test
+# RUN: %lld -dylib %t/test.o %t/more-foo.o -o %t/test
 # RUN: llvm-objdump --macho --section="__TEXT,__cstring" %t/test | \
 # RUN:   FileCheck %s --check-prefix=STR --implicit-check-not foo --implicit-check-not bar
 # RUN: llvm-objdump --macho --section="__DATA,ptrs" --syms %t/test | FileCheck %s
 # RUN: llvm-readobj --section-headers %t/test | FileCheck %s --check-prefix=HEADER
 
-## Make sure we only have 3 deduplicated strings in __cstring, and that they
-## are 16-byte-aligned.
+## Make sure we only have 3 deduplicated strings in __cstring.
 # STR: Contents of (__TEXT,__cstring) section
-# STR: {{.*}}0 foo
-# STR: {{.*}}0 barbaz
-# STR: {{.*}}0 {{$}}
+# STR: {{[[:xdigit:]]+}} foo
+# STR: {{[[:xdigit:]]+}} barbaz
+# STR: {{[[:xdigit:]]+}} {{$}}
 
 ## Make sure both symbol and section relocations point to the right thing.
 # CHECK:      Contents of (__DATA,ptrs) section

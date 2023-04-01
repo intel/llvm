@@ -1,8 +1,8 @@
-// RUN: mlir-opt %s --gpu-to-llvm | FileCheck %s
+// RUN: mlir-opt %s --gpu-to-llvm='use-opaque-pointers=1' | FileCheck %s
 
 module attributes {gpu.container_module} {
 
-  func @foo() {
+  func.func @foo() {
     // CHECK: %[[t0:.*]] = llvm.call @mgpuStreamCreate
     // CHECK: %[[e0:.*]] = llvm.call @mgpuEventCreate
     // CHECK: llvm.call @mgpuEventRecord(%[[e0]], %[[t0]])

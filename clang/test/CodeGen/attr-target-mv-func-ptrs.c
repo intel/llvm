@@ -8,7 +8,7 @@ int __attribute__((target("default"))) foo(int i) { return 2; }
 typedef int (*FuncPtr)(int);
 void func(FuncPtr);
 
-int bar() {
+int bar(void) {
   func(foo);
   FuncPtr Free = &foo;
   FuncPtr Free2 = foo;
@@ -17,7 +17,7 @@ int bar() {
   return Free(1) + Free(2);
 }
 
-// LINUX: @foo.ifunc = weak_odr ifunc i32 (i32), i32 (i32)* ()* @foo.resolver
+// LINUX: @foo.ifunc = weak_odr ifunc i32 (i32), ptr @foo.resolver
 // LINUX: define{{.*}} i32 @foo.sse4.2(
 // LINUX: ret i32 0
 // LINUX: define{{.*}} i32 @foo.arch_ivybridge(
@@ -33,14 +33,14 @@ int bar() {
 // WINDOWS: ret i32 2
 
 // LINUX: define{{.*}} i32 @bar()
-// LINUX: call void @func(i32 (i32)* @foo.ifunc)
-// LINUX: store i32 (i32)* @foo.ifunc
-// LINUX: store i32 (i32)* @foo.ifunc
+// LINUX: call void @func(ptr noundef @foo.ifunc)
+// LINUX: store ptr @foo.ifunc
+// LINUX: store ptr @foo.ifunc
 
 // WINDOWS: define dso_local i32 @bar()
-// WINDOWS: call void @func(i32 (i32)* @foo.resolver)
-// WINDOWS: store i32 (i32)* @foo.resolver
-// WINDOWS: store i32 (i32)* @foo.resolver
+// WINDOWS: call void @func(ptr noundef @foo.resolver)
+// WINDOWS: store ptr @foo.resolver
+// WINDOWS: store ptr @foo.resolver
 
 // LINUX: declare i32 @foo.arch_sandybridge(
 

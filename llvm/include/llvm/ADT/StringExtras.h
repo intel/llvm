@@ -5,9 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file contains some functions that are useful when dealing with strings.
-//
+///
+/// \file
+/// This file contains some functions that are useful when dealing with strings.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_STRINGEXTRAS_H
@@ -148,13 +149,14 @@ inline char toUpper(char x) {
   return x;
 }
 
-inline std::string utohexstr(uint64_t X, bool LowerCase = false) {
+inline std::string utohexstr(uint64_t X, bool LowerCase = false,
+                             unsigned Width = 0) {
   char Buffer[17];
   char *BufPtr = std::end(Buffer);
 
   if (X == 0) *--BufPtr = '0';
 
-  while (X) {
+  for (unsigned i = 0; Width ? (i < Width) : X; ++i) {
     unsigned char Mod = static_cast<unsigned char>(X) & 15;
     *--BufPtr = hexdigit(Mod, LowerCase);
     X >>= 4;
@@ -449,14 +451,8 @@ template <typename T> inline size_t join_one_item_size(const T &Str) {
   return Str.size();
 }
 
-inline size_t join_items_size() { return 0; }
-
-template <typename A1> inline size_t join_items_size(const A1 &A) {
-  return join_one_item_size(A);
-}
-template <typename A1, typename... Args>
-inline size_t join_items_size(const A1 &A, Args &&... Items) {
-  return join_one_item_size(A) + join_items_size(std::forward<Args>(Items)...);
+template <typename... Args> inline size_t join_items_size(Args &&...Items) {
+  return (0 + ... + join_one_item_size(std::forward<Args>(Items)));
 }
 
 } // end namespace detail

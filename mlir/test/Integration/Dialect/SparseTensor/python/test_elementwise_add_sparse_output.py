@@ -1,16 +1,12 @@
-# RUN: SUPPORT_LIB=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext %PYTHON %s | FileCheck %s
+# RUN: env SUPPORT_LIB=%mlir_c_runner_utils %PYTHON %s | FileCheck %s
 
 import ctypes
 import numpy as np
 import os
 import sys
 
-import mlir.all_passes_registration
-
 from mlir import ir
 from mlir import runtime as rt
-from mlir import execution_engine
-from mlir import passmanager
 from mlir.dialects import sparse_tensor as st
 from mlir.dialects import builtin
 from mlir.dialects.linalg.opdsl import lang as dsl
@@ -18,6 +14,7 @@ from mlir.dialects.linalg.opdsl import lang as dsl
 _SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(_SCRIPT_PATH)
 from tools import np_to_sparse_tensor as test_tools
+from tools import sparse_compiler
 
 # TODO: Use linalg_structured_op to generate the kernel after making it to
 # handle sparse tensor outputs.
@@ -36,11 +33,9 @@ _KERNEL_STR = """
   doc = "X(i,j) = A(i,j) + B(i,j)"
 }
 
-func @sparse_add_elt(
+func.func @sparse_add_elt(
     %arga: tensor<3x4xf64, #DCSR>, %argb: tensor<3x4xf64, #DCSR>) -> tensor<3x4xf64, #DCSR> {
-  %c3 = arith.constant 3 : index
-  %c4 = arith.constant 4 : index
-  %argx = sparse_tensor.init [%c3, %c4] : tensor<3x4xf64, #DCSR>
+  %argx = bufferization.alloc_tensor() : tensor<3x4xf64, #DCSR>
   %0 = linalg.generic #trait_add_elt
     ins(%arga, %argb: tensor<3x4xf64, #DCSR>, tensor<3x4xf64, #DCSR>)
     outs(%argx: tensor<3x4xf64, #DCSR>) {
@@ -51,7 +46,7 @@ func @sparse_add_elt(
   return %0 : tensor<3x4xf64, #DCSR>
 }
 
-func @main(%ad: tensor<3x4xf64>, %bd: tensor<3x4xf64>) -> tensor<3x4xf64, #DCSR>
+func.func @main(%ad: tensor<3x4xf64>, %bd: tensor<3x4xf64>) -> tensor<3x4xf64, #DCSR>
   attributes { llvm.emit_c_interface } {
   %a = sparse_tensor.convert %ad : tensor<3x4xf64> to tensor<3x4xf64, #DCSR>
   %b = sparse_tensor.convert %bd : tensor<3x4xf64> to tensor<3x4xf64, #DCSR>
@@ -61,34 +56,12 @@ func @main(%ad: tensor<3x4xf64>, %bd: tensor<3x4xf64>) -> tensor<3x4xf64, #DCSR>
 """
 
 
-class _SparseCompiler:
-  """Sparse compiler passes."""
-
-  def __init__(self):
-    self.pipeline = (
-        f'sparsification,'
-        f'sparse-tensor-conversion,'
-        f'builtin.func(linalg-bufferize,convert-linalg-to-loops,convert-vector-to-scf),'
-        f'convert-scf-to-std,'
-        f'func-bufferize,'
-        f'tensor-constant-bufferize,'
-        f'builtin.func(tensor-bufferize,std-bufferize,finalizing-bufferize),'
-        f'convert-vector-to-llvm{{reassociate-fp-reductions=1 enable-index-optimizations=1}},'
-        f'lower-affine,'
-        f'convert-memref-to-llvm,'
-        f'convert-std-to-llvm,'
-        f'reconcile-unrealized-casts')
-
-  def __call__(self, module: ir.Module):
-    passmanager.PassManager.parse(self.pipeline).run(module)
-
-
 def _run_test(support_lib, kernel):
   """Compiles, runs and checks results."""
+  compiler = sparse_compiler.SparseCompiler(
+      options='', opt_level=2, shared_libs=[support_lib])
   module = ir.Module.parse(kernel)
-  _SparseCompiler()(module)
-  engine = execution_engine.ExecutionEngine(
-      module, opt_level=0, shared_libs=[support_lib])
+  engine = compiler.compile_and_jit(module)
 
   # Set up numpy inputs and buffer for output.
   a = np.array(

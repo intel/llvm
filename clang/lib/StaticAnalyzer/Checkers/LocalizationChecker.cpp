@@ -29,6 +29,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 #include "llvm/Support/Unicode.h"
+#include <optional>
 
 using namespace clang;
 using namespace ento;
@@ -92,7 +93,7 @@ public:
   // When this parameter is set to true, the checker assumes all
   // methods that return NSStrings are unlocalized. Thus, more false
   // positives will be reported.
-  DefaultBool IsAggressive;
+  bool IsAggressive = false;
 
   void checkPreObjCMessage(const ObjCMethodCall &msg, CheckerContext &C) const;
   void checkPostObjCMessage(const ObjCMethodCall &msg, CheckerContext &C) const;
@@ -1004,8 +1005,8 @@ NonLocalizedStringBRVisitor::VisitNode(const ExplodedNode *Succ,
   if (Satisfied)
     return nullptr;
 
-  Optional<StmtPoint> Point = Succ->getLocation().getAs<StmtPoint>();
-  if (!Point.hasValue())
+  std::optional<StmtPoint> Point = Succ->getLocation().getAs<StmtPoint>();
+  if (!Point)
     return nullptr;
 
   auto *LiteralExpr = dyn_cast<ObjCStringLiteral>(Point->getStmt());
@@ -1141,12 +1142,12 @@ void EmptyLocalizationContextChecker::MethodCrawler::VisitObjCMessageExpr(
     SE = Mgr.getSourceManager().getSLocEntry(SLInfo.first);
   }
 
-  llvm::Optional<llvm::MemoryBufferRef> BF =
+  std::optional<llvm::MemoryBufferRef> BF =
       Mgr.getSourceManager().getBufferOrNone(SLInfo.first, SL);
   if (!BF)
     return;
-
-  Lexer TheLexer(SL, LangOptions(), BF->getBufferStart(),
+  LangOptions LangOpts;
+  Lexer TheLexer(SL, LangOpts, BF->getBufferStart(),
                  BF->getBufferStart() + SLInfo.second, BF->getBufferEnd());
 
   Token I;

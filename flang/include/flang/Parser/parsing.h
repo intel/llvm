@@ -32,12 +32,14 @@ struct Options {
   int fixedFormColumns{72};
   common::LanguageFeatureControl features;
   std::vector<std::string> searchDirectories;
+  std::vector<std::string> intrinsicModuleDirectories;
   std::vector<Predefinition> predefinitions;
   bool instrumentedParse{false};
   bool isModuleFile{false};
   bool needProvenanceRangeToCharBlockMappings{false};
   Fortran::parser::Encoding encoding{Fortran::parser::Encoding::UTF_8};
   bool prescanAndReformat{false}; // -E
+  bool showColors{false};
 };
 
 class Parsing {
@@ -64,9 +66,12 @@ public:
   void ClearLog();
 
   void EmitMessage(llvm::raw_ostream &o, const char *at,
-      const std::string &message, bool echoSourceLine = false) const {
+      const std::string &message, const std::string &prefix,
+      llvm::raw_ostream::Colors color = llvm::raw_ostream::SAVEDCOLOR,
+      bool echoSourceLine = false) const {
     allCooked_.allSources().EmitMessage(o,
-        allCooked_.GetProvenanceRange(CharBlock(at)), message, echoSourceLine);
+        allCooked_.GetProvenanceRange(CharBlock(at)), message, prefix, color,
+        echoSourceLine);
   }
 
 private:

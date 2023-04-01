@@ -80,8 +80,8 @@ struct InputView : std::ranges::view_base {
   constexpr int* end() const { return globalBuff + 8; }
 };
 // TODO: remove these bogus operators
-constexpr bool operator==(const cpp20_input_iterator<int*> &lhs, int* rhs) { return lhs.base() == rhs; }
-constexpr bool operator==(int* lhs, const cpp20_input_iterator<int*> &rhs) { return rhs.base() == lhs; }
+constexpr bool operator==(const cpp20_input_iterator<int*> &lhs, int* rhs) { return base(lhs) == rhs; }
+constexpr bool operator==(int* lhs, const cpp20_input_iterator<int*> &rhs) { return base(rhs) == lhs; }
 
 struct Range {
   int *begin() const;
@@ -92,6 +92,17 @@ using CountedIter = stride_counting_iterator<forward_iterator<int*>>;
 struct CountedView : std::ranges::view_base {
   constexpr CountedIter begin() const { return CountedIter(ForwardIter(globalBuff)); }
   constexpr CountedIter end() const { return CountedIter(ForwardIter(globalBuff + 8)); }
+};
+
+struct View : std::ranges::view_base {
+  constexpr explicit View(int* b, int* e) : begin_(b), end_(e) { }
+
+  constexpr int* begin() const { return begin_; }
+  constexpr int* end() const { return end_; }
+
+private:
+  int* begin_;
+  int* end_;
 };
 
 #endif // TEST_STD_RANGES_RANGE_ADAPTORS_RANGE_DROP_TYPES_H

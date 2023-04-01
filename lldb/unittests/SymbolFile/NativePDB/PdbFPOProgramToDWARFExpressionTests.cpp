@@ -15,6 +15,7 @@
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/StreamString.h"
+#include "llvm/DebugInfo/DIContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 
 using namespace lldb;
@@ -39,7 +40,7 @@ CheckValidProgramTranslation(llvm::StringRef fpo_program,
   std::string result;
   llvm::raw_string_ostream os(result);
   llvm::DWARFExpression(extractor, /*AddressSize=*/4, llvm::dwarf::DWARF32)
-      .print(os, llvm::DIDumpOptions(), nullptr, nullptr);
+      .print(os, llvm::DIDumpOptions(), nullptr);
 
   // actual check
   ASSERT_EQ(expected_dwarf_expression, os.str());

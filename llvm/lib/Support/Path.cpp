@@ -22,7 +22,6 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Signals.h"
 #include <cctype>
-#include <cstring>
 
 #if !defined(_MSC_VER) && !defined(__MINGW32__)
 #include <unistd.h>
@@ -761,14 +760,18 @@ bool remove_dots(SmallVectorImpl<char> &the_path, bool remove_dot_dot,
     }
   }
 
+  SmallString<256> buffer = root;
+  // "root" could be "/", which may need to be translated into "\".
+  make_preferred(buffer, style);
+  needs_change |= root != buffer;
+
   // Avoid rewriting the path unless we have to.
   if (!needs_change)
     return false;
 
-  SmallString<256> buffer = root;
   if (!components.empty()) {
     buffer += components[0];
-    for (StringRef C : makeArrayRef(components).drop_front()) {
+    for (StringRef C : ArrayRef(components).drop_front()) {
       buffer += preferred_separator(style);
       buffer += C;
     }
@@ -1051,7 +1054,7 @@ ErrorOr<MD5::MD5Result> md5_contents(int FD) {
     BytesRead = read(FD, Buf.data(), BufSize);
     if (BytesRead <= 0)
       break;
-    Hash.update(makeArrayRef(Buf.data(), BytesRead));
+    Hash.update(ArrayRef(Buf.data(), BytesRead));
   }
 
   if (BytesRead < 0)
@@ -1178,7 +1181,7 @@ Error readNativeFileToEOF(file_t FileHandle, SmallVectorImpl<char> &Buffer,
   for (;;) {
     Buffer.resize_for_overwrite(Size + ChunkSize);
     Expected<size_t> ReadBytes = readNativeFile(
-        FileHandle, makeMutableArrayRef(Buffer.begin() + Size, ChunkSize));
+        FileHandle, MutableArrayRef(Buffer.begin() + Size, ChunkSize));
     if (!ReadBytes)
       return ReadBytes.takeError();
     if (*ReadBytes == 0)
@@ -1202,6 +1205,7 @@ Error readNativeFileToEOF(file_t FileHandle, SmallVectorImpl<char> &Buffer,
 namespace llvm {
 namespace sys {
 namespace fs {
+
 TempFile::TempFile(StringRef Name, int FD)
     : TmpName(std::string(Name)), FD(FD) {}
 TempFile::TempFile(TempFile &&Other) { *this = std::move(Other); }
@@ -1254,7 +1258,8 @@ Error TempFile::keep(const Twine &Name) {
 #ifdef _WIN32
   // If we can't cancel the delete don't rename.
   auto H = reinterpret_cast<HANDLE>(_get_osfhandle(FD));
-  std::error_code RenameEC = setDeleteDisposition(H, false);
+  std::error_code RenameEC =
+      RemoveOnClose ? std::error_code() : setDeleteDisposition(H, false);
   bool ShouldDelete = false;
   if (!RenameEC) {
     RenameEC = rename_handle(H, Name);

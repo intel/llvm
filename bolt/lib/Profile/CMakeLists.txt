@@ -7,9 +7,15 @@ add_llvm_library(LLVMBOLTProfile
   YAMLProfileReader.cpp
   YAMLProfileWriter.cpp
 
+  DISABLE_LLVM_LINK_LLVM_DYLIB
+
   LINK_COMPONENTS
-  BOLTCore
-  BOLTPasses
-  BOLTUtils
   Support
+  )
+
+target_link_libraries(LLVMBOLTProfile
+  PRIVATE
+  LLVMBOLTCore
+  LLVMBOLTPasses
+  LLVMBOLTUtils
   )

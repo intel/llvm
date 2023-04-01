@@ -1,12 +1,12 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s -o %t.out
-// RUN: %clangxx -fsycl -fsyntax-only -fsycl-targets=spir64_fpga %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
+// RUN: %clangxx -fsycl -fsyntax-only -fsycl-targets=spir64_fpga %s
 
 // When using zero dimension accessors with atomic access we
 // want to make sure they are compiling correctly on all devices,
 // especially FPGA which changes some of the template specializations
 // with the __ENABLE_USM_ADDR_SPACE__ macro.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -19,7 +19,7 @@ void store(atomic_t foo, int value) { foo.store(value); }
 
 int main(int argc, char *argv[]) {
 
-  queue q(default_selector{});
+  queue q(default_selector_v);
 
   // Accessor with dimensionality 0.
   {

@@ -248,6 +248,7 @@
 #include "llvm/Support/Path.h"
 #include <algorithm>
 #include <iterator>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -310,13 +311,12 @@ cl::desc("Only warn if #include directives are inside extern or namespace"
 
 // Option for include paths for coverage check.
 static cl::list<std::string>
-IncludePaths("I", cl::desc("Include path for coverage check."),
-cl::ZeroOrMore, cl::value_desc("path"));
+    IncludePaths("I", cl::desc("Include path for coverage check."),
+                 cl::value_desc("path"));
 
 // Option for disabling the coverage check.
-static cl::opt<bool>
-NoCoverageCheck("no-coverage-check", cl::init(false),
-cl::desc("Don't do the coverage check."));
+static cl::opt<bool> NoCoverageCheck("no-coverage-check",
+                                     cl::desc("Don't do the coverage check."));
 
 // Option for just doing the coverage check.
 static cl::opt<bool>
@@ -481,7 +481,7 @@ struct HeaderEntry {
 
 typedef std::vector<HeaderEntry> HeaderContents;
 
-class EntityMap : public StringMap<SmallVector<Entry, 2> > {
+class EntityMap : public std::map<std::string, SmallVector<Entry, 2>> {
 public:
   DenseMap<const FileEntry *, HeaderContents> HeaderContentMismatches;
 
@@ -562,10 +562,7 @@ public:
   bool TraverseTemplateArgumentLoc(const TemplateArgumentLoc &ArgLoc) {
     return true;
   }
-  bool TraverseTemplateArguments(const TemplateArgument *Args,
-                                 unsigned NumArgs) {
-    return true;
-  }
+  bool TraverseTemplateArguments(ArrayRef<TemplateArgument>) { return true; }
   bool TraverseConstructorInitializer(CXXCtorInitializer *Init) { return true; }
   bool TraverseLambdaCapture(LambdaExpr *LE, const LambdaCapture *C,
                              Expr *Init) {
@@ -751,10 +748,7 @@ public:
   bool TraverseTemplateArgumentLoc(const TemplateArgumentLoc &ArgLoc) {
     return true;
   }
-  bool TraverseTemplateArguments(const TemplateArgument *Args,
-    unsigned NumArgs) {
-    return true;
-  }
+  bool TraverseTemplateArguments(ArrayRef<TemplateArgument>) { return true; }
   bool TraverseConstructorInitializer(CXXCtorInitializer *Init) { return true; }
   bool TraverseLambdaCapture(LambdaExpr *LE, const LambdaCapture *C,
                              Expr *Init) {
@@ -942,7 +936,7 @@ int main(int Argc, const char **Argv) {
         continue;
       LocationArray::iterator FI = DI->begin();
       StringRef kindName = Entry::getKindName((Entry::EntryKind)KindIndex);
-      errs() << "error: " << kindName << " '" << E->first()
+      errs() << "error: " << kindName << " '" << E->first
              << "' defined at multiple locations:\n";
       for (LocationArray::iterator FE = DI->end(); FI != FE; ++FI) {
         errs() << "    " << FI->File->getName() << ":" << FI->Line << ":"

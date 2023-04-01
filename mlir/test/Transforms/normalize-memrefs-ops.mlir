@@ -15,7 +15,7 @@
 
 // CHECK-LABEL: test_norm
 // CHECK-SAME: (%[[ARG0:.*]]: memref<1x16x1x1x32x64xf32>)
-func @test_norm(%arg0 : memref<1x16x14x14xf32, #map0>) -> () {
+func.func @test_norm(%arg0 : memref<1x16x14x14xf32, #map0>) -> () {
     %0 = memref.alloc() : memref<1x16x14x14xf32, #map0>
     "test.op_norm"(%arg0, %0) : (memref<1x16x14x14xf32, #map0>, memref<1x16x14x14xf32, #map0>) -> ()
     memref.dealloc %0 :  memref<1x16x14x14xf32, #map0>
@@ -29,15 +29,33 @@ func @test_norm(%arg0 : memref<1x16x14x14xf32, #map0>) -> () {
 // Same test with op_nonnorm, with maps in the arguments and the operations in the function.
 
 // CHECK-LABEL: test_nonnorm
-// CHECK-SAME: (%[[ARG0:.*]]: memref<1x16x14x14xf32, #map>)
-func @test_nonnorm(%arg0 : memref<1x16x14x14xf32, #map0>) -> () {
+// CHECK-SAME: (%[[ARG0:.*]]: memref<1x16x14x14xf32, #[[MAP:.*]]>)
+func.func @test_nonnorm(%arg0 : memref<1x16x14x14xf32, #map0>) -> () {
     %0 = memref.alloc() : memref<1x16x14x14xf32, #map0>
     "test.op_nonnorm"(%arg0, %0) : (memref<1x16x14x14xf32, #map0>, memref<1x16x14x14xf32, #map0>) -> ()
     memref.dealloc %0 :  memref<1x16x14x14xf32, #map0>
 
-    // CHECK: %[[v0:.*]] = memref.alloc() : memref<1x16x14x14xf32, #map>
-    // CHECK: "test.op_nonnorm"(%[[ARG0]], %[[v0]]) : (memref<1x16x14x14xf32, #map>, memref<1x16x14x14xf32, #map>) -> ()
-    // CHECK: memref.dealloc %[[v0]] : memref<1x16x14x14xf32, #map>
+    // CHECK: %[[v0:.*]] = memref.alloc() : memref<1x16x14x14xf32, #[[MAP]]>
+    // CHECK: "test.op_nonnorm"(%[[ARG0]], %[[v0]]) : (memref<1x16x14x14xf32, #[[MAP]]>, memref<1x16x14x14xf32, #[[MAP]]>) -> ()
+    // CHECK: memref.dealloc %[[v0]] : memref<1x16x14x14xf32, #[[MAP]]>
+    return
+}
+
+// Test with op_nonnorm whose memref map layouts are identity. This op_nonnorm
+// does not block the normalization of other operations.
+
+// CHECK-LABEL: test_nonnorm_identity_layout
+// CHECK-SAME: (%[[ARG0:.*]]: memref<1x16x1x1x32x64xf32>)
+func.func @test_nonnorm_identity_layout(%arg0 : memref<1x16x14x14xf32, #map0>) -> () {
+    %0 = memref.alloc() : memref<1x16x14x14xf32>
+    "test.op_nonnorm"(%0, %0) : (memref<1x16x14x14xf32>, memref<1x16x14x14xf32>) -> ()
+    "test.op_norm"(%arg0, %0) : (memref<1x16x14x14xf32, #map0>, memref<1x16x14x14xf32>) -> ()
+    memref.dealloc %0 :  memref<1x16x14x14xf32>
+
+    // CHECK: %[[v0:.*]] = memref.alloc() : memref<1x16x14x14xf32>
+    // CHECK: "test.op_nonnorm"(%[[v0]], %[[v0]]) : (memref<1x16x14x14xf32>, memref<1x16x14x14xf32>) -> ()
+    // CHECK: "test.op_norm"(%[[ARG0]], %[[v0]]) : (memref<1x16x1x1x32x64xf32>, memref<1x16x14x14xf32>) -> ()
+    // CHECK: memref.dealloc %[[v0]] : memref<1x16x14x14xf32>
     return
 }
 
@@ -45,7 +63,7 @@ func @test_nonnorm(%arg0 : memref<1x16x14x14xf32, #map0>) -> () {
 
 // CHECK-LABEL: test_norm_mix
 // CHECK-SAME: (%[[ARG0:.*]]: memref<1x16x1x1x32x64xf32>
-func @test_norm_mix(%arg0 : memref<1x16x1x1x32x64xf32>) -> () {
+func.func @test_norm_mix(%arg0 : memref<1x16x1x1x32x64xf32>) -> () {
     %0 = memref.alloc() : memref<1x16x14x14xf32, #map0>
     "test.op_norm"(%arg0, %0) : (memref<1x16x1x1x32x64xf32>, memref<1x16x14x14xf32, #map0>) -> ()
     memref.dealloc %0 :  memref<1x16x14x14xf32, #map0>
@@ -62,7 +80,7 @@ func @test_norm_mix(%arg0 : memref<1x16x1x1x32x64xf32>) -> () {
 
 // CHECK-LABEL: test_load_store
 // CHECK-SAME: (%[[ARG0:.*]]: memref<1x16x14x14xf32>
-func @test_load_store(%arg0 : memref<1x16x14x14xf32>) -> () {
+func.func @test_load_store(%arg0 : memref<1x16x14x14xf32>) -> () {
     %0 = memref.alloc() : memref<1x16x14x14xf32, #map_tile>
     // CHECK: %[[v0:.*]] = memref.alloc() : memref<1x16x1x1x32x32xf32>
     %1 = memref.alloc() : memref<1x16x14x14xf32>
@@ -94,7 +112,7 @@ func @test_load_store(%arg0 : memref<1x16x14x14xf32>) -> () {
 
 // CHECK-LABEL: test_norm_ret
 // CHECK-SAME: (%[[ARG0:.*]]: memref<1x16x1x1x32x32xf32>) -> (memref<1x16x1x1x32x32xf32>, memref<1x16x14x14xf32>) {
-func @test_norm_ret(%arg0: memref<1x16x14x14xf32, #map_tile>) -> (memref<1x16x14x14xf32, #map_tile>, memref<1x16x14x14xf32>) {
+func.func @test_norm_ret(%arg0: memref<1x16x14x14xf32, #map_tile>) -> (memref<1x16x14x14xf32, #map_tile>, memref<1x16x14x14xf32>) {
     %0 = memref.alloc() : memref<1x16x14x14xf32, #map_tile>
     // CHECK-NEXT: %[[v0:.*]] = memref.alloc() : memref<1x16x1x1x32x32xf32>
     %1, %2 = "test.op_norm_ret"(%arg0) : (memref<1x16x14x14xf32, #map_tile>) -> (memref<1x16x14x14xf32, #map_tile>, memref<1x16x14x14xf32>)
@@ -122,7 +140,7 @@ func @test_norm_ret(%arg0: memref<1x16x14x14xf32, #map_tile>) -> (memref<1x16x14
 
 // CHECK-LABEL: test_norm_reinterpret_cast
 // CHECK-SAME: (%[[ARG0:.*]]: memref<1x32xf32>) -> memref<3x1x1xf32> {
-func @test_norm_reinterpret_cast(%arg0 : memref<3xf32, #map_1d_tile>) -> (memref<3x1x1xf32>) {
+func.func @test_norm_reinterpret_cast(%arg0 : memref<3xf32, #map_1d_tile>) -> (memref<3x1x1xf32>) {
     %0 = memref.alloc() : memref<3xf32>
     "test.op_norm"(%arg0, %0) : (memref<3xf32, #map_1d_tile>, memref<3xf32>) -> ()
     %1 = memref.reinterpret_cast %0 to offset: [0], sizes: [3, 1, 1], strides: [1, 1, 1] : memref<3xf32> to memref<3x1x1xf32>

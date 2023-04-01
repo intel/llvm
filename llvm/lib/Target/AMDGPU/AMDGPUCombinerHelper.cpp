@@ -150,7 +150,7 @@ static bool isInv2Pi(const APFloat &APF) {
 // additional cost to negate them.
 static bool isConstantCostlierToNegate(MachineInstr &MI, Register Reg,
                                        MachineRegisterInfo &MRI) {
-  Optional<FPValueAndVReg> FPValReg;
+  std::optional<FPValueAndVReg> FPValReg;
   if (mi_match(Reg, MRI, m_GFCstOrSplat(FPValReg))) {
     if (FPValReg->Value.isZero() && !FPValReg->Value.isNegative())
       return true;
@@ -373,7 +373,8 @@ void AMDGPUCombinerHelper::applyFoldableFneg(MachineInstr &MI,
     replaceRegWith(MRI, Dst, NegatedMatchInfo);
 
     // Recreate non negated value for other uses of old MatchInfoDst
-    Builder.setInstrAndDebugLoc(MI);
+    auto NextInst = ++MatchInfo->getIterator();
+    Builder.setInstrAndDebugLoc(*NextInst);
     Builder.buildFNeg(MatchInfoDst, NegatedMatchInfo, MI.getFlags());
   }
 

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 //==- queue_parallel_for_generic.cpp - SYCL queue parallel_for interface test -=//
 //
@@ -8,8 +8,8 @@
 //
 //===------------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <type_traits>
 
 template <typename KernelName, std::size_t... Is>

@@ -22,7 +22,9 @@ public:
 
   SBStructuredData(const lldb::EventSP &event_sp);
 
+#ifndef SWIG
   SBStructuredData(const lldb_private::StructuredDataImpl &impl);
+#endif
 
   ~SBStructuredData();
 
@@ -90,6 +92,7 @@ public:
   size_t GetStringValue(char *dst, size_t dst_len) const;
 
 protected:
+  friend class SBAttachInfo;
   friend class SBLaunchInfo;
   friend class SBDebugger;
   friend class SBTarget;

@@ -1,9 +1,12 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
-// RUN: %clang_cc1 -verify -DNO_SYCL %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -DSYCL %s
+// RUN: %clang_cc1 -fsycl-is-host -fsyntax-only -verify -DHOST %s
+// RUN: %clang_cc1 -verify %s
 
-#ifndef NO_SYCL
+// Semantic tests for sycl_device attribute
 
-__attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute only applies to functions}}
+#ifdef SYCL
+
+__attribute__((sycl_device)) // expected-error {{'sycl_device' attribute can only be applied to 'device_global' variables}}
 int N;
 
 __attribute__((sycl_device(3))) // expected-error {{'sycl_device' attribute takes no arguments}}
@@ -35,8 +38,13 @@ __attribute__((sycl_device)) int *func0() { return nullptr; }
 
 __attribute__((sycl_device)) void func2(int *) {}
 
-#else // NO_SYCL
+#elif defined(HOST)
+
+// expected-no-diagnostics
+__attribute__((sycl_device)) void func3() {}
+
+#else
 __attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute ignored}}
 void baz() {}
 
-#endif // NO_SYCL
+#endif

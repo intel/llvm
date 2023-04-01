@@ -70,18 +70,22 @@ bool OCLTypeToSPIRVLegacy::runOnModule(Module &M) {
   return runOCLTypeToSPIRV(M);
 }
 
-OCLTypeToSPIRVBase OCLTypeToSPIRVPass::run(llvm::Module &M,
-                                           llvm::ModuleAnalysisManager &MAM) {
+OCLTypeToSPIRVBase &OCLTypeToSPIRVPass::run(llvm::Module &M,
+                                            llvm::ModuleAnalysisManager &MAM) {
   runOCLTypeToSPIRV(M);
   return *this;
 }
 
-OCLTypeToSPIRVBase::OCLTypeToSPIRVBase() : M(nullptr), Ctx(nullptr) {}
+OCLTypeToSPIRVBase::OCLTypeToSPIRVBase()
+    : BuiltinCallHelper(ManglingRules::None), M(nullptr), Ctx(nullptr) {}
 
 bool OCLTypeToSPIRVBase::runOCLTypeToSPIRV(Module &Module) {
   LLVM_DEBUG(dbgs() << "Enter OCLTypeToSPIRV:\n");
+  initialize(Module);
   M = &Module;
   Ctx = &M->getContext();
+  AdaptedTy.clear();
+  WorkSet.clear();
   auto Src = getSPIRVSource(&Module);
   if (std::get<0>(Src) != spv::SourceLanguageOpenCL_C)
     return false;
@@ -104,45 +108,17 @@ bool OCLTypeToSPIRVBase::runOCLTypeToSPIRV(Module &Module) {
   return false;
 }
 
-void OCLTypeToSPIRVBase::addAdaptedType(Value *V, Type *T) {
+void OCLTypeToSPIRVBase::addAdaptedType(Value *V, Type *Ty) {
   LLVM_DEBUG(dbgs() << "[add adapted type] ";
              V->printAsOperand(dbgs(), true, M);
-             dbgs() << " => " << *T << '\n');
-  AdaptedTy[V] = T;
+             dbgs() << " => " << *Ty << '\n');
+  AdaptedTy[V] = Ty;
 }
 
 void OCLTypeToSPIRVBase::addWork(Function *F) {
   LLVM_DEBUG(dbgs() << "[add work] "; F->printAsOperand(dbgs(), true, M);
              dbgs() << '\n');
   WorkSet.insert(F);
-}
-
-/// Find index of \param V as argument of function call \param CI.
-static unsigned getArgIndex(CallInst *CI, Value *V) {
-  for (unsigned AI = 0, AE = CI->arg_size(); AI != AE; ++AI) {
-    if (CI->getArgOperand(AI) == V)
-      return AI;
-  }
-  llvm_unreachable("Not argument of function call");
-  return ~0U;
-}
-
-/// Find index of \param V as argument of function call \param CI.
-static unsigned getArgIndex(Function *F, Value *V) {
-  auto A = F->arg_begin(), E = F->arg_end();
-  for (unsigned I = 0; A != E; ++I, ++A) {
-    if (&(*A) == V)
-      return I;
-  }
-  llvm_unreachable("Not argument of function");
-  return ~0U;
-}
-
-/// Get i-th argument of a function.
-static Argument *getArg(Function *F, unsigned I) {
-  auto AI = F->arg_begin();
-  std::advance(AI, I);
-  return &(*AI);
 }
 
 /// Create a new function type if \param F has arguments in AdaptedTy, and
@@ -161,12 +137,13 @@ void OCLTypeToSPIRVBase::adaptFunction(Function *F) {
     ArgTys.push_back(Found ? Loc->second : I.getType());
 
     if (Found) {
-      for (auto U : I.users()) {
-        if (auto CI = dyn_cast<CallInst>(U)) {
-          auto ArgIndex = getArgIndex(CI, &I);
+      Type *Ty = Loc->second;
+      for (auto &U : I.uses()) {
+        if (auto *CI = dyn_cast<CallInst>(U.getUser())) {
+          auto ArgIndex = CI->getArgOperandNo(&U);
           auto CF = CI->getCalledFunction();
           if (AdaptedTy.count(CF) == 0) {
-            addAdaptedType(getArg(CF, ArgIndex), Loc->second);
+            addAdaptedType(CF->getArg(ArgIndex), Ty);
             addWork(CF);
           }
         }
@@ -179,7 +156,7 @@ void OCLTypeToSPIRVBase::adaptFunction(Function *F) {
 
   auto FT = F->getFunctionType();
   FT = FunctionType::get(FT->getReturnType(), ArgTys, FT->isVarArg());
-  addAdaptedType(F, FT);
+  addAdaptedType(F, TypedPointerType::get(FT, 0));
 }
 
 // Handle functions with sampler arguments that don't get called by
@@ -204,13 +181,10 @@ void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
           AdaptedTy.count(SamplerArg) != 0) // Already traced this, move on.
         continue;
 
-      if (isSPIRVType(SamplerArg->getType(), kSPIRVTypeName::Sampler))
-        return;
-
-      addAdaptedType(SamplerArg, getSamplerType(&M));
+      addAdaptedType(SamplerArg, getSPIRVType(OpTypeSampler));
       auto Caller = cast<Argument>(SamplerArg)->getParent();
       addWork(Caller);
-      TraceArg(Caller, getArgIndex(Caller, SamplerArg));
+      TraceArg(Caller, cast<Argument>(SamplerArg)->getArgNo());
     }
   };
 
@@ -233,20 +207,28 @@ void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
   if (TypeMD)
     return;
   bool Changed = false;
-  auto FT = F->getFunctionType();
-  auto PI = FT->param_begin();
   auto Arg = F->arg_begin();
-  for (unsigned I = 0; I < F->arg_size(); ++I, ++PI, ++Arg) {
-    auto NewTy = *PI;
-    if (isPointerToOpaqueStructType(NewTy)) {
-      auto STName = NewTy->getPointerElementType()->getStructName();
+  SmallVector<Type *, 4> ParamTys;
+
+  // If we couldn't get any information from demangling, there is nothing that
+  // can be done.
+  if (!getParameterTypes(F, ParamTys))
+    return;
+
+  for (unsigned I = 0; I < F->arg_size(); ++I, ++Arg) {
+    StructType *NewTy = nullptr;
+    if (auto *TPT = dyn_cast<TypedPointerType>(ParamTys[I]))
+      NewTy = dyn_cast_or_null<StructType>(TPT->getElementType());
+    if (NewTy && NewTy->isOpaque()) {
+      auto STName = NewTy->getStructName();
       if (!hasAccessQualifiedName(STName))
         continue;
       if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
         auto Ty = STName.str();
-        auto AccStr = getAccessQualifierFullName(Ty);
-        addAdaptedType(&*Arg, getOrCreateOpaquePtrType(
-                                  M, mapOCLTypeNameToSPIRV(Ty, AccStr)));
+        auto Acc = getAccessQualifier(Ty);
+        auto Desc = getImageDescriptor(ParamTys[I]);
+        addAdaptedType(
+            &*Arg, getSPIRVType(OpTypeImage, Type::getVoidTy(*Ctx), Desc, Acc));
         Changed = true;
       }
     }
@@ -263,24 +245,23 @@ void OCLTypeToSPIRVBase::adaptArgumentsByMetadata(Function *F) {
   if (!TypeMD)
     return;
   bool Changed = false;
-  auto FT = F->getFunctionType();
-  auto PI = FT->param_begin();
   auto Arg = F->arg_begin();
-  for (unsigned I = 0, E = TypeMD->getNumOperands(); I != E; ++I, ++PI, ++Arg) {
+  for (unsigned I = 0, E = TypeMD->getNumOperands(); I != E; ++I, ++Arg) {
     auto OCLTyStr = getMDOperandAsString(TypeMD, I);
-    auto NewTy = *PI;
-    if (OCLTyStr == OCL_TYPE_NAME_SAMPLER_T && !NewTy->isStructTy()) {
-      addAdaptedType(&(*Arg), getSamplerType(M));
+    if (OCLTyStr == OCL_TYPE_NAME_SAMPLER_T) {
+      addAdaptedType(&(*Arg), getSPIRVType(OpTypeSampler));
       Changed = true;
-    } else if (isPointerToOpaqueStructType(NewTy)) {
-      auto STName = NewTy->getPointerElementType()->getStructName();
-      if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
-        auto Ty = STName.str();
+    } else if (OCLTyStr.startswith("image") && OCLTyStr.endswith("_t")) {
+      auto Ty = (Twine("opencl.") + OCLTyStr).str();
+      if (auto *STy = StructType::getTypeByName(F->getContext(), Ty)) {
+        auto *ImageTy = TypedPointerType::get(STy, SPIRAS_Global);
+        auto Desc = getImageDescriptor(ImageTy);
         auto AccMD = F->getMetadata(SPIR_MD_KERNEL_ARG_ACCESS_QUAL);
         assert(AccMD && "Invalid access qualifier metadata");
-        auto AccStr = getMDOperandAsString(AccMD, I);
-        addAdaptedType(&(*Arg), getOrCreateOpaquePtrType(
-                                    M, mapOCLTypeNameToSPIRV(Ty, AccStr)));
+        auto Acc = SPIRSPIRVAccessQualifierMap::map(
+            getMDOperandAsString(AccMD, I).str());
+        addAdaptedType(
+            &*Arg, getSPIRVType(OpTypeImage, Type::getVoidTy(*Ctx), Desc, Acc));
         Changed = true;
       }
     }
@@ -317,17 +298,17 @@ void OCLTypeToSPIRVBase::adaptArgumentsByMetadata(Function *F) {
 // opencl data type x and access qualifier y, and use opencl.image_x.y to
 // represent image_x type with access qualifier y.
 //
-Type *OCLTypeToSPIRVBase::getAdaptedType(Value *V) {
-  auto Loc = AdaptedTy.find(V);
-  if (Loc != AdaptedTy.end())
-    return Loc->second;
-
-  if (auto F = dyn_cast<Function>(V))
-    return F->getFunctionType();
-  return V->getType();
+Type *OCLTypeToSPIRVBase::getAdaptedArgumentType(Function *F, unsigned ArgNo) {
+  Value *Arg = F->getArg(ArgNo);
+  auto Loc = AdaptedTy.find(Arg);
+  if (Loc == AdaptedTy.end())
+    return nullptr;
+  return Loc->second;
 }
 
 } // namespace SPIRV
+
+AnalysisKey OCLTypeToSPIRVPass::Key;
 
 INITIALIZE_PASS(OCLTypeToSPIRVLegacy, "cltytospv", "Adapt OCL types for SPIR-V",
                 false, true)

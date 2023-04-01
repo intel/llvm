@@ -13,6 +13,7 @@
 #include "flang/Common/Fortran.h"
 #include "flang/Common/indirection.h"
 #include "flang/Common/restorer.h"
+#include "flang/Common/visit.h"
 #include "flang/Evaluate/characteristics.h"
 #include "flang/Evaluate/check-expression.h"
 #include "flang/Evaluate/expression.h"
@@ -110,6 +111,8 @@ public:
   semantics::SemanticsContext &context() const { return context_; }
   bool inWhereBody() const { return inWhereBody_; }
   void set_inWhereBody(bool yes = true) { inWhereBody_ = yes; }
+  bool inDataStmtObject() const { return inDataStmtObject_; }
+  void set_inDataStmtObject(bool yes = true) { inDataStmtObject_ = yes; }
 
   FoldingContext &GetFoldingContext() const { return foldingContext_; }
 
@@ -140,12 +143,6 @@ public:
   // When the argument is the name of an active implied DO index, returns
   // its INTEGER kind type parameter.
   std::optional<int> IsImpliedDo(parser::CharBlock) const;
-
-  // Allows a whole assumed-size array to appear for the lifetime of
-  // the returned value.
-  common::Restorer<bool> AllowWholeAssumedSizeArray() {
-    return common::ScopedSet(isWholeAssumedSizeArrayOk_, true);
-  }
 
   common::Restorer<bool> DoNotUseSavedTypedExprs() {
     return common::ScopedSet(useSavedTypedExprs_, false);
@@ -242,6 +239,7 @@ public:
   MaybeExpr Analyze(const parser::StructureConstructor &);
   MaybeExpr Analyze(const parser::InitialDataTarget &);
   MaybeExpr Analyze(const parser::NullInit &);
+  MaybeExpr Analyze(const parser::StmtFunctionStmt &);
 
   void Analyze(const parser::CallStmt &);
   const Assignment *Analyze(const parser::AssignmentStmt &);
@@ -254,7 +252,18 @@ protected:
   int IntegerTypeSpecKind(const parser::IntegerTypeSpec &);
 
 private:
-  MaybeExpr Analyze(const parser::IntLiteralConstant &);
+  // Allows a whole assumed-size array to appear for the lifetime of
+  // the returned value.
+  common::Restorer<bool> AllowWholeAssumedSizeArray() {
+    return common::ScopedSet(isWholeAssumedSizeArrayOk_, true);
+  }
+
+  // Allows an Expr to be a null pointer.
+  common::Restorer<bool> AllowNullPointer() {
+    return common::ScopedSet(isNullPointerOk_, true);
+  }
+
+  MaybeExpr Analyze(const parser::IntLiteralConstant &, bool negated = false);
   MaybeExpr Analyze(const parser::RealLiteralConstant &);
   MaybeExpr Analyze(const parser::ComplexPart &);
   MaybeExpr Analyze(const parser::ComplexLiteralConstant &);
@@ -268,6 +277,7 @@ private:
   MaybeExpr Analyze(const parser::ArrayElement &);
   MaybeExpr Analyze(const parser::CoindexedNamedObject &);
   MaybeExpr Analyze(const parser::CharLiteralConstantSubstring &);
+  MaybeExpr Analyze(const parser::SubstringInquiry &);
   MaybeExpr Analyze(const parser::ArrayConstructor &);
   MaybeExpr Analyze(const parser::FunctionReference &,
       std::optional<parser::StructureConstructor> * = nullptr);
@@ -299,11 +309,7 @@ private:
     return Analyze(x.u); // default case
   }
   template <typename... As> MaybeExpr Analyze(const std::variant<As...> &u) {
-    return std::visit(
-        [&](const auto &x) {
-          return Analyze(x);
-        },
-        u);
+    return common::visit([&](const auto &x) { return Analyze(x); }, u);
   }
 
   // Analysis subroutines
@@ -311,7 +317,8 @@ private:
       const std::optional<parser::KindParam> &, int defaultKind);
   template <typename PARSED>
   MaybeExpr ExprOrVariable(const PARSED &, parser::CharBlock source);
-  template <typename PARSED> MaybeExpr IntLiteralConstant(const PARSED &);
+  template <typename PARSED>
+  MaybeExpr IntLiteralConstant(const PARSED &, bool negated = false);
   MaybeExpr AnalyzeString(std::string &&, int kind);
   std::optional<Expr<SubscriptInteger>> AsSubscript(MaybeExpr &&);
   std::optional<Expr<SubscriptInteger>> TripletPart(
@@ -324,10 +331,14 @@ private:
       DataRef &&, const Symbol &, const semantics::Scope &);
   MaybeExpr CompleteSubscripts(ArrayRef &&);
   MaybeExpr ApplySubscripts(DataRef &&, std::vector<Subscript> &&);
-  MaybeExpr TopLevelChecks(DataRef &&);
+  void CheckConstantSubscripts(ArrayRef &);
+  bool CheckRanks(const DataRef &); // Return false if error exists.
+  bool CheckPolymorphic(const DataRef &); // ditto
+  bool CheckDataRef(const DataRef &); // ditto
   std::optional<Expr<SubscriptInteger>> GetSubstringBound(
       const std::optional<parser::ScalarIntExpr> &);
   MaybeExpr AnalyzeDefinedOp(const parser::Name &, ActualArguments &&);
+  MaybeExpr FixMisparsedSubstring(const parser::Designator &);
 
   struct CalleeAndArguments {
     // A non-component function reference may constitute a misparsed
@@ -338,16 +349,17 @@ private:
   };
 
   std::optional<CalleeAndArguments> AnalyzeProcedureComponentRef(
-      const parser::ProcComponentRef &, ActualArguments &&);
+      const parser::ProcComponentRef &, ActualArguments &&, bool isSubroutine);
   std::optional<characteristics::Procedure> CheckCall(
       parser::CharBlock, const ProcedureDesignator &, ActualArguments &);
   using AdjustActuals =
       std::optional<std::function<bool(const Symbol &, ActualArguments &)>>;
   bool ResolveForward(const Symbol &);
-  std::pair<const Symbol *, bool /* failure due to NULL() actuals */>
-  ResolveGeneric(const Symbol &, const ActualArguments &, const AdjustActuals &,
-      bool mightBeStructureConstructor = false);
-  void EmitGenericResolutionError(const Symbol &, bool dueToNullActuals);
+  std::pair<const Symbol *, bool /* failure due ambiguity */> ResolveGeneric(
+      const Symbol &, const ActualArguments &, const AdjustActuals &,
+      bool isSubroutine, bool mightBeStructureConstructor = false);
+  void EmitGenericResolutionError(
+      const Symbol &, bool dueToNullActuals, bool isSubroutine);
   const Symbol &AccessSpecific(
       const Symbol &originalGeneric, const Symbol &specific);
   std::optional<CalleeAndArguments> GetCalleeAndArguments(const parser::Name &,
@@ -367,14 +379,24 @@ private:
     return evaluate::Fold(foldingContext_, std::move(expr));
   }
   bool CheckIsValidForwardReference(const semantics::DerivedTypeSpec &);
+  MaybeExpr AnalyzeComplex(MaybeExpr &&re, MaybeExpr &&im, const char *what);
+
+  MaybeExpr IterativelyAnalyzeSubexpressions(const parser::Expr &);
 
   semantics::SemanticsContext &context_;
   FoldingContext &foldingContext_{context_.foldingContext()};
   std::map<parser::CharBlock, int> impliedDos_; // values are INTEGER kinds
+  std::map<parser::CharBlock,
+      std::pair<parser::CharBlock, evaluate::characteristics::Procedure>>
+      implicitInterfaces_;
   bool isWholeAssumedSizeArrayOk_{false};
+  bool isNullPointerOk_{false};
   bool useSavedTypedExprs_{true};
   bool inWhereBody_{false};
+  bool inDataStmtObject_{false};
   bool inDataStmtConstant_{false};
+  bool inStmtFunctionDefinition_{false};
+  bool iterativelyAnalyzingSubexpressions_{false};
   friend class ArgumentAnalyzer;
 };
 
@@ -445,6 +467,8 @@ public:
     exprAnalyzer_.Analyze(x);
     return false;
   }
+  bool Pre(const parser::DataStmtObject &);
+  void Post(const parser::DataStmtObject &);
   bool Pre(const parser::DataImpliedDo &);
 
   bool Pre(const parser::CallStmt &x) {
@@ -478,6 +502,12 @@ public:
   void Post(const parser::WhereBodyConstruct &) {
     --whereDepth_;
     exprAnalyzer_.set_inWhereBody(InWhereBody());
+  }
+
+  bool Pre(const parser::ComponentDefStmt &) {
+    // Already analyzed in name resolution and PDT instantiation;
+    // do not attempt to re-analyze now without type parameters.
+    return false;
   }
 
   template <typename A> bool Pre(const parser::Scalar<A> &x) {

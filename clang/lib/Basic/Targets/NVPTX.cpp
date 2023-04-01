@@ -20,13 +20,13 @@
 using namespace clang;
 using namespace clang::targets;
 
-const Builtin::Info NVPTXTargetInfo::BuiltinInfo[] = {
+static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define LIBBUILTIN(ID, TYPE, ATTRS, HEADER)                                    \
-  {#ID, TYPE, ATTRS, HEADER, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::HEADER, ALL_LANGUAGES},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #include "clang/Basic/BuiltinsNVPTX.def"
 };
 
@@ -41,27 +41,11 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
 
   PTXVersion = 32;
   for (const StringRef Feature : Opts.FeaturesAsWritten) {
-    if (!Feature.startswith("+ptx"))
+    int PTXV;
+    if (!Feature.startswith("+ptx") ||
+        Feature.drop_front(4).getAsInteger(10, PTXV))
       continue;
-    PTXVersion = llvm::StringSwitch<unsigned>(Feature)
-                     .Case("+ptx75", 75)
-                     .Case("+ptx74", 74)
-                     .Case("+ptx73", 73)
-                     .Case("+ptx72", 72)
-                     .Case("+ptx71", 71)
-                     .Case("+ptx70", 70)
-                     .Case("+ptx65", 65)
-                     .Case("+ptx64", 64)
-                     .Case("+ptx63", 63)
-                     .Case("+ptx61", 61)
-                     .Case("+ptx60", 60)
-                     .Case("+ptx50", 50)
-                     .Case("+ptx43", 43)
-                     .Case("+ptx42", 42)
-                     .Case("+ptx41", 41)
-                     .Case("+ptx40", 40)
-                     .Case("+ptx32", 32)
-                     .Default(32);
+    PTXVersion = PTXV; // TODO: should it be max(PTXVersion, PTXV)?
   }
 
   TLSSupported = false;
@@ -70,6 +54,9 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   UseAddrSpaceMapMangling = true;
   HasLegalHalfType = true;
   HasFloat16 = true;
+  // __bf16 is always available as a load/store only type.
+  BFloat16Width = BFloat16Align = 16;
+  BFloat16Format = &llvm::APFloat::BFloat();
 
   // Define available target features
   // These must be defined in sorted order!
@@ -108,12 +95,14 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
     default:
       llvm_unreachable("TargetPointerWidth must be 32 or 64");
     }
+
+    MaxAtomicInlineWidth = TargetPointerWidth;
     return;
   }
 
   // Copy properties from host target.
-  PointerWidth = HostTarget->getPointerWidth(/* AddrSpace = */ 0);
-  PointerAlign = HostTarget->getPointerAlign(/* AddrSpace = */ 0);
+  PointerWidth = HostTarget->getPointerWidth(LangAS::Default);
+  PointerAlign = HostTarget->getPointerAlign(LangAS::Default);
   BoolWidth = HostTarget->getBoolWidth();
   BoolAlign = HostTarget->getBoolAlign();
   IntWidth = HostTarget->getIntWidth();
@@ -134,7 +123,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
       HostTarget->getDefaultAlignForAttributeAligned();
   SizeType = HostTarget->getSizeType();
   IntMaxType = HostTarget->getIntMaxType();
-  PtrDiffType = HostTarget->getPtrDiffType(/* AddrSpace = */ 0);
+  PtrDiffType = HostTarget->getPtrDiffType(LangAS::Default);
   IntPtrType = HostTarget->getIntPtrType();
   WCharType = HostTarget->getWCharType();
   WIntType = HostTarget->getWIntType();
@@ -168,7 +157,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
 }
 
 ArrayRef<const char *> NVPTXTargetInfo::getGCCRegNames() const {
-  return llvm::makeArrayRef(GCCRegNames);
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 bool NVPTXTargetInfo::hasFeature(StringRef Feature) const {
@@ -181,8 +170,10 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
   Builder.defineMacro("__PTX__");
   Builder.defineMacro("__NVPTX__");
-  if (Opts.CUDAIsDevice) {
-    // Set __CUDA_ARCH__ for the GPU specified.
+  if (Opts.CUDAIsDevice || Opts.OpenMPIsDevice || Opts.SYCLIsDevice ||
+      !HostTarget) {
+    // Set __CUDA_ARCH__ or __SYCL_CUDA_ARCH__ for the GPU specified.
+    // The SYCL-specific macro is used to distinguish the SYCL and CUDA APIs.
     std::string CUDAArchCode = [this] {
       switch (GPU) {
       case CudaArch::GFX600:
@@ -207,6 +198,7 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       case CudaArch::GFX909:
       case CudaArch::GFX90a:
       case CudaArch::GFX90c:
+      case CudaArch::GFX940:
       case CudaArch::GFX1010:
       case CudaArch::GFX1011:
       case CudaArch::GFX1012:
@@ -217,6 +209,11 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       case CudaArch::GFX1033:
       case CudaArch::GFX1034:
       case CudaArch::GFX1035:
+      case CudaArch::GFX1036:
+      case CudaArch::GFX1100:
+      case CudaArch::GFX1101:
+      case CudaArch::GFX1102:
+      case CudaArch::GFX1103:
       case CudaArch::Generic:
       case CudaArch::LAST:
         break;
@@ -258,14 +255,25 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
         return "800";
       case CudaArch::SM_86:
         return "860";
+      case CudaArch::SM_87:
+        return "870";
+      case CudaArch::SM_89:
+        return "890";
+      case CudaArch::SM_90:
+        return "900";
       }
       llvm_unreachable("unhandled CudaArch");
     }();
-    Builder.defineMacro("__CUDA_ARCH__", CUDAArchCode);
+
+    if (Opts.SYCLIsDevice) {
+      Builder.defineMacro("__SYCL_CUDA_ARCH__", CUDAArchCode);
+    } else {
+      Builder.defineMacro("__CUDA_ARCH__", CUDAArchCode);
+    }
   }
 }
 
 ArrayRef<Builtin::Info> NVPTXTargetInfo::getTargetBuiltins() const {
-  return llvm::makeArrayRef(BuiltinInfo, clang::NVPTX::LastTSBuiltin -
-                                             Builtin::FirstTSBuiltin);
+  return llvm::ArrayRef(BuiltinInfo,
+                        clang::NVPTX::LastTSBuiltin - Builtin::FirstTSBuiltin);
 }

@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // constexpr auto begin()
 //   requires (!(simple-view<V> &&
@@ -39,7 +37,7 @@ struct MaybeSimpleView : std::ranges::view_base {
     return nullptr;
   }
   constexpr int* end() const { return nullptr; }
-  constexpr size_t size() const { return 0; }
+  constexpr std::size_t size() const { return 0; }
 };
 
 using SimpleView = MaybeSimpleView<true>;
@@ -52,11 +50,11 @@ constexpr bool test() {
 
   // !random_access_range<const V>
   std::ranges::drop_view dropView2(ForwardView(), 4);
-  assert(dropView2.begin().base() == globalBuff + 4);
+  assert(base(dropView2.begin()) == globalBuff + 4);
 
   // !random_access_range<const V>
   std::ranges::drop_view dropView3(InputView(), 4);
-  assert(dropView3.begin().base() == globalBuff + 4);
+  assert(base(dropView3.begin()) == globalBuff + 4);
 
   // random_access_range<const V> && sized_range<const V>
   std::ranges::drop_view dropView4(MoveOnlyView(), 8);
@@ -76,9 +74,9 @@ constexpr bool test() {
 
   CountedView view8;
   std::ranges::drop_view dropView8(view8, 5);
-  assert(dropView8.begin().base().base() == globalBuff + 5);
+  assert(base(base(dropView8.begin())) == globalBuff + 5);
   assert(dropView8.begin().stride_count() == 5);
-  assert(dropView8.begin().base().base() == globalBuff + 5);
+  assert(base(base(dropView8.begin())) == globalBuff + 5);
   assert(dropView8.begin().stride_count() == 5);
 
   static_assert(!BeginInvocable<const ForwardView>);

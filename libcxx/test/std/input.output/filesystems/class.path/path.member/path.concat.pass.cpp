@@ -9,7 +9,7 @@
 // UNSUPPORTED: c++03
 
 // These tests require locale for non-char paths
-// UNSUPPORTED: libcpp-has-no-localization
+// UNSUPPORTED: no-localization
 
 // <filesystem>
 
@@ -327,7 +327,7 @@ void test_sfinae() {
     static_assert(has_concat<It>(), "");
   }
   {
-    using It = output_iterator<const char*>;
+    using It = cpp17_output_iterator<const char*>;
     static_assert(!has_concat<It>(), "");
   }
   {

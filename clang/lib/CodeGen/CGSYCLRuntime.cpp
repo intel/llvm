@@ -44,8 +44,8 @@ static bool isPFWI(const FunctionDecl &FD) {
   if (!MD)
     return false;
   static std::array<Util::DeclContextDesc, 3> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "_V1"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, "group"}};
   if (!Util::matchQualifiedTypeName(MD->getParent(), Scopes))
     return false;

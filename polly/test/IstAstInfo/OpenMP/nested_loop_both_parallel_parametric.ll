@@ -1,5 +1,5 @@
-; RUN: opt %loadPolly -polly-ast -polly-parallel -polly-parallel-force -analyze < %s | FileCheck %s
-; RUN: opt %loadPolly -polyhedral-info -polly-check-parallel -analyze < %s | FileCheck %s -check-prefix=PINFO
+; RUN: opt %loadPolly -polly-print-ast -polly-parallel -polly-parallel-force -disable-output < %s | FileCheck %s
+; RUN: opt %loadPolly -print-polyhedral-info -polly-check-parallel -disable-output < %s | FileCheck %s -check-prefix=PINFO
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
 ; int A[1024][1024];
 ; void bar(int n) {
@@ -24,8 +24,8 @@ loop.j:
   br i1 %exitcond.j, label %loop.body, label %loop.i.backedge
 
 loop.body:
-  %scevgep = getelementptr [1024 x [1024 x i32] ], [1024 x [1024 x i32] ]* @A, i64 0, i64 %j, i64 %i
-  store i32 1, i32* %scevgep
+  %scevgep = getelementptr [1024 x [1024 x i32] ], ptr @A, i64 0, i64 %j, i64 %i
+  store i32 1, ptr %scevgep
   br label %loop.j.backedge
 
 loop.j.backedge:

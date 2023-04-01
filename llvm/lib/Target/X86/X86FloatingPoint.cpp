@@ -99,17 +99,17 @@ namespace {
     // but the exact mapping of FP registers to stack slots is fixed later.
     struct LiveBundle {
       // Bit mask of live FP registers. Bit 0 = FP0, bit 1 = FP1, &c.
-      unsigned Mask;
+      unsigned Mask = 0;
 
       // Number of pre-assigned live registers in FixStack. This is 0 when the
       // stack order has not yet been fixed.
-      unsigned FixCount;
+      unsigned FixCount = 0;
 
       // Assigned stack order for live-in registers.
       // FixStack[i] == getStackEntry(i) for all i < FixCount.
       unsigned char FixStack[8];
 
-      LiveBundle() : Mask(0), FixCount(0) {}
+      LiveBundle() = default;
 
       // Have the live registers been assigned a stack order yet?
       bool isFixed() const { return !Mask || FixCount; }
@@ -866,7 +866,7 @@ void FPS::popStackAfter(MachineBasicBlock::iterator &I) {
   if (Opcode != -1) {
     I->setDesc(TII->get(Opcode));
     if (Opcode == X86::FCOMPP || Opcode == X86::UCOM_FPPr)
-      I->RemoveOperand(0);
+      I->removeOperand(0);
     MI.dropDebugNumber();
   } else {    // Insert an explicit pop
     // If this instruction sets FPSW, which is read in following instruction,
@@ -931,8 +931,8 @@ void FPS::adjustLiveRegs(unsigned Mask, MachineBasicBlock::iterator I) {
 
   // Produce implicit-defs for free by using killed registers.
   while (Kills && Defs) {
-    unsigned KReg = countTrailingZeros(Kills);
-    unsigned DReg = countTrailingZeros(Defs);
+    unsigned KReg = llvm::countr_zero(Kills);
+    unsigned DReg = llvm::countr_zero(Defs);
     LLVM_DEBUG(dbgs() << "Renaming %fp" << KReg << " as imp %fp" << DReg
                       << "\n");
     std::swap(Stack[getSlot(KReg)], Stack[getSlot(DReg)]);
@@ -956,7 +956,7 @@ void FPS::adjustLiveRegs(unsigned Mask, MachineBasicBlock::iterator I) {
 
   // Manually kill the rest.
   while (Kills) {
-    unsigned KReg = countTrailingZeros(Kills);
+    unsigned KReg = llvm::countr_zero(Kills);
     LLVM_DEBUG(dbgs() << "Killing %fp" << KReg << "\n");
     freeStackSlotBefore(I, KReg);
     Kills &= ~(1 << KReg);
@@ -964,7 +964,7 @@ void FPS::adjustLiveRegs(unsigned Mask, MachineBasicBlock::iterator I) {
 
   // Load zeros for all the imp-defs.
   while(Defs) {
-    unsigned DReg = countTrailingZeros(Defs);
+    unsigned DReg = llvm::countr_zero(Defs);
     LLVM_DEBUG(dbgs() << "Defining %fp" << DReg << " as 0\n");
     BuildMI(*MBB, I, DebugLoc(), TII->get(X86::LD_F0));
     pushReg(DReg);
@@ -973,7 +973,7 @@ void FPS::adjustLiveRegs(unsigned Mask, MachineBasicBlock::iterator I) {
 
   // Now we should have the correct registers live.
   LLVM_DEBUG(dumpStack());
-  assert(StackTop == countPopulation(Mask) && "Live count mismatch");
+  assert(StackTop == (unsigned)llvm::popcount(Mask) && "Live count mismatch");
 }
 
 /// shuffleStackTop - emit fxch instructions before I to shuffle the top
@@ -1034,7 +1034,7 @@ void FPS::handleCall(MachineBasicBlock::iterator &I) {
       STReturns |= 1 << getFPReg(Op);
 
     // Remove the operand so that later passes don't see it.
-    MI.RemoveOperand(i);
+    MI.removeOperand(i);
     --i;
     --e;
   }
@@ -1047,7 +1047,7 @@ void FPS::handleCall(MachineBasicBlock::iterator &I) {
   if (!ClobbersFPStack)
     return;
 
-  unsigned N = countTrailingOnes(STReturns);
+  unsigned N = llvm::countr_one(STReturns);
 
   // FP registers used for function return must be consecutive starting at
   // FP0
@@ -1098,7 +1098,7 @@ void FPS::handleReturn(MachineBasicBlock::iterator &I) {
     LiveMask |= (1 << getFPReg(Op));
 
     // Remove the operand so that later passes don't see it.
-    MI.RemoveOperand(i);
+    MI.removeOperand(i);
     --i;
     --e;
   }
@@ -1162,7 +1162,7 @@ void FPS::handleZeroArgFP(MachineBasicBlock::iterator &I) {
   unsigned DestReg = getFPReg(MI.getOperand(0));
 
   // Change from the pseudo instruction to the concrete instruction.
-  MI.RemoveOperand(0); // Remove the explicit ST(0) operand
+  MI.removeOperand(0); // Remove the explicit ST(0) operand
   MI.setDesc(TII->get(getConcreteOpcode(MI.getOpcode())));
   MI.addOperand(
       MachineOperand::CreateReg(X86::ST0, /*isDef*/ true, /*isImp*/ true));
@@ -1210,7 +1210,7 @@ void FPS::handleOneArgFP(MachineBasicBlock::iterator &I) {
   }
 
   // Convert from the pseudo instruction to the concrete instruction.
-  MI.RemoveOperand(NumOps - 1); // Remove explicit ST(0) operand
+  MI.removeOperand(NumOps - 1); // Remove explicit ST(0) operand
   MI.setDesc(TII->get(getConcreteOpcode(MI.getOpcode())));
   MI.addOperand(
       MachineOperand::CreateReg(X86::ST0, /*isDef*/ false, /*isImp*/ true));
@@ -1263,8 +1263,8 @@ void FPS::handleOneArgFPRW(MachineBasicBlock::iterator &I) {
   }
 
   // Change from the pseudo instruction to the concrete instruction.
-  MI.RemoveOperand(1); // Drop the source operand.
-  MI.RemoveOperand(0); // Drop the destination operand.
+  MI.removeOperand(1); // Drop the source operand.
+  MI.removeOperand(0); // Drop the destination operand.
   MI.setDesc(TII->get(getConcreteOpcode(MI.getOpcode())));
   MI.dropDebugNumber();
 }
@@ -1464,7 +1464,7 @@ void FPS::handleCompareFP(MachineBasicBlock::iterator &I) {
 
   // Change from the pseudo instruction to the concrete instruction.
   MI.getOperand(0).setReg(getSTReg(Op1));
-  MI.RemoveOperand(1);
+  MI.removeOperand(1);
   MI.setDesc(TII->get(getConcreteOpcode(MI.getOpcode())));
   MI.dropDebugNumber();
 
@@ -1489,8 +1489,8 @@ void FPS::handleCondMovFP(MachineBasicBlock::iterator &I) {
 
   // Change the second operand to the stack register that the operand is in.
   // Change from the pseudo instruction to the concrete instruction.
-  MI.RemoveOperand(0);
-  MI.RemoveOperand(1);
+  MI.removeOperand(0);
+  MI.removeOperand(1);
   MI.getOperand(0).setReg(getSTReg(Op1));
   MI.setDesc(TII->get(getConcreteOpcode(MI.getOpcode())));
   MI.dropDebugNumber();
@@ -1634,14 +1634,14 @@ void FPS::handleSpecialFP(MachineBasicBlock::iterator &Inst) {
 
     if (STUses && !isMask_32(STUses))
       MI.emitError("fixed input regs must be last on the x87 stack");
-    unsigned NumSTUses = countTrailingOnes(STUses);
+    unsigned NumSTUses = llvm::countr_one(STUses);
 
     // Defs must be contiguous from the stack top. ST0-STn.
     if (STDefs && !isMask_32(STDefs)) {
       MI.emitError("output regs must be last on the x87 stack");
       STDefs = NextPowerOf2(STDefs) - 1;
     }
-    unsigned NumSTDefs = countTrailingOnes(STDefs);
+    unsigned NumSTDefs = llvm::countr_one(STDefs);
 
     // So must the clobbered stack slots. ST0-STm, m >= n.
     if (STClobbers && !isMask_32(STDefs | STClobbers))
@@ -1651,7 +1651,7 @@ void FPS::handleSpecialFP(MachineBasicBlock::iterator &Inst) {
     unsigned STPopped = STUses & (STDefs | STClobbers);
     if (STPopped && !isMask_32(STPopped))
       MI.emitError("implicitly popped regs must be last on the x87 stack");
-    unsigned NumSTPopped = countTrailingOnes(STPopped);
+    unsigned NumSTPopped = llvm::countr_one(STPopped);
 
     LLVM_DEBUG(dbgs() << "Asm uses " << NumSTUses << " fixed regs, pops "
                       << NumSTPopped << ", and defines " << NumSTDefs
@@ -1727,7 +1727,7 @@ void FPS::handleSpecialFP(MachineBasicBlock::iterator &Inst) {
     // Note: this might be a non-optimal pop sequence.  We might be able to do
     // better by trying to pop in stack order or something.
     while (FPKills) {
-      unsigned FPReg = countTrailingZeros(FPKills);
+      unsigned FPReg = llvm::countr_zero(FPKills);
       if (isLive(FPReg))
         freeStackSlotAfter(Inst, FPReg);
       FPKills &= ~(1U << FPReg);

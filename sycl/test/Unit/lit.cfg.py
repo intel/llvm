@@ -41,14 +41,17 @@ else:
 
 if 'SYCL_DEVICELIB_NO_FALLBACK' in os.environ:
     config.environment['SYCL_DEVICELIB_NO_FALLBACK'] = os.environ['SYCL_DEVICELIB_NO_FALLBACK']
-else:
-    # Disable device library fallback for unit tests by default.
-    config.environment['SYCL_DEVICELIB_NO_FALLBACK'] = "1"
+# We do not have any default for SYCL_DEVICELIB_NO_FALLBACK, which means that
+# env variable won't be defined. That is ok, because we expect tests to pass
+# even without it.
 
 # Propagate path to symbolizer for ASan/MSan.
 for symbolizer in ['ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH']:
     if symbolizer in os.environ:
         config.environment[symbolizer] = os.environ[symbolizer]
+
+llvm_symbolizer = os.path.join(config.llvm_tools_dir, 'llvm-symbolizer')
+config.environment['LLVM_SYMBOLIZER_PATH'] = llvm_symbolizer
 
 def find_shlibpath_var():
     if platform.system() in ['Linux', 'FreeBSD', 'NetBSD', 'SunOS']:
@@ -73,7 +76,11 @@ else:
     lit_config.warning("unable to inject shared library path on '{}'"
                        .format(platform.system()))
 
+# The mock plugin currently appears as an opencl plugin, but could be changed in
+# the future. To avoid it being filtered out we set the filter to use the *
+# wildcard.
+config.environment['ONEAPI_DEVICE_SELECTOR'] = "'*:*'"
+lit_config.note("Using Mock Plugin.")
+
 config.environment['SYCL_CACHE_DIR'] = config.llvm_obj_root + "/sycl_cache"
-config.environment['SYCL_DEVICE_FILTER'] = lit_config.params.get('SYCL_PLUGIN', "opencl") + ",host"
-lit_config.note("Backend: {}".format(config.environment['SYCL_DEVICE_FILTER']))
 lit_config.note("SYCL cache directory: {}".format(config.environment['SYCL_CACHE_DIR']))

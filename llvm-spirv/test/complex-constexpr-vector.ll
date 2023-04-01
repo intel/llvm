@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
@@ -11,59 +11,61 @@ target triple = "spir64"
 
 define linkonce_odr hidden spir_func void @foo() {
 entry:
-; CHECK-SPIRV-DAG: Constant [[#]] [[#CONSTANT1:]] 65793
-; CHECK-SPIRV-DAG: Constant [[#]] [[#CONSTANT2:]] 131586
 
-; CHECK-SPIRV: ConstantComposite [[#]] [[#COMPOS0:]] [[#CONSTANT1]]
-; 124 is OpBitcast opcode
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#BITCAST_RES0:]] 124 [[#COMPOS0]]
+; CHECK-SPIRV: Constant [[#]] [[#CONSTANT1:]] 65793
 
 ; 81 is OpCompositeExtract opcode
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#EXTRACT_RES0:]] 81 [[#BITCAST_RES0]] 0
-; CHECK-SPIRV: ConstantComposite [[#]] [[#COMPOS1:]] [[#CONSTANT2]]
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER1_EXTRACT1:]] 81 [[#MEMBER1_EXTRACT1_BITCAST:]] 0
+; CHECK-SPIRV: Constant [[#]] [[#CONSTANT2:]] 131586
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER1_EXTRACT2:]] 81 [[#MEMBER1_EXTRACT2_BITCAST:]] 0
+; 128 is OpIAdd opcode
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER_1:]] 128 [[#MEMBER1_EXTRACT1]] [[#MEMBER1_EXTRACT2]]
 
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#BITCAST_RES1:]] 124 [[#COMPOS1]]
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#EXTRACT_RES1:]] 81 [[#BITCAST_RES1]] 0
-; 129 is OpFAdd opcode
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER_1:]] 129 [[#EXTRACT_RES0:]] [[#EXTRACT_RES1]]
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER2_EXTRACT1:]] 81 [[#MEMBER1_EXTRACT1_BITCAST]] 1
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER2_EXTRACT2:]] 81 [[#MEMBER1_EXTRACT2_BITCAST]] 1
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER_2:]] 128 [[#MEMBER2_EXTRACT1]] [[#MEMBER2_EXTRACT2]]
 
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#EXTRACT_RES2:]] 81 [[#BITCAST_RES0]] 1
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#EXTRACT_RES3:]] 81 [[#BITCAST_RES1]] 1
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER_2:]] 129 [[#EXTRACT_RES2]] [[#EXTRACT_RES3]]
-
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#BITCAST_RES2:]] 81 [[#BITCAST_RES0]] 2
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#BITCAST_RES2:]] 81 [[#BITCAST_RES1]] 2
-; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER_3:]] 129 [[#]] [[#BITCAST_RES2]]
-
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER3_EXTRACT1:]] 81 [[#MEMBER1_EXTRACT1_BITCAST]] 2
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER3_EXTRACT2:]] 81 [[#MEMBER1_EXTRACT2_BITCAST]] 2
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER_3:]] 128 [[#MEMBER3_EXTRACT1]] [[#MEMBER3_EXTRACT2]]
 ; CHECK-SPIRV: Undef [[#]] [[#MEMBER_4:]]
+
+; CHECK-SPIRV: ConstantComposite [[#]] [[#COMPOS1:]] [[#CONSTANT1]] [[#CONSTANT1]]
+; 124 is OpBitcast opcode
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER1_EXTRACT1_BITCAST]] 124 [[#COMPOS1]]
+
+; CHECK-SPIRV: ConstantComposite [[#]] [[#COMPOS2:]] [[#CONSTANT2]] [[#CONSTANT2]]
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#MEMBER1_EXTRACT2_BITCAST]] 124 [[#COMPOS2]]
+
 ; CHECK-SPIRV: ConstantComposite [[#]] [[#FINAL_COMPOS:]] [[#MEMBER_1]] [[#MEMBER_2]] [[#MEMBER_3]] [[#MEMBER_4]]
 ; CHECK-SPIRV: DebugValue [[#]] [[#FINAL_COMPOS]]
 
+
 ; CHECK-LLVM: call void @llvm.dbg.value(
-; CHECK-LLVM-SAME:   metadata <4 x half> <
-; CHECK-LLVM-SAME:   half fadd (
-; CHECK-LLVM-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 0),
-; CHECK-LLVM-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 0)),
-; CHECK-LLVM-SAME:   half fadd (
-; CHECK-LLVM-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 1),
-; CHECK-LLVM-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 1)),
-; CHECK-LLVM-SAME:   half fadd (
-; CHECK-LLVM-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 2),
-; CHECK-LLVM-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 2)),
-; CHECK-LLVM-SAME:   half undef>,
+; CHECK-LLVM-SAME:   metadata <4 x i8> <
+; CHECK-LLVM-SAME:   i8 add (
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 0),
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 0)),
+; CHECK-LLVM-SAME:   i8 add (
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 1),
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 1)),
+; CHECK-LLVM-SAME:   i8 add (
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 2),
+; CHECK-LLVM-SAME:     i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 2)),
+; CHECK-LLVM-SAME:   i8 undef>,
 ; CHECK-LLVM-SAME:   metadata ![[#]], metadata !DIExpression()), !dbg ![[#]]
   call void @llvm.dbg.value(
-    metadata <4 x half> <
-    half fadd (
-      half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 0),
-      half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 0)),
-    half fadd (
-      half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 1),
-      half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 1)),
-    half fadd (
-      half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 2),
-      half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 2)),
-    half undef>,
+    metadata <4 x i8> <
+    i8 add (
+      i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 0),
+      i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 0)),
+    i8 add (
+      i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 1),
+      i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 1)),
+    i8 add (
+      i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 2),
+      i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 2)),
+    i8 undef>,
       metadata !12, metadata !DIExpression()), !dbg !7
   ret void
 }

@@ -1,5 +1,4 @@
 // Tests the abilities involved with using an external host compiler
-// REQUIRES: clang-driver
 
 /// enabling with -fsycl-host-compiler
 // RUN: %clangxx -fsycl -fsycl-host-compiler=/some/dir/g++ %s -### 2>&1 \
@@ -28,35 +27,35 @@
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS %s
 // HOST_PREPROCESS: append-file{{.*}} "--output=[[APPEND:.+\.cpp]]"
 // HOST_PREPROCESS: g++{{.*}} "[[APPEND]]"{{.*}} "-E"{{.*}} "-o" "[[PPOUT2:.+\.ii]]"
-// HOST_PREPROCESS: clang-offload-bundler{{.*}} "-inputs={{.*}}.ii,[[PPOUT2]]"
+// HOST_PREPROCESS: clang-offload-bundler{{.*}} "-input={{.*}}.ii" "-input=[[PPOUT2]]"
 
 // RUN: %clang_cl -fsycl -fsycl-host-compiler=cl -E %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS_CL %s
 // HOST_PREPROCESS_CL: append-file{{.*}} "--output=[[APPEND:.+\.cpp]]"
 // HOST_PREPROCESS_CL: cl{{.*}} "[[APPEND]]"{{.*}} "-P"{{.*}} "-Fi[[PPOUT2:.+\.ii]]"
-// HOST_PREPROCESS_CL: clang-offload-bundler{{.*}} "-inputs={{.*}}.ii,[[PPOUT2]]"
+// HOST_PREPROCESS_CL: clang-offload-bundler{{.*}} "-input={{.*}}.ii" "-input=[[PPOUT2]]"
 
 /// obj output
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -c %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_OBJECT %s
 // HOST_OBJECT: g++{{.*}} "-c"{{.*}} "-o" "[[OBJOUT:.+\.o]]"
-// HOST_OBJECT: clang-offload-bundler{{.*}} "-inputs={{.*}}.bc,[[OBJOUT]]"
+// HOST_OBJECT: clang-offload-bundler{{.*}} "-input={{.*}}.bc" "-input=[[OBJOUT]]"
 
 // RUN: %clang_cl -fsycl -fsycl-host-compiler=cl -c %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_OBJECT_CL %s
 // HOST_OBJECT_CL: cl{{.*}} "-c"{{.*}} "-Fo[[OBJOUT:.+\.obj]]"
-// HOST_OBJECT_CL: clang-offload-bundler{{.*}} "-inputs={{.*}}.bc,[[OBJOUT]]"
+// HOST_OBJECT_CL: clang-offload-bundler{{.*}} "-input={{.*}}.bc" "-input=[[OBJOUT]]"
 
 /// assembly output
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -S %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_ASSEMBLY %s
 // HOST_ASSEMBLY: g++{{.*}} "-S"{{.*}} "-o" "[[ASMOUT:.+\.s]]"
-// HOST_ASSEMBLY: clang-offload-bundler{{.*}} "-inputs={{.*}}.bc,[[ASMOUT]]"
+// HOST_ASSEMBLY: clang-offload-bundler{{.*}} "-input={{.*}}.bc" "-input=[[ASMOUT]]"
 
 // RUN: %clangxx -fsycl -fsycl-host-compiler=cl -S %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_ASSEMBLY_CL %s
 // HOST_ASSEMBLY_CL: cl{{.*}} "-c"{{.*}} "-Fa[[ASMOUT:.+\.s]]" "-Fo{{.*}}.obj"
-// HOST_ASSEMBLY_CL: clang-offload-bundler{{.*}} "-inputs={{.*}}.bc,[[ASMOUT]]"
+// HOST_ASSEMBLY_CL: clang-offload-bundler{{.*}} "-input={{.*}}.bc" "-input=[[ASMOUT]]"
 
 /// missing argument error -fsycl-host-compiler=
 // RUN: %clangxx -fsycl -fsycl-host-compiler= -c -### %s 2>&1 \
@@ -68,3 +67,12 @@
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ %t.o -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=WARNING_HOST_COMPILER %s
 // WARNING_HOST_COMPILER-NOT: warning: argument unused during compilation: '-fsycl-host-compiler=g++' [-Wunused-command-line-argument]
+
+// Zc:__cplusplus, Zc:__cplusplus- check
+// RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS %s
+// RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl -fsycl-host-compiler-options=/Zc:__cplusplus- %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS-MINUS %s
+// RUN: %clang_cl -### %s 2>&1 | FileCheck -check-prefix=CHECK-NO-ZC-CPLUSPLUS %s
+// RUN: %clang_cl -### -fsycl-host-compiler=g++ -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-NO-ZC-CPLUSPLUS %s
+// CHECK-ZC-CPLUSPLUS: "/Zc:__cplusplus"
+// CHECK-ZC-CPLUSPLUS-MINUS: "/Zc:__cplusplus-"
+// CHECK-NO-ZC-CPLUSPLUS-NOT: "/Zc:__cplusplus"

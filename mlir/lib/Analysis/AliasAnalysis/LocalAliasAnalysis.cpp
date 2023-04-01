@@ -8,11 +8,12 @@
 
 #include "mlir/Analysis/AliasAnalysis/LocalAliasAnalysis.h"
 
-#include "mlir/IR/FunctionSupport.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
+#include <optional>
 
 using namespace mlir;
 
@@ -39,12 +40,12 @@ static void collectUnderlyingAddressValues(RegionBranchOpInterface branch,
                                            unsigned maxDepth,
                                            DenseSet<Value> &visited,
                                            SmallVectorImpl<Value> &output) {
-  // Given the index of a region of the branch (`predIndex`), or None to
+  // Given the index of a region of the branch (`predIndex`), or std::nullopt to
   // represent the parent operation, try to return the index into the outputs of
   // this region predecessor that correspond to the input values of `region`. If
-  // an index could not be found, None is returned instead.
+  // an index could not be found, std::nullopt is returned instead.
   auto getOperandIndexIfPred =
-      [&](Optional<unsigned> predIndex) -> Optional<unsigned> {
+      [&](std::optional<unsigned> predIndex) -> std::optional<unsigned> {
     SmallVector<RegionSuccessor, 2> successors;
     branch.getSuccessorRegions(predIndex, successors);
     for (RegionSuccessor &successor : successors) {
@@ -70,25 +71,25 @@ static void collectUnderlyingAddressValues(RegionBranchOpInterface branch,
       }
       return inputIndex - firstInputIndex;
     }
-    return llvm::None;
+    return std::nullopt;
   };
 
   // Check branches from the parent operation.
-  Optional<unsigned> regionIndex;
+  std::optional<unsigned> regionIndex;
   if (region) {
     // Determine the actual region number from the passed region.
     regionIndex = region->getRegionNumber();
-    if (Optional<unsigned> operandIndex =
-            getOperandIndexIfPred(/*predIndex=*/llvm::None)) {
-      collectUnderlyingAddressValues(
-          branch.getSuccessorEntryOperands(*regionIndex)[*operandIndex],
-          maxDepth, visited, output);
-    }
+  }
+  if (std::optional<unsigned> operandIndex =
+          getOperandIndexIfPred(/*predIndex=*/std::nullopt)) {
+    collectUnderlyingAddressValues(
+        branch.getSuccessorEntryOperands(regionIndex)[*operandIndex], maxDepth,
+        visited, output);
   }
   // Check branches from each child region.
   Operation *op = branch.getOperation();
   for (int i = 0, e = op->getNumRegions(); i != e; ++i) {
-    if (Optional<unsigned> operandIndex = getOperandIndexIfPred(i)) {
+    if (std::optional<unsigned> operandIndex = getOperandIndexIfPred(i)) {
       for (Block &block : op->getRegion(i)) {
         Operation *term = block.getTerminator();
         // Try to determine possible region-branch successor operands for the
@@ -149,14 +150,13 @@ static void collectUnderlyingAddressValues(BlockArgument arg, unsigned maxDepth,
 
       // Try to get the operand passed for this argument.
       unsigned index = it.getSuccessorIndex();
-      Optional<OperandRange> operands = branch.getSuccessorOperands(index);
-      if (!operands) {
+      Value operand = branch.getSuccessorOperands(index)[argNumber];
+      if (!operand) {
         // We can't analyze the control flow, so bail out early.
         output.push_back(arg);
         return;
       }
-      collectUnderlyingAddressValues((*operands)[argNumber], maxDepth, visited,
-                                     output);
+      collectUnderlyingAddressValues(operand, maxDepth, visited, output);
     }
     return;
   }
@@ -211,7 +211,8 @@ static void collectUnderlyingAddressValues(Value value,
 /// non-null it specifies the parent operation that the allocation does not
 /// escape. If no scope is found, `allocScopeOp` is set to nullptr.
 static LogicalResult
-getAllocEffectFor(Value value, Optional<MemoryEffects::EffectInstance> &effect,
+getAllocEffectFor(Value value,
+                  std::optional<MemoryEffects::EffectInstance> &effect,
                   Operation *&allocScopeOp) {
   // Try to get a memory effect interface for the parent operation.
   Operation *op;
@@ -240,16 +241,16 @@ getAllocEffectFor(Value value, Optional<MemoryEffects::EffectInstance> &effect,
   // freed on all paths within the region, or is just not captured by anything.
   // For now assume allocation scope to the function scope (we don't care if
   // pointer escape outside function).
-  allocScopeOp = op->getParentWithTrait<OpTrait::FunctionLike>();
+  allocScopeOp = op->getParentOfType<FunctionOpInterface>();
   return success();
 }
 
 /// Given the two values, return their aliasing behavior.
-static AliasResult aliasImpl(Value lhs, Value rhs) {
+AliasResult LocalAliasAnalysis::aliasImpl(Value lhs, Value rhs) {
   if (lhs == rhs)
     return AliasResult::MustAlias;
   Operation *lhsAllocScope = nullptr, *rhsAllocScope = nullptr;
-  Optional<MemoryEffects::EffectInstance> lhsAlloc, rhsAlloc;
+  std::optional<MemoryEffects::EffectInstance> lhsAlloc, rhsAlloc;
 
   // Handle the case where lhs is a constant.
   Attribute lhsAttr, rhsAttr;
@@ -331,7 +332,7 @@ AliasResult LocalAliasAnalysis::alias(Value lhs, Value rhs) {
     return AliasResult::MayAlias;
 
   // Check the alias results against each of the underlying values.
-  Optional<AliasResult> result;
+  std::optional<AliasResult> result;
   for (Value lhsVal : lhsValues) {
     for (Value rhsVal : rhsValues) {
       AliasResult nextResult = aliasImpl(lhsVal, rhsVal);
@@ -349,7 +350,7 @@ AliasResult LocalAliasAnalysis::alias(Value lhs, Value rhs) {
 
 ModRefResult LocalAliasAnalysis::getModRef(Operation *op, Value location) {
   // Check to see if this operation relies on nested side effects.
-  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+  if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     // TODO: To check recursive operations we need to check all of the nested
     // operations, which can result in a quadratic number of queries. We should
     // introduce some caching of some kind to help alleviate this, especially as

@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef LLDB_SOURCE_PLUGINS_PLATFORM_QEMUUSER_PLATFORMQEMUUSER_H
+#define LLDB_SOURCE_PLUGINS_PLATFORM_QEMUUSER_PLATFORMQEMUUSER_H
+
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Target/Platform.h"
@@ -29,7 +32,8 @@ public:
     return HostInfo::GetUserIDResolver();
   }
 
-  std::vector<ArchSpec> GetSupportedArchitectures() override;
+  std::vector<ArchSpec>
+  GetSupportedArchitectures(const ArchSpec &process_host_arch) override;
 
   lldb::ProcessSP DebugProcess(ProcessLaunchInfo &launch_info,
                                Debugger &debugger, Target &target,
@@ -39,6 +43,16 @@ public:
                          Target *target, Status &status) override {
     status.SetErrorString("Not supported");
     return nullptr;
+  }
+
+  uint32_t FindProcesses(const ProcessInstanceInfoMatch &match_info,
+                         ProcessInstanceInfoList &proc_infos) override {
+    return 0;
+  }
+
+  bool GetProcessInfo(lldb::pid_t pid,
+                      ProcessInstanceInfo &proc_info) override {
+    return false;
   }
 
   bool IsConnected() const override { return true; }
@@ -59,7 +73,9 @@ private:
   static lldb::PlatformSP CreateInstance(bool force, const ArchSpec *arch);
   static void DebuggerInitialize(Debugger &debugger);
 
-  PlatformQemuUser() : Platform(/*is_host=*/false) {}
+  PlatformQemuUser() : Platform(/*is_host=*/true) {}
 };
 
 } // namespace lldb_private
+
+#endif // LLDB_SOURCE_PLUGINS_PLATFORM_QEMUUSER_PLATFORMQEMUUSER_H

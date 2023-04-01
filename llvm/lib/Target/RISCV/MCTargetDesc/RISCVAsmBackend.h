@@ -1,4 +1,4 @@
-//===-- RISCVAsmBackend.h - RISCV Assembler Backend -----------------------===//
+//===-- RISCVAsmBackend.h - RISC-V Assembler Backend ----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -27,18 +27,15 @@ class RISCVAsmBackend : public MCAsmBackend {
   bool Is64Bit;
   bool ForceRelocs = false;
   const MCTargetOptions &TargetOptions;
-  RISCVABI::ABI TargetABI = RISCVABI::ABI_Unknown;
 
 public:
   RISCVAsmBackend(const MCSubtargetInfo &STI, uint8_t OSABI, bool Is64Bit,
                   const MCTargetOptions &Options)
       : MCAsmBackend(support::little), STI(STI), OSABI(OSABI), Is64Bit(Is64Bit),
         TargetOptions(Options) {
-    TargetABI = RISCVABI::computeTargetABI(
-        STI.getTargetTriple(), STI.getFeatureBits(), Options.getABIName());
     RISCVFeatures::validate(STI.getTargetTriple(), STI.getFeatureBits());
   }
-  ~RISCVAsmBackend() override {}
+  ~RISCVAsmBackend() override = default;
 
   void setForceRelocs() { ForceRelocs = true; }
 
@@ -83,7 +80,7 @@ public:
     return RISCV::NumTargetFixupKinds;
   }
 
-  Optional<MCFixupKind> getFixupKind(StringRef Name) const override;
+  std::optional<MCFixupKind> getFixupKind(StringRef Name) const override;
 
   const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
 
@@ -103,7 +100,6 @@ public:
                     const MCSubtargetInfo *STI) const override;
 
   const MCTargetOptions &getTargetOptions() const { return TargetOptions; }
-  RISCVABI::ABI getTargetABI() const { return TargetABI; }
 };
 }
 

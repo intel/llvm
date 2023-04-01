@@ -1,10 +1,18 @@
+//===--- Threading.cpp - Abstractions for multithreading ------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include "support/Threading.h"
 #include "support/Trace.h"
 #include "llvm/ADT/ScopeExit.h"
-#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/thread.h"
 #include <atomic>
+#include <optional>
 #include <thread>
 #ifdef __USE_POSIX
 #include <pthread.h>
@@ -27,9 +35,9 @@ void Notification::notify() {
   }
 }
 
-void Notification::wait() const {
+bool Notification::wait(Deadline D) const {
   std::unique_lock<std::mutex> Lock(Mu);
-  CV.wait(Lock, [this] { return Notified; });
+  return clangd::wait(Lock, CV, D, [&] { return Notified; });
 }
 
 Semaphore::Semaphore(std::size_t MaxLocks) : FreeSlots(MaxLocks) {}
@@ -97,12 +105,12 @@ void AsyncTaskRunner::runAsync(const llvm::Twine &Name,
 
   // Ensure our worker threads have big enough stacks to run clang.
   llvm::thread Thread(
-      /*clang::DesiredStackSize*/ llvm::Optional<unsigned>(8 << 20),
+      /*clang::DesiredStackSize*/ std::optional<unsigned>(8 << 20),
       std::move(Task));
   Thread.detach();
 }
 
-Deadline timeoutSeconds(llvm::Optional<double> Seconds) {
+Deadline timeoutSeconds(std::optional<double> Seconds) {
   using namespace std::chrono;
   if (!Seconds)
     return Deadline::infinity();

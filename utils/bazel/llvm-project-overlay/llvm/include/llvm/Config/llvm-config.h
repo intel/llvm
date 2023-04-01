@@ -74,16 +74,16 @@
 #define LLVM_USE_PERF 0
 
 /* Major version of the LLVM API */
-#define LLVM_VERSION_MAJOR 14
+/* #undef LLVM_VERSION_MAJOR */
 
 /* Minor version of the LLVM API */
-#define LLVM_VERSION_MINOR 0
+/* #undef LLVM_VERSION_MINOR */
 
 /* Patch version of the LLVM API */
-#define LLVM_VERSION_PATCH 0
+/* #undef LLVM_VERSION_PATCH */
 
 /* LLVM version string */
-#define LLVM_VERSION_STRING "14.0.0git"
+/* #undef LLVM_VERSION_STRING */
 
 /* Whether LLVM records statistics for use with GetStatistics(),
  * PrintStatistics() or PrintStatisticsJSON()
@@ -96,17 +96,14 @@
 /* Define if we have curl and want to use it */
 /* #undef LLVM_ENABLE_CURL */
 
-/* Define if LLVM was built with a dependency to the libtensorflow dynamic library */
-/* #undef LLVM_HAVE_TF_API */
+/* Define if we have cpp-httplib and want to use it */
+/* #undef LLVM_ENABLE_HTTPLIB */
 
 /* Define if LLVM was built with a dependency to the tensorflow compiler */
 /* #undef LLVM_HAVE_TF_AOT */
 
 /* Define to 1 if you have the <sysexits.h> header file. */
 /* HAVE_SYSEXITS_H defined in Bazel */
-
-/* Define to 1 to enable the experimental new pass manager by default */
-#define LLVM_ENABLE_NEW_PASS_MANAGER 0
 
 /* Define if the xar_open() function is supported this platform. */
 /* #undef HAVE_LIBXAR */
@@ -116,5 +113,15 @@
 
 /* Define if building LLVM with BUILD_SHARED_LIBS */
 /* #undef LLVM_BUILD_SHARED_LIBS */
+
+/* Define if building LLVM with LLVM_FORCE_USE_OLD_TOOLCHAIN_LIBS */
+/* #undef LLVM_FORCE_USE_OLD_TOOLCHAIN ${LLVM_FORCE_USE_OLD_TOOLCHAIN} */
+
+/* Define if llvm_unreachable should be optimized with undefined behavior
+ * in non assert builds */
+#define LLVM_UNREACHABLE_OPTIMIZE 1
+
+/* Define to 1 if you have the DIA SDK installed, and to 0 if you don't. */
+#define LLVM_ENABLE_DIA_SDK 0
 
 #endif

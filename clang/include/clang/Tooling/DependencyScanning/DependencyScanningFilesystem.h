@@ -10,204 +10,294 @@
 #define LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGFILESYSTEM_H
 
 #include "clang/Basic/LLVM.h"
-#include "clang/Lex/PreprocessorExcludedConditionalDirectiveSkipMapping.h"
+#include "clang/Lex/DependencyDirectivesScanner.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <mutex>
+#include <optional>
 
 namespace clang {
 namespace tooling {
 namespace dependencies {
 
+using DependencyDirectivesTy =
+    SmallVector<dependency_directives_scan::Directive, 20>;
+
+/// Contents and directive tokens of a cached file entry. Single instance can
+/// be shared between multiple entries.
+struct CachedFileContents {
+  CachedFileContents(std::unique_ptr<llvm::MemoryBuffer> Contents)
+      : Original(std::move(Contents)), DepDirectives(nullptr) {}
+
+  /// Owning storage for the original contents.
+  std::unique_ptr<llvm::MemoryBuffer> Original;
+
+  /// The mutex that must be locked before mutating directive tokens.
+  std::mutex ValueLock;
+  SmallVector<dependency_directives_scan::Token, 10> DepDirectiveTokens;
+  /// Accessor to the directive tokens that's atomic to avoid data races.
+  /// \p CachedFileContents has ownership of the pointer.
+  std::atomic<const std::optional<DependencyDirectivesTy> *> DepDirectives;
+
+  ~CachedFileContents() { delete DepDirectives.load(); }
+};
+
 /// An in-memory representation of a file system entity that is of interest to
 /// the dependency scanning filesystem.
 ///
 /// It represents one of the following:
-/// - opened file with original contents and a stat value,
-/// - opened file with original contents, minimized contents and a stat value,
+/// - opened file with contents and a stat value,
+/// - opened file with contents, directive tokens and a stat value,
 /// - directory entry with its stat value,
-/// - filesystem error,
-/// - uninitialized entry with unknown status.
+/// - filesystem error.
+///
+/// Single instance of this class can be shared across different filenames (e.g.
+/// a regular file and a symlink). For this reason the status filename is empty
+/// and is only materialized by \c EntryRef that knows the requested filename.
 class CachedFileSystemEntry {
 public:
-  /// Creates an uninitialized entry.
-  CachedFileSystemEntry()
-      : MaybeStat(llvm::vfs::Status()), MinimizedContentsAccess(nullptr) {}
-
-  /// Initialize the cached file system entry.
-  void init(llvm::ErrorOr<llvm::vfs::Status> &&MaybeStatus, StringRef Filename,
-            llvm::vfs::FileSystem &FS);
-
-  /// Initialize the entry as file with minimized or original contents.
-  ///
-  /// The filesystem opens the file even for `stat` calls open to avoid the
-  /// issues with stat + open of minimized files that might lead to a
-  /// mismatching size of the file.
-  llvm::ErrorOr<llvm::vfs::Status> initFile(StringRef Filename,
-                                            llvm::vfs::FileSystem &FS);
-
-  /// Minimize contents of the file.
-  void minimizeFile();
-
-  /// \returns True if the entry is initialized.
-  bool isInitialized() const {
-    return !MaybeStat || MaybeStat->isStatusKnown();
+  /// Creates an entry without contents: either a filesystem error or
+  /// a directory with stat value.
+  CachedFileSystemEntry(llvm::ErrorOr<llvm::vfs::Status> Stat)
+      : MaybeStat(std::move(Stat)), Contents(nullptr) {
+    clearStatName();
   }
 
-  /// \returns True if the current entry points to a directory.
-  bool isDirectory() const { return MaybeStat && MaybeStat->isDirectory(); }
+  /// Creates an entry representing a file with contents.
+  CachedFileSystemEntry(llvm::ErrorOr<llvm::vfs::Status> Stat,
+                        CachedFileContents *Contents)
+      : MaybeStat(std::move(Stat)), Contents(std::move(Contents)) {
+    clearStatName();
+  }
 
-  /// \returns The error or the file's original contents.
-  llvm::ErrorOr<StringRef> getOriginalContents() const {
-    if (!MaybeStat)
-      return MaybeStat.getError();
+  /// \returns True if the entry is a filesystem error.
+  bool isError() const { return !MaybeStat; }
+
+  /// \returns True if the current entry represents a directory.
+  bool isDirectory() const { return !isError() && MaybeStat->isDirectory(); }
+
+  /// \returns Original contents of the file.
+  StringRef getOriginalContents() const {
+    assert(!isError() && "error");
     assert(!MaybeStat->isDirectory() && "not a file");
-    assert(isInitialized() && "not initialized");
-    assert(OriginalContents && "not read");
-    return OriginalContents->getBuffer();
+    assert(Contents && "contents not initialized");
+    return Contents->Original->getBuffer();
   }
 
-  /// \returns The error or the file's minimized contents.
-  llvm::ErrorOr<StringRef> getMinimizedContents() const {
-    if (!MaybeStat)
-      return MaybeStat.getError();
-    assert(!MaybeStat->isDirectory() && "not a file");
-    assert(isInitialized() && "not initialized");
-    llvm::MemoryBuffer *Buffer = MinimizedContentsAccess.load();
-    assert(Buffer && "not minimized");
-    return Buffer->getBuffer();
+  /// \returns The scanned preprocessor directive tokens of the file that are
+  /// used to speed up preprocessing, if available.
+  std::optional<ArrayRef<dependency_directives_scan::Directive>>
+  getDirectiveTokens() const {
+    assert(!isError() && "error");
+    assert(!isDirectory() && "not a file");
+    assert(Contents && "contents not initialized");
+    if (auto *Directives = Contents->DepDirectives.load()) {
+      if (Directives->has_value())
+        return ArrayRef<dependency_directives_scan::Directive>(**Directives);
+    }
+    return std::nullopt;
   }
 
-  /// \returns True if this entry represents a file that can be read.
-  bool isReadable() const { return MaybeStat && !MaybeStat->isDirectory(); }
+  /// \returns The error.
+  std::error_code getError() const { return MaybeStat.getError(); }
 
-  /// \returns True if this cached entry needs to be updated.
-  bool needsUpdate(bool ShouldBeMinimized) const {
-    return isReadable() && needsMinimization(ShouldBeMinimized);
+  /// \returns The entry status with empty filename.
+  llvm::vfs::Status getStatus() const {
+    assert(!isError() && "error");
+    assert(MaybeStat->getName().empty() && "stat name must be empty");
+    return *MaybeStat;
   }
 
-  /// \returns True if the contents of this entry need to be minimized.
-  bool needsMinimization(bool ShouldBeMinimized) const {
-    return ShouldBeMinimized && !MinimizedContentsAccess.load();
+  /// \returns The unique ID of the entry.
+  llvm::sys::fs::UniqueID getUniqueID() const {
+    assert(!isError() && "error");
+    return MaybeStat->getUniqueID();
   }
 
-  /// \returns The error or the status of the entry.
-  llvm::ErrorOr<llvm::vfs::Status> getStatus() const {
-    assert(isInitialized() && "not initialized");
-    return MaybeStat;
-  }
-
-  /// \returns the name of the file.
-  StringRef getName() const {
-    assert(isInitialized() && "not initialized");
-    return MaybeStat->getName();
-  }
-
-  /// Return the mapping between location -> distance that is used to speed up
-  /// the block skipping in the preprocessor.
-  const PreprocessorSkippedRangeMapping &getPPSkippedRangeMapping() const {
-    return PPSkippedRangeMapping;
+  /// \returns The data structure holding both contents and directive tokens.
+  CachedFileContents *getCachedContents() const {
+    assert(!isError() && "error");
+    assert(!isDirectory() && "not a file");
+    return Contents;
   }
 
 private:
+  void clearStatName() {
+    if (MaybeStat)
+      MaybeStat = llvm::vfs::Status::copyWithNewName(*MaybeStat, "");
+  }
+
+  /// Either the filesystem error or status of the entry.
+  /// The filename is empty and only materialized by \c EntryRef.
   llvm::ErrorOr<llvm::vfs::Status> MaybeStat;
-  std::unique_ptr<llvm::MemoryBuffer> OriginalContents;
 
-  /// Owning storage for the minimized file contents.
-  std::unique_ptr<llvm::MemoryBuffer> MinimizedContentsStorage;
-  /// Atomic view of the minimized file contents.
-  /// This prevents data races when multiple threads call `needsMinimization`.
-  std::atomic<llvm::MemoryBuffer *> MinimizedContentsAccess;
-
-  PreprocessorSkippedRangeMapping PPSkippedRangeMapping;
+  /// Non-owning pointer to the file contents.
+  ///
+  /// We're using pointer here to keep the size of this class small. Instances
+  /// representing directories and filesystem errors don't hold any contents
+  /// anyway.
+  CachedFileContents *Contents;
 };
 
 /// This class is a shared cache, that caches the 'stat' and 'open' calls to the
-/// underlying real file system. It distinguishes between minimized and original
+/// underlying real file system, and the scanned preprocessor directives of
 /// files.
 ///
 /// It is sharded based on the hash of the key to reduce the lock contention for
 /// the worker threads.
 class DependencyScanningFilesystemSharedCache {
 public:
-  struct SharedFileSystemEntry {
-    std::mutex ValueLock;
-    CachedFileSystemEntry Value;
+  struct CacheShard {
+    /// The mutex that needs to be locked before mutation of any member.
+    mutable std::mutex CacheLock;
+
+    /// Map from filenames to cached entries.
+    llvm::StringMap<const CachedFileSystemEntry *, llvm::BumpPtrAllocator>
+        EntriesByFilename;
+
+    /// Map from unique IDs to cached entries.
+    llvm::DenseMap<llvm::sys::fs::UniqueID, const CachedFileSystemEntry *>
+        EntriesByUID;
+
+    /// The backing storage for cached entries.
+    llvm::SpecificBumpPtrAllocator<CachedFileSystemEntry> EntryStorage;
+
+    /// The backing storage for cached contents.
+    llvm::SpecificBumpPtrAllocator<CachedFileContents> ContentsStorage;
+
+    /// Returns entry associated with the filename or nullptr if none is found.
+    const CachedFileSystemEntry *findEntryByFilename(StringRef Filename) const;
+
+    /// Returns entry associated with the unique ID or nullptr if none is found.
+    const CachedFileSystemEntry *
+    findEntryByUID(llvm::sys::fs::UniqueID UID) const;
+
+    /// Returns entry associated with the filename if there is some. Otherwise,
+    /// constructs new one with the given status, associates it with the
+    /// filename and returns the result.
+    const CachedFileSystemEntry &
+    getOrEmplaceEntryForFilename(StringRef Filename,
+                                 llvm::ErrorOr<llvm::vfs::Status> Stat);
+
+    /// Returns entry associated with the unique ID if there is some. Otherwise,
+    /// constructs new one with the given status and contents, associates it
+    /// with the unique ID and returns the result.
+    const CachedFileSystemEntry &
+    getOrEmplaceEntryForUID(llvm::sys::fs::UniqueID UID, llvm::vfs::Status Stat,
+                            std::unique_ptr<llvm::MemoryBuffer> Contents);
+
+    /// Returns entry associated with the filename if there is some. Otherwise,
+    /// associates the given entry with the filename and returns it.
+    const CachedFileSystemEntry &
+    getOrInsertEntryForFilename(StringRef Filename,
+                                const CachedFileSystemEntry &Entry);
   };
 
   DependencyScanningFilesystemSharedCache();
 
-  /// Returns a cache entry for the corresponding key.
-  ///
-  /// A new cache entry is created if the key is not in the cache. This is a
-  /// thread safe call.
-  SharedFileSystemEntry &get(StringRef Key);
+  /// Returns shard for the given key.
+  CacheShard &getShardForFilename(StringRef Filename) const;
+  CacheShard &getShardForUID(llvm::sys::fs::UniqueID UID) const;
 
 private:
-  struct CacheShard {
-    std::mutex CacheLock;
-    llvm::StringMap<SharedFileSystemEntry, llvm::BumpPtrAllocator> Cache;
-  };
   std::unique_ptr<CacheShard[]> CacheShards;
   unsigned NumShards;
 };
 
 /// This class is a local cache, that caches the 'stat' and 'open' calls to the
-/// underlying real file system. It distinguishes between minimized and original
-/// files.
+/// underlying real file system.
 class DependencyScanningFilesystemLocalCache {
   llvm::StringMap<const CachedFileSystemEntry *, llvm::BumpPtrAllocator> Cache;
 
 public:
-  const CachedFileSystemEntry *getCachedEntry(StringRef Filename) {
-    return Cache[Filename];
+  /// Returns entry associated with the filename or nullptr if none is found.
+  const CachedFileSystemEntry *findEntryByFilename(StringRef Filename) const {
+    auto It = Cache.find(Filename);
+    return It == Cache.end() ? nullptr : It->getValue();
+  }
+
+  /// Associates the given entry with the filename and returns the given entry
+  /// pointer (for convenience).
+  const CachedFileSystemEntry &
+  insertEntryForFilename(StringRef Filename,
+                         const CachedFileSystemEntry &Entry) {
+    const auto *InsertedEntry = Cache.insert({Filename, &Entry}).first->second;
+    assert(InsertedEntry == &Entry && "entry already present");
+    return *InsertedEntry;
   }
 };
 
 /// Reference to a CachedFileSystemEntry.
-/// If the underlying entry is an opened file, this wrapper returns the correct
-/// contents (original or minimized) and ensures consistency with file size
-/// reported by status.
+/// If the underlying entry is an opened file, this wrapper returns the file
+/// contents and the scanned preprocessor directives.
 class EntryRef {
-  /// For entry that is an opened file, this bit signifies whether its contents
-  /// are minimized.
-  bool Minimized;
+  /// The filename used to access this entry.
+  std::string Filename;
 
   /// The underlying cached entry.
   const CachedFileSystemEntry &Entry;
 
 public:
-  EntryRef(bool Minimized, const CachedFileSystemEntry &Entry)
-      : Minimized(Minimized), Entry(Entry) {}
+  EntryRef(StringRef Name, const CachedFileSystemEntry &Entry)
+      : Filename(Name), Entry(Entry) {}
 
-  llvm::ErrorOr<llvm::vfs::Status> getStatus() const {
-    auto MaybeStat = Entry.getStatus();
-    if (!MaybeStat || MaybeStat->isDirectory())
-      return MaybeStat;
-    return llvm::vfs::Status::copyWithNewSize(*MaybeStat,
-                                              getContents()->size());
+  llvm::vfs::Status getStatus() const {
+    llvm::vfs::Status Stat = Entry.getStatus();
+    if (!Stat.isDirectory())
+      Stat = llvm::vfs::Status::copyWithNewSize(Stat, getContents().size());
+    return llvm::vfs::Status::copyWithNewName(Stat, Filename);
   }
 
+  bool isError() const { return Entry.isError(); }
   bool isDirectory() const { return Entry.isDirectory(); }
 
-  StringRef getName() const { return Entry.getName(); }
-
-  llvm::ErrorOr<StringRef> getContents() const {
-    return Minimized ? Entry.getMinimizedContents()
-                     : Entry.getOriginalContents();
+  /// If the cached entry represents an error, promotes it into `ErrorOr`.
+  llvm::ErrorOr<EntryRef> unwrapError() const {
+    if (isError())
+      return Entry.getError();
+    return *this;
   }
 
-  const PreprocessorSkippedRangeMapping *getPPSkippedRangeMapping() const {
-    return Minimized ? &Entry.getPPSkippedRangeMapping() : nullptr;
+  StringRef getContents() const { return Entry.getOriginalContents(); }
+
+  std::optional<ArrayRef<dependency_directives_scan::Directive>>
+  getDirectiveTokens() const {
+    return Entry.getDirectiveTokens();
   }
 };
 
+enum class ScanFile { Yes, No };
+enum class CacheStatFailure { Yes, No };
+
+struct PathPolicy {
+  /// Implies caching of all open and stat results.
+  unsigned Enable : 1;
+  /// Controls whether a file will be scanned for dependency directives.
+  unsigned ScanFile : 1;
+  /// Explicitly disables stat failure caching when false.
+  unsigned CacheStatFailure : 1;
+
+  static PathPolicy fallThrough() { return {false, false, false}; }
+
+  static PathPolicy cache(enum ScanFile SF,
+                          enum CacheStatFailure CSF = CacheStatFailure::Yes) {
+    return {true, SF == ScanFile::Yes, CSF == CacheStatFailure::Yes};
+  }
+
+private:
+  PathPolicy(bool E, bool SF, bool CSF)
+      : Enable(E), ScanFile(SF), CacheStatFailure(CSF) {}
+};
+
+/// Determine caching and scanning behavior based on file extension.
+PathPolicy getPolicy(StringRef Filename);
+
 /// A virtual file system optimized for the dependency discovery.
 ///
-/// It is primarily designed to work with source files whose contents was was
+/// It is primarily designed to work with source files whose contents was
 /// preprocessed to remove any tokens that are unlikely to affect the dependency
 /// computation.
 ///
@@ -218,37 +308,113 @@ class DependencyScanningWorkerFilesystem : public llvm::vfs::ProxyFileSystem {
 public:
   DependencyScanningWorkerFilesystem(
       DependencyScanningFilesystemSharedCache &SharedCache,
-      IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
-      ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings)
-      : ProxyFileSystem(std::move(FS)), SharedCache(SharedCache),
-        PPSkipMappings(PPSkipMappings) {}
+      IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS)
+      : ProxyFileSystem(std::move(FS)), SharedCache(SharedCache) {}
 
   llvm::ErrorOr<llvm::vfs::Status> status(const Twine &Path) override;
   llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
   openFileForRead(const Twine &Path) override;
 
-  /// Disable minimization of the given file.
-  void disableMinimization(StringRef Filename);
-  /// Enable minimization of all files.
-  void enableMinimizationOfAllFiles() { NotToBeMinimized.clear(); }
+  /// Returns entry for the given filename.
+  ///
+  /// Attempts to use the local and shared caches first, then falls back to
+  /// using the underlying filesystem.
+  llvm::ErrorOr<EntryRef> getOrCreateFileSystemEntry(StringRef Filename) {
+    return getOrCreateFileSystemEntry(Filename, getPolicy(Filename));
+  }
 
 private:
-  /// Check whether the file should be minimized.
-  bool shouldMinimize(StringRef Filename);
+  /// Same as the public version, but with explicit PathPolicy parameter.
+  llvm::ErrorOr<EntryRef> getOrCreateFileSystemEntry(StringRef Filename,
+                                                     PathPolicy Policy);
 
-  llvm::ErrorOr<EntryRef> getOrCreateFileSystemEntry(StringRef Filename);
+  /// For a filename that's not yet associated with any entry in the caches,
+  /// uses the underlying filesystem to either look up the entry based in the
+  /// shared cache indexed by unique ID, or creates new entry from scratch.
+  llvm::ErrorOr<const CachedFileSystemEntry &>
+  computeAndStoreResult(StringRef Filename, PathPolicy Policy);
+
+  /// Scan for preprocessor directives for the given entry if necessary and
+  /// returns a wrapper object with reference semantics.
+  EntryRef scanForDirectivesIfNecessary(const CachedFileSystemEntry &Entry,
+                                        StringRef Filename, PathPolicy Policy);
+
+  /// Represents a filesystem entry that has been stat-ed (and potentially read)
+  /// and that's about to be inserted into the cache as `CachedFileSystemEntry`.
+  struct TentativeEntry {
+    llvm::vfs::Status Status;
+    std::unique_ptr<llvm::MemoryBuffer> Contents;
+
+    TentativeEntry(llvm::vfs::Status Status,
+                   std::unique_ptr<llvm::MemoryBuffer> Contents = nullptr)
+        : Status(std::move(Status)), Contents(std::move(Contents)) {}
+  };
+
+  /// Reads file at the given path. Enforces consistency between the file size
+  /// in status and size of read contents.
+  llvm::ErrorOr<TentativeEntry> readFile(StringRef Filename);
+
+  /// Returns entry associated with the unique ID of the given tentative entry
+  /// if there is some in the shared cache. Otherwise, constructs new one,
+  /// associates it with the unique ID and returns the result.
+  const CachedFileSystemEntry &
+  getOrEmplaceSharedEntryForUID(TentativeEntry TEntry);
+
+  /// Returns entry associated with the filename or nullptr if none is found.
+  ///
+  /// Returns entry from local cache if there is some. Otherwise, if the entry
+  /// is found in the shared cache, writes it through the local cache and
+  /// returns it. Otherwise returns nullptr.
+  const CachedFileSystemEntry *
+  findEntryByFilenameWithWriteThrough(StringRef Filename);
+
+  /// Returns entry associated with the unique ID in the shared cache or nullptr
+  /// if none is found.
+  const CachedFileSystemEntry *
+  findSharedEntryByUID(llvm::vfs::Status Stat) const {
+    return SharedCache.getShardForUID(Stat.getUniqueID())
+        .findEntryByUID(Stat.getUniqueID());
+  }
+
+  /// Associates the given entry with the filename in the local cache and
+  /// returns it.
+  const CachedFileSystemEntry &
+  insertLocalEntryForFilename(StringRef Filename,
+                              const CachedFileSystemEntry &Entry) {
+    return LocalCache.insertEntryForFilename(Filename, Entry);
+  }
+
+  /// Returns entry associated with the filename in the shared cache if there is
+  /// some. Otherwise, constructs new one with the given error code, associates
+  /// it with the filename and returns the result.
+  const CachedFileSystemEntry &
+  getOrEmplaceSharedEntryForFilename(StringRef Filename, std::error_code EC) {
+    return SharedCache.getShardForFilename(Filename)
+        .getOrEmplaceEntryForFilename(Filename, EC);
+  }
+
+  /// Returns entry associated with the filename in the shared cache if there is
+  /// some. Otherwise, associates the given entry with the filename and returns
+  /// it.
+  const CachedFileSystemEntry &
+  getOrInsertSharedEntryForFilename(StringRef Filename,
+                                    const CachedFileSystemEntry &Entry) {
+    return SharedCache.getShardForFilename(Filename)
+        .getOrInsertEntryForFilename(Filename, Entry);
+  }
+
+  void printImpl(raw_ostream &OS, PrintType Type,
+                 unsigned IndentLevel) const override {
+    printIndent(OS, IndentLevel);
+    OS << "DependencyScanningFilesystem\n";
+    getUnderlyingFS().print(OS, Type, IndentLevel + 1);
+  }
 
   /// The global cache shared between worker threads.
   DependencyScanningFilesystemSharedCache &SharedCache;
   /// The local cache is used by the worker thread to cache file system queries
   /// locally instead of querying the global cache every time.
   DependencyScanningFilesystemLocalCache LocalCache;
-  /// The optional mapping structure which records information about the
-  /// excluded conditional directive skip mappings that are used by the
-  /// currently active preprocessor.
-  ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings;
-  /// The set of files that should not be minimized.
-  llvm::StringSet<> NotToBeMinimized;
 };
 
 } // end namespace dependencies

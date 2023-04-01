@@ -19,14 +19,12 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/MCA/CustomBehaviour.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
 
 namespace llvm {
 namespace mca {
 
 class X86InstrPostProcess : public InstrPostProcess {
-  void processWaitCnt(std::unique_ptr<Instruction> &Inst, const MCInst &MCI);
-
   /// Called within X86InstrPostProcess to specify certain instructions
   /// as load and store barriers.
   void setMemBarriers(std::unique_ptr<Instruction> &Inst, const MCInst &MCI);
@@ -35,7 +33,7 @@ public:
   X86InstrPostProcess(const MCSubtargetInfo &STI, const MCInstrInfo &MCII)
       : InstrPostProcess(STI, MCII) {}
 
-  ~X86InstrPostProcess() {}
+  ~X86InstrPostProcess() = default;
 
   void postProcessInstruction(std::unique_ptr<Instruction> &Inst,
                               const MCInst &MCI) override;

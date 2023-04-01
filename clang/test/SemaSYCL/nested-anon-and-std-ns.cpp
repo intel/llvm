@@ -24,22 +24,22 @@ struct MyWrapper {
 
 public:
   void test() {
-    cl::sycl::queue q;
+    sycl::queue q;
 
     // expected-error@#KernelSingleTask {{'std::NestedInStd::NestedStruct' is an invalid kernel name, 'std::NestedInStd::NestedStruct' is declared in the 'std' namespace}}
     // expected-note@+2{{in instantiation of function template specialization}}
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<std::NestedInStd::NestedStruct>([] {});
     });
 
     // no error for valid ns
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<ValidNS::StructinValidNS>([] {});
     });
 
     // expected-error@#KernelSingleTask {{'ParentStruct::ChildStruct' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
-    q.submit([&](cl::sycl::handler &h) {
+    q.submit([&](sycl::handler &h) {
       h.single_task<ParentStruct::ChildStruct>([] {});
     });
   }

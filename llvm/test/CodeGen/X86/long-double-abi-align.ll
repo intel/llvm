@@ -11,7 +11,7 @@ define void @foo(i32 %0, x86_fp80 %1, i32 %2) nounwind {
 ; MSVC-NEXT:    movl %esp, %ebp
 ; MSVC-NEXT:    andl $-16, %esp
 ; MSVC-NEXT:    subl $32, %esp
-; MSVC-NEXT:    fldt 12(%ebp)
+; MSVC-NEXT:    fldt 24(%ebp)
 ; MSVC-NEXT:    fstpt (%esp)
 ; MSVC-NEXT:    leal 8(%ebp), %eax
 ; MSVC-NEXT:    pushl %eax
@@ -21,7 +21,7 @@ define void @foo(i32 %0, x86_fp80 %1, i32 %2) nounwind {
 ; MSVC-NEXT:    pushl %eax
 ; MSVC-NEXT:    calll _escape
 ; MSVC-NEXT:    addl $4, %esp
-; MSVC-NEXT:    leal 24(%ebp), %eax
+; MSVC-NEXT:    leal 40(%ebp), %eax
 ; MSVC-NEXT:    pushl %eax
 ; MSVC-NEXT:    calll _escape
 ; MSVC-NEXT:    addl $4, %esp
@@ -89,16 +89,13 @@ define void @foo(i32 %0, x86_fp80 %1, i32 %2) nounwind {
   %4 = alloca i32, align 4
   %5 = alloca x86_fp80, align 16
   %6 = alloca i32, align 4
-  store i32 %0, i32* %4, align 4
-  store x86_fp80 %1, x86_fp80* %5, align 16
-  store i32 %2, i32* %6, align 4
-  %7 = bitcast i32* %4 to i8*
-  call void @escape(i8* nonnull %7)
-  %8 = bitcast x86_fp80* %5 to i8*
-  call void @escape(i8* nonnull %8)
-  %9 = bitcast i32* %6 to i8*
-  call void @escape(i8* nonnull %9)
+  store i32 %0, ptr %4, align 4
+  store x86_fp80 %1, ptr %5, align 16
+  store i32 %2, ptr %6, align 4
+  call void @escape(ptr nonnull %4)
+  call void @escape(ptr nonnull %5)
+  call void @escape(ptr nonnull %6)
   ret void
 }
 
-declare void @escape(i8*)
+declare void @escape(ptr)

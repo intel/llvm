@@ -117,7 +117,10 @@ append_list_if(COMPILER_RT_HAS_FTLS_MODEL_INITIAL_EXEC
   -ftls-model=initial-exec ASAN_DYNAMIC_CFLAGS)
 append_list_if(MSVC /DEBUG ASAN_DYNAMIC_LINK_FLAGS)
 
-set(ASAN_DYNAMIC_LIBS ${SANITIZER_CXX_ABI_LIBRARIES} ${SANITIZER_COMMON_LINK_LIBS})
+set(ASAN_DYNAMIC_LIBS
+  ${COMPILER_RT_UNWINDER_LINK_LIBS}
+  ${SANITIZER_CXX_ABI_LIBRARIES}
+  ${SANITIZER_COMMON_LINK_LIBS})
 
 append_list_if(COMPILER_RT_HAS_LIBDL dl ASAN_DYNAMIC_LIBS)
 append_list_if(COMPILER_RT_HAS_LIBRT rt ASAN_DYNAMIC_LIBS)
@@ -276,7 +279,8 @@ else()
       add_compiler_rt_object_libraries(AsanWeakInterception
         ${SANITIZER_COMMON_SUPPORTED_OS}
         ARCHS ${arch}
-        SOURCES asan_win_weak_interception.cpp
+        SOURCES
+          asan_win_weak_interception.cpp
         CFLAGS ${ASAN_CFLAGS} -DSANITIZER_DYNAMIC
         DEFS ${ASAN_COMMON_DEFINITIONS})
       set(ASAN_DYNAMIC_WEAK_INTERCEPTION

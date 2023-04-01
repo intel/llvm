@@ -13,6 +13,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <fcntl.h>
+#include <optional>
 
 #ifdef _WIN32
 #include "lldb/Host/windows/windows.h"
@@ -23,17 +24,17 @@
 #include <unistd.h>
 #endif
 
-#include "llvm/Support/ConvertUTF.h"
-#include "llvm/Support/Errno.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Process.h"
-
 #include "lldb/Host/Config.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/Utility/VASPrintf.h"
+#include "llvm/Support/ConvertUTF.h"
+#include "llvm/Support/Errno.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Process.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -215,18 +216,13 @@ size_t File::Printf(const char *format, ...) {
 }
 
 size_t File::PrintfVarArg(const char *format, va_list args) {
-  size_t result = 0;
-  char *s = nullptr;
-  result = vasprintf(&s, format, args);
-  if (s != nullptr) {
-    if (result > 0) {
-      size_t s_len = result;
-      Write(s, s_len);
-      result = s_len;
-    }
-    free(s);
+  llvm::SmallString<0> s;
+  if (VASprintf(s, format, args)) {
+    size_t written = s.size();;
+    Write(s.data(), written);
+    return written;
   }
-  return result;
+  return 0;
 }
 
 Expected<File::OpenOptions> File::GetOptions() const {
@@ -782,13 +778,13 @@ SerialPort::OptionsFromURL(llvm::StringRef urlqs) {
       serial_options.BaudRate = baud_rate;
     } else if (x.consume_front("parity=")) {
       serial_options.Parity =
-          llvm::StringSwitch<llvm::Optional<Terminal::Parity>>(x)
+          llvm::StringSwitch<std::optional<Terminal::Parity>>(x)
               .Case("no", Terminal::Parity::No)
               .Case("even", Terminal::Parity::Even)
               .Case("odd", Terminal::Parity::Odd)
               .Case("mark", Terminal::Parity::Mark)
               .Case("space", Terminal::Parity::Space)
-              .Default(llvm::None);
+              .Default(std::nullopt);
       if (!serial_options.Parity)
         return llvm::createStringError(
             llvm::inconvertibleErrorCode(),
@@ -796,14 +792,14 @@ SerialPort::OptionsFromURL(llvm::StringRef urlqs) {
             x.str().c_str());
     } else if (x.consume_front("parity-check=")) {
       serial_options.ParityCheck =
-          llvm::StringSwitch<llvm::Optional<Terminal::ParityCheck>>(x)
+          llvm::StringSwitch<std::optional<Terminal::ParityCheck>>(x)
               .Case("no", Terminal::ParityCheck::No)
               .Case("replace", Terminal::ParityCheck::ReplaceWithNUL)
               .Case("ignore", Terminal::ParityCheck::Ignore)
               // "mark" mode is not currently supported as it requires special
               // input processing
               // .Case("mark", Terminal::ParityCheck::Mark)
-              .Default(llvm::None);
+              .Default(std::nullopt);
       if (!serial_options.ParityCheck)
         return llvm::createStringError(
             llvm::inconvertibleErrorCode(),
@@ -838,22 +834,19 @@ SerialPort::Create(int fd, OpenOptions options, Options serial_options,
   if (llvm::Error error = term.SetRaw())
     return std::move(error);
   if (serial_options.BaudRate) {
-    if (llvm::Error error =
-            term.SetBaudRate(serial_options.BaudRate.getValue()))
+    if (llvm::Error error = term.SetBaudRate(*serial_options.BaudRate))
       return std::move(error);
   }
   if (serial_options.Parity) {
-    if (llvm::Error error = term.SetParity(serial_options.Parity.getValue()))
+    if (llvm::Error error = term.SetParity(*serial_options.Parity))
       return std::move(error);
   }
   if (serial_options.ParityCheck) {
-    if (llvm::Error error =
-            term.SetParityCheck(serial_options.ParityCheck.getValue()))
+    if (llvm::Error error = term.SetParityCheck(*serial_options.ParityCheck))
       return std::move(error);
   }
   if (serial_options.StopBits) {
-    if (llvm::Error error =
-            term.SetStopBits(serial_options.StopBits.getValue()))
+    if (llvm::Error error = term.SetStopBits(*serial_options.StopBits))
       return std::move(error);
   }
 

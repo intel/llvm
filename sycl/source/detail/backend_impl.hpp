@@ -7,22 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/backend_types.hpp>
+#include <cassert>
+#include <sycl/backend_types.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <class T> backend getImplBackend(const T &Impl) {
-  backend Result;
-  if (Impl->is_host())
-    Result = backend::host;
-  else
-    Result = Impl->getPlugin().getBackend();
-
-  return Result;
+  assert(!Impl->is_host() && "Cannot get the backend for host.");
+  return Impl->getPlugin().getBackend();
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

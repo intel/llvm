@@ -26,6 +26,7 @@
 #include "llvm/ADT/ScopedHashTable.h"
 #include "llvm/Support/raw_ostream.h"
 #include <numeric>
+#include <optional>
 
 using namespace mlir::toy;
 using namespace toy;
@@ -34,7 +35,6 @@ using llvm::ArrayRef;
 using llvm::cast;
 using llvm::dyn_cast;
 using llvm::isa;
-using llvm::makeArrayRef;
 using llvm::ScopedHashTableScope;
 using llvm::SmallVector;
 using llvm::StringRef;
@@ -60,11 +60,9 @@ public:
 
     for (auto &record : moduleAST) {
       if (FunctionAST *funcAST = llvm::dyn_cast<FunctionAST>(record.get())) {
-        auto func = mlirGen(*funcAST);
+        mlir::toy::FuncOp func = mlirGen(*funcAST);
         if (!func)
           return nullptr;
-
-        theModule.push_back(func);
         functionMap.insert({func.getName(), func});
       } else if (StructAST *str = llvm::dyn_cast<StructAST>(record.get())) {
         if (failed(mlirGen(*str)))
@@ -105,7 +103,7 @@ private:
                                  std::pair<mlir::Value, VarDeclExprAST *>>;
 
   /// A mapping for the functions that have been code generated to MLIR.
-  llvm::StringMap<mlir::FuncOp> functionMap;
+  llvm::StringMap<mlir::toy::FuncOp> functionMap;
 
   /// A mapping for named struct types to the underlying MLIR type and the
   /// original AST node.
@@ -157,7 +155,7 @@ private:
 
   /// Create the prototype for an MLIR function with as many arguments as the
   /// provided Toy AST prototype.
-  mlir::FuncOp mlirGen(PrototypeAST &proto) {
+  mlir::toy::FuncOp mlirGen(PrototypeAST &proto) {
     auto location = loc(proto.loc());
 
     // This is a generic function, the return type will be inferred later.
@@ -169,24 +167,24 @@ private:
         return nullptr;
       argTypes.push_back(type);
     }
-    auto funcType = builder.getFunctionType(argTypes, llvm::None);
-    return mlir::FuncOp::create(location, proto.getName(), funcType);
+    auto funcType = builder.getFunctionType(argTypes, std::nullopt);
+    return builder.create<mlir::toy::FuncOp>(location, proto.getName(),
+                                             funcType);
   }
 
   /// Emit a new function and add it to the MLIR module.
-  mlir::FuncOp mlirGen(FunctionAST &funcAST) {
+  mlir::toy::FuncOp mlirGen(FunctionAST &funcAST) {
     // Create a scope in the symbol table to hold variable declarations.
     SymbolTableScopeT varScope(symbolTable);
 
     // Create an MLIR function for the given prototype.
-    mlir::FuncOp function(mlirGen(*funcAST.getProto()));
+    builder.setInsertionPointToEnd(theModule.getBody());
+    mlir::toy::FuncOp function = mlirGen(*funcAST.getProto());
     if (!function)
       return nullptr;
 
     // Let's start the body of the function now!
-    // In MLIR the entry block of the function is special: it must have the same
-    // argument list as the function itself.
-    auto &entryBlock = *function.addEntryBlock();
+    mlir::Block &entryBlock = function.front();
     auto protoArgs = funcAST.getProto()->getArgs();
 
     // Declare all the function arguments in the symbol table.
@@ -218,8 +216,9 @@ private:
     } else if (returnOp.hasOperand()) {
       // Otherwise, if this return operation has an operand then add a result to
       // the function.
-      function.setType(builder.getFunctionType(function.getType().getInputs(),
-                                               *returnOp.operand_type_begin()));
+      function.setType(
+          builder.getFunctionType(function.getFunctionType().getInputs(),
+                                  *returnOp.operand_type_begin()));
     }
 
     // If this function isn't main, then set the visibility to private.
@@ -272,25 +271,25 @@ private:
   }
 
   /// Return the numeric member index of the given struct access expression.
-  llvm::Optional<size_t> getMemberIndex(BinaryExprAST &accessOp) {
+  std::optional<size_t> getMemberIndex(BinaryExprAST &accessOp) {
     assert(accessOp.getOp() == '.' && "expected access operation");
 
     // Lookup the struct node for the LHS.
     StructAST *structAST = getStructFor(accessOp.getLHS());
     if (!structAST)
-      return llvm::None;
+      return std::nullopt;
 
     // Get the name from the RHS.
     VariableExprAST *name = llvm::dyn_cast<VariableExprAST>(accessOp.getRHS());
     if (!name)
-      return llvm::None;
+      return std::nullopt;
 
     auto structVars = structAST->getVariables();
     const auto *it = llvm::find_if(structVars, [&](auto &var) {
       return var->getName() == name->getName();
     });
     if (it == structVars.end())
-      return llvm::None;
+      return std::nullopt;
     return it - structVars.begin();
   }
 
@@ -314,7 +313,7 @@ private:
 
     // If this is an access operation, handle it immediately.
     if (binop.getOp() == '.') {
-      llvm::Optional<size_t> accessIndex = getMemberIndex(binop);
+      std::optional<size_t> accessIndex = getMemberIndex(binop);
       if (!accessIndex) {
         emitError(location, "invalid access into struct expression");
         return nullptr;
@@ -358,14 +357,14 @@ private:
 
     // 'return' takes an optional expression, handle that case here.
     mlir::Value expr = nullptr;
-    if (ret.getExpr().hasValue()) {
-      if (!(expr = mlirGen(*ret.getExpr().getValue())))
+    if (ret.getExpr().has_value()) {
+      if (!(expr = mlirGen(**ret.getExpr())))
         return mlir::failure();
     }
 
     // Otherwise, this return operation has zero operands.
-    builder.create<ReturnOp>(location, expr ? makeArrayRef(expr)
-                                            : ArrayRef<mlir::Value>());
+    builder.create<ReturnOp>(location,
+                             expr ? ArrayRef(expr) : ArrayRef<mlir::Value>());
     return mlir::success();
   }
 
@@ -402,7 +401,7 @@ private:
 
     // This is the actual attribute that holds the list of values for this
     // tensor literal.
-    return mlir::DenseElementsAttr::get(dataType, llvm::makeArrayRef(data));
+    return mlir::DenseElementsAttr::get(dataType, llvm::ArrayRef(data));
   }
   mlir::DenseElementsAttr getConstantAttr(NumberExprAST &lit) {
     // The type of this attribute is tensor of 64-bit floating-point with no
@@ -413,7 +412,7 @@ private:
     // This is the actual attribute that holds the list of values for this
     // tensor literal.
     return mlir::DenseElementsAttr::get(dataType,
-                                        llvm::makeArrayRef(lit.getValue()));
+                                        llvm::ArrayRef(lit.getValue()));
   }
   /// Emit a constant for a struct literal. It will be emitted as an array of
   /// other literals in an Attribute attached to a `toy.struct_constant`
@@ -427,10 +426,10 @@ private:
     for (auto &var : lit.getValues()) {
       if (auto *number = llvm::dyn_cast<NumberExprAST>(var.get())) {
         attrElements.push_back(getConstantAttr(*number));
-        typeElements.push_back(getType(llvm::None));
+        typeElements.push_back(getType(std::nullopt));
       } else if (auto *lit = llvm::dyn_cast<LiteralExprAST>(var.get())) {
         attrElements.push_back(getConstantAttr(*lit));
-        typeElements.push_back(getType(llvm::None));
+        typeElements.push_back(getType(std::nullopt));
       } else {
         auto *structLit = llvm::cast<StructLiteralExprAST>(var.get());
         auto attrTypePair = getConstantAttr(*structLit);
@@ -519,9 +518,9 @@ private:
       emitError(location) << "no defined function found for '" << callee << "'";
       return nullptr;
     }
-    mlir::FuncOp calledFunc = calledFuncIt->second;
+    mlir::toy::FuncOp calledFunc = calledFuncIt->second;
     return builder.create<GenericCallOp>(
-        location, calledFunc.getType().getResult(0),
+        location, calledFunc.getFunctionType().getResult(0),
         mlir::SymbolRefAttr::get(builder.getContext(), callee), operands);
   }
 
@@ -669,8 +668,8 @@ private:
 namespace toy {
 
 // The public API for codegen.
-mlir::OwningModuleRef mlirGen(mlir::MLIRContext &context,
-                              ModuleAST &moduleAST) {
+mlir::OwningOpRef<mlir::ModuleOp> mlirGen(mlir::MLIRContext &context,
+                                          ModuleAST &moduleAST) {
   return MLIRGenImpl(context).mlirGen(moduleAST);
 }
 

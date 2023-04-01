@@ -105,20 +105,6 @@ struct VectorizeConfig {
 };
 
 //===----------------------------------------------------------------------===//
-//
-// LoopVectorize - Create a loop vectorization pass.
-//
-Pass *createLoopVectorizePass();
-Pass *createLoopVectorizePass(bool InterleaveOnlyWhenForced,
-                              bool VectorizeOnlyWhenForced);
-
-//===----------------------------------------------------------------------===//
-//
-// SLPVectorizer - Create a bottom-up SLP vectorizer pass.
-//
-Pass *createSLPVectorizerPass();
-
-//===----------------------------------------------------------------------===//
 /// Vectorize the BasicBlock.
 ///
 /// @param BB The BasicBlock to be vectorized
@@ -137,12 +123,6 @@ bool vectorizeBasicBlock(Pass *P, BasicBlock &BB,
 // operations.
 //
 Pass *createLoadStoreVectorizerPass();
-
-//===----------------------------------------------------------------------===//
-//
-// Optimize partial vector operations using target cost models.
-//
-Pass *createVectorCombinePass();
 
 } // End llvm namespace
 

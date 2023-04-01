@@ -30,6 +30,7 @@
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/MachineValueType.h"
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -243,8 +244,7 @@ class VectorType;
     VADDLVAps, // Same as VADDLVp[su] but with a v4i1 predicate mask
     VADDLVApu,
     VMLAVs, // sign- or zero-extend the elements of two vectors to i32, multiply
-            // them
-    VMLAVu, //   and add the results together, returning an i32 of their sum
+    VMLAVu, //   them and add the results together, returning an i32 of their sum
     VMLAVps, // Same as VMLAV[su] with a v4i1 predicate mask
     VMLAVpu,
     VMLALVs,  // Same as VMLAV but with i64, returning the low and
@@ -445,7 +445,7 @@ class VectorType;
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
                                         Align Alignment,
                                         MachineMemOperand::Flags Flags,
-                                        bool *Fast) const override;
+                                        unsigned *Fast) const override;
 
     EVT getOptimalMemOpType(const MemOp &Op,
                             const AttributeList &FuncAttributes) const override;
@@ -469,14 +469,6 @@ class VectorType;
     bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM,
                                Type *Ty, unsigned AS,
                                Instruction *I = nullptr) const override;
-
-    /// getScalingFactorCost - Return the cost of the scaling used in
-    /// addressing mode represented by AM.
-    /// If the AM is supported, the return value must be >= 0.
-    /// If the AM is not supported, the return value must be negative.
-    InstructionCost getScalingFactorCost(const DataLayout &DL,
-                                         const AddrMode &AM, Type *Ty,
-                                         unsigned AS) const override;
 
     bool isLegalT2ScaledAddressingMode(const AddrMode &AM, EVT VT) const;
 
@@ -581,7 +573,7 @@ class VectorType;
     getRegClassFor(MVT VT, bool isDivergent = false) const override;
 
     bool shouldAlignPointerArgs(CallInst *CI, unsigned &MinSize,
-                                unsigned &PrefAlign) const override;
+                                Align &PrefAlign) const override;
 
     /// createFastISel - This method returns a target specific FastISel object,
     /// or null if the target does not support "fast" ISel.
@@ -591,6 +583,8 @@ class VectorType;
     Sched::Preference getSchedulingPreference(SDNode *N) const override;
 
     bool preferZeroCompareBranch() const override { return true; }
+
+    bool isMaskAndCmp0FoldingBeneficial(const Instruction &AndI) const override;
 
     bool
     isShuffleMaskLegal(ArrayRef<int> M, EVT VT) const override;
@@ -621,6 +615,10 @@ class VectorType;
                               bool MathUsed) const override {
       // Using overflow ops for overflow checks only should beneficial on ARM.
       return TargetLowering::shouldFormOverflowOp(Opcode, VT, true);
+    }
+
+    bool shouldReassociateReduction(unsigned Opc, EVT VT) const override {
+      return Opc != ISD::VECREDUCE_ADD;
     }
 
     /// Returns true if an argument of type Ty needs to be passed in a
@@ -665,7 +663,8 @@ class VectorType;
     bool shouldInsertFencesForAtomic(const Instruction *I) const override;
     TargetLoweringBase::AtomicExpansionKind
     shouldExpandAtomicLoadInIR(LoadInst *LI) const override;
-    bool shouldExpandAtomicStoreInIR(StoreInst *SI) const override;
+    TargetLoweringBase::AtomicExpansionKind
+    shouldExpandAtomicStoreInIR(StoreInst *SI) const override;
     TargetLoweringBase::AtomicExpansionKind
     shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
     TargetLoweringBase::AtomicExpansionKind
@@ -686,8 +685,8 @@ class VectorType;
       return (MemVT.getSizeInBits() <= 32);
     }
 
-    bool isCheapToSpeculateCttz() const override;
-    bool isCheapToSpeculateCtlz() const override;
+    bool isCheapToSpeculateCttz(Type *Ty) const override;
+    bool isCheapToSpeculateCtlz(Type *Ty) const override;
 
     bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
       return VT.isScalarInteger();
@@ -701,7 +700,9 @@ class VectorType;
       return HasStandaloneRem;
     }
 
-    bool shouldExpandShift(SelectionDAG &DAG, SDNode *N) const override;
+    ShiftLegalizationStrategy
+    preferredShiftLegalizationStrategy(SelectionDAG &DAG, SDNode *N,
+                                       unsigned ExpansionFactor) const override;
 
     CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool isVarArg) const;
     CCAssignFn *CCAssignFnForReturn(CallingConv::ID CC, bool isVarArg) const;
@@ -713,8 +714,8 @@ class VectorType;
                                       Align Alignment,
                                       const DataLayout &DL) const;
 
-    bool isMulAddWithConstProfitable(const SDValue &AddNode,
-                                     const SDValue &ConstNode) const override;
+    bool isMulAddWithConstProfitable(SDValue AddNode,
+                                     SDValue ConstNode) const override;
 
     bool alignLoopsWithOptSize() const override;
 
@@ -732,12 +733,23 @@ class VectorType;
     bool isDesirableToCommuteWithShift(const SDNode *N,
                                        CombineLevel Level) const override;
 
+    bool isDesirableToCommuteXorWithShift(const SDNode *N) const override;
+
     bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                            CombineLevel Level) const override;
 
     bool preferIncOfAddToSubOfNot(EVT VT) const override;
 
     bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
+
+    bool isComplexDeinterleavingSupported() const override;
+    bool isComplexDeinterleavingOperationSupported(
+        ComplexDeinterleavingOperation Operation, Type *Ty) const override;
+
+    Value *createComplexDeinterleavingIR(
+        Instruction *I, ComplexDeinterleavingOperation OperationType,
+        ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
+        Value *Accumulator = nullptr) const override;
 
   protected:
     std::pair<const TargetRegisterClass *, uint8_t>
@@ -822,7 +834,7 @@ class VectorType;
     SDValue LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerFLT_ROUNDS_(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerGET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerConstantFP(SDValue Op, SelectionDAG &DAG,
                             const ARMSubtarget *ST) const;
@@ -845,8 +857,7 @@ class VectorType;
     SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFSETCC(SDValue Op, SelectionDAG &DAG) const;
-    void lowerABS(SDNode *N, SmallVectorImpl<SDValue> &Results,
-                  SelectionDAG &DAG) const;
+    SDValue LowerSPONENTRY(SDValue Op, SelectionDAG &DAG) const;
     void LowerLOAD(SDNode *N, SmallVectorImpl<SDValue> &Results,
                    SelectionDAG &DAG) const;
 
@@ -883,16 +894,15 @@ class VectorType;
       MachineBasicBlock *Entry,
       const SmallVectorImpl<MachineBasicBlock *> &Exits) const override;
 
-    bool
-    splitValueIntoRegisterParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
-                                SDValue *Parts, unsigned NumParts, MVT PartVT,
-                                Optional<CallingConv::ID> CC) const override;
+    bool splitValueIntoRegisterParts(
+        SelectionDAG & DAG, const SDLoc &DL, SDValue Val, SDValue *Parts,
+        unsigned NumParts, MVT PartVT, std::optional<CallingConv::ID> CC)
+        const override;
 
-    SDValue
-    joinRegisterPartsIntoValue(SelectionDAG &DAG, const SDLoc &DL,
-                               const SDValue *Parts, unsigned NumParts,
-                               MVT PartVT, EVT ValueVT,
-                               Optional<CallingConv::ID> CC) const override;
+    SDValue joinRegisterPartsIntoValue(
+        SelectionDAG & DAG, const SDLoc &DL, const SDValue *Parts,
+        unsigned NumParts, MVT PartVT, EVT ValueVT,
+        std::optional<CallingConv::ID> CC) const override;
 
     SDValue
     LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,

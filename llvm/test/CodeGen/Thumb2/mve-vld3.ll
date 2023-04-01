@@ -3,7 +3,7 @@
 
 ; i32
 
-define void @vld3_v2i32(<6 x i32> *%src, <2 x i32> *%dst) {
+define void @vld3_v2i32(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v2i32:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r7, lr}
@@ -21,17 +21,17 @@ define void @vld3_v2i32(<6 x i32> *%src, <2 x i32> *%dst) {
 ; CHECK-NEXT:    strd r2, r0, [r1]
 ; CHECK-NEXT:    pop {r7, pc}
 entry:
-  %l1 = load <6 x i32>, <6 x i32>* %src, align 4
+  %l1 = load <6 x i32>, ptr %src, align 4
   %s1 = shufflevector <6 x i32> %l1, <6 x i32> undef, <2 x i32> <i32 0, i32 3>
   %s2 = shufflevector <6 x i32> %l1, <6 x i32> undef, <2 x i32> <i32 1, i32 4>
   %s3 = shufflevector <6 x i32> %l1, <6 x i32> undef, <2 x i32> <i32 2, i32 5>
   %a1 = add <2 x i32> %s1, %s2
   %a = add <2 x i32> %a1, %s3
-  store <2 x i32> %a, <2 x i32> *%dst
+  store <2 x i32> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v4i32(<12 x i32> *%src, <4 x i32> *%dst) {
+define void @vld3_v4i32(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v4i32:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .vsave {d8, d9}
@@ -56,17 +56,17 @@ define void @vld3_v4i32(<12 x i32> *%src, <4 x i32> *%dst) {
 ; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <12 x i32>, <12 x i32>* %src, align 4
+  %l1 = load <12 x i32>, ptr %src, align 4
   %s1 = shufflevector <12 x i32> %l1, <12 x i32> undef, <4 x i32> <i32 0, i32 3, i32 6, i32 9>
   %s2 = shufflevector <12 x i32> %l1, <12 x i32> undef, <4 x i32> <i32 1, i32 4, i32 7, i32 10>
   %s3 = shufflevector <12 x i32> %l1, <12 x i32> undef, <4 x i32> <i32 2, i32 5, i32 8, i32 11>
   %a1 = add <4 x i32> %s1, %s2
   %a = add <4 x i32> %a1, %s3
-  store <4 x i32> %a, <4 x i32> *%dst
+  store <4 x i32> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v8i32(<24 x i32> *%src, <8 x i32> *%dst) {
+define void @vld3_v8i32(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v8i32:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .vsave {d8, d9, d10, d11}
@@ -108,17 +108,17 @@ define void @vld3_v8i32(<24 x i32> *%src, <8 x i32> *%dst) {
 ; CHECK-NEXT:    vpop {d8, d9, d10, d11}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <24 x i32>, <24 x i32>* %src, align 4
+  %l1 = load <24 x i32>, ptr %src, align 4
   %s1 = shufflevector <24 x i32> %l1, <24 x i32> undef, <8 x i32> <i32 0, i32 3, i32 6, i32 9, i32 12, i32 15, i32 18, i32 21>
   %s2 = shufflevector <24 x i32> %l1, <24 x i32> undef, <8 x i32> <i32 1, i32 4, i32 7, i32 10, i32 13, i32 16, i32 19, i32 22>
   %s3 = shufflevector <24 x i32> %l1, <24 x i32> undef, <8 x i32> <i32 2, i32 5, i32 8, i32 11, i32 14, i32 17, i32 20, i32 23>
   %a1 = add <8 x i32> %s1, %s2
   %a = add <8 x i32> %a1, %s3
-  store <8 x i32> %a, <8 x i32> *%dst
+  store <8 x i32> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v16i32(<48 x i32> *%src, <16 x i32> *%dst) {
+define void @vld3_v16i32(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v16i32:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .vsave {d8, d9, d10, d11, d12, d13, d14, d15}
@@ -194,19 +194,19 @@ define void @vld3_v16i32(<48 x i32> *%src, <16 x i32> *%dst) {
 ; CHECK-NEXT:    vpop {d8, d9, d10, d11, d12, d13, d14, d15}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <48 x i32>, <48 x i32>* %src, align 4
+  %l1 = load <48 x i32>, ptr %src, align 4
   %s1 = shufflevector <48 x i32> %l1, <48 x i32> undef, <16 x i32> <i32 0, i32 3, i32 6, i32 9, i32 12, i32 15, i32 18, i32 21, i32 24, i32 27, i32 30, i32 33, i32 36, i32 39, i32 42, i32 45>
   %s2 = shufflevector <48 x i32> %l1, <48 x i32> undef, <16 x i32> <i32 1, i32 4, i32 7, i32 10, i32 13, i32 16, i32 19, i32 22, i32 25, i32 28, i32 31, i32 34, i32 37, i32 40, i32 43, i32 46>
   %s3 = shufflevector <48 x i32> %l1, <48 x i32> undef, <16 x i32> <i32 2, i32 5, i32 8, i32 11, i32 14, i32 17, i32 20, i32 23, i32 26, i32 29, i32 32, i32 35, i32 38, i32 41, i32 44, i32 47>
   %a1 = add <16 x i32> %s1, %s2
   %a = add <16 x i32> %a1, %s3
-  store <16 x i32> %a, <16 x i32> *%dst
+  store <16 x i32> %a, ptr %dst
   ret void
 }
 
 ; i16
 
-define void @vld3_v2i16(<6 x i16> *%src, <2 x i16> *%dst) {
+define void @vld3_v2i16(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v2i16:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .pad #8
@@ -236,17 +236,17 @@ define void @vld3_v2i16(<6 x i16> *%src, <2 x i16> *%dst) {
 ; CHECK-NEXT:    add sp, #8
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <6 x i16>, <6 x i16>* %src, align 4
+  %l1 = load <6 x i16>, ptr %src, align 4
   %s1 = shufflevector <6 x i16> %l1, <6 x i16> undef, <2 x i32> <i32 0, i32 3>
   %s2 = shufflevector <6 x i16> %l1, <6 x i16> undef, <2 x i32> <i32 1, i32 4>
   %s3 = shufflevector <6 x i16> %l1, <6 x i16> undef, <2 x i32> <i32 2, i32 5>
   %a1 = add <2 x i16> %s1, %s2
   %a = add <2 x i16> %a1, %s3
-  store <2 x i16> %a, <2 x i16> *%dst
+  store <2 x i16> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v4i16(<12 x i16> *%src, <4 x i16> *%dst) {
+define void @vld3_v4i16(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v4i16:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r4, r5, r6, lr}
@@ -274,193 +274,166 @@ define void @vld3_v4i16(<12 x i16> *%src, <4 x i16> *%dst) {
 ; CHECK-NEXT:    vstrh.32 q0, [r1]
 ; CHECK-NEXT:    pop {r4, r5, r6, pc}
 entry:
-  %l1 = load <12 x i16>, <12 x i16>* %src, align 4
+  %l1 = load <12 x i16>, ptr %src, align 4
   %s1 = shufflevector <12 x i16> %l1, <12 x i16> undef, <4 x i32> <i32 0, i32 3, i32 6, i32 9>
   %s2 = shufflevector <12 x i16> %l1, <12 x i16> undef, <4 x i32> <i32 1, i32 4, i32 7, i32 10>
   %s3 = shufflevector <12 x i16> %l1, <12 x i16> undef, <4 x i32> <i32 2, i32 5, i32 8, i32 11>
   %a1 = add <4 x i16> %s1, %s2
   %a = add <4 x i16> %a1, %s3
-  store <4 x i16> %a, <4 x i16> *%dst
+  store <4 x i16> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v8i16(<24 x i16> *%src, <8 x i16> *%dst) {
+define void @vld3_v8i16(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v8i16:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .vsave {d8, d9, d10, d11}
-; CHECK-NEXT:    vpush {d8, d9, d10, d11}
-; CHECK-NEXT:    vldrw.u32 q1, [r0]
+; CHECK-NEXT:    .vsave {d8, d9}
+; CHECK-NEXT:    vpush {d8, d9}
+; CHECK-NEXT:    vldrw.u32 q0, [r0]
 ; CHECK-NEXT:    vldrw.u32 q2, [r0, #16]
 ; CHECK-NEXT:    vldrw.u32 q3, [r0, #32]
-; CHECK-NEXT:    vmov.f32 s0, s5
-; CHECK-NEXT:    vmovx.f16 s2, s6
-; CHECK-NEXT:    vins.f16 s0, s2
-; CHECK-NEXT:    vmovx.f16 s2, s9
-; CHECK-NEXT:    vmov.f32 s1, s8
-; CHECK-NEXT:    vmovx.f16 s5, s5
-; CHECK-NEXT:    vins.f16 s1, s2
-; CHECK-NEXT:    vmov.f32 s19, s14
-; CHECK-NEXT:    vmovx.f16 s2, s15
-; CHECK-NEXT:    vmov.f32 s18, s12
-; CHECK-NEXT:    vins.f16 s19, s2
-; CHECK-NEXT:    vmov.f32 s2, s11
-; CHECK-NEXT:    vmov q5, q4
-; CHECK-NEXT:    vmov.f32 s16, s4
-; CHECK-NEXT:    vins.f16 s16, s5
-; CHECK-NEXT:    vmovx.f16 s5, s8
-; CHECK-NEXT:    vmov.f32 s17, s7
-; CHECK-NEXT:    vmovx.f16 s4, s4
-; CHECK-NEXT:    vins.f16 s17, s5
-; CHECK-NEXT:    vmovx.f16 s5, s11
-; CHECK-NEXT:    vmov.f32 s18, s10
-; CHECK-NEXT:    vmov.u16 r0, q2[5]
-; CHECK-NEXT:    vmovx.f16 s11, s13
-; CHECK-NEXT:    vins.f16 s18, s5
-; CHECK-NEXT:    vmovx.f16 s5, s7
-; CHECK-NEXT:    vmovnb.i32 q5, q0
-; CHECK-NEXT:    vmov.f32 s3, s19
-; CHECK-NEXT:    vmovx.f16 s14, s14
-; CHECK-NEXT:    vmov.f32 s19, s13
+; CHECK-NEXT:    vmovx.f16 s6, s2
+; CHECK-NEXT:    vmov.f32 s4, s1
 ; CHECK-NEXT:    vins.f16 s4, s6
-; CHECK-NEXT:    vins.f16 s5, s9
-; CHECK-NEXT:    vins.f16 s10, s12
-; CHECK-NEXT:    vins.f16 s11, s15
-; CHECK-NEXT:    vins.f16 s19, s14
-; CHECK-NEXT:    vmov.16 q1[4], r0
-; CHECK-NEXT:    vmov q3, q2
-; CHECK-NEXT:    vmovnb.i32 q3, q1
-; CHECK-NEXT:    vmov.f32 s7, s11
-; CHECK-NEXT:    vmov.f32 s6, s14
-; CHECK-NEXT:    vmov.f32 s2, s22
-; CHECK-NEXT:    vadd.i16 q1, q4, q1
-; CHECK-NEXT:    vadd.i16 q0, q1, q0
+; CHECK-NEXT:    vmovx.f16 s6, s9
+; CHECK-NEXT:    vmov.f32 s5, s8
+; CHECK-NEXT:    vmovx.f16 s7, s12
+; CHECK-NEXT:    vins.f16 s5, s6
+; CHECK-NEXT:    vmov.f32 s6, s11
+; CHECK-NEXT:    vins.f16 s6, s7
+; CHECK-NEXT:    vmovx.f16 s16, s15
+; CHECK-NEXT:    vmov.f32 s7, s14
+; CHECK-NEXT:    vmovx.f16 s17, s3
+; CHECK-NEXT:    vins.f16 s7, s16
+; CHECK-NEXT:    vmovx.f16 s16, s0
+; CHECK-NEXT:    vins.f16 s16, s2
+; CHECK-NEXT:    vmovx.f16 s2, s1
+; CHECK-NEXT:    vins.f16 s0, s2
+; CHECK-NEXT:    vmovx.f16 s2, s8
+; CHECK-NEXT:    vins.f16 s3, s2
+; CHECK-NEXT:    vmovx.f16 s2, s11
+; CHECK-NEXT:    vmovx.f16 s8, s14
+; CHECK-NEXT:    vmovx.f16 s18, s10
+; CHECK-NEXT:    vmovx.f16 s19, s13
+; CHECK-NEXT:    vins.f16 s10, s2
+; CHECK-NEXT:    vins.f16 s13, s8
+; CHECK-NEXT:    vmov.f32 s1, s3
+; CHECK-NEXT:    vins.f16 s18, s12
+; CHECK-NEXT:    vins.f16 s19, s15
+; CHECK-NEXT:    vins.f16 s17, s9
+; CHECK-NEXT:    vmov.f32 s2, s10
+; CHECK-NEXT:    vmov.f32 s3, s13
+; CHECK-NEXT:    vadd.i16 q0, q0, q4
+; CHECK-NEXT:    vadd.i16 q0, q0, q1
 ; CHECK-NEXT:    vstrw.32 q0, [r1]
-; CHECK-NEXT:    vpop {d8, d9, d10, d11}
+; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <24 x i16>, <24 x i16>* %src, align 4
+  %l1 = load <24 x i16>, ptr %src, align 4
   %s1 = shufflevector <24 x i16> %l1, <24 x i16> undef, <8 x i32> <i32 0, i32 3, i32 6, i32 9, i32 12, i32 15, i32 18, i32 21>
   %s2 = shufflevector <24 x i16> %l1, <24 x i16> undef, <8 x i32> <i32 1, i32 4, i32 7, i32 10, i32 13, i32 16, i32 19, i32 22>
   %s3 = shufflevector <24 x i16> %l1, <24 x i16> undef, <8 x i32> <i32 2, i32 5, i32 8, i32 11, i32 14, i32 17, i32 20, i32 23>
   %a1 = add <8 x i16> %s1, %s2
   %a = add <8 x i16> %a1, %s3
-  store <8 x i16> %a, <8 x i16> *%dst
+  store <8 x i16> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v16i16(<48 x i16> *%src, <16 x i16> *%dst) {
+define void @vld3_v16i16(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v16i16:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .vsave {d8, d9, d10, d11, d12, d13, d14, d15}
-; CHECK-NEXT:    vpush {d8, d9, d10, d11, d12, d13, d14, d15}
-; CHECK-NEXT:    vldrw.u32 q1, [r0, #48]
+; CHECK-NEXT:    .vsave {d8, d9, d10, d11}
+; CHECK-NEXT:    vpush {d8, d9, d10, d11}
+; CHECK-NEXT:    vldrw.u32 q0, [r0, #48]
 ; CHECK-NEXT:    vldrw.u32 q2, [r0, #64]
-; CHECK-NEXT:    vldrw.u32 q4, [r0, #80]
-; CHECK-NEXT:    vmov.f32 s0, s4
-; CHECK-NEXT:    vmovx.f16 s2, s5
+; CHECK-NEXT:    vldrw.u32 q3, [r0, #80]
+; CHECK-NEXT:    vmovx.f16 s6, s2
+; CHECK-NEXT:    vmov.f32 s4, s1
+; CHECK-NEXT:    vins.f16 s4, s6
+; CHECK-NEXT:    vmovx.f16 s6, s9
+; CHECK-NEXT:    vmov.f32 s5, s8
+; CHECK-NEXT:    vmovx.f16 s7, s12
+; CHECK-NEXT:    vins.f16 s5, s6
+; CHECK-NEXT:    vmov.f32 s6, s11
+; CHECK-NEXT:    vins.f16 s6, s7
+; CHECK-NEXT:    vmovx.f16 s16, s15
+; CHECK-NEXT:    vmov.f32 s7, s14
+; CHECK-NEXT:    vmovx.f16 s17, s3
+; CHECK-NEXT:    vins.f16 s7, s16
+; CHECK-NEXT:    vmovx.f16 s16, s0
+; CHECK-NEXT:    vins.f16 s16, s2
+; CHECK-NEXT:    vmovx.f16 s2, s1
 ; CHECK-NEXT:    vins.f16 s0, s2
 ; CHECK-NEXT:    vmovx.f16 s2, s8
-; CHECK-NEXT:    vmov.f32 s1, s7
-; CHECK-NEXT:    vmovx.f16 s12, s11
-; CHECK-NEXT:    vins.f16 s1, s2
-; CHECK-NEXT:    vmov.f32 s2, s10
-; CHECK-NEXT:    vmovx.f16 s14, s18
-; CHECK-NEXT:    vmov.f32 s3, s17
-; CHECK-NEXT:    vins.f16 s2, s12
-; CHECK-NEXT:    vmovx.f16 s12, s6
-; CHECK-NEXT:    vins.f16 s3, s14
-; CHECK-NEXT:    vmovx.f16 s14, s19
-; CHECK-NEXT:    vins.f16 s18, s14
-; CHECK-NEXT:    vins.f16 s5, s12
-; CHECK-NEXT:    vmovx.f16 s12, s9
-; CHECK-NEXT:    vmov.f32 s13, s8
-; CHECK-NEXT:    vmovx.f16 s4, s4
-; CHECK-NEXT:    vins.f16 s13, s12
-; CHECK-NEXT:    vmov.f32 s12, s5
-; CHECK-NEXT:    vmovx.f16 s5, s7
-; CHECK-NEXT:    vmov.u16 r2, q2[5]
-; CHECK-NEXT:    vmov.f32 s14, s11
-; CHECK-NEXT:    vmovx.f16 s11, s17
-; CHECK-NEXT:    vmov.f32 s23, s18
-; CHECK-NEXT:    vmov.f32 s22, s16
-; CHECK-NEXT:    vins.f16 s4, s6
-; CHECK-NEXT:    vins.f16 s5, s9
-; CHECK-NEXT:    vmov q6, q5
-; CHECK-NEXT:    vins.f16 s10, s16
-; CHECK-NEXT:    vins.f16 s11, s19
-; CHECK-NEXT:    vmovnb.i32 q6, q3
-; CHECK-NEXT:    vmov.f32 s15, s18
-; CHECK-NEXT:    vmov.16 q1[4], r2
-; CHECK-NEXT:    vmov q4, q2
-; CHECK-NEXT:    vmovnb.i32 q4, q1
-; CHECK-NEXT:    vmov.f32 s7, s11
-; CHECK-NEXT:    vmov.f32 s6, s18
-; CHECK-NEXT:    vldrw.u32 q2, [r0]
-; CHECK-NEXT:    vadd.i16 q0, q0, q1
-; CHECK-NEXT:    vldrw.u32 q4, [r0, #32]
-; CHECK-NEXT:    vmov.f32 s14, s26
-; CHECK-NEXT:    vmovx.f16 s6, s10
-; CHECK-NEXT:    vadd.i16 q0, q0, q3
+; CHECK-NEXT:    vins.f16 s3, s2
+; CHECK-NEXT:    vmovx.f16 s2, s11
+; CHECK-NEXT:    vmovx.f16 s8, s14
+; CHECK-NEXT:    vmovx.f16 s18, s10
+; CHECK-NEXT:    vmovx.f16 s19, s13
+; CHECK-NEXT:    vins.f16 s10, s2
+; CHECK-NEXT:    vins.f16 s13, s8
+; CHECK-NEXT:    vmov.f32 s1, s3
+; CHECK-NEXT:    vins.f16 s18, s12
+; CHECK-NEXT:    vins.f16 s19, s15
+; CHECK-NEXT:    vmov.f32 s3, s13
 ; CHECK-NEXT:    vldrw.u32 q3, [r0, #16]
-; CHECK-NEXT:    vmov.f32 s4, s9
-; CHECK-NEXT:    vmovx.f16 s7, s19
-; CHECK-NEXT:    vmov.f32 s27, s18
-; CHECK-NEXT:    vins.f16 s4, s6
-; CHECK-NEXT:    vmovx.f16 s6, s13
-; CHECK-NEXT:    vmov.f32 s5, s12
-; CHECK-NEXT:    vins.f16 s27, s7
-; CHECK-NEXT:    vmov.f32 s26, s16
-; CHECK-NEXT:    vins.f16 s5, s6
-; CHECK-NEXT:    vmov.f32 s6, s15
-; CHECK-NEXT:    vmov q7, q6
-; CHECK-NEXT:    vmov.f32 s20, s8
-; CHECK-NEXT:    vmovnb.i32 q7, q1
-; CHECK-NEXT:    vmovx.f16 s6, s9
-; CHECK-NEXT:    vins.f16 s20, s6
-; CHECK-NEXT:    vmovx.f16 s6, s12
-; CHECK-NEXT:    vmov.f32 s21, s11
+; CHECK-NEXT:    vins.f16 s17, s9
+; CHECK-NEXT:    vmov.f32 s2, s10
+; CHECK-NEXT:    vadd.i16 q0, q0, q4
+; CHECK-NEXT:    vldrw.u32 q2, [r0, #32]
+; CHECK-NEXT:    vadd.i16 q0, q0, q1
+; CHECK-NEXT:    vmovx.f16 s6, s14
+; CHECK-NEXT:    vldrw.u32 q4, [r0]
+; CHECK-NEXT:    vins.f16 s6, s8
+; CHECK-NEXT:    vmov.f32 s22, s15
 ; CHECK-NEXT:    vmovx.f16 s8, s8
-; CHECK-NEXT:    vmovx.f16 s9, s11
-; CHECK-NEXT:    vins.f16 s21, s6
-; CHECK-NEXT:    vmovx.f16 s6, s15
-; CHECK-NEXT:    vmov.u16 r0, q3[5]
-; CHECK-NEXT:    vmovx.f16 s15, s17
-; CHECK-NEXT:    vmov.f32 s22, s14
-; CHECK-NEXT:    vins.f16 s8, s10
-; CHECK-NEXT:    vins.f16 s9, s13
-; CHECK-NEXT:    vins.f16 s14, s16
-; CHECK-NEXT:    vins.f16 s15, s19
-; CHECK-NEXT:    vins.f16 s22, s6
-; CHECK-NEXT:    vmovx.f16 s6, s18
-; CHECK-NEXT:    vmov.f32 s23, s17
-; CHECK-NEXT:    vmov.16 q2[4], r0
-; CHECK-NEXT:    vmov q4, q3
-; CHECK-NEXT:    vins.f16 s23, s6
-; CHECK-NEXT:    vmovnb.i32 q4, q2
-; CHECK-NEXT:    vmov.f32 s11, s15
-; CHECK-NEXT:    vmov.f32 s10, s18
+; CHECK-NEXT:    vins.f16 s22, s8
+; CHECK-NEXT:    vmovx.f16 s8, s11
+; CHECK-NEXT:    vmov.f32 s23, s10
+; CHECK-NEXT:    vmovx.f16 s4, s16
+; CHECK-NEXT:    vins.f16 s23, s8
+; CHECK-NEXT:    vmovx.f16 s8, s17
+; CHECK-NEXT:    vins.f16 s16, s8
+; CHECK-NEXT:    vmovx.f16 s8, s12
+; CHECK-NEXT:    vmovx.f16 s5, s19
+; CHECK-NEXT:    vins.f16 s19, s8
+; CHECK-NEXT:    vmovx.f16 s8, s15
+; CHECK-NEXT:    vmovx.f16 s7, s9
+; CHECK-NEXT:    vins.f16 s14, s8
+; CHECK-NEXT:    vmovx.f16 s8, s10
+; CHECK-NEXT:    vins.f16 s4, s18
+; CHECK-NEXT:    vmov.f32 s20, s17
+; CHECK-NEXT:    vmovx.f16 s18, s18
+; CHECK-NEXT:    vins.f16 s9, s8
+; CHECK-NEXT:    vins.f16 s5, s13
+; CHECK-NEXT:    vins.f16 s20, s18
+; CHECK-NEXT:    vmov.f32 s17, s19
+; CHECK-NEXT:    vins.f16 s7, s11
+; CHECK-NEXT:    vmovx.f16 s13, s13
+; CHECK-NEXT:    vmov.f32 s21, s12
+; CHECK-NEXT:    vmov.f32 s18, s14
+; CHECK-NEXT:    vins.f16 s21, s13
+; CHECK-NEXT:    vmov.f32 s19, s9
 ; CHECK-NEXT:    vstrw.32 q0, [r1, #16]
-; CHECK-NEXT:    vmov.f32 s6, s30
-; CHECK-NEXT:    vadd.i16 q2, q5, q2
-; CHECK-NEXT:    vmov.f32 s7, s27
-; CHECK-NEXT:    vadd.i16 q1, q2, q1
+; CHECK-NEXT:    vadd.i16 q1, q4, q1
+; CHECK-NEXT:    vadd.i16 q1, q1, q5
 ; CHECK-NEXT:    vstrw.32 q1, [r1]
-; CHECK-NEXT:    vpop {d8, d9, d10, d11, d12, d13, d14, d15}
+; CHECK-NEXT:    vpop {d8, d9, d10, d11}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <48 x i16>, <48 x i16>* %src, align 4
+  %l1 = load <48 x i16>, ptr %src, align 4
   %s1 = shufflevector <48 x i16> %l1, <48 x i16> undef, <16 x i32> <i32 0, i32 3, i32 6, i32 9, i32 12, i32 15, i32 18, i32 21, i32 24, i32 27, i32 30, i32 33, i32 36, i32 39, i32 42, i32 45>
   %s2 = shufflevector <48 x i16> %l1, <48 x i16> undef, <16 x i32> <i32 1, i32 4, i32 7, i32 10, i32 13, i32 16, i32 19, i32 22, i32 25, i32 28, i32 31, i32 34, i32 37, i32 40, i32 43, i32 46>
   %s3 = shufflevector <48 x i16> %l1, <48 x i16> undef, <16 x i32> <i32 2, i32 5, i32 8, i32 11, i32 14, i32 17, i32 20, i32 23, i32 26, i32 29, i32 32, i32 35, i32 38, i32 41, i32 44, i32 47>
   %a1 = add <16 x i16> %s1, %s2
   %a = add <16 x i16> %a1, %s3
-  store <16 x i16> %a, <16 x i16> *%dst
+  store <16 x i16> %a, ptr %dst
   ret void
 }
 
 ; i8
 
-define void @vld3_v2i8(<6 x i8> *%src, <2 x i8> *%dst) {
+define void @vld3_v2i8(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v2i8:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .pad #8
@@ -484,17 +457,17 @@ define void @vld3_v2i8(<6 x i8> *%src, <2 x i8> *%dst) {
 ; CHECK-NEXT:    add sp, #8
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <6 x i8>, <6 x i8>* %src, align 4
+  %l1 = load <6 x i8>, ptr %src, align 4
   %s1 = shufflevector <6 x i8> %l1, <6 x i8> undef, <2 x i32> <i32 0, i32 3>
   %s2 = shufflevector <6 x i8> %l1, <6 x i8> undef, <2 x i32> <i32 1, i32 4>
   %s3 = shufflevector <6 x i8> %l1, <6 x i8> undef, <2 x i32> <i32 2, i32 5>
   %a1 = add <2 x i8> %s1, %s2
   %a = add <2 x i8> %a1, %s3
-  store <2 x i8> %a, <2 x i8> *%dst
+  store <2 x i8> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v4i8(<12 x i8> *%src, <4 x i8> *%dst) {
+define void @vld3_v4i8(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v4i8:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r4, lr}
@@ -530,17 +503,17 @@ define void @vld3_v4i8(<12 x i8> *%src, <4 x i8> *%dst) {
 ; CHECK-NEXT:    add sp, #8
 ; CHECK-NEXT:    pop {r4, pc}
 entry:
-  %l1 = load <12 x i8>, <12 x i8>* %src, align 4
+  %l1 = load <12 x i8>, ptr %src, align 4
   %s1 = shufflevector <12 x i8> %l1, <12 x i8> undef, <4 x i32> <i32 0, i32 3, i32 6, i32 9>
   %s2 = shufflevector <12 x i8> %l1, <12 x i8> undef, <4 x i32> <i32 1, i32 4, i32 7, i32 10>
   %s3 = shufflevector <12 x i8> %l1, <12 x i8> undef, <4 x i32> <i32 2, i32 5, i32 8, i32 11>
   %a1 = add <4 x i8> %s1, %s2
   %a = add <4 x i8> %a1, %s3
-  store <4 x i8> %a, <4 x i8> *%dst
+  store <4 x i8> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v8i8(<24 x i8> *%src, <8 x i8> *%dst) {
+define void @vld3_v8i8(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v8i8:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .vsave {d8, d9}
@@ -598,21 +571,21 @@ define void @vld3_v8i8(<24 x i8> *%src, <8 x i8> *%dst) {
 ; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <24 x i8>, <24 x i8>* %src, align 4
+  %l1 = load <24 x i8>, ptr %src, align 4
   %s1 = shufflevector <24 x i8> %l1, <24 x i8> undef, <8 x i32> <i32 0, i32 3, i32 6, i32 9, i32 12, i32 15, i32 18, i32 21>
   %s2 = shufflevector <24 x i8> %l1, <24 x i8> undef, <8 x i32> <i32 1, i32 4, i32 7, i32 10, i32 13, i32 16, i32 19, i32 22>
   %s3 = shufflevector <24 x i8> %l1, <24 x i8> undef, <8 x i32> <i32 2, i32 5, i32 8, i32 11, i32 14, i32 17, i32 20, i32 23>
   %a1 = add <8 x i8> %s1, %s2
   %a = add <8 x i8> %a1, %s3
-  store <8 x i8> %a, <8 x i8> *%dst
+  store <8 x i8> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v16i8(<48 x i8> *%src, <16 x i8> *%dst) {
+define void @vld3_v16i8(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v16i8:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .vsave {d8, d9, d10, d11, d12, d13}
-; CHECK-NEXT:    vpush {d8, d9, d10, d11, d12, d13}
+; CHECK-NEXT:    .vsave {d8, d9, d10, d11}
+; CHECK-NEXT:    vpush {d8, d9, d10, d11}
 ; CHECK-NEXT:    vldrw.u32 q1, [r0]
 ; CHECK-NEXT:    vldrw.u32 q0, [r0, #16]
 ; CHECK-NEXT:    vldrw.u32 q2, [r0, #32]
@@ -630,27 +603,27 @@ define void @vld3_v16i8(<48 x i8> *%src, <16 x i8> *%dst) {
 ; CHECK-NEXT:    vmov.8 q3[5], r2
 ; CHECK-NEXT:    vmov.u8 r2, q0[3]
 ; CHECK-NEXT:    vmov.8 q3[6], r2
-; CHECK-NEXT:    vmov.u8 r2, q0[6]
-; CHECK-NEXT:    vmov.8 q3[7], r2
 ; CHECK-NEXT:    vmov.u8 r2, q0[9]
-; CHECK-NEXT:    vmov.u8 r0, q2[5]
-; CHECK-NEXT:    vmov.8 q3[8], r2
+; CHECK-NEXT:    vmov.8 q4[8], r2
 ; CHECK-NEXT:    vmov.u8 r2, q0[12]
+; CHECK-NEXT:    vmov.8 q4[9], r2
+; CHECK-NEXT:    vmov.u8 r2, q0[15]
+; CHECK-NEXT:    vmov.8 q4[10], r2
+; CHECK-NEXT:    vmov.u8 r0, q2[2]
+; CHECK-NEXT:    vmov.8 q4[11], r0
+; CHECK-NEXT:    vmov.u8 r0, q2[5]
 ; CHECK-NEXT:    vmov.8 q4[12], r0
 ; CHECK-NEXT:    vmov.u8 r0, q2[8]
-; CHECK-NEXT:    vmov.8 q3[9], r2
-; CHECK-NEXT:    vmov.u8 r2, q0[15]
 ; CHECK-NEXT:    vmov.8 q4[13], r0
 ; CHECK-NEXT:    vmov.u8 r0, q2[11]
-; CHECK-NEXT:    vmov.8 q3[10], r2
 ; CHECK-NEXT:    vmov.8 q4[14], r0
 ; CHECK-NEXT:    vmov.u8 r0, q2[14]
 ; CHECK-NEXT:    vmov.8 q4[15], r0
-; CHECK-NEXT:    vmov q5, q3
-; CHECK-NEXT:    vmov.u8 r0, q2[2]
-; CHECK-NEXT:    vmov.f32 s15, s19
-; CHECK-NEXT:    vmov.8 q5[11], r0
+; CHECK-NEXT:    vmov.u8 r0, q0[6]
+; CHECK-NEXT:    vmov.8 q3[7], r0
 ; CHECK-NEXT:    vmov.u8 r0, q1[0]
+; CHECK-NEXT:    vmov.f32 s14, s18
+; CHECK-NEXT:    vmov.f32 s15, s19
 ; CHECK-NEXT:    vmov.8 q4[0], r0
 ; CHECK-NEXT:    vmov.u8 r0, q1[3]
 ; CHECK-NEXT:    vmov.8 q4[1], r0
@@ -664,29 +637,27 @@ define void @vld3_v16i8(<48 x i8> *%src, <16 x i8> *%dst) {
 ; CHECK-NEXT:    vmov.8 q4[5], r0
 ; CHECK-NEXT:    vmov.u8 r0, q0[2]
 ; CHECK-NEXT:    vmov.8 q4[6], r0
-; CHECK-NEXT:    vmov.u8 r0, q0[5]
-; CHECK-NEXT:    vmov.8 q4[7], r0
 ; CHECK-NEXT:    vmov.u8 r0, q0[8]
-; CHECK-NEXT:    vmov.8 q4[8], r0
+; CHECK-NEXT:    vmov.8 q5[8], r0
 ; CHECK-NEXT:    vmov.u8 r0, q0[11]
-; CHECK-NEXT:    vmov.8 q4[9], r0
+; CHECK-NEXT:    vmov.8 q5[9], r0
 ; CHECK-NEXT:    vmov.u8 r0, q0[14]
-; CHECK-NEXT:    vmov.8 q4[10], r0
+; CHECK-NEXT:    vmov.8 q5[10], r0
+; CHECK-NEXT:    vmov.u8 r0, q2[1]
+; CHECK-NEXT:    vmov.8 q5[11], r0
 ; CHECK-NEXT:    vmov.u8 r0, q2[4]
-; CHECK-NEXT:    vmov.f32 s14, s22
 ; CHECK-NEXT:    vmov.8 q5[12], r0
 ; CHECK-NEXT:    vmov.u8 r0, q2[7]
-; CHECK-NEXT:    vmov q6, q4
 ; CHECK-NEXT:    vmov.8 q5[13], r0
 ; CHECK-NEXT:    vmov.u8 r0, q2[10]
 ; CHECK-NEXT:    vmov.8 q5[14], r0
 ; CHECK-NEXT:    vmov.u8 r0, q2[13]
 ; CHECK-NEXT:    vmov.8 q5[15], r0
-; CHECK-NEXT:    vmov.u8 r0, q2[1]
-; CHECK-NEXT:    vmov.8 q6[11], r0
-; CHECK-NEXT:    vmov.f32 s19, s23
-; CHECK-NEXT:    vmov.f32 s18, s26
+; CHECK-NEXT:    vmov.u8 r0, q0[5]
+; CHECK-NEXT:    vmov.8 q4[7], r0
 ; CHECK-NEXT:    vmov.u8 r0, q1[2]
+; CHECK-NEXT:    vmov.f32 s18, s22
+; CHECK-NEXT:    vmov.f32 s19, s23
 ; CHECK-NEXT:    vadd.i8 q3, q4, q3
 ; CHECK-NEXT:    vmov.8 q4[0], r0
 ; CHECK-NEXT:    vmov.u8 r0, q1[5]
@@ -701,6 +672,14 @@ define void @vld3_v16i8(<48 x i8> *%src, <16 x i8> *%dst) {
 ; CHECK-NEXT:    vmov.8 q4[5], r0
 ; CHECK-NEXT:    vmov.u8 r0, q0[4]
 ; CHECK-NEXT:    vmov.8 q4[6], r0
+; CHECK-NEXT:    vmov.u8 r0, q0[10]
+; CHECK-NEXT:    vmov.8 q1[8], r0
+; CHECK-NEXT:    vmov.u8 r0, q0[13]
+; CHECK-NEXT:    vmov.8 q1[9], r0
+; CHECK-NEXT:    vmov.u8 r0, q2[0]
+; CHECK-NEXT:    vmov.8 q1[10], r0
+; CHECK-NEXT:    vmov.u8 r0, q2[3]
+; CHECK-NEXT:    vmov.8 q1[11], r0
 ; CHECK-NEXT:    vmov.u8 r0, q2[6]
 ; CHECK-NEXT:    vmov.8 q1[12], r0
 ; CHECK-NEXT:    vmov.u8 r0, q2[9]
@@ -709,36 +688,28 @@ define void @vld3_v16i8(<48 x i8> *%src, <16 x i8> *%dst) {
 ; CHECK-NEXT:    vmov.8 q1[14], r0
 ; CHECK-NEXT:    vmov.u8 r0, q2[15]
 ; CHECK-NEXT:    vmov.8 q1[15], r0
-; CHECK-NEXT:    vmov.u8 r0, q0[10]
-; CHECK-NEXT:    vmov.8 q5[8], r0
-; CHECK-NEXT:    vmov.u8 r0, q0[13]
-; CHECK-NEXT:    vmov.8 q5[9], r0
-; CHECK-NEXT:    vmov.u8 r0, q2[0]
-; CHECK-NEXT:    vmov.8 q5[10], r0
-; CHECK-NEXT:    vmov.u8 r0, q2[3]
-; CHECK-NEXT:    vmov.8 q5[11], r0
 ; CHECK-NEXT:    vmov.u8 r0, q0[7]
 ; CHECK-NEXT:    vmov.8 q4[7], r0
-; CHECK-NEXT:    vmov.f32 s18, s22
+; CHECK-NEXT:    vmov.f32 s18, s6
 ; CHECK-NEXT:    vmov.f32 s19, s7
 ; CHECK-NEXT:    vadd.i8 q0, q3, q4
 ; CHECK-NEXT:    vstrw.32 q0, [r1]
-; CHECK-NEXT:    vpop {d8, d9, d10, d11, d12, d13}
+; CHECK-NEXT:    vpop {d8, d9, d10, d11}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <48 x i8>, <48 x i8>* %src, align 4
+  %l1 = load <48 x i8>, ptr %src, align 4
   %s1 = shufflevector <48 x i8> %l1, <48 x i8> undef, <16 x i32> <i32 0, i32 3, i32 6, i32 9, i32 12, i32 15, i32 18, i32 21, i32 24, i32 27, i32 30, i32 33, i32 36, i32 39, i32 42, i32 45>
   %s2 = shufflevector <48 x i8> %l1, <48 x i8> undef, <16 x i32> <i32 1, i32 4, i32 7, i32 10, i32 13, i32 16, i32 19, i32 22, i32 25, i32 28, i32 31, i32 34, i32 37, i32 40, i32 43, i32 46>
   %s3 = shufflevector <48 x i8> %l1, <48 x i8> undef, <16 x i32> <i32 2, i32 5, i32 8, i32 11, i32 14, i32 17, i32 20, i32 23, i32 26, i32 29, i32 32, i32 35, i32 38, i32 41, i32 44, i32 47>
   %a1 = add <16 x i8> %s1, %s2
   %a = add <16 x i8> %a1, %s3
-  store <16 x i8> %a, <16 x i8> *%dst
+  store <16 x i8> %a, ptr %dst
   ret void
 }
 
 ; i64
 
-define void @vld3_v2i64(<6 x i64> *%src, <2 x i64> *%dst) {
+define void @vld3_v2i64(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v2i64:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r4, r5, r6, r7, r8, lr}
@@ -769,17 +740,17 @@ define void @vld3_v2i64(<6 x i64> *%src, <2 x i64> *%dst) {
 ; CHECK-NEXT:    vstrw.32 q0, [r1]
 ; CHECK-NEXT:    pop.w {r4, r5, r6, r7, r8, pc}
 entry:
-  %l1 = load <6 x i64>, <6 x i64>* %src, align 4
+  %l1 = load <6 x i64>, ptr %src, align 4
   %s1 = shufflevector <6 x i64> %l1, <6 x i64> undef, <2 x i32> <i32 0, i32 3>
   %s2 = shufflevector <6 x i64> %l1, <6 x i64> undef, <2 x i32> <i32 1, i32 4>
   %s3 = shufflevector <6 x i64> %l1, <6 x i64> undef, <2 x i32> <i32 2, i32 5>
   %a1 = add <2 x i64> %s1, %s2
   %a = add <2 x i64> %a1, %s3
-  store <2 x i64> %a, <2 x i64> *%dst
+  store <2 x i64> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v4i64(<12 x i64> *%src, <4 x i64> *%dst) {
+define void @vld3_v4i64(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v4i64:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .save {r4, r5, r6, r7, r8, lr}
@@ -837,19 +808,19 @@ define void @vld3_v4i64(<12 x i64> *%src, <4 x i64> *%dst) {
 ; CHECK-NEXT:    vpop {d8, d9, d10, d11, d12}
 ; CHECK-NEXT:    pop.w {r4, r5, r6, r7, r8, pc}
 entry:
-  %l1 = load <12 x i64>, <12 x i64>* %src, align 4
+  %l1 = load <12 x i64>, ptr %src, align 4
   %s1 = shufflevector <12 x i64> %l1, <12 x i64> undef, <4 x i32> <i32 0, i32 3, i32 6, i32 9>
   %s2 = shufflevector <12 x i64> %l1, <12 x i64> undef, <4 x i32> <i32 1, i32 4, i32 7, i32 10>
   %s3 = shufflevector <12 x i64> %l1, <12 x i64> undef, <4 x i32> <i32 2, i32 5, i32 8, i32 11>
   %a1 = add <4 x i64> %s1, %s2
   %a = add <4 x i64> %a1, %s3
-  store <4 x i64> %a, <4 x i64> *%dst
+  store <4 x i64> %a, ptr %dst
   ret void
 }
 
 ; f32
 
-define void @vld3_v2f32(<6 x float> *%src, <2 x float> *%dst) {
+define void @vld3_v2f32(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v2f32:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    vldrw.u32 q2, [r0]
@@ -864,17 +835,17 @@ define void @vld3_v2f32(<6 x float> *%src, <2 x float> *%dst) {
 ; CHECK-NEXT:    vstmia r1, {s0, s1}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <6 x float>, <6 x float>* %src, align 4
+  %l1 = load <6 x float>, ptr %src, align 4
   %s1 = shufflevector <6 x float> %l1, <6 x float> undef, <2 x i32> <i32 0, i32 3>
   %s2 = shufflevector <6 x float> %l1, <6 x float> undef, <2 x i32> <i32 1, i32 4>
   %s3 = shufflevector <6 x float> %l1, <6 x float> undef, <2 x i32> <i32 2, i32 5>
   %a1 = fadd <2 x float> %s1, %s2
   %a = fadd <2 x float> %a1, %s3
-  store <2 x float> %a, <2 x float> *%dst
+  store <2 x float> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v4f32(<12 x float> *%src, <4 x float> *%dst) {
+define void @vld3_v4f32(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v4f32:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .vsave {d8, d9}
@@ -899,17 +870,17 @@ define void @vld3_v4f32(<12 x float> *%src, <4 x float> *%dst) {
 ; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <12 x float>, <12 x float>* %src, align 4
+  %l1 = load <12 x float>, ptr %src, align 4
   %s1 = shufflevector <12 x float> %l1, <12 x float> undef, <4 x i32> <i32 0, i32 3, i32 6, i32 9>
   %s2 = shufflevector <12 x float> %l1, <12 x float> undef, <4 x i32> <i32 1, i32 4, i32 7, i32 10>
   %s3 = shufflevector <12 x float> %l1, <12 x float> undef, <4 x i32> <i32 2, i32 5, i32 8, i32 11>
   %a1 = fadd <4 x float> %s1, %s2
   %a = fadd <4 x float> %a1, %s3
-  store <4 x float> %a, <4 x float> *%dst
+  store <4 x float> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v8f32(<24 x float> *%src, <8 x float> *%dst) {
+define void @vld3_v8f32(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v8f32:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .vsave {d8, d9, d10, d11}
@@ -951,17 +922,17 @@ define void @vld3_v8f32(<24 x float> *%src, <8 x float> *%dst) {
 ; CHECK-NEXT:    vpop {d8, d9, d10, d11}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <24 x float>, <24 x float>* %src, align 4
+  %l1 = load <24 x float>, ptr %src, align 4
   %s1 = shufflevector <24 x float> %l1, <24 x float> undef, <8 x i32> <i32 0, i32 3, i32 6, i32 9, i32 12, i32 15, i32 18, i32 21>
   %s2 = shufflevector <24 x float> %l1, <24 x float> undef, <8 x i32> <i32 1, i32 4, i32 7, i32 10, i32 13, i32 16, i32 19, i32 22>
   %s3 = shufflevector <24 x float> %l1, <24 x float> undef, <8 x i32> <i32 2, i32 5, i32 8, i32 11, i32 14, i32 17, i32 20, i32 23>
   %a1 = fadd <8 x float> %s1, %s2
   %a = fadd <8 x float> %a1, %s3
-  store <8 x float> %a, <8 x float> *%dst
+  store <8 x float> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v16f32(<48 x float> *%src, <16 x float> *%dst) {
+define void @vld3_v16f32(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v16f32:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .vsave {d8, d9, d10, d11, d12, d13, d14, d15}
@@ -1037,26 +1008,25 @@ define void @vld3_v16f32(<48 x float> *%src, <16 x float> *%dst) {
 ; CHECK-NEXT:    vpop {d8, d9, d10, d11, d12, d13, d14, d15}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <48 x float>, <48 x float>* %src, align 4
+  %l1 = load <48 x float>, ptr %src, align 4
   %s1 = shufflevector <48 x float> %l1, <48 x float> undef, <16 x i32> <i32 0, i32 3, i32 6, i32 9, i32 12, i32 15, i32 18, i32 21, i32 24, i32 27, i32 30, i32 33, i32 36, i32 39, i32 42, i32 45>
   %s2 = shufflevector <48 x float> %l1, <48 x float> undef, <16 x i32> <i32 1, i32 4, i32 7, i32 10, i32 13, i32 16, i32 19, i32 22, i32 25, i32 28, i32 31, i32 34, i32 37, i32 40, i32 43, i32 46>
   %s3 = shufflevector <48 x float> %l1, <48 x float> undef, <16 x i32> <i32 2, i32 5, i32 8, i32 11, i32 14, i32 17, i32 20, i32 23, i32 26, i32 29, i32 32, i32 35, i32 38, i32 41, i32 44, i32 47>
   %a1 = fadd <16 x float> %s1, %s2
   %a = fadd <16 x float> %a1, %s3
-  store <16 x float> %a, <16 x float> *%dst
+  store <16 x float> %a, ptr %dst
   ret void
 }
 
 ; f16
 
-define void @vld3_v2f16(<6 x half> *%src, <2 x half> *%dst) {
+define void @vld3_v2f16(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v2f16:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    ldrd r2, r3, [r0]
 ; CHECK-NEXT:    ldr r0, [r0, #8]
-; CHECK-NEXT:    vmov.32 q0[0], r2
 ; CHECK-NEXT:    vmov.32 q0[1], r3
-; CHECK-NEXT:    vmov.32 q0[2], r0
+; CHECK-NEXT:    vmov q0[2], q0[0], r2, r0
 ; CHECK-NEXT:    vmovx.f16 s8, s0
 ; CHECK-NEXT:    vmovx.f16 s4, s2
 ; CHECK-NEXT:    vins.f16 s8, s2
@@ -1070,17 +1040,17 @@ define void @vld3_v2f16(<6 x half> *%src, <2 x half> *%dst) {
 ; CHECK-NEXT:    str r0, [r1]
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <6 x half>, <6 x half>* %src, align 4
+  %l1 = load <6 x half>, ptr %src, align 4
   %s1 = shufflevector <6 x half> %l1, <6 x half> undef, <2 x i32> <i32 0, i32 3>
   %s2 = shufflevector <6 x half> %l1, <6 x half> undef, <2 x i32> <i32 1, i32 4>
   %s3 = shufflevector <6 x half> %l1, <6 x half> undef, <2 x i32> <i32 2, i32 5>
   %a1 = fadd <2 x half> %s1, %s2
   %a = fadd <2 x half> %a1, %s3
-  store <2 x half> %a, <2 x half> *%dst
+  store <2 x half> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v4f16(<12 x half> *%src, <4 x half> *%dst) {
+define void @vld3_v4f16(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v4f16:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    ldrd r2, r3, [r0, #16]
@@ -1108,169 +1078,166 @@ define void @vld3_v4f16(<12 x half> *%src, <4 x half> *%dst) {
 ; CHECK-NEXT:    strd r0, r2, [r1]
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <12 x half>, <12 x half>* %src, align 4
+  %l1 = load <12 x half>, ptr %src, align 4
   %s1 = shufflevector <12 x half> %l1, <12 x half> undef, <4 x i32> <i32 0, i32 3, i32 6, i32 9>
   %s2 = shufflevector <12 x half> %l1, <12 x half> undef, <4 x i32> <i32 1, i32 4, i32 7, i32 10>
   %s3 = shufflevector <12 x half> %l1, <12 x half> undef, <4 x i32> <i32 2, i32 5, i32 8, i32 11>
   %a1 = fadd <4 x half> %s1, %s2
   %a = fadd <4 x half> %a1, %s3
-  store <4 x half> %a, <4 x half> *%dst
+  store <4 x half> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v8f16(<24 x half> *%src, <8 x half> *%dst) {
+define void @vld3_v8f16(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v8f16:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .vsave {d8, d9, d10}
-; CHECK-NEXT:    vpush {d8, d9, d10}
+; CHECK-NEXT:    .vsave {d8, d9}
+; CHECK-NEXT:    vpush {d8, d9}
+; CHECK-NEXT:    vldrw.u32 q2, [r0, #16]
 ; CHECK-NEXT:    vldrw.u32 q0, [r0]
-; CHECK-NEXT:    vldrw.u32 q3, [r0, #16]
-; CHECK-NEXT:    vldrw.u32 q2, [r0, #32]
-; CHECK-NEXT:    vmov.f32 s4, s1
-; CHECK-NEXT:    vmovx.f16 s6, s2
-; CHECK-NEXT:    vins.f16 s4, s6
-; CHECK-NEXT:    vmov.f32 s5, s12
-; CHECK-NEXT:    vmovx.f16 s6, s13
-; CHECK-NEXT:    vmov.f32 s7, s10
-; CHECK-NEXT:    vins.f16 s5, s6
-; CHECK-NEXT:    vmovx.f16 s6, s11
-; CHECK-NEXT:    vins.f16 s7, s6
-; CHECK-NEXT:    vmov.f32 s6, s15
-; CHECK-NEXT:    vmovx.f16 s16, s8
-; CHECK-NEXT:    vmovx.f16 s12, s12
-; CHECK-NEXT:    vmovx.f16 s15, s15
-; CHECK-NEXT:    vmov.f32 s20, s14
-; CHECK-NEXT:    vmovx.f16 s10, s10
+; CHECK-NEXT:    vldrw.u32 q3, [r0, #32]
+; CHECK-NEXT:    vmov.f32 s5, s8
+; CHECK-NEXT:    vmovx.f16 s8, s8
 ; CHECK-NEXT:    vmovx.f16 s17, s3
-; CHECK-NEXT:    vmovx.f16 s19, s9
-; CHECK-NEXT:    vmovx.f16 s18, s14
-; CHECK-NEXT:    vins.f16 s6, s16
+; CHECK-NEXT:    vins.f16 s3, s8
+; CHECK-NEXT:    vmovx.f16 s8, s11
+; CHECK-NEXT:    vmovx.f16 s18, s10
 ; CHECK-NEXT:    vmovx.f16 s16, s0
-; CHECK-NEXT:    vmovx.f16 s1, s1
-; CHECK-NEXT:    vins.f16 s20, s15
-; CHECK-NEXT:    vins.f16 s3, s12
-; CHECK-NEXT:    vins.f16 s9, s10
-; CHECK-NEXT:    vins.f16 s0, s1
+; CHECK-NEXT:    vins.f16 s10, s8
+; CHECK-NEXT:    vmovx.f16 s6, s2
+; CHECK-NEXT:    vmov.f32 s4, s1
+; CHECK-NEXT:    vmovx.f16 s8, s14
+; CHECK-NEXT:    vmovx.f16 s19, s13
+; CHECK-NEXT:    vins.f16 s4, s6
+; CHECK-NEXT:    vmovx.f16 s6, s9
 ; CHECK-NEXT:    vins.f16 s16, s2
+; CHECK-NEXT:    vmovx.f16 s2, s15
+; CHECK-NEXT:    vmovx.f16 s7, s12
+; CHECK-NEXT:    vins.f16 s18, s12
+; CHECK-NEXT:    vmovx.f16 s12, s1
+; CHECK-NEXT:    vins.f16 s13, s8
+; CHECK-NEXT:    vins.f16 s5, s6
+; CHECK-NEXT:    vmov.f32 s6, s11
+; CHECK-NEXT:    vins.f16 s14, s2
 ; CHECK-NEXT:    vmov.f32 s1, s3
-; CHECK-NEXT:    vins.f16 s17, s13
-; CHECK-NEXT:    vins.f16 s19, s11
-; CHECK-NEXT:    vins.f16 s18, s8
-; CHECK-NEXT:    vmov.f32 s2, s20
-; CHECK-NEXT:    vmov.f32 s3, s9
+; CHECK-NEXT:    vins.f16 s19, s15
+; CHECK-NEXT:    vins.f16 s17, s9
+; CHECK-NEXT:    vins.f16 s0, s12
+; CHECK-NEXT:    vmov.f32 s2, s10
+; CHECK-NEXT:    vmov.f32 s3, s13
+; CHECK-NEXT:    vins.f16 s6, s7
+; CHECK-NEXT:    vmov.f32 s7, s14
 ; CHECK-NEXT:    vadd.f16 q0, q0, q4
 ; CHECK-NEXT:    vadd.f16 q0, q0, q1
 ; CHECK-NEXT:    vstrw.32 q0, [r1]
-; CHECK-NEXT:    vpop {d8, d9, d10}
+; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <24 x half>, <24 x half>* %src, align 4
+  %l1 = load <24 x half>, ptr %src, align 4
   %s1 = shufflevector <24 x half> %l1, <24 x half> undef, <8 x i32> <i32 0, i32 3, i32 6, i32 9, i32 12, i32 15, i32 18, i32 21>
   %s2 = shufflevector <24 x half> %l1, <24 x half> undef, <8 x i32> <i32 1, i32 4, i32 7, i32 10, i32 13, i32 16, i32 19, i32 22>
   %s3 = shufflevector <24 x half> %l1, <24 x half> undef, <8 x i32> <i32 2, i32 5, i32 8, i32 11, i32 14, i32 17, i32 20, i32 23>
   %a1 = fadd <8 x half> %s1, %s2
   %a = fadd <8 x half> %a1, %s3
-  store <8 x half> %a, <8 x half> *%dst
+  store <8 x half> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v16f16(<48 x half> *%src, <16 x half> *%dst) {
+define void @vld3_v16f16(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v16f16:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .vsave {d8, d9, d10}
-; CHECK-NEXT:    vpush {d8, d9, d10}
+; CHECK-NEXT:    .vsave {d8, d9}
+; CHECK-NEXT:    vpush {d8, d9}
 ; CHECK-NEXT:    vldrw.u32 q0, [r0, #48]
-; CHECK-NEXT:    vldrw.u32 q3, [r0, #64]
-; CHECK-NEXT:    vldrw.u32 q2, [r0, #80]
-; CHECK-NEXT:    vmov.f32 s4, s1
+; CHECK-NEXT:    vldrw.u32 q2, [r0, #64]
+; CHECK-NEXT:    vldrw.u32 q3, [r0, #80]
 ; CHECK-NEXT:    vmovx.f16 s6, s2
+; CHECK-NEXT:    vmov.f32 s4, s1
 ; CHECK-NEXT:    vins.f16 s4, s6
-; CHECK-NEXT:    vmov.f32 s5, s12
-; CHECK-NEXT:    vmovx.f16 s6, s13
-; CHECK-NEXT:    vmov.f32 s7, s10
+; CHECK-NEXT:    vmovx.f16 s6, s9
+; CHECK-NEXT:    vmov.f32 s5, s8
+; CHECK-NEXT:    vmovx.f16 s7, s12
 ; CHECK-NEXT:    vins.f16 s5, s6
-; CHECK-NEXT:    vmovx.f16 s6, s11
-; CHECK-NEXT:    vins.f16 s7, s6
-; CHECK-NEXT:    vmov.f32 s6, s15
-; CHECK-NEXT:    vmovx.f16 s16, s8
-; CHECK-NEXT:    vmovx.f16 s12, s12
-; CHECK-NEXT:    vmovx.f16 s15, s15
-; CHECK-NEXT:    vmov.f32 s20, s14
-; CHECK-NEXT:    vmovx.f16 s10, s10
+; CHECK-NEXT:    vmov.f32 s6, s11
+; CHECK-NEXT:    vins.f16 s6, s7
+; CHECK-NEXT:    vmovx.f16 s16, s15
+; CHECK-NEXT:    vmov.f32 s7, s14
 ; CHECK-NEXT:    vmovx.f16 s17, s3
-; CHECK-NEXT:    vmovx.f16 s19, s9
-; CHECK-NEXT:    vmovx.f16 s18, s14
-; CHECK-NEXT:    vins.f16 s6, s16
+; CHECK-NEXT:    vins.f16 s7, s16
 ; CHECK-NEXT:    vmovx.f16 s16, s0
-; CHECK-NEXT:    vmovx.f16 s1, s1
-; CHECK-NEXT:    vins.f16 s20, s15
-; CHECK-NEXT:    vins.f16 s3, s12
-; CHECK-NEXT:    vins.f16 s9, s10
-; CHECK-NEXT:    vins.f16 s0, s1
 ; CHECK-NEXT:    vins.f16 s16, s2
-; CHECK-NEXT:    vins.f16 s17, s13
+; CHECK-NEXT:    vmovx.f16 s2, s1
+; CHECK-NEXT:    vins.f16 s0, s2
+; CHECK-NEXT:    vmovx.f16 s2, s8
+; CHECK-NEXT:    vins.f16 s3, s2
+; CHECK-NEXT:    vmovx.f16 s2, s11
+; CHECK-NEXT:    vmovx.f16 s18, s10
+; CHECK-NEXT:    vins.f16 s10, s2
+; CHECK-NEXT:    vmovx.f16 s2, s14
+; CHECK-NEXT:    vmovx.f16 s19, s13
+; CHECK-NEXT:    vins.f16 s13, s2
 ; CHECK-NEXT:    vmov.f32 s1, s3
-; CHECK-NEXT:    vins.f16 s19, s11
-; CHECK-NEXT:    vins.f16 s18, s8
-; CHECK-NEXT:    vmov.f32 s3, s9
+; CHECK-NEXT:    vins.f16 s18, s12
+; CHECK-NEXT:    vins.f16 s19, s15
+; CHECK-NEXT:    vmov.f32 s3, s13
+; CHECK-NEXT:    vins.f16 s17, s9
+; CHECK-NEXT:    vmov.f32 s2, s10
 ; CHECK-NEXT:    vldrw.u32 q3, [r0, #16]
-; CHECK-NEXT:    vmov.f32 s2, s20
-; CHECK-NEXT:    vldrw.u32 q2, [r0, #32]
 ; CHECK-NEXT:    vadd.f16 q0, q0, q4
-; CHECK-NEXT:    vmov.f32 s20, s14
-; CHECK-NEXT:    vadd.f16 q1, q0, q1
+; CHECK-NEXT:    vadd.f16 q2, q0, q1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0]
-; CHECK-NEXT:    vstrw.32 q1, [r1, #16]
-; CHECK-NEXT:    vmov.f32 s5, s12
-; CHECK-NEXT:    vmov.f32 s4, s1
-; CHECK-NEXT:    vmovx.f16 s6, s2
-; CHECK-NEXT:    vins.f16 s4, s6
-; CHECK-NEXT:    vmovx.f16 s6, s13
-; CHECK-NEXT:    vins.f16 s5, s6
-; CHECK-NEXT:    vmov.f32 s7, s10
-; CHECK-NEXT:    vmovx.f16 s6, s11
-; CHECK-NEXT:    vmovx.f16 s16, s8
-; CHECK-NEXT:    vins.f16 s7, s6
-; CHECK-NEXT:    vmov.f32 s6, s15
-; CHECK-NEXT:    vmovx.f16 s15, s15
-; CHECK-NEXT:    vmovx.f16 s12, s12
-; CHECK-NEXT:    vmovx.f16 s10, s10
-; CHECK-NEXT:    vmovx.f16 s17, s3
-; CHECK-NEXT:    vmovx.f16 s19, s9
-; CHECK-NEXT:    vmovx.f16 s18, s14
-; CHECK-NEXT:    vins.f16 s6, s16
-; CHECK-NEXT:    vmovx.f16 s16, s0
-; CHECK-NEXT:    vmovx.f16 s1, s1
-; CHECK-NEXT:    vins.f16 s20, s15
-; CHECK-NEXT:    vins.f16 s3, s12
+; CHECK-NEXT:    vldrw.u32 q1, [r0, #32]
+; CHECK-NEXT:    vstrw.32 q2, [r1, #16]
+; CHECK-NEXT:    vmovx.f16 s10, s2
+; CHECK-NEXT:    vmov.f32 s8, s1
+; CHECK-NEXT:    vins.f16 s8, s10
+; CHECK-NEXT:    vmovx.f16 s10, s13
+; CHECK-NEXT:    vmov.f32 s9, s12
+; CHECK-NEXT:    vmovx.f16 s11, s4
 ; CHECK-NEXT:    vins.f16 s9, s10
-; CHECK-NEXT:    vins.f16 s0, s1
+; CHECK-NEXT:    vmov.f32 s10, s15
+; CHECK-NEXT:    vins.f16 s10, s11
+; CHECK-NEXT:    vmovx.f16 s16, s7
+; CHECK-NEXT:    vmov.f32 s11, s6
+; CHECK-NEXT:    vmovx.f16 s17, s3
+; CHECK-NEXT:    vins.f16 s11, s16
+; CHECK-NEXT:    vmovx.f16 s16, s0
 ; CHECK-NEXT:    vins.f16 s16, s2
+; CHECK-NEXT:    vmovx.f16 s2, s1
+; CHECK-NEXT:    vins.f16 s0, s2
+; CHECK-NEXT:    vmovx.f16 s2, s12
+; CHECK-NEXT:    vins.f16 s3, s2
+; CHECK-NEXT:    vmovx.f16 s2, s15
+; CHECK-NEXT:    vmovx.f16 s18, s14
+; CHECK-NEXT:    vins.f16 s14, s2
+; CHECK-NEXT:    vmovx.f16 s2, s6
+; CHECK-NEXT:    vmovx.f16 s19, s5
+; CHECK-NEXT:    vins.f16 s5, s2
 ; CHECK-NEXT:    vmov.f32 s1, s3
+; CHECK-NEXT:    vins.f16 s18, s4
+; CHECK-NEXT:    vins.f16 s19, s7
 ; CHECK-NEXT:    vins.f16 s17, s13
-; CHECK-NEXT:    vins.f16 s19, s11
-; CHECK-NEXT:    vins.f16 s18, s8
-; CHECK-NEXT:    vmov.f32 s2, s20
-; CHECK-NEXT:    vmov.f32 s3, s9
+; CHECK-NEXT:    vmov.f32 s2, s14
+; CHECK-NEXT:    vmov.f32 s3, s5
 ; CHECK-NEXT:    vadd.f16 q0, q0, q4
-; CHECK-NEXT:    vadd.f16 q0, q0, q1
+; CHECK-NEXT:    vadd.f16 q0, q0, q2
 ; CHECK-NEXT:    vstrw.32 q0, [r1]
-; CHECK-NEXT:    vpop {d8, d9, d10}
+; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <48 x half>, <48 x half>* %src, align 4
+  %l1 = load <48 x half>, ptr %src, align 4
   %s1 = shufflevector <48 x half> %l1, <48 x half> undef, <16 x i32> <i32 0, i32 3, i32 6, i32 9, i32 12, i32 15, i32 18, i32 21, i32 24, i32 27, i32 30, i32 33, i32 36, i32 39, i32 42, i32 45>
   %s2 = shufflevector <48 x half> %l1, <48 x half> undef, <16 x i32> <i32 1, i32 4, i32 7, i32 10, i32 13, i32 16, i32 19, i32 22, i32 25, i32 28, i32 31, i32 34, i32 37, i32 40, i32 43, i32 46>
   %s3 = shufflevector <48 x half> %l1, <48 x half> undef, <16 x i32> <i32 2, i32 5, i32 8, i32 11, i32 14, i32 17, i32 20, i32 23, i32 26, i32 29, i32 32, i32 35, i32 38, i32 41, i32 44, i32 47>
   %a1 = fadd <16 x half> %s1, %s2
   %a = fadd <16 x half> %a1, %s3
-  store <16 x half> %a, <16 x half> *%dst
+  store <16 x half> %a, ptr %dst
   ret void
 }
 
 ; f64
 
-define void @vld3_v2f64(<6 x double> *%src, <2 x double> *%dst) {
+define void @vld3_v2f64(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v2f64:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    vldrw.u32 q0, [r0, #32]
@@ -1283,17 +1250,17 @@ define void @vld3_v2f64(<6 x double> *%src, <2 x double> *%dst) {
 ; CHECK-NEXT:    vstrw.32 q0, [r1]
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <6 x double>, <6 x double>* %src, align 4
+  %l1 = load <6 x double>, ptr %src, align 4
   %s1 = shufflevector <6 x double> %l1, <6 x double> undef, <2 x i32> <i32 0, i32 3>
   %s2 = shufflevector <6 x double> %l1, <6 x double> undef, <2 x i32> <i32 1, i32 4>
   %s3 = shufflevector <6 x double> %l1, <6 x double> undef, <2 x i32> <i32 2, i32 5>
   %a1 = fadd <2 x double> %s1, %s2
   %a = fadd <2 x double> %a1, %s3
-  store <2 x double> %a, <2 x double> *%dst
+  store <2 x double> %a, ptr %dst
   ret void
 }
 
-define void @vld3_v4f64(<12 x double> *%src, <4 x double> *%dst) {
+define void @vld3_v4f64(ptr %src, ptr %dst) {
 ; CHECK-LABEL: vld3_v4f64:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    .vsave {d8, d9}
@@ -1317,12 +1284,12 @@ define void @vld3_v4f64(<12 x double> *%src, <4 x double> *%dst) {
 ; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
-  %l1 = load <12 x double>, <12 x double>* %src, align 4
+  %l1 = load <12 x double>, ptr %src, align 4
   %s1 = shufflevector <12 x double> %l1, <12 x double> undef, <4 x i32> <i32 0, i32 3, i32 6, i32 9>
   %s2 = shufflevector <12 x double> %l1, <12 x double> undef, <4 x i32> <i32 1, i32 4, i32 7, i32 10>
   %s3 = shufflevector <12 x double> %l1, <12 x double> undef, <4 x i32> <i32 2, i32 5, i32 8, i32 11>
   %a1 = fadd <4 x double> %s1, %s2
   %a = fadd <4 x double> %a1, %s3
-  store <4 x double> %a, <4 x double> *%dst
+  store <4 x double> %a, ptr %dst
   ret void
 }

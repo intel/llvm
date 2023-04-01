@@ -44,9 +44,10 @@
 #include "SPIRVReader.h"
 #include "SPIRVType.h"
 
-#include "llvm/IR/DIBuilder.h"
-#include "llvm/IR/Module.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/IR/DIBuilder.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Module.h"
 
 using namespace std;
 using namespace SPIRVDebug::Operand;
@@ -74,9 +75,9 @@ void SPIRVToLLVMDbgTran::addDbgInfoVersion() {
                    DEBUG_METADATA_VERSION);
 }
 
-DIFile *
-SPIRVToLLVMDbgTran::getDIFile(const std::string &FileName,
-                              Optional<DIFile::ChecksumInfo<StringRef>> CS) {
+DIFile *SPIRVToLLVMDbgTran::getDIFile(
+    const std::string &FileName,
+    std::optional<DIFile::ChecksumInfo<StringRef>> CS) {
   return getOrInsert(FileMap, FileName, [=]() {
     SplitFileName Split(FileName);
     if (!Split.BaseName.empty())
@@ -90,10 +91,38 @@ SPIRVExtInst *SPIRVToLLVMDbgTran::getDbgInst(const SPIRVId Id) {
   if (isa<OpExtInst>(E)) {
     SPIRVExtInst *EI = static_cast<SPIRVExtInst *>(E);
     if (EI->getExtSetKind() == SPIRV::SPIRVEIS_Debug ||
-        EI->getExtSetKind() == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100)
+        EI->getExtSetKind() == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100 ||
+        EI->getExtSetKind() ==
+            SPIRV::SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+        EI->getExtSetKind() == SPIRV::SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
       return EI;
   }
   return nullptr;
+}
+
+// Check if module is generated using NonSemantic.Shader.DebugInfo.XXX
+// extended instruction set
+inline bool isNonSemanticDebugInfo(const SPIRVExtInstSetKind Kind) {
+  return (Kind == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+          Kind == SPIRVEIS_NonSemantic_Shader_DebugInfo_200);
+}
+
+// Get integer parameter of debug instruction considering whether it's
+// Literal or <id> of OpConstant instruction depending on DebugInfo
+// extended instruction set kind
+SPIRVWord
+SPIRVToLLVMDbgTran::getConstantValueOrLiteral(const std::vector<SPIRVWord> &Ops,
+                                              const SPIRVWord Idx,
+                                              const SPIRVExtInstSetKind Kind) {
+  if (!isNonSemanticDebugInfo(Kind))
+    return Ops[Idx];
+
+  SPIRVValue *SPVConst = BM->get<SPIRVValue>(Ops[Idx]);
+  assert(isConstantOpCode(SPVConst->getOpCode()) &&
+         "NonSemantic Debug instruction's parameters must be OpConstant");
+  ConstantInt *Const =
+      cast<ConstantInt>(SPIRVReader->transValue(SPVConst, nullptr, nullptr));
+  return Const->getZExtValue();
 }
 
 const std::string &SPIRVToLLVMDbgTran::getString(const SPIRVId Id) {
@@ -125,12 +154,18 @@ SPIRVToLLVMDbgTran::transCompileUnit(const SPIRVExtInst *DebugInst) {
 
   using namespace SPIRVDebug::Operand::CompilationUnit;
   assert(Ops.size() == OperandCount && "Invalid number of operands");
-  M->addModuleFlag(llvm::Module::Max, "Dwarf Version", Ops[DWARFVersionIdx]);
-  unsigned SourceLang = convertSPIRVSourceLangToDWARF(Ops[LanguageIdx]);
+  SPIRVWord DWARFVersion = getConstantValueOrLiteral(
+      Ops, DWARFVersionIdx, DebugInst->getExtSetKind());
+  M->addModuleFlag(llvm::Module::Max, "Dwarf Version", DWARFVersion);
+  SPIRVWord SourceLang =
+      getConstantValueOrLiteral(Ops, LanguageIdx, DebugInst->getExtSetKind());
+  if (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+    SourceLang = convertSPIRVSourceLangToDWARFNonSemanticDbgInfo(SourceLang);
+  else
+    SourceLang = convertSPIRVSourceLangToDWARF(SourceLang);
   auto Producer = findModuleProducer();
-  CU = Builder.createCompileUnit(SourceLang, getFile(Ops[SourceIdx]), Producer,
-                                 false, "", 0);
-  return CU;
+  return Builder.createCompileUnit(SourceLang, getFile(Ops[SourceIdx]),
+                                   Producer, false, "", 0);
 }
 
 DIBasicType *SPIRVToLLVMDbgTran::transTypeBasic(const SPIRVExtInst *DebugInst) {
@@ -138,7 +173,8 @@ DIBasicType *SPIRVToLLVMDbgTran::transTypeBasic(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() == OperandCount && "Invalid number of operands");
   StringRef Name = getString(Ops[NameIdx]);
-  auto Tag = static_cast<SPIRVDebug::EncodingTag>(Ops[EncodingIdx]);
+  auto Tag = static_cast<SPIRVDebug::EncodingTag>(
+      getConstantValueOrLiteral(Ops, EncodingIdx, DebugInst->getExtSetKind()));
   unsigned Encoding = SPIRV::DbgEncodingMap::rmap(Tag);
   if (Encoding == 0)
     return Builder.createUnspecifiedType(Name);
@@ -153,8 +189,9 @@ SPIRVToLLVMDbgTran::transTypeQualifier(const SPIRVExtInst *DebugInst) {
   assert(Ops.size() == OperandCount && "Invalid number of operands");
   DIType *BaseTy =
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
-  unsigned Tag = SPIRV::DbgTypeQulifierMap::rmap(
-      static_cast<SPIRVDebug::TypeQualifierTag>(Ops[QualifierIdx]));
+  SPIRVWord Tag = SPIRV::DbgTypeQulifierMap::rmap(
+      static_cast<SPIRVDebug::TypeQualifierTag>(getConstantValueOrLiteral(
+          Ops, QualifierIdx, DebugInst->getExtSetKind())));
   return Builder.createQualifiedType(Tag, BaseTy);
 }
 
@@ -165,13 +202,14 @@ DIType *SPIRVToLLVMDbgTran::transTypePointer(const SPIRVExtInst *DebugInst) {
   DIType *PointeeTy = nullptr;
   if (BM->getEntry(Ops[BaseTypeIdx])->getOpCode() != OpTypeVoid)
     PointeeTy = transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
-  Optional<unsigned> AS;
-  if (Ops[StorageClassIdx] != ~0U) {
-    auto SC = static_cast<SPIRVStorageClassKind>(Ops[StorageClassIdx]);
-    AS = SPIRSPIRVAddrSpaceMap::rmap(SC);
-  }
+  std::optional<unsigned> AS;
+  SPIRVWord SC = getConstantValueOrLiteral(Ops, StorageClassIdx,
+                                           DebugInst->getExtSetKind());
+  if (SC != ~0U) // all ones denote no address space
+    AS = SPIRSPIRVAddrSpaceMap::rmap(static_cast<SPIRVStorageClassKind>(SC));
   DIType *Ty;
-  SPIRVWord Flags = Ops[FlagsIdx];
+  SPIRVWord Flags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
   if (Flags & SPIRVDebug::FlagIsLValueReference)
     Ty = Builder.createReferenceType(dwarf::DW_TAG_reference_type, PointeeTy, 0,
                                      0, AS);
@@ -192,6 +230,18 @@ DIType *SPIRVToLLVMDbgTran::transTypePointer(const SPIRVExtInst *DebugInst) {
 
 DICompositeType *
 SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
+  if (DebugInst->getExtSetKind() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+    return transTypeArrayNonSemantic(DebugInst);
+
+  // TODO: figure out better naming for transTypeArrayOpenCL since
+  // it also handles SPIRVEIS_NonSemantic_Shader_DebugInfo_100.
+  // Also to consider separating OpenCL from NonSemantic, as OpenCL has several
+  // workarounds
+  return transTypeArrayOpenCL(DebugInst);
+}
+
+DICompositeType *
+SPIRVToLLVMDbgTran::transTypeArrayOpenCL(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::TypeArray;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
@@ -224,10 +274,20 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
     if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[I])) {
       SPIRVConstant *C = BM->get<SPIRVConstant>(Ops[I]);
       int64_t Count = static_cast<int64_t>(C->getZExtIntValue());
-      C = BM->get<SPIRVConstant>(Ops[Ops.size() / 2 + I]);
-      int64_t LowerBound = static_cast<int64_t>(C->getZExtIntValue());
-      Subscripts.push_back(Builder.getOrCreateSubrange(LowerBound, Count));
-      TotalCount *= static_cast<uint64_t>(Count);
+      // If the SPIR-V file was generated by an older version of the translator,
+      // Ops may not contain the LowerBound
+      if (Ops.size() / 2 + I < Ops.size()) {
+        C = BM->get<SPIRVConstant>(Ops[Ops.size() / 2 + I]);
+        int64_t LowerBound = static_cast<int64_t>(C->getZExtIntValue());
+        Subscripts.push_back(Builder.getOrCreateSubrange(LowerBound, Count));
+      } else {
+        auto *CountAsMD = ConstantAsMetadata::get(
+            ConstantInt::get(M->getContext(), APInt(64, Count)));
+        Subscripts.push_back(
+            Builder.getOrCreateSubrange(CountAsMD, nullptr, nullptr, nullptr));
+      }
+      // Count = -1 means that the array is empty
+      TotalCount *= Count > 0 ? static_cast<size_t>(Count) : 0;
       continue;
     }
   }
@@ -237,13 +297,77 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
 }
 
 DICompositeType *
+SPIRVToLLVMDbgTran::transTypeArrayNonSemantic(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::TypeArray;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+  DIType *BaseTy =
+      transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
+  size_t TotalCount = 1;
+  SmallVector<llvm::Metadata *, 8> Subscripts;
+  if (DebugInst->getExtOp() == SPIRVDebug::TypeArray) {
+    for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
+      auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
+      if (auto *Count = SR->getCount().get<ConstantInt *>())
+        TotalCount *= Count->getSExtValue() > 0 ? Count->getSExtValue() : 0;
+      Subscripts.push_back(SR);
+    }
+  }
+  DINodeArray SubscriptArray = Builder.getOrCreateArray(Subscripts);
+  size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
+  return Builder.createArrayType(Size, 0 /*align*/, BaseTy, SubscriptArray);
+}
+
+DICompositeType *
+SPIRVToLLVMDbgTran::transTypeArrayDynamic(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::TypeArrayDynamic;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+  DIType *BaseTy =
+      transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
+  size_t TotalCount = 1;
+  SmallVector<llvm::Metadata *, 8> Subscripts;
+  for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
+    auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
+    if (auto *Count = SR->getCount().get<ConstantInt *>())
+      TotalCount *= Count->getSExtValue() > 0 ? Count->getSExtValue() : 0;
+    Subscripts.push_back(SR);
+  }
+  DINodeArray SubscriptArray = Builder.getOrCreateArray(Subscripts);
+  size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
+
+  auto TransOperand = [&](SPIRVWord Idx) -> PointerUnion<DIExpression *,
+                                                         DIVariable *> {
+    if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[Idx])) {
+      if (const auto *GV = getDbgInst<SPIRVDebug::GlobalVariable>(Ops[Idx]))
+        return transDebugInst<DIGlobalVariable>(GV);
+      if (const auto *LV = getDbgInst<SPIRVDebug::LocalVariable>(Ops[Idx]))
+        return transDebugInst<DILocalVariable>(LV);
+      if (const auto *DIExpr = getDbgInst<SPIRVDebug::Expression>(Ops[Idx]))
+        return transDebugInst<DIExpression>(DIExpr);
+    }
+    return nullptr;
+  };
+  PointerUnion<DIExpression *, DIVariable *> DataLocation =
+      TransOperand(DataLocationIdx);
+  PointerUnion<DIExpression *, DIVariable *> Associated =
+      TransOperand(AssociatedIdx);
+  PointerUnion<DIExpression *, DIVariable *> Allocated =
+      TransOperand(AllocatedIdx);
+  PointerUnion<DIExpression *, DIVariable *> Rank = TransOperand(RankIdx);
+  return Builder.createArrayType(Size, 0 /*align*/, BaseTy, SubscriptArray,
+                                 DataLocation, Associated, Allocated, Rank);
+}
+
+DICompositeType *
 SPIRVToLLVMDbgTran::transTypeVector(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::TypeVector;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
   DIType *BaseTy =
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
-  SPIRVWord Count = Ops[ComponentCountIdx];
+  SPIRVWord Count = getConstantValueOrLiteral(Ops, ComponentCountIdx,
+                                              DebugInst->getExtSetKind());
   // FIXME: The current design of SPIR-V Debug Info doesn't provide a field
   // for the derived memory size. Meanwhile, OpenCL/SYCL 3-element vectors
   // occupy the same amount of memory as 4-element vectors, hence the simple
@@ -269,13 +393,16 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
 
   StringRef Name = getString(Ops[NameIdx]);
   DIFile *File = getFile(Ops[SourceIdx]);
-  unsigned LineNo = Ops[LineIdx];
+  SPIRVWord LineNo =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   DIScope *ParentScope = getScope(BM->getEntry(Ops[ParentIdx]));
 
   uint64_t Size = 0;
   SPIRVEntry *SizeEntry = BM->getEntry(Ops[SizeIdx]);
   if (!(SizeEntry->isExtInst(SPIRVEIS_Debug, SPIRVDebug::DebugInfoNone) ||
         SizeEntry->isExtInst(SPIRVEIS_OpenCL_DebugInfo_100,
+                             SPIRVDebug::DebugInfoNone) ||
+        SizeEntry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
                              SPIRVDebug::DebugInfoNone))) {
     Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   }
@@ -288,15 +415,17 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
     Identifier = static_cast<SPIRVString *>(UniqId)->getStr();
 
   DINode::DIFlags Flags = DINode::FlagZero;
-  if (Ops[FlagsIdx] & SPIRVDebug::FlagIsFwdDecl)
+  SPIRVWord SPIRVFlags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
+  if (SPIRVFlags & SPIRVDebug::FlagIsFwdDecl)
     Flags |= DINode::FlagFwdDecl;
-  if (Ops[FlagsIdx] & SPIRVDebug::FlagTypePassByValue)
+  if (SPIRVFlags & SPIRVDebug::FlagTypePassByValue)
     Flags |= DINode::FlagTypePassByValue;
-  if (Ops[FlagsIdx] & SPIRVDebug::FlagTypePassByReference)
+  if (SPIRVFlags & SPIRVDebug::FlagTypePassByReference)
     Flags |= DINode::FlagTypePassByReference;
 
   DICompositeType *CT = nullptr;
-  switch (Ops[TagIdx]) {
+  switch (getConstantValueOrLiteral(Ops, TagIdx, DebugInst->getExtSetKind())) {
   case SPIRVDebug::Class:
     // TODO: should be replaced with createClassType, when bug with creating
     // ClassType with llvm::dwarf::DW_TAG_struct_type tag will be fixed
@@ -331,20 +460,96 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   return CT;
 }
 
+DISubrange *
+SPIRVToLLVMDbgTran::transTypeSubrange(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::TypeSubrange;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() == OperandCount && "Invalid number of operands");
+  std::vector<Metadata *> TranslatedOps(OperandCount, nullptr);
+  auto TransOperand = [&Ops, &TranslatedOps, this](int Idx) -> void {
+    if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[Idx])) {
+      if (auto *GlobalVar = getDbgInst<SPIRVDebug::GlobalVariable>(Ops[Idx])) {
+        TranslatedOps[Idx] =
+            cast<Metadata>(transDebugInst<DIGlobalVariable>(GlobalVar));
+      } else if (auto *LocalVar =
+                     getDbgInst<SPIRVDebug::LocalVariable>(Ops[Idx])) {
+        TranslatedOps[Idx] =
+            cast<Metadata>(transDebugInst<DILocalVariable>(LocalVar));
+      } else if (auto *Expr = getDbgInst<SPIRVDebug::Expression>(Ops[Idx])) {
+        TranslatedOps[Idx] = cast<Metadata>(transDebugInst<DIExpression>(Expr));
+      } else if (auto *Const = BM->get<SPIRVConstant>(Ops[Idx])) {
+        int64_t ConstantAsInt = static_cast<int64_t>(Const->getZExtIntValue());
+        TranslatedOps[Idx] = cast<Metadata>(ConstantAsMetadata::get(
+            ConstantInt::get(M->getContext(), APInt(64, ConstantAsInt))));
+      }
+    }
+  };
+  for (int Idx = CountIdx; Idx < OperandCount; ++Idx)
+    TransOperand(Idx);
+  return Builder.getOrCreateSubrange(TranslatedOps[0], TranslatedOps[1],
+                                     TranslatedOps[2], TranslatedOps[3]);
+}
+
+DIStringType *
+SPIRVToLLVMDbgTran::transTypeString(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::TypeString;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+
+  StringRef Name = getString(Ops[NameIdx]);
+  unsigned Encoding = 0;
+  if (!getDbgInst<SPIRVDebug::DebugInfoNone>((Ops[BaseTypeIdx]))) {
+    DIBasicType *BaseTy =
+        transTypeBasic(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
+    Encoding = BaseTy->getEncoding();
+  }
+
+  DIExpression *StrLocationExp = nullptr;
+  if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[DataLocationIdx])) {
+    if (const auto *DIExpr =
+            getDbgInst<SPIRVDebug::Expression>(Ops[DataLocationIdx]))
+      StrLocationExp = transDebugInst<DIExpression>(DIExpr);
+  }
+
+  uint64_t SizeInBits = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
+
+  DIExpression *StringLengthExp = nullptr;
+  DIVariable *StringLengthVar = nullptr;
+  if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[LengthAddrIdx])) {
+    if (const auto *GV =
+            getDbgInst<SPIRVDebug::GlobalVariable>(Ops[LengthAddrIdx]))
+      StringLengthVar = transDebugInst<DIGlobalVariable>(GV);
+    if (const auto *LV =
+            getDbgInst<SPIRVDebug::LocalVariable>(Ops[LengthAddrIdx]))
+      StringLengthVar = transDebugInst<DILocalVariable>(LV);
+    if (const auto *DIExpr =
+            getDbgInst<SPIRVDebug::Expression>(Ops[LengthAddrIdx]))
+      StringLengthExp = transDebugInst<DIExpression>(DIExpr);
+  }
+
+  return DIStringType::get(M->getContext(), dwarf::DW_TAG_string_type, Name,
+                           cast_or_null<Metadata>(StringLengthVar),
+                           cast_or_null<Metadata>(StringLengthExp),
+                           cast_or_null<Metadata>(StrLocationExp), SizeInBits,
+                           0 /*AlignInBits*/, Encoding);
+}
+
 DINode *SPIRVToLLVMDbgTran::transTypeMember(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::TypeMember;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
 
   DIFile *File = getFile(Ops[SourceIdx]);
-  unsigned LineNo = Ops[LineIdx];
+  SPIRVWord LineNo =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   StringRef Name = getString(Ops[NameIdx]);
   DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
   DIType *BaseType =
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[TypeIdx]));
   uint64_t OffsetInBits =
       BM->get<SPIRVConstant>(Ops[OffsetIdx])->getZExtIntValue();
-  unsigned SPIRVFlags = Ops[FlagsIdx];
+  SPIRVWord SPIRVFlags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
   DINode::DIFlags Flags = DINode::FlagZero;
   if ((SPIRVDebug::FlagAccess & SPIRVFlags) == SPIRVDebug::FlagIsPublic) {
     Flags |= DINode::FlagPublic;
@@ -378,11 +583,13 @@ DINode *SPIRVToLLVMDbgTran::transTypeEnum(const SPIRVExtInst *DebugInst) {
 
   StringRef Name = getString(Ops[NameIdx]);
   DIFile *File = getFile(Ops[SourceIdx]);
-  unsigned LineNo = Ops[LineIdx];
+  SPIRVWord LineNo =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
   uint64_t SizeInBits = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
-  unsigned AlignInBits = 0;
-  SPIRVWord Flags = Ops[FlagsIdx];
+  SPIRVWord AlignInBits = 0;
+  SPIRVWord Flags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
   if (Flags & SPIRVDebug::FlagIsFwdDecl) {
     return Builder.createForwardDecl(dwarf::DW_TAG_enumeration_type, Name,
                                      Scope, File, LineNo, AlignInBits,
@@ -410,7 +617,8 @@ DINode *SPIRVToLLVMDbgTran::transTypeFunction(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
 
-  SPIRVWord SPIRVFlags = Ops[FlagsIdx];
+  SPIRVWord SPIRVFlags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
   DINode::DIFlags Flags = DINode::FlagZero;
   if (SPIRVFlags & SPIRVDebug::FlagIsLValueReference)
     Flags |= llvm::DINode::FlagLValueReference;
@@ -451,7 +659,8 @@ DINode *SPIRVToLLVMDbgTran::transLexicalBlock(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   DIScope *ParentScope = getScope(BM->getEntry(Ops[ParentIdx]));
   DIFile *File = getFile(Ops[SourceIdx]);
-  unsigned LineNo = Ops[LineIdx];
+  SPIRVWord LineNo =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   if (Ops.size() > NameIdx) {
     StringRef Name = getString(Ops[NameIdx]);
     return Builder.createNameSpace(ParentScope, Name,
@@ -466,7 +675,8 @@ DINode *SPIRVToLLVMDbgTran::transLexicalBlockDiscriminator(
   using namespace SPIRVDebug::Operand::LexicalBlockDiscriminator;
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   DIFile *File = getFile(Ops[SourceIdx]);
-  unsigned Disc = Ops[DiscriminatorIdx];
+  SPIRVWord Disc = getConstantValueOrLiteral(Ops, DiscriminatorIdx,
+                                             DebugInst->getExtSetKind());
   DIScope *ParentScope = getScope(BM->getEntry(Ops[ParentIdx]));
   return Builder.createLexicalBlockFile(ParentScope, File, Disc);
 }
@@ -480,11 +690,13 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
   DISubroutineType *Ty =
       transDebugInst<DISubroutineType>(BM->get<SPIRVExtInst>(Ops[TypeIdx]));
   DIFile *File = getFile(Ops[SourceIdx]);
-  unsigned LineNo = Ops[LineIdx];
+  SPIRVWord LineNo =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
   StringRef LinkageName = getString(Ops[LinkageNameIdx]);
 
-  SPIRVWord SPIRVDebugFlags = Ops[FlagsIdx];
+  SPIRVWord SPIRVDebugFlags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
   DINode::DIFlags Flags = DINode::FlagZero;
   if (SPIRVDebugFlags & SPIRVDebug::FlagIsArtificial)
     Flags |= llvm::DINode::FlagArtificial;
@@ -512,7 +724,8 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
       DISubprogram::toSPFlags(IsLocal, IsDefinition, IsOptimized,
                               DISubprogram::SPFlagNonvirtual, IsMainSubprogram);
 
-  unsigned ScopeLine = Ops[ScopeLineIdx];
+  SPIRVWord ScopeLine =
+      getConstantValueOrLiteral(Ops, ScopeLineIdx, DebugInst->getExtSetKind());
 
   // Function declaration descriptor
   DISubprogram *FD = nullptr;
@@ -535,9 +748,18 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
       !IsDefinition)
     DIS = Builder.createMethod(Scope, Name, LinkageName, File, LineNo, Ty, 0, 0,
                                nullptr, Flags, SPFlags, TParamsArray);
-  else
+  else {
+    // Create targetFuncName mostly for Fortran trampoline function if it is
+    // the case
+    StringRef TargetFunction;
+    if (Ops.size() > TargetFunctionNameIdx) {
+      TargetFunction = getString(Ops[TargetFunctionNameIdx]);
+    }
     DIS = Builder.createFunction(Scope, Name, LinkageName, File, LineNo, Ty,
-                                 ScopeLine, Flags, SPFlags, TParamsArray, FD);
+                                 ScopeLine, Flags, SPFlags, TParamsArray, FD,
+                                 /*ThrownTypes*/ nullptr,
+                                 /*Annotations*/ nullptr, TargetFunction);
+  }
   DebugInstCache[DebugInst] = DIS;
   SPIRVId RealFuncId = Ops[FunctionIdIdx];
   FuncMap[RealFuncId] = DIS;
@@ -548,7 +770,7 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
     SPIRVFunction *BF = static_cast<SPIRVFunction *>(E);
     llvm::Function *F = SPIRVReader->transFunction(BF);
     assert(F && "Translation of function failed!");
-    if (!F->hasMetadata())
+    if (!F->hasMetadata("dbg"))
       F->setMetadata("dbg", DIS);
   }
   return DIS;
@@ -563,11 +785,13 @@ DINode *SPIRVToLLVMDbgTran::transFunctionDecl(const SPIRVExtInst *DebugInst) {
   StringRef Name = getString(Ops[NameIdx]);
   StringRef LinkageName = getString(Ops[LinkageNameIdx]);
   DIFile *File = getFile(Ops[SourceIdx]);
-  unsigned LineNo = Ops[LineIdx];
+  SPIRVWord LineNo =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   DISubroutineType *Ty =
       transDebugInst<DISubroutineType>(BM->get<SPIRVExtInst>(Ops[TypeIdx]));
 
-  SPIRVWord SPIRVDebugFlags = Ops[FlagsIdx];
+  SPIRVWord SPIRVDebugFlags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
   bool IsDefinition = SPIRVDebugFlags & SPIRVDebug::FlagIsDefinition;
   bool IsOptimized = SPIRVDebugFlags & SPIRVDebug::FlagIsOptimized;
   bool IsLocal = SPIRVDebugFlags & SPIRVDebug::FlagIsLocal;
@@ -626,7 +850,8 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
   StringRef Name = getString(Ops[NameIdx]);
   DIType *Ty = transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[TypeIdx]));
   DIFile *File = getFile(Ops[SourceIdx]);
-  unsigned LineNo = Ops[LineIdx];
+  SPIRVWord LineNo =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   DIScope *Parent = getScope(BM->getEntry(Ops[ParentIdx]));
   StringRef LinkageName = getString(Ops[LinkageNameIdx]);
 
@@ -635,8 +860,10 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
     StaticMemberDecl = transDebugInst<DIDerivedType>(
         BM->get<SPIRVExtInst>(Ops[StaticMemberDeclarationIdx]));
   }
-  bool IsLocal = Ops[FlagsIdx] & SPIRVDebug::FlagIsLocal;
-  bool IsDefinition = Ops[FlagsIdx] & SPIRVDebug::FlagIsDefinition;
+  SPIRVWord Flags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
+  bool IsLocal = Flags & SPIRVDebug::FlagIsLocal;
+  bool IsDefinition = Flags & SPIRVDebug::FlagIsDefinition;
   MDNode *VarDecl = nullptr;
   if (IsDefinition) {
     VarDecl = Builder.createGlobalVariableExpression(
@@ -657,7 +884,7 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
     SPIRVValue *V = BM->get<SPIRVValue>(Ops[VariableIdx]);
     Value *Var = SPIRVReader->transValue(V, nullptr, nullptr);
     llvm::GlobalVariable *GV = dyn_cast_or_null<llvm::GlobalVariable>(Var);
-    if (GV && !GV->hasMetadata())
+    if (GV && !GV->hasMetadata("dbg"))
       GV->addMetadata("dbg", *VarDecl);
   }
   return VarDecl;
@@ -671,12 +898,15 @@ DINode *SPIRVToLLVMDbgTran::transLocalVariable(const SPIRVExtInst *DebugInst) {
   DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
   StringRef Name = getString(Ops[NameIdx]);
   DIFile *File = getFile(Ops[SourceIdx]);
-  unsigned LineNo = Ops[LineIdx];
+  SPIRVWord LineNo =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   DIType *Ty = transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[TypeIdx]));
   DINode::DIFlags Flags = DINode::FlagZero;
-  if (Ops[FlagsIdx] & SPIRVDebug::FlagIsArtificial)
+  SPIRVWord SPIRVFlags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
+  if (SPIRVFlags & SPIRVDebug::FlagIsArtificial)
     Flags |= DINode::FlagArtificial;
-  if (Ops[FlagsIdx] & SPIRVDebug::FlagIsObjectPointer)
+  if (SPIRVFlags & SPIRVDebug::FlagIsObjectPointer)
     Flags |= DINode::FlagObjectPointer;
 
   if (Ops.size() > ArgNumberIdx)
@@ -691,7 +921,8 @@ DINode *SPIRVToLLVMDbgTran::transTypedef(const SPIRVExtInst *DebugInst) {
   assert(Ops.size() >= OperandCount && "Invalid number of operands");
 
   DIFile *File = getFile(Ops[SourceIdx]);
-  unsigned LineNo = Ops[LineIdx];
+  SPIRVWord LineNo =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   StringRef Alias = getString(Ops[NameIdx]);
   SPIRVEntry *TypeInst = BM->getEntry(Ops[BaseTypeIdx]);
   DIType *Ty = transDebugInst<DIType>(static_cast<SPIRVExtInst *>(TypeInst));
@@ -708,11 +939,13 @@ DINode *SPIRVToLLVMDbgTran::transInheritance(const SPIRVExtInst *DebugInst) {
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ParentIdx]));
   DIType *Child = transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ChildIdx]));
   DINode::DIFlags Flags = DINode::FlagZero;
-  if ((Ops[FlagsIdx] & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsPublic)
+  SPIRVWord SPIRVFlags =
+      getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
+  if ((SPIRVFlags & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsPublic)
     Flags |= llvm::DINode::FlagPublic;
-  if ((Ops[FlagsIdx] & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsProtected)
+  if ((SPIRVFlags & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsProtected)
     Flags |= llvm::DINode::FlagProtected;
-  if ((Ops[FlagsIdx] & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsPrivate)
+  if ((SPIRVFlags & SPIRVDebug::FlagAccess) == SPIRVDebug::FlagIsPrivate)
     Flags |= llvm::DINode::FlagPrivate;
   uint64_t Offset = BM->get<SPIRVConstant>(Ops[OffsetIdx])->getZExtIntValue();
   return Builder.createInheritance(Child, Parent, Offset, 0, Flags);
@@ -799,10 +1032,13 @@ DINode *SPIRVToLLVMDbgTran::transImportedEntry(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= OperandCount && "Invalid number of operands");
   DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
-  unsigned Line = Ops[LineIdx];
+  SPIRVWord Line =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   DIFile *File = getFile(Ops[SourceIdx]);
   auto *Entity = transDebugInst<DINode>(BM->get<SPIRVExtInst>(Ops[EntityIdx]));
-  if (Ops[TagIdx] == SPIRVDebug::ImportedModule) {
+  SPIRVWord Tag =
+      getConstantValueOrLiteral(Ops, TagIdx, DebugInst->getExtSetKind());
+  if (Tag == SPIRVDebug::ImportedModule) {
     if (!Entity)
       return Builder.createImportedModule(
           Scope, static_cast<DIImportedEntity *>(nullptr), File, Line);
@@ -813,7 +1049,7 @@ DINode *SPIRVToLLVMDbgTran::transImportedEntry(const SPIRVExtInst *DebugInst) {
     if (DINamespace *NS = dyn_cast<DINamespace>(Entity))
       return Builder.createImportedModule(Scope, NS, File, Line);
   }
-  if (Ops[TagIdx] == SPIRVDebug::ImportedDeclaration) {
+  if (Tag == SPIRVDebug::ImportedDeclaration) {
     StringRef Name = getString(Ops[NameIdx]);
     if (DIGlobalVariableExpression *GVE =
             dyn_cast<DIGlobalVariableExpression>(Entity))
@@ -829,14 +1065,15 @@ DINode *SPIRVToLLVMDbgTran::transModule(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Ops = DebugInst->getArguments();
   assert(Ops.size() >= OperandCount && "Invalid number of operands");
   DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
-  unsigned Line = Ops[LineIdx];
+  SPIRVWord Line =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   DIFile *File = getFile(Ops[SourceIdx]);
   StringRef Name = getString(Ops[NameIdx]);
   StringRef ConfigMacros = getString(Ops[ConfigMacrosIdx]);
   StringRef IncludePath = getString(Ops[IncludePathIdx]);
   StringRef ApiNotes = getString(Ops[ApiNotesIdx]);
-  bool IsDecl = Ops[IsDeclIdx];
-
+  bool IsDecl =
+      getConstantValueOrLiteral(Ops, IsDeclIdx, DebugInst->getExtSetKind());
   return Builder.createModule(Scope, Name, ConfigMacros, IncludePath, ApiNotes,
                               File, Line, IsDecl);
 }
@@ -845,9 +1082,12 @@ MDNode *SPIRVToLLVMDbgTran::transExpression(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Args = DebugInst->getArguments();
   std::vector<uint64_t> Ops;
   for (SPIRVId A : Args) {
+    using namespace SPIRVDebug::Operand::Operation;
     SPIRVExtInst *O = BM->get<SPIRVExtInst>(A);
     const SPIRVWordVec &Operands = O->getArguments();
-    auto OpCode = static_cast<SPIRVDebug::ExpressionOpCode>(Operands[0]);
+    auto OpCode =
+        static_cast<SPIRVDebug::ExpressionOpCode>(getConstantValueOrLiteral(
+            Operands, OpCodeIdx, DebugInst->getExtSetKind()));
     Ops.push_back(SPIRV::DbgExpressionOpCodeMap::rmap(OpCode));
     for (unsigned I = 1, E = Operands.size(); I < E; ++I) {
       Ops.push_back(Operands[I]);
@@ -876,6 +1116,12 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
 
   case SPIRVDebug::TypeArray:
     return transTypeArray(DebugInst);
+
+  case SPIRVDebug::TypeSubrange:
+    return transTypeSubrange(DebugInst);
+
+  case SPIRVDebug::TypeString:
+    return transTypeString(DebugInst);
 
   case SPIRVDebug::TypeVector:
     return transTypeVector(DebugInst);
@@ -937,6 +1183,7 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
   case SPIRVDebug::ImportedEntity:
     return transImportedEntry(DebugInst);
 
+  case SPIRVDebug::Module:
   case SPIRVDebug::ModuleINTEL:
     return transModule(DebugInst);
 
@@ -946,6 +1193,9 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
 
   case SPIRVDebug::Expression:
     return transExpression(DebugInst);
+
+  case SPIRVDebug::TypeArrayDynamic:
+    return transTypeArrayDynamic(DebugInst);
 
   default:
     llvm_unreachable("Not implemented SPIR-V debug instruction!");
@@ -998,9 +1248,16 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
   case SPIRVDebug::Value: {
     using namespace SPIRVDebug::Operand::DebugValue;
     auto LocalVar = GetLocalVar(Ops[DebugLocalVarIdx]);
-    return Builder.insertDbgValueIntrinsic(
-        GetValue(Ops[ValueIdx]), LocalVar.first,
-        GetExpression(Ops[ExpressionIdx]), LocalVar.second, BB);
+    Value *Val = GetValue(Ops[ValueIdx]);
+    DIExpression *Expr = GetExpression(Ops[ExpressionIdx]);
+    auto *DbgValIntr = Builder.insertDbgValueIntrinsic(
+        Val, LocalVar.first, Expr, LocalVar.second, BB);
+    if (Expr->getNumLocationOperands() == 1) {
+      SmallVector<ValueAsMetadata *, 1> MDs = {ValueAsMetadata::get(Val)};
+      DIArgList *AL = DIArgList::get(M->getContext(), MDs);
+      cast<DbgVariableIntrinsic>(DbgValIntr)->setRawLocation(AL);
+    }
+    return DbgValIntr;
   }
   default:
     llvm_unreachable("Unknown debug intrinsic!");
@@ -1028,11 +1285,12 @@ DebugLoc SPIRVToLLVMDbgTran::transDebugScope(const SPIRVInstruction *Inst) {
   return DebugLoc();
 }
 
-MDNode *SPIRVToLLVMDbgTran::transDebugInlined(const SPIRVExtInst *Inst) {
+MDNode *SPIRVToLLVMDbgTran::transDebugInlined(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::InlinedAt;
-  SPIRVWordVec Ops = Inst->getArguments();
+  SPIRVWordVec Ops = DebugInst->getArguments();
   assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
-  unsigned Line = Ops[LineIdx];
+  SPIRVWord Line =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
   unsigned Col = 0; // DebugInlinedAt instruction has no column operand
   DILocalScope *Scope =
       cast<DILocalScope>(getScope(BM->getEntry(Ops[ScopeIdx])));
@@ -1085,11 +1343,11 @@ std::string SPIRVToLLVMDbgTran::findModuleProducer() {
   return "spirv";
 }
 
-Optional<DIFile::ChecksumInfo<StringRef>>
+std::optional<DIFile::ChecksumInfo<StringRef>>
 SPIRVToLLVMDbgTran::ParseChecksum(StringRef Text) {
   // Example of "Text" variable:
   // "SomeInfo//__CSK_MD5:7bb56387968a9caa6e9e35fff94eaf7b:OtherInfo"
-  Optional<DIFile::ChecksumInfo<StringRef>> CS;
+  std::optional<DIFile::ChecksumInfo<StringRef>> CS;
   auto KindPos = Text.find(SPIRVDebug::ChecksumKindPrefx);
   if (KindPos != StringRef::npos) {
     auto ColonPos = Text.find(":", KindPos);
@@ -1098,7 +1356,7 @@ SPIRVToLLVMDbgTran::ParseChecksum(StringRef Text) {
     auto Checksum = Text.substr(ColonPos).ltrim(':');
     if (auto Kind = DIFile::getChecksumKind(KindStr)) {
       size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
-      CS.emplace(Kind.getValue(), Checksum.substr(0, ChecksumEndPos));
+      CS.emplace(Kind.value(), Checksum.substr(0, ChecksumEndPos));
     }
   }
   return CS;

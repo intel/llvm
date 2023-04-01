@@ -2,7 +2,7 @@
 ; which, when takes place, causes promotion of its callee.
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/noinline.ll -o %t2.bc
-; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t3.o \
+; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t3.o \
 ; RUN:   -save-temps       \
 ; RUN:   -r=%t1.bc,main,px \
 ; RUN:   -r=%t1.bc,foo,    \
@@ -16,7 +16,7 @@ target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16
 target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: nounwind ssp uwtable
-define i32 @main(i32, i8** nocapture readnone) local_unnamed_addr #0 {
+define i32 @main(i32, ptr nocapture readnone) local_unnamed_addr #0 {
   %3 = tail call i32 @foo(i32 %0) #0
   ret i32 %3
 }

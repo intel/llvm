@@ -21,8 +21,8 @@
 // T100USE-LABEL: define linkonce_odr {{.*}}void @_Z4loopILj100EEvv()
 template <unsigned N> void loop() {
   // ALL-NOT: ret
-  // T0GEN: store {{.*}} @[[T0C]], i32 0, i32 0
-  // T100GEN: store {{.*}} @[[T100C]], i32 0, i32 0
+  // T0GEN: store {{.*}} @[[T0C]]
+  // T100GEN: store {{.*}} @[[T100C]]
 
   // ALL-NOT: ret
   // T0GEN: store {{.*}} @[[T0C]], i32 0, i32 1

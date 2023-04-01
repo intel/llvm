@@ -15,17 +15,13 @@
 #include "index/Index.h"
 #include "support/Logger.h"
 #include "clang/AST/DeclTemplate.h"
-#include "clang/Index/IndexDataConsumer.h"
 #include "clang/Index/IndexSymbol.h"
-#include "clang/Index/IndexingAction.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Path.h"
-#include "llvm/Support/ScopedPrinter.h"
 #include <limits>
+#include <optional>
 #include <tuple>
 
 #define DEBUG_TYPE "FindSymbols"
@@ -224,15 +220,15 @@ std::string getSymbolDetail(ASTContext &Ctx, const NamedDecl &ND) {
   return std::move(OS.str());
 }
 
-llvm::Optional<DocumentSymbol> declToSym(ASTContext &Ctx, const NamedDecl &ND) {
+std::optional<DocumentSymbol> declToSym(ASTContext &Ctx, const NamedDecl &ND) {
   auto &SM = Ctx.getSourceManager();
 
-  SourceLocation BeginLoc = SM.getSpellingLoc(SM.getFileLoc(ND.getBeginLoc()));
-  SourceLocation EndLoc = SM.getSpellingLoc(SM.getFileLoc(ND.getEndLoc()));
+  SourceLocation BeginLoc = SM.getFileLoc(ND.getBeginLoc());
+  SourceLocation EndLoc = SM.getFileLoc(ND.getEndLoc());
   const auto SymbolRange =
       toHalfOpenFileRange(SM, Ctx.getLangOpts(), {BeginLoc, EndLoc});
   if (!SymbolRange)
-    return llvm::None;
+    return std::nullopt;
 
   index::SymbolInfo SymInfo = index::getSymbolInfo(&ND);
   // FIXME: This is not classifying constructors, destructors and operators
@@ -330,7 +326,7 @@ class DocumentOutline {
     //  - a macro symbol child of this (either new or previously created)
     //  - this scope itself, if it *is* the macro symbol or is nested within it
     SymBuilder &inMacro(const syntax::Token &Tok, const SourceManager &SM,
-                        llvm::Optional<syntax::TokenBuffer::Expansion> Exp) {
+                        std::optional<syntax::TokenBuffer::Expansion> Exp) {
       if (llvm::is_contained(EnclosingMacroLoc, Tok.location()))
         return *this;
       // If there's an existing child for this macro, we expect it to be last.
@@ -483,7 +479,7 @@ private:
     if (!llvm::isa<NamedDecl>(D))
       return VisitKind::No;
 
-    if (auto Func = llvm::dyn_cast<FunctionDecl>(D)) {
+    if (auto *Func = llvm::dyn_cast<FunctionDecl>(D)) {
       // Some functions are implicit template instantiations, those should be
       // ignored.
       if (auto *Info = Func->getTemplateSpecializationInfo()) {
@@ -648,7 +644,7 @@ std::vector<DocumentSymbol> collectDocSymbols(ParsedAST &AST) {
   DocumentSymbol Root;
   Root.children = std::move(Syms);
   Root.range = EntireFile;
-  mergePragmas(Root, llvm::makeArrayRef(Pragmas));
+  mergePragmas(Root, llvm::ArrayRef(Pragmas));
   return Root.children;
 }
 

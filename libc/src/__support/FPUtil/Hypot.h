@@ -10,8 +10,13 @@
 #define LLVM_LIBC_SRC_SUPPORT_FPUTIL_HYPOT_H
 
 #include "BasicOperations.h"
+#include "FEnvImpl.h"
 #include "FPBits.h"
-#include "src/__support/CPP/TypeTraits.h"
+#include "src/__support/CPP/bit.h"
+#include "src/__support/CPP/type_traits.h"
+#include "src/__support/UInt128.h"
+#include "src/__support/builtin_wrappers.h"
+#include "src/__support/common.h"
 
 namespace __llvm_libc {
 namespace fputil {
@@ -19,37 +24,12 @@ namespace fputil {
 namespace internal {
 
 template <typename T>
-static inline T find_leading_one(T mant, int &shift_length);
-
-template <>
-inline uint32_t find_leading_one<uint32_t>(uint32_t mant, int &shift_length) {
+LIBC_INLINE T find_leading_one(T mant, int &shift_length) {
   shift_length = 0;
-  constexpr int NSTEPS = 5;
-  constexpr uint32_t BOUNDS[NSTEPS] = {1 << 16, 1 << 8, 1 << 4, 1 << 2, 1 << 1};
-  constexpr int SHIFTS[NSTEPS] = {16, 8, 4, 2, 1};
-  for (int i = 0; i < NSTEPS; ++i) {
-    if (mant >= BOUNDS[i]) {
-      shift_length += SHIFTS[i];
-      mant >>= SHIFTS[i];
-    }
+  if (mant > 0) {
+    shift_length = (sizeof(mant) * 8) - 1 - unsafe_clz(mant);
   }
-  return 1U << shift_length;
-}
-
-template <>
-inline uint64_t find_leading_one<uint64_t>(uint64_t mant, int &shift_length) {
-  shift_length = 0;
-  constexpr int NSTEPS = 6;
-  constexpr uint64_t BOUNDS[NSTEPS] = {1ULL << 32, 1ULL << 16, 1ULL << 8,
-                                       1ULL << 4,  1ULL << 2,  1ULL << 1};
-  constexpr int SHIFTS[NSTEPS] = {32, 16, 8, 4, 2, 1};
-  for (int i = 0; i < NSTEPS; ++i) {
-    if (mant >= BOUNDS[i]) {
-      shift_length += SHIFTS[i];
-      mant >>= SHIFTS[i];
-    }
-  }
-  return 1ULL << shift_length;
+  return T(1) << shift_length;
 }
 
 } // namespace internal
@@ -60,7 +40,9 @@ template <> struct DoubleLength<uint16_t> { using Type = uint32_t; };
 
 template <> struct DoubleLength<uint32_t> { using Type = uint64_t; };
 
-template <> struct DoubleLength<uint64_t> { using Type = __uint128_t; };
+template <> struct DoubleLength<uint64_t> {
+  using Type = UInt128;
+};
 
 // Correctly rounded IEEE 754 HYPOT(x, y) with round to nearest, ties to even.
 //
@@ -116,9 +98,8 @@ template <> struct DoubleLength<uint64_t> { using Type = __uint128_t; };
 //   - HYPOT(x, y) is +Inf if x or y is +Inf or -Inf; else
 //   - HYPOT(x, y) is NaN if x or y is NaN.
 //
-template <typename T,
-          cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
-static inline T hypot(T x, T y) {
+template <typename T, cpp::enable_if_t<cpp::is_floating_point_v<T>, int> = 0>
+LIBC_INLINE T hypot(T x, T y) {
   using FPBits_t = FPBits<T>;
   using UIntType = typename FPBits<T>::UIntType;
   using DUIntType = typename DoubleLength<UIntType>::Type;
@@ -135,31 +116,28 @@ static inline T hypot(T x, T y) {
     return y;
   }
 
+  uint16_t x_exp = x_bits.get_unbiased_exponent();
+  uint16_t y_exp = y_bits.get_unbiased_exponent();
+  uint16_t exp_diff = (x_exp > y_exp) ? (x_exp - y_exp) : (y_exp - x_exp);
+
+  if ((exp_diff >= MantissaWidth<T>::VALUE + 2) || (x == 0) || (y == 0)) {
+    return abs(x) + abs(y);
+  }
+
   uint16_t a_exp, b_exp, out_exp;
   UIntType a_mant, b_mant;
   DUIntType a_mant_sq, b_mant_sq;
   bool sticky_bits;
 
-  if ((x_bits.get_unbiased_exponent() >=
-       y_bits.get_unbiased_exponent() + MantissaWidth<T>::VALUE + 2) ||
-      (y == 0)) {
-    return abs(x);
-  } else if ((y_bits.get_unbiased_exponent() >=
-              x_bits.get_unbiased_exponent() + MantissaWidth<T>::VALUE + 2) ||
-             (x == 0)) {
-    y_bits.set_sign(0);
-    return abs(y);
-  }
-
   if (abs(x) >= abs(y)) {
-    a_exp = x_bits.get_unbiased_exponent();
+    a_exp = x_exp;
     a_mant = x_bits.get_mantissa();
-    b_exp = y_bits.get_unbiased_exponent();
+    b_exp = y_exp;
     b_mant = y_bits.get_mantissa();
   } else {
-    a_exp = y_bits.get_unbiased_exponent();
+    a_exp = y_exp;
     a_mant = y_bits.get_mantissa();
-    b_exp = x_bits.get_unbiased_exponent();
+    b_exp = x_exp;
     b_mant = x_bits.get_mantissa();
   }
 
@@ -212,7 +190,10 @@ static inline T hypot(T x, T y) {
       sum >>= 2;
       ++out_exp;
       if (out_exp >= FPBits_t::MAX_EXPONENT) {
-        return T(FPBits_t::inf());
+        if (int round_mode = get_round();
+            round_mode == FE_TONEAREST || round_mode == FE_UPWARD)
+          return T(FPBits_t::inf());
+        return T(FPBits_t(FPBits_t::MAX_NORMAL));
       }
     } else {
       // For denormal result, we simply move the leading bit of the result to
@@ -250,20 +231,31 @@ static inline T hypot(T x, T y) {
   y_new >>= 1;
 
   // Round to the nearest, tie to even.
-  if (round_bit && (lsb || sticky_bits || (r != 0))) {
-    ++y_new;
+  int round_mode = get_round();
+  switch (round_mode) {
+  case FE_TONEAREST:
+    // Round to nearest, ties to even
+    if (round_bit && (lsb || sticky_bits || (r != 0)))
+      ++y_new;
+    break;
+  case FE_UPWARD:
+    if (round_bit || sticky_bits || (r != 0))
+      ++y_new;
+    break;
   }
 
   if (y_new >= (ONE >> 1)) {
     y_new -= ONE >> 1;
     ++out_exp;
     if (out_exp >= FPBits_t::MAX_EXPONENT) {
-      return T(FPBits_t::inf());
+      if (round_mode == FE_TONEAREST || round_mode == FE_UPWARD)
+        return T(FPBits_t::inf());
+      return T(FPBits_t(FPBits_t::MAX_NORMAL));
     }
   }
 
   y_new |= static_cast<UIntType>(out_exp) << MantissaWidth<T>::VALUE;
-  return *reinterpret_cast<T *>(&y_new);
+  return cpp::bit_cast<T>(y_new);
 }
 
 } // namespace fputil

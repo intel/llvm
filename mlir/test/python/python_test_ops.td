@@ -9,6 +9,7 @@
 #ifndef PYTHON_TEST_OPS
 #define PYTHON_TEST_OPS
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/Bindings/Python/Attributes.td"
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -16,9 +17,39 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 def Python_Test_Dialect : Dialect {
   let name = "python_test";
   let cppNamespace = "python_test";
+
+  let useDefaultTypePrinterParser = 1;
+  let useDefaultAttributePrinterParser = 1;
 }
-class TestOp<string mnemonic, list<OpTrait> traits = []>
+
+class TestType<string name, string typeMnemonic>
+    : TypeDef<Python_Test_Dialect, name> {
+  let mnemonic = typeMnemonic;
+}
+
+class TestAttr<string name, string attrMnemonic>
+    : AttrDef<Python_Test_Dialect, name> {
+  let mnemonic = attrMnemonic;
+}
+
+class TestOp<string mnemonic, list<Trait> traits = []>
     : Op<Python_Test_Dialect, mnemonic, traits>;
+
+//===----------------------------------------------------------------------===//
+// Type definitions.
+//===----------------------------------------------------------------------===//
+
+def TestType : TestType<"TestType", "test_type">;
+
+//===----------------------------------------------------------------------===//
+// Attribute definitions.
+//===----------------------------------------------------------------------===//
+
+def TestAttr : TestAttr<"TestAttr", "test_attr">;
+
+//===----------------------------------------------------------------------===//
+// Operation definitions.
+//===----------------------------------------------------------------------===//
 
 def AttributedOp : TestOp<"attributed_op"> {
   let arguments = (ins I32Attr:$mandatory_i32,
@@ -40,7 +71,7 @@ def InferResultsOp : TestOp<"infer_results_op", [InferTypeOpInterface]> {
 
   let extraClassDeclaration = [{
     static ::mlir::LogicalResult inferReturnTypes(
-      ::mlir::MLIRContext *context, ::llvm::Optional<::mlir::Location> location,
+      ::mlir::MLIRContext *context, ::std::optional<::mlir::Location> location,
       ::mlir::ValueRange operands, ::mlir::DictionaryAttr attributes,
       ::mlir::RegionRange regions,
       ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {

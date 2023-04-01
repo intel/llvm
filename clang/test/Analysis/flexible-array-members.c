@@ -1,18 +1,30 @@
-// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c90
-// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c99
-// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c11
-// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c17
+// -fstrict-flex-arrays=2 means that only undefined or zero element arrays are considered as FAMs.
 
-// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++98 -x c++
-// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++03 -x c++
-// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++11 -x c++
-// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++14 -x c++
-// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++17 -x c++
-
+// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c90 \
+// RUN:    -fstrict-flex-arrays=2
+// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c99 \
+// RUN:    -fstrict-flex-arrays=2
+// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c11 \
+// RUN:    -fstrict-flex-arrays=2
 // RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c17 \
-// RUN:    -analyzer-config consider-single-element-arrays-as-flexible-array-members=true -DSINGLE_ELEMENT_FAMS
+// RUN:    -fstrict-flex-arrays=2
+
+// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++98 -x c++ \
+// RUN:    -fstrict-flex-arrays=2
+// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++03 -x c++ \
+// RUN:    -fstrict-flex-arrays=2
+// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++11 -x c++ \
+// RUN:    -fstrict-flex-arrays=2
+// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++14 -x c++ \
+// RUN:    -fstrict-flex-arrays=2
 // RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++17 -x c++ \
-// RUN:    -analyzer-config consider-single-element-arrays-as-flexible-array-members=true -DSINGLE_ELEMENT_FAMS
+// RUN:    -fstrict-flex-arrays=2
+
+// By default, -fstrict-flex-arrays=0, which means that even single element arrays are considered as FAMs.
+// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c17 \
+// RUN:    -DSINGLE_ELEMENT_FAMS
+// RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=core,unix,debug.ExprInspection %s -verify -std=c++17 -x c++ \
+// RUN:    -DSINGLE_ELEMENT_FAMS
 
 typedef __typeof(sizeof(int)) size_t;
 size_t clang_analyzer_getExtent(void *);
@@ -22,7 +34,7 @@ void *alloca(size_t size);
 void *malloc(size_t size);
 void free(void *ptr);
 
-void test_incomplete_array_fam() {
+void test_incomplete_array_fam(void) {
   typedef struct FAM {
     char c;
     int data[];
@@ -48,7 +60,7 @@ void test_incomplete_array_fam() {
   free(q);
 }
 
-void test_zero_length_array_fam() {
+void test_zero_length_array_fam(void) {
   typedef struct FAM {
     char c;
     int data[0];
@@ -74,7 +86,7 @@ void test_zero_length_array_fam() {
   free(q);
 }
 
-void test_single_element_array_possible_fam() {
+void test_single_element_array_possible_fam(void) {
   typedef struct FAM {
     char c;
     int data[1];

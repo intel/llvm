@@ -45,8 +45,8 @@ using BStr = std::basic_string<T, std::char_traits<T>, Alloc>;
 // (13) basic_string(initializer_list<CharT>, A const& = A())
 // (14) basic_string(BSV, A const& = A())
 // (15) basic_string(const T&, size_type, size_type, A const& = A())
-int main(int, char**)
-{
+TEST_CONSTEXPR_CXX20 bool test() {
+
   using TestSizeT = test_allocator<char>::size_type;
   { // Testing (1)
     // Nothing to do. Cannot deduce without any arguments.
@@ -81,7 +81,7 @@ int main(int, char**)
   }
   { // Testing (4) w/o allocator
     const std::string sin("abc");
-    std::basic_string s(sin, (size_t)1);
+    std::basic_string s(sin, (std::size_t)1);
     ASSERT_SAME_TYPE(decltype(s), std::string);
     assert(s == "bc");
 
@@ -97,7 +97,7 @@ int main(int, char**)
   }
   { // Testing (4) w/ allocator
     const std::string sin("abc");
-    std::basic_string s(sin, (size_t)1, std::allocator<char>{});
+    std::basic_string s(sin, (std::size_t)1, std::allocator<char>{});
     ASSERT_SAME_TYPE(decltype(s), std::string);
     assert(s == "bc");
 
@@ -113,7 +113,7 @@ int main(int, char**)
   }
   { // Testing (5) w/o allocator
     const std::string sin("abc");
-    std::basic_string s(sin, (size_t)1, (size_t)3);
+    std::basic_string s(sin, (std::size_t)1, (size_t)3);
     ASSERT_SAME_TYPE(decltype(s), std::string);
     assert(s == "bc");
 
@@ -129,7 +129,7 @@ int main(int, char**)
   }
   { // Testing (5) w/ allocator
     const std::string sin("abc");
-    std::basic_string s(sin, (size_t)1, (size_t)3, std::allocator<char>{});
+    std::basic_string s(sin, (std::size_t)1, (size_t)3, std::allocator<char>{});
     ASSERT_SAME_TYPE(decltype(s), std::string);
     assert(s == "bc");
 
@@ -144,18 +144,18 @@ int main(int, char**)
 #endif
   }
   { // Testing (6) w/o allocator
-    std::basic_string s("abc", (size_t)2);
+    std::basic_string s("abc", (std::size_t)2);
     ASSERT_SAME_TYPE(decltype(s), std::string);
     assert(s == "ab");
 
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS
-    std::basic_string w(L"abcdef", (size_t)3);
+    std::basic_string w(L"abcdef", (std::size_t)3);
     ASSERT_SAME_TYPE(decltype(w), std::wstring);
     assert(w == L"abc");
 #endif
   }
   { // Testing (6) w/ allocator
-    std::basic_string s("abc", (size_t)2, std::allocator<char>{});
+    std::basic_string s("abc", (std::size_t)2, std::allocator<char>{});
     ASSERT_SAME_TYPE(decltype(s), std::string);
     assert(s == "ab");
 
@@ -364,6 +364,16 @@ int main(int, char**)
     assert(w == L"cd");
 #endif
   }
+
+  return true;
+}
+
+int main(int, char**)
+{
+  test();
+#if TEST_STD_VER > 17
+  static_assert(test());
+#endif
 
   return 0;
 }

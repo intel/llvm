@@ -13,8 +13,10 @@
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 
 ///
 /// Implements Analysis functions specific to slicing in Function.
@@ -49,11 +51,13 @@ static void getForwardSliceImpl(Operation *op,
 }
 
 void mlir::getForwardSlice(Operation *op, SetVector<Operation *> *forwardSlice,
-                           TransitiveFilter filter) {
+                           TransitiveFilter filter, bool inclusive) {
   getForwardSliceImpl(op, forwardSlice, filter);
-  // Don't insert the top level operation, we just queried on it and don't
-  // want it in the results.
-  forwardSlice->remove(op);
+  if (!inclusive) {
+    // Don't insert the top level operation, we just queried on it and don't
+    // want it in the results.
+    forwardSlice->remove(op);
+  }
 
   // Reverse to get back the actual topological order.
   // std::reverse does not work out of the box on SetVector and I want an
@@ -63,7 +67,7 @@ void mlir::getForwardSlice(Operation *op, SetVector<Operation *> *forwardSlice,
 }
 
 void mlir::getForwardSlice(Value root, SetVector<Operation *> *forwardSlice,
-                           TransitiveFilter filter) {
+                           TransitiveFilter filter, bool inclusive) {
   for (Operation *user : root.getUsers())
     getForwardSliceImpl(user, forwardSlice, filter);
 
@@ -97,10 +101,11 @@ static void getBackwardSliceImpl(Operation *op,
       // TODO: determine whether we want to recurse backward into the other
       // blocks of parentOp, which are not technically backward unless they flow
       // into us. For now, just bail.
-      assert(parentOp->getNumRegions() == 1 &&
-             parentOp->getRegion(0).getBlocks().size() == 1);
-      if (backwardSlice->count(parentOp) == 0)
+      if (parentOp && backwardSlice->count(parentOp) == 0) {
+        assert(parentOp->getNumRegions() == 1 &&
+               parentOp->getRegion(0).getBlocks().size() == 1);
         getBackwardSliceImpl(parentOp, backwardSlice, filter);
+      }
     } else {
       llvm_unreachable("No definingOp and not a block argument.");
     }
@@ -111,27 +116,30 @@ static void getBackwardSliceImpl(Operation *op,
 
 void mlir::getBackwardSlice(Operation *op,
                             SetVector<Operation *> *backwardSlice,
-                            TransitiveFilter filter) {
+                            TransitiveFilter filter, bool inclusive) {
   getBackwardSliceImpl(op, backwardSlice, filter);
 
-  // Don't insert the top level operation, we just queried on it and don't
-  // want it in the results.
-  backwardSlice->remove(op);
+  if (!inclusive) {
+    // Don't insert the top level operation, we just queried on it and don't
+    // want it in the results.
+    backwardSlice->remove(op);
+  }
 }
 
 void mlir::getBackwardSlice(Value root, SetVector<Operation *> *backwardSlice,
-                            TransitiveFilter filter) {
+                            TransitiveFilter filter, bool inclusive) {
   if (Operation *definingOp = root.getDefiningOp()) {
-    getBackwardSlice(definingOp, backwardSlice, filter);
+    getBackwardSlice(definingOp, backwardSlice, filter, inclusive);
     return;
   }
   Operation *bbAargOwner = root.cast<BlockArgument>().getOwner()->getParentOp();
-  getBackwardSlice(bbAargOwner, backwardSlice, filter);
+  getBackwardSlice(bbAargOwner, backwardSlice, filter, inclusive);
 }
 
 SetVector<Operation *> mlir::getSlice(Operation *op,
                                       TransitiveFilter backwardFilter,
-                                      TransitiveFilter forwardFilter) {
+                                      TransitiveFilter forwardFilter,
+                                      bool inclusive) {
   SetVector<Operation *> slice;
   slice.insert(op);
 
@@ -142,12 +150,12 @@ SetVector<Operation *> mlir::getSlice(Operation *op,
     auto *currentOp = (slice)[currentIndex];
     // Compute and insert the backwardSlice starting from currentOp.
     backwardSlice.clear();
-    getBackwardSlice(currentOp, &backwardSlice, backwardFilter);
+    getBackwardSlice(currentOp, &backwardSlice, backwardFilter, inclusive);
     slice.insert(backwardSlice.begin(), backwardSlice.end());
 
     // Compute and insert the forwardSlice starting from currentOp.
     forwardSlice.clear();
-    getForwardSlice(currentOp, &forwardSlice, forwardFilter);
+    getForwardSlice(currentOp, &forwardSlice, forwardFilter, inclusive);
     slice.insert(forwardSlice.begin(), forwardSlice.end());
     ++currentIndex;
   }
@@ -160,8 +168,7 @@ namespace {
 /// We traverse all operations but only record the ones that appear in
 /// `toSort` for the final result.
 struct DFSState {
-  DFSState(const SetVector<Operation *> &set)
-      : toSort(set), topologicalCounts(), seen() {}
+  DFSState(const SetVector<Operation *> &set) : toSort(set), seen() {}
   const SetVector<Operation *> &toSort;
   SmallVector<Operation *, 16> topologicalCounts;
   DenseSet<Operation *> seen;
@@ -174,10 +181,8 @@ static void dfsPostorder(Operation *root, DFSState *state) {
   while (!queue.empty()) {
     Operation *current = queue.pop_back_val();
     ops.push_back(current);
-    for (Value result : current->getResults()) {
-      for (Operation *op : result.getUsers())
-        queue.push_back(op);
-    }
+    for (Operation *op : current->getUsers())
+      queue.push_back(op);
     for (Region &region : current->getRegions()) {
       for (Operation &op : region.getOps())
         queue.push_back(&op);
@@ -211,4 +216,105 @@ mlir::topologicalSort(const SetVector<Operation *> &toSort) {
     res.insert(*it);
   }
   return res;
+}
+
+/// Returns true if `value` (transitively) depends on iteration-carried values
+/// of the given `ancestorOp`.
+static bool dependsOnCarriedVals(Value value,
+                                 ArrayRef<BlockArgument> iterCarriedArgs,
+                                 Operation *ancestorOp) {
+  // Compute the backward slice of the value.
+  SetVector<Operation *> slice;
+  getBackwardSlice(value, &slice,
+                   [&](Operation *op) { return !ancestorOp->isAncestor(op); });
+
+  // Check that none of the operands of the operations in the backward slice are
+  // loop iteration arguments, and neither is the value itself.
+  SmallPtrSet<Value, 8> iterCarriedValSet(iterCarriedArgs.begin(),
+                                          iterCarriedArgs.end());
+  if (iterCarriedValSet.contains(value))
+    return true;
+
+  for (Operation *op : slice)
+    for (Value operand : op->getOperands())
+      if (iterCarriedValSet.contains(operand))
+        return true;
+
+  return false;
+}
+
+/// Utility to match a generic reduction given a list of iteration-carried
+/// arguments, `iterCarriedArgs` and the position of the potential reduction
+/// argument within the list, `redPos`. If a reduction is matched, returns the
+/// reduced value and the topologically-sorted list of combiner operations
+/// involved in the reduction. Otherwise, returns a null value.
+///
+/// The matching algorithm relies on the following invariants, which are subject
+/// to change:
+///  1. The first combiner operation must be a binary operation with the
+///     iteration-carried value and the reduced value as operands.
+///  2. The iteration-carried value and combiner operations must be side
+///     effect-free, have single result and a single use.
+///  3. Combiner operations must be immediately nested in the region op
+///     performing the reduction.
+///  4. Reduction def-use chain must end in a terminator op that yields the
+///     next iteration/output values in the same order as the iteration-carried
+///     values in `iterCarriedArgs`.
+///  5. `iterCarriedArgs` must contain all the iteration-carried/output values
+///     of the region op performing the reduction.
+///
+/// This utility is generic enough to detect reductions involving multiple
+/// combiner operations (disabled for now) across multiple dialects, including
+/// Linalg, Affine and SCF. For the sake of genericity, it does not return
+/// specific enum values for the combiner operations since its goal is also
+/// matching reductions without pre-defined semantics in core MLIR. It's up to
+/// each client to make sense out of the list of combiner operations. It's also
+/// up to each client to check for additional invariants on the expected
+/// reductions not covered by this generic matching.
+Value mlir::matchReduction(ArrayRef<BlockArgument> iterCarriedArgs,
+                           unsigned redPos,
+                           SmallVectorImpl<Operation *> &combinerOps) {
+  assert(redPos < iterCarriedArgs.size() && "'redPos' is out of bounds");
+
+  BlockArgument redCarriedVal = iterCarriedArgs[redPos];
+  if (!redCarriedVal.hasOneUse())
+    return nullptr;
+
+  // For now, the first combiner op must be a binary op.
+  Operation *combinerOp = *redCarriedVal.getUsers().begin();
+  if (combinerOp->getNumOperands() != 2)
+    return nullptr;
+  Value reducedVal = combinerOp->getOperand(0) == redCarriedVal
+                         ? combinerOp->getOperand(1)
+                         : combinerOp->getOperand(0);
+
+  Operation *redRegionOp =
+      iterCarriedArgs.front().getOwner()->getParent()->getParentOp();
+  if (dependsOnCarriedVals(reducedVal, iterCarriedArgs, redRegionOp))
+    return nullptr;
+
+  // Traverse the def-use chain starting from the first combiner op until a
+  // terminator is found. Gather all the combiner ops along the way in
+  // topological order.
+  while (!combinerOp->mightHaveTrait<OpTrait::IsTerminator>()) {
+    if (!isMemoryEffectFree(combinerOp) || combinerOp->getNumResults() != 1 ||
+        !combinerOp->hasOneUse() || combinerOp->getParentOp() != redRegionOp)
+      return nullptr;
+
+    combinerOps.push_back(combinerOp);
+    combinerOp = *combinerOp->getUsers().begin();
+  }
+
+  // Limit matching to single combiner op until we can properly test reductions
+  // involving multiple combiners.
+  if (combinerOps.size() != 1)
+    return nullptr;
+
+  // Check that the yielded value is in the same position as in
+  // `iterCarriedArgs`.
+  Operation *terminatorOp = combinerOp;
+  if (terminatorOp->getOperand(redPos) != combinerOps.back()->getResults()[0])
+    return nullptr;
+
+  return reducedVal;
 }

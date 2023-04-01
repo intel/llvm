@@ -9,21 +9,19 @@
 #ifndef LLVM_DWARFLINKER_DWARFLINKERCOMPILEUNIT_H
 #define LLVM_DWARFLINKER_DWARFLINKERCOMPILEUNIT_H
 
-#include "llvm/ADT/IntervalMap.h"
+#include "llvm/ADT/AddressRanges.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/CodeGen/DIE.h"
 #include "llvm/DebugInfo/DWARF/DWARFUnit.h"
-#include "llvm/Support/DataExtractor.h"
+#include <optional>
 
 namespace llvm {
 
 class DeclContext;
 
-template <typename KeyT, typename ValT>
-using HalfOpenIntervalMap =
-    IntervalMap<KeyT, ValT, IntervalMapImpl::NodeSizer<KeyT, ValT>::LeafSize,
-                IntervalMapHalfOpenInfo<KeyT>>;
-
-using FunctionIntervals = HalfOpenIntervalMap<uint64_t, int64_t>;
+/// Mapped value in the address map is the offset to apply to the
+/// linked address.
+using RangesTy = AddressRangesMap;
 
 // FIXME: Delete this structure.
 struct PatchLocation {
@@ -44,6 +42,9 @@ struct PatchLocation {
     return I->getDIEInteger().getValue();
   }
 };
+
+using RngListAttributesTy = SmallVector<PatchLocation>;
+using LocListAttributesTy = SmallVector<std::pair<PatchLocation, int64_t>>;
 
 /// Stores all information relating to a compile unit, be it in its original
 /// instance in the object file to its brand new cloned and generated DIE tree.
@@ -74,12 +75,24 @@ public:
 
     /// Does DIE transitively refer an incomplete decl?
     bool Incomplete : 1;
+
+    /// Is DIE in the clang module scope?
+    bool InModuleScope : 1;
+
+    /// Is ODR marking done?
+    bool ODRMarkingDone : 1;
+
+    /// Is this a reference to a DIE that hasn't been cloned yet?
+    bool UnclonedReference : 1;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+    LLVM_DUMP_METHOD void dump();
+#endif // if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   };
 
   CompileUnit(DWARFUnit &OrigUnit, unsigned ID, bool CanUseODR,
               StringRef ClangModuleName)
-      : OrigUnit(OrigUnit), ID(ID), Ranges(RangeAlloc),
-        ClangModuleName(ClangModuleName) {
+      : OrigUnit(OrigUnit), ID(ID), ClangModuleName(ClangModuleName) {
     Info.resize(OrigUnit.getNumDIEs());
 
     auto CUDie = OrigUnit.getUnitDIE(false);
@@ -129,22 +142,19 @@ public:
   uint64_t getNextUnitOffset() const { return NextUnitOffset; }
   void setStartOffset(uint64_t DebugInfoSize) { StartOffset = DebugInfoSize; }
 
-  uint64_t getLowPc() const { return LowPc; }
+  std::optional<uint64_t> getLowPc() const { return LowPc; }
   uint64_t getHighPc() const { return HighPc; }
   bool hasLabelAt(uint64_t Addr) const { return Labels.count(Addr); }
 
-  Optional<PatchLocation> getUnitRangesAttribute() const {
+  const RangesTy &getFunctionRanges() const { return Ranges; }
+
+  const RngListAttributesTy &getRangesAttributes() { return RangeAttributes; }
+
+  std::optional<PatchLocation> getUnitRangesAttribute() const {
     return UnitRangeAttribute;
   }
 
-  const FunctionIntervals &getFunctionRanges() const { return Ranges; }
-
-  const std::vector<PatchLocation> &getRangesAttributes() const {
-    return RangeAttributes;
-  }
-
-  const std::vector<std::pair<PatchLocation, int64_t>> &
-  getLocationAttributes() const {
+  const LocListAttributesTy &getLocationAttributes() const {
     return LocationAttributes;
   }
 
@@ -241,13 +251,13 @@ private:
   DWARFUnit &OrigUnit;
   unsigned ID;
   std::vector<DIEInfo> Info; ///< DIE info indexed by DIE index.
-  Optional<BasicDIEUnit> NewUnit;
+  std::optional<BasicDIEUnit> NewUnit;
   MCSymbol *LabelBegin = nullptr;
 
   uint64_t StartOffset;
   uint64_t NextUnitOffset;
 
-  uint64_t LowPc = std::numeric_limits<uint64_t>::max();
+  std::optional<uint64_t> LowPc;
   uint64_t HighPc = 0;
 
   /// A list of attributes to fixup with the absolute offset of
@@ -260,28 +270,26 @@ private:
       std::tuple<DIE *, const CompileUnit *, DeclContext *, PatchLocation>>
       ForwardDIEReferences;
 
-  FunctionIntervals::Allocator RangeAlloc;
-
-  /// The ranges in that interval map are the PC ranges for
-  /// functions in this unit, associated with the PC offset to apply
-  /// to the addresses to get the linked address.
-  FunctionIntervals Ranges;
+  /// The ranges in that map are the PC ranges for functions in this unit,
+  /// associated with the PC offset to apply to the addresses to get
+  /// the linked address.
+  RangesTy Ranges;
 
   /// The DW_AT_low_pc of each DW_TAG_label.
   SmallDenseMap<uint64_t, uint64_t, 1> Labels;
 
-  /// DW_AT_ranges attributes to patch after we have gathered
-  /// all the unit's function addresses.
+  /// 'rnglist'(DW_AT_ranges, DW_AT_start_scope) attributes to patch after
+  /// we have gathered all the unit's function addresses.
   /// @{
-  std::vector<PatchLocation> RangeAttributes;
-  Optional<PatchLocation> UnitRangeAttribute;
+  RngListAttributesTy RangeAttributes;
+  std::optional<PatchLocation> UnitRangeAttribute;
   /// @}
 
   /// Location attributes that need to be transferred from the
   /// original debug_loc section to the liked one. They are stored
   /// along with the PC offset that is to be applied to their
   /// function's address.
-  std::vector<std::pair<PatchLocation, int64_t>> LocationAttributes;
+  LocListAttributesTy LocationAttributes;
 
   /// Accelerator entries for the unit, both for the pub*
   /// sections and the apple* ones.

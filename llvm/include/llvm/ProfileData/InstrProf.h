@@ -16,10 +16,10 @@
 #define LLVM_PROFILEDATA_INSTRPROF_H
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/InstrProfData.inc"
@@ -28,10 +28,11 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -58,6 +59,11 @@ enum InstrProfSectKind {
 #define INSTR_PROF_SECT_ENTRY(Kind, SectNameCommon, SectNameCoff, Prefix) Kind,
 #include "llvm/ProfileData/InstrProfData.inc"
 };
+
+/// Return the max count value. We reserver a few large values for special use.
+inline uint64_t getInstrMaxCountValue() {
+  return std::numeric_limits<uint64_t>::max() - 2;
+}
 
 /// Return the name of the profile section corresponding to \p IPSK.
 ///
@@ -277,6 +283,26 @@ void createPGOFuncNameMetadata(Function &F, StringRef PGOFuncName);
 /// the duplicated profile variables for Comdat functions.
 bool needsComdatForCounter(const Function &F, const Module &M);
 
+/// An enum describing the attributes of an instrumented profile.
+enum class InstrProfKind {
+  Unknown = 0x0,
+  // A frontend clang profile, incompatible with other attrs.
+  FrontendInstrumentation = 0x1,
+  // An IR-level profile (default when -fprofile-generate is used).
+  IRInstrumentation = 0x2,
+  // A profile with entry basic block instrumentation.
+  FunctionEntryInstrumentation = 0x4,
+  // A context sensitive IR-level profile.
+  ContextSensitive = 0x8,
+  // Use single byte probes for coverage.
+  SingleByteCoverage = 0x10,
+  // Only instrument the function entry basic block.
+  FunctionEntryOnly = 0x20,
+  // A memory profile collected using -fprofile=memory.
+  MemProf = 0x40,
+  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/MemProf)
+};
+
 const std::error_category &instrprof_category();
 
 enum class instrprof_error {
@@ -293,7 +319,6 @@ enum class instrprof_error {
   missing_debug_info_for_correlation,
   unexpected_debug_info_for_correlation,
   unable_to_correlate_profile,
-  unsupported_debug_format,
   unknown_function,
   invalid_prof,
   hash_mismatch,
@@ -530,6 +555,12 @@ public:
 
   /// Return the name section data.
   inline StringRef getNameData() const { return Data; }
+
+  /// Dump the symbols in this table.
+  void dumpNames(raw_ostream &OS) const {
+    for (StringRef S : NameTab.keys())
+      OS << S << "\n";
+  }
 };
 
 Error InstrProfSymtab::create(StringRef D, uint64_t BaseAddr) {
@@ -610,8 +641,8 @@ struct CountSumOrPercent {
   void reset() {
     NumEntries = 0;
     CountSum = 0.0f;
-    for (unsigned I = 0; I < IPVK_Last - IPVK_First + 1; I++)
-      ValueCounts[I] = 0.0f;
+    for (double &VC : ValueCounts)
+      VC = 0.0f;
   }
 };
 
@@ -793,6 +824,30 @@ struct InstrProfRecord {
                             OverlapStats &Overlap,
                             OverlapStats &FuncLevelOverlap);
 
+  enum CountPseudoKind {
+    NotPseudo = 0,
+    PseudoHot,
+    PseudoWarm,
+  };
+  enum PseudoCountVal {
+    HotFunctionVal = -1,
+    WarmFunctionVal = -2,
+  };
+  CountPseudoKind getCountPseudoKind() const {
+    uint64_t FirstCount = Counts[0];
+    if (FirstCount == (uint64_t)HotFunctionVal)
+      return PseudoHot;
+    if (FirstCount == (uint64_t)WarmFunctionVal)
+      return PseudoWarm;
+    return NotPseudo;
+  }
+  void setPseudoCount(CountPseudoKind Kind) {
+    if (Kind == PseudoHot)
+      Counts[0] = (uint64_t)HotFunctionVal;
+    else if (Kind == PseudoWarm)
+      Counts[0] = (uint64_t)WarmFunctionVal;
+  }
+
 private:
   struct ValueProfData {
     std::vector<InstrProfValueSiteRecord> IndirectCallSites;
@@ -807,13 +862,13 @@ private:
     // cast away the constness from the result.
     auto AR = const_cast<const InstrProfRecord *>(this)->getValueSitesForKind(
         ValueKind);
-    return makeMutableArrayRef(
+    return MutableArrayRef(
         const_cast<InstrProfValueSiteRecord *>(AR.data()), AR.size());
   }
   ArrayRef<InstrProfValueSiteRecord>
   getValueSitesForKind(uint32_t ValueKind) const {
     if (!ValueData)
-      return None;
+      return std::nullopt;
     switch (ValueKind) {
     case IPVK_IndirectCallTarget:
       return ValueData->IndirectCallSites;
@@ -882,7 +937,7 @@ uint32_t InstrProfRecord::getNumValueKinds() const {
 
 uint32_t InstrProfRecord::getNumValueData(uint32_t ValueKind) const {
   uint32_t N = 0;
-  for (auto &SR : getValueSitesForKind(ValueKind))
+  for (const auto &SR : getValueSitesForKind(ValueKind))
     N += SR.ValueData.size();
   return N;
 }
@@ -993,7 +1048,11 @@ enum ProfVersion {
   Version6 = 6,
   // An additional counter is added around logical operators.
   Version7 = 7,
-  // The current version is 7.
+  // An additional (optional) memory profile type is added.
+  Version8 = 8,
+  // Binary ids are added.
+  Version9 = 9,
+  // The current version is 9.
   CurrentVersion = INSTR_PROF_INDEX_VERSION
 };
 const uint64_t Version = ProfVersion::CurrentVersion;
@@ -1010,6 +1069,22 @@ struct Header {
   uint64_t Unused; // Becomes unused since version 4
   uint64_t HashType;
   uint64_t HashOffset;
+  uint64_t MemProfOffset;
+  uint64_t BinaryIdOffset;
+  // New fields should only be added at the end to ensure that the size
+  // computation is correct. The methods below need to be updated to ensure that
+  // the new field is read correctly.
+
+  // Reads a header struct from the buffer.
+  static Expected<Header> readFromBuffer(const unsigned char *Buffer);
+
+  // Returns the size of the header in bytes for all valid fields based on the
+  // version. I.e a older version header will return a smaller size.
+  size_t size() const;
+
+  // Returns the format version in little endian. The header retains the version
+  // in native endian of the compiler runtime.
+  uint64_t formatVersion() const;
 };
 
 // Profile summary data recorded in the profile data file in indexed
@@ -1149,12 +1224,6 @@ struct Header {
 // Parse MemOP Size range option.
 void getMemOPSizeRangeFromOption(StringRef Str, int64_t &RangeStart,
                                  int64_t &RangeLast);
-
-// Create a COMDAT variable INSTR_PROF_RAW_VERSION_VAR to make the runtime
-// aware this is an ir_level profile so it can set the version flag.
-GlobalVariable *createIRLevelProfileFlagVar(Module &M, bool IsCS,
-                                            bool InstrEntryBBEnabled,
-                                            bool DebugInfoCorrelate);
 
 // Create the variable for the profile file name.
 void createProfileFileNameVar(Module &M, StringRef InstrProfileOutput);

@@ -91,12 +91,10 @@ public:
                    FileID PrevFID = FileID()) override;
   void FileSkipped(const FileEntryRef &SkippedFile, const Token &FilenameTok,
                    SrcMgr::CharacteristicKind FileType) override;
-  bool FileNotFound(llvm::StringRef FileName,
-                    llvm::SmallVectorImpl<char> &RecoveryPath) override;
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           llvm::StringRef FileName, bool IsAngled,
-                          CharSourceRange FilenameRange, const FileEntry *File,
-                          llvm::StringRef SearchPath,
+                          CharSourceRange FilenameRange,
+                          OptionalFileEntryRef File, llvm::StringRef SearchPath,
                           llvm::StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
   void moduleImport(SourceLocation ImportLoc, ModuleIdPath Path,
@@ -179,8 +177,9 @@ public:
   /// Append a FileID argument to the top trace item.
   void appendArgument(const char *Name, FileID Value);
 
-  /// Append a FileEntry argument to the top trace item.
-  void appendArgument(const char *Name, const FileEntry *Value);
+  /// Append a FileEntryRef argument to the top trace item.
+  void appendArgument(const char *Name, OptionalFileEntryRef Value);
+  void appendArgument(const char *Name, FileEntryRef Value);
 
   /// Append a SourceLocation argument to the top trace item.
   void appendArgument(const char *Name, SourceLocation Value);

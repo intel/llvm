@@ -15,17 +15,29 @@
 #define LLVM_CLANG_ANALYSIS_FLOWSENSITIVE_TRANSFER_H
 
 #include "clang/AST/Stmt.h"
+#include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 
 namespace clang {
 namespace dataflow {
 
+/// Maps statements to the environments of basic blocks that contain them.
+class StmtToEnvMap {
+public:
+  virtual ~StmtToEnvMap() = default;
+
+  /// Retrieves the environment of the basic block that contains `S`.
+  /// If `S` is reachable, returns a non-null pointer to the environment.
+  /// If `S` is not reachable, returns nullptr.
+  virtual const Environment *getEnvironment(const Stmt &S) const = 0;
+};
+
 /// Evaluates `S` and updates `Env` accordingly.
 ///
 /// Requirements:
 ///
-///  The type of `S` must not be `ParenExpr`.
-void transfer(const Stmt &S, Environment &Env);
+///  `S` must not be `ParenExpr` or `ExprWithCleanups`.
+void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env);
 
 } // namespace dataflow
 } // namespace clang

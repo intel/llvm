@@ -4,9 +4,9 @@
 // This test checks if compiler reports compilation error on an attempt to pass
 // a struct with type that is not device copyable as SYCL kernel parameter.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct A {
   int i;
@@ -70,17 +70,17 @@ void test() {
   Q.single_task<class TestC>(FB);
 }
 
-// CHECK: static_assert failed due to requirement 'is_device_copyable<A, void>
+// CHECK: static assertion failed due to requirement 'is_device_copyable<A, void>
 // CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
 
-// CHECK: static_assert failed due to requirement 'is_device_copyable<B, void>
+// CHECK: static assertion failed due to requirement 'is_device_copyable<B, void>
 // CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
 
-// CHECK: static_assert failed due to requirement 'is_device_copyable<sycl::marray<B, 2>, void>
+// CHECK: static assertion failed due to requirement 'is_device_copyable<sycl::marray<B, 2>, void>
 // CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
 
-// CHECK: static_assert failed due to requirement 'is_device_copyable<C, void>
+// CHECK: static assertion failed due to requirement 'is_device_copyable<C, void>
 // CHECK: is_device_copyable_neg.cpp:67:5: note: in instantiation of function
 
-// CHECK: static_assert failed due to requirement 'is_device_copyable<D, void>
+// CHECK: static assertion failed due to requirement 'is_device_copyable<D, void>
 // CHECK: is_device_copyable_neg.cpp:70:5: note: in instantiation of function

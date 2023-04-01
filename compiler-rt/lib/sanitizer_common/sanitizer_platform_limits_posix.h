@@ -14,10 +14,24 @@
 #ifndef SANITIZER_PLATFORM_LIMITS_POSIX_H
 #define SANITIZER_PLATFORM_LIMITS_POSIX_H
 
-#if SANITIZER_LINUX || SANITIZER_MAC
+#if SANITIZER_LINUX || SANITIZER_APPLE
 
 #include "sanitizer_internal_defs.h"
 #include "sanitizer_platform.h"
+
+#if SANITIZER_APPLE
+#include <sys/cdefs.h>
+#if !__DARWIN_ONLY_64_BIT_INO_T
+#define SANITIZER_HAS_STAT64 1
+#define SANITIZER_HAS_STATFS64 1
+#else
+#define SANITIZER_HAS_STAT64 0
+#define SANITIZER_HAS_STATFS64 0
+#endif
+#elif SANITIZER_GLIBC || SANITIZER_ANDROID
+#define SANITIZER_HAS_STAT64 1
+#define SANITIZER_HAS_STATFS64 1
+#endif
 
 #if defined(__sparc__)
 // FIXME: This can't be included from tsan which does not support sparc yet.
@@ -29,7 +43,7 @@
 namespace __sanitizer {
 extern unsigned struct_utsname_sz;
 extern unsigned struct_stat_sz;
-#if !SANITIZER_IOS
+#if SANITIZER_HAS_STAT64
 extern unsigned struct_stat64_sz;
 #endif
 extern unsigned struct_rusage_sz;
@@ -49,7 +63,9 @@ extern unsigned struct_itimerspec_sz;
 extern unsigned struct_sigevent_sz;
 extern unsigned struct_stack_t_sz;
 extern unsigned struct_sched_param_sz;
+#if SANITIZER_HAS_STATFS64
 extern unsigned struct_statfs64_sz;
+#endif
 extern unsigned struct_regex_sz;
 extern unsigned struct_regmatch_sz;
 
@@ -81,9 +97,10 @@ const unsigned struct_kernel_stat64_sz = 104;
 const unsigned struct_kernel_stat_sz = 144;
 const unsigned struct_kernel_stat64_sz = 104;
 #elif defined(__mips__)
-const unsigned struct_kernel_stat_sz = SANITIZER_ANDROID
-                                           ? FIRST_32_SECOND_64(104, 128)
-                                           : FIRST_32_SECOND_64(160, 216);
+const unsigned struct_kernel_stat_sz =
+    SANITIZER_ANDROID
+        ? FIRST_32_SECOND_64(104, 128)
+        : FIRST_32_SECOND_64((_MIPS_SIM == _ABIN32) ? 176 : 160, 216);
 const unsigned struct_kernel_stat64_sz = 104;
 #elif defined(__s390__) && !defined(__s390x__)
 const unsigned struct_kernel_stat_sz = 64;
@@ -105,6 +122,9 @@ const unsigned struct_kernel_stat64_sz = 0;  // RISCV64 does not use stat64
 #    elif defined(__hexagon__)
 const unsigned struct_kernel_stat_sz = 128;
 const unsigned struct_kernel_stat64_sz = 0;
+#    elif defined(__loongarch__)
+const unsigned struct_kernel_stat_sz = 128;
+const unsigned struct_kernel_stat64_sz = 0;
 #    endif
 struct __sanitizer_perf_event_attr {
   unsigned type;
@@ -115,7 +135,7 @@ struct __sanitizer_perf_event_attr {
 extern unsigned struct_epoll_event_sz;
 extern unsigned struct_sysinfo_sz;
 extern unsigned __user_cap_header_struct_sz;
-extern unsigned __user_cap_data_struct_sz;
+extern unsigned __user_cap_data_struct_sz(void *hdrp);
 extern unsigned struct_new_utsname_sz;
 extern unsigned struct_old_utsname_sz;
 extern unsigned struct_oldold_utsname_sz;
@@ -125,7 +145,7 @@ const unsigned struct_kexec_segment_sz = 4 * sizeof(unsigned long);
 
 #if SANITIZER_LINUX
 
-#if defined(__powerpc64__) || defined(__s390__)
+#if defined(__powerpc64__) || defined(__s390__) || defined(__loongarch__)
 const unsigned struct___old_kernel_stat_sz = 0;
 #elif !defined(__sparc__)
 const unsigned struct___old_kernel_stat_sz = 32;
@@ -322,7 +342,7 @@ struct __sanitizer_ifaddrs {
 };
 #endif  // !SANITIZER_ANDROID
 
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 typedef unsigned long __sanitizer_pthread_key_t;
 #else
 typedef unsigned __sanitizer_pthread_key_t;
@@ -349,7 +369,7 @@ struct __sanitizer_passwd {
   char *pw_passwd;
   int pw_uid;
   int pw_gid;
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
   long pw_change;
   char *pw_class;
 #endif
@@ -358,7 +378,7 @@ struct __sanitizer_passwd {
 #endif
   char *pw_dir;
   char *pw_shell;
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
   long pw_expire;
 #endif
 };
@@ -370,7 +390,8 @@ struct __sanitizer_group {
   char **gr_mem;
 };
 
-#  if (defined(__x86_64__) && !defined(_LP64)) || defined(__hexagon__)
+#  if (SANITIZER_LINUX && !SANITIZER_GLIBC && !SANITIZER_ANDROID) || \
+      (defined(__x86_64__) && !defined(_LP64)) || defined(__hexagon__)
 typedef long long __sanitizer_time_t;
 #else
 typedef long __sanitizer_time_t;
@@ -430,7 +451,7 @@ struct __sanitizer_file_handle {
 };
 #endif
 
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 struct __sanitizer_msghdr {
   void *msg_name;
   unsigned msg_namelen;
@@ -471,14 +492,15 @@ struct __sanitizer_mmsghdr {
 };
 #endif
 
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 struct __sanitizer_dirent {
   unsigned long long d_ino;
   unsigned long long d_seekoff;
   unsigned short d_reclen;
   // more fields that we don't care about
 };
-#  elif SANITIZER_ANDROID || defined(__x86_64__) || defined(__hexagon__)
+#  elif (SANITIZER_LINUX && !SANITIZER_GLIBC) || defined(__x86_64__) || \
+      defined(__hexagon__)
 struct __sanitizer_dirent {
   unsigned long long d_ino;
   unsigned long long d_off;
@@ -494,7 +516,7 @@ struct __sanitizer_dirent {
 };
 #  endif
 
-#  if SANITIZER_LINUX && !SANITIZER_ANDROID
+#  if SANITIZER_GLIBC
 struct __sanitizer_dirent64 {
   unsigned long long d_ino;
   unsigned long long d_off;
@@ -555,7 +577,7 @@ typedef unsigned long __sanitizer_sigset_t[16 / sizeof(unsigned long)];
 # else
 typedef unsigned long __sanitizer_sigset_t;
 # endif
-#elif SANITIZER_MAC
+#elif SANITIZER_APPLE
 typedef unsigned __sanitizer_sigset_t;
 #elif SANITIZER_LINUX
 struct __sanitizer_sigset_t {
@@ -564,10 +586,30 @@ struct __sanitizer_sigset_t {
 };
 #endif
 
-struct __sanitizer_siginfo {
-  // The size is determined by looking at sizeof of real siginfo_t on linux.
-  u64 opaque[128 / sizeof(u64)];
+struct __sanitizer_siginfo_pad {
+  // Require uptr, because siginfo_t is always pointer-size aligned on Linux.
+  uptr pad[128 / sizeof(uptr)];
 };
+
+#if SANITIZER_LINUX
+# define SANITIZER_HAS_SIGINFO 1
+union __sanitizer_siginfo {
+  struct {
+    int si_signo;
+# if SANITIZER_MIPS
+    int si_code;
+    int si_errno;
+# else
+    int si_errno;
+    int si_code;
+# endif
+  };
+  __sanitizer_siginfo_pad pad;
+};
+#else
+# define SANITIZER_HAS_SIGINFO 0
+typedef __sanitizer_siginfo_pad __sanitizer_siginfo;
+#endif
 
 using __sanitizer_sighandler_ptr = void (*)(int sig);
 using __sanitizer_sigactionhandler_ptr = void (*)(int sig,
@@ -727,7 +769,7 @@ struct __sanitizer_addrinfo {
   int ai_family;
   int ai_socktype;
   int ai_protocol;
-#if SANITIZER_ANDROID || SANITIZER_MAC
+#if SANITIZER_ANDROID || SANITIZER_APPLE
   unsigned ai_addrlen;
   char *ai_canonname;
   void *ai_addr;
@@ -753,7 +795,7 @@ struct __sanitizer_pollfd {
   short revents;
 };
 
-#if SANITIZER_ANDROID || SANITIZER_MAC
+#if SANITIZER_ANDROID || SANITIZER_APPLE
 typedef unsigned __sanitizer_nfds_t;
 #else
 typedef unsigned long __sanitizer_nfds_t;
@@ -820,7 +862,7 @@ typedef void __sanitizer_FILE;
 #if SANITIZER_LINUX && !SANITIZER_ANDROID &&                               \
     (defined(__i386) || defined(__x86_64) || defined(__mips64) ||          \
      defined(__powerpc64__) || defined(__aarch64__) || defined(__arm__) || \
-     defined(__s390__) || SANITIZER_RISCV64)
+     defined(__s390__) || defined(__loongarch__) || SANITIZER_RISCV64)
 extern unsigned struct_user_regs_struct_sz;
 extern unsigned struct_user_fpregs_struct_sz;
 extern unsigned struct_user_fpxregs_struct_sz;
@@ -853,7 +895,7 @@ extern int shmctl_shm_info;
 extern int shmctl_shm_stat;
 #endif
 
-#if !SANITIZER_MAC && !SANITIZER_FREEBSD
+#if !SANITIZER_APPLE && !SANITIZER_FREEBSD
 extern unsigned struct_utmp_sz;
 #endif
 #if !SANITIZER_ANDROID
@@ -868,7 +910,7 @@ struct __sanitizer_ifconf {
   union {
     void *ifcu_req;
   } ifc_ifcu;
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 } __attribute__((packed));
 #else
 };
@@ -1021,7 +1063,7 @@ extern unsigned struct_audio_buf_info_sz;
 extern unsigned struct_ppp_stats_sz;
 #endif  // (SANITIZER_LINUX || SANITIZER_FREEBSD) && !SANITIZER_ANDROID
 
-#if !SANITIZER_ANDROID && !SANITIZER_MAC
+#if !SANITIZER_ANDROID && !SANITIZER_APPLE
 extern unsigned struct_sioc_sg_req_sz;
 extern unsigned struct_sioc_vif_req_sz;
 #endif
@@ -1108,6 +1150,14 @@ extern unsigned IOCTL_BLKRASET;
 extern unsigned IOCTL_BLKROGET;
 extern unsigned IOCTL_BLKROSET;
 extern unsigned IOCTL_BLKRRPART;
+extern unsigned IOCTL_BLKFRASET;
+extern unsigned IOCTL_BLKFRAGET;
+extern unsigned IOCTL_BLKSECTSET;
+extern unsigned IOCTL_BLKSECTGET;
+extern unsigned IOCTL_BLKSSZGET;
+extern unsigned IOCTL_BLKBSZGET;
+extern unsigned IOCTL_BLKBSZSET;
+extern unsigned IOCTL_BLKGETSIZE64;
 extern unsigned IOCTL_CDROMAUDIOBUFSIZ;
 extern unsigned IOCTL_CDROMEJECT;
 extern unsigned IOCTL_CDROMEJECT_SW;
@@ -1454,6 +1504,6 @@ extern const int si_SEGV_ACCERR;
 
 #define SIGACTION_SYMNAME sigaction
 
-#endif  // SANITIZER_LINUX || SANITIZER_MAC
+#endif  // SANITIZER_LINUX || SANITIZER_APPLE
 
 #endif

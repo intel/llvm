@@ -26,7 +26,8 @@ TEST(TestProgramEnd, StopTest) {
 
 TEST(TestProgramEnd, StopTestNoStopMessage) {
   putenv(const_cast<char *>("NO_STOP_MESSAGE=1"));
-  Fortran::runtime::executionEnvironment.Configure(0, nullptr, nullptr);
+  Fortran::runtime::executionEnvironment.Configure(
+      0, nullptr, nullptr, nullptr);
   EXPECT_EXIT(
       RTNAME(StopStatement)(), testing::ExitedWithCode(EXIT_SUCCESS), "");
 }
@@ -52,7 +53,8 @@ TEST(TestProgramEnd, StopMessageTest) {
 
 TEST(TestProgramEnd, NoStopMessageTest) {
   putenv(const_cast<char *>("NO_STOP_MESSAGE=1"));
-  Fortran::runtime::executionEnvironment.Configure(0, nullptr, nullptr);
+  Fortran::runtime::executionEnvironment.Configure(
+      0, nullptr, nullptr, nullptr);
   static const char *message{"bye bye"};
   EXPECT_EXIT(RTNAME(StopStatementText)(message, std::strlen(message),
                   /*isErrorStop=*/false, /*quiet=*/false),
@@ -83,3 +85,15 @@ TEST(TestProgramEnd, ExitTest) {
 }
 
 TEST(TestProgramEnd, AbortTest) { EXPECT_DEATH(RTNAME(Abort)(), ""); }
+
+TEST(TestProgramEnd, CrashTest) {
+  static const std::string crashMessage{"bad user code"};
+  static const std::string fileName{"file name"};
+  static const std::string headMessage{"fatal Fortran runtime error\\("};
+  static const std::string tailMessage{":343\\): "};
+  static const std::string fullMessage{
+      headMessage + fileName + tailMessage + crashMessage};
+  EXPECT_DEATH(
+      RTNAME(ReportFatalUserError)(crashMessage.c_str(), fileName.c_str(), 343),
+      fullMessage.c_str());
+}

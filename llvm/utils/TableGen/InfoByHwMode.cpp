@@ -17,8 +17,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-
-#include <set>
+#include "llvm/TableGen/Record.h"
 #include <string>
 
 using namespace llvm;

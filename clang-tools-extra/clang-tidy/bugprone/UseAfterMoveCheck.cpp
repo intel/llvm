@@ -14,16 +14,15 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Lex/Lexer.h"
+#include "llvm/ADT/STLExtras.h"
 
 #include "../utils/ExprSequence.h"
+#include <optional>
 
 using namespace clang::ast_matchers;
 using namespace clang::tidy::utils;
 
-
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 
@@ -59,11 +58,11 @@ class UseAfterMoveFinder {
 public:
   UseAfterMoveFinder(ASTContext *TheContext);
 
-  // Within the given function body, finds the first use of 'MovedVariable' that
+  // Within the given code block, finds the first use of 'MovedVariable' that
   // occurs after 'MovingCall' (the expression that performs the move). If a
   // use-after-move is found, writes information about it to 'TheUseAfterMove'.
   // Returns whether a use-after-move was found.
-  bool find(Stmt *FunctionBody, const Expr *MovingCall,
+  bool find(Stmt *CodeBlock, const Expr *MovingCall,
             const ValueDecl *MovedVariable, UseAfterMove *TheUseAfterMove);
 
 private:
@@ -105,7 +104,7 @@ static StatementMatcher inDecltypeOrTemplateArg() {
 UseAfterMoveFinder::UseAfterMoveFinder(ASTContext *TheContext)
     : Context(TheContext) {}
 
-bool UseAfterMoveFinder::find(Stmt *FunctionBody, const Expr *MovingCall,
+bool UseAfterMoveFinder::find(Stmt *CodeBlock, const Expr *MovingCall,
                               const ValueDecl *MovedVariable,
                               UseAfterMove *TheUseAfterMove) {
   // Generate the CFG manually instead of through an AnalysisDeclContext because
@@ -119,12 +118,11 @@ bool UseAfterMoveFinder::find(Stmt *FunctionBody, const Expr *MovingCall,
   Options.AddImplicitDtors = true;
   Options.AddTemporaryDtors = true;
   std::unique_ptr<CFG> TheCFG =
-      CFG::buildCFG(nullptr, FunctionBody, Context, Options);
+      CFG::buildCFG(nullptr, CodeBlock, Context, Options);
   if (!TheCFG)
     return false;
 
-  Sequence =
-      std::make_unique<ExprSequence>(TheCFG.get(), FunctionBody, Context);
+  Sequence = std::make_unique<ExprSequence>(TheCFG.get(), CodeBlock, Context);
   BlockMap = std::make_unique<StmtToBlockMap>(TheCFG.get(), Context);
   Visited.clear();
 
@@ -158,9 +156,12 @@ bool UseAfterMoveFinder::findInternal(const CFGBlock *Block,
 
   // Ignore all reinitializations where the move potentially comes after the
   // reinit.
+  // If `Reinit` is identical to `MovingCall`, we're looking at a move-to-self
+  // (e.g. `a = std::move(a)`). Count these as reinitializations.
   llvm::SmallVector<const Stmt *, 1> ReinitsToDelete;
   for (const Stmt *Reinit : Reinits) {
-    if (MovingCall && Sequence->potentiallyAfter(MovingCall, Reinit))
+    if (MovingCall && Reinit != MovingCall &&
+        Sequence->potentiallyAfter(MovingCall, Reinit))
       ReinitsToDelete.push_back(Reinit);
   }
   for (const Stmt *Reinit : ReinitsToDelete) {
@@ -225,10 +226,9 @@ void UseAfterMoveFinder::getUsesAndReinits(
   }
 
   // Sort the uses by their occurrence in the source code.
-  std::sort(Uses->begin(), Uses->end(),
-            [](const DeclRefExpr *D1, const DeclRefExpr *D2) {
-              return D1->getExprLoc() < D2->getExprLoc();
-            });
+  llvm::sort(*Uses, [](const DeclRefExpr *D1, const DeclRefExpr *D2) {
+    return D1->getExprLoc() < D2->getExprLoc();
+  });
 }
 
 bool isStandardSmartPointer(const ValueDecl *VD) {
@@ -256,7 +256,7 @@ void UseAfterMoveFinder::getDeclRefs(
     llvm::SmallPtrSetImpl<const DeclRefExpr *> *DeclRefs) {
   DeclRefs->clear();
   for (const auto &Elem : *Block) {
-    Optional<CFGStmt> S = Elem.getAs<CFGStmt>();
+    std::optional<CFGStmt> S = Elem.getAs<CFGStmt>();
     if (!S)
       continue;
 
@@ -352,7 +352,7 @@ void UseAfterMoveFinder::getReinits(
   Stmts->clear();
   DeclRefs->clear();
   for (const auto &Elem : *Block) {
-    Optional<CFGStmt> S = Elem.getAs<CFGStmt>();
+    std::optional<CFGStmt> S = Elem.getAs<CFGStmt>();
     if (!S)
       continue;
 
@@ -397,19 +397,28 @@ static void emitDiagnostic(const Expr *MovingCall, const DeclRefExpr *MoveArg,
 }
 
 void UseAfterMoveCheck::registerMatchers(MatchFinder *Finder) {
+  // try_emplace is a common maybe-moving function that returns a
+  // bool to tell callers whether it moved. Ignore std::move inside
+  // try_emplace to avoid false positives as we don't track uses of
+  // the bool.
+  auto TryEmplaceMatcher =
+      cxxMemberCallExpr(callee(cxxMethodDecl(hasName("try_emplace"))));
   auto CallMoveMatcher =
-      callExpr(callee(functionDecl(hasName("::std::move"))), argumentCountIs(1),
+      callExpr(argumentCountIs(1), callee(functionDecl(hasName("::std::move"))),
                hasArgument(0, declRefExpr().bind("arg")),
-               anyOf(hasAncestor(lambdaExpr().bind("containing-lambda")),
-                     hasAncestor(functionDecl().bind("containing-func"))),
                unless(inDecltypeOrTemplateArg()),
-               // try_emplace is a common maybe-moving function that returns a
-               // bool to tell callers whether it moved. Ignore std::move inside
-               // try_emplace to avoid false positives as we don't track uses of
-               // the bool.
-               unless(hasParent(cxxMemberCallExpr(
-                   callee(cxxMethodDecl(hasName("try_emplace")))))))
-          .bind("call-move");
+               unless(hasParent(TryEmplaceMatcher)), expr().bind("call-move"),
+               anyOf(hasAncestor(compoundStmt(
+                         hasParent(lambdaExpr().bind("containing-lambda")))),
+                     hasAncestor(functionDecl(anyOf(
+                         cxxConstructorDecl(
+                             hasAnyConstructorInitializer(withInitializer(
+                                 expr(anyOf(equalsBoundNode("call-move"),
+                                            hasDescendant(expr(
+                                                equalsBoundNode("call-move")))))
+                                     .bind("containing-ctor-init"))))
+                             .bind("containing-ctor"),
+                         functionDecl().bind("containing-func"))))));
 
   Finder->addMatcher(
       traverse(
@@ -432,6 +441,10 @@ void UseAfterMoveCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void UseAfterMoveCheck::check(const MatchFinder::MatchResult &Result) {
+  const auto *ContainingCtor =
+      Result.Nodes.getNodeAs<CXXConstructorDecl>("containing-ctor");
+  const auto *ContainingCtorInit =
+      Result.Nodes.getNodeAs<Expr>("containing-ctor-init");
   const auto *ContainingLambda =
       Result.Nodes.getNodeAs<LambdaExpr>("containing-lambda");
   const auto *ContainingFunc =
@@ -443,25 +456,38 @@ void UseAfterMoveCheck::check(const MatchFinder::MatchResult &Result) {
   if (!MovingCall || !MovingCall->getExprLoc().isValid())
     MovingCall = CallMove;
 
-  Stmt *FunctionBody = nullptr;
-  if (ContainingLambda)
-    FunctionBody = ContainingLambda->getBody();
-  else if (ContainingFunc)
-    FunctionBody = ContainingFunc->getBody();
-  else
-    return;
-
   // Ignore the std::move if the variable that was passed to it isn't a local
   // variable.
   if (!Arg->getDecl()->getDeclContext()->isFunctionOrMethod())
     return;
 
-  UseAfterMoveFinder Finder(Result.Context);
-  UseAfterMove Use;
-  if (Finder.find(FunctionBody, MovingCall, Arg->getDecl(), &Use))
-    emitDiagnostic(MovingCall, Arg, Use, this, Result.Context);
+  // Collect all code blocks that could use the arg after move.
+  llvm::SmallVector<Stmt *> CodeBlocks{};
+  if (ContainingCtor) {
+    CodeBlocks.push_back(ContainingCtor->getBody());
+    if (ContainingCtorInit) {
+      // Collect the constructor initializer expressions.
+      bool BeforeMove{true};
+      for (CXXCtorInitializer *Init : ContainingCtor->inits()) {
+        if (BeforeMove && Init->getInit()->IgnoreImplicit() ==
+                              ContainingCtorInit->IgnoreImplicit())
+          BeforeMove = false;
+        if (!BeforeMove)
+          CodeBlocks.push_back(Init->getInit());
+      }
+    }
+  } else if (ContainingLambda) {
+    CodeBlocks.push_back(ContainingLambda->getBody());
+  } else if (ContainingFunc) {
+    CodeBlocks.push_back(ContainingFunc->getBody());
+  }
+
+  for (Stmt *CodeBlock : CodeBlocks) {
+    UseAfterMoveFinder Finder(Result.Context);
+    UseAfterMove Use;
+    if (Finder.find(CodeBlock, MovingCall, Arg->getDecl(), &Use))
+      emitDiagnostic(MovingCall, Arg, Use, this, Result.Context);
+  }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

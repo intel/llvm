@@ -102,14 +102,14 @@ public:
   size_t GetIndexOfChildWithName(ConstString name) override;
 
 private:
-  ValueObject *m_real_child;
+  ValueObject *m_real_child = nullptr;
 };
 } // namespace formatters
 } // namespace lldb_private
 
 lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::
     LibcxxStdAtomicSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
-    : SyntheticChildrenFrontEnd(*valobj_sp), m_real_child(nullptr) {}
+    : SyntheticChildrenFrontEnd(*valobj_sp) {}
 
 bool lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::Update() {
   ValueObjectSP atomic_value = GetLibCxxAtomicValue(m_backend);
@@ -139,7 +139,7 @@ lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::GetChildAtIndex(
 
 size_t lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::
     GetIndexOfChildWithName(ConstString name) {
-  return formatters::ExtractIndexFromString(name.GetCString());
+  return name == "Value" ? 0 : UINT32_MAX;
 }
 
 SyntheticChildrenFrontEnd *

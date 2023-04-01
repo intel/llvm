@@ -10,26 +10,27 @@
 #define _LIBCPP___CONCEPTS_CONVERTIBLE_TO_H
 
 #include <__config>
-#include <type_traits>
+#include <__type_traits/is_convertible.h>
+#include <__utility/declval.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#if _LIBCPP_STD_VER >= 20
 
 // [concept.convertible]
 
 template<class _From, class _To>
 concept convertible_to =
   is_convertible_v<_From, _To> &&
-  requires (add_rvalue_reference_t<_From> (&__f)()) {
-    static_cast<_To>(__f());
+  requires {
+    static_cast<_To>(std::declval<_From>());
   };
 
-#endif // _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

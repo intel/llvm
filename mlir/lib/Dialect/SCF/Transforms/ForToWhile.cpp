@@ -10,14 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/SCF/Transforms.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_SCFFORTOWHILELOOP
+#include "mlir/Dialect/SCF/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace llvm;
 using namespace mlir;
@@ -33,10 +37,14 @@ struct ForLoopLoweringPattern : public OpRewritePattern<ForOp> {
                                 PatternRewriter &rewriter) const override {
     // Generate type signature for the loop-carried values. The induction
     // variable is placed first, followed by the forOp.iterArgs.
-    SmallVector<Type, 8> lcvTypes;
+    SmallVector<Type> lcvTypes;
+    SmallVector<Location> lcvLocs;
     lcvTypes.push_back(forOp.getInductionVar().getType());
-    llvm::transform(forOp.getInitArgs(), std::back_inserter(lcvTypes),
-                    [&](auto v) { return v.getType(); });
+    lcvLocs.push_back(forOp.getInductionVar().getLoc());
+    for (Value value : forOp.getInitArgs()) {
+      lcvTypes.push_back(value.getType());
+      lcvLocs.push_back(value.getLoc());
+    }
 
     // Build scf.WhileOp
     SmallVector<Value> initArgs;
@@ -48,7 +56,7 @@ struct ForLoopLoweringPattern : public OpRewritePattern<ForOp> {
     // 'before' region contains the loop condition and forwarding of iteration
     // arguments to the 'after' region.
     auto *beforeBlock = rewriter.createBlock(
-        &whileOp.getBefore(), whileOp.getBefore().begin(), lcvTypes, {});
+        &whileOp.getBefore(), whileOp.getBefore().begin(), lcvTypes, lcvLocs);
     rewriter.setInsertionPointToStart(&whileOp.getBefore().front());
     auto cmpOp = rewriter.create<arith::CmpIOp>(
         whileOp.getLoc(), arith::CmpIPredicate::slt,
@@ -60,7 +68,7 @@ struct ForLoopLoweringPattern : public OpRewritePattern<ForOp> {
     // region. The return type of the execRegionOp does not contain the
     // iv - yields in the source for-loop contain only iterArgs.
     auto *afterBlock = rewriter.createBlock(
-        &whileOp.getAfter(), whileOp.getAfter().begin(), lcvTypes, {});
+        &whileOp.getAfter(), whileOp.getAfter().begin(), lcvTypes, lcvLocs);
 
     // Add induction variable incrementation
     rewriter.setInsertionPointToEnd(afterBlock);
@@ -70,7 +78,8 @@ struct ForLoopLoweringPattern : public OpRewritePattern<ForOp> {
     // Rewrite uses of the for-loop block arguments to the new while-loop
     // "after" arguments
     for (const auto &barg : enumerate(forOp.getBody(0)->getArguments()))
-      barg.value().replaceAllUsesWith(afterBlock->getArgument(barg.index()));
+      rewriter.replaceAllUsesWith(barg.value(),
+                                  afterBlock->getArgument(barg.index()));
 
     // Inline for-loop body operations into 'after' region.
     for (auto &arg : llvm::make_early_inc_range(*forOp.getBody()))
@@ -80,7 +89,8 @@ struct ForLoopLoweringPattern : public OpRewritePattern<ForOp> {
     for (auto yieldOp : afterBlock->getOps<scf::YieldOp>()) {
       SmallVector<Value> yieldOperands = yieldOp.getOperands();
       yieldOperands.insert(yieldOperands.begin(), ivIncOp.getResult());
-      yieldOp->setOperands(yieldOperands);
+      rewriter.updateRootInPlace(
+          yieldOp, [&]() { yieldOp->setOperands(yieldOperands); });
     }
 
     // We cannot do a direct replacement of the forOp since the while op returns
@@ -88,20 +98,21 @@ struct ForLoopLoweringPattern : public OpRewritePattern<ForOp> {
     // carried in the set of iterargs). Instead, rewrite uses of the forOp
     // results.
     for (const auto &arg : llvm::enumerate(forOp.getResults()))
-      arg.value().replaceAllUsesWith(whileOp.getResult(arg.index() + 1));
+      rewriter.replaceAllUsesWith(arg.value(),
+                                  whileOp.getResult(arg.index() + 1));
 
     rewriter.eraseOp(forOp);
     return success();
   }
 };
 
-struct ForToWhileLoop : public SCFForToWhileLoopBase<ForToWhileLoop> {
-  void runOnFunction() override {
-    FuncOp funcOp = getFunction();
-    MLIRContext *ctx = funcOp.getContext();
+struct ForToWhileLoop : public impl::SCFForToWhileLoopBase<ForToWhileLoop> {
+  void runOnOperation() override {
+    auto *parentOp = getOperation();
+    MLIRContext *ctx = parentOp->getContext();
     RewritePatternSet patterns(ctx);
     patterns.add<ForLoopLoweringPattern>(ctx);
-    (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(parentOp, std::move(patterns));
   }
 };
 } // namespace

@@ -9,6 +9,7 @@
 #include "lldb/Target/StackFrameList.h"
 #include "lldb/Breakpoint/Breakpoint.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
+#include "lldb/Core/Debugger.h"
 #include "lldb/Core/SourceManager.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Symbol/Block.h"
@@ -21,6 +22,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/Unwind.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
@@ -65,7 +67,7 @@ uint32_t StackFrameList::GetCurrentInlinedDepth() {
     if (cur_pc != m_current_inlined_pc) {
       m_current_inlined_pc = LLDB_INVALID_ADDRESS;
       m_current_inlined_depth = UINT32_MAX;
-      Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+      Log *log = GetLog(LLDBLog::Step);
       if (log && log->GetVerbose())
         LLDB_LOGF(
             log,
@@ -89,7 +91,7 @@ void StackFrameList::ResetCurrentInlinedDepth() {
   if (!m_frames[0]->IsInlined()) {
     m_current_inlined_depth = UINT32_MAX;
     m_current_inlined_pc = LLDB_INVALID_ADDRESS;
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+    Log *log = GetLog(LLDBLog::Step);
     if (log && log->GetVerbose())
       LLDB_LOGF(
           log,
@@ -167,7 +169,7 @@ void StackFrameList::ResetCurrentInlinedDepth() {
       break;
     }
   }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   default: {
     // Otherwise, we should set ourselves at the container of the inlining, so
     // that the user can descend into them. So first we check whether we have
@@ -187,7 +189,7 @@ void StackFrameList::ResetCurrentInlinedDepth() {
     }
     m_current_inlined_pc = curr_pc;
     m_current_inlined_depth = num_inlined_functions + 1;
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+    Log *log = GetLog(LLDBLog::Step);
     if (log && log->GetVerbose())
       LLDB_LOGF(log,
                 "ResetCurrentInlinedDepth: setting inlined "
@@ -376,7 +378,7 @@ void StackFrameList::SynthesizeTailCallFrames(StackFrame &next_frame) {
   if (!next_reg_ctx_sp)
     return;
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
 
   StackFrame &prev_frame = *m_frames.back().get();
 
@@ -469,7 +471,15 @@ void StackFrameList::GetFramesUpTo(uint32_t end_idx) {
   }
 
   StackFrameSP unwind_frame_sp;
+  Debugger &dbg = m_thread.GetProcess()->GetTarget().GetDebugger();
   do {
+    // Check for interruption here when building the frames - this is the
+    // expensive part, Dump later on is cheap.
+    if (dbg.InterruptRequested()) {
+      Log *log = GetLog(LLDBLog::Host);
+      LLDB_LOG(log, "Interrupted %s", __FUNCTION__);
+      break;
+    }
     uint32_t idx = m_concrete_frames_fetched++;
     lldb::addr_t pc = LLDB_INVALID_ADDRESS;
     lldb::addr_t cfa = LLDB_INVALID_ADDRESS;

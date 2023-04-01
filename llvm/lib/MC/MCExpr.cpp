@@ -8,7 +8,6 @@
 
 #include "llvm/MC/MCExpr.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/MC/MCAsmBackend.h"
@@ -76,8 +75,9 @@ void MCExpr::print(raw_ostream &OS, const MCAsmInfo *MAI, bool InParens) const {
     const MCSymbol &Sym = SRE.getSymbol();
     // Parenthesize names that start with $ so that they don't look like
     // absolute names.
-    bool UseParens =
-        !InParens && !Sym.getName().empty() && Sym.getName()[0] == '$';
+    bool UseParens = MAI && MAI->useParensForDollarSignNames() && !InParens &&
+                     !Sym.getName().empty() && Sym.getName()[0] == '$';
+
     if (UseParens) {
       OS << '(';
       Sym.print(OS, MAI);
@@ -885,18 +885,19 @@ bool MCExpr::evaluateAsRelocatableImpl(MCValue &Res, const MCAssembler *Asm,
         !ABE->getRHS()->evaluateAsRelocatableImpl(RHSValue, Asm, Layout, Fixup,
                                                   Addrs, InSet)) {
       // Check if both are Target Expressions, see if we can compare them.
-      if (const MCTargetExpr *L = dyn_cast<MCTargetExpr>(ABE->getLHS()))
-        if (const MCTargetExpr *R = cast<MCTargetExpr>(ABE->getRHS())) {
-          switch (ABE->getOpcode()) {
-          case MCBinaryExpr::EQ:
-            Res = MCValue::get((L->isEqualTo(R)) ? -1 : 0);
-            return true;
-          case MCBinaryExpr::NE:
-            Res = MCValue::get((R->isEqualTo(R)) ? 0 : -1);
-            return true;
-          default: break;
-          }
+      if (const MCTargetExpr *L = dyn_cast<MCTargetExpr>(ABE->getLHS())) {
+        const MCTargetExpr *R = cast<MCTargetExpr>(ABE->getRHS());
+        switch (ABE->getOpcode()) {
+        case MCBinaryExpr::EQ:
+          Res = MCValue::get(L->isEqualTo(R) ? -1 : 0);
+          return true;
+        case MCBinaryExpr::NE:
+          Res = MCValue::get(R->isEqualTo(R) ? 0 : -1);
+          return true;
+        default:
+          break;
         }
+      }
       return false;
     }
 

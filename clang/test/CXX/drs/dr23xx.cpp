@@ -89,6 +89,16 @@ namespace dr2353 { // dr2353: 9
 #pragma clang __debug dump not_use_2
 }
 
+#if __cplusplus >= 201402L
+namespace dr2358 { // dr2358: 16
+  void f2() {
+    int i = 1;
+    void g1(int = [xxx=1] { return xxx; }());  // OK
+    void g2(int = [xxx=i] { return xxx; }());  // expected-error {{default argument references local variable 'i' of enclosing function}}
+  }
+}
+#endif
+
 #if __cplusplus >= 201707L
 // Otherwise, if the qualified-id std::tuple_size<E> names a complete class
 // type **with a member value**, the expression std::tuple_size<E>::value shall
@@ -158,3 +168,32 @@ void g() {
 }
 } //namespace dr2303
 #endif
+
+// dr2385: na
+
+namespace dr2394 { // dr2394: 15
+
+struct A {};
+const A a;
+
+// Now allowed to default-init B.
+struct B { const A a; };
+B b;
+
+}
+
+namespace dr2396 { // dr2396: no
+  struct A {
+    struct B;
+    operator B B::*();
+  };
+  struct B;
+
+  // FIXME: per P1787 "Calling a conversion function" example, all of the
+  // examples below are well-formed, with B resolving to A::B, but currently
+  // it's been resolved to dr2396::B. 
+
+  // void f(A a) { a.operator B B::*(); }            
+  // void g(A a) { a.operator decltype(B()) B::*(); }
+  // void g2(A a) { a.operator B decltype(B())::*(); }
+}

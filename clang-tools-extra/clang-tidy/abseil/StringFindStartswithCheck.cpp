@@ -17,9 +17,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 StringFindStartswithCheck::StringFindStartswithCheck(StringRef Name,
                                                      ClangTidyContext *Context)
@@ -27,14 +25,14 @@ StringFindStartswithCheck::StringFindStartswithCheck(StringRef Name,
       StringLikeClasses(utils::options::parseStringList(
           Options.get("StringLikeClasses", "::std::basic_string"))),
       IncludeInserter(Options.getLocalOrGlobal("IncludeStyle",
-                                               utils::IncludeSorter::IS_LLVM)),
+                                               utils::IncludeSorter::IS_LLVM),
+                      areDiagsSelfContained()),
       AbseilStringsMatchHeader(
           Options.get("AbseilStringsMatchHeader", "absl/strings/match.h")) {}
 
 void StringFindStartswithCheck::registerMatchers(MatchFinder *Finder) {
   auto ZeroLiteral = integerLiteral(equals(0));
-  auto StringClassMatcher = cxxRecordDecl(hasAnyName(SmallVector<StringRef, 4>(
-      StringLikeClasses.begin(), StringLikeClasses.end())));
+  auto StringClassMatcher = cxxRecordDecl(hasAnyName(StringLikeClasses));
   auto StringType = hasUnqualifiedDesugaredType(
       recordType(hasDeclaration(StringClassMatcher)));
 
@@ -142,6 +140,4 @@ void StringFindStartswithCheck::storeOptions(
   Options.store(Opts, "AbseilStringsMatchHeader", AbseilStringsMatchHeader);
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

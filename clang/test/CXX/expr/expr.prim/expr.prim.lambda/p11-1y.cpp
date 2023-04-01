@@ -1,6 +1,12 @@
-// RUN: %clang_cc1 -std=c++1y %s -verify
+// TODO: The SYCL changes in this test can be removed if/when changes (i.e.
+// PR to save user-specified names in lambda class) is upstreamed to LLVM
+// project.
 
-const char *has_no_member = [x("hello")] {}.x; // expected-error {{no member named 'x'}}
+// RUN: %clang_cc1 -std=c++1y %s -verify=notsycl,expected
+// RUN: %clang_cc1 -fsycl-is-device -std=c++1y %s -verify=sycl,expected
+
+const char *has_no_member = [x("hello")] {}.x; // notsycl-error {{no member named 'x'}}
+// sycl-error@-1 {{invalid attempt to access member of lambda}}
 
 double f;
 auto with_float = [f(1.0f)] {
@@ -12,16 +18,16 @@ auto with_float_2 = [&f(f)] { // ok, refers to outer f
   using T = double&;
 };
 
-// Within the lambda-expression's compound-statement,
-// the identifier in the init-capture hides any declaration
-// of the same name in scopes enclosing the lambda-expression.
+// Within the lambda-expression the identifier in the init-capture
+// hides any declaration of the same name in scopes enclosing
+// the lambda-expression.
 void hiding() {
   char c;
   (void) [c("foo")] {
     static_assert(sizeof(c) == sizeof(const char*), "");
   };
-  (void) [c("bar")] () -> decltype(c) { // outer c, not init-capture
-    return "baz"; // expected-error {{cannot initialize}}
+  (void)[c("bar")]()->decltype(c) { // inner c
+    return "baz";
   };
 }
 

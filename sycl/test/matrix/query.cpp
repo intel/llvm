@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -o query %s
-#include <CL/sycl.hpp>
+// RUN: %clangxx -fsycl -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1 -o query %s
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;

@@ -4,6 +4,7 @@ set(LLVM_LINK_COMPONENTS
   Core
   IPO
   Support
+  TargetParser
   TransformUtils
   )
 
@@ -12,3 +13,5 @@ add_llvm_unittest(IPOTests
   WholeProgramDevirt.cpp
   AttributorTest.cpp
   )
+
+set_property(TARGET IPOTests PROPERTY FOLDER "Tests/UnitTests/TransformsTests")

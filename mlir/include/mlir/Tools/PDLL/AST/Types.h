@@ -11,9 +11,14 @@
 
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/StorageUniquer.h"
+#include <optional>
 
 namespace mlir {
 namespace pdll {
+namespace ods {
+class Operation;
+} // namespace ods
+
 namespace ast {
 class Context;
 
@@ -22,6 +27,7 @@ struct AttributeTypeStorage;
 struct ConstraintTypeStorage;
 struct OperationTypeStorage;
 struct RangeTypeStorage;
+struct RewriteTypeStorage;
 struct TupleTypeStorage;
 struct TypeTypeStorage;
 struct ValueTypeStorage;
@@ -57,20 +63,25 @@ public:
   explicit operator bool() const { return impl; }
 
   /// Provide type casting support.
-  template <typename U> bool isa() const {
+  template <typename U>
+  bool isa() const {
     assert(impl && "isa<> used on a null type.");
     return U::classof(*this);
   }
-  template <typename U, typename V, typename... Others> bool isa() const {
+  template <typename U, typename V, typename... Others>
+  bool isa() const {
     return isa<U>() || isa<V, Others...>();
   }
-  template <typename U> U dyn_cast() const {
+  template <typename U>
+  U dyn_cast() const {
     return isa<U>() ? U(impl) : U(nullptr);
   }
-  template <typename U> U dyn_cast_or_null() const {
+  template <typename U>
+  U dyn_cast_or_null() const {
     return (impl && isa<U>()) ? U(impl) : U(nullptr);
   }
-  template <typename U> U cast() const {
+  template <typename U>
+  U cast() const {
     assert(isa<U>());
     return U(impl);
   }
@@ -94,7 +105,8 @@ public:
 protected:
   /// Return the internal storage instance of this type reinterpreted as the
   /// given derived storage type.
-  template <typename T> const T *getImplAs() const {
+  template <typename T>
+  const T *getImplAs() const {
     return static_cast<const T *>(impl);
   }
 
@@ -150,10 +162,16 @@ public:
   /// Return an instance of the Operation type with an optional operation name.
   /// If no name is provided, this type may refer to any operation.
   static OperationType get(Context &context,
-                           Optional<StringRef> name = llvm::None);
+                           std::optional<StringRef> name = std::nullopt,
+                           const ods::Operation *odsOp = nullptr);
 
-  /// Return the name of this operation type, or None if it doesn't have on.
-  Optional<StringRef> getName() const;
+  /// Return the name of this operation type, or std::nullopt if it doesn't have
+  /// on.
+  std::optional<StringRef> getName() const;
+
+  /// Return the ODS operation that this type refers to, or nullptr if the ODS
+  /// operation is unknown.
+  const ods::Operation *getODSOperation() const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -204,6 +222,20 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// RewriteType
+//===----------------------------------------------------------------------===//
+
+/// This class represents a PDLL type that corresponds to a rewrite reference.
+/// This type has no MLIR C++ API correspondance.
+class RewriteType : public Type::TypeBase<detail::RewriteTypeStorage> {
+public:
+  using Base::Base;
+
+  /// Return an instance of the Rewrite type.
+  static RewriteType get(Context &context);
+};
+
+//===----------------------------------------------------------------------===//
 // TupleType
 //===----------------------------------------------------------------------===//
 
@@ -217,7 +249,7 @@ public:
   static TupleType get(Context &context, ArrayRef<Type> elementTypes,
                        ArrayRef<StringRef> elementNames);
   static TupleType get(Context &context,
-                       ArrayRef<Type> elementTypes = llvm::None);
+                       ArrayRef<Type> elementTypes = std::nullopt);
 
   /// Return the element types of this tuple.
   ArrayRef<Type> getElementTypes() const;
@@ -262,8 +294,18 @@ public:
 } // namespace pdll
 } // namespace mlir
 
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::AttributeTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::ConstraintTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::OperationTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::RangeTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::RewriteTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::TupleTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::TypeTypeStorage)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(mlir::pdll::ast::detail::ValueTypeStorage)
+
 namespace llvm {
-template <> struct DenseMapInfo<mlir::pdll::ast::Type> {
+template <>
+struct DenseMapInfo<mlir::pdll::ast::Type> {
   static mlir::pdll::ast::Type getEmptyKey() {
     void *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return mlir::pdll::ast::Type(

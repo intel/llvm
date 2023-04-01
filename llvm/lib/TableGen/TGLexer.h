@@ -29,11 +29,11 @@ class SourceMgr;
 class Twine;
 
 namespace tgtok {
-  enum TokKind {
-    // Markers
+enum TokKind {
+  // Markers
     Eof, Error,
 
-    // Tokens with no info.
+  // Tokens with no info.
     minus, plus,        // - +
     l_square, r_square, // [ ]
     l_brace, r_brace,   // { }
@@ -45,35 +45,36 @@ namespace tgtok {
     paste,              // #
     dotdotdot,          // ...
 
-    // Reserved keywords. ('ElseKW' is named to distinguish it from the
-    // existing 'Else' that means the preprocessor #else.)
+  // Reserved keywords. ('ElseKW' is named to distinguish it from the
+  // existing 'Else' that means the preprocessor #else.)
     Assert, Bit, Bits, Class, Code, Dag, Def, Defm, Defset, Defvar, ElseKW,
     FalseKW, Field, Foreach, If, In, Include, Int, Let, List, MultiClass,
     String, Then, TrueKW,
 
-    // Bang operators.
-    XConcat, XADD, XSUB, XMUL, XNOT, XAND, XOR, XXOR, XSRA, XSRL, XSHL,
-    XListConcat, XListSplat, XStrConcat, XInterleave, XSubstr, XFind, XCast,
-    XSubst, XForEach, XFilter, XFoldl, XHead, XTail, XSize, XEmpty, XIf,
+  // Bang operators.
+    XConcat, XADD, XSUB, XMUL, XDIV, XNOT, XLOG2, XAND, XOR, XXOR, XSRA, XSRL,
+    XSHL, XListConcat, XListSplat, XStrConcat, XInterleave, XSubstr, XFind,
+    XCast, XSubst, XForEach, XFilter, XFoldl, XHead, XTail, XSize, XEmpty, XIf,
     XCond, XEq, XIsA, XDag, XNe, XLe, XLt, XGe, XGt, XSetDagOp, XGetDagOp,
+    XExists, XListRemove,  XToLower, XToUpper,
 
-    // Boolean literals.
+  // Boolean literals.
     TrueVal, FalseVal,
 
-    // Integer value.
-    IntVal,
+  // Integer value.
+  IntVal,
 
-    // Binary constant.  Note that these are sized according to the number of
-    // bits given.
-    BinaryIntVal,
+  // Binary constant.  Note that these are sized according to the number of
+  // bits given.
+  BinaryIntVal,
 
-    // String valued tokens.
+  // String valued tokens.
     Id, StrVal, VarName, CodeFragment,
 
-    // Preprocessing tokens for internal usage by the lexer.
-    // They are never returned as a result of Lex().
+  // Preprocessing tokens for internal usage by the lexer.
+  // They are never returned as a result of Lex().
     Ifdef, Ifndef, Else, Endif, Define
-  };
+};
 }
 
 /// TGLexer - TableGen Lexer class.
@@ -130,6 +131,7 @@ public:
   }
 
   SMLoc getLoc() const;
+  SMRange getLocRange() const;
 
 private:
   /// LexToken - Read the next token and return its code.
@@ -337,7 +339,7 @@ private:
   //
   // The method returns true upon reaching the first non-whitespace symbol
   // or EOF, CurPtr is set to point to this symbol.  The method returns false,
-  // if an error occured during skipping of a C-style comment.
+  // if an error occurred during skipping of a C-style comment.
   bool prepSkipLineBegin();
 
   // Skip any whitespaces or comments after a preprocessing directive.
@@ -345,7 +347,7 @@ private:
   // or end of the file.  If there is a multiline C-style comment
   // after the preprocessing directive, the method skips
   // the comment, so the final CurPtr may point to one of the next lines.
-  // The method returns false, if an error occured during skipping
+  // The method returns false, if an error occurred during skipping
   // C- or C++-style comment, or a non-whitespace symbol appears
   // after the preprocessing directive.
   //

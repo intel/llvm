@@ -8,19 +8,18 @@
 
 #include "mlir/Conversion/LinalgToLLVM/LinalgToLLVM.h"
 
-#include "../PassDetail.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
-#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
+#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 #include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
@@ -40,6 +39,11 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ErrorHandling.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTLINALGTOLLVMPASS
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::LLVM;
@@ -74,7 +78,10 @@ void mlir::populateLinalgToLLVMConversionPatterns(LLVMTypeConverter &converter,
 
 namespace {
 struct ConvertLinalgToLLVMPass
-    : public ConvertLinalgToLLVMBase<ConvertLinalgToLLVMPass> {
+    : public impl::ConvertLinalgToLLVMPassBase<ConvertLinalgToLLVMPass> {
+
+  using Base::Base;
+
   void runOnOperation() override;
 };
 } // namespace
@@ -84,16 +91,14 @@ void ConvertLinalgToLLVMPass::runOnOperation() {
 
   // Convert to the LLVM IR dialect using the converter defined above.
   RewritePatternSet patterns(&getContext());
-  LLVMTypeConverter converter(&getContext());
+  LowerToLLVMOptions options(&getContext());
+  options.useOpaquePointers = useOpaquePointers;
+  LLVMTypeConverter converter(&getContext(), options);
   populateLinalgToLLVMConversionPatterns(converter, patterns);
-  populateMemRefToLLVMConversionPatterns(converter, patterns);
+  populateFinalizeMemRefToLLVMConversionPatterns(converter, patterns);
 
   LLVMConversionTarget target(getContext());
   target.addLegalOp<ModuleOp>();
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
-}
-
-std::unique_ptr<OperationPass<ModuleOp>> mlir::createConvertLinalgToLLVMPass() {
-  return std::make_unique<ConvertLinalgToLLVMPass>();
 }

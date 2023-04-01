@@ -9,19 +9,24 @@
 #ifndef LLVM_CODEGEN_REGALLOCEVICTIONADVISOR_H
 #define LLVM_CODEGEN_REGALLOCEVICTIONADVISOR_H
 
-#include "AllocationOrder.h"
-#include "llvm/ADT/IndexedMap.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/CodeGen/LiveInterval.h"
-#include "llvm/CodeGen/LiveIntervals.h"
-#include "llvm/CodeGen/LiveRegMatrix.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/Register.h"
-#include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/MC/MCRegister.h"
 #include "llvm/Pass.h"
 
 namespace llvm {
+class AllocationOrder;
+class LiveInterval;
+class LiveIntervals;
+class LiveRegMatrix;
+class MachineFunction;
+class MachineRegisterInfo;
+class RegisterClassInfo;
+class TargetRegisterInfo;
+class VirtRegMap;
 
 using SmallVirtRegSet = SmallSet<Register, 16>;
 
@@ -99,15 +104,14 @@ public:
   /// Find a physical register that can be freed by evicting the FixedRegisters,
   /// or return NoRegister. The eviction decision is assumed to be correct (i.e.
   /// no fixed live ranges are evicted) and profitable.
-  virtual MCRegister
-  tryFindEvictionCandidate(LiveInterval &VirtReg, const AllocationOrder &Order,
-                           uint8_t CostPerUseLimit,
-                           const SmallVirtRegSet &FixedRegisters) const = 0;
+  virtual MCRegister tryFindEvictionCandidate(
+      const LiveInterval &VirtReg, const AllocationOrder &Order,
+      uint8_t CostPerUseLimit, const SmallVirtRegSet &FixedRegisters) const = 0;
 
   /// Find out if we can evict the live ranges occupying the given PhysReg,
   /// which is a hint (preferred register) for VirtReg.
   virtual bool
-  canEvictHintInterference(LiveInterval &VirtReg, MCRegister PhysReg,
+  canEvictHintInterference(const LiveInterval &VirtReg, MCRegister PhysReg,
                            const SmallVirtRegSet &FixedRegisters) const = 0;
 
   /// Returns true if the given \p PhysReg is a callee saved register and has
@@ -117,13 +121,13 @@ public:
 protected:
   RegAllocEvictionAdvisor(const MachineFunction &MF, const RAGreedy &RA);
 
-  Register canReassign(LiveInterval &VirtReg, Register PrevReg) const;
+  Register canReassign(const LiveInterval &VirtReg, Register PrevReg) const;
 
   // Get the upper limit of elements in the given Order we need to analize.
   // TODO: is this heuristic,  we could consider learning it.
-  Optional<unsigned> getOrderLimit(const LiveInterval &VirtReg,
-                                   const AllocationOrder &Order,
-                                   unsigned CostPerUseLimit) const;
+  std::optional<unsigned> getOrderLimit(const LiveInterval &VirtReg,
+                                        const AllocationOrder &Order,
+                                        unsigned CostPerUseLimit) const;
 
   // Determine if it's worth trying to allocate this reg, given the
   // CostPerUseLimit
@@ -143,9 +147,6 @@ protected:
   /// Run or not the local reassignment heuristic. This information is
   /// obtained from the TargetSubtargetInfo.
   const bool EnableLocalReassign;
-
-private:
-  unsigned NextCascade = 1;
 };
 
 /// ImmutableAnalysis abstraction for fetching the Eviction Advisor. We model it
@@ -175,6 +176,8 @@ public:
   virtual std::unique_ptr<RegAllocEvictionAdvisor>
   getAdvisor(const MachineFunction &MF, const RAGreedy &RA) = 0;
   AdvisorMode getAdvisorMode() const { return Mode; }
+  virtual void logRewardIfNeeded(const MachineFunction &MF,
+                                 llvm::function_ref<float()> GetReward){};
 
 protected:
   // This analysis preserves everything, and subclasses may have additional
@@ -192,14 +195,9 @@ private:
 /// an instance of the eviction advisor.
 template <> Pass *callDefaultCtor<RegAllocEvictionAdvisorAnalysis>();
 
-// TODO(mtrofin): implement these.
-#ifdef LLVM_HAVE_TF_AOT
 RegAllocEvictionAdvisorAnalysis *createReleaseModeAdvisor();
-#endif
 
-#ifdef LLVM_HAVE_TF_API
 RegAllocEvictionAdvisorAnalysis *createDevelopmentModeAdvisor();
-#endif
 
 // TODO: move to RegAllocEvictionAdvisor.cpp when we move implementation
 // out of RegAllocGreedy.cpp
@@ -209,15 +207,16 @@ public:
       : RegAllocEvictionAdvisor(MF, RA) {}
 
 private:
-  MCRegister tryFindEvictionCandidate(LiveInterval &, const AllocationOrder &,
-                                      uint8_t,
+  MCRegister tryFindEvictionCandidate(const LiveInterval &,
+                                      const AllocationOrder &, uint8_t,
                                       const SmallVirtRegSet &) const override;
-  bool canEvictHintInterference(LiveInterval &, MCRegister,
+  bool canEvictHintInterference(const LiveInterval &, MCRegister,
                                 const SmallVirtRegSet &) const override;
-  bool canEvictInterferenceBasedOnCost(LiveInterval &, MCRegister, bool,
+  bool canEvictInterferenceBasedOnCost(const LiveInterval &, MCRegister, bool,
                                        EvictionCost &,
                                        const SmallVirtRegSet &) const;
-  bool shouldEvict(LiveInterval &A, bool, LiveInterval &B, bool) const;
+  bool shouldEvict(const LiveInterval &A, bool, const LiveInterval &B,
+                   bool) const;
 };
 } // namespace llvm
 

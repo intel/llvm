@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // template<class T>
 // concept regular = see below;
@@ -164,5 +163,3 @@ struct is_equality_comparable {
   bool operator==(is_equality_comparable const&) const = default;
 };
 static_assert(std::regular<is_equality_comparable>);
-
-int main(int, char**) { return 0; }

@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
 
@@ -15,8 +16,11 @@ using namespace mlir;
 
 namespace {
 /// This is a test pass for verifying matchers.
-struct TestMatchers : public PassWrapper<TestMatchers, FunctionPass> {
-  void runOnFunction() override;
+struct TestMatchers
+    : public PassWrapper<TestMatchers, InterfacePass<FunctionOpInterface>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestMatchers)
+
+  void runOnOperation() override;
   StringRef getArgument() const final { return "test-matchers"; }
   StringRef getDescription() const final {
     return "Test C++ pattern matchers.";
@@ -26,7 +30,7 @@ struct TestMatchers : public PassWrapper<TestMatchers, FunctionPass> {
 
 // This could be done better but is not worth the variadic template trouble.
 template <typename Matcher>
-static unsigned countMatches(FuncOp f, Matcher &matcher) {
+static unsigned countMatches(FunctionOpInterface f, Matcher &matcher) {
   unsigned count = 0;
   f.walk([&count, &matcher](Operation *op) {
     if (matcher.match(op))
@@ -37,7 +41,7 @@ static unsigned countMatches(FuncOp f, Matcher &matcher) {
 
 using mlir::matchers::m_Any;
 using mlir::matchers::m_Val;
-static void test1(FuncOp f) {
+static void test1(FunctionOpInterface f) {
   assert(f.getNumArguments() == 3 && "matcher test funcs must have 3 args");
 
   auto a = m_Val(f.getArgument(0));
@@ -128,14 +132,14 @@ static void test1(FuncOp f) {
                << countMatches(f, p17) << " times\n";
 }
 
-void test2(FuncOp f) {
+void test2(FunctionOpInterface f) {
   auto a = m_Val(f.getArgument(0));
   FloatAttr floatAttr;
   auto p =
       m_Op<arith::MulFOp>(a, m_Op<arith::AddFOp>(a, m_Constant(&floatAttr)));
   auto p1 = m_Op<arith::MulFOp>(a, m_Op<arith::AddFOp>(a, m_Constant()));
   // Last operation that is not the terminator.
-  Operation *lastOp = f.getBody().front().back().getPrevNode();
+  Operation *lastOp = f.getFunctionBody().front().back().getPrevNode();
   if (p.match(lastOp))
     llvm::outs()
         << "Pattern add(add(a, constant), a) matched and bound constant to: "
@@ -144,8 +148,8 @@ void test2(FuncOp f) {
     llvm::outs() << "Pattern add(add(a, constant), a) matched\n";
 }
 
-void TestMatchers::runOnFunction() {
-  auto f = getFunction();
+void TestMatchers::runOnOperation() {
+  auto f = getOperation();
   llvm::outs() << f.getName() << "\n";
   if (f.getName() == "test1")
     test1(f);

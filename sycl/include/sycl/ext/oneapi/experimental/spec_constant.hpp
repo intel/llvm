@@ -15,17 +15,14 @@
 
 #pragma once
 
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/detail/sycl_fe_intrins.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/sycl_fe_intrins.hpp>
+#include <sycl/exception.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-class program;
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 class spec_const_error : public compile_program_error {
   using compile_program_error::compile_program_error;
@@ -34,7 +31,8 @@ class spec_const_error : public compile_program_error {
 template <typename T, typename ID = T>
 class __SYCL2020_DEPRECATED(
     "Specialization constats extension is deprecated, use SYCL 2020"
-    " specialization constants instead") spec_constant {
+    " specialization constants instead")
+    __SYCL_TYPE(spec_constant) spec_constant {
 public:
   spec_constant() {}
 
@@ -47,7 +45,6 @@ private:
 #else
   char padding[sizeof(T)];
 #endif // __SYCL_DEVICE_ONLY__
-  friend class cl::sycl::program;
 
 public:
   template <typename V = T>
@@ -79,9 +76,7 @@ public:
   }
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

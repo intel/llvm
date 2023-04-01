@@ -9,6 +9,7 @@
 #include "lldb/Host/linux/HostInfoLinux.h"
 #include "lldb/Host/Config.h"
 #include "lldb/Host/FileSystem.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
 #include "llvm/Support/Threading.h"
@@ -21,6 +22,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <optional>
 
 using namespace lldb_private;
 
@@ -65,12 +67,12 @@ llvm::VersionTuple HostInfoLinux::GetOSVersion() {
   return g_fields->m_os_version;
 }
 
-llvm::Optional<std::string> HostInfoLinux::GetOSBuildString() {
+std::optional<std::string> HostInfoLinux::GetOSBuildString() {
   struct utsname un;
   ::memset(&un, 0, sizeof(utsname));
 
   if (uname(&un) < 0)
-    return llvm::None;
+    return std::nullopt;
 
   return std::string(un.release);
 }
@@ -80,8 +82,7 @@ llvm::StringRef HostInfoLinux::GetDistributionId() {
   // Try to run 'lbs_release -i', and use that response for the distribution
   // id.
   llvm::call_once(g_fields->m_distribution_once_flag, []() {
-
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST));
+    Log *log = GetLog(LLDBLog::Host);
     LLDB_LOGF(log, "attempting to determine Linux distribution...");
 
     // check if the lsb_release command exists at one of the following paths
@@ -122,8 +123,7 @@ llvm::StringRef HostInfoLinux::GetDistributionId() {
         if (strstr(distribution_id, distributor_id_key)) {
           // strip newlines
           std::string id_string(distribution_id + strlen(distributor_id_key));
-          id_string.erase(std::remove(id_string.begin(), id_string.end(), '\n'),
-                          id_string.end());
+          llvm::erase_value(id_string, '\n');
 
           // lower case it and convert whitespace to underscores
           std::transform(
@@ -171,14 +171,14 @@ bool HostInfoLinux::ComputeSupportExeDirectory(FileSpec &file_spec) {
   if (HostInfoPosix::ComputeSupportExeDirectory(file_spec) &&
       file_spec.IsAbsolute() && FileSystem::Instance().Exists(file_spec))
     return true;
-  file_spec.GetDirectory() = GetProgramFileSpec().GetDirectory();
+  file_spec.SetDirectory(GetProgramFileSpec().GetDirectory());
   return !file_spec.GetDirectory().IsEmpty();
 }
 
 bool HostInfoLinux::ComputeSystemPluginsDirectory(FileSpec &file_spec) {
-  FileSpec temp_file("/usr/lib" LLDB_LIBDIR_SUFFIX "/lldb/plugins");
+  FileSpec temp_file("/usr/" LLDB_INSTALL_LIBDIR_BASENAME "/lldb/plugins");
   FileSystem::Instance().Resolve(temp_file);
-  file_spec.GetDirectory().SetCString(temp_file.GetPath().c_str());
+  file_spec.SetDirectory(temp_file.GetPath());
   return true;
 }
 
@@ -190,9 +190,9 @@ bool HostInfoLinux::ComputeUserPluginsDirectory(FileSpec &file_spec) {
   if (xdg_data_home && xdg_data_home[0]) {
     std::string user_plugin_dir(xdg_data_home);
     user_plugin_dir += "/lldb";
-    file_spec.GetDirectory().SetCString(user_plugin_dir.c_str());
+    file_spec.SetDirectory(user_plugin_dir.c_str());
   } else
-    file_spec.GetDirectory().SetCString("~/.local/share/lldb");
+    file_spec.SetDirectory("~/.local/share/lldb");
   return true;
 }
 

@@ -1,5 +1,5 @@
 # RUN: llvm-mc -triple=x86_64-apple-macosx10.9 -filetype=obj -o %t %s
-# RUN: llvm-jitlink -noexec %t -show-graph | FileCheck %s
+# RUN: llvm-jitlink -noexec %t -show-graphs='.*' | FileCheck %s
 
 # CHECK: linkage: weak, scope: local, live  -   _foo_weak
 
@@ -14,3 +14,5 @@ _foo_weak:
   .p2align  4, 0x90
 _main:
   jmp _foo_weak
+
+  .subsections_via_symbols

@@ -10,6 +10,7 @@
 #include <csignal>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "lldb/Breakpoint/BreakpointIDList.h"
@@ -19,6 +20,7 @@
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/StreamFile.h"
+#include "lldb/Host/FileCache.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
@@ -34,9 +36,11 @@
 #include "lldb/Target/UnixSignals.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StructuredData.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 
@@ -47,8 +51,6 @@
 
 using namespace lldb;
 using namespace lldb_private;
-
-static uint32_t g_initialize_count = 0;
 
 // Use a singleton function for g_local_platform_sp to avoid init constructors
 // since LLDB is often part of a shared library
@@ -134,26 +136,9 @@ void PlatformProperties::SetDefaultModuleCacheDirectory(
 /// or attaching to processes unless another platform is specified.
 PlatformSP Platform::GetHostPlatform() { return GetHostPlatformSP(); }
 
-static std::vector<PlatformSP> &GetPlatformList() {
-  static std::vector<PlatformSP> g_platform_list;
-  return g_platform_list;
-}
+void Platform::Initialize() {}
 
-static std::recursive_mutex &GetPlatformListMutex() {
-  static std::recursive_mutex g_mutex;
-  return g_mutex;
-}
-
-void Platform::Initialize() { g_initialize_count++; }
-
-void Platform::Terminate() {
-  if (g_initialize_count > 0) {
-    if (--g_initialize_count == 0) {
-      std::lock_guard<std::recursive_mutex> guard(GetPlatformListMutex());
-      GetPlatformList().clear();
-    }
-  }
-}
+void Platform::Terminate() {}
 
 PlatformProperties &Platform::GetGlobalPlatformProperties() {
   static PlatformProperties g_settings;
@@ -164,11 +149,6 @@ void Platform::SetHostPlatform(const lldb::PlatformSP &platform_sp) {
   // The native platform should use its static void Platform::Initialize()
   // function to register itself as the native platform.
   GetHostPlatformSP() = platform_sp;
-
-  if (platform_sp) {
-    std::lock_guard<std::recursive_mutex> guard(GetPlatformListMutex());
-    GetPlatformList().push_back(platform_sp);
-  }
 }
 
 Status Platform::GetFileWithUUID(const FileSpec &platform_file,
@@ -271,108 +251,15 @@ bool Platform::GetModuleSpec(const FileSpec &module_file_spec,
                                              module_spec);
 }
 
-PlatformSP Platform::Find(ConstString name) {
-  if (name) {
-    static ConstString g_host_platform_name("host");
-    if (name == g_host_platform_name)
-      return GetHostPlatform();
-
-    std::lock_guard<std::recursive_mutex> guard(GetPlatformListMutex());
-    for (const auto &platform_sp : GetPlatformList()) {
-      if (platform_sp->GetName() == name)
-        return platform_sp;
-    }
-  }
-  return PlatformSP();
-}
-
-PlatformSP Platform::Create(ConstString name, Status &error) {
-  PlatformCreateInstance create_callback = nullptr;
+PlatformSP Platform::Create(llvm::StringRef name) {
   lldb::PlatformSP platform_sp;
-  if (name) {
-    static ConstString g_host_platform_name("host");
-    if (name == g_host_platform_name)
-      return GetHostPlatform();
+  if (name == GetHostPlatformName())
+    return GetHostPlatform();
 
-    create_callback = PluginManager::GetPlatformCreateCallbackForPluginName(
-        name.GetStringRef());
-    if (create_callback)
-      platform_sp = create_callback(true, nullptr);
-    else
-      error.SetErrorStringWithFormat(
-          "unable to find a plug-in for the platform named \"%s\"",
-          name.GetCString());
-  } else
-    error.SetErrorString("invalid platform name");
-
-  if (platform_sp) {
-    std::lock_guard<std::recursive_mutex> guard(GetPlatformListMutex());
-    GetPlatformList().push_back(platform_sp);
-  }
-
-  return platform_sp;
-}
-
-PlatformSP Platform::Create(const ArchSpec &arch, ArchSpec *platform_arch_ptr,
-                            Status &error) {
-  lldb::PlatformSP platform_sp;
-  if (arch.IsValid()) {
-    // Scope for locker
-    {
-      // First try exact arch matches across all platforms already created
-      std::lock_guard<std::recursive_mutex> guard(GetPlatformListMutex());
-      for (const auto &platform_sp : GetPlatformList()) {
-        if (platform_sp->IsCompatibleArchitecture(arch, true,
-                                                  platform_arch_ptr))
-          return platform_sp;
-      }
-
-      // Next try compatible arch matches across all platforms already created
-      for (const auto &platform_sp : GetPlatformList()) {
-        if (platform_sp->IsCompatibleArchitecture(arch, false,
-                                                  platform_arch_ptr))
-          return platform_sp;
-      }
-    }
-
-    PlatformCreateInstance create_callback;
-    // First try exact arch matches across all platform plug-ins
-    uint32_t idx;
-    for (idx = 0; (create_callback =
-                       PluginManager::GetPlatformCreateCallbackAtIndex(idx));
-         ++idx) {
-      if (create_callback) {
-        platform_sp = create_callback(false, &arch);
-        if (platform_sp &&
-            platform_sp->IsCompatibleArchitecture(arch, true,
-                                                  platform_arch_ptr)) {
-          std::lock_guard<std::recursive_mutex> guard(GetPlatformListMutex());
-          GetPlatformList().push_back(platform_sp);
-          return platform_sp;
-        }
-      }
-    }
-    // Next try compatible arch matches across all platform plug-ins
-    for (idx = 0; (create_callback =
-                       PluginManager::GetPlatformCreateCallbackAtIndex(idx));
-         ++idx) {
-      if (create_callback) {
-        platform_sp = create_callback(false, &arch);
-        if (platform_sp &&
-            platform_sp->IsCompatibleArchitecture(arch, false,
-                                                  platform_arch_ptr)) {
-          std::lock_guard<std::recursive_mutex> guard(GetPlatformListMutex());
-          GetPlatformList().push_back(platform_sp);
-          return platform_sp;
-        }
-      }
-    }
-  } else
-    error.SetErrorString("invalid platform name");
-  if (platform_arch_ptr)
-    platform_arch_ptr->Clear();
-  platform_sp.reset();
-  return platform_sp;
+  if (PlatformCreateInstance create_callback =
+          PluginManager::GetPlatformCreateCallbackForPluginName(name))
+    return create_callback(true, nullptr);
+  return nullptr;
 }
 
 ArchSpec Platform::GetAugmentedArchSpec(Platform *platform, llvm::StringRef triple) {
@@ -384,14 +271,13 @@ ArchSpec Platform::GetAugmentedArchSpec(Platform *platform, llvm::StringRef trip
 /// Default Constructor
 Platform::Platform(bool is_host)
     : m_is_host(is_host), m_os_version_set_while_connected(false),
-      m_system_arch_set_while_connected(false), m_sdk_sysroot(), m_sdk_build(),
-      m_working_dir(), m_remote_url(), m_name(), m_system_arch(), m_mutex(),
-      m_max_uid_name_len(0), m_max_gid_name_len(0), m_supports_rsync(false),
-      m_rsync_opts(), m_rsync_prefix(), m_supports_ssh(false), m_ssh_opts(),
+      m_system_arch_set_while_connected(false), m_max_uid_name_len(0),
+      m_max_gid_name_len(0), m_supports_rsync(false), m_rsync_opts(),
+      m_rsync_prefix(), m_supports_ssh(false), m_ssh_opts(),
       m_ignores_remote_hostname(false), m_trap_handlers(),
       m_calculated_trap_handlers(false),
       m_module_cache(std::make_unique<ModuleCache>()) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+  Log *log = GetLog(LLDBLog::Object);
   LLDB_LOGF(log, "%p Platform::Platform()", static_cast<void *>(this));
 }
 
@@ -413,7 +299,7 @@ void Platform::GetStatus(Stream &strm) {
   if (!os_version.empty()) {
     strm.Format("OS Version: {0}", os_version.getAsString());
 
-    if (llvm::Optional<std::string> s = GetOSBuildString())
+    if (std::optional<std::string> s = GetOSBuildString())
       strm.Format(" ({0})", *s);
 
     strm.EOL();
@@ -428,8 +314,11 @@ void Platform::GetStatus(Stream &strm) {
     strm.Printf(" Connected: %s\n", is_connected ? "yes" : "no");
   }
 
+  if (GetSDKRootDirectory()) {
+    strm.Format("   Sysroot: {0}\n", GetSDKRootDirectory());
+  }
   if (GetWorkingDirectory()) {
-    strm.Printf("WorkingDir: %s\n", GetWorkingDirectory().GetCString());
+    strm.Printf("WorkingDir: %s\n", GetWorkingDirectory().GetPath().c_str());
   }
   if (!IsConnected())
     return;
@@ -439,7 +328,7 @@ void Platform::GetStatus(Stream &strm) {
   if (!specific_info.empty())
     strm.Printf("Platform-specific connection: %s\n", specific_info.c_str());
 
-  if (llvm::Optional<std::string> s = GetOSKernelDescription())
+  if (std::optional<std::string> s = GetOSKernelDescription())
     strm.Format("    Kernel: {0}\n", *s);
 }
 
@@ -485,13 +374,13 @@ llvm::VersionTuple Platform::GetOSVersion(Process *process) {
   return llvm::VersionTuple();
 }
 
-llvm::Optional<std::string> Platform::GetOSBuildString() {
+std::optional<std::string> Platform::GetOSBuildString() {
   if (IsHost())
     return HostInfo::GetOSBuildString();
   return GetRemoteOSBuildString();
 }
 
-llvm::Optional<std::string> Platform::GetOSKernelDescription() {
+std::optional<std::string> Platform::GetOSKernelDescription() {
   if (IsHost())
     return HostInfo::GetOSKernelDescription();
   return GetRemoteOSKernelDescription();
@@ -546,12 +435,13 @@ RecurseCopy_Callback(void *baton, llvm::sys::fs::file_type ft,
     // make the new directory and get in there
     FileSpec dst_dir = rc_baton->dst;
     if (!dst_dir.GetFilename())
-      dst_dir.GetFilename() = src.GetLastPathComponent();
+      dst_dir.SetFilename(src.GetLastPathComponent());
     Status error = rc_baton->platform_ptr->MakeDirectory(
         dst_dir, lldb::eFilePermissionsDirectoryDefault);
     if (error.Fail()) {
       rc_baton->error.SetErrorStringWithFormat(
-          "unable to setup directory %s on remote end", dst_dir.GetCString());
+          "unable to setup directory %s on remote end",
+          dst_dir.GetPath().c_str());
       return FileSystem::eEnumerateDirectoryResultQuit; // got an error, bail out
     }
 
@@ -561,7 +451,7 @@ RecurseCopy_Callback(void *baton, llvm::sys::fs::file_type ft,
     // Make a filespec that only fills in the directory of a FileSpec so when
     // we enumerate we can quickly fill in the filename for dst copies
     FileSpec recurse_dst;
-    recurse_dst.GetDirectory().SetCString(dst_dir.GetPath().c_str());
+    recurse_dst.SetDirectory(dst_dir.GetPathAsConstString());
     RecurseCopyBaton rc_baton2 = {recurse_dst, rc_baton->platform_ptr,
                                   Status()};
     FileSystem::Instance().EnumerateDirectory(src_dir_path, true, true, true,
@@ -577,7 +467,7 @@ RecurseCopy_Callback(void *baton, llvm::sys::fs::file_type ft,
     // copy the file and keep going
     FileSpec dst_file = rc_baton->dst;
     if (!dst_file.GetFilename())
-      dst_file.GetFilename() = src.GetFilename();
+      dst_file.SetFilename(src.GetFilename());
 
     FileSpec src_resolved;
 
@@ -599,7 +489,7 @@ RecurseCopy_Callback(void *baton, llvm::sys::fs::file_type ft,
     // copy the file and keep going
     FileSpec dst_file = rc_baton->dst;
     if (!dst_file.GetFilename())
-      dst_file.GetFilename() = src.GetFilename();
+      dst_file.SetFilename(src.GetFilename());
     Status err = rc_baton->platform_ptr->PutFile(src, dst_file);
     if (err.Fail()) {
       rc_baton->error.SetErrorString(err.AsCString());
@@ -620,13 +510,13 @@ RecurseCopy_Callback(void *baton, llvm::sys::fs::file_type ft,
 Status Platform::Install(const FileSpec &src, const FileSpec &dst) {
   Status error;
 
-  Log *log = GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM);
+  Log *log = GetLog(LLDBLog::Platform);
   LLDB_LOGF(log, "Platform::Install (src='%s', dst='%s')",
             src.GetPath().c_str(), dst.GetPath().c_str());
   FileSpec fixed_dst(dst);
 
   if (!fixed_dst.GetFilename())
-    fixed_dst.GetFilename() = src.GetFilename();
+    fixed_dst.SetFilename(src.GetFilename());
 
   FileSpec working_dir = GetWorkingDirectory();
 
@@ -634,7 +524,7 @@ Status Platform::Install(const FileSpec &src, const FileSpec &dst) {
     if (dst.GetDirectory()) {
       const char first_dst_dir_char = dst.GetDirectory().GetCString()[0];
       if (first_dst_dir_char == '/' || first_dst_dir_char == '\\') {
-        fixed_dst.GetDirectory() = dst.GetDirectory();
+        fixed_dst.SetDirectory(dst.GetDirectory());
       }
       // If the fixed destination file doesn't have a directory yet, then we
       // must have a relative path. We will resolve this relative path against
@@ -645,7 +535,7 @@ Status Platform::Install(const FileSpec &src, const FileSpec &dst) {
         if (working_dir) {
           relative_spec = working_dir;
           relative_spec.AppendPathComponent(dst.GetPath());
-          fixed_dst.GetDirectory() = relative_spec.GetDirectory();
+          fixed_dst.SetDirectory(relative_spec.GetDirectory());
         } else {
           error.SetErrorStringWithFormat(
               "platform working directory must be valid for relative path '%s'",
@@ -655,7 +545,7 @@ Status Platform::Install(const FileSpec &src, const FileSpec &dst) {
       }
     } else {
       if (working_dir) {
-        fixed_dst.GetDirectory().SetCString(working_dir.GetCString());
+        fixed_dst.SetDirectory(working_dir.GetPathAsConstString());
       } else {
         error.SetErrorStringWithFormat(
             "platform working directory must be valid for relative path '%s'",
@@ -665,7 +555,7 @@ Status Platform::Install(const FileSpec &src, const FileSpec &dst) {
     }
   } else {
     if (working_dir) {
-      fixed_dst.GetDirectory().SetCString(working_dir.GetCString());
+      fixed_dst.SetDirectory(working_dir.GetPathAsConstString());
     } else {
       error.SetErrorStringWithFormat("platform working directory must be valid "
                                      "when destination directory is empty");
@@ -692,7 +582,7 @@ Status Platform::Install(const FileSpec &src, const FileSpec &dst) {
         // Make a filespec that only fills in the directory of a FileSpec so
         // when we enumerate we can quickly fill in the filename for dst copies
         FileSpec recurse_dst;
-        recurse_dst.GetDirectory().SetCString(fixed_dst.GetCString());
+        recurse_dst.SetDirectory(fixed_dst.GetPathAsConstString());
         std::string src_dir_path(src.GetPath());
         RecurseCopyBaton baton = {recurse_dst, this, Status()};
         FileSystem::Instance().EnumerateDirectory(
@@ -730,7 +620,7 @@ Status Platform::Install(const FileSpec &src, const FileSpec &dst) {
 
 bool Platform::SetWorkingDirectory(const FileSpec &file_spec) {
   if (IsHost()) {
-    Log *log = GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM);
+    Log *log = GetLog(LLDBLog::Platform);
     LLDB_LOG(log, "{0}", file_spec);
     if (std::error_code ec = llvm::sys::fs::set_current_path(file_spec.GetPath())) {
       LLDB_LOG(log, "error: {0}", ec.message());
@@ -783,15 +673,63 @@ Status Platform::SetFilePermissions(const FileSpec &file_spec,
   }
 }
 
-ConstString Platform::GetName() { return ConstString(GetPluginName()); }
+user_id_t Platform::OpenFile(const FileSpec &file_spec,
+                                   File::OpenOptions flags, uint32_t mode,
+                                   Status &error) {
+  if (IsHost())
+    return FileCache::GetInstance().OpenFile(file_spec, flags, mode, error);
+  return UINT64_MAX;
+}
+
+bool Platform::CloseFile(user_id_t fd, Status &error) {
+  if (IsHost())
+    return FileCache::GetInstance().CloseFile(fd, error);
+  return false;
+}
+
+user_id_t Platform::GetFileSize(const FileSpec &file_spec) {
+  if (!IsHost())
+    return UINT64_MAX;
+
+  uint64_t Size;
+  if (llvm::sys::fs::file_size(file_spec.GetPath(), Size))
+    return 0;
+  return Size;
+}
+
+uint64_t Platform::ReadFile(lldb::user_id_t fd, uint64_t offset, void *dst,
+                            uint64_t dst_len, Status &error) {
+  if (IsHost())
+    return FileCache::GetInstance().ReadFile(fd, offset, dst, dst_len, error);
+  error.SetErrorStringWithFormatv(
+      "Platform::ReadFile() is not supported in the {0} platform",
+      GetPluginName());
+  return -1;
+}
+
+uint64_t Platform::WriteFile(lldb::user_id_t fd, uint64_t offset,
+                             const void *src, uint64_t src_len, Status &error) {
+  if (IsHost())
+    return FileCache::GetInstance().WriteFile(fd, offset, src, src_len, error);
+  error.SetErrorStringWithFormatv(
+      "Platform::WriteFile() is not supported in the {0} platform",
+      GetPluginName());
+  return -1;
+}
+
+UserIDResolver &Platform::GetUserIDResolver() {
+  if (IsHost())
+    return HostInfo::GetUserIDResolver();
+  return UserIDResolver::GetNoopResolver();
+}
 
 const char *Platform::GetHostname() {
   if (IsHost())
     return "127.0.0.1";
 
-  if (m_name.empty())
+  if (m_hostname.empty())
     return nullptr;
-  return m_name.c_str();
+  return m_hostname.c_str();
 }
 
 ConstString Platform::GetFullNameForDylib(ConstString basename) {
@@ -799,9 +737,9 @@ ConstString Platform::GetFullNameForDylib(ConstString basename) {
 }
 
 bool Platform::SetRemoteWorkingDirectory(const FileSpec &working_dir) {
-  Log *log = GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM);
+  Log *log = GetLog(LLDBLog::Platform);
   LLDB_LOGF(log, "Platform::SetRemoteWorkingDirectory('%s')",
-            working_dir.GetCString());
+            working_dir.GetPath().c_str());
   m_working_dir = working_dir;
   return true;
 }
@@ -844,7 +782,9 @@ Platform::ResolveExecutable(const ModuleSpec &module_spec,
       // architectures that we should be using (in the correct order) and see
       // if we can find a match that way
       ModuleSpec arch_module_spec(module_spec);
-      for (const ArchSpec &arch : GetSupportedArchitectures()) {
+      ArchSpec process_host_arch;
+      for (const ArchSpec &arch :
+           GetSupportedArchitectures(process_host_arch)) {
         arch_module_spec.GetArchitecture() = arch;
         error = ModuleList::GetSharedModule(arch_module_spec, exe_module_sp,
                                             module_search_paths_ptr, nullptr,
@@ -891,7 +831,8 @@ Platform::ResolveRemoteExecutable(const ModuleSpec &module_spec,
     // correct order) and see if we can find a match that way
     StreamString arch_names;
     llvm::ListSeparator LS;
-    for (const ArchSpec &arch : GetSupportedArchitectures()) {
+    ArchSpec process_host_arch;
+    for (const ArchSpec &arch : GetSupportedArchitectures(process_host_arch)) {
       resolved_module_spec.GetArchitecture() = arch;
       error = ModuleList::GetSharedModule(resolved_module_spec, exe_module_sp,
                                           module_search_paths_ptr, nullptr,
@@ -989,7 +930,8 @@ ArchSpec Platform::GetAugmentedArchSpec(llvm::StringRef triple) {
 
   ArchSpec compatible_arch;
   ArchSpec raw_arch(triple);
-  if (!IsCompatibleArchitecture(raw_arch, false, &compatible_arch))
+  if (!IsCompatibleArchitecture(raw_arch, {}, ArchSpec::CompatibleMatch,
+                                &compatible_arch))
     return raw_arch;
 
   if (!compatible_arch.IsValid())
@@ -1053,7 +995,7 @@ uint32_t Platform::FindProcesses(const ProcessInstanceInfoMatch &match_info,
 
 Status Platform::LaunchProcess(ProcessLaunchInfo &launch_info) {
   Status error;
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   LLDB_LOGF(log, "Platform::%s()", __FUNCTION__);
 
   // Take care of the host case so that each subclass can just call this
@@ -1106,7 +1048,7 @@ Status Platform::ShellExpandArguments(ProcessLaunchInfo &launch_info) {
 }
 
 Status Platform::KillProcess(const lldb::pid_t pid) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   LLDB_LOGF(log, "Platform::%s, pid %" PRIu64, __FUNCTION__, pid);
 
   if (!IsHost()) {
@@ -1120,7 +1062,7 @@ Status Platform::KillProcess(const lldb::pid_t pid) {
 lldb::ProcessSP Platform::DebugProcess(ProcessLaunchInfo &launch_info,
                                        Debugger &debugger, Target &target,
                                        Status &error) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   LLDB_LOG(log, "target = {0})", &target);
 
   ProcessSP process_sp;
@@ -1199,16 +1141,6 @@ lldb::ProcessSP Platform::DebugProcess(ProcessLaunchInfo &launch_info,
   return process_sp;
 }
 
-lldb::PlatformSP
-Platform::GetPlatformForArchitecture(const ArchSpec &arch,
-                                     ArchSpec *platform_arch_ptr) {
-  lldb::PlatformSP platform_sp;
-  Status error;
-  if (arch.IsValid())
-    platform_sp = Platform::Create(arch, platform_arch_ptr, error);
-  return platform_sp;
-}
-
 std::vector<ArchSpec>
 Platform::CreateArchList(llvm::ArrayRef<llvm::Triple::ArchType> archs,
                          llvm::Triple::OSType os) {
@@ -1225,15 +1157,15 @@ Platform::CreateArchList(llvm::ArrayRef<llvm::Triple::ArchType> archs,
 /// Lets a platform answer if it is compatible with a given
 /// architecture and the target triple contained within.
 bool Platform::IsCompatibleArchitecture(const ArchSpec &arch,
-                                        bool exact_arch_match,
+                                        const ArchSpec &process_host_arch,
+                                        ArchSpec::MatchType match,
                                         ArchSpec *compatible_arch_ptr) {
   // If the architecture is invalid, we must answer true...
   if (arch.IsValid()) {
     ArchSpec platform_arch;
-    auto match = exact_arch_match ? &ArchSpec::IsExactMatch
-                                  : &ArchSpec::IsCompatibleMatch;
-    for (const ArchSpec &platform_arch : GetSupportedArchitectures()) {
-      if ((arch.*match)(platform_arch)) {
+    for (const ArchSpec &platform_arch :
+         GetSupportedArchitectures(process_host_arch)) {
+      if (arch.IsMatch(platform_arch, match)) {
         if (compatible_arch_ptr)
           *compatible_arch_ptr = platform_arch;
         return true;
@@ -1247,7 +1179,7 @@ bool Platform::IsCompatibleArchitecture(const ArchSpec &arch,
 
 Status Platform::PutFile(const FileSpec &source, const FileSpec &destination,
                          uint32_t uid, uint32_t gid) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   LLDB_LOGF(log, "[PutFile] Using block by block transfer....\n");
 
   auto source_open_options =
@@ -1275,7 +1207,7 @@ Status Platform::PutFile(const FileSpec &source, const FileSpec &destination,
     return error;
   if (dest_file == UINT64_MAX)
     return Status("unable to open target file");
-  lldb::DataBufferSP buffer_sp(new DataBufferHeap(1024 * 16, 0));
+  lldb::WritableDataBufferSP buffer_sp(new DataBufferHeap(1024 * 16, 0));
   uint64_t offset = 0;
   for (;;) {
     size_t bytes_read = buffer_sp->GetByteSize();
@@ -1314,17 +1246,21 @@ Status
 Platform::CreateSymlink(const FileSpec &src, // The name of the link is in src
                         const FileSpec &dst) // The symlink points to dst
 {
-  Status error("unimplemented");
-  return error;
+  if (IsHost())
+    return FileSystem::Instance().Symlink(src, dst);
+  return Status("unimplemented");
 }
 
 bool Platform::GetFileExists(const lldb_private::FileSpec &file_spec) {
+  if (IsHost())
+    return FileSystem::Instance().Exists(file_spec);
   return false;
 }
 
 Status Platform::Unlink(const FileSpec &path) {
-  Status error("unimplemented");
-  return error;
+  if (IsHost())
+    return llvm::sys::fs::remove(path.GetPath());
+  return Status("unimplemented");
 }
 
 MmapArgList Platform::GetMmapArgumentList(const ArchSpec &arch, addr_t addr,
@@ -1370,8 +1306,7 @@ lldb_private::Status Platform::RunShellCommand(
   if (IsHost())
     return Host::RunShellCommand(shell, command, working_dir, status_ptr,
                                  signo_ptr, command_output, timeout);
-  else
-    return Status("unimplemented");
+  return Status("unable to run a remote command without a platform");
 }
 
 bool Platform::CalculateMD5(const FileSpec &file_spec, uint64_t &low,
@@ -1423,7 +1358,7 @@ static constexpr OptionDefinition g_caching_option_table[] = {
 };
 
 llvm::ArrayRef<OptionDefinition> OptionGroupPlatformRSync::GetDefinitions() {
-  return llvm::makeArrayRef(g_rsync_option_table);
+  return llvm::ArrayRef(g_rsync_option_table);
 }
 
 void OptionGroupPlatformRSync::OptionParsingStarting(
@@ -1471,7 +1406,7 @@ Platform::SetThreadCreationBreakpoint(lldb_private::Target &target) {
 }
 
 llvm::ArrayRef<OptionDefinition> OptionGroupPlatformSSH::GetDefinitions() {
-  return llvm::makeArrayRef(g_ssh_option_table);
+  return llvm::ArrayRef(g_ssh_option_table);
 }
 
 void OptionGroupPlatformSSH::OptionParsingStarting(
@@ -1504,7 +1439,7 @@ OptionGroupPlatformSSH::SetOptionValue(uint32_t option_idx,
 }
 
 llvm::ArrayRef<OptionDefinition> OptionGroupPlatformCaching::GetDefinitions() {
-  return llvm::makeArrayRef(g_caching_option_table);
+  return llvm::ArrayRef(g_caching_option_table);
 }
 
 void OptionGroupPlatformCaching::OptionParsingStarting(
@@ -1530,7 +1465,11 @@ lldb_private::Status OptionGroupPlatformCaching::SetOptionValue(
   return error;
 }
 
-Environment Platform::GetEnvironment() { return Environment(); }
+Environment Platform::GetEnvironment() {
+  if (IsHost())
+    return Host::GetEnvironment();
+  return Environment();
+}
 
 const std::vector<ConstString> &Platform::GetTrapHandlerSymbolNames() {
   if (!m_calculated_trap_handlers) {
@@ -1570,8 +1509,10 @@ Status Platform::GetRemoteSharedModule(const ModuleSpec &module_spec,
                                        bool *did_create_ptr) {
   // Get module information from a target.
   ModuleSpec resolved_module_spec;
+  ArchSpec process_host_arch;
   bool got_module_spec = false;
   if (process) {
+    process_host_arch = process->GetSystemArchitecture();
     // Try to get module information from the process
     if (process->GetModuleSpec(module_spec.GetFileSpec(),
                                module_spec.GetArchitecture(),
@@ -1589,7 +1530,7 @@ Status Platform::GetRemoteSharedModule(const ModuleSpec &module_spec,
     // architectures that we should be using (in the correct order) and see if
     // we can find a match that way
     ModuleSpec arch_module_spec(module_spec);
-    for (const ArchSpec &arch : GetSupportedArchitectures()) {
+    for (const ArchSpec &arch : GetSupportedArchitectures(process_host_arch)) {
       arch_module_spec.GetArchitecture() = arch;
       error = ModuleList::GetSharedModule(arch_module_spec, module_sp, nullptr,
                                           nullptr, nullptr);
@@ -1643,7 +1584,7 @@ bool Platform::GetCachedSharedModule(const ModuleSpec &module_spec,
       !GetGlobalPlatformProperties().GetModuleCacheDirectory())
     return false;
 
-  Log *log = GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM);
+  Log *log = GetLog(LLDBLog::Platform);
 
   // Check local cache for a module.
   auto error = m_module_cache->GetAndPut(
@@ -1725,7 +1666,7 @@ Status Platform::DownloadSymbolFile(const lldb::ModuleSP &module_sp,
 
 FileSpec Platform::GetModuleCacheRoot() {
   auto dir_spec = GetGlobalPlatformProperties().GetModuleCacheDirectory();
-  dir_spec.AppendPathComponent(GetName().AsCString());
+  dir_spec.AppendPathComponent(GetPluginName());
   return dir_spec;
 }
 
@@ -1832,24 +1773,20 @@ lldb::ProcessSP Platform::DoConnectProcess(llvm::StringRef connect_url,
   error.Clear();
 
   if (!target) {
-    ArchSpec arch;
-    if (target && target->GetArchitecture().IsValid())
-      arch = target->GetArchitecture();
-    else
-      arch = Target::GetDefaultArchitecture();
+    ArchSpec arch = Target::GetDefaultArchitecture();
 
-    const char *triple = "";
-    if (arch.IsValid())
-      triple = arch.GetTriple().getTriple().c_str();
+    const char *triple =
+        arch.IsValid() ? arch.GetTriple().getTriple().c_str() : "";
 
     TargetSP new_target_sp;
     error = debugger.GetTargetList().CreateTarget(
         debugger, "", triple, eLoadDependentsNo, nullptr, new_target_sp);
-    target = new_target_sp.get();
-  }
 
-  if (!target || error.Fail())
-    return nullptr;
+    target = new_target_sp.get();
+    if (!target || error.Fail()) {
+      return nullptr;
+    }
+  }
 
   lldb::ProcessSP process_sp =
       target->CreateProcess(debugger.GetListener(), plugin_name, nullptr, true);
@@ -1874,7 +1811,7 @@ lldb::ProcessSP Platform::DoConnectProcess(llvm::StringRef connect_url,
 
   if (synchronous) {
     EventSP event_sp;
-    process_sp->WaitForProcessToStop(llvm::None, &event_sp, true, listener_sp,
+    process_sp->WaitForProcessToStop(std::nullopt, &event_sp, true, listener_sp,
                                      nullptr);
     process_sp->RestoreProcessEvents();
     bool pop_process_io_handler = false;
@@ -1990,6 +1927,27 @@ size_t Platform::GetSoftwareBreakpointTrapOpcode(Target &target,
     trap_opcode_size = sizeof(g_i386_opcode);
   } break;
 
+  case llvm::Triple::riscv32:
+  case llvm::Triple::riscv64: {
+    static const uint8_t g_riscv_opcode[] = {0x73, 0x00, 0x10, 0x00}; // ebreak
+    static const uint8_t g_riscv_opcode_c[] = {0x02, 0x90}; // c.ebreak
+    if (arch.GetFlags() & ArchSpec::eRISCV_rvc) {
+      trap_opcode = g_riscv_opcode_c;
+      trap_opcode_size = sizeof(g_riscv_opcode_c);
+    } else {
+      trap_opcode = g_riscv_opcode;
+      trap_opcode_size = sizeof(g_riscv_opcode);
+    }
+  } break;
+
+  case llvm::Triple::loongarch32:
+  case llvm::Triple::loongarch64: {
+    static const uint8_t g_loongarch_opcode[] = {0x05, 0x00, 0x2a,
+                                                 0x00}; // break 0x5
+    trap_opcode = g_loongarch_opcode;
+    trap_opcode_size = sizeof(g_loongarch_opcode);
+  } break;
+
   default:
     return 0;
   }
@@ -1999,4 +1957,158 @@ size_t Platform::GetSoftwareBreakpointTrapOpcode(Target &target,
     return trap_opcode_size;
 
   return 0;
+}
+
+CompilerType Platform::GetSiginfoType(const llvm::Triple& triple) {
+  return CompilerType();
+}
+
+Args Platform::GetExtraStartupCommands() {
+  return {};
+}
+
+PlatformSP PlatformList::GetOrCreate(llvm::StringRef name) {
+  std::lock_guard<std::recursive_mutex> guard(m_mutex);
+  for (const PlatformSP &platform_sp : m_platforms) {
+    if (platform_sp->GetName() == name)
+      return platform_sp;
+  }
+  return Create(name);
+}
+
+PlatformSP PlatformList::GetOrCreate(const ArchSpec &arch,
+                                     const ArchSpec &process_host_arch,
+                                     ArchSpec *platform_arch_ptr,
+                                     Status &error) {
+  std::lock_guard<std::recursive_mutex> guard(m_mutex);
+  // First try exact arch matches across all platforms already created
+  for (const auto &platform_sp : m_platforms) {
+    if (platform_sp->IsCompatibleArchitecture(
+            arch, process_host_arch, ArchSpec::ExactMatch, platform_arch_ptr))
+      return platform_sp;
+  }
+
+  // Next try compatible arch matches across all platforms already created
+  for (const auto &platform_sp : m_platforms) {
+    if (platform_sp->IsCompatibleArchitecture(arch, process_host_arch,
+                                              ArchSpec::CompatibleMatch,
+                                              platform_arch_ptr))
+      return platform_sp;
+  }
+
+  PlatformCreateInstance create_callback;
+  // First try exact arch matches across all platform plug-ins
+  uint32_t idx;
+  for (idx = 0;
+       (create_callback = PluginManager::GetPlatformCreateCallbackAtIndex(idx));
+       ++idx) {
+    PlatformSP platform_sp = create_callback(false, &arch);
+    if (platform_sp &&
+        platform_sp->IsCompatibleArchitecture(
+            arch, process_host_arch, ArchSpec::ExactMatch, platform_arch_ptr)) {
+      m_platforms.push_back(platform_sp);
+      return platform_sp;
+    }
+  }
+  // Next try compatible arch matches across all platform plug-ins
+  for (idx = 0;
+       (create_callback = PluginManager::GetPlatformCreateCallbackAtIndex(idx));
+       ++idx) {
+    PlatformSP platform_sp = create_callback(false, &arch);
+    if (platform_sp && platform_sp->IsCompatibleArchitecture(
+                           arch, process_host_arch, ArchSpec::CompatibleMatch,
+                           platform_arch_ptr)) {
+      m_platforms.push_back(platform_sp);
+      return platform_sp;
+    }
+  }
+  if (platform_arch_ptr)
+    platform_arch_ptr->Clear();
+  return nullptr;
+}
+
+PlatformSP PlatformList::GetOrCreate(const ArchSpec &arch,
+                                     const ArchSpec &process_host_arch,
+                                     ArchSpec *platform_arch_ptr) {
+  Status error;
+  if (arch.IsValid())
+    return GetOrCreate(arch, process_host_arch, platform_arch_ptr, error);
+  return nullptr;
+}
+
+PlatformSP PlatformList::GetOrCreate(llvm::ArrayRef<ArchSpec> archs,
+                                     const ArchSpec &process_host_arch,
+                                     std::vector<PlatformSP> &candidates) {
+  candidates.clear();
+  candidates.reserve(archs.size());
+
+  if (archs.empty())
+    return nullptr;
+
+  PlatformSP host_platform_sp = Platform::GetHostPlatform();
+
+  // Prefer the selected platform if it matches at least one architecture.
+  if (m_selected_platform_sp) {
+    for (const ArchSpec &arch : archs) {
+      if (m_selected_platform_sp->IsCompatibleArchitecture(
+              arch, process_host_arch, ArchSpec::CompatibleMatch, nullptr))
+        return m_selected_platform_sp;
+    }
+  }
+
+  // Prefer the host platform if it matches at least one architecture.
+  if (host_platform_sp) {
+    for (const ArchSpec &arch : archs) {
+      if (host_platform_sp->IsCompatibleArchitecture(
+              arch, process_host_arch, ArchSpec::CompatibleMatch, nullptr))
+        return host_platform_sp;
+    }
+  }
+
+  // Collect a list of candidate platforms for the architectures.
+  for (const ArchSpec &arch : archs) {
+    if (PlatformSP platform = GetOrCreate(arch, process_host_arch, nullptr))
+      candidates.push_back(platform);
+  }
+
+  // The selected or host platform didn't match any of the architectures. If
+  // the same platform supports all architectures then that's the obvious next
+  // best thing.
+  if (candidates.size() == archs.size()) {
+    if (llvm::all_of(candidates, [&](const PlatformSP &p) -> bool {
+          return p->GetName() == candidates.front()->GetName();
+        })) {
+      return candidates.front();
+    }
+  }
+
+  // At this point we either have no platforms that match the given
+  // architectures or multiple platforms with no good way to disambiguate
+  // between them.
+  return nullptr;
+}
+
+PlatformSP PlatformList::Create(llvm::StringRef name) {
+  std::lock_guard<std::recursive_mutex> guard(m_mutex);
+  PlatformSP platform_sp = Platform::Create(name);
+  m_platforms.push_back(platform_sp);
+  return platform_sp;
+}
+
+bool PlatformList::LoadPlatformBinaryAndSetup(Process *process,
+                                              lldb::addr_t addr, bool notify) {
+  std::lock_guard<std::recursive_mutex> guard(m_mutex);
+
+  PlatformCreateInstance create_callback;
+  for (int idx = 0;
+       (create_callback = PluginManager::GetPlatformCreateCallbackAtIndex(idx));
+       ++idx) {
+    ArchSpec arch;
+    PlatformSP platform_sp = create_callback(true, &arch);
+    if (platform_sp) {
+      if (platform_sp->LoadPlatformBinaryAndSetup(process, addr, notify))
+        return true;
+    }
+  }
+  return false;
 }

@@ -13,10 +13,11 @@
 #include <__concepts/invocable.h>
 #include <__concepts/same_as.h>
 #include <__config>
-#include <type_traits>
+#include <__functional/invoke.h>
+#include <__type_traits/integral_constant.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS
@@ -24,7 +25,7 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#if _LIBCPP_STD_VER >= 20
 
 // [rand.req.urng]
 template<class _Gen>
@@ -36,7 +37,7 @@ concept uniform_random_bit_generator =
     requires bool_constant<(_Gen::min() < _Gen::max())>::value;
   };
 
-#endif // _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

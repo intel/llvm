@@ -20,6 +20,7 @@
 // RUN: %clang -target powerpc64-unknown-freebsd12 %s -### 2>&1 | FileCheck --check-prefix=CHECK-ELFv1 %s
 // RUN: %clang -target powerpc64-unknown-freebsd13 %s -### 2>&1 | FileCheck --check-prefix=CHECK-ELFv2-BE %s
 // RUN: %clang -target powerpc64-unknown-freebsd14 %s -### 2>&1 | FileCheck --check-prefix=CHECK-ELFv2-BE %s
+// RUN: %clang -target powerpc64-unknown-freebsd %s -### 2>&1 | FileCheck --check-prefix=CHECK-ELFv2-BE %s
 // RUN: %clang -target powerpc64le-unknown-freebsd13 %s -### 2>&1 | FileCheck --check-prefix=CHECK-ELFv2 %s
 // RUN: %clang -target powerpc64-unknown-openbsd %s -### 2>&1 | FileCheck --check-prefix=CHECK-ELFv2-BE-PIE %s
 // RUN: %clang -target powerpc64-linux-musl %s -### 2>&1 | FileCheck --check-prefix=CHECK-ELFv2-BE-PIE %s
@@ -63,9 +64,6 @@
 // CHECK-ELFv1-IEEE: "-mabi=ieeelongdouble"
 // CHECK-ELFv1-IEEE: "-target-abi" "elfv1"
 
-// Check -mabi=ibmlongdouble is the default.
-// RUN: %clang -target powerpc64le-linux-gnu %s -### 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-ELFv2-IBM128 %s
 // RUN: %clang -target powerpc64le-linux-gnu %s -mabi=ibmlongdouble -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-ELFv2-IBM128 %s
 

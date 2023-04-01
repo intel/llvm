@@ -7,15 +7,26 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestAttributes.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/FormatVariadic.h"
 
 using namespace mlir;
 using namespace test;
 
+// Helper to print one scalar value, force int8_t to print as integer instead of
+// char.
+template <typename T>
+static void printOneElement(InFlightDiagnostic &os, T value) {
+  os << llvm::formatv("{0}", value).str();
+}
+
 namespace {
 struct TestElementsAttrInterface
     : public PassWrapper<TestElementsAttrInterface, OperationPass<ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestElementsAttrInterface)
+
   StringRef getArgument() const final { return "test-elements-attr-interface"; }
   StringRef getDescription() const final {
     return "Test ElementsAttr interface support.";
@@ -26,6 +37,7 @@ struct TestElementsAttrInterface
         auto elementsAttr = attr.getValue().dyn_cast<ElementsAttr>();
         if (!elementsAttr)
           continue;
+        testElementsAttrIteration<int64_t>(op, elementsAttr, "int64_t");
         testElementsAttrIteration<uint64_t>(op, elementsAttr, "uint64_t");
         testElementsAttrIteration<APInt>(op, elementsAttr, "APInt");
         testElementsAttrIteration<IntegerAttr>(op, elementsAttr, "IntegerAttr");
@@ -45,9 +57,8 @@ struct TestElementsAttrInterface
       return;
     }
 
-    llvm::interleaveComma(*values, diag, [&](T value) {
-      diag << llvm::formatv("{0}", value).str();
-    });
+    llvm::interleaveComma(*values, diag,
+                          [&](T value) { printOneElement(diag, value); });
   }
 };
 } // namespace

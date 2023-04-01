@@ -23,10 +23,18 @@ public:
 
   SBError(const lldb::SBError &rhs);
 
+#ifndef SWIG
+  SBError(const lldb_private::Status &error);
+#endif
+
   ~SBError();
 
   const SBError &operator=(const lldb::SBError &rhs);
 
+  /// Get the error string as a NULL terminated UTF8 c-string.
+  ///
+  /// This SBError object owns the returned string and this object must be kept
+  /// around long enough to use the returned string.
   const char *GetCString() const;
 
   void Clear();
@@ -47,8 +55,14 @@ public:
 
   void SetErrorString(const char *err_str);
 
-  int SetErrorStringWithFormat(const char *format, ...)
-      __attribute__((format(printf, 2, 3)));
+#ifndef SWIG
+  __attribute__((format(printf, 2, 3)))
+#else
+  // clang-format off
+  %varargs(3, char *str = NULL) SetErrorStringWithFormat;
+  // clang-format on
+#endif
+  int SetErrorStringWithFormat(const char *format, ...);
 
   explicit operator bool() const;
 
@@ -64,6 +78,7 @@ protected:
   friend class SBCommunication;
   friend class SBData;
   friend class SBDebugger;
+  friend class SBFile;
   friend class SBHostOS;
   friend class SBPlatform;
   friend class SBProcess;
@@ -73,8 +88,8 @@ protected:
   friend class SBThread;
   friend class SBTrace;
   friend class SBValue;
+  friend class SBValueList;
   friend class SBWatchpoint;
-  friend class SBFile;
 
   friend class lldb_private::ScriptInterpreter;
 

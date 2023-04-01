@@ -20,10 +20,10 @@
 #include "M68kMachineFunction.h"
 #include "M68kSubtarget.h"
 
-#include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/IR/EHPersonalities.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/Support/MathExtras.h"
 
@@ -231,7 +231,7 @@ public:
   }
 
   bool runOnMachineFunction(MachineFunction &MF) override {
-    STI = &static_cast<const M68kSubtarget &>(MF.getSubtarget());
+    STI = &MF.getSubtarget<M68kSubtarget>();
     TII = STI->getInstrInfo();
     TRI = STI->getRegisterInfo();
     MFI = MF.getInfo<M68kMachineFunctionInfo>();

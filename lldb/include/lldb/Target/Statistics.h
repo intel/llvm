@@ -9,19 +9,42 @@
 #ifndef LLDB_TARGET_STATISTICS_H
 #define LLDB_TARGET_STATISTICS_H
 
-#include <chrono>
-#include <string>
-#include <vector>
-
+#include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/lldb-forward.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/JSON.h"
+#include <atomic>
+#include <chrono>
+#include <optional>
+#include <ratio>
+#include <string>
+#include <vector>
 
 namespace lldb_private {
 
 using StatsClock = std::chrono::high_resolution_clock;
-using StatsDuration = std::chrono::duration<double>;
 using StatsTimepoint = std::chrono::time_point<StatsClock>;
+
+class StatsDuration {
+public:
+  using Duration = std::chrono::duration<double>;
+
+  Duration get() const {
+    return Duration(InternalDuration(value.load(std::memory_order_relaxed)));
+  }
+  operator Duration() const { return get(); }
+
+  StatsDuration &operator+=(Duration dur) {
+    value.fetch_add(std::chrono::duration_cast<InternalDuration>(dur).count(),
+                    std::memory_order_relaxed);
+    return *this;
+  }
+
+private:
+  using InternalDuration = std::chrono::duration<uint64_t, std::micro>;
+  std::atomic<uint64_t> value{0};
+};
 
 /// A class that measures elapsed time in an exception safe way.
 ///
@@ -54,7 +77,7 @@ public:
     m_start_time = StatsClock::now();
   }
   ~ElapsedTime() {
-    StatsDuration elapsed = StatsClock::now() - m_start_time;
+    StatsClock::duration elapsed = StatsClock::now() - m_start_time;
     m_elapsed_time += elapsed;
   }
 };
@@ -79,6 +102,14 @@ struct ModuleStats {
   std::string path;
   std::string uuid;
   std::string triple;
+  // Path separate debug info file, or empty if none.
+  std::string symfile_path;
+  // If the debug info is contained in multiple files where each one is
+  // represented as a separate lldb_private::Module, then these are the
+  // identifiers of these modules in the global module list. This allows us to
+  // track down all of the stats that contribute to this module.
+  std::vector<intptr_t> symfile_modules;
+  llvm::StringMap<llvm::json::Value> type_system_stats;
   double symtab_parse_time = 0.0;
   double symtab_index_time = 0.0;
   double debug_parse_time = 0.0;
@@ -88,6 +119,15 @@ struct ModuleStats {
   bool symtab_saved_to_cache = false;
   bool debug_info_index_loaded_from_cache = false;
   bool debug_info_index_saved_to_cache = false;
+  bool debug_info_enabled = true;
+  bool symtab_stripped = false;
+  bool debug_info_had_variable_errors = false;
+  bool debug_info_had_incomplete_types = false;
+};
+
+struct ConstStringStats {
+  llvm::json::Value ToJSON() const;
+  ConstString::MemoryStats stats = ConstString::GetMemoryStats();
 };
 
 /// A class that represents statistics for a since lldb_private::Target.
@@ -98,19 +138,21 @@ public:
   void SetLaunchOrAttachTime();
   void SetFirstPrivateStopTime();
   void SetFirstPublicStopTime();
+  void IncreaseSourceMapDeduceCount();
 
   StatsDuration &GetCreateTime() { return m_create_time; }
   StatsSuccessFail &GetExpressionStats() { return m_expr_eval; }
   StatsSuccessFail &GetFrameVariableStats() { return m_frame_var; }
 
 protected:
-  StatsDuration m_create_time{0.0};
-  llvm::Optional<StatsTimepoint> m_launch_or_attach_time;
-  llvm::Optional<StatsTimepoint> m_first_private_stop_time;
-  llvm::Optional<StatsTimepoint> m_first_public_stop_time;
+  StatsDuration m_create_time;
+  std::optional<StatsTimepoint> m_launch_or_attach_time;
+  std::optional<StatsTimepoint> m_first_private_stop_time;
+  std::optional<StatsTimepoint> m_first_public_stop_time;
   StatsSuccessFail m_expr_eval{"expressionEvaluation"};
   StatsSuccessFail m_frame_var{"frameVariable"};
   std::vector<intptr_t> m_module_identifiers;
+  uint32_t m_source_map_deduce_count = 0;
   void CollectStats(Target &target);
 };
 

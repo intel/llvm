@@ -12,21 +12,28 @@
 
 #include "macho_platform.h"
 #include "common.h"
+#include "debug.h"
 #include "error.h"
+#include "interval_map.h"
 #include "wrapper_function_utils.h"
 
+#include <algorithm>
+#include <ios>
 #include <map>
 #include <mutex>
 #include <sstream>
+#include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
+
+#define DEBUG_TYPE "macho_platform"
 
 using namespace __orc_rt;
 using namespace __orc_rt::macho;
 
 // Declare function tags for functions in the JIT process.
-ORC_RT_JIT_DISPATCH_TAG(__orc_rt_macho_get_initializers_tag)
-ORC_RT_JIT_DISPATCH_TAG(__orc_rt_macho_get_deinitializers_tag)
+ORC_RT_JIT_DISPATCH_TAG(__orc_rt_macho_push_initializers_tag)
 ORC_RT_JIT_DISPATCH_TAG(__orc_rt_macho_symbol_lookup_tag)
 
 // Objective-C types.
@@ -64,149 +71,98 @@ extern "C" void swift_registerTypeMetadataRecords(
     const TypeMetadataRecord *begin,
     const TypeMetadataRecord *end) ORC_RT_WEAK_IMPORT;
 
+// Libunwind prototypes.
+struct unw_dynamic_unwind_sections {
+  uintptr_t dso_base;
+  uintptr_t dwarf_section;
+  size_t dwarf_section_length;
+  uintptr_t compact_unwind_section;
+  size_t compact_unwind_section_length;
+};
+
+typedef int (*unw_find_dynamic_unwind_sections)(
+    uintptr_t addr, struct unw_dynamic_unwind_sections *info);
+
+extern "C" int __unw_add_find_dynamic_unwind_sections(
+    unw_find_dynamic_unwind_sections find_dynamic_unwind_sections)
+    ORC_RT_WEAK_IMPORT;
+
+extern "C" int __unw_remove_find_dynamic_unwind_sections(
+    unw_find_dynamic_unwind_sections find_dynamic_unwind_sections)
+    ORC_RT_WEAK_IMPORT;
+
 namespace {
 
-Error validatePointerSectionExtent(const char *SectionName,
-                                   const ExecutorAddrRange &SE) {
-  if (SE.size().getValue() % sizeof(uintptr_t)) {
-    std::ostringstream ErrMsg;
-    ErrMsg << std::hex << "Size of " << SectionName << " 0x"
-           << SE.Start.getValue() << " -- 0x" << SE.End.getValue()
-           << " is not a pointer multiple";
-    return make_error<StringError>(ErrMsg.str());
-  }
-  return Error::success();
-}
+struct MachOJITDylibDepInfo {
+  bool Sealed = false;
+  std::vector<ExecutorAddr> DepHeaders;
+};
 
-Error registerObjCSelectors(
-    const std::vector<ExecutorAddrRange> &ObjCSelRefsSections,
-    const MachOJITDylibInitializers &MOJDIs) {
+using MachOJITDylibDepInfoMap =
+    std::unordered_map<ExecutorAddr, MachOJITDylibDepInfo>;
 
-  if (ORC_RT_UNLIKELY(!sel_registerName))
-    return make_error<StringError>("sel_registerName is not available");
+} // anonymous namespace
 
-  for (const auto &ObjCSelRefs : ObjCSelRefsSections) {
+namespace __orc_rt {
 
-    if (auto Err = validatePointerSectionExtent("__objc_selrefs", ObjCSelRefs))
-      return Err;
+using SPSMachOObjectPlatformSectionsMap =
+    SPSSequence<SPSTuple<SPSString, SPSExecutorAddrRange>>;
 
-    for (uintptr_t &SelEntry : ObjCSelRefs.toSpan<uintptr_t>()) {
-      const char *SelName = reinterpret_cast<const char *>(SelEntry);
-      auto Sel = sel_registerName(SelName);
-      *reinterpret_cast<SEL *>(&SelEntry) = Sel;
-    }
+using SPSMachOJITDylibDepInfo = SPSTuple<bool, SPSSequence<SPSExecutorAddr>>;
+
+using SPSMachOJITDylibDepInfoMap =
+    SPSSequence<SPSTuple<SPSExecutorAddr, SPSMachOJITDylibDepInfo>>;
+
+template <>
+class SPSSerializationTraits<SPSMachOJITDylibDepInfo, MachOJITDylibDepInfo> {
+public:
+  static size_t size(const MachOJITDylibDepInfo &JDI) {
+    return SPSMachOJITDylibDepInfo::AsArgList::size(JDI.Sealed, JDI.DepHeaders);
   }
 
-  return Error::success();
-}
-
-Error registerObjCClasses(
-    const std::vector<ExecutorAddrRange> &ObjCClassListSections,
-    const MachOJITDylibInitializers &MOJDIs) {
-
-  if (ObjCClassListSections.empty())
-    return Error::success();
-
-  if (ORC_RT_UNLIKELY(!objc_msgSend))
-    return make_error<StringError>("objc_msgSend is not available");
-  if (ORC_RT_UNLIKELY(!objc_readClassPair))
-    return make_error<StringError>("objc_readClassPair is not available");
-
-  struct ObjCClassCompiled {
-    void *Metaclass;
-    void *Parent;
-    void *Cache1;
-    void *Cache2;
-    void *Data;
-  };
-
-  auto *ImageInfo =
-      MOJDIs.ObjCImageInfoAddress.toPtr<const objc_image_info *>();
-  auto ClassSelector = sel_registerName("class");
-
-  for (const auto &ObjCClassList : ObjCClassListSections) {
-
-    if (auto Err =
-            validatePointerSectionExtent("__objc_classlist", ObjCClassList))
-      return Err;
-
-    for (uintptr_t ClassPtr : ObjCClassList.toSpan<uintptr_t>()) {
-      auto *Cls = reinterpret_cast<Class>(ClassPtr);
-      auto *ClassCompiled = reinterpret_cast<ObjCClassCompiled *>(ClassPtr);
-      objc_msgSend(reinterpret_cast<id>(ClassCompiled->Parent), ClassSelector);
-      auto Registered = objc_readClassPair(Cls, ImageInfo);
-
-      // FIXME: Improve diagnostic by reporting the failed class's name.
-      if (Registered != Cls)
-        return make_error<StringError>("Unable to register Objective-C class");
-    }
-  }
-  return Error::success();
-}
-
-Error registerSwift5Protocols(
-    const std::vector<ExecutorAddrRange> &Swift5ProtocolSections,
-    const MachOJITDylibInitializers &MOJDIs) {
-
-  if (ORC_RT_UNLIKELY(!Swift5ProtocolSections.empty() &&
-                      !swift_registerProtocols))
-    return make_error<StringError>("swift_registerProtocols is not available");
-
-  for (const auto &Swift5Protocols : Swift5ProtocolSections)
-    swift_registerProtocols(
-        Swift5Protocols.Start.toPtr<const ProtocolRecord *>(),
-        Swift5Protocols.End.toPtr<const ProtocolRecord *>());
-
-  return Error::success();
-}
-
-Error registerSwift5ProtocolConformances(
-    const std::vector<ExecutorAddrRange> &Swift5ProtocolConformanceSections,
-    const MachOJITDylibInitializers &MOJDIs) {
-
-  if (ORC_RT_UNLIKELY(!Swift5ProtocolConformanceSections.empty() &&
-                      !swift_registerProtocolConformances))
-    return make_error<StringError>(
-        "swift_registerProtocolConformances is not available");
-
-  for (const auto &ProtoConfSec : Swift5ProtocolConformanceSections)
-    swift_registerProtocolConformances(
-        ProtoConfSec.Start.toPtr<const ProtocolConformanceRecord *>(),
-        ProtoConfSec.End.toPtr<const ProtocolConformanceRecord *>());
-
-  return Error::success();
-}
-
-Error registerSwift5Types(const std::vector<ExecutorAddrRange> &Sections,
-                          const MachOJITDylibInitializers &MOJDIs) {
-
-  if (ORC_RT_UNLIKELY(!Sections.empty() && !swift_registerTypeMetadataRecords))
-    return make_error<StringError>(
-        "swift_registerTypeMetadataRecords is not available");
-
-  for (const auto &Section : Sections)
-    swift_registerTypeMetadataRecords(
-        Section.Start.toPtr<const TypeMetadataRecord *>(),
-        Section.End.toPtr<const TypeMetadataRecord *>());
-
-  return Error::success();
-}
-
-Error runModInits(const std::vector<ExecutorAddrRange> &ModInitsSections,
-                  const MachOJITDylibInitializers &MOJDIs) {
-
-  for (const auto &ModInits : ModInitsSections) {
-    if (auto Err = validatePointerSectionExtent("__mod_inits", ModInits))
-      return Err;
-
-    using InitFunc = void (*)();
-    for (auto *Init : ModInits.toSpan<InitFunc>())
-      (*Init)();
+  static bool serialize(SPSOutputBuffer &OB, const MachOJITDylibDepInfo &JDI) {
+    return SPSMachOJITDylibDepInfo::AsArgList::serialize(OB, JDI.Sealed,
+                                                         JDI.DepHeaders);
   }
 
-  return Error::success();
-}
+  static bool deserialize(SPSInputBuffer &IB, MachOJITDylibDepInfo &JDI) {
+    return SPSMachOJITDylibDepInfo::AsArgList::deserialize(IB, JDI.Sealed,
+                                                           JDI.DepHeaders);
+  }
+};
 
+struct UnwindSectionInfo {
+  std::vector<ExecutorAddrRange> CodeRanges;
+  ExecutorAddrRange DwarfSection;
+  ExecutorAddrRange CompactUnwindSection;
+};
+
+using SPSUnwindSectionInfo =
+    SPSTuple<SPSSequence<SPSExecutorAddrRange>, SPSExecutorAddrRange,
+             SPSExecutorAddrRange>;
+
+template <>
+class SPSSerializationTraits<SPSUnwindSectionInfo, UnwindSectionInfo> {
+public:
+  static size_t size(const UnwindSectionInfo &USI) {
+    return SPSUnwindSectionInfo::AsArgList::size(
+        USI.CodeRanges, USI.DwarfSection, USI.CompactUnwindSection);
+  }
+
+  static bool serialize(SPSOutputBuffer &OB, const UnwindSectionInfo &USI) {
+    return SPSUnwindSectionInfo::AsArgList::serialize(
+        OB, USI.CodeRanges, USI.DwarfSection, USI.CompactUnwindSection);
+  }
+
+  static bool deserialize(SPSInputBuffer &IB, UnwindSectionInfo &USI) {
+    return SPSUnwindSectionInfo::AsArgList::deserialize(
+        IB, USI.CodeRanges, USI.DwarfSection, USI.CompactUnwindSection);
+  }
+};
+
+} // namespace __orc_rt
+
+namespace {
 struct TLVDescriptor {
   void *(*Thunk)(TLVDescriptor *) = nullptr;
   unsigned long Key = 0;
@@ -222,17 +178,133 @@ private:
 
   using AtExitsVector = std::vector<AtExitEntry>;
 
-  struct PerJITDylibState {
+  /// Used to manage sections of fixed-sized metadata records (e.g. pointer
+  /// sections, selector refs, etc.)
+  template <typename RecordElement> class RecordSectionsTracker {
+  public:
+    /// Add a section to the "new" list.
+    void add(span<RecordElement> Sec) { New.push_back(std::move(Sec)); }
+
+    /// Returns true if there are new sections to process.
+    bool hasNewSections() const { return !New.empty(); }
+
+    /// Returns the number of new sections to process.
+    size_t numNewSections() const { return New.size(); }
+
+    /// Process all new sections.
+    template <typename ProcessSectionFunc>
+    std::enable_if_t<std::is_void_v<
+        std::invoke_result_t<ProcessSectionFunc, span<RecordElement>>>>
+    processNewSections(ProcessSectionFunc &&ProcessSection) {
+      for (auto &Sec : New)
+        ProcessSection(Sec);
+      moveNewToProcessed();
+    }
+
+    /// Proces all new sections with a fallible handler.
+    ///
+    /// Successfully handled sections will be moved to the Processed
+    /// list.
+    template <typename ProcessSectionFunc>
+    std::enable_if_t<
+        std::is_same_v<Error, std::invoke_result_t<ProcessSectionFunc,
+                                                   span<RecordElement>>>,
+        Error>
+    processNewSections(ProcessSectionFunc &&ProcessSection) {
+      for (size_t I = 0; I != New.size(); ++I) {
+        if (auto Err = ProcessSection(New[I])) {
+          for (size_t J = 0; J != I; ++J)
+            Processed.push_back(New[J]);
+          New.erase(New.begin(), New.begin() + I);
+          return Err;
+        }
+      }
+      moveNewToProcessed();
+      return Error::success();
+    }
+
+    /// Move all sections back to New for reprocessing.
+    void reset() {
+      moveNewToProcessed();
+      New = std::move(Processed);
+    }
+
+    /// Remove the section with the given range.
+    bool removeIfPresent(ExecutorAddrRange R) {
+      if (removeIfPresent(New, R))
+        return true;
+      return removeIfPresent(Processed, R);
+    }
+
+  private:
+    void moveNewToProcessed() {
+      if (Processed.empty())
+        Processed = std::move(New);
+      else {
+        Processed.reserve(Processed.size() + New.size());
+        std::copy(New.begin(), New.end(), std::back_inserter(Processed));
+        New.clear();
+      }
+    }
+
+    bool removeIfPresent(std::vector<span<RecordElement>> &V,
+                         ExecutorAddrRange R) {
+      auto RI = std::find_if(
+          V.rbegin(), V.rend(),
+          [RS = R.toSpan<RecordElement>()](const span<RecordElement> &E) {
+            return E.data() == RS.data();
+          });
+      if (RI != V.rend()) {
+        V.erase(std::next(RI).base());
+        return true;
+      }
+      return false;
+    }
+
+    std::vector<span<RecordElement>> Processed;
+    std::vector<span<RecordElement>> New;
+  };
+
+  struct UnwindSections {
+    UnwindSections(const UnwindSectionInfo &USI)
+        : DwarfSection(USI.DwarfSection.toSpan<char>()),
+          CompactUnwindSection(USI.CompactUnwindSection.toSpan<char>()) {}
+
+    span<char> DwarfSection;
+    span<char> CompactUnwindSection;
+  };
+
+  using UnwindSectionsMap =
+      IntervalMap<char *, UnwindSections, IntervalCoalescing::Disabled>;
+
+  struct JITDylibState {
+    std::string Name;
     void *Header = nullptr;
-    size_t RefCount = 0;
-    bool AllowReinitialization = false;
+    bool Sealed = false;
+    size_t LinkedAgainstRefCount = 0;
+    size_t DlRefCount = 0;
+    std::vector<JITDylibState *> Deps;
     AtExitsVector AtExits;
+    const objc_image_info *ObjCImageInfo = nullptr;
+    std::unordered_map<void *, std::vector<char>> DataSectionContent;
+    std::unordered_map<void *, size_t> ZeroInitRanges;
+    UnwindSectionsMap UnwindSections;
+    RecordSectionsTracker<void (*)()> ModInitsSections;
+    RecordSectionsTracker<void *> ObjCClassListSections;
+    RecordSectionsTracker<void *> ObjCSelRefsSections;
+    RecordSectionsTracker<char> Swift5ProtocolsSections;
+    RecordSectionsTracker<char> Swift5ProtocolConformancesSections;
+    RecordSectionsTracker<char> Swift5TypesSections;
+
+    bool referenced() const {
+      return LinkedAgainstRefCount != 0 || DlRefCount != 0;
+    }
   };
 
 public:
-  static void initialize();
+  static Error create();
   static MachOPlatformRuntimeState &get();
-  static void destroy();
+  static Error destroy();
 
   MachOPlatformRuntimeState() = default;
 
@@ -243,15 +315,28 @@ public:
   MachOPlatformRuntimeState(MachOPlatformRuntimeState &&) = delete;
   MachOPlatformRuntimeState &operator=(MachOPlatformRuntimeState &&) = delete;
 
-  Error registerThreadDataSection(span<const char> ThreadDataSec);
-  Error deregisterThreadDataSection(span<const char> ThreadDataSec);
+  Error initialize();
+  Error shutdown();
+
+  Error registerJITDylib(std::string Name, void *Header);
+  Error deregisterJITDylib(void *Header);
+  Error registerThreadDataSection(span<const char> ThreadDataSection);
+  Error deregisterThreadDataSection(span<const char> ThreadDataSection);
+  Error registerObjectPlatformSections(
+      ExecutorAddr HeaderAddr, std::optional<UnwindSectionInfo> UnwindSections,
+      std::vector<std::pair<std::string_view, ExecutorAddrRange>> Secs);
+  Error deregisterObjectPlatformSections(
+      ExecutorAddr HeaderAddr, std::optional<UnwindSectionInfo> UnwindSections,
+      std::vector<std::pair<std::string_view, ExecutorAddrRange>> Secs);
 
   const char *dlerror();
-  void *dlopen(string_view Name, int Mode);
+  void *dlopen(std::string_view Name, int Mode);
   int dlclose(void *DSOHandle);
-  void *dlsym(void *DSOHandle, string_view Symbol);
+  void *dlsym(void *DSOHandle, std::string_view Symbol);
 
   int registerAtExit(void (*F)(void *), void *Arg, void *DSOHandle);
+  void runAtExits(std::unique_lock<std::mutex> &JDStatesLock,
+                  JITDylibState &JDS);
   void runAtExits(void *DSOHandle);
 
   /// Returns the base address of the section containing ThreadData.
@@ -259,47 +344,64 @@ public:
   getThreadDataSectionFor(const char *ThreadData);
 
 private:
-  PerJITDylibState *getJITDylibStateByHeaderAddr(void *DSOHandle);
-  PerJITDylibState *getJITDylibStateByName(string_view Path);
-  PerJITDylibState &getOrCreateJITDylibState(MachOJITDylibInitializers &MOJDIs);
+  JITDylibState *getJITDylibStateByHeader(void *DSOHandle);
+  JITDylibState *getJITDylibStateByName(std::string_view Path);
 
   Expected<ExecutorAddr> lookupSymbolInJITDylib(void *DSOHandle,
-                                                string_view Symbol);
+                                                std::string_view Symbol);
 
-  Expected<MachOJITDylibInitializerSequence>
-  getJITDylibInitializersByName(string_view Path);
-  Expected<void *> dlopenInitialize(string_view Path, int Mode);
-  Error initializeJITDylib(MachOJITDylibInitializers &MOJDIs);
+  bool lookupUnwindSections(void *Addr, unw_dynamic_unwind_sections &Info);
+
+  static int findDynamicUnwindSections(uintptr_t addr,
+                                       unw_dynamic_unwind_sections *info);
+  static Error registerEHFrames(span<const char> EHFrameSection);
+  static Error deregisterEHFrames(span<const char> EHFrameSection);
+
+  static Error registerObjCSelectors(JITDylibState &JDS);
+  static Error registerObjCClasses(JITDylibState &JDS);
+  static Error registerSwift5Protocols(JITDylibState &JDS);
+  static Error registerSwift5ProtocolConformances(JITDylibState &JDS);
+  static Error registerSwift5Types(JITDylibState &JDS);
+  static Error runModInits(std::unique_lock<std::mutex> &JDStatesLock,
+                           JITDylibState &JDS);
+
+  Expected<void *> dlopenImpl(std::string_view Path, int Mode);
+  Error dlopenFull(std::unique_lock<std::mutex> &JDStatesLock,
+                   JITDylibState &JDS);
+  Error dlopenInitialize(std::unique_lock<std::mutex> &JDStatesLock,
+                         JITDylibState &JDS, MachOJITDylibDepInfoMap &DepInfo);
+
+  Error dlcloseImpl(void *DSOHandle);
+  Error dlcloseDeinitialize(std::unique_lock<std::mutex> &JDStatesLock,
+                            JITDylibState &JDS);
 
   static MachOPlatformRuntimeState *MOPS;
 
-  using InitSectionHandler =
-      Error (*)(const std::vector<ExecutorAddrRange> &Sections,
-                const MachOJITDylibInitializers &MOJDIs);
-  const std::vector<std::pair<const char *, InitSectionHandler>> InitSections =
-      {{"__DATA,__objc_selrefs", registerObjCSelectors},
-       {"__DATA,__objc_classlist", registerObjCClasses},
-       {"__TEXT,__swift5_protos", registerSwift5Protocols},
-       {"__TEXT,__swift5_proto", registerSwift5ProtocolConformances},
-       {"__TEXT,__swift5_types", registerSwift5Types},
-       {"__DATA,__mod_init_func", runModInits}};
+  bool UseCallbackStyleUnwindInfo = false;
 
   // FIXME: Move to thread-state.
   std::string DLFcnError;
 
-  std::recursive_mutex JDStatesMutex;
-  std::unordered_map<void *, PerJITDylibState> JDStates;
-  std::unordered_map<std::string, void *> JDNameToHeader;
+  // APIMutex guards against concurrent entry into key "dyld" API functions
+  // (e.g. dlopen, dlclose).
+  std::recursive_mutex DyldAPIMutex;
 
+  // JDStatesMutex guards the data structures that hold JITDylib state.
+  std::mutex JDStatesMutex;
+  std::unordered_map<void *, JITDylibState> JDStates;
+  std::unordered_map<std::string_view, void *> JDNameToHeader;
+
+  // ThreadDataSectionsMutex guards thread local data section state.
   std::mutex ThreadDataSectionsMutex;
   std::map<const char *, size_t> ThreadDataSections;
 };
 
 MachOPlatformRuntimeState *MachOPlatformRuntimeState::MOPS = nullptr;
 
-void MachOPlatformRuntimeState::initialize() {
+Error MachOPlatformRuntimeState::create() {
   assert(!MOPS && "MachOPlatformRuntimeState should be null");
   MOPS = new MachOPlatformRuntimeState();
+  return MOPS->initialize();
 }
 
 MachOPlatformRuntimeState &MachOPlatformRuntimeState::get() {
@@ -307,9 +409,92 @@ MachOPlatformRuntimeState &MachOPlatformRuntimeState::get() {
   return *MOPS;
 }
 
-void MachOPlatformRuntimeState::destroy() {
+Error MachOPlatformRuntimeState::destroy() {
   assert(MOPS && "MachOPlatformRuntimeState not initialized");
+  auto Err = MOPS->shutdown();
   delete MOPS;
+  return Err;
+}
+
+Error MachOPlatformRuntimeState::initialize() {
+  UseCallbackStyleUnwindInfo = __unw_add_find_dynamic_unwind_sections &&
+                               __unw_remove_find_dynamic_unwind_sections;
+  if (UseCallbackStyleUnwindInfo) {
+    ORC_RT_DEBUG({
+      printdbg("__unw_add/remove_find_dynamic_unwind_sections available."
+               " Using callback-based frame info lookup.\n");
+    });
+    if (__unw_add_find_dynamic_unwind_sections(&findDynamicUnwindSections))
+      return make_error<StringError>(
+          "Could not register findDynamicUnwindSections");
+  } else {
+    ORC_RT_DEBUG({
+      printdbg("__unw_add/remove_find_dynamic_unwind_sections not available."
+               " Using classic frame info registration.\n");
+    });
+  }
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::shutdown() {
+  if (UseCallbackStyleUnwindInfo) {
+    if (__unw_remove_find_dynamic_unwind_sections(&findDynamicUnwindSections)) {
+      ORC_RT_DEBUG(
+          { printdbg("__unw_remove_find_dynamic_unwind_sections failed.\n"); });
+    }
+  }
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::registerJITDylib(std::string Name,
+                                                  void *Header) {
+  ORC_RT_DEBUG({
+    printdbg("Registering JITDylib %s: Header = %p\n", Name.c_str(), Header);
+  });
+  std::lock_guard<std::mutex> Lock(JDStatesMutex);
+  if (JDStates.count(Header)) {
+    std::ostringstream ErrStream;
+    ErrStream << "Duplicate JITDylib registration for header " << Header
+              << " (name = " << Name << ")";
+    return make_error<StringError>(ErrStream.str());
+  }
+  if (JDNameToHeader.count(Name)) {
+    std::ostringstream ErrStream;
+    ErrStream << "Duplicate JITDylib registration for header " << Header
+              << " (header = " << Header << ")";
+    return make_error<StringError>(ErrStream.str());
+  }
+
+  auto &JDS = JDStates[Header];
+  JDS.Name = std::move(Name);
+  JDS.Header = Header;
+  JDNameToHeader[JDS.Name] = Header;
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::deregisterJITDylib(void *Header) {
+  std::lock_guard<std::mutex> Lock(JDStatesMutex);
+  auto I = JDStates.find(Header);
+  if (I == JDStates.end()) {
+    std::ostringstream ErrStream;
+    ErrStream << "Attempted to deregister unrecognized header " << Header;
+    return make_error<StringError>(ErrStream.str());
+  }
+
+  // Remove std::string construction once we can use C++20.
+  auto J = JDNameToHeader.find(
+      std::string(I->second.Name.data(), I->second.Name.size()));
+  assert(J != JDNameToHeader.end() &&
+         "Missing JDNameToHeader entry for JITDylib");
+
+  ORC_RT_DEBUG({
+    printdbg("Deregistering JITDylib %s: Header = %p\n", I->second.Name.c_str(),
+             Header);
+  });
+
+  JDNameToHeader.erase(J);
+  JDStates.erase(I);
+  return Error::success();
 }
 
 Error MachOPlatformRuntimeState::registerThreadDataSection(
@@ -337,35 +522,221 @@ Error MachOPlatformRuntimeState::deregisterThreadDataSection(
   return Error::success();
 }
 
-const char *MachOPlatformRuntimeState::dlerror() { return DLFcnError.c_str(); }
+Error MachOPlatformRuntimeState::registerObjectPlatformSections(
+    ExecutorAddr HeaderAddr, std::optional<UnwindSectionInfo> UnwindInfo,
+    std::vector<std::pair<std::string_view, ExecutorAddrRange>> Secs) {
 
-void *MachOPlatformRuntimeState::dlopen(string_view Path, int Mode) {
-  std::lock_guard<std::recursive_mutex> Lock(JDStatesMutex);
+  // FIXME: Reject platform section registration after the JITDylib is
+  // sealed?
 
-  // Use fast path if all JITDylibs are already loaded and don't require
-  // re-running initializers.
-  if (auto *JDS = getJITDylibStateByName(Path)) {
-    if (!JDS->AllowReinitialization) {
-      ++JDS->RefCount;
-      return JDS->Header;
+  ORC_RT_DEBUG({
+    printdbg("MachOPlatform: Registering object sections for %p.\n",
+             HeaderAddr.toPtr<void *>());
+  });
+
+  std::lock_guard<std::mutex> Lock(JDStatesMutex);
+  auto *JDS = getJITDylibStateByHeader(HeaderAddr.toPtr<void *>());
+  if (!JDS) {
+    std::ostringstream ErrStream;
+    ErrStream << "Could not register object platform sections for "
+                 "unrecognized header "
+              << HeaderAddr.toPtr<void *>();
+    return make_error<StringError>(ErrStream.str());
+  }
+
+  if (UnwindInfo && UseCallbackStyleUnwindInfo) {
+    ORC_RT_DEBUG({
+      printdbg("  Registering new-style unwind info for:\n"
+               "    DWARF: %p -- %p\n"
+               "    Compact-unwind: %p -- %p\n"
+               "  for:\n",
+               UnwindInfo->DwarfSection.Start.toPtr<void *>(),
+               UnwindInfo->DwarfSection.End.toPtr<void *>(),
+               UnwindInfo->CompactUnwindSection.Start.toPtr<void *>(),
+               UnwindInfo->CompactUnwindSection.End.toPtr<void *>());
+    });
+    for (auto &CodeRange : UnwindInfo->CodeRanges) {
+      JDS->UnwindSections.insert(CodeRange.Start.toPtr<char *>(),
+                                 CodeRange.End.toPtr<char *>(), *UnwindInfo);
+      ORC_RT_DEBUG({
+        printdbg("    [ %p -- %p ]\n", CodeRange.Start.toPtr<void *>(),
+                 CodeRange.End.toPtr<void *>());
+      });
     }
   }
 
-  auto H = dlopenInitialize(Path, Mode);
-  if (!H) {
+  for (auto &KV : Secs) {
+    // FIXME: Validate section ranges?
+    if (KV.first == "__TEXT,__eh_frame") {
+      if (!UseCallbackStyleUnwindInfo) {
+        // Use classic libunwind registration.
+        if (auto Err = registerEHFrames(KV.second.toSpan<const char>()))
+          return Err;
+      }
+    } else if (KV.first == "__DATA,__data") {
+      assert(!JDS->DataSectionContent.count(KV.second.Start.toPtr<char *>()) &&
+             "Address already registered.");
+      auto S = KV.second.toSpan<char>();
+      JDS->DataSectionContent[KV.second.Start.toPtr<char *>()] =
+          std::vector<char>(S.begin(), S.end());
+    } else if (KV.first == "__DATA,__common") {
+      // fprintf(stderr, "Adding zero-init range %llx -- %llx\n",
+      // KV.second.Start.getValue(), KV.second.size());
+      JDS->ZeroInitRanges[KV.second.Start.toPtr<char *>()] = KV.second.size();
+    } else if (KV.first == "__DATA,__thread_data") {
+      if (auto Err = registerThreadDataSection(KV.second.toSpan<const char>()))
+        return Err;
+    } else if (KV.first == "__DATA,__objc_selrefs")
+      JDS->ObjCSelRefsSections.add(KV.second.toSpan<void *>());
+    else if (KV.first == "__DATA,__objc_classlist")
+      JDS->ObjCClassListSections.add(KV.second.toSpan<void *>());
+    else if (KV.first == "__TEXT,__swift5_protos")
+      JDS->Swift5ProtocolsSections.add(KV.second.toSpan<char>());
+    else if (KV.first == "__TEXT,__swift5_proto")
+      JDS->Swift5ProtocolConformancesSections.add(KV.second.toSpan<char>());
+    else if (KV.first == "__TEXT,__swift5_types")
+      JDS->Swift5TypesSections.add(KV.second.toSpan<char>());
+    else if (KV.first == "__DATA,__mod_init_func")
+      JDS->ModInitsSections.add(KV.second.toSpan<void (*)()>());
+    else {
+      // Should this be a warning instead?
+      return make_error<StringError>(
+          "Encountered unexpected section " +
+          std::string(KV.first.data(), KV.first.size()) +
+          " while registering object platform sections");
+    }
+  }
+
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::deregisterObjectPlatformSections(
+    ExecutorAddr HeaderAddr, std::optional<UnwindSectionInfo> UnwindInfo,
+    std::vector<std::pair<std::string_view, ExecutorAddrRange>> Secs) {
+  // TODO: Make this more efficient? (maybe unnecessary if removal is rare?)
+  // TODO: Add a JITDylib prepare-for-teardown operation that clears all
+  //       registered sections, causing this function to take the fast-path.
+  ORC_RT_DEBUG({
+    printdbg("MachOPlatform: Registering object sections for %p.\n",
+             HeaderAddr.toPtr<void *>());
+  });
+
+  std::lock_guard<std::mutex> Lock(JDStatesMutex);
+  auto *JDS = getJITDylibStateByHeader(HeaderAddr.toPtr<void *>());
+  if (!JDS) {
+    std::ostringstream ErrStream;
+    ErrStream << "Could not register object platform sections for unrecognized "
+                 "header "
+              << HeaderAddr.toPtr<void *>();
+    return make_error<StringError>(ErrStream.str());
+  }
+
+  // FIXME: Implement faster-path by returning immediately if JDS is being
+  // torn down entirely?
+
+  // TODO: Make library permanent (i.e. not able to be dlclosed) if it contains
+  // any Swift or ObjC. Once this happens we can clear (and no longer record)
+  // data section content, as the library could never be re-initialized.
+
+  if (UnwindInfo && UseCallbackStyleUnwindInfo) {
+    ORC_RT_DEBUG({
+      printdbg("  Deregistering new-style unwind info for:\n"
+               "    DWARF: %p -- %p\n"
+               "    Compact-unwind: %p -- %p\n"
+               "  for:\n",
+               UnwindInfo->DwarfSection.Start.toPtr<void *>(),
+               UnwindInfo->DwarfSection.End.toPtr<void *>(),
+               UnwindInfo->CompactUnwindSection.Start.toPtr<void *>(),
+               UnwindInfo->CompactUnwindSection.End.toPtr<void *>());
+    });
+    for (auto &CodeRange : UnwindInfo->CodeRanges) {
+      JDS->UnwindSections.erase(CodeRange.Start.toPtr<char *>(),
+                                CodeRange.End.toPtr<char *>());
+      ORC_RT_DEBUG({
+        printdbg("    [ %p -- %p ]\n", CodeRange.Start.toPtr<void *>(),
+                 CodeRange.End.toPtr<void *>());
+      });
+    }
+  }
+
+  for (auto &KV : Secs) {
+    // FIXME: Validate section ranges?
+    if (KV.first == "__TEXT,__eh_frame") {
+      if (!UseCallbackStyleUnwindInfo) {
+        // Use classic libunwind registration.
+        if (auto Err = deregisterEHFrames(KV.second.toSpan<const char>()))
+          return Err;
+      }
+    } else if (KV.first == "__DATA,__data") {
+      JDS->DataSectionContent.erase(KV.second.Start.toPtr<char *>());
+    } else if (KV.first == "__DATA,__common") {
+      JDS->ZeroInitRanges.erase(KV.second.Start.toPtr<char *>());
+    } else if (KV.first == "__DATA,__thread_data") {
+      if (auto Err =
+              deregisterThreadDataSection(KV.second.toSpan<const char>()))
+        return Err;
+    } else if (KV.first == "__DATA,__objc_selrefs")
+      JDS->ObjCSelRefsSections.removeIfPresent(KV.second);
+    else if (KV.first == "__DATA,__objc_classlist")
+      JDS->ObjCClassListSections.removeIfPresent(KV.second);
+    else if (KV.first == "__TEXT,__swift5_protos")
+      JDS->Swift5ProtocolsSections.removeIfPresent(KV.second);
+    else if (KV.first == "__TEXT,__swift5_proto")
+      JDS->Swift5ProtocolConformancesSections.removeIfPresent(KV.second);
+    else if (KV.first == "__TEXT,__swift5_types")
+      JDS->Swift5TypesSections.removeIfPresent(KV.second);
+    else if (KV.first == "__DATA,__mod_init_func")
+      JDS->ModInitsSections.removeIfPresent(KV.second);
+    else {
+      // Should this be a warning instead?
+      return make_error<StringError>(
+          "Encountered unexpected section " +
+          std::string(KV.first.data(), KV.first.size()) +
+          " while deregistering object platform sections");
+    }
+  }
+  return Error::success();
+}
+
+const char *MachOPlatformRuntimeState::dlerror() { return DLFcnError.c_str(); }
+
+void *MachOPlatformRuntimeState::dlopen(std::string_view Path, int Mode) {
+  ORC_RT_DEBUG({
+    std::string S(Path.data(), Path.size());
+    printdbg("MachOPlatform::dlopen(\"%s\")\n", S.c_str());
+  });
+  std::lock_guard<std::recursive_mutex> Lock(DyldAPIMutex);
+  if (auto H = dlopenImpl(Path, Mode))
+    return *H;
+  else {
+    // FIXME: Make dlerror thread safe.
     DLFcnError = toString(H.takeError());
     return nullptr;
   }
-
-  return *H;
 }
 
 int MachOPlatformRuntimeState::dlclose(void *DSOHandle) {
-  runAtExits(DSOHandle);
+  ORC_RT_DEBUG({
+    auto *JDS = getJITDylibStateByHeader(DSOHandle);
+    std::string DylibName;
+    if (JDS) {
+      std::string S;
+      printdbg("MachOPlatform::dlclose(%p) (%s)\n", DSOHandle, S.c_str());
+    } else
+      printdbg("MachOPlatform::dlclose(%p) (%s)\n", DSOHandle,
+               "invalid handle");
+  });
+  std::lock_guard<std::recursive_mutex> Lock(DyldAPIMutex);
+  if (auto Err = dlcloseImpl(DSOHandle)) {
+    // FIXME: Make dlerror thread safe.
+    DLFcnError = toString(std::move(Err));
+    return -1;
+  }
   return 0;
 }
 
-void *MachOPlatformRuntimeState::dlsym(void *DSOHandle, string_view Symbol) {
+void *MachOPlatformRuntimeState::dlsym(void *DSOHandle,
+                                       std::string_view Symbol) {
   auto Addr = lookupSymbolInJITDylib(DSOHandle, Symbol);
   if (!Addr) {
     DLFcnError = toString(Addr.takeError());
@@ -378,29 +749,45 @@ void *MachOPlatformRuntimeState::dlsym(void *DSOHandle, string_view Symbol) {
 int MachOPlatformRuntimeState::registerAtExit(void (*F)(void *), void *Arg,
                                               void *DSOHandle) {
   // FIXME: Handle out-of-memory errors, returning -1 if OOM.
-  std::lock_guard<std::recursive_mutex> Lock(JDStatesMutex);
-  auto *JDS = getJITDylibStateByHeaderAddr(DSOHandle);
-  assert(JDS && "JITDylib state not initialized");
+  std::lock_guard<std::mutex> Lock(JDStatesMutex);
+  auto *JDS = getJITDylibStateByHeader(DSOHandle);
+  if (!JDS) {
+    ORC_RT_DEBUG({
+      printdbg("MachOPlatformRuntimeState::registerAtExit called with "
+               "unrecognized dso handle %p\n",
+               DSOHandle);
+    });
+    return -1;
+  }
   JDS->AtExits.push_back({F, Arg});
   return 0;
 }
 
-void MachOPlatformRuntimeState::runAtExits(void *DSOHandle) {
-  // FIXME: Should atexits be allowed to run concurrently with access to
-  // JDState?
-  AtExitsVector V;
-  {
-    std::lock_guard<std::recursive_mutex> Lock(JDStatesMutex);
-    auto *JDS = getJITDylibStateByHeaderAddr(DSOHandle);
-    assert(JDS && "JITDlybi state not initialized");
-    std::swap(V, JDS->AtExits);
-  }
+void MachOPlatformRuntimeState::runAtExits(
+    std::unique_lock<std::mutex> &JDStatesLock, JITDylibState &JDS) {
+  auto AtExits = std::move(JDS.AtExits);
 
-  while (!V.empty()) {
-    auto &AE = V.back();
+  // Unlock while running atexits, as they may trigger operations that modify
+  // JDStates.
+  JDStatesLock.unlock();
+  while (!AtExits.empty()) {
+    auto &AE = AtExits.back();
     AE.Func(AE.Arg);
-    V.pop_back();
+    AtExits.pop_back();
   }
+  JDStatesLock.lock();
+}
+
+void MachOPlatformRuntimeState::runAtExits(void *DSOHandle) {
+  std::unique_lock<std::mutex> Lock(JDStatesMutex);
+  auto *JDS = getJITDylibStateByHeader(DSOHandle);
+  ORC_RT_DEBUG({
+    printdbg("MachOPlatformRuntimeState::runAtExits called on unrecognized "
+             "dso_handle %p\n",
+             DSOHandle);
+  });
+  if (JDS)
+    runAtExits(Lock, *JDS);
 }
 
 Expected<std::pair<const char *, size_t>>
@@ -416,48 +803,28 @@ MachOPlatformRuntimeState::getThreadDataSectionFor(const char *ThreadData) {
   return *I;
 }
 
-MachOPlatformRuntimeState::PerJITDylibState *
-MachOPlatformRuntimeState::getJITDylibStateByHeaderAddr(void *DSOHandle) {
+MachOPlatformRuntimeState::JITDylibState *
+MachOPlatformRuntimeState::getJITDylibStateByHeader(void *DSOHandle) {
   auto I = JDStates.find(DSOHandle);
-  if (I == JDStates.end())
-    return nullptr;
+  if (I == JDStates.end()) {
+    I = JDStates.insert(std::make_pair(DSOHandle, JITDylibState())).first;
+    I->second.Header = DSOHandle;
+  }
   return &I->second;
 }
 
-MachOPlatformRuntimeState::PerJITDylibState *
-MachOPlatformRuntimeState::getJITDylibStateByName(string_view Name) {
-  // FIXME: Avoid creating string copy here.
+MachOPlatformRuntimeState::JITDylibState *
+MachOPlatformRuntimeState::getJITDylibStateByName(std::string_view Name) {
+  // FIXME: Avoid creating string once we have C++20.
   auto I = JDNameToHeader.find(std::string(Name.data(), Name.size()));
-  if (I == JDNameToHeader.end())
-    return nullptr;
-  void *H = I->second;
-  auto J = JDStates.find(H);
-  assert(J != JDStates.end() &&
-         "JITDylib has name map entry but no header map entry");
-  return &J->second;
-}
-
-MachOPlatformRuntimeState::PerJITDylibState &
-MachOPlatformRuntimeState::getOrCreateJITDylibState(
-    MachOJITDylibInitializers &MOJDIs) {
-  void *Header = MOJDIs.MachOHeaderAddress.toPtr<void *>();
-
-  auto &JDS = JDStates[Header];
-
-  // If this entry hasn't been created yet.
-  if (!JDS.Header) {
-    assert(!JDNameToHeader.count(MOJDIs.Name) &&
-           "JITDylib has header map entry but no name map entry");
-    JDNameToHeader[MOJDIs.Name] = Header;
-    JDS.Header = Header;
-  }
-
-  return JDS;
+  if (I != JDNameToHeader.end())
+    return getJITDylibStateByHeader(I->second);
+  return nullptr;
 }
 
 Expected<ExecutorAddr>
 MachOPlatformRuntimeState::lookupSymbolInJITDylib(void *DSOHandle,
-                                                  string_view Sym) {
+                                                  std::string_view Sym) {
   Expected<ExecutorAddr> Result((ExecutorAddr()));
   if (auto Err = WrapperFunction<SPSExpected<SPSExecutorAddr>(
           SPSExecutorAddr, SPSString)>::call(&__orc_rt_macho_symbol_lookup_tag,
@@ -468,60 +835,394 @@ MachOPlatformRuntimeState::lookupSymbolInJITDylib(void *DSOHandle,
   return Result;
 }
 
-Expected<MachOJITDylibInitializerSequence>
-MachOPlatformRuntimeState::getJITDylibInitializersByName(string_view Path) {
-  Expected<MachOJITDylibInitializerSequence> Result(
-      (MachOJITDylibInitializerSequence()));
-  std::string PathStr(Path.data(), Path.size());
-  if (auto Err =
-          WrapperFunction<SPSExpected<SPSMachOJITDylibInitializerSequence>(
-              SPSString)>::call(&__orc_rt_macho_get_initializers_tag, Result,
-                                Path))
-    return std::move(Err);
-  return Result;
+// eh-frame registration functions.
+// We expect these to be available for all processes.
+extern "C" void __register_frame(const void *);
+extern "C" void __deregister_frame(const void *);
+
+template <typename HandleFDEFn>
+void walkEHFrameSection(span<const char> EHFrameSection,
+                        HandleFDEFn HandleFDE) {
+  const char *CurCFIRecord = EHFrameSection.data();
+  uint64_t Size = *reinterpret_cast<const uint32_t *>(CurCFIRecord);
+
+  while (CurCFIRecord != EHFrameSection.end() && Size != 0) {
+    const char *OffsetField = CurCFIRecord + (Size == 0xffffffff ? 12 : 4);
+    if (Size == 0xffffffff)
+      Size = *reinterpret_cast<const uint64_t *>(CurCFIRecord + 4) + 12;
+    else
+      Size += 4;
+    uint32_t Offset = *reinterpret_cast<const uint32_t *>(OffsetField);
+
+    if (Offset != 0)
+      HandleFDE(CurCFIRecord);
+
+    CurCFIRecord += Size;
+    Size = *reinterpret_cast<const uint32_t *>(CurCFIRecord);
+  }
 }
 
-Expected<void *> MachOPlatformRuntimeState::dlopenInitialize(string_view Path,
-                                                             int Mode) {
-  // Either our JITDylib wasn't loaded, or it or one of its dependencies allows
-  // reinitialization. We need to call in to the JIT to see if there's any new
-  // work pending.
-  auto InitSeq = getJITDylibInitializersByName(Path);
-  if (!InitSeq)
-    return InitSeq.takeError();
+bool MachOPlatformRuntimeState::lookupUnwindSections(
+    void *Addr, unw_dynamic_unwind_sections &Info) {
+  ORC_RT_DEBUG(
+      { printdbg("Tried to lookup unwind-info via new lookup call.\n"); });
+  std::lock_guard<std::mutex> Lock(JDStatesMutex);
+  for (auto &KV : JDStates) {
+    auto &JD = KV.second;
+    auto I = JD.UnwindSections.find(reinterpret_cast<char *>(Addr));
+    if (I != JD.UnwindSections.end()) {
+      Info.dso_base = reinterpret_cast<uintptr_t>(JD.Header);
+      Info.dwarf_section =
+          reinterpret_cast<uintptr_t>(I->second.DwarfSection.data());
+      Info.dwarf_section_length = I->second.DwarfSection.size();
+      Info.compact_unwind_section =
+          reinterpret_cast<uintptr_t>(I->second.CompactUnwindSection.data());
+      Info.compact_unwind_section_length =
+          I->second.CompactUnwindSection.size();
+      return true;
+    }
+  }
+  return false;
+}
 
-  // Init sequences should be non-empty.
-  if (InitSeq->empty())
+int MachOPlatformRuntimeState::findDynamicUnwindSections(
+    uintptr_t addr, unw_dynamic_unwind_sections *info) {
+  if (!info)
+    return 0;
+  return MachOPlatformRuntimeState::get().lookupUnwindSections((void *)addr,
+                                                               *info);
+}
+
+Error MachOPlatformRuntimeState::registerEHFrames(
+    span<const char> EHFrameSection) {
+  walkEHFrameSection(EHFrameSection, __register_frame);
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::deregisterEHFrames(
+    span<const char> EHFrameSection) {
+  walkEHFrameSection(EHFrameSection, __deregister_frame);
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::registerObjCSelectors(JITDylibState &JDS) {
+  if (!JDS.ObjCSelRefsSections.hasNewSections())
+    return Error::success();
+
+  if (ORC_RT_UNLIKELY(!sel_registerName))
+    return make_error<StringError>("sel_registerName is not available");
+
+  JDS.ObjCSelRefsSections.processNewSections([](span<void *> SelRefs) {
+    for (void *&SelEntry : SelRefs) {
+      const char *SelName = reinterpret_cast<const char *>(SelEntry);
+      auto Sel = sel_registerName(SelName);
+      *reinterpret_cast<SEL *>(&SelEntry) = Sel;
+    }
+  });
+
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::registerObjCClasses(JITDylibState &JDS) {
+  if (!JDS.ObjCClassListSections.hasNewSections())
+    return Error::success();
+
+  if (ORC_RT_UNLIKELY(!objc_msgSend))
+    return make_error<StringError>("objc_msgSend is not available");
+  if (ORC_RT_UNLIKELY(!objc_readClassPair))
+    return make_error<StringError>("objc_readClassPair is not available");
+
+  struct ObjCClassCompiled {
+    void *Metaclass;
+    void *Parent;
+    void *Cache1;
+    void *Cache2;
+    void *Data;
+  };
+
+  auto ClassSelector = sel_registerName("class");
+
+  return JDS.ObjCClassListSections.processNewSections(
+      [&](span<void *> ClassPtrs) -> Error {
+        for (void *ClassPtr : ClassPtrs) {
+          auto *Cls = reinterpret_cast<Class>(ClassPtr);
+          auto *ClassCompiled = reinterpret_cast<ObjCClassCompiled *>(ClassPtr);
+          objc_msgSend(reinterpret_cast<id>(ClassCompiled->Parent),
+                       ClassSelector);
+          auto Registered = objc_readClassPair(Cls, JDS.ObjCImageInfo);
+          // FIXME: Improve diagnostic by reporting the failed class's name.
+          if (Registered != Cls)
+            return make_error<StringError>(
+                "Unable to register Objective-C class");
+        }
+        return Error::success();
+      });
+}
+
+Error MachOPlatformRuntimeState::registerSwift5Protocols(JITDylibState &JDS) {
+
+  if (!JDS.Swift5ProtocolsSections.hasNewSections())
+    return Error::success();
+
+  if (ORC_RT_UNLIKELY(!swift_registerProtocols))
+    return make_error<StringError>("swift_registerProtocols is not available");
+
+  JDS.Swift5ProtocolsSections.processNewSections([](span<char> ProtoSec) {
+    swift_registerProtocols(
+        reinterpret_cast<const ProtocolRecord *>(ProtoSec.data()),
+        reinterpret_cast<const ProtocolRecord *>(ProtoSec.data() +
+                                                 ProtoSec.size()));
+  });
+
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::registerSwift5ProtocolConformances(
+    JITDylibState &JDS) {
+
+  if (!JDS.Swift5ProtocolConformancesSections.hasNewSections())
+    return Error::success();
+
+  if (ORC_RT_UNLIKELY(!swift_registerProtocolConformances))
     return make_error<StringError>(
-        "__orc_rt_macho_get_initializers returned an "
-        "empty init sequence");
+        "swift_registerProtocolConformances is not available");
 
-  // Otherwise register and run initializers for each JITDylib.
-  for (auto &MOJDIs : *InitSeq)
-    if (auto Err = initializeJITDylib(MOJDIs))
+  JDS.Swift5ProtocolConformancesSections.processNewSections(
+      [](span<char> ProtoConfSec) {
+        swift_registerProtocolConformances(
+            reinterpret_cast<const ProtocolConformanceRecord *>(
+                ProtoConfSec.data()),
+            reinterpret_cast<const ProtocolConformanceRecord *>(
+                ProtoConfSec.data() + ProtoConfSec.size()));
+      });
+
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::registerSwift5Types(JITDylibState &JDS) {
+
+  if (!JDS.Swift5TypesSections.hasNewSections())
+    return Error::success();
+
+  if (ORC_RT_UNLIKELY(!swift_registerTypeMetadataRecords))
+    return make_error<StringError>(
+        "swift_registerTypeMetadataRecords is not available");
+
+  JDS.Swift5TypesSections.processNewSections([&](span<char> TypesSec) {
+    swift_registerTypeMetadataRecords(
+        reinterpret_cast<const TypeMetadataRecord *>(TypesSec.data()),
+        reinterpret_cast<const TypeMetadataRecord *>(TypesSec.data() +
+                                                     TypesSec.size()));
+  });
+
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::runModInits(
+    std::unique_lock<std::mutex> &JDStatesLock, JITDylibState &JDS) {
+  std::vector<span<void (*)()>> InitSections;
+  InitSections.reserve(JDS.ModInitsSections.numNewSections());
+
+  // Copy initializer sections: If the JITDylib is unsealed then the
+  // initializers could reach back into the JIT and cause more initializers to
+  // be added.
+  // FIXME: Skip unlock and run in-place on sealed JITDylibs?
+  JDS.ModInitsSections.processNewSections(
+      [&](span<void (*)()> Inits) { InitSections.push_back(Inits); });
+
+  JDStatesLock.unlock();
+  for (auto InitSec : InitSections)
+    for (auto *Init : InitSec)
+      Init();
+  JDStatesLock.lock();
+
+  return Error::success();
+}
+
+Expected<void *> MachOPlatformRuntimeState::dlopenImpl(std::string_view Path,
+                                                       int Mode) {
+  std::unique_lock<std::mutex> Lock(JDStatesMutex);
+
+  // Try to find JITDylib state by name.
+  auto *JDS = getJITDylibStateByName(Path);
+
+  if (!JDS)
+    return make_error<StringError>("No registered JTIDylib for path " +
+                                   std::string(Path.data(), Path.size()));
+
+  // If this JITDylib is unsealed, or this is the first dlopen then run
+  // full dlopen path (update deps, push and run initializers, update ref
+  // counts on all JITDylibs in the dep tree).
+  if (!JDS->referenced() || !JDS->Sealed) {
+    if (auto Err = dlopenFull(Lock, *JDS))
       return std::move(Err);
+  }
 
-  // Return the header for the last item in the list.
-  auto *JDS = getJITDylibStateByHeaderAddr(
-      InitSeq->back().MachOHeaderAddress.toPtr<void *>());
-  assert(JDS && "Missing state entry for JD");
+  // Bump the ref-count on this dylib.
+  ++JDS->DlRefCount;
+
+  // Return the header address.
   return JDS->Header;
 }
 
-Error MachOPlatformRuntimeState::initializeJITDylib(
-    MachOJITDylibInitializers &MOJDIs) {
+Error MachOPlatformRuntimeState::dlopenFull(
+    std::unique_lock<std::mutex> &JDStatesLock, JITDylibState &JDS) {
+  // Call back to the JIT to push the initializers.
+  Expected<MachOJITDylibDepInfoMap> DepInfo((MachOJITDylibDepInfoMap()));
+  // Unlock so that we can accept the initializer update.
+  JDStatesLock.unlock();
+  if (auto Err = WrapperFunction<SPSExpected<SPSMachOJITDylibDepInfoMap>(
+          SPSExecutorAddr)>::call(&__orc_rt_macho_push_initializers_tag,
+                                  DepInfo, ExecutorAddr::fromPtr(JDS.Header)))
+    return Err;
+  JDStatesLock.lock();
 
-  auto &JDS = getOrCreateJITDylibState(MOJDIs);
-  ++JDS.RefCount;
+  if (!DepInfo)
+    return DepInfo.takeError();
 
-  for (auto &KV : InitSections) {
-    const auto &Name = KV.first;
-    const auto &Handler = KV.second;
-    auto I = MOJDIs.InitSections.find(Name);
-    if (I != MOJDIs.InitSections.end()) {
-      if (auto Err = Handler(I->second, MOJDIs))
-        return Err;
+  if (auto Err = dlopenInitialize(JDStatesLock, JDS, *DepInfo))
+    return Err;
+
+  if (!DepInfo->empty()) {
+    ORC_RT_DEBUG({
+      printdbg("Unrecognized dep-info key headers in dlopen of %s\n",
+               JDS.Name.c_str());
+    });
+    std::ostringstream ErrStream;
+    ErrStream << "Encountered unrecognized dep-info key headers "
+                 "while processing dlopen of "
+              << JDS.Name;
+    return make_error<StringError>(ErrStream.str());
+  }
+
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::dlopenInitialize(
+    std::unique_lock<std::mutex> &JDStatesLock, JITDylibState &JDS,
+    MachOJITDylibDepInfoMap &DepInfo) {
+  ORC_RT_DEBUG({
+    printdbg("MachOPlatformRuntimeState::dlopenInitialize(\"%s\")\n",
+             JDS.Name.c_str());
+  });
+
+  // If the header is not present in the dep map then assume that we
+  // already processed it earlier in the dlopenInitialize traversal and
+  // return.
+  // TODO: Keep a visited set instead so that we can error out on missing
+  //       entries?
+  auto I = DepInfo.find(ExecutorAddr::fromPtr(JDS.Header));
+  if (I == DepInfo.end())
+    return Error::success();
+
+  auto DI = std::move(I->second);
+  DepInfo.erase(I);
+
+  // We don't need to re-initialize sealed JITDylibs that have already been
+  // initialized. Just check that their dep-map entry is empty as expected.
+  if (JDS.Sealed) {
+    if (!DI.DepHeaders.empty()) {
+      std::ostringstream ErrStream;
+      ErrStream << "Sealed JITDylib " << JDS.Header
+                << " already has registered dependencies";
+      return make_error<StringError>(ErrStream.str());
     }
+    if (JDS.referenced())
+      return Error::success();
+  } else
+    JDS.Sealed = DI.Sealed;
+
+  // This is an unsealed or newly sealed JITDylib. Run initializers.
+  std::vector<JITDylibState *> OldDeps;
+  std::swap(JDS.Deps, OldDeps);
+  JDS.Deps.reserve(DI.DepHeaders.size());
+  for (auto DepHeaderAddr : DI.DepHeaders) {
+    auto *DepJDS = getJITDylibStateByHeader(DepHeaderAddr.toPtr<void *>());
+    if (!DepJDS) {
+      std::ostringstream ErrStream;
+      ErrStream << "Encountered unrecognized dep header "
+                << DepHeaderAddr.toPtr<void *>() << " while initializing "
+                << JDS.Name;
+      return make_error<StringError>(ErrStream.str());
+    }
+    ++DepJDS->LinkedAgainstRefCount;
+    if (auto Err = dlopenInitialize(JDStatesLock, *DepJDS, DepInfo))
+      return Err;
+  }
+
+  // Initialize this JITDylib.
+  if (auto Err = registerObjCSelectors(JDS))
+    return Err;
+  if (auto Err = registerObjCClasses(JDS))
+    return Err;
+  if (auto Err = registerSwift5Protocols(JDS))
+    return Err;
+  if (auto Err = registerSwift5ProtocolConformances(JDS))
+    return Err;
+  if (auto Err = registerSwift5Types(JDS))
+    return Err;
+  if (auto Err = runModInits(JDStatesLock, JDS))
+    return Err;
+
+  // Decrement old deps.
+  // FIXME: We should probably continue and just report deinitialize errors
+  // here.
+  for (auto *DepJDS : OldDeps) {
+    --DepJDS->LinkedAgainstRefCount;
+    if (!DepJDS->referenced())
+      if (auto Err = dlcloseDeinitialize(JDStatesLock, *DepJDS))
+        return Err;
+  }
+
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::dlcloseImpl(void *DSOHandle) {
+  std::unique_lock<std::mutex> Lock(JDStatesMutex);
+
+  // Try to find JITDylib state by header.
+  auto *JDS = getJITDylibStateByHeader(DSOHandle);
+
+  if (!JDS) {
+    std::ostringstream ErrStream;
+    ErrStream << "No registered JITDylib for " << DSOHandle;
+    return make_error<StringError>(ErrStream.str());
+  }
+
+  // Bump the ref-count.
+  --JDS->DlRefCount;
+
+  if (!JDS->referenced())
+    return dlcloseDeinitialize(Lock, *JDS);
+
+  return Error::success();
+}
+
+Error MachOPlatformRuntimeState::dlcloseDeinitialize(
+    std::unique_lock<std::mutex> &JDStatesLock, JITDylibState &JDS) {
+
+  ORC_RT_DEBUG({
+    printdbg("MachOPlatformRuntimeState::dlcloseDeinitialize(\"%s\")\n",
+             JDS.Name.c_str());
+  });
+
+  runAtExits(JDStatesLock, JDS);
+
+  // Reset mod-inits
+  JDS.ModInitsSections.reset();
+
+  // Reset data section contents.
+  for (auto &KV : JDS.DataSectionContent)
+    memcpy(KV.first, KV.second.data(), KV.second.size());
+  for (auto &KV : JDS.ZeroInitRanges)
+    memset(KV.first, 0, KV.second);
+
+  // Deinitialize any dependencies.
+  for (auto *DepJDS : JDS.Deps) {
+    --DepJDS->LinkedAgainstRefCount;
+    if (!DepJDS->referenced())
+      if (auto Err = dlcloseDeinitialize(JDStatesLock, *DepJDS))
+        return Err;
   }
 
   return Error::success();
@@ -568,7 +1269,7 @@ void destroyMachOTLVMgr(void *MachOTLVMgr) {
 
 Error runWrapperFunctionCalls(std::vector<WrapperFunctionCall> WFCs) {
   for (auto &WFC : WFCs)
-    if (auto Err = WFC.runWithSPSRet())
+    if (auto Err = WFC.runWithSPSRet<void>())
       return Err;
   return Error::success();
 }
@@ -579,45 +1280,79 @@ Error runWrapperFunctionCalls(std::vector<WrapperFunctionCall> WFCs) {
 //                             JIT entry points
 //------------------------------------------------------------------------------
 
-ORC_RT_INTERFACE __orc_rt_CWrapperFunctionResult
+ORC_RT_INTERFACE orc_rt_CWrapperFunctionResult
 __orc_rt_macho_platform_bootstrap(char *ArgData, size_t ArgSize) {
-  MachOPlatformRuntimeState::initialize();
-  return WrapperFunctionResult().release();
+  return WrapperFunction<SPSError()>::handle(
+             ArgData, ArgSize,
+             []() { return MachOPlatformRuntimeState::create(); })
+      .release();
 }
 
-ORC_RT_INTERFACE __orc_rt_CWrapperFunctionResult
+ORC_RT_INTERFACE orc_rt_CWrapperFunctionResult
 __orc_rt_macho_platform_shutdown(char *ArgData, size_t ArgSize) {
-  MachOPlatformRuntimeState::destroy();
-  return WrapperFunctionResult().release();
+  return WrapperFunction<SPSError()>::handle(
+             ArgData, ArgSize,
+             []() { return MachOPlatformRuntimeState::destroy(); })
+      .release();
 }
 
-ORC_RT_INTERFACE __orc_rt_CWrapperFunctionResult
-__orc_rt_macho_register_thread_data_section(char *ArgData, size_t ArgSize) {
-  // NOTE: Does not use SPS to deserialize arg buffer, instead the arg buffer
-  // is taken to be the range of the thread data section.
-  return WrapperFunction<SPSError(SPSExecutorAddrRange)>::handle(
+ORC_RT_INTERFACE orc_rt_CWrapperFunctionResult
+__orc_rt_macho_register_jitdylib(char *ArgData, size_t ArgSize) {
+  return WrapperFunction<SPSError(SPSString, SPSExecutorAddr)>::handle(
              ArgData, ArgSize,
-             [](ExecutorAddrRange R) {
-               return MachOPlatformRuntimeState::get()
-                   .registerThreadDataSection(R.toSpan<const char>());
+             [](std::string &Name, ExecutorAddr HeaderAddr) {
+               return MachOPlatformRuntimeState::get().registerJITDylib(
+                   std::move(Name), HeaderAddr.toPtr<void *>());
              })
       .release();
 }
 
-ORC_RT_INTERFACE __orc_rt_CWrapperFunctionResult
-__orc_rt_macho_deregister_thread_data_section(char *ArgData, size_t ArgSize) {
-  // NOTE: Does not use SPS to deserialize arg buffer, instead the arg buffer
-  // is taken to be the range of the thread data section.
-  return WrapperFunction<SPSError(SPSExecutorAddrRange)>::handle(
+ORC_RT_INTERFACE orc_rt_CWrapperFunctionResult
+__orc_rt_macho_deregister_jitdylib(char *ArgData, size_t ArgSize) {
+  return WrapperFunction<SPSError(SPSExecutorAddr)>::handle(
              ArgData, ArgSize,
-             [](ExecutorAddrRange R) {
-               return MachOPlatformRuntimeState::get()
-                   .deregisterThreadDataSection(R.toSpan<const char>());
+             [](ExecutorAddr HeaderAddr) {
+               return MachOPlatformRuntimeState::get().deregisterJITDylib(
+                   HeaderAddr.toPtr<void *>());
              })
       .release();
 }
 
-ORC_RT_INTERFACE __orc_rt_CWrapperFunctionResult
+ORC_RT_INTERFACE orc_rt_CWrapperFunctionResult
+__orc_rt_macho_register_object_platform_sections(char *ArgData,
+                                                 size_t ArgSize) {
+  return WrapperFunction<SPSError(SPSExecutorAddr,
+                                  SPSOptional<SPSUnwindSectionInfo>,
+                                  SPSMachOObjectPlatformSectionsMap)>::
+      handle(ArgData, ArgSize,
+             [](ExecutorAddr HeaderAddr, std::optional<UnwindSectionInfo> USI,
+                std::vector<std::pair<std::string_view, ExecutorAddrRange>>
+                    &Secs) {
+               return MachOPlatformRuntimeState::get()
+                   .registerObjectPlatformSections(HeaderAddr, std::move(USI),
+                                                   std::move(Secs));
+             })
+          .release();
+}
+
+ORC_RT_INTERFACE orc_rt_CWrapperFunctionResult
+__orc_rt_macho_deregister_object_platform_sections(char *ArgData,
+                                                   size_t ArgSize) {
+  return WrapperFunction<SPSError(SPSExecutorAddr,
+                                  SPSOptional<SPSUnwindSectionInfo>,
+                                  SPSMachOObjectPlatformSectionsMap)>::
+      handle(ArgData, ArgSize,
+             [](ExecutorAddr HeaderAddr, std::optional<UnwindSectionInfo> USI,
+                std::vector<std::pair<std::string_view, ExecutorAddrRange>>
+                    &Secs) {
+               return MachOPlatformRuntimeState::get()
+                   .deregisterObjectPlatformSections(HeaderAddr, std::move(USI),
+                                                     std::move(Secs));
+             })
+          .release();
+}
+
+ORC_RT_INTERFACE orc_rt_CWrapperFunctionResult
 __orc_rt_macho_run_wrapper_function_calls(char *ArgData, size_t ArgSize) {
   return WrapperFunction<SPSError(SPSSequence<SPSWrapperFunctionCall>)>::handle(
              ArgData, ArgSize, runWrapperFunctionCalls)
@@ -643,7 +1378,7 @@ ORC_RT_INTERFACE void *__orc_rt_macho_tlv_get_addr_impl(TLVDescriptor *D) {
       reinterpret_cast<char *>(static_cast<uintptr_t>(D->DataAddress)));
 }
 
-ORC_RT_INTERFACE __orc_rt_CWrapperFunctionResult
+ORC_RT_INTERFACE orc_rt_CWrapperFunctionResult
 __orc_rt_macho_create_pthread_key(char *ArgData, size_t ArgSize) {
   return WrapperFunction<SPSExpected<uint64_t>(void)>::handle(
              ArgData, ArgSize,

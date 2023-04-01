@@ -19,5 +19,5 @@
 @end
 
 // Check that the method list has precisely 2 methods.
-// CHECK-NEW: @.objc_method_list = internal global { i8*, i32, i64, [2 x
-// CHECK-OLD: @.objc_method_list = internal global { i8*, i32, [2 x
+// CHECK-NEW: @.objc_method_list = internal global { ptr, i32, i64, [2 x
+// CHECK-OLD: @.objc_method_list = internal global { ptr, i32, [2 x

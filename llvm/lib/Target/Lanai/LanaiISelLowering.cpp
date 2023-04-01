@@ -138,11 +138,7 @@ LanaiTargetLowering::LanaiTargetLowering(const TargetMachine &TM,
     setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
   }
 
-  setTargetDAGCombine(ISD::ADD);
-  setTargetDAGCombine(ISD::SUB);
-  setTargetDAGCombine(ISD::AND);
-  setTargetDAGCombine(ISD::OR);
-  setTargetDAGCombine(ISD::XOR);
+  setTargetDAGCombine({ISD::ADD, ISD::SUB, ISD::AND, ISD::OR, ISD::XOR});
 
   // Function alignments
   setMinFunctionAlignment(Align(4));
@@ -482,7 +478,7 @@ SDValue LanaiTargetLowering::LowerCCCArguments(
       }
       default:
         LLVM_DEBUG(dbgs() << "LowerFormalArguments Unhandled argument type: "
-                          << RegVT.getEVTString() << "\n");
+                          << RegVT << "\n");
         llvm_unreachable("unhandled argument type");
       }
     } else {
@@ -493,7 +489,7 @@ SDValue LanaiTargetLowering::LowerCCCArguments(
       // Check that the argument fits in stack slot
       if (ObjSize > 4) {
         errs() << "LowerFormalArguments Unhandled argument type: "
-               << EVT(VA.getLocVT()).getEVTString() << "\n";
+               << VA.getLocVT() << "\n";
       }
       // Create the frame index object for this incoming parameter...
       int FI = MFI.CreateFixedObject(ObjSize, VA.getLocMemOffset(), true);
@@ -511,7 +507,7 @@ SDValue LanaiTargetLowering::LowerCCCArguments(
   // the sret argument into rv for the return. Save the argument into
   // a virtual register so that we can access it from the return points.
   if (MF.getFunction().hasStructRetAttr()) {
-    unsigned Reg = LanaiMFI->getSRetReturnReg();
+    Register Reg = LanaiMFI->getSRetReturnReg();
     if (!Reg) {
       Reg = MF.getRegInfo().createVirtualRegister(getRegClassFor(MVT::i32));
       LanaiMFI->setSRetReturnReg(Reg);
@@ -577,7 +573,7 @@ LanaiTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   if (DAG.getMachineFunction().getFunction().hasStructRetAttr()) {
     MachineFunction &MF = DAG.getMachineFunction();
     LanaiMachineFunctionInfo *LanaiMFI = MF.getInfo<LanaiMachineFunctionInfo>();
-    unsigned Reg = LanaiMFI->getSRetReturnReg();
+    Register Reg = LanaiMFI->getSRetReturnReg();
     assert(Reg &&
            "SRetReturnReg should have been set in LowerFormalArguments().");
     SDValue Val =
@@ -765,11 +761,7 @@ SDValue LanaiTargetLowering::LowerCCCCallTo(
   InFlag = Chain.getValue(1);
 
   // Create the CALLSEQ_END node.
-  Chain = DAG.getCALLSEQ_END(
-      Chain,
-      DAG.getConstant(NumBytes, DL, getPointerTy(DAG.getDataLayout()), true),
-      DAG.getConstant(0, DL, getPointerTy(DAG.getDataLayout()), true), InFlag,
-      DL);
+  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, InFlag, DL);
   InFlag = Chain.getValue(1);
 
   // Handle result values, copying them out of physregs into vregs that we
@@ -959,8 +951,7 @@ SDValue LanaiTargetLowering::LowerMUL(SDValue Op, SelectionDAG &DAG) const {
 
   // Assemble multiplication from shift, add, sub using NAF form and running
   // sum.
-  for (unsigned int I = 0; I < sizeof(SignedDigit) / sizeof(SignedDigit[0]);
-       ++I) {
+  for (unsigned int I = 0; I < std::size(SignedDigit); ++I) {
     if (SignedDigit[I] == 0)
       continue;
 
@@ -1077,7 +1068,7 @@ SDValue LanaiTargetLowering::LowerRETURNADDR(SDValue Op,
 
   // Return the link register, which contains the return address.
   // Mark it an implicit live-in.
-  unsigned Reg = MF.addLiveIn(TRI->getRARegister(), getRegClassFor(MVT::i32));
+  Register Reg = MF.addLiveIn(TRI->getRARegister(), getRegClassFor(MVT::i32));
   return DAG.getCopyFromReg(DAG.getEntryNode(), DL, Reg, VT);
 }
 

@@ -19,6 +19,7 @@
 #include "CSKYSubtarget.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/CallingConvLower.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/Support/Debug.h"
 
@@ -37,6 +38,18 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
     : TargetLowering(TM), Subtarget(STI) {
   // Register Class
   addRegisterClass(MVT::i32, &CSKY::GPRRegClass);
+
+  if (STI.useHardFloat()) {
+    if (STI.hasFPUv2SingleFloat())
+      addRegisterClass(MVT::f32, &CSKY::sFPR32RegClass);
+    else if (STI.hasFPUv3SingleFloat())
+      addRegisterClass(MVT::f32, &CSKY::FPR32RegClass);
+
+    if (STI.hasFPUv2DoubleFloat())
+      addRegisterClass(MVT::f64, &CSKY::sFPR64RegClass);
+    else if (STI.hasFPUv3DoubleFloat())
+      addRegisterClass(MVT::f64, &CSKY::FPR64RegClass);
+  }
 
   setOperationAction(ISD::ADDCARRY, MVT::i32, Legal);
   setOperationAction(ISD::SUBCARRY, MVT::i32, Legal);
@@ -74,6 +87,9 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
   setOperationAction(ISD::GlobalTLSAddress, MVT::i32, Custom);
   setOperationAction(ISD::BlockAddress, MVT::i32, Custom);
+  if (!Subtarget.hasE2()) {
+    setOperationAction(ISD::ConstantPool, MVT::i32, Custom);
+  }
   setOperationAction(ISD::JumpTable, MVT::i32, Custom);
   setOperationAction(ISD::VASTART, MVT::Other, Custom);
 
@@ -91,8 +107,40 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::UDIV, MVT::i32, Expand);
   }
 
-  if (!Subtarget.has3r2E3r3()) {
-    setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Expand);
+  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Expand);
+
+  // Float
+
+  ISD::CondCode FPCCToExtend[] = {
+      ISD::SETONE, ISD::SETUEQ, ISD::SETUGT,
+      ISD::SETUGE, ISD::SETULT, ISD::SETULE,
+  };
+
+  ISD::NodeType FPOpToExpand[] = {ISD::FSIN, ISD::FCOS, ISD::FSINCOS,
+                                  ISD::FPOW, ISD::FREM, ISD::FCOPYSIGN};
+
+  if (STI.useHardFloat()) {
+
+    MVT AllVTy[] = {MVT::f32, MVT::f64};
+
+    for (auto VT : AllVTy) {
+      setOperationAction(ISD::FREM, VT, Expand);
+      setOperationAction(ISD::SELECT_CC, VT, Expand);
+      setOperationAction(ISD::BR_CC, VT, Expand);
+
+      for (auto CC : FPCCToExtend)
+        setCondCodeAction(CC, VT, Expand);
+      for (auto Op : FPOpToExpand)
+        setOperationAction(Op, VT, Expand);
+    }
+
+    if (STI.hasFPUv2SingleFloat() || STI.hasFPUv3SingleFloat()) {
+      setOperationAction(ISD::ConstantFP, MVT::f32, Legal);
+    }
+    if (STI.hasFPUv2DoubleFloat() || STI.hasFPUv3DoubleFloat()) {
+      setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
+      setTruncStoreAction(MVT::f64, MVT::f32, Expand);
+    }
   }
 
   // Compute derived properties from the register classes.
@@ -105,8 +153,7 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
   setMaxAtomicSizeInBitsSupported(0);
 
   setStackPointerRegisterToSaveRestore(CSKY::R14);
-  const Align FunctionAlignment(2);
-  setMinFunctionAlignment(FunctionAlignment);
+  setMinFunctionAlignment(Align(2));
   setSchedulingPreference(Sched::Source);
 }
 
@@ -119,10 +166,14 @@ SDValue CSKYTargetLowering::LowerOperation(SDValue Op,
     return LowerGlobalAddress(Op, DAG);
   case ISD::ExternalSymbol:
     return LowerExternalSymbol(Op, DAG);
+  case ISD::GlobalTLSAddress:
+    return LowerGlobalTLSAddress(Op, DAG);
   case ISD::JumpTable:
     return LowerJumpTable(Op, DAG);
   case ISD::BlockAddress:
     return LowerBlockAddress(Op, DAG);
+  case ISD::ConstantPool:
+    return LowerConstantPool(Op, DAG);
   case ISD::VASTART:
     return LowerVASTART(Op, DAG);
   case ISD::FRAMEADDR:
@@ -312,7 +363,7 @@ SDValue CSKYTargetLowering::LowerFormalArguments(
     const unsigned XLenInBytes = 4;
     const MVT XLenVT = MVT::i32;
 
-    ArrayRef<MCPhysReg> ArgRegs = makeArrayRef(GPRArgRegs);
+    ArrayRef<MCPhysReg> ArgRegs = ArrayRef(GPRArgRegs);
     unsigned Idx = CCInfo.getFirstUnallocated(ArgRegs);
     const TargetRegisterClass *RC = &CSKY::GPRRegClass;
     MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -655,8 +706,7 @@ SDValue CSKYTargetLowering::LowerCall(CallLoweringInfo &CLI,
   Glue = Chain.getValue(1);
 
   // Mark the end of the call, which is glued to the call itself.
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getConstant(NumBytes, DL, PtrVT, true),
-                             DAG.getConstant(0, DL, PtrVT, true), Glue, DL);
+  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, Glue, DL);
   Glue = Chain.getValue(1);
 
   // Assign locations to each value returned by this call.
@@ -736,6 +786,175 @@ SDValue CSKYTargetLowering::getTargetConstantPoolValue(GlobalAddressSDNode *N,
   return DAG.getTargetConstantPool(CPV, Ty);
 }
 
+CSKYTargetLowering::ConstraintType
+CSKYTargetLowering::getConstraintType(StringRef Constraint) const {
+  if (Constraint.size() == 1) {
+    switch (Constraint[0]) {
+    default:
+      break;
+    case 'a':
+    case 'b':
+    case 'v':
+    case 'w':
+    case 'y':
+      return C_RegisterClass;
+    case 'c':
+    case 'l':
+    case 'h':
+    case 'z':
+      return C_Register;
+    }
+  }
+  return TargetLowering::getConstraintType(Constraint);
+}
+
+std::pair<unsigned, const TargetRegisterClass *>
+CSKYTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                                                 StringRef Constraint,
+                                                 MVT VT) const {
+  if (Constraint.size() == 1) {
+    switch (Constraint[0]) {
+    case 'r':
+      return std::make_pair(0U, &CSKY::GPRRegClass);
+    case 'a':
+      return std::make_pair(0U, &CSKY::mGPRRegClass);
+    case 'b':
+      return std::make_pair(0U, &CSKY::sGPRRegClass);
+    case 'z':
+      return std::make_pair(CSKY::R14, &CSKY::GPRRegClass);
+    case 'c':
+      return std::make_pair(CSKY::C, &CSKY::CARRYRegClass);
+    case 'w':
+      if ((Subtarget.hasFPUv2SingleFloat() ||
+           Subtarget.hasFPUv3SingleFloat()) &&
+          VT == MVT::f32)
+        return std::make_pair(0U, &CSKY::sFPR32RegClass);
+      if ((Subtarget.hasFPUv2DoubleFloat() ||
+           Subtarget.hasFPUv3DoubleFloat()) &&
+          VT == MVT::f64)
+        return std::make_pair(0U, &CSKY::sFPR64RegClass);
+      break;
+    case 'v':
+      if (Subtarget.hasFPUv2SingleFloat() && VT == MVT::f32)
+        return std::make_pair(0U, &CSKY::sFPR32RegClass);
+      if (Subtarget.hasFPUv3SingleFloat() && VT == MVT::f32)
+        return std::make_pair(0U, &CSKY::FPR32RegClass);
+      if (Subtarget.hasFPUv2DoubleFloat() && VT == MVT::f64)
+        return std::make_pair(0U, &CSKY::sFPR64RegClass);
+      if (Subtarget.hasFPUv3DoubleFloat() && VT == MVT::f64)
+        return std::make_pair(0U, &CSKY::FPR64RegClass);
+      break;
+    default:
+      break;
+    }
+  }
+
+  if (Constraint == "{c}")
+    return std::make_pair(CSKY::C, &CSKY::CARRYRegClass);
+
+  // Clang will correctly decode the usage of register name aliases into their
+  // official names. However, other frontends like `rustc` do not. This allows
+  // users of these frontends to use the ABI names for registers in LLVM-style
+  // register constraints.
+  unsigned XRegFromAlias = StringSwitch<unsigned>(Constraint.lower())
+                               .Case("{a0}", CSKY::R0)
+                               .Case("{a1}", CSKY::R1)
+                               .Case("{a2}", CSKY::R2)
+                               .Case("{a3}", CSKY::R3)
+                               .Case("{l0}", CSKY::R4)
+                               .Case("{l1}", CSKY::R5)
+                               .Case("{l2}", CSKY::R6)
+                               .Case("{l3}", CSKY::R7)
+                               .Case("{l4}", CSKY::R8)
+                               .Case("{l5}", CSKY::R9)
+                               .Case("{l6}", CSKY::R10)
+                               .Case("{l7}", CSKY::R11)
+                               .Case("{t0}", CSKY::R12)
+                               .Case("{t1}", CSKY::R13)
+                               .Case("{sp}", CSKY::R14)
+                               .Case("{lr}", CSKY::R15)
+                               .Case("{l8}", CSKY::R16)
+                               .Case("{l9}", CSKY::R17)
+                               .Case("{t2}", CSKY::R18)
+                               .Case("{t3}", CSKY::R19)
+                               .Case("{t4}", CSKY::R20)
+                               .Case("{t5}", CSKY::R21)
+                               .Case("{t6}", CSKY::R22)
+                               .Cases("{t7}", "{fp}", CSKY::R23)
+                               .Cases("{t8}", "{top}", CSKY::R24)
+                               .Cases("{t9}", "{bsp}", CSKY::R25)
+                               .Case("{r26}", CSKY::R26)
+                               .Case("{r27}", CSKY::R27)
+                               .Cases("{gb}", "{rgb}", "{rdb}", CSKY::R28)
+                               .Cases("{tb}", "{rtb}", CSKY::R29)
+                               .Case("{svbr}", CSKY::R30)
+                               .Case("{tls}", CSKY::R31)
+                               .Default(CSKY::NoRegister);
+
+  if (XRegFromAlias != CSKY::NoRegister)
+    return std::make_pair(XRegFromAlias, &CSKY::GPRRegClass);
+
+  // Since TargetLowering::getRegForInlineAsmConstraint uses the name of the
+  // TableGen record rather than the AsmName to choose registers for InlineAsm
+  // constraints, plus we want to match those names to the widest floating point
+  // register type available, manually select floating point registers here.
+  //
+  // The second case is the ABI name of the register, so that frontends can also
+  // use the ABI names in register constraint lists.
+  if (Subtarget.useHardFloat()) {
+    unsigned FReg = StringSwitch<unsigned>(Constraint.lower())
+                        .Cases("{fr0}", "{vr0}", CSKY::F0_32)
+                        .Cases("{fr1}", "{vr1}", CSKY::F1_32)
+                        .Cases("{fr2}", "{vr2}", CSKY::F2_32)
+                        .Cases("{fr3}", "{vr3}", CSKY::F3_32)
+                        .Cases("{fr4}", "{vr4}", CSKY::F4_32)
+                        .Cases("{fr5}", "{vr5}", CSKY::F5_32)
+                        .Cases("{fr6}", "{vr6}", CSKY::F6_32)
+                        .Cases("{fr7}", "{vr7}", CSKY::F7_32)
+                        .Cases("{fr8}", "{vr8}", CSKY::F8_32)
+                        .Cases("{fr9}", "{vr9}", CSKY::F9_32)
+                        .Cases("{fr10}", "{vr10}", CSKY::F10_32)
+                        .Cases("{fr11}", "{vr11}", CSKY::F11_32)
+                        .Cases("{fr12}", "{vr12}", CSKY::F12_32)
+                        .Cases("{fr13}", "{vr13}", CSKY::F13_32)
+                        .Cases("{fr14}", "{vr14}", CSKY::F14_32)
+                        .Cases("{fr15}", "{vr15}", CSKY::F15_32)
+                        .Cases("{fr16}", "{vr16}", CSKY::F16_32)
+                        .Cases("{fr17}", "{vr17}", CSKY::F17_32)
+                        .Cases("{fr18}", "{vr18}", CSKY::F18_32)
+                        .Cases("{fr19}", "{vr19}", CSKY::F19_32)
+                        .Cases("{fr20}", "{vr20}", CSKY::F20_32)
+                        .Cases("{fr21}", "{vr21}", CSKY::F21_32)
+                        .Cases("{fr22}", "{vr22}", CSKY::F22_32)
+                        .Cases("{fr23}", "{vr23}", CSKY::F23_32)
+                        .Cases("{fr24}", "{vr24}", CSKY::F24_32)
+                        .Cases("{fr25}", "{vr25}", CSKY::F25_32)
+                        .Cases("{fr26}", "{vr26}", CSKY::F26_32)
+                        .Cases("{fr27}", "{vr27}", CSKY::F27_32)
+                        .Cases("{fr28}", "{vr28}", CSKY::F28_32)
+                        .Cases("{fr29}", "{vr29}", CSKY::F29_32)
+                        .Cases("{fr30}", "{vr30}", CSKY::F30_32)
+                        .Cases("{fr31}", "{vr31}", CSKY::F31_32)
+                        .Default(CSKY::NoRegister);
+    if (FReg != CSKY::NoRegister) {
+      assert(CSKY::F0_32 <= FReg && FReg <= CSKY::F31_32 && "Unknown fp-reg");
+      unsigned RegNo = FReg - CSKY::F0_32;
+      unsigned DReg = CSKY::F0_64 + RegNo;
+
+      if (Subtarget.hasFPUv2DoubleFloat())
+        return std::make_pair(DReg, &CSKY::sFPR64RegClass);
+      else if (Subtarget.hasFPUv3DoubleFloat())
+        return std::make_pair(DReg, &CSKY::FPR64RegClass);
+      else if (Subtarget.hasFPUv2SingleFloat())
+        return std::make_pair(FReg, &CSKY::sFPR32RegClass);
+      else if (Subtarget.hasFPUv3SingleFloat())
+        return std::make_pair(FReg, &CSKY::FPR32RegClass);
+    }
+  }
+
+  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+}
+
 static MachineBasicBlock *
 emitSelectPseudo(MachineInstr &MI, MachineBasicBlock *BB, unsigned Opcode) {
 
@@ -805,6 +1024,12 @@ CSKYTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
   switch (MI.getOpcode()) {
   default:
     llvm_unreachable("Unexpected instr type to insert");
+  case CSKY::FSELS:
+  case CSKY::FSELD:
+    if (Subtarget.hasE2())
+      return emitSelectPseudo(MI, BB, CSKY::BT32);
+    else
+      return emitSelectPseudo(MI, BB, CSKY::BT16);
   case CSKY::ISEL32:
     return emitSelectPseudo(MI, BB, CSKY::BT32);
   case CSKY::ISEL16:
@@ -837,9 +1062,21 @@ SDValue CSKYTargetLowering::getTargetConstantPoolValue(BlockAddressSDNode *N,
                                                        EVT Ty,
                                                        SelectionDAG &DAG,
                                                        unsigned Flags) const {
+  assert(N->getOffset() == 0);
   CSKYConstantPoolValue *CPV = CSKYConstantPoolConstant::Create(
       N->getBlockAddress(), CSKYCP::CPBlockAddress, 0, getModifier(Flags),
       false);
+  return DAG.getTargetConstantPool(CPV, Ty);
+}
+
+SDValue CSKYTargetLowering::getTargetConstantPoolValue(ConstantPoolSDNode *N,
+                                                       EVT Ty,
+                                                       SelectionDAG &DAG,
+                                                       unsigned Flags) const {
+  assert(N->getOffset() == 0);
+  CSKYConstantPoolValue *CPV = CSKYConstantPoolConstant::Create(
+      N->getConstVal(), Type::getInt32Ty(*DAG.getContext()),
+      CSKYCP::CPConstPool, 0, getModifier(Flags), false);
   return DAG.getTargetConstantPool(CPV, Ty);
 }
 
@@ -866,6 +1103,14 @@ SDValue CSKYTargetLowering::getTargetNode(BlockAddressSDNode *N, SDLoc DL,
                                           unsigned Flags) const {
   return DAG.getTargetBlockAddress(N->getBlockAddress(), Ty, N->getOffset(),
                                    Flags);
+}
+
+SDValue CSKYTargetLowering::getTargetNode(ConstantPoolSDNode *N, SDLoc DL,
+                                          EVT Ty, SelectionDAG &DAG,
+                                          unsigned Flags) const {
+
+  return DAG.getTargetConstantPool(N->getConstVal(), Ty, N->getAlign(),
+                                   N->getOffset(), Flags);
 }
 
 const char *CSKYTargetLowering::getTargetNodeName(unsigned Opcode) const {
@@ -937,6 +1182,14 @@ SDValue CSKYTargetLowering::LowerBlockAddress(SDValue Op,
   return getAddr(N, DAG);
 }
 
+SDValue CSKYTargetLowering::LowerConstantPool(SDValue Op,
+                                              SelectionDAG &DAG) const {
+  assert(!Subtarget.hasE2());
+  ConstantPoolSDNode *N = cast<ConstantPoolSDNode>(Op);
+
+  return getAddr(N, DAG);
+}
+
 SDValue CSKYTargetLowering::LowerVASTART(SDValue Op, SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
   CSKYMachineFunctionInfo *FuncInfo = MF.getInfo<CSKYMachineFunctionInfo>();
@@ -1004,4 +1257,117 @@ Register CSKYTargetLowering::getExceptionPointerRegister(
 Register CSKYTargetLowering::getExceptionSelectorRegister(
     const Constant *PersonalityFn) const {
   return CSKY::R1;
+}
+
+SDValue CSKYTargetLowering::LowerGlobalTLSAddress(SDValue Op,
+                                                  SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  EVT Ty = Op.getValueType();
+  GlobalAddressSDNode *N = cast<GlobalAddressSDNode>(Op);
+  int64_t Offset = N->getOffset();
+  MVT XLenVT = MVT::i32;
+
+  TLSModel::Model Model = getTargetMachine().getTLSModel(N->getGlobal());
+  SDValue Addr;
+  switch (Model) {
+  case TLSModel::LocalExec:
+    Addr = getStaticTLSAddr(N, DAG, /*UseGOT=*/false);
+    break;
+  case TLSModel::InitialExec:
+    Addr = getStaticTLSAddr(N, DAG, /*UseGOT=*/true);
+    break;
+  case TLSModel::LocalDynamic:
+  case TLSModel::GeneralDynamic:
+    Addr = getDynamicTLSAddr(N, DAG);
+    break;
+  }
+
+  // In order to maximise the opportunity for common subexpression elimination,
+  // emit a separate ADD node for the global address offset instead of folding
+  // it in the global address node. Later peephole optimisations may choose to
+  // fold it back in when profitable.
+  if (Offset != 0)
+    return DAG.getNode(ISD::ADD, DL, Ty, Addr,
+                       DAG.getConstant(Offset, DL, XLenVT));
+  return Addr;
+}
+
+SDValue CSKYTargetLowering::getStaticTLSAddr(GlobalAddressSDNode *N,
+                                             SelectionDAG &DAG,
+                                             bool UseGOT) const {
+  MachineFunction &MF = DAG.getMachineFunction();
+  CSKYMachineFunctionInfo *CFI = MF.getInfo<CSKYMachineFunctionInfo>();
+
+  unsigned CSKYPCLabelIndex = CFI->createPICLabelUId();
+
+  SDLoc DL(N);
+  EVT Ty = getPointerTy(DAG.getDataLayout());
+
+  CSKYCP::CSKYCPModifier Flag = UseGOT ? CSKYCP::TLSIE : CSKYCP::TLSLE;
+  bool AddCurrentAddr = UseGOT ? true : false;
+  unsigned char PCAjust = UseGOT ? 4 : 0;
+
+  CSKYConstantPoolValue *CPV =
+      CSKYConstantPoolConstant::Create(N->getGlobal(), CSKYCP::CPValue, PCAjust,
+                                       Flag, AddCurrentAddr, CSKYPCLabelIndex);
+  SDValue CAddr = DAG.getTargetConstantPool(CPV, Ty);
+
+  SDValue Load;
+  if (UseGOT) {
+    SDValue PICLabel = DAG.getTargetConstant(CSKYPCLabelIndex, DL, MVT::i32);
+    auto *LRWGRS = DAG.getMachineNode(CSKY::PseudoTLSLA32, DL, {Ty, Ty},
+                                      {CAddr, PICLabel});
+    auto LRWADDGRS =
+        DAG.getNode(ISD::ADD, DL, Ty, SDValue(LRWGRS, 0), SDValue(LRWGRS, 1));
+    Load = DAG.getLoad(Ty, DL, DAG.getEntryNode(), LRWADDGRS,
+                       MachinePointerInfo(N->getGlobal()));
+  } else {
+    Load = SDValue(DAG.getMachineNode(CSKY::LRW32, DL, Ty, CAddr), 0);
+  }
+
+  // Add the thread pointer.
+  SDValue TPReg = DAG.getRegister(CSKY::R31, MVT::i32);
+  return DAG.getNode(ISD::ADD, DL, Ty, Load, TPReg);
+}
+
+SDValue CSKYTargetLowering::getDynamicTLSAddr(GlobalAddressSDNode *N,
+                                              SelectionDAG &DAG) const {
+  MachineFunction &MF = DAG.getMachineFunction();
+  CSKYMachineFunctionInfo *CFI = MF.getInfo<CSKYMachineFunctionInfo>();
+
+  unsigned CSKYPCLabelIndex = CFI->createPICLabelUId();
+
+  SDLoc DL(N);
+  EVT Ty = getPointerTy(DAG.getDataLayout());
+  IntegerType *CallTy = Type::getIntNTy(*DAG.getContext(), Ty.getSizeInBits());
+
+  CSKYConstantPoolValue *CPV =
+      CSKYConstantPoolConstant::Create(N->getGlobal(), CSKYCP::CPValue, 4,
+                                       CSKYCP::TLSGD, true, CSKYPCLabelIndex);
+  SDValue Addr = DAG.getTargetConstantPool(CPV, Ty);
+  SDValue PICLabel = DAG.getTargetConstant(CSKYPCLabelIndex, DL, MVT::i32);
+
+  auto *LRWGRS =
+      DAG.getMachineNode(CSKY::PseudoTLSLA32, DL, {Ty, Ty}, {Addr, PICLabel});
+
+  auto Load =
+      DAG.getNode(ISD::ADD, DL, Ty, SDValue(LRWGRS, 0), SDValue(LRWGRS, 1));
+
+  // Prepare argument list to generate call.
+  ArgListTy Args;
+  ArgListEntry Entry;
+  Entry.Node = Load;
+  Entry.Ty = CallTy;
+  Args.push_back(Entry);
+
+  // Setup call to __tls_get_addr.
+  TargetLowering::CallLoweringInfo CLI(DAG);
+  CLI.setDebugLoc(DL)
+      .setChain(DAG.getEntryNode())
+      .setLibCallee(CallingConv::C, CallTy,
+                    DAG.getExternalSymbol("__tls_get_addr", Ty),
+                    std::move(Args));
+  SDValue V = LowerCallTo(CLI).first;
+
+  return V;
 }

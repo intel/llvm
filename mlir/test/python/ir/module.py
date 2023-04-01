@@ -28,14 +28,17 @@ def testParseSuccess():
 
 # Verify parse error.
 # CHECK-LABEL: TEST: testParseError
-# CHECK: testParseError: Unable to parse module assembly (see diagnostics)
+# CHECK: testParseError: <
+# CHECK:   Unable to parse module assembly:
+# CHECK:   error: "-":1:1: expected operation name in quotes
+# CHECK: >
 @run
 def testParseError():
   ctx = Context()
   try:
     module = Module.parse(r"""}SYNTAX ERROR{""", ctx)
-  except ValueError as e:
-    print("testParseError:", e)
+  except MLIRError as e:
+    print(f"testParseError: <{e}>")
   else:
     print("Exception not produced")
 
@@ -64,7 +67,7 @@ def testCreateEmpty():
 def testRoundtripUnicode():
   ctx = Context()
   module = Module.parse(r"""
-    func private @roundtripUnicode() attributes { foo = "😊" }
+    func.func private @roundtripUnicode() attributes { foo = "😊" }
   """, ctx)
   print(str(module))
 
@@ -79,7 +82,7 @@ def testRoundtripUnicode():
 def testRoundtripBinary():
   with Context():
     module = Module.parse(r"""
-      func private @roundtripUnicode() attributes { foo = "😊" }
+      func.func private @roundtripUnicode() attributes { foo = "😊" }
     """)
     binary_asm = module.operation.get_asm(binary=True)
     assert isinstance(binary_asm, bytes)
@@ -103,6 +106,16 @@ def testModuleOperation():
   op2 = module.operation
   assert ctx._get_live_operation_count() == 1
   assert op1 is op2
+
+  # Test live operation clearing.
+  op1 = module.operation
+  assert ctx._get_live_operation_count() == 1
+  num_invalidated = ctx._clear_live_operations()
+  assert num_invalidated == 1
+  assert ctx._get_live_operation_count() == 0
+  op1 = None
+  gc.collect()
+  op1 = module.operation
 
   # Ensure that if module is de-referenced, the operations are still valid.
   module = None

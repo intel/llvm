@@ -98,7 +98,7 @@ static const char *ReportTypeString(ReportType typ, uptr tag) {
   UNREACHABLE("missing case");
 }
 
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 static const char *const kInterposedFunctionPrefix = "wrap_";
 #else
 static const char *const kInterposedFunctionPrefix = "__interceptor_";
@@ -200,8 +200,9 @@ static void PrintLocation(const ReportLocation *loc) {
   } else if (loc->type == ReportLocationTLS) {
     Printf("  Location is TLS of %s.\n\n", thread_name(thrbuf, loc->tid));
   } else if (loc->type == ReportLocationFD) {
-    Printf("  Location is file descriptor %d created by %s at:\n",
-        loc->fd, thread_name(thrbuf, loc->tid));
+    Printf("  Location is file descriptor %d %s by %s at:\n", loc->fd,
+           loc->fd_closed ? "destroyed" : "created",
+           thread_name(thrbuf, loc->tid));
     print_stack = true;
   }
   Printf("%s", d.Default());
@@ -305,6 +306,9 @@ void PrintReport(const ReportDesc *rep) {
   Printf("WARNING: ThreadSanitizer: %s (pid=%d)\n", rep_typ_str,
          (int)internal_getpid());
   Printf("%s", d.Default());
+
+  if (rep->typ == ReportTypeErrnoInSignal)
+    Printf("  Signal %u handler invoked at:\n", rep->signum);
 
   if (rep->typ == ReportTypeDeadlock) {
     char thrbuf[kThreadBufSize];

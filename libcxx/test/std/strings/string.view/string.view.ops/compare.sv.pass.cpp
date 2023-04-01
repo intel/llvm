@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // constexpr int compare(basic_string_view str) const noexcept;
@@ -53,6 +55,7 @@ int main(int, char**) {
     test("abcdefghijklmnopqrst", "abcdefghij", 10);
     test("abcdefghijklmnopqrst", "abcdefghijklmnopqrst", 0);
 
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     test(L"",                     L"", 0);
     test(L"",                     L"abcde", -5);
     test(L"",                     L"abcdefghij", -10);
@@ -69,6 +72,7 @@ int main(int, char**) {
     test(L"abcdefghijklmnopqrst", L"abcde", 15);
     test(L"abcdefghijklmnopqrst", L"abcdefghij", 10);
     test(L"abcdefghijklmnopqrst", L"abcdefghijklmnopqrst", 0);
+#endif
 
 #if TEST_STD_VER >= 11
     test(u"",                     u"", 0);

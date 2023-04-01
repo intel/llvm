@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -19,61 +19,33 @@ class TestKernel2;
 class TestKernel3;
 class ServiceKernel1;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<TestKernel1> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernel1> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelID_TestKernel1"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
-template <> struct KernelInfo<TestKernel2> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelID_TestKernel2"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
-template <> struct KernelInfo<TestKernel3> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernel3> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelID_TestKernel3"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
-template <> struct KernelInfo<ServiceKernel1> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<ServiceKernel1> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1";
   }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> Kernels) {
@@ -137,30 +109,12 @@ TEST(KernelID, NoServiceKernelIds) {
 }
 
 TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   const sycl::device Dev = Plt.get_devices()[0];
-
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
@@ -180,30 +134,12 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
 }
 
 TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   const sycl::device Dev = Plt.get_devices()[0];
-
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
@@ -219,30 +155,12 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
 }
 
 TEST(KernelID, KernelIDHasKernel) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   const sycl::device Dev = Plt.get_devices()[0];
-
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
@@ -315,27 +233,35 @@ TEST(KernelID, KernelIDHasKernel) {
   EXPECT_TRUE(InputBundle7.has_kernel(TestKernel3ID));
 }
 
-TEST(KernelID, InvalidKernelName) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
+TEST(KernelID, HasKernelTemplated) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::kernel_id TestKernel1ID = sycl::get_kernel_id<TestKernel1>();
+
+  std::vector<sycl::kernel_id> KernelIDs1 = {TestKernel1ID};
+  auto InputBundle1 =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, KernelIDs1);
+
+  EXPECT_TRUE(InputBundle1.has_kernel<TestKernel1>());
+  EXPECT_FALSE(InputBundle1.has_kernel<TestKernel2>());
+  EXPECT_TRUE(InputBundle1.has_kernel<TestKernel3>());
+}
+
+TEST(KernelID, GetKernelIDInvalidKernelName) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   try {
     sycl::get_kernel_id<class NotAKernel>();
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
     EXPECT_EQ(std::string("No kernel found with the specified name -46 "
-                          "(CL_INVALID_KERNEL_NAME)"),
+                          "(PI_ERROR_INVALID_KERNEL_NAME)"),
               e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";

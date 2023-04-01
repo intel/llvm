@@ -29,16 +29,16 @@ define dso_local void @testPastArguments() nounwind {
 ; MINGW-NEXT:    popl %ebp
 ; MINGW-NEXT:    retl
 entry:
-  %0 = load <4 x float>, <4 x float>* @a, align 16
+  %0 = load <4 x float>, ptr @a, align 16
   %call = tail call i32 (i32, ...) @testm128(i32 1, <4 x float> inreg %0)
   ret void
 }
 
-define <4 x i32> @foo(<4 x float> %0, ...) nounwind {
+define <4 x i32> @foo(<4 x float> inreg %0, ...) nounwind {
 ; MSVC-LABEL: foo:
 ; MSVC:       # %bb.0:
 ; MSVC-NEXT:    pushl %eax
-; MSVC-NEXT:    movaps 8(%esp), %xmm0
+; MSVC-NEXT:    movups 8(%esp), %xmm0
 ; MSVC-NEXT:    movups 24(%esp), %xmm1
 ; MSVC-NEXT:    cmpltps %xmm1, %xmm0
 ; MSVC-NEXT:    popl %eax
@@ -56,16 +56,15 @@ define <4 x i32> @foo(<4 x float> %0, ...) nounwind {
 ; MINGW-NEXT:    movl %ebp, %esp
 ; MINGW-NEXT:    popl %ebp
 ; MINGW-NEXT:    retl
-  %2 = alloca <4 x float>*, align 4
-  %3 = bitcast <4 x float>** %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %3)
-  call void @llvm.va_start(i8* %3)
-  %4 = load <4 x float>*, <4 x float>** %2, align 4
-  %5 = load <4 x float>, <4 x float>* %4, align 4
-  %6 = fcmp ogt <4 x float> %5, %0
-  %7 = sext <4 x i1> %6 to <4 x i32>
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3)
-  ret <4 x i32> %7
+  %2 = alloca ptr, align 4
+  call void @llvm.lifetime.start.p0(i64 4, ptr %2)
+  call void @llvm.va_start(ptr %2)
+  %3 = load ptr, ptr %2, align 4
+  %4 = load <4 x float>, ptr %3, align 4
+  %5 = fcmp ogt <4 x float> %4, %0
+  %6 = sext <4 x i1> %5 to <4 x i32>
+  call void @llvm.lifetime.end.p0(i64 4, ptr %2)
+  ret <4 x i32> %6
 }
 
 define <4 x i32> @bar() nounwind {
@@ -73,9 +72,9 @@ define <4 x i32> @bar() nounwind {
 ; MSVC:       # %bb.0:
 ; MSVC-NEXT:    subl $32, %esp
 ; MSVC-NEXT:    movaps {{.*#+}} xmm0 = [5.0E+0,6.0E+0,7.0E+0,8.0E+0]
-; MSVC-NEXT:    movaps %xmm0, 16(%esp)
+; MSVC-NEXT:    movups %xmm0, 16(%esp)
 ; MSVC-NEXT:    movaps {{.*#+}} xmm0 = [1.0E+0,2.0E+0,3.0E+0,4.0E+0]
-; MSVC-NEXT:    movaps %xmm0, (%esp)
+; MSVC-NEXT:    movups %xmm0, (%esp)
 ; MSVC-NEXT:    calll _foo
 ; MSVC-NEXT:    addl $32, %esp
 ; MSVC-NEXT:    retl
@@ -99,6 +98,6 @@ define <4 x i32> @bar() nounwind {
 }
 
 declare i32 @testm128(i32, ...) nounwind
-declare void @llvm.va_start(i8*)
-declare void @llvm.lifetime.start.p0i8(i64, i8*)
-declare void @llvm.lifetime.end.p0i8(i64, i8*)
+declare void @llvm.va_start(ptr)
+declare void @llvm.lifetime.start.p0(i64, ptr)
+declare void @llvm.lifetime.end.p0(i64, ptr)

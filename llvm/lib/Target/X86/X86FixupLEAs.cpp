@@ -229,7 +229,7 @@ bool FixupLEAPass::runOnMachineFunction(MachineFunction &MF) {
   const X86Subtarget &ST = MF.getSubtarget<X86Subtarget>();
   bool IsSlowLEA = ST.slowLEA();
   bool IsSlow3OpsLEA = ST.slow3OpsLEA();
-  bool LEAUsesAG = ST.LEAusesAG();
+  bool LEAUsesAG = ST.leaUsesAG();
 
   bool OptIncDec = !ST.slowIncDec() || MF.getFunction().hasOptSize();
   bool UseLEAForSP = ST.useLeaForSP();
@@ -546,7 +546,6 @@ bool FixupLEAPass::optLEAALU(MachineBasicBlock::iterator &I,
   if (KilledIndex)
     KilledIndex->setIsKill(false);
 
-  MBB.getParent()->substituteDebugValuesForInst(*AluI, *NewMI1, 1);
   MBB.getParent()->substituteDebugValuesForInst(*AluI, *NewMI2, 1);
   MBB.erase(I);
   MBB.erase(AluI);
@@ -787,12 +786,34 @@ void FixupLEAPass::processInstrForSlow3OpLEA(MachineBasicBlock::iterator &I,
   LLVM_DEBUG(dbgs() << "FixLEA: Replaced by: ";);
 
   MachineInstr *NewMI = nullptr;
+  bool BaseOrIndexIsDst = DestReg == BaseReg || DestReg == IndexReg;
+  // First try and remove the base while sticking with LEA iff base == index and
+  // scale == 1. We can handle:
+  //    1. lea D(%base,%index,1)   -> lea D(,%index,2)
+  //    2. lea D(%r13/%rbp,%index) -> lea D(,%index,2)
+  // Only do this if the LEA would otherwise be split into 2-instruction
+  // (either it has a an Offset or neither base nor index are dst)
+  if (IsScale1 && BaseReg == IndexReg &&
+      (hasLEAOffset(Offset) || (IsInefficientBase && !BaseOrIndexIsDst))) {
+    NewMI = BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(LEAOpcode))
+                .add(Dest)
+                .addReg(0)
+                .addImm(2)
+                .add(Index)
+                .add(Offset)
+                .add(Segment);
+    LLVM_DEBUG(NewMI->dump(););
 
-  // First try to replace LEA with one or two (for the 3-op LEA case)
-  // add instructions:
-  // 1.lea (%base,%index,1), %base => add %index,%base
-  // 2.lea (%base,%index,1), %index => add %base,%index
-  if (IsScale1 && (DestReg == BaseReg || DestReg == IndexReg)) {
+    MBB.getParent()->substituteDebugValuesForInst(*I, *NewMI, 1);
+    MBB.erase(I);
+    I = NewMI;
+    return;
+  } else if (IsScale1 && BaseOrIndexIsDst) {
+    // Try to replace LEA with one or two (for the 3-op LEA case)
+    // add instructions:
+    // 1.lea (%base,%index,1), %base => add %index,%base
+    // 2.lea (%base,%index,1), %index => add %base,%index
+
     unsigned NewOpc = getADDrrFromLEA(MI.getOpcode());
     if (DestReg != BaseReg)
       std::swap(BaseReg, IndexReg);

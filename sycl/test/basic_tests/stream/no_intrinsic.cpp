@@ -13,9 +13,9 @@
 
 // CHECK-NOT: call spir_func void @{{.*}}__spirvL22initGlobalInvocationId{{.*}}
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   {

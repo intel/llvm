@@ -60,6 +60,7 @@ public:
     LIBMVEC,           // GLIBC vector math library.
     MASSV,             // IBM MASS vector library.
     SVML,              // Intel short vector math library.
+    SLEEF,             // SLEEF SIMD Library for Evaluating Elementary Functions.
     Darwin_libsystem_m // Use Darwin's libsytem_m vector functions.
   };
 
@@ -102,6 +103,12 @@ public:
     IAD_Intel,
   };
 
+  enum DebugSrcHashKind {
+    DSH_MD5,
+    DSH_SHA1,
+    DSH_SHA256,
+  };
+
   // This field stores one of the allowed values for the option
   // -fbasic-block-sections=.  The allowed values with this option are:
   // {"labels", "all", "list=<file>", "none"}.
@@ -129,6 +136,19 @@ public:
     NonLeaf,     // Keep non-leaf frame pointers.
     All,         // Keep all frame pointers.
   };
+
+  static StringRef getFramePointerKindName(FramePointerKind Kind) {
+    switch (Kind) {
+    case FramePointerKind::None:
+      return "none";
+    case FramePointerKind::NonLeaf:
+      return "non-leaf";
+    case FramePointerKind::All:
+      return "all";
+    }
+
+    llvm_unreachable("invalid FramePointerKind");
+  }
 
   enum class SwiftAsyncFramePointerKind {
     Auto, // Choose Swift async extended frame info based on deployment target.
@@ -220,6 +240,9 @@ public:
   /// file, for example with -save-temps.
   std::string MainFileName;
 
+  /// The user provided name for the "main file", with its full path.
+  std::string FullMainFileName;
+
   /// The name for the split debug info file used for the DW_AT_[GNU_]dwo_name
   /// attribute in the skeleton CU.
   std::string SplitDwarfFile;
@@ -275,6 +298,10 @@ public:
   /// Name of file passed with -fcuda-include-gpubinary option to forward to
   /// CUDA runtime back-end for incorporating them into host-side object file.
   std::string CudaGpuBinaryFileName;
+
+  /// List of filenames passed in using the -fembed-offload-object option. These
+  /// are offloading binaries containing device images and metadata.
+  std::vector<std::string> OffloadObjects;
 
   /// The name of the file to which the backend should save YAML optimization
   /// records.
@@ -385,10 +412,18 @@ public:
   /// On AArch64 this can only be "sp_el0".
   std::string StackProtectorGuardReg;
 
+  /// Specify a symbol to be the guard value.
+  std::string StackProtectorGuardSymbol;
+
   /// Path to ignorelist file specifying which objects
   /// (files, functions) listed for instrumentation by sanitizer
   /// coverage pass should actually not be instrumented.
   std::vector<std::string> SanitizeCoverageIgnorelistFiles;
+
+  /// Path to ignorelist file specifying which objects
+  /// (files, functions) listed for instrumentation by sanitizer
+  /// binary metadata pass should not be instrumented.
+  std::vector<std::string> SanitizeMetadataIgnorelistFiles;
 
   /// Name of the stack usage file (i.e., .su file) if user passes
   /// -fstack-usage. If empty, it can be implied that -fstack-usage is not
@@ -413,7 +448,14 @@ public:
   ///                    compilation.
   ///
   /// If threshold option is not specified, it is disabled by default.
-  Optional<uint64_t> DiagnosticsHotnessThreshold = 0;
+  std::optional<uint64_t> DiagnosticsHotnessThreshold = 0;
+
+  /// The maximum percentage profiling weights can deviate from the expected
+  /// values in order to be included in misexpect diagnostics.
+  std::optional<uint32_t> DiagnosticsMisExpectTolerance = 0;
+
+  /// The name of a file to use with \c .secure_log_unique directives.
+  std::string AsSecureLogFile;
 
 public:
   // Define accessors/mutators for code generation options of enumeration type.
@@ -472,7 +514,13 @@ public:
   bool hasSanitizeCoverage() const {
     return SanitizeCoverageType || SanitizeCoverageIndirectCalls ||
            SanitizeCoverageTraceCmp || SanitizeCoverageTraceLoads ||
-           SanitizeCoverageTraceStores;
+           SanitizeCoverageTraceStores || SanitizeCoverageControlFlow;
+  }
+
+  // Check if any one of SanitizeBinaryMetadata* is enabled.
+  bool hasSanitizeBinaryMetadata() const {
+    return SanitizeBinaryMetadataCovered || SanitizeBinaryMetadataAtomics ||
+           SanitizeBinaryMetadataUAR;
   }
 };
 

@@ -15,7 +15,6 @@
 #include "lldb/API/SBFile.h"
 #include "lldb/API/SBHostOS.h"
 #include "lldb/API/SBLanguageRuntime.h"
-#include "lldb/API/SBReproducer.h"
 #include "lldb/API/SBStream.h"
 #include "lldb/API/SBStringList.h"
 #include "lldb/API/SBStructuredData.h"
@@ -60,11 +59,14 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "Options.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -76,15 +78,17 @@ const opt::OptTable::Info InfoTable[] = {
 #undef OPTION
 };
 
-class LLDBOptTable : public opt::OptTable {
+class LLDBOptTable : public opt::GenericOptTable {
 public:
-  LLDBOptTable() : OptTable(InfoTable) {}
+  LLDBOptTable() : opt::GenericOptTable(InfoTable) {}
 };
 } // namespace
 
 static void reset_stdin_termios();
 static bool g_old_stdin_termios_is_valid = false;
 static struct termios g_old_stdin_termios;
+
+static bool disable_color(const raw_ostream &OS) { return false; }
 
 static Driver *g_driver = nullptr;
 
@@ -186,6 +190,12 @@ SBError Driver::ProcessArgs(const opt::InputArgList &args, bool &exiting) {
   m_debugger.SkipLLDBInitFiles(false);
   m_debugger.SkipAppInitFiles(false);
 
+  if (args.hasArg(OPT_no_use_colors)) {
+    m_debugger.SetUseColor(false);
+    WithColor::setAutoDetectFunction(disable_color);
+    m_option_data.m_debug_mode = true;
+  }
+
   if (args.hasArg(OPT_version)) {
     m_option_data.m_print_version = true;
   }
@@ -225,11 +235,6 @@ SBError Driver::ProcessArgs(const opt::InputArgList &args, bool &exiting) {
   if (args.hasArg(OPT_local_lldbinit)) {
     lldb::SBDebugger::SetInternalVariable("target.load-cwd-lldbinit", "true",
                                           m_debugger.GetInstanceName());
-  }
-
-  if (args.hasArg(OPT_no_use_colors)) {
-    m_debugger.SetUseColor(false);
-    m_option_data.m_debug_mode = true;
   }
 
   if (auto *arg = args.getLastArg(OPT_file)) {
@@ -452,9 +457,14 @@ int Driver::MainLoop() {
 
   SBCommandInterpreter sb_interpreter = m_debugger.GetCommandInterpreter();
 
-  // Before we handle any options from the command line, we parse the
-  // REPL init file or the default file in the user's home directory.
+  // Process lldbinit files before handling any options from the command line.
   SBCommandReturnObject result;
+  sb_interpreter.SourceInitFileInGlobalDirectory(result);
+  if (m_option_data.m_debug_mode) {
+    result.PutError(m_debugger.GetErrorFile());
+    result.PutOutput(m_debugger.GetOutputFile());
+  }
+
   sb_interpreter.SourceInitFileInHomeDirectory(result, m_option_data.m_repl);
   if (m_option_data.m_debug_mode) {
     result.PutError(m_debugger.GetErrorFile());
@@ -663,31 +673,30 @@ void sigint_handler(int signo) {
   _exit(signo);
 }
 
-void sigtstp_handler(int signo) {
+#ifndef _WIN32
+static void sigtstp_handler(int signo) {
   if (g_driver != nullptr)
     g_driver->GetDebugger().SaveInputTerminalState();
 
+  // Unblock the signal and remove our handler.
+  sigset_t set;
+  sigemptyset(&set);
+  sigaddset(&set, signo);
+  pthread_sigmask(SIG_UNBLOCK, &set, nullptr);
   signal(signo, SIG_DFL);
-  kill(getpid(), signo);
-  signal(signo, sigtstp_handler);
-}
 
-void sigcont_handler(int signo) {
+  // Now re-raise the signal. We will immediately suspend...
+  raise(signo);
+  // ... and resume after a SIGCONT.
+
+  // Now undo the modifications.
+  pthread_sigmask(SIG_BLOCK, &set, nullptr);
+  signal(signo, sigtstp_handler);
+
   if (g_driver != nullptr)
     g_driver->GetDebugger().RestoreInputTerminalState();
-
-  signal(signo, SIG_DFL);
-  kill(getpid(), signo);
-  signal(signo, sigcont_handler);
 }
-
-void reproducer_handler(void *finalize_cmd) {
-  if (SBReproducer::Generate()) {
-    int result = std::system(static_cast<const char *>(finalize_cmd));
-    (void)result;
-    fflush(stdout);
-  }
-}
+#endif
 
 static void printHelp(LLDBOptTable &table, llvm::StringRef tool_name) {
   std::string usage_str = tool_name.str() + " [options]";
@@ -735,39 +744,6 @@ EXAMPLES:
   llvm::outs() << examples << '\n';
 }
 
-static llvm::Optional<int> InitializeReproducer(llvm::StringRef argv0,
-                                                opt::InputArgList &input_args) {
-  bool capture = input_args.hasArg(OPT_capture);
-  bool generate_on_exit = input_args.hasArg(OPT_generate_on_exit);
-  auto *capture_path = input_args.getLastArg(OPT_capture_path);
-
-  if (generate_on_exit && !capture) {
-    WithColor::warning()
-        << "-reproducer-generate-on-exit specified without -capture\n";
-  }
-
-  if (capture || capture_path) {
-    if (capture_path) {
-      if (!capture)
-        WithColor::warning() << "-capture-path specified without -capture\n";
-      if (const char *error = SBReproducer::Capture(capture_path->getValue())) {
-        WithColor::error() << "reproducer capture failed: " << error << '\n';
-        return 1;
-      }
-    } else {
-      const char *error = SBReproducer::Capture();
-      if (error) {
-        WithColor::error() << "reproducer capture failed: " << error << '\n';
-        return 1;
-      }
-    }
-    if (generate_on_exit)
-      SBReproducer::SetAutoGenerate(true);
-  }
-
-  return llvm::None;
-}
-
 int main(int argc, char const *argv[]) {
   // Editline uses for example iswprint which is dependent on LC_CTYPE.
   std::setlocale(LC_ALL, "");
@@ -781,7 +757,7 @@ int main(int argc, char const *argv[]) {
   LLDBOptTable T;
   unsigned MissingArgIndex;
   unsigned MissingArgCount;
-  ArrayRef<const char *> arg_arr = makeArrayRef(argv + 1, argc - 1);
+  ArrayRef<const char *> arg_arr = ArrayRef(argv + 1, argc - 1);
   opt::InputArgList input_args =
       T.ParseArgs(arg_arr, MissingArgIndex, MissingArgCount);
   llvm::StringRef argv0 = llvm::sys::path::filename(argv[0]);
@@ -809,24 +785,23 @@ int main(int argc, char const *argv[]) {
     return 1;
   }
 
-  if (auto exit_code = InitializeReproducer(argv[0], input_args)) {
-    return *exit_code;
-  }
-
   SBError error = SBDebugger::InitializeWithErrorHandling();
   if (error.Fail()) {
     WithColor::error() << "initialization failed: " << error.GetCString()
                        << '\n';
     return 1;
   }
+
+  // Setup LLDB signal handlers once the debugger has been initialized.
+  SBDebugger::PrintDiagnosticsOnError();
+
   SBHostOS::ThreadCreated("<lldb.driver.main-thread>");
 
   signal(SIGINT, sigint_handler);
-#if !defined(_MSC_VER)
+#if !defined(_WIN32)
   signal(SIGPIPE, SIG_IGN);
   signal(SIGWINCH, sigwinch_handler);
   signal(SIGTSTP, sigtstp_handler);
-  signal(SIGCONT, sigcont_handler);
 #endif
 
   int exit_code = 0;

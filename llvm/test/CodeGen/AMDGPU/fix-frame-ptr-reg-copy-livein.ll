@@ -7,20 +7,20 @@
 
 %struct.Data = type { [20 x i32] }
 
-define i32 @fp_save_restore_in_temp_sgpr(%struct.Data addrspace(5)* nocapture readonly byval(%struct.Data) align 4 %arg) #0 {
+define i32 @fp_save_restore_in_temp_sgpr(ptr addrspace(5) nocapture readonly byval(%struct.Data) align 4 %arg) #0 {
   ; GCN-LABEL: name: fp_save_restore_in_temp_sgpr
   ; GCN: bb.0.begin:
-  ; GCN:   liveins: $sgpr11, $sgpr30_sgpr31
+  ; GCN:   liveins: $sgpr11
   ; GCN:   $sgpr11 = frame-setup COPY $sgpr33
   ; GCN:   $sgpr33 = frame-setup COPY $sgpr32
   ; GCN: bb.1.lp_end:
-  ; GCN:   liveins: $sgpr10, $sgpr11, $vgpr1, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr30_sgpr31
+  ; GCN:   liveins: $sgpr10, $sgpr11, $vgpr1, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9
   ; GCN: bb.2.lp_begin:
-  ; GCN:   liveins: $sgpr10, $sgpr11, $vgpr1, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr30_sgpr31
+  ; GCN:   liveins: $sgpr10, $sgpr11, $vgpr1, $sgpr4_sgpr5, $sgpr6_sgpr7
   ; GCN: bb.3.Flow:
-  ; GCN:   liveins: $sgpr10, $sgpr11, $vgpr0, $vgpr1, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9, $sgpr30_sgpr31
+  ; GCN:   liveins: $sgpr10, $sgpr11, $vgpr0, $vgpr1, $sgpr4_sgpr5, $sgpr6_sgpr7, $sgpr8_sgpr9
   ; GCN: bb.4.end:
-  ; GCN:   liveins: $sgpr11, $vgpr0, $sgpr4_sgpr5, $sgpr30_sgpr31
+  ; GCN:   liveins: $sgpr11, $vgpr0, $sgpr4_sgpr5
   ; GCN:   $sgpr33 = frame-destroy COPY $sgpr11
 begin:
   br label %lp_begin
@@ -32,8 +32,8 @@ lp_end:                                                ; preds = %lp_begin
 
 lp_begin:                                                ; preds = %lp_end, %begin
   %idx = phi i32 [ 0, %begin ], [ %cur_idx, %lp_end ]
-  %ptr = getelementptr inbounds %struct.Data, %struct.Data addrspace(5)* %arg, i32 0, i32 0, i32 %idx
-  %data = load i32, i32 addrspace(5)* %ptr, align 4
+  %ptr = getelementptr inbounds %struct.Data, ptr addrspace(5) %arg, i32 0, i32 0, i32 %idx
+  %data = load i32, ptr addrspace(5) %ptr, align 4
   %data_cmp = icmp eq i32 %data, %idx
   br i1 %data_cmp, label %lp_end, label %end
 

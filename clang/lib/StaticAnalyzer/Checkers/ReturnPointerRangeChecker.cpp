@@ -41,6 +41,10 @@ void ReturnPointerRangeChecker::checkPreStmt(const ReturnStmt *RS,
   if (!RetE)
     return;
 
+  // Skip "body farmed" functions.
+  if (RetE->getSourceRange().isInvalid())
+    return;
+
   SVal V = C.getSVal(RetE);
   const MemRegion *R = V.getAsRegion();
 
@@ -64,8 +68,8 @@ void ReturnPointerRangeChecker::checkPreStmt(const ReturnStmt *RS,
   if (Idx == ElementCount)
     return;
 
-  ProgramStateRef StInBound = state->assumeInBound(Idx, ElementCount, true);
-  ProgramStateRef StOutBound = state->assumeInBound(Idx, ElementCount, false);
+  ProgramStateRef StInBound, StOutBound;
+  std::tie(StInBound, StOutBound) = state->assumeInBoundDual(Idx, ElementCount);
   if (StOutBound && !StInBound) {
     ExplodedNode *N = C.generateErrorNode(StOutBound);
 

@@ -62,7 +62,9 @@ public:
                 : IsDummy(symbol)              ? "Dummy argument"
                 : IsFunctionResult(symbol)     ? "Function result"
                 : IsAllocatable(symbol)        ? "Allocatable"
-                : IsInitialized(symbol, true)  ? "Default-initialized"
+                : IsInitialized(symbol, true /*ignore DATA*/,
+                      true /*ignore allocatable components*/)
+                ? "Default-initialized"
                 : IsProcedure(symbol) && !IsPointer(symbol) ? "Procedure"
                 // remaining checks don't apply to components
                 : !isFirstSymbol                   ? nullptr
@@ -79,12 +81,12 @@ public:
     }
     if (IsProcedurePointer(symbol)) {
       context_.Say(source_,
-          "Procedure pointer '%s' in a DATA statement is not standard"_en_US,
+          "Procedure pointer '%s' in a DATA statement is not standard"_port_en_US,
           symbol.name());
     }
     if (IsInBlankCommon(symbol)) {
       context_.Say(source_,
-          "Blank COMMON object '%s' in a DATA statement is not standard"_en_US,
+          "Blank COMMON object '%s' in a DATA statement is not standard"_port_en_US,
           symbol.name());
     }
     return true;
@@ -127,7 +129,7 @@ public:
   bool operator()(const evaluate::Subscript &subs) {
     DataVarChecker subscriptChecker{context_, source_};
     subscriptChecker.RestrictPointer();
-    return std::visit(
+    return common::visit(
                common::visitors{
                    [&](const evaluate::IndirectSubscriptIntegerExpr &expr) {
                      return CheckSubscriptExpr(expr);
@@ -177,24 +179,27 @@ private:
   bool isFirstSymbol_{true};
 };
 
+static bool IsValidDataObject(const SomeExpr &expr) { // C878, C879
+  return !evaluate::IsConstantExpr(expr) &&
+      (evaluate::IsVariable(expr) || evaluate::IsProcedurePointer(expr));
+}
+
 void DataChecker::Leave(const parser::DataIDoObject &object) {
   if (const auto *designator{
           std::get_if<parser::Scalar<common::Indirection<parser::Designator>>>(
               &object.u)}) {
     if (MaybeExpr expr{exprAnalyzer_.Analyze(*designator)}) {
       auto source{designator->thing.value().source};
-      if (evaluate::IsConstantExpr(*expr)) { // C878,C879
-        exprAnalyzer_.context().Say(
-            source, "Data implied do object must be a variable"_err_en_US);
-      } else {
-        DataVarChecker checker{exprAnalyzer_.context(), source};
-        if (checker(*expr)) {
-          if (checker.HasComponentWithoutSubscripts()) { // C880
-            exprAnalyzer_.context().Say(source,
-                "Data implied do structure component must be subscripted"_err_en_US);
-          } else {
-            return;
-          }
+      DataVarChecker checker{exprAnalyzer_.context(), source};
+      if (checker(*expr)) {
+        if (checker.HasComponentWithoutSubscripts()) { // C880
+          exprAnalyzer_.context().Say(source,
+              "Data implied do structure component must be subscripted"_err_en_US);
+        } else if (!IsValidDataObject(*expr)) {
+          exprAnalyzer_.context().Say(
+              source, "Data implied do object must be a variable"_err_en_US);
+        } else {
+          return;
         }
       }
     }
@@ -203,18 +208,23 @@ void DataChecker::Leave(const parser::DataIDoObject &object) {
 }
 
 void DataChecker::Leave(const parser::DataStmtObject &dataObject) {
-  std::visit(common::visitors{
-                 [](const parser::DataImpliedDo &) { // has own Enter()/Leave()
-                 },
-                 [&](const auto &var) {
-                   auto expr{exprAnalyzer_.Analyze(var)};
-                   if (!expr ||
-                       !DataVarChecker{exprAnalyzer_.context(),
-                           parser::FindSourceLocation(dataObject)}(*expr)) {
-                     currentSetHasFatalErrors_ = true;
-                   }
-                 },
-             },
+  common::visit(
+      common::visitors{
+          [](const parser::DataImpliedDo &) { // has own Enter()/Leave()
+          },
+          [&](const auto &var) {
+            auto expr{exprAnalyzer_.Analyze(var)};
+            auto source{parser::FindSourceLocation(dataObject)};
+            if (!expr ||
+                !DataVarChecker{exprAnalyzer_.context(), source}(*expr)) {
+              currentSetHasFatalErrors_ = true;
+            } else if (!IsValidDataObject(*expr)) {
+              exprAnalyzer_.context().Say(
+                  source, "Data statement object must be a variable"_err_en_US);
+              currentSetHasFatalErrors_ = true;
+            }
+          },
+      },
       dataObject.u);
 }
 

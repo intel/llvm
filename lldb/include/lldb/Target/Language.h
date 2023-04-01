@@ -175,7 +175,7 @@ public:
   virtual HardcodedFormatters::HardcodedSyntheticFinder
   GetHardcodedSynthetics();
 
-  virtual std::vector<ConstString>
+  virtual std::vector<FormattersMatchCandidate>
   GetPossibleFormattersMatches(ValueObject &valobj,
                                lldb::DynamicValueType use_dynamic);
 
@@ -216,6 +216,17 @@ public:
                                         ConstString type_hint,
                                         std::string &prefix,
                                         std::string &suffix);
+
+  // When looking up functions, we take a user provided string which may be a
+  // partial match to the full demangled name and compare it to the actual
+  // demangled name to see if it matches as much as the user specified.  An
+  // example of this is if the user provided A::my_function, but the
+  // symbol was really B::A::my_function.  We want that to be
+  // a match.  But we wouldn't want this to match AnotherA::my_function.  The
+  // user is specifying a truncated path, not a truncated set of characters.
+  // This function does a language-aware comparison for those purposes.
+  virtual bool DemangledNameContainsPath(llvm::StringRef path, 
+                                         ConstString demangled) const;
 
   // if a language has a custom format for printing variable declarations that
   // it wants LLDB to honor it should return an appropriate closure here
@@ -268,6 +279,16 @@ public:
   static void PrintAllLanguages(Stream &s, const char *prefix,
                                 const char *suffix);
 
+  /// Prints to the specified stream 's' each language type that the
+  /// current target supports for expression evaluation.
+  ///
+  /// \param[out] s      Stream to which the language types are written.
+  /// \param[in]  prefix String that is prepended to the language type.
+  /// \param[in]  suffix String that is appended to the language type.
+  static void PrintSupportedLanguagesForExpressions(Stream &s,
+                                                    llvm::StringRef prefix,
+                                                    llvm::StringRef suffix);
+
   // return false from callback to stop iterating
   static void ForAllLanguages(std::function<bool(lldb::LanguageType)> callback);
 
@@ -304,6 +325,8 @@ public:
                                        const SymbolContext &sym_ctx) const {
     return ConstString();
   }
+
+  virtual ConstString GetInstanceVariableName() { return {}; }
 
 protected:
   // Classes that inherit from Language can see and modify these

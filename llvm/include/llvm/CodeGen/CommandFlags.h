@@ -16,19 +16,18 @@
 #define LLVM_CODEGEN_COMMANDFLAGS_H
 
 #include "llvm/ADT/FloatingPointMode.h"
-#include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/Triple.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Intrinsics.h"
-#include "llvm/MC/MCTargetOptionsCommandFlags.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Target/TargetOptions.h"
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace llvm {
 
 class Module;
+class AttrBuilder;
+class Function;
+class Triple;
 
 namespace codegen {
 
@@ -39,16 +38,16 @@ std::string getMCPU();
 std::vector<std::string> getMAttrs();
 
 Reloc::Model getRelocModel();
-Optional<Reloc::Model> getExplicitRelocModel();
+std::optional<Reloc::Model> getExplicitRelocModel();
 
 ThreadModel::Model getThreadModel();
 
 CodeModel::Model getCodeModel();
-Optional<CodeModel::Model> getExplicitCodeModel();
+std::optional<CodeModel::Model> getExplicitCodeModel();
 
 llvm::ExceptionHandling getExceptionModel();
 
-Optional<CodeGenFileType> getExplicitFileType();
+std::optional<CodeGenFileType> getExplicitFileType();
 
 CodeGenFileType getFileType();
 
@@ -61,6 +60,8 @@ bool getEnableNoInfsFPMath();
 bool getEnableNoNaNsFPMath();
 
 bool getEnableNoSignedZerosFPMath();
+
+bool getEnableApproxFuncFPMath();
 
 bool getEnableNoTrappingFPMath();
 
@@ -96,10 +97,10 @@ bool getUseCtors();
 bool getRelaxELFRelocations();
 
 bool getDataSections();
-Optional<bool> getExplicitDataSections();
+std::optional<bool> getExplicitDataSections();
 
 bool getFunctionSections();
-Optional<bool> getExplicitFunctionSections();
+std::optional<bool> getExplicitFunctionSections();
 
 bool getIgnoreXCOFFVisibility();
 
@@ -130,7 +131,7 @@ bool getEnableMachineFunctionSplitter();
 bool getEnableDebugEntryValues();
 
 bool getValueTrackingVariableLocations();
-Optional<bool> getExplicitValueTrackingVariableLocations();
+std::optional<bool> getExplicitValueTrackingVariableLocations();
 
 bool getForceDwarfFrameSection();
 
@@ -139,6 +140,10 @@ bool getXRayOmitFunctionIndex();
 bool getDebugStrictDwarf();
 
 unsigned getAlignLoops();
+
+bool getJMCInstrument();
+
+bool getXCOFFReadOnlyPointers();
 
 /// Create this object with static storage to register codegen-related command
 /// line options.

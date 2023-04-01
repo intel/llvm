@@ -5,8 +5,9 @@
 // RUN: %clang_cc1 -triple x86_64-mingw32         -fsyntax-only -fms-extensions -verify -std=c++17 -Wunsupported-dll-base-class-template -DGNU %s
 // RUN: %clang_cc1 -triple i686-windows-itanium   -fsyntax-only -fms-extensions -verify -std=c++11 -Wunsupported-dll-base-class-template -DWI %s
 // RUN: %clang_cc1 -triple x86_64-windows-itanium -fsyntax-only -fms-extensions -verify -std=c++17 -Wunsupported-dll-base-class-template -DWI %s
-// RUN: %clang_cc1 -triple x86_64-scei-ps4        -fsyntax-only -fdeclspec      -verify -std=c++11 -Wunsupported-dll-base-class-template -DWI %s
-// RUN: %clang_cc1 -triple x86_64-scei-ps4        -fsyntax-only -fdeclspec      -verify -std=c++17 -Wunsupported-dll-base-class-template -DWI %s
+// RUN: %clang_cc1 -triple x86_64-scei-ps4        -fsyntax-only -fdeclspec      -verify -std=c++11 -Wunsupported-dll-base-class-template -DWI -DPS %s
+// RUN: %clang_cc1 -triple x86_64-scei-ps4        -fsyntax-only -fdeclspec      -verify -std=c++17 -Wunsupported-dll-base-class-template -DWI -DPS %s
+// RUN: %clang_cc1 -triple x86_64-sie-ps5         -fsyntax-only -fdeclspec      -verify -std=c++17 -Wunsupported-dll-base-class-template -DWI -DPS %s
 
 // Helper structs to make templates more expressive.
 struct ImplicitInst_Imported {};
@@ -1137,6 +1138,9 @@ template<> __declspec(dllimport) const int MemVarTmpl::StaticVar<ExplicitSpec_De
 // Import individual members of a class template.
 template<typename T>
 struct ImportClassTmplMembers {
+#ifndef GNU
+// expected-note@+2{{attribute is here}}
+#endif
   __declspec(dllimport)                void normalDecl();
 #ifdef GNU
 // expected-note@+2{{previous attribute is here}}
@@ -1298,6 +1302,34 @@ template<typename T> __declspec(dllimport) const  int  CTMR<T>::StaticConstField
 #endif
 template<typename T> __declspec(dllimport) constexpr int CTMR<T>::ConstexprField;
 
+
+// MSVC imports explicit specialization of imported class template member
+// function, and errors on such definitions. MinGW does not treat them as
+// dllimport.
+template <typename> struct ClassTmpl {
+#if !defined(GNU)
+// expected-note@+2{{attribute is here}}
+#endif
+  void __declspec(dllimport) importedNormal();
+#if !defined(GNU)
+// expected-note@+2{{attribute is here}}
+#endif
+  static void __declspec(dllimport) importedStatic();
+};
+#if !defined(GNU)
+// expected-error@+2{{cannot define non-inline dllimport template specialization}}
+#endif
+template<> void ClassTmpl<int>::importedNormal() {}
+#if !defined(GNU)
+// expected-error@+2{{cannot define non-inline dllimport template specialization}}
+#endif
+template<> void ClassTmpl<int>::importedStatic() {}
+
+#if !defined(GNU)
+// expected-error@+3{{cannot define non-inline dllimport template specialization}}
+// expected-error@+2{{attribute 'dllimport' cannot be applied to a deleted function}}
+#endif
+template <> void ImportClassTmplMembers<int>::normalDecl() = delete;
 
 
 //===----------------------------------------------------------------------===//
@@ -1525,7 +1557,7 @@ class __declspec(dllimport) DerivedFromTemplateB : public ClassTemplate<bool> {}
 class __declspec(dllexport) DerivedFromTemplateB2 : public ClassTemplate<bool> {};
 
 template <typename T> struct ExplicitlySpecializedTemplate { void func() {} };
-#ifdef MS
+#if defined(MS) || defined(PS)
 // expected-note@+2{{class template 'ExplicitlySpecializedTemplate<int>' was explicitly specialized here}}
 #endif
 template <> struct ExplicitlySpecializedTemplate<int> { void func() {} };
@@ -1535,7 +1567,7 @@ template <typename T> struct ExplicitlyImportSpecializedTemplate { void func() {
 template <> struct __declspec(dllimport) ExplicitlyImportSpecializedTemplate<int> { void func() {} };
 
 template <typename T> struct ExplicitlyInstantiatedTemplate { void func() {} };
-#ifdef MS
+#if defined(MS) || defined(PS)
 // expected-note@+2{{class template 'ExplicitlyInstantiatedTemplate<int>' was instantiated here}}
 #endif
 template struct ExplicitlyInstantiatedTemplate<int>;
@@ -1544,7 +1576,7 @@ template struct __declspec(dllexport) ExplicitlyExportInstantiatedTemplate<int>;
 template <typename T> struct ExplicitlyImportInstantiatedTemplate { void func() {} };
 template struct __declspec(dllimport) ExplicitlyImportInstantiatedTemplate<int>;
 
-#ifdef MS
+#if defined(MS) || defined(PS)
 // expected-warning@+3{{propagating dll attribute to explicitly specialized base class template without dll attribute is not supported}}
 // expected-note@+2{{attribute is here}}
 #endif
@@ -1556,7 +1588,7 @@ struct __declspec(dllimport) DerivedFromExplicitlyExportSpecializedTemplate : pu
 // Base class already specialized with import attribute.
 struct __declspec(dllimport) DerivedFromExplicitlyImportSpecializedTemplate : public ExplicitlyImportSpecializedTemplate<int> {};
 
-#ifdef MS
+#if defined(MS) || defined(PS)
 // expected-warning@+3{{propagating dll attribute to already instantiated base class template without dll attribute is not supported}}
 // expected-note@+2{{attribute is here}}
 #endif

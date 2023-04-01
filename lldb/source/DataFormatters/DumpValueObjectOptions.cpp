@@ -19,10 +19,10 @@ DumpValueObjectOptions::DumpValueObjectOptions()
       m_decl_printing_helper(), m_pointer_as_array(), m_use_synthetic(true),
       m_scope_already_checked(false), m_flat_output(false), m_ignore_cap(false),
       m_show_types(false), m_show_location(false), m_use_objc(false),
-      m_hide_root_type(false), m_hide_name(false), m_hide_value(false),
-      m_run_validator(false), m_use_type_display_name(true),
-      m_allow_oneliner_mode(true), m_hide_pointer_value(false),
-      m_reveal_empty_aggregates(true) {}
+      m_hide_root_type(false), m_hide_root_name(false), m_hide_name(false),
+      m_hide_value(false), m_run_validator(false),
+      m_use_type_display_name(true), m_allow_oneliner_mode(true),
+      m_hide_pointer_value(false), m_reveal_empty_aggregates(true) {}
 
 DumpValueObjectOptions::DumpValueObjectOptions(ValueObject &valobj)
     : DumpValueObjectOptions() {
@@ -38,8 +38,9 @@ DumpValueObjectOptions::SetMaximumPointerDepth(PointerDepth depth) {
 }
 
 DumpValueObjectOptions &
-DumpValueObjectOptions::SetMaximumDepth(uint32_t depth) {
+DumpValueObjectOptions::SetMaximumDepth(uint32_t depth, bool is_default) {
   m_max_depth = depth;
+  m_max_depth_is_default = is_default;
   return *this;
 }
 
@@ -139,6 +140,12 @@ DumpValueObjectOptions::SetRootValueObjectName(const char *name) {
 DumpValueObjectOptions &
 DumpValueObjectOptions::SetHideRootType(bool hide_root_type) {
   m_hide_root_type = hide_root_type;
+  return *this;
+}
+
+DumpValueObjectOptions &
+DumpValueObjectOptions::SetHideRootName(bool hide_root_name) {
+  m_hide_root_name = hide_root_name;
   return *this;
 }
 

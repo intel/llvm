@@ -11,9 +11,9 @@
 
 #include "clang/Driver/ToolChain.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Option/Option.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/ARMTargetParser.h"
+#include "llvm/TargetParser/Triple.h"
 #include <string>
 #include <vector>
 
@@ -65,7 +65,6 @@ void getARMArchCPUFromArgs(const llvm::opt::ArgList &Args,
                            bool FromAs = false);
 void getARMTargetFeatures(const Driver &D, const llvm::Triple &Triple,
                           const llvm::opt::ArgList &Args,
-                          llvm::opt::ArgStringList &CmdArgs,
                           std::vector<llvm::StringRef> &Features, bool ForAS);
 int getARMSubArchVersionNumber(const llvm::Triple &Triple);
 bool isARMMProfile(const llvm::Triple &Triple);

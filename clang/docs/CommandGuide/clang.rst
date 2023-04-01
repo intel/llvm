@@ -75,7 +75,7 @@ Stage Selection Options
 
 .. option:: -fsyntax-only
 
- Run the preprocessor, parser and type checking stages.
+ Run the preprocessor, parser and semantic analysis stages.
 
 .. option:: -S
 
@@ -185,15 +185,23 @@ Language Selection and Mode Options
 
    ISO C++ 2017 with amendments and GNU extensions
 
-  | ``c++2a``
+  | ``c++20``
 
-   Working draft for ISO C++ 2020
+   ISO C++ 2020 with amendments
 
-  | ``gnu++2a``
+  | ``gnu++20``
 
-   Working draft for ISO C++ 2020 with GNU extensions
+   ISO C++ 2020 with amendments and GNU extensions
 
- The default C++ language standard is ``gnu++14``.
+  | ``c++2b``
+
+   Working draft for ISO C++ 2023
+
+  | ``gnu++2b``
+
+   Working draft for ISO C++ 2023 with GNU extensions
+
+ The default C++ language standard is ``gnu++17``.
 
  Supported values for the OpenCL language are:
 
@@ -252,8 +260,24 @@ Language Selection and Mode Options
 
 .. option:: -fno-builtin
 
- Disable special handling and optimizations of builtin functions like
- :c:func:`strlen` and :c:func:`malloc`.
+ Disable special handling and optimizations of well-known library functions,
+ like :c:func:`strlen` and :c:func:`malloc`.
+
+.. option:: -fno-builtin-<function>
+
+ Disable special handling and optimizations for the specific library function.
+ For example, ``-fno-builtin-strlen`` removes any special handling for the
+ :c:func:`strlen` library function.
+
+.. option:: -fno-builtin-std-<function>
+
+ Disable special handling and optimizations for the specific C++ standard
+ library function in namespace ``std``. For example,
+ ``-fno-builtin-std-move_if_noexcept`` removes any special handling for the
+ :cpp:func:`std::move_if_noexcept` library function.
+
+ For C standard library functions that the C++ standard library also provides
+ in namespace ``std``, use :option:`-fno-builtin-\<function\>` instead.
 
 .. option:: -fmath-errno
 
@@ -323,7 +347,11 @@ number of cross compilers, or may only support a native target.
 
 .. option:: -arch <architecture>
 
-  Specify the architecture to build for.
+  Specify the architecture to build for (Mac OS X specific).
+
+.. option:: -target <architecture>
+
+  Specify the architecture to build for (all platforms).
 
 .. option:: -mmacosx-version-min=<version>
 
@@ -342,6 +370,10 @@ number of cross compilers, or may only support a native target.
   target is specified, the system default target will be used.
 
 .. option:: -mcpu=?, -mtune=?
+
+  Acts as an alias for :option:`--print-supported-cpus`.
+
+.. option:: -mcpu=help, -mtune=help
 
   Acts as an alias for :option:`--print-supported-cpus`.
 
@@ -441,8 +473,10 @@ Code Generation Options
 
 .. option:: -fexceptions
 
-  Enable generation of unwind information. This allows exceptions to be thrown
-  through Clang compiled stack frames.  This is on by default in x86-64.
+  Allow exceptions to be thrown through Clang compiled stack frames (on many
+  targets, this will enable unwind information for functions that might have
+  an exception thrown through them). For most targets, this is enabled by
+  default for C++.
 
 .. option:: -ftrapv
 
@@ -563,6 +597,16 @@ Driver Options
   Save internal code generation (LLVM) statistics to a file in the current
   directory (:option:`-save-stats`/"-save-stats=cwd") or the directory
   of the output file ("-save-state=obj").
+
+  You can also use environment variables to control the statistics reporting.
+  Setting ``CC_PRINT_INTERNAL_STAT`` to ``1`` enables the feature, the report
+  goes to stdout in JSON format.
+
+  Setting ``CC_PRINT_INTERNAL_STAT_FILE`` to a file path makes it report
+  statistics to the given file in the JSON format.
+
+  Note that ``-save-stats`` take precedence over ``CC_PRINT_INTERNAL_STAT``
+  and ``CC_PRINT_INTERNAL_STAT_FILE``.
 
 .. option:: -integrated-as, -no-integrated-as
 

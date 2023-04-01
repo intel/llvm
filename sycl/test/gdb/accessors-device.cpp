@@ -1,19 +1,50 @@
-// RUN: %clangxx -fsycl-device-only -c -fno-color-diagnostics -Xclang -ast-dump %s -I %sycl_include -Wno-sycl-strict | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s -I %sycl_include -Wno-sycl-strict | FileCheck %s
 // UNSUPPORTED: windows
-#include <CL/sycl/accessor.hpp>
+#include <sycl/sycl.hpp>
 
-typedef cl::sycl::accessor<int, 1, cl::sycl::access::mode::read> dummy;
+using namespace sycl;
+
+int main() {
+  queue q;
+  buffer<int, 1> b(1);
+  q.submit([&](handler &cgh) {
+    accessor a{b, cgh};
+
+    cgh.single_task([=]() { a[0] = 42; });
+  });
+}
 
 // AccessorImplDevice must have MemRange and Offset fields
 
-// CHECK: CXXRecordDecl {{.*}} class AccessorImplDevice definition
-// CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: FieldDecl {{.*}} referenced Offset
-// CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: FieldDecl {{.*}} referenced MemRange
+// CHECK:           0 | class sycl::detail::AccessorImplDevice<1>
+// CHECK-NEXT:      0 |   class sycl::id<> Offset
+// CHECK-NEXT:      0 |     class sycl::detail::array<> (base)
+// CHECK-NEXT:      0 |       size_t[1] common_array
+// CHECK-NEXT:      8 |   class sycl::range<> AccessRange
+// CHECK-NEXT:      8 |     class sycl::detail::array<> (base)
+// CHECK-NEXT:      8 |       size_t[1] common_array
+// CHECK-NEXT:     16 |   class sycl::range<> MemRange
+// CHECK-NEXT:     16 |     class sycl::detail::array<> (base)
+// CHECK-NEXT:     16 |       size_t[1] common_array
+// CHECK-NEXT:        | [sizeof=24, dsize=24, align=8,
+// CHECK-NEXT:        |  nvsize=24, nvalign=8]
 
 // accessor.impl must be present and of AccessorImplDevice type
 
-// CHECK: CXXRecordDecl {{.*}} class accessor definition
-// CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: FieldDecl {{.*}} referenced impl 'detail::AccessorImplDevice<AdjustedDim>'
+// CHECK:           0 | class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>
+// CHECK-NEXT:      0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT:      0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> > (base) (empty)
+// CHECK-NEXT:      0 |   class sycl::detail::AccessorImplDevice<1> impl
+// CHECK-NEXT:      0 |     class sycl::id<> Offset
+// CHECK-NEXT:      0 |       class sycl::detail::array<> (base)
+// CHECK-NEXT:      0 |         size_t[1] common_array
+// CHECK-NEXT:      8 |     class sycl::range<> AccessRange
+// CHECK-NEXT:      8 |       class sycl::detail::array<> (base)
+// CHECK-NEXT:      8 |         size_t[1] common_array
+// CHECK-NEXT:     16 |     class sycl::range<> MemRange
+// CHECK-NEXT:     16 |       class sycl::detail::array<> (base)
+// CHECK-NEXT:     16 |         size_t[1] common_array
+// CHECK-NEXT:     24 |   union sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::(anonymous at
+// CHECK-NEXT:     24 |     ConcreteASPtrType MData
+// CHECK-NEXT:        | [sizeof=32, dsize=32, align=8,
+// CHECK-NEXT:        |  nvsize=32, nvalign=8]

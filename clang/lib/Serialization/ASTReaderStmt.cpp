@@ -61,6 +61,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 using namespace clang;
@@ -107,8 +108,7 @@ namespace clang {
 
     /// The number of record fields required for the Expr class
     /// itself.
-    static const unsigned NumExprFields =
-        NumStmtFields + llvm::BitWidth<ExprDependence> + 3;
+    static const unsigned NumExprFields = NumStmtFields + 4;
 
     /// Read and initialize a ExplicitTemplateArgumentList structure.
     void ReadTemplateKWAndArgsInfo(ASTTemplateKWAndArgsInfo &Args,
@@ -153,10 +153,15 @@ void ASTStmtReader::VisitCompoundStmt(CompoundStmt *S) {
   VisitStmt(S);
   SmallVector<Stmt *, 16> Stmts;
   unsigned NumStmts = Record.readInt();
+  unsigned HasFPFeatures = Record.readInt();
+  assert(S->hasStoredFPFeatures() == HasFPFeatures);
   while (NumStmts--)
     Stmts.push_back(Record.readSubStmt());
   S->setStmts(Stmts);
-  S->CompoundStmtBits.LBraceLoc = readSourceLocation();
+  if (HasFPFeatures)
+    S->setStoredFPFeatures(
+        FPOptionsOverride::getFromOpaqueInt(Record.readInt()));
+  S->LBraceLoc = readSourceLocation();
   S->RBraceLoc = readSourceLocation();
 }
 
@@ -521,26 +526,7 @@ void ASTStmtReader::VisitCapturedStmt(CapturedStmt *S) {
 void ASTStmtReader::VisitExpr(Expr *E) {
   VisitStmt(E);
   E->setType(Record.readType());
-
-  // FIXME: write and read all DependentFlags with a single call.
-  bool TypeDependent = Record.readInt();
-  bool ValueDependent = Record.readInt();
-  bool InstantiationDependent = Record.readInt();
-  bool ContainsUnexpandedTemplateParameters = Record.readInt();
-  bool ContainsErrors = Record.readInt();
-  auto Deps = ExprDependence::None;
-  if (TypeDependent)
-    Deps |= ExprDependence::Type;
-  if (ValueDependent)
-    Deps |= ExprDependence::Value;
-  if (InstantiationDependent)
-    Deps |= ExprDependence::Instantiation;
-  if (ContainsUnexpandedTemplateParameters)
-    Deps |= ExprDependence::UnexpandedPack;
-  if (ContainsErrors)
-    Deps |= ExprDependence::Error;
-  E->setDependence(Deps);
-
+  E->setDependence(static_cast<ExprDependence>(Record.readInt()));
   E->setValueKind(static_cast<ExprValueKind>(Record.readInt()));
   E->setObjectKind(static_cast<ExprObjectKind>(Record.readInt()));
   assert(Record.getIdx() == NumExprFields &&
@@ -797,6 +783,7 @@ static ConstraintSatisfaction
 readConstraintSatisfaction(ASTRecordReader &Record) {
   ConstraintSatisfaction Satisfaction;
   Satisfaction.IsSatisfied = Record.readInt();
+  Satisfaction.ContainsErrors = Record.readInt();
   if (!Satisfaction.IsSatisfied) {
     unsigned NumDetailRecords = Record.readInt();
     for (unsigned i = 0; i != NumDetailRecords; ++i) {
@@ -818,17 +805,13 @@ readConstraintSatisfaction(ASTRecordReader &Record) {
 void ASTStmtReader::VisitConceptSpecializationExpr(
         ConceptSpecializationExpr *E) {
   VisitExpr(E);
-  unsigned NumTemplateArgs = Record.readInt();
   E->NestedNameSpec = Record.readNestedNameSpecifierLoc();
   E->TemplateKWLoc = Record.readSourceLocation();
   E->ConceptName = Record.readDeclarationNameInfo();
   E->NamedConcept = readDeclAs<ConceptDecl>();
   E->FoundDecl = Record.readDeclAs<NamedDecl>();
+  E->SpecDecl = Record.readDeclAs<ImplicitConceptSpecializationDecl>();
   E->ArgsAsWritten = Record.readASTTemplateArgumentListInfo();
-  llvm::SmallVector<TemplateArgument, 4> Args;
-  for (unsigned I = 0; I < NumTemplateArgs; ++I)
-    Args.push_back(Record.readTemplateArgument());
-  E->setTemplateArguments(Args);
   E->Satisfaction = E->isValueDependent() ? nullptr :
       ASTConstraintSatisfaction::Create(Record.getContext(),
                                         readConstraintSatisfaction(Record));
@@ -885,7 +868,7 @@ void ASTStmtReader::VisitRequiresExpr(RequiresExpr *E) {
         } else
           E = Record.readExpr();
 
-        llvm::Optional<concepts::ExprRequirement::ReturnTypeRequirement> Req;
+        std::optional<concepts::ExprRequirement::ReturnTypeRequirement> Req;
         ConceptSpecializationExpr *SubstitutedConstraintExpr = nullptr;
         SourceLocation NoexceptLoc;
         if (RK == concepts::Requirement::RK_Simple) {
@@ -923,9 +906,17 @@ void ASTStmtReader::VisitRequiresExpr(RequiresExpr *E) {
                   std::move(*Req));
       } break;
       case concepts::Requirement::RK_Nested: {
-        if (/* IsSubstitutionDiagnostic */Record.readInt()) {
+        bool HasInvalidConstraint = Record.readInt();
+        if (HasInvalidConstraint) {
+          std::string InvalidConstraint = Record.readString();
+          char *InvalidConstraintBuf =
+              new (Record.getContext()) char[InvalidConstraint.size()];
+          std::copy(InvalidConstraint.begin(), InvalidConstraint.end(),
+                    InvalidConstraintBuf);
           R = new (Record.getContext()) concepts::NestedRequirement(
-              readSubstitutionDiagnostic(Record));
+              Record.getContext(),
+              StringRef(InvalidConstraintBuf, InvalidConstraint.size()),
+              readConstraintSatisfaction(Record));
           break;
         }
         Expr *E = Record.readExpr();
@@ -1874,13 +1865,19 @@ void ASTStmtReader::VisitCXXDefaultArgExpr(CXXDefaultArgExpr *E) {
   E->Param = readDeclAs<ParmVarDecl>();
   E->UsedContext = readDeclAs<DeclContext>();
   E->CXXDefaultArgExprBits.Loc = readSourceLocation();
+  E->CXXDefaultArgExprBits.HasRewrittenInit = Record.readInt();
+  if (E->CXXDefaultArgExprBits.HasRewrittenInit)
+    *E->getTrailingObjects<Expr *>() = Record.readSubExpr();
 }
 
 void ASTStmtReader::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
   VisitExpr(E);
+  E->CXXDefaultInitExprBits.HasRewrittenInit = Record.readInt();
   E->Field = readDeclAs<FieldDecl>();
   E->UsedContext = readDeclAs<DeclContext>();
   E->CXXDefaultInitExprBits.Loc = readSourceLocation();
+  if (E->CXXDefaultInitExprBits.HasRewrittenInit)
+    *E->getTrailingObjects<Expr *>() = Record.readSubExpr();
 }
 
 void ASTStmtReader::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
@@ -2164,8 +2161,10 @@ void ASTStmtReader::VisitSizeOfPackExpr(SizeOfPackExpr *E) {
 void ASTStmtReader::VisitSubstNonTypeTemplateParmExpr(
                                               SubstNonTypeTemplateParmExpr *E) {
   VisitExpr(E);
-  E->ParamAndRef.setPointer(readDeclAs<NonTypeTemplateParmDecl>());
-  E->ParamAndRef.setInt(Record.readInt());
+  E->AssociatedDeclAndRef.setPointer(readDeclAs<Decl>());
+  E->AssociatedDeclAndRef.setInt(Record.readInt());
+  E->Index = Record.readInt();
+  E->PackIndex = Record.readInt();
   E->SubstNonTypeTemplateParmExprBits.NameLoc = readSourceLocation();
   E->Replacement = Record.readSubExpr();
 }
@@ -2173,7 +2172,8 @@ void ASTStmtReader::VisitSubstNonTypeTemplateParmExpr(
 void ASTStmtReader::VisitSubstNonTypeTemplateParmPackExpr(
                                           SubstNonTypeTemplateParmPackExpr *E) {
   VisitExpr(E);
-  E->Param = readDeclAs<NonTypeTemplateParmDecl>();
+  E->AssociatedDecl = readDeclAs<Decl>();
+  E->Index = Record.readInt();
   TemplateArgument ArgPack = Record.readTemplateArgument();
   if (ArgPack.getKind() != TemplateArgument::Pack)
     return;
@@ -2212,6 +2212,31 @@ void ASTStmtReader::VisitCXXFoldExpr(CXXFoldExpr *E) {
   E->SubExprs[1] = Record.readSubExpr();
   E->SubExprs[2] = Record.readSubExpr();
   E->Opcode = (BinaryOperatorKind)Record.readInt();
+}
+
+void ASTStmtReader::VisitCXXParenListInitExpr(CXXParenListInitExpr *E) {
+  VisitExpr(E);
+  unsigned ExpectedNumExprs = Record.readInt();
+  assert(E->NumExprs == ExpectedNumExprs &&
+         "expected number of expressions does not equal the actual number of "
+         "serialized expressions.");
+  E->NumUserSpecifiedExprs = Record.readInt();
+  E->InitLoc = readSourceLocation();
+  E->LParenLoc = readSourceLocation();
+  E->RParenLoc = readSourceLocation();
+  for (unsigned I = 0; I < ExpectedNumExprs; I++)
+    E->getTrailingObjects<Expr *>()[I] = Record.readSubExpr();
+
+  bool HasArrayFillerOrUnionDecl = Record.readBool();
+  if (HasArrayFillerOrUnionDecl) {
+    bool HasArrayFiller = Record.readBool();
+    if (HasArrayFiller) {
+      E->setArrayFiller(Record.readSubExpr());
+    } else {
+      E->setInitializedFieldInUnion(readDeclAs<FieldDecl>());
+    }
+  }
+  E->updateDependence();
 }
 
 void ASTStmtReader::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
@@ -2423,6 +2448,12 @@ void ASTStmtReader::VisitOMPParallelMasterDirective(
   VisitOMPExecutableDirective(D);
 }
 
+void ASTStmtReader::VisitOMPParallelMaskedDirective(
+    OMPParallelMaskedDirective *D) {
+  VisitStmt(D);
+  VisitOMPExecutableDirective(D);
+}
+
 void ASTStmtReader::VisitOMPParallelSectionsDirective(
     OMPParallelSectionsDirective *D) {
   VisitStmt(D);
@@ -2447,6 +2478,13 @@ void ASTStmtReader::VisitOMPBarrierDirective(OMPBarrierDirective *D) {
 }
 
 void ASTStmtReader::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *D) {
+  VisitStmt(D);
+  // The NumClauses field was read in ReadStmtFromStream.
+  Record.skipInts(1);
+  VisitOMPExecutableDirective(D);
+}
+
+void ASTStmtReader::VisitOMPErrorDirective(OMPErrorDirective *D) {
   VisitStmt(D);
   // The NumClauses field was read in ReadStmtFromStream.
   Record.skipInts(1);
@@ -2481,8 +2519,9 @@ void ASTStmtReader::VisitOMPOrderedDirective(OMPOrderedDirective *D) {
 void ASTStmtReader::VisitOMPAtomicDirective(OMPAtomicDirective *D) {
   VisitStmt(D);
   VisitOMPExecutableDirective(D);
-  D->IsXLHSInRHSPart = Record.readBool();
-  D->IsPostfixUpdate = Record.readBool();
+  D->Flags.IsXLHSInRHSPart = Record.readBool() ? 1 : 0;
+  D->Flags.IsPostfixUpdate = Record.readBool() ? 1 : 0;
+  D->Flags.IsFailOnly = Record.readBool() ? 1 : 0;
 }
 
 void ASTStmtReader::VisitOMPTargetDirective(OMPTargetDirective *D) {
@@ -2553,8 +2592,19 @@ void ASTStmtReader::VisitOMPMasterTaskLoopDirective(
   D->setHasCancel(Record.readBool());
 }
 
+void ASTStmtReader::VisitOMPMaskedTaskLoopDirective(
+    OMPMaskedTaskLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+  D->setHasCancel(Record.readBool());
+}
+
 void ASTStmtReader::VisitOMPMasterTaskLoopSimdDirective(
     OMPMasterTaskLoopSimdDirective *D) {
+  VisitOMPLoopDirective(D);
+}
+
+void ASTStmtReader::VisitOMPMaskedTaskLoopSimdDirective(
+    OMPMaskedTaskLoopSimdDirective *D) {
   VisitOMPLoopDirective(D);
 }
 
@@ -2564,8 +2614,19 @@ void ASTStmtReader::VisitOMPParallelMasterTaskLoopDirective(
   D->setHasCancel(Record.readBool());
 }
 
+void ASTStmtReader::VisitOMPParallelMaskedTaskLoopDirective(
+    OMPParallelMaskedTaskLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+  D->setHasCancel(Record.readBool());
+}
+
 void ASTStmtReader::VisitOMPParallelMasterTaskLoopSimdDirective(
     OMPParallelMasterTaskLoopSimdDirective *D) {
+  VisitOMPLoopDirective(D);
+}
+
+void ASTStmtReader::VisitOMPParallelMaskedTaskLoopSimdDirective(
+    OMPParallelMaskedTaskLoopSimdDirective *D) {
   VisitOMPLoopDirective(D);
 }
 
@@ -2670,6 +2731,26 @@ void ASTStmtReader::VisitOMPGenericLoopDirective(OMPGenericLoopDirective *D) {
   VisitOMPLoopDirective(D);
 }
 
+void ASTStmtReader::VisitOMPTeamsGenericLoopDirective(
+    OMPTeamsGenericLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+}
+
+void ASTStmtReader::VisitOMPTargetTeamsGenericLoopDirective(
+    OMPTargetTeamsGenericLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+}
+
+void ASTStmtReader::VisitOMPParallelGenericLoopDirective(
+    OMPParallelGenericLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+}
+
+void ASTStmtReader::VisitOMPTargetParallelGenericLoopDirective(
+    OMPTargetParallelGenericLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+}
+
 //===----------------------------------------------------------------------===//
 // ASTReader Implementation
 //===----------------------------------------------------------------------===//
@@ -2756,7 +2837,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_REF_PTR:
       IsStmtReference = true;
-      assert(StmtEntries.find(Record[0]) != StmtEntries.end() &&
+      assert(StmtEntries.contains(Record[0]) &&
              "No stmt was recorded for this offset reference!");
       S = StmtEntries[Record.readInt()];
       break;
@@ -2771,7 +2852,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_COMPOUND:
       S = CompoundStmt::CreateEmpty(
-          Context, /*NumStmts=*/Record[ASTStmtReader::NumStmtFields]);
+          Context, /*NumStmts=*/Record[ASTStmtReader::NumStmtFields],
+          /*HasFPFeatures=*/Record[ASTStmtReader::NumStmtFields + 1]);
       break;
 
     case STMT_CASE:
@@ -3332,6 +3414,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 
+    case STMT_OMP_PARALLEL_MASKED_DIRECTIVE:
+      S = OMPParallelMaskedDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
+      break;
+
     case STMT_OMP_PARALLEL_SECTIONS_DIRECTIVE:
       S = OMPParallelSectionsDirective::CreateEmpty(
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
@@ -3352,6 +3439,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_OMP_TASKWAIT_DIRECTIVE:
       S = OMPTaskwaitDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
+      break;
+
+    case STMT_OMP_ERROR_DIRECTIVE:
+      S = OMPErrorDirective::CreateEmpty(
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 
@@ -3463,11 +3555,27 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
                                                   CollapsedNum, Empty);
       break;
     }
+    
+    case STMT_OMP_MASKED_TASKLOOP_DIRECTIVE: {
+      unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
+      unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
+      S = OMPMaskedTaskLoopDirective::CreateEmpty(Context, NumClauses,
+                                                  CollapsedNum, Empty);
+      break;
+    }
 
     case STMT_OMP_MASTER_TASKLOOP_SIMD_DIRECTIVE: {
       unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
       unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
       S = OMPMasterTaskLoopSimdDirective::CreateEmpty(Context, NumClauses,
+                                                      CollapsedNum, Empty);
+      break;
+    }
+
+    case STMT_OMP_MASKED_TASKLOOP_SIMD_DIRECTIVE: {
+      unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
+      unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
+      S = OMPMaskedTaskLoopSimdDirective::CreateEmpty(Context, NumClauses,
                                                       CollapsedNum, Empty);
       break;
     }
@@ -3480,10 +3588,26 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
     }
 
+    case STMT_OMP_PARALLEL_MASKED_TASKLOOP_DIRECTIVE: {
+      unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
+      unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
+      S = OMPParallelMaskedTaskLoopDirective::CreateEmpty(Context, NumClauses,
+                                                          CollapsedNum, Empty);
+      break;
+    }
+
     case STMT_OMP_PARALLEL_MASTER_TASKLOOP_SIMD_DIRECTIVE: {
       unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
       unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
       S = OMPParallelMasterTaskLoopSimdDirective::CreateEmpty(
+          Context, NumClauses, CollapsedNum, Empty);
+      break;
+    }
+
+    case STMT_OMP_PARALLEL_MASKED_TASKLOOP_SIMD_DIRECTIVE: {
+      unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
+      unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
+      S = OMPParallelMaskedTaskLoopSimdDirective::CreateEmpty(
           Context, NumClauses, CollapsedNum, Empty);
       break;
     }
@@ -3629,6 +3753,38 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
     }
 
+    case STMT_OMP_TEAMS_GENERIC_LOOP_DIRECTIVE: {
+      unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
+      unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
+      S = OMPTeamsGenericLoopDirective::CreateEmpty(Context, NumClauses,
+                                                    CollapsedNum, Empty);
+      break;
+    }
+
+    case STMT_OMP_TARGET_TEAMS_GENERIC_LOOP_DIRECTIVE: {
+      unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
+      unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
+      S = OMPTargetTeamsGenericLoopDirective::CreateEmpty(Context, NumClauses,
+                                                          CollapsedNum, Empty);
+      break;
+    }
+
+    case STMT_OMP_PARALLEL_GENERIC_LOOP_DIRECTIVE: {
+      unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
+      unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
+      S = OMPParallelGenericLoopDirective::CreateEmpty(Context, NumClauses,
+                                                       CollapsedNum, Empty);
+      break;
+    }
+
+    case STMT_OMP_TARGET_PARALLEL_GENERIC_LOOP_DIRECTIVE: {
+      unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
+      unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
+      S = OMPTargetParallelGenericLoopDirective::CreateEmpty(
+          Context, NumClauses, CollapsedNum, Empty);
+      break;
+    }
+
     case EXPR_CXX_OPERATOR_CALL:
       S = CXXOperatorCallExpr::CreateEmpty(
           Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields],
@@ -3765,11 +3921,13 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_CXX_DEFAULT_ARG:
-      S = new (Context) CXXDefaultArgExpr(Empty);
+      S = CXXDefaultArgExpr::CreateEmpty(
+          Context, /*HasRewrittenInit=*/Record[ASTStmtReader::NumExprFields]);
       break;
 
     case EXPR_CXX_DEFAULT_INIT:
-      S = new (Context) CXXDefaultInitExpr(Empty);
+      S = CXXDefaultInitExpr::CreateEmpty(
+          Context, /*HasRewrittenInit=*/Record[ASTStmtReader::NumExprFields]);
       break;
 
     case EXPR_CXX_BIND_TEMPORARY:
@@ -3894,6 +4052,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = new (Context) CXXFoldExpr(Empty);
       break;
 
+    case EXPR_CXX_PAREN_LIST_INIT:
+      S = CXXParenListInitExpr::CreateEmpty(
+          Context, /*numExprs=*/Record[ASTStmtReader::NumExprFields], Empty);
+      break;
+
     case EXPR_OPAQUE_VALUE:
       S = new (Context) OpaqueValueExpr(Empty);
       break;
@@ -3947,8 +4110,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_CONCEPT_SPECIALIZATION: {
-      unsigned numTemplateArgs = Record[ASTStmtReader::NumExprFields];
-      S = ConceptSpecializationExpr::Create(Context, Empty, numTemplateArgs);
+      S = new (Context) ConceptSpecializationExpr(Empty);
       break;
     }
 

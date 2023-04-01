@@ -1,8 +1,6 @@
 /// Check that -fopenmp-simd is NOT passed to the device compilation when
 /// used together with -fsycl.
 
-// REQUIRES: clang-driver
-
 // RUN: %clang -c -fsycl -fopenmp-simd -### %s 2>&1 | FileCheck %s
 // RUN: %clang -c -fopenmp-simd -fopenmp-version=50 -### %s 2>&1 | FileCheck %s --check-prefix=UNCHANGED
 

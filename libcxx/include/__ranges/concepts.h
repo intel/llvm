@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___RANGES_CONCEPTS_H
 #define _LIBCPP___RANGES_CONCEPTS_H
 
@@ -23,24 +24,33 @@
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/enable_view.h>
 #include <__ranges/size.h>
+#include <__type_traits/add_pointer.h>
+#include <__type_traits/is_reference.h>
+#include <__type_traits/remove_cvref.h>
+#include <__type_traits/remove_reference.h>
+#include <__utility/declval.h>
 #include <initializer_list>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if _LIBCPP_STD_VER >= 20
 
 namespace ranges {
+
   // [range.range]
+
   template <class _Tp>
   concept range = requires(_Tp& __t) {
     ranges::begin(__t); // sometimes equality-preserving
     ranges::end(__t);
   };
+
+  template <class _Tp>
+  concept input_range = range<_Tp> && input_iterator<iterator_t<_Tp>>;
 
   template<class _Range>
   concept borrowed_range = range<_Range> &&
@@ -49,7 +59,7 @@ namespace ranges {
   // `iterator_t` defined in <__ranges/access.h>
 
   template <range _Rp>
-  using sentinel_t = decltype(ranges::end(declval<_Rp&>()));
+  using sentinel_t = decltype(ranges::end(std::declval<_Rp&>()));
 
   template <range _Rp>
   using range_difference_t = iter_difference_t<iterator_t<_Rp>>;
@@ -63,12 +73,15 @@ namespace ranges {
   template <range _Rp>
   using range_rvalue_reference_t = iter_rvalue_reference_t<iterator_t<_Rp>>;
 
+  template <range _Rp>
+  using range_common_reference_t = iter_common_reference_t<iterator_t<_Rp>>;
+
   // [range.sized]
   template <class _Tp>
   concept sized_range = range<_Tp> && requires(_Tp& __t) { ranges::size(__t); };
 
   template<sized_range _Rp>
-  using range_size_t = decltype(ranges::size(declval<_Rp&>()));
+  using range_size_t = decltype(ranges::size(std::declval<_Rp&>()));
 
   // `disable_sized_range` defined in `<__ranges/size.h>`
 
@@ -92,9 +105,6 @@ namespace ranges {
   // [range.refinements], other range refinements
   template <class _Rp, class _Tp>
   concept output_range = range<_Rp> && output_iterator<iterator_t<_Rp>, _Tp>;
-
-  template <class _Tp>
-  concept input_range = range<_Tp> && input_iterator<iterator_t<_Tp>>;
 
   template <class _Tp>
   concept forward_range = input_range<_Tp> && forward_iterator<iterator_t<_Tp>>;
@@ -133,7 +143,7 @@ namespace ranges {
 
 } // namespace ranges
 
-#endif // !defined(_LIBCPP_HAS_NO_RANGES)
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

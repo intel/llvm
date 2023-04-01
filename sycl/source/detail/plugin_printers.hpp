@@ -10,12 +10,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace pi {
 
@@ -178,5 +178,5 @@ void printOuts(Arg0 arg0, Args... args) {
 
 } // namespace pi
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

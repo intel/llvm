@@ -34,7 +34,8 @@ json::Value StatsSuccessFail::ToJSON() const {
 }
 
 static double elapsed(const StatsTimepoint &start, const StatsTimepoint &end) {
-  StatsDuration elapsed = end.time_since_epoch() - start.time_since_epoch();
+  StatsDuration::Duration elapsed =
+      end.time_since_epoch() - start.time_since_epoch();
   return elapsed.count();
 }
 
@@ -61,7 +62,41 @@ json::Value ModuleStats::ToJSON() const {
                      debug_info_index_loaded_from_cache);
   module.try_emplace("debugInfoIndexSavedToCache",
                      debug_info_index_saved_to_cache);
+  module.try_emplace("debugInfoEnabled", debug_info_enabled);
+  module.try_emplace("debugInfoHadVariableErrors",
+                     debug_info_had_variable_errors);
+  module.try_emplace("debugInfoHadIncompleteTypes",
+                     debug_info_had_incomplete_types);
+  module.try_emplace("symbolTableStripped", symtab_stripped);
+  if (!symfile_path.empty())
+    module.try_emplace("symbolFilePath", symfile_path);
+
+  if (!symfile_modules.empty()) {
+    json::Array symfile_ids;
+    for (const auto symfile_id: symfile_modules)
+      symfile_ids.emplace_back(symfile_id);
+    module.try_emplace("symbolFileModuleIdentifiers", std::move(symfile_ids));
+  }
+
+  if (!type_system_stats.empty()) {
+    json::Array type_systems;
+    for (const auto &entry : type_system_stats) {
+      json::Object obj;
+      obj.try_emplace(entry.first().str(), entry.second);
+      type_systems.emplace_back(std::move(obj));
+    }
+    module.try_emplace("typeSystemInfo", std::move(type_systems));
+  }
+
   return module;
+}
+
+llvm::json::Value ConstStringStats::ToJSON() const {
+  json::Object obj;
+  obj.try_emplace<int64_t>("bytesTotal", stats.GetBytesTotal());
+  obj.try_emplace<int64_t>("bytesUsed", stats.GetBytesUsed());
+  obj.try_emplace<int64_t>("bytesUnused", stats.GetBytesUnused());
+  return obj;
 }
 
 json::Value TargetStats::ToJSON(Target &target) {
@@ -86,7 +121,8 @@ json::Value TargetStats::ToJSON(Target &target) {
         elapsed(*m_launch_or_attach_time, *m_first_public_stop_time);
     target_metrics_json.try_emplace("firstStopTime", elapsed_time);
   }
-  target_metrics_json.try_emplace("targetCreateTime", m_create_time.count());
+  target_metrics_json.try_emplace("targetCreateTime",
+                                  m_create_time.get().count());
 
   json::Array breakpoints_array;
   double totalBreakpointResolveTime = 0.0;
@@ -115,13 +151,14 @@ json::Value TargetStats::ToJSON(Target &target) {
   target_metrics_json.try_emplace("breakpoints", std::move(breakpoints_array));
   target_metrics_json.try_emplace("totalBreakpointResolveTime",
                                   totalBreakpointResolveTime);
+  target_metrics_json.try_emplace("sourceMapDeduceCount", m_source_map_deduce_count);
 
   return target_metrics_json;
 }
 
 void TargetStats::SetLaunchOrAttachTime() {
   m_launch_or_attach_time = StatsClock::now();
-  m_first_private_stop_time = llvm::None;
+  m_first_private_stop_time = std::nullopt;
 }
 
 void TargetStats::SetFirstPrivateStopTime() {
@@ -138,6 +175,10 @@ void TargetStats::SetFirstPublicStopTime() {
   // first stop time if it hasn't already been set.
   if (!m_first_public_stop_time)
     m_first_public_stop_time = StatsClock::now();
+}
+
+void TargetStats::IncreaseSourceMapDeduceCount() {
+  ++m_source_map_deduce_count;
 }
 
 bool DebuggerStats::g_collecting_stats = false;
@@ -164,7 +205,12 @@ llvm::json::Value DebuggerStats::ReportStatistics(Debugger &debugger,
   std::vector<ModuleStats> modules;
   std::lock_guard<std::recursive_mutex> guard(
       Module::GetAllocationModuleCollectionMutex());
-  const size_t num_modules = Module::GetNumberAllocatedModules();
+  const uint64_t num_modules = Module::GetNumberAllocatedModules();
+  uint32_t num_debug_info_enabled_modules = 0;
+  uint32_t num_modules_has_debug_info = 0;
+  uint32_t num_modules_with_variable_errors = 0;
+  uint32_t num_modules_with_incomplete_types = 0;
+  uint32_t num_stripped_modules = 0;
   for (size_t image_idx = 0; image_idx < num_modules; ++image_idx) {
     Module *module = Module::GetAllocatedModuleAtIndex(image_idx);
     ModuleStats module_stat;
@@ -177,8 +223,8 @@ llvm::json::Value DebuggerStats::ReportStatistics(Debugger &debugger,
     }
     module_stat.uuid = module->GetUUID().GetAsString();
     module_stat.triple = module->GetArchitecture().GetTriple().str();
-    module_stat.symtab_parse_time = module->GetSymtabParseTime().count();
-    module_stat.symtab_index_time = module->GetSymtabIndexTime().count();
+    module_stat.symtab_parse_time = module->GetSymtabParseTime().get().count();
+    module_stat.symtab_index_time = module->GetSymtabIndexTime().get().count();
     Symtab *symtab = module->GetSymtab();
     if (symtab) {
       module_stat.symtab_loaded_from_cache = symtab->GetWasLoadedFromCache();
@@ -190,6 +236,10 @@ llvm::json::Value DebuggerStats::ReportStatistics(Debugger &debugger,
     }
     SymbolFile *sym_file = module->GetSymbolFile();
     if (sym_file) {
+
+      if (sym_file->GetObjectFile() != module->GetObjectFile())
+        module_stat.symfile_path =
+            sym_file->GetObjectFile()->GetFileSpec().GetPath();
       module_stat.debug_index_time = sym_file->GetDebugInfoIndexTime().count();
       module_stat.debug_parse_time = sym_file->GetDebugInfoParseTime().count();
       module_stat.debug_info_size = sym_file->GetDebugInfoSize();
@@ -201,18 +251,50 @@ llvm::json::Value DebuggerStats::ReportStatistics(Debugger &debugger,
           sym_file->GetDebugInfoIndexWasSavedToCache();
       if (module_stat.debug_info_index_saved_to_cache)
         ++debug_index_saved;
+      ModuleList symbol_modules = sym_file->GetDebugInfoModules();
+      for (const auto &symbol_module: symbol_modules.Modules())
+        module_stat.symfile_modules.push_back((intptr_t)symbol_module.get());
+      module_stat.symtab_stripped = module->GetObjectFile()->IsStripped();
+      if (module_stat.symtab_stripped)
+        ++num_stripped_modules;
+      module_stat.debug_info_enabled = sym_file->GetLoadDebugInfoEnabled() &&
+                                       module_stat.debug_info_size > 0;
+      module_stat.debug_info_had_variable_errors =
+          sym_file->GetDebugInfoHadFrameVariableErrors();
+      if (module_stat.debug_info_enabled)
+        ++num_debug_info_enabled_modules;
+      if (module_stat.debug_info_size > 0)
+        ++num_modules_has_debug_info;
+      if (module_stat.debug_info_had_variable_errors)
+        ++num_modules_with_variable_errors;
     }
     symtab_parse_time += module_stat.symtab_parse_time;
     symtab_index_time += module_stat.symtab_index_time;
     debug_parse_time += module_stat.debug_parse_time;
     debug_index_time += module_stat.debug_index_time;
     debug_info_size += module_stat.debug_info_size;
+    module->ForEachTypeSystem([&](lldb::TypeSystemSP ts) {
+      if (auto stats = ts->ReportStatistics())
+        module_stat.type_system_stats.insert({ts->GetPluginName(), *stats});
+      if (ts->GetHasForcefullyCompletedTypes())
+        module_stat.debug_info_had_incomplete_types = true;
+      return true;
+    });
+    if (module_stat.debug_info_had_incomplete_types)
+      ++num_modules_with_incomplete_types;
+
     json_modules.emplace_back(module_stat.ToJSON());
   }
+
+  ConstStringStats const_string_stats;
+  json::Object json_memory{
+      {"strings", const_string_stats.ToJSON()},
+  };
 
   json::Object global_stats{
       {"targets", std::move(json_targets)},
       {"modules", std::move(json_modules)},
+      {"memory", std::move(json_memory)},
       {"totalSymbolTableParseTime", symtab_parse_time},
       {"totalSymbolTableIndexTime", symtab_index_time},
       {"totalSymbolTablesLoadedFromCache", symtabs_loaded},
@@ -222,6 +304,12 @@ llvm::json::Value DebuggerStats::ReportStatistics(Debugger &debugger,
       {"totalDebugInfoIndexLoadedFromCache", debug_index_loaded},
       {"totalDebugInfoIndexSavedToCache", debug_index_saved},
       {"totalDebugInfoByteSize", debug_info_size},
+      {"totalModuleCount", num_modules},
+      {"totalModuleCountHasDebugInfo", num_modules_has_debug_info},
+      {"totalModuleCountWithVariableErrors", num_modules_with_variable_errors},
+      {"totalModuleCountWithIncompleteTypes", num_modules_with_incomplete_types},
+      {"totalDebugInfoEnabled", num_debug_info_enabled_modules},
+      {"totalSymbolTableStripped", num_stripped_modules},
   };
   return std::move(global_stats);
 }

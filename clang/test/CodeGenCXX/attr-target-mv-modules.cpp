@@ -22,8 +22,8 @@ __attribute__((target("sse4.2"))) void f();
 void g() { f(); }
 
 // Negative tests to validate that the resolver only calls each 1x.
-// CHECK: define weak_odr void ()* @_Z1fv.resolver
-// CHECK: ret void ()* @_Z1fv.sse4.2
-// CHECK-NOT: ret void ()* @_Z1fv.sse4.2
-// CHECK: ret void ()* @_Z1fv
-// CHECK-NOT: ret void ()* @_Z1fv
+// CHECK: define weak_odr ptr @_Z1fv.resolver
+// CHECK: ret ptr @_Z1fv.sse4.2
+// CHECK-NOT: ret ptr @_Z1fv.sse4.2
+// CHECK: ret ptr @_Z1fv
+// CHECK-NOT: ret ptr @_Z1fv

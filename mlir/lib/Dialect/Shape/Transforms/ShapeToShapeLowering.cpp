@@ -6,15 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Shape/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_SHAPETOSHAPELOWERING
+#include "mlir/Dialect/Shape/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::shape;
@@ -54,22 +59,21 @@ NumElementsOpConverter::matchAndRewrite(NumElementsOp op,
 
 namespace {
 struct ShapeToShapeLowering
-    : public ShapeToShapeLoweringBase<ShapeToShapeLowering> {
-  void runOnFunction() override;
+    : public impl::ShapeToShapeLoweringBase<ShapeToShapeLowering> {
+  void runOnOperation() override;
 };
 } // namespace
 
-void ShapeToShapeLowering::runOnFunction() {
+void ShapeToShapeLowering::runOnOperation() {
   MLIRContext &ctx = getContext();
 
   RewritePatternSet patterns(&ctx);
   populateShapeRewritePatterns(patterns);
 
   ConversionTarget target(getContext());
-  target.addLegalDialect<arith::ArithmeticDialect, ShapeDialect,
-                         StandardOpsDialect>();
+  target.addLegalDialect<arith::ArithDialect, ShapeDialect>();
   target.addIllegalOp<NumElementsOp>();
-  if (failed(mlir::applyPartialConversion(getFunction(), target,
+  if (failed(mlir::applyPartialConversion(getOperation(), target,
                                           std::move(patterns))))
     signalPassFailure();
 }

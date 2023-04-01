@@ -78,11 +78,11 @@ def segmented_accessor(elements, raw_segments, idx):
   Returns a slice of elements corresponding to the idx-th segment.
 
     elements: a sliceable container (operands or results).
-    raw_segments: an mlir.ir.Attribute, of DenseIntElements subclass containing
+    raw_segments: an mlir.ir.Attribute, of DenseI32Array subclass containing
         sizes of the segments.
     idx: index of the segment.
   """
-  segments = _cext.ir.DenseIntElementsAttr(raw_segments)
+  segments = _cext.ir.DenseI32ArrayAttr(raw_segments)
   start = sum(segments[i] for i in range(idx))
   end = start + segments[idx]
   return elements[start:end]
@@ -144,7 +144,8 @@ def get_op_result_or_value(
 
 
 def get_op_results_or_values(
-    arg: _Union[_cext.ir.OpView, _cext.ir.Operation, _Sequence[_cext.ir.Value]]
+    arg: _Union[_cext.ir.OpView, _cext.ir.Operation,
+                _Sequence[_Union[_cext.ir.OpView, _cext.ir.Operation, _cext.ir.Value]]]
 ) -> _Union[_Sequence[_cext.ir.Value], _cext.ir.OpResultList]:
   """Returns the given sequence of values or the results of the given op.
 
@@ -157,4 +158,4 @@ def get_op_results_or_values(
   elif isinstance(arg, _cext.ir.Operation):
     return arg.results
   else:
-    return arg
+    return [get_op_result_or_value(element) for element in arg]

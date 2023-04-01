@@ -8,15 +8,16 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class device_selector;
@@ -68,9 +69,7 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
-  template <info::platform param>
-  typename info::param_traits<info::platform, param>::return_type
-  get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// \return true if this SYCL platform is a host platform.
   bool is_host() const { return MHostPlatform; };
@@ -80,7 +79,7 @@ public:
     if (is_host()) {
       throw invalid_object_error(
           "This instance of platform doesn't support OpenCL interoperability.",
-          PI_INVALID_PLATFORM);
+          PI_ERROR_INVALID_PLATFORM);
     }
     return pi::cast<cl_platform_id>(MPlatform);
   }
@@ -95,7 +94,7 @@ public:
   const RT::PiPlatform &getHandleRef() const {
     if (is_host())
       throw invalid_object_error("This instance of platform is a host instance",
-                                 PI_INVALID_PLATFORM);
+                                 PI_ERROR_INVALID_PLATFORM);
 
     return MPlatform;
   }
@@ -137,6 +136,14 @@ public:
   /// \return true all of the SYCL devices on this platform have the
   /// given feature.
   bool has(aspect Aspect) const;
+
+  /// Queries the device_impl cache to return a shared_ptr for the
+  /// device_impl corresponding to the PiDevice.
+  ///
+  /// \param PiDevice is the PiDevice whose impl is requested
+  ///
+  /// \return a shared_ptr<device_impl> corresponding to the device
+  std::shared_ptr<device_impl> getDeviceImpl(RT::PiDevice PiDevice);
 
   /// Queries the device_impl cache to either return a shared_ptr
   /// for the device_impl corresponding to the PiDevice or add
@@ -181,7 +188,13 @@ public:
   static std::shared_ptr<platform_impl>
   getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
 
+  // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
+  // ensure every device is a root one.
+  bool MAlwaysRootDevice = false;
+
 private:
+  std::shared_ptr<device_impl> getDeviceImplHelper(RT::PiDevice PiDevice);
+
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
@@ -190,5 +203,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

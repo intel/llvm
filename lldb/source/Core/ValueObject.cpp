@@ -42,8 +42,8 @@
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Flags.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/Logging.h"
 #include "lldb/Utility/Scalar.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
@@ -55,6 +55,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <tuple>
 
 #include <cassert>
@@ -200,7 +201,7 @@ bool ValueObject::UpdateValueIfNeeded(bool update_format) {
 }
 
 bool ValueObject::UpdateFormatsIfNeeded() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS));
+  Log *log = GetLog(LLDBLog::DataFormatters);
   LLDB_LOGF(log,
             "[%s %p] checking for FormatManager revisions. ValueObject "
             "rev: %d - Global rev: %d",
@@ -263,9 +264,9 @@ CompilerType ValueObject::MaybeCalculateCompleteType() {
 
   if (auto *runtime =
           process_sp->GetLanguageRuntime(GetObjectRuntimeLanguage())) {
-    if (llvm::Optional<CompilerType> complete_type =
+    if (std::optional<CompilerType> complete_type =
             runtime->GetRuntimeType(compiler_type)) {
-      m_override_type = complete_type.getValue();
+      m_override_type = *complete_type;
       if (m_override_type.IsValid())
         return m_override_type;
     }
@@ -594,6 +595,14 @@ bool ValueObject::GetSummaryAsCString(TypeSummaryImpl *summary_ptr,
                                       const TypeSummaryOptions &options) {
   destination.clear();
 
+  // If we have a forcefully completed type, don't try and show a summary from
+  // a valid summary string or function because the type is not complete and
+  // no member variables or member functions will be available.
+  if (GetCompilerType().IsForcefullyCompleted()) {
+      destination = "<incomplete type>";
+      return true;
+  }
+
   // ideally we would like to bail out if passing NULL, but if we do so we end
   // up not providing the summary for function pointers anymore
   if (/*summary_ptr == NULL ||*/ m_flags.m_is_getting_summary)
@@ -674,7 +683,7 @@ size_t ValueObject::GetPointeeData(DataExtractor &data, uint32_t item_idx,
 
   ExecutionContext exe_ctx(GetExecutionContextRef());
 
-  llvm::Optional<uint64_t> item_type_size =
+  std::optional<uint64_t> item_type_size =
       pointee_or_element_compiler_type.GetByteSize(
           exe_ctx.GetBestExecutionContextScope());
   if (!item_type_size)
@@ -792,7 +801,7 @@ bool ValueObject::SetData(DataExtractor &data, Status &error) {
   uint64_t count = 0;
   const Encoding encoding = GetCompilerType().GetEncoding(count);
 
-  const size_t byte_size = GetByteSize().getValueOr(0);
+  const size_t byte_size = GetByteSize().value_or(0);
 
   Value::ValueType value_type = m_value.GetValueType();
 
@@ -848,18 +857,18 @@ bool ValueObject::SetData(DataExtractor &data, Status &error) {
 }
 
 static bool CopyStringDataToBufferSP(const StreamString &source,
-                                     lldb::DataBufferSP &destination) {
+                                     lldb::WritableDataBufferSP &destination) {
   llvm::StringRef src = source.GetString();
-  src.consume_back(llvm::StringRef("\0", 1));
+  src = src.rtrim('\0');
   destination = std::make_shared<DataBufferHeap>(src.size(), 0);
   memcpy(destination->GetBytes(), src.data(), src.size());
   return true;
 }
 
 std::pair<size_t, bool>
-ValueObject::ReadPointedString(lldb::DataBufferSP &buffer_sp, Status &error,
-                               uint32_t max_length, bool honor_array,
-                               Format item_format) {
+ValueObject::ReadPointedString(lldb::WritableDataBufferSP &buffer_sp,
+                               Status &error, uint32_t max_length,
+                               bool honor_array, Format item_format) {
   bool was_capped = false;
   StreamString s;
   ExecutionContext exe_ctx(GetExecutionContextRef());
@@ -1164,6 +1173,15 @@ bool ValueObject::DumpPrintableRepresentation(
     Stream &s, ValueObjectRepresentationStyle val_obj_display,
     Format custom_format, PrintableRepresentationSpecialCases special,
     bool do_dump_error) {
+    
+  // If the ValueObject has an error, we might end up dumping the type, which
+  // is useful, but if we don't even have a type, then don't examine the object
+  // further as that's not meaningful, only the error is.
+  if (m_error.Fail() && !GetCompilerType().IsValid()) {
+    if (do_dump_error)
+      s.Printf("<%s>", m_error.AsCString());
+    return false;
+  }
 
   Flags flags(GetTypeInfo());
 
@@ -1184,7 +1202,7 @@ bool ValueObject::DumpPrintableRepresentation(
                eFormatVectorOfChar)) // print char[] & char* directly
       {
         Status error;
-        lldb::DataBufferSP buffer_sp;
+        lldb::WritableDataBufferSP buffer_sp;
         std::pair<size_t, bool> read_string = ReadPointedString(
             buffer_sp, error, 0, (custom_format == eFormatVectorOfChar) ||
                                      (custom_format == eFormatCharArray));
@@ -1365,6 +1383,8 @@ bool ValueObject::DumpPrintableRepresentation(
     if (!str.empty())
       s << str;
     else {
+      // We checked for errors at the start, but do it again here in case
+      // realizing the value for dumping produced an error.
       if (m_error.Fail()) {
         if (do_dump_error)
           s.Printf("<%s>", m_error.AsCString());
@@ -1474,7 +1494,7 @@ bool ValueObject::SetValueFromCString(const char *value_str, Status &error) {
   uint64_t count = 0;
   const Encoding encoding = GetCompilerType().GetEncoding(count);
 
-  const size_t byte_size = GetByteSize().getValueOr(0);
+  const size_t byte_size = GetByteSize().value_or(0);
 
   Value::ValueType value_type = m_value.GetValueType();
 
@@ -1656,13 +1676,13 @@ ValueObjectSP ValueObject::GetSyntheticBitFieldChild(uint32_t from, uint32_t to,
       uint32_t bit_field_offset = from;
       if (GetDataExtractor().GetByteOrder() == eByteOrderBig)
         bit_field_offset =
-            GetByteSize().getValueOr(0) * 8 - bit_field_size - bit_field_offset;
+            GetByteSize().value_or(0) * 8 - bit_field_size - bit_field_offset;
       // We haven't made a synthetic array member for INDEX yet, so lets make
       // one and cache it for any future reference.
       ValueObjectChild *synthetic_child = new ValueObjectChild(
-          *this, GetCompilerType(), index_const_str,
-          GetByteSize().getValueOr(0), 0, bit_field_size, bit_field_offset,
-          false, false, eAddressTypeInvalid, 0);
+          *this, GetCompilerType(), index_const_str, GetByteSize().value_or(0),
+          0, bit_field_size, bit_field_offset, false, false,
+          eAddressTypeInvalid, 0);
 
       // Cache the value if we got one back...
       if (synthetic_child) {
@@ -1697,7 +1717,7 @@ ValueObjectSP ValueObject::GetSyntheticChildAtOffset(
     return {};
 
   ExecutionContext exe_ctx(GetExecutionContextRef());
-  llvm::Optional<uint64_t> size =
+  std::optional<uint64_t> size =
       type.GetByteSize(exe_ctx.GetBestExecutionContextScope());
   if (!size)
     return {};
@@ -1739,7 +1759,7 @@ ValueObjectSP ValueObject::GetSyntheticBase(uint32_t offset,
   const bool is_base_class = true;
 
   ExecutionContext exe_ctx(GetExecutionContextRef());
-  llvm::Optional<uint64_t> size =
+  std::optional<uint64_t> size =
       type.GetByteSize(exe_ctx.GetBestExecutionContextScope());
   if (!size)
     return {};
@@ -1839,7 +1859,7 @@ ValueObjectSP ValueObject::GetDynamicValue(DynamicValueType use_dynamic) {
   if (!IsDynamic() && m_dynamic_value == nullptr) {
     CalculateDynamicValue(use_dynamic);
   }
-  if (m_dynamic_value)
+  if (m_dynamic_value && m_dynamic_value->GetError().Success())
     return m_dynamic_value->GetSP();
   else
     return ValueObjectSP();
@@ -2113,7 +2133,7 @@ ValueObjectSP ValueObject::GetValueForExpressionPath_Impl(
         return ValueObjectSP();
       }
     }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case '.': // or fallthrough from ->
     {
       if (options.m_check_dot_vs_arrow_syntax &&
@@ -2673,7 +2693,10 @@ ValueObjectSP ValueObject::Dereference(Status &error) {
     // In case of incomplete child compiler type, use the pointee type and try
     // to recreate a new ValueObjectChild using it.
     if (!m_deref_valobj) {
-      if (HasSyntheticValue()) {
+      // FIXME(#59012): C++ stdlib formatters break with incomplete types (e.g.
+      // `std::vector<int> &`). Remove ObjC restriction once that's resolved.
+      if (Language::LanguageIsObjC(GetPreferredDisplayLanguage()) &&
+          HasSyntheticValue()) {
         child_compiler_type = compiler_type.GetPointeeType();
 
         if (child_compiler_type) {
@@ -2803,7 +2826,7 @@ ValueObject::EvaluationPoint::EvaluationPoint() : m_mod_id(), m_exe_ctx_ref() {}
 
 ValueObject::EvaluationPoint::EvaluationPoint(ExecutionContextScope *exe_scope,
                                               bool use_selected)
-    : m_mod_id(), m_exe_ctx_ref(), m_needs_update(true) {
+    : m_mod_id(), m_exe_ctx_ref() {
   ExecutionContext exe_ctx(exe_scope);
   TargetSP target_sp(exe_ctx.GetTargetSP());
   if (target_sp) {
@@ -2840,7 +2863,7 @@ ValueObject::EvaluationPoint::EvaluationPoint(ExecutionContextScope *exe_scope,
 
 ValueObject::EvaluationPoint::EvaluationPoint(
     const ValueObject::EvaluationPoint &rhs)
-    : m_mod_id(), m_exe_ctx_ref(rhs.m_exe_ctx_ref), m_needs_update(true) {}
+    : m_mod_id(), m_exe_ctx_ref(rhs.m_exe_ctx_ref) {}
 
 ValueObject::EvaluationPoint::~EvaluationPoint() = default;
 

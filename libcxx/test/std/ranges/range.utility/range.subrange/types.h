@@ -189,7 +189,7 @@ inline constexpr bool std::ranges::enable_borrowed_range<ConvertibleForwardBorro
 struct ForwardBorrowedRangeDifferentSentinel {
   struct sentinel {
     int *value;
-    friend bool operator==(sentinel s, ForwardIter i) { return s.value == i.base(); }
+    friend bool operator==(sentinel s, ForwardIter i) { return s.value == base(i); }
   };
 
   constexpr ForwardIter begin() const { return ForwardIter(globalBuff); }
@@ -206,12 +206,12 @@ using DifferentSentinelSubrange = std::ranges::subrange<ForwardIter,
 struct DifferentSentinelWithSizeMember {
   struct sentinel {
     int *value;
-    friend bool operator==(sentinel s, ForwardIter i) { return s.value == i.base(); }
+    friend bool operator==(sentinel s, ForwardIter i) { return s.value == base(i); }
   };
 
   constexpr ForwardIter begin() const { return ForwardIter(globalBuff); }
   constexpr sentinel end() const { return sentinel{globalBuff + 8}; }
-  constexpr size_t size() const { return 8; }
+  constexpr std::size_t size() const { return 8; }
 };
 
 template<>

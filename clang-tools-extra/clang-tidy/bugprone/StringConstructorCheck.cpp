@@ -14,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 AST_MATCHER_P(IntegerLiteral, isBiggerThan, unsigned, N) {
@@ -27,7 +25,7 @@ const char DefaultStringNames[] =
     "::std::basic_string;::std::basic_string_view";
 
 static std::vector<StringRef>
-removeNamespaces(const std::vector<std::string> &Names) {
+removeNamespaces(const std::vector<StringRef> &Names) {
   std::vector<StringRef> Result;
   Result.reserve(Names.size());
   for (StringRef Name : Names) {
@@ -183,6 +181,4 @@ void StringConstructorCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "GlobList.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 // Returns true if GlobList starts with the negative indicator ('-'), removes it
 // from the GlobList.
@@ -26,7 +26,7 @@ static bool consumeNegativeIndicator(StringRef &GlobList) {
 // Converts first glob from the comma-separated list of globs to Regex and
 // removes it and the trailing comma from the GlobList.
 static llvm::Regex consumeGlob(StringRef &GlobList) {
-  StringRef UntrimmedGlob = GlobList.substr(0, GlobList.find(','));
+  StringRef UntrimmedGlob = GlobList.substr(0, GlobList.find_first_of(",\n"));
   StringRef Glob = UntrimmedGlob.trim();
   GlobList = GlobList.substr(UntrimmedGlob.size() + 1);
   SmallString<128> RegexText("^");
@@ -43,7 +43,7 @@ static llvm::Regex consumeGlob(StringRef &GlobList) {
 }
 
 GlobList::GlobList(StringRef Globs, bool KeepNegativeGlobs /* =true */) {
-  Items.reserve(Globs.count(',') + 1);
+  Items.reserve(Globs.count(',') + Globs.count('\n') + 1);
   do {
     GlobListItem Item;
     Item.IsPositive = !consumeNegativeIndicator(Globs);
@@ -64,17 +64,12 @@ bool GlobList::contains(StringRef S) const {
 }
 
 bool CachedGlobList::contains(StringRef S) const {
-  switch (auto &Result = Cache[S]) {
-  case Yes:
-    return true;
-  case No:
-    return false;
-  case None:
-    Result = GlobList::contains(S) ? Yes : No;
-    return Result == Yes;
-  }
-  llvm_unreachable("invalid enum");
+  auto Entry = Cache.try_emplace(S);
+  bool &Value = Entry.first->getValue();
+  // If the entry was just inserted, determine its required value.
+  if (Entry.second)
+    Value = GlobList::contains(S);
+  return Value;
 }
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

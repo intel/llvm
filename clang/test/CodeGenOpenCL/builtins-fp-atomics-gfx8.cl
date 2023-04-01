@@ -6,7 +6,7 @@
 // REQUIRES: amdgpu-registered-target
 
 // CHECK-LABEL: test_fadd_local
-// CHECK: call float @llvm.amdgcn.ds.fadd.f32(float addrspace(3)* %{{.*}}, float %{{.*}}, i32 0, i32 0, i1 false)
+// CHECK: call float @llvm.amdgcn.ds.fadd.f32(ptr addrspace(3) %{{.*}}, float %{{.*}}, i32 0, i32 0, i1 false)
 // GFX8-LABEL: test_fadd_local$local:
 // GFX8: ds_add_rtn_f32 v2, v0, v1
 // GFX8: s_endpgm

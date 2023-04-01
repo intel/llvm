@@ -17,6 +17,7 @@
 
 #include "Encoding.h"
 #include "FormatToken.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Format/Format.h"
@@ -50,6 +51,7 @@ private:
   void tryMergePreviousTokens();
 
   bool tryMergeLessLess();
+  bool tryMergeGreaterGreater();
   bool tryMergeNSStringLiteral();
   bool tryMergeJSPrivateIdentifier();
   bool tryMergeCSharpStringLiteral();
@@ -59,7 +61,14 @@ private:
   bool tryMergeForEach();
   bool tryTransformTryUsageForC();
 
+  // Merge the most recently lexed tokens into a single token if their kinds are
+  // correct.
   bool tryMergeTokens(ArrayRef<tok::TokenKind> Kinds, TokenType NewType);
+  // Merge without checking their kinds.
+  bool tryMergeTokens(size_t Count, TokenType NewType);
+  // Merge if their kinds match any one of Kinds.
+  bool tryMergeTokensAny(ArrayRef<ArrayRef<tok::TokenKind>> Kinds,
+                         TokenType NewType);
 
   // Returns \c true if \p Tok can only be followed by an operand in JavaScript.
   bool precedesOperand(FormatToken *Tok);
@@ -91,6 +100,8 @@ private:
 
   bool tryMergeConflictMarkers();
 
+  void truncateToken(size_t NewLen);
+
   FormatToken *getStashedToken();
 
   FormatToken *getNextToken();
@@ -101,6 +112,7 @@ private:
   unsigned Column;
   unsigned TrailingWhitespace;
   std::unique_ptr<Lexer> Lex;
+  LangOptions LangOpts;
   const SourceManager &SourceMgr;
   FileID ID;
   const FormatStyle &Style;
@@ -121,6 +133,9 @@ private:
 
   // Targets that may appear inside a C# attribute.
   static const llvm::StringSet<> CSharpAttributeTargets;
+
+  /// Handle Verilog-specific tokens.
+  bool readRawTokenVerilogSpecific(Token &Tok);
 
   void readRawToken(FormatToken &Tok);
 

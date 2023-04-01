@@ -28,7 +28,6 @@
 #include <functional>
 #include <map>
 #include <numeric>
-#include <set>
 #include <vector>
 
 namespace llvm {
@@ -51,7 +50,7 @@ using TreePatternNodePtr = std::shared_ptr<TreePatternNode>;
 /// To reduce the allocations even further, make MachineValueTypeSet own
 /// the storage and use std::array as the bit container.
 struct MachineValueTypeSet {
-  static_assert(std::is_same<std::underlying_type<MVT::SimpleValueType>::type,
+  static_assert(std::is_same<std::underlying_type_t<MVT::SimpleValueType>,
                              uint8_t>::value,
                 "Change uint8_t here to the SimpleValueType's type");
   static unsigned constexpr Capacity = std::numeric_limits<uint8_t>::max()+1;
@@ -70,7 +69,7 @@ struct MachineValueTypeSet {
   unsigned size() const {
     unsigned Count = 0;
     for (WordType W : Words)
-      Count += countPopulation(W);
+      Count += llvm::popcount(W);
     return Count;
   }
   LLVM_ATTRIBUTE_ALWAYS_INLINE
@@ -102,6 +101,8 @@ struct MachineValueTypeSet {
   void erase(MVT T) {
     Words[T.SimpleTy / WordWidth] &= ~(WordType(1) << (T.SimpleTy % WordWidth));
   }
+
+  void writeToStream(raw_ostream &OS) const;
 
   struct const_iterator {
     // Some implementations of the C++ library require these traits to be
@@ -149,7 +150,7 @@ struct MachineValueTypeSet {
         WordType W = Set->Words[SkipWords];
         W &= maskLeadingOnes<WordType>(WordWidth-SkipBits);
         if (W != 0)
-          return Count + findFirstSet(W);
+          return Count + llvm::countr_zero(W);
         Count += WordWidth;
         SkipWords++;
       }
@@ -157,7 +158,7 @@ struct MachineValueTypeSet {
       for (unsigned i = SkipWords; i != NumWords; ++i) {
         WordType W = Set->Words[i];
         if (W != 0)
-          return Count + findFirstSet(W);
+          return Count + llvm::countr_zero(W);
         Count += WordWidth;
       }
       return Capacity;
@@ -185,6 +186,8 @@ private:
   friend struct const_iterator;
   std::array<WordType,NumWords> Words;
 };
+
+raw_ostream &operator<<(raw_ostream &OS, const MachineValueTypeSet &T);
 
 struct TypeSetByHwMode : public InfoByHwMode<MachineValueTypeSet> {
   using SetType = MachineValueTypeSet;
@@ -240,7 +243,6 @@ struct TypeSetByHwMode : public InfoByHwMode<MachineValueTypeSet> {
   bool assign_if(const TypeSetByHwMode &VTS, Predicate P);
 
   void writeToStream(raw_ostream &OS) const;
-  static void writeToStream(const SetType &S, raw_ostream &OS);
 
   bool operator==(const TypeSetByHwMode &VTS) const;
   bool operator!=(const TypeSetByHwMode &VTS) const { return !(*this == VTS); }
@@ -539,6 +541,9 @@ public:
   // Predicate code uses the PatFrag's captured operands.
   bool usesOperands() const;
 
+  // Check if the HasNoUse predicate is set.
+  bool hasNoUse() const;
+
   // Is the desired predefined predicate for a load?
   bool isLoad() const;
   // Is the desired predefined predicate for a store?
@@ -659,6 +664,10 @@ class TreePatternNode {
   Record *TransformFn;
 
   std::vector<TreePatternNodePtr> Children;
+
+  /// If this was instantiated from a PatFrag node, and the PatFrag was derived
+  /// from "GISelFlags": the original Record derived from GISelFlags.
+  const Record *GISelFlags = nullptr;
 
 public:
   TreePatternNode(Record *Op, std::vector<TreePatternNodePtr> Ch,
@@ -788,6 +797,9 @@ public:
   /// isCommutativeIntrinsic - Return true if the node is an intrinsic which is
   /// marked isCommutative.
   bool isCommutativeIntrinsic(const CodeGenDAGPatterns &CDP) const;
+
+  void setGISelFlagsRecord(const Record *R) { GISelFlags = R; }
+  const Record *getGISelFlagsRecord() const { return GISelFlags; }
 
   void print(raw_ostream &OS) const;
   void dump() const;

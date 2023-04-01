@@ -1,8 +1,8 @@
 // Test target codegen - host bc file has to be created first.
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-linux -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple x86_64-unknown-linux -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -o - | FileCheck %s
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple powerpc64le-unknown-linux-gnu -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-linux-gnu -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c++ -triple x86_64-unknown-linux -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-host.bc
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple x86_64-unknown-linux -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fvisibility=protected -fopenmp-host-ir-file-path %t-host.bc -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c++ -triple powerpc64le-unknown-linux-gnu -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-host.bc
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-linux-gnu -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fvisibility=protected -fopenmp-host-ir-file-path %t-host.bc -o - | FileCheck %s
 // expected-no-diagnostics
 
 // CHECK-DAG: [[T:%.+]] = type {{.+}}, {{fp128|ppc_fp128}},
@@ -34,7 +34,7 @@ struct T1 {
 #pragma omp declare target
 T a = T();
 T f = a;
-// CHECK: define{{ hidden | }}void @{{.+}}foo{{.+}}([[T]]* byval([[T]]) align {{.+}})
+// CHECK: define{{ hidden | }}void @{{.+}}foo{{.+}}([[T]]* noundef byval([[T]]) align {{.+}})
 void foo(T a = T()) {
   return;
 }
@@ -54,7 +54,7 @@ void baz() {
 }
 T1 a1 = T1();
 T1 f1 = a1;
-// CHECK: define{{ hidden | }}void @{{.+}}foo1{{.+}}([[T1]]* byval([[T1]]) align {{.+}})
+// CHECK: define{{ hidden | }}void @{{.+}}foo1{{.+}}([[T1]]* noundef byval([[T1]]) align {{.+}})
 void foo1(T1 a = T1()) {
   return;
 }

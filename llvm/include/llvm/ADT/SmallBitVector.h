@@ -5,9 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file implements the SmallBitVector class.
-//
+///
+/// \file
+/// This file implements the SmallBitVector class.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_SMALLBITVECTOR_H
@@ -199,7 +200,7 @@ public:
   size_type count() const {
     if (isSmall()) {
       uintptr_t Bits = getSmallBits();
-      return countPopulation(Bits);
+      return llvm::popcount(Bits);
     }
     return getPointer()->count();
   }
@@ -231,7 +232,7 @@ public:
       uintptr_t Bits = getSmallBits();
       if (Bits == 0)
         return -1;
-      return countTrailingZeros(Bits);
+      return llvm::countr_zero(Bits);
     }
     return getPointer()->find_first();
   }
@@ -241,7 +242,7 @@ public:
       uintptr_t Bits = getSmallBits();
       if (Bits == 0)
         return -1;
-      return NumBaseBits - countLeadingZeros(Bits) - 1;
+      return NumBaseBits - llvm::countl_zero(Bits) - 1;
     }
     return getPointer()->find_last();
   }
@@ -253,7 +254,7 @@ public:
         return -1;
 
       uintptr_t Bits = getSmallBits();
-      return countTrailingOnes(Bits);
+      return llvm::countr_one(Bits);
     }
     return getPointer()->find_first_unset();
   }
@@ -266,7 +267,7 @@ public:
       uintptr_t Bits = getSmallBits();
       // Set unused bits.
       Bits |= ~uintptr_t(0) << getSmallSize();
-      return NumBaseBits - countLeadingOnes(Bits) - 1;
+      return NumBaseBits - llvm::countl_one(Bits) - 1;
     }
     return getPointer()->find_last_unset();
   }
@@ -280,7 +281,7 @@ public:
       Bits &= ~uintptr_t(0) << (Prev + 1);
       if (Bits == 0 || Prev + 1 >= getSmallSize())
         return -1;
-      return countTrailingZeros(Bits);
+      return llvm::countr_zero(Bits);
     }
     return getPointer()->find_next(Prev);
   }
@@ -297,7 +298,7 @@ public:
 
       if (Bits == ~uintptr_t(0) || Prev + 1 >= getSmallSize())
         return -1;
-      return countTrailingOnes(Bits);
+      return llvm::countr_one(Bits);
     }
     return getPointer()->find_next_unset(Prev);
   }
@@ -315,7 +316,7 @@ public:
       if (Bits == 0)
         return -1;
 
-      return NumBaseBits - countLeadingZeros(Bits) - 1;
+      return NumBaseBits - llvm::countl_zero(Bits) - 1;
     }
     return getPointer()->find_prev(PriorTo);
   }
@@ -462,6 +463,12 @@ public:
     return getPointer()->operator[](Idx);
   }
 
+  /// Return the last element in the vector.
+  bool back() const {
+    assert(!empty() && "Getting last element of empty vector.");
+    return (*this)[size() - 1];
+  }
+
   bool test(unsigned Idx) const {
     return (*this)[Idx];
   }
@@ -469,6 +476,12 @@ public:
   // Push single bit to end of vector.
   void push_back(bool Val) {
     resize(size() + 1, Val);
+  }
+
+  /// Pop one bit from the end of the vector.
+  void pop_back() {
+    assert(!empty() && "Empty vector has no element to pop.");
+    resize(size() - 1);
   }
 
   /// Test if any common bits are set.
@@ -674,7 +687,7 @@ public:
     if (!isSmall())
       return getPointer()->getData();
     Store = getSmallBits();
-    return makeArrayRef(Store);
+    return Store;
   }
 
 private:

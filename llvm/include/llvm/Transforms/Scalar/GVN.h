@@ -17,10 +17,8 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/InstructionPrecedenceTracking.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
@@ -28,6 +26,7 @@
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Compiler.h"
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -42,6 +41,8 @@ class CallInst;
 class ExtractValueInst;
 class Function;
 class FunctionPass;
+class GetElementPtrInst;
+class ImplicitControlFlowTracking;
 class LoadInst;
 class LoopInfo;
 class MemDepResult;
@@ -71,11 +72,11 @@ class GVNLegacyPass;
 /// Intended use is to create a default object, modify parameters with
 /// additional setters and then pass it to GVN.
 struct GVNOptions {
-  Optional<bool> AllowPRE = None;
-  Optional<bool> AllowLoadPRE = None;
-  Optional<bool> AllowLoadInLoopPRE = None;
-  Optional<bool> AllowLoadPRESplitBackedge = None;
-  Optional<bool> AllowMemDep = None;
+  std::optional<bool> AllowPRE;
+  std::optional<bool> AllowLoadPRE;
+  std::optional<bool> AllowLoadInLoopPRE;
+  std::optional<bool> AllowLoadPRESplitBackedge;
+  std::optional<bool> AllowMemDep;
 
   GVNOptions() = default;
 
@@ -178,6 +179,7 @@ public:
     Expression createCmpExpr(unsigned Opcode, CmpInst::Predicate Predicate,
                              Value *LHS, Value *RHS);
     Expression createExtractvalueExpr(ExtractValueInst *EI);
+    Expression createGEPExpr(GetElementPtrInst *GEP);
     uint32_t lookupOrAddCall(CallInst *C);
     uint32_t phiTranslateImpl(const BasicBlock *BB, const BasicBlock *PhiBlock,
                               uint32_t Num, GVNPass &Gvn);
@@ -316,10 +318,9 @@ private:
   bool processAssumeIntrinsic(AssumeInst *II);
 
   /// Given a local dependency (Def or Clobber) determine if a value is
-  /// available for the load.  Returns true if an value is known to be
-  /// available and populates Res.  Returns false otherwise.
-  bool AnalyzeLoadAvailability(LoadInst *Load, MemDepResult DepInfo,
-                               Value *Address, gvn::AvailableValue &Res);
+  /// available for the load.
+  std::optional<gvn::AvailableValue>
+  AnalyzeLoadAvailability(LoadInst *Load, MemDepResult DepInfo, Value *Address);
 
   /// Given a list of non-local dependencies, determine if a value is
   /// available for the load in each specified block.  If it is, add it to

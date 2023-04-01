@@ -6,25 +6,33 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/program.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/kernel.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
           detail::pi::cast<detail::RT::PiKernel>(ClKernel),
-          detail::getSyclObjImpl(SyclContext), nullptr)) {}
+          detail::getSyclObjImpl(SyclContext), nullptr)) {
+  // This is a special interop constructor for OpenCL, so the kernel must be
+  // retained.
+  impl->getPlugin().call<detail::PiApiKind::piKernelRetain>(
+      detail::pi::cast<detail::RT::PiKernel>(ClKernel));
+}
 
 cl_kernel kernel::get() const { return impl->get(); }
 
-bool kernel::is_host() const { return impl->is_host(); }
+bool kernel::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "kernel::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 context kernel::get_context() const {
   return impl->get_info<info::kernel::context>();
@@ -38,93 +46,47 @@ kernel::get_kernel_bundle() const {
       kernel_bundle<sycl::bundle_state::executable>>(impl->get_kernel_bundle());
 }
 
-program kernel::get_program() const {
-  return impl->get_info<info::kernel::program>();
-}
-
-template <info::kernel param>
-typename info::param_traits<info::kernel, param>::return_type
+template <typename Param>
+typename detail::is_kernel_info_desc<Param>::return_type
 kernel::get_info() const {
-  return impl->get_info<param>();
+  return impl->get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>()  \
-      const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT kernel::get_info<info::kernel::Desc>() const;
 
-#include <CL/sycl/info/kernel_traits.def>
+#include <sycl/info/kernel_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-template <info::kernel_device_specific param>
-typename info::param_traits<info::kernel_device_specific, param>::return_type
+template <typename Param>
+typename detail::is_kernel_device_specific_info_desc<Param>::return_type
 kernel::get_info(const device &Dev) const {
-  return impl->get_info<param>(Dev);
+  return impl->get_info<Param>(Dev);
 }
 
-template <info::kernel_device_specific param>
-typename info::param_traits<info::kernel_device_specific, param>::return_type
-kernel::get_info(const device &Device,
-                 typename info::param_traits<info::kernel_device_specific,
-                                             param>::input_type Value) const {
-  return impl->get_info<param>(Device, Value);
+// Deprecated overload for kernel_device_specific::max_sub_group_size taking
+// an extra argument.
+template <typename Param>
+typename detail::is_kernel_device_specific_info_desc<Param>::return_type
+kernel::get_info(const device &Device, const range<3> &WGSize) const {
+  static_assert(
+      std::is_same_v<Param, info::kernel_device_specific::max_sub_group_size>,
+      "Unexpected param for kernel::get_info with range argument.");
+  return impl->get_info<Param>(Device, WGSize);
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>(   \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT kernel::get_info<info::DescType::Desc>(       \
       const device &) const;
-#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
-                                            in_type)                           \
-  template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>(   \
-      const device &, in_type) const;
 
-#include <CL/sycl/info/kernel_device_specific_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
-
-template <info::kernel_work_group param>
-typename info::param_traits<info::kernel_work_group, param>::return_type
-kernel::get_work_group_info(const device &dev) const {
-  return impl->get_work_group_info<param>(dev);
-}
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type                                              \
-  kernel::get_work_group_info<info::param_type::param>(const device &) const;
-
-#include <CL/sycl/info/kernel_work_group_traits.def>
+#include <sycl/info/kernel_device_specific_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-template <info::kernel_sub_group param>
-typename info::param_traits<info::kernel_sub_group, param>::return_type
-kernel::get_sub_group_info(const device &dev) const {
-  return impl->get_sub_group_info<param>(dev);
-}
-
-template <info::kernel_sub_group param>
-typename info::param_traits<info::kernel_sub_group, param>::return_type
-kernel::get_sub_group_info(
-    const device &dev,
-    typename info::param_traits<info::kernel_sub_group, param>::input_type val)
-    const {
-  return impl->get_sub_group_info<param>(dev, val);
-}
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type                                              \
-  kernel::get_sub_group_info<info::param_type::param>(const device &) const;
-#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type,       \
-                                            in_type)                           \
-  template __SYCL_EXPORT ret_type                                              \
-  kernel::get_sub_group_info<info::param_type::param>(const device &, in_type) \
-      const;
-
-#include <CL/sycl/info/kernel_sub_group_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
+template __SYCL_EXPORT uint32_t
+kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
+    const device &, const sycl::range<3> &) const;
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
@@ -132,5 +94,5 @@ pi_native_handle kernel::getNative() const { return impl->getNative(); }
 
 pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

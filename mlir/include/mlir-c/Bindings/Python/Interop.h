@@ -21,7 +21,17 @@
 #ifndef MLIR_C_BINDINGS_PYTHON_INTEROP_H
 #define MLIR_C_BINDINGS_PYTHON_INTEROP_H
 
+// We *should*, in theory, include Python.h here in order to import the correct
+// definitions for what we need below, however, importing Python.h directly on
+// Windows results in the enforcement of either pythonX.lib or pythonX_d.lib
+// depending on the build flavor. Instead, we rely on the fact that this file
+// (Interop.h) is always included AFTER pybind11 and will therefore have access
+// to the definitions from Python.h in addition to having a workaround applied
+// through the pybind11 headers that allows us to control which python library
+// is used.
+#if !defined(_MSC_VER)
 #include <Python.h>
+#endif
 
 #include "mlir-c/AffineExpr.h"
 #include "mlir-c/AffineMap.h"
@@ -54,6 +64,8 @@
   MAKE_MLIR_PYTHON_QUALNAME("ir.Attribute._CAPIPtr")
 #define MLIR_PYTHON_CAPSULE_CONTEXT                                            \
   MAKE_MLIR_PYTHON_QUALNAME("ir.Context._CAPIPtr")
+#define MLIR_PYTHON_CAPSULE_DIALECT_REGISTRY                                   \
+  MAKE_MLIR_PYTHON_QUALNAME("ir.DialectRegistry._CAPIPtr")
 #define MLIR_PYTHON_CAPSULE_EXECUTION_ENGINE                                   \
   MAKE_MLIR_PYTHON_QUALNAME("execution_engine.ExecutionEngine._CAPIPtr")
 #define MLIR_PYTHON_CAPSULE_INTEGER_SET                                        \
@@ -160,6 +172,28 @@ static inline MlirContext mlirPythonCapsuleToContext(PyObject *capsule) {
   void *ptr = PyCapsule_GetPointer(capsule, MLIR_PYTHON_CAPSULE_CONTEXT);
   MlirContext context = {ptr};
   return context;
+}
+
+/** Creates a capsule object encapsulating the raw C-API MlirDialectRegistry.
+ * The returned capsule does not extend or affect ownership of any Python
+ * objects that reference the context in any way.
+ */
+static inline PyObject *
+mlirPythonDialectRegistryToCapsule(MlirDialectRegistry registry) {
+  return PyCapsule_New(registry.ptr, MLIR_PYTHON_CAPSULE_DIALECT_REGISTRY,
+                       NULL);
+}
+
+/** Extracts an MlirDialectRegistry from a capsule as produced from
+ * mlirPythonDialectRegistryToCapsule. If the capsule is not of the right type,
+ * then a null context is returned (as checked via mlirContextIsNull). In such a
+ * case, the Python APIs will have already set an error. */
+static inline MlirDialectRegistry
+mlirPythonCapsuleToDialectRegistry(PyObject *capsule) {
+  void *ptr =
+      PyCapsule_GetPointer(capsule, MLIR_PYTHON_CAPSULE_DIALECT_REGISTRY);
+  MlirDialectRegistry registry = {ptr};
+  return registry;
 }
 
 /** Creates a capsule object encapsulating the raw C-API MlirLocation.

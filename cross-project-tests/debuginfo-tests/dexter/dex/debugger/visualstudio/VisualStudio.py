@@ -10,7 +10,7 @@ import abc
 import imp
 import os
 import sys
-from pathlib import PurePath
+from pathlib import PurePath, Path
 from collections import defaultdict, namedtuple
 
 from dex.command.CommandBase import StepExpectInfo
@@ -204,30 +204,40 @@ class VisualStudio(DebuggerBase, metaclass=abc.ABCMeta):  # pylint: disable=abst
                 bp_id_list += ids
         return set(bp_id_list)
 
-    def delete_breakpoint(self, id):
-        """Delete a breakpoint by id.
+    def delete_breakpoints(self, ids):
+        """Delete breakpoints by their ids.
 
         Raises a KeyError if no breakpoint with this id exists.
         """
-        vsbp = self._dex_id_to_vs[id]
+        vsbp_set = set()
+        for id in ids:
+            vsbp = self._dex_id_to_vs[id]
 
-        # Remove our id from the associated list of dex ids.
-        self._vs_to_dex_ids[vsbp].remove(id)
-        del self._dex_id_to_vs[id]
+            # Remove our id from the associated list of dex ids.
+            self._vs_to_dex_ids[vsbp].remove(id)
+            del self._dex_id_to_vs[id]
 
-        # Bail if there are other uses of this vsbp.
-        if len(self._vs_to_dex_ids[vsbp]) > 0:
-            return
-        # Otherwise find and delete it.
+            # Bail if there are other uses of this vsbp.
+            if len(self._vs_to_dex_ids[vsbp]) > 0:
+                continue
+            # Otherwise find and delete it.
+            vsbp_set.add(vsbp)
+
+        vsbp_to_del_count = len(vsbp_set)
+
         for bp in self._debugger.Breakpoints:
-            # We're looking at the user-set breakpoints so there shouild be no
+            # We're looking at the user-set breakpoints so there should be no
             # Parent.
             assert bp.Parent == None
             this_vsbp = VSBreakpoint(PurePath(bp.File), bp.FileLine,
                                      bp.FileColumn, bp.Condition)
-            if vsbp == this_vsbp:
+            if this_vsbp in vsbp_set:
                 bp.Delete()
-                break
+                vsbp_to_del_count -= 1
+                if vsbp_to_del_count == 0:
+                    break
+        if vsbp_to_del_count:
+            raise KeyError('did not find breakpoint to be deleted')
 
     def _fetch_property(self, props, name):
         num_props = props.Count
@@ -239,7 +249,13 @@ class VisualStudio(DebuggerBase, metaclass=abc.ABCMeta):  # pylint: disable=abst
         assert False, "Couldn't find property {}".format(name)
 
     def launch(self, cmdline):
+        exe_path = Path(self.context.options.executable)
+        self.context.logger.note(f"VS: Using executable: '{exe_path}'")
         cmdline_str = ' '.join(cmdline)
+        if self.context.options.target_run_args:
+          cmdline_str += f" {self.context.options.target_run_args}"
+        if cmdline_str:
+          self.context.logger.note(f"VS: Using executable args: '{cmdline_str}'")
 
         # In a slightly baroque manner, lookup the VS project that runs when
         # you click "run", and set its command line options to the desired
@@ -249,13 +265,14 @@ class VisualStudio(DebuggerBase, metaclass=abc.ABCMeta):  # pylint: disable=abst
         ActiveConfiguration = self._fetch_property(project.Properties, 'ActiveConfiguration').Object
         ActiveConfiguration.DebugSettings.CommandArguments = cmdline_str
 
-        self._fn_go()
+        self.context.logger.note("Launching VS debugger...")
+        self._fn_go(False)
 
     def step(self):
-        self._fn_step()
+        self._fn_step(False)
 
     def go(self) -> ReturnCode:
-        self._fn_go()
+        self._fn_go(False)
         return ReturnCode.OK
 
     def set_current_stack_frame(self, idx: int = 0):

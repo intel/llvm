@@ -8,21 +8,15 @@
 
 #include <spirv/spirv.h>
 
-// FIXME: Remove the following workaround once the clang change is released.
-// This is for backward compatibility with older clang which does not define
-// __AMDGCN_WAVEFRONT_SIZE. It does not consider -mwavefrontsize64.
-// See:
-// https://github.com/intel/llvm/blob/sycl/clang/lib/Basic/Targets/AMDGPU.h#L414
-// and:
-// https://github.com/intel/llvm/blob/sycl/clang/lib/Basic/Targets/AMDGPU.cpp#L421
-#ifndef __AMDGCN_WAVEFRONT_SIZE
-#if __gfx1010__ || __gfx1011__ || __gfx1012__ || __gfx1030__ || __gfx1031__
-#define __AMDGCN_WAVEFRONT_SIZE 32
-#else
-#define __AMDGCN_WAVEFRONT_SIZE 64
-#endif
-#endif
+// The clang driver will define this variable depending on the architecture and
+// compile flags by linking in ROCm bitcode defining it to true or false. If
+// it's 1 the wavefront size used is 64, if it's 0 the wavefront size used is
+// 32.
+extern constant unsigned char __oclc_wavefrontsize64;
 
 _CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupMaxSize() {
-  return __AMDGCN_WAVEFRONT_SIZE;
+  if (__oclc_wavefrontsize64 == 1) {
+    return 64;
+  }
+  return 32;
 }

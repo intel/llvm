@@ -3,8 +3,8 @@
 // Test which verifies that readonly attribute is generated for unexpected access mode value.
 
 // Dummy library with unexpected access::mode enum value.
-namespace cl {
 namespace sycl {
+inline namespace _V1 {
 
 namespace access {
 
@@ -60,7 +60,7 @@ struct _ImplT {
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t>
-class __attribute__((sycl_special_class)) accessor {
+class __attribute__((sycl_special_class)) [[__sycl_detail__::sycl_type(accessor)]] accessor {
 
 public:
   void use(void) const {}
@@ -71,8 +71,8 @@ private:
               range<dimensions> MemRange, id<dimensions> Offset) {}
 };
 
+} // inline namespace _V1
 } // namespace sycl
-} // namespace cl
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
@@ -80,7 +80,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
 }
 
 int main() {
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read> Acc;
+  sycl::accessor<int, 1, sycl::access::mode::read> Acc;
   // CHECK: spir_kernel{{.*}}fake_kernel
   // CHECK-SAME: readonly
   kernel_single_task<class fake_kernel>([=]() {

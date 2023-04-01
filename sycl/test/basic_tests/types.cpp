@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only -D__NO_EXT_VECTOR_TYPE_ON_HOST__
 //==--------------- types.cpp - SYCL types test ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,20 +8,27 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cfloat>
 #include <cstdint>
 #include <type_traits>
 
 using namespace std;
-namespace s = cl::sycl;
+namespace s = sycl;
 
 template <typename T, int N> inline void checkVectorSizeAndAlignment() {
   using VectorT = s::vec<T, N>;
   constexpr auto RealLength = (N != 3 ? N : 4);
   static_assert(sizeof(VectorT) == (sizeof(T) * RealLength), "");
-  static_assert(alignof(VectorT) == (alignof(T) * RealLength), "");
+#if defined(_WIN32) && (_MSC_VER) &&                                           \
+    defined(__NO_EXT_VECTOR_TYPE_ON_HOST__) && !defined(__SYCL_DEVICE_ONLY__)
+  // See comments around __SYCL_ALIGNED_VAR macro definition in types.hpp
+  // We can't enforce proper alignment of "huge" vectors (>64 bytes) on Windows
+  // and the test exposes this limitation.
+  if constexpr (alignof(T) * RealLength < 64)
+#endif
+    static_assert(alignof(VectorT) == (alignof(T) * RealLength), "");
 }
 
 template <typename T> inline void checkVectorsWithN() {
@@ -33,6 +41,7 @@ template <typename T> inline void checkVectorsWithN() {
 }
 
 inline void checkVectors() {
+  checkVectorsWithN<bool>();
   checkVectorsWithN<s::half>();
   checkVectorsWithN<float>();
   checkVectorsWithN<double>();
@@ -99,19 +108,20 @@ int main() {
   // Table 4.93: Additional scalar data types supported by SYCL.
   static_assert(sizeof(s::byte) == sizeof(int8_t), "");
 
-  // Table 4.94: Scalar data type aliases supported by SYCL
-  static_assert(is_same<s::cl_bool, decltype(0 != 1)>::value, "");
-  checkSizeForSignedIntegral<s::cl_char, sizeof(int8_t)>();
-  checkSizeForUnsignedIntegral<s::cl_uchar, sizeof(uint8_t)>();
-  checkSizeForSignedIntegral<s::cl_short, sizeof(int16_t)>();
-  checkSizeForUnsignedIntegral<s::cl_ushort, sizeof(uint16_t)>();
-  checkSizeForSignedIntegral<s::cl_int, sizeof(int32_t)>();
-  checkSizeForUnsignedIntegral<s::cl_uint, sizeof(uint32_t)>();
-  checkSizeForSignedIntegral<s::cl_long, sizeof(int64_t)>();
-  checkSizeForUnsignedIntegral<s::cl_ulong, sizeof(uint64_t)>();
-  checkSizeForFloatingPoint<s::cl_half, sizeof(int16_t)>();
-  checkSizeForFloatingPoint<s::cl_float, sizeof(int32_t)>();
-  checkSizeForFloatingPoint<s::cl_double, sizeof(int64_t)>();
+  // SYCL 2020: Table 193. Scalar data type aliases supported by SYCL OpenCL
+  // backend
+  static_assert(is_same<s::opencl::cl_bool, decltype(0 != 1)>::value, "");
+  checkSizeForSignedIntegral<s::opencl::cl_char, sizeof(int8_t)>();
+  checkSizeForUnsignedIntegral<s::opencl::cl_uchar, sizeof(uint8_t)>();
+  checkSizeForSignedIntegral<s::opencl::cl_short, sizeof(int16_t)>();
+  checkSizeForUnsignedIntegral<s::opencl::cl_ushort, sizeof(uint16_t)>();
+  checkSizeForSignedIntegral<s::opencl::cl_int, sizeof(int32_t)>();
+  checkSizeForUnsignedIntegral<s::opencl::cl_uint, sizeof(uint32_t)>();
+  checkSizeForSignedIntegral<s::opencl::cl_long, sizeof(int64_t)>();
+  checkSizeForUnsignedIntegral<s::opencl::cl_ulong, sizeof(uint64_t)>();
+  checkSizeForFloatingPoint<s::opencl::cl_half, sizeof(int16_t)>();
+  checkSizeForFloatingPoint<s::opencl::cl_float, sizeof(int32_t)>();
+  checkSizeForFloatingPoint<s::opencl::cl_double, sizeof(int64_t)>();
 
   return 0;
 }

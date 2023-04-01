@@ -13,9 +13,6 @@
 /// to provide useful warnings in most popular scenarios but not 1:1 exact
 /// feature compatibility.
 ///
-/// FIXME(kirillbobyrev): Add support for IWYU pragmas.
-/// FIXME(kirillbobyrev): Add support for standard library headers.
-///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INCLUDECLEANER_H
@@ -23,66 +20,47 @@
 
 #include "Headers.h"
 #include "ParsedAST.h"
-#include "clang/Basic/SourceLocation.h"
+#include "clang-include-cleaner/Types.h"
+#include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/StringSet.h"
+#include <tuple>
 #include <vector>
 
 namespace clang {
 namespace clangd {
 
-struct ReferencedLocations {
-  llvm::DenseSet<SourceLocation> User;
-  llvm::DenseSet<stdlib::Symbol> Stdlib;
+// Data needed for missing include diagnostics.
+struct MissingIncludeDiagInfo {
+  include_cleaner::Symbol Symbol;
+  syntax::FileRange SymRefRange;
+  std::vector<include_cleaner::Header> Providers;
+
+  bool operator==(const MissingIncludeDiagInfo &Other) const {
+    return std::tie(SymRefRange, Providers, Symbol) ==
+           std::tie(Other.SymRefRange, Other.Providers, Other.Symbol);
+  }
 };
 
-/// Finds locations of all symbols used in the main file.
-///
-/// - RecursiveASTVisitor finds references to symbols and records their
-///   associated locations. These may be macro expansions, and are not resolved
-///   to their spelling or expansion location. These locations are later used to
-///   determine which headers should be marked as "used" and "directly used".
-/// - We also examine all identifier tokens in the file in case they reference
-///   macros.
-///
-/// We use this to compute unused headers, so we:
-///
-/// - cover the whole file in a single traversal for efficiency
-/// - don't attempt to describe where symbols were referenced from in
-///   ambiguous cases (e.g. implicitly used symbols, multiple declarations)
-/// - err on the side of reporting all possible locations
-ReferencedLocations findReferencedLocations(ParsedAST &AST);
-
-struct ReferencedFiles {
-  llvm::DenseSet<FileID> User;
-  llvm::DenseSet<stdlib::Header> Stdlib;
+struct IncludeCleanerFindings {
+  std::vector<const Inclusion *> UnusedIncludes;
+  std::vector<MissingIncludeDiagInfo> MissingIncludes;
 };
-
-/// Retrieves IDs of all files containing SourceLocations from \p Locs.
-/// The output only includes things SourceManager sees as files (not macro IDs).
-/// This can include <built-in>, <scratch space> etc that are not true files.
-ReferencedFiles findReferencedFiles(const ReferencedLocations &Locs,
-                                    const IncludeStructure &Includes,
-                                    const SourceManager &SM);
-
-/// Maps FileIDs to the internal IncludeStructure representation (HeaderIDs).
-/// FileIDs that are not true files (<built-in> etc) are dropped.
-llvm::DenseSet<IncludeStructure::HeaderID>
-translateToHeaderIDs(const ReferencedFiles &Files,
-                     const IncludeStructure &Includes, const SourceManager &SM);
 
 /// Retrieves headers that are referenced from the main file but not used.
 /// In unclear cases, headers are not marked as unused.
 std::vector<const Inclusion *>
 getUnused(ParsedAST &AST,
-          const llvm::DenseSet<IncludeStructure::HeaderID> &ReferencedFiles);
+          const llvm::DenseSet<IncludeStructure::HeaderID> &ReferencedFiles,
+          const llvm::StringSet<> &ReferencedPublicHeaders);
 
-std::vector<const Inclusion *> computeUnusedIncludes(ParsedAST &AST);
+IncludeCleanerFindings computeIncludeCleanerFindings(ParsedAST &AST);
 
-std::vector<Diag> issueUnusedIncludesDiagnostics(ParsedAST &AST,
+std::vector<Diag> issueIncludeCleanerDiagnostics(ParsedAST &AST,
                                                  llvm::StringRef Code);
 
-/// Affects whether standard library includes should be considered for removal.
-/// This is off by default for now due to implementation limitations:
+/// Affects whether standard library includes should be considered for
+/// removal. This is off by default for now due to implementation limitations:
 /// - macros are not tracked
 /// - symbol names without a unique associated header are not tracked
 /// - references to std-namespaced C types are not properly tracked:
@@ -90,6 +68,16 @@ std::vector<Diag> issueUnusedIncludesDiagnostics(ParsedAST &AST,
 /// FIXME: remove this hack once the implementation is good enough.
 void setIncludeCleanerAnalyzesStdlib(bool B);
 
+/// Converts the clangd include representation to include-cleaner
+/// include representation.
+include_cleaner::Includes
+convertIncludes(const SourceManager &SM,
+                const llvm::ArrayRef<Inclusion> Includes);
+
+/// Determines the header spelling of an include-cleaner header
+/// representation. The spelling contains the ""<> characters.
+std::string spellHeader(ParsedAST &AST, const FileEntry *MainFile,
+                        include_cleaner::Header Provider);
 } // namespace clangd
 } // namespace clang
 

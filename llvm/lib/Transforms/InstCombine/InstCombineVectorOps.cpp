@@ -42,7 +42,6 @@
 #include <utility>
 
 #define DEBUG_TYPE "instcombine"
-#include "llvm/Transforms/Utils/InstructionWorklist.h"
 
 using namespace llvm;
 using namespace PatternMatch;
@@ -106,7 +105,7 @@ Instruction *InstCombinerImpl::scalarizePHI(ExtractElementInst &EI,
   // 2) Possibly more ExtractElements with the same index.
   // 3) Another operand, which will feed back into the PHI.
   Instruction *PHIUser = nullptr;
-  for (auto U : PN->users()) {
+  for (auto *U : PN->users()) {
     if (ExtractElementInst *EU = dyn_cast<ExtractElementInst>(U)) {
       if (EI.getIndexOperand() == EU->getIndexOperand())
         Extracts.push_back(EU);
@@ -172,7 +171,7 @@ Instruction *InstCombinerImpl::scalarizePHI(ExtractElementInst &EI,
     }
   }
 
-  for (auto E : Extracts)
+  for (auto *E : Extracts)
     replaceInstUsesWith(*E, scalarPHI);
 
   return &EI;
@@ -188,13 +187,12 @@ Instruction *InstCombinerImpl::foldBitcastExtElt(ExtractElementInst &Ext) {
   ElementCount NumElts =
       cast<VectorType>(Ext.getVectorOperandType())->getElementCount();
   Type *DestTy = Ext.getType();
+  unsigned DestWidth = DestTy->getPrimitiveSizeInBits();
   bool IsBigEndian = DL.isBigEndian();
 
   // If we are casting an integer to vector and extracting a portion, that is
   // a shift-right and truncate.
-  // TODO: Allow FP dest type by casting the trunc to FP?
-  if (X->getType()->isIntegerTy() && DestTy->isIntegerTy() &&
-      isDesirableIntType(X->getType()->getPrimitiveSizeInBits())) {
+  if (X->getType()->isIntegerTy()) {
     assert(isa<FixedVectorType>(Ext.getVectorOperand()->getType()) &&
            "Expected fixed vector type for bitcast from scalar integer");
 
@@ -203,10 +201,18 @@ Instruction *InstCombinerImpl::foldBitcastExtElt(ExtractElementInst &Ext) {
     // BigEndian: extelt (bitcast i32 X to v4i8), 0 -> trunc i32 (X >> 24) to i8
     if (IsBigEndian)
       ExtIndexC = NumElts.getKnownMinValue() - 1 - ExtIndexC;
-    unsigned ShiftAmountC = ExtIndexC * DestTy->getPrimitiveSizeInBits();
-    if (!ShiftAmountC || Ext.getVectorOperand()->hasOneUse()) {
-      Value *Lshr = Builder.CreateLShr(X, ShiftAmountC, "extelt.offset");
-      return new TruncInst(Lshr, DestTy);
+    unsigned ShiftAmountC = ExtIndexC * DestWidth;
+    if (!ShiftAmountC ||
+        (isDesirableIntType(X->getType()->getPrimitiveSizeInBits()) &&
+        Ext.getVectorOperand()->hasOneUse())) {
+      if (ShiftAmountC)
+        X = Builder.CreateLShr(X, ShiftAmountC, "extelt.offset");
+      if (DestTy->isFloatingPointTy()) {
+        Type *DstIntTy = IntegerType::getIntNTy(X->getContext(), DestWidth);
+        Value *Trunc = Builder.CreateTrunc(X, DstIntTy);
+        return new BitCastInst(Trunc, DestTy);
+      }
+      return new TruncInst(X, DestTy);
     }
   }
 
@@ -229,8 +235,9 @@ Instruction *InstCombinerImpl::foldBitcastExtElt(ExtractElementInst &Ext) {
   // truncate a subset of scalar bits of an insert op.
   if (NumSrcElts.getKnownMinValue() < NumElts.getKnownMinValue()) {
     Value *Scalar;
+    Value *Vec;
     uint64_t InsIndexC;
-    if (!match(X, m_InsertElt(m_Value(), m_Value(Scalar),
+    if (!match(X, m_InsertElt(m_Value(Vec), m_Value(Scalar),
                               m_ConstantInt(InsIndexC))))
       return nullptr;
 
@@ -240,8 +247,19 @@ Instruction *InstCombinerImpl::foldBitcastExtElt(ExtractElementInst &Ext) {
     // of elements 4-7 of the bitcasted vector.
     unsigned NarrowingRatio =
         NumElts.getKnownMinValue() / NumSrcElts.getKnownMinValue();
-    if (ExtIndexC / NarrowingRatio != InsIndexC)
+
+    if (ExtIndexC / NarrowingRatio != InsIndexC) {
+      // Remove insertelement, if we don't use the inserted element.
+      // extractelement (bitcast (insertelement (Vec, b)), a) ->
+      // extractelement (bitcast (Vec), a)
+      // FIXME: this should be removed to SimplifyDemandedVectorElts,
+      // once scale vectors are supported.
+      if (X->hasOneUse() && Ext.getVectorOperand()->hasOneUse()) {
+        Value *NewBC = Builder.CreateBitCast(Vec, Ext.getVectorOperandType());
+        return ExtractElementInst::Create(NewBC, Ext.getIndexOperand());
+      }
       return nullptr;
+    }
 
     // We are extracting part of the original scalar. How that scalar is
     // inserted into the vector depends on the endian-ness. Example:
@@ -267,7 +285,6 @@ Instruction *InstCombinerImpl::foldBitcastExtElt(ExtractElementInst &Ext) {
       return nullptr;
 
     unsigned SrcWidth = SrcTy->getScalarSizeInBits();
-    unsigned DestWidth = DestTy->getPrimitiveSizeInBits();
     unsigned ShAmt = Chunk * DestWidth;
 
     // TODO: This limitation is more strict than necessary. We could sum the
@@ -378,9 +395,23 @@ ConstantInt *getPreferredVectorIndex(ConstantInt *IndexC) {
 Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
   Value *SrcVec = EI.getVectorOperand();
   Value *Index = EI.getIndexOperand();
-  if (Value *V = SimplifyExtractElementInst(SrcVec, Index,
+  if (Value *V = simplifyExtractElementInst(SrcVec, Index,
                                             SQ.getWithInstruction(&EI)))
     return replaceInstUsesWith(EI, V);
+
+  // extractelt (select %x, %vec1, %vec2), %const ->
+  // select %x, %vec1[%const], %vec2[%const]
+  // TODO: Support constant folding of multiple select operands:
+  // extractelt (select %x, %vec1, %vec2), (select %x, %c1, %c2)
+  // If the extractelement will for instance try to do out of bounds accesses
+  // because of the values of %c1 and/or %c2, the sequence could be optimized
+  // early. This is currently not possible because constant folding will reach
+  // an unreachable assertion if it doesn't find a constant operand.
+  if (SelectInst *SI = dyn_cast<SelectInst>(EI.getVectorOperand()))
+    if (SI->getCondition()->getType()->isIntegerTy() &&
+        isa<Constant>(EI.getIndexOperand()))
+      if (Instruction *R = FoldOpIntoSelect(EI, SI))
+        return R;
 
   // If extracting a specified index from the vector, see if we can recursively
   // find a previously computed scalar that was inserted into the vector.
@@ -839,17 +870,16 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   if (NumAggElts > 2)
     return nullptr;
 
-  static constexpr auto NotFound = None;
+  static constexpr auto NotFound = std::nullopt;
   static constexpr auto FoundMismatch = nullptr;
 
   // Try to find a value of each element of an aggregate.
   // FIXME: deal with more complex, not one-dimensional, aggregate types
-  SmallVector<Optional<Instruction *>, 2> AggElts(NumAggElts, NotFound);
+  SmallVector<std::optional<Instruction *>, 2> AggElts(NumAggElts, NotFound);
 
   // Do we know values for each element of the aggregate?
   auto KnowAllElts = [&AggElts]() {
-    return all_of(AggElts,
-                  [](Optional<Instruction *> Elt) { return Elt != NotFound; });
+    return !llvm::is_contained(AggElts, NotFound);
   };
 
   int Depth = 0;
@@ -878,8 +908,8 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
     // Now, we may have already previously recorded the value for this element
     // of an aggregate. If we did, that means the CurrIVI will later be
     // overwritten with the already-recorded value. But if not, let's record it!
-    Optional<Instruction *> &Elt = AggElts[Indices.front()];
-    Elt = Elt.getValueOr(InsertedValue);
+    std::optional<Instruction *> &Elt = AggElts[Indices.front()];
+    Elt = Elt.value_or(InsertedValue);
 
     // FIXME: should we handle chain-terminating undef base operand?
   }
@@ -908,7 +938,7 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
     /// or different elements had different source aggregates.
     FoundMismatch
   };
-  auto Describe = [](Optional<Value *> SourceAggregate) {
+  auto Describe = [](std::optional<Value *> SourceAggregate) {
     if (SourceAggregate == NotFound)
       return AggregateDescription::NotFound;
     if (*SourceAggregate == FoundMismatch)
@@ -922,8 +952,8 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   // If found, return the source aggregate from which the extraction was.
   // If \p PredBB is provided, does PHI translation of an \p Elt first.
   auto FindSourceAggregate =
-      [&](Instruction *Elt, unsigned EltIdx, Optional<BasicBlock *> UseBB,
-          Optional<BasicBlock *> PredBB) -> Optional<Value *> {
+      [&](Instruction *Elt, unsigned EltIdx, std::optional<BasicBlock *> UseBB,
+          std::optional<BasicBlock *> PredBB) -> std::optional<Value *> {
     // For now(?), only deal with, at most, a single level of PHI indirection.
     if (UseBB && PredBB)
       Elt = dyn_cast<Instruction>(Elt->DoPHITranslation(*UseBB, *PredBB));
@@ -950,9 +980,9 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   // see if we can find appropriate source aggregate for each of the elements,
   // and see it's the same aggregate for each element. If so, return it.
   auto FindCommonSourceAggregate =
-      [&](Optional<BasicBlock *> UseBB,
-          Optional<BasicBlock *> PredBB) -> Optional<Value *> {
-    Optional<Value *> SourceAggregate;
+      [&](std::optional<BasicBlock *> UseBB,
+          std::optional<BasicBlock *> PredBB) -> std::optional<Value *> {
+    std::optional<Value *> SourceAggregate;
 
     for (auto I : enumerate(AggElts)) {
       assert(Describe(SourceAggregate) != AggregateDescription::FoundMismatch &&
@@ -964,7 +994,7 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
       // For this element, is there a plausible source aggregate?
       // FIXME: we could special-case undef element, IFF we know that in the
       //        source aggregate said element isn't poison.
-      Optional<Value *> SourceAggregateForElement =
+      std::optional<Value *> SourceAggregateForElement =
           FindSourceAggregate(*I.value(), I.index(), UseBB, PredBB);
 
       // Okay, what have we found? Does that correlate with previous findings?
@@ -998,10 +1028,11 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
     return *SourceAggregate;
   };
 
-  Optional<Value *> SourceAggregate;
+  std::optional<Value *> SourceAggregate;
 
   // Can we find the source aggregate without looking at predecessors?
-  SourceAggregate = FindCommonSourceAggregate(/*UseBB=*/None, /*PredBB=*/None);
+  SourceAggregate = FindCommonSourceAggregate(/*UseBB=*/std::nullopt,
+                                              /*PredBB=*/std::nullopt);
   if (Describe(SourceAggregate) != AggregateDescription::NotFound) {
     if (Describe(SourceAggregate) == AggregateDescription::FoundMismatch)
       return nullptr; // Conflicting source aggregates!
@@ -1018,7 +1049,7 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   // they all should be defined in the same basic block.
   BasicBlock *UseBB = nullptr;
 
-  for (const Optional<Instruction *> &I : AggElts) {
+  for (const std::optional<Instruction *> &I : AggElts) {
     BasicBlock *BB = (*I)->getParent();
     // If it's the first instruction we've encountered, record the basic block.
     if (!UseBB) {
@@ -1098,6 +1129,11 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
 /// It should be transformed to:
 ///  %0 = insertvalue { i8, i32 } undef, i8 %y, 0
 Instruction *InstCombinerImpl::visitInsertValueInst(InsertValueInst &I) {
+  if (Value *V = simplifyInsertValueInst(
+          I.getAggregateOperand(), I.getInsertedValueOperand(), I.getIndices(),
+          SQ.getWithInstruction(&I)))
+    return replaceInstUsesWith(I, V);
+
   bool IsRedundant = false;
   ArrayRef<unsigned int> FirstIndices = I.getIndices();
 
@@ -1484,19 +1520,96 @@ static Instruction *narrowInsElt(InsertElementInst &InsElt,
   return CastInst::Create(CastOpcode, NewInsElt, InsElt.getType());
 }
 
+/// If we are inserting 2 halves of a value into adjacent elements of a vector,
+/// try to convert to a single insert with appropriate bitcasts.
+static Instruction *foldTruncInsEltPair(InsertElementInst &InsElt,
+                                        bool IsBigEndian,
+                                        InstCombiner::BuilderTy &Builder) {
+  Value *VecOp    = InsElt.getOperand(0);
+  Value *ScalarOp = InsElt.getOperand(1);
+  Value *IndexOp  = InsElt.getOperand(2);
+
+  // Pattern depends on endian because we expect lower index is inserted first.
+  // Big endian:
+  // inselt (inselt BaseVec, (trunc (lshr X, BW/2), Index0), (trunc X), Index1
+  // Little endian:
+  // inselt (inselt BaseVec, (trunc X), Index0), (trunc (lshr X, BW/2)), Index1
+  // Note: It is not safe to do this transform with an arbitrary base vector
+  //       because the bitcast of that vector to fewer/larger elements could
+  //       allow poison to spill into an element that was not poison before.
+  // TODO: Detect smaller fractions of the scalar.
+  // TODO: One-use checks are conservative.
+  auto *VTy = dyn_cast<FixedVectorType>(InsElt.getType());
+  Value *Scalar0, *BaseVec;
+  uint64_t Index0, Index1;
+  if (!VTy || (VTy->getNumElements() & 1) ||
+      !match(IndexOp, m_ConstantInt(Index1)) ||
+      !match(VecOp, m_InsertElt(m_Value(BaseVec), m_Value(Scalar0),
+                                m_ConstantInt(Index0))) ||
+      !match(BaseVec, m_Undef()))
+    return nullptr;
+
+  // The first insert must be to the index one less than this one, and
+  // the first insert must be to an even index.
+  if (Index0 + 1 != Index1 || Index0 & 1)
+    return nullptr;
+
+  // For big endian, the high half of the value should be inserted first.
+  // For little endian, the low half of the value should be inserted first.
+  Value *X;
+  uint64_t ShAmt;
+  if (IsBigEndian) {
+    if (!match(ScalarOp, m_Trunc(m_Value(X))) ||
+        !match(Scalar0, m_Trunc(m_LShr(m_Specific(X), m_ConstantInt(ShAmt)))))
+      return nullptr;
+  } else {
+    if (!match(Scalar0, m_Trunc(m_Value(X))) ||
+        !match(ScalarOp, m_Trunc(m_LShr(m_Specific(X), m_ConstantInt(ShAmt)))))
+      return nullptr;
+  }
+
+  Type *SrcTy = X->getType();
+  unsigned ScalarWidth = SrcTy->getScalarSizeInBits();
+  unsigned VecEltWidth = VTy->getScalarSizeInBits();
+  if (ScalarWidth != VecEltWidth * 2 || ShAmt != VecEltWidth)
+    return nullptr;
+
+  // Bitcast the base vector to a vector type with the source element type.
+  Type *CastTy = FixedVectorType::get(SrcTy, VTy->getNumElements() / 2);
+  Value *CastBaseVec = Builder.CreateBitCast(BaseVec, CastTy);
+
+  // Scale the insert index for a vector with half as many elements.
+  // bitcast (inselt (bitcast BaseVec), X, NewIndex)
+  uint64_t NewIndex = IsBigEndian ? Index1 / 2 : Index0 / 2;
+  Value *NewInsert = Builder.CreateInsertElement(CastBaseVec, X, NewIndex);
+  return new BitCastInst(NewInsert, VTy);
+}
+
 Instruction *InstCombinerImpl::visitInsertElementInst(InsertElementInst &IE) {
   Value *VecOp    = IE.getOperand(0);
   Value *ScalarOp = IE.getOperand(1);
   Value *IdxOp    = IE.getOperand(2);
 
-  if (auto *V = SimplifyInsertElementInst(
+  if (auto *V = simplifyInsertElementInst(
           VecOp, ScalarOp, IdxOp, SQ.getWithInstruction(&IE)))
     return replaceInstUsesWith(IE, V);
 
   // Canonicalize type of constant indices to i64 to simplify CSE
-  if (auto *IndexC = dyn_cast<ConstantInt>(IdxOp))
+  if (auto *IndexC = dyn_cast<ConstantInt>(IdxOp)) {
     if (auto *NewIdx = getPreferredVectorIndex(IndexC))
       return replaceOperand(IE, 2, NewIdx);
+
+    Value *BaseVec, *OtherScalar;
+    uint64_t OtherIndexVal;
+    if (match(VecOp, m_OneUse(m_InsertElt(m_Value(BaseVec),
+                                          m_Value(OtherScalar),
+                                          m_ConstantInt(OtherIndexVal)))) &&
+        !isa<Constant>(OtherScalar) && OtherIndexVal > IndexC->getZExtValue()) {
+      Value *NewIns = Builder.CreateInsertElement(BaseVec, ScalarOp, IdxOp);
+      return InsertElementInst::Create(NewIns, OtherScalar,
+                                       Builder.getInt64(OtherIndexVal));
+    }
+  }
 
   // If the scalar is bitcast and inserted into undef, do the insert in the
   // source type followed by bitcast.
@@ -1611,6 +1724,9 @@ Instruction *InstCombinerImpl::visitInsertElementInst(InsertElementInst &IE) {
   if (Instruction *Ext = narrowInsElt(IE, Builder))
     return Ext;
 
+  if (Instruction *Ext = foldTruncInsEltPair(IE, DL.isBigEndian(), Builder))
+    return Ext;
+
   return nullptr;
 }
 
@@ -1642,7 +1758,7 @@ static bool canEvaluateShuffled(Value *V, ArrayRef<int> Mask,
       // from an undefined element in an operand.
       if (llvm::is_contained(Mask, -1))
         return false;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Instruction::Add:
     case Instruction::FAdd:
     case Instruction::Sub:
@@ -1689,8 +1805,8 @@ static bool canEvaluateShuffled(Value *V, ArrayRef<int> Mask,
       // Verify that 'CI' does not occur twice in Mask. A single 'insertelement'
       // can't put an element into multiple indices.
       bool SeenOnce = false;
-      for (int i = 0, e = Mask.size(); i != e; ++i) {
-        if (Mask[i] == ElementNumber) {
+      for (int I : Mask) {
+        if (I == ElementNumber) {
           if (SeenOnce)
             return false;
           SeenOnce = true;
@@ -1919,26 +2035,81 @@ static BinopElts getAlternateBinop(BinaryOperator *BO, const DataLayout &DL) {
   Value *BO0 = BO->getOperand(0), *BO1 = BO->getOperand(1);
   Type *Ty = BO->getType();
   switch (BO->getOpcode()) {
-    case Instruction::Shl: {
-      // shl X, C --> mul X, (1 << C)
-      Constant *C;
-      if (match(BO1, m_Constant(C))) {
-        Constant *ShlOne = ConstantExpr::getShl(ConstantInt::get(Ty, 1), C);
-        return { Instruction::Mul, BO0, ShlOne };
-      }
-      break;
+  case Instruction::Shl: {
+    // shl X, C --> mul X, (1 << C)
+    Constant *C;
+    if (match(BO1, m_Constant(C))) {
+      Constant *ShlOne = ConstantExpr::getShl(ConstantInt::get(Ty, 1), C);
+      return {Instruction::Mul, BO0, ShlOne};
     }
-    case Instruction::Or: {
-      // or X, C --> add X, C (when X and C have no common bits set)
-      const APInt *C;
-      if (match(BO1, m_APInt(C)) && MaskedValueIsZero(BO0, *C, DL))
-        return { Instruction::Add, BO0, BO1 };
-      break;
-    }
-    default:
-      break;
+    break;
+  }
+  case Instruction::Or: {
+    // or X, C --> add X, C (when X and C have no common bits set)
+    const APInt *C;
+    if (match(BO1, m_APInt(C)) && MaskedValueIsZero(BO0, *C, DL))
+      return {Instruction::Add, BO0, BO1};
+    break;
+  }
+  case Instruction::Sub:
+    // sub 0, X --> mul X, -1
+    if (match(BO0, m_ZeroInt()))
+      return {Instruction::Mul, BO1, ConstantInt::getAllOnesValue(Ty)};
+    break;
+  default:
+    break;
   }
   return {};
+}
+
+/// A select shuffle of a select shuffle with a shared operand can be reduced
+/// to a single select shuffle. This is an obvious improvement in IR, and the
+/// backend is expected to lower select shuffles efficiently.
+static Instruction *foldSelectShuffleOfSelectShuffle(ShuffleVectorInst &Shuf) {
+  assert(Shuf.isSelect() && "Must have select-equivalent shuffle");
+
+  Value *Op0 = Shuf.getOperand(0), *Op1 = Shuf.getOperand(1);
+  SmallVector<int, 16> Mask;
+  Shuf.getShuffleMask(Mask);
+  unsigned NumElts = Mask.size();
+
+  // Canonicalize a select shuffle with common operand as Op1.
+  auto *ShufOp = dyn_cast<ShuffleVectorInst>(Op0);
+  if (ShufOp && ShufOp->isSelect() &&
+      (ShufOp->getOperand(0) == Op1 || ShufOp->getOperand(1) == Op1)) {
+    std::swap(Op0, Op1);
+    ShuffleVectorInst::commuteShuffleMask(Mask, NumElts);
+  }
+
+  ShufOp = dyn_cast<ShuffleVectorInst>(Op1);
+  if (!ShufOp || !ShufOp->isSelect() ||
+      (ShufOp->getOperand(0) != Op0 && ShufOp->getOperand(1) != Op0))
+    return nullptr;
+
+  Value *X = ShufOp->getOperand(0), *Y = ShufOp->getOperand(1);
+  SmallVector<int, 16> Mask1;
+  ShufOp->getShuffleMask(Mask1);
+  assert(Mask1.size() == NumElts && "Vector size changed with select shuffle");
+
+  // Canonicalize common operand (Op0) as X (first operand of first shuffle).
+  if (Y == Op0) {
+    std::swap(X, Y);
+    ShuffleVectorInst::commuteShuffleMask(Mask1, NumElts);
+  }
+
+  // If the mask chooses from X (operand 0), it stays the same.
+  // If the mask chooses from the earlier shuffle, the other mask value is
+  // transferred to the combined select shuffle:
+  // shuf X, (shuf X, Y, M1), M --> shuf X, Y, M'
+  SmallVector<int, 16> NewMask(NumElts);
+  for (unsigned i = 0; i != NumElts; ++i)
+    NewMask[i] = Mask[i] < (signed)NumElts ? Mask[i] : Mask1[i];
+
+  // A select mask with undef elements might look like an identity mask.
+  assert((ShuffleVectorInst::isSelectMask(NewMask) ||
+          ShuffleVectorInst::isIdentityMask(NewMask)) &&
+         "Unexpected shuffle mask");
+  return new ShuffleVectorInst(X, Y, NewMask);
 }
 
 static Instruction *foldSelectShuffleWith1Binop(ShuffleVectorInst &Shuf) {
@@ -2045,6 +2216,9 @@ Instruction *InstCombinerImpl::foldSelectShuffle(ShuffleVectorInst &Shuf) {
     return &Shuf;
   }
 
+  if (Instruction *I = foldSelectShuffleOfSelectShuffle(Shuf))
+    return I;
+
   if (Instruction *I = foldSelectShuffleWith1Binop(Shuf))
     return I;
 
@@ -2053,15 +2227,20 @@ Instruction *InstCombinerImpl::foldSelectShuffle(ShuffleVectorInst &Shuf) {
       !match(Shuf.getOperand(1), m_BinOp(B1)))
     return nullptr;
 
+  // If one operand is "0 - X", allow that to be viewed as "X * -1"
+  // (ConstantsAreOp1) by getAlternateBinop below. If the neg is not paired
+  // with a multiply, we will exit because C0/C1 will not be set.
   Value *X, *Y;
-  Constant *C0, *C1;
+  Constant *C0 = nullptr, *C1 = nullptr;
   bool ConstantsAreOp1;
-  if (match(B0, m_BinOp(m_Value(X), m_Constant(C0))) &&
-      match(B1, m_BinOp(m_Value(Y), m_Constant(C1))))
-    ConstantsAreOp1 = true;
-  else if (match(B0, m_BinOp(m_Constant(C0), m_Value(X))) &&
-           match(B1, m_BinOp(m_Constant(C1), m_Value(Y))))
+  if (match(B0, m_BinOp(m_Constant(C0), m_Value(X))) &&
+      match(B1, m_BinOp(m_Constant(C1), m_Value(Y))))
     ConstantsAreOp1 = false;
+  else if (match(B0, m_CombineOr(m_BinOp(m_Value(X), m_Constant(C0)),
+                                 m_Neg(m_Value(X)))) &&
+           match(B1, m_CombineOr(m_BinOp(m_Value(Y), m_Constant(C1)),
+                                 m_Neg(m_Value(Y)))))
+    ConstantsAreOp1 = true;
   else
     return nullptr;
 
@@ -2086,7 +2265,7 @@ Instruction *InstCombinerImpl::foldSelectShuffle(ShuffleVectorInst &Shuf) {
     }
   }
 
-  if (Opc0 != Opc1)
+  if (Opc0 != Opc1 || !C0 || !C1)
     return nullptr;
 
   // The opcodes must be the same. Use a new name to make that clear.
@@ -2231,6 +2410,102 @@ static Instruction *narrowVectorSelect(ShuffleVectorInst &Shuf,
   Value *NarrowX = Builder.CreateShuffleVector(X, Shuf.getShuffleMask());
   Value *NarrowY = Builder.CreateShuffleVector(Y, Shuf.getShuffleMask());
   return SelectInst::Create(NarrowCond, NarrowX, NarrowY);
+}
+
+/// Canonicalize FP negate/abs after shuffle.
+static Instruction *foldShuffleOfUnaryOps(ShuffleVectorInst &Shuf,
+                                          InstCombiner::BuilderTy &Builder) {
+  auto *S0 = dyn_cast<Instruction>(Shuf.getOperand(0));
+  Value *X;
+  if (!S0 || !match(S0, m_CombineOr(m_FNeg(m_Value(X)), m_FAbs(m_Value(X)))))
+    return nullptr;
+
+  bool IsFNeg = S0->getOpcode() == Instruction::FNeg;
+
+  // Match 1-input (unary) shuffle.
+  // shuffle (fneg/fabs X), Mask --> fneg/fabs (shuffle X, Mask)
+  if (S0->hasOneUse() && match(Shuf.getOperand(1), m_Undef())) {
+    Value *NewShuf = Builder.CreateShuffleVector(X, Shuf.getShuffleMask());
+    if (IsFNeg)
+      return UnaryOperator::CreateFNegFMF(NewShuf, S0);
+
+    Function *FAbs = Intrinsic::getDeclaration(Shuf.getModule(),
+                                               Intrinsic::fabs, Shuf.getType());
+    CallInst *NewF = CallInst::Create(FAbs, {NewShuf});
+    NewF->setFastMathFlags(S0->getFastMathFlags());
+    return NewF;
+  }
+
+  // Match 2-input (binary) shuffle.
+  auto *S1 = dyn_cast<Instruction>(Shuf.getOperand(1));
+  Value *Y;
+  if (!S1 || !match(S1, m_CombineOr(m_FNeg(m_Value(Y)), m_FAbs(m_Value(Y)))) ||
+      S0->getOpcode() != S1->getOpcode() ||
+      (!S0->hasOneUse() && !S1->hasOneUse()))
+    return nullptr;
+
+  // shuf (fneg/fabs X), (fneg/fabs Y), Mask --> fneg/fabs (shuf X, Y, Mask)
+  Value *NewShuf = Builder.CreateShuffleVector(X, Y, Shuf.getShuffleMask());
+  Instruction *NewF;
+  if (IsFNeg) {
+    NewF = UnaryOperator::CreateFNeg(NewShuf);
+  } else {
+    Function *FAbs = Intrinsic::getDeclaration(Shuf.getModule(),
+                                               Intrinsic::fabs, Shuf.getType());
+    NewF = CallInst::Create(FAbs, {NewShuf});
+  }
+  NewF->copyIRFlags(S0);
+  NewF->andIRFlags(S1);
+  return NewF;
+}
+
+/// Canonicalize casts after shuffle.
+static Instruction *foldCastShuffle(ShuffleVectorInst &Shuf,
+                                    InstCombiner::BuilderTy &Builder) {
+  // Do we have 2 matching cast operands?
+  auto *Cast0 = dyn_cast<CastInst>(Shuf.getOperand(0));
+  auto *Cast1 = dyn_cast<CastInst>(Shuf.getOperand(1));
+  if (!Cast0 || !Cast1 || Cast0->getOpcode() != Cast1->getOpcode() ||
+      Cast0->getSrcTy() != Cast1->getSrcTy())
+    return nullptr;
+
+  // TODO: Allow other opcodes? That would require easing the type restrictions
+  //       below here.
+  CastInst::CastOps CastOpcode = Cast0->getOpcode();
+  switch (CastOpcode) {
+  case Instruction::FPToSI:
+  case Instruction::FPToUI:
+  case Instruction::SIToFP:
+  case Instruction::UIToFP:
+    break;
+  default:
+    return nullptr;
+  }
+
+  VectorType *ShufTy = Shuf.getType();
+  VectorType *ShufOpTy = cast<VectorType>(Shuf.getOperand(0)->getType());
+  VectorType *CastSrcTy = cast<VectorType>(Cast0->getSrcTy());
+
+  // TODO: Allow length-increasing shuffles?
+  if (ShufTy->getElementCount().getKnownMinValue() >
+      ShufOpTy->getElementCount().getKnownMinValue())
+    return nullptr;
+
+  // TODO: Allow element-size-decreasing casts (ex: fptosi float to i8)?
+  assert(isa<FixedVectorType>(CastSrcTy) && isa<FixedVectorType>(ShufOpTy) &&
+         "Expected fixed vector operands for casts and binary shuffle");
+  if (CastSrcTy->getPrimitiveSizeInBits() > ShufOpTy->getPrimitiveSizeInBits())
+    return nullptr;
+
+  // At least one of the operands must have only one use (the shuffle).
+  if (!Cast0->hasOneUse() && !Cast1->hasOneUse())
+    return nullptr;
+
+  // shuffle (cast X), (cast Y), Mask --> cast (shuffle X, Y, Mask)
+  Value *X = Cast0->getOperand(0);
+  Value *Y = Cast1->getOperand(0);
+  Value *NewShuf = Builder.CreateShuffleVector(X, Y, Shuf.getShuffleMask());
+  return CastInst::Create(CastOpcode, NewShuf, ShufTy);
 }
 
 /// Try to fold an extract subvector operation.
@@ -2438,15 +2713,47 @@ static Instruction *foldIdentityPaddedShuffles(ShuffleVectorInst &Shuf) {
   return new ShuffleVectorInst(X, Y, NewMask);
 }
 
+// Splatting the first element of the result of a BinOp, where any of the
+// BinOp's operands are the result of a first element splat can be simplified to
+// splatting the first element of the result of the BinOp
+Instruction *InstCombinerImpl::simplifyBinOpSplats(ShuffleVectorInst &SVI) {
+  if (!match(SVI.getOperand(1), m_Undef()) ||
+      !match(SVI.getShuffleMask(), m_ZeroMask()) ||
+      !SVI.getOperand(0)->hasOneUse())
+    return nullptr;
+
+  Value *Op0 = SVI.getOperand(0);
+  Value *X, *Y;
+  if (!match(Op0, m_BinOp(m_Shuffle(m_Value(X), m_Undef(), m_ZeroMask()),
+                          m_Value(Y))) &&
+      !match(Op0, m_BinOp(m_Value(X),
+                          m_Shuffle(m_Value(Y), m_Undef(), m_ZeroMask()))))
+    return nullptr;
+  if (X->getType() != Y->getType())
+    return nullptr;
+
+  auto *BinOp = cast<BinaryOperator>(Op0);
+  if (!isSafeToSpeculativelyExecute(BinOp))
+    return nullptr;
+
+  Value *NewBO = Builder.CreateBinOp(BinOp->getOpcode(), X, Y);
+  if (auto NewBOI = dyn_cast<Instruction>(NewBO))
+    NewBOI->copyIRFlags(BinOp);
+
+  return new ShuffleVectorInst(NewBO, SVI.getShuffleMask());
+}
+
 Instruction *InstCombinerImpl::visitShuffleVectorInst(ShuffleVectorInst &SVI) {
   Value *LHS = SVI.getOperand(0);
   Value *RHS = SVI.getOperand(1);
   SimplifyQuery ShufQuery = SQ.getWithInstruction(&SVI);
-  if (auto *V = SimplifyShuffleVectorInst(LHS, RHS, SVI.getShuffleMask(),
+  if (auto *V = simplifyShuffleVectorInst(LHS, RHS, SVI.getShuffleMask(),
                                           SVI.getType(), ShufQuery))
     return replaceInstUsesWith(SVI, V);
 
-  // Bail out for scalable vectors
+  if (Instruction *I = simplifyBinOpSplats(SVI))
+    return I;
+
   if (isa<ScalableVectorType>(LHS->getType()))
     return nullptr;
 
@@ -2497,7 +2804,7 @@ Instruction *InstCombinerImpl::visitShuffleVectorInst(ShuffleVectorInst &SVI) {
     if (!ScaledMask.empty()) {
       // If the shuffled source vector simplifies, cast that value to this
       // shuffle's type.
-      if (auto *V = SimplifyShuffleVectorInst(X, UndefValue::get(XType),
+      if (auto *V = simplifyShuffleVectorInst(X, UndefValue::get(XType),
                                               ScaledMask, XType, ShufQuery))
         return BitCastInst::Create(Instruction::BitCast, V, SVI.getType());
     }
@@ -2526,6 +2833,12 @@ Instruction *InstCombinerImpl::visitShuffleVectorInst(ShuffleVectorInst &SVI) {
     return I;
 
   if (Instruction *I = narrowVectorSelect(SVI, Builder))
+    return I;
+
+  if (Instruction *I = foldShuffleOfUnaryOps(SVI, Builder))
+    return I;
+
+  if (Instruction *I = foldCastShuffle(SVI, Builder))
     return I;
 
   APInt UndefElts(VWidth, 0);
@@ -2585,7 +2898,7 @@ Instruction *InstCombinerImpl::visitShuffleVectorInst(ShuffleVectorInst &SVI) {
     Value *V = LHS;
     unsigned MaskElems = Mask.size();
     auto *SrcTy = cast<FixedVectorType>(V->getType());
-    unsigned VecBitWidth = SrcTy->getPrimitiveSizeInBits().getFixedSize();
+    unsigned VecBitWidth = SrcTy->getPrimitiveSizeInBits().getFixedValue();
     unsigned SrcElemBitWidth = DL.getTypeSizeInBits(SrcTy->getElementType());
     assert(SrcElemBitWidth && "vector elements must have a bitwidth");
     unsigned SrcNumElems = SrcTy->getNumElements();
@@ -2623,7 +2936,7 @@ Instruction *InstCombinerImpl::visitShuffleVectorInst(ShuffleVectorInst &SVI) {
       unsigned SrcElemsPerTgtElem = TgtElemBitWidth / SrcElemBitWidth;
       assert(SrcElemsPerTgtElem);
       BegIdx /= SrcElemsPerTgtElem;
-      bool BCAlreadyExists = NewBCs.find(CastSrcTy) != NewBCs.end();
+      bool BCAlreadyExists = NewBCs.contains(CastSrcTy);
       auto *NewBC =
           BCAlreadyExists
               ? NewBCs[CastSrcTy]

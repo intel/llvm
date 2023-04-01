@@ -6,5 +6,5 @@
 @end
 
 @implementation I @end
-// CHECK-OSX: %struct._class_t* null, %struct._objc_cache* @_objc_empty_cache, i8* (i8*, i8*)** null
-// CHECK-IOS: %struct._class_t* null, %struct._objc_cache* @_objc_empty_cache, i8* (i8*, i8*)** null
+// CHECK-OSX: ptr null, ptr @_objc_empty_cache, ptr null
+// CHECK-IOS: ptr null, ptr @_objc_empty_cache, ptr null

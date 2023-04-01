@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-ast -analyze < %s | FileCheck %s -check-prefix=AST
+; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-print-ast -disable-output < %s | FileCheck %s -check-prefix=AST
 ; RUN: opt %loadPolly -polly-parallel -polly-parallel-force -polly-codegen -S -verify-dom-info < %s | FileCheck %s -check-prefix=IR
 
 ; This code has failed the scev based code generation as the scev in the scop
@@ -26,8 +26,8 @@ for.i:
 for.j:
   %indvar.j = phi i64 [ %indvar.j.next, %for.j], [ 0, %for.i ]
   %sum = add i64 %indvar.j, %indvar.i
-  %scevgep = getelementptr [1024 x float], [1024 x float]* @A, i64 0, i64 %sum
-  store float 0.0, float *%scevgep
+  %scevgep = getelementptr [1024 x float], ptr @A, i64 0, i64 %sum
+  store float 0.0, ptr %scevgep
   %indvar.j.next = add i64 %indvar.j, 1
   %exitcond.j = icmp slt i64 %indvar.j.next, 1024
   br i1 %exitcond.j, label %for.j, label %for.i.inc

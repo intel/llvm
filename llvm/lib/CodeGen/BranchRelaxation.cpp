@@ -23,8 +23,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cstdint>
@@ -88,7 +88,9 @@ class BranchRelaxation : public MachineFunctionPass {
   bool relaxBranchInstructions();
   void scanFunction();
 
-  MachineBasicBlock *createNewBlockAfter(MachineBasicBlock &BB);
+  MachineBasicBlock *createNewBlockAfter(MachineBasicBlock &OrigMBB);
+  MachineBasicBlock *createNewBlockAfter(MachineBasicBlock &OrigMBB,
+                                         const BasicBlock *BB);
 
   MachineBasicBlock *splitBlockBeforeInstr(MachineInstr &MI,
                                            MachineBasicBlock *DestBB);
@@ -129,6 +131,19 @@ void BranchRelaxation::verify() {
     assert(!Num || BlockInfo[PrevNum].postOffset(MBB) <= BlockInfo[Num].Offset);
     assert(BlockInfo[Num].Size == computeBlockSize(MBB));
     PrevNum = Num;
+  }
+
+  for (MachineBasicBlock &MBB : *MF) {
+    for (MachineBasicBlock::iterator J = MBB.getFirstTerminator();
+         J != MBB.end(); J = std::next(J)) {
+      MachineInstr &MI = *J;
+      if (!MI.isConditionalBranch() && !MI.isUnconditionalBranch())
+        continue;
+      if (MI.getOpcode() == TargetOpcode::FAULTING_OP)
+        continue;
+      MachineBasicBlock *DestBB = TII->getBranchDestBlock(MI);
+      assert(isBlockInRange(MI, *DestBB));
+    }
   }
 #endif
 }
@@ -202,12 +217,20 @@ void BranchRelaxation::adjustBlockOffsets(MachineBasicBlock &Start) {
   }
 }
 
-/// Insert a new empty basic block and insert it after \BB
-MachineBasicBlock *BranchRelaxation::createNewBlockAfter(MachineBasicBlock &BB) {
+/// Insert a new empty MachineBasicBlock and insert it after \p OrigMBB
+MachineBasicBlock *
+BranchRelaxation::createNewBlockAfter(MachineBasicBlock &OrigBB) {
+  return createNewBlockAfter(OrigBB, OrigBB.getBasicBlock());
+}
+
+/// Insert a new empty MachineBasicBlock with \p BB as its BasicBlock
+/// and insert it after \p OrigMBB
+MachineBasicBlock *
+BranchRelaxation::createNewBlockAfter(MachineBasicBlock &OrigMBB,
+                                      const BasicBlock *BB) {
   // Create a new MBB for the code after the OrigBB.
-  MachineBasicBlock *NewBB =
-      MF->CreateMachineBasicBlock(BB.getBasicBlock());
-  MF->insert(++BB.getIterator(), NewBB);
+  MachineBasicBlock *NewBB = MF->CreateMachineBasicBlock(BB);
+  MF->insert(++OrigMBB.getIterator(), NewBB);
 
   // Insert an entry into BlockInfo to align it properly with the block numbers.
   BlockInfo.insert(BlockInfo.begin() + NewBB->getNumber(), BasicBlockInfo());
@@ -432,7 +455,7 @@ bool BranchRelaxation::fixupConditionalBranch(MachineInstr &MI) {
 
 bool BranchRelaxation::fixupUnconditionalBranch(MachineInstr &MI) {
   MachineBasicBlock *MBB = MI.getParent();
-
+  SmallVector<MachineOperand, 4> Cond;
   unsigned OldBrSize = TII->getInstSizeInBytes(MI);
   MachineBasicBlock *DestBB = TII->getBranchDestBlock(MI);
 
@@ -467,7 +490,8 @@ bool BranchRelaxation::fixupUnconditionalBranch(MachineInstr &MI) {
   // Create the optional restore block and, initially, place it at the end of
   // function. That block will be placed later if it's used; otherwise, it will
   // be erased.
-  MachineBasicBlock *RestoreBB = createNewBlockAfter(MF->back());
+  MachineBasicBlock *RestoreBB = createNewBlockAfter(MF->back(),
+                                                     DestBB->getBasicBlock());
 
   TII->insertIndirectBranch(*BranchBB, *DestBB, *RestoreBB, DL,
                             DestOffset - SrcOffset, RS.get());
@@ -483,10 +507,11 @@ bool BranchRelaxation::fixupUnconditionalBranch(MachineInstr &MI) {
     // restore blocks are just duplicated for each far branch.
     assert(!DestBB->isEntryBlock());
     MachineBasicBlock *PrevBB = &*std::prev(DestBB->getIterator());
-    if (auto *FT = PrevBB->getFallThrough()) {
+    // Fall through only if PrevBB has no unconditional branch as one of its
+    // terminators.
+    if (auto *FT = PrevBB->getLogicalFallThrough()) {
       assert(FT == DestBB);
       TII->insertUnconditionalBranch(*PrevBB, FT, DebugLoc());
-      // Recalculate the block size.
       BlockInfo[PrevBB->getNumber()].Size = computeBlockSize(*PrevBB);
     }
     // Now, RestoreBB could be placed directly before DestBB.

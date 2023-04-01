@@ -1,5 +1,6 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s --check-prefixes=WIN,CHECK
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -triple spir64-unknown-unknown-sycldevice -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s '-D$ADDRSPACE=addrspace(1) '
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s '-D$ADDRSPACE='
+
 
 template<typename KN, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func F){
@@ -54,9 +55,9 @@ int main() {
   // Make sure the following 3 are the same between the host and device compile.
   // Note that these are NOT the same value as eachother, they differ by the
   // signature.
-  // CHECK: private unnamed_addr constant [17 x i8] c"_ZTSZ4mainEUlvE_\00"
-  // CHECK: private unnamed_addr constant [17 x i8] c"_ZTSZ4mainEUliE_\00"
-  // CHECK: private unnamed_addr constant [17 x i8] c"_ZTSZ4mainEUldE_\00"
+  // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUlvE_\00"
+  // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUliE_\00"
+  // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUldE_\00"
 
   // On Windows, ensure that we haven't broken the 'lambda numbering' for thex
   // lambda itself.

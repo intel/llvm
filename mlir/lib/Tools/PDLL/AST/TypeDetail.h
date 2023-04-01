@@ -75,13 +75,15 @@ struct ConstraintTypeStorage : public TypeStorageBase<ConstraintTypeStorage> {};
 //===----------------------------------------------------------------------===//
 
 struct OperationTypeStorage
-    : public TypeStorageBase<OperationTypeStorage, StringRef> {
+    : public TypeStorageBase<OperationTypeStorage,
+                             std::pair<StringRef, const ods::Operation *>> {
   using Base::Base;
 
   static OperationTypeStorage *
-  construct(StorageUniquer::StorageAllocator &alloc, StringRef key) {
-    return new (alloc.allocate<OperationTypeStorage>())
-        OperationTypeStorage(alloc.copyInto(key));
+  construct(StorageUniquer::StorageAllocator &alloc,
+            const std::pair<StringRef, const ods::Operation *> &key) {
+    return new (alloc.allocate<OperationTypeStorage>()) OperationTypeStorage(
+        std::make_pair(alloc.copyInto(key.first), key.second));
   }
 };
 
@@ -92,6 +94,12 @@ struct OperationTypeStorage
 struct RangeTypeStorage : public TypeStorageBase<RangeTypeStorage, Type> {
   using Base::Base;
 };
+
+//===----------------------------------------------------------------------===//
+// RewriteType
+//===----------------------------------------------------------------------===//
+
+struct RewriteTypeStorage : public TypeStorageBase<RewriteTypeStorage> {};
 
 //===----------------------------------------------------------------------===//
 // TupleType
@@ -107,9 +115,9 @@ struct TupleTypeStorage
             std::pair<ArrayRef<Type>, ArrayRef<StringRef>> key) {
     SmallVector<StringRef> names = llvm::to_vector(llvm::map_range(
         key.second, [&](StringRef name) { return alloc.copyInto(name); }));
-    return new (alloc.allocate<TupleTypeStorage>()) TupleTypeStorage(
-        std::make_pair(alloc.copyInto(key.first),
-                       alloc.copyInto(llvm::makeArrayRef(names))));
+    return new (alloc.allocate<TupleTypeStorage>())
+        TupleTypeStorage(std::make_pair(alloc.copyInto(key.first),
+                                        alloc.copyInto(llvm::ArrayRef(names))));
   }
 };
 

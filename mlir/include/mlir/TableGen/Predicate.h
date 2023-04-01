@@ -54,7 +54,7 @@ public:
   bool isCombined() const;
 
   // Get the location of the predicate.
-  ArrayRef<llvm::SMLoc> getLoc() const;
+  ArrayRef<SMLoc> getLoc() const;
 
   // Records are pointer-comparable.
   bool operator==(const Pred &other) const { return def == other.def; }
@@ -66,6 +66,9 @@ public:
   friend llvm::hash_code hash_value(Pred pred) {
     return llvm::hash_value(pred.def);
   }
+
+  /// Return the underlying def.
+  const llvm::Record &getDef() const { return *def; }
 
 protected:
   // The TableGen definition of this predicate.

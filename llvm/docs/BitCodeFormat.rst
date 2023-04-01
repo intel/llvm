@@ -475,7 +475,8 @@ formats.  This wrapper format is useful for accommodating LTO in compilation
 pipelines where intermediate objects must be native object files which contain
 metadata in other sections.
 
-Not all tools support this format.
+Not all tools support this format.  For example, lld and the gold plugin will
+ignore these sections when linking object files.
 
 .. _encoding of LLVM IR:
 
@@ -557,9 +558,10 @@ MODULE_BLOCK Contents
 ---------------------
 
 The ``MODULE_BLOCK`` block (id 8) is the top-level block for LLVM bitcode files,
-and each bitcode file must contain exactly one. In addition to records
-(described below) containing information about the module, a ``MODULE_BLOCK``
-block may contain the following sub-blocks:
+and each module in a bitcode file must contain exactly one. A bitcode file with
+multi-module bitcode is valid. In addition to records (described below)
+containing information about the module, a ``MODULE_BLOCK`` block may contain
+the following sub-blocks:
 
 * `BLOCKINFO`_
 * `PARAMATTR_BLOCK`_
@@ -1077,6 +1079,7 @@ The integer codes are mapped to well-known attributes as follows.
 * code 76: ``nosanitize_coverage``
 * code 77: ``elementtype``
 * code 78: ``disable_sanitizer_instrumentation``
+* code 79: ``nosanitize_bounds``
 
 .. note::
   The ``allocsize`` attribute has a special encoding for its arguments. Its two
@@ -1334,6 +1337,21 @@ TYPE_CODE_X86_AMX Record
 ``[X86_AMX]``
 
 The ``X86_AMX`` record (code 24) adds an ``x86_amx`` type to the type table.
+
+TYPE_CODE_TARGET_TYPE Record
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``[TARGET_TYPE, num_tys, ...ty_params..., ...int_params... ]``
+
+The ``TARGET_TYPE`` record (code 26) adds a target extension type to the type
+table, with a name defined by a previously encountered ``STRUCT_NAME`` record.
+The operand fields are
+
+* *num_tys*: The number of parameters that are types (as opposed to integers)
+
+* *ty_params*: Type indices that represent type parameters
+
+* *int_params*: Numbers that correspond to the integer parameters.
 
 .. _CONSTANTS_BLOCK:
 

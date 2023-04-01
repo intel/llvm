@@ -14,43 +14,46 @@
 #ifndef LLVM_CLANG_LIB_CODEGEN_ADDRESS_H
 #define LLVM_CLANG_LIB_CODEGEN_ADDRESS_H
 
-#include "llvm/IR/Constants.h"
 #include "clang/AST/CharUnits.h"
+#include "llvm/ADT/PointerIntPair.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/Support/MathExtras.h"
 
 namespace clang {
 namespace CodeGen {
 
+// Indicates whether a pointer is known not to be null.
+enum KnownNonNull_t { NotKnownNonNull, KnownNonNull };
+
 /// An aligned address.
 class Address {
-  llvm::Value *Pointer;
+  llvm::PointerIntPair<llvm::Value *, 1, bool> PointerAndKnownNonNull;
   llvm::Type *ElementType;
   CharUnits Alignment;
 
 protected:
-  Address(std::nullptr_t) : Pointer(nullptr), ElementType(nullptr) {}
+  Address(std::nullptr_t) : ElementType(nullptr) {}
 
 public:
-  Address(llvm::Value *pointer, llvm::Type *elementType, CharUnits alignment)
-      : Pointer(pointer), ElementType(elementType), Alignment(alignment) {
-    assert(pointer != nullptr && "Pointer cannot be null");
-    assert(elementType != nullptr && "Element type cannot be null");
-    assert(llvm::cast<llvm::PointerType>(pointer->getType())
-               ->isOpaqueOrPointeeTypeMatches(elementType) &&
+  Address(llvm::Value *Pointer, llvm::Type *ElementType, CharUnits Alignment,
+          KnownNonNull_t IsKnownNonNull = NotKnownNonNull)
+      : PointerAndKnownNonNull(Pointer, IsKnownNonNull),
+        ElementType(ElementType), Alignment(Alignment) {
+    assert(Pointer != nullptr && "Pointer cannot be null");
+    assert(ElementType != nullptr && "Element type cannot be null");
+    assert(llvm::cast<llvm::PointerType>(Pointer->getType())
+               ->isOpaqueOrPointeeTypeMatches(ElementType) &&
            "Incorrect pointer element type");
-    assert(!alignment.isZero() && "Alignment cannot be zero");
   }
 
-  // Deprecated: Use constructor with explicit element type instead.
-  Address(llvm::Value *Pointer, CharUnits Alignment)
-      : Address(Pointer, Pointer->getType()->getPointerElementType(),
-                Alignment) {}
-
   static Address invalid() { return Address(nullptr); }
-  bool isValid() const { return Pointer != nullptr; }
+  bool isValid() const {
+    return PointerAndKnownNonNull.getPointer() != nullptr;
+  }
 
   llvm::Value *getPointer() const {
     assert(isValid());
-    return Pointer;
+    return PointerAndKnownNonNull.getPointer();
   }
 
   /// Return the type of the pointer value.
@@ -82,14 +85,30 @@ public:
 
   /// Return address with different pointer, but same element type and
   /// alignment.
-  Address withPointer(llvm::Value *NewPointer) const {
-    return Address(NewPointer, ElementType, Alignment);
+  Address withPointer(llvm::Value *NewPointer,
+                      KnownNonNull_t IsKnownNonNull) const {
+    return Address(NewPointer, getElementType(), getAlignment(),
+                   IsKnownNonNull);
   }
 
   /// Return address with different alignment, but same pointer and element
   /// type.
   Address withAlignment(CharUnits NewAlignment) const {
-    return Address(Pointer, ElementType, NewAlignment);
+    return Address(getPointer(), getElementType(), NewAlignment,
+                   isKnownNonNull());
+  }
+
+  /// Whether the pointer is known not to be null.
+  KnownNonNull_t isKnownNonNull() const {
+    assert(isValid());
+    return (KnownNonNull_t)PointerAndKnownNonNull.getInt();
+  }
+
+  /// Set the non-null bit.
+  Address setKnownNonNull() {
+    assert(isValid());
+    PointerAndKnownNonNull.setInt(true);
+    return *this;
   }
 };
 

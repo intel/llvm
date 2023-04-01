@@ -16,6 +16,7 @@
 #include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <optional>
 
 using namespace clang;
 using namespace transformer;
@@ -36,10 +37,14 @@ static std::string wrapSnippet(StringRef ExtraPreface,
     namespace N { class C {}; }
     namespace { class AnonC {}; }
     struct S { int Field; };
-    struct Smart {
-      S* operator->() const;
-      S& operator*() const;
+    namespace std {
+    template <typename T>
+    struct unique_ptr {
+      T* operator->() const;
+      T& operator*() const;
     };
+    }
+    template<class T> T desugar() { return T(); };
   )cc";
   return (Preface + ExtraPreface + "auto stencil_test_snippet = []{" +
           StatementCode + "};")
@@ -65,21 +70,21 @@ struct TestMatch {
 // `StatementCode` exactly -- that is, produce exactly one match. However,
 // `StatementCode` may contain other statements not described by `Matcher`.
 // `ExtraPreface` (optionally) adds extra decls to the TU, before the code.
-static llvm::Optional<TestMatch> matchStmt(StringRef StatementCode,
-                                           StatementMatcher Matcher,
-                                           StringRef ExtraPreface = "") {
+static std::optional<TestMatch> matchStmt(StringRef StatementCode,
+                                          StatementMatcher Matcher,
+                                          StringRef ExtraPreface = "") {
   auto AstUnit = tooling::buildASTFromCodeWithArgs(
       wrapSnippet(ExtraPreface, StatementCode), {"-Wno-unused-value"});
   if (AstUnit == nullptr) {
     ADD_FAILURE() << "AST construction failed";
-    return llvm::None;
+    return std::nullopt;
   }
   ASTContext &Context = AstUnit->getASTContext();
   auto Matches = ast_matchers::match(wrapMatcher(Matcher), Context);
   // We expect a single, exact match for the statement.
   if (Matches.size() != 1) {
     ADD_FAILURE() << "Wrong number of matches: " << Matches.size();
-    return llvm::None;
+    return std::nullopt;
   }
   return TestMatch{std::move(AstUnit), MatchResult(Matches[0], &Context)};
 }
@@ -326,32 +331,15 @@ TEST_F(StencilTest, MaybeDerefAddressExpr) {
 TEST_F(StencilTest, MaybeDerefSmartPointer) {
   StringRef Id = "id";
   std::string Snippet = R"cc(
-    Smart x;
+    std::unique_ptr<S> x;
     x;
   )cc";
   testExpr(Id, Snippet, maybeDeref(Id), "*x");
 }
 
-// Tests that unique_ptr specifically is handled.
-TEST_F(StencilTest, MaybeDerefSmartPointerUniquePtr) {
-  StringRef Id = "id";
-  // We deliberately specify `unique_ptr` as empty to verify that it matches
-  // because of its name, rather than its contents.
-  StringRef ExtraPreface =
-      "namespace std { template <typename T> class unique_ptr {}; }\n";
-  StringRef Snippet = R"cc(
-    std::unique_ptr<int> x;
-    x;
-  )cc";
-  auto StmtMatch = matchStmt(Snippet, expr().bind(Id), ExtraPreface);
-  ASSERT_TRUE(StmtMatch);
-  EXPECT_THAT_EXPECTED(maybeDeref(Id)->eval(StmtMatch->Result),
-                       HasValue(std::string("*x")));
-}
-
 TEST_F(StencilTest, MaybeDerefSmartPointerFromMemberExpr) {
   StringRef Id = "id";
-  std::string Snippet = "Smart x; x->Field;";
+  std::string Snippet = "std::unique_ptr<S> x; x->Field;";
   auto StmtMatch =
       matchStmt(Snippet, memberExpr(hasObjectExpression(expr().bind(Id))));
   ASSERT_TRUE(StmtMatch);
@@ -381,12 +369,12 @@ TEST_F(StencilTest, MaybeAddressOfDerefExpr) {
 
 TEST_F(StencilTest, MaybeAddressOfSmartPointer) {
   StringRef Id = "id";
-  testExpr(Id, "Smart x; x;", maybeAddressOf(Id), "x");
+  testExpr(Id, "std::unique_ptr<S> x; x;", maybeAddressOf(Id), "x");
 }
 
 TEST_F(StencilTest, MaybeAddressOfSmartPointerFromMemberCall) {
   StringRef Id = "id";
-  std::string Snippet = "Smart x; x->Field;";
+  std::string Snippet = "std::unique_ptr<S> x; x->Field;";
   auto StmtMatch =
       matchStmt(Snippet, memberExpr(hasObjectExpression(expr().bind(Id))));
   ASSERT_TRUE(StmtMatch);
@@ -396,7 +384,7 @@ TEST_F(StencilTest, MaybeAddressOfSmartPointerFromMemberCall) {
 
 TEST_F(StencilTest, MaybeAddressOfSmartPointerDerefNoCancel) {
   StringRef Id = "id";
-  testExpr(Id, "Smart x; *x;", maybeAddressOf(Id), "&*x");
+  testExpr(Id, "std::unique_ptr<S> x; *x;", maybeAddressOf(Id), "&*x");
 }
 
 TEST_F(StencilTest, AccessOpValue) {
@@ -446,7 +434,7 @@ TEST_F(StencilTest, AccessOpPointerDereference) {
 
 TEST_F(StencilTest, AccessOpSmartPointer) {
   StringRef Snippet = R"cc(
-    Smart x;
+    std::unique_ptr<S> x;
     x;
   )cc";
   StringRef Id = "id";
@@ -455,7 +443,7 @@ TEST_F(StencilTest, AccessOpSmartPointer) {
 
 TEST_F(StencilTest, AccessOpSmartPointerDereference) {
   StringRef Snippet = R"cc(
-    Smart x;
+    std::unique_ptr<S> x;
     *x;
   )cc";
   StringRef Id = "id";
@@ -464,7 +452,7 @@ TEST_F(StencilTest, AccessOpSmartPointerDereference) {
 
 TEST_F(StencilTest, AccessOpSmartPointerMemberCall) {
   StringRef Snippet = R"cc(
-    Smart x;
+    std::unique_ptr<S> x;
     x->Field;
   )cc";
   StringRef Id = "id";
@@ -559,7 +547,7 @@ TEST_F(StencilTest, DescribeQualifiedType) {
 
 TEST_F(StencilTest, DescribeUnqualifiedType) {
   std::string Snippet = "using N::C; C c; c;";
-  std::string Expected = "N::C";
+  std::string Expected = "C";
   auto StmtMatch =
       matchStmt(Snippet, declRefExpr(hasType(qualType().bind("type"))));
   ASSERT_TRUE(StmtMatch);
@@ -568,7 +556,7 @@ TEST_F(StencilTest, DescribeUnqualifiedType) {
 }
 
 TEST_F(StencilTest, DescribeAnonNamespaceType) {
-  std::string Snippet = "AnonC c; c;";
+  std::string Snippet = "auto c = desugar<AnonC>(); c;";
   std::string Expected = "(anonymous namespace)::AnonC";
   auto StmtMatch =
       matchStmt(Snippet, declRefExpr(hasType(qualType().bind("type"))));
@@ -641,7 +629,7 @@ TEST_F(StencilTest, CatOfInvalidRangeFails) {
   ASSERT_TRUE(StmtMatch);
   Stencil S = cat(node("arg"));
   Expected<std::string> Result = S->eval(StmtMatch->Result);
-  ASSERT_THAT_EXPECTED(Result, Failed<StringError>());
+  ASSERT_FALSE(Result);
   llvm::handleAllErrors(Result.takeError(), [](const llvm::StringError &E) {
     EXPECT_THAT(E.getMessage(), AllOf(HasSubstr("selected range"),
                                       HasSubstr("macro expansion")));

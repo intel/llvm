@@ -18,34 +18,37 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCInstrInfo.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/Casting.h"
-#include <cstdint>
+#include "llvm/Support/raw_ostream.h"
 #include <cassert>
+#include <cstdint>
 
 using namespace llvm;
 
 void X86InstPrinterCommon::printCondCode(const MCInst *MI, unsigned Op,
                                          raw_ostream &O) {
   int64_t Imm = MI->getOperand(Op).getImm();
+  bool Flavor = MI->getOpcode() == X86::CMPCCXADDmr32 ||
+                MI->getOpcode() == X86::CMPCCXADDmr64;
   switch (Imm) {
   default: llvm_unreachable("Invalid condcode argument!");
   case    0: O << "o";  break;
   case    1: O << "no"; break;
   case    2: O << "b";  break;
-  case    3: O << "ae"; break;
-  case    4: O << "e";  break;
-  case    5: O << "ne"; break;
+  case    3: O << (Flavor ? "nb" : "ae"); break;
+  case    4: O << (Flavor ?  "z" :  "e"); break;
+  case    5: O << (Flavor ? "nz" : "ne"); break;
   case    6: O << "be"; break;
-  case    7: O << "a";  break;
+  case    7: O << (Flavor ? "nbe" : "a"); break;
   case    8: O << "s";  break;
   case    9: O << "ns"; break;
   case  0xa: O << "p";  break;
   case  0xb: O << "np"; break;
   case  0xc: O << "l";  break;
-  case  0xd: O << "ge"; break;
+  case  0xd: O << (Flavor ? "nl" : "ge"); break;
   case  0xe: O << "le"; break;
-  case  0xf: O << "g";  break;
+  case  0xf: O << (Flavor ? "nle" : "g"); break;
   }
 }
 
@@ -319,6 +322,7 @@ void X86InstPrinterCommon::printPCRelImm(const MCInst *MI, uint64_t Address,
 
   const MCOperand &Op = MI->getOperand(OpNo);
   if (Op.isImm()) {
+    O << markup("<imm:");
     if (PrintBranchImmAsAddress) {
       uint64_t Target = Address + Op.getImm();
       if (MAI.getCodePointerSize() == 4)
@@ -326,6 +330,7 @@ void X86InstPrinterCommon::printPCRelImm(const MCInst *MI, uint64_t Address,
       O << formatHex(Target);
     } else
       O << formatImm(Op.getImm());
+    O << markup(">");
   } else {
     assert(Op.isExpr() && "unknown pcrel immediate operand");
     // If a symbolic branch target was added as a constant expression then print
@@ -333,7 +338,7 @@ void X86InstPrinterCommon::printPCRelImm(const MCInst *MI, uint64_t Address,
     const MCConstantExpr *BranchTarget = dyn_cast<MCConstantExpr>(Op.getExpr());
     int64_t Address;
     if (BranchTarget && BranchTarget->evaluateAsAbsolute(Address)) {
-      O << formatHex((uint64_t)Address);
+      O << markup("<imm:") << formatHex((uint64_t)Address) << markup(">");
     } else {
       // Otherwise, just print the expression.
       Op.getExpr()->print(O, &MAI);
@@ -349,7 +354,8 @@ void X86InstPrinterCommon::printOptionalSegReg(const MCInst *MI, unsigned OpNo,
   }
 }
 
-void X86InstPrinterCommon::printInstFlags(const MCInst *MI, raw_ostream &O) {
+void X86InstPrinterCommon::printInstFlags(const MCInst *MI, raw_ostream &O,
+                                          const MCSubtargetInfo &STI) {
   const MCInstrDesc &Desc = MII.get(MI->getOpcode());
   uint64_t TSFlags = Desc.TSFlags;
   unsigned Flags = MI->getFlags();
@@ -379,6 +385,20 @@ void X86InstPrinterCommon::printInstFlags(const MCInst *MI, raw_ostream &O) {
     O << "\t{disp8}";
   else if (Flags & X86::IP_USE_DISP32)
     O << "\t{disp32}";
+
+  // Determine where the memory operand starts, if present
+  int MemoryOperand = X86II::getMemoryOperandNo(TSFlags);
+  if (MemoryOperand != -1)
+    MemoryOperand += X86II::getOperandBias(Desc);
+
+  // Address-Size override prefix
+  if (Flags & X86::IP_HAS_AD_SIZE &&
+      !X86_MC::needsAddressSizeOverride(*MI, STI, MemoryOperand, TSFlags)) {
+    if (STI.hasFeature(X86::Is16Bit) || STI.hasFeature(X86::Is64Bit))
+      O << "\taddr32\t";
+    else if (STI.hasFeature(X86::Is32Bit))
+      O << "\taddr16\t";
+  }
 }
 
 void X86InstPrinterCommon::printVKPair(const MCInst *MI, unsigned OpNo,

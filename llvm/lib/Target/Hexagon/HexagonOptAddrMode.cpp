@@ -313,12 +313,18 @@ bool HexagonOptAddrMode::isSafeToExtLR(NodeAddr<StmtNode *> SN,
       return false;
     }
 
+    // If the register is undefined (for example if it's a reserved register),
+    // it may still be possible to extend the range, but it's safer to be
+    // conservative and just punt.
+    if (LRExtRegRD == 0)
+      return false;
+
     MachineInstr *UseMI = NodeAddr<StmtNode *>(IA).Addr->getCode();
     NodeAddr<DefNode *> LRExtRegDN = DFG->addr<DefNode *>(LRExtRegRD);
     // Reaching Def to LRExtReg can't be a phi.
     if ((LRExtRegDN.Addr->getFlags() & NodeAttrs::PhiRef) &&
         MI->getParent() != UseMI->getParent())
-    return false;
+      return false;
   }
   return true;
 }
@@ -857,9 +863,8 @@ bool HexagonOptAddrMode::runOnMachineFunction(MachineFunction &MF) {
   HRI = HST.getRegisterInfo();
   const auto &MDF = getAnalysis<MachineDominanceFrontier>();
   MDT = &getAnalysis<MachineDominatorTree>();
-  const TargetOperandInfo TOI(*HII);
 
-  DataFlowGraph G(MF, *HII, *HRI, *MDT, MDF, TOI);
+  DataFlowGraph G(MF, *HII, *HRI, *MDT, MDF);
   // Need to keep dead phis because we can propagate uses of registers into
   // nodes dominated by those would-be phis.
   G.build(BuildOptions::KeepDeadPhis);
@@ -877,7 +882,7 @@ bool HexagonOptAddrMode::runOnMachineFunction(MachineFunction &MF) {
   for (NodeAddr<BlockNode *> BA : FA.Addr->members(*DFG))
     Changed |= processBlock(BA);
 
-  for (auto MI : Deleted)
+  for (auto *MI : Deleted)
     MI->eraseFromParent();
 
   if (Changed) {

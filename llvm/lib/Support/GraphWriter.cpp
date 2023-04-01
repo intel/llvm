@@ -18,7 +18,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Config/config.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
@@ -26,7 +25,11 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
-#include <cassert>
+
+#ifdef __APPLE__
+#include "llvm/Support/CommandLine.h"
+#endif
+
 #include <string>
 #include <system_error>
 #include <vector>
@@ -71,7 +74,7 @@ std::string llvm::DOT::EscapeString(const std::string &Label) {
             Str.erase(Str.begin()+i); continue;
           default: break;
         }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case '{': case '}':
     case '<': case '>':
     case '|': case '"':
@@ -133,14 +136,14 @@ static bool ExecGraphViewer(StringRef ExecPath, std::vector<StringRef> &args,
                             StringRef Filename, bool wait,
                             std::string &ErrMsg) {
   if (wait) {
-    if (sys::ExecuteAndWait(ExecPath, args, None, {}, 0, 0, &ErrMsg)) {
+    if (sys::ExecuteAndWait(ExecPath, args, std::nullopt, {}, 0, 0, &ErrMsg)) {
       errs() << "Error: " << ErrMsg << "\n";
       return true;
     }
     sys::fs::remove(Filename);
     errs() << " done. \n";
   } else {
-    sys::ExecuteNoWait(ExecPath, args, None, {}, 0, &ErrMsg);
+    sys::ExecuteNoWait(ExecPath, args, std::nullopt, {}, 0, &ErrMsg);
     errs() << "Remember to erase graph file: " << Filename << "\n";
   }
   return false;

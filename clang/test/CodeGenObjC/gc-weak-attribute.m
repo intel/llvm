@@ -17,12 +17,12 @@
 @synthesize wRandom;
 @synthesize wAnother;
 @end
-// CHECK:  call i8* @objc_read_weak
-// CHECK:  call i8* @objc_assign_weak
-// CHECK:  call i8* @objc_read_weak
-// CHECK:  call i8* @objc_assign_weak
-// CHECK:  call i8* @objc_read_weak
-// CHECK:  call i8* @objc_assign_weak
-// CHECK:  call i8* @objc_read_weak
-// CHECK:  call i8* @objc_assign_weak
+// CHECK:  call ptr @objc_read_weak
+// CHECK:  call ptr @objc_assign_weak
+// CHECK:  call ptr @objc_read_weak
+// CHECK:  call ptr @objc_assign_weak
+// CHECK:  call ptr @objc_read_weak
+// CHECK:  call ptr @objc_assign_weak
+// CHECK:  call ptr @objc_read_weak
+// CHECK:  call ptr @objc_assign_weak
 

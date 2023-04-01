@@ -14,8 +14,8 @@
 #include <algorithm>
 #include <regex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 constexpr char BackendNameKeyName[] = "BackendName";
@@ -75,7 +75,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                               "details, please refer to "
                               "https://github.com/intel/llvm/blob/sycl/sycl/"
                               "doc/EnvironmentVariables.md",
-                              PI_INVALID_VALUE);
+                              PI_ERROR_INVALID_VALUE);
 
   const std::string &DeprecatedKeyNameDeviceName = DeviceNameKeyName;
   const std::string &DeprecatedKeyNamePlatformName = PlatformNameKeyName;
@@ -99,7 +99,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
           "refer to "
           "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
           "EnvironmentVariables.md",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
     }
 
     if (Key == DeprecatedKeyNameDeviceName) {
@@ -154,7 +154,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                       "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
                       "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
                       "EnvironmentVariables.md",
-                  PI_INVALID_VALUE);
+                  PI_ERROR_INVALID_VALUE);
           }
         };
 
@@ -174,7 +174,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                     "details, please refer to "
                     "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
                     "EnvironmentVariables.md",
-                PI_INVALID_VALUE);
+                PI_ERROR_INVALID_VALUE);
           }
         }
       }
@@ -190,7 +190,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                                         " of SYCL_DEVICE_ALLOWLIST should have "
                                         "value which starts with " +
                                         Prefix,
-                                    PI_INVALID_VALUE);
+                                    PI_ERROR_INVALID_VALUE);
         }
         // cut off prefix from the value
         ValueStart += Prefix.length();
@@ -209,7 +209,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                     " of SYCL_DEVICE_ALLOWLIST should have "
                     "value which ends with " +
                     Postfix,
-                PI_INVALID_VALUE);
+                PI_ERROR_INVALID_VALUE);
         }
         size_t NextExpectedDelimiterPos = ValueEnd + Postfix.length();
         // if it is not the end of the string, check that symbol next to a
@@ -224,7 +224,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                   AllowListRaw[NextExpectedDelimiterPos] +
                   ". Should be either " + DelimiterBtwItemsInDeviceDesc +
                   " or " + DelimiterBtwDeviceDescs,
-              PI_INVALID_VALUE);
+              PI_ERROR_INVALID_VALUE);
 
         if (AllowListRaw[NextExpectedDelimiterPos] == DelimiterBtwDeviceDescs)
           ShouldAllocateNewDeviceDescMap = true;
@@ -243,7 +243,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
       throw sycl::runtime_error("Re-definition of key " + Key +
                                     " is not allowed in "
                                     "SYCL_DEVICE_ALLOWLIST",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
 
     KeyStart = ValueEnd;
     if (KeyStart != std::string::npos)
@@ -351,16 +351,13 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     }
   }
   // get PlatformVersion value and put it to DeviceDesc
-  DeviceDesc.emplace(
-      PlatformVersionKeyName,
-      sycl::detail::get_platform_info<std::string,
-                                      info::platform::version>::get(PiPlatform,
-                                                                    Plugin));
+  DeviceDesc.emplace(PlatformVersionKeyName,
+                     sycl::detail::get_platform_info<info::platform::version>(
+                         PiPlatform, Plugin));
   // get PlatformName value and put it to DeviceDesc
-  DeviceDesc.emplace(
-      PlatformNameKeyName,
-      sycl::detail::get_platform_info<std::string, info::platform::name>::get(
-          PiPlatform, Plugin));
+  DeviceDesc.emplace(PlatformNameKeyName,
+                     sycl::detail::get_platform_info<info::platform::name>(
+                         PiPlatform, Plugin));
 
   int InsertIDx = 0;
   for (RT::PiDevice Device : PiDevices) {
@@ -379,20 +376,19 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     }
     // get DeviceVendorId value and put it to DeviceDesc
     uint32_t DeviceVendorIdUInt =
-        sycl::detail::get_device_info<uint32_t, info::device::vendor_id>::get(
-            Device, Plugin);
+        sycl::detail::get_device_info<info::device::vendor_id>(Device, Plugin);
     std::stringstream DeviceVendorIdHexStringStream;
     DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
     const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
-    const auto &DriverVersionValue = sycl::detail::get_device_info<
-        std::string, info::device::driver_version>::get(Device, Plugin);
+    const std::string &DriverVersionValue =
+        sycl::detail::get_device_info<info::device::driver_version>(Device,
+                                                                    Plugin);
     DeviceDesc[DriverVersionKeyName] = DriverVersionValue;
     // get DeviceName value and put it to DeviceDesc
-    const auto &DeviceNameValue =
-        sycl::detail::get_device_info<std::string, info::device::name>::get(
-            Device, Plugin);
+    const std::string &DeviceNameValue =
+        sycl::detail::get_device_info<info::device::name>(Device, Plugin);
     DeviceDesc[DeviceNameKeyName] = DeviceNameValue;
 
     // check if we can allow device with such device description DeviceDesc
@@ -404,5 +400,5 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

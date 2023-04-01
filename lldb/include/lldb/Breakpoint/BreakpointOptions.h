@@ -43,7 +43,7 @@ public:
                      | eCondition | eAutoContinue)
   };
   struct CommandData {
-    CommandData() {}
+    CommandData() = default;
 
     CommandData(const StringList &user_source, lldb::ScriptLanguage interp)
         : user_source(user_source), interpreter(interp), stop_on_error(true) {}
@@ -194,8 +194,8 @@ public:
   ///    The commands will be appended to this list.
   ///
   /// \return
-  ///    \btrue if the command callback is a command-line callback,
-  ///    \bfalse otherwise.
+  ///    \b true if the command callback is a command-line callback,
+  ///    \b false otherwise.
   bool GetCommandLineCallbacks(StringList &command_list);
 
   /// Remove the callback from this option set.
