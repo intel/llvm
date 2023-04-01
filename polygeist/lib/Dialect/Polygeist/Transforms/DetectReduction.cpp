@@ -142,8 +142,11 @@ protected:
       ++ArgNo;
     }
 
-    Block &NewBlock = NewLoop.getLoopBody().front();
-    Block &OldBlock = Loop.getLoopBody().front();
+    Region &NewBody = NewLoop.getLoopBody(), &OldBody = Loop.getLoopBody();
+    Block &NewBlock = NewBody.front(), &OldBlock = OldBody.front();
+    assert((NewBody.hasOneBlock() && OldBody.hasOneBlock()) &&
+           "Loop body should have one block");
+
     SmallVector<Value, 4> NewBlockTransferArgs;
     NewBlockTransferArgs.push_back(*NewLoop.getSingleInductionVar());
     const Block::BlockArgListType &IterArgs = getRegionIterArgs(NewLoop);
