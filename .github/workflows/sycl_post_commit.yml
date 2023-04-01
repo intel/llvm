@@ -59,3 +59,13 @@ jobs:
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers"
       cc: clang
       cxx: clang++
+
+  windows_default:
+    name: Windows
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_windows_build_and_test.yml
+
+  macos_default:
+    name: macOS
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_macos_build_and_test.yml
