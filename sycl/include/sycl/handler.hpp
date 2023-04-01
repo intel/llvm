@@ -913,6 +913,12 @@ private:
            AccessMode == access::mode::discard_read_write;
   }
 
+  // PI APIs only support select fill sizes: 1, 2, 4, 8, 16, 32, 64, 128
+  constexpr static bool isBackendSupportedFillSize(size_t Size) {
+    return Size == 1 || Size == 2 || Size == 4 || Size == 8 || Size == 16 ||
+           Size == 32 || Size == 64 || Size == 128;
+  }
+
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
     using type = typename std::conditional<
         std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
@@ -2392,6 +2398,8 @@ public:
   fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
            Dst,
        const T &Pattern) {
+    assert(!MIsHost && "fill() should no longer be callable on a host device.");
+
     if (Dst.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Dst);
 
@@ -2399,8 +2407,8 @@ public:
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
-    if (!MIsHost && (((Dims == 1) && isConstOrGlobal(AccessTarget)) ||
-                     isImageOrImageArray(AccessTarget))) {
+    if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
+                  (Dims == 1 || isImageOrImageArray(AccessTarget))) {
       setType(detail::CG::Fill);
 
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
@@ -2414,9 +2422,6 @@ public:
       auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
       *PatternPtr = Pattern;
     } else {
-
-      // TODO: Temporary implementation for host. Should be handled by memory
-      // manger.
       range<Dims> Range = Dst.get_range();
       parallel_for<
           class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
