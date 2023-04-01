@@ -1,4 +1,4 @@
-//===---- RISCVISelDAGToDAG.h - A dag to dag inst selector for RISCV ------===//
+//===---- RISCVISelDAGToDAG.h - A dag to dag inst selector for RISC-V -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines an instruction selector for the RISCV target.
+// This file defines an instruction selector for the RISC-V target.
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,7 +18,7 @@
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/Support/KnownBits.h"
 
-// RISCV-specific code to select RISCV machine instructions for
+// RISC-V specific code to select RISC-V machine instructions for
 // SelectionDAG operations.
 namespace llvm {
 class RISCVDAGToDAGISel : public SelectionDAGISel {
@@ -50,8 +50,33 @@ public:
   bool SelectFrameAddrRegImm(SDValue Addr, SDValue &Base, SDValue &Offset);
   bool SelectAddrRegImm(SDValue Addr, SDValue &Base, SDValue &Offset);
 
+  bool SelectAddrRegRegScale(SDValue Addr, unsigned MaxShiftAmount,
+                             SDValue &Base, SDValue &Index, SDValue &Scale);
+
+  template <unsigned MaxShift>
+  bool SelectAddrRegRegScale(SDValue Addr, SDValue &Base, SDValue &Index,
+                             SDValue &Scale) {
+    return SelectAddrRegRegScale(Addr, MaxShift, Base, Index, Scale);
+  }
+
+  template <unsigned MaxShift, unsigned Bits>
+  bool SelectAddrRegZextRegScale(SDValue Addr, SDValue &Base, SDValue &Index,
+                                 SDValue &Scale) {
+    if (SelectAddrRegRegScale(Addr, MaxShift, Base, Index, Scale)) {
+      if (Index.getOpcode() == ISD::AND) {
+        auto *C = dyn_cast<ConstantSDNode>(Index.getOperand(1));
+        if (C && C->getZExtValue() == maskTrailingOnes<uint64_t>(Bits)) {
+          Index = Index.getOperand(0);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   bool tryShrinkShlLogicImm(SDNode *Node);
   bool trySignedBitfieldExtract(SDNode *Node);
+  bool tryIndexedLoad(SDNode *Node);
 
   bool selectShiftMask(SDValue N, unsigned ShiftWidth, SDValue &ShAmt);
   bool selectShiftMaskXLen(SDValue N, SDValue &ShAmt) {
@@ -59,6 +84,14 @@ public:
   }
   bool selectShiftMask32(SDValue N, SDValue &ShAmt) {
     return selectShiftMask(N, 32, ShAmt);
+  }
+
+  bool selectSETCC(SDValue N, ISD::CondCode ExpectedCCVal, SDValue &Val);
+  bool selectSETNE(SDValue N, SDValue &Val) {
+    return selectSETCC(N, ISD::SETNE, Val);
+  }
+  bool selectSETEQ(SDValue N, SDValue &Val) {
+    return selectSETCC(N, ISD::SETEQ, Val);
   }
 
   bool selectSExtBits(SDValue N, unsigned Bits, SDValue &Val);
@@ -84,6 +117,8 @@ public:
                        const unsigned Depth = 0) const;
   bool hasAllHUsers(SDNode *Node) const { return hasAllNBitUsers(Node, 16); }
   bool hasAllWUsers(SDNode *Node) const { return hasAllNBitUsers(Node, 32); }
+
+  bool selectSimm5Shl2(SDValue N, SDValue &Simm5, SDValue &Shl2);
 
   bool selectVLOp(SDValue N, SDValue &VL);
 

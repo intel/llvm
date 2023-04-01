@@ -29,9 +29,12 @@ public:
 
   constexpr weak_object_base() noexcept : MObjWeakPtr() {}
   weak_object_base(const SYCLObjT &SYCLObj) noexcept
-      : MObjWeakPtr(sycl::detail::getSyclObjImpl(SYCLObj)) {}
+      : MObjWeakPtr(GetWeakImpl(SYCLObj)) {}
   weak_object_base(const weak_object_base &Other) noexcept = default;
   weak_object_base(weak_object_base &&Other) noexcept = default;
+
+  weak_object_base &operator=(const weak_object_base &Other) noexcept = default;
+  weak_object_base &operator=(weak_object_base &&Other) noexcept = default;
 
   void reset() noexcept { MObjWeakPtr.reset(); }
   void swap(weak_object_base &Other) noexcept {
@@ -40,18 +43,35 @@ public:
 
   bool expired() const noexcept { return MObjWeakPtr.expired(); }
 
+#ifndef __SYCL_DEVICE_ONLY__
   bool owner_before(const SYCLObjT &Other) const noexcept {
-    return MObjWeakPtr.owner_before(sycl::detail::getSyclObjImpl(Other));
+    return MObjWeakPtr.owner_before(GetWeakImpl(Other));
   }
   bool owner_before(const weak_object_base &Other) const noexcept {
     return MObjWeakPtr.owner_before(Other.MObjWeakPtr);
   }
+#else
+  // On device calls to these functions are disallowed, so declare them but
+  // don't define them to avoid compilation failures.
+  bool owner_before(const SYCLObjT &Other) const noexcept;
+  bool owner_before(const weak_object_base &Other) const noexcept;
+#endif // __SYCL_DEVICE_ONLY__
 
 protected:
+#ifndef __SYCL_DEVICE_ONLY__
   // Store a weak variant of the impl in the SYCLObjT.
   typename std::invoke_result_t<
       decltype(sycl::detail::getSyclObjImpl<SYCLObjT>), SYCLObjT>::weak_type
       MObjWeakPtr;
+
+  static decltype(MObjWeakPtr) GetWeakImpl(const SYCLObjT &SYCLObj) {
+    return sycl::detail::getSyclObjImpl(SYCLObj);
+  }
+#else
+  // On device we may not have an impl, so we pad with an unused void pointer.
+  std::weak_ptr<void> MObjWeakPtr;
+  static std::weak_ptr<void> GetWeakImpl(const SYCLObjT &) { return {}; }
+#endif // __SYCL_DEVICE_ONLY__
 
   template <class Obj>
   friend decltype(weak_object_base<Obj>::MObjWeakPtr)

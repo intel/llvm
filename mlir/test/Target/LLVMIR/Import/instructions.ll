@@ -341,9 +341,11 @@ define ptr @alloca(i64 %size) {
   ; CHECK:  llvm.alloca %[[C1]] x f64 {alignment = 8 : i64} : (i32) -> !llvm.ptr
   ; CHECK:  llvm.alloca %[[SIZE]] x i32 {alignment = 8 : i64} : (i64) -> !llvm.ptr
   ; CHECK:  llvm.alloca %[[SIZE]] x i32 {alignment = 4 : i64} : (i64) -> !llvm.ptr<3>
+  ; CHECK:  llvm.alloca inalloca %[[SIZE]] x i32 {alignment = 4 : i64} : (i64) -> !llvm.ptr
   %1 = alloca double
   %2 = alloca i32, i64 %size, align 8
   %3 = alloca i32, i64 %size, addrspace(3)
+  %4 = alloca inalloca i32, i64 %size
   ret ptr %1
 }
 
@@ -368,13 +370,18 @@ define void @load_store(ptr %ptr) {
 
 ; // -----
 
-; CHECK-LABEL: @atomic_load
+; CHECK-LABEL: @atomic_load_store
 ; CHECK-SAME:  %[[PTR:[a-zA-Z0-9]+]]
-define void @atomic_load(ptr %ptr) {
+define void @atomic_load_store(ptr %ptr) {
   ; CHECK:  %[[V1:[0-9]+]] = llvm.load %[[PTR]] atomic acquire {alignment = 8 : i64} : !llvm.ptr -> f64
   ; CHECK:  %[[V2:[0-9]+]] = llvm.load volatile %[[PTR]] atomic syncscope("singlethreaded") acquire {alignment = 16 : i64} : !llvm.ptr -> f64
   %1 = load atomic double, ptr %ptr acquire, align 8
   %2 = load atomic volatile double, ptr %ptr syncscope("singlethreaded") acquire, align 16
+
+  ; CHECK:  llvm.store %[[V1]], %[[PTR]] atomic release {alignment = 8 : i64} : f64, !llvm.ptr
+  ; CHECK:  llvm.store volatile %[[V2]], %[[PTR]] atomic syncscope("singlethreaded") release {alignment = 16 : i64} : f64, !llvm.ptr
+  store atomic double %1, ptr %ptr release, align 8
+  store atomic volatile double %2, ptr %ptr syncscope("singlethreaded") release, align 16
   ret void
 }
 
@@ -516,10 +523,13 @@ define void @gep_dynamic_idx(ptr %ptr, i32 %idx) {
 ; CHECK-SAME:  %[[ARG1:[a-zA-Z0-9]+]]
 define void @freeze(i32 %arg1) {
   ; CHECK:  %[[UNDEF:[0-9]+]] = llvm.mlir.undef : i64
+  ; CHECK:  %[[POISON:[0-9]+]] = llvm.mlir.poison : i16
   ; CHECK:  llvm.freeze %[[ARG1]] : i32
   ; CHECK:  llvm.freeze %[[UNDEF]] : i64
+  ; CHECK:  llvm.freeze %[[POISON]] : i16
   %1 = freeze i32 %arg1
   %2 = freeze i64 undef
+  %3 = freeze i16 poison
   ret void
 }
 

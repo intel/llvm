@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
+#include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/CodeGen/ObjectFilePCHContainerOperations.h"
 #include "clang/Driver/Compilation.h"
@@ -22,6 +23,8 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 #include "clang/Tooling/Tooling.h"
+#include "llvm/Support/Allocator.h"
+#include "llvm/Support/Error.h"
 #include "llvm/TargetParser/Host.h"
 #include <optional>
 
@@ -146,13 +149,14 @@ class DependencyScanningAction : public tooling::ToolAction {
 public:
   DependencyScanningAction(
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
+      DependencyActionController &Controller,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       ScanningOutputFormat Format, bool OptimizeArgs, bool EagerLoadModules,
       bool DisableFree, std::optional<StringRef> ModuleName = std::nullopt)
       : WorkingDirectory(WorkingDirectory), Consumer(Consumer),
-        DepFS(std::move(DepFS)), Format(Format), OptimizeArgs(OptimizeArgs),
-        EagerLoadModules(EagerLoadModules), DisableFree(DisableFree),
-        ModuleName(ModuleName) {}
+        Controller(Controller), DepFS(std::move(DepFS)), Format(Format),
+        OptimizeArgs(OptimizeArgs), EagerLoadModules(EagerLoadModules),
+        DisableFree(DisableFree), ModuleName(ModuleName) {}
 
   bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
                      FileManager *FileMgr,
@@ -250,8 +254,8 @@ public:
     case ScanningOutputFormat::P1689:
     case ScanningOutputFormat::Full:
       MDC = std::make_shared<ModuleDepCollector>(
-          std::move(Opts), ScanInstance, Consumer, OriginalInvocation,
-          OptimizeArgs, EagerLoadModules,
+          std::move(Opts), ScanInstance, Consumer, Controller,
+          OriginalInvocation, OptimizeArgs, EagerLoadModules,
           Format == ScanningOutputFormat::P1689);
       ScanInstance.addDependencyCollector(MDC);
       break;
@@ -300,6 +304,7 @@ private:
 private:
   StringRef WorkingDirectory;
   DependencyConsumer &Consumer;
+  DependencyActionController &Controller;
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
   ScanningOutputFormat Format;
   bool OptimizeArgs;
@@ -342,7 +347,8 @@ DependencyScanningWorker::DependencyScanningWorker(
 
 llvm::Error DependencyScanningWorker::computeDependencies(
     StringRef WorkingDirectory, const std::vector<std::string> &CommandLine,
-    DependencyConsumer &Consumer, std::optional<StringRef> ModuleName) {
+    DependencyConsumer &Consumer, DependencyActionController &Controller,
+    std::optional<StringRef> ModuleName) {
   std::vector<const char *> CLI;
   for (const std::string &Arg : CommandLine)
     CLI.push_back(Arg.c_str());
@@ -355,24 +361,37 @@ llvm::Error DependencyScanningWorker::computeDependencies(
   llvm::raw_string_ostream DiagnosticsOS(DiagnosticOutput);
   TextDiagnosticPrinter DiagPrinter(DiagnosticsOS, DiagOpts.release());
 
-  if (computeDependencies(WorkingDirectory, CommandLine, Consumer, DiagPrinter,
-                          ModuleName))
+  if (computeDependencies(WorkingDirectory, CommandLine, Consumer, Controller,
+                          DiagPrinter, ModuleName))
     return llvm::Error::success();
   return llvm::make_error<llvm::StringError>(DiagnosticsOS.str(),
                                              llvm::inconvertibleErrorCode());
 }
 
 static bool forEachDriverJob(
-    ArrayRef<std::string> Args, DiagnosticsEngine &Diags, FileManager &FM,
+    ArrayRef<std::string> ArgStrs, DiagnosticsEngine &Diags, FileManager &FM,
     llvm::function_ref<bool(const driver::Command &Cmd)> Callback) {
+  SmallVector<const char *, 256> Argv;
+  Argv.reserve(ArgStrs.size());
+  for (const std::string &Arg : ArgStrs)
+    Argv.push_back(Arg.c_str());
+
+  llvm::vfs::FileSystem *FS = &FM.getVirtualFileSystem();
+
   std::unique_ptr<driver::Driver> Driver = std::make_unique<driver::Driver>(
-      Args[0], llvm::sys::getDefaultTargetTriple(), Diags,
-      "clang LLVM compiler", &FM.getVirtualFileSystem());
+      Argv[0], llvm::sys::getDefaultTargetTriple(), Diags,
+      "clang LLVM compiler", FS);
   Driver->setTitle("clang_based_tool");
 
-  std::vector<const char *> Argv;
-  for (const std::string &Arg : Args)
-    Argv.push_back(Arg.c_str());
+  llvm::BumpPtrAllocator Alloc;
+  bool CLMode = driver::IsClangCL(
+      driver::getDriverMode(Argv[0], ArrayRef(Argv).slice(1)));
+
+  if (llvm::Error E = driver::expandResponseFiles(Argv, CLMode, Alloc, FS)) {
+    Diags.Report(diag::err_drv_expand_response_file)
+        << llvm::toString(std::move(E));
+    return false;
+  }
 
   const std::unique_ptr<driver::Compilation> Compilation(
       Driver->BuildCompilation(llvm::ArrayRef(Argv)));
@@ -388,8 +407,8 @@ static bool forEachDriverJob(
 
 bool DependencyScanningWorker::computeDependencies(
     StringRef WorkingDirectory, const std::vector<std::string> &CommandLine,
-    DependencyConsumer &Consumer, DiagnosticConsumer &DC,
-    std::optional<StringRef> ModuleName) {
+    DependencyConsumer &Consumer, DependencyActionController &Controller,
+    DiagnosticConsumer &DC, std::optional<StringRef> ModuleName) {
   // Reset what might have been modified in the previous worker invocation.
   BaseFS->setCurrentWorkingDirectory(WorkingDirectory);
 
@@ -445,9 +464,9 @@ bool DependencyScanningWorker::computeDependencies(
   // in-process; preserve the original value, which is
   // always true for a driver invocation.
   bool DisableFree = true;
-  DependencyScanningAction Action(WorkingDirectory, Consumer, DepFS, Format,
-                                  OptimizeArgs, EagerLoadModules, DisableFree,
-                                  ModuleName);
+  DependencyScanningAction Action(WorkingDirectory, Consumer, Controller, DepFS,
+                                  Format, OptimizeArgs, EagerLoadModules,
+                                  DisableFree, ModuleName);
   bool Success = forEachDriverJob(
       FinalCommandLine, *Diags, *FileMgr, [&](const driver::Command &Cmd) {
         if (StringRef(Cmd.getCreator().getName()) != "clang") {
@@ -485,3 +504,5 @@ bool DependencyScanningWorker::computeDependencies(
         << llvm::join(FinalCommandLine, " ");
   return Success && Action.hasScanned();
 }
+
+DependencyActionController::~DependencyActionController() {}

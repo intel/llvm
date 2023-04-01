@@ -176,7 +176,7 @@ public:
   /// Get the '0' value for the specified bit-width.
   static APInt getZero(unsigned numBits) { return APInt(numBits, 0); }
 
-  /// NOTE: This is soft-deprecated.  Please use `getZero()` instead.
+  LLVM_DEPRECATED("use getZero instead", "getZero")
   static APInt getNullValue(unsigned numBits) { return getZero(numBits); }
 
   /// Return an APInt zero bits wide.
@@ -215,7 +215,7 @@ public:
     return APInt(numBits, WORDTYPE_MAX, true);
   }
 
-  /// NOTE: This is soft-deprecated.  Please use `getAllOnes()` instead.
+  LLVM_DEPRECATED("use getAllOnes instead", "getAllOnes")
   static APInt getAllOnesValue(unsigned numBits) { return getAllOnes(numBits); }
 
   /// Return an APInt with exactly one bit set in the result.
@@ -347,7 +347,7 @@ public:
   ///
   /// \returns true if this APInt only has the specified bit set.
   bool isOneBitSet(unsigned BitNo) const {
-    return (*this)[BitNo] && countPopulation() == 1;
+    return (*this)[BitNo] && popcount() == 1;
   }
 
   /// Determine if all bits are set.  This is true for zero-width values.
@@ -359,7 +359,7 @@ public:
     return countTrailingOnesSlowCase() == BitWidth;
   }
 
-  /// NOTE: This is soft-deprecated.  Please use `isAllOnes()` instead.
+  LLVM_DEPRECATED("use isAllOnes instead", "isAllOnes")
   bool isAllOnesValue() const { return isAllOnes(); }
 
   /// Determine if this value is zero, i.e. all bits are clear.
@@ -369,7 +369,7 @@ public:
     return countLeadingZerosSlowCase() == BitWidth;
   }
 
-  /// NOTE: This is soft-deprecated.  Please use `isZero()` instead.
+  LLVM_DEPRECATED("use isZero instead", "isZero")
   bool isNullValue() const { return isZero(); }
 
   /// Determine if this is a value of 1.
@@ -381,7 +381,7 @@ public:
     return countLeadingZerosSlowCase() == BitWidth - 1;
   }
 
-  /// NOTE: This is soft-deprecated.  Please use `isOne()` instead.
+  LLVM_DEPRECATED("use isOne instead", "isOne")
   bool isOneValue() const { return isOne(); }
 
   /// Determine if this is the largest unsigned value.
@@ -443,8 +443,8 @@ public:
     if (isNonNegative())
       return false;
     // NegatedPowerOf2 - shifted mask in the top bits.
-    unsigned LO = countLeadingOnes();
-    unsigned TZ = countTrailingZeros();
+    unsigned LO = countl_one();
+    unsigned TZ = countr_zero();
     return (LO + TZ) == BitWidth;
   }
 
@@ -500,7 +500,7 @@ public:
       return isShiftedMask_64(U.VAL);
     unsigned Ones = countPopulationSlowCase();
     unsigned LeadZ = countLeadingZerosSlowCase();
-    return (Ones + LeadZ + countTrailingZeros()) == BitWidth;
+    return (Ones + LeadZ + countr_zero()) == BitWidth;
   }
 
   /// Return true if this APInt value contains a non-empty sequence of ones with
@@ -1460,7 +1460,7 @@ public:
   /// This function returns the number of active bits which is defined as the
   /// bit width minus the number of leading zeros. This is used in several
   /// computations to see how "wide" the value is.
-  unsigned getActiveBits() const { return BitWidth - countLeadingZeros(); }
+  unsigned getActiveBits() const { return BitWidth - countl_zero(); }
 
   /// Compute the number of active words in the value of this APInt.
   ///
@@ -1483,7 +1483,7 @@ public:
     return BitWidth - getNumSignBits() + 1;
   }
 
-  /// NOTE: This is soft-deprecated.  Please use `getSignificantBits()` instead.
+  LLVM_DEPRECATED("use getSignificantBits instead", "getSignificantBits")
   unsigned getMinSignedBits() const { return getSignificantBits(); }
 
   /// Get zero extended value
@@ -1579,12 +1579,12 @@ public:
   /// Computes the number of leading bits of this APInt that are equal to its
   /// sign bit.
   unsigned getNumSignBits() const {
-    return isNegative() ? countLeadingOnes() : countLeadingZeros();
+    return isNegative() ? countl_one() : countl_zero();
   }
 
   /// Count the number of trailing zero bits.
   ///
-  /// This function is an APInt version of the countr_zero. It counts the number
+  /// This function is an APInt version of std::countr_zero. It counts the number
   /// of zeros from the least significant bit to the first set bit.
   ///
   /// \returns BitWidth if the value is zero, otherwise returns the number of
@@ -1626,6 +1626,7 @@ public:
     return countPopulationSlowCase();
   }
 
+  LLVM_DEPRECATED("use popcount instead", "popcount")
   unsigned countPopulation() const { return popcount(); }
 
   /// @}

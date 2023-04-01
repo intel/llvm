@@ -11,7 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "LLVMInlining.h"
 #include "TypeDetail.h"
+#include "mlir/Dialect/LLVMIR/LLVMAttrs.h"
+#include "mlir/Dialect/LLVMIR/LLVMInterfaces.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -20,7 +23,6 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/Transforms/InliningUtils.h"
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -45,8 +47,6 @@ using mlir::LLVM::linkage::getMaxEnumValForLinkage;
 #include "mlir/Dialect/LLVMIR/LLVMOpsDialect.cpp.inc"
 
 static constexpr const char kElemTypeAttrName[] = "elem_type";
-
-#include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.cpp.inc"
 
 static auto processFMFAttr(ArrayRef<NamedAttribute> attrs) {
   SmallVector<NamedAttribute, 8> filteredAttrs(
@@ -186,21 +186,31 @@ void AllocaOp::print(OpAsmPrinter &p) {
   auto funcTy =
       FunctionType::get(getContext(), {getArraySize().getType()}, {getType()});
 
+  if (getInalloca())
+    p << " inalloca";
+
   p << ' ' << getArraySize() << " x " << elemTy;
   if (getAlignment() && *getAlignment() != 0)
-    p.printOptionalAttrDict((*this)->getAttrs(), {kElemTypeAttrName});
-  else
     p.printOptionalAttrDict((*this)->getAttrs(),
-                            {"alignment", kElemTypeAttrName});
+                            {kElemTypeAttrName, getInallocaAttrName()});
+  else
+    p.printOptionalAttrDict(
+        (*this)->getAttrs(),
+        {getAlignmentAttrName(), kElemTypeAttrName, getInallocaAttrName()});
   p << " : " << funcTy;
 }
 
-// <operation> ::= `llvm.alloca` ssa-use `x` type attribute-dict?
-//                 `:` type `,` type
+// <operation> ::= `llvm.alloca` `inalloca`? ssa-use `x` type
+//                  attribute-dict? `:` type `,` type
 ParseResult AllocaOp::parse(OpAsmParser &parser, OperationState &result) {
   OpAsmParser::UnresolvedOperand arraySize;
   Type type, elemType;
   SMLoc trailingTypeLoc;
+
+  if (succeeded(parser.parseOptionalKeyword("inalloca")))
+    result.addAttribute(getInallocaAttrName(result.name),
+                        UnitAttr::get(parser.getContext()));
+
   if (parser.parseOperand(arraySize) || parser.parseKeyword("x") ||
       parser.parseType(elemType) ||
       parser.parseOptionalAttrDict(result.attributes) || parser.parseColon() ||
@@ -214,7 +224,7 @@ ParseResult AllocaOp::parse(OpAsmParser &parser, OperationState &result) {
     if (!alignmentInt)
       return parser.emitError(parser.getNameLoc(),
                               "expected integer alignment");
-    if (alignmentInt.getValue().isNullValue())
+    if (alignmentInt.getValue().isZero())
       result.attributes.erase("alignment");
   }
 
@@ -715,95 +725,6 @@ Type LLVM::GEPOp::getSourceElementType() {
 // LoadOp
 //===----------------------------------------------------------------------===//
 
-/// Verifies the given array attribute contains symbol references and checks the
-/// referenced symbol types using the provided verification function.
-LogicalResult verifyMemOpSymbolRefs(
-    Operation *op, StringRef name, ArrayAttr symbolRefs,
-    llvm::function_ref<LogicalResult(Operation *, SymbolRefAttr)>
-        verifySymbolType) {
-  assert(symbolRefs && "expected a non-null attribute");
-
-  // Verify that the attribute is a symbol ref array attribute,
-  // because this constraint is not verified for all attribute
-  // names processed here (e.g. 'tbaa'). This verification
-  // is redundant in some cases.
-  if (!llvm::all_of(symbolRefs, [](Attribute attr) {
-        return attr && attr.isa<SymbolRefAttr>();
-      }))
-    return op->emitOpError("attribute '")
-           << name
-           << "' failed to satisfy constraint: symbol ref array attribute";
-
-  for (SymbolRefAttr symbolRef : symbolRefs.getAsRange<SymbolRefAttr>()) {
-    StringAttr metadataName = symbolRef.getRootReference();
-    StringAttr symbolName = symbolRef.getLeafReference();
-    // We want @metadata::@symbol, not just @symbol
-    if (metadataName == symbolName) {
-      return op->emitOpError() << "expected '" << symbolRef
-                               << "' to specify a fully qualified reference";
-    }
-    auto metadataOp = SymbolTable::lookupNearestSymbolFrom<LLVM::MetadataOp>(
-        op->getParentOp(), metadataName);
-    if (!metadataOp)
-      return op->emitOpError()
-             << "expected '" << symbolRef << "' to reference a metadata op";
-    Operation *symbolOp =
-        SymbolTable::lookupNearestSymbolFrom(metadataOp, symbolName);
-    if (!symbolOp)
-      return op->emitOpError()
-             << "expected '" << symbolRef << "' to be a valid reference";
-    if (failed(verifySymbolType(symbolOp, symbolRef))) {
-      return failure();
-    }
-  }
-
-  return success();
-}
-
-/// Verifies the given array attribute contains symbol references that point to
-/// metadata operations of the given type.
-template <typename OpTy>
-static LogicalResult
-verifyMemOpSymbolRefsPointTo(Operation *op, StringRef name,
-                             std::optional<ArrayAttr> symbolRefs) {
-  if (!symbolRefs)
-    return success();
-
-  auto verifySymbolType = [op](Operation *symbolOp,
-                               SymbolRefAttr symbolRef) -> LogicalResult {
-    if (!isa<OpTy>(symbolOp)) {
-      return op->emitOpError()
-             << "expected '" << symbolRef << "' to resolve to a "
-             << OpTy::getOperationName();
-    }
-    return success();
-  };
-  return verifyMemOpSymbolRefs(op, name, *symbolRefs, verifySymbolType);
-}
-
-/// Verifies the types of the metadata operations referenced by aliasing and
-/// access group metadata.
-template <typename OpTy>
-LogicalResult verifyMemOpMetadata(OpTy memOp) {
-  if (failed(verifyMemOpSymbolRefsPointTo<LLVM::AccessGroupMetadataOp>(
-          memOp, memOp.getAccessGroupsAttrName(), memOp.getAccessGroups())))
-    return failure();
-
-  if (failed(verifyMemOpSymbolRefsPointTo<LLVM::AliasScopeMetadataOp>(
-          memOp, memOp.getAliasScopesAttrName(), memOp.getAliasScopes())))
-    return failure();
-
-  if (failed(verifyMemOpSymbolRefsPointTo<LLVM::AliasScopeMetadataOp>(
-          memOp, memOp.getNoaliasScopesAttrName(), memOp.getNoaliasScopes())))
-    return failure();
-
-  if (failed(verifyMemOpSymbolRefsPointTo<LLVM::TBAATagOp>(
-          memOp, memOp.getTbaaAttrName(), memOp.getTbaa())))
-    return failure();
-
-  return success();
-}
-
 /// Returns true if the given type is supported by atomic operations. All
 /// integer and float types with limited bit width are supported. Additionally,
 /// depending on the operation pointers may be supported as well.
@@ -826,22 +747,32 @@ static bool isTypeCompatibleWithAtomicOp(Type type, bool isPointerTypeAllowed) {
          *bitWidth == 64;
 }
 
-LogicalResult LoadOp::verify() {
-  if (getOrdering() != AtomicOrdering::not_atomic) {
-    if (!isTypeCompatibleWithAtomicOp(getResult().getType(),
+/// Verifies the attributes and the type of atomic memory access operations.
+template <typename OpTy>
+LogicalResult verifyAtomicMemOp(OpTy memOp, Type valueType,
+                                ArrayRef<AtomicOrdering> unsupportedOrderings) {
+  if (memOp.getOrdering() != AtomicOrdering::not_atomic) {
+    if (!isTypeCompatibleWithAtomicOp(valueType,
                                       /*isPointerTypeAllowed=*/true))
-      return emitOpError("unsupported type ")
-             << getResult().getType() << " for atomic access";
-    if (getOrdering() == AtomicOrdering::release ||
-        getOrdering() == AtomicOrdering::acq_rel)
-      return emitOpError("unsupported ordering '")
-             << stringifyAtomicOrdering(getOrdering()) << "'";
-    if (!getAlignment())
-      return emitOpError("expected alignment for atomic access");
-  } else if (getSyncscope()) {
-    return emitOpError("expected syncscope to be null for non-atomic access");
+      return memOp.emitOpError("unsupported type ")
+             << valueType << " for atomic access";
+    if (llvm::is_contained(unsupportedOrderings, memOp.getOrdering()))
+      return memOp.emitOpError("unsupported ordering '")
+             << stringifyAtomicOrdering(memOp.getOrdering()) << "'";
+    if (!memOp.getAlignment())
+      return memOp.emitOpError("expected alignment for atomic access");
+    return success();
   }
-  return verifyMemOpMetadata(*this);
+  if (memOp.getSyncscope())
+    return memOp.emitOpError(
+        "expected syncscope to be null for non-atomic access");
+  return success();
+}
+
+LogicalResult LoadOp::verify() {
+  Type valueType = getResult().getType();
+  return verifyAtomicMemOp(*this, valueType,
+                           {AtomicOrdering::release, AtomicOrdering::acq_rel});
 }
 
 void LoadOp::build(OpBuilder &builder, OperationState &state, Value addr,
@@ -857,12 +788,12 @@ void LoadOp::build(OpBuilder &builder, OperationState &state, Type type,
                    bool isNonTemporal, AtomicOrdering ordering,
                    StringRef syncscope) {
   build(builder, state, type, addr,
-        /*access_groups=*/nullptr,
-        /*alias_scopes=*/nullptr, /*noalias_scopes=*/nullptr,
-        /*tbaa=*/nullptr,
         alignment ? builder.getI64IntegerAttr(alignment) : nullptr, isVolatile,
         isNonTemporal, ordering,
-        syncscope.empty() ? nullptr : builder.getStringAttr(syncscope));
+        syncscope.empty() ? nullptr : builder.getStringAttr(syncscope),
+        /*access_groups=*/nullptr,
+        /*alias_scopes=*/nullptr, /*noalias_scopes=*/nullptr,
+        /*tbaa=*/nullptr);
 }
 
 // Extract the pointee type from the LLVM pointer type wrapped in MLIR. Return
@@ -914,15 +845,22 @@ static void printLoadType(OpAsmPrinter &printer, Operation *op, Type type,
 // StoreOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult StoreOp::verify() { return verifyMemOpMetadata(*this); }
+LogicalResult StoreOp::verify() {
+  Type valueType = getValue().getType();
+  return verifyAtomicMemOp(*this, valueType,
+                           {AtomicOrdering::acquire, AtomicOrdering::acq_rel});
+}
 
 void StoreOp::build(OpBuilder &builder, OperationState &state, Value value,
                     Value addr, unsigned alignment, bool isVolatile,
-                    bool isNonTemporal) {
-  build(builder, state, value, addr, /*access_groups=*/nullptr,
-        /*alias_scopes=*/nullptr, /*noalias_scopes=*/nullptr, /*tbaa=*/nullptr,
+                    bool isNonTemporal, AtomicOrdering ordering,
+                    StringRef syncscope) {
+  build(builder, state, value, addr,
         alignment ? builder.getI64IntegerAttr(alignment) : nullptr, isVolatile,
-        isNonTemporal);
+        isNonTemporal, ordering,
+        syncscope.empty() ? nullptr : builder.getStringAttr(syncscope),
+        /*access_groups=*/nullptr,
+        /*alias_scopes=*/nullptr, /*noalias_scopes=*/nullptr, /*tbaa=*/nullptr);
 }
 
 /// Parses the StoreOp type either using the typed or opaque pointer format.
@@ -1686,13 +1624,16 @@ void GlobalOp::build(OpBuilder &builder, OperationState &result, Type type,
 
 void GlobalOp::print(OpAsmPrinter &p) {
   p << ' ' << stringifyLinkage(getLinkage()) << ' ';
+  StringRef visibility = stringifyVisibility(getVisibility_());
+  if (!visibility.empty())
+    p << visibility << ' ';
+  if (getThreadLocal_())
+    p << "thread_local ";
   if (auto unnamedAddr = getUnnamedAddr()) {
     StringRef str = stringifyUnnamedAddr(*unnamedAddr);
     if (!str.empty())
       p << str << ' ';
   }
-  if (getThreadLocal_())
-    p << "thread_local ";
   if (getConstant())
     p << "constant ";
   p.printSymbolName(getSymName());
@@ -1703,11 +1644,12 @@ void GlobalOp::print(OpAsmPrinter &p) {
   // Note that the alignment attribute is printed using the
   // default syntax here, even though it is an inherent attribute
   // (as defined in https://mlir.llvm.org/docs/LangRef/#attributes)
-  p.printOptionalAttrDict(
-      (*this)->getAttrs(),
-      {SymbolTable::getSymbolAttrName(), getGlobalTypeAttrName(),
-       getConstantAttrName(), getValueAttrName(), getLinkageAttrName(),
-       getUnnamedAddrAttrName(), getThreadLocal_AttrName()});
+  p.printOptionalAttrDict((*this)->getAttrs(),
+                          {SymbolTable::getSymbolAttrName(),
+                           getGlobalTypeAttrName(), getConstantAttrName(),
+                           getValueAttrName(), getLinkageAttrName(),
+                           getUnnamedAddrAttrName(), getThreadLocal_AttrName(),
+                           getVisibility_AttrName()});
 
   // Print the trailing type unless it's a string global.
   if (getValueOrNull().dyn_cast_or_null<StringAttr>())
@@ -1747,6 +1689,7 @@ struct EnumTraits {};
 REGISTER_ENUM_TYPE(Linkage);
 REGISTER_ENUM_TYPE(UnnamedAddr);
 REGISTER_ENUM_TYPE(CConv);
+REGISTER_ENUM_TYPE(Visibility);
 } // namespace
 
 /// Parse an enum from the keyword, or default to the provided default value.
@@ -1780,15 +1723,21 @@ ParseResult GlobalOp::parse(OpAsmParser &parser, OperationState &result) {
                           ctx, parseOptionalLLVMKeyword<Linkage>(
                                    parser, result, LLVM::Linkage::External)));
 
-  if (succeeded(parser.parseOptionalKeyword("thread_local")))
-    result.addAttribute(getThreadLocal_AttrName(result.name),
-                        parser.getBuilder().getUnitAttr());
+  // Parse optional visibility, default to Default.
+  result.addAttribute(getVisibility_AttrName(result.name),
+                      parser.getBuilder().getI64IntegerAttr(
+                          parseOptionalLLVMKeyword<LLVM::Visibility, int64_t>(
+                              parser, result, LLVM::Visibility::Default)));
 
   // Parse optional UnnamedAddr, default to None.
   result.addAttribute(getUnnamedAddrAttrName(result.name),
                       parser.getBuilder().getI64IntegerAttr(
                           parseOptionalLLVMKeyword<UnnamedAddr, int64_t>(
                               parser, result, LLVM::UnnamedAddr::None)));
+
+  if (succeeded(parser.parseOptionalKeyword("thread_local")))
+    result.addAttribute(getThreadLocal_AttrName(result.name),
+                        parser.getBuilder().getUnitAttr());
 
   if (succeeded(parser.parseOptionalKeyword("constant")))
     result.addAttribute(getConstantAttrName(result.name),
@@ -1842,7 +1791,7 @@ ParseResult GlobalOp::parse(OpAsmParser &parser, OperationState &result) {
 
 static bool isZeroAttribute(Attribute value) {
   if (auto intValue = value.dyn_cast<IntegerAttr>())
-    return intValue.getValue().isNullValue();
+    return intValue.getValue().isZero();
   if (auto fpValue = value.dyn_cast<FloatAttr>())
     return fpValue.getValue().isZero();
   if (auto splatValue = value.dyn_cast<SplatElementsAttr>())
@@ -2110,6 +2059,12 @@ ParseResult LLVMFuncOp::parse(OpAsmParser &parser, OperationState &result) {
                        parseOptionalLLVMKeyword<Linkage>(
                            parser, result, LLVM::Linkage::External)));
 
+  // Parse optional visibility, default to Default.
+  result.addAttribute(getVisibility_AttrName(result.name),
+                      parser.getBuilder().getI64IntegerAttr(
+                          parseOptionalLLVMKeyword<LLVM::Visibility, int64_t>(
+                              parser, result, LLVM::Visibility::Default)));
+
   // Default to C Calling Convention if no keyword is provided.
   result.addAttribute(
       getCConvAttrName(result.name),
@@ -2160,6 +2115,9 @@ void LLVMFuncOp::print(OpAsmPrinter &p) {
   p << ' ';
   if (getLinkage() != LLVM::Linkage::External)
     p << stringifyLinkage(getLinkage()) << ' ';
+  StringRef visibility = stringifyVisibility(getVisibility_());
+  if (!visibility.empty())
+    p << visibility << ' ';
   if (getCConv() != LLVM::CConv::C)
     p << stringifyCConv(getCConv()) << ' ';
 
@@ -2181,7 +2139,7 @@ void LLVMFuncOp::print(OpAsmPrinter &p) {
   function_interface_impl::printFunctionAttributes(
       p, *this,
       {getFunctionTypeAttrName(), getArgAttrsAttrName(), getResAttrsAttrName(),
-       getLinkageAttrName(), getCConvAttrName()});
+       getLinkageAttrName(), getCConvAttrName(), getVisibility_AttrName()});
 
   // Print the body if this is not an external function.
   Region &body = getBody();
@@ -2302,7 +2260,9 @@ void AtomicRMWOp::build(OpBuilder &builder, OperationState &state,
                         unsigned alignment, bool isVolatile) {
   build(builder, state, val.getType(), binOp, ptr, val, ordering,
         !syncscope.empty() ? builder.getStringAttr(syncscope) : nullptr,
-        alignment ? builder.getI64IntegerAttr(alignment) : nullptr, isVolatile);
+        alignment ? builder.getI64IntegerAttr(alignment) : nullptr, isVolatile,
+        /*access_groups=*/nullptr,
+        /*alias_scopes=*/nullptr, /*noalias_scopes=*/nullptr, /*tbaa=*/nullptr);
 }
 
 LogicalResult AtomicRMWOp::verify() {
@@ -2354,7 +2314,8 @@ void AtomicCmpXchgOp::build(OpBuilder &builder, OperationState &state,
         successOrdering, failureOrdering,
         !syncscope.empty() ? builder.getStringAttr(syncscope) : nullptr,
         alignment ? builder.getI64IntegerAttr(alignment) : nullptr, isWeak,
-        isVolatile);
+        isVolatile, /*access_groups=*/nullptr,
+        /*alias_scopes=*/nullptr, /*noalias_scopes=*/nullptr, /*tbaa=*/nullptr);
 }
 
 LogicalResult AtomicCmpXchgOp::verify() {
@@ -2478,7 +2439,7 @@ OpFoldResult LLVM::GEPOp::fold(FoldAdaptor adaptor) {
   // Canonicalize any dynamic indices of constant value to constant indices.
   bool changed = false;
   SmallVector<GEPArg> gepArgs;
-  for (auto &iter : llvm::enumerate(indices)) {
+  for (auto iter : llvm::enumerate(indices)) {
     auto integer = iter.value().dyn_cast_or_null<IntegerAttr>();
     // Constant indices can only be int32_t, so if integer does not fit we
     // are forced to keep it dynamic, despite being a constant.
@@ -2817,190 +2778,6 @@ struct LLVMOpAsmDialectInterface : public OpAsmDialectInterface {
 } // namespace
 
 //===----------------------------------------------------------------------===//
-// DialectInlinerInterface
-//===----------------------------------------------------------------------===//
-
-/// Check whether the given alloca is an input to a lifetime intrinsic,
-/// optionally passing through one or more casts on the way. This is not
-/// transitive through block arguments.
-static bool hasLifetimeMarkers(LLVM::AllocaOp allocaOp) {
-  SmallVector<Operation *> stack(allocaOp->getUsers().begin(),
-                                 allocaOp->getUsers().end());
-  while (!stack.empty()) {
-    Operation *op = stack.pop_back_val();
-    if (isa<LLVM::LifetimeStartOp, LLVM::LifetimeEndOp>(op))
-      return true;
-    if (isa<LLVM::BitcastOp>(op))
-      stack.append(op->getUsers().begin(), op->getUsers().end());
-  }
-  return false;
-}
-
-/// Move all alloca operations with a constant size in the former entry block of
-/// the newly inlined callee into the entry block of the caller, and insert
-/// lifetime intrinsics that limit their scope to the inlined blocks.
-static void moveConstantAllocasToEntryBlock(
-    iterator_range<Region::iterator> inlinedBlocks) {
-  Block *calleeEntryBlock = &(*inlinedBlocks.begin());
-  Block *callerEntryBlock = &(*calleeEntryBlock->getParent()->begin());
-  if (calleeEntryBlock == callerEntryBlock)
-    // Nothing to do.
-    return;
-  SmallVector<std::tuple<LLVM::AllocaOp, IntegerAttr, bool>> allocasToMove;
-  bool shouldInsertLifetimes = false;
-  // Conservatively only move alloca operations that are part of the entry block
-  // and do not inspect nested regions, since they may execute conditionally or
-  // have other unknown semantics.
-  for (auto allocaOp : calleeEntryBlock->getOps<LLVM::AllocaOp>()) {
-    IntegerAttr arraySize;
-    if (!matchPattern(allocaOp.getArraySize(), m_Constant(&arraySize)))
-      continue;
-    bool shouldInsertLifetime =
-        arraySize.getValue() != 0 && !hasLifetimeMarkers(allocaOp);
-    shouldInsertLifetimes |= shouldInsertLifetime;
-    allocasToMove.emplace_back(allocaOp, arraySize, shouldInsertLifetime);
-  }
-  if (allocasToMove.empty())
-    return;
-  OpBuilder builder(callerEntryBlock, callerEntryBlock->begin());
-  for (auto &[allocaOp, arraySize, shouldInsertLifetime] : allocasToMove) {
-    auto newConstant = builder.create<LLVM::ConstantOp>(
-        allocaOp->getLoc(), allocaOp.getArraySize().getType(), arraySize);
-    // Insert a lifetime start intrinsic where the alloca was before moving it.
-    if (shouldInsertLifetime) {
-      OpBuilder::InsertionGuard insertionGuard(builder);
-      builder.setInsertionPoint(allocaOp);
-      builder.create<LLVM::LifetimeStartOp>(
-          allocaOp.getLoc(), arraySize.getValue().getLimitedValue(),
-          allocaOp.getResult());
-    }
-    allocaOp->moveAfter(newConstant);
-    allocaOp.getArraySizeMutable().assign(newConstant.getResult());
-  }
-  if (!shouldInsertLifetimes)
-    return;
-  // Insert a lifetime end intrinsic before each return in the callee function.
-  for (Block &block : inlinedBlocks) {
-    if (!block.getTerminator()->hasTrait<OpTrait::ReturnLike>())
-      continue;
-    builder.setInsertionPoint(block.getTerminator());
-    for (auto &[allocaOp, arraySize, shouldInsertLifetime] : allocasToMove) {
-      if (!shouldInsertLifetime)
-        continue;
-      builder.create<LLVM::LifetimeEndOp>(
-          allocaOp.getLoc(), arraySize.getValue().getLimitedValue(),
-          allocaOp.getResult());
-    }
-  }
-}
-
-namespace {
-struct LLVMInlinerInterface : public DialectInlinerInterface {
-  using DialectInlinerInterface::DialectInlinerInterface;
-
-  bool isLegalToInline(Operation *call, Operation *callable,
-                       bool wouldBeCloned) const final {
-    if (!wouldBeCloned)
-      return false;
-    auto callOp = dyn_cast<LLVM::CallOp>(call);
-    auto funcOp = dyn_cast<LLVM::LLVMFuncOp>(callable);
-    if (!callOp || !funcOp)
-      return false;
-    // TODO: Handle argument and result attributes;
-    if (funcOp.getArgAttrs() || funcOp.getResAttrs())
-      return false;
-    // TODO: Handle exceptions.
-    if (funcOp.getPersonality())
-      return false;
-    if (funcOp.getPassthrough()) {
-      // TODO: Used attributes should not be passthrough.
-      DenseSet<StringAttr> disallowed(
-          {StringAttr::get(funcOp->getContext(), "noduplicate"),
-           StringAttr::get(funcOp->getContext(), "noinline"),
-           StringAttr::get(funcOp->getContext(), "optnone"),
-           StringAttr::get(funcOp->getContext(), "presplitcoroutine"),
-           StringAttr::get(funcOp->getContext(), "returns_twice"),
-           StringAttr::get(funcOp->getContext(), "strictfp")});
-      if (llvm::any_of(*funcOp.getPassthrough(), [&](Attribute attr) {
-            auto stringAttr = dyn_cast<StringAttr>(attr);
-            if (!stringAttr)
-              return false;
-            return disallowed.contains(stringAttr);
-          }))
-        return false;
-    }
-    return true;
-  }
-
-  bool isLegalToInline(Region *, Region *, bool, IRMapping &) const final {
-    return true;
-  }
-
-  /// Conservative allowlist of operations supported so far.
-  bool isLegalToInline(Operation *op, Region *, bool, IRMapping &) const final {
-    if (isPure(op))
-      return true;
-    return llvm::TypeSwitch<Operation *, bool>(op)
-        .Case<LLVM::LoadOp, LLVM::StoreOp>([&](auto memOp) {
-          // Some attributes on load and store operations require handling
-          // during inlining. Since this is not yet implemented, refuse to
-          // inline memory operations that have any of these attributes.
-          if (memOp.getAccessGroups())
-            return false;
-          if (memOp.getAliasScopes())
-            return false;
-          if (memOp.getNoaliasScopes())
-            return false;
-          return true;
-        })
-        .Case<LLVM::CallOp, LLVM::AllocaOp, LLVM::LifetimeStartOp,
-              LLVM::LifetimeEndOp>([](auto) { return true; })
-        .Default([](auto) { return false; });
-  }
-
-  /// Handle the given inlined return by replacing it with a branch. This
-  /// overload is called when the inlined region has more than one block.
-  void handleTerminator(Operation *op, Block *newDest) const final {
-    // Only return needs to be handled here.
-    auto returnOp = dyn_cast<LLVM::ReturnOp>(op);
-    if (!returnOp)
-      return;
-
-    // Replace the return with a branch to the dest.
-    OpBuilder builder(op);
-    builder.create<LLVM::BrOp>(op->getLoc(), returnOp.getOperands(), newDest);
-    op->erase();
-  }
-
-  /// Handle the given inlined return by replacing the uses of the call with the
-  /// operands of the return. This overload is called when the inlined region
-  /// only contains one block.
-  void handleTerminator(Operation *op,
-                        ArrayRef<Value> valuesToRepl) const final {
-    // Return will be the only terminator present.
-    auto returnOp = cast<LLVM::ReturnOp>(op);
-
-    // Replace the values directly with the return operands.
-    assert(returnOp.getNumOperands() == valuesToRepl.size());
-    for (const auto &[dst, src] :
-         llvm::zip(valuesToRepl, returnOp.getOperands()))
-      dst.replaceAllUsesWith(src);
-  }
-
-  void processInlinedCallBlocks(
-      Operation *call,
-      iterator_range<Region::iterator> inlinedBlocks) const override {
-    // Alloca operations with a constant size that were in the entry block of
-    // the callee should be moved to the entry block of the caller, as this will
-    // fold into prologue/epilogue code during code generation.
-    // This is not implemented as a standalone pattern because we need to know
-    // which newly inlined block was previously the entry block of the callee.
-    moveConstantAllocasToEntryBlock(inlinedBlocks);
-  }
-};
-} // end anonymous namespace
-
-//===----------------------------------------------------------------------===//
 // LLVMDialect initialization, type parsing, and registration.
 //===----------------------------------------------------------------------===//
 
@@ -3029,9 +2806,9 @@ void LLVMDialect::initialize() {
   // Support unknown operations because not all LLVM operations are registered.
   allowUnknownOperations();
   // clang-format off
-  addInterfaces<LLVMOpAsmDialectInterface,
-                LLVMInlinerInterface>();
+  addInterfaces<LLVMOpAsmDialectInterface>();
   // clang-format on
+  detail::addLLVMInlinerInterface(this);
 }
 
 #define GET_OP_CLASSES
@@ -3240,7 +3017,8 @@ LogicalResult LLVMDialect::verifyRegionResultAttribute(Operation *op,
 
 Value mlir::LLVM::createGlobalString(Location loc, OpBuilder &builder,
                                      StringRef name, StringRef value,
-                                     LLVM::Linkage linkage) {
+                                     LLVM::Linkage linkage,
+                                     bool useOpaquePointers) {
   assert(builder.getInsertionBlock() &&
          builder.getInsertionBlock()->getParentOp() &&
          "expected builder to point to a block constrained in an op");
@@ -3256,11 +3034,20 @@ Value mlir::LLVM::createGlobalString(Location loc, OpBuilder &builder,
       loc, type, /*isConstant=*/true, linkage, name,
       builder.getStringAttr(value), /*alignment=*/0);
 
+  LLVMPointerType resultType;
+  LLVMPointerType charPtr;
+  if (!useOpaquePointers) {
+    resultType = LLVMPointerType::get(type);
+    charPtr = LLVMPointerType::get(IntegerType::get(ctx, 8));
+  } else {
+    resultType = charPtr = LLVMPointerType::get(ctx);
+  }
+
   // Get the pointer to the first character in the global string.
-  Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, global);
-  return builder.create<LLVM::GEPOp>(
-      loc, LLVM::LLVMPointerType::get(IntegerType::get(ctx, 8)), globalPtr,
-      ArrayRef<GEPArg>{0, 0});
+  Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, resultType,
+                                                      global.getSymNameAttr());
+  return builder.create<LLVM::GEPOp>(loc, charPtr, type, globalPtr,
+                                     ArrayRef<GEPArg>{0, 0});
 }
 
 bool mlir::LLVM::satisfiesLLVMModule(Operation *op) {

@@ -402,7 +402,8 @@ public:
   }
 
   bool native_specialization_constant() const noexcept {
-    return std::all_of(MDeviceImages.begin(), MDeviceImages.end(),
+    return contains_specialization_constants() &&
+           std::all_of(MDeviceImages.begin(), MDeviceImages.end(),
                        [](const device_image_plain &DeviceImage) {
                          return getSyclObjImpl(DeviceImage)
                              ->all_specialization_constant_native();

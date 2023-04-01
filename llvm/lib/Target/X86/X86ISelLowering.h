@@ -1046,6 +1046,8 @@ namespace llvm {
 
     SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
+    bool preferABDSToABSWithNSW(EVT VT) const override;
+
     /// Return true if the target has native support for
     /// the specified value type and it is 'desirable' to use the type for the
     /// given node type. e.g. On x86 i16 is legal, but undesirable since i16
@@ -1350,10 +1352,10 @@ namespace llvm {
     bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
                                     EVT VT) const override;
 
-    /// Return true if it's profitable to narrow
-    /// operations of type VT1 to VT2. e.g. on x86, it's profitable to narrow
-    /// from i32 to i8 but not from i32 to i16.
-    bool isNarrowingProfitable(EVT VT1, EVT VT2) const override;
+    /// Return true if it's profitable to narrow operations of type SrcVT to
+    /// DestVT. e.g. on x86, it's profitable to narrow from i32 to i8 but not
+    /// from i32 to i16.
+    bool isNarrowingProfitable(EVT SrcVT, EVT DestVT) const override;
 
     bool shouldFoldSelectWithIdentityConstant(unsigned BinOpcode,
                                               EVT VT) const override;

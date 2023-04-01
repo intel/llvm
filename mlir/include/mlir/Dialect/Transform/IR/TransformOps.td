@@ -9,10 +9,12 @@
 #ifndef MLIR_DIALECT_TRANSFORM_IR_TRANSFORMOPS
 #define MLIR_DIALECT_TRANSFORM_IR_TRANSFORMOPS
 
+include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Dialect/Transform/IR/TransformAttrs.td"
@@ -210,6 +212,23 @@ def GetConsumersOfResult : TransformDialectOp<"get_consumers_of_result",
                        "functional-type(operands, results)";
 }
 
+def GetDefiningOp : TransformDialectOp<"get_defining_op",
+    [DeclareOpInterfaceMethods<TransformOpInterface>,
+     NavigationTransformOpTrait, MemoryEffectsOpInterface]> {
+  let summary = "Get handle to the defining op of a value";
+  let description = [{
+    The handle defined by this Transform op corresponds to the defining op of
+    the targeted value.
+
+    This transform fails silently if the targeted value is a block argument.
+  }];
+
+  let arguments = (ins TransformValueHandleTypeInterface:$target);
+  let results = (outs TransformHandleTypeInterface:$result);
+  let assemblyFormat = "$target attr-dict `:` "
+                       "functional-type(operands, results)";
+}
+
 def GetProducerOfOperand : TransformDialectOp<"get_producer_of_operand",
     [DeclareOpInterfaceMethods<TransformOpInterface>,
      NavigationTransformOpTrait, MemoryEffectsOpInterface]> {
@@ -249,6 +268,51 @@ def GetResultOp : TransformDialectOp<"get_result",
                        "functional-type(operands, results)";
 }
 
+def IncludeOp : TransformDialectOp<"include",
+    [CallOpInterface,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+     DeclareOpInterfaceMethods<SymbolUserOpInterface>,
+     DeclareOpInterfaceMethods<TransformOpInterface>]> {
+  let summary = "Includes a named transform sequence";
+  let description = [{
+    The application of this transform operation is equivalent to applying the
+    operations contained in the named transform sequence with operands being
+    remapped to block arguments. The behavior of the operation when a
+    transformation in the included named sequence produces a silenceable error
+    is controlled by the `failure_propagation_mode` attribute. When set to
+    `propagate`, the failure of any nested transformation in the sequence
+    implies immediate failure of the entire sequence with a silenceable error,
+    and no further transformation is attempted. When set to `suppress`,
+    silenceable errors in nested operations are ignored and further
+    transformations are applied. Beware that even silenceable errors may leave
+    the payload IR in a state unsuitable for further transformations. It is the
+    responsibility of the user to ensure the following transformations are
+    robust enough when errors are suppressed. Definite errors are propagated
+    immediately regardless of the mode. The objects associated with the results
+    of this operation are the same as those associated with the operands of the
+    `transform.yield` in the referenced named sequence.
+  }];
+
+  let arguments = (ins SymbolRefAttr:$target,
+                       FailurePropagationMode:$failure_propagation_mode,
+                       Variadic<Transform_AnyHandleOrParamType>:$operands);
+  let results = (outs Variadic<Transform_AnyHandleOrParamType>:$results);
+  
+  let assemblyFormat =
+      "$target `failures` `(` $failure_propagation_mode `)`"
+      "`(` $operands `)` attr-dict `:` functional-type($operands, $results)";
+
+  let extraClassDeclaration = [{
+    ::mlir::CallInterfaceCallable getCallableForCallee() {
+      return getTarget();
+    }
+
+    ::mlir::Operation::operand_range getArgOperands() {
+      return getOperands();
+    }
+  }];
+}
+
 def MergeHandlesOp : TransformDialectOp<"merge_handles",
     [DeclareOpInterfaceMethods<TransformOpInterface, ["allowsRepeatedHandleOperands"]>,
      DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
@@ -270,6 +334,73 @@ def MergeHandlesOp : TransformDialectOp<"merge_handles",
   let results = (outs TransformHandleTypeInterface:$result);
   let assemblyFormat = "($deduplicate^)? $handles attr-dict `:` type($result)";
   let hasFolder = 1;
+}
+
+def NamedSequenceOp : TransformDialectOp<"named_sequence",
+    [CallableOpInterface,
+     FunctionOpInterface,
+     IsolatedFromAbove,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+     DeclareOpInterfaceMethods<TransformOpInterface>]> {
+  let summary = "Named transform sequence that can be included elsewhere";
+  let description = [{
+    Defines a named (callable, function-like) sequence of other Transform
+    dialect operations that can be included using `transform.include` as part of
+    another Transform dialect construct. This sequence is not processed
+    immediately but rather dispatched to when the inclusion is processed. The
+    arguments and results can be used to communicate a subset of mapping into
+    the named sequence. The sequence must consist of a single block and end with
+    a `transform.yield` terminator. The operands of the terminator become the
+    results of the `transform.include`.
+
+    When dispatched to, the operations in the named sequence are executed one by
+    one, similarly to the regular unnamed sequence. The failure propagation mode
+    is specified on the `transform.include`. Different inclusions may use
+    different failure propagation modes. This transform operation always
+    succeeds by itself, but the inclusion may fail if any of the operations
+    fail.
+
+    Named sequences can only appear at the top-level of the Transform dialect
+    nesting structure. That is, they cannot be nested in other Transform dialect
+    operations. Furthermore, one of the ancestors must have the `SymbolTable`
+    trait and have the `transform.with_named_sequence` attribute attached.
+
+    Named sequences may include other named sequences via `transform.include`,
+    but recursion is *not* allowed.
+  }];
+  
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    TypeAttrBase<"::mlir::FunctionType",
+                 "function type attribute">:$function_type,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs);
+  let regions = (region SizedRegion<1>:$body);
+
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    ::llvm::ArrayRef<::mlir::Type> getArgumentTypes() {
+      return getFunctionType().getInputs();
+    }
+    ::llvm::ArrayRef<::mlir::Type> getResultTypes() {
+      return getFunctionType().getResults();
+    }
+
+    ::mlir::Region *getCallableRegion() {
+      return &getBody();
+    }
+    ::llvm::ArrayRef<::mlir::Type> getCallableResults() {
+      return getFunctionType().getResults();
+    }
+    ::mlir::ArrayAttr getCallableArgAttrs() {
+      return getArgAttrs().value_or(nullptr);
+    }
+    ::mlir::ArrayAttr getCallableResAttrs() {
+      return getResAttrs().value_or(nullptr);
+    }
+  }];
 }
 
 def SplitHandlesOp : TransformDialectOp<"split_handles",
@@ -359,7 +490,6 @@ def PrintOp : TransformDialectOp<"print",
   let assemblyFormat = "$target attr-dict (`:` type($target)^)?";
 }
 
-
 def ReplicateOp : TransformDialectOp<"replicate",
     [DeclareOpInterfaceMethods<TransformOpInterface>,
      DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
@@ -409,21 +539,21 @@ def SequenceOp : TransformDialectOp<"sequence",
   let description = [{
     The transformations indicated by the sequence are applied in order of their
     appearance. Each value produced by a transformation within the sequence
-    corresponds to an operation or a group of operations in the payload IR.
-    The behavior of the operation when a nested transformation produces a
-    silenceable error is controlled by the `failure_propagation_mode` attribute.
-    When set to `propagate`, the failure of any nested transformation in the
-    sequence implies immediate failure of the entire sequence with a silenceable
-    error, and no further transformation is attempted. When set to `suppress`,
+    corresponds to a group of operations or values in the payload IR, or to a
+    group of parameters, depending on the type of the value. The behavior of the
+    operation when a nested transformation produces a silenceable error is
+    controlled by the `failure_propagation_mode` attribute. When set to
+    `propagate`, the failure of any nested transformation in the sequence
+    implies immediate failure of the entire sequence with a silenceable error,
+    and no further transformation is attempted. When set to `suppress`,
     silenceable errors in nested operations are ignored and further
     transformations are applied. Beware that even silenceable errors may leave
-    the payload IR in a state unsuitable for further transformations. It is
-    the responsibility of the caller to ensure the following transformations
-    are robust enough when errors are suppressed. Definite errors reported by
-    nested transformations abort the sequence regardless of the propagation
-    mode. The set of modes may be extended in the future, e.g., to collect
-    silenceable errors and report them after attempting all transformations in
-    the sequence.
+    the payload IR in a state unsuitable for further transformations. It is the
+    responsibility of the caller to ensure the following transformations are
+    robust enough when errors are suppressed. Definite errors reported by nested
+    transformations abort the sequence regardless of the propagation mode. The
+    set of modes may be extended in the future, e.g., to collect silenceable
+    errors and report them after attempting all transformations in the sequence.
 
     The entry block of this operation has a single argument that maps to either
     the operand if provided or the top-level container operation of the payload
@@ -548,7 +678,8 @@ def YieldOp : TransformDialectOp<"yield",
   }];
 
   let arguments = (ins
-    Arg<Variadic<TransformHandleTypeInterface>, "Operation handles yielded back to the parent"
+    Arg<Variadic<Transform_AnyHandleOrParamType>,
+        "Transform values yielded back to the parent"
         >:$operands);
   let assemblyFormat = "operands attr-dict (`:` type($operands)^)?";
 
