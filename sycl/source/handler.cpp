@@ -865,7 +865,7 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
 }
 
 void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
-                                             size_t Size, bool Block) {
+                                       size_t Size, bool Block) {
   MImpl->HostPipeName = Name;
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
@@ -875,7 +875,7 @@ void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
 }
 
 void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
-                                             size_t Size, bool Block) {
+                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name;
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;

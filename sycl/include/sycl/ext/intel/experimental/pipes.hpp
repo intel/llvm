@@ -68,6 +68,9 @@ public:
   // Host API
   static _dataT read(queue &Q, bool &Success,
                      memory_order Order = memory_order::seq_cst) {
+    // Order is currently unused.
+    std::ignore = Order;
+
     const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
@@ -80,7 +83,8 @@ public:
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
 
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_read_host_pipe(PipeName, DataPtr, sizeof(_dataT) /* non-blocking */);
+      CGH.ext_intel_read_host_pipe(PipeName, DataPtr,
+                                   sizeof(_dataT) /* non-blocking */);
     });
     E.wait();
     if (E.get_info<sycl::info::event::command_execution_status>() ==
@@ -95,6 +99,9 @@ public:
 
   static void write(queue &Q, const _dataT &Data, bool &Success,
                     memory_order Order = memory_order::seq_cst) {
+    // Order is currently unused.
+    std::ignore = Order;
+
     const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
@@ -107,8 +114,8 @@ public:
     void *DataPtr = const_cast<_dataT *>(&Data);
 
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_write_host_pipe(
-          PipeName, DataPtr, sizeof(_dataT) /* non-blocking */);
+      CGH.ext_intel_write_host_pipe(PipeName, DataPtr,
+                                    sizeof(_dataT) /* non-blocking */);
     });
     E.wait();
     Success = E.get_info<sycl::info::event::command_execution_status>() ==
@@ -221,6 +228,9 @@ public:
 
   // Host API
   static _dataT read(queue &Q, memory_order Order = memory_order::seq_cst) {
+    // Order is currently unused.
+    std::ignore = Order;
+
     const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
@@ -233,7 +243,7 @@ public:
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
     event E = Q.submit([=](handler &CGH) {
       CGH.ext_intel_read_host_pipe(PipeName, DataPtr, sizeof(_dataT),
-                                         true /*blocking*/);
+                                   true /*blocking*/);
     });
     E.wait();
     return *(_dataT *)DataPtr;
@@ -241,6 +251,9 @@ public:
 
   static void write(queue &Q, const _dataT &Data,
                     memory_order Order = memory_order::seq_cst) {
+    // Order is currently unused.
+    std::ignore = Order;
+
     const device Dev = Q.get_device();
     bool IsPipeSupported =
         Dev.has_extension("cl_intel_program_scope_host_pipe");
@@ -251,8 +264,8 @@ public:
     const std::string PipeName = pipe_base::get_pipe_name(HostPipePtr);
     void *DataPtr = const_cast<_dataT *>(&Data);
     event E = Q.submit([=](handler &CGH) {
-      CGH.ext_intel_write_host_pipe(PipeName, DataPtr,
-                                         sizeof(_dataT), true /*blocking */);
+      CGH.ext_intel_write_host_pipe(PipeName, DataPtr, sizeof(_dataT),
+                                    true /*blocking */);
     });
     E.wait();
   }
