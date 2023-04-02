@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#undef __SYCL_SUPPRESS_QUEUE_CONSTRUCTORS
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -22,57 +23,63 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-void queue::queue2(const context &SyclContext,
-                   const device_selector &DeviceSelector,
-                   const async_handler &AsyncHandler,
-                   const property_list &PropList) {
+#ifndef __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
 
-  const std::vector<device> Devs = SyclContext.get_devices();
+queue::queue(const context &SyclContext,
+               const device_selector &DeviceSelector,
+               const async_handler &AsyncHandler, const property_list &PropList,
+               Discriminator Disc) {
+    const std::vector<device> Devs = SyclContext.get_devices();
 
-  auto Comp = [&DeviceSelector](const device &d1, const device &d2) {
-    return DeviceSelector(d1) < DeviceSelector(d2);
-  };
+    auto Comp = [&DeviceSelector](const device &d1, const device &d2) {
+      return DeviceSelector(d1) < DeviceSelector(d2);
+    };
 
-  const device &SyclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
+    const device &SyclDevice =
+        *std::max_element(Devs.begin(), Devs.end(), Comp);
 
-  impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
-      AsyncHandler, PropList, false);
-}
+    impl = std::make_shared<detail::queue_impl>(
+        detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
+        AsyncHandler, PropList, false);
+  }
 
-void queue::queue2(const context &SyclContext, const device &SyclDevice,
-                   const async_handler &AsyncHandler,
-                   const property_list &PropList) {
-  impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
-      AsyncHandler, PropList, false);
-}
+  queue::queue(const context &SyclContext, const device &SyclDevice,
+               const async_handler &AsyncHandler, const property_list &PropList,
+               Discriminator Disc) {
+    impl = std::make_shared<detail::queue_impl>(
+        detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
+        AsyncHandler, PropList, false);
+  }
 
-void queue::queue2(const device &SyclDevice, const async_handler &AsyncHandler,
-                   const property_list &PropList) {
-  impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList, false);
-}
+  queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
+               const property_list &PropList, Discriminator Disc) {
+    impl = std::make_shared<detail::queue_impl>(
+        detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList, false);
+  }
+
+  queue::queue(const context &SyclContext,
+               const device_selector &deviceSelector,
+               const property_list &PropList, Discriminator Disc) {
+    queue(SyclContext, deviceSelector,
+          detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList,
+          Disc);
+  }
+
+  queue::queue(const context &SyclContext, const device &SyclDevice,
+               const property_list &PropList, Discriminator Disc) {
+    queue(SyclContext, SyclDevice,
+          detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList,
+          Disc);
+  }
+
+#endif // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
 
 queue::queue(cl_command_queue clQueue, const context &SyclContext,
-             const async_handler &AsyncHandler) {
-  impl = std::make_shared<detail::queue_impl>(
-      reinterpret_cast<RT::PiQueue>(clQueue),
-      detail::getSyclObjImpl(SyclContext), AsyncHandler);
-}
-
-void queue::queue2(const context &SyclContext,
-                   const device_selector &deviceSelector,
-                   const property_list &PropList) {
-  queue2(SyclContext, deviceSelector,
-         detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList);
-}
-
-void queue::queue2(const context &SyclContext, const device &SyclDevice,
-                   const property_list &PropList) {
-  queue2(SyclContext, SyclDevice,
-         detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList);
-}
+               const async_handler &AsyncHandler) {
+    impl = std::make_shared<detail::queue_impl>(
+        reinterpret_cast<RT::PiQueue>(clQueue),
+        detail::getSyclObjImpl(SyclContext), AsyncHandler);
+  }
 
 cl_command_queue queue::get() const { return impl->get(); }
 

@@ -837,6 +837,16 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+pi_result piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
+    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
+    pi_queue *piQueue) {
+  (void)NativeHandleDesc;
+  (void)Properties;
+  return piextQueueCreateWithNativeHandle(nativeHandle, context, device,
+                                          ownNativeHandle, piQueue);
+}
+
 pi_result piProgramCreate(pi_context context, const void *il, size_t length,
                           pi_program *res_program) {
   cl_uint deviceCount;
@@ -2071,6 +2081,13 @@ pi_result piextQueueGetNativeHandle(pi_queue queue,
   return piextGetNativeHandle(queue, nativeHandle);
 }
 
+pi_result piextQueueGetNativeHandle2(pi_queue queue,
+                                     pi_native_handle *nativeHandle,
+                                     int32_t *NativeHandleDesc) {
+  (void)NativeHandleDesc;
+  return piextGetNativeHandle(queue, nativeHandle);
+}
+
 pi_result piextMemGetNativeHandle(pi_mem mem, pi_native_handle *nativeHandle) {
   return piextGetNativeHandle(mem, nativeHandle);
 }
@@ -2185,7 +2202,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piQueueRetain, clRetainCommandQueue)
   _PI_CL(piQueueRelease, clReleaseCommandQueue)
   _PI_CL(piextQueueGetNativeHandle, piextQueueGetNativeHandle)
+  _PI_CL(piextQueueGetNativeHandle2, piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle, piextQueueCreateWithNativeHandle)
+  _PI_CL(piextQueueCreateWithNativeHandle2, piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, piMemBufferCreate)
   _PI_CL(piMemImageCreate, piMemImageCreate)

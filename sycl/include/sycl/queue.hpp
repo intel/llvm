@@ -61,6 +61,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 class device;
 class queue;
+
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
@@ -88,6 +89,9 @@ static event submitAssertCapture(queue &, event &, queue *,
 class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
 public:
 #ifndef __SYCL_SUPPRESS_QUEUE_CONSTRUCTORS
+
+#ifdef __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
+
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
   ///
@@ -193,75 +197,6 @@ public:
   explicit queue(const device &SyclDevice, const property_list &PropList = {})
       : queue(SyclDevice, detail::defaultAsyncHandler, PropList) {}
 
-#ifndef __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
-  // The queue2 interfaces are a temporary measure until the next official ABI
-  // change. At that point the old queue constructors will be replaced with
-  // these.
-
-  /// Constructs a SYCL queue instance with an async_handler using the device
-  /// provided.
-  ///
-  /// \param SyclDevice is an instance of SYCL device.
-  /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  /// \param PropList is a list of properties for queue construction.
-  explicit queue(const device &SyclDevice, const async_handler &AsyncHandler,
-                 const property_list &PropList = {}) {
-    queue2(SyclDevice, AsyncHandler, PropList);
-  }
-
-  /// Constructs a SYCL queue instance that is associated with the context
-  /// provided, using the device returned by the device selector.
-  ///
-  /// \param SyclContext is an instance of SYCL context.
-  /// \param DeviceSelector is an instance of SYCL device selector.
-  /// \param PropList is a list of properties for queue construction.
-  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
-                        "use SYCL 2020 device selectors instead.")
-  queue(const context &SyclContext, const device_selector &DeviceSelector,
-        const property_list &PropList = {}) {
-    queue2(SyclContext, DeviceSelector, PropList);
-  }
-
-  /// Constructs a SYCL queue instance with an async_handler that is associated
-  /// with the context provided, using the device returned by the device
-  /// selector.
-  ///
-  /// \param SyclContext is an instance of SYCL context.
-  /// \param DeviceSelector is an instance of SYCL device selector.
-  /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  /// \param PropList is a list of properties for queue construction.
-  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
-                        "use SYCL 2020 device selectors instead.")
-  queue(const context &SyclContext, const device_selector &DeviceSelector,
-        const async_handler &AsyncHandler, const property_list &PropList = {}) {
-    queue2(SyclContext, DeviceSelector, AsyncHandler, PropList);
-  }
-
-  /// Constructs a SYCL queue associated with the given context, device
-  /// and optional properties list.
-  ///
-  /// \param SyclContext is an instance of SYCL context.
-  /// \param SyclDevice is an instance of SYCL device.
-  /// \param PropList is a list of properties for queue construction.
-  queue(const context &SyclContext, const device &SyclDevice,
-        const property_list &PropList = {}) {
-    queue2(SyclContext, SyclDevice, PropList);
-  }
-
-  /// Constructs a SYCL queue associated with the given context, device,
-  /// asynchronous exception handler and optional properties list.
-  ///
-  /// \param SyclContext is an instance of SYCL context.
-  /// \param SyclDevice is an instance of SYCL device.
-  /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  /// \param PropList is a list of properties for queue construction.
-  queue(const context &SyclContext, const device &SyclDevice,
-        const async_handler &AsyncHandler, const property_list &PropList = {}) {
-    queue2(SyclContext, SyclDevice, AsyncHandler, PropList);
-  }
-
-#else // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
-
   /// Constructs a SYCL queue instance with an async_handler using the device
   /// provided.
   ///
@@ -314,27 +249,184 @@ public:
   queue(const context &SyclContext, const device &SyclDevice,
         const async_handler &AsyncHandler, const property_list &PropList = {});
 
-#endif // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO__V3
+#else // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
+
+// This class is used as an additional internal parameter to distinguish older
+  // constructors from current ones.
+private:
+  class Discriminator {
+  public:
+    Discriminator(){};
+  };
+
+public:
+
+  /// Constructs a SYCL queue instance using the device returned by an instance
+  /// of default_selector.
+  ///
+  /// \param PropList is a list of properties for queue construction.
+  explicit queue(const property_list &PropList = {}, Discriminator Disc = {})
+      : queue(default_selector(), detail::defaultAsyncHandler, PropList, Disc) {
+  }
+
+  /// Constructs a SYCL queue instance with an async_handler using the device
+  /// returned by an instance of default_selector.
+  ///
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param PropList is a list of properties for queue construction.
+  queue(const async_handler &AsyncHandler, const property_list &PropList = {},
+        Discriminator Disc = {})
+      : queue(default_selector(), AsyncHandler, PropList, Disc) {}
+
+  /// Constructs a SYCL queue instance using the device identified by the
+  /// device selector provided.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param PropList is a list of properties for queue construction.
+  template <typename DeviceSelector,
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
+  explicit queue(const DeviceSelector &deviceSelector,
+                 const async_handler &AsyncHandler,
+                 const property_list &PropList = {}, Discriminator Disc = {})
+      : queue(detail::select_device(deviceSelector), AsyncHandler, PropList,
+              Disc) {}
+
+  /// Constructs a SYCL queue instance using the device identified by the
+  /// device selector provided.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  /// \param PropList is a list of properties for queue construction.
+  template <typename DeviceSelector,
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
+  explicit queue(const DeviceSelector &deviceSelector,
+                 const property_list &PropList = {}, Discriminator Disc = {})
+      : queue(detail::select_device(deviceSelector),
+              detail::defaultAsyncHandler, PropList, Disc) {}
+
+  /// Constructs a SYCL queue instance using the device identified by the
+  /// device selector provided.
+  /// \param SyclContext is an instance of SYCL context.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  /// \param PropList is a list of properties for queue construction.
+  template <typename DeviceSelector,
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
+  explicit queue(const context &syclContext,
+                 const DeviceSelector &deviceSelector,
+                 const property_list &propList = {}, Discriminator Disc = {})
+      : queue(syclContext, detail::select_device(deviceSelector, syclContext),
+              propList, Disc) {}
+
+  /// Constructs a SYCL queue instance using the device identified by the
+  /// device selector provided.
+  /// \param SyclContext is an instance of SYCL context.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param PropList is a list of properties for queue construction.
+  template <typename DeviceSelector,
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
+  explicit queue(const context &syclContext,
+                 const DeviceSelector &deviceSelector,
+                 const async_handler &AsyncHandler,
+                 const property_list &propList = {}, Discriminator Disc = {})
+      : queue(syclContext, detail::select_device(deviceSelector, syclContext),
+              AsyncHandler, propList, Disc) {}
+
+  /// Constructs a SYCL queue instance using the device returned by the
+  /// DeviceSelector provided.
+  ///
+  /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector.
+  /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
+  queue(const device_selector &DeviceSelector,
+        const property_list &PropList = {}, Discriminator Disc = {})
+      : queue(DeviceSelector.select_device(), detail::defaultAsyncHandler,
+              PropList, Disc) {}
+
+  /// Constructs a SYCL queue instance with an async_handler using the device
+  /// returned by the DeviceSelector provided.
+  ///
+  /// \param DeviceSelector is an instance of SYCL 1.2.1 device_selector.
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
+  queue(const device_selector &DeviceSelector,
+        const async_handler &AsyncHandler, const property_list &PropList = {},
+        Discriminator Disc = {})
+      : queue(DeviceSelector.select_device(), AsyncHandler, PropList, Disc) {}
+
+  /// Constructs a SYCL queue instance using the device provided.
+  ///
+  /// \param SyclDevice is an instance of SYCL device.
+  /// \param PropList is a list of properties for queue construction.
+  explicit queue(const device &SyclDevice, const property_list &PropList = {},
+                 Discriminator Disc = {})
+      : queue(SyclDevice, detail::defaultAsyncHandler, PropList, Disc) {}
+
+  /// Constructs a SYCL queue instance with an async_handler using the device
+  /// provided.
+  ///
+  /// \param SyclDevice is an instance of SYCL device.
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param PropList is a list of properties for queue construction.
+  explicit queue(const device &SyclDevice, const async_handler &AsyncHandler,
+                 const property_list &PropList = {}, Discriminator Disc = {});
+
+  /// Constructs a SYCL queue instance that is associated with the context
+  /// provided, using the device returned by the device selector.
+  ///
+  /// \param SyclContext is an instance of SYCL context.
+  /// \param DeviceSelector is an instance of SYCL device selector.
+  /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
+  queue(const context &SyclContext, const device_selector &DeviceSelector,
+        const property_list &PropList = {}, Discriminator Disc = {});
+
+  /// Constructs a SYCL queue instance with an async_handler that is associated
+  /// with the context provided, using the device returned by the device
+  /// selector.
+  ///
+  /// \param SyclContext is an instance of SYCL context.
+  /// \param DeviceSelector is an instance of SYCL device selector.
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
+  queue(const context &SyclContext, const device_selector &DeviceSelector,
+        const async_handler &AsyncHandler, const property_list &PropList = {},
+        Discriminator Disc = {});
+
+  /// Constructs a SYCL queue associated with the given context, device
+  /// and optional properties list.
+  ///
+  /// \param SyclContext is an instance of SYCL context.
+  /// \param SyclDevice is an instance of SYCL device.
+  /// \param PropList is a list of properties for queue construction.
+  queue(const context &SyclContext, const device &SyclDevice,
+        const property_list &PropList = {}, Discriminator Disc = {});
+
+  /// Constructs a SYCL queue associated with the given context, device,
+  /// asynchronous exception handler and optional properties list.
+  ///
+  /// \param SyclContext is an instance of SYCL context.
+  /// \param SyclDevice is an instance of SYCL device.
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param PropList is a list of properties for queue construction.
+  queue(const context &SyclContext, const device &SyclDevice,
+        const async_handler &AsyncHandler, const property_list &PropList = {},
+        Discriminator Disc = {});
+
+#endif // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
 #endif // __SYCL_SUPPRESS_QUEUE_CONSTRUCTORS
-
-  // The following map the queue constructors into alternate entry points in the
-  // library so old and new implementations can co-exist.
-  void queue2(const device &SyclDevice, const async_handler &AsyncHandler,
-              const property_list &PropList = {});
-
-  void queue2(const context &SyclContext, const device_selector &DeviceSelector,
-              const property_list &PropList = {});
-
-  void queue2(const context &SyclContext, const device_selector &DeviceSelector,
-              const async_handler &AsyncHandler,
-              const property_list &PropList = {});
-
-  void queue2(const context &SyclContext, const device &SyclDevice,
-              const property_list &PropList = {});
-
-  void queue2(const context &SyclContext, const device &SyclDevice,
-              const async_handler &AsyncHandler,
-              const property_list &PropList = {});
 
   /// Constructs a SYCL queue with an optional async_handler from an OpenCL
   /// cl_command_queue.
@@ -1988,7 +2080,7 @@ public:
 
 private:
   pi_native_handle getNative() const;
-  pi_native_handle getNative2(int32_t &NativeHandleDesc) const;
+  pi_native_handle getNative2(int32_t& NativeHandleDesc) const;
 
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
