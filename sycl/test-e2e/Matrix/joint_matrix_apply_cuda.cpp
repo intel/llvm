@@ -73,7 +73,7 @@ void matrix_verify_lambda(queue q,
             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
 
             joint_matrix_store(sg, sub_c,
-                               accC.get_pointer() +
+                               global_ptr<T2>(accC) +
                                    (sg_startx * M) * (N * nWGperDim) +
                                    sg_starty / SG_SZ * N,
                                (N * nWGperDim), layout::row_major);

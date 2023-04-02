@@ -442,8 +442,7 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(
-            detail::cast_AS<decorated_type *>(Accessor.get_pointer().get())) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
 
   // Only if Space == local_space
   template <
@@ -568,8 +567,7 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(
-            detail::cast_AS<decorated_type *>(Accessor.get_pointer().get())) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
 
   // Only if Space == local_space
   template <
