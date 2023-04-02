@@ -2268,6 +2268,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
 
+    // Currently samplers/stream are not supported in ESIMD.
+    // Ensure that the use of sycl_explicit_simd attribute emits a diagnostic
+    // when used with sampler or stream.
     if (KernelDecl->hasAttr<SYCLSimdAttr>() && !isSyclAccessorType(FieldTy))
       return SemaRef.Diag(Loc, diag::err_sycl_esimd_not_supported_for_type)
              << RecordDecl;
@@ -2423,6 +2426,9 @@ public:
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
 
+    // Currently samplers/stream are not supported in ESIMD.
+    // Ensure that the use of sycl_explicit_simd attribute emits a diagnostic
+    // when used with sampler or stream.
     if (KernelDecl->hasAttr<SYCLSimdAttr>() && !isSyclAccessorType(FieldTy))
       return SemaRef.Diag(Loc, diag::err_sycl_esimd_not_supported_for_type)
              << RecordDecl;
