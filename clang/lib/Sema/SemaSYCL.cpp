@@ -2881,6 +2881,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // top-level pointers.
   uint64_t StructDepth = 0;
   VarDecl *KernelHandlerClone = nullptr;
+  bool IsSIMD = false;
 
   Stmt *replaceWithLocalClone(ParmVarDecl *OriginalParam, VarDecl *LocalClone,
                               Stmt *FunctionBody) {
@@ -3264,10 +3265,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   const llvm::StringLiteral getInitMethodName() const {
-    KernelCallOperatorVisitor KernelCallOperator(KernelCallerFunc, KernelObj);
-
-    bool IsSIMDKernel = isESIMDKernelType(KernelCallOperator);
-    return IsSIMDKernel ? InitESIMDMethodName : InitMethodName;
+    return IsSIMD ? InitESIMDMethodName : InitMethodName;
   }
 
   // Default inits the type, then calls the init-method in the body.
@@ -3411,13 +3409,14 @@ public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
                         const CXXRecordDecl *KernelObj,
-                        FunctionDecl *KernelCallerFunc)
+                        FunctionDecl *KernelCallerFunc, bool IsSIMDKernel)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
         KernelObjClone(createKernelObjClone(S.getASTContext(),
                                             DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
-        KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
+        KernelCallerSrcLoc(KernelCallerFunc->getLocation()),
+        IsSIMD(IsSIMDKernel) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
     annotateHierarchicalParallelismAPICalls();
 
@@ -4225,7 +4224,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                     KernelCallerFunc->isInlined(), IsSIMDKernel,
                                     KernelCallerFunc);
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
-                                    KernelCallerFunc);
+                                    KernelCallerFunc, IsSIMDKernel);
   SyclKernelIntHeaderCreator int_header(
       IsSIMDKernel, *this, getSyclIntegrationHeader(), KernelObj,
       calculateKernelNameType(Context, KernelCallerFunc), KernelCallerFunc);
