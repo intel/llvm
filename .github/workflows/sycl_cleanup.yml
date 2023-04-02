@@ -3,8 +3,8 @@ name: Cleanup
 on:
   workflow_run:
     workflows:
-    - SYCL
-    - SYCL Nightly Builds
+    - SYCL Pre Commit
+    - SYCL Nightly
     - SYCL Post Commit
     types: [completed]
 
