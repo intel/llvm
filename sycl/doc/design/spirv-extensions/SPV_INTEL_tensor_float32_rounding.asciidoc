@@ -1,8 +1,8 @@
-:extension_name: SPV_INTEL_tensor_float32_conversion
-:capability_tf32_conversion_name: TensorFloat32ConversionINTEL
-:capability_tf32_conversion_token: 6425
-:ConvertFToTF32_name: OpConvertFToTF32INTEL
-:ConvertFToTF32_token: 6426
+:extension_name: SPV_INTEL_tensor_float32_rounding
+:capability_tf32_rounding_name: TensorFloat32RoundingINTEL
+:capability_tf32_rounding_token: 6425
+:RoundFToTF32_name: OpRoundFToTF32INTEL
+:RoundFToTF32_token: 6426
 
 {extension_name}
 ================
@@ -26,7 +26,7 @@ https://github.com/intel/llvm
 
 == Notice
 
-Copyright (c) 2022 Intel Corporation.  All rights reserved.
+Copyright (c) 2023 Intel Corporation.  All rights reserved.
 
 == Status
 
@@ -46,8 +46,8 @@ please let us know!
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | {docdate}
-| Revision           | 1
+| Last Modified Date | 2023-02-09
+| Revision           | 2
 |========================================
 
 == Dependencies
@@ -59,7 +59,7 @@ This extension requires SPIR-V 1.0.
 
 == Overview
 
-This extension adds conversion instruction from float to tensor float (TF32)
+This extension adds rounding instruction from float to tensor float (TF32)
 data format. TF32 uses 1 bit for a sign, 8 bits for an exponent and 10 bits for a
 fraction. This extension doesn’t introduce TF32 type in SPIR-V, instead
 instruction below uses 32-bit float type to represent TF32 value.
@@ -82,16 +82,16 @@ This extension introduces new capabilities:
 
 [subs="attributes"]
 ----
-{capability_tf32_conversion_name}
+{capability_tf32_rounding_name}
 ----
 
 == New Instructions
 
-Instructions added under the *{capability_tf32_conversion_name}* capability:
+Instructions added under the *{capability_tf32_rounding_name}* capability:
 
 [subs="attributes"]
 ----
-{ConvertFToTF32_name}
+{RoundFToTF32_name}
 ----
 
 
@@ -101,8 +101,8 @@ Instructions added under the *{capability_tf32_conversion_name}* capability:
 [cols="70%,30%"]
 [grid="rows"]
 |====
-|*{capability_tf32_conversion_name}* | {capability_tf32_conversion_token}
-|{ConvertFToTF32_name} | {ConvertFToTF32_token}
+|*{capability_tf32_rounding_name}* | {capability_tf32_rounding_token}
+|{RoundFToTF32_name} | {RoundFToTF32_token}
 |====
 
 == Modifications to the SPIR-V Specification, Version 1.6
@@ -115,7 +115,7 @@ Modify Section 3.31, Capability, adding rows to the Capability table:
 [options="header"]
 |====
 2+^| Capability ^| Implicitly Declares 
-| {capability_tf32_conversion_token} | *{capability_tf32_conversion_name}*
+| {capability_tf32_rounding_token} | *{capability_tf32_rounding_name}*
 | Enables a rounding instruction from float to tf32 data format +
  +
 See also extension: *{extension_name}*
@@ -125,25 +125,29 @@ See also extension: *{extension_name}*
 
 === Instructions
 
-==== 3.37.11. Conversion Instructions
+==== 3.42.11. Conversion Instructions
 
 [cols="1,1,3*3",width="100%"]
 |=====
-4+|[[OpConvertFToTF32]]*{ConvertFToTF32_name}* +
+4+|[[OpRoundFToTF32]]*{RoundFToTF32_name}* +
  +
-Convert value numerically from a floating point type to *TF32*.
+Convert value numerically from a 32-bit floating point type to *TF32*.
 It rounds up 13th bit of a float value and zero out last 13 bits. +
  +
-'Result Type' must be a scalar or vector of floating-point type. +
+'Result Type' must be a scalar or vector of 32-bit floating-point type. +
  +
-'Float Value' must be a scalar or vector of floating-point type.
-It must have the same number of components as Result Type. +
+'Float Value' must have the same type as 'Result Type'. +
+ +
+If 'Float Value' is an infinity, the result is the same infinity. If 'Float Value'
+is a NaN, the result is a NaN, but not necessarily the same NaN. +
+ +
+The *RelaxedPrecision* <<Decoration,Decoration>> has no effect on this instruction. +
  +
 Results are computed per component. +
  +
 1+|Capability: +
-*{capability_tf32_conversion_name}*
-1+| 4 | {ConvertFToTF32_token}
+*{capability_tf32_rounding_name}*
+1+| 4 | {RoundFToTF32_token}
 | '<id>' +
 'Result Type'
 | 'Result <id>'
@@ -169,4 +173,5 @@ Results are computed per component. +
 |========================================
 |Rev|Date|Author|Changes
 |1|2022-08-22|Dmitry Sidorov|Initial revision
+|2|2023-02-09|Dmitry Sidorov| Rename the instruction and the extension
 |========================================
