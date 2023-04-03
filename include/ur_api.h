@@ -560,8 +560,9 @@ urGetLastResult(
 typedef enum ur_platform_backend_t {
     UR_PLATFORM_BACKEND_UNKNOWN = 0,    ///< The backend is not a recognized one
     UR_PLATFORM_BACKEND_LEVEL_ZERO = 1, ///< The backend is Level Zero
-    UR_PLATFORM_BACKEND_CUDA = 2,       ///< The backend is CUDA
-    UR_PLATFORM_BACKEND_HIP = 3,        ///< The backend is HIP
+    UR_PLATFORM_BACKEND_OPENCL = 2,     ///< The backend is OpenCL
+    UR_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
+    UR_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
     /// @cond
     UR_PLATFORM_BACKEND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
