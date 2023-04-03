@@ -2791,15 +2791,8 @@ public:
   }
 };
 
-static bool isESIMDKernelType(KernelCallOperatorVisitor KernelCallOperator,
-                              const CXXRecordDecl *KernelFuncObj) {
-
-  const CXXMethodDecl *OpParens = nullptr;
-
-  if (KernelFuncObj->isLambda())
-    OpParens = KernelFuncObj->getLambdaCallOperator();
-
-  OpParens = KernelCallOperator.getCallOperator();
+static bool isESIMDKernelType(CXXMethodDecl *CallOperator) {
+  const CXXMethodDecl *OpParens = CallOperator;
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
 }
 
@@ -2827,6 +2820,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   uint64_t StructDepth = 0;
   VarDecl *KernelHandlerClone = nullptr;
   bool IsSIMD = false;
+  CXXMethodDecl *CallOperator;
 
   Stmt *replaceWithLocalClone(ParmVarDecl *OriginalParam, VarDecl *LocalClone,
                               Stmt *FunctionBody) {
@@ -2893,10 +2887,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     KernelCallOperatorVisitor KernelCallOperator(KernelCallerFunc, KernelObj);
     CXXMethodDecl *WGCallOperator = nullptr;
 
-    if (KernelObj->isLambda())
-      WGCallOperator = KernelObj->getLambdaCallOperator();
-
-    WGCallOperator = KernelCallOperator.getCallOperator();
+    WGCallOperator = CallOperator;
 
     assert(WGCallOperator && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
@@ -3354,14 +3345,14 @@ public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
                         const CXXRecordDecl *KernelObj,
-                        FunctionDecl *KernelCallerFunc, bool IsSIMDKernel)
+                        FunctionDecl *KernelCallerFunc, bool IsSIMDKernel, CXXMethodDecl *CallOperator)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
         KernelObjClone(createKernelObjClone(S.getASTContext(),
                                             DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()),
-        IsSIMD(IsSIMDKernel) {
+        IsSIMD(IsSIMDKernel), CallOperator(CallOperator) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
     annotateHierarchicalParallelismAPICalls();
 
@@ -4041,15 +4032,10 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
 
 // For a wrapped parallel_for, copy attributes from original
 // kernel to wrapped kernel.
-void Sema::copySYCLKernelAttrs(KernelCallOperatorVisitor &KernelCallOperator,
-                               const CXXRecordDecl *KernelFuncObj) {
+void Sema::copySYCLKernelAttrs(CXXMethodDecl *CallOperator) {
   // Get the operator() function of the wrapper.
-  CXXMethodDecl *OpParens = nullptr;
+  CXXMethodDecl *OpParens = CallOperator;
 
-  if (KernelFuncObj->isLambda())
-    OpParens = KernelFuncObj->getLambdaCallOperator();
-
-  OpParens = KernelCallOperator.getCallOperator();
   assert(OpParens && "invalid kernel object");
 
   typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
@@ -4153,6 +4139,13 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   if (KernelObj->isInvalidDecl())
     return;
 
+  CXXMethodDecl *CallOperator = nullptr;
+
+  if (KernelObj->isLambda())
+    CallOperator = KernelObj->getLambdaCallOperator();
+  else
+    CallOperator = KernelCallOperator.getCallOperator();
+
   {
     // Do enough to calculate the StableName for the purposes of the hackery
     // below for __pf_kernel_wrapper. Placed in a scope so that we don't
@@ -4164,16 +4157,16 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
     // Attributes of a user-written SYCL kernel must be copied to the internally
     // generated alternative kernel, identified by a known string in its name.
     if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
-      copySYCLKernelAttrs(KernelCallOperator, KernelObj);
+      copySYCLKernelAttrs(CallOperator);
   }
 
-  bool IsSIMDKernel = isESIMDKernelType(KernelCallOperator, KernelObj);
+  bool IsSIMDKernel = isESIMDKernelType(CallOperator);
 
   SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(), IsSIMDKernel,
                                     KernelCallerFunc);
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
-                                    KernelCallerFunc, IsSIMDKernel);
+                                    KernelCallerFunc, IsSIMDKernel, CallOperator);
   SyclKernelIntHeaderCreator int_header(
       IsSIMDKernel, *this, getSyclIntegrationHeader(), KernelObj,
       calculateKernelNameType(Context, KernelCallerFunc), KernelCallerFunc);
