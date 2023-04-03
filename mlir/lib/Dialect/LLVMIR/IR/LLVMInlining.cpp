@@ -131,11 +131,19 @@ static Value handleByValArgumentInit(OpBuilder &builder, Location loc,
                                      Value argument, Type elementType,
                                      unsigned elementTypeSize,
                                      unsigned targetAlignment) {
+  Block *entryBlock = &(*argument.getParentRegion()->begin());
   // Allocate the new value on the stack.
-  Value one = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
-                                               builder.getI64IntegerAttr(1));
-  Value allocaOp = builder.create<LLVM::AllocaOp>(
-      loc, argument.getType(), elementType, one, targetAlignment);
+  Value allocaOp;
+  {
+    // Since this is a static alloca, we can put it directly in the entry block,
+    // so they can be absorbed into the prologue/epilogue at code generation.
+    OpBuilder::InsertionGuard insertionGuard(builder);
+    builder.setInsertionPointToStart(entryBlock);
+    Value one = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
+                                                 builder.getI64IntegerAttr(1));
+    allocaOp = builder.create<LLVM::AllocaOp>(
+        loc, argument.getType(), elementType, one, targetAlignment);
+  }
   // Copy the pointee to the newly allocated value.
   Value copySize = builder.create<LLVM::ConstantOp>(
       loc, builder.getI64Type(), builder.getI64IntegerAttr(elementTypeSize));
@@ -289,14 +297,25 @@ struct LLVMInlinerInterface : public DialectInlinerInterface {
         return false;
       }
     }
-    if (!isa<LLVM::CallOp, LLVM::AllocaOp, LLVM::LifetimeStartOp,
-             LLVM::LifetimeEndOp, LLVM::LoadOp, LLVM::StoreOp>(op)) {
-      LLVM_DEBUG(llvm::dbgs()
-                 << "Cannot inline: unhandled side effecting operation \""
-                 << op->getName() << "\"\n");
-      return false;
-    }
-    return true;
+    // clang-format off
+    if (isa<LLVM::AllocaOp,
+            LLVM::CallOp,
+            LLVM::DbgDeclareOp,
+            LLVM::DbgValueOp,
+            LLVM::LifetimeEndOp,
+            LLVM::LifetimeStartOp,
+            LLVM::LoadOp,
+            LLVM::MemcpyOp,
+            LLVM::MemmoveOp,
+            LLVM::MemsetOp,
+            LLVM::StoreOp,
+            LLVM::UnreachableOp>(op))
+      return true;
+    // clang-format on
+    LLVM_DEBUG(llvm::dbgs()
+               << "Cannot inline: unhandled side effecting operation \""
+               << op->getName() << "\"\n");
+    return false;
   }
 
   /// Handle the given inlined return by replacing it with a branch. This

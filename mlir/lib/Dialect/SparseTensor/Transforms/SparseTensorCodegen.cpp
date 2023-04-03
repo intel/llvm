@@ -420,7 +420,7 @@ static void genInsertBody(OpBuilder &builder, ModuleOp module,
   // Extract fields and coordinates from args.
   SmallVector<Value> fields = llvm::to_vector(args.drop_back(lvlRank + 1));
   MutSparseTensorDescriptor desc(rtp, fields);
-  const SmallVector<Value> coordinates =
+  const SmallVector<Value> coords =
       llvm::to_vector(args.take_back(lvlRank + 1).drop_back());
   Value value = args.back();
   Value parentPos = constantZero(builder, loc, builder.getIndexType());
@@ -436,14 +436,14 @@ static void genInsertBody(OpBuilder &builder, ModuleOp module,
       //   positions[l] = coordinates.size() - 1
       //   <insert @ positions[l] at next level l + 1>
       parentPos =
-          genCompressed(builder, loc, desc, coordinates, value, parentPos, l);
+          genCompressed(builder, loc, desc, coords, value, parentPos, l);
     } else if (isSingletonDLT(dlt)) {
       // Create:
       //   coordinates[l].push_back(coords[l])
       //   positions[l] = positions[l-1]
       //   <insert @ positions[l] at next level l + 1>
       createPushback(builder, loc, desc, SparseTensorFieldKind::CrdMemRef, l,
-                     coordinates[l]);
+                     coords[l]);
     } else {
       assert(isDenseDLT(dlt));
       // Construct the new position as:
@@ -451,7 +451,7 @@ static void genInsertBody(OpBuilder &builder, ModuleOp module,
       //   <insert @ positions[l] at next level l + 1>
       Value size = sizeFromTensorAtLvl(builder, loc, desc, l);
       Value mult = builder.create<arith::MulIOp>(loc, size, parentPos);
-      parentPos = builder.create<arith::AddIOp>(loc, mult, coordinates[l]);
+      parentPos = builder.create<arith::AddIOp>(loc, mult, coords[l]);
     }
   }
   // Reached the actual value append/insert.
@@ -749,11 +749,29 @@ public:
     const auto resType = getSparseTensorType(op);
     if (!resType.hasEncoding())
       return failure();
-    if (op.getCopy())
-      return rewriter.notifyMatchFailure(op, "tensor copy not implemented");
 
     // Construct allocation for each field.
     const Location loc = op.getLoc();
+    if (op.getCopy()) {
+      auto desc = getDescriptorFromTensorTuple(adaptor.getCopy());
+      SmallVector<Value> fields;
+      fields.reserve(desc.getNumFields());
+      // Memcpy on memref fields.
+      for (auto field : desc.getMemRefFields()) {
+        auto memrefTp = field.getType().cast<MemRefType>();
+        auto size = rewriter.create<memref::DimOp>(loc, field, 0);
+        auto copied =
+            rewriter.create<memref::AllocOp>(loc, memrefTp, ValueRange{size});
+        rewriter.create<memref::CopyOp>(loc, field, copied);
+        fields.push_back(copied);
+      }
+      // Reuses specifier.
+      fields.push_back(desc.getSpecifier());
+      assert(fields.size() == desc.getNumFields());
+      rewriter.replaceOp(op, genTuple(rewriter, loc, resType, fields));
+      return success();
+    }
+
     const Value sizeHint = op.getSizeHint();
     const ValueRange dynSizes = adaptor.getDynamicSizes();
     const size_t found = dynSizes.size();
@@ -846,7 +864,7 @@ public:
     // All initialization should be done on entry of the loop nest.
     rewriter.setInsertionPointAfter(op.getTensor().getDefiningOp());
     // Determine the size for access expansion (always the innermost stored
-    // dimension size, translated back to original dimension). Note that we
+    // level size, translated back to original dimension). Note that we
     // recursively rewrite the new DimOp on the **original** tensor.
     // FIXME: `toOrigDim` is deprecated.
     const Dimension innerDim = toOrigDim(srcType, srcType.getLvlRank() - 1);

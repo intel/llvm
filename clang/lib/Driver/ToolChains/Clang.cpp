@@ -414,22 +414,6 @@ static bool ShouldEnableAutolink(const ArgList &Args, const ToolChain &TC,
                       Default);
 }
 
-// Convert an arg of the form "-gN" or "-ggdbN" or one of their aliases
-// to the corresponding DebugInfoKind.
-static llvm::codegenoptions::DebugInfoKind DebugLevelToInfoKind(const Arg &A) {
-  assert(A.getOption().matches(options::OPT_gN_Group) &&
-         "Not a -g option that specifies a debug-info level");
-  if (A.getOption().matches(options::OPT_g0) ||
-      A.getOption().matches(options::OPT_ggdb0))
-    return llvm::codegenoptions::NoDebugInfo;
-  if (A.getOption().matches(options::OPT_gline_tables_only) ||
-      A.getOption().matches(options::OPT_ggdb1))
-    return llvm::codegenoptions::DebugLineTablesOnly;
-  if (A.getOption().matches(options::OPT_gline_directives_only))
-    return llvm::codegenoptions::DebugDirectivesOnly;
-  return llvm::codegenoptions::DebugInfoConstructor;
-}
-
 static bool mustUseNonLeafFramePointerForTarget(const llvm::Triple &Triple) {
   switch (Triple.getArch()){
   default:
@@ -1011,28 +995,7 @@ RenderDebugEnablingArgs(const ArgList &Args, ArgStringList &CmdArgs,
                         llvm::codegenoptions::DebugInfoKind DebugInfoKind,
                         unsigned DwarfVersion,
                         llvm::DebuggerKind DebuggerTuning) {
-  switch (DebugInfoKind) {
-  case llvm::codegenoptions::DebugDirectivesOnly:
-    CmdArgs.push_back("-debug-info-kind=line-directives-only");
-    break;
-  case llvm::codegenoptions::DebugLineTablesOnly:
-    CmdArgs.push_back("-debug-info-kind=line-tables-only");
-    break;
-  case llvm::codegenoptions::DebugInfoConstructor:
-    CmdArgs.push_back("-debug-info-kind=constructor");
-    break;
-  case llvm::codegenoptions::LimitedDebugInfo:
-    CmdArgs.push_back("-debug-info-kind=limited");
-    break;
-  case llvm::codegenoptions::FullDebugInfo:
-    CmdArgs.push_back("-debug-info-kind=standalone");
-    break;
-  case llvm::codegenoptions::UnusedTypeInfo:
-    CmdArgs.push_back("-debug-info-kind=unused-types");
-    break;
-  default:
-    break;
-  }
+  addDebugInfoKind(CmdArgs, DebugInfoKind);
   if (DwarfVersion > 0)
     CmdArgs.push_back(
         Args.MakeArgString("-dwarf-version=" + Twine(DwarfVersion)));
@@ -1284,12 +1247,31 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (JA.isOffloading(Action::OFK_HIP))
     getToolChain().AddHIPIncludeArgs(Args, CmdArgs);
 
+<<<<<<< HEAD
   if (JA.isOffloading(Action::OFK_SYCL)) {
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
     if (Inputs[0].getType() == types::TY_CUDA) {
       // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
       getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
     }
+=======
+  // If we are compiling for a GPU target we want to override the system headers
+  // with ones created by the 'libc' project if present.
+  if (!Args.hasArg(options::OPT_nostdinc) &&
+      !Args.hasArg(options::OPT_nogpuinc) &&
+      !Args.hasArg(options::OPT_nobuiltininc) &&
+      (getToolChain().getTriple().isNVPTX() ||
+       getToolChain().getTriple().isAMDGCN())) {
+
+      // Add include/gpu-none-libc/* to our system include path. This lets us use
+      // GPU-specific system headers first. These headers should be made to be
+      // compatible with the host environment's headers.
+      SmallString<128> P(llvm::sys::path::parent_path(D.InstalledDir));
+      llvm::sys::path::append(P, "include");
+      llvm::sys::path::append(P, "gpu-none-llvm");
+      CmdArgs.push_back("-c-isystem");
+      CmdArgs.push_back(Args.MakeArgString(P));
+>>>>>>> f263bd8f7d4c82af9672803e6d8d57f25c929d00
   }
 
   // If we are offloading to a target via OpenMP we need to include the
@@ -4291,7 +4273,7 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
     // If the last option explicitly specified a debug-info level, use it.
     if (checkDebugInfoOption(A, Args, D, TC) &&
         A->getOption().matches(options::OPT_gN_Group)) {
-      DebugInfoKind = DebugLevelToInfoKind(*A);
+      DebugInfoKind = debugLevelToInfoKind(*A);
       // For -g0 or -gline-tables-only, drop -gsplit-dwarf. This gets a bit more
       // complicated if you've disabled inline info in the skeleton CUs
       // (SplitDWARFInlining) - then there's value in composing split-dwarf and
@@ -7847,6 +7829,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     Args.addOptInFlag(CmdArgs, options::OPT_munsafe_fp_atomics,
                       options::OPT_mno_unsafe_fp_atomics);
+    Args.addOptOutFlag(CmdArgs, options::OPT_mamdgpu_ieee,
+                       options::OPT_mno_amdgpu_ieee);
   }
 
   // For all the host OpenMP offloading compile jobs we need to pass the targets
@@ -8387,6 +8371,8 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     if (types::isCXX(InputType))
       CmdArgs.push_back("-fcxx-exceptions");
     CmdArgs.push_back("-fexceptions");
+    if (EH.Asynch)
+      CmdArgs.push_back("-fasync-exceptions");
   }
   if (types::isCXX(InputType) && EH.Synch && EH.NoUnwindC)
     CmdArgs.push_back("-fexternc-nounwind");

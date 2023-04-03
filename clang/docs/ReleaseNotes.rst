@@ -248,6 +248,18 @@ Bug Fixes in This Version
 - Fix false-positive diagnostic issued for consteval initializers of temporary
   objects.
   (`#60286 <https://github.com/llvm/llvm-project/issues/60286>`_)
+- Correct restriction of trailing requirements clauses on a templated function.
+  Previously we only rejected non-'templated' things, but the restrictions ALSO need
+  to limit non-defined/non-member functions as well. Additionally, we now diagnose
+  requires on lambdas when not allowed, which we previously missed.
+  (`#61748 <https://github.com/llvm/llvm-project/issues/61748>`_)
+- Fix confusing diagnostic for incorrect use of qualified concepts names.
+- Fix handling of comments in function like macros so they are ignored in -CC
+  mode.
+  (`#60887 <https://github.com/llvm/llvm-project/issues/60887>`_)
+- Fix incorrect merging of lambdas across modules.
+  (`#60985 <https://github.com/llvm/llvm-project/issues/60985>`_)
+
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -272,6 +284,16 @@ Bug Fixes to C++ Support
 - No longer issue a pre-C++2b compatibility warning in ``-pedantic`` mode
   regading overloaded `operator[]` with more than one parmeter or for static
   lambdas. (`#61582 <https://github.com/llvm/llvm-project/issues/61582>`_)
+- Stop stripping CV qualifiers from the type of ``this`` when capturing it by value in
+  a lambda.
+  (`#50866 <https://github.com/llvm/llvm-project/issues/50866>`_)
+- Fix ordering of function templates by constraints when they have template
+  template parameters with different nested constraints.
+- Fix type equivalence comparison between auto types to take constraints into
+  account.
+- Fix bug in the computation of the ``__has_unique_object_representations``
+  builtin for types with unnamed bitfields.
+  (`#61336 <https://github.com/llvm/llvm-project/issues/61336>`_)
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -292,7 +314,7 @@ AMDGPU Support
   undefined symbols in the created module to be a linker error. To prevent this,
   pass ``-Wl,--undefined`` if compiling directly, or ``-Xoffload-linker
   --undefined`` if using an offloading language.
-- The deprecated ``-mcode-object-v3`` and ``-mno-code-object-v3`` command-line 
+- The deprecated ``-mcode-object-v3`` and ``-mno-code-object-v3`` command-line
   options have been removed.
 
 X86 Support

@@ -9191,6 +9191,8 @@ ExprResult InitializationSequence::Perform(Sema &S,
                                         /*VerifyOnly=*/false, &CurInit);
       if (CurInit.get() && ResultType)
         *ResultType = CurInit.get()->getType();
+      if (shouldBindAsTemporary(Entity))
+        CurInit = S.MaybeBindToTemporary(CurInit.get());
       break;
     }
     }
