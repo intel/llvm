@@ -3,4 +3,8 @@
 
 add_unit_test(getenv
     getenv.cpp
-    )
+)
+
+add_unit_test(params
+    params.cpp
+)
