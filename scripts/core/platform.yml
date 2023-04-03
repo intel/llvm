@@ -208,8 +208,8 @@ etors:
       value: "1"
       desc: "The backend is Level Zero"
     - name: CUDA
-      value: "1"
+      value: "2"
       desc: "The backend is CUDA"
     - name: HIP
-      value: "1"
+      value: "3"
       desc: "The backend is HIP"
