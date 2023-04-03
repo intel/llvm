@@ -2792,8 +2792,7 @@ public:
 };
 
 static bool isESIMDKernelType(CXXMethodDecl *CallOperator) {
-  const CXXMethodDecl *OpParens = CallOperator;
-  return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
+  return (CallOperator != nullptr) && CallOperator->hasAttr<SYCLSimdAttr>();
 }
 
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
@@ -2879,17 +2878,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     KernelObjClone->addAttr(SYCLScopeAttr::CreateImplicit(
         SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
 
-    // Fetch the kernel object and the associated call operator
-    // (of either the lambda or the function object).
-    CXXRecordDecl *KernelObj =
-        GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
-
-    KernelCallOperatorVisitor KernelCallOperator(KernelCallerFunc, KernelObj);
-    CXXMethodDecl *WGCallOperator = nullptr;
-
-    WGCallOperator = CallOperator;
-
-    assert(WGCallOperator && "non callable object is passed as kernel obj");
+    assert(CallOperator && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
     // NOTE: In case of parallel_for_work_item the marker call itself is
     // marked with work item scope attribute, here  the '()' operator of the
@@ -2899,15 +2888,15 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // all of them in the private address space rather then sharing via
     // the local AS. See parallel_for_work_group implementation in the
     // SYCL headers.
-    if (!WGCallOperator->hasAttr<SYCLScopeAttr>()) {
-      WGCallOperator->addAttr(SYCLScopeAttr::CreateImplicit(
+    if (!CallOperator->hasAttr<SYCLScopeAttr>()) {
+      CallOperator->addAttr(SYCLScopeAttr::CreateImplicit(
           SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
       // Search and mark parallel_for_work_item calls:
       MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
-      MarkWIScope.TraverseDecl(WGCallOperator);
+      MarkWIScope.TraverseDecl(CallOperator);
       // Now mark local variables declared in the PFWG lambda with work group
       // scope attribute
-      addScopeAttrToLocalVars(*WGCallOperator);
+      addScopeAttrToLocalVars(*CallOperator);
     }
   }
 
@@ -4034,14 +4023,12 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
 // kernel to wrapped kernel.
 void Sema::copySYCLKernelAttrs(CXXMethodDecl *CallOperator) {
   // Get the operator() function of the wrapper.
-  CXXMethodDecl *OpParens = CallOperator;
-
-  assert(OpParens && "invalid kernel object");
+  assert(CallOperator && "invalid kernel object");
 
   typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
   llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
   llvm::SmallVector<ChildParentPair, 16> WorkList;
-  WorkList.push_back({OpParens, nullptr});
+  WorkList.push_back({CallOperator, nullptr});
   FunctionDecl *KernelBody = nullptr;
 
   CallGraph SYCLCG;
@@ -4050,7 +4037,7 @@ void Sema::copySYCLKernelAttrs(CXXMethodDecl *CallOperator) {
     FunctionDecl *FD = WorkList.back().first;
     FunctionDecl *ParentFD = WorkList.back().second;
 
-    if ((ParentFD == OpParens) && isSYCLKernelBodyFunction(FD)) {
+    if ((ParentFD == CallOperator) && isSYCLKernelBodyFunction(FD)) {
       KernelBody = FD;
       break;
     }
@@ -4077,7 +4064,7 @@ void Sema::copySYCLKernelAttrs(CXXMethodDecl *CallOperator) {
     llvm::SmallVector<Attr *, 4> Attrs;
     collectSYCLAttributes(*this, KernelBody, Attrs, /*DirectlyCalled*/ true);
     if (!Attrs.empty())
-      llvm::for_each(Attrs, [OpParens](Attr *A) { OpParens->addAttr(A); });
+      llvm::for_each(Attrs, [CallOperator](Attr *A) { CallOperator->addAttr(A); });
   }
 }
 
