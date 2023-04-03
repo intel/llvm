@@ -567,7 +567,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     while (AIt != AEnd) {
       auto Aspect = static_cast<aspect>(*AIt);
       // Strict check for fp64 is disabled temporarily to avoid confusion.
-      if (Aspect != aspect::fp64 && !Dev->has(Aspect))
+      if (!Dev->has(Aspect))
         throw sycl::exception(errc::kernel_not_supported,
                               "Required aspect " + getAspectNameStr(Aspect) +
                                   " is not supported on the device");
@@ -1177,13 +1177,13 @@ bool ProgramManager::kernelUsesAssert(OSModuleHandle M,
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
-
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     OSModuleHandle M = OSUtil::getOSModuleHandle(RawImg);
     const _pi_offload_entry EntriesB = RawImg->EntriesBegin;
     const _pi_offload_entry EntriesE = RawImg->EntriesEnd;
     auto Img = make_unique_ptr<RTDeviceBinaryImage>(RawImg, M);
+    static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map
     const RTDeviceBinaryImage::PropertyRange &KPOIRange =
@@ -1257,6 +1257,13 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       if (KSIdIt != KSIdMap.end()) {
         auto &Imgs = m_DeviceImages[KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
+        if (DumpImages) {
+          const bool NeedsSequenceID =
+              std::any_of(Imgs->begin(), Imgs->end(), [&](auto &I) {
+                return I->getFormat() == Img->getFormat();
+              });
+          dumpImage(*Img, KSIdIt->second, NeedsSequenceID ? ++SequenceID : 0);
+        }
 
         cacheKernelUsesAssertInfo(M, *Img);
 
@@ -1309,6 +1316,38 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
                 DeviceGlobal->Name, ImgId, KSId, TypeSize,
                 DeviceImageScopeDecorated);
             m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
+          }
+        }
+      }
+      // ... and initialize associated host_pipe information
+      {
+        std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+        auto HostPipes = Img->getHostPipes();
+        for (const pi_device_binary_property &HostPipe : HostPipes) {
+          ByteArray HostPipeInfo = DeviceBinaryProperty(HostPipe).asByteArray();
+
+          // The supplied host_pipe info property is expected to contain:
+          // * 8 bytes - Size of the property.
+          // * 4 bytes - Size of the underlying type in the host_pipe.
+          // Note: Property may be padded.
+
+          HostPipeInfo.dropBytes(8);
+          auto TypeSize = HostPipeInfo.consume<std::uint32_t>();
+          assert(HostPipeInfo.empty() && "Extra data left!");
+
+          auto ExistingHostPipe = m_HostPipes.find(HostPipe->Name);
+          if (ExistingHostPipe != m_HostPipes.end()) {
+            // If it has already been registered we update the information.
+            ExistingHostPipe->second->initialize(TypeSize);
+            ExistingHostPipe->second->initialize(Img.get());
+          } else {
+            // If it has not already been registered we create a new entry.
+            // Note: Pointer to the host pipe is not available here, so it
+            //       cannot be set until registration happens.
+            auto EntryUPtr =
+                std::make_unique<HostPipeMapEntry>(HostPipe->Name, TypeSize);
+            EntryUPtr->initialize(Img.get());
+            m_HostPipes.emplace(HostPipe->Name, std::move(EntryUPtr));
           }
         }
       }
@@ -1379,12 +1418,14 @@ ProgramManager::getKernelSetId(OSModuleHandle M,
                       PI_ERROR_INVALID_KERNEL_NAME);
 }
 
-void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
-                               KernelSetId KSId) const {
+void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
+                               uint32_t SequenceID) const {
   std::string Fname("sycl_");
   const pi_device_binary_struct &RawImg = Img.getRawData();
   Fname += RawImg.DeviceTargetSpec;
   Fname += std::to_string(KSId);
+  if (SequenceID)
+    Fname += '_' + std::to_string(SequenceID);
   std::string Ext;
 
   RT::PiDeviceBinaryType Format = Img.getFormat();
@@ -1633,6 +1674,37 @@ std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
   return FoundEntries;
 }
 
+void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
+                                            const char *UniqueId) {
+  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+
+  auto ExistingHostPipe = m_HostPipes.find(UniqueId);
+  if (ExistingHostPipe != m_HostPipes.end()) {
+    ExistingHostPipe->second->initialize(HostPipePtr);
+    m_Ptr2HostPipe.insert({HostPipePtr, ExistingHostPipe->second.get()});
+    return;
+  }
+
+  auto EntryUPtr = std::make_unique<HostPipeMapEntry>(UniqueId, HostPipePtr);
+  auto NewEntry = m_HostPipes.emplace(UniqueId, std::move(EntryUPtr));
+  m_Ptr2HostPipe.insert({HostPipePtr, NewEntry.first->second.get()});
+}
+
+HostPipeMapEntry *
+ProgramManager::getHostPipeEntry(const std::string &UniqueId) {
+  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+  auto Entry = m_HostPipes.find(UniqueId);
+  assert(Entry != m_HostPipes.end() && "Host pipe entry not found");
+  return Entry->second.get();
+}
+
+HostPipeMapEntry *ProgramManager::getHostPipeEntry(const void *HostPipePtr) {
+  std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+  auto Entry = m_Ptr2HostPipe.find(HostPipePtr);
+  assert(Entry != m_Ptr2HostPipe.end() && "Host pipe entry not found");
+  return Entry->second;
+}
+
 device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
     RTDeviceBinaryImage *BinImage, const context &Ctx, const device &Dev) {
   const bundle_state ImgState = getBinImageState(BinImage);
@@ -1683,44 +1755,118 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
   }
   assert(BinImages.size() > 0 && "Expected to find at least one device image");
 
+  // Ignore images with incompatible state. Image is considered compatible
+  // with a target state if an image is already in the target state or can
+  // be brought to target state by compiling/linking/building.
+  //
+  // Example: an image in "executable" state is not compatible with
+  // "input" target state - there is no operation to convert the image it
+  // to "input" state. An image in "input" state is compatible with
+  // "executable" target state because it can be built to get into
+  // "executable" state.
+  for (auto It = BinImages.begin(); It != BinImages.end();) {
+    if (getBinImageState(*It) > TargetState)
+      It = BinImages.erase(It);
+    else
+      ++It;
+  }
+
   std::vector<device_image_plain> SYCLDeviceImages;
-  for (RTDeviceBinaryImage *BinImage : BinImages) {
-    const bundle_state ImgState = getBinImageState(BinImage);
 
-    // Ignore images with incompatible state. Image is considered compatible
-    // with a target state if an image is already in the target state or can
-    // be brought to target state by compiling/linking/building.
-    //
-    // Example: an image in "executable" state is not compatible with
-    // "input" target state - there is no operation to convert the image it
-    // to "input" state. An image in "input" state is compatible with
-    // "executable" target state because it can be built to get into
-    // "executable" state.
-    if (ImgState > TargetState)
-      continue;
+  // If a non-input state is requested, we can filter out some compatible
+  // images and return only those with the highest compatible state for each
+  // device-kernel pair. This map tracks how many kernel-device pairs need each
+  // image, so that any unneeded ones are skipped.
+  // TODO this has no effect if the requested state is input, consider having
+  // a separate branch for that case to avoid unnecessary tracking work.
+  struct DeviceBinaryImageInfo {
+    std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
+    bundle_state State = bundle_state::input;
+    int RequirementCounter = 0;
+  };
+  std::unordered_map<RTDeviceBinaryImage *, DeviceBinaryImageInfo> ImageInfoMap;
 
-    for (const sycl::device &Dev : Devs) {
+  for (const sycl::device &Dev : Devs) {
+    // Track the highest image state for each requested kernel.
+    using StateImagesPairT =
+        std::pair<bundle_state, std::vector<RTDeviceBinaryImage *>>;
+    using KernelImageMapT =
+        std::map<kernel_id, StateImagesPairT, LessByNameComp>;
+    KernelImageMapT KernelImageMap;
+    if (!KernelIDs.empty())
+      for (const kernel_id &KernelID : KernelIDs)
+        KernelImageMap.insert({KernelID, {}});
+
+    for (RTDeviceBinaryImage *BinImage : BinImages) {
       if (!compatibleWithDevice(BinImage, Dev) ||
           !doesDevSupportDeviceRequirements(Dev, *BinImage))
         continue;
 
-      std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
-      // Collect kernel names for the image
-      {
-        std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-        KernelIDs = m_BinImg2KernelIDs[BinImage];
-        // If the image does not contain any non-service kernels we can skip it.
-        if (!KernelIDs || KernelIDs->empty())
-          continue;
+      auto InsertRes = ImageInfoMap.insert({BinImage, {}});
+      DeviceBinaryImageInfo &ImgInfo = InsertRes.first->second;
+      if (InsertRes.second) {
+        ImgInfo.State = getBinImageState(BinImage);
+        // Collect kernel names for the image
+        {
+          std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+          ImgInfo.KernelIDs = m_BinImg2KernelIDs[BinImage];
+        }
       }
+      const bundle_state ImgState = ImgInfo.State;
+      const std::shared_ptr<std::vector<sycl::kernel_id>> &ImageKernelIDs =
+          ImgInfo.KernelIDs;
+      int &ImgRequirementCounter = ImgInfo.RequirementCounter;
 
-      DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
-          BinImage, Ctx, Devs, ImgState, KernelIDs, /*PIProgram=*/nullptr);
+      // If the image does not contain any non-service kernels we can skip it.
+      if (!ImageKernelIDs || ImageKernelIDs->empty())
+        continue;
 
-      SYCLDeviceImages.push_back(
-          createSyclObjFromImpl<device_image_plain>(Impl));
-      break;
+      // Update tracked information.
+      for (kernel_id &KernelID : *ImageKernelIDs) {
+        StateImagesPairT *StateImagesPair;
+        // If only specific kernels are requested, ignore the rest.
+        if (!KernelIDs.empty()) {
+          auto It = KernelImageMap.find(KernelID);
+          if (It == KernelImageMap.end())
+            continue;
+          StateImagesPair = &It->second;
+        } else
+          StateImagesPair = &KernelImageMap[KernelID];
+
+        auto &[KernelImagesState, KernelImages] = *StateImagesPair;
+
+        if (KernelImages.empty()) {
+          KernelImagesState = ImgState;
+          KernelImages.push_back(BinImage);
+          ++ImgRequirementCounter;
+        } else if (KernelImagesState < ImgState) {
+          for (RTDeviceBinaryImage *Img : KernelImages) {
+            auto It = ImageInfoMap.find(Img);
+            assert(It != ImageInfoMap.end());
+            assert(It->second.RequirementCounter > 0);
+            --(It->second.RequirementCounter);
+          }
+          KernelImages.clear();
+          KernelImages.push_back(BinImage);
+          KernelImagesState = ImgState;
+          ++ImgRequirementCounter;
+        } else if (KernelImagesState == ImgState) {
+          KernelImages.push_back(BinImage);
+          ++ImgRequirementCounter;
+        }
+      }
     }
+  }
+
+  for (const auto &ImgInfoPair : ImageInfoMap) {
+    if (ImgInfoPair.second.RequirementCounter == 0)
+      continue;
+
+    DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
+        ImgInfoPair.first, Ctx, Devs, ImgInfoPair.second.State,
+        ImgInfoPair.second.KernelIDs, /*PIProgram=*/nullptr);
+
+    SYCLDeviceImages.push_back(createSyclObjFromImpl<device_image_plain>(Impl));
   }
 
   return SYCLDeviceImages;
@@ -2235,7 +2381,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
     while (!Aspects.empty()) {
       aspect Aspect = Aspects.consume<aspect>();
       // Strict check for fp64 is disabled temporarily to avoid confusion.
-      if (Aspect != aspect::fp64 && !Dev.has(Aspect))
+      if (!Dev.has(Aspect))
         return false;
     }
   }

@@ -965,7 +965,7 @@ Error JITDylib::resolve(MaterializationResponsibility &MR,
                  "Resolving symbol with materializer attached?");
           assert(SymI->second.getState() == SymbolState::Materializing &&
                  "Symbol should be materializing");
-          assert(SymI->second.getAddress() == 0 &&
+          assert(SymI->second.getAddress() == ExecutorAddr() &&
                  "Symbol has already been resolved");
 
           if (SymI->second.getFlags().hasError())
@@ -1000,7 +1000,7 @@ Error JITDylib::resolve(MaterializationResponsibility &MR,
 
           // Resolved symbols can not be weak: discard the weak flag.
           JITSymbolFlags ResolvedFlags = ResolvedSym.getFlags();
-          SymI->second.setAddress(ResolvedSym.getAddress());
+          SymI->second.setAddress(ExecutorAddr(ResolvedSym.getAddress()));
           SymI->second.setFlags(ResolvedFlags);
           SymI->second.setState(SymbolState::Resolved);
 
@@ -1438,16 +1438,23 @@ void JITDylib::dump(raw_ostream &OS) {
     OS << "Link order: " << LinkOrder << "\n"
        << "Symbol table:\n";
 
-    for (auto &KV : Symbols) {
+    // Sort symbols so we get a deterministic order and can check them in tests.
+    std::vector<std::pair<SymbolStringPtr, SymbolTableEntry *>> SymbolsSorted;
+    for (auto &KV : Symbols)
+      SymbolsSorted.emplace_back(KV.first, &KV.second);
+    std::sort(SymbolsSorted.begin(), SymbolsSorted.end(),
+              [](const auto &L, const auto &R) { return *L.first < *R.first; });
+
+    for (auto &KV : SymbolsSorted) {
       OS << "    \"" << *KV.first << "\": ";
-      if (auto Addr = KV.second.getAddress())
-        OS << format("0x%016" PRIx64, Addr);
+      if (auto Addr = KV.second->getAddress())
+        OS << Addr;
       else
         OS << "<not resolved> ";
 
-      OS << " " << KV.second.getFlags() << " " << KV.second.getState();
+      OS << " " << KV.second->getFlags() << " " << KV.second->getState();
 
-      if (KV.second.hasMaterializerAttached()) {
+      if (KV.second->hasMaterializerAttached()) {
         OS << " (Materializer ";
         auto I = UnmaterializedInfos.find(KV.first);
         assert(I != UnmaterializedInfos.end() &&
@@ -2667,7 +2674,7 @@ void ExecutionSession::OL_completeLookup(
             // whether it has a materializer attached, and if so prepare to run
             // it.
             if (SymI->second.hasMaterializerAttached()) {
-              assert(SymI->second.getAddress() == 0 &&
+              assert(SymI->second.getAddress() == ExecutorAddr() &&
                      "Symbol not resolved but already has address?");
               auto UMII = JD.UnmaterializedInfos.find(Name);
               assert(UMII != JD.UnmaterializedInfos.end() &&

@@ -34,6 +34,7 @@
 #include "mlir/ExecutionEngine/JitRunner.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/TargetSelect.h"
@@ -68,16 +69,25 @@ static LogicalResult runMLIRPasses(Operation *op,
   if (options.spirvWebGPUPrepare)
     modulePM.addPass(spirv::createSPIRVWebGPUPreparePass());
 
+  auto enableOpaquePointers = [](auto passOption) {
+    passOption.useOpaquePointers = true;
+    return passOption;
+  };
+
   passManager.addPass(createConvertGpuLaunchFuncToVulkanLaunchFuncPass());
-  passManager.addPass(createFinalizeMemRefToLLVMConversionPass());
-  passManager.addPass(createConvertVectorToLLVMPass());
+  passManager.addPass(createFinalizeMemRefToLLVMConversionPass(
+      enableOpaquePointers(FinalizeMemRefToLLVMConversionPassOptions{})));
+  passManager.addPass(createConvertVectorToLLVMPass(
+      enableOpaquePointers(ConvertVectorToLLVMPassOptions{})));
   passManager.nest<func::FuncOp>().addPass(LLVM::createRequestCWrappersPass());
   ConvertFuncToLLVMPassOptions funcToLLVMOptions{};
   funcToLLVMOptions.indexBitwidth =
       DataLayout(module).getTypeSizeInBits(IndexType::get(module.getContext()));
-  passManager.addPass(createConvertFuncToLLVMPass(funcToLLVMOptions));
+  passManager.addPass(
+      createConvertFuncToLLVMPass(enableOpaquePointers(funcToLLVMOptions)));
   passManager.addPass(createReconcileUnrealizedCastsPass());
-  passManager.addPass(createConvertVulkanLaunchFuncToVulkanCallsPass());
+  passManager.addPass(createConvertVulkanLaunchFuncToVulkanCallsPass(
+      enableOpaquePointers(ConvertVulkanLaunchFuncToVulkanCallsPassOptions{})));
 
   return passManager.run(module);
 }
@@ -105,6 +115,7 @@ int main(int argc, char **argv) {
                   mlir::gpu::GPUDialect, mlir::spirv::SPIRVDialect,
                   mlir::func::FuncDialect, mlir::memref::MemRefDialect,
                   mlir::vector::VectorDialect>();
+  mlir::registerBuiltinDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
 
   return mlir::JitRunnerMain(argc, argv, registry, jitRunnerConfig);

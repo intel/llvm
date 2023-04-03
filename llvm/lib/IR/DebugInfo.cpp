@@ -43,10 +43,7 @@ using namespace llvm;
 using namespace llvm::at;
 using namespace llvm::dwarf;
 
-/// Finds all intrinsics declaring local variables as living in the memory that
-/// 'V' points to. This may include a mix of dbg.declare and
-/// dbg.addr intrinsics.
-TinyPtrVector<DbgVariableIntrinsic *> llvm::FindDbgAddrUses(Value *V) {
+TinyPtrVector<DbgDeclareInst *> llvm::FindDbgDeclareUses(Value *V) {
   // This function is hot. Check whether the value has any metadata to avoid a
   // DenseMap lookup.
   if (!V->isUsedByMetadata())
@@ -58,22 +55,13 @@ TinyPtrVector<DbgVariableIntrinsic *> llvm::FindDbgAddrUses(Value *V) {
   if (!MDV)
     return {};
 
-  TinyPtrVector<DbgVariableIntrinsic *> Declares;
+  TinyPtrVector<DbgDeclareInst *> Declares;
   for (User *U : MDV->users()) {
-    if (auto *DII = dyn_cast<DbgVariableIntrinsic>(U))
-      if (DII->isAddressOfVariable())
-        Declares.push_back(DII);
+    if (auto *DDI = dyn_cast<DbgDeclareInst>(U))
+      Declares.push_back(DDI);
   }
 
   return Declares;
-}
-
-TinyPtrVector<DbgDeclareInst *> llvm::FindDbgDeclareUses(Value *V) {
-  TinyPtrVector<DbgDeclareInst *> DDIs;
-  for (DbgVariableIntrinsic *DVI : FindDbgAddrUses(V))
-    if (auto *DDI = dyn_cast<DbgDeclareInst>(DVI))
-      DDIs.push_back(DDI);
-  return DDIs;
 }
 
 void llvm::findDbgValues(SmallVectorImpl<DbgValueInst *> &DbgValues, Value *V) {
@@ -801,7 +789,6 @@ bool llvm::stripNonLineTableDebugInfo(Module &M) {
       Changed = true;
     }
   };
-  RemoveUses("llvm.dbg.addr");
   RemoveUses("llvm.dbg.declare");
   RemoveUses("llvm.dbg.label");
   RemoveUses("llvm.dbg.value");
@@ -1963,7 +1950,8 @@ void at::trackAssignments(Function::iterator Start, Function::iterator End,
   }
 }
 
-void AssignmentTrackingPass::runOnFunction(Function &F) {
+bool AssignmentTrackingPass::runOnFunction(Function &F) {
+  bool Changed = false;
   // Collect a map of {backing storage : dbg.declares} (currently "backing
   // storage" is limited to Allocas). We'll use this to find dbg.declares to
   // delete after running `trackAssignments`.
@@ -2016,8 +2004,10 @@ void AssignmentTrackingPass::runOnFunction(Function &F) {
       // Delete DDI because the variable location is now tracked using
       // assignment tracking.
       DDI->eraseFromParent();
+      Changed = true;
     }
   }
+  return Changed;
 }
 
 static const char *AssignmentTrackingModuleFlag =
@@ -2040,7 +2030,8 @@ bool llvm::isAssignmentTrackingEnabled(const Module &M) {
 
 PreservedAnalyses AssignmentTrackingPass::run(Function &F,
                                               FunctionAnalysisManager &AM) {
-  runOnFunction(F);
+  if (!runOnFunction(F))
+    return PreservedAnalyses::all();
 
   // Record that this module uses assignment tracking. It doesn't matter that
   // some functons in the module may not use it - the debug info in those
@@ -2056,8 +2047,12 @@ PreservedAnalyses AssignmentTrackingPass::run(Function &F,
 
 PreservedAnalyses AssignmentTrackingPass::run(Module &M,
                                               ModuleAnalysisManager &AM) {
+  bool Changed = false;
   for (auto &F : M)
-    runOnFunction(F);
+    Changed |= runOnFunction(F);
+
+  if (!Changed)
+    return PreservedAnalyses::all();
 
   // Record that this module uses assignment tracking.
   setAssignmentTrackingModuleFlag(M);

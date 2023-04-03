@@ -15,10 +15,10 @@
 #include <__filesystem/path.h>
 #include <__memory/shared_ptr.h>
 #include <__utility/forward.h>
+#include <__verbose_abort>
 #include <iosfwd>
 #include <new>
 #include <system_error>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -92,7 +92,7 @@ void __throw_filesystem_error(_Args&&... __args) {
 }
 #else
 void __throw_filesystem_error(_Args&&...) {
-  _VSTD::abort();
+    _LIBCPP_VERBOSE_ABORT("filesystem_error was thrown in -fno-exceptions mode");
 }
 #endif
 _LIBCPP_AVAILABILITY_FILESYSTEM_POP

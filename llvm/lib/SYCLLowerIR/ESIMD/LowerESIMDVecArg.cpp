@@ -115,7 +115,7 @@ Type *ESIMDLowerVecArgPass::getSimdArgPtrTyOrNull(Value *arg) {
     return nullptr;
   Type *Res = nullptr;
   StructType *ST =
-      dyn_cast_or_null<StructType>(ArgType->getPointerElementType());
+      dyn_cast_or_null<StructType>(ArgType->getNonOpaquePointerElementType());
 
   Res = esimd::getVectorTyOrNull(ST);
   if (!Res)

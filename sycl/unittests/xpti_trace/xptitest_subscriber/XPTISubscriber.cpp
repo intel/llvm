@@ -44,12 +44,12 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      unsigned int /*minor_version*/,
                                      const char * /*version_str*/,
-                                     const char *StreamName) {
+                                     const char * /*StreamName*/) {
   uint8_t StreamID = xptiRegisterStream("sycl");
   xptiRegisterCallback(StreamID, xpti::trace_diagnostics, testCallback);
 }
 
-XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {}
+XPTI_CALLBACK_API void xptiTraceFinish(const char * /*StreamName*/) {}
 
 XPTI_CALLBACK_API bool queryReceivedNotifications(uint16_t &TraceType,
                                                   std::string &Message) {

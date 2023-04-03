@@ -1141,7 +1141,7 @@ static QualType adjustCVQualifiersForCXXThisWithinLambda(
 
     if (C.isCopyCapture()) {
       ClassType.removeLocalCVRQualifiers(Qualifiers::CVRMask);
-      if (CurLSI->CallOperator->isConst())
+      if (!CurLSI->Mutable)
         ClassType.addConst();
       return ASTCtx.getPointerType(ClassType);
     }
@@ -2988,7 +2988,7 @@ void Sema::DeclareGlobalNewDelete() {
   //   functions are replaceable ([new.delete]); these are attached to the
   //   global module ([module.unit]).
   if (getLangOpts().CPlusPlusModules && getCurrentModule())
-    PushGlobalModuleFragment(SourceLocation(), /*IsImplicit=*/true);
+    PushGlobalModuleFragment(SourceLocation());
 
   // C++ [basic.std.dynamic]p2:
   //   [...] The following allocation and deallocation functions (18.4) are
@@ -3032,10 +3032,10 @@ void Sema::DeclareGlobalNewDelete() {
 
     // The implicitly declared "std::bad_alloc" should live in global module
     // fragment.
-    if (GlobalModuleFragment) {
+    if (TheGlobalModuleFragment) {
       getStdBadAlloc()->setModuleOwnershipKind(
           Decl::ModuleOwnershipKind::ReachableWhenImported);
-      getStdBadAlloc()->setLocalOwningModule(GlobalModuleFragment);
+      getStdBadAlloc()->setLocalOwningModule(TheGlobalModuleFragment);
     }
   }
   if (!StdAlignValT && getLangOpts().AlignedAllocation) {
@@ -3047,10 +3047,10 @@ void Sema::DeclareGlobalNewDelete() {
 
     // The implicitly declared "std::align_val_t" should live in global module
     // fragment.
-    if (GlobalModuleFragment) {
+    if (TheGlobalModuleFragment) {
       AlignValT->setModuleOwnershipKind(
           Decl::ModuleOwnershipKind::ReachableWhenImported);
-      AlignValT->setLocalOwningModule(GlobalModuleFragment);
+      AlignValT->setLocalOwningModule(TheGlobalModuleFragment);
     }
 
     AlignValT->setIntegerType(Context.getSizeType());
@@ -3179,10 +3179,10 @@ void Sema::DeclareGlobalAllocationFunction(DeclarationName Name,
     // module all the time. But in the implementation, the global module
     // is only meaningful when we're in a module unit. So here we attach
     // these allocation functions to global module conditionally.
-    if (GlobalModuleFragment) {
+    if (TheGlobalModuleFragment) {
       Alloc->setModuleOwnershipKind(
           Decl::ModuleOwnershipKind::ReachableWhenImported);
-      Alloc->setLocalOwningModule(GlobalModuleFragment);
+      Alloc->setLocalOwningModule(TheGlobalModuleFragment);
     }
 
     Alloc->addAttr(VisibilityAttr::CreateImplicit(

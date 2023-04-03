@@ -70,7 +70,11 @@ public:
   template <typename T = MDNode>
   T *transDebugInst(const SPIRVExtInst *DebugInst) {
     assert((DebugInst->getExtSetKind() == SPIRVEIS_Debug ||
-            DebugInst->getExtSetKind() == SPIRVEIS_OpenCL_DebugInfo_100) &&
+            DebugInst->getExtSetKind() == SPIRVEIS_OpenCL_DebugInfo_100 ||
+            DebugInst->getExtSetKind() ==
+                SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+            DebugInst->getExtSetKind() ==
+                SPIRVEIS_NonSemantic_Shader_DebugInfo_200) &&
            "Unexpected extended instruction set");
     auto It = DebugInstCache.find(DebugInst);
     if (It != DebugInstCache.end())
@@ -108,10 +112,17 @@ private:
   DIType *transTypePointer(const SPIRVExtInst *DebugInst);
 
   DICompositeType *transTypeArray(const SPIRVExtInst *DebugInst);
+  DICompositeType *transTypeArrayOpenCL(const SPIRVExtInst *DebugInst);
+  DICompositeType *transTypeArrayNonSemantic(const SPIRVExtInst *DebugInst);
+  DICompositeType *transTypeArrayDynamic(const SPIRVExtInst *DebugInst);
 
   DICompositeType *transTypeVector(const SPIRVExtInst *DebugInst);
 
   DICompositeType *transTypeComposite(const SPIRVExtInst *DebugInst);
+
+  DISubrange *transTypeSubrange(const SPIRVExtInst *DebugInst);
+
+  DIStringType *transTypeString(const SPIRVExtInst *DebugInst);
 
   DINode *transTypeMember(const SPIRVExtInst *DebugInst);
 
@@ -175,6 +186,9 @@ private:
     return nullptr;
   }
   const std::string &getString(const SPIRVId Id);
+  SPIRVWord getConstantValueOrLiteral(const std::vector<SPIRVWord> &,
+                                      const SPIRVWord,
+                                      const SPIRVExtInstSetKind);
   std::string findModuleProducer();
   std::optional<DIFile::ChecksumInfo<StringRef>> ParseChecksum(StringRef Text);
 };

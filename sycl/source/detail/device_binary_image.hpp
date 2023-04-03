@@ -222,6 +222,7 @@ public:
   const PropertyRange &getDeviceRequirements() const {
     return DeviceRequirements;
   }
+  const PropertyRange &getHostPipes() const { return HostPipes; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -245,6 +246,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
+  RTDeviceBinaryImage::PropertyRange HostPipes;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary

@@ -1096,7 +1096,7 @@ void ASTStmtWriter::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
     Record.AddStmt(E->getSubExpr(I));
   Record.AddSourceLocation(E->getEqualOrColonLoc());
   Record.push_back(E->usesGNUSyntax());
-  for (const Designator &D : E->designators()) {
+  for (const DesignatedInitExpr::Designator &D : E->designators()) {
     if (D.isFieldDesignator()) {
       if (FieldDecl *Field = D.getField()) {
         Record.push_back(serialization::DESIG_FIELD_DECL);
@@ -2735,16 +2735,14 @@ void ASTStmtWriter::VisitOMPTargetParallelGenericLoopDirective(
 //===----------------------------------------------------------------------===//
 
 unsigned ASTWriter::RecordSwitchCaseID(SwitchCase *S) {
-  assert(SwitchCaseIDs.find(S) == SwitchCaseIDs.end() &&
-         "SwitchCase recorded twice");
+  assert(!SwitchCaseIDs.contains(S) && "SwitchCase recorded twice");
   unsigned NextID = SwitchCaseIDs.size();
   SwitchCaseIDs[S] = NextID;
   return NextID;
 }
 
 unsigned ASTWriter::getSwitchCaseID(SwitchCase *S) {
-  assert(SwitchCaseIDs.find(S) != SwitchCaseIDs.end() &&
-         "SwitchCase hasn't been seen yet");
+  assert(SwitchCaseIDs.contains(S) && "SwitchCase hasn't been seen yet");
   return SwitchCaseIDs[S];
 }
 

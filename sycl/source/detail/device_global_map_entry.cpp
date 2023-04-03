@@ -17,18 +17,6 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-OwnedPiEvent::OwnedPiEvent(RT::PiEvent Event, const plugin &Plugin)
-    : MEvent(Event), MPlugin(Plugin) {
-  // Retain the event to share ownership of it.
-  MPlugin.call<PiApiKind::piEventRetain>(*MEvent);
-}
-
-OwnedPiEvent::~OwnedPiEvent() {
-  // Release the event if the ownership was not transferred.
-  if (MEvent.has_value())
-    MPlugin.call<PiApiKind::piEventRelease>(*MEvent);
-}
-
 DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   // removeAssociatedResources is expected to have cleaned up both the pointer
   // and the event. When asserts are enabled the values are set, so we check
