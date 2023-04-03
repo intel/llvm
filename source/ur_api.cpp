@@ -32,7 +32,7 @@
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0xffffffe0 & device_flags`
+///         + `::UR_DEVICE_INIT_FLAGS_MASK & device_flags`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urInit(
     ur_device_init_flags_t device_flags ///< [in] device initialization flags.
@@ -783,7 +783,7 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0xffffffc0 & flags`
+///         + `::UR_MEM_FLAGS_MASK & flags`
 ///         + `::UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
@@ -830,7 +830,7 @@ ur_result_t UR_APICALL urMemImageCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0xffffffc0 & flags`
+///         + `::UR_MEM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
@@ -920,7 +920,7 @@ ur_result_t UR_APICALL urMemRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0xffffffc0 & flags`
+///         + `::UR_MEM_FLAGS_MASK & flags`
 ///         + `::UR_BUFFER_CREATE_TYPE_REGION < bufferCreateType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pRegion`
@@ -1467,7 +1467,7 @@ ur_result_t UR_APICALL urUSMGetMemAllocInfo(
 ///         + `NULL == pPoolDesc`
 ///         + `NULL == ppPool`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0xfffffffe & pPoolDesc->flags`
+///         + `::UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urUSMPoolCreate(
@@ -3629,7 +3629,7 @@ ur_result_t UR_APICALL urEnqueueMemImageCopy(
 ///         + `NULL == hQueue`
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0xfffffffc & mapFlags`
+///         + `::UR_MAP_FLAGS_MASK & mapFlags`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == ppRetMap`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
@@ -3819,7 +3819,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0xfffffffe & flags`
+///         + `::UR_USM_MIGRATION_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -3863,7 +3863,7 @@ ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x1ff < advice`
+///         + `::UR_USM_ADVICE_FLAGS_MASK & advice`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE

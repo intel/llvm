@@ -93,6 +93,7 @@ typedef enum ${th.make_enum_name(n, tags, obj)}
 
 } ${th.make_enum_name(n, tags, obj)};
 %if th.type_traits.is_flags(obj['name']):
+/// @brief Bit Mask for validating ${th.make_type_name(n, tags, obj)}
 ${th.make_flags_bitmask(n, tags, obj, meta)}
 %endif
 ## STRUCT/UNION ###############################################################

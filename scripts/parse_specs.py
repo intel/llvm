@@ -683,7 +683,7 @@ def _generate_returns(obj, meta):
 
                 elif type_traits.is_enum(item['type'], meta):
                     if type_traits.is_flags(item['type']) and 'bit_mask' in meta['enum'][typename].keys():
-                        _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s & %s`"%(meta['enum'][typename]['bit_mask'], item['name']))
+                        _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s & %s`"%(typename.upper()[:-2]+ "_MASK", item['name']))
                     else:
                         _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s < %s`"%(meta['enum'][typename]['max'], item['name']))
 
@@ -702,7 +702,7 @@ def _generate_returns(obj, meta):
                                 _append(rets, "$X_RESULT_ERROR_UNSUPPORTED_VERSION", "`%s != %s->stype`"%(re.sub(r"(\$\w)_(.*)_t.*", r"\1_STRUCTURE_TYPE_\2", typename).upper(), item['name']))
                             else:
                                 if type_traits.is_flags(m['type']) and 'bit_mask' in meta['enum'][mtypename].keys():
-                                    _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s & %s->%s`"%(meta['enum'][mtypename]['bit_mask'], item['name'], m['name']))
+                                    _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s & %s->%s`"%(mtypename.upper()[:-2]+ "_MASK", item['name'], m['name']))
                                 else:
                                     _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s < %s->%s`"%(meta['enum'][mtypename]['max'], item['name'], m['name']))
 
