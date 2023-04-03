@@ -82,6 +82,7 @@ class type_traits:
     RE_HANDLE   = r"(.*)handle_t"
     RE_IPC      = r"(.*)ipc(.*)handle_t"
     RE_POINTER  = r"(.*\w+)\*+"
+    RE_PPOINTER  = r"(.*\w+)\*{2,}"
     RE_DESC     = r"(.*)desc_t.*"
     RE_PROPS    = r"(.*)properties_t.*"
     RE_FLAGS    = r"(.*)flags_t"
@@ -94,6 +95,13 @@ class type_traits:
     def is_handle(cls, name):
         try:
             return True if re.match(cls.RE_HANDLE, name) else False
+        except:
+            return False
+
+    @classmethod
+    def is_pointer_to_pointer(cls, name):
+        try:
+            return True if re.match(cls.RE_PPOINTER, name) else False
         except:
             return False
 
