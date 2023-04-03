@@ -111,7 +111,7 @@ int main() {
 
   if (q.get_device().has(aspect::fp64)) {
     std::array<std::complex<double>, N> input_cd;
-    std::array<std::complex<double>, 4> output_cd;
+    std::array<std::complex<double>, 6> output_cd;
     std::iota(input_cd.begin(), input_cd.end(), 0);
     std::fill(output_cd.begin(), output_cd.end(), 0);
     test<class KernelNamePlusComplexD>(q, input_cd, output_cd,

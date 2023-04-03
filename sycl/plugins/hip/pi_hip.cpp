@@ -1663,8 +1663,21 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    device->get_reference_count());
   }
   case PI_DEVICE_INFO_VERSION: {
+    std::stringstream s;
+
+    hipDeviceProp_t props;
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
+#if defined(__HIP_PLATFORM_NVIDIA__)
+    s << props.major << "." << props.minor;
+#elif defined(__HIP_PLATFORM_AMD__)
+    s << props.gcnArchName;
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "PI 0.0");
+                   s.str().c_str());
   }
   case PI_DEVICE_INFO_OPENCL_C_VERSION: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
@@ -5373,6 +5386,44 @@ pi_result hip_piextEnqueueDeviceGlobalVariableRead(
 
   sycl::detail::pi::die(
       "hip_piextEnqueueDeviceGlobalVariableRead not implemented");
+}
+
+/// Host Pipes
+pi_result hip_piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                       const char *pipe_symbol,
+                                       pi_bool blocking, void *ptr, size_t size,
+                                       pi_uint32 num_events_in_waitlist,
+                                       const pi_event *events_waitlist,
+                                       pi_event *event) {
+  (void)queue;
+  (void)program;
+  (void)pipe_symbol;
+  (void)blocking;
+  (void)ptr;
+  (void)size;
+  (void)num_events_in_waitlist;
+  (void)events_waitlist;
+  (void)event;
+
+  sycl::detail::pi::die("hip_piextEnqueueReadHostPipe not implemented");
+  return {};
+}
+
+pi_result hip_piextEnqueueWriteHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  (void)queue;
+  (void)program;
+  (void)pipe_symbol;
+  (void)blocking;
+  (void)ptr;
+  (void)size;
+  (void)num_events_in_waitlist;
+  (void)events_waitlist;
+  (void)event;
+
+  sycl::detail::pi::die("hip_piextEnqueueWriteHostPipe not implemented");
   return {};
 }
 
@@ -5561,6 +5612,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          hip_piextEnqueueDeviceGlobalVariableWrite)
   _PI_CL(piextEnqueueDeviceGlobalVariableRead,
          hip_piextEnqueueDeviceGlobalVariableRead)
+
+  // Host Pipe
+  _PI_CL(piextEnqueueReadHostPipe, hip_piextEnqueueReadHostPipe)
+  _PI_CL(piextEnqueueWriteHostPipe, hip_piextEnqueueWriteHostPipe)
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)

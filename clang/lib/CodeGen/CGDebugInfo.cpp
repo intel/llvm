@@ -668,11 +668,8 @@ void CGDebugInfo::CreateCompileUnit() {
   if (CSKind)
     CSInfo.emplace(*CSKind, Checksum);
 
-  if (!CGM.getCodeGenOpts().SYCLUseMainFileName)
-    MainFileDir = getCurrentDirname();
-
   llvm::DIFile *CUFile =
-      DBuilder.createFile(remapDIPath(MainFileName), remapDIPath(MainFileDir),
+      DBuilder.createFile(remapDIPath(MainFileName), remapDIPath(getCurrentDirname()),
                           CSInfo, getSource(SM, SM.getMainFileID()));
 
   StringRef Sysroot, SDK;
