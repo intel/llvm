@@ -105,10 +105,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
 
-  # Add macro to suppress queue constructors during library build for all files by default.
-  # The V3 and V4 constructors will be explicitly enabled in queue_v3.cpp and queue.cpp.
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_SUPPRESS_QUEUE_CONSTRUCTORS)
-
   target_include_directories(
     ${LIB_OBJ_NAME}
     PRIVATE
