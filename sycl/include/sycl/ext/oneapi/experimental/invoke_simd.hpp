@@ -393,13 +393,20 @@ template <class Callable> constexpr void verify_no_ref() {
   }
 }
 
-template <class... Ts> constexpr void verify_valid_args() {
+template <class... Ts>
+constexpr void verify_no_uniform_non_trivially_copyable_args() {
   constexpr bool has_non_trivially_copyable_uniform_arg =
       (... ||
        (is_uniform_type<Ts>::value &&
         !std::is_trivially_copyable_v<typename unwrap_uniform<Ts>::type>));
   static_assert(!has_non_trivially_copyable_uniform_arg,
                 "Uniform arguments must be trivially copyable");
+}
+
+template <class Callable, class... Ts> constexpr void verify_valid_args() {
+  verify_no_uniform_non_trivially_copyable_args<Ts...>();
+
+  verify_no_ref<Callable>();
 }
 
 } // namespace detail
@@ -431,8 +438,7 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
   // what the subgroup size is and arguments don't need widening and return
   // value does not need shrinking by this library or SPMD compiler, so 0
   // is fine in this case.
-  detail::verify_valid_args<T...>();
-  detail::verify_no_ref<Callable>();
+  detail::verify_valid_args<Callable, T...>();
   constexpr int N = detail::get_sg_size<Callable, T...>();
   using RetSpmd = detail::SpmdRetType<N, Callable, T...>;
   detail::verify_return_type_matches_sg_size<
