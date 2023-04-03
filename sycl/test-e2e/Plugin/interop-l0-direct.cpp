@@ -92,7 +92,6 @@ int main() {
   std::cout << "Commandlist created: " << ZeCommand_list << std::endl;
 
   // Interop object creation
-  //{
   backend_traits<backend::ext_oneapi_level_zero>::return_type<device> ZeDevice;
   ZeDevice = ZeDevices[0];
 
@@ -117,27 +116,50 @@ int main() {
 
   backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInputCQ{
       ZeCommand_queue, InteropDevice, ext::oneapi::level_zero::ownership::keep};
-#if 0
-    queue InteropQueueCQ = make_queue<backend::ext_oneapi_level_zero>(
-        InteropQueueInputCQ, InteropContext);
-#else
-  queue InteropQueueCQ =
-      ext::oneapi::level_zero::make<queue>(InteropContext, {ZeCommand_queue});
-#endif
+  queue InteropQueueCQ = make_queue<backend::ext_oneapi_level_zero>(
+      InteropQueueInputCQ, InteropContext);
   std::cout << "Made SYCL queue with L0 command queue\n";
-  std::cout << "Queue is in-order: " << InteropQueueCQ.is_in_order()
-            << std::endl;
 
-  auto InteropQueueCQ_Handle =
+  auto InteropQueueCQ_NewHandle =
       get_native<backend::ext_oneapi_level_zero, queue>(InteropQueueCQ);
-#if 1
-  std::cout << "Command queue obtained: " << InteropQueueCQ_Handle << std::endl;
-  if (ZeCommand_queue != InteropQueueCQ_Handle) {
-    std::cout << "Test failed, command queue retrieved does not match one "
-                 "used in queue creation\n";
-    return 1;
+  if (std::holds_alternative<ze_command_list_handle_t>(
+          InteropQueueCQ_NewHandle)) {
+    std::cout << "Test failed, queue created using command queue returns a "
+                 "command list type handle"
+              << std::endl;
+  } else {
+    auto Queue =
+        std::get_if<ze_command_queue_handle_t>(&InteropQueueCQ_NewHandle);
+    std::cout << "Command queue obtained new style: " << *Queue << std::endl;
+    if (ZeCommand_queue != *Queue) {
+      std::cout << "Test failed, command queue retrieved in new style does not "
+                   "match one used in queue creation\n";
+      return 1;
+    }
   }
-#endif
+
+  backend_input_t<backend::ext_oneapi_level_zero, queue> InteropQueueInputCL{
+      ZeCommand_list, InteropDevice, ext::oneapi::level_zero::ownership::keep};
+  queue InteropQueueCL = make_queue<backend::ext_oneapi_level_zero>(
+      InteropQueueInputCL, InteropContext);
+  std::cout << "Made SYCL queue with L0 immediate command list\n";
+  auto InteropQueueCL_NewHandle =
+      get_native<backend::ext_oneapi_level_zero, queue>(InteropQueueCL);
+  if (std::holds_alternative<ze_command_list_handle_t>(
+          InteropQueueCL_NewHandle)) {
+    auto List =
+        std::get_if<ze_command_list_handle_t>(&InteropQueueCL_NewHandle);
+    std::cout << "Command list obtained new style: " << *List << std::endl;
+    if (ZeCommand_list != *List) {
+      std::cout << "Test failed, command list retrieved in new style does not "
+                   "match one used in queue creation\n";
+      return 1;
+    }
+  } else {
+    std::cout << "Test failed, queue created using command list returns a "
+                 "command queue type handle"
+              << std::endl;
+  }
 
   int data[3] = {7, 8, 0};
   buffer<int, 1> bufData{data, 3};
@@ -148,14 +170,6 @@ int main() {
   queue SyclQueue;
   device SyclDevice = SyclQueue.get_device();
   context SyclContext = SyclQueue.get_context();
-
-#if 1
-  auto Q_Handle = get_native<backend::ext_oneapi_level_zero, queue>(SyclQueue);
-#if 1
-  std::cout << "Command queue obtained from regular SYCL queue: " << Q_Handle
-            << std::endl;
-#endif
-#endif
 
   auto deviceData = malloc_device<int>(2, InteropDevice, InteropContext);
   int addend[2];
@@ -174,13 +188,6 @@ int main() {
     host_accessor hostOut{bufData, read_only};
     std::cout << "GPU Result from SYCL Q = {" << hostOut[0] << ", "
               << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
-
-    auto Q_Handle =
-        get_native<backend::ext_oneapi_level_zero, queue>(SyclQueue);
-#if 1
-    std::cout << "Command queue obtained from regular SYCL queue: " << Q_Handle
-              << std::endl;
-#endif
 
     // Try interop queue with standard commandlist
     InteropQueueCQ.copy<int>(addend, deviceData, 2).wait();

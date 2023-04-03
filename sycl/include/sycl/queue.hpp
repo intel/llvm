@@ -251,16 +251,15 @@ public:
 
 #else // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
 
-// This class is used as an additional internal parameter to distinguish older
-  // constructors from current ones.
 private:
+  // This class is used as an additional internal parameter to distinguish older
+  // constructors from current ones.
   class Discriminator {
   public:
     Discriminator(){};
   };
 
 public:
-
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
   ///
@@ -2080,7 +2079,7 @@ public:
 
 private:
   pi_native_handle getNative() const;
-  pi_native_handle getNative2(int32_t& NativeHandleDesc) const;
+  pi_native_handle getNative2(int32_t &NativeHandleDesc) const;
 
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
