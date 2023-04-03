@@ -345,6 +345,10 @@ etors:
       desc: "$x_memory_order_capability_flags_t: return a bit-field of atomic memory order capabilities"
     - name: ATOMIC_MEMORY_SCOPE_CAPABILITIES
       desc: "$x_memory_scope_capability_flags_t: return a bit-field of atomic memory scope capabilities"
+    - name: ATOMIC_FENCE_ORDER_CAPABILITIES
+      desc: "$x_memory_order_capability_flags_t: return a bit-field of atomic memory fence order capabilities"
+    - name: ATOMIC_FENCE_SCOPE_CAPABILITIES
+      desc: "$x_memory_scope_capability_flags_t: return a bit-field of atomic memory fence scope capabilities"
     - name: BFLOAT16
       desc: "bool: support for bfloat16"
     - name: MAX_COMPUTE_QUEUE_INDICES

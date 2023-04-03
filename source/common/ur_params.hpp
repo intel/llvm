@@ -1113,6 +1113,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         os << "UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES";
         break;
 
+    case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+        os << "UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES";
+        break;
+
+    case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
+        os << "UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES";
+        break;
+
     case UR_DEVICE_INFO_BFLOAT16:
         os << "UR_DEVICE_INFO_BFLOAT16";
         break;
