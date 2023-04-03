@@ -2791,8 +2791,15 @@ public:
   }
 };
 
-static bool isESIMDKernelType(KernelCallOperatorVisitor KernelCallOperator) {
-  const CXXMethodDecl *OpParens = KernelCallOperator.getCallOperator();
+static bool isESIMDKernelType(KernelCallOperatorVisitor KernelCallOperator,
+                              const CXXRecordDecl *KernelFuncObj) {
+
+  const CXXMethodDecl *OpParens = nullptr;
+
+  if (KernelFuncObj->isLambda())
+    OpParens = KernelFuncObj->getLambdaCallOperator();
+
+  OpParens = KernelCallOperator.getCallOperator();
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
 }
 
@@ -4034,9 +4041,15 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
 
 // For a wrapped parallel_for, copy attributes from original
 // kernel to wrapped kernel.
-void Sema::copySYCLKernelAttrs(KernelCallOperatorVisitor &KernelCallOperator) {
+void Sema::copySYCLKernelAttrs(KernelCallOperatorVisitor &KernelCallOperator,
+                               const CXXRecordDecl *KernelFuncObj) {
   // Get the operator() function of the wrapper.
-  CXXMethodDecl *OpParens = KernelCallOperator.getCallOperator();
+  CXXMethodDecl *OpParens = nullptr;
+
+  if (KernelFuncObj->isLambda())
+    OpParens = KernelFuncObj->getLambdaCallOperator();
+
+  OpParens = KernelCallOperator.getCallOperator();
   assert(OpParens && "invalid kernel object");
 
   typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
@@ -4151,10 +4164,10 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
     // Attributes of a user-written SYCL kernel must be copied to the internally
     // generated alternative kernel, identified by a known string in its name.
     if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
-      copySYCLKernelAttrs(KernelCallOperator);
+      copySYCLKernelAttrs(KernelCallOperator, KernelObj);
   }
 
-  bool IsSIMDKernel = isESIMDKernelType(KernelCallOperator);
+  bool IsSIMDKernel = isESIMDKernelType(KernelCallOperator, KernelObj);
 
   SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(), IsSIMDKernel,

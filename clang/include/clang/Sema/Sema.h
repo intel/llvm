@@ -529,10 +529,6 @@ public:
     if (CallOperator)
       return CallOperator;
 
-    if (KernelObj->isLambda()) {
-      CallOperator = KernelObj->getLambdaCallOperator();
-      return CallOperator;
-    }
     TraverseDecl(KernelCallerFunc);
     return CallOperator;
   }
@@ -14343,7 +14339,8 @@ public:
 
   bool isDeclAllowedInSYCLDeviceCode(const Decl *D);
   void checkSYCLDeviceVarDecl(VarDecl *Var);
-  void copySYCLKernelAttrs(KernelCallOperatorVisitor &KernelCallOperator);
+  void copySYCLKernelAttrs(KernelCallOperatorVisitor &KernelCallOperator,
+                           const CXXRecordDecl *KernelFuncObj);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();
