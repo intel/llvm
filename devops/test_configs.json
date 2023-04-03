@@ -19,7 +19,7 @@
         "Windows",
         "gen12"
       ],
-      "check_sycl_all": "level_zero:gpu",
+      "targets": "level_zero:gpu",
       "cmake_args": ""
     },
     {

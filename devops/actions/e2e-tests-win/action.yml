@@ -1,5 +1,5 @@
-name: 'Run llvm-test-suite testing'
-description: 'Run E2E SYCL tests from llvm-test-suite'
+name: 'Run SYCL End-to-End testing'
+description: 'Run SYCL End-to-End testing'
 inputs:
   sycl_artifact:
     description: 'Name of the artifact, that contains compiler toolchain'
@@ -7,7 +7,7 @@ inputs:
   results_name_suffix:
     description: 'Name suffix of the results artifact'
     required: true
-  check_sycl_all:
+  targets:
     description: 'List of SYCL backends with set of target devices per each to be tested iteratively'
     required: true
   cmake_args:
@@ -41,7 +41,7 @@ runs:
     run: |
       mkdir build-e2e
       set PATH=%GITHUB_WORKSPACE%\install\bin;%PATH%
-      cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="clang++" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py" ${{ inputs.cmake_args }}
+      cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.targets }}" -DCMAKE_CXX_COMPILER="clang++" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py" ${{ inputs.cmake_args }}
   - name: Run testing
     shell: bash
     run: |

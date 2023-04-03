@@ -119,7 +119,7 @@ jobs:
         name: sycl_windows_default
         path: llvm_sycl.tar.gz
 
-  llvm_test_suite:
+  e2e-tests:
     needs: build
     if: ${{ inputs.lts_matrix != '[]' }}
     strategy:
@@ -146,10 +146,10 @@ jobs:
         path: llvm
     - name: Register cleanup after job is finished
       uses: ./llvm/devops/actions/cleanup
-    - uses: ./llvm/devops/actions/llvm_test_suite_win
-      name: Run LLVM Test Suite
+    - uses: ./llvm/devops/actions/e2e-tests-win
+      name: Run SYCL End-to-End tests
       with:
         sycl_artifact: sycl_windows_default
-        check_sycl_all: ${{ matrix.check_sycl_all }}
+        targets: ${{ matrix.targets }}
         results_name_suffix: ${{ matrix.config }}_default
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
