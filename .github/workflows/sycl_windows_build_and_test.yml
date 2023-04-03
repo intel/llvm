@@ -100,6 +100,8 @@ jobs:
         cmake --build build --target install-llvm-size
         cmake --build build --target install-llvm-cov
         cmake --build build --target install-llvm-profdata
+        # TODO: Figure out why installing FileCheck does not install
+        # the FileCheck binary in the install/bin directory.
         cmake --build build --target utils/FileCheck/install
         cmake --build build --target install-compiler-rt
         cmake --build build --target deploy-sycl-toolchain
@@ -147,5 +149,4 @@ jobs:
       with:
         sycl_artifact: sycl_windows_default
         targets: ${{ matrix.targets }}
-        results_name_suffix: ${{ matrix.config }}_default
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
