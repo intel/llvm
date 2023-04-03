@@ -414,22 +414,6 @@ static bool ShouldEnableAutolink(const ArgList &Args, const ToolChain &TC,
                       Default);
 }
 
-// Convert an arg of the form "-gN" or "-ggdbN" or one of their aliases
-// to the corresponding DebugInfoKind.
-static llvm::codegenoptions::DebugInfoKind DebugLevelToInfoKind(const Arg &A) {
-  assert(A.getOption().matches(options::OPT_gN_Group) &&
-         "Not a -g option that specifies a debug-info level");
-  if (A.getOption().matches(options::OPT_g0) ||
-      A.getOption().matches(options::OPT_ggdb0))
-    return llvm::codegenoptions::NoDebugInfo;
-  if (A.getOption().matches(options::OPT_gline_tables_only) ||
-      A.getOption().matches(options::OPT_ggdb1))
-    return llvm::codegenoptions::DebugLineTablesOnly;
-  if (A.getOption().matches(options::OPT_gline_directives_only))
-    return llvm::codegenoptions::DebugDirectivesOnly;
-  return llvm::codegenoptions::DebugInfoConstructor;
-}
-
 static bool mustUseNonLeafFramePointerForTarget(const llvm::Triple &Triple) {
   switch (Triple.getArch()){
   default:
@@ -1011,28 +995,7 @@ RenderDebugEnablingArgs(const ArgList &Args, ArgStringList &CmdArgs,
                         llvm::codegenoptions::DebugInfoKind DebugInfoKind,
                         unsigned DwarfVersion,
                         llvm::DebuggerKind DebuggerTuning) {
-  switch (DebugInfoKind) {
-  case llvm::codegenoptions::DebugDirectivesOnly:
-    CmdArgs.push_back("-debug-info-kind=line-directives-only");
-    break;
-  case llvm::codegenoptions::DebugLineTablesOnly:
-    CmdArgs.push_back("-debug-info-kind=line-tables-only");
-    break;
-  case llvm::codegenoptions::DebugInfoConstructor:
-    CmdArgs.push_back("-debug-info-kind=constructor");
-    break;
-  case llvm::codegenoptions::LimitedDebugInfo:
-    CmdArgs.push_back("-debug-info-kind=limited");
-    break;
-  case llvm::codegenoptions::FullDebugInfo:
-    CmdArgs.push_back("-debug-info-kind=standalone");
-    break;
-  case llvm::codegenoptions::UnusedTypeInfo:
-    CmdArgs.push_back("-debug-info-kind=unused-types");
-    break;
-  default:
-    break;
-  }
+  addDebugInfoKind(CmdArgs, DebugInfoKind);
   if (DwarfVersion > 0)
     CmdArgs.push_back(
         Args.MakeArgString("-dwarf-version=" + Twine(DwarfVersion)));
@@ -4291,7 +4254,7 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
     // If the last option explicitly specified a debug-info level, use it.
     if (checkDebugInfoOption(A, Args, D, TC) &&
         A->getOption().matches(options::OPT_gN_Group)) {
-      DebugInfoKind = DebugLevelToInfoKind(*A);
+      DebugInfoKind = debugLevelToInfoKind(*A);
       // For -g0 or -gline-tables-only, drop -gsplit-dwarf. This gets a bit more
       // complicated if you've disabled inline info in the skeleton CUs
       // (SplitDWARFInlining) - then there's value in composing split-dwarf and
@@ -7847,6 +7810,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     Args.addOptInFlag(CmdArgs, options::OPT_munsafe_fp_atomics,
                       options::OPT_mno_unsafe_fp_atomics);
+    Args.addOptOutFlag(CmdArgs, options::OPT_mamdgpu_ieee,
+                       options::OPT_mno_amdgpu_ieee);
   }
 
   // For all the host OpenMP offloading compile jobs we need to pass the targets
@@ -8387,6 +8352,8 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     if (types::isCXX(InputType))
       CmdArgs.push_back("-fcxx-exceptions");
     CmdArgs.push_back("-fexceptions");
+    if (EH.Asynch)
+      CmdArgs.push_back("-fasync-exceptions");
   }
   if (types::isCXX(InputType) && EH.Synch && EH.NoUnwindC)
     CmdArgs.push_back("-fexternc-nounwind");
