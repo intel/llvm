@@ -56,7 +56,8 @@ jobs:
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
       build_configure_extra_args: --shared-libs
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers"
+      # Docker image has last nightly pre-installed and added to the PATH
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers"
       cc: clang
       cxx: clang++
 
