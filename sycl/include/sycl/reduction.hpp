@@ -2142,16 +2142,20 @@ struct IsArrayReduction {
   };
 };
 
+template <typename ElementType, typename BOPT>
+constexpr auto makeAdjustedBOP(BOPT &BOP) {
+  return [&](ElementType &LHS, const ElementType &RHS) {
+    return LHS.combine(BOP, RHS);
+  };
+}
+
 template <typename... Reductions, typename... BOPsT, size_t... Is>
 constexpr auto makeAdjustedBOPs(ReduTupleT<BOPsT...> &BOPsTuple,
                                 std::index_sequence<Is...>) {
   return makeReduTupleT(
-      [&](typename std::tuple_element_t<
-              Is, std::tuple<Reductions...>>::reducer_element_type &LHS,
-          const typename std::tuple_element_t<
-              Is, std::tuple<Reductions...>>::reducer_element_type &RHS) {
-        return LHS.combine(std::get<Is>(BOPsTuple), RHS);
-      }...);
+      makeAdjustedBOP<typename std::tuple_element_t<
+          Is, std::tuple<Reductions...>>::reducer_element_type>(
+          std::get<Is>(BOPsTuple))...);
 }
 
 template <typename... Reductions, typename... BOPsT>
