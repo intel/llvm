@@ -1,5 +1,5 @@
 ; Do NOT use -O3. It will lower exp2 to ldexp, and the test will fail.
-; RUN: opt -vector-library=sleefgnuabi -replace-with-veclib -loop-unroll -loop-vectorize -S < %s | FileCheck %s
+; RUN: opt -vector-library=sleefgnuabi -replace-with-veclib < %s | opt -vector-library=sleefgnuabi -passes=inject-tli-mappings,loop-unroll,loop-vectorize -S | FileCheck %s
 
 target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
 target triple = "aarch64-unknown-linux-gnu"
@@ -912,6 +912,53 @@ define void @sqrt_f32(float* nocapture %varray) {
   %tmp = trunc i64 %iv to i32
   %conv = sitofp i32 %tmp to float
   %call = tail call float @sqrtf(float %conv)
+  %arrayidx = getelementptr inbounds float, float* %varray, i64 %iv
+  store float %call, float* %arrayidx, align 4
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond = icmp eq i64 %iv.next, 1000
+  br i1 %exitcond, label %for.end, label %for.body
+
+  for.end:
+  ret void
+}
+
+	
+define void @llvm_sqrt_f64(double* nocapture %varray) {
+  ; CHECK-LABEL: @llvm_sqrt_f64(
+  ; CHECK:    [[TMP5:%.*]] = call fast <2 x double> @llvm.sqrt.v2f64(<2 x double> [[TMP4:%.*]])
+  ; CHECK:    ret void
+  ;
+  entry:
+  br label %for.body
+
+  for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %tmp = trunc i64 %iv to i32
+  %conv = sitofp i32 %tmp to double
+  %call = tail call fast double @llvm.sqrt.f64(double %conv)
+  %arrayidx = getelementptr inbounds double, double* %varray, i64 %iv
+  store double %call, double* %arrayidx, align 8
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond = icmp eq i64 %iv.next, 1000
+  br i1 %exitcond, label %for.end, label %for.body
+
+  for.end:
+  ret void
+}
+
+define void @llvm_sqrt_f32(float* nocapture %varray) {
+  ; CHECK-LABEL: @llvm_sqrt_f32(
+  ; CHECK:    [[TMP5:%.*]] = call fast <4 x float> @llvm.sqrt.v4f32(<4 x float> [[TMP4:%.*]])
+  ; CHECK:    ret void
+  ;
+  entry:
+  br label %for.body
+
+  for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %tmp = trunc i64 %iv to i32
+  %conv = sitofp i32 %tmp to float
+  %call = tail call fast float @llvm.sqrt.f32(float %conv)
   %arrayidx = getelementptr inbounds float, float* %varray, i64 %iv
   store float %call, float* %arrayidx, align 4
   %iv.next = add nuw nsw i64 %iv, 1

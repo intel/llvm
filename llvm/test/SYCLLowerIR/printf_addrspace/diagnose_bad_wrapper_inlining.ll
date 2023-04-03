@@ -7,7 +7,7 @@
 ;; build of SYCL Clang with SYCLMutatePrintfAddrspacePass turned off):
 ;; clang++ -fsycl -fsycl-device-only Inputs/experimental-printf-bad-inline-test.cpp -S -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ -O2
 
-; RUN: not opt < %s --SYCLMutatePrintfAddrspace -S --enable-new-pm=0 2>&1 | FileCheck %s
+; RUN: not opt < %s --SYCLMutatePrintfAddrspace -S -bugpoint-enable-legacy-pm 2>&1 | FileCheck %s
 ; RUN: not opt < %s --passes=SYCLMutatePrintfAddrspace -S 2>&1 | FileCheck %s
 ; CHECK: error: experimental::printf requires format string to reside in constant address space. The compiler wasn't able to automatically convert your format string into constant address space when processing builtin _Z18__spirv_ocl_printf{{.*}} called in function {{.*}}custom_wrapper{{.*}}.
 ; CHECK-NEXT: Consider simplifying the code by passing format strings directly into experimental::printf calls, avoiding indirection via wrapper function arguments.

@@ -203,6 +203,7 @@ constexpr char PropertySetRegistry::SYCL_ASSERT_USED[];
 constexpr char PropertySetRegistry::SYCL_EXPORTED_SYMBOLS[];
 constexpr char PropertySetRegistry::SYCL_DEVICE_GLOBALS[];
 constexpr char PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS[];
+constexpr char PropertySetRegistry::SYCL_HOST_PIPES[];
 
 } // namespace util
 } // namespace llvm

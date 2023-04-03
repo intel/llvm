@@ -62,17 +62,16 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
   struct BatchGroup {
     // `Next` is used by IntrusiveList.
     BatchGroup *Next;
-    // The identifier of each group
-    uptr GroupId;
+    // The compact base address of each group
+    uptr CompactPtrGroupBase;
     // Cache value of TransferBatch::getMaxCached()
     u16 MaxCachedPerBatch;
     // Number of blocks pushed into this group. This is an increment-only
     // counter.
     uptr PushedBlocks;
-    // This is used to track how many blocks are pushed since last time we
-    // checked `PushedBlocks`. It's useful for page releasing to determine the
-    // usage of a BatchGroup.
-    uptr PushedBlocksAtLastCheckpoint;
+    // This is used to track how many bytes are not in-use since last time we
+    // tried to release pages.
+    uptr BytesInBGAtLastCheckpoint;
     // Blocks are managed by TransferBatch in a list.
     SinglyLinkedList<TransferBatch> Batches;
   };

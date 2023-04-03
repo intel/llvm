@@ -205,27 +205,11 @@ struct get_device_info_impl<std::vector<info::fp_config>, Param> {
   }
 };
 
-// Specialization for OpenCL version, splits the string returned by OpenCL
+// Specialization for device version
 template <> struct get_device_info_impl<std::string, info::device::version> {
   static std::string get(RT::PiDevice dev, const plugin &Plugin) {
-    std::string result = get_device_info_string(
-        dev, PiInfoCode<info::device::version>::value, Plugin);
-
-    // Extract OpenCL version from the returned string.
-    // For example, for the string "OpenCL 2.1 (Build 0)"
-    // return '2.1'.
-    auto dotPos = result.find('.');
-    if (dotPos == std::string::npos)
-      return result;
-
-    auto leftPos = result.rfind(' ', dotPos);
-    if (leftPos == std::string::npos)
-      leftPos = 0;
-    else
-      leftPos++;
-
-    auto rightPos = result.find(' ', dotPos);
-    return result.substr(leftPos, rightPos - leftPos);
+    return get_device_info_string(dev, PiInfoCode<info::device::version>::value,
+                                  Plugin);
   }
 };
 
@@ -269,8 +253,21 @@ struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_memory_order_capabilities> {
   static std::vector<memory_order> get(RT::PiDevice dev, const plugin &Plugin) {
     pi_memory_order_capabilities result;
-    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, PiInfoCode<info::device::atomic_memory_order_capabilities>::value,
+        sizeof(pi_memory_order_capabilities), &result, nullptr);
+    return readMemoryOrderBitfield(result);
+  }
+};
+
+// Specialization for atomic_fence_order_capabilities, PI returns a bitfield
+template <>
+struct get_device_info_impl<std::vector<memory_order>,
+                            info::device::atomic_fence_order_capabilities> {
+  static std::vector<memory_order> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_order_capabilities result;
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        dev, PiInfoCode<info::device::atomic_fence_order_capabilities>::value,
         sizeof(pi_memory_order_capabilities), &result, nullptr);
     return readMemoryOrderBitfield(result);
   }
@@ -282,8 +279,21 @@ struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
   static std::vector<memory_scope> get(RT::PiDevice dev, const plugin &Plugin) {
     pi_memory_scope_capabilities result;
-    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, PiInfoCode<info::device::atomic_memory_scope_capabilities>::value,
+        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    return readMemoryScopeBitfield(result);
+  }
+};
+
+// Specialization for atomic_fence_scope_capabilities, PI returns a bitfield
+template <>
+struct get_device_info_impl<std::vector<memory_scope>,
+                            info::device::atomic_fence_scope_capabilities> {
+  static std::vector<memory_scope> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_scope_capabilities result;
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        dev, PiInfoCode<info::device::atomic_fence_scope_capabilities>::value,
         sizeof(pi_memory_scope_capabilities), &result, nullptr);
     return readMemoryScopeBitfield(result);
   }
@@ -1026,8 +1036,22 @@ get_device_info_host<info::device::atomic_memory_order_capabilities>() {
 }
 
 template <>
+inline std::vector<memory_order>
+get_device_info_host<info::device::atomic_fence_order_capabilities>() {
+  return {memory_order::relaxed, memory_order::acquire, memory_order::release,
+          memory_order::acq_rel};
+}
+
+template <>
 inline std::vector<memory_scope>
 get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
+  return {memory_scope::work_item, memory_scope::sub_group,
+          memory_scope::work_group, memory_scope::device, memory_scope::system};
+}
+
+template <>
+inline std::vector<memory_scope>
+get_device_info_host<info::device::atomic_fence_scope_capabilities>() {
   return {memory_scope::work_item, memory_scope::sub_group,
           memory_scope::work_group, memory_scope::device, memory_scope::system};
 }

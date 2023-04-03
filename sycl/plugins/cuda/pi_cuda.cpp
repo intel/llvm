@@ -1003,27 +1003,15 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
-  case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    pi_memory_order_capabilities capabilities =
-        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   capabilities);
-  }
-  case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    int major = 0;
-    sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             context->get_device()->get()) == CUDA_SUCCESS);
-    pi_memory_order_capabilities capabilities =
-        (major >= 7) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
-                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
-                           PI_MEMORY_SCOPE_SYSTEM
-                     : PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
-                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE;
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   capabilities);
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case PI_EXT_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // These queries should be dealt with in context_impl.cpp by calling the
+    // queries of each device separately and building the intersection set.
+    setErrorMessage("These queries should have never come here.",
+                    PI_ERROR_INVALID_ARG_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   }
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
@@ -1293,14 +1281,14 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    atomic64);
   }
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     pi_memory_order_capabilities capabilities =
         PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
         PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
-  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+  case PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     int major = 0;
     sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&major,
@@ -1315,6 +1303,12 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
+    // There is no way to query this in the backend
+    setErrorMessage("CUDA backend does not support this query",
+                    PI_ERROR_INVALID_ARG_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     int major = 0;
     sycl::detail::pi::assertion(
@@ -1714,8 +1708,22 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    device->get_reference_count());
   }
   case PI_DEVICE_INFO_VERSION: {
+    std::stringstream s;
+    int major;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+    s << major;
+
+    int minor;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&minor,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+    s << "." << minor;
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "PI 0.0");
+                   s.str().c_str());
   }
   case PI_DEVICE_INFO_OPENCL_C_VERSION: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
@@ -1948,18 +1956,14 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 
   case PI_DEVICE_INFO_UUID: {
-    int driver_version = 0;
-    cuDriverGetVersion(&driver_version);
-    int major = driver_version / 1000;
-    int minor = driver_version % 1000 / 10;
     CUuuid uuid;
-    if ((major > 11) || (major == 11 && minor >= 4)) {
-      sycl::detail::pi::assertion(cuDeviceGetUuid_v2(&uuid, device->get()) ==
-                                  CUDA_SUCCESS);
-    } else {
-      sycl::detail::pi::assertion(cuDeviceGetUuid(&uuid, device->get()) ==
-                                  CUDA_SUCCESS);
-    }
+#if (CUDA_VERSION >= 11040)
+    sycl::detail::pi::assertion(cuDeviceGetUuid_v2(&uuid, device->get()) ==
+                                CUDA_SUCCESS);
+#else
+    sycl::detail::pi::assertion(cuDeviceGetUuid(&uuid, device->get()) ==
+                                CUDA_SUCCESS);
+#endif
     std::array<unsigned char, 16> name;
     std::copy(uuid.bytes, uuid.bytes + 16, name.begin());
     return getInfoArray(16, param_value_size, param_value, param_value_size_ret,
@@ -5429,7 +5433,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
                      PI_MEM_TYPE_UNKNOWN);
     }
     case PI_MEM_ALLOC_BASE_PTR: {
-#if __CUDA_API_VERSION >= 10020
+#if CUDA_VERSION >= 10020
       // CU_POINTER_ATTRIBUTE_RANGE_START_ADDR was introduced in CUDA 10.2
       unsigned int value;
       result = PI_CHECK_ERROR(cuPointerGetAttribute(
@@ -5441,7 +5445,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 #endif
     }
     case PI_MEM_ALLOC_SIZE: {
-#if __CUDA_API_VERSION >= 10020
+#if CUDA_VERSION >= 10020
       // CU_POINTER_ATTRIBUTE_RANGE_SIZE was introduced in CUDA 10.2
       unsigned int value;
       result = PI_CHECK_ERROR(cuPointerGetAttribute(
@@ -5550,6 +5554,43 @@ pi_result cuda_piextEnqueueDeviceGlobalVariableRead(
     result = error;
   }
   return result;
+}
+
+/// Host Pipes
+pi_result cuda_piextEnqueueReadHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  (void)queue;
+  (void)program;
+  (void)pipe_symbol;
+  (void)blocking;
+  (void)ptr;
+  (void)size;
+  (void)num_events_in_waitlist;
+  (void)events_waitlist;
+  (void)event;
+
+  sycl::detail::pi::die("cuda_piextEnqueueReadHostPipe not implemented");
+  return {};
+}
+
+pi_result cuda_piextEnqueueWriteHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  (void)queue;
+  (void)program;
+  (void)pipe_symbol;
+  (void)blocking;
+  (void)ptr;
+  (void)size;
+  (void)num_events_in_waitlist;
+  (void)events_waitlist;
+  (void)event;
+
+  sycl::detail::pi::die("cuda_piextEnqueueWriteHostPipe not implemented");
+  return {};
 }
 
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
@@ -5737,6 +5778,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          cuda_piextEnqueueDeviceGlobalVariableWrite)
   _PI_CL(piextEnqueueDeviceGlobalVariableRead,
          cuda_piextEnqueueDeviceGlobalVariableRead)
+
+  // Host Pipe
+  _PI_CL(piextEnqueueReadHostPipe, cuda_piextEnqueueReadHostPipe)
+  _PI_CL(piextEnqueueWriteHostPipe, cuda_piextEnqueueWriteHostPipe)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
