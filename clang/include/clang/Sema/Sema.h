@@ -31,6 +31,7 @@
 #include "clang/AST/MangleNumberingContext.h"
 #include "clang/AST/NSAPI.h"
 #include "clang/AST/PrettyPrinter.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/TypeLoc.h"
@@ -467,6 +468,74 @@ private:
   Sema &S;
   llvm::SmallVector<const VarDecl *> GlobalVars;
   void emitSpecIDName(raw_ostream &O, const VarDecl *VD);
+};
+
+// This Visitor traverses the AST of the function with
+// `sycl_kernel` attribute and returns the version of “operator()()” that is
+// called by KernelFunc. There will only be one call to KernelFunc in that
+// AST because the DPC++ headers are structured such that the user’s
+// kernel function is only called once. This ensures that the correct
+// “operator()()” function call is returned, when a named function object used
+// to define a kernel has more than one “operator()()” calls defined in it. For
+// example, in the code below, 'operator()(sycl::id<1> id)' is returned based on
+// the 'parallel_for' invocation which takes a 'sycl::range<1>(16)' argument.
+//   class MyKernel {
+//    public:
+//      void operator()() const {
+//        // code
+//      }
+//
+//      [[intel::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const
+//      {
+//        // code
+//      }
+//    };
+//
+//    int main() {
+//
+//    Q.submit([&](sycl::handler& cgh) {
+//      MyKernel kernelFunctorObject;
+//      cgh.parallel_for(sycl::range<1>(16), kernelFunctorObject);
+//    });
+//      return 0;
+//    }
+
+class KernelCallOperatorVisitor
+    : public RecursiveASTVisitor<KernelCallOperatorVisitor> {
+
+  FunctionDecl *KernelCallerFunc;
+
+public:
+  CXXMethodDecl *CallOperator = nullptr;
+  const CXXRecordDecl *KernelObj;
+
+  KernelCallOperatorVisitor(FunctionDecl *KernelCallerFunc,
+                            const CXXRecordDecl *KernelObj)
+      : KernelCallerFunc(KernelCallerFunc), KernelObj(KernelObj) {}
+
+  bool VisitCallExpr(CallExpr *CE) {
+    Decl *CalleeDecl = CE->getCalleeDecl();
+    if (isa_and_nonnull<CXXMethodDecl>(CalleeDecl)) {
+      CXXMethodDecl *MD = cast<CXXMethodDecl>(CalleeDecl);
+      if (MD->getOverloadedOperator() == OO_Call &&
+          MD->getParent() == KernelObj) {
+        CallOperator = MD;
+      }
+    }
+    return true;
+  }
+
+  CXXMethodDecl *getCallOperator() {
+    if (CallOperator)
+      return CallOperator;
+
+    if (KernelObj->isLambda()) {
+      CallOperator = KernelObj->getLambdaCallOperator();
+      return CallOperator;
+    }
+    TraverseDecl(KernelCallerFunc);
+    return CallOperator;
+  }
 };
 
 /// Tracks expected type during expression parsing, for use in code completion.
@@ -14274,8 +14343,7 @@ public:
 
   bool isDeclAllowedInSYCLDeviceCode(const Decl *D);
   void checkSYCLDeviceVarDecl(VarDecl *Var);
-  void copySYCLKernelAttrs(const CXXRecordDecl *KernelObj,
-                           FunctionDecl *KernelCallerFunc);
+  void copySYCLKernelAttrs(KernelCallOperatorVisitor &KernelCallOperator);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();

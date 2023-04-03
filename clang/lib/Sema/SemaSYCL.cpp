@@ -2791,74 +2791,6 @@ public:
   }
 };
 
-// This Visitor traverses the AST of the function with
-// `sycl_kernel` attribute and returns the version of “operator()()” that is
-// called by KernelFunc. There will only be one call to KernelFunc in that
-// AST because the DPC++ headers are structured such that the user’s
-// kernel function is only called once. This ensures that the correct
-// “operator()()” function call is returned, when a named function object used
-// to define a kernel has more than one “operator()()” calls defined in it. For
-// example, in the code below, 'operator()(sycl::id<1> id)' is returned based on
-// the 'parallel_for' invocation which takes a 'sycl::range<1>(16)' argument.
-//   class MyKernel {
-//    public:
-//      void operator()() const {
-//        // code
-//      }
-//
-//      [[intel::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const
-//      {
-//        // code
-//      }
-//    };
-//
-//    int main() {
-//
-//    Q.submit([&](sycl::handler& cgh) {
-//      MyKernel kernelFunctorObject;
-//      cgh.parallel_for(sycl::range<1>(16), kernelFunctorObject);
-//    });
-//      return 0;
-//    }
-
-class KernelCallOperatorVisitor
-    : public RecursiveASTVisitor<KernelCallOperatorVisitor> {
-
-  FunctionDecl *KernelCallerFunc;
-
-public:
-  CXXMethodDecl *CallOperator = nullptr;
-  const CXXRecordDecl *KernelObj;
-
-  KernelCallOperatorVisitor(FunctionDecl *KernelCallerFunc,
-                            const CXXRecordDecl *KernelObj)
-      : KernelCallerFunc(KernelCallerFunc), KernelObj(KernelObj) {}
-
-  bool VisitCallExpr(CallExpr *CE) {
-    Decl *CalleeDecl = CE->getCalleeDecl();
-    if (isa_and_nonnull<CXXMethodDecl>(CalleeDecl)) {
-      CXXMethodDecl *MD = cast<CXXMethodDecl>(CalleeDecl);
-      if (MD->getOverloadedOperator() == OO_Call &&
-          MD->getParent() == KernelObj) {
-        CallOperator = MD;
-      }
-    }
-    return true;
-  }
-
-  CXXMethodDecl *getCallOperator() {
-    if (CallOperator)
-      return CallOperator;
-
-    if (KernelObj->isLambda()) {
-      CallOperator = KernelObj->getLambdaCallOperator();
-      return CallOperator;
-    }
-    TraverseDecl(KernelCallerFunc);
-    return CallOperator;
-  }
-};
-
 static bool isESIMDKernelType(KernelCallOperatorVisitor KernelCallOperator) {
   const CXXMethodDecl *OpParens = KernelCallOperator.getCallOperator();
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
@@ -4102,10 +4034,8 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
 
 // For a wrapped parallel_for, copy attributes from original
 // kernel to wrapped kernel.
-void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj,
-                               FunctionDecl *KernelCallerFunc) {
+void Sema::copySYCLKernelAttrs(KernelCallOperatorVisitor &KernelCallOperator) {
   // Get the operator() function of the wrapper.
-  KernelCallOperatorVisitor KernelCallOperator(KernelCallerFunc, KernelObj);
   CXXMethodDecl *OpParens = KernelCallOperator.getCallOperator();
   assert(OpParens && "invalid kernel object");
 
@@ -4221,7 +4151,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
     // Attributes of a user-written SYCL kernel must be copied to the internally
     // generated alternative kernel, identified by a known string in its name.
     if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
-      copySYCLKernelAttrs(KernelObj, KernelCallerFunc);
+      copySYCLKernelAttrs(KernelCallOperator);
   }
 
   bool IsSIMDKernel = isESIMDKernelType(KernelCallOperator);
