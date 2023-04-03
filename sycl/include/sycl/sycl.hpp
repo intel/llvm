@@ -59,6 +59,7 @@
 #include <sycl/usm.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 #include <sycl/version.hpp>
+
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
