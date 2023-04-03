@@ -762,7 +762,8 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       const Type *ClangETy = ETy.getTypePtrOrNull();
       if (ClangETy && ClangETy->isStructureOrClassType()) {
       RecordDecl *RD = ClangETy->getAsCXXRecordDecl();
-      if (RD->getQualifiedNameAsString() == "__spv::__spirv_JointMatrixINTEL") {
+      if (RD &&
+          RD->getQualifiedNameAsString() == "__spv::__spirv_JointMatrixINTEL") {
           ResultType = ConvertSYCLJointMatrixINTELType(RD);
           break;
       }
