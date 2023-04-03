@@ -1045,7 +1045,6 @@ synchronous error being thrown with error code `invalid`.
 === Host Tasks
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
-:cg-scope: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:command.group.scope
 
 A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
 dependency rules. It is valid to record a host task as part of graph, though it
@@ -1062,9 +1061,6 @@ Host code within a command group function object is evaluated when the command
 group is added to a graph. This is either before the return of the call to
 `command_graph::add()` when using the explicit API or before the return of the call to
 `queue::submit()` when submitting a command group to a queue that is recording to a graph.
-This behaviour is in keeping with the existing {cg-scope}[command group] behaviour but may have
-implications for command group functions containing arbitrary host code. This could
-affect the behaviour of captured code due to the delayed execution of commands.
 
 This does not apply to code within a {host-task}[host task] which is
 evaluated as normal during command graph execution.
