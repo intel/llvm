@@ -455,13 +455,9 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
 
   {
     // check for large GRF property
-    bool HasLargeGRF = false;
-    for (const auto *F : MD.entries()) {
-      if (F->hasFnAttribute(::sycl::kernel_props::ATTR_LARGE_GRF)) {
-        HasLargeGRF = true;
-        break;
-      }
-    }
+    bool HasLargeGRF = llvm::any_of(MD.entries(), [](const Function *F) {
+      return F->hasFnAttribute(::sycl::kernel_props::ATTR_LARGE_GRF);
+    });
 
     if (HasLargeGRF)
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isLargeGRF", true});

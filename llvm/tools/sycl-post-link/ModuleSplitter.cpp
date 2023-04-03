@@ -873,8 +873,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 
   if (DoSplit)
     return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
-  else
-    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+
+  return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
 } // namespace module_split
