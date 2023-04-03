@@ -1127,7 +1127,7 @@ params:
     - type: size_t
       name: size
       desc: "[in] size in bytes to be advised"
-    - type: $x_usm_advice_t
+    - type: $x_usm_advice_flags_t
       name: advice
       desc: "[in] USM memory advice"
     - type: $x_event_handle_t*
