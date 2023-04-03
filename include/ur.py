@@ -310,8 +310,9 @@ class ur_api_version_t(c_int):
 class ur_platform_backend_v(IntEnum):
     UNKNOWN = 0                                     ## The backend is not a recognized one
     LEVEL_ZERO = 1                                  ## The backend is Level Zero
-    CUDA = 2                                        ## The backend is CUDA
-    HIP = 3                                         ## The backend is HIP
+    OPENCL = 2                                      ## The backend is OpenCL
+    CUDA = 3                                        ## The backend is CUDA
+    HIP = 4                                         ## The backend is HIP
 
 class ur_platform_backend_t(c_int):
     def __str__(self):

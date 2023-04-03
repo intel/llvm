@@ -207,9 +207,12 @@ etors:
     - name: LEVEL_ZERO
       value: "1"
       desc: "The backend is Level Zero"
-    - name: CUDA
+    - name: OPENCL
       value: "2"
+      desc: "The backend is OpenCL"
+    - name: CUDA
+      value: "3"
       desc: "The backend is CUDA"
     - name: HIP
-      value: "3"
+      value: "4"
       desc: "The backend is HIP"

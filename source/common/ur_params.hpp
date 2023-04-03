@@ -693,6 +693,10 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_PLATFORM_BACKEND_LEVEL_ZERO";
         break;
 
+    case UR_PLATFORM_BACKEND_OPENCL:
+        os << "UR_PLATFORM_BACKEND_OPENCL";
+        break;
+
     case UR_PLATFORM_BACKEND_CUDA:
         os << "UR_PLATFORM_BACKEND_CUDA";
         break;
