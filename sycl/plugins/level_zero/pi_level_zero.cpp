@@ -433,7 +433,7 @@ pi_result _pi_queue::signalEventFromCmdListIfLastEventDiscarded(
   pi_event Event;
   PI_CALL(createEventAndAssociateQueue(
       this, &Event, PI_COMMAND_TYPE_USER, CommandList,
-      /* IsDiscarded */ false, /* ForceHostVisible */ false))
+      /* IsInternal */ true, /* ForceHostVisible */ false))
   PI_CALL(piEventReleaseInternal(Event));
   LastCommandEvent = Event;
 
