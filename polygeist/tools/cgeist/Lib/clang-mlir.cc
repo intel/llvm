@@ -1175,12 +1175,30 @@ Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
   auto SYCLElemTy = cast<T>(ElemTy);
   assert(FNum < SYCLElemTy.getBody().size() && "ERROR");
 
-  const auto ElementType = SYCLElemTy.getBody()[FNum];
-  const auto ResultType = MemRefType::get(
-      Shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
+  const Type ElementType = SYCLElemTy.getBody()[FNum];
+  Type ResultType;
+  Value ResultVal;
 
-  return Builder.create<polygeist::SubIndexOp>(Loc, ResultType, V,
-                                               getConstantIndex(FNum));
+  if (auto PT = ElementType.dyn_cast<LLVM::LLVMArrayType>()) {
+    ResultType = LLVM::LLVMPointerType::get(
+      ElementType, MT.getMemorySpaceAsInt());
+    auto Ptr = Builder.create<polygeist::Memref2PointerOp>(
+          Loc,
+          LLVM::LLVMPointerType::get(SYCLElemTy, MT.getMemorySpaceAsInt()),
+          V);
+    Value GEPIdx[] = {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
+                       Builder.create<arith::ConstantIntOp>(Loc, FNum, 32)};
+    ResultVal = Builder.create<LLVM::GEPOp>(
+            Loc, ResultType, Ptr,
+            GEPIdx);
+  } else {
+    ResultType = MemRefType::get(
+      Shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
+    ResultVal =  Builder.create<polygeist::SubIndexOp>(Loc, ResultType, V,
+                                              getConstantIndex(FNum));
+  }
+
+  return ResultVal;
 }
 
 ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
@@ -1206,6 +1224,19 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
       ++FNum;
     }
+  }
+
+  // Hack.  Cgeist generates a padding member of [4xi8] in the sycl::stream type 
+  // due to the alignment information in the DataLayout being cleared more times
+  // than Clang, and then not updating the DataLayout 
+  // same number of times as Clang does.
+
+  // This non-update makes the alignment of i64 type to be 4 (the correct 
+  // alignment of 8 should have done through the update in DataLayout::setAlignment()
+  // function.  It needs further investigation on where these extra clearings 
+  // of datalayout are being done.
+  if (ST->hasName() && ST->getName().contains("class.sycl::_V1::stream") && (ST->getNumElements() > 10)) {
+    FNum = (FNum > 5)?FNum-1:FNum;
   }
 
   if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Val.getType())) {
@@ -1329,6 +1360,8 @@ static bool isSYCLInheritType(Type &Ty, Value &Val) {
           [&](auto) { return isa<sycl::LocalAccessorBaseType>(ElemTy); })
       .Case<sycl::IDType, sycl::RangeType>(
           [&](auto) { return isa<sycl::ArrayType>(ElemTy); })
+      .Case<sycl::StreamType>(
+          [&](auto) { return isa<sycl::OwnerLessBaseType>(ElemTy); })
       .Default(false);
 }
 
