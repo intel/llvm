@@ -991,11 +991,11 @@ class ur_usm_alloc_info_t(c_int):
 class ur_usm_advice_flags_v(IntEnum):
     DEFAULT = UR_BIT(0)                             ## The USM memory advice is default
     SET_READ_MOSTLY = UR_BIT(1)                     ## Hint that memory will be read from frequently and written to rarely
-    CLEAR_READ_MOSTLY = UR_BIT(2)                   ## Removes the affect of ::::UR_USM_ADVICE_SET_READ_MOSTLY
+    CLEAR_READ_MOSTLY = UR_BIT(2)                   ## Removes the affect of ::UR_USM_ADVICE_FLAG_SET_READ_MOSTLY
     SET_PREFERRED_LOCATION = UR_BIT(3)              ## Hint that the preferred memory location is the specified device
-    CLEAR_PREFERRED_LOCATION = UR_BIT(4)            ## Removes the affect of ::::UR_USM_ADVICE_SET_PREFERRED_LOCATION
+    CLEAR_PREFERRED_LOCATION = UR_BIT(4)            ## Removes the affect of ::UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION
     SET_NON_ATOMIC_MOSTLY = UR_BIT(5)               ## Hints that memory will mostly be accessed non-atomically
-    CLEAR_NON_ATOMIC_MOSTLY = UR_BIT(6)             ## Removes the affect of ::::UR_USM_ADVICE_SET_NON_ATOMIC_MOSTLY
+    CLEAR_NON_ATOMIC_MOSTLY = UR_BIT(6)             ## Removes the affect of ::UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY
     BIAS_CACHED = UR_BIT(7)                         ## Hints that memory should be cached
     BIAS_UNCACHED = UR_BIT(8)                       ## Hints that memory should be not be cached
 
