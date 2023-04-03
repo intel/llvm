@@ -8,8 +8,6 @@ configure_file(
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
   @ONLY)
 
-check_cxx_compiler_flag(-Wno-ignored-attributes HAS_WNO_IGNORED_ATTRS)
-
 if (SYCL_ENABLE_XPTI_TRACING)
   if (NOT DEFINED LLVM_EXTERNAL_XPTI_SOURCE_DIR)
     message (FATAL_ERROR "Undefined LLVM_EXTERNAL_XPTI_SOURCE_DIR variable: Must be set when XPTI tracing is set to ON")
@@ -58,10 +56,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   if (ARG_COMPILE_OPTIONS)
     target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
-  endif()
-
-  if (HAS_WNO_IGNORED_ATTRS)
-    target_compile_options(${LIB_OBJ_NAME} PRIVATE -Wno-ignored-attributes)
   endif()
 
   add_dependencies(${LIB_OBJ_NAME}

@@ -67,10 +67,6 @@ macro(add_sycl_unittest test_dirname link_variant)
       ${SYCL_SOURCE_DIR}/source/
       ${SYCL_SOURCE_DIR}/unittests/
     )
-  check_cxx_compiler_flag(-Wno-ignored-attributes HAS_WNO_IGNORED_ATTRS)
-  if (HAS_WNO_IGNORED_ATTRS)
-    target_compile_options(${test_dirname} PRIVATE -Wno-ignored-attributes)
-  endif()
   if (UNIX)
     # These warnings are coming from Google Test code.
     target_compile_options(${test_dirname}
