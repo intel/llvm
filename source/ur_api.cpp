@@ -112,7 +112,7 @@ ur_result_t UR_APICALL urPlatformGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_PLATFORM_INFO_PROFILE < PlatformInfoType`
+///         + `::UR_PLATFORM_INFO_BACKEND < PlatformInfoType`
 ur_result_t UR_APICALL urPlatformGetInfo(
     ur_platform_handle_t hPlatform,      ///< [in] handle of the platform
     ur_platform_info_t PlatformInfoType, ///< [in] type of the info to retrieve

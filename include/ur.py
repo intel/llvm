@@ -282,6 +282,8 @@ class ur_platform_info_v(IntEnum):
                                                     ## size of the info needs to be dynamically queried.
     PROFILE = 5                                     ## [char*] The string denoting profile of the platform. The size of the
                                                     ## info needs to be dynamically queried.
+    BACKEND = 6                                     ## ::ur_platform_backend_t: The backend of the platform. Identifies the
+                                                    ## native backend adapter implementing this platform.
 
 class ur_platform_info_t(c_int):
     def __str__(self):
@@ -301,6 +303,19 @@ class ur_api_version_v(IntEnum):
 class ur_api_version_t(c_int):
     def __str__(self):
         return str(ur_api_version_v(self.value))
+
+
+###############################################################################
+## @brief Identifies native backend adapters
+class ur_platform_backend_v(IntEnum):
+    UNKNOWN = 0                                     ## The backend is not a recognized one
+    LEVEL_ZERO = 1                                  ## The backend is Level Zero
+    CUDA = 2                                        ## The backend is CUDA
+    HIP = 3                                         ## The backend is HIP
+
+class ur_platform_backend_t(c_int):
+    def __str__(self):
+        return str(ur_platform_backend_v(self.value))
 
 
 ###############################################################################

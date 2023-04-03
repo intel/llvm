@@ -398,6 +398,8 @@ typedef enum ur_platform_info_t {
                                       ///< size of the info needs to be dynamically queried.
     UR_PLATFORM_INFO_PROFILE = 5,     ///< [char*] The string denoting profile of the platform. The size of the
                                       ///< info needs to be dynamically queried.
+    UR_PLATFORM_INFO_BACKEND = 6,     ///< ::ur_platform_backend_t: The backend of the platform. Identifies the
+                                      ///< native backend adapter implementing this platform.
     /// @cond
     UR_PLATFORM_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -422,7 +424,7 @@ typedef enum ur_platform_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_PLATFORM_INFO_PROFILE < PlatformInfoType`
+///         + `::UR_PLATFORM_INFO_BACKEND < PlatformInfoType`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(
     ur_platform_handle_t hPlatform,      ///< [in] handle of the platform
@@ -552,6 +554,19 @@ urGetLastResult(
     const char **ppMessage          ///< [out] pointer to a string containing adapter specific result in string
                                     ///< representation.
 );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Identifies native backend adapters
+typedef enum ur_platform_backend_t {
+    UR_PLATFORM_BACKEND_UNKNOWN = 0,    ///< The backend is not a recognized one
+    UR_PLATFORM_BACKEND_LEVEL_ZERO = 1, ///< The backend is Level Zero
+    UR_PLATFORM_BACKEND_CUDA = 2,       ///< The backend is CUDA
+    UR_PLATFORM_BACKEND_HIP = 3,        ///< The backend is HIP
+    /// @cond
+    UR_PLATFORM_BACKEND_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_platform_backend_t;
 
 #if !defined(__GNUC__)
 #pragma endregion

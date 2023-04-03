@@ -667,6 +667,10 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_PLATFORM_INFO_PROFILE:
         os << "UR_PLATFORM_INFO_PROFILE";
         break;
+
+    case UR_PLATFORM_INFO_BACKEND:
+        os << "UR_PLATFORM_INFO_BACKEND";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -675,6 +679,31 @@ inline std::ostream &operator<<(std::ostream &os,
 }
 inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value) {
     os << UR_MAJOR_VERSION(value) << "." << UR_MINOR_VERSION(value);
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_platform_backend_t value) {
+    switch (value) {
+
+    case UR_PLATFORM_BACKEND_UNKNOWN:
+        os << "UR_PLATFORM_BACKEND_UNKNOWN";
+        break;
+
+    case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+        os << "UR_PLATFORM_BACKEND_LEVEL_ZERO";
+        break;
+
+    case UR_PLATFORM_BACKEND_CUDA:
+        os << "UR_PLATFORM_BACKEND_CUDA";
+        break;
+
+    case UR_PLATFORM_BACKEND_HIP:
+        os << "UR_PLATFORM_BACKEND_HIP";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
     return os;
 }
 inline std::ostream &operator<<(std::ostream &os,
