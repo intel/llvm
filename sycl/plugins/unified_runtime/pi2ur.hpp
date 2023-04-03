@@ -210,7 +210,7 @@ inline pi_result ur2piInfoValue(ur_device_info_t ParamName,
         Map = {
             {UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
              PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN},
-            {UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE,
+            {UR_DEVICE_PARTITION_BY_CSLICE,
              PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE},
             {(ur_device_partition_property_t)
                  UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE,
@@ -224,7 +224,7 @@ inline pi_result ur2piInfoValue(ur_device_info_t ParamName,
         Map = {
             {UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
              PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN},
-            {UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE,
+            {UR_DEVICE_PARTITION_BY_CSLICE,
              PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE},
         };
     return Value.convertArray(Map);
@@ -279,6 +279,7 @@ namespace pi2ur {
 inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                                 pi_uint32 *num_platforms) {
 
+  urInit(0);
   uint32_t Count = num_entries;
   auto phPlatforms = reinterpret_cast<ur_platform_handle_t *>(platforms);
   HANDLE_ERRORS(urPlatformGet(Count, phPlatforms, num_platforms));
@@ -550,7 +551,7 @@ inline pi_result piDevicePartition(
           {PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
            UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN},
           {PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE,
-           UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE},
+           UR_DEVICE_PARTITION_BY_CSLICE},
       };
 
   auto PropertyIt = PropertyMap.find(Properties[0]);
