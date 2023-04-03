@@ -62,6 +62,10 @@ etors:
       value: "5"
       desc: "[char*] The string denoting profile of the platform. The size of the info needs to be dynamically queried."
       todo: "currently always return FULL_PROFILE, deprecate?"
+    - name: BACKEND
+      value: "6"
+      desc: "$x_platform_backend_t: The backend of the platform. Identifies the native backend adapter implementing this platform."
+
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about platform"
@@ -191,3 +195,21 @@ params:
       name: ppMessage
       desc: "[out] pointer to a string containing adapter specific result
              in string representation."
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Identifies native backend adapters"
+class: $xPlatform
+name: $x_platform_backend_t
+etors:
+    - name: UNKNOWN
+      value: "0"
+      desc: "The backend is not a recognized one"
+    - name: LEVEL_ZERO
+      value: "1"
+      desc: "The backend is Level Zero"
+    - name: CUDA
+      value: "1"
+      desc: "The backend is CUDA"
+    - name: HIP
+      value: "1"
+      desc: "The backend is HIP"
