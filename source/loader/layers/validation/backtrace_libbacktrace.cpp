@@ -14,6 +14,18 @@
 
 namespace validation_layer {
 
+void filter_after_occurence(std::vector<BacktraceLine> &backtrace,
+                            std::string substring) {
+    auto it = std::find_if(backtrace.begin(), backtrace.end(),
+                           [&substring](const std::string &s) {
+                               return s.find(substring) != std::string::npos;
+                           });
+
+    if (it != backtrace.end()) {
+        backtrace.erase(backtrace.begin(), it);
+    }
+}
+
 int backtrace_cb(void *data, uintptr_t pc, const char *filename, int lineno,
                  const char *function) {
     if (filename == NULL && function == NULL) {
@@ -56,17 +68,19 @@ int backtrace_cb(void *data, uintptr_t pc, const char *filename, int lineno,
     return 0;
 }
 
-std::vector<std::string> getCurrentBacktrace() {
+std::vector<BacktraceLine> getCurrentBacktrace() {
     backtrace_state *state = backtrace_create_state(NULL, 0, NULL, NULL);
     if (state == NULL) {
         return std::vector<std::string>(1, "Failed to acquire a backtrace");
     }
 
-    std::vector<std::string> backtrace;
+    std::vector<BacktraceLine> backtrace;
     backtrace_full(state, 0, backtrace_cb, NULL, &backtrace);
     if (backtrace.empty()) {
         return std::vector<std::string>(1, "Failed to acquire a backtrace");
     }
+
+    filter_after_occurence(backtrace, "ur_libapi.cpp");
 
     return backtrace;
 }
