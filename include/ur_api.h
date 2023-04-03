@@ -2203,11 +2203,11 @@ typedef uint32_t ur_usm_advice_flags_t;
 typedef enum ur_usm_advice_flag_t {
     UR_USM_ADVICE_FLAG_DEFAULT = UR_BIT(0),                  ///< The USM memory advice is default
     UR_USM_ADVICE_FLAG_SET_READ_MOSTLY = UR_BIT(1),          ///< Hint that memory will be read from frequently and written to rarely
-    UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY = UR_BIT(2),        ///< Removes the affect of ::::UR_USM_ADVICE_SET_READ_MOSTLY
+    UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY = UR_BIT(2),        ///< Removes the affect of ::UR_USM_ADVICE_FLAG_SET_READ_MOSTLY
     UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION = UR_BIT(3),   ///< Hint that the preferred memory location is the specified device
-    UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION = UR_BIT(4), ///< Removes the affect of ::::UR_USM_ADVICE_SET_PREFERRED_LOCATION
+    UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION = UR_BIT(4), ///< Removes the affect of ::UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION
     UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY = UR_BIT(5),    ///< Hints that memory will mostly be accessed non-atomically
-    UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY = UR_BIT(6),  ///< Removes the affect of ::::UR_USM_ADVICE_SET_NON_ATOMIC_MOSTLY
+    UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY = UR_BIT(6),  ///< Removes the affect of ::UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY
     UR_USM_ADVICE_FLAG_BIAS_CACHED = UR_BIT(7),              ///< Hints that memory should be cached
     UR_USM_ADVICE_FLAG_BIAS_UNCACHED = UR_BIT(8),            ///< Hints that memory should be not be cached
     /// @cond

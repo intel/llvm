@@ -98,19 +98,19 @@ etors:
       desc: "Hint that memory will be read from frequently and written to rarely"
     - name: CLEAR_READ_MOSTLY
       value: "$X_BIT(2)"
-      desc: "Removes the affect of ::$X_USM_ADVICE_SET_READ_MOSTLY"
+      desc: "Removes the affect of $X_USM_ADVICE_FLAG_SET_READ_MOSTLY"
     - name: SET_PREFERRED_LOCATION
       value: "$X_BIT(3)"
       desc: "Hint that the preferred memory location is the specified device"
     - name: CLEAR_PREFERRED_LOCATION
       value: "$X_BIT(4)"
-      desc: "Removes the affect of ::$X_USM_ADVICE_SET_PREFERRED_LOCATION"
+      desc: "Removes the affect of $X_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION"
     - name: SET_NON_ATOMIC_MOSTLY
       value: "$X_BIT(5)"
       desc: "Hints that memory will mostly be accessed non-atomically"
     - name: CLEAR_NON_ATOMIC_MOSTLY
       value: "$X_BIT(6)"
-      desc: "Removes the affect of ::$X_USM_ADVICE_SET_NON_ATOMIC_MOSTLY"
+      desc: "Removes the affect of $X_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY"
     - name: BIAS_CACHED
       value: "$X_BIT(7)"
       desc: "Hints that memory should be cached"
