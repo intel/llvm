@@ -9,11 +9,11 @@
 
 ; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
-; RUN: FileCheck %s -input-file=%t_esimd_large_grf_0.ll --check-prefixes CHECK-ESIMD-LargeGRF-IR  --implicit-check-not='RegisterAllocMode'
-; RUN: FileCheck %s -input-file=%t_esimd_large_grf_0.prop --check-prefixes CHECK-ESIMD-LargeGRF-PROP
+; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-LargeGRF-IR  --implicit-check-not='RegisterAllocMode'
+; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-LargeGRF-PROP
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYCL-SYM
 ; RUN: FileCheck %s -input-file=%t_esimd_1.sym --check-prefixes CHECK-ESIMD-SYM
-; RUN: FileCheck %s -input-file=%t_esimd_large_grf_0.sym --check-prefixes CHECK-ESIMD-LargeGRF-SYM
+; RUN: FileCheck %s -input-file=%t_esimd_0.sym --check-prefixes CHECK-ESIMD-LargeGRF-SYM
 
 ; CHECK: [Code|Properties|Symbols]
 ; CHECK: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
