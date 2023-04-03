@@ -478,7 +478,6 @@ Table {counter: tableNumber}. Constructor of the `command_graph` class.
 |
 [source,c++]
 ----
-using namespace ext::oneapi::experimental;
 command_graph(const device& syclDevice, const property_list& propList = {});
 ----
 |Creates a SYCL `command_graph` object in the modifiable state for device
@@ -508,7 +507,6 @@ Table {counter: tableNumber}. Member functions of the `command_graph` class.
 |
 [source,c++]
 ----
-using namespace ext::oneapi::experimental;
 node add(const property_list& propList = {});
 ----
 |This creates an empty node which contains no command. Its intended use is
@@ -535,7 +533,6 @@ Exceptions:
 |
 [source,c++]
 ----
-using namespace ext::oneapi::experimental;
 template<typename T>
 node add(T cgf, const property_list& propList = {});
 ----
@@ -568,7 +565,6 @@ Exceptions:
 |
 [source,c++]
 ----
-using namespace ext::oneapi::experimental;
 void make_edge(node& src, node& dest);
 ----
 
@@ -599,7 +595,6 @@ Exceptions:
 |
 [source,c++]
 ----
-using namespace ext::oneapi::experimental;
 command_graph<graph_state::executable>
 finalize(const context& syclContext, const property_list& propList = {}) const;
 ----
@@ -645,7 +640,6 @@ Table {counter: tableNumber}. Member functions of the `command_graph` class for 
 |
 [source, c++]
 ----
-using namespace ext::oneapi::experimental;
 bool begin_recording(queue& recordingQueue)
 ----
 
@@ -672,7 +666,6 @@ Exceptions:
 |
 [source, c++]
 ----
-using namespace ext::oneapi::experimental;
 bool begin_recording(const std::vector<queue>& recordingQueues)
 ----
 
@@ -696,7 +689,6 @@ Exceptions:
 |
 [source, c++]
 ----
-using namespace ext::oneapi::experimental;
 bool end_recording()
 ----
 
@@ -709,7 +701,6 @@ Returns: `true` if any queue recording to the graph has its state changed from
 |
 [source, c++]
 ----
-using namespace ext::oneapi::experimental;
 bool end_recording(queue& recordingQueue)
 ----
 
@@ -731,7 +722,6 @@ Exceptions:
 |
 [source, c++]
 ----
-using namespace ext::oneapi::experimental;
 bool end_recording(const std::vector<queue>& recordingQueues)
 ----
 
@@ -761,7 +751,6 @@ Table {counter: tableNumber}. Member functions of the `command_graph` class (exe
 |
 [source, c++]
 ----
-using namespace ext::oneapi::experimental;
 void command_graph<graph_state::executable> update(const command_graph<graph_state::modifiable>& graph);
 ----
 
@@ -900,7 +889,6 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::queue` c
 |
 [source,c++]
 ----
-using namespace ext::oneapi::experimental;
 event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
@@ -910,7 +898,6 @@ containing `handler::ext_oneapi_graph(graph)`.
 |
 [source,c++]
 ----
-using namespace ext::oneapi::experimental;
 event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                         event depEvent);
 ----
@@ -922,7 +909,6 @@ containing `handler::depends_on(depEvent)` and
 |
 [source,c++]
 ----
-using namespace ext::oneapi::experimental;
 event queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                         const std::vector<event>& depEvents);
 ----
@@ -938,9 +924,10 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::handler`
 [cols="2a,a"]
 |===
 |Member function|Description
+
+|
 [source,c++]
 ----
-using namespace ext::oneapi::experimental;
 void handler::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
@@ -1084,7 +1071,6 @@ evaluated as normal during command graph execution.
 
 [source,c++]
 ----
-using namespace ext::oneapi::experimental;
 auto node = graph.add([&](sycl::handler& cgh){
   // Host code here is evaluated during the call to add()
   cgh.host_task([=](){
