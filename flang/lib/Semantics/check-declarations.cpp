@@ -190,9 +190,7 @@ void CheckHelper::Check(const ParamValue &value, bool canBeAssumed) {
   if (value.isAssumed()) {
     if (!canBeAssumed) { // C795, C721, C726
       messages_.Say(
-          "An assumed (*) type parameter may be used only for a (non-statement"
-          " function) dummy argument, associate name, named constant, or"
-          " external function result"_err_en_US);
+          "An assumed (*) type parameter may be used only for a (non-statement function) dummy argument, associate name, character named constant, or external function result"_err_en_US);
     }
   } else {
     CheckSpecExpr(value.GetExplicit());
@@ -262,10 +260,25 @@ void CheckHelper::Check(const Symbol &symbol) {
       !symbol.implicitAttrs().test(Attr::SAVE)) {
     CheckExplicitSave(symbol);
   }
+  const auto *object{symbol.detailsIf<ObjectEntityDetails>()};
+  if (symbol.attrs().test(Attr::CONTIGUOUS)) {
+    if ((!object && !symbol.has<UseDetails>()) ||
+        !((IsPointer(symbol) && symbol.Rank() > 0) || IsAssumedShape(symbol) ||
+            evaluate::IsAssumedRank(symbol))) {
+      if (symbol.owner().IsDerivedType()) { // C752
+        messages_.Say(
+            "A CONTIGUOUS component must be an array with the POINTER attribute"_err_en_US);
+      } else { // C830
+        messages_.Say(
+            "CONTIGUOUS entity must be an array pointer, assumed-shape, or assumed-rank"_err_en_US);
+      }
+    }
+  }
   CheckGlobalName(symbol);
   if (isDone) {
     return; // following checks do not apply
   }
+
   if (symbol.attrs().test(Attr::PROTECTED)) {
     if (symbol.owner().kind() != Scope::Kind::Module) { // C854
       messages_.Say(
@@ -323,18 +336,18 @@ void CheckHelper::Check(const Symbol &symbol) {
           "A dummy procedure of a pure subprogram must be pure"_err_en_US);
     }
   }
-  if (type) { // Section 7.2, paragraph 7
-    bool canHaveAssumedParameter{IsNamedConstant(symbol) ||
+  if (type) { // Section 7.2, paragraph 7; C795
+    bool isChar{type->category() == DeclTypeSpec::Character};
+    bool canHaveAssumedParameter{(isChar && IsNamedConstant(symbol)) ||
         (IsAssumedLengthCharacter(symbol) && // C722
             (IsExternal(symbol) ||
                 ClassifyProcedure(symbol) ==
                     ProcedureDefinitionClass::Dummy)) ||
         symbol.test(Symbol::Flag::ParentComp)};
     if (!IsStmtFunctionDummy(symbol)) { // C726
-      if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
+      if (object) {
         canHaveAssumedParameter |= object->isDummy() ||
-            (object->isFuncResult() &&
-                type->category() == DeclTypeSpec::Character) ||
+            (isChar && object->isFuncResult()) ||
             IsStmtFunctionResult(symbol); // Avoids multiple messages
       } else {
         canHaveAssumedParameter |= symbol.has<AssocEntityDetails>();
@@ -395,10 +408,6 @@ void CheckHelper::Check(const Symbol &symbol) {
   if (symbol.attrs().test(Attr::VALUE)) {
     CheckValue(symbol, derived);
   }
-  if (symbol.attrs().test(Attr::CONTIGUOUS) && IsPointer(symbol) &&
-      symbol.Rank() == 0) { // C830
-    messages_.Say("CONTIGUOUS POINTER must be an array"_err_en_US);
-  }
   if (IsDummy(symbol)) {
     if (IsNamedConstant(symbol)) {
       messages_.Say(
@@ -410,12 +419,6 @@ void CheckHelper::Check(const Symbol &symbol) {
           "A function result may not also be a named constant"_err_en_US);
     }
     CheckBindCFunctionResult(symbol);
-  }
-  if (symbol.owner().IsDerivedType() &&
-      (symbol.attrs().test(Attr::CONTIGUOUS) &&
-          !(IsPointer(symbol) && symbol.Rank() > 0))) { // C752
-    messages_.Say(
-        "A CONTIGUOUS component must be an array with the POINTER attribute"_err_en_US);
   }
   if (symbol.owner().IsModule() && IsAutomatic(symbol)) {
     messages_.Say(
