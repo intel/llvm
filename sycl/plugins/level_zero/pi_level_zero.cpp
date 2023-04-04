@@ -3918,6 +3918,8 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
               (Program->ZeBuildLog, &LogSize, pi_cast<char *>(ParamValue)));
       if (ParamValueSizeRet) {
         *ParamValueSizeRet = LogSize;
+      }
+      if (ParamValue) {
         // When the program build fails in piProgramBuild(), we delayed cleaning
         // up the build log because RT later calls this routine to get the
         // failed build log.
@@ -3929,7 +3931,6 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
           Program->ZeBuildLog = nullptr;
         }
       }
-
       return PI_SUCCESS;
     }
 
