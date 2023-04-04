@@ -1247,14 +1247,14 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   if (JA.isOffloading(Action::OFK_HIP))
     getToolChain().AddHIPIncludeArgs(Args, CmdArgs);
 
-<<<<<<< HEAD
   if (JA.isOffloading(Action::OFK_SYCL)) {
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
     if (Inputs[0].getType() == types::TY_CUDA) {
       // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
       getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
     }
-=======
+  }
+
   // If we are compiling for a GPU target we want to override the system headers
   // with ones created by the 'libc' project if present.
   if (!Args.hasArg(options::OPT_nostdinc) &&
@@ -1271,7 +1271,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       llvm::sys::path::append(P, "gpu-none-llvm");
       CmdArgs.push_back("-c-isystem");
       CmdArgs.push_back(Args.MakeArgString(P));
->>>>>>> f263bd8f7d4c82af9672803e6d8d57f25c929d00
   }
 
   // If we are offloading to a target via OpenMP we need to include the
