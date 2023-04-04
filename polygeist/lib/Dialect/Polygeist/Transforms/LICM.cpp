@@ -747,12 +747,12 @@ public:
     if (!empty())
       return false;
 
-    auto getMemrefOp = [](const Operation &op) -> Operation * {
-      if (auto loadOp = dyn_cast<AffineLoadOp>(op))
-        return loadOp.getMemref().getDefiningOp();
-      if (auto storeOp = dyn_cast<AffineStoreOp>(op))
-        return storeOp.getMemref().getDefiningOp();
-      return nullptr;
+    auto getMemrefOp = [](const Operation &op) {
+      return TypeSwitch<const Operation &, Operation *>(op)
+          .Case<AffineLoadOp, AffineStoreOp>([](auto &affineOp) {
+            return affineOp.getMemref().getDefiningOp();
+          })
+          .Default([](auto &) { return nullptr; });
     };
 
     auto accSub1 =
