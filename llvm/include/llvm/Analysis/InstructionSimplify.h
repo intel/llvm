@@ -302,8 +302,9 @@ Value *simplifyBinOp(unsigned Opcode, Value *LHS, Value *RHS,
 Value *simplifyBinOp(unsigned Opcode, Value *LHS, Value *RHS, FastMathFlags FMF,
                      const SimplifyQuery &Q);
 
-/// Given a callsite, fold the result or return null.
-Value *simplifyCall(CallBase *Call, const SimplifyQuery &Q);
+/// Given a callsite, callee, and arguments, fold the result or return null.
+Value *simplifyCall(CallBase *Call, Value *Callee, ArrayRef<Value *> Args,
+                    const SimplifyQuery &Q);
 
 /// Given a constrained FP intrinsic call, tries to compute its simplified
 /// version. Returns a simplified result or null.
@@ -317,6 +318,10 @@ Value *simplifyConstrainedFPCall(CallBase *Call, const SimplifyQuery &Q);
 /// Given an operand for a Freeze, see if we can fold the result.
 /// If not, this returns null.
 Value *simplifyFreezeInst(Value *Op, const SimplifyQuery &Q);
+
+/// Given a load instruction and its pointer operand, fold the result or return
+/// null.
+Value *simplifyLoadInst(LoadInst *LI, Value *PtrOp, const SimplifyQuery &Q);
 
 /// See if we can compute a simplified version of this instruction. If not,
 /// return null.

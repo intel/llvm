@@ -275,8 +275,7 @@ bool AVRDAGToDAGISel::SelectInlineAsmMemoryOperand(
       }
 
       if (ImmNode->getValueType(0) != MVT::i8) {
-        Disp = CurDAG->getTargetConstant(
-            ImmNode->getAPIntValue().getZExtValue(), dl, MVT::i8);
+        Disp = CurDAG->getTargetConstant(ImmNode->getZExtValue(), dl, MVT::i8);
       } else {
         Disp = ImmOp;
       }
@@ -366,6 +365,8 @@ template <> bool AVRDAGToDAGISel::select<ISD::LOAD>(SDNode *N) {
   int ProgMemBank = AVR::getProgramMemoryBank(LD);
   if (ProgMemBank < 0 || ProgMemBank > 5)
     report_fatal_error("unexpected program memory bank");
+  if (ProgMemBank > 0 && !Subtarget->hasELPM())
+    report_fatal_error("unexpected program memory bank");
 
   // This is a flash memory load, move the pointer into R31R30 and emit
   // the lpm instruction.
@@ -398,8 +399,9 @@ template <> bool AVRDAGToDAGISel::select<ISD::LOAD>(SDNode *N) {
     switch (VT.SimpleTy) {
     case MVT::i8:
       if (ProgMemBank == 0) {
+        unsigned Opc = Subtarget->hasLPMX() ? AVR::LPMRdZ : AVR::LPMBRdZ;
         ResNode =
-            CurDAG->getMachineNode(AVR::LPMRdZ, DL, MVT::i8, MVT::Other, Ptr);
+            CurDAG->getMachineNode(Opc, DL, MVT::i8, MVT::Other, Ptr);
       } else {
         // Do not combine the LDI instruction into the ELPM pseudo instruction,
         // since it may be reused by other ELPM pseudo instructions.

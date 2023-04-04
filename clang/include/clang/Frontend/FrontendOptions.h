@@ -278,6 +278,8 @@ public:
   /// Show frontend performance metrics and statistics.
   unsigned ShowStats : 1;
 
+  unsigned AppendStats : 1;
+
   /// print the supported cpus for the current target
   unsigned PrintSupportedCPUs : 1;
 
@@ -453,8 +455,9 @@ public:
   std::string ProductName;
 
   // Currently this is only used as part of the `-extract-api` action.
-  /// The file providing a list of APIs to ignore when extracting documentation
-  std::string ExtractAPIIgnoresFile;
+  // A comma seperated list of files providing a list of APIs to
+  // ignore when extracting documentation.
+  std::vector<std::string> ExtractAPIIgnoresFileList;
 
   /// Args to pass to the plugins
   std::map<std::string, std::vector<std::string>> PluginArgs;
@@ -510,16 +513,16 @@ public:
 public:
   FrontendOptions()
       : DisableFree(false), RelocatablePCH(false), ShowHelp(false),
-        ShowStats(false), TimeTrace(false), ShowVersion(false),
-        FixWhatYouCan(false), FixOnlyWarnings(false), FixAndRecompile(false),
-        FixToTemporaries(false), ARCMTMigrateEmitARCErrors(false),
-        SkipFunctionBodies(false), UseGlobalModuleIndex(true),
-        GenerateGlobalModuleIndex(true), ASTDumpDecls(false),
-        ASTDumpLookups(false), BuildingImplicitModule(false),
-        BuildingImplicitModuleUsesLock(true), ModulesEmbedAllFiles(false),
-        IncludeTimestamps(true), UseTemporary(true),
-        AllowPCMWithCompilerErrors(false), ModulesShareFileManager(true),
-        TimeTraceGranularity(500) {}
+        ShowStats(false), AppendStats(false), TimeTrace(false),
+        ShowVersion(false), FixWhatYouCan(false), FixOnlyWarnings(false),
+        FixAndRecompile(false), FixToTemporaries(false),
+        ARCMTMigrateEmitARCErrors(false), SkipFunctionBodies(false),
+        UseGlobalModuleIndex(true), GenerateGlobalModuleIndex(true),
+        ASTDumpDecls(false), ASTDumpLookups(false),
+        BuildingImplicitModule(false), BuildingImplicitModuleUsesLock(true),
+        ModulesEmbedAllFiles(false), IncludeTimestamps(true),
+        UseTemporary(true), AllowPCMWithCompilerErrors(false),
+        ModulesShareFileManager(true), TimeTraceGranularity(500) {}
 
   /// getInputKindForExtension - Return the appropriate input kind for a file
   /// extension. For example, "c" would return Language::C.

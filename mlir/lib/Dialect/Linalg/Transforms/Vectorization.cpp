@@ -31,8 +31,8 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include <type_traits>
 #include <optional>
+#include <type_traits>
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -59,6 +59,112 @@ static OpType getSingleOpOfType(Block &block) {
     res = op;
     return WalkResult::advance();
   });
+  return res;
+}
+
+/// Helper function to extract the input slices after filter is unrolled along
+/// kw.
+static SmallVector<Value>
+extractConvInputSlices(RewriterBase &rewriter, Location loc, Value input,
+                       int64_t nSize, int64_t wSize, int64_t cSize,
+                       int64_t kwSize, int strideW, int dilationW,
+                       int64_t wSizeStep, bool isSingleChanneled) {
+  SmallVector<Value> result;
+  if (isSingleChanneled) {
+    // Extract input slice of size {wSizeStep} @ [w + kw] for non-channeled
+    // convolution.
+    SmallVector<int64_t> sizes{wSizeStep};
+    SmallVector<int64_t> strides{1};
+    for (int64_t kw = 0; kw < kwSize; ++kw) {
+      for (int64_t w = 0; w < wSize; w += wSizeStep) {
+        result.push_back(rewriter.create<vector::ExtractStridedSliceOp>(
+            loc, input, /*offsets=*/ArrayRef<int64_t>{w + kw}, sizes, strides));
+      }
+    }
+  } else {
+    // Extract lhs slice of size {n, wSizeStep, c} @ [0, sw * w + dw * kw, 0]
+    // for channeled convolution.
+    SmallVector<int64_t> sizes{nSize, wSizeStep, cSize};
+    SmallVector<int64_t> strides{1, 1, 1};
+    for (int64_t kw = 0; kw < kwSize; ++kw) {
+      for (int64_t w = 0; w < wSize; w += wSizeStep) {
+        result.push_back(rewriter.create<vector::ExtractStridedSliceOp>(
+            loc, input,
+            /*offsets=*/ArrayRef<int64_t>{0, w * strideW + kw * dilationW, 0},
+            sizes, strides));
+      }
+    }
+  }
+  return result;
+}
+
+/// Helper function to extract the filter slices after filter is unrolled along
+/// kw.
+static SmallVector<Value> extractConvFilterSlices(RewriterBase &rewriter,
+                                                  Location loc, Value filter,
+                                                  int64_t kwSize) {
+  SmallVector<Value> result;
+  // Extract rhs slice of size [{c, f} for channeled convolutions and {1} for
+  // non-chanelled convolution] @ [kw].
+  for (int64_t kw = 0; kw < kwSize; ++kw) {
+    result.push_back(rewriter.create<vector::ExtractOp>(
+        loc, filter, /*offsets=*/ArrayRef<int64_t>{kw}));
+  }
+  return result;
+}
+
+/// Helper function to extract the result slices after filter is unrolled along
+/// kw.
+static SmallVector<Value>
+extractConvResultSlices(RewriterBase &rewriter, Location loc, Value res,
+                        int64_t nSize, int64_t wSize, int64_t fSize,
+                        int64_t wSizeStep, bool isSingleChanneled) {
+  SmallVector<Value> result;
+  if (isSingleChanneled) {
+    // Extract res slice: {wSizeStep} @ [w] for non-channeled convolution.
+    SmallVector<int64_t> sizes{wSizeStep};
+    SmallVector<int64_t> strides{1};
+    for (int64_t w = 0; w < wSize; w += wSizeStep) {
+      result.push_back(rewriter.create<vector::ExtractStridedSliceOp>(
+          loc, res, /*offsets=*/ArrayRef<int64_t>{w}, sizes, strides));
+    }
+  } else {
+    // Extract res slice: {n, wSizeStep, f} @ [0, w, 0] for channeled
+    // convolution.
+    SmallVector<int64_t> sizes{nSize, wSizeStep, fSize};
+    SmallVector<int64_t> strides{1, 1, 1};
+    for (int64_t w = 0; w < wSize; w += wSizeStep) {
+      result.push_back(rewriter.create<vector::ExtractStridedSliceOp>(
+          loc, res, /*offsets=*/ArrayRef<int64_t>{0, w, 0}, sizes, strides));
+    }
+  }
+  return result;
+}
+
+/// Helper function to insert the computed result slices.
+static Value insertConvResultSlices(RewriterBase &rewriter, Location loc,
+                                    Value res, int64_t wSize, int64_t wSizeStep,
+                                    SmallVectorImpl<Value> &resVals,
+                                    bool isSingleChanneled) {
+
+  if (isSingleChanneled) {
+    // Write back res slice: {wSizeStep} @ [w] for non-channeled convolution.
+    // This does not depend on kw.
+    SmallVector<int64_t> strides{1};
+    for (int64_t w = 0; w < wSize; w += wSizeStep) {
+      res = rewriter.create<vector::InsertStridedSliceOp>(
+          loc, resVals[w], res, /*offsets=*/ArrayRef<int64_t>{w}, strides);
+    }
+  } else {
+    // Write back res slice: {n, wSizeStep, f} @ [0, w, 0] for channeled
+    // convolution. This does not depend on kw.
+    SmallVector<int64_t> strides{1, 1, 1};
+    for (int64_t w = 0; w < wSize; w += wSizeStep) {
+      res = rewriter.create<vector::InsertStridedSliceOp>(
+          loc, resVals[w], res, /*offsets=*/ArrayRef<int64_t>{0, w, 0},
+          strides);
+    }
+  }
   return res;
 }
 
@@ -105,7 +211,7 @@ private:
                            std::optional<AffineMap> maybeMaskingMap);
 
   // Holds the compile-time static sizes of the iteration space to vectorize.
-  // Dynamic dimensions are represented using ShapedType::kDynamicSize.
+  // Dynamic dimensions are represented using ShapedType::kDynamic.
   SmallVector<int64_t> iterSpaceStaticSizes;
 
   /// Holds the runtime sizes of the iteration spaces to vectorize. Static
@@ -334,6 +440,7 @@ static AffineMap reindexIndexingMap(AffineMap map) {
 
 /// Helper enum to represent conv1d input traversal order.
 enum class Conv1DOpOrder {
+  W,   // Corresponds to non-channeled 1D convolution operation.
   Ncw, // Corresponds to operation that traverses the input in (n, c, w) order.
   Nwc  // Corresponds to operation that traverses the input in (n, w, c) order.
 };
@@ -611,11 +718,11 @@ static Value calculateGatherOffset(RewriterBase &rewriter,
 
   const size_t numIndices = extractOp.getIndices().size();
   for (size_t i = 1; i < numIndices; i++) {
+    Value dimIdx = rewriter.create<arith::ConstantIndexOp>(loc, i);
+
     auto dimSize = broadcastIfNeeded(
         rewriter,
-        rewriter.create<arith::ConstantIndexOp>(
-            loc,
-            extractOp.getTensor().getType().cast<ShapedType>().getDimSize(i)),
+        rewriter.create<tensor::DimOp>(loc, extractOp.getTensor(), dimIdx),
         indexVecType.getShape());
 
     offset = rewriter.create<arith::MulIOp>(loc, offset, dimSize);
@@ -628,6 +735,182 @@ static Value calculateGatherOffset(RewriterBase &rewriter,
   }
 
   return offset;
+}
+
+enum VectorMemoryAccessKind {
+  // TODO: ScalarBroadcast,
+  Contiguous,
+  Gather
+};
+
+/// Checks whether /p val can be used for calculating a loop invariant index.
+static bool isLoopInvariantIdx(LinalgOp &linalgOp, Value &val) {
+
+  auto targetShape = linalgOp.getStaticLoopRanges();
+  assert(((llvm::count_if(targetShape,
+                          [](int64_t dimSize) { return dimSize > 1; }) == 1)) &&
+         "n-D vectors are not yet supported");
+  assert(targetShape.back() != 1 &&
+         "1-D vectors with the trailing dim eqaual 1 are not yet supported");
+
+  // Blocks outside _this_ linalg.generic are effectively loop invariant.
+  // However, analysing block arguments for _this_ linalg.generic Op is a bit
+  // tricky. Just bail out in the latter case.
+  // TODO: We could try analysing the corresponding affine map here.
+  auto *block = linalgOp.getBlock();
+  if (isa<BlockArgument>(val))
+    return llvm::all_of(block->getArguments(),
+                        [&val](Value v) { return (v != val); });
+
+  Operation *defOp = val.getDefiningOp();
+  assert(defOp && "This is neither a block argument nor an operation result");
+
+  // IndexOp is loop invariant as long as its result remains constant across
+  // iterations. Given the assumptions on the loop ranges above, only the
+  // trailing loop dim ever changes.
+  auto trailingLoopDim = linalgOp.getStaticLoopRanges().size() - 1;
+  if (auto indexOp = dyn_cast<linalg::IndexOp>(defOp))
+    return (indexOp.getDim() != trailingLoopDim);
+
+  auto *ancestor = block->findAncestorOpInBlock(*defOp);
+
+  // Values define outside `linalgOp` are loop invariant.
+  if (!ancestor)
+    return true;
+
+  // Values defined inside `linalgOp`, which are constant, are loop invariant.
+  if (isa<arith::ConstantOp>(ancestor))
+    return true;
+
+  bool result = true;
+  for (auto op : ancestor->getOperands())
+    result &= isLoopInvariantIdx(linalgOp, op);
+
+  return result;
+}
+
+/// Check whether \p val could be used for calculating the trailing index for a
+/// contiguous load operation.
+///
+/// There are currently 3 types of values that are allowed here:
+///   1. loop-invariant values,
+///   2. values that increment by 1 with every loop iteration,
+///   3. results of basic arithmetic operations (linear and continuous)
+///      involving 1., 2. and 3.
+/// This method returns True if indeed only such values are used in calculating
+/// \p val.
+///
+/// Additionally, the trailing index for a contiguous load operation should
+/// increment by 1 with every loop iteration, i.e. be based on:
+///   * `linalg.index <dim>` ,
+/// where <dim> is the trailing dim of the iteration space. \p foundIndexOp is
+/// updated to `true` when such an op is found.
+static bool isContiguousLoadIdx(LinalgOp &linalgOp, Value &val,
+                                bool &foundIndexOp) {
+
+  auto targetShape = linalgOp.getStaticLoopRanges();
+  assert(((llvm::count_if(targetShape,
+                          [](int64_t dimSize) { return dimSize > 1; }) == 1)) &&
+         "n-D vectors are not yet supported");
+  assert(targetShape.back() != 1 &&
+         "1-D vectors with the trailing dim 1 are not yet supported");
+
+  // Blocks outside _this_ linalg.generic are effectively loop invariant.
+  // However, analysing block arguments for _this_ linalg.generic Op is a bit
+  // tricky. Just bail out in the latter case.
+  // TODO: We could try analysing the corresponding affine map here.
+  auto *block = linalgOp.getBlock();
+  if (isa<BlockArgument>(val))
+    return llvm::all_of(block->getArguments(),
+                        [&val](Value v) { return (v != val); });
+
+  Operation *defOp = val.getDefiningOp();
+  assert(defOp && "This is neither a block argument nor an operation result");
+
+  // Given the assumption on the loop ranges above, only the trailing loop
+  // index is not constant.
+  auto trailingLoopDim = linalgOp.getStaticLoopRanges().size() - 1;
+  if (auto indexOp = dyn_cast<linalg::IndexOp>(defOp)) {
+    foundIndexOp = (indexOp.getDim() == trailingLoopDim);
+    return true;
+  }
+
+  auto *ancestor = block->findAncestorOpInBlock(*defOp);
+
+  if (!ancestor)
+    return false;
+
+  // Conservatively reject Ops that could lead to indices with stride other
+  // than 1.
+  if (!isa<arith::AddIOp, arith::SubIOp, arith::ConstantOp, linalg::IndexOp>(
+          ancestor))
+    return false;
+
+  bool result = false;
+  for (auto op : ancestor->getOperands())
+    result |= isContiguousLoadIdx(linalgOp, op, foundIndexOp);
+
+  return result;
+}
+
+/// Check whether \p extractOp would be a gather or a contiguous load Op after
+/// vectorising \p linalgOp. Note that it is always safe to use gather load
+/// operations for contiguous loads (albeit slow), but not vice-versa. When in
+/// doubt, bail out and assume that \p extractOp is a gather load.
+static VectorMemoryAccessKind
+getTensorExtractMemoryAccessPattern(tensor::ExtractOp extractOp,
+                                    LinalgOp &linalgOp) {
+
+  auto targetShape = linalgOp.getStaticLoopRanges();
+
+  // 1. Assume that it's a gather load when reading _into_:
+  //    * an n-D vector, like`tensor<1x2x4xi32` or`tensor<2x1x4xi32>`, or
+  //    * a 1-D vector with the trailing dim equal 1, e.g. `tensor<1x4x1xi32`.
+  // TODO: Relax these conditions.
+  if ((llvm::count_if(targetShape,
+                      [](int64_t dimSize) { return dimSize > 1; }) != 1) ||
+      targetShape.back() == 1)
+    return VectorMemoryAccessKind::Gather;
+
+  auto inputShape = extractOp.getTensor().getType().cast<ShapedType>();
+
+  // 2. Assume that it's a gather load when reading _from_ a tensor for which
+  // the trailing dimension is 1, e.g. `tensor<1x4x1xi32>`.
+  // TODO: Relax this condition.
+  if (inputShape.getShape().back() == 1)
+    return VectorMemoryAccessKind::Gather;
+
+  bool isContiguous = true;
+
+  // 3a. Analyze the leading indices of `extractOp`.
+  // Look at the way each index is calculated and decide whether it is suitable
+  // for a contiguous load, i.e. whether it's loop invariant.
+  auto indices = extractOp.getIndices();
+  auto leadIndices = ValueRange(indices.drop_back(1));
+
+  for (auto [i, indexVal] : llvm::enumerate(leadIndices)) {
+    if (inputShape.getShape()[i] == 1)
+      continue;
+
+    isContiguous &= isLoopInvariantIdx(linalgOp, indexVal);
+  }
+
+  // 3b. Analyze the trailing index for `extractOp`.
+  auto extractOpTrailingIdx = indices.back();
+  // For contiguous loads, the trailing `extractOp` index should increment with
+  // every loop iteration. This effectively means that it must be based on the
+  // trailing loop index. This is what the following bool captures.
+  bool foundIndexOp = false;
+  isContiguous &=
+      isContiguousLoadIdx(linalgOp, extractOpTrailingIdx, foundIndexOp);
+  isContiguous &= foundIndexOp;
+
+  if (isContiguous) {
+    LDBG("Found contigous load: " << extractOp);
+    return VectorMemoryAccessKind::Contiguous;
+  }
+
+  return VectorMemoryAccessKind::Gather;
 }
 
 /// Helper function to vectorize the tensor.extract operations. Returns
@@ -660,15 +943,64 @@ vectorizeTensorExtract(RewriterBase &rewriter, VectorizationState &state,
       extractOp.getIndices().size(),
       rewriter.create<arith::ConstantIndexOp>(loc, 0));
 
-  Value offset = calculateGatherOffset(rewriter, extractOp, bvm, targetShape);
+  VectorMemoryAccessKind memAccessKind =
+      getTensorExtractMemoryAccessPattern(extractOp, linalgOp);
 
-  // Generate the gather load
-  Operation *gatherOp = rewriter.create<vector::GatherOp>(
-      loc, resultType, extractOp.getTensor(), baseIndices, offset,
-      maskConstantOp, passThruConstantOp);
-  gatherOp = state.maskOperation(rewriter, gatherOp, linalgOp);
+  // 1. Handle gather access
+  if (memAccessKind == VectorMemoryAccessKind::Gather) {
+    Value offset = calculateGatherOffset(rewriter, extractOp, bvm, targetShape);
 
-  return VectorizationResult{VectorizationStatus::NewOp, gatherOp};
+    // Generate the gather load
+    Operation *gatherOp = rewriter.create<vector::GatherOp>(
+        loc, resultType, extractOp.getTensor(), baseIndices, offset,
+        maskConstantOp, passThruConstantOp);
+    gatherOp = state.maskOperation(rewriter, gatherOp, linalgOp);
+
+    LDBG("Vectorised as gather load: " << extractOp);
+    return VectorizationResult{VectorizationStatus::NewOp, gatherOp};
+  }
+
+  // 2. Handle contiguous access.
+  SmallVector<Value> transferReadIdxs;
+  auto resTrailingDim = resultType.getShape().back();
+  auto zero = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getI32Type(), rewriter.getZeroAttr(rewriter.getI32Type()));
+
+  // Collect indices for `vector.transfer_read`. At this point, the indices will
+  // either be scalars or would have been broadcast to vectors matching the
+  // result type. For indices that are vectors, there are two options:
+  //    * for non-trailing indices, all elements are identical (contiguous
+  //      loads are identified by looking for non-trailing indices that are
+  //      invariant with respect to the corresponding linalg.generic), or
+  //    * for trailing indices, the index vector will contain values with stride
+  //      one, but for `vector.transfer_read` only the first (i.e. 0th) index is
+  //      needed.
+  // This means that
+  //   * for scalar indices - just re-use it,
+  //   * for vector indices (e.g. `vector<1x1x4xindex>`) - extract the bottom
+  //    (0th) element and use that.
+  for (size_t i = 0; i < extractOp.getIndices().size(); i++) {
+    auto idx = bvm.lookup(extractOp.getIndices()[i]);
+    if (idx.getType().isIndex()) {
+      transferReadIdxs.push_back(idx);
+      continue;
+    }
+
+    auto indexAs1dVector = rewriter.create<vector::ShapeCastOp>(
+        loc, VectorType::get({resTrailingDim}, rewriter.getIndexType()),
+        bvm.lookup(extractOp.getIndices()[i]));
+    transferReadIdxs.push_back(
+        rewriter.create<vector::ExtractElementOp>(loc, indexAs1dVector, zero));
+  }
+
+  // `tensor.extract_element` is always in-bounds, hence the following holds.
+  SmallVector<bool> inBounds(resultType.getRank(), true);
+
+  auto transferReadOp = rewriter.create<vector::TransferReadOp>(
+      loc, resultType, extractOp.getTensor(), transferReadIdxs, inBounds);
+
+  LDBG("Vectorised as contiguous load: " << extractOp);
+  return VectorizationResult{VectorizationStatus::NewOp, transferReadOp};
 }
 
 /// Emit reduction operations if the shapes of the value to reduce is different
@@ -1203,7 +1535,7 @@ struct GenericPadOpVectorizationPattern : public GeneralizePadOpPattern {
   /// Vectorize the copying of a tensor::PadOp's source. This is possible if
   /// each dimension size is statically know in the source type or the result
   /// type (or both).
-  static LogicalResult tryVectorizeCopy(PatternRewriter &rewriter,
+  static LogicalResult tryVectorizeCopy(RewriterBase &rewriter,
                                         tensor::PadOp padOp, Value dest) {
     auto sourceType = padOp.getSourceType();
     auto resultType = padOp.getResultType();
@@ -1830,6 +2162,15 @@ bool isSupportedPoolKind(vector::CombiningKind kind) {
 
 /// Generate a vector implementation for either:
 /// ```
+///   Op def: (     w,     kw  )
+///    Iters: ({Par(), Red()})
+///   Layout: {{w + kw}, {kw}, {w}}
+/// ```
+/// kw is unrolled.
+///
+/// or
+///
+/// ```
 ///   Op def: (     n,     w,     c,    kw,    f  )
 ///    Iters: ({Par(), Par(), Par(), Red(), Red()})
 ///   Layout: {{n, strideW * w + dilationW * kw, c}, {kw, c, f}, {n, w, f}}
@@ -1870,8 +2211,10 @@ struct Conv1DGenerator
     resShapedType = resShaped.getType().dyn_cast<ShapedType>();
     if (!lhsShapedType || !rhsShapedType || !resShapedType)
       return;
-    // LHS has dimension NCW/NWC and RES has dimension NFW/NCW/NWF/NWC.
-    if (lhsShapedType.getRank() != 3 || resShapedType.getRank() != 3)
+    // (LHS has dimension NCW/NWC and RES has dimension NFW/NCW/NWF/NWC) OR
+    // (non-channeled convolution -> LHS and RHS both have single dimensions).
+    if (!((lhsShapedType.getRank() == 3 && resShapedType.getRank() == 3) ||
+          (lhsShapedType.getRank() == 1 && resShapedType.getRank() == 1)))
       return;
 
     Operation *reduceOp = matchLinalgReduction(linalgOp.getDpsInitOperand(0));
@@ -1890,7 +2233,7 @@ struct Conv1DGenerator
     auto rhsRank = rhsShapedType.getRank();
     switch (oper) {
     case Conv:
-      if (rhsRank != 2 && rhsRank!= 3)
+      if (rhsRank != 1 && rhsRank != 2 && rhsRank != 3)
         return;
       break;
     case Pool:
@@ -1903,6 +2246,15 @@ struct Conv1DGenerator
   }
 
   /// Generate a vector implementation for:
+  /// ```
+  ///   Op def: (     w,     kw  )
+  ///    Iters: ({Par(), Red()})
+  ///   Layout: {{w + kw}, {kw}, {w}}
+  /// ```
+  /// kw is always unrolled.
+  ///
+  /// or
+  ///
   /// ```
   ///   Op def: (     n,     w,     c,    kw,    f  )
   ///    Iters: ({Par(), Par(), Par(), Red(), Red()})
@@ -1917,7 +2269,21 @@ struct Conv1DGenerator
 
     int64_t nSize, wSize, cSize, kwSize, fSize;
     SmallVector<int64_t, 3> lhsShape, rhsShape, resShape;
+    bool isSingleChanneled = (conv1DOpOrder == Conv1DOpOrder::W);
     switch (conv1DOpOrder) {
+    case Conv1DOpOrder::W:
+      // Initialize unused dimensions
+      nSize = fSize = cSize = 0;
+      // out{W}
+      bindShapeDims(resShapedType, wSize);
+      // kernel{kw}
+      bindShapeDims(rhsShapedType, kwSize);
+      lhsShape = {// iw = ow + kw - 1
+                  //   (i.e. 16 convolved with 3 -> 14)
+                  (wSize + kwSize - 1)};
+      rhsShape = {kwSize};
+      resShape = {wSize};
+      break;
     case Conv1DOpOrder::Nwc:
       // out{n, w, f}
       bindShapeDims(resShapedType, nSize, wSize, fSize);
@@ -1995,24 +2361,27 @@ struct Conv1DGenerator
     auto lhsType = VectorType::get(lhsShape, lhsEltType);
     auto rhsType = VectorType::get(rhsShape, rhsEltType);
     auto resType = VectorType::get(resShape, resEltType);
-    // Read lhs slice of size {w * strideW + kw * dilationW, c, f} @ [0, 0,
-    // 0].
-    Value lhs = rewriter.create<vector::TransferReadOp>(
-        loc, lhsType, lhsShaped, ValueRange{zero, zero, zero});
-    // Read rhs slice of size {kw, c, f} @ [0, 0, 0].
+    // Zero padding with the corresponding dimensions for lhs, rhs and res.
+    SmallVector<Value> lhsPadding(lhsShape.size(), zero);
+    SmallVector<Value> rhsPadding(rhsShape.size(), zero);
+    SmallVector<Value> resPadding(resShape.size(), zero);
+
+    // Read the whole lhs, rhs and res in one shot (with zero padding).
+    Value lhs = rewriter.create<vector::TransferReadOp>(loc, lhsType, lhsShaped,
+                                                        lhsPadding);
     // This is needed only for Conv.
     Value rhs = nullptr;
     if (oper == Conv)
-      rhs = rewriter.create<vector::TransferReadOp>(
-          loc, rhsType, rhsShaped, ValueRange{zero, zero, zero});
-    // Read res slice of size {n, w, f} @ [0, 0, 0].
-    Value res = rewriter.create<vector::TransferReadOp>(
-        loc, resType, resShaped, ValueRange{zero, zero, zero});
+      rhs = rewriter.create<vector::TransferReadOp>(loc, rhsType, rhsShaped,
+                                                    rhsPadding);
+    Value res = rewriter.create<vector::TransferReadOp>(loc, resType, resShaped,
+                                                        resPadding);
 
-    // The base vectorization case is input: {n,w,c}, weight: {kw,c,f}, output:
-    // {n,w,f}. To reuse the base pattern vectorization case, we do pre
-    // transpose on input, weight, and output.
+    // The base vectorization case for channeled convolution is input: {n,w,c},
+    // weight: {kw,c,f}, output: {n,w,f}. To reuse the base pattern
+    // vectorization case, we do pre transpose on input, weight, and output.
     switch (conv1DOpOrder) {
+    case Conv1DOpOrder::W:
     case Conv1DOpOrder::Nwc:
       // Base case, so no transposes necessary.
       break;
@@ -2039,45 +2408,35 @@ struct Conv1DGenerator
     //===------------------------------------------------------------------===//
     // Unroll along kw and read slices of lhs and rhs.
     SmallVector<Value> lhsVals, rhsVals, resVals;
-    // Extract lhs slice of size {n, wSizeStep, c} @ [0, sw * w + dw * kw, 0].
-    for (int64_t kw = 0; kw < kwSize; ++kw) {
-      for (int64_t w = 0; w < wSize; w += wSizeStep) {
-        lhsVals.push_back(rewriter.create<vector::ExtractStridedSliceOp>(
-            loc, lhs,
-            /*offsets=*/ArrayRef<int64_t>{0, w * strideW + kw * dilationW, 0},
-            /*sizes=*/ArrayRef<int64_t>{nSize, wSizeStep, cSize},
-            /*strides=*/ArrayRef<int64_t>{1, 1, 1}));
-      }
-    }
-    // Extract rhs slice of size {c, f} @ [kw].
+    lhsVals = extractConvInputSlices(rewriter, loc, lhs, nSize, wSize, cSize,
+                                     kwSize, strideW, dilationW, wSizeStep,
+                                     isSingleChanneled);
     // Do not do for pooling.
     if (oper == Conv)
-      for (int64_t kw = 0; kw < kwSize; ++kw) {
-        rhsVals.push_back(rewriter.create<vector::ExtractOp>(
-            loc, rhs, /*offsets=*/ArrayRef<int64_t>{kw}));
-      }
-    // Extract res slice: {n, wSizeStep, f} @ [0, w, 0].
-    for (int64_t w = 0; w < wSize; w += wSizeStep) {
-      resVals.push_back(rewriter.create<vector::ExtractStridedSliceOp>(
-          loc, res,
-          /*offsets=*/ArrayRef<int64_t>{0, w, 0},
-          /*sizes=*/ArrayRef<int64_t>{nSize, wSizeStep, fSize},
-          /*strides=*/ArrayRef<int64_t>{1, 1, 1}));
-    }
+      rhsVals = extractConvFilterSlices(rewriter, loc, rhs, kwSize);
+    resVals = extractConvResultSlices(rewriter, loc, res, nSize, wSize, fSize,
+                                      wSizeStep, isSingleChanneled);
 
     auto linearIndex = [&](int64_t kw, int64_t w) {
       return kw * (wSize / wSizeStep) + w;
     };
 
     // Compute contraction: O{n, w, f} += I{n, sw * w + dw * kw, c} * F{c, f} or
+    // perform outerproduct for non-channeled convolution or
     // perform simple arith operation for pooling
     for (int64_t kw = 0; kw < kwSize; ++kw) {
       for (int64_t w = 0; w < wSize; w += wSizeStep) {
         switch (oper) {
         case Conv:
-          resVals[w] = conv1dSliceAsContraction(rewriter, loc,
-                                                lhsVals[linearIndex(kw, w)],
-                                                rhsVals[kw], resVals[w]);
+          if (isSingleChanneled) {
+            resVals[w] = conv1dSliceAsOuterProduct(rewriter, loc,
+                                                   lhsVals[linearIndex(kw, w)],
+                                                   rhsVals[kw], resVals[w]);
+          } else {
+            resVals[w] = conv1dSliceAsContraction(rewriter, loc,
+                                                  lhsVals[linearIndex(kw, w)],
+                                                  rhsVals[kw], resVals[w]);
+          }
           break;
         case Pool:
           resVals[w] = pool1dSlice(rewriter, loc, lhsVals[linearIndex(kw, w)],
@@ -2087,22 +2446,17 @@ struct Conv1DGenerator
       }
     }
 
-    // Write back res slice: {n, wSizeStep, f} @ [0, w, 0].
-    // This does not depend on kw.
-    for (int64_t w = 0; w < wSize; w += wSizeStep) {
-      res = rewriter.create<vector::InsertStridedSliceOp>(
-          loc, resVals[w], res,
-          /*offsets=*/ArrayRef<int64_t>{0, w, 0},
-          /*strides=*/ArrayRef<int64_t>{1, 1, 1});
-    }
+    res = insertConvResultSlices(rewriter, loc, res, wSize, wSizeStep, resVals,
+                                 isSingleChanneled);
     //===------------------------------------------------------------------===//
     // End vector-only rewrite part
     //===------------------------------------------------------------------===//
 
-    // The base vectorization case is output: {n,w,f}
+    // The base vectorization case for channeled convolution is output: {n,w,f}
     // To reuse the result from base pattern vectorization case, we post
     // transpose the base case result.
     switch (conv1DOpOrder) {
+    case Conv1DOpOrder::W:
     case Conv1DOpOrder::Nwc:
       // Base case, so no transposes necessary.
       break;
@@ -2114,10 +2468,8 @@ struct Conv1DGenerator
     }
     }
 
-    // Write back res slice of size {n, w, f} @ [0, 0, 0].
     return rewriter
-        .create<vector::TransferWriteOp>(loc, res, resShaped,
-                                         ValueRange{zero, zero, zero})
+        .create<vector::TransferWriteOp>(loc, res, resShaped, resPadding)
         .getOperation();
   }
 
@@ -2132,6 +2484,14 @@ struct Conv1DGenerator
         loc, lhs, rhs, res,
         /*indexingMaps=*/MapList{{n, w, c}, {c, f}, {n, w, f}},
         /*iteratorTypes=*/ArrayRef<vector::IteratorType>{par, par, par, red});
+  }
+
+  // Create an outerproduct: lhs{w} * rhs{1} -> res{w} for single channel
+  // convolution.
+  Value conv1dSliceAsOuterProduct(RewriterBase &rewriter, Location loc,
+                                  Value lhs, Value rhs, Value res) {
+    return rewriter.create<vector::OuterProductOp>(
+        loc, res.getType(), lhs, rhs, res, vector::CombiningKind::ADD);
   }
 
   // Create a reduction: lhs{n, w, c} -> res{n, w, c}
@@ -2232,15 +2592,17 @@ struct Conv1DGenerator
     // Compute contraction: O{n, w, c} += I{n, sw * w + dw * kw, c} * F{c}
     for (int64_t kw = 0; kw < kwSize; ++kw) {
       for (int64_t w = 0; w < wSize; w += wSizeStep) {
-        resVals[w] = depthwiseConv1dSliceAsMulAcc(
-            rewriter, loc, lhsVals[linearIndex(kw, w)], rhsVals[kw], resVals[w]);
+        resVals[w] = depthwiseConv1dSliceAsMulAcc(rewriter, loc,
+                                                  lhsVals[linearIndex(kw, w)],
+                                                  rhsVals[kw], resVals[w]);
       }
     }
 
     // Its possible we failed to create the Fma.
     if (!llvm::all_of(resVals, [](Value v) { return v; })) {
       // Manually revert (in reverse order) to avoid leaving a bad IR state.
-      for (auto &collection : {resVals, rhsVals, lhsVals, {res, rhs, lhs, zero}})
+      for (auto &collection :
+           {resVals, rhsVals, lhsVals, {res, rhs, lhs, zero}})
         for (Value v : collection)
           rewriter.eraseOp(v.getDefiningOp());
       return rewriter.notifyMatchFailure(op, "failed to create FMA");
@@ -2304,6 +2666,24 @@ struct Conv1DGenerator
 
     auto mul = rewriter.create<arith::MulIOp>(loc, lhs, rhs);
     return rewriter.create<arith::AddIOp>(loc, mul, res);
+  }
+
+  /// Entry point for non-channeled convolution:
+  ///   {{w + kw}, {kw}, {w}}
+  FailureOr<Operation *> generateNonChanneledConv() {
+    AffineExpr w, kw;
+    bindDims(ctx, w, kw);
+    if (!iters({Par(), Red()}))
+      return rewriter.notifyMatchFailure(op,
+                                         "failed to match conv::W 1-par 1-red");
+
+    // No transposition needed.
+    if (layout({/*lhsIndex*/ {w + kw},
+                /*rhsIndex*/ {kw},
+                /*resIndex*/ {w}}))
+      return conv(Conv1DOpOrder::W);
+
+    return rewriter.notifyMatchFailure(op, "not a conv::W layout");
   }
 
   /// Entry point that transposes into the common form:
@@ -2466,7 +2846,10 @@ static FailureOr<Operation *> vectorizeConvolution(RewriterBase &rewriter,
   auto stride = strides ? *strides.getValues<uint64_t>().begin() : 1;
   auto dilation = dilations ? *dilations.getValues<uint64_t>().begin() : 1;
   Conv1DGenerator e(rewriter, op, stride, dilation);
-  auto res = e.generateNwcConv();
+  auto res = e.generateNonChanneledConv();
+  if (succeeded(res))
+    return res;
+  res = e.generateNwcConv();
   if (succeeded(res))
     return res;
   res = e.generateNcwConv();

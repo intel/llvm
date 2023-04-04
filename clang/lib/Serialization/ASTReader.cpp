@@ -4134,7 +4134,7 @@ void ASTReader::makeModuleVisible(Module *Mod,
       auto HiddenNames = std::move(*Hidden);
       HiddenNamesMap.erase(Hidden);
       makeNamesVisible(HiddenNames.second, HiddenNames.first);
-      assert(HiddenNamesMap.find(Mod) == HiddenNamesMap.end() &&
+      assert(!HiddenNamesMap.contains(Mod) &&
              "making names visible added hidden names");
     }
 
@@ -5643,6 +5643,12 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
       CurrentModule->ModuleMapIsPrivate = ModuleMapIsPrivate;
       if (DeserializationListener)
         DeserializationListener->ModuleRead(GlobalID, CurrentModule);
+
+      // If we're loading a module before we initialize the sema, it implies
+      // we're performing eagerly loading.
+      if (!getSema() && CurrentModule->isModulePurview() &&
+          !getContext().getLangOpts().isCompilingModule())
+        Diag(clang::diag::warn_eagerly_load_for_standard_cplusplus_modules);
 
       SubmodulesLoaded[GlobalIndex] = CurrentModule;
 

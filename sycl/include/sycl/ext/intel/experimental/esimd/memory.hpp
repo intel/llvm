@@ -384,10 +384,8 @@ constexpr void check_lsc_atomic() {
                   "wrong number of operands");
   }
   if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
-    if constexpr (!__ESIMD_DNS::is_type<T, float, sycl::half>()) {
-      static_assert((__ESIMD_DNS::is_type<T, float, sycl::half>()),
-                    "Type F or HF is expected");
-    }
+    static_assert(__ESIMD_DNS::is_type<T, float, sycl::half, double>(),
+                  "float, double or sycl::half type is expected");
   } else {
     __ESIMD_DNS::check_atomic<__ESIMD_DNS::to_atomic_op<Op>(), T, N, NumSrc>();
   }
@@ -2717,7 +2715,7 @@ __ESIMD_API std::enable_if_t<
     std::is_integral_v<Toffset> &&
         __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 0,
     __ESIMD_NS::simd<T, N>>
-    lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
+lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       p, __ESIMD_NS::simd<Toffset, N>(offset), pred);
 }
@@ -2879,9 +2877,9 @@ __ESIMD_API std::enable_if_t<
     std::is_integral_v<Toffset> &&
         __ESIMD_DNS::get_num_args<__ESIMD_DNS::to_lsc_atomic_op<Op>()>() == 2,
     __ESIMD_NS::simd<T, N>>
-    lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
-                      __ESIMD_NS::simd<T, N> src1,
-                      __ESIMD_NS::simd_mask<N> pred = 1) {
+lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
+                  __ESIMD_NS::simd<T, N> src1,
+                  __ESIMD_NS::simd_mask<N> pred = 1) {
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       p, __ESIMD_NS::simd<Toffset, N>(offset), src0, src1, pred);
 }

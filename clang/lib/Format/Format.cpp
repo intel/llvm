@@ -1036,6 +1036,7 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("UseTab", Style.UseTab);
     IO.mapOptional("WhitespaceSensitiveMacros",
                    Style.WhitespaceSensitiveMacros);
+    IO.mapOptional("Macros", Style.Macros);
 
     // If AlwaysBreakAfterDefinitionReturnType was specified but
     // AlwaysBreakAfterReturnType was not, initialize the latter from the
@@ -2454,7 +2455,7 @@ private:
   }
 
   bool containsOnlyComments(const AnnotatedLine &Line) {
-    for (FormatToken *Tok = Line.First; Tok != nullptr; Tok = Tok->Next)
+    for (FormatToken *Tok = Line.First; Tok; Tok = Tok->Next)
       if (Tok->isNot(tok::comment))
         return false;
     return true;

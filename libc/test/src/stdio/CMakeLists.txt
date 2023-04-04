@@ -7,8 +7,8 @@ add_libc_unittest(
   SRCS
     fileop_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.stdio
+    libc.src.errno.errno
     libc.src.stdio.clearerr
     libc.src.stdio.fclose
     libc.src.stdio.feof
@@ -60,8 +60,8 @@ add_libc_unittest(
   SRCS
     setvbuf_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.stdio
+    libc.src.errno.errno
     libc.src.stdio.fclose
     libc.src.stdio.fopen
     libc.src.stdio.fread
@@ -76,8 +76,8 @@ add_libc_unittest(
   SRCS
     unlocked_fileop_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.stdio
+    libc.src.errno.errno
     libc.src.stdio.clearerr_unlocked
     libc.src.stdio.fclose
     libc.src.stdio.feof_unlocked
@@ -96,9 +96,9 @@ add_libc_unittest(
   SRCS
     fopencookie_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.stdio
     libc.include.stdlib
+    libc.src.errno.errno
     libc.src.stdio.clearerr
     libc.src.stdio.fclose
     libc.src.stdio.feof
@@ -134,6 +134,8 @@ add_libc_unittest(
     libc.src.stdio.snprintf
 )
 
+# In fullbuild mode, fprintf's tests use the internal FILE for other functions.
+if(LLVM_LIBC_FULL_BUILD)
 add_libc_unittest(
   fprintf_test
   SUITE
@@ -147,7 +149,20 @@ add_libc_unittest(
     libc.src.stdio.fopen
     libc.src.stdio.fread
 )
-
+else()
+# Else in overlay mode they use the system's FILE.
+add_libc_unittest(
+  fprintf_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    fprintf_test.cpp
+  DEPENDS
+    libc.src.stdio.fprintf
+  COMPILE_OPTIONS
+    -DLIBC_COPT_PRINTF_USE_SYSTEM_FILE
+)
+endif()
 
 add_libc_unittest(
   printf_test
@@ -218,8 +233,8 @@ if(${LIBC_TARGET_OS} STREQUAL "linux")
     SRCS
       remove_test.cpp
     DEPENDS
-      libc.include.errno
       libc.include.unistd
+      libc.src.errno.errno
       libc.src.fcntl.open
       libc.src.stdio.remove
       libc.src.sys.stat.mkdirat
@@ -235,8 +250,8 @@ add_libc_unittest(
   SRCS
     fgetc_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.stdio
+    libc.src.errno.errno
     libc.src.stdio.fclose
     libc.src.stdio.feof
     libc.src.stdio.ferror
@@ -253,8 +268,8 @@ add_libc_unittest(
   SRCS
     fgetc_unlocked_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.stdio
+    libc.src.errno.errno
     libc.src.stdio.fclose
     libc.src.stdio.ferror
     libc.src.stdio.ferror_unlocked
@@ -275,8 +290,8 @@ add_libc_unittest(
   SRCS
     fgets_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.stdio
+    libc.src.errno.errno
     libc.src.stdio.fclose
     libc.src.stdio.feof
     libc.src.stdio.ferror
@@ -292,7 +307,6 @@ add_libc_unittest(
   SRCS
     ftell_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.stdio
     libc.src.stdio.fclose
     libc.src.stdio.fflush
