@@ -1316,6 +1316,32 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
       cast<cl_kernel_sub_group_info>(param_name), input_value_size, input_value,
       sizeof(size_t), &ret_val, param_value_size_ret));
 
+  if (ret_err == CL_INVALID_OPERATION) {
+    // clGetKernelSubGroupInfo returns CL_INVALID_OPERATION if the device does
+    // not support subgroups.
+
+    if (param_name == PI_KERNEL_MAX_NUM_SUB_GROUPS) {
+      ret_val = 1; // Minimum required by SYCL 2020 spec
+      ret_err = CL_SUCCESS;
+    } else if (param_name == PI_KERNEL_COMPILE_NUM_SUB_GROUPS) {
+      ret_val = 0; // Not specified by kernel
+      ret_err = CL_SUCCESS;
+    } else if (param_name == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
+      // Return the maximum work group size for the kernel
+      size_t kernel_work_group_size = 0;
+      pi_result pi_ret_err = piKernelGetGroupInfo(
+          kernel, device, PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
+          &kernel_work_group_size, nullptr);
+      if (pi_ret_err != PI_SUCCESS)
+        return pi_ret_err;
+      ret_val = kernel_work_group_size;
+      ret_err = CL_SUCCESS;
+    } else if (param_name == PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL) {
+      ret_val = 0; // Not specified by kernel
+      ret_err = CL_SUCCESS;
+    }
+  }
+
   if (ret_err != CL_SUCCESS)
     return cast<pi_result>(ret_err);
 

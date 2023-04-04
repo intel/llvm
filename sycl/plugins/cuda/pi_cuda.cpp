@@ -1745,7 +1745,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_EXTENSIONS: {
 
-    std::string SupportedExtensions = "cl_khr_fp64 ";
+    std::string SupportedExtensions = "cl_khr_fp64 cl_khr_subgroups ";
     SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
     SupportedExtensions += " ";
 
