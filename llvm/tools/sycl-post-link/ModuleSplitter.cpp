@@ -774,7 +774,7 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
       if (F->hasMetadata(MetadataName)) {
         auto *MDN = F->getMetadata(MetadataName);
         for (const MDOperand &MDOp : MDN->operands())
-          Result += std::to_string(
+          Result += "-" + std::to_string(
               mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
       }
     } break;
@@ -792,7 +792,7 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
         llvm::sort(Values);
 
         for (unsigned V : Values)
-          Result += std::to_string(V);
+          Result += "-" + std::to_string(V);
       }
     } break;
 
@@ -805,6 +805,8 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
         Result += std::get<2>(Data);
     } break;
     }
+
+    Result += "-";
   }
 
   return (std::string)Result;
