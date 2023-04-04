@@ -58,45 +58,45 @@
       for (int i = 0; i < DIM; i++) {                                          \
         assert(std::abs(result[i] - EXPECTED_1[i]) <= DELTA);                  \
         assert(std::abs(result_ptr[i] - EXPECTED_2[i]) <= DELTA);              \
-      }
+      }                                                                        \
     }                                                                          \
   }
 
-#define TEST3(FUNC, MARRAY_ELEM_TYPE, DIM, EXPECTED, ...)                    \
+#define TEST3(FUNC, MARRAY_ELEM_TYPE, DIM, EXPECTED, ...)                      \
+  {                                                                            \
     {                                                                          \
+      MARRAY_ELEM_TYPE result[DIM];                                            \
       {                                                                        \
-        MARRAY_ELEM_TYPE result[DIM];                                          \
-        {                                                                      \
-          sycl::buffer<MARRAY_ELEM_TYPE> b(result, sycl::range{DIM});          \
-          deviceQueue.submit([&](sycl::handler &cgh) {                         \
-            sycl::accessor res_access{b, cgh};                                 \
-            cgh.single_task([=]() {                                            \
-              sycl::marray<MARRAY_ELEM_TYPE, DIM> res = FUNC(__VA_ARGS__);     \
-              for (int i = 0; i < DIM; i++)                                    \
-                res_access[i] = res[i];                                        \
-            });                                                                \
+        sycl::buffer<MARRAY_ELEM_TYPE> b(result, sycl::range{DIM});            \
+        deviceQueue.submit([&](sycl::handler &cgh) {                           \
+          sycl::accessor res_access{b, cgh};                                   \
+          cgh.single_task([=]() {                                              \
+            sycl::marray<MARRAY_ELEM_TYPE, DIM> res = FUNC(__VA_ARGS__);       \
+            for (int i = 0; i < DIM; i++)                                      \
+              res_access[i] = res[i];                                          \
           });                                                                  \
-        }                                                                      \
-        for (int i = 0; i < DIM; i++) {                                        \
-          std::uint64_t result_uint64;                                         \
-          std::memcpy(&result_uint64, &result[i], sizeof(result[i]));          \
-          std::ostringstream stream;                                           \
-          stream << "0x" << std::hex << result_uint64;                         \
-          std::string result_string = stream.str();                            \
-          result_string = result_string.substr(result_string.size() - 5);      \
-          std::cout << result_string << " " << EXPECTED[i] << std::endl;       \
-        }                                                                      \
-        for (int i = 0; i < DIM; i++) {                                        \
-          std::uint64_t result_uint64;                                         \
-          std::memcpy(&result_uint64, &result[i], sizeof(result[i]));          \
-          std::ostringstream stream;                                           \
-          stream << "0x" << std::hex << result_uint64;                         \
-          std::string result_string = stream.str();                            \
-          result_string = result_string.substr(result_string.size() - 5);      \
-          assert(result_string.compare(EXPECTED[i]) == 0);                     \
-        }                                                                      \
+        });                                                                    \
       }                                                                        \
-    }
+      for (int i = 0; i < DIM; i++) {                                          \
+        std::uint64_t result_uint64;                                           \
+        std::memcpy(&result_uint64, &result[i], sizeof(result[i]));            \
+        std::ostringstream stream;                                             \
+        stream << "0x" << std::hex << result_uint64;                           \
+        std::string result_string = stream.str();                              \
+        result_string = result_string.substr(result_string.size() - 5);        \
+        std::cout << result_string << " " << EXPECTED[i] << std::endl;         \
+      }                                                                        \
+      for (int i = 0; i < DIM; i++) {                                          \
+        std::uint64_t result_uint64;                                           \
+        std::memcpy(&result_uint64, &result[i], sizeof(result[i]));            \
+        std::ostringstream stream;                                             \
+        stream << "0x" << std::hex << result_uint64;                           \
+        std::string result_string = stream.str();                              \
+        result_string = result_string.substr(result_string.size() - 5);        \
+        assert(result_string.compare(EXPECTED[i]) == 0);                       \
+      }                                                                        \
+    }                                                                          \
+  }
 
 #define EXPECTED(TYPE, ...) ((TYPE[]){__VA_ARGS__})
 

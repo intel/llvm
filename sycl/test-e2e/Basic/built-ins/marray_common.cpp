@@ -99,14 +99,14 @@ int main() {
   if (dev.has(sycl::aspect::fp64))
     TEST(sycl::step, double, 2, EXPECTED(double, 0.0f, 1.0f), 0, 6.0f, ma9);
   // sycl::smoothstep
-  TEST(sycl::smoothstep, float, 2, EXPECTED(float, 1.0f, 0.0f), 0, ma1, ma2,
-       ma3);
+  TEST(sycl::smoothstep, float, 2, EXPECTED(float, 1.0f, 1.0f), 0, ma8, ma1,
+       ma2);
   if (dev.has(sycl::aspect::fp64))
-    TEST(sycl::smoothstep, double, 2, EXPECTED(double, 0.00147576, 0.00446826),
-         0.00000001, ma4, ma11, ma9);
+    TEST(sycl::smoothstep, double, 2, EXPECTED(double, 1.0, 1.0f), 0.00000001,
+         ma4, ma9, ma9);
   if (dev.has(sycl::aspect::fp16))
-    TEST(sycl::smoothstep, sycl::half, 3, EXPECTED(sycl::half, 1.0, 0.0, 1.0),
-         0, ma12, ma12, ma13);
+    TEST(sycl::smoothstep, sycl::half, 3, EXPECTED(sycl::half, 1.0, 1.0, 1.0),
+         0, ma7, ma12, ma13);
   TEST(sycl::smoothstep, float, 2, EXPECTED(float, 0.0553936f, 0.0f), 0.0000001,
        2.5f, 6.0f, ma3);
   if (dev.has(sycl::aspect::fp64))
