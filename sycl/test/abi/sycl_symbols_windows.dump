@@ -4794,6 +4794,7 @@
 ?sycl_host_u_upsample@__host_std@@YAIGG@Z
 ?sycl_host_u_upsample@__host_std@@YA_KII@Z
 ?throwIfActionIsCreated@handler@_V1@sycl@@AEAAXXZ
+?AccessTargetMask@handler@_V1@sycl@@0HB
 ?throw_asynchronous@queue@_V1@sycl@@QEAAXXZ
 ?unmap@MemoryManager@detail@_V1@sycl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@1V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
 ?unset_flag@stream@_V1@sycl@@AEBAXI@Z
