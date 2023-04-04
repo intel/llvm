@@ -63,8 +63,6 @@ must be preserved and made use of during the backend compilation. Following are
 the requirements for this feature.
 - If the user specifies `-Ox` as a front-end compile option for a particular
 module, this option must be preserved during backend JIT compilation.
-- If the user specifies `-O0` option, SYCL runtime needs to pass the appropriate
-backend option to JIT compilation stages.
 
 The following table specifies the appropriate backend options for level-zero and
 OpenCL backends.
@@ -115,10 +113,12 @@ backend.
 A new plugin API has been added. It takes the optimization level as input in
 integer format and returns `pi_result`. The signature is as follows:
 
-`pi_result` piPluginGetBackendOptimizationOption(int OptLevel);
+`pi_result` piPluginGetBackendOptimizationOption(int OptLevel,
+                                                 char **backend_option);
 
 In the level-zero and OpenCL plugins, the table provided in the 'Requirements'
-section is used as a guide to identify the appropriate backend option. For other
-plugins (HIP, cuda, and ESIMD emulator), empty string is returned. This API
-returns `PI_SUCCESS` for valid inputs (0 <= OptLevel <= 3). For invalid inputs,
-it returns `PI_ERROR_INVALID_VALUE`.
+section is used as a guide to identify the appropriate backend option.
+The option is returned in `backend_option`. For other plugins (HIP, cuda, and
+ESIMD emulator), empty string is returned. This API returns `PI_SUCCESS` for
+valid inputs (0 <= OptLevel <= 3). For invalid inputs, it returns
+`PI_ERROR_INVALID_VALUE`.
