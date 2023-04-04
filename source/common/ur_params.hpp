@@ -1736,6 +1736,22 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
         os << "UR_CONTEXT_INFO_USM_FILL2D_SUPPORT";
         break;
+
+    case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+        os << "UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES";
+        break;
+
+    case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+        os << "UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES";
+        break;
+
+    case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+        os << "UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES";
+        break;
+
+    case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
+        os << "UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES";
+        break;
     default:
         os << "unknown enumerator";
         break;

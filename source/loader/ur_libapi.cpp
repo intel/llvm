@@ -763,7 +763,7 @@ ur_result_t UR_APICALL urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName`
+///         + `::UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName`
 ur_result_t UR_APICALL urContextGetInfo(
     ur_context_handle_t hContext, ///< [in] handle of the context
     ur_context_info_t propName,   ///< [in] type of the info to retrieve
