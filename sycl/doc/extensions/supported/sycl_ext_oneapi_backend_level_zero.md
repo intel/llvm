@@ -417,7 +417,7 @@ The additional <code>AvailableEvent</code> argument must be a valid SYCL event. 
 <td>
 
 ``` C++
-make_image(
+make_image<backend::ext_oneapi_level_zero, Dims>(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           image<Dimensions, AllocatorT>> &,
     const context &Context)
@@ -452,7 +452,7 @@ sycl::image<2> Image_2D  = sycl::make_image<BE, 2>(ImageInteropInput, Context);
 
  The input SYCL context <code>Context</code> must be associated with a single device, matching the device used to create the Level Zero image handle.
 The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero image must have been created on the same context. The created SYCL image can only be accessed from kernels that are submitted to a queue using this same context.
-The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the SYCL runtime is going to free the input Level-Zero memory allocation, meaning the memory will be freed when the ~image destructor fires.  If the behavior is "keep", then the memory will not be freed by the ~image destructor, and it is the responsibility of the caller to free the memory appropriately. 
+The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the SYCL runtime is going to free the input Level-Zero memory allocation, meaning the memory will be freed when the ~image destructor fires. When using "transfer" the ~image destructor may not need to block.  If the behavior is "keep", then the memory will not be freed by the ~image destructor, and the ~image destructor blocks until all work in the queues on the image have been completed. When using "keep" it is the responsibility of the caller to free the memory appropriately. 
 </td>
 </tr>
 
