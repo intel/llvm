@@ -11,9 +11,12 @@
 // CHECK-DAG: !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
 // CHECK-DAG: !sycl_range_2_ = !sycl.range<[2], (!sycl_array_2_)>
 // CHECK-DAG: !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-// CHECK-DAG: !sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
 // CHECK-DAG: ![[ITEM_BASE:.*]] = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
 // CHECK-DAG: ![[ITEM:.*]] = !sycl.item<[2, true], (![[ITEM_BASE]])>
+// CHECK-DAG: !sycl_accessor_1_i32_ato_gb = !sycl.accessor<[1, i32, atomic, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_1_i8_rw_gb = !sycl.accessor<[1, i8, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi8, 1>)>)>
+// CHECK-DAG: !sycl_stream_ = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_gb, !sycl_accessor_1_i32_ato_gb, !sycl_accessor_1_i8_rw_gb, i32, i64, i32, i32, i32, i32)>
 
 // Check globals referenced in device functions are created in the GPU module
 // CHECK: gpu.module @device_functions {
@@ -183,9 +186,9 @@ extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_5()
 // CHECK-LLVM-SAME:  #[[FUNCATTRS]]
-// CHECK-LLVM: [[ACCESSOR:%.*]] = alloca %"class.sycl::_V1::accessor.1", align 8
-// CHECK-LLVM: [[ACAST:%.*]] = addrspacecast %"class.sycl::_V1::accessor.1"* [[ACCESSOR]] to %"class.sycl::_V1::accessor.1" addrspace(4)*
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.sycl::_V1::accessor.1" addrspace(4)* [[ACAST]])
+// CHECK-LLVM: [[ACCESSOR:%.*]] = alloca %"class.sycl::_V1::accessor.1.2", align 8
+// CHECK-LLVM: [[ACAST:%.*]] = addrspacecast %"class.sycl::_V1::accessor.1.2"* [[ACCESSOR]] to %"class.sycl::_V1::accessor.1.2" addrspace(4)*
+// CHECK-LLVM: call spir_func void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.sycl::_V1::accessor.1.2" addrspace(4)* [[ACAST]])
 
 extern "C" SYCL_EXTERNAL void cons_5() {
   auto accessor = sycl::accessor<sycl::cl_int, 1, sycl::access::mode::write>{};
@@ -283,6 +286,28 @@ extern "C" SYCL_EXTERNAL void cons_10(const sycl::long8 &A,
 
 extern "C" SYCL_EXTERNAL void cons_11() {
   auto vec = sycl::vec<sycl::cl_int, 4>{};
+}
+
+// CHECK-LABEL: func.func @cons_12(
+// CHECK-SAME:                    %[[ARG0:.*]]: memref<?x!sycl_stream_>
+// CHECK: %[[ALLOCA:.*]] = memref.alloca() : memref<1x!sycl_stream_>
+// CHECK-NEXT: %[[CAST:.*]] = memref.cast %[[ALLOCA]] : memref<1x!sycl_stream_> to memref<?x!sycl_stream_>
+// CHECK-NEXT: %[[MEMSPCCAST:.*]] = memref.memory_space_cast %[[CAST]] : memref<?x!sycl_stream_> to memref<?x!sycl_stream_, 4>
+// CHECK-NEXT: %[[MEMSPCCAST_0:.*]] = memref.memory_space_cast %[[ARG0]] : memref<?x!sycl_stream_> to memref<?x!sycl_stream_, 4>
+// CHECK-NEXT: sycl.constructor @stream(%[[MEMSPCCAST]], %[[MEMSPCCAST_0]]) {MangledFunctionName = @[[STRM_NATIVE_CTR:.*]]} : (memref<?x!sycl_stream_, 4>, memref<?x!sycl_stream_, 4>)
+// CHECK:       func.func @[[STRM_NATIVE_CTR]](%{{.*}}: memref<?x!sycl_stream_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_stream_, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
+
+// CHECK-LLVM-LABEL: define spir_func void @cons_12(
+// CHECK-LLVM-SAME:                                 %"class.sycl::_V1::stream"* noundef byval(%"class.sycl::_V1::stream") align 8 %[[ARG0:.*]])
+// CHECK-LLVM: %[[ALLOCA:.*]] = alloca %"class.sycl::_V1::stream", align 8
+// CHECK-LLVM-NEXT: %[[CAST1:.*]] = addrspacecast %"class.sycl::_V1::stream"* %[[ALLOCA]] to %"class.sycl::_V1::stream" addrspace(4)*
+// CHECK-LLVM-NEXT: %[[CAST2:.*]] = addrspacecast %"class.sycl::_V1::stream"* %[[ARG0]] to %"class.sycl::_V1::stream" addrspace(4)*
+// CHECK-LLVM-NEXT: call spir_func void @[[STRM_NATIVE_CTR:.*]](%"class.sycl::_V1::stream" addrspace(4)* %[[CAST1]], %"class.sycl::_V1::stream" addrspace(4)* %[[CAST2]])
+// HECK-LLVM:       define linkonce_odr spir_func void @[[STRM_NATIVE_CTR]](%"class.sycl::_V1::stream" addrspace(4)* noundef align 8 dereferenceable_or_null(144) %{{.*}}, %"class.sycl::_V1::stream" addrspace(4)* noundef align 8 dereferenceable(144) %{{.*}}) #[[FUNCATTRS]] {
+
+
+extern "C" SYCL_EXTERNAL void cons_12(sycl::stream strm) {
+  auto stream =  sycl::stream{strm};
 }
 
 // Keep at the end.

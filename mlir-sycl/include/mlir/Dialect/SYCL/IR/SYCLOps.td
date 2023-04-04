@@ -297,7 +297,7 @@ def SYCL_RangeType
   let assemblyFormat = "`<`  `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
-def SYCL_StreamType : SYCL_Type<"Stream", "stream"> {
+def SYCL_StreamType : SYCL_Type<"Stream", "stream", [SYCLInheritanceTypeTrait<"OwnerLessBaseType">]> {
   let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `(` $body `)` `>`";
 }
@@ -565,7 +565,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor",
 // CAST OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef, AccessorMemRef, LocalAccessorMemRef, LocalAccessorBaseMemRef]>;
+def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef, AccessorMemRef, LocalAccessorMemRef, LocalAccessorBaseMemRef, StreamMemRef]>;
 def CastRes : AnyTypeOf<[ArrayMemRef, AccessorCommonMemRef, LocalAccessorBaseMemRef, OwnerLessBaseMemRef]>;
 def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
   Pure, ViewLikeOpInterface, MemRefsNormalizable]
