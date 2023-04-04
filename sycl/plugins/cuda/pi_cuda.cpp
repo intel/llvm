@@ -1303,12 +1303,27 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
-  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
-    // There is no way to query this in the backend
-    setErrorMessage("CUDA backend does not support this query",
-                    PI_ERROR_INVALID_ARG_VALUE);
-    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    // SYCL2020 4.6.4.2 minimum mandated capabilities for
+    // atomic_fence_order_capabilities.
+    pi_memory_order_capabilities capabilities =
+        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   capabilities);
+  }
+  case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    // SYCL2020 4.6.4.2 minimum mandated capabilities for
+    // atomic_fence/memory_scope_capabilities.
+    // Because scopes are hierarchical, wider scopes support all narrower
+    // scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
+    // WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382)
+    pi_memory_scope_capabilities capabilities = PI_MEMORY_SCOPE_WORK_ITEM |
+                                                PI_MEMORY_SCOPE_SUB_GROUP |
+                                                PI_MEMORY_SCOPE_WORK_GROUP;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   capabilities);
+  }
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     int major = 0;
     sycl::detail::pi::assertion(
@@ -1708,8 +1723,22 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    device->get_reference_count());
   }
   case PI_DEVICE_INFO_VERSION: {
+    std::stringstream s;
+    int major;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+    s << major;
+
+    int minor;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&minor,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+    s << "." << minor;
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "PI 0.0");
+                   s.str().c_str());
   }
   case PI_DEVICE_INFO_OPENCL_C_VERSION: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
