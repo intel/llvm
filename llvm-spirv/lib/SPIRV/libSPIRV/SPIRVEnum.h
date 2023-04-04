@@ -491,6 +491,10 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {CapabilityFPGAArgumentInterfacesINTEL});
   ADD_VEC_INIT(DecorationStableKernelArgumentINTEL,
                {CapabilityFPGAArgumentInterfacesINTEL});
+  ADD_VEC_INIT(DecorationLatencyControlLabelINTEL,
+               {CapabilityFPGALatencyControlINTEL});
+  ADD_VEC_INIT(DecorationLatencyControlConstraintINTEL,
+               {CapabilityFPGALatencyControlINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {
