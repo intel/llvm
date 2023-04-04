@@ -2154,7 +2154,7 @@ pi_result piPluginGetBackendOptimizationOption(int opt_level,
     break;
   default:
     *backend_option = &EmptyStr[0];
-    break;
+    return PI_ERROR_INVALID_VALUE;
   }
   return PI_SUCCESS;
 }

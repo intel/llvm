@@ -104,6 +104,8 @@ char NoOptStr[16] = "-cl-opt-disable";
 // Return '-cl-opt-disable' for opt_level = 0 and '' for others.
 pi_result piPluginGetBackendOptimizationOption(int opt_level,
                                                char **backend_option) {
+  if ((opt_level < 0) || (opt_level > 3))
+    return PI_ERROR_INVALID_VALUE;
   *backend_option = EmptyStr;
   if (opt_level == 0)
     *backend_option = NoOptStr;

@@ -140,6 +140,8 @@ char EmptyStr[2] = "";
 // TODO: Determine correct string to be passed.
 pi_result hip_piPluginGetBackendOptimizationOption(int opt_level,
                                                    char **backend_option) {
+  if ((opt_level < 0) || (opt_level > 3))
+    return PI_ERROR_INVALID_VALUE;
   *backend_option = EmptyStr;
   return PI_SUCCESS;
 }

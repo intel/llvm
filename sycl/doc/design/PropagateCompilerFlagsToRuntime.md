@@ -6,8 +6,6 @@ proposes a compiler flow that will enable propagation of compiler options
 specified for front-end to the runtimes and eventually to the backend.
 Currently, only `O0`/`O1`/`O2`/`O3` options are handled.
 
-**NOTE**: This is not a final version. The document is still in progress.
-
 ## Background
 
 When building an application with several source and object files, it is
@@ -38,7 +36,7 @@ Here is an example that demonstrates this pain point:
 clang++ -c test_host.cpp -o test_host.o
 clang++ -c -fsycl test_device_1.cpp -o test_device_1.o
 clang++ -c -fsycl -g -O0 test_device_2.cpp -o test_device_2.o
-clang++ -g -fsycl -o test test_host.o test_device_1.o test_device_2.o
+clang++ -fsycl -g -o test_host.o test_device_1.o test_device_2.o -o test
 ```
 
 In this scenario, the fat binary is 'test' and there are no compilation flags
@@ -114,6 +112,13 @@ backend.
 
 ### Changes to the plugin
 
+A new plugin API has been added. It takes the optimization level as input in
+integer format and returns `pi_result`. The signature is as follows:
+
+`pi_result` piPluginGetBackendOptimizationOption(int OptLevel);
+
 In the level-zero and OpenCL plugins, the table provided in the 'Requirements'
 section is used as a guide to identify the appropriate backend option. For other
-plugins (HIP, cuda, and ESIMD emulator), empty string is returned. 
+plugins (HIP, cuda, and ESIMD emulator), empty string is returned. This API
+returns `PI_SUCCESS` for valid inputs (0 <= OptLevel <= 3). For invalid inputs,
+it returns `PI_ERROR_INVALID_VALUE`.

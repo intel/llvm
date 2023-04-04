@@ -238,9 +238,10 @@ public:
   // Get backend optimization option
   void getBackendOptimizationOption(int opt_level,
                                     char **backend_option) const {
-    [[maybe_unused]] auto pi_result =
+    RT::PiResult Err =
         call_nocheck<PiApiKind::piPluginGetBackendOptimizationOption>(
             opt_level, backend_option);
+    checkPiResult(Err);
   }
 
   // return the index of PiPlatforms.

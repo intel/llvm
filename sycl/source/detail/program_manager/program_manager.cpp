@@ -409,16 +409,17 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // metadata.
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
-  // Add optimization flags
-  // Assigning space for 16 characters.
-  char *backend_option = nullptr;
-  // Empty string is returned in backend_option when no appropriate backend
-  // option is available for a given opt level.
-  Plugin.getBackendOptimizationOption(optLevel, &backend_option);
-  if (backend_option && backend_option[0] != '\0') {
-    if (!CompileOpts.empty())
-      CompileOpts += " ";
-    CompileOpts += std::string(backend_option);
+  // Add optimization flags.
+  if (optLevel != -1) {
+    char *backend_option = nullptr;
+    // Empty string is returned in backend_option when no appropriate backend
+    // option is available for a given opt level.
+    Plugin.getBackendOptimizationOption(optLevel, &backend_option);
+    if (backend_option && backend_option[0] != '\0') {
+      if (!CompileOpts.empty())
+        CompileOpts += " ";
+      CompileOpts += std::string(backend_option);
+    }
   }
   if ((Plugin.getBackend() == backend::ext_oneapi_level_zero ||
        Plugin.getBackend() == backend::opencl) &&
