@@ -36,7 +36,7 @@ Here is an example that demonstrates this pain point:
 clang++ -c test_host.cpp -o test_host.o
 clang++ -c -fsycl test_device_1.cpp -o test_device_1.o
 clang++ -c -fsycl -g -O0 test_device_2.cpp -o test_device_2.o
-clang++ -fsycl -g -o test_host.o test_device_1.o test_device_2.o -o test
+clang++ -fsycl -g test_host.o test_device_1.o test_device_2.o -o test
 ```
 
 In this scenario, the fat binary is 'test' and there are no compilation flags
