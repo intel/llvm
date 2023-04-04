@@ -232,22 +232,29 @@ using is_genintptr = bool_constant<
     is_pointer<T>::value && is_genint<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
-template <typename T>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 using is_genintptr_marray = bool_constant<
-    is_pointer<T>::value &&
+    std::is_same<T, sycl::marray<marray_element_t<T>, T::size()>>::value &&
     is_genint<marray_element_t<remove_pointer_t<T>>>::value &&
-    is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
+    is_address_space_compliant<multi_ptr<T, AddressSpace, IsDecorated>,
+                               gvl::nonconst_address_space_list>::value &&
+    (IsDecorated == access::decorated::yes ||
+     IsDecorated == access::decorated::no)>;
 
 template <typename T>
 using is_genfloatptr = bool_constant<
     is_pointer<T>::value && is_genfloat<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
-template <typename T>
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 using is_genfloatptr_marray = bool_constant<
-    is_pointer<T>::value &&
-    is_genfloat<marray_element_t<remove_pointer_t<T>>>::value &&
-    is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
+    is_mgenfloat<T>::value &&
+    is_address_space_compliant<multi_ptr<T, AddressSpace, IsDecorated>,
+                               gvl::nonconst_address_space_list>::value &&
+    (IsDecorated == access::decorated::yes ||
+     IsDecorated == access::decorated::no)>;
 
 template <typename T>
 using is_genptr = bool_constant<

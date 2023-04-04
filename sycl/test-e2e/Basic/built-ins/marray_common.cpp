@@ -54,9 +54,9 @@ int main() {
 
   // sycl::clamp
   TEST(sycl::clamp, float, 2, EXPECTED(float, 1.0f, 2.0f), 0, ma1, ma2, ma3);
-  TEST(sycl::clamp, float, 2, EXPECTED(float, 2.0f, 2.0f), 0, ma1, 3.0f, 2.0f);
+  TEST(sycl::clamp, float, 2, EXPECTED(float, 1.0f, 2.0f), 0, ma1, 1.0f, 3.0f);
   if (dev.has(sycl::aspect::fp64))
-    TEST(sycl::clamp, double, 2, EXPECTED(double, 2.0, 2.0), 0, ma4, 3.0, 2.0);
+    TEST(sycl::clamp, double, 2, EXPECTED(double, 1.0, 2.0), 0, ma4, 1.0, 3.0);
   // sycl::degrees
   TEST(sycl::degrees, float, 3, EXPECTED(float, 180, 180, 180), 0, ma5);
   if (dev.has(sycl::aspect::fp64))
