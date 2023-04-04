@@ -87,10 +87,17 @@ protected:
       : numReductionsDetected(numReductionsDetected) {}
   virtual ~LoopReductionIter() = default;
 
-  virtual Block::BlockArgListType
-  getRegionIterArgs(LoopLikeOpInterface Loop) const = 0;
+  Block::BlockArgListType getRegionIterArgs(LoopLikeOpInterface Loop) const {
+    assert(Loop.getSingleInductionVar() != std::nullopt &&
+           "Expecting one induction variable");
+    return Loop.getLoopBody().getArguments().drop_front(1);
+  }
 
-  virtual unsigned getNumRegionIterArgs(LoopLikeOpInterface Loop) const = 0;
+  unsigned getNumRegionIterArgs(LoopLikeOpInterface Loop) const {
+    assert(Loop.getSingleInductionVar() != std::nullopt &&
+           "Expecting one induction variable");
+    return Loop.getLoopBody().getNumArguments() - 1;
+  }
 
   virtual void cloneFilteredTerminator(
       Operation *Terminator,
@@ -121,7 +128,7 @@ protected:
 
     // Move the load outside the loop (recall that the load is loop invariant).
     // The load result is passed to the new loop as an iter argument.
-    SmallVector<Value, 4> NewIterArgs(getRegionIterArgs(Loop));
+    SmallVector<Value> NewIterArgs(getRegionIterArgs(Loop));
     Rewriter.setInsertionPoint(Loop);
     LLVM_DEBUG(llvm::dbgs() << "New Loop:\n");
     for (const ReductionOp &Op : ReductionOps) {
@@ -142,12 +149,14 @@ protected:
       ++ArgNo;
     }
 
-    Region &NewBody = NewLoop.getLoopBody(), &OldBody = Loop.getLoopBody();
-    Block &NewBlock = NewBody.front(), &OldBlock = OldBody.front();
+    Region &NewBody = NewLoop.getLoopBody();
+    Region &OldBody = Loop.getLoopBody();
+    Block &NewBlock = NewBody.front();
+    Block &OldBlock = OldBody.front();
     assert((NewBody.hasOneBlock() && OldBody.hasOneBlock()) &&
            "Loop body should have one block");
 
-    SmallVector<Value, 4> NewBlockTransferArgs;
+    SmallVector<Value> NewBlockTransferArgs;
     NewBlockTransferArgs.push_back(*NewLoop.getSingleInductionVar());
     const Block::BlockArgListType &IterArgs = getRegionIterArgs(NewLoop);
     for (size_t ArgNo = 0; ArgNo < OrigNumRegionArgs; ++ArgNo)
@@ -159,7 +168,7 @@ protected:
     cloneFilteredTerminator(NewBlock.getTerminator(), ReductionOps);
 
     // Prepare for new yielded value for 'replaceOp'.
-    SmallVector<Value, 4> NewYieldedRes, NewRes(NewLoop->getResults());
+    SmallVector<Value> NewYieldedRes, NewRes(NewLoop->getResults());
     const unsigned NewLoopNumRes{NewLoop->getNumResults()};
     const unsigned LoopNumRes{Loop->getNumResults()};
     assert(NewLoopNumRes >= LoopNumRes &&
@@ -390,22 +399,11 @@ public:
     return LoopReductionIter::matchAndRewrite(Loop, Rewriter);
   }
 
-  virtual Block::BlockArgListType
-  getRegionIterArgs(LoopLikeOpInterface Loop) const final {
-    auto ForOp = cast<scf::ForOp>(Loop);
-    return ForOp.getRegionIterArgs();
-  }
-
-  virtual unsigned getNumRegionIterArgs(LoopLikeOpInterface Loop) const final {
-    auto ForOp = cast<scf::ForOp>(Loop);
-    return ForOp.getNumRegionIterArgs();
-  }
-
   virtual void cloneFilteredTerminator(
       Operation *Terminator,
       const SmallVectorImpl<ReductionOp> &ReductionOps) const final {
     auto MergedTerminator = cast<scf::YieldOp>(Terminator);
-    SmallVector<Value, 4> NewOperands;
+    SmallVector<Value> NewOperands;
     llvm::append_range(NewOperands, MergedTerminator.getOperands());
     // store operands are now returned.
     for (const ReductionOp &Op : ReductionOps)
@@ -436,22 +434,11 @@ public:
     return LoopReductionIter::matchAndRewrite(Loop, Rewriter);
   }
 
-  virtual Block::BlockArgListType
-  getRegionIterArgs(LoopLikeOpInterface Loop) const final {
-    auto ForOp = cast<AffineForOp>(Loop);
-    return ForOp.getRegionIterArgs();
-  }
-
-  virtual unsigned getNumRegionIterArgs(LoopLikeOpInterface Loop) const final {
-    auto ForOp = cast<AffineForOp>(Loop);
-    return ForOp.getNumRegionIterArgs();
-  }
-
   virtual void cloneFilteredTerminator(
       Operation *Terminator,
       const SmallVectorImpl<ReductionOp> &ReductionOps) const final {
     auto MergedTerminator = cast<AffineYieldOp>(Terminator);
-    SmallVector<Value, 4> NewOperands;
+    SmallVector<Value> NewOperands;
     llvm::append_range(NewOperands, MergedTerminator.getOperands());
     // store operands are now returned.
     for (const ReductionOp &Op : ReductionOps)
