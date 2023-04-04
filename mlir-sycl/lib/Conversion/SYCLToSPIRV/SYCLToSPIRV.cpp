@@ -89,6 +89,15 @@ template <typename OpTy>
 inline constexpr spirv::BuiltIn spirv_counterpart_builtin_v =
     spirv_counterpart_builtin<OpTy>::value;
 
+static Value getBuiltinVariableValue(Operation *op, spirv::BuiltIn builtin,
+                                     Type integerType, OpBuilder &builder) {
+  // These should be target-dependent in the future.
+  constexpr StringLiteral spirvBuiltinPrefix = "__spirv_BuiltIn";
+  constexpr StringLiteral spirvBuiltinSuffix = "";
+  return spirv::getBuiltinVariableValue(op, builtin, integerType, builder,
+                                        spirvBuiltinPrefix, spirvBuiltinSuffix);
+}
+
 /// Returns the result of creating an operation to get a reference to an element
 /// of a sycl::id or sycl::range.
 Value createGetOp(OpBuilder &builder, Location loc, Type dimMtTy, Value res,
@@ -137,7 +146,7 @@ void rewriteNDIndex(Operation *op, spirv::BuiltIn builtin, Value index,
   constexpr int64_t dimensions{3};
   constexpr std::array<int64_t, dimensions> vecInit{0, 0, 0};
 
-  const auto values = spirv::getBuiltinVariableValue(
+  const auto values = ::getBuiltinVariableValue(
       op, builtin, typeConverter.convertType(rewriter.getIndexType()),
       rewriter);
   const auto loc = op->getLoc();
@@ -181,7 +190,7 @@ void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
                       ConversionPatternRewriter &rewriter) {
   // This conversion is platform dependent
   const auto dimensions = getDimensions(op->getResultTypes()[0]);
-  const auto values = spirv::getBuiltinVariableValue(
+  const auto values = ::getBuiltinVariableValue(
       op, builtin, typeConverter.convertType(rewriter.getIndexType()),
       rewriter);
   const auto loc = op->getLoc();
@@ -232,7 +241,7 @@ public:
 void rewrite1D(Operation *op, spirv::BuiltIn builtin,
                TypeConverter &typeConverter,
                ConversionPatternRewriter &rewriter) {
-  const auto res = spirv::getBuiltinVariableValue(
+  const auto res = ::getBuiltinVariableValue(
       op, builtin, typeConverter.convertType(rewriter.getIndexType()),
       rewriter);
   rewriter.replaceOp(op, convertScalarToDtype(
