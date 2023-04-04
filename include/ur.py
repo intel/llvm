@@ -492,11 +492,15 @@ class ur_device_info_v(IntEnum):
                                                     ## memory order capabilities
     ATOMIC_MEMORY_SCOPE_CAPABILITIES = 98           ## ::ur_memory_scope_capability_flags_t: return a bit-field of atomic
                                                     ## memory scope capabilities
-    BFLOAT16 = 99                                   ## bool: support for bfloat16
-    MAX_COMPUTE_QUEUE_INDICES = 100                 ## uint32_t: Returns 1 if the device doesn't have a notion of a 
+    ATOMIC_FENCE_ORDER_CAPABILITIES = 99            ## ::ur_memory_order_capability_flags_t: return a bit-field of atomic
+                                                    ## memory fence order capabilities
+    ATOMIC_FENCE_SCOPE_CAPABILITIES = 100           ## ::ur_memory_scope_capability_flags_t: return a bit-field of atomic
+                                                    ## memory fence scope capabilities
+    BFLOAT16 = 101                                  ## bool: support for bfloat16
+    MAX_COMPUTE_QUEUE_INDICES = 102                 ## uint32_t: Returns 1 if the device doesn't have a notion of a 
                                                     ## queue index. Otherwise, returns the number of queue indices that are
                                                     ## available for this device.
-    KERNEL_SET_SPECIALIZATION_CONSTANTS = 101       ## `bool`: support the ::urKernelSetSpecializationConstants entry point
+    KERNEL_SET_SPECIALIZATION_CONSTANTS = 103       ## `bool`: support the ::urKernelSetSpecializationConstants entry point
 
 class ur_device_info_t(c_int):
     def __str__(self):
