@@ -85,14 +85,6 @@
         std::string result_string = stream.str();                              \
         result_string = result_string.substr(result_string.size() - 5);        \
         std::cout << result_string << " " << EXPECTED[i] << std::endl;         \
-      }                                                                        \
-      for (int i = 0; i < DIM; i++) {                                          \
-        std::uint64_t result_uint64;                                           \
-        std::memcpy(&result_uint64, &result[i], sizeof(result[i]));            \
-        std::ostringstream stream;                                             \
-        stream << "0x" << std::hex << result_uint64;                           \
-        std::string result_string = stream.str();                              \
-        result_string = result_string.substr(result_string.size() - 5);        \
         assert(result_string.compare(EXPECTED[i]) == 0);                       \
       }                                                                        \
     }                                                                          \
