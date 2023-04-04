@@ -482,6 +482,64 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __ESIMD_DNS::is_simd_type_v<SimdT1>)
 
 #undef __ESIMD_DEF_SIMD_VIEW_CMP_OP
 
+////////////////////////////////////////////////////////////////////////////////
+// simd_mask global operators
+////////////////////////////////////////////////////////////////////////////////
+
+// ========= simd_mask arithmetic operators
+
+#define __ESIMD_DEF_SIMD_MASK_BIN_OP(BINOP, COND)                              \
+  /* simd* BINOP simd_mask<*...> */                                            \
+  template <class SimdT1, class SimdT2,                                        \
+            class T1 = typename SimdT1::element_type,                          \
+            class T2 = typename SimdT2::element_type,                          \
+            class = std::enable_if_t<                                          \
+                __ESIMD_DNS::is_simd_obj_impl_derivative_v<SimdT1> &&          \
+                __ESIMD_DNS::is_simd_mask_type_v<SimdT2> &&                    \
+                (SimdT1::length == SimdT2::length) && COND>>                   \
+  inline SimdT1 operator BINOP(const SimdT1 &LHS, const SimdT2 &RHS) {         \
+    return LHS BINOP SimdT1(RHS);                                              \
+  }                                                                            \
+                                                                               \
+  /* simd_mask<...> BINOP simd* */                                             \
+  template <class SimdT1, class SimdT2,                                        \
+            class T1 = typename SimdT1::element_type,                          \
+            class T2 = typename SimdT2::element_type,                          \
+            class = std::enable_if_t<                                          \
+                __ESIMD_DNS::is_simd_obj_impl_derivative_v<SimdT2> &&          \
+                __ESIMD_DNS::is_simd_mask_type_v<SimdT1> &&                    \
+                (SimdT2::length == SimdT1::length) && COND>>                   \
+  inline SimdT2 operator BINOP(const SimdT1 &LHS, const SimdT2 &RHS) {         \
+    return SimdT2(LHS) BINOP RHS;                                              \
+  }                                                                            \
+                                                                               \
+  /* SCALAR BINOP simd_mask  */                                                \
+  template <class T1, class SimdT2, class T2 = typename SimdT2::element_type,  \
+            class SimdT1 = typename __ESIMD_NS::simd<T1, SimdT2::length>,      \
+            class = std::enable_if_t<                                          \
+                __ESIMD_DNS::is_simd_mask_type_v<SimdT2> && COND>>             \
+  inline SimdT1 operator BINOP(T1 LHS, const SimdT2 &RHS) {                    \
+    return LHS BINOP SimdT1(RHS);                                              \
+  }                                                                            \
+                                                                               \
+  /* simd_mask BINOP SCALAR */                                                 \
+  template <class SimdT1, class T2, class T1 = typename SimdT1::element_type,  \
+            class SimdT2 = typename __ESIMD_NS::simd<T2, SimdT1::length>,      \
+            class = std::enable_if_t<                                          \
+                __ESIMD_DNS::is_simd_mask_type_v<SimdT1> && COND>>             \
+  inline SimdT2 operator BINOP(const SimdT1 &LHS, T2 RHS) {                    \
+    return SimdT2(LHS) BINOP RHS;                                              \
+  }
+
+#define __ESIMD_ARITH_OP_FILTER                                                \
+  __ESIMD_DNS::is_valid_simd_elem_type_v<T1>                                   \
+      &&__ESIMD_DNS::is_valid_simd_elem_type_v<T2>
+
+__ESIMD_DEF_SIMD_MASK_BIN_OP(+, __ESIMD_ARITH_OP_FILTER)
+__ESIMD_DEF_SIMD_MASK_BIN_OP(-, __ESIMD_ARITH_OP_FILTER)
+__ESIMD_DEF_SIMD_MASK_BIN_OP(*, __ESIMD_ARITH_OP_FILTER)
+#undef __ESIMD_ARITH_OP_FILTER
+
 } // namespace ext::intel::esimd::detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
