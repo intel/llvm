@@ -25,7 +25,7 @@ __urdlllocal ur_result_t UR_APICALL urInit(
     }
 
     if (context.enableParameterValidation) {
-        if (0x1f < device_flags) {
+        if (UR_DEVICE_INIT_FLAGS_MASK & device_flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
@@ -788,7 +788,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (0x3f < flags) {
+        if (UR_MEM_FLAGS_MASK & flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -849,7 +849,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (0x3f < flags) {
+        if (UR_MEM_FLAGS_MASK & flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -957,7 +957,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (0x3f < flags) {
+        if (UR_MEM_FLAGS_MASK & flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -1559,7 +1559,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (0x1 < pPoolDesc->flags) {
+        if (UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
@@ -3940,7 +3940,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (0x3 < mapFlags) {
+        if (UR_MAP_FLAGS_MASK & mapFlags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -4182,7 +4182,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (0x1 < flags) {
+        if (UR_USM_MIGRATION_FLAGS_MASK & flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -4232,7 +4232,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (0x1ff < advice) {
+        if (UR_USM_ADVICE_FLAGS_MASK & advice) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
