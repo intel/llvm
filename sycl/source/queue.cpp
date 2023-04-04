@@ -55,18 +55,16 @@ queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
 }
 
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
-             const property_list &PropList, Discriminator Disc) {
-  queue(SyclContext, deviceSelector,
-        detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList,
-        Disc);
-}
+             const property_list &PropList, Discriminator Disc)
+    : queue(SyclContext, deviceSelector,
+            detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList,
+            Disc) {}
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
-             const property_list &PropList, Discriminator Disc) {
-  queue(SyclContext, SyclDevice,
-        detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList,
-        Disc);
-}
+             const property_list &PropList, Discriminator Disc)
+    : queue(SyclContext, SyclDevice,
+            detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList,
+            Disc) {}
 
 #endif // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
 
