@@ -14,6 +14,7 @@ function(add_sycl_library LIB_NAME TYPE)
   if (ARG_LINKER_SCRIPT AND UNIX AND NOT APPLE)
     target_link_libraries(${LIB_NAME} PRIVATE
       "-Wl,--version-script=${ARG_LINKER_SCRIPT}")
+      set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${ARG_LINKER_SCRIPT})
   endif()
 
   target_compile_definitions(${LIB_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL)
