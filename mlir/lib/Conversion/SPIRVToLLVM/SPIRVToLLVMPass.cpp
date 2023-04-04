@@ -16,6 +16,7 @@
 #include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVM.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
@@ -50,15 +51,22 @@ void ConvertSPIRVToLLVMPass::runOnOperation() {
 
   RewritePatternSet patterns(context);
 
-  populateSPIRVToLLVMTypeConversion(converter);
+  populateSPIRVToLLVMTypeConversion(converter, clientAPIForAddressSpaceMapping);
 
   populateSPIRVToLLVMModuleConversionPatterns(converter, patterns);
-  populateSPIRVToLLVMConversionPatterns(converter, patterns);
+  populateSPIRVToLLVMConversionPatterns(converter, patterns,
+                                        clientAPIForAddressSpaceMapping);
   populateSPIRVToLLVMFunctionConversionPatterns(converter, patterns);
 
   ConversionTarget target(*context);
   target.addIllegalDialect<spirv::SPIRVDialect>();
   target.addLegalDialect<LLVM::LLVMDialect>();
+
+  if (clientAPIForAddressSpaceMapping != spirv::ClientAPI::OpenCL &&
+      clientAPIForAddressSpaceMapping != spirv::ClientAPI::Unknown)
+    getOperation()->emitWarning("address space mapping for client ")
+        << spirv::stringifyClientAPI(clientAPIForAddressSpaceMapping)
+        << " not implemented";
 
   // Set `ModuleOp` as legal for `spirv.module` conversion.
   target.addLegalOp<ModuleOp>();
