@@ -59,10 +59,11 @@ was not able to set a breakpoint inside device code.
 
 In order to support module-level debuggability, the user will compile different
 module files with different levels of optimization. These optimization levels
-must be preserved and made use of during the backend compilation. Following are
-the requirements for this feature.
+must be preserved and made use of during the backend compilation. Following is a
+key requirements for this feature.
 - If the user specifies `-Ox` as a front-end compile option for a particular
-module, this option must be preserved during backend JIT compilation.
+module, this option must be converted to appropriate backend option and then
+propagated fo use during backend JIT compilation.
 
 The following table specifies the appropriate backend options for level-zero and
 OpenCL backends.
