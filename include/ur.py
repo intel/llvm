@@ -651,6 +651,14 @@ class ur_context_info_v(IntEnum):
                                                     ## supported.
     USM_FILL2D_SUPPORT = 4                          ## [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
                                                     ## supported.
+    ATOMIC_MEMORY_ORDER_CAPABILITIES = 5            ## [::ur_memory_order_capability_flags_t] return a bit-field of atomic
+                                                    ## memory order capabilities.
+    ATOMIC_MEMORY_SCOPE_CAPABILITIES = 6            ## [x_memory_scope_capability_flags_t] return a bit-field of atomic
+                                                    ## memory scope capabilities.
+    ATOMIC_FENCE_ORDER_CAPABILITIES = 7             ## [::ur_memory_order_capability_flags_t] return a bit-field of atomic
+                                                    ## memory fence order capabilities.
+    ATOMIC_FENCE_SCOPE_CAPABILITIES = 8             ## [x_memory_scope_capability_flags_t] return a bit-field of atomic
+                                                    ## memory fence scope capabilities.
 
 class ur_context_info_t(c_int):
     def __str__(self):
