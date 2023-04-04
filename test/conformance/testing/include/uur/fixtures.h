@@ -429,6 +429,19 @@ std::string deviceTestWithParamPrinter(
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
 
+struct urProgramILBinaryTest : urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        ASSERT_SUCCESS(
+            uur::KernelsEnvironment::instance->LoadSource("nop", 0, il_binary));
+    }
+
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+    }
+
+    std::shared_ptr<std::vector<char>> il_binary;
+};
 } // namespace uur
 
 #endif // UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED

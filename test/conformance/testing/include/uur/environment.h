@@ -52,37 +52,29 @@ struct KernelsEnvironment : DevicesEnvironment {
         std::string kernel_directory;
     };
 
-    struct KernelSource {
-        const char *kernel_name;
-        uint32_t *source;
-        uint32_t source_length;
-        ur_result_t status;
-
-        ~KernelSource() { delete[] source; }
-    };
-
     KernelsEnvironment(int argc, char **argv, std::string kernels_default_dir);
     virtual ~KernelsEnvironment() override = default;
 
     virtual void SetUp() override;
     virtual void TearDown() override;
 
-    KernelSource LoadSource(const std::string &kernel_name,
-                            uint32_t device_index);
+    ur_result_t LoadSource(const std::string &kernel_name,
+                           uint32_t device_index,
+                           std::shared_ptr<std::vector<char>> &binary_out);
 
     static KernelsEnvironment *instance;
 
   private:
     KernelOptions parseKernelOptions(int argc, char **argv,
                                      std::string kernels_default_dir);
-    std::string getKernelDirectory() { return kernel_options.kernel_directory; }
     std::string getKernelSourcePath(const std::string &kernel_name,
                                     uint32_t device_index);
     std::string getSupportedILPostfix(uint32_t device_index);
 
     KernelOptions kernel_options;
     // mapping between kernels (full_path + kernel_name) and their saved source.
-    std::unordered_map<std::string, KernelSource> cached_kernels;
+    std::unordered_map<std::string, std::shared_ptr<std::vector<char>>>
+        cached_kernels;
 };
 
 } // namespace uur
