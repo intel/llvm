@@ -807,11 +807,15 @@ typedef enum ur_device_info_t {
                                                                 ///< memory order capabilities
     UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 98,       ///< ::ur_memory_scope_capability_flags_t: return a bit-field of atomic
                                                                 ///< memory scope capabilities
-    UR_DEVICE_INFO_BFLOAT16 = 99,                               ///< bool: support for bfloat16
-    UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 100,             ///< uint32_t: Returns 1 if the device doesn't have a notion of a
+    UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 99,        ///< ::ur_memory_order_capability_flags_t: return a bit-field of atomic
+                                                                ///< memory fence order capabilities
+    UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 100,       ///< ::ur_memory_scope_capability_flags_t: return a bit-field of atomic
+                                                                ///< memory fence scope capabilities
+    UR_DEVICE_INFO_BFLOAT16 = 101,                              ///< bool: support for bfloat16
+    UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 102,             ///< uint32_t: Returns 1 if the device doesn't have a notion of a
                                                                 ///< queue index. Otherwise, returns the number of queue indices that are
                                                                 ///< available for this device.
-    UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS = 101,   ///< `bool`: support the ::urKernelSetSpecializationConstants entry point
+    UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS = 103,   ///< `bool`: support the ::urKernelSetSpecializationConstants entry point
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
