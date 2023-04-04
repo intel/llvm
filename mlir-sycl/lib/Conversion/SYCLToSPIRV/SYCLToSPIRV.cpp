@@ -91,8 +91,11 @@ inline constexpr spirv::BuiltIn spirv_counterpart_builtin_v =
 
 static Value getBuiltinVariableValue(Operation *op, spirv::BuiltIn builtin,
                                      Type integerType, OpBuilder &builder) {
+  // These should be target-dependent in the future.
+  constexpr StringLiteral spirvBuiltinPrefix = "__spirv_BuiltIn";
+  constexpr StringLiteral spirvBuiltinSuffix = "";
   return spirv::getBuiltinVariableValue(op, builtin, integerType, builder,
-                                        "__spirv_BuiltIn", "");
+                                        spirvBuiltinPrefix, spirvBuiltinSuffix);
 }
 
 /// Returns the result of creating an operation to get a reference to an element
