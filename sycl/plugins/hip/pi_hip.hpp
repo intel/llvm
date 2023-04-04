@@ -39,11 +39,6 @@
 #include <string>
 #include <vector>
 
-// Helper for one-liner validation
-#define PI_ASSERT(condition, error)                                            \
-  if (!(condition))                                                            \
-    return error;
-
 extern "C" {
 
 /// \cond INGORE_BLOCK_IN_DOXYGEN

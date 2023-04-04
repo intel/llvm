@@ -2935,106 +2935,109 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                     size_t param_value_size, void *param_value,
                                     size_t *param_value_size_ret) {
 
-  PI_ASSERT(kernel, PI_ERROR_INVALID_KERNEL);
-  PI_ASSERT(device, PI_ERROR_INVALID_DEVICE);
-
   // Here we want to query about a kernel's cuda blocks!
 
-  switch (param_name) {
-  case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
-    size_t global_work_size[3] = {0, 0, 0};
+  if (kernel != nullptr) {
 
-    int max_block_dimX{0}, max_block_dimY{0}, max_block_dimZ{0};
-    sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&max_block_dimX,
-                             CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
-                             device->get()) == CUDA_SUCCESS);
-    sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&max_block_dimY,
-                             CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
-                             device->get()) == CUDA_SUCCESS);
-    sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&max_block_dimZ,
-                             CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
-                             device->get()) == CUDA_SUCCESS);
+    switch (param_name) {
+    case PI_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
+      size_t global_work_size[3] = {0, 0, 0};
 
-    int max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
-    sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&max_grid_dimX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
-                             device->get()) == CUDA_SUCCESS);
-    sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&max_grid_dimY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
-                             device->get()) == CUDA_SUCCESS);
-    sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&max_grid_dimZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
-                             device->get()) == CUDA_SUCCESS);
+      int max_block_dimX{0}, max_block_dimY{0}, max_block_dimZ{0};
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_block_dimX,
+                               CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
+                               device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_block_dimY,
+                               CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
+                               device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_block_dimZ,
+                               CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
+                               device->get()) == CUDA_SUCCESS);
 
-    global_work_size[0] = max_block_dimX * max_grid_dimX;
-    global_work_size[1] = max_block_dimY * max_grid_dimY;
-    global_work_size[2] = max_block_dimZ * max_grid_dimZ;
-    return getInfoArray(3, param_value_size, param_value, param_value_size_ret,
-                        global_work_size);
-  }
-  case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-    int max_threads = 0;
-    sycl::detail::pi::assertion(
-        cuFuncGetAttribute(&max_threads,
-                           CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                           kernel->get()) == CUDA_SUCCESS);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(max_threads));
-  }
-  case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
-    size_t group_size[3] = {0, 0, 0};
-    const auto &reqd_wg_size_md_map =
-        kernel->program_->kernelReqdWorkGroupSizeMD_;
-    const auto reqd_wg_size_md = reqd_wg_size_md_map.find(kernel->name_);
-    if (reqd_wg_size_md != reqd_wg_size_md_map.end()) {
-      const auto reqd_wg_size = reqd_wg_size_md->second;
-      group_size[0] = std::get<0>(reqd_wg_size);
-      group_size[1] = std::get<1>(reqd_wg_size);
-      group_size[2] = std::get<2>(reqd_wg_size);
+      int max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_grid_dimX,
+                               CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
+                               device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_grid_dimY,
+                               CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
+                               device->get()) == CUDA_SUCCESS);
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&max_grid_dimZ,
+                               CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
+                               device->get()) == CUDA_SUCCESS);
+
+      global_work_size[0] = max_block_dimX * max_grid_dimX;
+      global_work_size[1] = max_block_dimY * max_grid_dimY;
+      global_work_size[2] = max_block_dimZ * max_grid_dimZ;
+      return getInfoArray(3, param_value_size, param_value,
+                          param_value_size_ret, global_work_size);
     }
-    return getInfoArray(3, param_value_size, param_value, param_value_size_ret,
-                        group_size);
-  }
-  case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
-    // OpenCL LOCAL == CUDA SHARED
-    int bytes = 0;
-    sycl::detail::pi::assertion(
-        cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-                           kernel->get()) == CUDA_SUCCESS);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint64(bytes));
-  }
-  case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
-    // Work groups should be multiples of the warp size
-    int warpSize = 0;
-    sycl::detail::pi::assertion(
-        cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                             device->get()) == CUDA_SUCCESS);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<size_t>(warpSize));
-  }
-  case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
-    // OpenCL PRIVATE == CUDA LOCAL
-    int bytes = 0;
-    sycl::detail::pi::assertion(
-        cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                           kernel->get()) == CUDA_SUCCESS);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint64(bytes));
-  }
-  case PI_KERNEL_GROUP_INFO_NUM_REGS: {
-    int numRegs = 0;
-    sycl::detail::pi::assertion(
-        cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
-                           kernel->get()) == CUDA_SUCCESS);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint32(numRegs));
-  }
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
+      int max_threads = 0;
+      sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&max_threads,
+                             CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                             kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     size_t(max_threads));
+    }
+    case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
+      size_t group_size[3] = {0, 0, 0};
+      const auto &reqd_wg_size_md_map =
+          kernel->program_->kernelReqdWorkGroupSizeMD_;
+      const auto reqd_wg_size_md = reqd_wg_size_md_map.find(kernel->name_);
+      if (reqd_wg_size_md != reqd_wg_size_md_map.end()) {
+        const auto reqd_wg_size = reqd_wg_size_md->second;
+        group_size[0] = std::get<0>(reqd_wg_size);
+        group_size[1] = std::get<1>(reqd_wg_size);
+        group_size[2] = std::get<2>(reqd_wg_size);
+      }
+      return getInfoArray(3, param_value_size, param_value,
+                          param_value_size_ret, group_size);
+    }
+    case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
+      // OpenCL LOCAL == CUDA SHARED
+      int bytes = 0;
+      sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
+                             kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint64(bytes));
+    }
+    case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+      // Work groups should be multiples of the warp size
+      int warpSize = 0;
+      sycl::detail::pi::assertion(
+          cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
+                               device->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     static_cast<size_t>(warpSize));
+    }
+    case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
+      // OpenCL PRIVATE == CUDA LOCAL
+      int bytes = 0;
+      sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+                             kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint64(bytes));
+    }
+    case PI_KERNEL_GROUP_INFO_NUM_REGS: {
+      int numRegs = 0;
+      sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
+                             kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint32(numRegs));
+    }
+    default:
+      __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+    }
   }
 
   return PI_ERROR_INVALID_KERNEL;
