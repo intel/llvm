@@ -5,6 +5,7 @@
 
 """
 import os
+import subprocess
 import util
 import re
 
@@ -230,8 +231,12 @@ def generate_common(dstpath, sections, ver, rev):
 
     # Doxygen generates XML files needed by sphinx breathe plugin for API documentation.
     print("Generating doxygen...")
-    cmdline = "doxygen Doxyfile"
-    os.system(cmdline)
+    proc = subprocess.Popen(["doxygen", "Doxyfile"], stderr=subprocess.PIPE)
+    proc.wait()
+    output = proc.stderr.read().decode()
+    print(output)
+    if re.search(r"warning: explicit link request to \'.*\' could not be resolved", output) and 'CI' in os.environ:
+        raise Exception("Doxygen has unresolved references")
 
 """
 Entry-point:
