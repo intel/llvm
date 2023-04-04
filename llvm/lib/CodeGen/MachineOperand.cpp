@@ -53,6 +53,11 @@ static MachineFunction *getMFIfAvailable(MachineOperand &MO) {
       getMFIfAvailable(const_cast<const MachineOperand &>(MO)));
 }
 
+unsigned MachineOperand::getOperandNo() const {
+  assert(getParent() && "Operand does not belong to any instruction!");
+  return getParent()->getOperandNo(this);
+}
+
 void MachineOperand::setReg(Register Reg) {
   if (getReg() == Reg)
     return; // No change.
@@ -986,7 +991,7 @@ void MachineOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,
   case MachineOperand::MO_Predicate: {
     auto Pred = static_cast<CmpInst::Predicate>(getPredicate());
     OS << (CmpInst::isIntPredicate(Pred) ? "int" : "float") << "pred("
-       << CmpInst::getPredicateName(Pred) << ')';
+       << Pred << ')';
     break;
   }
   case MachineOperand::MO_ShuffleMask:

@@ -216,6 +216,14 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
     }
     return PI_SUCCESS;
   }
+  case PI_DEVICE_INFO_QUEUE_PROPERTIES: {
+    assert(param_value_size == sizeof(pi_queue_properties));
+    if (param_value) {
+      *static_cast<pi_queue_properties *>(param_value) =
+          PI_QUEUE_FLAG_PROFILING_ENABLE;
+    }
+    return PI_SUCCESS;
+  }
   default:
     return PI_SUCCESS;
   }
@@ -1128,5 +1136,21 @@ inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
   if (hostTime) {
     *hostTime = timeNanoseconds;
   }
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueReadHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueWriteHostPipe(
+    pi_queue queue, pi_program program, const char *pipe_symbol,
+    pi_bool blocking, void *ptr, size_t size, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }

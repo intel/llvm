@@ -189,6 +189,10 @@ bool isOCLImageType(llvm::Type *Ty, StringRef *Name) {
           return true;
         }
       }
+  if (auto *TET = dyn_cast_or_null<TargetExtType>(Ty)) {
+    assert(!Name && "Cannot get the name for a target-extension type image");
+    return TET->getName() == "spirv.Image";
+  }
   return false;
 }
 /// \param BaseTyName is the type Name as in spirv.BaseTyName.Postfixes
@@ -219,7 +223,8 @@ bool isSYCLHalfType(llvm::Type *Ty) {
     if (!ST->hasName())
       return false;
     StringRef Name = ST->getName();
-    Name.consume_front("class.");
+    if (!Name.consume_front("class."))
+      return false;
     if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::half")) {
@@ -234,7 +239,8 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
     if (!ST->hasName())
       return false;
     StringRef Name = ST->getName();
-    Name.consume_front("class.");
+    if (!Name.consume_front("class."))
+      return false;
     if ((Name.startswith("sycl::") || Name.startswith("cl::sycl::") ||
          Name.startswith("__sycl_internal::")) &&
         Name.endswith("::bfloat16")) {
@@ -653,6 +659,37 @@ static StringRef stringify(const itanium_demangle::NameType *Node) {
   return StringRef(Str.begin(), Str.size());
 }
 
+/// Convert a mangled name that represents a basic integer, floating-point,
+/// etc. type into the corresponding LLVM type.
+static Type *getPrimitiveType(LLVMContext &Ctx,
+                              const llvm::itanium_demangle::Node *N) {
+  using namespace llvm::itanium_demangle;
+  if (auto *Name = dyn_cast<NameType>(N)) {
+    return parsePrimitiveType(Ctx, stringify(Name));
+  }
+  if (auto *BitInt = dyn_cast<BitIntType>(N)) {
+    unsigned BitWidth = 0;
+    BitInt->match([&](const Node *NodeSize, bool) {
+      const StringRef SizeStr(stringify(cast<NameType>(NodeSize)));
+      SizeStr.getAsInteger(10, BitWidth);
+    });
+    return Type::getIntNTy(Ctx, BitWidth);
+  }
+  if (auto *FP = dyn_cast<BinaryFPType>(N)) {
+    StringRef SizeStr;
+    FP->match([&](const Node *NodeDimension) {
+      SizeStr = stringify(cast<NameType>(NodeDimension));
+    });
+    return StringSwitch<Type *>(SizeStr)
+        .Case("16", Type::getHalfTy(Ctx))
+        .Case("32", Type::getFloatTy(Ctx))
+        .Case("64", Type::getDoubleTy(Ctx))
+        .Case("128", Type::getFP128Ty(Ctx))
+        .Default(nullptr);
+  }
+  return nullptr;
+}
+
 template <typename FnType>
 static TypedPointerType *
 parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
@@ -724,21 +761,15 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
       } else {
         PointeeTy = parsePrimitiveType(M->getContext(), MangledStructName);
       }
-    } else if (auto *BitInt = dyn_cast<BitIntType>(Pointee)) {
-      unsigned BitWidth = 0;
-      BitInt->match([&](const Node *NodeSize, bool) {
-        const StringRef SizeStr(stringify(cast<NameType>(NodeSize)));
-        SizeStr.getAsInteger(10, BitWidth);
-      });
-      PointeeTy = Type::getIntNTy(M->getContext(), BitWidth);
+    } else if (auto *Ty = getPrimitiveType(M->getContext(), Pointee)) {
+      PointeeTy = Ty;
     } else if (auto *Vec = dyn_cast<itanium_demangle::VectorType>(Pointee)) {
       unsigned ElemCount = 0;
       const StringRef ElemCountStr(
           stringify(cast<NameType>(Vec->getDimension())));
       ElemCountStr.getAsInteger(10, ElemCount);
-      if (auto *Name = dyn_cast<NameType>(Vec->getBaseType())) {
-        PointeeTy = parsePrimitiveType(M->getContext(), stringify(Name));
-        PointeeTy = llvm::VectorType::get(PointeeTy, ElemCount, false);
+      if (auto *Ty = getPrimitiveType(M->getContext(), Vec->getBaseType())) {
+        PointeeTy = llvm::VectorType::get(Ty, ElemCount, false);
       }
     } else if (llvm::isa<itanium_demangle::PointerType>(Pointee)) {
       PointeeTy = parseNode(M, Pointee, GetStructType);
@@ -860,7 +891,7 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
       LLVM_DEBUG(dbgs() << "Failed to recover type of argument " << *ArgTy
                         << " of function " << F->getName() << "\n");
       DemangledSuccessfully = false;
-    } else if (!DemangledTy)
+    } else if (ArgTy->isTargetExtTy() || !DemangledTy)
       DemangledTy = ArgTy;
     *ArgIter++ = DemangledTy;
   }
@@ -1311,6 +1342,25 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     }
     return SPIR::RefParamType(new SPIR::UserDefinedType(Name.str()));
   }
+  if (auto *TargetTy = dyn_cast<TargetExtType>(Ty)) {
+    std::string FullName;
+    {
+      raw_string_ostream OS(FullName);
+      StringRef Name = TargetTy->getName();
+      if (Name.consume_front(kSPIRVTypeName::PrefixAndDelim)) {
+        OS << "__spirv_" << Name;
+      } else {
+        OS << Name;
+      }
+      if (!TargetTy->int_params().empty())
+        OS << "_";
+      for (Type *InnerTy : TargetTy->type_params())
+        OS << "_" << convertTypeToPostfix(InnerTy);
+      for (unsigned Param : TargetTy->int_params())
+        OS << "_" << Param;
+    }
+    return SPIR::RefParamType(new SPIR::UserDefinedType(FullName));
+  }
 
   if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
     auto *ET = TPT->getElementType();
@@ -1561,6 +1611,13 @@ std::string getImageBaseTypeName(StringRef Name) {
 }
 
 SPIRVTypeImageDescriptor getImageDescriptor(Type *Ty) {
+  if (auto *TET = dyn_cast_or_null<TargetExtType>(Ty)) {
+    auto IntParams = TET->int_params();
+    assert(IntParams.size() > 6 && "Expected type to be an image type");
+    return SPIRVTypeImageDescriptor(SPIRVImageDimKind(IntParams[0]),
+                                    IntParams[1], IntParams[2], IntParams[3],
+                                    IntParams[4], IntParams[5]);
+  }
   StringRef TyName;
   [[maybe_unused]] bool IsImg = isOCLImageType(Ty, &TyName);
   assert(IsImg && "Must be an image type");
@@ -2224,6 +2281,7 @@ public:
     case OpGroupNonUniformBallotFindMSB:
       addUnsignedArg(1);
       break;
+    case OpBitFieldSExtract:
     case OpGroupNonUniformBallotBitExtract:
       addUnsignedArg(1);
       addUnsignedArg(2);
@@ -2244,6 +2302,7 @@ public:
     case OpGroupNonUniformLogicalXor:
       addUnsignedArg(3);
       break;
+    case OpBitFieldInsert:
     case OpGroupNonUniformUMax:
     case OpGroupNonUniformUMin:
       addUnsignedArg(2);
@@ -2294,6 +2353,7 @@ public:
     case OpSubgroupAvcImeSetSingleReferenceINTEL:
       addUnsignedArg(1);
       break;
+    case OpBitFieldUExtract:
     case OpSubgroupAvcImeInitializeINTEL:
     case OpSubgroupAvcMceSetMotionVectorCostFunctionINTEL:
     case OpSubgroupAvcSicSetIntraLumaModeCostFunctionINTEL:

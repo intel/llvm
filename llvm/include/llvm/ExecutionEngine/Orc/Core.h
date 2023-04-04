@@ -1211,14 +1211,14 @@ private:
         : Flags(Flags), State(static_cast<uint8_t>(SymbolState::NeverSearched)),
           MaterializerAttached(false), PendingRemoval(false) {}
 
-    JITTargetAddress getAddress() const { return Addr; }
+    ExecutorAddr getAddress() const { return Addr; }
     JITSymbolFlags getFlags() const { return Flags; }
     SymbolState getState() const { return static_cast<SymbolState>(State); }
 
     bool hasMaterializerAttached() const { return MaterializerAttached; }
     bool isPendingRemoval() const { return PendingRemoval; }
 
-    void setAddress(JITTargetAddress Addr) { this->Addr = Addr; }
+    void setAddress(ExecutorAddr Addr) { this->Addr = Addr; }
     void setFlags(JITSymbolFlags Flags) { this->Flags = Flags; }
     void setState(SymbolState State) {
       assert(static_cast<uint8_t>(State) < (1 << 6) &&
@@ -1235,11 +1235,11 @@ private:
     }
 
     JITEvaluatedSymbol getSymbol() const {
-      return JITEvaluatedSymbol(Addr, Flags);
+      return JITEvaluatedSymbol(Addr.getValue(), Flags);
     }
 
   private:
-    JITTargetAddress Addr = 0;
+    ExecutorAddr Addr;
     JITSymbolFlags Flags;
     uint8_t State : 6;
     uint8_t MaterializerAttached : 1;
@@ -1414,6 +1414,9 @@ public:
   /// Get the ExecutorProcessControl object associated with this
   /// ExecutionSession.
   ExecutorProcessControl &getExecutorProcessControl() { return *EPC; }
+
+  /// Return the triple for the executor.
+  const Triple &getTargetTriple() const { return EPC->getTargetTriple(); }
 
   /// Get the SymbolStringPool for this instance.
   std::shared_ptr<SymbolStringPool> getSymbolStringPool() {

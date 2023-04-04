@@ -2926,6 +2926,8 @@ public:
     return ExplicitInfo ? ExplicitInfo->TemplateKeywordLoc : SourceLocation();
   }
 
+  SourceRange getSourceRange() const override LLVM_READONLY;
+
   void Profile(llvm::FoldingSetNodeID &ID) const {
     Profile(ID, TemplateArgs->asArray(), getASTContext());
   }
@@ -3082,6 +3084,8 @@ public:
            "Only member templates can be member template specializations");
     return First->InstantiatedFromMember.setInt(true);
   }
+
+  SourceRange getSourceRange() const override LLVM_READONLY;
 
   void Profile(llvm::FoldingSetNodeID &ID) const {
     Profile(ID, getTemplateArgs().asArray(), getTemplateParameters(),

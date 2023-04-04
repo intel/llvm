@@ -191,9 +191,6 @@ used variables that control features of LLVM and enabled subprojects.
 
 **CMAKE_BUILD_TYPE**:STRING
   This configures the optimization level for ``make`` or ``ninja`` builds.
-  The default ``CMAKE_BUILD_TYPE`` is set to ``Debug`` but you should
-  carefully read the list below to figure out what configuration matches
-  your use case the best.
 
   Possible values:
 
@@ -697,6 +694,13 @@ enabled sub-projects. Nearly all of these variable names begin with
   (e.g. ``grep``, ``sort``, etc.) in your %PATH%. If GnuWin32 is not in your
   %PATH%, then you can set this variable to the GnuWin32 directory so that
   lit can find tools needed for tests in that directory.
+
+**LLVM_NATIVE_TOOL_DIR**:STRING
+  Full path to a directory containing executables for the build host
+  (containing binaries such as ``llvm-tblgen`` and ``clang-tblgen``). This is
+  intended for cross-compiling: if the user sets this variable and the
+  directory contains executables with the expected names, no separate
+  native versions of those executables will be built.
 
 **LLVM_OPTIMIZED_TABLEGEN**:BOOL
   If enabled and building a debug or asserts build the CMake build system will

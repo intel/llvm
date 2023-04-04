@@ -11,8 +11,8 @@
 
 #include "mlir/Dialect/Transform/IR/TransformTypes.h"
 #include "mlir/Dialect/Transform/Utils/DiagnosedSilenceableFailure.h"
+#include "mlir/Dialect/Transform/Utils/RaggedArray.h"
 #include "mlir/IR/OpDefinition.h"
-
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LogicalResult.h"
 
@@ -25,7 +25,9 @@ class TransformOpInterface;
 /// TransformState.
 class TransformOptions {
 public:
-  TransformOptions() {}
+  TransformOptions() = default;
+  TransformOptions(const TransformOptions &) = default;
+  TransformOptions &operator=(const TransformOptions &) = default;
 
   /// Requests computationally expensive checks of the transform and payload IR
   /// well-formedness to be performed before each transformation. In particular,
@@ -42,6 +44,9 @@ private:
   bool expensiveChecksEnabled = true;
 };
 
+using Param = Attribute;
+using MappedValue = llvm::PointerUnion<Operation *, Param, Value>;
+
 /// Entry point to the Transform dialect infrastructure. Applies the
 /// transformation specified by `transform` to payload IR contained in
 /// `payloadRoot`. The `transform` operation may contain other operations that
@@ -50,6 +55,7 @@ private:
 /// This function internally keeps track of the transformation state.
 LogicalResult
 applyTransforms(Operation *payloadRoot, TransformOpInterface transform,
+                const RaggedArray<MappedValue> &extraMapping = {},
                 const TransformOptions &options = TransformOptions());
 
 /// The state maintained across applications of various ops implementing the
@@ -85,7 +91,7 @@ applyTransforms(Operation *payloadRoot, TransformOpInterface transform,
 /// using `mapBlockArguments`.
 class TransformState {
 public:
-  using Param = Attribute;
+  using Param = transform::Param;
 
 private:
   /// Mapping between a Value in the transform IR and the corresponding set of
@@ -101,22 +107,36 @@ private:
   /// parameters.
   using ParamMapping = DenseMap<Value, SmallVector<Param>>;
 
+  /// Mapping between a Value in the transform IR and the corrsponding list of
+  /// values in the payload IR. Also works for reverse mappings.
+  using ValueMapping = DenseMap<Value, SmallVector<Value>>;
+
   /// The bidirectional mappings between transform IR values and payload IR
   /// operations, and the mapping between transform IR values and parameters.
   struct Mappings {
     TransformOpMapping direct;
     TransformOpReverseMapping reverse;
     ParamMapping params;
+    ValueMapping values;
+    ValueMapping reverseValues;
   };
 
-  friend LogicalResult applyTransforms(Operation *payloadRoot,
-                                       TransformOpInterface transform,
-                                       const TransformOptions &options);
+  friend LogicalResult applyTransforms(Operation *, TransformOpInterface,
+                                       const RaggedArray<MappedValue> &,
+                                       const TransformOptions &);
 
 public:
   /// Returns the op at which the transformation state is rooted. This is
   /// typically helpful for transformations that apply globally.
   Operation *getTopLevel() const;
+
+  /// Returns the number of extra mappings for the top-level operation.
+  size_t getNumTopLevelMappings() const { return topLevelMappedValues.size(); }
+
+  /// Returns the position-th extra mapping for the top-level operation.
+  ArrayRef<MappedValue> getTopLevelMapping(size_t position) const {
+    return topLevelMappedValues[position];
+  }
 
   /// Returns the list of ops that the given transform IR value corresponds to.
   /// This is helpful for transformations that apply to a particular handle.
@@ -126,10 +146,20 @@ public:
   /// corresponds to.
   ArrayRef<Attribute> getParams(Value value) const;
 
+  /// Returns the list of payload IR values that the given transform IR value
+  /// corresponds to.
+  ArrayRef<Value> getPayloadValues(Value handleValue) const;
+
   /// Populates `handles` with all handles pointing to the given Payload IR op.
   /// Returns success if such handles exist, failure otherwise.
   LogicalResult getHandlesForPayloadOp(Operation *op,
                                        SmallVectorImpl<Value> &handles) const;
+
+  /// Populates `handles` with all handles pointing to the given payload IR
+  /// value. Returns success if such handles exist, failure otherwise.
+  LogicalResult
+  getHandlesForPayloadValue(Value payloadValue,
+                            SmallVectorImpl<Value> &handles) const;
 
   /// Applies the transformation specified by the given transform op and updates
   /// the state accordingly.
@@ -150,6 +180,8 @@ public:
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
     return setPayloadOps(argument, operations);
   }
+  LogicalResult mapBlockArgument(BlockArgument argument,
+                                 ArrayRef<MappedValue> values);
 
   // Forward declarations to support limited visibility.
   class RegionScope;
@@ -160,6 +192,12 @@ public:
   // class body to comply with visibility and full-declaration requirements.
   inline RegionScope make_region_scope(Region &region);
 
+  /// Creates a new region scope for the given isolated-from-above region.
+  /// Unlike the non-isolated counterpart, there is no nesting expectation.
+  // Implementation note: this method is inline but implemented outside of the
+  // class body to comply with visibility and full-declaration requirements
+  inline RegionScope make_isolated_region_scope(Region &region);
+
   /// A RAII object maintaining a "stack frame" for a transform IR region. When
   /// applying a transform IR operation that contains a region, the caller is
   /// expected to create a RegionScope before applying the ops contained in the
@@ -169,26 +207,46 @@ public:
   class RegionScope {
   public:
     /// Forgets the mapping from or to values defined in the associated
-    /// transform IR region.
+    /// transform IR region, and restores the mapping that existed before
+    /// entering this scope.
     ~RegionScope() {
       state.mappings.erase(region);
+      if (storedMappings.has_value())
+        state.mappings.swap(*storedMappings);
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
       state.regionStack.pop_back();
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
     }
 
   private:
+    /// Tag structure for differentiating the constructor for isolated regions.
+    struct Isolated {};
+
     /// Creates a new scope for mappings between values defined in the given
-    /// transform IR region and payload IR operations.
+    /// transform IR region and payload IR objects.
     RegionScope(TransformState &state, Region &region)
         : state(state), region(&region) {
       auto res = state.mappings.try_emplace(this->region);
       assert(res.second && "the region scope is already present");
       (void)res;
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
-      assert(state.regionStack.back()->isProperAncestor(&region) &&
+      assert(((state.regionStack.size() == 1 && !state.regionStack.back()) ||
+              state.regionStack.back()->isProperAncestor(&region)) &&
              "scope started at a non-nested region");
       state.regionStack.push_back(&region);
+#endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
+    }
+
+    /// Creates a new scope for mappings between values defined in the given
+    /// isolated-from-above transform IR region and payload IR objects.
+    RegionScope(TransformState &state, Region &region, Isolated)
+        : state(state), region(&region) {
+      // Store the previous mapping stack locally.
+      storedMappings = llvm::SmallDenseMap<Region *, Mappings>();
+      storedMappings->swap(state.mappings);
+      state.mappings.try_emplace(this->region);
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+      state.regionStack.push_back(this->region);
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
     }
 
@@ -198,7 +256,14 @@ public:
     /// The region this scope is associated with.
     Region *region;
 
+    /// Local copy of the mappings that existed before entering the current
+    /// region. Used only when the current region is isolated so we don't
+    /// accidentally look up the values defined outside the isolated region.
+    std::optional<llvm::SmallDenseMap<Region *, Mappings>> storedMappings =
+        std::nullopt;
+
     friend RegionScope TransformState::make_region_scope(Region &);
+    friend RegionScope TransformState::make_isolated_region_scope(Region &);
   };
   friend class RegionScope;
 
@@ -302,9 +367,10 @@ private:
   /// which may or may not contain the region with transform ops. Additional
   /// options can be provided through the trailing configuration object.
   TransformState(Region *region, Operation *payloadRoot,
+                 const RaggedArray<MappedValue> &extraMappings = {},
                  const TransformOptions &options = TransformOptions());
 
-  /// Returns the mappings frame for the reigon in which the value is defined.
+  /// Returns the mappings frame for the region in which the value is defined.
   const Mappings &getMapping(Value value) const {
     return const_cast<TransformState *>(this)->getMapping(value);
   }
@@ -326,10 +392,6 @@ private:
     return it->second;
   }
 
-  /// Removes the mapping between the given payload IR operation and the given
-  /// transform IR value.
-  void dropReverseMapping(Mappings &mappings, Operation *op, Value value);
-
   /// Sets the payload IR ops associated with the given transform IR value
   /// (handle). A payload op may be associated multiple handles as long as
   /// at most one of them gets consumed by further transformations.
@@ -349,10 +411,64 @@ private:
   /// by side effects. Practically, a transformation consuming a handle means
   /// that the associated payload operation may no longer exist.
   ///
+  /// Similarly, operation handles may be invalidate and should not be used
+  /// after a transform that consumed a value handle pointing to a payload value
+  /// defined by the operation as either block argument or op result. For
+  /// example, in the following sequence, the last transform operation rewrites
+  /// the callee to not return a specified result:
+  ///
+  ///   %0 = transform.find_call "myfunc"
+  ///   %1 = transform.find_results_of_calling "myfunc"
+  ///   transform.drop_call_result_from_signature %1[0]
+  ///
+  /// which requires the call operations to be recreated. Therefore, the handle
+  /// %0 becomes associated with a dangling pointer and should not be used.
+  ///
   /// Returns failure if the payload does not satisfy the conditions associated
   /// with the type of the handle value. The value is expected to have a type
   /// implementing TransformHandleTypeInterface.
   LogicalResult setPayloadOps(Value value, ArrayRef<Operation *> targets);
+
+  /// Sets the payload IR values association with the given transform IR value
+  /// (handle). A payload value may be associated with multiple handles as long
+  /// as at most one of them is consumed by further transformations. For
+  /// example, a hypothetical "get results of calls to function with the given
+  /// name" transform may be performed twice in a row producing handles pointing
+  /// to the same values:
+  ///
+  ///   %0 = transform.find_results_of_calling "myfunc"
+  ///   %1 = transform.find_results_of_calling "myfunc"
+  ///
+  /// which is valid by itself. However, calling a hypothetical "erase value
+  /// producer" transform on both handles:
+  ///
+  ///   transform.erase_value_produce %0
+  ///   transform.erase_value_produce %1
+  ///
+  /// is invalid provided the transformation "consumes" the handle as expressed
+  /// by side effects (which themselves reflect the semantics of the transform
+  /// erasing the producer and making the handle dangling). Practically, a
+  /// transformation consuming a handle means the associated payload value may
+  /// no longer exist.
+  ///
+  /// Similarly, value handles are invalidated and should not be used after a
+  /// transform that consumed an operation handle pointing to the payload IR
+  /// operation defining the values associated the value handle, as either block
+  /// arguments or op results, or any ancestor operation. For example,
+  ///
+  ///   %0 = transform.find_call "myfunc"
+  ///   %1 = transform.find_results_of_calling "myfunc"
+  ///   transform.rewrite_and_rename %0 { new_name = "func" }
+  ///
+  /// makes %1 unusable after the last transformation if it consumes %0. When an
+  /// operation handle is consumed, it usually indicates that the operation was
+  /// destroyed or heavily modified, meaning that the values it defines may no
+  /// longer exist.
+  ///
+  /// Returns failure if the payload values do not satisfy the conditions
+  /// associated with the type of the handle value. The value is expected to
+  /// have a type implementing TransformValueHandleTypeInterface.
+  LogicalResult setPayloadValues(Value handle, ValueRange payloadValues);
 
   /// Sets the parameters associated with the given transform IR value. Returns
   /// failure if the parameters do not satisfy the conditions associated with
@@ -360,29 +476,46 @@ private:
   /// TransformParamTypeInterface.
   LogicalResult setParams(Value value, ArrayRef<Param> params);
 
-  /// Forgets the payload IR ops associated with the given transform IR value.
-  void removePayloadOps(Value value);
+  /// Forgets the payload IR ops associated with the given transform IR value,
+  /// as well as any association between value handles and the results of said
+  /// payload IR op.
+  void forgetMapping(Value opHandle, ValueRange origOpFlatResults);
+
+  void forgetValueMapping(Value valueHandle,
+                          ArrayRef<Operation *> payloadOperations);
 
   /// Updates the payload IR ops associated with the given transform IR value.
   /// The callback function is called once per associated operation and is
   /// expected to return the modified operation or nullptr. In the latter case,
   /// the corresponding operation is no longer associated with the transform IR
-  /// value.
+  /// value. Value handles associated with the results of the operation are
+  /// also updated to be associated with the results of the new operation. For
+  /// this reason, the new operation must have the same number of results.
   ///
   /// Returns failure if the payload does not satisfy the conditions associated
   /// with the type of the handle value.
-  LogicalResult
-  updatePayloadOps(Value value,
-                   function_ref<Operation *(Operation *)> callback);
+  LogicalResult replacePayloadOp(Operation *op, Operation *replacement);
 
   /// If the operand is a handle consumed by the operation, i.e. has the "free"
   /// memory effect associated with it, identifies other handles that are
   /// pointing to payload IR operations nested in the operations pointed to by
   /// the consumed handle. Marks all such handles as invalidated to trigger
-  /// errors if they are used.
-  void recordHandleInvalidation(OpOperand &handle);
-  void recordHandleInvalidationOne(OpOperand &handle, Operation *payloadOp,
-                                   Value otherHandle);
+  /// errors if they are used. If `throughValue` is passed, record the fact that
+  /// an op handle was invalidated because a value handle associated with
+  /// results of the payload op or its block arguments was invalidated.
+  void recordOpHandleInvalidation(OpOperand &consumingHandle,
+                                  ArrayRef<Operation *> potentialAncestors,
+                                  Value throughValue = nullptr);
+  void recordOpHandleInvalidationOne(OpOperand &handle,
+                                     ArrayRef<Operation *> potentialAncestors,
+                                     Operation *payloadOp, Value otherHandle,
+                                     Value throughValue = nullptr);
+
+  void recordValueHandleInvalidationByOpHandleOne(
+      OpOperand &opHandle, ArrayRef<Operation *> potentialAncestors,
+      Value payloadValue, Value valueHandle);
+
+  void recordValueHandleInvalidation(OpOperand &valueHandle);
 
   /// Checks that the operation does not use invalidated handles as operands.
   /// Reports errors and returns failure if it does. Otherwise, invalidates the
@@ -402,6 +535,11 @@ private:
 
   /// The top-level operation that contains all payload IR, typically a module.
   Operation *topLevel;
+
+  /// Extra mapped values (payload operations, values or parameters) to be
+  /// associated with additional entry block arguments of the top-level
+  /// transform operation.
+  RaggedArray<MappedValue> topLevelMappedValues;
 
   /// Additional options controlling the transformation state behavior.
   TransformOptions options;
@@ -428,15 +566,29 @@ class TransformResults {
 public:
   /// Indicates that the result of the transform IR op at the given position
   /// corresponds to the given list of payload IR ops. Each result must be set
-  /// by the transformation exactly once. The value must have a type
-  /// implementing TransformHandleTypeInterface.
+  /// by the transformation exactly once in case of transformation succeeding.
+  /// The value must have a type implementing TransformHandleTypeInterface.
   void set(OpResult value, ArrayRef<Operation *> ops);
 
   /// Indicates that the result of the transform IR op at the given position
   /// corresponds to the given list of parameters. Each result must be set by
-  /// the transformation exactly once. The value must have a type implementing
-  /// TransformParamTypeInterface.
+  /// the transformation exactly once in case of transformation succeeding. The
+  /// value must have a type implementing TransformParamTypeInterface.
   void setParams(OpResult value, ArrayRef<TransformState::Param> params);
+
+  /// Indicates that the result of the transform IR op at the given position
+  /// corresponds to the given range of payload IR values. Each result must be
+  /// set by the transformation exactly once in case of transformation
+  /// succeeding. The value must have a type implementing
+  /// TransformValueHandleTypeInterface.
+  void setValues(OpResult handle, ValueRange values);
+
+  /// Indicates that the result of the transform IR op at the given position
+  /// corresponds to the given range of mapped values. All mapped values are
+  /// expected to be compatible with the type of the result, e.g., if the result
+  /// is an operation handle, all mapped values are expected to be payload
+  /// operations.
+  void setMappedValues(OpResult handle, ArrayRef<MappedValue> values);
 
 private:
   /// Creates an instance of TransformResults that expects mappings for
@@ -454,34 +606,49 @@ private:
   /// be associated with parameters.
   ArrayRef<TransformState::Param> getParams(unsigned resultNumber) const;
 
+  /// Gets the list of payload IR values associated with the result identified
+  /// by its number in the list of operation results. The result must have been
+  /// set to be associated with payload IR values.
+  ArrayRef<Value> getValues(unsigned resultNumber) const;
+
   /// Returns `true` if the result identified by its number in the list of
-  /// operation results is associated with a list of parameters, `false` if it
-  /// is associated with the list of payload IR operations.
+  /// operation results is associated with a list of parameters, `false`
+  /// otherwise.
   bool isParam(unsigned resultNumber) const;
 
-  /// Storage for pointers to payload IR ops that are associated with results of
-  /// a transform IR op. `segments` contains as many entries as the transform IR
-  /// op has results, even if some of them are not associated with payload IR
-  /// operations. Each entry is a reference to a contiguous segment in the
-  /// `operations` list that contains the pointers to operations. This allows
-  /// for operations to be stored contiguously without nested vectors and for
-  /// different segments to be set in any order.
-  SmallVector<ArrayRef<Operation *>, 2> segments;
-  SmallVector<Operation *> operations;
+  /// Returns `true` if the result identified by its number in the list of
+  /// operation results is associated with a list of payload IR value, `false`
+  /// otherwise.
+  bool isValue(unsigned resultNumber) const;
 
-  /// Storage for parameters that are associated with results of the transform
-  /// IR op. `paramSegments` contains as many entries as the transform IR op has
-  /// results, even if some of them are not associated with parameters. Each
-  /// entry is a reference to a contiguous segment in the `params` list that
-  /// contains the actual parameters. This allows for parameters to be stored
-  /// contiguously without nested vectors and for different segments to be set
-  /// in any order.
-  SmallVector<ArrayRef<TransformState::Param>, 2> paramSegments;
-  SmallVector<TransformState::Param> params;
+  /// Returns `true` if the result identified by its number in the list of
+  /// operation results is associated with something.
+  bool isSet(unsigned resultNumber) const;
+
+  /// Pointers to payload IR ops that are associated with results of a transform
+  /// IR op.
+  RaggedArray<Operation *> operations;
+
+  /// Parameters that are associated with results of the transform IR op.
+  RaggedArray<Param> params;
+
+  /// Payload IR values that are associated with results of a transform IR op.
+  RaggedArray<Value> values;
 };
 
+/// Creates a RAII object the lifetime of which corresponds to the new mapping
+/// for transform IR values defined in the given region. Values defined in
+/// surrounding regions remain accessible.
 TransformState::RegionScope TransformState::make_region_scope(Region &region) {
   return RegionScope(*this, region);
+}
+
+/// Creates a RAII object the lifetime of which corresponds to the new mapping
+/// for transform IR values defined in the given isolated-from-above region.
+/// Values defined in surrounding regions cannot be accessed.
+TransformState::RegionScope
+TransformState::make_isolated_region_scope(Region &region) {
+  return RegionScope(*this, region, RegionScope::Isolated());
 }
 
 namespace detail {
@@ -497,6 +664,12 @@ LogicalResult verifyPossibleTopLevelTransformOpTrait(Operation *op);
 
 /// Verification hook for TransformOpInterface.
 LogicalResult verifyTransformOpInterface(Operation *op);
+
+/// Populates `mappings` with mapped values associated with the given transform
+/// IR values in the given `state`.
+void prepareValueMappings(
+    SmallVectorImpl<SmallVector<transform::MappedValue>> &mappings,
+    ValueRange values, const transform::TransformState &state);
 } // namespace detail
 
 /// This trait is supposed to be attached to Transform dialect operations that
@@ -544,19 +717,21 @@ public:
   }
 };
 
+class ApplyToEachResultList;
+
 /// Trait implementing the TransformOpInterface for operations applying a
 /// transformation to a single operation handle and producing an arbitrary
 /// number of handles and parameter values.
 /// The op must implement a method with the following signature:
 ///   - DiagnosedSilenceableFailure applyToOne(OpTy,
-///       SmallVector<Operation*> &results, state)
+///       ApplyToEachResultList &results, TransformState &state)
 /// to perform a transformation that is applied in turn to all payload IR
 /// operations that correspond to the handle of the transform IR operation.
 /// In `applyToOne`, OpTy is either Operation* or a concrete payload IR Op class
 /// that the transformation is applied to (and NOT the class of the transform IR
 /// op).
 /// The `applyToOne` method takes an empty `results` vector that it fills with
-/// zero, one or multiple operations depending on the number of resultd expected
+/// zero, one or multiple operations depending on the number of results expected
 /// by the transform op.
 /// The number of results must match the number of results of the transform op.
 /// `applyToOne` is allowed to fill the `results` with all null elements to
@@ -591,17 +766,41 @@ public:
   static LogicalResult verifyTrait(Operation *op);
 };
 
+/// Trait implementing the applyToOne function required by TransformEachOpTrait
+/// by greedily applying a set of patterns to each target payload operation.
+/// This requires the transform operation to implement TransformEachOpTrait and
+/// to provide the following method:
+///   - void populatePatterns(RewritePatternSet &)
+/// that populates the given object with the patterns to apply. This is an
+/// instance method that can depend on the transform operation attributes.
+///
+/// The payload operation is expected to have the IsolatedFromAboveTrait, which
+/// is a requirement of the pattern rewriter. If it does not, or if pattern
+/// application fails, the transform fails definitively as the rewriter will
+/// have likely left the payload IR in some intermediate state that precludes
+/// further transformation.
+template <typename OpTy>
+class TransformWithPatternsOpTrait
+    : public OpTrait::TraitBase<OpTy, TransformWithPatternsOpTrait> {
+public:
+  DiagnosedSilenceableFailure applyToOne(Operation *target,
+                                         ApplyToEachResultList &results,
+                                         TransformState &state);
+
+  static LogicalResult verifyTrait(Operation *op);
+};
+
 /// Side effect resource corresponding to the mapping between Transform IR
 /// values and Payload IR operations. An Allocate effect from this resource
 /// means creating a new mapping entry, it is always accompanied by a Write
-/// effet. A Read effect from this resource means accessing the mapping. A Free
+/// effect. A Read effect from this resource means accessing the mapping. A Free
 /// effect on this resource indicates the removal of the mapping entry,
 /// typically after a transformation that modifies the Payload IR operations
 /// associated with one of the Transform IR operation's operands. It is always
 /// accompanied by a Read effect. Read-after-Free and double-Free are not
 /// allowed (they would be problematic with "regular" memory effects too) as
 /// they indicate an attempt to access Payload IR operations that have been
-/// modified, potentially erased, by the previous tranfsormations.
+/// modified, potentially erased, by the previous transformations.
 // TODO: consider custom effects if these are not enabling generic passes such
 // as CSE/DCE to work.
 struct TransformMappingResource
@@ -738,7 +937,7 @@ namespace transform {
 
 /// A single result of applying a transform op with `ApplyEachOpTrait` to a
 /// single payload operation.
-using ApplyToEachResult = llvm::PointerUnion<Operation *, Attribute>;
+using ApplyToEachResult = MappedValue;
 
 /// A list of results of applying a transform op with `ApplyEachOpTrait` to a
 /// single payload operation, co-indexed with the results of the transform op.
@@ -762,6 +961,9 @@ public:
       if constexpr (std::is_convertible_v<decltype(*std::begin(range)),
                                           Operation *>) {
         results.push_back(static_cast<Operation *>(element));
+      } else if constexpr (std::is_convertible_v<decltype(*std::begin(range)),
+                                                 Value>) {
+        results.push_back(element.template get<Value>());
       } else {
         results.push_back(static_cast<Attribute>(element));
       }
@@ -769,8 +971,12 @@ public:
   }
 
   /// Appends an element to the list.
+  // Using ApplyToEachResult that can be implicitly constructed from a Value but
+  // not from a concrete Op that is implicitly convertible to a Value to avoid
+  // ambiguity.
   void push_back(Operation *op) { results.push_back(op); }
   void push_back(Attribute attr) { results.push_back(attr); }
+  void push_back(ApplyToEachResult r) { results.push_back(r); }
 
   /// Reserves space for `size` elements in the list.
   void reserve(unsigned size) { results.reserve(size); }
@@ -849,16 +1055,19 @@ applyTransformToEach(TransformOpTy transformOp, ArrayRef<Operation *> targets,
     Location specificOpLoc = specificOp->getLoc();
     DiagnosedSilenceableFailure res =
         transformOp.applyToOne(specificOp, partialResults, state);
-    if (res.isDefiniteFailure() ||
-        failed(detail::checkApplyToOne(transformOp, specificOpLoc,
+    if (res.isDefiniteFailure())
+      return DiagnosedSilenceableFailure::definiteFailure();
+
+    if (res.isSilenceableFailure()) {
+      res.takeDiagnostics(silenceableStack);
+      continue;
+    }
+
+    if (failed(detail::checkApplyToOne(transformOp, specificOpLoc,
                                        partialResults))) {
       return DiagnosedSilenceableFailure::definiteFailure();
     }
-
-    if (res.isSilenceableFailure())
-      res.takeDiagnostics(silenceableStack);
-    else
-      results.push_back(std::move(partialResults));
+    results.push_back(std::move(partialResults));
   }
   if (!silenceableStack.empty()) {
     return DiagnosedSilenceableFailure::silenceableFailure(
@@ -866,6 +1075,14 @@ applyTransformToEach(TransformOpTy transformOp, ArrayRef<Operation *> targets,
   }
   return DiagnosedSilenceableFailure::success();
 }
+
+/// Applies patterns configured by `populatePatterns` greedily to the contents
+/// of `target`. Reports (definite) errors at the location of `transformOp`.
+/// Sets up `results` to point to `target` after pattern application on success.
+DiagnosedSilenceableFailure transformWithPatternsApply(
+    Operation *transformOp, Operation *target, ApplyToEachResultList &results,
+    TransformState &state,
+    function_ref<void(RewritePatternSet &)> populatePatterns);
 
 } // namespace detail
 } // namespace transform
@@ -888,6 +1105,8 @@ mlir::transform::TransformEachOpTrait<OpTy>::apply(
     for (OpResult r : this->getOperation()->getResults()) {
       if (r.getType().isa<TransformParamTypeInterface>())
         transformResults.setParams(r, emptyParams);
+      else if (r.getType().isa<TransformValueHandleTypeInterface>())
+        transformResults.setValues(r, ValueRange());
       else
         transformResults.set(r, emptyPayload);
     }
@@ -925,6 +1144,28 @@ mlir::transform::TransformEachOpTrait<OpTy>::verifyTrait(Operation *op) {
                               "ops that implement TransformOpInterface";
   }
 
+  return success();
+}
+
+template <typename OpTy>
+mlir::DiagnosedSilenceableFailure
+mlir::transform::TransformWithPatternsOpTrait<OpTy>::applyToOne(
+    Operation *target, ApplyToEachResultList &results, TransformState &state) {
+  return detail::transformWithPatternsApply(
+      this->getOperation(), target, results, state,
+      [this](RewritePatternSet &patterns) {
+        cast<OpTy>(this->getOperation()).populatePatterns(patterns);
+      });
+}
+
+template <typename OpTy>
+mlir::LogicalResult
+mlir::transform::TransformWithPatternsOpTrait<OpTy>::verifyTrait(
+    Operation *op) {
+  if (!op->hasTrait<mlir::transform::TransformEachOpTrait>()) {
+    return op->emitOpError()
+           << "TransformWithPatternsOpTrait requires TransformEachOpTrait";
+  }
   return success();
 }
 

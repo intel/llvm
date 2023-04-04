@@ -10,6 +10,7 @@
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/LookupAndRecordAddrs.h"
 #include "llvm/ExecutionEngine/Orc/ObjectFileInterface.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ObjectFormats.h"
 
 #include "llvm/Object/COFF.h"
 
@@ -54,8 +55,7 @@ public:
   void materialize(std::unique_ptr<MaterializationResponsibility> R) override {
     unsigned PointerSize;
     support::endianness Endianness;
-    const auto &TT =
-        CP.getExecutionSession().getExecutorProcessControl().getTargetTriple();
+    const auto &TT = CP.getExecutionSession().getTargetTriple();
 
     switch (TT.getArch()) {
     case Triple::x86_64:
@@ -125,8 +125,8 @@ private:
       llvm_unreachable("Unrecognized architecture");
     }
 
-    auto HeaderContent = G.allocateString(
-        StringRef(reinterpret_cast<const char *>(&Hdr), sizeof(Hdr)));
+    auto HeaderContent = G.allocateContent(
+        ArrayRef<char>(reinterpret_cast<const char *>(&Hdr), sizeof(Hdr)));
 
     return G.createContentBlock(HeaderSection, HeaderContent, ExecutorAddr(), 8,
                                 0);
@@ -165,13 +165,14 @@ COFFPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
                      LoadDynamicLibrary LoadDynLibrary, bool StaticVCRuntime,
                      const char *VCRuntimePath,
                      std::optional<SymbolAliasMap> RuntimeAliases) {
-  auto &EPC = ES.getExecutorProcessControl();
 
   // If the target is not supported then bail out immediately.
-  if (!supportedTarget(EPC.getTargetTriple()))
+  if (!supportedTarget(ES.getTargetTriple()))
     return make_error<StringError>("Unsupported COFFPlatform triple: " +
-                                       EPC.getTargetTriple().str(),
+                                       ES.getTargetTriple().str(),
                                    inconvertibleErrorCode());
+
+  auto &EPC = ES.getExecutorProcessControl();
 
   // Create default aliases if the caller didn't supply any.
   if (!RuntimeAliases)
@@ -351,11 +352,11 @@ bool COFFPlatform::supportedTarget(const Triple &TT) {
 COFFPlatform::COFFPlatform(ExecutionSession &ES,
                            ObjectLinkingLayer &ObjLinkingLayer,
                            JITDylib &PlatformJD, const char *OrcRuntimePath,
-                           LoadDynamicLibrary LoadDynLibrary,
+                           LoadDynamicLibrary LoadDynamicLibrary,
                            bool StaticVCRuntime, const char *VCRuntimePath,
                            Error &Err)
     : ES(ES), ObjLinkingLayer(ObjLinkingLayer),
-      LoadDynLibrary(std::move(LoadDynLibrary)),
+      LoadDynLibrary(std::move(LoadDynamicLibrary)),
       StaticVCRuntime(StaticVCRuntime),
       COFFHeaderStartSymbol(ES.intern("__ImageBase")) {
   ErrorAsOutParameter _(&Err);
@@ -850,7 +851,7 @@ Error COFFPlatform::COFFPlatformPlugin::preserveInitializerSections(
     jitlink::LinkGraph &G, MaterializationResponsibility &MR) {
   JITLinkSymbolSet InitSectionSymbols;
   for (auto &Sec : G.sections())
-    if (COFFPlatform::isInitializerSection(Sec.getName()))
+    if (isCOFFInitializerSection(Sec.getName()))
       for (auto *B : Sec.blocks())
         if (!B->edges_empty())
           InitSectionSymbols.insert(
@@ -885,7 +886,7 @@ Error COFFPlatform::COFFPlatformPlugin::
 
   // Collect static initializers
   for (auto &S : G.sections())
-    if (COFFPlatform::isInitializerSection(S.getName()))
+    if (isCOFFInitializerSection(S.getName()))
       for (auto *B : S.blocks()) {
         if (B->edges_empty())
           continue;

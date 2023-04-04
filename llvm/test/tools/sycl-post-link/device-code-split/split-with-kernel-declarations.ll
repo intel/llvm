@@ -1,12 +1,12 @@
 ; Purpose of this test is to check that sycl-post-link does not treat
 ; declarations as entry points.
 
-; RUN: sycl-post-link -split=source -symbols -S %s -o %t.table
+; RUN: sycl-post-link -split=source -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table --check-prefix CHECK-PER-SOURCE-TABLE
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix CHECK-PER-SOURCE-SYM0
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix CHECK-PER-SOURCE-SYM1
 ;
-; RUN: sycl-post-link -split=kernel -symbols -S %s -o %t1.table
+; RUN: sycl-post-link -split=kernel -symbols -S < %s -o %t1.table
 ; RUN: FileCheck %s -input-file=%t1.table --check-prefix CHECK-PER-KERNEL-TABLE
 ; RUN: FileCheck %s -input-file=%t1_0.sym --check-prefix CHECK-PER-KERNEL-SYM0
 ; RUN: FileCheck %s -input-file=%t1_1.sym --check-prefix CHECK-PER-KERNEL-SYM1

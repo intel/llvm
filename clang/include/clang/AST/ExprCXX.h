@@ -5194,7 +5194,7 @@ class SYCLBuiltinFieldTypeExpr : public Expr {
 
   SourceLocation Loc;
   QualType SourceTy;
-  Stmt *Index;
+  Stmt *Index = nullptr;
 
 public:
   SYCLBuiltinFieldTypeExpr(SourceLocation Loc, QualType SourceTy, Expr *Index,
@@ -5281,7 +5281,7 @@ class SYCLBuiltinBaseTypeExpr : public Expr {
 
   SourceLocation Loc;
   QualType SourceTy;
-  Stmt *Index;
+  Stmt *Index = nullptr;
 
 public:
   SYCLBuiltinBaseTypeExpr(SourceLocation Loc, QualType SourceTy, Expr *Index,

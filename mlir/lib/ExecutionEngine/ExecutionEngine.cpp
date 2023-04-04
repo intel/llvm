@@ -29,8 +29,8 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/TargetParser/Host.h"
 
 #define DEBUG_TYPE "execution-engine"
 
@@ -196,17 +196,17 @@ static void packFunctionArguments(Module *module) {
     llvm::Value *argList = interfaceFunc->arg_begin();
     SmallVector<llvm::Value *, 8> args;
     args.reserve(llvm::size(func.args()));
-    for (auto &indexedArg : llvm::enumerate(func.args())) {
+    for (auto [index, arg] : llvm::enumerate(func.args())) {
       llvm::Value *argIndex = llvm::Constant::getIntegerValue(
-          builder.getInt64Ty(), APInt(64, indexedArg.index()));
+          builder.getInt64Ty(), APInt(64, index));
       llvm::Value *argPtrPtr =
           builder.CreateGEP(builder.getInt8PtrTy(), argList, argIndex);
       llvm::Value *argPtr =
           builder.CreateLoad(builder.getInt8PtrTy(), argPtrPtr);
-      llvm::Type *argTy = indexedArg.value().getType();
+      llvm::Type *argTy = arg.getType();
       argPtr = builder.CreateBitCast(argPtr, argTy->getPointerTo());
-      llvm::Value *arg = builder.CreateLoad(argTy, argPtr);
-      args.push_back(arg);
+      llvm::Value *load = builder.CreateLoad(argTy, argPtr);
+      args.push_back(load);
     }
 
     // Call the implementation function with the extracted arguments.

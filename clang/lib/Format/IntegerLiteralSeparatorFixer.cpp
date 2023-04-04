@@ -87,9 +87,9 @@ IntegerLiteralSeparatorFixer::process(const Environment &Env,
     auto Location = Tok.getLocation();
     auto Text = StringRef(SourceMgr.getCharacterData(Location), Length);
     if (Tok.is(tok::comment)) {
-      if (Text == "// clang-format off" || Text == "/* clang-format off */")
+      if (isClangFormatOff(Text))
         Skip = true;
-      else if (Text == "// clang-format on" || Text == "/* clang-format on */")
+      else if (isClangFormatOn(Text))
         Skip = false;
       continue;
     }
@@ -130,10 +130,12 @@ IntegerLiteralSeparatorFixer::process(const Environment &Env,
       DigitsPerGroup = Hex;
     if (DigitsPerGroup > 0 && checkSeparator(Text, DigitsPerGroup))
       continue;
+    const auto &Formatted = format(Text, DigitsPerGroup);
+    assert(Formatted != Text);
     if (Start > 0)
       Location = Location.getLocWithOffset(Start);
-    cantFail(Result.add(tooling::Replacement(SourceMgr, Location, Length,
-                                             format(Text, DigitsPerGroup))));
+    cantFail(Result.add(
+        tooling::Replacement(SourceMgr, Location, Length, Formatted)));
   }
 
   return {Result, 0};
@@ -150,9 +152,9 @@ bool IntegerLiteralSeparatorFixer::checkSeparator(
         return false;
       I = 0;
     } else {
-      ++I;
       if (I == DigitsPerGroup)
         return false;
+      ++I;
     }
   }
 

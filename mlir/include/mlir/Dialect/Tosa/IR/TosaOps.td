@@ -184,6 +184,36 @@ def Tosa_DepthwiseConv2DOp : Tosa_Op<"depthwise_conv2d", [
 }
 
 //===----------------------------------------------------------------------===//
+// Operator: fft2d
+//===----------------------------------------------------------------------===//
+def Tosa_FFT2dOp : Tosa_Op<"fft2d", [
+    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
+                              ["inferReturnTypeComponents"]>,
+    Pure]> {
+  let summary = "Performs FFT2D operation on the input.";
+
+  let description = [{
+    Performs a batched complex 2D Fast Fourier Transform over the input. The
+    complex input values are constructed from the corresponding values in the
+    input_real and input_imag tensors. The resulting values in the output are
+    split into the output_real and output_imag tensors. No normalization is
+    applied on either the forward or inverse versions of the operation.
+  }];
+
+  let arguments = (ins
+    Tosa_Tensor3D:$input_real,
+    Tosa_Tensor3D:$input_imag,
+
+    BoolAttr:$inverse
+  );
+
+  let results = (outs
+    Tosa_Tensor3D:$output_real,
+    Tosa_Tensor3D:$output_imag
+  );
+}
+
+//===----------------------------------------------------------------------===//
 // Operator: fully_connected
 //===----------------------------------------------------------------------===//
 def Tosa_FullyConnectedOp : Tosa_Op<"fully_connected", [
@@ -268,6 +298,34 @@ def Tosa_MaxPool2dOp : Tosa_Op<"max_pool2d", [
   );
 
   let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Operator: rfft2d
+//===----------------------------------------------------------------------===//
+def Tosa_RFFT2dOp : Tosa_Op<"rfft2d", [
+    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
+                              ["inferReturnTypeComponents"]>,
+    Pure]> {
+  let summary = "Performs RFFT2D operation on the input.";
+
+  let description = [{
+    Performs a batched 2D real-valued Fast Fourier Transform over the input where
+    the input tensor consists of real values producing complex valued output. The
+    complex output values will be split into the output_real and output_imag
+    tensor arguments. RFFT2D takes advantage of Hermitian symmetry to only
+    calculate the first half of the final output axis. Imaginary values with
+    locations (0,0), (0,W/2), (H/2,0) and (H/2,W/2) are zero.
+  }];
+
+  let arguments = (ins
+    Tosa_Tensor3D:$input
+  );
+
+  let results = (outs
+    Tosa_Tensor3D:$output_real,
+    Tosa_Tensor3D:$output_imag
+  );
 }
 
 //===----------------------------------------------------------------------===//
@@ -1361,8 +1419,7 @@ def Tosa_ReduceSumOp : Tosa_Op<"reduce_sum", [
 // Operator: concat
 //===----------------------------------------------------------------------===//
 def Tosa_ConcatOp : Tosa_Op<"concat", [
-    DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-                              ["inferReturnTypeComponents"]>,
+                              InferTensorType,
     Pure]> {
   let summary = "Concatenates tensors along one dimension.";
 
@@ -1381,6 +1438,12 @@ def Tosa_ConcatOp : Tosa_Op<"concat", [
   );
 
   let hasCanonicalizer = 1;
+
+  let extraClassDeclaration = [{
+    /// Returns true when two result types are compatible for this op;
+    /// Method used by InferTypeOpInterface.
+    static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -1493,6 +1556,7 @@ def Tosa_SliceOp: Tosa_Op<"slice", [
     Tosa_Tensor1Dto6D:$output
   );
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 
@@ -1677,14 +1741,16 @@ def Tosa_CastOp: Tosa_Op<"cast", [Pure,
         float to signed 16      float   int16
         signed 8 to float       int8    float
         signed 16 to float      int16   float
+        float 32 to float 64    float32 float64
+        float 64 to float 32    float64 float32
   }];
 
   let arguments = (ins
-    Tosa_Tensor:$input
+    Tosa_Tensor_Cast:$input
   );
 
   let results = (outs
-    Tosa_Tensor:$output
+    Tosa_Tensor_Cast:$output
   );
 
   let hasFolder = 1;

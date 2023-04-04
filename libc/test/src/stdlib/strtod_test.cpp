@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/errno/libc_errno.h"
 #include "src/stdlib/strtod.h"
 
-#include "utils/UnitTest/Test.h"
+#include "test/UnitTest/Test.h"
 #include "utils/testutils/RoundingModeUtils.h"
 
-#include <errno.h>
 #include <limits.h>
 #include <stddef.h>
 
@@ -43,7 +43,7 @@ public:
     __llvm_libc::fputil::FPBits<double> expected_fp =
         __llvm_libc::fputil::FPBits<double>(expectedRawData);
 
-    errno = 0;
+    libc_errno = 0;
     double result = __llvm_libc::strtod(inputString, &str_end);
 
     __llvm_libc::fputil::FPBits<double> actual_fp =
@@ -55,7 +55,7 @@ public:
     EXPECT_EQ(actual_fp.get_sign(), expected_fp.get_sign());
     EXPECT_EQ(actual_fp.get_exponent(), expected_fp.get_exponent());
     EXPECT_EQ(actual_fp.get_mantissa(), expected_fp.get_mantissa());
-    EXPECT_EQ(errno, expectedErrno);
+    EXPECT_EQ(libc_errno, expectedErrno);
   }
 };
 
@@ -191,4 +191,9 @@ TEST_F(LlvmLibcStrToDTest, FuzzFailures) {
            "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN?",
            0, uint64_t(0));
   run_test("0x.666E40", 9, uint64_t(0x3fd99b9000000000));
+
+  // glibc version 2.36 and higher (not tested with lower versions) disagrees
+  // with this result, but ours is correct for the nearest rounding mode. See
+  // this bug: https://sourceware.org/bugzilla/show_bug.cgi?id=30220
+  run_test("0x30000002222225p-1077", 22, uint64_t(0x0006000000444445), ERANGE);
 }

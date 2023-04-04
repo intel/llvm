@@ -88,7 +88,11 @@ struct Config {
     bool StandardLibrary = true;
   } Index;
 
-  enum UnusedIncludesPolicy { Strict, None };
+  enum class IncludesPolicy {
+    /// Diagnose missing and unused includes.
+    Strict,
+    None,
+  };
   /// Controls warnings and errors when parsing code.
   struct {
     bool SuppressAll = false;
@@ -101,7 +105,11 @@ struct Config {
       llvm::StringMap<std::string> CheckOptions;
     } ClangTidy;
 
-    UnusedIncludesPolicy UnusedIncludes = None;
+    /// Enable emitting diagnostics using stale preambles.
+    bool AllowStalePreamble = false;
+
+    IncludesPolicy UnusedIncludes = IncludesPolicy::None;
+    IncludesPolicy MissingIncludes = IncludesPolicy::None;
 
     /// IncludeCleaner will not diagnose usages of these headers matched by
     /// these regexes.

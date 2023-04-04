@@ -1,7 +1,8 @@
 ## Arch string without version.
 
 # RUN: llvm-mc %s -triple=riscv32 -filetype=asm | FileCheck %s
-# RUN: llvm-mc %s -triple=riscv64 -filetype=asm | FileCheck %s
+# RUN: llvm-mc %s -triple=riscv64 -filetype=asm \
+# RUN:     | FileCheck --check-prefixes=CHECK,CHECK-RV64 %s
 
 .attribute arch, "rv32i"
 # CHECK: attribute      5, "rv32i2p0"
@@ -11,6 +12,12 @@
 
 .attribute arch, "rv32i2p0"
 # CHECK: attribute      5, "rv32i2p0"
+
+.attribute arch, "rv32e"
+# CHECK: attribute      5, "rv32e2p0"
+
+.attribute arch, "rv64e"
+# CHECK-RV64: attribute      5, "rv64e2p0"
 
 .attribute arch, "rv32i2_m2"
 # CHECK: attribute      5, "rv32i2p0_m2p0"
@@ -107,6 +114,33 @@
 .attribute arch, "rv32izbc1p0"
 # CHECK: attribute      5, "rv32i2p0_zbc1p0"
 
+.attribute arch, "rv32i_zve64x_zvkb0p3"
+# CHECK: attribute      5, "rv32i2p0_zve32x1p0_zve64x1p0_zvkb0p3_zvl32b1p0_zvl64b1p0"
+
+.attribute arch, "rv32i_zve32x_zvkg0p3"
+# CHECK: attribute      5, "rv32i2p0_zve32x1p0_zvkg0p3_zvl32b1p0"
+
+.attribute arch, "rv32i_zve64x_zvkn0p3"
+# CHECK: attribute      5, "rv32i2p0_zve32x1p0_zve64x1p0_zvkb0p3_zvkn0p3_zvkned0p3_zvknha0p3_zvknhb0p3_zvl32b1p0_zvl64b1p0"
+
+.attribute arch, "rv32i_zve32x_zvknha0p3"
+# CHECK: attribute      5, "rv32i2p0_zve32x1p0_zvknha0p3_zvl32b1p0"
+
+.attribute arch, "rv32i_zve64x_zvknhb0p3"
+# CHECK: attribute      5, "rv32i2p0_zve32x1p0_zve64x1p0_zvknha0p3_zvknhb0p3_zvl32b1p0_zvl64b1p0"
+
+.attribute arch, "rv32i_zve32x_zvkned0p3"
+# CHECK: attribute      5, "rv32i2p0_zve32x1p0_zvkned0p3_zvl32b1p0"
+
+.attribute arch, "rv32i_zve32x_zvks0p3"
+# CHECK: attribute      5, "rv32i2p0_zve32x1p0_zvkb0p3_zvks0p3_zvksed0p3_zvksh0p3_zvl32b1p0"
+
+.attribute arch, "rv32i_zve32x_zvksed0p3"
+# CHECK: attribute      5, "rv32i2p0_zve32x1p0_zvksed0p3_zvl32b1p0"
+
+.attribute arch, "rv32i_zve32x_zvksh0p3"
+# CHECK: attribute      5, "rv32i2p0_zve32x1p0_zvksh0p3_zvl32b1p0"
+
 .attribute arch, "rv32izbs1p0"
 # CHECK: attribute      5, "rv32i2p0_zbs1p0"
 
@@ -176,11 +210,29 @@
 .attribute arch, "rv32if_zkt1p0_zve32f1p0_zve32x1p0_zvl32b1p0"
 # CHECK: attribute      5, "rv32i2p0_f2p0_zkt1p0_zve32f1p0_zve32x1p0_zvl32b1p0"
 
-.attribute arch, "rv32izca0p70"
-# CHECK: attribute      5, "rv32i2p0_zca0p70"
+.attribute arch, "rv32izca1p0"
+# CHECK: attribute      5, "rv32i2p0_zca1p0"
+
+.attribute arch, "rv32izcd1p0"
+# CHECK: attribute      5, "rv32i2p0_zcd1p0"
+
+.attribute arch, "rv32izcf1p0"
+# CHECK: attribute      5, "rv32i2p0_zcf1p0"
+
+.attribute arch, "rv32izcb1p0"
+# CHECK: attribute      5, "rv32i2p0_zca1p0_zcb1p0"
 
 .attribute arch, "rv32izawrs1p0"
 # CHECK: attribute      5, "rv32i2p0_zawrs1p0"
 
 .attribute arch, "rv32iztso0p1"
 # CHECK: attribute      5, "rv32i2p0_ztso0p1"
+
+.attribute arch, "rv32izicsr2p0"
+# CHECK: attribute      5, "rv32i2p0_zicsr2p0"
+
+.attribute arch, "rv32izifencei2p0"
+# CHECK: attribute      5, "rv32i2p0_zifencei2p0"
+
+.attribute arch, "rv32izfa0p1"
+# CHECK: attribute      5, "rv32i2p0_f2p0_zfa0p1"

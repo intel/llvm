@@ -149,27 +149,9 @@
 // #   define _LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_latch
 // #   define _LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore
 
-    // This controls the availability of the C++20 format library.
-    // The library is in development and not ABI stable yet. P2216 is
-    // retroactively accepted in C++20. This paper contains ABI breaking
-    // changes.
-#   define _LIBCPP_AVAILABILITY_FORMAT
-// #   define _LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format
-
-    // This controls whether the default verbose termination function is
-    // provided by the library.
-    //
-    // Note that when users provide their own custom function, it doesn't
-    // matter whether the dylib provides a default function, and the
-    // availability markup can actually give a false positive diagnostic
-    // (it will think that no function is provided, when in reality the
-    // user has provided their own).
-    //
-    // Users can pass -D_LIBCPP_AVAILABILITY_CUSTOM_VERBOSE_ABORT_PROVIDED
-    // to the compiler to tell the library not to define its own verbose abort.
-    // Note that defining this macro but failing to define a custom function
-    // will lead to a load-time error on back-deployment targets, so it should
-    // be avoided.
+    // This controls whether the library claims to provide a default verbose
+    // termination function, and consequently whether the headers will try
+    // to use it when the mechanism isn't overriden at compile-time.
 // #   define _LIBCPP_HAS_NO_VERBOSE_ABORT_IN_LIBRARY
 
 #elif defined(__APPLE__)
@@ -250,7 +232,10 @@
 #   endif
 
 #   define _LIBCPP_AVAILABILITY_TO_CHARS_FLOATING_POINT                         \
-        __attribute__((unavailable))
+        __attribute__((availability(macos,strict,introduced=13.3)))             \
+        __attribute__((availability(ios,strict,introduced=16.3)))               \
+        __attribute__((availability(tvos,strict,introduced=16.3)))              \
+        __attribute__((availability(watchos,strict,introduced=9.3)))
 
 #   define _LIBCPP_AVAILABILITY_SYNC                                            \
         __attribute__((availability(macos,strict,introduced=11.0)))             \
@@ -267,10 +252,6 @@
 #       define _LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore
 #   endif
 
-#   define _LIBCPP_AVAILABILITY_FORMAT                                          \
-        __attribute__((unavailable))
-#   define _LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format
-
 #   define _LIBCPP_HAS_NO_VERBOSE_ABORT_IN_LIBRARY
 
 #else
@@ -281,10 +262,10 @@
 
 #endif
 
-// Define availability attributes that depend on _LIBCPP_NO_EXCEPTIONS.
+// Define availability attributes that depend on _LIBCPP_HAS_NO_EXCEPTIONS.
 // Those are defined in terms of the availability attributes above, and
 // should not be vendor-specific.
-#if defined(_LIBCPP_NO_EXCEPTIONS)
+#if defined(_LIBCPP_HAS_NO_EXCEPTIONS)
 #   define _LIBCPP_AVAILABILITY_FUTURE
 #   define _LIBCPP_AVAILABILITY_THROW_BAD_ANY_CAST
 #   define _LIBCPP_AVAILABILITY_THROW_BAD_OPTIONAL_ACCESS

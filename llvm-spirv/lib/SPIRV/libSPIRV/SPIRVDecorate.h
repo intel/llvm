@@ -94,6 +94,8 @@ public:
 
     case DecorationMaxByteOffset:
       return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+    case DecorationUserSemantic:
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4);
 
     default:
       return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
@@ -127,9 +129,6 @@ public:
 
   std::optional<ExtensionID> getRequiredExtension() const override {
     switch (static_cast<size_t>(Dec)) {
-    case DecorationNoSignedWrap:
-    case DecorationNoUnsignedWrap:
-      return ExtensionID::SPV_KHR_no_integer_wrap_decoration;
     case DecorationRegisterINTEL:
     case DecorationMemoryINTEL:
     case DecorationNumbanksINTEL:

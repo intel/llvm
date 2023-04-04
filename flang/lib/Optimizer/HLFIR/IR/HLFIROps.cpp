@@ -12,14 +12,40 @@
 
 #include "flang/Optimizer/HLFIR/HLFIROps.h"
 #include "flang/Optimizer/Dialect/FIROpsSupport.h"
+#include "flang/Optimizer/Dialect/FIRType.h"
+#include "flang/Optimizer/HLFIR/HLFIRDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include <iterator>
 #include <optional>
 #include <tuple>
+
+//===----------------------------------------------------------------------===//
+// DeclareOp
+//===----------------------------------------------------------------------===//
+
+/// Is this a fir.[ref/ptr/heap]<fir.[box/class]<fir.heap<T>>> type?
+static bool isAllocatableBoxRef(mlir::Type type) {
+  fir::BaseBoxType boxType =
+      fir::dyn_cast_ptrEleTy(type).dyn_cast_or_null<fir::BaseBoxType>();
+  return boxType && boxType.getEleTy().isa<fir::HeapType>();
+}
+
+mlir::LogicalResult hlfir::AssignOp::verify() {
+  mlir::Type lhsType = getLhs().getType();
+  if (isAllocatableAssignment() && !isAllocatableBoxRef(lhsType))
+    return emitOpError("lhs must be an allocatable when `realloc` is set");
+  if (mustKeepLhsLengthInAllocatableAssignment() &&
+      !(isAllocatableAssignment() &&
+        hlfir::getFortranElementType(lhsType).isa<fir::CharacterType>()))
+    return emitOpError("`realloc` must be set and lhs must be a character "
+                       "allocatable when `keep_lhs_length_if_realloc` is set");
+  return mlir::success();
+}
 
 //===----------------------------------------------------------------------===//
 // DeclareOp
@@ -311,7 +337,9 @@ mlir::LogicalResult hlfir::DesignateOp::verify() {
   // length may differ because of substrings.
   if (resultElementType != outputElementType &&
       !(resultElementType.isa<fir::CharacterType>() &&
-        outputElementType.isa<fir::CharacterType>()))
+        outputElementType.isa<fir::CharacterType>()) &&
+      !(resultElementType.isa<mlir::FloatType>() &&
+        outputElementType.isa<fir::RealType>()))
     return emitOpError(
                "result element type is not consistent with operands, expected ")
            << outputElementType;
@@ -352,6 +380,61 @@ mlir::LogicalResult hlfir::DesignateOp::verify() {
                          "type does not have length parameters");
     }
   }
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// ParentComponentOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::ParentComponentOp::verify() {
+  mlir::Type baseType =
+      hlfir::getFortranElementOrSequenceType(getMemref().getType());
+  auto maybeInputSeqType = baseType.dyn_cast<fir::SequenceType>();
+  unsigned inputTypeRank =
+      maybeInputSeqType ? maybeInputSeqType.getDimension() : 0;
+  unsigned shapeRank = 0;
+  if (mlir::Value shape = getShape())
+    if (auto shapeType = shape.getType().dyn_cast<fir::ShapeType>())
+      shapeRank = shapeType.getRank();
+  if (inputTypeRank != shapeRank)
+    return emitOpError(
+        "must be provided a shape if and only if the base is an array");
+  mlir::Type outputBaseType = hlfir::getFortranElementOrSequenceType(getType());
+  auto maybeOutputSeqType = outputBaseType.dyn_cast<fir::SequenceType>();
+  unsigned outputTypeRank =
+      maybeOutputSeqType ? maybeOutputSeqType.getDimension() : 0;
+  if (inputTypeRank != outputTypeRank)
+    return emitOpError("result type rank must match input type rank");
+  if (maybeOutputSeqType && maybeInputSeqType)
+    for (auto [inputDim, outputDim] :
+         llvm::zip(maybeInputSeqType.getShape(), maybeOutputSeqType.getShape()))
+      if (inputDim != fir::SequenceType::getUnknownExtent() &&
+          outputDim != fir::SequenceType::getUnknownExtent())
+        if (inputDim != outputDim)
+          return emitOpError(
+              "result type extents are inconsistent with memref type");
+  fir::RecordType baseRecType =
+      hlfir::getFortranElementType(baseType).dyn_cast<fir::RecordType>();
+  fir::RecordType outRecType =
+      hlfir::getFortranElementType(outputBaseType).dyn_cast<fir::RecordType>();
+  if (!baseRecType || !outRecType)
+    return emitOpError("result type and input type must be derived types");
+
+  // Note: result should not be a fir.class: its dynamic type is being set to
+  // the parent type and allowing fir.class would break the operation codegen:
+  // it would keep the input dynamic type.
+  if (getType().isa<fir::ClassType>())
+    return emitOpError("result type must not be polymorphic");
+
+  // The array results are known to not be dis-contiguous in most cases (the
+  // exception being if the parent type was extended by a type without any
+  // components): require a fir.box to be used for the result to carry the
+  // strides.
+  if (!getType().isa<fir::BoxType>() &&
+      (outputTypeRank != 0 || fir::isRecordWithTypeParameters(outRecType)))
+    return emitOpError("result type must be a fir.box if the result is an "
+                       "array or has length parameters");
   return mlir::success();
 }
 
@@ -418,6 +501,283 @@ void hlfir::SetLengthOp::build(mlir::OpBuilder &builder,
       fir::CharacterType::get(builder.getContext(), kind, resultTypeLen),
       false);
   build(builder, result, resultType, string, len);
+}
+
+//===----------------------------------------------------------------------===//
+// SumOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::SumOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  auto results = op->getResultTypes();
+  assert(results.size() == 1);
+
+  mlir::Value array = getArray();
+  mlir::Value mask = getMask();
+
+  fir::SequenceType arrayTy =
+      hlfir::getFortranElementOrSequenceType(array.getType())
+          .cast<fir::SequenceType>();
+  mlir::Type numTy = arrayTy.getEleTy();
+  llvm::ArrayRef<int64_t> arrayShape = arrayTy.getShape();
+  hlfir::ExprType resultTy = results[0].cast<hlfir::ExprType>();
+
+  if (mask) {
+    fir::SequenceType maskSeq =
+        hlfir::getFortranElementOrSequenceType(mask.getType())
+            .dyn_cast<fir::SequenceType>();
+    llvm::ArrayRef<int64_t> maskShape;
+
+    if (maskSeq)
+      maskShape = maskSeq.getShape();
+
+    if (!maskShape.empty()) {
+      if (maskShape.size() != arrayShape.size())
+        return emitWarning("MASK must be conformable to ARRAY");
+      static_assert(fir::SequenceType::getUnknownExtent() ==
+                    hlfir::ExprType::getUnknownExtent());
+      constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
+      for (std::size_t i = 0; i < arrayShape.size(); ++i) {
+        int64_t arrayExtent = arrayShape[i];
+        int64_t maskExtent = maskShape[i];
+        if ((arrayExtent != maskExtent) && (arrayExtent != unknownExtent) &&
+            (maskExtent != unknownExtent))
+          return emitWarning("MASK must be conformable to ARRAY");
+      }
+    }
+  }
+
+  if (resultTy.isArray()) {
+    // Result is of the same type as ARRAY
+    if (resultTy.getEleTy() != numTy)
+      return emitOpError(
+          "result must have the same element type as ARRAY argument");
+
+    llvm::ArrayRef<int64_t> resultShape = resultTy.getShape();
+
+    // Result has rank n-1
+    if (resultShape.size() != (arrayShape.size() - 1))
+      return emitOpError("result rank must be one less than ARRAY");
+  } else {
+    // Result is of the same type as ARRAY
+    if (resultTy.getElementType() != numTy)
+      return emitOpError(
+          "result must have the same element type as ARRAY argument");
+  }
+
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// MatmulOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::MatmulOp::verify() {
+  mlir::Value lhs = getLhs();
+  mlir::Value rhs = getRhs();
+  fir::SequenceType lhsTy =
+      hlfir::getFortranElementOrSequenceType(lhs.getType())
+          .cast<fir::SequenceType>();
+  fir::SequenceType rhsTy =
+      hlfir::getFortranElementOrSequenceType(rhs.getType())
+          .cast<fir::SequenceType>();
+  llvm::ArrayRef<int64_t> lhsShape = lhsTy.getShape();
+  llvm::ArrayRef<int64_t> rhsShape = rhsTy.getShape();
+  std::size_t lhsRank = lhsShape.size();
+  std::size_t rhsRank = rhsShape.size();
+  mlir::Type lhsEleTy = lhsTy.getEleTy();
+  mlir::Type rhsEleTy = rhsTy.getEleTy();
+  hlfir::ExprType resultTy = getResult().getType().cast<hlfir::ExprType>();
+  llvm::ArrayRef<int64_t> resultShape = resultTy.getShape();
+  mlir::Type resultEleTy = resultTy.getEleTy();
+
+  if (((lhsRank != 1) && (lhsRank != 2)) || ((rhsRank != 1) && (rhsRank != 2)))
+    return emitOpError("array must have either rank 1 or rank 2");
+
+  if ((lhsRank == 1) && (rhsRank == 1))
+    return emitOpError("at least one array must have rank 2");
+
+  if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
+      mlir::isa<fir::LogicalType>(rhsEleTy))
+    return emitOpError("if one array is logical, so should the other be");
+
+  int64_t lastLhsDim = lhsShape[lhsRank - 1];
+  int64_t firstRhsDim = rhsShape[0];
+  constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
+  if (lastLhsDim != firstRhsDim)
+    if ((lastLhsDim != unknownExtent) && (firstRhsDim != unknownExtent))
+      return emitOpError(
+          "the last dimension of LHS should match the first dimension of RHS");
+
+  if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
+      mlir::isa<fir::LogicalType>(resultEleTy))
+    return emitOpError("the result type should be a logical only if the "
+                       "argument types are logical");
+
+  llvm::SmallVector<int64_t, 2> expectedResultShape;
+  if (lhsRank == 2) {
+    if (rhsRank == 2) {
+      expectedResultShape.push_back(lhsShape[0]);
+      expectedResultShape.push_back(rhsShape[1]);
+    } else {
+      // rhsRank == 1
+      expectedResultShape.push_back(lhsShape[0]);
+    }
+  } else {
+    // lhsRank == 1
+    // rhsRank == 2
+    expectedResultShape.push_back(rhsShape[1]);
+  }
+  if (resultShape.size() != expectedResultShape.size())
+    return emitOpError("incorrect result shape");
+  if (resultShape[0] != expectedResultShape[0])
+    return emitOpError("incorrect result shape");
+  if (resultShape.size() == 2 && resultShape[1] != expectedResultShape[1])
+    return emitOpError("incorrect result shape");
+
+  return mlir::success();
+}
+
+mlir::LogicalResult
+hlfir::MatmulOp::canonicalize(MatmulOp matmulOp,
+                              mlir::PatternRewriter &rewriter) {
+  // the only two uses of the transposed matrix should be for the hlfir.matmul
+  // and hlfir.destory
+  auto isOtherwiseUnused = [&](hlfir::TransposeOp transposeOp) -> bool {
+    std::size_t numUses = 0;
+    for (mlir::Operation *user : transposeOp.getResult().getUsers()) {
+      ++numUses;
+      if (user == matmulOp)
+        continue;
+      if (mlir::dyn_cast_or_null<hlfir::DestroyOp>(user))
+        continue;
+      // some other use!
+      return false;
+    }
+    return numUses <= 2;
+  };
+
+  mlir::Value lhs = matmulOp.getLhs();
+  // Rewrite MATMUL(TRANSPOSE(lhs), rhs) => hlfir.matmul_transpose lhs, rhs
+  if (auto transposeOp = lhs.getDefiningOp<hlfir::TransposeOp>()) {
+    if (isOtherwiseUnused(transposeOp)) {
+      mlir::Location loc = matmulOp.getLoc();
+      mlir::Type resultTy = matmulOp.getResult().getType();
+      auto matmulTransposeOp = rewriter.create<hlfir::MatmulTransposeOp>(
+          loc, resultTy, transposeOp.getArray(), matmulOp.getRhs());
+
+      // we don't need to remove any hlfir.destroy because it will be needed for
+      // the new intrinsic result anyway
+      rewriter.replaceOp(matmulOp, matmulTransposeOp.getResult());
+
+      // but we do need to get rid of the hlfir.destroy for the hlfir.transpose
+      // result (which is entirely removed)
+      for (mlir::Operation *user : transposeOp->getResult(0).getUsers())
+        if (auto destroyOp = mlir::dyn_cast_or_null<hlfir::DestroyOp>(user))
+          rewriter.eraseOp(destroyOp);
+      rewriter.eraseOp(transposeOp);
+
+      return mlir::success();
+    }
+  }
+
+  return mlir::failure();
+}
+
+//===----------------------------------------------------------------------===//
+// TransposeOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::TransposeOp::verify() {
+  mlir::Value array = getArray();
+  fir::SequenceType arrayTy =
+      hlfir::getFortranElementOrSequenceType(array.getType())
+          .cast<fir::SequenceType>();
+  llvm::ArrayRef<int64_t> inShape = arrayTy.getShape();
+  std::size_t rank = inShape.size();
+  mlir::Type eleTy = arrayTy.getEleTy();
+  hlfir::ExprType resultTy = getResult().getType().cast<hlfir::ExprType>();
+  llvm::ArrayRef<int64_t> resultShape = resultTy.getShape();
+  std::size_t resultRank = resultShape.size();
+  mlir::Type resultEleTy = resultTy.getEleTy();
+
+  if (rank != 2 || resultRank != 2)
+    return emitOpError("input and output arrays should have rank 2");
+
+  if (inShape[0] != resultShape[1] || inShape[1] != resultShape[0])
+    return emitOpError("output shape does not match input array");
+
+  if (eleTy != resultEleTy)
+    return emitOpError(
+        "input and output arrays should have the same element type");
+
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// MatmulTransposeOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::MatmulTransposeOp::verify() {
+  mlir::Value lhs = getLhs();
+  mlir::Value rhs = getRhs();
+  fir::SequenceType lhsTy =
+      hlfir::getFortranElementOrSequenceType(lhs.getType())
+          .cast<fir::SequenceType>();
+  fir::SequenceType rhsTy =
+      hlfir::getFortranElementOrSequenceType(rhs.getType())
+          .cast<fir::SequenceType>();
+  llvm::ArrayRef<int64_t> lhsShape = lhsTy.getShape();
+  llvm::ArrayRef<int64_t> rhsShape = rhsTy.getShape();
+  std::size_t lhsRank = lhsShape.size();
+  std::size_t rhsRank = rhsShape.size();
+  mlir::Type lhsEleTy = lhsTy.getEleTy();
+  mlir::Type rhsEleTy = rhsTy.getEleTy();
+  hlfir::ExprType resultTy = getResult().getType().cast<hlfir::ExprType>();
+  llvm::ArrayRef<int64_t> resultShape = resultTy.getShape();
+  mlir::Type resultEleTy = resultTy.getEleTy();
+
+  // lhs must have rank 2 for the transpose to be valid
+  if ((lhsRank != 2) || ((rhsRank != 1) && (rhsRank != 2)))
+    return emitOpError("array must have either rank 1 or rank 2");
+
+  if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
+      mlir::isa<fir::LogicalType>(rhsEleTy))
+    return emitOpError("if one array is logical, so should the other be");
+
+  // for matmul we compare the last dimension of lhs with the first dimension of
+  // rhs, but for MatmulTranspose, dimensions of lhs are inverted by the
+  // transpose
+  int64_t firstLhsDim = lhsShape[0];
+  int64_t firstRhsDim = rhsShape[0];
+  constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
+  if (firstLhsDim != firstRhsDim)
+    if ((firstLhsDim != unknownExtent) && (firstRhsDim != unknownExtent))
+      return emitOpError(
+          "the first dimension of LHS should match the first dimension of RHS");
+
+  if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
+      mlir::isa<fir::LogicalType>(resultEleTy))
+    return emitOpError("the result type should be a logical only if the "
+                       "argument types are logical");
+
+  llvm::SmallVector<int64_t, 2> expectedResultShape;
+  if (rhsRank == 2) {
+    expectedResultShape.push_back(lhsShape[1]);
+    expectedResultShape.push_back(rhsShape[1]);
+  } else {
+    // rhsRank == 1
+    expectedResultShape.push_back(lhsShape[1]);
+  }
+  if (resultShape.size() != expectedResultShape.size())
+    return emitOpError("incorrect result shape");
+  if (resultShape[0] != expectedResultShape[0])
+    return emitOpError("incorrect result shape");
+  if (resultShape.size() == 2 && resultShape[1] != expectedResultShape[1])
+    return emitOpError("incorrect result shape");
+
+  return mlir::success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -513,6 +873,17 @@ void hlfir::NullOp::build(mlir::OpBuilder &builder,
                           mlir::OperationState &odsState) {
   return build(builder, odsState,
                fir::ReferenceType::get(builder.getNoneType()));
+}
+
+//===----------------------------------------------------------------------===//
+// CopyInOp
+//===----------------------------------------------------------------------===//
+
+void hlfir::CopyInOp::build(mlir::OpBuilder &builder,
+                            mlir::OperationState &odsState, mlir::Value var,
+                            mlir::Value var_is_present) {
+  return build(builder, odsState, {var.getType(), builder.getI1Type()}, var,
+               var_is_present);
 }
 
 #define GET_OP_CLASSES

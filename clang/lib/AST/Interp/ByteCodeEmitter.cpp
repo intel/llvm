@@ -8,6 +8,7 @@
 
 #include "ByteCodeEmitter.h"
 #include "Context.h"
+#include "Floating.h"
 #include "Opcode.h"
 #include "Program.h"
 #include "clang/AST/DeclCXX.h"
@@ -21,11 +22,6 @@ using Error = llvm::Error;
 
 Expected<Function *>
 ByteCodeEmitter::compileFunc(const FunctionDecl *FuncDecl) {
-  // Function is not defined at all or not yet. We will
-  // create a Function instance but not compile the body. That
-  // will (maybe) happen later.
-  bool HasBody = FuncDecl->hasBody(FuncDecl);
-
   // Create a handle over the emitted code.
   Function *Func = P.getFunction(FuncDecl);
   if (!Func) {
@@ -73,7 +69,9 @@ ByteCodeEmitter::compileFunc(const FunctionDecl *FuncDecl) {
   }
 
   assert(Func);
-  if (!HasBody)
+  // For not-yet-defined functions, we only create a Function instance and
+  // compile their body later.
+  if (!FuncDecl->isDefined())
     return Func;
 
   // Compile the function body.
@@ -116,7 +114,8 @@ void ByteCodeEmitter::emitLabel(LabelTy Label) {
       using namespace llvm::support;
 
       /// Rewrite the operand of all jumps to this label.
-      void *Location = Code.data() + Reloc - sizeof(int32_t);
+      void *Location = Code.data() + Reloc - align(sizeof(int32_t));
+      assert(aligned(Location));
       const int32_t Offset = Target - static_cast<int64_t>(Reloc);
       endian::write<int32_t, endianness::native, 1>(Location, Offset);
     }
@@ -126,7 +125,9 @@ void ByteCodeEmitter::emitLabel(LabelTy Label) {
 
 int32_t ByteCodeEmitter::getOffset(LabelTy Label) {
   // Compute the PC offset which the jump is relative to.
-  const int64_t Position = Code.size() + sizeof(Opcode) + sizeof(int32_t);
+  const int64_t Position =
+      Code.size() + align(sizeof(Opcode)) + align(sizeof(int32_t));
+  assert(aligned(Position));
 
   // If target is known, compute jump offset.
   auto It = LabelOffsets.find(Label);
@@ -162,13 +163,17 @@ static void emit(Program &P, std::vector<char> &Code, const T &Val,
     return;
   }
 
+  // Access must be aligned!
+  size_t ValPos = align(Code.size());
+  Size = align(Size);
+  assert(aligned(ValPos + Size));
+  Code.resize(ValPos + Size);
+
   if constexpr (!std::is_pointer_v<T>) {
-    const char *Data = reinterpret_cast<const char *>(&Val);
-    Code.insert(Code.end(), Data, Data + Size);
+    new (Code.data() + ValPos) T(Val);
   } else {
     uint32_t ID = P.getOrCreateNativePointer(Val);
-    const char *Data = reinterpret_cast<const char *>(&ID);
-    Code.insert(Code.end(), Data, Data + Size);
+    new (Code.data() + ValPos) uint32_t(ID);
   }
 }
 

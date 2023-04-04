@@ -553,6 +553,8 @@ public:
   /// parent.
   Module *createGlobalModuleFragmentForModuleUnit(SourceLocation Loc,
                                                   Module *Parent = nullptr);
+  Module *createImplicitGlobalModuleFragmentForModuleUnit(
+      SourceLocation Loc, bool IsExported, Module *Parent = nullptr);
 
   /// Create a global module fragment for a C++ module interface unit.
   Module *createPrivateModuleFragmentForInterfaceUnit(Module *Parent,
@@ -676,7 +678,7 @@ public:
 
   /// Sets the umbrella header of the given module to the given
   /// header.
-  void setUmbrellaHeader(Module *Mod, const FileEntry *UmbrellaHeader,
+  void setUmbrellaHeader(Module *Mod, FileEntryRef UmbrellaHeader,
                          const Twine &NameAsWritten,
                          const Twine &PathRelativeToRootModuleDirectory);
 

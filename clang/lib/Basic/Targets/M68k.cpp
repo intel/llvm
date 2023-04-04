@@ -17,7 +17,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/TargetParser/TargetParser.h"
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -192,6 +192,12 @@ bool M68kTargetInfo::validateAsmConstraint(
       break;
     }
     break;
+  case 'Q': // address register indirect addressing
+  case 'U': // address register indirect w/ constant offset addressing
+    // TODO: Handle 'S' (basically 'm' when pc-rel is enforced) when
+    // '-mpcrel' flag is properly handled by the driver.
+    info.setAllowsMemory();
+    return true;
   default:
     break;
   }

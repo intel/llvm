@@ -29,6 +29,10 @@ WARNING_GADGET(Increment)
 WARNING_GADGET(Decrement)
 WARNING_GADGET(ArraySubscript)
 WARNING_GADGET(PointerArithmetic)
+WARNING_GADGET(UnsafeBufferUsageAttr)
+FIXABLE_GADGET(ULCArraySubscript)
+FIXABLE_GADGET(DerefSimplePtrArithFixable)
+FIXABLE_GADGET(PointerDereference)
 
 #undef FIXABLE_GADGET
 #undef WARNING_GADGET

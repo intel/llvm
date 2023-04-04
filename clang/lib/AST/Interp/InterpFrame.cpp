@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "InterpFrame.h"
+#include "Boolean.h"
+#include "Floating.h"
 #include "Function.h"
 #include "InterpStack.h"
 #include "InterpState.h"
@@ -40,6 +42,10 @@ InterpFrame::InterpFrame(InterpState &S, const Function *Func,
       ID->Desc = Local.Desc;
       ID->IsActive = true;
       ID->Offset = sizeof(InlineDescriptor);
+      ID->IsBase = false;
+      ID->IsFieldMutable = false;
+      ID->IsConst = false;
+      ID->IsInitialized = false;
     }
   }
 }
@@ -64,15 +70,13 @@ InterpFrame::InterpFrame(InterpState &S, const Function *Func, CodePtr RetPC)
 }
 
 InterpFrame::~InterpFrame() {
-  if (Func && Func->isConstructor() && This.isBaseClass())
-    This.initialize();
   for (auto &Param : Params)
     S.deallocate(reinterpret_cast<Block *>(Param.second.get()));
 }
 
 void InterpFrame::destroy(unsigned Idx) {
   for (auto &Local : Func->getScope(Idx).locals()) {
-    S.deallocate(reinterpret_cast<Block *>(localBlock(Local.Offset)));
+    S.deallocate(localBlock(Local.Offset));
   }
 }
 
@@ -181,8 +185,7 @@ const FunctionDecl *InterpFrame::getCallee() const {
 
 Pointer InterpFrame::getLocalPointer(unsigned Offset) const {
   assert(Offset < Func->getFrameSize() && "Invalid local offset.");
-  return Pointer(reinterpret_cast<Block *>(localBlock(Offset)),
-                 sizeof(InlineDescriptor));
+  return Pointer(localBlock(Offset), sizeof(InlineDescriptor));
 }
 
 Pointer InterpFrame::getParamPointer(unsigned Off) {

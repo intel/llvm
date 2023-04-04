@@ -9,7 +9,10 @@
 #include "CodeGenDAGPatterns.h"
 #include "CodeGenInstruction.h"
 #include "CodeGenRegisters.h"
+#include "CodeGenTarget.h"
 #include "DAGISelMatcher.h"
+#include "InfoByHwMode.h"
+#include "SDNodeProperties.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/TableGen/Error.h"
@@ -347,7 +350,8 @@ void MatcherGen::EmitOperatorMatchCode(const TreePatternNode *N,
       N->getChild(1)->isLeaf() && N->getChild(1)->getPredicateCalls().empty() &&
       N->getPredicateCalls().empty()) {
     if (IntInit *II = dyn_cast<IntInit>(N->getChild(1)->getLeafValue())) {
-      if (!isPowerOf2_32(II->getValue())) {  // Don't bother with single bits.
+      if (!llvm::has_single_bit<uint32_t>(
+              II->getValue())) { // Don't bother with single bits.
         // If this is at the root of the pattern, we emit a redundant
         // CheckOpcode so that the following checks get factored properly under
         // a single opcode check.
@@ -581,8 +585,9 @@ bool MatcherGen::EmitMatcherCode(unsigned Variant) {
 
   // If the pattern has a predicate on it (e.g. only enabled when a subtarget
   // feature is around, do the check).
-  if (!Pattern.getPredicateCheck().empty())
-    AddMatcher(new CheckPatternPredicateMatcher(Pattern.getPredicateCheck()));
+  std::string PredicateCheck = Pattern.getPredicateCheck();
+  if (!PredicateCheck.empty())
+    AddMatcher(new CheckPatternPredicateMatcher(PredicateCheck));
 
   // Now that we've completed the structural type match, emit any ComplexPattern
   // checks (e.g. addrmode matches).  We emit this after the structural match

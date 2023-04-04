@@ -60,13 +60,13 @@ private:
   bool visitWhileStmt(const WhileStmt *S);
   bool visitDoStmt(const DoStmt *S);
   bool visitForStmt(const ForStmt *S);
+  bool visitCXXForRangeStmt(const CXXForRangeStmt *S);
   bool visitBreakStmt(const BreakStmt *S);
   bool visitContinueStmt(const ContinueStmt *S);
+  bool visitSwitchStmt(const SwitchStmt *S);
+  bool visitCaseStmt(const CaseStmt *S);
+  bool visitDefaultStmt(const DefaultStmt *S);
 
-  /// Compiles a variable declaration.
-  bool visitVarDecl(const VarDecl *VD);
-
-private:
   /// Type of the expression returned by the function.
   std::optional<PrimType> ReturnType;
 

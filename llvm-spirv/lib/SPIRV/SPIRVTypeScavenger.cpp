@@ -182,6 +182,16 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
     }
   } else if (TargetFn->getName().startswith("_Z18__spirv_ocl_printf")) {
     ArgTys.emplace_back(0, Type::getInt8Ty(Ctx));
+  } else if (TargetFn->getName() == "__spirv_GetKernelWorkGroupSize__") {
+    ArgTys.emplace_back(1, Type::getInt8Ty(Ctx));
+  } else if (TargetFn->getName() ==
+             "__spirv_GetKernelPreferredWorkGroupSizeMultiple__") {
+    ArgTys.emplace_back(1, Type::getInt8Ty(Ctx));
+  } else if (TargetFn->getName() ==
+             "__spirv_GetKernelNDrangeMaxSubGroupSize__") {
+    ArgTys.emplace_back(2, Type::getInt8Ty(Ctx));
+  } else if (TargetFn->getName() == "__spirv_GetKernelNDrangeSubGroupCount__") {
+    ArgTys.emplace_back(2, Type::getInt8Ty(Ctx));
   } else
     return false;
 
@@ -283,7 +293,7 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
   }
 
   // Check if we've already deduced a type for the value.
-  DeducedType &Ty = DeducedTypes[V];
+  DeducedType Ty = DeducedTypes[V];
   if (Ty) {
     return Ty;
   }
@@ -392,6 +402,7 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
     Ty = Deferred;
   }
 
+  DeducedTypes[V] = Ty;
   VisitStack.pop_back();
   return Ty;
 }

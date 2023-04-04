@@ -37,11 +37,18 @@ func.func @integer16(%arg0: i16, %arg1: si16, %arg2: ui16) { return }
 // CHECK-SAME: i64
 // CHECK-SAME: si64
 // CHECK-SAME: ui64
-// NOEMU-LABEL: func @integer64
+// NOEMU-LABEL: func.func @integer64
 // NOEMU-SAME: i64
 // NOEMU-SAME: si64
 // NOEMU-SAME: ui64
 func.func @integer64(%arg0: i64, %arg1: si64, %arg2: ui64) { return }
+
+// i128 is not supported by SPIR-V.
+// CHECK-LABEL: func.func @integer128
+// CHECK-SAME: i128
+// NOEMU-LABEL: func.func @integer128
+// NOEMU-SAME: i128
+func.func @integer128(%arg0: i128) { return }
 
 } // end module
 
@@ -108,7 +115,8 @@ func.func @integer42(%arg0: i42) { return }
 // Index type
 //===----------------------------------------------------------------------===//
 
-// The index type is always converted into i32.
+// The index type is always converted into i32 or i64, with i32 being the
+// default.
 module attributes {
   spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [], []>, #spirv.resource_limits<>>
 } {
@@ -142,6 +150,13 @@ func.func @float16(%arg0: f16) { return }
 // NOEMU-LABEL: func.func @float64
 // NOEMU-SAME: f64
 func.func @float64(%arg0: f64) { return }
+
+// f80 is not supported by SPIR-V.
+// CHECK-LABEL: func.func @float80
+// CHECK-SAME: f80
+// NOEMU-LABEL: func.func @float80
+// NOEMU-SAME: f80
+func.func @float80(%arg0: f80) { return }
 
 } // end module
 
@@ -208,6 +223,10 @@ func.func @float_vector(
 // CHECK-LABEL: spirv.func @one_element_vector
 // CHECK-SAME: %{{.+}}: i32
 func.func @one_element_vector(%arg0: vector<1xi8>) { return }
+
+// CHECK-LABEL: spirv.func @index_vector
+// CHECK-SAME: %{{.*}}: vector<4xi32>
+func.func @index_vector(%arg0: vector<4xindex>) { return }
 
 } // end module
 
@@ -297,6 +316,14 @@ func.func @memref_mem_space(
 func.func @memref_1bit_type(
     %arg0: memref<4x8xi1, #spirv.storage_class<StorageBuffer>>,
     %arg1: memref<4x8xi1, #spirv.storage_class<Function>>
+) { return }
+
+// CHECK-LABEL: func @memref_index_type
+// CHECK-SAME: !spirv.ptr<!spirv.struct<(!spirv.array<4 x i32, stride=4> [0])>, StorageBuffer>
+// CHECK-SAME: !spirv.ptr<!spirv.struct<(!spirv.array<4 x i32>)>, Function>
+func.func @memref_index_type(
+    %arg0: memref<4xindex, #spirv.storage_class<StorageBuffer>>,
+    %arg1: memref<4xindex, #spirv.storage_class<Function>>
 ) { return }
 
 } // end module
@@ -804,6 +831,11 @@ func.func @float_tensor_types(
   %arg1: tensor<8x4xf32>,
   %arg2: tensor<8x4xf16>
 ) { return }
+
+
+// CHECK-LABEL: spirv.func @index_tensor_type
+// CHECK-SAME: %{{.*}}: !spirv.array<20 x i32>
+func.func @index_tensor_type(%arg0: tensor<4x5xindex>) { return }
 
 } // end module
 

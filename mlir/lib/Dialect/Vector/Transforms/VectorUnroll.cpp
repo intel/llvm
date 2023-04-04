@@ -31,7 +31,7 @@ using namespace mlir::vector;
 static SmallVector<int64_t> getVectorOffset(ArrayRef<int64_t> ratioStrides,
                                             int64_t index,
                                             ArrayRef<int64_t> targetShape) {
-  return computeElementwiseMul(delinearize(ratioStrides, index), targetShape);
+  return computeElementwiseMul(delinearize(index, ratioStrides), targetShape);
 }
 
 /// A functor that accomplishes the same thing as `getVectorOffset` but
@@ -602,12 +602,12 @@ struct UnrollTransposePattern : public OpRewritePattern<vector::TransposeOp> {
 
   LogicalResult matchAndRewrite(vector::TransposeOp transposeOp,
                                 PatternRewriter &rewriter) const override {
-    if (transposeOp.getResultType().getRank() == 0)
+    if (transposeOp.getResultVectorType().getRank() == 0)
       return failure();
     auto targetShape = getTargetShape(options, transposeOp);
     if (!targetShape)
       return failure();
-    auto originalVectorType = transposeOp.getResultType();
+    auto originalVectorType = transposeOp.getResultVectorType();
     SmallVector<int64_t> strides(targetShape->size(), 1);
     Location loc = transposeOp.getLoc();
     ArrayRef<int64_t> originalSize = originalVectorType.getShape();
@@ -628,7 +628,7 @@ struct UnrollTransposePattern : public OpRewritePattern<vector::TransposeOp> {
       SmallVector<int64_t> permutedOffsets(elementOffsets.size());
       SmallVector<int64_t> permutedShape(elementOffsets.size());
       // Compute the source offsets and shape.
-      for (auto &indices : llvm::enumerate(permutation)) {
+      for (auto indices : llvm::enumerate(permutation)) {
         permutedOffsets[indices.value()] = elementOffsets[indices.index()];
         permutedShape[indices.value()] = (*targetShape)[indices.index()];
       }

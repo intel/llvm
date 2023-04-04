@@ -41,7 +41,9 @@ private:
 } // End anonymous namespace
 
 void CallingConvEmitter::run(raw_ostream &O) {
-  std::vector<Record*> CCs = Records.getAllDerivedDefinitions("CallingConv");
+  emitSourceFileHeader("Calling Convention Implementation Fragment", O);
+
+  std::vector<Record *> CCs = Records.getAllDerivedDefinitions("CallingConv");
 
   // Emit prototypes for all of the non-custom CC's so that they can forward ref
   // each other.
@@ -426,11 +428,5 @@ void CallingConvEmitter::EmitArgRegisterLists(raw_ostream &O) {
   }
 }
 
-namespace llvm {
-
-void EmitCallingConv(RecordKeeper &RK, raw_ostream &OS) {
-  emitSourceFileHeader("Calling Convention Implementation Fragment", OS);
-  CallingConvEmitter(RK).run(OS);
-}
-
-} // End llvm namespace
+static TableGen::Emitter::OptClass<CallingConvEmitter>
+    X("gen-callingconv", "Generate calling convention descriptions");

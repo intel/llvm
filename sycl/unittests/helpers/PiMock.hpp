@@ -220,10 +220,15 @@ public:
     OrigFuncTable = std::move(Other.OrigFuncTable);
     Other.OrigFuncTable = {}; // Move above doesn't reset the optional.
     MPiPluginMockPtr = std::move(Other.MPiPluginMockPtr);
+    Other.MIsMoved = true;
   }
   PiMock(const PiMock &) = delete;
   PiMock &operator=(const PiMock &) = delete;
   ~PiMock() {
+    // Do nothing if mock was moved.
+    if (MIsMoved)
+      return;
+
     // Since the plugin relies on the global vars to store function pointers we
     // need to reset them for the new PiMock plugin instance
     // TODO: Make function pointers array for each PiMock instance?
@@ -381,6 +386,9 @@ private:
   // Extracted at initialization for convenience purposes. The resource
   // itself is owned by the platform instance.
   RT::PiPlugin *MPiPluginMockPtr;
+
+  // Marker to indicate if the mock was moved.
+  bool MIsMoved = false;
 
   // Pointer to the mock plugin pointer. This is static to avoid
   // reinitialization and re-registration of the same plugin.

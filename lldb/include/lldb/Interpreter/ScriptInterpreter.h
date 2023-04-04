@@ -9,8 +9,10 @@
 #ifndef LLDB_INTERPRETER_SCRIPTINTERPRETER_H
 #define LLDB_INTERPRETER_SCRIPTINTERPRETER_H
 
+#include "lldb/API/SBAttachInfo.h"
 #include "lldb/API/SBData.h"
 #include "lldb/API/SBError.h"
+#include "lldb/API/SBLaunchInfo.h"
 #include "lldb/API/SBMemoryRegionInfo.h"
 #include "lldb/Breakpoint/BreakpointOptions.h"
 #include "lldb/Core/PluginInterface.h"
@@ -147,8 +149,6 @@ public:
 
   ScriptInterpreter(
       Debugger &debugger, lldb::ScriptLanguage script_lang,
-      lldb::ScriptedProcessInterfaceUP scripted_process_interface_up =
-          std::make_unique<ScriptedProcessInterface>(),
       lldb::ScriptedPlatformInterfaceUP scripted_platform_interface_up =
           std::make_unique<ScriptedPlatformInterface>());
 
@@ -185,17 +185,18 @@ public:
     return error;
   }
 
-  virtual Status GenerateBreakpointCommandCallbackData(
-      StringList &input,
-      std::string &output,
-      bool has_extra_args) {
+  virtual Status GenerateBreakpointCommandCallbackData(StringList &input,
+                                                       std::string &output,
+                                                       bool has_extra_args,
+                                                       bool is_callback) {
     Status error;
     error.SetErrorString("not implemented");
     return error;
   }
 
   virtual bool GenerateWatchpointCommandCallbackData(StringList &input,
-                                                     std::string &output) {
+                                                     std::string &output,
+                                                     bool is_callback) {
     return false;
   }
 
@@ -361,7 +362,8 @@ public:
   }
 
   virtual Status GenerateFunction(const char *signature,
-                                  const StringList &input) {
+                                  const StringList &input,
+                                  bool is_callback) {
     Status error;
     error.SetErrorString("unimplemented");
     return error;
@@ -381,7 +383,8 @@ public:
       const char *callback_text);
 
   virtual Status SetBreakpointCommandCallback(BreakpointOptions &bp_options,
-                                              const char *callback_text) {
+                                              const char *callback_text,
+                                              bool is_callback) {
     Status error;
     error.SetErrorString("unimplemented");
     return error;
@@ -412,7 +415,8 @@ public:
 
   /// Set a one-liner as the callback for the watchpoint.
   virtual void SetWatchpointCommandCallback(WatchpointOptions *wp_options,
-                                            const char *oneliner) {}
+                                            const char *user_input,
+                                            bool is_callback) {}
 
   virtual bool GetScriptedSummary(const char *function_name,
                                   lldb::ValueObjectSP valobj,
@@ -570,8 +574,8 @@ public:
 
   lldb::ScriptLanguage GetLanguage() { return m_script_lang; }
 
-  ScriptedProcessInterface &GetScriptedProcessInterface() {
-    return *m_scripted_process_interface_up;
+  virtual lldb::ScriptedProcessInterfaceUP CreateScriptedProcessInterface() {
+    return std::make_unique<ScriptedProcessInterface>();
   }
 
   ScriptedPlatformInterface &GetScriptedPlatformInterface() {
@@ -583,13 +587,18 @@ public:
 
   Status GetStatusFromSBError(const lldb::SBError &error) const;
 
+  lldb::ProcessAttachInfoSP
+  GetOpaqueTypeFromSBAttachInfo(const lldb::SBAttachInfo &attach_info) const;
+
+  lldb::ProcessLaunchInfoSP
+  GetOpaqueTypeFromSBLaunchInfo(const lldb::SBLaunchInfo &launch_info) const;
+
   std::optional<MemoryRegionInfo> GetOpaqueTypeFromSBMemoryRegionInfo(
       const lldb::SBMemoryRegionInfo &mem_region) const;
 
 protected:
   Debugger &m_debugger;
   lldb::ScriptLanguage m_script_lang;
-  lldb::ScriptedProcessInterfaceUP m_scripted_process_interface_up;
   lldb::ScriptedPlatformInterfaceUP m_scripted_platform_interface_up;
 };
 

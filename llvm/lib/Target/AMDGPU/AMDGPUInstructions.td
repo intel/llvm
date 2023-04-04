@@ -104,7 +104,10 @@ class PredicateControl {
 }
 
 class AMDGPUPat<dag pattern, dag result> : Pat<pattern, result>,
-      PredicateControl;
+      PredicateControl, GISelFlags;
+
+let GIIgnoreCopies = 1 in
+class AMDGPUPatIgnoreCopies<dag pattern, dag result> : AMDGPUPat<pattern, result>;
 
 let RecomputePerFunction = 1 in {
 def FP16Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
@@ -132,10 +135,6 @@ def s16ImmTarget : AsmOperandClass {
 
 let OperandType = "OPERAND_IMMEDIATE" in {
 
-def u32imm : Operand<i32> {
-  let PrintMethod = "printU32ImmOperand";
-}
-
 def u16imm : Operand<i16> {
   let PrintMethod = "printU16ImmOperand";
   let ParserMatchClass = u16ImmTarget;
@@ -144,10 +143,6 @@ def u16imm : Operand<i16> {
 def s16imm : Operand<i16> {
   let PrintMethod = "printU16ImmOperand";
   let ParserMatchClass = s16ImmTarget;
-}
-
-def u8imm : Operand<i8> {
-  let PrintMethod = "printU8ImmOperand";
 }
 
 } // End OperandType = "OPERAND_IMMEDIATE"
@@ -292,6 +287,10 @@ def srl_16 : PatFrag<
   (ops node:$src0), (srl_oneuse node:$src0, (i32 16))
 >;
 
+def clamp_s16_u8 : PatFrag<
+  (ops node:$src),
+  (i16 (AMDGPUsmed3 $src, (i16 0), (i16 255)))
+>;
 
 def hi_i16_elt : PatFrag<
   (ops node:$src0), (i16 (trunc (i32 (srl_16 node:$src0))))
@@ -638,6 +637,8 @@ defm atomic_load_umax : binary_atomic_op_all_as<atomic_load_umax>;
 defm atomic_load_umin : binary_atomic_op_all_as<atomic_load_umin>;
 defm atomic_load_xor : binary_atomic_op_all_as<atomic_load_xor>;
 defm atomic_load_fadd : binary_atomic_op_all_as<atomic_load_fadd, 0>;
+defm atomic_load_uinc_wrap : binary_atomic_op_all_as<atomic_load_uinc_wrap>;
+defm atomic_load_udec_wrap : binary_atomic_op_all_as<atomic_load_udec_wrap>;
 let MemoryVT = v2f16 in
 defm atomic_load_fadd_v2f16 : binary_atomic_op_all_as<atomic_load_fadd, 0>;
 defm AMDGPUatomic_cmp_swap : binary_atomic_op_all_as<AMDGPUatomic_cmp_swap>;

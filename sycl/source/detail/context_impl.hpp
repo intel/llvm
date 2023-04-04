@@ -21,6 +21,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 
 namespace sycl {
@@ -210,6 +211,11 @@ public:
   initializeDeviceGlobals(pi::PiProgram NativePrg,
                           const std::shared_ptr<queue_impl> &QueueImpl);
 
+  /// Gets a program associated with a device global from the cache.
+  std::optional<RT::PiProgram>
+  getProgramForDeviceGlobal(const device &Device,
+                            DeviceGlobalMapEntry *DeviceGlobalEntry);
+
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
 private:
@@ -263,6 +269,21 @@ private:
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
 };
+
+template <typename T, typename Capabilities>
+void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
+                                    std::vector<T> &CapabilityList) {
+  for (const sycl::device &Device : Devices) {
+    std::vector<T> NewCapabilityList;
+    std::vector<T> DeviceCapabilities = Device.get_info<Capabilities>();
+    std::set_intersection(
+        CapabilityList.begin(), CapabilityList.end(),
+        DeviceCapabilities.begin(), DeviceCapabilities.end(),
+        std::inserter(NewCapabilityList, NewCapabilityList.begin()));
+    CapabilityList = NewCapabilityList;
+  }
+  CapabilityList.shrink_to_fit();
+}
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

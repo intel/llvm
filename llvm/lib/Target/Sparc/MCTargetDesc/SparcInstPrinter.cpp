@@ -35,7 +35,7 @@ namespace Sparc {
 #include "SparcGenAsmWriter.inc"
 
 bool SparcInstPrinter::isV9(const MCSubtargetInfo &STI) const {
-  return (STI.getFeatureBits()[Sparc::FeatureV9]) != 0;
+  return (STI.hasFeature(Sparc::FeatureV9)) != 0;
 }
 
 void SparcInstPrinter::printRegName(raw_ostream &OS, MCRegister Reg) const {
@@ -178,6 +178,8 @@ void SparcInstPrinter::printCCOperand(const MCInst *MI, int opNum,
   default: break;
   case SP::FBCOND:
   case SP::FBCONDA:
+  case SP::FBCOND_V9:
+  case SP::FBCONDA_V9:
   case SP::BPFCC:
   case SP::BPFCCA:
   case SP::BPFCCNT:

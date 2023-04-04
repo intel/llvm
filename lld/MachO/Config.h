@@ -26,6 +26,10 @@
 
 #include <vector>
 
+namespace llvm::CodeGenOpt {
+enum Level : int;
+} // namespace llvm::CodeGenOpt
+
 namespace lld {
 namespace macho {
 
@@ -38,7 +42,6 @@ using SegmentRenameMap = llvm::DenseMap<llvm::StringRef, llvm::StringRef>;
 
 struct PlatformInfo {
   llvm::MachO::Target target;
-  llvm::VersionTuple minimum;
   llvm::VersionTuple sdk;
 };
 
@@ -165,6 +168,7 @@ struct Configuration {
   llvm::StringRef thinLTOJobs;
   llvm::StringRef umbrella;
   uint32_t ltoo = 2;
+  llvm::CodeGenOpt::Level ltoCgo;
   llvm::CachePruningPolicy thinLTOCachePolicy;
   llvm::StringRef thinLTOCacheDir;
   llvm::StringRef thinLTOIndexOnlyArg;

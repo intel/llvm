@@ -24,9 +24,15 @@
 /// The definitions of all input functions must be present in the module
 /// and are retained by this pass. Stub functions and metadata are
 /// erased from the module.
+///
+/// This pass may introduce redundant function calls and some conditional branch
+/// instructions and may benefit from running further optimization passes.
 class SYCLKernelFusion : public llvm::PassInfoMixin<SYCLKernelFusion> {
 
 public:
+  constexpr static llvm::StringLiteral NDRangeMDKey{"sycl.kernel.nd-range"};
+  constexpr static llvm::StringLiteral NDRangesMDKey{"sycl.kernel.nd-ranges"};
+
   constexpr SYCLKernelFusion() = default;
   constexpr explicit SYCLKernelFusion(int BarriersFlags)
       : BarriersFlags{BarriersFlags} {}
@@ -103,9 +109,10 @@ private:
     }
   };
 
-  void fuseKernel(llvm::Module &M, llvm::Function &StubFunction,
-                  jit_compiler::SYCLModuleInfo *ModInfo,
-                  llvm::SmallPtrSetImpl<llvm::Function *> &ToCleanUp) const;
+  llvm::Error
+  fuseKernel(llvm::Module &M, llvm::Function &StubFunction,
+             jit_compiler::SYCLModuleInfo *ModInfo,
+             llvm::SmallPtrSetImpl<llvm::Function *> &ToCleanUp) const;
 
   void canonicalizeParameters(
       llvm::SmallVectorImpl<ParameterIdentity> &Params) const;

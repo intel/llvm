@@ -28,6 +28,7 @@
 #include "lldb/Target/TargetList.h"
 #include "lldb/Utility/Broadcaster.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/Diagnostics.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/UserID.h"
@@ -370,6 +371,48 @@ public:
   bool IsHandlingEvents() const { return m_event_handler_thread.IsJoinable(); }
 
   Status RunREPL(lldb::LanguageType language, const char *repl_options);
+  
+  /// Interruption in LLDB:
+  /// 
+  /// This is a voluntary interruption mechanism, not preemptive.  Parts of lldb
+  /// that do work that can be safely interrupted call 
+  /// Debugger::InterruptRequested and if that returns true, they should return
+  /// at a safe point, shortcutting the rest of the work they were to do.
+  ///  
+  /// lldb clients can both offer a CommandInterpreter (through 
+  /// RunCommandInterpreter) and use the SB API's for their own purposes, so it
+  /// is convenient to separate "interrupting the CommandInterpreter execution"
+  /// and interrupting the work it is doing with the SB API's.  So there are two 
+  /// ways to cause an interrupt: 
+  ///   * CommandInterpreter::InterruptCommand: Interrupts the command currently
+  ///     running in the command interpreter IOHandler thread
+  ///   * Debugger::RequestInterrupt: Interrupts are active on anything but the
+  ///     CommandInterpreter thread till CancelInterruptRequest is called.
+  ///
+  /// Since the two checks are mutually exclusive, however, it's also convenient
+  /// to have just one function to check the interrupt state.
+
+
+  /// Bump the "interrupt requested" count on the debugger to support
+  /// cooperative interruption.  If this is non-zero, InterruptRequested will
+  /// return true.  Interruptible operations are expected to query the
+  /// InterruptRequested API periodically, and interrupt what they were doing
+  /// if it returns \b true.
+  ///
+  void RequestInterrupt();
+  
+  /// Decrement the "interrupt requested" counter.
+  void CancelInterruptRequest();
+  
+  /// This is the correct way to query the state of Interruption.
+  /// If you are on the RunCommandInterpreter thread, it will check the 
+  /// command interpreter state, and if it is on another thread it will 
+  /// check the debugger Interrupt Request state.
+  ///
+  /// \return
+  ///  A boolean value, if \b true an interruptible operation should interrupt
+  ///  itself.
+  bool InterruptRequested();
 
   // This is for use in the command interpreter, when you either want the
   // selected target, or if no target is present you want to prime the dummy
@@ -450,6 +493,10 @@ public:
 
   static void ReportSymbolChange(const ModuleSpec &module_spec);
 
+  void
+  SetDestroyCallback(lldb_private::DebuggerDestroyCallback destroy_callback,
+                     void *baton);
+
 protected:
   friend class CommandInterpreter;
   friend class REPL;
@@ -484,14 +531,17 @@ protected:
   ///   debugger identifier that this progress should be delivered to. If this
   ///   optional parameter does not have a value, the progress will be
   ///   delivered to all debuggers.
-  static void ReportProgress(uint64_t progress_id, const std::string &message,
-                             uint64_t completed, uint64_t total,
+  static void ReportProgress(uint64_t progress_id, std::string title,
+                             std::string details, uint64_t completed,
+                             uint64_t total,
                              std::optional<lldb::user_id_t> debugger_id);
 
   static void ReportDiagnosticImpl(DiagnosticEventData::Type type,
                                    std::string message,
                                    std::optional<lldb::user_id_t> debugger_id,
                                    std::once_flag *once);
+
+  void HandleDestroyCallback();
 
   void PrintProgress(const ProgressEventData &data);
 
@@ -504,13 +554,19 @@ protected:
 
   bool PopIOHandler(const lldb::IOHandlerSP &reader_sp);
 
-  bool HasIOHandlerThread();
+  bool HasIOHandlerThread() const;
 
   bool StartIOHandlerThread();
 
   void StopIOHandlerThread();
+  
+  // Sets the IOHandler thread to the new_thread, and returns
+  // the previous IOHandler thread.
+  HostThread SetIOHandlerThread(HostThread &new_thread);
 
   void JoinIOHandlerThread();
+  
+  bool IsIOHandlerThreadCurrentThread() const;
 
   lldb::thread_result_t IOHandlerThread();
 
@@ -589,6 +645,13 @@ protected:
   lldb::ListenerSP m_forward_listener_sp;
   llvm::once_flag m_clear_once;
   lldb::TargetSP m_dummy_target_sp;
+  Diagnostics::CallbackID m_diagnostics_callback_id;
+
+  lldb_private::DebuggerDestroyCallback m_destroy_callback = nullptr;
+  void *m_destroy_callback_baton = nullptr;
+
+  uint32_t m_interrupt_requested = 0; ///< Tracks interrupt requests
+  std::mutex m_interrupt_mutex;
 
   // Events for m_sync_broadcaster
   enum {

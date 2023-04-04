@@ -70,7 +70,7 @@ static lto::Config createConfig() {
   c.TimeTraceEnabled = config->timeTraceEnabled;
   c.TimeTraceGranularity = config->timeTraceGranularity;
   c.OptLevel = config->ltoo;
-  c.CGOptLevel = args::getCGOptLevel(config->ltoo);
+  c.CGOptLevel = config->ltoCgo;
   if (config->saveTemps)
     checkError(c.addSaveTemps(config->outputFile.str() + ".",
                               /*UseInputModulePath=*/true));
@@ -160,6 +160,7 @@ void BitcodeCompiler::add(BitcodeFile &f) {
     // TODO: set the other resolution configs properly
   }
   checkError(ltoObj->add(std::move(f.obj), resols));
+  hasFiles = true;
 }
 
 // If LazyObjFile has not been added to link, emit empty index files.
@@ -211,12 +212,13 @@ std::vector<ObjFile *> BitcodeCompiler::compile() {
                                files[task] = std::move(mb);
                              }));
 
-  checkError(ltoObj->run(
-      [&](size_t task, const Twine &moduleName) {
-        return std::make_unique<CachedFileStream>(
-            std::make_unique<raw_svector_ostream>(buf[task]));
-      },
-      cache));
+  if (hasFiles)
+    checkError(ltoObj->run(
+        [&](size_t task, const Twine &moduleName) {
+          return std::make_unique<CachedFileStream>(
+              std::make_unique<raw_svector_ostream>(buf[task]));
+        },
+        cache));
 
   // Emit empty index files for non-indexed files
   for (StringRef s : thinIndices) {

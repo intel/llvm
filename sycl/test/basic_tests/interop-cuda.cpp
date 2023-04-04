@@ -87,8 +87,6 @@ int main() {
 
   backend_input_t<backend::ext_oneapi_cuda, context> InteropContextInput{
       cu_context[0]};
-  context InteropContext =
-      make_context<backend::ext_oneapi_cuda>(InteropContextInput);
   event InteropEvent = make_event<backend::ext_oneapi_cuda>(cu_event, Context);
 
   queue InteropQueue = make_queue<backend::ext_oneapi_cuda>(cu_queue, Context);

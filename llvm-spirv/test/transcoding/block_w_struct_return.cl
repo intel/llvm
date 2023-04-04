@@ -31,6 +31,13 @@ kernel void block_ret_struct(__global int* res)
   res[tid] = kernelBlock(aa).a - 6;
 }
 
+// CHECK-SPIRV1_4: EntryPoint 6 [[#]] "block_ret_struct" [[#InterdaceId1:]] [[#InterdaceId2:]]
+// CHECK-SPIRV1_4: Name [[#InterdaceId1]] "__block_literal_global"
+// CHECK-SPIRV1_4: Name [[#InterdaceId2]] "__spirv_BuiltInGlobalInvocationId"
+
+// CHECK-SPIRV1_1: EntryPoint 6 [[#]] "block_ret_struct" [[#InterdaceId1:]]
+// CHECK-SPIRV1_1: Name [[#InterdaceId1]] "__spirv_BuiltInGlobalInvocationId"
+
 // CHECK-SPIRV: Name [[BlockInv:[0-9]+]] "__block_ret_struct_block_invoke"
 
 // CHECK-SPIRV: 4 TypeInt [[IntTy:[0-9]+]] 32

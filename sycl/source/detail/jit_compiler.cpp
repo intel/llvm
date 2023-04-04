@@ -379,6 +379,22 @@ static ParamIterator preProcessArguments(
     // we need to copy the argument to a permant location and update the
     // argument.
     Arg->Arg.MPtr = storePlainArgRaw(ArgStorage, Arg->Arg.MPtr, Arg->Arg.MSize);
+    // Standard layout arguments do not participate in identical argument
+    // detection, but we still add it to the list here. As the SYCL runtime can
+    // only check the raw bytes for identical content, but is unaware of the
+    // underlying datatype, some identities that would be detected here could
+    // not be materialized by the JIT compiler. Instead of removing some
+    // standard layout arguments due to identity and missing some in case the
+    // materialization is not possible, we rely on constant propagation to
+    // replace standard layout arguments by constants (see below).
+    NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
+                                    true);
+    // Propagate values of scalar parameters as constants to the JIT
+    // compiler.
+    JITConstants.emplace_back(
+        ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
+        Arg->Arg.MPtr, Arg->Arg.MSize);
+    return ++Arg;
   }
   // First check if there's already another parameter with identical
   // value.
@@ -455,16 +471,6 @@ static ParamIterator preProcessArguments(
                                       true);
       return ++Arg;
     }
-  } else if (Arg->Arg.MType == kernel_param_kind_t::kind_std_layout) {
-    // No identical parameter exists, so add this to the list.
-    NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
-                                    true);
-    // Propagate values of scalar parameters as constants to the JIT
-    // compiler.
-    JITConstants.emplace_back(
-        ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
-        Arg->Arg.MPtr, Arg->Arg.MSize);
-    return ++Arg;
   } else if (Arg->Arg.MType == kernel_param_kind_t::kind_pointer) {
     // No identical parameter exists, so add this to the list.
     NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
@@ -550,7 +556,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<detail::AccessorImplPtr> AccStorage;
   std::vector<Requirement *> Requirements;
   std::vector<detail::EventImplPtr> Events;
-  NDRDescT NDRDesc;
+  std::vector<::jit_compiler::NDRange> Ranges;
+  RT::PiKernelCacheConfig KernelCacheConfig =
+      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
@@ -661,14 +669,24 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
         translateBinaryImageFormat(DeviceImage->getFormat()), 0,
         RawDeviceImage.BinaryStart, DeviceImageSize};
 
-    InputKernelInfo.emplace_back(KernelName, ArgDescriptor, BinInfo);
+    constexpr auto SYCLTypeToIndices = [](auto Val) -> ::jit_compiler::Indices {
+      return {Val.get(0), Val.get(1), Val.get(2)};
+    };
+
+    auto &CurrentNDR = KernelCG->MNDRDesc;
+    const ::jit_compiler::NDRange JITCompilerNDR{
+        static_cast<int>(CurrentNDR.Dims),
+        SYCLTypeToIndices(CurrentNDR.GlobalSize),
+        SYCLTypeToIndices(CurrentNDR.LocalSize),
+        SYCLTypeToIndices(CurrentNDR.GlobalOffset)};
+
+    Ranges.push_back(JITCompilerNDR);
+    InputKernelInfo.emplace_back(KernelName, ArgDescriptor, JITCompilerNDR,
+                                 BinInfo);
     InputKernelNames.push_back(KernelName);
 
     // Collect information for the fused kernel
 
-    // TODO(Lukas, ONNX-399): Currently assuming the NDRDesc is identical for
-    // all input kernels. Actually verify this here or in the graph_builder.
-    auto &CurrentNDR = KernelCG->MNDRDesc;
     if (CurrentNDR.GlobalSize[0] == 0 && CurrentNDR.NumWorkGroups[0] != 0) {
       // Some overloads of parallel_for_work_group only specify the number of
       // work-groups, so this can be used to identify hierarchical parallel
@@ -682,31 +700,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       // TODO(Lukas, CRD-6): Find a more reliable way to detect hierarchical
       // parallelism.
     }
-    if (KernelIndex == 0) {
-      NDRDesc = CurrentNDR;
-    } else {
-      if (CurrentNDR.Dims != NDRDesc.Dims) {
-        printPerformanceWarning(
-            "Cannot fuse kernels with different dimensionality");
-        return nullptr;
-      }
-      if (CurrentNDR.GlobalOffset != NDRDesc.GlobalOffset) {
-        printPerformanceWarning(
-            "Cannot fuse kernels with different global offset");
-        return nullptr;
-      }
-      if (CurrentNDR.GlobalSize != NDRDesc.GlobalSize) {
-        printPerformanceWarning(
-            "Cannot fuse kerneles with different global size");
-        return nullptr;
-      }
-      if (CurrentNDR.LocalSize[0] != 0 &&
-          CurrentNDR.LocalSize != NDRDesc.LocalSize) {
-        printPerformanceWarning(
-            "Cannot fuse kernels with different local size");
-        return nullptr;
-      }
-    }
+
     // We need to copy the storages here. The input CGs might be eliminated
     // before the fused kernel gets executed, so we need to copy the storages
     // here to make sure the arguments don't die on us before executing the
@@ -722,6 +716,15 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
                         KernelCG->MRequirements.end());
     Events.insert(Events.end(), KernelCG->MEvents.begin(),
                   KernelCG->MEvents.end());
+
+    // If all kernels have the same cache config then use it for the merged
+    // kernel, otherwise use default configuration.
+    if (KernelIndex == 0) {
+      KernelCacheConfig = KernelCG->MKernelCacheConfig;
+    } else if (KernelCG->MKernelCacheConfig != KernelCacheConfig) {
+      KernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+    }
+
     ++KernelIndex;
   }
 
@@ -780,6 +783,17 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   }
 
   // Update the kernel arguments for internalized accessors.
+  const auto NDRDesc = [](const auto &ND) -> NDRDescT {
+    constexpr auto ToSYCLType = [](const auto &Indices) -> sycl::range<3> {
+      return {Indices[0], Indices[1], Indices[2]};
+    };
+    NDRDescT NDRDesc;
+    NDRDesc.Dims = ND.getDimensions();
+    NDRDesc.GlobalSize = ToSYCLType(ND.getGlobalSize());
+    NDRDesc.LocalSize = ToSYCLType(ND.getLocalSize());
+    NDRDesc.GlobalOffset = ToSYCLType(ND.getOffset());
+    return NDRDesc;
+  }(FusedKernelInfo.NDR);
   updatePromotedArgs(FusedKernelInfo, NDRDesc, FusedArgs, ArgsStorage);
 
   if (!FusionResult.cached()) {
@@ -805,7 +819,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       std::move(ArgsStorage), std::move(AccStorage),
       std::move(RawExtendedMembers), std::move(Requirements), std::move(Events),
       std::move(FusedArgs), FusedKernelInfo.Name, OSUtil::DummyModuleHandle, {},
-      {}, CG::CGTYPE::Kernel));
+      {}, CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }
 

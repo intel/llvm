@@ -205,9 +205,10 @@ static WarpExecuteOnLane0Op moveRegionToNewWarpOpAndAppendReturns(
       indices.push_back(yieldValues.size() - 1);
     } else {
       // If the value already exit the region don't create a new output.
-      for (auto &yieldOperand : llvm::enumerate(yieldValues.getArrayRef())) {
-        if (yieldOperand.value() == std::get<0>(newRet)) {
-          indices.push_back(yieldOperand.index());
+      for (auto [idx, yieldOperand] :
+           llvm::enumerate(yieldValues.getArrayRef())) {
+        if (yieldOperand == std::get<0>(newRet)) {
+          indices.push_back(idx);
           break;
         }
       }
@@ -657,7 +658,8 @@ struct WarpOpElementwise : public OpRewritePattern<WarpExecuteOnLane0Op> {
     Operation *newOp = cloneOpWithOperandsAndTypes(
         rewriter, loc, elementWise, newOperands,
         {newWarpOp.getResult(operandIndex).getType()});
-    newWarpOp.getResult(operandIndex).replaceAllUsesWith(newOp->getResult(0));
+    rewriter.replaceAllUsesWith(newWarpOp.getResult(operandIndex),
+                                newOp->getResult(0));
     return success();
   }
 };
@@ -695,7 +697,7 @@ struct WarpOpConstant : public OpRewritePattern<WarpExecuteOnLane0Op> {
     Location loc = warpOp.getLoc();
     rewriter.setInsertionPointAfter(warpOp);
     Value distConstant = rewriter.create<arith::ConstantOp>(loc, newAttr);
-    warpOp.getResult(operandIndex).replaceAllUsesWith(distConstant);
+    rewriter.replaceAllUsesWith(warpOp.getResult(operandIndex), distConstant);
     return success();
   }
 };
@@ -759,7 +761,7 @@ struct WarpOpTransferRead : public OpRewritePattern<WarpExecuteOnLane0Op> {
         read.getLoc(), distributedVal.getType(), read.getSource(), indices,
         read.getPermutationMapAttr(), read.getPadding(), read.getMask(),
         read.getInBoundsAttr());
-    distributedVal.replaceAllUsesWith(newRead);
+    rewriter.replaceAllUsesWith(distributedVal, newRead);
     return success();
   }
 };
@@ -855,7 +857,7 @@ struct WarpOpForwardOperand : public OpRewritePattern<WarpExecuteOnLane0Op> {
     }
     if (!valForwarded)
       return failure();
-    warpOp.getResult(resultIndex).replaceAllUsesWith(valForwarded);
+    rewriter.replaceAllUsesWith(warpOp.getResult(resultIndex), valForwarded);
     return success();
   }
 };
@@ -880,7 +882,8 @@ struct WarpOpBroadcast : public OpRewritePattern<WarpExecuteOnLane0Op> {
     rewriter.setInsertionPointAfter(newWarpOp);
     Value broadcasted = rewriter.create<vector::BroadcastOp>(
         loc, destVecType, newWarpOp->getResult(newRetIndices[0]));
-    newWarpOp->getResult(operandNumber).replaceAllUsesWith(broadcasted);
+    rewriter.replaceAllUsesWith(newWarpOp->getResult(operandNumber),
+                                broadcasted);
     return success();
   }
 };
@@ -897,7 +900,7 @@ struct WarpOpExtract : public OpRewritePattern<WarpExecuteOnLane0Op> {
       return failure();
     unsigned int operandNumber = operand->getOperandNumber();
     auto extractOp = operand->get().getDefiningOp<vector::ExtractOp>();
-    VectorType extractSrcType = extractOp.getVectorType();
+    VectorType extractSrcType = extractOp.getSourceVectorType();
     Location loc = extractOp.getLoc();
 
     // "vector.extract %v[] : vector<f32>" is an invalid op.
@@ -930,13 +933,14 @@ struct WarpOpExtract : public OpRewritePattern<WarpExecuteOnLane0Op> {
       SmallVector<size_t> newRetIndices;
       WarpExecuteOnLane0Op newWarpOp = moveRegionToNewWarpOpAndAppendReturns(
           rewriter, warpOp, {extractOp.getVector()},
-          {extractOp.getVectorType()}, newRetIndices);
+          {extractOp.getSourceVectorType()}, newRetIndices);
       rewriter.setInsertionPointAfter(newWarpOp);
       Value distributedVec = newWarpOp->getResult(newRetIndices[0]);
       // Extract from distributed vector.
       Value newExtract = rewriter.create<vector::ExtractOp>(
           loc, distributedVec, extractOp.getPosition());
-      newWarpOp->getResult(operandNumber).replaceAllUsesWith(newExtract);
+      rewriter.replaceAllUsesWith(newWarpOp->getResult(operandNumber),
+                                  newExtract);
       return success();
     }
 
@@ -973,7 +977,8 @@ struct WarpOpExtract : public OpRewritePattern<WarpExecuteOnLane0Op> {
     // Extract from distributed vector.
     Value newExtract = rewriter.create<vector::ExtractOp>(
         loc, distributedVec, extractOp.getPosition());
-    newWarpOp->getResult(operandNumber).replaceAllUsesWith(newExtract);
+    rewriter.replaceAllUsesWith(newWarpOp->getResult(operandNumber),
+                                newExtract);
     return success();
   }
 };
@@ -994,7 +999,7 @@ struct WarpOpExtractElement : public OpRewritePattern<WarpExecuteOnLane0Op> {
       return failure();
     unsigned int operandNumber = operand->getOperandNumber();
     auto extractOp = operand->get().getDefiningOp<vector::ExtractElementOp>();
-    VectorType extractSrcType = extractOp.getVectorType();
+    VectorType extractSrcType = extractOp.getSourceVectorType();
     bool is0dOrVec1Extract = extractSrcType.getNumElements() == 1;
     Type elType = extractSrcType.getElementType();
     VectorType distributedVecType;
@@ -1031,7 +1036,8 @@ struct WarpOpExtractElement : public OpRewritePattern<WarpExecuteOnLane0Op> {
         newExtract =
             rewriter.create<vector::ExtractElementOp>(loc, distributedVec);
       }
-      newWarpOp->getResult(operandNumber).replaceAllUsesWith(newExtract);
+      rewriter.replaceAllUsesWith(newWarpOp->getResult(operandNumber),
+                                  newExtract);
       return success();
     }
 
@@ -1056,7 +1062,7 @@ struct WarpOpExtractElement : public OpRewritePattern<WarpExecuteOnLane0Op> {
     // Shuffle the extracted value to all lanes.
     Value shuffled = warpShuffleFromIdxFn(
         loc, rewriter, extracted, broadcastFromTid, newWarpOp.getWarpSize());
-    newWarpOp->getResult(operandNumber).replaceAllUsesWith(shuffled);
+    rewriter.replaceAllUsesWith(newWarpOp->getResult(operandNumber), shuffled);
     return success();
   }
 
@@ -1104,7 +1110,8 @@ struct WarpOpInsertElement : public OpRewritePattern<WarpExecuteOnLane0Op> {
       // Broadcast: Simply move the vector.inserelement op out.
       Value newInsert = rewriter.create<vector::InsertElementOp>(
           loc, newSource, distributedVec, newPos);
-      newWarpOp->getResult(operandNumber).replaceAllUsesWith(newInsert);
+      rewriter.replaceAllUsesWith(newWarpOp->getResult(operandNumber),
+                                  newInsert);
       return success();
     }
 
@@ -1126,7 +1133,7 @@ struct WarpOpInsertElement : public OpRewritePattern<WarpExecuteOnLane0Op> {
     Value newResult =
         rewriter
             .create<scf::IfOp>(
-                loc, distrType, isInsertingLane,
+                loc, isInsertingLane,
                 /*thenBuilder=*/
                 [&](OpBuilder &builder, Location loc) {
                   Value newInsert = builder.create<vector::InsertElementOp>(
@@ -1138,7 +1145,7 @@ struct WarpOpInsertElement : public OpRewritePattern<WarpExecuteOnLane0Op> {
                   builder.create<scf::YieldOp>(loc, distributedVec);
                 })
             .getResult(0);
-    newWarpOp->getResult(operandNumber).replaceAllUsesWith(newResult);
+    rewriter.replaceAllUsesWith(newWarpOp->getResult(operandNumber), newResult);
     return success();
   }
 };
@@ -1184,7 +1191,8 @@ struct WarpOpInsert : public OpRewritePattern<WarpExecuteOnLane0Op> {
       Value distributedDest = newWarpOp->getResult(newRetIndices[1]);
       Value newResult = rewriter.create<vector::InsertOp>(
           loc, distributedSrc, distributedDest, insertOp.getPosition());
-      newWarpOp->getResult(operandNumber).replaceAllUsesWith(newResult);
+      rewriter.replaceAllUsesWith(newWarpOp->getResult(operandNumber),
+                                  newResult);
       return success();
     }
 
@@ -1257,13 +1265,13 @@ struct WarpOpInsert : public OpRewritePattern<WarpExecuteOnLane0Op> {
         builder.create<scf::YieldOp>(loc, distributedDest);
       };
       newResult = rewriter
-                      .create<scf::IfOp>(loc, distrDestType, isInsertingLane,
+                      .create<scf::IfOp>(loc, isInsertingLane,
                                          /*thenBuilder=*/insertingBuilder,
                                          /*elseBuilder=*/nonInsertingBuilder)
                       .getResult(0);
     }
 
-    newWarpOp->getResult(operandNumber).replaceAllUsesWith(newResult);
+    rewriter.replaceAllUsesWith(newWarpOp->getResult(operandNumber), newResult);
     return success();
   }
 };
@@ -1400,8 +1408,8 @@ struct WarpOpScfForOp : public OpRewritePattern<WarpExecuteOnLane0Op> {
     rewriter.eraseOp(forOp);
     // Replace the warpOp result coming from the original ForOp.
     for (const auto &res : llvm::enumerate(resultIdx)) {
-      newWarpOp.getResult(res.value())
-          .replaceAllUsesWith(newForOp.getResult(res.index()));
+      rewriter.replaceAllUsesWith(newWarpOp.getResult(res.value()),
+                                  newForOp.getResult(res.index()));
       newForOp->setOperand(res.index() + 3, newWarpOp.getResult(res.value()));
     }
     newForOp.walk([&](Operation *op) {
@@ -1494,7 +1502,7 @@ struct WarpOpReduction : public OpRewritePattern<WarpExecuteOnLane0Op> {
           rewriter, reductionOp.getLoc(), reductionOp.getKind(), fullReduce,
           newWarpOp.getResult(newRetIndices[1]));
     }
-    newWarpOp.getResult(operandIndex).replaceAllUsesWith(fullReduce);
+    rewriter.replaceAllUsesWith(newWarpOp.getResult(operandIndex), fullReduce);
     return success();
   }
 

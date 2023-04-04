@@ -63,36 +63,44 @@ using IsLogicalOR =
     bool_constant<std::is_same<BinaryOperation, sycl::logical_or<T>>::value ||
                   std::is_same<BinaryOperation, sycl::logical_or<void>>::value>;
 
+template <typename T>
+using isComplex = bool_constant<std::is_same<T, std::complex<float>>::value ||
+                                std::is_same<T, std::complex<double>>::value>;
+
 // Identity = 0
 template <typename T, class BinaryOperation>
-using IsZeroIdentityOp =
-    bool_constant<(is_geninteger<T>::value &&
-                   (IsPlus<T, BinaryOperation>::value ||
-                    IsBitOR<T, BinaryOperation>::value ||
-                    IsBitXOR<T, BinaryOperation>::value)) ||
-                  (is_genfloat<T>::value && IsPlus<T, BinaryOperation>::value)>;
+using IsZeroIdentityOp = bool_constant<
+    ((is_genbool<T>::value || is_geninteger<T>::value) &&
+     (IsPlus<T, BinaryOperation>::value || IsBitOR<T, BinaryOperation>::value ||
+      IsBitXOR<T, BinaryOperation>::value)) ||
+    (is_genfloat<T>::value && IsPlus<T, BinaryOperation>::value) ||
+    (isComplex<T>::value && IsPlus<T, BinaryOperation>::value)>;
 
 // Identity = 1
 template <typename T, class BinaryOperation>
 using IsOneIdentityOp =
-    bool_constant<(is_geninteger<T>::value || is_genfloat<T>::value) &&
+    bool_constant<(is_genbool<T>::value || is_geninteger<T>::value ||
+                   is_genfloat<T>::value) &&
                   IsMultiplies<T, BinaryOperation>::value>;
 
 // Identity = ~0
 template <typename T, class BinaryOperation>
-using IsOnesIdentityOp = bool_constant<is_geninteger<T>::value &&
-                                       IsBitAND<T, BinaryOperation>::value>;
+using IsOnesIdentityOp =
+    bool_constant<(is_genbool<T>::value || is_geninteger<T>::value) &&
+                  IsBitAND<T, BinaryOperation>::value>;
 
 // Identity = <max possible value>
 template <typename T, class BinaryOperation>
 using IsMinimumIdentityOp =
-    bool_constant<(is_geninteger<T>::value || is_genfloat<T>::value) &&
+    bool_constant<(is_genbool<T>::value || is_geninteger<T>::value ||
+                   is_genfloat<T>::value) &&
                   IsMinimum<T, BinaryOperation>::value>;
 
 // Identity = <min possible value>
 template <typename T, class BinaryOperation>
 using IsMaximumIdentityOp =
-    bool_constant<(is_geninteger<T>::value || is_genfloat<T>::value) &&
+    bool_constant<(is_genbool<T>::value || is_geninteger<T>::value ||
+                   is_genfloat<T>::value) &&
                   IsMaximum<T, BinaryOperation>::value>;
 
 // Identity = false

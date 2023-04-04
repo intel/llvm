@@ -10,6 +10,9 @@
 ; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
+; Check SPIR-V versions in a format magic number + version
+; CHECK-SPIRV: 119734787 66560
+
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "42"
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "bar"
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "{FOO}"

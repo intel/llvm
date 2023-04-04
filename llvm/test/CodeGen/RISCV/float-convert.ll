@@ -167,10 +167,8 @@ define i32 @fcvt_wu_s_multiple_use(float %x, ptr %y) nounwind {
 ; CHECKIF-LABEL: fcvt_wu_s_multiple_use:
 ; CHECKIF:       # %bb.0:
 ; CHECKIF-NEXT:    fcvt.wu.s a0, fa0, rtz
-; CHECKIF-NEXT:    bnez a0, .LBB3_2
-; CHECKIF-NEXT:  # %bb.1:
-; CHECKIF-NEXT:    li a0, 1
-; CHECKIF-NEXT:  .LBB3_2:
+; CHECKIF-NEXT:    seqz a1, a0
+; CHECKIF-NEXT:    add a0, a0, a1
 ; CHECKIF-NEXT:    ret
 ;
 ; RV32I-LABEL: fcvt_wu_s_multiple_use:
@@ -178,10 +176,8 @@ define i32 @fcvt_wu_s_multiple_use(float %x, ptr %y) nounwind {
 ; RV32I-NEXT:    addi sp, sp, -16
 ; RV32I-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
 ; RV32I-NEXT:    call __fixunssfsi@plt
-; RV32I-NEXT:    bnez a0, .LBB3_2
-; RV32I-NEXT:  # %bb.1:
-; RV32I-NEXT:    li a0, 1
-; RV32I-NEXT:  .LBB3_2:
+; RV32I-NEXT:    seqz a1, a0
+; RV32I-NEXT:    add a0, a0, a1
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    addi sp, sp, 16
 ; RV32I-NEXT:    ret
@@ -191,10 +187,8 @@ define i32 @fcvt_wu_s_multiple_use(float %x, ptr %y) nounwind {
 ; RV64I-NEXT:    addi sp, sp, -16
 ; RV64I-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
 ; RV64I-NEXT:    call __fixunssfsi@plt
-; RV64I-NEXT:    bnez a0, .LBB3_2
-; RV64I-NEXT:  # %bb.1:
-; RV64I-NEXT:    li a0, 1
-; RV64I-NEXT:  .LBB3_2:
+; RV64I-NEXT:    seqz a1, a0
+; RV64I-NEXT:    add a0, a0, a1
 ; RV64I-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    addi sp, sp, 16
 ; RV64I-NEXT:    ret
@@ -521,9 +515,9 @@ define i64 @fcvt_l_s_sat(float %a) nounwind {
 ; RV32IF-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
 ; RV32IF-NEXT:    sw s0, 8(sp) # 4-byte Folded Spill
 ; RV32IF-NEXT:    fsw fs0, 4(sp) # 4-byte Folded Spill
-; RV32IF-NEXT:    lui a0, %hi(.LCPI12_0)
-; RV32IF-NEXT:    flw ft0, %lo(.LCPI12_0)(a0)
 ; RV32IF-NEXT:    fmv.s fs0, fa0
+; RV32IF-NEXT:    lui a0, 913408
+; RV32IF-NEXT:    fmv.w.x ft0, a0
 ; RV32IF-NEXT:    fle.s s0, ft0, fa0
 ; RV32IF-NEXT:    call __fixsfdi@plt
 ; RV32IF-NEXT:    lui a3, 524288
@@ -531,8 +525,8 @@ define i64 @fcvt_l_s_sat(float %a) nounwind {
 ; RV32IF-NEXT:  # %bb.1: # %start
 ; RV32IF-NEXT:    lui a1, 524288
 ; RV32IF-NEXT:  .LBB12_2: # %start
-; RV32IF-NEXT:    lui a2, %hi(.LCPI12_1)
-; RV32IF-NEXT:    flw ft0, %lo(.LCPI12_1)(a2)
+; RV32IF-NEXT:    lui a2, %hi(.LCPI12_0)
+; RV32IF-NEXT:    flw ft0, %lo(.LCPI12_0)(a2)
 ; RV32IF-NEXT:    flt.s a2, ft0, fs0
 ; RV32IF-NEXT:    beqz a2, .LBB12_4
 ; RV32IF-NEXT:  # %bb.3:
@@ -1154,10 +1148,10 @@ define signext i16 @fcvt_w_s_sat_i16(float %a) nounwind {
 ; RV32IF:       # %bb.0: # %start
 ; RV32IF-NEXT:    lui a0, %hi(.LCPI24_0)
 ; RV32IF-NEXT:    flw ft0, %lo(.LCPI24_0)(a0)
-; RV32IF-NEXT:    lui a0, %hi(.LCPI24_1)
-; RV32IF-NEXT:    flw ft1, %lo(.LCPI24_1)(a0)
-; RV32IF-NEXT:    fmax.s ft0, fa0, ft0
-; RV32IF-NEXT:    fmin.s ft0, ft0, ft1
+; RV32IF-NEXT:    lui a0, 815104
+; RV32IF-NEXT:    fmv.w.x ft1, a0
+; RV32IF-NEXT:    fmax.s ft1, fa0, ft1
+; RV32IF-NEXT:    fmin.s ft0, ft1, ft0
 ; RV32IF-NEXT:    fcvt.w.s a0, ft0, rtz
 ; RV32IF-NEXT:    feq.s a1, fa0, fa0
 ; RV32IF-NEXT:    seqz a1, a1
@@ -1169,10 +1163,10 @@ define signext i16 @fcvt_w_s_sat_i16(float %a) nounwind {
 ; RV64IF:       # %bb.0: # %start
 ; RV64IF-NEXT:    lui a0, %hi(.LCPI24_0)
 ; RV64IF-NEXT:    flw ft0, %lo(.LCPI24_0)(a0)
-; RV64IF-NEXT:    lui a0, %hi(.LCPI24_1)
-; RV64IF-NEXT:    flw ft1, %lo(.LCPI24_1)(a0)
-; RV64IF-NEXT:    fmax.s ft0, fa0, ft0
-; RV64IF-NEXT:    fmin.s ft0, ft0, ft1
+; RV64IF-NEXT:    lui a0, 815104
+; RV64IF-NEXT:    fmv.w.x ft1, a0
+; RV64IF-NEXT:    fmax.s ft1, fa0, ft1
+; RV64IF-NEXT:    fmin.s ft0, ft1, ft0
 ; RV64IF-NEXT:    fcvt.l.s a0, ft0, rtz
 ; RV64IF-NEXT:    feq.s a1, fa0, fa0
 ; RV64IF-NEXT:    seqz a1, a1
@@ -1436,11 +1430,11 @@ define signext i8 @fcvt_w_s_i8(float %a) nounwind {
 define signext i8 @fcvt_w_s_sat_i8(float %a) nounwind {
 ; RV32IF-LABEL: fcvt_w_s_sat_i8:
 ; RV32IF:       # %bb.0: # %start
-; RV32IF-NEXT:    lui a0, %hi(.LCPI28_0)
-; RV32IF-NEXT:    flw ft0, %lo(.LCPI28_0)(a0)
-; RV32IF-NEXT:    lui a0, %hi(.LCPI28_1)
-; RV32IF-NEXT:    flw ft1, %lo(.LCPI28_1)(a0)
+; RV32IF-NEXT:    lui a0, 798720
+; RV32IF-NEXT:    fmv.w.x ft0, a0
 ; RV32IF-NEXT:    fmax.s ft0, fa0, ft0
+; RV32IF-NEXT:    lui a0, 274400
+; RV32IF-NEXT:    fmv.w.x ft1, a0
 ; RV32IF-NEXT:    fmin.s ft0, ft0, ft1
 ; RV32IF-NEXT:    fcvt.w.s a0, ft0, rtz
 ; RV32IF-NEXT:    feq.s a1, fa0, fa0
@@ -1451,11 +1445,11 @@ define signext i8 @fcvt_w_s_sat_i8(float %a) nounwind {
 ;
 ; RV64IF-LABEL: fcvt_w_s_sat_i8:
 ; RV64IF:       # %bb.0: # %start
-; RV64IF-NEXT:    lui a0, %hi(.LCPI28_0)
-; RV64IF-NEXT:    flw ft0, %lo(.LCPI28_0)(a0)
-; RV64IF-NEXT:    lui a0, %hi(.LCPI28_1)
-; RV64IF-NEXT:    flw ft1, %lo(.LCPI28_1)(a0)
+; RV64IF-NEXT:    lui a0, 798720
+; RV64IF-NEXT:    fmv.w.x ft0, a0
 ; RV64IF-NEXT:    fmax.s ft0, fa0, ft0
+; RV64IF-NEXT:    lui a0, 274400
+; RV64IF-NEXT:    fmv.w.x ft1, a0
 ; RV64IF-NEXT:    fmin.s ft0, ft0, ft1
 ; RV64IF-NEXT:    fcvt.l.s a0, ft0, rtz
 ; RV64IF-NEXT:    feq.s a1, fa0, fa0
@@ -1584,21 +1578,21 @@ define zeroext i8 @fcvt_wu_s_i8(float %a) nounwind {
 define zeroext i8 @fcvt_wu_s_sat_i8(float %a) nounwind {
 ; RV32IF-LABEL: fcvt_wu_s_sat_i8:
 ; RV32IF:       # %bb.0: # %start
-; RV32IF-NEXT:    lui a0, %hi(.LCPI30_0)
-; RV32IF-NEXT:    flw ft0, %lo(.LCPI30_0)(a0)
-; RV32IF-NEXT:    fmv.w.x ft1, zero
-; RV32IF-NEXT:    fmax.s ft1, fa0, ft1
-; RV32IF-NEXT:    fmin.s ft0, ft1, ft0
+; RV32IF-NEXT:    fmv.w.x ft0, zero
+; RV32IF-NEXT:    fmax.s ft0, fa0, ft0
+; RV32IF-NEXT:    lui a0, 276464
+; RV32IF-NEXT:    fmv.w.x ft1, a0
+; RV32IF-NEXT:    fmin.s ft0, ft0, ft1
 ; RV32IF-NEXT:    fcvt.wu.s a0, ft0, rtz
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: fcvt_wu_s_sat_i8:
 ; RV64IF:       # %bb.0: # %start
-; RV64IF-NEXT:    lui a0, %hi(.LCPI30_0)
-; RV64IF-NEXT:    flw ft0, %lo(.LCPI30_0)(a0)
-; RV64IF-NEXT:    fmv.w.x ft1, zero
-; RV64IF-NEXT:    fmax.s ft1, fa0, ft1
-; RV64IF-NEXT:    fmin.s ft0, ft1, ft0
+; RV64IF-NEXT:    fmv.w.x ft0, zero
+; RV64IF-NEXT:    fmax.s ft0, fa0, ft0
+; RV64IF-NEXT:    lui a0, 276464
+; RV64IF-NEXT:    fmv.w.x ft1, a0
+; RV64IF-NEXT:    fmin.s ft0, ft0, ft1
 ; RV64IF-NEXT:    fcvt.lu.s a0, ft0, rtz
 ; RV64IF-NEXT:    ret
 ;

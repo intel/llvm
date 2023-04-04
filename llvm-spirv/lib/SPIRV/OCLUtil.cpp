@@ -1173,7 +1173,8 @@ public:
     } else if (NameRef.contains("broadcast")) {
       addUnsignedArg(-1);
     } else if (NameRef.startswith(kOCLBuiltinName::SampledReadImage)) {
-      NameRef.consume_front(kOCLBuiltinName::Sampled);
+      if (!NameRef.consume_front(kOCLBuiltinName::Sampled))
+        report_fatal_error(llvm::Twine("Builtin name illformed"));
       addSamplerArg(1);
     } else if (NameRef.contains(kOCLSubgroupsAVCIntel::Prefix)) {
       if (NameRef.contains("evaluate_ipe"))
@@ -1349,6 +1350,9 @@ bool isSamplerTy(Type *Ty) {
   if (auto *TPT = dyn_cast_or_null<TypedPointerType>(Ty)) {
     auto *STy = dyn_cast_or_null<StructType>(TPT->getElementType());
     return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
+  }
+  if (auto *TET = dyn_cast_or_null<TargetExtType>(Ty)) {
+    return TET->getName() == "spirv.Sampler";
   }
   return false;
 }

@@ -675,7 +675,7 @@ void ModuleDesc::dump() const {
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
                << ", LargeGRF:"
                << (EntryPoints.Props.UsesLargeGRF ? "YES" : "NO") << "\n";
-  dumpEntryPoints(entries(), EntryPoints.GroupId.str().c_str(), 1);
+  dumpEntryPoints(entries(), EntryPoints.GroupId.c_str(), 1);
   llvm::errs() << "}\n";
 }
 #endif // NDEBUG

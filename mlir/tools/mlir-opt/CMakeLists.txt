@@ -21,6 +21,7 @@ if(MLIR_INCLUDE_TESTS)
     MLIRFuncTestPasses
     MLIRGPUTestPasses
     MLIRLinalgTestPasses
+    MLIRLoopLikeInterfaceTestPasses
     MLIRMathTestPasses
     MLIRMemRefTestPasses
     MLIRNVGPUTestPasses
@@ -32,6 +33,7 @@ if(MLIR_INCLUDE_TESTS)
     MLIRTestDialect
     MLIRTestDynDialect
     MLIRTestIR
+    MLIRTestOneToNTypeConversionPass
     MLIRTestPass
     MLIRTestPDLL
     MLIRTestReducer
@@ -40,6 +42,7 @@ if(MLIR_INCLUDE_TESTS)
     MLIRTestTransforms
     MLIRTilingInterfaceTestPasses
     MLIRVectorTestPasses
+    MLIRTestVectorToSPIRV
     MLIRLLVMTestPasses
     )
 endif()

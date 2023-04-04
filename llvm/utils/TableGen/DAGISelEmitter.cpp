@@ -12,6 +12,7 @@
 
 #include "CodeGenDAGPatterns.h"
 #include "CodeGenInstruction.h"
+#include "CodeGenTarget.h"
 #include "DAGISelMatcher.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/TableGen/Record.h"
@@ -123,6 +124,7 @@ struct PatternSortingPredicate {
 
 
 void DAGISelEmitter::run(raw_ostream &OS) {
+  Records.startTimer("Parse patterns");
   emitSourceFileHeader("DAG Instruction Selector for the " +
                        CGP.getTargetInfo().getName().str() + " target", OS);
 
@@ -185,11 +187,5 @@ void DAGISelEmitter::run(raw_ostream &OS) {
   EmitMatcherTable(TheMatcher.get(), CGP, OS);
 }
 
-namespace llvm {
-
-void EmitDAGISel(RecordKeeper &RK, raw_ostream &OS) {
-  RK.startTimer("Parse patterns");
-  DAGISelEmitter(RK).run(OS);
-}
-
-} // End llvm namespace
+static TableGen::Emitter::OptClass<DAGISelEmitter>
+    X("gen-dag-isel", "Generate a DAG instruction selector");

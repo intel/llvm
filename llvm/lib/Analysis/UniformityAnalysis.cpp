@@ -1,4 +1,4 @@
-//===- ConvergenceUtils.cpp -----------------------------------------------===//
+//===- UniformityAnalysis.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -32,12 +32,10 @@ bool llvm::GenericUniformityAnalysisImpl<SSAContext>::markDefsDivergent(
 
 template <> void llvm::GenericUniformityAnalysisImpl<SSAContext>::initialize() {
   for (auto &I : instructions(F)) {
-    if (TTI->isSourceOfDivergence(&I)) {
-      assert(!I.isTerminator());
+    if (TTI->isSourceOfDivergence(&I))
       markDivergent(I);
-    } else if (TTI->isAlwaysUniform(&I)) {
+    else if (TTI->isAlwaysUniform(&I))
       addUniformOverride(I);
-    }
   }
   for (auto &Arg : F.args()) {
     if (TTI->isSourceOfDivergence(&Arg)) {
@@ -50,13 +48,10 @@ template <>
 void llvm::GenericUniformityAnalysisImpl<SSAContext>::pushUsers(
     const Value *V) {
   for (const auto *User : V->users()) {
-    const auto *UserInstr = dyn_cast<const Instruction>(User);
-    if (!UserInstr)
-      continue;
-    if (isAlwaysUniform(*UserInstr))
-      continue;
-    if (markDivergent(*UserInstr)) {
-      Worklist.push_back(UserInstr);
+    if (const auto *UserInstr = dyn_cast<const Instruction>(User)) {
+      if (markDivergent(*UserInstr)) {
+        Worklist.push_back(UserInstr);
+      }
     }
   }
 }
@@ -73,13 +68,25 @@ void llvm::GenericUniformityAnalysisImpl<SSAContext>::pushUsers(
 template <>
 bool llvm::GenericUniformityAnalysisImpl<SSAContext>::usesValueFromCycle(
     const Instruction &I, const Cycle &DefCycle) const {
-  if (isAlwaysUniform(I))
-    return false;
+  assert(!isAlwaysUniform(I));
   for (const Use &U : I.operands()) {
     if (auto *I = dyn_cast<Instruction>(&U)) {
       if (DefCycle.contains(I->getParent()))
         return true;
     }
+  }
+  return false;
+}
+
+template <>
+bool llvm::GenericUniformityAnalysisImpl<SSAContext>::isDivergentUse(
+    const Use &U) const {
+  const auto *V = U.get();
+  if (isDivergent(V))
+    return true;
+  if (const auto *DefInstr = dyn_cast<Instruction>(V)) {
+    const auto *UseInstr = cast<Instruction>(U.getUser());
+    return isTemporalDivergent(*UseInstr->getParent(), *DefInstr);
   }
   return false;
 }
@@ -125,17 +132,18 @@ UniformityInfoWrapperPass::UniformityInfoWrapperPass() : FunctionPass(ID) {
   initializeUniformityInfoWrapperPassPass(*PassRegistry::getPassRegistry());
 }
 
-INITIALIZE_PASS_BEGIN(UniformityInfoWrapperPass, "uniforminfo",
-                      "Uniform Info Analysis", true, true)
+INITIALIZE_PASS_BEGIN(UniformityInfoWrapperPass, "uniformity",
+                      "Uniformity Analysis", true, true)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(CycleInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
-INITIALIZE_PASS_END(UniformityInfoWrapperPass, "uniforminfo",
-                    "Uniform Info Analysis", true, true)
+INITIALIZE_PASS_END(UniformityInfoWrapperPass, "uniformity",
+                    "Uniformity Analysis", true, true)
 
 void UniformityInfoWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<DominatorTreeWrapperPass>();
-  AU.addRequired<CycleInfoWrapperPass>();
+  AU.addRequiredTransitive<CycleInfoWrapperPass>();
   AU.addRequired<TargetTransformInfoWrapperPass>();
 }
 

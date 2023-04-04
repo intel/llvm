@@ -79,6 +79,7 @@
 // RUN: %clang_cl -### -fsycl-device-only -Od %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
 // RUN: %clangxx -### -fsycl-device-only -O1 %s 2>&1 | FileCheck %s --check-prefix=CHECK-INLINE
 // RUN: %clang_cl -### -fsycl-device-only -O2 %s 2>&1 | FileCheck %s --check-prefix=CHECK-INLINE
+// RUN: %clangxx -### -fsycl-device-only -fintelfpga %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
 // CHECK-NOT-INLINE: "-fno-sycl-force-inline-kernel-lambda"
 // CHECK-INLINE-NOT: "-fno-sycl-force-inline-kernel-lambda"
 

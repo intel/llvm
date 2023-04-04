@@ -25,7 +25,7 @@ jobs:
   base_image_ubuntu2004:
     if: github.repository == 'intel/llvm'
     name: Base Ubuntu 20.04 Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -44,7 +44,7 @@ jobs:
   build_image_ubuntu2004:
     if: github.repository == 'intel/llvm'
     name: Build Ubuntu Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -66,7 +66,7 @@ jobs:
   drivers_image_ubuntu2004:
     if: github.repository == 'intel/llvm'
     name: Intel Drivers Ubuntu 20.04 Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: base_image_ubuntu2004
     steps:
       - name: Checkout
@@ -105,7 +105,7 @@ jobs:
   drivers_image_ubuntu2004_unstable:
     if: github.repository == 'intel/llvm'
     name: Intel Drivers (unstable) Ubuntu 20.04 Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: base_image_ubuntu2004
     steps:
       - name: Checkout
@@ -136,7 +136,7 @@ jobs:
   base_image_ubuntu2204:
     if: github.repository == 'intel/llvm'
     name: Base Ubuntu 22.04 Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -155,7 +155,7 @@ jobs:
   build_image_ubuntu2204:
     if: github.repository == 'intel/llvm'
     name: Build Ubuntu Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -177,7 +177,7 @@ jobs:
   drivers_image_ubuntu2204:
     if: github.repository == 'intel/llvm'
     name: Intel Drivers Ubuntu 22.04 Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: base_image_ubuntu2204
     steps:
       - name: Checkout
@@ -215,7 +215,7 @@ jobs:
   drivers_image_ubuntu2204_unstable:
     if: github.repository == 'intel/llvm'
     name: Intel Drivers (unstable) Ubuntu 22.04 Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: base_image_ubuntu2204
     steps:
       - name: Checkout

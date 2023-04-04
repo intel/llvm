@@ -589,6 +589,11 @@ void ResultRange::replaceAllUsesWith(Operation *op) {
   replaceAllUsesWith(op->getResults());
 }
 
+void ResultRange::replaceUsesWithIf(
+    Operation *op, function_ref<bool(OpOperand &)> shouldReplace) {
+  replaceUsesWithIf(op->getResults(), shouldReplace);
+}
+
 //===----------------------------------------------------------------------===//
 // ValueRange
 
@@ -650,11 +655,11 @@ llvm::hash_code OperationEquivalence::computeHash(
   return hash;
 }
 
-static bool
-isRegionEquivalentTo(Region *lhs, Region *rhs,
-                     function_ref<LogicalResult(Value, Value)> mapOperands,
-                     function_ref<LogicalResult(Value, Value)> mapResults,
-                     OperationEquivalence::Flags flags) {
+/*static*/ bool OperationEquivalence::isRegionEquivalentTo(
+    Region *lhs, Region *rhs,
+    function_ref<LogicalResult(Value, Value)> checkEquivalent,
+    function_ref<void(Value, Value)> markEquivalent,
+    OperationEquivalence::Flags flags) {
   DenseMap<Block *, Block *> blocksMap;
   auto blocksEquivalent = [&](Block &lBlock, Block &rBlock) {
     // Check block arguments.
@@ -675,15 +680,15 @@ isRegionEquivalentTo(Region *lhs, Region *rhs,
       if (!(flags & OperationEquivalence::IgnoreLocations) &&
           curArg.getLoc() != otherArg.getLoc())
         return false;
-      // Check if this value was already mapped to another value.
-      if (failed(mapOperands(curArg, otherArg)))
-        return false;
+      // Corresponding bbArgs are equivalent.
+      if (markEquivalent)
+        markEquivalent(curArg, otherArg);
     }
 
     auto opsEquivalent = [&](Operation &lOp, Operation &rOp) {
       // Check for op equality (recursively).
-      if (!OperationEquivalence::isEquivalentTo(&lOp, &rOp, mapOperands,
-                                                mapResults, flags))
+      if (!OperationEquivalence::isEquivalentTo(&lOp, &rOp, checkEquivalent,
+                                                markEquivalent, flags))
         return false;
       // Check successor mapping.
       for (auto successorsPair :
@@ -701,14 +706,47 @@ isRegionEquivalentTo(Region *lhs, Region *rhs,
   return llvm::all_of_zip(*lhs, *rhs, blocksEquivalent);
 }
 
-bool OperationEquivalence::isEquivalentTo(
+// Value equivalence cache to be used with `isRegionEquivalentTo` and
+// `isEquivalentTo`.
+struct ValueEquivalenceCache {
+  DenseMap<Value, Value> equivalentValues;
+  LogicalResult checkEquivalent(Value lhsValue, Value rhsValue) {
+    return success(lhsValue == rhsValue ||
+                   equivalentValues.lookup(lhsValue) == rhsValue);
+  }
+  void markEquivalent(Value lhsResult, Value rhsResult) {
+    auto insertion = equivalentValues.insert({lhsResult, rhsResult});
+    // Make sure that the value was not already marked equivalent to some other
+    // value.
+    (void)insertion;
+    assert(insertion.first->second == rhsResult &&
+           "inconsistent OperationEquivalence state");
+  }
+};
+
+/*static*/ bool
+OperationEquivalence::isRegionEquivalentTo(Region *lhs, Region *rhs,
+                                           OperationEquivalence::Flags flags) {
+  ValueEquivalenceCache cache;
+  return isRegionEquivalentTo(
+      lhs, rhs,
+      [&](Value lhsValue, Value rhsValue) -> LogicalResult {
+        return cache.checkEquivalent(lhsValue, rhsValue);
+      },
+      [&](Value lhsResult, Value rhsResult) {
+        cache.markEquivalent(lhsResult, rhsResult);
+      },
+      flags);
+}
+
+/*static*/ bool OperationEquivalence::isEquivalentTo(
     Operation *lhs, Operation *rhs,
-    function_ref<LogicalResult(Value, Value)> mapOperands,
-    function_ref<LogicalResult(Value, Value)> mapResults, Flags flags) {
+    function_ref<LogicalResult(Value, Value)> checkEquivalent,
+    function_ref<void(Value, Value)> markEquivalent, Flags flags) {
   if (lhs == rhs)
     return true;
 
-  // Compare the operation properties.
+  // 1. Compare the operation properties.
   if (lhs->getName() != rhs->getName() ||
       lhs->getAttrDictionary() != rhs->getAttrDictionary() ||
       lhs->getNumRegions() != rhs->getNumRegions() ||
@@ -719,6 +757,7 @@ bool OperationEquivalence::isEquivalentTo(
   if (!(flags & IgnoreLocations) && lhs->getLoc() != rhs->getLoc())
     return false;
 
+  // 2. Compare operands.
   ValueRange lhsOperands = lhs->getOperands(), rhsOperands = rhs->getOperands();
   SmallVector<Value> lhsOperandStorage, rhsOperandStorage;
   if (lhs->hasTrait<mlir::OpTrait::IsCommutative>()) {
@@ -752,30 +791,51 @@ bool OperationEquivalence::isEquivalentTo(
     rhsOperandStorage = sortValues(rhsOperands);
     rhsOperands = rhsOperandStorage;
   }
-  auto checkValueRangeMapping =
-      [](ValueRange lhs, ValueRange rhs,
-         function_ref<LogicalResult(Value, Value)> mapValues) {
-        for (auto operandPair : llvm::zip(lhs, rhs)) {
-          Value curArg = std::get<0>(operandPair);
-          Value otherArg = std::get<1>(operandPair);
-          if (curArg.getType() != otherArg.getType())
-            return false;
-          if (failed(mapValues(curArg, otherArg)))
-            return false;
-        }
-        return true;
-      };
-  // Check mapping of operands and results.
-  if (!checkValueRangeMapping(lhsOperands, rhsOperands, mapOperands))
-    return false;
-  if (!checkValueRangeMapping(lhs->getResults(), rhs->getResults(), mapResults))
-    return false;
+
+  for (auto operandPair : llvm::zip(lhsOperands, rhsOperands)) {
+    Value curArg = std::get<0>(operandPair);
+    Value otherArg = std::get<1>(operandPair);
+    if (curArg == otherArg)
+      continue;
+    if (curArg.getType() != otherArg.getType())
+      return false;
+    if (failed(checkEquivalent(curArg, otherArg)))
+      return false;
+  }
+
+  // 3. Compare result types and mark results as equivalent.
+  for (auto resultPair : llvm::zip(lhs->getResults(), rhs->getResults())) {
+    Value curArg = std::get<0>(resultPair);
+    Value otherArg = std::get<1>(resultPair);
+    if (curArg.getType() != otherArg.getType())
+      return false;
+    if (markEquivalent)
+      markEquivalent(curArg, otherArg);
+  }
+
+  // 4. Compare regions.
   for (auto regionPair : llvm::zip(lhs->getRegions(), rhs->getRegions()))
     if (!isRegionEquivalentTo(&std::get<0>(regionPair),
-                              &std::get<1>(regionPair), mapOperands, mapResults,
-                              flags))
+                              &std::get<1>(regionPair), checkEquivalent,
+                              markEquivalent, flags))
       return false;
+
   return true;
+}
+
+/*static*/ bool OperationEquivalence::isEquivalentTo(Operation *lhs,
+                                                     Operation *rhs,
+                                                     Flags flags) {
+  ValueEquivalenceCache cache;
+  return OperationEquivalence::isEquivalentTo(
+      lhs, rhs,
+      [&](Value lhsValue, Value rhsValue) -> LogicalResult {
+        return cache.checkEquivalent(lhsValue, rhsValue);
+      },
+      [&](Value lhsResult, Value rhsResult) {
+        cache.markEquivalent(lhsResult, rhsResult);
+      },
+      flags);
 }
 
 //===----------------------------------------------------------------------===//
@@ -813,6 +873,9 @@ OperationFingerPrint::OperationFingerPrint(Operation *topOp) {
     //   - Successors
     for (unsigned i = 0, e = op->getNumSuccessors(); i != e; ++i)
       addDataToHash(hasher, op->getSuccessor(i));
+    //   - Result types
+    for (Type t : op->getResultTypes())
+      addDataToHash(hasher, t);
   });
   hash = hasher.result();
 }

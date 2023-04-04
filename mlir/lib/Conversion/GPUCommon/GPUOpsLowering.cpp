@@ -8,6 +8,7 @@
 
 #include "GPUOpsLowering.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/STLExtras.h"
@@ -42,17 +43,10 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
     workgroupBuffers.push_back(globalOp);
   }
 
-  // Rewrite the original GPU function to an LLVM function.
-  auto convertedType = typeConverter->convertType(gpuFuncOp.getFunctionType());
-  if (!convertedType)
-    return failure();
-  auto funcType =
-      convertedType.template cast<LLVM::LLVMPointerType>().getElementType();
-
   // Remap proper input types.
   TypeConverter::SignatureConversion signatureConversion(
       gpuFuncOp.front().getNumArguments());
-  getTypeConverter()->convertFunctionSignature(
+  Type funcType = getTypeConverter()->convertFunctionSignature(
       gpuFuncOp.getFunctionType(), /*isVariadic=*/false, signatureConversion);
 
   // Create the new function operation. Only copy those attributes that are
@@ -89,12 +83,18 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
 
     for (const auto &en : llvm::enumerate(workgroupBuffers)) {
       LLVM::GlobalOp global = en.value();
-      Value address = rewriter.create<LLVM::AddressOfOp>(loc, global);
+      Value address = rewriter.create<LLVM::AddressOfOp>(
+          loc,
+          getTypeConverter()->getPointerType(global.getType(),
+                                             global.getAddrSpace()),
+          global.getSymNameAttr());
       auto elementType =
           global.getType().cast<LLVM::LLVMArrayType>().getElementType();
       Value memory = rewriter.create<LLVM::GEPOp>(
-          loc, LLVM::LLVMPointerType::get(elementType, global.getAddrSpace()),
-          address, ArrayRef<LLVM::GEPArg>{0, 0});
+          loc,
+          getTypeConverter()->getPointerType(elementType,
+                                             global.getAddrSpace()),
+          global.getType(), address, ArrayRef<LLVM::GEPArg>{0, 0});
 
       // Build a memref descriptor pointing to the buffer to plug with the
       // existing memref infrastructure. This may use more registers than
@@ -118,14 +118,14 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
       // Explicitly drop memory space when lowering private memory
       // attributions since NVVM models it as `alloca`s in the default
       // memory space and does not support `alloca`s with addrspace(5).
-      auto ptrType = LLVM::LLVMPointerType::get(
-          typeConverter->convertType(type.getElementType())
-              .template cast<Type>(),
-          allocaAddrSpace);
+      Type elementType = typeConverter->convertType(type.getElementType());
+      auto ptrType =
+          getTypeConverter()->getPointerType(elementType, allocaAddrSpace);
       Value numElements = rewriter.create<LLVM::ConstantOp>(
           gpuFuncOp.getLoc(), int64Ty, type.getNumElements());
       Value allocated = rewriter.create<LLVM::AllocaOp>(
-          gpuFuncOp.getLoc(), ptrType, numElements, /*alignment=*/0);
+          gpuFuncOp.getLoc(), ptrType, elementType, numElements,
+          /*alignment=*/0);
       auto descr = MemRefDescriptor::fromStaticShape(
           rewriter, loc, *getTypeConverter(), type, allocated);
       signatureConversion.remapInput(
@@ -205,7 +205,7 @@ LogicalResult GPUPrintfOpToHIPLowering::matchAndRewrite(
   Location loc = gpuPrintfOp->getLoc();
 
   mlir::Type llvmI8 = typeConverter->convertType(rewriter.getI8Type());
-  mlir::Type i8Ptr = LLVM::LLVMPointerType::get(llvmI8);
+  mlir::Type i8Ptr = getTypeConverter()->getPointerType(llvmI8);
   mlir::Type llvmI32 = typeConverter->convertType(rewriter.getI32Type());
   mlir::Type llvmI64 = typeConverter->convertType(rewriter.getI64Type());
   // Note: this is the GPUModule op, not the ModuleOp that surrounds it
@@ -254,9 +254,12 @@ LogicalResult GPUPrintfOpToHIPLowering::matchAndRewrite(
   }
 
   // Get a pointer to the format string's first element and pass it to printf()
-  Value globalPtr = rewriter.create<LLVM::AddressOfOp>(loc, global);
+  Value globalPtr = rewriter.create<LLVM::AddressOfOp>(
+      loc,
+      getTypeConverter()->getPointerType(globalType, global.getAddrSpace()),
+      global.getSymNameAttr());
   Value stringStart = rewriter.create<LLVM::GEPOp>(
-      loc, i8Ptr, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
+      loc, i8Ptr, globalType, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
   Value stringLen =
       rewriter.create<LLVM::ConstantOp>(loc, llvmI64, formatStringSize);
 
@@ -313,7 +316,7 @@ LogicalResult GPUPrintfOpToLLVMCallLowering::matchAndRewrite(
   Location loc = gpuPrintfOp->getLoc();
 
   mlir::Type llvmI8 = typeConverter->convertType(rewriter.getIntegerType(8));
-  mlir::Type i8Ptr = LLVM::LLVMPointerType::get(llvmI8, addressSpace);
+  mlir::Type i8Ptr = getTypeConverter()->getPointerType(llvmI8, addressSpace);
 
   // Note: this is the GPUModule op, not the ModuleOp that surrounds it
   // This ensures that global constants and declarations are placed within
@@ -343,9 +346,12 @@ LogicalResult GPUPrintfOpToLLVMCallLowering::matchAndRewrite(
   }
 
   // Get a pointer to the format string's first element
-  Value globalPtr = rewriter.create<LLVM::AddressOfOp>(loc, global);
+  Value globalPtr = rewriter.create<LLVM::AddressOfOp>(
+      loc,
+      getTypeConverter()->getPointerType(globalType, global.getAddrSpace()),
+      global.getSymNameAttr());
   Value stringStart = rewriter.create<LLVM::GEPOp>(
-      loc, i8Ptr, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
+      loc, i8Ptr, globalType, globalPtr, ArrayRef<LLVM::GEPArg>{0, 0});
 
   // Construct arguments and function call
   auto argsRange = adaptor.getArgs();
@@ -473,4 +479,19 @@ LogicalResult impl::scalarizeVectorOp(Operation *op, ValueRange operands,
 
   rewriter.replaceOp(op, result);
   return success();
+}
+
+static IntegerAttr wrapNumericMemorySpace(MLIRContext *ctx, unsigned space) {
+  return IntegerAttr::get(IntegerType::get(ctx, 64), space);
+}
+
+void mlir::populateGpuMemorySpaceAttributeConversions(
+    TypeConverter &typeConverter, const MemorySpaceMapping &mapping) {
+  typeConverter.addTypeAttributeConversion(
+      [mapping](BaseMemRefType type, gpu::AddressSpaceAttr memorySpaceAttr) {
+        gpu::AddressSpace memorySpace = memorySpaceAttr.getValue();
+        unsigned addressSpace = mapping(memorySpace);
+        return wrapNumericMemorySpace(memorySpaceAttr.getContext(),
+                                      addressSpace);
+      });
 }

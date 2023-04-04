@@ -143,6 +143,7 @@ private:
   bool removeDeadStuffFromFunction(Function *F);
   bool deleteDeadVarargs(Function &F);
   bool removeDeadArgumentsFromCallers(Function &F);
+  void propagateVirtMustcallLiveness(const Module &M);
 
   void UpdateNVPTXMetadata(Module &M, Function *F, Function *NF);
   llvm::DenseSet<Function *> NVPTXKernelSet;

@@ -16,13 +16,13 @@
 #include "X86.h"
 #include "X86Counter.h"
 #include "X86RegisterInfo.h"
-#include "X86Subtarget.h"
 #include "llvm/ADT/Sequence.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/MC/MCInstBuilder.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Host.h"
+#include "llvm/TargetParser/Host.h"
 
 #include <memory>
 #include <string>

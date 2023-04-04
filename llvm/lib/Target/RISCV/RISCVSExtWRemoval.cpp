@@ -47,13 +47,13 @@ public:
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 
-  StringRef getPassName() const override { return "RISCV sext.w Removal"; }
+  StringRef getPassName() const override { return "RISC-V sext.w Removal"; }
 };
 
 } // end anonymous namespace
 
 char RISCVSExtWRemoval::ID = 0;
-INITIALIZE_PASS(RISCVSExtWRemoval, DEBUG_TYPE, "RISCV sext.w Removal", false,
+INITIALIZE_PASS(RISCVSExtWRemoval, DEBUG_TYPE, "RISC-V sext.w Removal", false,
                 false)
 
 FunctionPass *llvm::createRISCVSExtWRemovalPass() {
@@ -175,8 +175,9 @@ static bool isSignExtendedW(Register SrcReg, const MachineRegisterInfo &MRI,
 
         const AttributeSet &Attrs = CalleeFn->getAttributes().getRetAttrs();
         unsigned BitWidth = IntTy->getBitWidth();
-        return (BitWidth <= 32 && Attrs.hasAttribute(Attribute::SExt)) ||
-               (BitWidth < 32 && Attrs.hasAttribute(Attribute::ZExt));
+        if ((BitWidth <= 32 && Attrs.hasAttribute(Attribute::SExt)) ||
+            (BitWidth < 32 && Attrs.hasAttribute(Attribute::ZExt)))
+          continue;
       }
 
       if (!AddRegDefToWorkList(CopySrcReg))

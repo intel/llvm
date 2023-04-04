@@ -105,27 +105,35 @@ bool Sema::CheckConstraintExpression(const Expr *ConstraintExpression,
   QualType Type = ConstraintExpression->getType();
 
   auto CheckForNonPrimary = [&] {
-    if (PossibleNonPrimary)
-      *PossibleNonPrimary =
-          // We have the following case:
-          // template<typename> requires func(0) struct S { };
-          // The user probably isn't aware of the parentheses required around
-          // the function call, and we're only going to parse 'func' as the
-          // primary-expression, and complain that it is of non-bool type.
-          (NextToken.is(tok::l_paren) &&
-           (IsTrailingRequiresClause ||
-            (Type->isDependentType() &&
-             isa<UnresolvedLookupExpr>(ConstraintExpression)) ||
-            Type->isFunctionType() ||
-            Type->isSpecificBuiltinType(BuiltinType::Overload))) ||
-          // We have the following case:
-          // template<typename T> requires size_<T> == 0 struct S { };
-          // The user probably isn't aware of the parentheses required around
-          // the binary operator, and we're only going to parse 'func' as the
-          // first operand, and complain that it is of non-bool type.
-          getBinOpPrecedence(NextToken.getKind(),
-                             /*GreaterThanIsOperator=*/true,
-                             getLangOpts().CPlusPlus11) > prec::LogicalAnd;
+    if (!PossibleNonPrimary)
+      return;
+
+    *PossibleNonPrimary =
+        // We have the following case:
+        // template<typename> requires func(0) struct S { };
+        // The user probably isn't aware of the parentheses required around
+        // the function call, and we're only going to parse 'func' as the
+        // primary-expression, and complain that it is of non-bool type.
+        //
+        // However, if we're in a lambda, this might also be:
+        // []<typename> requires var () {};
+        // Which also looks like a function call due to the lambda parentheses,
+        // but unlike the first case, isn't an error, so this check is skipped.
+        (NextToken.is(tok::l_paren) &&
+         (IsTrailingRequiresClause ||
+          (Type->isDependentType() &&
+           isa<UnresolvedLookupExpr>(ConstraintExpression) &&
+           !dyn_cast_if_present<LambdaScopeInfo>(getCurFunction())) ||
+          Type->isFunctionType() ||
+          Type->isSpecificBuiltinType(BuiltinType::Overload))) ||
+        // We have the following case:
+        // template<typename T> requires size_<T> == 0 struct S { };
+        // The user probably isn't aware of the parentheses required around
+        // the binary operator, and we're only going to parse 'func' as the
+        // first operand, and complain that it is of non-bool type.
+        getBinOpPrecedence(NextToken.getKind(),
+                           /*GreaterThanIsOperator=*/true,
+                           getLangOpts().CPlusPlus11) > prec::LogicalAnd;
   };
 
   // An atomic constraint!
@@ -150,11 +158,19 @@ bool Sema::CheckConstraintExpression(const Expr *ConstraintExpression,
 namespace {
 struct SatisfactionStackRAII {
   Sema &SemaRef;
-  SatisfactionStackRAII(Sema &SemaRef, llvm::FoldingSetNodeID FSNID)
+  bool Inserted = false;
+  SatisfactionStackRAII(Sema &SemaRef, const NamedDecl *ND,
+                        llvm::FoldingSetNodeID FSNID)
       : SemaRef(SemaRef) {
-      SemaRef.PushSatisfactionStackEntry(FSNID);
+      if (ND) {
+      SemaRef.PushSatisfactionStackEntry(ND, FSNID);
+      Inserted = true;
+      }
   }
-  ~SatisfactionStackRAII() { SemaRef.PopSatisfactionStackEntry(); }
+  ~SatisfactionStackRAII() {
+        if (Inserted)
+          SemaRef.PopSatisfactionStackEntry();
+  }
 };
 } // namespace
 
@@ -273,7 +289,8 @@ calculateConstraintSatisfaction(Sema &S, const Expr *ConstraintExpr,
 }
 
 static bool
-DiagRecursiveConstraintEval(Sema &S, llvm::FoldingSetNodeID &ID, const Expr *E,
+DiagRecursiveConstraintEval(Sema &S, llvm::FoldingSetNodeID &ID,
+                            const NamedDecl *Templ, const Expr *E,
                             const MultiLevelTemplateArgumentList &MLTAL) {
   E->Profile(ID, S.Context, /*Canonical=*/true);
   for (const auto &List : MLTAL)
@@ -286,7 +303,7 @@ DiagRecursiveConstraintEval(Sema &S, llvm::FoldingSetNodeID &ID, const Expr *E,
   // expression, or when trying to determine the constexpr-ness of special
   // members. Otherwise we could just use the
   // Sema::InstantiatingTemplate::isAlreadyBeingInstantiated function.
-  if (S.SatisfactionStackContains(ID)) {
+  if (S.SatisfactionStackContains(Templ, ID)) {
     S.Diag(E->getExprLoc(), diag::err_constraint_depends_on_self)
         << const_cast<Expr *>(E) << E->getSourceRange();
     return true;
@@ -317,26 +334,20 @@ static ExprResult calculateConstraintSatisfaction(
             return ExprError();
 
           llvm::FoldingSetNodeID ID;
-          if (DiagRecursiveConstraintEval(S, ID, AtomicExpr, MLTAL)) {
+          if (Template &&
+              DiagRecursiveConstraintEval(S, ID, Template, AtomicExpr, MLTAL)) {
             Satisfaction.IsSatisfied = false;
             Satisfaction.ContainsErrors = true;
             return ExprEmpty();
           }
 
-          SatisfactionStackRAII StackRAII(S, ID);
+          SatisfactionStackRAII StackRAII(S, Template, ID);
 
           // We do not want error diagnostics escaping here.
           Sema::SFINAETrap Trap(S);
           SubstitutedExpression =
               S.SubstConstraintExpr(const_cast<Expr *>(AtomicExpr), MLTAL);
-          // Substitution might have stripped off a contextual conversion to
-          // bool if this is the operand of an '&&' or '||'. For example, we
-          // might lose an lvalue-to-rvalue conversion here. If so, put it back
-          // before we try to evaluate.
-          if (SubstitutedExpression.isUsable() &&
-              !SubstitutedExpression.isInvalid())
-            SubstitutedExpression =
-                S.PerformContextuallyConvertToBool(SubstitutedExpression.get());
+
           if (SubstitutedExpression.isInvalid() || Trap.hasErrorOccurred()) {
             // C++2a [temp.constr.atomic]p1
             //   ...If substitution results in an invalid type or expression, the
@@ -372,6 +383,22 @@ static ExprResult calculateConstraintSatisfaction(
 
         if (!S.CheckConstraintExpression(SubstitutedExpression.get()))
           return ExprError();
+
+        // [temp.constr.atomic]p3: To determine if an atomic constraint is
+        // satisfied, the parameter mapping and template arguments are first
+        // substituted into its expression.  If substitution results in an
+        // invalid type or expression, the constraint is not satisfied.
+        // Otherwise, the lvalue-to-rvalue conversion is performed if necessary,
+        // and E shall be a constant expression of type bool.
+        //
+        // Perform the L to R Value conversion if necessary. We do so for all
+        // non-PRValue categories, else we fail to extend the lifetime of
+        // temporaries, and that fails the constant expression check.
+        if (!SubstitutedExpression.get()->isPRValue())
+          SubstitutedExpression = ImplicitCastExpr::Create(
+              S.Context, SubstitutedExpression.get()->getType(),
+              CK_LValueToRValue, SubstitutedExpression.get(),
+              /*BasePath=*/nullptr, VK_PRValue, FPOptionsOverride());
 
         return SubstitutedExpression;
       });
@@ -500,6 +527,48 @@ bool Sema::CheckConstraintSatisfaction(const Expr *ConstraintExpr,
       .isInvalid();
 }
 
+bool Sema::addInstantiatedCapturesToScope(
+    FunctionDecl *Function, const FunctionDecl *PatternDecl,
+    LocalInstantiationScope &Scope,
+    const MultiLevelTemplateArgumentList &TemplateArgs) {
+  const auto *LambdaClass = cast<CXXMethodDecl>(Function)->getParent();
+  const auto *LambdaPattern = cast<CXXMethodDecl>(PatternDecl)->getParent();
+
+  unsigned Instantiated = 0;
+
+  auto AddSingleCapture = [&](const ValueDecl *CapturedPattern,
+                              unsigned Index) {
+    ValueDecl *CapturedVar = LambdaClass->getCapture(Index)->getCapturedVar();
+    if (cast<CXXMethodDecl>(Function)->isConst()) {
+      QualType T = CapturedVar->getType();
+      T.addConst();
+      CapturedVar->setType(T);
+    }
+    if (CapturedVar->isInitCapture())
+      Scope.InstantiatedLocal(CapturedPattern, CapturedVar);
+  };
+
+  for (const LambdaCapture &CapturePattern : LambdaPattern->captures()) {
+    if (!CapturePattern.capturesVariable()) {
+      Instantiated++;
+      continue;
+    }
+    const ValueDecl *CapturedPattern = CapturePattern.getCapturedVar();
+    if (!CapturedPattern->isParameterPack()) {
+      AddSingleCapture(CapturedPattern, Instantiated++);
+    } else {
+      Scope.MakeInstantiatedLocalArgPack(CapturedPattern);
+      std::optional<unsigned> NumArgumentsInExpansion =
+          getNumArgumentsInExpansion(CapturedPattern->getType(), TemplateArgs);
+      if (!NumArgumentsInExpansion)
+        continue;
+      for (unsigned Arg = 0; Arg < *NumArgumentsInExpansion; ++Arg)
+        AddSingleCapture(CapturedPattern, Instantiated++);
+    }
+  }
+  return false;
+}
+
 bool Sema::SetupConstraintScope(
     FunctionDecl *FD, std::optional<ArrayRef<TemplateArgument>> TemplateArgs,
     MultiLevelTemplateArgumentList MLTAL, LocalInstantiationScope &Scope) {
@@ -533,6 +602,11 @@ bool Sema::SetupConstraintScope(
       if (addInstantiatedParametersToScope(FD, FromMemTempl->getTemplatedDecl(),
                                            Scope, MLTAL))
         return true;
+      // Make sure the captures are also added to the instantiation scope.
+      if (isLambdaCallOperator(FD) &&
+          addInstantiatedCapturesToScope(FD, FromMemTempl->getTemplatedDecl(),
+                                         Scope, MLTAL))
+        return true;
     }
 
     return false;
@@ -556,6 +630,11 @@ bool Sema::SetupConstraintScope(
     // Case where this was not a template, but instantiated as a
     // child-function.
     if (addInstantiatedParametersToScope(FD, InstantiatedFrom, Scope, MLTAL))
+      return true;
+
+    // Make sure the captures are also added to the instantiation scope.
+    if (isLambdaCallOperator(FD) &&
+        addInstantiatedCapturesToScope(FD, InstantiatedFrom, Scope, MLTAL))
       return true;
   }
 
@@ -1123,8 +1202,7 @@ substituteParameterMappings(Sema &S, NormalizedConstraint &N,
   Sema::InstantiatingTemplate Inst(
       S, ArgsAsWritten->arguments().front().getSourceRange().getBegin(),
       Sema::InstantiatingTemplate::ParameterMappingSubstitution{}, Concept,
-      SourceRange(ArgsAsWritten->arguments()[0].getSourceRange().getBegin(),
-                  ArgsAsWritten->arguments().back().getSourceRange().getEnd()));
+      ArgsAsWritten->arguments().front().getSourceRange());
   if (S.SubstTemplateArguments(*Atomic.ParameterMapping, MLTAL, SubstArgs))
     return true;
 

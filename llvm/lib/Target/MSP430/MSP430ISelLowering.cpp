@@ -645,7 +645,7 @@ SDValue MSP430TargetLowering::LowerCCCArguments(
         {
 #ifndef NDEBUG
           errs() << "LowerFormalArguments Unhandled argument type: "
-               << RegVT.getEVTString() << "\n";
+                 << RegVT << "\n";
 #endif
           llvm_unreachable(nullptr);
         }
@@ -686,8 +686,7 @@ SDValue MSP430TargetLowering::LowerCCCArguments(
         unsigned ObjSize = VA.getLocVT().getSizeInBits()/8;
         if (ObjSize > 2) {
             errs() << "LowerFormalArguments Unhandled argument type: "
-                << EVT(VA.getLocVT()).getEVTString()
-                << "\n";
+                << VA.getLocVT() << "\n";
         }
         // Create the frame index object for this incoming parameter...
         int FI = MFI.CreateFixedObject(ObjSize, VA.getLocMemOffset(), true);
@@ -1411,10 +1410,6 @@ bool MSP430TargetLowering::isZExtFree(Type *Ty1, Type *Ty2) const {
 bool MSP430TargetLowering::isZExtFree(EVT VT1, EVT VT2) const {
   // MSP430 implicitly zero-extends 8-bit results in 16-bit registers.
   return false && VT1 == MVT::i8 && VT2 == MVT::i16;
-}
-
-bool MSP430TargetLowering::isZExtFree(SDValue Val, EVT VT2) const {
-  return isZExtFree(Val.getValueType(), VT2);
 }
 
 //===----------------------------------------------------------------------===//

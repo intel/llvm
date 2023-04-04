@@ -25,7 +25,11 @@ except for development and testing.
 
 **Enable in Clang**: `-Xclang -fexperimental-assignment-tracking`
 
-**Enable in LLVM tools**: `-experimental-assignment-tracking`
+That causes Clang to get LLVM to run the pass `declare-to-assign`. The pass
+converts conventional debug intrinsics to assignment tracking metadata and sets
+the module flag `debug-info-assignment-tracking` to the value `i1 true`. To
+check whether assignment tracking is enabled for a module call
+`isAssignmentTrackingEnabled(const Module &M)` (from `llvm/IR/DebugInfo.h`).
 
 ## Design and implementation
 
@@ -222,10 +226,10 @@ to tackle:
   the storage address is not computed by an instruction (it's an argument
   value) and therefore we have nowhere to put the metadata attachment. To solve
   this we probably need another marker intrinsic to denote "the variable's
-  stack home is X address" - similar to `llvm.dbg.declare` and `llvm.dbg.addr`
-  except that it needs to compose with `llvm.dbg.assign` intrinsics such that
-  the stack home address is only selected as a location for the variable when
-  the `llvm.dbg.assign` intrinsics agree it should be.
+  stack home is X address" - similar to `llvm.dbg.declare` except that it needs
+  to compose with `llvm.dbg.assign` intrinsics such that the stack home address
+  is only selected as a location for the variable when the `llvm.dbg.assign`
+  intrinsics agree it should be.
 
 * Given the above (a special "the stack home is X" intrinsic), and the fact
   that we can only track assignments with fixed offsets and sizes, I think we

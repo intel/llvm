@@ -65,16 +65,43 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
 struct joint_matrix;
 
-template <typename T, size_t NumRows, size_t NumCols, use Use,
-          layout Layout = layout::dynamic, typename Group = sycl::sub_group>
+} // namespace matrix
+} // namespace experimental
+} // namespace oneapi
+
+namespace intel::experimental::matrix {
+
+// Begin wi_element definition
+
+template <typename T, size_t NumRows, size_t NumCols,
+          sycl::ext::oneapi::experimental::matrix::use Use,
+          sycl::ext::oneapi::experimental::matrix::layout Layout =
+              sycl::ext::oneapi::experimental::matrix::layout::dynamic,
+          typename Group = sycl::sub_group>
 class wi_element {
-  joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &M;
+  sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, NumRows,
+                                                        NumCols, Layout> &M;
   std::size_t idx;
 
 public:
-  wi_element(joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &Mat,
+  wi_element(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                 Group, T, Use, NumRows, NumCols, Layout> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
+
+  inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t> get_coord() {
+#if defined(__SYCL_DEVICE_ONLY__)
+    __ocl_vec_t<uint32_t, 2> coord =
+        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
+    const uint32_t row = coord[0];
+    const uint32_t col = coord[1];
+    return std::make_tuple(row, col);
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
   operator T() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_VectorExtractDynamic(M.spvm, idx);
@@ -142,19 +169,36 @@ public:
 #undef OP
 };
 
-template <size_t NumRows, size_t NumCols, use Use, layout Layout,
+template <size_t NumRows, size_t NumCols,
+          sycl::ext::oneapi::experimental::matrix::use Use,
+          sycl::ext::oneapi::experimental::matrix::layout Layout,
           typename Group>
 class wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use, Layout,
                  Group> {
-  joint_matrix<Group, sycl::ext::oneapi::bfloat16, Use, NumRows, NumCols,
-               Layout> &M;
+  sycl::ext::oneapi::experimental::matrix::joint_matrix<
+      Group, sycl::ext::oneapi::bfloat16, Use, NumRows, NumCols, Layout> &M;
   std::size_t idx;
 
 public:
-  wi_element(joint_matrix<Group, sycl::ext::oneapi::bfloat16, Use, NumRows,
-                          NumCols, Layout> &Mat,
+  wi_element(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                 Group, sycl::ext::oneapi::bfloat16, Use, NumRows, NumCols,
+                 Layout> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
+
+  inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t> get_coord() {
+#if defined(__SYCL_DEVICE_ONLY__)
+    __ocl_vec_t<uint32_t, 2> coord =
+        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
+    const uint32_t row = coord[0];
+    const uint32_t col = coord[1];
+    return std::make_tuple(row, col);
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
   operator sycl::ext::oneapi::bfloat16() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_VectorExtractDynamic(M.spvm, idx);
@@ -290,11 +334,57 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-} // namespace matrix
-} // namespace experimental
-} // namespace oneapi
+// End wi_element definition
 
-namespace intel::experimental::matrix {
+// Begin wi_data definition
+
+template <typename Group, typename T,
+          sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+          size_t Cols, sycl::ext::oneapi::experimental::matrix::layout Layout>
+class wi_data {
+
+  sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, Rows,
+                                                        Cols, Layout> &jm;
+
+  wi_data(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+          Group, T, Use, Rows, Cols, Layout> &_jm)
+      : jm(_jm){};
+
+  template <typename Grp, typename Type,
+            sycl::ext::oneapi::experimental::matrix::use UseJm, size_t NumRows,
+            size_t NumCols,
+            sycl::ext::oneapi::experimental::matrix::layout LayoutJm>
+  friend decltype(auto)
+  get_wi_data(Grp, sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                       Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
+
+public:
+  size_t length() {
+#if __SYCL_DEVICE_ONLY__
+    return __spirv_JointMatrixWorkItemLengthINTEL(jm.spvm);
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif
+  };
+
+  decltype(auto) operator[](size_t i) {
+    return wi_element<T, Rows, Cols, Use, Layout, Group>(jm, i);
+  };
+};
+
+template <typename Group, typename T,
+          sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+          size_t Cols, sycl::ext::oneapi::experimental::matrix::layout Layout>
+inline __SYCL_ALWAYS_INLINE decltype(auto)
+get_wi_data(Group sg, sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                          Group, T, Use, Rows, Cols, Layout> &jm) {
+  std::ignore = sg;
+  return wi_data(jm);
+}
+
+// End wi_data definition
+
 template <
     typename Group, typename T,
     sycl::ext::oneapi::experimental::matrix::use Use, size_t NumRows,
