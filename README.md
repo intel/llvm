@@ -60,7 +60,7 @@ Tools can be acquired via instructions in [third_party](/third_party/README.md).
 Requirements:
 - C++ compiler with C++17 support
 - cmake >= 3.14.0
-- clang-format-15.0 (can be installed with `python -m pip install clang-format`)
+- clang-format-15.0 (can be installed with `python -m pip install clang-format==15.0.7`)
 
 Project is defined using [CMake](https://cmake.org/).
 
@@ -101,17 +101,22 @@ List of options provided by CMake:
 
 **General**:
 
-If you've made modifications to the specification, you can also run a custom `generate` target prior to building.
-~~~~
-$ make generate
-~~~~
-
-This call will automatically generate the source code.
-
 To run automated code formatting build with option `UR_FORMAT_CPP_STYLE` and then run a custom `cppformat` target:
 ~~~~
 $ make cppformat
 ~~~~
+
+If you've made modifications to the specification, you can also run a custom `generate-code` or `generate` target prior to building.
+This call will generate the source code:
+~~~~
+$ make generate-code
+~~~~
+
+This call will generate the source code and run automated code formatting:
+~~~~
+$ make generate
+~~~~
+Note: `generate` target requires `UR_FORMAT_CPP_STYLE` to bet set.
 
 ### Adapter naming convention
 

@@ -209,15 +209,19 @@ add_custom_target(generate-code USES_TERMINAL
     COMMAND ${Python3_EXECUTABLE} json2src.py --api-json ${API_JSON_FILE} ${PROJECT_SOURCE_DIR}
 )
 
-# Generate and format source from the specification
-add_custom_target(generate USES_TERMINAL
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target generate-code
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target cppformat
-)
+if(UR_FORMAT_CPP_STYLE)
+    # Generate and format source from the specification
+    add_custom_target(generate USES_TERMINAL
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target generate-code
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target cppformat
+    )
 
-# Generate source and check for uncommitted diffs
-add_custom_target(check-generated
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMAND git diff --exit-code
-    DEPENDS generate
-)
+    # Generate source and check for uncommitted diffs
+    add_custom_target(check-generated
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        COMMAND git diff --exit-code
+        DEPENDS generate
+    )
+else()
+    message(WARNING "UR_FORMAT_CPP_STYLE not set. Targets: 'generate' and 'check-generated' and not available")
+endif()
