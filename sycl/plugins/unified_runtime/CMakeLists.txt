@@ -123,6 +123,21 @@ set_target_properties("ur_adapter_level_zero" PROPERTIES
     SOVERSION "0"
 )
 
+# Build CUDA adapter
+add_sycl_library("ur_adapter_cuda" SHARED 
+  SOURCES
+    "ur/ur.hpp"
+    "ur/ur.cpp"
+    "ur/usm_allocator.cpp"
+    "ur/usm_allocator.hpp"
+    "ur/adapters/cuda/ur_interface_loader.cpp"
+  # ---
+  INCLUDE_DIRS
+    ${sycl_inc_dir}
+  LIBRARIES
+    UnifiedRuntime-Headers
+    Threads::Threads
+)
 
 if (TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
