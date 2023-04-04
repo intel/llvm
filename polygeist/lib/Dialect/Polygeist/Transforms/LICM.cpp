@@ -880,9 +880,8 @@ private:
         loc, MT, ValueRange({accessor, id}), attrs);
   }
 
-  static sycl::SYCLAccessorSubscriptOp
-  getSYCLAccessorBegin(TypedValue<MemRefType> accessor, OpBuilder builder,
-                       Location loc) {
+  static Value getSYCLAccessorBegin(TypedValue<MemRefType> accessor,
+                                    OpBuilder builder, Location loc) {
     const auto accTy =
         cast<sycl::AccessorType>(accessor.getType().getElementType());
     const auto idTy = cast<sycl::IDType>(
@@ -891,19 +890,17 @@ private:
     const Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 64);
     const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
     for (unsigned i = 0; i < accTy.getDimension(); ++i) {
-      sycl::SYCLIDGetOp idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+      Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
       builder.create<memref::StoreOp>(loc, zero, idGetOp, zeroIndex);
     }
     return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
   }
 
-  static polygeist::SubIndexOp
-  getSYCLAccessorEnd(TypedValue<MemRefType> accessor, OpBuilder builder,
-                     Location loc) {
+  static Value getSYCLAccessorEnd(TypedValue<MemRefType> accessor,
+                                  OpBuilder builder, Location loc) {
     const auto accTy =
         cast<sycl::AccessorType>(accessor.getType().getElementType());
-    sycl::SYCLAccessorGetRangeOp getRangeOp =
-        createSYCLAccessorGetRangeOp(accessor, builder, loc);
+    Value getRangeOp = createSYCLAccessorGetRangeOp(accessor, builder, loc);
     auto range = builder.create<memref::AllocaOp>(
         loc, MemRefType::get(1, getRangeOp.getType()));
     const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
@@ -913,9 +910,8 @@ private:
     auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
     const Value one = builder.create<arith::ConstantIntOp>(loc, 1, 64);
     for (unsigned i = 0; i < accTy.getDimension(); ++i) {
-      sycl::SYCLIDGetOp idGetOp = createSYCLIDGetOp(id, i, builder, loc);
-      sycl::SYCLRangeGetOp rangeGetOp =
-          createSYCLRangeGetOp(range, i, builder, loc);
+      Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
+      Value rangeGetOp = createSYCLRangeGetOp(range, i, builder, loc);
       auto index = builder.create<arith::SubIOp>(loc, rangeGetOp, one);
       builder.create<memref::StoreOp>(loc, index, idGetOp, zeroIndex);
     }
