@@ -364,25 +364,26 @@ pi_result _pi_queue::resetDiscardedEvent(pi_command_list_ptr_t CommandList) {
 // \param CommandList is the command list where the event is added
 // \param IsInternal tells if the event is internal, i.e. visible in the L0
 //        plugin only.
-// \param ForceHostVisible tells if the event must be created in
-//        the host-visible pool
-inline static pi_result createEventAndAssociateQueue(
-    pi_queue Queue, pi_event *Event, pi_command_type CommandType,
-    pi_command_list_ptr_t CommandList, bool IsInternal = false,
-    bool ForceHostVisible = false) {
+// \param HostVisible tells if the event must be created in the
+//        host-visible pool. If not set then this function will decide.
+inline static pi_result
+createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
+                             pi_command_type CommandType,
+                             pi_command_list_ptr_t CommandList, bool IsInternal,
+                             std::optional<bool> HostVisible = std::nullopt) {
 
-  if (!ForceHostVisible) {
-    // Discarded/internal events will not be waited from host, so
-    // do not force host-visible scope for them.
-    if (!IsInternal)
-      ForceHostVisible = Queue->Device->ZeEventsScope == AllHostVisible;
+  if (!HostVisible.has_value()) {
+    // Internal/discarded events do not need host-scope visibility.
+    HostVisible =
+        IsInternal ? false : Queue->Device->ZeEventsScope == AllHostVisible;
   }
+
   // If event is discarded then try to get event from the queue cache.
   *Event =
-      IsInternal ? Queue->getEventFromQueueCache(ForceHostVisible) : nullptr;
+      IsInternal ? Queue->getEventFromQueueCache(HostVisible.value()) : nullptr;
 
   if (*Event == nullptr)
-    PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
+    PI_CALL(EventCreate(Queue->Context, Queue, HostVisible.value(), Event));
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
@@ -430,10 +431,14 @@ pi_result _pi_queue::signalEventFromCmdListIfLastEventDiscarded(
         LastCommandEvent->IsDiscarded))
     return PI_SUCCESS;
 
+  // NOTE: We create this "glue" event not as internal so it is not
+  // participating in the discarded events reset/reuse logic, but
+  // with no host-visibility since it is not going to be waited
+  // from the host.
   pi_event Event;
   PI_CALL(createEventAndAssociateQueue(
       this, &Event, PI_COMMAND_TYPE_USER, CommandList,
-      /* IsInternal */ true, /* ForceHostVisible */ false))
+      /* IsInternal */ false, /* HostVisible */ false));
   PI_CALL(piEventReleaseInternal(Event));
   LastCommandEvent = Event;
 
@@ -1489,7 +1494,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         pi_event HostVisibleEvent;
         auto Res = createEventAndAssociateQueue(
             this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList,
-            /* IsInternal */ false, /* ForceHostVisible */ true);
+            /* IsInternal */ false, /* HostVisible */ true);
         if (Res)
           return Res;
 
@@ -4608,7 +4613,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
     // Create a "proxy" host-visible event.
     auto Res = createEventAndAssociateQueue(
         Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList,
-        /* IsInternal */ false, /* ForceHostVisible */ true);
+        /* IsInternal */ false, /* HostVisible */ true);
     if (Res != PI_SUCCESS)
       return Res;
 
@@ -5460,7 +5465,8 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
     if (OutEvent) {
       auto Res = createEventAndAssociateQueue(
-          Queue, OutEvent, PI_COMMAND_TYPE_USER, Queue->CommandListMap.end());
+          Queue, OutEvent, PI_COMMAND_TYPE_USER, Queue->CommandListMap.end(),
+          /* IsInternal */ false);
       if (Res != PI_SUCCESS)
         return Res;
     }
@@ -5736,8 +5742,9 @@ pi_result _pi_queue::synchronize() {
       return PI_SUCCESS;
 
     pi_event Event;
-    pi_result Res = createEventAndAssociateQueue(
-        Queue, &Event, PI_COMMAND_TYPE_USER, ImmCmdList, false);
+    pi_result Res =
+        createEventAndAssociateQueue(Queue, &Event, PI_COMMAND_TYPE_USER,
+                                     ImmCmdList, /* IsInternal */ false);
     if (Res != PI_SUCCESS)
       return Res;
     auto zeEvent = Event->ZeEvent;
