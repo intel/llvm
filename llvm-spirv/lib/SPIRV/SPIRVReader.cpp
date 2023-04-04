@@ -439,10 +439,11 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
     auto *MT = static_cast<SPIRVTypeJointMatrixINTEL *>(T);
     auto R = static_cast<SPIRVConstant *>(MT->getRows())->getZExtIntValue();
     auto C = static_cast<SPIRVConstant *>(MT->getColumns())->getZExtIntValue();
-    auto L = static_cast<SPIRVConstant *>(MT->getLayout())->getZExtIntValue();
-    auto S = static_cast<SPIRVConstant *>(MT->getScope())->getZExtIntValue();
-    SmallVector<unsigned, 5> Params = {(unsigned)R, (unsigned)C, (unsigned)L,
-                                       (unsigned)S};
+    std::vector<unsigned> Params = {(unsigned)R, (unsigned)C};
+    if (auto *Layout = MT->getLayout())
+      Params.push_back(static_cast<SPIRVConstant *>(Layout)->getZExtIntValue());
+    Params.push_back(
+        static_cast<SPIRVConstant *>(MT->getScope())->getZExtIntValue());
     if (auto *Use = MT->getUse())
       Params.push_back(static_cast<SPIRVConstant *>(Use)->getZExtIntValue());
     auto *CTI = MT->getComponentTypeInterpretation();
