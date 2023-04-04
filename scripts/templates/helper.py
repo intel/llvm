@@ -554,6 +554,18 @@ def make_enum_name(namespace, tags, obj):
     return name
 
 """
+    returns c/c++ definition of flags_t bit mask.
+"""
+def make_flags_bitmask(namespace, tags, obj, meta):
+    etor_meta = meta[obj['type']][obj['name']]
+    if 'bit_mask' not in etor_meta.keys():
+        return ""
+    macro_def = "#define"
+    macro_name = make_type_name(namespace, tags, obj).upper()[:-2] + "_MASK"
+    mask = etor_meta['bit_mask']
+    return "%s %s %s"%(macro_def, macro_name, mask)
+
+"""
 Public:
     returns c/c++ name of etor
 """

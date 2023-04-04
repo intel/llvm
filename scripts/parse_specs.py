@@ -13,6 +13,7 @@ import json
 import yaml
 import copy
 from templates.helper import param_traits, type_traits, value_traits
+import ctypes
 
 default_version = "0.5"
 all_versions = ["0.5", "1.0", "1.1", "2.0"]
@@ -529,15 +530,20 @@ def _generate_meta(d, ordinal, meta):
         if 'enum' == type:
             value = -1
             max_value = -1
+            bit_mask = 0
             meta[type][name]['etors'] = []
             for idx, etor in enumerate(d['etors']):
                 meta[type][name]['etors'].append(etor['name'])
                 value = _get_etor_value(etor.get('value'), value)
+                if type_traits.is_flags(name):
+                    bit_mask |= value
                 if value > max_value:
                     max_value = value
                     max_index = idx
             if type_traits.is_flags(name):
                 meta[type][name]['max'] = hex((max_value << 1)-1) if max_value else '0'
+                if bit_mask != 0:
+                    meta[type][name]['bit_mask'] = hex(ctypes.c_uint32(~bit_mask).value)
             else:
                 meta[type][name]['max'] = d['etors'][idx]['name']
 
@@ -676,7 +682,10 @@ def _generate_returns(obj, meta):
                     _append(rets, "$X_RESULT_ERROR_INVALID_NULL_HANDLE", "`NULL == %s`"%item['name'])
 
                 elif type_traits.is_enum(item['type'], meta):
-                    _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s < %s`"%(meta['enum'][typename]['max'], item['name']))
+                    if type_traits.is_flags(item['type']) and 'bit_mask' in meta['enum'][typename].keys():
+                        _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s & %s`"%(typename.upper()[:-2]+ "_MASK", item['name']))
+                    else:
+                        _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s < %s`"%(meta['enum'][typename]['max'], item['name']))
 
                 if type_traits.is_descriptor(item['type']):
                     # walk each entry in the desc for pointers and enums
@@ -692,7 +701,10 @@ def _generate_returns(obj, meta):
                             if re.match(r"stype", m['name']):
                                 _append(rets, "$X_RESULT_ERROR_UNSUPPORTED_VERSION", "`%s != %s->stype`"%(re.sub(r"(\$\w)_(.*)_t.*", r"\1_STRUCTURE_TYPE_\2", typename).upper(), item['name']))
                             else:
-                                _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s < %s->%s`"%(meta['enum'][mtypename]['max'], item['name'], m['name']))
+                                if type_traits.is_flags(m['type']) and 'bit_mask' in meta['enum'][mtypename].keys():
+                                    _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s & %s->%s`"%(mtypename.upper()[:-2]+ "_MASK", item['name'], m['name']))
+                                else:
+                                    _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s < %s->%s`"%(meta['enum'][mtypename]['max'], item['name'], m['name']))
 
                 elif type_traits.is_properties(item['type']):
                     # walk each entry in the properties

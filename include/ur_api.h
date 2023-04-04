@@ -298,6 +298,8 @@ typedef enum ur_device_init_flag_t {
     /// @endcond
 
 } ur_device_init_flag_t;
+/// @brief Bit Mask for validating ur_device_init_flags_t
+#define UR_DEVICE_INIT_FLAGS_MASK 0xffffffe0
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Initialize the 'oneAPI' driver(s)
@@ -321,7 +323,7 @@ typedef enum ur_device_init_flag_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x1f < device_flags`
+///         + `::UR_DEVICE_INIT_FLAGS_MASK & device_flags`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urInit(
@@ -1007,6 +1009,8 @@ typedef enum ur_device_fp_capability_flag_t {
     /// @endcond
 
 } ur_device_fp_capability_flag_t;
+/// @brief Bit Mask for validating ur_device_fp_capability_flags_t
+#define UR_DEVICE_FP_CAPABILITY_FLAGS_MASK 0xffffff00
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device memory cache type
@@ -1043,6 +1047,8 @@ typedef enum ur_device_exec_capability_flag_t {
     /// @endcond
 
 } ur_device_exec_capability_flag_t;
+/// @brief Bit Mask for validating ur_device_exec_capability_flags_t
+#define UR_DEVICE_EXEC_CAPABILITY_FLAGS_MASK 0xfffffffc
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device affinity domain
@@ -1055,6 +1061,8 @@ typedef enum ur_device_affinity_domain_flag_t {
     /// @endcond
 
 } ur_device_affinity_domain_flag_t;
+/// @brief Bit Mask for validating ur_device_affinity_domain_flags_t
+#define UR_DEVICE_AFFINITY_DOMAIN_FLAGS_MASK 0xfffffffc
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Return platform native device handle.
@@ -1148,6 +1156,8 @@ typedef enum ur_memory_order_capability_flag_t {
     /// @endcond
 
 } ur_memory_order_capability_flag_t;
+/// @brief Bit Mask for validating ur_memory_order_capability_flags_t
+#define UR_MEMORY_ORDER_CAPABILITY_FLAGS_MASK 0xffffffe0
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory scope capabilities
@@ -1163,6 +1173,8 @@ typedef enum ur_memory_scope_capability_flag_t {
     /// @endcond
 
 } ur_memory_scope_capability_flag_t;
+/// @brief Bit Mask for validating ur_memory_scope_capability_flags_t
+#define UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK 0xffffffe0
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -1181,6 +1193,8 @@ typedef enum ur_context_flag_t {
     /// @endcond
 
 } ur_context_flag_t;
+/// @brief Bit Mask for validating ur_context_flags_t
+#define UR_CONTEXT_FLAGS_MASK 0xfffffffe
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Context creation properties
@@ -1435,6 +1449,8 @@ typedef enum ur_mem_flag_t {
     /// @endcond
 
 } ur_mem_flag_t;
+/// @brief Bit Mask for validating ur_mem_flags_t
+#define UR_MEM_FLAGS_MASK 0xffffffc0
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory types
@@ -1566,7 +1582,7 @@ typedef struct ur_image_desc_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x3f < flags`
+///         + `::UR_MEM_FLAGS_MASK & flags`
 ///         + `::UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
@@ -1657,7 +1673,7 @@ typedef struct ur_buffer_alloc_location_properties_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x3f < flags`
+///         + `::UR_MEM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
@@ -1759,7 +1775,7 @@ typedef enum ur_buffer_create_type_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x3f < flags`
+///         + `::UR_MEM_FLAGS_MASK & flags`
 ///         + `::UR_BUFFER_CREATE_TYPE_REGION < bufferCreateType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pRegion`
@@ -2132,6 +2148,8 @@ typedef enum ur_usm_flag_t {
     /// @endcond
 
 } ur_usm_flag_t;
+/// @brief Bit Mask for validating ur_usm_flags_t
+#define UR_USM_FLAGS_MASK 0xfffffffc
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM host memory property flags
@@ -2143,6 +2161,8 @@ typedef enum ur_usm_host_mem_flag_t {
     /// @endcond
 
 } ur_usm_host_mem_flag_t;
+/// @brief Bit Mask for validating ur_usm_host_mem_flags_t
+#define UR_USM_HOST_MEM_FLAGS_MASK 0xfffffffe
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM device memory property flags
@@ -2157,6 +2177,8 @@ typedef enum ur_usm_device_mem_flag_t {
     /// @endcond
 
 } ur_usm_device_mem_flag_t;
+/// @brief Bit Mask for validating ur_usm_device_mem_flags_t
+#define UR_USM_DEVICE_MEM_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory property flags
@@ -2169,6 +2191,8 @@ typedef enum ur_usm_pool_flag_t {
     /// @endcond
 
 } ur_usm_pool_flag_t;
+/// @brief Bit Mask for validating ur_usm_pool_flags_t
+#define UR_USM_POOL_FLAGS_MASK 0xfffffffe
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocation type
@@ -2215,6 +2239,8 @@ typedef enum ur_usm_advice_flag_t {
     /// @endcond
 
 } ur_usm_advice_flag_t;
+/// @brief Bit Mask for validating ur_usm_advice_flags_t
+#define UR_USM_ADVICE_FLAGS_MASK 0xfffffe00
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of USM pool
@@ -2463,7 +2489,7 @@ urUSMGetMemAllocInfo(
 ///         + `NULL == pPoolDesc`
 ///         + `NULL == ppPool`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x1 < pPoolDesc->flags`
+///         + `::UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -3525,6 +3551,8 @@ typedef enum ur_queue_flag_t {
     /// @endcond
 
 } ur_queue_flag_t;
+/// @brief Bit Mask for validating ur_queue_flags_t
+#define UR_QUEUE_FLAGS_MASK 0xffffff80
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Queue property type
@@ -4884,6 +4912,8 @@ typedef enum ur_map_flag_t {
     /// @endcond
 
 } ur_map_flag_t;
+/// @brief Bit Mask for validating ur_map_flags_t
+#define UR_MAP_FLAGS_MASK 0xfffffffc
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Map flags
@@ -4895,6 +4925,8 @@ typedef enum ur_usm_migration_flag_t {
     /// @endcond
 
 } ur_usm_migration_flag_t;
+/// @brief Bit Mask for validating ur_usm_migration_flags_t
+#define UR_USM_MIGRATION_FLAGS_MASK 0xfffffffe
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to map a region of the buffer object into the host
@@ -4919,7 +4951,7 @@ typedef enum ur_usm_migration_flag_t {
 ///         + `NULL == hQueue`
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x3 < mapFlags`
+///         + `::UR_MAP_FLAGS_MASK & mapFlags`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == ppRetMap`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
@@ -5089,7 +5121,7 @@ urEnqueueUSMMemcpy(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x1 < flags`
+///         + `::UR_USM_MIGRATION_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -5129,7 +5161,7 @@ urEnqueueUSMPrefetch(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0x1ff < advice`
+///         + `::UR_USM_ADVICE_FLAGS_MASK & advice`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
