@@ -103,10 +103,24 @@ struct elem {
 };
 
 namespace detail {
+// select_apply_cl_t selects from T8/T16/T32/T64 basing on
+// sizeof(_IN).  expected to handle scalar types in _IN.
+template <typename _IN, typename T8, typename T16, typename T32, typename T64>
+using select_apply_cl_t =
+    conditional_t<sizeof(_IN) == 1, T8,
+                  conditional_t<sizeof(_IN) == 2, T16,
+                                conditional_t<sizeof(_IN) == 4, T32, T64>>>;
 
 template <typename T> struct vec_helper {
   using RetType = T;
   static constexpr RetType get(T value) { return value; }
+};
+template <> struct vec_helper<bool> {
+  using RetType = select_apply_cl_t<bool, std::int8_t, std::int16_t,
+                                    std::int32_t, std::int64_t>;
+  static constexpr RetType get(bool value) {
+    return value;
+  }
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -778,7 +792,8 @@ public:
 
   template <typename Ty = DataT>
   explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg)
-      : m_Data{(DataType)vec_data<Ty>::get(arg)} {}
+      : m_Data{DataType(vec_data<Ty>::get(arg))} {
+  }
 
   template <typename Ty = DataT>
   typename detail::enable_if_t<
@@ -886,7 +901,7 @@ public:
             std::make_index_sequence<NumElements>()} {}
 
   // TODO: Remove, for debug purposes only.
-  void dump() {
+  void dump() const {
 #ifndef __SYCL_DEVICE_ONLY__
     for (int I = 0; I < NumElements; ++I) {
       std::cout << "  " << I << ": " << getValue(I) << std::endl;
@@ -1041,16 +1056,26 @@ public:
     store(Offset, MultiPtr);
   }
 
+  void ConvertToDataT() {
+    for (size_t i = 0; i < NumElements; ++i) {
+      DataT tmp = getValue(i);
+      setValue(i, tmp);
+    }
+  }
+
 #ifdef __SYCL_BINOP
 #error "Undefine __SYCL_BINOP macro"
 #endif
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
-#define __SYCL_BINOP(BINOP, OPASSIGN)                                          \
+#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   template <typename Ty = vec>                                                 \
   vec operator BINOP(const EnableIfNotHostHalf<Ty> &Rhs) const {               \
     vec Ret;                                                                   \
     Ret.m_Data = m_Data BINOP Rhs.m_Data;                                      \
+    if constexpr (std::is_same<Type, bool>::value && CONVERT) {                \
+      Ret.ConvertToDataT();                                                    \
+    }                                                                          \
     return Ret;                                                                \
   }                                                                            \
   template <typename Ty = vec>                                                 \
@@ -1081,7 +1106,7 @@ public:
     return *this;                                                              \
   }
 #else // __SYCL_USE_EXT_VECTOR_TYPE__
-#define __SYCL_BINOP(BINOP, OPASSIGN)                                          \
+#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   vec operator BINOP(const vec &Rhs) const {                                   \
     vec Ret;                                                                   \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
@@ -1110,19 +1135,19 @@ public:
   }
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
-  __SYCL_BINOP(+, +=)
-  __SYCL_BINOP(-, -=)
-  __SYCL_BINOP(*, *=)
-  __SYCL_BINOP(/, /=)
+  __SYCL_BINOP(+, +=, true)
+  __SYCL_BINOP(-, -=, true)
+  __SYCL_BINOP(*, *=, false)
+  __SYCL_BINOP(/, /=, false)
 
   // TODO: The following OPs are available only when: DataT != cl_float &&
   // DataT != cl_double && DataT != cl_half
-  __SYCL_BINOP(%, %=)
-  __SYCL_BINOP(|, |=)
-  __SYCL_BINOP(&, &=)
-  __SYCL_BINOP(^, ^=)
-  __SYCL_BINOP(>>, >>=)
-  __SYCL_BINOP(<<, <<=)
+  __SYCL_BINOP(%, %=, false)
+  __SYCL_BINOP(|, |=, false)
+  __SYCL_BINOP(&, &=, false)
+  __SYCL_BINOP(^, ^=, false)
+  __SYCL_BINOP(>>, >>=, false)
+  __SYCL_BINOP(<<, <<=, true)
 #undef __SYCL_BINOP
 #undef __SYCL_BINOP_HELP
 
@@ -2143,13 +2168,6 @@ __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
-// select_apply_cl_t selects from T8/T16/T32/T64 basing on
-// sizeof(_IN).  expected to handle scalar types in _IN.
-template <typename _IN, typename T8, typename T16, typename T32, typename T64>
-using select_apply_cl_t =
-    conditional_t<sizeof(_IN) == 1, T8,
-                  conditional_t<sizeof(_IN) == 2, T16,
-                                conditional_t<sizeof(_IN) == 4, T32, T64>>>;
 // Single element bool
 template <> struct VecStorage<bool, 1, void> {
   using DataType = bool;
