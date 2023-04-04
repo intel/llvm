@@ -406,6 +406,15 @@ using long_integer_list =
     type_list<scalar_long_integer_list, vector_long_integer_list,
               marray_long_integer_list>;
 
+using scalar_bool_list = type_list<bool>;
+
+using vector_bool_list = type_list<vec<bool, 1>, vec<bool, 2>, vec<bool, 3>,
+                                   vec<bool, 4>, vec<bool, 8>, vec<bool, 16>>;
+
+using marray_bool_list =
+    type_list<marray<bool, 1>, marray<bool, 2>, marray<bool, 3>,
+              marray<bool, 4>, marray<bool, 8>, marray<bool, 16>>;
+
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 // std::byte
 using scalar_byte_list = type_list<std::byte>;
@@ -451,7 +460,8 @@ using scalar_unsigned_integer_list =
                                       scalar_unsigned_char_list>,
                             scalar_unsigned_char_list>,
               scalar_unsigned_short_list, scalar_unsigned_int_list,
-              scalar_unsigned_long_list, scalar_unsigned_longlong_list
+              scalar_unsigned_long_list, scalar_unsigned_longlong_list,
+              scalar_bool_list
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
               ,
               scalar_byte_list
@@ -464,7 +474,8 @@ using vector_unsigned_integer_list =
                                       vector_unsigned_char_list>,
                             vector_unsigned_char_list>,
               vector_unsigned_short_list, vector_unsigned_int_list,
-              vector_unsigned_long_list, vector_unsigned_longlong_list
+              vector_unsigned_long_list, vector_unsigned_longlong_list,
+              vector_bool_list
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
               ,
               vector_byte_list
@@ -477,7 +488,8 @@ using marray_unsigned_integer_list =
                                       marray_unsigned_char_list>,
                             marray_unsigned_char_list>,
               marray_unsigned_short_list, marray_unsigned_int_list,
-              marray_unsigned_long_list, marray_unsigned_longlong_list
+              marray_unsigned_long_list, marray_unsigned_longlong_list,
+              marray_bool_list
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
               ,
               marray_byte_list
