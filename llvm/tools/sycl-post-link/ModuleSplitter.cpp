@@ -774,8 +774,9 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
       if (F->hasMetadata(MetadataName)) {
         auto *MDN = F->getMetadata(MetadataName);
         for (const MDOperand &MDOp : MDN->operands())
-          Result += "-" + std::to_string(
-              mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+          Result +=
+              "-" + std::to_string(
+                        mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
       }
     } break;
 
