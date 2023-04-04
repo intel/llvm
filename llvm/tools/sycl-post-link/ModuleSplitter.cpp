@@ -695,11 +695,17 @@ private:
 
   public:
     enum class RKind {
+      // Custom callback function
       K_Callback,
+      // Copy value of the specified attribute, if present
       K_SimpleStringAttribute,
+      // Use one or another string based on the specified metadata presence
       K_FlagMetadata,
+      // Use one or another string based on the specified attribute presence
       K_FlagAttribute,
+      // Concatenate and use list of integers from the specified metadata
       K_IntegersListMetadata,
+      // Sort, concatenate and use list of integers from the specified metadata
       K_SortedIntegersListMetadata
     };
     RKind Kind;
