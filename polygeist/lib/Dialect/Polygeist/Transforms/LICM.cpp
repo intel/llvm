@@ -748,8 +748,8 @@ private:
   Operation &op;
   /// Operations that need to be hoisted to allow this operation to be hoisted.
   SmallVector<Operation *> prerequisites;
-  /// Pairs of accessors that require not to overlap for this operation to be
-  /// invariant.
+  /// Pairs of accessors that are required to not overlap for this operation to
+  /// be invariant.
   SmallVector<AccessorPairType> requireNoOverlapAccessorPairs;
 };
 
@@ -762,7 +762,7 @@ class SYCLAccessorVersionBuilder : public SCFLoopVersionBuilder {
 public:
   SYCLAccessorVersionBuilder(
       LoopLikeOpInterface loop,
-      SmallVector<AccessorPairType> &requireNoOverlapAccessorPairs)
+      const SmallVectorImpl<AccessorPairType> &requireNoOverlapAccessorPairs)
       : SCFLoopVersionBuilder(loop),
         AccessorPair(requireNoOverlapAccessorPairs[0]) {
     assert(requireNoOverlapAccessorPairs.size() == 1 &&
@@ -1117,9 +1117,10 @@ collectHoistableOperations(LoopLikeOpInterface loop,
     }
   }
 
-  // Some operations in LICMPotentialCandidates are not hoisted if the required
-  // condition is not versioned. The operations that have them as prerequisites
-  // also cannot be hoisted.
+  // Some candidate operations require the loop to be versioned. If the loop is
+  // not versioned because of heuristic considerations (e.g., exceeded the
+  // versioning limit), then we have to filter out the operations that depend
+  // upon them.
   size_t numVersion = 0;
   std::set<const Operation *> opsToHoist;
   for (const LICMCandidate &candidate : LICMPotentialCandidates) {
@@ -1130,9 +1131,9 @@ collectHoistableOperations(LoopLikeOpInterface loop,
                }))
       continue;
 
-    SmallVector<AccessorPairType> AccessorPairs =
+    const SmallVector<AccessorPairType> &AccessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
-    bool requireVersioning = AccessorPairs.size() != 0;
+    bool requireVersioning = !AccessorPairs.empty();
     // Currently only version for single accessor pair.
     bool willVersion = EnableLICMSYCLAccessorVersioning &&
                        numVersion < LICMVersionLimit &&
@@ -1165,9 +1166,9 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   size_t numOpsHoisted = 0;
   std::set<const Operation *> opsHoisted;
   for (const LICMCandidate &candidate : LICMCandidates) {
-    SmallVector<AccessorPairType> AccessorPairs =
+    const SmallVector<AccessorPairType> &AccessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
-    if (AccessorPairs.size() != 0)
+    if (!AccessorPairs.empty())
       SYCLAccessorVersionBuilder(loop, AccessorPairs).versionLoop();
 
     loop.moveOutOfLoop(&candidate.getOperation());
