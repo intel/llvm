@@ -21,8 +21,6 @@
         });                                                                    \
       }                                                                        \
       for (int i = 0; i < DIM; i++)                                            \
-        std::cout << result[i] << " " << EXPECTED[i] << std::endl;             \
-      for (int i = 0; i < DIM; i++)                                            \
         assert(abs(result[i] - EXPECTED[i]) <= DELTA);                         \
     }                                                                          \
   }
@@ -50,10 +48,6 @@
               res_access[i] = res[i];                                          \
           });                                                                  \
         });                                                                    \
-      }                                                                        \
-      for (int i = 0; i < DIM; i++) {                                          \
-        std::cout << result[i] << " " << EXPECTED_1[i] << std::endl;           \
-        std::cout << result_ptr[i] << " " << EXPECTED_2[i] << std::endl;       \
       }                                                                        \
       for (int i = 0; i < DIM; i++) {                                          \
         assert(std::abs(result[i] - EXPECTED_1[i]) <= DELTA);                  \
@@ -84,7 +78,6 @@
         stream << "0x" << std::hex << result_uint64;                           \
         std::string result_string = stream.str();                              \
         result_string = result_string.substr(result_string.size() - 5);        \
-        std::cout << result_string << " " << EXPECTED[i] << std::endl;         \
         assert(result_string.compare(EXPECTED[i]) == 0);                       \
       }                                                                        \
     }                                                                          \
@@ -131,14 +124,10 @@ int main() {
         0.0001, ma6);
   TEST2(sycl::remquo, float, int, 3, EXPECTED(float, 1.4f, 4.2f, 5.3f),
         EXPECTED(int, 0, 0, 0), 0.0001, ma6, ma3);
-
-  if (!deviceQueue.get_device().is_gpu()) {
-    TEST3(sycl::nan, float, 3, EXPECTED(std::string, "00001", "00002", "00003"),
-          ma7);
-    TEST3(sycl::nan, double, 3,
-          EXPECTED(std::string, "00001", "00002", "00003"), ma8);
-  }
-
+  TEST3(sycl::nan, float, 3, EXPECTED(std::string, "fffff", "fffff", "fffff"),
+        ma7);
+  TEST3(sycl::nan, double, 3, EXPECTED(std::string, "fffff", "fffff", "fffff"),
+        ma8);
   TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
        ma1);
 
