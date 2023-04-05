@@ -198,7 +198,7 @@ nd_item<Dims> this_nd_item() {
 #else
   throw sycl::exception(
       sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host device");
+      "Free function calls are not supported on host");
 #endif
 }
 
@@ -210,7 +210,7 @@ template <int Dims> nd_item<Dims> this_nd_item() {
 #else
   throw sycl::exception(
       sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host device");
+      "Free function calls are not supported on host");
 #endif
 }
 } // namespace ext::oneapi::experimental

@@ -926,8 +926,8 @@ static unsigned allUsesTruncate(SelectionDAG *CurDAG, SDNode *N) {
 // For any 32 < Num < 64, check if the Imm contains at least Num consecutive
 // zeros and return the number of bits by the left of these consecutive zeros.
 static int findContiguousZerosAtLeast(uint64_t Imm, unsigned Num) {
-  unsigned HiTZ = countTrailingZeros<uint32_t>(Hi_32(Imm));
-  unsigned LoLZ = countLeadingZeros<uint32_t>(Lo_32(Imm));
+  unsigned HiTZ = llvm::countr_zero<uint32_t>(Hi_32(Imm));
+  unsigned LoLZ = llvm::countl_zero<uint32_t>(Lo_32(Imm));
   if ((HiTZ + LoLZ) >= Num)
     return (32 + HiTZ);
   return 0;
@@ -936,10 +936,10 @@ static int findContiguousZerosAtLeast(uint64_t Imm, unsigned Num) {
 // Direct materialization of 64-bit constants by enumerated patterns.
 static SDNode *selectI64ImmDirect(SelectionDAG *CurDAG, const SDLoc &dl,
                                   uint64_t Imm, unsigned &InstCnt) {
-  unsigned TZ = countTrailingZeros<uint64_t>(Imm);
-  unsigned LZ = countLeadingZeros<uint64_t>(Imm);
-  unsigned TO = countTrailingOnes<uint64_t>(Imm);
-  unsigned LO = countLeadingOnes<uint64_t>(Imm);
+  unsigned TZ = llvm::countr_zero<uint64_t>(Imm);
+  unsigned LZ = llvm::countl_zero<uint64_t>(Imm);
+  unsigned TO = llvm::countr_one<uint64_t>(Imm);
+  unsigned LO = llvm::countl_one<uint64_t>(Imm);
   unsigned Hi32 = Hi_32(Imm);
   unsigned Lo32 = Lo_32(Imm);
   SDNode *Result = nullptr;
@@ -967,7 +967,7 @@ static SDNode *selectI64ImmDirect(SelectionDAG *CurDAG, const SDLoc &dl,
   InstCnt = 2;
   assert(LZ < 64 && "Unexpected leading zeros here.");
   // Count of ones follwing the leading zeros.
-  unsigned FO = countLeadingOnes<uint64_t>(Imm << LZ);
+  unsigned FO = llvm::countl_one<uint64_t>(Imm << LZ);
   // 2-1) Patterns : {zeros}{31-bit value}
   //                 {ones}{31-bit value}
   if (isInt<32>(Imm)) {
@@ -1165,10 +1165,10 @@ static SDNode *selectI64ImmDirect(SelectionDAG *CurDAG, const SDLoc &dl,
 // were selected.
 static SDNode *selectI64ImmDirectPrefix(SelectionDAG *CurDAG, const SDLoc &dl,
                                         uint64_t Imm, unsigned &InstCnt) {
-  unsigned TZ = countTrailingZeros<uint64_t>(Imm);
-  unsigned LZ = countLeadingZeros<uint64_t>(Imm);
-  unsigned TO = countTrailingOnes<uint64_t>(Imm);
-  unsigned FO = countLeadingOnes<uint64_t>(LZ == 64 ? 0 : (Imm << LZ));
+  unsigned TZ = llvm::countr_zero<uint64_t>(Imm);
+  unsigned LZ = llvm::countl_zero<uint64_t>(Imm);
+  unsigned TO = llvm::countr_one<uint64_t>(Imm);
+  unsigned FO = llvm::countl_one<uint64_t>(LZ == 64 ? 0 : (Imm << LZ));
   unsigned Hi32 = Hi_32(Imm);
   unsigned Lo32 = Lo_32(Imm);
 
@@ -1319,18 +1319,68 @@ static SDNode *selectI64Imm(SelectionDAG *CurDAG, const SDLoc &dl, uint64_t Imm,
   auto getI32Imm = [CurDAG, dl](unsigned Imm) {
     return CurDAG->getTargetConstant(Imm, dl, MVT::i32);
   };
+
+  uint32_t Hi16OfLo32 = (Lo_32(Imm) >> 16) & 0xffff;
+  uint32_t Lo16OfLo32 = Lo_32(Imm) & 0xffff;
+
+  // Try to use 4 instructions to materialize the immediate which is "almost" a
+  // splat of a 32 bit immediate.
+  if (Hi16OfLo32 && Lo16OfLo32) {
+    uint32_t Hi16OfHi32 = (Hi_32(Imm) >> 16) & 0xffff;
+    uint32_t Lo16OfHi32 = Hi_32(Imm) & 0xffff;
+    bool IsSelected = false;
+
+    auto getSplat = [CurDAG, dl, getI32Imm](uint32_t Hi16, uint32_t Lo16) {
+      SDNode *Result =
+          CurDAG->getMachineNode(PPC::LIS8, dl, MVT::i64, getI32Imm(Hi16));
+      Result = CurDAG->getMachineNode(PPC::ORI8, dl, MVT::i64,
+                                      SDValue(Result, 0), getI32Imm(Lo16));
+      SDValue Ops[] = {SDValue(Result, 0), SDValue(Result, 0), getI32Imm(32),
+                       getI32Imm(0)};
+      return CurDAG->getMachineNode(PPC::RLDIMI, dl, MVT::i64, Ops);
+    };
+
+    if (Hi16OfHi32 == Lo16OfHi32 && Lo16OfHi32 == Lo16OfLo32) {
+      IsSelected = true;
+      Result = getSplat(Hi16OfLo32, Lo16OfLo32);
+      // Modify Hi16OfHi32.
+      SDValue Ops[] = {SDValue(Result, 0), SDValue(Result, 0), getI32Imm(48),
+                       getI32Imm(0)};
+      Result = CurDAG->getMachineNode(PPC::RLDIMI, dl, MVT::i64, Ops);
+    } else if (Hi16OfHi32 == Hi16OfLo32 && Hi16OfLo32 == Lo16OfLo32) {
+      IsSelected = true;
+      Result = getSplat(Hi16OfHi32, Lo16OfHi32);
+      // Modify Lo16OfLo32.
+      SDValue Ops[] = {SDValue(Result, 0), SDValue(Result, 0), getI32Imm(16),
+                       getI32Imm(16), getI32Imm(31)};
+      Result = CurDAG->getMachineNode(PPC::RLWIMI8, dl, MVT::i64, Ops);
+    } else if (Lo16OfHi32 == Lo16OfLo32 && Hi16OfLo32 == Lo16OfLo32) {
+      IsSelected = true;
+      Result = getSplat(Hi16OfHi32, Lo16OfHi32);
+      // Modify Hi16OfLo32.
+      SDValue Ops[] = {SDValue(Result, 0), SDValue(Result, 0), getI32Imm(16),
+                       getI32Imm(0), getI32Imm(15)};
+      Result = CurDAG->getMachineNode(PPC::RLWIMI8, dl, MVT::i64, Ops);
+    }
+    if (IsSelected == true) {
+      if (InstCnt)
+        *InstCnt = 4;
+      return Result;
+    }
+  }
+
   // Handle the upper 32 bit value.
   Result =
       selectI64ImmDirect(CurDAG, dl, Imm & 0xffffffff00000000, InstCntDirect);
   // Add in the last bits as required.
-  if (uint32_t Hi16 = (Lo_32(Imm) >> 16) & 0xffff) {
+  if (Hi16OfLo32) {
     Result = CurDAG->getMachineNode(PPC::ORIS8, dl, MVT::i64,
-                                    SDValue(Result, 0), getI32Imm(Hi16));
+                                    SDValue(Result, 0), getI32Imm(Hi16OfLo32));
     ++InstCntDirect;
   }
-  if (uint32_t Lo16 = Lo_32(Imm) & 0xffff) {
+  if (Lo16OfLo32) {
     Result = CurDAG->getMachineNode(PPC::ORI8, dl, MVT::i64, SDValue(Result, 0),
-                                    getI32Imm(Lo16));
+                                    getI32Imm(Lo16OfLo32));
     ++InstCntDirect;
   }
   if (InstCnt)
@@ -2796,9 +2846,6 @@ public:
   }
 };
 
-static bool isLogicOp(unsigned Opc) {
-  return Opc == ISD::AND || Opc == ISD::OR || Opc == ISD::XOR;
-}
 // The obvious case for wanting to keep the value in a GPR. Namely, the
 // result of the comparison is actually needed in a GPR.
 SDNode *IntegerCompareEliminator::tryEXTEND(SDNode *N) {
@@ -2808,7 +2855,7 @@ SDNode *IntegerCompareEliminator::tryEXTEND(SDNode *N) {
   SDValue WideRes;
   // If we are zero-extending the result of a logical operation on i1
   // values, we can keep the values in GPRs.
-  if (isLogicOp(N->getOperand(0).getOpcode()) &&
+  if (ISD::isBitwiseLogicOp(N->getOperand(0).getOpcode()) &&
       N->getOperand(0).getValueType() == MVT::i1 &&
       N->getOpcode() == ISD::ZERO_EXTEND)
     WideRes = computeLogicOpInGPR(N->getOperand(0));
@@ -2844,7 +2891,7 @@ SDNode *IntegerCompareEliminator::tryEXTEND(SDNode *N) {
 SDNode *IntegerCompareEliminator::tryLogicOpOfCompares(SDNode *N) {
   if (N->getValueType(0) != MVT::i1)
     return nullptr;
-  assert(isLogicOp(N->getOpcode()) &&
+  assert(ISD::isBitwiseLogicOp(N->getOpcode()) &&
          "Expected a logic operation on setcc results.");
   SDValue LoweredLogical = computeLogicOpInGPR(SDValue(N, 0));
   if (!LoweredLogical)
@@ -2924,7 +2971,7 @@ SDNode *IntegerCompareEliminator::tryLogicOpOfCompares(SDNode *N) {
 // There is also a special case that is handled (namely a complement operation
 // achieved with xor %a, -1).
 SDValue IntegerCompareEliminator::computeLogicOpInGPR(SDValue LogicOp) {
-  assert(isLogicOp(LogicOp.getOpcode()) &&
+  assert(ISD::isBitwiseLogicOp(LogicOp.getOpcode()) &&
         "Can only handle logic operations here.");
   assert(LogicOp.getValueType() == MVT::i1 &&
          "Can only handle logic operations on i1 values here.");
@@ -2949,7 +2996,7 @@ SDValue IntegerCompareEliminator::computeLogicOpInGPR(SDValue LogicOp) {
                                             PPC::RLDICL, dl, InVT, InputOp,
                                             S->getI64Imm(0, dl),
                                             S->getI64Imm(63, dl)), 0);
-    } else if (isLogicOp(OperandOpcode))
+    } else if (ISD::isBitwiseLogicOp(OperandOpcode))
       return computeLogicOpInGPR(Operand);
     return SDValue();
   };
@@ -3838,7 +3885,7 @@ static bool allUsesExtend(SDValue Compare, SelectionDAG *CurDAG) {
     if (CompareUse->getOpcode() != ISD::SIGN_EXTEND &&
         CompareUse->getOpcode() != ISD::ZERO_EXTEND &&
         CompareUse->getOpcode() != ISD::SELECT &&
-        !isLogicOp(CompareUse->getOpcode())) {
+        !ISD::isBitwiseLogicOp(CompareUse->getOpcode())) {
       OmittedForNonExtendUses++;
       return false;
     }
@@ -4457,9 +4504,9 @@ bool PPCDAGToDAGISel::trySETCC(SDNode *N) {
   // Force the ccreg into CR7.
   SDValue CR7Reg = CurDAG->getRegister(PPC::CR7, MVT::i32);
 
-  SDValue InFlag;  // Null incoming flag value.
+  SDValue InGlue;  // Null incoming flag value.
   CCReg = CurDAG->getCopyToReg(CurDAG->getEntryNode(), dl, CR7Reg, CCReg,
-                               InFlag).getValue(1);
+                               InGlue).getValue(1);
 
   IntCR = SDValue(CurDAG->getMachineNode(PPC::MFOCRF, dl, MVT::i32, CR7Reg,
                                          CCReg), 0);
@@ -4872,7 +4919,7 @@ bool PPCDAGToDAGISel::tryAsPairOfRLDICL(SDNode *N) {
   // wrapped run of ones, i.e.
   // Change pattern |0001111100000011111111|
   //             to |1111111100000011111111|.
-  unsigned NumOfLeadingZeros = countLeadingZeros(Imm64);
+  unsigned NumOfLeadingZeros = llvm::countl_zero(Imm64);
   if (NumOfLeadingZeros != 0)
     Imm64 |= maskLeadingOnes<uint64_t>(NumOfLeadingZeros);
 
@@ -4952,7 +4999,7 @@ bool PPCDAGToDAGISel::tryAsSingleRLDICL(SDNode *N) {
     return false;
 
   // If this is a 64-bit zero-extension mask, emit rldicl.
-  unsigned MB = 64 - countTrailingOnes(Imm64);
+  unsigned MB = 64 - llvm::countr_one(Imm64);
   unsigned SH = 0;
   unsigned Imm;
   SDValue Val = N->getOperand(0);
@@ -5002,7 +5049,7 @@ bool PPCDAGToDAGISel::tryAsSingleRLDICR(SDNode *N) {
   // If this is a negated 64-bit zero-extension mask,
   // i.e. the immediate is a sequence of ones from most significant side
   // and all zero for reminder, we should use rldicr.
-  unsigned MB = 63 - countTrailingOnes(~Imm64);
+  unsigned MB = 63 - llvm::countr_one(~Imm64);
   unsigned SH = 0;
   SDLoc dl(N);
   SDValue Ops[] = {N->getOperand(0), getI32Imm(SH, dl), getI32Imm(MB, dl)};
@@ -5321,9 +5368,9 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
     return;
 
   case PPCISD::MFOCRF: {
-    SDValue InFlag = N->getOperand(1);
+    SDValue InGlue = N->getOperand(1);
     ReplaceNode(N, CurDAG->getMachineNode(PPC::MFOCRF, dl, MVT::i32,
-                                          N->getOperand(0), InFlag));
+                                          N->getOperand(0), InGlue));
     return;
   }
 
@@ -5582,7 +5629,7 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
 
     // If the multiplier fits int16, we can handle it with mulli.
     int64_t Imm = cast<ConstantSDNode>(Op1)->getZExtValue();
-    unsigned Shift = countTrailingZeros<uint64_t>(Imm);
+    unsigned Shift = llvm::countr_zero<uint64_t>(Imm);
     if (isInt<16>(Imm) || !Shift)
       break;
 

@@ -11,17 +11,31 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodeGenIntrinsics.h"
-#include "CodeGenTarget.h"
 #include "SequenceToOffsetTable.h"
-#include "TableGenBackends.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MachineValueType.h"
+#include "llvm/Support/ModRef.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/StringToOffsetTable.h"
 #include "llvm/TableGen/TableGenBackend.h"
 #include <algorithm>
+#include <cassert>
+#include <map>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 using namespace llvm;
+using namespace llvm::tmp;
 
 cl::OptionCategory GenIntrinsicCat("Options for -gen-intrinsic-enums");
 cl::opt<std::string>
@@ -39,6 +53,7 @@ public:
   void run(raw_ostream &OS, bool Enums);
 
   void EmitEnumInfo(const CodeGenIntrinsicTable &Ints, raw_ostream &OS);
+  void EmitArgKind(raw_ostream &OS);
   void EmitTargetInfo(const CodeGenIntrinsicTable &Ints, raw_ostream &OS);
   void EmitIntrinsicToNameTable(const CodeGenIntrinsicTable &Ints,
                                 raw_ostream &OS);
@@ -63,6 +78,9 @@ void IntrinsicEmitter::run(raw_ostream &OS, bool Enums) {
   if (Enums) {
     // Emit the enum information.
     EmitEnumInfo(Ints, OS);
+
+    // Emit ArgKind for Intrinsics.h.
+    EmitArgKind(OS);
   } else {
     // Emit the target metadata.
     EmitTargetInfo(Ints, OS);
@@ -110,7 +128,9 @@ void IntrinsicEmitter::EmitEnumInfo(const CodeGenIntrinsicTable &Ints,
   }
 
   // Generate a complete header for target specific intrinsics.
-  if (!IntrinsicPrefix.empty()) {
+  if (IntrinsicPrefix.empty()) {
+    OS << "#ifdef GET_INTRINSIC_ENUM_VALUES\n";
+  } else {
     std::string UpperPrefix = StringRef(IntrinsicPrefix).upper();
     OS << "#ifndef LLVM_IR_INTRINSIC_" << UpperPrefix << "_ENUMS_H\n";
     OS << "#define LLVM_IR_INTRINSIC_" << UpperPrefix << "_ENUMS_H\n\n";
@@ -137,12 +157,27 @@ void IntrinsicEmitter::EmitEnumInfo(const CodeGenIntrinsicTable &Ints,
   // Emit num_intrinsics into the target neutral enum.
   if (IntrinsicPrefix.empty()) {
     OS << "    num_intrinsics = " << (Ints.size() + 1) << "\n";
+    OS << "#endif\n\n";
   } else {
     OS << "}; // enum\n";
     OS << "} // namespace Intrinsic\n";
     OS << "} // namespace llvm\n\n";
     OS << "#endif\n";
   }
+}
+
+void IntrinsicEmitter::EmitArgKind(raw_ostream &OS) {
+  if (!IntrinsicPrefix.empty())
+    return;
+  OS << "// llvm::Intrinsic::IITDescriptor::ArgKind\n";
+  OS << "#ifdef GET_INTRINSIC_ARGKIND\n";
+  if (auto RecArgKind = Records.getDef("ArgKind")) {
+    for (auto &RV : RecArgKind->getValues())
+      OS << "    AK_" << RV.getName() << " = " << *RV.getValue() << ",\n";
+  } else {
+    OS << "#error \"ArgKind is not defined\"\n";
+  }
+  OS << "#endif\n\n";
 }
 
 void IntrinsicEmitter::EmitTargetInfo(const CodeGenIntrinsicTable &Ints,
@@ -952,10 +987,16 @@ void IntrinsicEmitter::EmitIntrinsicToBuiltinMap(
   OS << "#endif\n\n";
 }
 
-void llvm::EmitIntrinsicEnums(RecordKeeper &RK, raw_ostream &OS) {
+static void EmitIntrinsicEnums(RecordKeeper &RK, raw_ostream &OS) {
   IntrinsicEmitter(RK).run(OS, /*Enums=*/true);
 }
 
-void llvm::EmitIntrinsicImpl(RecordKeeper &RK, raw_ostream &OS) {
+static TableGen::Emitter::Opt X("gen-intrinsic-enums", EmitIntrinsicEnums,
+                                "Generate intrinsic enums");
+
+static void EmitIntrinsicImpl(RecordKeeper &RK, raw_ostream &OS) {
   IntrinsicEmitter(RK).run(OS, /*Enums=*/false);
 }
+
+static TableGen::Emitter::Opt Y("gen-intrinsic-impl", EmitIntrinsicImpl,
+                                "Generate intrinsic information");

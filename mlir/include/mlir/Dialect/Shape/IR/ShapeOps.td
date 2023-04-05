@@ -1103,7 +1103,7 @@ def Shape_FunctionLibraryOp : Shape_Op<"function_library",
 
 def Shape_FuncOp : Shape_Op<"func",
     [AffineScope, AutomaticAllocationScope, CallableOpInterface,
-     FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol]> {
+     FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface]> {
   let summary = "Shape function";
   let description = [{
     An operation with a name containing a single `SSACFG` region which
@@ -1147,6 +1147,18 @@ def Shape_FuncOp : Shape_Op<"func",
     /// executed.
     ArrayRef<Type> getCallableResults() {
       return getFunctionType().getResults();
+    }
+
+    /// Returns the argument attributes for all callable region arguments or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableArgAttrs() {
+      return getArgAttrs().value_or(nullptr);
+    }
+
+    /// Returns the result attributes for all callable region results or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableResAttrs() {
+      return getResAttrs().value_or(nullptr);
     }
 
     //===------------------------------------------------------------------===//

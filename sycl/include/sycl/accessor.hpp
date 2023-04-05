@@ -276,6 +276,7 @@ protected:
   constexpr static access::address_space AS = TargetToAS<AccessTarget>::AS;
 
   constexpr static bool IsHostBuf = AccessTarget == access::target::host_buffer;
+  constexpr static bool IsHostTask = AccessTarget == access::target::host_task;
   // SYCL2020 4.7.6.9.4.3
   // IsPlaceHolder template parameter has no bearing on whether the accessor
   // instance is a placeholder. This is determined solely by the constructor.
@@ -398,6 +399,28 @@ constexpr access::mode deduceAccessMode() {
     return access::mode::read;
   }
 
+  if constexpr (std::is_same<
+                    MayBeTag1,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::host_task>>::value ||
+                std::is_same<
+                    MayBeTag2,
+                    mode_target_tag_t<access::mode::read,
+                                      access::target::host_task>>::value) {
+    return access::mode::read;
+  }
+
+  if constexpr (std::is_same<
+                    MayBeTag1,
+                    mode_target_tag_t<access::mode::write,
+                                      access::target::host_task>>::value ||
+                std::is_same<
+                    MayBeTag2,
+                    mode_target_tag_t<access::mode::write,
+                                      access::target::host_task>>::value) {
+    return access::mode::write;
+  }
+
   return access::mode::read_write;
 }
 
@@ -411,6 +434,28 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
                    mode_target_tag_t<access::mode::read,
                                      access::target::constant_buffer>>::value) {
     return access::target::constant_buffer;
+  }
+
+  if constexpr (
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::write,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::write,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::read_write,
+                                     access::target::host_task>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::read_write,
+                                     access::target::host_task>>::value) {
+    return access::target::host_task;
   }
 
   return defaultTarget;
@@ -534,7 +579,7 @@ public:
 
 protected:
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1021,6 +1066,7 @@ protected:
   static constexpr bool IsHostBuf = AccessorCommonT::IsHostBuf;
   static constexpr bool IsPlaceH = AccessorCommonT::IsPlaceH;
   static constexpr bool IsConst = AccessorCommonT::IsConst;
+  static constexpr bool IsHostTask = AccessorCommonT::IsHostTask;
   template <int Dims>
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
@@ -1141,34 +1187,20 @@ public:
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::AccessorBaseHost{Impl} {}
 
-  id<3> &getOffset() {
-    if constexpr (IsHostBuf)
-      return MAccData->MOffset;
-    else
-      return AccessorBaseHost::getOffset();
-  }
-
-  range<3> &getAccessRange() { return AccessorBaseHost::getAccessRange(); }
-  range<3> &getMemoryRange() {
-    if constexpr (IsHostBuf)
-      return MAccData->MMemoryRange;
-    else
-      return AccessorBaseHost::getMemoryRange();
-  }
   void *getPtr() { return AccessorBaseHost::getPtr(); }
 
-  const id<3> &getOffset() const {
+  const id<3> getOffset() const {
     if constexpr (IsHostBuf)
-      return MAccData->MOffset;
+      return MAccData ? MAccData->MOffset : id<3>();
     else
       return AccessorBaseHost::getOffset();
   }
   const range<3> &getAccessRange() const {
     return AccessorBaseHost::getAccessRange();
   }
-  const range<3> &getMemoryRange() const {
+  const range<3> getMemoryRange() const {
     if constexpr (IsHostBuf)
-      return MAccData->MMemoryRange;
+      return MAccData ? MAccData->MMemoryRange : range(0, 0, 0);
     else
       return AccessorBaseHost::getMemoryRange();
   }
@@ -1200,7 +1232,7 @@ public:
 
   PtrType getQualifiedPtr() const noexcept {
     if constexpr (IsHostBuf)
-      return reinterpret_cast<PtrType>(MAccData->MData);
+      return MAccData ? reinterpret_cast<PtrType>(MAccData->MData) : nullptr;
     else
       return reinterpret_cast<PtrType>(AccessorBaseHost::getPtr());
   }
@@ -1220,6 +1252,9 @@ public:
 private:
   friend class sycl::stream;
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1245,6 +1280,7 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
+  using size_type = std::size_t;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -1270,11 +1306,43 @@ public:
   // -------+---------+-------+----+-----+--------------
 
 public:
+  // implicit conversion between const / non-const types for read only accessors
+  template <typename DataT_,
+            typename = detail::enable_if_t<
+                IsAccessReadOnly && !std::is_same_v<DataT_, DataT> &&
+                std::is_same_v<std::remove_const_t<DataT_>,
+                               std::remove_const_t<DataT>>>>
+  accessor(const accessor<DataT_, Dimensions, AccessMode, AccessTarget,
+                          IsPlaceholder, PropertyListT> &other)
+#ifdef __SYCL_DEVICE_ONLY__
+      : impl(other.impl) {
+#else
+      : accessor(other.impl) {
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+  // implicit conversion from read_write T accessor to read only T (const)
+  // accessor
+  template <typename DataT_, access::mode AccessMode_,
+            typename = detail::enable_if_t<
+                (AccessMode_ == access_mode::read_write) && IsAccessReadOnly &&
+                std::is_same_v<std::remove_const_t<DataT_>,
+                               std::remove_const_t<DataT>>>>
+  accessor(const accessor<DataT_, Dimensions, AccessMode_, AccessTarget,
+                          IsPlaceholder, PropertyListT> &other)
+#ifdef __SYCL_DEVICE_ONLY__
+      : impl(other.impl) {
+#else
+      : accessor(other.impl) {
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && Dims == 0 &&
-                (IsHostBuf || (IsGlobalBuf || IsConstantBuf))> * = nullptr>
+                (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))> * =
+                nullptr>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef,
       const property_list &PropertyList = {},
@@ -1306,7 +1374,8 @@ public:
             typename detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && Dims == 0 &&
-                (IsHostBuf || (IsGlobalBuf || IsConstantBuf))> * = nullptr>
+                (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))> * =
+                nullptr>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1338,7 +1407,7 @@ public:
             typename = typename detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && (Dims == 0) &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsHostBuf || IsConstantBuf || IsHostTask)>>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       const property_list &PropertyList = {},
@@ -1370,7 +1439,7 @@ public:
             typename = typename detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && (Dims == 0) &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1402,7 +1471,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsHostBuf || (IsGlobalBuf || IsConstantBuf))>>
+                (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef,
       const property_list &PropertyList = {},
@@ -1436,7 +1505,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsHostBuf || (IsGlobalBuf || IsConstantBuf))>>
+                (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1471,7 +1540,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, TagT,
       const property_list &PropertyList = {},
@@ -1485,7 +1554,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, TagT,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1499,7 +1568,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       const property_list &PropertyList = {},
@@ -1532,7 +1601,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1566,7 +1635,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       TagT, const property_list &PropertyList = {},
@@ -1580,7 +1649,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       TagT,
@@ -1595,7 +1664,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsHostBuf || (IsGlobalBuf || IsConstantBuf))>>
+                (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       const property_list &PropertyList = {},
@@ -1607,7 +1676,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsHostBuf || (IsGlobalBuf || IsConstantBuf))>>
+                (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1649,7 +1718,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, const property_list &PropertyList = {},
@@ -1662,7 +1731,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange,
@@ -1677,7 +1746,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, TagT,
@@ -1693,7 +1762,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, TagT,
@@ -1709,7 +1778,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsHostBuf || (IsGlobalBuf || IsConstantBuf))>>
+                (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, const property_list &PropertyList = {},
@@ -1749,7 +1818,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsHostBuf || (IsGlobalBuf || IsConstantBuf))>>
+                (IsHostBuf || IsHostTask || (IsGlobalBuf || IsConstantBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset,
@@ -1820,7 +1889,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
@@ -1861,7 +1930,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
@@ -1903,7 +1972,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
@@ -1919,7 +1988,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf || IsHostTask)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
@@ -1972,11 +2041,11 @@ public:
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
-  size_t size() const noexcept { return getAccessRange().size(); }
+  size_type size() const noexcept { return getAccessRange().size(); }
 
-  size_t byte_size() const noexcept { return size() * sizeof(DataT); }
+  size_type byte_size() const noexcept { return size() * sizeof(DataT); }
 
-  size_t max_size() const noexcept {
+  size_type max_size() const noexcept {
     return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
   }
 
@@ -2065,8 +2134,9 @@ public:
   }
 
   template <access::target AccessTarget_ = AccessTarget,
-            typename = detail::enable_if_t<AccessTarget_ ==
-                                           access::target::host_buffer>>
+            typename = detail::enable_if_t<
+                (AccessTarget_ == access::target::host_buffer) ||
+                (AccessTarget_ == access::target::host_task)>>
 #if SYCL_LANGUAGE_VERSION >= 202001
   std::add_pointer_t<value_type> get_pointer() const noexcept
 #else
@@ -2088,6 +2158,11 @@ public:
                                            access::target::constant_buffer>>
   constant_ptr<DataT> get_pointer() const {
     return constant_ptr<DataT>(getPointerAdjusted());
+  }
+
+  template <access::decorated IsDecorated>
+  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+    return accessor_ptr<IsDecorated>(getPointerAdjusted());
   }
 
   // accessor::has_property for runtime properties is only available in host
@@ -2495,10 +2570,13 @@ protected:
   // Method which calculates linear offset for the ID using Range and Offset.
   template <int Dims = AdjustedDim> size_t getLinearIndex(id<Dims> Id) const {
     size_t Result = 0;
-    for (int I = 0; I < Dims; ++I)
-      Result = Result * getSize()[I] + Id[I];
+    detail::dim_loop<Dims>(
+        [&, this](size_t I) { Result = Result * getSize()[I] + Id[I]; });
     return Result;
   }
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2636,10 +2714,6 @@ public:
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
-  local_ptr<DataT> get_pointer() const {
-    return local_ptr<DataT>(getQualifiedPtr());
-  }
-
   bool operator==(const local_accessor_base &Rhs) const {
     return impl == Rhs.impl;
   }
@@ -2667,6 +2741,11 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
 
   // Use base classes constructors
   using local_acc::local_acc;
+
+public:
+  local_ptr<DataT> get_pointer() const {
+    return local_ptr<DataT>(local_acc::getQualifiedPtr());
+  }
 
 #ifdef __SYCL_DEVICE_ONLY__
 
@@ -2741,15 +2820,16 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
+  using size_type = std::size_t;
 
   template <access::decorated IsDecorated>
   using accessor_ptr = local_ptr<value_type, IsDecorated>;
 
   void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
 
-  size_t byte_size() const noexcept { return this->size() * sizeof(DataT); }
+  size_type byte_size() const noexcept { return this->size() * sizeof(DataT); }
 
-  size_t max_size() const noexcept {
+  size_type max_size() const noexcept {
     return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
   }
 
@@ -2771,6 +2851,15 @@ public:
   }
   const_reverse_iterator crend() const noexcept {
     return const_reverse_iterator(begin());
+  }
+
+  std::add_pointer_t<value_type> get_pointer() const noexcept {
+    return std::add_pointer_t<value_type>(local_acc::getQualifiedPtr());
+  }
+
+  template <access::decorated IsDecorated>
+  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+    return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
   }
 
   template <typename Property> bool has_property() const noexcept {

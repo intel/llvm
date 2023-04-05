@@ -373,6 +373,10 @@ number of cross compilers, or may only support a native target.
 
   Acts as an alias for :option:`--print-supported-cpus`.
 
+.. option:: -mcpu=help, -mtune=help
+
+  Acts as an alias for :option:`--print-supported-cpus`.
+
 .. option:: -march=<cpu>
 
   Specify that Clang should generate code for a specific processor family
@@ -469,8 +473,10 @@ Code Generation Options
 
 .. option:: -fexceptions
 
-  Enable generation of unwind information. This allows exceptions to be thrown
-  through Clang compiled stack frames.  This is on by default in x86-64.
+  Allow exceptions to be thrown through Clang compiled stack frames (on many
+  targets, this will enable unwind information for functions that might have
+  an exception thrown through them). For most targets, this is enabled by
+  default for C++.
 
 .. option:: -ftrapv
 
@@ -591,6 +597,16 @@ Driver Options
   Save internal code generation (LLVM) statistics to a file in the current
   directory (:option:`-save-stats`/"-save-stats=cwd") or the directory
   of the output file ("-save-state=obj").
+
+  You can also use environment variables to control the statistics reporting.
+  Setting ``CC_PRINT_INTERNAL_STAT`` to ``1`` enables the feature, the report
+  goes to stdout in JSON format.
+
+  Setting ``CC_PRINT_INTERNAL_STAT_FILE`` to a file path makes it report
+  statistics to the given file in the JSON format.
+
+  Note that ``-save-stats`` take precedence over ``CC_PRINT_INTERNAL_STAT``
+  and ``CC_PRINT_INTERNAL_STAT_FILE``.
 
 .. option:: -integrated-as, -no-integrated-as
 

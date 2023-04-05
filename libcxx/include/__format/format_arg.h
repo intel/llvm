@@ -18,6 +18,7 @@
 #include <__format/format_parse_context.h>
 #include <__functional/invoke.h>
 #include <__memory/addressof.h>
+#include <__utility/declval.h>
 #include <__utility/forward.h>
 #include <__utility/unreachable.h>
 #include <__variant/monostate.h>
@@ -30,7 +31,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace __format {
 /// The type stored in @ref basic_format_arg.
@@ -94,7 +95,7 @@ constexpr __arg_t __get_packed_type(uint64_t __types, size_t __id) {
 // This function is not user obervable, so it can directly use the non-standard
 // types of the "variant". See __arg_t for more details.
 template <class _Visitor, class _Context>
-_LIBCPP_HIDE_FROM_ABI _LIBCPP_AVAILABILITY_FORMAT decltype(auto)
+_LIBCPP_HIDE_FROM_ABI decltype(auto)
 __visit_format_arg(_Visitor&& __vis, basic_format_arg<_Context> __arg) {
   switch (__arg.__type_) {
   case __format::__arg_t::__none:
@@ -224,7 +225,7 @@ public:
 };
 
 template <class _Context>
-class _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT basic_format_arg {
+class _LIBCPP_TEMPLATE_VIS basic_format_arg {
 public:
   class _LIBCPP_TEMPLATE_VIS handle;
 
@@ -276,7 +277,7 @@ private:
 // This function is user facing, so it must wrap the non-standard types of
 // the "variant" in a handle to stay conforming. See __arg_t for more details.
 template <class _Visitor, class _Context>
-_LIBCPP_HIDE_FROM_ABI _LIBCPP_AVAILABILITY_FORMAT decltype(auto)
+_LIBCPP_HIDE_FROM_ABI decltype(auto)
 visit_format_arg(_Visitor&& __vis, basic_format_arg<_Context> __arg) {
   switch (__arg.__type_) {
 #  ifndef _LIBCPP_HAS_NO_INT128
@@ -295,7 +296,7 @@ visit_format_arg(_Visitor&& __vis, basic_format_arg<_Context> __arg) {
   }
 }
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

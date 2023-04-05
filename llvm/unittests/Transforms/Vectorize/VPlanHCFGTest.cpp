@@ -9,8 +9,8 @@
 #include "../lib/Transforms/Vectorize/VPlan.h"
 #include "../lib/Transforms/Vectorize/VPlanTransforms.h"
 #include "VPlanTestBase.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/TargetParser/Triple.h"
 #include "gtest/gtest.h"
 #include <string>
 
@@ -139,8 +139,7 @@ compound=true
   TargetLibraryInfo TLI(TLII);
   SmallPtrSet<Instruction *, 1> DeadInstructions;
   VPlanTransforms::VPInstructionsToVPRecipes(
-      LI->getLoopFor(LoopHeader), Plan, [](PHINode *P) { return nullptr; },
-      DeadInstructions, *SE, TLI);
+      Plan, [](PHINode *P) { return nullptr; }, DeadInstructions, *SE, TLI);
 }
 
 TEST_F(VPlanHCFGTest, testVPInstructionToVPRecipesInner) {
@@ -171,8 +170,7 @@ TEST_F(VPlanHCFGTest, testVPInstructionToVPRecipesInner) {
   TargetLibraryInfoImpl TLII(Triple(M.getTargetTriple()));
   TargetLibraryInfo TLI(TLII);
   VPlanTransforms::VPInstructionsToVPRecipes(
-      LI->getLoopFor(LoopHeader), Plan, [](PHINode *P) { return nullptr; },
-      DeadInstructions, *SE, TLI);
+      Plan, [](PHINode *P) { return nullptr; }, DeadInstructions, *SE, TLI);
 
   VPBlockBase *Entry = Plan->getEntry()->getEntryBasicBlock();
   EXPECT_NE(nullptr, Entry->getSingleSuccessor());

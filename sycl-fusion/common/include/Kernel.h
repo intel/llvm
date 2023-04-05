@@ -159,6 +159,43 @@ public:
     return !(LHS == RHS);
   }
 
+  friend bool operator<(const NDRange &LHS, const NDRange &RHS) {
+    if (LHS.Dimensions < RHS.Dimensions) {
+      return true;
+    }
+    if (LHS.Dimensions > RHS.Dimensions) {
+      return false;
+    }
+
+    if (LHS.GlobalSize < RHS.GlobalSize) {
+      return true;
+    }
+    if (LHS.GlobalSize > RHS.GlobalSize) {
+      return false;
+    }
+
+    if (!LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
+      return true;
+    }
+    if (LHS.hasSpecificLocalSize() && !RHS.hasSpecificLocalSize()) {
+      return false;
+    }
+    if (LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
+      if (LHS.LocalSize < RHS.LocalSize) {
+        return true;
+      }
+      if (LHS.LocalSize > RHS.LocalSize) {
+        return false;
+      }
+    }
+
+    return LHS.Offset < RHS.Offset;
+  }
+
+  friend bool operator>(const NDRange &LHS, const NDRange &RHS) {
+    return RHS < LHS;
+  }
+
 private:
   /** @brief The number of dimensions. */
   int Dimensions;

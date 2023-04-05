@@ -7,7 +7,7 @@
 ; - Compiler adds 'isLargeGRF' property to the device binary
 ;   images requesting "large GRF" 
 
-; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S %s -o %t.table
+; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_large_grf_0.ll --check-prefixes CHECK-LARGE-GRF-IR
 ; RUN: FileCheck %s -input-file=%t_large_grf_0.prop --check-prefixes CHECK-LARGE-GRF-PROP

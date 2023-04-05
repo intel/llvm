@@ -89,6 +89,8 @@ piextContextSetExtendedDeleter
 piextDeviceCreateWithNativeHandle
 piextDeviceGetNativeHandle
 piextDeviceSelectBinary
+piextEnqueueReadHostPipe
+piextEnqueueWriteHostPipe
 piextEventCreateWithNativeHandle
 piextEventGetNativeHandle
 piextGetDeviceFunctionPointer

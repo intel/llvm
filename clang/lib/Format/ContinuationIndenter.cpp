@@ -18,6 +18,7 @@
 #include "WhitespaceManager.h"
 #include "clang/Basic/OperatorPrecedence.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Format/Format.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Debug.h"
@@ -614,7 +615,7 @@ unsigned ContinuationIndenter::addTokenToState(LineState &State, bool Newline,
   State.NoContinuation = false;
 
   if ((Current.is(TT_ImplicitStringLiteral) &&
-       (Previous.Tok.getIdentifierInfo() == nullptr ||
+       (!Previous.Tok.getIdentifierInfo() ||
         Previous.Tok.getIdentifierInfo()->getPPKeywordID() ==
             tok::pp_not_keyword))) {
     unsigned EndColumn =
@@ -739,9 +740,14 @@ void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
   if (Previous.is(TT_TemplateString) && Previous.opensScope())
     CurrentState.NoLineBreak = true;
 
+  // Align following lines within parentheses / brackets if configured.
+  // Note: This doesn't apply to macro expansion lines, which are MACRO( , , )
+  // with args as children of the '(' and ',' tokens. It does not make sense to
+  // align the commas with the opening paren.
   if (Style.AlignAfterOpenBracket != FormatStyle::BAS_DontAlign &&
       !CurrentState.IsCSharpGenericTypeConstraint && Previous.opensScope() &&
       Previous.isNot(TT_ObjCMethodExpr) && Previous.isNot(TT_RequiresClause) &&
+      !(Current.MacroParent && Previous.MacroParent) &&
       (Current.isNot(TT_LineComment) || Previous.is(BK_BracedInit))) {
     CurrentState.Indent = State.Column + Spaces;
     CurrentState.IsAligned = true;
@@ -1053,13 +1059,16 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
     bool PreviousIsBreakingCtorInitializerColon =
         PreviousNonComment && PreviousNonComment->is(TT_CtorInitializerColon) &&
         Style.BreakConstructorInitializers == FormatStyle::BCIS_AfterColon;
+    bool AllowAllConstructorInitializersOnNextLine =
+        Style.PackConstructorInitializers == FormatStyle::PCIS_NextLine ||
+        Style.PackConstructorInitializers == FormatStyle::PCIS_NextLineOnly;
     if (!(Previous.isOneOf(tok::l_paren, tok::l_brace, TT_BinaryOperator) ||
           PreviousIsBreakingCtorInitializerColon) ||
         (!Style.AllowAllParametersOfDeclarationOnNextLine &&
          State.Line->MustBeDeclaration) ||
         (!Style.AllowAllArgumentsOnNextLine &&
          !State.Line->MustBeDeclaration) ||
-        (Style.PackConstructorInitializers != FormatStyle::PCIS_NextLine &&
+        (!AllowAllConstructorInitializersOnNextLine &&
          PreviousIsBreakingCtorInitializerColon) ||
         Previous.is(TT_DictLiteral)) {
       CurrentState.BreakBeforeParameter = true;
@@ -1069,7 +1078,7 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
     // and we allow all arguments on the next line, we should not break
     // before the next parameter.
     if (PreviousIsBreakingCtorInitializerColon &&
-        Style.PackConstructorInitializers == FormatStyle::PCIS_NextLine) {
+        AllowAllConstructorInitializersOnNextLine) {
       CurrentState.BreakBeforeParameter = false;
     }
   }
@@ -1264,8 +1273,13 @@ unsigned ContinuationIndenter::getNewLineColumn(const LineState &State) {
     return ContinuationIndent;
   }
 
-  if (State.Line->InPragmaDirective)
-    return CurrentState.Indent + Style.ContinuationIndentWidth;
+  // OpenMP clauses want to get additional indentation when they are pushed onto
+  // the next line.
+  if (State.Line->InPragmaDirective) {
+    FormatToken *PragmaType = State.Line->First->Next->Next;
+    if (PragmaType && PragmaType->TokenText.equals("omp"))
+      return CurrentState.Indent + Style.ContinuationIndentWidth;
+  }
 
   // This ensure that we correctly format ObjC methods calls without inputs,
   // i.e. where the last element isn't selector like: [callee method];
@@ -1401,7 +1415,8 @@ unsigned ContinuationIndenter::moveStateToNextToken(LineState &State,
     if (Style.PackConstructorInitializers > FormatStyle::PCIS_BinPack) {
       CurrentState.AvoidBinPacking = true;
       CurrentState.BreakBeforeParameter =
-          Style.PackConstructorInitializers != FormatStyle::PCIS_NextLine;
+          Style.PackConstructorInitializers != FormatStyle::PCIS_NextLine &&
+          Style.PackConstructorInitializers != FormatStyle::PCIS_NextLineOnly;
     } else {
       CurrentState.BreakBeforeParameter = false;
     }
@@ -1746,11 +1761,11 @@ void ContinuationIndenter::moveStatePastScopeOpener(LineState &State,
   NewState.BreakBeforeParameter = BreakBeforeParameter;
   NewState.HasMultipleNestedBlocks = (Current.BlockParameterCount > 1);
 
-  if (Style.BraceWrapping.BeforeLambdaBody && Current.Next != nullptr &&
+  if (Style.BraceWrapping.BeforeLambdaBody && Current.Next &&
       Current.is(tok::l_paren)) {
     // Search for any parameter that is a lambda.
     FormatToken const *next = Current.Next;
-    while (next != nullptr) {
+    while (next) {
       if (next->is(TT_LambdaLSquare)) {
         NewState.HasMultipleNestedBlocks = true;
         break;
@@ -2165,7 +2180,7 @@ ContinuationIndenter::createBreakableToken(const FormatToken &Current,
         Current, StartColumn, Current.OriginalColumn, !Current.Previous,
         State.Line->InPPDirective, Encoding, Style, Whitespaces.useCRLF());
   } else if (Current.is(TT_LineComment) &&
-             (Current.Previous == nullptr ||
+             (!Current.Previous ||
               Current.Previous->isNot(TT_ImplicitStringLiteral))) {
     bool RegularComments = [&]() {
       for (const FormatToken *T = &Current; T && T->is(TT_LineComment);

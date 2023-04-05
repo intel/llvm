@@ -122,6 +122,7 @@ __cpp_lib_map_try_emplace                               201411L <map>
 __cpp_lib_math_constants                                201907L <numbers>
 __cpp_lib_math_special_functions                        201603L <cmath>
 __cpp_lib_memory_resource                               201603L <memory_resource>
+__cpp_lib_move_iterator_concept                         202207L <iterator>
 __cpp_lib_move_only_function                            202110L <functional>
 __cpp_lib_node_extract                                  201606L <map> <set> <unordered_map>
                                                                 <unordered_set>
@@ -139,6 +140,7 @@ __cpp_lib_polymorphic_allocator                         201902L <memory_resource
 __cpp_lib_quoted_string_io                              201304L <iomanip>
 __cpp_lib_ranges                                        202106L <algorithm> <functional> <iterator>
                                                                 <memory> <ranges>
+__cpp_lib_ranges_as_rvalue                              202207L <ranges>
 __cpp_lib_ranges_chunk                                  202202L <ranges>
 __cpp_lib_ranges_chunk_by                               202202L <ranges>
 __cpp_lib_ranges_iota                                   202202L <numeric>
@@ -208,7 +210,7 @@ __cpp_lib_void_t                                        201411L <type_traits>
 
 // clang-format off
 
-#if _LIBCPP_STD_VER > 11
+#if _LIBCPP_STD_VER >= 14
 # define __cpp_lib_chrono_udls                          201304L
 # define __cpp_lib_complex_udls                         201309L
 # define __cpp_lib_exchange_function                    201304L
@@ -223,7 +225,7 @@ __cpp_lib_void_t                                        201411L <type_traits>
 # define __cpp_lib_quoted_string_io                     201304L
 # define __cpp_lib_result_of_sfinae                     201210L
 # define __cpp_lib_robust_nonmodifying_seq_ops          201304L
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   define __cpp_lib_shared_timed_mutex                 201402L
 # endif
 # define __cpp_lib_string_udls                          201304L
@@ -233,7 +235,7 @@ __cpp_lib_void_t                                        201411L <type_traits>
 # define __cpp_lib_tuples_by_type                       201304L
 #endif
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 # define __cpp_lib_addressof_constexpr                  201603L
 # define __cpp_lib_allocator_traits_is_always_equal     201411L
 # define __cpp_lib_any                                  201606L
@@ -248,7 +250,7 @@ __cpp_lib_void_t                                        201411L <type_traits>
 # define __cpp_lib_clamp                                201603L
 # define __cpp_lib_enable_shared_from_this              201603L
 // # define __cpp_lib_execution                            201603L
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM)
 #   define __cpp_lib_filesystem                         201703L
 # endif
 # define __cpp_lib_gcd_lcm                              201606L
@@ -276,7 +278,7 @@ __cpp_lib_void_t                                        201411L <type_traits>
 # define __cpp_lib_raw_memory_algorithms                201606L
 # define __cpp_lib_sample                               201603L
 # define __cpp_lib_scoped_lock                          201703L
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   define __cpp_lib_shared_mutex                       201505L
 # endif
 # define __cpp_lib_shared_ptr_arrays                    201611L
@@ -292,7 +294,7 @@ __cpp_lib_void_t                                        201411L <type_traits>
 # define __cpp_lib_void_t                               201411L
 #endif
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 # undef  __cpp_lib_array_constexpr
 # define __cpp_lib_array_constexpr                      201811L
 # define __cpp_lib_assume_aligned                       201811L
@@ -302,10 +304,10 @@ __cpp_lib_void_t                                        201411L <type_traits>
 // # define __cpp_lib_atomic_ref                           201806L
 // # define __cpp_lib_atomic_shared_ptr                    201711L
 # define __cpp_lib_atomic_value_initialization          201911L
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   define __cpp_lib_atomic_wait                        201907L
 # endif
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_barrier)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   define __cpp_lib_barrier                            201907L
 # endif
 # define __cpp_lib_bind_front                           201907L
@@ -329,14 +331,14 @@ __cpp_lib_void_t                                        201411L <type_traits>
 # define __cpp_lib_constexpr_utility                    201811L
 # define __cpp_lib_constexpr_vector                     201907L
 # define __cpp_lib_coroutine                            201902L
-# if _LIBCPP_STD_VER > 17 && defined(__cpp_impl_destroying_delete) && __cpp_impl_destroying_delete >= 201806L
+# if _LIBCPP_STD_VER >= 20 && defined(__cpp_impl_destroying_delete) && __cpp_impl_destroying_delete >= 201806L
 #   define __cpp_lib_destroying_delete                  201806L
 # endif
 # define __cpp_lib_endian                               201907L
 # define __cpp_lib_erase_if                             202002L
 # undef  __cpp_lib_execution
 // # define __cpp_lib_execution                            201902L
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
+# if !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
 // #   define __cpp_lib_format                             202106L
 # endif
 # define __cpp_lib_generic_unordered_lookup             201811L
@@ -350,22 +352,23 @@ __cpp_lib_void_t                                        201411L <type_traits>
 # if !defined(_LIBCPP_HAS_NO_THREADS)
 // #   define __cpp_lib_jthread                            201911L
 # endif
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_latch)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   define __cpp_lib_latch                              201907L
 # endif
 # define __cpp_lib_list_remove_return_type              201806L
 # define __cpp_lib_math_constants                       201907L
+# define __cpp_lib_move_iterator_concept                202207L
 # define __cpp_lib_polymorphic_allocator                201902L
 # define __cpp_lib_ranges                               202106L
 # define __cpp_lib_remove_cvref                         201711L
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   define __cpp_lib_semaphore                          201907L
 # endif
 # undef  __cpp_lib_shared_ptr_arrays
 # define __cpp_lib_shared_ptr_arrays                    201707L
 # define __cpp_lib_shift                                201806L
 // # define __cpp_lib_smart_ptr_for_overwrite              202002L
-# if __has_builtin(__builtin_source_location)
+# if __has_builtin(__builtin_source_location) && !(defined(_LIBCPP_APPLE_CLANG_VER) && _LIBCPP_APPLE_CLANG_VER <= 1403)
 #   define __cpp_lib_source_location                    201907L
 # endif
 # define __cpp_lib_span                                 202002L
@@ -381,7 +384,7 @@ __cpp_lib_void_t                                        201411L <type_traits>
 # define __cpp_lib_unwrap_ref                           201811L
 #endif
 
-#if _LIBCPP_STD_VER > 20
+#if _LIBCPP_STD_VER >= 23
 # define __cpp_lib_adaptor_iterator_pair_constructor    202106L
 # define __cpp_lib_allocate_at_least                    202106L
 // # define __cpp_lib_associative_heterogeneous_erasure    202110L
@@ -392,15 +395,16 @@ __cpp_lib_void_t                                        201411L <type_traits>
 // # define __cpp_lib_constexpr_cmath                      202202L
 # undef  __cpp_lib_constexpr_memory
 # define __cpp_lib_constexpr_memory                     202202L
-// # define __cpp_lib_constexpr_typeinfo                   202106L
+# define __cpp_lib_constexpr_typeinfo                   202106L
 # define __cpp_lib_expected                             202202L
 # define __cpp_lib_forward_like                         202207L
-// # define __cpp_lib_invoke_r                             202106L
+# define __cpp_lib_invoke_r                             202106L
 # define __cpp_lib_is_scoped_enum                       202011L
 // # define __cpp_lib_move_only_function                   202110L
 # undef  __cpp_lib_optional
 # define __cpp_lib_optional                             202110L
 // # define __cpp_lib_out_ptr                              202106L
+# define __cpp_lib_ranges_as_rvalue                     202207L
 // # define __cpp_lib_ranges_chunk                         202202L
 // # define __cpp_lib_ranges_chunk_by                      202202L
 // # define __cpp_lib_ranges_iota                          202202L

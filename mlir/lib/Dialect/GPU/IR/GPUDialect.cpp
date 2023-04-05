@@ -42,8 +42,20 @@ int64_t GPUBlockMappingAttr::getMappingId() const {
   return static_cast<int64_t>(getBlock());
 }
 
+int64_t GPUWarpMappingAttr::getMappingId() const {
+  return static_cast<int64_t>(getWarp());
+}
+
+int64_t GPULinearIdMappingAttr::getMappingId() const {
+  return static_cast<int64_t>(getLinearId());
+}
+
 int64_t GPUThreadMappingAttr::getMappingId() const {
   return static_cast<int64_t>(getThread());
+}
+
+int64_t GPUMemorySpaceMappingAttr::getMappingId() const {
+  return static_cast<int64_t>(getAddressSpace());
 }
 
 //===----------------------------------------------------------------------===//
@@ -74,7 +86,9 @@ Type MMAMatrixType::getElementType() const { return getImpl()->elementType; }
 StringRef MMAMatrixType::getOperand() const { return getImpl()->getOperand(); }
 
 bool MMAMatrixType::isValidElementType(Type elementType) {
-  return elementType.isF16() || elementType.isF32();
+  return elementType.isF16() || elementType.isF32() ||
+         elementType.isUnsignedInteger(8) || elementType.isSignedInteger(8) ||
+         elementType.isInteger(32);
 }
 
 LogicalResult
@@ -89,7 +103,8 @@ MMAMatrixType::verify(function_ref<InFlightDiagnostic()> emitError,
     return emitError() << "MMAMatrixType must have exactly two dimensions";
 
   if (!MMAMatrixType::isValidElementType(elementType))
-    return emitError() << "MMAMatrixType elements must be F16 or F32";
+    return emitError()
+           << "MMAMatrixType elements must be SI8, UI8, I32, F16, or F32";
 
   return success();
 }
@@ -1326,7 +1341,7 @@ public:
         continue;
       validOperands.push_back(operand);
     }
-    op->setOperands(validOperands);
+    rewriter.updateRootInPlace(op, [&]() { op->setOperands(validOperands); });
     return success();
   }
 };

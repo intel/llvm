@@ -646,7 +646,7 @@ getAMDProcessorTypeAndSubtype(unsigned Family, unsigned Model,
 
 static void getAvailableFeatures(unsigned ECX, unsigned EDX, unsigned MaxLeaf,
                                  unsigned *Features) {
-  unsigned EAX, EBX;
+  unsigned EAX = 0, EBX = 0;
 
 #define setFeature(F)                                                          \
   Features[F / 32] |= 1U << (F % 32)
@@ -924,6 +924,9 @@ int CONSTRUCTOR_ATTRIBUTE __cpu_indicator_init(void) {
 #define HWCAP_SB (1 << 29)
 #endif
 
+#ifndef AT_HWCAP2
+#define AT_HWCAP2 26
+#endif
 #ifndef HWCAP2_DCPODP
 #define HWCAP2_DCPODP (1 << 0)
 #endif

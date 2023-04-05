@@ -361,7 +361,7 @@ protected:
 
   /// Apply each ScheduleDAGMutation step in order. This allows different
   /// instances of ScheduleDAGMI to perform custom DAG postprocessing.
-  void postprocessDAG();
+  void postProcessDAG();
 
   /// Release ExitSU predecessors and setup scheduler queues.
   void initQueues(ArrayRef<SUnit*> TopRoots, ArrayRef<SUnit*> BotRoots);
@@ -374,6 +374,9 @@ protected:
 
   /// dump the scheduled Sequence.
   void dumpSchedule() const;
+  /// Print execution trace of the schedule top-down or bottom-up.
+  void dumpScheduleTraceTopDown() const;
+  void dumpScheduleTraceBottomUp() const;
 
   // Lesser helpers...
   bool checkSchedLimit();

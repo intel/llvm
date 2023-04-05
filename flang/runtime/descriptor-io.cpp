@@ -7,12 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "descriptor-io.h"
+#include "flang/Common/restorer.h"
 
 namespace Fortran::runtime::io::descr {
 
 // User-defined derived type formatted I/O (maybe)
 std::optional<bool> DefinedFormattedIo(IoStatementState &io,
-    const Descriptor &descriptor, const typeInfo::SpecialBinding &special) {
+    const Descriptor &descriptor, const typeInfo::DerivedType &derived,
+    const typeInfo::SpecialBinding &special) {
   std::optional<DataEdit> peek{io.GetNextDataEdit(0 /*to peek at it*/)};
   if (peek &&
       (peek->descriptor == DataEdit::DefinedDerivedType ||
@@ -32,8 +34,8 @@ std::optional<bool> DefinedFormattedIo(IoStatementState &io,
           ioType, io.mutableModes().inNamelist ? "NAMELIST" : "LISTDIRECTED");
       ioTypeLen = std::strlen(ioType);
     }
-    StaticDescriptor<1, true> statDesc;
-    Descriptor &vListDesc{statDesc.descriptor()};
+    StaticDescriptor<1, true> vListStatDesc;
+    Descriptor &vListDesc{vListStatDesc.descriptor()};
     vListDesc.Establish(TypeCategory::Integer, sizeof(int), nullptr, 1);
     vListDesc.set_base_addr(edit.vList);
     vListDesc.GetDimension(0).SetBounds(1, edit.vListEntries);
@@ -47,19 +49,48 @@ std::optional<bool> DefinedFormattedIo(IoStatementState &io,
       external = &ExternalFileUnit::NewUnit(handler, true);
     }
     ChildIo &child{external->PushChildIo(io)};
+    // Child formatted I/O is nonadvancing by definition (F'2018 12.6.2.4).
+    auto restorer{common::ScopedSet(io.mutableModes().nonAdvancing, true)};
     int unit{external->unitNumber()};
     int ioStat{IostatOk};
     char ioMsg[100];
+    std::optional<std::int64_t> startPos;
+    if (edit.descriptor == DataEdit::DefinedDerivedType &&
+        special.which() == typeInfo::SpecialBinding::Which::ReadFormatted) {
+      // DT is an edit descriptor so everything that the child
+      // I/O subroutine reads counts towards READ(SIZE=).
+      startPos = io.InquirePos();
+    }
+    std::size_t numElements{descriptor.Elements()};
+    SubscriptValue subscripts[maxRank];
+    descriptor.GetLowerBounds(subscripts);
     if (special.IsArgDescriptor(0)) {
+      // "dtv" argument is "class(t)", pass a descriptor
       auto *p{special.GetProc<void (*)(const Descriptor &, int &, char *,
           const Descriptor &, int &, char *, std::size_t, std::size_t)>()};
-      p(descriptor, unit, ioType, vListDesc, ioStat, ioMsg, ioTypeLen,
-          sizeof ioMsg);
+      StaticDescriptor<1, true, 10 /*?*/> elementStatDesc;
+      Descriptor &elementDesc{elementStatDesc.descriptor()};
+      elementDesc.Establish(
+          derived, nullptr, 0, nullptr, CFI_attribute_pointer);
+      for (; numElements-- > 0; descriptor.IncrementSubscripts(subscripts)) {
+        elementDesc.set_base_addr(descriptor.Element<char>(subscripts));
+        p(elementDesc, unit, ioType, vListDesc, ioStat, ioMsg, ioTypeLen,
+            sizeof ioMsg);
+        if (ioStat != IostatOk) {
+          break;
+        }
+      }
     } else {
+      // "dtv" argument is "type(t)", pass a raw pointer
       auto *p{special.GetProc<void (*)(const void *, int &, char *,
           const Descriptor &, int &, char *, std::size_t, std::size_t)>()};
-      p(descriptor.raw().base_addr, unit, ioType, vListDesc, ioStat, ioMsg,
-          ioTypeLen, sizeof ioMsg);
+      for (; numElements-- > 0; descriptor.IncrementSubscripts(subscripts)) {
+        p(descriptor.Element<char>(subscripts), unit, ioType, vListDesc, ioStat,
+            ioMsg, ioTypeLen, sizeof ioMsg);
+        if (ioStat != IostatOk) {
+          break;
+        }
+      }
     }
     handler.Forward(ioStat, ioMsg, sizeof ioMsg);
     external->PopChildIo(child);
@@ -68,6 +99,9 @@ std::optional<bool> DefinedFormattedIo(IoStatementState &io,
       auto *closing{external->LookUpForClose(external->unitNumber())};
       RUNTIME_CHECK(handler, external == closing);
       external->DestroyClosed();
+    }
+    if (startPos) {
+      io.GotChar(io.InquirePos() - *startPos);
     }
     return handler.GetIoStat() == IostatOk;
   } else {
@@ -80,6 +114,7 @@ std::optional<bool> DefinedFormattedIo(IoStatementState &io,
 
 // User-defined derived type unformatted I/O
 bool DefinedUnformattedIo(IoStatementState &io, const Descriptor &descriptor,
+    const typeInfo::DerivedType &derived,
     const typeInfo::SpecialBinding &special) {
   // Unformatted I/O must have an external unit (or child thereof).
   IoErrorHandler &handler{io.GetIoErrorHandler()};
@@ -89,14 +124,34 @@ bool DefinedUnformattedIo(IoStatementState &io, const Descriptor &descriptor,
   int unit{external->unitNumber()};
   int ioStat{IostatOk};
   char ioMsg[100];
+  std::size_t numElements{descriptor.Elements()};
+  SubscriptValue subscripts[maxRank];
+  descriptor.GetLowerBounds(subscripts);
   if (special.IsArgDescriptor(0)) {
+    // "dtv" argument is "class(t)", pass a descriptor
     auto *p{special.GetProc<void (*)(
         const Descriptor &, int &, int &, char *, std::size_t)>()};
-    p(descriptor, unit, ioStat, ioMsg, sizeof ioMsg);
+    StaticDescriptor<1, true, 10 /*?*/> elementStatDesc;
+    Descriptor &elementDesc{elementStatDesc.descriptor()};
+    elementDesc.Establish(derived, nullptr, 0, nullptr, CFI_attribute_pointer);
+    for (; numElements-- > 0; descriptor.IncrementSubscripts(subscripts)) {
+      elementDesc.set_base_addr(descriptor.Element<char>(subscripts));
+      p(elementDesc, unit, ioStat, ioMsg, sizeof ioMsg);
+      if (ioStat != IostatOk) {
+        break;
+      }
+    }
   } else {
+    // "dtv" argument is "type(t)", pass a raw pointer
     auto *p{special.GetProc<void (*)(
         const void *, int &, int &, char *, std::size_t)>()};
-    p(descriptor.raw().base_addr, unit, ioStat, ioMsg, sizeof ioMsg);
+    for (; numElements-- > 0; descriptor.IncrementSubscripts(subscripts)) {
+      p(descriptor.Element<char>(subscripts), unit, ioStat, ioMsg,
+          sizeof ioMsg);
+      if (ioStat != IostatOk) {
+        break;
+      }
+    }
   }
   handler.Forward(ioStat, ioMsg, sizeof ioMsg);
   external->PopChildIo(child);

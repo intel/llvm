@@ -304,8 +304,8 @@ public:
       return true;
     }
 
-    if (D->getType()->getContainedAutoType()) {
-      if (!D->getType()->isDependentType()) {
+    if (auto *AT = D->getType()->getContainedAutoType()) {
+      if (AT->isDeduced() && !D->getType()->isDependentType()) {
         // Our current approach is to place the hint on the variable
         // and accordingly print the full type
         // (e.g. for `const auto& x = 42`, print `const int&`).
@@ -516,8 +516,8 @@ private:
   // at the end.
   bool isPrecededByParamNameComment(const Expr *E, StringRef ParamName) {
     auto &SM = AST.getSourceManager();
-    auto ExprStartLoc = SM.getTopMacroCallerLoc(E->getBeginLoc());
-    auto Decomposed = SM.getDecomposedLoc(ExprStartLoc);
+    auto FileLoc = SM.getFileLoc(E->getBeginLoc());
+    auto Decomposed = SM.getDecomposedLoc(FileLoc);
     if (Decomposed.first != MainFileID)
       return false;
 

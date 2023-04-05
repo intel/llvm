@@ -27,12 +27,12 @@
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/TarWriter.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/TargetParser/Host.h"
 #include <optional>
 
 #define DEBUG_TYPE "lld"
@@ -42,8 +42,7 @@ using namespace llvm::object;
 using namespace llvm::sys;
 using namespace llvm::wasm;
 
-namespace lld {
-namespace wasm {
+namespace lld::wasm {
 Configuration *config;
 
 namespace {
@@ -280,6 +279,12 @@ void LinkerDriver::addFile(StringRef path) {
   case file_magic::wasm_object:
     files.push_back(createObjectFile(mbref));
     break;
+  case file_magic::unknown:
+    if (mbref.getBuffer().starts_with("#STUB\n")) {
+      files.push_back(make<StubFile>(mbref));
+      break;
+    }
+    [[fallthrough]];
   default:
     error("unknown file type: " + mbref.getBufferIdentifier());
   }
@@ -296,7 +301,7 @@ static std::optional<std::string> findFromSearchPaths(StringRef path) {
 // search paths.
 static std::optional<std::string> searchLibraryBaseName(StringRef name) {
   for (StringRef dir : config->searchPaths) {
-    // Currently we don't enable dyanmic linking at all unless -shared or -pie
+    // Currently we don't enable dynamic linking at all unless -shared or -pie
     // are used, so don't even look for .so files in that case..
     if (config->isPic && !config->isStatic)
       if (std::optional<std::string> s = findFile(dir, "lib" + name + ".so"))
@@ -385,6 +390,33 @@ static UnresolvedPolicy getUnresolvedSymbolPolicy(opt::InputArgList &args) {
   return errorOrWarn;
 }
 
+// Parse --build-id or --build-id=<style>. We handle "tree" as a
+// synonym for "sha1" because all our hash functions including
+// -build-id=sha1 are actually tree hashes for performance reasons.
+static std::pair<BuildIdKind, SmallVector<uint8_t, 0>>
+getBuildId(opt::InputArgList &args) {
+  auto *arg = args.getLastArg(OPT_build_id, OPT_build_id_eq);
+  if (!arg)
+    return {BuildIdKind::None, {}};
+
+  if (arg->getOption().getID() == OPT_build_id)
+    return {BuildIdKind::Fast, {}};
+
+  StringRef s = arg->getValue();
+  if (s == "fast")
+    return {BuildIdKind::Fast, {}};
+  if (s == "sha1" || s == "tree")
+    return {BuildIdKind::Sha1, {}};
+  if (s == "uuid")
+    return {BuildIdKind::Uuid, {}};
+  if (s.startswith("0x"))
+    return {BuildIdKind::Hexstring, parseHex(s.substr(2))};
+
+  if (s != "none")
+    error("unknown --build-id style: " + s);
+  return {BuildIdKind::None, {}};
+}
+
 // Initializes Config members by the command line options.
 static void readConfigs(opt::InputArgList &args) {
   config->bsymbolic = args.hasArg(OPT_Bsymbolic);
@@ -424,6 +456,14 @@ static void readConfigs(opt::InputArgList &args) {
   config->importTable = args.hasArg(OPT_import_table);
   config->importUndefined = args.hasArg(OPT_import_undefined);
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
+  if (config->ltoo > 3)
+    error("invalid optimization level for LTO: " + Twine(config->ltoo));
+  unsigned ltoCgo =
+      args::getInteger(args, OPT_lto_CGO, args::getCGOptLevel(config->ltoo));
+  if (auto level = CodeGenOpt::getLevel(ltoCgo))
+    config->ltoCgo = *level;
+  else
+    error("invalid codegen optimization level for LTO: " + Twine(ltoCgo));
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
   config->mapFile = args.getLastArgValue(OPT_Map);
@@ -450,6 +490,7 @@ static void readConfigs(opt::InputArgList &args) {
       parseCachePruningPolicy(args.getLastArgValue(OPT_thinlto_cache_policy)),
       "--thinlto-cache-policy: invalid cache policy");
   config->unresolvedSymbols = getUnresolvedSymbolPolicy(args);
+  config->whyExtract = args.getLastArgValue(OPT_why_extract);
   errorHandler().verbose = args.hasArg(OPT_verbose);
   LLVM_DEBUG(errorHandler().verbose = true);
 
@@ -511,6 +552,8 @@ static void readConfigs(opt::InputArgList &args) {
 
   if (args.hasArg(OPT_print_map))
     config->mapFile = "-";
+
+  std::tie(config->buildId, config->buildIdVector) = getBuildId(args);
 }
 
 // Some Config members do not directly correspond to any particular
@@ -560,8 +603,6 @@ static void checkOptions(opt::InputArgList &args) {
     error("--compress-relocations is incompatible with output debug"
           " information. Please pass --strip-debug or --strip-all");
 
-  if (config->ltoo > 3)
-    error("invalid optimization level for LTO: " + Twine(config->ltoo));
   if (config->ltoPartitions == 0)
     error("--lto-partitions: number of threads must be > 0");
   if (!get_threadpool_strategy(config->thinLTOJobs))
@@ -631,7 +672,7 @@ static const char *getReproduceOption(opt::InputArgList &args) {
 }
 
 // Force Sym to be entered in the output. Used for -u or equivalent.
-static Symbol *handleUndefined(StringRef name) {
+static Symbol *handleUndefined(StringRef name, const char *option) {
   Symbol *sym = symtab->find(name);
   if (!sym)
     return nullptr;
@@ -640,8 +681,11 @@ static Symbol *handleUndefined(StringRef name) {
   // eliminate it. Mark the symbol as "used" to prevent it.
   sym->isUsedInRegularObj = true;
 
-  if (auto *lazySym = dyn_cast<LazySymbol>(sym))
+  if (auto *lazySym = dyn_cast<LazySymbol>(sym)) {
     lazySym->fetch();
+    if (!config->whyExtract.empty())
+      config->whyExtractRecords.emplace_back(option, sym->getFile(), *sym);
+  }
 
   return sym;
 }
@@ -653,8 +697,31 @@ static void handleLibcall(StringRef name) {
 
   if (auto *lazySym = dyn_cast<LazySymbol>(sym)) {
     MemoryBufferRef mb = lazySym->getMemberBuffer();
-    if (isBitcode(mb))
+    if (isBitcode(mb)) {
+      if (!config->whyExtract.empty())
+        config->whyExtractRecords.emplace_back("<libcall>", sym->getFile(),
+                                               *sym);
       lazySym->fetch();
+    }
+  }
+}
+
+static void writeWhyExtract() {
+  if (config->whyExtract.empty())
+    return;
+
+  std::error_code ec;
+  raw_fd_ostream os(config->whyExtract, ec, sys::fs::OF_None);
+  if (ec) {
+    error("cannot open --why-extract= file " + config->whyExtract + ": " +
+          ec.message());
+    return;
+  }
+
+  os << "reference\textracted\tsymbol\n";
+  for (auto &entry : config->whyExtractRecords) {
+    os << std::get<0>(entry) << '\t' << toString(std::get<1>(entry)) << '\t'
+       << toString(std::get<2>(entry)) << '\n';
   }
 }
 
@@ -805,6 +872,51 @@ static void createOptionalSymbols() {
   // needed for __wasm_init_tls (which we do not create in this case).
   if (!config->sharedMemory)
     WasmSym::tlsBase = createOptionalGlobal("__tls_base", false);
+}
+
+static void processStubLibraries() {
+  log("-- processStubLibraries");
+  for (auto &stub_file : symtab->stubFiles) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "processing stub file: " << stub_file->getName() << "\n");
+    for (auto [name, deps]: stub_file->symbolDependencies) {
+      auto* sym = symtab->find(name);
+      if (!sym || !sym->isUndefined() || sym->forceImport) {
+        LLVM_DEBUG(llvm::dbgs() << "stub not in needed: " << name << "\n");
+        continue;
+      }
+      // The first stub library to define a given symbol sets this and
+      // definitions in later stub libraries are ignored.
+      sym->forceImport = true;
+      if (sym->traced)
+        message(toString(stub_file) + ": importing " + name);
+      else
+        LLVM_DEBUG(llvm::dbgs()
+                   << toString(stub_file) << ": importing " << name << "\n");
+      for (const auto dep : deps) {
+        auto* needed = symtab->find(dep);
+        if (!needed) {
+          error(toString(stub_file) + ": undefined symbol: " + dep +
+                ". Required by " + toString(*sym));
+        } else if (needed->isUndefined()) {
+          error(toString(stub_file) +
+                ": undefined symbol: " + toString(*needed) +
+                ". Required by " + toString(*sym));
+        } else {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "force export: " << toString(*needed) << "\n");
+          needed->forceExport = true;
+          if (auto *lazy = dyn_cast<LazySymbol>(needed)) {
+            lazy->fetch();
+            if (!config->whyExtract.empty())
+              config->whyExtractRecords.emplace_back(stub_file->getName(),
+                                                     sym->getFile(), *sym);
+          }
+        }
+      }
+    }
+  }
+  log("-- done processStubLibraries");
 }
 
 // Reconstructs command line arguments so that so that you can re-run
@@ -1035,16 +1147,16 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
 
   // Handle the `--undefined <sym>` options.
   for (auto *arg : args.filtered(OPT_undefined))
-    handleUndefined(arg->getValue());
+    handleUndefined(arg->getValue(), "<internal>");
 
   // Handle the `--export <sym>` options
   // This works like --undefined but also exports the symbol if its found
   for (auto &iter : config->exportedSymbols)
-    handleUndefined(iter.first());
+    handleUndefined(iter.first(), "--export");
 
   Symbol *entrySym = nullptr;
   if (!config->relocatable && !config->entry.empty()) {
-    entrySym = handleUndefined(config->entry);
+    entrySym = handleUndefined(config->entry, "--entry");
     if (entrySym && entrySym->isDefined())
       entrySym->forceExport = true;
     else
@@ -1061,7 +1173,8 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
       !WasmSym::callCtors->isUsedInRegularObj &&
       WasmSym::callCtors->getName() != config->entry &&
       !config->exportedSymbols.count(WasmSym::callCtors->getName())) {
-    if (Symbol *callDtors = handleUndefined("__wasm_call_dtors")) {
+    if (Symbol *callDtors =
+            handleUndefined("__wasm_call_dtors", "<internal>")) {
       if (auto *callDtorsFunc = dyn_cast<DefinedFunction>(callDtors)) {
         if (callDtorsFunc->signature &&
             (!callDtorsFunc->signature->Params.empty() ||
@@ -1096,11 +1209,23 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   if (errorCount())
     return;
 
+  // processStubLibraries must happen before LTO because it can trigger the
+  // export of arbirary symbols that might themselves be defined in LTO objects.
+  processStubLibraries();
+
   // Do link-time optimization if given files are LLVM bitcode files.
   // This compiles bitcode files into real object files.
   symtab->compileBitcodeFiles();
   if (errorCount())
     return;
+
+  // The LTO process can generate new undefined symbols, specifically libcall
+  // functions.  Because those symbols might be declared in a stub library we
+  // need the process the stub libraries once again after LTO to handle any
+  // newly undefined symbols.
+  processStubLibraries();
+
+  writeWhyExtract();
 
   createOptionalSymbols();
 
@@ -1153,5 +1278,4 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   writeResult();
 }
 
-} // namespace wasm
-} // namespace lld
+} // namespace lld::wasm

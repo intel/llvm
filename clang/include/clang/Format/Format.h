@@ -2500,6 +2500,10 @@ struct FormatStyle {
   ///     Decimal: 3
   ///     Hex: -1
   /// \endcode
+  ///
+  /// You can also specify a minimum number of digits (``BinaryMinDigits``,
+  /// ``DecimalMinDigits``, and ``HexMinDigits``) the integer literal must
+  /// have in order for the separators to be inserted.
   struct IntegerLiteralSeparatorStyle {
     /// Format separators in binary literals.
     /// \code{.text}
@@ -2509,6 +2513,14 @@ struct FormatStyle {
     ///   /*  4: */ b = 0b1001'1110'1101;
     /// \endcode
     int8_t Binary;
+    /// Format separators in binary literals with a minimum number of digits.
+    /// \code{.text}
+    ///   // Binary: 3
+    ///   // BinaryMinDigits: 7
+    ///   b1 = 0b101101;
+    ///   b2 = 0b1'101'101;
+    /// \endcode
+    int8_t BinaryMinDigits;
     /// Format separators in decimal literals.
     /// \code{.text}
     ///   /* -1: */ d = 18446744073709550592ull;
@@ -2516,6 +2528,14 @@ struct FormatStyle {
     ///   /*  3: */ d = 18'446'744'073'709'550'592ull;
     /// \endcode
     int8_t Decimal;
+    /// Format separators in decimal literals with a minimum number of digits.
+    /// \code{.text}
+    ///   // Decimal: 3
+    ///   // DecimalMinDigits: 5
+    ///   d1 = 2023;
+    ///   d2 = 10'000;
+    /// \endcode
+    int8_t DecimalMinDigits;
     /// Format separators in hexadecimal literals.
     /// \code{.text}
     ///   /* -1: */ h = 0xDEADBEEFDEADBEEFuz;
@@ -2523,6 +2543,20 @@ struct FormatStyle {
     ///   /*  2: */ h = 0xDE'AD'BE'EF'DE'AD'BE'EFuz;
     /// \endcode
     int8_t Hex;
+    /// Format separators in hexadecimal literals with a minimum number of
+    /// digits.
+    /// \code{.text}
+    ///   // Hex: 2
+    ///   // HexMinDigits: 6
+    ///   h1 = 0xABCDE;
+    ///   h2 = 0xAB'CD'EF;
+    /// \endcode
+    int8_t HexMinDigits;
+    bool operator==(const IntegerLiteralSeparatorStyle &R) const {
+      return Binary == R.Binary && BinaryMinDigits == R.BinaryMinDigits &&
+             Decimal == R.Decimal && DecimalMinDigits == R.DecimalMinDigits &&
+             Hex == R.Hex && HexMinDigits == R.HexMinDigits;
+    }
   };
 
   /// Format integer literal separators (``'`` for C++ and ``_`` for C#, Java,
@@ -2745,6 +2779,46 @@ struct FormatStyle {
   /// \version 3.7
   std::string MacroBlockEnd;
 
+  /// A list of macros of the form \c <definition>=<expansion> .
+  ///
+  /// Code will be parsed with macros expanded, in order to determine how to
+  /// interpret and format the macro arguments.
+  ///
+  /// For example, the code:
+  /// \code
+  ///   A(a*b);
+  /// \endcode
+  ///
+  /// will usually be interpreted as a call to a function A, and the
+  /// multiplication expression will be formatted as `a * b`.
+  ///
+  /// If we specify the macro definition:
+  /// \code{.yaml}
+  ///   Macros:
+  ///   - A(x)=x
+  /// \endcode
+  ///
+  /// the code will now be parsed as a declaration of the variable b of type a*,
+  /// and formatted as `a* b` (depending on pointer-binding rules).
+  ///
+  /// Features and restrictions:
+  ///  * Both function-like macros and object-like macros are supported.
+  ///  * Macro arguments must be used exactly once in the expansion.
+  ///  * No recursive expansion; macros referencing other macros will be
+  ///    ignored.
+  ///  * Overloading by arity is supported: for example, given the macro
+  ///    definitions A=x, A()=y, A(a)=a
+  ///
+  /// \code
+  ///    A; -> x;
+  ///    A(); -> y;
+  ///    A(z); -> z;
+  ///    A(a, b); // will not be expanded.
+  /// \endcode
+  ///
+  /// \version 17.0
+  std::vector<std::string> Macros;
+
   /// The maximum number of consecutive empty lines to keep.
   /// \code
   ///    MaxEmptyLinesToKeep: 1         vs.     MaxEmptyLinesToKeep: 0
@@ -2929,6 +3003,21 @@ struct FormatStyle {
     ///          cccccccccccccccccccc()
     /// \endcode
     PCIS_NextLine,
+    /// Put all constructor initializers on the next line if they fit.
+    /// Otherwise, put each one on its own line.
+    /// \code
+    ///    Constructor()
+    ///        : a(), b()
+    ///
+    ///    Constructor()
+    ///        : aaaaaaaaaaaaaaaaaaaa(), bbbbbbbbbbbbbbbbbbbb(), ddddddddddddd()
+    ///
+    ///    Constructor()
+    ///        : aaaaaaaaaaaaaaaaaaaa(),
+    ///          bbbbbbbbbbbbbbbbbbbb(),
+    ///          cccccccccccccccccccc()
+    /// \endcode
+    PCIS_NextLineOnly,
   };
 
   /// The pack constructor initializers style to use.
@@ -3510,22 +3599,49 @@ struct FormatStyle {
   /// \version 12
   SortJavaStaticImportOptions SortJavaStaticImport;
 
-  /// If ``true``, clang-format will sort using declarations.
-  ///
-  /// The order of using declarations is defined as follows:
-  /// Split the strings by "::" and discard any initial empty strings. The last
-  /// element of each list is a non-namespace name; all others are namespace
-  /// names. Sort the lists of names lexicographically, where the sort order of
-  /// individual names is that all non-namespace names come before all namespace
-  /// names, and within those groups, names are in case-insensitive
-  /// lexicographic order.
-  /// \code
-  ///    false:                                 true:
-  ///    using std::cout;               vs.     using std::cin;
-  ///    using std::cin;                        using std::cout;
-  /// \endcode
+  /// Using declaration sorting options.
+  enum SortUsingDeclarationsOptions : int8_t {
+    /// Using declarations are never sorted.
+    /// \code
+    ///    using std::chrono::duration_cast;
+    ///    using std::move;
+    ///    using boost::regex;
+    ///    using boost::regex_constants::icase;
+    ///    using std::string;
+    /// \endcode
+    SUD_Never,
+    /// Using declarations are sorted in the order defined as follows:
+    /// Split the strings by "::" and discard any initial empty strings. Sort
+    /// the lists of names lexicographically, and within those groups, names are
+    /// in case-insensitive lexicographic order.
+    /// \code
+    ///    using boost::regex;
+    ///    using boost::regex_constants::icase;
+    ///    using std::chrono::duration_cast;
+    ///    using std::move;
+    ///    using std::string;
+    /// \endcode
+    SUD_Lexicographic,
+    /// Using declarations are sorted in the order defined as follows:
+    /// Split the strings by "::" and discard any initial empty strings. The
+    /// last element of each list is a non-namespace name; all others are
+    /// namespace names. Sort the lists of names lexicographically, where the
+    /// sort order of individual names is that all non-namespace names come
+    /// before all namespace names, and within those groups, names are in
+    /// case-insensitive lexicographic order.
+    /// \code
+    ///    using boost::regex;
+    ///    using boost::regex_constants::icase;
+    ///    using std::move;
+    ///    using std::string;
+    ///    using std::chrono::duration_cast;
+    /// \endcode
+    SUD_LexicographicNumeric,
+  };
+
+  /// Controls if and how clang-format will sort using declarations.
   /// \version 5
-  bool SortUsingDeclarations;
+  SortUsingDeclarationsOptions SortUsingDeclarations;
 
   /// If ``true``, a space is inserted after C style casts.
   /// \code
@@ -3631,6 +3747,16 @@ struct FormatStyle {
   /// \endcode
   /// \version 7
   bool SpaceBeforeInheritanceColon;
+
+  /// If ``true``, a space will be add before a JSON colon.
+  /// \code
+  ///    true:                                  false:
+  ///    {                                      {
+  ///      "key" : "value"              vs.       "key": "value"
+  ///    }                                      }
+  /// \endcode
+  /// \version 17
+  bool SpaceBeforeJsonColon;
 
   /// Different ways to put a space before opening parentheses.
   enum SpaceBeforeParensStyle : int8_t {
@@ -4185,10 +4311,7 @@ struct FormatStyle {
            IndentWrappedFunctionNames == R.IndentWrappedFunctionNames &&
            InsertBraces == R.InsertBraces &&
            InsertNewlineAtEOF == R.InsertNewlineAtEOF &&
-           IntegerLiteralSeparator.Binary == R.IntegerLiteralSeparator.Binary &&
-           IntegerLiteralSeparator.Decimal ==
-               R.IntegerLiteralSeparator.Decimal &&
-           IntegerLiteralSeparator.Hex == R.IntegerLiteralSeparator.Hex &&
+           IntegerLiteralSeparator == R.IntegerLiteralSeparator &&
            JavaImportGroups == R.JavaImportGroups &&
            JavaScriptQuotes == R.JavaScriptQuotes &&
            JavaScriptWrapImports == R.JavaScriptWrapImports &&
@@ -4197,7 +4320,7 @@ struct FormatStyle {
            Language == R.Language &&
            LambdaBodyIndentation == R.LambdaBodyIndentation &&
            LineEnding == R.LineEnding && MacroBlockBegin == R.MacroBlockBegin &&
-           MacroBlockEnd == R.MacroBlockEnd &&
+           MacroBlockEnd == R.MacroBlockEnd && Macros == R.Macros &&
            MaxEmptyLinesToKeep == R.MaxEmptyLinesToKeep &&
            NamespaceIndentation == R.NamespaceIndentation &&
            NamespaceMacros == R.NamespaceMacros &&
@@ -4241,6 +4364,7 @@ struct FormatStyle {
            SpaceBeforeCtorInitializerColon ==
                R.SpaceBeforeCtorInitializerColon &&
            SpaceBeforeInheritanceColon == R.SpaceBeforeInheritanceColon &&
+           SpaceBeforeJsonColon == R.SpaceBeforeJsonColon &&
            SpaceBeforeParens == R.SpaceBeforeParens &&
            SpaceBeforeParensOptions == R.SpaceBeforeParensOptions &&
            SpaceAroundPointerQualifiers == R.SpaceAroundPointerQualifiers &&
@@ -4571,6 +4695,9 @@ inline StringRef getLanguageName(FormatStyle::LanguageKind Language) {
     return "Unknown";
   }
 }
+
+bool isClangFormatOn(StringRef Comment);
+bool isClangFormatOff(StringRef Comment);
 
 } // end namespace format
 } // end namespace clang

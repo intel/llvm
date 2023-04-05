@@ -13,8 +13,7 @@
 
 #include "MCTargetDesc/WebAssemblyInstPrinter.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
-#include "Utils/WebAssemblyTypeUtilities.h"
-#include "Utils/WebAssemblyUtilities.h"
+#include "MCTargetDesc/WebAssemblyMCTypeUtilities.h"
 #include "WebAssembly.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "llvm/ADT/SmallSet.h"
@@ -240,7 +239,7 @@ void WebAssemblyInstPrinter::printInst(const MCInst *MI, uint64_t Address,
       // See if this operand denotes a basic block target.
       if (I < NumFixedOperands) {
         // A non-variable_ops operand, check its type.
-        if (Desc.OpInfo[I].OperandType != WebAssembly::OPERAND_BASIC_BLOCK)
+        if (Desc.operands()[I].OperandType != WebAssembly::OPERAND_BASIC_BLOCK)
           continue;
       } else {
         // A variable_ops operand, which currently can be immediates (used in

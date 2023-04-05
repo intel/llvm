@@ -789,6 +789,7 @@ class CastExpressionIdValidator final : public CorrectionCandidateCallback {
 /// [GNU]   '__builtin_choose_expr' '(' assign-expr ',' assign-expr ','
 ///                                     assign-expr ')'
 /// [GNU]   '__builtin_FILE' '(' ')'
+/// [CLANG] '__builtin_FILE_NAME' '(' ')'
 /// [GNU]   '__builtin_FUNCTION' '(' ')'
 /// [GNU]   '__builtin_LINE' '(' ')'
 /// [CLANG] '__builtin_COLUMN' '(' ')'
@@ -1007,8 +1008,8 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     if (getLangOpts().CPlusPlus)
       Diag(Tok, diag::warn_cxx98_compat_nullptr);
     else
-      Diag(Tok, getLangOpts().C2x ? diag::warn_c17_compat_nullptr
-                                  : diag::ext_c_nullptr);
+      Diag(Tok, getLangOpts().C2x ? diag::warn_c2x_compat_keyword
+                                  : diag::ext_c_nullptr) << Tok.getName();
 
     Res = Actions.ActOnCXXNullPtrLiteral(ConsumeToken());
     break;
@@ -1317,6 +1318,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw___builtin_convertvector:
   case tok::kw___builtin_COLUMN:
   case tok::kw___builtin_FILE:
+  case tok::kw___builtin_FILE_NAME:
   case tok::kw___builtin_FUNCTION:
   case tok::kw___builtin_LINE:
   case tok::kw___builtin_source_location:
@@ -2584,8 +2586,11 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
                                                 RParenLoc);
   }
 
-  if (OpTok.isOneOf(tok::kw_alignof, tok::kw__Alignof))
+  if (getLangOpts().CPlusPlus &&
+      OpTok.isOneOf(tok::kw_alignof, tok::kw__Alignof))
     Diag(OpTok, diag::warn_cxx98_compat_alignof);
+  else if (getLangOpts().C2x && OpTok.is(tok::kw_alignof))
+    Diag(OpTok, diag::warn_c2x_compat_keyword) << OpTok.getName();
 
   EnterExpressionEvaluationContext Unevaluated(
       Actions, Sema::ExpressionEvaluationContext::Unevaluated,
@@ -2639,6 +2644,7 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
 ///                                     assign-expr ')'
 /// [GNU]   '__builtin_types_compatible_p' '(' type-name ',' type-name ')'
 /// [GNU]   '__builtin_FILE' '(' ')'
+/// [CLANG] '__builtin_FILE_NAME' '(' ')'
 /// [GNU]   '__builtin_FUNCTION' '(' ')'
 /// [GNU]   '__builtin_LINE' '(' ')'
 /// [CLANG] '__builtin_COLUMN' '(' ')'
@@ -2729,12 +2735,6 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
     Comps.back().U.IdentInfo = Tok.getIdentifierInfo();
     Comps.back().LocStart = Comps.back().LocEnd = ConsumeToken();
 
-    enum class Kind { MemberAccess, ArraySubscript };
-    auto DiagExt = [&](SourceLocation Loc, Kind K) {
-      Diag(Loc, diag::ext_offsetof_member_designator)
-          << (K == Kind::ArraySubscript) << (OOK == Sema::OOK_Macro);
-    };
-
     // FIXME: This loop leaks the index expressions on error.
     while (true) {
       if (Tok.is(tok::period)) {
@@ -2748,7 +2748,6 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
           SkipUntil(tok::r_paren, StopAtSemi);
           return ExprError();
         }
-        DiagExt(Comps.back().LocStart, Kind::MemberAccess);
         Comps.back().U.IdentInfo = Tok.getIdentifierInfo();
         Comps.back().LocEnd = ConsumeToken();
       } else if (Tok.is(tok::l_square)) {
@@ -2766,7 +2765,6 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
           SkipUntil(tok::r_paren, StopAtSemi);
           return Res;
         }
-        DiagExt(Comps.back().LocStart, Kind::ArraySubscript);
         Comps.back().U.E = Res.get();
 
         ST.consumeClose();
@@ -2882,6 +2880,7 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
   }
   case tok::kw___builtin_COLUMN:
   case tok::kw___builtin_FILE:
+  case tok::kw___builtin_FILE_NAME:
   case tok::kw___builtin_FUNCTION:
   case tok::kw___builtin_LINE:
   case tok::kw___builtin_source_location: {
@@ -2895,6 +2894,8 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
       switch (T) {
       case tok::kw___builtin_FILE:
         return SourceLocExpr::File;
+      case tok::kw___builtin_FILE_NAME:
+        return SourceLocExpr::FileName;
       case tok::kw___builtin_FUNCTION:
         return SourceLocExpr::Function;
       case tok::kw___builtin_LINE:

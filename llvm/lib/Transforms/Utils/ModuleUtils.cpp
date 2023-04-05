@@ -31,11 +31,9 @@ static void appendToGlobalArray(StringRef ArrayName, Module &M, Function *F,
   // Get the current set of static global constructors and add the new ctor
   // to the list.
   SmallVector<Constant *, 16> CurrentCtors;
-  StructType *EltTy = StructType::get(
-      IRB.getInt32Ty(), PointerType::get(FnTy, F->getAddressSpace()),
-      IRB.getInt8PtrTy());
-
+  StructType *EltTy;
   if (GlobalVariable *GVCtor = M.getNamedGlobal(ArrayName)) {
+    EltTy = cast<StructType>(GVCtor->getValueType()->getArrayElementType());
     if (Constant *Init = GVCtor->getInitializer()) {
       unsigned n = Init->getNumOperands();
       CurrentCtors.reserve(n + 1);
@@ -43,6 +41,10 @@ static void appendToGlobalArray(StringRef ArrayName, Module &M, Function *F,
         CurrentCtors.push_back(cast<Constant>(Init->getOperand(i)));
     }
     GVCtor->eraseFromParent();
+  } else {
+    EltTy = StructType::get(
+        IRB.getInt32Ty(), PointerType::get(FnTy, F->getAddressSpace()),
+        IRB.getInt8PtrTy());
   }
 
   // Build a 3 field global_ctor entry.  We don't take a comdat key.
@@ -170,14 +172,17 @@ void llvm::setKCFIType(Module &M, Function &F, StringRef MangledType) {
   }
 }
 
-FunctionCallee
-llvm::declareSanitizerInitFunction(Module &M, StringRef InitName,
-                                   ArrayRef<Type *> InitArgTypes) {
+FunctionCallee llvm::declareSanitizerInitFunction(Module &M, StringRef InitName,
+                                                  ArrayRef<Type *> InitArgTypes,
+                                                  bool Weak) {
   assert(!InitName.empty() && "Expected init function name");
-  return M.getOrInsertFunction(
-      InitName,
-      FunctionType::get(Type::getVoidTy(M.getContext()), InitArgTypes, false),
-      AttributeList());
+  auto *VoidTy = Type::getVoidTy(M.getContext());
+  auto *FnTy = FunctionType::get(VoidTy, InitArgTypes, false);
+  auto FnCallee = M.getOrInsertFunction(InitName, FnTy);
+  auto *Fn = cast<Function>(FnCallee.getCallee());
+  if (Weak && Fn->isDeclaration())
+    Fn->setLinkage(Function::ExternalWeakLinkage);
+  return FnCallee;
 }
 
 Function *llvm::createSanitizerCtor(Module &M, StringRef CtorName) {
@@ -197,14 +202,33 @@ Function *llvm::createSanitizerCtor(Module &M, StringRef CtorName) {
 std::pair<Function *, FunctionCallee> llvm::createSanitizerCtorAndInitFunctions(
     Module &M, StringRef CtorName, StringRef InitName,
     ArrayRef<Type *> InitArgTypes, ArrayRef<Value *> InitArgs,
-    StringRef VersionCheckName) {
+    StringRef VersionCheckName, bool Weak) {
   assert(!InitName.empty() && "Expected init function name");
   assert(InitArgs.size() == InitArgTypes.size() &&
          "Sanitizer's init function expects different number of arguments");
   FunctionCallee InitFunction =
-      declareSanitizerInitFunction(M, InitName, InitArgTypes);
+      declareSanitizerInitFunction(M, InitName, InitArgTypes, Weak);
   Function *Ctor = createSanitizerCtor(M, CtorName);
-  IRBuilder<> IRB(Ctor->getEntryBlock().getTerminator());
+  IRBuilder<> IRB(M.getContext());
+
+  BasicBlock *RetBB = &Ctor->getEntryBlock();
+  if (Weak) {
+    RetBB->setName("ret");
+    auto *EntryBB = BasicBlock::Create(M.getContext(), "entry", Ctor, RetBB);
+    auto *CallInitBB =
+        BasicBlock::Create(M.getContext(), "callfunc", Ctor, RetBB);
+    auto *InitFn = cast<Function>(InitFunction.getCallee());
+    auto *InitFnPtr =
+        PointerType::get(InitFn->getType(), InitFn->getAddressSpace());
+    IRB.SetInsertPoint(EntryBB);
+    Value *InitNotNull =
+        IRB.CreateICmpNE(InitFn, ConstantPointerNull::get(InitFnPtr));
+    IRB.CreateCondBr(InitNotNull, CallInitBB, RetBB);
+    IRB.SetInsertPoint(CallInitBB);
+  } else {
+    IRB.SetInsertPoint(RetBB->getTerminator());
+  }
+
   IRB.CreateCall(InitFunction, InitArgs);
   if (!VersionCheckName.empty()) {
     FunctionCallee VersionCheckFunction = M.getOrInsertFunction(
@@ -212,6 +236,10 @@ std::pair<Function *, FunctionCallee> llvm::createSanitizerCtorAndInitFunctions(
         AttributeList());
     IRB.CreateCall(VersionCheckFunction, {});
   }
+
+  if (Weak)
+    IRB.CreateBr(RetBB);
+
   return std::make_pair(Ctor, InitFunction);
 }
 
@@ -220,7 +248,7 @@ llvm::getOrCreateSanitizerCtorAndInitFunctions(
     Module &M, StringRef CtorName, StringRef InitName,
     ArrayRef<Type *> InitArgTypes, ArrayRef<Value *> InitArgs,
     function_ref<void(Function *, FunctionCallee)> FunctionsCreatedCallback,
-    StringRef VersionCheckName) {
+    StringRef VersionCheckName, bool Weak) {
   assert(!CtorName.empty() && "Expected ctor function name");
 
   if (Function *Ctor = M.getFunction(CtorName))
@@ -228,12 +256,13 @@ llvm::getOrCreateSanitizerCtorAndInitFunctions(
     // globals. This will make moving to a concurrent model much easier.
     if (Ctor->arg_empty() ||
         Ctor->getReturnType() == Type::getVoidTy(M.getContext()))
-      return {Ctor, declareSanitizerInitFunction(M, InitName, InitArgTypes)};
+      return {Ctor,
+              declareSanitizerInitFunction(M, InitName, InitArgTypes, Weak)};
 
   Function *Ctor;
   FunctionCallee InitFunction;
   std::tie(Ctor, InitFunction) = llvm::createSanitizerCtorAndInitFunctions(
-      M, CtorName, InitName, InitArgTypes, InitArgs, VersionCheckName);
+      M, CtorName, InitName, InitArgTypes, InitArgs, VersionCheckName, Weak);
   FunctionsCreatedCallback(Ctor, InitFunction);
   return std::make_pair(Ctor, InitFunction);
 }

@@ -263,7 +263,7 @@ let SchedRW = [Write64Bit] in {
 
 def : GCNPat<
   (i32 (DivergentUnaryFrag<sext> i16:$src)),
-  (i32 (V_BFE_I32_e64 $src, (S_MOV_B32 (i32 0)), (S_MOV_B32 (i32 0x10))))
+  (i32 (V_BFE_I32_e64 i16:$src, (i32 0), (i32 0x10)))
 >;
 
 let isReMaterializable = 1 in {
@@ -308,11 +308,11 @@ let FPDPRounding = 1 in {
     defm V_FMA_F16 : VOP3Inst <"v_fma_f16", VOP3_Profile<VOP_F16_F16_F16_F16>, any_fma>;
   } // End Predicates = [Has16BitInsts, isGFX8Only]
 
-  let renamedInGFX9 = 1, Predicates = [Has16BitInsts, isGFX9Plus] in {
+  let renamedInGFX9 = 1, SubtargetPredicate = isGFX9Plus in {
     defm V_DIV_FIXUP_F16_gfx9 : VOP3Inst <"v_div_fixup_f16_gfx9",
                                           VOP3_Profile<VOP_F16_F16_F16_F16, VOP3_OPSEL>, AMDGPUdiv_fixup>;
     defm V_FMA_F16_gfx9 : VOP3Inst <"v_fma_f16_gfx9", VOP3_Profile<VOP_F16_F16_F16_F16, VOP3_OPSEL>, any_fma>;
-  } // End renamedInGFX9 = 1, Predicates = [Has16BitInsts, isGFX9Plus]
+  } // End renamedInGFX9 = 1, SubtargetPredicate = isGFX9Plus
 } // End FPDPRounding = 1
 
 let SubtargetPredicate = Has16BitInsts, isCommutable = 1 in {
@@ -673,11 +673,17 @@ def VOP3_PERMLANE_Profile : VOP3_Profile<VOPProfile <[i32, i32, i32, i32]>, VOP3
   let HasExtDPP = 0;
 }
 
+def opsel_i1timm : SDNodeXForm<timm, [{
+  return CurDAG->getTargetConstant(N->getZExtValue() ? SISrcMods::OP_SEL_0 : 0, SDLoc(N), MVT::i32);
+}]>;
+def gi_opsel_i1timm : GICustomOperandRenderer<"renderOpSelTImm">,
+  GISDNodeXFormEquiv<opsel_i1timm>;
+
 class PermlanePat<SDPatternOperator permlane,
   Instruction inst> : GCNPat<
   (permlane i32:$vdst_in, i32:$src0, i32:$src1, i32:$src2,
             timm:$fi, timm:$bc),
-  (inst (as_i1timm $fi), VGPR_32:$src0, (as_i1timm $bc),
+  (inst (opsel_i1timm $fi), VGPR_32:$src0, (opsel_i1timm $bc),
         SCSrc_b32:$src1, 0, SCSrc_b32:$src2, VGPR_32:$vdst_in)
 >;
 
@@ -758,7 +764,7 @@ let SubtargetPredicate = isGFX11Plus in {
   defm V_CVT_PK_U16_F32 : VOP3Inst<"v_cvt_pk_u16_f32", VOP3_Profile<VOP_V2I16_F32_F32>>;
 } // End SubtargetPredicate = isGFX11Plus
 
-let SubtargetPredicate = HasDot8Insts, IsDOT=1 in {
+let SubtargetPredicate = HasDot9Insts, IsDOT=1 in {
   defm V_DOT2_F16_F16 :   VOP3Inst<"v_dot2_f16_f16",   VOP3_DOT_Profile<VOP_F16_V2F16_V2F16_F16>, int_amdgcn_fdot2_f16_f16>;
   defm V_DOT2_BF16_BF16 : VOP3Inst<"v_dot2_bf16_bf16", VOP3_DOT_Profile<VOP_I16_V2I16_V2I16_I16>, int_amdgcn_fdot2_bf16_bf16>;
 }

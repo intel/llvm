@@ -115,6 +115,16 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  strcasestr_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strcasestr_test.cpp
+  DEPENDS
+    libc.src.string.strcasestr
+)
+
+add_libc_unittest(
   strcoll_test
   SUITE
     libc_string_unittests
@@ -151,7 +161,6 @@ add_libc_unittest(
   SRCS
     strdup_test.cpp
   DEPENDS
-    libc.include.errno
     libc.include.stdlib
     libc.src.string.strdup
     libc.src.errno.errno
@@ -357,6 +366,7 @@ function(add_libc_multi_impl_test name)
         ${ARGN}
         DEPENDS
           ${fq_config_name}
+          libc.src.__support.macros.sanitizer
       )
       get_fq_target_name(${fq_config_name}_test fq_target_name)
     else()

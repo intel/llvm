@@ -15,20 +15,20 @@
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "flang/Optimizer/Builder/HLFIRTools.h"
-#include "flang/Optimizer/Builder/MutableBox.h"
 #include "flang/Optimizer/Builder/Runtime/Assign.h"
 #include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
+#include "flang/Optimizer/Dialect/Support/FIRContext.h"
+#include "flang/Optimizer/HLFIR/HLFIRDialect.h"
 #include "flang/Optimizer/HLFIR/HLFIROps.h"
 #include "flang/Optimizer/HLFIR/Passes.h"
-#include "flang/Optimizer/Support/FIRContext.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include <optional>
+#include <mlir/Support/LogicalResult.h>
 
 namespace hlfir {
 #define GEN_PASS_DEF_BUFFERIZEHLFIR
@@ -98,6 +98,8 @@ static mlir::Value getBufferizedExprMustFreeFlag(mlir::Value bufferizedExpr) {
 static std::pair<hlfir::Entity, mlir::Value>
 createTempFromMold(mlir::Location loc, fir::FirOpBuilder &builder,
                    hlfir::Entity mold) {
+  if (mold.isPolymorphic())
+    TODO(loc, "creating polymorphic temporary");
   llvm::SmallVector<mlir::Value> lenParams;
   hlfir::genLengthParameters(loc, builder, mold, lenParams);
   llvm::StringRef tmpName{".tmp"};
@@ -291,20 +293,31 @@ struct AssociateOpConversion
   matchAndRewrite(hlfir::AssociateOp associate, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = associate->getLoc();
-    // If this is the last use of the expression value and this is an hlfir.expr
-    // that was bufferized, re-use the storage.
-    // Otherwise, create a temp and assign the storage to it.
+    auto module = associate->getParentOfType<mlir::ModuleOp>();
+    fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
     mlir::Value bufferizedExpr = getBufferizedExprStorage(adaptor.getSource());
     const bool isTrivialValue = fir::isa_trivial(bufferizedExpr.getType());
 
     auto replaceWith = [&](mlir::Value hlfirVar, mlir::Value firVar,
                            mlir::Value flag) {
+      hlfirVar =
+          builder.createConvert(loc, associate.getResultTypes()[0], hlfirVar);
       associate.getResult(0).replaceAllUsesWith(hlfirVar);
+      mlir::Type associateFirVarType = associate.getResultTypes()[1];
+      if (firVar.getType().isa<fir::BaseBoxType>() &&
+          !associateFirVarType.isa<fir::BaseBoxType>())
+        firVar =
+            builder.create<fir::BoxAddrOp>(loc, associateFirVarType, firVar);
+      else
+        firVar = builder.createConvert(loc, associateFirVarType, firVar);
       associate.getResult(1).replaceAllUsesWith(firVar);
       associate.getResult(2).replaceAllUsesWith(flag);
       rewriter.replaceOp(associate, {hlfirVar, firVar, flag});
     };
 
+    // If this is the last use of the expression value and this is an hlfir.expr
+    // that was bufferized, re-use the storage.
+    // Otherwise, create a temp and assign the storage to it.
     if (!isTrivialValue && allOtherUsesAreDestroys(associate.getSource(),
                                                    associate.getOperation())) {
       // Re-use hlfir.expr buffer if this is the only use of the hlfir.expr
@@ -318,8 +331,6 @@ struct AssociateOpConversion
       return mlir::success();
     }
     if (isTrivialValue) {
-      auto module = associate->getParentOfType<mlir::ModuleOp>();
-      fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
       auto temp = builder.createTemporary(loc, bufferizedExpr.getType(),
                                           associate.getUniqName());
       builder.create<fir::StoreOp>(loc, bufferizedExpr, temp);
@@ -331,24 +342,25 @@ struct AssociateOpConversion
   }
 };
 
-static void genFreeIfMustFree(mlir::Location loc,
-                              mlir::ConversionPatternRewriter &rewriter,
+static void genFreeIfMustFree(mlir::Location loc, fir::FirOpBuilder &builder,
                               mlir::Value var, mlir::Value mustFree) {
   auto genFree = [&]() {
-    if (var.getType().isa<fir::BaseBoxType>())
-      TODO(loc, "unbox");
-    if (!var.getType().isa<fir::HeapType>())
-      var = rewriter.create<fir::ConvertOp>(
-          loc, fir::HeapType::get(fir::unwrapRefType(var.getType())), var);
-    rewriter.create<fir::FreeMemOp>(loc, var);
+    // fir::FreeMemOp operand type must be a fir::HeapType.
+    mlir::Type heapType = fir::HeapType::get(
+        hlfir::getFortranElementOrSequenceType(var.getType()));
+    if (var.getType().isa<fir::BaseBoxType, fir::BoxCharType>())
+      var = builder.create<fir::BoxAddrOp>(loc, heapType, var);
+    else if (!var.getType().isa<fir::HeapType>())
+      var = builder.create<fir::ConvertOp>(loc, heapType, var);
+    builder.create<fir::FreeMemOp>(loc, var);
   };
   if (auto cstMustFree = fir::getIntIfConstant(mustFree)) {
     if (*cstMustFree != 0)
       genFree();
-    // else, nothing to do.
+    // else, mustFree is false, nothing to do.
     return;
   }
-  TODO(loc, "conditional free");
+  builder.genIfThen(loc, mustFree).genThen(genFree).end();
 }
 
 struct EndAssociateOpConversion
@@ -360,7 +372,9 @@ struct EndAssociateOpConversion
   matchAndRewrite(hlfir::EndAssociateOp endAssociate, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
     mlir::Location loc = endAssociate->getLoc();
-    genFreeIfMustFree(loc, rewriter, adaptor.getVar(), adaptor.getMustFree());
+    auto module = endAssociate->getParentOfType<mlir::ModuleOp>();
+    fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
+    genFreeIfMustFree(loc, builder, adaptor.getVar(), adaptor.getMustFree());
     rewriter.eraseOp(endAssociate);
     return mlir::success();
   }
@@ -378,9 +392,11 @@ struct DestroyOpConversion
     mlir::Location loc = destroy->getLoc();
     mlir::Value bufferizedExpr = getBufferizedExprStorage(adaptor.getExpr());
     if (!fir::isa_trivial(bufferizedExpr.getType())) {
+      auto module = destroy->getParentOfType<mlir::ModuleOp>();
+      fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
       mlir::Value mustFree = getBufferizedExprMustFreeFlag(adaptor.getExpr());
       mlir::Value firBase = hlfir::Entity(bufferizedExpr).getFirBase();
-      genFreeIfMustFree(loc, rewriter, firBase, mustFree);
+      genFreeIfMustFree(loc, builder, firBase, mustFree);
     }
     rewriter.eraseOp(destroy);
     return mlir::success();

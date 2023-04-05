@@ -103,11 +103,13 @@ enum {
   /// - JumpTable... - (UpperBound - LowerBound) (at least 2) jump targets
   GIM_SwitchType,
 
-  /// Record the specified instruction
+  /// Record the specified instruction.
+  /// The IgnoreCopies variant ignores COPY instructions.
   /// - NewInsnID - Instruction ID to define
   /// - InsnID - Instruction ID
   /// - OpIdx - Operand index
   GIM_RecordInsn,
+  GIM_RecordInsnIgnoreCopies,
 
   /// Check the feature bits
   /// - Expected features
@@ -262,11 +264,14 @@ enum {
   GIM_CheckIsSafeToFold,
 
   /// Check the specified operands are identical.
+  /// The IgnoreCopies variant looks through COPY instructions before
+  /// comparing the operands.
   /// - InsnID - Instruction ID
   /// - OpIdx - Operand index
   /// - OtherInsnID - Other instruction ID
   /// - OtherOpIdx - Other operand index
   GIM_CheckIsSameOperand,
+  GIM_CheckIsSameOperandIgnoreCopies,
 
   /// Predicates with 'let PredicateCodeUsesOperands = 1' need to examine some
   /// named operands that will be recorded in RecordedOperands. Names of these
@@ -344,16 +349,24 @@ enum {
   /// - InsnID - Instruction ID to modify
   /// - Imm - The immediate to add
   GIR_AddImm,
+
   /// Render complex operands to the specified instruction
   /// - InsnID - Instruction ID to modify
   /// - RendererID - The renderer to call
   GIR_ComplexRenderer,
-
   /// Render sub-operands of complex operands to the specified instruction
   /// - InsnID - Instruction ID to modify
   /// - RendererID - The renderer to call
   /// - RenderOpID - The suboperand to render.
   GIR_ComplexSubOperandRenderer,
+  /// Render subregisters of suboperands of complex operands to the
+  /// specified instruction
+  /// - InsnID - Instruction ID to modify
+  /// - RendererID - The renderer to call
+  /// - RenderOpID - The suboperand to render
+  /// - SubRegIdx - The subregister to extract
+  GIR_ComplexSubOperandSubRegRenderer,
+
   /// Render operands to the specified instruction using a custom function
   /// - InsnID - Instruction ID to modify
   /// - OldInsnID - Instruction ID to get the matched operand from
@@ -364,7 +377,8 @@ enum {
   /// reading from a specific operand.
   /// - InsnID - Instruction ID to modify
   /// - OldInsnID - Instruction ID to get the matched operand from
-  /// - OpIdx - Operand index in OldInsnID the render function should read from..
+  /// - OpIdx - Operand index in OldInsnID the render function should read
+  /// from..
   /// - RendererFnID - Custom renderer function to call
   GIR_CustomOperandRenderer,
 

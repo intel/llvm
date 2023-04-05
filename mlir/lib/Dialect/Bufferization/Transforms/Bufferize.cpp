@@ -215,6 +215,7 @@ struct OneShotBufferizePass
       opt.printConflicts = printConflicts;
       opt.testAnalysisOnly = testAnalysisOnly;
       opt.bufferizeFunctionBoundaries = bufferizeFunctionBoundaries;
+      opt.noAnalysisFuncFilter = noAnalysisFuncFilter;
 
       // Configure type converter.
       LayoutMapOption unknownTypeConversionOption =
@@ -254,6 +255,8 @@ struct OneShotBufferizePass
         return;
       }
     } else {
+      assert(opt.noAnalysisFuncFilter.empty() &&
+             "invalid combination of bufferization flags");
       if (failed(runOneShotBufferize(moduleOp, opt, &statistics))) {
         signalPassFailure();
         return;
@@ -339,7 +342,7 @@ static bool hasTensorSemantics(Operation *op) {
 
 namespace {
 /// A rewriter that keeps track of extra information during bufferization.
-class BufferizationRewriter : public IRRewriter {
+class BufferizationRewriter : public IRRewriter, public RewriterBase::Listener {
 public:
   BufferizationRewriter(MLIRContext *ctx, DenseSet<Operation *> &erasedOps,
                         DenseSet<Operation *> &toMemrefOps,
@@ -349,18 +352,21 @@ public:
                         BufferizationStatistics *statistics)
       : IRRewriter(ctx), erasedOps(erasedOps), toMemrefOps(toMemrefOps),
         worklist(worklist), analysisState(options), opFilter(opFilter),
-        statistics(statistics) {}
+        statistics(statistics) {
+    setListener(this);
+  }
 
 protected:
   void notifyOperationRemoved(Operation *op) override {
-    IRRewriter::notifyOperationRemoved(op);
-    erasedOps.insert(op);
-    // Erase if present.
-    toMemrefOps.erase(op);
+    // TODO: Walk can be removed when D144193 has landed.
+    op->walk([&](Operation *op) {
+      erasedOps.insert(op);
+      // Erase if present.
+      toMemrefOps.erase(op);
+    });
   }
 
   void notifyOperationInserted(Operation *op) override {
-    IRRewriter::notifyOperationInserted(op);
     erasedOps.erase(op);
 
     // Gather statistics about allocs and deallocs.
@@ -495,6 +501,15 @@ LogicalResult bufferization::bufferizeOp(Operation *op,
     (void)bufferization::foldToMemrefToTensorPair(rewriter,
                                                   cast<ToMemrefOp>(op));
   }
+
+  // Remove all dead to_tensor ops.
+  op->walk<WalkOrder::PostOrder>([&](ToTensorOp toTensorOp) {
+    if (toTensorOp->getUses().empty()) {
+      rewriter.eraseOp(toTensorOp);
+      return WalkResult::skip();
+    }
+    return WalkResult::advance();
+  });
 
   /// Check the result of bufferization. Return an error if an op was not
   /// bufferized, unless partial bufferization is allowed.

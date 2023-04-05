@@ -278,7 +278,7 @@ void ASTDeclWriter::Visit(Decl *D) {
   // Source locations require array (variable-length) abbreviations.  The
   // abbreviation infrastructure requires that arrays are encoded last, so
   // we handle it here in the case of those classes derived from DeclaratorDecl
-  if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
+  if (auto *DD = dyn_cast<DeclaratorDecl>(D)) {
     if (auto *TInfo = DD->getTypeSourceInfo())
       Record.AddTypeLoc(TInfo->getTypeLoc());
   }
@@ -286,16 +286,24 @@ void ASTDeclWriter::Visit(Decl *D) {
   // Handle FunctionDecl's body here and write it after all other Stmts/Exprs
   // have been written. We want it last because we will not read it back when
   // retrieving it from the AST, we'll just lazily set the offset.
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+  if (auto *FD = dyn_cast<FunctionDecl>(D)) {
     Record.push_back(FD->doesThisDeclarationHaveABody());
     if (FD->doesThisDeclarationHaveABody())
       Record.AddFunctionDefinition(FD);
   }
 
+  // Similar to FunctionDecls, handle VarDecl's initializer here and write it
+  // after all other Stmts/Exprs. We will not read the initializer until after
+  // we have finished recursive deserialization, because it can recursively
+  // refer back to the variable.
+  if (auto *VD = dyn_cast<VarDecl>(D)) {
+    Record.AddVarDeclInit(VD);
+  }
+
   // If this declaration is also a DeclContext, write blocks for the
   // declarations that lexically stored inside its context and those
   // declarations that are visible from its context.
-  if (DeclContext *DC = dyn_cast<DeclContext>(D))
+  if (auto *DC = dyn_cast<DeclContext>(D))
     VisitDeclContext(DC);
 }
 
@@ -411,6 +419,10 @@ void ASTDeclWriter::VisitTypeAliasDecl(TypeAliasDecl *D) {
 }
 
 void ASTDeclWriter::VisitTagDecl(TagDecl *D) {
+  static_assert(DeclContext::NumTagDeclBits == 10,
+                "You need to update the serializer after you change the "
+                "TagDeclBits");
+
   VisitRedeclarable(D);
   VisitTypeDecl(D);
   Record.push_back(D->getIdentifierNamespace());
@@ -435,6 +447,10 @@ void ASTDeclWriter::VisitTagDecl(TagDecl *D) {
 }
 
 void ASTDeclWriter::VisitEnumDecl(EnumDecl *D) {
+  static_assert(DeclContext::NumEnumDeclBits == 20,
+                "You need to update the serializer after you change the "
+                "EnumDeclBits");
+
   VisitTagDecl(D);
   Record.AddTypeSourceInfo(D->getIntegerTypeSourceInfo());
   if (!D->getIntegerTypeSourceInfo())
@@ -478,6 +494,10 @@ void ASTDeclWriter::VisitEnumDecl(EnumDecl *D) {
 }
 
 void ASTDeclWriter::VisitRecordDecl(RecordDecl *D) {
+  static_assert(DeclContext::NumRecordDeclBits == 41,
+                "You need to update the serializer after you change the "
+                "RecordDeclBits");
+
   VisitTagDecl(D);
   Record.push_back(D->hasFlexibleArrayMember());
   Record.push_back(D->isAnonymousStructOrUnion());
@@ -491,6 +511,10 @@ void ASTDeclWriter::VisitRecordDecl(RecordDecl *D) {
   Record.push_back(D->hasNonTrivialToPrimitiveCopyCUnion());
   Record.push_back(D->isParamDestroyedInCallee());
   Record.push_back(D->getArgPassingRestrictions());
+  // Only compute this for C/Objective-C, in C++ this is computed as part
+  // of CXXRecordDecl.
+  if (!isa<CXXRecordDecl>(D))
+    Record.push_back(D->getODRHash());
 
   if (D->getDeclContext() == D->getLexicalDeclContext() &&
       !D->hasAttrs() &&
@@ -542,6 +566,10 @@ void ASTDeclWriter::VisitDeclaratorDecl(DeclaratorDecl *D) {
 }
 
 void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
+  static_assert(DeclContext::NumFunctionDeclBits == 29,
+                "You need to update the serializer after you change the "
+                "FunctionDeclBits");
+
   VisitRedeclarable(D);
 
   Record.push_back(D->getTemplatedKind());
@@ -693,6 +721,10 @@ void ASTDeclWriter::VisitCXXDeductionGuideDecl(CXXDeductionGuideDecl *D) {
 }
 
 void ASTDeclWriter::VisitObjCMethodDecl(ObjCMethodDecl *D) {
+  static_assert(DeclContext::NumObjCMethodDeclBits == 24,
+                "You need to update the serializer after you change the "
+                "ObjCMethodDeclBits");
+
   VisitNamedDecl(D);
   // FIXME: convert to LazyStmtPtr?
   // Unlike C/C++, method bodies will never be in header files.
@@ -751,6 +783,10 @@ void ASTDeclWriter::VisitObjCTypeParamDecl(ObjCTypeParamDecl *D) {
 }
 
 void ASTDeclWriter::VisitObjCContainerDecl(ObjCContainerDecl *D) {
+  static_assert(DeclContext::NumObjCContainerDeclBits == 51,
+                "You need to update the serializer after you change the "
+                "ObjCContainerDeclBits");
+
   VisitNamedDecl(D);
   Record.AddSourceLocation(D->getAtStartLoc());
   Record.AddSourceRange(D->getAtEndRange());
@@ -771,6 +807,7 @@ void ASTDeclWriter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *D) {
     Record.AddTypeSourceInfo(D->getSuperClassTInfo());
     Record.AddSourceLocation(D->getEndOfDefinitionLoc());
     Record.push_back(Data.HasDesignatedInitializers);
+    Record.push_back(D->getODRHash());
 
     // Write out the protocols that are directly referenced by the @interface.
     Record.push_back(Data.ReferencedProtocols.size());
@@ -1008,6 +1045,7 @@ void ASTDeclWriter::VisitVarDecl(VarDecl *D) {
   Record.push_back(D->getTSCSpec());
   Record.push_back(D->getInitStyle());
   Record.push_back(D->isARCPseudoStrong());
+  bool HasDeducedType = false;
   if (!isa<ParmVarDecl>(D)) {
     Record.push_back(D->isThisDeclarationADemotedDefinition());
     Record.push_back(D->isExceptionVariable());
@@ -1024,36 +1062,34 @@ void ASTDeclWriter::VisitVarDecl(VarDecl *D) {
     else
       Record.push_back(0);
     Record.push_back(D->isEscapingByref());
+    HasDeducedType = D->getType()->getContainedDeducedType();
+    Record.push_back(HasDeducedType);
   }
   Record.push_back(D->getLinkageInternal());
 
-  Record.AddVarDeclInit(D);
-
-  if (D->hasAttr<BlocksAttr>() && D->getType()->getAsCXXRecordDecl()) {
+  if (D->hasAttr<BlocksAttr>()) {
     BlockVarCopyInit Init = Writer.Context->getBlockVarCopyInit(D);
     Record.AddStmt(Init.getCopyExpr());
     if (Init.getCopyExpr())
       Record.push_back(Init.canThrow());
   }
 
-  if (D->getStorageDuration() == SD_Static) {
-    bool ModulesCodegen = false;
-    if (Writer.WritingModule &&
-        !D->getDescribedVarTemplate() && !D->getMemberSpecializationInfo()) {
-      // When building a C++20 module interface unit or a partition unit, a
-      // strong definition in the module interface is provided by the
-      // compilation of that unit, not by its users. (Inline variables are still
-      // emitted in module users.)
-      ModulesCodegen =
-          (Writer.WritingModule->isInterfaceOrPartition() ||
-           (D->hasAttr<DLLExportAttr>() &&
-            Writer.Context->getLangOpts().BuildingPCHWithObjectFile)) &&
-          Writer.Context->GetGVALinkageForVariable(D) == GVA_StrongExternal;
-    }
-    Record.push_back(ModulesCodegen);
-    if (ModulesCodegen)
-      Writer.ModularCodegenDecls.push_back(Writer.GetDeclRef(D));
+  bool ModulesCodegen = false;
+  if (Writer.WritingModule && D->getStorageDuration() == SD_Static &&
+      !D->getDescribedVarTemplate()) {
+    // When building a C++20 module interface unit or a partition unit, a
+    // strong definition in the module interface is provided by the
+    // compilation of that unit, not by its users. (Inline variables are still
+    // emitted in module users.)
+    ModulesCodegen =
+        (Writer.WritingModule->isInterfaceOrPartition() ||
+         (D->hasAttr<DLLExportAttr>() &&
+          Writer.Context->getLangOpts().BuildingPCHWithObjectFile)) &&
+         Writer.Context->GetGVALinkageForVariable(D) >= GVA_StrongExternal;
   }
+  Record.push_back(ModulesCodegen);
+  if (ModulesCodegen)
+    Writer.ModularCodegenDecls.push_back(Writer.GetDeclRef(D));
 
   enum {
     VarNotTemplate = 0, VarTemplate, StaticDataMemberSpecialization
@@ -1089,8 +1125,9 @@ void ASTDeclWriter::VisitVarDecl(VarDecl *D) {
       !D->isConstexpr() &&
       !D->isInitCapture() &&
       !D->isPreviousDeclInSameBlockScope() &&
-      !(D->hasAttr<BlocksAttr>() && D->getType()->getAsCXXRecordDecl()) &&
+      !D->hasAttr<BlocksAttr>() &&
       !D->isEscapingByref() &&
+      !HasDeducedType &&
       D->getStorageDuration() != SD_Static &&
       !D->getMemberSpecializationInfo())
     AbbrevToUse = Writer.getDeclVarAbbrev();
@@ -1236,6 +1273,10 @@ void ASTDeclWriter::VisitCapturedDecl(CapturedDecl *CD) {
 }
 
 void ASTDeclWriter::VisitLinkageSpecDecl(LinkageSpecDecl *D) {
+  static_assert(DeclContext::NumLinkageSpecDeclBits == 4,
+                "You need to update the serializer after you change the"
+                "LinkageSpecDeclBits");
+
   VisitDecl(D);
   Record.push_back(D->getLanguage());
   Record.AddSourceLocation(D->getExternLoc());
@@ -1380,7 +1421,10 @@ void ASTDeclWriter::VisitCXXRecordDecl(CXXRecordDecl *D) {
   VisitRecordDecl(D);
 
   enum {
-    CXXRecNotTemplate = 0, CXXRecTemplate, CXXRecMemberSpecialization
+    CXXRecNotTemplate = 0,
+    CXXRecTemplate,
+    CXXRecMemberSpecialization,
+    CXXLambda
   };
   if (ClassTemplateDecl *TemplD = D->getDescribedClassTemplate()) {
     Record.push_back(CXXRecTemplate);
@@ -1391,6 +1435,15 @@ void ASTDeclWriter::VisitCXXRecordDecl(CXXRecordDecl *D) {
     Record.AddDeclRef(MSInfo->getInstantiatedFrom());
     Record.push_back(MSInfo->getTemplateSpecializationKind());
     Record.AddSourceLocation(MSInfo->getPointOfInstantiation());
+  } else if (D->isLambda()) {
+    // For a lambda, we need some information early for merging.
+    Record.push_back(CXXLambda);
+    if (auto *Context = D->getLambdaContextDecl()) {
+      Record.AddDeclRef(Context);
+      Record.push_back(D->getLambdaIndexInContext());
+    } else {
+      Record.push_back(0);
+    }
   } else {
     Record.push_back(CXXRecNotTemplate);
   }
@@ -1431,6 +1484,10 @@ void ASTDeclWriter::VisitCXXMethodDecl(CXXMethodDecl *D) {
 }
 
 void ASTDeclWriter::VisitCXXConstructorDecl(CXXConstructorDecl *D) {
+  static_assert(DeclContext::NumCXXConstructorDeclBits == 22,
+                "You need to update the serializer after you change the "
+                "CXXConstructorDeclBits");
+
   Record.push_back(D->getTrailingAllocKind());
   addExplicitSpecifier(D->getExplicitSpecifier(), Record);
   if (auto Inherited = D->getInheritedConstructor()) {
@@ -1807,6 +1864,10 @@ void ASTDeclWriter::VisitStaticAssertDecl(StaticAssertDecl *D) {
 
 /// Emit the DeclContext part of a declaration context decl.
 void ASTDeclWriter::VisitDeclContext(DeclContext *DC) {
+  static_assert(DeclContext::NumDeclContextBits == 13,
+                "You need to update the serializer after you change the "
+                "DeclContextBits");
+
   Record.AddOffset(Writer.WriteDeclContextLexicalBlock(Context, DC));
   Record.AddOffset(Writer.WriteDeclContextVisibleBlock(Context, DC));
 }
@@ -1917,6 +1978,10 @@ void ASTDeclWriter::VisitOMPRequiresDecl(OMPRequiresDecl *D) {
 }
 
 void ASTDeclWriter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDecl *D) {
+  static_assert(DeclContext::NumOMPDeclareReductionDeclBits == 2,
+                "You need to update the serializer after you change the "
+                "NumOMPDeclareReductionDeclBits");
+
   VisitValueDecl(D);
   Record.AddSourceLocation(D->getBeginLoc());
   Record.AddStmt(D->getCombinerIn());
@@ -2127,6 +2192,8 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1));
   // getArgPassingRestrictions
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2));
+  // ODRHash
+  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 26));
 
   // DC
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // LexicalOffset
@@ -2254,6 +2321,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0));                         // isPrevDeclInSameScope
   Abv->Add(BitCodeAbbrevOp(0));                         // ImplicitParamKind
   Abv->Add(BitCodeAbbrevOp(0));                         // EscapingByref
+  Abv->Add(BitCodeAbbrevOp(0));                         // HasDeducedType
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 3)); // Linkage
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 3)); // HasConstant*
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2)); // VarKind (local enum)
@@ -2503,7 +2571,7 @@ void ASTRecordWriter::AddFunctionDefinition(const FunctionDecl *FD) {
       // compilation of that unit, not by its users. (Inline functions are still
       // emitted in module users.)
       Linkage = Writer->Context->GetGVALinkageForFunction(FD);
-      ModulesCodegen = *Linkage == GVA_StrongExternal;
+      ModulesCodegen = *Linkage >= GVA_StrongExternal;
     }
     if (Writer->Context->getLangOpts().ModulesCodegen ||
         (FD->hasAttr<DLLExportAttr>() &&

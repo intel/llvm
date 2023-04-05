@@ -756,7 +756,8 @@ bool SymbolCollector::handleMacroOccurrence(const IdentifierInfo *Name,
       *PP, *CompletionAllocator, *CompletionTUInfo);
   std::string Signature;
   std::string SnippetSuffix;
-  getSignature(*CCS, &Signature, &SnippetSuffix);
+  getSignature(*CCS, &Signature, &SnippetSuffix, SymbolCompletion.Kind,
+               SymbolCompletion.CursorKind);
   S.Signature = Signature;
   S.CompletionSnippetSuffix = SnippetSuffix;
 
@@ -829,20 +830,18 @@ void SymbolCollector::finish() {
   llvm::DenseMap<FileID, bool> FileToContainsImportsOrObjC;
   // Fill in IncludeHeaders.
   // We delay this until end of TU so header guards are all resolved.
-  llvm::SmallString<128> QName;
   for (const auto &[SID, FID] : IncludeFiles) {
     if (const Symbol *S = Symbols.find(SID)) {
       llvm::StringRef IncludeHeader;
       // Look for an overridden include header for this symbol specifically.
       if (Opts.Includes) {
-        QName = S->Scope;
-        QName.append(S->Name);
-        IncludeHeader = Opts.Includes->mapSymbol(QName);
+        IncludeHeader =
+            Opts.Includes->mapSymbol(S->Scope, S->Name, ASTCtx->getLangOpts());
         if (!IncludeHeader.empty()) {
           if (IncludeHeader.front() != '"' && IncludeHeader.front() != '<')
             IncludeHeader = HeaderFileURIs->toURI(IncludeHeader);
-          else if (IncludeHeader == "<utility>" && QName == "std::move" &&
-                   S->Signature.contains(','))
+          else if (IncludeHeader == "<utility>" && S->Scope == "std::" &&
+                   S->Name == "move" && S->Signature.contains(','))
             IncludeHeader = "<algorithm>";
         }
       }
@@ -935,7 +934,8 @@ const Symbol *SymbolCollector::addDeclaration(const NamedDecl &ND, SymbolID ID,
   S.Documentation = Documentation;
   std::string Signature;
   std::string SnippetSuffix;
-  getSignature(*CCS, &Signature, &SnippetSuffix);
+  getSignature(*CCS, &Signature, &SnippetSuffix, SymbolCompletion.Kind,
+               SymbolCompletion.CursorKind);
   S.Signature = Signature;
   S.CompletionSnippetSuffix = SnippetSuffix;
   std::string ReturnType = getReturnType(*CCS);

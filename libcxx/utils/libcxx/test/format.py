@@ -115,9 +115,11 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
     FOO.pass.mm             - Same as .pass.cpp, but for Objective-C++
 
     FOO.compile.pass.cpp    - Compiles successfully, link and run not attempted
+    FOO.compile.pass.mm     - Same as .compile.pass.cpp, but for Objective-C++
     FOO.compile.fail.cpp    - Does not compile successfully
 
     FOO.link.pass.cpp       - Compiles and links successfully, run not attempted
+    FOO.link.pass.mm        - Same as .link.pass.cpp, but for Objective-C++
     FOO.link.fail.cpp       - Compiles successfully, but fails to link
 
     FOO.sh.<anything>       - A builtin Lit Shell test
@@ -187,8 +189,10 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
     """
     def getTestsInDirectory(self, testSuite, pathInSuite, litConfig, localConfig):
         SUPPORTED_SUFFIXES = ['[.]pass[.]cpp$', '[.]pass[.]mm$',
-                              '[.]compile[.]pass[.]cpp$', '[.]compile[.]fail[.]cpp$',
-                              '[.]link[.]pass[.]cpp$', '[.]link[.]fail[.]cpp$',
+                              '[.]compile[.]pass[.]cpp$', '[.]compile[.]pass[.]mm$',
+                              '[.]compile[.]fail[.]cpp$',
+                              '[.]link[.]pass[.]cpp$', '[.]link[.]pass[.]mm$',
+                              '[.]link[.]fail[.]cpp$',
                               '[.]sh[.][^.]+$',
                               '[.]verify[.]cpp$',
                               '[.]fail[.]cpp$']
@@ -211,7 +215,7 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
         if re.search('[.]sh[.][^.]+$', filename):
             steps = [ ] # The steps are already in the script
             return self._executeShTest(test, litConfig, steps)
-        elif filename.endswith('.compile.pass.cpp'):
+        elif filename.endswith('.compile.pass.cpp') or filename.endswith('.compile.pass.mm'):
             steps = [
                 "%dbg(COMPILED WITH) %{cxx} %s %{flags} %{compile_flags} -fsyntax-only"
             ]
@@ -221,7 +225,7 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
                 "%dbg(COMPILED WITH) ! %{cxx} %s %{flags} %{compile_flags} -fsyntax-only"
             ]
             return self._executeShTest(test, litConfig, steps)
-        elif filename.endswith('.link.pass.cpp'):
+        elif filename.endswith('.link.pass.cpp') or filename.endswith('.link.pass.mm'):
             steps = [
                 "%dbg(COMPILED WITH) %{cxx} %s %{flags} %{compile_flags} %{link_flags} -o %t.exe"
             ]
@@ -265,11 +269,6 @@ class CxxStandardLibraryTest(lit.formats.TestFormat):
             return self._executeShTest(test, litConfig, steps)
         else:
             return lit.Test.Result(lit.Test.UNRESOLVED, "Unknown test suffix for '{}'".format(filename))
-
-    # Utility function to add compile flags in lit.local.cfg files.
-    def addCompileFlags(self, config, *flags):
-        string = ' '.join(flags)
-        config.substitutions = [(s, x + ' ' + string) if s == '%{compile_flags}' else (s, x) for (s, x) in config.substitutions]
 
     def _executeShTest(self, test, litConfig, steps):
         if test.config.unsupported:

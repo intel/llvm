@@ -21,7 +21,14 @@ template <typename T, int N> inline void checkVectorSizeAndAlignment() {
   using VectorT = s::vec<T, N>;
   constexpr auto RealLength = (N != 3 ? N : 4);
   static_assert(sizeof(VectorT) == (sizeof(T) * RealLength), "");
-  static_assert(alignof(VectorT) == (alignof(T) * RealLength), "");
+#if defined(_WIN32) && (_MSC_VER) &&                                           \
+    defined(__NO_EXT_VECTOR_TYPE_ON_HOST__) && !defined(__SYCL_DEVICE_ONLY__)
+  // See comments around __SYCL_ALIGNED_VAR macro definition in types.hpp
+  // We can't enforce proper alignment of "huge" vectors (>64 bytes) on Windows
+  // and the test exposes this limitation.
+  if constexpr (alignof(T) * RealLength < 64)
+#endif
+    static_assert(alignof(VectorT) == (alignof(T) * RealLength), "");
 }
 
 template <typename T> inline void checkVectorsWithN() {

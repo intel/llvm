@@ -30,7 +30,6 @@ def Vector_Dialect : Dialect {
   let useDefaultAttributePrinterParser = 1;
   let hasConstantMaterializer = 1;
   let dependentDialects = ["arith::ArithDialect"];
-  let useFoldAPI = kEmitFoldAdaptorFolder;
 }
 
 // Base class for Vector dialect ops.
@@ -92,10 +91,10 @@ def Vector_ContractionOp :
       PredOpTrait<"lhs and rhs have same element type", TCopVTEtIsSameAs<0, 1>>,
       PredOpTrait<"third operand acc and result have same element type",
                   TCresVTEtIsSameAsOpBase<0, 2>>,
+      DeclareOpInterfaceMethods<MaskableOpInterface>,
       DeclareOpInterfaceMethods<VectorUnrollOpInterface, ["getShapeForUnroll"]>
     ]>,
     Arguments<(ins AnyVector:$lhs, AnyVector:$rhs, AnyType:$acc,
-               Variadic<VectorOf<[I1]>>:$masks,
                ArrayAttr:$indexing_maps,
                Vector_IteratorTypeArrayAttr:$iterator_types,
                DefaultValuedAttr<Vector_CombiningKindAttr,
@@ -110,9 +109,10 @@ def Vector_ContractionOp :
     num_batch_dims (see dimension type descriptions below)). For K = 0 (no
     free or batch dimensions), the accumulator and output are a scalar.
 
-    Optional vector mask arguments (produced by CreateMaskOp or ConstantMaskOp)
-    specify the dynamic dimension sizes of valid data within the lhs/rhs vector
-    arguments.
+    If operands and the result have types of different bitwidths, operands are
+    promoted to have the same bitwidth as the result before performing the
+    contraction. For integer types, only signless integer types are supported,
+    and the promotion happens via sign extension.
 
     An iterator type attribute list must be specified, where each element of
     the list represents an iterator with one of the following types:
@@ -190,17 +190,9 @@ def Vector_ContractionOp :
     %4 = vector.contract #contraction_trait %0, %1, %2
         : vector<7x8x16x15xf32>, vector<8x16x7x5xf32> into vector<8x15x5xf32>
 
-    // 4D vector contraction with two contracting dimensions and optional
-    // vector mask arguments.
-    %lhs_mask = vector.constant_mask [7, 8, 16, 15] : vector<7x8x16x15xi1>
-    %rhs_mask = vector.constant_mask [8, 16, 7, 5] : vector<8x16x7x5xi1>
-
-    %5 = vector.contract #contraction_trait %0, %1, %2, %lhs_mask, %rhs_mask
-       : vector<7x8x16x15xf32>, vector<8x16x7x5xf32> into vector<8x15x8x5xf32>
-
     // Vector contraction with mixed typed. lhs/rhs have different element
     // types than accumulator/result.
-    %6 = vector.contract #contraction_trait %0, %1, %2
+    %5 = vector.contract #contraction_trait %0, %1, %2
       : vector<10xf16>, vector<10xf16> into f32
 
     // Contract with max (K = 0).
@@ -214,7 +206,7 @@ def Vector_ContractionOp :
       iterator_types = ["reduction"],
       kind = #vector.kind<max>
     }
-    %7 = vector.contract #contraction_trait %0, %1, %2
+    %6 = vector.contract #contraction_trait %0, %1, %2
       : vector<10xf32>, vector<10xf32> into f32
     ```
   }];
@@ -236,14 +228,6 @@ def Vector_ContractionOp :
       return getRhs().getType().cast<VectorType>();
     }
     Type getAccType() { return getAcc().getType(); }
-    VectorType getLHSVectorMaskType() {
-      if (llvm::size(getMasks()) != 2) return VectorType();
-      return getOperand(3).getType().cast<VectorType>();
-    }
-    VectorType getRHSVectorMaskType() {
-      if (llvm::size(getMasks()) != 2) return VectorType();
-      return getOperand(4).getType().cast<VectorType>();
-    }
     Type getResultType() { return getResult().getType(); }
     SmallVector<StringRef> getTraitAttrNames();
     static unsigned getAccOperandIndex() { return 2; }
@@ -316,7 +300,7 @@ def Vector_ReductionOp :
     ```
   }];
   let extraClassDeclaration = [{
-    VectorType getVectorType() {
+    VectorType getSourceVectorType() {
       return getVector().getType().cast<VectorType>();
     }
   }];
@@ -444,7 +428,7 @@ def Vector_BroadcastOp :
   }];
   let extraClassDeclaration = [{
     Type getSourceType() { return getSource().getType(); }
-    VectorType getVectorType() {
+    VectorType getResultVectorType() {
       return getVector().getType().cast<VectorType>();
     }
 
@@ -461,7 +445,7 @@ def Vector_BroadcastOp :
     /// `value`, `dstShape` and `broadcastedDims` must be properly specified or
     /// the helper will assert. This means:
     ///   1. `dstShape` must not be empty.
-    ///   2. `broadcastedDims` must be confined to [0 .. rank(value.getVectorType)]
+    ///   2. `broadcastedDims` must be confined to [0 .. rank(value.getResultVectorType)]
     ///   2. `dstShape` trimmed of the dimensions specified in `broadcastedDims`
     //       must match the `value` shape.
     static Value createOrFoldBroadcastOp(
@@ -532,7 +516,7 @@ def Vector_ShuffleOp :
     VectorType getV2VectorType() {
       return getV2().getType().cast<VectorType>();
     }
-    VectorType getVectorType() {
+    VectorType getResultVectorType() {
       return getVector().getType().cast<VectorType>();
     }
   }];
@@ -579,7 +563,7 @@ def Vector_ExtractElementOp :
     OpBuilder<(ins "Value":$source)>,
   ];
   let extraClassDeclaration = [{
-    VectorType getVectorType() {
+    VectorType getSourceVectorType() {
       return getVector().getType().cast<VectorType>();
     }
   }];
@@ -614,7 +598,7 @@ def Vector_ExtractOp :
   ];
   let extraClassDeclaration = [{
     static StringRef getPositionAttrStrName() { return "position"; }
-    VectorType getVectorType() {
+    VectorType getSourceVectorType() {
       return getVector().getType().cast<VectorType>();
     }
     static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
@@ -919,7 +903,8 @@ def Vector_OuterProductOp :
     PredOpTrait<"lhs operand and result have same element type",
                 TCresVTEtIsSameAsOpBase<0, 0>>,
     PredOpTrait<"rhs operand and result have same element type",
-                TCresVTEtIsSameAsOpBase<0, 1>>]>,
+                TCresVTEtIsSameAsOpBase<0, 1>>,
+    DeclareOpInterfaceMethods<MaskableOpInterface>]>,
     Arguments<(ins AnyVector:$lhs, AnyType:$rhs,
                Variadic<AnyVector>:$acc,
                DefaultValuedAttr<Vector_CombiningKindAttr, "CombiningKind::ADD">:$kind)>,
@@ -989,7 +974,7 @@ def Vector_OuterProductOp :
         ? VectorType()
         : (*getAcc().begin()).getType().cast<VectorType>();
     }
-    VectorType getVectorType() {
+    VectorType getResultVectorType() {
       return getResult().getType().cast<VectorType>();
     }
     static constexpr StringRef getKindAttrStrName() {
@@ -1165,7 +1150,9 @@ def Vector_ExtractStridedSliceOp :
     static StringRef getOffsetsAttrStrName() { return "offsets"; }
     static StringRef getSizesAttrStrName() { return "sizes"; }
     static StringRef getStridesAttrStrName() { return "strides"; }
-    VectorType getVectorType(){ return getVector().getType().cast<VectorType>(); }
+    VectorType getSourceVectorType() {
+      return getVector().getType().cast<VectorType>();
+    }
     void getOffsets(SmallVectorImpl<int64_t> &results);
     bool hasNonUnitStrides() {
       return llvm::any_of(getStrides(), [](Attribute attr) {
@@ -1743,10 +1730,16 @@ def Vector_MaskedLoadOp :
     element is read from memory. Otherwise, the corresponding element is taken
     from a 1-D pass-through vector. Informally the semantics are:
     ```
-    result[0] := mask[0] ? base[i+0] : pass_thru[0]
-    result[1] := mask[1] ? base[i+1] : pass_thru[1]
+    result[0] := if mask[0] then base[i + 0] else pass_thru[0]
+    result[1] := if mask[1] then base[i + 1] else pass_thru[1]
     etc.
     ```
+
+    If a mask bit is set and the corresponding index is out-of-bounds for the
+    given base, the behavior is undefined. If a mask bit is not set, the value
+    comes from the pass-through vector regardless of the index, and the index is
+    allowed to be out-of-bounds.
+
     The masked load can be used directly where applicable, or can be used
     during progressively lowering to bring other memory operations closer to
     hardware ISA support for a masked load. The semantics of the operation
@@ -1803,6 +1796,12 @@ def Vector_MaskedStoreOp :
     if (mask[1]) base[i+1] = value[1]
     etc.
     ```
+
+    If a mask bit is set and the corresponding index is out-of-bounds for the
+    given base, the behavior is undefined. If a mask bit is not set, no value
+    is stored regardless of the index, and the index is allowed to be
+    out-of-bounds.
+
     The masked store can be used directly where applicable, or can be used
     during progressively lowering to bring other memory operations closer to
     hardware ISA support for a masked store. The semantics of the operation
@@ -1839,7 +1838,7 @@ def Vector_MaskedStoreOp :
 }
 
 def Vector_GatherOp :
-  Vector_Op<"gather">,
+  Vector_Op<"gather", [DeclareOpInterfaceMethods<MaskableOpInterface>]>,
     Arguments<(ins Arg<AnyShaped, "", [MemRead]>:$base,
                Variadic<Index>:$indices,
                VectorOf<[AnyInteger, Index]>:$index_vec,
@@ -1849,21 +1848,27 @@ def Vector_GatherOp :
 
   let summary = [{
     gathers elements from memory or ranked tensor into a vector as defined by an
-    index vector and mask
+    index vector and a mask vector
   }];
 
   let description = [{
-    The gather operation gathers elements from memory or ranked tensor into a
-    n-D vector as defined by a base with indices and an additional n-D index
-    vector (each index is a 1-D offset on the base), but only if the
-    corresponding bit is set in a n-D mask vector. Otherwise, the element is
-    taken from a n-D pass-through vector. Informally the semantics are:
+    The gather operation returns an n-D vector whose elements are either loaded
+    from memory or ranked tensor, or taken from a pass-through vector, depending
+    on the values of an n-D mask vector.
+    If a mask bit is set, the corresponding result element is defined by the base
+    with indices and the n-D index vector (each index is a 1-D offset on the base).
+    Otherwise, the corresponding element is taken from the n-D pass-through vector.
+    Informally the semantics are:
     ```
-    result[0] := mask[0] ? base[index[0]] : pass_thru[0]
-    result[1] := mask[1] ? base[index[1]] : pass_thru[1]
+    result[0] := if mask[0] then base[index[0]] else pass_thru[0]
+    result[1] := if mask[1] then base[index[1]] else pass_thru[1]
     etc.
     ```
-    The vector dialect leaves out-of-bounds behavior undefined.
+
+    If a mask bit is set and the corresponding index is out-of-bounds for the
+    given base, the behavior is undefined. If a mask bit is not set, the value
+    comes from the pass-through vector regardless of the index, and the index is
+    allowed to be out-of-bounds.
 
     The gather operation can be used directly where applicable, or can be used
     during progressively lowering to bring other memory operations closer to
@@ -1913,10 +1918,13 @@ def Vector_ScatterOp :
                VectorOfRankAndType<[1], [I1]>:$mask,
                VectorOfRank<[1]>:$valueToStore)> {
 
-  let summary = "scatters elements from a vector into memory as defined by an index vector and mask";
+  let summary = [{
+    scatters elements from a vector into memory as defined by an index vector
+    and a mask vector
+  }];
 
   let description = [{
-    The scatter operation scatters elements from a 1-D vector into memory as
+    The scatter operation stores elements from a 1-D vector into memory as
     defined by a base with indices and an additional 1-D index vector, but
     only if the corresponding bit in a 1-D mask vector is set. Otherwise, no
     action is taken for that element. Informally the semantics are:
@@ -1925,10 +1933,16 @@ def Vector_ScatterOp :
     if (mask[1]) base[index[1]] = value[1]
     etc.
     ```
-    The vector dialect leaves out-of-bounds and repeated index behavior
-    undefined. Underlying implementations may enforce strict sequential
-    semantics for the latter, though.
-    TODO: enforce the latter always?
+
+    If a mask bit is set and the corresponding index is out-of-bounds for the
+    given base, the behavior is undefined. If a mask bit is not set, no value
+    is stored regardless of the index, and the index is allowed to be
+    out-of-bounds.
+
+    If the index vector contains two or more duplicate indices, the behavior is
+    undefined. Underlying implementation may enforce strict sequential
+    semantics.
+    TODO: always enforce strict sequential semantics?
 
     The scatter operation can be used directly where applicable, or can be used
     during progressively lowering to bring other memory operations closer to
@@ -1985,11 +1999,16 @@ def Vector_ExpandLoadOp :
     is taken from a 1-D pass-through vector. Informally the semantics are:
     ```
     index = i
-    result[0] := mask[0] ? base[index++] : pass_thru[0]
-    result[1] := mask[1] ? base[index++] : pass_thru[1]
+    result[0] := if mask[0] then base[index++] else pass_thru[0]
+    result[1] := if mask[1] then base[index++] else pass_thru[1]
     etc.
     ```
     Note that the index increment is done conditionally.
+
+    If a mask bit is set and the corresponding index is out-of-bounds for the
+    given base, the behavior is undefined. If a mask bit is not set, the value
+    comes from the pass-through vector regardless of the index, and the index is
+    allowed to be out-of-bounds.
 
     The expand load can be used directly where applicable, or can be used
     during progressively lowering to bring other memory operations closer to
@@ -2048,6 +2067,11 @@ def Vector_CompressStoreOp :
     etc.
     ```
     Note that the index increment is done conditionally.
+
+    If a mask bit is set and the corresponding index is out-of-bounds for the
+    given base, the behavior is undefined. If a mask bit is not set, no value
+    is stored regardless of the index, and the index is allowed to be
+    out-of-bounds.
 
     The compress store can be used directly where applicable, or can be used
     during progressively lowering to bring other memory operations closer to
@@ -2374,9 +2398,11 @@ def Vector_MaskOp : Vector_Op<"mask", [
   ];
 
   let extraClassDeclaration = [{
+    Block *getMaskBlock() { return &getMaskRegion().front(); }
     static void ensureTerminator(Region &region, Builder &builder, Location loc);
   }];
 
+  let hasCanonicalizer = 1;
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 }
@@ -2417,10 +2443,10 @@ def Vector_TransposeOp :
     OpBuilder<(ins "Value":$vector, "ArrayRef<int64_t>":$transp)>
   ];
   let extraClassDeclaration = [{
-    VectorType getVectorType() {
+    VectorType getSourceVectorType() {
       return getVector().getType().cast<VectorType>();
     }
-    VectorType getResultType() {
+    VectorType getResultVectorType() {
       return getResult().getType().cast<VectorType>();
     }
     void getTransp(SmallVectorImpl<int64_t> &results);
@@ -2435,7 +2461,11 @@ def Vector_TransposeOp :
 }
 
 def Vector_PrintOp :
-  Vector_Op<"print", []>, Arguments<(ins AnyType:$source)> {
+  Vector_Op<"print", []>,
+  Arguments<(ins Type<Or<[
+    AnyVectorOfAnyRank.predicate,
+    AnyInteger.predicate, Index.predicate, AnyFloat.predicate
+  ]>>:$source)> {
   let summary = "print operation (for testing and debugging)";
   let description = [{
     Prints the source vector (or scalar) to stdout in human readable

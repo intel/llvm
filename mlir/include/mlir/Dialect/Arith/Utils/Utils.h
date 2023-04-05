@@ -26,10 +26,11 @@ namespace mlir {
 /// Matches a ConstantIndexOp.
 detail::op_matcher<arith::ConstantIndexOp> matchConstantIndex();
 
-/// Detects the `values` produced by a ConstantIndexOp and places the new
-/// constant in place of the corresponding sentinel value.
-void canonicalizeSubViewPart(SmallVectorImpl<OpFoldResult> &values,
-                             function_ref<bool(int64_t)> isDynamic);
+/// Returns `success` when any of the elements in `ofrs` was produced by
+/// arith::ConstantIndexOp. In that case the constant attribute replaces the
+/// Value. Returns `failure` when no folding happened.
+LogicalResult foldDynamicIndexList(Builder &b,
+                                   SmallVectorImpl<OpFoldResult> &ofrs);
 
 llvm::SmallBitVector getPositionsOfShapeOne(unsigned rank,
                                             ArrayRef<int64_t> shape);
@@ -43,20 +44,15 @@ public:
 
   LogicalResult matchAndRewrite(OpType op,
                                 PatternRewriter &rewriter) const override {
-    // No constant operand, just return;
-    if (llvm::none_of(op.getOperands(), [](Value operand) {
-          return matchPattern(operand, matchConstantIndex());
-        }))
-      return failure();
-
-    // At least one of offsets/sizes/strides is a new constant.
-    // Form the new list of operands and constant attributes from the existing.
     SmallVector<OpFoldResult> mixedOffsets(op.getMixedOffsets());
     SmallVector<OpFoldResult> mixedSizes(op.getMixedSizes());
     SmallVector<OpFoldResult> mixedStrides(op.getMixedStrides());
-    canonicalizeSubViewPart(mixedOffsets, ShapedType::isDynamic);
-    canonicalizeSubViewPart(mixedSizes, ShapedType::isDynamic);
-    canonicalizeSubViewPart(mixedStrides, ShapedType::isDynamic);
+
+    // No constant operands were folded, just return;
+    if (failed(foldDynamicIndexList(rewriter, mixedOffsets)) &&
+        failed(foldDynamicIndexList(rewriter, mixedSizes)) &&
+        failed(foldDynamicIndexList(rewriter, mixedStrides)))
+      return failure();
 
     // Create the new op in canonical form.
     ResultTypeFunc resultTypeFunc;
@@ -80,17 +76,17 @@ public:
 Value getValueOrCreateConstantIndexOp(OpBuilder &b, Location loc,
                                       OpFoldResult ofr);
 
-/// Create a cast from an index-like value (index or integer) to another
-/// index-like value. If the value type and the target type are the same, it
-/// returns the original value.
-Value getValueOrCreateCastToIndexLike(OpBuilder &b, Location loc,
-                                      Type targetType, Value value);
-
 /// Similar to the other overload, but converts multiple OpFoldResults into
 /// Values.
 SmallVector<Value>
 getValueOrCreateConstantIndexOp(OpBuilder &b, Location loc,
                                 ArrayRef<OpFoldResult> valueOrAttrVec);
+
+/// Create a cast from an index-like value (index or integer) to another
+/// index-like value. If the value type and the target type are the same, it
+/// returns the original value.
+Value getValueOrCreateCastToIndexLike(OpBuilder &b, Location loc,
+                                      Type targetType, Value value);
 
 /// Converts a scalar value `operand` to type `toType`. If the value doesn't
 /// convert, a warning will be issued and the operand is returned as is (which

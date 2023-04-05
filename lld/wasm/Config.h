@@ -16,11 +16,20 @@
 #include "llvm/Support/CachePruning.h"
 #include <optional>
 
-namespace lld {
-namespace wasm {
+namespace llvm::CodeGenOpt {
+enum Level : int;
+} // namespace llvm::CodeGenOpt
+
+namespace lld::wasm {
+
+class InputFile;
+class Symbol;
 
 // For --unresolved-symbols.
 enum class UnresolvedPolicy { ReportError, Warn, Ignore, ImportDynamic };
+
+// For --build-id.
+enum class BuildIdKind { None, Fast, Sha1, Hexstring, Uuid };
 
 // This struct contains the global configuration for the linker.
 // Most fields are direct mapping from the command line options
@@ -63,15 +72,18 @@ struct Configuration {
   uint64_t zStackSize;
   unsigned ltoPartitions;
   unsigned ltoo;
+  llvm::CodeGenOpt::Level ltoCgo;
   unsigned optimize;
   llvm::StringRef thinLTOJobs;
   bool ltoDebugPassManager;
   UnresolvedPolicy unresolvedSymbols;
+  BuildIdKind buildId = BuildIdKind::None;
 
   llvm::StringRef entry;
   llvm::StringRef mapFile;
   llvm::StringRef outputFile;
   llvm::StringRef thinLTOCacheDir;
+  llvm::StringRef whyExtract;
 
   llvm::StringSet<> allowUndefinedSymbols;
   llvm::StringSet<> exportedSymbols;
@@ -80,9 +92,11 @@ struct Configuration {
   llvm::CachePruningPolicy thinLTOCachePolicy;
   std::optional<std::vector<std::string>> features;
   std::optional<std::vector<std::string>> extraFeatures;
+  llvm::SmallVector<uint8_t, 0> buildIdVector;
 
   // The following config options do not directly correspond to any
-  // particular command line options.
+  // particular command line options, and should probably be moved to seperate
+  // Ctx struct as in ELF/Config.h
 
   // True if we are creating position-independent code.
   bool isPic;
@@ -100,12 +114,16 @@ struct Configuration {
   // Will be set to true if bss data segments should be emitted. In most cases
   // this is not necessary.
   bool emitBssSegments = false;
+
+  // A tuple of (reference, extractedFile, sym). Used by --why-extract=.
+  llvm::SmallVector<std::tuple<std::string, const InputFile *, const Symbol &>,
+                    0>
+      whyExtractRecords;
 };
 
 // The only instance of Configuration struct.
 extern Configuration *config;
 
-} // namespace wasm
-} // namespace lld
+} // namespace lld::wasm
 
 #endif

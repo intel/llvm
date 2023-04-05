@@ -12,11 +12,17 @@
 #include "CodeCompletionStrings.h"
 #include "Config.h"
 #include "FindTarget.h"
+#include "Headers.h"
+#include "IncludeCleaner.h"
 #include "ParsedAST.h"
 #include "Selection.h"
 #include "SourceCode.h"
+#include "clang-include-cleaner/Analysis.h"
+#include "clang-include-cleaner/Types.h"
 #include "index/SymbolCollector.h"
+#include "support/Logger.h"
 #include "support/Markup.h"
+#include "support/Trace.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/ASTTypeTraits.h"
@@ -33,21 +39,28 @@
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/CharInfo.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Index/IndexSymbol.h"
 #include "clang/Tooling/Syntax/Tokens.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/raw_ostream.h"
+#include <algorithm>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace clang {
 namespace clangd {
@@ -393,10 +406,10 @@ void fillFunctionTypeAndParams(HoverInfo &HI, const Decl *D,
 // 100   => 0x64
 // Negative numbers are sign-extended to 32/64 bits
 // -2    => 0xfffffffe
-// -2^32 => 0xfffffffeffffffff
+// -2^32 => 0xffffffff00000000
 static llvm::FormattedNumber printHex(const llvm::APSInt &V) {
-  uint64_t Bits = V.getExtValue();
-  if (V.isNegative() && V.getMinSignedBits() <= 32)
+  uint64_t Bits = V.getZExtValue();
+  if (V.isNegative() && V.getSignificantBits() <= 32)
     return llvm::format_hex(uint32_t(Bits), 0);
   return llvm::format_hex(Bits, 0);
 }
@@ -430,7 +443,7 @@ std::optional<std::string> printExprValue(const Expr *E,
 
   // Show enums symbolically, not numerically like APValue::printPretty().
   if (T->isEnumeralType() && Constant.Val.isInt() &&
-      Constant.Val.getInt().getMinSignedBits() <= 64) {
+      Constant.Val.getInt().getSignificantBits() <= 64) {
     // Compare to int64_t to avoid bit-width match requirements.
     int64_t Val = Constant.Val.getInt().getExtValue();
     for (const EnumConstantDecl *ECD :
@@ -442,7 +455,7 @@ std::optional<std::string> printExprValue(const Expr *E,
   }
   // Show hex value of integers if they're at least 10 (or negative!)
   if (T->isIntegralOrEnumerationType() && Constant.Val.isInt() &&
-      Constant.Val.getInt().getMinSignedBits() <= 64 &&
+      Constant.Val.getInt().getSignificantBits() <= 64 &&
       Constant.Val.getInt().uge(10))
     return llvm::formatv("{0} ({1})", Constant.Val.getAsString(Ctx, T),
                          printHex(Constant.Val.getInt()))
@@ -952,6 +965,15 @@ void addLayoutInfo(const NamedDecl &ND, HoverInfo &HI) {
   }
 }
 
+HoverInfo::PassType::PassMode getPassMode(QualType ParmType) {
+  if (ParmType->isReferenceType()) {
+    if (ParmType->getPointeeType().isConstQualified())
+      return HoverInfo::PassType::ConstRef;
+    return HoverInfo::PassType::Ref;
+  }
+  return HoverInfo::PassType::Value;
+}
+
 // If N is passed as argument to a function, fill HI.CalleeArgInfo with
 // information about that argument.
 void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
@@ -972,14 +994,19 @@ void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
   if (!FD || FD->isOverloadedOperator() || FD->isVariadic())
     return;
 
+  HoverInfo::PassType PassType;
+
   // Find argument index for N.
   for (unsigned I = 0; I < CE->getNumArgs() && I < FD->getNumParams(); ++I) {
     if (CE->getArg(I) != OuterNode.ASTNode.get<Expr>())
       continue;
 
     // Extract matching argument from function declaration.
-    if (const ParmVarDecl *PVD = FD->getParamDecl(I))
+    if (const ParmVarDecl *PVD = FD->getParamDecl(I)) {
       HI.CalleeArgInfo.emplace(toHoverInfoParam(PVD, PP));
+      if (N == &OuterNode)
+        PassType.PassBy = getPassMode(PVD->getType());
+    }
     break;
   }
   if (!HI.CalleeArgInfo)
@@ -988,14 +1015,9 @@ void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
   // If we found a matching argument, also figure out if it's a
   // [const-]reference. For this we need to walk up the AST from the arg itself
   // to CallExpr and check all implicit casts, constructor calls, etc.
-  HoverInfo::PassType PassType;
   if (const auto *E = N->ASTNode.get<Expr>()) {
     if (E->getType().isConstQualified())
       PassType.PassBy = HoverInfo::PassType::ConstRef;
-
-    // No implicit node, literal passed by value
-    if (isLiteral(E) && N->Parent == OuterNode.Parent)
-      PassType.PassBy = HoverInfo::PassType::Value;
   }
 
   for (auto *CastNode = N->Parent;
@@ -1033,8 +1055,7 @@ void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
         PassType.PassBy = HoverInfo::PassType::Value;
       else
         PassType.Converted = true;
-    } else if (const auto *MTE =
-                   CastNode->ASTNode.get<MaterializeTemporaryExpr>()) {
+    } else if (CastNode->ASTNode.get<MaterializeTemporaryExpr>()) {
       // Can't bind a non-const-ref to a temporary, so has to be const-ref
       PassType.PassBy = HoverInfo::PassType::ConstRef;
     } else { // Unknown implicit node, assume type conversion.
@@ -1068,13 +1089,108 @@ const NamedDecl *pickDeclToUse(llvm::ArrayRef<const NamedDecl *> Candidates) {
   //     template <typename T> void bar() { fo^o(T{}); }
   // we actually want to show the using declaration,
   // it's not clear which declaration to pick otherwise.
-  auto BaseDecls = llvm::make_filter_range(Candidates, [](const NamedDecl *D) {
-    return llvm::isa<UsingDecl>(D);
-  });
+  auto BaseDecls = llvm::make_filter_range(
+      Candidates, [](const NamedDecl *D) { return llvm::isa<UsingDecl>(D); });
   if (std::distance(BaseDecls.begin(), BaseDecls.end()) == 1)
     return *BaseDecls.begin();
 
   return Candidates.front();
+}
+
+void maybeAddSymbolProviders(ParsedAST &AST, HoverInfo &HI,
+                             include_cleaner::Symbol Sym) {
+  trace::Span Tracer("Hover::maybeAddSymbolProviders");
+
+  const SourceManager &SM = AST.getSourceManager();
+  llvm::SmallVector<include_cleaner::Header> RankedProviders =
+      include_cleaner::headersForSymbol(Sym, SM, AST.getPragmaIncludes());
+  if (RankedProviders.empty())
+    return;
+
+  std::string Result;
+  include_cleaner::Includes ConvertedIncludes =
+      convertIncludes(SM, AST.getIncludeStructure().MainFileIncludes);
+  for (const auto &P : RankedProviders) {
+    if (P.kind() == include_cleaner::Header::Physical &&
+        P.physical() == SM.getFileEntryForID(SM.getMainFileID()))
+      // Main file ranked higher than any #include'd file
+      break;
+
+    // Pick the best-ranked #include'd provider
+    auto Matches = ConvertedIncludes.match(P);
+    if (!Matches.empty()) {
+      Result = Matches[0]->quote();
+      break;
+    }
+  }
+
+  if (!Result.empty()) {
+    HI.Provider = std::move(Result);
+    return;
+  }
+
+  // Pick the best-ranked non-#include'd provider
+  const auto &H = RankedProviders.front();
+  if (H.kind() == include_cleaner::Header::Physical &&
+      H.physical() == SM.getFileEntryForID(SM.getMainFileID()))
+    // Do not show main file as provider, otherwise we'll show provider info
+    // on local variables, etc.
+    return;
+
+  HI.Provider = spellHeader(AST, SM.getFileEntryForID(SM.getMainFileID()), H);
+}
+
+// FIXME: similar functions are present in FindHeaders.cpp (symbolName)
+// and IncludeCleaner.cpp (getSymbolName). Introduce a name() method into
+// include_cleaner::Symbol instead.
+std::string getSymbolName(include_cleaner::Symbol Sym) {
+  std::string Name;
+  switch (Sym.kind()) {
+  case include_cleaner::Symbol::Declaration:
+    if (const auto *ND = llvm::dyn_cast<NamedDecl>(&Sym.declaration()))
+      Name = ND->getDeclName().getAsString();
+    break;
+  case include_cleaner::Symbol::Macro:
+    Name = Sym.macro().Name->getName();
+    break;
+  }
+  return Name;
+}
+
+void maybeAddUsedSymbols(ParsedAST &AST, HoverInfo &HI, const Inclusion &Inc) {
+  const SourceManager &SM = AST.getSourceManager();
+  const auto &ConvertedMainFileIncludes =
+      convertIncludes(SM, AST.getIncludeStructure().MainFileIncludes);
+  const auto &HoveredInclude = convertIncludes(SM, llvm::ArrayRef{Inc});
+  llvm::DenseSet<include_cleaner::Symbol> UsedSymbols;
+  include_cleaner::walkUsed(
+      AST.getLocalTopLevelDecls(), collectMacroReferences(AST),
+      AST.getPragmaIncludes(), SM,
+      [&](const include_cleaner::SymbolReference &Ref,
+          llvm::ArrayRef<include_cleaner::Header> Providers) {
+        if (Ref.RT != include_cleaner::RefType::Explicit ||
+            UsedSymbols.contains(Ref.Target))
+          return;
+
+        for (const include_cleaner::Header &H : Providers) {
+          auto MatchingIncludes = ConvertedMainFileIncludes.match(H);
+          // No match for this provider in the main file.
+          if (MatchingIncludes.empty())
+            continue;
+
+          // Check if the hovered include matches this provider.
+          if (!HoveredInclude.match(H).empty())
+            UsedSymbols.insert(Ref.Target);
+
+          // Don't look for rest of the providers once we've found a match
+          // in the main file.
+          break;
+        }
+      });
+
+  for (const auto &UsedSymbolDecl : UsedSymbols)
+    HI.UsedSymbolNames.push_back(getSymbolName(UsedSymbolDecl));
+  llvm::sort(HI.UsedSymbolNames);
 }
 
 } // namespace
@@ -1082,6 +1198,8 @@ const NamedDecl *pickDeclToUse(llvm::ArrayRef<const NamedDecl *> Candidates) {
 std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
                                   const format::FormatStyle &Style,
                                   const SymbolIndex *Index) {
+  static constexpr trace::Metric HoverCountMetric(
+      "hover", trace::Metric::Counter, "case");
   PrintingPolicy PP =
       getPrintingPolicy(AST.getASTContext().getPrintingPolicy());
   const SourceManager &SM = AST.getSourceManager();
@@ -1100,12 +1218,14 @@ std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
   for (const auto &Inc : AST.getIncludeStructure().MainFileIncludes) {
     if (Inc.Resolved.empty() || Inc.HashLine != Pos.line)
       continue;
+    HoverCountMetric.record(1, "include");
     HoverInfo HI;
     HI.Name = std::string(llvm::sys::path::filename(Inc.Resolved));
     // FIXME: We don't have a fitting value for Kind.
     HI.Definition =
         URIForFile::canonicalize(Inc.Resolved, AST.tuPath()).file().str();
     HI.DefinitionLanguage = "";
+    maybeAddUsedSymbols(AST, HI, Inc);
     return HI;
   }
 
@@ -1123,10 +1243,18 @@ std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
       // Prefer the identifier token as a fallback highlighting range.
       HighlightRange = Tok.range(SM).toCharRange(SM);
       if (auto M = locateMacroAt(Tok, AST.getPreprocessor())) {
+        HoverCountMetric.record(1, "macro");
         HI = getHoverContents(*M, Tok, AST);
+        if (auto DefLoc = M->Info->getDefinitionLoc(); DefLoc.isValid()) {
+          include_cleaner::Macro IncludeCleanerMacro{
+              AST.getPreprocessor().getIdentifierInfo(Tok.text(SM)), DefLoc};
+          maybeAddSymbolProviders(AST, *HI,
+                                  include_cleaner::Symbol{IncludeCleanerMacro});
+        }
         break;
       }
     } else if (Tok.kind() == tok::kw_auto || Tok.kind() == tok::kw_decltype) {
+      HoverCountMetric.record(1, "keyword");
       if (auto Deduced = getDeducedType(AST.getASTContext(), Tok.location())) {
         HI = getDeducedTypeHoverContents(*Deduced, Tok, AST.getASTContext(), PP,
                                          Index);
@@ -1153,6 +1281,7 @@ std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
       auto Decls = explicitReferenceTargets(N->ASTNode, DeclRelation::Alias,
                                             AST.getHeuristicResolver());
       if (const auto *DeclToUse = pickDeclToUse(Decls)) {
+        HoverCountMetric.record(1, "decl");
         HI = getHoverContents(DeclToUse, PP, Index, TB);
         // Layout info only shown when hovering on the field/class itself.
         if (DeclToUse == N->ASTNode.get<Decl>())
@@ -1161,9 +1290,12 @@ std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
         if (!HI->Value)
           HI->Value = printExprValue(N, AST.getASTContext());
         maybeAddCalleeArgInfo(N, *HI, PP);
+        maybeAddSymbolProviders(AST, *HI, include_cleaner::Symbol{*DeclToUse});
       } else if (const Expr *E = N->ASTNode.get<Expr>()) {
+        HoverCountMetric.record(1, "expr");
         HI = getHoverContents(N, E, AST, PP, Index);
       } else if (const Attr *A = N->ASTNode.get<Attr>()) {
+        HoverCountMetric.record(1, "attribute");
         HI = getHoverContents(A, AST);
       }
       // FIXME: support hovers for other nodes?
@@ -1209,6 +1341,14 @@ markup::Document HoverInfo::present() const {
     Header.appendText(index::getSymbolKindString(Kind)).appendSpace();
   assert(!Name.empty() && "hover triggered on a nameless symbol");
   Header.appendCode(Name);
+
+  if (!Provider.empty()) {
+    markup::Paragraph &DI = Output.addParagraph();
+    DI.appendText("provided by");
+    DI.appendSpace();
+    DI.appendCode(Provider);
+    Output.addRuler();
+  }
 
   // Put a linebreak after header to increase readability.
   Output.addRuler();
@@ -1304,6 +1444,29 @@ markup::Document HoverInfo::present() const {
     }
 
     Output.addCodeBlock(Buffer, DefinitionLanguage);
+  }
+
+  if (!UsedSymbolNames.empty()) {
+    Output.addRuler();
+    markup::Paragraph &P = Output.addParagraph();
+    P.appendText("provides ");
+
+    const std::vector<std::string>::size_type SymbolNamesLimit = 5;
+    auto Front =
+        llvm::ArrayRef(UsedSymbolNames)
+            .take_front(std::min(UsedSymbolNames.size(), SymbolNamesLimit));
+
+    for (const auto &Sym : Front) {
+      P.appendCode(Sym);
+      if (Sym != Front.back())
+        P.appendText(", ");
+    }
+
+    if (UsedSymbolNames.size() > Front.size()) {
+      P.appendText(" and ");
+      P.appendText(std::to_string(UsedSymbolNames.size() - Front.size()));
+      P.appendText(" more");
+    }
   }
 
   return Output;

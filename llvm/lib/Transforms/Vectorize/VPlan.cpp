@@ -46,7 +46,10 @@
 #include <vector>
 
 using namespace llvm;
+
+namespace llvm {
 extern cl::opt<bool> EnableVPlanNativePath;
+}
 
 #define DEBUG_TYPE "vplan"
 
@@ -197,7 +200,7 @@ VPBlockBase *VPBlockBase::getEnclosingBlockWithPredecessors() {
 }
 
 void VPBlockBase::deleteCFG(VPBlockBase *Entry) {
-  for (VPBlockBase *Block : to_vector(depth_first(Entry)))
+  for (VPBlockBase *Block : to_vector(vp_depth_first_shallow(Entry)))
     delete Block;
 }
 
@@ -504,14 +507,15 @@ void VPBasicBlock::print(raw_ostream &O, const Twine &Indent,
 #endif
 
 void VPRegionBlock::dropAllReferences(VPValue *NewValue) {
-  for (VPBlockBase *Block : depth_first(Entry))
+  for (VPBlockBase *Block : vp_depth_first_shallow(Entry))
     // Drop all references in VPBasicBlocks and replace all uses with
     // DummyValue.
     Block->dropAllReferences(NewValue);
 }
 
 void VPRegionBlock::execute(VPTransformState *State) {
-  ReversePostOrderTraversal<VPBlockBase *> RPOT(Entry);
+  ReversePostOrderTraversal<VPBlockShallowTraversalWrapper<VPBlockBase *>>
+      RPOT(Entry);
 
   if (!isReplicator()) {
     // Create and register the new vector loop.
@@ -565,7 +569,7 @@ void VPRegionBlock::print(raw_ostream &O, const Twine &Indent,
                           VPSlotTracker &SlotTracker) const {
   O << Indent << (isReplicator() ? "<xVFxUF> " : "<x1> ") << getName() << ": {";
   auto NewIndent = Indent + "  ";
-  for (auto *BlockBase : depth_first(Entry)) {
+  for (auto *BlockBase : vp_depth_first_shallow(Entry)) {
     O << '\n';
     BlockBase->print(O, NewIndent, SlotTracker);
   }
@@ -580,7 +584,7 @@ VPlan::~VPlan() {
 
   if (Entry) {
     VPValue DummyValue;
-    for (VPBlockBase *Block : depth_first(Entry))
+    for (VPBlockBase *Block : vp_depth_first_shallow(Entry))
       Block->dropAllReferences(&DummyValue);
 
     VPBlockBase::deleteCFG(Entry);
@@ -670,7 +674,7 @@ void VPlan::execute(VPTransformState *State) {
   State->Builder.SetInsertPoint(VectorPreHeader->getTerminator());
 
   // Generate code in the loop pre-header and body.
-  for (VPBlockBase *Block : depth_first(Entry))
+  for (VPBlockBase *Block : vp_depth_first_shallow(Entry))
     Block->execute(State);
 
   VPBasicBlock *LatchVPBB = getVectorLoopRegion()->getExitingBasicBlock();
@@ -744,19 +748,32 @@ void VPlan::print(raw_ostream &O) const {
 
   O << "VPlan '" << getName() << "' {";
 
+  bool AnyLiveIn = false;
   if (VectorTripCount.getNumUsers() > 0) {
     O << "\nLive-in ";
     VectorTripCount.printAsOperand(O, SlotTracker);
-    O << " = vector-trip-count\n";
+    O << " = vector-trip-count";
+    AnyLiveIn = true;
+  }
+
+  if (TripCount && TripCount->getNumUsers() > 0) {
+    O << "\nLive-in ";
+    TripCount->printAsOperand(O, SlotTracker);
+    O << " = original trip-count";
+    AnyLiveIn = true;
   }
 
   if (BackedgeTakenCount && BackedgeTakenCount->getNumUsers()) {
     O << "\nLive-in ";
     BackedgeTakenCount->printAsOperand(O, SlotTracker);
-    O << " = backedge-taken count\n";
+    O << " = backedge-taken count";
+    AnyLiveIn = true;
   }
 
-  for (const VPBlockBase *Block : depth_first(getEntry())) {
+  if (AnyLiveIn)
+    O << "\n";
+
+  for (const VPBlockBase *Block : vp_depth_first_shallow(getEntry())) {
     O << '\n';
     Block->print(O, "", SlotTracker);
   }
@@ -881,7 +898,7 @@ void VPlanPrinter::dump() {
   OS << "edge [fontname=Courier, fontsize=30]\n";
   OS << "compound=true\n";
 
-  for (const VPBlockBase *Block : depth_first(Plan.getEntry()))
+  for (const VPBlockBase *Block : vp_depth_first_shallow(Plan.getEntry()))
     dumpBlock(Block);
 
   OS << "}\n";
@@ -966,7 +983,7 @@ void VPlanPrinter::dumpRegion(const VPRegionBlock *Region) {
      << DOT::EscapeString(Region->getName()) << "\"\n";
   // Dump the blocks of the region.
   assert(Region->getEntry() && "Region contains no inner blocks.");
-  for (const VPBlockBase *Block : depth_first(Region->getEntry()))
+  for (const VPBlockBase *Block : vp_depth_first_shallow(Region->getEntry()))
     dumpBlock(Block);
   bumpIndent(-1);
   OS << Indent << "}\n";
@@ -1035,7 +1052,8 @@ void VPUser::printOperands(raw_ostream &O, VPSlotTracker &SlotTracker) const {
 void VPInterleavedAccessInfo::visitRegion(VPRegionBlock *Region,
                                           Old2NewTy &Old2New,
                                           InterleavedAccessInfo &IAI) {
-  ReversePostOrderTraversal<VPBlockBase *> RPOT(Region->getEntry());
+  ReversePostOrderTraversal<VPBlockShallowTraversalWrapper<VPBlockBase *>>
+      RPOT(Region->getEntry());
   for (VPBlockBase *Base : RPOT) {
     visitBlock(Base, Old2New, IAI);
   }
@@ -1084,7 +1102,7 @@ VPInterleavedAccessInfo::VPInterleavedAccessInfo(VPlan &Plan,
 }
 
 void VPSlotTracker::assignSlot(const VPValue *V) {
-  assert(Slots.find(V) == Slots.end() && "VPValue already has a slot!");
+  assert(!Slots.contains(V) && "VPValue already has a slot!");
   Slots[V] = NextSlot++;
 }
 
@@ -1096,11 +1114,11 @@ void VPSlotTracker::assignSlots(const VPlan &Plan) {
   assignSlot(&Plan.VectorTripCount);
   if (Plan.BackedgeTakenCount)
     assignSlot(Plan.BackedgeTakenCount);
+  if (Plan.TripCount)
+    assignSlot(Plan.TripCount);
 
-  ReversePostOrderTraversal<
-      VPBlockRecursiveTraversalWrapper<const VPBlockBase *>>
-      RPOT(VPBlockRecursiveTraversalWrapper<const VPBlockBase *>(
-          Plan.getEntry()));
+  ReversePostOrderTraversal<VPBlockDeepTraversalWrapper<const VPBlockBase *>>
+      RPOT(VPBlockDeepTraversalWrapper<const VPBlockBase *>(Plan.getEntry()));
   for (const VPBasicBlock *VPBB :
        VPBlockUtils::blocksOnly<const VPBasicBlock>(RPOT))
     for (const VPRecipeBase &Recipe : *VPBB)

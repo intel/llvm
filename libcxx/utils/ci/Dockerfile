@@ -15,7 +15,9 @@
 #   $ docker run --env-file <secrets> -it $(docker build -q libcxx/utils/ci)
 #
 # The environment variables in `<secrets>` should be the ones necessary
-# to run a BuildKite agent.
+# to run a BuildKite agent:
+#
+#   BUILDKITE_AGENT_TOKEN=<token>
 #
 # If you're only looking to run the Docker image locally for debugging a
 # build bot, see the `run-buildbot-container` script located in this directory.
@@ -58,7 +60,7 @@ RUN locale-gen
 # LLVM 15, we still need to have Clang 12 in this Docker image because the LLVM
 # 14 release branch CI uses it. The tip-of-trunk CI will never use Clang 12,
 # though.
-ENV LLVM_HEAD_VERSION=16
+ENV LLVM_HEAD_VERSION=17
 RUN apt-get update && apt-get install -y lsb-release wget software-properties-common
 RUN wget https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
 RUN bash /tmp/llvm.sh $(($LLVM_HEAD_VERSION - 3)) # for CI transitions
@@ -66,38 +68,23 @@ RUN bash /tmp/llvm.sh $(($LLVM_HEAD_VERSION - 2)) # previous release
 RUN bash /tmp/llvm.sh $(($LLVM_HEAD_VERSION - 1)) # latest release
 RUN bash /tmp/llvm.sh $LLVM_HEAD_VERSION          # current ToT
 
-# Make the latest version of Clang the "default" compiler on the system
-# TODO: After branching for LLVM 16, all jobs will be using an
-#       explicitly-versioned version of Clang instead, so we can get rid of
-#       these symlinks.
-RUN ln -fs /usr/bin/clang++-14 /usr/bin/c++ && [ -e $(readlink /usr/bin/c++) ]
-RUN ln -fs /usr/bin/clang-14 /usr/bin/cc && [ -e $(readlink /usr/bin/cc) ]
-
 # Install clang-format; always use the lastest stable branch.
-# TODO LLVM 16 remove hard-coded version 14 and the symlinks
 RUN apt-get update && apt-get install -y clang-format-$(($LLVM_HEAD_VERSION - 2)) clang-format-$(($LLVM_HEAD_VERSION - 1))
-RUN ln -s /usr/bin/clang-format-14 /usr/bin/clang-format && [ -e $(readlink /usr/bin/clang-format) ]
-RUN ln -s /usr/bin/git-clang-format-14 /usr/bin/git-clang-format && [ -e $(readlink /usr/bin/git-clang-format) ]
 
 # Install clang-tidy
-# TODO LLVM 16 remove hard-coded version 14 and the symlink
-RUN apt-get update && apt-get install -y clang-tidy-$(($LLVM_HEAD_VERSION - 1)) clang-tidy-$LLVM_HEAD_VERSION clang-tidy-14
-RUN ln -s /usr/bin/clang-tidy-14 /usr/bin/clang-tidy && [ -e $(readlink /usr/bin/clang-tidy) ]
+RUN apt-get update && apt-get install -y clang-tidy-$(($LLVM_HEAD_VERSION - 2)) clang-tidy-$((LLVM_HEAD_VERSION - 1))
 
 # Install llvm-dev and libclang-dev to compile custom clang-tidy checks
 RUN apt-get update && apt-get install -y llvm-$(($LLVM_HEAD_VERSION - 1))-dev     llvm-$(($LLVM_HEAD_VERSION - 2))-dev \
                                      libclang-$(($LLVM_HEAD_VERSION - 1))-dev libclang-$(($LLVM_HEAD_VERSION - 2))-dev
 
-# TODO LLVM16 Don't install llvm-16-dev explicitly
-RUN apt-get update && apt-get install -y llvm-16-dev libclang-16-dev
-
-# Install clang-tools
-RUN apt-get update && apt-get install -y clang-tools-$(($LLVM_HEAD_VERSION - 1)) clang-tools-$LLVM_HEAD_VERSION
-
 # Install the most recent GCC, like clang install the previous version as a transition.
 ENV GCC_LATEST_VERSION=12
 RUN apt-get update && apt install -y gcc-$((GCC_LATEST_VERSION - 1)) g++-$((GCC_LATEST_VERSION - 1))
 RUN apt-get update && apt install -y gcc-$GCC_LATEST_VERSION g++-$GCC_LATEST_VERSION
+
+# Remove all, no longer needed, apt data
+RUN rm -rf /var/lib/apt/lists/*
 
 # Install a recent CMake
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.21.1/cmake-3.21.1-linux-x86_64.sh -O /tmp/install-cmake.sh

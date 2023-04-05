@@ -10,15 +10,17 @@
 #define MEMREF_TRANSFORM_OPS
 
 include "mlir/Dialect/Transform/IR/TransformDialect.td"
-include "mlir/Dialect/Transform/IR/TransformEffects.td"
 include "mlir/Dialect/Transform/IR/TransformInterfaces.td"
+include "mlir/Dialect/Transform/IR/TransformTypes.td"
 include "mlir/Dialect/PDL/IR/PDLTypes.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/OpBase.td"
 
+def Transform_MemRefAllocOp : Transform_ConcreteOpType<"memref.alloc">;
+
 def MemRefMultiBufferOp : Op<Transform_Dialect, "memref.multibuffer",
     [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
-     TransformOpInterface, TransformEachOpTrait]> {
+     DeclareOpInterfaceMethods<TransformOpInterface>]> {
   let summary = "Multibuffers an allocation";
   let description = [{
      Transformation to do multi-buffering/array expansion to remove
@@ -26,6 +28,9 @@ def MemRefMultiBufferOp : Op<Transform_Dialect, "memref.multibuffer",
      iterations. This transform expands the size of an allocation by
      a given multiplicative factor and fixes up any users of the
      multibuffered allocation.
+     If skip analysis is not set the transformation will only apply
+     if it can prove that there is no data being carried across loop
+     iterations.
 
      #### Return modes
 
@@ -34,19 +39,58 @@ def MemRefMultiBufferOp : Op<Transform_Dialect, "memref.multibuffer",
   }];
 
   let arguments =
-      (ins PDL_Operation:$target,
-           ConfinedAttr<I64Attr, [IntPositive]>:$factor);
+      (ins Transform_MemRefAllocOp:$target,
+           ConfinedAttr<I64Attr, [IntPositive]>:$factor,
+           UnitAttr:$skip_analysis);
 
   let results = (outs PDL_Operation:$transformed);
 
-  let assemblyFormat = "$target attr-dict";
+  let assemblyFormat =
+    "$target attr-dict `:` functional-type(operands, results)";
+}
+
+def MemRefExtractAddressComputationsOp :
+    Op<Transform_Dialect, "memref.extract_address_computations",
+       [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
+        TransformEachOpTrait, TransformOpInterface]> {
+  let summary = "Extract address computations from memory accesses";
+  let description = [{
+    Transformation that extracts address computations from instructions
+    with memory accesses such that these memory accesses use only a base
+    pointer.
+
+    For instance,
+    ```mlir
+    memref.load %base[%off0, ...]
+    ```
+
+    Will be rewritten in:
+    ```mlir
+    %new_base = memref.subview %base[%off0,...][1,...][1,...]
+    memref.load %new_base[%c0,...]
+    ```
+
+    Note: The current implementation requires that the input operation
+    is "isolated from above".
+
+    #### Return modes
+
+    This operation produces `definiteFailure` if the extraction fails for any
+    reason.
+    The operation always returns the handle to the target op that is expected
+    to be isolated from above.
+  }];
+
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs PDL_Operation:$transformed);
+
+  let assemblyFormat = "$target attr-dict `:` functional-type(operands, results)";
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
-        memref::AllocOp target,
-        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::Operation *target,
+        ::mlir::transform::ApplyToEachResultList &transformResults,
         ::mlir::transform::TransformState &state);
   }];
 }
-
 #endif // MEMREF_TRANSFORM_OPS

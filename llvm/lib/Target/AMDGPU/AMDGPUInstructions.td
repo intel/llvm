@@ -104,7 +104,10 @@ class PredicateControl {
 }
 
 class AMDGPUPat<dag pattern, dag result> : Pat<pattern, result>,
-      PredicateControl;
+      PredicateControl, GISelFlags;
+
+let GIIgnoreCopies = 1 in
+class AMDGPUPatIgnoreCopies<dag pattern, dag result> : AMDGPUPat<pattern, result>;
 
 let RecomputePerFunction = 1 in {
 def FP16Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
@@ -120,37 +123,24 @@ def FMA : Predicate<"Subtarget->hasFMA()">;
 
 def InstFlag : OperandWithDefaultOps <i32, (ops (i32 0))>;
 
-def u16ImmTarget : AsmOperandClass {
-  let Name = "U16Imm";
+class ImmOperandClass<string name, bit optional> : AsmOperandClass {
+  let Name = name;
+  let PredicateMethod = "is"#name;
+  let ParserMethod = "";
   let RenderMethod = "addImmOperands";
+  let IsOptional = optional;
+  let DefaultMethod = "default"#name;
 }
 
-def s16ImmTarget : AsmOperandClass {
-  let Name = "S16Imm";
-  let RenderMethod = "addImmOperands";
+class ImmOperand<ValueType type, string name, bit optional = 0,
+                 string printer = "print"#name> : Operand<type> {
+  let ParserMatchClass = ImmOperandClass<name, optional>;
+  let PrintMethod = printer;
+  let OperandType = "OPERAND_IMMEDIATE";
 }
 
-let OperandType = "OPERAND_IMMEDIATE" in {
-
-def u32imm : Operand<i32> {
-  let PrintMethod = "printU32ImmOperand";
-}
-
-def u16imm : Operand<i16> {
-  let PrintMethod = "printU16ImmOperand";
-  let ParserMatchClass = u16ImmTarget;
-}
-
-def s16imm : Operand<i16> {
-  let PrintMethod = "printU16ImmOperand";
-  let ParserMatchClass = s16ImmTarget;
-}
-
-def u8imm : Operand<i8> {
-  let PrintMethod = "printU8ImmOperand";
-}
-
-} // End OperandType = "OPERAND_IMMEDIATE"
+def s16imm : ImmOperand<i16, "S16Imm", 0, "printU16ImmOperand">;
+def u16imm : ImmOperand<i16, "U16Imm", 0, "printU16ImmOperand">;
 
 //===--------------------------------------------------------------------===//
 // Custom Operands
@@ -638,6 +628,8 @@ defm atomic_load_umax : binary_atomic_op_all_as<atomic_load_umax>;
 defm atomic_load_umin : binary_atomic_op_all_as<atomic_load_umin>;
 defm atomic_load_xor : binary_atomic_op_all_as<atomic_load_xor>;
 defm atomic_load_fadd : binary_atomic_op_all_as<atomic_load_fadd, 0>;
+defm atomic_load_uinc_wrap : binary_atomic_op_all_as<atomic_load_uinc_wrap>;
+defm atomic_load_udec_wrap : binary_atomic_op_all_as<atomic_load_udec_wrap>;
 let MemoryVT = v2f16 in
 defm atomic_load_fadd_v2f16 : binary_atomic_op_all_as<atomic_load_fadd, 0>;
 defm AMDGPUatomic_cmp_swap : binary_atomic_op_all_as<AMDGPUatomic_cmp_swap>;

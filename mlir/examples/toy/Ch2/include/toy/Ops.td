@@ -23,7 +23,6 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 def Toy_Dialect : Dialect {
   let name = "toy";
   let cppNamespace = "::mlir::toy";
-  let useFoldAPI = kEmitFoldAdaptorFolder;
 }
 
 // Base class for toy dialect operations. This operation inherits from the base
@@ -114,7 +113,7 @@ def AddOp : Toy_Op<"add"> {
 //===----------------------------------------------------------------------===//
 
 def FuncOp : Toy_Op<"func", [
-    FunctionOpInterface, IsolatedFromAbove, Symbol
+    FunctionOpInterface, IsolatedFromAbove
   ]> {
   let summary = "user defined function operation";
   let description = [{

@@ -2828,6 +2828,17 @@ static_assert(!has_unique_object_representations<WeirdAlignment>::value, "Alignm
 static_assert(!has_unique_object_representations<WeirdAlignmentUnion>::value, "Alignment causes padding");
 static_assert(!has_unique_object_representations<WeirdAlignment[42]>::value, "Also no arrays that have padding");
 
+struct __attribute__((packed)) PackedNoPadding1 {
+  short i;
+  int j;
+};
+struct __attribute__((packed)) PackedNoPadding2 {
+  int j;
+  short i;
+};
+static_assert(has_unique_object_representations<PackedNoPadding1>::value, "Packed structs have no padding");
+static_assert(has_unique_object_representations<PackedNoPadding2>::value, "Packed structs have no padding");
+
 static_assert(!has_unique_object_representations<int(int)>::value, "Functions are not unique");
 static_assert(!has_unique_object_representations<int(int) const>::value, "Functions are not unique");
 static_assert(!has_unique_object_representations<int(int) volatile>::value, "Functions are not unique");
@@ -2878,9 +2889,35 @@ struct AlignedPaddedBitfield {
   char d : 2;
 };
 
+struct UnnamedBitfield {
+  int named : 8;
+  int : 24;
+};
+
+struct __attribute__((packed)) UnnamedBitfieldPacked {
+  int named : 8;
+  int : 24;
+};
+
+struct UnnamedEmptyBitfield {
+  int named;
+  int : 0;
+};
+
+struct UnnamedEmptyBitfieldSplit {
+  short named;
+  int : 0;
+  short also_named;
+};
+
 static_assert(!has_unique_object_representations<PaddedBitfield>::value, "Bitfield padding");
 static_assert(has_unique_object_representations<UnPaddedBitfield>::value, "Bitfield padding");
 static_assert(!has_unique_object_representations<AlignedPaddedBitfield>::value, "Bitfield padding");
+static_assert(!has_unique_object_representations<UnnamedBitfield>::value, "Bitfield padding");
+static_assert(!has_unique_object_representations<UnnamedBitfieldPacked>::value, "Bitfield padding");
+static_assert(has_unique_object_representations<UnnamedEmptyBitfield>::value, "Bitfield padding");
+static_assert(sizeof(UnnamedEmptyBitfieldSplit) != (sizeof(short) * 2), "Wrong size");
+static_assert(!has_unique_object_representations<UnnamedEmptyBitfieldSplit>::value, "Bitfield padding");
 
 struct BoolBitfield {
   bool b : 8;
@@ -3054,6 +3091,36 @@ static_assert(__is_trivially_relocatable(TrivialAbiNontrivialMoveCtor), "");
 static_assert(__is_trivially_relocatable(TrivialAbiNontrivialMoveCtor[]), "");
 
 } // namespace is_trivially_relocatable
+
+namespace can_pass_in_regs {
+
+struct A { };
+
+struct B {
+  ~B();
+};
+
+struct C; // expected-note {{forward declaration}}
+
+union D {
+  int x;
+};
+
+static_assert(__can_pass_in_regs(A), "");
+static_assert(__can_pass_in_regs(A), "");
+static_assert(!__can_pass_in_regs(B), "");
+static_assert(__can_pass_in_regs(D), "");
+
+void test_errors() {
+  (void)__can_pass_in_regs(const A); // expected-error {{not an unqualified class type}}
+  (void)__can_pass_in_regs(A&); // expected-error {{not an unqualified class type}}
+  (void)__can_pass_in_regs(A&&); // expected-error {{not an unqualified class type}}
+  (void)__can_pass_in_regs(const A&); // expected-error {{not an unqualified class type}}
+  (void)__can_pass_in_regs(C); // expected-error {{incomplete type}}
+  (void)__can_pass_in_regs(int); // expected-error {{not an unqualified class type}}
+  (void)__can_pass_in_regs(int&); // expected-error {{not an unqualified class type}}
+}
+}
 
 struct S {};
 template <class T> using remove_const_t = __remove_const(T);

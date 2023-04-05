@@ -116,11 +116,20 @@ template <size_t I, class T, size_t N> const T&& get(const array<T, N>&&) noexce
 #include <__config>
 #include <__iterator/reverse_iterator.h>
 #include <__tuple_dir/sfinae_helpers.h>
+#include <__type_traits/conditional.h>
+#include <__type_traits/is_array.h>
+#include <__type_traits/is_const.h>
+#include <__type_traits/is_constructible.h>
+#include <__type_traits/is_move_constructible.h>
+#include <__type_traits/is_nothrow_constructible.h>
+#include <__type_traits/is_nothrow_move_constructible.h>
+#include <__type_traits/is_same.h>
+#include <__type_traits/is_swappable.h>
+#include <__type_traits/remove_cv.h>
 #include <__utility/integer_sequence.h>
 #include <__utility/move.h>
 #include <__utility/unreachable.h>
 #include <stdexcept>
-#include <type_traits>
 #include <version>
 
 // standard-mandated includes
@@ -376,7 +385,7 @@ struct _LIBCPP_TEMPLATE_VIS array<_Tp, 0>
 };
 
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template<class _Tp, class... _Args,
          class = enable_if_t<__all<_IsSame<_Tp, _Args>::value...>::value>
          >
@@ -489,7 +498,7 @@ get(const array<_Tp, _Size>&& __a) _NOEXCEPT
     return _VSTD::move(__a.__elems_[_Ip]);
 }
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 template <typename _Tp, size_t _Size, size_t... _Index>
 _LIBCPP_INLINE_VISIBILITY constexpr array<remove_cv_t<_Tp>, _Size>
@@ -528,7 +537,7 @@ to_array(_Tp(&&__arr)[_Size]) noexcept(is_nothrow_move_constructible_v<_Tp>) {
                                        make_index_sequence<_Size>());
 }
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 
@@ -536,6 +545,7 @@ _LIBCPP_END_NAMESPACE_STD
 #  include <algorithm>
 #  include <concepts>
 #  include <iterator>
+#  include <type_traits>
 #  include <utility>
 #endif
 

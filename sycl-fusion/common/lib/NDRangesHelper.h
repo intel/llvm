@@ -32,6 +32,13 @@ bool isHeterogeneousList(llvm::ArrayRef<NDRange> NDRanges);
 ///
 /// Return whether a combination of ND-ranges is valid for fusion.
 bool isValidCombination(llvm::ArrayRef<NDRange> NDRanges);
+
+///
+/// Return whether ID remapping will be needed.
+///
+/// ID remapping is needed when the number of dimensions are different or the
+/// [2, N) components of the global sizes are not equal.
+bool requireIDRemapping(const NDRange &LHS, const NDRange &RHS);
 } // namespace jit_compiler
 
 #endif // SYCL_FUSION_COMMON_NDRANGESHELPER_H

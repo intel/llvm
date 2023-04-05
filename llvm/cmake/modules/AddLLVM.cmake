@@ -25,7 +25,9 @@ function(llvm_update_compile_flags name)
   else()
     if(LLVM_COMPILER_IS_GCC_COMPATIBLE)
       list(APPEND LLVM_COMPILE_FLAGS "-fno-exceptions")
-      if(NOT LLVM_ENABLE_UNWIND_TABLES)
+      if(LLVM_ENABLE_UNWIND_TABLES)
+        list(APPEND LLVM_COMPILE_FLAGS "-funwind-tables")
+      else()
         list(APPEND LLVM_COMPILE_FLAGS "-fno-unwind-tables")
         list(APPEND LLVM_COMPILE_FLAGS "-fno-asynchronous-unwind-tables")
       endif()
@@ -1228,8 +1230,7 @@ function(export_executable_symbols target)
           endif()
           get_target_property(transitive_libs ${lib} INTERFACE_LINK_LIBRARIES)
           foreach(transitive_lib ${transitive_libs})
-            list(FIND link_libs ${transitive_lib} idx)
-            if(TARGET ${transitive_lib} AND idx EQUAL -1)
+            if(TARGET ${transitive_lib} AND NOT ${transitive_lib} IN_LIST link_libs)
               list(APPEND newer_libs ${transitive_lib})
               list(APPEND link_libs ${transitive_lib})
             endif()
@@ -1316,6 +1317,10 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
     strings
     strip
     )
+  # Build llvm-mt if libxml2 is enabled. Can be used by runtimes.
+  if (LLVM_ENABLE_LIBXML2)
+    list(APPEND LLVM_TOOLCHAIN_TOOLS llvm-mt)
+  endif()
 endif()
 
 macro(llvm_add_tool project name)
@@ -2044,13 +2049,19 @@ function(llvm_install_library_symlink name dest type)
   set(full_name ${CMAKE_${type}_LIBRARY_PREFIX}${name}${CMAKE_${type}_LIBRARY_SUFFIX})
   set(full_dest ${CMAKE_${type}_LIBRARY_PREFIX}${dest}${CMAKE_${type}_LIBRARY_SUFFIX})
 
+  if(LLVM_USE_SYMLINKS)
+    set(LLVM_LINK_OR_COPY create_symlink)
+  else()
+    set(LLVM_LINK_OR_COPY copy)
+  endif()
+
   set(output_dir lib${LLVM_LIBDIR_SUFFIX})
   if(WIN32 AND "${type}" STREQUAL "SHARED")
     set(output_dir "${CMAKE_INSTALL_BINDIR}")
   endif()
 
   install(SCRIPT ${INSTALL_SYMLINK}
-          CODE "install_symlink(\"${full_name}\" \"${full_dest}\" \"${output_dir}\")"
+          CODE "install_symlink(\"${full_name}\" \"${full_dest}\" \"${output_dir}\" \"${LLVM_LINK_OR_COPY}\")"
           COMPONENT ${component})
 
 endfunction()
@@ -2087,10 +2098,16 @@ function(llvm_install_symlink project name dest)
     set(full_dest llvm${CMAKE_EXECUTABLE_SUFFIX})
   endif()
 
+  if(LLVM_USE_SYMLINKS)
+    set(LLVM_LINK_OR_COPY create_symlink)
+  else()
+    set(LLVM_LINK_OR_COPY copy)
+  endif()
+
   set(output_dir "${${project}_TOOLS_INSTALL_DIR}")
 
   install(SCRIPT ${INSTALL_SYMLINK}
-          CODE "install_symlink(\"${full_name}\" \"${full_dest}\" \"${output_dir}\")"
+          CODE "install_symlink(\"${full_name}\" \"${full_dest}\" \"${output_dir}\" \"${LLVM_LINK_OR_COPY}\")"
           COMPONENT ${component})
 
   if (NOT LLVM_ENABLE_IDE AND NOT ARG_ALWAYS_GENERATE)
@@ -2401,7 +2418,7 @@ endfunction()
 function(setup_host_tool tool_name setting_name exe_var_name target_var_name)
   set(${setting_name}_DEFAULT "${tool_name}")
 
-  if(LLVM_USE_HOST_TOOLS AND LLVM_NATIVE_TOOL_DIR)
+  if(LLVM_NATIVE_TOOL_DIR)
     if(EXISTS "${LLVM_NATIVE_TOOL_DIR}/${tool_name}${LLVM_HOST_EXECUTABLE_SUFFIX}")
       set(${setting_name}_DEFAULT "${LLVM_NATIVE_TOOL_DIR}/${tool_name}${LLVM_HOST_EXECUTABLE_SUFFIX}")
     endif()
@@ -2410,14 +2427,12 @@ function(setup_host_tool tool_name setting_name exe_var_name target_var_name)
   set(${setting_name} "${${setting_name}_DEFAULT}" CACHE
     STRING "Host ${tool_name} executable. Saves building if cross-compiling.")
 
-  if(LLVM_USE_HOST_TOOLS)
-    if(NOT ${setting_name} STREQUAL "${tool_name}")
-      set(exe_name ${${setting_name}})
-      set(target_name ${${setting_name}})
-    else()
-      build_native_tool(${tool_name} exe_name DEPENDS ${tool_name})
-      set(target_name ${exe_name})
-    endif()
+  if(NOT ${setting_name} STREQUAL "${tool_name}")
+    set(exe_name ${${setting_name}})
+    set(target_name ${${setting_name}})
+  elseif(LLVM_USE_HOST_TOOLS)
+    build_native_tool(${tool_name} exe_name DEPENDS ${tool_name})
+    set(target_name ${exe_name})
   else()
     set(exe_name $<TARGET_FILE:${tool_name}>)
     set(target_name ${tool_name})

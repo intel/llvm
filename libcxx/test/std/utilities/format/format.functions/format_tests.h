@@ -663,27 +663,27 @@ void format_test_signed_integer(TestFunction check, ExceptionTest check_exceptio
   format_test_integer<__int128_t, CharT>(check, check_exception);
 #endif
   // *** check the minma and maxima ***
-  check(SV("-0b10000000"), SV("{:#b}"), std::numeric_limits<int8_t>::min());
-  check(SV("-0200"), SV("{:#o}"), std::numeric_limits<int8_t>::min());
-  check(SV("-128"), SV("{:#}"), std::numeric_limits<int8_t>::min());
-  check(SV("-0x80"), SV("{:#x}"), std::numeric_limits<int8_t>::min());
+  check(SV("-0b10000000"), SV("{:#b}"), std::numeric_limits<std::int8_t>::min());
+  check(SV("-0200"), SV("{:#o}"), std::numeric_limits<std::int8_t>::min());
+  check(SV("-128"), SV("{:#}"), std::numeric_limits<std::int8_t>::min());
+  check(SV("-0x80"), SV("{:#x}"), std::numeric_limits<std::int8_t>::min());
 
-  check(SV("-0b1000000000000000"), SV("{:#b}"), std::numeric_limits<int16_t>::min());
-  check(SV("-0100000"), SV("{:#o}"), std::numeric_limits<int16_t>::min());
-  check(SV("-32768"), SV("{:#}"), std::numeric_limits<int16_t>::min());
-  check(SV("-0x8000"), SV("{:#x}"), std::numeric_limits<int16_t>::min());
+  check(SV("-0b1000000000000000"), SV("{:#b}"), std::numeric_limits<std::int16_t>::min());
+  check(SV("-0100000"), SV("{:#o}"), std::numeric_limits<std::int16_t>::min());
+  check(SV("-32768"), SV("{:#}"), std::numeric_limits<std::int16_t>::min());
+  check(SV("-0x8000"), SV("{:#x}"), std::numeric_limits<std::int16_t>::min());
 
-  check(SV("-0b10000000000000000000000000000000"), SV("{:#b}"), std::numeric_limits<int32_t>::min());
-  check(SV("-020000000000"), SV("{:#o}"), std::numeric_limits<int32_t>::min());
-  check(SV("-2147483648"), SV("{:#}"), std::numeric_limits<int32_t>::min());
-  check(SV("-0x80000000"), SV("{:#x}"), std::numeric_limits<int32_t>::min());
+  check(SV("-0b10000000000000000000000000000000"), SV("{:#b}"), std::numeric_limits<std::int32_t>::min());
+  check(SV("-020000000000"), SV("{:#o}"), std::numeric_limits<std::int32_t>::min());
+  check(SV("-2147483648"), SV("{:#}"), std::numeric_limits<std::int32_t>::min());
+  check(SV("-0x80000000"), SV("{:#x}"), std::numeric_limits<std::int32_t>::min());
 
   check(SV("-0b1000000000000000000000000000000000000000000000000000000000000000"),
         SV("{:#b}"),
-        std::numeric_limits<int64_t>::min());
-  check(SV("-01000000000000000000000"), SV("{:#o}"), std::numeric_limits<int64_t>::min());
-  check(SV("-9223372036854775808"), SV("{:#}"), std::numeric_limits<int64_t>::min());
-  check(SV("-0x8000000000000000"), SV("{:#x}"), std::numeric_limits<int64_t>::min());
+        std::numeric_limits<std::int64_t>::min());
+  check(SV("-01000000000000000000000"), SV("{:#o}"), std::numeric_limits<std::int64_t>::min());
+  check(SV("-9223372036854775808"), SV("{:#}"), std::numeric_limits<std::int64_t>::min());
+  check(SV("-0x8000000000000000"), SV("{:#x}"), std::numeric_limits<std::int64_t>::min());
 
 #ifndef TEST_HAS_NO_INT128
   check(SV("-0b1000000000000000000000000000000000000000000000000000000000000000"
@@ -695,27 +695,27 @@ void format_test_signed_integer(TestFunction check, ExceptionTest check_exceptio
   check(SV("-0x80000000000000000000000000000000"), SV("{:#x}"), std::numeric_limits<__int128_t>::min());
 #endif
 
-  check(SV("0b1111111"), SV("{:#b}"), std::numeric_limits<int8_t>::max());
-  check(SV("0177"), SV("{:#o}"), std::numeric_limits<int8_t>::max());
-  check(SV("127"), SV("{:#}"), std::numeric_limits<int8_t>::max());
-  check(SV("0x7f"), SV("{:#x}"), std::numeric_limits<int8_t>::max());
+  check(SV("0b1111111"), SV("{:#b}"), std::numeric_limits<std::int8_t>::max());
+  check(SV("0177"), SV("{:#o}"), std::numeric_limits<std::int8_t>::max());
+  check(SV("127"), SV("{:#}"), std::numeric_limits<std::int8_t>::max());
+  check(SV("0x7f"), SV("{:#x}"), std::numeric_limits<std::int8_t>::max());
 
-  check(SV("0b111111111111111"), SV("{:#b}"), std::numeric_limits<int16_t>::max());
-  check(SV("077777"), SV("{:#o}"), std::numeric_limits<int16_t>::max());
-  check(SV("32767"), SV("{:#}"), std::numeric_limits<int16_t>::max());
-  check(SV("0x7fff"), SV("{:#x}"), std::numeric_limits<int16_t>::max());
+  check(SV("0b111111111111111"), SV("{:#b}"), std::numeric_limits<std::int16_t>::max());
+  check(SV("077777"), SV("{:#o}"), std::numeric_limits<std::int16_t>::max());
+  check(SV("32767"), SV("{:#}"), std::numeric_limits<std::int16_t>::max());
+  check(SV("0x7fff"), SV("{:#x}"), std::numeric_limits<std::int16_t>::max());
 
-  check(SV("0b1111111111111111111111111111111"), SV("{:#b}"), std::numeric_limits<int32_t>::max());
-  check(SV("017777777777"), SV("{:#o}"), std::numeric_limits<int32_t>::max());
-  check(SV("2147483647"), SV("{:#}"), std::numeric_limits<int32_t>::max());
-  check(SV("0x7fffffff"), SV("{:#x}"), std::numeric_limits<int32_t>::max());
+  check(SV("0b1111111111111111111111111111111"), SV("{:#b}"), std::numeric_limits<std::int32_t>::max());
+  check(SV("017777777777"), SV("{:#o}"), std::numeric_limits<std::int32_t>::max());
+  check(SV("2147483647"), SV("{:#}"), std::numeric_limits<std::int32_t>::max());
+  check(SV("0x7fffffff"), SV("{:#x}"), std::numeric_limits<std::int32_t>::max());
 
   check(SV("0b111111111111111111111111111111111111111111111111111111111111111"),
         SV("{:#b}"),
-        std::numeric_limits<int64_t>::max());
-  check(SV("0777777777777777777777"), SV("{:#o}"), std::numeric_limits<int64_t>::max());
-  check(SV("9223372036854775807"), SV("{:#}"), std::numeric_limits<int64_t>::max());
-  check(SV("0x7fffffffffffffff"), SV("{:#x}"), std::numeric_limits<int64_t>::max());
+        std::numeric_limits<std::int64_t>::max());
+  check(SV("0777777777777777777777"), SV("{:#o}"), std::numeric_limits<std::int64_t>::max());
+  check(SV("9223372036854775807"), SV("{:#}"), std::numeric_limits<std::int64_t>::max());
+  check(SV("0x7fffffffffffffff"), SV("{:#x}"), std::numeric_limits<std::int64_t>::max());
 
 #ifndef TEST_HAS_NO_INT128
   check(SV("0b111111111111111111111111111111111111111111111111111111111111111"
@@ -739,27 +739,27 @@ void format_test_unsigned_integer(TestFunction check, ExceptionTest check_except
   format_test_integer<__uint128_t, CharT>(check, check_exception);
 #endif
   // *** test the maxima ***
-  check(SV("0b11111111"), SV("{:#b}"), std::numeric_limits<uint8_t>::max());
-  check(SV("0377"), SV("{:#o}"), std::numeric_limits<uint8_t>::max());
-  check(SV("255"), SV("{:#}"), std::numeric_limits<uint8_t>::max());
-  check(SV("0xff"), SV("{:#x}"), std::numeric_limits<uint8_t>::max());
+  check(SV("0b11111111"), SV("{:#b}"), std::numeric_limits<std::uint8_t>::max());
+  check(SV("0377"), SV("{:#o}"), std::numeric_limits<std::uint8_t>::max());
+  check(SV("255"), SV("{:#}"), std::numeric_limits<std::uint8_t>::max());
+  check(SV("0xff"), SV("{:#x}"), std::numeric_limits<std::uint8_t>::max());
 
-  check(SV("0b1111111111111111"), SV("{:#b}"), std::numeric_limits<uint16_t>::max());
-  check(SV("0177777"), SV("{:#o}"), std::numeric_limits<uint16_t>::max());
-  check(SV("65535"), SV("{:#}"), std::numeric_limits<uint16_t>::max());
-  check(SV("0xffff"), SV("{:#x}"), std::numeric_limits<uint16_t>::max());
+  check(SV("0b1111111111111111"), SV("{:#b}"), std::numeric_limits<std::uint16_t>::max());
+  check(SV("0177777"), SV("{:#o}"), std::numeric_limits<std::uint16_t>::max());
+  check(SV("65535"), SV("{:#}"), std::numeric_limits<std::uint16_t>::max());
+  check(SV("0xffff"), SV("{:#x}"), std::numeric_limits<std::uint16_t>::max());
 
-  check(SV("0b11111111111111111111111111111111"), SV("{:#b}"), std::numeric_limits<uint32_t>::max());
-  check(SV("037777777777"), SV("{:#o}"), std::numeric_limits<uint32_t>::max());
-  check(SV("4294967295"), SV("{:#}"), std::numeric_limits<uint32_t>::max());
-  check(SV("0xffffffff"), SV("{:#x}"), std::numeric_limits<uint32_t>::max());
+  check(SV("0b11111111111111111111111111111111"), SV("{:#b}"), std::numeric_limits<std::uint32_t>::max());
+  check(SV("037777777777"), SV("{:#o}"), std::numeric_limits<std::uint32_t>::max());
+  check(SV("4294967295"), SV("{:#}"), std::numeric_limits<std::uint32_t>::max());
+  check(SV("0xffffffff"), SV("{:#x}"), std::numeric_limits<std::uint32_t>::max());
 
   check(SV("0b1111111111111111111111111111111111111111111111111111111111111111"),
         SV("{:#b}"),
-        std::numeric_limits<uint64_t>::max());
-  check(SV("01777777777777777777777"), SV("{:#o}"), std::numeric_limits<uint64_t>::max());
-  check(SV("18446744073709551615"), SV("{:#}"), std::numeric_limits<uint64_t>::max());
-  check(SV("0xffffffffffffffff"), SV("{:#x}"), std::numeric_limits<uint64_t>::max());
+        std::numeric_limits<std::uint64_t>::max());
+  check(SV("01777777777777777777777"), SV("{:#o}"), std::numeric_limits<std::uint64_t>::max());
+  check(SV("18446744073709551615"), SV("{:#}"), std::numeric_limits<std::uint64_t>::max());
+  check(SV("0xffffffffffffffff"), SV("{:#x}"), std::numeric_limits<std::uint64_t>::max());
 
 #ifndef TEST_HAS_NO_INT128
   check(SV("0b1111111111111111111111111111111111111111111111111111111111111111"
@@ -2367,6 +2367,7 @@ void format_test_floating_point_default_precision(TestFunction check) {
 
   // *** alternate form **
   // When precision is zero there's no decimal point except when the alternate form is specified.
+  // Note unlike the g and G option the trailing zeros are still removed.
   check(SV("answer is '0'"), SV("answer is '{:.0}'"), F(0));
   check(SV("answer is '0.'"), SV("answer is '{:#.0}'"), F(0));
 
@@ -2449,6 +2450,57 @@ void format_test_floating_point_default_precision(TestFunction check) {
   // See locale-specific_form.pass.cpp
 }
 
+template <class F, class CharT, class TestFunction>
+void format_test_floating_point_PR58714(TestFunction check) {
+  check(SV("+1234"), SV("{:+}"), F(1234.0));
+  check(SV("+1.348p+10"), SV("{:+a}"), F(1234.0));
+  check(SV("+1.234000e+03"), SV("{:+e}"), F(1234.0));
+  check(SV("+1234.000000"), SV("{:+f}"), F(1234.0));
+  check(SV("+1234"), SV("{:+g}"), F(1234.0));
+
+  check(SV("1234."), SV("{:#}"), F(1234.0));
+  check(SV("1.348p+10"), SV("{:#a}"), F(1234.0));
+  check(SV("1.234000e+03"), SV("{:#e}"), F(1234.0));
+  check(SV("1234.000000"), SV("{:#f}"), F(1234.0));
+  check(SV("1234.00"), SV("{:#g}"), F(1234.0));
+
+  check(SV("4.e+30"), SV("{:#}"), F(4.0e+30));
+  check(SV("1.p+102"), SV("{:#a}"), F(0x4.0p+100));
+  check(SV("4.000000e+30"), SV("{:#e}"), F(4.0e+30));
+  check(SV("5070602400912917605986812821504.000000"), SV("{:#f}"), F(0x4.0p+100));
+  check(SV("4.00000e+30"), SV("{:#g}"), F(4.0e+30));
+
+  check(SV("1234."), SV("{:#.6}"), F(1234.0)); // # does not restore zeros
+  check(SV("1.348000p+10"), SV("{:#.6a}"), F(1234.0));
+  check(SV("1.234000e+03"), SV("{:#.6e}"), F(1234.0));
+  check(SV("1234.000000"), SV("{:#.6f}"), F(1234.0));
+  check(SV("1234.00"), SV("{:#.6g}"), F(1234.0));
+
+  check(SV("-1234."), SV("{:#}"), F(-1234.0));
+  check(SV("-1.348p+10"), SV("{:#a}"), F(-1234.0));
+  check(SV("-1.234000e+03"), SV("{:#e}"), F(-1234.0));
+  check(SV("-1234.000000"), SV("{:#f}"), F(-1234.0));
+  check(SV("-1234.00"), SV("{:#g}"), F(-1234.0));
+
+  check(SV("-1234."), SV("{:#.6}"), F(-1234.0)); // # does not restore zeros
+  check(SV("-1.348000p+10"), SV("{:#.6a}"), F(-1234.0));
+  check(SV("-1.234000e+03"), SV("{:#.6e}"), F(-1234.0));
+  check(SV("-1234.000000"), SV("{:#.6f}"), F(-1234.0));
+  check(SV("-1234.00"), SV("{:#.6g}"), F(-1234.0));
+
+  check(SV("+1234."), SV("{:+#}"), F(1234.0));
+  check(SV("+1.348p+10"), SV("{:+#a}"), F(1234.0));
+  check(SV("+1.234000e+03"), SV("{:+#e}"), F(1234.0));
+  check(SV("+1234.000000"), SV("{:+#f}"), F(1234.0));
+  check(SV("+1234.00"), SV("{:+#g}"), F(1234.0));
+
+  check(SV("+1234."), SV("{:+#.6}"), F(1234.0)); // # does not restore zeros
+  check(SV("+1.348000p+10"), SV("{:+#.6a}"), F(1234.0));
+  check(SV("+1.234000e+03"), SV("{:+#.6e}"), F(1234.0));
+  check(SV("+1234.000000"), SV("{:+#.6f}"), F(1234.0));
+  check(SV("+1234.00"), SV("{:+#.6g}"), F(1234.0));
+}
+
 template <class F, class CharT, class TestFunction, class ExceptionTest>
 void format_test_floating_point(TestFunction check, ExceptionTest check_exception) {
   format_test_floating_point_hex_lower_case<F, CharT>(check);
@@ -2467,6 +2519,8 @@ void format_test_floating_point(TestFunction check, ExceptionTest check_exceptio
 
   format_test_floating_point_default<F, CharT>(check);
   format_test_floating_point_default_precision<F, CharT>(check);
+
+  format_test_floating_point_PR58714<F, CharT>(check);
 
   // *** type ***
   for (const auto& fmt : invalid_types<CharT>("aAeEfFgG"))
@@ -2617,6 +2671,10 @@ void format_tests(TestFunction check, ExceptionTest check_exception) {
 
   check(SV("{"), SV("{{"));
   check(SV("}"), SV("}}"));
+  check(SV("{:^}"), SV("{{:^}}"));
+  check(SV("{: ^}"), SV("{{:{}^}}"), CharT(' '));
+  check(SV("{:{}^}"), SV("{{:{{}}^}}"));
+  check(SV("{:{ }^}"), SV("{{:{{{}}}^}}"), CharT(' '));
 
   // *** Test argument ID ***
   check(SV("hello false true"), SV("hello {0:} {1:}"), false, true);
@@ -2669,7 +2727,6 @@ void format_tests(TestFunction check, ExceptionTest check_exception) {
   check_exception("The format string contains an invalid escape sequence", SV("{:}-}"), 42);
 
   check_exception("The format string contains an invalid escape sequence", SV("} "));
-
   check_exception("The arg-id of the format-spec starts with an invalid character", SV("{-"), 42);
   check_exception("Argument index out of bounds", SV("hello {}"));
   check_exception("Argument index out of bounds", SV("hello {0}"));

@@ -20,10 +20,10 @@ enum class target {
   constant_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2015,
   local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
   image = 2017,
-  host_buffer __SYCL2020_DEPRECATED("use 'target::host_task' instead") = 2018,
+  host_buffer __SYCL2020_DEPRECATED("use 'host_accessor' instead") = 2018,
   host_image = 2019,
   image_array = 2020,
-  host_task,
+  host_task = 2021,
   device = global_buffer,
 };
 

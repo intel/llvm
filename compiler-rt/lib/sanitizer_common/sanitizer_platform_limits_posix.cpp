@@ -18,6 +18,7 @@
 // depends on _FILE_OFFSET_BITS setting.
 // To get this "true" dirent definition, we undefine _FILE_OFFSET_BITS below.
 #undef _FILE_OFFSET_BITS
+#undef _TIME_BITS
 #endif
 
 // Must go after undef _FILE_OFFSET_BITS.
@@ -247,7 +248,23 @@ namespace __sanitizer {
   unsigned struct_sysinfo_sz = sizeof(struct sysinfo);
   unsigned __user_cap_header_struct_sz =
       sizeof(struct __user_cap_header_struct);
-  unsigned __user_cap_data_struct_sz = sizeof(struct __user_cap_data_struct);
+  unsigned __user_cap_data_struct_sz(void *hdrp) {
+    int u32s = 0;
+    if (hdrp) {
+      switch (((struct __user_cap_header_struct *)hdrp)->version) {
+      case _LINUX_CAPABILITY_VERSION_1:
+        u32s = _LINUX_CAPABILITY_U32S_1;
+        break;
+      case _LINUX_CAPABILITY_VERSION_2:
+        u32s = _LINUX_CAPABILITY_U32S_2;
+        break;
+      case _LINUX_CAPABILITY_VERSION_3:
+        u32s = _LINUX_CAPABILITY_U32S_3;
+        break;
+      }
+    }
+    return sizeof(struct __user_cap_data_struct) * u32s;
+  }
   unsigned struct_new_utsname_sz = sizeof(struct new_utsname);
   unsigned struct_old_utsname_sz = sizeof(struct old_utsname);
   unsigned struct_oldold_utsname_sz = sizeof(struct oldold_utsname);
@@ -1123,6 +1140,15 @@ CHECK_STRUCT_SIZE_AND_OFFSET(sigaction, sa_flags);
 #endif
 #if SANITIZER_LINUX && (!SANITIZER_ANDROID || !SANITIZER_MIPS32)
 CHECK_STRUCT_SIZE_AND_OFFSET(sigaction, sa_restorer);
+#endif
+
+#if SANITIZER_HAS_SIGINFO
+COMPILER_CHECK(alignof(siginfo_t) == alignof(__sanitizer_siginfo));
+using __sanitizer_siginfo_t = __sanitizer_siginfo;
+CHECK_TYPE_SIZE(siginfo_t);
+CHECK_SIZE_AND_OFFSET(siginfo_t, si_signo);
+CHECK_SIZE_AND_OFFSET(siginfo_t, si_errno);
+CHECK_SIZE_AND_OFFSET(siginfo_t, si_code);
 #endif
 
 #if SANITIZER_LINUX

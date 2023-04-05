@@ -92,8 +92,6 @@ std::string Linux::getMultiarchTriple(const Driver &D,
   case llvm::Triple::mips:
     return IsMipsR6 ? "mipsisa32r6-linux-gnu" : "mips-linux-gnu";
   case llvm::Triple::mipsel:
-    if (IsAndroid)
-      return "mipsel-linux-android";
     return IsMipsR6 ? "mipsisa32r6el-linux-gnu" : "mipsel-linux-gnu";
   case llvm::Triple::mips64: {
     std::string MT = std::string(IsMipsR6 ? "mipsisa64r6" : "mips64") +
@@ -105,8 +103,6 @@ std::string Linux::getMultiarchTriple(const Driver &D,
     break;
   }
   case llvm::Triple::mips64el: {
-    if (IsAndroid)
-      return "mips64el-linux-android";
     std::string MT = std::string(IsMipsR6 ? "mipsisa64r6el" : "mips64el") +
                      "-linux-" + (IsMipsN32Abi ? "gnuabin32" : "gnuabi64");
     if (D.getVFS().exists(concat(SysRoot, "/lib", MT)))
@@ -126,6 +122,8 @@ std::string Linux::getMultiarchTriple(const Driver &D,
   case llvm::Triple::ppc64le:
     return "powerpc64le-linux-gnu";
   case llvm::Triple::riscv64:
+    if (IsAndroid)
+      return "riscv64-linux-android";
     return "riscv64-linux-gnu";
   case llvm::Triple::sparc:
     return "sparc-linux-gnu";
@@ -688,23 +686,23 @@ void Linux::addLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
 
 void Linux::AddCudaIncludeArgs(const ArgList &DriverArgs,
                                ArgStringList &CC1Args) const {
-  CudaInstallation.AddCudaIncludeArgs(DriverArgs, CC1Args);
+  CudaInstallation->AddCudaIncludeArgs(DriverArgs, CC1Args);
 }
 
 void Linux::AddHIPIncludeArgs(const ArgList &DriverArgs,
                               ArgStringList &CC1Args) const {
-  RocmInstallation.AddHIPIncludeArgs(DriverArgs, CC1Args);
+  RocmInstallation->AddHIPIncludeArgs(DriverArgs, CC1Args);
 }
 
 void Linux::AddHIPRuntimeLibArgs(const ArgList &Args,
                                  ArgStringList &CmdArgs) const {
   CmdArgs.push_back(
-      Args.MakeArgString(StringRef("-L") + RocmInstallation.getLibPath()));
+      Args.MakeArgString(StringRef("-L") + RocmInstallation->getLibPath()));
 
-  if (Args.hasFlag(options::OPT_offload_add_rpath,
-                   options::OPT_no_offload_add_rpath, false))
+  if (Args.hasFlag(options::OPT_frtlib_add_rpath,
+                   options::OPT_fno_rtlib_add_rpath, false))
     CmdArgs.append(
-        {"-rpath", Args.MakeArgString(RocmInstallation.getLibPath())});
+        {"-rpath", Args.MakeArgString(RocmInstallation->getLibPath())});
 
   CmdArgs.push_back("-lamdhip64");
 }
@@ -783,7 +781,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   if (IsX86 || IsX86_64)
     Res |= SanitizerKind::Function;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsX86 || IsMIPS || IsArmArch ||
-      IsPowerPC64 || IsHexagon || IsLoongArch64)
+      IsPowerPC64 || IsHexagon || IsLoongArch64 || IsRISCV64)
     Res |= SanitizerKind::Scudo;
   if (IsX86_64 || IsAArch64 || IsRISCV64) {
     Res |= SanitizerKind::HWAddress;

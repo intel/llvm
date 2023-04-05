@@ -131,7 +131,14 @@ public:
     EnsureDest(E->getType());
 
     if (llvm::Value *Result = ConstantEmitter(CGF).tryEmitConstantExpr(E)) {
-      CGF.EmitAggregateStore(Result, Dest.getAddress(),
+      Address StoreDest = Dest.getAddress();
+      // The emitted value is guaranteed to have the same size as the
+      // destination but can have a different type. Just do a bitcast in this
+      // case to avoid incorrect GEPs.
+      if (Result->getType() != StoreDest.getType())
+        StoreDest =
+            CGF.Builder.CreateElementBitCast(StoreDest, Result->getType());
+      CGF.EmitAggregateStore(Result, StoreDest,
                              E->getType().isVolatileQualified());
       return;
     }
@@ -525,8 +532,8 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
             Emitter.tryEmitForInitializer(ExprToVisit, AS, ArrayQTy)) {
       auto GV = new llvm::GlobalVariable(
           CGM.getModule(), C->getType(),
-          CGM.isTypeConstant(ArrayQTy, /* ExcludeCtorDtor= */ true),
-          llvm::GlobalValue::PrivateLinkage, C, "constinit",
+          /* isConstant= */ true, llvm::GlobalValue::PrivateLinkage, C,
+          "constinit",
           /* InsertBefore= */ nullptr, llvm::GlobalVariable::NotThreadLocal,
           CGM.getContext().getTargetAddressSpace(AS));
       Emitter.finalize(GV);

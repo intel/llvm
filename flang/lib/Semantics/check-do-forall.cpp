@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "check-do-forall.h"
+#include "definable.h"
 #include "flang/Common/template.h"
 #include "flang/Evaluate/call.h"
 #include "flang/Evaluate/expression.h"
@@ -216,6 +217,16 @@ public:
       }
       if (HasImpureFinal(*entity)) {
         SayDeallocateWithImpureFinal(*entity, reason);
+      }
+    }
+    if (const auto *assignment{GetAssignment(stmt)}) {
+      if (const auto *call{
+              std::get_if<evaluate::ProcedureRef>(&assignment->u)}) {
+        if (auto bad{FindImpureCall(context_.foldingContext(), *call)}) {
+          context_.Say(currentStatementSourcePosition_,
+              "The defined assignment subroutine '%s' is not pure"_err_en_US,
+              *bad);
+        }
       }
     }
   }
@@ -430,10 +441,10 @@ public:
   }
 
   void Check(const parser::ForallAssignmentStmt &stmt) {
-    const evaluate::Assignment *assignment{common::visit(
-        common::visitors{[&](const auto &x) { return GetAssignment(x); }},
-        stmt.u)};
-    if (assignment) {
+    if (const evaluate::Assignment *
+        assignment{common::visit(
+            common::visitors{[&](const auto &x) { return GetAssignment(x); }},
+            stmt.u)}) {
       CheckForallIndexesUsed(*assignment);
       CheckForImpureCall(assignment->lhs);
       CheckForImpureCall(assignment->rhs);
@@ -486,6 +497,14 @@ private:
       if (!IsVariableName(*symbol)) {
         context_.Say(
             sourceLocation, "DO control must be an INTEGER variable"_err_en_US);
+      } else if (auto why{WhyNotDefinable(sourceLocation,
+                     context_.FindScope(sourceLocation), DefinabilityFlags{},
+                     *symbol)}) {
+        context_
+            .Say(sourceLocation,
+                "'%s' may not be used as a DO variable"_err_en_US,
+                symbol->name())
+            .Attach(std::move(*why));
       } else {
         const DeclTypeSpec *symType{symbol->GetType()};
         if (!symType) {

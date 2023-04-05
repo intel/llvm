@@ -631,10 +631,16 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
 =========================================== ================================================================ =========================================
  T __builtin_elementwise_abs(T x)            return the absolute value of a number x; the absolute value of   signed integer and floating point types
                                              the most negative integer remains the most negative integer
+ T __builtin_elementwise_fma(T x, T y, T z)  fused multiply add, (x * y) +  z.                                              floating point types
  T __builtin_elementwise_ceil(T x)           return the smallest integral value greater than or equal to x    floating point types
  T __builtin_elementwise_sin(T x)            return the sine of x interpreted as an angle in radians          floating point types
  T __builtin_elementwise_cos(T x)            return the cosine of x interpreted as an angle in radians        floating point types
  T __builtin_elementwise_floor(T x)          return the largest integral value less than or equal to x        floating point types
+ T __builtin_elementwise_log(T x)            return the natural logarithm of x                                floating point types
+ T __builtin_elementwise_log2(T x)           return the base 2 logarithm of x                                 floating point types
+ T __builtin_elementwise_log10(T x)          return the base 10 logarithm of x                                floating point types
+ T __builtin_elementwise_exp(T x)            returns the base-e exponential, e^x, of the specified value      floating point types
+ T __builtin_elementwise_exp2(T x)           returns the base-2 exponential, 2^x, of the specified value      floating point types
  T __builtin_elementwise_roundeven(T x)      round x to the nearest integer value in floating point format,   floating point types
                                              rounding halfway cases to even (that is, to the nearest value
                                              that is an even integer), regardless of the current rounding
@@ -794,6 +800,7 @@ emulation.
 ``_Float16`` will be supported on more targets as they define ABIs for it.
 
 ``__bf16`` is purely a storage format; it is currently only supported on the following targets:
+
 * 32-bit ARM
 * 64-bit ARM (AArch64)
 * X86 (see below)
@@ -804,7 +811,7 @@ includes all 64-bit and all recent 32-bit processors.
 ``__fp16`` is a storage and interchange format only.  This means that values of
 ``__fp16`` are immediately promoted to (at least) ``float`` when used in arithmetic
 operations, so that e.g. the result of adding two ``__fp16`` values has type ``float``.
-The behavior of ``__fp16`` is specified by the ARM C Language Extensions (`ACLE <http://infocenter.arm.com/help/topic/com.arm.doc.ihi0053d/IHI0053D_acle_2_1.pdf>`_).
+The behavior of ``__fp16`` is specified by the Arm C Language Extensions (`ACLE <https://github.com/ARM-software/acle/releases>`_).
 Clang uses the ``binary16`` format from IEEE 754-2008 for ``__fp16``, not the ARM
 alternative format.
 
@@ -1398,6 +1405,10 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__array_extent(type, dim)`` (Embarcadero):
   The ``dim``'th array bound in the type ``type``, or ``0`` if
   ``dim >= __array_rank(type)``.
+* ``__can_pass_in_regs`` (C++)
+  Returns whether a class can be passed in registers under the current
+  ABI. This type can only be applied to unqualified class types.
+  This is not a portable type trait.
 * ``__has_nothrow_assign`` (GNU, Microsoft, Embarcadero):
   Deprecated, use ``__is_nothrow_assignable`` instead.
 * ``__has_nothrow_move_assign`` (GNU, Microsoft):
@@ -1580,25 +1591,14 @@ Query for this feature with ``__has_extension(blocks)``.
 ASM Goto with Output Constraints
 ================================
 
-.. note::
+Outputs may be used along any branches from the ``asm goto`` whether the
+branches are taken or not.
 
-  Clang's implementation of ASM goto differs from `GCC's
-  implementation <https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html>`_ in
-  that Clang doesn't yet support outputs on the indirect branch. Use of an
-  output on the indirect branch may result in undefined behavior and should be
-  avoided. E.g., in the following `z` isn't valid when used and may have
-  different values depending on optimization levels. (Clang may not warn about
-  such constructs.)
+Query for this feature with ``__has_extension(gnu_asm_goto_with_outputs)``.
 
-  .. code-block:: c++
-
-    int foo(int x) {
-      int y, z;
-      asm goto(... : "=r"(y), "=r"(z): "r"(x) : : err);
-      return y;
-    err:
-      return z;
-    }
+Prior to clang-16, the output may only be used safely when the indirect
+branches are not taken.  Query for this difference with
+``__has_extension(gnu_asm_goto_with_outputs_full)``.
 
 When using tied-outputs (i.e. outputs that are inputs and outputs, not just
 outputs) with the `+r` constraint, there is a hidden input that's created
@@ -1626,8 +1626,6 @@ references can be used instead of numeric references.
     err:
       return -1;
   }
-
-Query for this feature with ``__has_extension(gnu_asm_goto_with_outputs)``.
 
 Objective-C Features
 ====================
@@ -2360,6 +2358,46 @@ evaluated, so any side effects of the expression will be discarded.
 
 Query for this feature with ``__has_builtin(__builtin_assume)``.
 
+.. _langext-__builtin_assume_separate_storage:
+
+``__builtin_assume_separate_storage``
+-------------------------------------
+
+``__builtin_assume_separate_storage`` is used to provide the optimizer with the
+knowledge that its two arguments point to separately allocated objects.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    __builtin_assume_separate_storage(const volatile void *, const volatile void *)
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  int foo(int *x, int *y) {
+      __builtin_assume_separate_storage(x, y);
+      *x = 0;
+      *y = 1;
+      // The optimizer may optimize this to return 0 without reloading from *x.
+      return *x;
+  }
+
+**Description**:
+
+The arguments to this function are assumed to point into separately allocated
+storage (either different variable definitions or different dynamic storage
+allocations). The optimizer may use this fact to aid in alias analysis. If the
+arguments point into the same storage, the behavior is undefined. Note that the
+definition of "storage" here refers to the outermost enclosing allocation of any
+particular object (so for example, it's never correct to call this function
+passing the addresses of fields in the same struct, elements of the same array,
+etc.).
+
+Query for this feature with ``__has_builtin(__builtin_assume_separate_storage)``.
+
+
 ``__builtin_offsetof``
 ----------------------
 
@@ -2386,21 +2424,19 @@ calculates the offset (in bytes) to a given member of the given type.
 
   const int offset_to_i = __builtin_offsetof(struct S, i);
   const int ext1 = __builtin_offsetof(struct U { int i; }, i); // C extension
-  const int ext2 = __builtin_offsetof(struct S, t.f[1]); // C & C++ extension
+  const int offset_to_subobject = __builtin_offsetof(struct S, t.f[1]);
 
 **Description**:
 
 This builtin is usable in an integer constant expression which returns a value
 of type ``size_t``. The value returned is the offset in bytes to the subobject
 designated by the member-designator from the beginning of an object of type
-``type-name``. Clang extends the required standard functionality in a few ways:
+``type-name``. Clang extends the required standard functionality in the
+following way:
 
 * In C language modes, the first argument may be the definition of a new type.
   Any type declared this way is scoped to the nearest scope containing the call
   to the builtin.
-* The second argument may be a member-designator designated by a series of
-  member access expressions using the dot (``.``) operator or array subscript
-  expressions.
 
 Query for this feature with ``__has_builtin(__builtin_offsetof)``.
 
@@ -2933,7 +2969,8 @@ implementation details of ``__sync_lock_test_and_set()``.  The
 ``__builtin_addressof`` performs the functionality of the built-in ``&``
 operator, ignoring any ``operator&`` overload.  This is useful in constant
 expressions in C++11, where there is no other way to take the address of an
-object that overloads ``operator&``.
+object that overloads ``operator&``. Clang automatically adds
+``[[clang::lifetimebound]]`` to the parameter of ``__builtin_addressof``.
 
 **Example of use**:
 
@@ -3081,6 +3118,32 @@ Query for this feature with ``__has_builtin(__builtin_debugtrap)``.
 
 Query for this feature with ``__has_builtin(__builtin_trap)``.
 
+``__builtin_nondeterministic_value``
+------------------------------------
+
+``__builtin_nondeterministic_value`` returns a valid nondeterministic value of the same type as the provided argument.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    type __builtin_nondeterministic_value(type x)
+
+**Examples**:
+
+.. code-block:: c++
+
+    int x = __builtin_nondeterministic_value(x);
+    float y = __builtin_nondeterministic_value(y);
+    __m256i a = __builtin_nondeterministic_value(a);
+
+**Description**
+
+Each call to ``__builtin_nondeterministic_value`` returns a valid value of the type given by the argument.
+
+The types currently supported are: integer types, floating-point types, vector types.
+
+Query for this feature with ``__has_builtin(__builtin_nondeterministic_value)``.
 
 ``__builtin_sycl_unique_stable_name``
 -------------------------------------
@@ -3609,13 +3672,15 @@ Source location builtins
 
 Clang provides builtins to support C++ standard library implementation
 of ``std::source_location`` as specified in C++20.  With the exception
-of ``__builtin_COLUMN``, these builtins are also implemented by GCC.
+of ``__builtin_COLUMN`` and ``__builtin_FILE_NAME``,
+these builtins are also implemented by GCC.
 
 **Syntax**:
 
 .. code-block:: c
 
   const char *__builtin_FILE();
+  const char *__builtin_FILE_NAME(); // Clang only
   const char *__builtin_FUNCTION();
   unsigned    __builtin_LINE();
   unsigned    __builtin_COLUMN(); // Clang only
@@ -3646,11 +3711,11 @@ of ``__builtin_COLUMN``, these builtins are also implemented by GCC.
 
 **Description**:
 
-The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, and ``__builtin_FILE``
-return the values, at the "invocation point", for ``__LINE__``,
-``__FUNCTION__``, and ``__FILE__`` respectively. ``__builtin_COLUMN`` similarly
-returns the column, though there is no corresponding macro. These builtins are
-constant expressions.
+The builtins ``__builtin_LINE``, ``__builtin_FUNCTION``, ``__builtin_FILE`` and
+``__builtin_FILE_NAME`` return the values, at the "invocation point", for
+``__LINE__``, ``__FUNCTION__``, ``__FILE__`` and ``__FILE_NAME__`` respectively.
+``__builtin_COLUMN`` similarly returns the column,
+though there is no corresponding macro. These builtins are constant expressions.
 
 When the builtins appear as part of a default function argument the invocation
 point is the location of the caller. When the builtins appear as part of a
@@ -3779,8 +3844,8 @@ ARM/AArch64 Language Extensions
 Memory Barrier Intrinsics
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 Clang implements the ``__dmb``, ``__dsb`` and ``__isb`` intrinsics as defined
-in the `ARM C Language Extensions Release 2.0
-<http://infocenter.arm.com/help/topic/com.arm.doc.ihi0053c/IHI0053C_acle_2_0.pdf>`_.
+in the `Arm C Language Extensions
+<https://github.com/ARM-software/acle/releases>`_.
 Note that these intrinsics are implemented as motion barriers that block
 reordering of memory accesses and side effect instructions. Other instructions
 like simple arithmetic may be reordered around the intrinsic. If you expect to
@@ -4666,7 +4731,7 @@ provide deprecation warnings for macro uses. For example:
    #define MIN(x, y) x < y ? x : y
    #pragma clang deprecated(MIN, "use std::min instead")
 
-   void min(int a, int b) {
+   int min(int a, int b) {
      return MIN(a, b); // warning: MIN is deprecated: use std::min instead
    }
 
@@ -4873,3 +4938,21 @@ The following x86-specific intrinsics can be used in constant expressions:
 * ``_rotwr``
 * ``_lrotl``
 * ``_lrotr``
+
+Debugging the Compiler
+======================
+
+Clang supports a number of pragma directives that help debugging the compiler itself.
+Syntax is the following: `#pragma clang __debug <command> <arguments>`.
+Note, all of debugging pragmas are subject to change.
+
+`dump`
+------
+Accepts either a single identifier or an expression. When a single identifier is passed,
+the lookup results for the identifier are printed to `stderr`. When an expression is passed, 
+the AST for the expression is printed to `stderr`. The expression is an unevaluated operand,
+so things like overload resolution and template instantiations are performed,
+but the expression has no runtime effects.
+Type- and value-dependent expressions are not supported yet.
+
+This facility is designed to aid with testing name lookup machinery.

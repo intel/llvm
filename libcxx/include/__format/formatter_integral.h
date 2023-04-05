@@ -17,11 +17,13 @@
 #include <__format/format_error.h>
 #include <__format/formatter_output.h>
 #include <__format/parser_std_format_spec.h>
+#include <__type_traits/make_unsigned.h>
 #include <__utility/unreachable.h>
 #include <array>
 #include <charconv>
 #include <limits>
 #include <string>
+#include <string_view>
 
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
 #  include <locale>
@@ -36,7 +38,7 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 namespace __formatter {
 
@@ -354,7 +356,7 @@ __format_bool(bool __value, auto& __ctx, __format_spec::__parsed_specifications<
 
 } // namespace __formatter
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

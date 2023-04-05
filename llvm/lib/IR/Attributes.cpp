@@ -216,6 +216,11 @@ Attribute Attribute::getWithMemoryEffects(LLVMContext &Context,
   return get(Context, Memory, ME.toIntValue());
 }
 
+Attribute Attribute::getWithNoFPClass(LLVMContext &Context,
+                                      FPClassTest ClassMask) {
+  return get(Context, NoFPClass, ClassMask);
+}
+
 Attribute
 Attribute::getWithAllocSizeArgs(LLVMContext &Context, unsigned ElemSizeArg,
                                 const std::optional<unsigned> &NumElemsArg) {
@@ -396,6 +401,12 @@ MemoryEffects Attribute::getMemoryEffects() const {
   return MemoryEffects::createFromIntValue(pImpl->getValueAsInt());
 }
 
+FPClassTest Attribute::getNoFPClass() const {
+  assert(hasAttribute(Attribute::NoFPClass) &&
+         "Can only call getNoFPClass() on nofpclass attribute");
+  return static_cast<FPClassTest>(pImpl->getValueAsInt());
+}
+
 static const char *getModRefStr(ModRefInfo MR) {
   switch (MR) {
   case ModRefInfo::NoModRef:
@@ -540,6 +551,13 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     }
     OS << ")";
     OS.flush();
+    return Result;
+  }
+
+  if (hasAttribute(Attribute::NoFPClass)) {
+    std::string Result = "nofpclass";
+    raw_string_ostream OS(Result);
+    OS << getNoFPClass();
     return Result;
   }
 
@@ -840,6 +858,10 @@ MemoryEffects AttributeSet::getMemoryEffects() const {
   return SetNode ? SetNode->getMemoryEffects() : MemoryEffects::unknown();
 }
 
+FPClassTest AttributeSet::getNoFPClass() const {
+  return SetNode ? SetNode->getNoFPClass() : fcNone;
+}
+
 std::string AttributeSet::getAsString(bool InAttrGrp) const {
   return SetNode ? SetNode->getAsString(InAttrGrp) : "";
 }
@@ -1022,6 +1044,12 @@ MemoryEffects AttributeSetNode::getMemoryEffects() const {
   if (auto A = findEnumAttribute(Attribute::Memory))
     return A->getMemoryEffects();
   return MemoryEffects::unknown();
+}
+
+FPClassTest AttributeSetNode::getNoFPClass() const {
+  if (auto A = findEnumAttribute(Attribute::NoFPClass))
+    return A->getNoFPClass();
+  return fcNone;
 }
 
 std::string AttributeSetNode::getAsString(bool InAttrGrp) const {
@@ -1560,6 +1588,14 @@ AttributeList::getParamDereferenceableOrNullBytes(unsigned Index) const {
   return getParamAttrs(Index).getDereferenceableOrNullBytes();
 }
 
+FPClassTest AttributeList::getRetNoFPClass() const {
+  return getRetAttrs().getNoFPClass();
+}
+
+FPClassTest AttributeList::getParamNoFPClass(unsigned Index) const {
+  return getParamAttrs(Index).getNoFPClass();
+}
+
 UWTableKind AttributeList::getUWTableKind() const {
   return getFnAttrs().getUWTableKind();
 }
@@ -1803,6 +1839,13 @@ AttrBuilder &AttrBuilder::addMemoryAttr(MemoryEffects ME) {
   return addRawIntAttr(Attribute::Memory, ME.toIntValue());
 }
 
+AttrBuilder &AttrBuilder::addNoFPClassAttr(FPClassTest Mask) {
+  if (Mask == fcNone)
+    return *this;
+
+  return addRawIntAttr(Attribute::NoFPClass, Mask);
+}
+
 AttrBuilder &AttrBuilder::addAllocKindAttr(AllocFnKind Kind) {
   return addRawIntAttr(Attribute::AllocKind, static_cast<uint64_t>(Kind));
 }
@@ -1885,6 +1928,16 @@ bool AttrBuilder::operator==(const AttrBuilder &B) const {
 // AttributeFuncs Function Defintions
 //===----------------------------------------------------------------------===//
 
+/// Returns true if this is a type legal for the 'nofpclass' attribute. This
+/// follows the same type rules as FPMathOperator.
+///
+/// TODO: Consider relaxing to any FP type struct fields.
+bool AttributeFuncs::isNoFPClassCompatibleType(Type *Ty) {
+  while (ArrayType *ArrTy = dyn_cast<ArrayType>(Ty))
+    Ty = ArrTy->getElementType();
+  return Ty->isFPOrFPVectorTy();
+}
+
 /// Which attributes cannot be applied to a type.
 AttributeMask AttributeFuncs::typeIncompatible(Type *Ty,
                                                AttributeSafetyKind ASK) {
@@ -1924,6 +1977,11 @@ AttributeMask AttributeFuncs::typeIncompatible(Type *Ty,
   if (!Ty->isPtrOrPtrVectorTy()) {
     if (ASK & ASK_SAFE_TO_DROP)
       Incompatible.addAttribute(Attribute::Alignment);
+  }
+
+  if (ASK & ASK_SAFE_TO_DROP) {
+    if (!isNoFPClassCompatibleType(Ty))
+      Incompatible.addAttribute(Attribute::NoFPClass);
   }
 
   // Some attributes can apply to all "values" but there are no `void` values.

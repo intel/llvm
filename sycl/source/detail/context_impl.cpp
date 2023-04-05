@@ -23,6 +23,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
+#include <algorithm>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -136,7 +138,7 @@ context_impl::~context_impl() {
   }
   if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRelease>(MContext);
+    getPlugin().call_nocheck<PiApiKind::piContextRelease>(MContext);
   }
 }
 
@@ -166,33 +168,67 @@ template <>
 std::vector<sycl::memory_order>
 context_impl::get_info<info::context::atomic_memory_order_capabilities>()
     const {
+  std::vector<sycl::memory_order> CapabilityList{
+      sycl::memory_order::relaxed, sycl::memory_order::acquire,
+      sycl::memory_order::release, sycl::memory_order::acq_rel,
+      sycl::memory_order::seq_cst};
   if (is_host())
-    return {sycl::memory_order::relaxed, sycl::memory_order::acquire,
-            sycl::memory_order::release, sycl::memory_order::acq_rel,
-            sycl::memory_order::seq_cst};
+    return CapabilityList;
 
-  pi_memory_order_capabilities Result;
-  getPlugin().call<PiApiKind::piContextGetInfo>(
-      MContext,
-      PiInfoCode<info::context::atomic_memory_order_capabilities>::value,
-      sizeof(Result), &Result, nullptr);
-  return readMemoryOrderBitfield(Result);
+  GetCapabilitiesIntersectionSet<
+      sycl::memory_order, info::device::atomic_memory_order_capabilities>(
+      MDevices, CapabilityList);
+
+  return CapabilityList;
 }
 template <>
 std::vector<sycl::memory_scope>
 context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
     const {
+  std::vector<sycl::memory_scope> CapabilityList{
+      sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
+      sycl::memory_scope::work_group, sycl::memory_scope::device,
+      sycl::memory_scope::system};
   if (is_host())
-    return {sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
-            sycl::memory_scope::work_group, sycl::memory_scope::device,
-            sycl::memory_scope::system};
+    return CapabilityList;
 
-  pi_memory_scope_capabilities Result;
-  getPlugin().call<PiApiKind::piContextGetInfo>(
-      MContext,
-      PiInfoCode<info::context::atomic_memory_scope_capabilities>::value,
-      sizeof(Result), &Result, nullptr);
-  return readMemoryScopeBitfield(Result);
+  GetCapabilitiesIntersectionSet<
+      sycl::memory_scope, info::device::atomic_memory_scope_capabilities>(
+      MDevices, CapabilityList);
+
+  return CapabilityList;
+}
+template <>
+std::vector<sycl::memory_order>
+context_impl::get_info<info::context::atomic_fence_order_capabilities>() const {
+  std::vector<sycl::memory_order> CapabilityList{
+      sycl::memory_order::relaxed, sycl::memory_order::acquire,
+      sycl::memory_order::release, sycl::memory_order::acq_rel,
+      sycl::memory_order::seq_cst};
+  if (is_host())
+    return CapabilityList;
+
+  GetCapabilitiesIntersectionSet<sycl::memory_order,
+                                 info::device::atomic_fence_order_capabilities>(
+      MDevices, CapabilityList);
+
+  return CapabilityList;
+}
+template <>
+std::vector<sycl::memory_scope>
+context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
+  std::vector<sycl::memory_scope> CapabilityList{
+      sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
+      sycl::memory_scope::work_group, sycl::memory_scope::device,
+      sycl::memory_scope::system};
+  if (is_host())
+    return CapabilityList;
+
+  GetCapabilitiesIntersectionSet<sycl::memory_scope,
+                                 info::device::atomic_fence_scope_capabilities>(
+      MDevices, CapabilityList);
+
+  return CapabilityList;
 }
 
 RT::PiContext &context_impl::getHandleRef() { return MContext; }
@@ -339,7 +375,7 @@ std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
       // Write the pointer to the device global and store the event in the
       // initialize events list.
       RT::PiEvent InitEvent;
-      void *USMPtr = DeviceGlobalUSM.getPtr();
+      void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Plugin.call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
           QueueImpl->getHandleRef(), NativePrg,
           DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,

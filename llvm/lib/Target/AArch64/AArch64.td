@@ -289,6 +289,10 @@ def FeatureFuseLiterals : SubtargetFeature<
     "fuse-literals", "HasFuseLiterals", "true",
     "CPU fuses literal generation operations">;
 
+def FeatureFuseAddSub2RegAndConstOne : SubtargetFeature<
+   "fuse-addsub-2reg-const1", "HasFuseAddSub2RegAndConstOne", "true",
+   "CPU fuses (a + b + 1) and (a - b - 1)">;
+
 def FeatureDisableLatencySchedHeuristic : SubtargetFeature<
     "disable-latency-sched-heuristic", "DisableLatencySchedHeuristic", "true",
     "Disable latency scheduling heuristic">;
@@ -518,6 +522,12 @@ def FeatureNoBTIAtReturnTwice : SubtargetFeature<"no-bti-at-return-twice",
                                                  "Don't place a BTI instruction "
                                                  "after a return-twice">;
 
+def FeatureCHK : SubtargetFeature<"chk", "HasCHK",
+    "true", "Enable Armv8.0-A Check Feature Status Extension (FEAT_CHK)">;
+
+def FeatureGCS : SubtargetFeature<"gcs", "HasGCS",
+    "true", "Enable Armv9.4-A Guarded Call Stack Extension", [FeatureCHK]>;
+
 def FeatureCLRBHB : SubtargetFeature<"clrbhb", "HasCLRBHB",
     "true", "Enable Clear BHB instruction (FEAT_CLRBHB)">;
 
@@ -599,7 +609,7 @@ def HasV8_8aOps : SubtargetFeature<
 def HasV8_9aOps : SubtargetFeature<
   "v8.9a", "HasV8_9aOps", "true", "Support ARM v8.9a instructions",
   [HasV8_8aOps, FeatureCLRBHB, FeaturePRFM_SLC, FeatureSPECRES2,
-   FeatureCSSC, FeatureRASv2]>;
+   FeatureCSSC, FeatureRASv2, FeatureCHK]>;
 
 def HasV9_0aOps : SubtargetFeature<
   "v9a", "HasV9_0aOps", "true", "Support ARM v9a instructions",
@@ -662,6 +672,7 @@ include "AArch64InstrInfo.td"
 include "AArch64SchedPredicates.td"
 include "AArch64SchedPredExynos.td"
 include "AArch64SchedPredAmpere.td"
+include "AArch64SchedPredNeoverse.td"
 include "AArch64Combine.td"
 
 def AArch64InstrInfo : InstrInfo;
@@ -1162,6 +1173,18 @@ def TuneAmpere1 : SubtargetFeature<"ampere1", "ARMProcFamily", "Ampere1",
                                    FeatureFuseAddress,
                                    FeatureFuseLiterals]>;
 
+def TuneAmpere1A : SubtargetFeature<"ampere1a", "ARMProcFamily", "Ampere1A",
+                                    "Ampere Computing Ampere-1A processors", [
+                                    FeaturePostRAScheduler,
+                                    FeatureFuseAES,
+                                    FeatureLSLFast,
+                                    FeatureAggressiveFMA,
+                                    FeatureArithmeticBccFusion,
+                                    FeatureCmpBccFusion,
+                                    FeatureFuseAddress,
+                                    FeatureFuseLiterals,
+                                    FeatureFuseLiterals]>;
+
 def ProcessorFeatures {
   list<SubtargetFeature> A53  = [HasV8_0aOps, FeatureCRC, FeatureCrypto,
                                  FeatureFPARMv8, FeatureNEON, FeaturePerfMon];
@@ -1294,7 +1317,12 @@ def ProcessorFeatures {
                                    FeatureNEON, FeaturePerfMon, FeatureSPE,
                                    FeatureFullFP16, FeatureFP16FML, FeatureDotProd];
   list<SubtargetFeature> Ampere1 = [HasV8_6aOps, FeatureNEON, FeaturePerfMon,
-                                    FeatureMTE, FeatureSSBS];
+                                    FeatureSSBS, FeatureRandGen, FeatureSB,
+                                    FeatureSHA2, FeatureSHA3, FeatureAES];
+  list<SubtargetFeature> Ampere1A = [HasV8_6aOps, FeatureNEON, FeaturePerfMon,
+                                     FeatureMTE, FeatureSSBS, FeatureRandGen,
+                                     FeatureSB, FeatureSM4, FeatureSHA2,
+                                     FeatureSHA3, FeatureAES];
 
   // ETE and TRBE are future architecture extensions. We temporarily enable them
   // by default for users targeting generic AArch64. The extensions do not
@@ -1449,6 +1477,9 @@ def : ProcessorModel<"carmel", NoSchedModel, ProcessorFeatures.Carmel,
 // Ampere Computing
 def : ProcessorModel<"ampere1", Ampere1Model, ProcessorFeatures.Ampere1,
                      [TuneAmpere1]>;
+
+def : ProcessorModel<"ampere1a", Ampere1Model, ProcessorFeatures.Ampere1A,
+                     [TuneAmpere1A]>;
 
 //===----------------------------------------------------------------------===//
 // Assembly parser

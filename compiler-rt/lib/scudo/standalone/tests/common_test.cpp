@@ -69,7 +69,11 @@ TEST(ScudoCommonTest, Zeros) {
   unmap(P, Size, 0, &Data);
 }
 
-#if SCUDO_LINUX
+#if 0
+// This test is temorarily disabled because it may not work as expected. E.g.,
+// it doesn't dirty the pages so the pages may not be commited and it may only
+// work on the single thread environment. As a result, this test is flaky and is
+// impacting many test scenarios.
 TEST(ScudoCommonTest, GetRssFromBuffer) {
   constexpr int64_t AllocSize = 10000000;
   constexpr int64_t Error = 3000000;
@@ -86,6 +90,6 @@ TEST(ScudoCommonTest, GetRssFromBuffer) {
     EXPECT_LE(std::abs(Rss - AllocSize - Prev), Error);
   }
 }
-#endif // SCUDO_LINUX
+#endif
 
 } // namespace scudo

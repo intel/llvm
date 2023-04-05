@@ -67,10 +67,6 @@ public:
   static ArrayRef<std::pair<const char *, const char *>>
   standardRuntimeUtilityAliases();
 
-  static bool isInitializerSection(StringRef Name) {
-    return Name.startswith(".CRT");
-  }
-
   static StringRef getSEHFrameSectionName() { return ".pdata"; }
 
 private:
@@ -142,7 +138,7 @@ private:
 
   COFFPlatform(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
                JITDylib &PlatformJD, const char *OrcRuntimePath,
-               LoadDynamicLibrary LoadDynLibrary, bool StaticVCRuntime,
+               LoadDynamicLibrary LoadDynamicLibrary, bool StaticVCRuntime,
                const char *VCRuntimePath, Error &Err);
 
   // Associate COFFPlatform JIT-side runtime support functions with handlers.

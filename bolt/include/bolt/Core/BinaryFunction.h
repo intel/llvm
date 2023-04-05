@@ -167,6 +167,10 @@ public:
     /// List of relocations associated with data in the constant island
     std::map<uint64_t, Relocation> Relocations;
 
+    /// Set true if constant island contains dynamic relocations, which may
+    /// happen if binary is linked with -z notext option.
+    bool HasDynamicRelocations{false};
+
     /// Offsets in function that are data values in a constant island identified
     /// after disassembling
     std::map<uint64_t, MCSymbol *> Offsets;
@@ -348,6 +352,9 @@ private:
   /// functions with non-canonical CFG.
   /// This attribute is only valid when hasCFG() == true.
   bool HasCanonicalCFG{true};
+
+  /// True if another function body was merged into this one.
+  bool HasFunctionsFoldedInto{false};
 
   /// Name for the section this function code should reside in.
   std::string CodeSectionName;
@@ -1226,96 +1233,11 @@ public:
     return InputOffsetToAddressMap;
   }
 
-  void addRelocationAArch64(uint64_t Offset, MCSymbol *Symbol, uint64_t RelType,
-                            uint64_t Addend, uint64_t Value, bool IsCI) {
-    std::map<uint64_t, Relocation> &Rels =
-        (IsCI) ? Islands->Relocations : Relocations;
-    switch (RelType) {
-    case ELF::R_AARCH64_ABS64:
-    case ELF::R_AARCH64_ABS32:
-    case ELF::R_AARCH64_ABS16:
-    case ELF::R_AARCH64_ADD_ABS_LO12_NC:
-    case ELF::R_AARCH64_ADR_GOT_PAGE:
-    case ELF::R_AARCH64_ADR_PREL_LO21:
-    case ELF::R_AARCH64_ADR_PREL_PG_HI21:
-    case ELF::R_AARCH64_ADR_PREL_PG_HI21_NC:
-    case ELF::R_AARCH64_LD64_GOT_LO12_NC:
-    case ELF::R_AARCH64_LDST8_ABS_LO12_NC:
-    case ELF::R_AARCH64_LDST16_ABS_LO12_NC:
-    case ELF::R_AARCH64_LDST32_ABS_LO12_NC:
-    case ELF::R_AARCH64_LDST64_ABS_LO12_NC:
-    case ELF::R_AARCH64_LDST128_ABS_LO12_NC:
-    case ELF::R_AARCH64_TLSDESC_ADD_LO12:
-    case ELF::R_AARCH64_TLSDESC_ADR_PAGE21:
-    case ELF::R_AARCH64_TLSDESC_ADR_PREL21:
-    case ELF::R_AARCH64_TLSDESC_LD64_LO12:
-    case ELF::R_AARCH64_TLSIE_ADR_GOTTPREL_PAGE21:
-    case ELF::R_AARCH64_TLSIE_LD64_GOTTPREL_LO12_NC:
-    case ELF::R_AARCH64_MOVW_UABS_G0:
-    case ELF::R_AARCH64_MOVW_UABS_G0_NC:
-    case ELF::R_AARCH64_MOVW_UABS_G1:
-    case ELF::R_AARCH64_MOVW_UABS_G1_NC:
-    case ELF::R_AARCH64_MOVW_UABS_G2:
-    case ELF::R_AARCH64_MOVW_UABS_G2_NC:
-    case ELF::R_AARCH64_MOVW_UABS_G3:
-    case ELF::R_AARCH64_PREL16:
-    case ELF::R_AARCH64_PREL32:
-    case ELF::R_AARCH64_PREL64:
-      Rels[Offset] = Relocation{Offset, Symbol, RelType, Addend, Value};
-      return;
-    case ELF::R_AARCH64_CALL26:
-    case ELF::R_AARCH64_JUMP26:
-    case ELF::R_AARCH64_TSTBR14:
-    case ELF::R_AARCH64_CONDBR19:
-    case ELF::R_AARCH64_TLSDESC_CALL:
-    case ELF::R_AARCH64_TLSLE_ADD_TPREL_HI12:
-    case ELF::R_AARCH64_TLSLE_ADD_TPREL_LO12_NC:
-      return;
-    default:
-      llvm_unreachable("Unexpected AArch64 relocation type in code");
-    }
-  }
-
-  void addRelocationX86(uint64_t Offset, MCSymbol *Symbol, uint64_t RelType,
-                        uint64_t Addend, uint64_t Value) {
-    switch (RelType) {
-    case ELF::R_X86_64_8:
-    case ELF::R_X86_64_16:
-    case ELF::R_X86_64_32:
-    case ELF::R_X86_64_32S:
-    case ELF::R_X86_64_64:
-    case ELF::R_X86_64_PC8:
-    case ELF::R_X86_64_PC32:
-    case ELF::R_X86_64_PC64:
-    case ELF::R_X86_64_GOTPCRELX:
-    case ELF::R_X86_64_REX_GOTPCRELX:
-      Relocations[Offset] = Relocation{Offset, Symbol, RelType, Addend, Value};
-      return;
-    case ELF::R_X86_64_PLT32:
-    case ELF::R_X86_64_GOTPCREL:
-    case ELF::R_X86_64_TPOFF32:
-    case ELF::R_X86_64_GOTTPOFF:
-      return;
-    default:
-      llvm_unreachable("Unexpected x86 relocation type in code");
-    }
-  }
-
   /// Register relocation type \p RelType at a given \p Address in the function
   /// against \p Symbol.
   /// Assert if the \p Address is not inside this function.
   void addRelocation(uint64_t Address, MCSymbol *Symbol, uint64_t RelType,
-                     uint64_t Addend, uint64_t Value) {
-    assert(Address >= getAddress() && Address < getAddress() + getMaxSize() &&
-           "address is outside of the function");
-    uint64_t Offset = Address - getAddress();
-    if (BC.isAArch64()) {
-      return addRelocationAArch64(Offset, Symbol, RelType, Addend, Value,
-                                  isInConstantIsland(Address));
-    }
-
-    return addRelocationX86(Offset, Symbol, RelType, Addend, Value);
-  }
+                     uint64_t Addend, uint64_t Value);
 
   /// Return the name of the section this function originated from.
   std::optional<StringRef> getOriginSectionName() const {
@@ -1407,6 +1329,9 @@ public:
   /// Return true if the body of the function was merged into another function.
   bool isFolded() const { return FoldedIntoFunction != nullptr; }
 
+  /// Return true if other functions were folded into this one.
+  bool hasFunctionsFoldedInto() const { return HasFunctionsFoldedInto; }
+
   /// If this function was folded, return the function it was folded into.
   BinaryFunction *getFoldedIntoFunction() const { return FoldedIntoFunction; }
 
@@ -1459,8 +1384,6 @@ public:
   }
 
   ArrayRef<uint8_t> getLSDATypeIndexTable() const { return LSDATypeIndexTable; }
-
-  const LabelsMapType &getLabels() const { return Labels; }
 
   IslandInfo &getIslandInfo() {
     assert(Islands && "function expected to have constant islands");
@@ -1770,6 +1693,9 @@ public:
 
   void setFolded(BinaryFunction *BF) { FoldedIntoFunction = BF; }
 
+  /// Indicate that another function body was merged with this function.
+  void setHasFunctionsFoldedInto() { HasFunctionsFoldedInto = true; }
+
   BinaryFunction &setPersonalityFunction(uint64_t Addr) {
     assert(!PersonalityFunction && "can't set personality function twice");
     PersonalityFunction = BC.getOrCreateGlobalSymbol(Addr, "FUNCat");
@@ -1826,9 +1752,9 @@ public:
   /// Return true if the function is a secondary fragment of another function.
   bool isFragment() const { return IsFragment; }
 
-  /// Returns if the given function is a parent fragment of this function.
-  bool isParentFragment(BinaryFunction *Parent) const {
-    return ParentFragments.count(Parent);
+  /// Returns if this function is a child of \p Other function.
+  bool isChildOf(const BinaryFunction &Other) const {
+    return ParentFragments.contains(&Other);
   }
 
   /// Set the profile data for the number of times the function was called.
@@ -1867,6 +1793,10 @@ public:
   /// Return the raw profile information about the number of branch
   /// executions corresponding to this function.
   uint64_t getRawBranchCount() const { return RawBranchCount; }
+
+  /// Set the profile data about the number of branch executions corresponding
+  /// to this function.
+  void setRawBranchCount(uint64_t Count) { RawBranchCount = Count; }
 
   /// Return the execution count for functions with known profile.
   /// Return 0 if the function has no profile.
@@ -1936,6 +1866,28 @@ public:
       Islands->Symbols.insert(Symbol);
     }
     return Symbol;
+  }
+
+  /// Support dynamic relocations in constant islands, which may happen if
+  /// binary is linked with -z notext option.
+  void markIslandDynamicRelocationAtAddress(uint64_t Address) {
+    if (!isInConstantIsland(Address)) {
+      errs() << "BOLT-ERROR: dynamic relocation found for text section at 0x"
+             << Twine::utohexstr(Address) << "\n";
+      exit(1);
+    }
+
+    // Mark island to have dynamic relocation
+    Islands->HasDynamicRelocations = true;
+
+    // Create island access, so we would emit the label and
+    // move binary data during updateOutputValues, making us emit
+    // dynamic relocation with the right offset value.
+    getOrCreateIslandAccess(Address);
+  }
+
+  bool hasDynamicRelocationAtIsland() const {
+    return !!(Islands && Islands->HasDynamicRelocations);
   }
 
   /// Called by an external function which wishes to emit references to constant

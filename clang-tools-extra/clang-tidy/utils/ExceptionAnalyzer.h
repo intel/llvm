@@ -14,9 +14,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringSet.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 
 /// This class analysis if a `FunctionDecl` can in principle throw an
 /// exception, either directly or indirectly. It can be configured to ignore
@@ -80,7 +78,7 @@ public:
     /// possible to catch multiple exception types by one 'catch' if they
     /// are a subclass of the 'catch'ed exception type.
     /// Returns 'true' if some exceptions were filtered, otherwise 'false'.
-    bool filterByCatch(const Type *BaseClass);
+    bool filterByCatch(const Type *BaseClass, const ASTContext &Context);
 
     /// Filter the set of thrown exception type against a set of ignored
     /// types that shall not be considered in the exception analysis.
@@ -149,8 +147,6 @@ private:
   std::map<const FunctionDecl *, ExceptionInfo> FunctionCache;
 };
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_UTILS_EXCEPTION_ANALYZER_H

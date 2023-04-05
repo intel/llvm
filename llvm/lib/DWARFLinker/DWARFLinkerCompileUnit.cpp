@@ -127,15 +127,20 @@ void CompileUnit::addLabelLowPc(uint64_t LabelLowPc, int64_t PcOffset) {
 void CompileUnit::addFunctionRange(uint64_t FuncLowPc, uint64_t FuncHighPc,
                                    int64_t PcOffset) {
   Ranges.insert({FuncLowPc, FuncHighPc}, PcOffset);
-  this->LowPc = std::min(LowPc, FuncLowPc + PcOffset);
+  if (LowPc)
+    LowPc = std::min(*LowPc, FuncLowPc + PcOffset);
+  else
+    LowPc = FuncLowPc + PcOffset;
   this->HighPc = std::max(HighPc, FuncHighPc + PcOffset);
 }
 
 void CompileUnit::noteRangeAttribute(const DIE &Die, PatchLocation Attr) {
-  if (Die.getTag() != dwarf::DW_TAG_compile_unit)
-    RangeAttributes.push_back(Attr);
-  else
+  if (Die.getTag() == dwarf::DW_TAG_compile_unit) {
     UnitRangeAttribute = Attr;
+    return;
+  }
+
+  RangeAttributes.emplace_back(Attr);
 }
 
 void CompileUnit::noteLocationAttribute(PatchLocation Attr, int64_t PcOffset) {

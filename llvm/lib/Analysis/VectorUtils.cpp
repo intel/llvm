@@ -770,11 +770,9 @@ llvm::computeMinimumValueSizes(ArrayRef<BasicBlock *> Blocks, DemandedBits &DB,
     for (Value *M : llvm::make_range(ECs.member_begin(I), ECs.member_end()))
       LeaderDemandedBits |= DBits[M];
 
-    uint64_t MinBW = (sizeof(LeaderDemandedBits) * 8) -
-                     llvm::countLeadingZeros(LeaderDemandedBits);
+    uint64_t MinBW = llvm::bit_width(LeaderDemandedBits);
     // Round up to a power of 2
-    if (!isPowerOf2_64((uint64_t)MinBW))
-      MinBW = NextPowerOf2(MinBW);
+    MinBW = llvm::bit_ceil(MinBW);
 
     // We don't modify the types of PHIs. Reductions will already have been
     // truncated if possible, and inductions' sizes will have been chosen by
@@ -1531,10 +1529,10 @@ void InterleaveGroup<Instruction>::addMetadata(Instruction *NewInst) const {
 
 std::string VFABI::mangleTLIVectorName(StringRef VectorName,
                                        StringRef ScalarName, unsigned numArgs,
-                                       ElementCount VF) {
+                                       ElementCount VF, bool Masked) {
   SmallString<256> Buffer;
   llvm::raw_svector_ostream Out(Buffer);
-  Out << "_ZGV" << VFABI::_LLVM_ << "N";
+  Out << "_ZGV" << VFABI::_LLVM_ << (Masked ? "M" : "N");
   if (VF.isScalable())
     Out << 'x';
   else

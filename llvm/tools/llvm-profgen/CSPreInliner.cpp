@@ -34,6 +34,7 @@ STATISTIC(
 // The switches specify inline thresholds used in SampleProfileLoader inlining.
 // TODO: the actual threshold to be tuned here because the size here is based
 // on machine code not LLVM IR.
+namespace llvm {
 extern cl::opt<int> SampleHotCallSiteThreshold;
 extern cl::opt<int> SampleColdCallSiteThreshold;
 extern cl::opt<int> ProfileInlineGrowthLimit;
@@ -49,6 +50,7 @@ cl::opt<bool> EnableCSPreInliner(
 cl::opt<bool> UseContextCostForPreInliner(
     "use-context-cost-for-preinliner", cl::Hidden, cl::init(true),
     cl::desc("Use context-sensitive byte size cost for preinliner decisions"));
+} // namespace llvm
 
 static cl::opt<bool> SamplePreInlineReplay(
     "csspgo-replay-preinline", cl::Hidden, cl::init(false),
@@ -69,12 +71,17 @@ CSPreInliner::CSPreInliner(SampleContextTracker &Tracker,
   if (!SampleColdCallSiteThreshold.getNumOccurrences())
     SampleColdCallSiteThreshold = 0;
   if (!ProfileInlineLimitMax.getNumOccurrences())
-    ProfileInlineLimitMax = 3000;
+    ProfileInlineLimitMax = 50000;
 }
 
 std::vector<StringRef> CSPreInliner::buildTopDownOrder() {
   std::vector<StringRef> Order;
-  ProfiledCallGraph ProfiledCG(ContextTracker);
+  // Trim cold edges to get a more stable call graph. This allows for a more
+  // stable top-down order which in turns helps the stablity of the generated
+  // profile from run to run.
+  uint64_t ColdCountThreshold = ProfileSummaryBuilder::getColdCountThreshold(
+      (Summary->getDetailedSummary()));
+  ProfiledCallGraph ProfiledCG(ContextTracker, ColdCountThreshold);
 
   // Now that we have a profiled call graph, construct top-down order
   // by building up SCC and reversing SCC order.

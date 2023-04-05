@@ -28,3 +28,4 @@ atomic_fence
 function_objects
 group_functions
 image
+atomic_ref
