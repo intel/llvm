@@ -3,7 +3,7 @@
 In order to ease the process of debugging, there is a user requirement to
 compile different modules with different levels of optimization. This document
 proposes a compiler flow that will enable propagation of compiler options
-specified for front-end to the runtimes and eventually to the backend.
+specified from front-end to the runtimes and eventually to the backend.
 Currently, only `O0`/`O1`/`O2`/`O3` options are handled.
 Please note that this document only describes support for JIT path. AOT path
 support will be added later.
@@ -61,8 +61,8 @@ was not able to set a breakpoint inside device code.
 
 In order to support module-level debuggability, the user will compile different
 module files with different levels of optimization. These optimization levels
-must be preserved and made use of during the backend compilation. Following is a
-key requirements for this feature.
+must be preserved and made use of during the backend compilation. The following
+is a key requirement for this feature.
 - If the user specifies `-Ox` as a front-end compile option for a particular
 module, this option must be converted to appropriate backend option and then
 propagated fo use during backend JIT compilation.
@@ -99,9 +99,9 @@ of sycl-optlevel are bundled into the same device image. See also optional
 kernel features [design document](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/OptionalDeviceFeatures.md#changes-to-the-post-link-tool).
 The `sycl-post-link` tool also adds a new property into the 
 `SYCL/misc properties` property set for each device code module. This entry will
-be used to store the optimization level. Name of this property is 'optLevel' and
-the value is stored as a 32-bit integer. If there is a module where user did not
-specify an optimization module, there is no new entry in the property set.
+be used to store the optimization level. Name of this property is `optLevel` and
+the value is stored as a 32-bit integer. If there is a module where the user did
+not specify an optimization module, there is no new entry in the property set.
 
 ### Changes to the SYCL runtime
 
@@ -116,8 +116,10 @@ backend.
 A new plugin API has been added. It takes the optimization level as input in
 integer format and returns `pi_result`. The signature is as follows:
 
-`pi_result` piPluginGetBackendOptimizationOption(int OptLevel,
-                                                 char **backend_option);
+```C++
+pi_result piPluginGetBackendOptimizationOption(int OptLevel,
+                                               char **backend_option);
+```
 
 In the level-zero and OpenCL plugins, the table provided in the 'Requirements'
 section is used as a guide to identify the appropriate backend option.
