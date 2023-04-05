@@ -167,7 +167,8 @@ def do_configure(args):
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
         "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins))),
-        "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion)
+        "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion),
+        "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
 
     if args.l0_headers and args.l0_loader:

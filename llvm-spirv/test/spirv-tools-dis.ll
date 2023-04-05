@@ -1,6 +1,6 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-tools-dis -o - | FileCheck %s
-; RUN: llvm-spirv %t.bc --spirv-tools-dis -o - | spirv-as
+; RUN: llvm-spirv %t.bc --spirv-tools-dis -o - | spirv-as -
 
 ; Verify that the --spirv-tools-dis options results in SPIRV-Tools compatible assembly.
 
