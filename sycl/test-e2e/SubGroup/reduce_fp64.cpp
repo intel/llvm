@@ -1,3 +1,4 @@
+// REQUIRES: fp64
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -9,11 +10,11 @@
 
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device()) ||
-      !Queue.get_device().has(sycl::aspect::fp64)) {
+  if (!core_sg_supported(Queue.get_device())) {
     std::cout << "Skipping test\n";
     return 0;
   }
+  assert(Queue.get_device().has(sycl::aspect::fp64) && "Requires fp64");
   check<class KernelName_alTnImqzYasRyHjYg, double>(Queue);
   std::cout << "Test passed." << std::endl;
   return 0;

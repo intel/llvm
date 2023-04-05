@@ -1,3 +1,4 @@
+// REQUIRES: fp16
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -70,10 +71,7 @@ int main() {
             << device_queue.get_device().get_info<sycl::info::device::name>()
             << "\n";
 
-  if (!device_queue.get_device().has(sycl::aspect::fp16)) {
-    std::cout << "Test skipped on platform without fp16 support." << std::endl;
-    return 0;
-  }
+  assert(device_queue.get_device().has(sycl::aspect::fp16) && "Requires fp16");
 
   // half2int tests
   {

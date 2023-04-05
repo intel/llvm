@@ -459,6 +459,32 @@ for aot_tool in aot_tools:
     else:
         lit_config.warning("Couldn't find pre-installed AOT device compiler " + aot_tool)
 
+aspects = [ 'fp16', 'fp64', ]
+
+check_aspect_file = 'check_aspects.cpp'
+with open(check_aspect_file, 'w') as ff:
+    ff.write('#include <sycl/sycl.hpp>\n')
+    ff.write('int main() {\n')
+    ff.write('  sycl::device dev;\n')
+    for a in aspects:
+        ff.write(f'  int {a} = dev.has(sycl::aspect::{a});\n')
+    ff.write(f'  printf("{":".join(["%d"] * len(aspects))}\\n",'
+             f'{",".join([a for a in aspects])});\n')
+    ff.write('  return 0;\n')
+    ff.write('}\n')
+
+status = subprocess.getstatusoutput(config.dpcpp_compiler + ' -fsycl  ' +
+                                    check_aspect_file + ' -o check_aspects')
+if status[0] == 0:
+    status = subprocess.getstatusoutput('./check_aspects')
+    if status[0] == 0:
+        supported_aspects = map(int, status[1].split(':'))
+        for aspect,supported in zip(aspects, supported_aspects):
+            if supported:
+                config.available_features.add(aspect)
+else:
+     lit_config.error("Unable to determine supported aspects")
+
 # Check if kernel fusion is available by compiling a small program that will
 # be ill-formed (compilation stops with non-zero exit code) if the feature
 # test macro for kernel fusion is not defined.
