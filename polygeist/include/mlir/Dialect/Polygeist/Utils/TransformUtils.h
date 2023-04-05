@@ -1,4 +1,4 @@
-//===- Utils.h - Polygeist Transform Utility functions ---------------- -*-===//
+//===- TransformUtils.h - Polygeist Transform Utilities -----------------*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_POLYGEIST_TRANSFORMS_UTILS_UTILS_H
-#define MLIR_DIALECT_POLYGEIST_TRANSFORMS_UTILS_UTILS_H
+#ifndef MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
+#define MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H
 
 #include "mlir/IR/Builders.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
@@ -214,4 +214,4 @@ private:
 
 } // namespace mlir
 
-#endif // MLIR_DIALECT_POLYGEIST_TRANSFORMS_UTILS_UTILS_H
+#endif // MLIR_DIALECT_POLYGEIST_UTILS_TRANSFORMUTILS_H

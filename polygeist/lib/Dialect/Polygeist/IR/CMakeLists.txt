@@ -1,4 +1,4 @@
-add_mlir_dialect_library(MLIRPolygeist
+add_mlir_dialect_library(MLIRPolygeistDialect
 Dialect.cpp
 Ops.cpp
 

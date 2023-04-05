@@ -4,7 +4,7 @@ set(LIBS
         ${dialect_libs}
         ${conversion_libs}
         MLIROptLib
-        MLIRPolygeist
+        MLIRPolygeistDialect
         MLIRPolygeistTransforms
         MLIRSYCLDialect
         MLIRSYCLToGPU
