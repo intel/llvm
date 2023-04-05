@@ -1,8 +1,8 @@
 // RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm="index-bitwidth=32 use-opaque-pointers=1" %s | FileCheck %s
 
-//===-------------------------------------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 // sycl.accessor.get_pointer
-//===-------------------------------------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi32>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi32>)>)>
@@ -13,10 +13,10 @@
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr<1> {
 // CHECK-NEXT:      %0 = llvm.mlir.constant(0 : i32) : i32
 // CHECK-NEXT:      %1 = llvm.mlir.constant(0 : i32) : i32
-// CHECK-NEXT:      %2 = llvm.getelementptr inbounds %arg0[0, 0, 2, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr
-// CHECK-NEXT:      %3 = llvm.load %2 : !llvm.ptr
-// CHECK-NEXT:      %4 = llvm.getelementptr inbounds %arg0[0, 0, 0, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr
-// CHECK-NEXT:      %5 = llvm.load %4 : !llvm.ptr
+// CHECK-NEXT:      %2 = llvm.getelementptr inbounds %arg0[0, 0, 2, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr, !sycl_accessor_1_i32_rw_gb
+// CHECK-NEXT:      %3 = llvm.load %2 : !llvm.ptr -> i32
+// CHECK-NEXT:      %4 = llvm.getelementptr inbounds %arg0[0, 0, 0, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr, !sycl_accessor_1_i32_rw_gb
+// CHECK-NEXT:      %5 = llvm.load %4 : !llvm.ptr -> i32
 // CHECK-NEXT:      %6 = llvm.mul %1, %3  : i32
 // CHECK-NEXT:      %7 = llvm.add %6, %5  : i32
 // CHECK-NEXT:      %8 = llvm.sub %0, %7  : i32
