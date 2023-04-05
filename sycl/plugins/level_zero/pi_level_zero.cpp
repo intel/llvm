@@ -2130,17 +2130,17 @@ pi_result piPluginGetLastError(char **message) {
 }
 
 // Optimization strings
-char EmptyStr[2] = "";
-char NoOptStr[16] = "-ze-opt-disable";
-char O1OptStr[16] = "-ze-opt-level=1";
-char O2OptStr[16] = "-ze-opt-level=2";
+static const char *EmptyStr = "";
+static const char *NoOptStr = "-ze-opt-disable";
+static const char *O1OptStr = "-ze-opt-level=1";
+static const char *O2OptStr = "-ze-opt-level=2";
 
 // Returns plugin specific backend optimization option.
 // Return '-ze-opt-disable' for opt_level = 0.
 // Return '-ze-opt-level=1' for opt_level = 1/2.
 // Return '-ze-opt-level=2' for opt_level = 3.
 pi_result piPluginGetBackendOptimizationOption(int opt_level,
-                                               char **backend_option) {
+                                               const char **backend_option) {
   switch (opt_level) {
   case 0:
     *backend_option = &NoOptStr[0];

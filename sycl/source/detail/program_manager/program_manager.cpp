@@ -411,7 +411,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   }
   // Add optimization flags.
   if (optLevel != -1) {
-    char *backend_option = nullptr;
+    const char *backend_option = nullptr;
     // Empty string is returned in backend_option when no appropriate backend
     // option is available for a given opt level.
     Plugin.getBackendOptimizationOption(optLevel, &backend_option);

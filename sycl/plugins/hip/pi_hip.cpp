@@ -133,13 +133,14 @@ pi_result hip_piPluginGetLastError(char **message) {
 }
 
 // Optimization strings
-char EmptyStr[2] = "";
+static const char *EmptyStr = "";
 
 // Returns plugin specific backend optimization option.
 // Return empty string for hip.
 // TODO: Determine correct string to be passed.
-pi_result hip_piPluginGetBackendOptimizationOption(int opt_level,
-                                                   char **backend_option) {
+pi_result
+    hip_piPluginGetBackendOptimizationOption(int opt_level,
+                                             const char **backend_option) {
   if ((opt_level < 0) || (opt_level > 3))
     return PI_ERROR_INVALID_VALUE;
   *backend_option = EmptyStr;

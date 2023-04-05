@@ -97,13 +97,13 @@ pi_result piPluginGetLastError(char **message) {
 }
 
 // Optimization strings
-char EmptyStr[2] = "";
-char NoOptStr[16] = "-cl-opt-disable";
+static const char *EmptyStr = "";
+static const char *NoOptStr = "-cl-opt-disable";
 
 // Returns plugin specific backend optimization option.
 // Return '-cl-opt-disable' for opt_level = 0 and '' for others.
 pi_result piPluginGetBackendOptimizationOption(int opt_level,
-                                               char **backend_option) {
+                                               const char **backend_option) {
   if ((opt_level < 0) || (opt_level > 3))
     return PI_ERROR_INVALID_VALUE;
   *backend_option = EmptyStr;

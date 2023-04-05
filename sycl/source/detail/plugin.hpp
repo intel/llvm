@@ -237,7 +237,7 @@ public:
 
   // Get backend optimization option
   void getBackendOptimizationOption(int opt_level,
-                                    char **backend_option) const {
+                                    const char **backend_option) const {
     RT::PiResult Err =
         call_nocheck<PiApiKind::piPluginGetBackendOptimizationOption>(
             opt_level, backend_option);
