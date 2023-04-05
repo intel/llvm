@@ -485,15 +485,36 @@ AffineLoopGuardBuilder::createCondition(SmallVectorImpl<Value> &values) const {
 }
 
 //===----------------------------------------------------------------------===//
+// LICMCandidate
+//===----------------------------------------------------------------------===//
+
+/// This class represents an operation in a loop that is potentially invariant
+/// (if a condition is satisfied). The class tracks a list of operations (in the
+/// same loop) that need to be hoisted for this operation to be hoisted.
+class LICMCandidate {
+public:
+  LICMCandidate(Operation &op) : op(op) {}
+  Operation &getOperation() const { return op; }
+  void addPrerequisite(Operation &op) { prerequisites.push_back(&op); }
+
+private:
+  Operation &op;
+  // Operations that need to be hoisted to allow this operation to be hoisted.
+  SmallVector<Operation *> prerequisites;
+};
+
+//===----------------------------------------------------------------------===//
 
 /// Determine whether any operation in the \p loop has a conflict with the
-/// given operation \p op that prevents hoisting the operation out of the
-/// loop. Operations that are already known to have no hoisting preventing
-/// conflicts in the loop are given in \p willBeMoved.
-static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
+/// given operation in LICMCandidate \p candidate that prevents hoisting the
+/// operation out of the loop. Operations that are already known to have no
+/// hoisting preventing conflicts in the loop are given in \p willBeMoved.
+static bool hasConflictsInLoop(LICMCandidate &candidate,
+                               LoopLikeOpInterface loop,
                                const SmallPtrSetImpl<Operation *> &willBeMoved,
                                const AliasAnalysis &aliasAnalysis,
                                const DominanceInfo &domInfo) {
+  Operation &op = candidate.getOperation();
   const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo);
 
   // For parallel loop, only check for conflicts with other previous operations
@@ -507,6 +528,7 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
       continue;
 
     if (willBeMoved.count(&other)) {
+      candidate.addPrerequisite(other);
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "can be hoisted: conflicting operation will be hoisted\n");
       continue;
@@ -517,7 +539,8 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
   // Check whether the parent operation has conflicts on the loop.
   if (op.getParentOp() == loop)
     return false;
-  if (hasConflictsInLoop(*op.getParentOp(), loop, willBeMoved, aliasAnalysis,
+  LICMCandidate parentCandidate(*op.getParentOp());
+  if (hasConflictsInLoop(parentCandidate, loop, willBeMoved, aliasAnalysis,
                          domInfo))
     return true;
 
@@ -526,7 +549,9 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
   bool conflict = false;
   if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(op)) {
     op.walk([&](Operation *in) {
-      if (!willBeMoved.count(in) && sideEffects.conflictsWith(*in)) {
+      if (willBeMoved.count(in))
+        candidate.addPrerequisite(*in);
+      else if (sideEffects.conflictsWith(*in)) {
         LLVM_DEBUG(llvm::dbgs().indent(2)
                    << "conflicting operation: " << *in << "\n");
         conflict = true;
@@ -539,10 +564,11 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
   return conflict;
 }
 
-/// Returns true if the Operation \p op can be hoisted out of the given loop
-/// \p loop. The \p willBeMoved argument represents operations that are known
-/// to be loop invariant (and therefore will be moved outside of the loop).
-static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
+/// Returns true if the operation in LICMCandidate \p candidate can be hoisted
+/// out of the given loop \p loop. The \p willBeMoved argument represents
+/// operations that are known to be loop invariant (and therefore will be moved
+/// outside of the loop).
+static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
                          const SmallPtrSetImpl<Operation *> &willBeMoved,
                          const AliasAnalysis &aliasAnalysis,
                          const DominanceInfo &domInfo) {
@@ -551,17 +577,20 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
   // operands are not defined outside of the loop and cannot themselves be
   // moved.
   auto canBeMoved = [&](Value value) {
-    if (auto BA = dyn_cast<BlockArgument>(value))
-      if (willBeMoved.count(BA.getOwner()->getParentOp()))
-        return true;
-    Operation *definingOp = value.getDefiningOp();
-    if ((definingOp && willBeMoved.count(definingOp)) ||
-        loop.isDefinedOutsideOfLoop(value))
+    if (loop.isDefinedOutsideOfLoop(value))
       return true;
+    Operation *definingOp = value.getDefiningOp();
+    if (auto BA = dyn_cast<BlockArgument>(value))
+      definingOp = BA.getOwner()->getParentOp();
+    if (definingOp && willBeMoved.count(definingOp)) {
+      candidate.addPrerequisite(*definingOp);
+      return true;
+    }
     return false;
   };
 
   // Operations with unknown side effects cannot be hoisted.
+  Operation &op = candidate.getOperation();
   if (!isa<MemoryEffectOpInterface>(op) &&
       !op.hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     LLVM_DEBUG({
@@ -609,7 +638,8 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
   // loop prevent hosting it.
   if ((sideEffects.readsFromResource() || sideEffects.writesToResource() ||
        sideEffects.freesResource()) &&
-      hasConflictsInLoop(op, loop, willBeMoved, aliasAnalysis, domInfo)) {
+      hasConflictsInLoop(candidate, loop, willBeMoved, aliasAnalysis,
+                         domInfo)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "**** cannot be hoisted: found conflicting operation\n\n");
     return false;
@@ -624,7 +654,9 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
 
   for (Region &region : op.getRegions()) {
     for (Operation &innerOp : region.getOps()) {
-      if (!canBeHoisted(innerOp, loop, willBeMoved2, aliasAnalysis, domInfo))
+      LICMCandidate innerCandidate(innerOp);
+      if (!canBeHoisted(innerCandidate, loop, willBeMoved2, aliasAnalysis,
+                        domInfo))
         return false;
       willBeMoved2.insert(&innerOp);
     }
@@ -636,11 +668,13 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
   return true;
 }
 
-// Populate \p opsToMove with operations that can be hoisted out of the given
-// loop \p loop.
-static void collectHoistableOperations(
-    LoopLikeOpInterface loop, const AliasAnalysis &aliasAnalysis,
-    const DominanceInfo &domInfo, SmallVectorImpl<Operation *> &opsToMove) {
+// Populate \p LICMCandidates with operations that can be hoisted out of the
+// given loop \p loop.
+static void
+collectHoistableOperations(LoopLikeOpInterface loop,
+                           const AliasAnalysis &aliasAnalysis,
+                           const DominanceInfo &domInfo,
+                           SmallVectorImpl<LICMCandidate> &LICMCandidates) {
   // Do not use walk here, as we do not want to go into nested regions and
   // hoist operations from there. These regions might have semantics unknown
   // to this rewriting. If the nested regions are loops, they will have been
@@ -648,9 +682,10 @@ static void collectHoistableOperations(
   SmallPtrSet<Operation *, 8> willBeMoved;
   for (Block &block : loop.getLoopBody()) {
     for (Operation &op : block.without_terminator()) {
-      if (!canBeHoisted(op, loop, willBeMoved, aliasAnalysis, domInfo))
+      LICMCandidate candidate(op);
+      if (!canBeHoisted(candidate, loop, willBeMoved, aliasAnalysis, domInfo))
         continue;
-      opsToMove.push_back(&op);
+      LICMCandidates.push_back(candidate);
       willBeMoved.insert(&op);
     }
   }
@@ -663,16 +698,16 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   if (!isa<scf::ForOp, scf::ParallelOp, AffineParallelOp, AffineForOp>(loopOp))
     return 0;
 
-  SmallVector<Operation *, 8> opsToMove;
-  collectHoistableOperations(loop, aliasAnalysis, domInfo, opsToMove);
-  if (opsToMove.empty())
+  SmallVector<LICMCandidate> LICMCandidates;
+  collectHoistableOperations(loop, aliasAnalysis, domInfo, LICMCandidates);
+  if (LICMCandidates.empty())
     return 0;
 
   LoopGuardBuilder::create(loop)->guardLoop();
 
   size_t numOpsHoisted = 0;
-  for (Operation *op : opsToMove) {
-    loop.moveOutOfLoop(op);
+  for (const LICMCandidate &candidate : LICMCandidates) {
+    loop.moveOutOfLoop(&candidate.getOperation());
     ++numOpsHoisted;
   }
 

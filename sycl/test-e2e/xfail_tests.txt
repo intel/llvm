@@ -125,6 +125,7 @@ DeviceLib/assert.cpp
 DeviceLib/built-ins/ext_native_math.cpp
 DeviceLib/built-ins/ext_native_math_fp16.cpp
 DeviceLib/built-ins/fast-math-flag.cpp
+DeviceLib/built-ins/marray_integer.cpp
 DeviceLib/built-ins/marray_relational.cpp
 DeviceLib/built-ins/nan.cpp
 DeviceLib/built-ins/printf.cpp

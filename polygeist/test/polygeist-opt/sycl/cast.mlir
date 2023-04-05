@@ -5,8 +5,7 @@
 
 // CHECK-LABEL:   llvm.func @test1(
 // CHECK-SAME:                     %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr {
-// CHECK:           %[[VAL_1:.*]] = llvm.bitcast %[[VAL_0]] : !llvm.ptr to !llvm.ptr
-// CHECK:           llvm.return %[[VAL_1]] : !llvm.ptr
+// CHECK:           llvm.return %[[VAL_0]] : !llvm.ptr
 // CHECK:         }
 
 func.func @test1(%arg0: memref<?x!sycl_range_1_>) -> memref<?x!sycl_array_1_> {
@@ -18,8 +17,7 @@ func.func @test1(%arg0: memref<?x!sycl_range_1_>) -> memref<?x!sycl_array_1_> {
 
 // CHECK-LABEL:   llvm.func @test2(
 // CHECK-SAME:                     %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr {
-// CHECK:           %[[VAL_1:.*]] = llvm.bitcast %[[VAL_0]] : !llvm.ptr to !llvm.ptr
-// CHECK:           llvm.return %[[VAL_1]] : !llvm.ptr
+// CHECK:           llvm.return %[[VAL_0]] : !llvm.ptr
 // CHECK:         }
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
@@ -33,8 +31,7 @@ func.func @test2(%arg0: memref<?x!sycl_id_1_>) -> memref<?x!sycl_array_1_> {
 
 // CHECK-LABEL:   llvm.func @test_addrspaces(
 // CHECK-SAME:                               %[[VAL_0:.*]]: !llvm.ptr<4>) -> !llvm.ptr<4> {
-// CHECK:           %[[VAL_1:.*]] = llvm.bitcast %[[VAL_0]] : !llvm.ptr<4> to !llvm.ptr<4>
-// CHECK:           llvm.return %[[VAL_1]] : !llvm.ptr<4>
+// CHECK:           llvm.return %[[VAL_0]] : !llvm.ptr<4>
 // CHECK:         }
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>

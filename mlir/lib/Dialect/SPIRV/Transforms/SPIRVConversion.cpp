@@ -602,14 +602,16 @@ static spirv::GlobalVariableOp getBuiltinVariable(Block &body,
 }
 
 /// Gets name of global variable for a builtin.
-static std::string getBuiltinVarName(spirv::BuiltIn builtin) {
-  return std::string("__builtin_var_") + stringifyBuiltIn(builtin).str() + "__";
+static std::string getBuiltinVarName(spirv::BuiltIn builtin, StringRef prefix,
+                                     StringRef suffix) {
+  return Twine(prefix).concat(stringifyBuiltIn(builtin)).concat(suffix).str();
 }
 
 /// Gets or inserts a global variable for a builtin within `body` block.
 static spirv::GlobalVariableOp
 getOrInsertBuiltinVariable(Block &body, Location loc, spirv::BuiltIn builtin,
-                           Type integerType, OpBuilder &builder) {
+                           Type integerType, OpBuilder &builder,
+                           StringRef prefix, StringRef suffix) {
   if (auto varOp = getBuiltinVariable(body, builtin))
     return varOp;
 
@@ -627,7 +629,7 @@ getOrInsertBuiltinVariable(Block &body, Location loc, spirv::BuiltIn builtin,
   case spirv::BuiltIn::GlobalSize: {
     auto ptrType = spirv::PointerType::get(VectorType::get({3}, integerType),
                                            spirv::StorageClass::Input);
-    std::string name = getBuiltinVarName(builtin);
+    std::string name = getBuiltinVarName(builtin, prefix, suffix);
     newVarOp =
         builder.create<spirv::GlobalVariableOp>(loc, ptrType, name, builtin);
     break;
@@ -639,7 +641,7 @@ getOrInsertBuiltinVariable(Block &body, Location loc, spirv::BuiltIn builtin,
   case spirv::BuiltIn::SubgroupLocalInvocationId: {
     auto ptrType =
         spirv::PointerType::get(integerType, spirv::StorageClass::Input);
-    std::string name = getBuiltinVarName(builtin);
+    std::string name = getBuiltinVarName(builtin, prefix, suffix);
     newVarOp =
         builder.create<spirv::GlobalVariableOp>(loc, ptrType, name, builtin);
     break;
@@ -653,8 +655,8 @@ getOrInsertBuiltinVariable(Block &body, Location loc, spirv::BuiltIn builtin,
 
 Value mlir::spirv::getBuiltinVariableValue(Operation *op,
                                            spirv::BuiltIn builtin,
-                                           Type integerType,
-                                           OpBuilder &builder) {
+                                           Type integerType, OpBuilder &builder,
+                                           StringRef prefix, StringRef suffix) {
   Operation *parent = SymbolTable::getNearestSymbolTable(op->getParentOp());
   if (!parent) {
     op->emitError("expected operation to be within a module-like op");
@@ -663,7 +665,7 @@ Value mlir::spirv::getBuiltinVariableValue(Operation *op,
 
   spirv::GlobalVariableOp varOp =
       getOrInsertBuiltinVariable(*parent->getRegion(0).begin(), op->getLoc(),
-                                 builtin, integerType, builder);
+                                 builtin, integerType, builder, prefix, suffix);
   Value ptr = builder.create<spirv::AddressOfOp>(op->getLoc(), varOp);
   return builder.create<spirv::LoadOp>(op->getLoc(), ptr);
 }

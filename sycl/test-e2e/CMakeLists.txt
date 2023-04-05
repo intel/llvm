@@ -57,12 +57,23 @@ if(SYCL_TEST_E2E_TARGETS)
 
     file(STRINGS "xfail_tests.txt" XFAIL_TESTS_LIST)
     string(REPLACE ";" "\;" XFAIL_TESTS "${XFAIL_TESTS_LIST}")
-    add_custom_target(${TARGET}
-      COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --xfail '${XFAIL_TESTS}' --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
-      COMMENT "Running the SYCL tests for ${TARGET} backend"
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      USES_TERMINAL
-    )
+    string(REPLACE ";" "\|" FILTER_OUT_TESTS "${XFAIL_TESTS_LIST}")
+    # Filter out xfail tests on GPU to avoid running incorrect code on GPU.
+    if ("${TARGET_DEVICES}" STREQUAL "gpu")
+      add_custom_target(${TARGET}
+        COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --filter-out '${FILTER_OUT_TESTS}' --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
+        COMMENT "Running the SYCL tests for ${TARGET} backend"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        USES_TERMINAL
+      )
+    else()
+      add_custom_target(${TARGET}
+        COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} --xfail '${XFAIL_TESTS}' --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
+        COMMENT "Running the SYCL tests for ${TARGET} backend"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        USES_TERMINAL
+      )
+    endif()
     set_target_properties(${TARGET} PROPERTIES FOLDER "SYCL Level Zero tests")
     add_dependencies(check-sycl-e2e ${TARGET})
 

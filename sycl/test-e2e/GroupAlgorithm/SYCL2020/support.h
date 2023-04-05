@@ -11,11 +11,10 @@ bool isSupportedDevice(device D) {
 
   if (PlatformName.find("OpenCL") != std::string::npos) {
     std::string Version = D.get_info<info::device::version>();
-    size_t Offset = Version.find("OpenCL");
-    if (Offset == std::string::npos)
-      return false;
-    Version = Version.substr(Offset + 7, 3);
-    if (Version >= std::string("2.0"))
+
+    // Group collectives are mandatory in OpenCL 2.0 but optional in 3.0.
+    Version = Version.substr(7, 3);
+    if (Version >= "2.0" && Version < "3.0")
       return true;
   }
 

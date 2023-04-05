@@ -71,6 +71,9 @@ CONSTFIX char clEnqueueWriteGlobalVariableName[] =
     "clEnqueueWriteGlobalVariableINTEL";
 CONSTFIX char clEnqueueReadGlobalVariableName[] =
     "clEnqueueReadGlobalVariableINTEL";
+// Names of host pipe functions queried from OpenCL
+CONSTFIX char clEnqueueReadHostPipeName[] = "clEnqueueReadHostPipeINTEL";
+CONSTFIX char clEnqueueWriteHostPipeName[] = "clEnqueueWriteHostPipeINTEL";
 
 #undef CONSTFIX
 
@@ -1927,6 +1930,64 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
   return cast<pi_result>(Res);
 }
 
+pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                   const char *pipe_symbol, pi_bool blocking,
+                                   void *ptr, size_t size,
+                                   pi_uint32 num_events_in_waitlist,
+                                   const pi_event *events_waitlist,
+                                   pi_event *event) {
+  cl_context CLContext;
+  cl_int CLErr =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(cl_context), &CLContext, nullptr);
+  if (CLErr != CL_SUCCESS) {
+    return cast<pi_result>(CLErr);
+  }
+
+  clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<clEnqueueReadHostPipeName,
+                                           clEnqueueReadHostPipeINTEL_fn>(
+      cast<pi_context>(CLContext), &FuncPtr);
+
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(
+        cast<cl_command_queue>(queue), cast<cl_program>(program), pipe_symbol,
+        blocking, ptr, size, num_events_in_waitlist,
+        cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
+  }
+
+  return RetVal;
+}
+
+pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
+                                    const char *pipe_symbol, pi_bool blocking,
+                                    void *ptr, size_t size,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
+  cl_context CLContext;
+  cl_int CLErr =
+      clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
+                            sizeof(cl_context), &CLContext, nullptr);
+  if (CLErr != CL_SUCCESS) {
+    return cast<pi_result>(CLErr);
+  }
+
+  clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
+  pi_result RetVal = getExtFuncFromContext<clEnqueueWriteHostPipeName,
+                                           clEnqueueWriteHostPipeINTEL_fn>(
+      cast<pi_context>(CLContext), &FuncPtr);
+
+  if (FuncPtr) {
+    RetVal = cast<pi_result>(FuncPtr(
+        cast<cl_command_queue>(queue), cast<cl_program>(program), pipe_symbol,
+        blocking, ptr, size, num_events_in_waitlist,
+        cast<const cl_event *>(events_waitlist), cast<cl_event *>(event)));
+  }
+
+  return RetVal;
+}
+
 /// API to set attributes controlling kernel execution
 ///
 /// \param kernel is the pi kernel to execute
@@ -2213,6 +2274,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          piextEnqueueDeviceGlobalVariableWrite)
   _PI_CL(piextEnqueueDeviceGlobalVariableRead,
          piextEnqueueDeviceGlobalVariableRead)
+  // Host Pipe
+  _PI_CL(piextEnqueueReadHostPipe, piextEnqueueReadHostPipe)
+  _PI_CL(piextEnqueueWriteHostPipe, piextEnqueueWriteHostPipe)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)

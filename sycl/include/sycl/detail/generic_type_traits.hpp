@@ -59,12 +59,10 @@ using is_vgenfloat = is_contained<T, gtl::vector_floating_list>;
 template <typename T>
 using is_svgenfloat = is_contained<T, gtl::scalar_vector_floating_list>;
 
-template <typename T> using marray_element_type = typename T::value_type;
-
 template <typename T>
 using is_mgenfloat = bool_constant<
-    std::is_same<T, sycl::marray<marray_element_type<T>, T::size()>>::value &&
-    is_svgenfloat<marray_element_type<T>>::value>;
+    std::is_same<T, sycl::marray<marray_element_t<T>, T::size()>>::value &&
+    is_svgenfloat<marray_element_t<T>>::value>;
 
 template <typename T>
 using is_gengeofloat = is_contained<T, gtl::geo_float_list>;
