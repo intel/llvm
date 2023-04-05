@@ -477,7 +477,6 @@ def Tosa_AddOp : Tosa_Op<"add", [
     Tosa_Tensor:$output
   );
 
-  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 
@@ -796,7 +795,6 @@ def Tosa_MulOp : Tosa_Op<"mul", [
     Tosa_Tensor:$output
   );
 
-  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 
@@ -1746,11 +1744,11 @@ def Tosa_CastOp: Tosa_Op<"cast", [Pure,
   }];
 
   let arguments = (ins
-    Tosa_Tensor_Cast:$input
+    Tosa_Tensor_Plus_F64:$input
   );
 
   let results = (outs
-    Tosa_Tensor_Cast:$output
+    Tosa_Tensor_Plus_F64:$output
   );
 
   let hasFolder = 1;
@@ -1821,7 +1819,7 @@ def Tosa_ConstOp : Tosa_Op<"const", [ConstantLike, Pure,
   );
 
   let results = (outs
-    Tosa_Tensor:$output
+    Tosa_Tensor_Plus_F64:$output
   );
   let hasFolder = 1;
 }
