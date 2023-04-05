@@ -70,17 +70,16 @@ struct joint_matrix;
 
 namespace detail {
 // Differentiating between the "element type" and the "storage element type"
-template <typename T> struct helper_traits {
+template <typename T> struct jm_type_interpretation_helper_trait {
   using element_type = T;
   using storage_element_type = T;
-  using fill_argument_type = T;
 };
 
 template <>
-struct helper_traits<sycl::ext::oneapi::experimental::matrix::precision::tf32> {
+struct jm_type_interpretation_helper_trait<
+    sycl::ext::oneapi::experimental::matrix::precision::tf32> {
   using element_type = sycl::ext::oneapi::experimental::matrix::precision::tf32;
   using storage_element_type = float;
-  using fill_argument_type = float;
 };
 } // namespace detail
 } // namespace oneapi
@@ -102,7 +101,8 @@ class wi_element {
 
 public:
   using storage_element_type =
-      typename oneapi::detail::helper_traits<T>::storage_element_type;
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T>::storage_element_type;
   wi_element(sycl::ext::oneapi::experimental::matrix::joint_matrix<
                  Group, T, Use, NumRows, NumCols, Layout> &Mat,
              std::size_t i)

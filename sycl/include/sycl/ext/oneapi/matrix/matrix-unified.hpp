@@ -139,7 +139,8 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
   }
 #else // NVPTX
   using storage_element_type =
-      typename oneapi::detail::helper_traits<T>::storage_element_type;
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T>::storage_element_type;
   auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, jm);
   for (int i = 0; i < wi_data_c.length(); i++) {
     storage_element_type element = wi_data_c[i];
@@ -169,7 +170,8 @@ joint_matrix_fill(Group sg,
   res.cuda_impl.wi_marray = v;
 #else
   using storage_element_type =
-      typename oneapi::detail::helper_traits<T>::storage_element_type;
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T>::storage_element_type;
   res.spvm =
       __spirv_CompositeConstruct<storage_element_type, T, NumRows, NumCols,
                                  spv_matrix_use_traits<Use>::value,
