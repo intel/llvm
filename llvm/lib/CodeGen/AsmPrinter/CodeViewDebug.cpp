@@ -569,7 +569,6 @@ static SourceLanguage MapDWLangToCVLang(unsigned DWLang) {
   case dwarf::DW_LANG_C89:
   case dwarf::DW_LANG_C99:
   case dwarf::DW_LANG_C11:
-  case dwarf::DW_LANG_ObjC:
     return SourceLanguage::C;
   case dwarf::DW_LANG_C_plus_plus:
   case dwarf::DW_LANG_C_plus_plus_03:
@@ -595,6 +594,10 @@ static SourceLanguage MapDWLangToCVLang(unsigned DWLang) {
     return SourceLanguage::Swift;
   case dwarf::DW_LANG_Rust:
     return SourceLanguage::Rust;
+  case dwarf::DW_LANG_ObjC:
+    return SourceLanguage::ObjC;
+  case dwarf::DW_LANG_ObjC_plus_plus:
+    return SourceLanguage::ObjCpp;
   default:
     // There's no CodeView representation for this language, and CV doesn't
     // have an "unknown" option for the language field, so we'll use MASM,
@@ -1793,12 +1796,14 @@ TypeIndex CodeViewDebug::lowerTypeBasic(const DIBasicType *Ty) {
     }
     break;
   case dwarf::DW_ATE_complex_float:
+    // The CodeView size for a complex represents the size of
+    // an individual component.
     switch (ByteSize) {
-    case 2:  STK = SimpleTypeKind::Complex16;  break;
-    case 4:  STK = SimpleTypeKind::Complex32;  break;
-    case 8:  STK = SimpleTypeKind::Complex64;  break;
-    case 10: STK = SimpleTypeKind::Complex80;  break;
-    case 16: STK = SimpleTypeKind::Complex128; break;
+    case 4:  STK = SimpleTypeKind::Complex16;  break;
+    case 8:  STK = SimpleTypeKind::Complex32;  break;
+    case 16: STK = SimpleTypeKind::Complex64;  break;
+    case 20: STK = SimpleTypeKind::Complex80;  break;
+    case 32: STK = SimpleTypeKind::Complex128; break;
     }
     break;
   case dwarf::DW_ATE_float:
@@ -3403,7 +3408,7 @@ void CodeViewDebug::emitDebugInfoForGlobal(const CVGlobalVariable &CVGV) {
     OS.AddComment("DataOffset");
 
     uint64_t Offset = 0;
-    if (CVGlobalVariableOffsets.find(DIGV) != CVGlobalVariableOffsets.end())
+    if (CVGlobalVariableOffsets.contains(DIGV))
       // Use the offset seen while collecting info on globals.
       Offset = CVGlobalVariableOffsets[DIGV];
     OS.emitCOFFSecRel32(GVSym, Offset);

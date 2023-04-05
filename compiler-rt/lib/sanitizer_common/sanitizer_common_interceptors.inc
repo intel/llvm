@@ -5763,8 +5763,10 @@ INTERCEPTOR(int, capget, void *hdrp, void *datap) {
   // its metadata. See
   // https://github.com/google/sanitizers/issues/321.
   int res = REAL(capget)(hdrp, datap);
-  if (res == 0 && datap)
-    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, datap, __user_cap_data_struct_sz);
+  if (res == 0 && datap) {
+    unsigned datasz = __user_cap_data_struct_sz(hdrp);
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, datap, datasz);
+  }
   // We can also return -1 and write to hdrp->version if the version passed in
   // hdrp->version is unsupported. But that's not a trivial condition to check,
   // and anyway COMMON_INTERCEPTOR_READ_RANGE protects us to some extent.
@@ -5775,8 +5777,10 @@ INTERCEPTOR(int, capset, void *hdrp, const void *datap) {
   COMMON_INTERCEPTOR_ENTER(ctx, capset, hdrp, datap);
   if (hdrp)
     COMMON_INTERCEPTOR_READ_RANGE(ctx, hdrp, __user_cap_header_struct_sz);
-  if (datap)
-    COMMON_INTERCEPTOR_READ_RANGE(ctx, datap, __user_cap_data_struct_sz);
+  if (datap) {
+    unsigned datasz = __user_cap_data_struct_sz(hdrp);
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, datap, datasz);
+  }
   return REAL(capset)(hdrp, datap);
 }
 #define INIT_CAPGET                  \
@@ -10371,6 +10375,25 @@ INTERCEPTOR(void, hexdump, const void *ptr, int length, const char *header, int 
 #define INIT_HEXDUMP
 #endif
 
+#if SANITIZER_INTERCEPT_ARGP_PARSE
+INTERCEPTOR(int, argp_parse, const struct argp *argp, int argc, char **argv,
+            unsigned flags, int *arg_index, void *input) {
+  void *ctx;
+  COMMON_INTERCEPTOR_ENTER(ctx, argp_parse, argp, argc, argv, flags, arg_index,
+                           input);
+  for (int i = 0; i < argc; i++)
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, argv[i], internal_strlen(argv[i]) + 1);
+  int res = REAL(argp_parse)(argp, argc, argv, flags, arg_index, input);
+  if (!res && arg_index)
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, arg_index, sizeof(int));
+  return res;
+}
+
+#define INIT_ARGP_PARSE COMMON_INTERCEPT_FUNCTION(argp_parse);
+#else
+#define INIT_ARGP_PARSE
+#endif
+
 #include "sanitizer_common_interceptors_netbsd_compat.inc"
 
 static void InitializeCommonInterceptors() {
@@ -10690,6 +10713,7 @@ static void InitializeCommonInterceptors() {
   INIT_UNAME;
   INIT___XUNAME;
   INIT_HEXDUMP;
+  INIT_ARGP_PARSE;
 
   INIT___PRINTF_CHK;
 }

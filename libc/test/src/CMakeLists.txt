@@ -35,6 +35,7 @@ add_subdirectory(string)
 add_subdirectory(stdlib)
 add_subdirectory(inttypes)
 add_subdirectory(stdio)
+add_subdirectory(wchar)
 
 if(${LIBC_TARGET_OS} STREQUAL "linux")
   add_subdirectory(fcntl)
@@ -97,6 +98,8 @@ add_custom_command(
 )
 
 add_custom_target(libc-api-test)
+add_dependencies(check-libc libc-api-test)
+
 set(
   allocator_entrypoints 
     libc.src.stdlib.malloc
@@ -113,8 +116,6 @@ add_integration_test(
     libc-api-test
   SRCS
     ${public_test}
-  STARTUP
-    libc.startup.linux.crt1
   DEPENDS
     ${api-test-entrypoints}
 )
@@ -123,7 +124,7 @@ if(COMPILER_RESOURCE_DIR AND LLVM_LIBC_ENABLE_LINTING)
   add_custom_target(
     libc-api-test-tidy
     VERBATIM
-    COMMAND $<TARGET_FILE:clang-tidy> --system-headers
+    COMMAND ${LLVM_LIBC_CLANG_TIDY} --system-headers
       --checks=-*,llvmlibc-restrict-system-libc-headers
       "--extra-arg=-resource-dir=${COMPILER_RESOURCE_DIR}"
       --header-filter=.*

@@ -24,6 +24,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/Vector/Transforms/VectorRewritePatterns.h"
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -75,9 +76,6 @@ static void getXferIndices(RewriterBase &rewriter, TransferOpType xferOp,
 // Return true if the contract op can be convert to MMA matmul.
 static bool contractSupportsMMAMatrixType(vector::ContractionOp contract,
                                           bool useNvGpu) {
-  if (!contract.getMasks().empty())
-    return false;
-
   using MapList = ArrayRef<ArrayRef<AffineExpr>>;
   auto infer = [](MapList m) { return AffineMap::inferFromExprList(m); };
   AffineExpr m, n, k;
@@ -1173,9 +1171,8 @@ void mlir::populatePrepareVectorToMMAPatterns(RewritePatternSet &patterns,
         patterns.getContext());
     return;
   }
-  patterns
-      .add<nvgpu::PrepareContractToGPUMMASync, CombineTransferReadOpTranspose>(
-          patterns.getContext());
+  vector::populateVectorContractCanonicalizeMatmulToMMT(patterns);
+  patterns.add<CombineTransferReadOpTranspose>(patterns.getContext());
 }
 
 LogicalResult mlir::convertVectorToMMAOps(RewriterBase &rewriter,

@@ -834,6 +834,9 @@ public:
   /// Always print operations in the generic form.
   OpPrintingFlags &printGenericOpForm();
 
+  /// Skip printing regions.
+  OpPrintingFlags &skipRegions();
+
   /// Do not verify the operation when using custom operation printers.
   OpPrintingFlags &assumeVerified();
 
@@ -861,6 +864,9 @@ public:
   /// Return if operations should be printed in the generic form.
   bool shouldPrintGenericOpForm() const;
 
+  /// Return if regions should be skipped.
+  bool shouldSkipRegions() const;
+
   /// Return if operation verification should be skipped.
   bool shouldAssumeVerified() const;
 
@@ -881,6 +887,9 @@ private:
 
   /// Print operations in the generic form.
   bool printGenericOpFormFlag : 1;
+
+  /// Always skip Regions.
+  bool skipRegionsFlag : 1;
 
   /// Skip operation verification.
   bool assumeVerifiedFlag : 1;
@@ -948,6 +957,18 @@ struct OperationEquivalence {
 
   /// Compare two operations and return if they are equivalent.
   static bool isEquivalentTo(Operation *lhs, Operation *rhs, Flags flags);
+
+  /// Compare two regions (including their subregions) and return if they are
+  /// equivalent. See also `isEquivalentTo` for details.
+  static bool isRegionEquivalentTo(
+      Region *lhs, Region *rhs,
+      function_ref<LogicalResult(Value, Value)> checkEquivalent,
+      function_ref<void(Value, Value)> markEquivalent,
+      OperationEquivalence::Flags flags);
+
+  /// Compare two regions and return if they are equivalent.
+  static bool isRegionEquivalentTo(Region *lhs, Region *rhs,
+                                   OperationEquivalence::Flags flags);
 
   /// Helper that can be used with `isEquivalentTo` above to consider ops
   /// equivalent even if their operands are not equivalent.

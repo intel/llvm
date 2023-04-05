@@ -98,6 +98,13 @@ KnownBits computeKnownBits(const Value *V, const APInt &DemandedElts,
 /// \p KnownOne the set of bits that are known to be one
 void computeKnownBitsFromRangeMetadata(const MDNode &Ranges, KnownBits &Known);
 
+/// Using KnownBits LHS/RHS produce the known bits for logic op (and/xor/or).
+KnownBits analyzeKnownBitsFromAndXorOr(
+    const Operator *I, const KnownBits &KnownLHS, const KnownBits &KnownRHS,
+    unsigned Depth, const DataLayout &DL, AssumptionCache *AC = nullptr,
+    const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
+
 /// Return true if LHS and RHS have no common bits set.
 bool haveNoCommonBitsSet(const Value *LHS, const Value *RHS,
                          const DataLayout &DL, AssumptionCache *AC = nullptr,
@@ -209,6 +216,106 @@ unsigned ComputeMaxSignificantBits(const Value *Op, const DataLayout &DL,
 /// intrinsics are treated as-if they were intrinsics.
 Intrinsic::ID getIntrinsicForCallSite(const CallBase &CB,
                                       const TargetLibraryInfo *TLI);
+
+/// Returns a pair of values, which if passed to llvm.is.fpclass, returns the
+/// same result as an fcmp with the given operands.
+///
+/// If \p LookThroughSrc is true, consider the input value when computing the
+/// mask.
+///
+/// If \p LookThroughSrc is false, ignore the source value (i.e. the first pair
+/// element will always be LHS.
+std::pair<Value *, FPClassTest> fcmpToClassTest(CmpInst::Predicate Pred,
+                                                const Function &F, Value *LHS,
+                                                Value *RHS,
+                                                bool LookThroughSrc = true);
+
+struct KnownFPClass {
+  /// Floating-point classes the value could be one of.
+  FPClassTest KnownFPClasses = fcAllFlags;
+
+  /// std::nullopt if the sign bit is unknown, true if the sign bit is
+  /// definitely set or false if the sign bit is definitely unset.
+  std::optional<bool> SignBit;
+
+  KnownFPClass &operator|=(const KnownFPClass &RHS) {
+    KnownFPClasses = KnownFPClasses | RHS.KnownFPClasses;
+
+    if (SignBit != RHS.SignBit)
+      SignBit = std::nullopt;
+    return *this;
+  }
+
+  void knownNot(FPClassTest RuleOut) {
+    KnownFPClasses = KnownFPClasses & ~RuleOut;
+  }
+
+  void fneg() {
+    KnownFPClasses = llvm::fneg(KnownFPClasses);
+    if (SignBit)
+      SignBit = !*SignBit;
+  }
+
+  void fabs() {
+    KnownFPClasses = llvm::fabs(KnownFPClasses);
+    SignBit = false;
+  }
+
+  /// Assume the sign bit is zero.
+  void signBitIsZero() {
+    KnownFPClasses = (KnownFPClasses & fcPositive) |
+                     (KnownFPClasses & fcNan);
+    SignBit = false;
+  }
+
+  void copysign(const KnownFPClass &Sign) {
+    // Start assuming nothing about the sign.
+    SignBit = Sign.SignBit;
+    if (!SignBit)
+      return;
+
+    if (*SignBit)
+      KnownFPClasses = KnownFPClasses & fcNegative;
+    else
+      KnownFPClasses = KnownFPClasses & fcPositive;
+  }
+
+  void resetAll() { *this = KnownFPClass(); }
+};
+
+inline KnownFPClass operator|(KnownFPClass LHS, const KnownFPClass &RHS) {
+  LHS |= RHS;
+  return LHS;
+}
+
+inline KnownFPClass operator|(const KnownFPClass &LHS, KnownFPClass &&RHS) {
+  RHS |= LHS;
+  return std::move(RHS);
+}
+
+/// Determine which floating-point classes are valid for \p V, and return them
+/// in KnownFPClass bit sets.
+///
+/// This function is defined on values with floating-point type, values vectors
+/// of floating-point type, and arrays of floating-point type.
+
+/// \p InterestedClasses is a compile time optimization hint for which floating
+/// point classes should be queried. Queries not specified in \p
+/// InterestedClasses should be reliable if they are determined during the
+/// query.
+KnownFPClass computeKnownFPClass(
+    const Value *V, const APInt &DemandedElts, const DataLayout &DL,
+    FPClassTest InterestedClasses = fcAllFlags, unsigned Depth = 0,
+    const TargetLibraryInfo *TLI = nullptr, AssumptionCache *AC = nullptr,
+    const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
+
+KnownFPClass computeKnownFPClass(
+    const Value *V, const DataLayout &DL,
+    FPClassTest InterestedClasses = fcAllFlags, unsigned Depth = 0,
+    const TargetLibraryInfo *TLI = nullptr, AssumptionCache *AC = nullptr,
+    const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
+    OptimizationRemarkEmitter *ORE = nullptr, bool UseInstrInfo = true);
 
 /// Return true if we can prove that the specified FP value is never equal to
 /// -0.0.
@@ -554,6 +661,10 @@ OverflowResult computeOverflowForSignedSub(const Value *LHS, const Value *RHS,
 bool isOverflowIntrinsicNoWrap(const WithOverflowInst *WO,
                                const DominatorTree &DT);
 
+/// Determine the possible constant range of vscale with the given bit width,
+/// based on the vscale_range function attribute.
+ConstantRange getVScaleRange(const Function *F, unsigned BitWidth);
+
 /// Determine the possible constant range of an integer or vector of integer
 /// value. This is intended as a cheap, non-recursive check.
 ConstantRange computeConstantRange(const Value *V, bool ForSigned,
@@ -685,6 +796,17 @@ bool isGuaranteedNotToBePoison(const Value *V, AssumptionCache *AC = nullptr,
                                const Instruction *CtxI = nullptr,
                                const DominatorTree *DT = nullptr,
                                unsigned Depth = 0);
+
+/// Return true if undefined behavior would provable be executed on the path to
+/// OnPathTo if Root produced a posion result.  Note that this doesn't say
+/// anything about whether OnPathTo is actually executed or whether Root is
+/// actually poison.  This can be used to assess whether a new use of Root can
+/// be added at a location which is control equivalent with OnPathTo (such as
+/// immediately before it) without introducing UB which didn't previously
+/// exist.  Note that a false result conveys no information.
+bool mustExecuteUBIfPoisonOnPathTo(Instruction *Root,
+                                   Instruction *OnPathTo,
+                                   DominatorTree *DT);
 
 /// Specific patterns of select instructions we can match.
 enum SelectPatternFlavor {

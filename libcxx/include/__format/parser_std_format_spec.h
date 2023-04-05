@@ -30,10 +30,11 @@
 #include <__format/unicode.h>
 #include <__iterator/concepts.h>
 #include <__iterator/readable_traits.h> // iter_value_t
+#include <__type_traits/common_type.h>
+#include <__type_traits/is_trivially_copyable.h>
 #include <__variant/monostate.h>
 #include <cstdint>
 #include <string_view>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -118,7 +119,7 @@ struct __fields {
   // formatters use the colon to mark the beginning of the
   // underlying-format-spec. To avoid parsing ambiguities these formatter
   // specializations prohibit the use of the colon as a fill character.
-  uint8_t __allow_colon_in_fill_ : 1 {false};
+  uint8_t __use_range_fill_ : 1 {false};
 };
 
 // By not placing this constant in the formatter class it's not duplicated for
@@ -140,8 +141,8 @@ inline constexpr __fields __fields_string{.__precision_ = true, .__type_ = true}
 inline constexpr __fields __fields_pointer{.__type_ = true};
 
 #  if _LIBCPP_STD_VER >= 23
-inline constexpr __fields __fields_tuple{.__type_ = false, .__allow_colon_in_fill_ = true};
-inline constexpr __fields __fields_range{.__type_ = false, .__allow_colon_in_fill_ = true};
+inline constexpr __fields __fields_tuple{.__use_range_fill_ = true};
+inline constexpr __fields __fields_range{.__use_range_fill_ = true};
 #  endif
 
 enum class _LIBCPP_ENUM_VIS __alignment : uint8_t {
@@ -276,7 +277,7 @@ public:
     if (__begin == __end)
       return __begin;
 
-    if (__parse_fill_align(__begin, __end, __fields.__allow_colon_in_fill_) && __begin == __end)
+    if (__parse_fill_align(__begin, __end, __fields.__use_range_fill_) && __begin == __end)
       return __begin;
 
     if (__fields.__sign_ && __parse_sign(__begin) && __begin == __end)

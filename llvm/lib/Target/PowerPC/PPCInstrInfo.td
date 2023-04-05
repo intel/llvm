@@ -337,7 +337,7 @@ def PPCbctrl_load_toc_rm : SDNode<"PPCISD::BCTRL_LOAD_TOC_RM",
                                   [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
                                    SDNPVariadic]>;
 
-def retflag       : SDNode<"PPCISD::RET_FLAG", SDTNone,
+def retglue       : SDNode<"PPCISD::RET_GLUE", SDTNone,
                            [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
 def PPCtc_return : SDNode<"PPCISD::TC_RETURN", SDT_PPCTC_ret,
@@ -1202,7 +1202,7 @@ def RESTORE_CRBIT : PPCEmitTimePseudo<(outs crbitrc:$cond), (ins memri:$F),
 let isTerminator = 1, isBarrier = 1, PPC970_Unit = 7, hasSideEffects = 0 in {
   let isPredicable = 1, isReturn = 1, Uses = [LR, RM] in
     def BLR : XLForm_2_ext<19, 16, 20, 0, 0, (outs), (ins), "blr", IIC_BrB,
-                           [(retflag)]>, Requires<[In32BitMode]>;
+                           [(retglue)]>, Requires<[In32BitMode]>;
   let isBranch = 1, isIndirectBranch = 1, Uses = [CTR] in {
     let isPredicable = 1 in
       def BCTR : XLForm_2_ext<19, 528, 20, 0, 0, (outs), (ins), "bctr", IIC_BrB,
@@ -1821,6 +1821,14 @@ def TD : XForm_1<31, 68, (outs), (ins u5imm:$RST, g8rc:$RA, g8rc:$RB, variable_o
 def POPCNTB : XForm_11<31, 122, (outs gprc:$RA), (ins gprc:$RST),
                        "popcntb $RA, $RST", IIC_IntGeneral,
                        [(set i32:$RA, (int_ppc_popcntb i32:$RST))]>;
+
+def CDTBCD : XForm_11<31, 282, (outs gprc:$RA), (ins gprc:$RST),
+                      "cdtbcd $RA, $RST", IIC_IntGeneral, []>;
+def CBCDTD : XForm_11<31, 314, (outs gprc:$RA), (ins gprc:$RST),
+                      "cbcdtd $RA, $RST", IIC_IntGeneral, []>;
+
+def ADDG6S : XOForm_1<31, 74, 0, (outs gprc:$RT), (ins gprc:$RA, gprc:$RB),
+                      "addg6s $RT, $RA, $RB", IIC_IntGeneral, []>;
 
 //===----------------------------------------------------------------------===//
 // PPC32 Load Instructions.

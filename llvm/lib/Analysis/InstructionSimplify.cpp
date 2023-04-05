@@ -539,12 +539,16 @@ static Value *threadBinOpOverPHI(Instruction::BinaryOps Opcode, Value *LHS,
 
   // Evaluate the BinOp on the incoming phi values.
   Value *CommonValue = nullptr;
-  for (Value *Incoming : PI->incoming_values()) {
+  for (Use &Incoming : PI->incoming_values()) {
     // If the incoming value is the phi node itself, it can safely be skipped.
     if (Incoming == PI)
       continue;
-    Value *V = PI == LHS ? simplifyBinOp(Opcode, Incoming, RHS, Q, MaxRecurse)
-                         : simplifyBinOp(Opcode, LHS, Incoming, Q, MaxRecurse);
+    Instruction *InTI = PI->getIncomingBlock(Incoming)->getTerminator();
+    Value *V = PI == LHS
+                   ? simplifyBinOp(Opcode, Incoming, RHS,
+                                   Q.getWithInstruction(InTI), MaxRecurse)
+                   : simplifyBinOp(Opcode, LHS, Incoming,
+                                   Q.getWithInstruction(InTI), MaxRecurse);
     // If the operation failed to simplify, or simplified to a different value
     // to previously, then give up.
     if (!V || (CommonValue && V != CommonValue))
@@ -1163,9 +1167,9 @@ static Value *simplifyDiv(Instruction::BinaryOps Opcode, Value *Op0, Value *Op1,
   // at least as many trailing zeros as the divisor to divide evenly. If it has
   // less trailing zeros, then the result must be poison.
   const APInt *DivC;
-  if (IsExact && match(Op1, m_APInt(DivC)) && DivC->countTrailingZeros()) {
+  if (IsExact && match(Op1, m_APInt(DivC)) && DivC->countr_zero()) {
     KnownBits KnownOp0 = computeKnownBits(Op0, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
-    if (KnownOp0.countMaxTrailingZeros() < DivC->countTrailingZeros())
+    if (KnownOp0.countMaxTrailingZeros() < DivC->countr_zero())
       return PoisonValue::get(Op0->getType());
   }
 
@@ -1407,8 +1411,8 @@ static Value *simplifyShift(Instruction::BinaryOps Opcode, Value *Op0,
   return nullptr;
 }
 
-/// Given operands for an Shl, LShr or AShr, see if we can
-/// fold the result.  If not, this returns null.
+/// Given operands for an LShr or AShr, see if we can fold the result.  If not,
+/// this returns null.
 static Value *simplifyRightShift(Instruction::BinaryOps Opcode, Value *Op0,
                                  Value *Op1, bool IsExact,
                                  const SimplifyQuery &Q, unsigned MaxRecurse) {
@@ -1445,10 +1449,11 @@ static Value *simplifyShlInst(Value *Op0, Value *Op1, bool IsNSW, bool IsNUW,
           simplifyShift(Instruction::Shl, Op0, Op1, IsNSW, Q, MaxRecurse))
     return V;
 
+  Type *Ty = Op0->getType();
   // undef << X -> 0
   // undef << X -> undef if (if it's NSW/NUW)
   if (Q.isUndefValue(Op0))
-    return IsNSW || IsNUW ? Op0 : Constant::getNullValue(Op0->getType());
+    return IsNSW || IsNUW ? Op0 : Constant::getNullValue(Ty);
 
   // (X >> A) << A -> X
   Value *X;
@@ -1461,6 +1466,13 @@ static Value *simplifyShlInst(Value *Op0, Value *Op1, bool IsNSW, bool IsNUW,
     return Op0;
   // NOTE: could use computeKnownBits() / LazyValueInfo,
   // but the cost-benefit analysis suggests it isn't worth it.
+
+  // "nuw" guarantees that only zeros are shifted out, and "nsw" guarantees
+  // that the sign-bit does not change, so the only input that does not
+  // produce poison is 0, and "0 << (bitwidth-1) --> 0".
+  if (IsNSW && IsNUW &&
+      match(Op1, m_SpecificInt(Ty->getScalarSizeInBits() - 1)))
+    return Constant::getNullValue(Ty);
 
   return nullptr;
 }
@@ -2850,11 +2862,35 @@ static Constant *computePointerICmp(CmpInst::Predicate Pred, Value *LHS,
     else if (isAllocLikeFn(RHS, TLI) &&
              llvm::isKnownNonZero(LHS, DL, 0, nullptr, CxtI, DT))
       MI = RHS;
-    // FIXME: We should also fold the compare when the pointer escapes, but the
-    // compare dominates the pointer escape
-    if (MI && !PointerMayBeCaptured(MI, true, true))
-      return ConstantInt::get(getCompareTy(LHS),
-                              CmpInst::isFalseWhenEqual(Pred));
+    if (MI) {
+      // FIXME: This is incorrect, see PR54002. While we can assume that the
+      // allocation is at an address that makes the comparison false, this
+      // requires that *all* comparisons to that address be false, which
+      // InstSimplify cannot guarantee.
+      struct CustomCaptureTracker : public CaptureTracker {
+        bool Captured = false;
+        void tooManyUses() override { Captured = true; }
+        bool captured(const Use *U) override {
+          if (auto *ICmp = dyn_cast<ICmpInst>(U->getUser())) {
+            // Comparison against value stored in global variable. Given the
+            // pointer does not escape, its value cannot be guessed and stored
+            // separately in a global variable.
+            unsigned OtherIdx = 1 - U->getOperandNo();
+            auto *LI = dyn_cast<LoadInst>(ICmp->getOperand(OtherIdx));
+            if (LI && isa<GlobalVariable>(LI->getPointerOperand()))
+              return false;
+          }
+
+          Captured = true;
+          return true;
+        }
+      };
+      CustomCaptureTracker Tracker;
+      PointerMayBeCaptured(MI, &Tracker);
+      if (!Tracker.Captured)
+        return ConstantInt::get(getCompareTy(LHS),
+                                CmpInst::isFalseWhenEqual(Pred));
+    }
   }
 
   // Otherwise, fail.
@@ -3394,8 +3430,26 @@ static Value *simplifyICmpWithBinOp(CmpInst::Predicate Pred, Value *LHS,
       return ConstantInt::getTrue(getCompareTy(RHS));
   }
 
-  if (MaxRecurse && LBO && RBO && LBO->getOpcode() == RBO->getOpcode() &&
-      LBO->getOperand(1) == RBO->getOperand(1)) {
+  if (!MaxRecurse || !LBO || !RBO || LBO->getOpcode() != RBO->getOpcode())
+    return nullptr;
+
+  if (LBO->getOperand(0) == RBO->getOperand(0)) {
+    switch (LBO->getOpcode()) {
+    default:
+      break;
+    case Instruction::Shl:
+      bool NUW = Q.IIQ.hasNoUnsignedWrap(LBO) && Q.IIQ.hasNoUnsignedWrap(RBO);
+      bool NSW = Q.IIQ.hasNoSignedWrap(LBO) && Q.IIQ.hasNoSignedWrap(RBO);
+      if (!NUW || (ICmpInst::isSigned(Pred) && !NSW) ||
+          !isKnownNonZero(LBO->getOperand(0), Q.DL))
+        break;
+      if (Value *V = simplifyICmpInst(Pred, LBO->getOperand(1),
+                                      RBO->getOperand(1), Q, MaxRecurse - 1))
+        return V;
+    }
+  }
+
+  if (LBO->getOperand(1) == RBO->getOperand(1)) {
     switch (LBO->getOpcode()) {
     default:
       break;
@@ -3913,6 +3967,10 @@ static Value *simplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
   if (Value *V = simplifyICmpWithDominatingAssume(Pred, LHS, RHS, Q))
     return V;
 
+  if (std::optional<bool> Res =
+          isImpliedByDomCondition(Pred, LHS, RHS, Q.CxtI, Q.DL))
+    return ConstantInt::getBool(ITy, *Res);
+
   // Simplify comparisons of related pointers using a powerful, recursive
   // GEP-walk when we have target data available..
   if (LHS->getType()->isPointerTy())
@@ -4211,6 +4269,17 @@ static Value *simplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
       if ((Opcode == Instruction::And || Opcode == Instruction::Or) &&
           NewOps[0] == NewOps[1])
         return NewOps[0];
+
+      // If we are substituting an absorber constant into a binop and extra
+      // poison can't leak if we remove the select -- because both operands of
+      // the binop are based on the same value -- then it may be safe to replace
+      // the value with the absorber constant. Examples:
+      // (Op == 0) ? 0 : (Op & -Op)            --> Op & -Op
+      // (Op == 0) ? 0 : (Op * (binop Op, C))  --> Op * (binop Op, C)
+      // (Op == -1) ? -1 : (Op | (binop C, Op) --> Op | (binop C, Op)
+      if (RepOp == ConstantExpr::getBinOpAbsorber(Opcode, I->getType()) &&
+          impliesPoison(BO, Op))
+        return RepOp;
     }
 
     if (auto *GEP = dyn_cast<GetElementPtrInst>(I)) {
@@ -4862,6 +4931,10 @@ static Value *simplifyGEPInst(Type *SrcTy, Value *Ptr,
   if (!isa<Constant>(Ptr) ||
       !all_of(Indices, [](Value *V) { return isa<Constant>(V); }))
     return nullptr;
+
+  if (!ConstantExpr::isSupportedGetElementPtr(SrcTy))
+    return ConstantFoldGetElementPtr(SrcTy, cast<Constant>(Ptr), InBounds,
+                                     std::nullopt, Indices);
 
   auto *CE = ConstantExpr::getGetElementPtr(SrcTy, cast<Constant>(Ptr), Indices,
                                             InBounds);
@@ -6134,13 +6207,6 @@ static Value *simplifyBinaryIntrinsic(Function *F, Value *Op0, Value *Op1,
     if (isICmpTrue(Pred, Op1, Op0, Q.getWithoutUndef(), RecursionLimit))
       return Op1;
 
-    if (std::optional<bool> Imp =
-            isImpliedByDomCondition(Pred, Op0, Op1, Q.CxtI, Q.DL))
-      return *Imp ? Op0 : Op1;
-    if (std::optional<bool> Imp =
-            isImpliedByDomCondition(Pred, Op1, Op0, Q.CxtI, Q.DL))
-      return *Imp ? Op1 : Op0;
-
     break;
   }
   case Intrinsic::usub_with_overflow:
@@ -6325,10 +6391,13 @@ static Value *simplifyBinaryIntrinsic(Function *F, Value *Op0, Value *Op1,
   return nullptr;
 }
 
-static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
-
-  unsigned NumOperands = Call->arg_size();
-  Function *F = cast<Function>(Call->getCalledFunction());
+static Value *simplifyIntrinsic(CallBase *Call, Value *Callee,
+                                ArrayRef<Value *> Args,
+                                const SimplifyQuery &Q) {
+  // Operand bundles should not be in Args.
+  assert(Call->arg_size() == Args.size());
+  unsigned NumOperands = Args.size();
+  Function *F = cast<Function>(Callee);
   Intrinsic::ID IID = F->getIntrinsicID();
 
   // Most of the intrinsics with no operands have some kind of side effect.
@@ -6354,18 +6423,17 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
   }
 
   if (NumOperands == 1)
-    return simplifyUnaryIntrinsic(F, Call->getArgOperand(0), Q);
+    return simplifyUnaryIntrinsic(F, Args[0], Q);
 
   if (NumOperands == 2)
-    return simplifyBinaryIntrinsic(F, Call->getArgOperand(0),
-                                   Call->getArgOperand(1), Q);
+    return simplifyBinaryIntrinsic(F, Args[0], Args[1], Q);
 
   // Handle intrinsics with 3 or more arguments.
   switch (IID) {
   case Intrinsic::masked_load:
   case Intrinsic::masked_gather: {
-    Value *MaskArg = Call->getArgOperand(2);
-    Value *PassthruArg = Call->getArgOperand(3);
+    Value *MaskArg = Args[2];
+    Value *PassthruArg = Args[3];
     // If the mask is all zeros or undef, the "passthru" argument is the result.
     if (maskIsAllZeroOrUndef(MaskArg))
       return PassthruArg;
@@ -6373,8 +6441,7 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
   }
   case Intrinsic::fshl:
   case Intrinsic::fshr: {
-    Value *Op0 = Call->getArgOperand(0), *Op1 = Call->getArgOperand(1),
-          *ShAmtArg = Call->getArgOperand(2);
+    Value *Op0 = Args[0], *Op1 = Args[1], *ShAmtArg = Args[2];
 
     // If both operands are undef, the result is undef.
     if (Q.isUndefValue(Op0) && Q.isUndefValue(Op1))
@@ -6382,14 +6449,14 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
 
     // If shift amount is undef, assume it is zero.
     if (Q.isUndefValue(ShAmtArg))
-      return Call->getArgOperand(IID == Intrinsic::fshl ? 0 : 1);
+      return Args[IID == Intrinsic::fshl ? 0 : 1];
 
     const APInt *ShAmtC;
     if (match(ShAmtArg, m_APInt(ShAmtC))) {
       // If there's effectively no shift, return the 1st arg or 2nd arg.
       APInt BitWidth = APInt(ShAmtC->getBitWidth(), ShAmtC->getBitWidth());
       if (ShAmtC->urem(BitWidth).isZero())
-        return Call->getArgOperand(IID == Intrinsic::fshl ? 0 : 1);
+        return Args[IID == Intrinsic::fshl ? 0 : 1];
     }
 
     // Rotating zero by anything is zero.
@@ -6403,31 +6470,24 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
     return nullptr;
   }
   case Intrinsic::experimental_constrained_fma: {
-    Value *Op0 = Call->getArgOperand(0);
-    Value *Op1 = Call->getArgOperand(1);
-    Value *Op2 = Call->getArgOperand(2);
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    if (Value *V =
-            simplifyFPOp({Op0, Op1, Op2}, {}, Q, *FPI->getExceptionBehavior(),
-                         *FPI->getRoundingMode()))
+    if (Value *V = simplifyFPOp(Args, {}, Q, *FPI->getExceptionBehavior(),
+                                *FPI->getRoundingMode()))
       return V;
     return nullptr;
   }
   case Intrinsic::fma:
   case Intrinsic::fmuladd: {
-    Value *Op0 = Call->getArgOperand(0);
-    Value *Op1 = Call->getArgOperand(1);
-    Value *Op2 = Call->getArgOperand(2);
-    if (Value *V = simplifyFPOp({Op0, Op1, Op2}, {}, Q, fp::ebIgnore,
+    if (Value *V = simplifyFPOp(Args, {}, Q, fp::ebIgnore,
                                 RoundingMode::NearestTiesToEven))
       return V;
     return nullptr;
   }
   case Intrinsic::smul_fix:
   case Intrinsic::smul_fix_sat: {
-    Value *Op0 = Call->getArgOperand(0);
-    Value *Op1 = Call->getArgOperand(1);
-    Value *Op2 = Call->getArgOperand(2);
+    Value *Op0 = Args[0];
+    Value *Op1 = Args[1];
+    Value *Op2 = Args[2];
     Type *ReturnType = F->getReturnType();
 
     // Canonicalize constant operand as Op1 (ConstantFolding handles the case
@@ -6454,9 +6514,9 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
     return nullptr;
   }
   case Intrinsic::vector_insert: {
-    Value *Vec = Call->getArgOperand(0);
-    Value *SubVec = Call->getArgOperand(1);
-    Value *Idx = Call->getArgOperand(2);
+    Value *Vec = Args[0];
+    Value *SubVec = Args[1];
+    Value *Idx = Args[2];
     Type *ReturnType = F->getReturnType();
 
     // (insert_vector Y, (extract_vector X, 0), 0) -> X
@@ -6473,51 +6533,52 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
   }
   case Intrinsic::experimental_constrained_fadd: {
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    return simplifyFAddInst(
-        FPI->getArgOperand(0), FPI->getArgOperand(1), FPI->getFastMathFlags(),
-        Q, *FPI->getExceptionBehavior(), *FPI->getRoundingMode());
+    return simplifyFAddInst(Args[0], Args[1], FPI->getFastMathFlags(), Q,
+                            *FPI->getExceptionBehavior(),
+                            *FPI->getRoundingMode());
   }
   case Intrinsic::experimental_constrained_fsub: {
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    return simplifyFSubInst(
-        FPI->getArgOperand(0), FPI->getArgOperand(1), FPI->getFastMathFlags(),
-        Q, *FPI->getExceptionBehavior(), *FPI->getRoundingMode());
+    return simplifyFSubInst(Args[0], Args[1], FPI->getFastMathFlags(), Q,
+                            *FPI->getExceptionBehavior(),
+                            *FPI->getRoundingMode());
   }
   case Intrinsic::experimental_constrained_fmul: {
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    return simplifyFMulInst(
-        FPI->getArgOperand(0), FPI->getArgOperand(1), FPI->getFastMathFlags(),
-        Q, *FPI->getExceptionBehavior(), *FPI->getRoundingMode());
+    return simplifyFMulInst(Args[0], Args[1], FPI->getFastMathFlags(), Q,
+                            *FPI->getExceptionBehavior(),
+                            *FPI->getRoundingMode());
   }
   case Intrinsic::experimental_constrained_fdiv: {
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    return simplifyFDivInst(
-        FPI->getArgOperand(0), FPI->getArgOperand(1), FPI->getFastMathFlags(),
-        Q, *FPI->getExceptionBehavior(), *FPI->getRoundingMode());
+    return simplifyFDivInst(Args[0], Args[1], FPI->getFastMathFlags(), Q,
+                            *FPI->getExceptionBehavior(),
+                            *FPI->getRoundingMode());
   }
   case Intrinsic::experimental_constrained_frem: {
     auto *FPI = cast<ConstrainedFPIntrinsic>(Call);
-    return simplifyFRemInst(
-        FPI->getArgOperand(0), FPI->getArgOperand(1), FPI->getFastMathFlags(),
-        Q, *FPI->getExceptionBehavior(), *FPI->getRoundingMode());
+    return simplifyFRemInst(Args[0], Args[1], FPI->getFastMathFlags(), Q,
+                            *FPI->getExceptionBehavior(),
+                            *FPI->getRoundingMode());
   }
   default:
     return nullptr;
   }
 }
 
-static Value *tryConstantFoldCall(CallBase *Call, const SimplifyQuery &Q) {
-  auto *F = dyn_cast<Function>(Call->getCalledOperand());
+static Value *tryConstantFoldCall(CallBase *Call, Value *Callee,
+                                  ArrayRef<Value *> Args,
+                                  const SimplifyQuery &Q) {
+  auto *F = dyn_cast<Function>(Callee);
   if (!F || !canConstantFoldCallTo(Call, F))
     return nullptr;
 
   SmallVector<Constant *, 4> ConstantArgs;
-  unsigned NumArgs = Call->arg_size();
-  ConstantArgs.reserve(NumArgs);
-  for (auto &Arg : Call->args()) {
-    Constant *C = dyn_cast<Constant>(&Arg);
+  ConstantArgs.reserve(Args.size());
+  for (Value *Arg : Args) {
+    Constant *C = dyn_cast<Constant>(Arg);
     if (!C) {
-      if (isa<MetadataAsValue>(Arg.get()))
+      if (isa<MetadataAsValue>(Arg))
         continue;
       return nullptr;
     }
@@ -6527,7 +6588,11 @@ static Value *tryConstantFoldCall(CallBase *Call, const SimplifyQuery &Q) {
   return ConstantFoldCall(Call, F, ConstantArgs, Q.TLI);
 }
 
-Value *llvm::simplifyCall(CallBase *Call, const SimplifyQuery &Q) {
+Value *llvm::simplifyCall(CallBase *Call, Value *Callee, ArrayRef<Value *> Args,
+                          const SimplifyQuery &Q) {
+  // Args should not contain operand bundle operands.
+  assert(Call->arg_size() == Args.size());
+
   // musttail calls can only be simplified if they are also DCEd.
   // As we can't guarantee this here, don't simplify them.
   if (Call->isMustTailCall())
@@ -6535,16 +6600,15 @@ Value *llvm::simplifyCall(CallBase *Call, const SimplifyQuery &Q) {
 
   // call undef -> poison
   // call null -> poison
-  Value *Callee = Call->getCalledOperand();
   if (isa<UndefValue>(Callee) || isa<ConstantPointerNull>(Callee))
     return PoisonValue::get(Call->getType());
 
-  if (Value *V = tryConstantFoldCall(Call, Q))
+  if (Value *V = tryConstantFoldCall(Call, Callee, Args, Q))
     return V;
 
   auto *F = dyn_cast<Function>(Callee);
   if (F && F->isIntrinsic())
-    if (Value *Ret = simplifyIntrinsic(Call, Q))
+    if (Value *Ret = simplifyIntrinsic(Call, Callee, Args, Q))
       return Ret;
 
   return nullptr;
@@ -6552,9 +6616,10 @@ Value *llvm::simplifyCall(CallBase *Call, const SimplifyQuery &Q) {
 
 Value *llvm::simplifyConstrainedFPCall(CallBase *Call, const SimplifyQuery &Q) {
   assert(isa<ConstrainedFPIntrinsic>(Call));
-  if (Value *V = tryConstantFoldCall(Call, Q))
+  SmallVector<Value *, 4> Args(Call->args());
+  if (Value *V = tryConstantFoldCall(Call, Call->getCalledOperand(), Args, Q))
     return V;
-  if (Value *Ret = simplifyIntrinsic(Call, Q))
+  if (Value *Ret = simplifyIntrinsic(Call, Call->getCalledOperand(), Args, Q))
     return Ret;
   return nullptr;
 }
@@ -6572,8 +6637,8 @@ Value *llvm::simplifyFreezeInst(Value *Op0, const SimplifyQuery &Q) {
   return ::simplifyFreezeInst(Op0, Q);
 }
 
-static Value *simplifyLoadInst(LoadInst *LI, Value *PtrOp,
-                               const SimplifyQuery &Q) {
+Value *llvm::simplifyLoadInst(LoadInst *LI, Value *PtrOp,
+                              const SimplifyQuery &Q) {
   if (LI->isVolatile())
     return nullptr;
 
@@ -6585,6 +6650,12 @@ static Value *simplifyLoadInst(LoadInst *LI, Value *PtrOp,
   auto *GV = dyn_cast<GlobalVariable>(getUnderlyingObject(PtrOp));
   if (!GV || !GV->isConstant() || !GV->hasDefinitiveInitializer())
     return nullptr;
+
+  // If GlobalVariable's initializer is uniform, then return the constant
+  // regardless of its offset.
+  if (Constant *C =
+          ConstantFoldLoadFromUniformValue(GV->getInitializer(), LI->getType()))
+    return C;
 
   // Try to convert operand into a constant by stripping offsets while looking
   // through invariant.group intrinsics.
@@ -6703,8 +6774,9 @@ static Value *simplifyInstructionWithOperands(Instruction *I,
   case Instruction::PHI:
     return simplifyPHINode(cast<PHINode>(I), NewOps, Q);
   case Instruction::Call:
-    // TODO: Use NewOps
-    return simplifyCall(cast<CallInst>(I), Q);
+    return simplifyCall(
+        cast<CallInst>(I), NewOps.back(),
+        NewOps.drop_back(1 + cast<CallInst>(I)->getNumTotalBundleOperands()), Q);
   case Instruction::Freeze:
     return llvm::simplifyFreezeInst(NewOps[0], Q);
 #define HANDLE_CAST_INST(num, opc, clas) case Instruction::opc:

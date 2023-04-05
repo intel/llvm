@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx{{11.0|12.0}}
+// XFAIL: availability-pmr-missing
 
 // <memory_resource>
 
@@ -30,7 +29,7 @@ void test_geometric_progression() {
   std::pmr::memory_resource& r1 = mono1;
 
   assert(globalMemCounter.checkNewCalledEq(0));
-  size_t next_buffer_size = 100;
+  std::size_t next_buffer_size = 100;
   void* ret               = r1.allocate(10, 1);
   assert(ret != nullptr);
   assert(globalMemCounter.checkNewCalledEq(1));

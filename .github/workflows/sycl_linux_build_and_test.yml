@@ -82,7 +82,7 @@ jobs:
     - uses: ./actions/cached_checkout
       with:
         path: src
-        ref: ${{ inputs.build_ref || github.ref }}
+        ref: ${{ inputs.build_ref || github.sha }}
         cache_path: "/__w/repo_cache/"
     - name: Configure
       env:
@@ -182,7 +182,7 @@ jobs:
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
 
-  llvm_test_suite:
+  e2e-tests:
     needs: [build, aws-start]
     # Continue if build was successful. If aws-start is not successful all
     # AWS tasks will fail, but all non-AWS tasks should continue.
@@ -220,15 +220,14 @@ jobs:
       with:
         persist-credentials: false
         path: llvm
+        ref: ${{ inputs.build_ref || github.sha }}
     # TODO should this action be packed into container as well?
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
+    - uses: ./llvm/devops/actions/e2e-tests
+      name: Run SYCL End-to-End tests
       with:
-        test_ref: ${{ inputs.lts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: llvm_sycl.tar.xz
-        check_sycl_all: ${{ matrix.check_sycl_all }}
-        results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
+        targets: ${{ matrix.targets }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
 
   khronos_sycl_cts:
@@ -279,7 +278,7 @@ jobs:
 
   aws-stop:
     name: Stop AWS
-    needs: [ aws-start, llvm_test_suite ]
+    needs: [ aws-start, e2e-tests ]
     # Always attempt to shutdown AWS instance, even if AWS start was not
     # successful.
     if: ${{ always() && inputs.lts_aws_matrix != '[]' }}

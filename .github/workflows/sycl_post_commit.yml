@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # This job generates matrix of tests for LLVM Test Suite
+  # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:
     name: Generate Test Matrix
     if: github.repository == 'intel/llvm'

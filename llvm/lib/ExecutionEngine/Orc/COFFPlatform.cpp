@@ -55,8 +55,7 @@ public:
   void materialize(std::unique_ptr<MaterializationResponsibility> R) override {
     unsigned PointerSize;
     support::endianness Endianness;
-    const auto &TT =
-        CP.getExecutionSession().getExecutorProcessControl().getTargetTriple();
+    const auto &TT = CP.getExecutionSession().getTargetTriple();
 
     switch (TT.getArch()) {
     case Triple::x86_64:
@@ -166,13 +165,14 @@ COFFPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
                      LoadDynamicLibrary LoadDynLibrary, bool StaticVCRuntime,
                      const char *VCRuntimePath,
                      std::optional<SymbolAliasMap> RuntimeAliases) {
-  auto &EPC = ES.getExecutorProcessControl();
 
   // If the target is not supported then bail out immediately.
-  if (!supportedTarget(EPC.getTargetTriple()))
+  if (!supportedTarget(ES.getTargetTriple()))
     return make_error<StringError>("Unsupported COFFPlatform triple: " +
-                                       EPC.getTargetTriple().str(),
+                                       ES.getTargetTriple().str(),
                                    inconvertibleErrorCode());
+
+  auto &EPC = ES.getExecutorProcessControl();
 
   // Create default aliases if the caller didn't supply any.
   if (!RuntimeAliases)
@@ -185,13 +185,13 @@ COFFPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
   auto &HostFuncJD = ES.createBareJITDylib("$<PlatformRuntimeHostFuncJD>");
 
   // Add JIT-dispatch function support symbols.
-  if (auto Err = HostFuncJD.define(absoluteSymbols(
-          {{ES.intern("__orc_rt_jit_dispatch"),
-            {EPC.getJITDispatchInfo().JITDispatchFunction.getValue(),
-             JITSymbolFlags::Exported}},
-           {ES.intern("__orc_rt_jit_dispatch_ctx"),
-            {EPC.getJITDispatchInfo().JITDispatchContext.getValue(),
-             JITSymbolFlags::Exported}}})))
+  if (auto Err = HostFuncJD.define(
+          absoluteSymbols({{ES.intern("__orc_rt_jit_dispatch"),
+                            {EPC.getJITDispatchInfo().JITDispatchFunction,
+                             JITSymbolFlags::Exported}},
+                           {ES.intern("__orc_rt_jit_dispatch_ctx"),
+                            {EPC.getJITDispatchInfo().JITDispatchContext,
+                             JITSymbolFlags::Exported}}})))
     return std::move(Err);
 
   PlatformJD.addToLinkOrder(HostFuncJD);
@@ -352,11 +352,11 @@ bool COFFPlatform::supportedTarget(const Triple &TT) {
 COFFPlatform::COFFPlatform(ExecutionSession &ES,
                            ObjectLinkingLayer &ObjLinkingLayer,
                            JITDylib &PlatformJD, const char *OrcRuntimePath,
-                           LoadDynamicLibrary LoadDynLibrary,
+                           LoadDynamicLibrary LoadDynamicLibrary,
                            bool StaticVCRuntime, const char *VCRuntimePath,
                            Error &Err)
     : ES(ES), ObjLinkingLayer(ObjLinkingLayer),
-      LoadDynLibrary(std::move(LoadDynLibrary)),
+      LoadDynLibrary(std::move(LoadDynamicLibrary)),
       StaticVCRuntime(StaticVCRuntime),
       COFFHeaderStartSymbol(ES.intern("__ImageBase")) {
   ErrorAsOutParameter _(&Err);
@@ -562,10 +562,9 @@ void COFFPlatform::rt_pushInitializers(PushInitializersSendResultFn SendResult,
   });
 
   if (!JD) {
-    SendResult(
-        make_error<StringError>("No JITDylib with header addr " +
-                                    formatv("{0:x}", JDHeaderAddr.getValue()),
-                                inconvertibleErrorCode()));
+    SendResult(make_error<StringError>("No JITDylib with header addr " +
+                                           formatv("{0:x}", JDHeaderAddr),
+                                       inconvertibleErrorCode()));
     return;
   }
 
@@ -580,10 +579,7 @@ void COFFPlatform::rt_pushInitializers(PushInitializersSendResultFn SendResult,
 
 void COFFPlatform::rt_lookupSymbol(SendSymbolAddressFn SendResult,
                                    ExecutorAddr Handle, StringRef SymbolName) {
-  LLVM_DEBUG({
-    dbgs() << "COFFPlatform::rt_lookupSymbol(\""
-           << formatv("{0:x}", Handle.getValue()) << "\")\n";
-  });
+  LLVM_DEBUG(dbgs() << "COFFPlatform::rt_lookupSymbol(\"" << Handle << "\")\n");
 
   JITDylib *JD = nullptr;
 
@@ -595,12 +591,9 @@ void COFFPlatform::rt_lookupSymbol(SendSymbolAddressFn SendResult,
   }
 
   if (!JD) {
-    LLVM_DEBUG({
-      dbgs() << "  No JITDylib for handle "
-             << formatv("{0:x}", Handle.getValue()) << "\n";
-    });
+    LLVM_DEBUG(dbgs() << "  No JITDylib for handle " << Handle << "\n");
     SendResult(make_error<StringError>("No JITDylib associated with handle " +
-                                           formatv("{0:x}", Handle.getValue()),
+                                           formatv("{0:x}", Handle),
                                        inconvertibleErrorCode()));
     return;
   }
@@ -613,7 +606,7 @@ void COFFPlatform::rt_lookupSymbol(SendSymbolAddressFn SendResult,
     void operator()(Expected<SymbolMap> Result) {
       if (Result) {
         assert(Result->size() == 1 && "Unexpected result map count");
-        SendResult(ExecutorAddr(Result->begin()->second.getAddress()));
+        SendResult(Result->begin()->second.getAddress());
       } else {
         SendResult(Result.takeError());
       }
@@ -892,8 +885,7 @@ Error COFFPlatform::COFFPlatformPlugin::
           continue;
         for (auto &E : B->edges())
           BState.Initializers.push_back(std::make_pair(
-              S.getName().str(),
-              ExecutorAddr(E.getTarget().getAddress() + E.getAddend())));
+              S.getName().str(), E.getTarget().getAddress() + E.getAddend()));
       }
 
   return Error::success();

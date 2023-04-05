@@ -437,6 +437,8 @@ def warn_reserved_extern_symbol: Warning<
   "it starts with '_' followed by a capital letter|"
   "it contains '__'}1">,
   InGroup<ReservedIdentifier>, DefaultIgnore;
+def warn_reserved_module_name : Warning<
+  "%0 is a reserved name for a module">, InGroup<ReservedModuleIdentifier>;
 
 def warn_parameter_size: Warning<
   "%0 is a large (%1 bytes) pass-by-value argument; "
@@ -2684,7 +2686,7 @@ def warn_cxx14_compat_constexpr_not_const : Warning<
   "in C++14; add 'const' to avoid a change in behavior">,
   InGroup<DiagGroup<"constexpr-not-const">>;
 def err_invalid_consteval_take_address : Error<
-  "cannot take address of consteval function %0 outside"
+  "cannot take address of consteval %select{function|call operator of}1 %0 outside"
   " of an immediate invocation">;
 def err_invalid_consteval_call : Error<
   "call to consteval function %q0 is not a constant expression">;
@@ -3207,8 +3209,8 @@ def err_attribute_zero_size : Error<"zero %0 size">;
 def err_attribute_size_too_large : Error<"%0 size too large">;
 def err_typecheck_sve_ambiguous : Error<
   "cannot combine fixed-length and sizeless SVE vectors in expression, result is ambiguous (%0 and %1)">;
-def err_typecheck_sve_gnu_ambiguous : Error<
-  "cannot combine GNU and SVE vectors in expression, result is ambiguous (%0 and %1)">;
+def err_typecheck_sve_rvv_gnu_ambiguous : Error<
+  "cannot combine GNU and %select{SVE|RVV}0 vectors in expression, result is ambiguous (%1 and %2)">;
 def err_typecheck_vector_not_convertable_implict_truncation : Error<
    "cannot convert between %select{scalar|vector}0 type %1 and vector type"
    " %2 as implicit conversion would cause truncation">;
@@ -7449,6 +7451,8 @@ def err_attribute_arm_builtin_alias : Error<
   "'__clang_arm_builtin_alias' attribute can only be applied to an ARM builtin">;
 def err_attribute_arm_mve_polymorphism : Error<
   "'__clang_arm_mve_strict_polymorphism' attribute can only be applied to an MVE/NEON vector type">;
+def err_attribute_webassembly_funcref : Error<
+  "'__funcref' attribute can only be applied to a function pointer type">;
 
 def warn_setter_getter_impl_required : Warning<
   "property %0 requires method %1 to be defined - "
@@ -8698,6 +8702,10 @@ def note_cuda_device_builtin_surftex_should_be_template_class : Note<
 def err_hip_invalid_args_builtin_mangled_name : Error<
     "invalid argument: symbol must be a device-side function or global variable">;
 
+def warn_hip_omp_target_directives : Warning<
+  "HIP does not support OpenMP target directives; directive has been ignored">,
+  InGroup<HIPOpenMPOffloading>, DefaultError;
+
 def warn_non_pod_vararg_with_format_string : Warning<
   "cannot pass %select{non-POD|non-trivial}0 object of type %1 to variadic "
   "%select{function|block|method|constructor}2; expected type from format "
@@ -9206,8 +9214,9 @@ def err_operator_overload_static : Error<
 def err_operator_overload_default_arg : Error<
   "parameter of overloaded %0 cannot have a default argument">;
 
-def ext_subscript_overload : ExtWarn<
-  "overloaded %0 with %select{no|a defaulted|more than one}1 parameter is a C++2b extension">, InGroup<CXXPre2bCompat>, DefaultIgnore;
+def ext_subscript_overload : Warning<
+  "overloaded %0 with %select{no|a defaulted|more than one}1 parameter is a "
+  "C++2b extension">, InGroup<CXXPre2bCompat>, DefaultIgnore;
 def error_subscript_overload : Error<
   "overloaded %0 cannot have %select{no|a defaulted|more than one}1 parameter before C++2b">;
 
@@ -11321,8 +11330,7 @@ def err_private_module_fragment_not_module_interface : Error<
   "private module fragment in module implementation unit">;
 def note_not_module_interface_add_export : Note<
   "add 'export' here if this is intended to be a module interface unit">;
-def err_invalid_module_name : Error<
-  "%0 is %select{an invalid|a reserved}1 name for a module">;
+def err_invalid_module_name : Error<"%0 is an invalid name for a module">;
 def err_extern_def_in_header_unit : Error<
   "non-inline external definitions are not permitted in C++ header units">;
 
@@ -11358,15 +11366,7 @@ def err_coroutine_invalid_func_context : Error<
   "|a consteval function}0">;
 def err_implied_coroutine_type_not_found : Error<
   "%0 type was not found; include <coroutine> before defining "
-  "a coroutine; include <experimental/coroutine> if your version "
-  "of libcxx is less than 14.0">;
-def warn_deprecated_coroutine_namespace : Warning<
-  "support for 'std::experimental::%0' will be removed in Clang 17; "
-  "use 'std::%0' instead">,
-  InGroup<DeprecatedExperimentalCoroutine>;
-def err_mixed_use_std_and_experimental_namespace_for_coroutine : Error<
-  "conflicting mixed use of std and std::experimental namespaces for "
-  "coroutine components">;
+  "a coroutine">;
 def err_implicit_coroutine_std_nothrow_type_not_found : Error<
   "std::nothrow was not found; include <new> before defining a coroutine which "
   "uses get_return_object_on_allocation_failure()">;
@@ -12048,4 +12048,6 @@ def err_wasm_reference_pr : Error<
   "%select{pointer|reference}0 to WebAssembly reference type is not allowed">;
 def err_wasm_ca_reference : Error<
   "cannot %select{capture|take address of}0 WebAssembly reference">;
+def err_wasm_funcref_not_wasm : Error<
+  "invalid use of '__funcref' keyword outside the WebAssembly triple">;
 } // end of sema component.

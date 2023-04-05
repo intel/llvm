@@ -15,6 +15,7 @@
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
 #include "sycl/detail/pi.h"
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
@@ -40,22 +41,12 @@ namespace sycl {
 const static specialization_id<int> SpecConst1{42};
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-struct MockKernelInfo {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
-};
-
-template <> struct KernelInfo<CacheTestKernel> : public MockKernelInfo {
+template <>
+struct KernelInfo<CacheTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "CacheTestKernel"; }
 };
-template <> struct KernelInfo<CacheTestKernel2> : public MockKernelInfo {
+template <>
+struct KernelInfo<CacheTestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "CacheTestKernel2"; }
 };
 template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {

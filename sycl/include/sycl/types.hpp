@@ -916,7 +916,7 @@ public:
   __SYCL2020_DEPRECATED(
       "get_size() is deprecated, please use byte_size() instead")
   static constexpr size_t get_size() { return byte_size(); }
-  static constexpr size_t byte_size() { return sizeof(m_Data); }
+  static constexpr size_t byte_size() noexcept { return sizeof(m_Data); }
 
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>

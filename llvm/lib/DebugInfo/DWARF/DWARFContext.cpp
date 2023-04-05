@@ -48,6 +48,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -779,7 +780,7 @@ bool DWARFContext::verify(raw_ostream &OS, DIDumpOptions DumpOpts) {
   return Success;
 }
 
-void fixupIndex(const DWARFObject &DObj, DWARFContext &C,
+void fixupIndexV4(const DWARFObject &DObj, DWARFContext &C,
                 DWARFUnitIndex &Index) {
   using EntryType = DWARFUnitIndex::Entry::SectionContribution;
   using EntryMap = DenseMap<uint32_t, EntryType>;
@@ -847,14 +848,62 @@ void fixupIndex(const DWARFObject &DObj, DWARFContext &C,
   return;
 }
 
+void fixupIndexV5(const DWARFObject &DObj, DWARFContext &C,
+                  DWARFUnitIndex &Index) {
+  DenseMap<uint64_t, uint64_t> Map;
+
+  DObj.forEachInfoDWOSections([&](const DWARFSection &S) {
+    if (!(C.getParseCUTUIndexManually() ||
+          S.Data.size() >= std::numeric_limits<uint32_t>::max()))
+      return;
+    DWARFDataExtractor Data(DObj, S, C.isLittleEndian(), 0);
+    uint64_t Offset = 0;
+    while (Data.isValidOffset(Offset)) {
+      DWARFUnitHeader Header;
+      if (!Header.extract(C, Data, &Offset, DWARFSectionKind::DW_SECT_INFO)) {
+        logAllUnhandledErrors(
+            createError("Failed to parse unit header in DWP file"), errs());
+        break;
+      }
+      bool CU = Header.getUnitType() == DW_UT_split_compile;
+      uint64_t Sig = CU ? *Header.getDWOId() : Header.getTypeHash();
+      Map[Sig] = Header.getOffset();
+      Offset = Header.getNextUnitOffset();
+    }
+  });
+  for (DWARFUnitIndex::Entry &E : Index.getMutableRows()) {
+    if (!E.isValid())
+      continue;
+    DWARFUnitIndex::Entry::SectionContribution &CUOff = E.getContribution();
+    auto Iter = Map.find(E.getSignature());
+    if (Iter == Map.end()) {
+      logAllUnhandledErrors(
+          createError("Could not find unit with signature 0x" +
+                      Twine::utohexstr(E.getSignature()) + " in the Map"),
+          errs());
+      break;
+    }
+    CUOff.setOffset(Iter->second);
+  }
+}
+
+void fixupIndex(const DWARFObject &DObj, DWARFContext &C,
+                DWARFUnitIndex &Index) {
+  if (Index.getVersion() < 5)
+    fixupIndexV4(DObj, C, Index);
+  else
+    fixupIndexV5(DObj, C, Index);
+}
+
 const DWARFUnitIndex &DWARFContext::getCUIndex() {
   if (CUIndex)
     return *CUIndex;
 
   DataExtractor CUIndexData(DObj->getCUIndexSection(), isLittleEndian(), 0);
   CUIndex = std::make_unique<DWARFUnitIndex>(DW_SECT_INFO);
-  CUIndex->parse(CUIndexData);
-  fixupIndex(*DObj, *this, *CUIndex.get());
+  bool IsParseSuccessful = CUIndex->parse(CUIndexData);
+  if (IsParseSuccessful)
+    fixupIndex(*DObj, *this, *CUIndex);
   return *CUIndex;
 }
 
@@ -868,7 +917,7 @@ const DWARFUnitIndex &DWARFContext::getTUIndex() {
   // If we are parsing TU-index and for .debug_types section we don't need
   // to do anything.
   if (isParseSuccessful && TUIndex->getVersion() != 2)
-    fixupIndex(*DObj, *this, *TUIndex.get());
+    fixupIndex(*DObj, *this, *TUIndex);
   return *TUIndex;
 }
 
@@ -1118,14 +1167,17 @@ DWARFCompileUnit *DWARFContext::getCompileUnitForOffset(uint64_t Offset) {
       NormalUnits.getUnitForOffset(Offset));
 }
 
-DWARFCompileUnit *DWARFContext::getCompileUnitForAddress(uint64_t Address) {
-  // First, get the offset of the compile unit.
+DWARFCompileUnit *DWARFContext::getCompileUnitForCodeAddress(uint64_t Address) {
   uint64_t CUOffset = getDebugAranges()->findAddress(Address);
-  // Retrieve the compile unit.
+  return getCompileUnitForOffset(CUOffset);
+}
+
+DWARFCompileUnit *DWARFContext::getCompileUnitForDataAddress(uint64_t Address) {
+  uint64_t CUOffset = getDebugAranges()->findAddress(Address);
   if (DWARFCompileUnit *OffsetCU = getCompileUnitForOffset(CUOffset))
     return OffsetCU;
 
-  // Global variables are often not found by the above search, for one of two
+  // Global variables are often missed by the above search, for one of two
   // reasons:
   //   1. .debug_aranges may not include global variables. On clang, it seems we
   //      put the globals in the aranges, but this isn't true for gcc.
@@ -1146,7 +1198,7 @@ DWARFCompileUnit *DWARFContext::getCompileUnitForAddress(uint64_t Address) {
 DWARFContext::DIEsForAddress DWARFContext::getDIEsForAddress(uint64_t Address) {
   DIEsForAddress Result;
 
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address);
+  DWARFCompileUnit *CU = getCompileUnitForCodeAddress(Address);
   if (!CU)
     return Result;
 
@@ -1297,7 +1349,7 @@ void DWARFContext::addLocalsForDie(DWARFCompileUnit *CU, DWARFDie Subprogram,
 std::vector<DILocal>
 DWARFContext::getLocalsForAddress(object::SectionedAddress Address) {
   std::vector<DILocal> Result;
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address.Address);
+  DWARFCompileUnit *CU = getCompileUnitForCodeAddress(Address.Address);
   if (!CU)
     return Result;
 
@@ -1310,7 +1362,7 @@ DWARFContext::getLocalsForAddress(object::SectionedAddress Address) {
 DILineInfo DWARFContext::getLineInfoForAddress(object::SectionedAddress Address,
                                                DILineInfoSpecifier Spec) {
   DILineInfo Result;
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address.Address);
+  DWARFCompileUnit *CU = getCompileUnitForCodeAddress(Address.Address);
   if (!CU)
     return Result;
 
@@ -1331,7 +1383,7 @@ DILineInfo DWARFContext::getLineInfoForAddress(object::SectionedAddress Address,
 DILineInfo
 DWARFContext::getLineInfoForDataAddress(object::SectionedAddress Address) {
   DILineInfo Result;
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address.Address);
+  DWARFCompileUnit *CU = getCompileUnitForDataAddress(Address.Address);
   if (!CU)
     return Result;
 
@@ -1346,7 +1398,7 @@ DWARFContext::getLineInfoForDataAddress(object::SectionedAddress Address) {
 DILineInfoTable DWARFContext::getLineInfoForAddressRange(
     object::SectionedAddress Address, uint64_t Size, DILineInfoSpecifier Spec) {
   DILineInfoTable Lines;
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address.Address);
+  DWARFCompileUnit *CU = getCompileUnitForCodeAddress(Address.Address);
   if (!CU)
     return Lines;
 
@@ -1402,7 +1454,7 @@ DWARFContext::getInliningInfoForAddress(object::SectionedAddress Address,
                                         DILineInfoSpecifier Spec) {
   DIInliningInfo InliningInfo;
 
-  DWARFCompileUnit *CU = getCompileUnitForAddress(Address.Address);
+  DWARFCompileUnit *CU = getCompileUnitForCodeAddress(Address.Address);
   if (!CU)
     return InliningInfo;
 

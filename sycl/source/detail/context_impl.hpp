@@ -270,6 +270,21 @@ private:
   std::mutex MDeviceGlobalInitializersMutex;
 };
 
+template <typename T, typename Capabilities>
+void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
+                                    std::vector<T> &CapabilityList) {
+  for (const sycl::device &Device : Devices) {
+    std::vector<T> NewCapabilityList;
+    std::vector<T> DeviceCapabilities = Device.get_info<Capabilities>();
+    std::set_intersection(
+        CapabilityList.begin(), CapabilityList.end(),
+        DeviceCapabilities.begin(), DeviceCapabilities.end(),
+        std::inserter(NewCapabilityList, NewCapabilityList.begin()));
+    CapabilityList = NewCapabilityList;
+  }
+  CapabilityList.shrink_to_fit();
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -26,8 +26,6 @@
 #include <__functional/operations.h>
 #include <__functional/ranges_operations.h>
 #include <__iterator/iterator_traits.h>
-#include <__memory/destruct_n.h>
-#include <__memory/unique_ptr.h>
 #include <__type_traits/conditional.h>
 #include <__type_traits/disjunction.h>
 #include <__type_traits/is_arithmetic.h>
@@ -85,50 +83,41 @@ _LIBCPP_CONSTEXPR_SINCE_CXX14 unsigned __sort3(_ForwardIterator __x, _ForwardIte
 
 template <class _AlgPolicy, class _Compare, class _ForwardIterator>
 _LIBCPP_HIDE_FROM_ABI
-unsigned __sort4(_ForwardIterator __x1, _ForwardIterator __x2, _ForwardIterator __x3, _ForwardIterator __x4,
+void __sort4(_ForwardIterator __x1, _ForwardIterator __x2, _ForwardIterator __x3, _ForwardIterator __x4,
                  _Compare __c) {
   using _Ops   = _IterOps<_AlgPolicy>;
-  unsigned __r = std::__sort3<_AlgPolicy, _Compare>(__x1, __x2, __x3, __c);
+  std::__sort3<_AlgPolicy, _Compare>(__x1, __x2, __x3, __c);
   if (__c(*__x4, *__x3)) {
     _Ops::iter_swap(__x3, __x4);
-    ++__r;
     if (__c(*__x3, *__x2)) {
       _Ops::iter_swap(__x2, __x3);
-      ++__r;
       if (__c(*__x2, *__x1)) {
         _Ops::iter_swap(__x1, __x2);
-        ++__r;
       }
     }
   }
-  return __r;
 }
 
 // stable, 4-10 compares, 0-9 swaps
 
 template <class _AlgPolicy, class _Comp, class _ForwardIterator>
-_LIBCPP_HIDE_FROM_ABI unsigned __sort5(_ForwardIterator __x1, _ForwardIterator __x2, _ForwardIterator __x3,
-                                       _ForwardIterator __x4, _ForwardIterator __x5, _Comp __comp) {
+_LIBCPP_HIDE_FROM_ABI void __sort5(_ForwardIterator __x1, _ForwardIterator __x2, _ForwardIterator __x3,
+                                   _ForwardIterator __x4, _ForwardIterator __x5, _Comp __comp) {
   using _Ops = _IterOps<_AlgPolicy>;
 
-  unsigned __r = std::__sort4<_AlgPolicy, _Comp>(__x1, __x2, __x3, __x4, __comp);
+  std::__sort4<_AlgPolicy, _Comp>(__x1, __x2, __x3, __x4, __comp);
   if (__comp(*__x5, *__x4)) {
     _Ops::iter_swap(__x4, __x5);
-    ++__r;
     if (__comp(*__x4, *__x3)) {
       _Ops::iter_swap(__x3, __x4);
-      ++__r;
       if (__comp(*__x3, *__x2)) {
         _Ops::iter_swap(__x2, __x3);
-        ++__r;
         if (__comp(*__x2, *__x1)) {
           _Ops::iter_swap(__x1, __x2);
-          ++__r;
         }
       }
     }
   }
-  return __r;
 }
 
 // The comparator being simple is a prerequisite for using the branchless optimization.
@@ -285,7 +274,7 @@ void __insertion_sort(_BidirectionalIterator __first, _BidirectionalIterator __l
 
 // Sort the iterator range [__first, __last) using the comparator __comp using
 // the insertion sort algorithm.  Insertion sort has two loops, outer and inner.
-// The implementation below has not bounds check (unguarded) for the inner loop.
+// The implementation below has no bounds check (unguarded) for the inner loop.
 // Assumes that there is an element in the position (__first - 1) and that each
 // element in the input range is greater or equal to the element at __first - 1.
 template <class _AlgPolicy, class _Compare, class _RandomAccessIterator>
@@ -359,37 +348,6 @@ _LIBCPP_HIDE_FROM_ABI bool __insertion_sort_incomplete(
     __j = __i;
   }
   return true;
-}
-
-template <class _AlgPolicy, class _Compare, class _BidirectionalIterator>
-_LIBCPP_HIDE_FROM_ABI
-void __insertion_sort_move(_BidirectionalIterator __first1, _BidirectionalIterator __last1,
-                           typename iterator_traits<_BidirectionalIterator>::value_type* __first2, _Compare __comp) {
-  using _Ops = _IterOps<_AlgPolicy>;
-
-  typedef typename iterator_traits<_BidirectionalIterator>::value_type value_type;
-  if (__first1 != __last1) {
-    __destruct_n __d(0);
-    unique_ptr<value_type, __destruct_n&> __h(__first2, __d);
-    value_type* __last2 = __first2;
-    ::new ((void*)__last2) value_type(_Ops::__iter_move(__first1));
-    __d.template __incr<value_type>();
-    for (++__last2; ++__first1 != __last1; ++__last2) {
-      value_type* __j2 = __last2;
-      value_type* __i2 = __j2;
-      if (__comp(*__first1, *--__i2)) {
-        ::new ((void*)__j2) value_type(std::move(*__i2));
-        __d.template __incr<value_type>();
-        for (--__j2; __i2 != __first2 && __comp(*__first1, *--__i2); --__j2)
-          *__j2 = std::move(*__i2);
-        *__j2 = _Ops::__iter_move(__first1);
-      } else {
-        ::new ((void*)__j2) value_type(_Ops::__iter_move(__first1));
-        __d.template __incr<value_type>();
-      }
-    }
-    __h.release();
-  }
 }
 
 template <class _AlgPolicy, class _RandomAccessIterator>

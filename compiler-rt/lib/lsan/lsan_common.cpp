@@ -270,13 +270,17 @@ static inline bool MaybeUserPointer(uptr p) {
   if (p < kMinAddress)
     return false;
 #  if defined(__x86_64__)
+  // TODO: add logic similar to ARM when Intel LAM is available.
   // Accept only canonical form user-space addresses.
   return ((p >> 47) == 0);
 #  elif defined(__mips64)
   return ((p >> 40) == 0);
 #  elif defined(__aarch64__)
+  // TBI (Top Byte Ignore) feature of AArch64: bits [63:56] are ignored in
+  // address translation and can be used to store a tag.
+  constexpr uptr kPointerMask = 255ULL << 48;
   // Accept up to 48 bit VMA.
-  return ((p >> 48) == 0);
+  return ((p & kPointerMask) == 0);
 #  elif defined(__loongarch_lp64)
   // Allow 47-bit user-space VMA at current.
   return ((p >> 47) == 0);
@@ -944,7 +948,7 @@ void LeakReport::PrintSummary() {
 
 uptr LeakReport::ApplySuppressions() {
   LeakSuppressionContext *suppressions = GetSuppressionContext();
-  uptr new_suppressions = false;
+  uptr new_suppressions = 0;
   for (uptr i = 0; i < leaks_.size(); i++) {
     if (suppressions->Suppress(leaks_[i].stack_trace_id, leaks_[i].hit_count,
                                leaks_[i].total_size)) {
