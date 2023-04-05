@@ -2560,13 +2560,8 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
 __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    const ur_queue_property_t *
-        pProps, ///< [in][optional] specifies a list of queue properties and their
-                ///< corresponding values.
-    ///< Each property name is immediately followed by the corresponding
-    ///< desired value.
-    ///< The list is terminated with a 0.
-    ///< If a property value is not specified, then its default value will be used.
+    const ur_queue_properties_t
+        *pProperties, ///< [in][optional] pointer to queue creation properties.
     ur_queue_handle_t
         *phQueue ///< [out] pointer to handle of queue object created
 ) {
@@ -2586,7 +2581,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
     // forward to device-platform
-    result = pfnCreate(hContext, hDevice, pProps, phQueue);
+    result = pfnCreate(hContext, hDevice, pProperties, phQueue);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;

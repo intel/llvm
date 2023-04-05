@@ -297,7 +297,7 @@ inline std::ostream &operator<<(std::ostream &out,
         CASE(UR_QUEUE_INFO_CONTEXT)
         CASE(UR_QUEUE_INFO_DEVICE)
         CASE(UR_QUEUE_INFO_DEVICE_DEFAULT)
-        CASE(UR_QUEUE_INFO_PROPERTIES)
+        CASE(UR_QUEUE_INFO_FLAGS)
         CASE(UR_QUEUE_INFO_REFERENCE_COUNT)
         CASE(UR_QUEUE_INFO_SIZE)
 

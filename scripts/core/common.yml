@@ -290,6 +290,10 @@ etors:
       desc: $x_device_binary_t
     - name: SAMPLER_DESC
       desc: $x_sampler_desc_t
+    - name: QUEUE_PROPERTIES
+      desc: $x_queue_properties_t
+    - name: QUEUE_INDEX_PROPERTIES
+      desc: $x_queue_properties_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"
