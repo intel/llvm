@@ -78,6 +78,7 @@
         stream << "0x" << std::hex << result_uint64;                           \
         std::string result_string = stream.str();                              \
         result_string = result_string.substr(result_string.size() - 5);        \
+        std::cout << result_string << " " << EXPECTED[i] << std::endl;         \
         assert(result_string.compare(EXPECTED[i]) == 0);                       \
       }                                                                        \
     }                                                                          \
