@@ -1080,7 +1080,6 @@ bool CopyEngineRequested(const ur_device_handle_t &Device) {
 // immediate commandlists.
 
 // Get value of immediate commandlists env var setting or -1 if unset.
-// Also return whether a default or explicit setting is being returned.
 _ur_device_handle_t::ImmCmdlistMode
 _ur_device_handle_t::useImmediateCommandLists() {
   // If immediate commandlist setting is not explicitly set, then use the device

@@ -6,6 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+// This file implements queue constructors for earlier releases and file
+// queue.cpp implements queue constructors for the current release. This enables
+// different default queue implementations for old and current user code, a
+// feature needed on some platforms. This temporary and will be removed in the
+// next release.
+
 #define __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>

@@ -22,8 +22,6 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-#ifndef __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
-
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList,
              Discriminator Disc) {
@@ -65,8 +63,6 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
     : queue(SyclContext, SyclDevice,
             detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList,
             Disc) {}
-
-#endif // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
 
 queue::queue(cl_command_queue clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {

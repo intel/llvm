@@ -88,8 +88,6 @@ static event submitAssertCapture(queue &, event &, queue *,
 /// \ingroup sycl_api
 class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
 public:
-#ifndef __SYCL_SUPPRESS_QUEUE_CONSTRUCTORS
-
 #ifdef __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
 
   /// Constructs a SYCL queue instance using the device returned by an instance
@@ -425,7 +423,6 @@ public:
         Discriminator Disc = {});
 
 #endif // __SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO_V3
-#endif // __SYCL_SUPPRESS_QUEUE_CONSTRUCTORS
 
   /// Constructs a SYCL queue with an optional async_handler from an OpenCL
   /// cl_command_queue.
