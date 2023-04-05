@@ -31,6 +31,7 @@
 // CHECK-DAG:  [[C8:%.*]] = arith.constant 8 : index
 // CHECK:      [[GUARD_COND:%.*]] = arith.cmpi slt, [[C0]], [[C8]] : index
 // CHECK-NEXT: scf.if [[GUARD_COND]] {
+// CHECK: [[ARG1_ACC:%.*]] = sycl.accessor.subscript %arg1[{{.*}}] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
 
 // COM: Obtain a pointer to the beginning of the accessor %arg1.
 // CHECK-DAG:  [[ID_ALLOCA:%.*]] = memref.alloca() : memref<1x[[ID:!sycl_id_1_]]>
@@ -69,7 +70,6 @@
 // CHECK-NEXT: scf.if [[COND]] {
 
 // COM: Load of %arg1 accessor can be hoisted.
-// CHECK: [[ARG1_ACC:%.*]] = sycl.accessor.subscript %arg1[{{.*}}] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
 // CHECK: %{{.*}} = affine.load [[ARG1_ACC]][0] : memref<?xi32, 4>
 // CHECK: scf.for
 // CHECK: } else {

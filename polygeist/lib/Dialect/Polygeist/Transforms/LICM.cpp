@@ -45,6 +45,10 @@ static llvm::cl::opt<bool> EnableSYCLAccessorVersioning(
     "enable-licm-sycl-accessor-versioning", llvm::cl::init(false),
     llvm::cl::desc("Enable loop versioning for SYCL accessors in LICM"));
 
+static llvm::cl::opt<bool> VersionLimit(
+    "licm-version-limit", llvm::cl::init(1),
+    llvm::cl::desc("Maximum number of versioning allowed in LICM"));
+
 namespace {
 
 struct LICM : public mlir::polygeist::impl::LICMBase<LICM> {
@@ -717,16 +721,66 @@ void AffineParallelGuardBuilder::getConstraints(
 /// This class represents an operation in a loop that is potentially invariant
 /// (if a condition is satisfied). The class tracks a list of operations (in the
 /// same loop) that need to be hoisted for this operation to be hoisted.
+using AccessorType = TypedValue<MemRefType>;
+using AccessorPairType = std::pair<AccessorType, AccessorType>;
+using AccessorPairsType = SmallVector<AccessorPairType>;
 class LICMCandidate {
 public:
   LICMCandidate(Operation &op) : op(op) {}
   Operation &getOperation() const { return op; }
+  const SmallVector<Operation *> &getPrerequisites() const {
+    return prerequisites;
+  }
   void addPrerequisite(Operation &op) { prerequisites.push_back(&op); }
+  const AccessorPairsType &getRequireNoOverlapAccessorPairs() const {
+    return requireNoOverlapAccessorPairs;
+  }
+  void addRequireNoOverlapAccessorPairs(AccessorType acc1, AccessorType acc2) {
+    requireNoOverlapAccessorPairs.push_back({acc1, acc2});
+  }
+
+  // Return the accessor used by \p op if found. Otherwise, return nullopt.
+  static Optional<AccessorType> getAccessorUsed(const Operation &op) {
+    auto getMemrefOp = [](const Operation &op) {
+      return TypeSwitch<const Operation &, Operation *>(op)
+          .Case<AffineLoadOp, AffineStoreOp>([](auto &affineOp) {
+            return affineOp.getMemref().getDefiningOp();
+          })
+          .Default([](auto &) { return nullptr; });
+    };
+
+    auto accSub =
+        dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op));
+    if (accSub)
+      return accSub.getAcc();
+    return std::nullopt;
+  }
+
+  // Determine if \p acc1 and \p acc2 are qualified as version candidate for
+  // loop \p loop.
+  static bool isVersionCandidate(LoopLikeOpInterface &loop,
+                                 const AccessorType &acc1,
+                                 const AccessorType &acc2) {
+    if (!EnableSYCLAccessorVersioning)
+      return false;
+
+    if (acc1 == acc2)
+      return false;
+
+    if (!loop.isDefinedOutsideOfLoop(acc1) ||
+        !loop.isDefinedOutsideOfLoop(acc2))
+      return false;
+
+    return true;
+  }
 
 private:
   Operation &op;
   // Operations that need to be hoisted to allow this operation to be hoisted.
   SmallVector<Operation *> prerequisites;
+  // Accessor pairs that require not to overlap in order for this operation to
+  // be hoisted.
+  AccessorPairsType requireNoOverlapAccessorPairs;
 };
 
 //===----------------------------------------------------------------------===//
@@ -736,60 +790,13 @@ private:
 // TODO: Support other kind of loops.
 class SYCLAccessorVersionBuilder : public SCFLoopVersionBuilder {
 public:
-  SYCLAccessorVersionBuilder(LoopLikeOpInterface loop)
-      : SCFLoopVersionBuilder(loop) {}
-
-  // Determine if checking if the accessors used in \p op1 and \p op2 overlap is
-  // a candidate for SYCL accessor versioning.
-  bool isVersionCandidate(const Operation &op1, const Operation &op2) {
-    if (!EnableSYCLAccessorVersioning)
-      return false;
-
-    // Currently only allow one accessor pair.
-    if (!empty())
-      return false;
-
-    auto getMemrefOp = [](const Operation &op) {
-      return TypeSwitch<const Operation &, Operation *>(op)
-          .Case<AffineLoadOp, AffineStoreOp>([](auto &affineOp) {
-            return affineOp.getMemref().getDefiningOp();
-          })
-          .Default([](auto &) { return nullptr; });
-    };
-
-    auto accSub1 =
-        dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op1));
-    auto accSub2 =
-        dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(getMemrefOp(op2));
-    if (!accSub1 || !accSub2)
-      return false;
-
-    TypedValue<MemRefType> acc1 = accSub1.getAcc();
-    TypedValue<MemRefType> acc2 = accSub2.getAcc();
-    if (acc1 == acc2)
-      return false;
-
-    if (!loop.isDefinedOutsideOfLoop(acc1) ||
-        !loop.isDefinedOutsideOfLoop(acc2))
-      return false;
-
-    AccessorPair = std::pair(acc1, acc2);
-
-    return true;
-  }
+  SYCLAccessorVersionBuilder(LoopLikeOpInterface loop,
+                             AccessorPairType requireNoOverlapAccessorPair)
+      : SCFLoopVersionBuilder(loop),
+        AccessorPair(requireNoOverlapAccessorPair) {}
 
   // Version the loop constructed with the builder.
-  void versionLoop() {
-    assert(!empty() && "Expecting at least one candidate");
-    builder.setInsertionPoint(loop);
-    SCFLoopVersionBuilder::versionLoop();
-  }
-
-  // Return true if no candidates found, otherwise return false.
-  bool empty() const {
-    return AccessorPair ==
-           std::pair<TypedValue<MemRefType>, TypedValue<MemRefType>>();
-  }
+  void versionLoop() { SCFLoopVersionBuilder::versionLoop(); }
 
 private:
   Value createCondition() const final {
@@ -929,7 +936,6 @@ private:
 /// hoisting preventing conflicts in the loop are given in \p willBeMoved.
 static bool hasConflictsInLoop(LICMCandidate &candidate,
                                LoopLikeOpInterface loop,
-                               SYCLAccessorVersionBuilder &versionCandidate,
                                const SmallPtrSetImpl<Operation *> &willBeMoved,
                                const AliasAnalysis &aliasAnalysis,
                                const DominanceInfo &domInfo) {
@@ -953,10 +959,17 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
       continue;
     }
 
-    if (versionCandidate.isVersionCandidate(op, other)) {
-      LLVM_DEBUG(llvm::dbgs().indent(2)
-                 << "can be hoisted: require loop versioning\n");
-      continue;
+    Optional<AccessorType> opAccessor = LICMCandidate::getAccessorUsed(op);
+    Optional<AccessorType> otherAccessor =
+        LICMCandidate::getAccessorUsed(other);
+    if (opAccessor.has_value() && otherAccessor.has_value()) {
+      if (LICMCandidate::isVersionCandidate(loop, *opAccessor,
+                                            *otherAccessor)) {
+        candidate.addRequireNoOverlapAccessorPairs(*opAccessor, *otherAccessor);
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "can be hoisted: require loop versioning\n");
+        continue;
+      }
     }
 
     return true;
@@ -966,8 +979,8 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
   if (op.getParentOp() == loop)
     return false;
   LICMCandidate parentCandidate(*op.getParentOp());
-  if (hasConflictsInLoop(parentCandidate, loop, versionCandidate, willBeMoved,
-                         aliasAnalysis, domInfo))
+  if (hasConflictsInLoop(parentCandidate, loop, willBeMoved, aliasAnalysis,
+                         domInfo))
     return true;
 
   // If the parent operation is not guaranteed to execute its
@@ -995,7 +1008,6 @@ static bool hasConflictsInLoop(LICMCandidate &candidate,
 /// operations that are known to be loop invariant (and therefore will be moved
 /// outside of the loop).
 static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
-                         SYCLAccessorVersionBuilder &versionCandidate,
                          const SmallPtrSetImpl<Operation *> &willBeMoved,
                          const AliasAnalysis &aliasAnalysis,
                          const DominanceInfo &domInfo) {
@@ -1065,8 +1077,8 @@ static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
   // loop prevent hosting it.
   if ((sideEffects.readsFromResource() || sideEffects.writesToResource() ||
        sideEffects.freesResource()) &&
-      hasConflictsInLoop(candidate, loop, versionCandidate, willBeMoved,
-                         aliasAnalysis, domInfo)) {
+      hasConflictsInLoop(candidate, loop, willBeMoved, aliasAnalysis,
+                         domInfo)) {
     LLVM_DEBUG(llvm::dbgs().indent(2)
                << "**** cannot be hoisted: found conflicting operation\n\n");
     return false;
@@ -1082,8 +1094,8 @@ static bool canBeHoisted(LICMCandidate &candidate, LoopLikeOpInterface loop,
   for (Region &region : op.getRegions()) {
     for (Operation &innerOp : region.getOps()) {
       LICMCandidate innerCandidate(innerOp);
-      if (!canBeHoisted(innerCandidate, loop, versionCandidate, willBeMoved2,
-                        aliasAnalysis, domInfo))
+      if (!canBeHoisted(innerCandidate, loop, willBeMoved2, aliasAnalysis,
+                        domInfo))
         return false;
       willBeMoved2.insert(&innerOp);
     }
@@ -1101,8 +1113,7 @@ static void
 collectHoistableOperations(LoopLikeOpInterface loop,
                            const AliasAnalysis &aliasAnalysis,
                            const DominanceInfo &domInfo,
-                           SmallVectorImpl<LICMCandidate> &LICMCandidates,
-                           SYCLAccessorVersionBuilder &versionCandidate) {
+                           SmallVectorImpl<LICMCandidate> &LICMCandidates) {
   // Do not use walk here, as we do not want to go into nested regions and
   // hoist operations from there. These regions might have semantics unknown
   // to this rewriting. If the nested regions are loops, they will have been
@@ -1111,8 +1122,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
   for (Block &block : loop.getLoopBody()) {
     for (Operation &op : block.without_terminator()) {
       LICMCandidate candidate(op);
-      if (!canBeHoisted(candidate, loop, versionCandidate, willBeMoved,
-                        aliasAnalysis, domInfo))
+      if (!canBeHoisted(candidate, loop, willBeMoved, aliasAnalysis, domInfo))
         continue;
       LICMCandidates.push_back(candidate);
       willBeMoved.insert(&op);
@@ -1128,23 +1138,38 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
     return 0;
 
   SmallVector<LICMCandidate> LICMCandidates;
-  auto versionCandidate = SYCLAccessorVersionBuilder(loop);
-  collectHoistableOperations(loop, aliasAnalysis, domInfo, LICMCandidates,
-                             versionCandidate);
+  collectHoistableOperations(loop, aliasAnalysis, domInfo, LICMCandidates);
   if (LICMCandidates.empty())
     return 0;
 
   LoopGuardBuilder::create(loop)->guardLoop();
-  if (!versionCandidate.empty())
-    versionCandidate.versionLoop();
 
-  size_t numOpsHoisted = 0;
+  size_t numVersion = 0;
+  std::set<const Operation *> opsHoisted;
   for (const LICMCandidate &candidate : LICMCandidates) {
-    loop.moveOutOfLoop(&candidate.getOperation());
-    ++numOpsHoisted;
+    // Cannot hoist if any of its prerequisites are not hoisted.
+    if (any_of(candidate.getPrerequisites(),
+               [&opsHoisted](Operation *prerequisite) {
+                 return !opsHoisted.count(prerequisite);
+               }))
+      continue;
+
+    AccessorPairsType AccessorPairs =
+        candidate.getRequireNoOverlapAccessorPairs();
+    // Currently only version for single accessor pair.
+    if (AccessorPairs.size() > 1)
+      continue;
+    if (AccessorPairs.size() == 1 && numVersion < VersionLimit) {
+      SYCLAccessorVersionBuilder(loop, AccessorPairs[0]).versionLoop();
+      ++numVersion;
+    }
+
+    Operation *op = &candidate.getOperation();
+    loop.moveOutOfLoop(op);
+    opsHoisted.insert(op);
   }
 
-  return numOpsHoisted;
+  return opsHoisted.size();
 }
 
 void LICM::runOnOperation() {
