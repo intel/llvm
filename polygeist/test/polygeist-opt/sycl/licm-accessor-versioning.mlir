@@ -1,4 +1,22 @@
-// RUN: polygeist-opt -licm -enable-sycl-accessor-versioning %s | FileCheck %s
+// RUN: polygeist-opt -licm -enable-licm-sycl-accessor-versioning %s | FileCheck %s
+
+// Original loop:
+// for(size_t i = 0; i < 8; i++) {
+//   A[i] += B[0];
+// }
+// Optimized loop:
+// if (0 < 8) {
+//   if (&A[A.get_range()] <= &B[0] || &A[0] >= B[B.get_range()]) {
+//     b = B[0];
+//     for(size_t i = 0; i < 8; i++) {
+//       A[i] += b;
+//     }
+//   } else {
+//     for(size_t i = 0; i < 8; i++) {
+//       A[i] += b;
+//     }
+//   }
+// }
 
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
@@ -34,14 +52,11 @@
 // CHECK-NEXT: [[ID_GET:%.*]] = sycl.id.get [[ID_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[ID]]>, i32], FunctionName = @"operator[]", TypeName = @id} : (memref<1x[[ID]]>, i32) -> memref<?xi64>
 // CHECK-NEXT: [[C0_i32:%.*]] = arith.constant 0 : i32
 // CHECK-NEXT: [[RANGE_GET:%.*]] = sycl.range.get [[RANGE_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[RANGE]]>, i32], FunctionName = @get, TypeName = @range} : (memref<1x[[RANGE]]>, i32) -> i64
-// CHECK-NEXT: [[SUB:%.*]] = arith.subi [[RANGE_GET]], [[C1_i64]] : i64
-// CHECK-NEXT: memref.store [[SUB]], [[ID_GET]][[[C0_index]]] : memref<?xi64>
-// CHECK-NEXT: [[ACC_SUB:%.*]] = sycl.accessor.subscript [[ARG1]][[[ID_ALLOCA]]] {ArgumentTypes = [memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
-// CHECK-NEXT: [[C1_INDEX:%.*]] = arith.constant 1 : index
-// CHECK-NEXT: [[ARG1_END:%.*]] = "polygeist.subindex"([[ACC_SUB]], [[C1_INDEX]]) : (memref<?xi32, 1>, index) -> memref<?xi32, 1>
+// CHECK-NEXT: memref.store [[RANGE_GET]], [[ID_GET]][[[C0_index]]] : memref<?xi64>
+// CHECK-NEXT: [[ARG1_END:%.*]] = sycl.accessor.subscript [[ARG1]][[[ID_ALLOCA]]] {ArgumentTypes = [memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
 
 // CHECK: [[ARG0_BEGIN:%.*]] = sycl.accessor.subscript [[ARG0]][{{.*}}] {ArgumentTypes = [memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
-// CHECK: [[ARG0_END:%.*]] = "polygeist.subindex"({{.*}}, {{.*}}) : (memref<?xi32, 1>, index) -> memref<?xi32, 1>
+// CHECK: [[ARG0_END:%.*]] = sycl.accessor.subscript [[ARG0]][{{.*}}] {ArgumentTypes = [memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
 // CHECK-DAG:  [[ARG1_END_PTR:%.*]] = "polygeist.memref2pointer"([[ARG1_END]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
 // CHECK-DAG:  [[ARG0_BEGIN_PTR:%.*]] = "polygeist.memref2pointer"([[ARG0_BEGIN]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
 // CHECK-NEXT: [[BEFORE_COND:%.*]] = llvm.icmp "ule" [[ARG1_END_PTR]], [[ARG0_BEGIN_PTR]] : !llvm.ptr<i32, 1>
