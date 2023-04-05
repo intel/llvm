@@ -12,7 +12,7 @@
 
 #include "ur_util.hpp"
 
-namespace loader {
+namespace ur_loader {
 
 class LibLoader {
   public:
@@ -29,6 +29,6 @@ class LibLoader {
     static void *getFunctionPtr(HMODULE handle, const char *func_name);
 };
 
-} // namespace loader
+} // namespace ur_loader
 
 #endif // UR_LIB_LOADER_HPP

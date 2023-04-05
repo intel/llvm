@@ -8,4 +8,4 @@
 
 #include "ur_loader.hpp"
 
-namespace loader {}
+namespace ur_loader {}

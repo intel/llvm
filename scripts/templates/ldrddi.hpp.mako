@@ -21,7 +21,7 @@ from templates import helper as th
 
 #include "${x}_object.hpp"
 
-namespace loader
+namespace ur_loader
 {
     ///////////////////////////////////////////////////////////////////////////////
     %for obj in th.extract_objs(specs, r"handle"):

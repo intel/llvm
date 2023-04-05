@@ -13,7 +13,7 @@
 #include "ur_ldrddi.hpp"
 #include "ur_lib_loader.hpp"
 
-namespace loader {
+namespace ur_loader {
 
 struct platform_t {
     platform_t(std::unique_ptr<HMODULE, LibLoader::lib_dtor> handle)
@@ -42,6 +42,6 @@ class context_t {
 extern context_t *context;
 extern ur_event_factory_t ur_event_factory;
 
-} // namespace loader
+} // namespace ur_loader
 
 #endif /* UR_LOADER_HPP */

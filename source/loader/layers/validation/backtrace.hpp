@@ -7,11 +7,11 @@
 
 #define MAX_BACKTRACE_FRAMES 64
 
-namespace validation_layer {
+namespace ur_validation_layer {
 
 using BacktraceLine = std::string;
 std::vector<BacktraceLine> getCurrentBacktrace();
 
-} // namespace validation_layer
+} // namespace ur_validation_layer
 
 #endif /* UR_BACKTRACE_H */

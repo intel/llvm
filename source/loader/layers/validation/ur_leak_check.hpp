@@ -12,7 +12,7 @@
 
 #define MAX_BACKTRACE_FRAMES 64
 
-namespace validation_layer {
+namespace ur_validation_layer {
 
 struct RefCountContext {
   private:
@@ -102,6 +102,6 @@ struct RefCountContext {
 
 } refCountContext;
 
-} // namespace validation_layer
+} // namespace ur_validation_layer
 
 #endif /* UR_LEAK_CHECK_H */
