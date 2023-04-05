@@ -189,13 +189,17 @@ Reduction/reduction_nd_ext_double.cpp
 Reduction/reduction_nd_ext_half.cpp
 Reduction/reduction_nd_lambda.cpp
 Reduction/reduction_nd_queue_shortcut.cpp
+Reduction/reduction_nd_reducer_skip.cpp
 Reduction/reduction_nd_rw.cpp
 Reduction/reduction_range_1d_dw.cpp
 Reduction/reduction_range_1d_dw_64bit.cpp
+Reduction/reduction_range_1d_reducer_skip.cpp
 Reduction/reduction_range_1d_rw.cpp
 Reduction/reduction_range_2d_dw.cpp
+Reduction/reduction_range_2d_dw_reducer_skip.cpp
 Reduction/reduction_range_2d_rw.cpp
 Reduction/reduction_range_3d_dw.cpp
+Reduction/reduction_range_3d_rw_reducer_skip.cpp
 Reduction/reduction_range_3d_rw.cpp
 Reduction/reduction_range_N_vars.cpp
 Reduction/reduction_range_item.cpp
