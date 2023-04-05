@@ -301,7 +301,7 @@ public:
           std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
           getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
           getKernelName(), getOSModuleHandle(), getStreamStorage(),
-          MImpl->MAuxiliaryResources, getCGType(), getCodeLoc()));
+          MImpl->MAuxiliaryResources, getCGType(), {}, getCodeLoc()));
       break;
     }
     case sycl::detail::CG::CodeplayHostTask: {

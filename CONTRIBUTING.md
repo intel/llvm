@@ -69,7 +69,7 @@ To contribute:
     can be reviewed, tested and merged independently.
 - For changes which require modification in tests outside of the current repository
   the commit message should contain the link to corresponding test PR.
-  For example: intel/llvm-test-suite#88 or KhronosGroup/SYCL-CTS#65. (see
+  For example: KhronosGroup/SYCL-CTS#65. (see
   [Autolinked references and URLs](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls)
   for more details). The same message should be present both in commit
   message and in PR description.

@@ -605,17 +605,17 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   // Copy over the macros in the preamble region of the main file, and combine
   // with non-preamble macros below.
   MainFileMacros Macros;
-  if (Preamble)
-    Macros = Preamble->Macros;
-  Clang->getPreprocessor().addPPCallbacks(
-      std::make_unique<CollectMainFileMacros>(Clang->getSourceManager(),
-                                              Macros));
-
   std::vector<PragmaMark> Marks;
-  // FIXME: We need to patch the marks for stale preambles.
-  if (Preamble)
-    Marks = Preamble->Marks;
-  Clang->getPreprocessor().addPPCallbacks(
+  if (Preamble) {
+    Macros = Patch->mainFileMacros();
+    Marks = Patch->marks();
+  }
+  auto& PP = Clang->getPreprocessor();
+  PP.addPPCallbacks(
+      std::make_unique<CollectMainFileMacros>(
+          PP, Macros));
+
+  PP.addPPCallbacks(
       collectPragmaMarksCallback(Clang->getSourceManager(), Marks));
 
   // Copy over the includes from the preamble, then combine with the
@@ -627,10 +627,10 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
     CanonIncludes.addSystemHeadersMapping(Clang->getLangOpts());
   std::unique_ptr<CommentHandler> IWYUHandler =
       collectIWYUHeaderMaps(&CanonIncludes);
-  Clang->getPreprocessor().addCommentHandler(IWYUHandler.get());
+  PP.addCommentHandler(IWYUHandler.get());
 
   // Collect tokens of the main file.
-  syntax::TokenCollector CollectTokens(Clang->getPreprocessor());
+  syntax::TokenCollector CollectTokens(PP);
 
   // To remain consistent with preamble builds, these callbacks must be called
   // exactly here, after preprocessor is initialized and BeginSourceFile() was
@@ -661,7 +661,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   // XXX: This is messy: clang-tidy checks flush some diagnostics at EOF.
   // However Action->EndSourceFile() would destroy the ASTContext!
   // So just inform the preprocessor of EOF, while keeping everything alive.
-  Clang->getPreprocessor().EndSourceFile();
+  PP.EndSourceFile();
   // UnitDiagsConsumer is local, we can not store it in CompilerInstance that
   // has a longer lifetime.
   Clang->getDiagnostics().setClient(new IgnoreDiagnostics);
@@ -675,8 +675,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
     Diags = CompilerInvocationDiags;
     // Add diagnostics from the preamble, if any.
     if (Preamble)
-      Diags->insert(Diags->end(), Preamble->Diags.begin(),
-                    Preamble->Diags.end());
+      llvm::append_range(*Diags, Patch->patchedDiags());
     // Finally, add diagnostics coming from the AST.
     {
       std::vector<Diag> D = ASTDiags.take(&*CTContext);
@@ -688,13 +687,9 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
                    std::move(Macros), std::move(Marks), std::move(ParsedDecls),
                    std::move(Diags), std::move(Includes),
                    std::move(CanonIncludes));
-  if (Result.Diags) {
-    auto UnusedHeadersDiags =
-        issueUnusedIncludesDiagnostics(Result, Inputs.Contents);
-    Result.Diags->insert(Result.Diags->end(),
-                         make_move_iterator(UnusedHeadersDiags.begin()),
-                         make_move_iterator(UnusedHeadersDiags.end()));
-  }
+  if (Result.Diags)
+    llvm::move(issueIncludeCleanerDiagnostics(Result, Inputs.Contents),
+               std::back_inserter(*Result.Diags));
   return std::move(Result);
 }
 

@@ -804,7 +804,10 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IMAGE_SRGB)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_64)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
@@ -1999,6 +2002,25 @@ pi_result piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
 
 pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
                                   size_t, void *, size_t *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+/// Host Pipes
+pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                   const char *pipe_symbol, pi_bool blocking,
+                                   void *ptr, size_t size,
+                                   pi_uint32 num_events_in_waitlist,
+                                   const pi_event *events_waitlist,
+                                   pi_event *event) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
+                                    const char *pipe_symbol, pi_bool blocking,
+                                    void *ptr, size_t size,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
   DIE_NO_IMPLEMENTATION;
 }
 

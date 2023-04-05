@@ -355,15 +355,12 @@ bool TypeSetByHwMode::intersect(SetType &Out, const SetType &In) {
 }
 
 bool TypeSetByHwMode::validate() const {
-#ifndef NDEBUG
   if (empty())
     return true;
   bool AllEmpty = true;
   for (const auto &I : *this)
     AllEmpty &= I.second.empty();
   return !AllEmpty;
-#endif
-  return true;
 }
 
 // --- TypeInfer
@@ -888,22 +885,22 @@ const TypeSetByHwMode &TypeInfer::getLegalTypes() {
   return LegalCache;
 }
 
-#ifndef NDEBUG
 TypeInfer::ValidateOnExit::~ValidateOnExit() {
   if (Infer.Validate && !VTS.validate()) {
-    dbgs() << "Type set is empty for each HW mode:\n"
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+    errs() << "Type set is empty for each HW mode:\n"
               "possible type contradiction in the pattern below "
               "(use -print-records with llvm-tblgen to see all "
               "expanded records).\n";
     Infer.TP.dump();
-    dbgs() << "Generated from record:\n";
+    errs() << "Generated from record:\n";
     Infer.TP.getRecord()->dump();
+#endif
     PrintFatalError(Infer.TP.getRecord()->getLoc(),
                     "Type set is empty for each HW mode in '" +
                         Infer.TP.getRecord()->getName() + "'");
   }
 }
-#endif
 
 
 //===----------------------------------------------------------------------===//
@@ -1523,22 +1520,17 @@ std::string PatternToMatch::getPredicateCheck() const {
   getPredicateRecords(PredicateRecs);
 
   SmallString<128> PredicateCheck;
+  raw_svector_ostream OS(PredicateCheck);
+  ListSeparator LS(" && ");
   for (Record *Pred : PredicateRecs) {
     StringRef CondString = Pred->getValueAsString("CondString");
     if (CondString.empty())
       continue;
-    if (!PredicateCheck.empty())
-      PredicateCheck += " && ";
-    PredicateCheck += "(";
-    PredicateCheck += CondString;
-    PredicateCheck += ")";
+    OS << LS << '(' << CondString << ')';
   }
 
-  if (!HwModeFeatures.empty()) {
-    if (!PredicateCheck.empty())
-      PredicateCheck += " && ";
-    PredicateCheck += HwModeFeatures;
-  }
+  if (!HwModeFeatures.empty())
+    OS << LS << HwModeFeatures;
 
   return std::string(PredicateCheck);
 }
@@ -2005,9 +1997,8 @@ bool TreePatternNode::isIsomorphicTo(const TreePatternNode *N,
   if (isLeaf()) {
     if (DefInit *DI = dyn_cast<DefInit>(getLeafValue())) {
       if (DefInit *NDI = dyn_cast<DefInit>(N->getLeafValue())) {
-        return ((DI->getDef() == NDI->getDef())
-                && (DepVars.find(getName()) == DepVars.end()
-                    || getName() == N->getName()));
+        return ((DI->getDef() == NDI->getDef()) &&
+                (!DepVars.contains(getName()) || getName() == N->getName()));
       }
     }
     return getLeafValue() == N->getLeafValue();
@@ -4456,14 +4447,14 @@ void CodeGenDAGPatterns::ExpandHwModeBasedTypes() {
 
       // Fill the map entry for this mode.
       const HwMode &HM = CGH.getMode(M);
-      AppendPattern(P, M, "(MF->getSubtarget().checkFeatures(\"" + HM.Features + "\"))");
+      AppendPattern(P, M, HM.Predicates);
 
       // Add negations of the HM's predicates to the default predicate.
       if (!DefaultCheck.empty())
         DefaultCheck += " && ";
-      DefaultCheck += "(!(MF->getSubtarget().checkFeatures(\"";
-      DefaultCheck += HM.Features;
-      DefaultCheck += "\")))";
+      DefaultCheck += "!(";
+      DefaultCheck += HM.Predicates;
+      DefaultCheck += ")";
     }
 
     bool HasDefault = Modes.count(DefaultMode);

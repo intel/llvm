@@ -141,7 +141,16 @@ public:
   void printStrippedAttrOrType(AttrOrType attrOrType) {
     if (succeeded(printAlias(attrOrType)))
       return;
+
+    raw_ostream &os = getStream();
+    uint64_t posPrior = os.tell();
     attrOrType.print(*this);
+    if (posPrior != os.tell())
+      return;
+
+    // Fallback to printing with prefix if the above failed to write anything
+    // to the output stream.
+    *this << attrOrType;
   }
 
   /// Print the provided array of attributes or types in the context of an
@@ -302,6 +311,7 @@ operator<<(AsmPrinterT &p, const ValueTypeRange<ValueRangeT> &types) {
   llvm::interleaveComma(types, p);
   return p;
 }
+
 template <typename AsmPrinterT>
 inline std::enable_if_t<std::is_base_of<AsmPrinter, AsmPrinterT>::value,
                         AsmPrinterT &>
@@ -309,6 +319,18 @@ operator<<(AsmPrinterT &p, const TypeRange &types) {
   llvm::interleaveComma(types, p);
   return p;
 }
+
+// Prevent matching the TypeRange version above for ValueRange
+// printing through base AsmPrinter. This is needed so that the
+// ValueRange printing behaviour does not change from printing
+// the SSA values to printing the types for the operands when
+// using AsmPrinter instead of OpAsmPrinter.
+template <typename AsmPrinterT, typename T>
+inline std::enable_if_t<std::is_same<AsmPrinter, AsmPrinterT>::value &&
+                            std::is_convertible<T &, ValueRange>::value,
+                        AsmPrinterT &>
+operator<<(AsmPrinterT &p, const T &other) = delete;
+
 template <typename AsmPrinterT, typename ElementT>
 inline std::enable_if_t<std::is_base_of<AsmPrinter, AsmPrinterT>::value,
                         AsmPrinterT &>

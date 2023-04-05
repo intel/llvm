@@ -10,6 +10,7 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -22,43 +23,19 @@ class TestKernelWithAspects;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<TestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestKernel"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
-template <> struct KernelInfo<TestKernelExeOnly> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernelExeOnly> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestKernelExeOnly"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
-template <> struct KernelInfo<TestKernelWithAspects> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<TestKernelWithAspects> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestKernelWithAspects"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail

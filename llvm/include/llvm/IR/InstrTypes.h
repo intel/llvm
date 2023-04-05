@@ -1074,6 +1074,8 @@ struct OperandTraits<CmpInst> : public FixedNumOperandTraits<CmpInst, 2> {
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CmpInst, Value)
 
+raw_ostream &operator<<(raw_ostream &OS, CmpInst::Predicate Pred);
+
 /// A lightweight accessor for an operand bundle meant to be passed
 /// around by value.
 struct OperandBundleUse {
@@ -1832,6 +1834,14 @@ public:
   uint64_t getParamDereferenceableOrNullBytes(unsigned i) const {
     return Attrs.getParamDereferenceableOrNullBytes(i);
   }
+
+  /// Extract a test mask for disallowed floating-point value classes for the
+  /// return value.
+  FPClassTest getRetNoFPClass() const;
+
+  /// Extract a test mask for disallowed floating-point value classes for the
+  /// parameter.
+  FPClassTest getParamNoFPClass(unsigned i) const;
 
   /// Return true if the return value is known to be not null.
   /// This may be because it has the nonnull attribute, or because at least

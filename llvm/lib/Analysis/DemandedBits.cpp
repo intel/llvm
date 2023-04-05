@@ -170,7 +170,7 @@ void DemandedBits::determineLiveOperandBits(
       case Intrinsic::smin:
         // If low bits of result are not demanded, they are also not demanded
         // for the min/max operands.
-        AB = APInt::getBitsSetFrom(BitWidth, AOut.countTrailingZeros());
+        AB = APInt::getBitsSetFrom(BitWidth, AOut.countr_zero());
         break;
       }
     }
@@ -475,8 +475,7 @@ APInt DemandedBits::getDemandedBits(Use *U) {
 bool DemandedBits::isInstructionDead(Instruction *I) {
   performAnalysis();
 
-  return !Visited.count(I) && AliveBits.find(I) == AliveBits.end() &&
-    !isAlwaysLive(I);
+  return !Visited.count(I) && !AliveBits.contains(I) && !isAlwaysLive(I);
 }
 
 bool DemandedBits::isUseDead(Use *U) {

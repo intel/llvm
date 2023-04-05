@@ -34,6 +34,7 @@
 
 namespace clang {
 namespace dataflow {
+class Logger;
 
 /// Skip past nodes that the CFG does not emit. These nodes are invisible to
 /// flow-sensitive analysis, and should be ignored as they will effectively not
@@ -67,6 +68,11 @@ public:
     /// fundamentally limited: some constructs, such as recursion, are
     /// explicitly unsupported.
     std::optional<ContextSensitiveOptions> ContextSensitiveOpts;
+
+    /// If provided, analysis details will be recorded here.
+    /// (This is always non-null within an AnalysisContext, the framework
+    /// provides a fallback no-op logger).
+    Logger *Log = nullptr;
   };
 
   /// Constructs a dataflow analysis context.
@@ -76,11 +82,9 @@ public:
   ///  `S` must not be null.
   DataflowAnalysisContext(std::unique_ptr<Solver> S,
                           Options Opts = Options{
-                              /*ContextSensitiveOpts=*/std::nullopt})
-      : S(std::move(S)), TrueVal(createAtomicBoolValue()),
-        FalseVal(createAtomicBoolValue()), Opts(Opts) {
-    assert(this->S != nullptr);
-  }
+                              /*ContextSensitiveOpts=*/std::nullopt,
+                              /*Logger=*/nullptr});
+  ~DataflowAnalysisContext();
 
   /// Takes ownership of `Loc` and returns a reference to it.
   ///
@@ -125,7 +129,7 @@ public:
   ///
   ///  `D` must not be assigned a storage location.
   void setStorageLocation(const ValueDecl &D, StorageLocation &Loc) {
-    assert(DeclToLoc.find(&D) == DeclToLoc.end());
+    assert(!DeclToLoc.contains(&D));
     DeclToLoc[&D] = &Loc;
   }
 
@@ -143,7 +147,7 @@ public:
   ///  `E` must not be assigned a storage location.
   void setStorageLocation(const Expr &E, StorageLocation &Loc) {
     const Expr &CanonE = ignoreCFGOmittedNodes(E);
-    assert(ExprToLoc.find(&CanonE) == ExprToLoc.end());
+    assert(!ExprToLoc.contains(&CanonE));
     ExprToLoc[&CanonE] = &Loc;
   }
 
@@ -264,7 +268,8 @@ public:
   /// `Val2` imposed by the flow condition.
   bool equivalentBoolValues(BoolValue &Val1, BoolValue &Val2);
 
-  LLVM_DUMP_METHOD void dumpFlowCondition(AtomicBoolValue &Token);
+  LLVM_DUMP_METHOD void dumpFlowCondition(AtomicBoolValue &Token,
+                                          llvm::raw_ostream &OS = llvm::dbgs());
 
   /// Returns the `ControlFlowContext` registered for `F`, if any. Otherwise,
   /// returns null.
@@ -392,6 +397,8 @@ private:
 
   // Fields modeled by environments covered by this context.
   llvm::DenseSet<const FieldDecl *> ModeledFields;
+
+  std::unique_ptr<Logger> LogOwner; // If created via flags.
 };
 
 } // namespace dataflow

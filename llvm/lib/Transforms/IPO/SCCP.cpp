@@ -42,8 +42,8 @@ STATISTIC(NumDeadBlocks , "Number of basic blocks unreachable");
 STATISTIC(NumInstReplaced,
           "Number of instructions replaced with (simpler) instruction");
 
-static cl::opt<unsigned> FuncSpecializationMaxIters(
-    "func-specialization-max-iters", cl::init(1), cl::Hidden, cl::desc(
+static cl::opt<unsigned> FuncSpecMaxIters(
+    "funcspec-max-iters", cl::init(1), cl::Hidden, cl::desc(
     "The maximum number of iterations function specialization is run"));
 
 static void findReturnsToZap(Function &F,
@@ -158,7 +158,7 @@ static bool runIPSCCP(
 
   if (IsFuncSpecEnabled) {
     unsigned Iters = 0;
-    while (Iters++ < FuncSpecializationMaxIters && Specializer.run());
+    while (Iters++ < FuncSpecMaxIters && Specializer.run());
   }
 
   // Iterate over all of the instructions in the module, replacing them with
@@ -292,13 +292,6 @@ static bool runIPSCCP(
         if (!CB || CB->getCalledFunction() != F)
           continue;
 
-        // Limit to cases where the return value is guaranteed to be neither
-        // poison nor undef. Poison will be outside any range and currently
-        // values outside of the specified range cause immediate undefined
-        // behavior.
-        if (!isGuaranteedNotToBeUndefOrPoison(CB, nullptr, CB))
-          continue;
-
         // Do not touch existing metadata for now.
         // TODO: We should be able to take the intersection of the existing
         // metadata and the inferred range.
@@ -338,9 +331,14 @@ static bool runIPSCCP(
 
   // Remove the returned attribute for zapped functions and the
   // corresponding call sites.
+  // Also remove any attributes that convert an undef return value into
+  // immediate undefined behavior
+  AttributeMask UBImplyingAttributes =
+      AttributeFuncs::getUBImplyingAttributes();
   for (Function *F : FuncZappedReturn) {
     for (Argument &A : F->args())
       F->removeParamAttr(A.getArgNo(), Attribute::Returned);
+    F->removeRetAttrs(UBImplyingAttributes);
     for (Use &U : F->uses()) {
       CallBase *CB = dyn_cast<CallBase>(U.getUser());
       if (!CB) {
@@ -354,6 +352,7 @@ static bool runIPSCCP(
 
       for (Use &Arg : CB->args())
         CB->removeParamAttr(CB->getArgOperandNo(&Arg), Attribute::Returned);
+      CB->removeRetAttrs(UBImplyingAttributes);
     }
   }
 

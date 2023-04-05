@@ -107,7 +107,7 @@ class X86OpcodePrefixHelper {
 
   // EVEX (4 bytes)
   // +-----+ +--------------+ +-------------------+ +------------------------+
-  // | 62h | | RXBR' | 00mm | | W | vvvv | 1 | pp | | z | L'L | b | v' | aaa |
+  // | 62h | | RXBR' | 0mmm | | W | vvvv | 1 | pp | | z | L'L | b | v' | aaa |
   // +-----+ +--------------+ +-------------------+ +------------------------+
 
   // EVEX_L2/VEX_L (Vector Length):
@@ -228,8 +228,7 @@ public:
       emitByte(W << 7 | LastPayload, OS);
       return;
     case EVEX:
-      assert(VEX_5M & 0x7 &&
-             "More than 3 significant bits in VEX.m-mmmm fields for EVEX!");
+      assert(VEX_5M && !(VEX_5M & 0x8) && "invalid mmm fields for EVEX!");
       emitByte(0x62, OS);
       emitByte(FirstPayload | ((~EVEX_R2) & 0x1) << 4 | VEX_5M, OS);
       emitByte(W << 7 | ((~VEX_4V) & 0xf) << 3 | 1 << 2 | VEX_PP, OS);
@@ -949,7 +948,6 @@ PrefixKind X86MCCodeEmitter::emitVEXOpcodePrefix(int MemOperand,
   }
   case X86II::MRM_C0:
   case X86II::RawFrm:
-  case X86II::PrefixByte:
     break;
   case X86II::MRMDestMemFSIB:
   case X86II::MRMDestMem: {
@@ -1162,20 +1160,21 @@ PrefixKind X86MCCodeEmitter::emitREXPrefix(int MemOperand, const MCInst &MI,
   if (!STI.hasFeature(X86::Is64Bit))
     return None;
   X86OpcodePrefixHelper Prefix(*Ctx.getRegisterInfo());
-  bool UsesHighByteReg = false;
   const MCInstrDesc &Desc = MCII.get(MI.getOpcode());
   uint64_t TSFlags = Desc.TSFlags;
   Prefix.setW(TSFlags & X86II::REX_W);
   unsigned NumOps = MI.getNumOperands();
-  if (!NumOps) {
-    PrefixKind Kind = Prefix.determineOptimalKind();
-    Prefix.emit(OS);
-    return Kind;
-  }
-  unsigned CurOp = X86II::getOperandBias(Desc);
+  bool UsesHighByteReg = false;
+#ifndef NDEBUG
+  bool HasRegOp = false;
+#endif
+  unsigned CurOp = NumOps ? X86II::getOperandBias(Desc) : 0;
   for (unsigned i = CurOp; i != NumOps; ++i) {
     const MCOperand &MO = MI.getOperand(i);
     if (MO.isReg()) {
+#ifndef NDEBUG
+      HasRegOp = true;
+#endif
       unsigned Reg = MO.getReg();
       if (Reg == X86::AH || Reg == X86::BH || Reg == X86::CH || Reg == X86::DH)
         UsesHighByteReg = true;
@@ -1196,6 +1195,15 @@ PrefixKind X86MCCodeEmitter::emitREXPrefix(int MemOperand, const MCInst &MI,
     }
   }
   switch (TSFlags & X86II::FormMask) {
+  default:
+    assert(!HasRegOp && "Unexpected form in emitREXPrefix!");
+    break;
+  case X86II::RawFrm:
+  case X86II::RawFrmMemOffs:
+  case X86II::RawFrmSrc:
+  case X86II::RawFrmDst:
+  case X86II::RawFrmDstSrc:
+    break;
   case X86II::AddRegFrm:
     Prefix.setB(MI, CurOp++);
     break;
@@ -1246,11 +1254,6 @@ PrefixKind X86MCCodeEmitter::emitREXPrefix(int MemOperand, const MCInst &MI,
   case X86II::MRM7r:
     Prefix.setB(MI, CurOp++);
     break;
-  case X86II::MRMr0:
-    Prefix.setR(MI, CurOp++);
-    break;
-  case X86II::MRMDestMemFSIB:
-    llvm_unreachable("FSIB format never need REX prefix!");
   }
   PrefixKind Kind = Prefix.determineOptimalKind();
   if (Kind && UsesHighByteReg)

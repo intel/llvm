@@ -53,6 +53,11 @@ static cl::opt<std::string> ClSyclFixedTargets(
              "is expected to be runnable on"),
     cl::Hidden, cl::init(""));
 
+static cl::opt<std::string> ClSyclExcludeAspects(
+    "sycl-propagate-aspects-usage-exclude-aspects",
+    cl::desc("Specify aspects to exclude when propagating aspect usage"),
+    cl::Hidden, cl::init(""));
+
 namespace {
 
 using AspectsSetTy = SmallSet<int, 4>;
@@ -293,15 +298,37 @@ getAspectUsageChain(const Function *F, const FunctionToAspectsMapTy &AspectsMap,
   return CallChain;
 }
 
-void createUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
+void createUsedAspectsMetadataForFunctions(
+    FunctionToAspectsMapTy &Map, const AspectsSetTy &ExcludeAspectVals) {
   for (auto &[F, Aspects] : Map) {
     if (Aspects.empty())
       continue;
 
     LLVMContext &C = F->getContext();
 
+    // Create a set of unique aspects. First we add the ones from the found
+    // aspects that have not been excluded.
+    AspectsSetTy UniqueAspects;
+    for (const int &A : Aspects)
+      if (!ExcludeAspectVals.contains(A))
+        UniqueAspects.insert(A);
+
+    // If there are no new aspects, we can just keep the old metadata.
+    if (UniqueAspects.empty())
+      continue;
+
+    // If there is new metadata, merge it with the old aspects. We preserve
+    // the excluded ones.
+    if (const MDNode *ExistingAspects = F->getMetadata("sycl_used_aspects")) {
+      for (const MDOperand &MDOp : ExistingAspects->operands()) {
+        const Constant *C = cast<ConstantAsMetadata>(MDOp)->getValue();
+        UniqueAspects.insert(cast<ConstantInt>(C)->getSExtValue());
+      }
+    }
+
+    // Create new metadata.
     SmallVector<Metadata *, 16> AspectsMetadata;
-    for (const auto &A : Aspects)
+    for (const int &A : UniqueAspects)
       AspectsMetadata.push_back(ConstantAsMetadata::get(
           ConstantInt::getSigned(Type::getInt32Ty(C), A)));
 
@@ -506,7 +533,8 @@ void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
 FunctionToAspectsMapTy
 buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
                            const AspectValueToNameMapTy &AspectValues,
-                           const std::vector<Function *> &EntryPoints) {
+                           const std::vector<Function *> &EntryPoints,
+                           bool ValidateAspects) {
   FunctionToAspectsMapTy FunctionToUsedAspects;
   FunctionToAspectsMapTy FunctionToDeclaredAspects;
   CallGraphTy CG;
@@ -522,8 +550,9 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
   for (Function *F : EntryPoints)
     propagateAspectsThroughCG(F, CG, FunctionToUsedAspects, Visited);
 
-  validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues,
-                                  EntryPoints, CG);
+  if (ValidateAspects)
+    validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues,
+                                    EntryPoints, CG);
 
   // The set of aspects from FunctionToDeclaredAspects should be merged to the
   // set of FunctionToUsedAspects after validateUsedAspectsForFunctions call to
@@ -558,6 +587,14 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
     StringRef(ClSyclFixedTargets)
         .split(TargetFixedAspects, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
 
+  if (ClSyclExcludeAspects.getNumOccurrences() > 0) {
+    SmallVector<StringRef, 4> ExcludedAspectsVec;
+    StringRef(ClSyclExcludeAspects)
+        .split(ExcludedAspectsVec, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+    ExcludedAspects.insert(ExcludedAspectsVec.begin(),
+                           ExcludedAspectsVec.end());
+  }
+
   std::vector<Function *> EntryPoints;
   for (Function &F : M.functions())
     if (isEntryPoint(F))
@@ -566,9 +603,19 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   propagateAspectsToOtherTypesInModule(M, TypesWithAspects, AspectValues);
 
   FunctionToAspectsMapTy FunctionToUsedAspects = buildFunctionsToAspectsMap(
-      M, TypesWithAspects, AspectValues, EntryPoints);
+      M, TypesWithAspects, AspectValues, EntryPoints, ValidateAspectUsage);
 
-  createUsedAspectsMetadataForFunctions(FunctionToUsedAspects);
+  // Create a set of excluded aspect values.
+  AspectsSetTy ExcludedAspectVals;
+  for (const StringRef &AspectName : ExcludedAspects) {
+    const auto AspectValIter = AspectValues.find(AspectName);
+    assert(AspectValIter != AspectValues.end() &&
+           "Excluded aspect does not have a corresponding value.");
+    ExcludedAspectVals.insert(AspectValIter->second);
+  }
+
+  createUsedAspectsMetadataForFunctions(FunctionToUsedAspects,
+                                        ExcludedAspectVals);
 
   setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects, AspectValues);
 

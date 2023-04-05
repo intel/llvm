@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstddef>
 #include <charconv>
 #include <format>
 #include <ranges>
@@ -44,7 +45,7 @@ template <class T>
 using context_t = typename context<T>::type;
 
 // A user-defined type used to test the handle formatter.
-enum class status : uint16_t { foo = 0xAAAA, bar = 0x5555, foobar = 0xAA55 };
+enum class status : std::uint16_t { foo = 0xAAAA, bar = 0x5555, foobar = 0xAA55 };
 
 // The formatter for a user-defined type used to test the handle formatter.
 template <class CharT>
@@ -90,7 +91,7 @@ struct std::formatter<status, CharT> {
       begin = buffer;
       buffer[0] = '0';
       buffer[1] = 'x';
-      end = std::to_chars(&buffer[2], std::end(buffer), static_cast<uint16_t>(s), 16).ptr;
+      end = std::to_chars(&buffer[2], std::end(buffer), static_cast<std::uint16_t>(s), 16).ptr;
       buffer[6] = '\0';
       break;
 
@@ -98,7 +99,7 @@ struct std::formatter<status, CharT> {
       begin = buffer;
       buffer[0] = '0';
       buffer[1] = 'X';
-      end = std::to_chars(&buffer[2], std::end(buffer), static_cast<uint16_t>(s), 16).ptr;
+      end = std::to_chars(&buffer[2], std::end(buffer), static_cast<std::uint16_t>(s), 16).ptr;
       std::transform(static_cast<const char*>(&buffer[2]), end, &buffer[2], [](char c) {
         return static_cast<char>(std::toupper(c)); });
       buffer[6] = '\0';
@@ -143,7 +144,7 @@ private:
 // The return value is a collection of basic_strings, instead of
 // basic_string_views since the values are temporaries.
 namespace detail {
-template <class CharT, size_t N>
+template <class CharT, std::size_t N>
 std::basic_string<CharT> get_colons() {
   static std::basic_string<CharT> result(N, CharT(':'));
   return result;

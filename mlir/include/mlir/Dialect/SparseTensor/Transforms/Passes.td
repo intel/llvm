@@ -81,6 +81,9 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
   ];
   // TODO(57514): These enum options are duplicated in Passes.h.
   let options = [
+    Option<"enableIndexReduction", "enable-index-reduction", "bool",
+           "false",
+           "Enable dependent index reduction based algorithm to handle non-trivial index expressions on sparse inputs (experimental features)">,
     Option<"parallelization", "parallelization-strategy", "mlir::SparseParallelizationStrategy",
            "mlir::SparseParallelizationStrategy::kNone",
            "Set the parallelization strategy", [{llvm::cl::values(
@@ -217,6 +220,12 @@ def SparseTensorCodegen : Pass<"sparse-tensor-codegen", "ModuleOp"> {
   let options = [
     Option<"enableBufferInitialization", "enable-buffer-initialization", "bool",
            "false", "Enable zero-initialization of the memory buffers">,
+    Option<"createSparseDeallocs", "create-sparse-deallocs", "bool",
+           "true", "Specify if the temporary buffers created by the sparse "
+                   "compiler should be deallocated. For compatibility with core "
+                   "bufferization passes. "
+                   "This option is only used when enable-runtime-library=false. "
+                   "See also create-deallocs for BufferizationOption.">,
   ];
 }
 

@@ -772,7 +772,7 @@ void GVNPass::printPipeline(
   static_cast<PassInfoMixin<GVNPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
 
-  OS << "<";
+  OS << '<';
   if (Options.AllowPRE != std::nullopt)
     OS << (*Options.AllowPRE ? "" : "no-") << "pre;";
   if (Options.AllowLoadPRE != std::nullopt)
@@ -782,7 +782,7 @@ void GVNPass::printPipeline(
        << "split-backedge-load-pre;";
   if (Options.AllowMemDep != std::nullopt)
     OS << (*Options.AllowMemDep ? "" : "no-") << "memdep";
-  OS << ">";
+  OS << '>';
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -1908,8 +1908,10 @@ bool GVNPass::processAssumeIntrinsic(AssumeInst *IntrinsicI) {
         MSSAU->insertDef(cast<MemoryDef>(NewDef), /*RenameUses=*/false);
       }
     }
-    if (isAssumeWithEmptyBundle(*IntrinsicI))
+    if (isAssumeWithEmptyBundle(*IntrinsicI)) {
       markInstructionForDeletion(IntrinsicI);
+      return true;
+    }
     return false;
   } else if (isa<Constant>(V)) {
     // If it's not false, and constant, it must evaluate to true. This means our

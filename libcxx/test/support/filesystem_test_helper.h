@@ -19,11 +19,12 @@
 #include <cstdio> // for printf
 #include <string>
 #include <system_error>
+#include <type_traits>
 #include <vector>
 
+#include "assert_macros.h"
 #include "make_string.h"
 #include "test_macros.h"
-#include "rapid-cxx-test.h"
 #include "format_string.h"
 
 // For creating socket files
@@ -101,7 +102,7 @@ namespace utils {
     // N.B. libc might define some of the foo[64] identifiers using macros from
     // foo64 -> foo or vice versa.
 #if defined(_WIN32)
-    using off64_t = int64_t;
+    using off64_t = std::int64_t;
 #elif defined(__MVS__) || defined(__LP64__)
     using off64_t = ::off_t;
 #else
@@ -335,7 +336,7 @@ private:
         fs::path const cwd = utils::getcwd();
         fs::path const tmp = fs::temp_directory_path();
         std::string base = cwd.filename().string();
-        size_t i = std::hash<std::string>()(cwd.string());
+        std::size_t i = std::hash<std::string>()(cwd.string());
         fs::path p = tmp / (base + "-static_env." + std::to_string(i));
         while (utils::exists(p.string())) {
             p = tmp / (base + "-static_env." + std::to_string(++i));
@@ -672,9 +673,9 @@ struct ExceptionChecker {
         num_paths(2), func_name(fun_name), opt_message(opt_msg) {}
 
   void operator()(fs::filesystem_error const& Err) {
-    TEST_CHECK(ErrorIsImp(Err.code(), {expected_err}));
-    TEST_CHECK(Err.path1() == expected_path1);
-    TEST_CHECK(Err.path2() == expected_path2);
+    assert(ErrorIsImp(Err.code(), {expected_err}));
+    assert(Err.path1() == expected_path1);
+    assert(Err.path2() == expected_path2);
     LIBCPP_ONLY(check_libcxx_string(Err));
   }
 
@@ -703,11 +704,11 @@ struct ExceptionChecker {
                              transform_path(expected_path1).c_str(),
                              transform_path(expected_path2).c_str());
       default:
-        TEST_CHECK(false && "unexpected case");
+        TEST_FAIL("unexpected case");
         return "";
       }
     }();
-    TEST_CHECK(format == Err.what());
+    assert(format == Err.what());
     if (format != Err.what()) {
       fprintf(stderr,
               "filesystem_error::what() does not match expected output:\n");

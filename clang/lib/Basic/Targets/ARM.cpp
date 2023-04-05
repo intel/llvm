@@ -254,6 +254,7 @@ ARMTargetInfo::ARMTargetInfo(const llvm::Triple &Triple,
                              const TargetOptions &Opts)
     : TargetInfo(Triple), FPMath(FP_Default), IsAAPCS(true), LDREX(0),
       HW_FP(0) {
+  bool IsFreeBSD = Triple.isOSFreeBSD();
   bool IsOpenBSD = Triple.isOSOpenBSD();
   bool IsNetBSD = Triple.isOSNetBSD();
 
@@ -309,6 +310,7 @@ ARMTargetInfo::ARMTargetInfo(const llvm::Triple &Triple,
     case llvm::Triple::GNUEABIHF:
     case llvm::Triple::MuslEABI:
     case llvm::Triple::MuslEABIHF:
+    case llvm::Triple::OpenHOS:
       setABI("aapcs-linux");
       break;
     case llvm::Triple::EABIHF:
@@ -321,7 +323,7 @@ ARMTargetInfo::ARMTargetInfo(const llvm::Triple &Triple,
     default:
       if (IsNetBSD)
         setABI("apcs-gnu");
-      else if (IsOpenBSD)
+      else if (IsFreeBSD || IsOpenBSD)
         setABI("aapcs-linux");
       else
         setABI("aapcs");
@@ -451,7 +453,7 @@ bool ARMTargetInfo::initFeatureMap(
   }
 
   // get default FPU features
-  unsigned FPUKind = llvm::ARM::getDefaultFPU(CPU, Arch);
+  llvm::ARM::FPUKind FPUKind = llvm::ARM::getDefaultFPU(CPU, Arch);
   llvm::ARM::getFPUFeatures(FPUKind, TargetFeatures);
 
   // get default Extension features

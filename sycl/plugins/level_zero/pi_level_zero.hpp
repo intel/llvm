@@ -112,7 +112,7 @@ public:
       : Context{Ctx}, Device{Dev} {}
   void *allocate(size_t Size) override final;
   void *allocate(size_t Size, size_t Alignment) override final;
-  void deallocate(void *Ptr, bool OwnZeMemHandle) override final;
+  void deallocate(void *Ptr) override final;
 };
 
 // Allocation routines for shared memory type
@@ -468,16 +468,58 @@ struct _pi_queue : _pi_object {
     uint32_t NextIndex{0};
   };
 
+  // Helper class to facilitate per-thread queue groups
+  // We maintain a hashtable of queue groups if requested to do them per-thread.
+  // Otherwise it is just single entry used for all threads.
+  struct pi_queue_group_by_tid_t
+      : public std::unordered_map<std::thread::id, pi_queue_group_t> {
+    bool PerThread = false;
+
+    // Returns thread id if doing per-thread, or a generic id that represents
+    // all the threads.
+    std::thread::id tid() const {
+      return PerThread ? std::this_thread::get_id() : std::thread::id();
+    }
+
+    // Make the specified queue group be the master
+    void set(const pi_queue_group_t &QueueGroup) {
+      const auto &Device = QueueGroup.Queue->Device;
+      PerThread = Device->ImmCommandListUsed == _pi_device::PerThreadPerQueue;
+      assert(empty());
+      insert({tid(), QueueGroup});
+    }
+
+    // Get a queue group to use for this thread
+    pi_queue_group_t &get() {
+      assert(!empty());
+      auto It = find(tid());
+      if (It != end()) {
+        return It->second;
+      }
+      // Add new queue group for this thread initialized from a master entry.
+      auto QueueGroup = begin()->second;
+      // Create space for queues and immediate commandlists, which are created
+      // on demand.
+      QueueGroup.ZeQueues = std::vector<ze_command_queue_handle_t>(
+          QueueGroup.ZeQueues.size(), nullptr);
+      QueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+          QueueGroup.ZeQueues.size(), QueueGroup.Queue->CommandListMap.end());
+
+      std::tie(It, std::ignore) = insert({tid(), QueueGroup});
+      return It->second;
+    }
+  };
+
   // A map of compute groups containing compute queue handles, one per thread.
   // When a queue is accessed from multiple host threads, a separate queue group
   // is created for each thread. The key used for mapping is the thread ID.
-  std::unordered_map<std::thread::id, pi_queue_group_t> ComputeQueueGroupsByTID;
+  pi_queue_group_by_tid_t ComputeQueueGroupsByTID;
 
   // A group containing copy queue handles. The main copy engine, if available,
   // comes first followed by link copy engines, if available.
   // When a queue is accessed from multiple host threads, a separate queue group
   // is created for each thread. The key used for mapping is the thread ID.
-  std::unordered_map<std::thread::id, pi_queue_group_t> CopyQueueGroupsByTID;
+  pi_queue_group_by_tid_t CopyQueueGroupsByTID;
 
   // Wait for all commandlists associated with this Queue to finish operations.
   pi_result synchronize();

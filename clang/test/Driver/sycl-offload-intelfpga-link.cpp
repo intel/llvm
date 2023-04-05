@@ -105,6 +105,14 @@
 // RUN:  | FileCheck %s --check-prefix=CHK-FPGA-LINK-WARN-AOCR
 // CHK-FPGA-LINK-WARN-AOCR: warning: FPGA archive '{{.*}}-aocr.a' does not contain matching emulation/hardware expectancy
 
+/// Check deps behaviors with input fat archive and creating aocx archive
+// RUN: %clangxx -fsycl -fintelfpga -fsycl-link=image \
+// RUN:          -target x86_64-unknown-linux-gnu %S/Inputs/SYCL/liblin64.a \
+// RUN:          %s -### 2>&1 \
+// RUN:  | FileCheck %s --check-prefix=CHK-FPGA-LINK-UNDEFS
+// CHK-FPGA-LINK-UNDEFS: ld{{.*}} "-z" "undefs"
+// CHK-FPGA-LINK-UNDEFS: clang-offload-deps{{.*}}
+
 /// -fintelfpga -fsycl-link from source
 // RUN: touch %t.cpp
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga -fsycl-link=early %t.cpp -ccc-print-phases 2>&1 \

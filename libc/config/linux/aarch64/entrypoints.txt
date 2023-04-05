@@ -17,6 +17,9 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.ctype.tolower
     libc.src.ctype.toupper
     
+    # errno.h entrypoints
+    libc.src.errno.errno
+
     # fcntl.h entrypoints
     libc.src.fcntl.creat
     libc.src.fcntl.open
@@ -321,6 +324,8 @@ if(LLVM_LIBC_FULL_BUILD)
     # network.h entrypoints
     libc.src.network.htonl
     libc.src.network.htons
+    libc.src.network.ntohl
+    libc.src.network.ntohs
 
     # pthread.h entrypoints
     libc.src.pthread.pthread_atfork

@@ -86,8 +86,9 @@ static void InitializeFlags() {
     cf.clear_shadow_mmap_threshold = 4096 * (SANITIZER_ANDROID ? 2 : 8);
     // Sigtrap is used in error reporting.
     cf.handle_sigtrap = kHandleSignalExclusive;
-    // FIXME: enable once all false positives have been fixed.
-    cf.detect_leaks = false;
+    // For now only tested on Linux. Other plantforms can be turned on as they
+    // become ready.
+    cf.detect_leaks = cf.detect_leaks && SANITIZER_LINUX && !SANITIZER_ANDROID;
 
 #if SANITIZER_ANDROID
     // Let platform handle other signals. It is better at reporting them then we
@@ -400,10 +401,8 @@ __attribute__((constructor(0))) void __hwasan_init() {
   __ubsan::InitAsPlugin();
 #endif
 
-  if (CAN_SANITIZE_LEAKS) {
+  if (CAN_SANITIZE_LEAKS && common_flags()->detect_leaks) {
     __lsan::ScopedInterceptorDisabler disabler;
-    Symbolizer::LateInitialize();
-  } else {
     Symbolizer::LateInitialize();
   }
 

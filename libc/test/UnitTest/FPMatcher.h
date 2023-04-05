@@ -14,7 +14,6 @@
 #include "test/UnitTest/Test.h"
 #include "utils/testutils/RoundingModeUtils.h"
 
-#include <errno.h>
 #include <math.h>
 
 namespace __llvm_libc {
@@ -106,8 +105,8 @@ FPMatcher<T, C> getMatcher(T expectedValue) {
 #define EXPECT_MATH_ERRNO(expected)                                            \
   do {                                                                         \
     if (math_errhandling & MATH_ERRNO) {                                       \
-      int actual = errno;                                                      \
-      errno = 0;                                                               \
+      int actual = libc_errno;                                                 \
+      libc_errno = 0;                                                          \
       EXPECT_EQ(actual, expected);                                             \
     }                                                                          \
   } while (0)
@@ -115,8 +114,8 @@ FPMatcher<T, C> getMatcher(T expectedValue) {
 #define ASSERT_MATH_ERRNO(expected)                                            \
   do {                                                                         \
     if (math_errhandling & MATH_ERRNO) {                                       \
-      int actual = errno;                                                      \
-      errno = 0;                                                               \
+      int actual = libc_errno;                                                 \
+      libc_errno = 0;                                                          \
       ASSERT_EQ(actual, expected);                                             \
     }                                                                          \
   } while (0)
@@ -124,14 +123,16 @@ FPMatcher<T, C> getMatcher(T expectedValue) {
 #define EXPECT_FP_EXCEPTION(expected)                                          \
   do {                                                                         \
     if (math_errhandling & MATH_ERREXCEPT) {                                   \
-      EXPECT_EQ(__llvm_libc::fputil::test_except(FE_ALL_EXCEPT), expected);    \
+      EXPECT_GE(__llvm_libc::fputil::test_except(FE_ALL_EXCEPT) & expected,    \
+                expected);                                                     \
     }                                                                          \
   } while (0)
 
 #define ASSERT_FP_EXCEPTION(expected)                                          \
   do {                                                                         \
     if (math_errhandling & MATH_ERREXCEPT) {                                   \
-      ASSERT_EQ(__llvm_libc::fputil::test_except(FE_ALL_EXCEPT), expected);    \
+      ASSERT_GE(__llvm_libc::fputil::test_except(FE_ALL_EXCEPT) & expected,    \
+                expected);                                                     \
     }                                                                          \
   } while (0)
 
@@ -140,7 +141,8 @@ FPMatcher<T, C> getMatcher(T expectedValue) {
     __llvm_libc::fputil::clear_except(FE_ALL_EXCEPT);                          \
     EXPECT_FP_EQ(expected_val, actual_val);                                    \
     if (math_errhandling & MATH_ERREXCEPT) {                                   \
-      EXPECT_EQ(__llvm_libc::fputil::test_except(FE_ALL_EXCEPT),               \
+      EXPECT_GE(__llvm_libc::fputil::test_except(FE_ALL_EXCEPT) &              \
+                    expected_except,                                           \
                 expected_except);                                              \
       __llvm_libc::fputil::clear_except(FE_ALL_EXCEPT);                        \
     }                                                                          \
@@ -151,7 +153,8 @@ FPMatcher<T, C> getMatcher(T expectedValue) {
     __llvm_libc::fputil::clear_except(FE_ALL_EXCEPT);                          \
     EXPECT_FP_IS_NAN(actual_val);                                              \
     if (math_errhandling & MATH_ERREXCEPT) {                                   \
-      EXPECT_EQ(__llvm_libc::fputil::test_except(FE_ALL_EXCEPT),               \
+      EXPECT_GE(__llvm_libc::fputil::test_except(FE_ALL_EXCEPT) &              \
+                    expected_except,                                           \
                 expected_except);                                              \
       __llvm_libc::fputil::clear_except(FE_ALL_EXCEPT);                        \
     }                                                                          \

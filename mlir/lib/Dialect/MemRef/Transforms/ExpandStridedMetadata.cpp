@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
+#include "mlir/Dialect/MemRef/Transforms/Transforms.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -75,7 +76,7 @@ public:
     SmallVector<OpFoldResult> values(2 * sourceRank + 1);
     SmallVector<AffineExpr> symbols(2 * sourceRank + 1);
 
-    detail::bindSymbolsList(rewriter.getContext(), symbols);
+    bindSymbolsList(rewriter.getContext(), MutableArrayRef{symbols});
     AffineExpr expr = symbols.front();
     values[0] = ShapedType::isDynamic(sourceOffset)
                     ? getAsOpFoldResult(newExtractStridedMetadata.getOffset())
@@ -262,10 +263,9 @@ SmallVector<OpFoldResult> getExpandedStrides(memref::ExpandShapeOp expandShape,
   auto sourceType = source.getType().cast<MemRefType>();
   auto [strides, offset] = getStridesAndOffset(sourceType);
 
-  OpFoldResult origStride =
-      ShapedType::isDynamic(strides[groupId])
-          ? origStrides[groupId]
-          : builder.getIndexAttr(strides[groupId]);
+  OpFoldResult origStride = ShapedType::isDynamic(strides[groupId])
+                                ? origStrides[groupId]
+                                : builder.getIndexAttr(strides[groupId]);
 
   // Apply the original stride to all the strides.
   int64_t doneStrideIdx = 0;

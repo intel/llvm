@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "RedundantStringCStrCheck.h"
+#include "../utils/Matchers.h"
+#include "../utils/OptionsUtils.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/FixIt.h"
 
@@ -52,6 +54,10 @@ formatDereference(const ast_matchers::MatchFinder::MatchResult &Result,
 
   if (Text.empty())
     return std::string();
+
+  // Remove remaining '->' from overloaded operator call
+  Text.consume_back("->");
+
   // Add leading '*'.
   if (needParensAfterUnaryOperator(ExprNode)) {
     return (llvm::Twine("*(") + Text + ")").str();
@@ -64,6 +70,17 @@ AST_MATCHER(MaterializeTemporaryExpr, isBoundToLValue) {
 }
 
 } // end namespace
+
+RedundantStringCStrCheck::RedundantStringCStrCheck(StringRef Name,
+                                                   ClangTidyContext *Context)
+    : ClangTidyCheck(Name, Context),
+      StringParameterFunctions(utils::options::parseStringList(
+          Options.get("StringParameterFunctions", ""))) {
+  if (getLangOpts().CPlusPlus20)
+    StringParameterFunctions.push_back("::std::format");
+  if (getLangOpts().CPlusPlus2b)
+    StringParameterFunctions.push_back("::std::print");
+}
 
 void RedundantStringCStrCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
@@ -178,6 +195,18 @@ void RedundantStringCStrCheck::registerMatchers(
               // directly.
               hasArgument(0, StringCStrCallExpr))),
       this);
+
+  if (!StringParameterFunctions.empty()) {
+    // Detect redundant 'c_str()' calls in parameters passed to std::format in
+    // C++20 onwards and std::print in C++23 onwards.
+    Finder->addMatcher(
+        traverse(TK_AsIs,
+                 callExpr(callee(functionDecl(matchers::matchesAnyListedName(
+                              StringParameterFunctions))),
+                          forEachArgumentWithParam(StringCStrCallExpr,
+                                                   parmVarDecl()))),
+        this);
+  }
 }
 
 void RedundantStringCStrCheck::check(const MatchFinder::MatchResult &Result) {

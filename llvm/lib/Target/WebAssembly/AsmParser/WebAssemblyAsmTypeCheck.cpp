@@ -15,10 +15,9 @@
 
 #include "AsmParser/WebAssemblyAsmTypeCheck.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
+#include "MCTargetDesc/WebAssemblyMCTypeUtilities.h"
 #include "MCTargetDesc/WebAssemblyTargetStreamer.h"
 #include "TargetInfo/WebAssemblyTargetInfo.h"
-#include "Utils/WebAssemblyTypeUtilities.h"
-#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssembly.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -54,7 +53,8 @@ void WebAssemblyAsmTypeCheck::funcDecl(const wasm::WasmSignature &Sig) {
   ReturnTypes.assign(Sig.Returns.begin(), Sig.Returns.end());
 }
 
-void WebAssemblyAsmTypeCheck::localDecl(const SmallVector<wasm::ValType, 4> &Locals) {
+void WebAssemblyAsmTypeCheck::localDecl(
+    const SmallVectorImpl<wasm::ValType> &Locals) {
   LocalTypes.insert(LocalTypes.end(), Locals.begin(), Locals.end());
 }
 

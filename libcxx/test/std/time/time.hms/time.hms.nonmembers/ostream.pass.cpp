@@ -16,6 +16,8 @@
 // TODO FMT Investigate Windows issues.
 // UNSUPPORTED: msvc, target={{.+}}-windows-gnu
 
+// XFAIL: availability-fp_to_chars-missing
+
 // REQUIRES: locale.fr_FR.UTF-8
 // REQUIRES: locale.ja_JP.UTF-8
 
@@ -27,8 +29,9 @@
 //   basic_ostream<charT, traits>&
 //     operator<<(basic_ostream<charT, traits>& os, const hh_mm_ss<Duration>& hms);
 
-#include <chrono>
 #include <cassert>
+#include <chrono>
+#include <ratio>
 #include <sstream>
 
 #include "make_string.h"
@@ -123,29 +126,28 @@ static void test() {
          SV("00:00:00,666666"));
 
   // ja_JP locale - floating points
-
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{
              std::chrono::duration<long double, std::femto>{1'234'567'890.123}}) == SV("00:00:00.000001234567890"));
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{
              std::chrono::duration<long double, std::pico>{1'234'567'890.123}}) == SV("00:00:00.001234567890"));
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{
              std::chrono::duration<long double, std::nano>{1'234'567'890.123}}) == SV("00:00:01.234567890"));
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::micro>{1'234'567.123}}) ==
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::micro>{1'234'567.123}}) ==
          SV("00:00:01.234567"));
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::milli>{123'456.123}}) ==
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::milli>{123'456.123}}) ==
          SV("00:02:03.456"));
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::centi>{12'345.123}}) ==
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::centi>{12'345.123}}) ==
          SV("00:02:03.45"));
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<float, std::deci>{1'234.123}}) ==
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<float, std::deci>{1'234.123}}) ==
          SV("00:02:03.4"));
 
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<float>{123.123}}) == SV("00:02:03"));
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<float>{123.123}}) == SV("00:02:03"));
 
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::deca>{-366.5}}) ==
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::deca>{-366.5}}) ==
          SV("-01:01:05"));
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::hecto>{-72.64}}) ==
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::hecto>{-72.64}}) ==
          SV("-02:01:04"));
-  assert(stream_c_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::kilo>{-86}}) ==
+  assert(stream_ja_JP_locale<CharT>(std::chrono::hh_mm_ss{std::chrono::duration<double, std::kilo>{-86}}) ==
          SV("-23:53:20"));
 }
 

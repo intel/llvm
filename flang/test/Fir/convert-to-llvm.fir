@@ -739,6 +739,16 @@ func.func @convert_from_int(%arg0 : i32) {
 // CHECK:         %{{.*}} = llvm.sext %[[ARG0]] : i32 to i64
 // CHECK:         %{{.*}} = llvm.inttoptr %{{.*}} : i64 to !llvm.ptr<i64>
 
+
+func.func @convert_from_i1(%arg0 : i1) {
+  %0 = fir.convert %arg0 : (i1) -> i32
+  return
+}
+
+// CHECK-LABEL: convert_from_i1(
+// CHECK-SAME: %[[ARG0:.*]]: i1
+// CHECK:        %{{.*}} = llvm.zext %[[ARG0]] : i1 to i32 
+
 // -----
 
 // Test `fir.convert` operation conversion from !fir.ref<> type.
@@ -851,6 +861,25 @@ func.func @test_store_box(%array : !fir.ref<!fir.box<!fir.array<?x?xf32>>>, %box
 // CHECK-NEXT:  llvm.store %[[box_to_store]], %[[arg0]] : !llvm.ptr<struct<(ptr<f{{.*}}>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<2 x array<3 x i{{.*}}>>)>>
 // CHECK-NEXT:  llvm.return
 // CHECK-NEXT:  }
+
+
+func.func @store_unlimited_polymorphic_box(%arg0 : !fir.class<none>, %arg1 : !fir.class<!fir.array<?xnone>>, %arg2 : !fir.box<none>, %arg3 : !fir.box<!fir.array<?xnone>>, %arg0r : !fir.ref<!fir.class<none>>, %arg1r : !fir.ref<!fir.class<!fir.array<?xnone>>>, %arg2r : !fir.ref<!fir.box<none>>, %arg3r : !fir.ref<!fir.box<!fir.array<?xnone>>>) {
+  fir.store %arg0 to %arg0r : !fir.ref<!fir.class<none>>
+  fir.store %arg1 to %arg1r : !fir.ref<!fir.class<!fir.array<?xnone>>>
+  fir.store %arg2 to %arg2r : !fir.ref<!fir.box<none>>
+  fir.store %arg3 to %arg3r : !fir.ref<!fir.box<!fir.array<?xnone>>>
+  return
+}
+// CHECK-LABEL:   llvm.func @store_unlimited_polymorphic_box(
+// CHECK:  %[[VAL_8:.*]] = llvm.load %{{.*}} : !llvm.ptr<struct<(ptr<struct<()>>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, ptr<i{{.*}}>, array<1 x i{{.*}}>)>>
+// CHECK:  llvm.store %[[VAL_8]], %{{.*}} : !llvm.ptr<struct<(ptr<struct<()>>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, ptr<i{{.*}}>, array<1 x i{{.*}}>)>>
+// CHECK:  %[[VAL_9:.*]] = llvm.load %{{.*}} : !llvm.ptr<struct<(ptr<struct<()>>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i{{.*}}>>, ptr<i{{.*}}>, array<1 x i{{.*}}>)>>
+// CHECK:  llvm.store %[[VAL_9]], %{{.*}} : !llvm.ptr<struct<(ptr<struct<()>>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i{{.*}}>>, ptr<i{{.*}}>, array<1 x i{{.*}}>)>>
+// CHECK:  %[[VAL_10:.*]] = llvm.load %{{.*}} : !llvm.ptr<struct<(ptr<struct<()>>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, ptr<i{{.*}}>, array<1 x i{{.*}}>)>>
+// CHECK:  llvm.store %[[VAL_10]], %{{.*}} : !llvm.ptr<struct<(ptr<struct<()>>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, ptr<i{{.*}}>, array<1 x i{{.*}}>)>>
+// CHECK:  %[[VAL_11:.*]] = llvm.load %{{.*}}: !llvm.ptr<struct<(ptr<struct<()>>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i{{.*}}>>, ptr<i{{.*}}>, array<1 x i{{.*}}>)>>
+// CHECK:  llvm.store %[[VAL_11]], %{{.*}} : !llvm.ptr<struct<(ptr<struct<()>>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i{{.*}}>>, ptr<i{{.*}}>, array<1 x i{{.*}}>)>>
+
 
 // -----
 

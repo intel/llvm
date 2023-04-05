@@ -1166,7 +1166,7 @@ bool IsAllocatableDesignator(const Expr<SomeType> &expr) {
   // Allocatable sub-objects are not themselves allocatable (9.5.3.1 NOTE 2).
   if (const semantics::Symbol *
       sym{UnwrapWholeSymbolOrComponentOrCoarrayRef(expr)}) {
-    return semantics::IsAllocatable(*sym);
+    return semantics::IsAllocatable(sym->GetUltimate());
   }
   return false;
 }
@@ -1596,31 +1596,6 @@ int CountNonConstantLenParameters(const DerivedTypeSpec &type) {
       return true;
     }
   });
-}
-
-// Are the type parameters of type1 compile-time compatible with the
-// corresponding kind type parameters of type2?  Return true if all constant
-// valued parameters are equal.
-// Used to check assignment statements and argument passing.  See 15.5.2.4(4)
-bool AreTypeParamCompatible(const semantics::DerivedTypeSpec &type1,
-    const semantics::DerivedTypeSpec &type2) {
-  for (const auto &[name, param1] : type1.parameters()) {
-    if (semantics::MaybeIntExpr paramExpr1{param1.GetExplicit()}) {
-      if (IsConstantExpr(*paramExpr1)) {
-        const semantics::ParamValue *param2{type2.FindParameter(name)};
-        if (param2) {
-          if (semantics::MaybeIntExpr paramExpr2{param2->GetExplicit()}) {
-            if (IsConstantExpr(*paramExpr2)) {
-              if (ToInt64(*paramExpr1) != ToInt64(*paramExpr2)) {
-                return false;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return true;
 }
 
 const Symbol &GetUsedModule(const UseDetails &details) {

@@ -3,6 +3,7 @@
 #include "clang-c/BuildSystem.h"
 #include "clang-c/CXCompilationDatabase.h"
 #include "clang-c/CXErrorCode.h"
+#include "clang-c/CXSourceLocation.h"
 #include "clang-c/CXString.h"
 #include "clang-c/Documentation.h"
 #include "clang-c/Index.h"
@@ -66,6 +67,27 @@ char *dirname(char* path)
 extern char *basename(const char *);
 extern char *dirname(char *);
 #endif
+
+CXIndex createIndexWithInvocationEmissionPath(int ExcludeDeclarationsFromPCH,
+                                              int DisplayDiagnostics) {
+    CXIndex Idx;
+
+    CXIndexOptions Opts;
+    memset(&Opts, 0, sizeof(Opts));
+    Opts.Size = sizeof(CXIndexOptions);
+    Opts.ExcludeDeclarationsFromPCH = ExcludeDeclarationsFromPCH;
+    Opts.DisplayDiagnostics = DisplayDiagnostics;
+    Opts.InvocationEmissionPath = getenv("CINDEXTEST_INVOCATION_EMISSION_PATH");
+
+    Idx = clang_createIndexWithOptions(&Opts);
+    if (!Idx) {
+        fprintf(stderr,
+                "clang_createIndexWithOptions() failed. "
+                "CINDEX_VERSION_MINOR = %d, sizeof(CXIndexOptions) = %u\n",
+                CINDEX_VERSION_MINOR, Opts.Size);
+    }
+    return Idx;
+}
 
 /** Return the default parsing options. */
 static unsigned getDefaultParsingOptions(void) {
@@ -2046,18 +2068,17 @@ int perform_test_load_source(int argc, const char **argv,
   int result;
   unsigned Repeats = 0;
   unsigned I;
-  const char *InvocationPath;
 
-  Idx = clang_createIndex(/* excludeDeclsFromPCH */
-                          (!strcmp(filter, "local") ||
-                           !strcmp(filter, "local-display") ||
-                           !strcmp(filter, "local-pretty"))
-                              ? 1
-                              : 0,
-                          /* displayDiagnostics=*/1);
-  InvocationPath = getenv("CINDEXTEST_INVOCATION_EMISSION_PATH");
-  if (InvocationPath)
-    clang_CXIndex_setInvocationEmissionPathOption(Idx, InvocationPath);
+  Idx =
+      createIndexWithInvocationEmissionPath(/* excludeDeclsFromPCH */
+                                            (!strcmp(filter, "local") ||
+                                             !strcmp(filter, "local-display") ||
+                                             !strcmp(filter, "local-pretty"))
+                                                ? 1
+                                                : 0,
+                                            /* displayDiagnostics=*/1);
+  if (!Idx)
+    return -1;
 
   if ((CommentSchemaFile = parse_comments_schema(argc, argv))) {
     argc--;
@@ -2701,7 +2722,6 @@ int perform_code_completion(int argc, const char **argv, int timing_only) {
   CXTranslationUnit TU;
   unsigned I, Repeats = 1;
   unsigned completionOptions = clang_defaultCodeCompleteOptions();
-  const char *InvocationPath;
 
   if (getenv("CINDEXTEST_CODE_COMPLETE_PATTERNS"))
     completionOptions |= CXCodeComplete_IncludeCodePatterns;
@@ -2724,10 +2744,9 @@ int perform_code_completion(int argc, const char **argv, int timing_only) {
   if (parse_remapped_files(argc, argv, 2, &unsaved_files, &num_unsaved_files))
     return -1;
 
-  CIdx = clang_createIndex(0, 0);
-  InvocationPath = getenv("CINDEXTEST_INVOCATION_EMISSION_PATH");
-  if (InvocationPath)
-    clang_CXIndex_setInvocationEmissionPathOption(CIdx, InvocationPath);
+  CIdx = createIndexWithInvocationEmissionPath(0, 0);
+  if (!CIdx)
+    return -1;
 
   if (getenv("CINDEXTEST_EDITING"))
     Repeats = 5;
@@ -4816,17 +4835,15 @@ static int perform_test_single_symbol_sgf(const char *input, int argc,
   int num_unsaved_files = 0;
   enum CXErrorCode Err;
   int result = 0;
-  const char *InvocationPath;
   CXString SGF;
   const char *usr;
 
   usr = input + strlen("-single-symbol-sgf-for=");
 
-  Idx = clang_createIndex(/* excludeDeclsFromPCH */ 1,
-                          /* displayDiagnostics=*/0);
-  InvocationPath = getenv("CINDEXTEST_INVOCATION_EMISSION_PATH");
-  if (InvocationPath)
-    clang_CXIndex_setInvocationEmissionPathOption(Idx, InvocationPath);
+  Idx = createIndexWithInvocationEmissionPath(/* excludeDeclsFromPCH */ 1,
+                                              /* displayDiagnostics=*/0);
+  if (!Idx)
+    return -1;
 
   if (parse_remapped_files(argc, argv, 0, &unsaved_files, &num_unsaved_files)) {
     result = -1;
@@ -4863,6 +4880,22 @@ free_remapped_files:
 dispose_index:
   clang_disposeIndex(Idx);
   return result;
+}
+
+static void inspect_single_symbol_sgf_cursor(CXCursor Cursor) {
+  CXSourceLocation CursorLoc;
+  CXString SGFData;
+  const char *SGF;
+  unsigned line, column;
+  CursorLoc = clang_getCursorLocation(Cursor);
+  clang_getSpellingLocation(CursorLoc, 0, &line, &column, 0);
+
+  SGFData = clang_getSymbolGraphForCursor(Cursor);
+  SGF = clang_getCString(SGFData);
+  if (SGF)
+    printf("%d:%d: %s\n", line, column, SGF);
+
+  clang_disposeString(SGFData);
 }
 
 /******************************************************************************/
@@ -4924,6 +4957,7 @@ static void print_usage(void) {
     "       c-index-test -print-usr-file <file>\n");
   fprintf(stderr,
           "       c-index-test -single-symbol-sgfs <symbol filter> {<args>*}\n"
+          "       c-index-test -single-symbol-sgf-at=<site> {<args>*}\n"
           "       c-index-test -single-symbol-sgf-for=<usr> {<args>}*\n");
   fprintf(stderr,
     "       c-index-test -write-pch <file> <compiler arguments>\n"
@@ -5060,6 +5094,9 @@ int cindextest_main(int argc, const char **argv) {
   else if (argc > 3 && strcmp(argv[1], "-single-symbol-sgfs") == 0)
     return perform_test_load_source(argc - 3, argv + 3, argv[2],
                                     PrintSingleSymbolSGFs, NULL);
+  else if (argc > 2 && strstr(argv[1], "-single-symbol-sgf-at=") == argv[1])
+    return inspect_cursor_at(
+        argc, argv, "-single-symbol-sgf-at=", inspect_single_symbol_sgf_cursor);
   else if (argc > 2 && strstr(argv[1], "-single-symbol-sgf-for=") == argv[1])
     return perform_test_single_symbol_sgf(argv[1], argc - 2, argv + 2);
 

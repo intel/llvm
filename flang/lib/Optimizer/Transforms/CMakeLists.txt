@@ -14,16 +14,16 @@ add_flang_library(FIRTransforms
   AlgebraicSimplification.cpp
   SimplifyIntrinsics.cpp
   AddDebugFoundation.cpp
+  PolymorphicOpConversion.cpp
 
   DEPENDS
-  FIRBuilder
   FIRDialect
-  FIRSupport
   FIROptTransformsPassIncGen
 
   LINK_LIBS
   FIRBuilder
   FIRDialect
+  FIRDialectSupport
   FIRSupport
   HLFIRDialect
   MLIRAffineUtils

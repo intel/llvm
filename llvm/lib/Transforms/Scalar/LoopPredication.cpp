@@ -623,7 +623,8 @@ std::optional<Value *> LoopPredication::widenICmpRangeCheckIncrementingLoop(
   auto *FirstIterationCheck = expandCheck(Expander, Guard, RangeCheck.Pred,
                                           GuardStart, GuardLimit);
   IRBuilder<> Builder(findInsertPt(Guard, {FirstIterationCheck, LimitCheck}));
-  return Builder.CreateAnd(FirstIterationCheck, LimitCheck);
+  return Builder.CreateFreeze(
+      Builder.CreateAnd(FirstIterationCheck, LimitCheck));
 }
 
 std::optional<Value *> LoopPredication::widenICmpRangeCheckDecrementingLoop(
@@ -671,7 +672,8 @@ std::optional<Value *> LoopPredication::widenICmpRangeCheckDecrementingLoop(
   auto *LimitCheck = expandCheck(Expander, Guard, LimitCheckPred, LatchLimit,
                                  SE->getOne(Ty));
   IRBuilder<> Builder(findInsertPt(Guard, {FirstIterationCheck, LimitCheck}));
-  return Builder.CreateAnd(FirstIterationCheck, LimitCheck);
+  return Builder.CreateFreeze(
+      Builder.CreateAnd(FirstIterationCheck, LimitCheck));
 }
 
 static void normalizePredicate(ScalarEvolution *SE, Loop *L,
@@ -863,7 +865,19 @@ bool LoopPredication::widenWidenableBranchGuardConditions(
   BI->setCondition(AllChecks);
   if (InsertAssumesOfPredicatedGuardsConditions) {
     Builder.SetInsertPoint(IfTrueBB, IfTrueBB->getFirstInsertionPt());
-    Builder.CreateAssumption(Cond);
+    // If this block has other predecessors, we might not be able to use Cond.
+    // In this case, create a Phi where every other input is `true` and input
+    // from guard block is Cond.
+    Value *AssumeCond = Cond;
+    if (!IfTrueBB->getUniquePredecessor()) {
+      auto *GuardBB = BI->getParent();
+      auto *PN = Builder.CreatePHI(Cond->getType(), pred_size(IfTrueBB),
+                                   "assume.cond");
+      for (auto *Pred : predecessors(IfTrueBB))
+        PN->addIncoming(Pred == GuardBB ? Cond : Builder.getTrue(), Pred);
+      AssumeCond = PN;
+    }
+    Builder.CreateAssumption(AssumeCond);
   }
   RecursivelyDeleteTriviallyDeadInstructions(OldCond, nullptr /* TLI */, MSSAU);
   assert(isGuardAsWidenableBranch(BI) &&

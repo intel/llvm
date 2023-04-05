@@ -404,6 +404,10 @@ mlirOpPrintingFlagsPrintGenericOpForm(MlirOpPrintingFlags flags);
 MLIR_CAPI_EXPORTED void
 mlirOpPrintingFlagsUseLocalScope(MlirOpPrintingFlags flags);
 
+/// Do not verify the operation when using custom operation printers.
+MLIR_CAPI_EXPORTED void
+mlirOpPrintingFlagsAssumeVerified(MlirOpPrintingFlags flags);
+
 //===----------------------------------------------------------------------===//
 // Operation API.
 //===----------------------------------------------------------------------===//
@@ -417,6 +421,16 @@ mlirOpPrintingFlagsUseLocalScope(MlirOpPrintingFlags flags);
 /// return a null operation and emit diagnostics:
 ///   - Result type inference is enabled and cannot be performed.
 MLIR_CAPI_EXPORTED MlirOperation mlirOperationCreate(MlirOperationState *state);
+
+/// Parses an operation, giving ownership to the caller. If parsing fails a null
+/// operation will be returned, and an error diagnostic emitted.
+///
+/// `sourceStr` may be either the text assembly format, or binary bytecode
+/// format. `sourceName` is used as the file name of the source; any IR without
+/// locations will get a `FileLineColLoc` location with `sourceName` as the file
+/// name.
+MLIR_CAPI_EXPORTED MlirOperation mlirOperationCreateParse(
+    MlirContext context, MlirStringRef sourceStr, MlirStringRef sourceName);
 
 /// Creates a deep copy of an operation. The operation is not inserted and
 /// ownership is transferred to the caller.
