@@ -13,7 +13,7 @@
 #include "logger/ur_logger.hpp"
 #include "ur_util.hpp"
 
-namespace loader {
+namespace ur_loader {
 
 class AdapterRegistry {
   public:
@@ -95,6 +95,6 @@ class AdapterRegistry {
     }
 };
 
-} // namespace loader
+} // namespace ur_loader
 
 #endif // UR_ADAPTER_REGISTRY_HPP

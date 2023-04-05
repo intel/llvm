@@ -8,7 +8,7 @@
 
 #include "ur_loader.hpp"
 
-namespace loader {
+namespace ur_loader {
 
 void __attribute__((constructor)) createLoaderContext() {
     context = new context_t;
@@ -16,4 +16,4 @@ void __attribute__((constructor)) createLoaderContext() {
 
 void __attribute__((destructor)) deleteLoaderContext() { delete context; }
 
-} // namespace loader
+} // namespace ur_loader

@@ -12,7 +12,7 @@
 #include <iostream>
 #include <stdio.h>
 
-namespace tracing_layer {
+namespace ur_tracing_layer {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urInit
 __urdlllocal ur_result_t UR_APICALL urInit(
@@ -3695,15 +3695,15 @@ __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     ur_global_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Global;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Global;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -3711,13 +3711,13 @@ __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnInit = pDdiTable->pfnInit;
-    pDdiTable->pfnInit = tracing_layer::urInit;
+    pDdiTable->pfnInit = ur_tracing_layer::urInit;
 
     dditable.pfnGetLastResult = pDdiTable->pfnGetLastResult;
-    pDdiTable->pfnGetLastResult = tracing_layer::urGetLastResult;
+    pDdiTable->pfnGetLastResult = ur_tracing_layer::urGetLastResult;
 
     dditable.pfnTearDown = pDdiTable->pfnTearDown;
-    pDdiTable->pfnTearDown = tracing_layer::urTearDown;
+    pDdiTable->pfnTearDown = ur_tracing_layer::urTearDown;
 
     return result;
 }
@@ -3734,15 +3734,15 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
     ur_context_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Context;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Context;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -3750,27 +3750,27 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = tracing_layer::urContextCreate;
+    pDdiTable->pfnCreate = ur_tracing_layer::urContextCreate;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = tracing_layer::urContextRetain;
+    pDdiTable->pfnRetain = ur_tracing_layer::urContextRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = tracing_layer::urContextRelease;
+    pDdiTable->pfnRelease = ur_tracing_layer::urContextRelease;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = tracing_layer::urContextGetInfo;
+    pDdiTable->pfnGetInfo = ur_tracing_layer::urContextGetInfo;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = tracing_layer::urContextGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_tracing_layer::urContextGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        tracing_layer::urContextCreateWithNativeHandle;
+        ur_tracing_layer::urContextCreateWithNativeHandle;
 
     dditable.pfnSetExtendedDeleter = pDdiTable->pfnSetExtendedDeleter;
     pDdiTable->pfnSetExtendedDeleter =
-        tracing_layer::urContextSetExtendedDeleter;
+        ur_tracing_layer::urContextSetExtendedDeleter;
 
     return result;
 }
@@ -3787,15 +3787,15 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     ur_enqueue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Enqueue;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Enqueue;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -3803,79 +3803,81 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnKernelLaunch = pDdiTable->pfnKernelLaunch;
-    pDdiTable->pfnKernelLaunch = tracing_layer::urEnqueueKernelLaunch;
+    pDdiTable->pfnKernelLaunch = ur_tracing_layer::urEnqueueKernelLaunch;
 
     dditable.pfnEventsWait = pDdiTable->pfnEventsWait;
-    pDdiTable->pfnEventsWait = tracing_layer::urEnqueueEventsWait;
+    pDdiTable->pfnEventsWait = ur_tracing_layer::urEnqueueEventsWait;
 
     dditable.pfnEventsWaitWithBarrier = pDdiTable->pfnEventsWaitWithBarrier;
     pDdiTable->pfnEventsWaitWithBarrier =
-        tracing_layer::urEnqueueEventsWaitWithBarrier;
+        ur_tracing_layer::urEnqueueEventsWaitWithBarrier;
 
     dditable.pfnMemBufferRead = pDdiTable->pfnMemBufferRead;
-    pDdiTable->pfnMemBufferRead = tracing_layer::urEnqueueMemBufferRead;
+    pDdiTable->pfnMemBufferRead = ur_tracing_layer::urEnqueueMemBufferRead;
 
     dditable.pfnMemBufferWrite = pDdiTable->pfnMemBufferWrite;
-    pDdiTable->pfnMemBufferWrite = tracing_layer::urEnqueueMemBufferWrite;
+    pDdiTable->pfnMemBufferWrite = ur_tracing_layer::urEnqueueMemBufferWrite;
 
     dditable.pfnMemBufferReadRect = pDdiTable->pfnMemBufferReadRect;
-    pDdiTable->pfnMemBufferReadRect = tracing_layer::urEnqueueMemBufferReadRect;
+    pDdiTable->pfnMemBufferReadRect =
+        ur_tracing_layer::urEnqueueMemBufferReadRect;
 
     dditable.pfnMemBufferWriteRect = pDdiTable->pfnMemBufferWriteRect;
     pDdiTable->pfnMemBufferWriteRect =
-        tracing_layer::urEnqueueMemBufferWriteRect;
+        ur_tracing_layer::urEnqueueMemBufferWriteRect;
 
     dditable.pfnMemBufferCopy = pDdiTable->pfnMemBufferCopy;
-    pDdiTable->pfnMemBufferCopy = tracing_layer::urEnqueueMemBufferCopy;
+    pDdiTable->pfnMemBufferCopy = ur_tracing_layer::urEnqueueMemBufferCopy;
 
     dditable.pfnMemBufferCopyRect = pDdiTable->pfnMemBufferCopyRect;
-    pDdiTable->pfnMemBufferCopyRect = tracing_layer::urEnqueueMemBufferCopyRect;
+    pDdiTable->pfnMemBufferCopyRect =
+        ur_tracing_layer::urEnqueueMemBufferCopyRect;
 
     dditable.pfnMemBufferFill = pDdiTable->pfnMemBufferFill;
-    pDdiTable->pfnMemBufferFill = tracing_layer::urEnqueueMemBufferFill;
+    pDdiTable->pfnMemBufferFill = ur_tracing_layer::urEnqueueMemBufferFill;
 
     dditable.pfnMemImageRead = pDdiTable->pfnMemImageRead;
-    pDdiTable->pfnMemImageRead = tracing_layer::urEnqueueMemImageRead;
+    pDdiTable->pfnMemImageRead = ur_tracing_layer::urEnqueueMemImageRead;
 
     dditable.pfnMemImageWrite = pDdiTable->pfnMemImageWrite;
-    pDdiTable->pfnMemImageWrite = tracing_layer::urEnqueueMemImageWrite;
+    pDdiTable->pfnMemImageWrite = ur_tracing_layer::urEnqueueMemImageWrite;
 
     dditable.pfnMemImageCopy = pDdiTable->pfnMemImageCopy;
-    pDdiTable->pfnMemImageCopy = tracing_layer::urEnqueueMemImageCopy;
+    pDdiTable->pfnMemImageCopy = ur_tracing_layer::urEnqueueMemImageCopy;
 
     dditable.pfnMemBufferMap = pDdiTable->pfnMemBufferMap;
-    pDdiTable->pfnMemBufferMap = tracing_layer::urEnqueueMemBufferMap;
+    pDdiTable->pfnMemBufferMap = ur_tracing_layer::urEnqueueMemBufferMap;
 
     dditable.pfnMemUnmap = pDdiTable->pfnMemUnmap;
-    pDdiTable->pfnMemUnmap = tracing_layer::urEnqueueMemUnmap;
+    pDdiTable->pfnMemUnmap = ur_tracing_layer::urEnqueueMemUnmap;
 
     dditable.pfnUSMFill = pDdiTable->pfnUSMFill;
-    pDdiTable->pfnUSMFill = tracing_layer::urEnqueueUSMFill;
+    pDdiTable->pfnUSMFill = ur_tracing_layer::urEnqueueUSMFill;
 
     dditable.pfnUSMMemcpy = pDdiTable->pfnUSMMemcpy;
-    pDdiTable->pfnUSMMemcpy = tracing_layer::urEnqueueUSMMemcpy;
+    pDdiTable->pfnUSMMemcpy = ur_tracing_layer::urEnqueueUSMMemcpy;
 
     dditable.pfnUSMPrefetch = pDdiTable->pfnUSMPrefetch;
-    pDdiTable->pfnUSMPrefetch = tracing_layer::urEnqueueUSMPrefetch;
+    pDdiTable->pfnUSMPrefetch = ur_tracing_layer::urEnqueueUSMPrefetch;
 
     dditable.pfnUSMAdvise = pDdiTable->pfnUSMAdvise;
-    pDdiTable->pfnUSMAdvise = tracing_layer::urEnqueueUSMAdvise;
+    pDdiTable->pfnUSMAdvise = ur_tracing_layer::urEnqueueUSMAdvise;
 
     dditable.pfnUSMFill2D = pDdiTable->pfnUSMFill2D;
-    pDdiTable->pfnUSMFill2D = tracing_layer::urEnqueueUSMFill2D;
+    pDdiTable->pfnUSMFill2D = ur_tracing_layer::urEnqueueUSMFill2D;
 
     dditable.pfnUSMMemcpy2D = pDdiTable->pfnUSMMemcpy2D;
-    pDdiTable->pfnUSMMemcpy2D = tracing_layer::urEnqueueUSMMemcpy2D;
+    pDdiTable->pfnUSMMemcpy2D = ur_tracing_layer::urEnqueueUSMMemcpy2D;
 
     dditable.pfnDeviceGlobalVariableWrite =
         pDdiTable->pfnDeviceGlobalVariableWrite;
     pDdiTable->pfnDeviceGlobalVariableWrite =
-        tracing_layer::urEnqueueDeviceGlobalVariableWrite;
+        ur_tracing_layer::urEnqueueDeviceGlobalVariableWrite;
 
     dditable.pfnDeviceGlobalVariableRead =
         pDdiTable->pfnDeviceGlobalVariableRead;
     pDdiTable->pfnDeviceGlobalVariableRead =
-        tracing_layer::urEnqueueDeviceGlobalVariableRead;
+        ur_tracing_layer::urEnqueueDeviceGlobalVariableRead;
 
     return result;
 }
@@ -3892,15 +3894,15 @@ __urdlllocal ur_result_t UR_APICALL urGetEventProcAddrTable(
     ur_event_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Event;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Event;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -3908,29 +3910,29 @@ __urdlllocal ur_result_t UR_APICALL urGetEventProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = tracing_layer::urEventGetInfo;
+    pDdiTable->pfnGetInfo = ur_tracing_layer::urEventGetInfo;
 
     dditable.pfnGetProfilingInfo = pDdiTable->pfnGetProfilingInfo;
-    pDdiTable->pfnGetProfilingInfo = tracing_layer::urEventGetProfilingInfo;
+    pDdiTable->pfnGetProfilingInfo = ur_tracing_layer::urEventGetProfilingInfo;
 
     dditable.pfnWait = pDdiTable->pfnWait;
-    pDdiTable->pfnWait = tracing_layer::urEventWait;
+    pDdiTable->pfnWait = ur_tracing_layer::urEventWait;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = tracing_layer::urEventRetain;
+    pDdiTable->pfnRetain = ur_tracing_layer::urEventRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = tracing_layer::urEventRelease;
+    pDdiTable->pfnRelease = ur_tracing_layer::urEventRelease;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = tracing_layer::urEventGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_tracing_layer::urEventGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        tracing_layer::urEventCreateWithNativeHandle;
+        ur_tracing_layer::urEventCreateWithNativeHandle;
 
     dditable.pfnSetCallback = pDdiTable->pfnSetCallback;
-    pDdiTable->pfnSetCallback = tracing_layer::urEventSetCallback;
+    pDdiTable->pfnSetCallback = ur_tracing_layer::urEventSetCallback;
 
     return result;
 }
@@ -3947,15 +3949,15 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_kernel_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Kernel;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Kernel;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -3963,52 +3965,52 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = tracing_layer::urKernelCreate;
+    pDdiTable->pfnCreate = ur_tracing_layer::urKernelCreate;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = tracing_layer::urKernelGetInfo;
+    pDdiTable->pfnGetInfo = ur_tracing_layer::urKernelGetInfo;
 
     dditable.pfnGetGroupInfo = pDdiTable->pfnGetGroupInfo;
-    pDdiTable->pfnGetGroupInfo = tracing_layer::urKernelGetGroupInfo;
+    pDdiTable->pfnGetGroupInfo = ur_tracing_layer::urKernelGetGroupInfo;
 
     dditable.pfnGetSubGroupInfo = pDdiTable->pfnGetSubGroupInfo;
-    pDdiTable->pfnGetSubGroupInfo = tracing_layer::urKernelGetSubGroupInfo;
+    pDdiTable->pfnGetSubGroupInfo = ur_tracing_layer::urKernelGetSubGroupInfo;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = tracing_layer::urKernelRetain;
+    pDdiTable->pfnRetain = ur_tracing_layer::urKernelRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = tracing_layer::urKernelRelease;
+    pDdiTable->pfnRelease = ur_tracing_layer::urKernelRelease;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = tracing_layer::urKernelGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_tracing_layer::urKernelGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        tracing_layer::urKernelCreateWithNativeHandle;
+        ur_tracing_layer::urKernelCreateWithNativeHandle;
 
     dditable.pfnSetArgValue = pDdiTable->pfnSetArgValue;
-    pDdiTable->pfnSetArgValue = tracing_layer::urKernelSetArgValue;
+    pDdiTable->pfnSetArgValue = ur_tracing_layer::urKernelSetArgValue;
 
     dditable.pfnSetArgLocal = pDdiTable->pfnSetArgLocal;
-    pDdiTable->pfnSetArgLocal = tracing_layer::urKernelSetArgLocal;
+    pDdiTable->pfnSetArgLocal = ur_tracing_layer::urKernelSetArgLocal;
 
     dditable.pfnSetArgPointer = pDdiTable->pfnSetArgPointer;
-    pDdiTable->pfnSetArgPointer = tracing_layer::urKernelSetArgPointer;
+    pDdiTable->pfnSetArgPointer = ur_tracing_layer::urKernelSetArgPointer;
 
     dditable.pfnSetExecInfo = pDdiTable->pfnSetExecInfo;
-    pDdiTable->pfnSetExecInfo = tracing_layer::urKernelSetExecInfo;
+    pDdiTable->pfnSetExecInfo = ur_tracing_layer::urKernelSetExecInfo;
 
     dditable.pfnSetArgSampler = pDdiTable->pfnSetArgSampler;
-    pDdiTable->pfnSetArgSampler = tracing_layer::urKernelSetArgSampler;
+    pDdiTable->pfnSetArgSampler = ur_tracing_layer::urKernelSetArgSampler;
 
     dditable.pfnSetArgMemObj = pDdiTable->pfnSetArgMemObj;
-    pDdiTable->pfnSetArgMemObj = tracing_layer::urKernelSetArgMemObj;
+    pDdiTable->pfnSetArgMemObj = ur_tracing_layer::urKernelSetArgMemObj;
 
     dditable.pfnSetSpecializationConstants =
         pDdiTable->pfnSetSpecializationConstants;
     pDdiTable->pfnSetSpecializationConstants =
-        tracing_layer::urKernelSetSpecializationConstants;
+        ur_tracing_layer::urKernelSetSpecializationConstants;
 
     return result;
 }
@@ -4025,15 +4027,15 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
     ur_mem_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Mem;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Mem;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4041,32 +4043,32 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnImageCreate = pDdiTable->pfnImageCreate;
-    pDdiTable->pfnImageCreate = tracing_layer::urMemImageCreate;
+    pDdiTable->pfnImageCreate = ur_tracing_layer::urMemImageCreate;
 
     dditable.pfnBufferCreate = pDdiTable->pfnBufferCreate;
-    pDdiTable->pfnBufferCreate = tracing_layer::urMemBufferCreate;
+    pDdiTable->pfnBufferCreate = ur_tracing_layer::urMemBufferCreate;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = tracing_layer::urMemRetain;
+    pDdiTable->pfnRetain = ur_tracing_layer::urMemRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = tracing_layer::urMemRelease;
+    pDdiTable->pfnRelease = ur_tracing_layer::urMemRelease;
 
     dditable.pfnBufferPartition = pDdiTable->pfnBufferPartition;
-    pDdiTable->pfnBufferPartition = tracing_layer::urMemBufferPartition;
+    pDdiTable->pfnBufferPartition = ur_tracing_layer::urMemBufferPartition;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = tracing_layer::urMemGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_tracing_layer::urMemGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        tracing_layer::urMemCreateWithNativeHandle;
+        ur_tracing_layer::urMemCreateWithNativeHandle;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = tracing_layer::urMemGetInfo;
+    pDdiTable->pfnGetInfo = ur_tracing_layer::urMemGetInfo;
 
     dditable.pfnImageGetInfo = pDdiTable->pfnImageGetInfo;
-    pDdiTable->pfnImageGetInfo = tracing_layer::urMemImageGetInfo;
+    pDdiTable->pfnImageGetInfo = ur_tracing_layer::urMemImageGetInfo;
 
     return result;
 }
@@ -4083,15 +4085,15 @@ __urdlllocal ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_platform_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Platform;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Platform;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4099,20 +4101,20 @@ __urdlllocal ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnGet = pDdiTable->pfnGet;
-    pDdiTable->pfnGet = tracing_layer::urPlatformGet;
+    pDdiTable->pfnGet = ur_tracing_layer::urPlatformGet;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = tracing_layer::urPlatformGetInfo;
+    pDdiTable->pfnGetInfo = ur_tracing_layer::urPlatformGetInfo;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = tracing_layer::urPlatformGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_tracing_layer::urPlatformGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        tracing_layer::urPlatformCreateWithNativeHandle;
+        ur_tracing_layer::urPlatformCreateWithNativeHandle;
 
     dditable.pfnGetApiVersion = pDdiTable->pfnGetApiVersion;
-    pDdiTable->pfnGetApiVersion = tracing_layer::urPlatformGetApiVersion;
+    pDdiTable->pfnGetApiVersion = ur_tracing_layer::urPlatformGetApiVersion;
 
     return result;
 }
@@ -4129,15 +4131,15 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
     ur_program_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Program;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Program;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4145,47 +4147,48 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnCreateWithIL = pDdiTable->pfnCreateWithIL;
-    pDdiTable->pfnCreateWithIL = tracing_layer::urProgramCreateWithIL;
+    pDdiTable->pfnCreateWithIL = ur_tracing_layer::urProgramCreateWithIL;
 
     dditable.pfnCreateWithBinary = pDdiTable->pfnCreateWithBinary;
-    pDdiTable->pfnCreateWithBinary = tracing_layer::urProgramCreateWithBinary;
+    pDdiTable->pfnCreateWithBinary =
+        ur_tracing_layer::urProgramCreateWithBinary;
 
     dditable.pfnBuild = pDdiTable->pfnBuild;
-    pDdiTable->pfnBuild = tracing_layer::urProgramBuild;
+    pDdiTable->pfnBuild = ur_tracing_layer::urProgramBuild;
 
     dditable.pfnCompile = pDdiTable->pfnCompile;
-    pDdiTable->pfnCompile = tracing_layer::urProgramCompile;
+    pDdiTable->pfnCompile = ur_tracing_layer::urProgramCompile;
 
     dditable.pfnLink = pDdiTable->pfnLink;
-    pDdiTable->pfnLink = tracing_layer::urProgramLink;
+    pDdiTable->pfnLink = ur_tracing_layer::urProgramLink;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = tracing_layer::urProgramRetain;
+    pDdiTable->pfnRetain = ur_tracing_layer::urProgramRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = tracing_layer::urProgramRelease;
+    pDdiTable->pfnRelease = ur_tracing_layer::urProgramRelease;
 
     dditable.pfnGetFunctionPointer = pDdiTable->pfnGetFunctionPointer;
     pDdiTable->pfnGetFunctionPointer =
-        tracing_layer::urProgramGetFunctionPointer;
+        ur_tracing_layer::urProgramGetFunctionPointer;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = tracing_layer::urProgramGetInfo;
+    pDdiTable->pfnGetInfo = ur_tracing_layer::urProgramGetInfo;
 
     dditable.pfnGetBuildInfo = pDdiTable->pfnGetBuildInfo;
-    pDdiTable->pfnGetBuildInfo = tracing_layer::urProgramGetBuildInfo;
+    pDdiTable->pfnGetBuildInfo = ur_tracing_layer::urProgramGetBuildInfo;
 
     dditable.pfnSetSpecializationConstants =
         pDdiTable->pfnSetSpecializationConstants;
     pDdiTable->pfnSetSpecializationConstants =
-        tracing_layer::urProgramSetSpecializationConstants;
+        ur_tracing_layer::urProgramSetSpecializationConstants;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = tracing_layer::urProgramGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_tracing_layer::urProgramGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        tracing_layer::urProgramCreateWithNativeHandle;
+        ur_tracing_layer::urProgramCreateWithNativeHandle;
 
     return result;
 }
@@ -4202,15 +4205,15 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_queue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Queue;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Queue;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4218,29 +4221,29 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = tracing_layer::urQueueGetInfo;
+    pDdiTable->pfnGetInfo = ur_tracing_layer::urQueueGetInfo;
 
     dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = tracing_layer::urQueueCreate;
+    pDdiTable->pfnCreate = ur_tracing_layer::urQueueCreate;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = tracing_layer::urQueueRetain;
+    pDdiTable->pfnRetain = ur_tracing_layer::urQueueRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = tracing_layer::urQueueRelease;
+    pDdiTable->pfnRelease = ur_tracing_layer::urQueueRelease;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = tracing_layer::urQueueGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_tracing_layer::urQueueGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        tracing_layer::urQueueCreateWithNativeHandle;
+        ur_tracing_layer::urQueueCreateWithNativeHandle;
 
     dditable.pfnFinish = pDdiTable->pfnFinish;
-    pDdiTable->pfnFinish = tracing_layer::urQueueFinish;
+    pDdiTable->pfnFinish = ur_tracing_layer::urQueueFinish;
 
     dditable.pfnFlush = pDdiTable->pfnFlush;
-    pDdiTable->pfnFlush = tracing_layer::urQueueFlush;
+    pDdiTable->pfnFlush = ur_tracing_layer::urQueueFlush;
 
     return result;
 }
@@ -4257,15 +4260,15 @@ __urdlllocal ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     ur_sampler_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Sampler;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Sampler;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4273,23 +4276,23 @@ __urdlllocal ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = tracing_layer::urSamplerCreate;
+    pDdiTable->pfnCreate = ur_tracing_layer::urSamplerCreate;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = tracing_layer::urSamplerRetain;
+    pDdiTable->pfnRetain = ur_tracing_layer::urSamplerRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = tracing_layer::urSamplerRelease;
+    pDdiTable->pfnRelease = ur_tracing_layer::urSamplerRelease;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = tracing_layer::urSamplerGetInfo;
+    pDdiTable->pfnGetInfo = ur_tracing_layer::urSamplerGetInfo;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = tracing_layer::urSamplerGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_tracing_layer::urSamplerGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        tracing_layer::urSamplerCreateWithNativeHandle;
+        ur_tracing_layer::urSamplerCreateWithNativeHandle;
 
     return result;
 }
@@ -4306,15 +4309,15 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
     ur_usm_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.USM;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.USM;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4322,25 +4325,25 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnHostAlloc = pDdiTable->pfnHostAlloc;
-    pDdiTable->pfnHostAlloc = tracing_layer::urUSMHostAlloc;
+    pDdiTable->pfnHostAlloc = ur_tracing_layer::urUSMHostAlloc;
 
     dditable.pfnDeviceAlloc = pDdiTable->pfnDeviceAlloc;
-    pDdiTable->pfnDeviceAlloc = tracing_layer::urUSMDeviceAlloc;
+    pDdiTable->pfnDeviceAlloc = ur_tracing_layer::urUSMDeviceAlloc;
 
     dditable.pfnSharedAlloc = pDdiTable->pfnSharedAlloc;
-    pDdiTable->pfnSharedAlloc = tracing_layer::urUSMSharedAlloc;
+    pDdiTable->pfnSharedAlloc = ur_tracing_layer::urUSMSharedAlloc;
 
     dditable.pfnFree = pDdiTable->pfnFree;
-    pDdiTable->pfnFree = tracing_layer::urUSMFree;
+    pDdiTable->pfnFree = ur_tracing_layer::urUSMFree;
 
     dditable.pfnGetMemAllocInfo = pDdiTable->pfnGetMemAllocInfo;
-    pDdiTable->pfnGetMemAllocInfo = tracing_layer::urUSMGetMemAllocInfo;
+    pDdiTable->pfnGetMemAllocInfo = ur_tracing_layer::urUSMGetMemAllocInfo;
 
     dditable.pfnPoolCreate = pDdiTable->pfnPoolCreate;
-    pDdiTable->pfnPoolCreate = tracing_layer::urUSMPoolCreate;
+    pDdiTable->pfnPoolCreate = ur_tracing_layer::urUSMPoolCreate;
 
     dditable.pfnPoolDestroy = pDdiTable->pfnPoolDestroy;
-    pDdiTable->pfnPoolDestroy = tracing_layer::urUSMPoolDestroy;
+    pDdiTable->pfnPoolDestroy = ur_tracing_layer::urUSMPoolDestroy;
 
     return result;
 }
@@ -4357,15 +4360,15 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     ur_device_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = tracing_layer::context.urDdiTable.Device;
+    auto &dditable = ur_tracing_layer::context.urDdiTable.Device;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(tracing_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(tracing_layer::context.version) >
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4373,33 +4376,33 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnGet = pDdiTable->pfnGet;
-    pDdiTable->pfnGet = tracing_layer::urDeviceGet;
+    pDdiTable->pfnGet = ur_tracing_layer::urDeviceGet;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = tracing_layer::urDeviceGetInfo;
+    pDdiTable->pfnGetInfo = ur_tracing_layer::urDeviceGetInfo;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = tracing_layer::urDeviceRetain;
+    pDdiTable->pfnRetain = ur_tracing_layer::urDeviceRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = tracing_layer::urDeviceRelease;
+    pDdiTable->pfnRelease = ur_tracing_layer::urDeviceRelease;
 
     dditable.pfnPartition = pDdiTable->pfnPartition;
-    pDdiTable->pfnPartition = tracing_layer::urDevicePartition;
+    pDdiTable->pfnPartition = ur_tracing_layer::urDevicePartition;
 
     dditable.pfnSelectBinary = pDdiTable->pfnSelectBinary;
-    pDdiTable->pfnSelectBinary = tracing_layer::urDeviceSelectBinary;
+    pDdiTable->pfnSelectBinary = ur_tracing_layer::urDeviceSelectBinary;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = tracing_layer::urDeviceGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_tracing_layer::urDeviceGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        tracing_layer::urDeviceCreateWithNativeHandle;
+        ur_tracing_layer::urDeviceCreateWithNativeHandle;
 
     dditable.pfnGetGlobalTimestamps = pDdiTable->pfnGetGlobalTimestamps;
     pDdiTable->pfnGetGlobalTimestamps =
-        tracing_layer::urDeviceGetGlobalTimestamps;
+        ur_tracing_layer::urDeviceGetGlobalTimestamps;
 
     return result;
 }
@@ -4408,65 +4411,65 @@ ur_result_t context_t::init(ur_dditable_t *dditable) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
-                                                         &dditable->Global);
+        result = ur_tracing_layer::urGetGlobalProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Global);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetContextProcAddrTable(
+        result = ur_tracing_layer::urGetContextProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Context);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetEnqueueProcAddrTable(
+        result = ur_tracing_layer::urGetEnqueueProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Enqueue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetEventProcAddrTable(UR_API_VERSION_CURRENT,
-                                                        &dditable->Event);
+        result = ur_tracing_layer::urGetEventProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Event);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
-                                                         &dditable->Kernel);
+        result = ur_tracing_layer::urGetKernelProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Kernel);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetMemProcAddrTable(UR_API_VERSION_CURRENT,
-                                                      &dditable->Mem);
+        result = ur_tracing_layer::urGetMemProcAddrTable(UR_API_VERSION_CURRENT,
+                                                         &dditable->Mem);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetPlatformProcAddrTable(
+        result = ur_tracing_layer::urGetPlatformProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Platform);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetProgramProcAddrTable(
+        result = ur_tracing_layer::urGetProgramProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Program);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT,
-                                                        &dditable->Queue);
+        result = ur_tracing_layer::urGetQueueProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Queue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetSamplerProcAddrTable(
+        result = ur_tracing_layer::urGetSamplerProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Sampler);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT,
-                                                      &dditable->USM);
+        result = ur_tracing_layer::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT,
+                                                         &dditable->USM);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = tracing_layer::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
-                                                         &dditable->Device);
+        result = ur_tracing_layer::urGetDeviceProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Device);
     }
 
     return result;
 }
-} /* namespace tracing_layer */
+} /* namespace ur_tracing_layer */

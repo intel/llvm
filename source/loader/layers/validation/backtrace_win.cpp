@@ -11,7 +11,7 @@
 #include <Windows.h>
 #include <vector>
 
-namespace validation_layer {
+namespace ur_validation_layer {
 
 std::vector<BacktraceLine> getCurrentBacktrace() {
     HANDLE process = GetCurrentProcess();
@@ -51,4 +51,4 @@ std::vector<BacktraceLine> getCurrentBacktrace() {
     return backtrace;
 }
 
-} // namespace validation_layer
+} // namespace ur_validation_layer

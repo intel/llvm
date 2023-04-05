@@ -15,10 +15,10 @@ extern "C" BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason,
                                  LPVOID lpvReserved) {
     if (fdwReason == DLL_PROCESS_DETACH) {
         delete context;
-        delete loader::context;
+        delete ur_loader::context;
     } else if (fdwReason == DLL_PROCESS_ATTACH) {
         context = new context_t;
-        loader::context = new loader::context_t;
+        ur_loader::context = new ur_loader::context_t;
     }
     return TRUE;
 }

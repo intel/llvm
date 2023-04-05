@@ -8,7 +8,7 @@
 #include "ur_lib_loader.hpp"
 #include "logger/ur_logger.hpp"
 
-namespace loader {
+namespace ur_loader {
 
 void LibLoader::freeAdapterLibrary(HMODULE handle) {
     if (handle) {
@@ -31,4 +31,4 @@ void *LibLoader::getFunctionPtr(HMODULE handle, const char *func_name) {
     return GetProcAddress(handle, func_name);
 }
 
-} // namespace loader
+} // namespace ur_loader

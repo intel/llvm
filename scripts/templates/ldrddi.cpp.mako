@@ -19,7 +19,7 @@ from templates import helper as th
 #include "${x}_lib_loader.hpp"
 #include "${x}_loader.hpp"
 
-namespace loader
+namespace ur_loader
 {
     ///////////////////////////////////////////////////////////////////////////////
     %for obj in th.extract_objs(specs, r"handle"):
@@ -199,7 +199,7 @@ namespace loader
     %endif
 
     %endfor
-} // namespace loader
+} // namespace ur_loader
 
 #if defined(__cplusplus)
 extern "C" {
@@ -222,25 +222,25 @@ ${tbl['export']['name']}(
     %endfor
     )
 {
-    if( loader::context->platforms.size() < 1 )
+    if( ur_loader::context->platforms.size() < 1 )
         return ${X}_RESULT_ERROR_UNINITIALIZED;
 
     if( nullptr == pDdiTable )
         return ${X}_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if( loader::context->version < version )
+    if( ur_loader::context->version < version )
         return ${X}_RESULT_ERROR_UNSUPPORTED_VERSION;
 
     ${x}_result_t result = ${X}_RESULT_SUCCESS;
 
     bool atLeastOneplatformValid = false;
     // Load the device-platform DDI tables
-    for( auto& platform : loader::context->platforms )
+    for( auto& platform : ur_loader::context->platforms )
     {
         if(platform.initStatus != ${X}_RESULT_SUCCESS)
             continue;
         auto getTable = reinterpret_cast<${tbl['pfn']}>(
-            loader::LibLoader::getFunctionPtr(platform.handle.get(), "${tbl['export']['name']}"));
+            ur_loader::LibLoader::getFunctionPtr(platform.handle.get(), "${tbl['export']['name']}"));
         if(!getTable) 
             continue; 
         auto getTableResult = getTable( version, &platform.dditable.${n}.${tbl['name']});
@@ -261,14 +261,14 @@ ${tbl['export']['name']}(
 
     if( ${X}_RESULT_SUCCESS == result )
     {
-        if( ( loader::context->platforms.size() > 1 ) || loader::context->forceIntercept )
+        if( ( ur_loader::context->platforms.size() > 1 ) || ur_loader::context->forceIntercept )
         {
             // return pointers to loader's DDIs
             %for obj in tbl['functions']:
             %if 'condition' in obj:
         #if ${th.subt(n, tags, obj['condition'])}
             %endif
-            pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = loader::${th.make_func_name(n, tags, obj)};
+            pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = ur_loader::${th.make_func_name(n, tags, obj)};
             %if 'condition' in obj:
         #else
             pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = nullptr;
@@ -279,7 +279,7 @@ ${tbl['export']['name']}(
         else
         {
             // return pointers directly to platform's DDIs
-            *pDdiTable = loader::context->platforms.front().dditable.${n}.${tbl['name']};
+            *pDdiTable = ur_loader::context->platforms.front().dditable.${n}.${tbl['name']};
         }
     }
 
