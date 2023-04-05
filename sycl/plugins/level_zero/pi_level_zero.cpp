@@ -2890,30 +2890,18 @@ pi_result piextQueueGetNativeHandle2(pi_queue Queue,
   std::shared_lock<pi_shared_mutex> lock(Queue->Mutex);
 
   // Get handle to this thread's queue group.
-  auto TID = std::this_thread::get_id();
-  auto &InitialGroup = Queue->ComputeQueueGroupsByTID.begin()->second;
-  const auto &Result =
-      Queue->ComputeQueueGroupsByTID.insert({TID, InitialGroup});
-  auto &ComputeQueueGroupRef = Result.first->second;
+  auto &QueueGroup = Queue->getQueueGroup(false /*compute*/);
 
   if (Queue->UsingImmCmdLists) {
     auto ZeCmdList = pi_cast<ze_command_list_handle_t *>(NativeHandle);
-    // If no activity has occured on the queue we will create an immediate
-    // commandlist.
-    if (ComputeQueueGroupRef.ImmCmdLists[0] == Queue->CommandListMap.end()) {
-      pi_command_list_ptr_t CmdList;
-      if (auto Res = Queue->Context->getAvailableCommandList(Queue, CmdList,
-                                                             false, true))
-        return Res;
-    }
     // Extract the Level Zero command list handle from the given PI queue
-    *ZeCmdList = ComputeQueueGroupRef.ImmCmdLists[0]->first;
+    *ZeCmdList = QueueGroup.getImmCmdList()->first;
     *NativeHandleDesc = true;
   } else {
     auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
     // Extract a Level Zero compute queue handle from the given PI queue
     uint32_t QueueGroupOrdinalUnused;
-    *ZeQueue = ComputeQueueGroupRef.getZeQueue(&QueueGroupOrdinalUnused);
+    *ZeQueue = QueueGroup.getZeQueue(&QueueGroupOrdinalUnused);
     *NativeHandleDesc = false;
   }
   return PI_SUCCESS;
