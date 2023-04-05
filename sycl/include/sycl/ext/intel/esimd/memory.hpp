@@ -917,8 +917,8 @@ constexpr void check_atomic() {
                 Op == __ESIMD_NS::atomic_op::fmin ||
                 Op == __ESIMD_NS::atomic_op::fadd ||
                 Op == __ESIMD_NS::atomic_op::fsub) {
-    static_assert((is_type<T, float, sycl::half>()),
-                  "Type F or HF is expected");
+    static_assert((is_type<T, float, sycl::half, double>()),
+                  "float, double or sycl::half type is expected");
   }
   if constexpr (Op == __ESIMD_NS::atomic_op::add ||
                 Op == __ESIMD_NS::atomic_op::sub ||

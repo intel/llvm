@@ -380,9 +380,7 @@ SIRegisterInfo::SIRegisterInfo(const GCNSubtarget &ST)
 
 void SIRegisterInfo::reserveRegisterTuples(BitVector &Reserved,
                                            MCRegister Reg) const {
-  MCRegAliasIterator R(Reg, this, true);
-
-  for (; R.isValid(); ++R)
+  for (MCRegAliasIterator R(Reg, this, true); R.isValid(); ++R)
     Reserved.set(*R);
 }
 
@@ -609,14 +607,6 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     reserveRegisterTuples(Reserved, Reg);
   }
 
-  for (auto Reg : AMDGPU::SReg_32RegClass) {
-    Reserved.set(getSubReg(Reg, AMDGPU::hi16));
-    Register Low = getSubReg(Reg, AMDGPU::lo16);
-    // This is to prevent BB vcc liveness errors.
-    if (!AMDGPU::SGPR_LO16RegClass.contains(Low))
-      Reserved.set(Low);
-  }
-
   Register ScratchRSrcReg = MFI->getScratchRSrcReg();
   if (ScratchRSrcReg != AMDGPU::NoRegister) {
     // Reserve 4 SGPRs for the scratch buffer resource descriptor in case we
@@ -652,17 +642,6 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   unsigned MaxNumAGPRs = MaxNumVGPRs;
   unsigned TotalNumVGPRs = AMDGPU::VGPR_32RegClass.getNumRegs();
 
-  // Reserve all the AGPRs if there are no instructions to use it.
-  if (!ST.hasMAIInsts()) {
-    for (MCRegister Reg : AMDGPU::AGPR_32RegClass) {
-      reserveRegisterTuples(Reserved, Reg);
-    }
-  }
-
-  for (auto Reg : AMDGPU::AGPR_32RegClass) {
-    Reserved.set(getSubReg(Reg, AMDGPU::hi16));
-  }
-
   // On GFX90A, the number of VGPRs and AGPRs need not be equal. Theoretically,
   // a wave may have up to 512 total vector registers combining together both
   // VGPRs and AGPRs. Hence, in an entry function without calls and without
@@ -689,9 +668,15 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     reserveRegisterTuples(Reserved, Reg);
   }
 
-  for (unsigned i = MaxNumAGPRs; i < TotalNumVGPRs; ++i) {
-    unsigned Reg = AMDGPU::AGPR_32RegClass.getRegister(i);
-    reserveRegisterTuples(Reserved, Reg);
+  if (ST.hasMAIInsts()) {
+    for (unsigned i = MaxNumAGPRs; i < TotalNumVGPRs; ++i) {
+      unsigned Reg = AMDGPU::AGPR_32RegClass.getRegister(i);
+      reserveRegisterTuples(Reserved, Reg);
+    }
+  } else {
+    // Reserve all the AGPRs if there are no instructions to use it.
+    for (MCRegister Reg : AMDGPU::AGPR_32RegClass)
+      reserveRegisterTuples(Reserved, Reg);
   }
 
   // On GFX908, in order to guarantee copying between AGPRs, we need a scratch

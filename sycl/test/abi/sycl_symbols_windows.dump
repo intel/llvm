@@ -1048,6 +1048,7 @@
 ?has_kernel_bundle_impl@detail@_V1@sycl@@YA_NAEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4bundle_state@23@@Z
 ?has_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEBA_NPEBD@Z
 ?initStreamHost@stream_impl@detail@_V1@sycl@@QEAAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
+?isBackendSupportedFillSize@handler@_V1@sycl@@CA_N_K@Z
 ?isConstOrGlobal@handler@_V1@sycl@@CA_NW4target@access@23@@Z
 ?isHostPointerReadOnly@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
 ?isImageOrImageArray@handler@_V1@sycl@@CA_NW4target@access@23@@Z
