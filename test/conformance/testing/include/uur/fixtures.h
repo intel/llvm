@@ -212,10 +212,13 @@ template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
 struct urProfilingQueueTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
-        ur_queue_property_t props[] = {UR_QUEUE_PROPERTIES_FLAGS,
-                                       UR_QUEUE_FLAG_PROFILING_ENABLE, 0};
+        ur_queue_properties_t props = {
+            /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+            /*.pNext =*/nullptr,
+            /*.flags =*/UR_QUEUE_FLAG_PROFILING_ENABLE,
+        };
         ASSERT_SUCCESS(
-            urQueueCreate(this->context, this->device, props, &queue));
+            urQueueCreate(this->context, this->device, &props, &queue));
     }
 
     void TearDown() override {
@@ -232,10 +235,13 @@ template <class T>
 struct urProfilingQueueTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
-        ur_queue_property_t props[] = {UR_QUEUE_PROPERTIES_FLAGS,
-                                       UR_QUEUE_FLAG_PROFILING_ENABLE, 0};
+        ur_queue_properties_t props = {
+            /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+            /*.pNext =*/nullptr,
+            /*.flags =*/UR_QUEUE_FLAG_PROFILING_ENABLE,
+        };
         ASSERT_SUCCESS(
-            urQueueCreate(this->context, this->device, props, &queue));
+            urQueueCreate(this->context, this->device, &props, &queue));
     }
 
     void TearDown() override {

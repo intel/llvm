@@ -213,6 +213,8 @@ class ur_structure_type_v(IntEnum):
     USM_POOL_LIMITS_DESC = 11                       ## ::ur_usm_pool_limits_desc_t
     DEVICE_BINARY = 12                              ## ::ur_device_binary_t
     SAMPLER_DESC = 13                               ## ::ur_sampler_desc_t
+    QUEUE_PROPERTIES = 14                           ## ::ur_queue_properties_t
+    QUEUE_INDEX_PROPERTIES = 15                     ## ::ur_queue_properties_t
 
 class ur_structure_type_t(c_int):
     def __str__(self):
@@ -1288,8 +1290,8 @@ class ur_queue_info_v(IntEnum):
     DEVICE = 1                                      ## ::ur_device_handle_t: device associated with this queue.
     DEVICE_DEFAULT = 2                              ## ::ur_queue_handle_t: the current default queue of the underlying
                                                     ## device.
-    PROPERTIES = 3                                  ## ::ur_queue_flags_t: the properties associated with
-                                                    ## ::UR_QUEUE_PROPERTIES_FLAGS.
+    FLAGS = 3                                       ## ::ur_queue_flags_t: the properties associated with
+                                                    ## ::ur_queue_properties_t::flags.
     REFERENCE_COUNT = 4                             ## [uint32_t] Reference count of the queue object.
                                                     ## The reference count returned should be considered immediately stale. 
                                                     ## It is unsuitable for general use in applications. This feature is
@@ -1318,20 +1320,29 @@ class ur_queue_flags_t(c_int):
 
 
 ###############################################################################
-## @brief Queue property type
-class ur_queue_property_t(c_intptr_t):
-    pass
+## @brief Queue creation properties
+class ur_queue_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_QUEUE_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("flags", ur_queue_flags_t)                                     ## [in] Bitfield of queue creation flags
+    ]
 
 ###############################################################################
-## @brief Queue Properties
-class ur_queue_properties_v(IntEnum):
-    FLAGS = -1                                      ## [::ur_queue_flags_t]: the bitfield of queue flags
-    COMPUTE_INDEX = -2                              ## [uint32_t]: the queue index
-
-class ur_queue_properties_t(c_int):
-    def __str__(self):
-        return str(ur_queue_properties_v(self.value))
-
+## @brief Queue index creation properties
+## 
+## @details
+##     - Specify these properties in ::urQueueCreate via
+##       ::ur_queue_properties_t as part of a `pNext` chain.
+class ur_queue_index_properties_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES
+        ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
+        ("computeIndex", c_ulong)                                       ## [in] Specifies the compute index as described in the
+                                                                        ## sycl_ext_intel_queue_index extension.
+    ]
 
 ###############################################################################
 ## @brief Command type
@@ -2365,9 +2376,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urQueueCreate
 if __use_win_types:
-    _urQueueCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_property_t), POINTER(ur_queue_handle_t) )
+    _urQueueCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_properties_t), POINTER(ur_queue_handle_t) )
 else:
-    _urQueueCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_property_t), POINTER(ur_queue_handle_t) )
+    _urQueueCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_properties_t), POINTER(ur_queue_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urQueueRetain

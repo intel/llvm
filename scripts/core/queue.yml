@@ -21,8 +21,8 @@ etors:
       desc: "$x_device_handle_t: device associated with this queue."
     - name: DEVICE_DEFAULT
       desc: "$x_queue_handle_t: the current default queue of the underlying device."
-    - name: PROPERTIES
-      desc: "$x_queue_flags_t: the properties associated with $X_QUEUE_PROPERTIES_FLAGS."
+    - name: FLAGS
+      desc: "$x_queue_flags_t: the properties associated with $x_queue_properties_t::flags."
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the queue object.
@@ -58,23 +58,6 @@ etors:
       value: "$X_BIT(6)"
       desc: "High priority queue"
 --- #--------------------------------------------------------------------------
-type: typedef
-desc: "Queue property type"
-name: $x_queue_property_t
-value: intptr_t
---- #--------------------------------------------------------------------------
-type: enum
-desc: "Queue Properties"
-class: $xQueue
-name: $x_queue_properties_t
-etors:
-    - name: FLAGS
-      value: "-1"
-      desc: "[$x_queue_flags_t]: the bitfield of queue flags"
-    - name: COMPUTE_INDEX
-      value: "-2"
-      desc: "[uint32_t]: the queue index"
---- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a command queue"
 class: $xQueue
@@ -104,11 +87,38 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
+
+type: struct
+desc: "Queue creation properties"
+class: $xQueue
+name: $x_queue_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_queue_flags_t
+      name: flags
+      desc: "[in] Bitfield of queue creation flags"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Queue index creation properties"
+details:
+    - Specify these properties in $xQueueCreate via $x_queue_properties_t as
+      part of a `pNext` chain.
+class: $xQueue
+name: $x_queue_index_properties_t
+base: $x_base_properties_t
+members:
+    - type: uint32_t
+      name: computeIndex
+      desc: >
+            [in] Specifies the compute index as described in the
+            sycl_ext_intel_queue_index extension.
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Create a command queue for a device in a context"
 class: $xQueue
 name: Create
-decl: static
+details:
+    - See also $x_queue_index_properties_t.
 ordinal: "0"
 analogue:
     - "**clCreateCommandQueueWithProperties**"
@@ -119,13 +129,9 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: const $x_queue_property_t*
-      name: pProps
-      desc: |
-            [in][optional] specifies a list of queue properties and their corresponding values.
-            Each property name is immediately followed by the corresponding desired value.
-            The list is terminated with a 0. 
-            If a property value is not specified, then its default value will be used.
+    - type: const $x_queue_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to queue creation properties."
     - type: $x_queue_handle_t*
       name: phQueue
       desc: "[out] pointer to handle of queue object created"

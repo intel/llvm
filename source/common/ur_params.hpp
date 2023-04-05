@@ -361,6 +361,14 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_STRUCTURE_TYPE_SAMPLER_DESC:
         os << "UR_STRUCTURE_TYPE_SAMPLER_DESC";
         break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_QUEUE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -449,6 +457,18 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
 
     case UR_STRUCTURE_TYPE_SAMPLER_DESC: {
         const ur_sampler_desc_t *pstruct = (const ur_sampler_desc_t *)ptr;
+        serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_PROPERTIES: {
+        const ur_queue_properties_t *pstruct =
+            (const ur_queue_properties_t *)ptr;
+        serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES: {
+        const ur_queue_properties_t *pstruct =
+            (const ur_queue_properties_t *)ptr;
         serializePtr(os, pstruct);
     } break;
     default:
@@ -3345,8 +3365,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value) {
         os << "UR_QUEUE_INFO_DEVICE_DEFAULT";
         break;
 
-    case UR_QUEUE_INFO_PROPERTIES:
-        os << "UR_QUEUE_INFO_PROPERTIES";
+    case UR_QUEUE_INFO_FLAGS:
+        os << "UR_QUEUE_INFO_FLAGS";
         break;
 
     case UR_QUEUE_INFO_REFERENCE_COUNT:
@@ -3489,20 +3509,45 @@ inline void serializeFlag_ur_queue_flags_t(std::ostream &os,
     }
 }
 inline std::ostream &operator<<(std::ostream &os,
-                                enum ur_queue_properties_t value) {
-    switch (value) {
+                                const struct ur_queue_properties_t params) {
+    os << "(struct ur_queue_properties_t){";
 
-    case UR_QUEUE_PROPERTIES_FLAGS:
-        os << "UR_QUEUE_PROPERTIES_FLAGS";
-        break;
+    os << ".stype = ";
 
-    case UR_QUEUE_PROPERTIES_COMPUTE_INDEX:
-        os << "UR_QUEUE_PROPERTIES_COMPUTE_INDEX";
-        break;
-    default:
-        os << "unknown enumerator";
-        break;
-    }
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".flags = ";
+
+    serializeFlag_ur_queue_flags_t(os, (params.flags));
+
+    os << "}";
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_queue_index_properties_t params) {
+    os << "(struct ur_queue_index_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".computeIndex = ";
+
+    os << (params.computeIndex);
+
+    os << "}";
     return os;
 }
 inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
@@ -6982,9 +7027,9 @@ inline std::ostream &operator<<(std::ostream &os,
     serializePtr(os, *(params->phDevice));
 
     os << ", ";
-    os << ".pProps = ";
+    os << ".pProperties = ";
 
-    serializePtr(os, *(params->ppProps));
+    serializePtr(os, *(params->ppProperties));
 
     os << ", ";
     os << ".phQueue = ";

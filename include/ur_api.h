@@ -237,6 +237,8 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 11,            ///< ::ur_usm_pool_limits_desc_t
     UR_STRUCTURE_TYPE_DEVICE_BINARY = 12,                   ///< ::ur_device_binary_t
     UR_STRUCTURE_TYPE_SAMPLER_DESC = 13,                    ///< ::ur_sampler_desc_t
+    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 14,                ///< ::ur_queue_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,          ///< ::ur_queue_properties_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3557,8 +3559,8 @@ typedef enum ur_queue_info_t {
     UR_QUEUE_INFO_DEVICE = 1,          ///< ::ur_device_handle_t: device associated with this queue.
     UR_QUEUE_INFO_DEVICE_DEFAULT = 2,  ///< ::ur_queue_handle_t: the current default queue of the underlying
                                        ///< device.
-    UR_QUEUE_INFO_PROPERTIES = 3,      ///< ::ur_queue_flags_t: the properties associated with
-                                       ///< ::UR_QUEUE_PROPERTIES_FLAGS.
+    UR_QUEUE_INFO_FLAGS = 3,           ///< ::ur_queue_flags_t: the properties associated with
+                                       ///< ::ur_queue_properties_t::flags.
     UR_QUEUE_INFO_REFERENCE_COUNT = 4, ///< [uint32_t] Reference count of the queue object.
                                        ///< The reference count returned should be considered immediately stale.
                                        ///< It is unsuitable for general use in applications. This feature is
@@ -3590,21 +3592,6 @@ typedef enum ur_queue_flag_t {
 #define UR_QUEUE_FLAGS_MASK 0xffffff80
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Queue property type
-typedef intptr_t ur_queue_property_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Queue Properties
-typedef enum ur_queue_properties_t {
-    UR_QUEUE_PROPERTIES_FLAGS = -1,         ///< [::ur_queue_flags_t]: the bitfield of queue flags
-    UR_QUEUE_PROPERTIES_COMPUTE_INDEX = -2, ///< [uint32_t]: the queue index
-    /// @cond
-    UR_QUEUE_PROPERTIES_FORCE_UINT32 = 0x7fffffff
-    /// @endcond
-
-} ur_queue_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
 ///
 /// @remarks
@@ -3633,7 +3620,35 @@ urQueueGetInfo(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Queue creation properties
+typedef struct ur_queue_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_QUEUE_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    ur_queue_flags_t flags;    ///< [in] Bitfield of queue creation flags
+
+} ur_queue_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Queue index creation properties
+///
+/// @details
+///     - Specify these properties in ::urQueueCreate via
+///       ::ur_queue_properties_t as part of a `pNext` chain.
+typedef struct ur_queue_index_properties_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES
+    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
+    uint32_t computeIndex;     ///< [in] Specifies the compute index as described in the
+                               ///< sycl_ext_intel_queue_index extension.
+
+} ur_queue_index_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a command queue for a device in a context
+///
+/// @details
+///     - See also ::ur_queue_index_properties_t.
 ///
 /// @remarks
 ///   _Analogues_
@@ -3656,15 +3671,10 @@ urQueueGetInfo(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreate(
-    ur_context_handle_t hContext,      ///< [in] handle of the context object
-    ur_device_handle_t hDevice,        ///< [in] handle of the device object
-    const ur_queue_property_t *pProps, ///< [in][optional] specifies a list of queue properties and their
-                                       ///< corresponding values.
-                                       ///< Each property name is immediately followed by the corresponding
-                                       ///< desired value.
-                                       ///< The list is terminated with a 0.
-                                       ///< If a property value is not specified, then its default value will be used.
-    ur_queue_handle_t *phQueue         ///< [out] pointer to handle of queue object created
+    ur_context_handle_t hContext,             ///< [in] handle of the context object
+    ur_device_handle_t hDevice,               ///< [in] handle of the device object
+    const ur_queue_properties_t *pProperties, ///< [in][optional] pointer to queue creation properties.
+    ur_queue_handle_t *phQueue                ///< [out] pointer to handle of queue object created
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7661,7 +7671,7 @@ typedef void(UR_APICALL *ur_pfnQueueGetInfoCb_t)(
 typedef struct ur_queue_create_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    const ur_queue_property_t **ppProps;
+    const ur_queue_properties_t **ppProperties;
     ur_queue_handle_t **pphQueue;
 } ur_queue_create_params_t;
 
