@@ -8,21 +8,126 @@
 
 #include "xpti/xpti_trace_framework.h"
 
+#include <dlfcn.h>
+#include <iostream>
+#include <mutex>
+#include <string>
 #include <sycl/detail/spinlock.hpp>
 
 sycl::detail::SpinLock GlobalLock;
+bool HasZEPrinter;
 
-bool HasZEPrinter = false;
-bool HasCUPrinter = false;
-bool HasPIPrinter = false;
-bool HasSYCLPrinter = false;
+class CollectorLibraryWrapper {
+  typedef void (*InitFuncType)();
+  typedef void (*FinishFuncType)();
+  typedef void (*CallbackFuncType)(uint16_t, xpti::trace_event_data_t *,
+                                   xpti::trace_event_data_t *, uint64_t,
+                                   const void *);
+  typedef void (*SetIndentLvlFuncType)(int);
 
-void zePrintersInit();
-void zePrintersFinish();
+public:
+  CollectorLibraryWrapper(const std::string &LibraryName)
+      : MLibraryName(LibraryName){};
+  ~CollectorLibraryWrapper() { clear(); };
+
+  const std::string InitFuncName = "init";
+  const std::string FinishFuncName = "finish";
+  const std::string CallbackFuncName = "callback";
+  const std::string IndentFuncName = "setIndentationLevel";
+
+  bool initPrinters() {
+    // add safe lib loading in terms of paths
+    MHandle = dlopen(MLibraryName.c_str() /*TO FIX*/, RTLD_LAZY);
+    if (!MHandle) {
+      std::cerr << "Cannot load library: " << dlerror() << '\n';
+      return false;
+    }
+    auto ExportSymbol = [&](void *&FuncPtr, const std::string &FuncName) {
+      FuncPtr = dlsym(MHandle, FuncName.c_str());
+      if (!FuncPtr) {
+        std::cerr << "Cannot export symbol: " << dlerror() << '\n';
+        return false;
+      }
+      return true;
+    };
+    if (!ExportSymbol(MInitPtr, InitFuncName) ||
+        !ExportSymbol(MFinishPtr, FinishFuncName) ||
+        !ExportSymbol(MSetIndentationLevelPtr, IndentFuncName) ||
+        !ExportSymbol(MCallbackPtr, CallbackFuncName)) {
+      clear();
+      return false;
+    }
+
+    if (MIndentationLevel)
+      ((SetIndentLvlFuncType)MSetIndentationLevelPtr)(MIndentationLevel);
+
+    ((InitFuncType)MInitPtr)();
+  }
+
+  void finishPrinters() {
+    if (MHandle)
+      ((FinishFuncType)MFinishPtr)();
+  }
+
+  void setIndentationLevel(int Level) {
+    MIndentationLevel = Level;
+    if (MHandle)
+      ((SetIndentLvlFuncType)MSetIndentationLevelPtr)(MIndentationLevel);
+  }
+
+  void callback(uint16_t TraceType, xpti::trace_event_data_t *Parent,
+                xpti::trace_event_data_t *Event, uint64_t Instance,
+                const void *UserData) {
+    // Not expected to be called when MHandle == NULL since we should not be
+    // subscribed if init failed. Although still do the check for sure.
+    if (MHandle)
+      ((CallbackFuncType)MCallbackPtr)(TraceType, Parent, Event, Instance,
+                                       UserData);
+  }
+
+  void clear() {
+    MInitPtr = NULL;
+    MFinishPtr = NULL;
+    MCallbackPtr = NULL;
+    MSetIndentationLevelPtr = NULL;
+
+    if (MHandle)
+      dlclose(MHandle);
+    MHandle = NULL;
+  }
+
+private:
+  std::string MLibraryName;
+  int MIndentationLevel = 0;
+
+  void *MHandle = NULL;
+
+  void *MInitPtr = NULL;
+  void *MFinishPtr = NULL;
+  void *MCallbackPtr = NULL;
+  void *MSetIndentationLevelPtr = NULL;
+} zeCollectorLibrary("ze_trace_collector.so"),
+    cudaCollectorLibrary("cuda_trace_collector.so");
+
+XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
+                                  xpti::trace_event_data_t *Parent,
+                                  xpti::trace_event_data_t *Event,
+                                  uint64_t Instance, const void *UserData) {
+  std::lock_guard<sycl::detail::SpinLock> _{GlobalLock};
+  return zeCollectorLibrary.callback(TraceType, Parent, Event, Instance,
+                                     UserData);
+}
 #ifdef USE_PI_CUDA
-void cuPrintersInit();
-void cuPrintersFinish();
+XPTI_CALLBACK_API void cudaCallback(uint16_t TraceType,
+                                    xpti::trace_event_data_t *Parent,
+                                    xpti::trace_event_data_t *Event,
+                                    uint64_t Instance, const void *UserData) {
+  std::lock_guard<sycl::detail::SpinLock> _{GlobalLock};
+  return cudaCollectorLibrary.callback(TraceType, Parent, Event, Instance,
+                                       UserData);
+}
 #endif
+
 void piPrintersInit();
 void piPrintersFinish();
 void syclPrintersInit();
@@ -32,20 +137,11 @@ XPTI_CALLBACK_API void piCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Parent,
                                   xpti::trace_event_data_t *Event,
                                   uint64_t Instance, const void *UserData);
-XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
-                                  xpti::trace_event_data_t *Parent,
-                                  xpti::trace_event_data_t *Event,
-                                  uint64_t Instance, const void *UserData);
-#ifdef USE_PI_CUDA
-XPTI_CALLBACK_API void cuCallback(uint16_t TraceType,
-                                  xpti::trace_event_data_t *Parent,
-                                  xpti::trace_event_data_t *Event,
-                                  uint64_t Instance, const void *UserData);
-#endif
 XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t *Parent,
                                     xpti::trace_event_data_t *Event,
                                     uint64_t Instance, const void *UserData);
+
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      unsigned int /*minor_version*/,
                                      const char * /*version_str*/,
@@ -58,26 +154,31 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          piCallback);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
                          piCallback);
+    zeCollectorLibrary.setIndentationLevel(1);
+    cudaCollectorLibrary.setIndentationLevel(1);
 #ifdef SYCL_HAS_LEVEL_ZERO
   } else if (std::string_view(StreamName) ==
                  "sycl.experimental.level_zero.debug" &&
              std::getenv("SYCL_TRACE_ZE_ENABLE")) {
-    zePrintersInit();
-    uint16_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
-                         zeCallback);
-    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
-                         zeCallback);
+    if (zeCollectorLibrary.initPrinters()) {
+      HasZEPrinter = true;
+      uint16_t StreamID = xptiRegisterStream(StreamName);
+      xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
+                           zeCallback);
+      xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
+                           zeCallback);
+    }
 #endif
 #ifdef USE_PI_CUDA
   } else if (std::string_view(StreamName) == "sycl.experimental.cuda.debug" &&
              std::getenv("SYCL_TRACE_CU_ENABLE")) {
-    cuPrintersInit();
-    uint16_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
-                         cuCallback);
-    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
-                         cuCallback);
+    if (cudaCollectorLibrary.initPrinters()) {
+      uint16_t StreamID = xptiRegisterStream(StreamName);
+      xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
+                           cudaCallback);
+      xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
+                           cudaCallback);
+    }
 #endif
   }
   if (std::string_view(StreamName) == "sycl" &&
@@ -96,12 +197,14 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
   else if (std::string_view(StreamName) ==
                "sycl.experimental.level_zero.debug" &&
            std::getenv("SYCL_TRACE_ZE_ENABLE"))
-    zePrintersFinish();
+    zeCollectorLibrary.finishPrinters();
+  zeCollectorLibrary.clear();
 #endif
 #ifdef USE_PI_CUDA
   else if (std::string_view(StreamName) == "sycl.experimental.cuda.debug" &&
            std::getenv("SYCL_TRACE_CU_ENABLE"))
-    cuPrintersFinish();
+      cudaCollectorLibrary.finishPrinters();
+  cudaCollectorLibrary.clear();
 #endif
   if (std::string_view(StreamName) == "sycl" &&
       std::getenv("SYCL_TRACE_API_ENABLE"))

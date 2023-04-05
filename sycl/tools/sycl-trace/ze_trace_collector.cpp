@@ -21,10 +21,7 @@
 #include <string_view>
 #include <thread>
 
-extern sycl::detail::SpinLock GlobalLock;
-
-extern bool HasZEPrinter;
-extern bool HasPIPrinter;
+int IndentationLevel = 0;
 
 enum class ZEApiKind {
 #define _ZE_API(call, domain, cb, params_type) call,
@@ -246,14 +243,13 @@ static std::string getResult(ze_result_t Res) {
   return ResultStr;
 }
 
-XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
-                                  xpti::trace_event_data_t * /*Parent*/,
-                                  xpti::trace_event_data_t * /*Event*/,
-                                  uint64_t /*Instance*/, const void *UserData) {
-  std::lock_guard<sycl::detail::SpinLock> _{GlobalLock};
+XPTI_CALLBACK_API void callback(uint16_t TraceType,
+                                xpti::trace_event_data_t * /*Parent*/,
+                                xpti::trace_event_data_t * /*Event*/,
+                                uint64_t /*Instance*/, const void *UserData) {
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   const auto PrintPrefix = [] {
-    if (HasPIPrinter)
+    if (IndentationLevel)
       std::cout << "*  ";
   };
   if (TraceType == xpti::trace_function_with_args_begin) {
@@ -293,7 +289,7 @@ XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
       break; // unknown API
     }
 
-    if (HasPIPrinter) {
+    if (IndentationLevel) {
       std::cout << "*  ";
     }
     std::cout << std::flush;
@@ -306,9 +302,7 @@ XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
   }
 }
 
-void zePrintersInit() {
-  HasZEPrinter = true;
-
+void init() {
   std::string_view PrinterType(std::getenv("SYCL_TRACE_PRINT_FORMAT"));
   if (PrinterType == "classic") {
     std::cerr << "Classic output is unsupported for Level Zero\n";
@@ -320,4 +314,6 @@ void zePrintersInit() {
 }
 
 // For unification purpose
-void zePrintersFinish() {}
+void finish() {}
+
+void setIndentationLevel(int NewLevel) { IndentationLevel = NewLevel; }

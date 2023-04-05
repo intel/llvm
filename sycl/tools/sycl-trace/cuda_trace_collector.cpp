@@ -22,11 +22,7 @@
 #include <string_view>
 #include <thread>
 
-extern sycl::detail::SpinLock GlobalLock;
-
-extern bool HasZEPrinter;
-extern bool HasCUPrinter;
-extern bool HasPIPrinter;
+int IndentationLevel = 0;
 
 static bool PrintVerbose = false;
 
@@ -45,14 +41,14 @@ static std::string getResult(CUresult Res) {
   return ResultStr;
 }
 
-XPTI_CALLBACK_API void cuCallback(uint16_t TraceType,
+XPTI_CALLBACK_API void callback(uint16_t TraceType,
                                   xpti::trace_event_data_t * /*Parent*/,
                                   xpti::trace_event_data_t * /*Event*/,
                                   uint64_t /*Instance*/, const void *UserData) {
   std::lock_guard _{GlobalLock};
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   const auto PrintPrefix = [] {
-    if (HasPIPrinter)
+    if (IndentationLevel)
       std::cout << "*  ";
   };
   if (TraceType == xpti::trace_function_with_args_begin) {
@@ -92,7 +88,7 @@ XPTI_CALLBACK_API void cuCallback(uint16_t TraceType,
       break; // unknown API
     }
 
-    if (HasPIPrinter) {
+    if (IndentationLevel) {
       std::cout << "*  ";
     }
     std::cout << std::flush;
@@ -105,9 +101,7 @@ XPTI_CALLBACK_API void cuCallback(uint16_t TraceType,
   }
 }
 
-void cuPrintersInit() {
-  HasCUPrinter = true;
-
+void init() {
   std::string_view PrinterType(std::getenv("SYCL_TRACE_PRINT_FORMAT"));
   if (PrinterType == "classic") {
     std::cerr << "Classic output is unsupported for CUDA\n";
@@ -119,4 +113,9 @@ void cuPrintersInit() {
 }
 
 // For unification purpose
-void cuPrintersFinish() {}
+void finish() {}
+
+void setIndentationLevel(int NewLevel)
+{
+  IndentationLevel = NewLevel;
+}
