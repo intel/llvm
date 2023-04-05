@@ -58,9 +58,8 @@ struct KernelsEnvironment : DevicesEnvironment {
     virtual void SetUp() override;
     virtual void TearDown() override;
 
-    ur_result_t LoadSource(const std::string &kernel_name,
-                           uint32_t device_index,
-                           std::shared_ptr<std::vector<char>> &binary_out);
+    void LoadSource(const std::string &kernel_name, uint32_t device_index,
+                    std::shared_ptr<std::vector<char>> &binary_out);
 
     static KernelsEnvironment *instance;
 

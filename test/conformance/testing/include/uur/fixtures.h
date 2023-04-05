@@ -432,8 +432,7 @@ std::string deviceTestWithParamPrinter(
 struct urProgramILBinaryTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
-        ASSERT_SUCCESS(
-            uur::KernelsEnvironment::instance->LoadSource("nop", 0, il_binary));
+        uur::KernelsEnvironment::instance->LoadSource("nop", 0, il_binary);
     }
 
     void TearDown() override {
