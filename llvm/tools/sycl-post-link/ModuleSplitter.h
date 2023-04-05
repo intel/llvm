@@ -70,6 +70,7 @@ struct EntryPointGroup {
       Res.UsesLargeGRF = UsesLargeGRF || Other.UsesLargeGRF;
       // Scope remains global
       // OptLevel is expected to be the same for both merging EPGs
+      assert(OptLevel == Other.OptLevel && "OptLevels are not same");
       return Res;
     }
   };

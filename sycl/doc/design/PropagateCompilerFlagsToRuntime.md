@@ -5,6 +5,8 @@ compile different modules with different levels of optimization. This document
 proposes a compiler flow that will enable propagation of compiler options
 specified for front-end to the runtimes and eventually to the backend.
 Currently, only `O0`/`O1`/`O2`/`O3` options are handled.
+Please note that this document only describes support for JIT path. AOT path
+support will be added later.
 
 ## Background
 

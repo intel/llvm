@@ -18,10 +18,12 @@ using namespace llvm;
 
 PreservedAnalyses
 SYCLAddOptLevelAttributePass::run(Module &M, ModuleAnalysisManager &MAM) {
+  // Here, we add a function attribute 'sycl-optlevel' to store the
+  // optimization level.
+  assert(OptLevel >= 0 && "Invalid optimization level!");
   for (Function &F : M.functions()) {
-    // Here, we add a function attribute 'sycl-optlevel' to store the
-    // optimization level.
-    assert(OptLevel >= 0 && "Invalid optimization level!");
+    if (F.isDeclaration())
+      continue;
     F.addFnAttr("sycl-optlevel", std::to_string(OptLevel));
   }
   return PreservedAnalyses::all();
