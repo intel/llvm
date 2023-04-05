@@ -49,6 +49,8 @@ protected:
   llvm::Module *LLVMMod;
 };
 
+namespace {
+
 //
 // SPIRVTargetFusionInfo
 //
@@ -281,6 +283,8 @@ public:
   unsigned getLocalAddressSpace() const override { return 3; }
 };
 #endif // FUSION_JIT_SUPPORT_PTX
+
+} // anonymous namespace
 
 //
 // TargetFusionInfo

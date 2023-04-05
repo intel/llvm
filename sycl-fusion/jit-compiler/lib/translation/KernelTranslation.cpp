@@ -220,6 +220,9 @@ llvm::Expected<KernelBinary *>
 KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
                                  JITContext &JITCtx) {
 #ifndef FUSION_JIT_SUPPORT_PTX
+  (void)KernelInfo;
+  (void)Mod;
+  (void)JITCtx;
   return createStringError(inconvertibleErrorCode(),
                            "PTX translation not supported in this build");
 #else  // FUSION_JIT_SUPPORT_PTX
