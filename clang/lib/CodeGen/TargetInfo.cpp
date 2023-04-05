@@ -11253,6 +11253,12 @@ llvm::Type *CommonSPIRTargetCodeGenInfo::getOpenCLType(CodeGenModule &CGM,
     case BuiltinType::Id:                                                      \
       return getSPIRVImageType(Ctx, "spirv.Image", #ImgType, AQ_##Suffix);
 #include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+    case BuiltinType::Sampled##Id:                                             \
+      return getSPIRVImageType(Ctx, "spirv.SampledImage", #ImgType, AQ_##Suffix);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
     case BuiltinType::OCLSampler:
       return llvm::TargetExtType::get(Ctx, "spirv.Sampler");
     case BuiltinType::OCLEvent:
