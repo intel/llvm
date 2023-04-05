@@ -1110,7 +1110,8 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
         nullptr);
     if (Error != PI_SUCCESS) {
       std::string BuildLog = getProgramBuildLog(Program.get(), Context);
-      // PiProgram is still alive in plugin, so we need to release the memory for it
+      // PiProgram is still alive in plugin, so we need to release the memory
+      // for it
       Plugin.call_nocheck<PiApiKind::piProgramRelease>(Program.get());
       throw compile_program_error(BuildLog, Error);
     }
