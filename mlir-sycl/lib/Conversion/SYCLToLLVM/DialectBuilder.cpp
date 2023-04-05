@@ -103,9 +103,9 @@ func::CallOp FuncBuilder::genCall(StringRef funcName, TypeRange resTypes,
 // LLVMBuilder
 //===----------------------------------------------------------------------===//
 
-LLVM::AllocaOp LLVMBuilder::genAlloca(Type type, Value size,
+LLVM::AllocaOp LLVMBuilder::genAlloca(Type type, Type elemType, Value size,
                                       int64_t align) const {
-  return create<LLVM::AllocaOp>(type, size, align);
+  return create<LLVM::AllocaOp>(type, elemType, size, align);
 }
 
 LLVM::BitcastOp LLVMBuilder::genBitcast(Type type, Value val) const {

@@ -72,7 +72,8 @@ class LLVMBuilder : public DialectBuilder {
 public:
   LLVMBuilder(OpBuilder &b, Location loc) : DialectBuilder(b, loc) {}
 
-  LLVM::AllocaOp genAlloca(Type type, Value size, int64_t align) const;
+  LLVM::AllocaOp genAlloca(Type type, Type elemType, Value size,
+                           int64_t align) const;
   LLVM::BitcastOp genBitcast(Type type, Value val) const;
   LLVM::ExtractValueOp genExtractValue(Type type, Value container,
                                        ArrayRef<int64_t> pos) const;
