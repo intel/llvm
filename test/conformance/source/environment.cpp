@@ -260,7 +260,6 @@ KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
     std::string il_postfix = getSupportedILPostfix(device_index);
 
     if (il_postfix.empty()) {
-        error = "failed getting device supported IL";
         return {};
     }
 
@@ -274,7 +273,8 @@ KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
     }
 
     if (binary_name.empty()) {
-        error = "couldn't find appropriate device binary";
+        error =
+            "failed retrieving kernel source path for kernel: " + kernel_name;
         return {};
     }
 
@@ -283,22 +283,19 @@ KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
     return path.str();
 }
 
-ur_result_t
-KernelsEnvironment::LoadSource(const std::string &kernel_name,
-                               uint32_t device_index,
-                               std::shared_ptr<std::vector<char>> &binary_out) {
+void KernelsEnvironment::LoadSource(
+    const std::string &kernel_name, uint32_t device_index,
+    std::shared_ptr<std::vector<char>> &binary_out) {
     std::string source_path =
         instance->getKernelSourcePath(kernel_name, device_index);
 
     if (source_path.empty()) {
-        error =
-            "failed retrieving kernel source path for kernel: " + kernel_name;
-        return UR_RESULT_ERROR_INVALID_BINARY;
+        FAIL() << error;
     }
 
     if (cached_kernels.find(source_path) != cached_kernels.end()) {
         binary_out = cached_kernels[source_path];
-        return UR_RESULT_SUCCESS;
+        return;
     }
 
     std::ifstream source_file;
@@ -306,8 +303,7 @@ KernelsEnvironment::LoadSource(const std::string &kernel_name,
                      std::ios::binary | std::ios::in | std::ios::ate);
 
     if (!source_file.is_open()) {
-        error = "failed opening kernel path: " + source_path;
-        return UR_RESULT_ERROR_INVALID_BINARY;
+        FAIL() << "failed opening kernel path: " + source_path;
     }
 
     size_t source_size = static_cast<size_t>(source_file.tellg());
@@ -317,8 +313,7 @@ KernelsEnvironment::LoadSource(const std::string &kernel_name,
     source_file.read(device_binary.data(), source_size);
     if (!source_file) {
         source_file.close();
-        error = "failed reading kernel source data from file: " + source_path;
-        return UR_RESULT_ERROR_INVALID_BINARY;
+        FAIL() << "failed reading kernel source data from file: " + source_path;
     }
     source_file.close();
 
@@ -326,8 +321,6 @@ KernelsEnvironment::LoadSource(const std::string &kernel_name,
         std::make_shared<std::vector<char>>(std::move(device_binary));
     cached_kernels[kernel_name] = binary_ptr;
     binary_out = binary_ptr;
-
-    return UR_RESULT_SUCCESS;
 }
 
 void KernelsEnvironment::SetUp() {
