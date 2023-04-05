@@ -932,9 +932,9 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::handler`
 void handler::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
-|Invokes the execution of a graph. Support for invoking an executable graph,
-before a previous execution of the same graph has been completed is backend
-specific. The runtime may throw an error.
+|Invokes the execution of a graph. Only one instance of `graph` may be executing,
+or pending execution, at any time. Concurrent graph execution can be achieved by
+finalizing a graph in modifiable state into multiple graphs in executable state.
 
 Parameters:
 
@@ -945,6 +945,9 @@ Exceptions:
 * Throws synchronously with error code `invalid` if the handler is submitted
   to a queue which doesn't have a SYCL context which matches the context of
   the executable graph.
+
+* Throws synchronously with error code `invalid` if a previous submission of
+  `graph` has yet to complete execution.
 |===
 
 === Thread Safety
@@ -1314,6 +1317,14 @@ submitted in its entirety for execution via
 ----
 
 == Issues
+
+=== Simultaneous Graph Submission
+
+Enable an instance of a graph in executable state to be submitted for execution
+when a previous submission of the same graph has yet to complete execution.
+
+**Outcome:** Backend support for this is inconsistent, but the runtime could
+schedule the submissions sequentially for backends which don't support it.
 
 === Multi Device Graph
 
