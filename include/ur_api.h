@@ -1287,12 +1287,14 @@ typedef enum ur_context_info_t {
                                                           ///< supported.
     UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 5, ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                           ///< memory order capabilities.
-    UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 6, ///< [x_memory_scope_capability_flags_t] return a bit-field of atomic
+    UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 6, ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
                                                           ///< memory scope capabilities.
     UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 7,  ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
                                                           ///< memory fence order capabilities.
-    UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 8,  ///< [x_memory_scope_capability_flags_t] return a bit-field of atomic
+                                                          ///< Zero is returned if the backend does not support context-level fences.
+    UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 8,  ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
                                                           ///< memory fence scope capabilities.
+                                                          ///< Zero is returned if the backend does not support context-level fences.
     /// @cond
     UR_CONTEXT_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
