@@ -85,6 +85,13 @@ C++20 Feature Support
   (`#61278 <https://github.com/llvm/llvm-project/issues/61278>`_)
 - Announced C++20 Coroutines is fully supported on all targets except Windows, which
   still has some stability and ABI issues.
+- Downgraded use of a reserved identifier in a module export declaration from
+  an error to a warning under the ``-Wreserved-module-identifier`` warning
+  group. This warning is enabled by default. This addresses `#61446
+  <https://github.com/llvm/llvm-project/issues/61446>`_ and allows easier
+  building of precompiled modules. This diagnostic may be strengthened into an
+  error again in the future once there is a less fragile way to mark a module
+  as being part of the implementation rather than a user module.
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -238,6 +245,21 @@ Bug Fixes in This Version
   the initializer, so it behaves consistently with other ``VarDecls`` and ends
   on the last token of initializer, instead of right angle bracket of
   the template argument list.
+- Fix false-positive diagnostic issued for consteval initializers of temporary
+  objects.
+  (`#60286 <https://github.com/llvm/llvm-project/issues/60286>`_)
+- Correct restriction of trailing requirements clauses on a templated function.
+  Previously we only rejected non-'templated' things, but the restrictions ALSO need
+  to limit non-defined/non-member functions as well. Additionally, we now diagnose
+  requires on lambdas when not allowed, which we previously missed.
+  (`#61748 <https://github.com/llvm/llvm-project/issues/61748>`_)
+- Fix confusing diagnostic for incorrect use of qualified concepts names.
+- Fix handling of comments in function like macros so they are ignored in -CC
+  mode.
+  (`#60887 <https://github.com/llvm/llvm-project/issues/60887>`_)
+- Fix incorrect merging of lambdas across modules.
+  (`#60985 <https://github.com/llvm/llvm-project/issues/60985>`_)
+
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -262,6 +284,16 @@ Bug Fixes to C++ Support
 - No longer issue a pre-C++2b compatibility warning in ``-pedantic`` mode
   regading overloaded `operator[]` with more than one parmeter or for static
   lambdas. (`#61582 <https://github.com/llvm/llvm-project/issues/61582>`_)
+- Stop stripping CV qualifiers from the type of ``this`` when capturing it by value in
+  a lambda.
+  (`#50866 <https://github.com/llvm/llvm-project/issues/50866>`_)
+- Fix ordering of function templates by constraints when they have template
+  template parameters with different nested constraints.
+- Fix type equivalence comparison between auto types to take constraints into
+  account.
+- Fix bug in the computation of the ``__has_unique_object_representations``
+  builtin for types with unnamed bitfields.
+  (`#61336 <https://github.com/llvm/llvm-project/issues/61336>`_)
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -282,7 +314,7 @@ AMDGPU Support
   undefined symbols in the created module to be a linker error. To prevent this,
   pass ``-Wl,--undefined`` if compiling directly, or ``-Xoffload-linker
   --undefined`` if using an offloading language.
-- The deprecated ``-mcode-object-v3`` and ``-mno-code-object-v3`` command-line 
+- The deprecated ``-mcode-object-v3`` and ``-mno-code-object-v3`` command-line
   options have been removed.
 
 X86 Support
@@ -328,6 +360,11 @@ CUDA Support
 
 AIX Support
 ^^^^^^^^^^^
+- Add an AIX-only link-time option, `-mxcoff-build-id=0xHEXSTRING`, to allow users
+  to embed a hex id in their binary such that it's readable by the program itself.
+  This option is an alternative to the `--build-id=0xHEXSTRING` GNU linker option
+  which is currently not supported by the AIX linker.
+
 
 WebAssembly Support
 ^^^^^^^^^^^^^^^^^^^
