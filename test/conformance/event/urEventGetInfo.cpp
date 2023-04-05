@@ -47,7 +47,7 @@ TEST_P(urEventGetInfoTest, Success) {
         ASSERT_EQ(sizeof(uint32_t), size);
         auto returned_reference_count =
             reinterpret_cast<uint32_t *>(data.data());
-        ASSERT_GT(*returned_reference_count, 0);
+        ASSERT_GT(*returned_reference_count, 0U);
         break;
     }
     default:
