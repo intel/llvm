@@ -69,5 +69,5 @@ int main(int, char **) {
   free(Output3, q);
   free(Output4, q);
 
-  return Pass ? 0 : 1;
+  return Passed ? 0 : 1;
 }
