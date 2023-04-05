@@ -819,9 +819,12 @@ private:
 
   template <typename OpTy>
   static OpTy createMethodOp(OpBuilder builder, Location loc, Type resTy,
-                             ValueRange arguments, TypeRange argumentTypes,
-                             StringRef functionName, StringRef typeName) {
+                             ValueRange arguments, StringRef functionName,
+                             StringRef typeName) {
     NamedAttrList attrs;
+    SmallVector<Type> argumentTypes;
+    for (Value argument : arguments)
+      argumentTypes.push_back(argument.getType());
     attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
               builder.getTypeArrayAttr(argumentTypes));
     attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
@@ -838,7 +841,7 @@ private:
     const auto resTy = builder.getI64Type();
     return createMethodOp<sycl::SYCLIDGetOp>(
         builder, loc, MemRefType::get(ShapedType::kDynamic, resTy),
-        {id, indexOp}, {id.getType(), indexOp.getType()}, "operator[]", "id");
+        {id, indexOp}, "operator[]", "id");
   }
 
   static sycl::SYCLRangeGetOp createSYCLRangeGetOp(TypedValue<MemRefType> range,
@@ -848,8 +851,7 @@ private:
     const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
     const auto resTy = builder.getI64Type();
     return createMethodOp<sycl::SYCLRangeGetOp>(
-        builder, loc, resTy, {range, indexOp},
-        {range.getType(), indexOp.getType()}, "get", "range");
+        builder, loc, resTy, {range, indexOp}, "get", "range");
   }
 
   static sycl::SYCLAccessorGetRangeOp
@@ -860,8 +862,7 @@ private:
     const auto rangeTy = cast<sycl::RangeType>(
         cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[1]);
     return createMethodOp<sycl::SYCLAccessorGetRangeOp>(
-        builder, loc, rangeTy, accessor, accessor.getType(), "get_range",
-        "accessor");
+        builder, loc, rangeTy, accessor, "get_range", "accessor");
   }
 
   static sycl::SYCLAccessorSubscriptOp
@@ -873,8 +874,7 @@ private:
     const auto MT = cast<MemRefType>(
         cast<LLVM::LLVMStructType>(accTy.getBody()[1]).getBody()[0]);
     return createMethodOp<sycl::SYCLAccessorSubscriptOp>(
-        builder, loc, MT, {accessor, id}, {accessor.getType(), id.getType()},
-        "operator[]", "accessor");
+        builder, loc, MT, {accessor, id}, "operator[]", "accessor");
   }
 
   static Value getSYCLAccessorBegin(TypedValue<MemRefType> accessor,
