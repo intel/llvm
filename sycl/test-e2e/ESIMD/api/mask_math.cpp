@@ -8,7 +8,6 @@
 // This test checks basic arithmetic operations between simd and simd_mask
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -70,5 +69,5 @@ int main(int, char **) {
   free(Output3, q);
   free(Output4, q);
 
-  return Passed ? 1 : 0;
+  return Pass ? 0 : 1;
 }
