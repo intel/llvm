@@ -4,6 +4,10 @@
 
 using urDevicePartitionTest = uur::urAllDevicesTest;
 
+template <class T>
+struct urDevicePartitionTestWithParam : uur::urAllDevicesTest,
+                                        ::testing::WithParamInterface<T> {};
+
 void getNumberComputeUnits(ur_device_handle_t device,
                            uint32_t &n_compute_units) {
     ASSERT_SUCCESS(uur::GetDeviceMaxComputeUnits(device, n_compute_units));
@@ -120,55 +124,67 @@ TEST_F(urDevicePartitionTest, PartitionByCounts) {
     }
 }
 
-TEST_F(urDevicePartitionTest, PartitionByAffinityDomain) {
+using urDevicePartitionAffinityDomainTest =
+    urDevicePartitionTestWithParam<ur_device_affinity_domain_flags_t>;
+TEST_P(urDevicePartitionAffinityDomainTest, PartitionByAffinityDomain) {
 
     for (auto device : devices) {
 
         if (!uur::hasDevicePartitionSupport(
                 device, UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN)) {
-            GTEST_SKIP();
+            GTEST_SKIP()
+                << "Device does not support partitioning by affinity domain.";
         }
 
         uint32_t n_compute_units = 0;
         ASSERT_NO_FATAL_FAILURE(getNumberComputeUnits(device, n_compute_units));
 
-        std::vector<ur_device_affinity_domain_flag_t> testFlags = {
-            UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
-            UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE};
+        // Skip if the affinity domain is not supported by device
+        ur_device_affinity_domain_flags_t flag = GetParam();
+        ur_device_affinity_domain_flags_t supported_flags{0};
+        ASSERT_SUCCESS(uur::GetDevicePartitionAffinityDomainFlags(
+            device, supported_flags));
+        if (!(flag & supported_flags)) {
+            GTEST_SKIP() << static_cast<ur_device_affinity_domain_flag_t>(flag)
+                         << " is not supported by the device.\n";
+        }
 
-        for (auto flag : testFlags) {
+        std::vector<ur_device_partition_property_t> properties = {
+            UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN, flag, 0};
 
-            std::vector<ur_device_partition_property_t> properties = {
-                UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN, flag, 0};
+        // Get the number of devices that will be created
+        uint32_t n_devices = 0;
+        ASSERT_SUCCESS(urDevicePartition(device, properties.data(), 0, nullptr,
+                                         &n_devices));
+        ASSERT_NE(n_devices, 0);
 
-            // Get the number of devices that will be created
-            uint32_t n_devices;
-            ASSERT_SUCCESS(urDevicePartition(device, properties.data(), 0,
-                                             nullptr, &n_devices));
-            ASSERT_NE(n_devices, 0);
+        std::vector<ur_device_handle_t> sub_devices(n_devices);
+        ASSERT_SUCCESS(
+            urDevicePartition(device, properties.data(),
+                              static_cast<uint32_t>(sub_devices.size()),
+                              sub_devices.data(), nullptr));
 
-            std::vector<ur_device_handle_t> sub_devices(n_devices);
-            ASSERT_SUCCESS(
-                urDevicePartition(device, properties.data(),
-                                  static_cast<uint32_t>(sub_devices.size()),
-                                  sub_devices.data(), nullptr));
-
-            for (auto sub_device : sub_devices) {
-                ASSERT_NE(sub_device, nullptr);
-
-                ur_device_affinity_domain_flag_t type;
-                urDeviceGetInfo(sub_device, UR_DEVICE_INFO_PARTITION_TYPE,
-                                sizeof(type), &type, nullptr);
-
-                /* UR only supports splitting with the NUMA flag. So even if the
-                 * NEXT_PARTITIONABLE flag is used, the result should always be
-                 * UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA */
-                ASSERT_EQ(type, UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA);
-                ASSERT_SUCCESS(urDeviceRelease(sub_device));
-            }
+        for (auto sub_device : sub_devices) {
+            ASSERT_NE(sub_device, nullptr);
+            ASSERT_SUCCESS(urDeviceRelease(sub_device));
         }
     }
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    , urDevicePartitionAffinityDomainTest,
+    ::testing::Values(UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
+                      UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
+                      UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
+                      UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
+                      UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
+                      UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE),
+    [](const ::testing::TestParamInfo<ur_device_affinity_domain_flags_t>
+           &info) {
+        std::stringstream ss;
+        ss << static_cast<ur_device_affinity_domain_flag_t>(info.param);
+        return ss.str();
+    });
 
 TEST_F(urDevicePartitionTest, InvalidNullHandleDevice) {
     ur_device_partition_property_t props[] = {UR_DEVICE_PARTITION_EQUALLY, 1,
