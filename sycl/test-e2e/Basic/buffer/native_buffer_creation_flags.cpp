@@ -21,6 +21,7 @@ int main() {
     // buffer is created with the PI_MEM_FLAGS_HOST_PTR_USE flag.
     // CHECK: piMemBufferCreate
     // CHECK-NEXT: {{.*}} : {{.*}}
+    // CHECK-NEXT: {{.*}} : {{.*}}
     // CHECK-NEXT: {{.*}} : 9
     auto BufAcc = Buf.get_access<access::mode::read>(Cgh);
     Cgh.single_task<Foo>([=]() { int A = BufAcc[0]; });
