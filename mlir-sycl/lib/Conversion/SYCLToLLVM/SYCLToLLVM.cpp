@@ -299,15 +299,10 @@ protected:
                 is_empty_v<Args...>>>
   Value loadValue(OpBuilder &builder, Location loc, Type baseTy, Type ty,
                   Value ptr, bool useOpaquePtr, Args &&...args) const {
-    if (useOpaquePtr) {
-      const auto gep =
-          getRef<Args...>(builder, loc, baseTy, ptr, std::nullopt, useOpaquePtr,
-                          std::forward<Args>(args)...);
-      return builder.create<LLVM::LoadOp>(loc, ty, gep);
-    }
-    const auto gep = getRef<Args...>(builder, loc, ty, ptr, std::nullopt,
+    const auto elemTy = (useOpaquePtr) ? baseTy : ty;
+    const auto gep = getRef<Args...>(builder, loc, elemTy, ptr, std::nullopt,
                                      useOpaquePtr, std::forward<Args>(args)...);
-    return builder.create<LLVM::LoadOp>(loc, gep);
+    return builder.create<LLVM::LoadOp>(loc, ty, gep);
   }
 
   /// Return the indices needed to access the specific member this class is
