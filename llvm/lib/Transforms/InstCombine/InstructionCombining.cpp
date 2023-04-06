@@ -1976,8 +1976,9 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
       return nullptr;   // Wait until our source is folded to completion.
 
   // For constant GEPs, use a more general offset-based folding approach.
+  // Only do this for opaque pointers, as the result element type may change.
   Type *PtrTy = Src->getType()->getScalarType();
-  if (GEP.hasAllConstantIndices() &&
+  if (PtrTy->isOpaquePointerTy() && GEP.hasAllConstantIndices() &&
       (Src->hasOneUse() || Src->hasAllConstantIndices())) {
     // Split Src into a variable part and a constant suffix.
     gep_type_iterator GTI = gep_type_begin(*Src);
