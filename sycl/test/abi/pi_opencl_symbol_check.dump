@@ -41,7 +41,6 @@ piextEnqueueReadHostPipe
 piextEnqueueWriteHostPipe
 piextEventCreateWithNativeHandle
 piextGetDeviceFunctionPointer
-piextMemImgCreateWithNativeHandle
 piextKernelCreateWithNativeHandle
 piextKernelGetNativeHandle
 piextKernelSetArgMemObj
@@ -49,6 +48,7 @@ piextKernelSetArgPointer
 piextKernelSetArgSampler
 piextMemCreateWithNativeHandle
 piextMemGetNativeHandle
+piextMemImgCreateWithNativeHandle
 piextPlatformCreateWithNativeHandle
 piextPlatformGetNativeHandle
 piextProgramCreateWithNativeHandle
@@ -56,7 +56,9 @@ piextProgramGetNativeHandle
 piextProgramSetSpecializationConstant
 piextQueueCreate
 piextQueueCreateWithNativeHandle
+piextQueueCreateWithNativeHandle2
 piextQueueGetNativeHandle
+piextQueueGetNativeHandle2
 piextUSMDeviceAlloc
 piextUSMEnqueueFill2D
 piextUSMEnqueueMemAdvise
