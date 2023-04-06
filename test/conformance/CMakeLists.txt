@@ -22,10 +22,10 @@ function(add_conformance_test name)
 endfunction()
 
 function(add_conformance_test_with_kernels_environment name)
-    add_conformance_test(${name}
-        ${ARGN})
-    set(KERNELS_DEFAULT_DIR "${PROJECT_SOURCE_DIR}/test/kernels")
-    target_compile_definitions("test-${name}" PRIVATE KERNELS_ENVIRONMENT PRIVATE KERNELS_DEFAULT_DIR="${KERNELS_DEFAULT_DIR}")
+    add_conformance_test(${name} ${ARGN})
+    target_compile_definitions("test-${name}" PRIVATE KERNELS_ENVIRONMENT PRIVATE
+      KERNELS_DEFAULT_DIR="${UR_CONFORMANCE_DEVICE_BINARIES_DIR}")
+    add_dependencies("test-${name}" generate_device_binaries)
 endfunction()
 
 function(add_conformance_test_with_devices_environment name)
@@ -50,3 +50,20 @@ add_subdirectory(usm)
 add_subdirectory(event)
 add_subdirectory(queue)
 add_subdirectory(enqueue)
+
+if(DEFINED UR_DPCXX)
+    add_custom_target(generate_device_binaries)
+
+    set(UR_CONFORMANCE_DEVICE_BINARIES_DIR
+        "${CMAKE_CURRENT_BINARY_DIR}/device_binaries/")
+    file(MAKE_DIRECTORY ${UR_CONFORMANCE_DEVICE_BINARIES_DIR})
+
+    if(DEFINED UR_CONFORMANCE_TARGET_TRIPLES)
+        string(REPLACE "," ";" TARGET_TRIPLES ${UR_CONFORMANCE_TARGET_TRIPLES})
+    else()
+        list(APPEND TARGET_TRIPLES "spir64")
+    endif()
+
+    add_subdirectory(device_code)
+    add_subdirectory(program)
+endif()
