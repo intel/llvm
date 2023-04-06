@@ -399,8 +399,8 @@ inline pi_result mock_piextQueueCreateWithNativeHandle(
 // Memory
 //
 inline pi_result
-mock_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
-                       void *host_ptr, pi_mem *ret_mem,
+mock_piMemBufferCreate(pi_context context, pi_device device, pi_mem_flags flags,
+                       size_t size, void *host_ptr, pi_mem *ret_mem,
                        const pi_mem_properties *properties = nullptr) {
   if (host_ptr && flags & PI_MEM_FLAGS_HOST_PTR_USE)
     *ret_mem = createDummyHandleWithData<pi_mem>(
@@ -410,7 +410,8 @@ mock_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piMemImageCreate(pi_context context, pi_mem_flags flags,
+inline pi_result mock_piMemImageCreate(pi_context context, pi_device device,
+                                       pi_mem_flags flags,
                                        const pi_image_format *image_format,
                                        const pi_image_desc *image_desc,
                                        void *host_ptr, pi_mem *ret_mem) {
@@ -473,6 +474,13 @@ mock_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
                                     pi_mem *mem) {
   *mem = reinterpret_cast<pi_mem>(nativeHandle);
   retainDummyHandle(*mem);
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextGetMemoryConnection(pi_device dev1, pi_context ctx1,
+                                               pi_device dev2, pi_context ctx2,
+                                               pi_memory_connection *res) {
+  *res = PI_MEMORY_CONNECTION_NONE;
   return PI_SUCCESS;
 }
 

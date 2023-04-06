@@ -94,8 +94,8 @@ static void handleUSMFree(const pi_plugin &, std::optional<pi_result>,
 }
 
 static void handleMemBufferCreate(const pi_plugin &, std::optional<pi_result>,
-                                  pi_context, pi_mem_flags, size_t Size,
-                                  void *HostPtr, pi_mem *,
+                                  pi_context, pi_device, pi_mem_flags,
+                                  size_t Size, void *HostPtr, pi_mem *,
                                   const pi_mem_properties *) {
   for (const auto &Alloc : GS->ActivePointers) {
     const void *Begin = Alloc.first;

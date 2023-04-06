@@ -179,15 +179,21 @@ struct _pi_context {
   using native_type = CUcontext;
 
   native_type cuContext_;
-  _pi_device *deviceId_;
+  std::vector<pi_device> deviceIds_;
   std::atomic_uint32_t refCount_;
 
-  _pi_context(_pi_device *devId)
-      : cuContext_{devId->get_context()}, deviceId_{devId}, refCount_{1} {
-    cuda_piDeviceRetain(deviceId_);
+  _pi_context(std::vector<pi_device> &&devIds)
+      : deviceIds_{std::move(devIds)}, refCount_{1} {
+    for (pi_device dev : deviceIds_) {
+      cuda_piDeviceRetain(dev);
+    }
   };
 
-  ~_pi_context() { cuda_piDeviceRelease(deviceId_); }
+  ~_pi_context() {
+    for (pi_device dev : deviceIds_) {
+      cuda_piDeviceRelease(dev);
+    }
+  }
 
   void invoke_extended_deleters() {
     std::lock_guard<std::mutex> guard(mutex_);
@@ -202,9 +208,28 @@ struct _pi_context {
     extended_deleters_.emplace_back(deleter_data{function, user_data});
   }
 
-  pi_device get_device() const noexcept { return deviceId_; }
+  const std::vector<pi_device> &get_devices() const noexcept {
+    return deviceIds_;
+  }
 
-  native_type get() const noexcept { return cuContext_; }
+  size_t device_index(pi_device device) {
+    for (size_t i = 0; i < deviceIds_.size(); i++) {
+      if (deviceIds_[i] == device) {
+        return i;
+      }
+    }
+    assert(false && "No index for device");
+    return 0;
+  }
+
+  CUcontext get(pi_device device) {
+    for (size_t i = 0; i < deviceIds_.size(); i++) {
+      if (deviceIds_[i] == device) {
+        return device->get_context();
+      }
+    }
+    return nullptr;
+  }
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
@@ -228,6 +253,9 @@ struct _pi_mem {
 
   // Context where the memory object is accessibles
   pi_context context_;
+
+  // Device where the memory is located
+  pi_device device_;
 
   /// Reference counting of the handler
   std::atomic_uint32_t refCount_;
@@ -331,9 +359,11 @@ struct _pi_mem {
   } mem_;
 
   /// Constructs the PI MEM handler for a non-typed allocation ("buffer")
-  _pi_mem(pi_context ctxt, pi_mem parent, mem_::buffer_mem_::alloc_mode mode,
-          CUdeviceptr ptr, void *host_ptr, size_t size)
-      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::buffer} {
+  _pi_mem(pi_context ctxt, pi_device dev, pi_mem parent,
+          mem_::buffer_mem_::alloc_mode mode, CUdeviceptr ptr, void *host_ptr,
+          size_t size)
+      : context_{ctxt}, device_{dev}, refCount_{1},
+        mem_type_{mem_type::buffer} {
     mem_.buffer_mem_.ptr_ = ptr;
     mem_.buffer_mem_.parent_ = parent;
     mem_.buffer_mem_.hostPtr_ = host_ptr;
@@ -350,9 +380,10 @@ struct _pi_mem {
   };
 
   /// Constructs the PI allocation for an Image object (surface in CUDA)
-  _pi_mem(pi_context ctxt, CUarray array, CUsurfObject surf,
+  _pi_mem(pi_context ctxt, pi_device dev, CUarray array, CUsurfObject surf,
           pi_mem_type image_type, void *host_ptr)
-      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {
+      : context_{ctxt}, device_{dev}, refCount_{1},
+        mem_type_{mem_type::surface} {
     // Ignore unused parameter
     (void)host_ptr;
 
@@ -382,6 +413,10 @@ struct _pi_mem {
   bool is_image() const noexcept { return mem_type_ == mem_type::surface; }
 
   pi_context get_context() const noexcept { return context_; }
+  pi_device get_device() const noexcept { return device_; }
+  CUcontext get_native_context() const noexcept {
+    return context_->get(device_);
+  }
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
@@ -544,6 +579,12 @@ struct _pi_queue {
     }
   }
 
+  CUcontext get_native_context() {
+    CUcontext res = context_->get(device_);
+    assert(res != nullptr);
+    return res;
+  }
+
   template <bool ResetUsed = false, typename T> void sync_streams(T &&f) {
     auto sync_compute = [&f, &streams = compute_streams_,
                          &delay = delay_compute_](unsigned int start,
@@ -671,6 +712,8 @@ public:
 
   pi_context get_context() const noexcept { return context_; };
 
+  CUcontext get_native_context() const noexcept { return native_context_; };
+
   pi_uint32 increment_reference_count() { return ++refCount_; }
 
   pi_uint32 decrement_reference_count() { return --refCount_; }
@@ -695,7 +738,8 @@ public:
   static pi_event
   make_native(pi_command_type type, pi_queue queue, CUstream stream,
               pi_uint32 stream_token = std::numeric_limits<pi_uint32>::max()) {
-    return new _pi_event(type, queue->get_context(), queue, stream,
+    return new _pi_event(type, queue->get_context(),
+                         queue->get_native_context(), queue, stream,
                          stream_token);
   }
 
@@ -710,7 +754,7 @@ public:
 private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for CUDA.
-  _pi_event(pi_command_type type, pi_context context, pi_queue queue,
+  _pi_event(pi_command_type type, pi_context context, CUcontext, pi_queue queue,
             CUstream stream, pi_uint32 stream_token);
 
   // This constructor is private to force programmers to use the
@@ -753,13 +797,16 @@ private:
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated
                        // with the queue_ member.
+  CUcontext native_context_; // CUcontext associated with the event. If this is
+                             // not a native event, this will be nullptr.
 };
 
 /// Implementation of PI Program on CUDA Module object
 ///
 struct _pi_program {
   using native_type = CUmodule;
-  native_type module_;
+  std::vector<native_type> modules_;
+  std::vector<CUresult> build_results_;
   const char *binary_;
   size_t binarySizeInBytes_;
   std::atomic_uint32_t refCount_;
@@ -788,7 +835,7 @@ struct _pi_program {
 
   pi_context get_context() const { return context_; };
 
-  native_type get() const noexcept { return module_; };
+  std::vector<native_type> get() const noexcept { return modules_; };
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
@@ -816,15 +863,16 @@ struct _pi_program {
 struct _pi_kernel {
   using native_type = CUfunction;
 
-  native_type function_;
-  native_type functionWithOffsetParam_;
+  std::vector<native_type> functions_;
+  std::vector<native_type> functionsWithOffsetParam_;
   std::string name_;
   pi_context context_;
   pi_program program_;
   std::atomic_uint32_t refCount_;
 
   static constexpr pi_uint32 REQD_THREADS_PER_BLOCK_DIMENSIONS = 3u;
-  size_t reqdThreadsPerBlock_[REQD_THREADS_PER_BLOCK_DIMENSIONS];
+  std::vector<std::array<size_t, REQD_THREADS_PER_BLOCK_DIMENSIONS>>
+      reqdThreadsPerBlock_;
 
   /// Structure that holds the arguments to the kernel.
   /// Note earch argument size is known, since it comes
@@ -911,18 +959,23 @@ struct _pi_kernel {
     }
   } args_;
 
-  _pi_kernel(CUfunction func, CUfunction funcWithOffsetParam, const char *name,
+  _pi_kernel(std::vector<CUfunction> funcs,
+             std::vector<CUfunction> funcsWithOffsetParam, const char *name,
              pi_program program, pi_context ctxt)
-      : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
-        name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
+      : functions_{funcs}, functionsWithOffsetParam_{funcsWithOffsetParam},
+        name_{name}, context_{ctxt}, program_{program}, refCount_{1},
+        reqdThreadsPerBlock_{ctxt->get_devices().size()} {
     cuda_piProgramRetain(program_);
     cuda_piContextRetain(context_);
-    /// Note: this code assumes that there is only one device per context
-    pi_result retError = cuda_piKernelGetGroupInfo(
-        this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
-    (void)retError;
-    assert(retError == PI_SUCCESS);
+    int device_num = 0;
+    for (pi_device device : ctxt->get_devices()) {
+      pi_result retError = cuda_piKernelGetGroupInfo(
+          this, device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+          sizeof(reqdThreadsPerBlock_[device_num]),
+          &reqdThreadsPerBlock_[device_num++][0], nullptr);
+      (void)retError;
+      assert(retError == PI_SUCCESS);
+    }
   }
 
   ~_pi_kernel() {
@@ -938,15 +991,13 @@ struct _pi_kernel {
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
-  native_type get() const noexcept { return function_; };
+  std::vector<native_type> get() const noexcept { return functions_; }
+  native_type get(pi_device device) const noexcept;
 
-  native_type get_with_offset_parameter() const noexcept {
-    return functionWithOffsetParam_;
-  };
-
-  bool has_with_offset_parameter() const noexcept {
-    return functionWithOffsetParam_ != nullptr;
+  std::vector<native_type> get_with_offset_parameter() const noexcept {
+    return functionsWithOffsetParam_;
   }
+  native_type get_with_offset_parameter(pi_device device) const noexcept;
 
   pi_context get_context() const noexcept { return context_; };
 

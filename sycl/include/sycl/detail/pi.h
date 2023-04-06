@@ -1000,6 +1000,16 @@ typedef enum { PI_MEM_CONTEXT = 0x1106, PI_MEM_SIZE = 0x1102 } _pi_mem_info;
 
 using pi_mem_info = _pi_mem_info;
 
+// Represent different memory connections between devices, see
+// piextGetMemoryConnection.
+typedef enum {
+  PI_MEMORY_CONNECTION_NONE,       // copies must go through host
+  PI_MEMORY_CONNECTION_MIGRATABLE, // copies must be explicit
+  PI_MEMORY_CONNECTION_UNIFIED     // copies are not needed
+} _pi_memory_connection;
+
+using pi_memory_connection = _pi_memory_connection;
+
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
 // They are 3 distinct categories:
@@ -1111,6 +1121,21 @@ __SYCL_EXPORT pi_result piextDeviceSelectBinary(pi_device device,
 __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
     pi_device device, pi_program program, const char *function_name,
     pi_uint64 *function_pointer_ret);
+
+/// Returns the type of memory connection between the two devices in the two
+/// respective contexts.
+///
+/// \param dev1 First device.
+/// \param ctx1 First context, must contain dev1.
+/// \param dev2 Second device.
+/// \param ctx2 Second context, must contain dev2.
+/// \return res Type of memory connection supported between the pairs (dev1,
+/// ctx1) and (dev2, ctx2).
+__SYCL_EXPORT pi_result piextGetMemoryConnection(pi_device dev1,
+                                                 pi_context ctx1,
+                                                 pi_device dev2,
+                                                 pi_context ctx2,
+                                                 _pi_memory_connection *res);
 
 //
 // Context
@@ -1226,11 +1251,13 @@ __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
 //
 // Memory
 //
-__SYCL_EXPORT pi_result piMemBufferCreate(
-    pi_context context, pi_mem_flags flags, size_t size, void *host_ptr,
-    pi_mem *ret_mem, const pi_mem_properties *properties = nullptr);
+__SYCL_EXPORT pi_result
+piMemBufferCreate(pi_context context, pi_device device, pi_mem_flags flags,
+                  size_t size, void *host_ptr, pi_mem *ret_mem,
+                  const pi_mem_properties *properties = nullptr);
 
-__SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
+__SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_device device,
+                                         pi_mem_flags flags,
                                          const pi_image_format *image_format,
                                          const pi_image_desc *image_desc,
                                          void *host_ptr, pi_mem *ret_mem);

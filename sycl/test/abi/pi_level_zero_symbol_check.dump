@@ -94,6 +94,7 @@ piextEnqueueWriteHostPipe
 piextEventCreateWithNativeHandle
 piextEventGetNativeHandle
 piextGetDeviceFunctionPointer
+piextGetMemoryConnection
 piextKernelCreateWithNativeHandle
 piextKernelGetNativeHandle
 piextKernelSetArgMemObj

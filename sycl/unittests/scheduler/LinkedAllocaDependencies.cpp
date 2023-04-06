@@ -16,6 +16,7 @@ using namespace sycl;
 class MemObjMock : public sycl::detail::SYCLMemObjI {
 public:
   using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
+  using DeviceImplPtr = std::shared_ptr<sycl::detail::device_impl>;
 
   MemObjMock(const std::shared_ptr<sycl::detail::MemObjRecord> &Record)
       : SYCLMemObjI() {
@@ -26,7 +27,8 @@ public:
 
   MemObjType getType() const override { return MemObjType::Buffer; }
 
-  void *allocateMem(ContextImplPtr, bool, void *, sycl::detail::pi::PiEvent &) {
+  void *allocateMem(ContextImplPtr, DeviceImplPtr, bool, void *,
+                    sycl::detail::pi::PiEvent &) {
     return nullptr;
   }
 
@@ -70,7 +72,8 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
                       std::vector<sycl::detail::Command *> &) {};
 
   std::shared_ptr<sycl::detail::MemObjRecord> Record{
-      new sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(), 10,
+      new sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(),
+                                     DefaultHostQueue->getDeviceImplPtr(), 10,
                                      AllocaDep)};
 
   MemObjMock MemObj(Record);

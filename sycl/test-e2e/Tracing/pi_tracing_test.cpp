@@ -13,6 +13,7 @@
 // CHECK:  <nullptr>
 // CHECK: ---> piMemBufferCreate(
 // CHECK-NEXT:  <unknown> : {{0[xX]?[0-9a-fA-F]*}}
+// CHECK-NEXT:  <unknown> : {{0[xX]?[0-9a-fA-F]*}}
 // CHECK-NEXT:  <unknown> : 1
 // CHECK-NEXT:  <unknown> : 40
 // CHECK-NEXT:  <unknown> : 0

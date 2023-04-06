@@ -174,11 +174,14 @@ class MockScheduler;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
+
+class device_impl;
 class queue_impl;
 class event_impl;
 class context_impl;
 class DispatchHostTask;
 
+using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
@@ -196,10 +199,11 @@ using FusionMap = std::unordered_map<QueueIdT, FusionList>;
 ///
 /// \ingroup sycl_graph
 struct MemObjRecord {
-  MemObjRecord(ContextImplPtr Ctx, std::size_t LeafLimit,
+  MemObjRecord(ContextImplPtr Ctx, DeviceImplPtr Dev, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
-        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
+        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx},
+        MCurDevice{Dev} {}
 
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
@@ -212,6 +216,9 @@ struct MemObjRecord {
 
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
+
+  // The device which has the latest state of the memory object.
+  DeviceImplPtr MCurDevice;
 
   // The mode this object can be accessed with from the host context.
   // Valid only if the current context is host.
@@ -652,7 +659,8 @@ protected:
     /// Finds dependencies for the requirement.
     std::set<Command *> findDepsForReq(MemObjRecord *Record,
                                        const Requirement *Req,
-                                       const ContextImplPtr &Context);
+                                       const ContextImplPtr &Context,
+                                       const DeviceImplPtr &Device);
 
     EmptyCommand *addEmptyCmd(Command *Cmd,
                               const std::vector<Requirement *> &Req,
@@ -675,6 +683,7 @@ protected:
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
                                         const ContextImplPtr &Context,
+                                        const DeviceImplPtr &Device,
                                         bool AllowConst = true);
 
     friend class Command;

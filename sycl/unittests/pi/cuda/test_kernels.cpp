@@ -306,8 +306,8 @@ TEST_F(CudaKernelsTest, PIKernelSetMemObj) {
   size_t memSize = 1024u;
   pi_mem memObj;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
-                nullptr)),
+                context_, device_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr,
+                &memObj, nullptr)),
             PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
@@ -342,8 +342,8 @@ TEST_F(CudaKernelsTest, PIkerneldispatch) {
   size_t memSize = 1024u;
   pi_mem memObj;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
-                nullptr)),
+                context_, device_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr,
+                &memObj, nullptr)),
             PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(
@@ -386,14 +386,14 @@ TEST_F(CudaKernelsTest, PIkerneldispatchTwo) {
   size_t memSize = 1024u;
   pi_mem memObj;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj,
-                nullptr)),
+                context_, device_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr,
+                &memObj, nullptr)),
             PI_SUCCESS);
 
   pi_mem memObj2;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
-                context_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr, &memObj2,
-                nullptr)),
+                context_, device_, PI_MEM_FLAGS_ACCESS_RW, memSize, nullptr,
+                &memObj2, nullptr)),
             PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piextKernelSetArgMemObj>(

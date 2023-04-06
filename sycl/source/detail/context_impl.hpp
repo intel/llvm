@@ -230,6 +230,11 @@ private:
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
 
+  friend pi_memory_connection
+  getMemoryConnection(const std::shared_ptr<device_impl> &Dev1,
+                      const std::shared_ptr<context_impl> &Ctx1,
+                      const std::shared_ptr<device_impl> &Dev2,
+                      const std::shared_ptr<context_impl> &Ctx2);
   std::set<const void *> MAssociatedDeviceGlobals;
   std::mutex MAssociatedDeviceGlobalsMutex;
 

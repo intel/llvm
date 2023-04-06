@@ -71,13 +71,7 @@ TEST_F(CudaBaseObjectsTest, piContextCreate) {
       << "piContextCreate failed.\n";
 
   EXPECT_NE(ctxt, nullptr);
-  EXPECT_EQ(ctxt->get_device(), device);
-
-  // Retrieve the cuCtxt to check information is correct
-  CUcontext cudaContext = ctxt->get();
-  unsigned int version = 0;
-  cuCtxGetApiVersion(cudaContext, &version);
-  EXPECT_EQ(version, LATEST_KNOWN_CUDA_DRIVER_API_VERSION);
+  EXPECT_EQ(ctxt->get_devices()[0], device);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
             PI_SUCCESS);
@@ -110,7 +104,7 @@ TEST_F(CudaBaseObjectsTest, piContextCreateChildThread) {
 
   // Retrieve the cuCtxt to check information is correct
   auto checkValue = [=]() {
-    CUcontext cudaContext = ctxt->get();
+    CUcontext cudaContext = device->get_context();
     unsigned int version = 0;
     auto cuErr = cuCtxGetApiVersion(cudaContext, &version);
     EXPECT_EQ(cuErr, CUDA_SUCCESS);

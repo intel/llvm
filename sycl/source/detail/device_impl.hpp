@@ -30,6 +30,7 @@ namespace detail {
 
 // Forward declaration
 class platform_impl;
+class context_impl;
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
 // TODO: Make code thread-safe
@@ -253,6 +254,14 @@ private:
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
+
+  friend bool sameDev(const std::shared_ptr<device_impl> &LHS,
+                      const std::shared_ptr<device_impl> &RHS);
+  friend pi_memory_connection
+  getMemoryConnection(const std::shared_ptr<device_impl> &Dev1,
+                      const std::shared_ptr<context_impl> &Ctx1,
+                      const std::shared_ptr<device_impl> &Dev2,
+                      const std::shared_ptr<context_impl> &Ctx2);
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
 }; // class device_impl
 

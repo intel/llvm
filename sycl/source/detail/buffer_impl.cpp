@@ -19,8 +19,20 @@ namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 uint8_t GBufferStreamID;
 #endif
+
+// FIXME: Remove this overload when the class is removed from __SYCL_EXPORT
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                               void *HostPtr, RT::PiEvent &OutEventToWait) {
+                               void *HostPtr, RT::PiEvent &InteropEvent) {
+  (void)Context;
+  (void)InitFromUserData;
+  (void)HostPtr;
+  (void)InteropEvent;
+  assert(false && "Deprecated: use the overload with the device parameter");
+}
+
+void *buffer_impl::allocateMem(ContextImplPtr Context, DeviceImplPtr Device,
+                               bool InitFromUserData, void *HostPtr,
+                               RT::PiEvent &OutEventToWait) {
   bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
@@ -28,7 +40,7 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");
   return MemoryManager::allocateMemBuffer(
-      std::move(Context), this, HostPtr, HostPtrReadOnly,
+      std::move(Context), std::move(Device), this, HostPtr, HostPtrReadOnly,
       BaseT::getSizeInBytes(), BaseT::MInteropEvent, BaseT::MInteropContext,
       MProps, OutEventToWait);
 }
