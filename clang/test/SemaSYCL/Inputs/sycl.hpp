@@ -143,7 +143,6 @@ private:
   using PtrType = typename DeviceValueType<dataT, accessTarget>::type *;
   void __init(PtrType Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
-  void __init_esimd(PtrType Ptr) {}
   friend class stream;
 };
 

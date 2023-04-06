@@ -2266,8 +2266,10 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
-
-    llvm::StringLiteral MethodName = InitMethodName;
+    llvm::StringLiteral MethodName =
+        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
+            ? InitESIMDMethodName
+            : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
 
@@ -2414,8 +2416,10 @@ public:
                              QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
-
-    llvm::StringLiteral MethodName = InitMethodName;
+    llvm::StringLiteral MethodName =
+        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
+            ? InitESIMDMethodName
+            : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
 
@@ -2610,6 +2614,34 @@ public:
 class ESIMDKernelDiagnostics : public SyclKernelFieldHandler {
 
   SourceLocation KernelLoc;
+  bool IsESIMD = false;
+
+  bool handleSpecialType(QualType FieldTy) {
+    const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
+
+    if (IsESIMD && !isSyclAccessorType(FieldTy))
+      return SemaRef.Diag(KernelLoc,
+                          diag::err_sycl_esimd_not_supported_for_type)
+             << RecordDecl;
+    return true;
+  }
+
+public:
+  ESIMDKernelDiagnostics(Sema &S, SourceLocation Loc, bool IsESIMD)
+      : SyclKernelFieldHandler(S), KernelLoc(Loc), IsESIMD(IsESIMD) {}
+
+  bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
+    return handleSpecialType(FieldTy);
+  }
+
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType FieldTy) final {
+    return handleSpecialType(FieldTy);
+  }
+};
+
+class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
+  SourceLocation KernelLoc;
   unsigned SizeOfParams = 0;
   bool IsESIMD = false;
 
@@ -2620,90 +2652,10 @@ class ESIMDKernelDiagnostics : public SyclKernelFieldHandler {
 
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
-
-    if (IsESIMD && !isSyclAccessorType(FieldTy))
-      return SemaRef.Diag(KernelLoc,
-                          diag::err_sycl_esimd_not_supported_for_type)
-             << RecordDecl;
-
     assert(RecordDecl && "The type must be a RecordDecl");
-
-    StringRef MethodName;
-
-    if (IsESIMD && isSyclAccessorType(FieldTy)) {
-      MethodName = InitESIMDMethodName;
-      CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
-      assert(InitMethod && "The type must have the __init method");
-      for (const ParmVarDecl *Param : InitMethod->parameters())
-        addParam(Param->getType());
-    }
-    return true;
-  }
-
-public:
-  ESIMDKernelDiagnostics(Sema &S, SourceLocation Loc, bool IsESIMD)
-      : SyclKernelFieldHandler(S), KernelLoc(Loc), IsESIMD(IsESIMD) {}
-
-  ~ESIMDKernelDiagnostics() {
-    if (IsESIMD && (SizeOfParams > MaxKernelArgsSize))
-      SemaRef.Diag(KernelLoc, diag::warn_esimd_kernel_too_big_args)
-          << SizeOfParams << MaxKernelArgsSize;
-  }
-
-  bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
-    return handleSpecialType(FieldTy);
-  }
-
-  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                             QualType FieldTy) final {
-    return handleSpecialType(FieldTy);
-  }
-
-  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FieldTy);
-    return true;
-  }
-
-  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FieldTy);
-    return true;
-  }
-
-  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FieldTy);
-    return true;
-  }
-
-  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
-                             QualType Ty) final {
-    addParam(Ty);
-    return true;
-  }
-
-  bool handleNonDecompStruct(const CXXRecordDecl *Base,
-                             const CXXBaseSpecifier &BS, QualType Ty) final {
-    addParam(Ty);
-    return true;
-  }
-
-  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
-    return handleScalarType(FD, FieldTy);
-  }
-};
-
-class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
-  SourceLocation KernelLoc;
-  unsigned SizeOfParams = 0;
-
-  void addParam(QualType ArgTy) {
-    SizeOfParams +=
-        SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
-  }
-
-  bool handleSpecialType(QualType FieldTy) {
-    const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
-    assert(RecordDecl && "The type must be a RecordDecl");
-    llvm::StringLiteral MethodName = InitMethodName;
+    llvm::StringLiteral MethodName = (IsESIMD && isSyclAccessorType(FieldTy))
+                                         ? InitESIMDMethodName
+                                         : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
@@ -2713,11 +2665,10 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
 
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
-  SyclKernelArgsSizeChecker(Sema &S, SourceLocation Loc)
-      : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
+  SyclKernelArgsSizeChecker(Sema &S, SourceLocation Loc, bool IsESIMD)
+      : SyclKernelFieldHandler(S), KernelLoc(Loc), IsESIMD(IsESIMD) {}
 
   ~SyclKernelArgsSizeChecker() {
-
     if (SizeOfParams > MaxKernelArgsSize)
       SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_big_args)
           << SizeOfParams << MaxKernelArgsSize;
@@ -2947,7 +2898,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // top-level pointers.
   uint64_t StructDepth = 0;
   VarDecl *KernelHandlerClone = nullptr;
-  bool IsSIMD = false;
+  bool IsESIMD = false;
   CXXMethodDecl *CallOperator = nullptr;
 
   Stmt *replaceWithLocalClone(ParmVarDecl *OriginalParam, VarDecl *LocalClone,
@@ -3319,7 +3270,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   const llvm::StringLiteral getInitMethodName() const {
-    return IsSIMD ? InitESIMDMethodName : InitMethodName;
+    return IsESIMD ? InitESIMDMethodName : InitMethodName;
   }
 
   // Default inits the type, then calls the init-method in the body.
@@ -3471,7 +3422,7 @@ public:
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()),
-        IsSIMD(IsSIMDKernel), CallOperator(CallOperator) {
+        IsESIMD(IsSIMDKernel), CallOperator(CallOperator) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
     annotateHierarchicalParallelismAPICalls();
 
@@ -4124,8 +4075,6 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
   SyclKernelFieldChecker FieldChecker(*this);
   SyclKernelUnionChecker UnionChecker(*this);
 
-  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
-
   KernelObjVisitor Visitor{*this};
 
   DiagnosingSYCLKernel = true;
@@ -4134,14 +4083,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
                             DecompMarker);
-  // ArgSizeChecker needs to happen after DecompMarker has completed, since it
-  // cares about the decomp attributes. DecompMarker cannot run before the
-  // others, since it counts on the FieldChecker to make sure it is visiting
-  // valid arrays/etc. Thus, ArgSizeChecker has its own visitation.
-  if (FieldChecker.isValid() && UnionChecker.isValid()) {
-    Visitor.VisitRecordBases(KernelObj, ArgsSizeChecker);
-    Visitor.VisitRecordFields(KernelObj, ArgsSizeChecker);
-  }
+
   DiagnosingSYCLKernel = false;
   // Set the kernel function as invalid, if any of the checkers fail validation.
   if (!FieldChecker.isValid() || !UnionChecker.isValid() ||
@@ -4279,6 +4221,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 
   bool IsSIMDKernel = isESIMDKernelType(CallOperator);
 
+  SyclKernelArgsSizeChecker argsSizeChecker(*this, KernelObj->getLocation(),
+                                            IsSIMDKernel);
   ESIMDKernelDiagnostics esimdKernel(*this, KernelObj->getLocation(),
                                      IsSIMDKernel);
 
@@ -4300,15 +4244,17 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   // Visit handlers to generate information for optimization record only if
   // optimization record is saved.
   if (!getLangOpts().OptRecordFile.empty()) {
-    Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
-                             int_footer, opt_report, esimdKernel);
-    Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
-                              int_footer, opt_report, esimdKernel);
+    Visitor.VisitRecordBases(KernelObj, argsSizeChecker, kernel_decl,
+                             kernel_body, int_header, int_footer, opt_report,
+                             esimdKernel);
+    Visitor.VisitRecordFields(KernelObj, argsSizeChecker, kernel_decl,
+                              kernel_body, int_header, int_footer, opt_report,
+                              esimdKernel);
   } else {
-    Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
-                             int_footer, esimdKernel);
-    Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
-                              int_footer, esimdKernel);
+    Visitor.VisitRecordBases(KernelObj, argsSizeChecker, kernel_decl,
+                             kernel_body, int_header, int_footer, esimdKernel);
+    Visitor.VisitRecordFields(KernelObj, argsSizeChecker, kernel_decl,
+                              kernel_body, int_header, int_footer, esimdKernel);
   }
 
   if (ParmVarDecl *KernelHandlerArg =
