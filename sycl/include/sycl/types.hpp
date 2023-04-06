@@ -118,9 +118,7 @@ template <typename T> struct vec_helper {
 template <> struct vec_helper<bool> {
   using RetType = select_apply_cl_t<bool, std::int8_t, std::int16_t,
                                     std::int32_t, std::int64_t>;
-  static constexpr RetType get(bool value) {
-    return value;
-  }
+  static constexpr RetType get(bool value) { return value; }
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -792,8 +790,7 @@ public:
 
   template <typename Ty = DataT>
   explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg)
-      : m_Data{DataType(vec_data<Ty>::get(arg))} {
-  }
+      : m_Data{DataType(vec_data<Ty>::get(arg))} {}
 
   template <typename Ty = DataT>
   typename detail::enable_if_t<
