@@ -1414,6 +1414,22 @@ inline std::ostream &operator<<(std::ostream &os,
         os << "UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA";
         break;
 
+    case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE:
+        os << "UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE";
+        break;
+
+    case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE:
+        os << "UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE";
+        break;
+
+    case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE:
+        os << "UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE";
+        break;
+
+    case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE:
+        os << "UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE";
+        break;
+
     case UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE:
         os << "UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE";
         break;
@@ -1437,6 +1453,50 @@ inline void serializeFlag_ur_device_affinity_domain_flags_t(
             first = false;
         }
         os << UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA;
+    }
+
+    if ((val & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE) ==
+        (uint32_t)UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE) {
+        val ^= (uint32_t)UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE;
+    }
+
+    if ((val & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE) ==
+        (uint32_t)UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE) {
+        val ^= (uint32_t)UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE;
+    }
+
+    if ((val & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE) ==
+        (uint32_t)UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE) {
+        val ^= (uint32_t)UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE;
+    }
+
+    if ((val & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE) ==
+        (uint32_t)UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE) {
+        val ^= (uint32_t)UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE;
     }
 
     if ((val & UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE) ==

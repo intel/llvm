@@ -465,8 +465,9 @@ class ur_device_info_v(IntEnum):
     PARTITION_PROPERTIES = 76                       ## ::ur_device_partition_property_t[]: Returns the list of partition
                                                     ## types supported by the device
     PARTITION_MAX_SUB_DEVICES = 77                  ## uint32_t: maximum number of sub-devices when the device is partitioned
-    PARTITION_AFFINITY_DOMAIN = 78                  ## uint32_t: return a bit-field of affinity domain
-                                                    ## ::ur_device_affinity_domain_flags_t
+    PARTITION_AFFINITY_DOMAIN = 78                  ## [::ur_device_affinity_domain_flags_t]: Returns a bit-field of the
+                                                    ## supported affinity domains for partitioning. 
+                                                    ## If the device does not support any affinity domains, then 0 will be returned.
     PARTITION_TYPE = 79                             ## ::ur_device_partition_property_t[]: return a list of
                                                     ## ::ur_device_partition_property_t for properties specified in
                                                     ## ::urDevicePartition
@@ -581,8 +582,26 @@ class ur_device_exec_capability_flags_t(c_int):
 ###############################################################################
 ## @brief Device affinity domain
 class ur_device_affinity_domain_flags_v(IntEnum):
-    NUMA = UR_BIT(0)                                ## By NUMA
-    NEXT_PARTITIONABLE = UR_BIT(1)                  ## BY next partitionable
+    NUMA = UR_BIT(0)                                ## Split the device into sub devices comprised of compute units that
+                                                    ## share a NUMA node.
+    L4_CACHE = UR_BIT(1)                            ## Split the device into sub devices comprised of compute units that
+                                                    ## share a level 4 data cache.
+    L3_CACHE = UR_BIT(2)                            ## Split the device into sub devices comprised of compute units that
+                                                    ## share a level 3 data cache.
+    L2_CACHE = UR_BIT(3)                            ## Split the device into sub devices comprised of compute units that
+                                                    ## share a level 2 data cache.
+    L1_CACHE = UR_BIT(4)                            ## Split the device into sub devices comprised of compute units that
+                                                    ## share a level 1 data cache.
+    NEXT_PARTITIONABLE = UR_BIT(5)                  ## Split the device along the next partitionable affinity domain. 
+                                                    ## The implementation shall find the first level along which the device
+                                                    ## or sub device may be further subdivided in the order: 
+                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
+                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
+                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
+                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
+                                                    ## ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE, 
+                                                    ## and partition the device into sub devices comprised of compute units
+                                                    ## that share memory subsystems at this level. 
 
 class ur_device_affinity_domain_flags_t(c_int):
     def __str__(self):
