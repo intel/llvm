@@ -3010,16 +3010,15 @@ inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
   }
 
   ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
-  ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Ptr);
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
   ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   size_t PatternSize = 1;
-  HANDLE_ERRORS(urEnqueueMemBufferFill(UrQueue, UrBuffer, &Value, PatternSize,
-                                       0, Count, NumEventsInWaitList,
-                                       UrEventsWaitList, UrEvent));
+  HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, &Value, Count,
+                                 NumEventsInWaitList, UrEventsWaitList,
+                                 UrEvent));
 
   return PI_SUCCESS;
 }

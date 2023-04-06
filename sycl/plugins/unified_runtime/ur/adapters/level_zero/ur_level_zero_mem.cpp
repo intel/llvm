@@ -753,28 +753,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  // std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
-  //                                                         Buffer->Mutex);
-  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
+                                                          Buffer->Mutex);
 
-  // if Offset is not zero, then look for Ze Handle to
-  // determine correct dst with offset
-  if (Offset != 0) {
-    char *ZeHandleDst = nullptr;
-    _ur_buffer *UrBuffer = reinterpret_cast<_ur_buffer *>(Buffer);
-    UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                  Queue->Device));
-    return enqueueMemFillHelper(
-        UR_COMMAND_MEM_BUFFER_FILL, Queue, ZeHandleDst + Offset, Pattern,
-        PatternSize, Size, NumEventsInWaitList, EventWaitList, OutEvent);
-  } else {
-    return enqueueMemFillHelper(
-        // TODO: do we need a new command type for USM memset?
-        UR_COMMAND_MEM_BUFFER_FILL, Queue, Buffer,
-        Pattern,     // It will be interpreted as an 8-bit value,
-        PatternSize, // which is indicated with this pattern_size==1
-        Size, NumEventsInWaitList, EventWaitList, OutEvent);
-  }
+  char *ZeHandleDst = nullptr;
+  _ur_buffer *UrBuffer = reinterpret_cast<_ur_buffer *>(Buffer);
+  UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
+                                Queue->Device));
+  return enqueueMemFillHelper(
+      UR_COMMAND_MEM_BUFFER_FILL, Queue, ZeHandleDst + Offset,
+      Pattern,     // It will be interpreted as an 8-bit value,
+      PatternSize, // which is indicated with this pattern_size==1
+      Size, NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
@@ -3072,14 +3062,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_event_handle_t *Event ///< [out][optional] return an event object that
                              ///< identifies this particular command instance.
 ) {
-  std::ignore = Queue;
-  std::ignore = Ptr;
-  std::ignore = PatternSize;
-  std::ignore = Pattern;
-  std::ignore = Size;
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+
+  return enqueueMemFillHelper(
+      // TODO: do we need a new command type for USM memset?
+      UR_COMMAND_MEM_BUFFER_FILL, Queue, Ptr,
+      Pattern,     // It will be interpreted as an 8-bit value,
+      PatternSize, // which is indicated with this pattern_size==1
+      Size, NumEventsInWaitList, EventWaitList, Event);
 }

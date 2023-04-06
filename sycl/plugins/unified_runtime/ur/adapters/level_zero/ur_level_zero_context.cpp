@@ -70,6 +70,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(
   return ContextReleaseHelper(Context);
 }
 
+// Due to a bug with 2D memory copy to and from non-USM pointers, this option is
+// disabled by default.
+static const bool UseMemcpy2DOperations = [] {
+  const char *UseMemcpy2DOperationsFlag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_NATIVE_USM_MEMCPY2D");
+  if (!UseMemcpy2DOperationsFlag)
+    return false;
+  return std::stoi(UseMemcpy2DOperationsFlag) > 0;
+}();
+
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     ur_context_handle_t Context,       ///< [in] handle of the context
     ur_context_info_t ContextInfoType, ///< [in] type of the info to retrieve
@@ -95,7 +105,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     return ReturnValue(uint32_t{Context->RefCount.load()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
-    return ReturnValue(pi_bool{true});
+    return ReturnValue(pi_bool{UseMemcpy2DOperations});
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
     return ReturnValue(pi_bool{false});
