@@ -366,11 +366,12 @@ public:
 private:
   Value createCondition() const final {
     Location loc = loop.getLoc();
+    OpBuilder builder(loop);
 
     auto GetMemref2PointerOp = [&](Value op) {
       auto MT = cast<MemRefType>(op.getType());
       return builder.create<polygeist::Memref2PointerOp>(
-          loop.getLoc(),
+          loc,
           LLVM::LLVMPointerType::get(MT.getElementType(),
                                      MT.getMemorySpaceAsInt()),
           op);
@@ -492,8 +493,6 @@ private:
 
   std::pair<TypedValue<MemRefType>, TypedValue<MemRefType>> AccessorPair;
 };
-
-//===----------------------------------------------------------------------===//
 
 /// Return the accessor used by \p op if found, and nullptr otherwise.
 static Optional<AccessorType> getAccessorUsedByOperation(const Operation &op) {
