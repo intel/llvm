@@ -88,7 +88,7 @@ int main() {
     if ((i % 2 == 0) && A_acc[i] != C_acc[i]) {
       if (++err_cnt < 10) {
         std::cout << "failed at index " << i << ", " << C_acc[i]
-                  << " != " << A[i] << "\n";
+                  << " != " << A_acc[i] << "\n";
       }
     }
     if ((i % 2 == 1) && C_acc[i] != 0.0f) {
