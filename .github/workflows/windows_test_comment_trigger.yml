@@ -7,7 +7,7 @@ on:
 jobs:
   windows_test_preparation:
     runs-on: ubuntu-20.04
-    if: ${{ github.event.issue.pull_request && github.event.comment.body == '/testwin' }}
+    if: ${{ false && github.event.issue.pull_request && github.event.comment.body == '/testwin' }}
     steps:
     - name: react_to_comment
       uses: actions/github-script@v6
@@ -44,7 +44,7 @@ jobs:
 
   test_matrix:
     name: Generate Test Matrix
-    if: github.repository == 'intel/llvm'
+    if: ${{ false && github.repository == 'intel/llvm' }}
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       lts_config: "win_l0_gen12"
