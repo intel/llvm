@@ -1129,10 +1129,24 @@ void LLVMToSPIRVBase::transFunctionMetadataAsUserSemanticDecoration(
     // LARGE - 2
     // DEFAULT - 3
     // Currently we only support SMALL and LARGE
-    if (RegisterAllocNodeMDOp == 1 || RegisterAllocNodeMDOp == 2) {
+    if (RegisterAllocNodeMDOp == 0 || RegisterAllocNodeMDOp == 1 ||
+        RegisterAllocNodeMDOp == 2) {
       // 4 threads per eu means large grf mode, and 8 threads per eu
-      // means small grf mode
-      std::string NumThreads = RegisterAllocNodeMDOp == 2 ? "4" : "8";
+      // means small grf mode, 0 means use internal heuristics to choose
+      std::string NumThreads;
+      switch (RegisterAllocNodeMDOp) {
+      case 0:
+        NumThreads = "0";
+        break;
+      case 1:
+        NumThreads = "8";
+        break;
+      case 2:
+        NumThreads = "4";
+        break;
+      default:
+        llvm_unreachable("Not implemented");
+      }
       BF->addDecorate(new SPIRVDecorateUserSemanticAttr(
           BF, "num-thread-per-eu " + NumThreads));
     }
