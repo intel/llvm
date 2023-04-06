@@ -898,8 +898,7 @@ def ConvertSPIRVToLLVMPass : Pass<"convert-spirv-to-llvm", "ModuleOp"> {
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
                  /*default=*/"false", "Generate LLVM IR using opaque pointers "
                  "instead of typed pointers">,
-    Option<"clientAPIForAddressSpaceMapping",
-           "client-api-for-address-space-mapping", "::mlir::spirv::ClientAPI",
+    Option<"clientAPI", "client-api", "::mlir::spirv::ClientAPI",
 	   /*default=*/"::mlir::spirv::ClientAPI::Unknown",
 	   "Derive StorageClass to address space mapping from the client API",
 	   [{::llvm::cl::values(

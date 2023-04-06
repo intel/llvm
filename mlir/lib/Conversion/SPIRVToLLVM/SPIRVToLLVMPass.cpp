@@ -51,22 +51,20 @@ void ConvertSPIRVToLLVMPass::runOnOperation() {
 
   RewritePatternSet patterns(context);
 
-  populateSPIRVToLLVMTypeConversion(converter, clientAPIForAddressSpaceMapping);
+  populateSPIRVToLLVMTypeConversion(converter, clientAPI);
 
   populateSPIRVToLLVMModuleConversionPatterns(converter, patterns);
-  populateSPIRVToLLVMConversionPatterns(converter, patterns,
-                                        clientAPIForAddressSpaceMapping);
+  populateSPIRVToLLVMConversionPatterns(converter, patterns, clientAPI);
   populateSPIRVToLLVMFunctionConversionPatterns(converter, patterns);
 
   ConversionTarget target(*context);
   target.addIllegalDialect<spirv::SPIRVDialect>();
   target.addLegalDialect<LLVM::LLVMDialect>();
 
-  if (clientAPIForAddressSpaceMapping != spirv::ClientAPI::OpenCL &&
-      clientAPIForAddressSpaceMapping != spirv::ClientAPI::Unknown)
+  if (clientAPI != spirv::ClientAPI::OpenCL &&
+      clientAPI != spirv::ClientAPI::Unknown)
     getOperation()->emitWarning("address space mapping for client ")
-        << spirv::stringifyClientAPI(clientAPIForAddressSpaceMapping)
-        << " not implemented";
+        << spirv::stringifyClientAPI(clientAPI) << " not implemented";
 
   // Set `ModuleOp` as legal for `spirv.module` conversion.
   target.addLegalOp<ModuleOp>();

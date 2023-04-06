@@ -290,10 +290,9 @@ static unsigned mapToOpenCLAddressSpace(spirv::StorageClass storageClass) {
   }
 }
 
-static unsigned
-mapToAddressSpace(spirv::ClientAPI clientAPIForAddressSpaceMapping,
-                  spirv::StorageClass storageClass) {
-  switch (clientAPIForAddressSpaceMapping) {
+static unsigned mapToAddressSpace(spirv::ClientAPI clientAPI,
+                                  spirv::StorageClass storageClass) {
+  switch (clientAPI) {
     CLIENT_MAP(OpenCL, storageClass)
   default:
     return defaultAddressSpace;
@@ -302,12 +301,12 @@ mapToAddressSpace(spirv::ClientAPI clientAPIForAddressSpaceMapping,
 
 /// Converts SPIR-V pointer type to LLVM pointer. Pointer's storage class is not
 /// modelled at the moment.
-static std::optional<Type>
-convertPointerType(spirv::PointerType type, LLVMTypeConverter &converter,
-                   spirv::ClientAPI clientAPIForAddressSpaceMapping) {
+static std::optional<Type> convertPointerType(spirv::PointerType type,
+                                              LLVMTypeConverter &converter,
+                                              spirv::ClientAPI clientAPI) {
   auto pointeeType = converter.convertType(type.getPointeeType());
-  const auto addressSpace = mapToAddressSpace(clientAPIForAddressSpaceMapping,
-                                              type.getStorageClass());
+  const auto addressSpace =
+      mapToAddressSpace(clientAPI, type.getStorageClass());
   return converter.getPointerType(pointeeType, addressSpace);
 }
 
@@ -764,11 +763,10 @@ class GlobalVariablePattern
     : public SPIRVToLLVMConversion<spirv::GlobalVariableOp> {
 public:
   template <typename... Args>
-  GlobalVariablePattern(spirv::ClientAPI clientAPIForAddressSpaceMapping,
-                        Args &&...args)
+  GlobalVariablePattern(spirv::ClientAPI clientAPI, Args &&...args)
       : SPIRVToLLVMConversion<spirv::GlobalVariableOp>(
             std::forward<Args>(args)...),
-        clientAPIForAddressSpaceMapping(clientAPIForAddressSpaceMapping) {}
+        clientAPI(clientAPI) {}
 
   using SPIRVToLLVMConversion<spirv::GlobalVariableOp>::SPIRVToLLVMConversion;
 
@@ -815,8 +813,7 @@ public:
                        : LLVM::Linkage::External;
     auto newGlobalOp = rewriter.replaceOpWithNewOp<LLVM::GlobalOp>(
         op, dstType, isConstant, linkage, op.getSymName(), Attribute(),
-        /*alignment=*/0,
-        mapToAddressSpace(clientAPIForAddressSpaceMapping, storageClass));
+        /*alignment=*/0, mapToAddressSpace(clientAPI, storageClass));
 
     // Attach location attribute if applicable
     if (op.getLocationAttr())
@@ -826,7 +823,7 @@ public:
   }
 
 private:
-  spirv::ClientAPI clientAPIForAddressSpaceMapping;
+  spirv::ClientAPI clientAPI;
 };
 
 /// Converts SPIR-V cast ops that do not have straightforward LLVM
@@ -1517,17 +1514,14 @@ public:
 // Pattern population
 //===----------------------------------------------------------------------===//
 
-void mlir::populateSPIRVToLLVMTypeConversion(
-    LLVMTypeConverter &typeConverter,
-    spirv::ClientAPI clientAPIForAddressSpaceMapping) {
+void mlir::populateSPIRVToLLVMTypeConversion(LLVMTypeConverter &typeConverter,
+                                             spirv::ClientAPI clientAPI) {
   typeConverter.addConversion([&](spirv::ArrayType type) {
     return convertArrayType(type, typeConverter);
   });
-  typeConverter.addConversion(
-      [&, clientAPIForAddressSpaceMapping](spirv::PointerType type) {
-        return convertPointerType(type, typeConverter,
-                                  clientAPIForAddressSpaceMapping);
-      });
+  typeConverter.addConversion([&, clientAPI](spirv::PointerType type) {
+    return convertPointerType(type, typeConverter, clientAPI);
+  });
   typeConverter.addConversion([&](spirv::RuntimeArrayType type) {
     return convertRuntimeArrayType(type, typeConverter);
   });
@@ -1538,7 +1532,7 @@ void mlir::populateSPIRVToLLVMTypeConversion(
 
 void mlir::populateSPIRVToLLVMConversionPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
-    spirv::ClientAPI clientAPIForAddressSpaceMapping) {
+    spirv::ClientAPI clientAPI) {
   patterns.add<
       // Arithmetic ops
       DirectConversionPattern<spirv::IAddOp, LLVM::AddOp>,
@@ -1650,8 +1644,8 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
       // Return ops
       ReturnPattern, ReturnValuePattern>(patterns.getContext(), typeConverter);
 
-  patterns.add<GlobalVariablePattern>(clientAPIForAddressSpaceMapping,
-                                      patterns.getContext(), typeConverter);
+  patterns.add<GlobalVariablePattern>(clientAPI, patterns.getContext(),
+                                      typeConverter);
 }
 
 void mlir::populateSPIRVToLLVMFunctionConversionPatterns(
