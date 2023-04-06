@@ -2,7 +2,8 @@
 // REQUIRES: gpu && linux
 // UNSUPPORTED: cuda || hip
 //
-// NOTE: The feature is not yet supported, there is a discussion on the feasibility of tests
+// NOTE: The feature is not yet supported, there is a discussion on the
+// feasibility of tests
 // REQUIRES: TEMPORARY_DISABLED
 //
 // Check that full compilation works:
