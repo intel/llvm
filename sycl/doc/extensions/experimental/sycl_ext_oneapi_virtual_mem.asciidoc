@@ -203,6 +203,10 @@ Frees a virtual memory range specified by `ptr` and `numBytes`. `ptr` must be
 the same as returned by a call to `reserve_virtual_mem` and `numBytes` must be
 the same as the size of the range specified in the reservation call.
 
+The virtual memory range must not currently be mapped to physical memory. A call
+to this function with a mapped virtual memory range results in undefined
+behavior.
+
 |`void set_access_mode(const void *ptr, size_t numBytes, access_mode mode, const context &syclContext)` |
 Sets the access mode of a virtual memory range specified by `ptr` and
 `numBytes`. `mode` must either be `access_mode::read` or

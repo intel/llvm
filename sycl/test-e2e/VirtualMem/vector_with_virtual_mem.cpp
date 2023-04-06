@@ -16,8 +16,10 @@ public:
 
   ~VirtualVector() {
     // Free all mapped ranges.
-    for (const VirtualAddressRange &VARange : MVARanges)
+    for (const VirtualAddressRange &VARange : MVARanges) {
+      syclext::unmap(VARange.Ptr, VARange.Size, MContext);
       syclext::free_virtual_mem(VARange.Ptr, VARange.Size, MContext);
+    }
     // Physical memory allocations will be freed when the physical_mem objects
     // die with MPhysicalMems.
   }
