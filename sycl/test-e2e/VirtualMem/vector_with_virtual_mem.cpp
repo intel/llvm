@@ -150,7 +150,7 @@ int main() {
   size_t SizeIncrement = 11;
   size_t MinSizeGran =
       syclext::get_minimum_mem_granularity(SizeIncrement * sizeof(int), Q);
-  SizeIncrement = std::min(MinSizeGran / 2 - 1, SizeIncrement);
+  SizeIncrement = std::max(MinSizeGran / 2 - 1, SizeIncrement);
 
   for (size_t I = 0; I < NumIters; ++I) {
     // Increment the size of the vector.
