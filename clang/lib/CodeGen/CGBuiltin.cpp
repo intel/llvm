@@ -34,7 +34,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/ValueTracking.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
@@ -64,8 +63,6 @@
 using namespace clang;
 using namespace CodeGen;
 using namespace llvm;
-
-class TargetLibraryInfoImpl;
 
 static void initializeAlloca(CodeGenFunction &CGF, AllocaInst *AI, Value *Size,
                              Align AlignmentInBytes) {
@@ -2294,7 +2291,6 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   // TODO: Extend this handling to all builtin calls that we can constant-fold.
   Expr::EvalResult Result;
 
-  llvm::TargetLibraryInfoImpl TLII(getTarget().getTriple());
   if (E->isPRValue() && E->EvaluateAsRValue(Result, CGM.getContext()) &&
       !Result.hasSideEffects()) {
     if (Result.Val.isInt())
