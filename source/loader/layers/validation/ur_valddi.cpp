@@ -662,7 +662,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName) {
+        if (UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
