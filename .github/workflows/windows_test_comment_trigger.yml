@@ -7,7 +7,7 @@ on:
 jobs:
   windows_test_preparation:
     runs-on: ubuntu-20.04
-    if: ${{ false && github.event.issue.pull_request && github.event.comment.body == '/testwin' }}
+    if: ${{ github.event.issue.pull_request && github.event.comment.body == '/testwin' }}
     steps:
     - name: react_to_comment
       uses: actions/github-script@v6
@@ -44,11 +44,11 @@ jobs:
 
   test_matrix:
     name: Generate Test Matrix
-    if: ${{ false && github.repository == 'intel/llvm' }}
+    needs: [windows_test_preparation]
+    if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       lts_config: "win_l0_gen12"
-      cts_config: "cuda"
 
   windows_default:
     name: Windows
@@ -62,7 +62,6 @@ jobs:
   windows_test_completion:
     runs-on: ubuntu-20.04
     needs: [windows_test_preparation, windows_default]
-    if: always()
     steps:
     - name: update_pr_status_success
       if: needs.windows_default.result == 'success'
