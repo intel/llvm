@@ -15,20 +15,20 @@
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
-// LoopVersionBuilder
+// Utilities functions
 //===----------------------------------------------------------------------===//
 
-LoopVersionBuilder::LoopVersionBuilder(LoopLikeOpInterface loop)
-    : builder(loop), loop(loop) {}
-
-void LoopVersionBuilder::versionLoop() {
-  createIfOp();
-  createThenBody();
-  createElseBody();
-  replaceUsesOfLoopReturnValues();
+static Block &getThenBlock(RegionBranchOpInterface ifOp) {
+  return ifOp->getRegion(0).front();
 }
 
-void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
+static Block &getElseBlock(RegionBranchOpInterface ifOp) {
+  return ifOp->getRegion(1).front();
+}
+
+static void replaceUsesOfLoopReturnValues(LoopLikeOpInterface loop,
+                                          RegionBranchOpInterface ifOp) {
+  assert(ifOp && "Expected valid ifOp");
   // Replace uses of the loop return value(s) with the value(s) yielded by the
   // if operation.
   for (auto [loopVal, ifVal] :
@@ -39,36 +39,73 @@ void LoopVersionBuilder::replaceUsesOfLoopReturnValues() const {
     });
 }
 
+static void createThenBody(LoopLikeOpInterface loop, scf::IfOp ifOp) {
+  loop->moveBefore(&getThenBlock(ifOp).front());
+}
+
+static void createThenBody(LoopLikeOpInterface loop, AffineIfOp ifOp) {
+  OpBuilder thenBodyBuilder = ifOp.getThenBodyBuilder();
+  if (!loop->getResults().empty())
+    thenBodyBuilder.create<AffineYieldOp>(loop.getLoc(), loop->getResults());
+  loop->moveBefore(&getThenBlock(ifOp).front());
+}
+
+//===----------------------------------------------------------------------===//
+// SCFIfThenElseBuilder
+//===----------------------------------------------------------------------===//
+
+RegionBranchOpInterface
+SCFIfBuilder::createIfOp(Operation::result_range results,
+                         OpBuilder &builder) const {
+  return builder.create<scf::IfOp>(
+      builder.getUnknownLoc(), createCondition(),
+      [&](OpBuilder &b, Location loc) { b.create<scf::YieldOp>(loc, results); },
+      [&](OpBuilder &b, Location loc) {
+        b.create<scf::YieldOp>(loc, results);
+      });
+}
+
+//===----------------------------------------------------------------------===//
+// AffineIfThenElseBuilder
+//===----------------------------------------------------------------------===//
+
+RegionBranchOpInterface
+AffineIfBuilder::createIfOp(Operation::result_range results,
+                            OpBuilder &builder) const {
+  TypeRange types(results);
+  SmallVector<Value> values;
+  const IntegerSet &set = createCondition(values);
+  return builder.create<AffineIfOp>(builder.getUnknownLoc(), types, set, values,
+                                    true);
+}
+
+//===----------------------------------------------------------------------===//
+// LoopVersionBuilder
+//===----------------------------------------------------------------------===//
+
+void LoopVersionBuilder::versionLoop(RegionBranchOpInterface ifOp) const {
+  createThenBody(ifOp);
+  createElseBody(ifOp);
+  replaceUsesOfLoopReturnValues(loop, ifOp);
+}
+
 //===----------------------------------------------------------------------===//
 // SCFLoopVersionBuilder
 //===----------------------------------------------------------------------===//
 
-SCFLoopVersionBuilder::SCFLoopVersionBuilder(LoopLikeOpInterface loop)
-    : LoopVersionBuilder(loop) {}
-
-scf::IfOp SCFLoopVersionBuilder::getIfOp() const {
-  assert(ifOp && "Expected valid ifOp");
-  return cast<scf::IfOp>(ifOp);
+void SCFLoopVersionBuilder::versionLoop() const {
+  OpBuilder builder(loop);
+  RegionBranchOpInterface ifOp = createIfOp(loop->getResults(), builder);
+  LoopVersionBuilder::versionLoop(ifOp);
 }
 
-void SCFLoopVersionBuilder::createIfOp() {
-  ifOp = builder.create<scf::IfOp>(
-      loop.getLoc(), createCondition(),
-      [&](OpBuilder &b, Location loc) {
-        b.create<scf::YieldOp>(loc, loop->getResults());
-      },
-      [&](OpBuilder &b, Location loc) {
-        b.create<scf::YieldOp>(loc, loop->getResults());
-      });
+void SCFLoopVersionBuilder::createThenBody(RegionBranchOpInterface ifOp) const {
+  ::createThenBody(loop, cast<scf::IfOp>(ifOp));
 }
 
-void SCFLoopVersionBuilder::createThenBody() const {
-  loop->moveBefore(&*getThenBlock(ifOp).begin());
-}
-
-void SCFLoopVersionBuilder::createElseBody() const {
+void SCFLoopVersionBuilder::createElseBody(RegionBranchOpInterface ifOp) const {
   Operation &origYield = getElseBlock(ifOp).back();
-  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  OpBuilder elseBodyBuilder = cast<scf::IfOp>(ifOp).getElseBodyBuilder();
   Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
   elseBodyBuilder.create<scf::YieldOp>(loop.getLoc(), clonedLoop->getResults());
   origYield.erase();
@@ -78,30 +115,20 @@ void SCFLoopVersionBuilder::createElseBody() const {
 // AffineLoopVersionBuilder
 //===----------------------------------------------------------------------===//
 
-AffineLoopVersionBuilder::AffineLoopVersionBuilder(LoopLikeOpInterface loop)
-    : LoopVersionBuilder(loop) {}
-
-AffineIfOp AffineLoopVersionBuilder::getIfOp() const {
-  assert(ifOp && "Expected valid ifOp");
-  return cast<AffineIfOp>(ifOp);
+void AffineLoopVersionBuilder::versionLoop() const {
+  OpBuilder builder(loop);
+  RegionBranchOpInterface ifOp = createIfOp(loop->getResults(), builder);
+  LoopVersionBuilder::versionLoop(ifOp);
 }
 
-void AffineLoopVersionBuilder::createIfOp() {
-  TypeRange types(loop->getResults());
-  SmallVector<Value> values;
-  const IntegerSet &set = createCondition(values);
-  ifOp = builder.create<AffineIfOp>(loop.getLoc(), types, set, values, true);
+void AffineLoopVersionBuilder::createThenBody(
+    RegionBranchOpInterface ifOp) const {
+  ::createThenBody(loop, cast<AffineIfOp>(ifOp));
 }
 
-void AffineLoopVersionBuilder::createThenBody() const {
-  OpBuilder thenBodyBuilder = getIfOp().getThenBodyBuilder();
-  if (!loop->getResults().empty())
-    thenBodyBuilder.create<AffineYieldOp>(loop.getLoc(), loop->getResults());
-  loop->moveBefore(&*getThenBlock(ifOp).begin());
-}
-
-void AffineLoopVersionBuilder::createElseBody() const {
-  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
+void AffineLoopVersionBuilder::createElseBody(
+    RegionBranchOpInterface ifOp) const {
+  OpBuilder elseBodyBuilder = cast<AffineIfOp>(ifOp).getElseBodyBuilder();
   Operation *clonedLoop = elseBodyBuilder.clone(*loop.getOperation());
   if (!clonedLoop->getResults().empty())
     elseBodyBuilder.create<AffineYieldOp>(loop.getLoc(),
@@ -129,84 +156,60 @@ LoopGuardBuilder::create(LoopLikeOpInterface loop) {
       });
 }
 
+void LoopGuardBuilder::guardLoop(RegionBranchOpInterface ifOp) const {
+  createThenBody(ifOp);
+  createElseBody(ifOp);
+  replaceUsesOfLoopReturnValues(loop, ifOp);
+}
+
 //===----------------------------------------------------------------------===//
 // SCFLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-SCFLoopGuardBuilder::SCFLoopGuardBuilder(LoopLikeOpInterface loop)
-    : LoopGuardBuilder(), SCFLoopVersionBuilder(loop) {}
+void SCFLoopGuardBuilder::guardLoop() const {
+  OpBuilder builder(loop);
+  RegionBranchOpInterface ifOp = createIfOp(loop->getResults(), builder);
+  LoopGuardBuilder::guardLoop(ifOp);
+}
 
-void SCFLoopGuardBuilder::createElseBody() const {
+void SCFLoopGuardBuilder::createThenBody(RegionBranchOpInterface ifOp) const {
+  ::createThenBody(loop, cast<scf::IfOp>(ifOp));
+}
+
+void SCFLoopGuardBuilder::createElseBody(RegionBranchOpInterface ifOp) const {
   Operation &origYield = getElseBlock(ifOp).back();
   bool yieldsResults = !loop->getResults().empty();
-  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  OpBuilder elseBodyBuilder = cast<scf::IfOp>(ifOp).getElseBodyBuilder();
   if (yieldsResults) {
-    elseBodyBuilder.create<scf::YieldOp>(loop->getLoc(), getInitVals());
+    elseBodyBuilder.create<scf::YieldOp>(loop.getLoc(), getInitVals());
     origYield.erase();
   } else
-    getElseBlock(getIfOp()).erase();
-}
-
-//===----------------------------------------------------------------------===//
-// SCFForGuardBuilder
-//===----------------------------------------------------------------------===//
-
-SCFForGuardBuilder::SCFForGuardBuilder(scf::ForOp loop)
-    : SCFLoopGuardBuilder(loop) {}
-
-scf::ForOp SCFForGuardBuilder::getLoop() const {
-  return cast<scf::ForOp>(loop);
-}
-
-OperandRange SCFForGuardBuilder::getInitVals() const {
-  return getLoop().getInitArgs();
-}
-
-Value SCFForGuardBuilder::createCondition() const {
-  return builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::slt,
-                                       getLoop().getLowerBound(),
-                                       getLoop().getUpperBound());
-}
-
-//===----------------------------------------------------------------------===//
-// SCFParallelGuardBuilder
-//===----------------------------------------------------------------------===//
-
-SCFParallelGuardBuilder::SCFParallelGuardBuilder(scf::ParallelOp loop)
-    : SCFLoopGuardBuilder(loop) {}
-
-scf::ParallelOp SCFParallelGuardBuilder::getLoop() const {
-  return cast<scf::ParallelOp>(loop);
-}
-
-OperandRange SCFParallelGuardBuilder::getInitVals() const {
-  return getLoop().getInitVals();
-}
-
-Value SCFParallelGuardBuilder::createCondition() const {
-  Value cond;
-  for (auto [lb, ub] :
-       llvm::zip(getLoop().getLowerBound(), getLoop().getUpperBound())) {
-    const Value val = builder.create<arith::CmpIOp>(
-        loop.getLoc(), arith::CmpIPredicate::slt, lb, ub);
-    cond = cond ? static_cast<Value>(
-                      builder.create<arith::AndIOp>(loop.getLoc(), cond, val))
-                : val;
-  }
-  return cond;
+    getElseBlock(ifOp).erase();
 }
 
 //===----------------------------------------------------------------------===//
 // AffineLoopGuardBuilder
 //===----------------------------------------------------------------------===//
 
-void AffineLoopGuardBuilder::createElseBody() const {
+void AffineLoopGuardBuilder::guardLoop() const {
+  OpBuilder builder(loop);
+  RegionBranchOpInterface ifOp = createIfOp(loop->getResults(), builder);
+  LoopGuardBuilder::guardLoop(ifOp);
+}
+
+void AffineLoopGuardBuilder::createThenBody(
+    RegionBranchOpInterface ifOp) const {
+  ::createThenBody(loop, cast<AffineIfOp>(ifOp));
+}
+
+void AffineLoopGuardBuilder::createElseBody(
+    RegionBranchOpInterface ifOp) const {
   bool yieldsResults = !loop->getResults().empty();
-  OpBuilder elseBodyBuilder = getIfOp().getElseBodyBuilder();
+  OpBuilder elseBodyBuilder = cast<AffineIfOp>(ifOp).getElseBodyBuilder();
   if (yieldsResults)
     elseBodyBuilder.create<AffineYieldOp>(loop.getLoc(), getInitVals());
   else
-    getElseBlock(getIfOp()).erase();
+    getElseBlock(ifOp).erase();
 }
 
 IntegerSet
@@ -236,12 +239,63 @@ AffineLoopGuardBuilder::createCondition(SmallVectorImpl<Value> &values) const {
 
   SmallVector<AffineExpr, 2> exprs;
   getConstraints(exprs, dims, symbols);
-  SmallVector<bool, 2> eqflags(exprs.size(), false);
+  SmallVector<bool, 2> eqFlags(exprs.size(), false);
 
   return IntegerSet::get(
       /*dim*/ lbMap.getNumDims() + ubMap.getNumDims(),
       /*symbols*/ lbMap.getNumSymbols() + ubMap.getNumSymbols(), exprs,
-      eqflags);
+      eqFlags);
+}
+
+//===----------------------------------------------------------------------===//
+// SCFForGuardBuilder
+//===----------------------------------------------------------------------===//
+
+SCFForGuardBuilder::SCFForGuardBuilder(scf::ForOp loop)
+    : SCFLoopGuardBuilder(loop) {}
+
+scf::ForOp SCFForGuardBuilder::getLoop() const {
+  return cast<scf::ForOp>(loop);
+}
+
+OperandRange SCFForGuardBuilder::getInitVals() const {
+  return getLoop().getInitArgs();
+}
+
+Value SCFForGuardBuilder::createCondition() const {
+  OpBuilder builder(loop);
+  return builder.create<arith::CmpIOp>(loop.getLoc(), arith::CmpIPredicate::slt,
+                                       getLoop().getLowerBound(),
+                                       getLoop().getUpperBound());
+}
+
+//===----------------------------------------------------------------------===//
+// SCFParallelGuardBuilder
+//===----------------------------------------------------------------------===//
+
+SCFParallelGuardBuilder::SCFParallelGuardBuilder(scf::ParallelOp loop)
+    : SCFLoopGuardBuilder(loop) {}
+
+scf::ParallelOp SCFParallelGuardBuilder::getLoop() const {
+  return cast<scf::ParallelOp>(loop);
+}
+
+OperandRange SCFParallelGuardBuilder::getInitVals() const {
+  return getLoop().getInitVals();
+}
+
+Value SCFParallelGuardBuilder::createCondition() const {
+  OpBuilder builder(loop);
+  Value cond;
+  for (auto [lb, ub] :
+       llvm::zip(getLoop().getLowerBound(), getLoop().getUpperBound())) {
+    const Value val = builder.create<arith::CmpIOp>(
+        loop.getLoc(), arith::CmpIPredicate::slt, lb, ub);
+    cond = cond ? static_cast<Value>(
+                      builder.create<arith::AndIOp>(loop.getLoc(), cond, val))
+                : val;
+  }
+  return cond;
 }
 
 //===----------------------------------------------------------------------===//

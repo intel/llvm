@@ -50,65 +50,78 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &rewriter,
 bool isValidIndex(Value val);
 
 //===----------------------------------------------------------------------===//
+// If/then/else builder
+//===----------------------------------------------------------------------===//
+
+/// Abstract class use to build an if-then-else branch.
+class IfThenElseBuilder {
+public:
+  virtual ~IfThenElseBuilder() = default;
+
+  virtual RegionBranchOpInterface createIfOp(Operation::result_range results,
+                                             OpBuilder &builder) const = 0;
+};
+
+/// Abstract class use to build an scf::IfOp operation.
+class SCFIfBuilder : public IfThenElseBuilder {
+public:
+  virtual RegionBranchOpInterface createIfOp(Operation::result_range results,
+                                             OpBuilder &builder) const final;
+  virtual Value createCondition() const = 0;
+};
+
+/// Abstract class use to build an AffineIfOp operation.
+class AffineIfBuilder : public IfThenElseBuilder {
+public:
+  RegionBranchOpInterface createIfOp(Operation::result_range thenResults,
+                                     OpBuilder &builder) const final;
+  virtual IntegerSet createCondition(SmallVectorImpl<Value> &) const = 0;
+};
+
+//===----------------------------------------------------------------------===//
 // Loop Versioning Utilities
 //===----------------------------------------------------------------------===//
 
+/// Abstract class
 class LoopVersionBuilder {
 public:
-  LoopVersionBuilder(LoopLikeOpInterface loop);
-  LoopVersionBuilder(const LoopVersionBuilder &) = delete;
-  LoopVersionBuilder(LoopVersionBuilder &&) = delete;
-  void operator=(const LoopVersionBuilder &) = delete;
-  void operator=(LoopVersionBuilder &&) = delete;
+  LoopVersionBuilder(LoopLikeOpInterface loop) : loop(loop) {}
   virtual ~LoopVersionBuilder() = default;
 
-  void versionLoop();
+  virtual void versionLoop() const = 0;
 
 protected:
-  static Block &getThenBlock(RegionBranchOpInterface ifOp) {
-    return ifOp->getRegion(0).front();
-  }
-  static Block &getElseBlock(RegionBranchOpInterface ifOp) {
-    return ifOp->getRegion(1).front();
-  }
+  void versionLoop(RegionBranchOpInterface ifOp) const;
 
-  RegionBranchOpInterface ifOp;
-  mutable OpBuilder builder;
   mutable LoopLikeOpInterface loop;
 
 private:
-  void replaceUsesOfLoopReturnValues() const;
-  virtual void createIfOp() = 0;
-  virtual void createThenBody() const = 0;
-  virtual void createElseBody() const = 0;
+  virtual void createThenBody(RegionBranchOpInterface) const = 0;
+  virtual void createElseBody(RegionBranchOpInterface) const = 0;
 };
 
-class SCFLoopVersionBuilder : public LoopVersionBuilder {
+class SCFLoopVersionBuilder : public LoopVersionBuilder, public SCFIfBuilder {
 public:
-  SCFLoopVersionBuilder(LoopLikeOpInterface loop);
+  SCFLoopVersionBuilder(LoopLikeOpInterface loop) : LoopVersionBuilder(loop) {}
 
-protected:
-  scf::IfOp getIfOp() const;
+  void versionLoop() const final;
 
 private:
-  virtual Value createCondition() const = 0;
-  void createIfOp() final;
-  void createThenBody() const override;
-  void createElseBody() const override;
+  void createThenBody(RegionBranchOpInterface) const override;
+  void createElseBody(RegionBranchOpInterface) const override;
 };
 
-class AffineLoopVersionBuilder : public LoopVersionBuilder {
+class AffineLoopVersionBuilder : public LoopVersionBuilder,
+                                 public AffineIfBuilder {
 public:
-  AffineLoopVersionBuilder(LoopLikeOpInterface loop);
+  AffineLoopVersionBuilder(LoopLikeOpInterface loop)
+      : LoopVersionBuilder(loop) {}
 
-protected:
-  AffineIfOp getIfOp() const;
+  void versionLoop() const final;
 
 private:
-  virtual IntegerSet createCondition(SmallVectorImpl<Value> &) const = 0;
-  void createIfOp() final;
-  void createThenBody() const override;
-  void createElseBody() const override;
+  void createThenBody(RegionBranchOpInterface) const override;
+  void createElseBody(RegionBranchOpInterface) const override;
 };
 
 //===----------------------------------------------------------------------===//
@@ -119,28 +132,51 @@ class LoopGuardBuilder {
 public:
   static std::unique_ptr<LoopGuardBuilder> create(LoopLikeOpInterface loop);
 
-  LoopGuardBuilder() = default;
-  LoopGuardBuilder(const LoopGuardBuilder &) = delete;
-  LoopGuardBuilder(LoopGuardBuilder &&) = delete;
-  void operator=(const LoopGuardBuilder &) = delete;
-  void operator=(LoopGuardBuilder &&) = delete;
+  LoopGuardBuilder(LoopLikeOpInterface loop) : loop(loop) {}
   virtual ~LoopGuardBuilder() = default;
 
-  virtual void guardLoop() = 0;
+  virtual void guardLoop() const = 0;
 
 protected:
+  void guardLoop(RegionBranchOpInterface) const;
   virtual OperandRange getInitVals() const = 0;
-};
 
-class SCFLoopGuardBuilder : public LoopGuardBuilder,
-                            public SCFLoopVersionBuilder {
-public:
-  SCFLoopGuardBuilder(LoopLikeOpInterface loop);
-
-  void guardLoop() final { versionLoop(); }
+  mutable LoopLikeOpInterface loop;
 
 private:
-  void createElseBody() const final;
+  virtual void createThenBody(RegionBranchOpInterface) const = 0;
+  virtual void createElseBody(RegionBranchOpInterface) const = 0;
+};
+
+class SCFLoopGuardBuilder : public LoopGuardBuilder, public SCFIfBuilder {
+public:
+  SCFLoopGuardBuilder(LoopLikeOpInterface loop) : LoopGuardBuilder(loop) {}
+
+  void guardLoop() const final;
+
+private:
+  void createThenBody(RegionBranchOpInterface) const final;
+  void createElseBody(RegionBranchOpInterface) const final;
+};
+
+class AffineLoopGuardBuilder : public LoopGuardBuilder, public AffineIfBuilder {
+public:
+  AffineLoopGuardBuilder(LoopLikeOpInterface loop) : LoopGuardBuilder(loop) {}
+
+  void guardLoop() const final;
+
+private:
+  IntegerSet createCondition(SmallVectorImpl<Value> &) const final;
+  void createThenBody(RegionBranchOpInterface) const final;
+  void createElseBody(RegionBranchOpInterface) const final;
+
+  virtual void getConstraints(SmallVectorImpl<AffineExpr> &,
+                              ArrayRef<AffineExpr>,
+                              ArrayRef<AffineExpr>) const = 0;
+  virtual OperandRange getLowerBoundsOperands() const = 0;
+  virtual OperandRange getUpperBoundsOperands() const = 0;
+  virtual AffineMap getLowerBoundsMap() const = 0;
+  virtual AffineMap getUpperBoundsMap() const = 0;
 };
 
 class SCFForGuardBuilder : public SCFLoopGuardBuilder {
@@ -161,25 +197,6 @@ private:
   scf::ParallelOp getLoop() const;
   Value createCondition() const final;
   OperandRange getInitVals() const final;
-};
-
-class AffineLoopGuardBuilder : public LoopGuardBuilder,
-                               public AffineLoopVersionBuilder {
-public:
-  AffineLoopGuardBuilder(LoopLikeOpInterface loop)
-      : LoopGuardBuilder(), AffineLoopVersionBuilder(loop) {}
-  void guardLoop() final { versionLoop(); }
-
-private:
-  void createElseBody() const final;
-  IntegerSet createCondition(SmallVectorImpl<Value> &) const final;
-  virtual void getConstraints(SmallVectorImpl<AffineExpr> &,
-                              ArrayRef<AffineExpr>,
-                              ArrayRef<AffineExpr>) const = 0;
-  virtual OperandRange getLowerBoundsOperands() const = 0;
-  virtual OperandRange getUpperBoundsOperands() const = 0;
-  virtual AffineMap getLowerBoundsMap() const = 0;
-  virtual AffineMap getUpperBoundsMap() const = 0;
 };
 
 class AffineForGuardBuilder : public AffineLoopGuardBuilder {
