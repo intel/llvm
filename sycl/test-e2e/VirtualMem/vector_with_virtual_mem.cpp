@@ -132,6 +132,7 @@ private:
 
 constexpr size_t NumIters = 10;
 constexpr size_t WriteValueOffset = 42;
+constexpr size_t NumWorkItems = 512;
 
 int main() {
   sycl::queue Q;
@@ -149,8 +150,12 @@ int main() {
   // but enough to require more memory for some iterations.
   size_t SizeIncrement = 11;
   size_t MinSizeGran =
-      syclext::get_minimum_mem_granularity(SizeIncrement * sizeof(int), Q);
+      syclext::get_minimum_mem_granularity(SizeIncrement * sizeof(int), Q) /
+      sizeof(int);
   SizeIncrement = std::max(MinSizeGran / 2 - 1, SizeIncrement);
+
+  // Each work-item will work on multiple elements.
+  size_t NumElemsPerWI = 1 + (SizeIncrement - 1) / NumWorkItems;
 
   for (size_t I = 0; I < NumIters; ++I) {
     // Increment the size of the vector.
@@ -160,8 +165,15 @@ int main() {
 
     // Populate to the new memory
     int *VecDataPtr = Vec.data();
-    Q.parallel_for(sycl::range<1>{SizeIncrement}, [=](sycl::id<1> Idx) {
-       VecDataPtr[I * SizeIncrement + Idx] = Idx + WriteValueOffset * (I + 1);
+    size_t StartOffset = I * SizeIncrement;
+    size_t IterWriteValueOffset = WriteValueOffset * (I + 1);
+    Q.parallel_for(sycl::range<1>{NumWorkItems}, [=](sycl::item<1> Idx) {
+      for (size_t J = 0; J < NumElemsPerWI; ++J) {
+        size_t LoopIdx = J * Idx.get_range(0) + Idx;
+        size_t OffsetIdx = StartOffset + LoopIdx;
+        if (OffsetIdx < NewVecSize)
+          VecDataPtr[OffsetIdx] = LoopIdx + IterWriteValueOffset;
+      }
      }).wait_and_throw();
 
     // Copy back the values and verify.
