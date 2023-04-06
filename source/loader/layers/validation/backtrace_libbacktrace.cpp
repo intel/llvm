@@ -12,7 +12,7 @@
 #include <limits.h>
 #include <vector>
 
-namespace validation_layer {
+namespace ur_validation_layer {
 
 void filter_after_occurence(std::vector<BacktraceLine> &backtrace,
                             std::string substring) {
@@ -85,4 +85,4 @@ std::vector<BacktraceLine> getCurrentBacktrace() {
     return backtrace;
 }
 
-} // namespace validation_layer
+} // namespace ur_validation_layer
