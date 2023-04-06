@@ -19,7 +19,9 @@ TEST_F(urDevicePartitionTest, PartitionEquallySuccess) {
 
         if (!uur::hasDevicePartitionSupport(device,
                                             UR_DEVICE_PARTITION_EQUALLY)) {
-            GTEST_SKIP();
+            ::testing::Message() << "Device: \'" << device
+                                 << "\' does not support partitioning equally.";
+            continue;
         }
 
         uint32_t n_compute_units = 0;
@@ -53,7 +55,10 @@ TEST_F(urDevicePartitionTest, PartitionByCounts) {
 
         if (!uur::hasDevicePartitionSupport(device,
                                             UR_DEVICE_PARTITION_BY_COUNTS)) {
-            GTEST_SKIP();
+            ::testing::Message()
+                << "Device: \'" << device
+                << "\' does not support partitioning by counts.\n";
+            continue;
         }
 
         uint32_t n_cu_in_device = 0;
@@ -132,8 +137,10 @@ TEST_P(urDevicePartitionAffinityDomainTest, PartitionByAffinityDomain) {
 
         if (!uur::hasDevicePartitionSupport(
                 device, UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN)) {
-            GTEST_SKIP()
-                << "Device does not support partitioning by affinity domain.";
+            ::testing::Message() << "Device \'" << device
+                                 << "\' does not support partitioning by "
+                                    "affinity domain.\n";
+            continue;
         }
 
         uint32_t n_compute_units = 0;
@@ -145,8 +152,10 @@ TEST_P(urDevicePartitionAffinityDomainTest, PartitionByAffinityDomain) {
         ASSERT_SUCCESS(uur::GetDevicePartitionAffinityDomainFlags(
             device, supported_flags));
         if (!(flag & supported_flags)) {
-            GTEST_SKIP() << static_cast<ur_device_affinity_domain_flag_t>(flag)
-                         << " is not supported by the device.\n";
+            ::testing::Message()
+                << static_cast<ur_device_affinity_domain_flag_t>(flag)
+                << " is not supported by the device: \'" << device << "\'.\n";
+            continue;
         }
 
         std::vector<ur_device_partition_property_t> properties = {
@@ -209,7 +218,9 @@ TEST_F(urDevicePartitionTest, SuccessSubSet) {
 
         if (!uur::hasDevicePartitionSupport(device,
                                             UR_DEVICE_PARTITION_EQUALLY)) {
-            GTEST_SKIP();
+            ::testing::Message() << "Device: \'" << device
+                                 << "\' does not support partitioning equally.";
+            continue;
         }
 
         uint32_t n_compute_units = 0;
