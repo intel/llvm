@@ -192,13 +192,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_KERNEL_LAUNCH,
                                        CommandList, IsInternal));
-
-  ZeEvent = (*OutEvent)->ZeEvent;
-  (*OutEvent)->WaitList = TmpWaitList;
+  ZeEvent = (*Event)->ZeEvent;
+  (*Event)->WaitList = TmpWaitList;
 
   // Save the kernel in the event, so that when the event is signalled
   // the code can do a piKernelRelease on this kernel.
-  (*OutEvent)->CommandData = (void *)Kernel;
+  (*Event)->CommandData = (void *)Kernel;
 
   // Increment the reference count of the Kernel and indicate that the Kernel is
   // in use. Once the event has been signalled, the code in
@@ -227,8 +226,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     // Add the command to the command list, which implies submission.
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
                (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
-                ZeEvent, (*OutEvent)->WaitList.Length,
-                (*OutEvent)->WaitList.ZeEventList));
+                ZeEvent, (*Event)->WaitList.Length,
+                (*Event)->WaitList.ZeEventList));
   } else {
     // Add the command to the command list for later submission.
     // No lock is needed here, unlike the immediate commandlist case above,
@@ -236,14 +235,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     // submitted only when the comamndlist is closed. Then, a lock is held.
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
                (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
-                ZeEvent, (*OutEvent)->WaitList.Length,
-                (*OutEvent)->WaitList.ZeEventList));
+                ZeEvent, (*Event)->WaitList.Length,
+                (*Event)->WaitList.ZeEventList));
   }
 
   urPrint("calling zeCommandListAppendLaunchKernel() with"
           "  ZeEvent %#llx\n",
           ur_cast<std::uintptr_t>(ZeEvent));
-  printZeEventList((*OutEvent)->WaitList);
+  printZeEventList((*Event)->WaitList);
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.

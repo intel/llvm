@@ -2573,6 +2573,23 @@ inline pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
 
   ur_usm_desc_t USMDesc{};
+  if (Properties) {
+    if (Properties[0] == PI_MEM_ALLOC_FLAGS) {
+      if (Properties[1] == PI_MEM_ALLOC_WRTITE_COMBINED) {
+        USMDesc.flags |= UR_USM_MEM_FLAG_WRITE_COMBINED;
+      }
+      if (Properties[1] == PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE) {
+        USMDesc.flags |= UR_USM_MEM_FLAG_INITIAL_PLACEMENT_DEVICE;
+      }
+      if (Properties[1] == PI_MEM_ALLOC_INITIAL_PLACEMENT_HOST) {
+        USMDesc.flags |= UR_USM_MEM_FLAG_INITIAL_PLACEMENT_HOST;
+      }
+      if (Properties[1] == PI_MEM_ALLOC_DEVICE_READ_ONLY) {
+        USMDesc.flags |= UR_USM_MEM_FLAG_DEVICE_READ_ONLY;
+      }
+    }
+  }
+
   ur_usm_pool_handle_t Pool{};
   HANDLE_ERRORS(urUSMSharedAlloc(UrContext, UrDevice, &USMDesc, Pool, Size,
                                  Alignment, ResultPtr));
@@ -2987,8 +3004,10 @@ inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
                                        pi_uint32 NumEventsInWaitList,
                                        const pi_event *EventsWaitList,
                                        pi_event *OutEvent) {
-  PI_ASSERT(Ptr, PI_ERROR_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  if (!Ptr) {
+    return PI_ERROR_INVALID_VALUE;
+  }
 
   ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
   ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Ptr);
@@ -2997,12 +3016,10 @@ inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
 
   ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
-  uint32_t Pattern = Value;
-  size_t PatternSize = sizeof(Pattern);
-  HANDLE_ERRORS(urEnqueueMemBufferFill(
-      UrQueue, UrBuffer,
-      const_cast<const void *>(reinterpret_cast<void *>(&Pattern)), PatternSize,
-      0, Count, NumEventsInWaitList, UrEventsWaitList, UrEvent));
+  size_t PatternSize = 1;
+  HANDLE_ERRORS(urEnqueueMemBufferFill(UrQueue, UrBuffer, &Value, PatternSize,
+                                       0, Count, NumEventsInWaitList,
+                                       UrEventsWaitList, UrEvent));
 
   return PI_SUCCESS;
 }

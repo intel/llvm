@@ -753,15 +753,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
-                                                          Buffer->Mutex);
+  // std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
+  //                                                         Buffer->Mutex);
+  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
 
-  char *ZeHandleDst = nullptr;
-  UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                              Queue->Device));
-  return enqueueMemFillHelper(UR_COMMAND_MEM_BUFFER_FILL, Queue,
-                              ZeHandleDst + Offset, Pattern, PatternSize, Size,
-                              NumEventsInWaitList, EventWaitList, OutEvent);
+  // if Offset is not zero, then look for Ze Handle to
+  // determine correct dst with offset
+  if (Offset != 0) {
+    char *ZeHandleDst = nullptr;
+    _ur_buffer *UrBuffer = reinterpret_cast<_ur_buffer *>(Buffer);
+    UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
+                                  Queue->Device));
+    return enqueueMemFillHelper(
+        UR_COMMAND_MEM_BUFFER_FILL, Queue, ZeHandleDst + Offset, Pattern,
+        PatternSize, Size, NumEventsInWaitList, EventWaitList, OutEvent);
+  } else {
+    return enqueueMemFillHelper(
+        // TODO: do we need a new command type for USM memset?
+        UR_COMMAND_MEM_BUFFER_FILL, Queue, Buffer,
+        Pattern,     // It will be interpreted as an 8-bit value,
+        PatternSize, // which is indicated with this pattern_size==1
+        Size, NumEventsInWaitList, EventWaitList, OutEvent);
+  }
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
@@ -2131,7 +2144,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   ur_usm_mem_flags_t *Properties = &USMDesc->flags;
 
   // See if the memory is going to be read-only on the device.
-  bool DeviceReadOnly = false;
+  bool DeviceReadOnly = *Properties & UR_USM_MEM_FLAG_DEVICE_READ_ONLY;
 
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
