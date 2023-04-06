@@ -131,6 +131,9 @@ _PI_API(piextUSMEnqueueMemcpy)
 _PI_API(piextUSMEnqueuePrefetch)
 _PI_API(piextUSMEnqueueMemAdvise)
 _PI_API(piextUSMGetMemAllocInfo)
+// Host pipes
+_PI_API(piextEnqueueReadHostPipe)
+_PI_API(piextEnqueueWriteHostPipe)
 
 _PI_API(piextKernelSetArgMemObj)
 _PI_API(piextKernelSetArgSampler)
@@ -151,5 +154,10 @@ _PI_API(piGetDeviceAndHostTimer)
 // Device global variable
 _PI_API(piextEnqueueDeviceGlobalVariableWrite)
 _PI_API(piextEnqueueDeviceGlobalVariableRead)
+
+// Queue create and get APIs for immediate commandlists
+_PI_API(piextQueueCreate2)
+_PI_API(piextQueueGetNativeHandle2)
+_PI_API(piextQueueCreateWithNativeHandle2)
 
 #undef _PI_API

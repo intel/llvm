@@ -1,7 +1,7 @@
 ; The test is intended to check that sycl-post-link correctly groups kernels
 ; by unique reqd_work_group_size values used in them
 
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
+; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table --check-prefix CHECK-TABLE
 ;
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix CHECK-M0-SYMS \

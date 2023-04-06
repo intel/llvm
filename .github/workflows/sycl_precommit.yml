@@ -1,4 +1,4 @@
-name: SYCL
+name: SYCL Pre Commit
 
 on:
   pull_request_target:
@@ -42,7 +42,7 @@ jobs:
     - name: Run clang-format
       uses: ./devops/actions/clang-format
 
-  # This job generates matrix of tests for LLVM Test Suite
+  # This job generates matrix of tests for SYCL End-to-End tests
   test_matrix:
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
@@ -64,5 +64,5 @@ jobs:
       build_cache_size: "8G"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}

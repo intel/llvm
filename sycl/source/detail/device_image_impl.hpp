@@ -112,17 +112,13 @@ public:
   bool all_specialization_constant_native() const noexcept {
     // Specialization constants are natively supported in JIT mode on backends,
     // that are using SPIR-V as IR
-    auto IsAOTBinary = [](const char *Format) {
-      return (
-          (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
-           0) ||
-          (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
-          (strcmp(Format, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0));
+    auto IsJITSPIRVTarget = [](const char *Target) {
+      return (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+              strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0);
     };
-
-    return !IsAOTBinary(MBinImage->getRawData().DeviceTargetSpec) &&
-           (MContext.get_backend() == backend::opencl ||
-            MContext.get_backend() == backend::ext_oneapi_level_zero);
+    return (MContext.get_backend() == backend::opencl ||
+            MContext.get_backend() == backend::ext_oneapi_level_zero) &&
+           IsJITSPIRVTarget(MBinImage->getRawData().DeviceTargetSpec);
   }
 
   bool has_specialization_constant(const char *SpecName) const noexcept {

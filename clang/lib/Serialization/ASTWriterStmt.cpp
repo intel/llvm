@@ -150,7 +150,7 @@ void ASTStmtWriter::VisitIfStmt(IfStmt *S) {
   if (HasElse)
     Record.AddStmt(S->getElse());
   if (HasVar)
-    Record.AddDeclRef(S->getConditionVariable());
+    Record.AddStmt(S->getConditionVariableDeclStmt());
   if (HasInit)
     Record.AddStmt(S->getInit());
 
@@ -177,7 +177,7 @@ void ASTStmtWriter::VisitSwitchStmt(SwitchStmt *S) {
   if (HasInit)
     Record.AddStmt(S->getInit());
   if (HasVar)
-    Record.AddDeclRef(S->getConditionVariable());
+    Record.AddStmt(S->getConditionVariableDeclStmt());
 
   Record.AddSourceLocation(S->getSwitchLoc());
   Record.AddSourceLocation(S->getLParenLoc());
@@ -198,7 +198,7 @@ void ASTStmtWriter::VisitWhileStmt(WhileStmt *S) {
   Record.AddStmt(S->getCond());
   Record.AddStmt(S->getBody());
   if (HasVar)
-    Record.AddDeclRef(S->getConditionVariable());
+    Record.AddStmt(S->getConditionVariableDeclStmt());
 
   Record.AddSourceLocation(S->getWhileLoc());
   Record.AddSourceLocation(S->getLParenLoc());
@@ -220,7 +220,7 @@ void ASTStmtWriter::VisitForStmt(ForStmt *S) {
   VisitStmt(S);
   Record.AddStmt(S->getInit());
   Record.AddStmt(S->getCond());
-  Record.AddDeclRef(S->getConditionVariable());
+  Record.AddStmt(S->getConditionVariableDeclStmt());
   Record.AddStmt(S->getInc());
   Record.AddStmt(S->getBody());
   Record.AddSourceLocation(S->getForLoc());
@@ -1096,7 +1096,7 @@ void ASTStmtWriter::VisitDesignatedInitExpr(DesignatedInitExpr *E) {
     Record.AddStmt(E->getSubExpr(I));
   Record.AddSourceLocation(E->getEqualOrColonLoc());
   Record.push_back(E->usesGNUSyntax());
-  for (const Designator &D : E->designators()) {
+  for (const DesignatedInitExpr::Designator &D : E->designators()) {
     if (D.isFieldDesignator()) {
       if (FieldDecl *Field = D.getField()) {
         Record.push_back(serialization::DESIG_FIELD_DECL);
@@ -2735,16 +2735,14 @@ void ASTStmtWriter::VisitOMPTargetParallelGenericLoopDirective(
 //===----------------------------------------------------------------------===//
 
 unsigned ASTWriter::RecordSwitchCaseID(SwitchCase *S) {
-  assert(SwitchCaseIDs.find(S) == SwitchCaseIDs.end() &&
-         "SwitchCase recorded twice");
+  assert(!SwitchCaseIDs.contains(S) && "SwitchCase recorded twice");
   unsigned NextID = SwitchCaseIDs.size();
   SwitchCaseIDs[S] = NextID;
   return NextID;
 }
 
 unsigned ASTWriter::getSwitchCaseID(SwitchCase *S) {
-  assert(SwitchCaseIDs.find(S) != SwitchCaseIDs.end() &&
-         "SwitchCase hasn't been seen yet");
+  assert(SwitchCaseIDs.contains(S) && "SwitchCase hasn't been seen yet");
   return SwitchCaseIDs[S];
 }
 

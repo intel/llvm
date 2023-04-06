@@ -349,7 +349,7 @@ RawComment *ASTContext::getRawCommentForDeclNoCacheImpl(
 
   // There should be no other declarations or preprocessor directives between
   // comment and declaration.
-  if (Text.find_first_of(";{}#@") != StringRef::npos)
+  if (Text.find_last_of(";{}#@") != StringRef::npos)
     return nullptr;
 
   return CommentBeforeDecl;
@@ -754,11 +754,6 @@ ASTContext::CanonicalTemplateTemplateParm::Profile(llvm::FoldingSetNodeID &ID,
     if (const auto *TTP = dyn_cast<TemplateTypeParmDecl>(*P)) {
       ID.AddInteger(0);
       ID.AddBoolean(TTP->isParameterPack());
-      const TypeConstraint *TC = TTP->getTypeConstraint();
-      ID.AddBoolean(TC != nullptr);
-      if (TC)
-        TC->getImmediatelyDeclaredConstraint()->Profile(ID, C,
-                                                        /*Canonical=*/true);
       if (TTP->isExpandedParameterPack()) {
         ID.AddBoolean(true);
         ID.AddInteger(TTP->getNumExpansionParameters());
@@ -770,11 +765,8 @@ ASTContext::CanonicalTemplateTemplateParm::Profile(llvm::FoldingSetNodeID &ID,
     if (const auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(*P)) {
       ID.AddInteger(1);
       ID.AddBoolean(NTTP->isParameterPack());
-      const Expr *TC = NTTP->getPlaceholderTypeConstraint();
-      ID.AddBoolean(TC != nullptr);
-      ID.AddPointer(NTTP->getType().getCanonicalType().getAsOpaquePtr());
-      if (TC)
-        TC->Profile(ID, C, /*Canonical=*/true);
+      ID.AddPointer(C.getUnconstrainedType(C.getCanonicalType(NTTP->getType()))
+                        .getAsOpaquePtr());
       if (NTTP->isExpandedParameterPack()) {
         ID.AddBoolean(true);
         ID.AddInteger(NTTP->getNumExpansionTypes());
@@ -791,64 +783,6 @@ ASTContext::CanonicalTemplateTemplateParm::Profile(llvm::FoldingSetNodeID &ID,
     ID.AddInteger(2);
     Profile(ID, C, TTP);
   }
-  Expr *RequiresClause = Parm->getTemplateParameters()->getRequiresClause();
-  ID.AddBoolean(RequiresClause != nullptr);
-  if (RequiresClause)
-    RequiresClause->Profile(ID, C, /*Canonical=*/true);
-}
-
-static Expr *
-canonicalizeImmediatelyDeclaredConstraint(const ASTContext &C, Expr *IDC,
-                                          QualType ConstrainedType) {
-  // This is a bit ugly - we need to form a new immediately-declared
-  // constraint that references the new parameter; this would ideally
-  // require semantic analysis (e.g. template<C T> struct S {}; - the
-  // converted arguments of C<T> could be an argument pack if C is
-  // declared as template<typename... T> concept C = ...).
-  // We don't have semantic analysis here so we dig deep into the
-  // ready-made constraint expr and change the thing manually.
-  ConceptSpecializationExpr *CSE;
-  if (const auto *Fold = dyn_cast<CXXFoldExpr>(IDC))
-    CSE = cast<ConceptSpecializationExpr>(Fold->getLHS());
-  else
-    CSE = cast<ConceptSpecializationExpr>(IDC);
-  ArrayRef<TemplateArgument> OldConverted = CSE->getTemplateArguments();
-  SmallVector<TemplateArgument, 3> NewConverted;
-  NewConverted.reserve(OldConverted.size());
-  if (OldConverted.front().getKind() == TemplateArgument::Pack) {
-    // The case:
-    // template<typename... T> concept C = true;
-    // template<C<int> T> struct S; -> constraint is C<{T, int}>
-    NewConverted.push_back(ConstrainedType);
-    llvm::append_range(NewConverted,
-                       OldConverted.front().pack_elements().drop_front(1));
-    TemplateArgument NewPack(NewConverted);
-
-    NewConverted.clear();
-    NewConverted.push_back(NewPack);
-    assert(OldConverted.size() == 1 &&
-           "Template parameter pack should be the last parameter");
-  } else {
-    assert(OldConverted.front().getKind() == TemplateArgument::Type &&
-           "Unexpected first argument kind for immediately-declared "
-           "constraint");
-    NewConverted.push_back(ConstrainedType);
-    llvm::append_range(NewConverted, OldConverted.drop_front(1));
-  }
-  auto *CSD = ImplicitConceptSpecializationDecl::Create(
-      C, CSE->getNamedConcept()->getDeclContext(),
-      CSE->getNamedConcept()->getLocation(), NewConverted);
-
-  Expr *NewIDC = ConceptSpecializationExpr::Create(
-      C, CSE->getNamedConcept(), CSD, nullptr, CSE->isInstantiationDependent(),
-      CSE->containsUnexpandedParameterPack());
-
-  if (auto *OrigFold = dyn_cast<CXXFoldExpr>(IDC))
-    NewIDC = new (C) CXXFoldExpr(
-        OrigFold->getType(), /*Callee*/ nullptr, SourceLocation(), NewIDC,
-        BinaryOperatorKind::BO_LAnd, SourceLocation(), /*RHS=*/nullptr,
-        SourceLocation(), /*NumExpansions=*/std::nullopt);
-  return NewIDC;
 }
 
 TemplateTemplateParmDecl *
@@ -870,30 +804,19 @@ ASTContext::getCanonicalTemplateTemplateParmDecl(
   for (TemplateParameterList::const_iterator P = Params->begin(),
                                           PEnd = Params->end();
        P != PEnd; ++P) {
+    // Note that, per C++20 [temp.over.link]/6, when determining whether
+    // template-parameters are equivalent, constraints are ignored.
     if (const auto *TTP = dyn_cast<TemplateTypeParmDecl>(*P)) {
       TemplateTypeParmDecl *NewTTP = TemplateTypeParmDecl::Create(
           *this, getTranslationUnitDecl(), SourceLocation(), SourceLocation(),
           TTP->getDepth(), TTP->getIndex(), nullptr, false,
-          TTP->isParameterPack(), TTP->hasTypeConstraint(),
+          TTP->isParameterPack(), /*HasTypeConstraint=*/false,
           TTP->isExpandedParameterPack()
               ? std::optional<unsigned>(TTP->getNumExpansionParameters())
               : std::nullopt);
-      if (const auto *TC = TTP->getTypeConstraint()) {
-        QualType ParamAsArgument(NewTTP->getTypeForDecl(), 0);
-        Expr *NewIDC = canonicalizeImmediatelyDeclaredConstraint(
-                *this, TC->getImmediatelyDeclaredConstraint(),
-                ParamAsArgument);
-        NewTTP->setTypeConstraint(
-            NestedNameSpecifierLoc(),
-            DeclarationNameInfo(TC->getNamedConcept()->getDeclName(),
-                                SourceLocation()), /*FoundDecl=*/nullptr,
-            // Actually canonicalizing a TemplateArgumentLoc is difficult so we
-            // simply omit the ArgsAsWritten
-            TC->getNamedConcept(), /*ArgsAsWritten=*/nullptr, NewIDC);
-      }
       CanonParams.push_back(NewTTP);
     } else if (const auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(*P)) {
-      QualType T = getCanonicalType(NTTP->getType());
+      QualType T = getUnconstrainedType(getCanonicalType(NTTP->getType()));
       TypeSourceInfo *TInfo = getTrivialTypeSourceInfo(T);
       NonTypeTemplateParmDecl *Param;
       if (NTTP->isExpandedParameterPack()) {
@@ -924,35 +847,18 @@ ASTContext::getCanonicalTemplateTemplateParmDecl(
                                                 NTTP->isParameterPack(),
                                                 TInfo);
       }
-      if (AutoType *AT = T->getContainedAutoType()) {
-        if (AT->isConstrained()) {
-          Param->setPlaceholderTypeConstraint(
-              canonicalizeImmediatelyDeclaredConstraint(
-                  *this, NTTP->getPlaceholderTypeConstraint(), T));
-        }
-      }
       CanonParams.push_back(Param);
-
     } else
       CanonParams.push_back(getCanonicalTemplateTemplateParmDecl(
                                            cast<TemplateTemplateParmDecl>(*P)));
   }
 
-  Expr *CanonRequiresClause = nullptr;
-  if (Expr *RequiresClause = TTP->getTemplateParameters()->getRequiresClause())
-    CanonRequiresClause = RequiresClause;
-
-  TemplateTemplateParmDecl *CanonTTP
-    = TemplateTemplateParmDecl::Create(*this, getTranslationUnitDecl(),
-                                       SourceLocation(), TTP->getDepth(),
-                                       TTP->getPosition(),
-                                       TTP->isParameterPack(),
-                                       nullptr,
-                         TemplateParameterList::Create(*this, SourceLocation(),
-                                                       SourceLocation(),
-                                                       CanonParams,
-                                                       SourceLocation(),
-                                                       CanonRequiresClause));
+  TemplateTemplateParmDecl *CanonTTP = TemplateTemplateParmDecl::Create(
+      *this, getTranslationUnitDecl(), SourceLocation(), TTP->getDepth(),
+      TTP->getPosition(), TTP->isParameterPack(), nullptr,
+      TemplateParameterList::Create(*this, SourceLocation(), SourceLocation(),
+                                    CanonParams, SourceLocation(),
+                                    /*RequiresClause=*/nullptr));
 
   // Get the new insert position for the node we care about.
   Canonical = CanonTemplateTemplateParms.FindNodeOrInsertPos(ID, InsertPos);
@@ -2334,6 +2240,11 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Width = 0;                                                                 \
     Align = 16;                                                                \
     break;
+#define SVE_OPAQUE_TYPE(Name, MangledName, Id, SingletonId)                    \
+  case BuiltinType::Id:                                                        \
+    Width = 0;                                                                 \
+    Align = 16;                                                                \
+    break;
 #include "clang/Basic/AArch64SVEACLETypes.def"
 #define PPC_VECTOR_TYPE(Name, Id, Size)                                        \
   case BuiltinType::Id:                                                        \
@@ -2817,6 +2728,11 @@ getSubobjectSizeInBits(const FieldDecl *Field, const ASTContext &Context) {
   int64_t FieldSizeInBits =
       Context.toBits(Context.getTypeSizeInChars(Field->getType()));
   if (Field->isBitField()) {
+    // If we have explicit padding bits, they don't contribute bits
+    // to the actual object representation, so return 0.
+    if (Field->isUnnamedBitfield())
+      return 0;
+
     int64_t BitfieldSize = Field->getBitWidthValue(Context);
     if (IsBitIntType) {
       if ((unsigned)BitfieldSize >
@@ -4048,6 +3964,10 @@ ASTContext::getBuiltinVectorTypeInfo(const BuiltinType *Ty) const {
     return SVE_INT_ELTTY(64, 2, false, 4);
   case BuiltinType::SveBool:
     return SVE_ELTTY(BoolTy, 16, 1);
+  case BuiltinType::SveBoolx2:
+    return SVE_ELTTY(BoolTy, 16, 2);
+  case BuiltinType::SveBoolx4:
+    return SVE_ELTTY(BoolTy, 16, 4);
   case BuiltinType::SveFloat16:
     return SVE_ELTTY(HalfTy, 8, 1);
   case BuiltinType::SveFloat16x2:
@@ -4105,8 +4025,8 @@ QualType ASTContext::getWebAssemblyExternrefType() const {
     return SingletonId;
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
   }
-  assert(false &&
-         "shouldn't try to generate type externref outside WebAssembly target");
+  llvm_unreachable(
+      "shouldn't try to generate type externref outside WebAssembly target");
 }
 
 /// getScalableVectorType - Return the unique reference to a scalable vector
@@ -4131,6 +4051,7 @@ QualType ASTContext::getScalableVectorType(QualType EltTy,
 #define SVE_PREDICATE_TYPE(Name, MangledName, Id, SingletonId, NumEls)         \
   if (EltTy->isBooleanType() && NumElts == NumEls)                             \
     return SingletonId;
+#define SVE_OPAQUE_TYPE(Name, MangledName, Id, SingleTonId)
 #include "clang/Basic/AArch64SVEACLETypes.def"
   } else if (Target->hasRISCVVTypes()) {
     uint64_t EltTySize = getTypeSize(EltTy);
@@ -5890,12 +5811,19 @@ QualType ASTContext::getAutoTypeInternal(
     if (!DeducedType.isNull()) {
       Canon = DeducedType.getCanonicalType();
     } else if (TypeConstraintConcept) {
-      Canon = getAutoTypeInternal(QualType(), Keyword, IsDependent, IsPack,
-                                  nullptr, {}, true);
-      // Find the insert position again.
-      [[maybe_unused]] auto *Nothing =
-          AutoTypes.FindNodeOrInsertPos(ID, InsertPos);
-      assert(!Nothing && "canonical type broken");
+      bool AnyNonCanonArgs = false;
+      ConceptDecl *CanonicalConcept = TypeConstraintConcept->getCanonicalDecl();
+      auto CanonicalConceptArgs = ::getCanonicalTemplateArguments(
+          *this, TypeConstraintArgs, AnyNonCanonArgs);
+      if (CanonicalConcept != TypeConstraintConcept || AnyNonCanonArgs) {
+        Canon =
+            getAutoTypeInternal(QualType(), Keyword, IsDependent, IsPack,
+                                CanonicalConcept, CanonicalConceptArgs, true);
+        // Find the insert position again.
+        [[maybe_unused]] auto *Nothing =
+            AutoTypes.FindNodeOrInsertPos(ID, InsertPos);
+        assert(!Nothing && "canonical type broken");
+      }
     }
   }
 
@@ -5926,6 +5854,26 @@ ASTContext::getAutoType(QualType DeducedType, AutoTypeKeyword Keyword,
          "A dependent auto should be undeduced");
   return getAutoTypeInternal(DeducedType, Keyword, IsDependent, IsPack,
                              TypeConstraintConcept, TypeConstraintArgs);
+}
+
+QualType ASTContext::getUnconstrainedType(QualType T) const {
+  QualType CanonT = T.getCanonicalType();
+
+  // Remove a type-constraint from a top-level auto or decltype(auto).
+  if (auto *AT = CanonT->getAs<AutoType>()) {
+    if (!AT->isConstrained())
+      return T;
+    return getQualifiedType(getAutoType(QualType(), AT->getKeyword(), false,
+                                        AT->containsUnexpandedParameterPack()),
+                            T.getQualifiers());
+  }
+
+  // FIXME: We only support constrained auto at the top level in the type of a
+  // non-type template parameter at the moment. Once we lift that restriction,
+  // we'll need to recursively build types containing auto here.
+  assert(!CanonT->getContainedAutoType() ||
+         !CanonT->getContainedAutoType()->isConstrained());
+  return T;
 }
 
 /// Return the uniqued reference to the deduced template specialization type
@@ -6594,32 +6542,11 @@ static bool hasSameOverloadableAttrs(const FunctionDecl *A,
   return true;
 }
 
-bool ASTContext::FriendsDifferByConstraints(const FunctionDecl *X,
-                                            const FunctionDecl *Y) const {
-  // If these aren't friends, then they aren't friends that differ by
-  // constraints.
-  if (!X->getFriendObjectKind() || !Y->getFriendObjectKind())
-    return false;
-
-  // If the two functions share lexical declaration context, they are not in
-  // separate instantations, and thus in the same scope.
-  if (X->getLexicalDeclContext() == Y->getLexicalDeclContext())
-    return false;
-
-  if (!X->getDescribedFunctionTemplate()) {
-    assert(!Y->getDescribedFunctionTemplate() &&
-           "How would these be the same if they aren't both templates?");
-
-    // If these friends don't have constraints, they aren't constrained, and
-    // thus don't fall under temp.friend p9. Else the simple presence of a
-    // constraint makes them unique.
-    return X->getTrailingRequiresClause();
-  }
-
-  return X->FriendConstraintRefersToEnclosingTemplate();
-}
-
 bool ASTContext::isSameEntity(const NamedDecl *X, const NamedDecl *Y) const {
+  // Caution: this function is called by the AST reader during deserialization,
+  // so it cannot rely on AST invariants being met. Non-trivial accessors
+  // should be avoided, along with any traversal of redeclaration chains.
+
   if (X == Y)
     return true;
 
@@ -6695,12 +6622,17 @@ bool ASTContext::isSameEntity(const NamedDecl *X, const NamedDecl *Y) const {
         return false;
     }
 
+    // Per C++20 [temp.over.link]/4, friends in different classes are sometimes
+    // not the same entity if they are constrained.
+    if ((FuncX->isMemberLikeConstrainedFriend() ||
+         FuncY->isMemberLikeConstrainedFriend()) &&
+        !FuncX->getLexicalDeclContext()->Equals(
+            FuncY->getLexicalDeclContext())) {
+      return false;
+    }
+
     if (!isSameConstraintExpr(FuncX->getTrailingRequiresClause(),
                               FuncY->getTrailingRequiresClause()))
-      return false;
-
-    // Constrained friends are different in certain cases, see: [temp.friend]p9.
-    if (FriendsDifferByConstraints(FuncX, FuncY))
       return false;
 
     auto GetTypeAsWritten = [](const FunctionDecl *FD) {
@@ -6735,6 +6667,11 @@ bool ASTContext::isSameEntity(const NamedDecl *X, const NamedDecl *Y) const {
   if (const auto *VarX = dyn_cast<VarDecl>(X)) {
     const auto *VarY = cast<VarDecl>(Y);
     if (VarX->getLinkageInternal() == VarY->getLinkageInternal()) {
+      // During deserialization, we might compare variables before we load
+      // their types. Assume the types will end up being the same.
+      if (VarX->getType().isNull() || VarY->getType().isNull())
+        return true;
+
       if (hasSameType(VarX->getType(), VarY->getType()))
         return true;
 
@@ -9549,16 +9486,18 @@ bool ASTContext::areCompatibleVectorTypes(QualType FirstVec,
 /// getSVETypeSize - Return SVE vector or predicate register size.
 static uint64_t getSVETypeSize(ASTContext &Context, const BuiltinType *Ty) {
   assert(Ty->isVLSTBuiltinType() && "Invalid SVE Type");
-  return Ty->getKind() == BuiltinType::SveBool
-             ? (Context.getLangOpts().VScaleMin * 128) / Context.getCharWidth()
-             : Context.getLangOpts().VScaleMin * 128;
+  if (Ty->getKind() == BuiltinType::SveBool ||
+      Ty->getKind() == BuiltinType::SveCount)
+    return (Context.getLangOpts().VScaleMin * 128) / Context.getCharWidth();
+  return Context.getLangOpts().VScaleMin * 128;
 }
 
 bool ASTContext::areCompatibleSveTypes(QualType FirstType,
                                        QualType SecondType) {
-  assert(((FirstType->isSizelessBuiltinType() && SecondType->isVectorType()) ||
-          (FirstType->isVectorType() && SecondType->isSizelessBuiltinType())) &&
-         "Expected SVE builtin type and vector type!");
+  assert(
+      ((FirstType->isSVESizelessBuiltinType() && SecondType->isVectorType()) ||
+       (FirstType->isVectorType() && SecondType->isSVESizelessBuiltinType())) &&
+      "Expected SVE builtin type and vector type!");
 
   auto IsValidCast = [this](QualType FirstType, QualType SecondType) {
     if (const auto *BT = FirstType->getAs<BuiltinType>()) {
@@ -9585,9 +9524,10 @@ bool ASTContext::areCompatibleSveTypes(QualType FirstType,
 
 bool ASTContext::areLaxCompatibleSveTypes(QualType FirstType,
                                           QualType SecondType) {
-  assert(((FirstType->isSizelessBuiltinType() && SecondType->isVectorType()) ||
-          (FirstType->isVectorType() && SecondType->isSizelessBuiltinType())) &&
-         "Expected SVE builtin type and vector type!");
+  assert(
+      ((FirstType->isSVESizelessBuiltinType() && SecondType->isVectorType()) ||
+       (FirstType->isVectorType() && SecondType->isSVESizelessBuiltinType())) &&
+      "Expected SVE builtin type and vector type!");
 
   auto IsLaxCompatible = [this](QualType FirstType, QualType SecondType) {
     const auto *BT = FirstType->getAs<BuiltinType>();
@@ -11623,9 +11563,8 @@ static GVALinkage basicGVALinkageForFunction(const ASTContext &Context,
 
   // Non-user-provided functions get emitted as weak definitions with every
   // use, no matter whether they've been explicitly instantiated etc.
-  if (const auto *MD = dyn_cast<CXXMethodDecl>(FD))
-    if (!MD->isUserProvided())
-      return GVA_DiscardableODR;
+  if (!FD->isUserProvided())
+    return GVA_DiscardableODR;
 
   GVALinkage External;
   switch (FD->getTemplateSpecializationKind()) {
@@ -11967,7 +11906,7 @@ void ASTContext::forEachMultiversionedFunctionVersion(
        FD->getDeclContext()->getRedeclContext()->lookup(FD->getDeclName())) {
     FunctionDecl *CurFD = CurDecl->getAsFunction()->getMostRecentDecl();
     if (CurFD && hasSameType(CurFD->getType(), FD->getType()) &&
-        !llvm::is_contained(SeenDecls, CurFD)) {
+        !SeenDecls.contains(CurFD)) {
       SeenDecls.insert(CurFD);
       Pred(CurFD);
     }
@@ -13466,6 +13405,7 @@ std::vector<std::string> ASTContext::filterFunctionTargetVersionAttrs(
   TV->getFeatures(Feats);
   for (auto &Feature : Feats)
     if (Target->validateCpuSupports(Feature.str()))
+      // Use '?' to mark features that came from TargetVersion.
       ResFeats.push_back("?" + Feature.str());
   return ResFeats;
 }
@@ -13535,6 +13475,7 @@ void ASTContext::getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
         VersionStr.split(VersionFeatures, "+");
         for (auto &VFeature : VersionFeatures) {
           VFeature = VFeature.trim();
+          // Use '?' to mark features that came from AArch64 TargetClones.
           Features.push_back((StringRef{"?"} + VFeature).str());
         }
       }

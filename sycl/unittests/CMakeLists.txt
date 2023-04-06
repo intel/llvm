@@ -24,7 +24,7 @@ include(AddSYCLUnitTest)
 
 add_custom_target(check-sycl-unittests)
 
-# TODO PI tests require real hardware and must be moved to intel/llvm-test-suite
+# TODO PI tests require real hardware and must be moved to sycl/test-e2e.
 option(SYCL_PI_TESTS "Enable PI-specific unit tests" ON)
 
 if (SYCL_PI_TESTS)
@@ -40,6 +40,7 @@ add_subdirectory(scheduler)
 add_subdirectory(stream)
 add_subdirectory(SYCL2020)
 add_subdirectory(thread_safety)
+add_subdirectory(pipes)
 add_subdirectory(program_manager)
 add_subdirectory(assert)
 add_subdirectory(Extensions)

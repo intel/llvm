@@ -215,7 +215,7 @@ kernel of this program will be cached also.
 All requests to build a program or to create a kernel - whether they originate
 from explicit user API calls or from internal SYCL runtime execution logic - end
 up with calling the function
-[`getOrBuild()`](https://github.com/intel/llvm/blob/sycl/sycl/source/detail/program_manager/program_manager.cpp#L149)
+[`getOrBuild()`](https://github.com/intel/llvm/blob/sycl/sycl/source/detail/program_manager/program_manager.cpp)
 with number of lambda functions passed as arguments:
 
 - Acquire function;
@@ -225,7 +225,7 @@ with number of lambda functions passed as arguments:
 *Acquire* function returns a locked version of cache. Locking is employed for
 thread safety. The threads are blocked only for insert-or-acquire attempt, i.e.
 when calling to `map::insert` in
-[`getOrBuild`](https://github.com/intel/llvm/blob/sycl/sycl/source/detail/program_manager/program_manager.cpp#L149)
+[`getOrBuild()`](https://github.com/intel/llvm/blob/sycl/sycl/source/detail/program_manager/program_manager.cpp)
 function. The rest of operation is done with the help of atomics and condition
 variables (plus a mutex for proper work of condition variable).
 

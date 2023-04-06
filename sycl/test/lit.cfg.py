@@ -96,7 +96,12 @@ config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir 
 llvm_symbolizer = os.path.join(config.llvm_build_bin_dir, 'llvm-symbolizer')
 llvm_config.with_environment('LLVM_SYMBOLIZER_PATH', llvm_symbolizer)
 
-config.substitutions.append( ('%fsycl-host-only', '-std=c++17 -Xclang -fsycl-is-host -isystem %s -isystem %s -isystem %s -isystem %s' % (config.sycl_include, config.level_zero_include_dir, config.opencl_include_dir, config.sycl_include + '/sycl/') ) )
+sycl_host_only_options = '-std=c++17 -Xclang -fsycl-is-host'
+for include_dir in [config.sycl_include, config.level_zero_include_dir, config.opencl_include_dir, config.sycl_include + '/sycl/']:
+    if include_dir:
+        sycl_host_only_options += ' -isystem %s' % include_dir
+config.substitutions.append( ('%fsycl-host-only', sycl_host_only_options) )
+
 config.substitutions.append( ('%sycl_lib', ' -lsycl6' if platform.system() == "Windows" else '-lsycl') )
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
@@ -115,6 +120,12 @@ if config.hip_be == "ON":
 
 if config.esimd_emulator_be == "ON":
     config.available_features.add('esimd_emulator_be')
+
+if config.opencl_be == "ON":
+    config.available_features.add('opencl_be')
+
+if config.level_zero_be == "ON":
+    config.available_features.add('level_zero_be')
 
 if triple == 'nvptx64-nvidia-cuda':
     llvm_config.with_system_environment('CUDA_PATH')

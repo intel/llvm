@@ -187,6 +187,12 @@ void tools::PScpu::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       AddCodeGenFlag(Twine("-crash-diagnostics-dir=") + A->getValue());
   }
 
+  if (IsPS5 && UseLTO) {
+    StringRef Parallelism = getLTOParallelism(Args, D);
+    if (!Parallelism.empty())
+      CmdArgs.push_back(Args.MakeArgString("-plugin-opt=jobs=" + Parallelism));
+  }
+
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs))
     TC.addSanitizerArgs(Args, CmdArgs, "-l", "");
 
@@ -303,19 +309,6 @@ void toolchains::PS4PS5Base::AddClangSystemIncludeArgs(
 
   if (DriverArgs.hasArg(options::OPT_nostdlibinc))
     return;
-
-  // Add dirs specified via 'configure --with-c-include-dirs'.
-  StringRef CIncludeDirs(C_INCLUDE_DIRS);
-  if (!CIncludeDirs.empty()) {
-    SmallVector<StringRef, 5> dirs;
-    CIncludeDirs.split(dirs, ":");
-    for (StringRef dir : dirs) {
-      StringRef Prefix =
-        llvm::sys::path::is_absolute(dir) ? StringRef(D.SysRoot) : "";
-      addExternCSystemInclude(DriverArgs, CC1Args, Prefix + dir);
-    }
-    return;
-  }
 
   addExternCSystemInclude(DriverArgs, CC1Args,
                           SDKRootDir + "/target/include");

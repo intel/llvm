@@ -9,10 +9,12 @@
 #pragma once
 #include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
+#include <detail/host_pipe_map_entry.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_global_map.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/host_pipe_map.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/util.hpp>
@@ -214,6 +216,17 @@ public:
   std::vector<DeviceGlobalMapEntry *>
   getDeviceGlobalEntries(const std::vector<std::string> &UniqueIds,
                          bool ExcludeDeviceImageScopeDecorated = false);
+  // The function inserts or initializes a host_pipe entry into the
+  // host_pipe map.
+  void addOrInitHostPipeEntry(const void *HostPipePtr, const char *UniqueId);
+
+  // The function gets a host_pipe entry identified by the unique ID from
+  // the host_pipe map.
+  HostPipeMapEntry *getHostPipeEntry(const std::string &UniqueId);
+
+  // The function gets a host_pipe entry identified by the pointer to the
+  // host_pipe object from the host_pipe map.
+  HostPipeMapEntry *getHostPipeEntry(const void *HostPipePtr);
 
   device_image_plain
   getDeviceImageFromBinaryImage(RTDeviceBinaryImage *BinImage,
@@ -299,7 +312,8 @@ private:
   KernelSetId getKernelSetId(OSModuleHandle M,
                              const std::string &KernelName) const;
   /// Dumps image to current directory
-  void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId) const;
+  void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
+                 uint32_t SequenceID = 0) const;
 
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(OSModuleHandle M, RTDeviceBinaryImage &Img);
@@ -424,6 +438,14 @@ private:
 
   /// Protects m_DeviceGlobals and m_Ptr2DeviceGlobal.
   std::mutex m_DeviceGlobalsMutex;
+
+  // Maps between host_pipe identifiers and associated information.
+  std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
+      m_HostPipes;
+  std::unordered_map<const void *, HostPipeMapEntry *> m_Ptr2HostPipe;
+
+  /// Protects m_HostPipes and m_Ptr2HostPipe.
+  std::mutex m_HostPipesMutex;
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

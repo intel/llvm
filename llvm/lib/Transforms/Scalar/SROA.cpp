@@ -266,10 +266,23 @@ static void migrateDebugInfo(AllocaInst *OldAlloca, bool IsSplit,
       Inst->setMetadata(LLVMContext::MD_DIAssignID, NewID);
     }
 
-    Value = Value ? Value : DbgAssign->getValue();
+    ::Value *NewValue = Value ? Value : DbgAssign->getValue();
     auto *NewAssign = DIB.insertDbgAssign(
-        Inst, Value, DbgAssign->getVariable(), Expr, Dest,
+        Inst, NewValue, DbgAssign->getVariable(), Expr, Dest,
         DIExpression::get(Ctx, std::nullopt), DbgAssign->getDebugLoc());
+
+    // If we've updated the value but the original dbg.assign has an arglist
+    // then kill it now - we can't use the requested new value.
+    // We can't replace the DIArgList with the new value as it'd leave
+    // the DIExpression in an invalid state (DW_OP_LLVM_arg operands without
+    // an arglist). And we can't keep the DIArgList in case the linked store
+    // is being split - in which case the DIArgList + expression may no longer
+    // be computing the correct value.
+    // This should be a very rare situation as it requires the value being
+    // stored to differ from the dbg.assign (i.e., the value has been
+    // represented differently in the debug intrinsic for some reason).
+    if (DbgAssign->hasArgList() && Value)
+      NewAssign->setKillLocation();
 
     // We could use more precision here at the cost of some additional (code)
     // complexity - if the original dbg.assign was adjacent to its store, we
@@ -2202,6 +2215,7 @@ static VectorType *isVectorPromotionViable(Partition &P, const DataLayout &DL) {
   // Collect the candidate types for vector-based promotion. Also track whether
   // we have different element types.
   SmallVector<VectorType *, 4> CandidateTys;
+  SetVector<Type *> LoadStoreTys;
   Type *CommonEltTy = nullptr;
   VectorType *CommonVecPtrTy = nullptr;
   bool HaveVecPtrTy = false;
@@ -2235,15 +2249,40 @@ static VectorType *isVectorPromotionViable(Partition &P, const DataLayout &DL) {
       }
     }
   };
-  // Consider any loads or stores that are the exact size of the slice.
-  for (const Slice &S : P)
-    if (S.beginOffset() == P.beginOffset() &&
-        S.endOffset() == P.endOffset()) {
-      if (auto *LI = dyn_cast<LoadInst>(S.getUse()->getUser()))
-        CheckCandidateType(LI->getType());
-      else if (auto *SI = dyn_cast<StoreInst>(S.getUse()->getUser()))
-        CheckCandidateType(SI->getValueOperand()->getType());
+  // Put load and store types into a set for de-duplication.
+  for (const Slice &S : P) {
+    Type *Ty;
+    if (auto *LI = dyn_cast<LoadInst>(S.getUse()->getUser()))
+      Ty = LI->getType();
+    else if (auto *SI = dyn_cast<StoreInst>(S.getUse()->getUser()))
+      Ty = SI->getValueOperand()->getType();
+    else
+      continue;
+    LoadStoreTys.insert(Ty);
+    // Consider any loads or stores that are the exact size of the slice.
+    if (S.beginOffset() == P.beginOffset() && S.endOffset() == P.endOffset())
+      CheckCandidateType(Ty);
+  }
+  // Consider additional vector types where the element type size is a
+  // multiple of load/store element size.
+  for (Type *Ty : LoadStoreTys) {
+    if (!VectorType::isValidElementType(Ty))
+      continue;
+    unsigned TypeSize = DL.getTypeSizeInBits(Ty).getFixedValue();
+    // Make a copy of CandidateTys and iterate through it, because we might
+    // append to CandidateTys in the loop.
+    SmallVector<VectorType *, 4> CandidateTysCopy = CandidateTys;
+    for (VectorType *&VTy : CandidateTysCopy) {
+      unsigned VectorSize = DL.getTypeSizeInBits(VTy).getFixedValue();
+      unsigned ElementSize =
+          DL.getTypeSizeInBits(VTy->getElementType()).getFixedValue();
+      if (TypeSize != VectorSize && TypeSize != ElementSize &&
+          VectorSize % TypeSize == 0) {
+        VectorType *NewVTy = VectorType::get(Ty, VectorSize / TypeSize, false);
+        CheckCandidateType(NewVTy);
+      }
     }
+  }
 
   // If we didn't find a vector type, nothing to do here.
   if (CandidateTys.empty())
@@ -2271,7 +2310,7 @@ static VectorType *isVectorPromotionViable(Partition &P, const DataLayout &DL) {
 
     // Rank the remaining candidate vector types. This is easy because we know
     // they're all integer vectors. We sort by ascending number of elements.
-    auto RankVectorTypes = [&DL](VectorType *RHSTy, VectorType *LHSTy) {
+    auto RankVectorTypesComp = [&DL](VectorType *RHSTy, VectorType *LHSTy) {
       (void)DL;
       assert(DL.getTypeSizeInBits(RHSTy).getFixedValue() ==
                  DL.getTypeSizeInBits(LHSTy).getFixedValue() &&
@@ -2283,10 +2322,22 @@ static VectorType *isVectorPromotionViable(Partition &P, const DataLayout &DL) {
       return cast<FixedVectorType>(RHSTy)->getNumElements() <
              cast<FixedVectorType>(LHSTy)->getNumElements();
     };
-    llvm::sort(CandidateTys, RankVectorTypes);
-    CandidateTys.erase(
-        std::unique(CandidateTys.begin(), CandidateTys.end(), RankVectorTypes),
-        CandidateTys.end());
+    auto RankVectorTypesEq = [&DL](VectorType *RHSTy, VectorType *LHSTy) {
+      (void)DL;
+      assert(DL.getTypeSizeInBits(RHSTy).getFixedValue() ==
+                 DL.getTypeSizeInBits(LHSTy).getFixedValue() &&
+             "Cannot have vector types of different sizes!");
+      assert(RHSTy->getElementType()->isIntegerTy() &&
+             "All non-integer types eliminated!");
+      assert(LHSTy->getElementType()->isIntegerTy() &&
+             "All non-integer types eliminated!");
+      return cast<FixedVectorType>(RHSTy)->getNumElements() ==
+             cast<FixedVectorType>(LHSTy)->getNumElements();
+    };
+    llvm::sort(CandidateTys, RankVectorTypesComp);
+    CandidateTys.erase(std::unique(CandidateTys.begin(), CandidateTys.end(),
+                                   RankVectorTypesEq),
+                       CandidateTys.end());
   } else {
 // The only way to have the same element type in every vector type is to
 // have the same vector type. Check that and remove all but one.
@@ -4965,11 +5016,13 @@ bool SROAPass::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
   // Migrate debug information from the old alloca to the new alloca(s)
   // and the individual partitions.
-  TinyPtrVector<DbgVariableIntrinsic *> DbgDeclares = FindDbgAddrUses(&AI);
+  TinyPtrVector<DbgVariableIntrinsic *> DbgVariables;
+  for (auto *DbgDeclare : FindDbgDeclareUses(&AI))
+    DbgVariables.push_back(DbgDeclare);
   for (auto *DbgAssign : at::getAssignmentMarkers(&AI))
-    DbgDeclares.push_back(DbgAssign);
-  for (DbgVariableIntrinsic *DbgDeclare : DbgDeclares) {
-    auto *Expr = DbgDeclare->getExpression();
+    DbgVariables.push_back(DbgAssign);
+  for (DbgVariableIntrinsic *DbgVariable : DbgVariables) {
+    auto *Expr = DbgVariable->getExpression();
     DIBuilder DIB(*AI.getModule(), /*AllowUnresolved*/ false);
     uint64_t AllocaSize =
         DL.getTypeSizeInBits(AI.getAllocatedType()).getFixedValue();
@@ -5001,7 +5054,7 @@ bool SROAPass::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
         }
 
         // The alloca may be larger than the variable.
-        auto VarSize = DbgDeclare->getVariable()->getSizeInBits();
+        auto VarSize = DbgVariable->getVariable()->getSizeInBits();
         if (VarSize) {
           if (Size > *VarSize)
             Size = *VarSize;
@@ -5021,18 +5074,18 @@ bool SROAPass::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
 
       // Remove any existing intrinsics on the new alloca describing
       // the variable fragment.
-      for (DbgVariableIntrinsic *OldDII : FindDbgAddrUses(Fragment.Alloca)) {
+      for (DbgDeclareInst *OldDII : FindDbgDeclareUses(Fragment.Alloca)) {
         auto SameVariableFragment = [](const DbgVariableIntrinsic *LHS,
                                        const DbgVariableIntrinsic *RHS) {
           return LHS->getVariable() == RHS->getVariable() &&
                  LHS->getDebugLoc()->getInlinedAt() ==
                      RHS->getDebugLoc()->getInlinedAt();
         };
-        if (SameVariableFragment(OldDII, DbgDeclare))
+        if (SameVariableFragment(OldDII, DbgVariable))
           OldDII->eraseFromParent();
       }
 
-      if (auto *DbgAssign = dyn_cast<DbgAssignIntrinsic>(DbgDeclare)) {
+      if (auto *DbgAssign = dyn_cast<DbgAssignIntrinsic>(DbgVariable)) {
         if (!Fragment.Alloca->hasMetadata(LLVMContext::MD_DIAssignID)) {
           Fragment.Alloca->setMetadata(
               LLVMContext::MD_DIAssignID,
@@ -5046,8 +5099,8 @@ bool SROAPass::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
         LLVM_DEBUG(dbgs() << "Created new assign intrinsic: " << *NewAssign
                           << "\n");
       } else {
-        DIB.insertDeclare(Fragment.Alloca, DbgDeclare->getVariable(),
-                          FragmentExpr, DbgDeclare->getDebugLoc(), &AI);
+        DIB.insertDeclare(Fragment.Alloca, DbgVariable->getVariable(),
+                          FragmentExpr, DbgVariable->getDebugLoc(), &AI);
       }
     }
   }
@@ -5171,7 +5224,7 @@ bool SROAPass::deleteDeadInstructions(
     // not be able to find it.
     if (AllocaInst *AI = dyn_cast<AllocaInst>(I)) {
       DeletedAllocas.insert(AI);
-      for (DbgVariableIntrinsic *OldDII : FindDbgAddrUses(AI))
+      for (DbgDeclareInst *OldDII : FindDbgDeclareUses(AI))
         OldDII->eraseFromParent();
     }
 
@@ -5274,6 +5327,11 @@ PreservedAnalyses SROAPass::runImpl(Function &F, DomTreeUpdater &RunDTU,
   if (!Changed)
     return PreservedAnalyses::all();
 
+  if (isAssignmentTrackingEnabled(*F.getParent())) {
+    for (auto &BB : F)
+      RemoveRedundantDbgInstrs(&BB);
+  }
+
   PreservedAnalyses PA;
   if (!CFGChanged)
     PA.preserveSet<CFGAnalyses>();
@@ -5288,8 +5346,9 @@ PreservedAnalyses SROAPass::runImpl(Function &F, DominatorTree &RunDT,
 }
 
 PreservedAnalyses SROAPass::run(Function &F, FunctionAnalysisManager &AM) {
-  return runImpl(F, AM.getResult<DominatorTreeAnalysis>(F),
-                 AM.getResult<AssumptionAnalysis>(F));
+  DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
+  AssumptionCache &AC = AM.getResult<AssumptionAnalysis>(F);
+  return runImpl(F, DT, AC);
 }
 
 void SROAPass::printPipeline(

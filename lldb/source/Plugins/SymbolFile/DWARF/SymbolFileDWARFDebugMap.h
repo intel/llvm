@@ -9,6 +9,7 @@
 #ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_SYMBOLFILEDWARFDEBUGMAP_H
 #define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_SYMBOLFILEDWARFDEBUGMAP_H
 
+#include "DIERef.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Utility/RangeMap.h"
 #include "llvm/Support/Chrono.h"
@@ -61,6 +62,8 @@ public:
   ParseLanguage(lldb_private::CompileUnit &comp_unit) override;
   lldb_private::XcodeSDK
   ParseXcodeSDK(lldb_private::CompileUnit &comp_unit) override;
+  llvm::SmallSet<lldb::LanguageType, 4>
+  ParseAllLanguages(lldb_private::CompileUnit &comp_unit) override;
   size_t ParseFunctions(lldb_private::CompileUnit &comp_unit) override;
   bool ParseLineTable(lldb_private::CompileUnit &comp_unit) override;
   bool ParseDebugMacros(lldb_private::CompileUnit &comp_unit) override;
@@ -209,7 +212,9 @@ protected:
   lldb::CompUnitSP ParseCompileUnitAtIndex(uint32_t index) override;
 
   static uint32_t GetOSOIndexFromUserID(lldb::user_id_t uid) {
-    return (uint32_t)((uid >> 32ull) - 1ull);
+    std::optional<uint32_t> OsoNum = DIERef(uid).file_index();
+    lldbassert(OsoNum && "Invalid OSO Index");
+    return *OsoNum;
   }
 
   static SymbolFileDWARF *GetSymbolFileAsSymbolFileDWARF(SymbolFile *sym_file);

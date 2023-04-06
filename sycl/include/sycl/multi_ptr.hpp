@@ -149,7 +149,7 @@ public:
                 (Space == access::address_space::generic_space ||
                  Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.get_pointer().get()) {}
+      : m_Pointer(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
 
   // The following constructors are necessary to create multi_ptr<const
   // ElementType, Space, DecorateAddress> from accessor<ElementType, ...>.
@@ -210,7 +210,7 @@ public:
   multi_ptr(local_accessor<typename detail::remove_const_t<RelayElementType>,
                            Dimensions>
                 Accessor)
-      : multi_ptr(Accessor.get_pointer().get()) {}
+      : m_Pointer(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
 
   // Assignment and access operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -465,7 +465,7 @@ public:
       typename = typename detail::enable_if_t<
           RelaySpace == Space && Space == access::address_space::local_space>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.get_pointer().get()) {}
+      : m_Pointer(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -591,7 +591,7 @@ public:
       typename = typename detail::enable_if_t<
           RelaySpace == Space && Space == access::address_space::local_space>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(Accessor.get_pointer().get()) {}
+      : m_Pointer(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -848,7 +848,7 @@ public:
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
   multi_ptr(
       local_accessor<typename detail::remove_const_t<ET>, dimensions> Accessor)
-      : multi_ptr(Accessor.get_pointer()) {}
+      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
 
   // Only if Space == constant_space and element type is const
   template <
@@ -1089,7 +1089,7 @@ public:
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
-      : multi_ptr(Accessor.get_pointer()) {}
+      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
 
   // Only if Space == constant_space
   template <
@@ -1232,7 +1232,7 @@ public:
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
-      : multi_ptr(Accessor.get_pointer()) {}
+      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
 
   // Only if Space == constant_space
   template <

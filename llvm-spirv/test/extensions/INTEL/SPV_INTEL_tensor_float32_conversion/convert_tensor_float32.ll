@@ -13,7 +13,7 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-; CHECK-SPIRV: Capability TensorFloat32ConversionINTEL
+; CHECK-SPIRV: Capability TensorFloat32RoundingINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_tensor_float32_conversion"
 ; CHECK-SPIRV: TypeFloat [[#FP32Ty:]] 32
 ; CHECK-SPIRV: TypeVector [[#FP32v8Ty:]] [[#FP32Ty]] 8
@@ -22,24 +22,24 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: FunctionParameter [[#FP32Ty]] [[FP32ValId:.*]]
 ; CHECK-SPIRV: FunctionParameter [[#FP32v8Ty]] [[FP32v8ValId:.*]]
 
-; CHECK-SPIRV: ConvertFToTF32INTEL [[#FP32Ty]] [[#]] [[FP32ValId]]
-; CHECK-SPIRV: ConvertFToTF32INTEL [[#FP32v8Ty]] [[#]] [[FP32v8ValId]]
-; CHECK-SPIRV: ConvertFToTF32INTEL [[#FP32Ty]] [[#]] [[#CONST]]
+; CHECK-SPIRV: RoundFToTF32INTEL [[#FP32Ty]] [[#]] [[FP32ValId]]
+; CHECK-SPIRV: RoundFToTF32INTEL [[#FP32v8Ty]] [[#]] [[FP32v8ValId]]
+; CHECK-SPIRV: RoundFToTF32INTEL [[#FP32Ty]] [[#]] [[#CONST]]
 
-; CHECK-LLVM: call spir_func float @_Z27__spirv_ConvertFToTF32INTELf(float
-; CHECK-LLVM: call spir_func <8 x float> @_Z27__spirv_ConvertFToTF32INTELDv8_f(<8 x float>
-; CHECK-LLVM: call spir_func float @_Z27__spirv_ConvertFToTF32INTELf(float 1.000000e+00)
+; CHECK-LLVM: call spir_func float @_Z25__spirv_RoundFToTF32INTELf(float
+; CHECK-LLVM: call spir_func <8 x float> @_Z25__spirv_RoundFToTF32INTELDv8_f(<8 x float>
+; CHECK-LLVM: call spir_func float @_Z25__spirv_RoundFToTF32INTELf(float 1.000000e+00)
 
 define spir_func void @_Z2opffv8(float %a, <8 x float> %in) {
-  %1 = tail call spir_func float @_Z27__spirv_ConvertFToTF32INTELf(float %a)
-  %2 = tail call spir_func <8 x float> @_Z27__spirv_ConvertFToTF32INTELDv8_f(<8 x float> %in)
-  %3 = tail call spir_func float @_Z27__spirv_ConvertFToTF32INTELf(float 1.000000e+00)
+  %1 = tail call spir_func float @_Z25__spirv_RoundFToTF32INTELf(float %a)
+  %2 = tail call spir_func <8 x float> @_Z25__spirv_RoundFToTF32INTELDv8_f(<8 x float> %in)
+  %3 = tail call spir_func float @_Z25__spirv_RoundFToTF32INTELf(float 1.000000e+00)
   ret void
 }
 
-declare spir_func float @_Z27__spirv_ConvertFToTF32INTELf(float)
+declare spir_func float @_Z25__spirv_RoundFToTF32INTELf(float)
 
-declare spir_func <8 x float> @_Z27__spirv_ConvertFToTF32INTELDv8_f(<8 x float>)
+declare spir_func <8 x float> @_Z25__spirv_RoundFToTF32INTELDv8_f(<8 x float>)
 
 !opencl.spir.version = !{!0}
 !spirv.Source = !{!1}

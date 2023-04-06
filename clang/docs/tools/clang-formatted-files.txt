@@ -2594,6 +2594,7 @@ libc/include/llvm-libc-types/fexcept_t.h
 libc/include/llvm-libc-types/FILE.h
 libc/include/llvm-libc-types/float_t.h
 libc/include/llvm-libc-types/imaxdiv_t.h
+libc/include/llvm-libc-types/jmp_buf.h
 libc/include/llvm-libc-types/ldiv_t.h
 libc/include/llvm-libc-types/lldiv_t.h
 libc/include/llvm-libc-types/mode_t.h
@@ -5713,8 +5714,6 @@ llvm/include/llvm-c/OrcEE.h
 llvm/include/llvm-c/Remarks.h
 llvm/include/llvm-c/Types.h
 llvm/include/llvm-c/Transforms/PassBuilder.h
-llvm/include/llvm-c/Transforms/Scalar.h
-llvm/include/llvm-c/Transforms/Vectorize.h
 llvm/lib/Analysis/CodeMetrics.cpp
 llvm/lib/Analysis/CycleAnalysis.cpp
 llvm/lib/Analysis/DDGPrinter.cpp

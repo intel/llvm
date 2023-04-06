@@ -8,6 +8,7 @@
 
 #pragma once
 #include <CL/__spirv/spirv_types.hpp>
+#include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <sycl/detail/defines.hpp>
@@ -24,19 +25,23 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
+extern __DPCPP_SYCL_EXTERNAL float __spirv_RoundFToTF32INTEL(float a);
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
-__spirv_JointMatrixLoadINTEL(T *Ptr, std::size_t Stride,
-                             __spv::MatrixLayout Layout = L,
-                             __spv::Scope::Flag Sc = S, int MemOperand = 0);
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
+    __spirv_JointMatrixLoadINTEL(T *Ptr, std::size_t Stride,
+                                 __spv::MatrixLayout Layout = L,
+                                 __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreINTEL(
-    T *Ptr, __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *Object,
+    T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
     std::size_t Stride, __spv::MatrixLayout Layout = L,
     __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
@@ -99,11 +104,20 @@ extern __DPCPP_SYCL_EXTERNAL
         __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S, UC> *C,
         __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
+template <typename T, typename Tp, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
+    __spirv_CompositeConstruct(const T v);
+
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
-__spirv_CompositeConstruct(const T v);
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<uint32_t, 2>
+__spirv_JointMatrixGetElementCoordINTEL(
+    __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *, size_t i);
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
@@ -111,18 +125,20 @@ template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
 extern __DPCPP_SYCL_EXTERNAL size_t __spirv_JointMatrixWorkItemLengthINTEL(
     __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
+template <typename Ts, typename T, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern __DPCPP_SYCL_EXTERNAL T __spirv_VectorExtractDynamic(
+extern __DPCPP_SYCL_EXTERNAL Ts __spirv_VectorExtractDynamic(
     __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *, size_t i);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixUse U,
+template <typename Ts, typename T, std::size_t R, std::size_t C,
+          __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
-                            T val, size_t i);
+                            Ts val, size_t i);
 #else
 template <typename T, std::size_t R, std::size_t C,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
@@ -942,6 +958,16 @@ __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
     __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
     __spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
 
+// TODO: I'm not 100% sure that these NonUniform instructions should be
+// convergent Following precedent set for GroupNonUniformBallot above
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT uint32_t
+__spirv_GroupNonUniformBallotBitCount(__spv::Scope::Flag, int,
+                                      __ocl_vec_t<uint32_t, 4>) noexcept;
+
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT int
+    __spirv_GroupNonUniformBallotFindLSB(__spv::Scope::Flag,
+                                         __ocl_vec_t<uint32_t, 4>) noexcept;
+
 extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierInitialize(int64_t *state, int32_t expected_count) noexcept;
 
@@ -1050,6 +1076,19 @@ __CLC_BF16_SCAL_VEC(uint32_t)
 
 #undef __CLC_BF16_SCAL_VEC
 #undef __CLC_BF16
+
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
+    __SYCL_EXPORT __spv::complex_half
+    __spirv_GroupCMulINTEL(unsigned int, unsigned int,
+                           __spv::complex_half) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
+    __SYCL_EXPORT __spv::complex_float
+    __spirv_GroupCMulINTEL(unsigned int, unsigned int,
+                           __spv::complex_float) noexcept;
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
+    __SYCL_EXPORT __spv::complex_double
+    __spirv_GroupCMulINTEL(unsigned int, unsigned int,
+                           __spv::complex_double) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();

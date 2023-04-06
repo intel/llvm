@@ -402,7 +402,8 @@ public:
   }
 
   bool native_specialization_constant() const noexcept {
-    return std::all_of(MDeviceImages.begin(), MDeviceImages.end(),
+    return contains_specialization_constants() &&
+           std::all_of(MDeviceImages.begin(), MDeviceImages.end(),
                        [](const device_image_plain &DeviceImage) {
                          return getSyclObjImpl(DeviceImage)
                              ->all_specialization_constant_native();
@@ -425,10 +426,9 @@ public:
         getSyclObjImpl(DeviceImage)
             ->set_specialization_constant_raw_value(SpecName, Value);
     else {
-      const auto *DataPtr = static_cast<const unsigned char *>(Value);
       std::vector<unsigned char> &Val = MSpecConstValues[std::string{SpecName}];
       Val.resize(Size);
-      Val.insert(Val.begin(), DataPtr, DataPtr + Size);
+      std::memcpy(Val.data(), Value, Size);
     }
   }
 

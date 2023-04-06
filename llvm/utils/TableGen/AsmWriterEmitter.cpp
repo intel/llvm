@@ -995,7 +995,10 @@ void AsmWriterEmitter::EmitPrintAliasInstruction(raw_ostream &O) {
 
       for (Record *const R : ReqFeatures) {
         const DagInit *D = R->getValueAsDag("AssemblerCondDag");
-        std::string CombineType = D->getOperator()->getAsString();
+        auto *Op = dyn_cast<DefInit>(D->getOperator());
+        if (!Op)
+          PrintFatalError(R->getLoc(), "Invalid AssemblerCondDag!");
+        StringRef CombineType = Op->getDef()->getName();
         if (CombineType != "any_of" && CombineType != "all_of")
           PrintFatalError(R->getLoc(), "Invalid AssemblerCondDag!");
         if (D->getNumArgs() == 0)
@@ -1299,17 +1302,12 @@ void AsmWriterEmitter::run(raw_ostream &O) {
   std::vector<std::vector<std::string>> TableDrivenOperandPrinters;
   unsigned BitsLeft = 0;
   unsigned AsmStrBits = 0;
+  emitSourceFileHeader("Assembly Writer Source Fragment", O);
   EmitGetMnemonic(O, TableDrivenOperandPrinters, BitsLeft, AsmStrBits);
   EmitPrintInstruction(O, TableDrivenOperandPrinters, BitsLeft, AsmStrBits);
   EmitGetRegisterName(O);
   EmitPrintAliasInstruction(O);
 }
 
-namespace llvm {
-
-void EmitAsmWriter(RecordKeeper &RK, raw_ostream &OS) {
-  emitSourceFileHeader("Assembly Writer Source Fragment", OS);
-  AsmWriterEmitter(RK).run(OS);
-}
-
-} // end namespace llvm
+static TableGen::Emitter::OptClass<AsmWriterEmitter>
+    X("gen-asm-writer", "Generate assembly writer");

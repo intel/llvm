@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -spec-const=default --ir-output-only %s -S -o - \
+; RUN: sycl-post-link -spec-const=default --ir-output-only < %s -S -o - \
 ; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getCompositeSpecConstantValue" --implicit-check-not "call {{.*}} __sycl_getComposite2020SpecConstantValue"
 ;
 ; This test checks that composite specialization constants can be correctly

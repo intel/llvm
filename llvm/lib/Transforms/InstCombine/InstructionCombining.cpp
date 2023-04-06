@@ -34,7 +34,6 @@
 
 #include "InstCombineInternal.h"
 #include "llvm-c/Initialization.h"
-#include "llvm-c/Transforms/InstCombine.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -1040,50 +1039,17 @@ static Constant *constantFoldOperationIntoSelectOperand(
     else if (auto *C = dyn_cast<Constant>(Op))
       ConstOps.push_back(C);
     else
-      llvm_unreachable("Operands should be select or constant");
+      return nullptr;
   }
   return ConstantFoldInstOperands(&I, ConstOps, I.getModule()->getDataLayout());
 }
 
-static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
-                                             InstCombiner::BuilderTy &Builder) {
-  if (auto *Cast = dyn_cast<CastInst>(&I))
-    return Builder.CreateCast(Cast->getOpcode(), SO, I.getType());
-
-  if (auto *II = dyn_cast<IntrinsicInst>(&I)) {
-    assert(canConstantFoldCallTo(II, cast<Function>(II->getCalledOperand())) &&
-           "Expected constant-foldable intrinsic");
-    Intrinsic::ID IID = II->getIntrinsicID();
-    if (II->arg_size() == 1)
-      return Builder.CreateUnaryIntrinsic(IID, SO);
-
-    // This works for real binary ops like min/max (where we always expect the
-    // constant operand to be canonicalized as op1) and unary ops with a bonus
-    // constant argument like ctlz/cttz.
-    // TODO: Handle non-commutative binary intrinsics as below for binops.
-    assert(II->arg_size() == 2 && "Expected binary intrinsic");
-    assert(isa<Constant>(II->getArgOperand(1)) && "Expected constant operand");
-    return Builder.CreateBinaryIntrinsic(IID, SO, II->getArgOperand(1));
-  }
-
-  if (auto *EI = dyn_cast<ExtractElementInst>(&I))
-    return Builder.CreateExtractElement(SO, EI->getIndexOperand());
-
-  assert(I.isBinaryOp() && "Unexpected opcode for select folding");
-
-  // Figure out if the constant is the left or the right argument.
-  bool ConstIsRHS = isa<Constant>(I.getOperand(1));
-  Constant *ConstOperand = cast<Constant>(I.getOperand(ConstIsRHS));
-
-  Value *Op0 = SO, *Op1 = ConstOperand;
-  if (!ConstIsRHS)
-    std::swap(Op0, Op1);
-
-  Value *NewBO = Builder.CreateBinOp(cast<BinaryOperator>(&I)->getOpcode(), Op0,
-                                     Op1, SO->getName() + ".op");
-  if (auto *NewBOI = dyn_cast<Instruction>(NewBO))
-    NewBOI->copyIRFlags(&I);
-  return NewBO;
+static Value *foldOperationIntoSelectOperand(Instruction &I, SelectInst *SI,
+                                             Value *NewOp, InstCombiner &IC) {
+  Instruction *Clone = I.clone();
+  Clone->replaceUsesOfWith(SI, NewOp);
+  IC.InsertNewInstBefore(Clone, *SI);
+  return Clone;
 }
 
 Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op, SelectInst *SI,
@@ -1116,45 +1082,6 @@ Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op, SelectInst *SI,
       return nullptr;
   }
 
-  // Test if a CmpInst instruction is used exclusively by a select as
-  // part of a minimum or maximum operation. If so, refrain from doing
-  // any other folding. This helps out other analyses which understand
-  // non-obfuscated minimum and maximum idioms, such as ScalarEvolution
-  // and CodeGen. And in this case, at least one of the comparison
-  // operands has at least one user besides the compare (the select),
-  // which would often largely negate the benefit of folding anyway.
-  if (auto *CI = dyn_cast<CmpInst>(SI->getCondition())) {
-    if (CI->hasOneUse()) {
-      Value *Op0 = CI->getOperand(0), *Op1 = CI->getOperand(1);
-
-      // FIXME: This is a hack to avoid infinite looping with min/max patterns.
-      //        We have to ensure that vector constants that only differ with
-      //        undef elements are treated as equivalent.
-      auto areLooselyEqual = [](Value *A, Value *B) {
-        if (A == B)
-          return true;
-
-        // Test for vector constants.
-        Constant *ConstA, *ConstB;
-        if (!match(A, m_Constant(ConstA)) || !match(B, m_Constant(ConstB)))
-          return false;
-
-        // TODO: Deal with FP constants?
-        if (!A->getType()->isIntOrIntVectorTy() || A->getType() != B->getType())
-          return false;
-
-        // Compare for equality including undefs as equal.
-        auto *Cmp = ConstantExpr::getCompare(ICmpInst::ICMP_EQ, ConstA, ConstB);
-        const APInt *C;
-        return match(Cmp, m_APIntAllowUndef(C)) && C->isOne();
-      };
-
-      if ((areLooselyEqual(TV, Op0) && areLooselyEqual(FV, Op1)) ||
-          (areLooselyEqual(FV, Op0) && areLooselyEqual(TV, Op1)))
-        return nullptr;
-    }
-  }
-
   // Make sure that one of the select arms constant folds successfully.
   Value *NewTV = constantFoldOperationIntoSelectOperand(Op, SI, TV);
   Value *NewFV = constantFoldOperationIntoSelectOperand(Op, SI, FV);
@@ -1163,9 +1090,9 @@ Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op, SelectInst *SI,
 
   // Create an instruction for the arm that did not fold.
   if (!NewTV)
-    NewTV = foldOperationIntoSelectOperand(Op, TV, Builder);
+    NewTV = foldOperationIntoSelectOperand(Op, SI, TV, *this);
   if (!NewFV)
-    NewFV = foldOperationIntoSelectOperand(Op, FV, Builder);
+    NewFV = foldOperationIntoSelectOperand(Op, SI, FV, *this);
   return SelectInst::Create(SI->getCondition(), NewTV, NewFV, "", nullptr, SI);
 }
 
@@ -1295,12 +1222,57 @@ Instruction *InstCombinerImpl::foldBinopWithPhiOperands(BinaryOperator &BO) {
   auto *Phi0 = dyn_cast<PHINode>(BO.getOperand(0));
   auto *Phi1 = dyn_cast<PHINode>(BO.getOperand(1));
   if (!Phi0 || !Phi1 || !Phi0->hasOneUse() || !Phi1->hasOneUse() ||
-      Phi0->getNumOperands() != 2 || Phi1->getNumOperands() != 2)
+      Phi0->getNumOperands() != Phi1->getNumOperands())
     return nullptr;
 
   // TODO: Remove the restriction for binop being in the same block as the phis.
   if (BO.getParent() != Phi0->getParent() ||
       BO.getParent() != Phi1->getParent())
+    return nullptr;
+
+  // Fold if there is at least one specific constant value in phi0 or phi1's
+  // incoming values that comes from the same block and this specific constant
+  // value can be used to do optimization for specific binary operator.
+  // For example:
+  // %phi0 = phi i32 [0, %bb0], [%i, %bb1]
+  // %phi1 = phi i32 [%j, %bb0], [0, %bb1]
+  // %add = add i32 %phi0, %phi1
+  // ==>
+  // %add = phi i32 [%j, %bb0], [%i, %bb1]
+  Constant *C = ConstantExpr::getBinOpIdentity(BO.getOpcode(), BO.getType(),
+                                               /*AllowRHSConstant*/ false);
+  if (C) {
+    SmallVector<Value *, 4> NewIncomingValues;
+    auto CanFoldIncomingValuePair = [&](std::tuple<Use &, Use &> T) {
+      auto &Phi0Use = std::get<0>(T);
+      auto &Phi1Use = std::get<1>(T);
+      if (Phi0->getIncomingBlock(Phi0Use) != Phi1->getIncomingBlock(Phi1Use))
+        return false;
+      Value *Phi0UseV = Phi0Use.get();
+      Value *Phi1UseV = Phi1Use.get();
+      if (Phi0UseV == C)
+        NewIncomingValues.push_back(Phi1UseV);
+      else if (Phi1UseV == C)
+        NewIncomingValues.push_back(Phi0UseV);
+      else
+        return false;
+      return true;
+    };
+
+    if (all_of(zip(Phi0->operands(), Phi1->operands()),
+               CanFoldIncomingValuePair)) {
+      PHINode *NewPhi =
+          PHINode::Create(Phi0->getType(), Phi0->getNumOperands());
+      assert(NewIncomingValues.size() == Phi0->getNumOperands() &&
+             "The number of collected incoming values should equal the number "
+             "of the original PHINode operands!");
+      for (unsigned I = 0; I < Phi0->getNumOperands(); I++)
+        NewPhi->addIncoming(NewIncomingValues[I], Phi0->getIncomingBlock(I));
+      return NewPhi;
+    }
+  }
+
+  if (Phi0->getNumOperands() != 2 || Phi1->getNumOperands() != 2)
     return nullptr;
 
   // Match a pair of incoming constants for one of the predecessor blocks.
@@ -3237,10 +3209,10 @@ Instruction *InstCombinerImpl::visitSwitchInst(SwitchInst &SI) {
   // Compute the number of leading bits we can ignore.
   // TODO: A better way to determine this would use ComputeNumSignBits().
   for (const auto &C : SI.cases()) {
-    LeadingKnownZeros = std::min(
-        LeadingKnownZeros, C.getCaseValue()->getValue().countLeadingZeros());
-    LeadingKnownOnes = std::min(
-        LeadingKnownOnes, C.getCaseValue()->getValue().countLeadingOnes());
+    LeadingKnownZeros =
+        std::min(LeadingKnownZeros, C.getCaseValue()->getValue().countl_zero());
+    LeadingKnownOnes =
+        std::min(LeadingKnownOnes, C.getCaseValue()->getValue().countl_one());
   }
 
   unsigned NewWidth = Known.getBitWidth() - std::max(LeadingKnownZeros, LeadingKnownOnes);
@@ -3959,6 +3931,17 @@ bool InstCombinerImpl::freezeOtherUses(FreezeInst &FI) {
   return Changed;
 }
 
+// Check if any direct or bitcast user of this value is a shuffle instruction.
+static bool isUsedWithinShuffleVector(Value *V) {
+  for (auto *U : V->users()) {
+    if (isa<ShuffleVectorInst>(U))
+      return true;
+    else if (match(U, m_BitCast(m_Specific(V))) && isUsedWithinShuffleVector(U))
+      return true;
+  }
+  return false;
+}
+
 Instruction *InstCombinerImpl::visitFreeze(FreezeInst &I) {
   Value *Op0 = I.getOperand(0);
 
@@ -4008,8 +3991,14 @@ Instruction *InstCombinerImpl::visitFreeze(FreezeInst &I) {
     return BestValue;
   };
 
-  if (match(Op0, m_Undef()))
+  if (match(Op0, m_Undef())) {
+    // Don't fold freeze(undef/poison) if it's used as a vector operand in
+    // a shuffle. This may improve codegen for shuffles that allow
+    // unspecified inputs.
+    if (isUsedWithinShuffleVector(&I))
+      return nullptr;
     return replaceInstUsesWith(I, getUndefReplacement(I.getType()));
+  }
 
   Constant *C;
   if (match(Op0, m_Constant(C)) && C->containsUndefOrPoisonElement()) {
@@ -4220,23 +4209,6 @@ bool InstCombinerImpl::run() {
 
     if (!DebugCounter::shouldExecute(VisitCounter))
       continue;
-
-    // Instruction isn't dead, see if we can constant propagate it.
-    if (!I->use_empty() &&
-        (I->getNumOperands() == 0 || isa<Constant>(I->getOperand(0)))) {
-      if (Constant *C = ConstantFoldInstruction(I, DL, &TLI)) {
-        LLVM_DEBUG(dbgs() << "IC: ConstFold to: " << *C << " from: " << *I
-                          << '\n');
-
-        // Add operands to the worklist.
-        replaceInstUsesWith(*I, C);
-        ++NumConstProp;
-        if (isInstructionTriviallyDead(I, &TLI))
-          eraseInstFromFunction(*I);
-        MadeIRChange = true;
-        continue;
-      }
-    }
 
     // See if we can trivially sink this instruction to its user if we can
     // prove that the successor is not executed more frequently than our block.
@@ -4594,13 +4566,6 @@ static bool combineInstructionsOverFunction(
   bool MadeIRChange = false;
   if (ShouldLowerDbgDeclare)
     MadeIRChange = LowerDbgDeclare(F);
-  // LowerDbgDeclare calls RemoveRedundantDbgInstrs, but LowerDbgDeclare will
-  // almost never return true when running an assignment tracking build. Take
-  // this opportunity to do some clean up for assignment tracking builds too.
-  if (!MadeIRChange && isAssignmentTrackingEnabled(*F.getParent())) {
-    for (auto &BB : F)
-      RemoveRedundantDbgInstrs(&BB);
-  }
 
   // Iterate while there is work to do.
   unsigned Iteration = 0;
@@ -4766,8 +4731,4 @@ FunctionPass *llvm::createInstructionCombiningPass() {
 
 FunctionPass *llvm::createInstructionCombiningPass(unsigned MaxIterations) {
   return new InstructionCombiningPass(MaxIterations);
-}
-
-void LLVMAddInstructionCombiningPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createInstructionCombiningPass());
 }

@@ -624,7 +624,7 @@ define <8 x i64> @neg_scalar_broadcast_v8i64(i64 %a0, <2 x i64> %a1) {
 ; AVX1-LABEL: neg_scalar_broadcast_v8i64:
 ; AVX1:       # %bb.0:
 ; AVX1-NEXT:    # kill: def $xmm0 killed $xmm0 def $ymm0
-; AVX1-NEXT:    vpermilps {{.*#+}} xmm1 = xmm0[0,1,0,1]
+; AVX1-NEXT:    vshufps {{.*#+}} xmm1 = xmm0[0,1,0,1]
 ; AVX1-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm1
 ; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm0
 ; AVX1-NEXT:    vpermilpd {{.*#+}} ymm0 = ymm0[1,0,3,3]
@@ -790,7 +790,7 @@ define <2 x i64> @casted_neg_scalar_broadcast_v2i64(<2 x i32> %a0, <2 x i64> %a1
 ;
 ; AVX1-LABEL: casted_neg_scalar_broadcast_v2i64:
 ; AVX1:       # %bb.0:
-; AVX1-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[0,1,0,1]
+; AVX1-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[0,1,0,1]
 ; AVX1-NEXT:    vandnps %xmm1, %xmm0, %xmm0
 ; AVX1-NEXT:    retq
 ;
@@ -1175,4 +1175,54 @@ define <4 x i32> @neg_scalar_broadcast_two_uses(i32 %a0, <4 x i32> %a1, ptr %a2)
   store <4 x i32> %3, ptr %a2, align 16
   %4 = and <4 x i32> %3, %a1
   ret <4 x i32> %4
+}
+
+define <2 x i64> @andnp_xx(<2 x i64> %v0) nounwind {
+; SSE-LABEL: andnp_xx:
+; SSE:       # %bb.0:
+; SSE-NEXT:    xorps %xmm0, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: andnp_xx:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vxorps %xmm0, %xmm0, %xmm0
+; AVX-NEXT:    retq
+  %x = xor <2 x i64> %v0, <i64 -1, i64 -1>
+  %y = and <2 x i64> %v0, %x
+  ret <2 x i64> %y
+}
+
+define <2 x i64> @andnp_xx_2(<2 x i64> %v0) nounwind {
+; SSE-LABEL: andnp_xx_2:
+; SSE:       # %bb.0:
+; SSE-NEXT:    xorps %xmm0, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: andnp_xx_2:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vxorps %xmm0, %xmm0, %xmm0
+; AVX-NEXT:    retq
+  %x = xor <2 x i64> %v0, <i64 -1, i64 -1>
+  %y = and <2 x i64> %x, %v0
+  ret <2 x i64> %y
+}
+
+define i64 @andn_xx(i64 %v0) nounwind {
+; CHECK-LABEL: andn_xx:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    xorl %eax, %eax
+; CHECK-NEXT:    retq
+  %x = xor i64 %v0, -1
+  %y = and i64 %v0, %x
+  ret i64 %y
+}
+
+define i64 @andn_xx_2(i64 %v0) nounwind {
+; CHECK-LABEL: andn_xx_2:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    xorl %eax, %eax
+; CHECK-NEXT:    retq
+  %x = xor i64 %v0, -1
+  %y = and i64 %x, %v0
+  ret i64 %y
 }

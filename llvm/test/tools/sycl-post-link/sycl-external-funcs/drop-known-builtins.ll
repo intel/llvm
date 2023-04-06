@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -ir-output-only -split=auto -S %s -o %t.ll
+; RUN: sycl-post-link -ir-output-only -split=auto -S < %s -o %t.ll
 ; RUN: FileCheck %s -input-file=%t.ll
 
 ; This test checks that known SPIRV and SYCL builtin functions

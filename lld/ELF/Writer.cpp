@@ -60,6 +60,7 @@ private:
   void finalizeAddressDependentContent();
   void optimizeBasicBlockJumps();
   void sortInputSections();
+  void sortOrphanSections();
   void finalizeSections();
   void checkExecuteOnly();
   void setReservedSymbolSections();
@@ -845,7 +846,8 @@ enum RankFlags {
   RF_PPC_GOT = 1 << 3,
   RF_PPC_BRANCH_LT = 1 << 2,
   RF_MIPS_GPREL = 1 << 1,
-  RF_MIPS_NOT_GOT = 1 << 0
+  RF_MIPS_NOT_GOT = 1 << 0,
+  RF_RISCV_SDATA = 1 << 0,
 };
 
 static unsigned getSectionRank(const OutputSection &osec) {
@@ -971,6 +973,14 @@ static unsigned getSectionRank(const OutputSection &osec) {
       rank |= RF_MIPS_NOT_GOT;
   }
 
+  if (config->emachine == EM_RISCV) {
+    // .sdata and .sbss are placed closer to make GP relaxation more profitable
+    // and match GNU ld.
+    StringRef name = osec.name;
+    if (name == ".sdata" || (osec.type == SHT_NOBITS && name != ".sbss"))
+      rank |= RF_RISCV_SDATA;
+  }
+
   return rank;
 }
 
@@ -1086,8 +1096,12 @@ template <class ELFT> void Writer<ELFT>::setReservedSymbolSections() {
       ElfSym::end2->section = last->lastSec;
   }
 
-  if (ElfSym::bss)
-    ElfSym::bss->section = findSection(".bss");
+  if (ElfSym::bss) {
+    // On RISC-V, set __bss_start to the start of .sbss if present.
+    OutputSection *sbss =
+        config->emachine == EM_RISCV ? findSection(".sbss") : nullptr;
+    ElfSym::bss->section = sbss ? sbss : findSection(".bss");
+  }
 
   // Setup MIPS _gp_disp/__gnu_local_gp symbols which should
   // be equal to the _gp symbol's value.
@@ -1456,9 +1470,13 @@ template <class ELFT> void Writer<ELFT>::sortSections() {
   script->processInsertCommands();
   script->adjustOutputSections();
 
-  if (!script->hasSectionsCommand)
-    return;
+  if (script->hasSectionsCommand)
+    sortOrphanSections();
 
+  script->adjustSectionsAfterSorting();
+}
+
+template <class ELFT> void Writer<ELFT>::sortOrphanSections() {
   // Orphan sections are sections present in the input files which are
   // not explicitly placed into the output file by the linker script.
   //
@@ -1533,8 +1551,6 @@ template <class ELFT> void Writer<ELFT>::sortSections() {
     std::rotate(pos, nonScriptI, end);
     nonScriptI = end;
   }
-
-  script->adjustSectionsAfterSorting();
 }
 
 static bool compareByFilePosition(InputSection *a, InputSection *b) {
@@ -1631,8 +1647,8 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
     ++pass;
 
     // With Thunk Size much smaller than branch range we expect to
-    // converge quickly; if we get to 15 something has gone wrong.
-    if (changed && pass >= 15) {
+    // converge quickly; if we get to 30 something has gone wrong.
+    if (changed && pass >= 30) {
       error(target->needsThunks ? "thunk creation not converged"
                                 : "relaxation not converged");
       break;

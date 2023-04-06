@@ -4,36 +4,37 @@ The DPC++ Compiler compiles C++ and SYCL\* source files with code for both CPU
 and a wide range of compute accelerators such as GPU and FPGA.
 
 ## Table of contents
-  - [Prerequisites](#prerequisites)
-    - [Create DPC++ workspace](#create-dpc-workspace)
-  - [Build DPC++ toolchain](#build-dpc-toolchain)
-    - [Build DPC++ toolchain with libc++ library](#build-dpc-toolchain-with-libc-library)
-    - [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
-    - [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
-    - [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
-    - [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
-    - [Build Doxygen documentation](#build-doxygen-documentation)
-    - [Deployment](#deployment)
-  - [Use DPC++ toolchain](#use-dpc-toolchain)
-    - [Install low level runtime](#install-low-level-runtime)
-    - [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
-      - [GPU](#gpu)
-      - [CPU](#cpu)
-      - [Accelerator](#accelerator)
-    - [Test DPC++ toolchain](#test-dpc-toolchain)
-      - [Run in-tree LIT tests](#run-in-tree-lit-tests)
-      - [Run DPC++ E2E test suite](#run-dpc-e2e-test-suite)
-      - [Run Khronos\* SYCL\* conformance test suite (optional)](#run-khronos-sycl-conformance-test-suite-optional)
-    - [Run simple DPC++ application](#run-simple-dpc-application)
-    - [Build DPC++ application with CMake](#build-dpc-application-with-cmake)
-    - [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu)
-    - [Using the DPC++ toolchain on CUDA platforms](#using-the-dpc-toolchain-on-cuda-platforms)
-  - [C++ standard](#c-standard)
-  - [Known Issues and Limitations](#known-issues-and-limitations)
-    - [CUDA back-end limitations](#cuda-back-end-limitations)
-    - [HIP back-end limitations](#hip-back-end-limitations)
-  - [Find More](#find-more)
+
+* [Prerequisites](#prerequisites)
+  * [Create DPC++ workspace](#create-dpc-workspace)
+* [Build DPC++ toolchain](#build-dpc-toolchain)
+  * [Build DPC++ toolchain with libc++ library](#build-dpc-toolchain-with-libc-library)
+  * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
+  * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
+  * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
+  * [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
+  * [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
+  * [Build Doxygen documentation](#build-doxygen-documentation)
+  * [Deployment](#deployment)
+* [Use DPC++ toolchain](#use-dpc-toolchain)
+  * [Install low level runtime](#install-low-level-runtime)
+  * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
+    * [GPU](#gpu)
+    * [CPU](#cpu)
+    * [Accelerator](#accelerator)
+  * [Test DPC++ toolchain](#test-dpc-toolchain)
+    * [Run in-tree LIT tests](#run-in-tree-lit-tests)
+    * [Run DPC++ E2E test suite](#run-dpc-e2e-test-suite)
+    * [Run Khronos\* SYCL\* conformance test suite (optional)](#run-khronos-sycl-conformance-test-suite-optional)
+  * [Run simple DPC++ application](#run-simple-dpc-application)
+  * [Build DPC++ application with CMake](#build-dpc-application-with-cmake)
+  * [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu)
+  * [Using the DPC++ toolchain on CUDA platforms](#using-the-dpc-toolchain-on-cuda-platforms)
+* [C++ standard](#c-standard)
+* [Known Issues and Limitations](#known-issues-and-limitations)
+  * [CUDA back-end limitations](#cuda-back-end-limitations)
+  * [HIP back-end limitations](#hip-back-end-limitations)
+* [Find More](#find-more)
 
 ## Prerequisites
 
@@ -51,7 +52,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 Alternatively, you can use a Docker image that has everything you need for building
 pre-installed:
 
-```
+```sh
 docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llvm/ubuntu2004_base /bin/bash
 ```
 
@@ -122,7 +123,7 @@ flags can be found by launching the script with `--help`):
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
+* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries
@@ -152,23 +153,25 @@ should be used.
 
 **Linux**:
 
-```
+```sh
 -DSYCL_USE_LIBCXX=ON \
 -DSYCL_LIBCXX_INCLUDE_PATH=<path to libc++ headers> \
 -DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
 ```
+
 You can also use configure script to enable:
 
-```
+```sh
 python %DPCPP_HOME%\llvm\buildbot\configure.py --use-libcxx \
 --libcxx-include <path to libc++ headers> \
 --libcxx-library <path to libc++ and libc++ abi libraries>
 python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
+
 ### Build DPC++ toolchain with support for NVIDIA CUDA
 
 To enable support for CUDA devices, follow the instructions for the Linux or
-Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, 
+Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note,
 the CUDA backend has Windows support; windows subsystem for
 linux (WSL) is not needed to build and run the CUDA backend.
 
@@ -181,7 +184,7 @@ or
 
 Errors may occur if DPC++ is built with a toolkit version which is higher than
 the CUDA driver version. In order to check that the CUDA driver and toolkits
-match, use the CUDA executable `deviceQuery` which is usually found in 
+match, use the CUDA executable `deviceQuery` which is usually found in
 `$CUDA_INSTALL_DIR/cuda/extras/demo_suite/deviceQuery`.
 
 **_NOTE:_** An installation of at least
@@ -200,7 +203,7 @@ The CUDA backend should work on Windows or Linux operating systems with any
 GPU compatible with SM 50 or above. The default SM for the NVIDIA CUDA backend
 is 5.0. Users can specify lower values, but some features may not be supported.
 
-**Non-standard CUDA location**
+**Non-standard CUDA location**:
 
 If the CUDA toolkit is installed in a non-default location on your system, two considerations must be made.
 
@@ -208,7 +211,7 @@ Firstly, **do not** add the toolkit to your standard environment variables (`PAT
 
 Secondly, set the `CUDA_LIB_PATH` environment variable and pass the CMake variable `CUDA_TOOLKIT_ROOT_DIR` as follows:
 
-```
+```sh
 CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py --cuda --cmake-opt="-DCUDA_TOOLKIT_ROOT_DIR=/path/to/cuda/toolkit"
 
 CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/compile.py
@@ -236,7 +239,7 @@ is installed somewhere else, the directory must be provided through
 the CMake variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed
 using the `--cmake-opt` option of `configure.py` as follows:
 
-```
+```sh
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
   --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
 ```
@@ -287,24 +290,24 @@ the Linux DPC++ toolchain, but add the `--enable-esimd-emulator'.
 Enabling this flag requires following packages installed.
 
 * Ubuntu 20.04
-    * libva-dev / 2.7.0-2
-    * libffi-dev / 3.3-4
-    * libtool
+  * libva-dev / 2.7.0-2
+  * libffi-dev / 3.3-4
+  * libtool
 * RHEL 8.*
-    * libffi
-    * libffi-devel
-    * libva
-    * libva-devel
+  * libffi
+  * libffi-devel
+  * libva
+  * libva-devel
 
 Currently, this feature was tested and verified on Ubuntu 20.04
 environment.
 
 ### Build DPC++ toolchain with support for runtime kernel fusion
 
-Support for the experimental SYCL extension for user-driven kernel fusion 
-at runtime is enabled by default. 
+Support for the experimental SYCL extension for user-driven kernel fusion
+at runtime is enabled by default.
 
-To disable support for this feature, follow the instructions for the 
+To disable support for this feature, follow the instructions for the
 Linux DPC++ toolchain, but add the `--disable-fusion` flag.
 
 Kernel fusion is currently not yet supported on the Windows platform.
@@ -321,7 +324,7 @@ the following tools need to be installed:
 Then you'll need to add the following options to your CMake configuration
 command:
 
-```
+```sh
 -DLLVM_ENABLE_DOXYGEN=ON
 ```
 
@@ -506,6 +509,7 @@ Make sure that these binaries are available in `PATH` environment variable:
   * `aocl-ioc64` from `<oneAPI installation location>/compiler/<version>/<OS>/bin`
 
 ### Test DPC++ toolchain
+
 #### Run in-tree LIT tests
 
 To verify that built DPC++ toolchain is working correctly, run:
@@ -521,6 +525,7 @@ python $DPCPP_HOME/llvm/buildbot/check.py
 ```bat
 python %DPCPP_HOME%\llvm\buildbot\check.py
 ```
+
 Make sure that psutil package is installed.
 If no OpenCL GPU/CPU runtimes are available, the corresponding tests are
 skipped.
@@ -533,10 +538,10 @@ architecture. It is possible to change it by adding
 `-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to the CMake
 variable `SYCL_CLANG_EXTRA_FLAGS`.
 
-#### Run DPC++ E2E test suite
+#### Run DPC++ E2E tests
 
 Follow instructions from the link below to build and run tests:
-[README](https://github.com/intel/llvm-test-suite/tree/intel/SYCL#execution)
+[README](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md#build-and-run-tests)
 
 #### Run Khronos\* SYCL\* conformance test suite (optional)
 
@@ -650,8 +655,8 @@ clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
   simple-sycl-app.cpp -o simple-sycl-app-amd.exe
 ```
 
-The target architecture may also be specified for the CUDA backend, with 
-`-Xsycl-target-backend --cuda-gpu-arch=<arch>`. Specifying the architecture is 
+The target architecture may also be specified for the CUDA backend, with
+`-Xsycl-target-backend --cuda-gpu-arch=<arch>`. Specifying the architecture is
 necessary if an application aims to use newer hardware features, such as
 native atomic operations or tensor core operations.
 Moreover, it is possible to pass specific options to CUDA `ptxas` (such as
@@ -893,7 +898,7 @@ which contains all the symbols required.
 
 ## Find More
 
-* [DPC++ specification](https://spec.oneapi.io/versions/latest/elements/dpcpp/source/index.html)
+* [DPC++ specification](https://spec.oneapi.io/versions/latest/)
 * [SYCL\* specification](https://www.khronos.org/registry/SYCL)
 * [Level Zero specification](https://spec.oneapi.io/level-zero/latest/index.html)
 

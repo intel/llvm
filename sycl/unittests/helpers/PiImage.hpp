@@ -262,6 +262,7 @@ public:
         MPropertySet.end(),
     };
   }
+  const unsigned char *getBinaryPtr() { return &*MBinary.begin(); }
 
 private:
   uint16_t MVersion;
@@ -472,6 +473,25 @@ inline PiProperty makeDeviceGlobalInfo(const std::string &Name,
   std::memcpy(DescData.data() + BYTES_FOR_SIZE, &TypeSize, sizeof(TypeSize));
   std::memcpy(DescData.data() + BYTES_FOR_SIZE + sizeof(TypeSize),
               &DeviceImageScoped, sizeof(DeviceImageScoped));
+
+  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+
+  return Prop;
+}
+
+/// Utility function to create a host pipe info property.
+///
+/// \param Name is the name of the hostpipe name.
+/// \param TypeSize is the size of the underlying type in the hostpipe.
+/// decorated.
+inline PiProperty makeHostPipeInfo(const std::string &Name,
+                                   const uint32_t TypeSize) {
+  constexpr size_t BYTES_FOR_SIZE = 8;
+  const std::uint64_t BytesForArgs = sizeof(std::uint32_t);
+  std::vector<char> DescData;
+  DescData.resize(BYTES_FOR_SIZE + BytesForArgs);
+  std::memcpy(DescData.data(), &BytesForArgs, sizeof(BytesForArgs));
+  std::memcpy(DescData.data() + BYTES_FOR_SIZE, &TypeSize, sizeof(TypeSize));
 
   PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
 

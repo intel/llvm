@@ -1,6 +1,6 @@
-; RUN: sycl-post-link -spec-const=rt -S %s --ir-output-only -o %t.ll
+; RUN: sycl-post-link -spec-const=rt -S < %s --ir-output-only -o %t.ll
 ; RUN: FileCheck %s --input-file=%t.ll --implicit-check-not "call i8 bitcast" --check-prefixes=CHECK,CHECK-RT
-; RUN: sycl-post-link -spec-const=default -S %s --ir-output-only -o %t.ll
+; RUN: sycl-post-link -spec-const=default -S < %s --ir-output-only -o %t.ll
 ; RUN: FileCheck %s --input-file=%t.ll --check-prefixes=CHECK,CHECK-DEF
 
 ; CHECK-LABEL: void @kernel_A

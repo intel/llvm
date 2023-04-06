@@ -18,6 +18,7 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
+#include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -64,7 +65,6 @@ static bool foldGuardedFunnelShift(Instruction &I, const DominatorTree &DT) {
   // shift amount.
   auto matchFunnelShift = [](Value *V, Value *&ShVal0, Value *&ShVal1,
                              Value *&ShAmt) {
-    Value *SubAmt;
     unsigned Width = V->getType()->getScalarSizeInBits();
 
     // fshl(ShVal0, ShVal1, ShAmt)
@@ -72,8 +72,7 @@ static bool foldGuardedFunnelShift(Instruction &I, const DominatorTree &DT) {
     if (match(V, m_OneUse(m_c_Or(
                      m_Shl(m_Value(ShVal0), m_Value(ShAmt)),
                      m_LShr(m_Value(ShVal1),
-                            m_Sub(m_SpecificInt(Width), m_Value(SubAmt))))))) {
-      if (ShAmt == SubAmt) // TODO: Use m_Specific
+                            m_Sub(m_SpecificInt(Width), m_Deferred(ShAmt))))))) {
         return Intrinsic::fshl;
     }
 
@@ -81,9 +80,8 @@ static bool foldGuardedFunnelShift(Instruction &I, const DominatorTree &DT) {
     //  == (ShVal0 >> ShAmt) | (ShVal1 << (Width - ShAmt))
     if (match(V,
               m_OneUse(m_c_Or(m_Shl(m_Value(ShVal0), m_Sub(m_SpecificInt(Width),
-                                                           m_Value(SubAmt))),
-                              m_LShr(m_Value(ShVal1), m_Value(ShAmt)))))) {
-      if (ShAmt == SubAmt) // TODO: Use m_Specific
+                                                           m_Value(ShAmt))),
+                              m_LShr(m_Value(ShVal1), m_Deferred(ShAmt)))))) {
         return Intrinsic::fshr;
     }
 
@@ -305,7 +303,7 @@ static bool tryToRecognizePopCount(Instruction &I) {
   Value *MulOp0;
   // Matching "(i * 0x01010101...) >> 24".
   if ((match(Op0, m_Mul(m_Value(MulOp0), m_SpecificInt(Mask01)))) &&
-       match(Op1, m_SpecificInt(MaskShift))) {
+      match(Op1, m_SpecificInt(MaskShift))) {
     Value *ShiftOp0;
     // Matching "((i + (i >> 4)) & 0x0F0F0F0F...)".
     if (match(MulOp0, m_And(m_c_Add(m_LShr(m_Value(ShiftOp0), m_SpecificInt(4)),
@@ -401,8 +399,8 @@ static bool tryToFPToSat(Instruction &I, TargetTransformInfo &TTI) {
 /// Try to replace a mathlib call to sqrt with the LLVM intrinsic. This avoids
 /// pessimistic codegen that has to account for setting errno and can enable
 /// vectorization.
-static bool
-foldSqrt(Instruction &I, TargetTransformInfo &TTI, TargetLibraryInfo &TLI) {
+static bool foldSqrt(Instruction &I, TargetTransformInfo &TTI,
+                     TargetLibraryInfo &TLI) {
   // Match a call to sqrt mathlib function.
   auto *Call = dyn_cast<CallInst>(&I);
   if (!Call)
@@ -824,6 +822,58 @@ static bool foldConsecutiveLoads(Instruction &I, const DataLayout &DL,
   return true;
 }
 
+/// If C is a constant patterned array and all valid loaded results for given
+/// alignment are same to a constant, return that constant.
+static bool foldPatternedLoads(Instruction &I, const DataLayout &DL) {
+  auto *LI = dyn_cast<LoadInst>(&I);
+  if (!LI || LI->isVolatile())
+    return false;
+
+  // We can only fold the load if it is from a constant global with definitive
+  // initializer. Skip expensive logic if this is not the case.
+  auto *PtrOp = LI->getPointerOperand();
+  auto *GV = dyn_cast<GlobalVariable>(getUnderlyingObject(PtrOp));
+  if (!GV || !GV->isConstant() || !GV->hasDefinitiveInitializer())
+    return false;
+
+  Type *LoadTy = LI->getType();
+  Constant *C = GV->getInitializer();
+
+  // Bail for large initializers in excess of 4K to avoid too many scans.
+  uint64_t GVSize = DL.getTypeAllocSize(C->getType());
+  if (!GVSize || 4096 < GVSize)
+    return false;
+
+  // Check whether pointer arrives back at Global Variable.
+  // If PtrOp is neither GlobalVariable nor GEP, it might not arrive back at
+  // GlobalVariable.
+  // TODO: implement GEP handling
+  unsigned BW = DL.getIndexTypeSizeInBits(PtrOp->getType());
+  // TODO: Determine stride based on GEPs.
+  APInt Stride(BW, 1);
+  APInt ConstOffset(BW, 0);
+
+  // Any possible offset could be multiple of GEP stride. And any valid
+  // offset is multiple of load alignment, so checking only multiples of bigger
+  // one is sufficient to say results' equality.
+  if (auto LA = LI->getAlign();
+      LA <= GV->getAlign().valueOrOne() && Stride.getZExtValue() < LA.value())
+    Stride = APInt(BW, LA.value());
+
+  Constant *Ca = ConstantFoldLoadFromConst(C, LoadTy, ConstOffset, DL);
+  if (!Ca)
+    return false;
+
+  unsigned E = GVSize - DL.getTypeStoreSize(LoadTy);
+  for (; ConstOffset.getZExtValue() <= E; ConstOffset += Stride)
+    if (Ca != ConstantFoldLoadFromConst(C, LoadTy, ConstOffset, DL))
+      return false;
+
+  I.replaceAllUsesWith(Ca);
+
+  return true;
+}
+
 /// This is the entry point for folds that could be implemented in regular
 /// InstCombine, but they are separated because they are not expected to
 /// occur frequently and/or have more than a constant-length pattern match.
@@ -850,6 +900,7 @@ static bool foldUnusualPatterns(Function &F, DominatorTree &DT,
       MadeChange |= tryToFPToSat(I, TTI);
       MadeChange |= tryToRecognizeTableBasedCttz(I);
       MadeChange |= foldConsecutiveLoads(I, DL, TTI, AA);
+      MadeChange |= foldPatternedLoads(I, DL);
       // NOTE: This function introduces erasing of the instruction `I`, so it
       // needs to be called at the end of this sequence, otherwise we may make
       // bugs.

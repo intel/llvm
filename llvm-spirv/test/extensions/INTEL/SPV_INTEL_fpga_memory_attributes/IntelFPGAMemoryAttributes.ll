@@ -249,6 +249,7 @@
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} ForcePow2DepthINTEL 1
 
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "{sizeinfo:4,500}"
 ; CHECK-SPIRV-NOT: Decorate [[#]] UserSemantic "{memory:MLAB}{sizeinfo:4,500}"
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -279,6 +280,7 @@ target triple = "spir"
 ; CHECK-LLVM: [[STR_NMB_TE:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:4}
 ; CHECK-LLVM: [[STR_REG_VAR:@[0-9_.]+]] = {{.*}}{register:1}
 ; CHECK-LLVM: [[STR_MEM_VAR:@[0-9_.]+]] = {{.*}}{memory:MLAB}
+; CHECK-LLVM: [[STR_MEM_VAR:@[0-9_.]+]] = {{.*}}{sizeinfo:4,500}
 ; CHECK-LLVM: [[STR_MEM_SCT:@[0-9_.]+]] = {{.*}}{memory:BLOCK_RAM}
 ; CHECK-LLVM: [[STR_BWD_VAR:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{bankwidth:8}
 ; CHECK-LLVM: [[STR_BWD_SCT:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{bankwidth:4}

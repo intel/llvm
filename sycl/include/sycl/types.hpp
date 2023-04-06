@@ -729,9 +729,6 @@ template <typename Type, int NumElements> class vec {
                 std::index_sequence<Is...>)
       : m_Data{Arr[Is]...} {}
 
-  constexpr vec(const std::array<vec_data_t<DataT>, NumElements> &Arr)
-      : vec{Arr, std::make_index_sequence<NumElements>()} {}
-
 public:
   using element_type = DataT;
   using rel_t = detail::rel_t<DataT>;
@@ -796,7 +793,8 @@ public:
   template <typename Ty = DataT>
   explicit constexpr vec(const EnableIfHostHalf<Ty> &arg)
       : vec{detail::RepeatValue<NumElements>(
-            static_cast<vec_data_t<DataT>>(arg))} {}
+                static_cast<vec_data_t<DataT>>(arg)),
+            std::make_index_sequence<NumElements>()} {}
 
   template <typename Ty = DataT>
   typename detail::enable_if_t<
@@ -812,7 +810,8 @@ public:
 #else
   explicit constexpr vec(const DataT &arg)
       : vec{detail::RepeatValue<NumElements>(
-            static_cast<vec_data_t<DataT>>(arg))} {}
+                static_cast<vec_data_t<DataT>>(arg)),
+            std::make_index_sequence<NumElements>()} {}
 
   template <typename Ty = DataT>
   typename detail::enable_if_t<
@@ -883,7 +882,8 @@ public:
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
   constexpr vec(const argTN &...args)
-      : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...)} {}
+      : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...),
+            std::make_index_sequence<NumElements>()} {}
 
   // TODO: Remove, for debug purposes only.
   void dump() {
@@ -916,7 +916,7 @@ public:
   __SYCL2020_DEPRECATED(
       "get_size() is deprecated, please use byte_size() instead")
   static constexpr size_t get_size() { return byte_size(); }
-  static constexpr size_t byte_size() { return sizeof(m_Data); }
+  static constexpr size_t byte_size() noexcept { return sizeof(m_Data); }
 
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
