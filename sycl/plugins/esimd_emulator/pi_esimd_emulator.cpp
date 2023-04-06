@@ -2079,9 +2079,7 @@ pi_result piextPhysicalMemCreate(pi_context, pi_device, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextPhysicalMemRetain(pi_physical_mem) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piextPhysicalMemRetain(pi_physical_mem) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piextPhysicalMemRelease(pi_context, pi_physical_mem) {
   DIE_NO_IMPLEMENTATION;
