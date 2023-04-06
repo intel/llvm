@@ -289,7 +289,7 @@ the Linux DPC++ toolchain, but add the `--enable-esimd-emulator'.
 
 Enabling this flag requires following packages installed.
 
-* Ubuntu 20.04
+* Ubuntu 22.04
   * libva-dev / 2.7.0-2
   * libffi-dev / 3.3-4
   * libtool
@@ -299,7 +299,7 @@ Enabling this flag requires following packages installed.
   * libva
   * libva-devel
 
-Currently, this feature was tested and verified on Ubuntu 20.04
+Currently, this feature was tested and verified on Ubuntu 22.04
 environment.
 
 ### Build DPC++ toolchain with support for runtime kernel fusion
@@ -860,7 +860,7 @@ which contains all the symbols required.
 ### CUDA back-end limitations
 
 * Backend is only supported on Linux
-* The only combination tested is Ubuntu 18.04 with CUDA 10.2 using a Titan RTX
+* The only combination tested is Ubuntu 22.04 with CUDA 11.7 using a Titan RTX
   GPU (SM 71), but it should work on any GPU compatible with SM 50 or above
 * The NVIDIA OpenCL headers conflict with the OpenCL headers required for this
   project and may cause compilation issues on some platforms
