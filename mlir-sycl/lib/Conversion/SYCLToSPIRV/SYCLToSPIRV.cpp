@@ -241,9 +241,8 @@ public:
 void rewrite1D(Operation *op, spirv::BuiltIn builtin,
                TypeConverter &typeConverter,
                ConversionPatternRewriter &rewriter) {
-  const auto res = ::getBuiltinVariableValue(
-      op, builtin, typeConverter.convertType(rewriter.getIndexType()),
-      rewriter);
+  const auto res =
+      ::getBuiltinVariableValue(op, builtin, rewriter.getI32Type(), rewriter);
   rewriter.replaceOp(op, convertScalarToDtype(
                              rewriter, op->getLoc(), res,
                              typeConverter.convertType(op->getResultTypes()[0]),
