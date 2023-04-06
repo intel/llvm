@@ -20,7 +20,7 @@ from templates import helper as th
 #include "${x}_tracing_layer.hpp"
 #include <stdio.h>
 
-namespace tracing_layer
+namespace ur_tracing_layer
 {
     %for obj in th.extract_objs(specs, r"function"):
     ///////////////////////////////////////////////////////////////////////////////
@@ -71,13 +71,13 @@ namespace tracing_layer
         %endfor
         )
     {
-        auto& dditable = tracing_layer::context.${n}DdiTable.${tbl['name']};
+        auto& dditable = ur_tracing_layer::context.${n}DdiTable.${tbl['name']};
 
         if( nullptr == pDdiTable )
             return ${X}_RESULT_ERROR_INVALID_NULL_POINTER;
 
-        if (UR_MAJOR_VERSION(tracing_layer::context.version) != UR_MAJOR_VERSION(version) ||
-            UR_MINOR_VERSION(tracing_layer::context.version) > UR_MINOR_VERSION(version))
+        if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) != UR_MAJOR_VERSION(version) ||
+            UR_MINOR_VERSION(ur_tracing_layer::context.version) > UR_MINOR_VERSION(version))
             return ${X}_RESULT_ERROR_UNSUPPORTED_VERSION;
 
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
@@ -87,7 +87,7 @@ namespace tracing_layer
     #if ${th.subt(n, tags, obj['condition'])}
         %endif
         dditable.${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = pDdiTable->${th.make_pfn_name(n, tags, obj)};
-        pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 41)} = tracing_layer::${th.make_func_name(n, tags, obj)};
+        pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 41)} = ur_tracing_layer::${th.make_func_name(n, tags, obj)};
         %if 'condition' in obj:
     #else
         dditable.${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = nullptr;
@@ -107,10 +107,10 @@ namespace tracing_layer
     %for tbl in th.get_pfntables(specs, meta, n, tags):
         if( ${X}_RESULT_SUCCESS == result )
         {
-            result = tracing_layer::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &dditable->${tbl['name']} );
+            result = ur_tracing_layer::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &dditable->${tbl['name']} );
         }
 
     %endfor
         return result;
     }
-} /* namespace tracing_layer */
+} /* namespace ur_tracing_layer */

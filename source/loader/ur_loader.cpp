@@ -7,7 +7,7 @@
  */
 #include "ur_loader.hpp"
 
-namespace loader {
+namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////
 context_t *context;
 
@@ -33,4 +33,4 @@ ur_result_t context_t::init() {
     return UR_RESULT_SUCCESS;
 }
 
-} // namespace loader
+} // namespace ur_loader

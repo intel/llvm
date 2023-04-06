@@ -20,7 +20,7 @@ from templates import helper as th
 #include "${x}_leak_check.hpp"
 #include "${x}_validation_layer.hpp"
 
-namespace validation_layer
+namespace ur_validation_layer
 {
     %for obj in th.extract_objs(specs, r"function"):
     <%
@@ -104,13 +104,13 @@ namespace validation_layer
         %endfor
         )
     {
-        auto& dditable = validation_layer::context.${n}DdiTable.${tbl['name']};
+        auto& dditable = ur_validation_layer::context.${n}DdiTable.${tbl['name']};
 
         if( nullptr == pDdiTable )
             return ${X}_RESULT_ERROR_INVALID_NULL_POINTER;
 
-        if (UR_MAJOR_VERSION(validation_layer::context.version) != UR_MAJOR_VERSION(version) ||
-            UR_MINOR_VERSION(validation_layer::context.version) > UR_MINOR_VERSION(version))
+        if (UR_MAJOR_VERSION(ur_validation_layer::context.version) != UR_MAJOR_VERSION(version) ||
+            UR_MINOR_VERSION(ur_validation_layer::context.version) > UR_MINOR_VERSION(version))
             return ${X}_RESULT_ERROR_UNSUPPORTED_VERSION;
 
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
@@ -120,7 +120,7 @@ namespace validation_layer
     #if ${th.subt(n, tags, obj['condition'])}
         %endif
         dditable.${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = pDdiTable->${th.make_pfn_name(n, tags, obj)};
-        pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 41)} = validation_layer::${th.make_func_name(n, tags, obj)};
+        pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 41)} = ur_validation_layer::${th.make_func_name(n, tags, obj)};
         %if 'condition' in obj:
     #else
         dditable.${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = nullptr;
@@ -142,11 +142,11 @@ namespace validation_layer
         %for tbl in th.get_pfntables(specs, meta, n, tags):
         if ( ${X}_RESULT_SUCCESS == result )
         {
-            result = validation_layer::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &dditable->${tbl['name']} );
+            result = ur_validation_layer::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &dditable->${tbl['name']} );
         }
 
         %endfor
         return result;
     }
 
-} // namespace validation_layer
+} // namespace ur_validation_layer

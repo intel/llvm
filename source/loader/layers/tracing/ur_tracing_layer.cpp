@@ -14,7 +14,7 @@
 #include "xpti/xpti_trace_framework.h"
 #include <sstream>
 
-namespace tracing_layer {
+namespace ur_tracing_layer {
 context_t context;
 
 constexpr auto CALL_STREAM_NAME = "ur";
@@ -60,4 +60,4 @@ context_t::~context_t() {
 
     xptiFrameworkFinalize();
 }
-} // namespace tracing_layer
+} // namespace ur_tracing_layer

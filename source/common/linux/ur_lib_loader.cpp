@@ -17,7 +17,7 @@
     dlopen(NAME, RTLD_LAZY | RTLD_LOCAL | RTLD_DEEPBIND)
 #endif
 
-namespace loader {
+namespace ur_loader {
 
 void LibLoader::freeAdapterLibrary(HMODULE handle) {
     if (handle) {
@@ -40,4 +40,4 @@ void *LibLoader::getFunctionPtr(HMODULE handle, const char *func_name) {
     return dlsym(handle, func_name);
 }
 
-} // namespace loader
+} // namespace ur_loader
