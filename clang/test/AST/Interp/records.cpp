@@ -98,9 +98,17 @@ class C {
     int b;
 
   constexpr C() : a(100), b(200) {}
+
+  constexpr C get() const {
+    return *this;
+  }
 };
 
 constexpr C c;
+static_assert(c.a == 100, "");
+static_assert(c.b == 200, "");
+
+constexpr C c2 = C().get();
 static_assert(c.a == 100, "");
 static_assert(c.b == 200, "");
 
@@ -241,6 +249,28 @@ struct S {
 };
 constexpr S s;
 static_assert(s.m() == 1, "");
+
+#if __cplusplus >= 201703L
+namespace BaseInit {
+  class _A {public: int a;};
+  class _B : public _A {};
+  class _C : public _B {};
+
+  constexpr _C c{12};
+  constexpr const _B &b = c;
+  static_assert(b.a == 12);
+
+  class A {public: int a;};
+  class B : public A {};
+  class C : public A {};
+  class D : public B, public C {};
+
+  // This initializes D::B::A::a and not D::C::A::a.
+  constexpr D d{12};
+  static_assert(d.B::a == 12);
+  static_assert(d.C::a == 0);
+};
+#endif
 
 namespace MI {
   class A {
