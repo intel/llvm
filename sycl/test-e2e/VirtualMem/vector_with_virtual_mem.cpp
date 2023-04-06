@@ -168,12 +168,12 @@ int main() {
     size_t StartOffset = I * SizeIncrement;
     size_t IterWriteValueOffset = WriteValueOffset * (I + 1);
     Q.parallel_for(sycl::range<1>{NumWorkItems}, [=](sycl::item<1> Idx) {
-      for (size_t J = 0; J < NumElemsPerWI; ++J) {
-        size_t LoopIdx = J * Idx.get_range(0) + Idx;
-        size_t OffsetIdx = StartOffset + LoopIdx;
-        if (OffsetIdx < NewVecSize)
-          VecDataPtr[OffsetIdx] = LoopIdx + IterWriteValueOffset;
-      }
+       for (size_t J = 0; J < NumElemsPerWI; ++J) {
+         size_t LoopIdx = J * Idx.get_range(0) + Idx;
+         size_t OffsetIdx = StartOffset + LoopIdx;
+         if (OffsetIdx < NewVecSize)
+           VecDataPtr[OffsetIdx] = LoopIdx + IterWriteValueOffset;
+       }
      }).wait_and_throw();
 
     // Copy back the values and verify.
