@@ -164,16 +164,36 @@ public:
   }
 };
 
-// Translate UR info values to PI info values
-inline pi_result ur2piInfoValue(ur_device_info_t ParamName,
-                                size_t ParamValueSizePI,
-                                size_t *ParamValueSizeUR, void *ParamValue) {
+// Handle mismatched PI and UR type return sizes for info queries
+inline pi_result fixupInfoValueTypes(size_t ParamValueSizeUR,
+                                     size_t *ParamValueSizeRetPI,
+                                     void *ParamValue) {
+  if (ParamValueSizeUR == 1) {
+    // extend bool to pi_bool (uint32_t)
+    auto *ValIn = static_cast<bool *>(ParamValue);
+    auto *ValOut = static_cast<pi_bool *>(ParamValue);
+    *ValOut = static_cast<pi_bool>(*ValIn);
+    if (ParamValueSizeRetPI) {
+      *ParamValueSizeRetPI = sizeof(pi_bool);
+    }
+  }
+
+  return PI_SUCCESS;
+}
+
+// Translate UR device info values to PI info values
+inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
+                                      size_t ParamValueSizePI,
+                                      size_t *ParamValueSizeUR,
+                                      void *ParamValue) {
 
   ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
 
   if (ParamName == UR_DEVICE_INFO_TYPE) {
     auto ConvertFunc = [](ur_device_type_t UrValue) {
       switch (UrValue) {
+      case UR_DEVICE_TYPE_DEFAULT:
+        return PI_DEVICE_TYPE_DEFAULT;
       case UR_DEVICE_TYPE_CPU:
         return PI_DEVICE_TYPE_CPU;
       case UR_DEVICE_TYPE_GPU:
@@ -327,6 +347,9 @@ inline pi_result ur2piInfoValue(ur_device_info_t ParamName,
 }
 
 namespace pi2ur {
+
+///////////////////////////////////////////////////////////////////////////////
+// Platform
 inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                                 pi_uint32 *num_platforms) {
 
@@ -366,9 +389,18 @@ inline pi_result piPlatformGetInfo(pi_platform platform,
   auto hPlatform = reinterpret_cast<ur_platform_handle_t>(platform);
   HANDLE_ERRORS(urPlatformGetInfo(hPlatform, InfoType, SizeInOut, ParamValue,
                                   ParamValueSizeRet));
+  fixupInfoValueTypes(SizeInOut, ParamValueSizeRet, ParamValue);
+
   return PI_SUCCESS;
 }
 
+inline pi_result piPluginGetLastError(char **) { return PI_SUCCESS; }
+
+// Platform
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// Device
 inline pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                               pi_uint32 NumEntries, pi_device *Devices,
                               pi_uint32 *NumDevices) {
@@ -385,6 +417,9 @@ inline pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     break;
   case PI_DEVICE_TYPE_ACC:
     Type = UR_DEVICE_TYPE_FPGA;
+    break;
+  case PI_DEVICE_TYPE_DEFAULT:
+    Type = UR_DEVICE_TYPE_DEFAULT;
     break;
   default:
     return PI_ERROR_UNKNOWN;
@@ -408,8 +443,6 @@ inline pi_result piDeviceRelease(pi_device Device) {
   HANDLE_ERRORS(urDeviceRelease(hDevice));
   return PI_SUCCESS;
 }
-
-inline pi_result piPluginGetLastError(char **) { return PI_SUCCESS; }
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                                  size_t ParamValueSize, void *ParamValue,
@@ -731,6 +764,12 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
     InfoType = (ur_device_info_t)UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES;
     break;
+  case PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER:
+    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_CUDA_ASYNC_BARRIER;
+    break;
+  case PI_DEVICE_INFO_BACKEND_VERSION:
+    InfoType = (ur_device_info_t)UR_EXT_DEVICE_INFO_BACKEND_VERSION;
+    break;
   default:
     return PI_ERROR_UNKNOWN;
   };
@@ -740,7 +779,8 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   HANDLE_ERRORS(urDeviceGetInfo(hDevice, InfoType, SizeInOut, ParamValue,
                                 ParamValueSizeRet));
 
-  ur2piInfoValue(InfoType, ParamValueSize, &SizeInOut, ParamValue);
+  ur2piDeviceInfoValue(InfoType, ParamValueSize, &SizeInOut, ParamValue);
+  fixupInfoValueTypes(SizeInOut, ParamValueSizeRet, ParamValue);
 
   return PI_SUCCESS;
 }
@@ -801,4 +841,134 @@ inline pi_result piDevicePartition(
                                   phSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }
+
+// Device
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// Context
+inline pi_result piContextCreate(const pi_context_properties *properties,
+                                 pi_uint32 num_devices,
+                                 const pi_device *devices,
+                                 void (*pfn_notify)(const char *errinfo,
+                                                    const void *private_info,
+                                                    size_t cb, void *user_data),
+                                 void *user_data, pi_context *retcontext) {
+  // TODO: Implement callback (if needed)
+  auto hDevices = reinterpret_cast<const ur_device_handle_t *>(devices);
+  auto phContext = reinterpret_cast<ur_context_handle_t *>(retcontext);
+
+  HANDLE_ERRORS(urContextCreate(num_devices, hDevices, nullptr, phContext));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piContextGetInfo(pi_context context,
+                                  pi_context_info param_name,
+                                  size_t param_value_size, void *param_value,
+                                  size_t *param_value_size_ret) {
+  static std::unordered_map<pi_context_info, ur_context_info_t> InfoMapping = {
+      {PI_CONTEXT_INFO_NUM_DEVICES, UR_CONTEXT_INFO_NUM_DEVICES},
+      {PI_CONTEXT_INFO_DEVICES, UR_CONTEXT_INFO_DEVICES},
+      {PI_CONTEXT_INFO_REFERENCE_COUNT, UR_CONTEXT_INFO_REFERENCE_COUNT},
+      {PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+       (ur_context_info_t)UR_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES},
+      {PI_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
+       (ur_context_info_t)UR_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES},
+      {PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT,
+       UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT},
+      {PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT,
+       UR_CONTEXT_INFO_USM_FILL2D_SUPPORT},
+      {PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT,
+       (ur_context_info_t)UR_EXT_CONTEXT_INFO_USM_MEMSET2D_SUPPORT},
+  };
+
+  auto InfoType = InfoMapping.find(param_name);
+  if (InfoType == InfoMapping.end()) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  size_t SizeInOut = param_value_size;
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+  HANDLE_ERRORS(urContextGetInfo(hContext, InfoType->second, SizeInOut,
+                                 param_value, param_value_size_ret));
+  fixupInfoValueTypes(SizeInOut, param_value_size_ret, param_value);
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piContextRetain(pi_context context) {
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+  HANDLE_ERRORS(urContextRetain(hContext));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piContextRelease(pi_context context) {
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+  HANDLE_ERRORS(urContextRelease(hContext));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextDeviceGetNativeHandle(pi_device device,
+                                            pi_native_handle *nativeHandle) {
+  auto hDevice = reinterpret_cast<ur_device_handle_t>(device);
+  auto phNativeHandle = reinterpret_cast<ur_native_handle_t *>(nativeHandle);
+
+  HANDLE_ERRORS(urDeviceGetNativeHandle(hDevice, phNativeHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                  pi_platform platform, pi_device *device) {
+  auto hNativeHandle = reinterpret_cast<ur_native_handle_t>(nativeHandle);
+  auto hPlatform = reinterpret_cast<ur_platform_handle_t>(platform);
+  auto phDevice = reinterpret_cast<ur_device_handle_t *>(device);
+
+  HANDLE_ERRORS(
+      urDeviceCreateWithNativeHandle(hNativeHandle, hPlatform, phDevice));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextContextSetExtendedDeleter(
+    pi_context context, pi_context_extended_deleter func, void *user_data) {
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+
+  HANDLE_ERRORS(urContextSetExtendedDeleter(hContext, func, user_data));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextContextGetNativeHandle(pi_context context,
+                                             pi_native_handle *nativeHandle) {
+  auto hContext = reinterpret_cast<ur_context_handle_t>(context);
+  auto phNativeHandle = reinterpret_cast<ur_native_handle_t *>(nativeHandle);
+
+  HANDLE_ERRORS(urContextGetNativeHandle(hContext, phNativeHandle));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextContextCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_uint32 numDevices,
+    const pi_device *devices, bool pluginOwnsNativeHandle,
+    pi_context *context) {
+
+  auto hNativeHandle = reinterpret_cast<ur_native_handle_t>(nativeHandle);
+  auto phContext = reinterpret_cast<ur_context_handle_t *>(context);
+
+  // Note that we ignore the devices and ownership arguments here. This is
+  // enough for CUDA, HIP and OpenCL.
+
+  HANDLE_ERRORS(urContextCreateWithNativeHandle(hNativeHandle, phContext));
+
+  return PI_SUCCESS;
+}
+// Context
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace pi2ur

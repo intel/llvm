@@ -42,13 +42,16 @@
 #include <unordered_map>
 #include <vector>
 
+#include <ur/adapters/cuda/context.hpp>
+#include <ur/adapters/cuda/device.hpp>
+#include <ur/adapters/cuda/platform.hpp>
+
+// Share code between the PI Plugin and UR Adapter
+#include <pi2ur.hpp>
+
 extern "C" {
 
 /// \cond IGNORE_BLOCK_IN_DOXYGEN
-pi_result cuda_piContextRetain(pi_context);
-pi_result cuda_piContextRelease(pi_context);
-pi_result cuda_piDeviceRelease(pi_device);
-pi_result cuda_piDeviceRetain(pi_device);
 pi_result cuda_piProgramRetain(pi_program);
 pi_result cuda_piProgramRelease(pi_program);
 pi_result cuda_piQueueRelease(pi_queue);
@@ -71,8 +74,8 @@ using _pi_stream_guard = std::unique_lock<std::mutex>;
 ///  available devices since initialization is done
 ///  when devices are used.
 ///
-struct _pi_platform {
-  std::vector<std::unique_ptr<_pi_device>> devices_;
+struct _pi_platform : ur_platform_handle_t_ {
+  using ur_platform_handle_t_::ur_platform_handle_t_;
 };
 
 /// PI device mapping to a CUdevice.
@@ -80,53 +83,8 @@ struct _pi_platform {
 /// and implements the reference counting semantics since
 /// CUDA objects are not refcounted.
 ///
-struct _pi_device {
-private:
-  using native_type = CUdevice;
-
-  native_type cuDevice_;
-  CUcontext cuContext_;
-  CUevent evBase_; // CUDA event used as base counter
-  std::atomic_uint32_t refCount_;
-  pi_platform platform_;
-
-  static constexpr pi_uint32 max_work_item_dimensions = 3u;
-  size_t max_work_item_sizes[max_work_item_dimensions];
-  int max_work_group_size;
-
-public:
-  _pi_device(native_type cuDevice, CUcontext cuContext, CUevent evBase,
-             pi_platform platform)
-      : cuDevice_(cuDevice), cuContext_(cuContext),
-        evBase_(evBase), refCount_{1}, platform_(platform) {}
-
-  ~_pi_device() { cuDevicePrimaryCtxRelease(cuDevice_); }
-
-  native_type get() const noexcept { return cuDevice_; };
-
-  CUcontext get_context() const noexcept { return cuContext_; };
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
-
-  pi_platform get_platform() const noexcept { return platform_; };
-
-  pi_uint64 get_elapsed_time(CUevent) const;
-
-  void save_max_work_item_sizes(size_t size,
-                                size_t *save_max_work_item_sizes) noexcept {
-    memcpy(max_work_item_sizes, save_max_work_item_sizes, size);
-  };
-
-  void save_max_work_group_size(int value) noexcept {
-    max_work_group_size = value;
-  };
-
-  void get_max_work_item_sizes(size_t ret_size,
-                               size_t *ret_max_work_item_sizes) const noexcept {
-    memcpy(ret_max_work_item_sizes, max_work_item_sizes, ret_size);
-  };
-
-  int get_max_work_group_size() const noexcept { return max_work_group_size; };
+struct _pi_device : ur_device_handle_t_ {
+  using ur_device_handle_t_::ur_device_handle_t_;
 };
 
 /// PI context mapping to a CUDA context object.
@@ -167,54 +125,8 @@ public:
 ///  called upon destruction of the PI Context.
 ///  See proposal for details.
 ///
-struct _pi_context {
-
-  struct deleter_data {
-    pi_context_extended_deleter function;
-    void *user_data;
-
-    void operator()() { function(user_data); }
-  };
-
-  using native_type = CUcontext;
-
-  native_type cuContext_;
-  _pi_device *deviceId_;
-  std::atomic_uint32_t refCount_;
-
-  _pi_context(_pi_device *devId)
-      : cuContext_{devId->get_context()}, deviceId_{devId}, refCount_{1} {
-    cuda_piDeviceRetain(deviceId_);
-  };
-
-  ~_pi_context() { cuda_piDeviceRelease(deviceId_); }
-
-  void invoke_extended_deleters() {
-    std::lock_guard<std::mutex> guard(mutex_);
-    for (auto &deleter : extended_deleters_) {
-      deleter();
-    }
-  }
-
-  void set_extended_deleter(pi_context_extended_deleter function,
-                            void *user_data) {
-    std::lock_guard<std::mutex> guard(mutex_);
-    extended_deleters_.emplace_back(deleter_data{function, user_data});
-  }
-
-  pi_device get_device() const noexcept { return deviceId_; }
-
-  native_type get() const noexcept { return cuContext_; }
-
-  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
-
-  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
-
-  pi_uint32 get_reference_count() const noexcept { return refCount_; }
-
-private:
-  std::mutex mutex_;
-  std::vector<deleter_data> extended_deleters_;
+struct _pi_context : ur_context_handle_t_ {
+  using ur_context_handle_t_::ur_context_handle_t_;
 };
 
 /// PI Mem mapping to CUDA memory allocations, both data and texture/surface.
@@ -345,7 +257,7 @@ struct _pi_mem {
     if (is_sub_buffer()) {
       cuda_piMemRetain(mem_.buffer_mem_.parent_);
     } else {
-      cuda_piContextRetain(context_);
+      pi2ur::piContextRetain(context_);
     }
   };
 
@@ -359,7 +271,7 @@ struct _pi_mem {
     mem_.surface_mem_.array_ = array;
     mem_.surface_mem_.surfObj_ = surf;
     mem_.surface_mem_.imageType_ = image_type;
-    cuda_piContextRetain(context_);
+    pi2ur::piContextRetain(context_);
   }
 
   ~_pi_mem() {
@@ -369,7 +281,7 @@ struct _pi_mem {
         return;
       }
     }
-    cuda_piContextRelease(context_);
+    pi2ur::piContextRelease(context_);
   }
 
   // TODO: Move as many shared funcs up as possible
@@ -444,13 +356,13 @@ struct _pi_queue {
         num_compute_streams_{0}, num_transfer_streams_{0},
         last_sync_compute_streams_{0}, last_sync_transfer_streams_{0},
         flags_(flags), has_ownership_{backend_owns} {
-    cuda_piContextRetain(context_);
-    cuda_piDeviceRetain(device_);
+    pi2ur::piContextRetain(context_);
+    pi2ur::piDeviceRetain(device_);
   }
 
   ~_pi_queue() {
-    cuda_piContextRelease(context_);
-    cuda_piDeviceRelease(device_);
+    pi2ur::piContextRelease(context_);
+    pi2ur::piDeviceRelease(device_);
   }
 
   void compute_stream_wait_for_barrier_if_needed(CUstream stream,
@@ -916,10 +828,11 @@ struct _pi_kernel {
       : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
         name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
     cuda_piProgramRetain(program_);
-    cuda_piContextRetain(context_);
+    pi2ur::piContextRetain(context_);
     /// Note: this code assumes that there is only one device per context
     pi_result retError = cuda_piKernelGetGroupInfo(
-        this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+        this, reinterpret_cast<pi_device>(ctxt->get_device()),
+        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
         sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
     (void)retError;
     assert(retError == PI_SUCCESS);
@@ -927,7 +840,7 @@ struct _pi_kernel {
 
   ~_pi_kernel() {
     cuda_piProgramRelease(program_);
-    cuda_piContextRelease(context_);
+    pi2ur::piContextRelease(context_);
   }
 
   pi_program get_program() const noexcept { return program_; }

@@ -262,11 +262,6 @@ bool setEnvVar(const char *name, const char *value);
 // Prints to stderr if UR_L0_DEBUG allows it
 void urPrint(const char *Format, ...);
 
-// Helper for one-liner validation
-#define UR_ASSERT(condition, error)                                            \
-  if (!(condition))                                                            \
-    return error;
-
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
 template <class T> ze_structure_type_t getZeStructureType();

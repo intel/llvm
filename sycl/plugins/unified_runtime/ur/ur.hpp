@@ -41,12 +41,22 @@ const int UR_EXT_DEVICE_INFO_MEMORY_BUS_WIDTH = UR_EXT_DEVICE_INFO_END - 11;
 // 12;
 const int UR_EXT_DEVICE_INFO_FREE_MEMORY = UR_EXT_DEVICE_INFO_END - 13;
 // const int ZER_EXT_DEVICE_INFO_DEVICE_ID = UR_EXT_DEVICE_INFO_END - 14;
+const int UR_EXT_DEVICE_INFO_CUDA_ASYNC_BARRIER = UR_EXT_DEVICE_INFO_END - 15;
+const int UR_EXT_DEVICE_INFO_BACKEND_VERSION = UR_EXT_DEVICE_INFO_END - 16;
 // const int ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE =
 //     UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE;
 const int UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES =
-    UR_EXT_DEVICE_INFO_END - 16;
-const int UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES =
     UR_EXT_DEVICE_INFO_END - 17;
+const int UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES =
+    UR_EXT_DEVICE_INFO_END - 18;
+
+const int UR_EXT_CONTEXT_INFO_END = UR_CONTEXT_INFO_FORCE_UINT32;
+const int UR_EXT_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES =
+    UR_EXT_CONTEXT_INFO_END - 1;
+const int UR_EXT_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES =
+    UR_EXT_CONTEXT_INFO_END - 2;
+const int UR_EXT_CONTEXT_INFO_USM_MEMSET2D_SUPPORT =
+    UR_EXT_CONTEXT_INFO_END - 3;
 
 const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
     (ur_device_info_t)0x103D;
@@ -237,6 +247,9 @@ struct _pi_object {
   if (!(condition))                                                            \
     return error;
 
+// Helper for one-liner validation
+#define UR_ASSERT(condition, error) PI_ASSERT(condition, error)
+
 // TODO: populate with target agnostic handling of UR platforms
 struct _ur_platform {};
 
@@ -255,6 +268,7 @@ extern bool PiPlatformCachePopulated;
 
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.
+namespace ur {
 template <typename T, typename Assign>
 ur_result_t getInfoImpl(size_t param_value_size, void *param_value,
                         size_t *param_value_size_ret, T value,
@@ -318,6 +332,7 @@ getInfo<const char *>(size_t param_value_size, void *param_value,
   return getInfoArray(strlen(value) + 1, param_value_size, param_value,
                       param_value_size_ret, value);
 }
+} // namespace ur
 
 class UrReturnHelper {
 public:
@@ -334,20 +349,20 @@ public:
 
   // Scalar return value
   template <class T> ur_result_t operator()(const T &t) {
-    return getInfo(param_value_size, param_value, param_value_size_ret, t);
+    return ur::getInfo(param_value_size, param_value, param_value_size_ret, t);
   }
 
   // Array return value
   template <class T> ur_result_t operator()(const T *t, size_t s) {
-    return getInfoArray(s, param_value_size, param_value, param_value_size_ret,
-                        t);
+    return ur::getInfoArray(s, param_value_size, param_value,
+                            param_value_size_ret, t);
   }
 
   // Array return value where element type is differrent from T
   template <class RetType, class T>
   ur_result_t operator()(const T *t, size_t s) {
-    return getInfoArray<T, RetType>(s, param_value_size, param_value,
-                                    param_value_size_ret, t);
+    return ur::getInfoArray<T, RetType>(s, param_value_size, param_value,
+                                        param_value_size_ret, t);
   }
 
 protected:
