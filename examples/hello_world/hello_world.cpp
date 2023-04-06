@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
             goto out;
         }
         for (auto d : devices) {
-            ur_device_type_t device_type;
+            ur_device_type_t device_type = UR_DEVICE_TYPE_ALL;
             status = urDeviceGetInfo(
                 d, UR_DEVICE_INFO_TYPE, sizeof(ur_device_type_t),
                 static_cast<void *>(&device_type), nullptr);

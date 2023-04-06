@@ -176,7 +176,8 @@ using EnvVarMap = std::map<std::string, std::vector<std::string>>;
 ///         Otherwise, optional is set to std::nullopt when the environment variable
 ///         is not set or is empty.
 /// @throws std::invalid_argument() when the parsed environment variable has wrong format
-inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name) {
+inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
+                                              bool reject_empty = true) {
     char main_delim = ';';
     char key_value_delim = ':';
     char values_delim = ',';
@@ -194,13 +195,13 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name) {
         std::string values;
         std::stringstream kv_ss(key_value);
 
-        if (key_value.find(':') == std::string::npos) {
+        if (reject_empty && key_value.find(':') == std::string::npos) {
             throw_wrong_format_map(env_var_name);
         }
 
         std::getline(kv_ss, key, key_value_delim);
         std::getline(kv_ss, values);
-        if (key.empty() || values.empty() ||
+        if (key.empty() || (reject_empty && values.empty()) ||
             values.find(':') != std::string::npos ||
             map.find(key) != map.end()) {
             throw_wrong_format_map(env_var_name);
@@ -214,9 +215,6 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name) {
                 throw_wrong_format_map(env_var_name);
             }
             values_vec.push_back(value);
-        }
-        if (values_vec.empty()) {
-            throw_wrong_format_map(env_var_name);
         }
         map[key] = values_vec;
     }
