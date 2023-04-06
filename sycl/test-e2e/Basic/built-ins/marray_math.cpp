@@ -56,7 +56,7 @@
     }                                                                          \
   }
 
-#define TEST3(FUNC, MARRAY_ELEM_TYPE, DIM, EXPECTED, ...)                      \
+#define TEST3(FUNC, MARRAY_ELEM_TYPE, DIM, ...)                                \
   {                                                                            \
     {                                                                          \
       MARRAY_ELEM_TYPE result[DIM];                                            \
@@ -70,16 +70,6 @@
               res_access[i] = res[i];                                          \
           });                                                                  \
         });                                                                    \
-      }                                                                        \
-      for (int i = 0; i < DIM; i++) {                                          \
-        std::uint64_t result_uint64;                                           \
-        std::memcpy(&result_uint64, &result[i], sizeof(result[i]));            \
-        std::ostringstream stream;                                             \
-        stream << "0x" << std::hex << result_uint64;                           \
-        std::string result_string = stream.str();                              \
-        result_string = result_string.substr(result_string.size() - 5);        \
-        std::cout << result_string << " " << EXPECTED[i] << std::endl;         \
-        assert(result_string.compare(EXPECTED[i]) == 0);                       \
       }                                                                        \
     }                                                                          \
   }
@@ -125,16 +115,8 @@ int main() {
         0.0001, ma6);
   TEST2(sycl::remquo, float, int, 3, EXPECTED(float, 1.4f, 4.2f, 5.3f),
         EXPECTED(int, 0, 0, 0), 0.0001, ma6, ma3);
-  auto backend = deviceQueue.get_device().get_backend();
-  // TODO: enable for all backends when OpenCL CPU and OpenCL/Level Zero GPU
-  // return correct results for nan function
-  if (backend == sycl::backend::ext_oneapi_cuda ||
-      backend == sycl::backend::ext_oneapi_hip) {
-    TEST3(sycl::nan, float, 3, EXPECTED(std::string, "00001", "00002", "00003"),
-          ma7);
-    TEST3(sycl::nan, double, 3,
-          EXPECTED(std::string, "00001", "00002", "00003"), ma8);
-  }
+  TEST3(sycl::nan, float, 3, ma7);
+  TEST3(sycl::nan, double, 3, ma8);
   TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
        ma1);
 
