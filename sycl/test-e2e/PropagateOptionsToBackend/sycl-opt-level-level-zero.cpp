@@ -30,11 +30,7 @@ int main() {
 
 // CHECK-LABEL: ---> piProgramBuild(
 // CHECK0: -ze-opt-disable
-// CHECKOCL0: -cl-opt-disable
 // CHECK1: -ze-opt-level=1
-// CHECKOCL1-NOT: -cl-opt-disable
 // CHECK2: -ze-opt-level=1
-// CHECKOCL2-NOT: -cl-opt-disable
 // CHECK3: -ze-opt-level=2
-// CHECKOCL3-NOT: -cl-opt-disable
 // CHECK: ) ---> pi_result : PI_SUCCESS
