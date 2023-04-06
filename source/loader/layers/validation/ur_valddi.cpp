@@ -824,14 +824,6 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_MEM_FLAGS_MASK & flags) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
-        }
-
-        if (UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
-        }
-
         if (NULL == pImageFormat) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -842,6 +834,14 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
 
         if (NULL == phMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_MEM_FLAGS_MASK & flags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
         if (pHost == NULL &&
@@ -885,12 +885,12 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_MEM_FLAGS_MASK & flags) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
-        }
-
         if (NULL == phBuffer) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_MEM_FLAGS_MASK & flags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
         if (pProperties == NULL &&
@@ -993,20 +993,20 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_MEM_FLAGS_MASK & flags) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
-        }
-
-        if (UR_BUFFER_CREATE_TYPE_REGION < bufferCreateType) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
-        }
-
         if (NULL == pRegion) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
         if (NULL == phMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_MEM_FLAGS_MASK & flags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_BUFFER_CREATE_TYPE_REGION < bufferCreateType) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
 
@@ -1276,16 +1276,16 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_SAMPLER_INFO_FILTER_MODE < propName) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
-        }
-
         if (NULL == pPropValue) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
         if (NULL == pPropSizeRet) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_SAMPLER_INFO_FILTER_MODE < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
 
@@ -2433,12 +2433,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_KERNEL_EXEC_INFO_CACHE_CONFIG < propName) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
-        }
-
         if (NULL == pPropValue) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_KERNEL_EXEC_INFO_CACHE_CONFIG < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
 
@@ -3080,12 +3080,12 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED < execStatus) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
-        }
-
         if (NULL == pfnNotify) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED < execStatus) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
 
@@ -3971,12 +3971,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_MAP_FLAGS_MASK & mapFlags) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
-        }
-
         if (NULL == ppRetMap) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_MAP_FLAGS_MASK & mapFlags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
         if (phEventWaitList == NULL && numEventsInWaitList > 0) {
