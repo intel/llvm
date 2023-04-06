@@ -45,6 +45,8 @@ static pi_result ur2piResult(ur_result_t urResult) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   case UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
     return PI_ERROR_BUILD_PROGRAM_FAILURE;
+  case UR_RESULT_ERROR_UNINITIALIZED:
+    return PI_ERROR_UNINITIALIZED;
   default:
     return PI_ERROR_UNKNOWN;
   };
