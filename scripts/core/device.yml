@@ -304,7 +304,9 @@ etors:
     - name: PARTITION_MAX_SUB_DEVICES
       desc: "uint32_t: maximum number of sub-devices when the device is partitioned"
     - name: PARTITION_AFFINITY_DOMAIN
-      desc: "uint32_t: return a bit-field of affinity domain $x_device_affinity_domain_flags_t"
+      desc: |  
+            [$x_device_affinity_domain_flags_t]: Returns a bit-field of the supported affinity domains for partitioning. 
+            If the device does not support any affinity domains, then 0 will be returned.
     - name: PARTITION_TYPE
       desc: "$x_device_partition_property_t[]: return a list of $x_device_partition_property_t for properties specified in $xDevicePartition"
     - name: MAX_NUM_SUB_GROUPS
@@ -601,11 +603,28 @@ class: $xDevice
 name: $x_device_affinity_domain_flags_t
 etors:
     - name: NUMA
-      desc: "By NUMA"
+      desc: "Split the device into sub devices comprised of compute units that share a NUMA node."
       value: "$X_BIT(0)"
-    - name: NEXT_PARTITIONABLE
-      desc: "BY next partitionable"
+    - name: L4_CACHE
+      desc: "Split the device into sub devices comprised of compute units that share a level 4 data cache."
       value: "$X_BIT(1)"
+    - name: L3_CACHE
+      desc: "Split the device into sub devices comprised of compute units that share a level 3 data cache."
+      value: "$X_BIT(2)"
+    - name: L2_CACHE
+      desc: "Split the device into sub devices comprised of compute units that share a level 2 data cache."
+      value: "$X_BIT(3)"
+    - name: L1_CACHE
+      desc: "Split the device into sub devices comprised of compute units that share a level 1 data cache."
+      value: "$X_BIT(4)"
+    - name: NEXT_PARTITIONABLE
+      desc: |
+            Split the device along the next partitionable affinity domain. 
+            The implementation shall find the first level along which the device
+            or sub device may be further subdivided in the order: 
+            $X_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE, 
+            and partition the device into sub devices comprised of compute units that share memory subsystems at this level. 
+      value: "$X_BIT(5)"
 --- #--------------------------------------------------------------------------
 type: class
 desc: "C++ wrapper for a device"

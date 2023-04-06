@@ -14,6 +14,7 @@ function(add_conformance_test name)
         ${PROJECT_NAME}::loader
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::testing
+        ${PROJECT_NAME}::common
         GTest::gtest_main)
     add_test(NAME ${name}
         COMMAND ${TEST_TARGET_NAME}
