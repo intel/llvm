@@ -64,12 +64,14 @@ template <typename T> void testMultPtr() {
 
       cgh.parallel_for<class testMultPtrKernel<T>>(range<1>{10}, [=](id<1>
                                                                          wiID) {
-        auto ptr_1 =
-            make_ptr<T, access::address_space::global_space,
-                     access::decorated::legacy>(global_ptr<T>(accessorData_1));
-        auto ptr_2 =
-            make_ptr<T, access::address_space::global_space,
-                     access::decorated::legacy>(global_ptr<T>(accessorData_2));
+        auto ptr_1 = make_ptr<T, access::address_space::global_space,
+                              access::decorated::legacy>(
+            accessorData_1
+                .template get_multi_ptr<sycl::access::decorated::legacy>);
+        auto ptr_2 = make_ptr<T, access::address_space::global_space,
+                              access::decorated::legacy>(
+            accessorData_2
+                .template get_multi_ptr<sycl::access::decorated::legacy>);
         auto local_ptr =
             make_ptr<T, access::address_space::local_space,
                      access::decorated::legacy>(localAccessor.get_pointer());
@@ -144,7 +146,8 @@ template <typename T> void testMultPtrArrowOperator() {
       cgh.single_task<class testMultPtrArrowOperatorKernel<T>>([=]() {
         auto ptr_1 = make_ptr<point<T>, access::address_space::global_space,
                               access::decorated::legacy>(
-            global_ptr<point<T>>(accessorData_1));
+            accessorData_1
+                .template get_multi_ptr<sycl::access::decorated::legacy>);
         auto ptr_2 =
             make_ptr<point<T>, access::address_space::constant_space,
                      access::decorated::legacy>(accessorData_2.get_pointer());
@@ -155,7 +158,8 @@ template <typename T> void testMultPtrArrowOperator() {
             make_ptr<point<T>,
                      access::address_space::ext_intel_global_device_space,
                      access::decorated::legacy>(
-                global_ptr<point<T>>(accessorData_4));
+                accessorData_4
+                    .template get_multi_ptr<sycl::access::decorated::legacy>);
 
         auto x1 = ptr_1->x;
         auto x2 = ptr_2->x;
