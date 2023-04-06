@@ -64,5 +64,5 @@ jobs:
       build_cache_size: "8G"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
