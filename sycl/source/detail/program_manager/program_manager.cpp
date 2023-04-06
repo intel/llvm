@@ -1108,13 +1108,9 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
         Program.get(), /*num devices =*/1, &Device, Options.c_str(), nullptr,
         nullptr);
-    if (Error != PI_SUCCESS) {
-      std::string BuildLog = getProgramBuildLog(Program.get(), Context);
-      // PiProgram is still alive in plugin, so we need to release the memory
-      // for it
-      Plugin.call_nocheck<PiApiKind::piProgramRelease>(Program.get());
-      throw compile_program_error(BuildLog, Error);
-    }
+    if (Error != PI_SUCCESS)
+      throw compile_program_error(getProgramBuildLog(Program.get(), Context),
+                                  Error);
     return Program;
   }
 
