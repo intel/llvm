@@ -2046,7 +2046,7 @@ ur_result_t UR_APICALL urKernelSetArgLocal(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_INFO_ATTRIBUTES < propName`
+///         + `::UR_KERNEL_INFO_NUM_REGS < propName`
 ur_result_t UR_APICALL urKernelGetInfo(
     ur_kernel_handle_t hKernel, ///< [in] handle of the Kernel object
     ur_kernel_info_t propName,  ///< [in] name of the Kernel property to query

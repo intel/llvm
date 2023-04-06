@@ -1200,6 +1200,8 @@ class ur_kernel_info_v(IntEnum):
     CONTEXT = 3                                     ## Return Context object associated with Kernel.
     PROGRAM = 4                                     ## Return Program object associated with Kernel.
     ATTRIBUTES = 5                                  ## Return null-terminated kernel attributes string, return type char*.
+    NUM_REGS = 6                                    ## [uint32_t] Return the number of registers used by the compiled kernel
+                                                    ## (device specific).
 
 class ur_kernel_info_t(c_int):
     def __str__(self):

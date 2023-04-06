@@ -3169,6 +3169,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_info_t value) {
     case UR_KERNEL_INFO_ATTRIBUTES:
         os << "UR_KERNEL_INFO_ATTRIBUTES";
         break;
+
+    case UR_KERNEL_INFO_NUM_REGS:
+        os << "UR_KERNEL_INFO_NUM_REGS";
+        break;
     default:
         os << "unknown enumerator";
         break;
