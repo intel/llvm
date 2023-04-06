@@ -139,8 +139,8 @@ static const char *EmptyStr = "";
 // Return empty string for hip.
 // TODO: Determine correct string to be passed.
 pi_result
-    hip_piPluginGetBackendOptimizationOption(int opt_level,
-                                             const char **backend_option) {
+hip_piPluginGetBackendOptimizationOption(int opt_level,
+                                         const char **backend_option) {
   if ((opt_level < 0) || (opt_level > 3))
     return PI_ERROR_INVALID_VALUE;
   *backend_option = EmptyStr;

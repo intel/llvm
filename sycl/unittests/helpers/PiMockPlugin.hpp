@@ -1122,8 +1122,7 @@ inline pi_result mock_piPluginGetLastError(char **message) {
 }
 
 inline pi_result
-    mock_piPluginGetBackendOptimizationOption(int opt_level,
-                                              const char **option) {
+mock_piPluginGetBackendOptimizationOption(int opt_level, const char **option) {
   *option = "";
   return PI_SUCCESS;
 }
