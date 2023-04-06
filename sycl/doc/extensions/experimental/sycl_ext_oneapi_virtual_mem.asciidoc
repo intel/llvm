@@ -95,8 +95,11 @@ supports.
 
 Working with virtual address ranges and the underlying physical memory requires
 the user to align and adjust in accordance with a specified minimum granularity.
-In addition, devices can have a recommended granularity which may different from
-the minimum granularity and can be used instead of the minimum granularity.
+
+Some devices may have a recommended granularity that is different from the
+minimum granularity. In such cases, the reasoning for a different recommended
+granularity is unspecified. Devices may return the same minimum granularity as
+the recommended granularity.
 
 The interfaces for querying the these granularities are defined as:
 
