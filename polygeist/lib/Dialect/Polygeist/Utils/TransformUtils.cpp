@@ -51,14 +51,14 @@ static void createThenBody(LoopLikeOpInterface loop, AffineIfOp ifOp) {
 }
 
 //===----------------------------------------------------------------------===//
-// SCFIfThenElseBuilder
+// SCFIfBuilder
 //===----------------------------------------------------------------------===//
 
 RegionBranchOpInterface
-SCFIfBuilder::createIfOp(Operation::result_range results,
-                         OpBuilder &builder) const {
+SCFIfBuilder::createIfOp(Operation::result_range results, OpBuilder &builder,
+                         Location loc) const {
   return builder.create<scf::IfOp>(
-      builder.getUnknownLoc(), createCondition(),
+      loc, createCondition(),
       [&](OpBuilder &b, Location loc) { b.create<scf::YieldOp>(loc, results); },
       [&](OpBuilder &b, Location loc) {
         b.create<scf::YieldOp>(loc, results);
@@ -66,17 +66,16 @@ SCFIfBuilder::createIfOp(Operation::result_range results,
 }
 
 //===----------------------------------------------------------------------===//
-// AffineIfThenElseBuilder
+// AffineIfBuilder
 //===----------------------------------------------------------------------===//
 
 RegionBranchOpInterface
-AffineIfBuilder::createIfOp(Operation::result_range results,
-                            OpBuilder &builder) const {
+AffineIfBuilder::createIfOp(Operation::result_range results, OpBuilder &builder,
+                            Location loc) const {
   TypeRange types(results);
   SmallVector<Value> values;
   const IntegerSet &set = createCondition(values);
-  return builder.create<AffineIfOp>(builder.getUnknownLoc(), types, set, values,
-                                    true);
+  return builder.create<AffineIfOp>(loc, types, set, values, true);
 }
 
 //===----------------------------------------------------------------------===//
@@ -93,9 +92,12 @@ void LoopVersionBuilder::versionLoop(RegionBranchOpInterface ifOp) const {
 // SCFLoopVersionBuilder
 //===----------------------------------------------------------------------===//
 
+SCFLoopVersionBuilder::~SCFLoopVersionBuilder() {}
+
 void SCFLoopVersionBuilder::versionLoop() const {
   OpBuilder builder(loop);
-  RegionBranchOpInterface ifOp = createIfOp(loop->getResults(), builder);
+  RegionBranchOpInterface ifOp =
+      createIfOp(loop->getResults(), builder, loop.getLoc());
   LoopVersionBuilder::versionLoop(ifOp);
 }
 
@@ -115,9 +117,12 @@ void SCFLoopVersionBuilder::createElseBody(RegionBranchOpInterface ifOp) const {
 // AffineLoopVersionBuilder
 //===----------------------------------------------------------------------===//
 
+AffineLoopVersionBuilder::~AffineLoopVersionBuilder() {}
+
 void AffineLoopVersionBuilder::versionLoop() const {
   OpBuilder builder(loop);
-  RegionBranchOpInterface ifOp = createIfOp(loop->getResults(), builder);
+  RegionBranchOpInterface ifOp =
+      createIfOp(loop->getResults(), builder, loop.getLoc());
   LoopVersionBuilder::versionLoop(ifOp);
 }
 
@@ -168,7 +173,8 @@ void LoopGuardBuilder::guardLoop(RegionBranchOpInterface ifOp) const {
 
 void SCFLoopGuardBuilder::guardLoop() const {
   OpBuilder builder(loop);
-  RegionBranchOpInterface ifOp = createIfOp(loop->getResults(), builder);
+  RegionBranchOpInterface ifOp =
+      createIfOp(loop->getResults(), builder, loop.getLoc());
   LoopGuardBuilder::guardLoop(ifOp);
 }
 
@@ -193,7 +199,8 @@ void SCFLoopGuardBuilder::createElseBody(RegionBranchOpInterface ifOp) const {
 
 void AffineLoopGuardBuilder::guardLoop() const {
   OpBuilder builder(loop);
-  RegionBranchOpInterface ifOp = createIfOp(loop->getResults(), builder);
+  RegionBranchOpInterface ifOp =
+      createIfOp(loop->getResults(), builder, loop.getLoc());
   LoopGuardBuilder::guardLoop(ifOp);
 }
 

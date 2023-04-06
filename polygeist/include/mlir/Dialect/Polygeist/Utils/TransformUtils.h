@@ -59,22 +59,25 @@ public:
   virtual ~IfThenElseBuilder() = default;
 
   virtual RegionBranchOpInterface createIfOp(Operation::result_range results,
-                                             OpBuilder &builder) const = 0;
+                                             OpBuilder &builder,
+                                             Location loc) const = 0;
 };
 
 /// Abstract class to build an scf::IfOp operation.
 class SCFIfBuilder : public IfThenElseBuilder {
 public:
-  virtual RegionBranchOpInterface createIfOp(Operation::result_range results,
-                                             OpBuilder &builder) const final;
+  RegionBranchOpInterface createIfOp(Operation::result_range results,
+                                     OpBuilder &builder,
+                                     Location loc) const final;
   virtual Value createCondition() const = 0;
 };
 
 /// Abstract class to build an AffineIfOp operation.
 class AffineIfBuilder : public IfThenElseBuilder {
 public:
-  RegionBranchOpInterface createIfOp(Operation::result_range thenResults,
-                                     OpBuilder &builder) const final;
+  RegionBranchOpInterface createIfOp(Operation::result_range results,
+                                     OpBuilder &builder,
+                                     Location loc) const final;
   virtual IntegerSet createCondition(SmallVectorImpl<Value> &) const = 0;
 };
 
@@ -91,7 +94,7 @@ public:
   virtual void versionLoop() const = 0;
 
 protected:
-  void versionLoop(RegionBranchOpInterface ifOp) const;
+  void versionLoop(RegionBranchOpInterface) const;
 
   mutable LoopLikeOpInterface loop;
 
@@ -104,6 +107,7 @@ private:
 class SCFLoopVersionBuilder : public LoopVersionBuilder, public SCFIfBuilder {
 public:
   SCFLoopVersionBuilder(LoopLikeOpInterface loop) : LoopVersionBuilder(loop) {}
+  virtual ~SCFLoopVersionBuilder() = 0;
 
   void versionLoop() const final;
 
@@ -118,6 +122,7 @@ class AffineLoopVersionBuilder : public LoopVersionBuilder,
 public:
   AffineLoopVersionBuilder(LoopLikeOpInterface loop)
       : LoopVersionBuilder(loop) {}
+  virtual ~AffineLoopVersionBuilder() = 0;
 
   void versionLoop() const final;
 
