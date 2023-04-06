@@ -181,19 +181,25 @@ void test(queue &q) {
                          matrix_layout::row_major>
                 sub_c;
 
-            joint_matrix_load(sg, sub_c,
-                              global_ptr<T2>(accC) + (m * M) * Big_N + n * N,
-                              Big_N);
+            joint_matrix_load(
+                sg, sub_c,
+                accC.template get_multi_ptr<sycl::access::decorated::no>() +
+                    (m * M) * Big_N + n * N,
+                Big_N);
 
             for (int k = 0; k < Sub_Tiles_K;
                  k++) // row/col id of current submatrix of BIG A/B matrices
             {
               joint_matrix_load(
-                  sg, sub_a, global_ptr<T1>(accA) + (k * K) + (m * M * Big_K),
+                  sg, sub_a,
+                  accA.template get_multi_ptr<sycl::access::decorated::no>() +
+                      (k * K) + (m * M * Big_K),
                   Big_K);
 
               joint_matrix_load(
-                  sg, sub_b, global_ptr<T1>(accB) + (k * K * Big_N) + (n * N),
+                  sg, sub_b,
+                  accB.template get_multi_ptr<sycl::access::decorated::no>() +
+                      (k * K * Big_N) + (n * N),
                   Big_N);
 
               // round values to correct precision if using tf32
@@ -208,10 +214,11 @@ void test(queue &q) {
 
               sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
             }
-            joint_matrix_store(sg, sub_c,
-                               global_ptr<std::remove_const_t<T2>>(accD) +
-                                   (m * M) * Big_N + n * N,
-                               Big_N);
+            joint_matrix_store(
+                sg, sub_c,
+                accD.template get_multi_ptr<sycl::access::decorated::no>() +
+                    (m * M) * Big_N + n * N,
+                Big_N);
           });
     });
     q.wait();

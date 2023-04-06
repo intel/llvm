@@ -48,9 +48,10 @@ int main() {
       cgh.parallel_for<class KernelOne>(numVec, [=](id<1> i) {
         size_t offset = i;
         vec<int, VEC> in1;
-        in1.load(offset, global_ptr<int>(accIn1));
+        in1.load(offset,
+                 accIn1.template get_multi_ptr<access::decorated::no>());
         vec<int, VEC> in2;
-        in2.load(offset, global_ptr<int>(accIn2));
+        in2.load(offset, accIn2.template get_multi_ptr<access::decorated::no>()));
         auto tmp = in1 + in2;
         tmp.store(
             offset,
@@ -69,9 +70,10 @@ int main() {
         tmp.load(offset,
                  accTmp.template get_multi_ptr<sycl::access::decorated::yes>());
         vec<int, VEC> in3;
-        in3.load(offset, global_ptr<int>(accIn3));
+        in3.load(offset, accIn3.template get_multi_ptr<access::decorated::no>()));
         auto out = tmp * in3;
-        out.store(offset, global_ptr<int>(accOut));
+        out.store(offset,
+                  accOut.template get_multi_ptr<access::decorated::no>());
       });
     });
 

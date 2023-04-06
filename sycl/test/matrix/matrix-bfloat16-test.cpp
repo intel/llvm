@@ -72,27 +72,31 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                sub_b;
            joint_matrix<sycl::sub_group, float, use::accumulator, TM, TN> sub_c;
 
-           joint_matrix_load(sg, sub_c,
-                             sycl::global_ptr<float>(accC) +
-                                 (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-                             N, layout::row_major);
+           joint_matrix_load(
+               sg, sub_c,
+               accC.template get_multi_ptr<sycl::access::decorated::legacy>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) { //
              joint_matrix_load(sg, sub_a,
-                               sycl::global_ptr<bfloat16>(accA) +
+                               accA.template get_multi_ptr<
+                                   sycl::access::decorated::legacy>() +
                                    (sg_startx * TM) * K + k * TK,
                                K);
              // Assuming B data is already in VNNI format.
              joint_matrix_load(sg, sub_b,
-                               sycl::global_ptr<bfloat16>(accB) +
+                               accB.template get_multi_ptr<
+                                   sycl::access::decorated::legacy>() +
                                    (k * TK / 2) * (N * 2) +
                                    sg_starty / SG_SZ * TN * 2,
                                N * 2);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
-           joint_matrix_store(sg, sub_c,
-                              sycl::global_ptr<float>(accC) +
-                                  (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-                              N, layout::row_major);
+           joint_matrix_store(
+               sg, sub_c,
+               accC.template get_multi_ptr<sycl::access::decorated::legacy>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
          }); // parallel for
    }).wait();
 }

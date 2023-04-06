@@ -42,7 +42,9 @@ void test(queue q, InputContainer input, OutputContainer output,
         int lid = it.get_local_id(0);
         out[0] = none_of(g, pred(in[lid]));
         out[1] = none_of(g, in[lid], pred);
-        out[2] = none_of(g, global_ptr<int>(in), global_ptr<int>(in) + N, pred);
+        out[2] = none_of(g, in.template get_multi_ptr<access::decorated::no>(),
+                         in.template get_multi_ptr<access::decorated::no>() + N,
+                         pred);
       });
     });
   }

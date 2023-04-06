@@ -38,10 +38,14 @@ void test(queue q, InputContainer input, OutputContainer output,
             int lid = it.get_local_id(0);
             out[0] = reduce(g, in[lid], binary_op);
             out[1] = reduce(g, in[lid], init, binary_op);
-            out[2] = reduce(g, global_ptr<InputT>(in),
-                            global_ptr<InputT>(in) + N, binary_op);
-            out[3] = reduce(g, global_ptr<InputT>(in),
-                            global_ptr<InputT>(in) + N, init, binary_op);
+            out[2] =
+                reduce(g, in.template get_multi_ptr<access::decorated::no>(),
+                       in.template get_multi_ptr<access::decorated::no>() + N,
+                       binary_op);
+            out[3] =
+                reduce(g, in.template get_multi_ptr<access::decorated::no>(),
+                       in.template get_multi_ptr<access::decorated::no>() + N,
+                       init, binary_op);
           });
     });
   }
