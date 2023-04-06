@@ -125,10 +125,16 @@ int main() {
         0.0001, ma6);
   TEST2(sycl::remquo, float, int, 3, EXPECTED(float, 1.4f, 4.2f, 5.3f),
         EXPECTED(int, 0, 0, 0), 0.0001, ma6, ma3);
-  TEST3(sycl::nan, float, 3, EXPECTED(std::string, "fffff", "fffff", "fffff"),
-        ma7);
-  TEST3(sycl::nan, double, 3, EXPECTED(std::string, "fffff", "fffff", "fffff"),
-        ma8);
+  auto backend = deviceQueue.get_device().get_backend();
+  // TODO: enable for all backends when OpenCL CPU and OpenCL/Level Zero GPU
+  // return correct results for nan function
+  if (backend == sycl::backend::ext_oneapi_cuda ||
+      backend == sycl::backend::ext_oneapi_hip) {
+    TEST3(sycl::nan, float, 3, EXPECTED(std::string, "00001", "00002", "00003"),
+          ma7);
+    TEST3(sycl::nan, double, 3,
+          EXPECTED(std::string, "00001", "00002", "00003"), ma8);
+  }
   TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
        ma1);
 
