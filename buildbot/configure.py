@@ -194,7 +194,8 @@ def do_configure(args):
         "-DCMAKE_CXX_COMPILER={}".format(build_compiler_cpp),
         "-DCMAKE_EXPORT_COMPILE_COMMANDS={}".format(export_compile_commands),
         "-DCMAKE_VERBOSE_MAKEFILE={}".format(verbose),
-        "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion)
+        "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion),
+        "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
 
     if args.l0_headers and args.l0_loader:
