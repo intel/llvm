@@ -12,7 +12,7 @@
 
 namespace logger {
 
-Logger create_logger(std::string logger_name);
+Logger create_logger(std::string logger_name, bool skip_prefix = false);
 
 inline Logger &get_logger(std::string name = "common") {
     static Logger logger = create_logger(name);
@@ -66,7 +66,7 @@ inline void setFlushLevel(logger::Level level) {
 ///             - flush level: error, meaning that only error messages are guaranteed
 ///                            to be printed immediately as they occur
 ///             - output: stderr
-inline Logger create_logger(std::string logger_name) {
+inline Logger create_logger(std::string logger_name, bool skip_prefix) {
     std::transform(logger_name.begin(), logger_name.end(), logger_name.begin(),
                    ::toupper);
     std::stringstream env_var_name;
@@ -80,7 +80,8 @@ inline Logger create_logger(std::string logger_name) {
     env_var_name << "UR_LOG_" << logger_name;
     auto map = getenv_to_map(env_var_name.str().c_str());
     if (!map.has_value()) {
-        return Logger(std::make_unique<logger::StderrSink>(logger_name));
+        return Logger(
+            std::make_unique<logger::StderrSink>(logger_name, skip_prefix));
     }
 
     try {
@@ -102,14 +103,16 @@ inline Logger create_logger(std::string logger_name) {
             values = kv->second;
         }
 
-        sink = values.size() == 2
-                   ? sink_from_str(logger_name, values[0], values[1])
-                   : sink_from_str(logger_name, values[0]);
+        sink =
+            values.size() == 2
+                ? sink_from_str(logger_name, values[0], values[1], skip_prefix)
+                : sink_from_str(logger_name, values[0], "", skip_prefix);
     } catch (const std::invalid_argument &e) {
         std::cerr
             << "Error when creating a logger instance from environment variable"
             << e.what();
-        return Logger(std::make_unique<logger::StderrSink>(logger_name));
+        return Logger(
+            std::make_unique<logger::StderrSink>(logger_name, skip_prefix));
     }
     sink->setFlushLevel(flush_level);
 

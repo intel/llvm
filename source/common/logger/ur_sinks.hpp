@@ -23,8 +23,10 @@ class Sink {
   public:
     template <typename... Args>
     void log(logger::Level level, const char *fmt, Args &&...args) {
-        *ostream << "<" << logger_name << ">";
-        *ostream << "[" << level_to_str(level) << "]: ";
+        if (!skip_prefix) {
+            *ostream << "<" << logger_name << ">";
+            *ostream << "[" << level_to_str(level) << "]: ";
+        }
         format(fmt, std::forward<Args &&>(args)...);
         *ostream << "\n";
         if (level >= flush_level) {
@@ -40,12 +42,14 @@ class Sink {
     std::ostream *ostream;
     logger::Level flush_level;
 
-    Sink(std::string logger_name) : logger_name(logger_name) {
+    Sink(std::string logger_name, bool skip_prefix = false)
+        : logger_name(logger_name), skip_prefix(skip_prefix) {
         flush_level = logger::Level::ERR;
     }
 
   private:
     std::string logger_name;
+    bool skip_prefix;
 
     void format(const char *fmt) {
         while (*fmt != '\0') {
@@ -104,12 +108,14 @@ class Sink {
 
 class StdoutSink : public Sink {
   public:
-    StdoutSink(std::string logger_name) : Sink(logger_name) {
+    StdoutSink(std::string logger_name, bool skip_prefix = false)
+        : Sink(logger_name, skip_prefix) {
         this->ostream = &std::cout;
     }
 
-    StdoutSink(std::string logger_name, Level flush_lvl)
-        : StdoutSink(logger_name) {
+    StdoutSink(std::string logger_name, Level flush_lvl,
+               bool skip_prefix = false)
+        : StdoutSink(logger_name, skip_prefix) {
         this->flush_level = flush_lvl;
     }
 
@@ -118,12 +124,13 @@ class StdoutSink : public Sink {
 
 class StderrSink : public Sink {
   public:
-    StderrSink(std::string logger_name) : Sink(logger_name) {
+    StderrSink(std::string logger_name, bool skip_prefix = false)
+        : Sink(logger_name, skip_prefix) {
         this->ostream = &std::cerr;
     }
 
-    StderrSink(std::string logger_name, Level flush_lvl)
-        : StderrSink(logger_name) {
+    StderrSink(std::string logger_name, Level flush_lvl, bool skip_prefix)
+        : StderrSink(logger_name, skip_prefix) {
         this->flush_level = flush_lvl;
     }
 
@@ -132,8 +139,9 @@ class StderrSink : public Sink {
 
 class FileSink : public Sink {
   public:
-    FileSink(std::string logger_name, filesystem::path file_path)
-        : Sink(logger_name) {
+    FileSink(std::string logger_name, filesystem::path file_path,
+             bool skip_prefix = false)
+        : Sink(logger_name, skip_prefix) {
         ofstream = std::ofstream(file_path, std::ofstream::out);
         if (!ofstream.good()) {
             throw std::invalid_argument(
@@ -145,8 +153,8 @@ class FileSink : public Sink {
     }
 
     FileSink(std::string logger_name, filesystem::path file_path,
-             Level flush_lvl)
-        : FileSink(logger_name, file_path) {
+             Level flush_lvl, bool skip_prefix = false)
+        : FileSink(logger_name, file_path, skip_prefix) {
         this->flush_level = flush_lvl;
     }
 
@@ -156,14 +164,15 @@ class FileSink : public Sink {
 
 inline std::unique_ptr<Sink> sink_from_str(std::string logger_name,
                                            std::string name,
-                                           std::string file_path = "") {
+                                           std::string file_path = "",
+                                           bool skip_prefix = false) {
     if (name == "stdout") {
-        return std::make_unique<logger::StdoutSink>(logger_name);
+        return std::make_unique<logger::StdoutSink>(logger_name, skip_prefix);
     } else if (name == "stderr") {
-        return std::make_unique<logger::StderrSink>(logger_name);
+        return std::make_unique<logger::StderrSink>(logger_name, skip_prefix);
     } else if (name == "file" && !file_path.empty()) {
-        return std::make_unique<logger::FileSink>(logger_name,
-                                                  file_path.c_str());
+        return std::make_unique<logger::FileSink>(
+            logger_name, file_path.c_str(), skip_prefix);
     }
 
     throw std::invalid_argument(

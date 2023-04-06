@@ -27,6 +27,7 @@ option(UR_USE_MSAN "enable MemorySanitizer" OFF)
 option(UMA_BUILD_SHARED_LIBRARY "Build UMA as shared library" OFF)
 option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
+option(UR_BUILD_TOOLS "build ur tools" ON)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -180,6 +181,9 @@ add_subdirectory(source)
 add_subdirectory(examples)
 if(UR_BUILD_TESTS)
     add_subdirectory(test)
+endif()
+if(UR_BUILD_TOOLS)
+    add_subdirectory(tools)
 endif()
 
 # Add the list of installed targets to the install. This includes the namespace
