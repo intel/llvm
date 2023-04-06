@@ -21,6 +21,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
+#include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/Pass.h"
@@ -348,26 +349,20 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
-// SYCLAccessorVersionBuilder
+// VersionConditionBuilder
 //===----------------------------------------------------------------------===//
 
-// TODO: Support other kind of loops.
-class SYCLAccessorVersionBuilder : public SCFLoopVersionBuilder {
+class VersionConditionBuilder {
 public:
-  SYCLAccessorVersionBuilder(
-      LoopLikeOpInterface loop,
+  VersionConditionBuilder(
       const SmallVectorImpl<AccessorPairType> &requireNoOverlapAccessorPairs)
-      : SCFLoopVersionBuilder(loop),
-        AccessorPair(requireNoOverlapAccessorPairs[0]) {
+      : AccessorPair(requireNoOverlapAccessorPairs[0]) {
     assert(requireNoOverlapAccessorPairs.size() == 1 &&
            "Expecting only one pair");
   }
 
-private:
-  Value createCondition() const final {
-    Location loc = loop.getLoc();
-    OpBuilder builder(loop);
-
+  /// Create a loop versioning condition suitable for versioning an SCF loop.
+  Value createConditionForSCFLoop(OpBuilder builder, Location loc) const {
     auto GetMemref2PointerOp = [&](Value op) {
       auto MT = cast<MemRefType>(op.getType());
       return builder.create<polygeist::Memref2PointerOp>(
@@ -388,6 +383,11 @@ private:
                                                   GetMemref2PointerOp(begin1),
                                                   GetMemref2PointerOp(end2));
     return builder.create<arith::OrIOp>(loc, beforeCond, afterCond);
+  }
+
+  /// Create a loop versioning condition suitable for versioning an affine loop.
+  IntegerSet createConditionForAffineLoop(SmallVectorImpl<Value> &) const {
+    llvm_unreachable("TODO");
   }
 
   template <typename OpTy>
@@ -761,8 +761,14 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   for (const LICMCandidate &candidate : LICMCandidates) {
     const SmallVector<AccessorPairType> &AccessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
-    if (!AccessorPairs.empty())
-      SYCLAccessorVersionBuilder(loop, AccessorPairs).versionLoop();
+    if (!AccessorPairs.empty()) {
+      OpBuilder builder(loop);
+      // TODO: find a way to create a versioning condition that works for
+      // creating either SCF loops or affine loops.
+      Value condition = VersionConditionBuilder(AccessorPairs)
+                            .createConditionForSCFLoop(builder, loop.getLoc());
+      LoopVersionBuilder::create(loop)->versionLoop(condition);
+    }
 
     loop.moveOutOfLoop(&candidate.getOperation());
     ++numOpsHoisted;
