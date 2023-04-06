@@ -275,7 +275,9 @@ static std::optional<Type> convertArrayType(spirv::ArrayType type,
     return mapTo##client##AddressSpace(storage);
 
 static unsigned mapToOpenCLAddressSpace(spirv::StorageClass storageClass) {
-  // Based on clang/lib/Basic/Targets/SPIR.h.
+  // Based on
+  // https://registry.khronos.org/SPIR-V/specs/unified1/OpenCL.ExtendedInstructionSet.100.html#_binary_form
+  // and clang/lib/Basic/Targets/SPIR.h.
   switch (storageClass) {
     STORAGE_SPACE_MAP(Function, 0)
     STORAGE_SPACE_MAP(CrossWorkgroup, 1)
