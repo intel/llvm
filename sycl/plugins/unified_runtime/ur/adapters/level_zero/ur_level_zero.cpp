@@ -1044,7 +1044,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   // used.
   if (!EnvVar) {
     if (Device->useImmediateCommandLists())
-      return std::pair<int, int>(-1, -1);   // No copy engines can be used.
+      return std::pair<int, int>(0, 0); // Only main copy engine will be used.
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
   std::string CopyEngineRange = EnvVar;
@@ -1093,8 +1093,9 @@ _ur_device_handle_t::useImmediateCommandLists() {
   }();
 
   if (ImmediateCommandlistsSetting == -1)
-    // Change this to PerQueue as default after more testing.
-    return NotUsed;
+    // Immediate command lists will be used by default on all platforms.
+    return PerQueue;
+
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
