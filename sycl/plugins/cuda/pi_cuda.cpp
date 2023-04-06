@@ -80,7 +80,7 @@ pi_result cuda_piPluginGetLastError(char **message) {
   return ErrorMessageCode;
 }
 
-// Optimization strings
+// Optimization strings.
 static const char *EmptyStr = "";
 
 // Returns plugin specific backend optimization option.
@@ -91,7 +91,7 @@ pi_result
                                               const char **backend_option) {
   if ((opt_level < 0) || (opt_level > 3))
     return PI_ERROR_INVALID_VALUE;
-  *backend_option = &EmptyStr[0];
+  *backend_option = EmptyStr;
   return PI_SUCCESS;
 }
 

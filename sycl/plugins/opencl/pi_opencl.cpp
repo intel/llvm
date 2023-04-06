@@ -96,7 +96,7 @@ pi_result piPluginGetLastError(char **message) {
   return ErrorMessageCode;
 }
 
-// Optimization strings
+// Optimization strings.
 static const char *EmptyStr = "";
 static const char *NoOptStr = "-cl-opt-disable";
 

@@ -2129,7 +2129,7 @@ pi_result piPluginGetLastError(char **message) {
   return pi2ur::piPluginGetLastError(message);
 }
 
-// Optimization strings
+// Optimization strings.
 static const char *EmptyStr = "";
 static const char *NoOptStr = "-ze-opt-disable";
 static const char *O1OptStr = "-ze-opt-level=1";
@@ -2143,17 +2143,17 @@ pi_result piPluginGetBackendOptimizationOption(int opt_level,
                                                const char **backend_option) {
   switch (opt_level) {
   case 0:
-    *backend_option = &NoOptStr[0];
+    *backend_option = NoOptStr;
     break;
   case 1:
   case 2:
-    *backend_option = &O1OptStr[0];
+    *backend_option = O1OptStr;
     break;
   case 3:
-    *backend_option = &O2OptStr[0];
+    *backend_option = O2OptStr;
     break;
   default:
-    *backend_option = &EmptyStr[0];
+    *backend_option = EmptyStr;
     return PI_ERROR_INVALID_VALUE;
   }
   return PI_SUCCESS;

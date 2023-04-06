@@ -132,7 +132,7 @@ pi_result hip_piPluginGetLastError(char **message) {
   return ErrorMessageCode;
 }
 
-// Optimization strings
+// Optimization strings.
 static const char *EmptyStr = "";
 
 // Returns plugin specific backend optimization option.

@@ -86,9 +86,9 @@ pipeline.
 
 ### Changes to the clang front-end
 
-For each SYCL kernel, we add a new function attribute that is named
-`sycl-optlevel`. Value of this attribute is set to the optimization level which
-was used to compile the overlying module.
+For each function in SYCL device code, we add a new function attribute that is
+named `sycl-optlevel`. Value of this attribute is set to the optimization level
+which was used to compile the overlying module.
 
 ### Changes to the sycl-post-link tool
 

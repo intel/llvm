@@ -410,7 +410,9 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
   // Add optimization flags.
-  if (optLevel != -1) {
+  // Add only if compile options are not overwritten by environment
+  // variable
+  if (!CompileOptsEnv && optLevel != -1) {
     const char *backend_option = nullptr;
     // Empty string is returned in backend_option when no appropriate backend
     // option is available for a given opt level.
