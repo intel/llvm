@@ -2144,7 +2144,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   FunctionDecl *KernelDecl;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   Sema::ContextRAII FuncContext;
-  SourceLocation Loc;
   // Holds the last handled field's first parameter. This doesn't store an
   // iterator as push_back invalidates iterators.
   size_t LastParamIndex = 0;
@@ -2268,17 +2267,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
 
-    // Currently samplers/stream are not supported in ESIMD.
-    // Ensure that the use of sycl_explicit_simd attribute emits a diagnostic
-    // when used with sampler or stream.
-    if (KernelDecl->hasAttr<SYCLSimdAttr>() && !isSyclAccessorType(FieldTy))
-      return SemaRef.Diag(Loc, diag::err_sycl_esimd_not_supported_for_type)
-             << RecordDecl;
-
-    llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
-            ? InitESIMDMethodName
-            : InitMethodName;
+    llvm::StringLiteral MethodName = InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
 
@@ -2368,7 +2357,7 @@ public:
       : SyclKernelFieldHandler(S),
         KernelDecl(
             createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
-        FuncContext(SemaRef, KernelDecl), Loc(Loc) {
+        FuncContext(SemaRef, KernelDecl) {
     S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
 
     if (const auto *AddIRAttrFunc =
@@ -2426,16 +2415,7 @@ public:
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
 
-    // Currently samplers/stream are not supported in ESIMD.
-    // Ensure that the use of sycl_explicit_simd attribute emits a diagnostic
-    // when used with sampler or stream.
-    if (KernelDecl->hasAttr<SYCLSimdAttr>() && !isSyclAccessorType(FieldTy))
-      return SemaRef.Diag(Loc, diag::err_sycl_esimd_not_supported_for_type)
-             << RecordDecl;
-    llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
-            ? InitESIMDMethodName
-            : InitMethodName;
+    llvm::StringLiteral MethodName = InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
 
@@ -2563,6 +2543,154 @@ public:
   }
 };
 
+// This Visitor traverses the AST of the function with
+// `sycl_kernel` attribute and returns the version of “operator()()” that is
+// called by KernelFunc. There will only be one call to KernelFunc in that
+// AST because the DPC++ headers are structured such that the user’s
+// kernel function is only called once. This ensures that the correct
+// “operator()()” function call is returned, when a named function object used
+// to define a kernel has more than one “operator()()” calls defined in it. For
+// example, in the code below, 'operator()(sycl::id<1> id)' is returned based on
+// the 'parallel_for' invocation which takes a 'sycl::range<1>(16)' argument.
+//   class MyKernel {
+//    public:
+//      void operator()() const {
+//        // code
+//      }
+//
+//      [[intel::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const
+//      {
+//        // code
+//      }
+//    };
+//
+//    int main() {
+//
+//    Q.submit([&](sycl::handler& cgh) {
+//      MyKernel kernelFunctorObject;
+//      cgh.parallel_for(sycl::range<1>(16), kernelFunctorObject);
+//    });
+//      return 0;
+//    }
+
+class KernelCallOperatorVisitor
+    : public RecursiveASTVisitor<KernelCallOperatorVisitor> {
+
+  FunctionDecl *KernelCallerFunc;
+
+public:
+  CXXMethodDecl *CallOperator = nullptr;
+  const CXXRecordDecl *KernelObj;
+
+  KernelCallOperatorVisitor(FunctionDecl *KernelCallerFunc,
+                            const CXXRecordDecl *KernelObj)
+      : KernelCallerFunc(KernelCallerFunc), KernelObj(KernelObj) {}
+
+  bool VisitCallExpr(CallExpr *CE) {
+    Decl *CalleeDecl = CE->getCalleeDecl();
+    if (isa_and_nonnull<CXXMethodDecl>(CalleeDecl)) {
+      CXXMethodDecl *MD = cast<CXXMethodDecl>(CalleeDecl);
+      if (MD->getOverloadedOperator() == OO_Call &&
+          MD->getParent() == KernelObj) {
+        CallOperator = MD;
+      }
+    }
+    return true;
+  }
+
+  CXXMethodDecl *getCallOperator() {
+    if (CallOperator)
+      return CallOperator;
+
+    TraverseDecl(KernelCallerFunc);
+    return CallOperator;
+  }
+};
+
+class ESIMDKernelDiagnostics : public SyclKernelFieldHandler {
+
+  SourceLocation KernelLoc;
+  unsigned SizeOfParams = 0;
+  bool IsESIMD = false;
+
+  void addParam(QualType ArgTy) {
+    SizeOfParams +=
+        SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
+  }
+
+  bool handleSpecialType(QualType FieldTy) {
+    const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
+
+    if (IsESIMD && !isSyclAccessorType(FieldTy))
+      return SemaRef.Diag(KernelLoc,
+                          diag::err_sycl_esimd_not_supported_for_type)
+             << RecordDecl;
+
+    assert(RecordDecl && "The type must be a RecordDecl");
+
+    StringRef MethodName;
+
+    if (IsESIMD && isSyclAccessorType(FieldTy)) {
+      MethodName = InitESIMDMethodName;
+      CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
+      assert(InitMethod && "The type must have the __init method");
+      for (const ParmVarDecl *Param : InitMethod->parameters())
+        addParam(Param->getType());
+    }
+    return true;
+  }
+
+public:
+  ESIMDKernelDiagnostics(Sema &S, SourceLocation Loc, bool IsESIMD)
+      : SyclKernelFieldHandler(S), KernelLoc(Loc), IsESIMD(IsESIMD) {}
+
+  ~ESIMDKernelDiagnostics() {
+    if (IsESIMD && (SizeOfParams > MaxKernelArgsSize))
+      SemaRef.Diag(KernelLoc, diag::warn_esimd_kernel_too_big_args)
+          << SizeOfParams << MaxKernelArgsSize;
+  }
+
+  bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
+    return handleSpecialType(FieldTy);
+  }
+
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType FieldTy) final {
+    return handleSpecialType(FieldTy);
+  }
+
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FieldTy);
+    return true;
+  }
+
+  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FieldTy);
+    return true;
+  }
+
+  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FieldTy);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
+    addParam(Ty);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
+    addParam(Ty);
+    return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
+  }
+};
+
 class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   SourceLocation KernelLoc;
   unsigned SizeOfParams = 0;
@@ -2589,6 +2717,7 @@ public:
       : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
 
   ~SyclKernelArgsSizeChecker() {
+
     if (SizeOfParams > MaxKernelArgsSize)
       SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_big_args)
           << SizeOfParams << MaxKernelArgsSize;
@@ -2819,7 +2948,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   uint64_t StructDepth = 0;
   VarDecl *KernelHandlerClone = nullptr;
   bool IsSIMD = false;
-  CXXMethodDecl *CallOperator;
+  CXXMethodDecl *CallOperator = nullptr;
 
   Stmt *replaceWithLocalClone(ParmVarDecl *OriginalParam, VarDecl *LocalClone,
                               Stmt *FunctionBody) {
@@ -3334,7 +3463,8 @@ public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
                         const CXXRecordDecl *KernelObj,
-                        FunctionDecl *KernelCallerFunc, bool IsSIMDKernel, CXXMethodDecl *CallOperator)
+                        FunctionDecl *KernelCallerFunc, bool IsSIMDKernel,
+                        CXXMethodDecl *CallOperator)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
         KernelObjClone(createKernelObjClone(S.getASTContext(),
                                             DC.getKernelDecl(), KernelObj)),
@@ -4064,7 +4194,8 @@ void Sema::copySYCLKernelAttrs(CXXMethodDecl *CallOperator) {
     llvm::SmallVector<Attr *, 4> Attrs;
     collectSYCLAttributes(*this, KernelBody, Attrs, /*DirectlyCalled*/ true);
     if (!Attrs.empty())
-      llvm::for_each(Attrs, [CallOperator](Attr *A) { CallOperator->addAttr(A); });
+      llvm::for_each(Attrs,
+                     [CallOperator](Attr *A) { CallOperator->addAttr(A); });
   }
 }
 
@@ -4120,12 +4251,11 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
   assert(KernelObj && "invalid kernel caller");
 
-  KernelCallOperatorVisitor KernelCallOperator(KernelCallerFunc, KernelObj);
-
   // Do not visit invalid kernel object.
   if (KernelObj->isInvalidDecl())
     return;
 
+  KernelCallOperatorVisitor KernelCallOperator(KernelCallerFunc, KernelObj);
   CXXMethodDecl *CallOperator = nullptr;
 
   if (KernelObj->isLambda())
@@ -4149,11 +4279,15 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 
   bool IsSIMDKernel = isESIMDKernelType(CallOperator);
 
+  ESIMDKernelDiagnostics esimdKernel(*this, KernelObj->getLocation(),
+                                     IsSIMDKernel);
+
   SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(), IsSIMDKernel,
                                     KernelCallerFunc);
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
-                                    KernelCallerFunc, IsSIMDKernel, CallOperator);
+                                    KernelCallerFunc, IsSIMDKernel,
+                                    CallOperator);
   SyclKernelIntHeaderCreator int_header(
       IsSIMDKernel, *this, getSyclIntegrationHeader(), KernelObj,
       calculateKernelNameType(Context, KernelCallerFunc), KernelCallerFunc);
@@ -4167,14 +4301,14 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   // optimization record is saved.
   if (!getLangOpts().OptRecordFile.empty()) {
     Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
-                             int_footer, opt_report);
+                             int_footer, opt_report, esimdKernel);
     Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
-                              int_footer, opt_report);
+                              int_footer, opt_report, esimdKernel);
   } else {
     Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
-                             int_footer);
+                             int_footer, esimdKernel);
     Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
-                              int_footer);
+                              int_footer, esimdKernel);
   }
 
   if (ParmVarDecl *KernelHandlerArg =
