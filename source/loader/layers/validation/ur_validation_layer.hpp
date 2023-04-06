@@ -13,7 +13,7 @@
 #include "ur_proxy_layer.hpp"
 #include "ur_util.hpp"
 
-namespace validation_layer {
+namespace ur_validation_layer {
 
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal context_t : public proxy_layer_context_t {
@@ -35,4 +35,4 @@ class __urdlllocal context_t : public proxy_layer_context_t {
 
 extern context_t context;
 
-} // namespace validation_layer
+} // namespace ur_validation_layer

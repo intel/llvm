@@ -34,16 +34,16 @@ __urdlllocal ur_result_t context_t::Init(ur_device_init_flags_t device_flags) {
     logger::init(logger_name);
     logger::info("Logger {} initialized successfully!", logger_name);
 
-    result = loader::context->init();
+    result = ur_loader::context->init();
 
     if (UR_RESULT_SUCCESS == result) {
         result = urInit();
     }
 
     proxy_layer_context_t *layers[] = {
-        &validation_layer::context,
+        &ur_validation_layer::context,
 #if UR_ENABLE_TRACING
-        &tracing_layer::context
+        &ur_tracing_layer::context
 #endif
     };
 

@@ -10,7 +10,7 @@
 #include "ur_leak_check.hpp"
 #include "ur_validation_layer.hpp"
 
-namespace validation_layer {
+namespace ur_validation_layer {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urInit
@@ -4556,15 +4556,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     ur_global_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Global;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Global;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4572,13 +4572,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnInit = pDdiTable->pfnInit;
-    pDdiTable->pfnInit = validation_layer::urInit;
+    pDdiTable->pfnInit = ur_validation_layer::urInit;
 
     dditable.pfnGetLastResult = pDdiTable->pfnGetLastResult;
-    pDdiTable->pfnGetLastResult = validation_layer::urGetLastResult;
+    pDdiTable->pfnGetLastResult = ur_validation_layer::urGetLastResult;
 
     dditable.pfnTearDown = pDdiTable->pfnTearDown;
-    pDdiTable->pfnTearDown = validation_layer::urTearDown;
+    pDdiTable->pfnTearDown = ur_validation_layer::urTearDown;
 
     return result;
 }
@@ -4596,15 +4596,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
     ur_context_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Context;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Context;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4612,27 +4612,28 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = validation_layer::urContextCreate;
+    pDdiTable->pfnCreate = ur_validation_layer::urContextCreate;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = validation_layer::urContextRetain;
+    pDdiTable->pfnRetain = ur_validation_layer::urContextRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = validation_layer::urContextRelease;
+    pDdiTable->pfnRelease = ur_validation_layer::urContextRelease;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = validation_layer::urContextGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urContextGetInfo;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = validation_layer::urContextGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle =
+        ur_validation_layer::urContextGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        validation_layer::urContextCreateWithNativeHandle;
+        ur_validation_layer::urContextCreateWithNativeHandle;
 
     dditable.pfnSetExtendedDeleter = pDdiTable->pfnSetExtendedDeleter;
     pDdiTable->pfnSetExtendedDeleter =
-        validation_layer::urContextSetExtendedDeleter;
+        ur_validation_layer::urContextSetExtendedDeleter;
 
     return result;
 }
@@ -4650,15 +4651,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     ur_enqueue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Enqueue;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Enqueue;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4666,81 +4667,81 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnKernelLaunch = pDdiTable->pfnKernelLaunch;
-    pDdiTable->pfnKernelLaunch = validation_layer::urEnqueueKernelLaunch;
+    pDdiTable->pfnKernelLaunch = ur_validation_layer::urEnqueueKernelLaunch;
 
     dditable.pfnEventsWait = pDdiTable->pfnEventsWait;
-    pDdiTable->pfnEventsWait = validation_layer::urEnqueueEventsWait;
+    pDdiTable->pfnEventsWait = ur_validation_layer::urEnqueueEventsWait;
 
     dditable.pfnEventsWaitWithBarrier = pDdiTable->pfnEventsWaitWithBarrier;
     pDdiTable->pfnEventsWaitWithBarrier =
-        validation_layer::urEnqueueEventsWaitWithBarrier;
+        ur_validation_layer::urEnqueueEventsWaitWithBarrier;
 
     dditable.pfnMemBufferRead = pDdiTable->pfnMemBufferRead;
-    pDdiTable->pfnMemBufferRead = validation_layer::urEnqueueMemBufferRead;
+    pDdiTable->pfnMemBufferRead = ur_validation_layer::urEnqueueMemBufferRead;
 
     dditable.pfnMemBufferWrite = pDdiTable->pfnMemBufferWrite;
-    pDdiTable->pfnMemBufferWrite = validation_layer::urEnqueueMemBufferWrite;
+    pDdiTable->pfnMemBufferWrite = ur_validation_layer::urEnqueueMemBufferWrite;
 
     dditable.pfnMemBufferReadRect = pDdiTable->pfnMemBufferReadRect;
     pDdiTable->pfnMemBufferReadRect =
-        validation_layer::urEnqueueMemBufferReadRect;
+        ur_validation_layer::urEnqueueMemBufferReadRect;
 
     dditable.pfnMemBufferWriteRect = pDdiTable->pfnMemBufferWriteRect;
     pDdiTable->pfnMemBufferWriteRect =
-        validation_layer::urEnqueueMemBufferWriteRect;
+        ur_validation_layer::urEnqueueMemBufferWriteRect;
 
     dditable.pfnMemBufferCopy = pDdiTable->pfnMemBufferCopy;
-    pDdiTable->pfnMemBufferCopy = validation_layer::urEnqueueMemBufferCopy;
+    pDdiTable->pfnMemBufferCopy = ur_validation_layer::urEnqueueMemBufferCopy;
 
     dditable.pfnMemBufferCopyRect = pDdiTable->pfnMemBufferCopyRect;
     pDdiTable->pfnMemBufferCopyRect =
-        validation_layer::urEnqueueMemBufferCopyRect;
+        ur_validation_layer::urEnqueueMemBufferCopyRect;
 
     dditable.pfnMemBufferFill = pDdiTable->pfnMemBufferFill;
-    pDdiTable->pfnMemBufferFill = validation_layer::urEnqueueMemBufferFill;
+    pDdiTable->pfnMemBufferFill = ur_validation_layer::urEnqueueMemBufferFill;
 
     dditable.pfnMemImageRead = pDdiTable->pfnMemImageRead;
-    pDdiTable->pfnMemImageRead = validation_layer::urEnqueueMemImageRead;
+    pDdiTable->pfnMemImageRead = ur_validation_layer::urEnqueueMemImageRead;
 
     dditable.pfnMemImageWrite = pDdiTable->pfnMemImageWrite;
-    pDdiTable->pfnMemImageWrite = validation_layer::urEnqueueMemImageWrite;
+    pDdiTable->pfnMemImageWrite = ur_validation_layer::urEnqueueMemImageWrite;
 
     dditable.pfnMemImageCopy = pDdiTable->pfnMemImageCopy;
-    pDdiTable->pfnMemImageCopy = validation_layer::urEnqueueMemImageCopy;
+    pDdiTable->pfnMemImageCopy = ur_validation_layer::urEnqueueMemImageCopy;
 
     dditable.pfnMemBufferMap = pDdiTable->pfnMemBufferMap;
-    pDdiTable->pfnMemBufferMap = validation_layer::urEnqueueMemBufferMap;
+    pDdiTable->pfnMemBufferMap = ur_validation_layer::urEnqueueMemBufferMap;
 
     dditable.pfnMemUnmap = pDdiTable->pfnMemUnmap;
-    pDdiTable->pfnMemUnmap = validation_layer::urEnqueueMemUnmap;
+    pDdiTable->pfnMemUnmap = ur_validation_layer::urEnqueueMemUnmap;
 
     dditable.pfnUSMFill = pDdiTable->pfnUSMFill;
-    pDdiTable->pfnUSMFill = validation_layer::urEnqueueUSMFill;
+    pDdiTable->pfnUSMFill = ur_validation_layer::urEnqueueUSMFill;
 
     dditable.pfnUSMMemcpy = pDdiTable->pfnUSMMemcpy;
-    pDdiTable->pfnUSMMemcpy = validation_layer::urEnqueueUSMMemcpy;
+    pDdiTable->pfnUSMMemcpy = ur_validation_layer::urEnqueueUSMMemcpy;
 
     dditable.pfnUSMPrefetch = pDdiTable->pfnUSMPrefetch;
-    pDdiTable->pfnUSMPrefetch = validation_layer::urEnqueueUSMPrefetch;
+    pDdiTable->pfnUSMPrefetch = ur_validation_layer::urEnqueueUSMPrefetch;
 
     dditable.pfnUSMAdvise = pDdiTable->pfnUSMAdvise;
-    pDdiTable->pfnUSMAdvise = validation_layer::urEnqueueUSMAdvise;
+    pDdiTable->pfnUSMAdvise = ur_validation_layer::urEnqueueUSMAdvise;
 
     dditable.pfnUSMFill2D = pDdiTable->pfnUSMFill2D;
-    pDdiTable->pfnUSMFill2D = validation_layer::urEnqueueUSMFill2D;
+    pDdiTable->pfnUSMFill2D = ur_validation_layer::urEnqueueUSMFill2D;
 
     dditable.pfnUSMMemcpy2D = pDdiTable->pfnUSMMemcpy2D;
-    pDdiTable->pfnUSMMemcpy2D = validation_layer::urEnqueueUSMMemcpy2D;
+    pDdiTable->pfnUSMMemcpy2D = ur_validation_layer::urEnqueueUSMMemcpy2D;
 
     dditable.pfnDeviceGlobalVariableWrite =
         pDdiTable->pfnDeviceGlobalVariableWrite;
     pDdiTable->pfnDeviceGlobalVariableWrite =
-        validation_layer::urEnqueueDeviceGlobalVariableWrite;
+        ur_validation_layer::urEnqueueDeviceGlobalVariableWrite;
 
     dditable.pfnDeviceGlobalVariableRead =
         pDdiTable->pfnDeviceGlobalVariableRead;
     pDdiTable->pfnDeviceGlobalVariableRead =
-        validation_layer::urEnqueueDeviceGlobalVariableRead;
+        ur_validation_layer::urEnqueueDeviceGlobalVariableRead;
 
     return result;
 }
@@ -4758,15 +4759,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
     ur_event_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Event;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Event;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4774,29 +4775,30 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = validation_layer::urEventGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urEventGetInfo;
 
     dditable.pfnGetProfilingInfo = pDdiTable->pfnGetProfilingInfo;
-    pDdiTable->pfnGetProfilingInfo = validation_layer::urEventGetProfilingInfo;
+    pDdiTable->pfnGetProfilingInfo =
+        ur_validation_layer::urEventGetProfilingInfo;
 
     dditable.pfnWait = pDdiTable->pfnWait;
-    pDdiTable->pfnWait = validation_layer::urEventWait;
+    pDdiTable->pfnWait = ur_validation_layer::urEventWait;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = validation_layer::urEventRetain;
+    pDdiTable->pfnRetain = ur_validation_layer::urEventRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = validation_layer::urEventRelease;
+    pDdiTable->pfnRelease = ur_validation_layer::urEventRelease;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = validation_layer::urEventGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_validation_layer::urEventGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        validation_layer::urEventCreateWithNativeHandle;
+        ur_validation_layer::urEventCreateWithNativeHandle;
 
     dditable.pfnSetCallback = pDdiTable->pfnSetCallback;
-    pDdiTable->pfnSetCallback = validation_layer::urEventSetCallback;
+    pDdiTable->pfnSetCallback = ur_validation_layer::urEventSetCallback;
 
     return result;
 }
@@ -4814,15 +4816,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_kernel_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Kernel;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Kernel;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4830,52 +4832,54 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = validation_layer::urKernelCreate;
+    pDdiTable->pfnCreate = ur_validation_layer::urKernelCreate;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = validation_layer::urKernelGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urKernelGetInfo;
 
     dditable.pfnGetGroupInfo = pDdiTable->pfnGetGroupInfo;
-    pDdiTable->pfnGetGroupInfo = validation_layer::urKernelGetGroupInfo;
+    pDdiTable->pfnGetGroupInfo = ur_validation_layer::urKernelGetGroupInfo;
 
     dditable.pfnGetSubGroupInfo = pDdiTable->pfnGetSubGroupInfo;
-    pDdiTable->pfnGetSubGroupInfo = validation_layer::urKernelGetSubGroupInfo;
+    pDdiTable->pfnGetSubGroupInfo =
+        ur_validation_layer::urKernelGetSubGroupInfo;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = validation_layer::urKernelRetain;
+    pDdiTable->pfnRetain = ur_validation_layer::urKernelRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = validation_layer::urKernelRelease;
+    pDdiTable->pfnRelease = ur_validation_layer::urKernelRelease;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = validation_layer::urKernelGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle =
+        ur_validation_layer::urKernelGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        validation_layer::urKernelCreateWithNativeHandle;
+        ur_validation_layer::urKernelCreateWithNativeHandle;
 
     dditable.pfnSetArgValue = pDdiTable->pfnSetArgValue;
-    pDdiTable->pfnSetArgValue = validation_layer::urKernelSetArgValue;
+    pDdiTable->pfnSetArgValue = ur_validation_layer::urKernelSetArgValue;
 
     dditable.pfnSetArgLocal = pDdiTable->pfnSetArgLocal;
-    pDdiTable->pfnSetArgLocal = validation_layer::urKernelSetArgLocal;
+    pDdiTable->pfnSetArgLocal = ur_validation_layer::urKernelSetArgLocal;
 
     dditable.pfnSetArgPointer = pDdiTable->pfnSetArgPointer;
-    pDdiTable->pfnSetArgPointer = validation_layer::urKernelSetArgPointer;
+    pDdiTable->pfnSetArgPointer = ur_validation_layer::urKernelSetArgPointer;
 
     dditable.pfnSetExecInfo = pDdiTable->pfnSetExecInfo;
-    pDdiTable->pfnSetExecInfo = validation_layer::urKernelSetExecInfo;
+    pDdiTable->pfnSetExecInfo = ur_validation_layer::urKernelSetExecInfo;
 
     dditable.pfnSetArgSampler = pDdiTable->pfnSetArgSampler;
-    pDdiTable->pfnSetArgSampler = validation_layer::urKernelSetArgSampler;
+    pDdiTable->pfnSetArgSampler = ur_validation_layer::urKernelSetArgSampler;
 
     dditable.pfnSetArgMemObj = pDdiTable->pfnSetArgMemObj;
-    pDdiTable->pfnSetArgMemObj = validation_layer::urKernelSetArgMemObj;
+    pDdiTable->pfnSetArgMemObj = ur_validation_layer::urKernelSetArgMemObj;
 
     dditable.pfnSetSpecializationConstants =
         pDdiTable->pfnSetSpecializationConstants;
     pDdiTable->pfnSetSpecializationConstants =
-        validation_layer::urKernelSetSpecializationConstants;
+        ur_validation_layer::urKernelSetSpecializationConstants;
 
     return result;
 }
@@ -4893,15 +4897,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
     ur_mem_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Mem;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Mem;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4909,32 +4913,32 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnImageCreate = pDdiTable->pfnImageCreate;
-    pDdiTable->pfnImageCreate = validation_layer::urMemImageCreate;
+    pDdiTable->pfnImageCreate = ur_validation_layer::urMemImageCreate;
 
     dditable.pfnBufferCreate = pDdiTable->pfnBufferCreate;
-    pDdiTable->pfnBufferCreate = validation_layer::urMemBufferCreate;
+    pDdiTable->pfnBufferCreate = ur_validation_layer::urMemBufferCreate;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = validation_layer::urMemRetain;
+    pDdiTable->pfnRetain = ur_validation_layer::urMemRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = validation_layer::urMemRelease;
+    pDdiTable->pfnRelease = ur_validation_layer::urMemRelease;
 
     dditable.pfnBufferPartition = pDdiTable->pfnBufferPartition;
-    pDdiTable->pfnBufferPartition = validation_layer::urMemBufferPartition;
+    pDdiTable->pfnBufferPartition = ur_validation_layer::urMemBufferPartition;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = validation_layer::urMemGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_validation_layer::urMemGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        validation_layer::urMemCreateWithNativeHandle;
+        ur_validation_layer::urMemCreateWithNativeHandle;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = validation_layer::urMemGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urMemGetInfo;
 
     dditable.pfnImageGetInfo = pDdiTable->pfnImageGetInfo;
-    pDdiTable->pfnImageGetInfo = validation_layer::urMemImageGetInfo;
+    pDdiTable->pfnImageGetInfo = ur_validation_layer::urMemImageGetInfo;
 
     return result;
 }
@@ -4952,15 +4956,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_platform_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Platform;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Platform;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -4968,20 +4972,21 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnGet = pDdiTable->pfnGet;
-    pDdiTable->pfnGet = validation_layer::urPlatformGet;
+    pDdiTable->pfnGet = ur_validation_layer::urPlatformGet;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = validation_layer::urPlatformGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urPlatformGetInfo;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = validation_layer::urPlatformGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle =
+        ur_validation_layer::urPlatformGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        validation_layer::urPlatformCreateWithNativeHandle;
+        ur_validation_layer::urPlatformCreateWithNativeHandle;
 
     dditable.pfnGetApiVersion = pDdiTable->pfnGetApiVersion;
-    pDdiTable->pfnGetApiVersion = validation_layer::urPlatformGetApiVersion;
+    pDdiTable->pfnGetApiVersion = ur_validation_layer::urPlatformGetApiVersion;
 
     return result;
 }
@@ -4999,15 +5004,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     ur_program_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Program;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Program;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -5015,48 +5020,49 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnCreateWithIL = pDdiTable->pfnCreateWithIL;
-    pDdiTable->pfnCreateWithIL = validation_layer::urProgramCreateWithIL;
+    pDdiTable->pfnCreateWithIL = ur_validation_layer::urProgramCreateWithIL;
 
     dditable.pfnCreateWithBinary = pDdiTable->pfnCreateWithBinary;
     pDdiTable->pfnCreateWithBinary =
-        validation_layer::urProgramCreateWithBinary;
+        ur_validation_layer::urProgramCreateWithBinary;
 
     dditable.pfnBuild = pDdiTable->pfnBuild;
-    pDdiTable->pfnBuild = validation_layer::urProgramBuild;
+    pDdiTable->pfnBuild = ur_validation_layer::urProgramBuild;
 
     dditable.pfnCompile = pDdiTable->pfnCompile;
-    pDdiTable->pfnCompile = validation_layer::urProgramCompile;
+    pDdiTable->pfnCompile = ur_validation_layer::urProgramCompile;
 
     dditable.pfnLink = pDdiTable->pfnLink;
-    pDdiTable->pfnLink = validation_layer::urProgramLink;
+    pDdiTable->pfnLink = ur_validation_layer::urProgramLink;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = validation_layer::urProgramRetain;
+    pDdiTable->pfnRetain = ur_validation_layer::urProgramRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = validation_layer::urProgramRelease;
+    pDdiTable->pfnRelease = ur_validation_layer::urProgramRelease;
 
     dditable.pfnGetFunctionPointer = pDdiTable->pfnGetFunctionPointer;
     pDdiTable->pfnGetFunctionPointer =
-        validation_layer::urProgramGetFunctionPointer;
+        ur_validation_layer::urProgramGetFunctionPointer;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = validation_layer::urProgramGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urProgramGetInfo;
 
     dditable.pfnGetBuildInfo = pDdiTable->pfnGetBuildInfo;
-    pDdiTable->pfnGetBuildInfo = validation_layer::urProgramGetBuildInfo;
+    pDdiTable->pfnGetBuildInfo = ur_validation_layer::urProgramGetBuildInfo;
 
     dditable.pfnSetSpecializationConstants =
         pDdiTable->pfnSetSpecializationConstants;
     pDdiTable->pfnSetSpecializationConstants =
-        validation_layer::urProgramSetSpecializationConstants;
+        ur_validation_layer::urProgramSetSpecializationConstants;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = validation_layer::urProgramGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle =
+        ur_validation_layer::urProgramGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        validation_layer::urProgramCreateWithNativeHandle;
+        ur_validation_layer::urProgramCreateWithNativeHandle;
 
     return result;
 }
@@ -5074,15 +5080,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_queue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Queue;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Queue;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -5090,29 +5096,29 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = validation_layer::urQueueGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urQueueGetInfo;
 
     dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = validation_layer::urQueueCreate;
+    pDdiTable->pfnCreate = ur_validation_layer::urQueueCreate;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = validation_layer::urQueueRetain;
+    pDdiTable->pfnRetain = ur_validation_layer::urQueueRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = validation_layer::urQueueRelease;
+    pDdiTable->pfnRelease = ur_validation_layer::urQueueRelease;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = validation_layer::urQueueGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle = ur_validation_layer::urQueueGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        validation_layer::urQueueCreateWithNativeHandle;
+        ur_validation_layer::urQueueCreateWithNativeHandle;
 
     dditable.pfnFinish = pDdiTable->pfnFinish;
-    pDdiTable->pfnFinish = validation_layer::urQueueFinish;
+    pDdiTable->pfnFinish = ur_validation_layer::urQueueFinish;
 
     dditable.pfnFlush = pDdiTable->pfnFlush;
-    pDdiTable->pfnFlush = validation_layer::urQueueFlush;
+    pDdiTable->pfnFlush = ur_validation_layer::urQueueFlush;
 
     return result;
 }
@@ -5130,15 +5136,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     ur_sampler_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Sampler;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Sampler;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -5146,23 +5152,24 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = validation_layer::urSamplerCreate;
+    pDdiTable->pfnCreate = ur_validation_layer::urSamplerCreate;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = validation_layer::urSamplerRetain;
+    pDdiTable->pfnRetain = ur_validation_layer::urSamplerRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = validation_layer::urSamplerRelease;
+    pDdiTable->pfnRelease = ur_validation_layer::urSamplerRelease;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = validation_layer::urSamplerGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urSamplerGetInfo;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = validation_layer::urSamplerGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle =
+        ur_validation_layer::urSamplerGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        validation_layer::urSamplerCreateWithNativeHandle;
+        ur_validation_layer::urSamplerCreateWithNativeHandle;
 
     return result;
 }
@@ -5180,15 +5187,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
     ur_usm_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.USM;
+    auto &dditable = ur_validation_layer::context.urDdiTable.USM;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -5196,25 +5203,25 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnHostAlloc = pDdiTable->pfnHostAlloc;
-    pDdiTable->pfnHostAlloc = validation_layer::urUSMHostAlloc;
+    pDdiTable->pfnHostAlloc = ur_validation_layer::urUSMHostAlloc;
 
     dditable.pfnDeviceAlloc = pDdiTable->pfnDeviceAlloc;
-    pDdiTable->pfnDeviceAlloc = validation_layer::urUSMDeviceAlloc;
+    pDdiTable->pfnDeviceAlloc = ur_validation_layer::urUSMDeviceAlloc;
 
     dditable.pfnSharedAlloc = pDdiTable->pfnSharedAlloc;
-    pDdiTable->pfnSharedAlloc = validation_layer::urUSMSharedAlloc;
+    pDdiTable->pfnSharedAlloc = ur_validation_layer::urUSMSharedAlloc;
 
     dditable.pfnFree = pDdiTable->pfnFree;
-    pDdiTable->pfnFree = validation_layer::urUSMFree;
+    pDdiTable->pfnFree = ur_validation_layer::urUSMFree;
 
     dditable.pfnGetMemAllocInfo = pDdiTable->pfnGetMemAllocInfo;
-    pDdiTable->pfnGetMemAllocInfo = validation_layer::urUSMGetMemAllocInfo;
+    pDdiTable->pfnGetMemAllocInfo = ur_validation_layer::urUSMGetMemAllocInfo;
 
     dditable.pfnPoolCreate = pDdiTable->pfnPoolCreate;
-    pDdiTable->pfnPoolCreate = validation_layer::urUSMPoolCreate;
+    pDdiTable->pfnPoolCreate = ur_validation_layer::urUSMPoolCreate;
 
     dditable.pfnPoolDestroy = pDdiTable->pfnPoolDestroy;
-    pDdiTable->pfnPoolDestroy = validation_layer::urUSMPoolDestroy;
+    pDdiTable->pfnPoolDestroy = ur_validation_layer::urUSMPoolDestroy;
 
     return result;
 }
@@ -5232,15 +5239,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     ur_device_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    auto &dditable = validation_layer::context.urDdiTable.Device;
+    auto &dditable = ur_validation_layer::context.urDdiTable.Device;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(validation_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(validation_layer::context.version) >
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -5248,33 +5255,34 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     dditable.pfnGet = pDdiTable->pfnGet;
-    pDdiTable->pfnGet = validation_layer::urDeviceGet;
+    pDdiTable->pfnGet = ur_validation_layer::urDeviceGet;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    pDdiTable->pfnGetInfo = validation_layer::urDeviceGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urDeviceGetInfo;
 
     dditable.pfnRetain = pDdiTable->pfnRetain;
-    pDdiTable->pfnRetain = validation_layer::urDeviceRetain;
+    pDdiTable->pfnRetain = ur_validation_layer::urDeviceRetain;
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
-    pDdiTable->pfnRelease = validation_layer::urDeviceRelease;
+    pDdiTable->pfnRelease = ur_validation_layer::urDeviceRelease;
 
     dditable.pfnPartition = pDdiTable->pfnPartition;
-    pDdiTable->pfnPartition = validation_layer::urDevicePartition;
+    pDdiTable->pfnPartition = ur_validation_layer::urDevicePartition;
 
     dditable.pfnSelectBinary = pDdiTable->pfnSelectBinary;
-    pDdiTable->pfnSelectBinary = validation_layer::urDeviceSelectBinary;
+    pDdiTable->pfnSelectBinary = ur_validation_layer::urDeviceSelectBinary;
 
     dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    pDdiTable->pfnGetNativeHandle = validation_layer::urDeviceGetNativeHandle;
+    pDdiTable->pfnGetNativeHandle =
+        ur_validation_layer::urDeviceGetNativeHandle;
 
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
-        validation_layer::urDeviceCreateWithNativeHandle;
+        ur_validation_layer::urDeviceCreateWithNativeHandle;
 
     dditable.pfnGetGlobalTimestamps = pDdiTable->pfnGetGlobalTimestamps;
     pDdiTable->pfnGetGlobalTimestamps =
-        validation_layer::urDeviceGetGlobalTimestamps;
+        ur_validation_layer::urDeviceGetGlobalTimestamps;
 
     return result;
 }
@@ -5283,66 +5291,66 @@ ur_result_t context_t::init(ur_dditable_t *dditable) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetGlobalProcAddrTable(
+        result = ur_validation_layer::urGetGlobalProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Global);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetContextProcAddrTable(
+        result = ur_validation_layer::urGetContextProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Context);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetEnqueueProcAddrTable(
+        result = ur_validation_layer::urGetEnqueueProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Enqueue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetEventProcAddrTable(
+        result = ur_validation_layer::urGetEventProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Event);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetKernelProcAddrTable(
+        result = ur_validation_layer::urGetKernelProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Kernel);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetMemProcAddrTable(UR_API_VERSION_CURRENT,
-                                                         &dditable->Mem);
+        result = ur_validation_layer::urGetMemProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Mem);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetPlatformProcAddrTable(
+        result = ur_validation_layer::urGetPlatformProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Platform);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetProgramProcAddrTable(
+        result = ur_validation_layer::urGetProgramProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Program);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetQueueProcAddrTable(
+        result = ur_validation_layer::urGetQueueProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Queue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetSamplerProcAddrTable(
+        result = ur_validation_layer::urGetSamplerProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Sampler);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT,
-                                                         &dditable->USM);
+        result = ur_validation_layer::urGetUSMProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->USM);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = validation_layer::urGetDeviceProcAddrTable(
+        result = ur_validation_layer::urGetDeviceProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Device);
     }
 
     return result;
 }
 
-} // namespace validation_layer
+} // namespace ur_validation_layer

@@ -17,7 +17,7 @@
 
 #define TRACING_COMP_NAME "tracing layer"
 
-namespace tracing_layer {
+namespace ur_tracing_layer {
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal context_t : public proxy_layer_context_t {
   public:
@@ -39,6 +39,6 @@ class __urdlllocal context_t : public proxy_layer_context_t {
 };
 
 extern context_t context;
-} // namespace tracing_layer
+} // namespace ur_tracing_layer
 
 #endif /* UR_TRACING_LAYER_H */

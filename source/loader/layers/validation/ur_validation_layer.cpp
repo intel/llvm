@@ -9,7 +9,7 @@
  */
 #include "ur_validation_layer.hpp"
 
-namespace validation_layer {
+namespace ur_validation_layer {
 context_t context;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -22,4 +22,4 @@ context_t::context_t() : logger(logger::create_logger("validation")) {
 ///////////////////////////////////////////////////////////////////////////////
 context_t::~context_t() {}
 
-} // namespace validation_layer
+} // namespace ur_validation_layer
