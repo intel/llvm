@@ -411,8 +411,8 @@ llvm::Type *getJointMatrixINTELExtType(llvm::Type *CompTy,
   // Once we update to the newest version of the spec - this should be updated.
   assert((TemplateArgs.size() == 5 || TemplateArgs.size() == 6) &&
          "Wrong JointMatrixINTEL template parameters number");
-  // This is required to represent optional Optional
-  // 'Component Type Interpretation' parameter
+  // This is required to represent optional 'Component Type Interpretation'
+  // parameter
   using ParamsType =
       typename std::conditional<NeedTypeInterpret, SmallVector<unsigned, 6>,
                                 SmallVector<unsigned, 5>>::type;
@@ -444,10 +444,10 @@ llvm::Type *CodeGenTypes::ConvertSYCLJointMatrixINTELType(RecordDecl *RD) {
          "1st JointMatrixINTEL template parameter must be type");
   llvm::Type *CompTy = ConvertType(TemplateArgs[0].getAsType());
 
-  // Per JointMatrixINTEL spec the type can have an Optional
+  // Per JointMatrixINTEL spec the type can have an optional
   // 'Component Type Interpretation' parameter. We should emit it in case
   // if on SYCL level joint matrix accepts 'bfloat16' or 'tf32' objects as
-  // matrix's components. Yet bfloat16 should be represented as 'int16' and
+  // matrix's components. Yet 'bfloat16' should be represented as 'int16' and
   // 'tf32' as 'float' types.
   if (CompTy->isStructTy()) {
     StringRef LlvmTyName = CompTy->getStructName();
