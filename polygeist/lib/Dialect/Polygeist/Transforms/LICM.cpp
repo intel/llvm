@@ -740,8 +740,7 @@ public:
 
   void addPrerequisite(Operation &op) { prerequisites.push_back(&op); }
 
-  const SmallVector<AccessorPairType> &
-  getRequireNoOverlapAccessorPairs() const {
+  ArrayRef<AccessorPairType> getRequireNoOverlapAccessorPairs() const {
     return requireNoOverlapAccessorPairs;
   }
 
@@ -767,7 +766,7 @@ class SYCLAccessorVersionBuilder : public SCFLoopVersionBuilder {
 public:
   SYCLAccessorVersionBuilder(
       LoopLikeOpInterface loop,
-      const SmallVector<AccessorPairType> &requireNoOverlapAccessorPairs)
+      ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs)
       : SCFLoopVersionBuilder(loop),
         accessorPairs(requireNoOverlapAccessorPairs) {}
 
@@ -905,7 +904,7 @@ private:
     return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
   }
 
-  const SmallVector<AccessorPairType> &accessorPairs;
+  ArrayRef<AccessorPairType> accessorPairs;
 };
 
 //===----------------------------------------------------------------------===//
@@ -1140,7 +1139,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
                }))
       continue;
 
-    const SmallVector<AccessorPairType> &accessorPairs =
+    ArrayRef<AccessorPairType> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     bool requireVersioning = !accessorPairs.empty();
     // Currently only version for single accessor pair.
@@ -1175,7 +1174,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   size_t numOpsHoisted = 0;
   std::set<const Operation *> opsHoisted;
   for (const LICMCandidate &candidate : LICMCandidates) {
-    const SmallVector<AccessorPairType> &accessorPairs =
+    ArrayRef<AccessorPairType> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
     if (!accessorPairs.empty())
       SYCLAccessorVersionBuilder(loop, accessorPairs).versionLoop();

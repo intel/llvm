@@ -18,6 +18,7 @@
 //     }
 //   }
 // }
+// Note: The version condition implementation doesn't do short-circuit evaluation.
 
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
@@ -135,6 +136,7 @@ func.func private @test(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: m
 //     }
 //   }
 // }
+// Note: The version condition implementation doesn't do short-circuit evaluation.
 
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
