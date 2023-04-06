@@ -42,7 +42,7 @@ jobs:
     outputs:
       PR_SHA: ${{ steps.sha.outputs.result }}
 
- test_matrix:
+  test_matrix:
     name: Generate Test Matrix
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
