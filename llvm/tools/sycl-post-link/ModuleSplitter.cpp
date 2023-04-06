@@ -625,6 +625,7 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   });
 }
 
+namespace {
 // This is a helper class, which allows to group/categorize function based on
 // provided rules. It is intended to be used in device code split
 // implementation.
@@ -812,6 +813,7 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
 
   return (std::string)Result;
 }
+} // namespace
 
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
@@ -842,13 +844,13 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
         sycl::utils::ATTR_SYCL_MODULE_ID);
 
     // Optional features
+    // Note: Add more rules at the end of the list to avoid chaning orders of
+    // output files in existing tests.
     Categorizer.registerSimpleFlagAttributeRule(
         ::sycl::kernel_props::ATTR_LARGE_GRF, "large-grf");
     Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
     break;
-  default:
-    llvm_unreachable("Unexpected split scope");
   }
 
   // std::map is used here to ensure stable ordering of entry point groups,

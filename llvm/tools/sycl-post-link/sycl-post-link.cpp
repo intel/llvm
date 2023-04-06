@@ -781,6 +781,9 @@ processInputModule(std::unique_ptr<Module> M) {
   if (DeviceGlobals)
     Splitter->verifyNoCrossModuleDeviceGlobalUsage();
 
+  // It is important that we *DO NOT* preserve all the splits in memory at the
+  // same time, because it leads to a huge RAM consumption by the tool on bigger
+  // inputs.
   while (Splitter->hasMoreSplits()) {
     module_split::ModuleDesc MDesc = Splitter->nextSplit();
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
