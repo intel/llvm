@@ -5653,7 +5653,7 @@ pi_result cuda_piextVirtualMemGranularityGetInfo(
           param_name == PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM
               ? CU_MEM_ALLOC_GRANULARITY_MINIMUM
               : CU_MEM_ALLOC_GRANULARITY_RECOMMENDED;
-      CUmemAllocationProp alloc_props;
+      CUmemAllocationProp alloc_props = {};
       alloc_props.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
       alloc_props.type = CU_MEM_ALLOCATION_TYPE_PINNED;
       result = GetDeviceOrdinal(device, alloc_props.location.id);
@@ -5683,7 +5683,7 @@ pi_result cuda_piextPhysicalMemCreate(pi_context context, pi_device device,
 
   pi_result result = PI_SUCCESS;
   try {
-    CUmemAllocationProp alloc_props;
+    CUmemAllocationProp alloc_props = {};
     alloc_props.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
     alloc_props.type = CU_MEM_ALLOCATION_TYPE_PINNED;
     result = GetDeviceOrdinal(device, alloc_props.location.id);
@@ -5835,7 +5835,7 @@ pi_result cuda_piextVirtualMemAccessGetInfo(
     ScopedContext active(context);
     switch (param_name) {
     case PI_EXT_ONEAPI_VIRTUAL_MEM_ACCESS_INFO_ACCESS_MODE: {
-      CUmemLocation mem_loc;
+      CUmemLocation mem_loc = {};
       mem_loc.type = CU_MEM_LOCATION_TYPE_DEVICE;
       result = GetDeviceOrdinal(context->get_device(), mem_loc.id);
       if (result != PI_SUCCESS)
