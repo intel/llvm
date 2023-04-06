@@ -547,11 +547,12 @@ unsigned getFPMaxError(Function *F, LangOptions::FPAccuracyKind FPAccuracy) {
 // floating-point intrinsic.
 static Value *emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
                                 const CallExpr *E, unsigned IntrinsicID,
-                                   unsigned ConstrainedIntrinsicID) {
+                                unsigned ConstrainedIntrinsicID) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
+
   if (CGF.getLangOpts().getFPAccuracy()) {
-      // TODO: Need to check here if the accuracy of the math library function
-      // is different than the one in the command line.
+    // TODO: Need to check here if the accuracy of the math library function
+    // is different than the one in the command line.
     LangOptions::FPAccuracyKind FPAccuracy = CGF.getLangOpts().getFPAccuracy();
     StringRef FPAccuracyVal = convertFPAccuracy(FPAccuracy);
     Function *F = CGF.CGM.getIntrinsic(Intrinsic::experimental_fpaccuracy_cos,
@@ -2290,7 +2291,6 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   // See if we can constant fold this builtin.  If so, don't emit it at all.
   // TODO: Extend this handling to all builtin calls that we can constant-fold.
   Expr::EvalResult Result;
-
   if (E->isPRValue() && E->EvaluateAsRValue(Result, CGM.getContext()) &&
       !Result.hasSideEffects()) {
     if (Result.Val.isInt())
@@ -2361,8 +2361,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_cosf16:
     case Builtin::BI__builtin_cosl:
     case Builtin::BI__builtin_cosf128: {
-      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(
-            *this, E, Intrinsic::cos, Intrinsic::experimental_constrained_cos));
+      return RValue::get(emitUnaryMaybeConstrainedFPBuiltin(*this, E,
+                                   Intrinsic::cos,
+                                   Intrinsic::experimental_constrained_cos));
     }
     case Builtin::BIexp:
     case Builtin::BIexpf:
