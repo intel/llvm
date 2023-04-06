@@ -45,7 +45,12 @@ static llvm::cl::opt<bool> EnableLICMSYCLAccessorVersioning(
     "enable-licm-sycl-accessor-versioning", llvm::cl::init(false),
     llvm::cl::desc("Enable loop versioning for SYCL accessors in LICM"));
 
-static llvm::cl::opt<bool> LICMVersionLimit(
+static llvm::cl::opt<unsigned> LICMSYCLAccessorPairsLimit(
+    "licm-sycl-accessor-pairs-limit", llvm::cl::init(1),
+    llvm::cl::desc(
+        "Maximum number of versioning accessor pairs per operation in LICM"));
+
+static llvm::cl::opt<unsigned> LICMVersionLimit(
     "licm-version-limit", llvm::cl::init(1),
     llvm::cl::desc("Maximum number of versioning allowed in LICM"));
 
@@ -329,8 +334,7 @@ public:
 
   void addPrerequisite(Operation &op) { prerequisites.push_back(&op); }
 
-  const SmallVector<AccessorPairType> &
-  getRequireNoOverlapAccessorPairs() const {
+  ArrayRef<AccessorPairType> getRequireNoOverlapAccessorPairs() const {
     return requireNoOverlapAccessorPairs;
   }
 
@@ -356,12 +360,9 @@ class SYCLAccessorVersionBuilder : public SCFLoopVersionBuilder {
 public:
   SYCLAccessorVersionBuilder(
       LoopLikeOpInterface loop,
-      const SmallVectorImpl<AccessorPairType> &requireNoOverlapAccessorPairs)
+      ArrayRef<AccessorPairType> requireNoOverlapAccessorPairs)
       : SCFLoopVersionBuilder(loop),
-        AccessorPair(requireNoOverlapAccessorPairs[0]) {
-    assert(requireNoOverlapAccessorPairs.size() == 1 &&
-           "Expecting only one pair");
-  }
+        accessorPairs(requireNoOverlapAccessorPairs) {}
 
 private:
   Value createCondition() const final {
@@ -376,17 +377,24 @@ private:
           op);
     };
 
-    Value begin1 = getSYCLAccessorBegin(AccessorPair.first, builder, loc);
-    Value end1 = getSYCLAccessorEnd(AccessorPair.first, builder, loc);
-    Value begin2 = getSYCLAccessorBegin(AccessorPair.second, builder, loc);
-    Value end2 = getSYCLAccessorEnd(AccessorPair.second, builder, loc);
-    auto beforeCond = builder.create<LLVM::ICmpOp>(
-        loc, LLVM::ICmpPredicate::ule, GetMemref2PointerOp(end1),
-        GetMemref2PointerOp(begin2));
-    auto afterCond = builder.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::uge,
-                                                  GetMemref2PointerOp(begin1),
-                                                  GetMemref2PointerOp(end2));
-    return builder.create<arith::OrIOp>(loc, beforeCond, afterCond);
+    Value condition;
+    for (const AccessorPairType &accessorPair : accessorPairs) {
+      Value begin1 = getSYCLAccessorBegin(accessorPair.first, builder, loc);
+      Value end1 = getSYCLAccessorEnd(accessorPair.first, builder, loc);
+      Value begin2 = getSYCLAccessorBegin(accessorPair.second, builder, loc);
+      Value end2 = getSYCLAccessorEnd(accessorPair.second, builder, loc);
+      auto beforeCond = builder.create<LLVM::ICmpOp>(
+          loc, LLVM::ICmpPredicate::ule, GetMemref2PointerOp(end1),
+          GetMemref2PointerOp(begin2));
+      auto afterCond = builder.create<LLVM::ICmpOp>(
+          loc, LLVM::ICmpPredicate::uge, GetMemref2PointerOp(begin1),
+          GetMemref2PointerOp(end2));
+      Value orOp = builder.create<arith::OrIOp>(loc, beforeCond, afterCond);
+      condition = condition
+                      ? builder.create<arith::AndIOp>(loc, condition, orOp)
+                      : orOp;
+    }
+    return condition;
   }
 
   template <typename OpTy>
@@ -490,7 +498,7 @@ private:
     return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
   }
 
-  std::pair<TypedValue<MemRefType>, TypedValue<MemRefType>> AccessorPair;
+  ArrayRef<AccessorPairType> accessorPairs;
 };
 
 //===----------------------------------------------------------------------===//
@@ -725,13 +733,13 @@ collectHoistableOperations(LoopLikeOpInterface loop,
                }))
       continue;
 
-    const SmallVector<AccessorPairType> &AccessorPairs =
+    ArrayRef<AccessorPairType> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
-    bool requireVersioning = !AccessorPairs.empty();
+    bool requireVersioning = !accessorPairs.empty();
     // Currently only version for single accessor pair.
-    bool willVersion = EnableLICMSYCLAccessorVersioning &&
+    bool willVersion = requireVersioning && EnableLICMSYCLAccessorVersioning &&
                        numVersion < LICMVersionLimit &&
-                       AccessorPairs.size() == 1;
+                       accessorPairs.size() <= LICMSYCLAccessorPairsLimit;
     if (willVersion)
       ++numVersion;
     else if (requireVersioning)
@@ -760,10 +768,10 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
   size_t numOpsHoisted = 0;
   std::set<const Operation *> opsHoisted;
   for (const LICMCandidate &candidate : LICMCandidates) {
-    const SmallVector<AccessorPairType> &AccessorPairs =
+    ArrayRef<AccessorPairType> accessorPairs =
         candidate.getRequireNoOverlapAccessorPairs();
-    if (!AccessorPairs.empty())
-      SYCLAccessorVersionBuilder(loop, AccessorPairs).versionLoop();
+    if (!accessorPairs.empty())
+      SYCLAccessorVersionBuilder(loop, accessorPairs).versionLoop();
 
     loop.moveOutOfLoop(&candidate.getOperation());
     ++numOpsHoisted;
