@@ -180,7 +180,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnMemUnmap = nullptr;
   pDdiTable->pfnUSMFill2D = nullptr;
   pDdiTable->pfnUSMFill = nullptr;
-  pDdiTable->pfnUSMMemAdvise = nullptr;
+  pDdiTable->pfnUSMAdvise = nullptr;
   pDdiTable->pfnUSMMemcpy2D = nullptr;
   pDdiTable->pfnUSMMemcpy = nullptr;
   pDdiTable->pfnUSMPrefetch = nullptr;
