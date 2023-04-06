@@ -1017,6 +1017,10 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     InfoType = UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION;
     break;
   }
+  case PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
+    InfoType = UR_EXT_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
+    break;
+  }
   default:
     return PI_ERROR_UNKNOWN;
   };

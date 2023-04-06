@@ -116,6 +116,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     LevelZeroLoader-Headers
     LevelZeroLoader
     Threads::Threads
+    cudadrv
 )
 
 set_target_properties("ur_adapter_level_zero" PROPERTIES
@@ -130,13 +131,21 @@ add_sycl_library("ur_adapter_cuda" SHARED
     "ur/ur.cpp"
     "ur/usm_allocator.cpp"
     "ur/usm_allocator.hpp"
+    "ur/adapters/cuda/common.cpp"
+    "ur/adapters/cuda/common.hpp"
+    "ur/adapters/cuda/context.cpp"
+    "ur/adapters/cuda/context.hpp"
+    "ur/adapters/cuda/device.cpp"
+    "ur/adapters/cuda/device.hpp"
+    "ur/adapters/cuda/platform.cpp"
+    "ur/adapters/cuda/platform.hpp"
     "ur/adapters/cuda/ur_interface_loader.cpp"
-  # ---
   INCLUDE_DIRS
     ${sycl_inc_dir}
   LIBRARIES
     UnifiedRuntime-Headers
     Threads::Threads
+    cudadrv
 )
 
 if (TARGET UnifiedRuntimeLoader)

@@ -6,6 +6,7 @@
 //
 //===-----------------------------------------------------------------===//
 
+#include <ur_api.h>
 #include <ur_ddi.h>
 
 namespace {
@@ -36,9 +37,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     return result;
   }
   pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGet = nullptr;
-  pDdiTable->pfnGetApiVersion = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
+  pDdiTable->pfnGet = urPlatformGet;
+  pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
+  pDdiTable->pfnGetInfo = urPlatformGetInfo;
   pDdiTable->pfnGetNativeHandle = nullptr;
   return UR_RESULT_SUCCESS;
 }
@@ -49,13 +50,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnCreate = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnRetain = nullptr;
-  pDdiTable->pfnSetExtendedDeleter = nullptr;
+  pDdiTable->pfnCreate = urContextCreate;
+  pDdiTable->pfnCreateWithNativeHandle = urContextCreateWithNativeHandle;
+  pDdiTable->pfnGetInfo = urContextGetInfo;
+  pDdiTable->pfnGetNativeHandle = urContextGetNativeHandle;
+  pDdiTable->pfnRelease = urContextRelease;
+  pDdiTable->pfnRetain = urContextRetain;
+  pDdiTable->pfnSetExtendedDeleter = urContextSetExtendedDeleter;
   return UR_RESULT_SUCCESS;
 }
 
@@ -195,8 +196,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     return result;
   }
   pDdiTable->pfnGetLastResult = nullptr;
-  pDdiTable->pfnInit = nullptr;
-  pDdiTable->pfnTearDown = nullptr;
+  pDdiTable->pfnInit = urInit;
+  pDdiTable->pfnTearDown = urTearDown;
   return UR_RESULT_SUCCESS;
 }
 
@@ -240,14 +241,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGet = nullptr;
+  pDdiTable->pfnCreateWithNativeHandle = urDeviceCreateWithNativeHandle;
+  pDdiTable->pfnGet = urDeviceGet;
   pDdiTable->pfnGetGlobalTimestamps = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
+  pDdiTable->pfnGetInfo = urDeviceGetInfo;
+  pDdiTable->pfnGetNativeHandle = urDeviceGetNativeHandle;
   pDdiTable->pfnPartition = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnRetain = nullptr;
+  pDdiTable->pfnRelease = urDeviceRelease;
+  pDdiTable->pfnRetain = urDeviceRetain;
   pDdiTable->pfnSelectBinary = nullptr;
   return UR_RESULT_SUCCESS;
 }
