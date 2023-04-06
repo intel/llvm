@@ -95,7 +95,8 @@ struct RefCountContext {
             context.logger.error("Handle {} was recorded for first time here:",
                                  ptr);
             for (size_t i = 0; i < refRuntimeInfo.backtrace.size(); i++) {
-                context.logger.error(refRuntimeInfo.backtrace[i].c_str());
+                context.logger.error("#{} {}", i,
+                                     refRuntimeInfo.backtrace[i].c_str());
             }
         }
     }
