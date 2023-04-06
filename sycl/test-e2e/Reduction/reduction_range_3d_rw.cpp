@@ -67,20 +67,39 @@ int main() {
   tests<class D2, int>(Q, 99, PlusWithoutIdentity<int>{}, range<3>{2, 2, 2});
   tests<class D3, int>(Q, 99, PlusWithoutIdentity<int>{}, range<3>{2, 3, 4});
 
-  /* Temporarily disabled
   tests<class D4, int64_t>(Q, 99, PlusWithoutIdentity<int64_t>{},
                            range<3>{1, 1, MaxWGSize + 1});
   tests<class D5, int64_t>(Q, 99, PlusWithoutIdentity<int64_t>{},
                            range<3>{1, MaxWGSize + 1, 1});
   tests<class D6, int64_t>(Q, 99, PlusWithoutIdentity<int64_t>{},
                            range<3>{MaxWGSize + 1, 1, 1});
-  */
 
   tests<class D7, int64_t>(Q, 99, PlusWithoutIdentity<int64_t>{},
                            range<3>{2, 5, MaxWGSize * 2});
   tests<class D8, int64_t>(Q, 99, PlusWithoutIdentity<int64_t>{},
                            range<3>{3, MaxWGSize * 3, 2});
   tests<class D9, int64_t>(Q, 99, PlusWithoutIdentity<int64_t>{},
+                           range<3>{MaxWGSize * 3, 8, 4});
+
+  tests<class E1, int>(Q, 99, MultipliesWithoutIdentity<int>{},
+                       range<3>{1, 1, 1});
+  tests<class E2, int>(Q, 99, MultipliesWithoutIdentity<int>{},
+                       range<3>{2, 2, 2});
+  tests<class E3, int>(Q, 99, MultipliesWithoutIdentity<int>{},
+                       range<3>{2, 3, 4});
+
+  tests<class E4, int64_t>(Q, 99, MultipliesWithoutIdentity<int64_t>{},
+                           range<3>{1, 1, MaxWGSize + 1});
+  tests<class E5, int64_t>(Q, 99, MultipliesWithoutIdentity<int64_t>{},
+                           range<3>{1, MaxWGSize + 1, 1});
+  tests<class E6, int64_t>(Q, 99, MultipliesWithoutIdentity<int64_t>{},
+                           range<3>{MaxWGSize + 1, 1, 1});
+
+  tests<class E7, int64_t>(Q, 99, MultipliesWithoutIdentity<int64_t>{},
+                           range<3>{2, 5, MaxWGSize * 2});
+  tests<class E8, int64_t>(Q, 99, MultipliesWithoutIdentity<int64_t>{},
+                           range<3>{3, MaxWGSize * 3, 2});
+  tests<class E9, int64_t>(Q, 99, MultipliesWithoutIdentity<int64_t>{},
                            range<3>{MaxWGSize * 3, 8, 4});
 
   printFinalStatus(NumErrors);
