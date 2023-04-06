@@ -934,7 +934,7 @@ struct std::coroutine_traits<int, mismatch_gro_type_tag2> {
 
 extern "C" int f(mismatch_gro_type_tag2) {
   // cxx2b-error@-1 {{cannot initialize return object of type 'int' with an rvalue of type 'void *'}}
-  // cxx14_20-error@-2 {{cannot initialize return object of type 'int' with an rvalue of type 'void *'}}
+  // cxx14_20-error@-2 {{cannot initialize return object of type 'int' with an lvalue of type 'void *'}}
   co_return; //expected-note {{function is a coroutine due to use of 'co_return' here}}
 }
 
@@ -1309,7 +1309,7 @@ struct DepTestType {
   }
 };
 
-template struct DepTestType<int>; // expected-note {{requested here}}
+template struct DepTestType<int>; // expected-note 2{{requested here}}
 template CoroMemberTag DepTestType<int>::test_member_template(long, const char *) const &&;
 
 template CoroMemberTag DepTestType<int>::test_static_template<void>(const char *volatile &, unsigned);

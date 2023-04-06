@@ -48,6 +48,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1065,21 +1066,11 @@ struct PragmaDebugHandler : public PragmaHandler {
         PP.EnterToken(Crasher, /*IsReinject*/ false);
       }
     } else if (II->isStr("dump")) {
-      Token Identifier;
-      PP.LexUnexpandedToken(Identifier);
-      if (auto *DumpII = Identifier.getIdentifierInfo()) {
-        Token DumpAnnot;
-        DumpAnnot.startToken();
-        DumpAnnot.setKind(tok::annot_pragma_dump);
-        DumpAnnot.setAnnotationRange(
-            SourceRange(Tok.getLocation(), Identifier.getLocation()));
-        DumpAnnot.setAnnotationValue(DumpII);
-        PP.DiscardUntilEndOfDirective();
-        PP.EnterToken(DumpAnnot, /*IsReinject*/false);
-      } else {
-        PP.Diag(Identifier, diag::warn_pragma_debug_missing_argument)
-            << II->getName();
-      }
+      Token DumpAnnot;
+      DumpAnnot.startToken();
+      DumpAnnot.setKind(tok::annot_pragma_dump);
+      DumpAnnot.setAnnotationRange(SourceRange(Tok.getLocation()));
+      PP.EnterToken(DumpAnnot, /*IsReinject*/false);
     } else if (II->isStr("diag_mapping")) {
       Token DiagName;
       PP.LexUnexpandedToken(DiagName);
@@ -1184,7 +1175,7 @@ struct PragmaDebugHandler : public PragmaHandler {
     } else if (II->isStr("sloc_usage")) {
       // An optional integer literal argument specifies the number of files to
       // specifically report information about.
-      Optional<unsigned> MaxNotes;
+      std::optional<unsigned> MaxNotes;
       Token ArgToken;
       PP.Lex(ArgToken);
       uint64_t Value;
@@ -1240,6 +1231,32 @@ struct PragmaDebugHandler : public PragmaHandler {
 #ifdef _MSC_VER
     #pragma warning(default : 4717)
 #endif
+};
+
+struct PragmaUnsafeBufferUsageHandler : public PragmaHandler {
+  PragmaUnsafeBufferUsageHandler() : PragmaHandler("unsafe_buffer_usage") {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override {
+    Token Tok;
+
+    PP.LexUnexpandedToken(Tok);
+    if (Tok.isNot(tok::identifier)) {
+      PP.Diag(Tok, diag::err_pp_pragma_unsafe_buffer_usage_syntax);
+      return;
+    }
+
+    IdentifierInfo *II = Tok.getIdentifierInfo();
+    SourceLocation Loc = Tok.getLocation();
+
+    if (II->isStr("begin")) {
+      if (PP.enterOrExitSafeBufferOptOutRegion(true, Loc))
+        PP.Diag(Loc, diag::err_pp_double_begin_pragma_unsafe_buffer_usage);
+    } else if (II->isStr("end")) {
+      if (PP.enterOrExitSafeBufferOptOutRegion(false, Loc))
+        PP.Diag(Loc, diag::err_pp_unmatched_end_begin_pragma_unsafe_buffer_usage);
+    } else
+      PP.Diag(Tok, diag::err_pp_pragma_unsafe_buffer_usage_syntax);
+  }
 };
 
 /// PragmaDiagnosticHandler - e.g. '\#pragma GCC diagnostic ignored "-Wformat"'
@@ -2126,6 +2143,9 @@ void Preprocessor::RegisterBuiltinPragmas() {
   ModuleHandler->AddPragma(new PragmaModuleEndHandler());
   ModuleHandler->AddPragma(new PragmaModuleBuildHandler());
   ModuleHandler->AddPragma(new PragmaModuleLoadHandler());
+
+  // Safe Buffers pragmas
+  AddPragmaHandler("clang", new PragmaUnsafeBufferUsageHandler);
 
   // Add region pragmas.
   AddPragmaHandler(new PragmaRegionHandler("region"));

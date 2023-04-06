@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/DWARFLinker/DWARFStreamer.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/NonRelocatableStringpool.h"
 #include "llvm/DWARFLinker/DWARFLinkerCompileUnit.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
@@ -25,6 +24,7 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace llvm {
 
@@ -105,9 +105,12 @@ bool DwarfStreamer::init(Triple TheTriple,
   Asm.reset(TheTarget->createAsmPrinter(*TM, std::unique_ptr<MCStreamer>(MS)));
   if (!Asm)
     return error("no asm printer for target " + TripleName, Context), false;
+  Asm->setDwarfUsesRelocationsAcrossSections(false);
 
   RangesSectionSize = 0;
+  RngListsSectionSize = 0;
   LocSectionSize = 0;
+  LocListsSectionSize = 0;
   LineSectionSize = 0;
   FrameSectionSize = 0;
   DebugInfoSectionSize = 0;
@@ -201,6 +204,11 @@ void DwarfStreamer::emitSectionContents(StringRef SecData, StringRef SecName) {
           .Case("debug_frame", MC->getObjectFileInfo()->getDwarfFrameSection())
           .Case("debug_aranges",
                 MC->getObjectFileInfo()->getDwarfARangesSection())
+          .Case("debug_addr", MC->getObjectFileInfo()->getDwarfAddrSection())
+          .Case("debug_rnglists",
+                MC->getObjectFileInfo()->getDwarfRnglistsSection())
+          .Case("debug_loclists",
+                MC->getObjectFileInfo()->getDwarfLoclistsSection())
           .Default(nullptr);
 
   if (Section) {
@@ -319,193 +327,308 @@ void DwarfStreamer::emitSwiftReflectionSection(
   MS->emitBytes(Buffer);
 }
 
-/// Emit the debug_range section contents for \p FuncRange by
-/// translating the original \p Entries. The debug_range section
-/// format is totally trivial, consisting just of pairs of address
-/// sized addresses describing the ranges.
-void DwarfStreamer::emitRangesEntries(
-    int64_t UnitPcOffset, uint64_t OrigLowPc,
-    std::optional<std::pair<AddressRange, int64_t>> FuncRange,
-    const std::vector<DWARFDebugRangeList::RangeListEntry> &Entries,
-    unsigned AddressSize) {
+void DwarfStreamer::emitDwarfDebugArangesTable(
+    const CompileUnit &Unit, const AddressRanges &LinkedRanges) {
+  unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
+
+  // Make .debug_aranges to be current section.
+  MS->switchSection(MC->getObjectFileInfo()->getDwarfARangesSection());
+
+  // Emit Header.
+  MCSymbol *BeginLabel = Asm->createTempSymbol("Barange");
+  MCSymbol *EndLabel = Asm->createTempSymbol("Earange");
+
+  unsigned HeaderSize =
+      sizeof(int32_t) + // Size of contents (w/o this field
+      sizeof(int16_t) + // DWARF ARange version number
+      sizeof(int32_t) + // Offset of CU in the .debug_info section
+      sizeof(int8_t) +  // Pointer Size (in bytes)
+      sizeof(int8_t);   // Segment Size (in bytes)
+
+  unsigned TupleSize = AddressSize * 2;
+  unsigned Padding = offsetToAlignment(HeaderSize, Align(TupleSize));
+
+  Asm->emitLabelDifference(EndLabel, BeginLabel, 4); // Arange length
+  Asm->OutStreamer->emitLabel(BeginLabel);
+  Asm->emitInt16(dwarf::DW_ARANGES_VERSION); // Version number
+  Asm->emitInt32(Unit.getStartOffset());     // Corresponding unit's offset
+  Asm->emitInt8(AddressSize);                // Address size
+  Asm->emitInt8(0);                          // Segment size
+
+  Asm->OutStreamer->emitFill(Padding, 0x0);
+
+  // Emit linked ranges.
+  for (const AddressRange &Range : LinkedRanges) {
+    MS->emitIntValue(Range.start(), AddressSize);
+    MS->emitIntValue(Range.end() - Range.start(), AddressSize);
+  }
+
+  // Emit terminator.
+  Asm->OutStreamer->emitIntValue(0, AddressSize);
+  Asm->OutStreamer->emitIntValue(0, AddressSize);
+  Asm->OutStreamer->emitLabel(EndLabel);
+}
+
+void DwarfStreamer::emitDwarfDebugRangesTableFragment(
+    const CompileUnit &Unit, const AddressRanges &LinkedRanges,
+    PatchLocation Patch) {
+  Patch.set(RangesSectionSize);
+
+  // Make .debug_ranges to be current section.
   MS->switchSection(MC->getObjectFileInfo()->getDwarfRangesSection());
+  unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
 
-  // Offset each range by the right amount.
-  int64_t PcOffset =
-      (Entries.empty() || !FuncRange) ? 0 : FuncRange->second + UnitPcOffset;
-  for (const auto &Range : Entries) {
-    if (Range.isBaseAddressSelectionEntry(AddressSize)) {
-      warn("unsupported base address selection operation",
-           "emitting debug_ranges");
-      break;
-    }
-    // Do not emit empty ranges.
-    if (Range.StartAddress == Range.EndAddress)
-      continue;
+  // Emit ranges.
+  uint64_t BaseAddress = 0;
+  if (std::optional<uint64_t> LowPC = Unit.getLowPc())
+    BaseAddress = *LowPC;
 
-    // All range entries should lie in the function range.
-    if (!FuncRange->first.contains(Range.StartAddress + OrigLowPc))
-      warn("inconsistent range data.", "emitting debug_ranges");
-    MS->emitIntValue(Range.StartAddress + PcOffset, AddressSize);
-    MS->emitIntValue(Range.EndAddress + PcOffset, AddressSize);
-    RangesSectionSize += 2 * AddressSize;
+  for (const AddressRange &Range : LinkedRanges) {
+    MS->emitIntValue(Range.start() - BaseAddress, AddressSize);
+    MS->emitIntValue(Range.end() - BaseAddress, AddressSize);
+
+    RangesSectionSize += AddressSize;
+    RangesSectionSize += AddressSize;
   }
 
   // Add the terminator entry.
   MS->emitIntValue(0, AddressSize);
   MS->emitIntValue(0, AddressSize);
-  RangesSectionSize += 2 * AddressSize;
+
+  RangesSectionSize += AddressSize;
+  RangesSectionSize += AddressSize;
 }
 
-/// Emit the debug_aranges contribution of a unit and
-/// if \p DoDebugRanges is true the debug_range contents for a
-/// compile_unit level DW_AT_ranges attribute (Which are basically the
-/// same thing with a different base address).
-/// Just aggregate all the ranges gathered inside that unit.
-void DwarfStreamer::emitUnitRangesEntries(CompileUnit &Unit,
-                                          bool DoDebugRanges) {
-  unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
-  // Gather the ranges in a vector, so that we can simplify them. The
-  // IntervalMap will have coalesced the non-linked ranges, but here
-  // we want to coalesce the linked addresses.
-  std::vector<std::pair<uint64_t, uint64_t>> Ranges;
-  const RangesTy &FunctionRanges = Unit.getFunctionRanges();
-  for (size_t Idx = 0; Idx < FunctionRanges.size(); Idx++) {
-    std::pair<AddressRange, int64_t> CurRange = FunctionRanges[Idx];
+MCSymbol *
+DwarfStreamer::emitDwarfDebugRangeListHeader(const CompileUnit &Unit) {
+  if (Unit.getOrigUnit().getVersion() < 5)
+    return nullptr;
 
-    Ranges.push_back(std::make_pair(CurRange.first.start() + CurRange.second,
-                                    CurRange.first.end() + CurRange.second));
+  // Make .debug_rnglists to be current section.
+  MS->switchSection(MC->getObjectFileInfo()->getDwarfRnglistsSection());
+
+  MCSymbol *BeginLabel = Asm->createTempSymbol("Brnglists");
+  MCSymbol *EndLabel = Asm->createTempSymbol("Ernglists");
+  unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
+
+  // Length
+  Asm->emitLabelDifference(EndLabel, BeginLabel, sizeof(uint32_t));
+  Asm->OutStreamer->emitLabel(BeginLabel);
+  RngListsSectionSize += sizeof(uint32_t);
+
+  // Version.
+  MS->emitInt16(5);
+  RngListsSectionSize += sizeof(uint16_t);
+
+  // Address size.
+  MS->emitInt8(AddressSize);
+  RngListsSectionSize++;
+
+  // Seg_size
+  MS->emitInt8(0);
+  RngListsSectionSize++;
+
+  // Offset entry count
+  MS->emitInt32(0);
+  RngListsSectionSize += sizeof(uint32_t);
+
+  return EndLabel;
+}
+
+void DwarfStreamer::emitDwarfDebugRangeListFragment(
+    const CompileUnit &Unit, const AddressRanges &LinkedRanges,
+    PatchLocation Patch) {
+  if (Unit.getOrigUnit().getVersion() < 5) {
+    emitDwarfDebugRangesTableFragment(Unit, LinkedRanges, Patch);
+    return;
   }
 
-  // The object addresses where sorted, but again, the linked
-  // addresses might end up in a different order.
-  llvm::sort(Ranges);
+  emitDwarfDebugRngListsTableFragment(Unit, LinkedRanges, Patch);
+}
 
-  if (!Ranges.empty()) {
-    MS->switchSection(MC->getObjectFileInfo()->getDwarfARangesSection());
+void DwarfStreamer::emitDwarfDebugRangeListFooter(const CompileUnit &Unit,
+                                                  MCSymbol *EndLabel) {
+  if (Unit.getOrigUnit().getVersion() < 5)
+    return;
 
-    MCSymbol *BeginLabel = Asm->createTempSymbol("Barange");
-    MCSymbol *EndLabel = Asm->createTempSymbol("Earange");
+  // Make .debug_rnglists to be current section.
+  MS->switchSection(MC->getObjectFileInfo()->getDwarfRnglistsSection());
 
-    unsigned HeaderSize =
-        sizeof(int32_t) + // Size of contents (w/o this field
-        sizeof(int16_t) + // DWARF ARange version number
-        sizeof(int32_t) + // Offset of CU in the .debug_info section
-        sizeof(int8_t) +  // Pointer Size (in bytes)
-        sizeof(int8_t);   // Segment Size (in bytes)
-
-    unsigned TupleSize = AddressSize * 2;
-    unsigned Padding = offsetToAlignment(HeaderSize, Align(TupleSize));
-
-    Asm->emitLabelDifference(EndLabel, BeginLabel, 4); // Arange length
-    Asm->OutStreamer->emitLabel(BeginLabel);
-    Asm->emitInt16(dwarf::DW_ARANGES_VERSION); // Version number
-    Asm->emitInt32(Unit.getStartOffset());     // Corresponding unit's offset
-    Asm->emitInt8(AddressSize);                // Address size
-    Asm->emitInt8(0);                          // Segment size
-
-    Asm->OutStreamer->emitFill(Padding, 0x0);
-
-    for (auto Range = Ranges.begin(), End = Ranges.end(); Range != End;
-         ++Range) {
-      uint64_t RangeStart = Range->first;
-      MS->emitIntValue(RangeStart, AddressSize);
-      while ((Range + 1) != End && Range->second == (Range + 1)->first)
-        ++Range;
-      MS->emitIntValue(Range->second - RangeStart, AddressSize);
-    }
-
-    // Emit terminator
-    Asm->OutStreamer->emitIntValue(0, AddressSize);
-    Asm->OutStreamer->emitIntValue(0, AddressSize);
+  if (EndLabel != nullptr)
     Asm->OutStreamer->emitLabel(EndLabel);
+}
+
+void DwarfStreamer::emitDwarfDebugRngListsTableFragment(
+    const CompileUnit &Unit, const AddressRanges &LinkedRanges,
+    PatchLocation Patch) {
+  Patch.set(RngListsSectionSize);
+
+  // Make .debug_rnglists to be current section.
+  MS->switchSection(MC->getObjectFileInfo()->getDwarfRnglistsSection());
+
+  unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
+
+  for (const AddressRange &Range : LinkedRanges) {
+    // Emit type of entry.
+    MS->emitInt8(dwarf::DW_RLE_start_length);
+    RngListsSectionSize += 1;
+
+    // Emit start address.
+    MS->emitIntValue(Range.start(), AddressSize);
+    RngListsSectionSize += AddressSize;
+
+    // Emit length of the range.
+    RngListsSectionSize += MS->emitSLEB128IntValue(Range.end() - Range.start());
   }
 
-  if (!DoDebugRanges)
+  // Emit the terminator entry.
+  MS->emitInt8(dwarf::DW_RLE_end_of_list);
+  RngListsSectionSize += 1;
+}
+
+/// Emit debug locations(.debug_loc, .debug_loclists) header.
+MCSymbol *DwarfStreamer::emitDwarfDebugLocListHeader(const CompileUnit &Unit) {
+  if (Unit.getOrigUnit().getVersion() < 5)
+    return nullptr;
+
+  // Make .debug_loclists the current section.
+  MS->switchSection(MC->getObjectFileInfo()->getDwarfLoclistsSection());
+
+  MCSymbol *BeginLabel = Asm->createTempSymbol("Bloclists");
+  MCSymbol *EndLabel = Asm->createTempSymbol("Eloclists");
+  unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
+
+  // Length
+  Asm->emitLabelDifference(EndLabel, BeginLabel, sizeof(uint32_t));
+  Asm->OutStreamer->emitLabel(BeginLabel);
+  LocListsSectionSize += sizeof(uint32_t);
+
+  // Version.
+  MS->emitInt16(5);
+  LocListsSectionSize += sizeof(uint16_t);
+
+  // Address size.
+  MS->emitInt8(AddressSize);
+  LocListsSectionSize++;
+
+  // Seg_size
+  MS->emitInt8(0);
+  LocListsSectionSize++;
+
+  // Offset entry count
+  MS->emitInt32(0);
+  LocListsSectionSize += sizeof(uint32_t);
+
+  return EndLabel;
+}
+
+/// Emit debug locations(.debug_loc, .debug_loclists) fragment.
+void DwarfStreamer::emitDwarfDebugLocListFragment(
+    const CompileUnit &Unit,
+    const DWARFLocationExpressionsVector &LinkedLocationExpression,
+    PatchLocation Patch) {
+  if (Unit.getOrigUnit().getVersion() < 5) {
+    emitDwarfDebugLocTableFragment(Unit, LinkedLocationExpression, Patch);
+    return;
+  }
+
+  emitDwarfDebugLocListsTableFragment(Unit, LinkedLocationExpression, Patch);
+}
+
+/// Emit debug locations(.debug_loc, .debug_loclists) footer.
+void DwarfStreamer::emitDwarfDebugLocListFooter(const CompileUnit &Unit,
+                                                MCSymbol *EndLabel) {
+  if (Unit.getOrigUnit().getVersion() < 5)
     return;
 
-  MS->switchSection(MC->getObjectFileInfo()->getDwarfRangesSection());
-  // Offset each range by the right amount.
-  int64_t PcOffset = -Unit.getLowPc();
-  // Emit coalesced ranges.
-  for (auto Range = Ranges.begin(), End = Ranges.end(); Range != End; ++Range) {
-    MS->emitIntValue(Range->first + PcOffset, AddressSize);
-    while (Range + 1 != End && Range->second == (Range + 1)->first)
-      ++Range;
-    MS->emitIntValue(Range->second + PcOffset, AddressSize);
-    RangesSectionSize += 2 * AddressSize;
+  // Make .debug_loclists the current section.
+  MS->switchSection(MC->getObjectFileInfo()->getDwarfLoclistsSection());
+
+  if (EndLabel != nullptr)
+    Asm->OutStreamer->emitLabel(EndLabel);
+}
+
+/// Emit piece of .debug_loc for \p LinkedLocationExpression.
+void DwarfStreamer::emitDwarfDebugLocTableFragment(
+    const CompileUnit &Unit,
+    const DWARFLocationExpressionsVector &LinkedLocationExpression,
+    PatchLocation Patch) {
+  Patch.set(LocSectionSize);
+
+  // Make .debug_loc to be current section.
+  MS->switchSection(MC->getObjectFileInfo()->getDwarfLocSection());
+  unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
+
+  // Emit ranges.
+  uint64_t BaseAddress = 0;
+  if (std::optional<uint64_t> LowPC = Unit.getLowPc())
+    BaseAddress = *LowPC;
+
+  for (const DWARFLocationExpression &LocExpression :
+       LinkedLocationExpression) {
+    if (LocExpression.Range) {
+      MS->emitIntValue(LocExpression.Range->LowPC - BaseAddress, AddressSize);
+      MS->emitIntValue(LocExpression.Range->HighPC - BaseAddress, AddressSize);
+
+      LocSectionSize += AddressSize;
+      LocSectionSize += AddressSize;
+    }
+
+    Asm->OutStreamer->emitIntValue(LocExpression.Expr.size(), 2);
+    Asm->OutStreamer->emitBytes(StringRef(
+        (const char *)LocExpression.Expr.data(), LocExpression.Expr.size()));
+    LocSectionSize += LocExpression.Expr.size() + 2;
   }
 
   // Add the terminator entry.
   MS->emitIntValue(0, AddressSize);
   MS->emitIntValue(0, AddressSize);
-  RangesSectionSize += 2 * AddressSize;
+
+  LocSectionSize += AddressSize;
+  LocSectionSize += AddressSize;
 }
 
-/// Emit location lists for \p Unit and update attributes to point to the new
-/// entries.
-void DwarfStreamer::emitLocationsForUnit(
-    const CompileUnit &Unit, DWARFContext &Dwarf,
-    std::function<void(StringRef, SmallVectorImpl<uint8_t> &)> ProcessExpr) {
-  const auto &Attributes = Unit.getLocationAttributes();
+/// Emit piece of .debug_loclists for \p LinkedLocationExpression.
+void DwarfStreamer::emitDwarfDebugLocListsTableFragment(
+    const CompileUnit &Unit,
+    const DWARFLocationExpressionsVector &LinkedLocationExpression,
+    PatchLocation Patch) {
+  Patch.set(LocListsSectionSize);
 
-  if (Attributes.empty())
-    return;
-
-  MS->switchSection(MC->getObjectFileInfo()->getDwarfLocSection());
+  // Make .debug_loclists the current section.
+  MS->switchSection(MC->getObjectFileInfo()->getDwarfLoclistsSection());
 
   unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
-  uint64_t BaseAddressMarker = (AddressSize == 8)
-                                   ? std::numeric_limits<uint64_t>::max()
-                                   : std::numeric_limits<uint32_t>::max();
-  const DWARFSection &InputSec = Dwarf.getDWARFObj().getLocSection();
-  DataExtractor Data(InputSec.Data, Dwarf.isLittleEndian(), AddressSize);
-  DWARFUnit &OrigUnit = Unit.getOrigUnit();
-  auto OrigUnitDie = OrigUnit.getUnitDIE(false);
-  int64_t UnitPcOffset = 0;
-  if (auto OrigLowPc = dwarf::toAddress(OrigUnitDie.find(dwarf::DW_AT_low_pc)))
-    UnitPcOffset = int64_t(*OrigLowPc) - Unit.getLowPc();
 
-  SmallVector<uint8_t, 32> Buffer;
-  for (const auto &Attr : Attributes) {
-    uint64_t Offset = Attr.first.get();
-    Attr.first.set(LocSectionSize);
-    // This is the quantity to add to the old location address to get
-    // the correct address for the new one.
-    int64_t LocPcOffset = Attr.second + UnitPcOffset;
-    while (Data.isValidOffset(Offset)) {
-      uint64_t Low = Data.getUnsigned(&Offset, AddressSize);
-      uint64_t High = Data.getUnsigned(&Offset, AddressSize);
-      LocSectionSize += 2 * AddressSize;
-      // End of list entry.
-      if (Low == 0 && High == 0) {
-        Asm->OutStreamer->emitIntValue(0, AddressSize);
-        Asm->OutStreamer->emitIntValue(0, AddressSize);
-        break;
-      }
-      // Base address selection entry.
-      if (Low == BaseAddressMarker) {
-        Asm->OutStreamer->emitIntValue(BaseAddressMarker, AddressSize);
-        Asm->OutStreamer->emitIntValue(High + Attr.second, AddressSize);
-        LocPcOffset = 0;
-        continue;
-      }
-      // Location list entry.
-      Asm->OutStreamer->emitIntValue(Low + LocPcOffset, AddressSize);
-      Asm->OutStreamer->emitIntValue(High + LocPcOffset, AddressSize);
-      uint64_t Length = Data.getU16(&Offset);
-      Asm->OutStreamer->emitIntValue(Length, 2);
-      // Copy the bytes into to the buffer, process them, emit them.
-      Buffer.reserve(Length);
-      Buffer.resize(0);
-      StringRef Input = InputSec.Data.substr(Offset, Length);
-      ProcessExpr(Input, Buffer);
-      Asm->OutStreamer->emitBytes(
-          StringRef((const char *)Buffer.data(), Length));
-      Offset += Length;
-      LocSectionSize += Length + 2;
+  for (const DWARFLocationExpression &LocExpression :
+       LinkedLocationExpression) {
+    if (LocExpression.Range) {
+      // Emit type of entry.
+      MS->emitInt8(dwarf::DW_LLE_start_length);
+      LocListsSectionSize += 1;
+
+      // Emit start address.
+      MS->emitIntValue(LocExpression.Range->LowPC, AddressSize);
+      LocListsSectionSize += AddressSize;
+
+      // Emit length of the range.
+      LocListsSectionSize += MS->emitSLEB128IntValue(
+          LocExpression.Range->HighPC - LocExpression.Range->LowPC);
+    } else {
+      // Emit type of entry.
+      MS->emitInt8(dwarf::DW_LLE_default_location);
+      LocListsSectionSize += 1;
     }
+
+    LocListsSectionSize += MS->emitULEB128IntValue(LocExpression.Expr.size());
+    Asm->OutStreamer->emitBytes(StringRef(
+        (const char *)LocExpression.Expr.data(), LocExpression.Expr.size()));
+    LocListsSectionSize += LocExpression.Expr.size();
   }
+
+  // Emit the terminator entry.
+  MS->emitInt8(dwarf::DW_LLE_end_of_list);
+  LocListsSectionSize += 1;
 }
 
 void DwarfStreamer::emitLineTableForUnit(MCDwarfLineTableParams Params,

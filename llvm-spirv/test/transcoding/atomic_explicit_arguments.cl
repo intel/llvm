@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -triple spir -cl-std=cl2.0 %s -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc -o %t.bc
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis -opaque-pointers=0 -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv %t.spv -r -emit-opaque-pointers --spirv-target-env=CL2.0 -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 int load (volatile atomic_int* obj, memory_order order, memory_scope scope) {
   return atomic_load_explicit(obj, order, scope);
@@ -60,7 +60,7 @@ int load (volatile atomic_int* obj, memory_order order, memory_scope scope) {
 // CHECK-SPIRV: FunctionEnd
 
 
-// CHECK-LLVM: define spir_func i32 @load(i32 addrspace(4)* %[[obj:[0-9a-zA-Z._]+]], i32 %[[order:[0-9a-zA-Z._]+]], i32 %[[scope:[0-9a-zA-Z._]+]]) #0 {
+// CHECK-LLVM: define spir_func i32 @load(ptr addrspace(4) %[[obj:[0-9a-zA-Z._]+]], i32 %[[order:[0-9a-zA-Z._]+]], i32 %[[scope:[0-9a-zA-Z._]+]]) #0 {
 // CHECK-LLVM: entry:
-// CHECK-LLVM:  call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(i32 addrspace(4)* %[[obj]], i32 %[[order]], i32 %[[scope]])
+// CHECK-LLVM:  call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr addrspace(4) %[[obj]], i32 %[[order]], i32 %[[scope]])
 // CHECK-LLVM: }

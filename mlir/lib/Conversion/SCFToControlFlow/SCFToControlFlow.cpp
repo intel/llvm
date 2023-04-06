@@ -16,9 +16,9 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -506,7 +506,7 @@ ParallelLowering::matchAndRewrite(ParallelOp parallelOp,
     Value arg = iterArgs[yieldOperands.size()];
     yieldOperands.push_back(reduceBlock.getTerminator()->getOperand(0));
     rewriter.eraseOp(reduceBlock.getTerminator());
-    rewriter.mergeBlockBefore(&reduceBlock, &op, {arg, reduce.getOperand()});
+    rewriter.inlineBlockBefore(&reduceBlock, &op, {arg, reduce.getOperand()});
     rewriter.eraseOp(reduce);
   }
 
@@ -516,8 +516,8 @@ ParallelLowering::matchAndRewrite(ParallelOp parallelOp,
   if (newBody->empty())
     rewriter.mergeBlocks(parallelOp.getBody(), newBody, ivs);
   else
-    rewriter.mergeBlockBefore(parallelOp.getBody(), newBody->getTerminator(),
-                              ivs);
+    rewriter.inlineBlockBefore(parallelOp.getBody(), newBody->getTerminator(),
+                               ivs);
 
   // Finally, create the terminator if required (for loops with no results, it
   // has been already created in loop construction).

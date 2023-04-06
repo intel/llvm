@@ -9,6 +9,7 @@ add_clang_unittest(ClangAnalysisFlowSensitiveTests
   DataflowAnalysisContextTest.cpp
   DataflowEnvironmentTest.cpp
   DebugSupportTest.cpp
+  LoggerTest.cpp
   MapLatticeTest.cpp
   MatchSwitchTest.cpp
   MultiVarConstantPropagationTest.cpp
@@ -41,5 +42,6 @@ clang_target_link_libraries(ClangAnalysisFlowSensitiveTests
 target_link_libraries(ClangAnalysisFlowSensitiveTests
   PRIVATE
   clangTesting
+  LLVMTestingAnnotations
   LLVMTestingSupport
   )

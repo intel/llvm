@@ -56,8 +56,8 @@ class FoldingContext;
 // that can also be typeless values are encoded with an "elementalOrBOZ"
 // rank pattern.
 // Assumed-type (TYPE(*)) dummy arguments can be forwarded along to some
-// intrinsic functions that accept AnyType + Rank::anyOrAssumedRank or
-// AnyType + Kind::addressable.
+// intrinsic functions that accept AnyType + Rank::anyOrAssumedRank,
+// AnyType + Rank::arrayOrAssumedRank,  or AnyType + Kind::addressable.
 using CategorySet = common::EnumSet<TypeCategory, 8>;
 static constexpr CategorySet IntType{TypeCategory::Integer};
 static constexpr CategorySet RealType{TypeCategory::Real};
@@ -203,7 +203,8 @@ ENUM_CLASS(Rank,
     coarray, // rank is known and can be scalar; has nonzero corank
     atom, // is scalar and has nonzero corank or is coindexed
     known, // rank is known and can be scalar
-    anyOrAssumedRank, // rank can be unknown; assumed-type TYPE(*) allowed
+    anyOrAssumedRank, // any rank, or assumed; assumed-type TYPE(*) allowed
+    arrayOrAssumedRank, // rank >= 1 or assumed; assumed-type TYPE(*) allowed
     conformable, // scalar, or array of same rank & shape as "array" argument
     reduceOperation, // a pure function with constraints for REDUCE
     dimReduced, // scalar if no DIM= argument, else rank(array)-1
@@ -554,7 +555,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         {{"array", AnyData, Rank::anyOrAssumedRank}, RequiredDIM,
             SizeDefaultKIND},
         KINDInt, Rank::scalar, IntrinsicClass::inquiryFunction},
-    {"lbound", {{"array", AnyData, Rank::anyOrAssumedRank}, SizeDefaultKIND},
+    {"lbound", {{"array", AnyData, Rank::arrayOrAssumedRank}, SizeDefaultKIND},
         KINDInt, Rank::vector, IntrinsicClass::inquiryFunction},
     {"lcobound",
         {{"coarray", AnyData, Rank::coarray}, OptionalDIM, SizeDefaultKIND},
@@ -802,7 +803,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"sind", {{"x", SameFloating}}, SameFloating},
     {"sinh", {{"x", SameFloating}}, SameFloating},
     {"size",
-        {{"array", AnyData, Rank::anyOrAssumedRank},
+        {{"array", AnyData, Rank::arrayOrAssumedRank},
             OptionalDIM, // unless array is assumed-size
             SizeDefaultKIND},
         KINDInt, Rank::scalar, IntrinsicClass::inquiryFunction},
@@ -862,7 +863,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         {{"array", AnyData, Rank::anyOrAssumedRank}, RequiredDIM,
             SizeDefaultKIND},
         KINDInt, Rank::scalar, IntrinsicClass::inquiryFunction},
-    {"ubound", {{"array", AnyData, Rank::anyOrAssumedRank}, SizeDefaultKIND},
+    {"ubound", {{"array", AnyData, Rank::arrayOrAssumedRank}, SizeDefaultKIND},
         KINDInt, Rank::vector, IntrinsicClass::inquiryFunction},
     {"ucobound",
         {{"coarray", AnyData, Rank::coarray}, OptionalDIM, SizeDefaultKIND},
@@ -1543,17 +1544,32 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       dummy[dummyArgPatterns - 1].optionality == Optionality::repeats};
   std::vector<ActualArgument *> actualForDummy(
       isMaxMin ? 0 : dummyArgPatterns, nullptr);
-  int missingActualArguments{0};
+  bool anyMissingActualArgument{false};
   std::set<parser::CharBlock> maxMinKeywords;
+  bool anyKeyword{false};
+  int which{0};
   for (std::optional<ActualArgument> &arg : arguments) {
-    if (!arg) {
-      ++missingActualArguments;
-    } else if (arg->isAlternateReturn()) {
-      messages.Say(arg->sourceLocation(),
-          "alternate return specifier not acceptable on call to intrinsic '%s'"_err_en_US,
-          name);
-      return std::nullopt;
-    } else if (isMaxMin) {
+    ++which;
+    if (arg) {
+      if (arg->isAlternateReturn()) {
+        messages.Say(arg->sourceLocation(),
+            "alternate return specifier not acceptable on call to intrinsic '%s'"_err_en_US,
+            name);
+        return std::nullopt;
+      }
+      if (arg->keyword()) {
+        anyKeyword = true;
+      } else if (anyKeyword) {
+        messages.Say(arg ? arg->sourceLocation() : std::nullopt,
+            "actual argument #%d without a keyword may not follow an actual argument with a keyword"_err_en_US,
+            which);
+        return std::nullopt;
+      }
+    } else {
+      anyMissingActualArgument = true;
+      continue;
+    }
+    if (isMaxMin) {
       if (CheckMaxMinArgument(arg->keyword(), maxMinKeywords, name, messages)) {
         actualForDummy.push_back(&*arg);
       } else {
@@ -1561,7 +1577,6 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       }
     } else {
       bool found{false};
-      int slot{missingActualArguments};
       for (std::size_t j{0}; j < dummyArgPatterns && !found; ++j) {
         if (dummy[j].optionality == Optionality::missing) {
           continue;
@@ -1584,7 +1599,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
             }
           }
         } else {
-          found = !actualForDummy[j] && slot-- == 0;
+          found = !actualForDummy[j] && !anyMissingActualArgument;
         }
         if (found) {
           actualForDummy[j] = &*arg;
@@ -1675,7 +1690,8 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     if (arg->GetAssumedTypeDummy()) {
       // TYPE(*) assumed-type dummy argument forwarded to intrinsic
       if (d.typePattern.categorySet == AnyType &&
-          d.rank == Rank::anyOrAssumedRank &&
+          (d.rank == Rank::anyOrAssumedRank ||
+              d.rank == Rank::arrayOrAssumedRank) &&
           (d.typePattern.kindCode == KindCode::any ||
               d.typePattern.kindCode == KindCode::addressable)) {
         continue;
@@ -1857,7 +1873,8 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     const IntrinsicDummyArgument &d{dummy[std::min(j, dummyArgPatterns - 1)]};
     if (const ActualArgument *arg{actualForDummy[j]}) {
       bool isAssumedRank{IsAssumedRank(*arg)};
-      if (isAssumedRank && d.rank != Rank::anyOrAssumedRank) {
+      if (isAssumedRank && d.rank != Rank::anyOrAssumedRank &&
+          d.rank != Rank::arrayOrAssumedRank) {
         messages.Say(arg->sourceLocation(),
             "Assumed-rank array cannot be forwarded to '%s=' argument"_err_en_US,
             d.keyword);
@@ -1935,6 +1952,11 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         argOk = rank == knownArg->Rank();
         break;
       case Rank::anyOrAssumedRank:
+      case Rank::arrayOrAssumedRank:
+        if (d.rank == Rank::arrayOrAssumedRank && rank == 0) {
+          argOk = false;
+          break;
+        }
         if (!dimArg && rank > 0 && !isAssumedRank &&
             (std::strcmp(name, "shape") == 0 ||
                 std::strcmp(name, "size") == 0 ||
@@ -2231,6 +2253,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   case Rank::atom:
   case Rank::known:
   case Rank::anyOrAssumedRank:
+  case Rank::arrayOrAssumedRank:
   case Rank::reduceOperation:
   case Rank::dimRemovedOrScalar:
     common::die("INTERNAL: bad Rank code on intrinsic '%s' result", name);
@@ -2656,129 +2679,6 @@ IntrinsicProcTable::Implementation::HandleC_F_Pointer(
   }
 }
 
-static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
-  bool ok{true};
-  if (const auto &pointerArg{call.arguments[0]}) {
-    if (const auto *pointerExpr{pointerArg->UnwrapExpr()}) {
-      if (const Symbol *pointerSymbol{GetLastSymbol(*pointerExpr)}) {
-        if (!pointerSymbol->attrs().test(semantics::Attr::POINTER)) {
-          AttachDeclaration(context.messages().Say(pointerArg->sourceLocation(),
-                                "POINTER= argument of ASSOCIATED() must be a "
-                                "POINTER"_err_en_US),
-              *pointerSymbol);
-        } else {
-          if (const auto &targetArg{call.arguments[1]}) {
-            if (const auto *targetExpr{targetArg->UnwrapExpr()}) {
-              std::optional<characteristics::Procedure> pointerProc, targetProc;
-              const auto *targetProcDesignator{
-                  UnwrapExpr<ProcedureDesignator>(*targetExpr)};
-              const Symbol *targetSymbol{GetLastSymbol(*targetExpr)};
-              bool isCall{false};
-              std::string targetName;
-              if (const auto *targetProcRef{// target is a function call
-                      std::get_if<ProcedureRef>(&targetExpr->u)}) {
-                if (auto targetRefedChars{
-                        characteristics::Procedure::Characterize(
-                            *targetProcRef, context)}) {
-                  targetProc = *targetRefedChars;
-                  targetName = targetProcRef->proc().GetName() + "()";
-                  isCall = true;
-                }
-              } else if (targetProcDesignator) {
-                targetProc = characteristics::Procedure::Characterize(
-                    *targetProcDesignator, context);
-                targetName = targetProcDesignator->GetName();
-              } else if (targetSymbol) {
-                if (IsProcedure(*targetSymbol)) {
-                  // proc that's not a call
-                  targetProc = characteristics::Procedure::Characterize(
-                      *targetSymbol, context);
-                }
-                targetName = targetSymbol->name().ToString();
-              }
-              if (IsProcedure(*pointerSymbol)) {
-                pointerProc = characteristics::Procedure::Characterize(
-                    *pointerSymbol, context);
-              }
-              if (pointerProc) {
-                if (targetProc) {
-                  // procedure pointer and procedure target
-                  std::string whyNot;
-                  const SpecificIntrinsic *specificIntrinsic{nullptr};
-                  if (targetProcDesignator) {
-                    specificIntrinsic =
-                        targetProcDesignator->GetSpecificIntrinsic();
-                  }
-                  if (std::optional<parser::MessageFixedText> msg{
-                          CheckProcCompatibility(isCall, pointerProc,
-                              &*targetProc, specificIntrinsic, whyNot)}) {
-                    msg->set_severity(parser::Severity::Warning);
-                    AttachDeclaration(
-                        context.messages().Say(std::move(*msg),
-                            "pointer '" + pointerSymbol->name().ToString() +
-                                "'",
-                            targetName, whyNot),
-                        *pointerSymbol);
-                  }
-                } else if (!IsNullProcedurePointer(*targetExpr)) {
-                  // procedure pointer and object target
-                  AttachDeclaration(
-                      context.messages().Say(
-                          "POINTER= argument '%s' is a procedure "
-                          "pointer but the TARGET= argument '%s' is not a "
-                          "procedure or procedure pointer"_err_en_US,
-                          pointerSymbol->name(), targetName),
-                      *pointerSymbol);
-                }
-              } else if (targetProc) {
-                // object pointer and procedure target
-                AttachDeclaration(
-                    context.messages().Say(
-                        "POINTER= argument '%s' is an object pointer "
-                        "but the TARGET= argument '%s' is a "
-                        "procedure designator"_err_en_US,
-                        pointerSymbol->name(), targetName),
-                    *pointerSymbol);
-              } else if (targetSymbol) {
-                // object pointer and target
-                SymbolVector symbols{GetSymbolVector(*targetExpr)};
-                CHECK(!symbols.empty());
-                if (!GetLastTarget(symbols)) {
-                  parser::Message *msg{context.messages().Say(
-                      targetArg->sourceLocation(),
-                      "TARGET= argument '%s' must have either the POINTER or the TARGET attribute"_err_en_US,
-                      targetExpr->AsFortran())};
-                  for (SymbolRef ref : symbols) {
-                    msg = AttachDeclaration(msg, *ref);
-                  }
-                } else if (HasVectorSubscript(*targetExpr) ||
-                    ExtractCoarrayRef(*targetExpr)) {
-                  context.messages().Say(targetArg->sourceLocation(),
-                      "TARGET= argument '%s' may not have a vector subscript or coindexing"_err_en_US,
-                      targetExpr->AsFortran());
-                }
-                if (const auto pointerType{pointerArg->GetType()}) {
-                  if (const auto targetType{targetArg->GetType()}) {
-                    ok = pointerType->IsTkCompatibleWith(*targetType);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  } else {
-    // No arguments to ASSOCIATED()
-    ok = false;
-  }
-  if (!ok) {
-    context.messages().Say(
-        "Arguments of ASSOCIATED() must be a POINTER and an optional valid target"_err_en_US);
-  }
-  return ok;
-}
-
 static bool CheckForNonPositiveValues(FoldingContext &context,
     const ActualArgument &arg, const std::string &procName,
     const std::string &argName) {
@@ -2875,6 +2775,8 @@ static bool CheckAtomicDefineAndRef(FoldingContext &context,
 }
 
 // Applies any semantic checks peculiar to an intrinsic.
+// TODO: Move the rest of these checks to Semantics/check-call.cpp, which is
+// where ASSOCIATED() and TRANSFER() are now validated.
 static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
   bool ok{true};
   const std::string &name{call.specificIntrinsic.name};
@@ -2891,7 +2793,7 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
           "Argument of ALLOCATED() must be an ALLOCATABLE object or component"_err_en_US);
     }
   } else if (name == "associated") {
-    return CheckAssociated(call, context);
+    // Now handled in Semantics/check-call.cpp
   } else if (name == "atomic_and" || name == "atomic_or" ||
       name == "atomic_xor") {
     return CheckForCoindexedObject(context, call.arguments[2], name, "stat");
@@ -3046,44 +2948,6 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
             ok = false;
             context.messages().Say(at,
                 "If either argument of the OPERATION= procedure of REDUCE() has the ASYNCHRONOUS, VOLATILE, or TARGET attribute, both must have that attribute"_err_en_US);
-          }
-        }
-      }
-    }
-  } else if (name == "transfer") { // 16.9.193
-    if (call.arguments.size() >= 2) {
-      auto source{characteristics::TypeAndShape::Characterize(
-          call.arguments[0], context)};
-      auto mold{characteristics::TypeAndShape::Characterize(
-          call.arguments[1], context)};
-      if (source && mold && mold->Rank() > 0 &&
-          evaluate::ToInt64(
-              evaluate::Fold(
-                  context, mold->MeasureElementSizeInBytes(context, false)))
-                  .value_or(1) == 0) {
-        if (auto sourceSize{evaluate::ToInt64(evaluate::Fold(
-                context, source->MeasureSizeInBytes(context)))}) {
-          if (*sourceSize > 0) {
-            context.messages().Say(
-                "Element size of MOLD= array may not be zero when SOURCE= is not empty"_err_en_US);
-            ok = false;
-          }
-        } else {
-          context.messages().Say(
-              "Element size of MOLD= array may not be zero unless SOURCE= is empty"_warn_en_US);
-        }
-      }
-      if (call.arguments.size() > 2) {
-        if (const Symbol *whole{
-                UnwrapWholeSymbolOrComponentDataRef(call.arguments[2])}) {
-          if (IsOptional(*whole)) {
-            context.messages().Say(
-                "SIZE= argument may not be the optional dummy argument '%s'"_err_en_US,
-                whole->name());
-            ok = false;
-          } else if (IsAllocatableOrPointer(*whole)) {
-            context.messages().Say(
-                "SIZE= argument that is allocatable or pointer must be present at execution; parenthesize to silence this warning"_warn_en_US);
           }
         }
       }

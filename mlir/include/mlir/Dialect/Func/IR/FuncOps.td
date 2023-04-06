@@ -208,7 +208,7 @@ def ConstantOp : Func_Op<"constant",
 
 def FuncOp : Func_Op<"func", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface,
-  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
+  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface
 ]> {
   let summary = "An operation with a name containing a single `SSACFG` region";
   let description = [{
@@ -277,14 +277,14 @@ def FuncOp : Func_Op<"func", [
     /// included in the new function. Replaces references to cloned sub-values
     /// with the corresponding value that is copied, and adds those mappings to
     /// the mapper.
-    FuncOp clone(BlockAndValueMapping &mapper);
+    FuncOp clone(IRMapping &mapper);
     FuncOp clone();
 
     /// Clone the internal blocks and attributes from this function into dest.
     /// Any cloned blocks are appended to the back of dest. This function
     /// asserts that the attributes of the current function and dest are
     /// compatible.
-    void cloneInto(FuncOp dest, BlockAndValueMapping &mapper);
+    void cloneInto(FuncOp dest, IRMapping &mapper);
 
     //===------------------------------------------------------------------===//
     // CallableOpInterface
@@ -298,6 +298,18 @@ def FuncOp : Func_Op<"func", [
     /// Returns the results types that the callable region produces when
     /// executed.
     ArrayRef<Type> getCallableResults() { return getFunctionType().getResults(); }
+
+    /// Returns the argument attributes for all callable region arguments or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableArgAttrs() {
+      return getArgAttrs().value_or(nullptr);
+    }
+
+    /// Returns the result attributes for all callable region results or
+    /// null if there are none.
+    ::mlir::ArrayAttr getCallableResAttrs() {
+      return getResAttrs().value_or(nullptr);
+    }
 
     //===------------------------------------------------------------------===//
     // FunctionOpInterface Methods

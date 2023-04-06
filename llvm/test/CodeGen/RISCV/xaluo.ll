@@ -499,16 +499,13 @@ entry:
 define zeroext i1 @uaddo.i64.constant_one(i64 %v1, ptr %res) {
 ; RV32-LABEL: uaddo.i64.constant_one:
 ; RV32:       # %bb.0: # %entry
-; RV32-NEXT:    mv a3, a0
-; RV32-NEXT:    addi a4, a0, 1
-; RV32-NEXT:    sltu a0, a4, a0
-; RV32-NEXT:    add a5, a1, a0
-; RV32-NEXT:    bgeu a4, a3, .LBB11_2
-; RV32-NEXT:  # %bb.1: # %entry
-; RV32-NEXT:    sltu a0, a5, a1
-; RV32-NEXT:  .LBB11_2: # %entry
-; RV32-NEXT:    sw a4, 0(a2)
-; RV32-NEXT:    sw a5, 4(a2)
+; RV32-NEXT:    addi a3, a0, 1
+; RV32-NEXT:    seqz a0, a3
+; RV32-NEXT:    add a1, a1, a0
+; RV32-NEXT:    or a0, a3, a1
+; RV32-NEXT:    seqz a0, a0
+; RV32-NEXT:    sw a3, 0(a2)
+; RV32-NEXT:    sw a1, 4(a2)
 ; RV32-NEXT:    ret
 ;
 ; RV64-LABEL: uaddo.i64.constant_one:
@@ -520,16 +517,13 @@ define zeroext i1 @uaddo.i64.constant_one(i64 %v1, ptr %res) {
 ;
 ; RV32ZBA-LABEL: uaddo.i64.constant_one:
 ; RV32ZBA:       # %bb.0: # %entry
-; RV32ZBA-NEXT:    mv a3, a0
-; RV32ZBA-NEXT:    addi a4, a0, 1
-; RV32ZBA-NEXT:    sltu a0, a4, a0
-; RV32ZBA-NEXT:    add a5, a1, a0
-; RV32ZBA-NEXT:    bgeu a4, a3, .LBB11_2
-; RV32ZBA-NEXT:  # %bb.1: # %entry
-; RV32ZBA-NEXT:    sltu a0, a5, a1
-; RV32ZBA-NEXT:  .LBB11_2: # %entry
-; RV32ZBA-NEXT:    sw a4, 0(a2)
-; RV32ZBA-NEXT:    sw a5, 4(a2)
+; RV32ZBA-NEXT:    addi a3, a0, 1
+; RV32ZBA-NEXT:    seqz a0, a3
+; RV32ZBA-NEXT:    add a1, a1, a0
+; RV32ZBA-NEXT:    or a0, a3, a1
+; RV32ZBA-NEXT:    seqz a0, a0
+; RV32ZBA-NEXT:    sw a3, 0(a2)
+; RV32ZBA-NEXT:    sw a1, 4(a2)
 ; RV32ZBA-NEXT:    ret
 ;
 ; RV64ZBA-LABEL: uaddo.i64.constant_one:
@@ -3637,8 +3631,8 @@ define zeroext i1 @smulo2.br.i64(i64 %v1) {
 ; RV32-NEXT:    add a4, a4, t1
 ; RV32-NEXT:    sltu a5, t3, a5
 ; RV32-NEXT:    mulh a2, t2, a2
+; RV32-NEXT:    add a0, a0, a1
 ; RV32-NEXT:    sub a0, t0, a0
-; RV32-NEXT:    sub a0, a0, a1
 ; RV32-NEXT:    add a0, a0, a2
 ; RV32-NEXT:    add a0, a0, a5
 ; RV32-NEXT:    add a0, a4, a0
@@ -3699,8 +3693,8 @@ define zeroext i1 @smulo2.br.i64(i64 %v1) {
 ; RV32ZBA-NEXT:    add a4, a4, t1
 ; RV32ZBA-NEXT:    sltu a5, t3, a5
 ; RV32ZBA-NEXT:    mulh a2, t2, a2
+; RV32ZBA-NEXT:    add a0, a0, a1
 ; RV32ZBA-NEXT:    sub a0, t0, a0
-; RV32ZBA-NEXT:    sub a0, a0, a1
 ; RV32ZBA-NEXT:    add a0, a0, a2
 ; RV32ZBA-NEXT:    add a0, a0, a5
 ; RV32ZBA-NEXT:    add a0, a4, a0

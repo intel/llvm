@@ -19,7 +19,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/MemRef/Transforms/Passes.h"
+#include "mlir/Dialect/MemRef/Transforms/Transforms.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Transforms/Transforms.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
@@ -324,7 +324,7 @@ struct MoveInitOperandsToInput : public OpRewritePattern<GenericOp> {
     Region &region = newOp.getRegion();
     Block *block = new Block();
     region.push_back(block);
-    BlockAndValueMapping mapper;
+    IRMapping mapper;
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(block);
     for (auto bbarg : genericOp.getRegionInputArgs())

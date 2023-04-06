@@ -188,11 +188,6 @@ Type *Argument::getPointeeInMemoryValueType() const {
   return getMemoryParamAllocType(ParamAttrs);
 }
 
-uint64_t Argument::getParamAlignment() const {
-  assert(getType()->isPointerTy() && "Only pointers have alignments");
-  return getParent()->getParamAlignment(getArgNo());
-}
-
 MaybeAlign Argument::getParamAlign() const {
   assert(getType()->isPointerTy() && "Only pointers have alignments");
   return getParent()->getParamAlign(getArgNo());
@@ -232,6 +227,10 @@ uint64_t Argument::getDereferenceableOrNullBytes() const {
   assert(getType()->isPointerTy() &&
          "Only pointers have dereferenceable bytes");
   return getParent()->getParamDereferenceableOrNullBytes(getArgNo());
+}
+
+FPClassTest Argument::getNoFPClass() const {
+  return getParent()->getParamNoFPClass(getArgNo());
 }
 
 bool Argument::hasNestAttr() const {
@@ -853,7 +852,7 @@ static ArrayRef<const char *> findTargetSubtable(StringRef Name) {
   // We've either found the target or just fall back to the generic set, which
   // is always first.
   const auto &TI = It != Targets.end() && It->Name == Target ? *It : Targets[0];
-  return makeArrayRef(&IntrinsicNameTable[1] + TI.Offset, TI.Count);
+  return ArrayRef(&IntrinsicNameTable[1] + TI.Offset, TI.Count);
 }
 
 /// This does the actual lookup of an intrinsic ID which
@@ -1497,18 +1496,6 @@ bool Intrinsic::isOverloaded(ID id) {
 #define GET_INTRINSIC_OVERLOAD_TABLE
 #include "llvm/IR/IntrinsicImpl.inc"
 #undef GET_INTRINSIC_OVERLOAD_TABLE
-}
-
-bool Intrinsic::isLeaf(ID id) {
-  switch (id) {
-  default:
-    return true;
-
-  case Intrinsic::experimental_gc_statepoint:
-  case Intrinsic::experimental_patchpoint_void:
-  case Intrinsic::experimental_patchpoint_i64:
-    return false;
-  }
 }
 
 /// This defines the "Intrinsic::getAttributes(ID id)" method.

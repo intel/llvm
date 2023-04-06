@@ -22,6 +22,49 @@ namespace mlir {
 #include "mlir/Interfaces/InferTypeOpInterface.cpp.inc"
 } // namespace mlir
 
+LogicalResult
+mlir::reifyResultShapes(OpBuilder &b, Operation *op,
+                        ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
+  auto reifiableOp = dyn_cast<ReifyRankedShapedTypeOpInterface>(op);
+  if (!reifiableOp)
+    return failure();
+  LogicalResult status = reifiableOp.reifyResultShapes(b, reifiedReturnShapes);
+#ifndef NDEBUG
+  if (failed(status))
+    return failure();
+  // Assert that ReifyRankedShapedTypeOpInterface::reifyResultShapes produced
+  // a correct result.
+  int64_t resultIdx = 0;
+  for (OpResult result : op->getResults()) {
+    auto shapedType = result.getType().dyn_cast<ShapedType>();
+    if (!shapedType)
+      continue;
+    if (!shapedType.hasRank()) {
+      // Nothing to check for unranked shaped values.
+      ++resultIdx;
+      continue;
+    }
+    // Assert one OpFoldResult per dimension.
+    assert(shapedType.getRank() ==
+               static_cast<int64_t>(reifiedReturnShapes[resultIdx].size()) &&
+           "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+    for (int64_t dim = 0; dim < shapedType.getRank(); ++dim) {
+      // reifyResultShapes must return:
+      // * Attribute for static dimensions
+      // * Value for dynamic dimensions
+      assert(shapedType.isDynamicDim(dim) ==
+                 reifiedReturnShapes[resultIdx][dim].is<Value>() &&
+             "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+    }
+    ++resultIdx;
+  }
+  // Assert that every shaped value result was reified.
+  assert(resultIdx == static_cast<int64_t>(reifiedReturnShapes.size()) &&
+         "incorrect implementation of ReifyRankedShapedTypeOpInterface");
+#endif // NDEBUG
+  return status;
+}
+
 bool ShapeAdaptor::hasRank() const {
   if (val.isNull())
     return false;
@@ -188,16 +231,16 @@ LogicalResult mlir::detail::inferReturnTensorTypes(
                              retComponents)))
     return failure();
   for (const auto &shapeAndType : retComponents) {
-    Type element_ty = shapeAndType.getElementType();
-    assert(element_ty && "element type required to construct tensor");
+    Type elementTy = shapeAndType.getElementType();
+    assert(elementTy && "element type required to construct tensor");
 
     Attribute attr = shapeAndType.getAttribute();
     if (shapeAndType.hasRank()) {
       inferredReturnTypes.push_back(
-          RankedTensorType::get(shapeAndType.getDims(), element_ty, attr));
+          RankedTensorType::get(shapeAndType.getDims(), elementTy, attr));
     } else {
       assert(attr == nullptr && "attribute not supported");
-      inferredReturnTypes.push_back(UnrankedTensorType::get(element_ty));
+      inferredReturnTypes.push_back(UnrankedTensorType::get(elementTy));
     }
   }
   return success();

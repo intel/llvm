@@ -1,4 +1,4 @@
-//===-- RISCVInstrInfo.cpp - RISCV Instruction Information ------*- C++ -*-===//
+//===-- RISCVInstrInfo.cpp - RISC-V Instruction Information -----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the RISCV implementation of the TargetInstrInfo class.
+// This file contains the RISC-V implementation of the TargetInstrInfo class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,6 +25,7 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineTraceMetrics.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/MC/MCInstBuilder.h"
@@ -43,6 +44,16 @@ using namespace llvm;
 static cl::opt<bool> PreferWholeRegisterMove(
     "riscv-prefer-whole-register-move", cl::init(false), cl::Hidden,
     cl::desc("Prefer whole register move for vector registers."));
+
+static cl::opt<MachineTraceStrategy> ForceMachineCombinerStrategy(
+    "riscv-force-machine-combiner-strategy", cl::Hidden,
+    cl::desc("Force machine combiner to use a specific strategy for machine "
+             "trace metrics evaluation."),
+    cl::init(MachineTraceStrategy::TS_NumStrategies),
+    cl::values(clEnumValN(MachineTraceStrategy::TS_Local, "local",
+                          "Local strategy."),
+               clEnumValN(MachineTraceStrategy::TS_MinInstrCount, "min-instr",
+                          "MinInstrCount strategy.")));
 
 namespace llvm::RISCVVPseudosTable {
 
@@ -68,19 +79,33 @@ MCInst RISCVInstrInfo::getNop() const {
 
 unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                              int &FrameIndex) const {
+  unsigned Dummy;
+  return isLoadFromStackSlot(MI, FrameIndex, Dummy);
+}
+
+unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
+                                             int &FrameIndex,
+                                             unsigned &MemBytes) const {
   switch (MI.getOpcode()) {
   default:
     return 0;
   case RISCV::LB:
   case RISCV::LBU:
+    MemBytes = 1;
+    break;
   case RISCV::LH:
   case RISCV::LHU:
   case RISCV::FLH:
+    MemBytes = 2;
+    break;
   case RISCV::LW:
   case RISCV::FLW:
   case RISCV::LWU:
+    MemBytes = 4;
+    break;
   case RISCV::LD:
   case RISCV::FLD:
+    MemBytes = 8;
     break;
   }
 
@@ -95,16 +120,30 @@ unsigned RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 
 unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                             int &FrameIndex) const {
+  unsigned Dummy;
+  return isStoreToStackSlot(MI, FrameIndex, Dummy);
+}
+
+unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
+                                            int &FrameIndex,
+                                            unsigned &MemBytes) const {
   switch (MI.getOpcode()) {
   default:
     return 0;
   case RISCV::SB:
+    MemBytes = 1;
+    break;
   case RISCV::SH:
-  case RISCV::SW:
   case RISCV::FSH:
+    MemBytes = 2;
+    break;
+  case RISCV::SW:
   case RISCV::FSW:
+    MemBytes = 4;
+    break;
   case RISCV::SD:
   case RISCV::FSD:
+    MemBytes = 8;
     break;
   }
 
@@ -912,7 +951,7 @@ unsigned RISCVInstrInfo::insertBranch(
   // Shouldn't be a fall through.
   assert(TBB && "insertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 3 || Cond.size() == 0) &&
-         "RISCV branch conditions have two components!");
+         "RISC-V branch conditions have two components!");
 
   // Unconditional branch.
   if (Cond.empty()) {
@@ -1092,8 +1131,7 @@ static MachineInstr *canFoldAsPredicatedOp(Register Reg,
     if (MO.isDef())
       return nullptr;
     // Allow constant physregs.
-    if (Register::isPhysicalRegister(MO.getReg()) &&
-        !MRI.isConstantPhysReg(MO.getReg()))
+    if (MO.getReg().isPhysical() && !MRI.isConstantPhysReg(MO.getReg()))
       return nullptr;
   }
   bool DontMoveAcrossStores = true;
@@ -1206,12 +1244,7 @@ unsigned RISCVInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   }
 
   if (MI.getParent() && MI.getParent()->getParent()) {
-    const auto MF = MI.getMF();
-    const auto &TM = static_cast<const RISCVTargetMachine &>(MF->getTarget());
-    const MCRegisterInfo &MRI = *TM.getMCRegisterInfo();
-    const MCSubtargetInfo &STI = *TM.getMCSubtargetInfo();
-    const RISCVSubtarget &ST = MF->getSubtarget<RISCVSubtarget>();
-    if (isCompressibleInst(MI, &ST, MRI, STI))
+    if (isCompressibleInst(MI, STI))
       return 2;
   }
   return get(Opcode).getSize();
@@ -1261,6 +1294,20 @@ RISCVInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
     break;
   }
   return std::nullopt;
+}
+
+MachineTraceStrategy RISCVInstrInfo::getMachineCombinerTraceStrategy() const {
+  if (ForceMachineCombinerStrategy.getNumOccurrences() == 0) {
+    // The option is unused. Choose Local strategy only for in-order cores. When
+    // scheduling model is unspecified, use MinInstrCount strategy as more
+    // generic one.
+    const auto &SchedModel = STI.getSchedModel();
+    return (!SchedModel.hasInstrSchedModel() || SchedModel.isOutOfOrder())
+               ? MachineTraceStrategy::TS_MinInstrCount
+               : MachineTraceStrategy::TS_Local;
+  }
+  // The strategy was forced by the option.
+  return ForceMachineCombinerStrategy;
 }
 
 void RISCVInstrInfo::setSpecialOperandAttr(MachineInstr &OldMI1,
@@ -1345,7 +1392,13 @@ bool RISCVInstrInfo::hasReassociableSibling(const MachineInstr &Inst,
   const MachineInstr &Sibling =
       *MRI.getVRegDef(Inst.getOperand(OperandIdx).getReg());
 
-  return RISCV::hasEqualFRM(Inst, Sibling);
+  int16_t InstFrmOpIdx =
+      RISCV::getNamedOperandIdx(Inst.getOpcode(), RISCV::OpName::frm);
+  int16_t SiblingFrmOpIdx =
+      RISCV::getNamedOperandIdx(Sibling.getOpcode(), RISCV::OpName::frm);
+
+  return (InstFrmOpIdx < 0 && SiblingFrmOpIdx < 0) ||
+         RISCV::hasEqualFRM(Inst, Sibling);
 }
 
 bool RISCVInstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst,
@@ -1361,6 +1414,42 @@ bool RISCVInstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst,
   if (isFADD(Opc) || isFMUL(Opc))
     return Inst.getFlag(MachineInstr::MIFlag::FmReassoc) &&
            Inst.getFlag(MachineInstr::MIFlag::FmNsz);
+
+  switch (Opc) {
+  default:
+    return false;
+  case RISCV::ADD:
+  case RISCV::ADDW:
+  case RISCV::AND:
+  case RISCV::OR:
+  case RISCV::XOR:
+  // From RISC-V ISA spec, if both the high and low bits of the same product
+  // are required, then the recommended code sequence is:
+  //
+  // MULH[[S]U] rdh, rs1, rs2
+  // MUL        rdl, rs1, rs2
+  // (source register specifiers must be in same order and rdh cannot be the
+  //  same as rs1 or rs2)
+  //
+  // Microarchitectures can then fuse these into a single multiply operation
+  // instead of performing two separate multiplies.
+  // MachineCombiner may reassociate MUL operands and lose the fusion
+  // opportunity.
+  case RISCV::MUL:
+  case RISCV::MULW:
+  case RISCV::MIN:
+  case RISCV::MINU:
+  case RISCV::MAX:
+  case RISCV::MAXU:
+  case RISCV::FMIN_H:
+  case RISCV::FMIN_S:
+  case RISCV::FMIN_D:
+  case RISCV::FMAX_H:
+  case RISCV::FMAX_S:
+  case RISCV::FMAX_D:
+    return true;
+  }
+
   return false;
 }
 
@@ -1381,13 +1470,21 @@ RISCVInstrInfo::getInverseOpcode(unsigned Opcode) const {
     return RISCV::FADD_S;
   case RISCV::FSUB_D:
     return RISCV::FADD_D;
+  case RISCV::ADD:
+    return RISCV::SUB;
+  case RISCV::SUB:
+    return RISCV::ADD;
+  case RISCV::ADDW:
+    return RISCV::SUBW;
+  case RISCV::SUBW:
+    return RISCV::ADDW;
   }
 }
 
 static bool canCombineFPFusedMultiply(const MachineInstr &Root,
                                       const MachineOperand &MO,
                                       bool DoRegPressureReduce) {
-  if (!MO.isReg() || !Register::isVirtualRegister(MO.getReg()))
+  if (!MO.isReg() || !MO.getReg().isVirtual())
     return false;
   const MachineRegisterInfo &MRI = Root.getMF()->getRegInfo();
   MachineInstr *MI = MRI.getVRegDef(MO.getReg());
@@ -1554,11 +1651,11 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
                                        StringRef &ErrInfo) const {
   MCInstrDesc const &Desc = MI.getDesc();
 
-  for (auto &OI : enumerate(Desc.operands())) {
-    unsigned OpType = OI.value().OperandType;
+  for (const auto &[Index, Operand] : enumerate(Desc.operands())) {
+    unsigned OpType = Operand.OperandType;
     if (OpType >= RISCVOp::OPERAND_FIRST_RISCV_IMM &&
         OpType <= RISCVOp::OPERAND_LAST_RISCV_IMM) {
-      const MachineOperand &MO = MI.getOperand(OI.index());
+      const MachineOperand &MO = MI.getOperand(Index);
       if (MO.isImm()) {
         int64_t Imm = MO.getImm();
         bool Ok;
@@ -1575,7 +1672,15 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
         CASE_OPERAND_UIMM(3)
         CASE_OPERAND_UIMM(4)
         CASE_OPERAND_UIMM(5)
+        CASE_OPERAND_UIMM(6)
         CASE_OPERAND_UIMM(7)
+        CASE_OPERAND_UIMM(8)
+        CASE_OPERAND_UIMM(12)
+        CASE_OPERAND_UIMM(20)
+          // clang-format on
+        case RISCVOp::OPERAND_UIMM2_LSB0:
+          Ok = isShiftedUInt<1, 1>(Imm);
+          break;
         case RISCVOp::OPERAND_UIMM7_LSB00:
           Ok = isShiftedUInt<5, 2>(Imm);
           break;
@@ -1585,11 +1690,14 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
         case RISCVOp::OPERAND_UIMM8_LSB000:
           Ok = isShiftedUInt<5, 3>(Imm);
           break;
-        CASE_OPERAND_UIMM(12)
-        CASE_OPERAND_UIMM(20)
-          // clang-format on
+        case RISCVOp::OPERAND_UIMM9_LSB000:
+          Ok = isShiftedUInt<6, 3>(Imm);
+          break;
         case RISCVOp::OPERAND_SIMM10_LSB0000_NONZERO:
           Ok = isShiftedInt<6, 4>(Imm) && (Imm != 0);
+          break;
+        case RISCVOp::OPERAND_UIMM10_LSB00_NONZERO:
+          Ok = isShiftedUInt<8, 2>(Imm) && (Imm != 0);
           break;
         case RISCVOp::OPERAND_ZERO:
           Ok = Imm == 0;
@@ -1625,11 +1733,21 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
           Ok = STI.is64Bit() ? isUInt<6>(Imm) : isUInt<5>(Imm);
           Ok = Ok && Imm != 0;
           break;
-        case RISCVOp::OPERAND_UIMM_SHFL:
-          Ok = STI.is64Bit() ? isUInt<5>(Imm) : isUInt<4>(Imm);
+        case RISCVOp::OPERAND_CLUI_IMM:
+          Ok = (isUInt<5>(Imm) && Imm != 0) ||
+               (Imm >= 0xfffe0 && Imm <= 0xfffff);
           break;
         case RISCVOp::OPERAND_RVKRNUM:
           Ok = Imm >= 0 && Imm <= 10;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_0_7:
+          Ok = Imm >= 0 && Imm <= 7;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_1_10:
+          Ok = Imm >= 1 && Imm <= 10;
+          break;
+        case RISCVOp::OPERAND_RVKRNUM_2_14:
+          Ok = Imm >= 2 && Imm <= 14;
           break;
         }
         if (!Ok) {
@@ -1783,7 +1901,7 @@ RISCVInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
       {MO_TPREL_ADD, "riscv-tprel-add"},
       {MO_TLS_GOT_HI, "riscv-tls-got-hi"},
       {MO_TLS_GD_HI, "riscv-tls-gd-hi"}};
-  return makeArrayRef(TargetFlags);
+  return ArrayRef(TargetFlags);
 }
 bool RISCVInstrInfo::isFunctionSafeToOutlineFrom(
     MachineFunction &MF, bool OutlineFromLinkOnceODRs) const {
@@ -1818,7 +1936,8 @@ bool RISCVInstrInfo::shouldOutlineFromFunctionByDefault(
   return MF.getFunction().hasMinSize();
 }
 
-outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
+std::optional<outliner::OutlinedFunction>
+RISCVInstrInfo::getOutliningCandidateInfo(
     std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
 
   // First we need to filter out candidates where the X5 register (IE t0) can't
@@ -1832,7 +1951,7 @@ outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
 
   // If the sequence doesn't have enough candidates left, then we're done.
   if (RepeatedSequenceLocs.size() < 2)
-    return outliner::OutlinedFunction();
+    return std::nullopt;
 
   unsigned SequenceSize = 0;
 
@@ -1859,7 +1978,7 @@ outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
 }
 
 outliner::InstrType
-RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
+RISCVInstrInfo::getOutliningTypeImpl(MachineBasicBlock::iterator &MBBI,
                                  unsigned Flags) const {
   MachineInstr &MI = *MBBI;
   MachineBasicBlock *MBB = MI.getParent();
@@ -1867,26 +1986,13 @@ RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
       MBB->getParent()->getSubtarget().getRegisterInfo();
   const auto &F = MI.getMF()->getFunction();
 
-  // Positions generally can't safely be outlined.
-  if (MI.isPosition()) {
-    // We can manually strip out CFI instructions later.
-    if (MI.isCFIInstruction())
-      // If current function has exception handling code, we can't outline &
-      // strip these CFI instructions since it may break .eh_frame section
-      // needed in unwinding.
-      return F.needsUnwindTableEntry() ? outliner::InstrType::Illegal
-                                       : outliner::InstrType::Invisible;
-
-    return outliner::InstrType::Illegal;
-  }
-
-  // Don't trust the user to write safe inline assembly.
-  if (MI.isInlineAsm())
-    return outliner::InstrType::Illegal;
-
-  // We can't outline branches to other basic blocks.
-  if (MI.isTerminator() && !MBB->succ_empty())
-    return outliner::InstrType::Illegal;
+  // We can manually strip out CFI instructions later.
+  if (MI.isCFIInstruction())
+    // If current function has exception handling code, we can't outline &
+    // strip these CFI instructions since it may break .eh_frame section
+    // needed in unwinding.
+    return F.needsUnwindTableEntry() ? outliner::InstrType::Illegal
+                                     : outliner::InstrType::Invisible;
 
   // We need support for tail calls to outlined functions before return
   // statements can be allowed.
@@ -1901,8 +2007,6 @@ RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
 
   // Make sure the operands don't reference something unsafe.
   for (const auto &MO : MI.operands()) {
-    if (MO.isMBB() || MO.isBlockAddress() || MO.isCPI() || MO.isJTI())
-      return outliner::InstrType::Illegal;
 
     // pcrel-hi and pcrel-lo can't put in separate sections, filter that out
     // if any possible.
@@ -1911,11 +2015,6 @@ RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
          F.hasSection()))
       return outliner::InstrType::Illegal;
   }
-
-  // Don't allow instructions which won't be materialized to impact outlining
-  // analysis.
-  if (MI.isMetaInstruction())
-    return outliner::InstrType::Invisible;
 
   return outliner::InstrType::Legal;
 }
@@ -2043,6 +2142,23 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
     return false;
 
   switch (MI.getOpcode()) {
+  case RISCV::TH_MVEQZ:
+  case RISCV::TH_MVNEZ:
+    // We can't commute operands if operand 2 (i.e., rs1 in
+    // mveqz/mvnez rd,rs1,rs2) is the zero-register (as it is
+    // not valid as the in/out-operand 1).
+    if (MI.getOperand(2).getReg() == RISCV::X0)
+      return false;
+    // Operands 1 and 2 are commutable, if we switch the opcode.
+    return fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, 1, 2);
+  case RISCV::TH_MULA:
+  case RISCV::TH_MULAW:
+  case RISCV::TH_MULAH:
+  case RISCV::TH_MULS:
+  case RISCV::TH_MULSW:
+  case RISCV::TH_MULSH:
+    // Operands 2 and 3 are commutable.
+    return fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, 2, 3);
   case RISCV::PseudoCCMOVGPR:
     // Operands 4 and 5 are commutable.
     return fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, 4, 5);
@@ -2191,6 +2307,14 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   };
 
   switch (MI.getOpcode()) {
+  case RISCV::TH_MVEQZ:
+  case RISCV::TH_MVNEZ: {
+    auto &WorkingMI = cloneIfNew(MI);
+    WorkingMI.setDesc(get(MI.getOpcode() == RISCV::TH_MVEQZ ? RISCV::TH_MVNEZ
+                                                            : RISCV::TH_MVEQZ));
+    return TargetInstrInfo::commuteInstructionImpl(WorkingMI, false, OpIdx1,
+                                                   OpIdx2);
+  }
   case RISCV::PseudoCCMOVGPR: {
     // CCMOV can be commuted by inverting the condition.
     auto CC = static_cast<RISCVCC::CondCode>(MI.getOperand(3).getImm());
@@ -2417,7 +2541,7 @@ void RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
   BuildMI(MBB, II, DL, get(RISCV::PseudoReadVLENB), DestReg).setMIFlag(Flag);
   assert(isInt<32>(NumOfVReg) &&
          "Expect the number of vector registers within 32-bits.");
-  if (isPowerOf2_32(NumOfVReg)) {
+  if (llvm::has_single_bit<uint32_t>(NumOfVReg)) {
     uint32_t ShiftAmount = Log2_32(NumOfVReg);
     if (ShiftAmount == 0)
       return;
@@ -2453,7 +2577,7 @@ void RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
         .addReg(DestReg, RegState::Kill)
         .addReg(DestReg)
         .setMIFlag(Flag);
-  } else if (isPowerOf2_32(NumOfVReg - 1)) {
+  } else if (llvm::has_single_bit<uint32_t>(NumOfVReg - 1)) {
     Register ScaledRegister = MRI.createVirtualRegister(&RISCV::GPRRegClass);
     uint32_t ShiftAmount = Log2_32(NumOfVReg - 1);
     BuildMI(MBB, II, DL, get(RISCV::SLLI), ScaledRegister)
@@ -2464,7 +2588,7 @@ void RISCVInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
         .addReg(ScaledRegister, RegState::Kill)
         .addReg(DestReg, RegState::Kill)
         .setMIFlag(Flag);
-  } else if (isPowerOf2_32(NumOfVReg + 1)) {
+  } else if (llvm::has_single_bit<uint32_t>(NumOfVReg + 1)) {
     Register ScaledRegister = MRI.createVirtualRegister(&RISCV::GPRRegClass);
     uint32_t ShiftAmount = Log2_32(NumOfVReg + 1);
     BuildMI(MBB, II, DL, get(RISCV::SLLI), ScaledRegister)
@@ -2602,180 +2726,4 @@ bool RISCV::hasEqualFRM(const MachineInstr &MI1, const MachineInstr &MI2) {
   MachineOperand FrmOp1 = MI1.getOperand(MI1FrmOpIdx);
   MachineOperand FrmOp2 = MI2.getOperand(MI2FrmOpIdx);
   return FrmOp1.getImm() == FrmOp2.getImm();
-}
-
-// Checks if all users only demand the lower word of the original instruction's
-// result.
-// TODO: handle multiple interdependent transformations
-bool RISCV::hasAllWUsers(const MachineInstr &OrigMI, MachineRegisterInfo &MRI) {
-
-  SmallPtrSet<const MachineInstr *, 4> Visited;
-  SmallVector<const MachineInstr *, 4> Worklist;
-
-  Worklist.push_back(&OrigMI);
-
-  while (!Worklist.empty()) {
-    const MachineInstr *MI = Worklist.pop_back_val();
-
-    if (!Visited.insert(MI).second)
-      continue;
-
-    // Only handle instructions with one def.
-    if (MI->getNumExplicitDefs() != 1)
-      return false;
-
-    for (auto &UserOp : MRI.use_operands(MI->getOperand(0).getReg())) {
-      const MachineInstr *UserMI = UserOp.getParent();
-      unsigned OpIdx = UserMI->getOperandNo(&UserOp);
-
-      switch (UserMI->getOpcode()) {
-      default:
-        return false;
-
-      case RISCV::ADDIW:
-      case RISCV::ADDW:
-      case RISCV::DIVUW:
-      case RISCV::DIVW:
-      case RISCV::MULW:
-      case RISCV::REMUW:
-      case RISCV::REMW:
-      case RISCV::SLLIW:
-      case RISCV::SLLW:
-      case RISCV::SRAIW:
-      case RISCV::SRAW:
-      case RISCV::SRLIW:
-      case RISCV::SRLW:
-      case RISCV::SUBW:
-      case RISCV::ROLW:
-      case RISCV::RORW:
-      case RISCV::RORIW:
-      case RISCV::CLZW:
-      case RISCV::CTZW:
-      case RISCV::CPOPW:
-      case RISCV::SLLI_UW:
-      case RISCV::FMV_H_X:
-      case RISCV::FMV_W_X:
-      case RISCV::FCVT_H_W:
-      case RISCV::FCVT_H_WU:
-      case RISCV::FCVT_S_W:
-      case RISCV::FCVT_S_WU:
-      case RISCV::FCVT_D_W:
-      case RISCV::FCVT_D_WU:
-      case RISCV::SEXT_B:
-      case RISCV::SEXT_H:
-      case RISCV::ZEXT_H_RV64:
-      case RISCV::PACK:
-      case RISCV::PACKH:
-      case RISCV::PACKW:
-        break;
-
-      // these overwrite higher input bits, otherwise the lower word of output
-      // depends only on the lower word of input. So check their uses read W.
-      case RISCV::SLLI:
-        if (UserMI->getOperand(2).getImm() >= 32)
-          break;
-        Worklist.push_back(UserMI);
-        break;
-      case RISCV::ANDI:
-        if (isUInt<11>(UserMI->getOperand(2).getImm()))
-          break;
-        Worklist.push_back(UserMI);
-        break;
-      case RISCV::ORI:
-        if (!isUInt<11>(UserMI->getOperand(2).getImm()))
-          break;
-        Worklist.push_back(UserMI);
-        break;
-
-      case RISCV::SLL:
-      case RISCV::BSET:
-      case RISCV::BCLR:
-      case RISCV::BINV:
-        // Operand 2 is the shift amount which uses 6 bits.
-        if (OpIdx == 2)
-          break;
-        Worklist.push_back(UserMI);
-        break;
-
-      case RISCV::SRA:
-      case RISCV::SRL:
-      case RISCV::ROL:
-      case RISCV::ROR:
-        // Operand 2 is the shift amount which uses 6 bits.
-        if (OpIdx == 2)
-          break;
-        return false;
-
-      case RISCV::ADD_UW:
-      case RISCV::SH1ADD_UW:
-      case RISCV::SH2ADD_UW:
-      case RISCV::SH3ADD_UW:
-        // Operand 1 is implicitly zero extended.
-        if (OpIdx == 1)
-          break;
-        Worklist.push_back(UserMI);
-        break;
-
-      case RISCV::BEXTI:
-        if (UserMI->getOperand(2).getImm() >= 32)
-          return false;
-        break;
-
-      case RISCV::SB:
-      case RISCV::SH:
-      case RISCV::SW:
-        // The first argument is the value to store.
-        if (OpIdx != 0)
-          return false;
-        break;
-
-      // For these, lower word of output in these operations, depends only on
-      // the lower word of input. So, we check all uses only read lower word.
-      case RISCV::COPY:
-      case RISCV::PHI:
-
-      case RISCV::ADD:
-      case RISCV::ADDI:
-      case RISCV::AND:
-      case RISCV::MUL:
-      case RISCV::OR:
-      case RISCV::SUB:
-      case RISCV::XOR:
-      case RISCV::XORI:
-
-      case RISCV::ANDN:
-      case RISCV::BREV8:
-      case RISCV::CLMUL:
-      case RISCV::ORC_B:
-      case RISCV::ORN:
-      case RISCV::SH1ADD:
-      case RISCV::SH2ADD:
-      case RISCV::SH3ADD:
-      case RISCV::XNOR:
-      case RISCV::BSETI:
-      case RISCV::BCLRI:
-      case RISCV::BINVI:
-        Worklist.push_back(UserMI);
-        break;
-
-      case RISCV::PseudoCCMOVGPR:
-        // Either operand 4 or operand 5 is returned by this instruction. If
-        // only the lower word of the result is used, then only the lower word
-        // of operand 4 and 5 is used.
-        if (OpIdx != 4 && OpIdx != 5)
-          return false;
-        Worklist.push_back(UserMI);
-        break;
-
-      case RISCV::VT_MASKC:
-      case RISCV::VT_MASKCN:
-        if (OpIdx != 1)
-          return false;
-        Worklist.push_back(UserMI);
-        break;
-      }
-    }
-  }
-
-  return true;
 }

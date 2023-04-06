@@ -21,11 +21,11 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -134,6 +134,13 @@ BigArchiveMemberHeader::BigArchiveMemberHeader(const Archive *Parent,
   if (RawHeaderPtr == nullptr)
     return;
   ErrorAsOutParameter ErrAsOutParam(Err);
+
+  if (RawHeaderPtr + getSizeOf() >= Parent->getData().end()) {
+    if (Err)
+      *Err = malformedError("malformed AIX big archive: remaining buffer is "
+                            "unable to contain next archive member");
+    return;
+  }
 
   if (Size < getSizeOf()) {
     Error SubErr = createMemberHeaderParseError(this, RawHeaderPtr, Size);
@@ -1172,6 +1179,14 @@ BigArchive::BigArchive(MemoryBufferRef Source, Error &Err)
   ErrorAsOutParameter ErrAsOutParam(&Err);
   StringRef Buffer = Data.getBuffer();
   ArFixLenHdr = reinterpret_cast<const FixLenHdr *>(Buffer.data());
+  uint64_t BufferSize = Data.getBufferSize();
+
+  if (BufferSize < sizeof(FixLenHdr)) {
+    Err = malformedError("malformed AIX big archive: incomplete fixed length "
+                         "header, the archive is only" +
+                         Twine(BufferSize) + " byte(s)");
+    return;
+  }
 
   StringRef RawOffset = getFieldRawString(ArFixLenHdr->FirstChildOffset);
   if (RawOffset.getAsInteger(10, FirstChildOffset))
@@ -1198,7 +1213,6 @@ BigArchive::BigArchive(MemoryBufferRef Source, Error &Err)
     return;
 
   if (GlobSymOffset > 0) {
-    uint64_t BufferSize = Data.getBufferSize();
     uint64_t GlobalSymTblContentOffset =
         GlobSymOffset + sizeof(BigArMemHdrType);
     if (GlobalSymTblContentOffset > BufferSize) {

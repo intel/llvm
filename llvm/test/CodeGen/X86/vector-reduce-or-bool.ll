@@ -132,9 +132,8 @@ define i1 @trunc_v8i16_v8i1(<8 x i16>) {
 ; AVX512F:       # %bb.0:
 ; AVX512F-NEXT:    vpmovsxwq %xmm0, %zmm0
 ; AVX512F-NEXT:    vpsllq $63, %zmm0, %zmm0
-; AVX512F-NEXT:    vptestmq %zmm0, %zmm0, %k0
-; AVX512F-NEXT:    kmovw %k0, %eax
-; AVX512F-NEXT:    testb %al, %al
+; AVX512F-NEXT:    vptestmd %zmm0, %zmm0, %k0
+; AVX512F-NEXT:    kortestw %k0, %k0
 ; AVX512F-NEXT:    setne %al
 ; AVX512F-NEXT:    vzeroupper
 ; AVX512F-NEXT:    retq
@@ -301,35 +300,13 @@ define i1 @trunc_v8i32_v8i1(<8 x i32>) {
 ; AVX2-NEXT:    vzeroupper
 ; AVX2-NEXT:    retq
 ;
-; AVX512F-LABEL: trunc_v8i32_v8i1:
-; AVX512F:       # %bb.0:
-; AVX512F-NEXT:    vpslld $31, %ymm0, %ymm0
-; AVX512F-NEXT:    vptestmd %zmm0, %zmm0, %k0
-; AVX512F-NEXT:    kmovw %k0, %eax
-; AVX512F-NEXT:    testb %al, %al
-; AVX512F-NEXT:    setne %al
-; AVX512F-NEXT:    vzeroupper
-; AVX512F-NEXT:    retq
-;
-; AVX512BW-LABEL: trunc_v8i32_v8i1:
-; AVX512BW:       # %bb.0:
-; AVX512BW-NEXT:    vpslld $31, %ymm0, %ymm0
-; AVX512BW-NEXT:    vptestmd %zmm0, %zmm0, %k0
-; AVX512BW-NEXT:    kmovd %k0, %eax
-; AVX512BW-NEXT:    testb %al, %al
-; AVX512BW-NEXT:    setne %al
-; AVX512BW-NEXT:    vzeroupper
-; AVX512BW-NEXT:    retq
-;
-; AVX512VL-LABEL: trunc_v8i32_v8i1:
-; AVX512VL:       # %bb.0:
-; AVX512VL-NEXT:    vpslld $31, %ymm0, %ymm0
-; AVX512VL-NEXT:    vptestmd %ymm0, %ymm0, %k0
-; AVX512VL-NEXT:    kmovd %k0, %eax
-; AVX512VL-NEXT:    testb %al, %al
-; AVX512VL-NEXT:    setne %al
-; AVX512VL-NEXT:    vzeroupper
-; AVX512VL-NEXT:    retq
+; AVX512-LABEL: trunc_v8i32_v8i1:
+; AVX512:       # %bb.0:
+; AVX512-NEXT:    vpslld $31, %ymm0, %ymm0
+; AVX512-NEXT:    vptest %ymm0, %ymm0
+; AVX512-NEXT:    setne %al
+; AVX512-NEXT:    vzeroupper
+; AVX512-NEXT:    retq
   %a = trunc <8 x i32> %0 to <8 x i1>
   %b = call i1 @llvm.vector.reduce.or.v8i1(<8 x i1> %a)
   ret i1 %b
@@ -538,35 +515,14 @@ define i1 @trunc_v8i64_v8i1(<8 x i64>) {
 ; AVX2-NEXT:    vzeroupper
 ; AVX2-NEXT:    retq
 ;
-; AVX512F-LABEL: trunc_v8i64_v8i1:
-; AVX512F:       # %bb.0:
-; AVX512F-NEXT:    vpsllq $63, %zmm0, %zmm0
-; AVX512F-NEXT:    vptestmq %zmm0, %zmm0, %k0
-; AVX512F-NEXT:    kmovw %k0, %eax
-; AVX512F-NEXT:    testb %al, %al
-; AVX512F-NEXT:    setne %al
-; AVX512F-NEXT:    vzeroupper
-; AVX512F-NEXT:    retq
-;
-; AVX512BW-LABEL: trunc_v8i64_v8i1:
-; AVX512BW:       # %bb.0:
-; AVX512BW-NEXT:    vpsllq $63, %zmm0, %zmm0
-; AVX512BW-NEXT:    vptestmq %zmm0, %zmm0, %k0
-; AVX512BW-NEXT:    kmovd %k0, %eax
-; AVX512BW-NEXT:    testb %al, %al
-; AVX512BW-NEXT:    setne %al
-; AVX512BW-NEXT:    vzeroupper
-; AVX512BW-NEXT:    retq
-;
-; AVX512VL-LABEL: trunc_v8i64_v8i1:
-; AVX512VL:       # %bb.0:
-; AVX512VL-NEXT:    vpsllq $63, %zmm0, %zmm0
-; AVX512VL-NEXT:    vptestmq %zmm0, %zmm0, %k0
-; AVX512VL-NEXT:    kmovd %k0, %eax
-; AVX512VL-NEXT:    testb %al, %al
-; AVX512VL-NEXT:    setne %al
-; AVX512VL-NEXT:    vzeroupper
-; AVX512VL-NEXT:    retq
+; AVX512-LABEL: trunc_v8i64_v8i1:
+; AVX512:       # %bb.0:
+; AVX512-NEXT:    vpsllq $63, %zmm0, %zmm0
+; AVX512-NEXT:    vptestmd %zmm0, %zmm0, %k0
+; AVX512-NEXT:    kortestw %k0, %k0
+; AVX512-NEXT:    setne %al
+; AVX512-NEXT:    vzeroupper
+; AVX512-NEXT:    retq
   %a = trunc <8 x i64> %0 to <8 x i1>
   %b = call i1 @llvm.vector.reduce.or.v8i1(<8 x i1> %a)
   ret i1 %b
@@ -741,10 +697,10 @@ define i1 @trunc_v64i8_v64i1(<64 x i8>) {
 ; SSE-LABEL: trunc_v64i8_v64i1:
 ; SSE:       # %bb.0:
 ; SSE-NEXT:    por %xmm3, %xmm1
-; SSE-NEXT:    por %xmm2, %xmm1
-; SSE-NEXT:    por %xmm0, %xmm1
-; SSE-NEXT:    psllw $7, %xmm1
-; SSE-NEXT:    pmovmskb %xmm1, %eax
+; SSE-NEXT:    por %xmm2, %xmm0
+; SSE-NEXT:    por %xmm1, %xmm0
+; SSE-NEXT:    psllw $7, %xmm0
+; SSE-NEXT:    pmovmskb %xmm0, %eax
 ; SSE-NEXT:    testl %eax, %eax
 ; SSE-NEXT:    setne %al
 ; SSE-NEXT:    retq
@@ -777,8 +733,8 @@ define i1 @trunc_v64i8_v64i1(<64 x i8>) {
 ; AVX512F-NEXT:    vextracti128 $1, %ymm1, %xmm2
 ; AVX512F-NEXT:    vextracti128 $1, %ymm0, %xmm3
 ; AVX512F-NEXT:    vpor %xmm2, %xmm3, %xmm2
-; AVX512F-NEXT:    vpor %xmm2, %xmm1, %xmm1
 ; AVX512F-NEXT:    vpor %xmm1, %xmm0, %xmm0
+; AVX512F-NEXT:    vpor %xmm2, %xmm0, %xmm0
 ; AVX512F-NEXT:    vpmovsxbd %xmm0, %zmm0
 ; AVX512F-NEXT:    vpslld $31, %zmm0, %zmm0
 ; AVX512F-NEXT:    vptestmd %zmm0, %zmm0, %k0
@@ -958,9 +914,8 @@ define i1 @icmp0_v8i16_v8i1(<8 x i16>) {
 ; AVX512F-NEXT:    vpxor %xmm1, %xmm1, %xmm1
 ; AVX512F-NEXT:    vpcmpeqw %xmm1, %xmm0, %xmm0
 ; AVX512F-NEXT:    vpmovsxwq %xmm0, %zmm0
-; AVX512F-NEXT:    vptestmq %zmm0, %zmm0, %k0
-; AVX512F-NEXT:    kmovw %k0, %eax
-; AVX512F-NEXT:    testb %al, %al
+; AVX512F-NEXT:    vptestmd %zmm0, %zmm0, %k0
+; AVX512F-NEXT:    kortestw %k0, %k0
 ; AVX512F-NEXT:    setne %al
 ; AVX512F-NEXT:    vzeroupper
 ; AVX512F-NEXT:    retq
@@ -1582,10 +1537,10 @@ define i1 @icmp0_v64i8_v64i1(<64 x i8>) {
 ; SSE-NEXT:    pxor %xmm4, %xmm4
 ; SSE-NEXT:    pcmpeqb %xmm4, %xmm2
 ; SSE-NEXT:    pcmpeqb %xmm4, %xmm0
+; SSE-NEXT:    por %xmm2, %xmm0
 ; SSE-NEXT:    pcmpeqb %xmm4, %xmm3
 ; SSE-NEXT:    pcmpeqb %xmm4, %xmm1
 ; SSE-NEXT:    por %xmm3, %xmm1
-; SSE-NEXT:    por %xmm2, %xmm1
 ; SSE-NEXT:    por %xmm0, %xmm1
 ; SSE-NEXT:    pmovmskb %xmm1, %eax
 ; SSE-NEXT:    testl %eax, %eax
@@ -1597,13 +1552,13 @@ define i1 @icmp0_v64i8_v64i1(<64 x i8>) {
 ; AVX1-NEXT:    vpxor %xmm2, %xmm2, %xmm2
 ; AVX1-NEXT:    vpcmpeqb %xmm2, %xmm1, %xmm3
 ; AVX1-NEXT:    vpcmpeqb %xmm2, %xmm0, %xmm4
+; AVX1-NEXT:    vpor %xmm3, %xmm4, %xmm3
 ; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm1
 ; AVX1-NEXT:    vpcmpeqb %xmm2, %xmm1, %xmm1
 ; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm0
 ; AVX1-NEXT:    vpcmpeqb %xmm2, %xmm0, %xmm0
 ; AVX1-NEXT:    vpor %xmm1, %xmm0, %xmm0
 ; AVX1-NEXT:    vpor %xmm0, %xmm3, %xmm0
-; AVX1-NEXT:    vpor %xmm0, %xmm4, %xmm0
 ; AVX1-NEXT:    vpmovmskb %xmm0, %eax
 ; AVX1-NEXT:    testl %eax, %eax
 ; AVX1-NEXT:    setne %al
@@ -1631,8 +1586,8 @@ define i1 @icmp0_v64i8_v64i1(<64 x i8>) {
 ; AVX512F-NEXT:    vextracti128 $1, %ymm1, %xmm2
 ; AVX512F-NEXT:    vextracti128 $1, %ymm0, %xmm3
 ; AVX512F-NEXT:    vpor %xmm2, %xmm3, %xmm2
-; AVX512F-NEXT:    vpor %xmm2, %xmm1, %xmm1
 ; AVX512F-NEXT:    vpor %xmm1, %xmm0, %xmm0
+; AVX512F-NEXT:    vpor %xmm2, %xmm0, %xmm0
 ; AVX512F-NEXT:    vpmovsxbd %xmm0, %zmm0
 ; AVX512F-NEXT:    vpslld $31, %zmm0, %zmm0
 ; AVX512F-NEXT:    vptestmd %zmm0, %zmm0, %k0
@@ -1805,9 +1760,8 @@ define i1 @icmp_v8i16_v8i1(<8 x i16>, <8 x i16>) {
 ; AVX512F:       # %bb.0:
 ; AVX512F-NEXT:    vpcmpeqw %xmm1, %xmm0, %xmm0
 ; AVX512F-NEXT:    vpmovsxwq %xmm0, %zmm0
-; AVX512F-NEXT:    vptestmq %zmm0, %zmm0, %k0
-; AVX512F-NEXT:    kmovw %k0, %eax
-; AVX512F-NEXT:    testb %al, %al
+; AVX512F-NEXT:    vptestmd %zmm0, %zmm0, %k0
+; AVX512F-NEXT:    kortestw %k0, %k0
 ; AVX512F-NEXT:    setne %al
 ; AVX512F-NEXT:    vzeroupper
 ; AVX512F-NEXT:    retq
@@ -2418,10 +2372,10 @@ define i1 @icmp_v64i8_v64i1(<64 x i8>, <64 x i8>) {
 ; SSE:       # %bb.0:
 ; SSE-NEXT:    pcmpeqb %xmm6, %xmm2
 ; SSE-NEXT:    pcmpeqb %xmm4, %xmm0
+; SSE-NEXT:    por %xmm2, %xmm0
 ; SSE-NEXT:    pcmpeqb %xmm7, %xmm3
 ; SSE-NEXT:    pcmpeqb %xmm5, %xmm1
 ; SSE-NEXT:    por %xmm3, %xmm1
-; SSE-NEXT:    por %xmm2, %xmm1
 ; SSE-NEXT:    por %xmm0, %xmm1
 ; SSE-NEXT:    pmovmskb %xmm1, %eax
 ; SSE-NEXT:    testl %eax, %eax
@@ -2432,6 +2386,7 @@ define i1 @icmp_v64i8_v64i1(<64 x i8>, <64 x i8>) {
 ; AVX1:       # %bb.0:
 ; AVX1-NEXT:    vpcmpeqb %xmm3, %xmm1, %xmm4
 ; AVX1-NEXT:    vpcmpeqb %xmm2, %xmm0, %xmm5
+; AVX1-NEXT:    vpor %xmm4, %xmm5, %xmm4
 ; AVX1-NEXT:    vextractf128 $1, %ymm3, %xmm3
 ; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm1
 ; AVX1-NEXT:    vpcmpeqb %xmm3, %xmm1, %xmm1
@@ -2440,7 +2395,6 @@ define i1 @icmp_v64i8_v64i1(<64 x i8>, <64 x i8>) {
 ; AVX1-NEXT:    vpcmpeqb %xmm2, %xmm0, %xmm0
 ; AVX1-NEXT:    vpor %xmm1, %xmm0, %xmm0
 ; AVX1-NEXT:    vpor %xmm0, %xmm4, %xmm0
-; AVX1-NEXT:    vpor %xmm0, %xmm5, %xmm0
 ; AVX1-NEXT:    vpmovmskb %xmm0, %eax
 ; AVX1-NEXT:    testl %eax, %eax
 ; AVX1-NEXT:    setne %al
@@ -2467,7 +2421,7 @@ define i1 @icmp_v64i8_v64i1(<64 x i8>, <64 x i8>) {
 ; AVX512F-NEXT:    vextracti128 $1, %ymm2, %xmm1
 ; AVX512F-NEXT:    vextracti128 $1, %ymm0, %xmm3
 ; AVX512F-NEXT:    vpor %xmm1, %xmm3, %xmm1
-; AVX512F-NEXT:    vpor %xmm1, %xmm2, %xmm1
+; AVX512F-NEXT:    vpor %xmm2, %xmm0, %xmm0
 ; AVX512F-NEXT:    vpor %xmm1, %xmm0, %xmm0
 ; AVX512F-NEXT:    vpmovsxbd %xmm0, %zmm0
 ; AVX512F-NEXT:    vpslld $31, %zmm0, %zmm0

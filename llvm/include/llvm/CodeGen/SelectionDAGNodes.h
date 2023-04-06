@@ -927,7 +927,7 @@ public:
 
   op_iterator op_begin() const { return OperandList; }
   op_iterator op_end() const { return OperandList+NumOperands; }
-  ArrayRef<SDUse> ops() const { return makeArrayRef(op_begin(), op_end()); }
+  ArrayRef<SDUse> ops() const { return ArrayRef(op_begin(), op_end()); }
 
   /// Iterator for directly iterating over the operand SDValue's.
   struct value_op_iterator
@@ -1419,6 +1419,8 @@ public:
     case ISD::ATOMIC_LOAD_FSUB:
     case ISD::ATOMIC_LOAD_FMAX:
     case ISD::ATOMIC_LOAD_FMIN:
+    case ISD::ATOMIC_LOAD_UINC_WRAP:
+    case ISD::ATOMIC_LOAD_UDEC_WRAP:
     case ISD::ATOMIC_LOAD:
     case ISD::ATOMIC_STORE:
     case ISD::MLOAD:
@@ -1486,6 +1488,8 @@ public:
            N->getOpcode() == ISD::ATOMIC_LOAD_FSUB    ||
            N->getOpcode() == ISD::ATOMIC_LOAD_FMAX    ||
            N->getOpcode() == ISD::ATOMIC_LOAD_FMIN    ||
+           N->getOpcode() == ISD::ATOMIC_LOAD_UINC_WRAP ||
+           N->getOpcode() == ISD::ATOMIC_LOAD_UDEC_WRAP ||
            N->getOpcode() == ISD::ATOMIC_LOAD         ||
            N->getOpcode() == ISD::ATOMIC_STORE;
   }
@@ -1535,7 +1539,7 @@ protected:
 public:
   ArrayRef<int> getMask() const {
     EVT VT = getValueType(0);
-    return makeArrayRef(Mask, VT.getVectorNumElements());
+    return ArrayRef(Mask, VT.getVectorNumElements());
   }
 
   int getMaskElt(unsigned Idx) const {
@@ -1604,10 +1608,10 @@ public:
 
   bool isOne() const { return Value->isOne(); }
   bool isZero() const { return Value->isZero(); }
-  // NOTE: This is soft-deprecated.  Please use `isZero()` instead.
+  LLVM_DEPRECATED("use isZero instead", "isZero")
   bool isNullValue() const { return isZero(); }
   bool isAllOnes() const { return Value->isMinusOne(); }
-  // NOTE: This is soft-deprecated.  Please use `isAllOnes()` instead.
+  LLVM_DEPRECATED("use isAllOnes instead", "isAllOnes")
   bool isAllOnesValue() const { return isAllOnes(); }
   bool isMaxSignedValue() const { return Value->isMaxValue(true); }
   bool isMinSignedValue() const { return Value->isMinValue(true); }
@@ -1707,6 +1711,10 @@ SDValue peekThroughOneUseBitcasts(SDValue V);
 /// Return the non-extracted vector source operand of \p V if it exists.
 /// If \p V is not an extracted subvector, it is returned as-is.
 SDValue peekThroughExtractSubvectors(SDValue V);
+
+/// Return the non-truncated source operand of \p V if it exists.
+/// If \p V is not a truncation, it is returned as-is.
+SDValue peekThroughTruncates(SDValue V);
 
 /// Returns true if \p V is a bitwise not operation. Assumes that an all ones
 /// constant is canonicalized to be operand 1.
@@ -2931,10 +2939,10 @@ public:
     if (NumMemRefs == 0)
       return {};
     if (NumMemRefs == 1)
-      return makeArrayRef(MemRefs.getAddrOfPtr1(), 1);
+      return ArrayRef(MemRefs.getAddrOfPtr1(), 1);
 
     // Otherwise we have an actual array.
-    return makeArrayRef(MemRefs.get<MachineMemOperand **>(), NumMemRefs);
+    return ArrayRef(MemRefs.get<MachineMemOperand **>(), NumMemRefs);
   }
   mmo_iterator memoperands_begin() const { return memoperands().begin(); }
   mmo_iterator memoperands_end() const { return memoperands().end(); }

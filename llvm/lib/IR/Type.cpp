@@ -80,6 +80,12 @@ bool Type::isIEEE() const {
   return APFloat::getZero(getFltSemantics()).isIEEE();
 }
 
+bool Type::isScalableTargetExtTy() const {
+  if (auto *TT = dyn_cast<TargetExtType>(this))
+    return isa<ScalableVectorType>(TT->getLayoutType());
+  return false;
+}
+
 Type *Type::getFloatingPointTy(LLVMContext &C, const fltSemantics &S) {
   Type *Ty;
   if (&S == &APFloat::IEEEhalf())
@@ -117,18 +123,18 @@ bool Type::canLosslesslyBitCastTo(Type *Ty) const {
 
   //  64-bit fixed width vector types can be losslessly converted to x86mmx.
   if (((isa<FixedVectorType>(this)) && Ty->isX86_MMXTy()) &&
-      getPrimitiveSizeInBits().getFixedSize() == 64)
+      getPrimitiveSizeInBits().getFixedValue() == 64)
     return true;
   if ((isX86_MMXTy() && isa<FixedVectorType>(Ty)) &&
-      Ty->getPrimitiveSizeInBits().getFixedSize() == 64)
+      Ty->getPrimitiveSizeInBits().getFixedValue() == 64)
     return true;
 
   //  8192-bit fixed width vector types can be losslessly converted to x86amx.
   if (((isa<FixedVectorType>(this)) && Ty->isX86_AMXTy()) &&
-      getPrimitiveSizeInBits().getFixedSize() == 8192)
+      getPrimitiveSizeInBits().getFixedValue() == 8192)
     return true;
   if ((isX86_AMXTy() && isa<FixedVectorType>(Ty)) &&
-      Ty->getPrimitiveSizeInBits().getFixedSize() == 8192)
+      Ty->getPrimitiveSizeInBits().getFixedValue() == 8192)
     return true;
 
   // At this point we have only various mismatches of the first class types
@@ -179,7 +185,7 @@ TypeSize Type::getPrimitiveSizeInBits() const {
     ElementCount EC = VTy->getElementCount();
     TypeSize ETS = VTy->getElementType()->getPrimitiveSizeInBits();
     assert(!ETS.isScalable() && "Vector type should have fixed-width elements");
-    return {ETS.getFixedSize() * EC.getKnownMinValue(), EC.isScalable()};
+    return {ETS.getFixedValue() * EC.getKnownMinValue(), EC.isScalable()};
   }
   default: return TypeSize::Fixed(0);
   }
@@ -187,7 +193,7 @@ TypeSize Type::getPrimitiveSizeInBits() const {
 
 unsigned Type::getScalarSizeInBits() const {
   // It is safe to assume that the scalar types have a fixed size.
-  return getScalarType()->getPrimitiveSizeInBits().getFixedSize();
+  return getScalarType()->getPrimitiveSizeInBits().getFixedValue();
 }
 
 int Type::getFPMantissaWidth() const {
@@ -304,6 +310,18 @@ PointerType *Type::getInt32PtrTy(LLVMContext &C, unsigned AS) {
 
 PointerType *Type::getInt64PtrTy(LLVMContext &C, unsigned AS) {
   return getInt64Ty(C)->getPointerTo(AS);
+}
+
+Type *Type::getWasm_ExternrefTy(LLVMContext &C) {
+  // opaque pointer in addrspace(10)
+  static PointerType *Ty = PointerType::get(C, 10);
+  return Ty;
+}
+
+Type *Type::getWasm_FuncrefTy(LLVMContext &C) {
+  // opaque pointer in addrspace(20)
+  static PointerType *Ty = PointerType::get(C, 20);
+  return Ty;
 }
 
 //===----------------------------------------------------------------------===//
@@ -736,9 +754,8 @@ PointerType *PointerType::get(Type *EltTy, unsigned AddressSpace) {
   if (CImpl->getOpaquePointers())
     return get(EltTy->getContext(), AddressSpace);
 
-  // Since AddressSpace #0 is the common case, we special case it.
-  PointerType *&Entry = AddressSpace == 0 ? CImpl->PointerTypes[EltTy]
-     : CImpl->ASPointerTypes[std::make_pair(EltTy, AddressSpace)];
+  PointerType *&Entry =
+      CImpl->LegacyPointerTypes[std::make_pair(EltTy, AddressSpace)];
 
   if (!Entry)
     Entry = new (CImpl->Alloc) PointerType(EltTy, AddressSpace);
@@ -751,10 +768,8 @@ PointerType *PointerType::get(LLVMContext &C, unsigned AddressSpace) {
          "Can only create opaque pointers in opaque pointer mode");
 
   // Since AddressSpace #0 is the common case, we special case it.
-  PointerType *&Entry =
-      AddressSpace == 0
-          ? CImpl->PointerTypes[nullptr]
-          : CImpl->ASPointerTypes[std::make_pair(nullptr, AddressSpace)];
+  PointerType *&Entry = AddressSpace == 0 ? CImpl->AS0PointerType
+                                          : CImpl->PointerTypes[AddressSpace];
 
   if (!Entry)
     Entry = new (CImpl->Alloc) PointerType(C, AddressSpace);
@@ -793,7 +808,7 @@ bool PointerType::isLoadableOrStorableType(Type *ElemTy) {
 
 TargetExtType::TargetExtType(LLVMContext &C, StringRef Name,
                              ArrayRef<Type *> Types, ArrayRef<unsigned> Ints)
-    : Type(C, TargetExtTyID), Name(Name) {
+    : Type(C, TargetExtTyID), Name(C.pImpl->Saver.save(Name)) {
   NumContainedTys = Types.size();
 
   // Parameter storage immediately follows the class in allocation.
@@ -850,10 +865,14 @@ struct TargetTypeInfo {
 static TargetTypeInfo getTargetTypeInfo(const TargetExtType *Ty) {
   LLVMContext &C = Ty->getContext();
   StringRef Name = Ty->getName();
-  if (Name.startswith("spirv.")) {
+  if (Name.startswith("spirv."))
     return TargetTypeInfo(Type::getInt8PtrTy(C, 0), TargetExtType::HasZeroInit,
                           TargetExtType::CanBeGlobal);
-  }
+
+  // Opaque types in the AArch64 name space.
+  if (Name == "aarch64.svcount")
+    return TargetTypeInfo(ScalableVectorType::get(Type::getInt1Ty(C), 16));
+
   return TargetTypeInfo(Type::getVoidTy(C));
 }
 

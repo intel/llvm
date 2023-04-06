@@ -13,6 +13,7 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Stream.h"
+#include <optional>
 
 using namespace lldb_private;
 using namespace lldb;
@@ -41,7 +42,7 @@ DebugNamesDWARFIndex::GetUnits(const DebugNames &debug_names) {
   return result;
 }
 
-llvm::Optional<DIERef>
+std::optional<DIERef>
 DebugNamesDWARFIndex::ToDIERef(const DebugNames::Entry &entry) {
   std::optional<uint64_t> cu_offset = entry.getCUOffset();
   if (!cu_offset)
@@ -53,7 +54,7 @@ DebugNamesDWARFIndex::ToDIERef(const DebugNames::Entry &entry) {
 
   cu = &cu->GetNonSkeletonUnit();
   if (std::optional<uint64_t> die_offset = entry.getDIEUnitOffset())
-    return DIERef(cu->GetSymbolFileDWARF().GetDwoNum(),
+    return DIERef(cu->GetSymbolFileDWARF().GetFileIndex(),
                   DIERef::Section::DebugInfo, cu->GetOffset() + *die_offset);
 
   return std::nullopt;
@@ -62,7 +63,7 @@ DebugNamesDWARFIndex::ToDIERef(const DebugNames::Entry &entry) {
 bool DebugNamesDWARFIndex::ProcessEntry(
     const DebugNames::Entry &entry,
     llvm::function_ref<bool(DWARFDIE die)> callback, llvm::StringRef name) {
-  llvm::Optional<DIERef> ref = ToDIERef(entry);
+  std::optional<DIERef> ref = ToDIERef(entry);
   if (!ref)
     return true;
   SymbolFileDWARF &dwarf = *llvm::cast<SymbolFileDWARF>(
@@ -125,7 +126,7 @@ void DebugNamesDWARFIndex::GetGlobalVariables(
 
 void DebugNamesDWARFIndex::GetGlobalVariables(
     DWARFUnit &cu, llvm::function_ref<bool(DWARFDIE die)> callback) {
-  lldbassert(!cu.GetSymbolFileDWARF().GetDwoNum());
+  lldbassert(!cu.GetSymbolFileDWARF().GetFileIndex());
   uint64_t cu_offset = cu.GetOffset();
   bool found_entry_for_cu = false;
   for (const DebugNames::NameIndex &ni: *m_debug_names_up) {
@@ -165,7 +166,7 @@ void DebugNamesDWARFIndex::GetCompleteObjCClass(
         entry.tag() != DW_TAG_class_type)
       continue;
 
-    llvm::Optional<DIERef> ref = ToDIERef(entry);
+    std::optional<DIERef> ref = ToDIERef(entry);
     if (!ref)
       continue;
 
@@ -249,7 +250,7 @@ void DebugNamesDWARFIndex::GetFunctions(
     if (tag != DW_TAG_subprogram && tag != DW_TAG_inlined_subroutine)
       continue;
 
-    if (llvm::Optional<DIERef> ref = ToDIERef(entry)) {
+    if (std::optional<DIERef> ref = ToDIERef(entry)) {
       if (!ProcessFunctionDIE(lookup_info, *ref, dwarf, parent_decl_ctx,
                               [&](DWARFDIE die) {
                                 if (!seen.insert(die.GetDIE()).second)

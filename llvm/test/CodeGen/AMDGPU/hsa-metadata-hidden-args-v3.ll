@@ -1,6 +1,6 @@
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 --amdhsa-code-object-version=3 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 --amdhsa-code-object-version=3 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 --amdhsa-code-object-version=3 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
 
 ; CHECK:              ---
 ; CHECK:      amdhsa.kernels:
@@ -215,7 +215,7 @@ entry:
 ; CHECK-NEXT:         .value_kind:     hidden_hostcall_buffer
 ; CHECK-NEXT:       - .offset:         56
 ; CHECK-NEXT:         .size:           8
-; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:         .value_kind:     hidden_default_queue
 ; CHECK-NEXT:       - .offset:         64
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_none
@@ -263,7 +263,7 @@ entry:
 ; CHECK-NEXT:         .value_kind:     hidden_hostcall_buffer
 ; CHECK-NEXT:       - .offset:         56
 ; CHECK-NEXT:         .size:           8
-; CHECK-NEXT:         .value_kind:     hidden_none
+; CHECK-NEXT:         .value_kind:     hidden_default_queue
 ; CHECK-NEXT:       - .offset:         64
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_none
@@ -296,3 +296,6 @@ attributes #2 = { optnone noinline "amdgpu-implicitarg-num-bytes"="24" }
 attributes #3 = { optnone noinline "amdgpu-implicitarg-num-bytes"="32" }
 attributes #4 = { optnone noinline "amdgpu-implicitarg-num-bytes"="48" }
 attributes #5 = { optnone noinline "amdgpu-implicitarg-num-bytes"="56" }
+
+!llvm.module.flags = !{!0}
+!0 = !{i32 1, !"amdgpu_code_object_version", i32 300}

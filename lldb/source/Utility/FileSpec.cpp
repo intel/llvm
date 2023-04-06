@@ -13,14 +13,15 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <algorithm>
+#include <optional>
 #include <system_error>
 #include <vector>
 
@@ -304,7 +305,8 @@ bool FileSpec::Match(const FileSpec &pattern, const FileSpec &file) {
   return true;
 }
 
-llvm::Optional<FileSpec::Style> FileSpec::GuessPathStyle(llvm::StringRef absolute_path) {
+std::optional<FileSpec::Style>
+FileSpec::GuessPathStyle(llvm::StringRef absolute_path) {
   if (absolute_path.startswith("/"))
     return Style::posix;
   if (absolute_path.startswith(R"(\\)"))

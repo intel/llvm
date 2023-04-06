@@ -181,11 +181,7 @@ struct Config {
 
   /// Use opaque pointer types. Used to call LLVMContext::setOpaquePointers
   /// unless already set by the `-opaque-pointers` commandline option.
-#if ENABLE_OPAQUE_POINTERS
   bool OpaquePointers = true;
-#else
-  bool OpaquePointers = false;
-#endif
 
   /// If this field is set, LTO will write input file paths and symbol
   /// resolutions here in llvm-lto2 command line flag format. This can be
@@ -302,8 +298,7 @@ struct LTOLLVMContext : LLVMContext {
     enableDebugTypeODRUniquing();
     setDiagnosticHandler(
         std::make_unique<LTOLLVMDiagnosticHandler>(&DiagHandler), true);
-    if (!hasSetOpaquePointersValue())
-      setOpaquePointers(C.OpaquePointers);
+    setOpaquePointers(C.OpaquePointers);
   }
   DiagnosticHandlerFunction DiagHandler;
 };

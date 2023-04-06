@@ -9,16 +9,15 @@
 #ifndef LLVM_LIBC_TEST_ERRNOSETTERMATCHER_H
 #define LLVM_LIBC_TEST_ERRNOSETTERMATCHER_H
 
-#include "utils/UnitTest/Test.h"
+#include "src/errno/libc_errno.h"
+#include "test/UnitTest/Test.h"
 
-#include <errno.h>
+#include <string.h>
 
 namespace __llvm_libc {
 namespace testing {
 
 namespace internal {
-
-extern "C" char *strerror(int);
 
 template <typename T> class ErrnoSetterMatcher : public Matcher<T> {
   T ExpectedReturn;
@@ -43,8 +42,8 @@ public:
 
   bool match(T Got) {
     ActualReturn = Got;
-    ActualErrno = errno;
-    errno = 0;
+    ActualErrno = libc_errno;
+    libc_errno = 0;
     return Got == ExpectedReturn && ActualErrno == ExpectedErrno;
   }
 };

@@ -621,6 +621,31 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         return failure();
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Given a dimension of the iteration space of a Linalg operation, finds
+        all the operands in the operation that are defined on such dimension.
+        Returns all the operand values found and their dimension positions in
+        `operandDimPairs`.
+      }],
+      /*retTy=*/"void",
+      /*methodName=*/"mapIterationSpaceDimToAllOperandDims",
+      /*args=*/(ins "unsigned":$dimPos,
+                    "mlir::SmallVectorImpl<std::pair<Value, unsigned>>&":$operandDimPairs),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        for (auto [i, idxMap] : llvm::enumerate($_op.getIndexingMapsArray())) {
+          if (idxMap.isProjectedPermutation()) {
+            if (auto mayOperandDim = idxMap.getResultPosition(
+                getAffineDimExpr(dimPos, idxMap.getContext()))) {
+              operandDimPairs.push_back({$_op->getOperand(i), *mayOperandDim});
+            }
+          }
+        }
+
+        return;
+      }]
+    >,
     //===------------------------------------------------------------------===//
     // Linalg generalization hooks.
     //===------------------------------------------------------------------===//
@@ -772,6 +797,9 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     /// shape of the input operands where possible
     LogicalResult reifyResultShapes(OpBuilder &b,
         ReifiedRankedShapedTypeDims &reifiedReturnShapes);
+
+    /// Return the index in the indexingMaps vector that corresponds to this `opOperand`
+    int64_t getIndexingMapIndex(OpOperand *opOperand);
 
     //========================================================================//
     // Forwarding functions to access interface methods from the

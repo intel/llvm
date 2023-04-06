@@ -22,6 +22,7 @@
 
 #include <iterator>
 #include <mutex>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -150,6 +151,13 @@ bool CompilerType::IsFunctionPointerType() const {
   if (IsValid())
     if (auto type_system_sp = GetTypeSystem())
       return type_system_sp->IsFunctionPointerType(m_type);
+  return false;
+}
+
+bool CompilerType::IsMemberFunctionPointerType() const {
+  if (IsValid())
+    if (auto type_system_sp = GetTypeSystem())
+      return type_system_sp->IsMemberFunctionPointerType(m_type);
   return false;
 }
 
@@ -547,7 +555,7 @@ CompilerType::GetBasicTypeFromAST(lldb::BasicType basic_type) const {
 }
 // Exploring the type
 
-llvm::Optional<uint64_t>
+std::optional<uint64_t>
 CompilerType::GetBitSize(ExecutionContextScope *exe_scope) const {
   if (IsValid())
     if (auto type_system_sp = GetTypeSystem())
@@ -555,14 +563,15 @@ CompilerType::GetBitSize(ExecutionContextScope *exe_scope) const {
   return {};
 }
 
-llvm::Optional<uint64_t>
+std::optional<uint64_t>
 CompilerType::GetByteSize(ExecutionContextScope *exe_scope) const {
-  if (llvm::Optional<uint64_t> bit_size = GetBitSize(exe_scope))
+  if (std::optional<uint64_t> bit_size = GetBitSize(exe_scope))
     return (*bit_size + 7) / 8;
   return {};
 }
 
-llvm::Optional<size_t> CompilerType::GetTypeBitAlign(ExecutionContextScope *exe_scope) const {
+std::optional<size_t>
+CompilerType::GetTypeBitAlign(ExecutionContextScope *exe_scope) const {
   if (IsValid())
     if (auto type_system_sp = GetTypeSystem())
       return type_system_sp->GetTypeBitAlign(m_type, exe_scope);
@@ -767,7 +776,7 @@ CompilerType CompilerType::GetTypeTemplateArgument(size_t idx,
   return CompilerType();
 }
 
-llvm::Optional<CompilerType::IntegralTemplateArgument>
+std::optional<CompilerType::IntegralTemplateArgument>
 CompilerType::GetIntegralTemplateArgument(size_t idx, bool expand_pack) const {
   if (IsValid())
     if (auto type_system_sp = GetTypeSystem())
@@ -889,7 +898,7 @@ bool CompilerType::GetValueAsScalar(const lldb_private::DataExtractor &data,
     if (encoding == lldb::eEncodingInvalid || count != 1)
       return false;
 
-    llvm::Optional<uint64_t> byte_size = GetByteSize(exe_scope);
+    std::optional<uint64_t> byte_size = GetByteSize(exe_scope);
     if (!byte_size)
       return false;
     lldb::offset_t offset = data_byte_offset;

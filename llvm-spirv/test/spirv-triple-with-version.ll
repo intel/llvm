@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 
 ; RUN: not llvm-spirv %t.bc -spirv-max-version=1.0 -o - -spirv-text 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID
 ; RUN: not llvm-spirv %t.bc -spirv-max-version=1.1 -o - -spirv-text 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID

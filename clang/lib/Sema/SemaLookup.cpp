@@ -45,6 +45,7 @@
 #include <algorithm>
 #include <iterator>
 #include <list>
+#include <optional>
 #include <set>
 #include <utility>
 #include <vector>
@@ -529,7 +530,7 @@ void LookupResult::resolveKind() {
       continue;
     }
 
-    llvm::Optional<unsigned> ExistingI;
+    std::optional<unsigned> ExistingI;
 
     // Redeclarations of types via typedef can occur both within a scope
     // and, through using declarations and directives, across scopes. There is
@@ -1629,7 +1630,8 @@ bool Sema::isUsableModule(const Module *M) {
   // [module.global.frag]p1:
   //   The global module fragment can be used to provide declarations that are
   //   attached to the global module and usable within the module unit.
-  if (M == GlobalModuleFragment ||
+  if (M == TheGlobalModuleFragment || M == TheImplicitGlobalModuleFragment ||
+      M == TheExportedImplicitGlobalModuleFragment ||
       // If M is the module we're parsing, it should be usable. This covers the
       // private module fragment. The private module fragment is usable only if
       // it is within the current module unit. And it must be the current
@@ -1674,10 +1676,8 @@ hasAcceptableDefaultArgument(Sema &S, const ParmDecl *D,
   if (!D->hasDefaultArgument())
     return false;
 
-  llvm::SmallDenseSet<const ParmDecl *, 4> Visited;
-  while (D && !Visited.count(D)) {
-    Visited.insert(D);
-
+  llvm::SmallPtrSet<const ParmDecl *, 4> Visited;
+  while (D && Visited.insert(D).second) {
     auto &DefaultArg = D->getDefaultArgStorage();
     if (!DefaultArg.isInherited() && S.isAcceptable(D, Kind))
       return true;
@@ -1910,19 +1910,6 @@ bool LookupResult::isAcceptableSlow(Sema &SemaRef, NamedDecl *D,
 }
 
 bool Sema::isModuleVisible(const Module *M, bool ModulePrivate) {
-  // [module.global.frag]p2:
-  // A global-module-fragment specifies the contents of the global module
-  // fragment for a module unit. The global module fragment can be used to
-  // provide declarations that are attached to the global module and usable
-  // within the module unit.
-  //
-  // Global module fragment is special. Global Module fragment is only usable
-  // within the module unit it got defined [module.global.frag]p2. So here we
-  // check if the Module is the global module fragment in current translation
-  // unit.
-  if (M->isGlobalModule() && M != this->GlobalModuleFragment)
-    return false;
-
   // The module might be ordinarily visible. For a module-private query, that
   // means it is part of the current module.
   if (ModulePrivate && isUsableModule(M))
@@ -1940,6 +1927,12 @@ bool Sema::isModuleVisible(const Module *M, bool ModulePrivate) {
   const auto &LookupModules = getLookupModules();
   if (LookupModules.empty())
     return false;
+
+  // The global module fragments are visible to its corresponding module unit.
+  // So the global module fragment should be visible if the its corresponding
+  // module unit is visible.
+  if (M->isGlobalModule())
+    M = M->getTopLevelModule();
 
   // If our lookup set contains the module, it's visible.
   if (LookupModules.count(M))
@@ -2151,6 +2144,22 @@ bool LookupResult::isAvailableForLookup(Sema &SemaRef, NamedDecl *ND) {
   // reachability of the template decl.
   if (auto *DeductionGuide = ND->getDeclName().getCXXDeductionGuideTemplate())
     return SemaRef.hasReachableDefinition(DeductionGuide);
+
+  // FIXME: The lookup for allocation function is a standalone process.
+  // (We can find the logics in Sema::FindAllocationFunctions)
+  //
+  // Such structure makes it a problem when we instantiate a template
+  // declaration using placement allocation function if the placement
+  // allocation function is invisible.
+  // (See https://github.com/llvm/llvm-project/issues/59601)
+  //
+  // Here we workaround it by making the placement allocation functions
+  // always acceptable. The downside is that we can't diagnose the direct
+  // use of the invisible placement allocation functions. (Although such uses
+  // should be rare).
+  if (auto *FD = dyn_cast<FunctionDecl>(ND);
+      FD && FD->isReservedGlobalPlacementOperator())
+    return true;
 
   auto *DC = ND->getDeclContext();
   // If ND is not visible and it is at namespace scope, it shouldn't be found
@@ -3522,27 +3531,27 @@ Sema::SpecialMemberOverloadResult Sema::LookupSpecialMember(CXXRecordDecl *RD,
     if (CXXMethodDecl *M = dyn_cast<CXXMethodDecl>(Cand->getUnderlyingDecl())) {
       if (SM == CXXCopyAssignment || SM == CXXMoveAssignment)
         AddMethodCandidate(M, Cand, RD, ThisTy, Classification,
-                           llvm::makeArrayRef(&Arg, NumArgs), OCS, true);
+                           llvm::ArrayRef(&Arg, NumArgs), OCS, true);
       else if (CtorInfo)
         AddOverloadCandidate(CtorInfo.Constructor, CtorInfo.FoundDecl,
-                             llvm::makeArrayRef(&Arg, NumArgs), OCS,
+                             llvm::ArrayRef(&Arg, NumArgs), OCS,
                              /*SuppressUserConversions*/ true);
       else
-        AddOverloadCandidate(M, Cand, llvm::makeArrayRef(&Arg, NumArgs), OCS,
+        AddOverloadCandidate(M, Cand, llvm::ArrayRef(&Arg, NumArgs), OCS,
                              /*SuppressUserConversions*/ true);
     } else if (FunctionTemplateDecl *Tmpl =
                  dyn_cast<FunctionTemplateDecl>(Cand->getUnderlyingDecl())) {
       if (SM == CXXCopyAssignment || SM == CXXMoveAssignment)
-        AddMethodTemplateCandidate(
-            Tmpl, Cand, RD, nullptr, ThisTy, Classification,
-            llvm::makeArrayRef(&Arg, NumArgs), OCS, true);
+        AddMethodTemplateCandidate(Tmpl, Cand, RD, nullptr, ThisTy,
+                                   Classification,
+                                   llvm::ArrayRef(&Arg, NumArgs), OCS, true);
       else if (CtorInfo)
-        AddTemplateOverloadCandidate(
-            CtorInfo.ConstructorTmpl, CtorInfo.FoundDecl, nullptr,
-            llvm::makeArrayRef(&Arg, NumArgs), OCS, true);
+        AddTemplateOverloadCandidate(CtorInfo.ConstructorTmpl,
+                                     CtorInfo.FoundDecl, nullptr,
+                                     llvm::ArrayRef(&Arg, NumArgs), OCS, true);
       else
-        AddTemplateOverloadCandidate(
-            Tmpl, Cand, nullptr, llvm::makeArrayRef(&Arg, NumArgs), OCS, true);
+        AddTemplateOverloadCandidate(Tmpl, Cand, nullptr,
+                                     llvm::ArrayRef(&Arg, NumArgs), OCS, true);
     } else {
       assert(isa<UsingDecl>(Cand.getDecl()) &&
              "illegal Kind of operator = Decl");
@@ -3919,10 +3928,14 @@ void Sema::ArgumentDependentLookup(DeclarationName Name, SourceLocation Loc,
           if (isVisible(D)) {
             Visible = true;
             break;
-          } else if (getLangOpts().CPlusPlusModules &&
-                     D->isInExportDeclContext()) {
-            // C++20 [basic.lookup.argdep] p4.3 .. are exported ...
+          }
+
+          if (!getLangOpts().CPlusPlusModules)
+            continue;
+
+          if (D->isInExportDeclContext()) {
             Module *FM = D->getOwningModule();
+            // C++20 [basic.lookup.argdep] p4.3 .. are exported ...
             // exports are only valid in module purview and outside of any
             // PMF (although a PMF should not even be present in a module
             // with an import).
@@ -4985,9 +4998,9 @@ void TypoCorrectionConsumer::NamespaceSpecifierSet::addNameSpecifier(
   if (NNS && !CurNameSpecifierIdentifiers.empty()) {
     SmallVector<const IdentifierInfo*, 4> NewNameSpecifierIdentifiers;
     getNestedNameSpecifierIdentifiers(NNS, NewNameSpecifierIdentifiers);
-    NumSpecifiers = llvm::ComputeEditDistance(
-        llvm::makeArrayRef(CurNameSpecifierIdentifiers),
-        llvm::makeArrayRef(NewNameSpecifierIdentifiers));
+    NumSpecifiers =
+        llvm::ComputeEditDistance(llvm::ArrayRef(CurNameSpecifierIdentifiers),
+                                  llvm::ArrayRef(NewNameSpecifierIdentifiers));
   }
 
   SpecifierInfo SI = {Ctx, NNS, NumSpecifiers};
@@ -5878,4 +5891,8 @@ void Sema::ActOnPragmaDump(Scope *S, SourceLocation IILoc, IdentifierInfo *II) {
   R.setHideTags(false);
   LookupName(R, S);
   R.dump();
+}
+
+void Sema::ActOnPragmaDump(Expr *E) {
+  E->dump();
 }

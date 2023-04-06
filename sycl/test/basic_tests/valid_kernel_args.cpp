@@ -27,15 +27,18 @@ struct SomeMarrayStructure {
   sycl::marray<double, 5> points;
 };
 
-#define CHECK_PASSING_TO_KERNEL_BY_VALUE(Type)                                 \
-  static_assert(std::is_standard_layout<Type>::value,                          \
-                "Is not standard layouti type.");                              \
-  static_assert(std::is_trivially_copyable<Type>::value,                       \
+template <typename T> void check() {
+  static_assert(std::is_standard_layout<T>::value,
+                "Is not standard layouti type.");
+  static_assert(std::is_trivially_copyable<T>::value,
                 "Is not trivially copyable type.");
+}
 
+SYCL_EXTERNAL void foo() {
 #ifdef __SYCL_DEVICE_ONLY__
-CHECK_PASSING_TO_KERNEL_BY_VALUE(int)
-CHECK_PASSING_TO_KERNEL_BY_VALUE(sycl::cl_uchar4)
-CHECK_PASSING_TO_KERNEL_BY_VALUE(SomeStructure)
+  check<int>();
+  check<sycl::vec<sycl::opencl::cl_uchar, 4>>();
+  check<SomeStructure>();
 #endif
-CHECK_PASSING_TO_KERNEL_BY_VALUE(SomeMarrayStructure)
+  check<SomeMarrayStructure>();
+}

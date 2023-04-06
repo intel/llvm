@@ -11,6 +11,7 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/queue_impl.hpp>
 #include <sycl/event.hpp>
 
 #include <memory>
@@ -27,7 +28,7 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<sycl::event> DepEvents,
     // throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
-    if (SyclEventImplPtr->MIsContextInitialized == false &&
+    if (!SyclEventImplPtr->isContextInitialized() &&
         !SyclEventImplPtr->is_host()) {
       continue;
     }
@@ -42,6 +43,14 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<sycl::event> DepEvents,
       // enqueued when kernel fusion is happening.
       SyclEventImplPtr->wait(SyclEventImplPtr);
     } else {
+      // In this path nullptr native event means that the command has not been
+      // enqueued. It may happen if async enqueue in a host task is involved.
+      // This should affect only shortcut functions, which bypass the graph.
+      if (SyclEventImplPtr->getHandleRef() == nullptr) {
+        std::vector<Command *> AuxCmds;
+        Scheduler::getInstance().enqueueCommandForCG(SyclEventImplPtr, AuxCmds,
+                                                     BLOCKING);
+      }
       Events.push_back(SyclEventImplPtr->getHandleRef());
     }
   }

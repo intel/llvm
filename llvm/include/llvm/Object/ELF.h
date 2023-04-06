@@ -14,6 +14,7 @@
 #define LLVM_OBJECT_ELF_H
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -259,7 +260,7 @@ public:
 
   Expected<Elf_Sym_Range> symbols(const Elf_Shdr *Sec) const {
     if (!Sec)
-      return makeArrayRef<Elf_Sym>(nullptr, nullptr);
+      return ArrayRef<Elf_Sym>(nullptr, nullptr);
     return getSectionContentsAsArray<Elf_Sym>(*Sec);
   }
 
@@ -296,7 +297,7 @@ public:
                          ", e_phentsize = " + Twine(getHeader().e_phentsize));
 
     auto *Begin = reinterpret_cast<const Elf_Phdr *>(base() + PhOff);
-    return makeArrayRef(Begin, Begin + getHeader().e_phnum);
+    return ArrayRef(Begin, Begin + getHeader().e_phnum);
   }
 
   /// Get an iterator over notes in a program header.
@@ -391,7 +392,21 @@ public:
   Expected<ArrayRef<T>> getSectionContentsAsArray(const Elf_Shdr &Sec) const;
   Expected<ArrayRef<uint8_t>> getSectionContents(const Elf_Shdr &Sec) const;
   Expected<ArrayRef<uint8_t>> getSegmentContents(const Elf_Phdr &Phdr) const;
-  Expected<std::vector<BBAddrMap>> decodeBBAddrMap(const Elf_Shdr &Sec) const;
+
+  /// Returns a vector of BBAddrMap structs corresponding to each function
+  /// within the text section that the SHT_LLVM_BB_ADDR_MAP section \p Sec
+  /// is associated with. If the current ELFFile is relocatable, a corresponding
+  /// \p RelaSec must be passed in as an argument.
+  Expected<std::vector<BBAddrMap>>
+  decodeBBAddrMap(const Elf_Shdr &Sec, const Elf_Shdr *RelaSec = nullptr) const;
+
+  /// Returns a map from every section matching \p IsMatch to its relocation
+  /// section, or \p nullptr if it has no relocation section. This function
+  /// returns an error if any of the \p IsMatch calls fail or if it fails to
+  /// retrieve the content section of any relocation section.
+  Expected<MapVector<const Elf_Shdr *, const Elf_Shdr *>>
+  getSectionAndRelocations(
+      std::function<Expected<bool>(const Elf_Shdr &)> IsMatch) const;
 
   void createFakeSections();
 };
@@ -516,7 +531,7 @@ ELFFile<ELFT>::getSectionContentsAsArray(const Elf_Shdr &Sec) const {
     return createError("unaligned data");
 
   const T *Start = reinterpret_cast<const T *>(base() + Offset);
-  return makeArrayRef(Start, Size / sizeof(T));
+  return ArrayRef(Start, Size / sizeof(T));
 }
 
 template <class ELFT>
@@ -536,7 +551,7 @@ ELFFile<ELFT>::getSegmentContents(const Elf_Phdr &Phdr) const {
                        ") + p_filesz (0x" + Twine::utohexstr(Size) +
                        ") that is greater than the file size (0x" +
                        Twine::utohexstr(Buf.size()) + ")");
-  return makeArrayRef(base() + Offset, Size);
+  return ArrayRef(base() + Offset, Size);
 }
 
 template <class ELFT>
@@ -798,7 +813,7 @@ Expected<typename ELFT::ShdrRange> ELFFile<ELFT>::sections() const {
   const uintX_t SectionTableOffset = getHeader().e_shoff;
   if (SectionTableOffset == 0) {
     if (!FakeSections.empty())
-      return makeArrayRef(FakeSections.data(), FakeSections.size());
+      return ArrayRef(FakeSections.data(), FakeSections.size());
     return ArrayRef<Elf_Shdr>();
   }
 
@@ -842,7 +857,7 @@ Expected<typename ELFT::ShdrRange> ELFFile<ELFT>::sections() const {
   // Section table goes past end of file!
   if (SectionTableOffset + SectionTableSize > FileSize)
     return createError("section table goes past the end of file");
-  return makeArrayRef(First, NumSections);
+  return ArrayRef(First, NumSections);
 }
 
 template <class ELFT>

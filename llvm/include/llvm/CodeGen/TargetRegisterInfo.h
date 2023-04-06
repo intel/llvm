@@ -200,7 +200,7 @@ public:
   ///
   /// By default, this method returns all registers in the class.
   ArrayRef<MCPhysReg> getRawAllocationOrder(const MachineFunction &MF) const {
-    return OrderFunc ? OrderFunc(MF) : makeArrayRef(begin(), getNumRegs());
+    return OrderFunc ? OrderFunc(MF) : ArrayRef(begin(), getNumRegs());
   }
 
   /// Returns the combination of all lane masks of register in this class.
@@ -357,7 +357,7 @@ public:
     unsigned NumRegs = getNumRegs();
     assert(Idx < InfoDesc->NumCosts && "CostPerUse index out of bounds");
 
-    return makeArrayRef(&InfoDesc->CostPerUse[Idx * NumRegs], NumRegs);
+    return ArrayRef(&InfoDesc->CostPerUse[Idx * NumRegs], NumRegs);
   }
 
   /// Return true if the register is in the allocation of any register class.
@@ -1255,7 +1255,7 @@ class BitMaskClassIterator {
     // Otherwise look for the first bit set from the right
     // (representation of the class ID is big endian).
     // See getSubClassMask for more details on the representation.
-    unsigned Offset = countTrailingZeros(CurrentChunk);
+    unsigned Offset = llvm::countr_zero(CurrentChunk);
     // Add the Offset to the adjusted base number of this chunk: Idx.
     // This is the ID of the register class.
     ID = Idx + Offset;

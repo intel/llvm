@@ -20,6 +20,7 @@
 #include "clang/Format/Format.h"
 #include "clang/Lex/Lexer.h"
 #include <memory>
+#include <optional>
 #include <unordered_set>
 
 namespace clang {
@@ -70,6 +71,8 @@ namespace format {
   TYPE(FunctionLBrace)                                                         \
   TYPE(FunctionLikeOrFreestandingMacro)                                        \
   TYPE(FunctionTypeLParen)                                                     \
+  /* The colons as part of a C11 _Generic selection */                         \
+  TYPE(GenericSelectionColon)                                                  \
   /* The colon at the end of a goto label or a case label. Currently only used \
    * for Verilog. */                                                           \
   TYPE(GotoLabelColon)                                                         \
@@ -141,6 +144,8 @@ namespace format {
   TYPE(UnaryOperator)                                                          \
   TYPE(UnionLBrace)                                                            \
   TYPE(UntouchableMacroFunc)                                                   \
+  /* Like in 'assign x = 0, y = 1;' . */                                       \
+  TYPE(VerilogAssignComma)                                                     \
   /* like in begin : block */                                                  \
   TYPE(VerilogBlockLabelColon)                                                 \
   /* The square bracket for the dimension part of the type name.               \
@@ -149,8 +154,12 @@ namespace format {
   TYPE(VerilogDimensionedTypeName)                                             \
   /* for the base in a number literal, not including the quote */              \
   TYPE(VerilogNumberBase)                                                      \
+  /* like `(strong1, pull0)` */                                                \
+  TYPE(VerilogStrength)                                                        \
   /* Things inside the table in user-defined primitives. */                    \
   TYPE(VerilogTableItem)                                                       \
+  /* those that separate ports of different types */                           \
+  TYPE(VerilogTypeComma)                                                       \
   TYPE(Unknown)
 
 /// Determines the semantic type of a syntactic token, e.g. whether "<" is a
@@ -247,7 +256,8 @@ struct FormatToken {
         CanBreakBefore(false), ClosesTemplateDeclaration(false),
         StartsBinaryExpression(false), EndsBinaryExpression(false),
         PartOfMultiVariableDeclStmt(false), ContinuesLineCommentSection(false),
-        Finalized(false), ClosesRequiresClause(false), BlockKind(BK_Unknown),
+        Finalized(false), ClosesRequiresClause(false),
+        EndsCppAttributeGroup(false), BlockKind(BK_Unknown),
         Decision(FD_Unformatted), PackingKind(PPK_Inconclusive),
         TypeIsFinalized(false), Type(TT_Unknown) {}
 
@@ -318,6 +328,9 @@ struct FormatToken {
   /// \c true if this is the last token within requires clause.
   unsigned ClosesRequiresClause : 1;
 
+  /// \c true if this token ends a group of C++ attributes.
+  unsigned EndsCppAttributeGroup : 1;
+
 private:
   /// Contains the kind of block if this token is a brace.
   unsigned BlockKind : 2;
@@ -366,6 +379,11 @@ public:
   /// binary operator.
   TokenType getType() const { return Type; }
   void setType(TokenType T) {
+    // If this token is a macro argument while formatting an unexpanded macro
+    // call, we do not change its type any more - the type was deduced from
+    // formatting the expanded macro stream already.
+    if (MacroCtx && MacroCtx->Role == MR_UnexpandedArg)
+      return;
     assert((!TypeIsFinalized || T == Type) &&
            "Please use overwriteFixedType to change a fixed type.");
     Type = T;
@@ -514,7 +532,7 @@ public:
 
   // Contains all attributes related to how this token takes part
   // in a configured macro expansion.
-  llvm::Optional<MacroExpansion> MacroCtx;
+  std::optional<MacroExpansion> MacroCtx;
 
   /// When macro expansion introduces nodes with children, those are marked as
   /// \c MacroParent.
@@ -596,7 +614,7 @@ public:
     return isOneOf(tok::kw_const, tok::kw_restrict, tok::kw_volatile,
                    tok::kw___attribute, tok::kw__Nonnull, tok::kw__Nullable,
                    tok::kw__Null_unspecified, tok::kw___ptr32, tok::kw___ptr64,
-                   TT_AttributeMacro);
+                   tok::kw___funcref, TT_AttributeMacro);
   }
 
   /// Determine whether the token is a simple-type-specifier.
@@ -736,8 +754,8 @@ public:
   }
 
   /// Returns the next token ignoring comments.
-  [[nodiscard]] const FormatToken *getNextNonComment() const {
-    const FormatToken *Tok = Next;
+  [[nodiscard]] FormatToken *getNextNonComment() const {
+    FormatToken *Tok = Next;
     while (Tok && Tok->is(tok::comment))
       Tok = Tok->Next;
     return Tok;
@@ -1545,7 +1563,7 @@ struct AdditionalKeywords {
   /// Returns \c true if \p Tok is a keyword or an identifier.
   bool isWordLike(const FormatToken &Tok) const {
     // getIdentifierinfo returns non-null for keywords as well as identifiers.
-    return Tok.Tok.getIdentifierInfo() != nullptr &&
+    return Tok.Tok.getIdentifierInfo() &&
            !Tok.isOneOf(kw_verilogHash, kw_verilogHashHash, kw_apostrophe);
   }
 
@@ -1704,11 +1722,12 @@ struct AdditionalKeywords {
     case tok::kw_while:
       return false;
     case tok::identifier:
-      return VerilogExtraKeywords.find(Tok.Tok.getIdentifierInfo()) ==
-             VerilogExtraKeywords.end();
+      return isWordLike(Tok) &&
+             VerilogExtraKeywords.find(Tok.Tok.getIdentifierInfo()) ==
+                 VerilogExtraKeywords.end();
     default:
       // getIdentifierInfo returns non-null for both identifiers and keywords.
-      return Tok.Tok.getIdentifierInfo() != nullptr;
+      return Tok.Tok.getIdentifierInfo();
     }
   }
 
@@ -1785,6 +1804,34 @@ struct AdditionalKeywords {
                                     kw_input, kw_output, kw_sequence)));
   }
 
+  /// Returns whether \p Tok is a Verilog keyword that starts a
+  /// structured procedure like 'always'.
+  bool isVerilogStructuredProcedure(const FormatToken &Tok) const {
+    return Tok.isOneOf(kw_always, kw_always_comb, kw_always_ff, kw_always_latch,
+                       kw_final, kw_forever, kw_initial);
+  }
+
+  bool isVerilogQualifier(const FormatToken &Tok) const {
+    switch (Tok.Tok.getKind()) {
+    case tok::kw_extern:
+    case tok::kw_signed:
+    case tok::kw_static:
+    case tok::kw_unsigned:
+    case tok::kw_virtual:
+      return true;
+    case tok::identifier:
+      return Tok.isOneOf(
+          kw_let, kw_var, kw_ref, kw_automatic, kw_bins, kw_coverpoint,
+          kw_ignore_bins, kw_illegal_bins, kw_inout, kw_input, kw_interconnect,
+          kw_local, kw_localparam, kw_output, kw_parameter, kw_pure, kw_rand,
+          kw_randc, kw_scalared, kw_specparam, kw_tri, kw_tri0, kw_tri1,
+          kw_triand, kw_trior, kw_trireg, kw_uwire, kw_vectored, kw_wand,
+          kw_wildcard, kw_wire, kw_wor);
+    default:
+      return false;
+    }
+  }
+
 private:
   /// The JavaScript keywords beyond the C++ keyword set.
   std::unordered_set<IdentifierInfo *> JsExtraKeywords;
@@ -1795,6 +1842,25 @@ private:
   /// The Verilog keywords beyond the C++ keyword set.
   std::unordered_set<IdentifierInfo *> VerilogExtraKeywords;
 };
+
+inline bool isLineComment(const FormatToken &FormatTok) {
+  return FormatTok.is(tok::comment) && !FormatTok.TokenText.startswith("/*");
+}
+
+// Checks if \p FormatTok is a line comment that continues the line comment
+// \p Previous. The original column of \p MinColumnToken is used to determine
+// whether \p FormatTok is indented enough to the right to continue \p Previous.
+inline bool continuesLineComment(const FormatToken &FormatTok,
+                                 const FormatToken *Previous,
+                                 const FormatToken *MinColumnToken) {
+  if (!Previous || !MinColumnToken)
+    return false;
+  unsigned MinContinueColumn =
+      MinColumnToken->OriginalColumn + (isLineComment(*MinColumnToken) ? 0 : 1);
+  return isLineComment(FormatTok) && FormatTok.NewlinesBefore == 1 &&
+         isLineComment(*Previous) &&
+         FormatTok.OriginalColumn >= MinContinueColumn;
+}
 
 } // namespace format
 } // namespace clang

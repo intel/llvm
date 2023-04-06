@@ -1,5 +1,5 @@
-// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -canonicalize | FileCheck %s
-// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -canonicalize="top-down=0" | FileCheck %s --check-prefix=CHECK-BOTTOM-UP
+// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -canonicalize="test-convergence" | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -canonicalize="test-convergence top-down=0" | FileCheck %s --check-prefix=CHECK-BOTTOM-UP
 
 // -----
 
@@ -1170,8 +1170,8 @@ func.func @simplify_with_operands(%N: index, %A: memref<?x32xf32>) {
       "test.foo"(%x) : (f32) -> ()
 
       // %i is aligned at 32 boundary and %ii < 32.
-      // CHECK: affine.load %{{.*}}[%[[I]] floordiv 32, %[[II]] mod 32]
-      %a = affine.load %A[(%i + %ii) floordiv 32, (%i + %ii) mod 32] : memref<?x32xf32>
+      // CHECK: affine.load %{{.*}}[%[[I]] floordiv 32, %[[II]] mod 16]
+      %a = affine.load %A[(%i + %ii) floordiv 32, (%i + %ii) mod 16] : memref<?x32xf32>
       "test.foo"(%a) : (f32) -> ()
       // CHECK: affine.load %{{.*}}[%[[I]] floordiv 64, (%[[I]] + %[[II]]) mod 64]
       %b = affine.load %A[(%i + %ii) floordiv 64, (%i + %ii) mod 64] : memref<?x32xf32>
@@ -1202,6 +1202,66 @@ func.func @simplify_with_operands(%N: index, %A: memref<?x32xf32>) {
   return
 }
 
+// CHECK-LABEL: func @simplify_div_mod_with_operands
+func.func @simplify_div_mod_with_operands(%N: index, %A: memref<64xf32>, %unknown: index) {
+  // CHECK: affine.for %[[I:.*]] = 0 to 32
+  %cst = arith.constant 1.0 : f32
+  affine.for %i = 0 to 32 {
+    // CHECK: affine.store %{{.*}}, %{{.*}}[0]
+    affine.store %cst, %A[%i floordiv 32] : memref<64xf32>
+    // CHECK: affine.store %{{.*}}, %{{.*}}[1]
+    affine.store %cst, %A[(%i + 1) ceildiv 32] : memref<64xf32>
+    // CHECK: affine.store %{{.*}}, %{{.*}}[%[[I]]]
+    affine.store %cst, %A[%i mod 32] : memref<64xf32>
+    // CHECK: affine.store %{{.*}}, %{{.*}}[0]
+    affine.store %cst, %A[2 * %i floordiv 64] : memref<64xf32>
+    // CHECK: affine.store %{{.*}}, %{{.*}}[0]
+    affine.store %cst, %A[(%i mod 16) floordiv 16] : memref<64xf32>
+
+    // The ones below can't be simplified.
+    affine.store %cst, %A[%i floordiv 16] : memref<64xf32>
+    affine.store %cst, %A[%i mod 16] : memref<64xf32>
+    affine.store %cst, %A[(%i mod 16) floordiv 15] : memref<64xf32>
+    affine.store %cst, %A[%i mod 31] : memref<64xf32>
+    // CHECK:      affine.store %{{.*}}, %{{.*}}[%{{.*}} floordiv 16] : memref<64xf32>
+    // CHECK-NEXT: affine.store %{{.*}}, %{{.*}}[%{{.*}} mod 16] : memref<64xf32>
+    // CHECK-NEXT: affine.store %{{.*}}, %{{.*}}[(%{{.*}} mod 16) floordiv 15] : memref<64xf32>
+    // CHECK-NEXT: affine.store %{{.*}}, %{{.*}}[%{{.*}} mod 31] : memref<64xf32>
+  }
+
+  affine.for %i = -8 to 32 {
+    // Can't be simplified.
+    // CHECK: affine.store %{{.*}}, %{{.*}}[%{{.*}} floordiv 32] : memref<64xf32>
+    affine.store %cst, %A[%i floordiv 32] : memref<64xf32>
+    // CHECK: affine.store %{{.*}}, %{{.*}}[%{{.*}} mod 32] : memref<64xf32>
+    affine.store %cst, %A[%i mod 32] : memref<64xf32>
+    // floordiv rounds toward -inf; (%i - 96) floordiv 64 will be -2.
+    // CHECK: affine.store %{{.*}}, %{{.*}}[0] : memref<64xf32>
+    affine.store %cst, %A[2 + (%i - 96) floordiv 64] : memref<64xf32>
+  }
+
+  // CHECK: affine.for %[[II:.*]] = 8 to 16
+  affine.for %i = 8 to 16 {
+    // CHECK: affine.store %{{.*}}, %{{.*}}[1] : memref<64xf32>
+    affine.store %cst, %A[%i floordiv 8] : memref<64xf32>
+    // CHECK: affine.store %{{.*}}, %{{.*}}[2] : memref<64xf32>
+    affine.store %cst, %A[(%i + 1) ceildiv 8] : memref<64xf32>
+    // CHECK: affine.store %{{.*}}, %{{.*}}[%[[II]] mod 8] : memref<64xf32>
+    affine.store %cst, %A[%i mod 8] : memref<64xf32>
+    // CHECK: affine.store %{{.*}}, %{{.*}}[%[[II]]] : memref<64xf32>
+    affine.store %cst, %A[%i mod 32] : memref<64xf32>
+    // Upper bound on the mod 32 expression will be 15.
+    // CHECK: affine.store %{{.*}}, %{{.*}}[0] : memref<64xf32>
+    affine.store %cst, %A[(%i mod 32) floordiv 16] : memref<64xf32>
+    // Lower bound on the mod 16 expression will be 8.
+    // CHECK: affine.store %{{.*}}, %{{.*}}[1] : memref<64xf32>
+    affine.store %cst, %A[(%i mod 16) floordiv 8] : memref<64xf32>
+    // CHECK: affine.store %{{.*}}, %{{.*}}[0] : memref<64xf32>
+    affine.store %cst, %A[(%unknown mod 16) floordiv 16] : memref<64xf32>
+  }
+  return
+}
+
 // -----
 
 //           CHECK: #[[$map:.*]] = affine_map<()[s0] -> (s0 * ((-s0 + 40961) ceildiv 512))>
@@ -1218,4 +1278,20 @@ func.func @regression_do_not_perform_invalid_replacements(%arg0: index) {
   // CHECK-BOTTOM-UP: "test.foo"(%[[apply]])
   "test.foo"(%1) : (index) -> ()
   return
+}
+
+// -----
+// CHECK-LABEL: func @min.oneval(%arg0: index)
+func.func @min.oneval(%arg0: index) -> index {
+  %min = affine.min affine_map<()[s0] -> (s0)> ()[%arg0]
+  // CHECK: return %arg0 : index
+  return %min: index
+}
+
+// -----
+// CHECK-LABEL: func @max.oneval(%arg0: index)
+func.func @max.oneval(%arg0: index) -> index {
+  %max = affine.max affine_map<()[s0] -> (s0)> ()[%arg0]
+  // CHECK: return %arg0 : index
+  return %max: index
 }

@@ -787,8 +787,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(size_t{1});
   case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES:
     return ReturnValue(pi_int32{1});
+  case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
+    return ReturnValue(pi_uint32{1}); // Minimum required by SYCL 2020 spec
 
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
 
@@ -803,7 +804,10 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IMAGE_SRGB)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_64)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
     CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
@@ -939,6 +943,10 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_VALUE;
   return piQueueCreate(Context, Device, Flags, Queue);
 }
+pi_result piextQueueCreate2(pi_context Context, pi_device Device,
+                            pi_queue_properties *Properties, pi_queue *Queue) {
+  return piextQueueCreate(Context, Device, Properties, Queue);
+}
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   ARG_UNUSED(Device);
@@ -1011,8 +1019,18 @@ pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextQueueGetNativeHandle2(pi_queue, pi_native_handle *, int32_t *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
                                            pi_device, bool, pi_queue *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextQueueCreateWithNativeHandle2(pi_native_handle, int32_t,
+                                            pi_context, pi_device, bool,
+                                            pi_queue_properties *, pi_queue *) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -2001,6 +2019,25 @@ pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
   DIE_NO_IMPLEMENTATION;
 }
 
+/// Host Pipes
+pi_result piextEnqueueReadHostPipe(pi_queue queue, pi_program program,
+                                   const char *pipe_symbol, pi_bool blocking,
+                                   void *ptr, size_t size,
+                                   pi_uint32 num_events_in_waitlist,
+                                   const pi_event *events_waitlist,
+                                   pi_event *event) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextEnqueueWriteHostPipe(pi_queue queue, pi_program program,
+                                    const char *pipe_symbol, pi_bool blocking,
+                                    void *ptr, size_t size,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piKernelSetExecInfo(pi_kernel, pi_kernel_exec_info, size_t,
                               const void *) {
   DIE_NO_IMPLEMENTATION;
@@ -2048,6 +2085,10 @@ pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
   return PI_SUCCESS;
 }
 
+// Windows: dynamically loaded plugins might have been unloaded already
+// when this is called. Sycl RT holds onto the PI plugin so it can be
+// called safely. But this is not transitive. If the PI plugin in turn
+// dynamically loaded a different DLL, that may have been unloaded. 
 pi_result piTearDown(void *) {
   delete reinterpret_cast<sycl::detail::ESIMDEmuPluginOpaqueData *>(
       PiESimdDeviceAccess->data);
@@ -2101,5 +2142,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   return PI_SUCCESS;
 }
+
+#ifdef _WIN32
+#define __SYCL_PLUGIN_DLL_NAME "pi_esimd_emulator.dll"
+#include "../common_win_pi_trace/common_win_pi_trace.hpp"
+#undef __SYCL_PLUGIN_DLL_NAME
+#endif
 
 } // extern C

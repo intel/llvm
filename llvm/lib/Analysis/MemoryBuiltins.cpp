@@ -750,7 +750,7 @@ SizeOffsetType ObjectSizeOffsetVisitor::visitAllocaInst(AllocaInst &I) {
   TypeSize ElemSize = DL.getTypeAllocSize(I.getAllocatedType());
   if (ElemSize.isScalable() && Options.EvalMode != ObjectSizeOpts::Mode::Min)
     return unknown();
-  APInt Size(IntTyBits, ElemSize.getKnownMinSize());
+  APInt Size(IntTyBits, ElemSize.getKnownMinValue());
   if (!I.isArrayAllocation())
     return std::make_pair(align(Size, I.getAlign()), Zero);
 
@@ -1099,12 +1099,13 @@ SizeOffsetEvalType ObjectSizeOffsetEvaluator::visitAllocaInst(AllocaInst &I) {
   // must be a VLA
   assert(I.isArrayAllocation());
 
-  // If needed, adjust the alloca's operand size to match the pointer size.
-  // Subsequent math operations expect the types to match.
+  // If needed, adjust the alloca's operand size to match the pointer indexing
+  // size. Subsequent math operations expect the types to match.
   Value *ArraySize = Builder.CreateZExtOrTrunc(
-      I.getArraySize(), DL.getIntPtrType(I.getContext()));
+      I.getArraySize(),
+      DL.getIndexType(I.getContext(), DL.getAllocaAddrSpace()));
   assert(ArraySize->getType() == Zero->getType() &&
-         "Expected zero constant to have pointer type");
+         "Expected zero constant to have pointer index type");
 
   Value *Size = ConstantInt::get(ArraySize->getType(),
                                  DL.getTypeAllocSize(I.getAllocatedType()));
@@ -1150,7 +1151,7 @@ ObjectSizeOffsetEvaluator::visitGEPOperator(GEPOperator &GEP) {
   if (!bothKnown(PtrData))
     return unknown();
 
-  Value *Offset = EmitGEPOffset(&Builder, DL, &GEP, /*NoAssumptions=*/true);
+  Value *Offset = emitGEPOffset(&Builder, DL, &GEP, /*NoAssumptions=*/true);
   Offset = Builder.CreateAdd(PtrData.second, Offset);
   return std::make_pair(PtrData.first, Offset);
 }

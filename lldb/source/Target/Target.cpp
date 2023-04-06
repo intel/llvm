@@ -67,6 +67,7 @@
 
 #include <memory>
 #include <mutex>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -356,7 +357,7 @@ BreakpointSP Target::CreateBreakpoint(const FileSpecList *containingModules,
                                       bool hardware,
                                       LazyBool move_to_nearest_code) {
   FileSpec remapped_file;
-  llvm::Optional<llvm::StringRef> removed_prefix_opt =
+  std::optional<llvm::StringRef> removed_prefix_opt =
       GetSourcePathMap().ReverseRemapPath(file, remapped_file);
   if (!removed_prefix_opt)
     remapped_file = file;
@@ -789,19 +790,18 @@ bool Target::ProcessIsValid() {
 }
 
 static bool CheckIfWatchpointsSupported(Target *target, Status &error) {
-  uint32_t num_supported_hardware_watchpoints;
-  Status rc = target->GetProcessSP()->GetWatchpointSupportInfo(
-      num_supported_hardware_watchpoints);
+  std::optional<uint32_t> num_supported_hardware_watchpoints =
+      target->GetProcessSP()->GetWatchpointSlotCount();
 
   // If unable to determine the # of watchpoints available,
   // assume they are supported.
-  if (rc.Fail())
+  if (!num_supported_hardware_watchpoints)
     return true;
 
   if (num_supported_hardware_watchpoints == 0) {
     error.SetErrorStringWithFormat(
         "Target supports (%u) hardware watchpoint slots.\n",
-        num_supported_hardware_watchpoints);
+        *num_supported_hardware_watchpoints);
     return false;
   }
   return true;
@@ -2384,10 +2384,8 @@ Target::GetScratchTypeSystems(bool create_on_demand) {
       if (auto ts = *type_system_or_err)
         scratch_type_systems.push_back(ts);
   }
-  std::sort(scratch_type_systems.begin(), scratch_type_systems.end(),
-            [](lldb::TypeSystemSP a, lldb::TypeSystemSP b) {
-              return a.get() <= b.get();
-            });
+
+  std::sort(scratch_type_systems.begin(), scratch_type_systems.end());
   scratch_type_systems.erase(
       std::unique(scratch_type_systems.begin(), scratch_type_systems.end()),
       scratch_type_systems.end());
@@ -3081,6 +3079,17 @@ bool Target::SetSectionUnloaded(const lldb::SectionSP &section_sp,
 
 void Target::ClearAllLoadedSections() { m_section_load_history.Clear(); }
 
+void Target::SaveScriptedLaunchInfo(lldb_private::ProcessInfo &process_info) {
+  if (process_info.IsScriptedProcess()) {
+    // Only copy scripted process launch options.
+    ProcessLaunchInfo &default_launch_info = const_cast<ProcessLaunchInfo &>(
+        GetGlobalProperties().GetProcessLaunchInfo());
+    default_launch_info.SetProcessPluginName("ScriptedProcess");
+    default_launch_info.SetScriptedMetadata(process_info.GetScriptedMetadata());
+    SetProcessLaunchInfo(default_launch_info);
+  }
+}
+
 Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
   m_stats.SetLaunchOrAttachTime();
   Status error;
@@ -3110,19 +3119,7 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
 
   launch_info.GetFlags().Set(eLaunchFlagDebug);
 
-  if (launch_info.IsScriptedProcess()) {
-    // Only copy scripted process launch options.
-    ProcessLaunchInfo &default_launch_info = const_cast<ProcessLaunchInfo &>(
-        GetGlobalProperties().GetProcessLaunchInfo());
-
-    default_launch_info.SetProcessPluginName("ScriptedProcess");
-    default_launch_info.SetScriptedProcessClassName(
-        launch_info.GetScriptedProcessClassName());
-    default_launch_info.SetScriptedProcessDictionarySP(
-        launch_info.GetScriptedProcessDictionarySP());
-
-    SetProcessLaunchInfo(launch_info);
-  }
+  SaveScriptedLaunchInfo(launch_info);
 
   // Get the value of synchronous execution here.  If you wait till after you
   // have started to run, then you could have hit a breakpoint, whose command
@@ -3225,7 +3222,7 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
       // SyncResume hijacker.
       m_process_sp->ResumeSynchronous(stream);
     else
-      error = m_process_sp->PrivateResume();
+      error = m_process_sp->Resume();
     if (!error.Success()) {
       Status error2;
       error2.SetErrorStringWithFormat(
@@ -3335,11 +3332,12 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
 
   Status error;
   if (state != eStateConnected && platform_sp != nullptr &&
-      platform_sp->CanDebugProcess()) {
+      platform_sp->CanDebugProcess() && !attach_info.IsScriptedProcess()) {
     SetPlatform(platform_sp);
     process_sp = platform_sp->Attach(attach_info, GetDebugger(), this, error);
   } else {
     if (state != eStateConnected) {
+      SaveScriptedLaunchInfo(attach_info);
       const char *plugin_name = attach_info.GetProcessPluginName();
       process_sp =
           CreateProcess(attach_info.GetListenerForProcess(GetDebugger()),
@@ -4474,7 +4472,7 @@ void TargetProperties::CheckJITObjectsDir() {
   else if (!writable)
     os << "is not writable";
 
-  llvm::Optional<lldb::user_id_t> debugger_id;
+  std::optional<lldb::user_id_t> debugger_id;
   if (m_target)
     debugger_id = m_target->GetDebugger().GetID();
   Debugger::ReportError(os.str(), debugger_id);

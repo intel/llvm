@@ -253,7 +253,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            bufferRange.size() * sizeof(T),
+            hostData, bufferRange.size() * sizeof(T),
             detail::getNextPowerOfTwo(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
@@ -506,10 +506,14 @@ public:
   template <access::mode mode>
   __SYCL2020_DEPRECATED("get_access for host_accessor is deprecated, please "
                         "use get_host_access instead")
-  accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access(
-      const detail::code_location CodeLoc = detail::code_location::current()) {
+  accessor<
+      T, dimensions, mode, access::target::host_buffer,
+      access::placeholder::false_t,
+      ext::oneapi::
+          accessor_property_list<>> get_access(const detail::code_location
+                                                   CodeLoc =
+                                                       detail::code_location::
+                                                           current()) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(*this, {}, CodeLoc);
@@ -535,11 +539,16 @@ public:
   template <access::mode mode>
   __SYCL2020_DEPRECATED("get_access for host_accessor is deprecated, please "
                         "use get_host_access instead")
-  accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access(
-      range<dimensions> accessRange, id<dimensions> accessOffset = {},
-      const detail::code_location CodeLoc = detail::code_location::current()) {
+  accessor<
+      T, dimensions, mode, access::target::host_buffer,
+      access::placeholder::false_t,
+      ext::oneapi::
+          accessor_property_list<>> get_access(range<dimensions> accessRange,
+                                               id<dimensions> accessOffset = {},
+                                               const detail::code_location
+                                                   CodeLoc =
+                                                       detail::code_location::
+                                                           current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
       throw sycl::invalid_object_error(
           "Requested accessor would exceed the bounds of the buffer",

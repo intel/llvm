@@ -22,6 +22,7 @@
 #include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowAnalysisContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowLattice.h"
+#include "clang/Analysis/FlowSensitive/Logger.h"
 #include "clang/Analysis/FlowSensitive/StorageLocation.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "llvm/ADT/DenseMap.h"
@@ -176,6 +177,12 @@ public:
   /// If `DeclCtx` is a non-static member function, initializes the environment
   /// with a symbolic representation of the `this` pointee.
   Environment(DataflowAnalysisContext &DACtx, const DeclContext &DeclCtx);
+
+  const DataflowAnalysisContext::Options &getAnalysisOptions() const {
+    return DACtx->getOptions();
+  }
+
+  Logger &logger() const { return *DACtx->getOptions().Log; }
 
   /// Creates and returns an environment to use for an inline analysis  of the
   /// callee. Uses the storage location from each argument in the `Call` as the
@@ -426,6 +433,7 @@ public:
   }
 
   LLVM_DUMP_METHOD void dump() const;
+  LLVM_DUMP_METHOD void dump(raw_ostream &OS) const;
 
 private:
   /// Creates a value appropriate for `Type`, if `Type` is supported, otherwise
@@ -451,6 +459,10 @@ private:
   /// of the caller.
   void pushCallInternal(const FunctionDecl *FuncDecl,
                         ArrayRef<const Expr *> Args);
+
+  /// Assigns storage locations and values to all global variables and fields
+  /// referenced in `FuncDecl`. `FuncDecl` must have a body.
+  void initFieldsAndGlobals(const FunctionDecl *FuncDecl);
 
   // `DACtx` is not null and not owned by this object.
   DataflowAnalysisContext *DACtx;

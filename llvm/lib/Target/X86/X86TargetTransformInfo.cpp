@@ -196,14 +196,14 @@ X86TTIImpl::getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
 
 unsigned X86TTIImpl::getLoadStoreVecRegBitWidth(unsigned) const {
   return getRegisterBitWidth(TargetTransformInfo::RGK_FixedWidthVector)
-      .getFixedSize();
+      .getFixedValue();
 }
 
-unsigned X86TTIImpl::getMaxInterleaveFactor(unsigned VF) {
+unsigned X86TTIImpl::getMaxInterleaveFactor(ElementCount VF) {
   // If the loop will not be vectorized, don't interleave the loop.
   // Let regular unroll to unroll the loop, which saves the overflow
   // check and memory check cost.
-  if (VF == 1)
+  if (VF.isScalar())
     return 1;
 
   if (ST->isAtom())
@@ -4257,7 +4257,9 @@ X86TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
 }
 
 InstructionCost X86TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
-                                               unsigned Index) {
+                                               TTI::TargetCostKind CostKind,
+                                               unsigned Index, Value *Op0,
+                                               Value *Op1) {
   static const CostTblEntry SLMCostTbl[] = {
      { ISD::EXTRACT_VECTOR_ELT,       MVT::i8,      4 },
      { ISD::EXTRACT_VECTOR_ELT,       MVT::i16,     4 },
@@ -4268,7 +4270,6 @@ InstructionCost X86TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
   assert(Val->isVectorTy() && "This must be a vector type");
   Type *ScalarType = Val->getScalarType();
   InstructionCost RegisterFileMoveCost = 0;
-  TTI::TargetCostKind CostKind = TTI::TargetCostKind::TCK_RecipThroughput;
 
   // Non-immediate extraction/insertion can be handled as a sequence of
   // aliased loads+stores via the stack.
@@ -4330,12 +4331,36 @@ InstructionCost X86TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
       }
     }
 
+    MVT MScalarTy = LT.second.getScalarType();
+    auto IsCheapPInsrPExtrInsertPS = [&]() {
+      // Assume pinsr/pextr XMM <-> GPR is relatively cheap on all targets.
+      // Also, assume insertps is relatively cheap on all >= SSE41 targets.
+      return (MScalarTy == MVT::i16 && ST->hasSSE2()) ||
+             (MScalarTy.isInteger() && ST->hasSSE41()) ||
+             (MScalarTy == MVT::f32 && ST->hasSSE41() &&
+              Opcode == Instruction::InsertElement);
+    };
+
     if (Index == 0) {
       // Floating point scalars are already located in index #0.
       // Many insertions to #0 can fold away for scalar fp-ops, so let's assume
       // true for all.
       if (ScalarType->isFloatingPointTy())
         return RegisterFileMoveCost;
+
+      if (Opcode == Instruction::InsertElement &&
+          isa_and_nonnull<UndefValue>(Op0)) {
+        // Consider the gather cost to be cheap.
+        if (isa_and_nonnull<LoadInst>(Op1))
+          return RegisterFileMoveCost;
+        if (!IsCheapPInsrPExtrInsertPS()) {
+          // mov constant-to-GPR + movd/movq GPR -> XMM.
+          if (isa_and_nonnull<Constant>(Op1) && Op1->getType()->isIntegerTy())
+            return 2 + RegisterFileMoveCost;
+          // Assume movd/movq GPR -> XMM is relatively cheap on all targets.
+          return 1 + RegisterFileMoveCost;
+        }
+      }
 
       // Assume movd/movq XMM -> GPR is relatively cheap on all targets.
       if (ScalarType->isIntegerTy() && Opcode == Instruction::ExtractElement)
@@ -4344,19 +4369,12 @@ InstructionCost X86TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
 
     int ISD = TLI->InstructionOpcodeToISD(Opcode);
     assert(ISD && "Unexpected vector opcode");
-    MVT MScalarTy = LT.second.getScalarType();
     if (ST->useSLMArithCosts())
       if (auto *Entry = CostTableLookup(SLMCostTbl, ISD, MScalarTy))
         return Entry->Cost + RegisterFileMoveCost;
 
-    // Assume pinsr/pextr XMM <-> GPR is relatively cheap on all targets.
-    if ((MScalarTy == MVT::i16 && ST->hasSSE2()) ||
-        (MScalarTy.isInteger() && ST->hasSSE41()))
-      return 1 + RegisterFileMoveCost;
-
-    // Assume insertps is relatively cheap on all targets.
-    if (MScalarTy == MVT::f32 && ST->hasSSE41() &&
-        Opcode == Instruction::InsertElement)
+    // Consider cheap cases.
+    if (IsCheapPInsrPExtrInsertPS())
       return 1 + RegisterFileMoveCost;
 
     // For extractions we just need to shuffle the element to index 0, which
@@ -4378,18 +4396,14 @@ InstructionCost X86TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
     return ShuffleCost + IntOrFpCost + RegisterFileMoveCost;
   }
 
-  // Add to the base cost if we know that the extracted element of a vector is
-  // destined to be moved to and used in the integer register file.
-  if (Opcode == Instruction::ExtractElement && ScalarType->isPointerTy())
-    RegisterFileMoveCost += 1;
-
-  return BaseT::getVectorInstrCost(Opcode, Val, Index) + RegisterFileMoveCost;
+  return BaseT::getVectorInstrCost(Opcode, Val, CostKind, Index, Op0, Op1) +
+         RegisterFileMoveCost;
 }
 
-InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
-                                                     const APInt &DemandedElts,
-                                                     bool Insert,
-                                                     bool Extract) {
+InstructionCost
+X86TTIImpl::getScalarizationOverhead(VectorType *Ty, const APInt &DemandedElts,
+                                     bool Insert, bool Extract,
+                                     TTI::TargetCostKind CostKind) {
   assert(DemandedElts.getBitWidth() ==
              cast<FixedVectorType>(Ty)->getNumElements() &&
          "Vector size mismatch");
@@ -4397,7 +4411,6 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Ty);
   MVT MScalarTy = LT.second.getScalarType();
   unsigned LegalVectorBitWidth = LT.second.getSizeInBits();
-  TTI::TargetCostKind CostKind = TTI::TargetCostKind::TCK_RecipThroughput;
   InstructionCost Cost = 0;
 
   constexpr unsigned LaneBitWidth = 128;
@@ -4417,8 +4430,8 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
       // For types we can insert directly, insertion into 128-bit sub vectors is
       // cheap, followed by a cheap chain of concatenations.
       if (LegalVectorBitWidth <= LaneBitWidth) {
-        Cost +=
-            BaseT::getScalarizationOverhead(Ty, DemandedElts, Insert, false);
+        Cost += BaseT::getScalarizationOverhead(Ty, DemandedElts, Insert,
+                                                /*Extract*/ false, CostKind);
       } else {
         // In each 128-lane, if at least one index is demanded but not all
         // indices are demanded and this 128-lane is not the first 128-lane of
@@ -4450,7 +4463,7 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
         for (unsigned I = 0; I != NumLanesTotal; ++I) {
           APInt LaneEltMask = WidenedDemandedElts.extractBits(
               NumEltsPerLane, NumEltsPerLane * I);
-          if (LaneEltMask.isNullValue())
+          if (LaneEltMask.isZero())
             continue;
           // FIXME: we don't need to extract if all non-demanded elements
           //        are legalization-inserted padding.
@@ -4458,7 +4471,7 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
             Cost += getShuffleCost(TTI::SK_ExtractSubvector, Ty, std::nullopt,
                                    CostKind, I * NumEltsPerLane, LaneTy);
           Cost += BaseT::getScalarizationOverhead(LaneTy, LaneEltMask, Insert,
-                                                  false);
+                                                  /*Extract*/ false, CostKind);
         }
 
         APInt AffectedLanes =
@@ -4484,7 +4497,7 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
       // series of UNPCK followed by CONCAT_VECTORS - all of these can be
       // considered cheap.
       if (Ty->isIntOrIntVectorTy())
-        Cost += DemandedElts.countPopulation();
+        Cost += DemandedElts.popcount();
 
       // Get the smaller of the legalized or original pow2-extended number of
       // vector elements, which represents the number of unpacks we'll end up
@@ -4531,12 +4544,12 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
         for (unsigned I = 0; I != NumLanesTotal; ++I) {
           APInt LaneEltMask = WidenedDemandedElts.extractBits(
               NumEltsPerLane, I * NumEltsPerLane);
-          if (LaneEltMask.isNullValue())
+          if (LaneEltMask.isZero())
             continue;
           Cost += getShuffleCost(TTI::SK_ExtractSubvector, Ty, std::nullopt,
                                  CostKind, I * NumEltsPerLane, LaneTy);
-          Cost += BaseT::getScalarizationOverhead(LaneTy, LaneEltMask, false,
-                                                  Extract);
+          Cost += BaseT::getScalarizationOverhead(
+              LaneTy, LaneEltMask, /*Insert*/ false, Extract, CostKind);
         }
 
         return Cost;
@@ -4544,7 +4557,8 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
     }
 
     // Fallback to default extraction.
-    Cost += BaseT::getScalarizationOverhead(Ty, DemandedElts, false, Extract);
+    Cost += BaseT::getScalarizationOverhead(Ty, DemandedElts, /*Insert*/ false,
+                                            Extract, CostKind);
   }
 
   return Cost;
@@ -4648,7 +4662,7 @@ X86TTIImpl::getReplicationShuffleCost(Type *EltTy, int ReplicationFactor,
   // then we won't need to do that shuffle, so adjust the cost accordingly.
   APInt DemandedDstVectors = APIntOps::ScaleBitMask(
       DemandedDstElts.zext(NumDstVectors * NumEltsPerDstVec), NumDstVectors);
-  unsigned NumDstVectorsDemanded = DemandedDstVectors.countPopulation();
+  unsigned NumDstVectorsDemanded = DemandedDstVectors.popcount();
 
   InstructionCost SingleShuffleCost = getShuffleCost(
       TTI::SK_PermuteSingleSrc, SingleDstVecTy, /*Mask=*/std::nullopt, CostKind,
@@ -4794,9 +4808,9 @@ InstructionCost X86TTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
         APInt DemandedElts =
             APInt::getBitsSet(CoalescedVecTy->getNumElements(),
                               CoalescedVecEltIdx, CoalescedVecEltIdx + 1);
-        assert(DemandedElts.countPopulation() == 1 && "Inserting single value");
+        assert(DemandedElts.popcount() == 1 && "Inserting single value");
         Cost += getScalarizationOverhead(CoalescedVecTy, DemandedElts, IsLoad,
-                                         !IsLoad);
+                                         !IsLoad, CostKind);
       }
 
       // This isn't exactly right. We're using slow unaligned 32-byte accesses
@@ -4837,15 +4851,15 @@ X86TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *SrcTy, Align Alignment,
       (IsStore && !isLegalMaskedStore(SrcVTy, Alignment))) {
     // Scalarization
     APInt DemandedElts = APInt::getAllOnes(NumElem);
-    InstructionCost MaskSplitCost =
-        getScalarizationOverhead(MaskTy, DemandedElts, false, true);
+    InstructionCost MaskSplitCost = getScalarizationOverhead(
+        MaskTy, DemandedElts, /*Insert*/ false, /*Extract*/ true, CostKind);
     InstructionCost ScalarCompareCost = getCmpSelInstrCost(
         Instruction::ICmp, Type::getInt8Ty(SrcVTy->getContext()), nullptr,
         CmpInst::BAD_ICMP_PREDICATE, CostKind);
     InstructionCost BranchCost = getCFInstrCost(Instruction::Br, CostKind);
     InstructionCost MaskCmpCost = NumElem * (BranchCost + ScalarCompareCost);
-    InstructionCost ValueSplitCost =
-        getScalarizationOverhead(SrcVTy, DemandedElts, IsLoad, IsStore);
+    InstructionCost ValueSplitCost = getScalarizationOverhead(
+        SrcVTy, DemandedElts, IsLoad, IsStore, CostKind);
     InstructionCost MemopCost =
         NumElem * BaseT::getMemoryOpCost(Opcode, SrcVTy->getScalarType(),
                                          Alignment, AddressSpace, CostKind);
@@ -4878,6 +4892,23 @@ X86TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *SrcTy, Align Alignment,
 
   // AVX-512 masked load/store is cheaper
   return Cost + LT.first;
+}
+
+InstructionCost X86TTIImpl::getPointersChainCost(
+    ArrayRef<const Value *> Ptrs, const Value *Base,
+    const TTI::PointersChainInfo &Info, TTI::TargetCostKind CostKind) {
+  if (Info.isSameBase() && Info.isKnownStride()) {
+    // If all the pointers have known stride all the differences are translated
+    // into constants. X86 memory addressing allows encoding it into
+    // displacement. So we just need to take the base GEP cost.
+    if (const auto *BaseGEP = dyn_cast<GetElementPtrInst>(Base)) {
+      SmallVector<const Value *> Indices(BaseGEP->indices());
+      return getGEPCost(BaseGEP->getSourceElementType(),
+                        BaseGEP->getPointerOperand(), Indices, CostKind);
+    }
+    return TTI::TCC_Free;
+  }
+  return BaseT::getPointersChainCost(Ptrs, Base, Info, CostKind);
 }
 
 InstructionCost X86TTIImpl::getAddressComputationCost(Type *Ty,
@@ -5155,7 +5186,8 @@ X86TTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
   }
 
   // Add the final extract element to the cost.
-  return ReductionCost + getVectorInstrCost(Instruction::ExtractElement, Ty, 0);
+  return ReductionCost + getVectorInstrCost(Instruction::ExtractElement, Ty,
+                                            CostKind, 0, nullptr, nullptr);
 }
 
 InstructionCost X86TTIImpl::getMinMaxCost(Type *Ty, Type *CondTy,
@@ -5455,7 +5487,8 @@ X86TTIImpl::getMinMaxReductionCost(VectorType *ValTy, VectorType *CondTy,
   }
 
   // Add the final extract element to the cost.
-  return MinMaxCost + getVectorInstrCost(Instruction::ExtractElement, Ty, 0);
+  return MinMaxCost + getVectorInstrCost(Instruction::ExtractElement, Ty,
+                                         CostKind, 0, nullptr, nullptr);
 }
 
 /// Calculate the cost of materializing a 64-bit value. This helper
@@ -5760,7 +5793,7 @@ InstructionCost X86TTIImpl::getGSScalarCost(unsigned Opcode, Type *SrcVTy,
     auto *MaskTy =
         FixedVectorType::get(Type::getInt1Ty(SrcVTy->getContext()), VF);
     MaskUnpackCost = getScalarizationOverhead(
-        MaskTy, DemandedElts, /*Insert=*/false, /*Extract=*/true);
+        MaskTy, DemandedElts, /*Insert=*/false, /*Extract=*/true, CostKind);
     InstructionCost ScalarCompareCost = getCmpSelInstrCost(
         Instruction::ICmp, Type::getInt1Ty(SrcVTy->getContext()), nullptr,
         CmpInst::BAD_ICMP_PREDICATE, CostKind);
@@ -5770,7 +5803,7 @@ InstructionCost X86TTIImpl::getGSScalarCost(unsigned Opcode, Type *SrcVTy,
 
   InstructionCost AddressUnpackCost = getScalarizationOverhead(
       FixedVectorType::get(ScalarTy->getPointerTo(), VF), DemandedElts,
-      /*Insert=*/false, /*Extract=*/true);
+      /*Insert=*/false, /*Extract=*/true, CostKind);
 
   // The cost of the scalar loads/stores.
   InstructionCost MemoryOpCost =
@@ -5779,10 +5812,10 @@ InstructionCost X86TTIImpl::getGSScalarCost(unsigned Opcode, Type *SrcVTy,
 
   // The cost of forming the vector from loaded scalars/
   // scalarizing the vector to perform scalar stores.
-  InstructionCost InsertExtractCost =
-      getScalarizationOverhead(cast<FixedVectorType>(SrcVTy), DemandedElts,
-                               /*Insert=*/Opcode == Instruction::Load,
-                               /*Extract=*/Opcode == Instruction::Store);
+  InstructionCost InsertExtractCost = getScalarizationOverhead(
+      cast<FixedVectorType>(SrcVTy), DemandedElts,
+      /*Insert=*/Opcode == Instruction::Load,
+      /*Extract=*/Opcode == Instruction::Store, CostKind);
 
   return AddressUnpackCost + MemoryOpCost + MaskUnpackCost + InsertExtractCost;
 }

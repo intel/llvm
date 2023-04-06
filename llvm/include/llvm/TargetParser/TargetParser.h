@@ -14,11 +14,8 @@
 #ifndef LLVM_TARGETPARSER_TARGETPARSER_H
 #define LLVM_TARGETPARSER_TARGETPARSER_H
 
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include <cstdint>
-// FIXME: vector is used because that's what clang uses for subtarget feature
-// lists, but SmallVector would probably be better
-#include <vector>
 
 namespace llvm {
 
@@ -153,35 +150,15 @@ void fillValidArchListR600(SmallVectorImpl<StringRef> &Values);
 
 IsaVersion getIsaVersion(StringRef GPU);
 
+/// Fills Features map with default values for given target GPU
+void fillAMDGPUFeatureMap(StringRef GPU, const Triple &T,
+                          StringMap<bool> &Features);
+
+/// Inserts wave size feature for given GPU into features map
+bool insertWaveSizeFeature(StringRef GPU, const Triple &T,
+                           StringMap<bool> &Features, std::string &ErrorMsg);
+
 } // namespace AMDGPU
-
-namespace RISCV {
-
-// We use 64 bits as the known part in the scalable vector types.
-static constexpr unsigned RVVBitsPerBlock = 64;
-
-enum CPUKind : unsigned {
-#define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH) CK_##ENUM,
-#define TUNE_PROC(ENUM, NAME) CK_##ENUM,
-#include "RISCVTargetParser.def"
-};
-
-enum FeatureKind : unsigned {
-  FK_INVALID = 0,
-  FK_NONE = 1,
-  FK_64BIT = 1 << 2,
-};
-
-bool checkCPUKind(CPUKind Kind, bool IsRV64);
-bool checkTuneCPUKind(CPUKind Kind, bool IsRV64);
-CPUKind parseCPUKind(StringRef CPU);
-CPUKind parseTuneCPUKind(StringRef CPU, bool IsRV64);
-StringRef getMArchFromMcpu(StringRef CPU);
-void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
-void fillValidTuneCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
-bool getCPUFeaturesExceptStdExt(CPUKind Kind, std::vector<StringRef> &Features);
-
-} // namespace RISCV
 } // namespace llvm
 
 #endif

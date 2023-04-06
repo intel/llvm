@@ -1089,6 +1089,159 @@ TEST_F(DILocationTest, Merge) {
     EXPECT_EQ(SPI, M->getScope());
     EXPECT_EQ(nullptr, M->getInlinedAt());
   }
+
+  // Merge a location in C, which is inlined-at in B that is inlined in A,
+  // with a location in A that has the same scope, line and column as B's
+  // inlined-at location.
+  {
+    auto *FA = getFile();
+    auto *FB = getFile();
+    auto *FC = getFile();
+
+    auto *SPA = DISubprogram::getDistinct(Context, FA, "a", "a", FA, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    auto *SPB = DISubprogram::getDistinct(Context, FB, "b", "b", FB, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    auto *SPC = DISubprogram::getDistinct(Context, FC, "c", "c", FC, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    auto *A = DILocation::get(Context, 3, 2, SPA);
+    auto *B = DILocation::get(Context, 2, 4, SPB, A);
+    auto *C = DILocation::get(Context, 13, 2, SPC, B);
+    auto *M = DILocation::getMergedLocation(A, C);
+    EXPECT_EQ(3u, M->getLine());
+    EXPECT_EQ(2u, M->getColumn());
+    EXPECT_TRUE(isa<DILocalScope>(M->getScope()));
+    EXPECT_EQ(SPA, M->getScope());
+    EXPECT_EQ(nullptr, M->getInlinedAt());
+  }
+
+  // Two inlined locations with the same scope, line and column
+  // in the same inlined-at function at different line and column.
+  {
+    auto *FA = getFile();
+    auto *FB = getFile();
+    auto *FC = getFile();
+
+    auto *SPA = DISubprogram::getDistinct(Context, FA, "a", "a", FA, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    auto *SPB = DISubprogram::getDistinct(Context, FB, "b", "b", FB, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    auto *SPC = DISubprogram::getDistinct(Context, FC, "c", "c", FC, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    auto *A = DILocation::get(Context, 10, 20, SPA);
+    auto *B1 = DILocation::get(Context, 3, 2, SPB, A);
+    auto *B2 = DILocation::get(Context, 4, 5, SPB, A);
+    auto *C1 = DILocation::get(Context, 2, 4, SPC, B1);
+    auto *C2 = DILocation::get(Context, 2, 4, SPC, B2);
+
+    auto *M = DILocation::getMergedLocation(C1, C2);
+    EXPECT_EQ(2u, M->getLine());
+    EXPECT_EQ(4u, M->getColumn());
+    EXPECT_EQ(SPC, M->getScope());
+    ASSERT_NE(nullptr, M->getInlinedAt());
+
+    auto *I1 = M->getInlinedAt();
+    EXPECT_EQ(0u, I1->getLine());
+    EXPECT_EQ(0u, I1->getColumn());
+    EXPECT_EQ(SPB, I1->getScope());
+    EXPECT_EQ(A, I1->getInlinedAt());
+  }
+
+  // Two locations, different line/column and scope in the same subprogram,
+  // inlined at the same place. This should result in a 0:0 location with
+  // the nearest common scope in the inlined function.
+  {
+    auto *FA = getFile();
+    auto *FI = getFile();
+
+    auto *SPA = DISubprogram::getDistinct(Context, FA, "a", "a", FA, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    auto *SPI = DISubprogram::getDistinct(Context, FI, "i", "i", FI, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    // Nearest common scope for the two locations in a.
+    auto *SPAScope1 = DILexicalBlock::getDistinct(Context, SPA, FA, 4, 9);
+
+    // Scope for the first location in a.
+    auto *SPAScope2 =
+        DILexicalBlock::getDistinct(Context, SPAScope1, FA, 10, 12);
+
+    // Scope for the second location in a.
+    auto *SPAScope3 =
+        DILexicalBlock::getDistinct(Context, SPAScope1, FA, 20, 8);
+    auto *SPAScope4 =
+        DILexicalBlock::getDistinct(Context, SPAScope3, FA, 21, 12);
+
+    auto *I = DILocation::get(Context, 3, 8, SPI);
+    auto *A1 = DILocation::get(Context, 12, 7, SPAScope2, I);
+    auto *A2 = DILocation::get(Context, 21, 15, SPAScope4, I);
+    auto *M = DILocation::getMergedLocation(A1, A2);
+    EXPECT_EQ(0u, M->getLine());
+    EXPECT_EQ(0u, M->getColumn());
+    EXPECT_TRUE(isa<DILocalScope>(M->getScope()));
+    EXPECT_EQ(SPAScope1, M->getScope());
+    EXPECT_EQ(I, M->getInlinedAt());
+  }
+
+  // Regression test to catch a case where an iterator was invalidated due to
+  // handling the chain of inlined-at locations after the nearest common
+  // location for the two arguments were found.
+  {
+    auto *FA = getFile();
+    auto *FB = getFile();
+    auto *FI = getFile();
+
+    auto *SPA = DISubprogram::getDistinct(Context, FA, "a", "a", FA, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    auto *SPB = DISubprogram::getDistinct(Context, FB, "b", "b", FB, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    auto *SPI = DISubprogram::getDistinct(Context, FI, "i", "i", FI, 0, nullptr,
+                                          0, nullptr, 0, 0, DINode::FlagZero,
+                                          DISubprogram::SPFlagZero, nullptr);
+
+    auto *SPAScope1 = DILexicalBlock::getDistinct(Context, SPA, FA, 4, 9);
+    auto *SPAScope2 = DILexicalBlock::getDistinct(Context, SPA, FA, 8, 3);
+
+    DILocation *InlinedAt = nullptr;
+
+    // Create a chain of inlined-at locations.
+    for (int i = 0; i < 256; i++) {
+      InlinedAt = DILocation::get(Context, 3 + i, 8 + i, SPI, InlinedAt);
+    }
+
+    auto *A1 = DILocation::get(Context, 5, 9, SPAScope1, InlinedAt);
+    auto *A2 = DILocation::get(Context, 9, 8, SPAScope2, InlinedAt);
+    auto *B = DILocation::get(Context, 10, 3, SPB, A1);
+    auto *M1 = DILocation::getMergedLocation(B, A2);
+    EXPECT_EQ(0u, M1->getLine());
+    EXPECT_EQ(0u, M1->getColumn());
+    EXPECT_TRUE(isa<DILocalScope>(M1->getScope()));
+    EXPECT_EQ(SPA, M1->getScope());
+    EXPECT_EQ(InlinedAt, M1->getInlinedAt());
+
+    // Test the other argument order for good measure.
+    auto *M2 = DILocation::getMergedLocation(A2, B);
+    EXPECT_EQ(M1, M2);
+  }
 }
 
 TEST_F(DILocationTest, getDistinct) {
@@ -1610,7 +1763,7 @@ TEST_F(DIEnumeratorTest, get) {
 
 TEST_F(DIEnumeratorTest, getWithLargeValues) {
   auto *N = DIEnumerator::get(Context, APInt::getMaxValue(128), false, "val");
-  EXPECT_EQ(128U, N->getValue().countPopulation());
+  EXPECT_EQ(128U, N->getValue().popcount());
   EXPECT_EQ(N,
             DIEnumerator::get(Context, APInt::getMaxValue(128), false, "val"));
   EXPECT_NE(N,
@@ -2931,7 +3084,7 @@ typedef MetadataTest DIExpressionTest;
 TEST_F(DIExpressionTest, get) {
   uint64_t Elements[] = {2, 6, 9, 78, 0};
   auto *N = DIExpression::get(Context, Elements);
-  EXPECT_EQ(makeArrayRef(Elements), N->getElements());
+  EXPECT_EQ(ArrayRef(Elements), N->getElements());
   EXPECT_EQ(N, DIExpression::get(Context, Elements));
 
   EXPECT_EQ(5u, N->getNumElements());
@@ -2980,7 +3133,7 @@ TEST_F(DIExpressionTest, isValid) {
   } while (false)
 
   // Empty expression should be valid.
-  EXPECT_TRUE(DIExpression::get(Context, std::nullopt));
+  EXPECT_TRUE(DIExpression::get(Context, std::nullopt)->isValid());
 
   // Valid constructions.
   EXPECT_VALID(dwarf::DW_OP_plus_uconst, 6);
@@ -2992,6 +3145,8 @@ TEST_F(DIExpressionTest, isValid) {
   EXPECT_VALID(dwarf::DW_OP_deref, dwarf::DW_OP_LLVM_fragment, 3, 7);
   EXPECT_VALID(dwarf::DW_OP_deref, dwarf::DW_OP_plus_uconst, 6,
                dwarf::DW_OP_LLVM_fragment, 3, 7);
+  EXPECT_VALID(dwarf::DW_OP_LLVM_entry_value, 1);
+  EXPECT_VALID(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_LLVM_entry_value, 1);
 
   // Invalid constructions.
   EXPECT_INVALID(~0u);
@@ -3001,6 +3156,11 @@ TEST_F(DIExpressionTest, isValid) {
   EXPECT_INVALID(dwarf::DW_OP_LLVM_fragment, 3);
   EXPECT_INVALID(dwarf::DW_OP_LLVM_fragment, 3, 7, dwarf::DW_OP_plus_uconst, 3);
   EXPECT_INVALID(dwarf::DW_OP_LLVM_fragment, 3, 7, dwarf::DW_OP_deref);
+  EXPECT_INVALID(dwarf::DW_OP_LLVM_entry_value, 2);
+  EXPECT_INVALID(dwarf::DW_OP_plus_uconst, 5, dwarf::DW_OP_LLVM_entry_value, 1);
+  EXPECT_INVALID(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_plus_uconst, 5,
+                 dwarf::DW_OP_LLVM_entry_value, 1);
+  EXPECT_INVALID(dwarf::DW_OP_LLVM_arg, 1, dwarf::DW_OP_LLVM_entry_value, 1);
 
 #undef EXPECT_VALID
 #undef EXPECT_INVALID
@@ -3080,6 +3240,204 @@ TEST_F(DIExpressionTest, createFragmentExpression) {
 
 #undef EXPECT_VALID_FRAGMENT
 #undef EXPECT_INVALID_FRAGMENT
+}
+
+TEST_F(DIExpressionTest, convertToUndefExpression) {
+#define EXPECT_UNDEF_OPS_EQUAL(TestExpr, Expected)                             \
+  do {                                                                         \
+    const DIExpression *Undef =                                                \
+        DIExpression::convertToUndefExpression(TestExpr);                      \
+    EXPECT_EQ(Undef, Expected);                                                \
+  } while (false)
+#define GET_EXPR(...) DIExpression::get(Context, {__VA_ARGS__})
+
+  // Expressions which are single-location and non-complex should be unchanged.
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(), GET_EXPR());
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_LLVM_fragment, 0, 32),
+                         GET_EXPR(dwarf::DW_OP_LLVM_fragment, 0, 32));
+
+  // Variadic expressions should become single-location.
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_LLVM_arg, 0), GET_EXPR());
+  EXPECT_UNDEF_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_LLVM_fragment, 32, 32),
+      GET_EXPR(dwarf::DW_OP_LLVM_fragment, 32, 32));
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_LLVM_arg, 0,
+                                  dwarf::DW_OP_LLVM_arg, 1, dwarf::DW_OP_mul),
+                         GET_EXPR());
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_LLVM_arg, 0,
+                                  dwarf::DW_OP_LLVM_arg, 1, dwarf::DW_OP_mul,
+                                  dwarf::DW_OP_LLVM_fragment, 64, 32),
+                         GET_EXPR(dwarf::DW_OP_LLVM_fragment, 64, 32));
+
+  // Any stack-computing ops should be removed.
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_plus_uconst, 8), GET_EXPR());
+  EXPECT_UNDEF_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_plus_uconst, 8, dwarf::DW_OP_LLVM_fragment, 0, 16),
+      GET_EXPR(dwarf::DW_OP_LLVM_fragment, 0, 16));
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_constu, 24, dwarf::DW_OP_shra),
+                         GET_EXPR());
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_constu, 24, dwarf::DW_OP_shra,
+                                  dwarf::DW_OP_LLVM_fragment, 8, 16),
+                         GET_EXPR(dwarf::DW_OP_LLVM_fragment, 8, 16));
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_deref), GET_EXPR());
+  EXPECT_UNDEF_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_deref, dwarf::DW_OP_LLVM_fragment, 16, 16),
+      GET_EXPR(dwarf::DW_OP_LLVM_fragment, 16, 16));
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_constu, 4, dwarf::DW_OP_minus),
+                         GET_EXPR());
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_constu, 4, dwarf::DW_OP_minus,
+                                  dwarf::DW_OP_LLVM_fragment, 24, 16),
+                         GET_EXPR(dwarf::DW_OP_LLVM_fragment, 24, 16));
+
+  // Stack-value operators are also not preserved.
+  EXPECT_UNDEF_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_plus_uconst, 8, dwarf::DW_OP_stack_value),
+      GET_EXPR());
+  EXPECT_UNDEF_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_plus_uconst, 8,
+                                  dwarf::DW_OP_stack_value,
+                                  dwarf::DW_OP_LLVM_fragment, 32, 16),
+                         GET_EXPR(dwarf::DW_OP_LLVM_fragment, 32, 16));
+
+#undef EXPECT_UNDEF_OPS_EQUAL
+#undef GET_EXPR
+}
+
+TEST_F(DIExpressionTest, convertToVariadicExpression) {
+#define EXPECT_CONVERT_IS_NOOP(TestExpr)                                       \
+  do {                                                                         \
+    const DIExpression *Variadic =                                             \
+        DIExpression::convertToVariadicExpression(TestExpr);                   \
+    EXPECT_EQ(Variadic, TestExpr);                                             \
+  } while (false)
+#define EXPECT_VARIADIC_OPS_EQUAL(TestExpr, Expected)                          \
+  do {                                                                         \
+    const DIExpression *Variadic =                                             \
+        DIExpression::convertToVariadicExpression(TestExpr);                   \
+    EXPECT_EQ(Variadic, Expected);                                             \
+  } while (false)
+#define GET_EXPR(...) DIExpression::get(Context, {__VA_ARGS__})
+
+  // Expressions which are already variadic should be unaffected.
+  EXPECT_CONVERT_IS_NOOP(
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_stack_value));
+  EXPECT_CONVERT_IS_NOOP(GET_EXPR(dwarf::DW_OP_LLVM_arg, 0,
+                                  dwarf::DW_OP_LLVM_arg, 1, dwarf::DW_OP_plus,
+                                  dwarf::DW_OP_stack_value));
+  EXPECT_CONVERT_IS_NOOP(GET_EXPR(dwarf::DW_OP_constu, 5, dwarf::DW_OP_LLVM_arg,
+                                  0, dwarf::DW_OP_plus,
+                                  dwarf::DW_OP_stack_value));
+  EXPECT_CONVERT_IS_NOOP(GET_EXPR(dwarf::DW_OP_LLVM_arg, 0,
+                                  dwarf::DW_OP_stack_value,
+                                  dwarf::DW_OP_LLVM_fragment, 0, 32));
+
+  // Other expressions should receive a leading `LLVM_arg 0`.
+  EXPECT_VARIADIC_OPS_EQUAL(GET_EXPR(), GET_EXPR(dwarf::DW_OP_LLVM_arg, 0));
+  EXPECT_VARIADIC_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_plus_uconst, 4),
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_plus_uconst, 4));
+  EXPECT_VARIADIC_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_plus_uconst, 4, dwarf::DW_OP_stack_value),
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_plus_uconst, 4,
+               dwarf::DW_OP_stack_value));
+  EXPECT_VARIADIC_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_plus_uconst, 6, dwarf::DW_OP_stack_value,
+               dwarf::DW_OP_LLVM_fragment, 32, 32),
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_plus_uconst, 6,
+               dwarf::DW_OP_stack_value, dwarf::DW_OP_LLVM_fragment, 32, 32));
+  EXPECT_VARIADIC_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_plus_uconst, 14,
+                                     dwarf::DW_OP_LLVM_fragment, 32, 32),
+                            GET_EXPR(dwarf::DW_OP_LLVM_arg, 0,
+                                     dwarf::DW_OP_plus_uconst, 14,
+                                     dwarf::DW_OP_LLVM_fragment, 32, 32));
+
+#undef EXPECT_CONVERT_IS_NOOP
+#undef EXPECT_VARIADIC_OPS_EQUAL
+#undef GET_EXPR
+}
+
+TEST_F(DIExpressionTest, convertToNonVariadicExpression) {
+#define EXPECT_CONVERT_IS_NOOP(TestExpr)                                       \
+  do {                                                                         \
+    std::optional<const DIExpression *> NonVariadic =                          \
+        DIExpression::convertToNonVariadicExpression(TestExpr);                \
+    EXPECT_TRUE(NonVariadic.has_value());                                      \
+    EXPECT_EQ(*NonVariadic, TestExpr);                                         \
+  } while (false)
+#define EXPECT_NON_VARIADIC_OPS_EQUAL(TestExpr, Expected)                      \
+  do {                                                                         \
+    std::optional<const DIExpression *> NonVariadic =                          \
+        DIExpression::convertToNonVariadicExpression(TestExpr);                \
+    EXPECT_TRUE(NonVariadic.has_value());                                      \
+    EXPECT_EQ(*NonVariadic, Expected);                                         \
+  } while (false)
+#define EXPECT_INVALID_CONVERSION(TestExpr)                                    \
+  do {                                                                         \
+    std::optional<const DIExpression *> NonVariadic =                          \
+        DIExpression::convertToNonVariadicExpression(TestExpr);                \
+    EXPECT_FALSE(NonVariadic.has_value());                                     \
+  } while (false)
+#define GET_EXPR(...) DIExpression::get(Context, {__VA_ARGS__})
+
+  // Expressions which are already non-variadic should be unaffected.
+  EXPECT_CONVERT_IS_NOOP(GET_EXPR());
+  EXPECT_CONVERT_IS_NOOP(GET_EXPR(dwarf::DW_OP_plus_uconst, 4));
+  EXPECT_CONVERT_IS_NOOP(
+      GET_EXPR(dwarf::DW_OP_plus_uconst, 4, dwarf::DW_OP_stack_value));
+  EXPECT_CONVERT_IS_NOOP(GET_EXPR(dwarf::DW_OP_plus_uconst, 6,
+                                  dwarf::DW_OP_stack_value,
+                                  dwarf::DW_OP_LLVM_fragment, 32, 32));
+  EXPECT_CONVERT_IS_NOOP(GET_EXPR(dwarf::DW_OP_plus_uconst, 14,
+                                  dwarf::DW_OP_LLVM_fragment, 32, 32));
+
+  // Variadic expressions with a single leading `LLVM_arg 0` and no other
+  // LLVM_args should have the leading arg removed.
+  EXPECT_NON_VARIADIC_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_LLVM_arg, 0), GET_EXPR());
+  EXPECT_NON_VARIADIC_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_stack_value),
+      GET_EXPR(dwarf::DW_OP_stack_value));
+  EXPECT_NON_VARIADIC_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_LLVM_fragment, 16, 32),
+      GET_EXPR(dwarf::DW_OP_LLVM_fragment, 16, 32));
+  EXPECT_NON_VARIADIC_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_stack_value,
+               dwarf::DW_OP_LLVM_fragment, 24, 32),
+      GET_EXPR(dwarf::DW_OP_stack_value, dwarf::DW_OP_LLVM_fragment, 24, 32));
+  EXPECT_NON_VARIADIC_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_plus_uconst, 4),
+      GET_EXPR(dwarf::DW_OP_plus_uconst, 4));
+  EXPECT_NON_VARIADIC_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_plus_uconst, 4,
+               dwarf::DW_OP_stack_value),
+      GET_EXPR(dwarf::DW_OP_plus_uconst, 4, dwarf::DW_OP_stack_value));
+  EXPECT_NON_VARIADIC_OPS_EQUAL(
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_plus_uconst, 6,
+               dwarf::DW_OP_stack_value, dwarf::DW_OP_LLVM_fragment, 32, 32),
+      GET_EXPR(dwarf::DW_OP_plus_uconst, 6, dwarf::DW_OP_stack_value,
+               dwarf::DW_OP_LLVM_fragment, 32, 32));
+  EXPECT_NON_VARIADIC_OPS_EQUAL(GET_EXPR(dwarf::DW_OP_LLVM_arg, 0,
+                                         dwarf::DW_OP_plus_uconst, 14,
+                                         dwarf::DW_OP_LLVM_fragment, 32, 32),
+                                GET_EXPR(dwarf::DW_OP_plus_uconst, 14,
+                                         dwarf::DW_OP_LLVM_fragment, 32, 32));
+
+  // Variadic expressions that have any LLVM_args other than a leading
+  // `LLVM_arg 0` cannot be converted and so should return std::nullopt.
+  EXPECT_INVALID_CONVERSION(GET_EXPR(
+      dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_LLVM_arg, 1, dwarf::DW_OP_mul));
+  EXPECT_INVALID_CONVERSION(
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_LLVM_arg, 1,
+               dwarf::DW_OP_plus, dwarf::DW_OP_stack_value));
+  EXPECT_INVALID_CONVERSION(
+      GET_EXPR(dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_LLVM_arg, 0,
+               dwarf::DW_OP_minus, dwarf::DW_OP_stack_value));
+  EXPECT_INVALID_CONVERSION(GET_EXPR(dwarf::DW_OP_constu, 5,
+                                     dwarf::DW_OP_LLVM_arg, 0, dwarf::DW_OP_div,
+                                     dwarf::DW_OP_stack_value));
+
+#undef EXPECT_CONVERT_IS_NOOP
+#undef EXPECT_NON_VARIADIC_OPS_EQUAL
+#undef EXPECT_INVALID_CONVERSION
+#undef GET_EXPR
 }
 
 TEST_F(DIExpressionTest, replaceArg) {

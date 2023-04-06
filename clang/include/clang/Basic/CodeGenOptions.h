@@ -13,10 +13,10 @@
 #ifndef LLVM_CLANG_BASIC_CODEGENOPTIONS_H
 #define LLVM_CLANG_BASIC_CODEGENOPTIONS_H
 
-#include "clang/Basic/DebugInfoOptions.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Basic/XRayInstr.h"
 #include "llvm/ADT/FloatingPointMode.h"
+#include "llvm/Frontend/Debug/Options.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Target/TargetOptions.h"
@@ -60,6 +60,7 @@ public:
     LIBMVEC,           // GLIBC vector math library.
     MASSV,             // IBM MASS vector library.
     SVML,              // Intel short vector math library.
+    SLEEF,             // SLEEF SIMD Library for Evaluating Elementary Functions.
     Darwin_libsystem_m // Use Darwin's libsytem_m vector functions.
   };
 
@@ -136,6 +137,19 @@ public:
     All,         // Keep all frame pointers.
   };
 
+  static StringRef getFramePointerKindName(FramePointerKind Kind) {
+    switch (Kind) {
+    case FramePointerKind::None:
+      return "none";
+    case FramePointerKind::NonLeaf:
+      return "non-leaf";
+    case FramePointerKind::All:
+      return "all";
+    }
+
+    llvm_unreachable("invalid FramePointerKind");
+  }
+
   enum class SwiftAsyncFramePointerKind {
     Auto, // Choose Swift async extended frame info based on deployment target.
     Always, // Unconditionally emit Swift async extended frame info.
@@ -147,6 +161,12 @@ public:
     Language, // Not specified, use language standard.
     Always,   // All loops are assumed to be finite.
     Never,    // No loop is assumed to be finite.
+  };
+
+  enum AssignmentTrackingOpts {
+    Disabled,
+    Enabled,
+    Forced,
   };
 
   /// The code model to use (-mcmodel).
@@ -406,6 +426,11 @@ public:
   /// coverage pass should actually not be instrumented.
   std::vector<std::string> SanitizeCoverageIgnorelistFiles;
 
+  /// Path to ignorelist file specifying which objects
+  /// (files, functions) listed for instrumentation by sanitizer
+  /// binary metadata pass should not be instrumented.
+  std::vector<std::string> SanitizeMetadataIgnorelistFiles;
+
   /// Name of the stack usage file (i.e., .su file) if user passes
   /// -fstack-usage. If empty, it can be implied that -fstack-usage is not
   /// passed on the command line.
@@ -483,12 +508,12 @@ public:
 
   /// Check if type and variable info should be emitted.
   bool hasReducedDebugInfo() const {
-    return getDebugInfo() >= codegenoptions::DebugInfoConstructor;
+    return getDebugInfo() >= llvm::codegenoptions::DebugInfoConstructor;
   }
 
   /// Check if maybe unused type info should be emitted.
   bool hasMaybeUnusedDebugInfo() const {
-    return getDebugInfo() >= codegenoptions::UnusedTypeInfo;
+    return getDebugInfo() >= llvm::codegenoptions::UnusedTypeInfo;
   }
 
   // Check if any one of SanitizeCoverage* is enabled.

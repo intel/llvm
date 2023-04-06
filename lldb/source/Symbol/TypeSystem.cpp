@@ -13,6 +13,7 @@
 #include "lldb/Target/Language.h"
 
 #include "llvm/ADT/DenseSet.h"
+#include <optional>
 
 using namespace lldb_private;
 using namespace lldb;
@@ -24,7 +25,7 @@ static_assert(eNumLanguageTypes < g_num_small_bitvector_bits,
               "Languages bit vector is no longer small on 64 bit systems");
 LanguageSet::LanguageSet() : bitvector(eNumLanguageTypes, false) {}
 
-llvm::Optional<LanguageType> LanguageSet::GetSingularLanguage() {
+std::optional<LanguageType> LanguageSet::GetSingularLanguage() {
   if (bitvector.count() == 1)
     return (LanguageType)bitvector.find_first();
   return {};
@@ -35,6 +36,7 @@ size_t LanguageSet::Size() const { return bitvector.count(); }
 bool LanguageSet::Empty() const { return bitvector.none(); }
 bool LanguageSet::operator[](unsigned i) const { return bitvector[i]; }
 
+TypeSystem::TypeSystem() = default;
 TypeSystem::~TypeSystem() = default;
 
 static TypeSystemSP CreateInstanceHelper(lldb::LanguageType language,
@@ -136,7 +138,7 @@ CompilerType TypeSystem::GetTypeTemplateArgument(opaque_compiler_type_t type,
   return CompilerType();
 }
 
-llvm::Optional<CompilerType::IntegralTemplateArgument>
+std::optional<CompilerType::IntegralTemplateArgument>
 TypeSystem::GetIntegralTemplateArgument(opaque_compiler_type_t type, size_t idx,
                                         bool expand_pack) {
   return std::nullopt;
@@ -180,7 +182,7 @@ TypeSystem::CreateUtilityFunction(std::string text, std::string name) {
   return {};
 }
 
-llvm::Optional<llvm::json::Value> TypeSystem::ReportStatistics() {
+std::optional<llvm::json::Value> TypeSystem::ReportStatistics() {
   return std::nullopt;
 }
 
@@ -232,7 +234,7 @@ void TypeSystemMap::ForEach(
 
 llvm::Expected<lldb::TypeSystemSP> TypeSystemMap::GetTypeSystemForLanguage(
     lldb::LanguageType language,
-    llvm::Optional<CreateCallback> create_callback) {
+    std::optional<CreateCallback> create_callback) {
   std::lock_guard<std::mutex> guard(m_mutex);
   if (m_clear_in_progress)
     return llvm::make_error<llvm::StringError>(
@@ -291,7 +293,7 @@ TypeSystemMap::GetTypeSystemForLanguage(lldb::LanguageType language,
                                         Module *module, bool can_create) {
   if (can_create) {
     return GetTypeSystemForLanguage(
-        language, llvm::Optional<CreateCallback>([language, module]() {
+        language, std::optional<CreateCallback>([language, module]() {
           return TypeSystem::CreateInstance(language, module);
         }));
   }
@@ -303,7 +305,7 @@ TypeSystemMap::GetTypeSystemForLanguage(lldb::LanguageType language,
                                         Target *target, bool can_create) {
   if (can_create) {
     return GetTypeSystemForLanguage(
-        language, llvm::Optional<CreateCallback>([language, target]() {
+        language, std::optional<CreateCallback>([language, target]() {
           return TypeSystem::CreateInstance(language, target);
         }));
   }

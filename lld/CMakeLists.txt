@@ -33,7 +33,7 @@ if(LLD_BUILT_STANDALONE)
   find_package(LLVM REQUIRED HINTS "${LLVM_CMAKE_DIR}")
   list(APPEND CMAKE_MODULE_PATH "${LLVM_DIR}")
 
-  # Turn into CACHE PATHs for overwritting
+  # Turn into CACHE PATHs for overwriting
   set(LLVM_INCLUDE_DIRS ${LLVM_INCLUDE_DIRS} CACHE PATH "Path to llvm/include and any other header dirs needed")
   set(LLVM_BINARY_DIR "${LLVM_BINARY_DIR}" CACHE PATH "Path to LLVM build tree")
   set(LLVM_MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../llvm" CACHE PATH "Path to LLVM source tree")
@@ -75,11 +75,9 @@ if(LLD_BUILT_STANDALONE)
         set(LLVM_UTILS_PROVIDED ON)
         set(LLD_TEST_DEPS FileCheck not)
       endif()
-      set(UNITTEST_DIR ${LLVM_THIRD_PARTY_DIR}/unittest)
-      if(EXISTS ${UNITTEST_DIR}/googletest/include/gtest/gtest.h
-          AND NOT EXISTS ${LLVM_LIBRARY_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}gtest${CMAKE_STATIC_LIBRARY_SUFFIX}
-          AND EXISTS ${UNITTEST_DIR}/CMakeLists.txt)
-        add_subdirectory(${UNITTEST_DIR} third-party/unittest)
+
+      if (NOT TARGET llvm_gtest)
+        message(FATAL_ERROR "llvm-gtest not found. Please install llvm-gtest or disable tests with -DLLVM_INCLUDE_TESTS=OFF")
       endif()
     else()
       # Seek installed Lit.

@@ -1,6 +1,6 @@
 ; Unknown (e.g. indirect) calls returns conservative results from function propagation
 ; RUN: opt -thinlto-bc %s -thin-link-bitcode-file=%t1.thinlink.bc -o %t1.bc
-; RUN: llvm-lto2 run -disable-thinlto-funcattrs=0 %t1.bc -opaque-pointers -o %t.o -save-temps \
+; RUN: llvm-lto2 run -opaque-pointers -disable-thinlto-funcattrs=0 %t1.bc -opaque-pointers -o %t.o -save-temps \
 ; RUN:    -r %t1.bc,indirect,px -r %t1.bc,inlineasm,px -r %t1.bc,selectcallee,px -r %t1.bc,f, -r %t1.bc,g, -r %t1.bc,global,
 ; RUN: llvm-dis -o - %t.o.1.3.import.bc | FileCheck %s
 
@@ -26,7 +26,7 @@ entry:
 ; CHECK: define void @selectcallee() {
 define void @selectcallee() {
     ; Test calls that aren't handled either as direct or indirect.
-    call void select (i1 icmp eq (ptr @global, ptr null), ptr @f, ptr @g)()
+    call void getelementptr (i8, ptr @f, i64 ptrtoint (ptr @g to i64))()
     ret void
 }
 

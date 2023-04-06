@@ -163,9 +163,7 @@ public:
   /// we want to drop it from the NewRegs set.
   void pop_back() { NewRegs.pop_back(); }
 
-  ArrayRef<Register> regs() const {
-    return makeArrayRef(NewRegs).slice(FirstNew);
-  }
+  ArrayRef<Register> regs() const { return ArrayRef(NewRegs).slice(FirstNew); }
 
   /// createFrom - Create a new virtual register based on OldReg.
   Register createFrom(Register OldReg);
@@ -213,7 +211,7 @@ public:
   /// by new MI in the index map.
   /// Return the SlotIndex of the new instruction.
   SlotIndex rematerializeAt(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MI, unsigned DestReg,
+                            MachineBasicBlock::iterator MI, Register DestReg,
                             const Remat &RM, const TargetRegisterInfo &,
                             bool Late = false, unsigned SubIdx = 0,
                             MachineInstr *ReplaceIndexMI = nullptr);

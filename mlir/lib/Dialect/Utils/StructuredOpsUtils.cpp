@@ -8,9 +8,10 @@
 
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/IR/AffineMap.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/IRMapping.h"
+#include "llvm/ADT/StringSet.h"
 
 #include "mlir/Dialect/Utils/DialectUtilsEnums.cpp.inc"
 
@@ -97,7 +98,7 @@ bool mlir::isRowMajorBatchMatmul(ArrayAttr indexingMaps) {
 
 Operation *mlir::clone(OpBuilder &b, Operation *op, TypeRange newResultTypes,
                        ValueRange newOperands) {
-  BlockAndValueMapping bvm;
+  IRMapping bvm;
   OperationState state(op->getLoc(), op->getName(), newOperands, newResultTypes,
                        op->getAttrs());
   for (Region &r : op->getRegions())
@@ -113,4 +114,17 @@ Operation *mlir::cloneWithoutRegions(OpBuilder &b, Operation *op,
   for (size_t cnt = 0, e = op->getNumRegions(); cnt < e; ++cnt)
     state.addRegion();
   return b.create(state);
+}
+
+SmallVector<NamedAttribute>
+mlir::getPrunedAttributeList(Operation *op, ArrayRef<StringRef> elidedAttrs) {
+  llvm::StringSet<> elidedAttrsSet;
+  elidedAttrsSet.insert(elidedAttrs.begin(), elidedAttrs.end());
+  SmallVector<NamedAttribute> attrs;
+  for (auto attr : op->getAttrs()) {
+    if (elidedAttrsSet.count(attr.getName()))
+      continue;
+    attrs.push_back(attr);
+  }
+  return attrs;
 }

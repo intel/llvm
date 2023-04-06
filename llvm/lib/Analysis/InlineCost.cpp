@@ -22,6 +22,7 @@
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -141,11 +142,11 @@ static cl::opt<size_t>
                        cl::desc("Do not inline functions with a stack size "
                                 "that exceeds the specified limit"));
 
-static cl::opt<size_t>
-    RecurStackSizeThreshold("recursive-inline-max-stacksize", cl::Hidden,
-                       cl::init(InlineConstants::TotalAllocaSizeRecursiveCaller),
-                       cl::desc("Do not inline recursive functions with a stack "
-                                "size that exceeds the specified limit"));
+static cl::opt<size_t> RecurStackSizeThreshold(
+    "recursive-inline-max-stacksize", cl::Hidden,
+    cl::init(InlineConstants::TotalAllocaSizeRecursiveCaller),
+    cl::desc("Do not inline recursive functions with a stack "
+             "size that exceeds the specified limit"));
 
 static cl::opt<bool> OptComputeFullInlineCost(
     "inline-cost-full", cl::Hidden,
@@ -419,6 +420,7 @@ protected:
   bool simplifyCallSite(Function *F, CallBase &Call);
   bool simplifyInstruction(Instruction &I);
   bool simplifyIntrinsicCallIsConstant(CallBase &CB);
+  bool simplifyIntrinsicCallObjectSize(CallBase &CB);
   ConstantInt *stripAndComputeInBoundsConstantOffsets(Value *&V);
 
   /// Return true if the given argument to the function being considered for
@@ -491,7 +493,7 @@ public:
   InlineResult analyze();
 
   std::optional<Constant *> getSimplifiedValue(Instruction *I) {
-    if (SimplifiedValues.find(I) != SimplifiedValues.end())
+    if (SimplifiedValues.contains(I))
       return SimplifiedValues[I];
     return std::nullopt;
   }
@@ -1052,7 +1054,7 @@ public:
   void print(raw_ostream &OS);
 
   std::optional<InstructionCostDetail> getCostDetails(const Instruction *I) {
-    if (InstructionCostDetailMap.find(I) != InstructionCostDetailMap.end())
+    if (InstructionCostDetailMap.contains(I))
       return InstructionCostDetailMap[I];
     return std::nullopt;
   }
@@ -1394,7 +1396,7 @@ bool CallAnalyzer::visitAlloca(AllocaInst &I) {
       Type *Ty = I.getAllocatedType();
       AllocatedSize = SaturatingMultiplyAdd(
           AllocSize->getLimitedValue(),
-          DL.getTypeAllocSize(Ty).getKnownMinSize(), AllocatedSize);
+          DL.getTypeAllocSize(Ty).getKnownMinValue(), AllocatedSize);
       if (AllocatedSize > InlineConstants::MaxSimplifiedDynamicAllocaToInline)
         HasDynamicAlloca = true;
       return false;
@@ -1404,8 +1406,8 @@ bool CallAnalyzer::visitAlloca(AllocaInst &I) {
   // Accumulate the allocated size.
   if (I.isStaticAlloca()) {
     Type *Ty = I.getAllocatedType();
-    AllocatedSize =
-        SaturatingAdd(DL.getTypeAllocSize(Ty).getKnownMinSize(), AllocatedSize);
+    AllocatedSize = SaturatingAdd(DL.getTypeAllocSize(Ty).getKnownMinValue(),
+                                  AllocatedSize);
   }
 
   // FIXME: This is overly conservative. Dynamic allocas are inefficient for
@@ -1600,6 +1602,20 @@ bool CallAnalyzer::simplifyIntrinsicCallIsConstant(CallBase &CB) {
   Type *RT = CB.getFunctionType()->getReturnType();
   SimplifiedValues[&CB] = ConstantInt::get(RT, C ? 1 : 0);
   return true;
+}
+
+bool CallAnalyzer::simplifyIntrinsicCallObjectSize(CallBase &CB) {
+  // As per the langref, "The fourth argument to llvm.objectsize determines if
+  // the value should be evaluated at runtime."
+  if (cast<ConstantInt>(CB.getArgOperand(3))->isOne())
+    return false;
+
+  Value *V = lowerObjectSizeCall(&cast<IntrinsicInst>(CB), DL, nullptr,
+                                 /*MustSucceed=*/true);
+  Constant *C = dyn_cast_or_null<Constant>(V);
+  if (C)
+    SimplifiedValues[&CB] = C;
+  return C;
 }
 
 bool CallAnalyzer::visitBitCast(BitCastInst &I) {
@@ -2214,6 +2230,8 @@ bool CallAnalyzer::visitCallBase(CallBase &Call) {
       return true;
     case Intrinsic::is_constant:
       return simplifyIntrinsicCallIsConstant(Call);
+    case Intrinsic::objectsize:
+      return simplifyIntrinsicCallObjectSize(Call);
     }
   }
 
@@ -2296,10 +2314,10 @@ bool CallAnalyzer::visitSelectInst(SelectInst &SI) {
                                               : nullptr;
   if (!SelectedV) {
     // Condition is a vector constant that is not all 1s or all 0s.  If all
-    // operands are constants, ConstantExpr::getSelect() can handle the cases
-    // such as select vectors.
+    // operands are constants, ConstantFoldSelectInstruction() can handle the
+    // cases such as select vectors.
     if (TrueC && FalseC) {
-      if (auto *C = ConstantExpr::getSelect(CondC, TrueC, FalseC)) {
+      if (auto *C = ConstantFoldSelectInstruction(CondC, TrueC, FalseC)) {
         SimplifiedValues[&SI] = C;
         return true;
       }

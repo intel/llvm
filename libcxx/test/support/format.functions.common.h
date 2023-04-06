@@ -10,7 +10,15 @@
 
 // Contains the common part of the formatter tests for different papers.
 
+#include <algorithm>
+#include <cctype>
+#include <cstddef>
+#include <charconv>
 #include <format>
+#include <ranges>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "make_string.h"
 
@@ -37,7 +45,7 @@ template <class T>
 using context_t = typename context<T>::type;
 
 // A user-defined type used to test the handle formatter.
-enum class status : uint16_t { foo = 0xAAAA, bar = 0x5555, foobar = 0xAA55 };
+enum class status : std::uint16_t { foo = 0xAAAA, bar = 0x5555, foobar = 0xAA55 };
 
 // The formatter for a user-defined type used to test the handle formatter.
 template <class CharT>
@@ -83,7 +91,7 @@ struct std::formatter<status, CharT> {
       begin = buffer;
       buffer[0] = '0';
       buffer[1] = 'x';
-      end = std::to_chars(&buffer[2], std::end(buffer), static_cast<uint16_t>(s), 16).ptr;
+      end = std::to_chars(&buffer[2], std::end(buffer), static_cast<std::uint16_t>(s), 16).ptr;
       buffer[6] = '\0';
       break;
 
@@ -91,7 +99,7 @@ struct std::formatter<status, CharT> {
       begin = buffer;
       buffer[0] = '0';
       buffer[1] = 'X';
-      end = std::to_chars(&buffer[2], std::end(buffer), static_cast<uint16_t>(s), 16).ptr;
+      end = std::to_chars(&buffer[2], std::end(buffer), static_cast<std::uint16_t>(s), 16).ptr;
       std::transform(static_cast<const char*>(&buffer[2]), end, &buffer[2], [](char c) {
         return static_cast<char>(std::toupper(c)); });
       buffer[6] = '\0';
@@ -126,5 +134,58 @@ private:
 #endif
   }
 };
+
+// Creates format string for the invalid types.
+//
+// valid contains a list of types that are valid.
+// - The type ?s is the only type requiring 2 characters, use S for that type.
+// - Whether n is a type or not depends on the context, is is always used.
+//
+// The return value is a collection of basic_strings, instead of
+// basic_string_views since the values are temporaries.
+namespace detail {
+template <class CharT, std::size_t N>
+std::basic_string<CharT> get_colons() {
+  static std::basic_string<CharT> result(N, CharT(':'));
+  return result;
+}
+
+constexpr std::string_view get_format_types() {
+  return "aAbBcdeEfFgGopsxX"
+#if TEST_STD_VER > 20
+         "?"
+#endif
+      ;
+}
+
+template <class CharT, /*format_types types,*/ size_t N>
+std::vector<std::basic_string<CharT>> fmt_invalid_types(std::string_view valid) {
+  // std::ranges::to is not available in C++20.
+  std::vector<std::basic_string<CharT>> result;
+  std::ranges::copy(
+      get_format_types() | std::views::filter([&](char type) { return valid.find(type) == std::string_view::npos; }) |
+          std::views::transform([&](char type) { return std::format(SV("{{{}{}}}"), get_colons<CharT, N>(), type); }),
+      std::back_inserter(result));
+  return result;
+}
+
+} // namespace detail
+
+// Creates format string for the invalid types.
+//
+// valid contains a list of types that are valid.
+//
+// The return value is a collection of basic_strings, instead of
+// basic_string_views since the values are temporaries.
+template <class CharT>
+std::vector<std::basic_string<CharT>> fmt_invalid_types(std::string_view valid) {
+  return detail::fmt_invalid_types<CharT, 1>(valid);
+}
+
+// Like fmt_invalid_types but when the format spec is for an underlying formatter.
+template <class CharT>
+std::vector<std::basic_string<CharT>> fmt_invalid_nested_types(std::string_view valid) {
+  return detail::fmt_invalid_types<CharT, 2>(valid);
+}
 
 #endif // TEST_SUPPORT_FORMAT_FUNCTIONS_COMMON_H

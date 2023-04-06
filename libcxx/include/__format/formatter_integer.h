@@ -19,8 +19,8 @@
 #include <__format/formatter_integral.h>
 #include <__format/formatter_output.h>
 #include <__format/parser_std_format_spec.h>
+#include <__type_traits/is_same.h>
 #include <__type_traits/make_32_64_or_128_bit.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -28,10 +28,10 @@
 
     _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
     template <__fmt_char_type _CharT>
-    struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT __formatter_integer {
+    struct _LIBCPP_TEMPLATE_VIS __formatter_integer {
 
 public:
   _LIBCPP_HIDE_FROM_ABI constexpr auto
@@ -60,47 +60,47 @@ public:
 
 // Signed integral types.
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<signed char, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<signed char, _CharT>
     : public __formatter_integer<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<short, _CharT> : public __formatter_integer<_CharT> {
+struct _LIBCPP_TEMPLATE_VIS formatter<short, _CharT> : public __formatter_integer<_CharT> {
 };
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<int, _CharT> : public __formatter_integer<_CharT> {};
+struct _LIBCPP_TEMPLATE_VIS formatter<int, _CharT> : public __formatter_integer<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<long, _CharT> : public __formatter_integer<_CharT> {};
+struct _LIBCPP_TEMPLATE_VIS formatter<long, _CharT> : public __formatter_integer<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<long long, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<long long, _CharT>
     : public __formatter_integer<_CharT> {};
 #  ifndef _LIBCPP_HAS_NO_INT128
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<__int128_t, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<__int128_t, _CharT>
     : public __formatter_integer<_CharT> {};
 #  endif
 
 // Unsigned integral types.
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<unsigned char, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<unsigned char, _CharT>
     : public __formatter_integer<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<unsigned short, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<unsigned short, _CharT>
     : public __formatter_integer<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<unsigned, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<unsigned, _CharT>
     : public __formatter_integer<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<unsigned long, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<unsigned long, _CharT>
     : public __formatter_integer<_CharT> {};
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<unsigned long long, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<unsigned long long, _CharT>
     : public __formatter_integer<_CharT> {};
 #  ifndef _LIBCPP_HAS_NO_INT128
 template <__fmt_char_type _CharT>
-struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<__uint128_t, _CharT>
+struct _LIBCPP_TEMPLATE_VIS formatter<__uint128_t, _CharT>
     : public __formatter_integer<_CharT> {};
 #  endif
 
-#endif //_LIBCPP_STD_VER > 17
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "../lib/Transforms/Vectorize/VPlan.h"
+#include "../lib/Transforms/Vectorize/VPlanCFG.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/VectorUtils.h"
@@ -345,7 +346,7 @@ TEST(VPBasicBlockTest, TraversingIteratorTest) {
     VPBlockUtils::connectBlocks(VPBB2, VPBB4);
     VPBlockUtils::connectBlocks(VPBB3, VPBB4);
 
-    VPBlockRecursiveTraversalWrapper<const VPBlockBase *> Start(VPBB1);
+    VPBlockDeepTraversalWrapper<const VPBlockBase *> Start(VPBB1);
     SmallVector<const VPBlockBase *> FromIterator(depth_first(Start));
     EXPECT_EQ(4u, FromIterator.size());
     EXPECT_EQ(VPBB1, FromIterator[0]);
@@ -393,10 +394,17 @@ TEST(VPBasicBlockTest, TraversingIteratorTest) {
     VPBlockUtils::connectBlocks(R2BB1, R2BB2);
     VPBlockUtils::connectBlocks(R1, R2);
 
+    // Successors of R1.
+    SmallVector<const VPBlockBase *> FromIterator(
+        VPAllSuccessorsIterator<VPBlockBase *>(R1),
+        VPAllSuccessorsIterator<VPBlockBase *>::end(R1));
+    EXPECT_EQ(1u, FromIterator.size());
+    EXPECT_EQ(R1BB1, FromIterator[0]);
+
     // Depth-first.
-    VPBlockRecursiveTraversalWrapper<VPBlockBase *> Start(R1);
-    SmallVector<const VPBlockBase *> FromIterator(df_begin(Start),
-                                                  df_end(Start));
+    VPBlockDeepTraversalWrapper<VPBlockBase *> Start(R1);
+    FromIterator.clear();
+    copy(df_begin(Start), df_end(Start), std::back_inserter(FromIterator));
     EXPECT_EQ(8u, FromIterator.size());
     EXPECT_EQ(R1, FromIterator[0]);
     EXPECT_EQ(R1BB1, FromIterator[1]);
@@ -492,7 +500,7 @@ TEST(VPBasicBlockTest, TraversingIteratorTest) {
     VPBlockUtils::connectBlocks(R1, VPBB2);
 
     // Depth-first.
-    VPBlockRecursiveTraversalWrapper<VPBlockBase *> Start(VPBB1);
+    VPBlockDeepTraversalWrapper<VPBlockBase *> Start(VPBB1);
     SmallVector<VPBlockBase *> FromIterator(depth_first(Start));
     EXPECT_EQ(10u, FromIterator.size());
     EXPECT_EQ(VPBB1, FromIterator[0]);
@@ -549,7 +557,7 @@ TEST(VPBasicBlockTest, TraversingIteratorTest) {
     VPBlockUtils::connectBlocks(VPBB1, R1);
 
     // Depth-first.
-    VPBlockRecursiveTraversalWrapper<VPBlockBase *> Start(VPBB1);
+    VPBlockDeepTraversalWrapper<VPBlockBase *> Start(VPBB1);
     SmallVector<VPBlockBase *> FromIterator(depth_first(Start));
     EXPECT_EQ(5u, FromIterator.size());
     EXPECT_EQ(VPBB1, FromIterator[0]);
@@ -609,7 +617,7 @@ TEST(VPBasicBlockTest, TraversingIteratorTest) {
     VPBlockUtils::connectBlocks(R1, VPBB2);
 
     // Depth-first.
-    VPBlockRecursiveTraversalWrapper<VPBlockBase *> Start(VPBB1);
+    VPBlockDeepTraversalWrapper<VPBlockBase *> Start(VPBB1);
     SmallVector<VPBlockBase *> FromIterator(depth_first(Start));
     EXPECT_EQ(7u, FromIterator.size());
     EXPECT_EQ(VPBB1, FromIterator[0]);
@@ -641,7 +649,7 @@ TEST(VPBasicBlockTest, TraversingIteratorTest) {
     EXPECT_EQ(VPBB1, FromIterator[6]);
 
     // Post-order, const VPRegionBlocks only.
-    VPBlockRecursiveTraversalWrapper<const VPBlockBase *> StartConst(VPBB1);
+    VPBlockDeepTraversalWrapper<const VPBlockBase *> StartConst(VPBB1);
     SmallVector<const VPRegionBlock *> FromIteratorVPRegion(
         VPBlockUtils::blocksOnly<const VPRegionBlock>(post_order(StartConst)));
     EXPECT_EQ(3u, FromIteratorVPRegion.size());
@@ -891,7 +899,7 @@ TEST(VPRecipeTest, CastVPWidenSelectRecipeToVPUserAndVPDef) {
   Args.push_back(&Op2);
   Args.push_back(&Op3);
   VPWidenSelectRecipe WidenSelectR(*SelectI,
-                                   make_range(Args.begin(), Args.end()), false);
+                                   make_range(Args.begin(), Args.end()));
   EXPECT_TRUE(isa<VPUser>(&WidenSelectR));
   VPRecipeBase *BaseR = &WidenSelectR;
   EXPECT_TRUE(isa<VPUser>(BaseR));
@@ -968,8 +976,7 @@ TEST(VPRecipeTest, CastVPReplicateRecipeToVPUser) {
   Args.push_back(&Op1);
   Args.push_back(&Op2);
 
-  VPReplicateRecipe Recipe(nullptr, make_range(Args.begin(), Args.end()), true,
-                           false);
+  VPReplicateRecipe Recipe(nullptr, make_range(Args.begin(), Args.end()), true);
   EXPECT_TRUE(isa<VPUser>(&Recipe));
   VPRecipeBase *BaseR = &Recipe;
   EXPECT_TRUE(isa<VPUser>(BaseR));
@@ -1040,8 +1047,7 @@ TEST(VPRecipeTest, MayHaveSideEffectsAndMayReadWriteMemory) {
     Args.push_back(&Op1);
     Args.push_back(&Op2);
     Args.push_back(&Op3);
-    VPWidenSelectRecipe Recipe(*SelectI, make_range(Args.begin(), Args.end()),
-                               false);
+    VPWidenSelectRecipe Recipe(*SelectI, make_range(Args.begin(), Args.end()));
     EXPECT_FALSE(Recipe.mayHaveSideEffects());
     EXPECT_FALSE(Recipe.mayReadFromMemory());
     EXPECT_FALSE(Recipe.mayWriteToMemory());
@@ -1092,7 +1098,7 @@ TEST(VPRecipeTest, MayHaveSideEffectsAndMayReadWriteMemory) {
     VPValue Addr;
     VPValue Mask;
     VPWidenMemoryInstructionRecipe Recipe(*Load, &Addr, &Mask, true, false);
-    EXPECT_TRUE(Recipe.mayHaveSideEffects());
+    EXPECT_FALSE(Recipe.mayHaveSideEffects());
     EXPECT_TRUE(Recipe.mayReadFromMemory());
     EXPECT_FALSE(Recipe.mayWriteToMemory());
     EXPECT_TRUE(Recipe.mayReadOrWriteMemory());
@@ -1132,6 +1138,27 @@ TEST(VPRecipeTest, MayHaveSideEffectsAndMayReadWriteMemory) {
   }
 
   {
+    // Test for a call to a function without side-effects.
+    LLVMContext C;
+    Module M("", C);
+    Function *TheFn = Intrinsic::getDeclaration(&M, Intrinsic::thread_pointer);
+
+    auto *Call = CallInst::Create(TheFn->getFunctionType(), TheFn);
+    VPValue Op1;
+    VPValue Op2;
+    SmallVector<VPValue *, 2> Args;
+    Args.push_back(&Op1);
+    Args.push_back(&Op2);
+    VPWidenCallRecipe Recipe(*Call, make_range(Args.begin(), Args.end()),
+                             false);
+    EXPECT_FALSE(Recipe.mayHaveSideEffects());
+    EXPECT_FALSE(Recipe.mayReadFromMemory());
+    EXPECT_FALSE(Recipe.mayWriteToMemory());
+    EXPECT_FALSE(Recipe.mayReadOrWriteMemory());
+    delete Call;
+  }
+
+  {
     VPValue Op1;
     VPValue Op2;
     InductionDescriptor IndDesc;
@@ -1152,6 +1179,14 @@ TEST(VPRecipeTest, MayHaveSideEffectsAndMayReadWriteMemory) {
     EXPECT_TRUE(Recipe.mayReadFromMemory());
     EXPECT_TRUE(Recipe.mayWriteToMemory());
     EXPECT_TRUE(Recipe.mayReadOrWriteMemory());
+  }
+  {
+    VPValue Op1;
+    VPPredInstPHIRecipe Recipe(&Op1);
+    EXPECT_FALSE(Recipe.mayHaveSideEffects());
+    EXPECT_FALSE(Recipe.mayReadFromMemory());
+    EXPECT_FALSE(Recipe.mayWriteToMemory());
+    EXPECT_FALSE(Recipe.mayReadOrWriteMemory());
   }
 }
 

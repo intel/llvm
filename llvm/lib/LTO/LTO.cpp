@@ -51,6 +51,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/MemProfContextDisambiguation.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
 #include "llvm/Transforms/Utils/SplitModule.h"
@@ -74,6 +75,9 @@ cl::opt<bool> EnableLTOInternalization(
     "enable-lto-internalization", cl::init(true), cl::Hidden,
     cl::desc("Enable global value internalization in LTO"));
 }
+
+/// Enable MemProf context disambiguation for thin link.
+extern cl::opt<bool> EnableMemProfContextDisambiguation;
 
 // Computes a unique hash for the Module considering the current list of
 // export/import and other global analysis results.
@@ -839,8 +843,8 @@ LTO::addRegularLTO(BitcodeModule BM, ArrayRef<InputFile::Symbol> Syms,
       auto &CommonRes = RegularLTO.Commons[std::string(Sym.getIRName())];
       CommonRes.Size = std::max(CommonRes.Size, Sym.getCommonSize());
       if (uint32_t SymAlignValue = Sym.getCommonAlignment()) {
-        const Align SymAlign(SymAlignValue);
-        CommonRes.Align = std::max(SymAlign, CommonRes.Align.valueOrOne());
+        CommonRes.Alignment =
+            std::max(Align(SymAlignValue), CommonRes.Alignment);
       }
       CommonRes.Prevailing |= Res.Prevailing;
     }
@@ -925,13 +929,16 @@ Error LTO::addThinLTO(BitcodeModule BM, ArrayRef<InputFile::Symbol> Syms,
     }
   }
 
+  uint64_t ModuleId = ThinLTO.ModuleMap.size();
   if (Error Err =
           BM.readSummary(ThinLTO.CombinedIndex, BM.getModuleIdentifier(),
-                         ThinLTO.ModuleMap.size(), [&](GlobalValue::GUID GUID) {
+                         ModuleId, [&](GlobalValue::GUID GUID) {
                            return ThinLTO.PrevailingModuleForGUID[GUID] ==
                                   BM.getModuleIdentifier();
                          }))
     return Err;
+  LLVM_DEBUG(dbgs() << "Module " << ModuleId << ": " << BM.getModuleIdentifier()
+                    << "\n");
 
   for (const InputFile::Symbol &Sym : Syms) {
     assert(ResI != ResE);
@@ -1116,7 +1123,7 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
     if (OldGV && DL.getTypeAllocSize(OldGV->getValueType()) == I.second.Size) {
       // Don't create a new global if the type is already correct, just make
       // sure the alignment is correct.
-      OldGV->setAlignment(I.second.Align);
+      OldGV->setAlignment(I.second.Alignment);
       continue;
     }
     ArrayType *Ty =
@@ -1124,7 +1131,7 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
     auto *GV = new GlobalVariable(*RegularLTO.CombinedModule, Ty, false,
                                   GlobalValue::CommonLinkage,
                                   ConstantAggregateZero::get(Ty), "");
-    GV->setAlignment(I.second.Align);
+    GV->setAlignment(I.second.Alignment);
     if (OldGV) {
       OldGV->replaceAllUsesWith(ConstantExpr::getBitCast(GV, OldGV->getType()));
       GV->takeName(OldGV);
@@ -1190,7 +1197,7 @@ static const char *libcallRoutineNames[] = {
 };
 
 ArrayRef<const char*> LTO::getRuntimeLibcallSymbols() {
-  return makeArrayRef(libcallRoutineNames);
+  return ArrayRef(libcallRoutineNames);
 }
 
 /// This class defines the interface to the ThinLTO backend.
@@ -1536,9 +1543,17 @@ Error LTO::runThinLTO(AddStreamFn AddStream, FileCache Cache,
   runWholeProgramDevirtOnIndex(ThinLTO.CombinedIndex, ExportedGUIDs,
                                LocalWPDTargetsMap);
 
+  auto isPrevailing = [&](GlobalValue::GUID GUID, const GlobalValueSummary *S) {
+    return ThinLTO.PrevailingModuleForGUID[GUID] == S->modulePath();
+  };
+  if (EnableMemProfContextDisambiguation) {
+    MemProfContextDisambiguation ContextDisambiguation;
+    ContextDisambiguation.run(ThinLTO.CombinedIndex, isPrevailing);
+  }
+
   if (Conf.OptLevel > 0)
     ComputeCrossModuleImport(ThinLTO.CombinedIndex, ModuleToDefinedGVSummaries,
-                             ImportLists, ExportLists);
+                             isPrevailing, ImportLists, ExportLists);
 
   // Figure out which symbols need to be internalized. This also needs to happen
   // at -O0 because summary-based DCE is implemented using internalization, and
@@ -1577,10 +1592,6 @@ Error LTO::runThinLTO(AddStreamFn AddStream, FileCache Cache,
   updateIndexWPDForExports(ThinLTO.CombinedIndex, isExported,
                            LocalWPDTargetsMap);
 
-  auto isPrevailing = [&](GlobalValue::GUID GUID,
-                          const GlobalValueSummary *S) {
-    return ThinLTO.PrevailingModuleForGUID[GUID] == S->modulePath();
-  };
   thinLTOInternalizeAndPromoteInIndex(ThinLTO.CombinedIndex, isExported,
                                       isPrevailing);
 

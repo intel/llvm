@@ -38,9 +38,9 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/AMDHSAKernelDescriptor.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/TargetParser/TargetParser.h"
 
 using namespace llvm;
 using namespace llvm::AMDGPU;
@@ -65,7 +65,7 @@ using namespace llvm::AMDGPU;
 // We want to use these instructions, and using fp32 denormals also causes
 // instructions to run at the double precision rate for the device so it's
 // probably best to just report no single precision denormals.
-static uint32_t getFPMode(AMDGPU::SIModeRegisterDefaults Mode) {
+static uint32_t getFPMode(SIModeRegisterDefaults Mode) {
   return FP_ROUND_MODE_SP(FP_ROUND_ROUND_TO_NEAREST) |
          FP_ROUND_MODE_DP(FP_ROUND_ROUND_TO_NEAREST) |
          FP_DENORM_MODE_SP(Mode.fpDenormModeSPValue()) |
@@ -89,18 +89,6 @@ AMDGPUAsmPrinter::AMDGPUAsmPrinter(TargetMachine &TM,
                                    std::unique_ptr<MCStreamer> Streamer)
     : AsmPrinter(TM, std::move(Streamer)) {
   assert(OutStreamer && "AsmPrinter constructed without streamer");
-
-  if (TM.getTargetTriple().getOS() == Triple::AMDHSA) {
-    if (isHsaAbiVersion2(getGlobalSTI())) {
-      HSAMetadataStream.reset(new HSAMD::MetadataStreamerYamlV2());
-    } else if (isHsaAbiVersion3(getGlobalSTI())) {
-      HSAMetadataStream.reset(new HSAMD::MetadataStreamerMsgPackV3());
-    } else if (isHsaAbiVersion5(getGlobalSTI())) {
-      HSAMetadataStream.reset(new HSAMD::MetadataStreamerMsgPackV5());
-    } else {
-      HSAMetadataStream.reset(new HSAMD::MetadataStreamerMsgPackV4());
-    }
-  }
 }
 
 StringRef AMDGPUAsmPrinter::getPassName() const {
@@ -133,7 +121,7 @@ void AMDGPUAsmPrinter::initTargetStreamer(Module &M) {
       TM.getTargetTriple().getOS() != Triple::AMDPAL)
     return;
 
-  if (isHsaAbiVersion3AndAbove(getGlobalSTI()))
+  if (CodeObjectVersion >= AMDGPU::AMDHSA_COV3)
     getTargetStreamer()->EmitDirectiveAMDGCNTarget();
 
   if (TM.getTargetTriple().getOS() == Triple::AMDHSA)
@@ -142,7 +130,7 @@ void AMDGPUAsmPrinter::initTargetStreamer(Module &M) {
   if (TM.getTargetTriple().getOS() == Triple::AMDPAL)
     getTargetStreamer()->getPALMetadata()->readFromIR(M);
 
-  if (isHsaAbiVersion3AndAbove(getGlobalSTI()))
+  if (CodeObjectVersion >= AMDGPU::AMDHSA_COV3)
     return;
 
   // HSA emits NT_AMD_HSA_CODE_OBJECT_VERSION for code objects v2.
@@ -161,7 +149,7 @@ void AMDGPUAsmPrinter::emitEndOfAsmFile(Module &M) {
     initTargetStreamer(M);
 
   if (TM.getTargetTriple().getOS() != Triple::AMDHSA ||
-      isHsaAbiVersion2(getGlobalSTI()))
+      CodeObjectVersion == AMDGPU::AMDHSA_COV2)
     getTargetStreamer()->EmitISAVersion();
 
   // Emit HSA Metadata (NT_AMD_AMDGPU_HSA_METADATA).
@@ -221,7 +209,7 @@ void AMDGPUAsmPrinter::emitFunctionBodyStart() {
   if (!MFI.isEntryFunction())
     return;
 
-  if ((STM.isMesaKernel(F) || isHsaAbiVersion2(getGlobalSTI())) &&
+  if ((STM.isMesaKernel(F) || CodeObjectVersion == AMDGPU::AMDHSA_COV2) &&
       (F.getCallingConv() == CallingConv::AMDGPU_KERNEL ||
        F.getCallingConv() == CallingConv::SPIR_KERNEL)) {
     amd_kernel_code_t KernelCode;
@@ -239,7 +227,7 @@ void AMDGPUAsmPrinter::emitFunctionBodyEnd() {
     return;
 
   if (TM.getTargetTriple().getOS() != Triple::AMDHSA ||
-      isHsaAbiVersion2(getGlobalSTI()))
+      CodeObjectVersion == AMDGPU::AMDHSA_COV2)
     return;
 
   auto &Streamer = getTargetStreamer()->getStreamer();
@@ -263,17 +251,18 @@ void AMDGPUAsmPrinter::emitFunctionBodyEnd() {
       STM, KernelName, getAmdhsaKernelDescriptor(*MF, CurrentProgramInfo),
       CurrentProgramInfo.NumVGPRsForWavesPerEU,
       CurrentProgramInfo.NumSGPRsForWavesPerEU -
-          IsaInfo::getNumExtraSGPRs(&STM,
-                                    CurrentProgramInfo.VCCUsed,
-                                    CurrentProgramInfo.FlatUsed),
-      CurrentProgramInfo.VCCUsed, CurrentProgramInfo.FlatUsed);
+          IsaInfo::getNumExtraSGPRs(
+              &STM, CurrentProgramInfo.VCCUsed, CurrentProgramInfo.FlatUsed,
+              getTargetStreamer()->getTargetID()->isXnackOnOrAny()),
+      CurrentProgramInfo.VCCUsed, CurrentProgramInfo.FlatUsed,
+      CodeObjectVersion);
 
   Streamer.popSection();
 }
 
 void AMDGPUAsmPrinter::emitFunctionEntryLabel() {
   if (TM.getTargetTriple().getOS() == Triple::AMDHSA &&
-      isHsaAbiVersion3AndAbove(getGlobalSTI())) {
+      CodeObjectVersion >= AMDGPU::AMDHSA_COV3) {
     AsmPrinter::emitFunctionEntryLabel();
     return;
   }
@@ -343,6 +332,30 @@ void AMDGPUAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
   AsmPrinter::emitGlobalVariable(GV);
 }
 
+bool AMDGPUAsmPrinter::doInitialization(Module &M) {
+  CodeObjectVersion = AMDGPU::getCodeObjectVersion(M);
+
+  if (TM.getTargetTriple().getOS() == Triple::AMDHSA) {
+    switch (CodeObjectVersion) {
+    case AMDGPU::AMDHSA_COV2:
+      HSAMetadataStream.reset(new HSAMD::MetadataStreamerYamlV2());
+      break;
+    case AMDGPU::AMDHSA_COV3:
+      HSAMetadataStream.reset(new HSAMD::MetadataStreamerMsgPackV3());
+      break;
+    case AMDGPU::AMDHSA_COV4:
+      HSAMetadataStream.reset(new HSAMD::MetadataStreamerMsgPackV4());
+      break;
+    case AMDGPU::AMDHSA_COV5:
+      HSAMetadataStream.reset(new HSAMD::MetadataStreamerMsgPackV5());
+      break;
+    default:
+      report_fatal_error("Unexpected code object version");
+    }
+  }
+  return AsmPrinter::doInitialization(M);
+}
+
 bool AMDGPUAsmPrinter::doFinalization(Module &M) {
   // Pad with s_code_end to help tools and guard against instruction prefetch
   // causing stale data in caches. Arguably this should be done by the linker,
@@ -389,7 +402,7 @@ uint16_t AMDGPUAsmPrinter::getAmdhsaKernelCodeProperties(
     KernelCodeProperties |=
         amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_PTR;
   }
-  if (MFI.hasQueuePtr() && AMDGPU::getAmdhsaCodeObjectVersion() < 5) {
+  if (MFI.hasQueuePtr() && CodeObjectVersion < AMDGPU::AMDHSA_COV5) {
     KernelCodeProperties |=
         amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_QUEUE_PTR;
   }
@@ -411,9 +424,8 @@ uint16_t AMDGPUAsmPrinter::getAmdhsaKernelCodeProperties(
   }
 
   if (CurrentProgramInfo.DynamicCallStack &&
-      AMDGPU::getAmdhsaCodeObjectVersion() >= 5) {
+      CodeObjectVersion >= AMDGPU::AMDHSA_COV5)
     KernelCodeProperties |= amdhsa::KERNEL_CODE_PROPERTY_USES_DYNAMIC_STACK;
-  }
 
   return KernelCodeProperties;
 }
@@ -631,7 +643,7 @@ void AMDGPUAsmPrinter::initializeTargetID(const Module &M) {
   // In the beginning all features are either 'Any' or 'NotSupported',
   // depending on global target features. This will cover empty modules.
   getTargetStreamer()->initializeTargetID(
-      *getGlobalSTI(), getGlobalSTI()->getFeatureString());
+      *getGlobalSTI(), getGlobalSTI()->getFeatureString(), CodeObjectVersion);
 
   // If module is empty, we are done.
   if (M.empty())
@@ -709,7 +721,8 @@ void AMDGPUAsmPrinter::getSIProgramInfo(SIProgramInfo &ProgInfo,
   // duplicated in part in AMDGPUAsmParser::calculateGPRBlocks, and could be
   // unified.
   unsigned ExtraSGPRs = IsaInfo::getNumExtraSGPRs(
-      &STM, ProgInfo.VCCUsed, ProgInfo.FlatUsed);
+      &STM, ProgInfo.VCCUsed, ProgInfo.FlatUsed,
+      getTargetStreamer()->getTargetID()->isXnackOnOrAny());
 
   // Check the addressable register limit before we add ExtraSGPRs.
   if (STM.getGeneration() >= AMDGPUSubtarget::VOLCANIC_ISLANDS &&
@@ -761,7 +774,7 @@ void AMDGPUAsmPrinter::getSIProgramInfo(SIProgramInfo &ProgInfo,
       // There are some rare circumstances where InputAddr is non-zero and
       // InputEna can be set to 0. In this case we default to setting LastEna
       // to 1.
-      LastEna = InputEna ? findLastSet(InputEna) + 1 : 1;
+      LastEna = InputEna ? llvm::Log2_32(InputEna) + 1 : 1;
     }
 
     // FIXME: We should be using the number of registers determined during
@@ -842,11 +855,12 @@ void AMDGPUAsmPrinter::getSIProgramInfo(SIProgramInfo &ProgInfo,
     Ctx.diagnose(Diag);
   }
 
-  if (MFI->getLDSSize() > static_cast<unsigned>(STM.getLocalMemorySize())) {
+  if (MFI->getLDSSize() >
+      static_cast<unsigned>(STM.getAddressableLocalMemorySize())) {
     LLVMContext &Ctx = MF.getFunction().getContext();
-    DiagnosticInfoResourceLimit Diag(MF.getFunction(), "local memory",
-                                     MFI->getLDSSize(),
-                                     STM.getLocalMemorySize(), DS_Error);
+    DiagnosticInfoResourceLimit Diag(
+        MF.getFunction(), "local memory", MFI->getLDSSize(),
+        STM.getAddressableLocalMemorySize(), DS_Error);
     Ctx.diagnose(Diag);
   }
 
@@ -908,7 +922,8 @@ void AMDGPUAsmPrinter::getSIProgramInfo(SIProgramInfo &ProgInfo,
   // anything to disable it if we know the stack isn't used here. We may still
   // have emitted code reading it to initialize scratch, but if that's unused
   // reading garbage should be OK.
-  const bool EnablePrivateSegment = ProgInfo.ScratchBlocks > 0;
+  const bool EnablePrivateSegment =
+      ProgInfo.ScratchBlocks > 0 || ProgInfo.DynamicCallStack;
   ProgInfo.ComputePGMRSrc2 =
       S_00B84C_SCRATCH_EN(EnablePrivateSegment) |
       S_00B84C_USER_SGPR(MFI->getNumUserSGPRs()) |
@@ -1107,7 +1122,7 @@ void AMDGPUAsmPrinter::getAmdKernelCode(amd_kernel_code_t &Out,
   if (MFI->hasDispatchPtr())
     Out.code_properties |= AMD_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_PTR;
 
-  if (MFI->hasQueuePtr() && AMDGPU::getAmdhsaCodeObjectVersion() < 5)
+  if (MFI->hasQueuePtr() && CodeObjectVersion < AMDGPU::AMDHSA_COV5)
     Out.code_properties |= AMD_CODE_PROPERTY_ENABLE_SGPR_QUEUE_PTR;
 
   if (MFI->hasKernargSegmentPtr())

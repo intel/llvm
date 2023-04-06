@@ -7,11 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/errno/libc_errno.h"
 #include "src/math/sincosf.h"
+#include "test/UnitTest/FPMatcher.h"
+#include "test/UnitTest/Test.h"
 #include "test/src/math/sdcomp26094.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
-#include "utils/UnitTest/FPMatcher.h"
-#include "utils/UnitTest/Test.h"
 #include <math.h>
 
 #include <errno.h>
@@ -25,7 +26,7 @@ namespace mpfr = __llvm_libc::testing::mpfr;
 DECLARE_SPECIAL_CONSTANTS(float)
 
 TEST(LlvmLibcSinCosfTest, SpecialNumbers) {
-  errno = 0;
+  libc_errno = 0;
   float sin, cos;
 
   __llvm_libc::sincosf(aNaN, &sin, &cos);

@@ -22,6 +22,7 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/STLExtras.h"
+#include <optional>
 
 using namespace clang;
 
@@ -1099,7 +1100,7 @@ StmtResult Parser::handleExprStmt(ExprResult E, ParsedStmtContext StmtCtx) {
       ++LookAhead;
     }
     // Then look to see if the next two tokens close the statement expression;
-    // if so, this expression statement is the last statement in a statment
+    // if so, this expression statement is the last statement in a statement
     // expression.
     IsStmtExprResult = GetLookAheadToken(LookAhead).is(tok::r_brace) &&
                        GetLookAheadToken(LookAhead + 1).is(tok::r_paren);
@@ -1488,7 +1489,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   Sema::ConditionResult Cond;
   SourceLocation LParen;
   SourceLocation RParen;
-  llvm::Optional<bool> ConstexprCondition;
+  std::optional<bool> ConstexprCondition;
   if (!IsConsteval) {
 
     if (ParseParenExprOrCondition(&InitStmt, Cond, IfLoc,

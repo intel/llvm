@@ -1,0 +1,42 @@
+@LIT_SITE_CFG_IN_HEADER@
+
+import sys
+import platform
+
+
+config.dpcpp_compiler = lit_config.params.get("dpcpp_compiler", "@SYCL_CXX_COMPILER@")
+config.dpcpp_root_dir= os.path.dirname(os.path.dirname(config.dpcpp_compiler))
+
+config.llvm_tools_dir = os.path.join(config.dpcpp_root_dir, 'bin')
+config.lit_tools_dir = os.path.dirname("@TEST_SUITE_LIT@")
+config.dump_ir_supported = lit_config.params.get("dump_ir", ("@DUMP_IR_SUPPORTED@" if "@DUMP_IR_SUPPORTED@" else False))
+config.sycl_tools_dir = config.llvm_tools_dir
+config.sycl_include = os.path.join(config.dpcpp_root_dir, 'include')
+config.sycl_obj_root = "@CMAKE_CURRENT_BINARY_DIR@"
+config.sycl_libs_dir =  os.path.join(config.dpcpp_root_dir, ('bin' if platform.system() == "Windows" else 'lib'))
+
+config.opencl_libs_dir = (os.path.dirname("@OpenCL_LIBRARY@") if "@OpenCL_LIBRARY@" else "")
+config.level_zero_libs_dir = "@LEVEL_ZERO_LIBS_DIR@"
+config.level_zero_include = "@LEVEL_ZERO_INCLUDE@"
+config.cuda_libs_dir = "@CUDA_LIBS_DIR@"
+config.cuda_include = "@CUDA_INCLUDE@"
+
+config.opencl_include_dir = os.path.join(config.sycl_include, 'sycl')
+config.target_devices = lit_config.params.get("target_devices", "@SYCL_TARGET_DEVICES@")
+config.sycl_be = lit_config.params.get("sycl_be", "@SYCL_BE@")
+config.hip_platform = "@HIP_PLATFORM@"
+config.amd_arch = "@AMD_ARCH@"
+config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
+config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
+config.cxx_flags = "@CMAKE_CXX_FLAGS@"
+config.c_flags = "@CMAKE_C_FLAGS@"
+config.external_tests = "@SYCL_EXTERNAL_TESTS@"
+config.extra_include = "@CMAKE_CURRENT_SOURCE_DIR@/include"
+config.gpu_aot_target_opts = lit_config.params.get("gpu_aot_target_opts", "@GPU_AOT_TARGET_OPTS@")
+
+config.run_launcher = "@SYCL_E2E_RUN_LAUNCHER@"
+
+import lit.llvm
+lit.llvm.initialize(lit_config, config)
+
+lit_config.load_config(config, "@CMAKE_CURRENT_SOURCE_DIR@/lit.cfg.py")

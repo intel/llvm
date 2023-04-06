@@ -18,7 +18,6 @@
 #include <__type_traits/is_specialization.h>
 #include <__utility/pair.h>
 #include <tuple>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -26,7 +25,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 /// The character type specializations of \ref formatter.
 template <class _CharT>
@@ -56,7 +55,7 @@ concept __formattable =
       { __cf.format(__t, __fc) } -> same_as<__fmt_iter_for<_CharT>>;
     };
 
-#  if _LIBCPP_STD_VER > 20
+#  if _LIBCPP_STD_VER >= 23
 template <class _Tp, class _CharT>
 concept formattable = __formattable<_Tp, _CharT>;
 
@@ -66,12 +65,11 @@ concept formattable = __formattable<_Tp, _CharT>;
 // TODO FMT Add a test to validate we fail when using that concept after P2165
 // has been implemented.
 template <class _Tp>
-concept __fmt_pair_like = __is_specialization_v<_Tp, pair> ||
-                          // Use a requires since tuple_size_v may fail to instantiate,
-                          (__is_specialization_v<_Tp, tuple> && requires { tuple_size_v<_Tp> == 2; });
+concept __fmt_pair_like =
+    __is_specialization_v<_Tp, pair> || (__is_specialization_v<_Tp, tuple> && tuple_size_v<_Tp> == 2);
 
-#  endif //_LIBCPP_STD_VER > 20
-#endif //_LIBCPP_STD_VER > 17
+#  endif //_LIBCPP_STD_VER >= 23
+#endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

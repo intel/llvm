@@ -17,6 +17,9 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.ctype.tolower
     libc.src.ctype.toupper
     
+    # errno.h entrypoints
+    libc.src.errno.errno
+
     # fcntl.h entrypoints
     libc.src.fcntl.creat
     libc.src.fcntl.open
@@ -40,6 +43,8 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.memset
     libc.src.string.stpcpy
     libc.src.string.stpncpy
+    libc.src.string.strcasecmp
+    libc.src.string.strcasestr
     libc.src.string.strcat
     libc.src.string.strchr
     libc.src.string.strcmp
@@ -51,6 +56,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.strlcat
     libc.src.string.strlcpy
     libc.src.string.strlen
+    libc.src.string.strncasecmp
     libc.src.string.strncat
     libc.src.string.strncmp
     libc.src.string.strncpy
@@ -207,8 +213,10 @@ set(TARGET_LIBM_ENTRYPOINTS
 
     # math.h entrypoints
     libc.src.math.acosf
+    libc.src.math.acoshf
     libc.src.math.asin
     libc.src.math.asinf
+    libc.src.math.asinhf
     libc.src.math.atanf
     libc.src.math.atanhf    
     libc.src.math.copysign
@@ -265,6 +273,7 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.ldexp
     libc.src.math.ldexpf
     libc.src.math.ldexpl
+    libc.src.math.log10
     libc.src.math.log10f
     libc.src.math.log1pf
     libc.src.math.log2f
@@ -294,6 +303,9 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.round
     libc.src.math.roundf
     libc.src.math.roundl
+    libc.src.math.scalbn
+    libc.src.math.scalbnf
+    libc.src.math.scalbnl
     libc.src.math.sincosf
     libc.src.math.sinhf
     libc.src.math.sinf
@@ -309,6 +321,12 @@ set(TARGET_LIBM_ENTRYPOINTS
 
 if(LLVM_LIBC_FULL_BUILD)
   list(APPEND TARGET_LIBC_ENTRYPOINTS
+    # network.h entrypoints
+    libc.src.network.htonl
+    libc.src.network.htons
+    libc.src.network.ntohl
+    libc.src.network.ntohs
+
     # pthread.h entrypoints
     libc.src.pthread.pthread_atfork
     libc.src.pthread.pthread_attr_destroy

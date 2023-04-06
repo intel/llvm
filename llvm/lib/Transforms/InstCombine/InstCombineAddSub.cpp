@@ -797,7 +797,7 @@ static Value *checkForNegativeOperand(BinaryOperator &I,
   // LHS = XOR(Y, C1), Y = AND(Z, C2), C1 == (C2 + 1) => LHS == NEG(OR(Z, ~C2))
   // ADD(LHS, RHS) == SUB(RHS, OR(Z, ~C2))
   if (match(LHS, m_Xor(m_Value(Y), m_APInt(C1))))
-    if (C1->countTrailingZeros() == 0)
+    if (C1->countr_zero() == 0)
       if (match(Y, m_And(m_Value(Z), m_APInt(C2))) && *C1 == (*C2 + 1)) {
         Value *NewOr = Builder.CreateOr(Z, ~(*C2));
         return Builder.CreateSub(RHS, NewOr, "sub");
@@ -972,6 +972,16 @@ Instruction *InstCombinerImpl::foldAddWithConstant(BinaryOperator &Add) {
         C2 == C3 && *C2 == Ty->getScalarSizeInBits() - 1) {
       Value *NotX = Builder.CreateNot(X);
       return BinaryOperator::CreateAnd(NotX, ConstantInt::get(Ty, 1));
+    }
+  }
+
+  // Fold (add (zext (add X, -1)), 1) -> (zext X) if X is non-zero.
+  // TODO: There's a general form for any constant on the outer add.
+  if (C->isOne()) {
+    if (match(Op0, m_ZExt(m_Add(m_Value(X), m_AllOnes())))) {
+      const SimplifyQuery Q = SQ.getWithInstruction(&Add);
+      if (llvm::isKnownNonZero(X, DL, 0, Q.AC, Q.CxtI, Q.DT))
+        return new ZExtInst(X, Ty);
     }
   }
 
@@ -1421,6 +1431,14 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
       Value *Sub = Builder.CreateSub(A, B);
       return BinaryOperator::CreateAdd(Sub, ConstantExpr::getAdd(C1, C2));
     }
+
+    // Canonicalize a constant sub operand as an add operand for better folding:
+    // (C1 - A) + B --> (B - A) + C1
+    if (match(&I, m_c_Add(m_OneUse(m_Sub(m_ImmConstant(C1), m_Value(A))),
+                          m_Value(B)))) {
+      Value *Sub = Builder.CreateSub(B, A, "reass.sub");
+      return BinaryOperator::CreateAdd(Sub, C1);
+    }
   }
 
   // X % C0 + (( X / C0 ) % C1) * C0 => X % (C0 * C1)
@@ -1439,7 +1457,7 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
 
   // (A & 2^C1) + A => A & (2^C1 - 1) iff bit C1 in A is a sign bit
   if (match(&I, m_c_Add(m_And(m_Value(A), m_APInt(C1)), m_Deferred(A))) &&
-      C1->isPowerOf2() && (ComputeNumSignBits(A) > C1->countLeadingZeros())) {
+      C1->isPowerOf2() && (ComputeNumSignBits(A) > C1->countl_zero())) {
     Constant *NewMask = ConstantInt::get(RHS->getType(), *C1 - 1);
     return BinaryOperator::CreateAnd(A, NewMask);
   }
@@ -1515,9 +1533,22 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
   const APInt *NegPow2C;
   if (match(&I, m_c_Add(m_OneUse(m_Mul(m_Value(A), m_NegatedPower2(NegPow2C))),
                         m_Value(B)))) {
-    Constant *ShiftAmtC = ConstantInt::get(Ty, NegPow2C->countTrailingZeros());
+    Constant *ShiftAmtC = ConstantInt::get(Ty, NegPow2C->countr_zero());
     Value *Shl = Builder.CreateShl(A, ShiftAmtC);
     return BinaryOperator::CreateSub(B, Shl);
+  }
+
+  // Canonicalize signum variant that ends in add:
+  // (A s>> (BW - 1)) + (zext (A s> 0)) --> (A s>> (BW - 1)) | (zext (A != 0))
+  ICmpInst::Predicate Pred;
+  uint64_t BitWidth = Ty->getScalarSizeInBits();
+  if (match(LHS, m_AShr(m_Value(A), m_SpecificIntAllowUndef(BitWidth - 1))) &&
+      match(RHS, m_OneUse(m_ZExt(
+                     m_OneUse(m_ICmp(Pred, m_Specific(A), m_ZeroInt()))))) &&
+      Pred == CmpInst::ICMP_SGT) {
+    Value *NotZero = Builder.CreateIsNotNull(A, "isnotnull");
+    Value *Zext = Builder.CreateZExt(NotZero, Ty, "isnotnull.zext");
+    return BinaryOperator::CreateOr(LHS, Zext);
   }
 
   if (Instruction *Ashr = foldAddToAshr(I))
@@ -2291,8 +2322,9 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
   Value *A;
   const APInt *ShAmt;
   Type *Ty = I.getType();
+  unsigned BitWidth = Ty->getScalarSizeInBits();
   if (match(Op1, m_AShr(m_Value(A), m_APInt(ShAmt))) &&
-      Op1->hasNUses(2) && *ShAmt == Ty->getScalarSizeInBits() - 1 &&
+      Op1->hasNUses(2) && *ShAmt == BitWidth - 1 &&
       match(Op0, m_OneUse(m_c_Xor(m_Specific(A), m_Specific(Op1))))) {
     // B = ashr i32 A, 31 ; smear the sign bit
     // sub (xor A, B), B  ; flip bits if negative and subtract -1 (add 1)
@@ -2311,8 +2343,7 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
   const APInt *AddC, *AndC;
   if (match(Op0, m_Add(m_Value(X), m_APInt(AddC))) &&
       match(Op1, m_And(m_Specific(X), m_APInt(AndC)))) {
-    unsigned BitWidth = Ty->getScalarSizeInBits();
-    unsigned Cttz = AddC->countTrailingZeros();
+    unsigned Cttz = AddC->countr_zero();
     APInt HighMask(APInt::getHighBitsSet(BitWidth, BitWidth - Cttz));
     if ((HighMask & *AndC).isZero())
       return BinaryOperator::CreateAnd(Op0, ConstantInt::get(Ty, ~(*AndC)));
@@ -2353,11 +2384,39 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
   }
 
   // C - ctpop(X) => ctpop(~X) if C is bitwidth
-  if (match(Op0, m_SpecificInt(Ty->getScalarSizeInBits())) &&
+  if (match(Op0, m_SpecificInt(BitWidth)) &&
       match(Op1, m_OneUse(m_Intrinsic<Intrinsic::ctpop>(m_Value(X)))))
     return replaceInstUsesWith(
         I, Builder.CreateIntrinsic(Intrinsic::ctpop, {I.getType()},
                                    {Builder.CreateNot(X)}));
+
+  // Reduce multiplies for difference-of-squares by factoring:
+  // (X * X) - (Y * Y) --> (X + Y) * (X - Y)
+  if (match(Op0, m_OneUse(m_Mul(m_Value(X), m_Deferred(X)))) &&
+      match(Op1, m_OneUse(m_Mul(m_Value(Y), m_Deferred(Y))))) {
+    auto *OBO0 = cast<OverflowingBinaryOperator>(Op0);
+    auto *OBO1 = cast<OverflowingBinaryOperator>(Op1);
+    bool PropagateNSW = I.hasNoSignedWrap() && OBO0->hasNoSignedWrap() &&
+                        OBO1->hasNoSignedWrap() && BitWidth > 2;
+    bool PropagateNUW = I.hasNoUnsignedWrap() && OBO0->hasNoUnsignedWrap() &&
+                        OBO1->hasNoUnsignedWrap() && BitWidth > 1;
+    Value *Add = Builder.CreateAdd(X, Y, "add", PropagateNUW, PropagateNSW);
+    Value *Sub = Builder.CreateSub(X, Y, "sub", PropagateNUW, PropagateNSW);
+    Value *Mul = Builder.CreateMul(Add, Sub, "", PropagateNUW, PropagateNSW);
+    return replaceInstUsesWith(I, Mul);
+  }
+
+  // max(X,Y) nsw/nuw - min(X,Y) --> abs(X nsw - Y)
+  if (match(Op0, m_OneUse(m_c_SMax(m_Value(X), m_Value(Y)))) &&
+      match(Op1, m_OneUse(m_c_SMin(m_Specific(X), m_Specific(Y))))) {
+    if (I.hasNoUnsignedWrap() || I.hasNoSignedWrap()) {
+      Value *Sub =
+          Builder.CreateSub(X, Y, "sub", /*HasNUW=*/false, /*HasNSW=*/true);
+      Value *Call =
+          Builder.CreateBinaryIntrinsic(Intrinsic::abs, Sub, Builder.getTrue());
+      return replaceInstUsesWith(I, Call);
+    }
+  }
 
   return TryToNarrowDeduceFlags();
 }

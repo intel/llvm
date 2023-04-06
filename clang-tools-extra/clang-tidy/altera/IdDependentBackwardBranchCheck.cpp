@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace altera {
+namespace clang::tidy::altera {
 
 void IdDependentBackwardBranchCheck::registerMatchers(MatchFinder *Finder) {
   // Prototype to identify all variables which hold a thread-variant ID.
@@ -243,22 +241,19 @@ void IdDependentBackwardBranchCheck::check(
     IdDependencyRecord *IdDepVar = hasIdDepVar(CondExpr);
     IdDependencyRecord *IdDepField = hasIdDepField(CondExpr);
     if (IdDepVar) {
-      // Change one of these to a Note
-      diag(IdDepVar->Location, IdDepVar->Message, DiagnosticIDs::Note);
       diag(CondExpr->getBeginLoc(),
            "backward branch (%select{do|while|for}0 loop) is ID-dependent due "
            "to variable reference to %1 and may cause performance degradation")
           << Type << IdDepVar->VariableDeclaration;
+      diag(IdDepVar->Location, IdDepVar->Message, DiagnosticIDs::Note);
     } else if (IdDepField) {
-      diag(IdDepField->Location, IdDepField->Message, DiagnosticIDs::Note);
       diag(CondExpr->getBeginLoc(),
            "backward branch (%select{do|while|for}0 loop) is ID-dependent due "
            "to member reference to %1 and may cause performance degradation")
           << Type << IdDepField->FieldDeclaration;
+      diag(IdDepField->Location, IdDepField->Message, DiagnosticIDs::Note);
     }
   }
 }
 
-} // namespace altera
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::altera

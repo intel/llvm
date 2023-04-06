@@ -277,19 +277,5 @@ T *aligned_alloc(
                           Kind, PropList, CodeLoc);
 }
 
-// Pointer queries
-/// Query the allocation type from a USM pointer
-///
-/// \param ptr is the USM pointer to query
-/// \param ctxt is the sycl context the ptr was allocated in
-__SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
-
-/// Queries the device against which the pointer was allocated
-/// Throws an invalid_object_error if ptr is a host allocation.
-///
-/// \param ptr is the USM pointer to query
-/// \param ctxt is the sycl context the ptr was allocated in
-__SYCL_EXPORT device get_pointer_device(const void *ptr, const context &ctxt);
-
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

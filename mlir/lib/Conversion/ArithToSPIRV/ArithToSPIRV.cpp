@@ -845,7 +845,8 @@ CmpIOpPattern::matchAndRewrite(arith::CmpIOp op, OpAdaptor adaptor,
 #define DISPATCH(cmpPredicate, spirvOp)                                        \
   case cmpPredicate:                                                           \
     if (spirvOp::template hasTrait<OpTrait::spirv::UnsignedOp>() &&            \
-        srcType != dstType && !hasSameBitwidth(srcType, dstType)) {            \
+        !getElementTypeOrSelf(srcType).isIndex() && srcType != dstType &&      \
+        !hasSameBitwidth(srcType, dstType)) {                                  \
       return op.emitError(                                                     \
           "bitwidth emulation is not implemented yet on unsigned op");         \
     }                                                                          \
@@ -977,9 +978,9 @@ LogicalResult AddUIExtendedOpPattern::matchAndRewrite(
                                                      adaptor.getRhs());
 
   Value sumResult = rewriter.create<spirv::CompositeExtractOp>(
-      loc, result, llvm::makeArrayRef(0));
+      loc, result, llvm::ArrayRef(0));
   Value carryValue = rewriter.create<spirv::CompositeExtractOp>(
-      loc, result, llvm::makeArrayRef(1));
+      loc, result, llvm::ArrayRef(1));
 
   // Convert the carry value to boolean.
   Value one = spirv::ConstantOp::getOne(dstElemTy, loc, rewriter);
@@ -1002,9 +1003,9 @@ LogicalResult MulIExtendedOpPattern<ArithMulOp, SPIRVMulOp>::matchAndRewrite(
       rewriter.create<SPIRVMulOp>(loc, adaptor.getLhs(), adaptor.getRhs());
 
   Value low = rewriter.create<spirv::CompositeExtractOp>(loc, result,
-                                                         llvm::makeArrayRef(0));
-  Value high = rewriter.create<spirv::CompositeExtractOp>(
-      loc, result, llvm::makeArrayRef(1));
+                                                         llvm::ArrayRef(0));
+  Value high = rewriter.create<spirv::CompositeExtractOp>(loc, result,
+                                                          llvm::ArrayRef(1));
 
   rewriter.replaceOp(op, {low, high});
   return success();
@@ -1100,6 +1101,7 @@ void mlir::arith::populateArithToSPIRVPatterns(
     TypeCastingOpPattern<arith::TruncFOp, spirv::FConvertOp>,
     TypeCastingOpPattern<arith::UIToFPOp, spirv::ConvertUToFOp>, UIToFPI1Pattern,
     TypeCastingOpPattern<arith::SIToFPOp, spirv::ConvertSToFOp>,
+    TypeCastingOpPattern<arith::FPToUIOp, spirv::ConvertFToUOp>,
     TypeCastingOpPattern<arith::FPToSIOp, spirv::ConvertFToSOp>,
     TypeCastingOpPattern<arith::IndexCastOp, spirv::SConvertOp>,
     TypeCastingOpPattern<arith::IndexCastUIOp, spirv::UConvertOp>,

@@ -19,10 +19,10 @@
 #include "flang/Lower/Bridge.h"
 #include "flang/Lower/PFTBuilder.h"
 #include "flang/Lower/Support/Verifier.h"
-#include "flang/Optimizer/Support/FIRContext.h"
+#include "flang/Optimizer/Dialect/Support/FIRContext.h"
+#include "flang/Optimizer/Dialect/Support/KindMapping.h"
 #include "flang/Optimizer/Support/InitFIR.h"
 #include "flang/Optimizer/Support/InternalNames.h"
-#include "flang/Optimizer/Support/KindMapping.h"
 #include "flang/Optimizer/Support/Utils.h"
 #include "flang/Optimizer/Transforms/Passes.h"
 #include "flang/Parser/characters.h"
@@ -37,7 +37,9 @@
 #include "flang/Semantics/runtime-type-info.h"
 #include "flang/Semantics/semantics.h"
 #include "flang/Semantics/unparse-with-symbols.h"
+#include "flang/Tools/CrossToolHelpers.h"
 #include "flang/Version.inc"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
@@ -47,12 +49,10 @@
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
@@ -60,6 +60,8 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 
 //===----------------------------------------------------------------------===//
 // Some basic command-line options
@@ -122,6 +124,11 @@ static llvm::cl::opt<bool> enableOpenMP("fopenmp",
                                         llvm::cl::desc("enable openmp"),
                                         llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+    enableOpenMPDevice("fopenmp-is-device",
+                       llvm::cl::desc("enable openmp device compilation"),
+                       llvm::cl::init(false));
+
 static llvm::cl::opt<bool> enableOpenACC("fopenacc",
                                          llvm::cl::desc("enable openacc"),
                                          llvm::cl::init(false));
@@ -142,11 +149,10 @@ static llvm::cl::opt<bool> useHLFIR("hlfir",
 
 using ProgramName = std::string;
 
-// Print the module without the "module { ... }" wrapper.
+// Print the module with the "module { ... }" wrapper, preventing
+// information loss from attribute information appended to the module
 static void printModule(mlir::ModuleOp mlirModule, llvm::raw_ostream &out) {
-  for (auto &op : *mlirModule.getBody())
-    out << op << '\n';
-  out << '\n';
+  out << mlirModule << '\n';
 }
 
 static void registerAllPasses() {
@@ -238,6 +244,8 @@ static mlir::LogicalResult convertFortranSourceToMLIR(
       kindMap, loweringOptions, {});
   burnside.lower(parseTree, semanticsContext);
   mlir::ModuleOp mlirModule = burnside.getModule();
+  if (enableOpenMP)
+    setOffloadModuleInterfaceAttributes(mlirModule, enableOpenMPDevice);
   std::error_code ec;
   std::string outputName = outputFilename;
   if (!outputName.size())
@@ -249,9 +257,10 @@ static mlir::LogicalResult convertFortranSourceToMLIR(
            << outputName;
 
   // Otherwise run the default passes.
-  mlir::PassManager pm(&ctx, mlir::OpPassManager::Nesting::Implicit);
+  mlir::PassManager pm(mlirModule->getName(),
+                       mlir::OpPassManager::Nesting::Implicit);
   pm.enableVerifier(/*verifyPasses=*/true);
-  mlir::applyPassManagerCLOptions(pm);
+  (void)mlir::applyPassManagerCLOptions(pm);
   if (passPipeline.hasAnyOccurrences()) {
     // run the command-line specified pipeline
     (void)passPipeline.addToPipeline(pm, [&](const llvm::Twine &msg) {

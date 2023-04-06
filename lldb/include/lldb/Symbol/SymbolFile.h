@@ -25,9 +25,11 @@
 #include "lldb/Utility/XcodeSDK.h"
 #include "lldb/lldb-private.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/Errc.h"
 
 #include <mutex>
+#include <optional>
 
 #if defined(LLDB_CONFIGURATION_DEBUG)
 #define ASSERT_MODULE_LOCK(expr) (expr->AssertModuleLock())
@@ -145,6 +147,17 @@ public:
   virtual lldb::LanguageType ParseLanguage(CompileUnit &comp_unit) = 0;
   /// Return the Xcode SDK comp_unit was compiled against.
   virtual XcodeSDK ParseXcodeSDK(CompileUnit &comp_unit) { return {}; }
+
+  /// This function exists because SymbolFileDWARFDebugMap may extra compile
+  /// units which aren't exposed as "real" compile units. In every other
+  /// case this function should behave identically as ParseLanguage.
+  virtual llvm::SmallSet<lldb::LanguageType, 4>
+  ParseAllLanguages(CompileUnit &comp_unit) {
+    llvm::SmallSet<lldb::LanguageType, 4> langs;
+    langs.insert(ParseLanguage(comp_unit));
+    return langs;
+  }
+
   virtual size_t ParseFunctions(CompileUnit &comp_unit) = 0;
   virtual bool ParseLineTable(CompileUnit &comp_unit) = 0;
   virtual bool ParseDebugMacros(CompileUnit &comp_unit) = 0;
@@ -204,7 +217,7 @@ public:
   /// To support variable-length array types, this function takes an
   /// optional \p ExecutionContext. If \c exe_ctx is non-null, the
   /// dynamic characteristics for that context are returned.
-  virtual llvm::Optional<ArrayInfo>
+  virtual std::optional<ArrayInfo>
   GetDynamicArrayInfoForUID(lldb::user_id_t type_uid,
                             const lldb_private::ExecutionContext *exe_ctx) = 0;
 
@@ -411,6 +424,17 @@ public:
   virtual bool GetDebugInfoHadFrameVariableErrors() const = 0;
   virtual void SetDebugInfoHadFrameVariableErrors() = 0;
 
+  virtual lldb::TypeSP
+  MakeType(lldb::user_id_t uid, ConstString name,
+           std::optional<uint64_t> byte_size, SymbolContextScope *context,
+           lldb::user_id_t encoding_uid,
+           Type::EncodingDataType encoding_uid_type, const Declaration &decl,
+           const CompilerType &compiler_qual_type,
+           Type::ResolveState compiler_type_resolve_state,
+           uint32_t opaque_payload = 0) = 0;
+
+  virtual lldb::TypeSP CopyType(const lldb::TypeSP &other_type) = 0;
+
 protected:
   void AssertModuleLock();
 
@@ -491,6 +515,35 @@ public:
      m_debug_info_had_variable_errors = true;
   }
 
+  /// This function is used to create types that belong to a SymbolFile. The
+  /// symbol file will own a strong reference to the type in an internal type
+  /// list.
+  lldb::TypeSP MakeType(lldb::user_id_t uid, ConstString name,
+                        std::optional<uint64_t> byte_size,
+                        SymbolContextScope *context,
+                        lldb::user_id_t encoding_uid,
+                        Type::EncodingDataType encoding_uid_type,
+                        const Declaration &decl,
+                        const CompilerType &compiler_qual_type,
+                        Type::ResolveState compiler_type_resolve_state,
+                        uint32_t opaque_payload = 0) override {
+     lldb::TypeSP type_sp (new Type(
+         uid, this, name, byte_size, context, encoding_uid,
+         encoding_uid_type, decl, compiler_qual_type,
+         compiler_type_resolve_state, opaque_payload));
+     m_type_list.Insert(type_sp);
+     return type_sp;
+  }
+
+  lldb::TypeSP CopyType(const lldb::TypeSP &other_type) override {
+     // Make sure the real symbol file matches when copying types.
+     if (GetBackingSymbolFile() != other_type->GetSymbolFile())
+      return lldb::TypeSP();
+     lldb::TypeSP type_sp(new Type(*other_type));
+     m_type_list.Insert(type_sp);
+     return type_sp;
+  }
+
 protected:
   virtual uint32_t CalculateNumCompileUnits() = 0;
   virtual lldb::CompUnitSP ParseCompileUnitAtIndex(uint32_t idx) = 0;
@@ -501,9 +554,8 @@ protected:
                                    // case it isn't the same as the module
                                    // object file (debug symbols in a separate
                                    // file)
-  llvm::Optional<std::vector<lldb::CompUnitSP>> m_compile_units;
+  std::optional<std::vector<lldb::CompUnitSP>> m_compile_units;
   TypeList m_type_list;
-  Symtab *m_symtab = nullptr;
   uint32_t m_abilities = 0;
   bool m_calculated_abilities = false;
   bool m_index_was_loaded_from_cache = false;
@@ -516,6 +568,10 @@ protected:
 private:
   SymbolFileCommon(const SymbolFileCommon &) = delete;
   const SymbolFileCommon &operator=(const SymbolFileCommon &) = delete;
+
+  /// Do not use m_symtab directly, as it may be freed. Use GetSymtab()
+  /// to access it instead.
+  Symtab *m_symtab = nullptr;
 };
 
 } // namespace lldb_private

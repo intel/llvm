@@ -73,7 +73,14 @@ enum class UnresolvedPolicy { ReportError, Warn, Ignore };
 enum class OrphanHandlingPolicy { Place, Warn, Error };
 
 // For --sort-section and linkerscript sorting rules.
-enum class SortSectionPolicy { Default, None, Alignment, Name, Priority };
+enum class SortSectionPolicy {
+  Default,
+  None,
+  Alignment,
+  Name,
+  Priority,
+  Reverse,
+};
 
 // For --target2
 enum class Target2Policy { Abs, Rel, GotRel };
@@ -318,6 +325,7 @@ struct Config {
   uint64_t zStackSize;
   unsigned ltoPartitions;
   unsigned ltoo;
+  llvm::CodeGenOpt::Level ltoCgo;
   unsigned optimize;
   StringRef thinLTOJobs;
   unsigned timeTraceGranularity;
@@ -450,7 +458,7 @@ LLVM_LIBRARY_VISIBILITY extern Ctx ctx;
 // The first two elements of versionDefinitions represent VER_NDX_LOCAL and
 // VER_NDX_GLOBAL. This helper returns other elements.
 static inline ArrayRef<VersionDefinition> namedVersionDefs() {
-  return llvm::makeArrayRef(config->versionDefinitions).slice(2);
+  return llvm::ArrayRef(config->versionDefinitions).slice(2);
 }
 
 void errorOrWarn(const Twine &msg);

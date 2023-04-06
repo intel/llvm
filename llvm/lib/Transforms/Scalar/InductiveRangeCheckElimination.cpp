@@ -671,8 +671,7 @@ static bool isSafeDecreasingBound(const SCEV *Start,
   LLVM_DEBUG(dbgs() << "irce: Start: " << *Start << "\n");
   LLVM_DEBUG(dbgs() << "irce: Step: " << *Step << "\n");
   LLVM_DEBUG(dbgs() << "irce: BoundSCEV: " << *BoundSCEV << "\n");
-  LLVM_DEBUG(dbgs() << "irce: Pred: " << ICmpInst::getPredicateName(Pred)
-                    << "\n");
+  LLVM_DEBUG(dbgs() << "irce: Pred: " << Pred << "\n");
   LLVM_DEBUG(dbgs() << "irce: LatchExitBrIdx: " << LatchBrExitIdx << "\n");
 
   bool IsSigned = ICmpInst::isSigned(Pred);
@@ -719,8 +718,7 @@ static bool isSafeIncreasingBound(const SCEV *Start,
   LLVM_DEBUG(dbgs() << "irce: Start: " << *Start << "\n");
   LLVM_DEBUG(dbgs() << "irce: Step: " << *Step << "\n");
   LLVM_DEBUG(dbgs() << "irce: BoundSCEV: " << *BoundSCEV << "\n");
-  LLVM_DEBUG(dbgs() << "irce: Pred: " << ICmpInst::getPredicateName(Pred)
-                    << "\n");
+  LLVM_DEBUG(dbgs() << "irce: Pred: " << Pred << "\n");
   LLVM_DEBUG(dbgs() << "irce: LatchExitBrIdx: " << LatchBrExitIdx << "\n");
 
   bool IsSigned = ICmpInst::isSigned(Pred);
@@ -1538,7 +1536,7 @@ bool LoopConstrainer::run() {
   auto NewBlocksEnd =
       std::remove(std::begin(NewBlocks), std::end(NewBlocks), nullptr);
 
-  addToParentLoopIfNeeded(makeArrayRef(std::begin(NewBlocks), NewBlocksEnd));
+  addToParentLoopIfNeeded(ArrayRef(std::begin(NewBlocks), NewBlocksEnd));
 
   DT.recalculate(F);
 

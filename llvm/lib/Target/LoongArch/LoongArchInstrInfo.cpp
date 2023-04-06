@@ -17,6 +17,7 @@
 #include "MCTargetDesc/LoongArchMCTargetDesc.h"
 #include "MCTargetDesc/LoongArchMatInt.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
+#include "llvm/MC/MCInstBuilder.h"
 
 using namespace llvm;
 
@@ -27,6 +28,13 @@ LoongArchInstrInfo::LoongArchInstrInfo(LoongArchSubtarget &STI)
     : LoongArchGenInstrInfo(LoongArch::ADJCALLSTACKDOWN,
                             LoongArch::ADJCALLSTACKUP),
       STI(STI) {}
+
+MCInst LoongArchInstrInfo::getNop() const {
+  return MCInstBuilder(LoongArch::ANDI)
+      .addReg(LoongArch::R0)
+      .addReg(LoongArch::R0)
+      .addImm(0);
+}
 
 void LoongArchInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                      MachineBasicBlock::iterator MBBI,
@@ -484,5 +492,5 @@ LoongArchInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
       {MO_IE_PC_LO, "loongarch-ie-pc-lo"},
       {MO_LD_PC_HI, "loongarch-ld-pc-hi"},
       {MO_GD_PC_HI, "loongarch-gd-pc-hi"}};
-  return makeArrayRef(TargetFlags);
+  return ArrayRef(TargetFlags);
 }

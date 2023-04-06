@@ -32,9 +32,9 @@ def SDT_AVRSelectCC
 // AVR Specific Node Definitions
 //===----------------------------------------------------------------------===//
 
-def AVRretflag : SDNode<"AVRISD::RET_FLAG", SDTNone,
+def AVRretglue : SDNode<"AVRISD::RET_GLUE", SDTNone,
                         [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
-def AVRretiflag : SDNode<"AVRISD::RETI_FLAG", SDTNone,
+def AVRretiglue : SDNode<"AVRISD::RETI_GLUE", SDTNone,
                          [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
 def AVRcallseq_start : SDNode<"ISD::CALLSEQ_START", SDT_AVRCallSeqStart,
@@ -69,6 +69,9 @@ def AVRasrbn : SDNode<"AVRISD::ASRBN", SDTIntBinOp>;
 def AVRlslwn : SDNode<"AVRISD::LSLWN", SDTIntBinOp>;
 def AVRlsrwn : SDNode<"AVRISD::LSRWN", SDTIntBinOp>;
 def AVRasrwn : SDNode<"AVRISD::ASRWN", SDTIntBinOp>;
+def AVRlslw : SDNode<"AVRISD::LSLW", SDTIntShiftDOp>;
+def AVRlsrw : SDNode<"AVRISD::LSRW", SDTIntShiftDOp>;
+def AVRasrw : SDNode<"AVRISD::ASRW", SDTIntShiftDOp>;
 
 // Pseudo shift nodes for non-constant shift amounts.
 def AVRlslLoop : SDNode<"AVRISD::LSLLOOP", SDTIntShiftOp>;
@@ -1007,9 +1010,9 @@ let isCall = 1 in {
 // Return instructions.
 //===----------------------------------------------------------------------===//
 let isTerminator = 1, isReturn = 1, isBarrier = 1 in {
-  def RET : F16<0b1001010100001000, (outs), (ins), "ret", [(AVRretflag)]>;
+  def RET : F16<0b1001010100001000, (outs), (ins), "ret", [(AVRretglue)]>;
 
-  def RETI : F16<0b1001010100011000, (outs), (ins), "reti", [(AVRretiflag)]>;
+  def RETI : F16<0b1001010100011000, (outs), (ins), "reti", [(AVRretiglue)]>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1687,6 +1690,11 @@ let canFoldAsLoad = 1, isReMaterializable = 1, mayLoad = 1,
       : F16<0b1001010111001000, (outs), (ins), "lpm", []>,
       Requires<[HasLPM]>;
 
+  // This pseudo is combination of LPM and MOV instructions.
+  let Defs = [R0] in
+  def LPMBRdZ : Pseudo<(outs GPR8:$dst), (ins ZREG:$z), "lpmb\t$dst, $z", []>,
+                Requires<[HasLPM]>;
+
   def LPMRdZ : FLPMX<0, 0,
                      (outs GPR8
                       : $rd),
@@ -1739,12 +1747,14 @@ let mayLoad = 1, hasSideEffects = 0 in {
                     Requires<[HasELPMX]>;
   }
 
+  // This pseudo is combination of the OUT and ELPM instructions.
+  let Defs = [R0] in
+  def ELPMBRdZ : Pseudo<(outs GPR8:$dst), (ins ZREG:$z, LD8:$p),
+                        "elpmb\t$dst, $z, $p", []>,
+                 Requires<[HasELPM]>;
+
   // These pseudos are combination of the OUT and ELPM instructions.
   let Defs = [R31R30], hasSideEffects = 1 in {
-    def ELPMBRdZ : Pseudo<(outs GPR8:$dst), (ins ZREG:$z, LD8:$p),
-                          "elpmb\t$dst, $z, $p", []>,
-                   Requires<[HasELPMX]>;
-
     let Constraints = "@earlyclobber $dst" in
     def ELPMWRdZ : Pseudo<(outs DREGS:$dst), (ins ZREG:$z, LD8:$p),
                           "elpmw\t$dst, $z, $p", []>,
@@ -2337,6 +2347,11 @@ def Lsl16 : ShiftPseudo<(outs DREGS
                                                      : $src, i8
                                                      : $cnt))]>;
 
+def Lsl32 : ShiftPseudo<(outs DREGS:$dstlo, DREGS:$dsthi),
+                        (ins DREGS:$srclo, DREGS:$srchi, i8imm:$cnt),
+                        "# Lsl32 PSEUDO",
+                        [(set i16:$dstlo, i16:$dsthi, (AVRlslw i16:$srclo, i16:$srchi, i8:$cnt))]>;
+
 def Lsr8 : ShiftPseudo<(outs GPR8
                         : $dst),
                        (ins GPR8
@@ -2356,6 +2371,11 @@ def Lsr16 : ShiftPseudo<(outs DREGS
                                             : $dst, (AVRlsrLoop i16
                                                      : $src, i8
                                                      : $cnt))]>;
+
+def Lsr32 : ShiftPseudo<(outs DREGS:$dstlo, DREGS:$dsthi),
+                        (ins DREGS:$srclo, DREGS:$srchi, i8imm:$cnt),
+                        "# Lsr32 PSEUDO",
+                        [(set i16:$dstlo, i16:$dsthi, (AVRlsrw i16:$srclo, i16:$srchi, i8:$cnt))]>;
 
 def Rol8 : ShiftPseudo<(outs GPR8
                         : $dst),
@@ -2416,6 +2436,11 @@ def Asr16 : ShiftPseudo<(outs DREGS
                                             : $dst, (AVRasrLoop i16
                                                      : $src, i8
                                                      : $cnt))]>;
+
+def Asr32 : ShiftPseudo<(outs DREGS:$dstlo, DREGS:$dsthi),
+                        (ins DREGS:$srclo, DREGS:$srchi, i8imm:$cnt),
+                        "# Asr32 PSEUDO",
+                        [(set i16:$dstlo, i16:$dsthi, (AVRasrw i16:$srclo, i16:$srchi, i8:$cnt))]>;
 
 // lowered to a copy from the zero register.
 let usesCustomInserter=1 in

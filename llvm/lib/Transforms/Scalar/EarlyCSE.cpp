@@ -864,7 +864,7 @@ private:
     // TODO: We could insert relevant casts on type mismatch here.
     if (auto *LI = dyn_cast<LoadInst>(Inst))
       return LI->getType() == ExpectedType ? LI : nullptr;
-    else if (auto *SI = dyn_cast<StoreInst>(Inst)) {
+    if (auto *SI = dyn_cast<StoreInst>(Inst)) {
       Value *V = SI->getValueOperand();
       return V->getType() == ExpectedType ? V : nullptr;
     }
@@ -877,11 +877,14 @@ private:
 
   Value *getOrCreateResultNonTargetMemIntrinsic(IntrinsicInst *II,
                                                 Type *ExpectedType) const {
+    // TODO: We could insert relevant casts on type mismatch here.
     switch (II->getIntrinsicID()) {
     case Intrinsic::masked_load:
-      return II;
-    case Intrinsic::masked_store:
-      return II->getOperand(0);
+      return II->getType() == ExpectedType ? II : nullptr;
+    case Intrinsic::masked_store: {
+      Value *V = II->getOperand(0);
+      return V->getType() == ExpectedType ? V : nullptr;
+    }
     }
     return nullptr;
   }
@@ -1707,10 +1710,10 @@ void EarlyCSEPass::printPipeline(
     raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
   static_cast<PassInfoMixin<EarlyCSEPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
-  OS << "<";
+  OS << '<';
   if (UseMemorySSA)
     OS << "memssa";
-  OS << ">";
+  OS << '>';
 }
 
 namespace {

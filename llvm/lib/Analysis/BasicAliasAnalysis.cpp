@@ -614,7 +614,7 @@ BasicAAResult::DecomposeGEPExpression(const Value *V, const DataLayout &DL,
           return Decomposed;
         }
 
-        Decomposed.Offset += AllocTypeSize.getFixedSize() *
+        Decomposed.Offset += AllocTypeSize.getFixedValue() *
                              CIdx->getValue().sextOrTrunc(MaxIndexSize);
         continue;
       }
@@ -636,7 +636,7 @@ BasicAAResult::DecomposeGEPExpression(const Value *V, const DataLayout &DL,
           CastedValue(Index, 0, SExtBits, TruncBits), DL, 0, AC, DT);
 
       // Scale by the type size.
-      unsigned TypeSize = AllocTypeSize.getFixedSize();
+      unsigned TypeSize = AllocTypeSize.getFixedValue();
       LE = LE.mul(APInt(IndexSize, TypeSize), GEPOp->isInBounds());
       Decomposed.Offset += LE.Offset.sext(MaxIndexSize);
       APInt Scale = LE.Scale.sext(MaxIndexSize);
@@ -1134,8 +1134,8 @@ AliasResult BasicAAResult::aliasGEP(
     const APInt &Scale = Index.Scale;
     APInt ScaleForGCD = Scale;
     if (!Index.IsNSW)
-      ScaleForGCD = APInt::getOneBitSet(Scale.getBitWidth(),
-                                        Scale.countTrailingZeros());
+      ScaleForGCD =
+          APInt::getOneBitSet(Scale.getBitWidth(), Scale.countr_zero());
 
     if (i == 0)
       GCD = ScaleForGCD.abs();
@@ -1516,6 +1516,8 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
           assert(OBU.Inputs.size() == 2);
           const Value *Hint1 = OBU.Inputs[0].get();
           const Value *Hint2 = OBU.Inputs[1].get();
+          // This is often a no-op; instcombine rewrites this for us. No-op
+          // getUnderlyingObject calls are fast, though.
           const Value *HintO1 = getUnderlyingObject(Hint1);
           const Value *HintO2 = getUnderlyingObject(Hint2);
 

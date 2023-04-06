@@ -46,10 +46,11 @@
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cstring>
 #include <functional>
+#include <optional>
 #include <unordered_map>
 
 using namespace clang;
@@ -1592,7 +1593,7 @@ void Sema::PushOnScopeChains(NamedDecl *D, Scope *S, bool AddToContext) {
 }
 
 bool Sema::isDeclInScope(NamedDecl *D, DeclContext *Ctx, Scope *S,
-                         bool AllowInlineNamespace) {
+                         bool AllowInlineNamespace) const {
   return IdResolver.isDeclInScope(D, Ctx, S, AllowInlineNamespace);
 }
 
@@ -1660,13 +1661,19 @@ bool Sema::CheckRedeclarationModuleOwnership(NamedDecl *New, NamedDecl *Old) {
   if (NewM == OldM)
     return false;
 
-  // Partitions are part of the module, but a partition could import another
-  // module, so verify that the PMIs agree.
-  if (NewM && OldM &&
-      (NewM->isModulePartition() || OldM->isModulePartition()) &&
-      NewM->getPrimaryModuleInterfaceName() ==
-          OldM->getPrimaryModuleInterfaceName())
-    return false;
+  if (NewM && OldM) {
+    // A module implementation unit has visibility of the decls in its
+    // implicitly imported interface.
+    if (NewM->isModuleImplementation() && OldM == ThePrimaryInterface)
+      return false;
+
+    // Partitions are part of the module, but a partition could import another
+    // module, so verify that the PMIs agree.
+    if ((NewM->isModulePartition() || OldM->isModulePartition()) &&
+        NewM->getPrimaryModuleInterfaceName() ==
+            OldM->getPrimaryModuleInterfaceName())
+      return false;
+  }
 
   bool NewIsModuleInterface = NewM && NewM->isModulePurview();
   bool OldIsModuleInterface = OldM && OldM->isModulePurview();
@@ -2220,7 +2227,7 @@ void Sema::ActOnPopScope(SourceLocation Loc, Scope *S) {
   /// and sort the diagnostics before emitting them, after we visited all decls.
   struct LocAndDiag {
     SourceLocation Loc;
-    Optional<SourceLocation> PreviousDeclLoc;
+    std::optional<SourceLocation> PreviousDeclLoc;
     PartialDiagnostic PD;
   };
   SmallVector<LocAndDiag, 16> DeclDiags;
@@ -7725,7 +7732,12 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
     // If we have any template parameter lists that don't directly belong to
     // the variable (matching the scope specifier), store them.
-    unsigned VDTemplateParamLists = TemplateParams ? 1 : 0;
+    // An explicit variable template specialization does not own any template
+    // parameter lists.
+    bool IsExplicitSpecialization =
+        IsVariableTemplateSpecialization && !IsPartialSpecialization;
+    unsigned VDTemplateParamLists =
+        (TemplateParams && !IsExplicitSpecialization) ? 1 : 0;
     if (TemplateParamLists.size() > VDTemplateParamLists)
       NewVD->setTemplateParameterListsInfo(
           Context, TemplateParamLists.drop_back(VDTemplateParamLists));
@@ -8754,7 +8766,8 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
     return;
   }
 
-  if (!NewVD->hasLocalStorage() && T->isSizelessType()) {
+  if (!NewVD->hasLocalStorage() && T->isSizelessType() &&
+      !T->isWebAssemblyReferenceType()) {
     Diag(NewVD->getLocation(), diag::err_sizeless_nonlocal) << T;
     NewVD->setInvalidDecl();
     return;
@@ -8779,6 +8792,19 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
       CheckPPCMMAType(T, NewVD->getLocation())) {
     NewVD->setInvalidDecl();
     return;
+  }
+
+  // Check that SVE types are only used in functions with SVE available.
+  if (T->isSVESizelessBuiltinType() && CurContext->isFunctionOrMethod()) {
+    const FunctionDecl *FD = cast<FunctionDecl>(CurContext);
+    llvm::StringMap<bool> CallerFeatureMap;
+    Context.getFunctionFeatureMap(CallerFeatureMap, FD);
+    if (!Builtin::evaluateRequiredTargetFeatures(
+        "sve", CallerFeatureMap)) {
+      Diag(NewVD->getLocation(), diag::err_sve_vector_in_non_sve_target) << T;
+      NewVD->setInvalidDecl();
+      return;
+    }
   }
 }
 
@@ -9348,6 +9374,12 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
           ParamKind == InvalidKernelParam)
         return ParamKind;
 
+      // OpenCL v3.0 s6.11.a:
+      // A restriction to pass pointers to pointers only applies to OpenCL C
+      // v1.2 or below.
+      if (S.getLangOpts().getOpenCLCompatibleVersion() > 120)
+        return ValidKernelParam;
+
       return PtrPtrKernelParam;
     }
 
@@ -9374,6 +9406,11 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
         !IsStandardLayoutType)
       return InvalidKernelParam;
     }
+
+    // OpenCL v1.2 s6.9.p:
+    // A restriction to pass pointers only applies to OpenCL C v1.2 or below.
+    if (S.getLangOpts().getOpenCLCompatibleVersion() > 120)
+      return ValidKernelParam;
 
     return PtrKernelParam;
   }
@@ -9441,13 +9478,8 @@ static void checkIsValidOpenCLKernelParameter(
     // OpenCL v3.0 s6.11.a:
     // A kernel function argument cannot be declared as a pointer to a pointer
     // type. [...] This restriction only applies to OpenCL C 1.2 or below.
-    if (S.getLangOpts().getOpenCLCompatibleVersion() <= 120) {
-      S.Diag(Param->getLocation(), diag::err_opencl_ptrptr_kernel_param);
-      D.setInvalidType();
-      return;
-    }
-
-    ValidTypes.insert(PT.getTypePtr());
+    S.Diag(Param->getLocation(), diag::err_opencl_ptrptr_kernel_param);
+    D.setInvalidType();
     return;
 
   case InvalidAddrSpacePtrKernelParam:
@@ -9565,7 +9597,8 @@ static void checkIsValidOpenCLKernelParameter(
       // OpenCL v1.2 s6.9.p:
       // Arguments to kernel functions that are declared to be a struct or union
       // do not allow OpenCL objects to be passed as elements of the struct or
-      // union.
+      // union. This restriction was lifted in OpenCL v2.0 with the introduction
+      // of SVM.
       if (ParamType == PtrKernelParam || ParamType == PtrPtrKernelParam ||
           ParamType == InvalidAddrSpacePtrKernelParam) {
         S.Diag(Param->getLocation(),
@@ -9632,6 +9665,7 @@ static bool isStdBuiltin(ASTContext &Ctx, FunctionDecl *FD,
   case Builtin::BIaddressof:
   case Builtin::BI__addressof:
   case Builtin::BIforward:
+  case Builtin::BIforward_like:
   case Builtin::BImove:
   case Builtin::BImove_if_noexcept:
   case Builtin::BIas_const: {
@@ -10278,15 +10312,6 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       Diag(NewFD->getLocation(), diag::err_return_value_with_address_space);
       NewFD->setInvalidDecl();
     }
-  }
-
-  if (getLangOpts().SYCLIsDevice && !getLangOpts().GPURelocatableDeviceCode &&
-      NewFD->hasAttr<SYCLDeviceAttr>() &&
-      !getSourceManager().isInSystemHeader(NewFD->getLocation())) {
-    Diag(NewFD->getLocation(), diag::err_sycl_external_no_rdc)
-        << (D.getFunctionDefinitionKind() ==
-            clang::FunctionDefinitionKind::Definition);
-    NewFD->setInvalidDecl();
   }
 
   if (!getLangOpts().CPlusPlus) {
@@ -11943,8 +11968,33 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
     // member-declarator shall be present only if the declarator declares a
     // templated function ([dcl.fct]).
     if (Expr *TRC = NewFD->getTrailingRequiresClause()) {
-      if (!NewFD->isTemplated() && !NewFD->isTemplateInstantiation())
+      // [temp.pre]/8:
+      // An entity is templated if it is
+      // - a template,
+      // - an entity defined ([basic.def]) or created ([class.temporary]) in a
+      // templated entity,
+      // - a member of a templated entity,
+      // - an enumerator for an enumeration that is a templated entity, or
+      // - the closure type of a lambda-expression ([expr.prim.lambda.closure])
+      // appearing in the declaration of a templated entity. [Note 6: A local
+      // class, a local or block variable, or a friend function defined in a
+      // templated entity is a templated entity.  — end note]
+      //
+      // A templated function is a function template or a function that is
+      // templated. A templated class is a class template or a class that is
+      // templated. A templated variable is a variable template or a variable
+      // that is templated.
+
+      if (!NewFD->getDescribedFunctionTemplate() && // -a template
+          // defined... in a templated entity
+          !(DeclIsDefn && NewFD->isTemplated()) &&
+          // a member of a templated entity
+          !(isa<CXXMethodDecl>(NewFD) && NewFD->isTemplated()) &&
+          // Don't complain about instantiations, they've already had these
+          // rules + others enforced.
+          !NewFD->isTemplateInstantiation()) {
         Diag(TRC->getBeginLoc(), diag::err_constrained_non_templated_function);
+      }
     }
 
     if (CXXConversionDecl *Conversion = dyn_cast<CXXConversionDecl>(NewFD))
@@ -13166,6 +13216,17 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
       VDecl->setInvalidDecl();
   }
 
+  // C++ [module.import/6] external definitions are not permitted in header
+  // units.
+  if (getLangOpts().CPlusPlusModules && currentModuleIsHeaderUnit() &&
+      !VDecl->isInvalidDecl() && VDecl->isThisDeclarationADefinition() &&
+      VDecl->getFormalLinkage() == Linkage::ExternalLinkage &&
+      !VDecl->isInline() && !VDecl->isTemplated() &&
+      !isa<VarTemplateSpecializationDecl>(VDecl)) {
+    Diag(VDecl->getLocation(), diag::err_extern_def_in_header_unit);
+    VDecl->setInvalidDecl();
+  }
+
   // If adding the initializer will turn this declaration into a definition,
   // and we already have a definition for this variable, diagnose or otherwise
   // handle the situation.
@@ -14041,7 +14102,7 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
   }
 
   // Cache the result of checking for constant initialization.
-  Optional<bool> CacheHasConstInit;
+  std::optional<bool> CacheHasConstInit;
   const Expr *CacheCulprit = nullptr;
   auto checkConstInit = [&]() mutable {
     if (!CacheHasConstInit)
@@ -14466,7 +14527,7 @@ void Sema::FinalizeDeclaration(Decl *ThisDecl) {
     if (!MagicValueExpr) {
       continue;
     }
-    Optional<llvm::APSInt> MagicValueInt;
+    std::optional<llvm::APSInt> MagicValueInt;
     if (!(MagicValueInt = MagicValueExpr->getIntegerConstantExpr(Context))) {
       Diag(I->getRange().getBegin(),
            diag::err_type_tag_for_datatype_not_ice)
@@ -14916,7 +14977,11 @@ ParmVarDecl *Sema::CheckParameter(DeclContext *DC, SourceLocation StartLoc,
       // OpenCL allows function arguments declared to be an array of a type
       // to be qualified with an address space.
       !(getLangOpts().OpenCL &&
-        (T->isArrayType() || T.getAddressSpace() == LangAS::opencl_private))) {
+        (T->isArrayType() || T.getAddressSpace() == LangAS::opencl_private)) &&
+      // WebAssembly allows reference types as parameters. Funcref in particular
+      // lives in a different address space.
+      !(T->isFunctionPointerType() &&
+        T.getAddressSpace() == LangAS::wasm_funcref)) {
     Diag(NameLoc, diag::err_arg_with_address_space);
     New->setInvalidDecl();
   }
@@ -15337,6 +15402,21 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
 
       PushOnScopeChains(Param, FnBodyScope);
     }
+  }
+
+  // C++ [module.import/6] external definitions are not permitted in header
+  // units.  Deleted and Defaulted functions are implicitly inline (but the
+  // inline state is not set at this point, so check the BodyKind explicitly).
+  // FIXME: Consider an alternate location for the test where the inlined()
+  // state is complete.
+  if (getLangOpts().CPlusPlusModules && currentModuleIsHeaderUnit() &&
+      !FD->isInvalidDecl() && !FD->isInlined() &&
+      BodyKind != FnBodyKind::Delete && BodyKind != FnBodyKind::Default &&
+      FD->getFormalLinkage() == Linkage::ExternalLinkage &&
+      !FD->isTemplated() && !FD->isTemplateInstantiation()) {
+    assert(FD->isThisDeclarationADefinition());
+    Diag(FD->getLocation(), diag::err_extern_def_in_header_unit);
+    FD->setInvalidDecl();
   }
 
   // Ensure that the function's exception specification is instantiated.
@@ -16065,7 +16145,7 @@ void Sema::AddKnownFunctionAttributesForReplaceableGlobalAllocationFunction(
       FD->getDeclName().getCXXOverloadedOperator() != OO_Array_New)
     return;
 
-  Optional<unsigned> AlignmentParam;
+  std::optional<unsigned> AlignmentParam;
   bool IsNothrow = false;
   if (!FD->isReplaceableGlobalAllocationFunction(&AlignmentParam, &IsNothrow))
     return;
@@ -16258,6 +16338,25 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
     case Builtin::BImalloc:
       FD->addAttr(AllocSizeAttr::CreateImplicit(Context, ParamIdx(1, FD),
                                                 ParamIdx(), FD->getLocation()));
+      break;
+    default:
+      break;
+    }
+
+    // Add lifetime attribute to std::move, std::fowrard et al.
+    switch (BuiltinID) {
+    case Builtin::BIaddressof:
+    case Builtin::BI__addressof:
+    case Builtin::BI__builtin_addressof:
+    case Builtin::BIas_const:
+    case Builtin::BIforward:
+    case Builtin::BIforward_like:
+    case Builtin::BImove:
+    case Builtin::BImove_if_noexcept:
+      if (ParmVarDecl *P = FD->getParamDecl(0u);
+          !P->hasAttr<LifetimeBoundAttr>())
+        P->addAttr(
+            LifetimeBoundAttr::CreateImplicit(Context, FD->getLocation()));
       break;
     default:
       break;
@@ -16663,17 +16762,16 @@ static bool isAcceptableTagRedeclContext(Sema &S, DeclContext *OldDC,
 ///
 /// \param SkipBody If non-null, will be set to indicate if the caller should
 /// skip the definition of this tag and treat it as if it were a declaration.
-Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
-                     SourceLocation KWLoc, CXXScopeSpec &SS,
-                     IdentifierInfo *Name, SourceLocation NameLoc,
-                     const ParsedAttributesView &Attrs, AccessSpecifier AS,
-                     SourceLocation ModulePrivateLoc,
-                     MultiTemplateParamsArg TemplateParameterLists,
-                     bool &OwnedDecl, bool &IsDependent,
-                     SourceLocation ScopedEnumKWLoc,
-                     bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
-                     bool IsTypeSpecifier, bool IsTemplateParamOrArg,
-                     SkipBodyInfo *SkipBody) {
+DeclResult
+Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK, SourceLocation KWLoc,
+               CXXScopeSpec &SS, IdentifierInfo *Name, SourceLocation NameLoc,
+               const ParsedAttributesView &Attrs, AccessSpecifier AS,
+               SourceLocation ModulePrivateLoc,
+               MultiTemplateParamsArg TemplateParameterLists, bool &OwnedDecl,
+               bool &IsDependent, SourceLocation ScopedEnumKWLoc,
+               bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
+               bool IsTypeSpecifier, bool IsTemplateParamOrArg,
+               OffsetOfKind OOK, SkipBodyInfo *SkipBody) {
   // If this is not a definition, it must have a name.
   IdentifierInfo *OrigName = Name;
   assert((Name != nullptr || TUK == TUK_Definition) &&
@@ -16699,7 +16797,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
                 TUK == TUK_Friend, isMemberSpecialization, Invalid)) {
       if (Kind == TTK_Enum) {
         Diag(KWLoc, diag::err_enum_template);
-        return nullptr;
+        return true;
       }
 
       if (TemplateParams->size() > 0) {
@@ -16707,7 +16805,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
         // be a member of another template).
 
         if (Invalid)
-          return nullptr;
+          return true;
 
         OwnedDecl = false;
         DeclResult Result = CheckClassTemplate(
@@ -16726,7 +16824,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
 
     if (!TemplateParameterLists.empty() && isMemberSpecialization &&
         CheckTemplateDeclScope(S, TemplateParameterLists.back()))
-      return nullptr;
+      return true;
   }
 
   // Figure out the underlying type if this a enum declaration. We need to do
@@ -16842,26 +16940,26 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
       DC = computeDeclContext(SS, false);
       if (!DC) {
         IsDependent = true;
-        return nullptr;
+        return true;
       }
     } else {
       DC = computeDeclContext(SS, true);
       if (!DC) {
         Diag(SS.getRange().getBegin(), diag::err_dependent_nested_name_spec)
           << SS.getRange();
-        return nullptr;
+        return true;
       }
     }
 
     if (RequireCompleteDeclContext(SS, DC))
-      return nullptr;
+      return true;
 
     SearchDC = DC;
     // Look-up name inside 'foo::'.
     LookupQualifiedName(Previous, DC);
 
     if (Previous.isAmbiguous())
-      return nullptr;
+      return true;
 
     if (Previous.empty()) {
       // Name lookup did not find anything. However, if the
@@ -16873,7 +16971,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
       if (Previous.wasNotFoundInCurrentInstantiation() &&
           (TUK == TUK_Reference || TUK == TUK_Friend)) {
         IsDependent = true;
-        return nullptr;
+        return true;
       }
 
       // A tag 'foo::bar' must already exist.
@@ -16890,7 +16988,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
     //    -- every member of class T that is itself a type
     if (TUK != TUK_Reference && TUK != TUK_Friend &&
         DiagnoseClassNameShadow(SearchDC, DeclarationNameInfo(Name, NameLoc)))
-      return nullptr;
+      return true;
 
     // If this is a named struct, check to see if there was a previous forward
     // declaration or definition.
@@ -16954,7 +17052,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
 
     // Note:  there used to be some attempt at recovery here.
     if (Previous.isAmbiguous())
-      return nullptr;
+      return true;
 
     if (!getLangOpts().CPlusPlus && TUK != TUK_Reference) {
       // FIXME: This makes sure that we ignore the contexts associated
@@ -17446,10 +17544,14 @@ CreateNewDecl:
                                cast_or_null<RecordDecl>(PrevDecl));
   }
 
+  if (OOK != OOK_Outside && TUK == TUK_Definition && !getLangOpts().CPlusPlus)
+    Diag(New->getLocation(), diag::ext_type_defined_in_offsetof)
+        << (OOK == OOK_Macro) << New->getSourceRange();
+
   // C++11 [dcl.type]p3:
   //   A type-specifier-seq shall not define a class or enumeration [...].
-  if (getLangOpts().CPlusPlus && (IsTypeSpecifier || IsTemplateParamOrArg) &&
-      TUK == TUK_Definition) {
+  if (!Invalid && getLangOpts().CPlusPlus &&
+      (IsTypeSpecifier || IsTemplateParamOrArg) && TUK == TUK_Definition) {
     Diag(New->getLocation(), diag::err_type_defined_in_type_specifier)
       << Context.getTagDeclType(New);
     Invalid = true;
@@ -17605,7 +17707,7 @@ CreateNewDecl:
     if (New->isBeingDefined())
       if (auto RD = dyn_cast<RecordDecl>(New))
         RD->completeDefinition();
-    return nullptr;
+    return true;
   } else if (SkipBody && SkipBody->ShouldSkip) {
     return SkipBody->Previous;
   } else {
@@ -18922,10 +19024,24 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
     ProcessDeclAttributeList(S, Record, Attrs);
 
     // Check to see if a FieldDecl is a pointer to a function.
-    auto IsFunctionPointer = [&](const Decl *D) {
+    auto IsFunctionPointerOrForwardDecl = [&](const Decl *D) {
       const FieldDecl *FD = dyn_cast<FieldDecl>(D);
-      if (!FD)
+      if (!FD) {
+        // Check whether this is a forward declaration that was inserted by
+        // Clang. This happens when a non-forward declared / defined type is
+        // used, e.g.:
+        //
+        //   struct foo {
+        //     struct bar *(*f)();
+        //     struct bar *(*g)();
+        //   };
+        //
+        // "struct bar" shows up in the decl AST as a "RecordDecl" with an
+        // incomplete definition.
+        if (const auto *TD = dyn_cast<TagDecl>(D))
+          return !TD->isCompleteDefinition();
         return false;
+      }
       QualType FieldType = FD->getType().getDesugaredType(Context);
       if (isa<PointerType>(FieldType)) {
         QualType PointeeType = cast<PointerType>(FieldType)->getPointeeType();
@@ -18939,7 +19055,7 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
     if (!getLangOpts().CPlusPlus &&
         (Record->hasAttr<RandomizeLayoutAttr>() ||
          (!Record->hasAttr<NoRandomizeLayoutAttr>() &&
-          llvm::all_of(Record->decls(), IsFunctionPointer))) &&
+          llvm::all_of(Record->decls(), IsFunctionPointerOrForwardDecl))) &&
         !Record->isUnion() && !getLangOpts().RandstructSeed.empty() &&
         !Record->isRandomized()) {
       SmallVector<Decl *, 32> NewDeclOrdering;
@@ -19094,7 +19210,7 @@ static bool isRepresentableIntegerValue(ASTContext &Context,
       --BitWidth;
     return Value.getActiveBits() <= BitWidth;
   }
-  return Value.getMinSignedBits() <= BitWidth;
+  return Value.getSignificantBits() <= BitWidth;
 }
 
 // Given an integral type, return the next larger integral type
@@ -19629,8 +19745,8 @@ void Sema::ActOnEnumBody(SourceLocation EnumLoc, SourceRange BraceRange,
       unsigned ActiveBits = InitVal.getActiveBits();
       NumPositiveBits = std::max({NumPositiveBits, ActiveBits, 1u});
     } else {
-      NumNegativeBits = std::max(NumNegativeBits,
-                                 (unsigned)InitVal.getMinSignedBits());
+      NumNegativeBits =
+          std::max(NumNegativeBits, (unsigned)InitVal.getSignificantBits());
     }
   }
 
@@ -19941,7 +20057,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
   if (LangOpts.OpenMPIsDevice) {
     // In OpenMP device mode we will not emit host only functions, or functions
     // we don't need due to their linkage.
-    Optional<OMPDeclareTargetDeclAttr::DevTypeTy> DevTy =
+    std::optional<OMPDeclareTargetDeclAttr::DevTypeTy> DevTy =
         OMPDeclareTargetDeclAttr::getDeviceType(FD->getCanonicalDecl());
     // DevTy may be changed later by
     //  #pragma omp declare target to(*) device_type(*).
@@ -19963,7 +20079,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
     // In OpenMP host compilation prior to 5.0 everything was an emitted host
     // function. In 5.0, no_host was introduced which might cause a function to
     // be ommitted.
-    Optional<OMPDeclareTargetDeclAttr::DevTypeTy> DevTy =
+    std::optional<OMPDeclareTargetDeclAttr::DevTypeTy> DevTy =
         OMPDeclareTargetDeclAttr::getDeviceType(FD->getCanonicalDecl());
     if (DevTy)
       if (*DevTy == OMPDeclareTargetDeclAttr::DT_NoHost)

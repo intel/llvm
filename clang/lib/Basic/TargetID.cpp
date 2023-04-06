@@ -8,9 +8,9 @@
 
 #include "clang/Basic/TargetID.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/ADT/Triple.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/TargetParser.h"
+#include "llvm/TargetParser/Triple.h"
 #include <map>
 #include <optional>
 
@@ -101,7 +101,7 @@ parseTargetIDWithFormatCheckingOnly(llvm::StringRef TargetID,
   return Processor;
 }
 
-llvm::Optional<llvm::StringRef>
+std::optional<llvm::StringRef>
 parseTargetID(const llvm::Triple &T, llvm::StringRef TargetID,
               llvm::StringMap<bool> *FeatureMap) {
   auto OptionalProcessor =

@@ -810,7 +810,7 @@ public:
   }
 
   /// Get the module that owns this declaration for linkage purposes.
-  /// There only ever is such a module under the C++ Modules TS.
+  /// There only ever is such a standard C++ module.
   ///
   /// \param IgnoreLinkage Ignore the linkage of the entity; assume that
   /// all declarations in a global module fragment are unowned.
@@ -1227,6 +1227,10 @@ public:
   /// have a FunctionType.
   const FunctionType *getFunctionType(bool BlocksToo = true) const;
 
+  // Looks through the Decl's underlying type to determine if it's a
+  // function pointer type.
+  bool isFunctionPointerType() const;
+
 private:
   void setAttrsImpl(const AttrVec& Attrs, ASTContext &Ctx);
   void setDeclContextsImpl(DeclContext *SemaDC, DeclContext *LexicalDC,
@@ -1389,6 +1393,8 @@ public:
 class DeclContext {
   /// For makeDeclVisibleInContextImpl
   friend class ASTDeclReader;
+  /// For checking the new bits in the Serialization part.
+  friend class ASTDeclWriter;
   /// For reconcileExternalVisibleStorage, CreateStoredDeclsMap,
   /// hasNeedToReconcileExternalVisibleStorage
   friend class ExternalASTSource;
@@ -1577,10 +1583,14 @@ class DeclContext {
 
     /// Indicates whether this struct has had its field layout randomized.
     uint64_t IsRandomized : 1;
+
+    /// True if a valid hash is stored in ODRHash. This should shave off some
+    /// extra storage and prevent CXXRecordDecl to store unused bits.
+    uint64_t ODRHash : 26;
   };
 
   /// Number of non-inherited bits in RecordDeclBitfields.
-  enum { NumRecordDeclBits = 15 };
+  enum { NumRecordDeclBits = 41 };
 
   /// Stores the bits used by OMPDeclareReductionDecl.
   /// If modified NumOMPDeclareReductionDeclBits and the accessor
@@ -1591,7 +1601,7 @@ class DeclContext {
     uint64_t : NumDeclContextBits;
 
     /// Kind of initializer,
-    /// function call or omp_priv<init_expr> initializtion.
+    /// function call or omp_priv<init_expr> initialization.
     uint64_t InitializerKind : 2;
   };
 

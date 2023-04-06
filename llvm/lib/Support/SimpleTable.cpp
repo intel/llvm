@@ -42,7 +42,7 @@ Expected<SimpleTable::UPtrTy>
 SimpleTable::create(ArrayRef<StringRef> ColNames) {
   auto Res = std::make_unique<SimpleTable>();
 
-  for (auto N : ColNames)
+  for (auto &N : ColNames)
     if (Error Err = Res->addColumnName(N))
       return std::move(Err);
   return std::move(Res);
@@ -103,7 +103,10 @@ Error SimpleTable::replaceColumn(StringRef Name, const SimpleTable &Src,
     return makeError("empty table");
   int Cdst = getNumColumns() > 1 ? getColumnId(Name) : 0;
   int Csrc = Src.getNumColumns() > 1 ? Src.getColumnId(SrcName) : 0;
-
+  if (Cdst < 0)
+    return makeError("Column not found: " + Name);
+  if (Csrc < 0)
+    return makeError("Column not found: " + SrcName);
   for (unsigned R = 0; R < Rows.size(); ++R)
     Rows[R][Cdst] = Src[R][Csrc];
   return Error::success();
@@ -115,7 +118,10 @@ Error SimpleTable::updateCellValue(StringRef ColName, int Row,
     return makeError("empty table");
   if (Row > getNumRows() || Row < 0)
     return makeError("row index out of bounds");
-  Rows[Row][getColumnId(ColName)] = NewValue.str();
+  int Col = getColumnId(ColName);
+  if (Col < 0)
+    return makeError("Column not found: " + ColName);
+  Rows[Row][Col] = NewValue.str();
   return Error::success();
 }
 

@@ -17,11 +17,13 @@
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
+#include "mlir/Dialect/MemRef/Transforms/Transforms.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include <optional>
 
 namespace mlir {
 namespace memref {
@@ -74,7 +76,7 @@ public:
     SmallVector<OpFoldResult> values(2 * sourceRank + 1);
     SmallVector<AffineExpr> symbols(2 * sourceRank + 1);
 
-    detail::bindSymbolsList(rewriter.getContext(), symbols);
+    bindSymbolsList(rewriter.getContext(), MutableArrayRef{symbols});
     AffineExpr expr = symbols.front();
     values[0] = ShapedType::isDynamic(sourceOffset)
                     ? getAsOpFoldResult(newExtractStridedMetadata.getOffset())
@@ -173,7 +175,7 @@ getExpandedSizes(memref::ExpandShapeOp expandShape, OpBuilder &builder,
   SmallVector<OpFoldResult> expandedSizes(groupSize);
 
   uint64_t productOfAllStaticSizes = 1;
-  Optional<unsigned> dynSizeIdx;
+  std::optional<unsigned> dynSizeIdx;
   MemRefType expandShapeType = expandShape.getResultType();
 
   // Fill up all the statically known sizes.
@@ -238,7 +240,7 @@ SmallVector<OpFoldResult> getExpandedStrides(memref::ExpandShapeOp expandShape,
   unsigned groupSize = reassocGroup.size();
   MemRefType expandShapeType = expandShape.getResultType();
 
-  Optional<int64_t> dynSizeIdx;
+  std::optional<int64_t> dynSizeIdx;
 
   // Fill up the expanded strides, with the information we can deduce from the
   // resulting shape.
@@ -261,10 +263,9 @@ SmallVector<OpFoldResult> getExpandedStrides(memref::ExpandShapeOp expandShape,
   auto sourceType = source.getType().cast<MemRefType>();
   auto [strides, offset] = getStridesAndOffset(sourceType);
 
-  OpFoldResult origStride =
-      ShapedType::isDynamic(strides[groupId])
-          ? origStrides[groupId]
-          : builder.getIndexAttr(strides[groupId]);
+  OpFoldResult origStride = ShapedType::isDynamic(strides[groupId])
+                                ? origStrides[groupId]
+                                : builder.getIndexAttr(strides[groupId]);
 
   // Apply the original stride to all the strides.
   int64_t doneStrideIdx = 0;
@@ -780,8 +781,7 @@ struct ExpandStridedMetadataPass final
 void ExpandStridedMetadataPass::runOnOperation() {
   RewritePatternSet patterns(&getContext());
   memref::populateExpandStridedMetadataPatterns(patterns);
-  (void)applyPatternsAndFoldGreedily(getOperation()->getRegions(),
-                                     std::move(patterns));
+  (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
 }
 
 std::unique_ptr<Pass> memref::createExpandStridedMetadataPass() {

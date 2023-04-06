@@ -23,8 +23,8 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
-             const async_handler &AsyncHandler, const property_list &PropList) {
-
+             const async_handler &AsyncHandler, const property_list &PropList,
+             Discriminator Disc) {
   const std::vector<device> Devs = SyclContext.get_devices();
 
   auto Comp = [&DeviceSelector](const device &d1, const device &d2) {
@@ -35,21 +35,34 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
 
   impl = std::make_shared<detail::queue_impl>(
       detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
-      AsyncHandler, PropList);
+      AsyncHandler, PropList, false);
 }
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
-             const async_handler &AsyncHandler, const property_list &PropList) {
+             const async_handler &AsyncHandler, const property_list &PropList,
+             Discriminator Disc) {
   impl = std::make_shared<detail::queue_impl>(
       detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
-      AsyncHandler, PropList);
+      AsyncHandler, PropList, false);
 }
 
 queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
-             const property_list &PropList) {
+             const property_list &PropList, Discriminator Disc) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList);
+      detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList, false);
 }
+
+queue::queue(const context &SyclContext, const device_selector &deviceSelector,
+             const property_list &PropList, Discriminator Disc)
+    : queue(SyclContext, deviceSelector,
+            detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList,
+            Disc) {}
+
+queue::queue(const context &SyclContext, const device &SyclDevice,
+             const property_list &PropList, Discriminator Disc)
+    : queue(SyclContext, SyclDevice,
+            detail::getSyclObjImpl(SyclContext)->get_async_handler(), PropList,
+            Disc) {}
 
 queue::queue(cl_command_queue clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
@@ -57,18 +70,6 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
       reinterpret_cast<RT::PiQueue>(clQueue),
       detail::getSyclObjImpl(SyclContext), AsyncHandler);
 }
-
-queue::queue(const context &SyclContext, const device_selector &deviceSelector,
-             const property_list &PropList)
-    : queue(SyclContext, deviceSelector,
-            detail::getSyclObjImpl(SyclContext)->get_async_handler(),
-            PropList) {}
-
-queue::queue(const context &SyclContext, const device &SyclDevice,
-             const property_list &PropList)
-    : queue(SyclContext, SyclDevice,
-            detail::getSyclObjImpl(SyclContext)->get_async_handler(),
-            PropList) {}
 
 cl_command_queue queue::get() const { return impl->get(); }
 
@@ -188,15 +189,16 @@ template <typename PropertyT> PropertyT queue::get_property() const {
   return impl->get_property<PropertyT>();
 }
 
-template __SYCL_EXPORT bool
-queue::has_property<property::queue::enable_profiling>() const noexcept;
-template __SYCL_EXPORT property::queue::enable_profiling
-queue::get_property<property::queue::enable_profiling>() const;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  template __SYCL_EXPORT bool queue::has_property<NS_QUALIFIER::PROP_NAME>()   \
+      const noexcept;                                                          \
+  template __SYCL_EXPORT NS_QUALIFIER::PROP_NAME                               \
+  queue::get_property<NS_QUALIFIER::PROP_NAME>() const;
 
-template __SYCL_EXPORT bool
-queue::has_property<property::queue::in_order>() const;
-template __SYCL_EXPORT property::queue::in_order
-queue::get_property<property::queue::in_order>() const;
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+
+#include <sycl/properties/queue_properties.def>
 
 bool queue::is_in_order() const {
   return impl->has_property<property::queue::in_order>();
@@ -208,8 +210,30 @@ bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
+pi_native_handle queue::getNative2(int32_t &NativeHandleDesc) const {
+  return impl->getNative2(NativeHandleDesc);
+}
+
 buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
   return impl->getAssertHappenedBuffer();
+}
+
+event queue::memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
+                                  bool IsDeviceImageScope, size_t NumBytes,
+                                  size_t Offset,
+                                  const std::vector<event> &DepEvents) {
+  return impl->memcpyToDeviceGlobal(impl, DeviceGlobalPtr, Src,
+                                    IsDeviceImageScope, NumBytes, Offset,
+                                    DepEvents);
+}
+
+event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                                    bool IsDeviceImageScope, size_t NumBytes,
+                                    size_t Offset,
+                                    const std::vector<event> &DepEvents) {
+  return impl->memcpyFromDeviceGlobal(impl, Dest, DeviceGlobalPtr,
+                                      IsDeviceImageScope, NumBytes, Offset,
+                                      DepEvents);
 }
 
 bool queue::device_has(aspect Aspect) const {

@@ -151,6 +151,32 @@ private:
 } // namespace oneapi
 } // namespace ext
 
+namespace ext {
+namespace intel {
+namespace experimental {
+
+// host_pipe class decorated with attribute
+template <class _name, class _dataT>
+class
+host_pipe {
+
+public:
+  struct
+#ifdef __SYCL_DEVICE_ONLY__
+  [[__sycl_detail__::sycl_type(host_pipe)]]
+#endif
+  __pipeType { const char __p; };
+
+  static constexpr __pipeType __pipe = {0};
+  static _dataT read() {
+    (void)__pipe;
+  }
+};
+
+} // namespace experimental
+} // namespace intel
+} // namespace ext
+
 template <int dim>
 struct id {
   template <typename... T>

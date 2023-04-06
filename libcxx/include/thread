@@ -84,10 +84,16 @@ void sleep_for(const chrono::duration<Rep, Period>& rel_time);
 */
 
 #include <__assert> // all public C++ headers provide the assertion handler
+#include <__chrono/steady_clock.h>
+#include <__chrono/time_point.h>
+#include <__condition_variable/condition_variable.h>
 #include <__config>
+#include <__exception/terminate.h>
 #include <__functional/hash.h>
+#include <__memory/addressof.h>
 #include <__memory/unique_ptr.h>
-#include <__mutex_base>
+#include <__mutex/mutex.h>
+#include <__mutex/unique_lock.h>
 #include <__thread/poll_with_backoff.h>
 #include <__thread/timed_backoff_policy.h>
 #include <__threading_support>
@@ -96,7 +102,6 @@ void sleep_for(const chrono::duration<Rep, Period>& rel_time);
 #include <iosfwd>
 #include <system_error>
 #include <tuple>
-#include <type_traits>
 #include <version>
 
 // standard-mandated includes
@@ -301,7 +306,7 @@ thread::thread(_Fp&& __f, _Args&&... __args)
 {
     typedef unique_ptr<__thread_struct> _TSPtr;
     _TSPtr __tsp(new __thread_struct);
-    typedef tuple<_TSPtr, typename decay<_Fp>::type, typename decay<_Args>::type...> _Gp;
+    typedef tuple<_TSPtr, __decay_t<_Fp>, __decay_t<_Args>...> _Gp;
     unique_ptr<_Gp> __p(
             new _Gp(_VSTD::move(__tsp),
                     _VSTD::forward<_Fp>(__f),
@@ -367,10 +372,10 @@ sleep_for(const chrono::duration<_Rep, _Period>& __d)
         // The standard guarantees a 64bit signed integer resolution for nanoseconds,
         // so use INT64_MAX / 1e9 as cut-off point. Use a constant to avoid <climits>
         // and issues with long double folding on PowerPC with GCC.
-        _LIBCPP_CONSTEXPR chrono::duration<long double> _Max =
+        _LIBCPP_CONSTEXPR chrono::duration<long double> __max =
             chrono::duration<long double>(9223372036.0L);
         chrono::nanoseconds __ns;
-        if (__d < _Max)
+        if (__d < __max)
         {
             __ns = chrono::duration_cast<chrono::nanoseconds>(__d);
             if (__ns < __d)
@@ -415,7 +420,10 @@ _LIBCPP_POP_MACROS
 #endif
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <cstdint>
+#  include <cstring>
 #  include <functional>
+#  include <new>
 #endif
 
 #endif // _LIBCPP_THREAD

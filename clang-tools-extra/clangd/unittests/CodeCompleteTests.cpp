@@ -29,7 +29,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gmock/gmock.h"
@@ -465,6 +465,18 @@ TEST(CompletionTest, Qualifiers) {
               Not(Contains(AllOf(qualifier(""), named("foo")))));
 }
 
+// https://github.com/clangd/clangd/issues/1451
+TEST(CompletionTest, QualificationWithInlineNamespace) {
+  auto Results = completions(R"cpp(
+    namespace a { inline namespace b {} }
+    using namespace a::b;
+    void f() { Foo^ }
+  )cpp",
+                             {cls("a::Foo")});
+  EXPECT_THAT(Results.Completions,
+              UnorderedElementsAre(AllOf(qualifier("a::"), named("Foo"))));
+}
+
 TEST(CompletionTest, InjectedTypename) {
   // These are suppressed when accessed as a member...
   EXPECT_THAT(completions("struct X{}; void foo(){ X().^ }").Completions,
@@ -627,7 +639,7 @@ TEST(CompletionTest, Kinds) {
                     has("variable", CompletionItemKind::Variable),
                     has("int", CompletionItemKind::Keyword),
                     has("Struct", CompletionItemKind::Struct),
-                    has("MACRO", CompletionItemKind::Text),
+                    has("MACRO", CompletionItemKind::Constant),
                     has("indexFunction", CompletionItemKind::Function),
                     has("indexVariable", CompletionItemKind::Variable),
                     has("indexClass", CompletionItemKind::Class)));
@@ -2736,17 +2748,21 @@ TEST(CompletionTest, InsertIncludeOrImport) {
   Sym.CanonicalDeclaration.FileURI = DeclFile.c_str();
   Sym.IncludeHeaders.emplace_back("\"bar.h\"", 1000,
                                   Symbol::Include | Symbol::Import);
-
-  auto Results = completions("Fun^", {Sym}).Completions;
+  CodeCompleteOptions Opts;
+  // Should only take effect in import contexts.
+  Opts.ImportInsertions = true;
+  auto Results = completions("Fun^", {Sym}, Opts).Completions;
   assert(!Results.empty());
   EXPECT_THAT(Results[0],
               AllOf(named("Func"), insertIncludeText("#include \"bar.h\"\n")));
 
-  Results = completions("Fun^", {Sym}, {}, "Foo.m").Completions;
+  ASTSignals Signals;
+  Signals.InsertionDirective = Symbol::IncludeDirective::Import;
+  Opts.MainFileSignals = &Signals;
+  Results = completions("Fun^", {Sym}, Opts, "Foo.m").Completions;
   assert(!Results.empty());
-  // TODO: Once #import integration support is done this should be #import.
   EXPECT_THAT(Results[0],
-              AllOf(named("Func"), insertIncludeText("#include \"bar.h\"\n")));
+              AllOf(named("Func"), insertIncludeText("#import \"bar.h\"\n")));
 
   Sym.IncludeHeaders[0].SupportedDirectives = Symbol::Import;
   Results = completions("Fun^", {Sym}).Completions;
@@ -3434,6 +3450,22 @@ TEST(CompletionTest, CursorInSnippets) {
   EXPECT_THAT(Results.Completions,
               Contains(AllOf(named("while_foo"),
                              snippetSuffix("(${1:int a}, ${2:int b})"))));
+
+  Results = completions(R"cpp(
+    struct Base {
+      Base(int a, int b) {}
+    };
+
+    struct Derived : Base {
+      Derived() : Base^
+    };
+  )cpp",
+                        /*IndexSymbols=*/{}, Options);
+  // Constructors from base classes are a kind of pattern that shouldn't end
+  // with $0.
+  EXPECT_THAT(Results.Completions,
+              Contains(AllOf(named("Base"),
+                             snippetSuffix("(${1:int a}, ${2:int b})"))));
 }
 
 TEST(CompletionTest, WorksWithNullType) {
@@ -3785,7 +3817,7 @@ TEST(CompletionTest, FunctionArgsExist) {
                      kind(CompletionItemKind::Constructor))));
   EXPECT_THAT(completions(Context + "MAC^(2)", {}, Opts).Completions,
               Contains(AllOf(labeled("MACRO(x)"), snippetSuffix(""),
-                             kind(CompletionItemKind::Text))));
+                             kind(CompletionItemKind::Function))));
 }
 
 TEST(CompletionTest, NoCrashDueToMacroOrdering) {

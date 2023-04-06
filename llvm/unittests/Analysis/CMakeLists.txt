@@ -39,6 +39,7 @@ set(ANALYSIS_TEST_SOURCES
   MLModelRunnerTest.cpp
   PhiValuesTest.cpp
   PluginInlineAdvisorAnalysisTest.cpp
+  PluginInlineOrderAnalysisTest.cpp
   ProfileSummaryInfoTest.cpp
   ScalarEvolutionTest.cpp
   VectorFunctionABITest.cpp
@@ -52,7 +53,8 @@ set(ANALYSIS_TEST_SOURCES
   VectorUtilsTest.cpp
   )
 
-set(MLGO_TESTS TFUtilsTest.cpp TrainingLoggerTest.cpp)
+set(MLGO_TESTS TFUtilsTest.cpp)
+
 if (LLVM_HAVE_TFLITE)
   LIST(APPEND ANALYSIS_TEST_SOURCES ${MLGO_TESTS})
 else()
@@ -65,4 +67,16 @@ add_llvm_unittest_with_input_files(AnalysisTests
 
 target_link_libraries(AnalysisTests PRIVATE LLVMTestingSupport)
 
+# On AIX, enable run-time linking to allow symbols from the plugins shared
+# objects to be properly bound.
+if(CMAKE_SYSTEM_NAME STREQUAL "AIX")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-brtl")
+endif()
+
+# Export symbols from the plugins shared objects.
+if(NOT WIN32)
+  export_executable_symbols_for_plugins(AnalysisTests)
+endif()
+
 add_subdirectory(InlineAdvisorPlugin)
+add_subdirectory(InlineOrderPlugin)

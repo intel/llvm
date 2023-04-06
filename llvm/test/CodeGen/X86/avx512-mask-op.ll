@@ -1239,11 +1239,11 @@ define <64 x i8> @test16(i64 %x) {
 ; X86-NEXT:    kshiftlq $6, %k1, %k1
 ; X86-NEXT:    kshiftlq $59, %k0, %k0
 ; X86-NEXT:    kshiftrq $59, %k0, %k0
+; X86-NEXT:    korq %k1, %k0, %k0
 ; X86-NEXT:    movb $1, %al
-; X86-NEXT:    kmovd %eax, %k2
-; X86-NEXT:    kshiftlq $63, %k2, %k2
-; X86-NEXT:    kshiftrq $58, %k2, %k2
-; X86-NEXT:    korq %k1, %k2, %k1
+; X86-NEXT:    kmovd %eax, %k1
+; X86-NEXT:    kshiftlq $63, %k1, %k1
+; X86-NEXT:    kshiftrq $58, %k1, %k1
 ; X86-NEXT:    korq %k0, %k1, %k0
 ; X86-NEXT:    vpmovm2b %k0, %zmm0
 ; X86-NEXT:    retl
@@ -1361,10 +1361,10 @@ define <64 x i8> @test17(i64 %x, i32 %y, i32 %z) {
 ; X86-NEXT:    kshiftlq $6, %k1, %k1
 ; X86-NEXT:    kshiftlq $59, %k0, %k0
 ; X86-NEXT:    kshiftrq $59, %k0, %k0
-; X86-NEXT:    kmovd %eax, %k2
-; X86-NEXT:    kshiftlq $63, %k2, %k2
-; X86-NEXT:    kshiftrq $58, %k2, %k2
-; X86-NEXT:    korq %k1, %k2, %k1
+; X86-NEXT:    korq %k1, %k0, %k0
+; X86-NEXT:    kmovd %eax, %k1
+; X86-NEXT:    kshiftlq $63, %k1, %k1
+; X86-NEXT:    kshiftrq $58, %k1, %k1
 ; X86-NEXT:    korq %k0, %k1, %k0
 ; X86-NEXT:    vpmovm2b %k0, %zmm0
 ; X86-NEXT:    retl
@@ -4098,14 +4098,14 @@ bb.2:
 }
 declare void @foo()
 
-; Make sure we can use the C flag from kortest to check for all ones.
+; Make sure we can use the ZF/CF flags from kortest to check for all ones.
 define void @ktest_allones(<16 x i32> %x, <16 x i32> %y) {
 ; CHECK-LABEL: ktest_allones:
 ; CHECK:       ## %bb.0:
 ; CHECK-NEXT:    vpord %zmm1, %zmm0, %zmm0
-; CHECK-NEXT:    vptestnmd %zmm0, %zmm0, %k0
+; CHECK-NEXT:    vptestmd %zmm0, %zmm0, %k0
 ; CHECK-NEXT:    kortestw %k0, %k0
-; CHECK-NEXT:    jb LBB67_2
+; CHECK-NEXT:    je LBB67_2
 ; CHECK-NEXT:  ## %bb.1: ## %bb.1
 ; CHECK-NEXT:    pushq %rax
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
@@ -4119,9 +4119,9 @@ define void @ktest_allones(<16 x i32> %x, <16 x i32> %y) {
 ; X86-LABEL: ktest_allones:
 ; X86:       ## %bb.0:
 ; X86-NEXT:    vpord %zmm1, %zmm0, %zmm0
-; X86-NEXT:    vptestnmd %zmm0, %zmm0, %k0
+; X86-NEXT:    vptestmd %zmm0, %zmm0, %k0
 ; X86-NEXT:    kortestw %k0, %k0
-; X86-NEXT:    jb LBB67_2
+; X86-NEXT:    je LBB67_2
 ; X86-NEXT:  ## %bb.1: ## %bb.1
 ; X86-NEXT:    subl $12, %esp
 ; X86-NEXT:    .cfi_def_cfa_offset 16

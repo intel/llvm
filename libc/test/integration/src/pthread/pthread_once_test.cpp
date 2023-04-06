@@ -15,9 +15,10 @@
 #include "src/pthread/pthread_mutex_unlock.h"
 #include "src/pthread/pthread_once.h"
 
-#include "utils/IntegrationTest/test.h"
+#include "test/IntegrationTest/test.h"
 
 #include <pthread.h>
+#include <stdint.h> // uintptr_t
 
 static constexpr unsigned int NUM_THREADS = 5;
 static __llvm_libc::cpp::Atomic<unsigned int> thread_count;

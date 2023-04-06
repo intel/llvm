@@ -245,8 +245,7 @@ bool DAGTypeLegalizer::run() {
     // types are illegal.
     for (unsigned i = 0, NumResults = N->getNumValues(); i < NumResults; ++i) {
       EVT ResultVT = N->getValueType(i);
-      LLVM_DEBUG(dbgs() << "Analyzing result type: " << ResultVT.getEVTString()
-                        << "\n");
+      LLVM_DEBUG(dbgs() << "Analyzing result type: " << ResultVT << "\n");
       switch (getTypeAction(ResultVT)) {
       case TargetLowering::TypeLegal:
         LLVM_DEBUG(dbgs() << "Legal result type\n");
@@ -763,7 +762,7 @@ void DAGTypeLegalizer::SetScalarizedVector(SDValue Op, SDValue Result) {
   // a constant i8 operand.
 
   // We don't currently support the scalarization of scalable vector types.
-  assert(Result.getValueSizeInBits().getFixedSize() >=
+  assert(Result.getValueSizeInBits().getFixedValue() >=
              Op.getScalarValueSizeInBits() &&
          "Invalid type for scalarized vector");
   AnalyzeNewValue(Result);
@@ -989,10 +988,7 @@ void DAGTypeLegalizer::GetPairElements(SDValue Pair,
                                        SDValue &Lo, SDValue &Hi) {
   SDLoc dl(Pair);
   EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), Pair.getValueType());
-  Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, NVT, Pair,
-                   DAG.getIntPtrConstant(0, dl));
-  Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, NVT, Pair,
-                   DAG.getIntPtrConstant(1, dl));
+  std::tie(Lo, Hi) = DAG.SplitScalar(Pair, dl, NVT, NVT);
 }
 
 /// Build an integer with low bits Lo and high bits Hi.

@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Object/ELFObjectFile.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/SubtargetFeature.h"
@@ -25,6 +24,8 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/RISCVAttributeParser.h"
 #include "llvm/Support/RISCVAttributes.h"
+#include "llvm/Support/RISCVISAInfo.h"
+#include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -72,7 +73,7 @@ ObjectFile::createELFObjectFile(MemoryBufferRef Obj, bool InitContent) {
   std::pair<unsigned char, unsigned char> Ident =
       getElfArchType(Obj.getBuffer());
   std::size_t MaxAlignment =
-      1ULL << countTrailingZeros(
+      1ULL << llvm::countr_zero(
           reinterpret_cast<uintptr_t>(Obj.getBufferStart()));
 
   if (MaxAlignment < 2)
@@ -286,7 +287,7 @@ SubtargetFeatures ELFObjectFileBase::getARMFeatures() const {
   return Features;
 }
 
-SubtargetFeatures ELFObjectFileBase::getRISCVFeatures() const {
+Expected<SubtargetFeatures> ELFObjectFileBase::getRISCVFeatures() const {
   SubtargetFeatures Features;
   unsigned PlatformFlags = getPlatformFlags();
 
@@ -294,50 +295,27 @@ SubtargetFeatures ELFObjectFileBase::getRISCVFeatures() const {
     Features.AddFeature("c");
   }
 
-  // Add features according to the ELF attribute section.
-  // If there are any unrecognized features, ignore them.
   RISCVAttributeParser Attributes;
   if (Error E = getBuildAttributes(Attributes)) {
-    // TODO Propagate Error.
-    consumeError(std::move(E));
-    return Features; // Keep "c" feature if there is one in PlatformFlags.
+    return std::move(E);
   }
 
   std::optional<StringRef> Attr =
       Attributes.getAttributeString(RISCVAttrs::ARCH);
   if (Attr) {
-    // The Arch pattern is [rv32|rv64][i|e]version(_[m|a|f|d|c]version)*
-    // Version string pattern is (major)p(minor). Major and minor are optional.
-    // For example, a version number could be 2p0, 2, or p92.
-    StringRef Arch = *Attr;
-    if (Arch.consume_front("rv32"))
+    auto ParseResult = RISCVISAInfo::parseNormalizedArchString(*Attr);
+    if (!ParseResult)
+      return ParseResult.takeError();
+    auto &ISAInfo = *ParseResult;
+
+    if (ISAInfo->getXLen() == 32)
       Features.AddFeature("64bit", false);
-    else if (Arch.consume_front("rv64"))
+    else if (ISAInfo->getXLen() == 64)
       Features.AddFeature("64bit");
+    else
+      llvm_unreachable("XLEN should be 32 or 64.");
 
-    while (!Arch.empty()) {
-      switch (Arch[0]) {
-      default:
-        break; // Ignore unexpected features.
-      case 'i':
-        Features.AddFeature("e", false);
-        break;
-      case 'd':
-        Features.AddFeature("f"); // D-ext will imply F-ext.
-        [[fallthrough]];
-      case 'e':
-      case 'm':
-      case 'a':
-      case 'f':
-      case 'c':
-        Features.AddFeature(Arch.take_front());
-        break;
-      }
-
-      // FIXME: Handle version numbers.
-      Arch = Arch.drop_until([](char c) { return c == '_' || c == '\0'; });
-      Arch = Arch.drop_while([](char c) { return c == '_'; });
-    }
+    Features.addFeaturesVector(ISAInfo->toFeatureVector());
   }
 
   return Features;
@@ -361,7 +339,7 @@ SubtargetFeatures ELFObjectFileBase::getLoongArchFeatures() const {
   return Features;
 }
 
-SubtargetFeatures ELFObjectFileBase::getFeatures() const {
+Expected<SubtargetFeatures> ELFObjectFileBase::getFeatures() const {
   switch (getEMachine()) {
   case ELF::EM_MIPS:
     return getMIPSFeatures();
@@ -698,24 +676,39 @@ template <class ELFT>
 Expected<std::vector<BBAddrMap>> static readBBAddrMapImpl(
     const ELFFile<ELFT> &EF, std::optional<unsigned> TextSectionIndex) {
   using Elf_Shdr = typename ELFT::Shdr;
+  bool IsRelocatable = EF.getHeader().e_type == ELF::ET_REL;
   std::vector<BBAddrMap> BBAddrMaps;
+
   const auto &Sections = cantFail(EF.sections());
-  for (const Elf_Shdr &Sec : Sections) {
+  auto IsMatch = [&](const Elf_Shdr &Sec) -> Expected<bool> {
     if (Sec.sh_type != ELF::SHT_LLVM_BB_ADDR_MAP &&
         Sec.sh_type != ELF::SHT_LLVM_BB_ADDR_MAP_V0)
-      continue;
-    if (TextSectionIndex) {
-      Expected<const Elf_Shdr *> TextSecOrErr = EF.getSection(Sec.sh_link);
-      if (!TextSecOrErr)
-        return createError("unable to get the linked-to section for " +
-                           describe(EF, Sec) + ": " +
-                           toString(TextSecOrErr.takeError()));
-      if (*TextSectionIndex != std::distance(Sections.begin(), *TextSecOrErr))
-        continue;
-    }
-    Expected<std::vector<BBAddrMap>> BBAddrMapOrErr = EF.decodeBBAddrMap(Sec);
+      return false;
+    if (!TextSectionIndex)
+      return true;
+    Expected<const Elf_Shdr *> TextSecOrErr = EF.getSection(Sec.sh_link);
+    if (!TextSecOrErr)
+      return createError("unable to get the linked-to section for " +
+                         describe(EF, Sec) + ": " +
+                         toString(TextSecOrErr.takeError()));
+    if (*TextSectionIndex != std::distance(Sections.begin(), *TextSecOrErr))
+      return false;
+    return true;
+  };
+
+  Expected<MapVector<const Elf_Shdr *, const Elf_Shdr *>> SectionRelocMapOrErr =
+      EF.getSectionAndRelocations(IsMatch);
+  if (!SectionRelocMapOrErr)
+    return SectionRelocMapOrErr.takeError();
+
+  for (auto const &[Sec, RelocSec] : *SectionRelocMapOrErr) {
+    if (IsRelocatable && !RelocSec)
+      return createError("unable to get relocation section for " +
+                         describe(EF, *Sec));
+    Expected<std::vector<BBAddrMap>> BBAddrMapOrErr =
+        EF.decodeBBAddrMap(*Sec, RelocSec);
     if (!BBAddrMapOrErr)
-      return createError("unable to read " + describe(EF, Sec) + ": " +
+      return createError("unable to read " + describe(EF, *Sec) + ": " +
                          toString(BBAddrMapOrErr.takeError()));
     std::move(BBAddrMapOrErr->begin(), BBAddrMapOrErr->end(),
               std::back_inserter(BBAddrMaps));
@@ -800,8 +793,6 @@ Expected<std::vector<BBAddrMap>> ELFObjectFileBase::readBBAddrMap(
     return readBBAddrMapImpl(Obj->getELFFile(), TextSectionIndex);
   if (const auto *Obj = dyn_cast<ELF32BEObjectFile>(this))
     return readBBAddrMapImpl(Obj->getELFFile(), TextSectionIndex);
-  if (const auto *Obj = cast<ELF64BEObjectFile>(this))
-    return readBBAddrMapImpl(Obj->getELFFile(), TextSectionIndex);
-  else
-    llvm_unreachable("Unsupported binary format");
+  return readBBAddrMapImpl(cast<ELF64BEObjectFile>(this)->getELFFile(),
+                           TextSectionIndex);
 }

@@ -28,7 +28,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17
+#if _LIBCPP_STD_VER >= 20
 
 // [iter.cust.swap]
 
@@ -82,7 +82,7 @@ namespace __iter_swap {
     constexpr void operator()(_T1&& __x, _T2&& __y) const
       noexcept(noexcept(iter_value_t<_T2>(ranges::iter_move(__y))) &&
                noexcept(*__y = ranges::iter_move(__x)) &&
-               noexcept(*_VSTD::forward<_T1>(__x) = declval<iter_value_t<_T2>>()))
+               noexcept(*_VSTD::forward<_T1>(__x) = std::declval<iter_value_t<_T2>>()))
     {
       iter_value_t<_T2> __old(ranges::iter_move(__y));
       *__y = ranges::iter_move(__x);
@@ -106,7 +106,7 @@ concept indirectly_swappable =
     ranges::iter_swap(__i2, __i1);
   };
 
-#endif // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

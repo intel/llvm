@@ -27,6 +27,7 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <type_traits>
 #include <utility>
 
 DEMANGLE_NAMESPACE_BEGIN
@@ -536,6 +537,8 @@ struct AbiTagAttr : Node {
         Base(Base_), Tag(Tag_) {}
 
   template<typename Fn> void match(Fn F) const { F(Base, Tag); }
+
+  StringView getBaseName() const override { return Base->getBaseName(); }
 
   void printLeft(OutputBuffer &OB) const override {
     Base->printLeft(OB);

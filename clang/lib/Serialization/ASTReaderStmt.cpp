@@ -61,6 +61,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 using namespace clang;
@@ -227,7 +228,7 @@ void ASTStmtReader::VisitIfStmt(IfStmt *S) {
   if (HasElse)
     S->setElse(Record.readSubStmt());
   if (HasVar)
-    S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+    S->setConditionVariableDeclStmt(cast<DeclStmt>(Record.readSubStmt()));
   if (HasInit)
     S->setInit(Record.readSubStmt());
 
@@ -252,7 +253,7 @@ void ASTStmtReader::VisitSwitchStmt(SwitchStmt *S) {
   if (HasInit)
     S->setInit(Record.readSubStmt());
   if (HasVar)
-    S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+    S->setConditionVariableDeclStmt(cast<DeclStmt>(Record.readSubStmt()));
 
   S->setSwitchLoc(readSourceLocation());
   S->setLParenLoc(readSourceLocation());
@@ -278,7 +279,7 @@ void ASTStmtReader::VisitWhileStmt(WhileStmt *S) {
   S->setCond(Record.readSubExpr());
   S->setBody(Record.readSubStmt());
   if (HasVar)
-    S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+    S->setConditionVariableDeclStmt(cast<DeclStmt>(Record.readSubStmt()));
 
   S->setWhileLoc(readSourceLocation());
   S->setLParenLoc(readSourceLocation());
@@ -298,7 +299,7 @@ void ASTStmtReader::VisitForStmt(ForStmt *S) {
   VisitStmt(S);
   S->setInit(Record.readSubStmt());
   S->setCond(Record.readSubExpr());
-  S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
+  S->setConditionVariableDeclStmt(cast_or_null<DeclStmt>(Record.readSubStmt()));
   S->setInc(Record.readSubExpr());
   S->setBody(Record.readSubStmt());
   S->setForLoc(readSourceLocation());
@@ -867,7 +868,7 @@ void ASTStmtReader::VisitRequiresExpr(RequiresExpr *E) {
         } else
           E = Record.readExpr();
 
-        llvm::Optional<concepts::ExprRequirement::ReturnTypeRequirement> Req;
+        std::optional<concepts::ExprRequirement::ReturnTypeRequirement> Req;
         ConceptSpecializationExpr *SubstitutedConstraintExpr = nullptr;
         SourceLocation NoexceptLoc;
         if (RK == concepts::Requirement::RK_Simple) {
@@ -1864,13 +1865,19 @@ void ASTStmtReader::VisitCXXDefaultArgExpr(CXXDefaultArgExpr *E) {
   E->Param = readDeclAs<ParmVarDecl>();
   E->UsedContext = readDeclAs<DeclContext>();
   E->CXXDefaultArgExprBits.Loc = readSourceLocation();
+  E->CXXDefaultArgExprBits.HasRewrittenInit = Record.readInt();
+  if (E->CXXDefaultArgExprBits.HasRewrittenInit)
+    *E->getTrailingObjects<Expr *>() = Record.readSubExpr();
 }
 
 void ASTStmtReader::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
   VisitExpr(E);
+  E->CXXDefaultInitExprBits.HasRewrittenInit = Record.readInt();
   E->Field = readDeclAs<FieldDecl>();
   E->UsedContext = readDeclAs<DeclContext>();
   E->CXXDefaultInitExprBits.Loc = readSourceLocation();
+  if (E->CXXDefaultInitExprBits.HasRewrittenInit)
+    *E->getTrailingObjects<Expr *>() = Record.readSubExpr();
 }
 
 void ASTStmtReader::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
@@ -2220,9 +2227,14 @@ void ASTStmtReader::VisitCXXParenListInitExpr(CXXParenListInitExpr *E) {
   for (unsigned I = 0; I < ExpectedNumExprs; I++)
     E->getTrailingObjects<Expr *>()[I] = Record.readSubExpr();
 
-  bool HasArrayFiller = Record.readBool();
-  if (HasArrayFiller) {
-    E->setArrayFiller(Record.readSubExpr());
+  bool HasArrayFillerOrUnionDecl = Record.readBool();
+  if (HasArrayFillerOrUnionDecl) {
+    bool HasArrayFiller = Record.readBool();
+    if (HasArrayFiller) {
+      E->setArrayFiller(Record.readSubExpr());
+    } else {
+      E->setInitializedFieldInUnion(readDeclAs<FieldDecl>());
+    }
   }
   E->updateDependence();
 }
@@ -2825,7 +2837,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_REF_PTR:
       IsStmtReference = true;
-      assert(StmtEntries.find(Record[0]) != StmtEntries.end() &&
+      assert(StmtEntries.contains(Record[0]) &&
              "No stmt was recorded for this offset reference!");
       S = StmtEntries[Record.readInt()];
       break;
@@ -3909,11 +3921,13 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_CXX_DEFAULT_ARG:
-      S = new (Context) CXXDefaultArgExpr(Empty);
+      S = CXXDefaultArgExpr::CreateEmpty(
+          Context, /*HasRewrittenInit=*/Record[ASTStmtReader::NumExprFields]);
       break;
 
     case EXPR_CXX_DEFAULT_INIT:
-      S = new (Context) CXXDefaultInitExpr(Empty);
+      S = CXXDefaultInitExpr::CreateEmpty(
+          Context, /*HasRewrittenInit=*/Record[ASTStmtReader::NumExprFields]);
       break;
 
     case EXPR_CXX_BIND_TEMPORARY:

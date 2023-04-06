@@ -18,32 +18,30 @@ define i32 @foo(float* nocapture %a, float* nocapture %b, i32 %n) nounwind uwtab
 ; CHECK-NEXT:    [[CMP6:%.*]] = icmp sgt i32 [[N:%.*]], 0, !dbg [[DBG4]]
 ; CHECK-NEXT:    br i1 [[CMP6]], label [[FOR_BODY_PREHEADER:%.*]], label [[FOR_END:%.*]], !dbg [[DBG4]]
 ; CHECK:       for.body.preheader:
-; CHECK-NEXT:    [[TMP0:%.*]] = add i32 [[N]], -1, !dbg [[DBG9:![0-9]+]]
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i32 [[TMP0]] to i64, !dbg [[DBG9]]
-; CHECK-NEXT:    [[TMP2:%.*]] = add nuw nsw i64 [[TMP1]], 1, !dbg [[DBG9]]
+; CHECK-NEXT:    [[TMP0:%.*]] = zext i32 [[N]] to i64, !dbg [[DBG9:![0-9]+]]
 ; CHECK-NEXT:    [[MIN_ITERS_CHECK:%.*]] = icmp ult i32 [[N]], 4, !dbg [[DBG9]]
 ; CHECK-NEXT:    br i1 [[MIN_ITERS_CHECK]], label [[SCALAR_PH:%.*]], label [[VECTOR_MEMCHECK:%.*]], !dbg [[DBG9]]
 ; CHECK:       vector.memcheck:
-; CHECK-NEXT:    [[TMP3:%.*]] = sub i64 [[A1]], [[B2]], !dbg [[DBG9]]
-; CHECK-NEXT:    [[DIFF_CHECK:%.*]] = icmp ult i64 [[TMP3]], 16, !dbg [[DBG9]]
+; CHECK-NEXT:    [[TMP1:%.*]] = sub i64 [[A1]], [[B2]], !dbg [[DBG9]]
+; CHECK-NEXT:    [[DIFF_CHECK:%.*]] = icmp ult i64 [[TMP1]], 16, !dbg [[DBG9]]
 ; CHECK-NEXT:    br i1 [[DIFF_CHECK]], label [[SCALAR_PH]], label [[VECTOR_PH:%.*]], !dbg [[DBG9]]
 ; CHECK:       vector.ph:
-; CHECK-NEXT:    [[N_VEC:%.*]] = and i64 [[TMP2]], -4, !dbg [[DBG9]]
+; CHECK-NEXT:    [[N_VEC:%.*]] = and i64 [[TMP0]], 4294967292, !dbg [[DBG9]]
 ; CHECK-NEXT:    br label [[VECTOR_BODY:%.*]], !dbg [[DBG9]]
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, [[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], [[VECTOR_BODY]] ], !dbg [[DBG9]]
-; CHECK-NEXT:    [[TMP4:%.*]] = getelementptr inbounds float, float* [[B]], i64 [[INDEX]], !dbg [[DBG9]]
-; CHECK-NEXT:    [[TMP5:%.*]] = bitcast float* [[TMP4]] to <4 x float>*, !dbg [[DBG9]]
-; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <4 x float>, <4 x float>* [[TMP5]], align 4, !dbg [[DBG9]]
-; CHECK-NEXT:    [[TMP6:%.*]] = fmul <4 x float> [[WIDE_LOAD]], <float 3.000000e+00, float 3.000000e+00, float 3.000000e+00, float 3.000000e+00>, !dbg [[DBG9]]
-; CHECK-NEXT:    [[TMP7:%.*]] = getelementptr inbounds float, float* [[A]], i64 [[INDEX]], !dbg [[DBG9]]
-; CHECK-NEXT:    [[TMP8:%.*]] = bitcast float* [[TMP7]] to <4 x float>*, !dbg [[DBG9]]
-; CHECK-NEXT:    store <4 x float> [[TMP6]], <4 x float>* [[TMP8]], align 4, !dbg [[DBG9]]
+; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds float, float* [[B]], i64 [[INDEX]], !dbg [[DBG9]]
+; CHECK-NEXT:    [[TMP3:%.*]] = bitcast float* [[TMP2]] to <4 x float>*, !dbg [[DBG9]]
+; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <4 x float>, <4 x float>* [[TMP3]], align 4, !dbg [[DBG9]]
+; CHECK-NEXT:    [[TMP4:%.*]] = fmul <4 x float> [[WIDE_LOAD]], <float 3.000000e+00, float 3.000000e+00, float 3.000000e+00, float 3.000000e+00>, !dbg [[DBG9]]
+; CHECK-NEXT:    [[TMP5:%.*]] = getelementptr inbounds float, float* [[A]], i64 [[INDEX]], !dbg [[DBG9]]
+; CHECK-NEXT:    [[TMP6:%.*]] = bitcast float* [[TMP5]] to <4 x float>*, !dbg [[DBG9]]
+; CHECK-NEXT:    store <4 x float> [[TMP4]], <4 x float>* [[TMP6]], align 4, !dbg [[DBG9]]
 ; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4, !dbg [[DBG9]]
-; CHECK-NEXT:    [[TMP9:%.*]] = icmp eq i64 [[INDEX_NEXT]], [[N_VEC]], !dbg [[DBG9]]
-; CHECK-NEXT:    br i1 [[TMP9]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !dbg [[DBG9]], !llvm.loop [[LOOP10:![0-9]+]]
+; CHECK-NEXT:    [[TMP7:%.*]] = icmp eq i64 [[INDEX_NEXT]], [[N_VEC]], !dbg [[DBG9]]
+; CHECK-NEXT:    br i1 [[TMP7]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !dbg [[DBG9]], !llvm.loop [[LOOP10:![0-9]+]]
 ; CHECK:       middle.block:
-; CHECK-NEXT:    [[CMP_N:%.*]] = icmp eq i64 [[TMP2]], [[N_VEC]], !dbg [[DBG9]]
+; CHECK-NEXT:    [[CMP_N:%.*]] = icmp eq i64 [[N_VEC]], [[TMP0]], !dbg [[DBG9]]
 ; CHECK-NEXT:    br i1 [[CMP_N]], label [[FOR_END_LOOPEXIT:%.*]], label [[SCALAR_PH]], !dbg [[DBG9]]
 ; CHECK:       scalar.ph:
 ; CHECK-NEXT:    [[BC_RESUME_VAL:%.*]] = phi i64 [ [[N_VEC]], [[MIDDLE_BLOCK]] ], [ 0, [[FOR_BODY_PREHEADER]] ], [ 0, [[VECTOR_MEMCHECK]] ], !dbg [[DBG9]]
@@ -51,18 +49,18 @@ define i32 @foo(float* nocapture %a, float* nocapture %b, i32 %n) nounwind uwtab
 ; CHECK:       for.body:
 ; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[INDVARS_IV_NEXT:%.*]], [[FOR_BODY]] ], [ [[BC_RESUME_VAL]], [[SCALAR_PH]] ], !dbg [[DBG9]]
 ; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds float, float* [[B]], i64 [[INDVARS_IV]], !dbg [[DBG9]]
-; CHECK-NEXT:    [[TMP10:%.*]] = load float, float* [[ARRAYIDX]], align 4, !dbg [[DBG9]]
-; CHECK-NEXT:    [[MUL:%.*]] = fmul float [[TMP10]], 3.000000e+00, !dbg [[DBG9]]
+; CHECK-NEXT:    [[TMP8:%.*]] = load float, float* [[ARRAYIDX]], align 4, !dbg [[DBG9]]
+; CHECK-NEXT:    [[MUL:%.*]] = fmul float [[TMP8]], 3.000000e+00, !dbg [[DBG9]]
 ; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds float, float* [[A]], i64 [[INDVARS_IV]], !dbg [[DBG9]]
 ; CHECK-NEXT:    store float [[MUL]], float* [[ARRAYIDX2]], align 4, !dbg [[DBG9]]
 ; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add i64 [[INDVARS_IV]], 1, !dbg [[DBG9]]
 ; CHECK-NEXT:    [[LFTR_WIDEIV:%.*]] = trunc i64 [[INDVARS_IV_NEXT]] to i32, !dbg [[DBG9]]
 ; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp eq i32 [[LFTR_WIDEIV]], [[N]], !dbg [[DBG9]]
-; CHECK-NEXT:    br i1 [[EXITCOND]], label [[FOR_END_LOOPEXIT]], label [[FOR_BODY]], !dbg [[DBG9]], !llvm.loop [[LOOP12:![0-9]+]]
+; CHECK-NEXT:    br i1 [[EXITCOND]], label [[FOR_END_LOOPEXIT]], label [[FOR_BODY]], !dbg [[DBG9]], !llvm.loop [[LOOP13:![0-9]+]]
 ; CHECK:       for.end.loopexit:
-; CHECK-NEXT:    br label [[FOR_END]], !dbg [[DBG13:![0-9]+]]
+; CHECK-NEXT:    br label [[FOR_END]], !dbg [[DBG14:![0-9]+]]
 ; CHECK:       for.end:
-; CHECK-NEXT:    ret i32 undef, !dbg [[DBG13]]
+; CHECK-NEXT:    ret i32 undef, !dbg [[DBG14]]
 ;
 ; FORCED_OPTSIZE-LABEL: @foo(
 ; FORCED_OPTSIZE-NEXT:  entry:
@@ -135,18 +133,18 @@ define void @test_runtime_check(float* %a, float %b, i64 %offset, i64 %offset2, 
 ; CHECK-NEXT:    [[TMP2:%.*]] = add i64 [[INDEX]], [[OFFSET]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = getelementptr inbounds float, float* [[A]], i64 [[TMP2]]
 ; CHECK-NEXT:    [[TMP4:%.*]] = bitcast float* [[TMP3]] to <4 x float>*
-; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <4 x float>, <4 x float>* [[TMP4]], align 4, !alias.scope !14, !noalias !17
+; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <4 x float>, <4 x float>* [[TMP4]], align 4, !alias.scope !15, !noalias !18
 ; CHECK-NEXT:    [[TMP5:%.*]] = add i64 [[INDEX]], [[OFFSET2]]
 ; CHECK-NEXT:    [[TMP6:%.*]] = getelementptr inbounds float, float* [[A]], i64 [[TMP5]]
 ; CHECK-NEXT:    [[TMP7:%.*]] = bitcast float* [[TMP6]] to <4 x float>*
-; CHECK-NEXT:    [[WIDE_LOAD8:%.*]] = load <4 x float>, <4 x float>* [[TMP7]], align 4, !alias.scope !17
+; CHECK-NEXT:    [[WIDE_LOAD8:%.*]] = load <4 x float>, <4 x float>* [[TMP7]], align 4, !alias.scope !18
 ; CHECK-NEXT:    [[TMP8:%.*]] = fmul fast <4 x float> [[BROADCAST_SPLAT]], [[WIDE_LOAD8]]
 ; CHECK-NEXT:    [[TMP9:%.*]] = fadd fast <4 x float> [[WIDE_LOAD]], [[TMP8]]
 ; CHECK-NEXT:    [[TMP10:%.*]] = bitcast float* [[TMP3]] to <4 x float>*
-; CHECK-NEXT:    store <4 x float> [[TMP9]], <4 x float>* [[TMP10]], align 4, !alias.scope !14, !noalias !17
+; CHECK-NEXT:    store <4 x float> [[TMP9]], <4 x float>* [[TMP10]], align 4, !alias.scope !15, !noalias !18
 ; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
 ; CHECK-NEXT:    [[TMP11:%.*]] = icmp eq i64 [[INDEX_NEXT]], [[N_VEC]]
-; CHECK-NEXT:    br i1 [[TMP11]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP19:![0-9]+]]
+; CHECK-NEXT:    br i1 [[TMP11]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP20:![0-9]+]]
 ; CHECK:       middle.block:
 ; CHECK-NEXT:    [[CMP_N:%.*]] = icmp eq i64 [[N_VEC]], [[N]]
 ; CHECK-NEXT:    br i1 [[CMP_N]], label [[LOOPEXIT:%.*]], label [[SCALAR_PH]]
@@ -166,7 +164,7 @@ define void @test_runtime_check(float* %a, float %b, i64 %offset, i64 %offset2, 
 ; CHECK-NEXT:    store float [[AD]], float* [[ARR_IDX]], align 4
 ; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
 ; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp eq i64 [[IV_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[EXITCOND]], label [[LOOPEXIT]], label [[FOR_BODY]], !llvm.loop [[LOOP20:![0-9]+]]
+; CHECK-NEXT:    br i1 [[EXITCOND]], label [[LOOPEXIT]], label [[FOR_BODY]], !llvm.loop [[LOOP21:![0-9]+]]
 ; CHECK:       loopexit:
 ; CHECK-NEXT:    ret void
 ;
@@ -304,9 +302,37 @@ loopexit:
   ret void
 }
 
-; CHECK: !9 = !DILocation(line: 101, column: 1, scope: !{{.*}})
 
 define dso_local void @forced_optsize(i64* noalias nocapture readonly %x_p, i64* noalias nocapture readonly %y_p, i64* noalias nocapture %z_p) minsize optsize {
+; CHECK-LABEL: @forced_optsize(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 false, label [[SCALAR_PH:%.*]], label [[VECTOR_PH:%.*]]
+; CHECK:       vector.ph:
+; CHECK-NEXT:    br label [[VECTOR_BODY:%.*]]
+; CHECK:       vector.body:
+; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, [[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], [[VECTOR_BODY]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = getelementptr inbounds i64, i64* [[X_P:%.*]], i64 [[INDEX]]
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i64* [[TMP0]] to <2 x i64>*
+; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <2 x i64>, <2 x i64>* [[TMP1]], align 8
+; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds i64, i64* [[Y_P:%.*]], i64 [[INDEX]]
+; CHECK-NEXT:    [[TMP3:%.*]] = bitcast i64* [[TMP2]] to <2 x i64>*
+; CHECK-NEXT:    [[WIDE_LOAD1:%.*]] = load <2 x i64>, <2 x i64>* [[TMP3]], align 8
+; CHECK-NEXT:    [[TMP4:%.*]] = add nsw <2 x i64> [[WIDE_LOAD1]], [[WIDE_LOAD]]
+; CHECK-NEXT:    [[TMP5:%.*]] = getelementptr inbounds i64, i64* [[Z_P:%.*]], i64 [[INDEX]]
+; CHECK-NEXT:    [[TMP6:%.*]] = bitcast i64* [[TMP5]] to <2 x i64>*
+; CHECK-NEXT:    store <2 x i64> [[TMP4]], <2 x i64>* [[TMP6]], align 8
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 2
+; CHECK-NEXT:    [[TMP7:%.*]] = icmp eq i64 [[INDEX_NEXT]], 128
+; CHECK-NEXT:    br i1 [[TMP7]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP22:![0-9]+]]
+; CHECK:       middle.block:
+; CHECK-NEXT:    br i1 true, label [[FOR_COND_CLEANUP:%.*]], label [[SCALAR_PH]]
+; CHECK:       scalar.ph:
+; CHECK-NEXT:    br label [[FOR_BODY:%.*]]
+; CHECK:       for.cond.cleanup:
+; CHECK-NEXT:    ret void
+; CHECK:       for.body:
+; CHECK-NEXT:    br i1 poison, label [[FOR_COND_CLEANUP]], label [[FOR_BODY]], !llvm.loop [[LOOP23:![0-9]+]]
+;
 ; FORCED_OPTSIZE-LABEL: @forced_optsize(
 ; FORCED_OPTSIZE-NEXT:  entry:
 ; FORCED_OPTSIZE-NEXT:    br label [[FOR_BODY:%.*]]
@@ -344,6 +370,8 @@ for.body:
   %exitcond = icmp eq i64 %indvars.iv.next, 128
   br i1 %exitcond, label %for.cond.cleanup, label %for.body, !llvm.loop !12
 }
+
+; CHECK: !9 = !DILocation(line: 101, column: 1, scope: !{{.*}})
 
 !llvm.module.flags = !{!0, !1}
 !llvm.dbg.cu = !{!9}

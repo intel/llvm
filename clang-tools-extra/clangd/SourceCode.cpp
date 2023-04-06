@@ -40,6 +40,7 @@
 #include "llvm/Support/xxhash.h"
 #include <algorithm>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -71,7 +72,7 @@ static bool iterateCodepoints(llvm::StringRef U8, const Callback &CB) {
       continue;
     }
     // This convenient property of UTF-8 holds for all non-ASCII characters.
-    size_t UTF8Length = llvm::countLeadingOnes(C);
+    size_t UTF8Length = llvm::countl_one(C);
     // 0xxx is ASCII, handled above. 10xxx is a trailing byte, invalid here.
     // 11111xxx is not valid UTF-8 at all, maybe some ISO-8859-*.
     if (LLVM_UNLIKELY(UTF8Length < 2 || UTF8Length > 4)) {
@@ -421,9 +422,9 @@ bool isInsideMainFile(SourceLocation Loc, const SourceManager &SM) {
   return FID == SM.getMainFileID() || FID == SM.getPreambleFileID();
 }
 
-llvm::Optional<SourceRange> toHalfOpenFileRange(const SourceManager &SM,
-                                                const LangOptions &LangOpts,
-                                                SourceRange R) {
+std::optional<SourceRange> toHalfOpenFileRange(const SourceManager &SM,
+                                               const LangOptions &LangOpts,
+                                               SourceRange R) {
   SourceRange R1 = getTokenFileRange(R.getBegin(), SM, LangOpts);
   if (!isValidFileRange(SM, R1))
     return std::nullopt;
@@ -511,8 +512,8 @@ std::vector<TextEdit> replacementsToEdits(llvm::StringRef Code,
   return Edits;
 }
 
-llvm::Optional<std::string> getCanonicalPath(const FileEntry *F,
-                                             const SourceManager &SourceMgr) {
+std::optional<std::string> getCanonicalPath(const FileEntry *F,
+                                            const SourceManager &SourceMgr) {
   if (!F)
     return std::nullopt;
 
@@ -569,7 +570,7 @@ FileDigest digest(llvm::StringRef Content) {
   return Result;
 }
 
-llvm::Optional<FileDigest> digestFile(const SourceManager &SM, FileID FID) {
+std::optional<FileDigest> digestFile(const SourceManager &SM, FileID FID) {
   bool Invalid = false;
   llvm::StringRef Content = SM.getBufferData(FID, &Invalid);
   if (Invalid)
@@ -795,6 +796,12 @@ llvm::SmallVector<llvm::StringRef> ancestorNamespaces(llvm::StringRef NS) {
   return Results;
 }
 
+// Checks whether \p FileName is a valid spelling of main file.
+bool isMainFile(llvm::StringRef FileName, const SourceManager &SM) {
+  auto FE = SM.getFileManager().getFile(FileName);
+  return FE && *FE == SM.getFileEntryForID(SM.getMainFileID());
+}
+
 } // namespace
 
 std::vector<std::string> visibleNamespaces(llvm::StringRef Code,
@@ -923,9 +930,9 @@ static bool isLikelyIdentifier(llvm::StringRef Word, llvm::StringRef Before,
   return false;
 }
 
-llvm::Optional<SpelledWord> SpelledWord::touching(SourceLocation SpelledLoc,
-                                                  const syntax::TokenBuffer &TB,
-                                                  const LangOptions &LangOpts) {
+std::optional<SpelledWord> SpelledWord::touching(SourceLocation SpelledLoc,
+                                                 const syntax::TokenBuffer &TB,
+                                                 const LangOptions &LangOpts) {
   const auto &SM = TB.sourceManager();
   auto Touching = syntax::spelledTokensTouching(SpelledLoc, TB);
   for (const auto &T : Touching) {
@@ -973,8 +980,8 @@ llvm::Optional<SpelledWord> SpelledWord::touching(SourceLocation SpelledLoc,
   return Result;
 }
 
-llvm::Optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
-                                           Preprocessor &PP) {
+std::optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
+                                          Preprocessor &PP) {
   if (SpelledTok.kind() != tok::identifier)
     return std::nullopt;
   SourceLocation Loc = SpelledTok.location();
@@ -1195,7 +1202,7 @@ EligibleRegion getEligiblePoints(llvm::StringRef Code,
 }
 
 bool isHeaderFile(llvm::StringRef FileName,
-                  llvm::Optional<LangOptions> LangOpts) {
+                  std::optional<LangOptions> LangOpts) {
   // Respect the langOpts, for non-file-extension cases, e.g. standard library
   // files.
   if (LangOpts && LangOpts->IsHeaderFile)
@@ -1218,5 +1225,24 @@ bool isProtoFile(SourceLocation Loc, const SourceManager &SM) {
   return SM.getBufferData(FID).startswith(ProtoHeaderComment);
 }
 
+SourceLocation translatePreamblePatchLocation(SourceLocation Loc,
+                                              const SourceManager &SM) {
+  auto DefFile = SM.getFileID(Loc);
+  if (auto FE = SM.getFileEntryRefForID(DefFile)) {
+    auto IncludeLoc = SM.getIncludeLoc(DefFile);
+    // Preamble patch is included inside the builtin file.
+    if (IncludeLoc.isValid() && SM.isWrittenInBuiltinFile(IncludeLoc) &&
+        FE->getName().endswith(PreamblePatch::HeaderName)) {
+      auto Presumed = SM.getPresumedLoc(Loc);
+      // Check that line directive is pointing at main file.
+      if (Presumed.isValid() && Presumed.getFileID().isInvalid() &&
+          isMainFile(Presumed.getFilename(), SM)) {
+        Loc = SM.translateLineCol(SM.getMainFileID(), Presumed.getLine(),
+                                  Presumed.getColumn());
+      }
+    }
+  }
+  return Loc;
+}
 } // namespace clangd
 } // namespace clang

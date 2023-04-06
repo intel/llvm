@@ -126,6 +126,10 @@ public:
   /// Emit a DBG_VALUE $noreg, indicating a variable has no location.
   MachineInstr *EmitDbgNoLocation(SDDbgValue *SD);
 
+  /// Emit a DBG_VALUE_LIST from the operands to SDDbgValue.
+  MachineInstr *EmitDbgValueList(SDDbgValue *SD,
+                                 DenseMap<SDValue, Register> &VRBaseMap);
+
   /// Emit a DBG_VALUE from the operands to SDDbgValue.
   MachineInstr *EmitDbgValueFromSingleOp(SDDbgValue *SD,
                                     DenseMap<SDValue, Register> &VRBaseMap);
@@ -152,8 +156,7 @@ public:
   /// InstrEmitter - Construct an InstrEmitter and set it to start inserting
   /// at the given position in the given block.
   InstrEmitter(const TargetMachine &TM, MachineBasicBlock *mbb,
-               MachineBasicBlock::iterator insertpos,
-               bool UseInstrRefDebugInfo);
+               MachineBasicBlock::iterator insertpos);
 
 private:
   void EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,

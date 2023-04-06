@@ -25,6 +25,7 @@
 #include "mlir/Parser/Parser.h"
 
 #include <cstddef>
+#include <optional>
 
 using namespace mlir;
 
@@ -140,9 +141,21 @@ void mlirOpPrintingFlagsUseLocalScope(MlirOpPrintingFlags flags) {
   unwrap(flags)->useLocalScope();
 }
 
+void mlirOpPrintingFlagsAssumeVerified(MlirOpPrintingFlags flags) {
+  unwrap(flags)->assumeVerified();
+}
+
 //===----------------------------------------------------------------------===//
 // Location API.
 //===----------------------------------------------------------------------===//
+
+MlirAttribute mlirLocationGetAttribute(MlirLocation location) {
+  return wrap(LocationAttr(unwrap(location)));
+}
+
+MlirLocation mlirLocationFromAttribute(MlirAttribute attribute) {
+  return wrap(Location(unwrap(attribute).cast<LocationAttr>()));
+}
 
 MlirLocation mlirLocationFileLineColGet(MlirContext context,
                                         MlirStringRef filename, unsigned line,
@@ -288,7 +301,7 @@ void mlirOperationStateEnableResultTypeInference(MlirOperationState *state) {
 
 static LogicalResult inferOperationTypes(OperationState &state) {
   MLIRContext *context = state.getContext();
-  Optional<RegisteredOperationName> info = state.name.getRegisteredInfo();
+  std::optional<RegisteredOperationName> info = state.name.getRegisteredInfo();
   if (!info) {
     emitError(state.location)
         << "type inference was requested for the operation " << state.name
@@ -353,6 +366,15 @@ MlirOperation mlirOperationCreate(MlirOperationState *state) {
 
   MlirOperation result = wrap(Operation::create(cppState));
   return result;
+}
+
+MlirOperation mlirOperationCreateParse(MlirContext context,
+                                       MlirStringRef sourceStr,
+                                       MlirStringRef sourceName) {
+
+  return wrap(
+      parseSourceString(unwrap(sourceStr), unwrap(context), unwrap(sourceName))
+          .release());
 }
 
 MlirOperation mlirOperationClone(MlirOperation op) {

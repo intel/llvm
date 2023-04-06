@@ -437,15 +437,6 @@ public:
   /// attributes for the given arg.
   void addDereferenceableOrNullParamAttr(unsigned ArgNo, uint64_t Bytes);
 
-  /// Extract the alignment for a call or parameter (0=unknown).
-  /// FIXME: Remove this function once transition to Align is over.
-  /// Use getParamAlign() instead.
-  uint64_t getParamAlignment(unsigned ArgNo) const {
-    if (const auto MA = getParamAlign(ArgNo))
-      return MA->value();
-    return 0;
-  }
-
   MaybeAlign getParamAlign(unsigned ArgNo) const {
     return AttributeSets.getParamAlignment(ArgNo);
   }
@@ -490,6 +481,11 @@ public:
   /// @param ArgNo AttributeList ArgNo, referring to an argument.
   uint64_t getParamDereferenceableOrNullBytes(unsigned ArgNo) const {
     return AttributeSets.getParamDereferenceableOrNullBytes(ArgNo);
+  }
+
+  /// Extract the nofpclass attribute for a parameter.
+  FPClassTest getParamNoFPClass(unsigned ArgNo) const {
+    return AttributeSets.getParamNoFPClass(ArgNo);
   }
 
   /// Determine if the function is presplit coroutine.

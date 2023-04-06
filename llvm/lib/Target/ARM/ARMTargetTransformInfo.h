@@ -178,7 +178,7 @@ public:
     llvm_unreachable("Unsupported register kind");
   }
 
-  unsigned getMaxInterleaveFactor(unsigned VF) {
+  unsigned getMaxInterleaveFactor(ElementCount VF) {
     return ST->getMaxInterleaveFactor();
   }
 
@@ -241,7 +241,8 @@ public:
 
   using BaseT::getVectorInstrCost;
   InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
-                                     unsigned Index);
+                                     TTI::TargetCostKind CostKind,
+                                     unsigned Index, Value *Op0, Value *Op1);
 
   InstructionCost getAddressComputationCost(Type *Val, ScalarEvolution *SE,
                                             const SCEV *Ptr);
@@ -311,7 +312,8 @@ public:
                                TTI::UnrollingPreferences &UP,
                                OptimizationRemarkEmitter *ORE);
 
-  PredicationStyle emitGetActiveLaneMask() const;
+  TailFoldingStyle
+  getPreferredTailFoldingStyle(bool IVUpdateMayOverflow = true) const;
 
   void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
                              TTI::PeelingPreferences &PP);
@@ -324,6 +326,9 @@ public:
 
     return true;
   }
+
+  bool hasArmWideBranch(bool Thumb) const;
+
   /// @}
 };
 

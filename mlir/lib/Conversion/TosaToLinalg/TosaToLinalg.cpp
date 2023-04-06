@@ -471,11 +471,6 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
     }
 
     if (arith::FPToSIOp::areCastCompatible(srcTy, dstTy)) {
-      auto zero = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getF32FloatAttr(0.0f));
-      auto half = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getF32FloatAttr(0.5f));
-
       auto intMin = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getF32FloatAttr(
                    APInt::getSignedMinValue(dstTy.getIntOrFloatBitWidth())
@@ -486,12 +481,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
                    APInt::getSignedMaxValue(dstTy.getIntOrFloatBitWidth())
                        .getSExtValue()));
 
-      auto added = rewriter.create<arith::AddFOp>(loc, args[0], half);
-      auto subbed = rewriter.create<arith::SubFOp>(loc, args[0], half);
-      auto negative = rewriter.create<arith::CmpFOp>(
-          loc, arith::CmpFPredicate::OLT, args[0], zero);
-      auto rounded =
-          rewriter.create<arith::SelectOp>(loc, negative, subbed, added);
+      auto rounded = rewriter.create<math::RoundEvenOp>(loc, args[0]);
 
       auto clamped = clampFloatHelper(loc, rounded, intMin, intMax, rewriter);
 
@@ -512,20 +502,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
                                              std::nullopt);
 
     if (srcTy.isa<IntegerType>() && dstTy.isa<IntegerType>() && !bitExtend) {
-      auto intMin = rewriter.create<arith::ConstantIntOp>(
-          loc,
-          APInt::getSignedMinValue(dstTy.getIntOrFloatBitWidth())
-              .getSExtValue(),
-          srcTy.getIntOrFloatBitWidth());
-
-      auto intMax = rewriter.create<arith::ConstantIntOp>(
-          loc,
-          APInt::getSignedMaxValue(dstTy.getIntOrFloatBitWidth())
-              .getSExtValue(),
-          srcTy.getIntOrFloatBitWidth());
-
-      auto clamped = clampIntHelper(loc, args[0], intMin, intMax, rewriter);
-      return rewriter.create<arith::TruncIOp>(loc, dstTy, clamped);
+      return rewriter.create<arith::TruncIOp>(loc, dstTy, args[0]);
     }
   }
 
@@ -611,7 +588,7 @@ elementwiseMatchAndRewriteHelper(Operation *operation,
     if (newShape.size() != rank) {
       operand = rewriter.create<tosa::ReshapeOp>(
           loc, RankedTensorType::get(newShape, type.getElementType()), operand,
-          rewriter.getI64ArrayAttr(newShape));
+          rewriter.getDenseI64ArrayAttr(newShape));
     }
 
     operands.push_back(operand);
@@ -836,111 +813,13 @@ static LogicalResult reduceMatchAndRewriteHelper(Operation *op, uint64_t axis,
         rewriter.getAffineDimExpr(expandedDim + 1));
   }
 
+  // Lower directly to `tensor::ExpandShapeOp` instead of `tosa::ReshapeOp`,
+  // since here we know which dimension to expand, and `tosa::ReshapeOp` would
+  // not have access to such information. This matters when handling dynamically
+  // sized tensors.
   rewriter.replaceOpWithNewOp<tensor::ExpandShapeOp>(
       op, resultTy, linalgOp.getResults()[0], reassociationMap);
   return success();
-}
-
-static bool findIntermediateShape(ArrayRef<int64_t> lhsShape,
-                                  ArrayRef<int64_t> rhsShape,
-                                  SmallVector<int64_t> &intermediateShape,
-                                  bool isDynamic) {
-  if (isDynamic) {
-    // TODO (natashaknk): Make dynamic intermediate shape not always be rank-1
-    intermediateShape = {ShapedType::kDynamic};
-    return true;
-  }
-
-  if (lhsShape.empty() || rhsShape.empty()) {
-    intermediateShape = {};
-    return true;
-  }
-
-  unsigned currLhsDim = 0, currRhsDim = 0;
-  while (currLhsDim < lhsShape.size() && currRhsDim < rhsShape.size()) {
-    int64_t rhsSize = rhsShape[currRhsDim];
-    int64_t lhsSize = lhsShape[currLhsDim];
-    while (lhsSize != rhsSize && currLhsDim < lhsShape.size() &&
-           currRhsDim < rhsShape.size()) {
-      if (lhsSize < rhsSize) {
-        currLhsDim++;
-        lhsSize *= lhsShape[currLhsDim];
-      } else {
-        currRhsDim++;
-        rhsSize *= rhsShape[currRhsDim];
-      }
-    }
-    if (lhsSize == rhsSize) {
-      intermediateShape.push_back(lhsSize);
-    }
-    currRhsDim++;
-    currLhsDim++;
-  }
-
-  // If the iterators didn't reach the end and their leftover dimensions are not
-  // equal to 1 an intermediate shape was not found.
-  while (currLhsDim < lhsShape.size()) {
-    if (lhsShape[currLhsDim++] != 1) {
-      return false;
-    }
-  }
-
-  while (currRhsDim < rhsShape.size()) {
-    if (rhsShape[currRhsDim++] != 1) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-static bool createReassociationMapsForCollapse(
-    PatternRewriter &rewriter, ArrayRef<int64_t> srcShape,
-    ArrayRef<int64_t> dstShape,
-    SmallVector<ReassociationExprs, 4> &reassociationMap, bool isDynamic) {
-
-  // If the shape is dynamic, create a map for collapsing into one dimension.
-  if (isDynamic) {
-    SmallVector<AffineExpr, 2> exprs;
-    for (int i = 0, s = srcShape.size(); i < s; ++i)
-      exprs.push_back(rewriter.getAffineDimExpr(i));
-    reassociationMap = {exprs};
-    return true;
-  }
-
-  if (dstShape.empty()) {
-    reassociationMap = {};
-    return true;
-  }
-
-  reassociationMap.resize(dstShape.size());
-  unsigned currSrcDim = 0, currDstDim = 0;
-  while (currSrcDim < srcShape.size() && currDstDim < dstShape.size()) {
-    int64_t dstSize = dstShape[currDstDim];
-    int64_t srcSize = srcShape[currSrcDim];
-    while (srcSize < dstSize && currSrcDim < srcShape.size()) {
-      reassociationMap[currDstDim].push_back(
-          rewriter.getAffineDimExpr(currSrcDim++));
-      srcSize *= srcShape[currSrcDim];
-    }
-    if (srcSize == dstSize) {
-      reassociationMap[currDstDim].push_back(
-          rewriter.getAffineDimExpr(currSrcDim++));
-      // If the next dim in collapsedShape is not 1, treat subsequent dims in
-      // expandedShape which are 1 to be collapsed.
-      if (currDstDim == dstShape.size() - 1 || dstShape[currDstDim + 1] != 1) {
-        while (currSrcDim < srcShape.size() && srcShape[currSrcDim] == 1) {
-          reassociationMap[currDstDim].push_back(
-              rewriter.getAffineDimExpr(currSrcDim++));
-        }
-      }
-    }
-    currDstDim++;
-  }
-
-  // If both iterators didn't reach the end, we have leftover dimentions which
-  // implies that we have a mismatch in shape.
-  return currSrcDim == srcShape.size() && currDstDim == dstShape.size();
 }
 
 namespace {
@@ -953,130 +832,6 @@ public:
   LogicalResult matchAndRewrite(SrcOp op,
                                 PatternRewriter &rewriter) const final {
     return elementwiseMatchAndRewriteHelper(op, rewriter);
-  }
-};
-
-class ReshapeConverterCollapse : public OpConversionPattern<tosa::ReshapeOp> {
-public:
-  using OpConversionPattern<tosa::ReshapeOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(tosa::ReshapeOp reshape, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const final {
-    ShapedType operandTy = adaptor.getInput1().getType().cast<ShapedType>();
-    ShapedType resultTy = reshape.getType().template cast<ShapedType>();
-    bool isDynamic = !operandTy.hasStaticShape();
-
-    if (isDynamic && resultTy.getRank() != 1) {
-      return rewriter.notifyMatchFailure(
-          reshape, "Cannot collapse dynamic dims to more than one dimension");
-    }
-
-    if (operandTy == resultTy) {
-      rewriter.replaceOp(reshape, adaptor.getOperands()[0]);
-      return success();
-    }
-
-    SmallVector<ReassociationExprs, 4> reassociationMap;
-    if (!createReassociationMapsForCollapse(rewriter, operandTy.getShape(),
-                                            resultTy.getShape(),
-                                            reassociationMap, isDynamic)) {
-      return rewriter.notifyMatchFailure(
-          reshape,
-          "tosa.reshape Attempting to collapse into an incompatible shape");
-    }
-
-    SmallVector<int64_t> intermediateShape;
-    if (!findIntermediateShape(operandTy.getShape(), resultTy.getShape(),
-                               intermediateShape, isDynamic)) {
-      return rewriter.notifyMatchFailure(
-          reshape, "tosa.reshape Cannot collapse into given shape");
-    }
-
-    rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
-        reshape, resultTy, adaptor.getOperands()[0], reassociationMap);
-    return success();
-  }
-};
-
-class ReshapeConverterExpand : public OpConversionPattern<tosa::ReshapeOp> {
-public:
-  using OpConversionPattern<tosa::ReshapeOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(tosa::ReshapeOp reshape, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const final {
-    ShapedType operandTy = adaptor.getInput1().getType().cast<ShapedType>();
-    ShapedType resultTy = reshape.getType().template cast<ShapedType>();
-    bool isDynamic = !operandTy.hasStaticShape();
-
-    if (operandTy == resultTy) {
-      rewriter.replaceOp(reshape, adaptor.getOperands()[0]);
-      return success();
-    }
-
-    if (isDynamic && operandTy.getRank() != 1) {
-      return rewriter.notifyMatchFailure(
-          reshape, "Cannot expand dynamic dims from more than one dimension");
-    }
-
-    SmallVector<ReassociationExprs, 4> reassociationMap;
-    if (!createReassociationMapsForCollapse(rewriter, resultTy.getShape(),
-                                            operandTy.getShape(),
-                                            reassociationMap, isDynamic)) {
-      return rewriter.notifyMatchFailure(
-          reshape,
-          "tosa.reshape Attempting to expand into an incompatible shape");
-    }
-
-    SmallVector<int64_t> intermediateShape;
-    if (!findIntermediateShape(operandTy.getShape(), resultTy.getShape(),
-                               intermediateShape, isDynamic) ||
-        intermediateShape != operandTy.getShape()) {
-      return rewriter.notifyMatchFailure(
-          reshape, "tosa.reshape Cannot expand into given shape");
-    }
-    rewriter.replaceOpWithNewOp<tensor::ExpandShapeOp>(
-        reshape, resultTy, adaptor.getOperands()[0], reassociationMap);
-    return success();
-  }
-};
-
-class ReshapeConverterCollapseExpand
-    : public OpConversionPattern<tosa::ReshapeOp> {
-public:
-  using OpConversionPattern<tosa::ReshapeOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(tosa::ReshapeOp reshape, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const final {
-    ShapedType operandTy = adaptor.getInput1().getType().cast<ShapedType>();
-    ShapedType resultTy = reshape.getType().template cast<ShapedType>();
-    bool isDynamic = !operandTy.hasStaticShape();
-
-    if (operandTy == resultTy) {
-      rewriter.replaceOp(reshape, adaptor.getOperands()[0]);
-      return success();
-    }
-
-    SmallVector<int64_t> intermediateShape;
-    if (!findIntermediateShape(resultTy.getShape(), operandTy.getShape(),
-                               intermediateShape, isDynamic)) {
-      return rewriter.notifyMatchFailure(
-          reshape, "tosa.reshape Cannot identify an intermediate shape between "
-                   "the given two shapes");
-    }
-
-    Value collapse = rewriter.create<tosa::ReshapeOp>(
-        reshape.getLoc(),
-        RankedTensorType::get(intermediateShape,
-                              reshape.getType().getElementType()),
-        adaptor.getInput1());
-    Value expand =
-        rewriter.create<tosa::ReshapeOp>(reshape.getLoc(), resultTy, collapse);
-    rewriter.replaceOp(reshape, expand);
-
-    return success();
   }
 };
 
@@ -1155,11 +910,8 @@ public:
     }
 
     // The shift and multiplier values.
-    SmallVector<int32_t> multiplierValues;
-    getValuesFromIntArrayAttribute(op.getMultiplier(), multiplierValues);
-
-    SmallVector<int8_t> shiftValues;
-    getValuesFromIntArrayAttribute(op.getShift(), shiftValues);
+    SmallVector<int32_t> multiplierValues(op.getMultiplier());
+    SmallVector<int8_t> shiftValues(op.getShift());
 
     // If we shift by more than the bitwidth, this just sets to 0.
     for (int i = 0, s = multiplierValues.size(); i < s; i++) {
@@ -1325,10 +1077,10 @@ public:
   }
 };
 
-// Handle the case where the resize operation is a regular broadcast. We
-// perform this part separately to avoid generating Extract operations which
-// are difficult to vectorize / optimize.
-class BroadcastResizeConverter : public OpRewritePattern<tosa::ResizeOp> {
+// Handle the resize case where the input is a 1x1 image. This case
+// can entirely avoiding having extract operations which target much
+// more difficult to optimize away.
+class ResizeUnaryConverter : public OpRewritePattern<tosa::ResizeOp> {
 public:
   using OpRewritePattern<tosa::ResizeOp>::OpRewritePattern;
 
@@ -1339,63 +1091,60 @@ public:
     auto input = op.getInput();
     auto inputTy = input.getType().cast<RankedTensorType>();
     auto resultTy = op.getType().cast<RankedTensorType>();
+    const bool isBilinear = op.getMode() == "BILINEAR";
 
-    auto imageH = inputTy.getDimSize(1);
-    auto imageW = inputTy.getDimSize(2);
+    auto inputH = inputTy.getDimSize(1);
+    auto inputW = inputTy.getDimSize(2);
+    auto outputH = resultTy.getDimSize(1);
+    auto outputW = resultTy.getDimSize(2);
 
-    if (imageH != 1 || imageW != 1) {
+    if (inputH != 1 || inputW != 1 || outputH != 1 || outputW != 1)
       return rewriter.notifyMatchFailure(
-          op, "tosa.resize is not a pure broadcast operation");
-    }
+          op, "tosa.resize is not a pure 1x1->1x1 image operation");
 
     // TODO(suderman): These string values should be declared the TOSA dialect.
     if (op.getMode() != "NEAREST_NEIGHBOR" && op.getMode() != "BILINEAR")
       return rewriter.notifyMatchFailure(
           op, "tosa.resize mode should be NEAREST_NEIGHBOR or BILINEAR");
 
-    const bool isBilinear = op.getMode() == "BILINEAR";
+    if (inputTy == resultTy) {
+      rewriter.replaceOp(op, input);
+      return success();
+    }
 
-    SmallVector<int32_t> scale;
-    getValuesFromIntArrayAttribute(op.getScale(), scale);
+    ArrayRef<int64_t> scale = op.getScale();
 
-    // Collapse the 1 dimensions away.
-    SmallVector<ReassociationExprs, 4> collapseMap(2);
-    collapseMap[0].push_back(builder.getAffineDimExpr(0));
-    collapseMap[1].push_back(builder.getAffineDimExpr(1));
-    collapseMap[1].push_back(builder.getAffineDimExpr(2));
-    collapseMap[1].push_back(builder.getAffineDimExpr(3));
+    // Collapse the unit width and height away.
+    SmallVector<ReassociationExprs, 4> reassociationMap(2);
+    reassociationMap[0].push_back(builder.getAffineDimExpr(0));
+    reassociationMap[1].push_back(builder.getAffineDimExpr(1));
+    reassociationMap[1].push_back(builder.getAffineDimExpr(2));
+    reassociationMap[1].push_back(builder.getAffineDimExpr(3));
 
     auto collapseTy =
         RankedTensorType::get({inputTy.getDimSize(0), inputTy.getDimSize(3)},
                               inputTy.getElementType());
-    Value collapse =
-        builder.create<tensor::CollapseShapeOp>(collapseTy, input, collapseMap);
+    Value collapse = builder.create<tensor::CollapseShapeOp>(collapseTy, input,
+                                                             reassociationMap);
 
-    // Broadcast input to the output shape.
+    // Get any dynamic shapes that appear in the input format.
     llvm::SmallVector<Value> outputDynSize;
     if (inputTy.isDynamicDim(0))
       outputDynSize.push_back(builder.create<tensor::DimOp>(input, 0));
-
     if (inputTy.isDynamicDim(3))
       outputDynSize.push_back(builder.create<tensor::DimOp>(input, 3));
 
-    llvm::SmallVector<AffineExpr> inputExprs{
-        rewriter.getAffineDimExpr(0),
-        rewriter.getAffineDimExpr(3),
-    };
-
-    auto inputMap = AffineMap::get(/*dimCount=*/4, /*symbolCount=*/0,
-                                   inputExprs, builder.getContext());
-    auto resultMap = rewriter.getMultiDimIdentityMap(resultTy.getRank());
-    SmallVector<utils::IteratorType> iterators(4,
+    // Generate the elementwise operation for casting scaling the input value.
+    auto genericTy = collapseTy.clone(resultTy.getElementType());
+    Value empty = builder.create<tensor::EmptyOp>(
+        genericTy.getShape(), resultTy.getElementType(), outputDynSize);
+    auto genericMap = rewriter.getMultiDimIdentityMap(genericTy.getRank());
+    SmallVector<utils::IteratorType> iterators(genericTy.getRank(),
                                                utils::IteratorType::parallel);
 
-    Value empty = builder.create<tensor::EmptyOp>(
-        resultTy.getShape(), resultTy.getElementType(), outputDynSize);
-
     auto generic = builder.create<linalg::GenericOp>(
-        resultTy, ValueRange{collapse}, ValueRange{empty},
-        ArrayRef<AffineMap>{inputMap, resultMap}, iterators,
+        genericTy, ValueRange{collapse}, ValueRange{empty},
+        ArrayRef<AffineMap>{genericMap, genericMap}, iterators,
         [=](OpBuilder &b, Location loc, ValueRange args) {
           Value value = args[0];
           // This is the quantized case.
@@ -1419,7 +1168,107 @@ public:
           b.create<linalg::YieldOp>(loc, value);
         });
 
-    rewriter.replaceOp(op, generic.getResult(0));
+    rewriter.replaceOpWithNewOp<tensor::ExpandShapeOp>(
+        op, resultTy, generic.getResults()[0], reassociationMap);
+    return success();
+  }
+};
+
+// TOSA resize with width or height of 1 may be broadcasted to a wider
+// dimension. This is done by materializing a new tosa.resize without
+// the broadcasting behavior, and an explicit broadcast afterwards.
+class MaterializeResizeBroadcast : public OpRewritePattern<tosa::ResizeOp> {
+public:
+  using OpRewritePattern<tosa::ResizeOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tosa::ResizeOp op,
+                                PatternRewriter &rewriter) const final {
+    Location loc = op.getLoc();
+    ImplicitLocOpBuilder builder(loc, rewriter);
+    auto input = op.getInput();
+    auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+    auto resultTy = op.getType().dyn_cast<RankedTensorType>();
+
+    if (!inputTy || !resultTy)
+      return rewriter.notifyMatchFailure(op,
+                                         "requires ranked input/output types");
+
+    auto batch = inputTy.getDimSize(0);
+    auto channels = inputTy.getDimSize(3);
+    auto inputH = inputTy.getDimSize(1);
+    auto inputW = inputTy.getDimSize(2);
+    auto outputH = resultTy.getDimSize(1);
+    auto outputW = resultTy.getDimSize(2);
+
+    if ((inputH != 1 || outputH == 1) && (inputW != 1 || outputW == 1))
+      return rewriter.notifyMatchFailure(
+          op, "tosa.resize has no broadcasting behavior");
+
+    // For any dimension that is broadcastable we generate a width of 1
+    // on the output.
+    llvm::SmallVector<int64_t> resizeShape;
+    resizeShape.push_back(batch);
+    resizeShape.push_back(inputH == 1 ? 1 : outputH);
+    resizeShape.push_back(inputW == 1 ? 1 : outputW);
+    resizeShape.push_back(channels);
+
+    auto resizeTy = resultTy.clone(resizeShape);
+    auto resize =
+        builder.create<tosa::ResizeOp>(resizeTy, input, op->getAttrs());
+
+    // Collapse an unit result dims.
+    SmallVector<ReassociationExprs, 4> reassociationMap(2);
+    reassociationMap[0].push_back(builder.getAffineDimExpr(0));
+    reassociationMap.back().push_back(builder.getAffineDimExpr(1));
+    if (inputH != 1)
+      reassociationMap.push_back({});
+    reassociationMap.back().push_back(builder.getAffineDimExpr(2));
+    if (inputW != 1)
+      reassociationMap.push_back({});
+    reassociationMap.back().push_back(builder.getAffineDimExpr(3));
+
+    llvm::SmallVector<int64_t> collapseShape{batch};
+    if (inputH != 1)
+      collapseShape.push_back(outputH);
+    if (inputW != 1)
+      collapseShape.push_back(outputW);
+    collapseShape.push_back(channels);
+
+    auto collapseTy = resultTy.clone(collapseShape);
+    Value collapse = builder.create<tensor::CollapseShapeOp>(collapseTy, resize,
+                                                             reassociationMap);
+
+    // Broadcast the collapsed shape to the output result.
+    llvm::SmallVector<Value> outputDynSize;
+    if (inputTy.isDynamicDim(0))
+      outputDynSize.push_back(builder.create<tensor::DimOp>(input, 0));
+    if (inputTy.isDynamicDim(3))
+      outputDynSize.push_back(builder.create<tensor::DimOp>(input, 3));
+
+    SmallVector<utils::IteratorType> iterators(resultTy.getRank(),
+                                               utils::IteratorType::parallel);
+    Value empty = builder.create<tensor::EmptyOp>(
+        resultTy.getShape(), resultTy.getElementType(), outputDynSize);
+
+    SmallVector<AffineExpr, 4> inputExprs{rewriter.getAffineDimExpr(0)};
+    if (inputH != 1)
+      inputExprs.push_back(rewriter.getAffineDimExpr(1));
+    if (inputW != 1)
+      inputExprs.push_back(rewriter.getAffineDimExpr(2));
+    inputExprs.push_back(rewriter.getAffineDimExpr(3));
+
+    auto inputMap = AffineMap::get(resultTy.getRank(), /*symbolCount=*/0,
+                                   inputExprs, rewriter.getContext());
+
+    auto outputMap = rewriter.getMultiDimIdentityMap(resultTy.getRank());
+    rewriter.replaceOpWithNewOp<linalg::GenericOp>(
+        op, resultTy, ValueRange{collapse}, ValueRange{empty},
+        ArrayRef<AffineMap>{inputMap, outputMap}, iterators,
+        [=](OpBuilder &b, Location loc, ValueRange args) {
+          Value value = args[0];
+          b.create<linalg::YieldOp>(loc, value);
+        });
+
     return success();
   }
 };
@@ -1480,10 +1329,9 @@ public:
 
       bool floatingPointMode = resultETy.isF32();
 
-      SmallVector<int32_t> scale, offset, border;
-      getValuesFromIntArrayAttribute(op.getScale(), scale);
-      getValuesFromIntArrayAttribute(op.getOffset(), offset);
-      getValuesFromIntArrayAttribute(op.getBorder(), border);
+      ArrayRef<int64_t> offset = op.getOffset();
+      ArrayRef<int64_t> border = op.getBorder();
+      ArrayRef<int64_t> scale = op.getScale();
 
       Value yScaleN, yScaleD, xScaleN, xScaleD;
       yScaleN = b.create<arith::ConstantOp>(b.getI32IntegerAttr(scale[0]));
@@ -1512,7 +1360,7 @@ public:
         Value val = b.create<arith::UIToFPOp>(b.getF32Type(), in);
         scaleN = b.create<arith::UIToFPOp>(b.getF32Type(), scaleN);
         scaleD = b.create<arith::UIToFPOp>(b.getF32Type(), scaleD);
-        offset = b.create<arith::UIToFPOp>(b.getF32Type(), offset);
+        offset = b.create<arith::SIToFPOp>(b.getF32Type(), offset);
         val = b.create<arith::MulFOp>(val, scaleD);
         val = b.create<arith::AddFOp>(val, offset);
         val = b.create<arith::DivFOp>(val, scaleN);
@@ -1717,68 +1565,6 @@ public:
   }
 };
 
-struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
-  using OpConversionPattern<tosa::ConcatOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(tosa::ConcatOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto inputType = op.getOperand(0).getType().template cast<ShapedType>();
-    auto resultType = op.getType().dyn_cast<RankedTensorType>();
-
-    Location loc = op.getLoc();
-    int axis = op.getAxis();
-    Value axisValue = rewriter.createOrFold<arith::ConstantOp>(
-        loc, rewriter.getIndexAttr(axis));
-    int rank = resultType.getRank();
-    SmallVector<Value, 3> offsets, sizes, strides;
-    sizes.reserve(rank);
-    strides.resize(rank, rewriter.create<arith::ConstantIndexOp>(loc, 1));
-    offsets.resize(rank, rewriter.create<arith::ConstantIndexOp>(loc, 0));
-
-    SmallVector<Value> dynDims;
-    for (int i = 0; i < rank; ++i) {
-      sizes.push_back(rewriter.createOrFold<tensor::DimOp>(
-          loc, adaptor.getOperands()[0], i));
-      if (inputType.isDynamicDim(i)) {
-        dynDims.push_back(
-            rewriter.create<tensor::DimOp>(loc, op.getOperand(0), i));
-      }
-    }
-
-    Value resultDimSize = sizes[axis];
-    for (auto arg : adaptor.getOperands().drop_front()) {
-      auto size = rewriter.createOrFold<tensor::DimOp>(loc, arg, axisValue);
-      resultDimSize =
-          rewriter.createOrFold<arith::AddIOp>(loc, resultDimSize, size);
-    }
-    sizes[axis] = resultDimSize;
-
-    Value emptyTensor = rewriter.create<tensor::EmptyOp>(
-        loc, resultType.getShape(), resultType.getElementType(), dynDims);
-
-    auto toOpFoldResult = [](Value v) -> OpFoldResult {
-      auto op = v.getDefiningOp<arith::ConstantIndexOp>();
-      if (!op)
-        return v;
-      return op.getValue();
-    };
-    Value result = emptyTensor;
-    for (auto arg : adaptor.getOperands()) {
-      sizes[axis] = rewriter.createOrFold<tensor::DimOp>(loc, arg, axisValue);
-      result = rewriter.createOrFold<tensor::InsertSliceOp>(
-          loc, arg, result,
-          llvm::to_vector(llvm::map_range(offsets, toOpFoldResult)),
-          llvm::to_vector(llvm::map_range(sizes, toOpFoldResult)),
-          llvm::to_vector(llvm::map_range(strides, toOpFoldResult)));
-      offsets[axis] =
-          rewriter.createOrFold<arith::AddIOp>(loc, offsets[axis], sizes[axis]);
-    }
-    rewriter.replaceOp(op, result);
-    return success();
-  }
-};
-
 class ReverseConverter : public OpRewritePattern<tosa::ReverseOp> {
 public:
   using OpRewritePattern<tosa::ReverseOp>::OpRewritePattern;
@@ -1815,7 +1601,7 @@ public:
         [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange args) {
           llvm::SmallVector<Value> indices;
           for (unsigned int i = 0; i < inputTy.getRank(); i++) {
-            auto index =
+            Value index =
                 rewriter.create<linalg::IndexOp>(nestedLoc, i).getResult();
             if (i == axis) {
               auto one = rewriter.create<arith::ConstantIndexOp>(nestedLoc, 1);
@@ -1855,8 +1641,7 @@ struct TileConverter : public OpConversionPattern<tosa::TileOp> {
     auto elementTy = inputTy.getElementType();
     int64_t rank = inputTy.getRank();
 
-    SmallVector<int64_t> multiples;
-    getValuesFromIntArrayAttribute(op.getMultiples(), multiples);
+    ArrayRef<int64_t> multiples = op.getMultiples();
 
     // Broadcast the newly added dimensions to their appropriate multiple.
     SmallVector<int64_t, 2> genericShape;
@@ -1899,7 +1684,7 @@ struct TileConverter : public OpConversionPattern<tosa::TileOp> {
 
     rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
         op, resultTy, genericOp.getResult(0),
-        rewriter.getI64ArrayAttr(resultTy.getShape()));
+        rewriter.getDenseI64ArrayAttr(resultTy.getShape()));
     return success();
   }
 };
@@ -2222,8 +2007,10 @@ void mlir::tosa::populateTosaToLinalgConversionPatterns(
   // We have multiple resize coverters to handle degenerate cases.
   patterns->add<GenericResizeConverter>(patterns->getContext(),
                                         /*benefit=*/100);
-  patterns->add<BroadcastResizeConverter>(patterns->getContext(),
-                                          /*benefit=*/200);
+  patterns->add<ResizeUnaryConverter>(patterns->getContext(),
+                                      /*benefit=*/200);
+  patterns->add<MaterializeResizeBroadcast>(patterns->getContext(),
+                                            /*benefit=*/300);
 
   patterns->add<
       // clang-format off
@@ -2270,11 +2057,7 @@ void mlir::tosa::populateTosaToLinalgConversionPatterns(
       ReduceConverter<tosa::ReduceSumOp>,
       ReduceConverter<tosa::ReduceProdOp>,
       ArgMaxConverter,
-      ConcatConverter,
       GatherConverter,
-      ReshapeConverterCollapse,
-      ReshapeConverterExpand,
-      ReshapeConverterCollapseExpand,
       RescaleConverter,
       ReverseConverter,
       TableConverter,

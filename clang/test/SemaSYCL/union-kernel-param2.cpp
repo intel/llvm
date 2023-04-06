@@ -85,8 +85,8 @@ int main() {
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: InitListExpr {{.*}} 'MyStruct'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion':'MyStruct::MyUnion' 'void (const MyStruct::MyUnion &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStruct::MyUnion'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion':'MyStruct::MyUnion' 'void (const MyUnion &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion':'const MyStruct::MyUnion'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyStruct::MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion':'MyStruct::MyUnion'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::accessor<char, 1, sycl::access::mode::read>'
 
@@ -107,7 +107,7 @@ int main() {
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' 'void (const MyStructWithPtr &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStructWithPtr' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStructWithPtr':'const MyStructWithPtr' lvalue <NoOp>
 // CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' lvalue prefix '*' cannot overflow
 // CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'struct MyStructWithPtr *' reinterpret_cast<struct MyStructWithPtr *> <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_MyStructWithPtr *' prefix '&' cannot overflow

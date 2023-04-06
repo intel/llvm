@@ -1,6 +1,6 @@
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 --amdhsa-code-object-version=2 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 --amdhsa-code-object-version=2 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 --amdhsa-code-object-version=2 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefix=CHECK %s
 
 ; CHECK: ---
 ; CHECK:  Version: [ 1, 0 ]
@@ -225,7 +225,7 @@ entry:
 ; CHECK-NEXT:       AddrSpaceQual:   Global
 ; CHECK-NEXT:     - Size:            8
 ; CHECK-NEXT:       Align:           8
-; CHECK-NEXT:       ValueKind:       HiddenNone
+; CHECK-NEXT:       ValueKind:       HiddenDefaultQueue
 ; CHECK-NEXT:       AddrSpaceQual:   Global
 ; CHECK-NEXT:     - Size:            8
 ; CHECK-NEXT:       Align:           8
@@ -277,7 +277,7 @@ entry:
 ; CHECK-NEXT:       AddrSpaceQual:   Global
 ; CHECK-NEXT:     - Size:            8
 ; CHECK-NEXT:       Align:           8
-; CHECK-NEXT:       ValueKind:       HiddenNone
+; CHECK-NEXT:       ValueKind:       HiddenDefaultQueue
 ; CHECK-NEXT:       AddrSpaceQual:   Global
 ; CHECK-NEXT:     - Size:            8
 ; CHECK-NEXT:       Align:           8
@@ -308,3 +308,6 @@ attributes #2 = { optnone noinline "amdgpu-implicitarg-num-bytes"="24" }
 attributes #3 = { optnone noinline "amdgpu-implicitarg-num-bytes"="32" }
 attributes #4 = { optnone noinline "amdgpu-implicitarg-num-bytes"="48" }
 attributes #5 = { optnone noinline "amdgpu-implicitarg-num-bytes"="56" }
+
+!llvm.module.flags = !{!0}
+!0 = !{i32 1, !"amdgpu_code_object_version", i32 200}

@@ -172,7 +172,7 @@ ExprResult Sema::BuildSYCLBuiltinFieldTypeExpr(SourceLocation Loc,
     }
 
     if (!Idx->isValueDependent()) {
-      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      std::optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
       if (IdxVal) {
         RecordDecl *RD = SourceTy->getAsRecordDecl();
         assert(RD && "Record type but no record decl?");
@@ -275,7 +275,7 @@ ExprResult Sema::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
     }
 
     if (!Idx->isValueDependent()) {
-      Optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
+      std::optional<llvm::APSInt> IdxVal = Idx->getIntegerConstantExpr(Context);
       if (IdxVal) {
         CXXRecordDecl *RD = SourceTy->getAsCXXRecordDecl();
         assert(RD && "Record type but no record decl?");
@@ -434,6 +434,7 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
   if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
       Ty->isSpecificBuiltinType(BuiltinType::UInt128) ||
       Ty->isSpecificBuiltinType(BuiltinType::LongDouble) ||
+      Ty->isSpecificBuiltinType(BuiltinType::BFloat16) ||
       (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
        !S.Context.getTargetInfo().hasFloat128Type())) {
     S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
@@ -661,7 +662,7 @@ public:
   }
 
   bool TraverseIfStmt(IfStmt *S) {
-    if (llvm::Optional<Stmt *> ActiveStmt =
+    if (std::optional<Stmt *> ActiveStmt =
             S->getNondiscardedCase(SemaRef.Context)) {
       if (*ActiveStmt)
         return TraverseStmt(*ActiveStmt);
@@ -1972,6 +1973,8 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
         const_cast<DeclContext *>(RD->getDeclContext()), SourceLocation(),
         SourceLocation(), getModifiedName(RD->getIdentifier()));
     ModifiedRD->startDefinition();
+    if (RD->hasAttrs())
+      ModifiedRD->setAttrs(RD->getAttrs());
     ModifiedRecords.push_back(ModifiedRD);
   }
 
@@ -1986,6 +1989,8 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
         Ctx.getTrivialTypeSourceInfo(FieldTy, SourceLocation()), /*BW=*/nullptr,
         /*Mutable=*/false, ICIS_NoInit);
     Field->setAccess(FD->getAccess());
+    if (FD->hasAttrs())
+      Field->setAttrs(FD->getAttrs());
     // Add generated field to generated record.
     ModifiedRecords.back()->addDecl(Field);
   }
@@ -4776,7 +4781,7 @@ class SYCLFwdDeclEmitter
     D->print(OS, Policy);
 
     if (const auto *ED = dyn_cast<EnumDecl>(D)) {
-      QualType T = ED->getIntegerType();
+      QualType T = ED->getIntegerType().getCanonicalType();
       // Backup since getIntegerType() returns null for enum forward
       // declaration with no fixed underlying type
       if (T.isNull())
@@ -5164,6 +5169,24 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n";
   }
 
+  // Generate declaration of variable of type __sycl_host_pipe_registration
+  // whose sole purpose is to run its constructor before the application's
+  // main() function.
+  if (NeedToEmitHostPipeRegistration) {
+    O << "namespace {\n";
+
+    O << "class __sycl_host_pipe_registration {\n";
+    O << "public:\n";
+    O << "  __sycl_host_pipe_registration() noexcept;\n";
+    O << "};\n";
+    O << "__sycl_host_pipe_registration __sycl_host_pipe_registrar;\n";
+
+    O << "} // namespace\n";
+
+    O << "\n";
+  }
+
+
   O << "// names of all kernels defined in the corresponding source\n";
   O << "static constexpr\n";
   O << "const char* const kernel_names[] = {\n";
@@ -5354,6 +5377,7 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
     return;
   // Step 1: ensure that this is of the correct type template specialization.
   if (!isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
+      !isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
       !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
           VD->getType())) {
     // Handle the case where this could be a deduced type, such as a deduction
@@ -5368,9 +5392,12 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // Note that isLocalVarDeclorParm excludes thread-local and static-local
   // intentionally, as there is no way to 'spell' one of those in the
   // specialization. We just don't generate the specialization for those, and
-  // let an error happen during host compilation.
-  if (!VD->hasGlobalStorage() || VD->isLocalVarDeclOrParm())
+  // let an error happen during host compilation. To avoid multiple entries for
+  // redeclarations, variables with external storage are omitted.
+  if (VD->hasLocalStorage() || VD->isLocalVarDeclOrParm() ||
+      VD->hasExternalStorage())
     return;
+
   // Step 3: Add to collection.
   GlobalVars.push_back(VD);
 }
@@ -5523,6 +5550,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   llvm::SmallSet<const VarDecl *, 8> Visited;
   bool EmittedFirstSpecConstant = false;
   bool DeviceGlobalsEmitted = false;
+  bool HostPipesEmitted = false;
 
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
@@ -5530,12 +5558,15 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
   std::string DeviceGlobalsBuf;
   llvm::raw_string_ostream DeviceGlobOS(DeviceGlobalsBuf);
+  std::string HostPipesBuf;
+  llvm::raw_string_ostream HostPipesOS(HostPipesBuf);
   for (const VarDecl *VD : GlobalVars) {
     VD = VD->getCanonicalDecl();
 
-    // Skip if this isn't a SpecIdType or DeviceGlobal.  This can happen if it
-    // was a deduced type.
+    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This 
+    // can happen if it was a deduced type.
     if (!isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
+        !isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) && 
         !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             VD->getType()))
       continue;
@@ -5546,7 +5577,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     // We only want to emit the #includes if we have a variable that needs
     // them, so emit this one on the first time through the loop.
-    if (!EmittedFirstSpecConstant && !DeviceGlobalsEmitted)
+    if (!EmittedFirstSpecConstant && !DeviceGlobalsEmitted && !HostPipesEmitted)
       OS << "#include <sycl/detail/defines_elementary.hpp>\n";
 
     Visited.insert(VD);
@@ -5566,6 +5597,20 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       DeviceGlobOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
                                                           VD);
       DeviceGlobOS << "\");\n";
+    } else if (isSyclType(VD->getType(), SYCLTypeAttr::host_pipe)) {
+      HostPipesEmitted = true;
+      HostPipesOS << "host_pipe_map::add(";
+      HostPipesOS << "(void *)&";
+      if (VD->isInAnonymousNamespace()) {
+        HostPipesOS << TopShim;
+      } else {
+        HostPipesOS << "::";
+        VD->getNameForDiagnostic(HostPipesOS, Policy, true);
+      }
+      HostPipesOS << ", \"";
+      HostPipesOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
+                                                         VD);
+      HostPipesOS << "\");\n";
     } else {
       EmittedFirstSpecConstant = true;
       OS << "namespace sycl {\n";
@@ -5609,5 +5654,21 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     S.getSyclIntegrationHeader().addDeviceGlobalRegistration();
   }
+
+  if (HostPipesEmitted) {
+    OS << "#include <sycl/detail/host_pipe_map.hpp>\n";
+    HostPipesOS.flush();
+    OS << "namespace sycl::detail {\n";
+    OS << "namespace {\n";
+    OS << "__sycl_host_pipe_registration::__sycl_host_pipe_"
+          "registration() noexcept {\n";
+    OS << HostPipesBuf;
+    OS << "}\n";
+    OS << "} // namespace (unnamed)\n";
+    OS << "} // namespace sycl::detail\n";
+
+    S.getSyclIntegrationHeader().addHostPipeRegistration();
+  }
+
   return true;
 }

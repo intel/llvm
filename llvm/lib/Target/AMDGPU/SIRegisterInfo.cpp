@@ -380,9 +380,7 @@ SIRegisterInfo::SIRegisterInfo(const GCNSubtarget &ST)
 
 void SIRegisterInfo::reserveRegisterTuples(BitVector &Reserved,
                                            MCRegister Reg) const {
-  MCRegAliasIterator R(Reg, this, true);
-
-  for (; R.isValid(); ++R)
+  for (MCRegAliasIterator R(Reg, this, true); R.isValid(); ++R)
     Reserved.set(*R);
 }
 
@@ -609,14 +607,6 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     reserveRegisterTuples(Reserved, Reg);
   }
 
-  for (auto Reg : AMDGPU::SReg_32RegClass) {
-    Reserved.set(getSubReg(Reg, AMDGPU::hi16));
-    Register Low = getSubReg(Reg, AMDGPU::lo16);
-    // This is to prevent BB vcc liveness errors.
-    if (!AMDGPU::SGPR_LO16RegClass.contains(Low))
-      Reserved.set(Low);
-  }
-
   Register ScratchRSrcReg = MFI->getScratchRSrcReg();
   if (ScratchRSrcReg != AMDGPU::NoRegister) {
     // Reserve 4 SGPRs for the scratch buffer resource descriptor in case we
@@ -652,18 +642,6 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   unsigned MaxNumAGPRs = MaxNumVGPRs;
   unsigned TotalNumVGPRs = AMDGPU::VGPR_32RegClass.getNumRegs();
 
-  // Reserve all the AGPRs if there are no instructions to use it.
-  if (!ST.hasMAIInsts()) {
-    for (unsigned i = 0; i < MaxNumAGPRs; ++i) {
-      unsigned Reg = AMDGPU::AGPR_32RegClass.getRegister(i);
-      reserveRegisterTuples(Reserved, Reg);
-    }
-  }
-
-  for (auto Reg : AMDGPU::AGPR_32RegClass) {
-    Reserved.set(getSubReg(Reg, AMDGPU::hi16));
-  }
-
   // On GFX90A, the number of VGPRs and AGPRs need not be equal. Theoretically,
   // a wave may have up to 512 total vector registers combining together both
   // VGPRs and AGPRs. Hence, in an entry function without calls and without
@@ -690,9 +668,15 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     reserveRegisterTuples(Reserved, Reg);
   }
 
-  for (unsigned i = MaxNumAGPRs; i < TotalNumVGPRs; ++i) {
-    unsigned Reg = AMDGPU::AGPR_32RegClass.getRegister(i);
-    reserveRegisterTuples(Reserved, Reg);
+  if (ST.hasMAIInsts()) {
+    for (unsigned i = MaxNumAGPRs; i < TotalNumVGPRs; ++i) {
+      unsigned Reg = AMDGPU::AGPR_32RegClass.getRegister(i);
+      reserveRegisterTuples(Reserved, Reg);
+    }
+  } else {
+    // Reserve all the AGPRs if there are no instructions to use it.
+    for (MCRegister Reg : AMDGPU::AGPR_32RegClass)
+      reserveRegisterTuples(Reserved, Reg);
   }
 
   // On GFX908, in order to guarantee copying between AGPRs, we need a scratch
@@ -1524,6 +1508,7 @@ void SIRegisterInfo::buildSpillLoadStore(
     unsigned SOffsetRegState = 0;
     unsigned SrcDstRegState = getDefRegState(!IsStore);
     const bool IsLastSubReg = i + 1 == e;
+    const bool IsFirstSubReg = i == 0;
     if (IsLastSubReg) {
       SOffsetRegState |= getKillRegState(Scavenged);
       // The last implicit use carries the "Kill" flag.
@@ -1532,7 +1517,7 @@ void SIRegisterInfo::buildSpillLoadStore(
 
     // Make sure the whole register is defined if there are undef components by
     // adding an implicit def of the super-reg on the first instruction.
-    bool NeedSuperRegDef = e > 1 && IsStore && i == 0;
+    bool NeedSuperRegDef = e > 1 && IsStore && IsFirstSubReg;
     bool NeedSuperRegImpOperand = e > 1;
 
     // Remaining element size to spill into memory after some parts of it
@@ -1555,15 +1540,17 @@ void SIRegisterInfo::buildSpillLoadStore(
       auto MIB = spillVGPRtoAGPR(ST, MBB, MI, Index, Lane, Sub, IsKill);
       if (!MIB.getInstr())
         break;
-      if (NeedSuperRegDef || (IsSubReg && IsStore && Lane == LaneS && !i)) {
+      if (NeedSuperRegDef || (IsSubReg && IsStore && Lane == LaneS && IsFirstSubReg)) {
         MIB.addReg(ValueReg, RegState::ImplicitDefine);
         NeedSuperRegDef = false;
       }
-      if (IsSubReg || NeedSuperRegImpOperand) {
+      if ((IsSubReg || NeedSuperRegImpOperand) && (IsFirstSubReg || IsLastSubReg)) {
         NeedSuperRegImpOperand = true;
         unsigned State = SrcDstRegState;
-        if (Lane != LaneE)
+        if (!IsLastSubReg || (Lane != LaneE))
           State &= ~RegState::Kill;
+        if (!IsFirstSubReg || (Lane != LaneS))
+          State &= ~RegState::Define;
         MIB.addReg(ValueReg, RegState::Implicit | State);
       }
       RemEltSize -= 4;
@@ -1655,7 +1642,7 @@ void SIRegisterInfo::buildSpillLoadStore(
       MIB->setAsmPrinterFlag(MachineInstr::ReloadReuse);
     }
 
-    if (NeedSuperRegImpOperand)
+    if (NeedSuperRegImpOperand && (IsFirstSubReg || IsLastSubReg))
       MIB.addReg(ValueReg, RegState::Implicit | SrcDstRegState);
   }
 
@@ -1725,7 +1712,10 @@ bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI, int Index,
               : Register(getSubReg(SB.SuperReg, SB.SplitParts[i]));
       SpilledReg Spill = VGPRSpills[i];
 
-      bool UseKill = SB.IsKill && i == SB.NumSubRegs - 1;
+      bool IsFirstSubreg = i == 0;
+      bool IsLastSubreg = i == SB.NumSubRegs - 1;
+      bool UseKill = SB.IsKill && IsLastSubreg;
+
 
       // Mark the "old value of vgpr" input undef only if this is the first sgpr
       // spill to this specific vgpr in the first basic block.
@@ -1735,19 +1725,19 @@ bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI, int Index,
                      .addImm(Spill.Lane)
                      .addReg(Spill.VGPR);
       if (Indexes) {
-        if (i == 0)
+        if (IsFirstSubreg)
           Indexes->replaceMachineInstrInMaps(*MI, *MIB);
         else
           Indexes->insertMachineInstrInMaps(*MIB);
       }
 
-      if (i == 0 && SB.NumSubRegs > 1) {
+      if (IsFirstSubreg && SB.NumSubRegs > 1) {
         // We may be spilling a super-register which is only partially defined,
         // and need to ensure later spills think the value is defined.
         MIB.addReg(SB.SuperReg, RegState::ImplicitDefine);
       }
 
-      if (SB.NumSubRegs > 1)
+      if (SB.NumSubRegs > 1 && (IsFirstSubreg || IsLastSubreg))
         MIB.addReg(SB.SuperReg, getKillRegState(UseKill) | RegState::Implicit);
 
       // FIXME: Since this spills to another register instead of an actual
@@ -2887,7 +2877,7 @@ ArrayRef<int16_t> SIRegisterInfo::getRegSplitParts(const TargetRegisterClass *RC
   const std::vector<int16_t> &Parts = RegSplitParts[EltDWORDs - 1];
   const unsigned NumParts = RegDWORDs / EltDWORDs;
 
-  return makeArrayRef(Parts.data(), NumParts);
+  return ArrayRef(Parts.data(), NumParts);
 }
 
 const TargetRegisterClass*
@@ -3155,17 +3145,15 @@ SIRegisterInfo::getProperlyAlignedRC(const TargetRegisterClass *RC) const {
 
 ArrayRef<MCPhysReg>
 SIRegisterInfo::getAllSGPR128(const MachineFunction &MF) const {
-  return makeArrayRef(AMDGPU::SGPR_128RegClass.begin(),
-                      ST.getMaxNumSGPRs(MF) / 4);
+  return ArrayRef(AMDGPU::SGPR_128RegClass.begin(), ST.getMaxNumSGPRs(MF) / 4);
 }
 
 ArrayRef<MCPhysReg>
 SIRegisterInfo::getAllSGPR64(const MachineFunction &MF) const {
-  return makeArrayRef(AMDGPU::SGPR_64RegClass.begin(),
-                      ST.getMaxNumSGPRs(MF) / 2);
+  return ArrayRef(AMDGPU::SGPR_64RegClass.begin(), ST.getMaxNumSGPRs(MF) / 2);
 }
 
 ArrayRef<MCPhysReg>
 SIRegisterInfo::getAllSGPR32(const MachineFunction &MF) const {
-  return makeArrayRef(AMDGPU::SGPR_32RegClass.begin(), ST.getMaxNumSGPRs(MF));
+  return ArrayRef(AMDGPU::SGPR_32RegClass.begin(), ST.getMaxNumSGPRs(MF));
 }

@@ -43,14 +43,12 @@ TimeICF("time-icf",
   cl::cat(BoltOptCategory));
 } // namespace opts
 
-namespace {
-using JumpTable = bolt::JumpTable;
-
 /// Compare two jump tables in 2 functions. The function relies on consistent
 /// ordering of basic blocks in both binary functions (e.g. DFS).
-bool equalJumpTables(const JumpTable &JumpTableA, const JumpTable &JumpTableB,
-                     const BinaryFunction &FunctionA,
-                     const BinaryFunction &FunctionB) {
+static bool equalJumpTables(const JumpTable &JumpTableA,
+                            const JumpTable &JumpTableB,
+                            const BinaryFunction &FunctionA,
+                            const BinaryFunction &FunctionB) {
   if (JumpTableA.EntrySize != JumpTableB.EntrySize)
     return false;
 
@@ -92,9 +90,10 @@ bool equalJumpTables(const JumpTable &JumpTableA, const JumpTable &JumpTableB,
 /// given instruction of the given function. The functions should have
 /// identical CFG.
 template <class Compare>
-bool isInstrEquivalentWith(const MCInst &InstA, const BinaryBasicBlock &BBA,
-                           const MCInst &InstB, const BinaryBasicBlock &BBB,
-                           Compare Comp) {
+static bool isInstrEquivalentWith(const MCInst &InstA,
+                                  const BinaryBasicBlock &BBA,
+                                  const MCInst &InstB,
+                                  const BinaryBasicBlock &BBB, Compare Comp) {
   if (InstA.getOpcode() != InstB.getOpcode())
     return false;
 
@@ -148,8 +147,8 @@ bool isInstrEquivalentWith(const MCInst &InstA, const BinaryBasicBlock &BBA,
 /// If \p CongruentSymbols is set to true, then symbolic operands that reference
 /// potentially identical but different functions are ignored during the
 /// comparison.
-bool isIdenticalWith(const BinaryFunction &A, const BinaryFunction &B,
-                     bool CongruentSymbols) {
+static bool isIdenticalWith(const BinaryFunction &A, const BinaryFunction &B,
+                            bool CongruentSymbols) {
   assert(A.hasCFG() && B.hasCFG() && "both functions should have CFG");
 
   // Compare the two functions, one basic block at a time.
@@ -338,7 +337,7 @@ typedef std::unordered_map<BinaryFunction *, std::vector<BinaryFunction *>,
                            KeyHash, KeyEqual>
     IdenticalBucketsMap;
 
-std::string hashInteger(uint64_t Value) {
+static std::string hashInteger(uint64_t Value) {
   std::string HashString;
   if (Value == 0)
     HashString.push_back(0);
@@ -352,7 +351,7 @@ std::string hashInteger(uint64_t Value) {
   return HashString;
 }
 
-std::string hashSymbol(BinaryContext &BC, const MCSymbol &Symbol) {
+static std::string hashSymbol(BinaryContext &BC, const MCSymbol &Symbol) {
   std::string HashString;
 
   // Ignore function references.
@@ -370,7 +369,7 @@ std::string hashSymbol(BinaryContext &BC, const MCSymbol &Symbol) {
   return HashString.append(hashInteger(*ErrorOrValue));
 }
 
-std::string hashExpr(BinaryContext &BC, const MCExpr &Expr) {
+static std::string hashExpr(BinaryContext &BC, const MCExpr &Expr) {
   switch (Expr.getKind()) {
   case MCExpr::Constant:
     return hashInteger(cast<MCConstantExpr>(Expr).getValue());
@@ -394,7 +393,8 @@ std::string hashExpr(BinaryContext &BC, const MCExpr &Expr) {
   llvm_unreachable("invalid expression kind");
 }
 
-std::string hashInstOperand(BinaryContext &BC, const MCOperand &Operand) {
+static std::string hashInstOperand(BinaryContext &BC,
+                                   const MCOperand &Operand) {
   if (Operand.isImm())
     return hashInteger(Operand.getImm());
   if (Operand.isReg())
@@ -405,8 +405,6 @@ std::string hashInstOperand(BinaryContext &BC, const MCOperand &Operand) {
   return std::string();
 }
 
-} // namespace
-
 namespace llvm {
 namespace bolt {
 
@@ -415,7 +413,7 @@ void IdenticalCodeFolding::runOnFunctions(BinaryContext &BC) {
   uint64_t NumFunctionsFolded = 0;
   std::atomic<uint64_t> NumJTFunctionsFolded{0};
   std::atomic<uint64_t> BytesSavedEstimate{0};
-  std::atomic<uint64_t> CallsSavedEstimate{0};
+  std::atomic<uint64_t> NumCalled{0};
   std::atomic<uint64_t> NumFoldedLastIteration{0};
   CongruentBucketsMap CongruentBuckets;
 
@@ -495,6 +493,8 @@ void IdenticalCodeFolding::runOnFunctions(BinaryContext &BC) {
             });
 
         BinaryFunction *ParentBF = Twins[0];
+        if (!ParentBF->hasFunctionsFoldedInto())
+          NumCalled += ParentBF->getKnownExecutionCount();
         for (unsigned I = 1; I < Twins.size(); ++I) {
           BinaryFunction *ChildBF = Twins[I];
           LLVM_DEBUG(dbgs() << "BOLT-DEBUG: folding " << *ChildBF << " into "
@@ -508,8 +508,8 @@ void IdenticalCodeFolding::runOnFunctions(BinaryContext &BC) {
 
           // Fold the function and remove from the list of processed functions.
           BytesSavedEstimate += ChildBF->getSize();
-          CallsSavedEstimate += std::min(ChildBF->getKnownExecutionCount(),
-                                         ParentBF->getKnownExecutionCount());
+          if (!ChildBF->hasFunctionsFoldedInto())
+            NumCalled += ChildBF->getKnownExecutionCount();
           BC.foldFunction(*ChildBF, *ParentBF);
 
           ++NumFoldedLastIteration;
@@ -581,8 +581,8 @@ void IdenticalCodeFolding::runOnFunctions(BinaryContext &BC) {
            << " functions had jump tables.\n"
            << "BOLT-INFO: Removing all identical functions will save "
            << format("%.2lf", (double)BytesSavedEstimate / 1024)
-           << " KB of code space. Folded functions were called "
-           << CallsSavedEstimate << " times based on profile.\n";
+           << " KB of code space. Folded functions were called " << NumCalled
+           << " times based on profile.\n";
 }
 
 } // namespace bolt

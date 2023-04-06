@@ -3,9 +3,13 @@
 ; RUN:   | FileCheck -check-prefix=RV32I %s
 ; RUN: llc -mtriple=riscv32 -mattr=+a -verify-machineinstrs < %s \
 ; RUN:   | FileCheck -check-prefix=RV32IA %s
+; RUN: llc -mtriple=riscv32 -mattr=+a,+experimental-ztso -verify-machineinstrs < %s \
+; RUN:   | FileCheck -check-prefix=RV32IA %s
 ; RUN: llc -mtriple=riscv64 -verify-machineinstrs < %s \
 ; RUN:   | FileCheck -check-prefix=RV64I %s
 ; RUN: llc -mtriple=riscv64 -mattr=+a -verify-machineinstrs < %s \
+; RUN:   | FileCheck -check-prefix=RV64IA %s
+; RUN: llc -mtriple=riscv64 -mattr=+a,+experimental-ztso -verify-machineinstrs < %s \
 ; RUN:   | FileCheck -check-prefix=RV64IA %s
 
 define void @cmpxchg_i8_monotonic_monotonic(ptr %ptr, i8 %cmp, i8 %val) nounwind {
@@ -572,7 +576,7 @@ define void @cmpxchg_i8_seq_cst_monotonic(ptr %ptr, i8 %cmp, i8 %val) nounwind {
 ; RV32IA-NEXT:    xor a5, a2, a0
 ; RV32IA-NEXT:    and a5, a5, a4
 ; RV32IA-NEXT:    xor a5, a2, a5
-; RV32IA-NEXT:    sc.w.aqrl a5, a5, (a3)
+; RV32IA-NEXT:    sc.w.rl a5, a5, (a3)
 ; RV32IA-NEXT:    bnez a5, .LBB7_1
 ; RV32IA-NEXT:  .LBB7_3:
 ; RV32IA-NEXT:    ret
@@ -608,7 +612,7 @@ define void @cmpxchg_i8_seq_cst_monotonic(ptr %ptr, i8 %cmp, i8 %val) nounwind {
 ; RV64IA-NEXT:    xor a5, a2, a0
 ; RV64IA-NEXT:    and a5, a5, a4
 ; RV64IA-NEXT:    xor a5, a2, a5
-; RV64IA-NEXT:    sc.w.aqrl a5, a5, (a3)
+; RV64IA-NEXT:    sc.w.rl a5, a5, (a3)
 ; RV64IA-NEXT:    bnez a5, .LBB7_1
 ; RV64IA-NEXT:  .LBB7_3:
 ; RV64IA-NEXT:    ret
@@ -648,7 +652,7 @@ define void @cmpxchg_i8_seq_cst_acquire(ptr %ptr, i8 %cmp, i8 %val) nounwind {
 ; RV32IA-NEXT:    xor a5, a2, a0
 ; RV32IA-NEXT:    and a5, a5, a4
 ; RV32IA-NEXT:    xor a5, a2, a5
-; RV32IA-NEXT:    sc.w.aqrl a5, a5, (a3)
+; RV32IA-NEXT:    sc.w.rl a5, a5, (a3)
 ; RV32IA-NEXT:    bnez a5, .LBB8_1
 ; RV32IA-NEXT:  .LBB8_3:
 ; RV32IA-NEXT:    ret
@@ -684,7 +688,7 @@ define void @cmpxchg_i8_seq_cst_acquire(ptr %ptr, i8 %cmp, i8 %val) nounwind {
 ; RV64IA-NEXT:    xor a5, a2, a0
 ; RV64IA-NEXT:    and a5, a5, a4
 ; RV64IA-NEXT:    xor a5, a2, a5
-; RV64IA-NEXT:    sc.w.aqrl a5, a5, (a3)
+; RV64IA-NEXT:    sc.w.rl a5, a5, (a3)
 ; RV64IA-NEXT:    bnez a5, .LBB8_1
 ; RV64IA-NEXT:  .LBB8_3:
 ; RV64IA-NEXT:    ret
@@ -724,7 +728,7 @@ define void @cmpxchg_i8_seq_cst_seq_cst(ptr %ptr, i8 %cmp, i8 %val) nounwind {
 ; RV32IA-NEXT:    xor a5, a2, a0
 ; RV32IA-NEXT:    and a5, a5, a4
 ; RV32IA-NEXT:    xor a5, a2, a5
-; RV32IA-NEXT:    sc.w.aqrl a5, a5, (a3)
+; RV32IA-NEXT:    sc.w.rl a5, a5, (a3)
 ; RV32IA-NEXT:    bnez a5, .LBB9_1
 ; RV32IA-NEXT:  .LBB9_3:
 ; RV32IA-NEXT:    ret
@@ -760,7 +764,7 @@ define void @cmpxchg_i8_seq_cst_seq_cst(ptr %ptr, i8 %cmp, i8 %val) nounwind {
 ; RV64IA-NEXT:    xor a5, a2, a0
 ; RV64IA-NEXT:    and a5, a5, a4
 ; RV64IA-NEXT:    xor a5, a2, a5
-; RV64IA-NEXT:    sc.w.aqrl a5, a5, (a3)
+; RV64IA-NEXT:    sc.w.rl a5, a5, (a3)
 ; RV64IA-NEXT:    bnez a5, .LBB9_1
 ; RV64IA-NEXT:  .LBB9_3:
 ; RV64IA-NEXT:    ret
@@ -1347,7 +1351,7 @@ define void @cmpxchg_i16_seq_cst_monotonic(ptr %ptr, i16 %cmp, i16 %val) nounwin
 ; RV32IA-NEXT:    xor a4, a2, a0
 ; RV32IA-NEXT:    and a4, a4, a5
 ; RV32IA-NEXT:    xor a4, a2, a4
-; RV32IA-NEXT:    sc.w.aqrl a4, a4, (a3)
+; RV32IA-NEXT:    sc.w.rl a4, a4, (a3)
 ; RV32IA-NEXT:    bnez a4, .LBB17_1
 ; RV32IA-NEXT:  .LBB17_3:
 ; RV32IA-NEXT:    ret
@@ -1384,7 +1388,7 @@ define void @cmpxchg_i16_seq_cst_monotonic(ptr %ptr, i16 %cmp, i16 %val) nounwin
 ; RV64IA-NEXT:    xor a4, a2, a0
 ; RV64IA-NEXT:    and a4, a4, a5
 ; RV64IA-NEXT:    xor a4, a2, a4
-; RV64IA-NEXT:    sc.w.aqrl a4, a4, (a3)
+; RV64IA-NEXT:    sc.w.rl a4, a4, (a3)
 ; RV64IA-NEXT:    bnez a4, .LBB17_1
 ; RV64IA-NEXT:  .LBB17_3:
 ; RV64IA-NEXT:    ret
@@ -1425,7 +1429,7 @@ define void @cmpxchg_i16_seq_cst_acquire(ptr %ptr, i16 %cmp, i16 %val) nounwind 
 ; RV32IA-NEXT:    xor a4, a2, a0
 ; RV32IA-NEXT:    and a4, a4, a5
 ; RV32IA-NEXT:    xor a4, a2, a4
-; RV32IA-NEXT:    sc.w.aqrl a4, a4, (a3)
+; RV32IA-NEXT:    sc.w.rl a4, a4, (a3)
 ; RV32IA-NEXT:    bnez a4, .LBB18_1
 ; RV32IA-NEXT:  .LBB18_3:
 ; RV32IA-NEXT:    ret
@@ -1462,7 +1466,7 @@ define void @cmpxchg_i16_seq_cst_acquire(ptr %ptr, i16 %cmp, i16 %val) nounwind 
 ; RV64IA-NEXT:    xor a4, a2, a0
 ; RV64IA-NEXT:    and a4, a4, a5
 ; RV64IA-NEXT:    xor a4, a2, a4
-; RV64IA-NEXT:    sc.w.aqrl a4, a4, (a3)
+; RV64IA-NEXT:    sc.w.rl a4, a4, (a3)
 ; RV64IA-NEXT:    bnez a4, .LBB18_1
 ; RV64IA-NEXT:  .LBB18_3:
 ; RV64IA-NEXT:    ret
@@ -1503,7 +1507,7 @@ define void @cmpxchg_i16_seq_cst_seq_cst(ptr %ptr, i16 %cmp, i16 %val) nounwind 
 ; RV32IA-NEXT:    xor a4, a2, a0
 ; RV32IA-NEXT:    and a4, a4, a5
 ; RV32IA-NEXT:    xor a4, a2, a4
-; RV32IA-NEXT:    sc.w.aqrl a4, a4, (a3)
+; RV32IA-NEXT:    sc.w.rl a4, a4, (a3)
 ; RV32IA-NEXT:    bnez a4, .LBB19_1
 ; RV32IA-NEXT:  .LBB19_3:
 ; RV32IA-NEXT:    ret
@@ -1540,7 +1544,7 @@ define void @cmpxchg_i16_seq_cst_seq_cst(ptr %ptr, i16 %cmp, i16 %val) nounwind 
 ; RV64IA-NEXT:    xor a4, a2, a0
 ; RV64IA-NEXT:    and a4, a4, a5
 ; RV64IA-NEXT:    xor a4, a2, a4
-; RV64IA-NEXT:    sc.w.aqrl a4, a4, (a3)
+; RV64IA-NEXT:    sc.w.rl a4, a4, (a3)
 ; RV64IA-NEXT:    bnez a4, .LBB19_1
 ; RV64IA-NEXT:  .LBB19_3:
 ; RV64IA-NEXT:    ret
@@ -1939,7 +1943,7 @@ define void @cmpxchg_i32_seq_cst_monotonic(ptr %ptr, i32 %cmp, i32 %val) nounwin
 ; RV32IA-NEXT:    lr.w.aqrl a3, (a0)
 ; RV32IA-NEXT:    bne a3, a1, .LBB27_3
 ; RV32IA-NEXT:  # %bb.2: # in Loop: Header=BB27_1 Depth=1
-; RV32IA-NEXT:    sc.w.aqrl a4, a2, (a0)
+; RV32IA-NEXT:    sc.w.rl a4, a2, (a0)
 ; RV32IA-NEXT:    bnez a4, .LBB27_1
 ; RV32IA-NEXT:  .LBB27_3:
 ; RV32IA-NEXT:    ret
@@ -1964,7 +1968,7 @@ define void @cmpxchg_i32_seq_cst_monotonic(ptr %ptr, i32 %cmp, i32 %val) nounwin
 ; RV64IA-NEXT:    lr.w.aqrl a3, (a0)
 ; RV64IA-NEXT:    bne a3, a1, .LBB27_3
 ; RV64IA-NEXT:  # %bb.2: # in Loop: Header=BB27_1 Depth=1
-; RV64IA-NEXT:    sc.w.aqrl a4, a2, (a0)
+; RV64IA-NEXT:    sc.w.rl a4, a2, (a0)
 ; RV64IA-NEXT:    bnez a4, .LBB27_1
 ; RV64IA-NEXT:  .LBB27_3:
 ; RV64IA-NEXT:    ret
@@ -1992,7 +1996,7 @@ define void @cmpxchg_i32_seq_cst_acquire(ptr %ptr, i32 %cmp, i32 %val) nounwind 
 ; RV32IA-NEXT:    lr.w.aqrl a3, (a0)
 ; RV32IA-NEXT:    bne a3, a1, .LBB28_3
 ; RV32IA-NEXT:  # %bb.2: # in Loop: Header=BB28_1 Depth=1
-; RV32IA-NEXT:    sc.w.aqrl a4, a2, (a0)
+; RV32IA-NEXT:    sc.w.rl a4, a2, (a0)
 ; RV32IA-NEXT:    bnez a4, .LBB28_1
 ; RV32IA-NEXT:  .LBB28_3:
 ; RV32IA-NEXT:    ret
@@ -2017,7 +2021,7 @@ define void @cmpxchg_i32_seq_cst_acquire(ptr %ptr, i32 %cmp, i32 %val) nounwind 
 ; RV64IA-NEXT:    lr.w.aqrl a3, (a0)
 ; RV64IA-NEXT:    bne a3, a1, .LBB28_3
 ; RV64IA-NEXT:  # %bb.2: # in Loop: Header=BB28_1 Depth=1
-; RV64IA-NEXT:    sc.w.aqrl a4, a2, (a0)
+; RV64IA-NEXT:    sc.w.rl a4, a2, (a0)
 ; RV64IA-NEXT:    bnez a4, .LBB28_1
 ; RV64IA-NEXT:  .LBB28_3:
 ; RV64IA-NEXT:    ret
@@ -2045,7 +2049,7 @@ define void @cmpxchg_i32_seq_cst_seq_cst(ptr %ptr, i32 %cmp, i32 %val) nounwind 
 ; RV32IA-NEXT:    lr.w.aqrl a3, (a0)
 ; RV32IA-NEXT:    bne a3, a1, .LBB29_3
 ; RV32IA-NEXT:  # %bb.2: # in Loop: Header=BB29_1 Depth=1
-; RV32IA-NEXT:    sc.w.aqrl a4, a2, (a0)
+; RV32IA-NEXT:    sc.w.rl a4, a2, (a0)
 ; RV32IA-NEXT:    bnez a4, .LBB29_1
 ; RV32IA-NEXT:  .LBB29_3:
 ; RV32IA-NEXT:    ret
@@ -2070,7 +2074,7 @@ define void @cmpxchg_i32_seq_cst_seq_cst(ptr %ptr, i32 %cmp, i32 %val) nounwind 
 ; RV64IA-NEXT:    lr.w.aqrl a3, (a0)
 ; RV64IA-NEXT:    bne a3, a1, .LBB29_3
 ; RV64IA-NEXT:  # %bb.2: # in Loop: Header=BB29_1 Depth=1
-; RV64IA-NEXT:    sc.w.aqrl a4, a2, (a0)
+; RV64IA-NEXT:    sc.w.rl a4, a2, (a0)
 ; RV64IA-NEXT:    bnez a4, .LBB29_1
 ; RV64IA-NEXT:  .LBB29_3:
 ; RV64IA-NEXT:    ret
@@ -2564,7 +2568,7 @@ define void @cmpxchg_i64_seq_cst_monotonic(ptr %ptr, i64 %cmp, i64 %val) nounwin
 ; RV64IA-NEXT:    lr.d.aqrl a3, (a0)
 ; RV64IA-NEXT:    bne a3, a1, .LBB37_3
 ; RV64IA-NEXT:  # %bb.2: # in Loop: Header=BB37_1 Depth=1
-; RV64IA-NEXT:    sc.d.aqrl a4, a2, (a0)
+; RV64IA-NEXT:    sc.d.rl a4, a2, (a0)
 ; RV64IA-NEXT:    bnez a4, .LBB37_1
 ; RV64IA-NEXT:  .LBB37_3:
 ; RV64IA-NEXT:    ret
@@ -2626,7 +2630,7 @@ define void @cmpxchg_i64_seq_cst_acquire(ptr %ptr, i64 %cmp, i64 %val) nounwind 
 ; RV64IA-NEXT:    lr.d.aqrl a3, (a0)
 ; RV64IA-NEXT:    bne a3, a1, .LBB38_3
 ; RV64IA-NEXT:  # %bb.2: # in Loop: Header=BB38_1 Depth=1
-; RV64IA-NEXT:    sc.d.aqrl a4, a2, (a0)
+; RV64IA-NEXT:    sc.d.rl a4, a2, (a0)
 ; RV64IA-NEXT:    bnez a4, .LBB38_1
 ; RV64IA-NEXT:  .LBB38_3:
 ; RV64IA-NEXT:    ret
@@ -2688,7 +2692,7 @@ define void @cmpxchg_i64_seq_cst_seq_cst(ptr %ptr, i64 %cmp, i64 %val) nounwind 
 ; RV64IA-NEXT:    lr.d.aqrl a3, (a0)
 ; RV64IA-NEXT:    bne a3, a1, .LBB39_3
 ; RV64IA-NEXT:  # %bb.2: # in Loop: Header=BB39_1 Depth=1
-; RV64IA-NEXT:    sc.d.aqrl a4, a2, (a0)
+; RV64IA-NEXT:    sc.d.rl a4, a2, (a0)
 ; RV64IA-NEXT:    bnez a4, .LBB39_1
 ; RV64IA-NEXT:  .LBB39_3:
 ; RV64IA-NEXT:    ret

@@ -105,12 +105,26 @@ void llvm::CloneFunctionInto(Function *NewFunc, const Function *OldFunc,
   NewFunc->copyAttributesFrom(OldFunc);
   NewFunc->setAttributes(NewAttrs);
 
+  const RemapFlags FuncGlobalRefFlags =
+      ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges;
+
   // Fix up the personality function that got copied over.
   if (OldFunc->hasPersonalityFn())
-    NewFunc->setPersonalityFn(
-        MapValue(OldFunc->getPersonalityFn(), VMap,
-                 ModuleLevelChanges ? RF_None : RF_NoModuleLevelChanges,
-                 TypeMapper, Materializer));
+    NewFunc->setPersonalityFn(MapValue(OldFunc->getPersonalityFn(), VMap,
+                                       FuncGlobalRefFlags, TypeMapper,
+                                       Materializer));
+
+  if (OldFunc->hasPrefixData()) {
+    NewFunc->setPrefixData(MapValue(OldFunc->getPrefixData(), VMap,
+                                    FuncGlobalRefFlags, TypeMapper,
+                                    Materializer));
+  }
+
+  if (OldFunc->hasPrologueData()) {
+    NewFunc->setPrologueData(MapValue(OldFunc->getPrologueData(), VMap,
+                                      FuncGlobalRefFlags, TypeMapper,
+                                      Materializer));
+  }
 
   SmallVector<AttributeSet, 4> NewArgAttrs(NewFunc->arg_size());
   AttributeList OldAttrs = OldFunc->getAttributes();
@@ -923,8 +937,8 @@ void llvm::CloneAndPruneFunctionInto(
 }
 
 /// Remaps instructions in \p Blocks using the mapping in \p VMap.
-void llvm::remapInstructionsInBlocks(
-    const SmallVectorImpl<BasicBlock *> &Blocks, ValueToValueMapTy &VMap) {
+void llvm::remapInstructionsInBlocks(ArrayRef<BasicBlock *> Blocks,
+                                     ValueToValueMapTy &VMap) {
   // Rewrite the code to refer to itself.
   for (auto *BB : Blocks)
     for (auto &Inst : *BB)

@@ -39,6 +39,7 @@ static cl::opt<unsigned> SVEGatherOverhead("sve-gather-overhead", cl::init(10),
 static cl::opt<unsigned> SVEScatterOverhead("sve-scatter-overhead",
                                             cl::init(10), cl::Hidden);
 
+namespace {
 class TailFoldingKind {
 private:
   uint8_t Bits = 0; // Currently defaults to disabled.
@@ -48,8 +49,9 @@ public:
     TFDisabled = 0x0,
     TFReductions = 0x01,
     TFRecurrences = 0x02,
+    TFReverse = 0x04,
     TFSimple = 0x80,
-    TFAll = TFReductions | TFRecurrences | TFSimple
+    TFAll = TFReductions | TFRecurrences | TFReverse | TFSimple
   };
 
   void operator=(const std::string &Val) {
@@ -70,10 +72,14 @@ public:
         add(TFReductions);
       else if (TailFoldType == "recurrences")
         add(TFRecurrences);
+      else if (TailFoldType == "reverse")
+        add(TFReverse);
       else if (TailFoldType == "noreductions")
         remove(TFReductions);
       else if (TailFoldType == "norecurrences")
         remove(TFRecurrences);
+      else if (TailFoldType == "noreverse")
+        remove(TFReverse);
       else {
         errs()
             << "invalid argument " << TailFoldType.str()
@@ -89,6 +95,7 @@ public:
   void add(uint8_t Flag) { Bits |= Flag; }
   void remove(uint8_t Flag) { Bits &= ~Flag; }
 };
+} // namespace
 
 TailFoldingKind TailFoldingKindLoc;
 
@@ -104,7 +111,9 @@ cl::opt<TailFoldingKind, true, cl::parser<std::string>> SVETailFolding(
         "recurrences)"
         "\nreductions  Use tail-folding for loops containing reductions"
         "\nrecurrences Use tail-folding for loops containing fixed order "
-        "recurrences"),
+        "recurrences"
+        "\nreverse     Use tail-folding for loops requiring reversed "
+        "predicates"),
     cl::location(TailFoldingKindLoc));
 
 // Experimental option that will only be fully functional when the
@@ -1434,6 +1443,99 @@ static std::optional<Instruction *> instCombineSVESDIV(InstCombiner &IC,
   return std::nullopt;
 }
 
+bool SimplifyValuePattern(SmallVector<Value *> &Vec, bool AllowPoison) {
+  size_t VecSize = Vec.size();
+  if (VecSize == 1)
+    return true;
+  if (!isPowerOf2_64(VecSize))
+    return false;
+  size_t HalfVecSize = VecSize / 2;
+
+  for (auto LHS = Vec.begin(), RHS = Vec.begin() + HalfVecSize;
+       RHS != Vec.end(); LHS++, RHS++) {
+    if (*LHS != nullptr && *RHS != nullptr) {
+      if (*LHS == *RHS)
+        continue;
+      else
+        return false;
+    }
+    if (!AllowPoison)
+      return false;
+    if (*LHS == nullptr && *RHS != nullptr)
+      *LHS = *RHS;
+  }
+
+  Vec.resize(HalfVecSize);
+  SimplifyValuePattern(Vec, AllowPoison);
+  return true;
+}
+
+// Try to simplify dupqlane patterns like dupqlane(f32 A, f32 B, f32 A, f32 B)
+// to dupqlane(f64(C)) where C is A concatenated with B
+static std::optional<Instruction *> instCombineSVEDupqLane(InstCombiner &IC,
+                                                           IntrinsicInst &II) {
+  Value *CurrentInsertElt = nullptr, *Default = nullptr;
+  if (!match(II.getOperand(0),
+             m_Intrinsic<Intrinsic::vector_insert>(
+                 m_Value(Default), m_Value(CurrentInsertElt), m_Value())) ||
+      !isa<FixedVectorType>(CurrentInsertElt->getType()))
+    return std::nullopt;
+  auto IIScalableTy = cast<ScalableVectorType>(II.getType());
+
+  // Insert the scalars into a container ordered by InsertElement index
+  SmallVector<Value *> Elts(IIScalableTy->getMinNumElements(), nullptr);
+  while (auto InsertElt = dyn_cast<InsertElementInst>(CurrentInsertElt)) {
+    auto Idx = cast<ConstantInt>(InsertElt->getOperand(2));
+    Elts[Idx->getValue().getZExtValue()] = InsertElt->getOperand(1);
+    CurrentInsertElt = InsertElt->getOperand(0);
+  }
+
+  bool AllowPoison =
+      isa<PoisonValue>(CurrentInsertElt) && isa<PoisonValue>(Default);
+  if (!SimplifyValuePattern(Elts, AllowPoison))
+    return std::nullopt;
+
+  // Rebuild the simplified chain of InsertElements. e.g. (a, b, a, b) as (a, b)
+  IRBuilder<> Builder(II.getContext());
+  Builder.SetInsertPoint(&II);
+  Value *InsertEltChain = PoisonValue::get(CurrentInsertElt->getType());
+  for (size_t I = 0; I < Elts.size(); I++) {
+    if (Elts[I] == nullptr)
+      continue;
+    InsertEltChain = Builder.CreateInsertElement(InsertEltChain, Elts[I],
+                                                 Builder.getInt64(I));
+  }
+  if (InsertEltChain == nullptr)
+    return std::nullopt;
+
+  // Splat the simplified sequence, e.g. (f16 a, f16 b, f16 c, f16 d) as one i64
+  // value or (f16 a, f16 b) as one i32 value. This requires an InsertSubvector
+  // be bitcast to a type wide enough to fit the sequence, be splatted, and then
+  // be narrowed back to the original type.
+  unsigned PatternWidth = IIScalableTy->getScalarSizeInBits() * Elts.size();
+  unsigned PatternElementCount = IIScalableTy->getScalarSizeInBits() *
+                                 IIScalableTy->getMinNumElements() /
+                                 PatternWidth;
+
+  IntegerType *WideTy = Builder.getIntNTy(PatternWidth);
+  auto *WideScalableTy = ScalableVectorType::get(WideTy, PatternElementCount);
+  auto *WideShuffleMaskTy =
+      ScalableVectorType::get(Builder.getInt32Ty(), PatternElementCount);
+
+  auto ZeroIdx = ConstantInt::get(Builder.getInt64Ty(), APInt(64, 0));
+  auto InsertSubvector = Builder.CreateInsertVector(
+      II.getType(), PoisonValue::get(II.getType()), InsertEltChain, ZeroIdx);
+  auto WideBitcast =
+      Builder.CreateBitOrPointerCast(InsertSubvector, WideScalableTy);
+  auto WideShuffleMask = ConstantAggregateZero::get(WideShuffleMaskTy);
+  auto WideShuffle = Builder.CreateShuffleVector(
+      WideBitcast, PoisonValue::get(WideScalableTy), WideShuffleMask);
+  auto NarrowBitcast =
+      Builder.CreateBitOrPointerCast(WideShuffle, II.getType());
+
+  return IC.replaceInstUsesWith(II, NarrowBitcast);
+}
+
 static std::optional<Instruction *> instCombineMaxMinNM(InstCombiner &IC,
                                                         IntrinsicInst &II) {
   Value *A = II.getArgOperand(0);
@@ -1524,9 +1626,17 @@ AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
   case Intrinsic::aarch64_sve_fadd:
   case Intrinsic::aarch64_sve_add:
     return instCombineSVEVectorAdd(IC, II);
+  case Intrinsic::aarch64_sve_fadd_u:
+    return instCombineSVEVectorFuseMulAddSub<Intrinsic::aarch64_sve_fmul_u,
+                                             Intrinsic::aarch64_sve_fmla_u>(
+        IC, II, true);
   case Intrinsic::aarch64_sve_fsub:
   case Intrinsic::aarch64_sve_sub:
     return instCombineSVEVectorSub(IC, II);
+  case Intrinsic::aarch64_sve_fsub_u:
+    return instCombineSVEVectorFuseMulAddSub<Intrinsic::aarch64_sve_fmul_u,
+                                             Intrinsic::aarch64_sve_fmls_u>(
+        IC, II, true);
   case Intrinsic::aarch64_sve_tbl:
     return instCombineSVETBL(IC, II);
   case Intrinsic::aarch64_sve_uunpkhi:
@@ -1551,6 +1661,8 @@ AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
     return instCombineSVESel(IC, II);
   case Intrinsic::aarch64_sve_srshl:
     return instCombineSVESrshl(IC, II);
+  case Intrinsic::aarch64_sve_dupq_lane:
+    return instCombineSVEDupqLane(IC, II);
   }
 
   return std::nullopt;
@@ -2034,14 +2146,14 @@ InstructionCost AArch64TTIImpl::getExtractWithExtendCost(unsigned Opcode,
 
   // Get the cost for the extract. We compute the cost (if any) for the extend
   // below.
-  InstructionCost Cost =
-      getVectorInstrCost(Instruction::ExtractElement, VecTy, Index);
+  TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
+  InstructionCost Cost = getVectorInstrCost(Instruction::ExtractElement, VecTy,
+                                            CostKind, Index, nullptr, nullptr);
 
   // Legalize the types.
   auto VecLT = getTypeLegalizationCost(VecTy);
   auto DstVT = TLI->getValueType(DL, Dst);
   auto SrcVT = TLI->getValueType(DL, Src);
-  TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
 
   // If the resulting type is still a vector and the destination type is legal,
   // we may get the extension for free. If not, get the default cost for the
@@ -2087,7 +2199,8 @@ InstructionCost AArch64TTIImpl::getCFInstrCost(unsigned Opcode,
   return 0;
 }
 
-InstructionCost AArch64TTIImpl::getVectorInstrCostHelper(Type *Val,
+InstructionCost AArch64TTIImpl::getVectorInstrCostHelper(const Instruction *I,
+                                                         Type *Val,
                                                          unsigned Index,
                                                          bool HasRealUse) {
   assert(Val->isVectorTy() && "This must be a vector type");
@@ -2113,14 +2226,21 @@ InstructionCost AArch64TTIImpl::getVectorInstrCostHelper(Type *Val,
     // needed. So it has non-zero cost.
     // - For the rest of cases (virtual instruction or element type is float),
     // consider the instruction free.
-    //
+    if (Index == 0 && (!HasRealUse || !Val->getScalarType()->isIntegerTy()))
+      return 0;
+
+    // This is recognising a LD1 single-element structure to one lane of one
+    // register instruction. I.e., if this is an `insertelement` instruction,
+    // and its second operand is a load, then we will generate a LD1, which
+    // are expensive instructions.
+    if (I && dyn_cast<LoadInst>(I->getOperand(1)))
+      return ST->getVectorInsertExtractBaseCost() + 1;
+
     // FIXME:
     // If the extract-element and insert-element instructions could be
     // simplified away (e.g., could be combined into users by looking at use-def
     // context), they have no cost. This is not done in the first place for
     // compile-time considerations.
-    if (Index == 0 && (!HasRealUse || !Val->getScalarType()->isIntegerTy()))
-      return 0;
   }
 
   // All other insert/extracts cost this much.
@@ -2128,13 +2248,17 @@ InstructionCost AArch64TTIImpl::getVectorInstrCostHelper(Type *Val,
 }
 
 InstructionCost AArch64TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
-                                                   unsigned Index) {
-  return getVectorInstrCostHelper(Val, Index, false /* HasRealUse */);
+                                                   TTI::TargetCostKind CostKind,
+                                                   unsigned Index, Value *Op0,
+                                                   Value *Op1) {
+  return getVectorInstrCostHelper(nullptr, Val, Index, false /* HasRealUse */);
 }
 
 InstructionCost AArch64TTIImpl::getVectorInstrCost(const Instruction &I,
-                                                   Type *Val, unsigned Index) {
-  return getVectorInstrCostHelper(Val, Index, true /* HasRealUse */);
+                                                   Type *Val,
+                                                   TTI::TargetCostKind CostKind,
+                                                   unsigned Index) {
+  return getVectorInstrCostHelper(&I, Val, Index, true /* HasRealUse */);
 }
 
 InstructionCost AArch64TTIImpl::getArithmeticInstrCost(
@@ -2198,9 +2322,9 @@ InstructionCost AArch64TTIImpl::getArithmeticInstrCost(
       if (TLI->isOperationLegalOrCustom(ISD, LT.second) && ST->hasSVE()) {
         // SDIV/UDIV operations are lowered using SVE, then we can have less
         // costs.
-        if (isa<FixedVectorType>(Ty) &&
-            cast<FixedVectorType>(Ty)->getPrimitiveSizeInBits().getFixedSize() <
-                128) {
+        if (isa<FixedVectorType>(Ty) && cast<FixedVectorType>(Ty)
+                                                ->getPrimitiveSizeInBits()
+                                                .getFixedValue() < 128) {
           EVT VT = TLI->getValueType(DL, Ty);
           static const CostTblEntry DivTbl[]{
               {ISD::SDIV, MVT::v2i8, 5},  {ISD::SDIV, MVT::v4i8, 8},
@@ -2564,7 +2688,7 @@ AArch64TTIImpl::getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) {
   return Cost;
 }
 
-unsigned AArch64TTIImpl::getMaxInterleaveFactor(unsigned VF) {
+unsigned AArch64TTIImpl::getMaxInterleaveFactor(ElementCount VF) {
   return ST->getMaxInterleaveFactor();
 }
 
@@ -3102,13 +3226,19 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
 
   Kind = improveShuffleKindFromMask(Kind, Mask);
 
-  // Check for broadcast loads.
-  if (Kind == TTI::SK_Broadcast) {
+  // Check for broadcast loads, which are supported by the LD1R instruction.
+  // In terms of code-size, the shuffle vector is free when a load + dup get
+  // folded into a LD1R. That's what we check and return here. For performance
+  // and reciprocal throughput, a LD1R is not completely free. In this case, we
+  // return the cost for the broadcast below (i.e. 1 for most/all types), so
+  // that we model the load + dup sequence slightly higher because LD1R is a
+  // high latency instruction.
+  if (CostKind == TTI::TCK_CodeSize && Kind == TTI::SK_Broadcast) {
     bool IsLoad = !Args.empty() && isa<LoadInst>(Args[0]);
     if (IsLoad && LT.second.isVector() &&
         isLegalBroadcastLoad(Tp->getElementType(),
                              LT.second.getVectorElementCount()))
-      return 0; // broadcast is handled by ld1r
+      return 0;
   }
 
   // If we have 4 elements for the shuffle and a Mask, get the cost straight
@@ -3130,6 +3260,8 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
         {TTI::SK_Broadcast, MVT::v2i32, 1},
         {TTI::SK_Broadcast, MVT::v4i32, 1},
         {TTI::SK_Broadcast, MVT::v2i64, 1},
+        {TTI::SK_Broadcast, MVT::v4f16, 1},
+        {TTI::SK_Broadcast, MVT::v8f16, 1},
         {TTI::SK_Broadcast, MVT::v2f32, 1},
         {TTI::SK_Broadcast, MVT::v4f32, 1},
         {TTI::SK_Broadcast, MVT::v2f64, 1},
@@ -3142,6 +3274,8 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
         {TTI::SK_Transpose, MVT::v2i32, 1},
         {TTI::SK_Transpose, MVT::v4i32, 1},
         {TTI::SK_Transpose, MVT::v2i64, 1},
+        {TTI::SK_Transpose, MVT::v4f16, 1},
+        {TTI::SK_Transpose, MVT::v8f16, 1},
         {TTI::SK_Transpose, MVT::v2f32, 1},
         {TTI::SK_Transpose, MVT::v4f32, 1},
         {TTI::SK_Transpose, MVT::v2f64, 1},
@@ -3256,6 +3390,26 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
   return BaseT::getShuffleCost(Kind, Tp, Mask, CostKind, Index, SubTp);
 }
 
+static bool containsDecreasingPointers(Loop *TheLoop,
+                                       PredicatedScalarEvolution *PSE) {
+  const ValueToValueMap &Strides = ValueToValueMap();
+  for (BasicBlock *BB : TheLoop->blocks()) {
+    // Scan the instructions in the block and look for addresses that are
+    // consecutive and decreasing.
+    for (Instruction &I : *BB) {
+      if (isa<LoadInst>(&I) || isa<StoreInst>(&I)) {
+        Value *Ptr = getLoadStorePointerOperand(&I);
+        Type *AccessTy = getLoadStoreType(&I);
+        if (getPtrStride(*PSE, AccessTy, Ptr, TheLoop, Strides, /*Assume=*/true,
+                         /*ShouldCheckWrap=*/false)
+                .value_or(0) < 0)
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool AArch64TTIImpl::preferPredicateOverEpilogue(
     Loop *L, LoopInfo *LI, ScalarEvolution &SE, AssumptionCache &AC,
     TargetLibraryInfo *TLI, DominatorTree *DT, LoopVectorizationLegality *LVL,
@@ -3274,6 +3428,12 @@ bool AArch64TTIImpl::preferPredicateOverEpilogue(
     Required.add(TailFoldingKind::TFReductions);
   if (LVL->getFixedOrderRecurrences().size())
     Required.add(TailFoldingKind::TFRecurrences);
+
+  // We call this to discover whether any load/store pointers in the loop have
+  // negative strides. This will require extra work to reverse the loop
+  // predicate, which may be expensive.
+  if (containsDecreasingPointers(L, LVL->getPredicatedScalarEvolution()))
+    Required.add(TailFoldingKind::TFReverse);
   if (!Required)
     Required.add(TailFoldingKind::TFSimple);
 

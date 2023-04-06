@@ -143,6 +143,9 @@ struct TypeBuilderImpl {
     Fortran::common::TypeCategory category = dynamicType->category();
 
     mlir::Type baseType;
+    bool isPolymorphic = (dynamicType->IsPolymorphic() ||
+                          dynamicType->IsUnlimitedPolymorphic()) &&
+                         !dynamicType->IsAssumedType();
     if (dynamicType->IsUnlimitedPolymorphic()) {
       baseType = mlir::NoneType::get(context);
     } else if (category == Fortran::common::TypeCategory::Derived) {
@@ -167,8 +170,14 @@ struct TypeBuilderImpl {
       for (int dim = 0; dim < rank; ++dim)
         shape.emplace_back(fir::SequenceType::getUnknownExtent());
     }
-    if (!shape.empty())
+
+    if (!shape.empty()) {
+      if (isPolymorphic)
+        return fir::ClassType::get(fir::SequenceType::get(shape, baseType));
       return fir::SequenceType::get(shape, baseType);
+    }
+    if (isPolymorphic)
+      return fir::ClassType::get(baseType);
     return baseType;
   }
 
@@ -256,6 +265,9 @@ struct TypeBuilderImpl {
     } else {
       fir::emitFatalError(loc, "symbol must have a type");
     }
+    bool isPolymorphic = (Fortran::semantics::IsPolymorphic(symbol) ||
+                          Fortran::semantics::IsUnlimitedPolymorphic(symbol)) &&
+                         !Fortran::semantics::IsAssumedType(symbol);
     if (ultimate.IsObjectArray()) {
       auto shapeExpr = Fortran::evaluate::GetShapeHelper{
           converter.getFoldingContext()}(ultimate);
@@ -266,11 +278,10 @@ struct TypeBuilderImpl {
       ty = fir::SequenceType::get(shape, ty);
     }
     if (Fortran::semantics::IsPointer(symbol))
-      return fir::wrapInClassOrBoxType(
-          fir::PointerType::get(ty), Fortran::semantics::IsPolymorphic(symbol));
+      return fir::wrapInClassOrBoxType(fir::PointerType::get(ty),
+                                       isPolymorphic);
     if (Fortran::semantics::IsAllocatable(symbol))
-      return fir::wrapInClassOrBoxType(
-          fir::HeapType::get(ty), Fortran::semantics::IsPolymorphic(symbol));
+      return fir::wrapInClassOrBoxType(fir::HeapType::get(ty), isPolymorphic);
     // isPtr and isAlloc are variable that were promoted to be on the
     // heap or to be pointers, but they do not have Fortran allocatable
     // or pointer semantics, so do not use box for them.
@@ -278,6 +289,8 @@ struct TypeBuilderImpl {
       return fir::PointerType::get(ty);
     if (isAlloc)
       return fir::HeapType::get(ty);
+    if (isPolymorphic)
+      return fir::ClassType::get(ty);
     return ty;
   }
 
@@ -302,11 +315,7 @@ struct TypeBuilderImpl {
     if (mlir::Type ty = getTypeIfDerivedAlreadyInConstruction(typeSymbol))
       return ty;
 
-    if (Fortran::semantics::IsFinalizable(tySpec))
-      TODO(converter.genLocation(tySpec.name()), "derived type finalization");
-
-    auto rec = fir::RecordType::get(context,
-                                    Fortran::lower::mangle::mangleName(tySpec));
+    auto rec = fir::RecordType::get(context, converter.mangleName(tySpec));
     // Maintain the stack of types for recursive references.
     derivedTypeInConstruction.emplace_back(typeSymbol, rec);
 
@@ -316,7 +325,8 @@ struct TypeBuilderImpl {
          Fortran::semantics::OrderedComponentIterator(tySpec)) {
       // Lowering is assuming non deferred component lower bounds are always 1.
       // Catch any situations where this is not true for now.
-      if (componentHasNonDefaultLowerBounds(field))
+      if (!converter.getLoweringOptions().getLowerToHighLevelFIR() &&
+          componentHasNonDefaultLowerBounds(field))
         TODO(converter.genLocation(field.name()),
              "derived type components with non default lower bounds");
       if (IsProcedure(field))
@@ -408,16 +418,36 @@ struct TypeBuilderImpl {
   Fortran::lower::LenParameterTy getCharacterLength(const A &expr) {
     return fir::SequenceType::getUnknownExtent();
   }
+
+  template <typename T>
+  Fortran::lower::LenParameterTy
+  getCharacterLength(const Fortran::evaluate::FunctionRef<T> &funcRef) {
+    if (auto constantLen = toInt64(funcRef.LEN()))
+      return *constantLen;
+    return fir::SequenceType::getUnknownExtent();
+  }
+
   Fortran::lower::LenParameterTy
   getCharacterLength(const Fortran::lower::SomeExpr &expr) {
     // Do not use dynamic type length here. We would miss constant
     // lengths opportunities because dynamic type only has the length
     // if it comes from a declaration.
-    auto charExpr =
-        std::get<Fortran::evaluate::Expr<Fortran::evaluate::SomeCharacter>>(
-            expr.u);
-    if (auto constantLen = toInt64(charExpr.LEN()))
-      return *constantLen;
+    if (const auto *charExpr = std::get_if<
+            Fortran::evaluate::Expr<Fortran::evaluate::SomeCharacter>>(
+            &expr.u)) {
+      if (auto constantLen = toInt64(charExpr->LEN()))
+        return *constantLen;
+    } else if (auto dynamicType = expr.GetType()) {
+      // When generating derived type type descriptor as structure constructor,
+      // semantics wraps designators to data component initialization into
+      // CLASS(*), regardless of their actual type.
+      // GetType() will recover the actual symbol type as the dynamic type, so
+      // getCharacterLength may be reached even if expr is packaged as an
+      // Expr<SomeDerived> instead of an Expr<SomeChar>.
+      // Just use the dynamic type here again to retrieve the length.
+      if (auto constantLen = toInt64(dynamicType->GetCharLength()))
+        return *constantLen;
+    }
     return fir::SequenceType::getUnknownExtent();
   }
 
@@ -482,6 +512,15 @@ mlir::Type Fortran::lower::translateVariableToFIRType(
 
 mlir::Type Fortran::lower::convertReal(mlir::MLIRContext *context, int kind) {
   return genRealType(context, kind);
+}
+
+bool Fortran::lower::isDerivedTypeWithLenParameters(
+    const Fortran::semantics::Symbol &sym) {
+  if (const Fortran::semantics::DeclTypeSpec *declTy = sym.GetType())
+    if (const Fortran::semantics::DerivedTypeSpec *derived =
+            declTy->AsDerived())
+      return Fortran::semantics::CountLenParameters(*derived) > 0;
+  return false;
 }
 
 template <typename T>

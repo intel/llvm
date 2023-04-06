@@ -10,6 +10,7 @@
 
 #include "ModuleHelper.h"
 #include "helper/ErrorHandling.h"
+#include "kernel-fusion/SYCLKernelFusion.h"
 #include "llvm/IR/Constants.h"
 
 using namespace llvm;
@@ -81,6 +82,43 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
     // The metadata can be identified by this fixed string providing a kind.
     F->setMetadata(MetadataKind, MDList);
 
+    // Attach ND-ranges related information. User of this API must pass the
+    // following information for each kernel, as well as for the fused kernel:
+    // 1. Number of dimensions;
+    // 2. Global size;
+    // 3. Local size;
+    // 4. Offset
+    {
+      const auto MDFromND = [&LLVMCtx](const auto &ND) {
+        auto MDFromIndices = [&LLVMCtx](const auto &Ind) -> Metadata * {
+          std::array<Metadata *, jit_compiler::Indices{}.size()> MD{nullptr};
+          std::transform(
+              Ind.begin(), Ind.end(), MD.begin(),
+              [&LLVMCtx](auto I) { return getConstantIntMD(LLVMCtx, I); });
+          return MDNode::get(LLVMCtx, MD);
+        };
+        std::array<Metadata *, 4> MD;
+        MD[0] = getConstantIntMD(LLVMCtx, ND.getDimensions());
+        MD[1] = MDFromIndices(ND.getGlobalSize());
+        MD[2] = MDFromIndices(ND.getLocalSize());
+        MD[3] = MDFromIndices(ND.getOffset());
+        return MDNode::get(LLVMCtx, MD);
+      };
+
+      // Attach ND-range of the fused kernel
+      assert(!F->hasMetadata(SYCLKernelFusion::NDRangeMDKey));
+      F->setMetadata(SYCLKernelFusion::NDRangeMDKey, MDFromND(FF.FusedNDRange));
+
+      // Attach ND-ranges of each kernel to be fused
+      const auto SrcNDRanges = FF.NDRanges;
+      SmallVector<Metadata *> Nodes;
+      std::transform(SrcNDRanges.begin(), SrcNDRanges.end(),
+                     std::back_inserter(Nodes), MDFromND);
+      assert(!F->hasMetadata(SYCLKernelFusion::NDRangesMDKey));
+      F->setMetadata(SYCLKernelFusion::NDRangesMDKey,
+                     MDNode::get(LLVMCtx, Nodes));
+    }
+
     // The user of this API may be able to determine that
     // the same value is used for multiple input functions in the fused kernel,
     // e.g. when using the output of one kernel as the input to another kernel.
@@ -125,6 +163,7 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
 
           const auto S = [&]() -> StringRef {
             switch (Info.Intern) {
+            default:
             case jit_compiler::Internalization::None:
               llvm_unreachable(
                   "Only a valid internalization kind should be used");

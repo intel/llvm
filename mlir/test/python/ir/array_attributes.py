@@ -43,6 +43,7 @@ def testGetDenseElementsSplatInt():
     print(attr)
     # CHECK: is_splat: True
     print("is_splat:", attr.is_splat)
+    assert attr.get_splat_value() == element
 
 
 # CHECK-LABEL: TEST: testGetDenseElementsSplatFloat
@@ -55,6 +56,7 @@ def testGetDenseElementsSplatFloat():
     attr = DenseElementsAttr.get_splat(shaped_type, element)
     # CHECK: dense<1.200000e+00> : tensor<2x3x4xf32>
     print(attr)
+    assert attr.get_splat_value() == element
 
 
 # CHECK-LABEL: TEST: testGetDenseElementsSplatErrors
@@ -98,10 +100,9 @@ def testRepeatedValuesSplat():
     print(attr)
     # CHECK: is_splat: True
     print("is_splat:", attr.is_splat)
-    # TODO: Re-enable this once a solution is found to raising an exception
-    # from buffer protocol.
-    # Reported as https://github.com/pybind/pybind11/issues/3336
-    # print(np.array(attr))
+    # CHECK{LITERAL}: [[1. 1. 1.]
+    # CHECK{LITERAL}:  [1. 1. 1.]]
+    print(np.array(attr))
 
 
 # CHECK-LABEL: TEST: testNonSplat

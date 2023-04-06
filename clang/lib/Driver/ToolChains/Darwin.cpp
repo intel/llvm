@@ -23,9 +23,9 @@
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
-#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/TargetParser/TargetParser.h"
 #include <cstdlib> // ::getenv
 
 using namespace clang::driver;
@@ -1425,26 +1425,53 @@ void DarwinClang::AddLinkRuntimeLibArgs(const ArgList &Args,
   }
 
   const SanitizerArgs &Sanitize = getSanitizerArgs(Args);
-  if (Sanitize.needsAsanRt())
-    AddLinkSanitizerLibArgs(Args, CmdArgs, "asan");
-  if (Sanitize.needsLsanRt())
-    AddLinkSanitizerLibArgs(Args, CmdArgs, "lsan");
-  if (Sanitize.needsUbsanRt())
-    AddLinkSanitizerLibArgs(Args, CmdArgs,
-                            Sanitize.requiresMinimalRuntime() ? "ubsan_minimal"
-                                                              : "ubsan",
-                            Sanitize.needsSharedRt());
-  if (Sanitize.needsTsanRt())
-    AddLinkSanitizerLibArgs(Args, CmdArgs, "tsan");
-  if (Sanitize.needsFuzzer() && !Args.hasArg(options::OPT_dynamiclib)) {
-    AddLinkSanitizerLibArgs(Args, CmdArgs, "fuzzer", /*shared=*/false);
 
-    // Libfuzzer is written in C++ and requires libcxx.
-    AddCXXStdlibLibArgs(Args, CmdArgs);
+  if (!Sanitize.needsSharedRt()) {
+    const char *sanitizer = nullptr;
+    if (Sanitize.needsUbsanRt()) {
+      sanitizer = "UndefinedBehaviorSanitizer";
+    } else if (Sanitize.needsAsanRt()) {
+      sanitizer = "AddressSanitizer";
+    } else if (Sanitize.needsTsanRt()) {
+      sanitizer = "ThreadSanitizer";
+    }
+    if (sanitizer) {
+      getDriver().Diag(diag::err_drv_unsupported_static_sanitizer_darwin)
+          << sanitizer;
+      return;
+    }
   }
-  if (Sanitize.needsStatsRt()) {
-    AddLinkRuntimeLib(Args, CmdArgs, "stats_client", RLO_AlwaysLink);
-    AddLinkSanitizerLibArgs(Args, CmdArgs, "stats");
+
+  if (Sanitize.linkRuntimes()) {
+    if (Sanitize.needsAsanRt()) {
+      assert(Sanitize.needsSharedRt() &&
+             "Static sanitizer runtimes not supported");
+      AddLinkSanitizerLibArgs(Args, CmdArgs, "asan");
+    }
+    if (Sanitize.needsLsanRt())
+      AddLinkSanitizerLibArgs(Args, CmdArgs, "lsan");
+    if (Sanitize.needsUbsanRt()) {
+      assert(Sanitize.needsSharedRt() &&
+             "Static sanitizer runtimes not supported");
+      AddLinkSanitizerLibArgs(
+          Args, CmdArgs,
+          Sanitize.requiresMinimalRuntime() ? "ubsan_minimal" : "ubsan");
+    }
+    if (Sanitize.needsTsanRt()) {
+      assert(Sanitize.needsSharedRt() &&
+             "Static sanitizer runtimes not supported");
+      AddLinkSanitizerLibArgs(Args, CmdArgs, "tsan");
+    }
+    if (Sanitize.needsFuzzer() && !Args.hasArg(options::OPT_dynamiclib)) {
+      AddLinkSanitizerLibArgs(Args, CmdArgs, "fuzzer", /*shared=*/false);
+
+        // Libfuzzer is written in C++ and requires libcxx.
+        AddCXXStdlibLibArgs(Args, CmdArgs);
+    }
+    if (Sanitize.needsStatsRt()) {
+      AddLinkRuntimeLib(Args, CmdArgs, "stats_client", RLO_AlwaysLink);
+      AddLinkSanitizerLibArgs(Args, CmdArgs, "stats");
+    }
   }
 
   const XRayArgs &XRay = getXRayArgs();
@@ -1765,7 +1792,7 @@ getDeploymentTargetFromOSVersionArg(DerivedArgList &Args,
                  ->getAsString(Args);
     }
     return DarwinPlatform::createOSVersionArg(Darwin::MacOS, macOSVersion,
-                                              /*IsImulator=*/false);
+                                              /*IsSimulator=*/false);
   } else if (iOSVersion) {
     if (TvOSVersion || WatchOSVersion) {
       TheDriver.Diag(diag::err_drv_argument_not_allowed_with)
@@ -1809,7 +1836,7 @@ getDeploymentTargetFromEnvironmentVariables(const Driver &TheDriver,
   };
   static_assert(std::size(EnvVars) == Darwin::LastDarwinPlatform + 1,
                 "Missing platform");
-  for (const auto &I : llvm::enumerate(llvm::makeArrayRef(EnvVars))) {
+  for (const auto &I : llvm::enumerate(llvm::ArrayRef(EnvVars))) {
     if (char *Env = ::getenv(I.value()))
       Targets[I.index()] = Env;
   }
@@ -1840,7 +1867,7 @@ getDeploymentTargetFromEnvironmentVariables(const Driver &TheDriver,
     }
   }
 
-  for (const auto &Target : llvm::enumerate(llvm::makeArrayRef(Targets))) {
+  for (const auto &Target : llvm::enumerate(llvm::ArrayRef(Targets))) {
     if (!Target.value().empty())
       return DarwinPlatform::createDeploymentTargetEnv(
           (Darwin::DarwinPlatformKind)Target.index(), EnvVars[Target.index()],
@@ -2447,17 +2474,6 @@ void DarwinClang::AddClangCXXStdlibIncludeArgs(
     bool IsBaseFound = true;
     switch (arch) {
     default: break;
-
-    case llvm::Triple::ppc:
-    case llvm::Triple::ppc64:
-      IsBaseFound = AddGnuCPlusPlusIncludePaths(DriverArgs, CC1Args, UsrIncludeCxx,
-                                                "4.2.1",
-                                                "powerpc-apple-darwin10",
-                                                arch == llvm::Triple::ppc64 ? "ppc64" : "");
-      IsBaseFound |= AddGnuCPlusPlusIncludePaths(DriverArgs, CC1Args, UsrIncludeCxx,
-                                                "4.0.0", "powerpc-apple-darwin10",
-                                                 arch == llvm::Triple::ppc64 ? "ppc64" : "");
-      break;
 
     case llvm::Triple::x86:
     case llvm::Triple::x86_64:

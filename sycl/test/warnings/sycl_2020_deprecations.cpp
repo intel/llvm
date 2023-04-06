@@ -1,4 +1,4 @@
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=0 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=0 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
@@ -22,6 +22,8 @@ int main() {
   (void)Device.get();
   // expected-warning@+1 {{'has_extension' is deprecated: use device::has() function with aspects APIs instead}}
   (void)Device.has_extension("abc");
+  // expected-warning@+1{{'host' is deprecated: removed in SYCL 2020, 'host' device has been removed}}
+  (void)Device.has(sycl::aspect::host);
 
   cl_event ClEvent;
   // expected-error@+1 {{no matching constructor for initialization of 'sycl::event'}}
@@ -386,6 +388,14 @@ int main() {
           static_cast<typename decltype(UndecoratedPrivateMptr)::pointer>(
               UndecoratedPrivateMptr);
     });
+  });
+
+  Queue.submit([&](sycl::handler &CGH) {
+    sycl::stream Stream(1024, 80, CGH);
+    // expected-warning@+1{{'get_size' is deprecated: get_size() is deprecated since SYCL 2020. Please use size() instead.}}
+    size_t StreamSize = Stream.get_size();
+    // expected-warning@+1{{'get_max_statement_size' is deprecated: get_max_statement_size() is deprecated since SYCL 2020. Please use get_work_item_buffer_size() instead.}}
+    size_t StreamMaxStatementSize = Stream.get_max_statement_size();
   });
 
   return 0;

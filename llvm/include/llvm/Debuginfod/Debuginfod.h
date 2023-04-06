@@ -22,7 +22,6 @@
 
 #include "HTTPServer.h"
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Object/BuildID.h"
@@ -34,13 +33,18 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <optional>
 #include <queue>
 
 namespace llvm {
 
+/// Returns false if a debuginfod lookup can be determined to have no chance of
+/// succeeding.
+bool canUseDebuginfod();
+
 /// Finds default array of Debuginfod server URLs by checking DEBUGINFOD_URLS
 /// environment variable.
-Expected<SmallVector<StringRef>> getDefaultDebuginfodUrls();
+SmallVector<StringRef> getDefaultDebuginfodUrls();
 
 /// Finds a default local file caching directory for the debuginfod client,
 /// first checking DEBUGINFOD_CACHE_PATH.

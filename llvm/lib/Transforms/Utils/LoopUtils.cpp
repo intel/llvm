@@ -466,6 +466,19 @@ llvm::collectChildrenInLoop(DomTreeNode *N, const Loop *CurLoop) {
   return Worklist;
 }
 
+bool llvm::isAlmostDeadIV(PHINode *PN, BasicBlock *LatchBlock, Value *Cond) {
+  int LatchIdx = PN->getBasicBlockIndex(LatchBlock);
+  Value *IncV = PN->getIncomingValue(LatchIdx);
+
+  for (User *U : PN->users())
+    if (U != Cond && U != IncV) return false;
+
+  for (User *U : IncV->users())
+    if (U != Cond && U != PN) return false;
+  return true;
+}
+
+
 void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
                           LoopInfo *LI, MemorySSA *MSSA) {
   assert((!DT || L->isLCSSAForm(*DT)) && "Expected LCSSA!");
@@ -637,7 +650,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
            "There should be a non-PHI instruction in exit block, else these "
            "instructions will have no parent.");
     for (auto *DVI : DeadDebugInst) {
-      DVI->setUndef();
+      DVI->setKillLocation();
       DVI->moveBefore(InsertDbgValueBefore);
     }
   }

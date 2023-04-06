@@ -16,13 +16,13 @@
 #include "Driver.h"
 #include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Reproduce.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TimeProfiler.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 
 using namespace llvm;
@@ -50,7 +50,7 @@ static constexpr opt::OptTable::Info optInfo[] = {
 #undef OPTION
 };
 
-ELFOptTable::ELFOptTable() : OptTable(optInfo) {}
+ELFOptTable::ELFOptTable() : GenericOptTable(optInfo) {}
 
 // Set color diagnostics according to --color-diagnostics={auto,always,never}
 // or --no-color-diagnostics flags.

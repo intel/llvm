@@ -64,6 +64,7 @@ protected:
                             const ConstraintSatisfaction *Satisfaction);
 
   ConceptSpecializationExpr(const ASTContext &C, ConceptDecl *NamedConcept,
+                            const ASTTemplateArgumentListInfo *ArgsAsWritten,
                             ImplicitConceptSpecializationDecl *SpecDecl,
                             const ConstraintSatisfaction *Satisfaction,
                             bool Dependent,
@@ -81,6 +82,7 @@ public:
 
   static ConceptSpecializationExpr *
   Create(const ASTContext &C, ConceptDecl *NamedConcept,
+         const ASTTemplateArgumentListInfo *ArgsAsWritten,
          ImplicitConceptSpecializationDecl *SpecDecl,
          const ConstraintSatisfaction *Satisfaction, bool Dependent,
          bool ContainsUnexpandedParameterPack);
@@ -526,6 +528,12 @@ public:
     assert(!isValueDependent()
            && "isSatisfied called on a dependent RequiresExpr");
     return RequiresExprBits.IsSatisfied;
+  }
+
+  void setSatisfied(bool IsSatisfied) {
+    assert(!isValueDependent() &&
+           "setSatisfied called on a dependent RequiresExpr");
+    RequiresExprBits.IsSatisfied = IsSatisfied;
   }
 
   SourceLocation getRequiresKWLoc() const {

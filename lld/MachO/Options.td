@@ -28,8 +28,21 @@ def color_diagnostics_eq: Joined<["--"], "color-diagnostics=">,
 def threads_eq : Joined<["--"], "threads=">,
     HelpText<"Number of threads. '1' disables multi-threading. By default all available hardware threads are used">,
     Group<grp_lld>;
+def thinlto_emit_imports_files: Flag<["--"], "thinlto-emit-imports-files">,
+    Group<grp_lld>;
+def thinlto_emit_index_files: Flag<["--"], "thinlto-emit-index-files">,
+    Group<grp_lld>;
+def thinlto_index_only: Flag<["--"], "thinlto-index-only">,
+    Group<grp_lld>;
+def thinlto_index_only_eq: Joined<["--"], "thinlto-index-only=">,
+    Group<grp_lld>;
 def thinlto_jobs_eq : Joined<["--"], "thinlto-jobs=">,
     HelpText<"Number of ThinLTO jobs. Default to --threads=">,
+    Group<grp_lld>;
+def thinlto_object_suffix_replace_eq:
+    Joined<["--"], "thinlto-object-suffix-replace=">,
+    Group<grp_lld>;
+def thinlto_prefix_replace_eq: Joined<["--"], "thinlto-prefix-replace=">,
     Group<grp_lld>;
 def reproduce: Separate<["--"], "reproduce">,
     Group<grp_lld>;
@@ -39,9 +52,6 @@ def reproduce_eq: Joined<["--"], "reproduce=">,
     Group<grp_lld>;
 def version: Flag<["--"], "version">,
     HelpText<"Display the version number and exit">,
-    Group<grp_lld>;
-def no_lto_legacy_pass_manager : Flag<["--"], "no-lto-legacy-pass-manager">,
-    HelpText<"Use the new pass manager in LLVM">,
     Group<grp_lld>;
 def time_trace_eq: Joined<["--"], "time-trace=">,
     HelpText<"Record time trace to <file>">,
@@ -73,6 +83,10 @@ def icf_eq: Joined<["--"], "icf=">,
 def lto_O: Joined<["--"], "lto-O">,
     HelpText<"Set optimization level for LTO (default: 2)">,
     MetaVarName<"<opt-level>">,
+    Group<grp_lld>;
+def lto_CGO: Joined<["--"], "lto-CGO">,
+    HelpText<"Set codegen optimization level for LTO (default: 2)">,
+    MetaVarName<"<cgopt-level>">,
     Group<grp_lld>;
 def thinlto_cache_policy_eq: Joined<["--"], "thinlto-cache-policy=">,
     HelpText<"Pruning policy for the ThinLTO cache">,
@@ -106,6 +120,9 @@ def ignore_auto_link_option_eq : Joined<["--"], "ignore-auto-link-option=">,
     Group<grp_lld>;
 def strict_auto_link : Flag<["--"], "strict-auto-link">,
     HelpText<"Always warn for missing frameworks or libraries if they are loaded via LC_LINKER_OPTIONS">,
+    Group<grp_lld>;
+def check_category_conflicts : Flag<["--"], "check-category-conflicts">,
+    HelpText<"Check for conflicts between category & class methods">,
     Group<grp_lld>;
 
 // This is a complete Options.td compiled from Apple's ld(1) manpage
@@ -671,10 +688,6 @@ def no_inits : Flag<["-"], "no_inits">,
     Group<grp_rare>;
 def no_warn_inits : Flag<["-"], "no_warn_inits">,
     HelpText<"Suppress warnings for static initializers in the output">,
-    Flags<[HelpHidden]>,
-    Group<grp_rare>;
-def debug_variant : Flag<["-"], "debug_variant">,
-    HelpText<"Suppress warnings germane to binaries shipping to customers">,
     Flags<[HelpHidden]>,
     Group<grp_rare>;
 def unaligned_pointers : Separate<["-"], "unaligned_pointers">,
@@ -1371,5 +1384,9 @@ def grp_ignored_silently : OptionGroup<"ignored_silently">, HelpText<"IGNORED SI
 
 def objc_abi_version : Separate<["-"], "objc_abi_version">,
     HelpText<"This option only applies to i386 in ld64">,
+    Flags<[HelpHidden]>,
+    Group<grp_ignored_silently>;
+def debug_variant : Flag<["-"], "debug_variant">,
+    HelpText<"Do not warn about issues that are only problems for binaries shipping to customers.">,
     Flags<[HelpHidden]>,
     Group<grp_ignored_silently>;

@@ -212,8 +212,7 @@ static MarshallingInfo createMarshallingInfo(const Record &R) {
 /// OptParserEmitter - This tablegen backend takes an input .td file
 /// describing a list of options and emits a data structure for parsing and
 /// working with those options when given an input command line.
-namespace llvm {
-void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
+static void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
   // Get the option groups and options.
   const std::vector<Record*> &Groups =
     Records.getAllDerivedDefinitions("OptionGroup");
@@ -237,8 +236,14 @@ void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
       CurPrefix = NewPrefix;
   }
 
-  // Dump prefixes.
+  DenseSet<StringRef> PrefixesUnionSet;
+  for (const auto &Prefix : Prefixes)
+    PrefixesUnionSet.insert(Prefix.first.begin(), Prefix.first.end());
+  SmallVector<StringRef> PrefixesUnion(PrefixesUnionSet.begin(),
+                                       PrefixesUnionSet.end());
+  array_pod_sort(PrefixesUnion.begin(), PrefixesUnion.end());
 
+  // Dump prefixes.
   OS << "/////////\n";
   OS << "// Prefixes\n\n";
   OS << "#ifdef PREFIX\n";
@@ -258,6 +263,35 @@ void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
   }
   OS << "#undef COMMA\n";
   OS << "#endif // PREFIX\n\n";
+
+  // Dump prefix unions.
+  OS << "/////////\n";
+  OS << "// Prefix Union\n\n";
+  OS << "#ifdef PREFIX_UNION\n";
+  OS << "#define COMMA ,\n";
+  OS << "PREFIX_UNION({\n";
+  for (const auto &Prefix : PrefixesUnion) {
+    OS << "llvm::StringLiteral(\"" << Prefix << "\") COMMA ";
+  }
+  OS << "llvm::StringLiteral(\"\")})\n";
+  OS << "#undef COMMA\n";
+  OS << "#endif // PREFIX_UNION\n\n";
+
+  // Dump groups.
+  OS << "/////////\n";
+  OS << "// ValuesCode\n\n";
+  OS << "#ifdef OPTTABLE_VALUES_CODE\n";
+  for (const Record &R : llvm::make_pointee_range(Opts)) {
+    // The option values, if any;
+    if (!isa<UnsetInit>(R.getValueInit("ValuesCode"))) {
+      assert(isa<UnsetInit>(R.getValueInit("Values")) &&
+             "Cannot choose between Values and ValuesCode");
+      OS << "#define VALUES_CODE " << getOptionName(R) << "_Values\n";
+      OS << R.getValueAsString("ValuesCode") << "\n";
+      OS << "#undef VALUES_CODE\n";
+    }
+  }
+  OS << "#endif\n";
 
   OS << "/////////\n";
   OS << "// Groups\n\n";
@@ -388,6 +422,9 @@ void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
     OS << ", ";
     if (!isa<UnsetInit>(R.getValueInit("Values")))
       write_cstring(OS, R.getValueAsString("Values"));
+    else if (!isa<UnsetInit>(R.getValueInit("ValuesCode"))) {
+      OS << getOptionName(R) << "_Values";
+    }
     else
       OS << "nullptr";
   };
@@ -460,29 +497,7 @@ void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
   OS << "\n";
 
   OS << "\n";
-  OS << "#ifdef OPTTABLE_ARG_INIT\n";
-  OS << "//////////\n";
-  OS << "// Option Values\n\n";
-  for (const Record &R : llvm::make_pointee_range(Opts)) {
-    if (isa<UnsetInit>(R.getValueInit("ValuesCode")))
-      continue;
-    OS << "{\n";
-    OS << "bool ValuesWereAdded;\n";
-    OS << R.getValueAsString("ValuesCode");
-    OS << "\n";
-    for (StringRef Prefix : R.getValueAsListOfStrings("Prefixes")) {
-      OS << "ValuesWereAdded = Opt.addValues(";
-      std::string S(Prefix);
-      S += R.getValueAsString("Name");
-      write_cstring(OS, S);
-      OS << ", Values);\n";
-      OS << "(void)ValuesWereAdded;\n";
-      OS << "assert(ValuesWereAdded && \"Couldn't add values to "
-            "OptTable!\");\n";
-    }
-    OS << "}\n";
-  }
-  OS << "\n";
-  OS << "#endif // OPTTABLE_ARG_INIT\n";
 }
-} // end namespace llvm
+
+static TableGen::Emitter::Opt X("gen-opt-parser-defs", EmitOptParser,
+                                "Generate option definitions");

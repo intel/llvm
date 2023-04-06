@@ -3,6 +3,8 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   BufferizableOpInterfaceImpl.cpp
   Bufferize.cpp
   ConstantFold.cpp
+  ConvertToDestinationStyle.cpp
+  ConvertConv2DToImg2Col.cpp
   DataLayoutPropagation.cpp
   DecomposeLinalgOps.cpp
   Detensorize.cpp
@@ -23,6 +25,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   Promotion.cpp
   Split.cpp
   SplitReduction.cpp
+  SubsetHoisting.cpp
   SwapExtractSliceWithFillPatterns.cpp
   Tiling.cpp
   TilingInterfaceImpl.cpp
@@ -55,7 +58,6 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRMemRefDialect
   MLIRMemRefTransforms
   MLIRLinalgDialect
-  MLIRLinalgAnalysis
   MLIRLinalgUtils
   MLIRSCFDialect
   MLIRSCFTransforms

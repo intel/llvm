@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -338,7 +339,7 @@ bool DynTypedMatcher::matchesNoKindCheck(const DynTypedNode &DynNode,
   return false;
 }
 
-llvm::Optional<DynTypedMatcher> DynTypedMatcher::tryBind(StringRef ID) const {
+std::optional<DynTypedMatcher> DynTypedMatcher::tryBind(StringRef ID) const {
   if (!AllowBind)
     return std::nullopt;
   auto Result = *this;
@@ -685,7 +686,7 @@ static bool isTokenAtLoc(const SourceManager &SM, const LangOptions &LangOpts,
   return !Invalid && Text == TokenText;
 }
 
-llvm::Optional<SourceLocation>
+std::optional<SourceLocation>
 getExpansionLocOfMacro(StringRef MacroName, SourceLocation Loc,
                        const ASTContext &Context) {
   auto &SM = Context.getSourceManager();
@@ -696,7 +697,7 @@ getExpansionLocOfMacro(StringRef MacroName, SourceLocation Loc,
     if (Expansion.isMacroArgExpansion())
       // Check macro argument for an expansion of the given macro. For example,
       // `F(G(3))`, where `MacroName` is `G`.
-      if (llvm::Optional<SourceLocation> ArgLoc = getExpansionLocOfMacro(
+      if (std::optional<SourceLocation> ArgLoc = getExpansionLocOfMacro(
               MacroName, Expansion.getSpellingLoc(), Context))
         return ArgLoc;
     Loc = Expansion.getExpansionLocStart();
@@ -909,6 +910,8 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, SwitchCase> switchCase;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CaseStmt> caseStmt;
 const internal::VariadicDynCastAllOfMatcher<Stmt, DefaultStmt> defaultStmt;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CompoundStmt> compoundStmt;
+const internal::VariadicDynCastAllOfMatcher<Stmt, CoroutineBodyStmt>
+    coroutineBodyStmt;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXCatchStmt> cxxCatchStmt;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXTryStmt> cxxTryStmt;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXThrowExpr> cxxThrowExpr;

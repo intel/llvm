@@ -10,9 +10,7 @@
 #include "src/time/difftime.h"
 #include "src/time/time_utils.h"
 #include "test/ErrnoSetterMatcher.h"
-#include "utils/UnitTest/Test.h"
-
-#include <errno.h>
+#include "test/UnitTest/Test.h"
 
 using __llvm_libc::testing::ErrnoSetterMatcher::Succeeds;
 using __llvm_libc::time_utils::TimeConstants;

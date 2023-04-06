@@ -15,6 +15,7 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
@@ -26,17 +27,9 @@ class InfoTestKernel;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<InfoTestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
+template <>
+struct KernelInfo<InfoTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "InfoTestKernel"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
@@ -378,33 +371,21 @@ pi_result redefinedFailedPiGetDeviceAndHostTimer(pi_device Device,
   return PI_ERROR_INVALID_OPERATION;
 }
 
-pi_result redefinedPiPluginGetLastError(char **message) {
-  static char messageString[50] = "Plugin version not supported";
-  *message = messageString;
-  return PI_SUCCESS;
-}
-
-TEST(GetProfilingInfo, submission_time_exception_check) {
-  using namespace sycl;
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
+TEST(GetProfilingInfo, unsupported_device_host_time) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
       redefinedFailedPiGetDeviceAndHostTimer);
-  Mock.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPiPluginGetLastError);
-  device Dev = Plt.get_devices()[0];
-  context Ctx{Dev};
-  queue Queue{Ctx, Dev, property::queue::enable_profiling()};
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
 
+  ASSERT_FALSE(Dev.has(sycl::aspect::queue_profiling));
   try {
-    event E = Queue.submit(
-        [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
-    FAIL();
+    sycl::queue q{Ctx, Dev, {sycl::property::queue::enable_profiling()}};
+    FAIL() << "No exception was thrown";
   } catch (sycl::exception &e) {
-    EXPECT_STREQ(
-        e.what(),
-        "Unable to get command group submission time: "
-        "Device and/or backend does not support querying timestamp: "
-        "Plugin version not supported -59 (PI_ERROR_INVALID_OPERATION)");
+    EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
+    EXPECT_STREQ(e.what(), "Cannot enable profiling, the associated device "
+                           "does not have the queue_profiling aspect");
   }
 }

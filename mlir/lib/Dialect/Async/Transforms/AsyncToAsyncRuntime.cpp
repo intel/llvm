@@ -22,7 +22,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -88,7 +88,7 @@ struct CoroMachinery {
   //     %0 = arith.constant ... : T
   //     async.yield %0 : T
   //   }
-  Optional<Value> asyncToken;               // returned completion token
+  std::optional<Value> asyncToken;          // returned completion token
   llvm::SmallVector<Value, 4> returnValues; // returned async values
 
   Value coroHandle; // coroutine handle (!async.coro.getHandle value)
@@ -163,7 +163,7 @@ static CoroMachinery setupCoroMachinery(func::FuncOp func) {
   // async computations
   bool isStateful = func.getCallableResults().front().isa<TokenType>();
 
-  Optional<Value> retToken;
+  std::optional<Value> retToken;
   if (isStateful)
     retToken.emplace(builder.create<RuntimeCreateOp>(TokenType::get(ctx)));
 
@@ -319,7 +319,7 @@ outlineExecuteOp(SymbolTable &symbolTable, ExecuteOp execute) {
 
     // Map from function inputs defined above the execute op to the function
     // arguments.
-    BlockAndValueMapping valueMapping;
+    IRMapping valueMapping;
     valueMapping.map(functionInputs, func.getArguments());
     valueMapping.map(execute.getBodyRegion().getArguments(), unwrappedOperands);
 
@@ -555,7 +555,7 @@ public:
     // Inside regular functions we use the blocking wait operation to wait for
     // the async object (token, value or group) to become available.
     if (!isInCoroutine) {
-      ImplicitLocOpBuilder builder(loc, op, rewriter.getListener());
+      ImplicitLocOpBuilder builder(loc, op, &rewriter);
       builder.create<RuntimeAwaitOp>(loc, operand);
 
       // Assert that the awaited operands is not in the error state.
@@ -574,7 +574,7 @@ public:
       CoroMachinery &coro = funcCoro->getSecond();
       Block *suspended = op->getBlock();
 
-      ImplicitLocOpBuilder builder(loc, op, rewriter.getListener());
+      ImplicitLocOpBuilder builder(loc, op, &rewriter);
       MLIRContext *ctx = op->getContext();
 
       // Save the coroutine state and resume on a runtime managed thread when
@@ -840,8 +840,9 @@ void mlir::populateAsyncFuncToAsyncRuntimeConversionPatterns(
 
   target.addDynamicallyLegalOp<AwaitOp, AwaitAllOp, YieldOp, cf::AssertOp>(
       [coros](Operation *op) {
+        auto exec = op->getParentOfType<ExecuteOp>();
         auto func = op->getParentOfType<func::FuncOp>();
-        return coros->find(func) == coros->end();
+        return exec || coros->find(func) == coros->end();
       });
 }
 

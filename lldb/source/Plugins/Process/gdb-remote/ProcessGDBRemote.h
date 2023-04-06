@@ -12,6 +12,7 @@
 #include <atomic>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -158,7 +159,7 @@ public:
 
   Status DisableWatchpoint(Watchpoint *wp, bool notify = true) override;
 
-  Status GetWatchpointSupportInfo(uint32_t &num) override;
+  std::optional<uint32_t> GetWatchpointSlotCount() override;
 
   llvm::Expected<TraceSupportedResponse> TraceSupported() override;
 
@@ -171,7 +172,7 @@ public:
   llvm::Expected<std::vector<uint8_t>>
   TraceGetBinaryData(const TraceGetBinaryDataRequest &request) override;
 
-  Status GetWatchpointSupportInfo(uint32_t &num, bool &after) override;
+  std::optional<bool> DoGetWatchpointReportedAfter() override;
 
   bool StartNoticingNewThreads() override;
 
@@ -253,7 +254,7 @@ protected:
   GDBRemoteCommunicationClient m_gdb_comm;
   std::atomic<lldb::pid_t> m_debugserver_pid;
 
-  llvm::Optional<StringExtractorGDBRemote> m_last_stop_packet;
+  std::optional<StringExtractorGDBRemote> m_last_stop_packet;
   std::recursive_mutex m_last_stop_packet_mutex;
 
   GDBRemoteDynamicRegisterInfoSP m_register_info_sp;
@@ -373,6 +374,7 @@ protected:
   bool UpdateThreadIDList();
 
   void DidLaunchOrAttach(ArchSpec &process_arch);
+  void LoadStubBinaries();
   void MaybeLoadExecutableModule();
 
   Status ConnectToDebugserver(llvm::StringRef host_port);

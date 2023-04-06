@@ -55,6 +55,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <tuple>
 
 #include <cassert>
@@ -263,7 +264,7 @@ CompilerType ValueObject::MaybeCalculateCompleteType() {
 
   if (auto *runtime =
           process_sp->GetLanguageRuntime(GetObjectRuntimeLanguage())) {
-    if (llvm::Optional<CompilerType> complete_type =
+    if (std::optional<CompilerType> complete_type =
             runtime->GetRuntimeType(compiler_type)) {
       m_override_type = *complete_type;
       if (m_override_type.IsValid())
@@ -682,7 +683,7 @@ size_t ValueObject::GetPointeeData(DataExtractor &data, uint32_t item_idx,
 
   ExecutionContext exe_ctx(GetExecutionContextRef());
 
-  llvm::Optional<uint64_t> item_type_size =
+  std::optional<uint64_t> item_type_size =
       pointee_or_element_compiler_type.GetByteSize(
           exe_ctx.GetBestExecutionContextScope());
   if (!item_type_size)
@@ -1172,6 +1173,15 @@ bool ValueObject::DumpPrintableRepresentation(
     Stream &s, ValueObjectRepresentationStyle val_obj_display,
     Format custom_format, PrintableRepresentationSpecialCases special,
     bool do_dump_error) {
+    
+  // If the ValueObject has an error, we might end up dumping the type, which
+  // is useful, but if we don't even have a type, then don't examine the object
+  // further as that's not meaningful, only the error is.
+  if (m_error.Fail() && !GetCompilerType().IsValid()) {
+    if (do_dump_error)
+      s.Printf("<%s>", m_error.AsCString());
+    return false;
+  }
 
   Flags flags(GetTypeInfo());
 
@@ -1373,6 +1383,8 @@ bool ValueObject::DumpPrintableRepresentation(
     if (!str.empty())
       s << str;
     else {
+      // We checked for errors at the start, but do it again here in case
+      // realizing the value for dumping produced an error.
       if (m_error.Fail()) {
         if (do_dump_error)
           s.Printf("<%s>", m_error.AsCString());
@@ -1705,7 +1717,7 @@ ValueObjectSP ValueObject::GetSyntheticChildAtOffset(
     return {};
 
   ExecutionContext exe_ctx(GetExecutionContextRef());
-  llvm::Optional<uint64_t> size =
+  std::optional<uint64_t> size =
       type.GetByteSize(exe_ctx.GetBestExecutionContextScope());
   if (!size)
     return {};
@@ -1747,7 +1759,7 @@ ValueObjectSP ValueObject::GetSyntheticBase(uint32_t offset,
   const bool is_base_class = true;
 
   ExecutionContext exe_ctx(GetExecutionContextRef());
-  llvm::Optional<uint64_t> size =
+  std::optional<uint64_t> size =
       type.GetByteSize(exe_ctx.GetBestExecutionContextScope());
   if (!size)
     return {};
@@ -1847,7 +1859,7 @@ ValueObjectSP ValueObject::GetDynamicValue(DynamicValueType use_dynamic) {
   if (!IsDynamic() && m_dynamic_value == nullptr) {
     CalculateDynamicValue(use_dynamic);
   }
-  if (m_dynamic_value)
+  if (m_dynamic_value && m_dynamic_value->GetError().Success())
     return m_dynamic_value->GetSP();
   else
     return ValueObjectSP();

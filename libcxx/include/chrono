@@ -182,7 +182,7 @@ template <class Rep1, class Period1, class Rep2, class Period2>
    bool operator==(const duration<Rep1, Period1>& lhs, const duration<Rep2, Period2>& rhs);
 template <class Rep1, class Period1, class Rep2, class Period2>
    constexpr
-   bool operator!=(const duration<Rep1, Period1>& lhs, const duration<Rep2, Period2>& rhs);
+   bool operator!=(const duration<Rep1, Period1>& lhs, const duration<Rep2, Period2>& rhs); // removed in C++20
 template <class Rep1, class Period1, class Rep2, class Period2>
    constexpr
    bool operator< (const duration<Rep1, Period1>& lhs, const duration<Rep2, Period2>& rhs);
@@ -195,6 +195,10 @@ template <class Rep1, class Period1, class Rep2, class Period2>
 template <class Rep1, class Period1, class Rep2, class Period2>
    constexpr
    bool operator>=(const duration<Rep1, Period1>& lhs, const duration<Rep2, Period2>& rhs);
+template<class Rep1, class Period1, class Rep2, class Period2>
+  requires three_way_comparable<typename CT::rep>
+  constexpr auto operator<=>(const duration<Rep1, Period1>& lhs,
+                             const duration<Rep2, Period2>& rhs);                           // since C++20
 
 // duration_cast
 template <class ToDuration, class Rep, class Period>
@@ -656,6 +660,10 @@ public:
     constexpr          precision to_duration() const noexcept;
 };
 
+template<class charT, class traits, class Duration>
+  basic_ostream<charT, traits>&
+    operator<<(basic_ostream<charT, traits>& os, const hh_mm_ss<Duration>& hms); // C++20
+
 // 26.10, 12/24 hour functions
 constexpr bool is_am(hours const& h) noexcept;
 constexpr bool is_pm(hours const& h) noexcept;
@@ -691,6 +699,8 @@ namespace std {
   template<class charT> struct formatter<chrono::year_month_day_last, charT>;     // C++20
   template<class charT> struct formatter<chrono::year_month_weekday, charT>;      // C++20
   template<class charT> struct formatter<chrono::year_month_weekday_last, charT>; // C++20
+  template<class Rep, class Period, class charT>
+    struct formatter<chrono::hh_mm_ss<duration<Rep, Period>>, charT>;             // C++20
 } // namespace std
 
 namespace chrono {
@@ -769,7 +779,7 @@ constexpr chrono::year                                  operator ""y(unsigned lo
 // [time.syn]
 #include <compare>
 
-#if !defined(_LIBCPP_HAS_NO_LOCALIZATION) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT) && _LIBCPP_STD_VER > 17
+#if !defined(_LIBCPP_HAS_NO_LOCALIZATION) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT) && _LIBCPP_STD_VER >= 20
 #  include <__chrono/formatter.h>
 #  include <__chrono/ostream.h>
 #  include <__chrono/parser_std_format_spec.h>
@@ -782,7 +792,9 @@ constexpr chrono::year                                  operator ""y(unsigned lo
 #endif
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <bit>
 #  include <concepts>
+#  include <cstring>
 #endif
 
 #endif // _LIBCPP_CHRONO

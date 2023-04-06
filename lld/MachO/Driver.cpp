@@ -24,6 +24,7 @@
 #include "Writer.h"
 
 #include "lld/Common/Args.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Driver.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/LLVM.h"
@@ -41,13 +42,13 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/TimeProfiler.h"
+#include "llvm/TargetParser/Host.h"
 #include "llvm/TextAPI/PackedVersion.h"
 
 #include <algorithm>
@@ -681,8 +682,9 @@ static PlatformVersion parsePlatformVersion(const Arg *arg) {
   return platformVersion;
 }
 
-// Has the side-effect of setting Config::platformInfo.
-static PlatformType parsePlatformVersions(const ArgList &args) {
+// Has the side-effect of setting Config::platformInfo and
+// potentially Config::secondaryPlatformInfo.
+static void setPlatformVersions(StringRef archName, const ArgList &args) {
   std::map<PlatformType, PlatformVersion> platformVersions;
   const PlatformVersion *lastVersionInfo = nullptr;
   for (const Arg *arg : args.filtered(OPT_platform_version)) {
@@ -698,11 +700,11 @@ static PlatformType parsePlatformVersions(const ArgList &args) {
 
   if (platformVersions.empty()) {
     error("must specify -platform_version");
-    return PLATFORM_UNKNOWN;
+    return;
   }
   if (platformVersions.size() > 2) {
     error("must specify -platform_version at most twice");
-    return PLATFORM_UNKNOWN;
+    return;
   }
   if (platformVersions.size() == 2) {
     bool isZipperedCatalyst = platformVersions.count(PLATFORM_MACOS) &&
@@ -714,21 +716,23 @@ static PlatformType parsePlatformVersions(const ArgList &args) {
     } else if (config->outputType != MH_DYLIB &&
                config->outputType != MH_BUNDLE) {
       error("writing zippered outputs only valid for -dylib and -bundle");
-    } else {
-      config->platformInfo.minimum = platformVersions[PLATFORM_MACOS].minimum;
-      config->platformInfo.sdk = platformVersions[PLATFORM_MACOS].sdk;
-      config->secondaryPlatformInfo = PlatformInfo{};
-      config->secondaryPlatformInfo->minimum =
-          platformVersions[PLATFORM_MACCATALYST].minimum;
-      config->secondaryPlatformInfo->sdk =
-          platformVersions[PLATFORM_MACCATALYST].sdk;
     }
-    return PLATFORM_MACOS;
+
+    config->platformInfo = {
+        MachO::Target(getArchitectureFromName(archName), PLATFORM_MACOS,
+                      platformVersions[PLATFORM_MACOS].minimum),
+        platformVersions[PLATFORM_MACOS].sdk};
+    config->secondaryPlatformInfo = {
+        MachO::Target(getArchitectureFromName(archName), PLATFORM_MACCATALYST,
+                      platformVersions[PLATFORM_MACCATALYST].minimum),
+        platformVersions[PLATFORM_MACCATALYST].sdk};
+    return;
   }
 
-  config->platformInfo.minimum = lastVersionInfo->minimum;
-  config->platformInfo.sdk = lastVersionInfo->sdk;
-  return lastVersionInfo->platform;
+  config->platformInfo = {MachO::Target(getArchitectureFromName(archName),
+                                        lastVersionInfo->platform,
+                                        lastVersionInfo->minimum),
+                          lastVersionInfo->sdk};
 }
 
 // Has the side-effect of setting Config::target.
@@ -739,14 +743,7 @@ static TargetInfo *createTargetInfo(InputArgList &args) {
     return nullptr;
   }
 
-  PlatformType platform = parsePlatformVersions(args);
-  config->platformInfo.target =
-      MachO::Target(getArchitectureFromName(archName), platform);
-  if (config->secondaryPlatformInfo) {
-    config->secondaryPlatformInfo->target =
-        MachO::Target(getArchitectureFromName(archName), PLATFORM_MACCATALYST);
-  }
-
+  setPlatformVersions(archName, args);
   auto [cpuType, cpuSubtype] = getCPUTypeFromArchitecture(config->arch());
   switch (cpuType) {
   case CPU_TYPE_X86_64:
@@ -855,6 +852,20 @@ static const char *getReproduceOption(InputArgList &args) {
   if (const Arg *arg = args.getLastArg(OPT_reproduce))
     return arg->getValue();
   return getenv("LLD_REPRODUCE");
+}
+
+// Parse options of the form "old;new".
+static std::pair<StringRef, StringRef> getOldNewOptions(opt::InputArgList &args,
+                                                        unsigned id) {
+  auto *arg = args.getLastArg(id);
+  if (!arg)
+    return {"", ""};
+
+  StringRef s = arg->getValue();
+  std::pair<StringRef, StringRef> ret = s.split(';');
+  if (ret.second.empty())
+    error(arg->getSpelling() + " expects 'old;new' format, but got " + s);
+  return ret;
 }
 
 static void parseClangOption(StringRef opt, const Twine &msg) {
@@ -972,7 +983,7 @@ static bool dataConstDefault(const InputArgList &args) {
   auto it = llvm::find_if(minVersion,
                           [&](const auto &p) { return p.first == platform; });
   if (it != minVersion.end())
-    if (config->platformInfo.minimum < it->second)
+    if (config->platformInfo.target.MinDeployment < it->second)
       return false;
 
   switch (config->outputType) {
@@ -1010,13 +1021,14 @@ static bool shouldEmitChainedFixups(const InputArgList &args) {
   PlatformType platform = removeSimulator(config->platformInfo.target.Platform);
   auto it = llvm::find_if(minVersion,
                           [&](const auto &p) { return p.first == platform; });
-  if (it != minVersion.end() && it->second > config->platformInfo.minimum) {
+  if (it != minVersion.end() &&
+      it->second > config->platformInfo.target.MinDeployment) {
     if (!isRequested)
       return false;
 
     warn("-fixup_chains requires " + getPlatformName(config->platform()) + " " +
          it->second.getAsString() + ", which is newer than target minimum of " +
-         config->platformInfo.minimum.getAsString());
+         config->platformInfo.target.MinDeployment.getAsString());
   }
 
   if (!is_contained({AK_x86_64, AK_x86_64h, AK_arm64}, config->arch())) {
@@ -1319,8 +1331,7 @@ static void handleExplicitExports() {
   if (config->hasExplicitExports) {
     parallelForEach(symtab->getSymbols(), [](Symbol *sym) {
       if (auto *defined = dyn_cast<Defined>(sym)) {
-        StringRef symbolName = defined->getName();
-        if (config->exportedSymbols.match(symbolName)) {
+        if (config->exportedSymbols.match(sym->getName())) {
           if (defined->privateExtern) {
             if (defined->weakDefCanBeHidden) {
               // weak_def_can_be_hidden symbols behave similarly to
@@ -1336,6 +1347,8 @@ static void handleExplicitExports() {
         } else {
           defined->privateExtern = true;
         }
+      } else if (auto *dysym = dyn_cast<DylibSymbol>(sym)) {
+        dysym->shouldReexport = config->exportedSymbols.match(sym->getName());
       }
     });
   } else if (!config->unexportedSymbols.empty()) {
@@ -1406,6 +1419,17 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
   target = createTargetInfo(args);
   depTracker = std::make_unique<DependencyTracker>(
       args.getLastArgValue(OPT_dependency_info));
+
+  config->ltoo = args::getInteger(args, OPT_lto_O, 2);
+  if (config->ltoo > 3)
+    error("--lto-O: invalid optimization level: " + Twine(config->ltoo));
+  unsigned ltoCgo =
+      args::getInteger(args, OPT_lto_CGO, args::getCGOptLevel(config->ltoo));
+  if (auto level = CodeGenOpt::getLevel(ltoCgo))
+    config->ltoCgo = *level;
+  else
+    error("--lto-CGO: invalid codegen optimization level: " + Twine(ltoCgo));
+
   if (errorCount())
     return false;
 
@@ -1543,11 +1567,27 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     config->umbrella = arg->getValue();
   }
   config->ltoObjPath = args.getLastArgValue(OPT_object_path_lto);
-  config->ltoo = args::getInteger(args, OPT_lto_O, 2);
-  if (config->ltoo > 3)
-    error("--lto-O: invalid optimization level: " + Twine(config->ltoo));
   config->thinLTOCacheDir = args.getLastArgValue(OPT_cache_path_lto);
   config->thinLTOCachePolicy = getLTOCachePolicy(args);
+  config->thinLTOEmitImportsFiles = args.hasArg(OPT_thinlto_emit_imports_files);
+  config->thinLTOEmitIndexFiles = args.hasArg(OPT_thinlto_emit_index_files) ||
+                                  args.hasArg(OPT_thinlto_index_only) ||
+                                  args.hasArg(OPT_thinlto_index_only_eq);
+  config->thinLTOIndexOnly = args.hasArg(OPT_thinlto_index_only) ||
+                             args.hasArg(OPT_thinlto_index_only_eq);
+  config->thinLTOIndexOnlyArg = args.getLastArgValue(OPT_thinlto_index_only_eq);
+  config->thinLTOObjectSuffixReplace =
+      getOldNewOptions(args, OPT_thinlto_object_suffix_replace_eq);
+  config->thinLTOPrefixReplace =
+      getOldNewOptions(args, OPT_thinlto_prefix_replace_eq);
+  if (config->thinLTOEmitIndexFiles && !config->thinLTOIndexOnly) {
+    if (args.hasArg(OPT_thinlto_object_suffix_replace_eq))
+      error("--thinlto-object-suffix-replace is not supported with "
+            "--thinlto-emit-index-files");
+    else if (args.hasArg(OPT_thinlto_prefix_replace_eq))
+      error("--thinlto-prefix-replace is not supported with "
+            "--thinlto-emit-index-files");
+  }
   config->runtimePaths = args::getStrings(args, OPT_rpath);
   config->allLoad = args.hasFlag(OPT_all_load, OPT_noall_load, false);
   config->archMultiple = args.hasArg(OPT_arch_multiple);
@@ -1833,11 +1873,20 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     // explicitly exported. Do this before running LTO so that LTO can better
     // optimize.
     handleExplicitExports();
+
+    bool didCompileBitcodeFiles = compileBitcodeFiles();
+
+    // If --thinlto-index-only is given, we should create only "index
+    // files" and not object files. Index file creation is already done
+    // in compileBitcodeFiles, so we are done if that's the case.
+    if (config->thinLTOIndexOnly)
+      return errorCount() == 0;
+
     // LTO may emit a non-hidden (extern) object file symbol even if the
     // corresponding bitcode symbol is hidden. In particular, this happens for
     // cross-module references to hidden symbols under ThinLTO. Thus, if we
     // compiled any bitcode files, we must redo the symbol hiding.
-    if (compileBitcodeFiles())
+    if (didCompileBitcodeFiles)
       handleExplicitExports();
     replaceCommonSymbols();
 
@@ -1871,6 +1920,9 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
 
     if (config->deadStrip)
       markLive();
+
+    if (args.hasArg(OPT_check_category_conflicts))
+      objc::checkCategories();
 
     // ICF assumes that all literals have been folded already, so we must run
     // foldIdenticalLiterals before foldIdenticalSections.

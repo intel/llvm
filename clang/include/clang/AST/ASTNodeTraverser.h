@@ -384,7 +384,8 @@ public:
   }
   void VisitAttributedType(const AttributedType *T) {
     // FIXME: AttrKind
-    Visit(T->getModifiedType());
+    if (T->getModifiedType() != T->getEquivalentType())
+      Visit(T->getModifiedType());
   }
   void VisitBTFTagAttributedType(const BTFTagAttributedType *T) {
     Visit(T->getWrappedType());
@@ -644,8 +645,15 @@ public:
   }
 
   void VisitFriendDecl(const FriendDecl *D) {
-    if (!D->getFriendType())
+    if (D->getFriendType()) {
+      // Traverse any CXXRecordDecl owned by this type, since
+      // it will not be in the parent context:
+      if (auto *ET = D->getFriendType()->getType()->getAs<ElaboratedType>())
+        if (auto *TD = ET->getOwnedTagDecl())
+          Visit(TD);
+    } else {
       Visit(D->getFriendDecl());
+    }
   }
 
   void VisitObjCMethodDecl(const ObjCMethodDecl *D) {

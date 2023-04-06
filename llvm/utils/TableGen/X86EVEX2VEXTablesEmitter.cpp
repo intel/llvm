@@ -15,6 +15,7 @@
 #include "CodeGenTarget.h"
 #include "X86RecognizableInstr.h"
 #include "llvm/TableGen/Error.h"
+#include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
 
 using namespace llvm;
@@ -237,10 +238,7 @@ void X86EVEX2VEXTablesEmitter::run(raw_ostream &OS) {
   // Print CheckVEXInstPredicate function.
   printCheckPredicate(EVEX2VEXPredicates, OS);
 }
-}
+} // namespace
 
-namespace llvm {
-void EmitX86EVEX2VEXTables(RecordKeeper &RK, raw_ostream &OS) {
-  X86EVEX2VEXTablesEmitter(RK).run(OS);
-}
-}
+static TableGen::Emitter::OptClass<X86EVEX2VEXTablesEmitter>
+    X("gen-x86-EVEX2VEX-tables", "Generate X86 EVEX to VEX compress tables");

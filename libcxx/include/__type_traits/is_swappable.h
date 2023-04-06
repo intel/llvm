@@ -64,7 +64,7 @@ template <class _Tp, class _Up = _Tp,
 struct __swappable_with
 {
     template <class _LHS, class _RHS>
-    static decltype(swap(declval<_LHS>(), declval<_RHS>()))
+    static decltype(swap(std::declval<_LHS>(), std::declval<_RHS>()))
     __test_swap(int);
     template <class, class>
     static __nat __test_swap(long);
@@ -84,8 +84,8 @@ template <class _Tp, class _Up = _Tp, bool _Swappable = __swappable_with<_Tp, _U
 struct __nothrow_swappable_with {
   static const bool value =
 #ifndef _LIBCPP_HAS_NO_NOEXCEPT
-      noexcept(swap(declval<_Tp>(), declval<_Up>()))
-  &&  noexcept(swap(declval<_Up>(), declval<_Tp>()));
+      noexcept(swap(std::declval<_Tp>(), std::declval<_Up>()))
+  &&  noexcept(swap(std::declval<_Up>(), std::declval<_Tp>()));
 #else
       false;
 #endif
@@ -108,7 +108,7 @@ struct __is_nothrow_swappable
 {
 };
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 
 template <class _Tp, class _Up>
 struct _LIBCPP_TEMPLATE_VIS is_swappable_with
@@ -158,7 +158,7 @@ inline constexpr bool is_nothrow_swappable_with_v = is_nothrow_swappable_with<_T
 template <class _Tp>
 inline constexpr bool is_nothrow_swappable_v = is_nothrow_swappable<_Tp>::value;
 
-#endif // _LIBCPP_STD_VER > 14
+#endif // _LIBCPP_STD_VER >= 17
 
 _LIBCPP_END_NAMESPACE_STD
 

@@ -10,7 +10,6 @@
 #include "ErrorHandling.h"
 #include "MissingFrameInferrer.h"
 #include "ProfileGenerator.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -19,6 +18,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/TargetParser/Triple.h"
 #include <optional>
 
 #define DEBUG_TYPE "load-binary"
@@ -611,9 +611,11 @@ void ProfiledBinary::setUpDisassembler(const ELFObjectFileBase *Obj) {
   if (!AsmInfo)
     exitWithError("no assembly info for target " + TripleName, FileName);
 
-  SubtargetFeatures Features = Obj->getFeatures();
+  Expected<SubtargetFeatures> Features = Obj->getFeatures();
+  if (!Features)
+    exitWithError(Features.takeError(), FileName);
   STI.reset(
-      TheTarget->createMCSubtargetInfo(TripleName, "", Features.getString()));
+      TheTarget->createMCSubtargetInfo(TripleName, "", Features->getString()));
   if (!STI)
     exitWithError("no subtarget info for target " + TripleName, FileName);
 

@@ -1,4 +1,4 @@
-name: SYCL Nightly Builds
+name: SYCL Nightly
 
 on:
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_artifact_suffix: default
+      build_artifact_suffix: default-2204
       build_configure_extra_args: ''
 
   ubuntu2204_opaque_pointers_build_test:
@@ -34,8 +34,8 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_cache_suffix: opaque_pointers
-      build_artifact_suffix: opaque_pointers
-      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
+      build_artifact_suffix: opaque_pointers-2204
+      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
 
   windows_default:
     name: Windows
@@ -44,13 +44,13 @@ jobs:
 
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: ubuntu2204_build_test
     steps:
     - uses: actions/checkout@v3
     - uses: actions/download-artifact@v3
       with:
-        name: sycl_linux_default
+        name: sycl_linux_default-2204
         path: devops/
     - name: Build and Push Container (with drivers)
       uses: ./devops/actions/build_container

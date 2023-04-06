@@ -302,6 +302,11 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     // Fixup helper's linkage, which is linkonce_odr after the FE. It is dropped
     // from the ESIMD module after global DCE in post-link if not fixed up.
     Helper->setLinkage(GlobalValue::LinkageTypes::WeakODRLinkage);
+
+    // VC backend requires the helper to always be marked VCStackCall
+    if (!Helper->hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall)) {
+      Helper->addFnAttr(llvm::genx::VCFunctionMD::VCStackCall);
+    }
   }
   SmallPtrSet<const Function *, 8> Visited;
   Function *SimdF = deduceFunction(I, Visited);
@@ -313,9 +318,7 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
   if (!SimdF->hasFnAttribute(INVOKE_SIMD_DIRECT_TARGET_ATTR)) {
     SimdF->addFnAttr(INVOKE_SIMD_DIRECT_TARGET_ATTR);
   }
-  if (!Helper->hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall)) {
-    Helper->addFnAttr(llvm::genx::VCFunctionMD::VCStackCall);
-  }
+
   // The invoke_simd target is known at compile-time - optimize.
   // 1. find the call to f within the cloned helper - it is its first parameter
   constexpr unsigned SimdCallTargetArgNo = 0;

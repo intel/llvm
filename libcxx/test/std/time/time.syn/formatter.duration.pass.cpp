@@ -5,12 +5,18 @@
 //
 //===----------------------------------------------------------------------===//
 
+// XFAIL: LIBCXX-FREEBSD-FIXME
+
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: no-localization
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // TODO FMT Investigate Windows issues.
 // UNSUPPORTED: msvc, target={{.+}}-windows-gnu
+// TODO FMT Evaluate gcc-12 status
+// UNSUPPORTED: gcc-12
+
+// XFAIL: availability-fp_to_chars-missing
 
 // REQUIRES: locale.fr_FR.UTF-8
 // REQUIRES: locale.ja_JP.UTF-8
@@ -27,6 +33,7 @@
 #include <concepts>
 #include <locale>
 #include <iostream>
+#include <ratio>
 #include <type_traits>
 
 #include "formatter_tests.h"

@@ -22,6 +22,7 @@
 #include "clang/Sema/Scope.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringSwitch.h"
+#include <optional>
 using namespace clang;
 
 namespace {
@@ -664,18 +665,10 @@ void Parser::HandlePragmaVisibility() {
   Actions.ActOnPragmaVisibility(VisType, VisLoc);
 }
 
-namespace {
-struct PragmaPackInfo {
-  Sema::PragmaMsStackAction Action;
-  StringRef SlotLabel;
-  Token Alignment;
-};
-} // end anonymous namespace
-
 void Parser::HandlePragmaPack() {
   assert(Tok.is(tok::annot_pragma_pack));
-  PragmaPackInfo *Info =
-    static_cast<PragmaPackInfo *>(Tok.getAnnotationValue());
+  Sema::PragmaPackInfo *Info =
+      static_cast<Sema::PragmaPackInfo *>(Tok.getAnnotationValue());
   SourceLocation PragmaLoc = Tok.getLocation();
   ExprResult Alignment;
   if (Info->Alignment.is(tok::numeric_constant)) {
@@ -713,10 +706,36 @@ void Parser::HandlePragmaAlign() {
 
 void Parser::HandlePragmaDump() {
   assert(Tok.is(tok::annot_pragma_dump));
-  IdentifierInfo *II =
-      reinterpret_cast<IdentifierInfo *>(Tok.getAnnotationValue());
-  Actions.ActOnPragmaDump(getCurScope(), Tok.getLocation(), II);
   ConsumeAnnotationToken();
+  if (Tok.is(tok::eod)) {
+    PP.Diag(Tok, diag::warn_pragma_debug_missing_argument) << "dump";
+  } else if (NextToken().is(tok::eod)) {
+    if (Tok.isNot(tok::identifier)) {
+      PP.Diag(Tok, diag::warn_pragma_debug_unexpected_argument);
+      ConsumeAnyToken();
+      ExpectAndConsume(tok::eod);
+      return;
+    }
+    IdentifierInfo *II = Tok.getIdentifierInfo();
+    Actions.ActOnPragmaDump(getCurScope(), Tok.getLocation(), II);
+    ConsumeToken();
+  } else {
+    SourceLocation StartLoc = Tok.getLocation();
+    EnterExpressionEvaluationContext Ctx(
+      Actions, Sema::ExpressionEvaluationContext::Unevaluated);
+    ExprResult E = ParseExpression();
+    if (!E.isUsable() || E.get()->containsErrors()) {
+      // Diagnostics were emitted during parsing. No action needed.
+    } else if (E.get()->getDependence() != ExprDependence::None) {
+      PP.Diag(StartLoc, diag::warn_pragma_debug_dependent_argument)
+        << E.get()->isTypeDependent()
+        << SourceRange(StartLoc, Tok.getLocation());
+    } else {
+      Actions.ActOnPragmaDump(E.get());
+    }
+    SkipUntil(tok::eod, StopBeforeMatch);
+  }
+  ExpectAndConsume(tok::eod);
 }
 
 void Parser::HandlePragmaWeak() {
@@ -1581,8 +1600,8 @@ bool Parser::ParsePragmaAttributeSubjectMatchRuleSet(
       Diag(Tok, diag::err_pragma_attribute_expected_subject_identifier);
       return true;
     }
-    std::pair<Optional<attr::SubjectMatchRule>,
-              Optional<attr::SubjectMatchRule> (*)(StringRef, bool)>
+    std::pair<std::optional<attr::SubjectMatchRule>,
+              std::optional<attr::SubjectMatchRule> (*)(StringRef, bool)>
         Rule = isAttributeSubjectMatchRule(Name);
     if (!Rule.first) {
       Diag(Tok, diag::err_pragma_attribute_unknown_subject_rule) << Name;
@@ -2109,8 +2128,8 @@ void PragmaPackHandler::HandlePragma(Preprocessor &PP,
     return;
   }
 
-  PragmaPackInfo *Info =
-      PP.getPreprocessorAllocator().Allocate<PragmaPackInfo>(1);
+  Sema::PragmaPackInfo *Info =
+      PP.getPreprocessorAllocator().Allocate<Sema::PragmaPackInfo>(1);
   Info->Action = Action;
   Info->SlotLabel = SlotLabel;
   Info->Alignment = Alignment;
@@ -3172,10 +3191,10 @@ struct TokFPAnnotValue {
   enum FlagKinds { Contract, Reassociate, Exceptions, EvalMethod };
   enum FlagValues { On, Off, Fast };
 
-  llvm::Optional<LangOptions::FPModeKind> ContractValue;
-  llvm::Optional<LangOptions::FPModeKind> ReassociateValue;
-  llvm::Optional<LangOptions::FPExceptionModeKind> ExceptionsValue;
-  llvm::Optional<LangOptions::FPEvalMethodKind> EvalMethodValue;
+  std::optional<LangOptions::FPModeKind> ContractValue;
+  std::optional<LangOptions::FPModeKind> ReassociateValue;
+  std::optional<LangOptions::FPExceptionModeKind> ExceptionsValue;
+  std::optional<LangOptions::FPEvalMethodKind> EvalMethodValue;
 };
 } // end anonymous namespace
 
@@ -3197,7 +3216,7 @@ void PragmaFPHandler::HandlePragma(Preprocessor &PP,
     IdentifierInfo *OptionInfo = Tok.getIdentifierInfo();
 
     auto FlagKind =
-        llvm::StringSwitch<llvm::Optional<TokFPAnnotValue::FlagKinds>>(
+        llvm::StringSwitch<std::optional<TokFPAnnotValue::FlagKinds>>(
             OptionInfo->getName())
             .Case("contract", TokFPAnnotValue::Contract)
             .Case("reassociate", TokFPAnnotValue::Reassociate)
@@ -3231,7 +3250,7 @@ void PragmaFPHandler::HandlePragma(Preprocessor &PP,
 
     if (FlagKind == TokFPAnnotValue::Contract) {
       AnnotValue->ContractValue =
-          llvm::StringSwitch<llvm::Optional<LangOptions::FPModeKind>>(
+          llvm::StringSwitch<std::optional<LangOptions::FPModeKind>>(
               II->getName())
               .Case("on", LangOptions::FPModeKind::FPM_On)
               .Case("off", LangOptions::FPModeKind::FPM_Off)
@@ -3244,7 +3263,7 @@ void PragmaFPHandler::HandlePragma(Preprocessor &PP,
       }
     } else if (FlagKind == TokFPAnnotValue::Reassociate) {
       AnnotValue->ReassociateValue =
-          llvm::StringSwitch<llvm::Optional<LangOptions::FPModeKind>>(
+          llvm::StringSwitch<std::optional<LangOptions::FPModeKind>>(
               II->getName())
               .Case("on", LangOptions::FPModeKind::FPM_On)
               .Case("off", LangOptions::FPModeKind::FPM_Off)
@@ -3256,7 +3275,7 @@ void PragmaFPHandler::HandlePragma(Preprocessor &PP,
       }
     } else if (FlagKind == TokFPAnnotValue::Exceptions) {
       AnnotValue->ExceptionsValue =
-          llvm::StringSwitch<llvm::Optional<LangOptions::FPExceptionModeKind>>(
+          llvm::StringSwitch<std::optional<LangOptions::FPExceptionModeKind>>(
               II->getName())
               .Case("ignore", LangOptions::FPE_Ignore)
               .Case("maytrap", LangOptions::FPE_MayTrap)
@@ -3269,7 +3288,7 @@ void PragmaFPHandler::HandlePragma(Preprocessor &PP,
       }
     } else if (FlagKind == TokFPAnnotValue::EvalMethod) {
       AnnotValue->EvalMethodValue =
-          llvm::StringSwitch<llvm::Optional<LangOptions::FPEvalMethodKind>>(
+          llvm::StringSwitch<std::optional<LangOptions::FPEvalMethodKind>>(
               II->getName())
               .Case("source", LangOptions::FPEvalMethodKind::FEM_Source)
               .Case("double", LangOptions::FPEvalMethodKind::FEM_Double)
@@ -3424,7 +3443,7 @@ static bool ParseLoopHintValue(Preprocessor &PP, Token &Tok, Token PragmaName,
   ValueList.push_back(EOFTok); // Terminates expression for parsing.
 
   markAsReinjectedForRelexing(ValueList);
-  Info.Toks = llvm::makeArrayRef(ValueList).copy(PP.getPreprocessorAllocator());
+  Info.Toks = llvm::ArrayRef(ValueList).copy(PP.getPreprocessorAllocator());
 
   Info.PragmaName = PragmaName;
   Info.Option = Option;
@@ -3924,7 +3943,7 @@ void PragmaAttributeHandler::HandlePragma(Preprocessor &PP,
 
     markAsReinjectedForRelexing(AttributeTokens);
     Info->Tokens =
-        llvm::makeArrayRef(AttributeTokens).copy(PP.getPreprocessorAllocator());
+        llvm::ArrayRef(AttributeTokens).copy(PP.getPreprocessorAllocator());
   }
 
   if (Tok.isNot(tok::eod))

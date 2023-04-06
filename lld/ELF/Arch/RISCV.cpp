@@ -280,6 +280,7 @@ RelExpr RISCV::getRelExpr(const RelType type, const Symbol &s,
     return R_PC;
   case R_RISCV_CALL:
   case R_RISCV_CALL_PLT:
+  case R_RISCV_PLT32:
     return R_PLT_PC;
   case R_RISCV_GOT_HI20:
     return R_GOT_PC;
@@ -473,6 +474,7 @@ void RISCV::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     return;
   case R_RISCV_SET32:
   case R_RISCV_32_PCREL:
+  case R_RISCV_PLT32:
     write32le(loc, val);
     return;
 
@@ -620,7 +622,7 @@ static bool relax(InputSection &sec) {
   // Get st_value delta for symbols relative to this section from the previous
   // iteration.
   DenseMap<const Defined *, uint64_t> valueDelta;
-  ArrayRef<SymbolAnchor> sa = makeArrayRef(aux.anchors);
+  ArrayRef<SymbolAnchor> sa = ArrayRef(aux.anchors);
   uint32_t delta = 0;
   for (auto [i, r] : llvm::enumerate(sec.relocs())) {
     for (; sa.size() && sa[0].offset <= r.offset; sa = sa.slice(1))
@@ -631,7 +633,7 @@ static bool relax(InputSection &sec) {
   for (const SymbolAnchor &sa : sa)
     if (!sa.end)
       valueDelta[sa.d] = delta;
-  sa = makeArrayRef(aux.anchors);
+  sa = ArrayRef(aux.anchors);
   delta = 0;
 
   std::fill_n(aux.relocTypes.get(), sec.relocs().size(), R_RISCV_NONE);
@@ -846,9 +848,7 @@ public:
 static void mergeArch(RISCVISAInfo::OrderedExtensionMap &mergedExts,
                       unsigned &mergedXlen, const InputSectionBase *sec,
                       StringRef s) {
-  auto maybeInfo =
-      RISCVISAInfo::parseArchString(s, /*EnableExperimentalExtension=*/true,
-                                    /*ExperimentalExtensionVersionCheck=*/true);
+  auto maybeInfo = RISCVISAInfo::parseNormalizedArchString(s);
   if (!maybeInfo) {
     errorOrWarn(toString(sec) + ": " + s + ": " +
                 llvm::toString(maybeInfo.takeError()));
@@ -863,8 +863,6 @@ static void mergeArch(RISCVISAInfo::OrderedExtensionMap &mergedExts,
   } else {
     for (const auto &ext : info.getExtensions()) {
       if (auto it = mergedExts.find(ext.first); it != mergedExts.end()) {
-        // TODO This is untested because RISCVISAInfo::parseArchString does not
-        // accept unsupported versions yet.
         if (std::tie(it->second.MajorVersion, it->second.MinorVersion) >=
             std::tie(ext.second.MajorVersion, ext.second.MinorVersion))
           continue;

@@ -28,6 +28,7 @@
 #include "lldb/API/SBTarget.h"
 
 #include <memory>
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -46,7 +47,7 @@ public:
     m_auto_repeat_command =
         auto_repeat_command == nullptr
             ? std::nullopt
-            : llvm::Optional<std::string>(auto_repeat_command);
+            : std::optional<std::string>(auto_repeat_command);
     // We don't know whether any given command coming from this interface takes
     // arguments or not so here we're just disabling the basic args check.
     CommandArgumentData none_arg{eArgTypeNone, eArgRepeatStar};
@@ -59,8 +60,8 @@ public:
   /// but in short, if std::nullopt is returned, the previous command will be
   /// repeated, and if an empty string is returned, no commands will be
   /// executed.
-  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
-                                               uint32_t index) override {
+  std::optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                              uint32_t index) override {
     if (!m_auto_repeat_command)
       return std::nullopt;
     else
@@ -77,7 +78,7 @@ protected:
     return ret;
   }
   std::shared_ptr<lldb::SBCommandPluginInterface> m_backend;
-  llvm::Optional<std::string> m_auto_repeat_command;
+  std::optional<std::string> m_auto_repeat_command;
 };
 
 SBCommandInterpreter::SBCommandInterpreter(CommandInterpreter *interpreter)
@@ -117,6 +118,13 @@ bool SBCommandInterpreter::CommandExists(const char *cmd) {
                                           : false);
 }
 
+bool SBCommandInterpreter::UserCommandExists(const char *cmd) {
+  LLDB_INSTRUMENT_VA(this, cmd);
+
+  return (((cmd != nullptr) && IsValid()) ? m_opaque_ptr->UserCommandExists(cmd)
+                                          : false);
+}
+
 bool SBCommandInterpreter::AliasExists(const char *cmd) {
   LLDB_INSTRUMENT_VA(this, cmd);
 
@@ -133,7 +141,13 @@ bool SBCommandInterpreter::IsActive() {
 bool SBCommandInterpreter::WasInterrupted() const {
   LLDB_INSTRUMENT_VA(this);
 
-  return (IsValid() ? m_opaque_ptr->WasInterrupted() : false);
+  return (IsValid() ? m_opaque_ptr->GetDebugger().InterruptRequested() : false);
+}
+
+bool SBCommandInterpreter::InterruptCommand() {
+  LLDB_INSTRUMENT_VA(this);
+  
+  return (IsValid() ? m_opaque_ptr->InterruptCommand() : false);
 }
 
 const char *SBCommandInterpreter::GetIOHandlerControlSequence(char ch) {

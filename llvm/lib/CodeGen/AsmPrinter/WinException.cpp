@@ -130,14 +130,6 @@ void WinException::endFunction(const MachineFunction *MF) {
   if (F.hasPersonalityFn())
     Per = classifyEHPersonality(F.getPersonalityFn()->stripPointerCasts());
 
-  // Get rid of any dead landing pads if we're not using funclets. In funclet
-  // schemes, the landing pad is not actually reachable. It only exists so
-  // that we can emit the right table data.
-  if (!isFuncletEHPersonality(Per)) {
-    MachineFunction *NonConstMF = const_cast<MachineFunction*>(MF);
-    NonConstMF->tidyLandingPads();
-  }
-
   endFuncletImpl();
 
   // endFunclet will emit the necessary .xdata tables for table-based SEH.
@@ -770,7 +762,11 @@ void WinException::emitCXXFrameHandler3Table(const MachineFunction *MF) {
   OS.emitInt32(0);
 
   AddComment("EHFlags");
-  OS.emitInt32(1);
+  if (MMI->getModule()->getModuleFlag("eh-asynch")) {
+    OS.emitInt32(0);
+  } else {
+    OS.emitInt32(1);
+  }
 
   // UnwindMapEntry {
   //   int32_t ToState;

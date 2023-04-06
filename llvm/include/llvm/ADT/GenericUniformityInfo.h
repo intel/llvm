@@ -5,9 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-//
-//===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_GENERICUNIFORMITYINFO_H
 #define LLVM_ADT_GENERICUNIFORMITYINFO_H
@@ -24,6 +21,14 @@ namespace llvm {
 class TargetTransformInfo;
 
 template <typename ContextT> class GenericUniformityAnalysisImpl;
+template <typename ImplT> struct GenericUniformityAnalysisImplDeleter {
+  // Ugly hack around the fact that recent (> 15.0) clang will run into an
+  // is_invocable() check in some GNU libc++'s unique_ptr implementation
+  // and reject this deleter if you just make it callable with an ImplT *,
+  // whether or not the type of ImplT is spelled out.
+  using pointer = ImplT *;
+  void operator()(ImplT *Impl);
+};
 
 template <typename ContextT> class GenericUniformityInfo {
 public:
@@ -31,6 +36,7 @@ public:
   using FunctionT = typename ContextT::FunctionT;
   using ValueRefT = typename ContextT::ValueRefT;
   using ConstValueRefT = typename ContextT::ConstValueRefT;
+  using UseT = typename ContextT::UseT;
   using InstructionT = typename ContextT::InstructionT;
   using DominatorTreeT = typename ContextT::DominatorTreeT;
   using ThisT = GenericUniformityInfo<ContextT>;
@@ -57,18 +63,26 @@ public:
   /// Whether \p V is uniform/non-divergent.
   bool isUniform(ConstValueRefT V) const { return !isDivergent(V); }
 
+  // Similar queries for InstructionT. These accept a pointer argument so that
+  // in LLVM IR, they overload the equivalent queries for Value*. For example,
+  // if querying whether a BranchInst is divergent, it should not be treated as
+  // a Value in LLVM IR.
+  bool isUniform(const InstructionT *I) const { return !isDivergent(I); };
+  bool isDivergent(const InstructionT *I) const;
+
+  /// \brief Whether \p U is divergent. Uses of a uniform value can be
+  /// divergent.
+  bool isDivergentUse(const UseT &U) const;
+
   bool hasDivergentTerminator(const BlockT &B);
 
   void print(raw_ostream &Out) const;
 
 private:
   using ImplT = GenericUniformityAnalysisImpl<ContextT>;
-  struct ImplDeleter {
-    void operator()(GenericUniformityAnalysisImpl<ContextT> *Impl);
-  };
 
   FunctionT *F;
-  std::unique_ptr<ImplT, ImplDeleter> DA;
+  std::unique_ptr<ImplT, GenericUniformityAnalysisImplDeleter<ImplT>> DA;
 
   GenericUniformityInfo(const GenericUniformityInfo &) = delete;
   GenericUniformityInfo &operator=(const GenericUniformityInfo &) = delete;

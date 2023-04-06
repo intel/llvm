@@ -29,6 +29,14 @@ namespace ext::oneapi {
 #define BITS_TYPE uint32_t
 #endif
 
+// defining `group_ballot` here to make predicate default `true`
+// need to forward declare sub_group_mask first
+struct sub_group_mask;
+template <typename Group>
+detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
+                    sub_group_mask>
+group_ballot(Group g, bool predicate = true);
+
 struct sub_group_mask {
   friend class detail::Builder;
   using BitsType = BITS_TYPE;
@@ -249,7 +257,8 @@ struct sub_group_mask {
   }
 
 private:
-  sub_group_mask(BitsType rhs, size_t bn) : Bits(rhs), bits_num(bn) {
+  sub_group_mask(BitsType rhs, size_t bn)
+      : Bits(rhs & valuable_bits(bn)), bits_num(bn) {
     assert(bits_num <= max_bits);
   }
   inline BitsType valuable_bits(size_t bn) const {

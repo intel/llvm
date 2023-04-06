@@ -58,6 +58,7 @@
 
 #if defined(_WIN32)
 #include "llvm/Config/llvm-config.h"
+#include <optional>
 #endif
 
 using namespace lldb;
@@ -79,6 +80,10 @@ lldb::LanguageType TranslateLanguage(PDB_Lang lang) {
     return lldb::LanguageType::eLanguageTypeSwift;
   case PDB_Lang::Rust:
     return lldb::LanguageType::eLanguageTypeRust;
+  case PDB_Lang::ObjC:
+    return lldb::LanguageType::eLanguageTypeObjC;
+  case PDB_Lang::ObjCpp:
+    return lldb::LanguageType::eLanguageTypeObjC_plus_plus;
   default:
     return lldb::LanguageType::eLanguageTypeUnknown;
   }
@@ -585,12 +590,11 @@ lldb_private::Type *SymbolFilePDB::ResolveTypeUID(lldb::user_id_t type_uid) {
   lldb::TypeSP result = pdb->CreateLLDBTypeFromPDBType(*pdb_type);
   if (result) {
     m_types.insert(std::make_pair(type_uid, result));
-    GetTypeList().Insert(result);
   }
   return result.get();
 }
 
-llvm::Optional<SymbolFile::ArrayInfo> SymbolFilePDB::GetDynamicArrayInfoForUID(
+std::optional<SymbolFile::ArrayInfo> SymbolFilePDB::GetDynamicArrayInfoForUID(
     lldb::user_id_t type_uid, const lldb_private::ExecutionContext *exe_ctx) {
   return std::nullopt;
 }

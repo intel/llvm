@@ -1746,6 +1746,47 @@ floating point semantic models: precise (the default), strict, and fast.
    has no effect because the optimizer is prohibited from making unsafe
    transformations.
 
+.. option:: -fexcess-precision:
+
+   The C and C++ standards allow floating-point expressions to be computed as if
+   intermediate results had more precision (and/or a wider range) than the type
+   of the expression strictly allows.  This is called excess precision
+   arithmetic.
+   Excess precision arithmetic can improve the accuracy of results (although not
+   always), and it can make computation significantly faster if the target lacks
+   direct hardware support for arithmetic in a particular type.  However, it can
+   also undermine strict floating-point reproducibility.
+
+   Under the standards, assignments and explicit casts force the operand to be
+   converted to its formal type, discarding any excess precision.  Because data
+   can only flow between statements via an assignment, this means that the use
+   of excess precision arithmetic is a reliable local property of a single
+   statement, and results do not change based on optimization.  However, when
+   excess precision arithmetic is in use, Clang does not guarantee strict
+   reproducibility, and future compiler releases may recognize more
+   opportunities to use excess precision arithmetic, e.g. with floating-point
+   builtins.
+
+   Clang does not use excess precision arithmetic for most types or on most
+   targets. For example, even on pre-SSE X86 targets where ``float`` and
+   ``double`` computations must be performed in the 80-bit X87 format, Clang
+   rounds all intermediate results correctly for their type.  Clang currently
+   uses excess precision arithmetic by default only for the following types and
+   targets:
+
+   * ``_Float16`` on X86 targets without ``AVX512-FP16``.
+
+   The ``-fexcess-precision=<value>`` option can be used to control the use of
+   excess precision arithmetic.  Valid values are:
+
+   * ``standard`` - The default.  Allow the use of excess precision arithmetic
+     under the constraints of the C and C++ standards. Has no effect except on
+     the types and targets listed above.
+   * ``fast`` - Accepted for GCC compatibility, but currently treated as an
+     alias for ``standard``.
+   * ``16`` - Forces ``_Float16`` operations to be emitted without using excess
+     precision arithmetic.
+
 .. _crtfastmath.o:
 
 A note about ``crtfastmath.o``
@@ -1951,6 +1992,14 @@ are listed below.
    checked by Control Flow Integrity indirect call checking. See
    :doc:`ControlFlowIntegrity` for more details.
 
+.. option:: -fsanitize-cfi-icall-experimental-normalize-integers
+
+   Normalize integers in return and argument types in function type signatures
+   checked by Control Flow Integrity indirect call checking. See
+   :doc:`ControlFlowIntegrity` for more details.
+
+   This option is currently experimental.
+
 .. option:: -fstrict-vtable-pointers
 
    Enable optimizations based on the strict rules for overwriting polymorphic
@@ -1963,6 +2012,24 @@ are listed below.
    Enable whole-program vtable optimizations, such as single-implementation
    devirtualization and virtual constant propagation, for classes with
    :doc:`hidden LTO visibility <LTOVisibility>`. Requires ``-flto``.
+
+.. option:: -f[no]split-lto-unit
+
+   Controls splitting the :doc:`LTO unit <LTOVisibility>` into regular LTO and
+   :doc:`ThinLTO` portions, when compiling with -flto=thin. Defaults to false
+   unless ``-fsanitize=cfi`` or ``-fwhole-program-vtables`` are specified, in
+   which case it defaults to true. Splitting is required with ``fsanitize=cfi``,
+   and it is an error to disable via ``-fno-split-lto-unit``. Splitting is
+   optional with ``-fwhole-program-vtables``, however, it enables more
+   aggressive whole program vtable optimizations (specifically virtual constant
+   propagation).
+
+   When enabled, vtable definitions and select virtual functions are placed
+   in the split regular LTO module, enabling more aggressive whole program
+   vtable optimizations required for CFI and virtual constant propagation.
+   However, this can increase the LTO link time and memory requirements over
+   pure ThinLTO, as all split regular LTO modules are merged and LTO linked
+   with regular LTO.
 
 .. option:: -fforce-emit-vtables
 
@@ -3264,8 +3331,8 @@ to the target, for example:
 
    .. code-block:: console
 
-     $ clang -target nvptx64-unknown-unknown test.cl
-     $ clang -target amdgcn-amd-amdhsa -mcpu=gfx900 test.cl
+     $ clang --target=nvptx64-unknown-unknown test.cl
+     $ clang --target=amdgcn-amd-amdhsa -mcpu=gfx900 test.cl
 
 Compiling to bitcode can be done as follows:
 
@@ -3349,13 +3416,13 @@ Some extra options are available to support special OpenCL features.
 
    .. code-block:: console
 
-     $ clang -c -target spirv64 -cl-ext=-cl_khr_fp64 test.cl
+     $ clang -c --target=spirv64 -cl-ext=-cl_khr_fp64 test.cl
 
    Enabling all extensions except double support in R600 AMD GPU can be done using:
 
    .. code-block:: console
 
-     $ clang -target r600 -cl-ext=-all,+cl_khr_fp16 test.cl
+     $ clang --target=r600 -cl-ext=-all,+cl_khr_fp16 test.cl
 
    Note that some generic targets e.g. SPIR/SPIR-V enable all extensions/features in
    clang by default.
@@ -3376,13 +3443,13 @@ There is a set of concrete HW architectures that OpenCL can be compiled for.
 
    .. code-block:: console
 
-     $ clang -target amdgcn-amd-amdhsa -mcpu=gfx900 test.cl
+     $ clang --target=amdgcn-amd-amdhsa -mcpu=gfx900 test.cl
 
 - For Nvidia architectures:
 
    .. code-block:: console
 
-     $ clang -target nvptx64-unknown-unknown test.cl
+     $ clang --target=nvptx64-unknown-unknown test.cl
 
 
 Generic Targets
@@ -3392,8 +3459,8 @@ Generic Targets
 
    .. code-block:: console
 
-    $ clang -target spirv32 -c test.cl
-    $ clang -target spirv64 -c test.cl
+    $ clang --target=spirv32 -c test.cl
+    $ clang --target=spirv64 -c test.cl
 
   More details can be found in :ref:`the SPIR-V support section <spir-v>`.
 
@@ -3404,8 +3471,8 @@ Generic Targets
 
    .. code-block:: console
 
-    $ clang -target spir test.cl -emit-llvm -c
-    $ clang -target spir64 test.cl -emit-llvm -c
+    $ clang --target=spir test.cl -emit-llvm -c
+    $ clang --target=spir64 test.cl -emit-llvm -c
 
   Clang will generate SPIR v1.2 compatible IR for OpenCL versions up to 2.0 and
   SPIR v2.0 for OpenCL v2.0 or C++ for OpenCL.
@@ -3637,7 +3704,7 @@ Example of use:
    .. code-block:: console
 
      clang -cl-std=clc++1.0 test.clcpp
-     clang -cl-std=clc++ -c -target spirv64 test.cl
+     clang -cl-std=clc++ -c --target=spirv64 test.cl
 
 
 By default, files with ``.clcpp`` extension are compiled with the C++ for
@@ -3885,8 +3952,8 @@ Example usage for OpenCL kernel compilation:
 
    .. code-block:: console
 
-     $ clang -target spirv32 -c test.cl
-     $ clang -target spirv64 -c test.cl
+     $ clang --target=spirv32 -c test.cl
+     $ clang --target=spirv64 -c test.cl
 
 Both invocations of Clang will result in the generation of a SPIR-V binary file
 `test.o` for 32 bit and 64 bit respectively. This file can be imported
@@ -3903,7 +3970,7 @@ the command line.
 
    .. code-block:: console
 
-     $ clang -target spirv32 -fintegrated-objemitter -c test.cl
+     $ clang --target=spirv32 -fintegrated-objemitter -c test.cl
 
 Note that only very basic functionality is supported at this point and therefore
 it is not suitable for arbitrary use cases. This feature is only enabled when clang
@@ -3918,7 +3985,7 @@ installation instructions
 
    .. code-block:: console
 
-     $ clang -target spirv64 test1.cl test2.cl
+     $ clang --target=spirv64 test1.cl test2.cl
 
 More information about the SPIR-V target settings and supported versions of SPIR-V
 format can be found in `the SPIR-V target guide
@@ -4420,3 +4487,126 @@ If the user is using the static CRT (``/MT``), then different runtimes are used
 to produce DLLs and EXEs. To link a DLL, pass
 ``clang_rt.asan_dll_thunk-x86_64.lib``. To link an EXE, pass
 ``-wholearchive:clang_rt.asan-x86_64.lib``.
+
+Windows System Headers and Library Lookup
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+clang-cl uses a set of different approaches to locate the right system libraries
+to link against when building code.  The Windows environment uses libraries from
+three distinct sources:
+
+1. Windows SDK
+2. UCRT (Universal C Runtime)
+3. Visual C++ Tools (VCRuntime)
+
+The Windows SDK provides the import libraries and headers required to build
+programs against the Windows system packages.  Underlying the Windows SDK is the
+UCRT, the universal C runtime.
+
+This difference is best illustrated by the various headers that one would find
+in the different categories.  The WinSDK would contain headers such as
+`WinSock2.h` which is part of the Windows API surface, providing the Windows
+socketing interfaces for networking.  UCRT provides the C library headers,
+including e.g. `stdio.h`.  Finally, the Visual C++ tools provides the underlying
+Visual C++ Runtime headers such as `stdint.h` or `crtdefs.h`.
+
+There are various controls that allow the user control over where clang-cl will
+locate these headers.  The default behaviour for the Windows SDK and UCRT is as
+follows:
+
+1. Consult the command line.
+
+    Anything the user specifies is always given precedence.  The following
+    extensions are part of the clang-cl toolset:
+
+    - `/winsysroot:`
+
+    The `/winsysroot:` is used as an equivalent to `-sysroot` on Unix
+    environments.  It allows the control of an alternate location to be treated
+    as a system root.  When specified, it will be used as the root where the
+    `Windows Kits` is located.
+
+    - `/winsdkversion:`
+    - `/winsdkdir:`
+
+    If `/winsysroot:` is not specified, the `/winsdkdir:` argument is consulted
+    as a location to identify where the Windows SDK is located.  Contrary to
+    `/winsysroot:`, `/winsdkdir:` is expected to be the complete path rather
+    than a root to locate `Windows Kits`.
+
+    The `/winsdkversion:` flag allows the user to specify a version identifier
+    for the SDK to prefer.  When this is specified, no additional validation is
+    performed and this version is preferred.  If the version is not specified,
+    the highest detected version number will be used.
+
+2. Consult the environment.
+
+    TODO: This is not yet implemented.
+
+    This will consult the environment variables:
+
+    - `WindowsSdkDir`
+    - `UCRTVersion`
+
+3. Fallback to the registry.
+
+    If no arguments are used to indicate where the SDK is present, and the
+    compiler is running on Windows, the registry is consulted to locate the
+    installation.
+
+The Visual C++ Toolset has a slightly more elaborate mechanism for detection.
+
+1. Consult the command line.
+
+    - `/winsysroot:`
+
+    The `/winsysroot:` is used as an equivalent to `-sysroot` on Unix
+    environments.  It allows the control of an alternate location to be treated
+    as a system root.  When specified, it will be used as the root where the
+    `VC` directory is located.
+
+    - `/vctoolsdir:`
+    - `/vctoolsversion:`
+
+    If `/winsysroot:` is not specified, the `/vctoolsdir:` argument is consulted
+    as a location to identify where the Visual C++ Tools are located.  If
+    `/vctoolsversion:` is specified, that version is preferred, otherwise, the
+    highest version detected is used.
+
+2. Consult the environment.
+
+    - `/external:[VARIABLE]`
+
+      This specifies a user identified environment variable which is treated as
+      a path delimiter (`;`) separated list of paths to map into `-imsvc`
+      arguments which are treated as `-isystem`.
+
+    - `INCLUDE` and `EXTERNAL_INCLUDE`
+
+      The path delimiter (`;`) separated list of paths will be mapped to
+      `-imsvc` arguments which are treated as `-isystem`.
+
+    - `LIB` (indirectly)
+
+      The linker `link.exe` or `lld-link.exe` will honour the environment
+      variable `LIB` which is a path delimiter (`;`) set of paths to consult for
+      the import libraries to use when linking the final target.
+
+    The following environment variables will be consulted and used to form paths
+    to validate and load content from as appropriate:
+
+      - `VCToolsInstallDir`
+      - `VCINSTALLDIR`
+      - `Path`
+
+3. Consult `ISetupConfiguration` [Windows Only]
+
+    Assuming that the toolchain is built with `USE_MSVC_SETUP_API` defined and
+    is running on Windows, the Visual Studio COM interface `ISetupConfiguration`
+    will be used to locate the installation of the MSVC toolset.
+
+4. Fallback to the registry [DEPRECATED]
+
+    The registry information is used to help locate the installation as a final
+    fallback.  This is only possible for pre-VS2017 installations and is
+    considered deprecated.

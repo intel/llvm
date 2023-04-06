@@ -26,12 +26,12 @@
 // CHECK-X86_64: "-triple" "x86_64-unknown-fuchsia"
 // CHECK-AARCH64: "-triple" "aarch64-unknown-fuchsia"
 // CHECK-RISCV64: "-triple" "riscv64-unknown-fuchsia"
-// CHECK: "--mrelax-relocations"
 // CHECK: "-funwind-tables=2"
 // CHECK: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
 // CHECK: "-isysroot" "[[SYSROOT:[^"]+]]"
 // CHECK: "-internal-externc-isystem" "[[SYSROOT]]{{/|\\\\}}include"
 // CHECK-AARCH64: "-fsanitize=shadow-call-stack"
+// CHECK-RISCV64: "-fsanitize=shadow-call-stack"
 // CHECK-X86_64: "-fsanitize=safe-stack"
 // CHECK: "-stack-protector" "2"
 // CHECK-AARCH64: "-target-feature" "+outline-atomics"
@@ -54,6 +54,10 @@
 // CHECK: "-lc"
 // CHECK-NOT: crtend.o
 // CHECK-NOT: crtn.o
+
+// RUN: %clang -### %s --target=x86_64-unknown-fuchsia \
+// RUN:     --emit-static-lib 2>&1 | FileCheck -check-prefixes=CHECK-STATIC-LIB %s
+// CHECK-STATIC-LIB: {{.*}}llvm-ar{{.*}}" "rcsD"
 
 // RUN: %clang -### %s --target=x86_64-unknown-fuchsia 2>&1 \
 // RUN:     | FileCheck %s -check-prefix=CHECK-FP-ALL

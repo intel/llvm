@@ -19,6 +19,7 @@
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/Region.h"
 #include "llvm/ADT/Twine.h"
+#include <optional>
 
 namespace mlir {
 /// Operation is the basic unit of execution within MLIR.
@@ -73,10 +74,19 @@ class alignas(8) Operation final
       private llvm::TrailingObjects<Operation, detail::OperandStorage,
                                     BlockOperand, Region, OpOperand> {
 public:
-  /// Create a new Operation with the specific fields.
+  /// Create a new Operation with the specific fields. This constructor
+  /// populates the provided attribute list with default attributes if
+  /// necessary.
   static Operation *create(Location location, OperationName name,
                            TypeRange resultTypes, ValueRange operands,
                            NamedAttrList &&attributes, BlockRange successors,
+                           unsigned numRegions);
+
+  /// Create a new Operation with the specific fields. This constructor uses an
+  /// existing attribute dictionary to avoid uniquing a list of attributes.
+  static Operation *create(Location location, OperationName name,
+                           TypeRange resultTypes, ValueRange operands,
+                           DictionaryAttr attributes, BlockRange successors,
                            unsigned numRegions);
 
   /// Create a new Operation from the fields stored in `state`.
@@ -94,7 +104,7 @@ public:
 
   /// If this operation has a registered operation description, return it.
   /// Otherwise return std::nullopt.
-  Optional<RegisteredOperationName> getRegisteredInfo() {
+  std::optional<RegisteredOperationName> getRegisteredInfo() {
     return getName().getRegisteredInfo();
   }
 
@@ -167,7 +177,7 @@ public:
   /// as top level function operations, is therefore always safe. Using the
   /// mapper, it is possible to avoid adding uses to outside operands by
   /// remapping them to 'Value's owned by the caller thread.
-  Operation *clone(BlockAndValueMapping &mapper,
+  Operation *clone(IRMapping &mapper,
                    CloneOptions options = CloneOptions::all());
   Operation *clone(CloneOptions options = CloneOptions::all());
 
@@ -176,7 +186,7 @@ public:
   /// original one, but they will be left empty.
   /// Operands are remapped using `mapper` (if present), and `mapper` is updated
   /// to contain the results.
-  Operation *cloneWithoutRegions(BlockAndValueMapping &mapper);
+  Operation *cloneWithoutRegions(IRMapping &mapper);
 
   /// Create a partial copy of this operation without traversing into attached
   /// regions. The new operation will have the same number of regions as the
@@ -245,6 +255,15 @@ public:
   template <typename ValuesT>
   void replaceAllUsesWith(ValuesT &&values) {
     getResults().replaceAllUsesWith(std::forward<ValuesT>(values));
+  }
+
+  /// Replace uses of results of this operation with the provided `values` if
+  /// the given callback returns true.
+  template <typename ValuesT>
+  void replaceUsesWithIf(ValuesT &&values,
+                         function_ref<bool(OpOperand &)> shouldReplace) {
+    getResults().replaceUsesWithIf(std::forward<ValuesT>(values),
+                                   shouldReplace);
   }
 
   /// Destroys this operation and its subclass data.
@@ -505,11 +524,9 @@ public:
 
   /// Sets default attributes on unset attributes.
   void populateDefaultAttrs() {
-    if (auto registered = getRegisteredInfo()) {
-      NamedAttrList attrs(getAttrDictionary());
-      registered->populateDefaultAttrs(attrs);
-      setAttrs(attrs.getDictionary(getContext()));
-    }
+    NamedAttrList attrs(getAttrDictionary());
+    name.populateDefaultAttrs(attrs);
+    setAttrs(attrs.getDictionary(getContext()));
   }
 
   //===--------------------------------------------------------------------===//
@@ -590,9 +607,10 @@ public:
 
   /// Walk the operation by calling the callback for each nested operation
   /// (including this one), block or region, depending on the callback provided.
-  /// Regions, blocks and operations at the same nesting level are visited in
-  /// lexicographical order. The walk order for enclosing regions, blocks and
-  /// operations with respect to their nested ones is specified by 'Order'
+  /// The order in which regions, blocks and operations at the same nesting
+  /// level are visited (e.g., lexicographical or reverse lexicographical order)
+  /// is determined by 'Iterator'. The walk order for enclosing regions, blocks
+  /// and operations with respect to their nested ones is specified by 'Order'
   /// (post-order by default). A callback on a block or operation is allowed to
   /// erase that block or operation if either:
   ///   * the walk is in post-order, or
@@ -614,12 +632,13 @@ public:
   ///           return WalkResult::interrupt();
   ///         return WalkResult::advance();
   ///       });
-  template <WalkOrder Order = WalkOrder::PostOrder, typename FnT,
+  template <WalkOrder Order = WalkOrder::PostOrder,
+            typename Iterator = ForwardIterator, typename FnT,
             typename RetT = detail::walkResultType<FnT>>
   std::enable_if_t<llvm::function_traits<std::decay_t<FnT>>::num_args == 1,
                    RetT>
   walk(FnT &&callback) {
-    return detail::walk<Order>(this, std::forward<FnT>(callback));
+    return detail::walk<Order, Iterator>(this, std::forward<FnT>(callback));
   }
 
   /// Generic walker with a stage aware callback. Walk the operation by calling

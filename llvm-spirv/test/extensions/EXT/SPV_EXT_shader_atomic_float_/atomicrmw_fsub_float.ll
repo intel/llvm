@@ -1,10 +1,10 @@
-; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
-; RUN: llvm-spirv -opaque-pointers=0 --spirv-ext=+SPV_EXT_shader_atomic_float_add %t.bc -o %t.spv
+; RUN: llvm-as < %s -o %t.bc
+; RUN: llvm-spirv --spirv-ext=+SPV_EXT_shader_atomic_float_add %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck --check-prefix=CHECK-SPIRV %s
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM
 
 ; CHECK-SPIRV-DAG: Extension "SPV_EXT_shader_atomic_float_add"
 ; CHECK-SPIRV-DAG: Capability AtomicFloat32AddEXT
@@ -23,11 +23,11 @@ target triple = "spir64"
 ; Function Attrs: nounwind
 define dso_local spir_func void @test_atomicrmw_fadd() local_unnamed_addr #0 {
 entry:
- %0 = atomicrmw fsub float addrspace(1)* @f, float 42.000000e+00 seq_cst
+ %0 = atomicrmw fsub ptr addrspace(1) @f, float 42.000000e+00 seq_cst
 ; CHECK-SPIRV: FNegate [[Float]] [[NegateValue:[0-9]+]] [[FPValue]]
 ; CHECK-SPIRV: AtomicFAddEXT [[Float]] {{[0-9]+}} [[FPPointer]] [[Scope_Device]] [[MemSem_SequentiallyConsistent]] [[NegateValue]]
 ; CHECK-LLVM: [[FNegateLLVM:%[0-9]+]] = fneg float 4.200000e+01
-; CHECK-LLVM: call spir_func float {{.*}}atomic_add{{.*}}(float addrspace(1)* @f, float [[FNegateLLVM]])
+; CHECK-LLVM: call spir_func float {{.*}}atomic_add{{.*}}(ptr addrspace(1) @f, float [[FNegateLLVM]])
   ret void
 }
 

@@ -116,6 +116,7 @@
     __cpp_lib_math_constants                       201907L [C++20]
     __cpp_lib_math_special_functions               201603L [C++17]
     __cpp_lib_memory_resource                      201603L [C++17]
+    __cpp_lib_move_iterator_concept                202207L [C++20]
     __cpp_lib_move_only_function                   202110L [C++2b]
     __cpp_lib_node_extract                         201606L [C++17]
     __cpp_lib_nonmember_container_access           201411L [C++17]
@@ -127,7 +128,8 @@
     __cpp_lib_parallel_algorithm                   201603L [C++17]
     __cpp_lib_polymorphic_allocator                201902L [C++20]
     __cpp_lib_quoted_string_io                     201304L [C++14]
-    __cpp_lib_ranges                               201811L [C++20]
+    __cpp_lib_ranges                               202106L [C++20]
+    __cpp_lib_ranges_as_rvalue                     202207L [C++2b]
     __cpp_lib_ranges_chunk                         202202L [C++2b]
     __cpp_lib_ranges_chunk_by                      202202L [C++2b]
     __cpp_lib_ranges_iota                          202202L [C++2b]
@@ -577,6 +579,10 @@
 #   error "__cpp_lib_memory_resource should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should not be defined before c++20"
+# endif
+
 # ifdef __cpp_lib_move_only_function
 #   error "__cpp_lib_move_only_function should not be defined before c++2b"
 # endif
@@ -619,6 +625,10 @@
 
 # ifdef __cpp_lib_ranges
 #   error "__cpp_lib_ranges should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_ranges_as_rvalue
+#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk
@@ -1245,6 +1255,10 @@
 #   error "__cpp_lib_memory_resource should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should not be defined before c++20"
+# endif
+
 # ifdef __cpp_lib_move_only_function
 #   error "__cpp_lib_move_only_function should not be defined before c++2b"
 # endif
@@ -1293,6 +1307,10 @@
 
 # ifdef __cpp_lib_ranges
 #   error "__cpp_lib_ranges should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_ranges_as_rvalue
+#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk
@@ -1377,7 +1395,7 @@
 #   error "__cpp_lib_shared_ptr_weak_type should not be defined before c++17"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_timed_mutex
 #     error "__cpp_lib_shared_timed_mutex should be defined in c++14"
 #   endif
@@ -1386,7 +1404,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_timed_mutex
-#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)' is not met!"
+#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -1820,7 +1838,7 @@
 #   error "__cpp_lib_expected should not be defined before c++2b"
 # endif
 
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM)
 #   ifndef __cpp_lib_filesystem
 #     error "__cpp_lib_filesystem should be defined in c++17"
 #   endif
@@ -1829,7 +1847,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_filesystem
-#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)' is not met!"
+#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM)' is not met!"
 #   endif
 # endif
 
@@ -2063,6 +2081,10 @@
 #   error "__cpp_lib_memory_resource should have the value 201603L in c++17"
 # endif
 
+# ifdef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should not be defined before c++20"
+# endif
+
 # ifdef __cpp_lib_move_only_function
 #   error "__cpp_lib_move_only_function should not be defined before c++2b"
 # endif
@@ -2132,6 +2154,10 @@
 
 # ifdef __cpp_lib_ranges
 #   error "__cpp_lib_ranges should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_ranges_as_rvalue
+#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk
@@ -2213,7 +2239,7 @@
 #   error "__cpp_lib_semaphore should not be defined before c++20"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_mutex
 #     error "__cpp_lib_shared_mutex should be defined in c++17"
 #   endif
@@ -2222,7 +2248,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_mutex
-#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)' is not met!"
+#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -2240,7 +2266,7 @@
 #   error "__cpp_lib_shared_ptr_weak_type should have the value 201606L in c++17"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_timed_mutex
 #     error "__cpp_lib_shared_timed_mutex should be defined in c++17"
 #   endif
@@ -2249,7 +2275,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_timed_mutex
-#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)' is not met!"
+#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -2549,7 +2575,7 @@
 #   error "__cpp_lib_atomic_value_initialization should have the value 201911L in c++20"
 # endif
 
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_atomic_wait
 #     error "__cpp_lib_atomic_wait should be defined in c++20"
 #   endif
@@ -2558,11 +2584,11 @@
 #   endif
 # else
 #   ifdef __cpp_lib_atomic_wait
-#     error "__cpp_lib_atomic_wait should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)' is not met!"
+#     error "__cpp_lib_atomic_wait should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_barrier)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_barrier
 #     error "__cpp_lib_barrier should be defined in c++20"
 #   endif
@@ -2571,7 +2597,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_barrier
-#     error "__cpp_lib_barrier should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_barrier)' is not met!"
+#     error "__cpp_lib_barrier should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
@@ -2705,17 +2731,11 @@
 #   error "__cpp_lib_constexpr_cmath should not be defined before c++2b"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_constexpr_complex
-#     error "__cpp_lib_constexpr_complex should be defined in c++20"
-#   endif
-#   if __cpp_lib_constexpr_complex != 201711L
-#     error "__cpp_lib_constexpr_complex should have the value 201711L in c++20"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_constexpr_complex
-#     error "__cpp_lib_constexpr_complex should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_constexpr_complex
+#   error "__cpp_lib_constexpr_complex should be defined in c++20"
+# endif
+# if __cpp_lib_constexpr_complex != 201711L
+#   error "__cpp_lib_constexpr_complex should have the value 201711L in c++20"
 # endif
 
 # ifndef __cpp_lib_constexpr_dynamic_alloc
@@ -2857,7 +2877,7 @@
 #   error "__cpp_lib_expected should not be defined before c++2b"
 # endif
 
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM)
 #   ifndef __cpp_lib_filesystem
 #     error "__cpp_lib_filesystem should be defined in c++20"
 #   endif
@@ -2866,7 +2886,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_filesystem
-#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)' is not met!"
+#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM)' is not met!"
 #   endif
 # endif
 
@@ -3080,7 +3100,7 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_latch)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_latch
 #     error "__cpp_lib_latch should be defined in c++20"
 #   endif
@@ -3089,7 +3109,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_latch
-#     error "__cpp_lib_latch should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_latch)' is not met!"
+#     error "__cpp_lib_latch should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
@@ -3169,6 +3189,13 @@
 #   error "__cpp_lib_memory_resource should have the value 201603L in c++20"
 # endif
 
+# ifndef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should be defined in c++20"
+# endif
+# if __cpp_lib_move_iterator_concept != 202207L
+#   error "__cpp_lib_move_iterator_concept should have the value 202207L in c++20"
+# endif
+
 # ifdef __cpp_lib_move_only_function
 #   error "__cpp_lib_move_only_function should not be defined before c++2b"
 # endif
@@ -3242,8 +3269,12 @@
 # ifndef __cpp_lib_ranges
 #   error "__cpp_lib_ranges should be defined in c++20"
 # endif
-# if __cpp_lib_ranges != 201811L
-#   error "__cpp_lib_ranges should have the value 201811L in c++20"
+# if __cpp_lib_ranges != 202106L
+#   error "__cpp_lib_ranges should have the value 202106L in c++20"
+# endif
+
+# ifdef __cpp_lib_ranges_as_rvalue
+#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk
@@ -3324,7 +3355,7 @@
 #   error "__cpp_lib_scoped_lock should have the value 201703L in c++20"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_semaphore
 #     error "__cpp_lib_semaphore should be defined in c++20"
 #   endif
@@ -3333,11 +3364,11 @@
 #   endif
 # else
 #   ifdef __cpp_lib_semaphore
-#     error "__cpp_lib_semaphore should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore)' is not met!"
+#     error "__cpp_lib_semaphore should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_mutex
 #     error "__cpp_lib_shared_mutex should be defined in c++20"
 #   endif
@@ -3346,7 +3377,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_mutex
-#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)' is not met!"
+#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -3364,7 +3395,7 @@
 #   error "__cpp_lib_shared_ptr_weak_type should have the value 201606L in c++20"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_timed_mutex
 #     error "__cpp_lib_shared_timed_mutex should be defined in c++20"
 #   endif
@@ -3373,7 +3404,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_timed_mutex
-#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)' is not met!"
+#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -3397,16 +3428,16 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_VERSION)
+# if __has_builtin(__builtin_source_location) && !(defined(TEST_APPLE_CLANG_VER) && TEST_APPLE_CLANG_VER <= 1403)
 #   ifndef __cpp_lib_source_location
 #     error "__cpp_lib_source_location should be defined in c++20"
 #   endif
 #   if __cpp_lib_source_location != 201907L
 #     error "__cpp_lib_source_location should have the value 201907L in c++20"
 #   endif
-# else // _LIBCPP_VERSION
+# else
 #   ifdef __cpp_lib_source_location
-#     error "__cpp_lib_source_location should not be defined because it is unimplemented in libc++!"
+#     error "__cpp_lib_source_location should not be defined when the requirement '__has_builtin(__builtin_source_location) && !(defined(TEST_APPLE_CLANG_VER) && TEST_APPLE_CLANG_VER <= 1403)' is not met!"
 #   endif
 # endif
 
@@ -3748,7 +3779,7 @@
 #   error "__cpp_lib_atomic_value_initialization should have the value 201911L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_atomic_wait
 #     error "__cpp_lib_atomic_wait should be defined in c++2b"
 #   endif
@@ -3757,11 +3788,11 @@
 #   endif
 # else
 #   ifdef __cpp_lib_atomic_wait
-#     error "__cpp_lib_atomic_wait should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)' is not met!"
+#     error "__cpp_lib_atomic_wait should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_barrier)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_barrier
 #     error "__cpp_lib_barrier should be defined in c++2b"
 #   endif
@@ -3770,7 +3801,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_barrier
-#     error "__cpp_lib_barrier should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_barrier)' is not met!"
+#     error "__cpp_lib_barrier should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
@@ -3931,17 +3962,11 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_constexpr_complex
-#     error "__cpp_lib_constexpr_complex should be defined in c++2b"
-#   endif
-#   if __cpp_lib_constexpr_complex != 201711L
-#     error "__cpp_lib_constexpr_complex should have the value 201711L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_constexpr_complex
-#     error "__cpp_lib_constexpr_complex should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_constexpr_complex
+#   error "__cpp_lib_constexpr_complex should be defined in c++2b"
+# endif
+# if __cpp_lib_constexpr_complex != 201711L
+#   error "__cpp_lib_constexpr_complex should have the value 201711L in c++2b"
 # endif
 
 # ifndef __cpp_lib_constexpr_dynamic_alloc
@@ -4000,17 +4025,11 @@
 #   error "__cpp_lib_constexpr_tuple should have the value 201811L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_constexpr_typeinfo
-#     error "__cpp_lib_constexpr_typeinfo should be defined in c++2b"
-#   endif
-#   if __cpp_lib_constexpr_typeinfo != 202106L
-#     error "__cpp_lib_constexpr_typeinfo should have the value 202106L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_constexpr_typeinfo
-#     error "__cpp_lib_constexpr_typeinfo should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_constexpr_typeinfo
+#   error "__cpp_lib_constexpr_typeinfo should be defined in c++2b"
+# endif
+# if __cpp_lib_constexpr_typeinfo != 202106L
+#   error "__cpp_lib_constexpr_typeinfo should have the value 202106L in c++2b"
 # endif
 
 # ifndef __cpp_lib_constexpr_utility
@@ -4095,7 +4114,7 @@
 #   error "__cpp_lib_expected should have the value 202202L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM)
 #   ifndef __cpp_lib_filesystem
 #     error "__cpp_lib_filesystem should be defined in c++2b"
 #   endif
@@ -4104,7 +4123,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_filesystem
-#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)' is not met!"
+#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM)' is not met!"
 #   endif
 # endif
 
@@ -4225,17 +4244,11 @@
 #   error "__cpp_lib_invoke should have the value 201411L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_invoke_r
-#     error "__cpp_lib_invoke_r should be defined in c++2b"
-#   endif
-#   if __cpp_lib_invoke_r != 202106L
-#     error "__cpp_lib_invoke_r should have the value 202106L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_invoke_r
-#     error "__cpp_lib_invoke_r should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_invoke_r
+#   error "__cpp_lib_invoke_r should be defined in c++2b"
+# endif
+# if __cpp_lib_invoke_r != 202106L
+#   error "__cpp_lib_invoke_r should have the value 202106L in c++2b"
 # endif
 
 # ifndef __cpp_lib_is_aggregate
@@ -4333,7 +4346,7 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_latch)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_latch
 #     error "__cpp_lib_latch should be defined in c++2b"
 #   endif
@@ -4342,7 +4355,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_latch
-#     error "__cpp_lib_latch should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_latch)' is not met!"
+#     error "__cpp_lib_latch should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
@@ -4420,6 +4433,13 @@
 # endif
 # if __cpp_lib_memory_resource != 201603L
 #   error "__cpp_lib_memory_resource should have the value 201603L in c++2b"
+# endif
+
+# ifndef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should be defined in c++2b"
+# endif
+# if __cpp_lib_move_iterator_concept != 202207L
+#   error "__cpp_lib_move_iterator_concept should have the value 202207L in c++2b"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -4513,8 +4533,15 @@
 # ifndef __cpp_lib_ranges
 #   error "__cpp_lib_ranges should be defined in c++2b"
 # endif
-# if __cpp_lib_ranges != 201811L
-#   error "__cpp_lib_ranges should have the value 201811L in c++2b"
+# if __cpp_lib_ranges != 202106L
+#   error "__cpp_lib_ranges should have the value 202106L in c++2b"
+# endif
+
+# ifndef __cpp_lib_ranges_as_rvalue
+#   error "__cpp_lib_ranges_as_rvalue should be defined in c++2b"
+# endif
+# if __cpp_lib_ranges_as_rvalue != 202207L
+#   error "__cpp_lib_ranges_as_rvalue should have the value 202207L in c++2b"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -4676,7 +4703,7 @@
 #   error "__cpp_lib_scoped_lock should have the value 201703L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_semaphore
 #     error "__cpp_lib_semaphore should be defined in c++2b"
 #   endif
@@ -4685,11 +4712,11 @@
 #   endif
 # else
 #   ifdef __cpp_lib_semaphore
-#     error "__cpp_lib_semaphore should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore)' is not met!"
+#     error "__cpp_lib_semaphore should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_mutex
 #     error "__cpp_lib_shared_mutex should be defined in c++2b"
 #   endif
@@ -4698,7 +4725,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_mutex
-#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)' is not met!"
+#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -4716,7 +4743,7 @@
 #   error "__cpp_lib_shared_ptr_weak_type should have the value 201606L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_timed_mutex
 #     error "__cpp_lib_shared_timed_mutex should be defined in c++2b"
 #   endif
@@ -4725,7 +4752,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_timed_mutex
-#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)' is not met!"
+#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -4749,16 +4776,16 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_VERSION)
+# if __has_builtin(__builtin_source_location) && !(defined(TEST_APPLE_CLANG_VER) && TEST_APPLE_CLANG_VER <= 1403)
 #   ifndef __cpp_lib_source_location
 #     error "__cpp_lib_source_location should be defined in c++2b"
 #   endif
 #   if __cpp_lib_source_location != 201907L
 #     error "__cpp_lib_source_location should have the value 201907L in c++2b"
 #   endif
-# else // _LIBCPP_VERSION
+# else
 #   ifdef __cpp_lib_source_location
-#     error "__cpp_lib_source_location should not be defined because it is unimplemented in libc++!"
+#     error "__cpp_lib_source_location should not be defined when the requirement '__has_builtin(__builtin_source_location) && !(defined(TEST_APPLE_CLANG_VER) && TEST_APPLE_CLANG_VER <= 1403)' is not met!"
 #   endif
 # endif
 

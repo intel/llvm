@@ -53,6 +53,13 @@ struct SparseCompilerOptions
               "any-storage-any-loop",
               "Enable sparse parallelization for any storage and loop."))};
 
+  PassOptions::Option<bool> enableIndexReduction{
+      *this, "enable-index-reduction",
+      desc("Enable dependent index reduction based algorithm to handle "
+           "non-trivial index expressions on sparse inputs (experimental "
+           "features)"),
+      init(false)};
+
   PassOptions::Option<bool> enableRuntimeLibrary{
       *this, "enable-runtime-library",
       desc("Enable runtime library for manipulating sparse tensors"),
@@ -65,6 +72,15 @@ struct SparseCompilerOptions
   PassOptions::Option<bool> enableBufferInitialization{
       *this, "enable-buffer-initialization",
       desc("Enable zero-initialization of memory buffers"), init(false)};
+
+  PassOptions::Option<bool> createSparseDeallocs{
+      *this, "create-sparse-deallocs",
+      desc("Specify if the temporary buffers created by the sparse "
+           "compiler should be deallocated. For compatibility with core "
+           "bufferization passes. "
+           "This option is only used when enable-runtime-library=false. "
+           "See also create-deallocs for BufferizationOption."),
+      init(true)};
 
   PassOptions::Option<int32_t> vectorLength{
       *this, "vl", desc("Set the vector length (0 disables vectorization)"),
@@ -108,7 +124,7 @@ struct SparseCompilerOptions
 
   /// Projects out the options for `createSparsificationPass`.
   SparsificationOptions sparsificationOptions() const {
-    return SparsificationOptions(parallelization);
+    return SparsificationOptions(parallelization, enableIndexReduction);
   }
 
   /// Projects out the options for `createSparseTensorConversionPass`.
@@ -118,14 +134,14 @@ struct SparseCompilerOptions
   }
 
   /// Projects out the options for `createConvertVectorToLLVMPass`.
-  LowerVectorToLLVMOptions lowerVectorToLLVMOptions() const {
-    LowerVectorToLLVMOptions opts{};
-    opts.enableReassociateFPReductions(reassociateFPReductions);
-    opts.enableIndexOptimizations(force32BitVectorIndices);
-    opts.enableArmNeon(armNeon);
-    opts.enableArmSVE(armSVE);
-    opts.enableAMX(amx);
-    opts.enableX86Vector(x86Vector);
+  ConvertVectorToLLVMPassOptions lowerVectorToLLVMOptions() const {
+    ConvertVectorToLLVMPassOptions opts{};
+    opts.reassociateFPReductions = reassociateFPReductions;
+    opts.force32BitVectorIndices = force32BitVectorIndices;
+    opts.armNeon = armNeon;
+    opts.armSVE = armSVE;
+    opts.amx = amx;
+    opts.x86Vector = x86Vector;
     return opts;
   }
 };

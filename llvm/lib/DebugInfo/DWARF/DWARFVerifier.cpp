@@ -405,33 +405,33 @@ unsigned DWARFVerifier::verifyIndex(StringRef Name,
   DataExtractor D(IndexStr, DCtx.isLittleEndian(), 0);
   if (!Index.parse(D))
     return 1;
-  using MapType = IntervalMap<uint32_t, uint64_t>;
+  using MapType = IntervalMap<uint64_t, uint64_t>;
   MapType::Allocator Alloc;
   std::vector<std::unique_ptr<MapType>> Sections(Index.getColumnKinds().size());
   for (const DWARFUnitIndex::Entry &E : Index.getRows()) {
     uint64_t Sig = E.getSignature();
     if (!E.getContributions())
       continue;
-    for (auto E : enumerate(InfoColumnKind == DW_SECT_INFO
-                                ? makeArrayRef(E.getContributions(),
-                                               Index.getColumnKinds().size())
-                                : makeArrayRef(E.getContribution(), 1))) {
+    for (auto E : enumerate(
+             InfoColumnKind == DW_SECT_INFO
+                 ? ArrayRef(E.getContributions(), Index.getColumnKinds().size())
+                 : ArrayRef(E.getContribution(), 1))) {
       const DWARFUnitIndex::Entry::SectionContribution &SC = E.value();
       int Col = E.index();
-      if (SC.Length == 0)
+      if (SC.getLength() == 0)
         continue;
       if (!Sections[Col])
         Sections[Col] = std::make_unique<MapType>(Alloc);
       auto &M = *Sections[Col];
-      auto I = M.find(SC.Offset);
-      if (I != M.end() && I.start() < (SC.Offset + SC.Length)) {
+      auto I = M.find(SC.getOffset());
+      if (I != M.end() && I.start() < (SC.getOffset() + SC.getLength())) {
         error() << llvm::formatv(
             "overlapping index entries for entries {0:x16} "
             "and {1:x16} for column {2}\n",
             *I, Sig, toString(Index.getColumnKinds()[Col]));
         return 1;
       }
-      M.insert(SC.Offset, SC.Offset + SC.Length - 1, Sig);
+      M.insert(SC.getOffset(), SC.getOffset() + SC.getLength() - 1, Sig);
     }
   }
 
@@ -777,7 +777,8 @@ unsigned DWARFVerifier::verifyDebugInfoForm(const DWARFDie &Die,
   case DW_FORM_strx1:
   case DW_FORM_strx2:
   case DW_FORM_strx3:
-  case DW_FORM_strx4: {
+  case DW_FORM_strx4:
+  case DW_FORM_line_strp: {
     if (Error E = AttrValue.Value.getAsCString().takeError()) {
       ++NumErrors;
       error() << toString(std::move(E)) << ":\n";
@@ -867,8 +868,10 @@ void DWARFVerifier::verifyDebugLineRows() {
       continue;
 
     // Verify prologue.
+    bool isDWARF5 = LineTable->Prologue.getVersion() >= 5;
     uint32_t MaxDirIndex = LineTable->Prologue.IncludeDirectories.size();
-    uint32_t FileIndex = 1;
+    uint32_t MinFileIndex = isDWARF5 ? 0 : 1;
+    uint32_t FileIndex = MinFileIndex;
     StringMap<uint16_t> FullPathMap;
     for (const auto &FileName : LineTable->Prologue.FileNames) {
       // Verify directory index.
@@ -926,12 +929,11 @@ void DWARFVerifier::verifyDebugLineRows() {
       // Verify file index.
       if (!LineTable->hasFileAtIndex(Row.File)) {
         ++NumDebugLineErrors;
-        bool isDWARF5 = LineTable->Prologue.getVersion() >= 5;
         error() << ".debug_line["
                 << format("0x%08" PRIx64,
                           *toSectionOffset(Die.find(DW_AT_stmt_list)))
                 << "][" << RowIndex << "] has invalid file index " << Row.File
-                << " (valid values are [" << (isDWARF5 ? "0," : "1,")
+                << " (valid values are [" << MinFileIndex << ','
                 << LineTable->Prologue.FileNames.size()
                 << (isDWARF5 ? ")" : "]") << "):\n";
         DWARFDebugLine::Row::dumpTableHeader(OS, 0);

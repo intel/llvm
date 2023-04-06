@@ -12,6 +12,7 @@
 #include <sycl/detail/generic_type_lists.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/type_list.hpp>
+#include <sycl/detail/vector_traits.hpp>
 
 #include <array>
 #include <tuple>
@@ -64,8 +65,10 @@ template <typename ElementType, access::address_space Space,
 class multi_ptr;
 
 template <class T>
-inline constexpr bool is_group_v =
-    detail::is_group<T>::value || detail::is_sub_group<T>::value;
+struct is_group : std::bool_constant<detail::is_group<T>::value ||
+                                     detail::is_sub_group<T>::value> {};
+
+template <class T> inline constexpr bool is_group_v = is_group<T>::value;
 
 namespace ext::oneapi::experimental {
 template <class T>
@@ -85,7 +88,6 @@ template <typename T, typename R>
 using copy_cv_qualifiers_t = typename copy_cv_qualifiers<T, R>::type;
 
 template <int V> using int_constant = std::integral_constant<int, V>;
-
 // vector_size
 // scalars are interpreted as a vector of 1 length.
 template <typename T> struct vector_size_impl : int_constant<1> {};
@@ -93,16 +95,6 @@ template <typename T, int N>
 struct vector_size_impl<vec<T, N>> : int_constant<N> {};
 template <typename T>
 struct vector_size : vector_size_impl<remove_cv_t<remove_reference_t<T>>> {};
-
-// 4.10.2.6 Memory layout and alignment
-template <typename T, int N>
-struct vector_alignment_impl
-    : conditional_t<N == 3, int_constant<sizeof(T) * 4>,
-                    int_constant<sizeof(T) * N>> {};
-
-template <typename T, int N>
-struct vector_alignment
-    : vector_alignment_impl<remove_cv_t<remove_reference_t<T>>, N> {};
 
 // vector_element
 template <typename T> struct vector_element_impl;
@@ -118,6 +110,8 @@ template <typename T> struct vector_element {
   using type = copy_cv_qualifiers_t<T, vector_element_impl_t<remove_cv_t<T>>>;
 };
 template <class T> using vector_element_t = typename vector_element<T>::type;
+
+template <class T> using marray_element_t = typename T::value_type;
 
 // change_base_type_t
 template <typename T, typename B> struct change_base_type {
@@ -220,6 +214,13 @@ template <typename T> struct make_unsigned {
   using type = copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>;
 };
 
+template <typename T, size_t N> struct make_unsigned<marray<T, N>> {
+  using base_type = marray_element_t<marray<T, N>>;
+  using new_type_wo_cv_qualifiers =
+      make_unsigned_impl_t<remove_cv_t<base_type>>;
+  using type = marray<copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>, N>;
+};
+
 template <typename T> using make_unsigned_t = typename make_unsigned<T>::type;
 
 // Checks that sizeof base type of T equal N and T satisfies S<T>::value
@@ -230,6 +231,14 @@ using is_gen_based_on_type_sizeof =
 template <typename> struct is_vec : std::false_type {};
 template <typename T, std::size_t N>
 struct is_vec<sycl::vec<T, N>> : std::true_type {};
+
+template <typename> struct get_vec_size {
+  static constexpr std::size_t size = 1;
+};
+
+template <typename T, std::size_t N> struct get_vec_size<sycl::vec<T, N>> {
+  static constexpr std::size_t size = N;
+};
 
 // is_integral
 template <typename T>
@@ -359,6 +368,15 @@ template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
   using base_type = vector_element_t<vec<T, N>>;
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = vec<upper_type, N>;
+  static constexpr bool found = !std::is_same<upper_type, void>::value;
+  using type = conditional_t<found, new_type, void>;
+};
+
+template <typename T, size_t N>
+struct make_larger_impl<marray<T, N>, marray<T, N>> {
+  using base_type = marray_element_t<marray<T, N>>;
+  using upper_type = typename make_larger_impl<base_type, base_type>::type;
+  using new_type = marray<upper_type, N>;
   static constexpr bool found = !std::is_same<upper_type, void>::value;
   using type = conditional_t<found, new_type, void>;
 };

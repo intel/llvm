@@ -12,8 +12,10 @@
 
 #include <__chrono/duration.h>
 #include <__config>
+#include <__type_traits/common_type.h>
+#include <__type_traits/enable_if.h>
+#include <__type_traits/is_convertible.h>
 #include <limits>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -88,7 +90,7 @@ time_point_cast(const time_point<_Clock, _Duration>& __t)
     return time_point<_Clock, _ToDuration>(chrono::duration_cast<_ToDuration>(__t.time_since_epoch()));
 }
 
-#if _LIBCPP_STD_VER > 14
+#if _LIBCPP_STD_VER >= 17
 template <class _ToDuration, class _Clock, class _Duration>
 inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
 typename enable_if
@@ -136,7 +138,7 @@ abs(duration<_Rep, _Period> __d)
 {
     return __d >= __d.zero() ? +__d : -__d;
 }
-#endif // _LIBCPP_STD_VER > 14
+#endif // _LIBCPP_STD_VER >= 17
 
 // time_point ==
 

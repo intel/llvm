@@ -23,16 +23,15 @@ add_llvm_component_library(LLVMipo
   IPO.cpp
   IROutliner.cpp
   InferFunctionAttrs.cpp
-  InlineSimple.cpp
   Inliner.cpp
   Internalize.cpp
   LoopExtractor.cpp
   LowerTypeTests.cpp
+  MemProfContextDisambiguation.cpp
   MergeFunctions.cpp
   ModuleInliner.cpp
   OpenMPOpt.cpp
   PartialInlining.cpp
-  PassManagerBuilder.cpp
   SampleContextTracker.cpp
   SampleProfile.cpp
   SampleProfileProbe.cpp

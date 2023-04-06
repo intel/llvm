@@ -229,7 +229,8 @@ public:
     WASI,       // Experimental WebAssembly OS
     Emscripten,
     ShaderModel, // DirectX ShaderModel
-    LastOSType = ShaderModel
+    LiteOS,
+    LastOSType = LiteOS
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -279,8 +280,8 @@ public:
     Callable,
     Mesh,
     Amplification,
-
-    LastEnvironmentType = Amplification
+    OpenHOS,
+    LastEnvironmentType = OpenHOS
   };
   enum ObjectFormatType {
     UnknownObjectFormat,
@@ -746,8 +747,17 @@ public:
     return getEnvironment() == Triple::Musl ||
            getEnvironment() == Triple::MuslEABI ||
            getEnvironment() == Triple::MuslEABIHF ||
-           getEnvironment() == Triple::MuslX32;
+           getEnvironment() == Triple::MuslX32 ||
+           getEnvironment() == Triple::OpenHOS || isOSLiteOS();
   }
+
+  /// Tests whether the target is OHOS
+  /// LiteOS default enviroment is also OHOS, but omited on triple.
+  bool isOHOSFamily() const { return isOpenHOS() || isOSLiteOS(); }
+
+  bool isOpenHOS() const { return getEnvironment() == Triple::OpenHOS; }
+
+  bool isOSLiteOS() const { return getOS() == Triple::LiteOS; }
 
   /// Tests whether the target is DXIL.
   bool isDXIL() const {
@@ -795,6 +805,7 @@ public:
             getEnvironment() == Triple::MuslEABI ||
             getEnvironment() == Triple::EABIHF ||
             getEnvironment() == Triple::GNUEABIHF ||
+            getEnvironment() == Triple::OpenHOS ||
             getEnvironment() == Triple::MuslEABIHF || isAndroid()) &&
            isOSBinFormatELF();
   }
@@ -888,6 +899,23 @@ public:
     return getArch() == Triple::ppc64 || getArch() == Triple::ppc64le;
   }
 
+  /// Tests whether the target 64-bit PowerPC big endian ABI is ELFv2.
+  bool isPPC64ELFv2ABI() const {
+    return (getArch() == Triple::ppc64 &&
+            ((getOS() == Triple::FreeBSD &&
+              (getOSMajorVersion() >= 13 || getOSVersion().empty())) ||
+             getOS() == Triple::OpenBSD || isMusl()));
+  }
+
+  /// Tests whether the target 32-bit PowerPC uses Secure PLT.
+  bool isPPC32SecurePlt() const {
+    return ((getArch() == Triple::ppc || getArch() == Triple::ppcle) &&
+            ((getOS() == Triple::FreeBSD &&
+              (getOSMajorVersion() >= 13 || getOSVersion().empty())) ||
+             getOS() == Triple::NetBSD || getOS() == Triple::OpenBSD ||
+             isMusl()));
+  }
+
   /// Tests whether the target is 32-bit RISC-V.
   bool isRISCV32() const { return getArch() == Triple::riscv32; }
 
@@ -943,6 +971,11 @@ public:
   bool isX32() const {
     EnvironmentType Env = getEnvironment();
     return Env == Triple::GNUX32 || Env == Triple::MuslX32;
+  }
+
+  /// Tests whether the target is eBPF.
+  bool isBPF() const {
+    return getArch() == Triple::bpfel || getArch() == Triple::bpfeb;
   }
 
   /// Tests whether the target supports comdat

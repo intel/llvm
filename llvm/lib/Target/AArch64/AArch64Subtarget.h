@@ -41,6 +41,7 @@ public:
     Others,
     A64FX,
     Ampere1,
+    Ampere1A,
     AppleA7,
     AppleA10,
     AppleA11,
@@ -107,8 +108,8 @@ protected:
   uint16_t PrefetchDistance = 0;
   uint16_t MinPrefetchStride = 1;
   unsigned MaxPrefetchIterationsAhead = UINT_MAX;
-  unsigned PrefFunctionLogAlignment = 0;
-  unsigned PrefLoopLogAlignment = 0;
+  Align PrefFunctionAlignment;
+  Align PrefLoopAlignment;
   unsigned MaxBytesForLoopAlignment = 0;
   unsigned MaxJumpTableSize = 0;
 
@@ -157,9 +158,8 @@ private:
 public:
   /// This constructor initializes the data members to match that
   /// of the specified triple.
-  AArch64Subtarget(const Triple &TT, const std::string &CPU,
-                   const std::string &TuneCPU, const std::string &FS,
-                   const TargetMachine &TM, bool LittleEndian,
+  AArch64Subtarget(const Triple &TT, StringRef CPU, StringRef TuneCPU,
+                   StringRef FS, const TargetMachine &TM, bool LittleEndian,
                    unsigned MinSVEVectorSizeInBitsOverride = 0,
                    unsigned MaxSVEVectorSizeInBitsOverride = 0,
                    bool StreamingSVEModeDisabled = true);
@@ -241,10 +241,10 @@ public:
   unsigned getMaxPrefetchIterationsAhead() const override {
     return MaxPrefetchIterationsAhead;
   }
-  unsigned getPrefFunctionLogAlignment() const {
-    return PrefFunctionLogAlignment;
+  Align getPrefFunctionAlignment() const {
+    return PrefFunctionAlignment;
   }
-  unsigned getPrefLoopLogAlignment() const { return PrefLoopLogAlignment; }
+  Align getPrefLoopAlignment() const { return PrefLoopAlignment; }
 
   unsigned getMaxBytesForLoopAlignment() const {
     return MaxBytesForLoopAlignment;

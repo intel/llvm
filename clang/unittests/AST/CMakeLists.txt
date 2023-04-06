@@ -7,6 +7,7 @@ set(LLVM_LINK_COMPONENTS
 
 add_clang_unittest(ASTTests
   ASTContextParentMapTest.cpp
+  ASTExprTest.cpp
   ASTImporterFixtures.cpp
   ASTImporterTest.cpp
   ASTImporterObjCTest.cpp
@@ -50,5 +51,6 @@ clang_target_link_libraries(ASTTests
 target_link_libraries(ASTTests
   PRIVATE
   clangTesting
+  LLVMTestingAnnotations
   LLVMTestingSupport
 )

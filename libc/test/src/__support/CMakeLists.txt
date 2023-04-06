@@ -40,6 +40,7 @@ add_libc_unittest(
   DEPENDS
     libc.src.__support.str_to_float
     libc.src.__support.uint128
+    libc.src.errno.errno
 )
 
 add_libc_unittest(
@@ -82,6 +83,16 @@ add_libc_unittest(
     fixedvector_test.cpp
   DEPENDS
     libc.src.__support.fixedvector
+)
+
+add_libc_unittest(
+  char_vector_test
+  SUITE
+    libc_support_unittests
+  SRCS
+    char_vector_test.cpp
+  DEPENDS
+    libc.src.__support.char_vector
 )
 
 add_executable(

@@ -9,7 +9,7 @@ add_header_library(
   HDRS
     bit.h
   DEPENDS
-    libc.src.__support.compiler_features
+    libc.src.__support.macros.properties.compiler
 )
 
 add_header_library(
@@ -51,6 +51,21 @@ add_header_library(
   string_view
   HDRS
     string_view.h
+  DEPENDS
+    libc.src.__support.common
+)
+
+add_header_library(
+  string
+  HDRS
+    string.h
+  DEPENDS
+    .string_view
+    libc.src.__support.common
+    libc.src.__support.integer_to_string
+    libc.src.string.memory_utils.memcpy_implementation
+    libc.src.string.memory_utils.memset_implementation
+    libc.src.string.string_utils
 )
 
 add_header_library(
@@ -99,4 +114,7 @@ add_object_library(
     new.cpp
   HDRS
     new.h
+  DEPENDS
+    libc.include.stdlib
+    libc.src.__support.common
 )

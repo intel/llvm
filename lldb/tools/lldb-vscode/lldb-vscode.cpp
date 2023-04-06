@@ -96,9 +96,9 @@ static constexpr llvm::opt::OptTable::Info InfoTable[] = {
 #include "Options.inc"
 #undef OPTION
 };
-class LLDBVSCodeOptTable : public llvm::opt::OptTable {
+class LLDBVSCodeOptTable : public llvm::opt::GenericOptTable {
 public:
-  LLDBVSCodeOptTable() : OptTable(InfoTable, true) {}
+  LLDBVSCodeOptTable() : llvm::opt::GenericOptTable(InfoTable, true) {}
 };
 
 typedef void (*RequestCallback)(const llvm::json::Object &command);
@@ -1065,8 +1065,9 @@ void request_completions(const llvm::json::Object &request) {
     text = text.substr(1);
     actual_column--;
   } else {
-    text = "p " + text;
-    actual_column += 2;
+    char command[] = "expression -- ";
+    text = command + text;
+    actual_column += strlen(command);
   }
   lldb::SBStringList matches;
   lldb::SBStringList descriptions;
@@ -3227,7 +3228,7 @@ int main(int argc, char *argv[]) {
 
   LLDBVSCodeOptTable T;
   unsigned MAI, MAC;
-  llvm::ArrayRef<const char *> ArgsArr = llvm::makeArrayRef(argv + 1, argc);
+  llvm::ArrayRef<const char *> ArgsArr = llvm::ArrayRef(argv + 1, argc);
   llvm::opt::InputArgList input_args = T.ParseArgs(ArgsArr, MAI, MAC);
 
   if (input_args.hasArg(OPT_help)) {
