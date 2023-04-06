@@ -1,4 +1,5 @@
-// RUN: polygeist-opt -licm -enable-licm-sycl-accessor-versioning %s | FileCheck %s
+// RUN: polygeist-opt -licm -enable-licm-sycl-accessor-versioning --split-input-file %s | FileCheck %s --check-prefixes=CHECK,1PAIR
+// RUN: polygeist-opt -licm -enable-licm-sycl-accessor-versioning -licm-sycl-accessor-pairs-limit=2 --split-input-file %s | FileCheck %s --check-prefixes=CHECK,2PAIRS
 
 // Original loop:
 // for(size_t i = 0; i < 8; i++) {
@@ -76,9 +77,9 @@
 // CHECK-NEXT: scf.for
 
 func.func private @test(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_r_gb, 4>) {
-  %c8 = arith.constant 8 : index
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
+  %c8 = arith.constant 8 : index
   %c0_i64 = arith.constant 0 : i64
   %alloca = memref.alloca() : memref<1x!sycl_id_1_>
   %cast = memref.cast %alloca : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
@@ -91,20 +92,126 @@ func.func private @test(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: m
   %memspacecast = memref.memory_space_cast %cast_5 : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
   %memspacecast_6 = memref.memory_space_cast %cast_1 : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
   scf.for %i = %c0 to %c8 step %c1 {
-    %2 = arith.index_cast %i : index to i32
+    %2 = arith.index_cast %i : index to i64
     sycl.constructor @id(%memspacecast, %c0_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
     %3 = affine.load %alloca_4[0] : memref<1x!sycl_id_1_>
     affine.store %3, %alloca_2[0] : memref<1x!sycl_id_1_>
     %4 = sycl.accessor.subscript %arg1[%cast_3] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
     %5 = affine.load %4[0] : memref<?xi32, 4>
-    %6 = arith.extui %2 : i32 to i64
-    sycl.constructor @id(%memspacecast_6, %6) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
+    sycl.constructor @id(%memspacecast_6, %2) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
+    %6 = affine.load %alloca_0[0] : memref<1x!sycl_id_1_>
+    affine.store %6, %alloca[0] : memref<1x!sycl_id_1_>
+    %7 = sycl.accessor.subscript %arg0[%cast] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    %8 = affine.load %7[0] : memref<?xi32, 4>
+    %9 = arith.addi %8, %5 : i32
+    affine.store %9, %7[0] : memref<?xi32, 4>
+  }
+  return
+}
+
+// -----
+
+// This test requires -licm-sycl-accessor-pairs-limit >= 2.
+// Original loop:
+// for(size_t i = 0; i < 8; i++) {
+//   A[0] = 1;
+//   B[i] = 2;
+//   C[i] = 3;
+// }
+// Optimized loop:
+// if (0 < 8) {
+//   if ((&A[A.get_range()] <= &B[0] || &A[0] >= B[B.get_range()])
+//       && (&A[A.get_range()] <= &C[0] || &A[0] >= C[C.get_range()])) {
+//     A[0] = 1;
+//     for(size_t i = 0; i < 8; i++) {
+//       B[i] = 2;
+//       C[i] = 3;
+//     }
+//   } else {
+//     for(size_t i = 0; i < 8; i++) {
+//       A[0] = 1;
+//       B[i] = 2;
+//       C[i] = 3;
+//     }
+//   }
+// }
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+!sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+
+// COM: Store to %arg0 accessor cannot be hoisted.
+// 1PAIR-LABEL: test
+// 1PAIR-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_W:!sycl_accessor_1_i32_w_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>) 
+// 1PAIR: [[C1_i32:%.*]] = arith.constant 1 : i32
+// 1PAIR: [[ARG0_ACC:%.*]] = sycl.accessor.subscript %arg0[{{.*}}] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+// 1PAIR: affine.store [[C1_i32]], [[ARG0_ACC]][0] : memref<?xi32, 4>
+// 1PAIR-NOT: scf.for
+
+// 2PAIRS-LABEL: test
+// 2PAIRS-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_W:!sycl_accessor_1_i32_w_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>) 
+
+// 2PAIRS: [[C1_i32:%.*]] = arith.constant 1 : i32
+// 2PAIRS: [[ARG0_ACC:%.*]] = sycl.accessor.subscript %arg0[{{.*}}] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+
+// COM: Version with condition: ([[ARG0_END]] <= [[ARG1_BEGIN]] || [[ARG0_BEGIN]] >= [[ARG1_END]])
+// COM:                          && ([[ARG0_END]] <= [[ARG2_BEGIN]] || [[ARG0_BEGIN]] >= [[ARG2_END]]).
+// 2PAIRS:      [[BEFORE_COND1:%.*]] = llvm.icmp "ule" {{.*}}, {{.*}} : !llvm.ptr<i32, 1>
+// 2PAIRS:      [[AFTER_COND1:%.*]] = llvm.icmp "uge" {{.*}}, {{.*}} : !llvm.ptr<i32, 1>
+// 2PAIRS-NEXT: [[COND1:%.*]] = arith.ori [[BEFORE_COND1]], [[AFTER_COND1]] : i1
+// 2PAIRS:      [[BEFORE_COND2:%.*]] = llvm.icmp "ule" {{.*}}, {{.*}} : !llvm.ptr<i32, 1>
+// 2PAIRS:      [[AFTER_COND2:%.*]] = llvm.icmp "uge" {{.*}}, {{.*}} : !llvm.ptr<i32, 1>
+// 2PAIRS-NEXT: [[COND2:%.*]] = arith.ori [[BEFORE_COND2]], [[AFTER_COND2]] : i1
+// 2PAIRS-NEXT: [[COND:%.*]] = arith.andi [[COND1]], [[COND2]] : i1
+// 2PAIRS-NEXT: scf.if [[COND]] {
+
+// COM: Store to %arg0 accessor can be hoisted.
+// 2PAIRS: affine.store [[C1_i32]], [[ARG0_ACC]][0] : memref<?xi32, 4>
+// 2PAIRS: scf.for
+// 2PAIRS: } else {
+// 2PAIRS-NEXT: scf.for
+
+func.func private @test(%arg0: memref<?x!sycl_accessor_1_i32_w_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_w_gb, 4>, %arg2: memref<?x!sycl_accessor_1_i32_w_gb, 4>) {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c8 = arith.constant 8 : index
+  %c1_i32 = arith.constant 1 : i32
+  %c2_i32 = arith.constant 2 : i32
+  %c3_i32 = arith.constant 3 : i32
+  %c0_i64 = arith.constant 0 : i64
+  %alloca = memref.alloca() : memref<1x!sycl_id_1_>
+  %cast = memref.cast %alloca : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %alloca_0 = memref.alloca() : memref<1x!sycl_id_1_>
+  %cast_1 = memref.cast %alloca_0 : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %alloca_2 = memref.alloca() : memref<1x!sycl_id_1_>
+  %cast_3 = memref.cast %alloca_2 : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %alloca_4 = memref.alloca() : memref<1x!sycl_id_1_>
+  %cast_5 = memref.cast %alloca_4 : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %alloca_6 = memref.alloca() : memref<1x!sycl_id_1_>
+  %cast_7 = memref.cast %alloca_6 : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %alloca_8 = memref.alloca() : memref<1x!sycl_id_1_>
+  %cast_9 = memref.cast %alloca_8 : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+  %memspacecast = memref.memory_space_cast %cast_9 : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
+  %memspacecast_10 = memref.memory_space_cast %cast_5 : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
+  %memspacecast_11 = memref.memory_space_cast %cast_1 : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
+  scf.for %i = %c0 to %c8 step %c1 {
+    %2 = arith.index_cast %i : index to i64
+    sycl.constructor @id(%memspacecast, %c0_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
+    %3 = affine.load %alloca_8[0] : memref<1x!sycl_id_1_>
+    affine.store %3, %alloca_6[0] : memref<1x!sycl_id_1_>
+    %4 = sycl.accessor.subscript %arg0[%cast_7] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    affine.store %c1_i32, %4[0] : memref<?xi32, 4>
+    sycl.constructor @id(%memspacecast_10, %2) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
+    %5 = affine.load %alloca_4[0] : memref<1x!sycl_id_1_>
+    affine.store %5, %alloca_2[0] : memref<1x!sycl_id_1_>
+    %6 = sycl.accessor.subscript %arg1[%cast_3] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    affine.store %c2_i32, %6[0] : memref<?xi32, 4>
+    sycl.constructor @id(%memspacecast_11, %2) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
     %7 = affine.load %alloca_0[0] : memref<1x!sycl_id_1_>
     affine.store %7, %alloca[0] : memref<1x!sycl_id_1_>
-    %8 = sycl.accessor.subscript %arg0[%cast] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
-    %9 = affine.load %8[0] : memref<?xi32, 4>
-    %10 = arith.addi %9, %5 : i32
-    affine.store %10, %8[0] : memref<?xi32, 4>
+    %8 = sycl.accessor.subscript %arg2[%cast] {ArgumentTypes = [memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    affine.store %c3_i32, %8[0] : memref<?xi32, 4>
   }
   return
 }
