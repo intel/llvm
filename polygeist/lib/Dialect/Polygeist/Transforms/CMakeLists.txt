@@ -17,7 +17,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   TrivialUse.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Polygeist
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Polygeist/Transforms
 
   DEPENDS
   MLIRPolygeistOpsIncGen
@@ -35,7 +35,8 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRMemRefDialect
   MLIRNVVMDialect
   MLIRPass
-  MLIRPolygeist
+  MLIRPolygeistDialect
+  MLIRPolygeistUtils
   MLIRSYCLAnalysis  
   MLIRSYCLDialect
   MLIRSideEffectInterfaces

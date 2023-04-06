@@ -16,7 +16,7 @@ add_mlir_conversion_library(MLIRPolygeistToLLVM
   MLIRMathToLLVM
   MLIROpenMPToLLVM
   MLIRPass
-  MLIRPolygeist
+  MLIRPolygeistDialect
   MLIRPolygeistTransforms
   MLIRSCFToControlFlow
   MLIRSYCLToLLVM
