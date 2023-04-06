@@ -96,6 +96,8 @@ etors:
       desc: "Return Program object associated with Kernel."
     - name: ATTRIBUTES
       desc: "Return null-terminated kernel attributes string, return type char*."
+    - name: NUM_REGS
+      desc: "[uint32_t] Return the number of registers used by the compiled kernel (device specific)."
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Kernel Work Group information"

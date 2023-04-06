@@ -3142,6 +3142,8 @@ typedef enum ur_kernel_info_t {
     UR_KERNEL_INFO_CONTEXT = 3,         ///< Return Context object associated with Kernel.
     UR_KERNEL_INFO_PROGRAM = 4,         ///< Return Program object associated with Kernel.
     UR_KERNEL_INFO_ATTRIBUTES = 5,      ///< Return null-terminated kernel attributes string, return type char*.
+    UR_KERNEL_INFO_NUM_REGS = 6,        ///< [uint32_t] Return the number of registers used by the compiled kernel
+                                        ///< (device specific).
     /// @cond
     UR_KERNEL_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3206,7 +3208,7 @@ typedef enum ur_kernel_exec_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_INFO_ATTRIBUTES < propName`
+///         + `::UR_KERNEL_INFO_NUM_REGS < propName`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetInfo(
     ur_kernel_handle_t hKernel, ///< [in] handle of the Kernel object
