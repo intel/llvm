@@ -605,6 +605,10 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES";
         break;
+
+    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_DESC:
+        os << "UR_STRUCTURE_TYPE_CONTEXT_NATIVE_DESC";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -706,6 +710,12 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES: {
         const ur_queue_properties_t *pstruct =
             (const ur_queue_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_CONTEXT_NATIVE_DESC: {
+        const ur_context_native_desc_t *pstruct =
+            (const ur_context_native_desc_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -3747,6 +3757,27 @@ inline void serializeTaggedTyped_ur_context_info_t(std::ostream &os,
     }
 }
 } // namespace ur_params
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_context_native_desc_t params) {
+    os << "(struct ur_context_native_desc_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".isNativeHandleOwned = ";
+
+    os << (params.isNativeHandleOwned);
+
+    os << "}";
+    return os;
+}
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_flag_t value) {
     switch (value) {
 
@@ -7514,6 +7545,28 @@ operator<<(std::ostream &os,
     os << ".hNativeContext = ";
 
     ur_params::serializePtr(os, *(params->phNativeContext));
+
+    os << ", ";
+    os << ".numDevices = ";
+
+    os << *(params->pnumDevices);
+
+    os << ", ";
+    os << ".phDevices = [";
+    for (size_t i = 0;
+         *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphDevices))[i]);
+    }
+    os << "]";
+
+    os << ", ";
+    os << ".pContextNativeDesc = ";
+
+    ur_params::serializePtr(os, *(params->ppContextNativeDesc));
 
     os << ", ";
     os << ".phContext = ";

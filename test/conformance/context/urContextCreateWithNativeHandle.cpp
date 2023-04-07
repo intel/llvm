@@ -9,6 +9,8 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextCreateWithNativeHandleTest);
 
 TEST_P(urContextCreateWithNativeHandleTest, InvalidNullHandleNativeHandle) {
     ur_context_handle_t context = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urContextCreateWithNativeHandle(nullptr, &context));
+    ur_context_native_desc_t desc{};
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+        urContextCreateWithNativeHandle(nullptr, 0u, nullptr, &desc, &context));
 }
