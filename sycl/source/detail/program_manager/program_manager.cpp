@@ -360,18 +360,18 @@ static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
   return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
 }
 
-static const char *getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
+static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
                                          const char *PropName) {
   pi_device_binary_property Prop = Img.getProperty(PropName);
   std::stringstream ss;
   if (!Prop)
-    return (const char *)(ss.str().c_str());
+    return "";
   int optLevel = DeviceBinaryProperty(Prop).asUint32();
   if (optLevel < 0 || optLevel > 3)
-    return (const char *)(ss.str().c_str());
+    return "";
   ss << "-O" << optLevel;
   std::string temp = ss.str();
-  return (const char *)(temp.c_str());
+  return temp;
 }
 
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
@@ -416,10 +416,13 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
   // Add optimization flags.
-  const char *optLevelStr = getUint32PropAsOptStr(Img, "optLevel");
+  const char *optLevelStr = getUint32PropAsOptStr(Img, "optLevel").c_str();
   // TODO: Passing these options to vector compiler causes build failure in
   // backend. Will pass the flags once backend compilation issue is resolved.
-  if (!isEsimdImage && optLevelStr != nullptr && optLevelStr[0] != '\0') {
+  // Update only if compile options are not overwritten by environment
+  // variable.
+  if (!isEsimdImage && !CompileOptsEnv && optLevelStr != nullptr &&
+      optLevelStr[0] != '\0') {
     // Making sure all devices have the same platform.
     assert(!Devs.empty() &&
            std::all_of(Devs.begin(), Devs.end(), [&](const device &Dev) {

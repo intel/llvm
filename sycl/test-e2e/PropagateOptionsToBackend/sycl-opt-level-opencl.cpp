@@ -13,9 +13,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t3.out 2>&1 %CPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL3
 // RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t3.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL3
 
-// requires: cpu, gpu, accelerator
-// UNSUPPORTED: hip
-// FIXME: enable the test back, see intel/llvm#8146
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -O0 %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out

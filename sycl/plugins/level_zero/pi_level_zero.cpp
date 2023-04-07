@@ -20,6 +20,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/spinlock.hpp>
 #include <utility>
@@ -2189,22 +2190,23 @@ static const char *O2OptStr = "-ze-opt-level=2";
 pi_result piPluginGetBackendOption(pi_platform platform,
                                    const char *frontend_option,
                                    const char **backend_option) {
+  using namespace std::literals;
   if (frontend_option == nullptr) {
     return PI_ERROR_INVALID_VALUE;
   }
-  if (!strcmp(frontend_option, "")) {
+  if (frontend_option == ""sv) {
     *backend_option = EmptyStr;
     return PI_SUCCESS;
   }
-  if (!strcmp(frontend_option, "-O0")) {
+  if (frontend_option == "-O0"sv) {
     *backend_option = NoOptStr;
     return PI_SUCCESS;
   }
-  if (!strcmp(frontend_option, "-O1") || !strcmp(frontend_option, "-O2")) {
+  if (frontend_option == "-O1"sv || frontend_option == "-O2"sv) {
     *backend_option = O1OptStr;
     return PI_SUCCESS;
   }
-  if (!strcmp(frontend_option, "-O3")) {
+  if (frontend_option == "-O3"sv) {
     *backend_option = O2OptStr;
     return PI_SUCCESS;
   }

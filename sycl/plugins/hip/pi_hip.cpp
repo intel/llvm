@@ -24,6 +24,7 @@
 #include <memory>
 #include <mutex>
 #include <regex>
+#include <string_view>
 #include <string.h>
 
 namespace {
@@ -142,11 +143,12 @@ static const char *EmptyStr = "";
 pi_result hip_piPluginGetBackendOption(pi_platform platform,
                                        const char *frontend_option,
                                        const char **backend_option) {
+  using namespace std::literals;
   if (frontend_option == nullptr)
     return PI_ERROR_INVALID_VALUE;
-  if (!strcmp(frontend_option, "-O0") || !strcmp(frontend_option, "-O1") ||
-      !strcmp(frontend_option, "-O2") || !strcmp(frontend_option, "-O3") ||
-      !strcmp(frontend_option, "")) {
+  if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
+      frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
+      frontend_option == ""sv)) {
     *backend_option = EmptyStr;
     return PI_SUCCESS;
   }
