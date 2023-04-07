@@ -10,7 +10,12 @@ INSTANTIATE_TEST_SUITE_P(
                       UR_DEVICE_INIT_FLAG_VPU,
                       /* Combinations */
                       UR_DEVICE_INIT_FLAG_GPU | UR_DEVICE_INIT_FLAG_CPU,
-                      UR_DEVICE_INIT_FLAG_FPGA | UR_DEVICE_INIT_FLAG_VPU));
+                      UR_DEVICE_INIT_FLAG_FPGA | UR_DEVICE_INIT_FLAG_VPU),
+    [](const ::testing::TestParamInfo<ur_device_init_flags_t> &info) {
+        std::stringstream ss;
+        ur_params::serializeFlag_ur_device_init_flags_t(ss, info.param);
+        return uur::GTestSanitizeString(ss.str());
+    });
 
 TEST_P(urInitTestWithParam, Success) {
     ur_device_init_flags_t device_flags = GetParam();
