@@ -32,7 +32,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
 
   // Set the default values for the ZeSamplerDesc.
-  ZeSamplerDesc.isNormalized = PI_TRUE;
+  ZeSamplerDesc.isNormalized = true;
   ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_CLAMP;
   ZeSamplerDesc.filterMode = ZE_SAMPLER_FILTER_MODE_NEAREST;
 
@@ -42,16 +42,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
   //   b) SamplerProperties list is missing any properties
 
   if (Props) {
-    const ur_sampler_property_t *CurProperty = Props;
-
-    while (*CurProperty != 0) {
-      switch (*CurProperty) {
+    uint32_t PropCount = 0;
+    while (PropCount < 6) { // We expect only 3 pairs of sampler properties
+      switch (Props[PropCount]) {
       case UR_SAMPLER_PROPERTIES_NORMALIZED_COORDS: {
-        bool CurValueBool = ur_cast<pi_bool>(*(++CurProperty));
+        auto CurValueBool = Props[++PropCount];
 
-        if (CurValueBool == PI_TRUE)
+        if (CurValueBool == 1UL)
           ZeSamplerDesc.isNormalized = PI_TRUE;
-        else if (CurValueBool == PI_FALSE)
+        else if (CurValueBool == 0UL)
           ZeSamplerDesc.isNormalized = PI_FALSE;
         else {
           urPrint("urSamplerCreate: unsupported "
@@ -62,8 +61,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
 
       case UR_SAMPLER_PROPERTIES_ADDRESSING_MODE: {
         ur_sampler_addressing_mode_t CurValueAddressingMode =
-            ur_cast<ur_sampler_addressing_mode_t>(
-                ur_cast<uint32_t>(*(++CurProperty)));
+            static_cast<ur_sampler_addressing_mode_t>(Props[++PropCount]);
 
         // Level Zero runtime with API version 1.2 and lower has a bug:
         // ZE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER is implemented as "clamp to
@@ -107,8 +105,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
 
       case UR_SAMPLER_PROPERTIES_FILTER_MODE: {
         ur_ext_sampler_filter_mode_t CurValueFilterMode =
-            ur_cast<ur_ext_sampler_filter_mode_t>(
-                ur_cast<uint32_t>(*(++CurProperty)));
+            static_cast<ur_ext_sampler_filter_mode_t>(Props[++PropCount]);
 
         if (CurValueFilterMode == UR_EXT_SAMPLER_FILTER_MODE_NEAREST)
           ZeSamplerDesc.filterMode = ZE_SAMPLER_FILTER_MODE_NEAREST;
@@ -125,7 +122,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
       default:
         break;
       }
-      CurProperty++;
+      PropCount++;
     }
   }
 

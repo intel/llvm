@@ -669,9 +669,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
     ur_sampler_handle_t ArgValue ///< [in] handle of Sampler object.
 ) {
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  ZE2UR_CALL(zeKernelSetArgumentValue,
-             (ur_cast<ze_kernel_handle_t>(Kernel->ZeKernel), ArgIndex,
-              sizeof(void *), &ArgValue->ZeSampler));
+  ZE2UR_CALL(zeKernelSetArgumentValue, (Kernel->ZeKernel, ArgIndex,
+                                        sizeof(void *), &ArgValue->ZeSampler));
 
   return UR_RESULT_SUCCESS;
 }

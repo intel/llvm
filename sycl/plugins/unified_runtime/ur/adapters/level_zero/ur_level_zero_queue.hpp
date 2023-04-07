@@ -14,6 +14,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <optional>
 
 #include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
@@ -500,7 +501,7 @@ struct ur_queue_handle_t_ : _ur_object {
 //        the host-visible pool
 ur_result_t createEventAndAssociateQueue(
     ur_queue_handle_t Queue, ur_event_handle_t *Event, ur_command_t CommandType,
-    ur_command_list_ptr_t CommandList, bool IsInternal = false,
+    ur_command_list_ptr_t CommandList, bool IsInternal,
     std::optional<bool> HostVisible = std::nullopt);
 
 // Helper function to perform the necessary cleanup of the events from reset cmd

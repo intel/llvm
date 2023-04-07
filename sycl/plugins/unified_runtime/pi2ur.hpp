@@ -3448,26 +3448,49 @@ inline pi_result piSamplerCreate(pi_context Context,
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_sampler_property_t UrProps[6]{};
-  UrProps[0] = UR_SAMPLER_PROPERTIES_NORMALIZED_COORDS;
-  UrProps[1] = SamplerProperties[1];
+  const pi_sampler_properties *CurProperty = SamplerProperties;
+  while (*CurProperty != 0) {
+    switch (*CurProperty) {
+    case PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS: {
+      UrProps[0] = UR_SAMPLER_PROPERTIES_NORMALIZED_COORDS;
+      UrProps[1] = ur_cast<pi_bool>(*(++CurProperty));
+    } break;
 
-  UrProps[2] = UR_SAMPLER_PROPERTIES_ADDRESSING_MODE;
-  if (SamplerProperties[3] & PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT)
-    UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
-  else if (SamplerProperties[3] & PI_SAMPLER_ADDRESSING_MODE_REPEAT)
-    UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_REPEAT;
-  else if (SamplerProperties[3] & PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE)
-    UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE;
-  else if (SamplerProperties[3] & PI_SAMPLER_ADDRESSING_MODE_CLAMP)
-    UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_CLAMP;
-  else if (SamplerProperties[3] & PI_SAMPLER_ADDRESSING_MODE_NONE)
-    UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_NONE;
+    case PI_SAMPLER_PROPERTIES_ADDRESSING_MODE: {
+      UrProps[2] = UR_SAMPLER_PROPERTIES_ADDRESSING_MODE;
+      pi_sampler_addressing_mode CurValueAddressingMode =
+          ur_cast<pi_sampler_addressing_mode>(
+              ur_cast<pi_uint32>(*(++CurProperty)));
 
-  UrProps[4] = UR_SAMPLER_PROPERTIES_FILTER_MODE;
-  if (SamplerProperties[4] & PI_SAMPLER_FILTER_MODE_NEAREST)
-    UrProps[5] = UR_EXT_SAMPLER_FILTER_MODE_NEAREST;
-  else if (SamplerProperties[4] & PI_SAMPLER_FILTER_MODE_LINEAR)
-    UrProps[5] = UR_EXT_SAMPLER_FILTER_MODE_LINEAR;
+      if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT)
+        UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
+      else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_REPEAT)
+        UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_REPEAT;
+      else if (CurValueAddressingMode ==
+               PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE)
+        UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE;
+      else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_CLAMP)
+        UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_CLAMP;
+      else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_NONE)
+        UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_NONE;
+    } break;
+
+    case PI_SAMPLER_PROPERTIES_FILTER_MODE: {
+      UrProps[4] = UR_SAMPLER_PROPERTIES_FILTER_MODE;
+      pi_sampler_filter_mode CurValueFilterMode =
+          ur_cast<pi_sampler_filter_mode>(ur_cast<pi_uint32>(*(++CurProperty)));
+
+      if (CurValueFilterMode == PI_SAMPLER_FILTER_MODE_NEAREST)
+        UrProps[5] = UR_EXT_SAMPLER_FILTER_MODE_NEAREST;
+      else if (CurValueFilterMode == PI_SAMPLER_FILTER_MODE_LINEAR)
+        UrProps[5] = UR_EXT_SAMPLER_FILTER_MODE_LINEAR;
+    } break;
+
+    default:
+      break;
+    }
+    CurProperty++;
+  }
 
   ur_sampler_handle_t *UrSampler =
       reinterpret_cast<ur_sampler_handle_t *>(RetSampler);
