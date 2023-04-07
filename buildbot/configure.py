@@ -31,6 +31,10 @@ def do_configure(args):
     if args.llvm_external_projects:
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
 
+    llvm_in_tree_projects = ""
+    if args.llvm_projects:
+        llvm_in_tree_projects = ";" + args.llvm_projects.replace(",", ";")
+
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
     spirv_dir = os.path.join(abs_src_dir, "llvm-spirv")
@@ -39,7 +43,7 @@ def do_configure(args):
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
     fusion_dir = os.path.join(abs_src_dir, "sycl-fusion")
     llvm_targets_to_build = args.host_target
-    llvm_enable_projects = 'clang;' + llvm_external_projects
+    llvm_enable_projects = 'clang;' + llvm_external_projects + llvm_in_tree_projects
     libclc_targets_to_build = ''
     libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_hip_platform = 'AMD'
@@ -198,6 +202,10 @@ def do_configure(args):
             "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
             "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library)])
 
+    if 'openmp' in llvm_in_tree_projects:
+      cmake_cmd.extend([
+            "-DOPENMP_ENABLE_LIBOMPTARGET=OFF"])
+
     print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 
     try:
@@ -248,6 +256,8 @@ def main():
     parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
     parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
     parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
+    parser.add_argument("--llvm-projects",
+                        help="Add additional in-tree llvm projects to build. Add as comma seperated list.")
     parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
     parser.add_argument("--enable-plugin", action='append', help="Enable SYCL plugin")
     parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
