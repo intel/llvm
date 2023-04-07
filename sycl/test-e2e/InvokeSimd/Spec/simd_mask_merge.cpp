@@ -100,5 +100,5 @@ int main() {
   }
 
   std::cout << (err_cnt > 0 ? "FAILED\n" : "Passed\n");
-  return err_cnt == 0;
+  return err_cnt != 0;
 }
