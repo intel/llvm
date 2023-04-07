@@ -160,6 +160,28 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
   return pi2ur::piextQueueCreate(Context, Device, Properties, Queue);
 }
 
+pi_result piextQueueCreate2(pi_context Context, pi_device Device,
+                            pi_queue_properties *Properties, pi_queue *Queue) {
+  return pi2ur::piextQueueCreate(Context, Device, Properties, Queue);
+}
+
+pi_result piextQueueGetNativeHandle2(pi_queue Queue,
+                                     pi_native_handle *NativeHandle,
+                                     int32_t *NativeHandleDesc) {
+  std::ignore = NativeHandleDesc;
+  return pi2ur::piextQueueGetNativeHandle(Queue, NativeHandle);
+}
+
+pi_result piextQueueCreateWithNativeHandle2(
+    pi_native_handle NativeHandle, int32_t NativeHandleDesc, pi_context Context,
+    pi_device Device, bool OwnNativeHandle, pi_queue_properties *Properties,
+    pi_queue *Queue) {
+  std::ignore = NativeHandleDesc;
+  std::ignore = Properties;
+  return pi2ur::piextQueueCreateWithNativeHandle(NativeHandle, Context, Device,
+                                                 OwnNativeHandle, Queue);
+}
+
 pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
                          size_t ParamValueSize, void *ParamValue,
                          size_t *ParamValueSizeRet) {
