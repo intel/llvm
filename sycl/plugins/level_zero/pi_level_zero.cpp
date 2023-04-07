@@ -2189,8 +2189,10 @@ static const char *O2OptStr = "-ze-opt-level=2";
 pi_result piPluginGetBackendOption(pi_platform platform,
                                    const char *frontend_option,
                                    const char **backend_option) {
-  if (frontend_option == nullptr || frontend_option[0] == '\0')
+  if (frontend_option == nullptr || frontend_option[0] == '\0') {
+    *backend_option = EmptyStr;
     return PI_ERROR_INVALID_VALUE;
+  }
   if (!strcmp(frontend_option, "-O0"))
     *backend_option = NoOptStr;
   if (!strcmp(frontend_option, "-O1") || !strcmp(frontend_option, "-O2"))
