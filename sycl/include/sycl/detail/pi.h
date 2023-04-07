@@ -2032,10 +2032,11 @@ __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 /// \param backend_option is used to return the backend optimization option
 /// corresponding to frontend optimization level.
 ///
-/// \return PI_SUCCESS is returned always. If a valid option is not
-/// available, an empty string is returned.
-__SYCL_EXPORT pi_result piPluginGetBackendOptimizationOption(
-    int opt_level, const char **backend_option);
+/// \return PI_SUCCESS is returned for valid frontend_option. If a valid backend
+/// option is not available, an empty string is returned.
+__SYCL_EXPORT pi_result piPluginGetBackendOption(pi_platform platform,
+                                                 const char *frontend_option,
+                                                 const char **backend_option);
 
 /// Queries  device for it's global timestamp in nanoseconds, and updates
 /// HostTime  with the value of the host timer at the closest possible point in

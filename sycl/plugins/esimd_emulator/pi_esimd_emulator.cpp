@@ -170,12 +170,14 @@ pi_result piPluginGetLastError(char **message) {
 // Optimization strings.
 static const char *EmptyStr = "";
 
-// Returns plugin specific backend optimization option.
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
 // Return empty string for esimd emulator.
 // TODO: Determine correct string to be passed.
-pi_result piPluginGetBackendOptimizationOption(int opt_level,
-                                               const char **backend_option) {
-  if ((opt_level < 0) || (opt_level > 3))
+pi_result piPluginGetBackendOption(pi_platform platform,
+                                   const char *frontend_option,
+                                   const char **backend_option) {
+  if (frontend_option == nullptr || frontend_option[0] == '\0')
     return PI_ERROR_INVALID_VALUE;
   *backend_option = EmptyStr;
   return PI_SUCCESS;

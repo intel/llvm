@@ -22,7 +22,7 @@ piMemBufferCreate
 piMemBufferPartition
 piMemImageCreate
 piPlatformsGet
-piPluginGetBackendOptimizationOption
+piPluginGetBackendOption
 piPluginGetLastError
 piPluginInit
 piProgramCreate

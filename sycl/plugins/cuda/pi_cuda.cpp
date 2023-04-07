@@ -83,13 +83,14 @@ pi_result cuda_piPluginGetLastError(char **message) {
 // Optimization strings.
 static const char *EmptyStr = "";
 
-// Returns plugin specific backend optimization option.
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
 // Return empty string for cuda.
 // TODO: Determine correct string to be passed.
-pi_result
-cuda_piPluginGetBackendOptimizationOption(int opt_level,
-                                          const char **backend_option) {
-  if ((opt_level < 0) || (opt_level > 3))
+pi_result cuda_piPluginGetBackendOption(pi_platform platform,
+                                        const char *frontend_option,
+                                        const char **backend_option) {
+  if (frontend_option == nullptr || frontend_option[0] == '\0')
     return PI_ERROR_INVALID_VALUE;
   *backend_option = EmptyStr;
   return PI_SUCCESS;
@@ -5803,8 +5804,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
   _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
-  _PI_CL(piPluginGetBackendOptimizationOption,
-         cuda_piPluginGetBackendOptimizationOption)
+  _PI_CL(piPluginGetBackendOption, cuda_piPluginGetBackendOption)
 
 #undef _PI_CL
 

@@ -2135,27 +2135,22 @@ static const char *NoOptStr = "-ze-opt-disable";
 static const char *O1OptStr = "-ze-opt-level=1";
 static const char *O2OptStr = "-ze-opt-level=2";
 
-// Returns plugin specific backend optimization option.
-// Return '-ze-opt-disable' for opt_level = 0.
-// Return '-ze-opt-level=1' for opt_level = 1/2.
-// Return '-ze-opt-level=2' for opt_level = 3.
-pi_result piPluginGetBackendOptimizationOption(int opt_level,
-                                               const char **backend_option) {
-  switch (opt_level) {
-  case 0:
-    *backend_option = NoOptStr;
-    break;
-  case 1:
-  case 2:
-    *backend_option = O1OptStr;
-    break;
-  case 3:
-    *backend_option = O2OptStr;
-    break;
-  default:
-    *backend_option = EmptyStr;
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-ze-opt-disable' for frontend_option = -O0.
+// Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
+// Return '-ze-opt-level=2' for frontend_option = -O3.
+pi_result piPluginGetBackendOption(pi_platform platform,
+                                   const char *frontend_option,
+                                   const char **backend_option) {
+  if (frontend_option == nullptr || frontend_option[0] == '\0')
     return PI_ERROR_INVALID_VALUE;
-  }
+  if (!strcmp(frontend_option, "-O0"))
+    *backend_option = NoOptStr;
+  if (!strcmp(frontend_option, "-O1") || !strcmp(frontend_option, "-O2"))
+    *backend_option = O1OptStr;
+  if (!strcmp(frontend_option, "-O3"))
+    *backend_option = O2OptStr;
   return PI_SUCCESS;
 }
 

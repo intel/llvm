@@ -1121,9 +1121,10 @@ inline pi_result mock_piPluginGetLastError(char **message) {
   return PI_SUCCESS;
 }
 
-inline pi_result
-mock_piPluginGetBackendOptimizationOption(int opt_level, const char **option) {
-  *option = "";
+inline pi_result mock_piPluginGetBackendOption(pi_platform platform,
+                                               const char *frontend_option,
+                                               const char **backend_option) {
+  *backend_option = "";
   return PI_SUCCESS;
 }
 

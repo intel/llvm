@@ -235,12 +235,11 @@ public:
   void *getLibraryHandle() { return MLibraryHandle; }
   int unload() { return RT::unloadPlugin(MLibraryHandle); }
 
-  // Get backend optimization option
-  void getBackendOptimizationOption(int opt_level,
-                                    const char **backend_option) const {
-    RT::PiResult Err =
-        call_nocheck<PiApiKind::piPluginGetBackendOptimizationOption>(
-            opt_level, backend_option);
+  // Get backend option.
+  void getBackendOption(pi_platform platform, const char *frontend_option,
+                        const char **backend_option) const {
+    RT::PiResult Err = call_nocheck<PiApiKind::piPluginGetBackendOption>(
+        platform, frontend_option, backend_option);
     checkPiResult(Err);
   }
 

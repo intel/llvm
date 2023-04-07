@@ -113,17 +113,18 @@ backend.
 
 ### Changes to the plugin
 
-A new plugin API has been added. It takes the optimization level as input in
-integer format and returns `pi_result`. The signature is as follows:
+A new plugin API has been added. It takes the frontend option string as input in
+string format and returns `pi_result`. The signature is as follows:
 
 ```C++
-pi_result piPluginGetBackendOptimizationOption(int OptLevel,
-                                               char **backend_option);
+pi_result piPluginGetBackendOption(pi_platform platform,
+                                   const char *frontend_option,
+                                   const char **backend_option);
 ```
 
 In the level-zero and OpenCL plugins, the table provided in the 'Requirements'
 section is used as a guide to identify the appropriate backend option.
 The option is returned in `backend_option`. For other plugins (HIP, cuda, and
 ESIMD emulator), empty string is returned. This API returns `PI_SUCCESS` for
-valid inputs (0 <= OptLevel <= 3). For invalid inputs, it returns
+valid inputs (frontend_option != ""). For invalid inputs, it returns
 `PI_ERROR_INVALID_VALUE`.

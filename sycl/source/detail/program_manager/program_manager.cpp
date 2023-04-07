@@ -13,6 +13,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/persistent_device_code_cache.hpp>
+#include <detail/platform_impl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
@@ -359,12 +360,18 @@ static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
   return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
 }
 
-static int getUint32PropAsInt(const RTDeviceBinaryImage &Img,
-                              const char *PropName) {
+static const char *getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
+                                         const char *PropName) {
   pi_device_binary_property Prop = Img.getProperty(PropName);
+  std::stringstream ss;
   if (!Prop)
-    return -1;
-  return DeviceBinaryProperty(Prop).asUint32();
+    return (const char *)(ss.str().c_str());
+  int optLevel = DeviceBinaryProperty(Prop).asUint32();
+  if (optLevel < 0 || optLevel > 3)
+    return (const char *)(ss.str().c_str());
+  ss << "-O" << optLevel;
+  std::string temp = ss.str();
+  return (const char *)(temp.c_str());
 }
 
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
@@ -389,7 +396,6 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   // TODO: Remove isDoubleGRF check in next ABI break
   bool isLargeGRF = getUint32PropAsBool(Img, "isLargeGRF") ||
                     getUint32PropAsBool(Img, "isDoubleGRF");
-  int optLevel = getUint32PropAsInt(Img, "optLevel");
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   if (isEsimdImage) {
@@ -412,11 +418,19 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   // Add optimization flags.
   // Add only if compile options are not overwritten by environment
   // variable
-  if (!CompileOptsEnv && optLevel != -1) {
+  const char *optLevelStr = getUint32PropAsOptStr(Img, "optLevel");
+  if (!CompileOptsEnv && optLevelStr != nullptr && optLevelStr[0] == '\0') {
+    // Making sure all devices have the same platform.
+    assert(!Devs.empty() &&
+           std::all_of(Devs.begin(), Devs.end(), [&](const device &Dev) {
+             return Dev.get_platform() == Devs[0].get_platform();
+           }));
     const char *backend_option = nullptr;
     // Empty string is returned in backend_option when no appropriate backend
-    // option is available for a given opt level.
-    Plugin.getBackendOptimizationOption(optLevel, &backend_option);
+    // option is available for a given frontend option.
+    Plugin.getBackendOption(
+        detail::getSyclObjImpl(Devs[0].get_platform())->getHandleRef(),
+        optLevelStr, &backend_option);
     if (backend_option && backend_option[0] != '\0') {
       if (!CompileOpts.empty())
         CompileOpts += " ";
