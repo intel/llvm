@@ -756,10 +756,15 @@ void command_graph<graph_state::executable> update(const command_graph<graph_sta
 ----
 
 |Updates the executable graph node inputs & outputs from a topologically
-identical modifiable graph. The effects of the update will be visible
-on the next submission of the executable graph without the need for additional
-user synchronization. No changes to commands themselves will occur, such as to
-updating kernel or host task code to match that of the modifiable graph.
+identical modifiable graph. A topologically identical graph is one with the
+same structure of nodes and edges, and the nodes added in the same order to
+both graphs. Equivalent nodes in topologically identical graphs each have the
+same command, targeting the same device. There is the additional limitation that
+to update an executable graph, every node in the graph must be either a kernel
+command or a host-task.
+
+The effects of the update will be visible on the next submission of the
+executable graph without the need for additional user synchronization.
 
 Preconditions:
 
@@ -777,6 +782,12 @@ Exceptions:
 * Throws synchronously with error code `invalid` if the topology of `graph` is
   not the same as the existing graph topology, or if the nodes were not added in
   the same order.
+
+:handler-copy-functions: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.handler.copy
+
+* Throws synchronously with error code `invalid` if `graph` contains any node
+  which is not a kernel command or host-task, e.g.
+  {handler-copy-functions}[memory operations].
 |===
 
 === Queue Class Modifications
