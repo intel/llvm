@@ -186,14 +186,14 @@ template <int N> inline bool any(simd_mask<N> m, simd_mask<N> ignore_mask) {
 }
 
 // ----------------- The main test function
-
+#ifndef USE_ACCESSORS
 template <class T, int N, template <class, int> class ImplF>
 bool test(queue q, const Config &cfg) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
 
-  std::cout << "Testing mode=" << MODE << " op=" << to_string(op)
+  std::cout << "USM Testing mode=" << MODE << " op=" << to_string(op)
             << " full barrier=" << (USE_FULL_BARRIER ? "yes" : "no")
             << " T=" << esimd_test::type_name<T>() << " N=" << N << "\n\t"
             << cfg << "...";
@@ -300,6 +300,122 @@ bool test(queue q, const Config &cfg) {
 #endif // USE_FULL_BARRIER
   return err_cnt == 0;
 }
+#else
+template <class T, int N, template <class, int> class ImplF>
+bool test(queue q, const Config &cfg) {
+  constexpr auto op = ImplF<T, N>::atomic_op;
+  using CurAtomicOpT = decltype(op);
+  constexpr int n_args = ImplF<T, N>::n_args;
+
+  std::cout << "Accessor Testing mode=" << MODE << " op=" << to_string(op)
+            << " full barrier=" << (USE_FULL_BARRIER ? "yes" : "no")
+            << " T=" << esimd_test::type_name<T>() << " N=" << N << "\n\t"
+            << cfg << "...";
+
+  size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
+  auto arr = std::vector<T>(size);
+  auto buf = buffer{arr};
+#if USE_FULL_BARRIER
+  uint32_t *flag_ptr = malloc_shared<uint32_t>(1, q);
+  *flag_ptr = 0;
+#endif // USE_FULL_BARRIER
+  int n_threads = cfg.threads_per_group * cfg.n_groups;
+
+  for (int i = 0; i < size; ++i) {
+    arr[i] = ImplF<T, N>::init(i, cfg);
+  }
+
+  range<1> glob_rng(n_threads);
+  range<1> loc_rng(cfg.threads_per_group);
+  nd_range<1> rng(glob_rng, loc_rng);
+
+  try {
+    auto e = q.submit([&](handler &cgh) {
+      auto accessor = buf.template get_access<access::mode::read_write>(cgh);
+      cgh.parallel_for<TestID<T, N, ImplF>>(
+          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
+            int i = ii;
+#ifndef USE_SCALAR_OFFSET
+            simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
+                                     cfg.stride * sizeof(T));
+#else
+            Toffset offsets = 0;
+#endif
+            simd_mask<N> m = 1;
+            if (cfg.masked_lane < N)
+              m[cfg.masked_lane] = 0;
+          // barrier to achieve better contention:
+#if USE_FULL_BARRIER
+            // Full global barrier, works only with LSC atomics
+            // (+ ND range should fit into the available h/w threads).
+            atomic_update<LSCAtomicOp::inc, uint32_t, 1>(flag_ptr, 0, 1);
+            for (uint32_t x = atomic_load(flag_ptr); x < n_threads;
+                 x = atomic_load(flag_ptr))
+              ;
+#else
+        // Intra-work group barrier.
+        barrier();
+#endif // USE_FULL_BARRIER
+
+            // the atomic operation itself applied in a loop:
+            for (int cnt = 0; cnt < cfg.repeat; ++cnt) {
+              if constexpr (n_args == 0) {
+                atomic_update<op>(accessor, offsets, m);
+              } else if constexpr (n_args == 1) {
+                simd<T, N> v0 = ImplF<T, N>::arg0(i);
+                atomic_update<op>(accessor, offsets, v0, m);
+              } else if constexpr (n_args == 2) {
+                simd<T, N> new_val = ImplF<T, N>::arg0(i); // new value
+                simd<T, N> exp_val = ImplF<T, N>::arg1(i); // expected value
+                // do compare-and-swap in a loop until we get expected value;
+                // arg0 and arg1 must provide values which guarantee the loop
+                // is not endless:
+                for (auto old_val = atomic_update<op>(accessor, offsets,
+                                                      new_val, exp_val, m);
+                     any(old_val < exp_val, !m);
+                     old_val = atomic_update<op>(accessor, offsets, new_val,
+                                                 exp_val, m))
+                  ;
+              }
+            }
+          });
+    });
+    e.wait();
+  } catch (sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+#if USE_FULL_BARRIER
+    free(flag_ptr, q);
+#endif // USE_FULL_BARRIER
+    return false;
+  }
+  int err_cnt = 0;
+
+  for (int i = 0; i < size; ++i) {
+    T gold = ImplF<T, N>::gold(i, cfg);
+    T test = arr[i];
+
+    if ((gold != test) && (++err_cnt < 10)) {
+      if (err_cnt == 1) {
+        std::cout << "\n";
+      }
+      std::cout << "  failed at index " << i << ": " << test << " != " << gold
+                << "(gold)\n";
+    }
+  }
+  if (err_cnt > 0) {
+    std::cout << "  FAILED\n  pass rate: "
+              << ((float)(size - err_cnt) / (float)size) * 100.0f << "% ("
+              << (size - err_cnt) << "/" << size << ")\n";
+  } else {
+    std::cout << " passed\n";
+  }
+  free(arr, q);
+#if USE_FULL_BARRIER
+  free(flag_ptr, q);
+#endif // USE_FULL_BARRIER
+  return err_cnt == 0;
+}
+#endif
 
 // ----------------- Functions providing input and golden values for atomic
 // ----------------- operations.
