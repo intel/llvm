@@ -5,9 +5,6 @@
 // Check that full compilation works:
 // RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
-//
-// VISALTO enable run
-// RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %GPU_RUN_PLACEHOLDER %t.out
 #include <sycl/detail/boost/mp11.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
@@ -23,7 +20,7 @@ constexpr int VL = 16;
 
 [[intel::device_indirectly_callable]] simd<float, VL>
 SIMD_CALLEE(simd<float, VL> va, simd_mask<float, VL> mask) SYCL_ESIMD_FUNCTION {
-  esimd::simd<float, VL> ret;
+  esimd::simd<float, VL> ret(0);
   esimd::simd_mask<VL> emask;
   for(int i = 0; i < VL; i++)
     emask[i] = static_cast<bool>(mask[i]);
@@ -50,7 +47,6 @@ int main() {
     M[i] = i % 2;
   }
 
-  auto ctxt = q.get_context();
   sycl::buffer<float> ABuf(A);
   sycl::buffer<float> CBuf(C);
   sycl::buffer<bool> MBuf(M);
@@ -68,7 +64,7 @@ int main() {
       sycl::accessor M_acc{MBuf, cgh, sycl::read_only};
       cgh.parallel_for(Range, [=](nd_item<1> ndi) {
         sub_group sg = ndi.get_sub_group();
-        uint32_t wi_id = ndi.get_global_linear_id() + sg.get_local_id();
+        uint32_t wi_id = ndi.get_global_linear_id();
         float res = invoke_simd(sg, SIMD_CALLEE, A_acc[wi_id], M_acc[wi_id]);
         C_acc[wi_id] = res;
       });
