@@ -36,9 +36,11 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
                "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg")
 
-list(APPEND SYCL_E2E_TEST_DEPS
-  sycl-toolchain
+if(NOT SYCL_TEST_E2E_STANDALONE)
+  list(APPEND SYCL_E2E_TEST_DEPS
+    sycl-toolchain
   )
+endif() # Standalone.
 
 if(SYCL_TEST_E2E_TARGETS)
   message("Configure iterative execution on multiple backends")
