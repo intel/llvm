@@ -12,6 +12,7 @@
 #include <sycl/detail/builtins.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/pointers.hpp>
 #include <sycl/types.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
@@ -773,6 +774,95 @@ detail::enable_if_t<detail::is_svgenfloat<T>::value, T> tgamma(T x) __NOEXC {
 template <typename T>
 detail::enable_if_t<detail::is_svgenfloat<T>::value, T> trunc(T x) __NOEXC {
   return __sycl_std::__invoke_trunc<T>(x);
+}
+
+// other marray math functions
+
+// TODO: can be optimized in the way marray math functions above are optimized
+// (usage of vec<T, 2>)
+#define __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(NAME, ARGPTR,   \
+                                                               ...)            \
+  marray<T, N> res;                                                            \
+  for (int j = 0; j < N; j++) {                                                \
+    res[j] =                                                                   \
+        NAME(__VA_ARGS__,                                                      \
+             address_space_cast<AddressSpace, IsDecorated,                     \
+                                detail::marray_element_t<T2>>(&(*ARGPTR)[j])); \
+  }                                                                            \
+  return res;
+
+#define __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(        \
+    NAME, ARG1, ARG2, ...)                                                     \
+  template <typename T, size_t N, typename T2,                                 \
+            access::address_space AddressSpace, access::decorated IsDecorated> \
+  std::enable_if_t<                                                            \
+      detail::is_svgenfloat<T>::value &&                                       \
+          detail::is_genfloatptr_marray<T2, AddressSpace, IsDecorated>::value, \
+      marray<T, N>>                                                            \
+  NAME(marray<T, N> ARG1, multi_ptr<T2, AddressSpace, IsDecorated> ARG2)       \
+      __NOEXC {                                                                \
+    __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(NAME, ARG2,         \
+                                                           __VA_ARGS__)        \
+  }
+
+__SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(fract, x, iptr,
+                                                               x[j])
+__SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(modf, x, iptr,
+                                                               x[j])
+__SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENFLOATPTR_OVERLOAD(sincos, x,
+                                                               cosval, x[j])
+
+#undef __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_GENFLOATPTR_OVERLOAD
+
+#define __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENINTPTR_OVERLOAD(          \
+    NAME, ARG1, ARG2, ...)                                                     \
+  template <typename T, size_t N, typename T2,                                 \
+            access::address_space AddressSpace, access::decorated IsDecorated> \
+  std::enable_if_t<                                                            \
+      detail::is_svgenfloat<T>::value &&                                       \
+          detail::is_genintptr_marray<T2, AddressSpace, IsDecorated>::value,   \
+      marray<T, N>>                                                            \
+  NAME(marray<T, N> ARG1, multi_ptr<T2, AddressSpace, IsDecorated> ARG2)       \
+      __NOEXC {                                                                \
+    __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(NAME, ARG2,         \
+                                                           __VA_ARGS__)        \
+  }
+
+__SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENINTPTR_OVERLOAD(frexp, x, exp,
+                                                             x[j])
+__SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_ARG_GENINTPTR_OVERLOAD(lgamma_r, x, signp,
+                                                             x[j])
+
+#undef __SYCL_MARRAY_MATH_FUNCTION_BINOP_2ND_GENINTPTR_OVERLOAD
+
+#define __SYCL_MARRAY_MATH_FUNCTION_REMQUO_OVERLOAD(NAME, ...)                 \
+  template <typename T, size_t N, typename T2,                                 \
+            access::address_space AddressSpace, access::decorated IsDecorated> \
+  std::enable_if_t<                                                            \
+      detail::is_svgenfloat<T>::value &&                                       \
+          detail::is_genintptr_marray<T2, AddressSpace, IsDecorated>::value,   \
+      marray<T, N>>                                                            \
+  NAME(marray<T, N> x, marray<T, N> y,                                         \
+       multi_ptr<T2, AddressSpace, IsDecorated> quo) __NOEXC {                 \
+    __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL(NAME, quo,          \
+                                                           __VA_ARGS__)        \
+  }
+
+__SYCL_MARRAY_MATH_FUNCTION_REMQUO_OVERLOAD(remquo, x[j], y[j])
+
+#undef __SYCL_MARRAY_MATH_FUNCTION_REMQUO_OVERLOAD
+
+#undef __SYCL_MARRAY_MATH_FUNCTION_W_GENPTR_ARG_OVERLOAD_IMPL
+
+template <typename T, size_t N>
+std::enable_if_t<detail::is_nan_type<T>::value,
+                 marray<detail::nan_return_t<T>, N>>
+nan(marray<T, N> nancode) __NOEXC {
+  marray<detail::nan_return_t<T>, N> res;
+  for (int j = 0; j < N; j++) {
+    res[j] = nan(nancode[j]);
+  }
+  return res;
 }
 
 /* --------------- 4.13.5 Common functions. ---------------------------------*/

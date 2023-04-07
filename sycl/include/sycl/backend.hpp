@@ -210,6 +210,18 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
                                const device *TargetDevice, bool KeepOwnership,
                                const async_handler &Handler, backend Backend);
+
+// The make_queue2 and getNative2 functions are added as a temporary measure so
+// that the existing make_queue and getNative functions can co-exist with them.
+// At the next ABI redefinition the current make_queue and getNative definitions
+// will be removed. "make_queue2" will be renamed "make_queue" and "getNative2"
+// will be renamed "getNative".
+__SYCL_EXPORT queue make_queue2(pi_native_handle NativeHandle,
+                                int32_t nativeHandleDesc,
+                                const context &TargetContext,
+                                const device *TargetDevice, bool KeepOwnership,
+                                const property_list &PropList,
+                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -269,6 +281,20 @@ typename std::enable_if<
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
+  if constexpr (Backend == backend::ext_oneapi_level_zero) {
+    bool IsImmCmdList = std::holds_alternative<ze_command_list_handle_t>(
+        BackendObject.NativeHandle);
+    pi_native_handle Handle =
+        IsImmCmdList ? reinterpret_cast<pi_native_handle>(
+                           *(std::get_if<ze_command_list_handle_t>(
+                               &BackendObject.NativeHandle)))
+                     : reinterpret_cast<pi_native_handle>(
+                           *(std::get_if<ze_command_queue_handle_t>(
+                               &BackendObject.NativeHandle)));
+    return sycl::detail::make_queue2(Handle, IsImmCmdList, TargetContext,
+                                     nullptr, false, BackendObject.Properties,
+                                     Handler, Backend);
+  }
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, nullptr, false, Handler, Backend);
 }

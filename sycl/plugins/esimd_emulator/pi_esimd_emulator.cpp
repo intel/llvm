@@ -943,6 +943,10 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_VALUE;
   return piQueueCreate(Context, Device, Flags, Queue);
 }
+pi_result piextQueueCreate2(pi_context Context, pi_device Device,
+                            pi_queue_properties *Properties, pi_queue *Queue) {
+  return piextQueueCreate(Context, Device, Properties, Queue);
+}
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   ARG_UNUSED(Device);
@@ -1015,8 +1019,18 @@ pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextQueueGetNativeHandle2(pi_queue, pi_native_handle *, int32_t *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
                                            pi_device, bool, pi_queue *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextQueueCreateWithNativeHandle2(pi_native_handle, int32_t,
+                                            pi_context, pi_device, bool,
+                                            pi_queue_properties *, pi_queue *) {
   DIE_NO_IMPLEMENTATION;
 }
 
