@@ -18,6 +18,23 @@
 :language: {basebackend@docbook:c++:cpp}
 
 
+- [Bindless Images](#bindless-images)
+  - [Notice](#notice)
+  - [Dependencies](#dependencies)
+  - [Status](#status)
+  - [Terminology](#terminology)
+  - [Overview](#overview)
+    - [Background](#background)
+    - [Specification](#specification)
+  - [Definitions](#definitions)
+    - [Interfaces](#interfaces)
+    - [Enums](#enums)
+  - [Programming example](#programming-example)
+    - [Non-USM](#non-usm)
+    - [USM](#usm)
+  - [Known Issues and Limitations](#known-issues-and-limitations)
+  - [Revision History](#revision-history)
+
 == Notice
 
 [%hardbreaks]
@@ -30,334 +47,564 @@ permission by Khronos.
 
 == Dependencies
 
-This extension is written against the Level Zero v1.5.8 specification.  All
-references below to the "core SYCL specification" or to section numbers in the
-SYCL specification refer to that revision.
+This extension is written against the Level Zero v1.5.8 specification.
 
 == Status
 
 This is an experimental extension specification, intended to provide early
-access to features and gather community feedback.  Interfaces defined in this
-specification are implemented in {dpcpp}, but they are not finalized and may
-change incompatibly in future versions of {dpcpp} without prior notice.
-*Shipping software products should not rely on APIs defined in this
-specification.*
+access to features and gather community feedback.
 
-== API
+== Terminology
 
-* Enumerations
-+
-```
-ze_bindless_images_ext_version_t
-```
-* Structures
-+
-```
-ze_image_mem_exp_desc_t
-ze_bindless_image_exp_desc_t
-ze_image_mem_alloc_exp_desc_t
-```
+For the purposes of this document, a bindless image is one which provides
+stateless access to the underlying data via image reference handles. At the
+application level, this allows the user to implement programs where the number
+of images is not known at compile-time, and store all handles to images --
+irrespective of varying formats and layouts -- in some container, e.g. a dynamic
+array.
 
 == Overview
 
-Bindless images are a feature that provides flexibility on how images are accessed and used, such as removing limitations on how many images can be accessed as well as potentially improving performance.
-This is an improvement on the legacy of binding images which is a holdover from binding slots in hardware which used to be limited in number.
+In this document, we propose the following changes to the Level Zero API:
 
-Currently, bindless images are used internally in Level Zero.
-However, the full capabilities of bindless images are not exposed such as being able to independently access different types of images in an array regardless of their dimensionality as long as the images are accessed correctly by the user.
+- The creation of images to be split into explicit allocation of image memory
+  and the creation of image handles from the previously allocated memory
+- Support for creation of images on linearly allocated memory backed by USM
+- Addition of image memory copy functions that allow copying to and from image
+  memory before an image handle's construction
 
-This document will be proposing an extension for Level Zero to enable bindless images to be fully exploited.
-Part of the inspiration for this proposal is to allow the implementation of bindless images in SYCL, a proposal for which is currently in development, where Level Zero is used as a backend.
-
-
-=== Current Status of Images in Level Zero
-
-Currently, `zeImageCreate` does not produce image handles that have the properties to enable bindless images.
-In addition to this, images allocate and own their memory.
-These two things conflict with work being conducted on SYCL bindless images.
-This is because the API for SYCL bindless images has been designed to improve the flexibility and general usability of images in SYCL and this introduces some conflicts with Level Zero.
-For bindless images in SYCL to work in Level Zero, not only must there be a way to produce bindless image handles, but also allocate and populate image memory before `zeImageCreate` is called.
-
-Level Zero stores image memory in an implementation-specific encoding and layout that optimizes for device access such as the z-order curve.
-This proposal, instead, focuses on storing image memory in a linear fashion.
-
-Also, accessing images through USM is not supported by Level Zero.
-This would allow the reading and writing of image data with conventional pointers, in contrast to the current Level Zero images which require the exclusive use of API.
-This proposal introduces bindless images to Level Zero which allows for USM access.
-
-=== Explicit or Implicit Bindless Images
-
-There are two directions in which bindless images can be implemented.
-Either all images are implicitly bindless, or bindless images are explicitly declared.
-
-Level Zero with implicit bindless images would mean all images would have to be bindless.
-This would mean that users could start using the features of bindless images without needing to introduce new code to enable bindless images.
-This method however could present issues on devices that cannot support bindless images and some kind of flag would be required to enable or disables bindless images.
-Also, there would be no way to use both bound and bindless images together which could potentially present issues when that is desired.
-
-Level Zero with explicit bindless images would require a way to designate an image as bindless at the image's construction.
-This would allow the mixing of bound and bindless images which could be useful for some developers as it would be clearer what is incompatible with a device that does not support bindless images.
-
-This extension is written for explicit bindless images.
-If implicit bindless images are the direction chosen to go in then the struct `ze_bindless_image_exp_desc_t` will not be needed.
-
-=== Current SYCL Bindless API
-
-The current proposed SYCL API for bindless images looks as follows:
-
-Functions:
-```cpp
-image_mem_handle allocate_image(...)
-image_handle create_image(...)
-event queue::copy_image(...)
-DataT read_image(...)
-void write_image(...)
-```
-
-This API was designed with the restrictions of CUDA in mind as changes cannot be made to CUDA.
-
-In SYCL the process currently looks like this:
-Allocate the image using `allocate_image`.
-The image handle is then created using `create_image`.
-Then the data of the image is copied over to the device via `copy_image`.
-Lastly in the kernel, the image can be read and written using the respective image handle and `read_image`/`write_image`.
-
-This presents some API differences when compared to how the Level Zero image API currently works.
-In Level Zero, first, the creation of the image occurs.
-This effectively performs both `allocate_image` and `create_image` from the proposed extended SYCL API.
-The data can then be copied to the device and read within a kernel.
-We cannot effectively map `zeImageCreate` to both `sycl::ext::allocate_image` and `sycl::ext::create_image`.
-Therefore, we propose to extend Level Zero with the ability to allocate image memory separately from `zeImageCreate`, and pass that memory to `zeImageCreate` to use.
-
-There are also issues with pitched image memory.
-Normally, Level Zero deals with pitched memory itself and does not concern the user. 
-However, with the newly proposed SYCL bindless images API, the pitch information must be handled by the user on allocation and passed between the copying and creation functions.
-
-== Specification
-
-For bindless images to function in Level Zero, image handles must be produced.
-
-This is done by introducing three new extension structures.
-The first, `ze_bindless_image_exp_desc_t` designates an image or sampler as bindless and contains a field that can be used to access the image handle created.
-The second, `ze_image_mem_exp_desc_t` allows for the separate memory management of images.
-This allows for image data to be copied over to the device before the image type is created using `zeCommandListAppendMemoryCopyRegion`.
-While this can be mimicked using the https://spec.oneapi.io/level-zero/latest/core/EXT_ImageCopy.html[image copy extension],
-that introduces extra copies as a full image would need to be created in the `allocate_image` step then overwritten using functions from this extension.
-Copying image data to and from the device can be done before or after `zeImageCreate` is called.
-Lastly, is `ze_image_mem_alloc_exp_desc_t`.
-This is used for Level Zero to allocate memory and calculate the best pitch size for bindless images.
-
-=== New Structure Types
-
-* enumerator `ZE_BINDLESS_IMAGE_EXP_DESC`
-+
-```
-ze_bindless_image_exp_desc_t
-```
-* enumerator `ZE_STRUCTURE_TYPE_IMAGE_MEM_EXP_DESC`
-+
-```
-ze_image_mem_exp_desc_t
-```
-* enumerator `ZE_STRUCTURE_TYPE_IMAGE_MEM_ALLOC_DESC`
-+
-```
-ze_image_mem_alloc_exp_desc_t
-```
-
-==== ze_bindless_image_exp_desc_t
-
-* `struct ze_bindless_image_exp_desc_t`
-+
-Bindless descriptor
-
-Public Members
-
-* `ze_structure_type_t stype`
-+
-[in] type of this structure
-* `const void *pNext`
-+
-[in][optional] must be null or a pointer to an extension-specific structure (i.e. contains sType and pNext).
-
-`ze_bindless_image_exp_desc_t` is intended to be used to declare an image as bindless.
-If the choice is taken for bindless to be the default then this struct will not be needed.
-In this document, it is assumed that bound images will be the default and bindless images will need to be explicitly declared.
-
-To use this struct it should be passed into `zeImageCreate` to inform Level Zero that the image is to be bindless.
-The returned image handle in turn should have the characteristics to enable bindless images.
-
-==== ze_image_mem_exp_desc_t
-
-* `struct ze_image_mem_exp_desc_t`
-+
-Manual image memory descriptor
-
-Public Members
-
-* `ze_structure_type_t stype`
-+
-[in] type of this structure
-* `const void *pNext`
-+
-[in][optional] must be null or a pointer to an extension-specific structure (i.e. contains sType and pNext).
-*
-`void **ptr`
-+
-[in] pointer to device allocation
-* `uint64_t rowPitch`
-+
-[in][optional] size of image row pitch in bytes
-* `uint64_t slicePitch`
-+
-[in][optional] size of image slice pitch in bytes
-
-`ze_image_mem_exp_desc_t` is intended to allow for the separate memory management of images.
-To use this struct it is to be passed to `zeImageCreate`.
-In addition to passing the pointer to the memory that `zeImageCreate` is to use it also informs Level Zero what pitch the image memory is.
-
-==== ze_image_mem_alloc_exp_desc_t
-
-* `struct ze_image_mem_alloc_exp_desc_t`
-+
-Declare pitch of image
-
-Public Members
-
-* `ze_structure_type_t stype`
-+
-[in] type of this structure
-* `const void *pNext`
-+
-[in][optional] must be null or a pointer to an extension-specific structure (i.e. contains sType and pNext).
-* `uint64_t widthInBytes`
-+
-[in] width of image row in bytes
-* `uint64_t height`
-+ [in] height of image
-* `uint64_t depth`
-+
-[in] depth of image
-* `uint64_t elementSizeBytes`
-+
-[in] byte size of single element
-* `uint64_t *rowPitch`
-+
-[out][optional] pitch of row
-* `uint64_t *slicePitch`
-+
-[out][optional] pitch of slice
-
-`ze_image_mem_alloc_exp_desc_t` is intended to be passed to `zeMemAllocDevice` when manually allocating memory for an image to return optimized pitch information.
-The returned row and slice pitch can then be passed to `zeCommandListAppendMemoryCopyRegion` through its arguments and `zeImageCreate` using `ze_image_mem_exp_desc_t` to inform both functions what the correct pitched image memory is.
-The order in that structs are passed in using `pNext` does not matter.
+Currently, in Level Zero, the `zeImageCreate` performs the image memory
+allocation and image handle generation. Moreover, this function only allows for
+the allocation of image memory in an implementation-specific layout. Delivering
+the features proposed in this document will improve the functionality and
+flexibility of the Level Zero API.
 
 
-The following pseudo-code demonstrates how to create a bindless image with separate memory:
+=== Background
+
+The DPC++ bindless images extension has sought to provide the flexibility of
+bindless images at the SYCL application level. Per the proposal, users would be
+able to separate image memory allocation from the image handle creation.
+Tools such as SYCLomatic would benefit from this flexibility when converting
+CUDA to SYCL code. Level Zero's support for this extension would enable
+converted code to run optimally on Intel hardware.
+
+Additionally, per the DPC++ bindless images extension, users would be able to
+create and sample images based on linearly allocated memory. A valuable use-case
+is the creation of a bindless image on already existing USM memory, preventing
+copies, and hardware sampling can be applied to that data.
+
+This proposal aims to extend Level Zero to better align with the PI API used by
+the SYCL runtime in DPC++.
+
+
+=== Specification
+
+To enable the separation of image memory allocation from image handle
+generation, we propose two new allocation functions `zeMemAllocImageExp` and
+`zeMemAllocPitchedExp`.
+
+`zeMemAllocImageExp` will allocate non-USM image memory with an implementation
+specific layout (such as tile swizzle patterns or lossless compression).
+
+Whereas, `zeMemAllocPitchedExp` will allocate USM memory in a linear layout.
+Memory allocated with this API should be freed using `zeMemFree`.
+
+Alongside these allocation functions, we propose a singular additional freeing
+function, `zeMemFreeImageExp`, to free memory allocated with
+`zeMemAllocImageExp`.
+
+We also propose a new struct `ze_device_image_bindless_exp_desc_t` that
+describes device restrictions on image properties. It should be passed to
+`ze_device_properties_t::pNext`. It contains the fields `imagePitchAlign`,
+`maxImageLinearWidth`, `maxImageLinearHeight`, and `maxImageLinearPitch`.
+
+== Definitions
 
 ```cpp
-size_t widthInBytes = 100 * sizeof(float), width = 100, height = 100, depth = 0;
-unsigned int elementSizeBytes = sizeof(float);
+typedef uint64_t ze_image_mem_handle_exp_t;
 
-size_t rowPitch, slicePitch;
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Describes memory to be allocated on device intended for images with
+///        a device specific memory layout
+///
+/// @details
+///     - This structure is passed to:
+///       + ::zeMemAllocImageExp
+///       + ::ze_image_desc_t.pNext
+///         - When this structure is passed to an image descriptor,
+///           ::zeImageCreate must not allocate any additional device memory for
+///           the created image, only return a handle.
+///         - Additionally, when ::zeImageDestroy is called on an image created
+///           from a ::ze_image_mem_alloc_exp_desc_t allocation,
+///           ::zeImageDestroy must not free the memory associated with the
+///           image handle.
+///
+typedef struct _ze_image_mem_alloc_exp_desc_t {
+    ze_structure_type_t stype;      // [in]
+    void *pNext;                    // [in,out][optional]
+    size_t widthInBytes;            // [in]
+    size_t height;                  // [in][optional]
+    size_t depth;                   // [in][optional]
+    uint32_t elementSizeByte;       // [in]
+} ze_image_mem_alloc_exp_desc_t;
 
-ze_image_mem_alloc_exp_desc_t imgAllocDesc = {
-    ZE_STRUCTURE_TYPE_IMAGE_MEM_ALLOC_DESC, // stype
-    nullptr, // pNext
-    widthInBytes,
-    height,
-    depth,
-    elementSizeBytes,
-    &rowPitch,
-    &slicePitch
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Describes linear USM to be allocated on device intended for images
+///
+/// @details
+///     - This structure is passed to:
+///       + ::zeMemAllocPitchedExp
+///         - ::rowPitch and ::slicePitch are [out] parameters
+///       + ::ze_image_desc_t.pNext
+///         - ::rowPitch and ::slicePitch are [in] parameters
+///         - When this structure is passed to an image descriptor,
+///           ::zeImageCreate must not allocate any additional device memory for
+///           the created image, only return a handle.
+///         - Additionally, when ::zeImageDestroy is called on an image created
+///           from a ::ze_image_mem_alloc_exp_desc_t allocation,
+///           ::zeImageDestroy must not free the memory associated with the
+///           image handle.
+///
+typedef struct _ze_image_usm_alloc_exp_desc_t {
+    ze_structure_type_t stype;      // [in]
+    void *pNext;                    // [in,out][optional]
+    size_t widthInBytes;            // [in]
+    size_t height;                  // [in][optional]
+    size_t depth;                   // [in][optional]
+    uint32_t elementSizeBytes;      // [in]
+    size_t rowPitch;                // [in,out]
+    size_t slicePitch;              // [in,out]
+} ze_image_usm_alloc_exp_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Describes device specific restrictions for image properties
+///
+/// @details
+///     - This structure is passed to:
+///       + ::ze_device_properties_t::pNext
+///
+typedef struct _ze_device_image_bindless_exp_desc_t {
+    ze_structure_type_t stype;      // [in]
+    void *pNext;                    // [in,out][optional]
+    uint32_t imagePitchAlign;       // [out]
+    size_t maxImageLinearWidth;     // [out]
+    size_t maxImageLinearHeight;    // [out]
+    size_t maxImageLinearPitch;     // [out]
+} ze_device_image_bindless_exp_desc_t;
+```
+
+=== Interfaces
+
+```cpp
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Allocates on device memory intended for images
+///
+/// @details
+///     - Allocates on device image memory in an implementation specific layout and encoding
+///     - The memory allocated through this function should not be freed with ::zeMemFree,
+///     - but rather with ::zeMemFreeImageExp
+///     - Copy operations to or from this memory need to use ::zeCommandListAppendImage
+///
+/// @returns
+///     - ::ZE_RESULT_SUCCESS
+///     - ::ZE_RESULT_ERROR_INVALID_ARGUMENT
+///         + invalid image_desc
+///         + invalid mem_handle
+///     - ::ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+///         + out of memory
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + nullptr == hContext
+ZE_APIEXPORT ze_result_t ZE_APICALL
+zeMemAllocImageExp(
+    ze_context_handle_t hContext,                       /// [in] handle of the context object
+    const ze_image_mem_alloc_exp_desc_t *image_desc,    /// [in] memory allocation descriptor
+    ze_image_mem_handle_exp_t *mem_handle               /// [out] pointer to device allocation handle
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Allocates pitched USM
+///
+/// @details
+///     - Allocates USM in a linear layout
+///     - Populates image_desc rowPitch and slicePitch variables
+///     - The memory allocated through this function should be freed with ::zeMemFree
+///
+/// @returns
+///     - ::ZE_RESULT_SUCCESS
+///     - ::ZE_RESULT_ERROR_INVALID_ARGUMENT
+///         + invalid image_desc
+///         + invalid usm_ptr
+///     - ::ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+///         + out of memory
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + nullptr == hContext
+ZE_APIEXPORT ze_result_t ZE_APICALL
+zeMemAllocPitchedExp(
+    ze_context_handle_t hContext,                       /// [in] handle of the context object
+    const ze_image_usm_alloc_exp_desc_t *image_desc,    /// [in] usm allocation descriptor
+    void **pptr                                         /// [out] pointer to device allocation
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Deallocates image memory
+///
+/// @details
+///     - Deallocates image memory allocated through ::zeMemAllocImageExp
+///
+/// @returns
+///     - ::ZE_RESULT_SUCCESS
+///     - ::ZE_RESULT_ERROR_INVALID_ARGUMENT
+///         + invalid mem_handle
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + nullptr == hContext
+ZE_APIEXPORT ze_result_t ZE_APICALL
+zeMemFreeImageExp(
+    ze_context_handle_t hContext,                       /// [in] handle of the context object
+    ze_image_mem_handle_exp_t mem_handle                /// [in] device allocation handle
+    );
+
+/// @brief Appends a command to copy image memory from the host to the device
+///
+/// @details
+///     - This functions allows for the copying of data to image memory before
+///       an image handle is created
+///
+/// @returns
+///     - ::ZE_RESULT_SUCCESS
+///     - ::ZE_RESULT_ERROR_UNINITIALIZED
+///     - ::ZE_RESULT_ERROR_DEVICE_LOST
+///     - ::ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + nullptr == hCommandList
+///         + nullptr == hDstImageMem
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_POINTER
+///         + nullptr == srcptr
+///     - ::ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT
+///     - ::ZE_RESULT_ERROR_INVALID_SIZE
+///         + (nullptr == phWaitEvents) && (0 < numWaitEvents)
+ZE_APIEXPORT ze_result_t ZE_APICALL
+zeCommandListAppendImageMemoryCopyFromHostExp(
+    ze_command_list_handle_t hCommandList,              /// [in] handle of command list
+    ze_image_mem_handle_exp_t hDstImageMem,             /// [in] handle of destination image memory to copy to
+    const void *srcptr,                                 /// [in] pointer to source memory to copy from
+    const ze_image_region_t *pDstRegion,                /// [in][optional] destination region descriptor
+    ze_event_handle_t hSignalEvent,                     /// [in][optional] handle of the event to signal on completion
+    uint32_t numWaitEvents,                             /// [in][optional] number of events to wait on before launching
+    ze_event_handle_t *phWaitEvents                     /// [in][optional][range(0, numWaitEvents)] handle of the events to wait on before launching
+)
+
+/// @brief Appends a command to copy image memory from the device to the host
+///
+/// @details
+///     - This functions allows for the copying of data from image memory before
+///       an image handle is created
+///
+/// @returns
+///     - ::ZE_RESULT_SUCCESS
+///     - ::ZE_RESULT_ERROR_UNINITIALIZED
+///     - ::ZE_RESULT_ERROR_DEVICE_LOST
+///     - ::ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + nullptr == hCommandList
+///         + nullptr == hDstImageMem
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_POINTER
+///         + nullptr == srcptr
+///     - ::ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT
+///     - ::ZE_RESULT_ERROR_INVALID_SIZE
+///         + (nullptr == phWaitEvents) && (0 < numWaitEvents)
+ZE_APIEXPORT ze_result_t ZE_APICALL
+zeCommandListAppendImageMemoryCopyToHostExp(
+    ze_command_list_handle_t hCommandList,              /// [in] handle of command list
+    void *dstptr,                                       /// [in] pointer to destination memory to copy to
+    const ze_image_mem_handle_t hSrcImageMem,           /// [in] handle of source image memory to copy from
+    const ze_image_region_t *pSrcRegion,                /// [in][optional] source region descriptor
+    ze_event_handle_t hSignalEvent,                     /// [in][optional] handle of the event to signal on completion
+    uint32_t numWaitEvents,                             /// [in][optional] number of events to wait on before launching
+    ze_event_handle_t *phWaitEvents                     /// [in][optional][range(0, numWaitEvents)] handle of the events to wait on before launching
+)
+
+/// @brief Appends a command to copy image USM memory from the host to the device
+///
+/// @details
+///     - This functions allows for the copying of data to image memory before
+///       an image handle is created
+///
+/// @returns
+///     - ::ZE_RESULT_SUCCESS
+///     - ::ZE_RESULT_ERROR_UNINITIALIZED
+///     - ::ZE_RESULT_ERROR_DEVICE_LOST
+///     - ::ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + nullptr == hCommandList
+///         + nullptr == hDstImageMem
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_POINTER
+///         + nullptr == srcptr
+///     - ::ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT
+///     - ::ZE_RESULT_ERROR_INVALID_SIZE
+///         + (nullptr == phWaitEvents) && (0 < numWaitEvents)
+ZE_APIEXPORT ze_result_t ZE_APICALL
+zeCommandListAppendImageUSMCopyFromHostExp(
+    ze_command_list_handle_t hCommandList,              /// [in] handle of command list
+    void *dstptr,                                       /// [in] pointer to destination image USM to copy to
+    const void *srcptr,                                 /// [in] pointer to source memory to copy from
+    const ze_image_region_t *pDstRegion,                /// [in][optional] destination region descriptor
+    ze_event_handle_t hSignalEvent,                     /// [in][optional] handle of the event to signal on completion
+    uint32_t numWaitEvents,                             /// [in][optional] number of events to wait on before launching
+    ze_event_handle_t *phWaitEvents                     /// [in][optional][range(0, numWaitEvents)] handle of the events to wait on before launching
+)
+
+/// @brief Appends a command to copy image USM memory from the device to the host
+///
+/// @details
+///     - This functions allows for the copying of data from image USM memory
+///       before an image handle is created
+///
+/// @returns
+///     - ::ZE_RESULT_SUCCESS
+///     - ::ZE_RESULT_ERROR_UNINITIALIZED
+///     - ::ZE_RESULT_ERROR_DEVICE_LOST
+///     - ::ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + nullptr == hCommandList
+///         + nullptr == hDstImageMem
+///     - ::ZE_RESULT_ERROR_INVALID_NULL_POINTER
+///         + nullptr == srcptr
+///     - ::ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT
+///     - ::ZE_RESULT_ERROR_INVALID_SIZE
+///         + (nullptr == phWaitEvents) && (0 < numWaitEvents)
+ZE_APIEXPORT ze_result_t ZE_APICALL
+zeCommandListAppendImageUSMCopyToHostExp(
+    ze_command_list_handle_t hCommandList,              /// [in] handle of command list
+    void *dstptr,                                       /// [in] pointer to destination memory to copy to
+    const void *srcptr,                                 /// [in] pointer to source image USM to copy from
+    const ze_image_region_t *pSrcRegion,                /// [in][optional] source region descriptor
+    ze_event_handle_t hSignalEvent,                     /// [in][optional] handle of the event to signal on completion
+    uint32_t numWaitEvents,                             /// [in][optional] number of events to wait on before launching
+    ze_event_handle_t *phWaitEvents                     /// [in][optional][range(0, numWaitEvents)] handle of the events to wait on before launching
+)
+```
+
+
+=== Enums
+We propose the following additional structure type enums for the structures
+defined above.
+
+```cpp
+enum ze_structure_type_t {
+    ZE_STRUCTURE_TYPE_IMAGE_MEM_ALLOC_DESC, /* ze_image_mem_alloc_desc_t */
+    ZE_STRUCTURE_TYPE_IMAGE_USM_ALLOC_DESC /* ze_image_usm_alloc_desc_t */
+};
+```
+
+== Programming example
+
+=== Non-USM
+
+```cpp
+// Assumed constructed device and context
+ze_device_handle_t hDevice;
+ze_context_handle_t hContext;
+
+// Assumed allocated command list
+ze_command_list_handle_t hCommandList;
+
+// Assumed image data on host
+std::vector<float> imageDataHost;
+
+// 2D image dimensions
+size_t imageWidth = 1024;
+size_t imageHeight = 1024;
+
+// Create a non-USM image memory allocation descriptor
+ze_image_mem_alloc_exp_desc_t imageMemAllocDesc = {
+  ZE_STRUCTURE_TYPE_IMAGE_MEM_ALLOC_DESC,       /* stype */
+  nullptr,                                      /* pNext */
+  imageWidth * sizeof(float),                   /* widthInBytes */
+  imageHeight,                                  /* height */
+  0,                                            /* depth */
+  sizeof(float)                                 /* elementSizeBytes */
 };
 
-ze_device_mem_alloc_desc_t deviceDesc = {
-    ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC, // stype
-    imgAllocDesc, // pNext
-    ZE_DEVICE_MEM_ALLOC_FLAG_BIAS_UNCACHED // flags
-    0 // ordinal
-};
+// Allocate image memory and return the handle to that memory
+ze_image_mem_handle_exp_t hImageMem;
+zeMemAllocImageExp(hContext, &imageMemAllocDesc, &hImageMem);
 
-void *imgMemPtr;
-// maybe have new zeExtMemImageAllocDevice instead of zeMemAllocDevice then ze_device_mem_alloc_desc_t would not be needed.
-// Also size field would not be needed as that info would be able to be calculated from data in ze_image_mem_alloc_exp_desc_t.
-zeMemAllocDevice(context, deviceDesc, width * height * sizeof(float), 1, device,
-                 imgMemPtr);
+// Copy from host to device
+// Our extension allows us to copy to image memory before the image handle
+// itself is created
+// If the `hImageMem` has a device specific layout, this copy will need
+// to transform the linear host memory to device specific layout
+zeCommandListAppendImageMemoryCopyFromHostExp(hCommandList,
+                                              hImageMem,
+                                              imageDataHost.data(),
+                                              nullptr /* pDstRegion */,
+                                              nullptr /* hSignalEvent */,
+                                              0 /* numWaitEvents */,
+                                              nullptr /* phWaitEvents */);
 
-ze_copy_region_t cpyRegionImg = {
-    0, // x offset
-    0, // y offset
-    0, // z offset
-    width,
-    height,
-    depth
-};
 
-zeCommandListAppendMemoryCopyRegion(commandList, imgMemPtr, cpyRegionImg,
-                                    rowPitch, slicePitch, srcPtr, cpyRegionImg,
-                                    0 /*srcRowPitch*/, 0 /*srcSlicePitch*/,
-                                    nullptr /*ze_event_handle_t*/,
-                                    0 /*numWaitEvents*/,
-                                    nullptr /*ze_event_handle_t*/);
+// Single-precision float image format with one channel
+ze_image_format_t imageFormat = {
+  ZE_IMAGE_FORMAT_LAYOUT_32,      /* layout */
+  ZE_IMAGE_FORMAT_TYPE_FLOAT,     /* type */
+  ZE_IMAGE_FORMAT_SWIZZLE_R,      /* swizzle x -> R */
+  ZE_IMAGE_FORMAT_SWIZZLE_X,      /* swizzle y -> don't care */
+  ZE_IMAGE_FORMAT_SWIZZLE_X,      /* swizzle z -> don't care */
+  ZE_IMAGE_FORMAT_SWIZZLE_X       /* swizzle w -> don't care */
+}
 
-ze_image_mem_exp_desc_t imgMem = {
-    ZE_STRUCTURE_TYPE_IMAGE_MEM_EXP_DESC, // stype
-    nullptr, // pNext
-    imgMemPtr,
-    rowPitch,
-    slicePitch
-};
-
-ze_bindless_image_exp_desc_t imgBindless {
-    ZE_BINDLESS_IMAGE_EXP_DESC, // stype
-    imgMem // pNext
-};
-
+// 2D image descriptor using previously allocated memory (`imageMemAllocDesc`)
 ze_image_desc_t imageDesc = {
-    ZE_STRUCTURE_TYPE_IMAGE_DESC, // stype
-    &imgBindless, // pNext
-    0, // ze_image_flag_t, set to read only.
-    ZE_IMAGE_TYPE_2D,
-    format,
-    128, // width
-    128, // height
-    0, // depth
-    0, // arrayLevels
-    0 // miplevels
+    ZE_STRUCTURE_TYPE_IMAGE_DESC, /* stype */
+    &imageMemAllocDesc,           /* pNext */
+    0,                            /* flags, set to read only */
+    ZE_IMAGE_TYPE_2D,             /* type */
+    imageFormat,                  /* format */
+    1024,                         /* width */
+    1024,                         /* height */
+    0,                            /* depth */
+    0,                            /* arrayLevels */
+    0                             /* miplevels */
 };
 
-ze_image_handle_t hImage; // Bindless image handle
+
+// Create image from memory allocated above
+ze_image_handle_t hImage;
 zeImageCreate(hContext, hDevice, &imageDesc, &hImage);
+
+// Now we can operate on the image, passing `imageHandle` as an argument
+// to a kernel
+
+// Copy from device to host
+// If the `hImageMem` has a device specific layout, this copy will need
+// to transform the device specific memory layout to a linear host memory layout
+zeCommandListAppendImageMemoryCopyToHostExp(hCommandList,
+                                            imageDataHost.data(),
+                                            hImageMem,
+                                            nullptr /* pDstRegion */,
+                                            nullptr /* hSignalEvent */,
+                                            0 /* numWaitEvents */,
+                                            nullptr /* phWaitEvents */);
+
+// Once all operations on the image are complete we need to free the memory and
+// destroy the handle
+
+// Free image memory
+zeMemFreeImageExp(hContext, hImage);
+
+// Destroy image handle
+// NOTE: This must not free the memory the image was created with
+zeImageDestroy(hImage);
 ```
 
+=== USM
 
 ```cpp
-ze_bindless_image_exp_desc_t bindlessSmp {
-    ZE_BINDLESS_IMAGE_EXP_DESC, // stype
-    nullptr // pNext
+// Assumed constructed device and context
+ze_device_handle_t hDevice;
+ze_context_handle_t hContext;
+
+// Assumed allocated command list
+ze_command_list_handle_t hCommandList;
+
+// Assumed image data on host
+std::vector<float> imageDataHost;
+
+// 2D image dimensions
+size_t imageWidth = 1024;
+size_t imageHeight = 1024;
+
+size_t imageRowPitch;
+size_t imageSlicePitch;
+
+// Create a non-USM image memory allocation descriptor
+ze_image_usm_alloc_exp_desc_t imageUSMAllocDesc = {
+  ZE_STRUCTURE_TYPE_IMAGE_USM_ALLOC_DESC,       /* stype */
+  nullptr,                                      /* pNext */
+  imageWidth * sizeof(float),                   /* widthInBytes */
+  imageHeight,                                  /* height */
+  0,                                            /* depth */
+  sizeof(float),                                /* elementSizeBytes */
+  &imageRowPitch,                               /* rowPitch */
+  &imageSlicePitch                              /* slicePitch */
 };
 
-ze_sampler_desc_t samplerDesc = {
-    ZE_STRUCTURE_TYPE_SAMPLER_DESC, // stype
-    bindlessSmp, // pNext
-    ZE_SAMPLER_ADDRESS_MODE_CLAMP, // addressMode
-    ZE_SAMPLER_FILTER_MODE_LINEAR, // filterMode
-    false // isNormalized
+// Allocate USM image memory and return the pointer
+void *imageMemDevice;
+zeMemAllocPitchedExp(hContext, &imageUSMAllocDesc, &imageMemDevice);
+
+// Copy from host to device
+// Our extension allows us to copy to image memory before the image handle
+// itself is created
+zeCommandListAppendImageUSMCopyFromHostExp(hCommandList,
+                                           imageMemDevice,
+                                           imageDataHost.data(),
+                                           nullptr /* pDstRegion */,
+                                           nullptr /* hSignalEvent */,
+                                           0 /* numWaitEvents */,
+                                           nullptr /* phWaitEvents */);
+
+
+// Single-precision float image format with one channel
+ze_image_format_t imageFormat = {
+  ZE_IMAGE_FORMAT_LAYOUT_32,      /* layout */
+  ZE_IMAGE_FORMAT_TYPE_FLOAT,     /* type */
+  ZE_IMAGE_FORMAT_SWIZZLE_R,      /* swizzle x -> R */
+  ZE_IMAGE_FORMAT_SWIZZLE_X,      /* swizzle y -> don't care */
+  ZE_IMAGE_FORMAT_SWIZZLE_X,      /* swizzle z -> don't care */
+  ZE_IMAGE_FORMAT_SWIZZLE_X       /* swizzle w -> don't care */
+}
+
+// 2D image descriptor using previously allocated memory (`imageUSMAllocDesc`)
+ze_image_desc_t imageDesc = {
+    ZE_STRUCTURE_TYPE_IMAGE_DESC, /* stype */
+    &imageUSMAllocDesc,           /* pNext */
+    0,                            /* flags, set to read only */
+    ZE_IMAGE_TYPE_2D,             /* type */
+    imageFormat,                  /* format */
+    1024,                         /* width */
+    1024,                         /* height */
+    0,                            /* depth */
+    0,                            /* arrayLevels */
+    0                             /* miplevels */
 };
 
-ze_sampler_handle_t hSampler; // Bindless sampler handle
-zeSamplerCreate(hContext, hDevice, &samplerDesc, &hSampler);
+
+// Create image from memory allocated above
+ze_image_handle_t hImage;
+zeImageCreate(hContext, hDevice, &imageDesc, &hImage);
+
+// Now we can operate on the image, passing `imageHandle` as an argument
+// to a kernel
+
+// Copy from device to host
+zeCommandListAppendImageUSMCopyToHostExp(hCommandList,
+                                         imageDataHost.data(),
+                                         imageMemDevice,
+                                         nullptr /* pDstRegion */,
+                                         nullptr /* hSignalEvent */,
+                                         0 /* numWaitEvents */,
+                                         nullptr /* phWaitEvents */);
+
+// Once all operations on the image are complete we need to free the memory and
+// destroy the handle
+
+// Free image memory
+zeMemFree(hContext, imageMemDevice);
+
+// Destroy image handle
+// NOTE: This must not free the memory the image was created with
+zeImageDestroy(hImage);
 ```
 
-When it is desired to access a bindless image or sampler under the hood, the handles will be converted from handles to their respective image/sampler types using instructions from `SPV_NV_bindless_textures`, or equivalent extension.
+== Known Issues and Limitations
 
-
-== Implementation notes
-
-No implementation yet.
-
-== Issues
+How will this support mipmaps in the future?
 
 == Revision History
 
@@ -365,4 +612,10 @@ No implementation yet.
 |======================
 |Rev |Date |Changes
 |1 |2023-02-23 | Initial draft
+|2 |2023-04-11 | - Re-designed the API
+                 - Re-worked "overview" and "background" sections
+                 - Added "specification overview" section
+                 - Added "definitions", "interfaces", and "enums" sections
+                 - Added programming example section
+                 - Added table of contents
 |======================
