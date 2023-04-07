@@ -406,25 +406,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     ze_device_fp_flags_t ZeSingleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp32flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      SingleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeSingleFPCapabilities) {
-      SingleFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      SingleFPValue |=
+          UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{SingleFPValue});
   }
@@ -433,25 +434,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     ze_device_fp_flags_t ZeHalfFPCapabilities =
         Device->ZeDeviceModuleProperties->fp16flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeHalfFPCapabilities) {
-      HalfFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      HalfFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{HalfFPValue});
   }
@@ -460,25 +461,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     ze_device_fp_flags_t ZeDoubleFPCapabilities =
         Device->ZeDeviceModuleProperties->fp64flags;
     if (ZE_DEVICE_FP_FLAG_DENORM & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_DENORM;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
     }
     if (ZE_DEVICE_FP_FLAG_INF_NAN & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_INF_NAN;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_NEAREST & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_ZERO & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
     }
     if (ZE_DEVICE_FP_FLAG_ROUND_TO_INF & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
     }
     if (ZE_DEVICE_FP_FLAG_FMA & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_FMA;
+      DoubleFPValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     }
     if (ZE_DEVICE_FP_FLAG_ROUNDED_DIVIDE_SQRT & ZeDoubleFPCapabilities) {
-      DoubleFPValue |= UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      DoubleFPValue |=
+          UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
     }
     return ReturnValue(uint64_t{DoubleFPValue});
   }
@@ -1138,7 +1140,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
     ur_device_handle_t
         Device, ///< [in] handle of the device to select binary for.
-    const uint8_t **BinaryArray, ///< [in] the array of binaries to select from.
+    const ur_device_binary_t
+        *Binaries,        ///< [in] the array of binaries to select from.
     uint32_t NumBinaries, ///< [in] the number of binaries passed in ppBinaries.
                           ///< Must greater than or equal to zero otherwise
                           ///< ::UR_RESULT_ERROR_INVALID_VALUE is returned.
@@ -1162,10 +1165,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   // plugin for platform/device the ctx was created for.
 
   // Look for GEN binary, which we known can only be handled by Level-Zero now.
-  const char *BinaryTarget = __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-
-  pi_device_binary *Binaries =
-      reinterpret_cast<pi_device_binary *>(const_cast<uint8_t **>(BinaryArray));
+  const char *BinaryTarget =
+      UR_DEVICE_BINARY_TARGET_SPIRV64_GEN; //__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN;
 
   uint32_t *SelectedBinaryInd = SelectedBinary;
 
@@ -1174,11 +1175,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   uint32_t Spirv = InvalidInd;
 
   for (uint32_t i = 0; i < NumBinaries; ++i) {
-    if (strcmp(Binaries[i]->DeviceTargetSpec, BinaryTarget) == 0) {
+    if (strcmp(Binaries[i].pDeviceTargetSpec, BinaryTarget) == 0) {
       *SelectedBinaryInd = i;
       return UR_RESULT_SUCCESS;
     }
-    if (strcmp(Binaries[i]->DeviceTargetSpec,
+    if (strcmp(Binaries[i].pDeviceTargetSpec,
                __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
       Spirv = i;
   }

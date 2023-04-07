@@ -60,7 +60,10 @@ const int UR_EXT_USM_CAPS_ATOMIC_ACCESS = 1 << 1;
 const int UR_EXT_USM_CAPS_CONCURRENT_ACCESS = 1 << 2;
 const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
 
-const int UR_EXT_USM_MEM_FLAG_DEVICE_READ_ONLY = 1 << 5;
+const int UR_EXT_USM_MEM_FLAG_WRITE_COMBINED = 1 << 27;
+const int UR_EXT_USM_MEM_FLAG_INITIAL_PLACEMENT_DEVICE = 1 << 28;
+const int UR_EXT_USM_MEM_FLAG_INITIAL_PLACEMENT_HOST = 1 << 29;
+const int UR_EXT_USM_MEM_FLAG_DEVICE_READ_ONLY = 1 << 30;
 
 const ur_context_info_t UR_EXT_CONTEXT_INFO_REFERENCE_COUNT =
     (ur_context_info_t)(UR_CONTEXT_INFO_FORCE_UINT32 - 2);
@@ -77,20 +80,17 @@ const ur_command_t UR_EXT_COMMAND_TYPE_USER =
 const ur_image_channel_order_t UR_EXT_IMAGE_CHANNEL_ORDER_ABGR =
     ur_image_channel_order_t(UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32 - 1);
 
-typedef enum ur_ext_sampler_filter_mode_t {
-  UR_EXT_SAMPLER_FILTER_MODE_NEAREST = 0,
-  UR_EXT_SAMPLER_FILTER_MODE_LINEAR = 1,
-  UR_EXT_SAMPLER_FILTER_MODE_FORCE_UINT32 = 0x7fffffff
-} ur_ext_sampler_filter_mode_t;
-
 const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG =
     (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 1);
-const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM =
-    (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 2);
-const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA =
-    (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 3);
-const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT =
-    (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 4);
+
+typedef enum {
+  // No preference for SLM or data cache.
+  UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT = 0x0,
+  // Large SLM size.
+  UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM = 0x1,
+  // Large General Data size.
+  UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA = 0x2
+} ur_kernel_cache_config;
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {

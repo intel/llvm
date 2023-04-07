@@ -1281,11 +1281,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemAdvise(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    const void *Mem,         ///< [in] pointer to the USM memory object
-    size_t Size,             ///< [in] size in bytes to be advised
-    ur_mem_advice_t Advice,  ///< [in] USM memory advice
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
+    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
+    const void *Mem,              ///< [in] pointer to the USM memory object
+    size_t Size,                  ///< [in] size in bytes to be advised
+    ur_usm_advice_flags_t Advice, ///< [in] USM memory advice
     ur_event_handle_t
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
@@ -1636,7 +1636,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
     size_t Size, ///< [in] size in bytes of the memory object to be allocated
-    void *Host,  ///< [in][optional] pointer to the buffer data
+    const ur_buffer_properties_t *Properties,
     ur_mem_handle_t
         *RetBuffer ///< [out] pointer to handle of the memory buffer created
 ) {
@@ -1648,6 +1648,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     // ignore the flag for now.
     //
   }
+
+  void *Host = Properties->pHost;
 
   // If USM Import feature is enabled and hostptr is supplied,
   // import the hostptr if not already imported into USM.
@@ -1755,7 +1757,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
         Buffer,           ///< [in] handle of the buffer object to allocate from
     ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
     ur_buffer_create_type_t BufferCreateType, ///< [in] buffer creation type
-    ur_buffer_region_t
+    const ur_buffer_region_t
         *BufferCreateInfo, ///< [in] pointer to buffer create region information
     ur_mem_handle_t
         *RetMem ///< [out] pointer to the handle of sub buffer created
@@ -1957,22 +1959,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_usm_desc_t *USMDesc, ///< [in][optional] USM memory allocation descriptor
+    const ur_usm_desc_t
+        *USMDesc, ///< [in][optional] USM memory allocation descriptor
     ur_usm_pool_handle_t Pool, ///< [in][optional] Pointer to a pool created
                                ///< using urUSMPoolCreate
     size_t
         Size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t Align, ///< [in] alignment of the USM memory object
-    void **RetMem   ///< [out] pointer to USM host memory object
+    void **RetMem ///< [out] pointer to USM host memory object
 ) {
   std::ignore = Pool;
 
+  uint32_t Align = USMDesc->align;
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   if (Align > 65536)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
-  ur_usm_mem_flags_t *USMFlag = &USMDesc->flags;
+  const ur_usm_flags_t *USMFlag = &USMDesc->flags;
   std::ignore = USMFlag;
 
   ur_platform_handle_t Plt = Context->getPlatform();
@@ -2002,7 +2005,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Align & (Align - 1)) != 0)) {
-    ur_usm_mem_flags_t Properties{};
+    ur_usm_flags_t Properties{};
     ur_result_t Res =
         USMHostAllocImpl(RetMem, Context, &Properties, Size, Align);
     if (IndirectAccessTrackingEnabled) {
@@ -2038,22 +2041,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
 UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_device_handle_t Device,   ///< [in] handle of the device object
-    ur_usm_desc_t *USMDesc, ///< [in][optional] USM memory allocation descriptor
+    const ur_usm_desc_t
+        *USMDesc, ///< [in][optional] USM memory allocation descriptor
     ur_usm_pool_handle_t Pool, ///< [in][optional] Pointer to a pool created
                                ///< using urUSMPoolCreate
     size_t
         Size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t Alignment, ///< [in] alignment of the USM memory object
-    void **RetMem       ///< [out] pointer to USM device memory object
+    void **RetMem ///< [out] pointer to USM device memory object
 ) {
   std::ignore = Pool;
+
+  uint32_t Alignment = USMDesc->align;
 
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   if (Alignment > 65536)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
-  ur_usm_mem_flags_t *USMProp = &USMDesc->flags;
+  const ur_usm_flags_t *USMProp = &USMDesc->flags;
   std::ignore = USMProp;
 
   ur_platform_handle_t Plt = Device->Platform;
@@ -2121,20 +2126,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
 UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_device_handle_t Device,   ///< [in] handle of the device object
-    ur_usm_desc_t *USMDesc, ///< [in][optional] USM memory allocation descriptor
+    const ur_usm_desc_t
+        *USMDesc, ///< [in][optional] USM memory allocation descriptor
     ur_usm_pool_handle_t Pool, ///< [in][optional] Pointer to a pool created
                                ///< using urUSMPoolCreate
     size_t
         Size, ///< [in] size in bytes of the USM memory object to be allocated
-    uint32_t Alignment, ///< [in] alignment of the USM memory object
-    void **RetMem       ///< [out] pointer to USM shared memory object
+    void **RetMem ///< [out] pointer to USM shared memory object
 ) {
   std::ignore = Pool;
 
-  ur_usm_mem_flags_t *Properties = &USMDesc->flags;
+  const ur_usm_flags_t *Properties = &USMDesc->flags;
+  uint32_t Alignment = USMDesc->align;
 
   // See if the memory is going to be read-only on the device.
-  bool DeviceReadOnly = *Properties & UR_USM_MEM_FLAG_DEVICE_READ_ONLY;
+  bool DeviceReadOnly = *Properties & UR_EXT_USM_MEM_FLAG_DEVICE_READ_ONLY;
 
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
@@ -2165,8 +2171,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Alignment & (Alignment - 1)) != 0)) {
-    ur_result_t Res = USMSharedAllocImpl(RetMem, Context, Device, Properties,
-                                         Size, Alignment);
+    ur_result_t Res = USMSharedAllocImpl(
+        RetMem, Context, Device, const_cast<ur_usm_flags_t *>(Properties), Size,
+        Alignment);
     if (IndirectAccessTrackingEnabled) {
       // Keep track of all memory allocations in the context
       Context->MemAllocs.emplace(std::piecewise_construct,
@@ -2323,7 +2330,7 @@ ur_result_t USMSharedMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
 ur_result_t USMSharedReadOnlyMemoryAlloc::allocateImpl(void **ResultPtr,
                                                        size_t Size,
                                                        uint32_t Alignment) {
-  ur_usm_mem_flags_t Props = UR_EXT_USM_MEM_FLAG_DEVICE_READ_ONLY;
+  ur_usm_flags_t Props = UR_EXT_USM_MEM_FLAG_DEVICE_READ_ONLY;
   return USMSharedAllocImpl(ResultPtr, Context, Device, &Props, Size,
                             Alignment);
 }
@@ -2429,7 +2436,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroy(
 
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t Device,
-                               ur_usm_mem_flags_t *Properties, size_t Size,
+                               ur_usm_flags_t *Properties, size_t Size,
                                uint32_t Alignment) {
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_device_mem_alloc_desc_t> ZeDesc;
@@ -2455,7 +2462,7 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 }
 
 ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t Device, ur_usm_mem_flags_t *,
+                               ur_device_handle_t Device, ur_usm_flags_t *,
                                size_t Size, uint32_t Alignment) {
 
   // TODO: translate PI properties to Level Zero flags
@@ -2486,7 +2493,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 }
 
 ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                             ur_usm_mem_flags_t *Properties, size_t Size,
+                             ur_usm_flags_t *Properties, size_t Size,
                              uint32_t Alignment) {
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
@@ -2752,8 +2759,9 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
       if (USMAllocatorConfigInstance.EnableBuffers) {
         HostAllocation.ReleaseAction = allocation_t::free;
         ur_usm_desc_t USMDesc{};
+        USMDesc.align = getAlignment();
         ur_usm_pool_handle_t Pool{};
-        UR_CALL(urUSMHostAlloc(UrContext, &USMDesc, Pool, Size, getAlignment(),
+        UR_CALL(urUSMHostAlloc(UrContext, &USMDesc, Pool, Size,
                                reinterpret_cast<void **>(&ZeHandle)));
       } else {
         HostAllocation.ReleaseAction = allocation_t::free_native;
@@ -2807,9 +2815,9 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
       if (USMAllocatorConfigInstance.EnableBuffers) {
         Allocation.ReleaseAction = allocation_t::free;
         ur_usm_desc_t USMDesc{};
+        USMDesc.align = getAlignment();
         ur_usm_pool_handle_t Pool{};
         UR_CALL(urUSMDeviceAlloc(UrContext, Device, &USMDesc, Pool, Size,
-                                 getAlignment(),
                                  reinterpret_cast<void **>(&ZeHandle)));
       } else {
         Allocation.ReleaseAction = allocation_t::free_native;
@@ -2871,9 +2879,10 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
           if (USMAllocatorConfigInstance.EnableBuffers) {
             HostAllocation.ReleaseAction = allocation_t::free;
             ur_usm_desc_t USMDesc{};
+            USMDesc.align = getAlignment();
             ur_usm_pool_handle_t Pool{};
-            UR_CALL(urUSMHostAlloc(UrContext, &USMDesc, Pool, Size,
-                                   getAlignment(), &ZeHandleHost));
+            UR_CALL(
+                urUSMHostAlloc(UrContext, &USMDesc, Pool, Size, &ZeHandleHost));
           } else {
             HostAllocation.ReleaseAction = allocation_t::free_native;
             UR_CALL(ZeHostMemAllocHelper(&ZeHandleHost, UrContext, Size));

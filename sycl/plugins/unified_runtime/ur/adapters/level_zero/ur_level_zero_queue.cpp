@@ -158,8 +158,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
     return ReturnValue(Queue->Device);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{Queue->RefCount.load()});
-  case UR_QUEUE_INFO_PROPERTIES:
-    die("UR_QUEUE_INFO_PROPERTIES in urQueueGetInfo not implemented\n");
+  case UR_QUEUE_INFO_FLAGS:
+    die("UR_QUEUE_INFO_FLAGS in urQueueGetInfo not implemented\n");
     break;
   case UR_QUEUE_INFO_SIZE:
     die("UR_QUEUE_INFO_SIZE in urQueueGetInfo not implemented\n");
@@ -265,30 +265,29 @@ static bool doEagerInit = [] {
 }();
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    const ur_queue_property_t
-        *pProps, ///< [in] specifies a list of queue properties and their
-                 ///< corresponding values. Each property name is immediately
-                 ///< followed by the corresponding desired value. The list is
-                 ///< terminated with a 0. If a property value is not specified,
-                 ///< then its default value will be used.
+    ur_context_handle_t Context, ///< [in] handle of the context object
+    ur_device_handle_t Device,   ///< [in] handle of the device object
+    const ur_queue_properties_t
+        *Props, ///< [in] specifies a list of queue properties and their
+                ///< corresponding values. Each property name is immediately
+                ///< followed by the corresponding desired value. The list is
+                ///< terminated with a 0. If a property value is not specified,
+                ///< then its default value will be used.
     ur_queue_handle_t
-        *phQueue ///< [out] pointer to handle of queue object created
+        *Queue ///< [out] pointer to handle of queue object created
 ) {
-  ur_context_handle_t Context = hContext;
-  ur_device_handle_t Device = hDevice;
-  ur_queue_handle_t_ **Queue = reinterpret_cast<ur_queue_handle_t_ **>(phQueue);
-
   Context->Devices[0] = Device;
 
-  const pi_queue_properties *Properties =
-      reinterpret_cast<const pi_queue_properties *>(pProps);
-  pi_queue_properties Flags = Properties[1];
-
-  auto ForceComputeIndex = Properties[2] == PI_QUEUE_COMPUTE_INDEX
-                               ? static_cast<int>(Properties[3])
-                               : -1; // Use default/round-robin.
+  int ForceComputeIndex = -1; // Use default/round-robin.
+  if (Props->pNext) {
+    const ur_base_properties_t *extendedDesc =
+        reinterpret_cast<const ur_base_properties_t *>(Props->pNext);
+    if (extendedDesc->stype == UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES) {
+      const ur_queue_index_properties_t *IndexProperties =
+          reinterpret_cast<const ur_queue_index_properties_t *>(extendedDesc);
+      ForceComputeIndex = IndexProperties->computeIndex;
+    }
+  }
 
   UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
 
@@ -317,9 +316,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
                                                              nullptr);
 
   try {
-    *Queue =
-        new ur_queue_handle_t_(ZeComputeCommandQueues, ZeCopyCommandQueues,
-                               Context, Device, true, Flags, ForceComputeIndex);
+    *Queue = new ur_queue_handle_t_(ZeComputeCommandQueues, ZeCopyCommandQueues,
+                                    Context, Device, true, Props->flags,
+                                    ForceComputeIndex);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -328,7 +327,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 
   // Do eager initialization of Level Zero handles on request.
   if (doEagerInit) {
-    ur_queue_handle_t Q = *phQueue;
+    ur_queue_handle_t Q = *Queue;
     // Creates said number of command-lists.
     auto warmupQueueGroup = [Q](bool UseCopyEngine,
                                 uint32_t RepeatCount) -> ur_result_t {
@@ -732,8 +731,7 @@ ur_queue_handle_t_::ur_queue_handle_t_(
     std::vector<ze_command_queue_handle_t> &ComputeQueues,
     std::vector<ze_command_queue_handle_t> &CopyQueues,
     ur_context_handle_t Context, ur_device_handle_t Device,
-    bool OwnZeCommandQueue, pi_queue_properties Properties,
-    int ForceComputeIndex)
+    bool OwnZeCommandQueue, ur_queue_flags_t Properties, int ForceComputeIndex)
     : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
       Properties(Properties) {
   // Compute group initialization.

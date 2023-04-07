@@ -29,7 +29,9 @@ struct ur_context_handle_t_ : _ur_object {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
                        const ur_device_handle_t *Devs, bool OwnZeContext)
       : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
-        OwnZeContext{OwnZeContext} {}
+        NumDevices{NumDevices} {
+    OwnNativeHandle = OwnZeContext;
+  }
 
   ur_context_handle_t_(ze_context_handle_t ZeContext) : ZeContext{ZeContext} {}
 
@@ -44,10 +46,7 @@ struct ur_context_handle_t_ : _ur_object {
   // Therefore it can be accessed without holding a lock on this _pi_context.
   // const std::vector<ur_device_handle_t> Devices;
   std::vector<ur_device_handle_t> Devices;
-
-  // Indicates if we own the ZeContext or it came from interop that
-  // asked to not transfer the ownership to SYCL RT.
-  bool OwnZeContext = false;
+  uint32_t NumDevices{};
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:

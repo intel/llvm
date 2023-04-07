@@ -631,6 +631,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     const void *PropValue ///< [in][range(0, propSize)] pointer to memory
                           ///< location holding the property value.
 ) {
+  std::ignore = PropSize;
+
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS &&
       *(static_cast<const pi_bool *>(PropValue)) == PI_TRUE) {
@@ -644,7 +646,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     ZE2UR_CALL(zeKernelSetIndirectAccess, (Kernel->ZeKernel, IndirectFlags));
   } else if (PropName == UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG) {
     ze_cache_config_flag_t ZeCacheConfig{};
-    auto CacheConfig = *(static_cast<const ur_kernel_exec_info_t *>(PropValue));
+    auto CacheConfig =
+        *(static_cast<const ur_kernel_cache_config *>(PropValue));
     if (CacheConfig == UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM)
       ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
     else if (CacheConfig == UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA)

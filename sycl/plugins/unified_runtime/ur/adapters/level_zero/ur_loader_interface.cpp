@@ -87,7 +87,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnUSMFill = urEnqueueUSMFill;
   pDdiTable->pfnUSMMemcpy = urEnqueueUSMMemcpy;
   pDdiTable->pfnUSMPrefetch = urEnqueueUSMPrefetch;
-  pDdiTable->pfnUSMMemAdvise = urEnqueueUSMMemAdvise;
+  pDdiTable->pfnUSMAdvise = urEnqueueUSMAdvise;
   pDdiTable->pfnUSMFill2D = urEnqueueUSMFill2D;
   pDdiTable->pfnUSMMemcpy2D = urEnqueueUSMMemcpy2D;
   pDdiTable->pfnDeviceGlobalVariableWrite = urEnqueueDeviceGlobalVariableWrite;

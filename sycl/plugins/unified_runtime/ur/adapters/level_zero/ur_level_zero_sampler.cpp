@@ -11,7 +11,7 @@
 
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
-    const ur_sampler_property_t
+    const ur_sampler_desc_t
         *Props, ///< [in] specifies a list of sampler property names and their
                 ///< corresponding values.
     ur_sampler_handle_t
@@ -42,87 +42,50 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
   //   b) SamplerProperties list is missing any properties
 
   if (Props) {
-    uint32_t PropCount = 0;
-    while (PropCount < 6) { // We expect only 3 pairs of sampler properties
-      switch (Props[PropCount]) {
-      case UR_SAMPLER_PROPERTIES_NORMALIZED_COORDS: {
-        auto CurValueBool = Props[++PropCount];
+    ZeSamplerDesc.isNormalized = Props->normalizedCoords;
 
-        if (CurValueBool == 1UL)
-          ZeSamplerDesc.isNormalized = PI_TRUE;
-        else if (CurValueBool == 0UL)
-          ZeSamplerDesc.isNormalized = PI_FALSE;
-        else {
-          urPrint("urSamplerCreate: unsupported "
-                  "UR_SAMPLER_INFO_NORMALIZED_COORDS value\n");
-          return UR_RESULT_ERROR_INVALID_VALUE;
-        }
-      } break;
+    // Level Zero runtime with API version 1.2 and lower has a bug:
+    // ZE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER is implemented as "clamp to
+    // edge" and ZE_SAMPLER_ADDRESS_MODE_CLAMP is implemented as "clamp to
+    // border", i.e. logic is flipped. Starting from API version 1.3 this
+    // problem is going to be fixed. That's why check for API version to set
+    // an address mode.
+    ze_api_version_t ZeApiVersion = Context->getPlatform()->ZeApiVersion;
+    // TODO: add support for PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE
+    switch (Props->addressingMode) {
+    case UR_SAMPLER_ADDRESSING_MODE_NONE:
+      ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_NONE;
+      break;
+    case UR_SAMPLER_ADDRESSING_MODE_REPEAT:
+      ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_REPEAT;
+      break;
+    case UR_SAMPLER_ADDRESSING_MODE_CLAMP:
+      ZeSamplerDesc.addressMode = ZeApiVersion < ZE_MAKE_VERSION(1, 3)
+                                      ? ZE_SAMPLER_ADDRESS_MODE_CLAMP
+                                      : ZE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+      break;
+    case UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE:
+      ZeSamplerDesc.addressMode = ZeApiVersion < ZE_MAKE_VERSION(1, 3)
+                                      ? ZE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
+                                      : ZE_SAMPLER_ADDRESS_MODE_CLAMP;
+      break;
+    case UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT:
+      ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_MIRROR;
+      break;
+    default:
+      urPrint("urSamplerCreate: unsupported "
+              "UR_SAMPLER_PROPERTIES_ADDRESSING_MODEE "
+              "value\n");
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
 
-      case UR_SAMPLER_PROPERTIES_ADDRESSING_MODE: {
-        ur_sampler_addressing_mode_t CurValueAddressingMode =
-            static_cast<ur_sampler_addressing_mode_t>(Props[++PropCount]);
-
-        // Level Zero runtime with API version 1.2 and lower has a bug:
-        // ZE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER is implemented as "clamp to
-        // edge" and ZE_SAMPLER_ADDRESS_MODE_CLAMP is implemented as "clamp to
-        // border", i.e. logic is flipped. Starting from API version 1.3 this
-        // problem is going to be fixed. That's why check for API version to set
-        // an address mode.
-        ze_api_version_t ZeApiVersion = Context->getPlatform()->ZeApiVersion;
-        // TODO: add support for PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE
-        switch (CurValueAddressingMode) {
-        case UR_SAMPLER_ADDRESSING_MODE_NONE:
-          ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_NONE;
-          break;
-        case UR_SAMPLER_ADDRESSING_MODE_REPEAT:
-          ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_REPEAT;
-          break;
-        case UR_SAMPLER_ADDRESSING_MODE_CLAMP:
-          ZeSamplerDesc.addressMode =
-              ZeApiVersion < ZE_MAKE_VERSION(1, 3)
-                  ? ZE_SAMPLER_ADDRESS_MODE_CLAMP
-                  : ZE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-          break;
-        case UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE:
-          ZeSamplerDesc.addressMode =
-              ZeApiVersion < ZE_MAKE_VERSION(1, 3)
-                  ? ZE_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
-                  : ZE_SAMPLER_ADDRESS_MODE_CLAMP;
-          break;
-        case UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT:
-          ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_MIRROR;
-          break;
-        default:
-          urPrint("urSamplerCreate: unsupported "
-                  "UR_SAMPLER_PROPERTIES_ADDRESSING_MODEE "
-                  "value\n");
-          urPrint("UR_SAMPLER_PROPERTIES_ADDRESSING_MODEE=%d\n",
-                  CurValueAddressingMode);
-          return UR_RESULT_ERROR_INVALID_VALUE;
-        }
-      } break;
-
-      case UR_SAMPLER_PROPERTIES_FILTER_MODE: {
-        ur_ext_sampler_filter_mode_t CurValueFilterMode =
-            static_cast<ur_ext_sampler_filter_mode_t>(Props[++PropCount]);
-
-        if (CurValueFilterMode == UR_EXT_SAMPLER_FILTER_MODE_NEAREST)
-          ZeSamplerDesc.filterMode = ZE_SAMPLER_FILTER_MODE_NEAREST;
-        else if (CurValueFilterMode == UR_EXT_SAMPLER_FILTER_MODE_LINEAR)
-          ZeSamplerDesc.filterMode = ZE_SAMPLER_FILTER_MODE_LINEAR;
-        else {
-          urPrint("UR_SAMPLER_FILTER_MODE=%d\n", CurValueFilterMode);
-          urPrint(
-              "urSamplerCreate: unsupported UR_SAMPLER_FILTER_MODE value\n");
-          return UR_RESULT_ERROR_INVALID_VALUE;
-        }
-      } break;
-
-      default:
-        break;
-      }
-      PropCount++;
+    if (Props->filterMode == UR_SAMPLER_FILTER_MODE_NEAREST)
+      ZeSamplerDesc.filterMode = ZE_SAMPLER_FILTER_MODE_NEAREST;
+    else if (Props->filterMode == UR_SAMPLER_FILTER_MODE_LINEAR)
+      ZeSamplerDesc.filterMode = ZE_SAMPLER_FILTER_MODE_LINEAR;
+    else {
+      urPrint("urSamplerCreate: unsupported UR_SAMPLER_FILTER_MODE value\n");
+      return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
 

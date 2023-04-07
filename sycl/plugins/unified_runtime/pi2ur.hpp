@@ -1014,9 +1014,44 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
                         pi_uint32 *SelectedBinaryInd) {
 
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  const uint8_t **UrBinaries =
-      const_cast<const uint8_t **>(reinterpret_cast<uint8_t **>(Binaries));
-  HANDLE_ERRORS(urDeviceSelectBinary(UrDevice, UrBinaries, NumBinaries,
+  std::vector<ur_device_binary_t> UrBinaries(NumBinaries);
+
+  for (uint32_t BinaryCount = 0; BinaryCount < NumBinaries; BinaryCount++) {
+    if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+               __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_UNKNOWN;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV32;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_NVPTX64;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          UR_DEVICE_BINARY_TARGET_AMDGCN;
+  }
+
+  HANDLE_ERRORS(urDeviceSelectBinary(UrDevice, UrBinaries.data(), NumBinaries,
                                      SelectedBinaryInd));
   return PI_SUCCESS;
 }
@@ -1074,10 +1109,13 @@ inline pi_result piextContextCreateWithNativeHandle(
 
   ur_native_handle_t NativeContext =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
+  const ur_device_handle_t *UrDevices =
+      reinterpret_cast<const ur_device_handle_t *>(Devices);
   ur_context_handle_t *UrContext =
       reinterpret_cast<ur_context_handle_t *>(RetContext);
-  HANDLE_ERRORS(urContextCreateWithNativeHandle(NativeContext, UrContext));
-  (*UrContext)->OwnZeContext = OwnNativeHandle;
+
+  HANDLE_ERRORS(urContextCreateWithNativeHandle(
+      NativeContext, NumDevices, UrDevices, OwnNativeHandle, UrContext));
 
   return PI_SUCCESS;
 }
@@ -1096,21 +1134,16 @@ inline pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
     ContextInfoType = UR_CONTEXT_INFO_DEVICES;
     break;
   }
-  case PI_CONTEXT_INFO_PLATFORM: {
-    die("urGetContextInfo: unsuppported ParamName.");
-  }
   case PI_CONTEXT_INFO_NUM_DEVICES: {
     ContextInfoType = UR_CONTEXT_INFO_NUM_DEVICES;
     break;
-  }
-  case PI_CONTEXT_INFO_PROPERTIES: {
-    die("urGetContextInfo: unsuppported ParamName.");
   }
   case PI_CONTEXT_INFO_REFERENCE_COUNT: {
     ContextInfoType = UR_EXT_CONTEXT_INFO_REFERENCE_COUNT;
     break;
   }
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT: {
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     ContextInfoType = UR_CONTEXT_INFO_USM_FILL2D_SUPPORT;
     break;
   }
@@ -1127,7 +1160,7 @@ inline pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
     die("These queries should have never come here");
   }
   default: {
-    die("piGetContextInfo: unsuppported ParamName.");
+    die("piContextGetInfo: unsuppported ParamName.");
   }
   }
 
@@ -1155,19 +1188,6 @@ inline pi_result piContextRelease(pi_context Context) {
 
 ///////////////////////////////////////////////////////////////////////////////
 // Queue
-inline pi_result piQueueCreate(pi_context Context, pi_device Device,
-                               pi_queue_properties Flags, pi_queue *Queue) {
-
-  ur_context_handle_t UrContext =
-      reinterpret_cast<ur_context_handle_t>(Context);
-  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  ur_queue_property_t Props{};
-  ur_queue_handle_t *UrQueue = reinterpret_cast<ur_queue_handle_t *>(Queue);
-  HANDLE_ERRORS(urQueueCreate(UrContext, UrDevice, &Props, UrQueue));
-
-  return PI_SUCCESS;
-}
-
 inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
                                   pi_queue_properties *Properties,
                                   pi_queue *Queue) {
@@ -1194,36 +1214,44 @@ inline pi_result piextQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  ur_queue_property_t props[5]{};
-  props[0] = UR_QUEUE_PROPERTIES_FLAGS;
+  ur_queue_properties_t UrProperties{};
   if (Properties[1] & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE)
-    props[1] |= UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    UrProperties.flags |= UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
   if (Properties[1] & PI_QUEUE_FLAG_PROFILING_ENABLE)
-    props[1] |= UR_QUEUE_FLAG_PROFILING_ENABLE;
+    UrProperties.flags |= UR_QUEUE_FLAG_PROFILING_ENABLE;
   if (Properties[1] & PI_QUEUE_FLAG_ON_DEVICE)
-    props[1] |= UR_QUEUE_FLAG_ON_DEVICE;
+    UrProperties.flags |= UR_QUEUE_FLAG_ON_DEVICE;
   if (Properties[1] & PI_QUEUE_FLAG_ON_DEVICE_DEFAULT)
-    props[1] |= UR_QUEUE_FLAG_ON_DEVICE_DEFAULT;
+    UrProperties.flags |= UR_QUEUE_FLAG_ON_DEVICE_DEFAULT;
   if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS)
-    props[1] |= UR_QUEUE_FLAG_DISCARD_EVENTS;
+    UrProperties.flags |= UR_QUEUE_FLAG_DISCARD_EVENTS;
   if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW)
-    props[1] |= UR_QUEUE_FLAG_PRIORITY_LOW;
+    UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_LOW;
   if (Properties[1] & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)
-    props[1] |= UR_QUEUE_FLAG_PRIORITY_HIGH;
+    UrProperties.flags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
 
+  ur_queue_index_properties_t IndexProperties{};
+  IndexProperties.stype = UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES;
   if (Properties[2] != 0) {
-    props[2] = UR_QUEUE_PROPERTIES_COMPUTE_INDEX;
-    props[3] = Properties[3];
+    IndexProperties.computeIndex = Properties[3];
   }
+
+  UrProperties.pNext = &IndexProperties;
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
 
   ur_queue_handle_t *UrQueue = reinterpret_cast<ur_queue_handle_t *>(Queue);
-  HANDLE_ERRORS(urQueueCreate(UrContext, UrDevice, props, UrQueue));
+  HANDLE_ERRORS(urQueueCreate(UrContext, UrDevice, &UrProperties, UrQueue));
 
   return PI_SUCCESS;
+}
+
+inline pi_result piQueueCreate(pi_context Context, pi_device Device,
+                               pi_queue_properties Flags, pi_queue *Queue) {
+  pi_queue_properties Properties[] = {PI_QUEUE_FLAGS, Flags, 0};
+  return pi2ur::piextQueueCreate(Context, Device, Properties, Queue);
 }
 
 inline pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
@@ -1308,7 +1336,7 @@ inline pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
     break;
   }
   case PI_QUEUE_INFO_PROPERTIES: {
-    UrParamName = UR_QUEUE_INFO_PROPERTIES;
+    UrParamName = UR_QUEUE_INFO_FLAGS;
     break;
   }
   case PI_QUEUE_INFO_REFERENCE_COUNT: {
@@ -1766,25 +1794,40 @@ inline pi_result piKernelSetExecInfo(pi_kernel Kernel,
   PI_ASSERT(ParamValue, PI_ERROR_INVALID_VALUE);
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
-  ur_kernel_exec_info_t propName{};
+  ur_kernel_exec_info_t PropName{};
+  uint64_t PropValue{};
   switch (ParamName) {
   case PI_USM_INDIRECT_ACCESS: {
-    propName = UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS;
+    PropName = UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS;
+    PropValue = *(static_cast<uint64_t *>(const_cast<void *>(ParamValue)));
     break;
   }
   case PI_USM_PTRS: {
-    propName = UR_KERNEL_EXEC_INFO_USM_PTRS;
+    PropName = UR_KERNEL_EXEC_INFO_USM_PTRS;
     break;
   }
   case PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG: {
-    propName = UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG;
+    PropName = UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG;
+    auto Param = (*(static_cast<const pi_kernel_cache_config *>(ParamValue)));
+    if (Param == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM) {
+      PropValue =
+          static_cast<uint64_t>(UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM);
+    } else if (Param == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA) {
+      PropValue =
+          static_cast<uint64_t>(UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA);
+      break;
+    } else if (Param == PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT) {
+      PropValue = static_cast<uint64_t>(UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
+    } else {
+      die("piKernelSetExecInfo: unsupported ParamValue\n");
+    }
     break;
   }
   default:
-    return PI_ERROR_INVALID_PROPERTY;
+    die("piKernelSetExecInfo: unsupported ParamName\n");
   }
   HANDLE_ERRORS(
-      urKernelSetExecInfo(UrKernel, propName, ParamValueSize, ParamValue));
+      urKernelSetExecInfo(UrKernel, PropName, ParamValueSize, &PropValue));
 
   return PI_SUCCESS;
 }
@@ -2164,9 +2207,11 @@ inline pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags,
     UrBufferFlags |= UR_MEM_FLAG_ALLOC_HOST_POINTER;
   }
 
+  ur_buffer_properties_t UrProps{};
+  UrProps.pHost = HostPtr;
   ur_mem_handle_t *UrBuffer = reinterpret_cast<ur_mem_handle_t *>(RetMem);
   HANDLE_ERRORS(
-      urMemBufferCreate(UrContext, UrBufferFlags, Size, HostPtr, UrBuffer));
+      urMemBufferCreate(UrContext, UrBufferFlags, Size, &UrProps, UrBuffer));
 
   return PI_SUCCESS;
 }
@@ -2178,9 +2223,9 @@ inline pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_usm_desc_t USMDesc{};
+  USMDesc.align = Alignment;
   ur_usm_pool_handle_t Pool{};
-  HANDLE_ERRORS(
-      urUSMHostAlloc(UrContext, &USMDesc, Pool, Size, Alignment, ResultPtr));
+  HANDLE_ERRORS(urUSMHostAlloc(UrContext, &USMDesc, Pool, Size, ResultPtr));
   return PI_SUCCESS;
 }
 
@@ -2551,9 +2596,10 @@ inline pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
 
   ur_usm_desc_t USMDesc{};
+  USMDesc.align = Alignment;
   ur_usm_pool_handle_t Pool{};
-  HANDLE_ERRORS(urUSMDeviceAlloc(UrContext, UrDevice, &USMDesc, Pool, Size,
-                                 Alignment, ResultPtr));
+  HANDLE_ERRORS(
+      urUSMDeviceAlloc(UrContext, UrDevice, &USMDesc, Pool, Size, ResultPtr));
 
   return PI_SUCCESS;
 }
@@ -2576,23 +2622,25 @@ inline pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   if (Properties) {
     if (Properties[0] == PI_MEM_ALLOC_FLAGS) {
       if (Properties[1] == PI_MEM_ALLOC_WRTITE_COMBINED) {
-        USMDesc.flags |= UR_USM_MEM_FLAG_WRITE_COMBINED;
+        USMDesc.flags |= UR_EXT_USM_MEM_FLAG_WRITE_COMBINED;
       }
       if (Properties[1] == PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE) {
-        USMDesc.flags |= UR_USM_MEM_FLAG_INITIAL_PLACEMENT_DEVICE;
+        USMDesc.flags |= UR_EXT_USM_MEM_FLAG_INITIAL_PLACEMENT_DEVICE;
       }
       if (Properties[1] == PI_MEM_ALLOC_INITIAL_PLACEMENT_HOST) {
-        USMDesc.flags |= UR_USM_MEM_FLAG_INITIAL_PLACEMENT_HOST;
+        USMDesc.flags |= UR_EXT_USM_MEM_FLAG_INITIAL_PLACEMENT_HOST;
       }
       if (Properties[1] == PI_MEM_ALLOC_DEVICE_READ_ONLY) {
-        USMDesc.flags |= UR_USM_MEM_FLAG_DEVICE_READ_ONLY;
+        USMDesc.flags |= UR_EXT_USM_MEM_FLAG_DEVICE_READ_ONLY;
       }
     }
   }
 
+  USMDesc.align = Alignment;
+
   ur_usm_pool_handle_t Pool{};
-  HANDLE_ERRORS(urUSMSharedAlloc(UrContext, UrDevice, &USMDesc, Pool, Size,
-                                 Alignment, ResultPtr));
+  HANDLE_ERRORS(
+      urUSMSharedAlloc(UrContext, UrDevice, &USMDesc, Pool, Size, ResultPtr));
 
   return PI_SUCCESS;
 }
@@ -2682,8 +2730,8 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 
   // TODO: to map from pi_mem_advice to ur_mem_advice_t
   // once we have those defined
-  ur_mem_advice_t UrAdvice{};
-  HANDLE_ERRORS(urEnqueueUSMMemAdvise(UrQueue, Ptr, Length, UrAdvice, UrEvent));
+  ur_usm_advice_flags_t UrAdvice{};
+  HANDLE_ERRORS(urEnqueueUSMAdvise(UrQueue, Ptr, Length, UrAdvice, UrEvent));
 
   return PI_SUCCESS;
 }
@@ -3387,7 +3435,7 @@ inline pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(*Event);
+  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
   HANDLE_ERRORS(
       urEventCreateWithNativeHandle(UrNativeKernel, UrContext, UrEvent));
   (*UrEvent)->OwnNativeHandle = OwnNativeHandle;
@@ -3447,43 +3495,40 @@ inline pi_result piSamplerCreate(pi_context Context,
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
-  ur_sampler_property_t UrProps[6]{};
+  ur_sampler_desc_t UrProps{};
   const pi_sampler_properties *CurProperty = SamplerProperties;
   while (*CurProperty != 0) {
     switch (*CurProperty) {
     case PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS: {
-      UrProps[0] = UR_SAMPLER_PROPERTIES_NORMALIZED_COORDS;
-      UrProps[1] = ur_cast<pi_bool>(*(++CurProperty));
+      UrProps.normalizedCoords = ur_cast<pi_bool>(*(++CurProperty));
     } break;
 
     case PI_SAMPLER_PROPERTIES_ADDRESSING_MODE: {
-      UrProps[2] = UR_SAMPLER_PROPERTIES_ADDRESSING_MODE;
       pi_sampler_addressing_mode CurValueAddressingMode =
           ur_cast<pi_sampler_addressing_mode>(
               ur_cast<pi_uint32>(*(++CurProperty)));
 
       if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT)
-        UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
+        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
       else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_REPEAT)
-        UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_REPEAT;
+        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_REPEAT;
       else if (CurValueAddressingMode ==
                PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE)
-        UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE;
+        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE;
       else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_CLAMP)
-        UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_CLAMP;
+        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_CLAMP;
       else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_NONE)
-        UrProps[3] = UR_SAMPLER_ADDRESSING_MODE_NONE;
+        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_NONE;
     } break;
 
     case PI_SAMPLER_PROPERTIES_FILTER_MODE: {
-      UrProps[4] = UR_SAMPLER_PROPERTIES_FILTER_MODE;
       pi_sampler_filter_mode CurValueFilterMode =
           ur_cast<pi_sampler_filter_mode>(ur_cast<pi_uint32>(*(++CurProperty)));
 
       if (CurValueFilterMode == PI_SAMPLER_FILTER_MODE_NEAREST)
-        UrProps[5] = UR_EXT_SAMPLER_FILTER_MODE_NEAREST;
+        UrProps.filterMode = UR_SAMPLER_FILTER_MODE_NEAREST;
       else if (CurValueFilterMode == PI_SAMPLER_FILTER_MODE_LINEAR)
-        UrProps[5] = UR_EXT_SAMPLER_FILTER_MODE_LINEAR;
+        UrProps.filterMode = UR_SAMPLER_FILTER_MODE_LINEAR;
     } break;
 
     default:
@@ -3495,7 +3540,7 @@ inline pi_result piSamplerCreate(pi_context Context,
   ur_sampler_handle_t *UrSampler =
       reinterpret_cast<ur_sampler_handle_t *>(RetSampler);
 
-  HANDLE_ERRORS(urSamplerCreate(UrContext, UrProps, UrSampler));
+  HANDLE_ERRORS(urSamplerCreate(UrContext, &UrProps, UrSampler));
 
   return PI_SUCCESS;
 }

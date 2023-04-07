@@ -10,11 +10,11 @@
 #include <cassert>
 #include <list>
 #include <map>
+#include <optional>
 #include <stdarg.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <optional>
 
 #include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
@@ -81,7 +81,7 @@ struct ur_queue_handle_t_ : _ur_object {
   ur_queue_handle_t_(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      ur_context_handle_t Context, ur_device_handle_t Device,
-                     bool OwnZeCommandQueue, pi_queue_properties Properties = 0,
+                     bool OwnZeCommandQueue, ur_queue_flags_t Properties = 0,
                      int ForceComputeIndex = -1);
 
   using queue_type = ur_device_handle_t_::queue_group_info_t::type;
@@ -207,7 +207,7 @@ struct ur_queue_handle_t_ : _ur_object {
   bool OwnZeCommandQueue;
 
   // Keeps the properties of this queue.
-  pi_queue_properties Properties;
+  ur_queue_flags_t Properties;
 
   // Map of all command lists used in this queue.
   ur_command_list_map_t CommandListMap;
@@ -499,10 +499,11 @@ struct ur_queue_handle_t_ : _ur_object {
 //        plugin only.
 // \param ForceHostVisible tells if the event must be created in
 //        the host-visible pool
-ur_result_t createEventAndAssociateQueue(
-    ur_queue_handle_t Queue, ur_event_handle_t *Event, ur_command_t CommandType,
-    ur_command_list_ptr_t CommandList, bool IsInternal,
-    std::optional<bool> HostVisible = std::nullopt);
+ur_result_t
+createEventAndAssociateQueue(ur_queue_handle_t Queue, ur_event_handle_t *Event,
+                             ur_command_t CommandType,
+                             ur_command_list_ptr_t CommandList, bool IsInternal,
+                             std::optional<bool> HostVisible = std::nullopt);
 
 // Helper function to perform the necessary cleanup of the events from reset cmd
 // list.

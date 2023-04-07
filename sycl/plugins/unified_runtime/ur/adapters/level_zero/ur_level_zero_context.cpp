@@ -137,14 +137,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        NativeContext,           ///< [in] the native handle of the context.
-    ur_context_handle_t *Context ///< [out] pointer to the handle of the
-                                 ///< context object created.
+        NativeContext, ///< [in] the native handle of the context.
+    uint32_t NumDevices, const ur_device_handle_t *Devices,
+    bool OwnNativeHandle,
+    ur_context_handle_t
+        *Context ///< [out] pointer to the handle of the context object created.
 ) {
   try {
     ze_context_handle_t ZeContext =
         reinterpret_cast<ze_context_handle_t>(NativeContext);
-    ur_context_handle_t_ *UrContext = new ur_context_handle_t_(ZeContext);
+    ur_context_handle_t_ *UrContext = new ur_context_handle_t_(
+        ZeContext, NumDevices, Devices, OwnNativeHandle);
     UrContext->initialize();
     *Context = reinterpret_cast<ur_context_handle_t>(UrContext);
   } catch (const std::bad_alloc &) {
@@ -152,7 +155,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-
   return UR_RESULT_SUCCESS;
 }
 
@@ -310,7 +312,7 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
       Contexts.erase(It);
   }
   ze_context_handle_t DestroyZeContext =
-      Context->OwnZeContext ? Context->ZeContext : nullptr;
+      Context->OwnNativeHandle ? Context->ZeContext : nullptr;
 
   // Clean up any live memory associated with Context
   ur_result_t Result = Context->finalize();
