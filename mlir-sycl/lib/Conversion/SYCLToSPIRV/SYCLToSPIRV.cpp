@@ -180,6 +180,46 @@ public:
   }
 };
 
+template <unsigned Dimensions>
+static std::enable_if_t<(1 <= Dimensions && Dimensions < 4), int64_t>
+mirrorIndex(int64_t index);
+
+template <> int64_t mirrorIndex<1>(int64_t index) {
+  assert(index == 0 && "Invalid index");
+  return 0;
+}
+
+template <> int64_t mirrorIndex<2>(int64_t index) {
+  assert(index < 2 && "Invalid index");
+  return index == 0 ? 1 : 0;
+}
+
+template <> int64_t mirrorIndex<3>(int64_t index) {
+  switch (index) {
+  case 0:
+    return 2;
+  case 1:
+    return 1;
+  case 2:
+    return 0;
+  default:
+    llvm_unreachable("Invalid index");
+  }
+}
+
+static llvm::function_ref<int64_t(int64_t)> getMirrorer(unsigned dimensions) {
+  switch (dimensions) {
+  case 1:
+    return mirrorIndex<1>;
+  case 2:
+    return mirrorIndex<2>;
+  case 3:
+    return mirrorIndex<3>;
+  default:
+    llvm_unreachable("Invalid number of dimensions");
+  }
+}
+
 /// Replace \p op with a sequence of operations that:
 /// 1. Allocate a new object of the result type in the stack;
 /// 2. Load the object;
@@ -206,12 +246,14 @@ void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
   const auto argumentTypes =
       rewriter.getTypeArrayAttr({MemRefType::get(1, resTy), getIndexTy});
   const auto functionName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
+  auto mirrorer = getMirrorer(dimensions);
   // Initialize
   for (int64_t i = 0; i < dimensions; ++i) {
     const Value index =
         rewriter.create<arith::ConstantIntOp>(loc, i, getIndexTy);
     const auto val = convertScalarToDtype(
-        rewriter, loc, getDimension(rewriter, loc, values, i), targetIndexType,
+        rewriter, loc, getDimension(rewriter, loc, values, mirrorer(i)),
+        targetIndexType,
         /*isUnsignedCast*/ false);
     const auto ptr = createGetOp(rewriter, loc, dimMtTy, res, index,
                                  argumentTypes, functionName);
@@ -244,8 +286,8 @@ static void rewrite1D(Operation *op, spirv::BuiltIn builtin,
                              op, builtin, rewriter.getI32Type(), rewriter));
 }
 
-/// Converts one-dimensional operations of type \tparam OpTy to calls to a SPIRV
-/// dialect builtin.
+/// Converts one-dimensional operations of type \tparam OpTy to calls to a
+/// SPIRV dialect builtin.
 template <typename OpTy>
 class SingleDimGridOpPattern : public GridOpPattern<OpTy> {
 public:
