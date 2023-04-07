@@ -25,6 +25,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList,
              Discriminator Disc) {
+  (void)Disc;
   const std::vector<device> Devs = SyclContext.get_devices();
 
   auto Comp = [&DeviceSelector](const device &d1, const device &d2) {
@@ -41,6 +42,7 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const async_handler &AsyncHandler, const property_list &PropList,
              Discriminator Disc) {
+  (void)Disc;
   impl = std::make_shared<detail::queue_impl>(
       detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
       AsyncHandler, PropList, false);
@@ -48,6 +50,7 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
 
 queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
              const property_list &PropList, Discriminator Disc) {
+  (void)Disc;
   impl = std::make_shared<detail::queue_impl>(
       detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList, false);
 }
