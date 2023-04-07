@@ -97,10 +97,6 @@ pi_result piPluginGetLastError(char **message) {
   return ErrorMessageCode;
 }
 
-// Optimization strings.
-static const char *EmptyStr = "";
-static const char *NoOptStr = "-cl-opt-disable";
-
 // Returns plugin specific backend option.
 // Current support is only for optimization options.
 // Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
@@ -111,16 +107,16 @@ pi_result piPluginGetBackendOption(pi_platform platform,
   if (frontend_option == nullptr)
     return PI_ERROR_INVALID_VALUE;
   if (frontend_option == ""sv) {
-    *backend_option = EmptyStr;
+    *backend_option = "";
     return PI_SUCCESS;
   }
   if (!strcmp(frontend_option, "-O0")) {
-    *backend_option = NoOptStr;
+    *backend_option = "-cl-opt-disable";
     return PI_SUCCESS;
   }
   if (frontend_option == "-O1"sv || frontend_option == "-O2"sv ||
       frontend_option == "-O3"sv) {
-    *backend_option = EmptyStr;
+    *backend_option = "";
     return PI_SUCCESS;
   }
   return PI_ERROR_INVALID_VALUE;

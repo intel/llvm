@@ -2176,12 +2176,6 @@ pi_result piPluginGetLastError(char **message) {
   return pi2ur::piPluginGetLastError(message);
 }
 
-// Optimization strings.
-static const char *EmptyStr = "";
-static const char *NoOptStr = "-ze-opt-disable";
-static const char *O1OptStr = "-ze-opt-level=1";
-static const char *O2OptStr = "-ze-opt-level=2";
-
 // Returns plugin specific backend option.
 // Current support is only for optimization options.
 // Return '-ze-opt-disable' for frontend_option = -O0.
@@ -2195,19 +2189,19 @@ pi_result piPluginGetBackendOption(pi_platform platform,
     return PI_ERROR_INVALID_VALUE;
   }
   if (frontend_option == ""sv) {
-    *backend_option = EmptyStr;
+    *backend_option = "";
     return PI_SUCCESS;
   }
   if (frontend_option == "-O0"sv) {
-    *backend_option = NoOptStr;
+    *backend_option = "-ze-opt-disable";
     return PI_SUCCESS;
   }
   if (frontend_option == "-O1"sv || frontend_option == "-O2"sv) {
-    *backend_option = O1OptStr;
+    *backend_option = "-ze-opt-level=1";
     return PI_SUCCESS;
   }
   if (frontend_option == "-O3"sv) {
-    *backend_option = O2OptStr;
+    *backend_option = "-ze-opt-level=2";
     return PI_SUCCESS;
   }
   return PI_ERROR_INVALID_VALUE;
