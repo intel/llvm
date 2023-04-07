@@ -2189,17 +2189,26 @@ static const char *O2OptStr = "-ze-opt-level=2";
 pi_result piPluginGetBackendOption(pi_platform platform,
                                    const char *frontend_option,
                                    const char **backend_option) {
-  if (frontend_option == nullptr || frontend_option[0] == '\0') {
-    *backend_option = EmptyStr;
+  if (frontend_option == nullptr) {
     return PI_ERROR_INVALID_VALUE;
   }
-  if (!strcmp(frontend_option, "-O0"))
+  if (!strcmp(frontend_option, "")) {
+    *backend_option = EmptyStr;
+    return PI_SUCCESS;
+  }
+  if (!strcmp(frontend_option, "-O0")) {
     *backend_option = NoOptStr;
-  if (!strcmp(frontend_option, "-O1") || !strcmp(frontend_option, "-O2"))
+    return PI_SUCCESS;
+  }
+  if (!strcmp(frontend_option, "-O1") || !strcmp(frontend_option, "-O2")) {
     *backend_option = O1OptStr;
-  if (!strcmp(frontend_option, "-O3"))
+    return PI_SUCCESS;
+  }
+  if (!strcmp(frontend_option, "-O3")) {
     *backend_option = O2OptStr;
-  return PI_SUCCESS;
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,

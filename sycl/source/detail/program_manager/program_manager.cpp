@@ -416,10 +416,8 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
   // Add optimization flags.
-  // Add only if compile options are not overwritten by environment
-  // variable
   const char *optLevelStr = getUint32PropAsOptStr(Img, "optLevel");
-  if (!CompileOptsEnv && optLevelStr != nullptr && optLevelStr[0] == '\0') {
+  if (optLevelStr != nullptr && optLevelStr[0] != '\0') {
     // Making sure all devices have the same platform.
     assert(!Devs.empty() &&
            std::all_of(Devs.begin(), Devs.end(), [&](const device &Dev) {

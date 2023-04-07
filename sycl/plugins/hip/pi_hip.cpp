@@ -142,10 +142,15 @@ static const char *EmptyStr = "";
 pi_result hip_piPluginGetBackendOption(pi_platform platform,
                                        const char *frontend_option,
                                        const char **backend_option) {
-  if (frontend_option == nullptr || frontend_option[0] == '\0')
+  if (frontend_option == nullptr)
     return PI_ERROR_INVALID_VALUE;
-  *backend_option = EmptyStr;
-  return PI_SUCCESS;
+  if (!strcmp(frontend_option, "-O0") || !strcmp(frontend_option, "-O1") ||
+      !strcmp(frontend_option, "-O2") || !strcmp(frontend_option, "-O3") ||
+      !strcmp(frontend_option, "")) {
+    *backend_option = EmptyStr;
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.

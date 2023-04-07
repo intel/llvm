@@ -106,12 +106,22 @@ static const char *NoOptStr = "-cl-opt-disable";
 pi_result piPluginGetBackendOption(pi_platform platform,
                                    const char *frontend_option,
                                    const char **backend_option) {
-  if (frontend_option == nullptr || frontend_option[0] == '\0')
+  if (frontend_option == nullptr)
     return PI_ERROR_INVALID_VALUE;
-  *backend_option = EmptyStr;
-  if (!strcmp(frontend_option, "-O0"))
+  if (!strcmp(frontend_option, "")) {
+    *backend_option = EmptyStr;
+    return PI_SUCCESS;
+  }
+  if (!strcmp(frontend_option, "-O0")) {
     *backend_option = NoOptStr;
-  return PI_SUCCESS;
+    return PI_SUCCESS;
+  }
+  if (!strcmp(frontend_option, "-O1") || !strcmp(frontend_option, "-O2") ||
+      !strcmp(frontend_option, "-O3")) {
+    *backend_option = EmptyStr;
+    return PI_SUCCESS;
+  }
+  return PI_ERROR_INVALID_VALUE;
 }
 
 static cl_int getPlatformVersion(cl_platform_id plat,
