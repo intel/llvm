@@ -2181,8 +2181,7 @@ pi_result piPluginGetLastError(char **message) {
 // Return '-ze-opt-disable' for frontend_option = -O0.
 // Return '-ze-opt-level=1' for frontend_option = -O1 or -O2.
 // Return '-ze-opt-level=2' for frontend_option = -O3.
-pi_result piPluginGetBackendOption(pi_platform platform,
-                                   const char *frontend_option,
+pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
                                    const char **backend_option) {
   using namespace std::literals;
   if (frontend_option == nullptr) {

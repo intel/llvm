@@ -137,15 +137,14 @@ pi_result hip_piPluginGetLastError(char **message) {
 // Current support is only for optimization options.
 // Return empty string for hip.
 // TODO: Determine correct string to be passed.
-pi_result hip_piPluginGetBackendOption(pi_platform platform,
-                                       const char *frontend_option,
+pi_result hip_piPluginGetBackendOption(pi_platform, const char *frontend_option,
                                        const char **backend_option) {
   using namespace std::literals;
   if (frontend_option == nullptr)
     return PI_ERROR_INVALID_VALUE;
   if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
       frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
-      frontend_option == ""sv)) {
+      frontend_option == ""sv) {
       *backend_option = "";
       return PI_SUCCESS;
     }
