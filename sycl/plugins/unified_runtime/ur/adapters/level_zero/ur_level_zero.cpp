@@ -1094,7 +1094,7 @@ _ur_device_handle_t::useImmediateCommandLists() {
 
   if (ImmediateCommandlistsSetting == -1)
     // Change this to PerQueue as default after more testing.
-    return NotUsed;
+    return PerQueue;
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
