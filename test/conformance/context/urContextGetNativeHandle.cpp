@@ -16,7 +16,9 @@ TEST_P(urContextGetNativeHandleTest, Success) {
     // We can however convert the native_handle back into a unified-runtime handle
     // and perform some query on it to verify that it works.
     ur_context_handle_t ctx = nullptr;
-    ASSERT_SUCCESS(urContextCreateWithNativeHandle(native_context, &ctx));
+    ur_context_native_desc_t desc{};
+    ASSERT_SUCCESS(urContextCreateWithNativeHandle(native_context, 0, nullptr,
+                                                   &desc, &ctx));
     ASSERT_NE(ctx, nullptr);
 
     uint32_t n_devices = 0;

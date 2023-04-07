@@ -570,7 +570,12 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext, ///< [in] the native handle of the context.
+        hNativeContext,  ///< [in] the native handle of the context.
+    uint32_t numDevices, ///< [in] number of devices associated with the context
+    const ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
+    const ur_context_native_desc_t
+        *pContextNativeDesc, ///< [in] pointer to descriptor
     ur_context_handle_t *
         phContext ///< [out] pointer to the handle of the context object created.
 ) {
@@ -580,7 +585,9 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     auto pfnCreateWithNativeHandle =
         d_context.urDdiTable.Context.pfnCreateWithNativeHandle;
     if (nullptr != pfnCreateWithNativeHandle) {
-        result = pfnCreateWithNativeHandle(hNativeContext, phContext);
+        result =
+            pfnCreateWithNativeHandle(hNativeContext, numDevices, phDevices,
+                                      pContextNativeDesc, phContext);
     } else {
         // generic implementation
         *phContext = reinterpret_cast<ur_context_handle_t>(d_context.get());
