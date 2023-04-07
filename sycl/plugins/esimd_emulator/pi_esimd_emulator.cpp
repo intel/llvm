@@ -180,9 +180,9 @@ pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
   if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
       frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
       frontend_option == ""sv) {
-      *backend_option = "";
-      return PI_SUCCESS;
-    }
+    *backend_option = "";
+    return PI_SUCCESS;
+  }
   return PI_ERROR_INVALID_VALUE;
 }
 
