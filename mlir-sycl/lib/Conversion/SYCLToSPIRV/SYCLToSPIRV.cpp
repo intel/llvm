@@ -238,16 +238,10 @@ public:
   }
 };
 
-void rewrite1D(Operation *op, spirv::BuiltIn builtin,
-               TypeConverter &typeConverter,
-               ConversionPatternRewriter &rewriter) {
-  const auto res = ::getBuiltinVariableValue(
-      op, builtin, typeConverter.convertType(rewriter.getIndexType()),
-      rewriter);
-  rewriter.replaceOp(op, convertScalarToDtype(
-                             rewriter, op->getLoc(), res,
-                             typeConverter.convertType(op->getResultTypes()[0]),
-                             /*isUnsignedCast*/ true));
+static void rewrite1D(Operation *op, spirv::BuiltIn builtin,
+                      ConversionPatternRewriter &rewriter) {
+  rewriter.replaceOp(op, ::getBuiltinVariableValue(
+                             op, builtin, rewriter.getI32Type(), rewriter));
 }
 
 /// Converts one-dimensional operations of type \tparam OpTy to calls to a SPIRV
@@ -260,8 +254,7 @@ public:
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    rewrite1D(op, GridOpPattern<OpTy>::spirvBuiltin,
-              *GridOpPattern<OpTy>::getTypeConverter(), rewriter);
+    rewrite1D(op, GridOpPattern<OpTy>::spirvBuiltin, rewriter);
     return success();
   }
 };
