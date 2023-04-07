@@ -1237,8 +1237,8 @@ module attributes {gpu.container} {
   gpu.module @kernels {
 // CHECK-LABEL:   llvm.func @test(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP3:.*]]>) -> !llvm.[[ID3:.*]] {
-// CHECK:             %[[VAL_1:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>>
-// CHECK:             %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<vector<3xi64>>
+// CHECK:             %[[VAL_1:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>, 1>
+// CHECK:             %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<vector<3xi64>, 1>
 // CHECK:             %[[VAL_3:.*]] = llvm.mlir.null : !llvm.ptr<[[ID3]]>
 // CHECK:             %[[VAL_4:.*]] = llvm.mlir.constant(1 : index) : i64
 // CHECK:             %[[VAL_5:.*]] = llvm.getelementptr %[[VAL_3]]{{\[}}%[[VAL_4]]] : (!llvm.ptr<[[ID3]]>, i64) -> !llvm.ptr<[[ID3]]>
@@ -1286,8 +1286,8 @@ module attributes {gpu.container} {
 // CHECK-LABEL:   llvm.func @test(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>,
 // CHECK-SAME:                    %[[VAL_1:.*]]: i32) -> i64 {
-// CHECK:             %[[VAL_2:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>>
-// CHECK:             %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<vector<3xi64>>
+// CHECK:             %[[VAL_2:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>, 1>
+// CHECK:             %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<vector<3xi64>, 1>
 // CHECK-DAG:         %[[VAL_4:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
 // CHECK-DAG:         %[[VAL_5:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:             %[[VAL_6:.*]] = llvm.extractelement %[[VAL_3]]{{\[}}%[[VAL_5]] : i32] : vector<3xi64>
@@ -1444,8 +1444,8 @@ module attributes {gpu.container} {
 // CHECK-LABEL:   llvm.func @test_1(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr<[[GROUP1]]>) -> i64 {
 // CHECK:             %[[VAL_1:.*]] = llvm.mlir.constant(0 : i32) : i32
-// CHECK:             %[[VAL_2:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>>
-// CHECK:             %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<vector<3xi64>>
+// CHECK:             %[[VAL_2:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>, 1>
+// CHECK:             %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr<vector<3xi64>, 1>
 // CHECK-DAG:         %[[VAL_4:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
 // CHECK-DAG:         %[[VAL_5:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:             %[[VAL_6:.*]] = llvm.extractelement %[[VAL_3]]{{\[}}%[[VAL_5]] : i32] : vector<3xi64>
@@ -1470,8 +1470,8 @@ module attributes {gpu.container} {
 // CHECK-LABEL:   llvm.func @test_2(
 // CHECK-SAME:                      %[[VAL_18:.*]]: !llvm.ptr<[[GROUP2]]>) -> i64 {
 // CHECK:             %[[VAL_19:.*]] = llvm.mlir.constant(0 : i32) : i32
-// CHECK:             %[[VAL_20:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>>
-// CHECK:             %[[VAL_21:.*]] = llvm.load %[[VAL_20]] : !llvm.ptr<vector<3xi64>>
+// CHECK:             %[[VAL_20:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>, 1>
+// CHECK:             %[[VAL_21:.*]] = llvm.load %[[VAL_20]] : !llvm.ptr<vector<3xi64>, 1>
 // CHECK-DAG:         %[[VAL_22:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
 // CHECK-DAG:         %[[VAL_23:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:             %[[VAL_24:.*]] = llvm.extractelement %[[VAL_21]]{{\[}}%[[VAL_23]] : i32] : vector<3xi64>
@@ -1490,8 +1490,8 @@ module attributes {gpu.container} {
 // CHECK:             %[[VAL_37:.*]] = llvm.load %[[VAL_36]] : !llvm.ptr<i64>
 // CHECK:             %[[VAL_38:.*]] = llvm.mul %[[VAL_35]], %[[VAL_37]]  : i64
 // CHECK:             %[[VAL_39:.*]] = llvm.mlir.constant(1 : i32) : i32
-// CHECK:             %[[VAL_40:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>>
-// CHECK:             %[[VAL_41:.*]] = llvm.load %[[VAL_40]] : !llvm.ptr<vector<3xi64>>
+// CHECK:             %[[VAL_40:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>, 1>
+// CHECK:             %[[VAL_41:.*]] = llvm.load %[[VAL_40]] : !llvm.ptr<vector<3xi64>, 1>
 // CHECK-DAG:         %[[VAL_42:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
 // CHECK-DAG:         %[[VAL_43:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:             %[[VAL_44:.*]] = llvm.extractelement %[[VAL_41]]{{\[}}%[[VAL_43]] : i32] : vector<3xi64>
@@ -1517,8 +1517,8 @@ module attributes {gpu.container} {
 // CHECK-LABEL:   llvm.func @test_3(
 // CHECK-SAME:                      %[[VAL_57:.*]]: !llvm.ptr<[[GROUP3]]>) -> i64 {
 // CHECK:             %[[VAL_58:.*]] = llvm.mlir.constant(0 : i32) : i32
-// CHECK:             %[[VAL_59:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>>
-// CHECK:             %[[VAL_60:.*]] = llvm.load %[[VAL_59]] : !llvm.ptr<vector<3xi64>>
+// CHECK:             %[[VAL_59:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>, 1>
+// CHECK:             %[[VAL_60:.*]] = llvm.load %[[VAL_59]] : !llvm.ptr<vector<3xi64>, 1>
 // CHECK-DAG:         %[[VAL_61:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
 // CHECK-DAG:         %[[VAL_62:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:             %[[VAL_63:.*]] = llvm.extractelement %[[VAL_60]]{{\[}}%[[VAL_62]] : i32] : vector<3xi64>
@@ -1540,8 +1540,8 @@ module attributes {gpu.container} {
 // CHECK:             %[[VAL_79:.*]] = llvm.load %[[VAL_78]] : !llvm.ptr<i64>
 // CHECK:             %[[VAL_80:.*]] = llvm.mul %[[VAL_77]], %[[VAL_79]]  : i64
 // CHECK:             %[[VAL_81:.*]] = llvm.mlir.constant(1 : i32) : i32
-// CHECK:             %[[VAL_82:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>>
-// CHECK:             %[[VAL_83:.*]] = llvm.load %[[VAL_82]] : !llvm.ptr<vector<3xi64>>
+// CHECK:             %[[VAL_82:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>, 1>
+// CHECK:             %[[VAL_83:.*]] = llvm.load %[[VAL_82]] : !llvm.ptr<vector<3xi64>, 1>
 // CHECK-DAG:         %[[VAL_84:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
 // CHECK-DAG:         %[[VAL_85:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:             %[[VAL_86:.*]] = llvm.extractelement %[[VAL_83]]{{\[}}%[[VAL_85]] : i32] : vector<3xi64>
@@ -1559,8 +1559,8 @@ module attributes {gpu.container} {
 // CHECK:             %[[VAL_98:.*]] = llvm.mul %[[VAL_97]], %[[VAL_79]]  : i64
 // CHECK:             %[[VAL_99:.*]] = llvm.add %[[VAL_80]], %[[VAL_98]]  : i64
 // CHECK:             %[[VAL_100:.*]] = llvm.mlir.constant(2 : i32) : i32
-// CHECK:             %[[VAL_101:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>>
-// CHECK:             %[[VAL_102:.*]] = llvm.load %[[VAL_101]] : !llvm.ptr<vector<3xi64>>
+// CHECK:             %[[VAL_101:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<vector<3xi64>, 1>
+// CHECK:             %[[VAL_102:.*]] = llvm.load %[[VAL_101]] : !llvm.ptr<vector<3xi64>, 1>
 // CHECK-DAG:         %[[VAL_103:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
 // CHECK-DAG:         %[[VAL_104:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:             %[[VAL_105:.*]] = llvm.extractelement %[[VAL_102]]{{\[}}%[[VAL_104]] : i32] : vector<3xi64>

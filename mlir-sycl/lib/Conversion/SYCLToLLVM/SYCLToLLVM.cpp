@@ -30,6 +30,7 @@
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 #include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -2344,6 +2345,8 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
 
   RewritePatternSet patterns(&context);
 
+  constexpr auto clientAPI = spirv::ClientAPI::OpenCL;
+
   // Keep these at the top; these should be run before the rest of
   // function conversion patterns.
   populateReturnOpTypeConversionPattern(patterns, converter);
@@ -2358,8 +2361,8 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
 
   populateVectorToLLVMConversionPatterns(converter, patterns);
   arith::populateArithToLLVMConversionPatterns(converter, patterns);
-  populateSPIRVToLLVMTypeConversion(converter);
-  populateSPIRVToLLVMConversionPatterns(converter, patterns);
+  populateSPIRVToLLVMTypeConversion(converter, clientAPI);
+  populateSPIRVToLLVMConversionPatterns(converter, patterns, clientAPI);
 
   LLVMConversionTarget target(context);
   target.addIllegalDialect<SYCLDialect>();

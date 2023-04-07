@@ -9,22 +9,22 @@
 
 module attributes {gpu.container_module} {
   // CHECK:   gpu.module @kernels {
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInSubgroupLocalInvocationId() {addr_space = 0 : i32} : i64
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInSubgroupMaxSize() {addr_space = 0 : i32} : i64
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInGlobalOffset() {addr_space = 0 : i32} : vector<3xi64>
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInSubgroupId() {addr_space = 0 : i32} : i64
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInSubgroupSize() {addr_space = 0 : i32} : i64
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInNumSubgroups() {addr_space = 0 : i32} : i64
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInWorkgroupId() {addr_space = 0 : i32} : vector<3xi64>
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInWorkgroupSize() {addr_space = 0 : i32} : vector<3xi64>
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInLocalInvocationId() {addr_space = 0 : i32} : vector<3xi64>
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInGlobalInvocationId() {addr_space = 0 : i32} : vector<3xi64>
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInNumWorkgroups() {addr_space = 0 : i32} : vector<3xi64>
-    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInGlobalSize() {addr_space = 0 : i32} : vector<3xi64>
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInSubgroupLocalInvocationId() {addr_space = 1 : i32} : i64
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInSubgroupMaxSize() {addr_space = 1 : i32} : i64
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInGlobalOffset() {addr_space = 1 : i32} : vector<3xi64>
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInSubgroupId() {addr_space = 1 : i32} : i64
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInSubgroupSize() {addr_space = 1 : i32} : i64
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInNumSubgroups() {addr_space = 1 : i32} : i64
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInWorkgroupId() {addr_space = 1 : i32} : vector<3xi64>
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInWorkgroupSize() {addr_space = 1 : i32} : vector<3xi64>
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInLocalInvocationId() {addr_space = 1 : i32} : vector<3xi64>
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInGlobalInvocationId() {addr_space = 1 : i32} : vector<3xi64>
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInNumWorkgroups() {addr_space = 1 : i32} : vector<3xi64>
+    //CHECK-DAG:      llvm.mlir.global external constant @__spirv_BuiltInGlobalSize() {addr_space = 1 : i32} : vector<3xi64>
   gpu.module @kernels {
     // CHECK-LABEL:   llvm.func @test_num_work_items() -> !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> {
-    // CHECK-NEXT:        %[[VAL_0:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalSize : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_1:.*]] = llvm.load %[[VAL_0]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_0:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalSize : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_1:.*]] = llvm.load %[[VAL_0]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-NEXT:        %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr
     // CHECK-NEXT:        %[[VAL_3:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_2]]{{\[}}%[[VAL_3]]] :  (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.1", {{.*}}>
@@ -48,8 +48,8 @@ module attributes {gpu.container_module} {
 
     // CHECK-LABEL:     llvm.func @test_num_work_items_dim(
     // CHECK-SAME:                                         %[[VAL_15:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_16:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalSize : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_17:.*]] = llvm.load %[[VAL_16]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_16:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalSize : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_17:.*]] = llvm.load %[[VAL_16]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-DAG:         %[[VAL_18:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
     // CHECK-DAG:         %[[VAL_19:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-NEXT:        %[[VAL_20:.*]] = llvm.extractelement %[[VAL_17]]{{\[}}%[[VAL_19]] : i32] : vector<3xi64>
@@ -72,8 +72,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_global_id() -> !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> {
-    // CHECK-NEXT:        %[[VAL_32:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalInvocationId : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_33:.*]] = llvm.load %[[VAL_32]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_32:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalInvocationId : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_33:.*]] = llvm.load %[[VAL_32]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-NEXT:        %[[VAL_34:.*]] = llvm.mlir.null : !llvm.ptr
     // CHECK-NEXT:        %[[VAL_35:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_36:.*]] = llvm.getelementptr %[[VAL_34]]{{\[}}%[[VAL_35]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::id.2", {{.*}}>
@@ -103,8 +103,8 @@ module attributes {gpu.container_module} {
 
     // CHECK-LABEL:     llvm.func @test_global_id_dim(
     // CHECK-SAME:                                    %[[VAL_52:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_53:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalInvocationId : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_54:.*]] = llvm.load %[[VAL_53]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_53:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalInvocationId : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_54:.*]] = llvm.load %[[VAL_53]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-DAG:         %[[VAL_55:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
     // CHECK-DAG:         %[[VAL_56:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-NEXT:        %[[VAL_57:.*]] = llvm.extractelement %[[VAL_54]]{{\[}}%[[VAL_56]] : i32] : vector<3xi64>
@@ -127,8 +127,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_local_id() -> !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {
-    // CHECK-NEXT:        %[[VAL_69:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_70:.*]] = llvm.load %[[VAL_69]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_69:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_70:.*]] = llvm.load %[[VAL_69]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-NEXT:        %[[VAL_71:.*]] = llvm.mlir.null : !llvm.ptr
     // CHECK-NEXT:        %[[VAL_72:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_73:.*]] = llvm.getelementptr %[[VAL_71]]{{\[}}%[[VAL_72]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::id.3", {{.*}}>
@@ -164,8 +164,8 @@ module attributes {gpu.container_module} {
 
     // CHECK-LABEL:     llvm.func @test_local_id_dim(
     // CHECK-SAME:                                   %[[VAL_94:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_95:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_96:.*]] = llvm.load %[[VAL_95]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_95:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_96:.*]] = llvm.load %[[VAL_95]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-DAG:         %[[VAL_97:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
     // CHECK-DAG:         %[[VAL_98:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-NEXT:        %[[VAL_99:.*]] = llvm.extractelement %[[VAL_96]]{{\[}}%[[VAL_98]] : i32] : vector<3xi64>
@@ -188,8 +188,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_work_group_size() -> !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {
-    // CHECK-NEXT:        %[[VAL_111:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupSize : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_112:.*]] = llvm.load %[[VAL_111]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_111:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupSize : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_112:.*]] = llvm.load %[[VAL_111]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-NEXT:        %[[VAL_113:.*]] = llvm.mlir.null : !llvm.ptr
     // CHECK-NEXT:        %[[VAL_114:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_115:.*]] = llvm.getelementptr %[[VAL_113]]{{\[}}%[[VAL_114]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.3", {{.*}}>
@@ -225,8 +225,8 @@ module attributes {gpu.container_module} {
 
     // CHECK-LABEL:     llvm.func @test_work_group_size_dim(
     // CHECK-SAME:                                          %[[VAL_136:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_137:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupSize : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_138:.*]] = llvm.load %[[VAL_137]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_137:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupSize : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_138:.*]] = llvm.load %[[VAL_137]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-DAG:         %[[VAL_139:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
     // CHECK-DAG:         %[[VAL_140:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-NEXT:        %[[VAL_141:.*]] = llvm.extractelement %[[VAL_138]]{{\[}}%[[VAL_140]] : i32] : vector<3xi64>
@@ -249,8 +249,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_work_group_id() -> !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> {
-    // CHECK-NEXT:        %[[VAL_153:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupId : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_154:.*]] = llvm.load %[[VAL_153]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_153:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupId : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_154:.*]] = llvm.load %[[VAL_153]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-NEXT:        %[[VAL_155:.*]] = llvm.mlir.null : !llvm.ptr
     // CHECK-NEXT:        %[[VAL_156:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_157:.*]] = llvm.getelementptr %[[VAL_155]]{{\[}}%[[VAL_156]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::id.1", {{.*}}>
@@ -274,8 +274,8 @@ module attributes {gpu.container_module} {
 
     // CHECK-LABEL:     llvm.func @test_work_group_id_dim(
     // CHECK-SAME:                                        %[[VAL_168:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_169:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupId : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_170:.*]] = llvm.load %[[VAL_169]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_169:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupId : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_170:.*]] = llvm.load %[[VAL_169]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-DAG:         %[[VAL_171:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
     // CHECK-DAG:         %[[VAL_172:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-NEXT:        %[[VAL_173:.*]] = llvm.extractelement %[[VAL_170]]{{\[}}%[[VAL_172]] : i32] : vector<3xi64>
@@ -298,8 +298,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_num_sub_groups() -> i32 {
-    // CHECK-NEXT:        %[[VAL_200:.*]] = llvm.mlir.addressof @__spirv_BuiltInNumSubgroups : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_201:.*]] = llvm.load %[[VAL_200]] : !llvm.ptr -> i64
+    // CHECK-NEXT:        %[[VAL_200:.*]] = llvm.mlir.addressof @__spirv_BuiltInNumSubgroups : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_201:.*]] = llvm.load %[[VAL_200]] : !llvm.ptr<1> -> i64
     // CHECK-NEXT:        %[[VAL_202:.*]] = llvm.trunc %[[VAL_201]] : i64 to i32
     // CHECK-NEXT:        llvm.return %[[VAL_202]] : i32
     // CHECK-NEXT:      }
@@ -309,8 +309,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_sub_group_size() -> i32 {
-    // CHECK-NEXT:        %[[VAL_203:.*]] = llvm.mlir.addressof @__spirv_BuiltInSubgroupSize : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_204:.*]] = llvm.load %[[VAL_203]] : !llvm.ptr -> i64
+    // CHECK-NEXT:        %[[VAL_203:.*]] = llvm.mlir.addressof @__spirv_BuiltInSubgroupSize : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_204:.*]] = llvm.load %[[VAL_203]] : !llvm.ptr<1> -> i64
     // CHECK-NEXT:        %[[VAL_205:.*]] = llvm.trunc %[[VAL_204]] : i64 to i32
     // CHECK-NEXT:        llvm.return %[[VAL_205]] : i32
     // CHECK-NEXT:      }
@@ -320,8 +320,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_sub_group_id() -> i32 {
-    // CHECK-NEXT:        %[[VAL_206:.*]] = llvm.mlir.addressof @__spirv_BuiltInSubgroupId : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_207:.*]] = llvm.load %[[VAL_206]] : !llvm.ptr -> i64
+    // CHECK-NEXT:        %[[VAL_206:.*]] = llvm.mlir.addressof @__spirv_BuiltInSubgroupId : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_207:.*]] = llvm.load %[[VAL_206]] : !llvm.ptr<1> -> i64
     // CHECK-NEXT:        %[[VAL_208:.*]] = llvm.trunc %[[VAL_207]] : i64 to i32
     // CHECK-NEXT:        llvm.return %[[VAL_208]] : i32
     // CHECK-NEXT:      }
@@ -331,8 +331,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_global_offset() -> !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> {
-    // CHECK-NEXT:        %[[VAL_194:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalOffset : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_195:.*]] = llvm.load %[[VAL_194]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_194:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalOffset : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_195:.*]] = llvm.load %[[VAL_194]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-NEXT:        %[[VAL_196:.*]] = llvm.mlir.null : !llvm.ptr
     // CHECK-NEXT:        %[[VAL_197:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_198:.*]] = llvm.getelementptr %[[VAL_196]]{{\[}}%[[VAL_197]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::id.1", {{.*}}>
@@ -356,8 +356,8 @@ module attributes {gpu.container_module} {
 
     // CHECK-LABEL:     llvm.func @test_global_offset_dim(
     // CHECK-SAME:                                        %[[VAL_222:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_223:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalOffset : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_224:.*]] = llvm.load %[[VAL_223]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_223:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalOffset : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_224:.*]] = llvm.load %[[VAL_223]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-DAG:         %[[VAL_225:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
     // CHECK-DAG:         %[[VAL_226:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-NEXT:        %[[VAL_227:.*]] = llvm.extractelement %[[VAL_224]]{{\[}}%[[VAL_226]] : i32] : vector<3xi64>
@@ -380,8 +380,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_num_work_groups() -> !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> {
-    // CHECK-NEXT:        %[[VAL_226:.*]] = llvm.mlir.addressof @__spirv_BuiltInNumWorkgroups : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_227:.*]] = llvm.load %[[VAL_226]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_226:.*]] = llvm.mlir.addressof @__spirv_BuiltInNumWorkgroups : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_227:.*]] = llvm.load %[[VAL_226]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-NEXT:        %[[VAL_228:.*]] = llvm.mlir.null : !llvm.ptr
     // CHECK-NEXT:        %[[VAL_229:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_230:.*]] = llvm.getelementptr %[[VAL_228]]{{\[}}%[[VAL_229]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.2", {{.*}}>
@@ -411,8 +411,8 @@ module attributes {gpu.container_module} {
 
     // CHECK-LABEL:     llvm.func @test_num_work_groups_dim(
     // CHECK-SAME:                                          %[[VAL_246:.*]]: i32) -> i64 {
-    // CHECK-NEXT:        %[[VAL_247:.*]] = llvm.mlir.addressof @__spirv_BuiltInNumWorkgroups : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_248:.*]] = llvm.load %[[VAL_247]] : !llvm.ptr -> vector<3xi64>
+    // CHECK-NEXT:        %[[VAL_247:.*]] = llvm.mlir.addressof @__spirv_BuiltInNumWorkgroups : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_248:.*]] = llvm.load %[[VAL_247]] : !llvm.ptr<1> -> vector<3xi64>
     // CHECK-DAG:         %[[VAL_249:.*]] = llvm.mlir.constant(dense<0> : vector<3xindex>) : vector<3xi64>
     // CHECK-DAG:         %[[VAL_250:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-NEXT:        %[[VAL_251:.*]] = llvm.extractelement %[[VAL_248]]{{\[}}%[[VAL_250]] : i32] : vector<3xi64>
@@ -435,8 +435,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_sub_group_max_size() -> i32 {
-    // CHECK-NEXT:        %[[VAL_273:.*]] = llvm.mlir.addressof @__spirv_BuiltInSubgroupMaxSize : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_274:.*]] = llvm.load %[[VAL_273]] : !llvm.ptr -> i64
+    // CHECK-NEXT:        %[[VAL_273:.*]] = llvm.mlir.addressof @__spirv_BuiltInSubgroupMaxSize : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_274:.*]] = llvm.load %[[VAL_273]] : !llvm.ptr<1> -> i64
     // CHECK-NEXT:        %[[VAL_275:.*]] = llvm.trunc %[[VAL_274]] : i64 to i32
     // CHECK-NEXT:        llvm.return %[[VAL_275]] : i32
     func.func @test_sub_group_max_size() -> i32 {
@@ -445,8 +445,8 @@ module attributes {gpu.container_module} {
     }
 
     // CHECK-LABEL:     llvm.func @test_sub_group_local_id() -> i32 {
-    // CHECK-NEXT:        %[[VAL_276:.*]] = llvm.mlir.addressof @__spirv_BuiltInSubgroupLocalInvocationId : !llvm.ptr
-    // CHECK-NEXT:        %[[VAL_277:.*]] = llvm.load %[[VAL_276]] : !llvm.ptr -> i64
+    // CHECK-NEXT:        %[[VAL_276:.*]] = llvm.mlir.addressof @__spirv_BuiltInSubgroupLocalInvocationId : !llvm.ptr<1>
+    // CHECK-NEXT:        %[[VAL_277:.*]] = llvm.load %[[VAL_276]] : !llvm.ptr<1> -> i64
     // CHECK-NEXT:        %[[VAL_278:.*]] = llvm.trunc %[[VAL_277]] : i64 to i32
     // CHECK-NEXT:        llvm.return %[[VAL_278]] : i32
     // CHECK-NEXT:      }
