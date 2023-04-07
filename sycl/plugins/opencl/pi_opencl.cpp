@@ -855,6 +855,16 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+pi_result piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
+    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
+    pi_queue *piQueue) {
+  (void)NativeHandleDesc;
+  (void)Properties;
+  return piextQueueCreateWithNativeHandle(nativeHandle, context, device,
+                                          ownNativeHandle, piQueue);
+}
+
 pi_result piProgramCreate(pi_context context, const void *il, size_t length,
                           pi_program *res_program) {
   cl_uint deviceCount;
@@ -1333,6 +1343,32 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
       cast<cl_kernel>(kernel), cast<cl_device_id>(device),
       cast<cl_kernel_sub_group_info>(param_name), input_value_size, input_value,
       sizeof(size_t), &ret_val, param_value_size_ret));
+
+  if (ret_err == CL_INVALID_OPERATION) {
+    // clGetKernelSubGroupInfo returns CL_INVALID_OPERATION if the device does
+    // not support subgroups.
+
+    if (param_name == PI_KERNEL_MAX_NUM_SUB_GROUPS) {
+      ret_val = 1; // Minimum required by SYCL 2020 spec
+      ret_err = CL_SUCCESS;
+    } else if (param_name == PI_KERNEL_COMPILE_NUM_SUB_GROUPS) {
+      ret_val = 0; // Not specified by kernel
+      ret_err = CL_SUCCESS;
+    } else if (param_name == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
+      // Return the maximum work group size for the kernel
+      size_t kernel_work_group_size = 0;
+      pi_result pi_ret_err = piKernelGetGroupInfo(
+          kernel, device, PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
+          &kernel_work_group_size, nullptr);
+      if (pi_ret_err != PI_SUCCESS)
+        return pi_ret_err;
+      ret_val = kernel_work_group_size;
+      ret_err = CL_SUCCESS;
+    } else if (param_name == PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL) {
+      ret_val = 0; // Not specified by kernel
+      ret_err = CL_SUCCESS;
+    }
+  }
 
   if (ret_err != CL_SUCCESS)
     return cast<pi_result>(ret_err);
@@ -2089,6 +2125,13 @@ pi_result piextQueueGetNativeHandle(pi_queue queue,
   return piextGetNativeHandle(queue, nativeHandle);
 }
 
+pi_result piextQueueGetNativeHandle2(pi_queue queue,
+                                     pi_native_handle *nativeHandle,
+                                     int32_t *NativeHandleDesc) {
+  (void)NativeHandleDesc;
+  return piextGetNativeHandle(queue, nativeHandle);
+}
+
 pi_result piextMemGetNativeHandle(pi_mem mem, pi_native_handle *nativeHandle) {
   return piextGetNativeHandle(mem, nativeHandle);
 }
@@ -2196,13 +2239,16 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
   _PI_CL(piextQueueCreate, piextQueueCreate)
+  _PI_CL(piextQueueCreate2, piextQueueCreate)
   _PI_CL(piQueueGetInfo, piQueueGetInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)
   _PI_CL(piQueueRetain, clRetainCommandQueue)
   _PI_CL(piQueueRelease, clReleaseCommandQueue)
   _PI_CL(piextQueueGetNativeHandle, piextQueueGetNativeHandle)
+  _PI_CL(piextQueueGetNativeHandle2, piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle, piextQueueCreateWithNativeHandle)
+  _PI_CL(piextQueueCreateWithNativeHandle2, piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, piMemBufferCreate)
   _PI_CL(piMemImageCreate, piMemImageCreate)

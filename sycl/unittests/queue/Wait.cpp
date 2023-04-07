@@ -85,7 +85,7 @@ event submitTask(queue &Q, buffer<int, 1> &Buf) {
 TEST(QueueWait, QueueWaitTest) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
+  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate2>(
       redefinedQueueCreateEx);
   Mock.redefineBefore<detail::PiApiKind::piQueueFinish>(redefinedQueueFinish);
   Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
