@@ -417,7 +417,9 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   }
   // Add optimization flags.
   const char *optLevelStr = getUint32PropAsOptStr(Img, "optLevel");
-  if (optLevelStr != nullptr && optLevelStr[0] != '\0') {
+  // TODO: Passing these options to vector compiler causes build failure in
+  // backend. Will pass the flags once backend compilation issue is resolved.
+  if (!isEsimdImage && optLevelStr != nullptr && optLevelStr[0] != '\0') {
     // Making sure all devices have the same platform.
     assert(!Devs.empty() &&
            std::all_of(Devs.begin(), Devs.end(), [&](const device &Dev) {

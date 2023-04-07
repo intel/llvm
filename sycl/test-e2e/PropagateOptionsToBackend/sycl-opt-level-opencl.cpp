@@ -1,13 +1,25 @@
 // REQUIRES: opencl
 
 // RUN: %clangxx -O0 -fsycl %s -o %t0.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu SYCL_PI_TRACE=-1 %t0.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL0
+// RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t0.out 2>&1 %CPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL0
+// RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t0.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL0
 // RUN: %clangxx -O1 -fsycl %s -o %t1.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu SYCL_PI_TRACE=-1 %t1.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL1
+// RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t1.out 2>&1 %CPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL1
+// RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t1.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL1
 // RUN: %clangxx -O2 -fsycl %s -o %t2.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu SYCL_PI_TRACE=-1 %t2.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL2
+// RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t2.out 2>&1 %CPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL2
+// RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t2.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL2
 // RUN: %clangxx -O3 -fsycl %s -o %t3.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu SYCL_PI_TRACE=-1 %t3.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL3
+// RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t3.out 2>&1 %CPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL3
+// RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t3.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECKOCL3
+
+// requires: cpu, gpu, accelerator
+// UNSUPPORTED: hip
+// FIXME: enable the test back, see intel/llvm#8146
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -O0 %s -o %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // This test verifies the propagation of front-end compiler optimization
 // option to the backend.
