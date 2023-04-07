@@ -3259,7 +3259,8 @@ pi_result piMemRelease(pi_mem Mem) {
     auto Image = static_cast<pi_image>(Mem);
     if (Image->OwnZeMemHandle) {
       PI_CALL(Mem->getZeHandle(ZeHandleImage, _pi_mem::write_only));
-      auto ZeResult = ZE_CALL_NOCHECK(zeImageDestroy, (pi_cast<ze_image_handle_t>(ZeHandleImage)));
+      auto ZeResult = ZE_CALL_NOCHECK(
+          zeImageDestroy, (pi_cast<ze_image_handle_t>(ZeHandleImage)));
       // Gracefully handle the case that L0 was already unloaded.
       if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
         return mapError(ZeResult);

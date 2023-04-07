@@ -322,7 +322,8 @@ an application to create a SYCL object that encapsulates a corresponding Level-Z
 <td>
 
 ``` C++
-make_platform<backend::ext_oneapi_level_zero>(
+template <backend Backend>
+platform make_platform<Backend>(
     const backend_input_t<
         backend::ext_oneapi_level_zero, platform> &)
 ```
@@ -332,7 +333,8 @@ make_platform<backend::ext_oneapi_level_zero>(
 <td>
 
 ``` C++
-make_device<backend::ext_oneapi_level_zero>(
+template <backend Backend>
+device make_device<Backend>(
     const backend_input_t<
         backend::ext_oneapi_level_zero, device> &)
 ```
@@ -342,7 +344,8 @@ make_device<backend::ext_oneapi_level_zero>(
 <td>
 
 ``` C++
-make_context<backend::ext_oneapi_level_zero>(
+template <backend Backend>
+context make_context<Backend>(
     const backend_input_t<
         backend::ext_oneapi_level_zero, context> &)
 ```
@@ -352,7 +355,8 @@ make_context<backend::ext_oneapi_level_zero>(
 <td>
 
 ``` C++
-make_queue<backend::ext_oneapi_level_zero>(
+template <backend Backend>
+queue make_queue<Backend>(
     const backend_input_t<
         backend::ext_oneapi_level_zero, queue> &,
     const context &Context)
@@ -369,7 +373,8 @@ the ```compute_index``` property which is built into the command queue or comman
 <td>
 
 ``` C++
-make_event<backend::ext_oneapi_level_zero>(
+template <backend Backend>
+event make_event<Backend>(
     const backend_input_t<
         backend::ext_oneapi_level_zero, event> &,
     const context &Context)
@@ -380,11 +385,11 @@ make_event<backend::ext_oneapi_level_zero>(
 <td>
 
 ``` C++
-make_kernel_bundle<backend::ext_oneapi_level_zero,
-                   bundle_state::executable>(
+template <backend Backend, bundle_state State>
+kernel_bundle<State> make_kernel_bundle<Backend, State>(
     const backend_input_t<
         backend::ext_oneapi_level_zero,
-        kernel_bundle<bundle_state::executable>> &,
+        kernel_bundle<State>> &,
     const context &Context)
 ```
 </td>
@@ -406,7 +411,8 @@ interoperability <code>kernel_bundle</code> destructor is called.</td>
 <td>
 
 ``` C++
-make_kernel<backend::ext_oneapi_level_zero>(
+template <backend Backend>
+kernel make_kernel<Backend>(
     const backend_input_t<
         backend::ext_oneapi_level_zero, kernel> &,
     const context &Context)
@@ -428,8 +434,11 @@ Level-Zero kernel</td>
 <td>
 
 ``` C++
-make_buffer(
-    const backend_input_t<backend::ext_oneapi_level_zero,
+template <backend Backend, 
+          typename T, int Dimensions = 1,
+          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
+buffer<T, Dimensions, AllocatorT> make_buffer(
+    const backend_input_t<Backend,
                           buffer<T, Dimensions, AllocatorT>> &,
     const context &Context)
 ```
@@ -444,8 +453,11 @@ Synchronization rules for a buffer that is created with this API are described i
 <td>
 
 ``` C++
-make_buffer(
-    const backend_input_t<backend::ext_oneapi_level_zero,
+template <backend Backend, 
+          typename T, int Dimensions = 1,
+          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>>
+buffer<T, Dimensions, AllocatorT> make_buffer(
+    const backend_input_t<Backend,
                           buffer<T, Dimensions, AllocatorT>> &,
     const context &Context, event AvailableEvent)
 ```
@@ -461,9 +473,11 @@ The additional <code>AvailableEvent</code> argument must be a valid SYCL event. 
 <td>
 
 ``` C++
-template<backend Backend, int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
+template<backend Backend, int Dimensions = 1, 
+         typename AllocatorT = sycl::image_allocator>
 image<Dimensions, AllocatorT> make_image(
-    const backend_input_t<Backend, image<Dimensions, AllocatorT>> &backendObject,
+    const backend_input_t<Backend, 
+                          image<Dimensions, AllocatorT>> &backendObject,
     const context &targetContext);
 ```
 </td>
@@ -489,6 +503,17 @@ sampled_image and unsampled_image might have a different ordering.
 
 Example Usage
 ``` C++
+ze_image_handle_t ZeHImage; 
+// ... user provided LevelZero ZeHImage image handle gotten somehow (possibly zeImageCreate)
+
+// the informational data that matches ZeHImage
+sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
+sycl::image_channel_type ChanType =  sycl::image_channel_type::unsigned_int8;
+constexpr uint32_t width  = 4;
+constexpr uint32_t height = 2;
+sycl::range<2> ImgRange_2D(width, height);
+
+constexpr sycl::backend BE = sycl::backend::ext_oneapi_level_zero;
 sycl::backend_input_t<BE, sycl::image<2>> ImageInteropInput{ 
     ZeHImage, 
     ChanOrder,
@@ -500,7 +525,7 @@ sycl::image<2> Image_2D
   = sycl::make_image<BE, 2>(ImageInteropInput, Context);
 ```
 
- The input SYCL context <code>Context</code> must be associated with a single device, matching the device used to create the Level Zero image handle.
+The image can only be used on the single device where it was created. This limitation may be relaxed in the future.
 The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero image must have been created on the same context. The created SYCL image can only be accessed from kernels that are submitted to a queue using this same context.
 The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the SYCL runtime is going to free the input Level-Zero memory allocation, meaning the memory will be freed when the ~image destructor fires. When using "transfer" the ~image destructor may not need to block.  If the behavior is "keep", then the memory will not be freed by the ~image destructor, and the ~image destructor blocks until all work in the queues on the image have been completed. When using "keep" it is the responsibility of the caller to free the memory appropriately. 
 </td>
@@ -510,13 +535,15 @@ The <code>Ownership</code> input structure member specifies if the SYCL runtime 
 <td>
 
 ``` C++
-template<backend Backend, int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
+template<backend Backend, int Dimensions = 1, 
+         typename AllocatorT = sycl::image_allocator>
 image<Dimensions, AllocatorT> make_image(
-    const backend_input_t<Backend, image<Dimensions, AllocatorT>> &backendObject,
+    const backend_input_t<Backend, 
+                          image<Dimensions, AllocatorT>> &backendObject,
     const context &targetContext, event availableEvent);
 ```
 </td>
-<td>This API is available starting with revision 4 of this specification.
+<td>This API is available starting with revision 5 of this specification.
 
 Construct a SYCL image instance from a pointer to a Level Zero memory allocation. Please refer to <code>make_image</code>
 description above for semantics and restrictions.
