@@ -2063,10 +2063,10 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 /// timestamp
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 
-/// API to get backend specific optimization option.
-/// \param opt_level is an integer that contains frontend optimization level.
-/// \param backend_option is used to return the backend optimization option
-/// corresponding to frontend optimization level.
+/// API to get backend specific option.
+/// \param frontend_option is a string that contains frontend option.
+/// \param backend_option is used to return the backend option corresponding to
+/// frontend option.
 ///
 /// \return PI_SUCCESS is returned for valid frontend_option. If a valid backend
 /// option is not available, an empty string is returned.

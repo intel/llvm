@@ -416,7 +416,8 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
   // Add optimization flags.
-  const char *optLevelStr = getUint32PropAsOptStr(Img, "optLevel").c_str();
+  auto str = getUint32PropAsOptStr(Img, "optLevel");
+  const char *optLevelStr = str.c_str();
   // TODO: Passing these options to vector compiler causes build failure in
   // backend. Will pass the flags once backend compilation issue is resolved.
   // Update only if compile options are not overwritten by environment
