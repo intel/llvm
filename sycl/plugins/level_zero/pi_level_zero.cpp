@@ -5012,9 +5012,9 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
     // Note: No users for this case
-    // TODO: Implement commmand submission time when needed,
-    //        by recording device timestamp (using zeDeviceGetGlobalTimestamps)
-    //        before submitting command to device
+    // The "command_submit" time is implemented by recording submission
+    // timestamp with a call to piGetDeviceAndHostTimer before command enqueue.
+    //
     return ReturnValue(uint64_t{0});
   default:
     urPrint("piEventGetProfilingInfo: not supported ParamName\n");
@@ -8677,7 +8677,6 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
            &DeviceClockCount));
 
   if (DeviceTime != nullptr) {
-
     *DeviceTime = (DeviceClockCount & TimestampMaxCount) * ZeTimerResolution;
   }
   return PI_SUCCESS;
