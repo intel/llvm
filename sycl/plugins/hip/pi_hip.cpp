@@ -24,8 +24,8 @@
 #include <memory>
 #include <mutex>
 #include <regex>
-#include <string_view>
 #include <string.h>
+#include <string_view>
 
 namespace {
 // Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
@@ -149,9 +149,9 @@ pi_result hip_piPluginGetBackendOption(pi_platform platform,
   if (frontend_option == "-O0"sv || frontend_option == "-O1"sv ||
       frontend_option == "-O2"sv || frontend_option == "-O3"sv ||
       frontend_option == ""sv)) {
-    *backend_option = EmptyStr;
-    return PI_SUCCESS;
-  }
+      *backend_option = EmptyStr;
+      return PI_SUCCESS;
+    }
   return PI_ERROR_INVALID_VALUE;
 }
 
