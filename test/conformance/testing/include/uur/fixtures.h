@@ -435,17 +435,23 @@ std::string deviceTestWithParamPrinter(
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
 
-struct urProgramILBinaryTest : urContextTest {
+struct urProgramTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
-        uur::KernelsEnvironment::instance->LoadSource("nop", 0, il_binary);
+        uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
+        ASSERT_SUCCESS(urProgramCreateWithIL(
+            context, il_binary->data(), il_binary->size(), nullptr, &program));
     }
 
     void TearDown() override {
+        if (program) {
+            EXPECT_SUCCESS(urProgramRelease(program));
+        }
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
     }
 
     std::shared_ptr<std::vector<char>> il_binary;
+    ur_program_handle_t program = nullptr;
 };
 } // namespace uur
 
