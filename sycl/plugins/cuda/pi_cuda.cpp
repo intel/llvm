@@ -73,6 +73,27 @@ pi_result cuda_piPluginGetBackendOption(pi_platform,
   return PI_ERROR_INVALID_VALUE;
 }
 
+pi_result map_ur_error(ur_result_t result) {
+  switch (result) {
+  case UR_RESULT_SUCCESS:
+    return PI_SUCCESS;
+  case UR_RESULT_ERROR_INVALID_OPERATION:
+    return PI_ERROR_INVALID_OPERATION;
+  case UR_RESULT_ERROR_INVALID_CONTEXT:
+    return PI_ERROR_INVALID_CONTEXT;
+  case UR_RESULT_ERROR_INVALID_DEVICE:
+    return PI_ERROR_INVALID_DEVICE;
+  case UR_RESULT_ERROR_INVALID_VALUE:
+    return PI_ERROR_INVALID_VALUE;
+  case UR_RESULT_ERROR_OUT_OF_HOST_MEMORY:
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+  case UR_RESULT_ERROR_OUT_OF_RESOURCES:
+    return PI_ERROR_OUT_OF_RESOURCES;
+  default:
+    return PI_ERROR_UNKNOWN;
+  }
+}
+
 // Iterates over the event wait list, returns correct pi_result error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a pi_result.
@@ -411,256 +432,10 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
                                               pi_uint32 num_events_in_wait_list,
                                               const pi_event *event_wait_list,
                                               pi_event *event);
-pi_result cuda_piEventRelease(pi_event event);
-pi_result cuda_piEventRetain(pi_event event);
 
 } // extern "C"
 
 /// \endcond
-
-void _pi_queue::compute_stream_wait_for_barrier_if_needed(CUstream stream,
-                                                          pi_uint32 stream_i) {
-  if (barrier_event_ && !compute_applied_barrier_[stream_i]) {
-    PI_CHECK_ERROR(cuStreamWaitEvent(stream, barrier_event_, 0));
-    compute_applied_barrier_[stream_i] = true;
-  }
-}
-
-void _pi_queue::transfer_stream_wait_for_barrier_if_needed(CUstream stream,
-                                                           pi_uint32 stream_i) {
-  if (barrier_event_ && !transfer_applied_barrier_[stream_i]) {
-    PI_CHECK_ERROR(cuStreamWaitEvent(stream, barrier_event_, 0));
-    transfer_applied_barrier_[stream_i] = true;
-  }
-}
-
-CUstream _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
-  pi_uint32 stream_i;
-  pi_uint32 token;
-  while (true) {
-    if (num_compute_streams_ < compute_streams_.size()) {
-      // the check above is for performance - so as not to lock mutex every time
-      std::lock_guard<std::mutex> guard(compute_stream_mutex_);
-      // The second check is done after mutex is locked so other threads can not
-      // change num_compute_streams_ after that
-      if (num_compute_streams_ < compute_streams_.size()) {
-        PI_CHECK_ERROR(
-            cuStreamCreate(&compute_streams_[num_compute_streams_++], flags_));
-      }
-    }
-    token = compute_stream_idx_++;
-    stream_i = token % compute_streams_.size();
-    // if a stream has been reused before it was next selected round-robin
-    // fashion, we want to delay its next use and instead select another one
-    // that is more likely to have completed all the enqueued work.
-    if (delay_compute_[stream_i]) {
-      delay_compute_[stream_i] = false;
-    } else {
-      break;
-    }
-  }
-  if (stream_token) {
-    *stream_token = token;
-  }
-  CUstream res = compute_streams_[stream_i];
-  compute_stream_wait_for_barrier_if_needed(res, stream_i);
-  return res;
-}
-
-CUstream _pi_queue::get_next_compute_stream(pi_uint32 num_events_in_wait_list,
-                                            const pi_event *event_wait_list,
-                                            _pi_stream_guard &guard,
-                                            pi_uint32 *stream_token) {
-  for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
-    pi_uint32 token = event_wait_list[i]->get_compute_stream_token();
-    if (event_wait_list[i]->get_queue() == this && can_reuse_stream(token)) {
-      std::unique_lock<std::mutex> compute_sync_guard(
-          compute_stream_sync_mutex_);
-      // redo the check after lock to avoid data races on
-      // last_sync_compute_streams_
-      if (can_reuse_stream(token)) {
-        pi_uint32 stream_i = token % delay_compute_.size();
-        delay_compute_[stream_i] = true;
-        if (stream_token) {
-          *stream_token = token;
-        }
-        guard = _pi_stream_guard{std::move(compute_sync_guard)};
-        CUstream res = event_wait_list[i]->get_stream();
-        compute_stream_wait_for_barrier_if_needed(res, stream_i);
-        return res;
-      }
-    }
-  }
-  guard = {};
-  return get_next_compute_stream(stream_token);
-}
-
-CUstream _pi_queue::get_next_transfer_stream() {
-  if (transfer_streams_.empty()) { // for example in in-order queue
-    return get_next_compute_stream();
-  }
-  if (num_transfer_streams_ < transfer_streams_.size()) {
-    // the check above is for performance - so as not to lock mutex every time
-    std::lock_guard<std::mutex> guard(transfer_stream_mutex_);
-    // The second check is done after mutex is locked so other threads can not
-    // change num_transfer_streams_ after that
-    if (num_transfer_streams_ < transfer_streams_.size()) {
-      PI_CHECK_ERROR(
-          cuStreamCreate(&transfer_streams_[num_transfer_streams_++], flags_));
-    }
-  }
-  pi_uint32 stream_i = transfer_stream_idx_++ % transfer_streams_.size();
-  CUstream res = transfer_streams_[stream_i];
-  transfer_stream_wait_for_barrier_if_needed(res, stream_i);
-  return res;
-}
-
-_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
-                     CUstream stream, pi_uint32 stream_token)
-    : commandType_{type}, refCount_{1}, has_ownership_{true},
-      hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
-      streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
-      evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
-
-  bool profilingEnabled = queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE;
-
-  PI_CHECK_ERROR(cuEventCreate(
-      &evEnd_, profilingEnabled ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
-
-  if (profilingEnabled) {
-    PI_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
-    PI_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
-  }
-
-  if (queue_ != nullptr) {
-    cuda_piQueueRetain(queue_);
-  }
-  pi2ur::piContextRetain(context_);
-}
-
-_pi_event::_pi_event(pi_context context, CUevent eventNative)
-    : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, has_ownership_{false},
-      hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
-      streamToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
-      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr},
-      context_{context} {
-  pi2ur::piContextRetain(context_);
-}
-
-_pi_event::~_pi_event() {
-  if (queue_ != nullptr) {
-    cuda_piQueueRelease(queue_);
-  }
-  pi2ur::piContextRelease(context_);
-}
-
-pi_result _pi_event::start() {
-  assert(!is_started());
-  pi_result result = PI_SUCCESS;
-
-  try {
-    if (queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE) {
-      // NOTE: This relies on the default stream to be unused.
-      result = PI_CHECK_ERROR(cuEventRecord(evQueued_, 0));
-      result = PI_CHECK_ERROR(cuEventRecord(evStart_, stream_));
-    }
-  } catch (pi_result error) {
-    result = error;
-  }
-
-  isStarted_ = true;
-  return result;
-}
-
-bool _pi_event::is_completed() const noexcept {
-  if (!isRecorded_) {
-    return false;
-  }
-  if (!hasBeenWaitedOn_) {
-    const CUresult ret = cuEventQuery(evEnd_);
-    if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_READY) {
-      PI_CHECK_ERROR(ret);
-      return false;
-    }
-    if (ret == CUDA_ERROR_NOT_READY) {
-      return false;
-    }
-  }
-  return true;
-}
-
-pi_uint64 _pi_event::get_queued_time() const {
-  assert(is_started());
-  return queue_->get_device()->get_elapsed_time(evQueued_);
-}
-
-pi_uint64 _pi_event::get_start_time() const {
-  assert(is_started());
-  return queue_->get_device()->get_elapsed_time(evStart_);
-}
-
-pi_uint64 _pi_event::get_end_time() const {
-  assert(is_started() && is_recorded());
-  return queue_->get_device()->get_elapsed_time(evEnd_);
-}
-
-pi_result _pi_event::record() {
-
-  if (is_recorded() || !is_started()) {
-    return PI_ERROR_INVALID_EVENT;
-  }
-
-  pi_result result = PI_ERROR_INVALID_OPERATION;
-
-  if (!queue_) {
-    return PI_ERROR_INVALID_QUEUE;
-  }
-
-  try {
-    eventId_ = queue_->get_next_event_id();
-    if (eventId_ == 0) {
-      sycl::detail::pi::die(
-          "Unrecoverable program state reached in event identifier overflow");
-    }
-    result = PI_CHECK_ERROR(cuEventRecord(evEnd_, stream_));
-  } catch (pi_result error) {
-    result = error;
-  }
-
-  if (result == PI_SUCCESS) {
-    isRecorded_ = true;
-  }
-
-  return result;
-}
-
-pi_result _pi_event::wait() {
-  pi_result retErr;
-  try {
-    retErr = PI_CHECK_ERROR(cuEventSynchronize(evEnd_));
-    hasBeenWaitedOn_ = true;
-  } catch (pi_result error) {
-    retErr = error;
-  }
-
-  return retErr;
-}
-
-pi_result _pi_event::release() {
-  if (!backend_has_ownership())
-    return PI_SUCCESS;
-
-  assert(queue_ != nullptr);
-
-  PI_CHECK_ERROR(cuEventDestroy(evEnd_));
-
-  if (queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE) {
-    PI_CHECK_ERROR(cuEventDestroy(evQueued_));
-    PI_CHECK_ERROR(cuEventDestroy(evStart_));
-  }
-
-  return PI_SUCCESS;
-}
 
 // makes all future work submitted to queue wait for all work captured in event.
 pi_result enqueueEventWait(pi_queue queue, pi_event event) {
@@ -1028,254 +803,6 @@ pi_result cuda_piextMemImageCreateWithNativeHandle(pi_native_handle, pi_context,
   return {};
 }
 
-/// Creates a `pi_queue` object on the CUDA backend.
-/// Valid properties
-/// * __SYCL_PI_CUDA_USE_DEFAULT_STREAM -> CU_STREAM_DEFAULT
-/// * __SYCL_PI_CUDA_SYNC_WITH_DEFAULT -> CU_STREAM_NON_BLOCKING
-/// \return Pi queue object mapping to a CUStream
-///
-pi_result cuda_piQueueCreate(pi_context context, pi_device device,
-                             pi_queue_properties properties, pi_queue *queue) {
-  try {
-    std::unique_ptr<_pi_queue> queueImpl{nullptr};
-
-    if (context->get_device() != device) {
-      *queue = nullptr;
-      return PI_ERROR_INVALID_DEVICE;
-    }
-
-    unsigned int flags = 0;
-    if (properties == __SYCL_PI_CUDA_USE_DEFAULT_STREAM) {
-      flags = CU_STREAM_DEFAULT;
-    } else if (properties == __SYCL_PI_CUDA_SYNC_WITH_DEFAULT) {
-      flags = 0;
-    } else {
-      flags = CU_STREAM_NON_BLOCKING;
-    }
-
-    const bool is_out_of_order =
-        properties & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-
-    std::vector<CUstream> computeCuStreams(
-        is_out_of_order ? _pi_queue::default_num_compute_streams : 1);
-    std::vector<CUstream> transferCuStreams(
-        is_out_of_order ? _pi_queue::default_num_transfer_streams : 0);
-
-    queueImpl = std::unique_ptr<_pi_queue>(
-        new _pi_queue{std::move(computeCuStreams), std::move(transferCuStreams),
-                      context, device, properties, flags});
-
-    *queue = queueImpl.release();
-
-    return PI_SUCCESS;
-  } catch (pi_result err) {
-
-    return err;
-
-  } catch (...) {
-
-    return PI_ERROR_OUT_OF_RESOURCES;
-  }
-}
-pi_result cuda_piextQueueCreate(pi_context Context, pi_device Device,
-                                pi_queue_properties *Properties,
-                                pi_queue *Queue) {
-  assert(Properties);
-  // Expect flags mask to be passed first.
-  assert(Properties[0] == PI_QUEUE_FLAGS);
-  if (Properties[0] != PI_QUEUE_FLAGS)
-    return PI_ERROR_INVALID_VALUE;
-  pi_queue_properties Flags = Properties[1];
-  // Extra data isn't supported yet.
-  assert(Properties[2] == 0);
-  if (Properties[2] != 0)
-    return PI_ERROR_INVALID_VALUE;
-  return cuda_piQueueCreate(Context, Device, Flags, Queue);
-}
-
-pi_result cuda_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
-                              size_t param_value_size, void *param_value,
-                              size_t *param_value_size_ret) {
-  assert(command_queue != nullptr);
-
-  switch (param_name) {
-  case PI_QUEUE_INFO_CONTEXT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   command_queue->context_);
-  case PI_QUEUE_INFO_DEVICE:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   command_queue->device_);
-  case PI_QUEUE_INFO_REFERENCE_COUNT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   command_queue->get_reference_count());
-  case PI_QUEUE_INFO_PROPERTIES:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   command_queue->properties_);
-  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
-    try {
-      bool IsReady = command_queue->all_of([](CUstream s) -> bool {
-        const CUresult ret = cuStreamQuery(s);
-        if (ret == CUDA_SUCCESS)
-          return true;
-
-        if (ret == CUDA_ERROR_NOT_READY)
-          return false;
-
-        PI_CHECK_ERROR(ret);
-        return false;
-      });
-      return getInfo(param_value_size, param_value, param_value_size_ret,
-                     IsReady);
-    } catch (pi_result err) {
-      return err;
-    } catch (...) {
-      return PI_ERROR_OUT_OF_RESOURCES;
-    }
-  }
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-  sycl::detail::pi::die("Queue info request not implemented");
-  return {};
-}
-
-pi_result cuda_piQueueRetain(pi_queue command_queue) {
-  assert(command_queue != nullptr);
-  assert(command_queue->get_reference_count() > 0);
-
-  command_queue->increment_reference_count();
-  return PI_SUCCESS;
-}
-
-pi_result cuda_piQueueRelease(pi_queue command_queue) {
-  assert(command_queue != nullptr);
-
-  if (command_queue->decrement_reference_count() > 0) {
-    return PI_SUCCESS;
-  }
-
-  try {
-    std::unique_ptr<_pi_queue> queueImpl(command_queue);
-
-    if (!command_queue->backend_has_ownership())
-      return PI_SUCCESS;
-
-    ScopedContext active(command_queue->get_context());
-
-    command_queue->for_each_stream([](CUstream s) {
-      PI_CHECK_ERROR(cuStreamSynchronize(s));
-      PI_CHECK_ERROR(cuStreamDestroy(s));
-    });
-
-    return PI_SUCCESS;
-  } catch (pi_result err) {
-    return err;
-  } catch (...) {
-    return PI_ERROR_OUT_OF_RESOURCES;
-  }
-}
-
-pi_result cuda_piQueueFinish(pi_queue command_queue) {
-  pi_result result = PI_SUCCESS;
-
-  try {
-
-    assert(command_queue !=
-           nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
-    ScopedContext active(command_queue->get_context());
-
-    command_queue->sync_streams</*ResetUsed=*/true>([&result](CUstream s) {
-      result = PI_CHECK_ERROR(cuStreamSynchronize(s));
-    });
-
-  } catch (pi_result err) {
-
-    result = err;
-
-  } catch (...) {
-
-    result = PI_ERROR_OUT_OF_RESOURCES;
-  }
-
-  return result;
-}
-
-// There is no CUDA counterpart for queue flushing and we don't run into the
-// same problem of having to flush cross-queue dependencies as some of the
-// other plugins, so it can be left as no-op.
-pi_result cuda_piQueueFlush(pi_queue command_queue) {
-  (void)command_queue;
-  return PI_SUCCESS;
-}
-
-/// Gets the native CUDA handle of a PI queue object
-///
-/// \param[in] queue The PI queue to get the native CUDA object of.
-/// \param[in] NativeHandleDesc Pointer to additional native handle info.
-/// \param[out] nativeHandle Set to the native handle of the PI queue object.
-///
-/// \return PI_SUCCESS
-pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
-                                         pi_native_handle *nativeHandle,
-                                         int32_t *NativeHandleDesc) {
-  *NativeHandleDesc = 0;
-  ScopedContext active(queue->get_context());
-  *nativeHandle =
-      reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
-  return PI_SUCCESS;
-}
-
-/// Created a PI queue object from a CUDA queue handle.
-/// NOTE: The created PI object does not take ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI queue object from.
-/// \param[in] nativeHandleDesc Info about the native handle.
-/// \param[in] context is the PI context of the queue.
-/// \param[out] queue Set to the PI queue object created from native handle.
-/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
-///        the native handle, if it can.
-///
-/// \return TBD
-pi_result cuda_piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
-    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
-    pi_queue *queue) {
-  (void)NativeHandleDesc;
-  (void)device;
-  (void)ownNativeHandle;
-  (void)Properties;
-  assert(ownNativeHandle == false);
-
-  unsigned int flags;
-  CUstream cuStream = reinterpret_cast<CUstream>(nativeHandle);
-
-  auto retErr = PI_CHECK_ERROR(cuStreamGetFlags(cuStream, &flags));
-
-  pi_queue_properties properties = 0;
-  if (flags == CU_STREAM_DEFAULT)
-    properties = __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
-  else if (flags == CU_STREAM_NON_BLOCKING)
-    properties = __SYCL_PI_CUDA_SYNC_WITH_DEFAULT;
-  else
-    sycl::detail::pi::die("Unknown cuda stream");
-
-  std::vector<CUstream> computeCuStreams(1, cuStream);
-  std::vector<CUstream> transferCuStreams(0);
-
-  // Create queue and set num_compute_streams to 1, as computeCuStreams has
-  // valid stream
-  *queue = new _pi_queue{std::move(computeCuStreams),
-                         std::move(transferCuStreams),
-                         context,
-                         reinterpret_cast<pi_device>(context->get_device()),
-                         properties,
-                         flags,
-                         /*backend_owns*/ false};
-  (*queue)->num_compute_streams_ = 1;
-
-  return retErr;
-}
-
 pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
                                        pi_bool blocking_write, size_t offset,
                                        size_t size, const void *ptr,
@@ -1306,7 +833,7 @@ pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
         PI_CHECK_ERROR(cuMemcpyHtoDAsync(devPtr + offset, ptr, size, cuStream));
 
     if (event) {
-      retErr = retImplEv->record();
+      retErr = map_ur_error(retImplEv->record());
     }
 
     if (blocking_write) {
@@ -1352,7 +879,7 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
         PI_CHECK_ERROR(cuMemcpyDtoHAsync(ptr, devPtr + offset, size, cuStream));
 
     if (event) {
-      retErr = retImplEv->record();
+      retErr = map_ur_error(retImplEv->record());
     }
 
     if (blocking_read) {
@@ -1367,41 +894,6 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
     retErr = err;
   }
   return retErr;
-}
-
-pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
-
-  try {
-    assert(num_events != 0);
-    assert(event_list);
-    if (num_events == 0) {
-      return PI_ERROR_INVALID_VALUE;
-    }
-
-    if (!event_list) {
-      return PI_ERROR_INVALID_EVENT;
-    }
-
-    auto context = event_list[0]->get_context();
-    ScopedContext active(context);
-
-    auto waitFunc = [context](pi_event event) -> pi_result {
-      if (!event) {
-        return PI_ERROR_INVALID_EVENT;
-      }
-
-      if (event->get_context() != context) {
-        return PI_ERROR_INVALID_CONTEXT;
-      }
-
-      return event->wait();
-    };
-    return forLatestEvents(event_list, num_events, waitFunc);
-  } catch (pi_result err) {
-    return err;
-  } catch (...) {
-    return PI_ERROR_OUT_OF_RESOURCES;
-  }
 }
 
 pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
@@ -1526,14 +1018,15 @@ pi_result cuda_piEnqueueKernelLaunch(
           kernelLocalWorkGroupSize += local_work_size[dim];
         }
 
-        if (hasExceededMaxRegistersPerBlock(command_queue->device_, kernel,
-                                            kernelLocalWorkGroupSize)) {
+        if (hasExceededMaxRegistersPerBlock(
+                reinterpret_cast<pi_device>(command_queue->device_), kernel,
+                kernelLocalWorkGroupSize)) {
           return PI_ERROR_INVALID_WORK_GROUP_SIZE;
         }
       } else {
-        guessLocalWorkSize(command_queue->device_, threadsPerBlock,
-                           global_work_size, maxThreadsPerBlock, kernel,
-                           local_size);
+        guessLocalWorkSize(reinterpret_cast<pi_device>(command_queue->device_),
+                           threadsPerBlock, global_work_size,
+                           maxThreadsPerBlock, kernel, local_size);
       }
     }
 
@@ -1554,7 +1047,9 @@ pi_result cuda_piEnqueueKernelLaunch(
     pi_uint32 stream_token;
     _pi_stream_guard guard;
     CUstream cuStream = command_queue->get_next_compute_stream(
-        num_events_in_wait_list, event_wait_list, guard, &stream_token);
+        num_events_in_wait_list,
+        reinterpret_cast<const ur_event_handle_t *>(event_wait_list), guard,
+        &stream_token);
     CUfunction cuFunc = kernel->get();
 
     retError = enqueueEventsWait(command_queue, cuStream,
@@ -1615,7 +1110,7 @@ pi_result cuda_piEnqueueKernelLaunch(
       kernel->clear_local_size();
 
     if (event) {
-      retError = retImplEv->record();
+      retError = map_ur_error(retImplEv->record());
       *event = retImplEv.release();
     }
   } catch (pi_result err) {
@@ -1802,124 +1297,6 @@ pi_result cuda_piMemRetain(pi_mem mem) {
   return PI_SUCCESS;
 }
 
-//
-// Events
-//
-pi_result cuda_piEventCreate(pi_context, pi_event *) {
-  sycl::detail::pi::die("PI Event Create not implemented in CUDA backend");
-}
-
-pi_result cuda_piEventGetInfo(pi_event event, pi_event_info param_name,
-                              size_t param_value_size, void *param_value,
-                              size_t *param_value_size_ret) {
-  assert(event != nullptr);
-
-  switch (param_name) {
-  case PI_EVENT_INFO_COMMAND_QUEUE:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   event->get_queue());
-  case PI_EVENT_INFO_COMMAND_TYPE:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   event->get_command_type());
-  case PI_EVENT_INFO_REFERENCE_COUNT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   event->get_reference_count());
-  case PI_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<pi_event_status>(event->get_execution_status()));
-  }
-  case PI_EVENT_INFO_CONTEXT:
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   event->get_context());
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-
-  return PI_ERROR_INVALID_EVENT;
-}
-
-/// Obtain profiling information from PI CUDA events
-/// \TODO Timings from CUDA are only elapsed time.
-pi_result cuda_piEventGetProfilingInfo(pi_event event,
-                                       pi_profiling_info param_name,
-                                       size_t param_value_size,
-                                       void *param_value,
-                                       size_t *param_value_size_ret) {
-
-  assert(event != nullptr);
-
-  pi_queue queue = event->get_queue();
-  if (queue == nullptr ||
-      !(queue->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE)) {
-    return PI_ERROR_PROFILING_INFO_NOT_AVAILABLE;
-  }
-
-  switch (param_name) {
-  case PI_PROFILING_INFO_COMMAND_QUEUED:
-  case PI_PROFILING_INFO_COMMAND_SUBMIT:
-    // Note: No user for this case
-    return getInfo<pi_uint64>(param_value_size, param_value,
-                              param_value_size_ret, event->get_queued_time());
-  case PI_PROFILING_INFO_COMMAND_START:
-    return getInfo<pi_uint64>(param_value_size, param_value,
-                              param_value_size_ret, event->get_start_time());
-  case PI_PROFILING_INFO_COMMAND_END:
-    return getInfo<pi_uint64>(param_value_size, param_value,
-                              param_value_size_ret, event->get_end_time());
-  default:
-    __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
-  }
-  sycl::detail::pi::die("Event Profiling info request not implemented");
-  return {};
-}
-
-pi_result cuda_piEventSetCallback(pi_event, pi_int32, pfn_notify, void *) {
-  sycl::detail::pi::die("Event Callback not implemented in CUDA backend");
-  return PI_SUCCESS;
-}
-
-pi_result cuda_piEventSetStatus(pi_event, pi_int32) {
-  sycl::detail::pi::die("Event Set Status not implemented in CUDA backend");
-  return PI_ERROR_INVALID_VALUE;
-}
-
-pi_result cuda_piEventRetain(pi_event event) {
-  assert(event != nullptr);
-
-  const auto refCount = event->increment_reference_count();
-
-  sycl::detail::pi::assertion(
-      refCount != 0,
-      "Reference count overflow detected in cuda_piEventRetain.");
-
-  return PI_SUCCESS;
-}
-
-pi_result cuda_piEventRelease(pi_event event) {
-  assert(event != nullptr);
-
-  // double delete or someone is messing with the ref count.
-  // either way, cannot safely proceed.
-  sycl::detail::pi::assertion(
-      event->get_reference_count() != 0,
-      "Reference count overflow detected in cuda_piEventRelease.");
-
-  // decrement ref count. If it is 0, delete the event.
-  if (event->decrement_reference_count() == 0) {
-    std::unique_ptr<_pi_event> event_ptr{event};
-    pi_result result = PI_ERROR_INVALID_EVENT;
-    try {
-      ScopedContext active(event->get_context());
-      result = event->release();
-    } catch (...) {
-      result = PI_ERROR_OUT_OF_RESOURCES;
-    }
-    return result;
-  }
-
-  return PI_SUCCESS;
-}
-
 /// Enqueues a wait on the given CUstream for all events.
 /// See \ref enqueueEventWait
 /// TODO: Add support for multiple streams once the Event class is properly
@@ -1962,7 +1339,9 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     pi_uint32 stream_token;
     _pi_stream_guard guard;
     CUstream cuStream = command_queue->get_next_compute_stream(
-        num_events_in_wait_list, event_wait_list, guard, &stream_token);
+        num_events_in_wait_list,
+        reinterpret_cast<const ur_event_handle_t *>(event_wait_list), guard,
+        &stream_token);
     {
       std::lock_guard<std::mutex> guard(command_queue->barrier_mutex_);
       if (command_queue->barrier_event_ == nullptr) {
@@ -2025,41 +1404,6 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-}
-
-/// Gets the native CUDA handle of a PI event object
-///
-/// \param[in] event The PI event to get the native CUDA object of.
-/// \param[out] nativeHandle Set to the native handle of the PI event object.
-///
-/// \return PI_SUCCESS on success. PI_ERROR_INVALID_EVENT if given a user event.
-pi_result cuda_piextEventGetNativeHandle(pi_event event,
-                                         pi_native_handle *nativeHandle) {
-  *nativeHandle = reinterpret_cast<pi_native_handle>(event->get());
-  return PI_SUCCESS;
-}
-
-/// Created a PI event object from a CUDA event handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
-///
-/// \param[in] nativeHandle The native handle to create PI event object from.
-/// \param[out] event Set to the PI event object created from native handle.
-///
-/// \return TBD
-pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                pi_context context,
-                                                bool ownNativeHandle,
-                                                pi_event *event) {
-  (void)ownNativeHandle;
-  assert(!ownNativeHandle);
-
-  std::unique_ptr<_pi_event> event_ptr{nullptr};
-
-  *event = _pi_event::make_with_native(context,
-                                       reinterpret_cast<CUevent>(nativeHandle));
-
-  return PI_SUCCESS;
 }
 
 /// Creates a PI sampler object
@@ -2297,7 +1641,7 @@ pi_result cuda_piEnqueueMemBufferReadRect(
         host_offset, host_row_pitch, host_slice_pitch);
 
     if (event) {
-      retErr = retImplEv->record();
+      retErr = map_ur_error(retImplEv->record());
     }
 
     if (blocking_read) {
@@ -2347,7 +1691,7 @@ pi_result cuda_piEnqueueMemBufferWriteRect(
         buffer_row_pitch, buffer_slice_pitch);
 
     if (event) {
-      retErr = retImplEv->record();
+      retErr = map_ur_error(retImplEv->record());
     }
 
     if (blocking_write) {
@@ -2387,7 +1731,7 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
           PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue, stream));
-      result = retImplEv->start();
+      result = map_ur_error(retImplEv->start());
     }
 
     auto src = src_buffer->mem_.buffer_mem_.get() + src_offset;
@@ -2396,7 +1740,7 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     result = PI_CHECK_ERROR(cuMemcpyDtoDAsync(dst, src, size, stream));
 
     if (event) {
-      result = retImplEv->record();
+      result = map_ur_error(retImplEv->record());
       *event = retImplEv.release();
     }
 
@@ -2489,7 +1833,7 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
           PI_COMMAND_TYPE_MEM_BUFFER_FILL, command_queue, stream));
-      result = retImplEv->start();
+      result = map_ur_error(retImplEv->start());
     }
 
     auto dstDevice = buffer->mem_.buffer_mem_.get() + offset;
@@ -2541,7 +1885,7 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     }
 
     if (event) {
-      result = retImplEv->record();
+      result = map_ur_error(retImplEv->record());
       *event = retImplEv.release();
     }
 
@@ -3088,7 +2432,9 @@ pi_result cuda_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
     pi_uint32 stream_token;
     _pi_stream_guard guard;
     CUstream cuStream = queue->get_next_compute_stream(
-        num_events_in_waitlist, events_waitlist, guard, &stream_token);
+        num_events_in_waitlist,
+        reinterpret_cast<const ur_event_handle_t *>(events_waitlist), guard,
+        &stream_token);
     result = enqueueEventsWait(queue, cuStream, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
@@ -3099,7 +2445,7 @@ pi_result cuda_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
     result = PI_CHECK_ERROR(cuMemsetD8Async(
         (CUdeviceptr)ptr, (unsigned char)value & 0xFF, count, cuStream));
     if (event) {
-      result = event_ptr->record();
+      result = map_ur_error(event_ptr->record());
       *event = event_ptr.release();
     }
   } catch (pi_result err) {
@@ -3134,7 +2480,7 @@ pi_result cuda_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
     result = PI_CHECK_ERROR(cuMemcpyAsync(
         (CUdeviceptr)dst_ptr, (CUdeviceptr)src_ptr, size, cuStream));
     if (event) {
-      result = event_ptr->record();
+      result = map_ur_error(event_ptr->record());
     }
     if (blocking) {
       result = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
@@ -3198,7 +2544,7 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
     result = PI_CHECK_ERROR(
         cuMemPrefetchAsync((CUdeviceptr)ptr, size, device->get(), cuStream));
     if (event) {
-      result = event_ptr->record();
+      result = map_ur_error(event_ptr->record());
       *event = event_ptr.release();
     }
   } catch (pi_result err) {
@@ -3299,7 +2645,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
       sycl::detail::pi::die("Unknown advice");
     }
     if (event) {
-      result = event_ptr->record();
+      result = map_ur_error(event_ptr->record());
       *event = event_ptr.release();
     }
   } catch (pi_result err) {
@@ -3670,16 +3016,20 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextContextCreateWithNativeHandle,
          pi2ur::piextContextCreateWithNativeHandle)
   // Queue
-  _PI_CL(piQueueCreate, cuda_piQueueCreate)
-  _PI_CL(piextQueueCreate, cuda_piextQueueCreate)
-  _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
-  _PI_CL(piQueueFinish, cuda_piQueueFinish)
-  _PI_CL(piQueueFlush, cuda_piQueueFlush)
-  _PI_CL(piQueueRetain, cuda_piQueueRetain)
-  _PI_CL(piQueueRelease, cuda_piQueueRelease)
-  _PI_CL(piextQueueGetNativeHandle, cuda_piextQueueGetNativeHandle)
+  _PI_CL(piQueueCreate, pi2ur::piQueueCreate)
+  _PI_CL(piextQueueCreate, pi2ur::piextQueueCreate)
+  _PI_CL(piextQueueCreate2, pi2ur::piextQueueCreate2)
+  _PI_CL(piQueueGetInfo, pi2ur::piQueueGetInfo)
+  _PI_CL(piQueueFinish, pi2ur::piQueueFinish)
+  _PI_CL(piQueueFlush, pi2ur::piQueueFlush)
+  _PI_CL(piQueueRetain, pi2ur::piQueueRetain)
+  _PI_CL(piQueueRelease, pi2ur::piQueueRelease)
+  _PI_CL(piextQueueGetNativeHandle, pi2ur::piextQueueGetNativeHandle)
+  _PI_CL(piextQueueGetNativeHandle2, pi2ur::piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle,
-         cuda_piextQueueCreateWithNativeHandle)
+         pi2ur::piextQueueCreateWithNativeHandle)
+  _PI_CL(piextQueueCreateWithNativeHandle2,
+         pi2ur::piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, cuda_piMemBufferCreate)
   _PI_CL(piMemImageCreate, cuda_piMemImageCreate)
@@ -3721,17 +3071,17 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          pi2ur::piextKernelCreateWithNativeHandle)
 
   // Event
-  _PI_CL(piEventCreate, cuda_piEventCreate)
-  _PI_CL(piEventGetInfo, cuda_piEventGetInfo)
-  _PI_CL(piEventGetProfilingInfo, cuda_piEventGetProfilingInfo)
-  _PI_CL(piEventsWait, cuda_piEventsWait)
-  _PI_CL(piEventSetCallback, cuda_piEventSetCallback)
-  _PI_CL(piEventSetStatus, cuda_piEventSetStatus)
-  _PI_CL(piEventRetain, cuda_piEventRetain)
-  _PI_CL(piEventRelease, cuda_piEventRelease)
-  _PI_CL(piextEventGetNativeHandle, cuda_piextEventGetNativeHandle)
+  _PI_CL(piEventCreate, pi2ur::piEventCreate)
+  _PI_CL(piEventGetInfo, pi2ur::piEventGetInfo)
+  _PI_CL(piEventGetProfilingInfo, pi2ur::piEventGetProfilingInfo)
+  _PI_CL(piEventsWait, pi2ur::piEventsWait)
+  _PI_CL(piEventSetCallback, pi2ur::piEventSetCallback)
+  _PI_CL(piEventSetStatus, pi2ur::piEventSetStatus)
+  _PI_CL(piEventRetain, pi2ur::piEventRetain)
+  _PI_CL(piEventRelease, pi2ur::piEventRelease)
+  _PI_CL(piextEventGetNativeHandle, pi2ur::piextEventGetNativeHandle)
   _PI_CL(piextEventCreateWithNativeHandle,
-         cuda_piextEventCreateWithNativeHandle)
+         pi2ur::piextEventCreateWithNativeHandle)
   // Sampler
   _PI_CL(piSamplerCreate, cuda_piSamplerCreate)
   _PI_CL(piSamplerGetInfo, cuda_piSamplerGetInfo)
