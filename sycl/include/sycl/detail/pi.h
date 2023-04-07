@@ -86,8 +86,8 @@
 // 12.27 Added new queue create and get APIs for immediate commandlists
 // piextQueueCreate2, piextQueueCreateWithNativeHandle2,
 // piextQueueGetNativeHandle2
-// 12.28 Added piextMemImgCreateWithNativeHandle for creating images from native
-// handles.
+// 12.28 Added piextMemImageCreateWithNativeHandle for creating images from
+// native handles.
 
 #define _PI_H_VERSION_MAJOR 12
 #define _PI_H_VERSION_MINOR 28
@@ -1311,14 +1311,19 @@ __SYCL_EXPORT pi_result piextMemCreateWithNativeHandle(
     pi_mem *mem);
 
 /// Creates PI image object from a native handle.
-/// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI image from.
 /// \param context The PI context of the memory allocation.
 /// \param ownNativeHandle Indicates if we own the native memory handle or it
 /// came from interop that asked to not transfer the ownership to SYCL RT.
+/// \param ImageFormat is the pi_image_format struct that
+/// specifies the image channnel order and channel data type that
+/// match what the nativeHandle uses
+/// \param ImageDesc is the pi_image_desc struct that specifies
+/// the image dimension, pitch, slice and other information about
+/// the nativeHandle
 /// \param img is the PI img created from the native handle.
-__SYCL_EXPORT pi_result piextMemImgCreateWithNativeHandle(
+__SYCL_EXPORT pi_result piextMemImageCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
     const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
     pi_mem *img);

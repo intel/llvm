@@ -263,7 +263,7 @@ struct {
     ze_image_handle_t ZeImageHandle;
     sycl::image_channel_order ChanOrder;
     sycl::image_channel_type ChanType;
-    range<Dimensions> Range;
+    sycl::range<Dimensions> Range;
     ext::oneapi::level_zero::ownership Ownership{
         ext::oneapi::level_zero::ownership::transfer};
   }
@@ -461,13 +461,13 @@ The additional <code>AvailableEvent</code> argument must be a valid SYCL event. 
 <td>
 
 ``` C++
-make_image<backend::ext_oneapi_level_zero, Dims>(
-    const backend_input_t<backend::ext_oneapi_level_zero,
-                          image<Dimensions, AllocatorT>> &,
-    const context &Context)
+template<backend Backend, int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
+image<Dimensions, AllocatorT> make_image(
+    const backend_input_t<Backend, image<Dimensions, AllocatorT>> &backendObject,
+    const context &targetContext);
 ```
 </td>
-<td>This API is available starting with revision 4 of this specification.
+<td>This API is available starting with revision 5 of this specification.
 
 Construct a SYCL image instance from a ze_image_handle_t. 
 
@@ -489,9 +489,15 @@ sampled_image and unsampled_image might have a different ordering.
 
 Example Usage
 ``` C++
-sycl::backend_input_t<BE, sycl::image<2>> ImageInteropInput{ ZeHImage, ChanOrder, ChanType, ImgRange_2D, sycl::ext::oneapi::level_zero::ownership::transfer };      
+sycl::backend_input_t<BE, sycl::image<2>> ImageInteropInput{ 
+    ZeHImage, 
+    ChanOrder,
+    ChanType, 
+    ImgRange_2D, 
+    sycl::ext::oneapi::level_zero::ownership::transfer };      
     
-sycl::image<2> Image_2D  = sycl::make_image<BE, 2>(ImageInteropInput, Context);
+sycl::image<2> Image_2D  
+  = sycl::make_image<BE, 2>(ImageInteropInput, Context);
 ```
 
  The input SYCL context <code>Context</code> must be associated with a single device, matching the device used to create the Level Zero image handle.
@@ -504,10 +510,10 @@ The <code>Ownership</code> input structure member specifies if the SYCL runtime 
 <td>
 
 ``` C++
-make_image(
-    const backend_input_t<backend::ext_oneapi_level_zero,
-                          image<Dimensions, AllocatorT>> &,
-    const context &Context, event AvailableEvent)
+template<backend Backend, int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
+image<Dimensions, AllocatorT> make_image(
+    const backend_input_t<Backend, image<Dimensions, AllocatorT>> &backendObject,
+    const context &targetContext, event availableEvent);
 ```
 </td>
 <td>This API is available starting with revision 4 of this specification.

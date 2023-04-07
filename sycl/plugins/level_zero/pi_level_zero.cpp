@@ -3273,9 +3273,9 @@ pi_result piMemRelease(pi_mem Mem) {
   return PI_SUCCESS;
 }
 
-pi_result PIToZeImageDesc(const pi_image_format *ImageFormat,
-                          const pi_image_desc *ImageDesc,
-                          ZeStruct<ze_image_desc_t> &ZeImageDesc) {
+static pi_result pi2zeImageDesc(const pi_image_format *ImageFormat,
+                                const pi_image_desc *ImageDesc,
+                                ZeStruct<ze_image_desc_t> &ZeImageDesc) {
   ze_image_format_type_t ZeImageFormatType;
   size_t ZeImageFormatTypeSize;
   switch (ImageFormat->image_channel_data_type) {
@@ -3415,7 +3415,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   pi_result DescriptionResult =
-      PIToZeImageDesc(ImageFormat, ImageDesc, ZeImageDesc);
+      pi2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc);
   if (DescriptionResult != PI_SUCCESS)
     return DescriptionResult;
 
@@ -3561,12 +3561,10 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_SUCCESS;
 }
 
-pi_result piextMemImgCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                            pi_context Context,
-                                            bool OwnNativeHandle,
-                                            const pi_image_format *ImageFormat,
-                                            const pi_image_desc *ImageDesc,
-                                            pi_mem *RetImage) {
+pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle NativeHandle, pi_context Context, bool OwnNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *RetImage) {
 
   PI_ASSERT(RetImage, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
@@ -3583,7 +3581,7 @@ pi_result piextMemImgCreateWithNativeHandle(pi_native_handle NativeHandle,
 #ifndef NDEBUG
     ZeStruct<ze_image_desc_t> ZeImageDesc;
     pi_result DescriptionResult =
-        PIToZeImageDesc(ImageFormat, ImageDesc, ZeImageDesc);
+        pi2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc);
     if (DescriptionResult != PI_SUCCESS)
       return DescriptionResult;
 

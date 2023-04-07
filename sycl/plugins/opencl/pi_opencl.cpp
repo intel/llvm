@@ -1212,12 +1212,10 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
-pi_result piextMemImgCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                            pi_context context,
-                                            bool ownNativeHandle,
-                                            const pi_image_format *ImageFormat,
-                                            const pi_image_desc *ImageDesc,
-                                            pi_mem *Img) {
+pi_result piextMemImageCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    pi_mem *Img) {
   (void)context;
   (void)ownNativeHandle;
   (void)ImageFormat;
