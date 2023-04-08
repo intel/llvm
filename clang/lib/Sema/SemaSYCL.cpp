@@ -4244,17 +4244,17 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   // Visit handlers to generate information for optimization record only if
   // optimization record is saved.
   if (!getLangOpts().OptRecordFile.empty()) {
-    Visitor.VisitRecordBases(KernelObj, argsSizeChecker, kernel_decl,
-                             kernel_body, int_header, int_footer, opt_report,
-                             esimdKernel);
-    Visitor.VisitRecordFields(KernelObj, argsSizeChecker, kernel_decl,
-                              kernel_body, int_header, int_footer, opt_report,
-                              esimdKernel);
+    Visitor.VisitRecordBases(KernelObj, argsSizeChecker, esimdKernel,
+                             kernel_decl, kernel_body, int_header, int_footer,
+                             opt_report);
+    Visitor.VisitRecordFields(KernelObj, argsSizeChecker, esimdKernel,
+                              kernel_decl, kernel_body, int_header, int_footer,
+                              opt_report);
   } else {
-    Visitor.VisitRecordBases(KernelObj, argsSizeChecker, kernel_decl,
-                             kernel_body, int_header, int_footer, esimdKernel);
-    Visitor.VisitRecordFields(KernelObj, argsSizeChecker, kernel_decl,
-                              kernel_body, int_header, int_footer, esimdKernel);
+    Visitor.VisitRecordBases(KernelObj, argsSizeChecker, esimdKernel,
+                             kernel_decl, kernel_body, int_header, int_footer);
+    Visitor.VisitRecordFields(KernelObj, argsSizeChecker, esimdKernel,
+                              kernel_decl, kernel_body, int_header, int_footer);
   }
 
   if (ParmVarDecl *KernelHandlerArg =
