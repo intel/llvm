@@ -6,7 +6,7 @@
 // CHECK-NOT: zeCommandListCreate(
 // CHECK: zeCommandListCreateImmediate(
 
-// The test checks that immediate commandlists are used and not regular ones.
+// This test checks that immediate commandlists are used and not regular ones.
 
 #include <sycl/sycl.hpp>
 
