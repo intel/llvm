@@ -66,17 +66,23 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                         layout::row_major>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
-           joint_matrix_load(sg, sub_c,
-                             accC.get_pointer() + (sg_startx * TM) * N +
-                                 sg_starty / SG_SZ * TN,
-                             N, layout::row_major);
+           joint_matrix_load(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
            joint_matrix_fill(sg, sub_a, 42);
            for (int k = 0; k < K; k += TK) {
              joint_matrix_load(
-                 sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k, K);
+                 sg, sub_a,
+                 accA.template get_multi_ptr<access::decorated::no>() +
+                     (sg_startx * TM) * K + k,
+                 K);
              joint_matrix_load(
                  sg, sub_b,
-                 accB.get_pointer() + (k) * (N) + sg_starty / SG_SZ * TN, N);
+                 accB.template get_multi_ptr<access::decorated::no>() +
+                     (k) * (N) + sg_starty / SG_SZ * TN,
+                 N);
              // If no rounding to tf32 function is called, joint_matrix_mad
              // function will work on truncated floats.
              joint_matrix_apply(sg, sub_a,
@@ -88,10 +94,11 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
              }
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
-           joint_matrix_store(sg, sub_c,
-                              accC.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, layout::row_major);
+           joint_matrix_store(
+               sg, sub_c,
+               accC.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+               N, layout::row_major);
          }); // parallel for
    }).wait();
 }
