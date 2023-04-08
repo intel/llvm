@@ -96,7 +96,7 @@ int test_strideN(size_t stride) {
         local_acc[item.get_local_id()] = item.get_global_id()[0] + 300;
 
         auto grp = item.get_group();
-        local_ptr<int> lptr = local_acc.get_pointer();
+        local_ptr<const int> lptr = local_acc.get_pointer();
         global_ptr<int> gptr = out_ptr.get_pointer() + grp.get_id()[0] * 16;
 
         // Write the values 700, 701, ..., 763 to global memory.

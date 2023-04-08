@@ -194,23 +194,27 @@ bool group__async_work_group_copy() {
               const auto NumElem = AccLocal.get_count();
               const auto Off = Group[0] * I.get_group_range(1) * NumElem +
                                Group[1] * I.get_local_range(1);
-              auto PtrGlobal =
-                  AccGlobal.template get_multi_ptr<access::decorated::no>() +
-                  Off;
               auto PtrLocal = local_ptr<DataType>(AccLocal);
               if (I.get_local_range(0) == 1) {
-                Group.async_work_group_copy(PtrLocal, PtrGlobal, NumElem);
+                Group.async_work_group_copy(
+                    PtrLocal, global_ptr<const DataType>(AccGlobal) + Off,
+                    NumElem);
               } else {
-                Group.async_work_group_copy(PtrLocal, PtrGlobal, NumElem,
-                                            I.get_global_range(1));
+                Group.async_work_group_copy(
+                    PtrLocal, global_ptr<const DataType>(AccGlobal) + Off,
+                    NumElem, I.get_global_range(1));
               }
               AccLocal[I.get_local_id()][0] += I.get_global_id(0);
               AccLocal[I.get_local_id()][1] += I.get_global_id(1);
               if (I.get_local_range(0) == 1) {
-                Group.async_work_group_copy(PtrGlobal, PtrLocal, NumElem);
+                Group.async_work_group_copy(
+                    global_ptr<DataType>(AccGlobal) + Off,
+                    local_ptr<const DataType>(AccLocal), NumElem);
               } else {
-                Group.async_work_group_copy(PtrGlobal, PtrLocal, NumElem,
-                                            I.get_global_range(1));
+                Group.async_work_group_copy(global_ptr<DataType>(AccGlobal) +
+                                                Off,
+                                            local_ptr<const DataType>(AccLocal),
+                                            NumElem, I.get_global_range(1));
               }
             });
       });

@@ -301,7 +301,7 @@ public:
   /// Permitted types for dataT are all scalar and vector types, except boolean.
   template <typename dataT>
   detail::enable_if_t<!detail::is_bool<dataT>::value, device_event>
-  async_work_group_copy(local_ptr<dataT> dest, global_ptr<dataT> src,
+  async_work_group_copy(local_ptr<dataT> dest, global_ptr<const dataT> src,
                         size_t numElements, size_t srcStride) const {
     using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
     using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
@@ -319,7 +319,7 @@ public:
   /// Permitted types for dataT are all scalar and vector types, except boolean.
   template <typename dataT>
   detail::enable_if_t<!detail::is_bool<dataT>::value, device_event>
-  async_work_group_copy(global_ptr<dataT> dest, local_ptr<dataT> src,
+  async_work_group_copy(global_ptr<dataT> dest, local_ptr<const dataT> src,
                         size_t numElements, size_t destStride) const {
     using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
     using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
@@ -339,7 +339,7 @@ public:
             access::decorated DestIsDecorated, access::decorated SrcIsDecorated>
   detail::enable_if_t<detail::is_scalar_bool<T>::value, device_event>
   async_work_group_copy(multi_ptr<T, DestS, DestIsDecorated> Dest,
-                        multi_ptr<T, SrcS, SrcIsDecorated> Src,
+                        multi_ptr<const T, SrcS, SrcIsDecorated> Src,
                         size_t NumElements, size_t Stride) const {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
@@ -359,7 +359,7 @@ public:
             access::decorated DestIsDecorated, access::decorated SrcIsDecorated>
   detail::enable_if_t<detail::is_vector_bool<T>::value, device_event>
   async_work_group_copy(multi_ptr<T, DestS, DestIsDecorated> Dest,
-                        multi_ptr<T, SrcS, SrcIsDecorated> Src,
+                        multi_ptr<const T, SrcS, SrcIsDecorated> Src,
                         size_t NumElements, size_t Stride) const {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
@@ -378,7 +378,7 @@ public:
   /// Permitted types for dataT are all scalar and vector types.
   template <typename dataT>
   device_event async_work_group_copy(local_ptr<dataT> dest,
-                                     global_ptr<dataT> src,
+                                     global_ptr<const dataT> src,
                                      size_t numElements) const {
     return async_work_group_copy(dest, src, numElements, 1);
   }
@@ -390,7 +390,7 @@ public:
   /// Permitted types for dataT are all scalar and vector types.
   template <typename dataT>
   device_event async_work_group_copy(global_ptr<dataT> dest,
-                                     local_ptr<dataT> src,
+                                     local_ptr<const dataT> src,
                                      size_t numElements) const {
     return async_work_group_copy(dest, src, numElements, 1);
   }

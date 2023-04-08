@@ -132,30 +132,30 @@ public:
 
   template <typename dataT>
   device_event async_work_group_copy(local_ptr<dataT> dest,
-                                     global_ptr<dataT> src,
+                                     global_ptr<const dataT> src,
                                      size_t numElements) const {
     return Group.async_work_group_copy(dest, src, numElements);
   }
 
   template <typename dataT>
   device_event async_work_group_copy(global_ptr<dataT> dest,
-                                     local_ptr<dataT> src,
+                                     local_ptr<const dataT> src,
                                      size_t numElements) const {
     return Group.async_work_group_copy(dest, src, numElements);
   }
 
   template <typename dataT>
-  device_event async_work_group_copy(local_ptr<dataT> dest,
-                                     global_ptr<dataT> src, size_t numElements,
-                                     size_t srcStride) const {
+  device_event
+  async_work_group_copy(local_ptr<dataT> dest, global_ptr<const dataT> src,
+                        size_t numElements, size_t srcStride) const {
 
     return Group.async_work_group_copy(dest, src, numElements, srcStride);
   }
 
   template <typename dataT>
-  device_event async_work_group_copy(global_ptr<dataT> dest,
-                                     local_ptr<dataT> src, size_t numElements,
-                                     size_t destStride) const {
+  device_event
+  async_work_group_copy(global_ptr<dataT> dest, local_ptr<const dataT> src,
+                        size_t numElements, size_t destStride) const {
     return Group.async_work_group_copy(dest, src, numElements, destStride);
   }
 

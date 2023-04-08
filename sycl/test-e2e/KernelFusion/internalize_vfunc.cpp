@@ -51,7 +51,8 @@ int main() {
         in1.load(offset,
                  accIn1.template get_multi_ptr<access::decorated::no>());
         vec<int, VEC> in2;
-        in2.load(offset, accIn2.template get_multi_ptr<access::decorated::no>()));
+        in2.load(offset,
+                 accIn2.template get_multi_ptr<access::decorated::no>());
         auto tmp = in1 + in2;
         tmp.store(
             offset,
@@ -70,7 +71,8 @@ int main() {
         tmp.load(offset,
                  accTmp.template get_multi_ptr<sycl::access::decorated::yes>());
         vec<int, VEC> in3;
-        in3.load(offset, accIn3.template get_multi_ptr<access::decorated::no>()));
+        in3.load(offset,
+                 accIn3.template get_multi_ptr<access::decorated::no>());
         auto out = tmp * in3;
         out.store(offset,
                   accOut.template get_multi_ptr<access::decorated::no>());

@@ -126,8 +126,7 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(
-            const_cast<ElementType *>(Accessor.get_pointer()))) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
 
   // Only if Space == local_space || generic_space
   template <int Dimensions, access::mode Mode,
@@ -759,8 +758,7 @@ public:
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor) {
-    m_Pointer = detail::cast_AS<pointer_t>(
-        const_cast<ElementType *>(Accessor.get_pointer()));
+    m_Pointer = detail::cast_AS<pointer_t>(Accessor.get_pointer());
   }
 
   // Only if Space == local_space || generic_space
