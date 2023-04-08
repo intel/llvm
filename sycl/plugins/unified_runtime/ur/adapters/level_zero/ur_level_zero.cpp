@@ -1043,7 +1043,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   // immediate commandlists are being used. For standard commandlists all are
   // used.
   if (!EnvVar) {
-    if (Device->ImmCommandListUsed)
+    if (Device->useImmediateCommandLists())
       return std::pair<int, int>(-1, -1);   // No copy engines can be used.
     return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
@@ -1079,7 +1079,7 @@ bool CopyEngineRequested(const ur_device_handle_t &Device) {
 // The default is standard commandlists. Setting 1 or 2 specifies use of
 // immediate commandlists.
 
-// Get value of immediate commandlists env var setting or -1 if unset
+// Get value of immediate commandlists env var setting or -1 if unset.
 _ur_device_handle_t::ImmCmdlistMode
 _ur_device_handle_t::useImmediateCommandLists() {
   // If immediate commandlist setting is not explicitly set, then use the device

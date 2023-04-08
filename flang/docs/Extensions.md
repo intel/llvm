@@ -88,6 +88,9 @@ end
   from sharing the same name as a symbol in its scope's host, if it
   has one.
   We accept this usage with a portability warning.
+* A module name from a `USE` statement can also be used as a
+  non-global name in the same scope.  This is not conforming,
+  but it is useful and unambiguous.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -188,7 +191,9 @@ end
   relax enforcement of some requirements on actual arguments that must otherwise
   hold true for definable arguments.
 * Assignment of `LOGICAL` to `INTEGER` and vice versa (but not other types) is
-  allowed.  The values are normalized.
+  allowed.  The values are normalized to canonical `.TRUE.`/`.FALSE.`.
+  The values are also normalized for assignments of `LOGICAL(KIND=K1)` to
+  `LOGICAL(KIND=K2)`, when `K1 != K2`.
 * Static initialization of `LOGICAL` with `INTEGER` is allowed in `DATA` statements
   and object initializers.
   The results are *not* normalized to canonical `.TRUE.`/`.FALSE.`.

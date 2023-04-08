@@ -417,7 +417,8 @@ struct _pi_queue : _pi_object {
   _pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
             std::vector<ze_command_queue_handle_t> &CopyQueues,
             pi_context Context, pi_device Device, bool OwnZeCommandQueue,
-            pi_queue_properties Properties = 0, int ForceComputeIndex = -1);
+            pi_queue_properties Properties = 0, int ForceComputeIndex = -1,
+            bool oldAPI = false);
 
   using queue_type = _pi_device::queue_group_info_t::type;
 
@@ -457,6 +458,9 @@ struct _pi_queue : _pi_object {
     // This function will return one of possibly multiple available native
     // queues and the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
+
+    // This function sets an immediate commandlist from the interop interface.
+    void setImmCmdList(ze_command_list_handle_t);
 
     // This function returns the next immediate commandlist to use.
     pi_command_list_ptr_t &getImmCmdList();
@@ -542,6 +546,12 @@ struct _pi_queue : _pi_object {
   // This field is only set at _pi_queue creation time, and cannot change.
   // Therefore it can be accessed without holding a lock on this _pi_queue.
   const pi_device Device;
+
+  // A queue may use either standard or immediate commandlists. At queue
+  // construction time this is set based on the device and any env var settings
+  // that change the default for the device type. When an interop queue is
+  // constructed, the caller chooses the type of commandlists to use.
+  bool UsingImmCmdLists;
 
   // Keeps track of the event associated with the last enqueued command into
   // this queue. this is used to add dependency with the last command to add

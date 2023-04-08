@@ -28,9 +28,9 @@ permissions:
 
 jobs:
   lint:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     container:
-      image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
+      image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
     steps:
     - name: 'PR commits + 1'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
@@ -64,5 +64,5 @@ jobs:
       build_cache_size: "8G"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
