@@ -418,7 +418,7 @@ private:
                                              unsigned index, OpBuilder builder,
                                              Location loc) {
     const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-    const auto resTy = builder.getI64Type();
+    const auto resTy = builder.getIndexType();
     return createMethodOp<sycl::SYCLIDGetOp>(
         builder, loc, MemRefType::get(ShapedType::kDynamic, resTy),
         {id, indexOp}, "operator[]", "id");
@@ -429,7 +429,7 @@ private:
                                                    OpBuilder builder,
                                                    Location loc) {
     const Value indexOp = builder.create<arith::ConstantIntOp>(loc, index, 32);
-    const auto resTy = builder.getI64Type();
+    const auto resTy = builder.getIndexType();
     return createMethodOp<sycl::SYCLRangeGetOp>(
         builder, loc, resTy, {range, indexOp}, "get", "range");
   }
@@ -464,11 +464,10 @@ private:
     const auto idTy = cast<sycl::IDType>(
         cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
     auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
-    const Value zero = builder.create<arith::ConstantIntOp>(loc, 0, 64);
     const Value zeroIndex = builder.create<arith::ConstantIndexOp>(loc, 0);
     for (unsigned i = 0; i < accTy.getDimension(); ++i) {
       Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
-      builder.create<memref::StoreOp>(loc, zero, idGetOp, zeroIndex);
+      builder.create<memref::StoreOp>(loc, zeroIndex, idGetOp, zeroIndex);
     }
     return createSYCLAccessorSubscriptOp(accessor, id, builder, loc);
   }
@@ -485,7 +484,7 @@ private:
     const auto idTy = cast<sycl::IDType>(
         cast<sycl::AccessorImplDeviceType>(accTy.getBody()[0]).getBody()[0]);
     auto id = builder.create<memref::AllocaOp>(loc, MemRefType::get(1, idTy));
-    const Value one = builder.create<arith::ConstantIntOp>(loc, 1, 64);
+    const Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
     unsigned dim = accTy.getDimension();
     for (unsigned i = 0; i < dim; ++i) {
       Value idGetOp = createSYCLIDGetOp(id, i, builder, loc);
