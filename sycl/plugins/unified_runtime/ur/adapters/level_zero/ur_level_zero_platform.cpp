@@ -288,10 +288,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_platform_handle_t Driver, ///< [in] handle of the platform
     ur_api_version_t *Version    ///< [out] api version
 ) {
-  std::ignore = Driver;
-  std::ignore = Version;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  *Version = UR_API_VERSION_0_6;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
