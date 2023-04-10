@@ -1711,6 +1711,36 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// NDItemGetGlobalRange - Converts `sycl.nd_item.get_global_range` to LLVM.
+//===----------------------------------------------------------------------===//
+
+/// Converts SYCLNDItemGetGlobalRangeOp with a Range return type to LLVM.
+class NDItemGetGlobalRangePattern
+    : public LoadMemberPattern<SYCLNDItemGetGlobalRangeOp, NDItemGlobalItem,
+                               ItemGetRange> {
+public:
+  using LoadMemberPattern<SYCLNDItemGetGlobalRangeOp, NDItemGlobalItem,
+                          ItemGetRange>::LoadMemberPattern;
+
+  LogicalResult match(SYCLNDItemGetGlobalRangeOp op) const final {
+    return success(isa<RangeType>(op.getRes().getType()));
+  }
+};
+
+/// Converts SYCLNDItemGetGlobalRangeOp with a scalar return type to LLVM.
+class NDItemGetGlobalRangeDimPattern
+    : public LoadMemberDimPattern<SYCLNDItemGetGlobalRangeOp, NDItemGlobalItem,
+                                  ItemGetRange, RangeGetDim> {
+public:
+  using LoadMemberDimPattern<SYCLNDItemGetGlobalRangeOp, NDItemGlobalItem,
+                             ItemGetRange, RangeGetDim>::LoadMemberDimPattern;
+
+  LogicalResult match(SYCLNDItemGetGlobalRangeOp op) const final {
+    return success(isa<IntegerType>(op.getRes().getType()));
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // NDItemGetGlobalLinearIDPattern - Converts `sycl.nd_item.get_global_linear_id`
 // to LLVM.
 //===----------------------------------------------------------------------===//
@@ -2298,6 +2328,7 @@ void mlir::populateSYCLToLLVMConversionPatterns(
            GroupGetLocalRangeDimPattern, IDGetPattern, IDGetRefPattern,
            ItemGetIDDimPattern, ItemGetRangeDimPattern, ItemGetRangePattern,
            NDItemGetGlobalIDDimPattern, NDItemGetGlobalIDPattern,
+           NDItemGetGlobalRangeDimPattern, NDItemGetGlobalRangePattern,
            NDItemGetGroupPattern, NDItemGetGroupRangeDimPattern,
            NDItemGetLocalIDDimPattern, NDItemGetLocalLinearIDPattern,
            NDItemGetNDRange, NDRangeGetGroupRangePattern,
