@@ -1274,7 +1274,7 @@ module attributes {gpu.container} {
 // CHECK-NEXT:        %[[VAL_7:.*]] = llvm.alloca %[[VAL_6]] x !llvm.struct<"class.sycl::_V1::id.3", {{.*}}> : (i64) -> !llvm.ptr
 // CHECK-DAG:         %[[VAL_8:.*]] = llvm.mlir.constant(0 : index) : i64
 // CHECK-DAG:         %[[VAL_9:.*]] = llvm.mlir.constant(0 : i32) : i32
-// CHECK-DAG:         %[[VAL_10:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-DAG:         %[[VAL_10:.*]] = llvm.mlir.constant(2 : i32) : i32
 // CHECK:             %[[VAL_11:.*]] = llvm.extractelement %[[VAL_2]]{{\[}}%[[VAL_10]] : i32] : vector<3xi64>
 // CHECK-NEXT:        %[[VAL_12:.*]] = llvm.getelementptr inbounds %[[VAL_7]][0, 0, 0, %[[VAL_9]]] : (!llvm.ptr, i32) -> !llvm.ptr, i64
 // CHECK-NEXT:        %[[VAL_13:.*]] = llvm.getelementptr %[[VAL_12]]{{\[}}%[[VAL_8]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64
@@ -1286,7 +1286,7 @@ module attributes {gpu.container} {
 // CHECK-NEXT:        %[[VAL_18:.*]] = llvm.getelementptr %[[VAL_17]]{{\[}}%[[VAL_8]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64
 // CHECK-NEXT:        llvm.store %[[VAL_16]], %[[VAL_18]] : i64, !llvm.ptr
 // CHECK-DAG:         %[[VAL_19:.*]] = llvm.mlir.constant(2 : i32) : i32
-// CHECK-DAG:         %[[VAL_20:.*]] = llvm.mlir.constant(2 : i32) : i32
+// CHECK-DAG:         %[[VAL_20:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:             %[[VAL_21:.*]] = llvm.extractelement %[[VAL_2]]{{\[}}%[[VAL_20]] : i32] : vector<3xi64>
 // CHECK-NEXT:        %[[VAL_22:.*]] = llvm.getelementptr inbounds %[[VAL_7]][0, 0, 0, %[[VAL_19]]] : (!llvm.ptr, i32) -> !llvm.ptr, i64
 // CHECK-NEXT:        %[[VAL_23:.*]] = llvm.getelementptr %[[VAL_22]]{{\[}}%[[VAL_8]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64

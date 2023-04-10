@@ -3,6 +3,7 @@
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64>)>)>
 
 module attributes {gpu.container_module} {
   // CHECK:   gpu.module @kernels {
@@ -68,12 +69,12 @@ module attributes {gpu.container_module} {
     // CHECK-NEXT:            %[[VAL_26:.*]] = memref.alloca() : memref<1x!sycl_range_2_>
     // CHECK-NEXT:            %[[VAL_27:.*]] = arith.constant 0 : index
     // CHECK-NEXT:            %[[VAL_29:.*]] = arith.constant 0 : i32
-    // CHECK-NEXT:            %[[VAL_30:.*]] = spirv.CompositeExtract %[[VAL_25]][0 : i32] : vector<3xi32>
+    // CHECK-NEXT:            %[[VAL_30:.*]] = spirv.CompositeExtract %[[VAL_25]][1 : i32] : vector<3xi32>
     // CHECK-NEXT:            %[[VAL_31:.*]] = arith.extsi %[[VAL_30]] : i32 to i64
     // CHECK-NEXT:            %[[VAL_32:.*]] = sycl.range.get %[[VAL_26]][%[[VAL_29]]] {ArgumentTypes = [memref<1x!sycl_range_2_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @range} : (memref<1x!sycl_range_2_>, i32) -> memref<2xi64>
     // CHECK-NEXT:            memref.store %[[VAL_31]], %[[VAL_32]]{{\[}}%[[VAL_27]]] : memref<2xi64>
     // CHECK-NEXT:            %[[VAL_33:.*]] = arith.constant 1 : i32
-    // CHECK-NEXT:            %[[VAL_34:.*]] = spirv.CompositeExtract %[[VAL_25]][1 : i32] : vector<3xi32>
+    // CHECK-NEXT:            %[[VAL_34:.*]] = spirv.CompositeExtract %[[VAL_25]][0 : i32] : vector<3xi32>
     // CHECK-NEXT:            %[[VAL_35:.*]] = arith.extsi %[[VAL_34]] : i32 to i64
     // CHECK-NEXT:            %[[VAL_36:.*]] = sycl.range.get %[[VAL_26]][%[[VAL_33]]] {ArgumentTypes = [memref<1x!sycl_range_2_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @range} : (memref<1x!sycl_range_2_>, i32) -> memref<2xi64>
     // CHECK-NEXT:            memref.store %[[VAL_35]], %[[VAL_36]]{{\[}}%[[VAL_27]]] : memref<2xi64>
@@ -209,6 +210,35 @@ module attributes {gpu.container_module} {
     gpu.func @test_work_group_size() kernel
       attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
       %0 = sycl.work_group_size : !sycl_range_1_
+      gpu.return
+    }
+
+    // CHECK-LABEL:         gpu.func @test_work_group_size_3D() kernel
+    // CHECK-NEXT:             %[[VAL_105:.*]] = spirv.mlir.addressof @__spirv_BuiltInWorkgroupSize : !spirv.ptr<vector<3xi32>, Input>
+    // CHECK-NEXT:             %[[VAL_106:.*]] = spirv.Load "Input" %[[VAL_105]] : vector<3xi32>
+    // CHECK-NEXT:             %[[VAL_107:.*]] = memref.alloca() : memref<1x!sycl_range_3_>
+    // CHECK-NEXT:             %[[VAL_108:.*]] = arith.constant 0 : index
+    // CHECK-NEXT:             %[[VAL_109:.*]] = arith.constant 0 : i32
+    // CHECK-NEXT:             %[[VAL_110:.*]] = spirv.CompositeExtract %[[VAL_106]][2 : i32] : vector<3xi32>
+    // CHECK-NEXT:             %[[VAL_111:.*]] = arith.extsi %[[VAL_110]] : i32 to i64
+    // CHECK-NEXT:             %[[VAL_112:.*]] = sycl.range.get %[[VAL_107]]{{\[}}%[[VAL_109]]] {ArgumentTypes = [memref<1x!sycl_range_3_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @range} : (memref<1x!sycl_range_3_>, i32) -> memref<3xi64>
+    // CHECK-NEXT:             memref.store %[[VAL_111]], %[[VAL_112]]{{\[}}%[[VAL_108]]] : memref<3xi64>
+    // CHECK-NEXT:             %[[VAL_113:.*]] = arith.constant 1 : i32
+    // CHECK-NEXT:             %[[VAL_114:.*]] = spirv.CompositeExtract %[[VAL_106]][1 : i32] : vector<3xi32>
+    // CHECK-NEXT:             %[[VAL_115:.*]] = arith.extsi %[[VAL_114]] : i32 to i64
+    // CHECK-NEXT:             %[[VAL_116:.*]] = sycl.range.get %[[VAL_107]]{{\[}}%[[VAL_113]]] {ArgumentTypes = [memref<1x!sycl_range_3_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @range} : (memref<1x!sycl_range_3_>, i32) -> memref<3xi64>
+    // CHECK-NEXT:             memref.store %[[VAL_115]], %[[VAL_116]]{{\[}}%[[VAL_108]]] : memref<3xi64>
+    // CHECK-NEXT:             %[[VAL_117:.*]] = arith.constant 2 : i32
+    // CHECK-NEXT:             %[[VAL_118:.*]] = spirv.CompositeExtract %[[VAL_106]][0 : i32] : vector<3xi32>
+    // CHECK-NEXT:             %[[VAL_119:.*]] = arith.extsi %[[VAL_118]] : i32 to i64
+    // CHECK-NEXT:             %[[VAL_120:.*]] = sycl.range.get %[[VAL_107]]{{\[}}%[[VAL_117]]] {ArgumentTypes = [memref<1x!sycl_range_3_>, i32], FunctionName = @"operator[]", MangledFunctionName = @"operator[]", TypeName = @range} : (memref<1x!sycl_range_3_>, i32) -> memref<3xi64>
+    // CHECK-NEXT:             memref.store %[[VAL_119]], %[[VAL_120]]{{\[}}%[[VAL_108]]] : memref<3xi64>
+    // CHECK-NEXT:             %[[VAL_121:.*]] = memref.load %[[VAL_107]]{{\[}}%[[VAL_108]]] : memref<1x!sycl_range_3_>
+    // CHECK-NEXT:             gpu.return
+    // CHECK-NEXT:           }
+    gpu.func @test_work_group_size_3D() kernel
+      attributes {spirv.entry_point_abi = #spirv.entry_point_abi<>} {
+      %0 = sycl.work_group_size : !sycl_range_3_
       gpu.return
     }
 
