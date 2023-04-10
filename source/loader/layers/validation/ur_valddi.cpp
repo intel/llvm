@@ -2397,7 +2397,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_KERNEL_EXEC_INFO_USM_PTRS < propName) {
+        if (UR_KERNEL_EXEC_INFO_CACHE_CONFIG < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
