@@ -339,10 +339,11 @@ class command_graph {};
 template<>
 class command_graph<graph_state::modifiable> {
 public:
-  command_graph(const device& syclDevice, const property_list& propList = {});
+  command_graph(const context& syclContext, const device& syclDevice,
+                const property_list& propList = {});
 
   command_graph<graph_state::executable>
-  finalize(const context& syclContext, const property_list& propList = {}) const;
+  finalize(const property_list& propList = {}) const;
 
   bool begin_recording(queue& recordingQueue, const property_list& propList = {});
   bool begin_recording(const std::vector<queue>& recordingQueues, const property_list& propList = {});
@@ -504,11 +505,12 @@ Table {counter: tableNumber}. Constructor of the `command_graph` class.
 |
 [source,c++]
 ----
-command_graph(const device& syclDevice, const property_list& propList = {});
+command_graph(const context& syclContext, const device& syclDevice,
+              const property_list& propList = {});
 ----
-|Creates a SYCL `command_graph` object in the modifiable state for device
-`syclDevice`. Zero or more properties can be provided to the constructed SYCL
-`command_graph` via an instance of `property_list`.
+|Creates a SYCL `command_graph` object in the modifiable state for context
+`syclContext` and device `syclDevice`. Zero or more properties can be provided
+to the constructed SYCL `command_graph` via an instance of `property_list`.
 
 Preconditions:
 
@@ -517,11 +519,20 @@ Preconditions:
 
 Parameters:
 
+* `syclContext` - Context which will be associated with this graph and all
+  nodes within it. This is an immutable characteristic of the graph.
+
 * `syclDevice` - Device that all nodes added to the graph will target,
-  an immutable characteristic of the graph.
+  an immutable characteristic of the graph. Must be associated with
+  `syclContext`.
 
 * `propList` - Optional parameter for passing properties. Properties for
   the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if `syclDevice` is not
+associated with `syclContext`.
 
 |===
 
@@ -623,15 +634,15 @@ Exceptions:
 [source,c++]
 ----
 command_graph<graph_state::executable>
-finalize(const context& syclContext, const property_list& propList = {}) const;
+finalize(const property_list& propList = {}) const;
 ----
 
 |Synchronous operation that creates a new graph in the executable state with a
 fixed topology that can be submitted for execution on any queue sharing the
-supplied context. It is valid to call this method multiple times to create
-subsequent executable graphs. It is also valid to continue to add new nodes to
-the modifiable graph instance after calling this function. It is valid to
-finalize an empty graph instance with no recorded commands.
+context associated with the graph. It is valid to call this method multiple times
+to create subsequent executable graphs. It is also valid to continue to add new
+nodes to the modifiable graph instance after calling this function. It is valid
+to finalize an empty graph instance with no recorded commands.
 
 Preconditions:
 
@@ -639,9 +650,6 @@ Preconditions:
   `graph_state::modifiable`.
 
 Parameters:
-
-* `syclContext` - The context associated with the queues to which the
-  executable graph will be able to be submitted.
 
 * `propList` - Optional parameter for passing properties. No finalization
   properties are defined by this extension.
@@ -653,9 +661,6 @@ Exceptions:
 * Throws synchronously with error code `invalid` if the graph contains a cycle.
   A cycle may be introduced to the graph via a call to `make_edge()` that
   creates a forward dependency.
-
-* Throws synchronously with error code `invalid` if the graph contains a
-  node which targets a device not present in `syclContext`.
 
 |===
 
@@ -691,8 +696,8 @@ Exceptions:
   already recording to a different graph.
 
 * Throws synchronously with error code `invalid` if `recordingQueue` is
-  associated with a device that is different from the device used on creation
-  of the graph.
+  associated with a device or context that is different from the device
+  and context used on creation of the graph.
 |
 [source, c++]
 ----
@@ -719,6 +724,10 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if the any queue in
   `recordingQueues` is already recording to a different graph.
+
+* Throws synchronously with error code `invalid` if any of `recordingQueues`
+  is associated with a device or context that is different from the device
+  and context used on creation of the graph.
 
 |
 [source, c++]
@@ -821,6 +830,9 @@ Exceptions:
 * Throws synchronously with error code `invalid` if `graph` contains any node
   which is not a kernel command or host-task, e.g.
   {handler-copy-functions}[memory operations].
+
+* Throws synchronously with error code `invalid` if the context associated with
+  `graph` does not match that of the `command_graph` being updated.
 |===
 
 === Queue Class Modifications
@@ -1220,7 +1232,7 @@ int main() {
   float gamma = 3.0f;
 
   sycl::queue q;
-  sycl_ext::command_graph g(q.get_device());
+  sycl_ext::command_graph g(q.get_context(), q.get_device());
 
   float *dotp = sycl::malloc_shared<float>(1, q);
   float *x = sycl::malloc_device<float>(n, q);
@@ -1270,7 +1282,7 @@ int main() {
       },
       { sycl_ext::property::node::depends_on(node_a, node_b)});
 
-  auto exec = g.finalize(q.get_context());
+  auto exec = g.finalize();
 
   // use queue shortcut for graph submission
   q.ext_oneapi_graph(exec).wait();
@@ -1304,7 +1316,7 @@ submitted in its entirety for execution via
   queue q{default_selector{}};
 
   // New object representing graph of command-groups
-  ext::oneapi::experimental::command_graph graph(q.get_device());
+  ext::oneapi::experimental::command_graph graph(q.get_context(), q.get_device());
   {
     buffer<T> bufferA{dataA.data(), range<1>{elements}};
     buffer<T> bufferB{dataB.data(), range<1>{elements}};
@@ -1362,7 +1374,7 @@ submitted in its entirety for execution via
 
   // Finalize the modifiable graph to create an executable graph that can be
   // submitted for execution.
-  auto exec_graph = graph.finalize(q.get_context());
+  auto exec_graph = graph.finalize();
 
   // Execute graph
   q.submit([&](handler& cgh) {
