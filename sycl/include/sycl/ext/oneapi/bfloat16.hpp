@@ -81,9 +81,8 @@ private:
 #else
     return __devicelib_ConvertFToBF16INTEL(a);
 #endif
-#else
-    return from_float_fallback(a);
 #endif
+    return from_float_fallback(a);
   }
 
   static float to_float(const detail::Bfloat16StorageT &a) {
