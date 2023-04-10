@@ -304,7 +304,8 @@ public:
   async_work_group_copy(local_ptr<dataT> dest, global_ptr<const dataT> src,
                         size_t numElements, size_t srcStride) const {
     using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
+    using SrcT =
+        std::add_const_t<detail::ConvertToOpenCLType_t<global_ptr<dataT>>>;
 
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
         __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
@@ -322,7 +323,8 @@ public:
   async_work_group_copy(global_ptr<dataT> dest, local_ptr<const dataT> src,
                         size_t numElements, size_t destStride) const {
     using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
+    using SrcT =
+        std::add_const_t<detail::ConvertToOpenCLType_t<local_ptr<dataT>>>;
 
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
         __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
@@ -345,8 +347,8 @@ public:
                   "Async copy to/from bool memory is not supported.");
     auto DestP = multi_ptr<uint8_t, DestS, DestIsDecorated>(
         reinterpret_cast<uint8_t *>(Dest.get()));
-    auto SrcP = multi_ptr<uint8_t, SrcS, SrcIsDecorated>(
-        reinterpret_cast<uint8_t *>(Src.get()));
+    auto SrcP = multi_ptr<const uint8_t, SrcS, SrcIsDecorated>(
+        reinterpret_cast<const uint8_t *>(Src.get()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
 
@@ -367,7 +369,7 @@ public:
     auto DestP = address_space_cast<DestS, DestIsDecorated>(
         reinterpret_cast<VecT *>(Dest.get()));
     auto SrcP = address_space_cast<SrcS, SrcIsDecorated>(
-        reinterpret_cast<VecT *>(Src.get()));
+        reinterpret_cast<const VecT *>(Src.get()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
 
