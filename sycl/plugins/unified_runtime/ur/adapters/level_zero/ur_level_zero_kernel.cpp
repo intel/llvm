@@ -710,6 +710,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t NativeKernel, ///< [in] the native handle of the kernel.
     ur_context_handle_t Context,     ///< [in] handle of the context object
+    ur_program_handle_t Program,
     ur_kernel_handle_t *
         RetKernel ///< [out] pointer to the handle of the kernel object created.
 ) {
@@ -725,6 +726,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+
+  Kernel->Program = Program;
 
   UR_CALL(Kernel->initialize());
 

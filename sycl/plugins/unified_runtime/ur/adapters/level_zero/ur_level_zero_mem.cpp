@@ -1803,14 +1803,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urMemCreateWithNativeHandle(
     ur_native_handle_t NativeMem, ///< [in] the native handle of the mem.
     ur_context_handle_t Context,  ///< [in] handle of the context object
+    bool OwnNativeHandle,
     ur_mem_handle_t
         *Mem ///< [out] pointer to the handle of the mem object created.
 ) {
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
-
-  // TODO: Get OwnNativeHandle from the output parameter while we get it in
-  // interface
-  bool OwnNativeHandle = (*Mem)->OwnNativeHandle;
 
   // Get base of the allocation
   void *Base = nullptr;
@@ -1845,7 +1842,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemCreateWithNativeHandle(
 
   _ur_buffer *Buffer = nullptr;
   try {
-    Buffer = new _ur_buffer(Context, Device, Size);
+    Buffer = new _ur_buffer(Context, Size, Device, ur_cast<char *>(NativeMem),
+                            OwnNativeHandle);
     *Mem = reinterpret_cast<ur_mem_handle_t>(Buffer);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -1867,12 +1865,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemCreateWithNativeHandle(
     // allocations in this context are released.
     UR_CALL(urContextRetain(Context));
 
-    Context->MemAllocs.emplace(
-        std::piecewise_construct, std::forward_as_tuple(Ptr),
-        std::forward_as_tuple(Context,
-                              true /*ownNativeHandle, how do we pass it here? or
-                                      do we move all this logic to pi2ur? */
-                              ));
+    Context->MemAllocs.emplace(std::piecewise_construct,
+                               std::forward_as_tuple(Ptr),
+                               std::forward_as_tuple(Context, OwnNativeHandle));
   }
 
   if (Device) {

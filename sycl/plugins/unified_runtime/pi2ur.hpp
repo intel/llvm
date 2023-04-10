@@ -1724,7 +1724,9 @@ inline pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
 
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
 
-  ur_mem_handle_t UrMemory = reinterpret_cast<ur_mem_handle_t>(*ArgValue);
+  ur_mem_handle_t UrMemory{};
+  if (ArgValue)
+    UrMemory = reinterpret_cast<ur_mem_handle_t>(*ArgValue);
 
   // We don't yet know the device where this kernel will next be run on.
   // Thus we can't know the actual memory allocation that needs to be used.
@@ -1765,10 +1767,11 @@ piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
-  std::ignore = Program;
+  ur_program_handle_t UrProgram =
+      reinterpret_cast<ur_program_handle_t>(Program);
   ur_kernel_handle_t *UrKernel = reinterpret_cast<ur_kernel_handle_t *>(Kernel);
-  HANDLE_ERRORS(
-      urKernelCreateWithNativeHandle(UrNativeKernel, UrContext, UrKernel));
+  HANDLE_ERRORS(urKernelCreateWithNativeHandle(UrNativeKernel, UrContext,
+                                               UrProgram, UrKernel));
   (*UrKernel)->OwnNativeHandle = OwnNativeHandle;
 
   return PI_SUCCESS;
@@ -2580,8 +2583,8 @@ inline pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   ur_mem_handle_t *UrMem = reinterpret_cast<ur_mem_handle_t *>(Mem);
   // TODO: Pass OwnNativeHandle to the output parameter
   // while we get it in interface
-  (*UrMem)->OwnNativeHandle = OwnNativeHandle;
-  HANDLE_ERRORS(urMemCreateWithNativeHandle(UrNativeMem, UrContext, UrMem));
+  HANDLE_ERRORS(urMemCreateWithNativeHandle(UrNativeMem, UrContext,
+                                            OwnNativeHandle, UrMem));
 
   return PI_SUCCESS;
 }
