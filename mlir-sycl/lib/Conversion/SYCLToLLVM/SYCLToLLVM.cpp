@@ -524,6 +524,7 @@ public:
   }
 };
 
+/// Helper function to calculate the linear ID using ID and range getters.
 template <typename IDGetter, typename RangeGetter>
 static void getLinearIDRewriter(Operation *op, unsigned dimension,
                                 IDGetter getID, RangeGetter getRange,
@@ -2203,8 +2204,10 @@ public:
     const auto arrayType = rewriter.getType<ArrayType>(
         dimension, MemRefType::get(dimension, indexType));
     const auto idType = rewriter.getType<IDType>(dimension, arrayType);
+    // Obtain the local ID (already mirrored)
     Value localIDVal =
         rewriter.create<SYCLLocalIDOp>(loc, idType, /*dimension=*/Value{});
+    // Store it in a memref to access its elements
     Value localID =
         rewriter.create<memref::AllocaOp>(loc, MemRefType::get(1, idType));
     rewriter.create<memref::StoreOp>(loc, localIDVal, localID);
@@ -2217,6 +2220,8 @@ public:
     const auto funcName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
     const auto mangledFuncName = funcName;
     const auto typeName = rewriter.getAttr<FlatSymbolRefAttr>("id");
+    // The local linear ID is calculated from the local ID and the group's local
+    // range.
     getLinearIDRewriter(
         op, dimension,
         [&](OpBuilder &builder, Location loc, int32_t index) -> Value {
