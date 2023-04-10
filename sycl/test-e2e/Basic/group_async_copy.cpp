@@ -157,16 +157,16 @@ int main() {
       return 1;
     if (test<int4>(Stride))
       return 1;
-    // if (test<bool>(Stride))
-    //   return 1;
-    // if (test<vec<bool, 1>>(Stride))
-    //   return 1;
-    // if (test<vec<bool, 4>>(Stride))
-    //   return 1;
-    // if (test<sycl::opencl::cl_bool>(Stride))
-    //   return 1;
-    // if (test<std::byte>(Stride))
-    //   return 1;
+    if (test<bool>(Stride))
+      return 1;
+    if (test<vec<bool, 1>>(Stride))
+      return 1;
+    if (test<vec<bool, 4>>(Stride))
+      return 1;
+    if (test<sycl::opencl::cl_bool>(Stride))
+      return 1;
+    if (test<std::byte>(Stride))
+      return 1;
   }
 
   std::cout << "Test passed.\n";
