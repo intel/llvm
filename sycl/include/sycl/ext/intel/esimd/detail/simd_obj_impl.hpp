@@ -354,6 +354,15 @@ public:
 #endif
   }
 
+  /// @return A reference to the value of the
+  /// underlying raw vector. Intended for use
+  /// with l-value contexts in inline assembly.
+  raw_vector_type &data_ref() { return M_data; }
+
+  /// Commit the current stored underlying raw vector to memory.
+  /// This is required when using inline assembly with private global variables.
+  void commit() { __esimd_vstore<RawTy, N>(&M_data, M_data); }
+
   /// @return Newly constructed (from the underlying data) object of the Derived
   /// type.
   Derived read() const { return Derived{data()}; }
