@@ -32,6 +32,27 @@ Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value);
 bfloat16 bitsToBfloat16(const Bfloat16StorageT Value);
 } // namespace detail
 
+static detail::Bfloat16StorageT from_float_fallback(const float &a) {
+#if defined(__NVPTX__)
+  if (a != a)
+    return 0xffc1;
+#elif defined(__AMDGCN__)
+  if (sycl::isnan(a))
+    return 0xffc1;
+#else
+  if (std::isnan(a))
+    return 0xffc1;
+#endif
+  union {
+    uint32_t intStorage;
+    float floatValue;
+  };
+  floatValue = a;
+  // Do RNE and truncate
+  uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
+  return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
+}
+
 class bfloat16 {
   detail::Bfloat16StorageT value;
 
@@ -53,33 +74,15 @@ private:
 #if (__SYCL_CUDA_ARCH__ >= 800)
     return __nvvm_f2bf16_rn(a);
 #else
-    // TODO find a better way to check for NaN
-    if (a != a)
-      return 0xffc1;
-    union {
-      uint32_t intStorage;
-      float floatValue;
-    };
-    floatValue = a;
-    // Do RNE and truncate
-    uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
-    return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
+    return from_float_fallback(a);
 #endif
+#elif defined(__AMDGCN__)
+    return from_float_fallback(a);
 #else
     return __devicelib_ConvertFToBF16INTEL(a);
 #endif
 #else
-    // In case float value is nan - propagate bfloat16's qnan
-    if (std::isnan(a))
-      return 0xffc1;
-    union {
-      uint32_t intStorage;
-      float floatValue;
-    };
-    floatValue = a;
-    // Do RNE and truncate
-    uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
-    return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
+    return from_float_fallback(a);
 #endif
   }
 
