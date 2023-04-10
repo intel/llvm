@@ -223,7 +223,7 @@ static llvm::cl::opt<std::string> McpuOpt("mcpu", llvm::cl::init(""),
                                           llvm::cl::cat(ToolOptions));
 
 static llvm::cl::opt<bool> InlineSYCLMethodOps(
-    "inline-sycl-method-ops", llvm::cl::init(true),
+    "inline-sycl-method-ops", llvm::cl::init(false),
     llvm::cl::desc("Whether to inline SYCLMethodOp operations"),
     llvm::cl::cat(ToolOptions));
 

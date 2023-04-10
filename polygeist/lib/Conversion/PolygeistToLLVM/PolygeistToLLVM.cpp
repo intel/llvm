@@ -20,7 +20,9 @@
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
+#include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVM.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
+#include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRV.h"
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -35,6 +37,8 @@
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
@@ -1496,6 +1500,17 @@ struct GPUReturnOpLowering : public ConvertOpToLLVMPattern<gpu::ReturnOp> {
   }
 };
 
+struct EraseSPIRVBuiltinPattern
+    : public OpRewritePattern<spirv::GlobalVariableOp> {
+  using OpRewritePattern<spirv::GlobalVariableOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(spirv::GlobalVariableOp global,
+                                PatternRewriter &rewriter) const final {
+    rewriter.eraseOp(global);
+    return success();
+  }
+};
+
 struct ConvertPolygeistToLLVMPass
     : public impl::ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   using impl::ConvertPolygeistToLLVMBase<
@@ -1524,7 +1539,13 @@ struct ConvertPolygeistToLLVMPass
       populateCallOpTypeConversionPattern(patterns, converter);
       populateAnyFunctionOpInterfaceTypeConversionPattern(patterns, converter);
 
+      constexpr auto clientAPI = spirv::ClientAPI::OpenCL;
+
+      populateSPIRVToLLVMConversionPatterns(converter, patterns, clientAPI);
+      populateSPIRVToLLVMTypeConversion(converter, clientAPI);
+
       populateSYCLToLLVMConversionPatterns(converter, patterns);
+      populateSYCLToSPIRVConversionPatterns(converter, patterns);
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);
       cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
@@ -1547,6 +1568,11 @@ struct ConvertPolygeistToLLVMPass
                    GPUReturnOpLowering, GPUModuleEndOpLowering>(converter);
 
       patterns.add<URLLVMOpLowering>(converter);
+
+      // cgeist already introduces these globals, so we can drop the ones coming
+      // from the sycl to llvm conversion patterns. Add with a higher benefit so
+      // that this is applied before the conversion to llvm pattern.
+      patterns.add<EraseSPIRVBuiltinPattern>(&getContext(), /*benefit=*/2);
 
       // Run these instead of the ones provided by the dialect to avoid lowering
       // memrefs to a struct.

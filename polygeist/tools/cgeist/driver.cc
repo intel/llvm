@@ -663,7 +663,6 @@ static int finalize(mlir::MLIRContext &Ctx,
     if (!EmitOpenMPIR) {
       Module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager PM3(&Ctx);
-      PM3.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
       ConvertPolygeistToLLVMOptions Options;
       Options.dataLayout = DL.getStringRepresentation();
       PM3.addPass(createConvertPolygeistToLLVM(Options));
