@@ -3395,6 +3395,27 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_kernel_cache_config_t value) {
+    switch (value) {
+
+    case UR_KERNEL_CACHE_CONFIG_DEFAULT:
+        os << "UR_KERNEL_CACHE_CONFIG_DEFAULT";
+        break;
+
+    case UR_KERNEL_CACHE_CONFIG_LARGE_SLM:
+        os << "UR_KERNEL_CACHE_CONFIG_LARGE_SLM";
+        break;
+
+    case UR_KERNEL_CACHE_CONFIG_LARGE_DATA:
+        os << "UR_KERNEL_CACHE_CONFIG_LARGE_DATA";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_exec_info_t value) {
     switch (value) {
 
@@ -3404,6 +3425,10 @@ inline std::ostream &operator<<(std::ostream &os,
 
     case UR_KERNEL_EXEC_INFO_USM_PTRS:
         os << "UR_KERNEL_EXEC_INFO_USM_PTRS";
+        break;
+
+    case UR_KERNEL_EXEC_INFO_CACHE_CONFIG:
+        os << "UR_KERNEL_EXEC_INFO_CACHE_CONFIG";
         break;
     default:
         os << "unknown enumerator";

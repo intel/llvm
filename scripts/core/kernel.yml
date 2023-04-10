@@ -132,6 +132,18 @@ etors:
       desc: "Return SubGroup size required by Intel, return type uint32_t"
 --- #--------------------------------------------------------------------------
 type: enum
+desc: "Kernel Cache Configuartion."
+class: $xKernel
+name: $x_kernel_cache_config_t
+etors:
+    - name: DEFAULT
+      desc: "No preference for SLM or data cache."
+    - name: LARGE_SLM
+      desc: "Large Shared Local Memory (SLM) size."
+    - name: LARGE_DATA
+      desc: "Large General Data size."
+--- #--------------------------------------------------------------------------
+type: enum
 desc: "Set additional Kernel execution information"
 class: $xKernel
 name: $x_kernel_exec_info_t
@@ -140,6 +152,8 @@ etors:
       desc: "Kernel might access data through USM pointer, type bool_t*"
     - name: USM_PTRS
       desc: "Provide an explicit list of USM pointers that the kernel will access, type void*[]."
+    - name: CACHE_CONFIG
+      desc: "Provide the preferred cache configuration, type $x_kernel_cache_config_t"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a Kernel object"

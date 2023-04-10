@@ -1288,11 +1288,25 @@ class ur_kernel_sub_group_info_t(c_int):
 
 
 ###############################################################################
+## @brief Kernel Cache Configuartion.
+class ur_kernel_cache_config_v(IntEnum):
+    DEFAULT = 0                                     ## No preference for SLM or data cache.
+    LARGE_SLM = 1                                   ## Large Shared Local Memory (SLM) size.
+    LARGE_DATA = 2                                  ## Large General Data size.
+
+class ur_kernel_cache_config_t(c_int):
+    def __str__(self):
+        return str(ur_kernel_cache_config_v(self.value))
+
+
+###############################################################################
 ## @brief Set additional Kernel execution information
 class ur_kernel_exec_info_v(IntEnum):
     USM_INDIRECT_ACCESS = 0                         ## Kernel might access data through USM pointer, type bool_t*
     USM_PTRS = 1                                    ## Provide an explicit list of USM pointers that the kernel will access,
                                                     ## type void*[].
+    CACHE_CONFIG = 2                                ## Provide the preferred cache configuration, type
+                                                    ## ::ur_kernel_cache_config_t
 
 class ur_kernel_exec_info_t(c_int):
     def __str__(self):
