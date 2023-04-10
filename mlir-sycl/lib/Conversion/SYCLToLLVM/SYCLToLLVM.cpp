@@ -1714,7 +1714,7 @@ public:
 // NDItemGetGlobalRange - Converts `sycl.nd_item.get_global_range` to LLVM.
 //===----------------------------------------------------------------------===//
 
-/// Converts SYCLNDItemGetGlobalRangeOp with a Range return type to LLVM
+/// Converts SYCLNDItemGetGlobalRangeOp with a Range return type to LLVM.
 class NDItemGetGlobalRangePattern
     : public LoadMemberPattern<SYCLNDItemGetGlobalRangeOp, NDItemGlobalItem,
                                ItemGetRange> {
@@ -1727,7 +1727,7 @@ public:
   }
 };
 
-/// Converts SYCLNDItemGetGlobalRangeOp with a scalar return type to LLVM
+/// Converts SYCLNDItemGetGlobalRangeOp with a scalar return type to LLVM.
 class NDItemGetGlobalRangeDimPattern
     : public LoadMemberDimPattern<SYCLNDItemGetGlobalRangeOp, NDItemGlobalItem,
                                   ItemGetRange, RangeGetDim> {
