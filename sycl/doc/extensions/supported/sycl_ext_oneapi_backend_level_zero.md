@@ -324,8 +324,7 @@ an application to create a SYCL object that encapsulates a corresponding Level-Z
 ``` C++
 template <backend Backend>
 platform make_platform<Backend>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, platform> &)
+    const backend_input_t<Backend, platform> &)
 ```
 </td>
 <td>Constructs a SYCL platform instance from a Level-Zero <code>ze_driver_handle_t</code>. The SYCL execution environment contains a fixed number of platforms that are enumerated via <code>sycl::platform::get_platforms()</code>. Calling this function does not create a new platform. Rather it merely creates a <code>sycl::platform</code> object that is a copy of one of the platforms from that enumeration.</td>
@@ -335,8 +334,7 @@ platform make_platform<Backend>(
 ``` C++
 template <backend Backend>
 device make_device<Backend>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, device> &)
+    const backend_input_t<Backend, device> &)
 ```
 </td>
 <td>Constructs a SYCL device instance from a Level-Zero <code>ze_device_handle_t</code>. The SYCL execution environment for the Level Zero backend contains a fixed number of devices that are enumerated via <code>sycl::device::get_devices()</code> and a fixed number of sub-devices that are enumerated via <code>sycl::device::create_sub_devices(...)</code>. Calling this function does not create a new device. Rather it merely creates a <code>sycl::device</code> object that is a copy of one of the devices from those enumerations.</td>
@@ -346,8 +344,7 @@ device make_device<Backend>(
 ``` C++
 template <backend Backend>
 context make_context<Backend>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, context> &)
+    const backend_input_t<Backend, context> &)
 ```
 </td>
 <td>Constructs a SYCL context instance from a Level-Zero <code>ze_context_handle_t</code>. The context is created against the devices passed in <code>DeviceList</code> structure member. There must be at least one device given and all the devices must be from the same SYCL platform and thus from the same Level-Zero driver. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.</td>
@@ -357,8 +354,7 @@ context make_context<Backend>(
 ``` C++
 template <backend Backend>
 queue make_queue<Backend>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, queue> &,
+    const backend_input_t<Backend, queue> &,
     const context &Context)
 ```
 </td>
@@ -375,8 +371,7 @@ the ```compute_index``` property which is built into the command queue or comman
 ``` C++
 template <backend Backend>
 event make_event<Backend>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, event> &,
+    const backend_input_t<Backend, event> &,
     const context &Context)
 ```
 </td>
@@ -385,10 +380,10 @@ event make_event<Backend>(
 <td>
 
 ``` C++
+// State must be bundle_state::executable
 template <backend Backend, bundle_state State>
 kernel_bundle<State> make_kernel_bundle<Backend, State>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero,
+    const backend_input_t<Backend,
         kernel_bundle<State>> &,
     const context &Context)
 ```
@@ -413,8 +408,7 @@ interoperability <code>kernel_bundle</code> destructor is called.</td>
 ``` C++
 template <backend Backend>
 kernel make_kernel<Backend>(
-    const backend_input_t<
-        backend::ext_oneapi_level_zero, kernel> &,
+    const backend_input_t<Backend, kernel> &,
     const context &Context)
 ```
 </td>
@@ -504,16 +498,20 @@ sampled_image and unsampled_image might have a different ordering.
 Example Usage
 ``` C++
 ze_image_handle_t ZeHImage; 
-// ... user provided LevelZero ZeHImage image handle gotten somehow (possibly zeImageCreate)
+// ... user provided LevelZero ZeHImage image 
+// handle gotten somehow (possibly zeImageCreate)
 
 // the informational data that matches ZeHImage
-sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
-sycl::image_channel_type ChanType =  sycl::image_channel_type::unsigned_int8;
-constexpr uint32_t width  = 4;
-constexpr uint32_t height = 2;
+sycl::image_channel_order ChanOrder 
+     = sycl::image_channel_order::rgba;
+sycl::image_channel_type ChanType 
+     = sycl::image_channel_type::unsigned_int8;
+size_t width  = 4;
+size_t height = 2;
 sycl::range<2> ImgRange_2D(width, height);
 
-constexpr sycl::backend BE = sycl::backend::ext_oneapi_level_zero;
+constexpr sycl::backend BE 
+       = sycl::backend::ext_oneapi_level_zero;
 sycl::backend_input_t<BE, sycl::image<2>> ImageInteropInput{ 
     ZeHImage, 
     ChanOrder,
