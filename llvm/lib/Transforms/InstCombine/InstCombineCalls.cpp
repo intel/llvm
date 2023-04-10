@@ -3643,6 +3643,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
         Callee->getAttributes().hasParamAttr(i, Attribute::ByVal))
       return false; // Cannot transform to or from byval.
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     // If the parameter is passed as a byval argument, then we have to have a
     // sized type and the sized type has to have the same size as the old type.
     if (ParamTy != ActTy && CallerPAL.hasParamAttr(i, Attribute::ByVal)) {
@@ -3660,6 +3661,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
           return false;
       }
     }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   if (Callee->isDeclaration()) {
@@ -3720,6 +3722,10 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
     // type. Note that we made sure all incompatible ones are safe to drop.
     AttributeMask IncompatibleAttrs = AttributeFuncs::typeIncompatible(
         ParamTy, AttributeFuncs::ASK_SAFE_TO_DROP);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    ArgAttrs.push_back(
+        CallerPAL.getParamAttrs(i).removeAttributes(Ctx, IncompatibleAttrs));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     if (CallerPAL.hasParamAttr(i, Attribute::ByVal) &&
         !ParamTy->isOpaquePointerTy()) {
       AttrBuilder AB(Ctx, CallerPAL.getParamAttrs(i).removeAttributes(
@@ -3730,6 +3736,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
       ArgAttrs.push_back(
           CallerPAL.getParamAttrs(i).removeAttributes(Ctx, IncompatibleAttrs));
     }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   // If the function takes more arguments than the call was taking, add them
