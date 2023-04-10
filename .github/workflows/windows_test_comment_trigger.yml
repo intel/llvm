@@ -62,6 +62,7 @@ jobs:
   windows_test_completion:
     runs-on: ubuntu-20.04
     needs: [windows_test_preparation, windows_default]
+    if: ${{ always() && needs.windows_test_preparation.result != 'skipped' }}
     steps:
     - name: update_pr_status_success
       if: needs.windows_default.result == 'success'
