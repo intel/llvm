@@ -43,7 +43,7 @@ mlir::LogicalResult mlir::sycl::verifySYCLGetComponentTrait(Operation *OpPtr) {
   const llvm::StringRef FunctionName = Op.getFunctionName();
   const bool IsSizeTCast = Op.getFunctionName() == "operator unsigned long";
   const mlir::Type RetTy = Op->getResult(0).getType();
-  const bool IsScalarReturn = RetTy.isInteger(64);
+  const bool IsScalarReturn = RetTy.isIntOrIndex();
   switch (Op->getNumOperands()) {
   case 1: {
     if (!IsSizeTCast) {

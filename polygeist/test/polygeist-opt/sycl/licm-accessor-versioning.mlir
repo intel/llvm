@@ -38,10 +38,9 @@
 // COM: Obtain a pointer to the beginning of the accessor %arg1.
 // CHECK-DAG:  [[ID_ALLOCA:%.*]] = memref.alloca() : memref<1x[[ID:!sycl_id_1_]]>
 // CHECK-DAG:  [[C0_i32:%.*]] = arith.constant 0 : i32
-// CHECK-DAG:  [[C0_i64:%.*]] = arith.constant 0 : i64
 // CHECK-DAG:  [[C0_index:%.*]] = arith.constant 0 : index
-// CHECK-NEXT: [[ID_GET:%.*]] = sycl.id.get [[ID_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[ID]]>, i32], FunctionName = @"operator[]", TypeName = @id} : (memref<1x[[ID]]>, i32) -> memref<?xi64>
-// CHECK-NEXT: memref.store [[C0_i64]], [[ID_GET]][[[C0_index]]] : memref<?xi64>
+// CHECK-NEXT: [[ID_GET:%.*]] = sycl.id.get [[ID_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[ID]]>, i32], FunctionName = @"operator[]", TypeName = @id} : (memref<1x[[ID]]>, i32) -> memref<?xindex>
+// CHECK-NEXT: memref.store [[C0_index]], [[ID_GET]][[[C0_index]]] : memref<?xindex>
 // CHECK-NEXT: [[ARG1_BEGIN:%.*]] = sycl.accessor.subscript [[ARG1]][[[ID_ALLOCA]]] {ArgumentTypes = [memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
 
 // COM: Obtain a pointer to the end of the accessor %arg1.
@@ -51,11 +50,11 @@
 // CHECK-NEXT: memref.store [[GET_RANGE]], [[RANGE_ALLOCA]][[[C0_index]]] : memref<1x[[RANGE]]>
 // CHECK-DAG:  [[ID_ALLOCA:%.*]] = memref.alloca() : memref<1x[[ID:!sycl_id_1_]]>
 // CHECK-DAG:  [[C0_i32:%.*]] = arith.constant 0 : i32
-// CHECK-DAG:  [[C1_i64:%.*]] = arith.constant 1 : i64
-// CHECK-NEXT: [[ID_GET:%.*]] = sycl.id.get [[ID_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[ID]]>, i32], FunctionName = @"operator[]", TypeName = @id} : (memref<1x[[ID]]>, i32) -> memref<?xi64>
+// CHECK-DAG:  [[C1_index:%.*]] = arith.constant 1 : index
+// CHECK-NEXT: [[ID_GET:%.*]] = sycl.id.get [[ID_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[ID]]>, i32], FunctionName = @"operator[]", TypeName = @id} : (memref<1x[[ID]]>, i32) -> memref<?xindex>
 // CHECK-NEXT: [[C0_i32:%.*]] = arith.constant 0 : i32
-// CHECK-NEXT: [[RANGE_GET:%.*]] = sycl.range.get [[RANGE_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[RANGE]]>, i32], FunctionName = @get, TypeName = @range} : (memref<1x[[RANGE]]>, i32) -> i64
-// CHECK-NEXT: memref.store [[RANGE_GET]], [[ID_GET]][[[C0_index]]] : memref<?xi64>
+// CHECK-NEXT: [[RANGE_GET:%.*]] = sycl.range.get [[RANGE_ALLOCA]][[[C0_i32]]] {ArgumentTypes = [memref<1x[[RANGE]]>, i32], FunctionName = @get, TypeName = @range} : (memref<1x[[RANGE]]>, i32) -> index
+// CHECK-NEXT: memref.store [[RANGE_GET]], [[ID_GET]][[[C0_index]]] : memref<?xindex>
 // CHECK-NEXT: [[ARG1_END:%.*]] = sycl.accessor.subscript [[ARG1]][[[ID_ALLOCA]]] {ArgumentTypes = [memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_R]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
 
 // CHECK: [[ARG0_BEGIN:%.*]] = sycl.accessor.subscript [[ARG0]][{{.*}}] {ArgumentTypes = [memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>], FunctionName = @"operator[]", TypeName = @accessor} : (memref<?x[[ACC_RW]], 4>, memref<1x[[ID]]>) -> memref<?xi32, 1>
