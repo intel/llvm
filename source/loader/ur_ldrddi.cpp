@@ -2543,6 +2543,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
     ur_context_handle_t hContext,     ///< [in] handle of the context object
+    ur_program_handle_t
+        hProgram, ///< [in] handle of the program associated with the kernel
+    const ur_kernel_native_properties_t
+        *pProperties, ///< [in] pointer to properties struct
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to the handle of the kernel object created.
 ) {
@@ -2564,8 +2568,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
+    // convert loader handle to platform handle
+    hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
+
     // forward to device-platform
-    result = pfnCreateWithNativeHandle(hNativeKernel, hContext, phKernel);
+    result = pfnCreateWithNativeHandle(hNativeKernel, hContext, hProgram,
+                                       pProperties, phKernel);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
