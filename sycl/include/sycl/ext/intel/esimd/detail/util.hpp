@@ -183,8 +183,8 @@ public:
 /// the byte offset \p Offset.
 template <typename T, typename AccessorTy>
 T *accessorToPointer(AccessorTy Acc, uint32_t Offset = 0) {
-  auto BytePtr =
-      reinterpret_cast<char *>(const_cast<T *>(Acc.get_pointer())) + Offset;
+  using QualCharPtrType = std::conditional_t<std::is_const_v<AccessorTy::value_type>, const char *, char *>;
+  auto BytePtr = reinterpret_cast<QualCharPtrType>(Acc.get_pointer()) + Offset;
   return reinterpret_cast<T *>(BytePtr);
 }
 #endif // __ESIMD_FORCE_STATELESS_MEM
