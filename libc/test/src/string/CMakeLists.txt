@@ -309,6 +309,16 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  strsep_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strsep_test.cpp
+  DEPENDS
+    libc.src.string.strsep
+)
+
+add_libc_unittest(
   strsignal_test
   SUITE
     libc_string_unittests
@@ -356,6 +366,16 @@ add_libc_unittest(
     strtok_r_test.cpp
   DEPENDS
     libc.src.string.strtok_r
+)
+
+add_libc_unittest(
+  strxfrm_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strxfrm_test.cpp
+  DEPENDS
+    libc.src.string.strxfrm
 )
 
 # Tests all implementations that can run on the target CPU.

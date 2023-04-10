@@ -535,7 +535,7 @@ public:
                                 ArrayRef<VPValue *> VPDefs,
                                 VPTransformState &State, VPValue *Addr,
                                 ArrayRef<VPValue *> StoredValues,
-                                VPValue *BlockInMask = nullptr);
+                                VPValue *BlockInMask, bool NeedsMaskForGaps);
 
   /// Fix the non-induction PHIs in \p Plan.
   void fixNonInductionPHIs(VPlan &Plan, VPTransformState &State);
@@ -1557,6 +1557,21 @@ public:
     if (TheLoop->getExitingBlock() != TheLoop->getLoopLatch())
       return true;
     return VF.isVector() && InterleaveInfo.requiresScalarEpilogue();
+  }
+
+  /// Returns true if we're required to use a scalar epilogue for at least
+  /// the final iteration of the original loop for all VFs in \p Range.
+  /// A scalar epilogue must either be required for all VFs in \p Range or for
+  /// none.
+  bool requiresScalarEpilogue(VFRange Range) const {
+    auto RequiresScalarEpilogue = [this](ElementCount VF) {
+      return requiresScalarEpilogue(VF);
+    };
+    bool IsRequired = all_of(Range, RequiresScalarEpilogue);
+    assert(
+        (IsRequired || none_of(Range, RequiresScalarEpilogue)) &&
+        "all VFs in range must agree on whether a scalar epilogue is required");
+    return IsRequired;
   }
 
   /// Returns true if a scalar epilogue is not allowed due to optsize or a
@@ -2610,7 +2625,7 @@ static bool useMaskedInterleavedAccesses(const TargetTransformInfo &TTI) {
 void InnerLoopVectorizer::vectorizeInterleaveGroup(
     const InterleaveGroup<Instruction> *Group, ArrayRef<VPValue *> VPDefs,
     VPTransformState &State, VPValue *Addr, ArrayRef<VPValue *> StoredValues,
-    VPValue *BlockInMask) {
+    VPValue *BlockInMask, bool NeedsMaskForGaps) {
   Instruction *Instr = Group->getInsertPos();
   const DataLayout &DL = Instr->getModule()->getDataLayout();
 
@@ -2668,14 +2683,15 @@ void InnerLoopVectorizer::vectorizeInterleaveGroup(
   State.setDebugLocFromInst(Instr);
   Value *PoisonVec = PoisonValue::get(VecTy);
 
-  Value *MaskForGaps = nullptr;
-  if (Group->requiresScalarEpilogue() && !Cost->isScalarEpilogueAllowed()) {
-    MaskForGaps = createBitMaskForGaps(Builder, VF.getKnownMinValue(), *Group);
-    assert(MaskForGaps && "Mask for Gaps is required but it is null");
-  }
-
   // Vectorize the interleaved load group.
   if (isa<LoadInst>(Instr)) {
+    Value *MaskForGaps = nullptr;
+    if (NeedsMaskForGaps) {
+      MaskForGaps =
+          createBitMaskForGaps(Builder, VF.getKnownMinValue(), *Group);
+      assert(MaskForGaps && "Mask for Gaps is required but it is null");
+    }
+
     // For each unroll part, create a wide load for the group.
     SmallVector<Value *, 2> NewLoads;
     for (unsigned Part = 0; Part < UF; Part++) {
@@ -2743,7 +2759,8 @@ void InnerLoopVectorizer::vectorizeInterleaveGroup(
   auto *SubVT = VectorType::get(ScalarTy, VF);
 
   // Vectorize the interleaved store group.
-  MaskForGaps = createBitMaskForGaps(Builder, VF.getKnownMinValue(), *Group);
+  Value *MaskForGaps =
+      createBitMaskForGaps(Builder, VF.getKnownMinValue(), *Group);
   assert((!MaskForGaps || useMaskedInterleavedAccesses(*TTI)) &&
          "masked interleaved groups are not allowed.");
   assert((!MaskForGaps || !VF.isScalable()) &&
@@ -3724,8 +3741,10 @@ void InnerLoopVectorizer::fixVectorizedLoop(VPTransformState &State,
     // No edge from the middle block to the unique exit block has been inserted
     // and there is nothing to fix from vector loop; phis should have incoming
     // from scalar loop only.
-    Plan.clearLiveOuts();
   } else {
+    // TODO: Check VPLiveOuts to see if IV users need fixing instead of checking
+    // the cost model.
+
     // If we inserted an edge from the middle block to the unique exit block,
     // update uses outside the loop (phis) to account for the newly inserted
     // edge.
@@ -3881,21 +3900,23 @@ void InnerLoopVectorizer::fixFixedOrderRecurrence(
   Phi->setIncomingValueForBlock(LoopScalarPreHeader, Start);
   Phi->setName("scalar.recur");
 
-  // Finally, fix users of the recurrence outside the loop. The users will need
-  // either the last value of the scalar recurrence or the last value of the
-  // vector recurrence we extracted in the middle block. Since the loop is in
-  // LCSSA form, we just need to find all the phi nodes for the original scalar
-  // recurrence in the exit block, and then add an edge for the middle block.
-  // Note that LCSSA does not imply single entry when the original scalar loop
-  // had multiple exiting edges (as we always run the last iteration in the
-  // scalar epilogue); in that case, there is no edge from middle to exit and
-  // and thus no phis which needed updated.
-  if (!Cost->requiresScalarEpilogue(VF))
-    for (PHINode &LCSSAPhi : LoopExitBlock->phis())
-      if (llvm::is_contained(LCSSAPhi.incoming_values(), Phi)) {
-        LCSSAPhi.addIncoming(ExtractForPhiUsedOutsideLoop, LoopMiddleBlock);
-        State.Plan->removeLiveOut(&LCSSAPhi);
-      }
+  auto RecurSplice = cast<VPInstruction>(*PhiR->user_begin());
+  assert(PhiR->getNumUsers() == 1 &&
+         RecurSplice->getOpcode() ==
+             VPInstruction::FirstOrderRecurrenceSplice &&
+         "recurrence phi must have a single user: FirstOrderRecurrenceSplice");
+  SmallVector<VPLiveOut *> LiveOuts;
+  for (VPUser *U : RecurSplice->users())
+    if (auto *LiveOut = dyn_cast<VPLiveOut>(U))
+      LiveOuts.push_back(LiveOut);
+
+  for (VPLiveOut *LiveOut : LiveOuts) {
+    assert(!Cost->requiresScalarEpilogue(VF) &&
+           "no live-outs expected when scalar epilogue is required");
+    PHINode *LCSSAPhi = LiveOut->getPhi();
+    LCSSAPhi->addIncoming(ExtractForPhiUsedOutsideLoop, LoopMiddleBlock);
+    State.Plan->removeLiveOut(LCSSAPhi);
+  }
 }
 
 void InnerLoopVectorizer::fixReduction(VPReductionPHIRecipe *PhiR,
@@ -7371,7 +7392,8 @@ LoopVectorizationCostModel::getInstructionCost(Instruction *I, ElementCount VF,
         VectorTy =
             largestIntegerVectorType(ToVectorTy(I->getType(), VF), MinVecTy);
       } else if (Opcode == Instruction::ZExt || Opcode == Instruction::SExt) {
-        SrcVecTy = largestIntegerVectorType(SrcVecTy, MinVecTy);
+        // Leave SrcVecTy unchanged - we only shrink the destination element
+        // type.
         VectorTy =
             smallestIntegerVectorType(ToVectorTy(I->getType(), VF), MinVecTy);
       }
@@ -8044,8 +8066,7 @@ bool LoopVectorizationPlanner::getDecisionAndClampRange(
   assert(!Range.isEmpty() && "Trying to test an empty VF range.");
   bool PredicateAtRangeStart = Predicate(Range.Start);
 
-  for (ElementCount TmpVF = Range.Start * 2;
-       ElementCount::isKnownLT(TmpVF, Range.End); TmpVF *= 2)
+  for (ElementCount TmpVF : VFRange(Range.Start * 2, Range.End))
     if (Predicate(TmpVF) != PredicateAtRangeStart) {
       Range.End = TmpVF;
       break;
@@ -8061,9 +8082,9 @@ bool LoopVectorizationPlanner::getDecisionAndClampRange(
 /// buildVPlan().
 void LoopVectorizationPlanner::buildVPlans(ElementCount MinVF,
                                            ElementCount MaxVF) {
-  auto MaxVFPlusOne = MaxVF.getWithIncrement(1);
-  for (ElementCount VF = MinVF; ElementCount::isKnownLT(VF, MaxVFPlusOne);) {
-    VFRange SubRange = {VF, MaxVFPlusOne};
+  auto MaxVFTimes2 = MaxVF * 2;
+  for (ElementCount VF = MinVF; ElementCount::isKnownLT(VF, MaxVFTimes2);) {
+    VFRange SubRange = {VF, MaxVFTimes2};
     VPlans.push_back(buildVPlan(SubRange));
     VF = SubRange.End;
   }
@@ -8694,9 +8715,9 @@ void LoopVectorizationPlanner::buildVPlansWithVPRecipes(ElementCount MinVF,
   auto &ConditionalAssumes = Legal->getConditionalAssumes();
   DeadInstructions.insert(ConditionalAssumes.begin(), ConditionalAssumes.end());
 
-  auto MaxVFPlusOne = MaxVF.getWithIncrement(1);
-  for (ElementCount VF = MinVF; ElementCount::isKnownLT(VF, MaxVFPlusOne);) {
-    VFRange SubRange = {VF, MaxVFPlusOne};
+  auto MaxVFTimes2 = MaxVF * 2;
+  for (ElementCount VF = MinVF; ElementCount::isKnownLT(VF, MaxVFTimes2);) {
+    VFRange SubRange = {VF, MaxVFTimes2};
     VPlans.push_back(buildVPlanWithVPRecipes(SubRange, DeadInstructions));
     VF = SubRange.End;
   }
@@ -8899,8 +8920,7 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
   // so this function is better to be conservative, rather than to split
   // it up into different VPlans.
   bool IVUpdateMayOverflow = false;
-  for (ElementCount VF = Range.Start;
-       ElementCount::isKnownLT(VF, Range.End); VF *= 2)
+  for (ElementCount VF : Range)
     IVUpdateMayOverflow |= !isIndvarOverflowCheckKnownFalse(&CM, VF);
 
   Instruction *DLInst =
@@ -8988,7 +9008,12 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
   // After here, VPBB should not be used.
   VPBB = nullptr;
 
-  addUsersInExitBlock(HeaderVPBB, MiddleVPBB, OrigLoop, *Plan);
+  if (CM.requiresScalarEpilogue(Range)) {
+    // No edge from the middle block to the unique exit block has been inserted
+    // and there is nothing to fix from vector loop; phis should have incoming
+    // from scalar loop only.
+  } else
+    addUsersInExitBlock(HeaderVPBB, MiddleVPBB, OrigLoop, *Plan);
 
   assert(isa<VPRegionBlock>(Plan->getVectorLoopRegion()) &&
          !Plan->getVectorLoopRegion()->getEntryBasicBlock()->empty() &&
@@ -9026,8 +9051,10 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
         StoredValues.push_back(StoreR->getStoredValue());
       }
 
+    bool NeedsMaskForGaps =
+        IG->requiresScalarEpilogue() && !CM.isScalarEpilogueAllowed();
     auto *VPIG = new VPInterleaveRecipe(IG, Recipe->getAddr(), StoredValues,
-                                        Recipe->getMask());
+                                        Recipe->getMask(), NeedsMaskForGaps);
     VPIG->insertBefore(Recipe);
     unsigned J = 0;
     for (unsigned i = 0; i < IG->getFactor(); ++i)
@@ -9043,8 +9070,7 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
       }
   }
 
-  for (ElementCount VF = Range.Start; ElementCount::isKnownLT(VF, Range.End);
-       VF *= 2)
+  for (ElementCount VF : Range)
     Plan->addVF(VF);
   Plan->setName("Initial VPlan");
 
@@ -9079,8 +9105,7 @@ VPlanPtr LoopVectorizationPlanner::buildVPlan(VFRange &Range) {
   VPlanHCFGBuilder HCFGBuilder(OrigLoop, LI, *Plan);
   HCFGBuilder.buildHierarchicalCFG();
 
-  for (ElementCount VF = Range.Start; ElementCount::isKnownLT(VF, Range.End);
-       VF *= 2)
+  for (ElementCount VF : Range)
     Plan->addVF(VF);
 
   SmallPtrSet<Instruction *, 1> DeadInstructions;
@@ -9480,7 +9505,8 @@ void VPScalarIVStepsRecipe::execute(VPTransformState &State) {
 void VPInterleaveRecipe::execute(VPTransformState &State) {
   assert(!State.Instance && "Interleave group being replicated.");
   State.ILV->vectorizeInterleaveGroup(IG, definedValues(), State, getAddr(),
-                                      getStoredValues(), getMask());
+                                      getStoredValues(), getMask(),
+                                      NeedsMaskForGaps);
 }
 
 void VPReductionRecipe::execute(VPTransformState &State) {

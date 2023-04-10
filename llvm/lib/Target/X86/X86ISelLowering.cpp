@@ -24338,12 +24338,12 @@ static bool matchScalarReduction(SDValue Op, ISD::NodeType BinOp,
 
 // Helper function for comparing all bits of two vectors.
 static SDValue LowerVectorAllEqual(const SDLoc &DL, SDValue LHS, SDValue RHS,
-                                   ISD::CondCode CC, const APInt &Mask,
+                                   ISD::CondCode CC, const APInt &OriginalMask,
                                    const X86Subtarget &Subtarget,
                                    SelectionDAG &DAG, X86::CondCode &X86CC) {
   EVT VT = LHS.getValueType();
   unsigned ScalarSize = VT.getScalarSizeInBits();
-  if (Mask.getBitWidth() != ScalarSize) {
+  if (OriginalMask.getBitWidth() != ScalarSize) {
     assert(ScalarSize == 1 && "Element Mask vs Vector bitwidth mismatch");
     return SDValue();
   }
@@ -24352,8 +24352,14 @@ static SDValue LowerVectorAllEqual(const SDLoc &DL, SDValue LHS, SDValue RHS,
   if (!llvm::has_single_bit<uint32_t>(VT.getSizeInBits()))
     return SDValue();
 
+  // FCMP may use ISD::SETNE when nnan - early out if we manage to get here.
+  if (VT.isFloatingPoint())
+    return SDValue();
+
   assert((CC == ISD::SETEQ || CC == ISD::SETNE) && "Unsupported ISD::CondCode");
   X86CC = (CC == ISD::SETEQ ? X86::COND_E : X86::COND_NE);
+
+  APInt Mask = OriginalMask;
 
   auto MaskBits = [&](SDValue Src) {
     if (Mask.isAllOnes())
@@ -24395,6 +24401,18 @@ static SDValue LowerVectorAllEqual(const SDLoc &DL, SDValue LHS, SDValue RHS,
 
   // Split down to 128/256/512-bit vector.
   unsigned TestSize = UseKORTEST ? 512 : (Subtarget.hasAVX() ? 256 : 128);
+
+  // If the input vector has vector elements wider than the target test size,
+  // then cast to <X x i64> so it will safely split.
+  if (ScalarSize > TestSize) {
+    if (!Mask.isAllOnes())
+      return SDValue();
+    VT = EVT::getVectorVT(*DAG.getContext(), MVT::i64, VT.getSizeInBits() / 64);
+    LHS = DAG.getBitcast(VT, LHS);
+    RHS = DAG.getBitcast(VT, RHS);
+    Mask = APInt::getAllOnes(64);
+  }
+
   if (VT.getSizeInBits() > TestSize) {
     KnownBits KnownRHS = DAG.computeKnownBits(RHS);
     if (KnownRHS.isConstant() && KnownRHS.getConstant() == Mask) {
@@ -46794,27 +46812,27 @@ static SDValue combineSelect(SDNode *N, SelectionDAG &DAG,
       VT.getVectorElementType() == MVT::i1 &&
       (DCI.isBeforeLegalize() || (VT != MVT::v64i1 || Subtarget.is64Bit()))) {
     EVT IntVT = EVT::getIntegerVT(*DAG.getContext(), VT.getVectorNumElements());
-    bool LHSIsConst = ISD::isBuildVectorOfConstantSDNodes(LHS.getNode());
-    bool RHSIsConst = ISD::isBuildVectorOfConstantSDNodes(RHS.getNode());
+    if (DCI.isBeforeLegalize() || TLI.isTypeLegal(IntVT)) {
+      bool LHSIsConst = ISD::isBuildVectorOfConstantSDNodes(LHS.getNode());
+      bool RHSIsConst = ISD::isBuildVectorOfConstantSDNodes(RHS.getNode());
 
-    if ((LHSIsConst ||
-         (LHS.getOpcode() == ISD::BITCAST &&
-          LHS.getOperand(0).getValueType() == IntVT)) &&
-        (RHSIsConst ||
-         (RHS.getOpcode() == ISD::BITCAST &&
-          RHS.getOperand(0).getValueType() == IntVT))) {
-      if (LHSIsConst)
-        LHS = combinevXi1ConstantToInteger(LHS, DAG);
-      else
-        LHS = LHS.getOperand(0);
+      if ((LHSIsConst || (LHS.getOpcode() == ISD::BITCAST &&
+                          LHS.getOperand(0).getValueType() == IntVT)) &&
+          (RHSIsConst || (RHS.getOpcode() == ISD::BITCAST &&
+                          RHS.getOperand(0).getValueType() == IntVT))) {
+        if (LHSIsConst)
+          LHS = combinevXi1ConstantToInteger(LHS, DAG);
+        else
+          LHS = LHS.getOperand(0);
 
-      if (RHSIsConst)
-        RHS = combinevXi1ConstantToInteger(RHS, DAG);
-      else
-        RHS = RHS.getOperand(0);
+        if (RHSIsConst)
+          RHS = combinevXi1ConstantToInteger(RHS, DAG);
+        else
+          RHS = RHS.getOperand(0);
 
-      SDValue Select = DAG.getSelect(DL, IntVT, Cond, LHS, RHS);
-      return DAG.getBitcast(VT, Select);
+        SDValue Select = DAG.getSelect(DL, IntVT, Cond, LHS, RHS);
+        return DAG.getBitcast(VT, Select);
+      }
     }
   }
 

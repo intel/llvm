@@ -326,6 +326,16 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  strsep
+  SRCS
+    strsep.cpp
+  HDRS
+    strsep.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
   strsignal
   SRCS
     strsignal.cpp
@@ -373,6 +383,17 @@ add_entrypoint_object(
     strtok_r.h
   DEPENDS
     .string_utils
+)
+
+add_entrypoint_object(
+  strxfrm
+  SRCS
+    strxfrm.cpp
+  HDRS
+    strxfrm.h
+  DEPENDS
+    .string_utils
+    .memory_utils.memcpy_implementation
 )
 
 # Helper to define a function with multiple implementations

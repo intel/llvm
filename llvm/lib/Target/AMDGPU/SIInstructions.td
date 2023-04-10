@@ -228,7 +228,7 @@ def FPTRUNC_DOWNWARD_PSEUDO : VPseudoInstSI <(outs VGPR_32:$vdst),
 
 // Invert the exec mask and overwrite the inactive lanes of dst with inactive,
 // restoring it after we're done.
-let Defs = [SCC] in {
+let Defs = [SCC], isConvergent = 1 in {
 def V_SET_INACTIVE_B32 : VPseudoInstSI <(outs VGPR_32:$vdst),
   (ins VSrc_b32: $src, VSrc_b32:$inactive),
   [(set i32:$vdst, (int_amdgcn_set_inactive i32:$src, i32:$inactive))]> {
@@ -600,7 +600,7 @@ def SI_CALL : SPseudoInstSI <
 
 // Tail call handling pseudo
 def SI_TCRETURN : SPseudoInstSI <(outs),
-  (ins SReg_64:$src0, unknown:$callee, i32imm:$fpdiff),
+  (ins CCR_SGPR_64:$src0, unknown:$callee, i32imm:$fpdiff),
   [(AMDGPUtc_return i64:$src0, tglobaladdr:$callee, i32:$fpdiff)]> {
   let Size = 4;
   let FixedSize = 1;
@@ -617,7 +617,7 @@ def SI_TCRETURN : SPseudoInstSI <(outs),
 // Handle selecting indirect tail calls
 def : GCNPat<
   (AMDGPUtc_return i64:$src0, (i64 0), (i32 timm:$fpdiff)),
-  (SI_TCRETURN SReg_64:$src0, (i64 0), i32imm:$fpdiff)
+  (SI_TCRETURN CCR_SGPR_64:$src0, (i64 0), i32imm:$fpdiff)
 >;
 
 def ADJCALLSTACKUP : SPseudoInstSI<
@@ -2020,13 +2020,13 @@ def : GCNPat <
 def : GCNPat <
   (i32 (sext i1:$src0)),
   (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
-                     /*src1mod*/(i32 0), /*src1*/(i32 -1), $src0)
+                     /*src1mod*/(i32 0), /*src1*/(i32 -1), i1:$src0)
 >;
 
 class Ext32Pat <SDNode ext> : GCNPat <
   (i32 (ext i1:$src0)),
   (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
-                     /*src1mod*/(i32 0), /*src1*/(i32 1), $src0)
+                     /*src1mod*/(i32 0), /*src1*/(i32 1), i1:$src0)
 >;
 
 def : Ext32Pat <zext>;
