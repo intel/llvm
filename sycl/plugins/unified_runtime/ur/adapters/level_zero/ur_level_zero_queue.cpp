@@ -1248,6 +1248,7 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     ZE2UR_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
     UR_CALL(urEventRelease(Event));
+
     // Cleanup all events from the synced command list.
     auto EventListToCleanup = std::move(ImmCmdList->second.EventList);
     ImmCmdList->second.EventList.clear();
@@ -1255,17 +1256,30 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     return UR_RESULT_SUCCESS;
   };
 
-  for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID})
-    for (auto &QueueGroup : QueueMap) {
-      if (Device->ImmCommandListUsed) {
-        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
-          syncImmCmdList(this, ImmCmdList);
-      } else {
-        for (auto &ZeQueue : QueueGroup.second.ZeQueues)
-          if (ZeQueue)
-            ZE2UR_CALL(zeHostSynchronize, (ZeQueue));
+  // Do nothing if the queue is empty
+  if (!LastCommandEvent)
+    return UR_RESULT_SUCCESS;
+
+  // For in-order queue just wait for the last command.
+  // If event is discarded then it can be in reset state or underlying level
+  // zero handle can have device scope, so we can't synchronize the last event.
+  if (isInOrderQueue() && !LastCommandEvent->IsDiscarded) {
+    ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
+  } else {
+    // Otherwise sync all L0 queues/immediate command-lists.
+    for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID}) {
+      for (auto &QueueGroup : QueueMap) {
+        if (Device->ImmCommandListUsed) {
+          for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+            syncImmCmdList(this, ImmCmdList);
+        } else {
+          for (auto &ZeQueue : QueueGroup.second.ZeQueues)
+            if (ZeQueue)
+              ZE2UR_CALL(zeHostSynchronize, (ZeQueue));
+        }
       }
     }
+  }
   LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
