@@ -81,7 +81,7 @@ public:
   SCFLoopVersionBuilder(LoopLikeOpInterface loop) : LoopVersionBuilder(loop) {}
 
   /// Version the loop using the \p condition supplied.
-  virtual void versionLoop(Value condition) const final;
+  void versionLoop(Value condition) const final;
 
 private:
   void createThenBody(RegionBranchOpInterface) const final;
@@ -95,8 +95,8 @@ public:
       : LoopVersionBuilder(loop) {}
 
   /// Version the loop using the \p ifCondSet and \p setOperands supplied.
-  virtual void versionLoop(IntegerSet ifCondSet,
-                           SmallVectorImpl<Value> &setOperands) const final;
+  void versionLoop(IntegerSet ifCondSet,
+                   SmallVectorImpl<Value> &setOperands) const final;
 
 private:
   void createThenBody(RegionBranchOpInterface) const final;
