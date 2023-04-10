@@ -121,6 +121,18 @@ C2x Feature Support
   which introduces the ``bool``, ``static_assert``, ``alignas``, ``alignof``,
   and ``thread_local`` keywords in C2x.
 
+- Implemented `WG14 N2900 <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2900.htm>`_
+  and `WG14 N3011 <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3011.htm>`_
+  which allows for empty braced initialization in C.
+
+  .. code-block:: c
+
+    struct S { int x, y } s = {}; // Initializes s.x and s.y to 0
+
+  As part of this change, the ``-Wgnu-empty-initializer`` warning group was
+  removed, as this is no longer a GNU extension but a C2x extension. You can
+  use ``-Wno-c2x-extensions`` to silence the extension warning instead.
+
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 - Clang now saves the address of ABI-indirect function parameters on the stack,
@@ -134,6 +146,8 @@ Non-comprehensive list of changes in this release
 - Clang now supports ``__builtin_assume_separate_storage`` that indicates that
   its arguments point to objects in separate storage allocations.
 - Clang now supports expressions in ``#pragma clang __debug dump``.
+- Clang now supports declaration of multi-dimensional arrays with
+  ``__declspec(property)``.
 
 New Compiler Flags
 ------------------
@@ -259,7 +273,12 @@ Bug Fixes in This Version
   (`#60887 <https://github.com/llvm/llvm-project/issues/60887>`_)
 - Fix incorrect merging of lambdas across modules.
   (`#60985 <https://github.com/llvm/llvm-project/issues/60985>`_)
-
+- Fix crash when handling nested immediate invocations in initializers of global
+  variables.
+  (`#58207 <https://github.com/llvm/llvm-project/issues/58207>`_)
+- Fix crash when generating code coverage information for `PseudoObjectExpr` in 
+  Clang AST.
+  (`#45481 <https://github.com/llvm/llvm-project/issues/45481>`_)
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -319,6 +338,9 @@ AMDGPU Support
 
 X86 Support
 ^^^^^^^^^^^
+
+- Add ISA of ``AMX-COMPLEX`` which supports ``tcmmimfp16ps`` and
+  ``tcmmrlfp16ps``.
 
 Arm and AArch64 Support
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -405,6 +427,7 @@ clang-format
   put the initializers on the next line only.
 - Add additional Qualifier Ordering support for special cases such
   as templates, requires clauses, long qualified names.
+- Fix all known issues associated with ``LambdaBodyIndentation: OuterScope``.
 
 libclang
 --------
@@ -436,6 +459,12 @@ Static Analyzer
 Sanitizers
 ----------
 
+Python Binding Changes
+----------------------
+The following methods have been added:
+
+- ``clang_Location_isInSystemHeader`` exposed via the ``is_in_system_header``
+  property of the `Location` class.
 
 Additional Information
 ======================
