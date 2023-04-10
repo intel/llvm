@@ -139,6 +139,10 @@ add_sycl_library("ur_adapter_cuda" SHARED
     "ur/adapters/cuda/device.hpp"
     "ur/adapters/cuda/platform.cpp"
     "ur/adapters/cuda/platform.hpp"
+    "ur/adapters/cuda/program.cpp"
+    "ur/adapters/cuda/program.hpp"
+    "ur/adapters/cuda/kernel.cpp"
+    "ur/adapters/cuda/kernel.hpp"
     "ur/adapters/cuda/ur_interface_loader.cpp"
   INCLUDE_DIRS
     ${sycl_inc_dir}

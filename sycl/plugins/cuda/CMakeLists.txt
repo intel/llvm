@@ -63,6 +63,10 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/device.hpp"
     "../unified_runtime/ur/adapters/cuda/platform.cpp"
     "../unified_runtime/ur/adapters/cuda/platform.hpp"
+    "../unified_runtime/ur/adapters/cuda/program.cpp"
+    "../unified_runtime/ur/adapters/cuda/program.hpp"
+    "../unified_runtime/ur/adapters/cuda/kernel.cpp"
+    "../unified_runtime/ur/adapters/cuda/kernel.hpp"
     "../unified_runtime/ur/adapters/cuda/ur_interface_loader.cpp"
     # --- 
     "${sycl_inc_dir}/sycl/detail/pi.h"
