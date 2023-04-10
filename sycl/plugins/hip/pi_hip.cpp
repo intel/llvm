@@ -1663,8 +1663,21 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    device->get_reference_count());
   }
   case PI_DEVICE_INFO_VERSION: {
+    std::stringstream s;
+
+    hipDeviceProp_t props;
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
+#if defined(__HIP_PLATFORM_NVIDIA__)
+    s << props.major << "." << props.minor;
+#elif defined(__HIP_PLATFORM_AMD__)
+    s << props.gcnArchName;
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "PI 0.0");
+                   s.str().c_str());
   }
   case PI_DEVICE_INFO_OPENCL_C_VERSION: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
@@ -2618,6 +2631,13 @@ pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
   return PI_SUCCESS;
 }
 
+pi_result hip_piextQueueGetNativeHandle2(pi_queue queue,
+                                         pi_native_handle *nativeHandle,
+                                         int32_t *NativeHandleDesc) {
+  (void)NativeHandleDesc;
+  return hip_piextQueueGetNativeHandle(queue, nativeHandle);
+}
+
 /// Created a PI queue object from a HIP queue handle.
 /// TODO: Implement this.
 /// NOTE: The created PI object takes ownership of the native handle.
@@ -2643,6 +2663,16 @@ pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
   return {};
+}
+
+pi_result hip_piextQueueCreateWithNativeHandle2(
+    pi_native_handle nativeHandle, int32_t NativeHandleDesc, pi_context context,
+    pi_device device, bool ownNativeHandle, pi_queue_properties *Properties,
+    pi_queue *queue) {
+  (void)NativeHandleDesc;
+  (void)Properties;
+  return hip_piextQueueCreateWithNativeHandle(nativeHandle, context, device,
+                                              ownNativeHandle, queue);
 }
 
 pi_result hip_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -5504,13 +5534,17 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Queue
   _PI_CL(piQueueCreate, hip_piQueueCreate)
   _PI_CL(piextQueueCreate, hip_piextQueueCreate)
+  _PI_CL(piextQueueCreate2, hip_piextQueueCreate)
   _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
   _PI_CL(piQueueFinish, hip_piQueueFinish)
   _PI_CL(piQueueFlush, hip_piQueueFlush)
   _PI_CL(piQueueRetain, hip_piQueueRetain)
   _PI_CL(piQueueRelease, hip_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, hip_piextQueueGetNativeHandle)
+  _PI_CL(piextQueueGetNativeHandle2, hip_piextQueueGetNativeHandle2)
   _PI_CL(piextQueueCreateWithNativeHandle, hip_piextQueueCreateWithNativeHandle)
+  _PI_CL(piextQueueCreateWithNativeHandle2,
+         hip_piextQueueCreateWithNativeHandle2)
   // Memory
   _PI_CL(piMemBufferCreate, hip_piMemBufferCreate)
   _PI_CL(piMemImageCreate, hip_piMemImageCreate)

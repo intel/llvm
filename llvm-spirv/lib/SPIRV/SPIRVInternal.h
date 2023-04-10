@@ -980,7 +980,7 @@ std::string decodeSPIRVTypeName(StringRef Name,
                                 SmallVectorImpl<std::string> &Strs);
 
 // Copy attributes from function to call site.
-void setAttrByCalledFunc(CallInst *Call);
+CallInst *setAttrByCalledFunc(CallInst *Call);
 bool isSPIRVBuiltinVariable(GlobalVariable *GV, SPIRVBuiltinVariableKind *Kind);
 // Transform builtin variable from GlobalVariable to builtin call.
 // e.g.

@@ -60,10 +60,6 @@ const int UR_EXT_USM_CAPS_ATOMIC_ACCESS = 1 << 1;
 const int UR_EXT_USM_CAPS_CONCURRENT_ACCESS = 1 << 2;
 const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
 
-const ur_device_partition_property_t
-    UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE =
-        ur_device_partition_property_t(UR_DEVICE_PARTITION_FORCE_UINT32 - 1);
-
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
   std::cerr << "die: " << Message << std::endl;

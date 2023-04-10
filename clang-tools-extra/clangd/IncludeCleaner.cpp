@@ -51,9 +51,11 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
+#include <cassert>
 #include <iterator>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace clang {
@@ -133,27 +135,6 @@ static bool mayConsiderUnused(const Inclusion &Inc, ParsedAST &AST,
     return false;
   }
   return true;
-}
-
-std::vector<include_cleaner::SymbolReference>
-collectMacroReferences(ParsedAST &AST) {
-  const auto &SM = AST.getSourceManager();
-  //  FIXME: !!this is a hacky way to collect macro references.
-  std::vector<include_cleaner::SymbolReference> Macros;
-  auto &PP = AST.getPreprocessor();
-  for (const syntax::Token &Tok :
-       AST.getTokens().spelledTokens(SM.getMainFileID())) {
-    auto Macro = locateMacroAt(Tok, PP);
-    if (!Macro)
-      continue;
-    if (auto DefLoc = Macro->Info->getDefinitionLoc(); DefLoc.isValid())
-      Macros.push_back(
-          {Tok.location(),
-           include_cleaner::Macro{/*Name=*/PP.getIdentifierInfo(Tok.text(SM)),
-                                  DefLoc},
-           include_cleaner::RefType::Explicit});
-  }
-  return Macros;
 }
 
 llvm::StringRef getResolvedPath(const include_cleaner::Header &SymProvider) {
@@ -287,6 +268,27 @@ std::vector<Diag> generateUnusedIncludeDiagnostics(
 }
 } // namespace
 
+std::vector<include_cleaner::SymbolReference>
+collectMacroReferences(ParsedAST &AST) {
+  const auto &SM = AST.getSourceManager();
+  //  FIXME: !!this is a hacky way to collect macro references.
+  std::vector<include_cleaner::SymbolReference> Macros;
+  auto &PP = AST.getPreprocessor();
+  for (const syntax::Token &Tok :
+       AST.getTokens().spelledTokens(SM.getMainFileID())) {
+    auto Macro = locateMacroAt(Tok, PP);
+    if (!Macro)
+      continue;
+    if (auto DefLoc = Macro->Info->getDefinitionLoc(); DefLoc.isValid())
+      Macros.push_back(
+          {Tok.location(),
+           include_cleaner::Macro{/*Name=*/PP.getIdentifierInfo(Tok.text(SM)),
+                                  DefLoc},
+           include_cleaner::RefType::Explicit});
+  }
+  return Macros;
+}
+
 include_cleaner::Includes
 convertIncludes(const SourceManager &SM,
                 const llvm::ArrayRef<Inclusion> Includes) {
@@ -397,6 +399,10 @@ IncludeCleanerFindings computeIncludeCleanerFindings(ParsedAST &AST) {
         // FIXME: Use presumed locations to map such usages back to patched
         // locations safely.
         auto Loc = SM.getFileLoc(Ref.RefLocation);
+        // File locations can be outside of the main file if macro is expanded
+        // through an #include.
+        while (SM.getFileID(Loc) != SM.getMainFileID())
+          Loc = SM.getIncludeLoc(SM.getFileID(Loc));
         const auto *Token = AST.getTokens().spelledTokenAt(Loc);
         MissingIncludeDiagInfo DiagInfo{Ref.Target, Token->range(SM),
                                         Providers};
