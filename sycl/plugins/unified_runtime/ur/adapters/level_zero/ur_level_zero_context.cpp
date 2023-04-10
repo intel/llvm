@@ -101,7 +101,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     return ReturnValue(&Context->Devices[0], Context->Devices.size());
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(uint32_t(Context->Devices.size()));
-  case UR_EXT_CONTEXT_INFO_REFERENCE_COUNT:
+  case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{Context->RefCount.load()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.

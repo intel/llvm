@@ -1139,7 +1139,7 @@ inline pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
     break;
   }
   case PI_CONTEXT_INFO_REFERENCE_COUNT: {
-    ContextInfoType = UR_EXT_CONTEXT_INFO_REFERENCE_COUNT;
+    ContextInfoType = UR_CONTEXT_INFO_REFERENCE_COUNT;
     break;
   }
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT: {
