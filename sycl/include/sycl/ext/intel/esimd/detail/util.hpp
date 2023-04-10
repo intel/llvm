@@ -183,7 +183,9 @@ public:
 /// the byte offset \p Offset.
 template <typename T, typename AccessorTy>
 T *accessorToPointer(AccessorTy Acc, uint32_t Offset = 0) {
-  using QualCharPtrType = std::conditional_t<std::is_const_v<AccessorTy::value_type>, const char *, char *>;
+  using QualCharPtrType =
+      std::conditional_t<std::is_const_v<AccessorTy::value_type>, const char *,
+                         char *>;
   auto BytePtr = reinterpret_cast<QualCharPtrType>(Acc.get_pointer()) + Offset;
   return reinterpret_cast<T *>(BytePtr);
 }
