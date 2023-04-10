@@ -27,6 +27,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/TableGen/Error.h"
+#include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/StringMatcher.h"
 #include "llvm/TableGen/TableGenBackend.h"
 #include <cstdint>
@@ -1065,8 +1066,7 @@ void GICombinerEmitter::run(raw_ostream &OS) {
 
 //===----------------------------------------------------------------------===//
 
-namespace llvm {
-void EmitGICombiner(RecordKeeper &RK, raw_ostream &OS) {
+static void EmitGICombiner(RecordKeeper &RK, raw_ostream &OS) {
   CodeGenTarget Target(RK);
   emitSourceFileHeader("Global Combiner", OS);
 
@@ -1081,4 +1081,5 @@ void EmitGICombiner(RecordKeeper &RK, raw_ostream &OS) {
   NumPatternTotalStatistic = NumPatternTotal;
 }
 
-} // namespace llvm
+static TableGen::Emitter::Opt X("gen-global-isel-combiner", EmitGICombiner,
+                                "Generate GlobalISel combiner");

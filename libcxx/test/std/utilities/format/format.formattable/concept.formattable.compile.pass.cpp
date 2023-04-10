@@ -8,6 +8,9 @@
 // UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
+// This test uses std::filesystem::path, which is not always available
+// XFAIL: availability-filesystem-missing
+
 // <format>
 
 // template<class T, class charT>
@@ -107,9 +110,7 @@ void test_P0645() {
   assert_is_formattable<__uint128_t, CharT>();
 #endif
 
-  assert_is_formattable<float, CharT>();
-  assert_is_formattable<double, CharT>();
-  assert_is_formattable<long double, CharT>();
+  // floating-point types are tested in concept.formattable.float.compile.pass.cpp
 
   assert_is_formattable<std::nullptr_t, CharT>();
   assert_is_formattable<void*, CharT>();
@@ -199,6 +200,12 @@ template <class CharT, class Vector>
 void test_P2286_vector_bool() {
   assert_is_formattable<Vector, CharT>();
   assert_is_formattable<typename Vector::reference, CharT>();
+
+  // The const_reference shall be a bool.
+  // However libc++ uses a __bit_const_reference<vector> when
+  // _LIBCPP_ABI_BITSET_VECTOR_BOOL_CONST_SUBSCRIPT_RETURN_BOOL is defined.
+  assert_is_formattable<const Vector&, CharT>();
+  assert_is_formattable<typename Vector::const_reference, CharT>();
 }
 
 // Tests for P2286 Formatting ranges

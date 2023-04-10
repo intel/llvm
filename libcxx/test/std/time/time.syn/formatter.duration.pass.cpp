@@ -16,6 +16,8 @@
 // TODO FMT Evaluate gcc-12 status
 // UNSUPPORTED: gcc-12
 
+// XFAIL: availability-fp_to_chars-missing
+
 // REQUIRES: locale.fr_FR.UTF-8
 // REQUIRES: locale.ja_JP.UTF-8
 
@@ -31,6 +33,7 @@
 #include <concepts>
 #include <locale>
 #include <iostream>
+#include <ratio>
 #include <type_traits>
 
 #include "formatter_tests.h"

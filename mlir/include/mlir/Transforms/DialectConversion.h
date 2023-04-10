@@ -618,7 +618,8 @@ struct ConversionPatternRewriterImpl;
 /// This class implements a pattern rewriter for use with ConversionPatterns. It
 /// extends the base PatternRewriter and provides special conversion specific
 /// hooks.
-class ConversionPatternRewriter final : public PatternRewriter {
+class ConversionPatternRewriter final : public PatternRewriter,
+                                        public RewriterBase::Listener {
 public:
   explicit ConversionPatternRewriter(MLIRContext *ctx);
   ~ConversionPatternRewriter() override;
@@ -701,8 +702,10 @@ public:
   /// PatternRewriter hook for splitting a block into two parts.
   Block *splitBlock(Block *block, Block::iterator before) override;
 
-  /// PatternRewriter hook for merging a block into another.
-  void mergeBlocks(Block *source, Block *dest, ValueRange argValues) override;
+  /// PatternRewriter hook for inlining the ops of a block into another block.
+  void inlineBlockBefore(Block *source, Block *dest, Block::iterator before,
+                         ValueRange argValues = std::nullopt) override;
+  using PatternRewriter::inlineBlockBefore;
 
   /// PatternRewriter hook for moving blocks out of a region.
   void inlineRegionBefore(Region &region, Region &parent,
@@ -742,6 +745,9 @@ public:
   detail::ConversionPatternRewriterImpl &getImpl();
 
 private:
+  using OpBuilder::getListener;
+  using OpBuilder::setListener;
+
   std::unique_ptr<detail::ConversionPatternRewriterImpl> impl;
 };
 

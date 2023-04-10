@@ -346,14 +346,14 @@ void PipelineDataTransfer::runOnAffineForOp(AffineForOp forOp) {
   }
   // Everything else (including compute ops and dma finish) are shifted by one.
   for (auto &op : forOp.getBody()->without_terminator())
-    if (instShiftMap.find(&op) == instShiftMap.end())
+    if (!instShiftMap.contains(&op))
       instShiftMap[&op] = 1;
 
   // Get shifts stored in map.
   SmallVector<uint64_t, 8> shifts(forOp.getBody()->getOperations().size());
   unsigned s = 0;
   for (auto &op : forOp.getBody()->without_terminator()) {
-    assert(instShiftMap.find(&op) != instShiftMap.end());
+    assert(instShiftMap.contains(&op));
     shifts[s++] = instShiftMap[&op];
 
     // Tagging operations with shifts for debugging purposes.

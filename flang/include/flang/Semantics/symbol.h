@@ -70,10 +70,13 @@ public:
   const std::string *bindName() const {
     return bindName_ ? &*bindName_ : nullptr;
   }
+  bool isExplicitBindName() const { return isExplicitBindName_; }
   void set_bindName(std::string &&name) { bindName_ = std::move(name); }
+  void set_isExplicitBindName(bool yes) { isExplicitBindName_ = yes; }
 
 private:
   std::optional<std::string> bindName_;
+  bool isExplicitBindName_{false};
 };
 
 // A subroutine or function definition, or a subprogram interface defined
@@ -334,6 +337,7 @@ class ProcBindingDetails : public WithPassArg {
 public:
   explicit ProcBindingDetails(const Symbol &symbol) : symbol_{symbol} {}
   const Symbol &symbol() const { return symbol_; }
+  void ReplaceSymbol(const Symbol &symbol) { symbol_ = symbol; }
 
 private:
   SymbolRef symbol_; // procedure bound to; may be forward
@@ -622,6 +626,8 @@ public:
 
   const std::string *GetBindName() const;
   void SetBindName(std::string &&);
+  bool GetIsExplicitBindName() const;
+  void SetIsExplicitBindName(bool);
   bool IsFuncResult() const;
   bool IsObjectArray() const;
   bool IsSubprogram() const;

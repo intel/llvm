@@ -111,6 +111,8 @@ template <typename T> struct vector_element {
 };
 template <class T> using vector_element_t = typename vector_element<T>::type;
 
+template <class T> using marray_element_t = typename T::value_type;
+
 // change_base_type_t
 template <typename T, typename B> struct change_base_type {
   using type = B;
@@ -210,6 +212,13 @@ struct make_unsigned_impl<
 template <typename T> struct make_unsigned {
   using new_type_wo_cv_qualifiers = make_unsigned_impl_t<remove_cv_t<T>>;
   using type = copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>;
+};
+
+template <typename T, size_t N> struct make_unsigned<marray<T, N>> {
+  using base_type = marray_element_t<marray<T, N>>;
+  using new_type_wo_cv_qualifiers =
+      make_unsigned_impl_t<remove_cv_t<base_type>>;
+  using type = marray<copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>, N>;
 };
 
 template <typename T> using make_unsigned_t = typename make_unsigned<T>::type;
@@ -359,6 +368,15 @@ template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
   using base_type = vector_element_t<vec<T, N>>;
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = vec<upper_type, N>;
+  static constexpr bool found = !std::is_same<upper_type, void>::value;
+  using type = conditional_t<found, new_type, void>;
+};
+
+template <typename T, size_t N>
+struct make_larger_impl<marray<T, N>, marray<T, N>> {
+  using base_type = marray_element_t<marray<T, N>>;
+  using upper_type = typename make_larger_impl<base_type, base_type>::type;
+  using new_type = marray<upper_type, N>;
   static constexpr bool found = !std::is_same<upper_type, void>::value;
   using type = conditional_t<found, new_type, void>;
 };

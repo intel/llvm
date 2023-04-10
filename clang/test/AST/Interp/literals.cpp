@@ -708,3 +708,61 @@ namespace IncDec {
   }
 };
 #endif
+
+namespace CompoundLiterals {
+  constexpr int get5() {
+    return (int[]){1,2,3,4,5}[4];
+  }
+  static_assert(get5() == 5, "");
+
+  constexpr int get6(int f = (int[]){1,2,6}[2]) { // ref-note {{subexpression not valid in a constant expression}} \
+                                                  // ref-note {{declared here}}
+    return f;
+  }
+  static_assert(get6(6) == 6, "");
+  // FIXME: Who's right here?
+  static_assert(get6() == 6, ""); // ref-error {{not an integral constant expression}}
+
+  constexpr int x = (int){3};
+  static_assert(x == 3, "");
+#if __cplusplus >= 201402L
+  constexpr int getX() {
+    int x = (int){3};
+    x = (int){5};
+    return x;
+  }
+  static_assert(getX() == 5, "");
+#endif
+
+#if __cplusplus >= 202002L
+  constexpr int get3() {
+    int m;
+    m = (int){3};
+    return m;
+  }
+  static_assert(get3() == 3, "");
+#endif
+};
+
+namespace TypeTraits {
+  static_assert(__is_trivial(int), "");
+  static_assert(__is_trivial(float), "");
+  static_assert(__is_trivial(E), "");
+  struct S{};
+  static_assert(__is_trivial(S), "");
+  struct S2 {
+    S2() {}
+  };
+  static_assert(!__is_trivial(S2), "");
+
+  template <typename T>
+  struct S3 {
+    constexpr bool foo() const { return __is_trivial(T); }
+  };
+  struct T {
+    ~T() {}
+  };
+  struct U {};
+  static_assert(S3<U>{}.foo(), "");
+  static_assert(!S3<T>{}.foo(), "");
+}

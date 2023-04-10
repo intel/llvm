@@ -434,7 +434,8 @@ lldb::SBProcess SBTarget::Attach(SBAttachInfo &sb_attach_info, SBError &error) {
 
   if (target_sp) {
     ProcessAttachInfo &attach_info = sb_attach_info.ref();
-    if (attach_info.ProcessIDIsValid() && !attach_info.UserIDIsValid()) {
+    if (attach_info.ProcessIDIsValid() && !attach_info.UserIDIsValid() &&
+        !attach_info.IsScriptedProcess()) {
       PlatformSP platform_sp = target_sp->GetPlatform();
       // See if we can pre-verify if a process exists or not
       if (platform_sp && platform_sp->IsConnected()) {
@@ -2219,12 +2220,25 @@ lldb::SBValue SBTarget::EvaluateExpression(const char *expr,
     std::lock_guard<std::recursive_mutex> guard(target_sp->GetAPIMutex());
     ExecutionContext exe_ctx(m_opaque_sp.get());
 
-
     frame = exe_ctx.GetFramePtr();
     Target *target = exe_ctx.GetTargetPtr();
+    Process *process = exe_ctx.GetProcessPtr();
 
     if (target) {
-      target->EvaluateExpression(expr, frame, expr_value_sp, options.ref());
+      // If we have a process, make sure to lock the runlock:
+      if (process) {
+        Process::StopLocker stop_locker;
+        if (stop_locker.TryLock(&process->GetRunLock())) {
+          target->EvaluateExpression(expr, frame, expr_value_sp, options.ref());
+        } else {
+          Status error;
+          error.SetErrorString("can't evaluate expressions when the "
+                               "process is running.");
+          expr_value_sp = ValueObjectConstResult::Create(nullptr, error);
+        }
+      } else {
+        target->EvaluateExpression(expr, frame, expr_value_sp, options.ref());
+      }
 
       expr_result.SetSP(expr_value_sp, options.GetFetchDynamicValue());
     }

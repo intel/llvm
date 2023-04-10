@@ -1,4 +1,4 @@
-//===-- RISCVAsmPrinter.cpp - RISCV LLVM assembly writer ------------------===//
+//===-- RISCVAsmPrinter.cpp - RISC-V LLVM assembly writer -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This file contains a printer that converts from our internal representation
-// of machine-dependent LLVM code to the RISCV assembly language.
+// of machine-dependent LLVM code to the RISC-V assembly language.
 //
 //===----------------------------------------------------------------------===//
 
@@ -53,7 +53,7 @@ public:
                            std::unique_ptr<MCStreamer> Streamer)
       : AsmPrinter(TM, std::move(Streamer)) {}
 
-  StringRef getPassName() const override { return "RISCV Assembly Printer"; }
+  StringRef getPassName() const override { return "RISC-V Assembly Printer"; }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
@@ -112,6 +112,11 @@ void RISCVAsmPrinter::emitInstruction(const MachineInstr *MI) {
   switch (MI->getOpcode()) {
   case RISCV::HWASAN_CHECK_MEMACCESS_SHORTGRANULES:
     LowerHWASAN_CHECK_MEMACCESS(*MI);
+    return;
+  case RISCV::PseudoRVVInitUndefM1:
+  case RISCV::PseudoRVVInitUndefM2:
+  case RISCV::PseudoRVVInitUndefM4:
+  case RISCV::PseudoRVVInitUndefM8:
     return;
   }
 
@@ -173,18 +178,22 @@ bool RISCVAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
                                             unsigned OpNo,
                                             const char *ExtraCode,
                                             raw_ostream &OS) {
-  if (!ExtraCode) {
-    const MachineOperand &MO = MI->getOperand(OpNo);
-    // For now, we only support register memory operands in registers and
-    // assume there is no addend
-    if (!MO.isReg())
-      return true;
+  if (ExtraCode)
+    return AsmPrinter::PrintAsmMemoryOperand(MI, OpNo, ExtraCode, OS);
 
-    OS << "0(" << RISCVInstPrinter::getRegisterName(MO.getReg()) << ")";
-    return false;
-  }
+  const MachineOperand &AddrReg = MI->getOperand(OpNo);
+  assert(MI->getNumOperands() > OpNo + 1 && "Expected additional operand");
+  const MachineOperand &DispImm = MI->getOperand(OpNo + 1);
+  // All memory operands should have a register and an immediate operand (see
+  // RISCVDAGToDAGISel::SelectInlineAsmMemoryOperand).
+  if (!AddrReg.isReg())
+    return true;
+  if (!DispImm.isImm())
+    return true;
 
-  return AsmPrinter::PrintAsmMemoryOperand(MI, OpNo, ExtraCode, OS);
+  OS << DispImm.getImm() << "("
+     << RISCVInstPrinter::getRegisterName(AddrReg.getReg()) << ")";
+  return false;
 }
 
 bool RISCVAsmPrinter::runOnMachineFunction(MachineFunction &MF) {

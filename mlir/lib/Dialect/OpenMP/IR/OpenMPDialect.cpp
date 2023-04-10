@@ -58,6 +58,10 @@ void OpenMPDialect::initialize() {
   LLVM::LLVMPointerType::attachInterface<
       PointerLikeModel<LLVM::LLVMPointerType>>(*getContext());
   MemRefType::attachInterface<PointerLikeModel<MemRefType>>(*getContext());
+  LLVM::LLVMPointerType::attachInterface<
+      PointerLikeModel<LLVM::LLVMPointerType>>(*getContext());
+  mlir::ModuleOp::attachInterface<mlir::omp::OffloadModuleDefaultModel>(
+      *getContext());
 }
 
 //===----------------------------------------------------------------------===//

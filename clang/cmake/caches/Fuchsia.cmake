@@ -1,10 +1,12 @@
 # This file sets up a CMakeCache for a Fuchsia toolchain build.
 
+option(FUCHSIA_ENABLE_LLDB "Enable LLDB")
+
 set(LLVM_TARGETS_TO_BUILD X86;ARM;AArch64;RISCV CACHE STRING "")
 
 set(PACKAGE_VENDOR Fuchsia CACHE STRING "")
 
-set(LLVM_ENABLE_PROJECTS "bolt;clang;clang-tools-extra;lld;llvm;polly" CACHE STRING "")
+set(_FUCHSIA_ENABLE_PROJECTS "bolt;clang;clang-tools-extra;lld;llvm;polly")
 
 set(LLVM_ENABLE_DIA_SDK OFF CACHE BOOL "")
 set(LLVM_ENABLE_LIBEDIT OFF CACHE BOOL "")
@@ -16,6 +18,9 @@ set(LLVM_ENABLE_Z3_SOLVER OFF CACHE BOOL "")
 set(LLVM_ENABLE_ZLIB OFF CACHE BOOL "")
 set(LLVM_INCLUDE_DOCS OFF CACHE BOOL "")
 set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "")
+set(LLVM_USE_RELATIVE_PATHS_IN_FILES ON CACHE BOOL "")
+set(LLDB_ENABLE_CURSES OFF CACHE BOOL "")
+set(LLDB_ENABLE_LIBEDIT OFF CACHE BOOL "")
 
 # Passthrough stage1 flags to stage1.
 set(_FUCHSIA_BOOTSTRAP_PASSTHROUGH
@@ -29,6 +34,9 @@ set(_FUCHSIA_BOOTSTRAP_PASSTHROUGH
   LLVM_ENABLE_CURL
   CURL_ROOT
   OpenSSL_ROOT
+  FUCHSIA_ENABLE_LLDB
+  LLDB_ENABLE_CURSES
+  LLDB_ENABLE_LIBEDIT
   CMAKE_FIND_PACKAGE_PREFER_CONFIG
   CMAKE_SYSROOT
   CMAKE_MODULE_LINKER_FLAGS
@@ -138,7 +146,7 @@ endif()
 set(BOOTSTRAP_LLVM_ENABLE_LLD ON CACHE BOOL "")
 set(BOOTSTRAP_LLVM_ENABLE_LTO ON CACHE BOOL "")
 
-set(CLANG_BOOTSTRAP_TARGETS
+set(_FUCHSIA_BOOTSTRAP_TARGETS
   check-all
   check-clang
   check-lld
@@ -150,11 +158,25 @@ set(CLANG_BOOTSTRAP_TARGETS
   llvm-test-depends
   test-suite
   test-depends
-  distribution
-  install-distribution
-  install-distribution-stripped
-  install-distribution-toolchain
-  clang CACHE STRING "")
+  toolchain-distribution
+  install-toolchain-distribution
+  install-toolchain-distribution-stripped
+  install-toolchain-distribution-toolchain
+  clang)
+
+if(FUCHSIA_ENABLE_LLDB)
+  list(APPEND _FUCHSIA_ENABLE_PROJECTS lldb)
+  list(APPEND _FUCHSIA_BOOTSTRAP_TARGETS
+    check-lldb
+    lldb-test-depends
+    debugger-distribution
+    install-debugger-distribution
+    install-debugger-distribution-stripped
+    install-debugger-distribution-toolchain)
+endif()
+
+set(LLVM_ENABLE_PROJECTS ${_FUCHSIA_ENABLE_PROJECTS} CACHE STRING "")
+set(CLANG_BOOTSTRAP_TARGETS ${_FUCHSIA_BOOTSTRAP_TARGETS} CACHE STRING "")
 
 get_cmake_property(variableNames VARIABLES)
 foreach(variableName ${variableNames})

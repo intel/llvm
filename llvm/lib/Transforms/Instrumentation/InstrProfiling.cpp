@@ -540,18 +540,19 @@ bool InstrProfiling::run(
   // the instrumented function. This is counting the number of instrumented
   // target value sites to enter it as field in the profile data variable.
   for (Function &F : M) {
-    InstrProfIncrementInst *FirstProfIncInst = nullptr;
+    InstrProfInstBase *FirstProfInst = nullptr;
     for (BasicBlock &BB : F)
       for (auto I = BB.begin(), E = BB.end(); I != E; I++)
         if (auto *Ind = dyn_cast<InstrProfValueProfileInst>(I))
           computeNumValueSiteCounts(Ind);
-        else if (FirstProfIncInst == nullptr)
-          FirstProfIncInst = dyn_cast<InstrProfIncrementInst>(I);
+        else if (FirstProfInst == nullptr &&
+                 (isa<InstrProfIncrementInst>(I) || isa<InstrProfCoverInst>(I)))
+          FirstProfInst = dyn_cast<InstrProfInstBase>(I);
 
     // Value profiling intrinsic lowering requires per-function profile data
     // variable to be created first.
-    if (FirstProfIncInst != nullptr)
-      static_cast<void>(getOrCreateRegionCounters(FirstProfIncInst));
+    if (FirstProfInst != nullptr)
+      static_cast<void>(getOrCreateRegionCounters(FirstProfInst));
   }
 
   for (Function &F : M)
@@ -1180,6 +1181,7 @@ void InstrProfiling::emitVNodes() {
       Constant::getNullValue(VNodesTy), getInstrProfVNodesVarName());
   VNodesVar->setSection(
       getInstrProfSectionName(IPSK_vnodes, TT.getObjectFormat()));
+  VNodesVar->setAlignment(M->getDataLayout().getABITypeAlign(VNodesTy));
   // VNodesVar is used by runtime but not referenced via relocation by other
   // sections. Conservatively make it linker retained.
   UsedVars.push_back(VNodesVar);

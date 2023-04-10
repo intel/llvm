@@ -52,12 +52,10 @@ int test() {
 int main() {
   int pltCount = 0, ret = 0;
   for (const auto &plt : platform::get_platforms()) {
-    if (!plt.has(aspect::host)) {
-      std::cout << "Platform #" << pltCount++ << ":" << std::endl;
-      if (plt.get_backend() == backend::ext_oneapi_level_zero) {
-        std::cout << "Backend: Level Zero" << std::endl;
-        ret += test();
-      }
+    std::cout << "Platform #" << pltCount++ << ":" << std::endl;
+    if (plt.get_backend() == backend::ext_oneapi_level_zero) {
+      std::cout << "Backend: Level Zero" << std::endl;
+      ret += test();
     }
     std::cout << std::endl;
   }

@@ -43,6 +43,10 @@ const int UR_EXT_DEVICE_INFO_FREE_MEMORY = UR_EXT_DEVICE_INFO_END - 13;
 // const int ZER_EXT_DEVICE_INFO_DEVICE_ID = UR_EXT_DEVICE_INFO_END - 14;
 // const int ZER_EXT_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE =
 //     UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE;
+const int UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES =
+    UR_EXT_DEVICE_INFO_END - 16;
+const int UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES =
+    UR_EXT_DEVICE_INFO_END - 17;
 
 const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
     (ur_device_info_t)0x103D;
@@ -55,10 +59,6 @@ const int UR_EXT_USM_CAPS_ACCESS = 1 << 0;
 const int UR_EXT_USM_CAPS_ATOMIC_ACCESS = 1 << 1;
 const int UR_EXT_USM_CAPS_CONCURRENT_ACCESS = 1 << 2;
 const int UR_EXT_USM_CAPS_CONCURRENT_ATOMIC_ACCESS = 1 << 3;
-
-const ur_device_partition_property_t
-    UR_EXT_DEVICE_PARTITION_PROPERTY_FLAG_BY_CSLICE =
-        ur_device_partition_property_t(UR_DEVICE_PARTITION_FORCE_UINT32 - 1);
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {

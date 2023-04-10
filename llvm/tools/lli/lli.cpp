@@ -871,7 +871,8 @@ int runOrcJIT(const char *ProgName) {
     auto ES = std::make_unique<orc::ExecutionSession>(
         ExitOnErr(orc::SelfExecutorProcessControl::Create()));
     Builder.setLazyCallthroughManager(
-        std::make_unique<orc::LazyCallThroughManager>(*ES, 0, nullptr));
+        std::make_unique<orc::LazyCallThroughManager>(*ES, orc::ExecutorAddr(),
+                                                      nullptr));
     Builder.setExecutionSession(std::move(ES));
   }
 
@@ -946,9 +947,22 @@ int runOrcJIT(const char *ProgName) {
   auto J = ExitOnErr(Builder.create());
 
   auto *ObjLayer = &J->getObjLinkingLayer();
-  if (auto *RTDyldObjLayer = dyn_cast<orc::RTDyldObjectLinkingLayer>(ObjLayer))
+  if (auto *RTDyldObjLayer = dyn_cast<orc::RTDyldObjectLinkingLayer>(ObjLayer)) {
     RTDyldObjLayer->registerJITEventListener(
         *JITEventListener::createGDBRegistrationListener());
+#if LLVM_USE_OPROFILE
+    RTDyldObjLayer->registerJITEventListener(
+        *JITEventListener::createOProfileJITEventListener());
+#endif
+#if LLVM_USE_INTEL_JITEVENTS
+    RTDyldObjLayer->registerJITEventListener(
+        *JITEventListener::createIntelJITEventListener());
+#endif
+#if LLVM_USE_PERF
+    RTDyldObjLayer->registerJITEventListener(
+        *JITEventListener::createPerfJITEventListener());
+#endif
+  }
 
   if (PerModuleLazy)
     J->setPartitionFunction(orc::CompileOnDemandLayer::compileWholeModule);
@@ -1057,8 +1071,7 @@ int runOrcJIT(const char *ProgName) {
       assert(EAIdx != 0 && "ExtraArchive should have index > 0");
       auto JDItr = std::prev(IdxToDylib.lower_bound(EAIdx));
       auto &JD = *JDItr->second;
-      JD.addGenerator(ExitOnErr(orc::StaticLibraryDefinitionGenerator::Load(
-          J->getObjLinkingLayer(), EAItr->c_str(), *TT)));
+      ExitOnErr(J->linkStaticLibraryInto(JD, EAItr->c_str()));
     }
   }
 

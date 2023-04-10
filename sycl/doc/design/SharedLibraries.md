@@ -607,4 +607,4 @@ same name as one of the explicitly linked libraries.
 ## Related links
 
 1. Test plan for this feature
-https://github.com/intel/llvm-test-suite/blob/intel/SYCL/TestPlans/DynamicLinkingTestPlan.md
+https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/TestPlans/DynamicLinkingTestPlan.md

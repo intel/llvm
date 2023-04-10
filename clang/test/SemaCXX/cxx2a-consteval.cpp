@@ -1029,3 +1029,39 @@ int f() {
    int x = A{};
 }
 }
+
+namespace GH57682 {
+void test() {
+  constexpr auto l1 = []() consteval { // expected-error {{cannot take address of consteval call operator of '(lambda at}} \
+                                       // expected-note  2{{declared here}}
+        return 3;
+  };
+  constexpr int (*f1)(void) = l1; // expected-error {{constexpr variable 'f1' must be initialized by a constant expression}} \
+                                  // expected-note  {{pointer to a consteval declaration is not a constant expression}}
+
+
+  constexpr auto lstatic = []() static consteval { // expected-error {{cannot take address of consteval call operator of '(lambda at}} \
+                                       // expected-note  2{{declared here}} \
+                                       // expected-warning {{extension}}
+        return 3;
+  };
+  constexpr int (*f2)(void) = lstatic; // expected-error {{constexpr variable 'f2' must be initialized by a constant expression}} \
+                                       // expected-note  {{pointer to a consteval declaration is not a constant expression}}
+
+}
+}
+
+namespace GH60286 {
+
+struct A {
+  int i = 0;
+
+  consteval A() {}
+  A(const A&) { i = 1; }
+  consteval int f() { return i; }
+};
+
+constexpr auto B = A{A{}}.f();
+static_assert(B == 0);
+
+}

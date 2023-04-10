@@ -736,7 +736,6 @@ bool LoopInterchangeLegality::findInductionAndReductions(
   if (!L->getLoopLatch() || !L->getLoopPredecessor())
     return false;
   for (PHINode &PHI : L->getHeader()->phis()) {
-    RecurrenceDescriptor RD;
     InductionDescriptor ID;
     if (InductionDescriptor::isInductionPHI(&PHI, L, SE, ID))
       Inductions.push_back(&PHI);
@@ -1105,8 +1104,7 @@ LoopInterchangeProfitability::isProfitablePerLoopCacheAnalysis(
   // This is the new cost model returned from loop cache analysis.
   // A smaller index means the loop should be placed an outer loop, and vice
   // versa.
-  if (CostMap.find(InnerLoop) != CostMap.end() &&
-      CostMap.find(OuterLoop) != CostMap.end()) {
+  if (CostMap.contains(InnerLoop) && CostMap.contains(OuterLoop)) {
     unsigned InnerIndex = 0, OuterIndex = 0;
     InnerIndex = CostMap.find(InnerLoop)->second;
     OuterIndex = CostMap.find(OuterLoop)->second;

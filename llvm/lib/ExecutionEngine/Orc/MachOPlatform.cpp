@@ -63,8 +63,7 @@ std::unique_ptr<jitlink::LinkGraph> createPlatformGraph(MachOPlatform &MOP,
                                                         std::string Name) {
   unsigned PointerSize;
   support::endianness Endianness;
-  const auto &TT =
-      MOP.getExecutionSession().getExecutorProcessControl().getTargetTriple();
+  const auto &TT = MOP.getExecutionSession().getTargetTriple();
 
   switch (TT.getArch()) {
   case Triple::aarch64:
@@ -258,13 +257,13 @@ MachOPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
                       std::unique_ptr<DefinitionGenerator> OrcRuntime,
                       std::optional<SymbolAliasMap> RuntimeAliases) {
 
-  auto &EPC = ES.getExecutorProcessControl();
-
   // If the target is not supported then bail out immediately.
-  if (!supportedTarget(EPC.getTargetTriple()))
+  if (!supportedTarget(ES.getTargetTriple()))
     return make_error<StringError>("Unsupported MachOPlatform triple: " +
-                                       EPC.getTargetTriple().str(),
+                                       ES.getTargetTriple().str(),
                                    inconvertibleErrorCode());
+
+  auto &EPC = ES.getExecutorProcessControl();
 
   // Create default aliases if the caller didn't supply any.
   if (!RuntimeAliases)
@@ -275,13 +274,13 @@ MachOPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
     return std::move(Err);
 
   // Add JIT-dispatch function support symbols.
-  if (auto Err = PlatformJD.define(absoluteSymbols(
-          {{ES.intern("___orc_rt_jit_dispatch"),
-            {EPC.getJITDispatchInfo().JITDispatchFunction.getValue(),
-             JITSymbolFlags::Exported}},
-           {ES.intern("___orc_rt_jit_dispatch_ctx"),
-            {EPC.getJITDispatchInfo().JITDispatchContext.getValue(),
-             JITSymbolFlags::Exported}}})))
+  if (auto Err = PlatformJD.define(
+          absoluteSymbols({{ES.intern("___orc_rt_jit_dispatch"),
+                            {EPC.getJITDispatchInfo().JITDispatchFunction,
+                             JITSymbolFlags::Exported}},
+                           {ES.intern("___orc_rt_jit_dispatch_ctx"),
+                            {EPC.getJITDispatchInfo().JITDispatchContext,
+                             JITSymbolFlags::Exported}}})))
     return std::move(Err);
 
   // Create the instance.
@@ -299,9 +298,8 @@ MachOPlatform::Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
                       std::optional<SymbolAliasMap> RuntimeAliases) {
 
   // Create a generator for the ORC runtime archive.
-  auto OrcRuntimeArchiveGenerator = StaticLibraryDefinitionGenerator::Load(
-      ObjLinkingLayer, OrcRuntimePath,
-      ES.getExecutorProcessControl().getTargetTriple());
+  auto OrcRuntimeArchiveGenerator =
+      StaticLibraryDefinitionGenerator::Load(ObjLinkingLayer, OrcRuntimePath);
   if (!OrcRuntimeArchiveGenerator)
     return OrcRuntimeArchiveGenerator.takeError();
 
@@ -638,10 +636,9 @@ void MachOPlatform::rt_pushInitializers(PushInitializersSendResultFn SendResult,
   });
 
   if (!JD) {
-    SendResult(
-        make_error<StringError>("No JITDylib with header addr " +
-                                    formatv("{0:x}", JDHeaderAddr.getValue()),
-                                inconvertibleErrorCode()));
+    SendResult(make_error<StringError>("No JITDylib with header addr " +
+                                           formatv("{0:x}", JDHeaderAddr),
+                                       inconvertibleErrorCode()));
     return;
   }
 
@@ -651,8 +648,7 @@ void MachOPlatform::rt_pushInitializers(PushInitializersSendResultFn SendResult,
 void MachOPlatform::rt_lookupSymbol(SendSymbolAddressFn SendResult,
                                     ExecutorAddr Handle, StringRef SymbolName) {
   LLVM_DEBUG({
-    dbgs() << "MachOPlatform::rt_lookupSymbol(\""
-           << formatv("{0:x}", Handle.getValue()) << "\")\n";
+    dbgs() << "MachOPlatform::rt_lookupSymbol(\"" << Handle << "\")\n";
   });
 
   JITDylib *JD = nullptr;
@@ -665,12 +661,9 @@ void MachOPlatform::rt_lookupSymbol(SendSymbolAddressFn SendResult,
   }
 
   if (!JD) {
-    LLVM_DEBUG({
-      dbgs() << "  No JITDylib for handle "
-             << formatv("{0:x}", Handle.getValue()) << "\n";
-    });
+    LLVM_DEBUG(dbgs() << "  No JITDylib for handle " << Handle << "\n");
     SendResult(make_error<StringError>("No JITDylib associated with handle " +
-                                           formatv("{0:x}", Handle.getValue()),
+                                           formatv("{0:x}", Handle),
                                        inconvertibleErrorCode()));
     return;
   }
@@ -683,7 +676,7 @@ void MachOPlatform::rt_lookupSymbol(SendSymbolAddressFn SendResult,
     void operator()(Expected<SymbolMap> Result) {
       if (Result) {
         assert(Result->size() == 1 && "Unexpected result map count");
-        SendResult(ExecutorAddr(Result->begin()->second.getAddress()));
+        SendResult(Result->begin()->second.getAddress());
       } else {
         SendResult(Result.takeError());
       }
@@ -1173,10 +1166,9 @@ Error MachOPlatform::MachOPlatformPlugin::registerObjectPlatformSections(
   // If any platform sections were found then add an allocation action to call
   // the registration function.
   StringRef PlatformSections[] = {
-      MachOModInitFuncSectionName,   MachOObjCClassListSectionName,
-      MachOObjCImageInfoSectionName, MachOObjCSelRefsSectionName,
-      MachOSwift5ProtoSectionName,   MachOSwift5ProtosSectionName,
-      MachOSwift5TypesSectionName,
+      MachOModInitFuncSectionName, MachOObjCClassListSectionName,
+      MachOObjCSelRefsSectionName, MachOSwift5ProtoSectionName,
+      MachOSwift5ProtosSectionName, MachOSwift5TypesSectionName,
   };
 
   for (auto &SecName : PlatformSections) {
