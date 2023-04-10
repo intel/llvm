@@ -280,8 +280,6 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                           "conjunction with SYCL_DEVICE_FILTER");
   } else if (!FilterList && !OdsTargetList) {
     PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
-                             backend::ext_oneapi_unified_runtime);
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                              backend::ext_oneapi_level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
@@ -328,10 +326,6 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     ods_target_list &list = *OdsTargetList;
     if (list.backendCompatible(backend::opencl)) {
       PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    }
-    if (list.backendCompatible(backend::ext_oneapi_unified_runtime)) {
-      PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
-                               backend::ext_oneapi_unified_runtime);
     }
     if (list.backendCompatible(backend::ext_oneapi_level_zero)) {
       PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
