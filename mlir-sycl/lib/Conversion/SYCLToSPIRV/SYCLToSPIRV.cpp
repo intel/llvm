@@ -182,32 +182,22 @@ public:
 
 template <unsigned Dimensions>
 static std::enable_if_t<(1 <= Dimensions && Dimensions < 4), int64_t>
-mirrorIndex(int64_t index);
+mirrorIndexCalc(int64_t index);
 
-template <> int64_t mirrorIndex<1>(int64_t index) {
-  assert(index == 0 && "Invalid index");
-  return 0;
+template <> int64_t mirrorIndexCalc<1>(int64_t index) { return 0; }
+
+template <> int64_t mirrorIndexCalc<2>(int64_t index) { return !index; }
+
+template <> int64_t mirrorIndexCalc<3>(int64_t index) { return 2 - index; }
+
+template <unsigned Dimensions>
+static std::enable_if_t<(1 <= Dimensions && Dimensions < 4), int64_t>
+mirrorIndex(int64_t index) {
+  assert(0 <= index && index < Dimensions && "Invalid index");
+  return mirrorIndexCalc<Dimensions>(index);
 }
 
-template <> int64_t mirrorIndex<2>(int64_t index) {
-  assert(index < 2 && "Invalid index");
-  return index == 0 ? 1 : 0;
-}
-
-template <> int64_t mirrorIndex<3>(int64_t index) {
-  switch (index) {
-  case 0:
-    return 2;
-  case 1:
-    return 1;
-  case 2:
-    return 0;
-  default:
-    llvm_unreachable("Invalid index");
-  }
-}
-
-static llvm::function_ref<int64_t(int64_t)> getMirrorer(unsigned dimensions) {
+static llvm::function_ref<int64_t(int64_t)> getMirror(unsigned dimensions) {
   switch (dimensions) {
   case 1:
     return mirrorIndex<1>;
@@ -246,7 +236,7 @@ void rewriteNDNoIndex(Operation *op, spirv::BuiltIn builtin,
   const auto argumentTypes =
       rewriter.getTypeArrayAttr({MemRefType::get(1, resTy), getIndexTy});
   const auto functionName = rewriter.getAttr<FlatSymbolRefAttr>("operator[]");
-  auto mirrorer = getMirrorer(dimensions);
+  auto mirrorer = getMirror(dimensions);
   // Initialize
   for (int64_t i = 0; i < dimensions; ++i) {
     const Value index =
