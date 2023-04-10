@@ -2599,6 +2599,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
     ur_context_handle_t hContext,     ///< [in] handle of the context object
+    ur_program_handle_t
+        hProgram, ///< [in] handle of the program associated with the kernel
+    const ur_kernel_native_properties_t
+        *pProperties, ///< [in] pointer to properties struct
     ur_kernel_handle_t
         *phKernel ///< [out] pointer to the handle of the kernel object created.
 ) {
@@ -2618,13 +2622,21 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pProperties) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (NULL == phKernel) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
-    ur_result_t result =
-        pfnCreateWithNativeHandle(hNativeKernel, hContext, phKernel);
+    ur_result_t result = pfnCreateWithNativeHandle(
+        hNativeKernel, hContext, hProgram, pProperties, phKernel);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
         refCountContext.createRefCount(*phKernel);

@@ -458,6 +458,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelGetNativeHandle_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnKernelCreateWithNativeHandle_t)(
     ur_native_handle_t,
     ur_context_handle_t,
+    ur_program_handle_t,
+    const ur_kernel_native_properties_t *,
     ur_kernel_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
