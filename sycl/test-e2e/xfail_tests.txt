@@ -80,6 +80,8 @@ Basic/bit_cast/bit_cast.cpp
 Basic/boolean.cpp
 Basic/buffer/buffer.cpp
 Basic/built-ins.cpp
+Basic/built-ins/marray_common.cpp
+Basic/built-ins/marray_math.cpp
 Basic/device_event.cpp
 Basic/device_implicitly_copyable.cpp
 Basic/diagnostics/non-uniform-wk-gp-test.cpp
