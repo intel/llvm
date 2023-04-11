@@ -587,6 +587,7 @@ The tables below provide a list of the parameter combinations that
 ==== Nvidia Tensor Cores Supported Combinations
 
 The complete set of matrix data types and shapes that are supported by the `ext_oneapi_cuda` backend are represented in the following table. Tm indicates the matrix element data type held by a "multiplicand" `joint_matrix`: i.e requiring `use::a` or `use::b`. Tc indicates the matrix element data type held by an "accumulator" `joint_matrix`: i.e requiring `use::accumulator`.
+
 IMPORTANT: When compiling for the `ext_oneapi_cuda` backend the target arch backend flag, `-Xsycl-target-backend --cuda-gpu-arch=sm_xx`, must be used, where `sm_xx` must be a Compute Capability that is equal to or greater than the appropriate Minimum Compute Capability. When an executable has been compiled for `sm_xx`, if the executable is run on a device with compute capability less than `sm_xx` then an error will be thrown. The mapping to Minimum Compute Capability from each supported parameter combination is specified in the following table.
 
 --
